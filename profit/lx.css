@@ -1031,3 +1031,30 @@ html.lx-irail[data-ui="v2"] body:not(.nav-open) .rail-min{margin:0}
 #v2panel .brk-t table{table-layout:fixed}
 #v2panel .brk-t th,#v2panel .brk-t td{padding:7px 5px;font-size:12px;overflow:hidden;text-overflow:ellipsis}
 #v2panel .brk-t th:first-child,#v2panel .brk-t td:first-child{width:30%}
+
+/* ==========================================================================
+   AD SHEET, round eight (2026-10-21, Cole: Dates and Credit at the top, days live, the funnel table, the orders pop-up,
+   no blank space at the end).
+   ========================================================================== */
+#v2panel .ph .pacts .hd-period{position:relative}
+#v2panel .ph .pacts .hd-per-btn{height:30px;padding:0 10px;font-size:12.5px;gap:6px}
+#v2panel .ph .pacts .hd-per-l{color:var(--muted);font-weight:500}
+#v2panel .ph .pacts .hd-per-menu{right:0;left:auto;min-width:240px}
+#v2panel .pb.adt-busy{opacity:.45;pointer-events:none;transition:opacity .15s}
+/* the funnel: padded rows, one-line headers */
+#v2panel .adf-r{grid-template-columns:minmax(0,1fr) 84px 84px 104px!important;padding:10px 12px!important;border-radius:8px}
+#v2panel .adf-hd{padding:0 12px 6px!important}
+#v2panel .adf-hd span{white-space:nowrap}
+#v2panel .adf-hd span[data-v2tip]{text-decoration:none;cursor:help}
+#v2panel .adf-l small{display:block}
+@media (max-width:600px){#v2panel .adf-r{grid-template-columns:minmax(0,1fr) auto auto!important}}
+/* the orders behind an ad */
+#v2panel .od{display:flex;flex-direction:column;gap:12px}
+#v2panel .od-cap{margin:0;font-size:12.5px;color:var(--muted)}
+#v2panel .od-t table{width:100%;font-size:13px}
+#v2panel .od-t th,#v2panel .od-t td{padding:9px 10px;text-align:left}
+#v2panel .od-t th:nth-child(2),#v2panel .od-t td:nth-child(2){text-align:right}
+#v2panel .od-t th:nth-child(3),#v2panel .od-t td:nth-child(3){text-align:right}
+#v2panel .od-t tr.link{cursor:pointer}
+#v2panel .od-t tr.link:hover td{background:var(--surface-2)}
+#v2panel .od .adt-stat{grid-template-columns:repeat(3,minmax(0,1fr))}

@@ -4438,3 +4438,10 @@ Cole: "Studio looks like absolute shit. I still don't understand how things get 
 - socialweek.js `mediaOf(it)`: adding it (drag, click, From the tray, Fill the week, Swap) puts ALL its cards in the post,
   in order. Posting already handled several pictures: Instagram = one carousel, Facebook = one multi-photo post, TikTok =
   one photo post. Test: `node test-socialpost.mjs` 8 (tray order, no loose cards, one IG CAROUSEL container).
+
+## Ad sheet, round eight (2026-10-21)
+- Header: "N days live" chip (from first spend, date on hover); Dates and Credit pills in the sheet header (`window.cardPeriod`, `setPeriod`, `setModel` in index.html). They change the whole page; the sheet dims (`.adt-busy`) and reopens on the same ad via `V2PENDING`. The "these dates..." line is gone.
+- No spacer under the last section (the `v2spy-end` blank space); `panel.refit` is a no-op.
+- Purchases number opens the orders as a sheet with "Back to the ad" (`drillOrders(label, q, back)`), customer view backs to the orders.
+- Funnel: padded rows, one-line headers (This ad / Median / vs median). Trend switch is 7 / 14 / 30 days, default 14, and says it ignores the top dates.
+- Testing in a srcdoc iframe on tools.go-mobius-digital.com writes Cole's real localStorage (pf_model, pf_range): reset them after.

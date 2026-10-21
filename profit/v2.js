@@ -528,7 +528,7 @@
     p.classList.toggle('sheet', !!sh); if (!sh) p.classList.remove('full');
     p.querySelector('.ph b').textContent = title;
     p.querySelector('.plead').innerHTML = (sh && sh.lead) || ''; p.querySelector('.pchip').innerHTML = (sh && sh.chip) || ''; p.querySelector('.pacts').innerHTML = (sh && sh.actions) || '';
-    const pb = p.querySelector('.pb'); pb.innerHTML = html; pb.scrollTop = 0;
+    const pb = p.querySelector('.pb'); pb.classList.remove('adt-busy'); pb.innerHTML = html; pb.scrollTop = 0;
     const nav = p.querySelector('.snav'), secs = sh ? [...pb.querySelectorAll('[data-sec]')] : [];
     nav.innerHTML = secs.length > 1 ? `<span class="ds-label">${esc(sh.navLabel || 'On this page')}</span>` + secs.map((x, i) => `<button type="button" data-sec-i="${i}" class="${i ? '' : 'on'}">${x.dataset.ic ? ic(x.dataset.ic) : ''}<span>${esc(x.dataset.sec)}</span></button>`).join('') : '';
     nav.hidden = secs.length < 2;
@@ -540,10 +540,9 @@
     const topOf = x => x.getBoundingClientRect().top - pb.getBoundingClientRect().top + pb.scrollTop;
     let hold = 0, raf = 0;
     if (secs.length > 1) {
-      const end = document.createElement('div'); end.className = 'v2spy-end'; end.setAttribute('aria-hidden', 'true'); pb.appendChild(end);
-      const fit = () => { if (!end.isConnected) return; const last = secs[secs.length - 1]; end.style.height = '0px'; end.style.height = Math.max(0, pb.clientHeight - (pb.scrollHeight - topOf(last)) - 12) + 'px'; };
-      requestAnimationFrame(fit); setTimeout(fit, 700);   // again once covers and the copy have landed
-      panel.refit = fit;
+      /* no spacer under the last section any more (2026-10-21, Cole: "I can scroll way past Make iterations, blank space");
+         the last section lights up once the scroller reaches its end. */
+      panel.refit = () => {};
     } else panel.refit = () => {};
     nav.onclick = e => { const b = e.target.closest('[data-sec-i]'); if (!b) return; const i = +b.dataset.secI, t = secs[i]; mark(i); hold = Date.now() + 900; pb.scrollTo({ top: Math.max(0, topOf(t) - 12), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); };
     pb.onscroll = secs.length > 1 ? () => { if (raf) return; raf = requestAnimationFrame(() => { raf = 0; if (Date.now() < hold) return;
@@ -553,19 +552,31 @@
     p.classList.add('on'); document.getElementById('v2scrim').classList.add('on');
     return pb;
   }
-  async function drillOrders(label, q) {
+  async function drillOrders(label, q, back) {
+    /* from the ad sheet (round eight, Cole: "the pop-up does not look good"): the orders open as a sheet with a way back */
+    if (back) panel.sheet = { lead: '', chip: '<span class="ds-chip">Orders</span>', actions: '<button type="button" class="ds-btn od-back">‹ Back to the ad</button>' };
     const body = panel(label, '<p class="v2hint">Reading the orders…</p>');
+    const bb = document.querySelector('#v2panel .od-back'); if (bb && back) bb.onclick = back;
     try {
       const d = await get(`/api/hub/orders?act=${encodeURIComponent(H.S.act)}&${H.rangeQ()}${modelQ()}&${q}`);
       const cur = (H.S.accounts.find(a => a.act_id === H.S.act) || {}).currency;
+      if (back) {
+        body.innerHTML = `<div class="od"><div class="v2pstat adt-stat"><div><span>Orders</span><b>${int(d.orders.length)}</b><small>${esc(H.rangeLabel ? H.rangeLabel() : '')}</small></div><div><span>Order value</span><b>${kmoney(d.total, cur)}</b><small>${d.orders.length ? `${money(d.total / d.orders.length, cur)} average` : ''}</small></div><div><span>First orders</span><b>${int(d.new_customers)}</b><small>${d.orders.length ? `${pct(d.new_customers / d.orders.length, 0)} new customers` : ''}</small></div></div>
+          <p class="od-cap">${esc(d.note || `${MODEL_SHORT[d.model_used] || ''}. Tap an order to see everything that customer bought.`)}</p>
+          <div class="v2tbl lx-norow od-t"><table><thead><tr><th>Date</th><th>Order</th><th>Customer</th></tr></thead><tbody>${d.orders.map(o => `<tr class="${o.customer_id ? 'link' : ''}" data-cust="${esc(o.customer_id || '')}"><td>${esc(day(o.date))}</td><td>${money(o.total, cur)}</td><td>${o.new ? '<span class="v2pill good">First order</span>' : o.new === false ? '<span class="v2pill">Returning</span>' : '–'}</td></tr>`).join('')}</tbody></table></div></div>`;
+        body.querySelectorAll('tr[data-cust]').forEach(tr => tr.onclick = () => tr.dataset.cust && drillCustomer(tr.dataset.cust, cur, () => drillOrders(label, q, back)));
+        return;
+      }
       body.innerHTML = `<div class="v2pstat"><div><b>${int(d.orders.length)}</b><span>orders</span></div><div><b>${kmoney(d.total, cur)}</b><span>order value</span></div><div><b>${int(d.new_customers)}</b><span>first orders</span></div></div>
         ${d.note ? `<p class="v2hint">${esc(d.note)}</p>` : `<p class="v2hint">${esc(MODEL_SHORT[d.model_used] || '')}. Click a customer to see everything they bought.</p>`}
         <div class="v2olist">${d.orders.map(o => `<button type="button" class="v2orow" data-cust="${esc(o.customer_id || '')}"><span><b>${money(o.total, cur)}</b> · ${day(o.date)}${o.new ? ' <span class="v2pill good">first order</span>' : o.new === false ? ' <span class="v2pill">returning</span>' : ''}</span><span class="v2ad">${esc((o.ads || []).slice(0, 2).join(' · '))}</span></button>`).join('') || '<p class="v2hint">No orders are stored for this cell yet. Order lists are kept from the last 60 days.</p>'}</div>`;
       body.querySelectorAll('[data-cust]').forEach(b => b.onclick = () => b.dataset.cust && drillCustomer(b.dataset.cust, cur));
     } catch (e) { body.innerHTML = `<p class="v2bad">${esc(e.message)}</p>`; }
   }
-  async function drillCustomer(id, cur) {
+  async function drillCustomer(id, cur, back) {
+    if (back) panel.sheet = { lead: '', chip: '<span class="ds-chip">Customer</span>', actions: '<button type="button" class="ds-btn od-back">‹ Back to the orders</button>' };
     const body = panel('One customer', '<p class="v2hint">Reading their orders…</p>');
+    const bb = document.querySelector('#v2panel .od-back'); if (bb && back) bb.onclick = back;
     try {
       const d = await get(`/api/hub/customer?act=${encodeURIComponent(H.S.act)}&customer=${encodeURIComponent(id)}`);
       body.innerHTML = `<div class="v2pstat"><div><b>${int(d.orders.length)}</b><span>orders</span></div><div><b>${money(d.lifetime, cur)}</b><span>spent so far</span></div></div>
@@ -607,8 +618,8 @@
     if (!med) return '';
     /* plain words (round six, Cole: "plainly state what it is"): each step is this ad against the typical (median) ad in the
        account in the same dates, as "% better" or "% worse"; the biggest gap is named only when it is 10%+ worse. */
-    const steps = [['hook', 'Hook rate', 'share of views that watch 3 seconds', a.hook, false], ['hold', 'Hold rate', 'share of viewers who keep watching', a.hold, false],
-      ['cpm', 'CPM', 'cost per 1,000 views (lower is better)', a.cpm, true], ['ctr', 'CTR', 'clicks per view', a.ctr, false], ['cvr', 'Conversion rate', 'purchases per click', cvrOf(a), false]]
+    const steps = [['hook', 'Hook rate', 'watch 3 seconds', a.hook, false], ['hold', 'Hold rate', 'keep watching', a.hold, false],
+      ['cpm', 'CPM', 'cost per 1,000 views', a.cpm, true], ['ctr', 'CTR', 'clicks per view', a.ctr, false], ['cvr', 'Conversion rate', 'purchases per click', cvrOf(a), false]]
       .filter(([k, , , v]) => v != null && med[k]);
     if (steps.length < 2) return '';
     const fmt = (k, v) => k === 'cpm' ? money2(v, cur) : k === 'ctr' || k === 'cvr' ? pct(v, 2) : pct(v, 0);
@@ -616,7 +627,7 @@
     const word = x => { const dd = Math.round((x.r - 1) * 100); return Math.abs(dd) < 3 ? ['same', 'about the same'] : dd > 0 ? ['good', `${dd}% better`] : ['bad', `${-dd}% worse`]; };
     const low = scored.slice().sort((p, q) => p.r - q.r)[0];
     const weak = low && low.r < 0.9 ? low : null;
-    return `<div class="adf"><div class="adf-r adf-hd"><span></span><span>This ad</span><span${tipAttr('The median ad in this account for the same dates: half the ads did better, half worse.')}>Account median</span><span>vs median</span></div>${scored.map(x => { const w = word(x); return `<div class="adf-r${x === weak ? ' weak' : ''}"><span class="adf-l"><b>${x.l}</b><small>${x.d}</small></span><span class="adf-v">${fmt(x.k, x.v)}</span><span class="adf-m">${fmt(x.k, med[x.k])}</span><span class="adf-w ${w[0]}">${w[1]}</span></div>`; }).join('')}</div>
+    return `<div class="adf"><div class="adf-r adf-hd"><span></span><span>This ad</span><span${tipAttr('The median ad in this account for the same dates: half the ads did better, half worse.')}>Median</span><span>vs median</span></div>${scored.map(x => { const w = word(x); return `<div class="adf-r${x === weak ? ' weak' : ''}"><span class="adf-l"><b>${x.l}</b><small>${x.d}</small></span><span class="adf-v">${fmt(x.k, x.v)}</span><span class="adf-m">${fmt(x.k, med[x.k])}</span><span class="adf-w ${w[0]}">${w[1]}</span></div>`; }).join('')}</div>
       ${weak ? `<div class="adf-fix"><b>Biggest gap: ${esc(weak.l)}, ${Math.round((1 - weak.r) * 100)}% worse than the account median.</b> ${esc(FIX[weak.k] || '')}</div>` : `<div class="adf-fix ok"><b>Nothing is more than 10% worse than the account median.</b></div>`}`;
   }
   /* ONE AD OVER TIME (round six, 2026-10-21, Cole: "what if it was good last week and suddenly went bad; when did it start?").
@@ -630,8 +641,8 @@
     if (all.length < 2) { box.innerHTML = '<p class="v2hint">Not enough days of spend to show a trend yet.</p>'; return; }
     const sum = rows => { const o = rows.reduce((t, r) => { t.spend += r.spend || 0; t.imp += r.impressions || 0; t.reach += r.reach || 0; t.clk += r.clicks || 0; t.pur += r.purchases || 0; t.rev += r.revenue || 0; return t; }, { spend: 0, imp: 0, reach: 0, clk: 0, pur: 0, rev: 0 });
       return { spend: o.spend, purchases: o.pur, cpa: o.pur ? o.spend / o.pur : null, roas: o.spend ? o.rev / o.spend : null, ctr: o.imp ? o.clk / o.imp : null, cpm: o.imp ? o.spend * 1000 / o.imp : null, freq: o.reach ? o.imp / o.reach : null }; };
-    const P = [['1', 'Yesterday'], ['3', '3 days'], ['7', '7 days'], ['14', '14 days'], ['30', '30 days']];
-    let n = 7; try { n = +(localStorage.getItem('ad_trend_n') || 7) || 7; } catch {}
+    const P = [['7', '7 days'], ['14', '14 days'], ['30', '30 days']];
+    let n = 14; try { n = +(localStorage.getItem('ad_trend_w') || 14) || 14; } catch {}
     const M = [['spend', 'Spend', v => kmoney(v, cur), 'n'], ['purchases', 'Purchases', int, false], ['cpa', 'CPA', v => money(v, cur), true], ['roas', 'ROAS', x2, false], ['ctr', 'CTR', v => pct(v, 2), false], ['cpm', 'CPM', v => money2(v, cur), true], ['freq', 'Frequency, daily avg', v => v == null ? '–' : v.toFixed(2), 'n']];
     const draw = () => {
       const last = all.slice(-n), prev = all.slice(-2 * n, -n), c = sum(last), p = prev.length === n ? sum(prev) : null;
@@ -641,13 +652,13 @@
       const spk = (k, l, f) => { const v = span.map(r => k === 'freq' ? r.frequency : r[k]); return `<div class="adtr-s"><span>${l}</span>${window.LxKit && LxKit.spark ? LxKit.spark(v, { fmt: f, tips: span.map(r => `<b>${day(r.date)}</b> · ${l} ${(k === 'freq' ? r.frequency : r[k]) == null ? '–' : f(k === 'freq' ? r.frequency : r[k])}`) }) : ''}</div>`; };
       const weeks = []; for (let e = all.length; e > 0 && weeks.length < 6; e -= 7) { const blk = all.slice(Math.max(0, e - 7), e); if (blk.length < 3) break; weeks.push({ from: blk[0].date, to: blk[blk.length - 1].date, ...sum(blk) }); }
       box.innerHTML = `<div class="adtr-h"><b>How it is trending</b><div class="ingr-seg adtr-seg">${P.map(([v, l]) => `<button type="button" data-n="${v}" aria-selected="${+v === n}">${l}</button>`).join('')}</div></div>
-        <p class="adtr-cap">Last ${n === 1 ? 'day' : `${n} days`} with data (${esc(day(last[0].date))}${n > 1 ? ` to ${esc(day(last[last.length - 1].date))}` : ''}), against the ${n === 1 ? 'day' : `${n} days`} before.${pend ? ' Triple Whale has not credited the most recent day yet, so purchases there may rise.' : ''}</p>
+        <p class="adtr-cap">The ad's latest ${n} days (${esc(day(last[0].date))} to ${esc(day(last[last.length - 1].date))}) against the ${n} days before. Pick 7, 14 or 30; this part ignores the dates at the top.${pend ? ' Triple Whale has not credited the most recent day yet, so purchases there may rise.' : ''}</p>
         <div class="adtr-grid">${cells}</div>
         <h4 class="adtr-t">Day by day: this period and the one before (${span.length} days)</h4>
         <div class="adtr-sp">${spk('spend', 'Spend', v => kmoney(v, cur))}${spk('purchases', 'Purchases', int)}${spk('cpa', 'CPA', v => money(v, cur))}${spk('ctr', 'CTR', v => pct(v, 2))}${spk('cpm', 'CPM', v => money2(v, cur))}${spk('freq', 'Frequency, daily', v => v == null ? '–' : v.toFixed(2))}</div>
         <h4 class="adtr-t">Week by week</h4>
         <div class="v2tbl lx-norow adtr-w"><table><thead><tr><th>Week</th><th>Spend</th><th${tipAttr('Purchases')}>Purch.</th><th>CPA</th><th>ROAS</th><th>CTR</th><th>CPM</th><th${tipAttr('Frequency, daily average')}>Freq.</th></tr></thead><tbody>${weeks.map(w => `<tr><td>${esc(day(w.from))}<small>to ${esc(day(w.to))}</small></td><td>${kmoney(w.spend, cur)}</td><td>${int(w.purchases)}</td><td>${money(w.cpa, cur)}</td><td>${x2(w.roas)}</td><td>${pct(w.ctr, 2)}</td><td>${money(w.cpm, cur)}</td><td>${w.freq == null ? '–' : w.freq.toFixed(2)}</td></tr>`).join('')}</tbody></table></div>`;
-      box.querySelectorAll('[data-n]').forEach(b => b.onclick = () => { n = +b.dataset.n; try { localStorage.setItem('ad_trend_n', String(n)); } catch {} draw(); if (panel.refit) panel.refit(); });
+      box.querySelectorAll('[data-n]').forEach(b => b.onclick = () => { n = +b.dataset.n; try { localStorage.setItem('ad_trend_w', String(n)); } catch {} draw(); if (panel.refit) panel.refit(); });
     };
     draw(); if (panel.refit) panel.refit();
   }
@@ -730,19 +741,20 @@
     const callLine = cx && cx.call ? `<div class="v2call"><span class="v2pill ${cx.call[1]}">${esc(cx.call[0])}</span>${cx.fr ? `<span class="v2pill"${tipAttr(esc(cx.fr[1]))}>${esc(cx.fr[0])}</span>` : ''}${cx.why ? `<p>${esc(cx.why)}</p>` : ''}</div>` : '';
     /* A full sheet (DESIGN.md): cover and Play on the left, the sections on the right, a sub-nav to jump. */
     const ICN = (n, s = 16) => window.icon ? window.icon(n, { size: s }) : '';
+    const live = a.first_spend ? Math.max(1, Math.round((Date.now() - new Date(a.first_spend + 'T12:00:00Z')) / 86400e3)) : null;
     panel.sheet = { navLabel: 'This ad',
       lead: `<span class="plead-th" data-thumb="${esc(a.id)}"${THUMBS.has(a.id) ? ` style="background-image:url('${THUMBS.get(a.id)}')"` : ''}></span>`,
-      chip: `${cx && cx.call ? `<span class="ds-chip ${cx.call[1]}">${esc(cx.call[0])}</span>` : ''}<span class="ds-chip">${ICN(a.media_type === 'video' ? 'play-circle' : 'image', 14)}${a.media_type === 'video' ? 'Video' : a.media_type === 'carousel' ? 'Carousel' : 'Static'}</span>${a.first_spend ? `<span class="ds-chip"${tipAttr(`First spend ${day(a.first_spend)}. The numbers below cover the dates picked at the top of the page.`)}>${ICN('clock', 14)}Live since ${esc(day(a.first_spend))}</span>` : ''}` };
+      chip: `${cx && cx.call ? `<span class="ds-chip ${cx.call[1]}">${esc(cx.call[0])}</span>` : ''}<span class="ds-chip">${ICN(a.media_type === 'video' ? 'play-circle' : 'image', 14)}${a.media_type === 'video' ? 'Video' : a.media_type === 'carousel' ? 'Carousel' : 'Static'}</span>${live != null ? `<span class="ds-chip"${tipAttr(`First spend ${day(a.first_spend)}`)}>${ICN('clock', 14)}${live} day${live === 1 ? '' : 's'} live</span>` : ''}`,
+      actions: `${window.cardPeriod ? window.cardPeriod() : ''}${window.cardModel ? window.cardModel() : ''}` };
     const body = panel(a.name || 'Ad', `<div class="v2pv sheet-2"><div class="v2pv-media"><div class="v2pv-m" data-thumb="${esc(a.id)}"${THUMBS.has(a.id) ? ` style="background-image:url('${THUMBS.get(a.id)}')"` : ''}><button type="button" class="v2play" aria-label="Play">${ICN('play', 14)} Play</button></div></div>
       <div class="v2pv-main"><div data-sec="Results" data-ic="chart-column" class="v2pstat adt-stat"><div><span>Spend</span><b>${kmoney(a.spend, cur)}</b><small>${esc(H.rangeLabel ? H.rangeLabel() : '')}</small></div><div><span>CPA</span><b class="${!g.cpa || a.cpa == null ? '' : a.cpa <= g.cpa ? 'good' : 'bad'}">${money(a.cpa, cur)}</b><small>${g.cpa ? `goal ${money(g.cpa, cur)}` : 'no goal set'}</small></div><div><span>ROAS</span><b>${x2(a.roas)}</b><small>${kmoney(a.revenue, cur)} revenue</small></div><div><span>Purchases</span><b><button type="button" class="v2cell" data-orders="2">${int(a.purchases)}</button></b><small>${esc(MODEL_SHORT[H.S.model] || '')}</small></div></div>
-      <div class="adt-when">${esc(H.rangeLabel ? H.rangeLabel() : 'These dates')}, the period picked at the top of the page. Purchases, CPA and ROAS are ${esc(MODEL_SHORT[H.S.model] || 'credited by Triple Whale')}.${a.first_spend ? ` First spend ${esc(day(a.first_spend))}.` : ''} ${window.cardModel ? `<span class="adt-model">${window.cardModel()}</span>` : ''}</div>
       <div data-sec="Trend" data-ic="chart-column" class="adtr" id="adtr"><p class="v2hint">Loading this ad day by day…</p></div>
       ${callLine || setCard ? `<div data-sec="The call" data-ic="target" class="v2pv-sec">${callLine}${setCard}</div>` : ''}
       ${sibTable ? `<div data-sec="Its ad set" data-ic="layout-grid" class="v2pv-sec">${sibTable}</div>` : ''}
       <div data-sec="Funnel" data-ic="activity" class="v2pv-sec">${gradeHtml(a, MED, cur)}</div>
       ${a.n_ads > 1 ? `<p class="v2hint">The same ${a.media_type === 'video' ? 'video' : 'image'} runs in <b>${a.n_ads} ads</b>; the numbers above are all of them added up. Play, the breakdown and the Studio button use the one that spent most.</p>` : ''}
       <div class="adt-sec" data-sec="Landing page" data-ic="globe"><h4>Landing page</h4><div class="v2lp" id="v2lp"><span class="v2lp-v faint">Reading the ad's link…</span></div></div>
-      <div class="adt-sec" data-sec="Delivery" data-ic="activity"><h4>Delivery</h4><div class="v2kv">${a.hook != null ? `<span>Hook rate</span><b>${pct(a.hook, 0)}</b><span>Hold rate</span><b>${pct(a.hold, 0)}</b>` : ''}<span>CTR</span><b>${pct(a.ctr, 2)}</b><span>CPM</span><b>${money2(a.cpm, cur)}</b>${a.frequency ? `<span>Frequency</span><b>${a.frequency.toFixed(2)}</b>` : ''}${a.first_spend ? `<span>Live since</span><b>${esc(day(a.first_spend))}${a.age != null ? ` (${a.age} days)` : ''}</b>` : ''}${a.angle ? `<span>Angle</span><b>${esc(a.angle)}</b>` : ''}${a.ltv_n >= 5 ? `<span>90-day value</span><b>${money(a.ltv90, cur)} · ${x2(a.ltv_x)} first order · ${int(a.ltv_n)} customers</b>` : ''}</div></div>
+      <div class="adt-sec" data-sec="Delivery" data-ic="activity"><h4>Delivery</h4><div class="v2kv">${a.hook != null ? `<span>Hook rate</span><b>${pct(a.hook, 0)}</b><span>Hold rate</span><b>${pct(a.hold, 0)}</b>` : ''}<span>CTR</span><b>${pct(a.ctr, 2)}</b><span>CPM</span><b>${money2(a.cpm, cur)}</b>${a.frequency ? `<span>Frequency</span><b>${a.frequency.toFixed(2)}</b>` : ''}${a.first_spend ? `<span>Live since</span><b>${esc(day(a.first_spend))} (${live} days)</b>` : ''}${a.angle ? `<span>Angle</span><b>${esc(a.angle)}</b>` : ''}${a.ltv_n >= 5 ? `<span>90-day value</span><b>${money(a.ltv90, cur)} · ${x2(a.ltv_x)} first order · ${int(a.ltv_n)} customers</b>` : ''}</div></div>
       ${a.tags ? `<div class="adt-sec adt-cr" data-sec="Creative" data-ic="image"><h4>The creative, as the AI reads it</h4><dl class="adt-tags">${TAG_DIMS.map(([k, l]) => a.tags[k] ? `<div><dt>${esc(l)}</dt><dd>${esc(a.tags[k])}</dd></div>` : '').join('')}${a.tags.message ? `<div><dt>Message</dt><dd>“${esc(a.tags.message)}”</dd></div>` : ''}</dl>${a.tags.notes ? `<p class="adt-notes">${esc(a.tags.notes)}</p>` : ''}</div>` : ''}
       ${a.curve && a.curve[0] ? `<div data-sec="Watch time" data-ic="play-circle">${curveHtml(a.curve, CR_MEDC)}</div>` : ''}
       <div class="v2brk" id="v2brk" data-sec="Where it ran" data-ic="globe"><button type="button" class="v2link" data-brk="1">Where it ran and who saw it ›</button></div>
@@ -752,15 +764,17 @@
     if (window.LocusShare) window.LocusShare.setExtra({ ad: a.id });   // the open ad is part of the address (share.js)
     body.querySelector('[data-more]').onclick = () => { const brand = (H.S.accounts.find(z => z.act_id === H.S.act) || {}).name || 'this brand'; H.AskUI.ask(`For ${brand}: draft an Asana brief for three iterations of the ad "${a.name}" (ad id ${a.id}). It spent ${kmoney(a.spend, cur)} at ${money(a.cpa, cur)} per purchase${g.cpa ? ` against a ${money(g.cpa, cur)} goal` : ''}, hook ${pct(a.hook, 0)}, hold ${pct(a.hold, 0)}. Keep what works, change one thing per iteration, and say which test it is.`); };
     loadThumbs(body, [a.id]).then(() => { const y = ASSETS.get(a.id) || {}; const lt = document.querySelector('#v2panel .plead-th'); if (lt && THUMBS.has(a.id)) lt.style.backgroundImage = `url('${THUMBS.get(a.id)}')`; const cp = body.querySelector('.v2copy'); if (cp && cp.querySelector('.v2hint')) cp.innerHTML = y.headline || y.body ? `${y.headline ? `<span class="cp-k">Headline</span><b>${esc(y.headline)}</b>` : ''}${y.body ? `<span class="cp-k">Primary text</span><p>${esc(y.body)}</p>` : ''}` : '<p class="v2hint">Meta gave no copy for this ad.</p>'; if (panel.refit) panel.refit(); });
-    body.querySelectorAll('[data-orders]').forEach(b => b.onclick = () => drillOrders(a.name, `ad=${encodeURIComponent(a.id)}`));
+    body.querySelectorAll('[data-orders]').forEach(b => b.onclick = () => drillOrders(a.name, `ad=${encodeURIComponent(a.id)}`, () => previewAd(a, cur, goals, cx)));
     const allb = body.querySelector('.adt-all'); if (allb) allb.onclick = () => { body.querySelectorAll('tr.adt-x').forEach(t => t.hidden = false); allb.remove(); if (panel.refit) panel.refit(); };
     body.querySelectorAll('tr[data-sib]').forEach(tr => { if (tr.classList.contains('me')) return; tr.onclick = () => { const o = (cx.sibs || []).find(z => z.id === tr.dataset.sib); if (o && cx.open) cx.open(o); }; });
     if (sibs.length > 1) loadThumbs(body, sibs.map(o => o.id).filter(id => id !== a.id));
     landingLine(a, body);
     adTrend(a, cur, body);
-    /* change the credit model from inside the sheet: the page reloads under the new model and reopens this ad */
-    const mb = body.querySelector('.adt-model .lx-cmodel');
-    if (mb && window.PillMenu) { mb.dataset.w = '1'; window.PillMenu.wire(mb, v => { H.S.model = v; try { localStorage.setItem('pf_model', v); } catch {} window.V2PENDING = { ad: a.id }; if (panel.close) panel.close(); H.show(H.S.tab); }); }
+    /* Dates and Credit in the sheet's header change the whole page; the sheet stays open, dims, and reloads on this ad */
+    const hdr = document.querySelector('#v2panel .pacts'), redo = fn => v => { window.V2PENDING = { ad: a.id }; body.classList.add('adt-busy'); fn(v); };
+    if (hdr && window.PillMenu) { const pm = hdr.querySelector('.lx-cperiod'), mm = hdr.querySelector('.lx-cmodel');
+      if (pm && window.setPeriod) window.PillMenu.wire(pm, redo(window.setPeriod));
+      if (mm && window.setModel) window.PillMenu.wire(mm, redo(window.setModel)); }
     const stu = body.querySelector('[data-studio]');
     if (stu) stu.onclick = () => iterateStep(a, cur, g, cx, x);
     const brk = body.querySelector('[data-brk]');
