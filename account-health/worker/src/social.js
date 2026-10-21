@@ -2,7 +2,8 @@
    (https://claude.ai/artifact/6DCyDxYMGAsfRpeNWzatZH).
 
    A brand follows other brands (one handle, looked up on Instagram, TikTok and YouTube) and topics ("golf short game").
-   Their posts are pulled once a day into one feed, each labelled by platform and format (Reel, Carousel, Post, TikTok,
+   Their posts are pulled into one feed on a cadence per platform (2026-10-21, Cole: Instagram and YouTube every 2 hours
+   because they are free; TikTok and topic searches once a day because each is a ScrapeCreators credit), each labelled by platform and format (Reel, Carousel, Post, TikTok,
    Photos, Short, Video) with "usually X, this one Y": a followed account's median for that platform, or a topic post's
    author's followers. Breaking out = 3x usual. "Make ours" hands the post to the ideas bot (ideas.js ideaFromLocus).
 
@@ -25,7 +26,17 @@ const SC = 'https://api.scrapecreators.com';
 const SELF = 'https://mobius-account-health.mobius-digital.workers.dev';
 const HAIKU = 'claude-haiku-5-5';
 const DAY = 864e5;
-const PULL_EVERY = 4 * 3600e3;       // 2026-10-20: every 4 hours (Instagram and YouTube are free; the scraper pauses itself when low)
+/* 2026-10-21: the pull cadence is PER PLATFORM. Instagram (Meta) and YouTube (Data API) cost nothing: every 2 hours.
+   TikTok is one ScrapeCreators credit per brand per call, a topic search is three: once a day. Each follow remembers when
+   each platform was last pulled (social_follow.pulls_json {ig, tt, yt, topic: ISO}); "Pull everything now" ignores it. */
+const PULL_EVERY = { ig: 2 * 3600e3, yt: 2 * 3600e3, tt: DAY, topic: DAY };
+/** Which platforms of a follow are due now (all of them when `force`). */
+function duePlatforms(f, force = false, now = Date.now()) {
+  const last = safeJsonObj(f.pulls_json);
+  const plats = f.kind === 'topic' ? ['topic'] : ['ig', 'tt', 'yt'].filter(k => f[k]);
+  return plats.filter(k => force || !last[k] || now - Date.parse(last[k]) >= PULL_EVERY[k]);
+}
+function safeJsonObj(s) { try { const o = JSON.parse(s || '{}'); return o && typeof o === 'object' ? o : {}; } catch { return {}; } }
 const BREAKOUT = 3;
 const KEEP_DAYS = 120;
 const clip = (s, n) => { const t = String(s ?? '').replace(/\s+/g, ' ').trim(); return t.length > n ? `${t.slice(0, n - 1)}…` : t; };
@@ -64,6 +75,7 @@ export async function ensureSocial(env) {
   await env.DB.prepare(`ALTER TABLE social_post ADD COLUMN slides_src TEXT`).run().catch(() => {});
   await env.DB.prepare(`ALTER TABLE social_post ADD COLUMN video_src TEXT`).run().catch(() => {});
   await env.DB.prepare(`ALTER TABLE social_post ADD COLUMN note TEXT`).run().catch(() => {});
+  await env.DB.prepare(`ALTER TABLE social_follow ADD COLUMN pulls_json TEXT`).run().catch(() => {});
   ready = true;
 }
 
@@ -243,14 +255,15 @@ function ytItem(v, short, handle) {
 }
 
 /* ---------------- what a follow pulls ---------------- */
-async function pullBrand(env, f, meter) {
+async function pullBrand(env, f, meter, only = ['ig', 'tt', 'yt']) {
   const out = [], errs = [];
+  const want = k => only.includes(k);
   let igDone = false;
-  if (f.ig && env.META_TOKEN) {
+  if (f.ig && want('ig') && env.META_TOKEN) {
     await igDiscover(env, f.ig).then(d => { igDone = true; d.posts.forEach(p => out.push({ ...p, handle: p.handle || f.ig })); meter.ig_meta = d.posts.length; })
       .catch(e => { meter.ig_meta_err = e.message; });
   }
-  if (f.ig && !igDone) {
+  if (f.ig && want('ig') && !igDone) {
     await sc(env, '/v2/instagram/user/posts', { handle: f.ig }, meter)
       .then(j => (j.items || []).forEach(it => { const p = igItem(it, j.user?.follower_count); if (p) out.push({ ...p, handle: p.handle || f.ig }); }))
       .catch(e => errs.push(`Instagram: ${e.message}`));
@@ -260,12 +273,12 @@ async function pullBrand(env, f, meter) {
       .then(j => (j.items || []).forEach(it => { const p = igItem({ ...(it.media || it), product_type: 'clips' }); if (p) out.push({ ...p, handle: p.handle || f.ig }); }))
       .catch(e => errs.push(`Instagram Reels: ${e.message}`));
   }
-  if (f.tt) await sc(env, '/v3/tiktok/profile/videos', { handle: f.tt, sort_by: 'latest' }, meter)
+  if (f.tt && want('tt')) await sc(env, '/v3/tiktok/profile/videos', { handle: f.tt, sort_by: 'latest' }, meter)
     .then(j => (j.aweme_list || []).forEach(a => { const p = ttItem(a); if (p) out.push(p); }))
     .catch(e => errs.push(`TikTok: ${e.message}`));
-  if (f.yt && hasYt(env)) {
+  if (f.yt && want('yt') && hasYt(env)) {
     await ytChannelPosts(env, f.yt).then(list => list.forEach(p => out.push(p))).catch(e => errs.push(`YouTube: ${e.message}`));
-  } else if (f.yt) {
+  } else if (f.yt && want('yt')) {
     await sc(env, '/v1/youtube/channel/shorts', { handle: f.yt, sort: 'newest' }, meter)
       .then(j => (j.shorts || []).forEach(v => { const p = ytItem(v, true, f.yt); if (p) out.push(p); }))
       .catch(e => errs.push(`YouTube Shorts: ${e.message}`));
@@ -291,10 +304,13 @@ async function pullTopic(env, f, meter) {
 }
 
 /** Pull one follow now: upsert its posts (fresh counts on posts we already have), copy new covers to R2. */
-export async function pullFollow(env, f, { can = () => true, paused = false } = {}) {
+export async function pullFollow(env, f, { can = () => true, paused = false, only = null } = {}) {
   await ensureSocial(env);
   const meter = { credits: 0, paused };
-  const got = f.kind === 'topic' ? await pullTopic(env, f, meter) : await pullBrand(env, f, meter);
+  /* `only` = the platforms to pull this time (the tick passes what is due); a manual pull takes everything. */
+  const plats = only || duePlatforms(f, true);
+  if (!plats.length) return { follow: f.id, name: f.name, posts: 0, added: 0, covers: 0, credits: 0, error: null, skipped: 'nothing due' };
+  const got = f.kind === 'topic' ? await pullTopic(env, f, meter) : await pullBrand(env, f, meter, plats);
   const errs = got.errs;
   /* One row per post: the same Reel can come from the posts list and the Reels list; keep every number either one had. */
   const byId = new Map();
@@ -324,8 +340,9 @@ export async function pullFollow(env, f, { can = () => true, paused = false } = 
   }
   if (meter.ig_meta_err && !errs.some(e => /^Instagram/.test(e))) errs.unshift(`Instagram (Meta): ${meter.ig_meta_err}`);
   const error = posts.length ? (errs.length ? errs.join(' / ') : null) : (errs.join(' / ') || 'Nothing came back. Check the handles.');
-  await env.DB.prepare(`UPDATE social_follow SET pulled_at = datetime('now'), error = ?2, credits = credits + ?3 WHERE id = ?1`).bind(f.id, error, meter.credits).run();
-  return { follow: f.id, name: f.name, posts: posts.length, added, covers, credits: meter.credits, error };
+  const pulls = { ...safeJsonObj(f.pulls_json), ...Object.fromEntries(plats.map(k => [k, new Date().toISOString()])) };
+  await env.DB.prepare(`UPDATE social_follow SET pulled_at = datetime('now'), error = ?2, credits = credits + ?3, pulls_json = ?4 WHERE id = ?1`).bind(f.id, error, meter.credits, JSON.stringify(pulls)).run();
+  return { follow: f.id, name: f.name, posts: posts.length, added, covers, credits: meter.credits, error, platforms: plats };
 }
 async function copyCover(env, id, src) {
   try {
@@ -514,19 +531,19 @@ async function creditsLeft(env) {
   return v && v.left != null ? +v.left : null;
 }
 
-/* ---------------- the daily pull (hourly tick; each follow at most once every 20 hours) ---------------- */
+/* ---------------- the pull (hourly tick; each platform of a follow on its own cadence, PULL_EVERY) ---------------- */
 export async function socialTick(env, can = () => true) {
   await ensureSocial(env);
   /* Instagram (Meta) and YouTube (Google) cost nothing; only TikTok still goes through ScrapeCreators. When its credits
      run low the TikTok half pauses (the ideas bot downloads videos on the same credits) and the rest keeps pulling. */
   const cred = await creditsLeft(env);
   const paused = !env.DOWNLOADER_KEY || (cred != null && cred < LOW_CREDITS);
-  const due = (await env.DB.prepare(`SELECT f.* FROM social_follow f JOIN social_brand b ON b.act_id = f.act_id
-    WHERE f.pulled_at IS NULL OR f.pulled_at < ?1 ORDER BY COALESCE(f.pulled_at, '') LIMIT 4`).bind(new Date(Date.now() - PULL_EVERY).toISOString().replace('T', ' ').slice(0, 19)).all()).results || [];
+  const all = (await env.DB.prepare(`SELECT f.* FROM social_follow f JOIN social_brand b ON b.act_id = f.act_id ORDER BY COALESCE(f.pulled_at, '')`).all()).results || [];
+  const due = all.map(f => ({ f, plats: duePlatforms(f) })).filter(x => x.plats.length).slice(0, 8);
   const ran = [];
-  for (const f of due) {
+  for (const { f, plats } of due) {
     if (!can(60)) { ran.push({ deferred: 'out of budget' }); break; }
-    ran.push(await pullFollow(env, f, { can: () => can(10), paused }).catch(e => ({ follow: f.id, error: e.message })));
+    ran.push(await pullFollow(env, f, { can: () => can(10), paused, only: plats }).catch(e => ({ follow: f.id, error: e.message })));
   }
   const tags = due.length && can(5) ? await tagPosts(env).catch(e => ({ error: e.message })) : null;
   /* Old posts go (saved ones stay), with their covers. */
