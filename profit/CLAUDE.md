@@ -4260,6 +4260,31 @@ a wide stroke.
   (`noDataLine` in v4.js, Morning and Month boards), linking to its Brand settings.
 - Morning's character line rewrites the server's "$-343" as "-$343".
 
+## 2026-10-21: STUDIO v5, one path (studio.js?v=37). Read before touching Studio's screens.
+
+Cole: "Studio looks like absolute shit. I still don't understand how things get deleted in the batches, or archived."
+- **The list** (`homeView`): one table (batch, where it is, approved x/n, updated, "..." = Open / Archive), Active / Archived
+  tabs (Archived rows have Restore), "Earlier ads" as the last row, then the **How batches work** card (`RULES`): a batch is
+  one test; Archive = off the list, nothing in Meta / Canva / the Pipeline changes, Restore brings it back; Delete an ad =
+  status 'deleted', it waits under Deleted ads in its batch with Restore; **nothing is archived or deleted by a timer**
+  (true in the code: no cron touches p_studio_batch or p_studio_ad). `GET /api/studio` now also returns `archived`
+  (status 'archived', newest 100). Restore = batch/save with status draft / planned / made from the batch itself.
+- **A batch = six steps, one on screen** (`PATH`, `pathState` decides done / now from the batch; `S.view[id]` is the step on
+  screen, reset when a batch is opened): Brief, Product, Look (`setup.look_mode` ai | photo | iterate: style ideas and
+  per-line inspiration / the photo IS the ad, Dress / Make iterations from Marketing > Ads), Make (Plan the ads, then Make),
+  Approve (cards + Deleted ads fold + Approve all), Launch (Launch to Meta per ad, or **Send to the Pipeline**: makes a brief
+  card with `/api/production/brief` when the batch has no `br_batch_id`, ties it, uploads each approved ad as a version
+  `<num>-<line> headline.png` via `/api/production/upload`, stores `setup.pipeline`). `footBar` holds Back, "Step n of 6"
+  and the ONE primary button of the step. After Make finishes the view moves to Approve.
+- **Ad card** (`adCard`): 4:5 picture (opens `openAd`, the review panel in `LxKit.panel` with every action), Ad n + status
+  chip on the picture, checks as chips, Approve toggle / Change / Redo, the rest in "...". `wireAds(root)` wires a root
+  (the page or the panel). Old helpers stepsBar / startView / archiveEmpty / the 270px side list are gone.
+- CSS: the "STUDIO v5" block at the end of injectCss (`#st-css5`, tokens only). Checked on the local trio (worktree statics
+  + profit and account-health `wrangler dev --remote`, dev token, headless Chrome over CDP; Cole's Chrome was unresponsive)
+  with Lucky's real batches: list, archived tab, every step, panel, archive -> restore and delete -> restore round trips,
+  light and dark, 390px with no sideways scroll. Nothing was planned, made or sent (no image spend, no Pipeline write).
+- Trap met: another session's static server held port 8841 with an older checkout; the Locus service worker also caches
+  by URL, so a reused ?v= serves the old file in a reused browser profile.
 ## 2026-10-21: SOCIAL REBUILT AROUND "WHAT WE MAKE THIS WEEK" (social.js?v=10, socialweek.js?v=6). Supersedes the card and viewer notes above.
 
 - **The Feed leads with our strategy**: a This week strip (`loadPlan`: `/api/social/week` planned vs target, and from

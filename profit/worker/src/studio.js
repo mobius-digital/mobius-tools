@@ -639,7 +639,9 @@ export async function handleStaff(request, env, url, path, json, CORS) {
     const lookSpent = act ? (await env.DB.prepare(`SELECT COALESCE(SUM(cost),0) c FROM p_asset WHERE act_id = ?1 AND source = 'locus' AND tagged_at >= date('now','start of month')`).bind(act).first().catch(() => null))?.c || 0 : 0;
     const canvaState = { configured: !!(await cfgGet(env, 'canva_client_id')), connected: !!(await cfgGet(env, 'canva_tokens')) };
     const batches = act ? ((await env.DB.prepare(`SELECT * FROM p_studio_batch WHERE act_id = ?1 AND status != 'archived' ORDER BY updated_at DESC LIMIT 200`).bind(act).all()).results || []).map(shapeBatch) : [];
-    return json({ has_key: !!key, has_media: !!env.MEDIA, account: acct, ads: rows.map(shape), batches, canva: canvaState, spent_month: Math.round((spent + lookSpent) * 100) / 100, styles: Object.keys(STYLES), fonts: FONTS });
+    /* Archived batches (2026-10-21): kept until someone restores them; nothing is archived or removed by a timer. */
+    const archived = act ? ((await env.DB.prepare(`SELECT * FROM p_studio_batch WHERE act_id = ?1 AND status = 'archived' ORDER BY updated_at DESC LIMIT 100`).bind(act).all()).results || []).map(shapeBatch) : [];
+    return json({ has_key: !!key, has_media: !!env.MEDIA, account: acct, ads: rows.map(shape), batches, archived, canva: canvaState, spent_month: Math.round((spent + lookSpent) * 100) / 100, styles: Object.keys(STYLES), fonts: FONTS });
   }
 
   if (path === '/api/studio/key' && request.method === 'POST') {
