@@ -640,6 +640,7 @@ body.is-client #main .ph .ph-acts > :not([data-client-ok]), body.is-client #hdAc
 .bfc-nums small{font-size:11.5px;color:var(--muted)}.bfc-nums b{font-size:17px;font-weight:650;color:var(--ink);font-variant-numeric:tabular-nums}
 .bfc-nums em{font-style:normal;font-size:11.5px;color:var(--muted);line-height:1.35}.bfc-nums em.good{color:var(--good)}.bfc-nums em.bad{color:var(--bad)}
 .bfc-txt{white-space:pre-line;font-size:14px;line-height:1.6;color:var(--ink-2);margin:0 0 12px}.bfc-txt b{color:var(--ink)}
+.bf-head .bf-datec{justify-self:start;width:max-content}
 .bf-datec{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 4px 0 10px;border:1px solid var(--line);border-radius:var(--r-pill,999px);background:var(--surface);font-size:12.5px;color:var(--muted)}
 .bf-datec input[type=date]{border:0!important;background:transparent!important;padding:0 4px!important;height:28px!important;min-height:0!important;width:auto!important;font:inherit;font-size:12.5px!important;color:var(--ink);box-shadow:none!important}
 .ph-menu-w.flip .ph-menu,.hd-period.flip .hd-per-menu{left:auto!important;right:0!important}

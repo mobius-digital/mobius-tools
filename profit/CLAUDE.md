@@ -4460,3 +4460,20 @@ Cole: "Studio looks like absolute shit. I still don't understand how things get 
   square, then clean. A kit only applies to ads MADE with it (`spec.kit`); older ads are untouched.
 - Tested live 2026-10-21 on one Eclipse ad (~$0.40): the first draw put the logo on the headline (the model ignores the
   9-18% band on square ads), so the logo moved into the painted strip; the second draw was clean.
+
+## 2026-10-21: SAVE TO LOCUS (inspo.js front, worker/src/inspo.js). Inspiration for a brand from anywhere.
+- Three ways in: the Ask bar (a pasted link offers "Save to Locus as inspiration" first; a pasted PNG / JPG / WebP opens
+  the save window and goes up through `/api/studio/upload`), the phone (manifest `share_target` GET to /profit/ with
+  title / text / url; the presence of url or text is the marker because the share sheet replaces the action's query),
+  and the bookmarklet on Make > Inspiration (`?save=<url>&title=`). `LocusSave.readURL(qs)` runs in boot before
+  LocusShare, keeps the link in sessionStorage `pf_save_pending` through sign-in, and `LocusSave.pending()` opens the
+  save window once after the first `show()`.
+- The save window = preview, brand picker (defaults to the picked brand), optional note, Save. Worker `/api/inspo`
+  (GET ?act=, POST {act, url|image, note, title}, PATCH {id, note, title}, DELETE ?id=), table `p_inspo` made on first
+  use; a link is read once server side (6s) for og:title / og:image; the same link twice for a brand answers `already`.
+  Clients save and read their own brand's (CLIENT_RULES, both brandguard copies).
+- Make > Inspiration leads with "Saved to Locus" (every angle, newest first: Open, Brief one like it, Remove), then the
+  Atria boards in one card. sw.js VERSION locus-v3 so installed apps pick up the manifest.
+- PR 56's leftovers landed here: the composer's Shop link (targets.fb.link, appended to the caption) and Write it for me,
+  the worker's fb link (VALID_T, publishFb) and slides copied at once. Brief: the More menu flips at the edge (lx.js
+  fitMenus listens in the capture phase; menu buttons stop the click) and the date pill keeps its own width.

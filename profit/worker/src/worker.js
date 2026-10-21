@@ -27,6 +27,7 @@ import { handleSeason, seasonPublic } from './season.js';
 import { handleShopifyApp } from './shopifyapp.js';
 import { handleScenario } from './scenario.js';
 import { handleDashboard } from './dashboard.js';
+import { handleInspo } from './inspo.js';
 import { snapshotPublic, handleSnapshot } from './snapshot.js';
 import { handleHub } from './hub.js';
 import { handleExpenses, loadExpenses, spread, applyAdSpend } from './expenses.js';
@@ -2782,6 +2783,11 @@ export default {
         const fr = await handleExpenses({ path, url, request, env, json, accountsFor: () => accountsFor(false), email: await sessionEmail(env, request),
           client: clientScope(request), sources: acct => costSources(env, acct) });
         if (fr) return fr;
+      }
+      /* Save to Locus (2026-10-21): inspiration saved from the Ask bar, the phone share sheet or the bookmarklet. */
+      if (path === '/api/inspo') {
+        const ir = await handleInspo({ path, request, env, url, json, email: await sessionEmail(env, request), accountsFor: () => accountsFor(false) });
+        if (ir) return ir;
       }
       /* Saved dashboards (the hub, 2026-10-07). Routes live in dashboard.js. */
       if (path === '/api/dashboards' || path === '/api/dashboard') {

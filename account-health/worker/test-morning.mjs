@@ -40,7 +40,7 @@ await check('prefs: empty by default, the switch and a snooze round-trip, a done
   assert.equal(prefsTest.keyOf(' Nick@Alpha.com '), 'userPrefs:nick@alpha.com');
 });
 await check('prefs: an entry a week past its time is dropped on read', async () => {
-  const now = Date.parse('2026-10-11T13:00:00Z');
+  const now = Date.now();   // prefsFor drops by the real clock, so the entries are relative to it (a fixed date rotted after a week)
   settings.set('userPrefs:old@x.com', JSON.stringify({ morning_dm: false, nudge: { a: { state: 'done', until: now - 8 * 86400e3 }, b: { state: 'snoozed', until: now - 3600e3 } } }));
   const p = await prefsFor(env, 'old@x.com'); assert.deepEqual(Object.keys(p.nudge), ['b']);
 });

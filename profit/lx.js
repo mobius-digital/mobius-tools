@@ -196,7 +196,8 @@
     if (r.right > innerWidth - 8) w.classList.add('flip');
     else if (r.left < 8) w.classList.add('flipl');
   });
-  document.addEventListener('click', () => requestAnimationFrame(fitMenus));
+  /* Capture phase: menu buttons stop the click (wirePillMenu), so a bubbling listener never saw them open. */
+  document.addEventListener('click', () => requestAnimationFrame(fitMenus), true);
 
   window.LxKit = { strip, wireStrip, panel, closePanel, cardMenu, rowMenu, bars, chip, ring, planChip, spark, river, funnel, scale, waterfall };
 
