@@ -2379,6 +2379,9 @@ async function briefData(env, acct, upTo) {
       google_roas_platform: piv.ga_ROAS?.[date] ?? null,
       blended_roas: piv.totalRoas?.[date] ?? null,
       gross_profit: piv.grossProfit?.[date] ?? null,
+      // Paid orders (paidOrdersOnly at sync). The client thread's Orders line reads these; they were never set here.
+      orders: piv.totalOrders?.[date] ?? null,
+      new_orders: piv.newCustomersOrders?.[date] ?? null,
       total_sales: netSalesDay, tax, net_sales: sales == null ? null : sales - shipRev,
       ship_rev: shipRev, ship_cost: shipCost, handling,
       cogs: piv.totalProductCosts?.[date] ?? null,
@@ -3203,10 +3206,12 @@ async function sendBrief(env, acct, date, { skipIfSent = false, useStored = fals
       if (prow && ['sent', 'skipped', 'handled'].includes(prow.status)) continue;
       const mp = await clientDailyFor(env, acct, d, prow?.text || null, full, { next: false });
       // Goes to the client, so it comes from Cole - not a bot wearing a name.
-      await slackPost(env, channel, mp, null, { asUser: true });
+      const mtop = await slackPost(env, channel, mp, null, { asUser: true });
+      await keepClientPost(env, acct.act_id, d, mtop?.channel || channel, mtop?.ts, mp);
       await upsertBrief(env, acct.act_id, d, 'sent', channel, prow?.text || mp, full);
     }
     const top = await slackPost(env, channel, out, null, { asUser: true });
+    await keepClientPost(env, acct.act_id, date, top?.channel || channel, top?.ts, out);
     const rest = clientDailyThreadFor(acct, date, full);
     /* The reply failing must not unsend the headline the client already has: the send is recorded either way,
        and the internal channel hears about the missing thread. */
@@ -6027,8 +6032,10 @@ function briefCard(acct, date, row, banner, preview = null) {
   const steer = row?.steer && status !== 'sent'
     ? `\n\n_Last rewrite was steered: “${String(row.steer).slice(0, 200)}”_` : '';
 
-  const clientText = preview?.daily && !internalOnly(acct)
-    ? preview.daily + (preview.thread ? `\n\n_In the thread under it:_\n${preview.thread}` : '') : null;
+  // A sent card shows what the client actually has (edits included), not a fresh rebuild.
+  const daily = status === 'sent' && preview?.sent ? preview.sent : preview?.daily;
+  const clientText = daily && !internalOnly(acct)
+    ? daily + (preview.thread ? `\n\n_In the thread under it:_\n${preview.thread}` : '') : null;
   const body = [head, banner, warn || warnLine, clientText || row?.text || '_Nothing written for this day yet._']
     .filter(Boolean).join('\n\n') + (clientText ? '' : steer);
   const blocks = mrkdwnSections(body);
@@ -6060,6 +6067,7 @@ function briefCard(acct, date, row, banner, preview = null) {
     els.push(btn('Write it again', 'brief_redraft', v));
     els.push(btn('Open in Locus', 'noop_open', v, { url: LOCUS_BRIEF(acct.act_id, date) }));
   } else {
+    if (status === 'sent' && preview?.sent) els.push(btn('Edit the sent post', 'brief_edit_sent', v));
     els.push(btn('Open in Locus', 'noop_open', v, { url: LOCUS_BRIEF(acct.act_id, date) }));
   }
   blocks.push({ type: 'actions', elements: els });
@@ -6155,7 +6163,36 @@ async function slackSyncBrief(env, acct, date, banner) {
 async function clientPreviewFor(env, acct, date) {
   if (internalOnly(acct)) return null;
   const full = await briefData(env, acct, date);
-  return { daily: await clientDailyFor(env, acct, date, null, full), thread: clientDailyThreadFor(acct, date, full) };
+  const sent = await clientPostOf(env, acct.act_id, date);
+  return { daily: await clientDailyFor(env, acct, date, null, full), thread: clientDailyThreadFor(acct, date, full),
+    sent: sent?.ts ? sent.text : null };
+}
+
+/* THE SENT CLIENT POST, EDITABLE (2026-10-21, Cole: "why can't I update this message from directly within Slack?").
+   The client daily posts as Cole, and Slack lets only the author's token edit a message, so nobody can fix it from the
+   Slack UI and the bot cannot either. sendBrief now keeps where it went (settings clientPost:<act>:<date> = {channel,
+   ts, text}); "Edit the sent post" on the card and in Locus rewrites that exact message with the same user token.
+   Posts sent before this have no record and can only be edited by hand. */
+const clientPostKey = (act, date) => `clientPost:${act}:${date}`;
+async function clientPostOf(env, act, date) {
+  return safeJson(await getSetting(env, clientPostKey(act, date)).catch(() => null), null);
+}
+async function keepClientPost(env, act, date, channel, ts, text) {
+  if (ts) await putSetting(env, clientPostKey(act, date), JSON.stringify({ channel, ts, text })).catch(() => {});
+}
+async function editClientPost(env, acct, date, text) {
+  const ref = await clientPostOf(env, acct.act_id, date);
+  if (!ref?.ts) return { error: 'This post went out before Locus kept a link to it, so it can only be edited in Slack by hand.' };
+  if (!env.SLACK_USER_TOKEN) return { error: 'No Slack user token is set, so the post cannot be edited as you.' };
+  const u = await xfetch('https://slack.com/api/chat.update', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${env.SLACK_USER_TOKEN}`, 'Content-Type': 'application/json; charset=utf-8' },
+    body: JSON.stringify({ channel: ref.channel, ts: ref.ts, text }),
+  }).then(r => r.json()).catch(() => ({}));
+  if (!u.ok) return { error: `Slack: ${u.error || 'no answer'}` };
+  await putSetting(env, clientPostKey(acct.act_id, date), JSON.stringify({ ...ref, text, edited_at: new Date().toISOString() }));
+  await slackSyncBrief(env, acct, date).catch(() => {});
+  return { ok: true, ts: ref.ts };
 }
 async function slackSyncReport(env, acct, period, start, banner) {
   const row = await env.DB.prepare(
@@ -6427,6 +6464,24 @@ async function slackBlockAction(env, ctx, p) {
     return ACK();
   }
 
+  /* The client daily as the client has it. Same gate as Send: it changes what the client reads, under Cole's name. */
+  if (id === 'brief_edit_sent') {
+    if (!(await maySendFromSlack(env, user))) {
+      await slackWhisper(env, chan, user, 'Only Cole can change a post in the client channel, because it is posted under his name.');
+      return ACK();
+    }
+    const ref = await clientPostOf(env, acct.act_id, meta.d);
+    if (!ref?.ts) {
+      await slackWhisper(env, chan, user, 'This post went out before Locus kept a link to it, so it can only be edited in Slack by hand.');
+      return ACK();
+    }
+    await slackApi(env, 'views.open', { trigger_id: p.trigger_id, view: editModal({
+      callback_id: 'brief_edit_sent_submit', meta, title: 'Edit the sent post',
+      label: 'What the client sees in their channel', hint: '', value: ref.text || '', submit: 'Update it',
+    }) });
+    return ACK();
+  }
+
   if (id === 'brief_rewrite' || id === 'report_rewrite') {
     const isBrief = id === 'brief_rewrite';
     const row = isBrief
@@ -6515,6 +6570,16 @@ async function slackViewSubmit(env, ctx, p) {
       await slackSyncBrief(env, acct, meta.d);
     })());
     return ACK();
+  }
+
+  if (cb === 'brief_edit_sent_submit') {
+    const text = joinEdit(p.view, meta);
+    const err = msg => new Response(JSON.stringify({ response_action: 'errors', errors: { body0: msg } }),
+      { headers: { 'content-type': 'application/json' } });
+    if (!text.trim()) return err('The post cannot be empty.');
+    if (!(await maySendFromSlack(env, user))) return err('Only Cole can change a post in the client channel.');
+    const r = await editClientPost(env, acct, meta.d, text);
+    return r.ok ? ACK() : err(r.error);
   }
 
   if (cb === 'report_edit_submit') {
@@ -8584,6 +8649,11 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         const row = await env.DB.prepare(`SELECT * FROM briefs WHERE act_id = ?1 AND date = ?2`).bind(acct.act_id, b.date).first();
         if (row?.status !== 'sent' || !row.channel) return json({ error: 'not a sent brief', status: row?.status }, 400);
         if (!env.SLACK_USER_TOKEN) return json({ error: 'no user token' }, 500);
+        // A post sent since 2026-10-21 has its ts on record: edit that one, no history matching.
+        if (typeof b.text === 'string' && b.text.trim() && !b.dry && (await clientPostOf(env, acct.act_id, b.date))?.ts) {
+          const r = await editClientPost(env, acct, b.date, b.text);
+          return r.ok ? json({ ...r, updated: true }) : json({ error: r.error }, 500);
+        }
         const ut = (method, body) => xfetch(`https://slack.com/api/${method}`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${env.SLACK_USER_TOKEN}`, 'Content-Type': 'application/json; charset=utf-8' },
@@ -9927,6 +9997,20 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       }
       /* Save an edited draft. Only a draft is editable - once it is sent, the
          client has that text and it must stay a record of what they received. */
+      /* The client daily as it sits in the client channel: read it, or rewrite it in place (editClientPost). */
+      if (path === '/api/brief-client-post') {
+        const q = request.method === 'GET' ? Object.fromEntries(url.searchParams) : await request.json().catch(() => ({}));
+        const ea = await acctOf(env, await resolveBrandId(env, q.act)).catch(() => null);
+        if (!ea || !q.date) return json({ error: 'act and date required' }, 400);
+        if (request.method === 'GET') {
+          const ref = await clientPostOf(env, ea.act_id, q.date);
+          return json({ text: ref?.text ?? null, editable: !!ref?.ts, edited_at: ref?.edited_at ?? null });
+        }
+        if (request.method !== 'PUT') return json({ error: 'GET or PUT' }, 405);
+        if (typeof q.text !== 'string' || !q.text.trim()) return json({ error: 'text is required' }, 400);
+        const r = await editClientPost(env, ea, q.date, q.text);
+        return r.ok ? json(r) : json({ error: r.error }, 400);
+      }
       if (path === '/api/brief-text' && request.method === 'PUT') {
         const b = await request.json().catch(() => ({}));
         if (typeof b.text !== 'string' || !b.text.trim()) return json({ error: 'text is required' }, 400);
