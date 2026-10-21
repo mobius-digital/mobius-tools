@@ -19,14 +19,13 @@
   const FUN_BENCH = { cart: 0.06, order: 0.35 };
   const STEP = { Revenue: 'var(--m-kept)', Kept: 'var(--m-kept)', Product: 'var(--m-product)', Shipping: 'var(--m-ship)', Handling: 'var(--m-handling)', Fees: 'var(--m-fees)', 'Ad spend': 'var(--m-ads)', 'Gross profit': 'var(--line-strong)' };
 
-  /* ---------- the river: yesterday's sales as one thin segmented bar (LxKit.river) ---------- */
+  /* ---------- yesterday as a receipt (round four, 2026-10-21, Cole picked "receipt rows" over filled bars): sales, each
+     cost with its share of sales and a hairline sized to it, then what was kept. ---------- */
   function river(b) {
-    const cur = b.currency, km = v => K.kmoney(v, cur);
-    const bites = (b.bites || []).filter(x => x.v > 0), sales = Math.max(b.sales || 0, 1);
-    /* kept first, so the tick for a normal day reads against the end of the kept segment */
-    const segs = [...(b.kept > 0 ? [{ label: 'Kept', v: b.kept, color: 'var(--m-kept)', tip: `<b>Kept</b> ${K.money(b.kept, cur)}, ${K.pct(b.kept / sales, 0)} of sales: what was left after ads, product, shipping and fees` }] : []),
-      ...bites.map(bt => ({ label: bt.label, v: bt.v, color: BITE[bt.k] || BITE.cogs, tip: `<b>${K.esc(bt.label)}</b> ${K.money(bt.v, cur)}, ${K.pct(bt.v / sales, 0)} of sales` }))];
-    return window.LxKit.river(segs, { total: b.sales, fmt: km, mark: b.kept > 0 ? b.normal : null, markLabel: b.normal != null ? `A normal day keeps about ${K.money(b.normal, cur)} (the last 28 days)` : '' });
+    const cur = b.currency, mo = v => K.money(v, cur), sales = Math.max(b.sales || 0, 1);
+    const bites = (b.bites || []).filter(x => x.v > 0);
+    const row = (cls, label, val, share, color) => `<div class="lx-rc-r ${cls}"><span class="l">${color ? `<i style="background:${color}"></i>` : ''}${K.esc(label)}</span><b>${val}</b><small>${share != null ? K.pct(share, 0) : ''}</small>${share != null ? `<span class="h"><em style="width:${Math.max(1, Math.min(100, share * 100)).toFixed(1)}%;background:${color || 'var(--brand)'}"></em></span>` : ''}</div>`;
+    return `<div class="lx-rc">${row('top', 'Sales', mo(b.sales), null)}${bites.map(bt => row('', bt.label, `-${mo(bt.v).replace('-', '')}`, bt.v / sales, BITE[bt.k] || BITE.cogs)).join('')}${b.kept != null ? row(`tot${b.kept < 0 ? ' neg' : ''}`, 'Kept', mo(b.kept), null) : ''}${b.normal != null ? `<div class="lx-rc-n">A normal day keeps <b>${mo(b.normal)}</b> (the last 28 days)</div>` : ''}</div>`;
   }
   function riverCard(b) {
     if (!b || !b.has) return `<div class="v2h"><h3>Yesterday</h3></div><p class="v2hint">Triple Whale has not synced yesterday for this brand yet.</p>`;
