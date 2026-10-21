@@ -359,6 +359,16 @@
     if (doList.length && typeof H.pageActions === 'function') { H.pageActions(`<button type="button" class="btn primary" data-press="dkDoAll" title="Every Scale, Cut and Trim on this list. You see each change and confirm once; nothing is written before that.">${doList.length === 1 ? 'Do the 1 call' : `Do all ${doList.length} calls`}</button>`); root.querySelectorAll('.ph-acts [data-press]').forEach(b => b.onclick = () => { const o = document.getElementById(b.dataset.press); if (o) o.click(); }); }
     else if (typeof H.pageActions === 'function') H.pageActions('');
     const find = k => rows.find(x => x.key === k);
+    /* THE LOOP (2026-10-21): a call acted on is a task done. One row in p_action per call key per day, source 'today',
+       ticked at once with done_how auto:call, so the report's Done list, the Monday runner's last-week list and the brief all
+       say what was changed. Fire and forget: the call itself never waits on it. */
+    const logCallTask = (r, verb) => {
+      if (!r || !H.apiAH) return;
+      const text = `${verb} ${r.ad ? `"${r.ad}"` : r.adset ? `ad set "${r.adset}"` : 'an ad set'}`;
+      H.apiAH('/api/actions', { method: 'POST', body: JSON.stringify({ act: r.act_id, text, detail: r.why ? `${r.why} From Today's calls.` : "From Today's calls.", owner: '', due: '', area: 'ads', kind: 'team', source: 'today', source_id: `${todayKey}:${r.key}` }) })
+        .then(res => { const id = res && res.item ? res.item.id : res && res.id; if (id) return H.apiAH('/api/actions/done', { method: 'POST', body: JSON.stringify({ id, done: true }) }); })
+        .catch(() => {});
+    };
     const markDone = k => { const d2 = store('pf_today_done'); const day = d2[todayKey] || {}; day[k] = 1; d2[todayKey] = day; Object.keys(d2).forEach(x => { if (x !== todayKey) delete d2[x]; }); store('pf_today_done', d2); };
     const unDone = k => { const d2 = store('pf_today_done'); const day = d2[todayKey] || {}; delete day[k]; d2[todayKey] = day; store('pf_today_done', d2); };
     root.querySelectorAll('[data-k]').forEach(b => b.onclick = () => { KIND = b.dataset.k; today(false); });
@@ -389,7 +399,7 @@
       const verb = { scale: 'Scaled', cut: 'Cut', trim: 'Switched off', fix: 'Fixed', refresh: 'Briefed an iteration of' }[r.kind] || 'Acted on';
       try {
         await H.apiAH('/api/activities', { method: 'POST', body: JSON.stringify({ act_id: r.act_id, category: 'manual', summary: `${verb} ${r.ad ? `"${r.ad}"` : `ad set "${r.adset}"`} (from Today)`, reason: r.why || null, actor: 'Locus Today' }) });
-        markDone(k); today(false);
+        logCallTask(r, verb); markDone(k); today(false);
       } catch (e) { b.disabled = false; b.textContent = 'Done'; H.confirmModal && H.confirmModal('Could not log it', esc(e.message), 'OK'); }
     });
     root.querySelectorAll('[data-brief]').forEach(b => b.onclick = () => { const r = find(b.dataset.brief); if (r && H.AskUI) H.AskUI.ask(`For ${r.brand}: the anchor ad "${r.ad}" in ad set "${r.adset}" is tiring (${r.why}). Brief three iterations of it as an Asana brief: same angle, new hooks.`); });
@@ -397,13 +407,13 @@
     root.querySelectorAll('[data-do]').forEach(b => b.onclick = () => {
       const r = find(b.dataset.do); if (!r) return;
       const W = window.LxMetaWrite; if (!W) { dtoast('The Meta write helper did not load. Hard-refresh (Ctrl+Shift+R).', true); return; }
-      const opts = { reason: 'From Today', onDone: () => { markDone(r.key); CACHE.delete(`/api/hub/today?act=${encodeURIComponent(H.S.act)}`); if (window.LxNudge) window.LxNudge.state.at = 0; today(false); }, onUndo: () => { unDone(r.key); today(false); },
+      const opts = { reason: 'From Today', onDone: () => { logCallTask(r, { scale: 'Scaled', cut: 'Cut', trim: 'Switched off', fix: 'Fixed', refresh: 'Refreshed' }[r.kind] || 'Changed'); markDone(r.key); CACHE.delete(`/api/hub/today?act=${encodeURIComponent(H.S.act)}`); if (window.LxNudge) window.LxNudge.state.at = 0; today(false); }, onUndo: () => { unDone(r.key); today(false); },
         onCampaign: () => openInLocus(r) };
       if (r.kind === 'scale') W.budget(H, r, { ...opts, pct: 0.2, amount: r.suggested_budget > 0 ? r.suggested_budget : undefined });
       else W.pause(H, r, opts);
     });
     root.querySelectorAll('[data-locus]').forEach(b => b.onclick = () => { const r = find(b.dataset.locus); if (r) openInLocus(r); });
-    root.querySelectorAll('[data-neg]').forEach(b => b.onclick = () => { const r = find(b.dataset.neg); if (r && window.V4) window.V4.negatives(H, r, () => { markDone(r.key); today(false); }); });
+    root.querySelectorAll('[data-neg]').forEach(b => b.onclick = () => { const r = find(b.dataset.neg); if (r && window.V4) window.V4.negatives(H, r, () => { logCallTask(r, 'Blocked wasted searches on'); markDone(r.key); today(false); }); });
     root.querySelectorAll('[data-set]').forEach(el => { const open = () => { const r = find(el.dataset.set); if (!r || !window.V4) return; const row = el.closest('.dk-row'); window.V4.setPanel(H, r, { am: amLink(r), doIt: DO_TIP[r.kind] ? () => row.querySelector('[data-do]')?.click() : null, locus: () => openInLocus(r) }); }; el.onclick = open; el.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } }; });
     root.querySelectorAll('[data-else]').forEach(b => b.onclick = () => { const r = find(b.dataset.else); if (r) somethingElse(r); });
     root.querySelectorAll('[data-verdict]').forEach(b => b.onclick = () => { const r = find(b.dataset.key); if (r) callTest(r, b.dataset.verdict, () => { CALLED[r.key] = 1; CACHE.delete('/api/brand/tests-overview'); today(false); }); });
@@ -415,8 +425,8 @@
       window.V2.playAd({ id: ad.id, name: ad.name, act: r.act_id, note: `${r.kind === 'trim' ? 'The ad this call turns off' : 'The main ad'} in "${r.adset || ''}", ${r.brand}.` }, H, () => openInLocus({ act_id: r.act_id, ad_id: ad.id })); });
     /* Do all N: one sheet, every change ticked, run one by one after Cole confirms. */
     const afterAll = () => { CACHE.delete(`/api/hub/today?act=${encodeURIComponent(H.S.act)}`); if (window.LxNudge) window.LxNudge.state.at = 0; if (t === H.RUN()) today(false); };
-    const da = root.querySelector('#dkDoAll'); if (da) da.onclick = () => doAll(doList, { markDone, unDone, after: afterAll });
-    if (window.TODAY_DOALL) { window.TODAY_DOALL = 0; if (doList.length) doAll(doList, { markDone, unDone, after: afterAll }); }
+    const da = root.querySelector('#dkDoAll'); if (da) da.onclick = () => doAll(doList, { markDone, unDone, logCallTask, after: afterAll });
+    if (window.TODAY_DOALL) { window.TODAY_DOALL = 0; if (doList.length) doAll(doList, { markDone, unDone, logCallTask, after: afterAll }); }
   }
   /* The ad a call is about: Trim = the ad it turns off; Scale / Cut / Refresh = the set's main ad (the anchor, else the
      top-spend ad, hub.js top_ad). Fix and test calls have none. */
@@ -482,7 +492,7 @@
         const st = line(i).querySelector('.st'); st.className = 'st'; st.textContent = 'Writing…';
         let res; try { res = await W.run(H, p.r, { kind: p.r.kind === 'scale' ? 'budget' : 'pause', amount: p.amount, reason: 'From Today (Do all)' }); } catch (e) { res = { ok: false, error: e.message }; }
         if (res && res.ok) {
-          ok++; try { fx.markDone(p.r.key); } catch {}
+          ok++; try { fx.logCallTask && fx.logCallTask(p.r, { scale: 'Scaled', cut: 'Cut', trim: 'Switched off', fix: 'Fixed', refresh: 'Refreshed' }[p.r.kind] || 'Changed'); fx.markDone(p.r.key); } catch {}
           st.className = 'st ok'; st.innerHTML = `<span>Done${res.summary ? `: ${esc(res.summary)}` : ''}</span>${res.write && res.write.write ? '<button type="button" class="v2link" data-undo="1">Undo</button>' : ''}`;
           const u = st.querySelector('[data-undo]');
           if (u) u.onclick = () => { u.disabled = true; u.textContent = 'Undoing…'; W.undo(H, [res.write], p.r, async () => { try { fx.unDone(p.r.key); } catch {} st.className = 'st'; st.textContent = 'Undone. Meta has the old value back.'; }).then(() => { if (u.isConnected) { u.disabled = false; u.textContent = 'Undo'; } }); };
