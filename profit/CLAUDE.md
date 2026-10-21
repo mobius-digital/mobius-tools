@@ -4364,3 +4364,6 @@ Cole: "Studio looks like absolute shit. I still don't understand how things get 
 - desk.js: MIXED chip, a Mixed filter, no Do it button, "Decided on" in the Done log; "Feeds the funnel" tag with numbers on
   hover. v4.js setPanel: numbers against goal or account, For keeping it / For cutting it boxes, the funnel line.
 - Not taught Mixed yet: nudge.js and the 8am Slack post ignore it (they only act on cut / scale / trim / refresh / fix).
+- Later the same day: Mixed is taught to the phone nudge (nudge.js, no action button), the morning card (`CALL_KINDS`,
+  "decide on N") and the 8am today post. Feeds the funnel needs 60%+ new AND 5+ points over the account AND click rate 25%+
+  over the median (Lucky is 89% new, so 60% alone tagged everything). The panel call chip is styled inside #v2panel.

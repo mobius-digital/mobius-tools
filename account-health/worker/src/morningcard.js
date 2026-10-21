@@ -41,8 +41,8 @@ export const LEAK_FLOOR = 500;   // dollars a month: a new leak under this never
 const WAIT_HOURS = 2;     // wait up to two hours past the morning hour for the brief (and Monday's weekly) before posting anyway
 const LAST_HOUR = 12;
 const NOT_OURS = /harborline/i;
-const CALL_KINDS = ['scale', 'cut', 'trim', 'refresh'];
-const VERB = { scale: 'scale', cut: 'cut', trim: 'trim', refresh: 'refresh' };
+const CALL_KINDS = ['scale', 'cut', 'trim', 'refresh', 'mixed'];
+const VERB = { scale: 'scale', cut: 'cut', trim: 'trim', refresh: 'refresh', mixed: 'decide on' };
 const BOARD = { brief: 'Brief', making: 'Making', review: 'Review', ready: 'Ready', live: 'Live' };
 
 const safe = (s, d) => { try { return s == null ? d : JSON.parse(s); } catch { return d; } };

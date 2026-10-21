@@ -856,3 +856,9 @@ html.lx-irail[data-ui="v2"] body:not(.nav-open) .rail-min{margin:0}
 .v4-fnl{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
 .v4-fnl .v4-chip{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:999px;font-size:11px;font-weight:600;border:1px solid;white-space:nowrap}
 @media (max-width:600px){.v4-evs{grid-template-columns:1fr}.v4-ck-r{grid-template-columns:minmax(0,1fr) auto}.v4-ck-r small{grid-column:1 / -1;text-align:left}}
+
+/* the call chip inside the ad set panel (it sits outside .v4, so the page chip rules did not reach it) */
+#v2panel .v4-chip{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;font-size:11px;font-weight:600;letter-spacing:.02em;text-transform:uppercase;background:var(--surface-2);border:1px solid var(--line);color:var(--ink-2);white-space:nowrap}
+#v2panel .v4-chip.cut,#v2panel .v4-chip.trim{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 40%,transparent);background:color-mix(in srgb,var(--bad) 10%,transparent)}
+#v2panel .v4-chip.scale{color:var(--good);border-color:color-mix(in srgb,var(--good) 40%,transparent);background:color-mix(in srgb,var(--good) 10%,transparent)}
+#v2panel .v4-chip.mixed,#v2panel .v4-chip.refresh,#v2panel .v4-chip.call,#v2panel .v4-chip.fix{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 40%,transparent);background:color-mix(in srgb,var(--warn) 12%,transparent)}
