@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Locus v4 review round one</title>
+<meta name="description" content="Cole's first walkthrough of Locus v4 on 2026-10-21: every note, the decision on each, and the build order.">
+<style>
+:root{--bg:#f6f7f9;--surface:#fff;--ink:#14161a;--ink-2:#3d424b;--muted:#6b7280;--line:#e4e7ec;--brand:#3B6DF2;--good:#1a9a6a;--warn:#c28a14;--bad:#d14343;--chip:#eef1f6;color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1115;--surface:#161920;--ink:#eef0f4;--ink-2:#c3c8d2;--muted:#8b93a3;--line:#262b35;--brand:#5B8CFF;--chip:#1f2430;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0f1115;--surface:#161920;--ink:#eef0f4;--ink-2:#c3c8d2;--muted:#8b93a3;--line:#262b35;--brand:#5B8CFF;--chip:#1f2430;color-scheme:dark}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 -apple-system,"Inter",Segoe UI,Roboto,sans-serif}
+main{max-width:980px;margin:0 auto;padding:40px 16px 80px}
+h1{font-size:30px;letter-spacing:-.02em;margin:0 0 6px}h2{font-size:20px;margin:40px 0 12px;letter-spacing:-.01em}h3{font-size:15px;margin:22px 0 6px}
+.lead{color:var(--ink-2);margin:0 0 24px;max-width:70ch}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:12px 0}
+table{width:100%;border-collapse:collapse;font-size:14px}th{text-align:left;color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em;padding:8px 10px;border-bottom:1px solid var(--line)}
+td{padding:10px;border-bottom:1px solid var(--line);vertical-align:top}tr:last-child td{border-bottom:0}
+td:first-child{width:34%;color:var(--ink)}td:nth-child(2){color:var(--ink-2)}
+.tag{display:inline-block;font-size:11px;font-weight:650;padding:2px 8px;border-radius:999px;background:var(--chip);color:var(--ink-2);margin-right:6px;white-space:nowrap}
+.tag.a{background:color-mix(in srgb,var(--brand) 14%,transparent);color:var(--brand)}.tag.b{background:color-mix(in srgb,var(--warn) 16%,transparent);color:var(--warn)}.tag.q{background:color-mix(in srgb,var(--bad) 12%,transparent);color:var(--bad)}
+ol,ul{padding-left:20px}li{margin:6px 0}
+.q{border-left:3px solid var(--brand);padding:2px 0 2px 14px;margin:14px 0;color:var(--ink-2)}
+.q b{color:var(--ink)}
+small{color:var(--muted)}
+</style>
+</head>
+<body>
+<main>
+<h1>Locus v4 review, round one</h1>
+<p class="lead">Cole walked the live app as Lucky Golf on 21 October 2026, right after v4 went on by default. This page holds every note he made, the decision on each, and the order the work ships in. The next session builds from here.</p>
+
+<div class="card">
+<b>The one sentence.</b> The organisation is right. The visuals are not premium yet: every chart, ring, bar and sparkline reads as a sketch of the idea, not a finished instrument, and too many cards tell you something without letting you click into the numbers behind it. Fix the instruments once, in the kit, and every page gets it.
+</div>
+
+<h2>Answers to the questions you asked</h2>
+
+<div class="q"><b>What do premium SaaS products do with bars and rings?</b> Linear, Stripe, Vercel, Triple Whale and Northbeam share the same habits: thin strokes and small radii (2 to 4px, never a pill), one accent colour with the rest in two or three greys, numbers set in the chart not under it, a visible scale (a baseline, a target line, an axis label), a legend on one line or on hover, and motion on first paint (a ring that fills, a bar that grows over 400ms). Gradients are used only as a soft fill under a line, never on a solid bar. Pastel chunky blocks read as Canva. So: the river becomes a thin segmented bar on a baseline with its legend on one line and the numbers inside the segments where they fit; rings get a thin track, a thin progress stroke, the number inside and a fill animation; sparklines get real height, a baseline and a min and max; the dial, waterfall and funnel follow the same rules.</div>
+
+<div class="q"><b>The brown on the October ring.</b> It is the amber "close to plan" status colour drawn as a wide stroke, which turns muddy at that width. Status goes to a small chip; the ring itself is always the brand blue.</div>
+
+<div class="q"><b>Definitions under the river, or hover?</b> Both, smaller: one legend line with a dot, a word and a number per segment, and the sentence on hover. The row of three cards moves up by what that saves. "A normal day keeps about $325" sits next to the headline number, not under everything.</div>
+
+<div class="q"><b>Should the character's sentence be clickable?</b> Yes. It opens the Ask thread with that sentence as the first message, so "why 12 things to change" is one click.</div>
+
+<div class="q"><b>Needs you with one card.</b> When it has one item it folds into the strip under the heading (one line, one button). The card only appears when there are two or more, and it scrolls inside itself.</div>
+
+<div class="q"><b>Does Spent mean ad spend?</b> Yes. The word becomes "Ad spend" everywhere and "Banked" becomes "Revenue". Fixed costs never sit in that strip; they live on the P&amp;L.</div>
+
+<div class="q"><b>The customer card's words.</b> Plain ones: "What a new customer costs", "Their first order", "Left after costs", "Come back and order again". The dial and its rule line go, replaced by one sentence in English ("Each $1 of ads brings $1.03 back in 90 days. Under $1.50 the first order does not pay for the customer.") and a bar with the 1.5x and 3x marks labelled.</div>
+
+<div class="q"><b>Switching attribution on attributed numbers.</b> Agreed as a general rule: wherever a number is credited (first orders by channel, ROAS, channel revenue) the model menu is on that card, not only in the top bar: platform, Triple Whale last click, first click, linear, and Triple Attribution where the brand has it.</div>
+
+<div class="q"><b>Email and stock under Money?</b> No. The rail becomes: Today, Money (Month, P&amp;L, Customers, Store, Site), Marketing (Calls, Accounts, Ads, Tests, Changes, Email, Search), Products (Stock, Buying, Drops), Make, Calendar, Reports, Work. One extra item, every page where you would look for it.</div>
+
+<div class="q"><b>Stock per wedge, per size.</b> Two views on Stock: by product (what Shopify calls the product) and by variant (loft and hand for a wedge, size for a polo), with the variant view the default for brands that sell variants as products. The table fits the screen; the explainer paragraph goes into Help.</div>
+
+<div class="q"><b>CPA says cut, ROAS says fine. Top of funnel. Hook rate and hold rate.</b> You are right that more rules make it dumber. The change is in what the row shows, not in more rules: each call opens the whole picture of the ad set (cost per sale against goal, ROAS against goal, AOV, spend share, CPM, CTR, frequency, new customer share, and for videos hook, hold and watch through) with the call written as a suggestion and the reason naming which numbers drove it and which argue against it. Where ROAS and CPA disagree the row says so and makes no call. A set with low ROAS but a high new-customer share and high CTR is flagged "feeds the funnel" instead of Cut. Creative notes (strong hook, weak hold; high CTR, low spend) become a line on the ad, pointing at an iteration, not an instruction. The media buyer decides; Locus lays out the evidence.</div>
+
+<div class="q"><b>TikTok in Changes.</b> Yes, the day a brand connects it.</div>
+
+<div class="q"><b>Why does a rail item reopen the last tab?</b> It remembers where you were in that place. It stays, and the rail gets a collapse button.</div>
+
+<div class="q"><b>Dashboards showing Bonk under Lucky.</b> A bug: the list ignores the brand picker. Fixed in the first pass.</div>
+
+<div class="q"><b>Inspiration: how do I save one?</b> Today only from the Social feed and the ad library inside Locus. Adding: a Save to Locus share target (paste a link or an image into the Ask bar, or share from the phone), and a bookmarklet for the desktop. Inspiration then shows all angles, not only the season set.</div>
+
+<h2>Every note, with its decision</h2>
+<p><small><span class="tag a">A</span> visual kit &nbsp; <span class="tag b">B</span> words, layout and detail panels &nbsp; <span class="tag">C</span> structure &nbsp; <span class="tag q">Q</span> judgement and intelligence</small></p>
+
+<div class="card">
+<h3>Today</h3>
+<table><tr><th>Note</th><th>Decision</th><th>Pass</th></tr>
+<tr><td>River bars look beneath premium; rounded chunky segments; definitions take vertical space</td><td>Kit river: thin segments on a baseline, 3px radius, numbers in the segments, one legend line, sentence on hover. Row of three cards moves up.</td><td><span class="tag a">A</span></td></tr>
+<tr><td>"A normal day keeps about $325" is under everything</td><td>Sits beside the headline number as a muted comparison with a delta.</td><td><span class="tag b">B</span></td></tr>
+<tr><td>Character sentence: can I click it?</td><td>Opens Ask with that sentence.</td><td><span class="tag b">B</span></td></tr>
+<tr><td>October ring: brown colour, words under it look weird, not modern</td><td>Thin brand-blue ring with fill animation, status as a chip, two short lines under it.</td><td><span class="tag a">A</span></td></tr>
+<tr><td>Sparklines under revenue, orders, ad spend are tiny bumps with no scale</td><td>Kit sparkline: 56px tall, baseline, min and max labels, soft gradient under the line.</td><td><span class="tag a">A</span></td></tr>
+<tr><td>Needs you with one card looks odd</td><td>One item folds into the strip; the card appears at two or more and scrolls inside.</td><td><span class="tag b">B</span></td></tr>
+<tr><td>Make button sits oddly between the Ask bar and the to-do count</td><td>Leaves the top bar. Lives on Social, Pipeline and Inspiration where the thing being made is.</td><td><span class="tag">C</span></td></tr>
+<tr><td>Site funnel: "26% down" has no colour; the bars are too thin to read sessions against add to cart</td><td>Kit funnel: stepped bars with the drop labelled and coloured against the benchmark.</td><td><span class="tag a">A</span></td></tr>
+<tr><td>Calendar strip: what happens when it gets big</td><td>Caps at five dates with a "+N more" that opens Calendar.</td><td><span class="tag b">B</span></td></tr>
+<tr><td>Brief: date picker is huge; More menu clipped on the right; the brief itself is the old long format</td><td>Date becomes a small control on the control row; menus flip left when near the edge; the page renders the v2 skimmable brief.</td><td><span class="tag b">B</span></td></tr>
+<tr><td>Clicking Revenue, Ad spend, MER tiles opens a panel with nothing in it</td><td>Tile detail standard: every tile opens a panel with the day-by-day line, the breakdown (channel, product, campaign) and the definition. One component, every page.</td><td><span class="tag b">B</span></td></tr>
+</table></div>
+
+<div class="card">
+<h3>Money</h3>
+<table><tr><th>Note</th><th>Decision</th><th>Pass</th></tr>
+<tr><td>Landing ring not modern</td><td>Same ring as Today.</td><td><span class="tag a">A</span></td></tr>
+<tr><td>Weeks card: Banked, Spent unclear; big white space under it</td><td>Revenue, Ad spend, MER, aMER with new and returning under revenue; the card is sized to its content.</td><td><span class="tag b">B</span></td></tr>
+<tr><td>Customer card: dial not premium, words unclear, rule sentence confusing, why does it jump to Customers</td><td>Plain words, one English sentence, a marked bar; the Customers link reads "See every customer month".</td><td><span class="tag a">A</span> <span class="tag b">B</span></td></tr>
+<tr><td>Where the money went (waterfall) hard to read</td><td>Kit waterfall: connectors between steps, labels in the bars, total and kept in brand blue.</td><td><span class="tag a">A</span></td></tr>
+<tr><td>Who paid: switch the attribution model on the card</td><td>Model menu on every credited card.</td><td><span class="tag b">B</span></td></tr>
+<tr><td>P&amp;L: "cost data measured" unclear; right column empties as you scroll</td><td>Chip reads "Costs: trusted" or "Costs: estimated (flat 60%)"; the page becomes two balanced columns with the long table full width.</td><td><span class="tag b">B</span></td></tr>
+<tr><td>Customers: tiles open nothing; headline "each month's new customers followed since" is cute; pills in what they buy first and next look broken</td><td>Panels on every tile; headlines say what the table is ("New customers by the month they first bought"); the first and next products become a two-column list with counts.</td><td><span class="tag b">B</span></td></tr>
+<tr><td>Store, Site, Search, Email: tiles open nothing, charts small</td><td>Same tile standard and kit charts.</td><td><span class="tag a">A</span> <span class="tag b">B</span></td></tr>
+<tr><td>Email and Stock do not belong under Money</td><td>Marketing gets Email and Search; Products gets Stock, Buying, Drops.</td><td><span class="tag">C</span></td></tr>
+<tr><td>Stock: words on top of each other, mixed bar colours, sideways scroll, explainer paragraph, products vs variants</td><td>Table fits; one colour meaning (days of cover against lead time); explainer moves to Help; product and variant views.</td><td><span class="tag b">B</span> <span class="tag">C</span></td></tr>
+</table></div>
+
+<div class="card">
+<h3>Ads (becomes Marketing)</h3>
+<table><tr><th>Note</th><th>Decision</th><th>Pass</th></tr>
+<tr><td>Calls rows: Do it, Done and the menu not aligned; CUT chip too big and in the text line; the anchor line runs on; buttons drift</td><td>Row grid with fixed action column; the verdict chip sits on the thumbnail; the anchor is a muted second line; every row the same height rule.</td><td><span class="tag b">B</span></td></tr>
+<tr><td>CPA says cut while ROAS is fine; top of funnel; creative metrics; information not rules</td><td>The ad set panel shows the whole picture and names the numbers for and against; conflicts make no call; "feeds the funnel" flag; creative notes on video and static ads.</td><td><span class="tag q">Q</span></td></tr>
+<tr><td>Accounts, Meta campaigns, ad sets, Google tables clunky</td><td>One table standard from the kit: sticky head, right-aligned numbers, inline bars with scale, row panels.</td><td><span class="tag a">A</span> <span class="tag b">B</span></td></tr>
+<tr><td>Tests: bars tiny; Test calls tab unclear</td><td>Kit bars; Test calls folds into Tests as a filter.</td><td><span class="tag a">A</span> <span class="tag">C</span></td></tr>
+<tr><td>Changes looks good; TikTok?</td><td>TikTok appears when connected.</td><td><span class="tag">C</span></td></tr>
+</table></div>
+
+<div class="card">
+<h3>Make, Calendar, Reports, Work, Tools</h3>
+<table><tr><th>Note</th><th>Decision</th><th>Pass</th></tr>
+<tr><td>Pipeline: Ideas column sometimes missing; where do ideas come from; text over text on cards</td><td>Ideas always present with an empty state that says its sources; cards get a fixed title block under the picture; a screenshot from Cole nails the overlap.</td><td><span class="tag b">B</span></td></tr>
+<tr><td>Studio needs the overhaul</td><td>Its own pass after the kit: one path, pick product, pick look, see the ad.</td><td><span class="tag b">B</span></td></tr>
+<tr><td>Inspiration only shows season ads; how do I save one</td><td>All angles; Save to Locus from the Ask bar, phone share and a bookmarklet.</td><td><span class="tag">C</span></td></tr>
+<tr><td>Social: what is happening here</td><td>Its state is in the Social playbook page; it gets the kit and the Make exits stay there.</td><td><span class="tag b">B</span></td></tr>
+<tr><td>Calendar: tied to the organic calendar? rail collapse? Season has walls of text; Slack alerts card unreadable; Live and Offers open nothing</td><td>Social's Week shows on the Calendar as a layer; rail collapses; Season cards show one line with the detail behind a panel; the alerts card becomes a short list with switches.</td><td><span class="tag b">B</span></td></tr>
+<tr><td>Reports: "What we did" stale; day-by-day leaves the right side empty</td><td>What we did reads the live ticked tasks and changes (shipped in PR 46, the page needed the refresh); the day table goes full width with the chart above it.</td><td><span class="tag b">B</span></td></tr>
+<tr><td>Dashboards show Bonk's under Lucky</td><td>Bug. The list filters by the picker.</td><td><span class="tag b">B</span></td></tr>
+<tr><td>Requests: what is it for</td><td>One line under the heading says it; the empty state shows an example.</td><td><span class="tag b">B</span></td></tr>
+<tr><td>Settings, Tools: Scenarios should read Calculators; Platform status</td><td>Rename; Tools becomes Calculators, Platform status, Guide.</td><td><span class="tag">C</span></td></tr>
+</table></div>
+
+<h2>Build order</h2>
+<ol>
+<li><b>Pass A, the instrument kit</b> (lx.js, lx.css, v4.js, v2.css): river, ring, sparkline, funnel, bar list, waterfall, dial-to-bar, table standard, tile detail panel. Built once, used by every page. The biggest change in how the app feels.</li>
+<li><b>Pass B, words, layout and panels page by page</b>, in the order you walked: Today, Brief, Month, P&amp;L, Customers, Store and the rest of Money, Calls rows, the ad tables, Pipeline cards, Season, Reports, Dashboards bug, Requests line.</li>
+<li><b>Pass C, structure</b>: Marketing and Products in the rail, Make out of the top bar, Test calls into Tests, Tools renamed, rail collapse, Save to Locus.</li>
+<li><b>Pass Q, the ad set picture</b>: the whole picture per set, for and against, conflicts make no call, funnel flag, creative notes. Designed with you before it ships, because it changes what the team reads every morning.</li>
+<li><b>Then</b> Studio's own pass and Stock variants.</li>
+</ol>
+<p><small>Source: Cole's spoken review, 2026-10-21, transcribed in session d69b23f7. Previous pages: the v4 design page (artifact GYvCTrYpSf52GAZAm535LH) and the UX audit (M5QhcBYdD8ueFq8LJPFYWa).</small></p>
+</main>
+</body>
+</html>
