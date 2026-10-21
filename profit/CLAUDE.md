@@ -4431,3 +4431,10 @@ Cole: "Studio looks like absolute shit. I still don't understand how things get 
 - Trend: day-by-day covers this period and the one before (min 14 days); the "before" card says how many days of spend it needs. Week table fits (fixed layout, Purch./Freq., date on two lines).
 - Set table: CPA header, plain share %, the call explained on hover (`CALL_TIP`). Funnel compares to "Account median".
 - Delivery one number per line; the AI read of the creative sits in its own box (`.adt-tags`); ad copy labelled Headline / Primary text; Where it ran fits without a sideways scroll.
+## 2026-10-21: a Studio carousel posts as ONE organic carousel (Social > Week)
+- account-health socialpost.js `trayOf`: a Studio batch with `brief.format 'carousel'` and 2+ approved finals is ONE tray
+  item (`ref scar:<batch>`, `kind 'carousel'`, `cards` = media entries in `setup.carousel_order`, caption = post copy);
+  its cards never show as loose items; it is `used` once any card is on the week. `fillWeek` treats it as one post.
+- socialweek.js `mediaOf(it)`: adding it (drag, click, From the tray, Fill the week, Swap) puts ALL its cards in the post,
+  in order. Posting already handled several pictures: Instagram = one carousel, Facebook = one multi-photo post, TikTok =
+  one photo post. Test: `node test-socialpost.mjs` 8 (tray order, no loose cards, one IG CAROUSEL container).

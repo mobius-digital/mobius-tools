@@ -342,7 +342,7 @@
     /* A tray row (2026-10-21): the picture, what it is in words, where it came from, and its state, so nobody has to
        hover a thumbnail to know what it is. Grouped by what to do next: film it, post it, already on the week. */
     const item = it => `<button type="button" class="sw-ti ${it.used ? 'used' : ''}" draggable="${inSheet ? 'false' : 'true'}" data-ref="${esc(it.ref)}" ${U() ? U().tipAttr(esc(it.kind === 'text' ? 'A script with no clip yet: film it, upload it, then drag it on.' : 'Drag onto an hour, or click to post it at the next free hour.')) : ''}>
-      <span class="th" ${it.thumb ? `style="background-image:url('${esc(it.thumb)}')"` : ''}>${it.thumb ? '' : it.kind === 'text' ? ic('pencil') : ic('image')}${it.kind === 'video' ? '<i class="kd">&#9654;</i>' : ''}</span>
+      <span class="th" ${it.thumb ? `style="background-image:url('${esc(it.thumb)}')"` : ''}>${it.thumb ? '' : it.kind === 'text' ? ic('pencil') : ic('image')}${it.kind === 'video' ? '<i class="kd">&#9654;</i>' : it.cards ? `<i class="kd">${it.cards.length}</i>` : ''}</span>
       <span class="tx"><b>${esc(it.title || 'Untitled')}</b><small>${ic(SRC_IC[it.src] || 'image')}${esc([SRC[it.src] || it.src, it.who || it.sub || ''].filter(Boolean).join(' · '))}</small></span>
       <span class="chip ${it.used ? 'u' : it.kind === 'text' ? 'f' : 'r'}">${it.used ? 'On the week' : it.kind === 'text' ? 'To film' : 'Ready'}</span></button>`;
     const groups = [['To film', list.filter(i => !i.used && i.kind === 'text')], ['Ready to post', list.filter(i => !i.used && i.kind !== 'text')], ['Already on the week', list.filter(i => i.used)]].filter(([, g]) => g.length);
@@ -481,6 +481,8 @@
     catch (e) { toast(e.message); }
   }
   const mediaOut = m => ({ ref: m.ref, src: m.src, kind: m.kind, title: m.title, thumb: m.thumb, file: m.file || m.url || null, key: m.key || null, who: m.who || null });
+  /* a Studio carousel on the tray is ONE item: it goes into a post as all its cards, in order (2026-10-21) */
+  const mediaOf = it => it.cards ? it.cards.map(c => ({ ...c })) : [{ ref: it.ref, src: it.src, kind: it.kind, title: it.title, thumb: it.thumb, file: it.file, key: it.key, who: it.who }];
   function toast(t) {
     const el = document.createElement('div');
     el.style.cssText = 'position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--surface);padding:10px 14px;border-radius:9px;font-size:13px;z-index:9999;max-width:min(560px,92vw);box-shadow:0 8px 24px -10px rgba(0,0,0,.6)';
@@ -490,7 +492,7 @@
   /* ---------- the post editor: one panel ---------- */
   function composer(p, opts = {}) {
     const accs = ST.data.accounts || {};
-    const items = (opts.items || []).map(it => ({ ref: it.ref, src: it.src, kind: it.kind, title: it.title, thumb: it.thumb, file: it.file, key: it.key, who: it.who }));
+    const items = (opts.items || []).flatMap(mediaOf);
     const M = { id: p ? p.id : null, at: p ? p.at : opts.at, caption: p ? p.caption : (items.find(i => i.caption) || opts.items?.[0] || {}).caption || '', media: p ? p.media.map(m => ({ ...m })) : items.filter(i => i.kind !== 'text'),
       targets: p ? JSON.parse(JSON.stringify(p.targets)) : Object.fromEntries(Object.keys(PL).map(x => [x, { on: !!(accs[x] && accs[x].on && (x === 'ig' || x === 'fb')) }])), auto: p ? p.auto : true, status: p ? p.status : 'draft', results: p ? p.results : {} };
     if (!p && opts.items?.[0]?.caption) M.caption = opts.items[0].caption;
@@ -526,7 +528,7 @@
         + (out ? '' : `<button type="button" class="add" id="cpPick">${ic('inbox')}From the tray</button><button type="button" class="add" id="cpUp">${ic('plus')}Upload</button><input type="file" id="cpFile" hidden accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime">`)
         + (!M.media.length && out ? '<p class="hint">No picture or video.</p>' : '');
       el.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { M.media.splice(+b.dataset.rm, 1); drawMedia(); });
-      const pk = el.querySelector('#cpPick'); if (pk) pk.onclick = () => pickModal(it => { M.media.push({ ref: it.ref, src: it.src, kind: it.kind, title: it.title, thumb: it.thumb, file: it.file, key: it.key, who: it.who }); if (!M.caption && it.caption) { M.caption = it.caption; body.querySelector('#cpCap').value = it.caption; } drawMedia(); });
+      const pk = el.querySelector('#cpPick'); if (pk) pk.onclick = () => pickModal(it => { M.media.push(...mediaOf(it)); if (!M.caption && it.caption) { M.caption = it.caption; body.querySelector('#cpCap').value = it.caption; } drawMedia(); });
       const up = el.querySelector('#cpUp'), fi = el.querySelector('#cpFile');
       if (up) { up.onclick = () => fi.click(); fi.onchange = async () => { const f = fi.files[0]; if (!f) return; up.disabled = true; up.textContent = 'Uploading…'; try { const it = await upload(f); ST.tray.unshift(it); M.media.push({ ref: it.ref, src: it.src, kind: it.kind, title: it.title, thumb: it.thumb, key: it.key }); drawMedia(); } catch (e) { err.textContent = e.message; up.disabled = false; up.innerHTML = `${ic('plus')}Upload`; } }; }
     };
@@ -618,7 +620,7 @@
         <p class="hint">${esc(r.planned)} of ${esc(r.target)} planned this week${r.need ? `, ${esc(r.need)} to go` : ''}. ${P.length ? 'Change a caption, swap or remove a row, then Schedule all. Nothing is saved until then.' : ''}</p>
         ${r.note ? `<p class="hint" style="color:var(--warn)">${esc(r.note)}</p>` : ''}
         ${P.map((x, i) => `<div class="fr" data-i="${i}">
-          <span class="th" ${x.item.thumb ? `style="background-image:url('${esc(x.item.thumb)}')"` : ''}><i>${x.item.kind === 'video' ? 'VIDEO' : 'PHOTO'}</i></span>
+          <span class="th" ${x.item.thumb ? `style="background-image:url('${esc(x.item.thumb)}')"` : ''}><i>${x.item.kind === 'video' ? 'VIDEO' : x.item.cards ? `${x.item.cards.length} CARDS` : 'PHOTO'}</i></span>
           <div class="fb">
             <div class="ft"><b>${esc(wd(x.day))} ${esc(hm12(x.hm))}</b><span class="hint">${esc(SRC[x.item.src] || x.item.src)} · ${esc(x.item.title || '')}</span></div>
             <textarea data-cap="${i}" aria-label="Caption">${esc(x.caption || '')}</textarea>
@@ -632,12 +634,12 @@
       body.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { P.splice(+b.dataset.rm, 1); draw(); });
       body.querySelectorAll('[data-swap]').forEach(b => b.onclick = () => {
         const i = +b.dataset.swap, taken = used();
-        const list = ST.tray.filter(it => !it.used && it.kind !== 'text' && (it.file || it.key) && !taken.has(it.ref));
+        const list = ST.tray.filter(it => !it.used && it.kind !== 'text' && (it.file || it.key || it.cards) && !taken.has(it.ref));
         if (!list.length) { body.querySelector('#flErr').textContent = 'Nothing else unused on the tray.'; return; }
         const { w, done } = modal(`<div class="fl"><h3>Swap for</h3><div class="sw-pick">${list.map(it => `<button type="button" data-ref="${esc(it.ref)}"><span class="th" ${it.thumb ? `style="background-image:url('${esc(it.thumb)}')"` : ''}></span><span class="t">${esc(it.title)}</span></button>`).join('')}</div><div class="foot"><button type="button" class="sw-btn" data-x="1">Close</button></div></div>`);
         w.querySelectorAll('[data-ref]').forEach(x2 => x2.onclick = () => {
           const it = list.find(z => z.ref === x2.dataset.ref); done();
-          const x = P[i]; x.item = { ref: it.ref, src: it.src, kind: it.kind, title: it.title, sub: it.sub || '', thumb: it.thumb, file: it.file || null, key: it.key || null, who: it.who || null, idea: it.idea || null };
+          const x = P[i]; x.item = { ref: it.ref, src: it.src, kind: it.kind, title: it.title, sub: it.sub || '', thumb: it.thumb, file: it.file || null, key: it.key || null, who: it.who || null, idea: it.idea || null, cards: it.cards || null };
           if (it.caption) x.caption = it.caption;
           if (x.targets.yt) x.targets.yt.on = x.targets.yt.on && it.kind === 'video';
           draw();
@@ -651,7 +653,7 @@
         g.disabled = true; let n = 0;
         for (const x of P) {
           try {
-            await H.apiAH('/api/social/post', { method: 'POST', body: JSON.stringify({ act: ST.act, at: x.at, caption: x.caption || '', media: [mediaOut(x.item)], targets: x.targets, status: 'scheduled', auto: true }) });
+            await H.apiAH('/api/social/post', { method: 'POST', body: JSON.stringify({ act: ST.act, at: x.at, caption: x.caption || '', media: (x.item.cards || [x.item]).map(mediaOut), targets: x.targets, status: 'scheduled', auto: true }) });
             n++; g.textContent = `Scheduled ${n} of ${P.length}…`;
           } catch (e) { err.textContent = `Stopped at row ${n + 1}: ${e.message}`; g.disabled = false; g.textContent = `Schedule the rest (${P.length - n})`; P.splice(0, n); draw(); return; }
         }

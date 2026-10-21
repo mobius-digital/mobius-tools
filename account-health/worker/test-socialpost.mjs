@@ -172,6 +172,30 @@ await check('the calendar gets one line per post on the brand\'s local day with 
   assert.equal((await S.calendarPosts(env, [], '2026-10-26', '2026-11-08')).length, 0);
 });
 
+await check('a Studio carousel is ONE tray item with its cards in swipe order, and posts to Instagram as one carousel (2026-10-21)', async () => {
+  const A = (id, batch, line, head) => ({ id, status: 'approved', has_final: true, batch_id: batch, line, v: '1', spec: { headline: head } });
+  const studio = { ads: [A('a1', 'bc', 0, 'Clover'), A('a2', 'bc', 1, 'Two years'), A('a3', 'bc', 2, 'Milled'), A('s1', 'bs', 0, 'Single ad')],
+    batches: [{ id: 'bc', name: 'Eclipse carousel', brief: { format: 'carousel', post_copy: 'Three reasons, one swipe.' }, setup: { carousel_order: ['a3', 'a1', 'a2'] } }, { id: 'bs', name: 'Singles', brief: {}, setup: {} }] };
+  const env2 = { ...env, PROFIT: { fetch: async req => new Response(JSON.stringify(new URL(req.url).pathname === '/api/studio' ? studio : {}), { status: 200 }) } };
+  const d2 = { ...d, mintSession: async () => ({ token: 't' }) };
+  const tray = await S.trayOf(env2, d2, 'brand_alpha');
+  const car = tray.find(i => i.ref === 'scar:bc');
+  assert.ok(car, 'the carousel is on the tray'); assert.equal(car.kind, 'carousel'); assert.equal(car.caption, 'Three reasons, one swipe.');
+  assert.deepEqual(car.cards.map(c => c.ref), ['studio:a3', 'studio:a1', 'studio:a2'], 'swipe order from Studio');
+  assert.ok(!tray.some(i => ['studio:a1', 'studio:a2', 'studio:a3'].includes(i.ref)), 'no loose cards');
+  assert.ok(tray.some(i => i.ref === 'studio:s1'), 'a single ad stays its own item');
+  /* posted with every card = one Instagram carousel */
+  const n0 = calls.length;
+  post('p_car', { at: iso(now - 60e3), targets: { ig: { on: true } }, media: car.cards.map(c => ({ ...c, url: `https://files.test/${c.ref}.jpg` })) });
+  await S.socialPostTick(env, d, { now });
+  assert.equal(row('p_car').status, 'posted', row('p_car').error || '');
+  const ig = calls.slice(n0).filter(c => c.p === 'IG1/media' && c.method === 'POST');
+  assert.equal(ig.filter(c => c.params.is_carousel_item === 'true').length, 3, 'three cards');
+  assert.equal(ig.at(-1).params.media_type, 'CAROUSEL'); assert.equal(ig.at(-1).params.caption, 'New hats are in');
+  /* once on the week, the carousel reads as used */
+  assert.equal((await S.trayOf(env2, d2, 'brand_alpha')).find(i => i.ref === 'scar:bc').used, true);
+});
+
 const pass = results.filter(Boolean).length;
 console.log(`\n${pass}/${results.length} passed`);
 process.exit(pass === results.length ? 0 : 1);
