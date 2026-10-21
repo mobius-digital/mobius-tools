@@ -160,6 +160,48 @@
         "8794"
       ],
       "port": 8794
+    },
+    {
+      "name": "mk-static",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8871"
+      ],
+      "port": 8871
+    },
+    {
+      "name": "mk-ah-dev",
+      "runtimeExecutable": "npx.cmd",
+      "runtimeArgs": [
+        "wrangler",
+        "dev",
+        "--remote",
+        "--port",
+        "8872",
+        "--inspector-port",
+        "9372",
+        "--config",
+        "account-health/worker/wrangler.toml"
+      ],
+      "port": 8872
+    },
+    {
+      "name": "mk-profit-dev",
+      "runtimeExecutable": "npx.cmd",
+      "runtimeArgs": [
+        "wrangler",
+        "dev",
+        "--remote",
+        "--port",
+        "8873",
+        "--inspector-port",
+        "9373",
+        "--config",
+        "profit/worker/wrangler.toml"
+      ],
+      "port": 8873
     }
   ]
 }

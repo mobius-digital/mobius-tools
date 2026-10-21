@@ -2394,7 +2394,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="calendar.js?v=14"></script>
 <script src="social.js?v=9"></script>
 <script src="socialweek.js?v=5"></script>
-<script src="make.js?v=1"></script>
+<script src="make.js?v=2"></script>
 <script src="supply.js?v=7"></script>
 <script src="askextra.js?v=3"></script>
 <script src="share.js?v=5"></script>
@@ -2509,6 +2509,7 @@ const S = {
   /* Locus v2: the attribution model every credited number follows (top bar switch). */
   model: (() => { try { const m = localStorage.getItem('pf_model'); return ['lastPlatformClick', 'fullFirstClick', 'fullLastClick', 'linear', 'linearAll', 'platform'].includes(m) ? m : 'lastPlatformClick'; } catch { return 'lastPlatformClick'; } })(),
 };
+window.S = S;   // make.js reads the brand name and the open tab from here (a const is not on window)
 
 /* BRAND-FIRST, phase 3 (2026-10-08): S.act, localStorage pf_act and every a.act_id hold the BRAND id
    (brand_lucky_golf), never a Meta ad account. A brand's main Meta ad account is a.meta_act, null when
