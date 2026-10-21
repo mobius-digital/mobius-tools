@@ -620,3 +620,37 @@ body.is-client #main .ph .ph-acts > :not([data-client-ok]), body.is-client #hdAc
 :root[data-ui="v2"]:not([data-theme="light"]) .lx-wf-a > i span,:root[data-ui="v2"]:not([data-theme="light"]) .lx-river-t > i span{color:#111114;text-shadow:none}
 .lx-wf-a > .o.dup{display:none}
 @media (max-width:600px){.lx-wf-a > i span{display:none}.lx-wf-a > .o.dup{display:block}.lx-wf-a > .o{font-size:9px;left:-3px;right:-3px}.lx-wf-c > .l{font-size:9.5px;overflow-wrap:anywhere}}
+
+/* pass B (2026-10-21): Today words, layout and panels */
+.v4 .v4-top.v4-two-top{grid-template-columns:minmax(0,5fr) minmax(0,2fr)}
+@media (max-width:720px){.v4 .v4-top.v4-two-top{grid-template-columns:minmax(0,1fr)}}
+.v4 .v4-qstrip{margin:0 0 14px}
+.v4 .v4-queue{max-height:260px;overflow:auto;overscroll-behavior:contain}
+.v4 button.v4-line{width:100%;text-align:left;background:none;border:1px solid transparent;border-radius:var(--r-lg,8px);padding:8px 10px;margin:10px -10px 0;width:calc(100% + 20px);font:inherit;font-size:13.5px;color:var(--ink-2);cursor:pointer;min-height:0;align-items:center}
+.v4 button.v4-line:hover{border-color:var(--line);background:var(--surface-2);color:var(--ink)}
+.v4 .v4-line-go{margin-left:auto;flex:none;font-size:12px;font-weight:600;color:var(--brand-ink,var(--brand));opacity:0;transition:opacity var(--t-fast)}.v4 button.v4-line:hover .v4-line-go,.v4 button.v4-line:focus-visible .v4-line-go{opacity:1}
+.cal-more{display:block;width:100%;text-align:left;padding:6px 0;border:0;background:none;font:inherit;font-size:12.5px;font-weight:600;color:var(--brand-ink,var(--brand));cursor:pointer;min-height:0}
+
+/* the brief as it reads (index.html briefCardHtml) and the small date control */
+.bfc{padding:4px 2px}.bfc-when{margin:0 0 6px;font-size:12px;color:var(--muted)}
+.bfc-h{margin:0 0 14px;font-size:20px;line-height:1.3;font-weight:650;letter-spacing:-.01em;color:var(--ink)}
+.bfc-blk{margin:0 0 14px}.bfc-t{font-size:12px;font-weight:600;color:var(--muted);margin:0 0 6px;text-transform:none}.bfc-t b{font-weight:600}
+.bfc-nums{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r-lg,8px);overflow:hidden}
+.bfc-nums > div{background:var(--surface);padding:10px 12px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.bfc-nums small{font-size:11.5px;color:var(--muted)}.bfc-nums b{font-size:17px;font-weight:650;color:var(--ink);font-variant-numeric:tabular-nums}
+.bfc-nums em{font-style:normal;font-size:11.5px;color:var(--muted);line-height:1.35}.bfc-nums em.good{color:var(--good)}.bfc-nums em.bad{color:var(--bad)}
+.bfc-txt{white-space:pre-line;font-size:14px;line-height:1.6;color:var(--ink-2);margin:0 0 12px}.bfc-txt b{color:var(--ink)}
+.bf-datec{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 4px 0 10px;border:1px solid var(--line);border-radius:var(--r-pill,999px);background:var(--surface);font-size:12.5px;color:var(--muted)}
+.bf-datec input[type=date]{border:0!important;background:transparent!important;padding:0 4px!important;height:28px!important;min-height:0!important;width:auto!important;font:inherit;font-size:12.5px!important;color:var(--ink);box-shadow:none!important}
+.ph-menu-w.flip .ph-menu,.hd-period.flip .hd-per-menu{left:auto!important;right:0!important}
+.ph-menu-w.flipl .ph-menu,.hd-period.flipl .hd-per-menu{right:auto!important;left:0!important}
+.pnl-wide{margin:0 0 16px}.pnl-wide > .v2card,.pnl-wide > section{margin:0}
+.v2two.pnl-bal{align-items:start}
+.jr2{display:flex;flex-direction:column}.jr2-h{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;padding:0 0 6px;border-bottom:1px solid var(--line-strong);font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.jr2-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;padding:10px 0;border-bottom:1px solid var(--line)}.jr2-row:last-child{border-bottom:0}
+.jr2-a b{display:block;font-size:13.5px;font-weight:600;color:var(--ink)}.jr2-a small{display:block;font-size:12px;color:var(--muted);margin-top:2px}
+.jr2-b{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px}.jr2-b li{display:flex;justify-content:space-between;gap:10px;font-size:13px;color:var(--ink-2)}.jr2-b li b{font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}.jr2-b li.none{color:var(--muted)}
+@media (max-width:600px){.jr2-h{display:none}.jr2-row{grid-template-columns:minmax(0,1fr);gap:6px}}
+
+/* the model menu on a credited card: a small pill in the card head */
+.v2h .lx-cmodel{display:inline-flex}.v2h .lx-cmodel .hd-per-btn{height:26px;padding:0 9px;font-size:12px}.v2h .lx-cmodel .hd-per-l{color:var(--muted);font-weight:500}.v2h .lx-cmodel .hd-per-d{display:inline!important}

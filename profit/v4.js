@@ -26,17 +26,17 @@
     /* kept first, so the tick for a normal day reads against the end of the kept segment */
     const segs = [...(b.kept > 0 ? [{ label: 'Kept', v: b.kept, color: 'var(--m-kept)', tip: `<b>Kept</b> ${K.money(b.kept, cur)}, ${K.pct(b.kept / sales, 0)} of sales: what was left after ads, product, shipping and fees` }] : []),
       ...bites.map(bt => ({ label: bt.label, v: bt.v, color: BITE[bt.k] || BITE.cogs, tip: `<b>${K.esc(bt.label)}</b> ${K.money(bt.v, cur)}, ${K.pct(bt.v / sales, 0)} of sales` }))];
-    return window.LxKit.river(segs, { total: b.sales, fmt: km, mark: b.normal, markLabel: b.normal != null ? `A normal day keeps about ${K.money(b.normal, cur)} (the last 28 days)` : '' });
+    return window.LxKit.river(segs, { total: b.sales, fmt: km, mark: b.kept > 0 ? b.normal : null, markLabel: b.normal != null ? `A normal day keeps about ${K.money(b.normal, cur)} (the last 28 days)` : '' });
   }
   function riverCard(b) {
     if (!b || !b.has) return `<div class="v2h"><h3>Yesterday</h3></div><p class="v2hint">Triple Whale has not synced yesterday for this brand yet.</p>`;
     const cur = b.currency;
     const n = b.kept == null ? `You sold <b>${K.money(b.sales, cur)}</b>` : b.kept < 0 ? `You <em class="lx-accent">actually</em> lost <b class="lost">${K.money(Math.abs(b.kept), cur)}</b>` : `You <em class="lx-accent">actually</em> kept <b>${K.money(b.kept, cur)}</b>`;
-    const vsNormal = b.kept != null && b.normal != null && b.normal > 0 ? `<span class="v4-norm2">a normal day keeps <b>${K.money(b.normal, cur)}</b> ${K.delta(b.kept, b.normal)}</span>` : '';
+    const vsNormal = b.kept != null && b.normal != null && b.normal > 0 ? `<span class="v4-norm2">a normal day keeps <b>${K.money(b.normal, cur)}</b>${b.kept > 0 ? ` ${K.delta(b.kept, b.normal)}` : ''}</span>` : '';
     return `<div class="v2h"><h3>Yesterday, ${K.esc(dateWord(b.date))}</h3><span class="cap">the P&amp;L line</span></div>
       <div class="v4-herorow"><h2 class="v4-hero${b.kept != null && b.kept < 0 ? ' is-lost' : ''}">${n}</h2>${vsNormal}</div>
       ${b.broken ? `<p class="v2hint">What was kept needs trustworthy cost data. <button type="button" class="v2link" data-go="costs">Open the cost check ›</button></p>` : river(b)}
-      ${b.line ? `<p class="v4-line"><span class="lx-face" data-state="${(b.to_change || 0) + (b.to_fix || 0) > 0 ? 'found' : 'clear'}" aria-hidden="true"></span>${K.esc(b.line)}</p>` : ''}`;
+      ${b.line ? `<button type="button" class="v4-line" data-ask="${K.esc(b.line)}" title="Ask Locus about this"><span class="lx-face" data-state="${(b.to_change || 0) + (b.to_fix || 0) > 0 ? 'found' : 'clear'}" aria-hidden="true"></span><span>${K.esc(b.line)}</span><span class="v4-line-go">Ask ›</span></button>` : ''}`;
   }
 
   /* ---------- the month ring: the kit's thin brand-blue ring (LxKit.ring); status is a chip, never the stroke colour ---------- */
@@ -57,7 +57,7 @@
   }
 
   /* ---------- the queue: three things, one button each ---------- */
-  function queueCard(td, ov, sd) {
+  function queueItems(td, sd) {
     const rows = (td && td.rows) || [], kinds = ['cut', 'scale', 'trim', 'refresh', 'fix'];
     const change = rows.filter(r => kinds.includes(r.kind)).sort((a, b) => (b.stake || 0) - (a.stake || 0));
     const calls = rows.filter(r => r.kind === 'call');
@@ -66,9 +66,14 @@
     if (calls.length) { const c = calls[0]; items.push({ chip: 'call', title: `${calls.length} test${calls.length === 1 ? '' : 's'} to call`, sub: K.esc((c.test && c.test.name) || c.adset || c.why || ''), go: 'today', btn: 'Call it' }); }
     const next = sd && Array.isArray(sd.phases) ? sd.phases.filter(p => p.start && p.start >= new Date().toISOString().slice(0, 10)).sort((a, b) => a.start < b.start ? -1 : 1)[0] : null;
     if (next) items.push({ chip: 'date', chipText: dateWord(next.start).replace(/^\w+, /, ''), title: K.esc(next.name || next.label || 'Next date'), sub: 'on the calendar', go: 'calendar', btn: 'Calendar' });
-    const body = items.length ? items.slice(0, 3).map(it => `<div class="v4-q"><span class="v4-chip ${it.chip}">${it.chipText || it.chip}</span><div class="t"><b>${it.title}</b><small>${it.sub}</small></div><button type="button" class="v2btn${it.primary ? '' : ' ghost'}" data-go="${it.go}">${it.btn}</button></div>`).join('')
+    return items;
+  }
+  /* Needs you (review 2026-10-21): one item folds into the strip under the heading; the card appears at two or more */
+  const queueStrip = it => window.LxKit.strip({ tone: it.primary ? 'warn' : 'brand', lead: 'Needs you', text: `${it.title}${it.sub ? ` · <span class="faint">${it.sub}</span>` : ''}`, go: it.go, goLabel: it.btn });
+  function queueCard(items) {
+    const body = items.length ? items.map(it => `<div class="v4-q"><span class="v4-chip ${it.chip}">${it.chipText || it.chip}</span><div class="t"><b>${it.title}</b><small>${it.sub}</small></div><button type="button" class="v2btn${it.primary ? '' : ' ghost'}" data-go="${it.go}">${it.btn}</button></div>`).join('')
       : '<p class="v2hint">Nothing waiting. <button type="button" class="v2link" data-go="today">Open the calls ›</button></p>';
-    return `<div class="v2h"><h3>Needs you</h3><span class="cap">${items.length ? `${Math.min(3, items.length)} thing${items.length === 1 ? '' : 's'}` : ''}</span></div><div class="v4-queue">${body}</div>`;
+    return `<div class="v2h"><h3>Needs you</h3><span class="cap">${items.length} things</span></div><div class="v4-queue">${body}</div>`;
   }
 
   /* ---------- the page ---------- */
@@ -110,9 +115,10 @@
     /* where revenue came from: one share bar, each channel with its ROAS and first orders */
     const chRows = (() => { if (!ch || !ch.brands) return []; const by = {}; for (const bb of ch.brands) for (const r of bb.rows) { const o = by[r.id] ||= { id: r.id, label: r.label, spend: 0, revenue: 0, prev_revenue: 0, nc: 0, hasPrev: false }; o.spend += r.spend || 0; o.revenue += r.revenue || 0; if (r.prev_revenue != null) { o.prev_revenue += r.prev_revenue; o.hasPrev = true; } o.nc += r.nc || 0; } return Object.values(by).filter(r => r.revenue > 0); })();
     const credited = chRows.reduce((s, r) => s + r.revenue, 0) || 1;
-    const share = chRows.length ? K.card('Where revenue came from', K.isPlat() ? 'On the platforms’ own numbers.' : `Credited under ${K.esc(K.MODEL_SHORT[H.S.model])}.`,
+    const cm = window.cardModel ? window.cardModel() : '';
+    const share = chRows.length ? K.card('Where revenue came from', K.isPlat() ? 'on the platforms’ own numbers' : 'credited by Triple Whale',
       `<div class="v2stackbar">${chRows.map(r => `<i style="flex:${r.revenue};background:var(${K.CH[r.id] || '--c-else'})"${K.tipAttr(`<b>${K.esc(r.label)}</b> · ${K.kmoney(r.revenue, cur)} · ${K.pct(r.revenue / credited, 0)}${r.spend ? ` · ROAS ${K.x2(r.revenue / r.spend)}` : ''}`)}></i>`).join('')}</div>
-       <div class="v4-share">${chRows.map(r => `<button type="button" class="v4-sh"${['meta', 'google', 'tiktok', 'email'].includes(r.id) ? ` data-go="${r.id}"` : ''}><i style="background:var(${K.CH[r.id] || '--c-else'})"></i><span class="l">${K.esc(r.label)}</span><b>${K.kmoney(r.revenue, cur)}</b><small>${r.spend ? `${K.x2(r.revenue / r.spend)} · ${K.int(r.nc)} first` : `${K.int(r.nc)} first`}${r.hasPrev ? ` ${K.delta(r.revenue, r.prev_revenue)}` : ''}</small></button>`).join('')}</div>`) : '';
+       <div class="v4-share">${chRows.map(r => `<button type="button" class="v4-sh"${['meta', 'google', 'tiktok', 'email'].includes(r.id) ? ` data-go="${r.id}"` : ''}><i style="background:var(${K.CH[r.id] || '--c-else'})"></i><span class="l">${K.esc(r.label)}</span><b>${K.kmoney(r.revenue, cur)}</b><small>${r.spend ? `${K.x2(r.revenue / r.spend)} · ${K.int(r.nc)} first` : `${K.int(r.nc)} first`}${r.hasPrev ? ` ${K.delta(r.revenue, r.prev_revenue)}` : ''}</small></button>`).join('')}</div>`, cm) : '';
 
     const S0 = st && st.brands ? st.brands : [];
     const fun = S0.reduce((s, bb) => { const x = bb.cur || {}, y = bb.prev || {}; s.ses += x.sessions || 0; s.cart += x.carts || 0; s.ord += x.orders || 0; s.pses += y.sessions || 0; s.pcart += y.carts || 0; s.pord += y.orders || 0; return s; }, { ses: 0, cart: 0, ord: 0, pses: 0, pcart: 0, pord: 0 });
@@ -123,11 +129,13 @@
         { label: 'Orders', v: fun.ord, prev: fun.pses ? fun.pord : null, bench: FUN_BENCH.order },
       ], { fmt: K.int }), 'Triple Whale pixel', [`Each chip is the share of the step before that carried on, coloured against a healthy store: about ${Math.round(FUN_BENCH.cart * 100)}% of sessions add to cart and about ${Math.round(FUN_BENCH.order * 100)}% of carts become an order (Shopify's published ecommerce averages, rounded).`]) : '';
 
-    $('#main').innerHTML = shell(`<div id="v4strip"></div>
-      <div class="v4-top"><section class="v2card v4-r">${riverCard(b)}</section><section class="v2card v4-m">${monthCard(a, cur)}</section><section class="v2card v4-n">${queueCard(td, ov, sd)}</section></div>
+    const qi = queueItems(td, sd);
+    $('#main').innerHTML = shell(`<div id="v4strip"></div>${qi.length === 1 ? `<div class="v4-qstrip">${queueStrip(qi[0])}</div>` : ''}
+      <div class="v4-top${qi.length >= 2 ? '' : ' v4-two-top'}"><section class="v2card v4-r">${riverCard(b)}</section><section class="v2card v4-m">${monthCard(a, cur)}</section>${qi.length >= 2 ? `<section class="v2card v4-n">${queueCard(qi)}</section>` : ''}</div>
       ${tiles}<div class="v2two v4-two">${share}${funnel}</div><div id="v4cal"></div>
       ${K.foot(`Revenue, orders, AOV and the compare deltas come from Shopify through Triple Whale for ${K.esc(H.rangeLabel())}. Channel revenue follows the attribution switch. Yesterday is the P&amp;L line: sales less ads, product, shipping and fees.`)}`);
     const root = $('#main'); K.wireGo(root);
+    root.querySelectorAll('[data-ask]').forEach(bt => bt.onclick = () => { if (window.AskUI && window.AskUI.ask) window.AskUI.ask(bt.dataset.ask); });
     if (window.LeaksCard && (window.LeaksCard.strip || window.LeaksCard.full)) (window.LeaksCard.strip || window.LeaksCard.full)($('#v4strip'), H, 'home');
     if (window.CalendarTab) window.CalendarTab.homeCard($('#v4cal'), H);
   }
@@ -264,7 +272,7 @@
     const ncTot = chRows.reduce((s, r) => s + r.nc, 0) || 1;
     const split = nw != null && ret != null && nw + ret > 0 ? `<div class="v2stackbar"><i style="flex:${nw};background:var(--brand)"${K.tipAttr(`New customers · ${mo(nw)} · ${K.pct(nw / (nw + ret), 0)}`)}></i><i style="flex:${ret};background:var(--line-strong)"${K.tipAttr(`Returning · ${mo(ret)} · ${K.pct(ret / (nw + ret), 0)}`)}></i></div><div class="v4-river-l"><span><i style="background:var(--brand)"></i>New customers <b>${km(nw)}</b></span><span><i style="background:var(--line-strong)"></i>Returning <b>${km(ret)}</b></span></div>` : '';
     const whoCard = K.card('Who paid, and through what', nw != null && ret != null && nw + ret > 0 ? `${K.pct(nw / (nw + ret), 0)} of revenue from first-time buyers.` : 'New against returning, then where first orders came from.',
-      `${split}${chRows.length && window.LxKit ? `<div class="v4-gap">${window.LxKit.bars(chRows.map(r => ({ label: r.label, v: r.nc, value: K.int(r.nc), note: K.pct(r.nc / ncTot, 0), tone: '' })), { max: chRows[0].nc })}</div><p class="v2hint v4-foot">First orders, credited under ${K.esc(K.MODEL_SHORT[H.S.model] || 'last platform click')}.</p>` : '<p class="v2hint">No first orders credited yet this month.</p>'}`, `${monthName} to date`);
+      `${split}${chRows.length && window.LxKit ? `<div class="v4-gap">${window.LxKit.bars(chRows.map(r => ({ label: r.label, v: r.nc, value: K.int(r.nc), note: K.pct(r.nc / ncTot, 0), tone: '' })), { max: chRows[0].nc })}</div><p class="v2hint v4-foot">First orders by channel, credited by the model on the card.</p>` : '<p class="v2hint">No first orders credited yet this month.</p>'}`, `${monthName} to date${window.cardModel ? ` ${window.cardModel()}` : ''}`);
 
     $('#main').innerHTML = shell(`<div class="v4-top v4-mo"><section class="v2card v4-land">${land}</section><section class="v2card">${wkCard}</section><section class="v2card">${cuCard}</section></div>
       <div class="v2two v4-two">${fallCard}${whoCard}</div>
@@ -392,22 +400,38 @@
      What could become the next brief, in front of Brief: saved Social posts (with the picture), the call rows that ask for
      a new version (Refresh), and the biggest leaks. "Brief it" opens the board's own New brief window with the words filled. */
   async function ideasCol(wrap, host, act) {
-    H = host; K = window.V2 && window.V2.kit; if (!K || !wrap || wrap.querySelector('.v4-ideas')) return;
+    H = host; K = window.V2 && window.V2.kit; if (!K || !wrap || !act || act === 'all') return;
     window.V2.setHost(host);
-    const t = H.RUN(), q = encodeURIComponent(act);
-    const [soc, td, lk] = await Promise.all([H.apiAH(`/api/social?act=${q}`).catch(() => null), K.get(`/api/hub/today?act=${q}`).catch(() => null), window.LeaksCard && window.LeaksCard.load ? (window.LeaksCard.setHost(H), window.LeaksCard.load(act).catch(() => null)) : null]);
-    if (t !== H.RUN() || !wrap.isConnected || wrap.querySelector('.v4-ideas')) return;
-    const items = [];
-    for (const p of ((soc && soc.posts) || []).filter(x => x.saved || x.idea_id).slice(0, 4)) items.push({ img: p.cover || p.thumb || '', title: p.caption ? String(p.caption).slice(0, 80) : (p.handle ? `@${p.handle}` : 'Saved post'), sub: `saved post${p.ratio != null && p.base != null ? ` · ${Math.round(p.ratio)}x its usual` : ''}${p.handle ? ` · @${p.handle}` : ''}`, text: `Our version of ${p.handle ? '@' + p.handle + "'s" : 'the saved'} post: ${String(p.caption || '').slice(0, 60)}`, go: 'social' });
-    for (const r of ((td && td.rows) || []).filter(x => x.kind === 'refresh').sort((a, b) => (b.stake || 0) - (a.stake || 0)).slice(0, 3)) items.push({ ad: r.anchor && r.anchor.ad_id ? r.anchor.ad_id : (r.top_ad && r.top_ad.ad_id) || r.ad_id, title: `Refresh ${r.adset || r.ad || ''}`, sub: `from the call${r.spend != null ? ` · ${K.money(r.spend, r.currency)} spent` : ''}`, text: `New version of ${r.adset || r.ad || ''}: ${String(r.why || '').slice(0, 80)}`, go: 'today' });
-    for (const l of ((lk && lk.leaks) || []).filter(x => x.cost_month > 0 && !/negative/.test((x.apply && x.apply.kind) || '')).sort((a, b) => (b.cost_month || 0) - (a.cost_month || 0)).slice(0, 2)) items.push({ title: l.title, sub: `from a leak · ${K.money(l.cost_month, lk.currency)} a month`, text: `Fix: ${l.title}${l.fix ? '. ' + l.fix : ''}`, go: 'leaks' });
-    const col = document.createElement('div'); col.className = 'pd-col v4-ideas'; col.dataset.col = 'ideas';
-    col.innerHTML = `<div class="pd-ch"><span class="dot" style="background:var(--brand)"></span><b>Ideas</b><span class="n">${items.length}</span><span class="sp n2"></span></div>
-      <div class="pd-cards">${items.length ? items.map((it, i) => `<div class="v4-ic"${it.ad ? ` data-thumb="${K.esc(it.ad)}"` : ''}>${it.img ? `<img src="${K.esc(it.img)}" alt="" loading="lazy">` : it.ad ? `<span class="v4-ic-t" data-thumb="${K.esc(it.ad)}"></span>` : ''}<b>${K.esc(it.title)}</b><small>${K.esc(it.sub)}</small><div class="v4-ic-a"><button type="button" class="pd-btn pri" data-brief="${i}">Brief it</button><button type="button" class="pd-btn" data-go="${K.esc(it.go)}">Open</button></div></div>`).join('') : '<div class="pd-empty">Save a post on Social, or make a call on Ads, and it lands here.</div>'}</div>`;
-    wrap.insertBefore(col, wrap.firstChild);
-    col.querySelectorAll('[data-brief]').forEach(b => b.onclick = () => { const it = items[+b.dataset.brief]; if (window.ProductionTab && window.ProductionTab.newBrief) window.ProductionTab.newBrief({ act, text: it.text }); });
-    K.wireGo(col);
-    const ids = items.filter(x => x.ad).map(x => x.ad); if (ids.length && window.V2 && window.V2.thumbs) window.V2.thumbs(col, ids, act, H);
+    /* review pass B: the column is ALWAYS there for one brand. It goes in at once (from the last read, or loading), every
+       board paint calls this again (the board's innerHTML drops it), and one read per brand is shared for five minutes. */
+    const M = ideasCol.mem || (ideasCol.mem = {}), m = M[act] || (M[act] = {});
+    const SRC = 'Ideas come from posts you save on <a role="link" tabindex="0" data-go="social">Social</a>, Refresh calls on <a role="link" tabindex="0" data-go="today">Ads</a>, and the biggest <a role="link" tabindex="0" data-go="leaks">leaks</a>.';
+    const cardOf = (it, i) => `<div class="v4-ic${it.img || it.ad ? ' pic' : ''}"${it.ad ? ` data-thumb="${K.esc(it.ad)}"` : ''}>${it.img ? `<img src="${K.esc(it.img)}" alt="" loading="lazy">` : it.ad ? `<span class="v4-ic-t" data-thumb="${K.esc(it.ad)}"></span>` : ''}<b>${K.esc(it.title)}</b><small>${K.esc(it.sub)}</small><div class="v4-ic-a"><button type="button" class="pd-btn pri" data-brief="${i}">Brief it</button><button type="button" class="pd-btn" data-go="${K.esc(it.go)}">Open</button></div></div>`;
+    const fill = (col, items) => {
+      col.innerHTML = `<div class="pd-ch"><span class="dot" style="background:var(--brand)"></span><b>Ideas</b><span class="n">${items ? items.length : ''}</span><span class="sp n2"></span></div>
+        <div class="pd-cards" data-cards="ideas">${!items ? '<div class="pd-sk"></div><div class="pd-sk"></div>' : items.map(cardOf).join('')}<div class="pd-empty">${SRC}</div></div>`;
+      col.querySelectorAll('[data-brief]').forEach(b => b.onclick = () => { const it = items[+b.dataset.brief]; if (window.ProductionTab && window.ProductionTab.newBrief) window.ProductionTab.newBrief({ act, text: it.text }); });
+      K.wireGo(col);
+      const ids = (items || []).filter(x => x.ad).map(x => x.ad); if (ids.length && window.V2 && window.V2.thumbs) window.V2.thumbs(col, ids, act, H);
+    };
+    let col = wrap.querySelector('.v4-ideas');
+    if (!col) { col = document.createElement('div'); col.className = 'pd-col v4-ideas'; col.dataset.col = 'ideas'; wrap.insertBefore(col, wrap.firstChild); }
+    col.dataset.act = act;
+    if (col.dataset.drawn !== String(m.at || 0)) { fill(col, m.items || null); col.dataset.drawn = String(m.at || 0); }
+    if (m.items && Date.now() - m.at < 300000) return;
+    if (!m.p) m.p = (async () => { try {
+      const q = encodeURIComponent(act);
+      const [soc, td, lk] = await Promise.all([H.apiAH(`/api/social?act=${q}`).catch(() => null), K.get(`/api/hub/today?act=${q}`).catch(() => null), window.LeaksCard && window.LeaksCard.load ? (window.LeaksCard.setHost(H), window.LeaksCard.load(act).catch(() => null)) : null]);
+      const items = [];
+      for (const p of ((soc && soc.posts) || []).filter(x => x.saved || x.idea_id).slice(0, 4)) items.push({ img: p.cover || p.thumb || '', title: p.caption ? String(p.caption).slice(0, 80) : (p.handle ? `@${p.handle}` : 'Saved post'), sub: `saved post${p.ratio != null && p.base != null ? ` · ${Math.round(p.ratio)}x its usual` : ''}${p.handle ? ` · @${p.handle}` : ''}`, text: `Our version of ${p.handle ? '@' + p.handle + "'s" : 'the saved'} post: ${String(p.caption || '').slice(0, 60)}`, go: 'social' });
+      for (const r of ((td && td.rows) || []).filter(x => x.kind === 'refresh').sort((a, b) => (b.stake || 0) - (a.stake || 0)).slice(0, 3)) items.push({ ad: r.anchor && r.anchor.ad_id ? r.anchor.ad_id : (r.top_ad && r.top_ad.ad_id) || r.ad_id, title: `Refresh ${r.adset || r.ad || ''}`, sub: `from the call${r.spend != null ? ` · ${K.money(r.spend, r.currency)} spent` : ''}`, text: `New version of ${r.adset || r.ad || ''}: ${String(r.why || '').slice(0, 80)}`, go: 'today' });
+      for (const l of ((lk && lk.leaks) || []).filter(x => x.cost_month > 0 && !/negative/.test((x.apply && x.apply.kind) || '')).sort((a, b) => (b.cost_month || 0) - (a.cost_month || 0)).slice(0, 2)) items.push({ title: l.title, sub: `from a leak · ${K.money(l.cost_month, lk.currency)} a month`, text: `Fix: ${l.title}${l.fix ? '. ' + l.fix : ''}`, go: 'leaks' });
+      m.items = items;
+    } catch { m.items = m.items || []; } m.at = Date.now(); m.p = null; })();
+    await m.p;
+    /* whichever board is on screen now (a repaint may have replaced the one this call started on) gets the result */
+    const now = document.querySelector('#main .pd-wrap .v4-ideas');
+    if (now && now.dataset.act === act && now.dataset.drawn !== String(m.at)) { fill(now, m.items); now.dataset.drawn = String(m.at); }
   }
   window.V4 = { render, extraCalls, reportExtras, ideasCol, negatives, setPanel, get on() { return document.documentElement.classList.contains('lx-v4'); } };
 })();

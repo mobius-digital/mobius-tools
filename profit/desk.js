@@ -46,8 +46,15 @@
       .dk .dk-lk .l{font-size:11.5px;color:var(--muted)}.dk .dk-lk .v{font-weight:600}
       .dk .dk-lk.worse{border-color:var(--bad)}.dk .dk-lk.better{border-color:var(--good)}
       .dk .dk-counts{margin:0 0 14px}
-      .dk .dk-row{display:grid;grid-template-columns:72px minmax(140px,1.2fr) minmax(0,1.6fr) max-content;gap:12px;align-items:start;padding:11px 0;border-top:1px solid var(--line)}
+      /* REVIEW PASS B (2026-10-21): one row grid. Thumb slot (the verdict chip sits on it), name, reason, then a FIXED action
+         column: primary, Done and "..." in the same x positions and widths on every row. Name and reason clamp to two lines,
+         the anchor to one (full text on hover), so every row follows one height rule. */
+      .dk .dk-row{display:grid;grid-template-columns:72px minmax(140px,1.2fr) minmax(0,1.6fr) 308px;gap:12px;align-items:start;padding:11px 0;border-top:1px solid var(--line)}
       @media (max-width:820px){.dk .dk-row{grid-template-columns:1fr}}
+      .dk .dk-row .nm,.dk .dk-row .why{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+      .dk .dk-row .meta{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+      .dk .dk-rs{min-width:0;display:flex;flex-direction:column;gap:3px}
+      .dk .dk-anc{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       /* THE KIT (2026-10-20): one primary button, Done, and a "..." menu for the rest (Ads Manager, Open in Locus, Something else, Not now). */
       .dk .dk-more{position:relative;display:inline-flex}
       .dk .dk-more-b{width:30px;padding:0!important;font-size:15px!important;letter-spacing:.5px}
@@ -58,14 +65,22 @@
       .dk .dk-k{font-size:10.5px;font-weight:700;letter-spacing:.05em;padding:3px 7px;border-radius:5px;text-align:center}
       .dk .dk-k.scale{background:var(--good-bg);color:var(--good)}.dk .dk-k.cut{background:var(--bad-bg);color:var(--bad)}.dk .dk-k.trim{background:var(--warn-bg);color:var(--warn)}.dk .dk-k.fix{background:var(--surface-2);color:var(--ink)}.dk .dk-k.refresh,.dk .dk-k.call{background:var(--brand-soft);color:var(--brand)}
       .dk .dk-row .nm{font-weight:600;word-break:break-word}.dk .dk-row .meta{font-size:12px;color:var(--muted)}.dk .dk-row .why{font-size:12.5px;color:var(--ink-2)}
-      .dk .dk-acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+      .dk .dk-acts{display:grid;grid-template-columns:156px 110px 30px;gap:6px;justify-content:end;align-items:center}
+      .dk .dk-acts>.v2btn,.dk .dk-acts>.dk-gap{width:100%;min-width:0;justify-content:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+      .dk .dk-acts>.dk-gap{display:block;height:30px}
+      @media (max-width:820px){.dk .dk-acts{justify-content:start;grid-template-columns:minmax(0,156px) minmax(0,110px) 30px}}
       .dk .dk-row.done{opacity:.45}
       .dk .dk-c1{display:flex;flex-direction:column;gap:8px;align-items:flex-start}
-      .dk .dk-th{width:72px;aspect-ratio:4/5;border-radius:8px;border:1px solid var(--line);background:var(--surface-2) center/cover no-repeat;padding:0;cursor:pointer;display:grid;place-items:center}
+      .dk .dk-th{position:relative;width:72px;aspect-ratio:4/5;border-radius:8px;border:1px solid var(--line);background:var(--surface-2) center/cover no-repeat;padding:0;cursor:pointer;display:grid;place-items:center}
+      .dk .dk-th.dk-th0{cursor:default;border-style:dashed;background:transparent}
+      .dk .dk-th .dk-k{position:absolute;top:4px;left:4px;font-size:9px;line-height:1;padding:3px 5px;border-radius:4px;letter-spacing:.04em;box-shadow:0 0 0 1px var(--line)}
+      .dk .dk-th .dk-k.scale{background:linear-gradient(var(--good-bg),var(--good-bg)),var(--surface)}.dk .dk-th .dk-k.cut{background:linear-gradient(var(--bad-bg),var(--bad-bg)),var(--surface)}.dk .dk-th .dk-k.trim{background:linear-gradient(var(--warn-bg),var(--warn-bg)),var(--surface)}
+      .dk .dk-th .dk-k.fix,.dk .dk-th .dk-k.neg{background:var(--surface);color:var(--ink)}.dk .dk-th .dk-k.refresh,.dk .dk-th .dk-k.call{background:linear-gradient(var(--brand-soft),var(--brand-soft)),var(--surface)}
       .dk .dk-th:hover{border-color:var(--line-strong)}.dk .dk-th:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
       .dk .dk-th i{width:26px;height:26px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;display:grid;place-items:center;font-style:normal;font-size:11px}
       .dk .dk-th i svg{fill:#fff;stroke:#fff}
       @media (max-width:820px){.dk .dk-c1{flex-direction:row;align-items:center}.dk .dk-th{width:56px}}
+      .dk .dk-c1 .dk-th0{width:72px}@media (max-width:820px){.dk .dk-c1 .dk-th0{width:56px;aspect-ratio:auto;height:28px;border:0}}
       .dk .dk-doall{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:0 0 14px}
       .dk .dk-doall .v2hint{margin:0}
       @media (min-width:721px){.dk-all.modal{max-width:580px}}
@@ -110,7 +125,34 @@
       .dk-form select,.dk-form textarea,.dk-form input[type=date]{padding:8px 10px;border:1px solid var(--line-strong);border-radius:7px;background:var(--surface-2);color:var(--ink);font:inherit}
       .dk-form label small{font-weight:400;color:var(--muted);font-size:11.5px}
       .lx-toast.dk-t a{color:inherit;font-weight:600;margin-left:10px;text-decoration:underline}
-      .dk .dk-acts .v2btn{height:30px;font-size:12.5px;padding:0 11px}`;
+      .dk .dk-acts .v2btn{height:30px;font-size:12.5px;padding:0 11px}
+      /* REVIEW PASS B (2026-10-21): The Plan = one line per step, the full section in the side panel. */
+      .wr .wr-plan1{display:flex;flex-direction:column;gap:8px;min-width:0}
+      .wr .wr-plan1 .wr-next{margin:0 0 4px}
+      [data-ui="v2"] .wr .wr-line{padding:0;overflow:hidden;gap:0}
+      .wr .wr-lb{appearance:none;border:0;background:none;width:100%;box-sizing:border-box;display:grid;grid-template-columns:22px minmax(150px,max-content) minmax(0,1fr) auto 12px;gap:12px;align-items:center;padding:12px 16px;cursor:pointer;font:inherit;color:var(--ink);text-align:left;border-radius:inherit}
+      .wr .wr-lb:hover{background:var(--surface-2)}
+      .wr .wr-lb:focus-visible{outline:2px solid var(--brand);outline-offset:-2px}
+      .wr .wr-lb .t{font-weight:600;font-size:14px;white-space:nowrap}
+      .wr .wr-lb .v{color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+      .wr .wr-chev{color:var(--muted);font-size:16px;line-height:1}
+      .wr .wr-als{border-top:1px solid var(--line);padding:2px 16px 4px 50px}
+      .wr .wr-alr{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:12px;align-items:center;padding:8px 0;font-size:13px}
+      .wr .wr-alr+.wr-alr{border-top:1px solid var(--line)}
+      .wr .wr-alr .nm{font-weight:550}
+      .wr .wr-alr input.lx-sw:disabled{opacity:.5;cursor:default}
+      @media (max-width:600px){.wr .wr-lb{grid-template-columns:22px minmax(0,1fr) auto 12px;row-gap:2px}.wr .wr-lb .t{white-space:normal}.wr .wr-lb .v{grid-column:2/-1;grid-row:2}.wr .wr-als{padding-left:16px}}
+      .wr-pn{gap:14px}
+      .wr-pn .wr-psec{display:flex;flex-direction:column;gap:12px;min-width:0}
+      .wr-pn .wr-psub p{margin:0;color:var(--muted);font-size:13px;line-height:1.5}
+      .wr-pn .wr-psec h4{margin:8px 0 2px}
+      .wr-pn .wr-thr{display:flex;flex-direction:column;gap:6px;padding:10px 0;border-top:1px solid var(--line)}
+      .wr-pn .wr-thr:first-child{border-top:0;padding-top:0}
+      .wr-pn .wr-thr .q{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:13px;padding-left:44px}
+      .wr-pn .wr-thr .q input[type=text]{width:90px}
+      .wr-pn .wr-thr small{padding-left:44px;color:var(--muted);font-size:11.5px}
+      .wr-pn .wr-thr > b{font-size:13.5px}
+      .wr-pn .wr-thr > b ~ .q,.wr-pn .wr-thr > b ~ small{padding-left:0}`;
     document.head.appendChild(st);
   }
 
@@ -330,21 +372,23 @@
     const row = r => { const cur = r.currency || 'USD', am = amLink(r), k = esc(r.key);
       if (r.kind === 'call') { const c = r.test, $ = v => U().money(v, cur);
         const meta = `${$(c.spend)} spent · ${U().int(c.orders)} purchase${Math.round(c.orders) === 1 ? '' : 's'} · ${c.cpa != null ? `${$(c.cpa)} per sale` : 'no sale'}${c.goal ? ` · goal ${$(c.goal)}` : ''}${c.roas ? ` · ${U().x2(c.roas)} ROAS` : ''}${c.ads ? ` · ${c.ads} ad${c.ads === 1 ? '' : 's'}` : ''}`;
-        return `<div class="dk-row"><span class="dk-k call">CALL</span>
-          <div><div class="nm">${esc(r.adset)}</div><div class="meta">${meta}</div></div>
-          <div class="why">${esc(r.why || '')}</div>
+        return `<div class="dk-row"><div class="dk-c1"><span class="dk-th dk-th0"><span class="dk-k call">CALL</span></span></div>
+          <div><div class="nm" title="${esc(r.adset)}">${esc(r.adset)}</div><div class="meta">${meta}</div></div>
+          <div class="dk-rs"><div class="why" title="${esc(r.why || '')}">${esc(r.why || '')}</div></div>
           <div class="dk-acts"><button type="button" class="v2btn dk-p" data-verdict="winner" data-key="${k}" title="Close the test as a winner. One line on what it taught us.">Winner</button><button type="button" class="v2btn ghost" data-verdict="keep" data-key="${k}" title="Leave it running with a reason and a date to check again.">Keep running</button><span class="dk-more"><button type="button" class="v2btn ghost dk-more-b" aria-haspopup="true" aria-expanded="false" title="More">&middot;&middot;&middot;</button><div class="dk-menu" role="menu"><button type="button" data-verdict="loser" data-key="${k}">Loser</button><button type="button" data-go="act:${esc(r.act_id)}:tests">Open the test</button>${c.ads_manager ? `<a href="${esc(c.ads_manager)}" target="_blank" rel="noopener">Open in Ads Manager</a>` : ''}<button type="button" data-snooze="${k}">Not now</button></div></span></div></div>`; }
       const meta = r.spend != null ? `${U().money(r.spend, cur)} spent · ${U().int(r.orders)} sale${Math.round(r.orders) === 1 ? '' : 's'} · ${r.cpa ? U().money(r.cpa, cur) + ' per sale' : 'no sale'}${r.goal ? ` · goal ${U().money(r.goal, cur)}` : ''}${r.n_ads ? ` · ${r.n_ads} ad${r.n_ads === 1 ? '' : 's'}` : ''}` : '';
-      const anchor = (r.kind === 'cut' || r.kind === 'scale') && r.anchor && r.n_ads > 1 ? ` <span class="faint">Anchor: "${esc(r.anchor.name)}" (${Math.round((r.anchor.share || 0) * 100)}% of the set's spend).</span>` : '';
+      const ancT = (r.kind === 'cut' || r.kind === 'scale') && r.anchor && r.n_ads > 1 ? `Anchor: "${r.anchor.name}" (${Math.round((r.anchor.share || 0) * 100)}% of the set's spend).` : '';
+      const anchor = ancT ? `<div class="dk-anc" title="${esc(ancT)}">${esc(ancT)}</div>` : '';
       const primary = DO_TIP[r.kind] ? `<button type="button" class="v2btn dk-p" data-do="${k}" title="${esc(DO_TIP[r.kind])}">Do it</button>`
         : r.kind === 'neg' ? `<button type="button" class="v2btn dk-p" data-neg="${k}" title="Each search becomes an exact negative keyword on its own campaign. Google checks each one before it is written.">Add ${r.leak && r.leak.items ? r.leak.items.length : ''} negatives</button>`
         : r.kind === 'refresh' ? `<button type="button" class="v2btn dk-p" data-brief="${k}" title="Ask Locus to brief three iterations of this ad as an Asana brief.">Brief the iteration</button>`
-        : am ? `<a class="v2btn dk-p" href="${esc(am)}" target="_blank" rel="noopener">Open in Ads Manager</a>` : '';
+        : am ? `<a class="v2btn dk-p" href="${esc(am)}" target="_blank" rel="noopener">Open in Ads Manager</a>` : '<span class="dk-gap" aria-hidden="true"></span>';
       const ad = adOf(r);
-      const th = ad ? `<button type="button" class="dk-th" data-thumb="${esc(ad.id)}" data-play="${k}" aria-label="Play the ad ${esc(ad.name || '')}" title="${esc(r.kind === 'trim' ? 'The ad to turn off' : r.kind === 'refresh' ? 'The main ad' : `The set's main ad${ad.name ? `: ${ad.name}` : ''}`)}. Tap to play."><i>${window.icon ? window.icon('play', { size: 12 }) : '&#9654;'}</i></button>` : '';
-      return `<div class="dk-row${dn[r.key] ? ' done' : ''}"><div class="dk-c1"><span class="dk-k ${r.kind}">${r.kind.toUpperCase()}</span>${th}</div>
-        <div><div class="nm"${window.V4 && window.V4.on && r.adset_id ? ` data-set="${k}" role="button" tabindex="0" title="Open the ad set: the reason, the numbers and the ads in it"` : ''}>${esc(r.ad ? r.ad : r.adset || '')}</div><div class="meta">${r.ad && r.adset ? `in ${esc(r.adset)} · ` : ''}${meta}</div></div>
-        <div class="why">${esc(r.why || '')}${anchor}</div>
+      const chip = `<span class="dk-k ${r.kind}">${r.kind === 'neg' ? 'GOOGLE' : r.kind.toUpperCase()}</span>`;
+      const th = ad ? `<button type="button" class="dk-th" data-thumb="${esc(ad.id)}" data-play="${k}" aria-label="Play the ad ${esc(ad.name || '')}" title="${esc(r.kind === 'trim' ? 'The ad to turn off' : r.kind === 'refresh' ? 'The main ad' : `The set's main ad${ad.name ? `: ${ad.name}` : ''}`)}. Tap to play.">${chip}<i>${window.icon ? window.icon('play', { size: 12 }) : '&#9654;'}</i></button>` : `<span class="dk-th dk-th0">${chip}</span>`;
+      return `<div class="dk-row${dn[r.key] ? ' done' : ''}"><div class="dk-c1">${th}</div>
+        <div><div class="nm"${window.V4 && window.V4.on && r.adset_id ? ` data-set="${k}" role="button" tabindex="0" title="${esc(r.ad ? r.ad : r.adset || '')}. Open the ad set: the reason, the numbers and the ads in it"` : ` title="${esc(r.ad ? r.ad : r.adset || '')}"`}>${esc(r.ad ? r.ad : r.adset || '')}</div><div class="meta">${r.ad && r.adset ? `in ${esc(r.adset)} · ` : ''}${meta}</div></div>
+        <div class="dk-rs"><div class="why" title="${esc(r.why || '')}">${esc(r.why || '')}</div>${anchor}</div>
         <div class="dk-acts">${primary}${gb(`data-done="${k}"`, dn[r.key] ? 'Undo' : 'Done')}<span class="dk-more"><button type="button" class="v2btn ghost dk-more-b" aria-haspopup="true" aria-expanded="false" title="More">&middot;&middot;&middot;</button><div class="dk-menu" role="menu">${am && r.kind !== 'fix' ? `<a href="${esc(am)}" target="_blank" rel="noopener">Open in Ads Manager</a>` : ''}<button type="button" data-locus="${k}">Open in Locus</button><button type="button" data-else="${k}">Something else</button><button type="button" data-snooze="${k}">Not now</button></div></span></div></div>`; };
     const groups = order.map(([id, rs]) => { rs.sort((a, b) => (b.stake || 0) - (a.stake || 0)); const name = rs[0].brand; const all = OPEN[id] || one; const list = all ? rs : rs.slice(0, 3);
       return `<section class="v2card"><div class="v2h"><h3>${esc(name)}</h3><span class="cap">${rs.length} to do</span>${window.LxKit && LxKit.cardMenu ? LxKit.cardMenu([esc(d.rules_note || ''), 'Do it writes the change to Meta after you confirm it: a dry run shows before and after first, the write is logged in the Change Log, and Undo is on the toast for 24 hours. Winner, Keep running and Loser close or park a test here and in Asana. Something else puts an action item on Work > Tasks. Done only writes a line to the Change Log, which the Daily Brief reads for "What we did". Not now hides a row on this computer until tomorrow.']) : ''}</div>${list.map(row).join('')}${rs.length > 3 && !one ? `<button type="button" class="v2link" data-more="${esc(id)}" style="margin-top:8px">${OPEN[id] ? 'Show fewer' : `Show ${rs.length - 3} more`}</button>` : ''}</section>`; }).join('');
@@ -612,8 +656,10 @@
   const kpi = (label, value, sub, tone, tip) => `<div class="wr-k${tone ? ' ' + tone : ''}"${tip ? U().tipAttr(tip) : ''}><span class="l">${label}</span><b>${value}</b>${sub ? `<span class="s">${sub}</span>` : ''}</div>`;
   /* PHASE 7 (2026-10-20): the first sentence of a step's note is its one caption under the title; the rest waits in the
      card's "..." so no step opens with a paragraph. */
-  const sec = (id, n, done, title, sub, body, cap) => { const m = /^(.*?[.!?])\s+(\S[\s\S]*)$/.exec(sub || ''); const find = m ? m[1] : sub || '', rest = m ? m[2] : '';
-    return `<section class="v2card wr-sec" id="${id}"><div class="v2h"><h3><span class="wr-n${done ? ' done' : ''}">${done ? '✓' : n}</span>${esc(title)}</h3>${find ? `<span class="find">${find.replace(/[.!?]$/, '')}</span>` : ''}${cap ? `<span class="cap">${cap}</span>` : ''}${rest && window.LxKit && LxKit.cardMenu ? LxKit.cardMenu(rest) : ''}</div>${body}</section>`; };
+  /* REVIEW PASS B (2026-10-21, Cole: "Season has walls of text"): The Plan's page shows ONE line per step (`planLine`);
+     the full section is drawn only inside the shared side panel (`openSec` -> window.V2.panel), with its whole note on top.
+     n, done and title stay in the signature so the six section functions are unchanged. */
+  const sec = (id, n, done, title, sub, body, cap) => `<section class="wr-sec wr-psec" id="${id}">${sub || cap ? `<div class="wr-psub">${sub ? `<p>${sub}</p>` : ''}${cap ? `<span class="cap">${cap}</span>` : ''}</div>` : ''}${body}</section>`;
 
   function warStop() { if (WR.timer && !WR.tv) { clearInterval(WR.timer); WR.timer = null; } }
   /** page = 'warplan' | 'warlive' | 'war' (old id: the mode comes from window.WAR_MODE, then the switch, then the date). */
@@ -650,6 +696,10 @@
     const rf = root.querySelector('#wrRefresh'); if (rf) rf.onclick = () => war(false, WR.page);
     const tv = root.querySelector('#wrTv'); if (tv) tv.onclick = () => tvMode(!WR.tv);
     if (m === 'live') wireLive(t, d); else wirePlan(t, d);
+    /* A save inside a step's panel re-reads the plan: draw the same panel again from the new data, at the same scroll. */
+    const open = document.querySelector('#v2panel.on .wr-pn'), re = WR.reopen || (open && open.dataset.wrsec);
+    WR.reopen = null;
+    if (m === 'plan' && re) openSec(d, re, true);
   }
   function warStrip(d, m, done) {
     const days = d.sale_days_to, N = d.psteps.length;
@@ -665,11 +715,68 @@
 
   /* ---------------- PLAN ---------------- */
   function planBody(d, done) {
-    const st = d.psteps.map((s, i) => `<button type="button" class="wr-st${s.done ? ' done' : ''}" data-jump="${ANCHOR[s.key]}"${s.why ? U().tipAttr(esc(s.why)) : ''}><i>${s.done ? '✓' : i + 1}</i><span>${esc(s.label)}</span></button>`).join('');
     const nxt = d.psteps.find(s => !s.done);
-    return `<div class="wr-plan"><nav class="wr-steps" aria-label="Plan steps"><div class="h">Build the ${esc(seasonLabel())} plan</div>${st}
-        <p class="v2hint">${!nxt ? 'Every step is done. Live takes over on the first sale day.' : `Next: ${esc(nxt.label)}. ${esc(nxt.why || '')}`}</p></nav>
-      <div class="wr-body">${baseSec(d)}${goalsSec(d)}${budgetSec(d)}${offersSec(d)}${alertsSec(d)}${stockSec(d)}</div></div>`;
+    return `<div class="wr-plan1"><p class="v2hint wr-next">${!nxt ? 'Every step is done. Live takes over on the first sale day.' : `<button type="button" class="v2link" data-wropen="${ANCHOR[nxt.key] || ''}"${nxt.why ? ` title="${esc(nxt.why)}"` : ''}>Next: ${esc(nxt.label)} ›</button>`}</p>
+      ${baseLine(d)}${goalsLine(d)}${budgetLine(d)}${offersLine(d)}${alertsLine(d)}${stockLine(d)}</div>`;
+  }
+  /* ---- The Plan, one line per step (review pass B). A line = number, title, one short value, a status chip; a click
+     opens the step's full section in the side panel. ---- */
+  const SEC = {
+    wrBase: ['Last year, the same days', d => baseSec(d)], wrGoals: ['Goals and the ladder', d => goalsSec(d)],
+    wrBudget: ['Paid budget by channel', d => budgetSec(d)], wrOffers: ['Offers and key dates', d => offersSec(d)],
+    wrAlerts: [null, d => alertsSec(d)], wrStock: ['Stock on the heroes', d => stockSec(d)],
+  };
+  const lchip = (tone, text) => !text ? '' : window.LxKit && LxKit.chip ? LxKit.chip(tone, text) : `<span class="v2pill ${tone}">${esc(text)}</span>`;
+  function planLine(d, id, key, title, val, tone, status, extra = '') {
+    const n = stepNo(d, key), done = stepDone(d, key);
+    return `<section class="v2card wr-line" id="${id}L"><button type="button" class="wr-lb" data-wropen="${id}" aria-haspopup="dialog" title="Open: ${esc(title)}"><span class="wr-n${done ? ' done' : ''}">${done ? '✓' : n}</span><b class="t">${esc(title)}</b><span class="v">${val}</span>${lchip(tone, status)}<span class="wr-chev" aria-hidden="true">›</span></button>${extra}</section>`;
+  }
+  function baseLine(d) {
+    const b = d.baseline || {}, T = b.totals, ok = d.war && d.war.baseline_ok;
+    return planLine(d, 'wrBase', 'baseline', 'Last year, the same days', T ? `${Ko(T.sales)} revenue · ${Xo(T.mer)} MER · ${md(b.from)} to ${md(b.to)}` : `No days stored for ${md(b.from)} to ${md(b.to)}`, ok ? 'good' : 'warn', ok ? 'In use' : 'Not confirmed');
+  }
+  function goalsLine(d) {
+    const list = (WR.goals && WR.goals.act === d.act_id ? WR.goals.list : d.goals_list) || [], rev = list.find(g => g.metric === 'revenue'), L = d.ladder || {};
+    const val = `${rev && rev.target ? `${Ko(rev.target)} revenue goal` : `${list.length} goal${list.length === 1 ? '' : 's'}`} · ladder ${L.be != null && L.target != null ? 'set' : 'not set'}`;
+    return planLine(d, 'wrGoals', 'goals', 'Goals and the ladder', esc(val), d.goals_saved ? 'good' : 'warn', d.goals_saved ? 'Saved' : 'Not saved');
+  }
+  function budgetLine(d) {
+    const B = budDraft(d), left = (B.total || 0) - B.channels.reduce((s, c) => s + amountOf(B, c), 0);
+    const st = !B.total ? ['warn', 'Not set'] : Math.abs(left) < 1 ? ['good', 'Fully split'] : ['warn', `${Ko(Math.abs(left))} ${left > 0 ? 'not split' : 'over'}`];
+    return planLine(d, 'wrBudget', 'budget', 'Paid budget by channel', B.total ? `${Ko(B.total)} for the sale · ${B.channels.length} channel${B.channels.length === 1 ? '' : 's'}` : 'No budget yet', st[0], st[1]);
+  }
+  function offersLine(d) {
+    const bfp = (d.phases || []).find(p => p.key === 'bf'), n = (d.phases || []).filter(p => p.status !== 'skip').length;
+    const val = bfp ? `${esc(bfp.name)}: ${esc(bfp.offer || 'nothing written yet')}` : `${n} offer${n === 1 ? '' : 's'}`;
+    const tone = !bfp ? 'bad' : bfp.status === 'locked' ? 'good' : bfp.status === 'draft' || bfp.status === 'proposed' ? 'warn' : 'bad';
+    return planLine(d, 'wrOffers', 'offers', 'Offers and key dates', val, tone, bfp ? (STAT[bfp.status] || bfp.status) : `No ${seasonLabel()} weekend`);
+  }
+  /* The Slack alerts card is a short list: one row per alert with a switch that saves through saveAlerts (the same rules
+     the panel's Save writes). The numbers stay editable in the panel. */
+  const alertOn = (d, k) => ((d.war && d.war.alerts) || []).some(a => a.kind === k || (k === 'overspend' && a.kind === 'overspend_meta'));
+  const thShort = (k, v) => v == null ? 'No number set' : k === 'overspend' ? `Over ${v}% of the day's budget` : k === 'mer' ? `Under ${Xo(v)}` : k === 'aov' ? `Under ${Mo(v)}` : `Under ${In(v)} days`;
+  function alertsLine(d) {
+    if (isCl()) return planLine(d, 'wrAlerts', 'alerts', 'Alerts', 'The Mobius team watches spend, MER, AOV and stock in Slack', '', '');
+    const v = thDefaults(d), on = THRESH.filter(([k]) => alertOn(d, k)).length;
+    const rows = THRESH.map(([k, l]) => { const o = alertOn(d, k);
+      return `<div class="wr-alr"><span class="nm">${esc(l)}</span><span class="faint">${o ? esc(thShort(k, v[k])) : 'Off'}</span><input type="checkbox" class="lx-sw" data-alsw="${k}" aria-label="${esc(l)}"${o ? ' checked' : ''}></div>`; }).join('');
+    return planLine(d, 'wrAlerts', 'alerts', 'Alerts in Slack', `${on} of ${THRESH.length} on · ${md(d.sale.start)} to ${md(d.sale.end)}`, on ? 'good' : 'quiet', on ? 'On' : 'Off', `<div class="wr-als">${rows}</div>`);
+  }
+  function stockLine(d) {
+    const ok = d.war && d.war.stock_ok;
+    if (isCl()) return planLine(d, 'wrStock', 'stock', 'Stock on the heroes', 'The Mobius team checks stock on your best sellers', '', '');
+    return planLine(d, 'wrStock', 'stock', 'Stock on the heroes', `Against the sale's last day, ${md(d.sale.end)}`, ok ? 'good' : 'warn', ok ? 'Checked' : 'Not checked yet');
+  }
+  /** Open one step's full section in the shared side panel (wide), then wire it. keep = a repaint: hold the scroll. */
+  function openSec(d, id, keep) {
+    const S2 = SEC[id], P = window.V2 && window.V2.panel; if (!S2 || !P) return;
+    const was = keep ? ((document.querySelector('#v2panel .pb') || {}).scrollTop || 0) : 0;
+    const title = S2[0] || (isCl() ? 'Alerts' : 'Alerts in Slack');
+    const pb = P(title, `<div class="wr wr-pn" data-wrsec="${id}">${S2[1](d)}</div>`);
+    const pn = document.getElementById('v2panel'); if (pn) pn.classList.add('wide');
+    if (!pb) return;
+    if (was) pb.scrollTop = was;
+    wireSec(H.RUN(), d, id, pb);
   }
   const stepDone = (d, k) => !!(d.psteps.find(s => s.key === k) || {}).done;
 
@@ -769,8 +876,9 @@
   }
   async function editOffer(d, key) {
     const ST = window.SeasonTab; if (!ST || !ST.editPhase) return toast('The offer editor did not load. Open Offers and dates.', true);
+    if (window.V2 && window.V2.closePanel) window.V2.closePanel();   // the editor is a modal that sits under the side panel
     const saved = await ST.editPhase({ tok: H.S.tok, url: H.S.url, act: d.act_id, phases: d.phases, name: d.name }, key);
-    if (saved) { toast('Offer saved.'); war(false, WR.page); }
+    if (saved) { toast('Offer saved.'); WR.reopen = 'wrOffers'; war(false, WR.page); } else openSec(d, 'wrOffers');
   }
   async function fillCal(t, d) {
     const el = document.getElementById('wrCal'); if (!el) return;
@@ -801,11 +909,12 @@
   function alertsSec(d) {
     if (isCl()) return sec('wrAlerts', stepNo(d, 'alerts'), stepDone(d, 'alerts'), 'Alerts', '', '<p class="v2hint">The Mobius team gets a Slack alert when spend runs over budget, MER or AOV drops under the floor, or a best seller runs low during the sale.</p>');
     const v = thDefaults(d);
-    const rows = THRESH.map(([k, l, pre, post, note]) => `<div class="wr-th"><b>${l}</b><span>${pre}</span>${k === 'aov' ? '<span>$</span>' : ''}<input type="text" inputmode="decimal" data-th="${k}" value="${v[k] ?? ''}" placeholder="off" aria-label="${l}"><span>${post === '$' ? '' : post}</span><small>${note}</small></div>`).join('');
+    const rows = THRESH.map(([k, l, pre, post, note]) => `<div class="wr-thr"><label class="lx-sw-l"><input type="checkbox" class="lx-sw" data-thon="${k}"${alertOn(d, k) ? ' checked' : ''}><b>${l}</b></label>
+      <div class="q"><span>${pre}</span>${k === 'aov' ? '<span>$</span>' : ''}<input type="text" inputmode="decimal" data-th="${k}" value="${v[k] ?? ''}" placeholder="off" aria-label="${l}: the number"><span>${post === '$' ? '' : post}</span></div><small>${note}</small></div>`).join('');
     const hours = Array.from({ length: 13 }, (_, i) => i + 9).map(h => `<option value="${h}"${h === v.hour ? ' selected' : ''}>${hourWord(h)}</option>`).join('');
-    return sec('wrAlerts', stepNo(d, 'alerts'), stepDone(d, 'alerts'), 'Alerts in Slack', `The thresholds. Real alerts: they post to ${esc(d.name)}'s internal Slack channel, at most once a day each, and only from ${md(d.sale.start)} to ${md(d.sale.end)}. Leave a box empty to turn that one off. What fired today shows on Live.`,
-      `<div class="wr-ths">${rows}<div class="wr-th"><b>Check MER and AOV at</b><select id="wrTHour">${hours}</select><span>Central</span><small>2pm matches the Plan B call.</small></div></div>
-      <div class="wr-row"><button type="button" class="v2btn dk-p" id="wrASave">${(d.war.alerts || []).length ? 'Update the Slack alerts' : 'Turn on the Slack alerts'}</button><span class="v2hint" id="wrAMsg"></span></div>
+    return sec('wrAlerts', stepNo(d, 'alerts'), stepDone(d, 'alerts'), 'Alerts in Slack', `Real alerts: they post to ${esc(d.name)}'s internal Slack channel, at most once a day each, and only from ${md(d.sale.start)} to ${md(d.sale.end)}. A switch turns one on or off; an empty box turns it off too. What fired today shows on Live.`,
+      `<div class="wr-ths">${rows}<div class="wr-thr"><b>Check MER and AOV at</b><div class="q"><select id="wrTHour">${hours}</select><span>Central</span></div><small>2pm matches the Plan B call.</small></div></div>
+      <div class="wr-row"><button type="button" class="v2btn dk-p" id="wrASave">Save the Slack alerts</button><span class="v2hint" id="wrAMsg"></span></div>
       <div id="wrAList"></div>`);
   }
   async function fillAlerts(t, d) {
@@ -823,10 +932,24 @@
       catch (e) { out.innerHTML = `<p class="v2bad">${esc(e.message)}</p>`; }
     });
   }
-  async function saveAlerts(d, root) {
-    const msg = root.querySelector('#wrAMsg'); msg.textContent = 'Saving…';
+  /** The panel's thresholds: one box per alert; its switch off = that alert off. */
+  function readTh(root) {
     const th = {}; root.querySelectorAll('[data-th]').forEach(i => { th[i.dataset.th] = numIn(i.value); });
-    th.hour = +root.querySelector('#wrTHour').value;
+    root.querySelectorAll('[data-thon]').forEach(c => { if (!c.checked) th[c.dataset.thon] = null; });
+    const h = root.querySelector('#wrTHour'); th.hour = h ? +h.value : 14; return th;
+  }
+  /** A switch on The Plan's alert list: the saved numbers, with this alert on (its saved number, else the default) or off,
+      every other alert left as it is. Saves through saveAlerts, like the panel. */
+  async function toggleAlert(d, k, on, sw) {
+    const v = thDefaults(d), th = { hour: v.hour };
+    THRESH.forEach(([kk]) => { th[kk] = (kk === k ? on : alertOn(d, kk)) ? (v[kk] ?? null) : null; });
+    if (on && th[k] == null) { sw.checked = false; return toast('Set a number for it first: open Alerts in Slack.', true); }
+    document.querySelectorAll('[data-alsw]').forEach(x => { x.disabled = true; });
+    await saveAlerts(d, th, null);
+    document.querySelectorAll('[data-alsw]').forEach(x => { x.disabled = false; });
+  }
+  async function saveAlerts(d, th, msg) {
+    if (msg) msg.textContent = 'Saving…';
     const dp = dayPlanC(d), maxDay = Math.max(0, ...dp.map(x => x.spend || 0));
     const B = budDraft(d), meta = B.channels.find(c => c.id === 'meta'), maxShare = Math.max(0, ...dp.map(x => x.spend_share || 0));
     const rules = [];
@@ -849,7 +972,7 @@
       for (const a of old) if (!out.some(o => o.kind === a.kind)) await H.apiAH(`/api/alerts?id=${encodeURIComponent(a.id)}`, { method: 'DELETE' }).catch(() => {});
       const w = await H.api('/api/season/war', { method: 'PUT', body: JSON.stringify({ act: d.act_id, patch: { thresholds: th, alerts: out } }) });
       d.war = w.war; toast(`${out.length} Slack alert${out.length === 1 ? '' : 's'} on for the sale.${notes.length ? ' ' + notes.join(' ') : ''}`); war(false, WR.page);
-    } catch (e) { msg.textContent = e.message; }
+    } catch (e) { if (msg) msg.textContent = e.message; else { toast(e.message, true); war(false, WR.page); } }
   }
 
   function stockSec(d) {
@@ -918,9 +1041,15 @@
 
   function wirePlan(t, d) {
     const root = $('#wrRoot');
-    root.querySelectorAll('[data-jump]').forEach(b => b.onclick = () => { const s = document.getElementById(b.dataset.jump); if (s) { s.scrollIntoView({ behavior: 'smooth', block: 'start' }); s.classList.add('wr-ring'); setTimeout(() => s.classList.remove('wr-ring'), 1600); } });
-    root.querySelectorAll('[data-go]').forEach(b => b.onclick = () => H.show(b.dataset.go));
-    fillCal(t, d); fillAlerts(t, d); fillStock(t, d, 'wrStockBody');
+    root.querySelectorAll('[data-wropen]').forEach(b => b.onclick = () => openSec(d, b.dataset.wropen));
+    root.querySelectorAll('[data-alsw]').forEach(sw => sw.onchange = () => toggleAlert(d, sw.dataset.alsw, sw.checked, sw));
+  }
+  /** Wire one step's section inside the side panel (pb). Clients get the reads and the links, never the edits (as before). */
+  function wireSec(t, d, id, root) {
+    root.querySelectorAll('[data-go]').forEach(b => b.onclick = () => { if (window.V2 && window.V2.closePanel) window.V2.closePanel(); H.show(b.dataset.go); });
+    if (id === 'wrOffers') fillCal(t, d);
+    if (id === 'wrAlerts') fillAlerts(t, d);
+    if (id === 'wrStock') fillStock(t, d, 'wrStockBody');
     if (isCl()) return;
     root.querySelectorAll('[data-edit-phase]').forEach(b => b.onclick = () => editOffer(d, b.dataset.editPhase));
     const ap = root.querySelector('#wrAddPhase'); if (ap) ap.onclick = () => editOffer(d, null);
@@ -929,10 +1058,10 @@
     const bl = root.querySelector('#wrBLoad'); if (bl) bl.onclick = async () => { const f = root.querySelector('#wrBFrom').value, to = root.querySelector('#wrBTo').value; if (!f || !to || to < f) return toast('Pick a from and a through date.', true); try { await patch({ baseline: { from: f, to }, baseline_ok: false }); war(false, WR.page); } catch (e) { toast(e.message, true); } };
     const bo = root.querySelector('#wrBOk'); if (bo) bo.onclick = async () => { try { await patch({ baseline_ok: true }, 'Baseline set.'); war(false, WR.page); } catch (e) { toast(e.message, true); } };
     const bu = root.querySelector('#wrBUndo'); if (bu) bu.onclick = async () => { try { await patch({ baseline_ok: false }); war(false, WR.page); } catch (e) { toast(e.message, true); } };
-    wireGoals(t, d);
-    wireBudget(t, d);
+    if (id === 'wrGoals') wireGoals(t, d);
+    if (id === 'wrBudget') wireBudget(t, d);
     /* alerts, stock */
-    const as = root.querySelector('#wrASave'); if (as) as.onclick = () => saveAlerts(d, root);
+    const as = root.querySelector('#wrASave'); if (as) as.onclick = () => saveAlerts(d, readTh(root), root.querySelector('#wrAMsg'));
     const so = root.querySelector('#wrSOk'); if (so) so.onclick = async () => { try { await patch({ stock_ok: true }, 'Stock checked.'); war(false, WR.page); } catch (e) { toast(e.message, true); } };
     const su = root.querySelector('#wrSUndo'); if (su) su.onclick = async () => { try { await patch({ stock_ok: false }); war(false, WR.page); } catch (e) { toast(e.message, true); } };
   }
@@ -963,7 +1092,7 @@
     };
   }
   function wireBudget(t, d) {
-    const root = $('#wrRoot'), sec = root && root.querySelector('#wrBudget'); if (!sec || isCl()) return;
+    const sec = document.getElementById('wrBudget'); if (!sec || isCl()) return;
     const B = budDraft(d), re = () => repaintSec(t, d, 'wrBudget', budgetSec);
     const tot = sec.querySelector('#wrBTotal'); if (tot) tot.onchange = () => { B.total = numIn(tot.value); re(); };
     sec.querySelectorAll('tr[data-ci]').forEach(r => { const c = B.channels[+r.dataset.ci];

@@ -259,74 +259,109 @@
       <p class="v2say lead">${lead}</p>
       ${updated(st, 'Stock read from Shopify')}
       <div class="v2tiles">${tiles}</div>
-      <section class="v2card" id="spxStockCard"></section>
-      ${defs()}`);
+      <section class="v2card" id="spxStockCard"></section>`);
     const root = $('#main');
     root.querySelectorAll('[data-sp-f]').forEach(t => { const go = e => { e.stopPropagation(); SF.set(SF.get() === t.dataset.spF ? 'all' : t.dataset.spF); paintStockTable(); document.getElementById('spxStockCard').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }; t.onclick = go; t.onkeydown = e => { if (e.key === 'Enter') go(e); }; });
     paintStockTable();
     wireCommon(root);
     const pend = PENDING.take('product'); if (pend) openProduct(pend);
   }
-  /* The one table: every product, sortable, filtered by its ad call. Repaints in place (no scroll jump). */
+  /* The one table, by product or by variant (2026-10-21 review, Cole: "words on top of each other, mixed bar colours,
+     sideways scroll, products vs variants"). Seven columns that fit at 1024; every bar = days of stock left against the
+     lead time (the tick), coloured only by that comparison. Repaints in place (no scroll jump). */
+  const SV = { get: () => LSG('sp_view', null), set: v => LSS('sp_view', v) };
+  /* The lead time a bar is read against: the product's own (factory or group, plus buffer), else the brand's usual. */
+  function leadFor(p) {
+    if (p.leadDays != null) return p.leadDays;
+    const all = ((CUR && CUR.st.products) || []).map(x => x.leadDays).filter(x => x != null).sort((a, b) => a - b);
+    return all.length ? all[Math.floor(all.length / 2)] : null;
+  }
+  /* One bar meaning on the page: days left, a tick at the lead time. Under the lead time = bad, within 30 days of it = warn. */
+  function coverBar(days, lead, vel) {
+    const L = lead ?? 0, tone = days === 0 || days < L ? 'bad' : days < L + 30 ? 'warn' : '';
+    const w = Math.max(days === 0 ? 0 : 2, Math.min(100, days / H_DAYS * 100)).toFixed(1);
+    const tick = lead != null ? `<em style="left:${Math.min(100, lead / H_DAYS * 100).toFixed(1)}%"></em>` : '';
+    const t = `${days === 0 ? 'Out now.' : `${int(days)} days left at ${perDay(vel)} a day.`}${lead != null ? ` Lead time ${int(lead)} days: an order placed today lands then.` : ' No lead time set yet.'}`;
+    return `<span class="spx-db ${tone}"${tip(t)}><span class="spx-dbt"><i style="width:${w}%"></i>${tick}</span><b>${days === 0 ? 'Out' : days > H_DAYS ? '180+' : int(days)}</b></span>`;
+  }
+  /* Rows for the table. By variant reuses the per-size data the product sheet's "By size" table reads (p.variants). */
+  function stockRows(view) {
+    const { st, J } = CUR;
+    if (view === 'product') return J.live.map(p => {
+      const r = J.runway(p), fc = firstCore(p);
+      const first = fc && p.variants.length > 1 && r.days != null && r.days < H_DAYS && p.onHand > p.velocity * Math.max(r.days, 1) * 1.5 ? sizeName(fc) : '';
+      return { p, c: J.call(p), name: p.title, sub: p.lineName || 'Not in a group', onHand: p.onHand, oversold: p.oversold, vel: p.velocity,
+        days: p.status === 'out' ? 0 : r.days, outDate: p.runOutDate, first, land: p.incomingLands, inc: p.incoming, gap: r.gap, ads: J.spend(p), lead: leadFor(p) };
+    });
+    return J.live.flatMap(p => {
+      const c = J.call(p), ads = J.spend(p), lead = leadFor(p), fc = firstCore(p), vs = p.variants || [];
+      return vs.filter(v => v.velocity > 0.001 || v.onHand > 0).map(v => {
+        const out = v.onHand <= 0 && v.velocity > 0.001, days = v.velocity <= 0.001 ? null : out ? 0 : (v.runOutDays ?? null);
+        const L = v.incomingLands ? between(st.today, v.incomingLands) : null;
+        const label = vs.length > 1 ? sizeName(v) : 'One size';
+        return { p, v, c, name: p.title, sub: [label, v.isCore && vs.length > 1 ? 'core' : '', fc && v.id === fc.id && vs.length > 1 ? 'runs out first' : ''].filter(Boolean).join(' · '),
+          onHand: v.onHand, oversold: 0, vel: v.velocity, days, outDate: v.runOutDays != null ? add(st.today, v.runOutDays) : null, first: '',
+          land: v.incomingLands, inc: v.incoming, gap: L != null && days != null && L > days ? L - days : 0, ads, adsShared: vs.length > 1, lead };
+      });
+    });
+  }
   function paintStockTable() {
     const host = document.getElementById('spxStockCard'); if (!host || !CUR) return;
-    const { st, J } = CUR;
+    const { J } = CUR;
+    const hasVar = J.live.some(p => (p.variants || []).length > 1);
+    const view = SV.get() || (hasVar ? 'variant' : 'product');
     const f = SF.get(), adv = SA.get(), s = SS.get();
-    const rows = J.live.map(p => { const r = J.runway(p); return { p, r, c: J.call(p), days: r.days, ads: J.spend(p) }; });
+    const rows = stockRows(view);
     const count = k => rows.filter(x => x.c === k).length;
     let list = rows.filter(x => f === 'all' || x.c === f);
     if (adv) list = list.filter(x => x.ads > 0);
     const val = {
-      name: x => x.p.title.toLowerCase(), onHand: x => x.p.onHand, sold: x => x.p.velocity, days: x => x.days ?? 1e6, out: x => x.days ?? 1e6,
-      land: x => x.p.incomingLands || '9999', ads: x => x.ads, call: x => CALL_ORDER[x.c] * 1e6 + (x.days ?? 1e5) };
+      name: x => (x.name + ' ' + x.sub).toLowerCase(), onHand: x => x.onHand, sold: x => x.vel, days: x => x.days ?? 1e6, out: x => x.days ?? 1e6,
+      land: x => x.land || '9999', ads: x => x.ads, call: x => CALL_ORDER[x.c] * 1e6 + (x.days ?? 1e5) };
     const g = val[s.k] || val.days;
-    list.sort((a, b) => { const A = g(a), B = g(b); return (A < B ? -1 : A > B ? 1 : 0) * s.d || a.p.title.localeCompare(b.p.title); });
+    list.sort((a, b) => { const A = g(a), B = g(b); return (A < B ? -1 : A > B ? 1 : 0) * s.d || a.name.localeCompare(b.name) || a.sub.localeCompare(b.sub); });
+    const unit = view === 'variant' ? 'variant' : 'product';
     const COLS = [
-      ['name', 'Product', 'The product and its group.'],
-      ['onHand', 'On hand', 'Units in Shopify now, every size added up.'],
-      ['sold', 'Sold per day', 'The pace we plan on: the last 14, 30 and 90 days blended, ignoring days a size was empty.'],
-      ['days', 'Days left', 'Days until the first core size (a size that makes up most of the sales) hits zero at that pace.'],
-      ['out', 'Runs out on', 'The date the first core size hits zero. Other sizes can still be on the shelf.'],
-      ['land', 'Restock landing', 'When the next order on its way arrives, and how many units.'],
-      ['ads', 'Ads, 30 days', 'Meta spend on ads whose orders contain this product, last 30 days (Triple Whale orders).'],
-      ['call', 'Ad call', 'What to do with the ads: Ease off, Safe to scale, Push to clear or Watch.']];
-    const th = ([k, l, t]) => `<th class="v2srt"${tip(t)}><button type="button" data-sort="${k}">${l}${s.k === k ? `<span class="spx-arr">${s.d > 0 ? '↑' : '↓'}</span>` : ''}</button></th>`;
-    const daysColor = c => c === 'ease' ? '--bad' : c === 'watch' ? '--warn' : c === 'scale' ? '--good' : '--faint';
-    const tr = ({ p, r, c, days, ads }) => {
-      const fc = firstCore(p);
-      const sizeFirst = fc && p.variants.length > 1 && days != null && days < H_DAYS && p.onHand > p.velocity * Math.max(days, 1) * 1.5;
-      const dCell = days == null ? '<span class="spx-mut">not selling</span>' : UI() ? UI().ib(Math.min(days, H_DAYS), H_DAYS, daysColor(c), days === 0 ? 'Out' : days > H_DAYS ? '180+' : int(days), `${days === 0 ? 'Out now' : `${int(days)} days at ${perDay(p.velocity)} a day`}`) : int(days);
-      const oCell = p.status === 'out' || days === 0 ? '<b class="spx-bad">Out now</b>' : days == null ? '–' : days > H_DAYS ? '6+ months' : `${day(p.runOutDate)}${sizeFirst ? `<span class="sub"${tip(`${int(p.onHand)} units are on hand in total, but the ${sizeName(fc)} (a core size) hits zero first. From that day the product is short of a size people buy.`)}>${esc(sizeName(fc))} first</span>` : ''}`;
-      const lCell = p.incomingLands ? `${day(p.incomingLands)}<span class="sub">+${int(p.incoming)}${r.gap ? ` · <b class="spx-bad">${r.gap} days short first</b>` : ''}</span>` : '<span class="spx-mut">nothing on order</span>';
-      return `<tr class="link" data-sp-p="${esc(p.id)}"><td><div class="spx-pn">${av(p)}<div><b>${esc(p.title)}</b><span>${esc(p.lineName || 'Not in a group')}</span></div></div></td>
-        <td>${int(p.onHand)}${p.oversold ? `<span class="sub spx-bad">${p.oversold} oversold</span>` : ''}</td>
-        <td>${perDay(p.velocity)}${p.velocity > 0.001 ? `<span class="sub">${one(p.velocity * 7)} a week</span>` : ''}</td>
-        <td>${dCell}</td><td>${oCell}</td><td>${lCell}</td>
-        <td>${ads ? money(ads) : '<span class="spx-mut">–</span>'}</td><td>${callChip(c, p)}</td></tr>`;
+      ['name', view === 'variant' ? 'Variant' : 'Product', view === 'variant' ? 'One row per size or variant: loft and hand for a wedge, size for a polo.' : 'The product and its group.', 'c-name'],
+      ['onHand', 'On hand', 'Units in Shopify now.', 'c-num'],
+      ['sold', 'Sold a day', 'The pace we plan on: the last 14, 30 and 90 days blended, ignoring days it was empty.', 'c-num c-sold'],
+      ['days', 'Days left', 'Days of stock left at that pace. The tick is the lead time: red runs out before a reorder could land, amber within 30 days of it.', 'c-days'],
+      ['land', 'Restock', 'When the next order on its way arrives, and how many units.', 'c-land'],
+      ['ads', 'Ads, 30 days', 'Meta spend on ads whose orders contain this product, last 30 days (Triple Whale orders).', 'c-num c-ads'],
+      ['call', 'Ad call', 'What to do with the ads: Ease off, Safe to scale, Push to clear or Watch.', 'c-call']];
+    const th = ([k, l, t, cls]) => `<th class="v2srt ${cls}"${tip(t)}><button type="button" data-sort="${k}">${l}${(s.k === k || (s.k === 'out' && k === 'days')) ? `<span class="spx-arr">${s.d > 0 ? '↑' : '↓'}</span>` : ''}</button></th>`;
+    const tr = x => {
+      const dCell = x.days == null ? '<span class="spx-mut">not selling</span>'
+        : `<div class="spx-dc">${coverBar(x.days, x.lead, x.vel)}<span class="sub">${x.days === 0 ? 'Out now' : x.days > H_DAYS ? 'over 6 months' : `runs out ${day(x.outDate)}`}${x.first ? `, ${esc(x.first)} first` : ''}</span></div>`;
+      const lCell = x.land ? `${day(x.land)}<span class="sub">+${int(x.inc)}${x.gap ? `, <b class="spx-bad">${x.gap} days short</b>` : ''}</span>` : '<span class="spx-mut">none</span>';
+      const aCell = x.ads ? (x.adsShared ? `<span${tip('Ads sell the whole product, so every variant shows the same spend.')}>${money(x.ads)}</span>` : money(x.ads)) : '<span class="spx-mut">–</span>';
+      return `<tr class="link" data-sp-p="${esc(x.p.id)}"><td class="c-name"><div class="spx-pn">${av(x.p)}<div><b>${esc(x.name)}</b><span>${esc(x.sub)}</span></div></div></td>
+        <td class="c-num">${x.onHand < 0 ? `<b class="spx-bad">${int(x.onHand)}</b>` : int(x.onHand)}${x.oversold ? `<span class="sub spx-bad">${x.oversold} oversold</span>` : ''}</td>
+        <td class="c-num c-sold">${perDay(x.vel)}</td><td class="c-days">${dCell}</td><td class="c-land">${lCell}</td>
+        <td class="c-num c-ads">${aCell}</td><td class="c-call">${callChip(x.c, x.p)}</td></tr>`;
     };
     const segs = [['all', 'All', rows.length], ['ease', 'Ease off', count('ease')], ['watch', 'Watch', count('watch')], ['scale', 'Safe to scale', count('scale')], ['clear', 'Push to clear', count('clear')]];
-    host.innerHTML = `<div class="v2h"><h3>Every product</h3><span class="find">${f === 'all' ? 'Sorted by how soon each runs out.' : esc(CALL_MEANS[f])} Click a product for its chart and sizes.</span></div>
-      <div class="spx-bar"><div class="ds-seg" role="tablist" aria-label="Show">${segs.map(([k, l, n]) => `<button type="button" role="tab" aria-selected="${f === k}" class="${f === k ? 'on' : ''}" data-sf="${k}">${l} <span class="spx-n">${n}</span></button>`).join('')}</div>
-        <button type="button" class="ds-chip ${adv ? 'on' : ''}" data-sa="1" aria-pressed="${adv}">${adv ? ic('check', 14) : ''}Only products with ads</button></div>
-      ${list.length ? `<div class="v2tbl spx-tbl"><table><thead><tr>${COLS.map(th).join('')}</tr></thead><tbody>${list.map(tr).join('')}</tbody></table></div>`
-        : empty('inbox', 'Nothing here with this filter.', btn('Show every product', 'data-sf="all"'))}
-      <p class="v2foot">Pace is the last 90 days, before any Black Friday lift. Black Friday is ${day(J.SE.bf)}, ${J.SE.bfd} days away.</p>`;
+    const menu = window.LxKit && window.LxKit.cardMenu ? window.LxKit.cardMenu(HELP_LINES.map(esc)) : '';
+    host.innerHTML = `<div class="v2h"><h3>${view === 'variant' ? 'Every variant' : 'Every product'}</h3><span class="find">${f === 'all' ? `${plural(list.length, unit)} · click a row for its chart and sizes` : esc(CALL_MEANS[f])}</span>${menu}</div>
+      <div class="spx-bar"><div class="ds-seg" role="tablist" aria-label="Rows"><button type="button" role="tab" aria-selected="${view === 'product'}" class="${view === 'product' ? 'on' : ''}" data-sv="product">By product</button><button type="button" role="tab" aria-selected="${view === 'variant'}" class="${view === 'variant' ? 'on' : ''}" data-sv="variant">By variant</button></div>
+        <div class="ds-seg" role="tablist" aria-label="Show">${segs.map(([k, l, n]) => `<button type="button" role="tab" aria-selected="${f === k}" class="${f === k ? 'on' : ''}" data-sf="${k}">${l} <span class="spx-n">${n}</span></button>`).join('')}</div>
+        <button type="button" class="ds-chip ${adv ? 'on' : ''}" data-sa="1" aria-pressed="${adv}">${adv ? ic('check', 14) : ''}Only with ads</button></div>
+      ${list.length ? `<div class="v2tbl spx-tbl"><table><colgroup>${COLS.map(c => `<col class="${c[3]}">`).join('')}</colgroup><thead><tr>${COLS.map(th).join('')}</tr></thead><tbody>${list.map(tr).join('')}</tbody></table></div>`
+        : empty('inbox', 'Nothing here with this filter.', btn(`Show every ${unit}`, 'data-sf="all"'))}
+      <p class="v2foot">Bar = days of stock left, tick = lead time. Red runs out before a reorder could land, amber within 30 days of it. Pace is the last 90 days; Black Friday is ${day(J.SE.bf)}, ${J.SE.bfd} days away.</p>`;
+    host.querySelectorAll('[data-sv]').forEach(b => b.onclick = () => { SV.set(b.dataset.sv); paintStockTable(); });
     host.querySelectorAll('[data-sf]').forEach(b => b.onclick = () => { SF.set(b.dataset.sf); if (b.dataset.sf === 'all') SA.set(false); paintStockTable(); });
     host.querySelector('[data-sa]').onclick = () => { SA.set(!SA.get()); paintStockTable(); };
     host.querySelectorAll('[data-sort]').forEach(b => b.onclick = () => { const k = b.dataset.sort, cur = SS.get(); SS.set({ k, d: cur.k === k ? -cur.d : (['ads', 'onHand', 'sold'].includes(k) ? -1 : 1) }); paintStockTable(); });
     wireCommon(host);
   }
-  /* Every word on the page, once, in plain words (clients may read this page). */
-  const defs = () => `<section class="v2card spx-defs"><div class="v2h"><h3>What the words mean</h3></div><dl>
-      <div><dt>Days left and Runs out on</dt><dd>When the first <b>core size</b> hits zero at today's pace. A product can still have plenty of units in other sizes; from that day it is short of a size people buy, so ads lose sales.</dd></div>
-      <div><dt>Core size</dt><dd>The sizes that make up 80% of a product's sales. The rest are tail sizes and do not set the run-out date.</dd></div>
-      <div><dt>Sold per day</dt><dd>The last 14, 30 and 90 days blended (45, 35 and 20 percent), ignoring days a size was empty, with a promo spike capped at twice the 90-day rate.</dd></div>
-      <div><dt>Restock landing</dt><dd>When the next factory order on its way arrives. "Days short first" is the gap between running out and that landing.</dd></div>
-      <div><dt>${callChip('ease')}</dt><dd>${CALL_MEANS.ease}</dd></div>
-      <div><dt>${callChip('scale')}</dt><dd>${CALL_MEANS.scale}</dd></div>
-      <div><dt>${callChip('clear')}</dt><dd>${CALL_MEANS.clear}</dd></div>
-      <div><dt>${callChip('watch')}</dt><dd>${CALL_MEANS.watch}</dd></div>
-    </dl></section>`;
+  /* What the words mean, short. Lives in the table's "..." menu and goes to the Help essay as SupplyTab.HELP_STOCK. */
+  const HELP_LINES = [
+    'Days left: days until stock hits zero at today\'s pace. For a product, the first core size to run out sets it (core sizes make up 80% of sales).',
+    'The tick on each bar is the lead time. Red runs out before a reorder placed today could land; amber runs out within 30 days of that.',
+    'Sold a day: the last 14, 30 and 90 days blended, ignoring days it was empty.',
+    'Ease off: runs out within 30 days, or by Cyber Monday, with no restock first. Safe to scale: 3+ months of stock, or a restock lands in time. Push to clear: over a year of stock. Watch: fine for now.'];
+  const HELP_STOCK = HELP_LINES.join('\n\n');
 
   /* ---------- All clients ---------- */
   async function agency(first) {
@@ -349,7 +384,7 @@
       <section class="v2card"><div class="v2h"><h3>Every client</h3><span class="find">one line per client · click one to open its stock</span></div><div class="v2tbl"><table>
         <thead><tr><th>Client</th><th${tip('Meta spend, last 30 days, on ads whose orders contain a product that runs out by Cyber Monday')}>Ad spend on low stock</th><th>Out now</th><th>Run out by Cyber Monday</th><th>Safe to scale</th><th>Too much stock</th><th>Stock feed</th></tr></thead><tbody>
         ${live.map(r => { const m = r.ads ? r.ads.mapped : 0; return `<tr class="link" data-act="${esc(r.a.act_id)}" tabindex="0"><td><b>${esc(r.a.name)}</b><span class="sub">${[r.b.buys ? 'Buying' : '', r.b.makes ? 'Drops' : ''].filter(Boolean).join(' and ') || 'Stock only'}</span></td>
-          <td>${UI() ? UI().ib(r.J.easeSpend, m || 1, '--bad', money(r.J.easeSpend), `${money(r.J.easeSpend)} of ${money(m)} tied to a product`) : money(r.J.easeSpend)}</td>
+          <td${tip(`${money(r.J.easeSpend)} of ${money(m)} tied to a product`)}>${r.J.easeSpend ? `<b class="spx-bad">${money(r.J.easeSpend)}</b>` : money(0)}<span class="sub">of ${money(m)}</span></td>
           <td>${r.J.out ? `<b class="spx-bad">${r.J.out}</b>` : '0'}</td><td>${r.J.byCM ? `<b class="spx-warn">${r.J.byCM}</b>` : '0'}</td><td>${r.J.scale.length}</td><td>${money(r.J.tiedUp)}<span class="sub">${plural(r.J.clear.length, 'product')}</span></td><td><span class="ds-chip good">Connected</span></td></tr>`; }).join('')}
         ${others.map(r => `<tr><td><b>${esc(r.a.name)}</b></td><td colspan="5" class="spx-mut" style="text-align:left">${r.err ? esc(r.err) : 'Shows here once the brand installs the Mobius Digital Shopify app.'}</td><td><span class="ds-chip ${r.err ? 'bad' : ''}">${r.err ? 'Error' : 'Not connected'}</span></td></tr>`).join('')}
       </tbody></table></div></section>`);
@@ -1143,6 +1178,7 @@
     settings(el, act, host) { if (host) H = host; return settings(el, act); },
     setHost(host) { if (!H) H = host; },
     tabOk, loadBrands, decorate, previewLine,
+    HELP_STOCK,
   };
   window.SupplyStock = window.SupplyTab;
 })();

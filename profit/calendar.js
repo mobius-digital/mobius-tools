@@ -677,15 +677,17 @@
     if (t !== H.RUN() || !el.isConnected) return;
     const today = d.today, soon = add(today, 14);
     const live = d.items.filter(e => e.start <= today && (!e.end || e.end >= today) && e.src !== 'drop');
-    const next = d.items.filter(e => e.start > today && e.start <= soon).sort((a, b) => a.start.localeCompare(b.start)).slice(0, 6);
+    const next = d.items.filter(e => e.start > today && e.start <= soon).sort((a, b) => a.start.localeCompare(b.start));
     if (!live.length && !next.length) { el.innerHTML = ''; return; }
     const one = act !== 'all';
+    /* the strip caps at five dates; the rest are one "+N more" that opens the Calendar (review 2026-10-21) */
+    const more = n => n > 5 ? `<button type="button" class="cal-more" data-open="1">+${n - 5} more</button>` : '';
     const stat = e => { const st = e.steps || [], late = st.find(s => s.state === 'late'), nx = st.find(s => s.state !== 'done'); if (late) return `<span class="late">${esc(late.label.toLowerCase())} late</span>`; if (isOpen(e)) return '<span class="late">no end date</span>'; if (!st.length) return '<span></span>'; if (!nx) return '<span>ready</span>'; return `<span>${esc(nx.label.toLowerCase())} ${wd(nx.due)}</span>`; };
     const row = e => `<div data-ev="${esc(e.id)}"><b>${e.start === today ? 'Today' : `${wd(e.start)} ${md(e.start)}`} &middot; ${one ? '' : esc(brandName(d, e.act)) + ' '}${esc(e.name)}</b>${stat(e)}</div>`;
     el.innerHTML = `<div class="v2card calh"><div class="v2ch" style="display:flex;align-items:center;gap:10px"><h3 style="margin:0;font-size:13.5px">On the calendar</h3><span class="v2hint" style="margin:0">what customers see</span><button type="button" class="cal-btn" style="margin-left:auto;padding:4px 10px;border-radius:8px;border:1px solid var(--line-strong);background:var(--surface);font-weight:600;font-size:12px;cursor:pointer;color:var(--ink)" data-open="1">Calendar</button></div>
-      ${live.length ? `<h4>Live now</h4><div class="cal-mini">${live.slice(0, 6).map(e => `<div data-ev="${esc(e.id)}"><b>${one ? '' : esc(brandName(d, e.act)) + ' &middot; '}${esc(e.name)}</b><span>${e.end ? `to ${md(e.end)}` : 'no end date'}</span></div>`).join('')}</div>` : ''}
-      ${next.length ? `<h4>Coming up, 14 days</h4><div class="cal-mini">${next.map(row).join('')}</div>` : ''}</div>`;
-    el.querySelector('[data-open]').onclick = () => H.show('calendar');
+      ${live.length ? `<h4>Live now</h4><div class="cal-mini">${live.slice(0, 5).map(e => `<div data-ev="${esc(e.id)}"><b>${one ? '' : esc(brandName(d, e.act)) + ' &middot; '}${esc(e.name)}</b><span>${e.end ? `to ${md(e.end)}` : 'no end date'}</span></div>`).join('')}${more(live.length)}</div>` : ''}
+      ${next.length ? `<h4>Coming up, 14 days</h4><div class="cal-mini">${next.slice(0, 5).map(row).join('')}${more(next.length)}</div>` : ''}</div>`;
+    el.querySelectorAll('[data-open]').forEach(b => b.onclick = () => H.show('calendar'));
     el.querySelectorAll('[data-ev]').forEach(b => b.onclick = () => openEv(d, b.dataset.ev));
   }
 
