@@ -4232,3 +4232,18 @@ a wide stroke.
 - Every old id still routes (checked: email, search, stock, tests, calc, meta, mbrowser, store, production). The start
   tour, PAGE_HELP (stock with `SupplyTab.HELP_STOCK`, email, calc, tests) and `docs/locus-v4/index.html` (the map and the
   IA cards) match. Versions: lx.css?v=25, lx.js?v=11.
+
+## 2026-10-21 (round two): Cole's notes on passes A to C
+
+- **The site funnel is left to right** (`LxKit.funnel`, `.lx-fun2`): Visits, Added to cart, Orders as numbers with a thin
+  bar from the left (no centred bar, which read as a dot), and between steps the share that made it in words ("3.1% added
+  to cart", "23% of carts ordered") against a typical store. It is a full-width card on Today (`.v4-stack`); the old chips
+  ran past the card and that was the sideways page scroll. `#main` is `overflow-x:clip` as a guard.
+- Sources said plainly: visits and carts = Triple Whale's pixel on the site; orders = Shopify through Triple Whale.
+  Store gained a Conversion rate tile (orders / those visits); Site's conversion stays GA4's.
+- P&L cards are one column in reading order (`.pnl-stack`): waterfall, revenue vs ad spend, where the month lands (now a
+  marked bar to the goal, the paths table and the to-hit + weeks side by side, prose in the card's "..."), who paid.
+- Customers: "Do repeat orders need ads?" sits above the product list; the list shows 6 first products, the rest folded.
+- Meta and Google campaign tables: the row "..." no longer wraps under the name (absolute in the cell), names get 220px.
+- Leaks: a search-term table runs under the row's buttons, using the full row width.
+- Clarity: Lucky has no Clarity project in Cole's account and no Clarity tag on luckygolf.com (checked 2026-10-21).

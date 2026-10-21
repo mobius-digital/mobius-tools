@@ -2241,7 +2241,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <link rel="stylesheet" href="v2.css?v=46">
 <link rel="stylesheet" href="../logo/kit.css?v=2">
 <link rel="stylesheet" href="supply.css?v=6">
-<link rel="stylesheet" href="lx.css?v=25">
+<link rel="stylesheet" href="lx.css?v=27">
 <link rel="stylesheet" href="phone.css?v=16">
 <script src="/sheet.js?v=1"></script>
 <script src="/ask/ask-ui.js?v=14"></script>
@@ -2397,9 +2397,9 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="helper.js?v=2"></script>
 <script src="hero.js?v=1"></script>
 <script src="nudge.js?v=4"></script>
-<script src="lx.js?v=11"></script>
-<script src="v2.js?v=71"></script>
-<script src="leaks.js?v=10"></script>
+<script src="lx.js?v=12"></script>
+<script src="v2.js?v=72"></script>
+<script src="leaks.js?v=11"></script>
 <script src="desk.js?v=33"></script>
 <script src="agency.js?v=3"></script>
 <script src="calendar.js?v=15"></script>
@@ -2407,7 +2407,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="socialweek.js?v=5"></script>
 <script src="make.js?v=2"></script>
 <script src="supply.js?v=8"></script>
-<script src="v4.js?v=14"></script>
+<script src="v4.js?v=15"></script>
 <script src="askextra.js?v=3"></script>
 <script src="share.js?v=5"></script>
 <script src="survey.js?v=1"></script>
@@ -7836,29 +7836,26 @@ function catchUpLine(pc, money) {
 
 function forecastCard(fc, cur) {
   const g = fc.goal, p = fc.projected, pace = fc.at_current_pace?.sales;
-  const pill = v => v == null ? '' : `<span class="pill ${v >= 0 ? 'good' : Math.abs(v) / (g || 1) < 0.1 ? 'warn' : 'bad'}">${v >= 0 ? '+' : ''}${fmtK(v, cur)}</span>`;
+  const pill = v => v == null ? '' : `<span class="pill ${v >= 0 ? 'good' : Math.abs(v) / (g || 1) < 0.1 ? 'warn' : 'bad'}">${v >= 0 ? '+' : '-'}${fmtK(Math.abs(v), cur)}</span>`;
   const ramp = fc.spend_ramp;
+  const why = [`Built bottom-up from this client's own trailing 28 days, the way CTC forecast: returning customers are the predictable base, new customers follow whatever you spend.`,
+    fc.basis.email_connected ? `Email is ${fmtPct(fc.basis.email_share)} of revenue for this client. It cuts across new and returning, so it is context here, not a third line to add up.` : `Klaviyo is not reporting into Triple Whale for this client, so email's share can't be separated out. It is still inside these numbers.`];
   const find = g != null && p != null
     ? `On course for <b>${fmtMoney(p, cur)}</b> against a ${fmtMoney(g, cur)} goal${fc.gap != null ? `, ${fc.gap >= 0 ? `<span class="good">${fmtK(fc.gap, cur)} over</span>` : `<span class="bad">${fmtK(Math.abs(fc.gap), cur)} short</span>`}` : ''}.`
     : p != null ? `On course for <b>${fmtMoney(p, cur)}</b>. No goal is set for this month.` : '';
-  return `<section class="v2card"><div class="v2h"><h3>Where the month lands</h3><span class="find">${find}</span><span class="cap">${fc.days_elapsed} days in, ${fc.days_remaining} to go</span></div>
-    ${g != null && p != null ? window.V2UI.bullet(p, g, false, 'month goal') : ''}
-    <p class="hint" style="margin:10px 0">Built bottom-up from this client's own trailing 28 days, the way CTC forecast: <b>returning customers</b> are the predictable base, <b>new customers</b> follow whatever you spend.</p>
-    <div class="tbl-wrap"><table><tbody>
+  return `<section class="v2card"><div class="v2h"><h3>Where the month lands</h3><span class="find">${find}</span><span class="cap">${fc.days_elapsed} days in, ${fc.days_remaining} to go</span>${window.LxKit && LxKit.cardMenu ? LxKit.cardMenu(why) : ''}</div>
+    ${g != null && p != null && window.LxKit ? LxKit.scale(p, { max: Math.max(p, g) * 1.12, fmt: v => fmtK(v, cur), marks: [{ at: g, label: `goal ${fmtK(g, cur)}` }] }) : ''}
+    <div class="fc-grid"><div class="tbl-wrap"><table><tbody>
       <tr><td>Banked so far</td><td class="num"><b>${fmtMoney(fc.mtd.sales, cur)}</b></td><td class="tiny">${fmtMoney(fc.mtd.returning, cur)} returning · ${fmtMoney(fc.mtd.new_rev, cur)} new · spent ${fmtK(fc.mtd.spend, cur)}</td></tr>
       <tr><td>Still to come: returning</td><td class="num">${fmtMoney(fc.expected.returning, cur)}</td><td class="tiny">${fmtMoney(fc.basis.returning_per_day, cur)}/day, shaped by weekday</td></tr>
       <tr><td>Still to come: new</td><td class="num">${fmtMoney(fc.expected.new_rev, cur)}</td><td class="tiny">${fmtK(fc.planned_spend_per_day, cur)}/day of spend at ${fmtX(fc.basis.amer)} aMER</td></tr>
       <tr style="border-top:2px solid var(--line-strong)"><td><b>Projected month</b> <span class="tiny">(spending the budget)</span></td><td class="num"><b>${fmtMoney(p, cur)}</b></td><td class="tiny">${g != null ? `vs ${fmtMoney(g, cur)} goal ${pill(fc.gap)}` : 'no goal set'}</td></tr>
       ${pace != null && Math.abs(pace - p) > (g || 1) * 0.01 ? `<tr><td>If spend stays at today's pace</td><td class="num">${fmtMoney(pace, cur)}</td><td class="tiny">${g != null ? `vs goal ${pill(fc.at_current_pace.gap)} · ` : ''}${fmtK(fc.basis.spend_per_day, cur)}/day${ramp && ramp > 1.15 ? `: hitting the plan needs <b>${ramp.toFixed(1)}×</b> that` : ''}</td></tr>` : ''}
-    </tbody></table></div>
+    </tbody></table></div><div>
     ${fc.to_hit && !fc.to_hit.already_there ? `<div class="notice ${fc.to_hit.covered_by_returning ? 'good' : fc.to_hit.spend_ramp > 1.5 ? 'warn' : ''}" style="margin:12px 0 0"><div><b>To hit the goal from here:</b> ${fmtMoney(fc.to_hit.revenue_per_day, cur)}/day for the remaining ${fc.days_remaining} days. ${fc.to_hit.covered_by_returning
       ? `Returning customers alone are expected to cover that, so no extra spend is required.`
       : `Returning covers ${fmtMoney(fc.basis.returning_per_day, cur)} of it, so ${fmtMoney(fc.to_hit.new_per_day, cur)}/day has to come from new customers: <b>${fmtMoney(fc.to_hit.spend_per_day, cur)}/day of spend</b> at ${fmtX(fc.basis.amer)} aMER${fc.to_hit.spend_ramp ? `, which is <b>${fc.to_hit.spend_ramp.toFixed(1)}×</b> the ${fmtK(fc.basis.spend_per_day, cur)}/day running now` : ''}.`}</div></div>` : fc.to_hit?.already_there ? `<div class="notice good" style="margin:12px 0 0"><div><b>The goal is already banked</b> with ${fc.days_remaining} days still to run.</div></div>` : ''}
-    ${weeksTable(fc, cur)}
-    <p class="tiny" style="margin-top:8px">${fc.basis.email_connected
-      ? `Email is <b>${fmtPct(fc.basis.email_share)}</b> of revenue for this client. It cuts across new and returning rather than being separate, so it is context here, not a third line to add up.`
-      : `Klaviyo is not reporting into Triple Whale for this client, so email's contribution can't be separated out. It is still inside these numbers, just not visible on its own.`}
-      CTC are explicit that paid acquisition can't be forecast precisely; the returning base is the part you can lean on.</p></section>`;
+    ${weeksTable(fc, cur)}</div></div></section>`;
 }
 
 /** How a week actually runs for this client.
@@ -8060,10 +8057,7 @@ async function renderProfit(first) {
     ${!trusted ? `<div class="notice bad"><div><b>Profit figures are suppressed for this client.</b> ${esc(h?.reason || 'cost data is unreliable')}. Revenue and efficiency are still accurate; only the cost-based figures are hidden. <button type="button" class="link" data-go="costs">Open Costs</button></div></div>` : ''}
     <div class="v2tiles">${tiles}</div>
     ${fall ? `<div class="pnl-wide">${fall}</div>` : ''}
-    <div class="v2two pnl-bal">
-      <div style="display:flex;flex-direction:column;gap:16px;min-width:0">${chartCard}</div>
-      <div style="display:flex;flex-direction:column;gap:16px;min-width:0">${fc && fc.mtd ? forecastCard(fc, cur) : ''}${whoCard}</div>
-    </div>
+    <div class="pnl-stack">${chartCard}${fc && fc.mtd ? forecastCard(fc, cur) : ''}${whoCard}</div>
     ${U.foot(`Revenue is Shopify total sales minus tax, through Triple Whale. ${esc(rangeLabel())}.`)}`);
 
   /* after the paint: the kit's pageHead draws the .ph-acts slot these go in (2026-10-21: they were written before it and lost) */
@@ -11394,8 +11388,8 @@ function journeyCard(j, cur) {
   const menu = why => window.LxKit && LxKit.cardMenu ? LxKit.cardMenu(why) : '';
   if (!first.length) return `<section class="v2card"><div class="v2h"><h3>What new customers buy first, and next</h3></div><p class="lx-empty">No product detail yet. It fills in as more orders carry cart detail.</p></section>`;
   return `<section class="v2card"><div class="v2h"><h3>What new customers buy first, and next</h3><span class="find">the first product, who orders again within 90 days, what they choose next${p.coverage != null && p.coverage < 0.9 ? ` · cart detail for ${fmtPct(p.coverage)} of first orders` : ''}</span>${menu(['Products come from what the shopper put in the cart before each order (Triple Whale add-to-cart events), not the receipt line by line. Treat the counts as the shape of the journey; connecting Shopify would make them exact.', 'Use the right-hand side for the post-purchase emails (what to offer after each product) and the left for which product to lead with in ads.'])}</div>
-    <div class="jr-list jr2"><div class="jr2-h"><span>First product</span><span>What they buy next</span></div>${first.map(f => `<div class="jr2-row"><div class="jr2-a"><b>${esc(f.name)}</b><small>${fmtN(f.customers)} customers${f.share != null ? ` · ${fmtPct(f.share)} of new` : ''}${f.repeat_rate != null ? ` · ${fmtPct(f.repeat_rate)} order again` : ''}</small></div>
-      <ol class="jr2-b">${f.then.length ? f.then.slice(0, 4).map(t => `<li><span>${esc(t.name)}</span><b>${fmtN(t.customers)}</b></li>`).join('') : '<li class="none"><span>Nobody has ordered again yet</span></li>'}</ol></div>`).join('')}</div></section>`;
+    <div class="jr-list jr2"><div class="jr2-h"><span>First product</span><span>What they buy next</span></div>${first.map((f, fi) => `${fi === 6 ? `<details class="jr2-more"><summary>${first.length - 6} more first products</summary>` : ''}<div class="jr2-row"><div class="jr2-a"><b>${esc(f.name)}</b><small>${fmtN(f.customers)} customers${f.share != null ? ` · ${fmtPct(f.share)} of new` : ''}${f.repeat_rate != null ? ` · ${fmtPct(f.repeat_rate)} order again` : ''}</small></div>
+      <ol class="jr2-b">${f.then.length ? f.then.slice(0, 4).map(t => `<li><span>${esc(t.name)}</span><b>${fmtN(t.customers)}</b></li>`).join('') : '<li class="none"><span>Nobody has ordered again yet</span></li>'}</ol></div>`).join('')}${first.length > 6 ? '</details>' : ''}</div></section>`;
 }
 
 /** Do repeat orders need ads, or do they arrive on their own? */
@@ -11521,7 +11515,7 @@ async function renderCustomers(first) {
     ${h.thin ? `<div class="notice warn"><div><b>Only ${h.new_orders} new customers in this window.</b> The cost to get a customer swings on small numbers. Widen the date range, or read the month-by-month table.</div></div>` : ''}
     <div class="lx-t4">${tileRow}</div>
     <details class="rp-more"><summary><span>Spent in their first 90 days and first year</span></summary><div class="lx-t4" style="padding:0 16px 16px">${tileMore}</div></details>
-    ${have ? `${ltvCurve(j, cur)}${cohortTable(j, cur)}<div class="v2two eq">${journeyCard(j, cur)}${sourcesCard(j)}</div>`
+    ${have ? `${ltvCurve(j, cur)}${cohortTable(j, cur)}${sourcesCard(j)}${journeyCard(j, cur)}`
     : `<section class="v2card"><div class="v2h"><h3>What they spend over time, and what they buy</h3></div><p class="lx-empty">${j && j.reason ? esc(j.reason) : 'Customer history is still loading from Triple Whale.'}</p></section>`}
     <div id="cuSurvey"></div>
     <details class="footnote"><summary>Where these numbers come from, and what is approximate</summary>

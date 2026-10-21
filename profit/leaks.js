@@ -69,6 +69,9 @@
 .lk-btbl{width:100%;border-collapse:collapse;font-size:12.5px}.lk-btbl th{text-align:left;color:var(--muted);font-weight:600;font-size:11px;letter-spacing:.04em;text-transform:uppercase;padding:7px 10px;border-bottom:1px solid var(--line)}
 .lk-btbl td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}.lk-btbl .n{text-align:right;white-space:nowrap}.lk-btbl tr.link{cursor:pointer}.lk-btbl tr.link:hover td{background:var(--surface-2)}
 .lk-list{margin:6px 0;padding-left:18px;font-size:12.5px;color:var(--ink-2);max-height:220px;overflow:auto}
+/* a row with a search-term table: the table runs under the buttons too, so it uses the row's full width (round two, 2026-10-21) */
+@media (min-width:641px){.lk-row:has(.lk-terms) .lk-body{grid-column:2 / 4;grid-row:1}.lk-row:has(.lk-terms) .lk-act{grid-column:3;grid-row:1;position:relative;z-index:1}.lk-row:has(.lk-terms) .lk-body > :not(.lk-terms){margin-right:124px}.lk-row:has(.lk-terms) .lk-terms{margin-top:10px}}
+.lk-terms td:first-child{min-width:180px}
 @media (max-width:640px){.lk-row{grid-template-columns:minmax(0,1fr);gap:8px}.lk-act{flex-direction:row;align-items:center;justify-content:flex-start}.lk-ba{grid-template-columns:1fr}}`;
     document.head.appendChild(s);
   }

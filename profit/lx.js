@@ -130,24 +130,24 @@
       <div class="lx-legend">${list.map(s => `<span${tip(s.tip || '')}><i style="background:${s.color}"></i>${esc(s.label)} <b>${esc(fmt(s.v))}</b></span>`).join('')}</div></div>`;
   }
 
-  /* funnel(steps, {fmt}): stepped bars, centred like a funnel, each step's carry-on rate in a chip between the steps,
-     coloured against its benchmark (bench = the rate a healthy store carries to this step) and with the earlier rate.
-     step = {label, v, prev, bench} */
+  /* funnel(steps, {fmt}): the steps left to right (round two, 2026-10-21, Cole: "what do you mean by carry on, why is this
+     dot in the middle"). Each step: its name, the number, a bar against the first step from the left edge. Between two
+     steps: the share that made it, in words ("3.1% added to cart"), coloured against what a typical store gets, and the
+     period before. step = {label, v, prev, bench, verb} */
   function funnel(steps, o = {}) {
     const list = (steps || []).filter(Boolean); if (!list.length || !list[0].v) return '';
     const top = Math.max(list[0].v, 1), fmt = o.fmt || (x => Math.round(x).toLocaleString('en-US'));
     const pc = x => x == null ? '–' : (x * 100 >= 10 ? (x * 100).toFixed(0) : (x * 100).toFixed(1)) + '%';
-    let out = '<div class="lx-fun lx-anim">';
+    const cells = [];
     list.forEach((s, i) => {
       if (i) {
         const a = list[i - 1], r = a.v ? s.v / a.v : null, pr = a.prev && s.prev != null ? s.prev / a.prev : null;
         const tone = r == null || !s.bench ? 'quiet' : r >= s.bench ? 'good' : r >= s.bench * 0.75 ? 'warn' : 'bad';
-        out += `<div class="lx-fun-d"><span class="lx-st ${tone}"${tip(`${esc(pc(r))} of ${esc(a.label.toLowerCase())} went on to ${esc(s.label.toLowerCase())}${s.bench ? `. A healthy store carries about ${esc(pc(s.bench))}` : ''}${pr != null ? `; ${esc(pc(pr))} the period before` : ''}.`)}>${pc(r)} carry on</span>${s.bench ? `<small>benchmark ${pc(s.bench)}</small>` : ''}${pr != null ? `<small>${pc(pr)} before</small>` : ''}</div>`;
+        cells.push(`<div class="lx-fun-ar"${tip(`${esc(pc(r))} of ${esc(a.label.toLowerCase())} ${esc(s.verb || 'went on')}.${s.bench ? ` A typical online store gets about ${esc(pc(s.bench))}.` : ''}${pr != null ? ` The period before: ${esc(pc(pr))}.` : ''}`)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13m-5-5 5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lx-st ${tone}">${pc(r)}</span><small>${esc(s.verb || '')}</small>${s.bench ? `<small class="f">typical ${pc(s.bench)}</small>` : ''}</div>`);
       }
-      const w = Math.max(1.5, s.v / top * 100);
-      out += `<div class="lx-fun-s"><span class="l">${esc(s.label)}</span><span class="t"><i style="width:${w.toFixed(2)}%"></i></span><b class="v">${esc(fmt(s.v))}</b></div>`;
+      cells.push(`<div class="lx-fun-st"><small>${esc(s.label)}</small><b>${esc(fmt(s.v))}</b><span class="t"><i style="width:${Math.max(2, s.v / top * 100).toFixed(2)}%"></i></span></div>`);
     });
-    return out + '</div>';
+    return `<div class="lx-fun2 lx-anim">${cells.join('')}</div>`;
   }
 
   /* scale(v, {max, marks, fmt, label}): a marked bar. One fill to the value, labelled ticks at the marks (1.5x, 3x), the
