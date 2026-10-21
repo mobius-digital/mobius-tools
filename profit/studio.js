@@ -1032,7 +1032,7 @@ async function sendPipeline(b) {
   const ok = live(adsOf(b)).filter(a => a.status === 'approved').sort((x, y) => (x.line ?? 99) - (y.line ?? 99));
   if (!ok.length) return;
   const name = (b.name || b.brief?.angle || 'Studio batch').slice(0, 200);
-  modal('Send to the Pipeline?', `<p class="hint" style="margin:0">${ok.length} approved ad${ok.length === 1 ? '' : 's'} go on ${b.br_batch_id ? `card #${esc(b.num || '')}` : `a new Pipeline card, “${esc(name)}”`}, under Ads, for the team to review and launch. Nothing goes to Meta and nothing is spent.</p>`,
+  modal('Send to the Pipeline?', `<p class="hint" style="margin:0">${ok.length} approved ad${ok.length === 1 ? ' goes' : 's go'} on ${b.br_batch_id ? `card #${esc(b.num || '')}` : `a new Pipeline card, “${esc(name)}”`}, under Ads, for the team to review and launch. Nothing goes to Meta and nothing is spent.</p>`,
   { cta: `Send ${ok.length}`, onOpen: (w, ctl) => w.onSubmit(async () => {
     const ah = async (path, opt) => { const r = await fetch(AH_URL + path, { ...opt, headers: { Authorization: 'Bearer ' + S.tok, ...(opt?.headers || {}) } }); const j = await r.json().catch(() => ({})); if (!r.ok || j.error) throw new Error(j.error || `The Pipeline said ${r.status}`); return j; };
     if (!b.br_batch_id) {
