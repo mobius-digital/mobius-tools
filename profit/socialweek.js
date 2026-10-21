@@ -248,7 +248,7 @@
     const t = H.RUN();
     if (first || ST.act !== act) { ST.act = act; ST.from = null; ST.tray = null; $('#main').innerHTML = `<div class="v2 sw">${head}<div class="sw-sk"><i></i><i></i></div></div>`; }
     if (!ST.from) ST.from = monday(new Date().toLocaleDateString('en-CA'));
-    try { await load(first); }
+    try { await load(first || !!window.SOCIAL_COMPOSE); }
     catch (e) {
       if (t !== H.RUN()) return;
       $('#main').innerHTML = `<div class="v2 sw">${head}<div class="sw-state err"><b>The week did not load</b><p>${esc(e.message)}</p><div><button type="button" class="sw-btn" id="swRetry">Try again</button></div></div></div>`;
@@ -258,6 +258,9 @@
     if (t !== H.RUN()) return;
     draw();
     if (window.SOCIAL_FILL && !CLI()) { window.SOCIAL_FILL = 0; setTimeout(fillWeek, 50); }   // Monday's Slack nudge: ?open=socialweek&fill=1
+    /* Make ours > Schedule it (social.js, 2026-10-21): a filmed tray item opens as a new post at the next free hour. */
+    const comp = window.SOCIAL_COMPOSE; window.SOCIAL_COMPOSE = null;
+    if (comp && !CLI()) { const it = ST.tray.find(x => x.ref === comp); if (it) setTimeout(() => composer(null, { at: nextSlot(), items: [it] }), 50); else toast('That post is not on the tray yet. Give it a minute and look under Ready.'); }
     const want = window.SOCIAL_POST || (first ? BOOT_POST : null); window.SOCIAL_POST = null;
     if (want) { const p = ST.data.posts.find(x => x.id === want); if (p) composer(p); else H.apiAH(`/api/social/post?id=${encodeURIComponent(want)}`, { fresh: true }).then(r => r.post && composer(r.post)).catch(() => {}); }
   }
@@ -333,7 +336,7 @@
     const list = ST.tf === 'unused' ? items.filter(i => !i.used) : ST.tf === 'all' ? items : items.filter(i => i.src === ST.tf);
     const opts = [['unused', 'Not used yet'], ['all', 'Everything'], ...Object.entries(SRC)].filter(([f]) => f === 'unused' || f === 'all' || counts[f]).map(([f, l]) => `<option value="${f}" ${ST.tf === f ? 'selected' : ''}>${l} (${counts[f]})</option>`).join('');
     const item = it => `<button type="button" class="sw-ti ${it.used ? 'used' : ''} ${it.kind === 'video' ? '' : 'sq'}" draggable="${inSheet ? 'false' : 'true'}" data-ref="${esc(it.ref)}" ${it.thumb ? `style="background-image:url('${esc(it.thumb)}')"` : ''} ${U() ? U().tipAttr(esc(`${it.title}${it.who ? ` · ${it.who}` : ''} (${SRC[it.src] || it.src})${it.used ? ', already on the week' : ''}. ${inSheet ? 'Tap to post it.' : 'Drag onto a day and hour, or click.'}`)) : ''} aria-label="${esc(it.title)}">
-      ${it.thumb ? '' : `<span class="no">${it.kind === 'text' ? ic('pencil') : ic('image')}</span>`}<span class="ic">${ic(SRC_IC[it.src] || 'image')}</span>${it.kind === 'video' ? '<i class="kd">VIDEO</i>' : it.kind === 'text' ? '<i class="kd">SCRIPT</i>' : ''}</button>`;
+      ${it.thumb ? '' : `<span class="no">${it.kind === 'text' ? ic('pencil') : ic('image')}</span>`}<span class="ic">${ic(SRC_IC[it.src] || 'image')}</span>${it.kind === 'video' ? '<i class="kd">VIDEO</i>' : it.kind === 'text' ? '<i class="kd">TO FILM</i>' : ''}</button>`;
     const PM = window.PillMenu;
     const pm = PM ? PM.html('swTf', 'Show', [['unused', 'Unused', `${counts.unused} not on the week yet`], ['all', 'All', `${counts.all} ready`], ...Object.entries(SRC).filter(([f]) => counts[f]).map(([f, l]) => [f, l, `${counts[f]}`])], ST.tf) : `<span class="sw-sel"><select data-tf aria-label="Show">${opts}</select></span>`;
     return `<div class="hd"><b>Ready</b><small>${list.length}</small><span class="sp"></span>${pm}</div>
