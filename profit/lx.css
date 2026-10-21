@@ -655,3 +655,21 @@ body.is-client #main .ph .ph-acts > :not([data-client-ok]), body.is-client #hdAc
 /* the model menu on a credited card: a small pill in the card head */
 .v2h .lx-cmodel{display:inline-flex}.v2h .lx-cmodel .hd-per-btn{height:26px;padding:0 9px;font-size:12px}.v2h .lx-cmodel .hd-per-l{color:var(--muted);font-weight:500}.v2h .lx-cmodel .hd-per-d{display:inline!important}
 #railMin[aria-pressed="true"] svg{transform:rotate(180deg)}
+
+/* review fixes (2026-10-21, round two) */
+[data-ui="v2"] main#main{overflow-x:clip}
+.pnl-stack{display:flex;flex-direction:column;gap:16px}.pnl-stack > *{margin:0}
+.fc-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start;margin-top:12px}.fc-grid .notice{margin-top:0!important}
+@media (max-width:900px){.fc-grid{grid-template-columns:minmax(0,1fr)}}
+.jr2-more > summary{cursor:pointer;padding:10px 0 4px;font-size:12.5px;font-weight:600;color:var(--brand-ink,var(--brand))}
+[data-ui="v2"] .v2tbl td:has(> .v2rm){position:relative;padding-right:30px}
+[data-ui="v2"] .v2tbl td > .v2rm{position:absolute!important;right:4px;top:50%;transform:translateY(-50%);margin:0!important}
+[data-ui="v2"] .v2tbl td > .v2ex + .nm + .v2rm + .sub,[data-ui="v2"] .v2tbl td > .nm ~ .sub{margin-top:1px;padding-left:24px}
+.lx-fun2{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) auto minmax(0,1fr);gap:10px;align-items:center;margin-top:6px}
+.lx-fun-st{display:flex;flex-direction:column;gap:3px;min-width:0}.lx-fun-st small{font-size:12px;color:var(--muted)}.lx-fun-st b{font-size:20px;font-weight:650;color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.lx-fun-st .t{display:block;height:4px;border-radius:2px;background:var(--lx-track);margin-top:4px;overflow:hidden}.lx-fun-st .t i{display:block;height:100%;border-radius:2px;background:var(--brand);transform-origin:left;animation:lx-grow-x .4s var(--lx-ease-out) both}
+.lx-fun-ar{display:flex;flex-direction:column;align-items:center;gap:3px;text-align:center;min-width:76px;color:var(--faint)}.lx-fun-ar svg{width:18px;height:18px}.lx-fun-ar small{font-size:11px;color:var(--muted);white-space:nowrap}.lx-fun-ar small.f{color:var(--faint)}
+@media (max-width:560px){.lx-fun2{grid-template-columns:minmax(0,1fr)}.lx-fun-ar{flex-direction:row;justify-content:flex-start;gap:8px}.lx-fun-ar svg{transform:rotate(90deg)}}
+.v4 .v4-stack{display:flex;flex-direction:column;gap:14px;margin:0 0 14px}.v4 .v4-stack > *{margin:0}.v4 .v4-stack > :empty{display:none}
+.lx-fun2{max-width:860px}
+[data-ui="v2"] #v2campwrap td:first-child,[data-ui="v2"] #v2gcwrap td:first-child{min-width:220px}

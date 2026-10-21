@@ -122,17 +122,17 @@
 
     const S0 = st && st.brands ? st.brands : [];
     const fun = S0.reduce((s, bb) => { const x = bb.cur || {}, y = bb.prev || {}; s.ses += x.sessions || 0; s.cart += x.carts || 0; s.ord += x.orders || 0; s.pses += y.sessions || 0; s.pcart += y.carts || 0; s.pord += y.orders || 0; return s; }, { ses: 0, cart: 0, ord: 0, pses: 0, pcart: 0, pord: 0 });
-    const funnel = fun.ses && window.LxKit ? K.card('Site funnel', `${K.pct(fun.ord / fun.ses, 2)} of sessions became an order${fun.pses ? `, against ${K.pct(fun.pord / fun.pses, 2)} before` : ''}`,
+    const funnel = fun.ses && window.LxKit ? K.card('Site funnel', `${K.pct(fun.ord / fun.ses, 2)} of visits became an order${fun.pses ? `, ${K.pct(fun.pord / fun.pses, 2)} the period before` : ''}`,
       window.LxKit.funnel([
-        { label: 'Sessions', v: fun.ses, prev: fun.pses || null },
-        { label: 'Added to cart', v: fun.cart, prev: fun.pses ? fun.pcart : null, bench: FUN_BENCH.cart },
-        { label: 'Orders', v: fun.ord, prev: fun.pses ? fun.pord : null, bench: FUN_BENCH.order },
-      ], { fmt: K.int }), 'Triple Whale pixel', [`Each chip is the share of the step before that carried on, coloured against a healthy store: about ${Math.round(FUN_BENCH.cart * 100)}% of sessions add to cart and about ${Math.round(FUN_BENCH.order * 100)}% of carts become an order (Shopify's published ecommerce averages, rounded).`]) : '';
+        { label: 'Visits', v: fun.ses, prev: fun.pses || null },
+        { label: 'Added to cart', v: fun.cart, prev: fun.pses ? fun.pcart : null, bench: FUN_BENCH.cart, verb: 'added to cart' },
+        { label: 'Orders', v: fun.ord, prev: fun.pses ? fun.pord : null, bench: FUN_BENCH.order, verb: 'of carts ordered' },
+      ], { fmt: K.int }), '', [`Visits and carts are counted by Triple Whale's tracking code on the site (its pixel). Orders are Shopify's, through Triple Whale.`, `Each percentage is the share of the step before that made it to the next one, coloured against a typical online store: about ${Math.round(FUN_BENCH.cart * 100)}% of visits add to cart and about ${Math.round(FUN_BENCH.order * 100)}% of carts become an order.`]) : '';
 
     const qi = queueItems(td, sd);
     $('#main').innerHTML = shell(`<div id="v4strip"></div>${qi.length === 1 ? `<div class="v4-qstrip">${queueStrip(qi[0])}</div>` : ''}
       <div class="v4-top${qi.length >= 2 ? '' : ' v4-two-top'}"><section class="v2card v4-r">${riverCard(b)}</section><section class="v2card v4-m">${monthCard(a, cur)}</section>${qi.length >= 2 ? `<section class="v2card v4-n">${queueCard(qi)}</section>` : ''}</div>
-      ${tiles}<div class="v2two v4-two">${share}${funnel}</div><div id="v4cal"></div>
+      ${tiles}<div class="v4-stack">${share}${funnel}</div><div id="v4cal"></div>
       ${K.foot(`Revenue, orders, AOV and the compare deltas come from Shopify through Triple Whale for ${K.esc(H.rangeLabel())}. Channel revenue follows the attribution switch. Yesterday is the P&amp;L line: sales less ads, product, shipping and fees.`)}`);
     const root = $('#main'); K.wireGo(root);
     root.querySelectorAll('[data-ask]').forEach(bt => bt.onclick = () => { if (window.AskUI && window.AskUI.ask) window.AskUI.ask(bt.dataset.ask); });
