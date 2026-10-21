@@ -4329,3 +4329,38 @@ Cole: "Studio looks like absolute shit. I still don't understand how things get 
   the page to Look before the second product could be added), a Make that made nothing stays on Make and does not mark
   the batch 'made', and an out-of-credits answer reads in plain words. Studio has no real carousel format: a "carousel"
   batch makes each slide as its own 4:5 ad and Launch makes single-image ads.
+
+## 2026-10-21 (round four): RECEIPT ROWS replace every filled horizontal bar (Cole picked them)
+- `LxKit.bars` lists (weeks, channels, first orders) read as rows: label and number, note in grey, a 2px hairline sized to the
+  value, the target as a tick (no ghost bar). Yesterday on Today is a receipt (`river()` in v4.js, `.lx-rc`): Sales, each cost
+  with its share and hairline, Kept, a normal day. Agency kept bars, table inline bars, the share bar and funnel bars are
+  hairlines too. CSS block "RECEIPT ROWS" at the end of lx.css. Not seen in a browser: Chrome stopped responding (every tab).
+- **Week pass (socialweek.js?v=7):** the tray is labelled rows, not a 2-up thumbnail wall: picture, title, source · who,
+  and a state chip (To film / Ready / On the week), grouped To film, Ready to post, Already on the week; 288px wide.
+  A "How it works" line under the controls (drag on desktop, tap Ready on a phone). Tray and grid carry the v5 shadow
+  and radius. Drag, click and the phone sheet are unchanged (`.sw-ti[data-ref]`). Shot `docs/locus-social/screens/2026-10-21-week-tray.jpg`.
+- **Live check, 2026-10-21 (Cole's Chrome, Lucky, real data, social.js?v=12):** 244 cards, plan strip (0 of 5, 1 to
+  film, 22 ready), YouTube plays with `mute=0`, an Instagram MP4 plays unmuted, a 7-slide carousel pages by arrows and
+  keys, the chooser opens, the Week tray groups 8 To film / 22 Ready. Fixed from it: **Worth making picks followed
+  brands first** (own-usual ratio 2x+), topic posts only fill the rest at 5x+ (before, all four were topic accounts at
+  "523x its size" against follower count); quick arrow presses on a carousel now each move a slide (`S2.lock`).
+  No Make ours path was run live (each one makes a real task, brief or batch). Shots `2026-10-21-live-*`.
+
+## 2026-10-21 (round four): THE AD SHEET (v2.js previewAd, lx.css "THE AD SHEET")
+- Reading order: Results (spend, cost per purchase vs goal, ROAS + revenue, purchases), The call, **Its ad set** (every ad in
+  the set: thumb, name, its call, spend with a hairline share of the set, cost per purchase, ROAS, hook; this ad highlighted;
+  first 8 then "Show all"; tap a row = open that ad), Funnel, Landing page (path on its own line, add-to-cart stats under it),
+  Delivery, Watch time, Where it ran, Ad copy, Next steps.
+- creative()'s `ctxOf` carries `sibs` (ads with the same `adset.id`), `verdictOf` and `open`. A grouped card (one per creative)
+  has `adset: null`, so `setOf(r)` falls back to the set of its top ad (same id). previewAd uses `a.adset || cx.set`.
+
+## 2026-10-21 (round four): AD CALLS, PASS Q (Cole approved docs/locus-v4/goals-and-ad-calls.html)
+- One MAIN goal decides (`goal_metric`, platform goal `goal_meta` / `goal_google` in that metric); target ROAS (with the ROAS
+  guard on) and target CPA are GUARDRAILS when they are not the main metric; an empty field never counts.
+- hub.js `buyerList`: kind `mixed` when the main goal and a guardrail disagree (main met with 3+ sales but a guardrail broken,
+  or past the cut line with every set guardrail met); it replaces the old silent ROAS-guard keep. Every set row carries
+  `checks`, `evidence {for, against}` and, on Cut or Mixed, `funnel` when 60%+ of its 7-day sales are new customers and its
+  click rate beats the account median (sets with 1,000+ impressions). Mixed rows rank at half their spend.
+- desk.js: MIXED chip, a Mixed filter, no Do it button, "Decided on" in the Done log; "Feeds the funnel" tag with numbers on
+  hover. v4.js setPanel: numbers against goal or account, For keeping it / For cutting it boxes, the funnel line.
+- Not taught Mixed yet: nudge.js and the 8am Slack post ignore it (they only act on cut / scale / trim / refresh / fix).

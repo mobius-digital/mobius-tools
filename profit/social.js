@@ -532,9 +532,15 @@
     /* Our strategy first (2026-10-21, Cole: "it should be what we make this week, not a scrape feed"): the week's plan,
        then the few posts worth making ours, then everything the brand watches. Saved keeps its own simple layout. */
     const strat = !saved() && fol.length;
-    const picks = strat ? posts.filter(p => okRatio(p) && p.ratio >= 3 && !p.idea_id && (!p.posted_at || (Date.now() - Date.parse(p.posted_at)) / 864e5 <= 14)).sort((a, b) => b.ratio - a.ratio).slice(0, 4) : [];
+    /* Followed brands first, measured against their own usual; topic posts (measured against follower count, which makes
+       a random account read 500x) only fill what is left. Checked live 2026-10-21: all four were topic posts before. */
+    const fresh14 = p => !p.idea_id && (!p.posted_at || (Date.now() - Date.parse(p.posted_at)) / 864e5 <= 14);
+    const byR = (a, b) => b.ratio - a.ratio;
+    const brandPicks = strat ? posts.filter(p => okRatio(p) && p.base_kind !== 'followers' && p.ratio >= 2 && fresh14(p)).sort(byR) : [];
+    const topicPicks = strat ? posts.filter(p => okRatio(p) && p.base_kind === 'followers' && p.ratio >= 5 && fresh14(p)).sort(byR) : [];
+    const picks = [...brandPicks, ...topicPicks].slice(0, 4);
     const top = strat ? `<section class="soc-plan sk" id="socPlan" aria-label="This week"></section>${sopHtml()}
-      ${picks.length ? `<div class="soc-sh"><h3>Worth making this week</h3><small>${picks.length} post${picks.length === 1 ? '' : 's'} doing 3x or more what the account usually gets</small></div>
+      ${picks.length ? `<div class="soc-sh"><h3>Worth making this week</h3><small>${brandPicks.length ? 'the brands you follow, doing far more than they usually do' : 'from your topics, far past the account\'s size'}</small></div>
       <p class="soc-lead">${CLI() ? 'Ask the team to make one of these.' : 'Press Make it ours on one: post it ourselves, send it to creators, brief an ad or make it in Studio.'}</p>
       <div class="soc-picks" id="socPicks">${picks.map(p => card(p, { pick: true })).join('')}</div>` : ''}
       <div class="soc-sh"><h3>Everything ${esc(brandName())} watches</h3><small>${posts.length} posts from ${fol.length} brands and topics</small></div>
@@ -961,10 +967,10 @@
       ${n > 1 ? `<button type="button" class="vsl l" aria-label="Previous slide" disabled>${G.l(18)}</button><button type="button" class="vsl r" aria-label="Next slide">${G.r(18)}</button>
       <span class="vsn">1 / ${n}</span><div class="vdots">${s.slice(0, 12).map((_, i) => `<button type="button" class="${i ? '' : 'on'}" data-sl="${i}" aria-label="Slide ${i + 1}"><i></i></button>`).join('')}</div>` : ''}`;
     const sl = m.querySelector('.vslides');
-    const S2 = { n, i: 0, go: i => sl.scrollTo({ left: i * sl.clientWidth, behavior: 'smooth' }) };
+    const S2 = { n, i: 0, go: i => { S2.i = Math.max(0, Math.min(n - 1, i)); S2.lock = Date.now(); sl.scrollTo({ left: S2.i * sl.clientWidth, behavior: 'smooth' }); } };
     if (V) V.sl = S2;
     const sync = () => {
-      const i = Math.max(0, Math.min(n - 1, Math.round(sl.scrollLeft / Math.max(1, sl.clientWidth)))); S2.i = i;
+      const i = Date.now() - (S2.lock || 0) < 450 ? S2.i : Math.max(0, Math.min(n - 1, Math.round(sl.scrollLeft / Math.max(1, sl.clientWidth)))); S2.i = i;
       m.querySelectorAll('[data-sl]').forEach(d => d.classList.toggle('on', +d.dataset.sl === i));
       const c = m.querySelector('.vsn'); if (c) c.textContent = `${i + 1} / ${n}`;
       const l = m.querySelector('.vsl.l'), r = m.querySelector('.vsl.r'); if (l) l.disabled = i <= 0; if (r) r.disabled = i >= n - 1;

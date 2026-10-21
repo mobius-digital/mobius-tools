@@ -45,7 +45,8 @@
     if (document.getElementById('swcss')) return;
     const st = document.createElement('style'); st.id = 'swcss';
     st.textContent = `
-      .sw{--sw-r:10px}
+      .sw{--sw-r:var(--v5-r,12px)}
+      .sw .sw-how{margin:-4px 0 14px;font-size:12.5px;color:var(--muted)} .sw .sw-how b{color:var(--ink-2);font-weight:600}
       .sw .sw-top{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 12px;min-height:36px}
       .sw .sw-top .r{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
       .sw .sw-plan{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:3px 10px;white-space:nowrap} .sw .sw-plan.ok{color:var(--good);border-color:var(--good)}
@@ -82,8 +83,8 @@
       .sw .sw-note{display:flex;gap:10px;align-items:center;flex-wrap:wrap;border:1px solid var(--line);border-left:3px solid var(--warn);border-radius:var(--sw-r);padding:10px 14px;font-size:13px;line-height:1.5;margin:0 0 12px;color:var(--ink-2);background:var(--surface)}
       .sw .sw-note b{color:var(--ink)}
       /* body: the tray and the grid */
-      .sw .sw-body{display:grid;grid-template-columns:240px minmax(0,1fr);gap:12px;align-items:start}
-      .sw .sw-tray{border:1px solid var(--line);border-radius:var(--sw-r);background:var(--surface);position:sticky;top:8px;max-height:calc(100vh - 110px);display:flex;flex-direction:column;min-height:0}
+      .sw .sw-body{display:grid;grid-template-columns:288px minmax(0,1fr);gap:16px;align-items:start}
+      .sw .sw-tray{border:1px solid color-mix(in srgb,var(--line) 75%,transparent);border-radius:var(--sw-r);background:var(--surface);box-shadow:var(--v5-sh,none);position:sticky;top:8px;max-height:calc(100vh - 110px);display:flex;flex-direction:column;min-height:0}
       .sw .sw-tray .hd{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line)}
       .sw .sw-tray .hd b{font-size:13px;font-weight:650} .sw .sw-tray .hd small{color:var(--muted);font-size:12px}
       .sw .sw-tray .hd .sp{flex:1}
@@ -92,20 +93,23 @@
       .sw-sel select:focus-visible{outline:2px solid var(--brand);outline-offset:1px}
       .sw-sel::after{content:"";position:absolute;right:10px;top:50%;width:6px;height:6px;border-right:1.6px solid var(--muted);border-bottom:1.6px solid var(--muted);transform:translateY(-70%) rotate(45deg);pointer-events:none}
       .sw-sel.lg select{height:36px;font-size:13px;max-width:none;width:100%}
-      .sw-tl{overflow-y:auto;overflow-x:hidden;min-height:80px;flex:1;padding:8px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-content:start}
-      .sw-ti{position:relative;aspect-ratio:9/16;border-radius:8px;overflow:hidden;border:1px solid var(--line);background:var(--surface-2) center/cover no-repeat;cursor:grab;padding:0;font:inherit;color:var(--ink);display:flex;align-items:center;justify-content:center;min-width:0}
-      .sw-ti.sq{aspect-ratio:1} .sw-ti:hover{border-color:var(--brand)} .sw-ti.used{opacity:.45} .sw-ti:active{cursor:grabbing}
-      .sw-ti .ic{position:absolute;left:5px;top:5px;width:18px;height:18px;border-radius:5px;background:rgba(16,16,20,.66);color:#fff;display:inline-flex;align-items:center;justify-content:center}
-      .sw-ti .ic svg{width:11px;height:11px}
-      .sw-ti .no{color:var(--muted)} .sw-ti .no svg{width:22px;height:22px}
-      .sw-ti .kd{position:absolute;right:5px;bottom:5px;font-size:8.5px;font-style:normal;font-weight:700;background:rgba(16,16,20,.66);color:#fff;padding:1px 4px;border-radius:3px}
+      .sw-tl{overflow-y:auto;overflow-x:hidden;min-height:80px;flex:1;padding:6px 8px 10px;display:grid;grid-template-columns:minmax(0,1fr);gap:2px;align-content:start}
+      .sw-tl .gh{display:flex;align-items:baseline;gap:6px;padding:10px 6px 4px;font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)} .sw-tl .gh small{font-size:11px;letter-spacing:0;color:var(--faint,var(--muted))}
+      .sw-ti{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:10px;align-items:center;padding:6px;border-radius:8px;border:1px solid transparent;background:transparent;cursor:grab;font:inherit;color:var(--ink);text-align:left;min-width:0}
+      .sw-ti:hover{background:var(--surface-2);border-color:var(--line)} .sw-ti:active{cursor:grabbing} .sw-ti.used{opacity:.55}
+      .sw-ti .th{position:relative;width:44px;height:55px;border-radius:6px;background:var(--surface-2) center/cover no-repeat;display:inline-flex;align-items:center;justify-content:center;color:var(--muted);overflow:hidden}
+      .sw-ti .th svg{width:18px;height:18px} .sw-ti .th .kd{position:absolute;right:3px;bottom:3px;font-size:8px;font-style:normal;background:rgba(12,12,16,.7);color:#fff;border-radius:3px;padding:1px 3px;line-height:1.2}
+      .sw-ti .tx{display:grid;gap:2px;min-width:0} .sw-ti .tx b{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .sw-ti .tx small{display:flex;gap:5px;align-items:center;font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .sw-ti .tx small svg{width:12px;height:12px;flex:none}
+      .sw-ti .chip{font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:999px;white-space:nowrap} .sw-ti .chip.f{background:var(--warn-bg);color:var(--warn)} .sw-ti .chip.r{background:var(--good-bg);color:var(--good)} .sw-ti .chip.u{background:var(--surface-2);color:var(--muted)}
+      /* tray rows: see .sw-ti above */
       .sw .sw-tray .hd .hd-period{position:relative} .sw .sw-tray .hd .hd-per-btn .hd-per-l{display:none} .sw .sw-tray .hd .hd-per-btn .hd-per-d{display:inline;color:var(--ink);font-size:12px;font-weight:600}
       .sw .sw-tray .empty{grid-column:1 / -1}
       .sw .sw-tray .ft{padding:8px 10px;border-top:1px solid var(--line);display:flex;gap:8px;align-items:center}
       .sw .sw-tray .ft small{color:var(--muted);font-size:11.5px;line-height:1.4}
       .sw .sw-tray .empty{padding:24px 12px;text-align:center;color:var(--muted);font-size:12.5px;line-height:1.5}
       /* the grid, Later's density */
-      .sw .sw-grid{border:1px solid var(--line);border-radius:var(--sw-r);background:var(--surface);overflow:auto;max-height:calc(100vh - 110px);position:relative}
+      .sw .sw-grid{border:1px solid color-mix(in srgb,var(--line) 75%,transparent);border-radius:var(--sw-r);background:var(--surface);box-shadow:var(--v5-sh,none);overflow:auto;max-height:calc(100vh - 110px);position:relative}
       .sw .sw-gh{display:grid;grid-template-columns:52px repeat(7,minmax(84px,1fr));position:sticky;top:0;background:var(--surface);z-index:3;border-bottom:1px solid var(--line)}
       .sw .sw-gh div{padding:8px 6px 7px;font-size:11px;font-weight:600;color:var(--muted);text-align:center;border-left:1px solid var(--line);text-transform:uppercase;letter-spacing:.05em;display:grid;gap:2px;justify-items:center} .sw .sw-gh div:first-child{border-left:0}
       .sw .sw-gh div b{font-size:16px;font-weight:650;color:var(--ink);letter-spacing:-.01em;width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center}
@@ -218,7 +222,7 @@
         .sw .sw-body,.sw .sw-sk{grid-template-columns:1fr} .sw .sw-tray{display:none} .sw .sw-seg{display:none}
         .sw .sw-grid{max-height:none} .sw .sw-gh,.sw .sw-gb{grid-template-columns:44px repeat(7,140px)}
         .sw .sw-top .r{margin-left:0;width:100%} .sw .sw-top .r .sw-btn{flex:1 1 auto}
-        .sw-sheet-tray .sw-tl{grid-template-columns:repeat(3,minmax(0,1fr))}
+        .sw-sheet-tray .sw-tl{grid-template-columns:minmax(0,1fr)}
         .sw .sw-tray .hd .hd-per-btn .hd-per-d{display:inline}
         .sw-pn .med .m,.sw-pn .med .add{width:76px;height:76px} .sw-pn .foot .sw-btn{min-height:44px;flex:1 1 auto}
         .sw-pn .when input{flex:1 1 auto}
@@ -335,12 +339,17 @@
     for (const s of Object.keys(SRC)) counts[s] = items.filter(i => i.src === s).length;
     const list = ST.tf === 'unused' ? items.filter(i => !i.used) : ST.tf === 'all' ? items : items.filter(i => i.src === ST.tf);
     const opts = [['unused', 'Not used yet'], ['all', 'Everything'], ...Object.entries(SRC)].filter(([f]) => f === 'unused' || f === 'all' || counts[f]).map(([f, l]) => `<option value="${f}" ${ST.tf === f ? 'selected' : ''}>${l} (${counts[f]})</option>`).join('');
-    const item = it => `<button type="button" class="sw-ti ${it.used ? 'used' : ''} ${it.kind === 'video' ? '' : 'sq'}" draggable="${inSheet ? 'false' : 'true'}" data-ref="${esc(it.ref)}" ${it.thumb ? `style="background-image:url('${esc(it.thumb)}')"` : ''} ${U() ? U().tipAttr(esc(`${it.title}${it.who ? ` · ${it.who}` : ''} (${SRC[it.src] || it.src})${it.used ? ', already on the week' : ''}. ${inSheet ? 'Tap to post it.' : 'Drag onto a day and hour, or click.'}`)) : ''} aria-label="${esc(it.title)}">
-      ${it.thumb ? '' : `<span class="no">${it.kind === 'text' ? ic('pencil') : ic('image')}</span>`}<span class="ic">${ic(SRC_IC[it.src] || 'image')}</span>${it.kind === 'video' ? '<i class="kd">VIDEO</i>' : it.kind === 'text' ? '<i class="kd">TO FILM</i>' : ''}</button>`;
+    /* A tray row (2026-10-21): the picture, what it is in words, where it came from, and its state, so nobody has to
+       hover a thumbnail to know what it is. Grouped by what to do next: film it, post it, already on the week. */
+    const item = it => `<button type="button" class="sw-ti ${it.used ? 'used' : ''}" draggable="${inSheet ? 'false' : 'true'}" data-ref="${esc(it.ref)}" ${U() ? U().tipAttr(esc(it.kind === 'text' ? 'A script with no clip yet: film it, upload it, then drag it on.' : 'Drag onto an hour, or click to post it at the next free hour.')) : ''}>
+      <span class="th" ${it.thumb ? `style="background-image:url('${esc(it.thumb)}')"` : ''}>${it.thumb ? '' : it.kind === 'text' ? ic('pencil') : ic('image')}${it.kind === 'video' ? '<i class="kd">&#9654;</i>' : ''}</span>
+      <span class="tx"><b>${esc(it.title || 'Untitled')}</b><small>${ic(SRC_IC[it.src] || 'image')}${esc([SRC[it.src] || it.src, it.who || it.sub || ''].filter(Boolean).join(' · '))}</small></span>
+      <span class="chip ${it.used ? 'u' : it.kind === 'text' ? 'f' : 'r'}">${it.used ? 'On the week' : it.kind === 'text' ? 'To film' : 'Ready'}</span></button>`;
+    const groups = [['To film', list.filter(i => !i.used && i.kind === 'text')], ['Ready to post', list.filter(i => !i.used && i.kind !== 'text')], ['Already on the week', list.filter(i => i.used)]].filter(([, g]) => g.length);
     const PM = window.PillMenu;
     const pm = PM ? PM.html('swTf', 'Show', [['unused', 'Unused', `${counts.unused} not on the week yet`], ['all', 'All', `${counts.all} ready`], ...Object.entries(SRC).filter(([f]) => counts[f]).map(([f, l]) => [f, l, `${counts[f]}`])], ST.tf) : `<span class="sw-sel"><select data-tf aria-label="Show">${opts}</select></span>`;
     return `<div class="hd"><b>Ready</b><small>${list.length}</small><span class="sp"></span>${pm}</div>
-      <div class="sw-tl">${list.length ? list.map(item).join('') : `<div class="empty">${items.length ? 'Nothing here with this filter.' : 'Nothing ready yet. Approve a Studio final, add a creator clip, or upload a file.'}</div>`}</div>
+      <div class="sw-tl">${list.length ? groups.map(([g, l]) => `<div class="gh">${esc(g)}<small>${l.length}</small></div>${l.map(item).join('')}`).join('') : `<div class="empty">${items.length ? 'Nothing here with this filter.' : 'Nothing ready yet. Make our version of a post on Social, approve a Studio final, add a creator clip, or upload a file.'}</div>`}</div>
       <div class="ft"><button type="button" class="sw-btn sm q" data-upload="1">${ic('plus')} Upload a photo or video</button><input type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime" hidden data-file="1"></div>`;
   }
   function draw() {
@@ -356,6 +365,7 @@
         <span class="r"><span class="sw-acc" id="swAccs">${Object.keys(PL).map(x => bubble(x, accs[x], '', !CLI())).join('')}</span>
           ${PHONE() ? `<button type="button" class="sw-btn" id="swTrayBtn">${ic('inbox')} Ready</button>` : ''}${CLI() ? '' : `<button type="button" class="sw-btn" id="swFill" ${U() ? U().tipAttr('Pick unused tray items up to the weekly target, spread them over free hours, caption each in the brand voice. You review before anything is scheduled.') : ''}>${ic('sparkles')} Fill the week</button>`}<button type="button" class="sw-btn pri" id="swNew">${ic('plus')} Post</button></span></div>
       ${none ? `<div class="sw-note"><div><b>No accounts connected yet.</b> ${CLI() ? 'Ask the Mobius team to connect your Instagram, Facebook, TikTok and YouTube.' : 'Until then a scheduled post is handed to you in Slack at post time with the file and caption ready to paste.'}</div>${CLI() ? '' : '<button type="button" class="sw-btn sm" data-settings="1">Connect accounts</button>'}</div>` : ''}
+      ${CLI() ? '' : `<p class="sw-how"><b>How it works:</b> ${PHONE() ? 'tap Ready and pick something (or + Post on a day)' : 'drag anything Ready onto an hour (or press + on an empty hour)'}, write one caption, pick the accounts, Schedule. Our versions from Social wait under To film until the clip is uploaded.</p>`}
       <div class="sw-body"><div class="sw-tray" id="swTray">${trayHtml(ST.tray)}</div>${ST.view === 'preview' ? `<div class="sw-ig" id="swIg"><p class="hint">Reading the grid…</p></div>` : list ? `<div class="sw-list" id="swList">${dayList()}</div>` : `<div class="sw-grid" id="swGrid">${grid()}</div>`}</div></div>`;
     if (ST.view === 'preview') igPreview();
     const g = $('#swGrid'); if (g) { placePosts(g); g.scrollTop = Math.max(0, (8 - HOURS[0]) * ROW - 10); }

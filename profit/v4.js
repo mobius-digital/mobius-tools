@@ -19,14 +19,13 @@
   const FUN_BENCH = { cart: 0.06, order: 0.35 };
   const STEP = { Revenue: 'var(--m-kept)', Kept: 'var(--m-kept)', Product: 'var(--m-product)', Shipping: 'var(--m-ship)', Handling: 'var(--m-handling)', Fees: 'var(--m-fees)', 'Ad spend': 'var(--m-ads)', 'Gross profit': 'var(--line-strong)' };
 
-  /* ---------- the river: yesterday's sales as one thin segmented bar (LxKit.river) ---------- */
+  /* ---------- yesterday as a receipt (round four, 2026-10-21, Cole picked "receipt rows" over filled bars): sales, each
+     cost with its share of sales and a hairline sized to it, then what was kept. ---------- */
   function river(b) {
-    const cur = b.currency, km = v => K.kmoney(v, cur);
-    const bites = (b.bites || []).filter(x => x.v > 0), sales = Math.max(b.sales || 0, 1);
-    /* kept first, so the tick for a normal day reads against the end of the kept segment */
-    const segs = [...(b.kept > 0 ? [{ label: 'Kept', v: b.kept, color: 'var(--m-kept)', tip: `<b>Kept</b> ${K.money(b.kept, cur)}, ${K.pct(b.kept / sales, 0)} of sales: what was left after ads, product, shipping and fees` }] : []),
-      ...bites.map(bt => ({ label: bt.label, v: bt.v, color: BITE[bt.k] || BITE.cogs, tip: `<b>${K.esc(bt.label)}</b> ${K.money(bt.v, cur)}, ${K.pct(bt.v / sales, 0)} of sales` }))];
-    return window.LxKit.river(segs, { total: b.sales, fmt: km, mark: b.kept > 0 ? b.normal : null, markLabel: b.normal != null ? `A normal day keeps about ${K.money(b.normal, cur)} (the last 28 days)` : '' });
+    const cur = b.currency, mo = v => K.money(v, cur), sales = Math.max(b.sales || 0, 1);
+    const bites = (b.bites || []).filter(x => x.v > 0);
+    const row = (cls, label, val, share, color) => `<div class="lx-rc-r ${cls}"><span class="l">${color ? `<i style="background:${color}"></i>` : ''}${K.esc(label)}</span><b>${val}</b><small>${share != null ? K.pct(share, 0) : ''}</small>${share != null ? `<span class="h"><em style="width:${Math.max(1, Math.min(100, share * 100)).toFixed(1)}%;background:${color || 'var(--brand)'}"></em></span>` : ''}</div>`;
+    return `<div class="lx-rc">${row('top', 'Sales', mo(b.sales), null)}${bites.map(bt => row('', bt.label, `-${mo(bt.v).replace('-', '')}`, bt.v / sales, BITE[bt.k] || BITE.cogs)).join('')}${b.kept != null ? row(`tot${b.kept < 0 ? ' neg' : ''}`, 'Kept', mo(b.kept), null) : ''}${b.normal != null ? `<div class="lx-rc-n">A normal day keeps <b>${mo(b.normal)}</b> (the last 28 days)</div>` : ''}</div>`;
   }
   function riverCard(b) {
     if (!b || !b.has) return `<div class="v2h"><h3>Yesterday</h3></div><p class="v2hint">Triple Whale has not synced yesterday for this brand yet.</p>`;
@@ -58,7 +57,7 @@
 
   /* ---------- the queue: three things, one button each ---------- */
   function queueItems(td, sd) {
-    const rows = (td && td.rows) || [], kinds = ['cut', 'scale', 'trim', 'refresh', 'fix'];
+    const rows = (td && td.rows) || [], kinds = ['cut', 'scale', 'trim', 'refresh', 'fix', 'mixed'];
     const change = rows.filter(r => kinds.includes(r.kind)).sort((a, b) => (b.stake || 0) - (a.stake || 0));
     const calls = rows.filter(r => r.kind === 'call');
     const items = [];
@@ -171,10 +170,19 @@
     const DO = { scale: 'Raise the budget 20%', cut: 'Pause the ad set', trim: 'Turn off the ad' };
     const nums = [['Spent', r.spend != null ? $(r.spend) : '–'], [r.metric === 'roas' ? 'Sales' : 'Sales', K.int(r.orders)], ['Per sale', r.cpa ? $(r.cpa) : (r.spend ? 'no sale' : '–')], ['Goal', r.goal ? $(r.goal) : '–'], ['ROAS', r.roas ? K.x2(r.roas) : '–'], ['Days judged', r.days != null ? String(r.days) : '–']];
     const tone = r.goal && r.cpa ? (r.cpa <= r.goal ? 'good' : r.cpa > r.goal * 1.5 ? 'bad' : 'warn') : '';
+    /* GOALS AND AD CALLS (2026-10-21, docs/locus-v4/goals-and-ad-calls.html): every number against its goal or the account
+       (hub.js buyerList `checks`, receipt rows), the case for keeping and for cutting (`evidence`), and the Feeds the funnel
+       line (`funnel`). Rows without checks (older payloads, Google rows) keep the six-number grid. */
+    const checks = Array.isArray(r.checks) && r.checks.length ? r.checks : null, ev = r.evidence || null, fu = r.funnel || null;
+    const evBox = (cls, h, list) => `<div class="v4-ev ${cls}"><h4>${h}</h4>${list && list.length ? `<ul>${list.map(x => `<li>${K.esc(x)}</li>`).join('')}</ul>` : '<p class="v2hint">Nothing in the numbers.</p>'}</div>`;
+    const numsHtml = checks ? `<div class="v4-ck">${checks.map(c => `<div class="v4-ck-r"><span class="l">${K.esc(c.label)}</span><b>${K.esc(c.value)}</b><small class="${c.tone === 'good' || c.tone === 'bad' ? c.tone : ''}">${K.esc(c.vs || '')}</small></div>`).join('')}</div>`
+      : `<div class="v4-nums">${nums.map(([l, v], i) => `<div${i === 2 && tone ? ` class="${tone}"` : ''}><small>${l}</small><b>${v}</b></div>`).join('')}</div>`;
+    const evHtml = ev && ((ev.for || []).length || (ev.against || []).length) ? `<div class="v4-evs">${evBox('for', 'For keeping it', ev.for)}${evBox('against', 'For cutting it', ev.against)}</div>` : '';
+    const fuHtml = fu ? `<div class="v4-fnl"><span class="v4-chip fnl">Feeds the funnel</span><span>${Math.round(fu.new_share * 100)}% new customers${fu.acct_new_share != null ? ` against ${Math.round(fu.acct_new_share * 100)}% for the account` : ''}, click rate ${(fu.ctr * 100).toFixed(1)}% against the account median ${(fu.acct_ctr * 100).toFixed(1)}%. A tag, not a call: keep or cut, it is your decision.</span></div>` : '';
     V.panel(r.adset || r.ad || 'Ad set', `<div class="v4-pan">
       <div class="v4-pan-top"><span class="v4-chip ${K.esc(r.kind)}">${K.esc(r.kind)}</span><span class="v4-pan-brand">${K.esc(r.brand || '')}${r.campaign ? ` · ${K.esc(r.campaign)}` : ''}</span></div>
       <p class="v4-why">${K.esc(r.why || '')}${r.anchor && r.n_ads > 1 ? ` <span class="faint">The anchor is "${K.esc(r.anchor.name || '')}", ${Math.round((r.anchor.share || 0) * 100)}% of the set's spend.</span>` : ''}</p>
-      <div class="v4-nums">${nums.map(([l, v], i) => `<div${i === 2 && tone ? ` class="${tone}"` : ''}><small>${l}</small><b>${v}</b></div>`).join('')}</div>
+      ${numsHtml}${evHtml}${fuHtml}
       <div class="v4-pacts">${opts.doIt && DO[r.kind] ? `<button type="button" class="v2btn" id="v4pDo">${DO[r.kind]}</button>` : ''}${opts.locus ? `<button type="button" class="v2btn ghost" id="v4pLocus">Open in Locus</button>` : ''}${opts.am ? `<a class="v2btn ghost" href="${K.esc(opts.am)}" target="_blank" rel="noopener">Ads Manager</a>` : ''}</div>
       <h4 class="v4-pan-h">The ads in this set</h4><div id="v4pads"><p class="v2hint">Loading…</p></div></div>`);
     const p = document.getElementById('v2panel'); if (!p) return;
