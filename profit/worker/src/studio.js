@@ -612,7 +612,7 @@ export async function handlePublic(request, env, url, path, json, CORS) {
     if (!obj) return json({ error: 'not found' }, 404);
     return new Response(obj.body, { headers: { 'Content-Type': rf[2] === 'jpg' ? 'image/jpeg' : `image/${rf[2]}`, 'Cache-Control': 'public, max-age=31536000, immutable', ...CORS } });
   }
-  const m = path.match(/^\/api\/studio\/img\/([a-f0-9]{24})\/(full|plate|final|square|ext|story)$/);
+  const m = path.match(/^\/api\/studio\/img\/([a-f0-9]{24})\/(full|plate|final|square|ext|story|clean)$/);
   if (!m || request.method !== 'GET') return null;
   const row = await getAd(env, m[1]);
   if (!row || !env.MEDIA) return json({ error: 'not found' }, 404);
