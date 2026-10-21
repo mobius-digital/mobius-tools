@@ -92,7 +92,7 @@
     const sm = size < 80;
     return `<div class="lx-ring${sm ? ' sm' : ''}" style="--rs:${size}px"><svg viewBox="0 0 132 132" aria-hidden="true">
       <circle cx="66" cy="66" r="${r}" fill="none" stroke="var(--lx-track)" stroke-width="${sm ? 9 : 5}"/>
-      ${pct != null ? `<circle class="lx-ring-p" cx="66" cy="66" r="${r}" fill="none" stroke="var(--brand)" stroke-width="${sm ? 9 : 5}" stroke-linecap="round" stroke-dasharray="${(c * p).toFixed(1)} ${c.toFixed(1)}" style="--rc:${c.toFixed(1)}"/>` : ''}
+      ${pct != null ? `<circle class="lx-ring-p lx-ring-main" cx="66" cy="66" r="${r}" fill="none" stroke="var(--brand)" stroke-width="${sm ? 9 : 5}" stroke-linecap="round" stroke-dasharray="${(c * p).toFixed(1)} ${c.toFixed(1)}" style="--rc:${c.toFixed(1)}"/>` : ''}
       ${o.outer != null && !sm ? `<circle cx="66" cy="66" r="${r2}" fill="none" stroke="var(--line)" stroke-width="1"/><circle class="lx-ring-p" cx="66" cy="66" r="${r2}" fill="none" stroke="var(--muted)" stroke-width="1.4" stroke-linecap="round" stroke-dasharray="${(c2 * clamp01(o.outer)).toFixed(1)} ${c2.toFixed(1)}" style="--rc:${c2.toFixed(1)}"/>` : ''}
       </svg><div class="c"><b>${o.label ?? (pct == null ? '–' : Math.round(pct * 100) + '%')}</b>${o.sub && !sm ? `<small>${o.sub}</small>` : ''}</div></div>${o.chip ? `<div class="lx-ring-chip">${o.chip}</div>` : ''}`;
   }
@@ -211,12 +211,12 @@
     const on = irail.matches || (innerWidth > 1180 && pinnedMin());
     document.documentElement.classList.toggle('lx-irail', on);
     const b = document.getElementById('railMin');
-    if (b) { const min = innerWidth > 1180 && pinnedMin(); b.hidden = irail.matches || innerWidth <= 720; b.title = min ? 'Show the full menu' : 'Collapse the menu to icons'; b.setAttribute('aria-pressed', String(min)); const l = b.querySelector('span'); if (l) l.textContent = min ? 'Show the menu' : 'Collapse'; }
+    if (b) { const min = innerWidth > 1180 && pinnedMin(); b.hidden = irail.matches || innerWidth <= 720; b.title = min ? 'Show the full menu' : 'Collapse the menu to icons'; b.setAttribute('aria-label', b.title); b.setAttribute('aria-pressed', String(min)); }
   };
   addEventListener('resize', () => { if (innerWidth > 1180) setRail(); });
   document.addEventListener('click', e => {
     if (!e.target.closest('#railMin')) return;
-    e.preventDefault(); e.stopPropagation();
+    e.preventDefault(); e.stopImmediatePropagation();
     try { localStorage.setItem('pf_railmin', pinnedMin() ? '0' : '1'); } catch {}
     document.body.classList.remove('nav-open'); const sc = document.getElementById('navScrim'); if (sc) sc.hidden = true;
     setRail(); setTimeout(() => dispatchEvent(new Event('resize')), 240);

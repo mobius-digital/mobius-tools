@@ -673,3 +673,81 @@ body.is-client #main .ph .ph-acts > :not([data-client-ok]), body.is-client #hdAc
 .v4 .v4-stack{display:flex;flex-direction:column;gap:14px;margin:0 0 14px}.v4 .v4-stack > *{margin:0}.v4 .v4-stack > :empty{display:none}
 .lx-fun2{max-width:860px}
 [data-ui="v2"] #v2campwrap td:first-child,[data-ui="v2"] #v2gcwrap td:first-child{min-width:220px}
+
+/* the collapse button sits in the brand row (round three, 2026-10-21); the logo no longer links anywhere */
+[data-ui="v2"] .side-brand{cursor:default}
+.rail-min{margin-left:auto;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;min-height:0;padding:0;border:0;border-radius:var(--r-sm,6px);background:transparent;color:var(--rail-muted,var(--muted));cursor:pointer;flex:none}
+.rail-min:hover{background:var(--surface-2);color:var(--ink)}.rail-min svg{width:16px;height:16px}
+html.lx-irail[data-ui="v2"] body:not(.nav-open) .side-brand{flex-direction:column;gap:8px}
+html.lx-irail[data-ui="v2"] body:not(.nav-open) .rail-min{margin:0}
+
+/* ==========================================================================
+   THE v5 LOOK (round three, 2026-10-21, Cole: "it doesn't look modern, futuristic, like a professional SaaS").
+   What premium analytics products (Stripe, Linear, Vercel, Triple Whale, Northbeam) actually do, applied app-wide:
+   1. Surfaces have depth, not lines: cards float on a slightly cooler page with a two-layer soft shadow (light) or a
+      faint top highlight and inner border (dark). 12px radius, generous padding.
+   2. Numbers lead: big, 600 weight, tight tracking, tabular. Labels are small and quiet.
+   3. ONE hue for data (the brand blue), drawn as a gradient with a soft glow on lines. Judgement (good / bad) lives in
+      words, chips and coloured notes, never in a wall of red or green bars.
+   4. Light chart furniture: dashed hairline grids, faint axis text, no boxes.
+   5. Motion on first paint only (pass A), hover lifts a card a hair.
+   Tokens only; both themes.
+   ========================================================================== */
+:root[data-ui="v2"]{
+  --v5-r:12px;
+  --v5-sh:0 1px 2px rgba(16,24,40,.04),0 2px 6px -1px rgba(16,24,40,.06);
+  --v5-sh-hi:0 2px 4px rgba(16,24,40,.05),0 10px 24px -6px rgba(16,24,40,.12);
+  --v5-grad:linear-gradient(90deg,color-mix(in srgb,var(--brand) 55%,transparent),var(--brand));
+  --v5-grad-y:linear-gradient(180deg,var(--brand),color-mix(in srgb,var(--brand) 62%,transparent));
+  --v5-glow:drop-shadow(0 2px 6px color-mix(in srgb,var(--brand) 35%,transparent));
+}
+:root[data-ui="v2"]:not([data-theme="light"]){
+  --v5-sh:0 0 0 1px rgba(255,255,255,.035) inset,0 1px 0 rgba(255,255,255,.04) inset,0 8px 24px -12px rgba(0,0,0,.6);
+  --v5-sh-hi:0 0 0 1px rgba(255,255,255,.06) inset,0 1px 0 rgba(255,255,255,.06) inset,0 16px 32px -14px rgba(0,0,0,.7);
+  --v5-glow:drop-shadow(0 0 8px color-mix(in srgb,var(--brand) 55%,transparent));
+}
+:root[data-ui="v2"][data-theme="light"] body,:root[data-ui="v2"][data-theme="light"] .content{background:#F4F5F8}
+
+/* 1. surfaces */
+[data-ui="v2"] #main .v2card,[data-ui="v2"] #main .card,[data-ui="v2"] #main .v2tile{border-radius:var(--v5-r);box-shadow:var(--v5-sh);border-color:color-mix(in srgb,var(--line) 75%,transparent)}
+[data-ui="v2"]:not([data-theme="light"]) #main .v2card,[data-ui="v2"]:not([data-theme="light"]) #main .v2tile{background:linear-gradient(180deg,rgba(255,255,255,.028),rgba(255,255,255,0) 120px),var(--surface)}
+[data-ui="v2"] #main .v2card{padding:22px 24px}
+[data-ui="v2"] #main .v2tile{padding:18px 20px 16px;transition:box-shadow var(--t) var(--ease),transform var(--t) var(--ease)}
+[data-ui="v2"] #main .v2tile:hover{box-shadow:var(--v5-sh-hi);transform:translateY(-1px)}
+
+/* 2. numbers lead */
+[data-ui="v2"] #main .v2tile .l{font-size:12.5px;font-weight:500;color:var(--muted);letter-spacing:0}
+[data-ui="v2"] #main .v2tile .v{font-size:28px;font-weight:600;letter-spacing:-.03em;font-variant-numeric:tabular-nums;gap:8px}
+[data-ui="v2"] #main .v2tile .sub{font-size:12px;color:var(--muted)}
+[data-ui="v2"] #main .v2h h3{font-size:14.5px;font-weight:600;letter-spacing:-.005em}
+[data-ui="v2"] .v2d{border-radius:6px;padding:2px 6px;font-weight:600}
+.v4 .v4-hero{letter-spacing:-.03em}
+
+/* 3. one hue for data, a gradient, a soft glow on lines */
+.lx-spk .lx-spk-l,[data-ui="v2"] .v2chart svg > path[stroke="var(--brand)"]{filter:var(--v5-glow)}
+.lx-ring .lx-ring-main{filter:var(--v5-glow)}
+.lx-bar .t i:not(.g){background:var(--v5-grad)!important}
+.lx-bar.good .v small{color:var(--good)}.lx-bar.warn .v small{color:var(--warn)}.lx-bar.bad .v small{color:var(--bad)}
+.lx-bar .v small{font-weight:600}
+.lx-fun-st .t i,.lx-scale-t i,[data-ui="v2"] .v2ib > i:not([style*="background"]){background:var(--v5-grad)}
+.lx-fun-st .t,.lx-scale-t{height:6px;border-radius:3px}.lx-fun-st .t i,.lx-scale-t i{border-radius:3px}
+.lx-river-t > i{box-shadow:inset 0 1px 0 rgba(255,255,255,.22)}
+.lx-wf-a > i{box-shadow:inset 0 1px 0 rgba(255,255,255,.22)}
+.lx-wf-c.tot .lx-wf-a > i{background:var(--v5-grad-y)!important}
+.v4 .v4-kb .tr i{background:var(--v5-grad)}
+.v4 .v4-sh{border-radius:10px;background:var(--surface);box-shadow:var(--v5-sh)}
+
+/* 4. light chart furniture */
+[data-ui="v2"] .v2chart svg line[stroke="var(--v2-grid)"]{stroke-dasharray:2 4;opacity:.8}
+[data-ui="v2"] .v2chart svg text{fill:var(--faint)}
+.lx-spk .mx,.lx-spk .mn{color:var(--faint)}
+
+/* tables read like a product, not a spreadsheet */
+[data-ui="v2"] #main .v2tbl th{font-size:11px;letter-spacing:.05em;color:var(--faint)}
+[data-ui="v2"] #main .v2tbl td{border-bottom-color:color-mix(in srgb,var(--line) 70%,transparent)}
+[data-ui="v2"] #main .v2tbl tbody tr:hover td{background:color-mix(in srgb,var(--brand) 4%,transparent)}
+
+/* chips and the hero strip */
+.lx-st{border-radius:6px}
+.lx-strip{border-radius:var(--v5-r)!important;box-shadow:var(--v5-sh)}
+.v4 .v4-nodata{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:baseline;padding:12px 0 2px;color:var(--muted)}

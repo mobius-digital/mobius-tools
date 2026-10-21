@@ -2241,7 +2241,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <link rel="stylesheet" href="v2.css?v=46">
 <link rel="stylesheet" href="../logo/kit.css?v=2">
 <link rel="stylesheet" href="supply.css?v=6">
-<link rel="stylesheet" href="lx.css?v=27">
+<link rel="stylesheet" href="lx.css?v=28">
 <link rel="stylesheet" href="phone.css?v=16">
 <script src="/sheet.js?v=1"></script>
 <script src="/ask/ask-ui.js?v=14"></script>
@@ -2258,10 +2258,11 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 
 <div class="app">
   <aside class="side" id="side">
-    <a class="side-brand" href="../" title="All Mobius tools">
+    <div class="side-brand">
       <img src="../logo/locus/icons/favicon.svg" alt="">
       <span><span class="nm">Locus</span><span class="by">Mobius Digital</span></span>
-    </a>
+      <button type="button" class="rail-min" id="railMin" hidden title="Collapse the menu to icons" aria-label="Collapse the menu" aria-pressed="false"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M6 3v10" stroke="currentColor" stroke-width="1.4"/></svg></button>
+    </div>
     <div class="side-client">
       <span class="side-cap">Client</span>
       <select id="clientPick" style="display:none"></select>
@@ -2303,7 +2304,6 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
     </nav>
     </div>
     <div class="side-foot">
-      <button class="v2settings" type="button" id="railMin" hidden title="Collapse the menu to icons" aria-pressed="false"><svg viewBox="0 0 16 16"><path d="M10 3.5 5.5 8l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Collapse</span></button>
       <button class="v2settings" type="button" data-t="calc" data-grp="tools" id="railTools" title="Calculators, platform status, the guide"><svg viewBox="0 0 24 24"><use href="#i-wrench"/></svg><span>Tools</span></button>
       <button class="v2settings" type="button" data-t="settings" id="railSettings" title="This brand's own settings"><svg viewBox="0 0 16 16"><use href="#i-settings"/></svg><span id="railSetLbl">Brand settings</span></button>
       <div class="v2theme" role="group" aria-label="Theme"><button type="button" data-theme-pick="dark">Dark</button><button type="button" data-theme-pick="light">Light</button></div>
@@ -2397,7 +2397,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="helper.js?v=2"></script>
 <script src="hero.js?v=1"></script>
 <script src="nudge.js?v=4"></script>
-<script src="lx.js?v=12"></script>
+<script src="lx.js?v=13"></script>
 <script src="v2.js?v=72"></script>
 <script src="leaks.js?v=11"></script>
 <script src="desk.js?v=33"></script>
@@ -2407,7 +2407,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="socialweek.js?v=5"></script>
 <script src="make.js?v=2"></script>
 <script src="supply.js?v=8"></script>
-<script src="v4.js?v=15"></script>
+<script src="v4.js?v=17"></script>
 <script src="askextra.js?v=3"></script>
 <script src="share.js?v=5"></script>
 <script src="survey.js?v=1"></script>

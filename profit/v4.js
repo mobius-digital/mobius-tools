@@ -36,7 +36,7 @@
     return `<div class="v2h"><h3>Yesterday, ${K.esc(dateWord(b.date))}</h3><span class="cap">the P&amp;L line</span></div>
       <div class="v4-herorow"><h2 class="v4-hero${b.kept != null && b.kept < 0 ? ' is-lost' : ''}">${n}</h2>${vsNormal}</div>
       ${b.broken ? `<p class="v2hint">What was kept needs trustworthy cost data. <button type="button" class="v2link" data-go="costs">Open the cost check ›</button></p>` : river(b)}
-      ${b.line ? `<button type="button" class="v4-line" data-ask="${K.esc(b.line)}" title="Ask Locus about this"><span class="lx-face" data-state="${(b.to_change || 0) + (b.to_fix || 0) > 0 ? 'found' : 'clear'}" aria-hidden="true"></span><span>${K.esc(b.line)}</span><span class="v4-line-go">Ask ›</span></button>` : ''}`;
+      ${b.line ? `<button type="button" class="v4-line" data-ask="${K.esc(b.line)}" title="Ask Locus about this"><span class="lx-face" data-state="${(b.to_change || 0) + (b.to_fix || 0) > 0 ? 'found' : 'clear'}" aria-hidden="true"></span><span>${K.esc(String(b.line).replace(/\$-(\d)/g, '-$$$1'))}</span><span class="v4-line-go">Ask ›</span></button>` : ''}`;
   }
 
   /* ---------- the month ring: the kit's thin brand-blue ring (LxKit.ring); status is a chip, never the stroke colour ---------- */
@@ -293,6 +293,9 @@
     if (first) $('#main').innerHTML = shell(skel || K.skPage({ tiles: 0, chart: false, rows: 6 }));
     return shell;
   }
+  /* a brand with no Triple Whale numbers at all (no shop linked yet) is one quiet line, not a row of dashes (round three) */
+  const noData = a => !(a.window && a.window.sales) && !(a.mtd && a.mtd.sales);
+  const noDataLine = (list, tab) => list.length ? `<p class="v4-paused v4-nodata"><span>Not on Triple Whale yet, so no store numbers:</span> ${list.map(a => `<button type="button" class="v2link q" data-go="act:${K.esc(a.act_id)}:settings">${K.esc(a.name)}</button>`).join(', ')}. <span class="faint">Link each shop in its Brand settings.</span></p>` : '';
   const dot = sev => `<span class="v4-dot ${sev}"></span>`;
   const brandCell = (a, sev, chips) => `<div class="v4-bn"><button type="button" class="v4-bname" data-go="act:${K.esc(a.act_id)}:${chips === 'month' ? 'month' : 'morning'}">${dot(sev)}${K.esc(a.name)}</button>${chips && chips !== 'month' ? `<div class="v4-gaps">${chips}</div>` : ''}</div>`;
 
@@ -310,9 +313,10 @@
     if (t !== H.RUN()) return;
     const KB = Object.fromEntries(((kept && kept.brands) || []).map(b => [b.act_id, b]));
     const CB = Object.fromEntries(((cmd && cmd.brands) || []).map(b => [b.act_id, b]));
-    const rows = [], paused = [];
+    const rows = [], paused = [], empty = [];
     for (const a of all) {
       const c = CB[a.act_id]; if (c && c.paused) { paused.push(a); continue; }
+      if (noData(a)) { empty.push(a); continue; }
       const rs = CC.reasonsFor ? CC.reasonsFor(a, c, work) : ((c && c.reasons) || []);
       rows.push({ a, c, k: KB[a.act_id], rs, sev: CC.worst ? CC.worst(rs) : 'good', score: CC.score ? CC.score(rs) : 0 });
     }
@@ -339,7 +343,7 @@
       return `<div class="v4-brow">${brandCell(a, r.sev, chips)}<div>${keptCell}</div><div>${pct != null ? ring(pct, `${Math.round(pct * 100)}%`, '', null, 56) : `<button type="button" class="v2link q" data-go="act:${K.esc(a.act_id)}:plan">no plan</button>`}</div><div class="v4-why">${why}</div><div class="v4-wk"><b>${K.kmoney(w.sales, cur)}</b>${p.sales ? K.delta(w.sales, p.sales) : ''}<span class="v4-quiet">MER ${K.x2(w.spend ? w.sales / w.spend : null)}</span></div></div>`;
     };
     $('#main').innerHTML = shell(`${book}<section class="v2card v4-boardc"><div class="v4-bhead"><span>Brand</span><span>Kept yesterday · vs normal</span><span>Month</span><span>Why it needs you</span><span>${K.esc(H.rangeLabel())}</span></div>${rows.map(rowHtml).join('')}
-      ${paused.length ? `<p class="v4-paused">Paused, not flagged: ${paused.map(a => `<button type="button" class="v2link q" data-go="act:${K.esc(a.act_id)}:morning">${K.esc(a.name)}</button>`).join(', ')}.</p>` : ''}</section>
+      ${noDataLine(empty)}${paused.length ? `<p class="v4-paused">Paused, not flagged: ${paused.map(a => `<button type="button" class="v2link q" data-go="act:${K.esc(a.act_id)}:morning">${K.esc(a.name)}</button>`).join(', ')}.</p>` : ''}</section>
       ${K.foot(`Kept = yesterday's P&amp;L line (sales less ads, product, shipping and fees); a normal day is the brand's last 28 days. Month = banked against the plan by now. Reasons use fixed windows ending ${K.esc(cmd && cmd.yesterday ? cmd.yesterday : 'yesterday')}. The week is ${K.esc(H.rangeLabel())} on the picker.`)}`);
     K.wireGo($('#main'));
   }
@@ -350,7 +354,8 @@
     const cmd = CC.cached ? await CC.cached('/api/hub/command?act=all', () => H.api('/api/hub/command?act=all')).catch(() => null) : null;
     if (t !== H.RUN()) return;
     const PAUSED = new Set(((cmd && cmd.brands) || []).filter(b => b.paused).map(b => b.act_id));
-    const all = K.scopeAccts().filter(a => !a.internal && !PAUSED.has(a.act_id)), paused = K.scopeAccts().filter(a => PAUSED.has(a.act_id));
+    const all0 = K.scopeAccts().filter(a => !a.internal && !PAUSED.has(a.act_id)), paused = K.scopeAccts().filter(a => PAUSED.has(a.act_id));
+    const all = all0.filter(a => !noData(a)), empty = all0.filter(noData);
     const now = new Date(), dim = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate(), elapsed = Math.max(1, now.getDate() - 1);
     const rows = all.map(a => { const mtd = a.mtd?.sales, planNow = a.plan?.sales, goal = a.goals?.sales || null, pct = mtd != null && planNow ? mtd / planNow : null; return { a, mtd, planNow, goal, pct, land: mtd != null ? mtd / elapsed * dim : null, spend: a.mtd?.spend, pSpend: a.plan?.spend, broken: a.cost_health?.verdict === 'broken' }; });
     rows.sort((x, y) => (x.pct == null) - (y.pct == null) || (x.pct ?? 9) - (y.pct ?? 9));
@@ -365,7 +370,7 @@
         <div><b>${K.kmoney(r.spend, cur)}</b><small>${r.pSpend ? `of ${K.kmoney(r.pSpend, cur)} planned` : 'ad spend'}</small></div>
         <div><b class="${goalMer && mer ? (mer >= goalMer ? 'good' : mer >= goalMer * 0.9 ? 'warn' : 'bad') : ''}">${K.x2(mer)}</b><small>${goalMer ? `MER, goal ${K.x2(goalMer)}` : 'MER'}</small></div></div>`; };
     $('#main').innerHTML = shell(`${tot ? `<section class="v2card v4-book"><div><div class="v4-book-l">Every planned brand, month to date</div><h2 class="v4-hero">Banked <b>${K.kmoney(tot.mtd, one)}</b> <small>of ${K.kmoney(tot.plan, one)} planned by now${tot.goal ? ` · lands at ${K.kmoney(tot.land, one)} of ${K.kmoney(tot.goal, one)}` : ''} · ${elapsed} of ${dim} days</small></h2></div><div class="v4-counts"><button type="button" class="v4-cnt" data-go="profit"><b>P&amp;L</b>every brand</button></div></section>` : ''}
-      <section class="v2card v4-boardc"><div class="v4-bhead v4-mhead"><span>Brand</span><span>Of plan</span><span>Banked</span><span>Where it lands</span><span>Spend</span><span>MER</span></div>${rows.map(rowHtml).join('')}${paused.length ? `<p class="v4-paused">Paused, not flagged: ${paused.map(a => `<button type="button" class="v2link q" data-go="act:${K.esc(a.act_id)}:month">${K.esc(a.name)}</button>`).join(', ')}.</p>` : ''}</section>
+      <section class="v2card v4-boardc"><div class="v4-bhead v4-mhead"><span>Brand</span><span>Of plan</span><span>Banked</span><span>Where it lands</span><span>Spend</span><span>MER</span></div>${rows.map(rowHtml).join('')}${noDataLine(empty)}${paused.length ? `<p class="v4-paused">Paused, not flagged: ${paused.map(a => `<button type="button" class="v2link q" data-go="act:${K.esc(a.act_id)}:month">${K.esc(a.name)}</button>`).join(', ')}.</p>` : ''}</section>
       ${K.foot('Banked = Shopify total sales less tax, through Triple Whale, this month. Planned by now = the month plan split evenly over the days elapsed. Lands = today\'s pace over the whole month. Worst first; a row opens that brand\'s month.')}`);
     K.wireGo($('#main'));
   }
