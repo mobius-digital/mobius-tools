@@ -493,7 +493,8 @@ async function buyerList(env, ctx, accts) {
         set: { spend: X.spend, orders: X.orders, revenue: X.revenue, cpa: cpr, status: s.status, budget: s.budget }, checks, evidence: ev };
       /* Feeds the funnel: a TAG on a Cut or Mixed row, never a call. 60%+ of its sales are new customers AND its click rate
          beats the account's median ad set click rate (7 days). */
-      const funnel = nShare != null && nShare >= 0.6 && ctr != null && acctCtr != null && ctr > acctCtr
+      /* clearly above the account (round four): 60%+ new AND at least 5 points over the account's share, click rate 25%+ over the median */
+      const funnel = nShare != null && nShare >= 0.6 && (acctNew == null || nShare >= acctNew + 0.05) && ctr != null && acctCtr != null && ctr >= acctCtr * 1.25
         ? { new_share: nShare, ctr, acct_new_share: acctNew, acct_ctr: acctCtr } : null;
       let working = true;
       if (unit && X.spend >= R.cr_judge_x * unit && !(age != null && age < R.cr_min_days)) {

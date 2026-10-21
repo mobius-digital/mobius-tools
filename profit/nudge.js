@@ -42,6 +42,7 @@
         else if (r.kind === 'trim') text = `${brand}: "${r.ad}" is dragging "${r.adset}", ${r.orders ? `${$(r.cpa)} a sale against the ${$(r.goal)} goal` : `no sale on ${$(r.spend)}`}. Pausing this one ad would save about ${$((r.spend || 0) / 7)} a day.`;
         else if (r.kind === 'scale') text = `${brand}: "${r.adset}" is working, ${sales(r.orders)} at ${$(r.cpa)} against the ${$(r.goal)} goal. Raise its budget 20% and watch three days.`;
         else if (r.kind === 'refresh') text = `${brand}: the main ad in "${r.adset}" is tiring, ${r.ctr != null && r.prev_ctr ? `clicks down ${Math.round((1 - r.ctr / r.prev_ctr) * 100)}% on the week` : 'fewer clicks than last week'}. Brief a new version; do not switch it off.`;
+        else if (r.kind === 'mixed') text = `${brand}: "${r.adset}" is mixed and needs your call. ${r.why || ''}`.trim();
         else if (r.kind === 'fix') text = `${brand}: ${r.why || 'something needs fixing on the ad account.'}`;
         else continue;
         out.push({ ...r, key, text });
