@@ -1757,11 +1757,12 @@ function kitButton(x, W, H, k, text) {
   x.shadowColor = 'transparent'; x.fillStyle = bt.text || '#17140F'; x.textAlign = 'center'; x.textBaseline = 'middle';
   x.fillText(label, W / 2, by + h / 2 + 1); x.restore();
 }
-async function kitLogo(x, W, H, k) {
+async function kitLogo(x, W, H, k, square) {
   if (!k.logo) return;
   const lg = await loadImg(k.logo);
-  const lh = H * 0.045, lw0 = lg.naturalWidth && lg.naturalHeight ? lh * lg.naturalWidth / lg.naturalHeight : lh * 3;
-  const lw = Math.min(W * 0.4, lw0), h = lw * lh / lw0, lx = (W - lw) / 2, ly = H * 0.115;
+  /* A square-made ad's top 10% is the painted band (background only, never words); a 4:5 ad leaves 9% to 18% empty. */
+  const lh = H * (square ? 0.05 : 0.045), lw0 = lg.naturalWidth && lg.naturalHeight ? lh * lg.naturalWidth / lg.naturalHeight : lh * 3;
+  const lw = Math.min(W * 0.4, lw0), h = lw * lh / lw0, lx = (W - lw) / 2, ly = square ? (H * 0.1 - h) / 2 : H * 0.115;
   const c = document.createElement('canvas'); c.width = Math.ceil(lw * 2); c.height = Math.ceil(h * 2);
   const cx = c.getContext('2d'); cx.drawImage(lg, 0, 0, c.width, c.height);
   if (k.logo_tint !== 'none') { cx.globalCompositeOperation = 'source-in'; cx.fillStyle = kitLum(x, lx, ly, lw, h) > 0.6 ? '#17140F' : '#FFFFFF'; cx.fillRect(0, 0, c.width, c.height); }
@@ -1774,13 +1775,13 @@ async function kitPass(ad) {
   const src = await loadImg(img(ad, 'full')), W = src.naturalWidth, H = src.naturalHeight;
   const out = document.createElement('canvas'); out.width = W; out.height = H;
   const x = out.getContext('2d'); x.drawImage(src, 0, 0);
-  await kitLogo(x, W, H, k).catch(() => {});
+  await kitLogo(x, W, H, k, !!ad.square_src).catch(() => {});
   kitButton(x, W, H, k, ad.spec.cta);
   const fin = await post('/api/studio/finalize', { id: ad.id, png: out.toDataURL('image/png'), kit: true });
   const i = S.d.ads.findIndex(a => a.id === ad.id); if (i >= 0) S.d.ads[i] = fin.ad; else S.d.ads.unshift(fin.ad);
   return fin.ad;
 }
-const extend = async ad => kitPass(await extendFit(ad));
+const extend = async ad => { const sq = ad && ad.full_w === ad.full_h; const out = await extendFit(ad); if (out && sq) out.square_src = true; return kitPass(out); };
 async function extendFit(ad) {
   if (!ad) return ad;
   if (ad.full_h > ad.full_w * 1.3) return cropFeed(ad);
