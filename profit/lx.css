@@ -830,3 +830,29 @@ html.lx-irail[data-ui="v2"] body:not(.nav-open) .rail-min{margin:0}
 #v2panel .v2lp-a{display:flex;gap:14px;flex-wrap:wrap}
 #v2panel .adt-all{align-self:flex-start}#v2panel .adt th{white-space:nowrap}
 #v2panel .adt th,#v2panel .adt td{padding:7px 8px}#v2panel .adt td:first-child{max-width:190px;gap:8px}#v2panel .adt-th{width:28px;height:35px}#v2panel .adt th{font-size:10.5px;letter-spacing:.04em}
+
+/* ==========================================================================
+   GOALS AND AD CALLS (2026-10-21, Cole approved docs/locus-v4/goals-and-ad-calls.html). Ads > Calls: the MIXED chip (amber,
+   the trim chip's look) and the small "Feeds the funnel" tag under it. The ad set panel (v4.js setPanel): every number
+   against its goal or the account as receipt rows, the two evidence boxes, the funnel line.
+   ========================================================================== */
+.dk .dk-k.mixed{background:var(--warn-bg);color:var(--warn)}
+.dk .dk-fnl{display:inline-block;max-width:72px;font-size:10px;font-weight:600;line-height:1.25;letter-spacing:.02em;text-align:center;padding:2px 5px;border-radius:5px;background:var(--brand-soft);color:var(--brand);cursor:help}
+.v4-chip.mixed{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 40%,transparent);background:color-mix(in srgb,var(--warn) 12%,transparent)}
+.v4-chip.fnl{text-transform:none;color:var(--brand);border-color:color-mix(in srgb,var(--brand) 40%,transparent);background:var(--brand-soft)}
+.v4-ck{display:flex;flex-direction:column}
+.v4-ck-r{display:grid;grid-template-columns:minmax(0,1fr) auto 150px;column-gap:12px;padding:8px 0;border-bottom:1px solid color-mix(in srgb,var(--line) 60%,transparent);align-items:baseline;font-size:13.5px}
+.v4-ck-r:last-child{border-bottom:0}
+.v4-ck-r .l{color:var(--ink-2);min-width:0}
+.v4-ck-r b{font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums;text-align:right}
+.v4-ck-r small{font-size:12px;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+.v4-ck-r small.good{color:var(--good)}.v4-ck-r small.bad{color:var(--bad)}
+.v4-evs{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.v4-ev{border:1px solid var(--line);border-radius:var(--r-lg,10px);padding:10px 12px;min-width:0}
+.v4-ev h4{margin:0 0 6px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+.v4-ev.for h4{color:var(--good)}.v4-ev.against h4{color:var(--bad)}
+.v4-ev ul{margin:0;padding-left:16px;display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--ink-2)}
+.v4-ev .v2hint{margin:0;font-size:12.5px}
+.v4-fnl{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+.v4-fnl .v4-chip{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:999px;font-size:11px;font-weight:600;border:1px solid;white-space:nowrap}
+@media (max-width:600px){.v4-evs{grid-template-columns:1fr}.v4-ck-r{grid-template-columns:minmax(0,1fr) auto}.v4-ck-r small{grid-column:1 / -1;text-align:left}}

@@ -284,9 +284,13 @@ async function yesterdayMany(env, ctx, accts, all) {
      the goal = the brand's metric (cost per sale, per new customer, per lead, or ROAS), and the UNIT is that
        goal in dollars (for ROAS: the brand's order value in the window / the goal ROAS);
      WAIT until the set has spent cr_judge_x units AND run cr_min_days (a good set shows 0 sales 1 time in 7 at 2x);
-     SCALE at cr_scale_buys+ results on goal, or at goal ROAS or better;
-     CUT at cr_cut_zero_x units with no result, or cr_cut_spend_x units at worse than cr_cut_cpa_x the goal,
-       NEVER when its ROAS beats the goal ROAS (roas_guard: big baskets pay for a high cost per sale; named in the brand's note);
+     SCALE at cr_scale_buys+ results on the main goal AND every guardrail met (2026-10-21);
+     CUT past cr_cut_zero_x units with no result, or cr_cut_spend_x units at worse than cr_cut_cpa_x the goal, AND at least
+       one guardrail broken (or none set);
+     MIXED when the main goal and a guardrail disagree (main met with a guardrail broken, or past the cut line with every
+       guardrail met): no button, one sentence on what disagrees. It replaces the old roas_guard silent keep;
+     every set row carries `checks` (the numbers against goal / account) and `evidence {for, against}`; a Cut or Mixed row
+       whose sales are 60%+ new customers with a click rate over the account median carries `funnel` (a tag, never a call);
      TRIM a small ad in a working set only on its OWN spend past the same line, never the main ad;
      REFRESH the main ad when its link CTR fell 20%+ AND its frequency rose (fatigue, not a slow week).
    A campaign's Meta objective decides what it is judged on: sales campaigns on the brand metric, lead
@@ -329,7 +333,9 @@ async function buyerList(env, ctx, accts) {
     const binds = W.flatMap(w => [w.act, w.t]);
     const lo = W.map(w => w.pf).sort()[0], hi = W.map(w => w.t).sort().pop();
     const CTE = `WITH w0(brand, t) AS (VALUES ${vals}), w AS (SELECT brand, t, date(t, '-6 day') f, date(t, '-1 day') l2, date(t, '-13 day') pf, date(t, '-7 day') pt FROM w0)`;
-    const wantNew = W.some(w => RULES[w.act].goal_metric === 'ncpa');
+    /* New customers per ad for every brand (2026-10-21): the ncpa goal reads them, and so do the evidence and the
+       "Feeds the funnel" tag on every row. */
+    const wantNew = true;
     [adRows, attrRows, newRows] = await Promise.all([
       env.DB.prepare(`${CTE} SELECT c.brand_id act_id, d.act_id meta_act, d.ad_id, x.name ad_name, x.adset_id, s.name set_name, s.status set_status, s.daily_budget, s.campaign_id, mc.objective,
           COALESCE(x.first_spend_date, substr(x.created_time, 1, 10)) first_spend,
@@ -396,7 +402,11 @@ async function buyerList(env, ctx, accts) {
        brand's own order value over the window (all its Meta sets), so the spend gates still mean "N goals". */
     const tot = live.reduce((x, s) => ({ rev: x.rev + s.w7.revenue, ord: x.ord + s.w7.orders }), { rev: 0, ord: 0 });
     const aov = tot.ord ? tot.rev / tot.ord : null;
-    const unitOf = m => m === 'roas' ? (R.target_roas && aov ? aov / R.target_roas : null) : goalOf(R, m);
+    /* GOALS AND AD CALLS (Cole approved 2026-10-21, docs/locus-v4/goals-and-ad-calls.html): the brand's goal_metric is the
+       MAIN goal (goalOf: the Meta platform goal first, in that same metric, then the brand's). target_roas and target_cpa
+       are GUARDRAILS when they are not the main metric; an empty field never counts, and roas_guard off drops the ROAS one. */
+    const trMain = metric === 'roas' ? goalOf(R, 'roas') : null;
+    const unitOf = m => m === 'roas' ? (trMain && aov ? aov / trMain : null) : goalOf(R, m);
     const unitMain = unitOf(metric);
     if (!unitMain) {
       const worst = live.filter(s => s.w7.spend > 300 && !s.w7.orders).sort((p, q) => q.w7.spend - p.w7.spend)[0];
@@ -405,6 +415,13 @@ async function buyerList(env, ctx, accts) {
       brands.push({ act_id: a.act_id, name: a.name, from, to, goal: null, metric, n_sets_judged: 0 });
       continue;
     }
+    /* The account, for the evidence: new-customer share, the median ad set click rate, the spend (7 days, live sets). */
+    const acct = live.reduce((x, s) => ({ spend: x.spend + s.w7.spend, ord: x.ord + s.w7.orders, nc: x.nc + s.w7.nc }), { spend: 0, ord: 0, nc: 0 });
+    const acctNew = acct.ord ? Math.min(1, acct.nc / acct.ord) : null;
+    const ctrOf = s => { const im = s.ads.reduce((t, x) => t + x.impr, 0), cl = s.ads.reduce((t, x) => t + x.clicks, 0); return im >= 1000 ? cl / im : null; };
+    const ctrs = live.map(ctrOf).filter(v => v != null).sort((p, q) => p - q);
+    const acctCtr = ctrs.length ? (ctrs.length % 2 ? ctrs[(ctrs.length - 1) / 2] : (ctrs[ctrs.length / 2 - 1] + ctrs[ctrs.length / 2]) / 2) : null;
+    const P = v => `${Math.round(v * 100)}%`, P2 = v => `${(v * 100).toFixed(1)}%`, X1 = v => `${v >= 10 ? v.toFixed(1) : v.toFixed(2).replace(/0$/, '')}x`;
     let judged = 0, notSales = 0, noLeadGoal = 0, slow = 0; const kept = [];
     for (const s of live) {
       /* What this set is judged on: its campaign's objective. */
@@ -421,34 +438,92 @@ async function buyerList(env, ctx, accts) {
       if (use14) slow++;
       const X = use14 ? s.w14 : s.w7, days = use14 ? 14 : 7;
       const res = resOf(X), cpr = res ? X.spend / res : null, roas = div(X.revenue, X.spend);
-      const tr = R.target_roas;
+      const tr = metric === 'roas' ? trMain : R.target_roas;
       const age = s.first ? Math.round((Date.parse(to) - Date.parse(s.first)) / 864e5) + 1 : null;
+      /* The guardrails that apply to this set (sales sets only; a lead set has no sales to guard). */
+      const cps = X.orders ? X.spend / X.orders : null;
+      const guards = [];
+      if (m && m !== 'cpl') {
+        if (metric !== 'roas' && R.roas_guard && R.target_roas) guards.push({ k: 'roas', ok: roas != null && roas >= R.target_roas, lim: R.target_roas });
+        if (metric !== 'cpa' && R.target_cpa) guards.push({ k: 'cpa', ok: cps != null && cps <= R.target_cpa, lim: R.target_cpa });
+      }
+      const gText = g => g.k === 'roas' ? `ROAS ${roas != null ? X1(roas) : '0x'} ${g.ok ? 'beats' : 'is under'} the ${X1(g.lim)} floor`
+        : cps != null ? `cost per sale ${$(cps)} is ${g.ok ? 'under' : 'over'} the ${$(g.lim)} ceiling` : `no sale against the ${$(g.lim)} cost per sale ceiling`;
+      /* The numbers and the evidence, on every set row (the ad set panel on Ads > Calls reads them). */
+      const [one1, many1] = m ? NOUN[m] : NOUN.cpa;
+      const onGoal = m === 'roas' ? roas != null && roas >= tr : cpr != null && cpr <= unit;
+      const mainNum = m === 'roas' ? (roas != null ? X1(roas) : '0x') : cpr != null ? $(cpr) : 'none';
+      const nShare = s.w7.orders ? Math.min(1, s.w7.nc / s.w7.orders) : null, ctr = ctrOf(s);
+      const freq = top && top.reach ? top.impr / top.reach : null, spShare = acct.spend ? s.w7.spend / acct.spend : null;
+      const checks = [], ev = { for: [], against: [] };
+      if (m && unit) {
+        checks.push({ label: `${m === 'roas' ? 'ROAS' : cap(COST[m])} (main goal)`, value: mainNum, vs: `goal ${m === 'roas' ? X1(tr) : $(unit)} · ${onGoal ? 'on' : res ? (m === 'roas' ? 'under' : 'over') : 'no ' + one1}`, tone: onGoal ? 'good' : res || X.spend >= unit ? 'bad' : '' });
+        if (onGoal) ev.for.push(m === 'roas' ? `ROAS ${mainNum}, at or over the ${X1(tr)} goal` : `${cap(many1)} at ${mainNum}, under the ${$(unit)} goal`);
+        else if (res) ev.against.push(m === 'roas' ? `ROAS ${mainNum}, under the ${X1(tr)} goal` : `${cap(many1)} at ${mainNum}, over the ${$(unit)} goal`);
+        else if (X.spend >= unit) ev.against.push(`No ${one1} on ${$(X.spend)} spent`);
+      }
+      for (const g of guards) {
+        checks.push({ label: `${g.k === 'roas' ? 'ROAS' : 'Cost per sale'} (guardrail)`, value: g.k === 'roas' ? (roas != null ? X1(roas) : '0x') : cps != null ? $(cps) : 'no sale', vs: `${g.k === 'roas' ? `floor ${X1(g.lim)}` : `ceiling ${$(g.lim)}`} · ${g.ok ? 'met' : g.k === 'roas' ? 'under' : 'over'}`, tone: g.ok ? 'good' : 'bad' });
+        (g.ok ? ev.for : ev.against).push(cap(gText(g)));
+      }
+      if (m && m !== 'cpl') {
+        if (m !== 'roas' && !guards.some(g => g.k === 'roas')) checks.push({ label: 'ROAS', value: roas != null ? X1(roas) : '0x', vs: R.target_roas && !R.roas_guard ? 'ROAS guard off' : 'no floor set', tone: '' });
+        if (m !== 'cpa' && !guards.some(g => g.k === 'cpa')) checks.push({ label: 'Cost per sale', value: cps != null ? $(cps) : 'no sale', vs: 'no limit set', tone: '' });
+        if (nShare != null) {
+          checks.push({ label: 'New customers', value: P(nShare), vs: acctNew != null ? `account ${P(acctNew)}` : '', tone: nShare >= 0.6 && (acctNew == null || nShare > acctNew) ? 'good' : acctNew != null && nShare < acctNew * 0.8 ? 'bad' : '' });
+          if (nShare >= 0.6 && (acctNew == null || nShare > acctNew)) ev.for.push(`${P(nShare)} new customers${acctNew != null ? `, above the account's ${P(acctNew)}` : ''}`);
+          else if (acctNew != null && nShare < acctNew * 0.8 && s.w7.orders >= 3) ev.against.push(`Only ${P(nShare)} new customers against the account's ${P(acctNew)}`);
+        }
+      }
+      if (ctr != null) {
+        checks.push({ label: 'Click rate', value: P2(ctr), vs: acctCtr != null ? `account median ${P2(acctCtr)}` : '', tone: acctCtr == null ? '' : ctr > acctCtr ? 'good' : ctr < acctCtr * 0.8 ? 'bad' : '' });
+        if (acctCtr != null && ctr > acctCtr) ev.for.push(`Click rate ${P2(ctr)}, above the account median ${P2(acctCtr)}`);
+        else if (acctCtr != null && ctr < acctCtr * 0.8) ev.against.push(`Click rate ${P2(ctr)}, under the account median ${P2(acctCtr)}`);
+      }
+      if (freq != null) {
+        checks.push({ label: 'Frequency (main ad)', value: freq.toFixed(1), vs: 'fine under 3', tone: freq < 3 ? 'good' : 'bad' });
+        if (freq >= 3) ev.against.push(`People see the main ad ${freq.toFixed(1)} times, over 3`);
+      }
+      if (spShare != null) {
+        checks.push({ label: 'Spend share of the account', value: P(spShare), vs: `${$(s.w7.spend)} of ${$(acct.spend)}`, tone: '' });
+        if (spShare >= 0.2 && !onGoal && m) ev.against.push(`${P(spShare)} of the account's spend on one set`);
+      }
       const setRow = { ...base, meta_act: s.meta_act, campaign_id: s.campaign, objective: s.objective, adset_id: s.id, adset: s.name, ad_id: null, ad: null, spend: X.spend, orders: X.orders, results: res, revenue: X.revenue,
         cpa: cpr, goal: unit, goal_roas: tr, roas, n_ads: s.ads.length, anchor, top_ad: top ? { ad_id: top.id, name: top.name, share } : null, days, judged_on: m,
-        set: { spend: X.spend, orders: X.orders, revenue: X.revenue, cpa: cpr, status: s.status, budget: s.budget } };
+        set: { spend: X.spend, orders: X.orders, revenue: X.revenue, cpa: cpr, status: s.status, budget: s.budget }, checks, evidence: ev };
+      /* Feeds the funnel: a TAG on a Cut or Mixed row, never a call. 60%+ of its sales are new customers AND its click rate
+         beats the account's median ad set click rate (7 days). */
+      const funnel = nShare != null && nShare >= 0.6 && ctr != null && acctCtr != null && ctr > acctCtr
+        ? { new_share: nShare, ctr, acct_new_share: acctNew, acct_ctr: acctCtr } : null;
       let working = true;
       if (unit && X.spend >= R.cr_judge_x * unit && !(age != null && age < R.cr_min_days)) {
         judged++;
         const [one, many] = NOUN[m];
         const n = k => `${Number.isInteger(k) ? k : k.toFixed(1)} ${Math.round(k) === 1 ? one : many}`;
-        const onGoal = m === 'roas' ? roas != null && roas >= tr : cpr != null && cpr <= unit;
-        const guard = !!(R.roas_guard && tr && m !== 'cpl' && roas != null && roas >= tr);
         const overLine = m === 'roas' ? roas != null && roas < tr / R.cr_cut_cpa_x : cpr != null && cpr > R.cr_cut_cpa_x * unit;
         const cutZero = !res && X.spend >= R.cr_cut_zero_x * unit;
-        const cutCpa = res > 0 && X.spend >= R.cr_cut_spend_x * unit && overLine && !guard;
-        working = !cutZero && !cutCpa;
+        const cutBar = cutZero || (res > 0 && X.spend >= R.cr_cut_spend_x * unit && overLine);
+        const broken = guards.filter(g => !g.ok), met = guards.filter(g => g.ok);
         const win = days === 14 ? '14 days (a slow set)' : '7 days';
-        const goalTxt = m === 'roas' ? `${tr}x goal ROAS` : `${$(unit)} goal`;
-        if (res >= R.cr_scale_buys && (onGoal || guard)) rows.push({ kind: 'scale', ...setRow, stake: 0.2 * X.spend,
-          why: m === 'roas' || (!onGoal && guard)
-            ? `${n(res)} at ${roas.toFixed(2)}x ROAS, ${!onGoal && guard ? `over the ${tr}x goal ROAS even at ${$(cpr)} a ${one}` : `at or over the ${tr}x goal`} over ${win}. Raise the budget 20% and watch 3 days.`
-            : `${n(res)} at ${$(cpr)} each, ${Math.round(cpr) < Math.round(unit) ? 'under' : 'at'} the ${goalTxt} over ${win}. Raise the budget 20% and watch 3 days.` });
-        else if (cutZero) rows.push({ kind: 'cut', ...setRow, stake: X.spend,
-          why: `Spent ${$(X.spend)} (${(X.spend / unit).toFixed(1)}x the goal) with no ${one} in ${win}.` });
-        else if (cutCpa) rows.push({ kind: 'cut', ...setRow, stake: Math.max(0, X.spend - unit * res),
-          why: m === 'roas' ? `ROAS ${roas.toFixed(2)}x against the ${tr}x goal, on ${$(X.spend)} spent over ${win}.`
-            : `${cap(COST[m])} ${$(cpr)}, ${(cpr / unit).toFixed(1)}x the ${goalTxt}, on ${$(X.spend)} spent over ${win}${tr && roas != null ? `; ROAS ${roas.toFixed(2)}x is under the ${tr}x goal too` : ''}.` });
-        else if (guard && cpr != null && cpr > R.cr_cut_cpa_x * unit && X.spend >= R.cr_cut_spend_x * unit) kept.push(s.name);
+        const goalTxt = m === 'roas' ? `${X1(tr)} goal ROAS` : `${$(unit)} goal`;
+        /* Mixed: the main goal and a guardrail disagree. No button; the sentence says what disagrees. */
+        const mainSaid = onGoal
+          ? (m === 'roas' ? `ROAS ${mainNum} beats the ${X1(tr)} goal` : `Cheap ${many} (${mainNum} against ${$(unit)})`)
+          : res ? (m === 'roas' ? `ROAS ${mainNum} misses the ${X1(tr)} goal` : `${cap(many)} cost ${mainNum} against the ${$(unit)} goal`)
+          : `No ${one} on ${$(X.spend)} spent`;
+        const mixed = gs => ({ kind: 'mixed', ...setRow, stake: 0.5 * X.spend, ...(funnel ? { funnel } : {}),
+          why: `${mainSaid} but ${gs.map(gText).join(' and ')}.` });
+        if (res >= R.cr_scale_buys && onGoal) {
+          if (broken.length) { rows.push(mixed(broken)); kept.push(s.name); }
+          else rows.push({ kind: 'scale', ...setRow, stake: 0.2 * X.spend,
+            why: m === 'roas' ? `${n(res)} at ${X1(roas)} ROAS, at or over the ${X1(tr)} goal over ${win}. Raise the budget 20% and watch 3 days.`
+              : `${n(res)} at ${$(cpr)} each, ${Math.round(cpr) < Math.round(unit) ? 'under' : 'at'} the ${goalTxt} over ${win}${met.length ? `; ${met.map(gText).join(' and ')}` : ''}. Raise the budget 20% and watch 3 days.` });
+        } else if (cutBar && guards.length && !broken.length) { working = true; rows.push(mixed(met)); kept.push(s.name); }
+        else if (cutZero) { working = false; rows.push({ kind: 'cut', ...setRow, stake: X.spend, ...(funnel ? { funnel } : {}),
+          why: `Spent ${$(X.spend)} (${(X.spend / unit).toFixed(1)}x the goal) with no ${one} in ${win}.` }); }
+        else if (cutBar) { working = false; rows.push({ kind: 'cut', ...setRow, stake: Math.max(0, X.spend - unit * res), ...(funnel ? { funnel } : {}),
+          why: m === 'roas' ? `ROAS ${X1(roas)} against the ${X1(tr)} goal, on ${$(X.spend)} spent over ${win}.`
+            : `${cap(COST[m])} ${$(cpr)}, ${(cpr / unit).toFixed(1)}x the ${goalTxt}, on ${$(X.spend)} spent over ${win}${broken.length ? `; ${broken.map(gText).join(' and ')}` : ''}.` }); }
         if (working && s.ads.length >= 2) for (const ad of s.ads) {
           if (anchor && ad.id === anchor.ad_id) continue;
           /* Trim = the ad over the SAME line on its OWN spend (7 days), once it has run cr_min_days. */
@@ -478,13 +553,13 @@ async function buyerList(env, ctx, accts) {
     }
     const notes = [];
     if (notSales) notes.push(`${notSales} awareness or traffic ad set${notSales === 1 ? '' : 's'} not judged on sales (only Refresh).`);
-    if (kept.length) notes.push(`${kept.length} ad set${kept.length === 1 ? '' : 's'} over the cost line kept because ROAS beats the goal (${kept.slice(0, 3).map(n => `"${n}"`).join(', ')}).`);
+    if (kept.length) notes.push(`${kept.length} ad set${kept.length === 1 ? '' : 's'} mixed: the main goal and a guardrail disagree, so the buyer decides (${kept.slice(0, 3).map(n => `"${n}"`).join(', ')}).`);
     if (noLeadGoal) notes.push(`${noLeadGoal} lead ad set${noLeadGoal === 1 ? '' : 's'} need a goal cost per lead (Home > Goals).`);
     brands.push({ act_id: a.act_id, name: a.name, from, to, goal: unitMain, metric, n_sets_judged: judged, n_slow: slow, kept, note: notes.join(' ') || undefined });
   }
   const r = note || rulesFor(null, null), pct = Math.round(r.cr_anchor_pct), [one, many] = NOUN[r.goal_metric] || NOUN.cpa;
   const goalWord = r.goal_metric === 'roas' ? 'goal (your order value at the goal ROAS)' : `goal ${COST[r.goal_metric]}`;
-  const rules_note = `Ad sets first, on Triple Whale last platform click over 7 days (14 for a set under 1 ${one} a day). A set waits until it has spent ${r.cr_judge_x}x the ${goalWord} AND run ${r.cr_min_days} days. Scale: ${r.cr_scale_buys}+ ${many} on goal${r.roas_guard ? ' or at the goal ROAS' : ''}. Cut: ${r.cr_cut_zero_x}x the goal spent with no ${one}, OR ${r.cr_cut_spend_x}x spent at worse than ${r.cr_cut_cpa_x}x the goal${r.roas_guard ? ', never when its ROAS beats the goal ROAS' : ''}. In a working set the main ad (${pct}%+ of its spend) is never cut; a small ad is a Trim only on its own spend past the same line. Refresh: the main ad's clicks fell 20%+ and people see it more often. The same numbers as Ads > Meta > Ads${accts.length > 1 ? ' (each brand\'s own settings apply)' : ''}.`;
+  const rules_note = `Ad sets first, on Triple Whale last platform click over 7 days (14 for a set under 1 ${one} a day). A set waits until it has spent ${r.cr_judge_x}x the ${goalWord} AND run ${r.cr_min_days} days. Scale: ${r.cr_scale_buys}+ ${many} on goal and every guardrail met. Cut: ${r.cr_cut_zero_x}x the goal spent with no ${one}, OR ${r.cr_cut_spend_x}x spent at worse than ${r.cr_cut_cpa_x}x the goal, and a guardrail broken (or none set). Mixed: the main goal and a guardrail (${r.roas_guard ? 'goal ROAS, ' : ''}cost per sale, when set and not the main goal) disagree; you decide. In a working set the main ad (${pct}%+ of its spend) is never cut; a small ad is a Trim only on its own spend past the same line. Refresh: the main ad's clicks fell 20%+ and people see it more often. The same numbers as Ads > Meta > Ads${accts.length > 1 ? ' (each brand\'s own settings apply)' : ''}.`;
   return { as_of, rules_note, brands, rows: rows.sort((p, q) => q.stake - p.stake) };
 }
 
