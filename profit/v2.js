@@ -2478,28 +2478,32 @@
   async function inspo(first) {
     const t = H.RUN(); const a = H.S.accounts.find(x => x.act_id === H.S.act);
     const title = a ? `Inspiration: ${esc(a.name)}` : 'Inspiration';
-    if (!a) { $('#main').innerHTML = shell('inspo', title, card('Pick a brand', '', '<p class="v2hint">Each brand has its own board of reference ads in Atria. Pick a brand in the menu.</p>')); return; }
-    if (first) $('#main').innerHTML = shell('inspo', title, `<section class="v2card v2sk"><i class="h"></i>${skGal(8)}</section>`);
+    if (!a) { $('#main').innerHTML = shell('inspo', title, card('Pick a brand', '', '<p class="v2hint">Each brand keeps its own inspiration: what the team saved to Locus and its Atria boards. Pick a brand in the menu.</p>')); return; }
+    /* Save to Locus (2026-10-21) leads: everything saved for the brand, every angle; the Atria boards follow. */
+    const like = x => H.AskUI.ask(`For ${a.name}: draft an Asana brief that borrows the shape of this reference, not its brand. ${x.title || ''} ${x.url || x.image || ''}${x.note ? `. Our note: ${x.note}` : ''}. Say what to keep (the structure, the hook) and how it becomes ours.`);
+    const mountSaved = () => { const el = document.getElementById('v2isv'); if (el && window.LocusSave) window.LocusSave.section(el, a.act_id, { brief: like }); };
+    const page = rest => { $('#main').innerHTML = shell('inspo', title, `<div id="v2isv"></div>${rest}`); mountSaved(); };
+    if (first) page(`<section class="v2card v2sk"><i class="h"></i>${skGal(8)}</section>`);
     let sd; try { sd = await get(`/api/season?act=${encodeURIComponent(a.act_id)}`); } catch (e) { sd = null; }
     if (t !== H.RUN()) return;
     const sa = (sd?.accounts || []).find(x => x.act_id === a.act_id) || {};
     const boards = []; if (sa.swipe_brand) boards.push({ id: sa.swipe_brand.id, name: `${a.name}’s board`, k: 'brand' });
     const seen = new Set(boards.map(b => b.id)); for (const p of sa.phases || []) if (p.swipe && !seen.has(p.swipe.id)) { seen.add(p.swipe.id); boards.push({ id: p.swipe.id, name: p.swipe.name.replace(/^BFCM \/ /, ''), k: 'season' }); }
-    if (!boards.length) { $('#main').innerHTML = shell('inspo', title, card('No board yet', '', '<p class="v2hint">Make a board for this brand in Atria and save reference ads into it; they show here for the whole team.</p>')); return; }
+    if (!boards.length) { page(card('Atria boards', 'none for this brand yet', '<p class="v2hint">Make a board for this brand in Atria and save reference ads into it; they show here for the whole team.</p>')); return; }
     const pick = INSPO.get(a.act_id) || boards[0].id;
-    $('#main').innerHTML = shell('inspo', title, `<p class="v2say lead">Reference ads the team saved in Atria. Long-running ads are usually the profitable ones: a signal, not proof.</p>
-      <div class="v2libbar" style="margin:0 0 14px">${PM().html('inspoBoard', 'Board', boards.map(b => [b.id, b.name, '']), pick)}</div><div id="v2inspo"><section class="v2card v2sk"><i class="h"></i>${skGal(8)}</section></div>`);
+    page(`<section class="v2card"><div class="v2h"><h3>Atria boards</h3><p class="find">reference ads saved in Atria · long-running ads are usually the profitable ones</p></div>
+      <div class="v2libbar" style="margin:0 0 14px">${PM().html('inspoBoard', 'Board', boards.map(b => [b.id, b.name, '']), pick)}</div><div id="v2inspo">${skGal(8)}</div></section>`);
     const root = $('#main');
     PM().wire(root.querySelector('#inspoBoard'), v => { INSPO.set(a.act_id, v); inspo(false); });
     let r; try { r = await H.apiAH(`/api/atria/board?board_id=${encodeURIComponent(pick)}&act=${encodeURIComponent(a.act_id)}`); } catch (e) { r = { error: e.message }; }
     if (t !== H.RUN()) return; const host = document.getElementById('v2inspo'); if (!host) return;
-    if (r.reason === 'not_connected') { host.innerHTML = card('Atria is not connected', '', '<p class="v2hint">Cole connects it once for the whole team: Studio > Connections > Connect Atria.</p>'); return; }
-    if (r.error) { host.innerHTML = /402|credit/i.test(r.error) ? card('Atria is out of credits', '', '<p class="v2hint">Atria charges a credit per board read and the account has run out. Top up in Atria (Settings > Billing) and this fills itself.</p>') : card('Atria did not answer', '', `<p class="v2bad">${esc(r.error)}</p>`); return; }
+    if (r.reason === 'not_connected') { host.innerHTML = ('<p class="v2hint"><b>Atria is not connected.</b> Cole connects it once for the whole team: Studio > Connections > Connect Atria.</p>'); return; }
+    if (r.error) { host.innerHTML = /402|credit/i.test(r.error) ? ('<p class="v2hint"><b>Atria is out of credits.</b> Atria charges a credit per board read and the account has run out. Top up in Atria (Settings > Billing) and this fills itself.</p>') : `<p class="v2bad">Atria did not answer: ${esc(r.error)}</p>`; return; }
     const ads = r.ads || [];
     host.innerHTML = ads.length ? `<div class="v2gal">${ads.map((x, i) => `<div class="g"><div class="th"${x.img ? ` style="background-image:url('${esc(x.img)}')"` : ''}>${x.days != null ? `<span class="v2pill ${x.days >= 60 ? 'good' : ''}"${tipAttr(x.days >= 60 ? 'Running 60+ days: the advertiser is likely making money on it.' : 'Still young: no signal yet.')}>${x.days} days</span>` : ''}<em>${esc(x.format || '')}</em></div>
       <div class="b"><b title="${esc(x.advertiser)}">${esc(x.advertiser || 'Unknown advertiser')}</b><span class="v2hint" style="font-size:12px">${esc((x.title || x.body || '').slice(0, 110))}</span>
       <div class="v2links"><a class="v2link" href="${esc(x.url)}" target="_blank" rel="noopener">Open in Atria ↗</a><button type="button" class="v2link" data-like="${i}">Brief one like it</button></div></div></div>`).join('')}</div>`
-      : card('This board is empty', '', '<p class="v2hint">Save ads into it in Atria and they show here.</p>');
+      : '<p class="lx-empty">This board is empty. Save ads into it in Atria and they show here.</p>';
     host.querySelectorAll('[data-like]').forEach(btn => btn.onclick = () => { const x = ads[+btn.dataset.like]; H.AskUI.ask(`For ${a.name}: draft an Asana brief that borrows the shape of this reference ad, not its brand. Advertiser ${x.advertiser}, ${x.format || 'ad'}, running ${x.days ?? '?'} days, ${x.url}. Say what to keep (the structure, the hook) and how it becomes ours.`); });
   }
   const INSPO = { get: k => { try { return localStorage.getItem('pf_inspo_' + k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem('pf_inspo_' + k, v); } catch {} } };

@@ -457,6 +457,11 @@ export const CLIENT_RULES = [
   R('GET', '/api/reports', 'need', { post: sentOnlyList }),
   R('GET', '/api/report', 'need', { post: sentOnlyOne }),
   R('POST', '/api/report-link'),
+  /* Save to Locus (2026-10-21): a client saves and reads inspiration for its own brand. */
+  R('GET', '/api/inspo', 'need'),
+  R('POST', '/api/inspo', 'need'),
+  R('PATCH', '/api/inspo', 'none', { own: [{ in: 'body', key: 'id', table: 'p_inspo' }] }),
+  R('DELETE', '/api/inspo', 'none', { own: [{ in: 'query', key: 'id', table: 'p_inspo' }] }),
   R('GET', '/api/dashboards', 'need', { postIds: ownDash }),
   R('GET', '/api/dashboard', 'none', { own: [{ in: 'query', key: 'id', table: 'p_dashboard' }] }),
   R('PUT', '/api/dashboard', 'need', { own: [{ in: 'body', key: 'id', table: 'p_dashboard' }], prep: keepDashPosting }),

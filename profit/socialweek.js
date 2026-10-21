@@ -170,6 +170,7 @@
       .sw-pn .acc small{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:64px;line-height:1.3}
       .sw-pn .acc.on small{color:var(--ink)} .sw-pn .acc small.w{color:var(--warn)} .sw-pn .acc small.e{color:var(--bad)}
       .sw-pn .acc.on .sw-bub.md::before{content:"";position:absolute;left:-2px;top:-2px;width:12px;height:12px;border-radius:50%;background:var(--brand);border:2px solid var(--surface)}
+      .sw-pn .link{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px} .sw-pn .link input{flex:1;min-width:200px} .sw-pn .link span{font-size:12px;color:var(--muted)}
       .sw-pn .qa{display:flex;gap:10px;flex-wrap:wrap} .sw-pn .qa button{font:inherit;font-size:12.5px;color:var(--brand);background:none;border:0;padding:0;cursor:pointer}
       .sw-pn .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
       .sw-pn details{border:1px solid var(--line);border-radius:var(--sw-r);padding:10px 12px} .sw-pn details summary{cursor:pointer;font-size:12.5px;font-weight:600;color:var(--ink-2);list-style:none;display:flex;align-items:center;gap:6px} .sw-pn details summary::before{content:"";width:6px;height:6px;border-right:1.6px solid var(--muted);border-bottom:1.6px solid var(--muted);transform:rotate(-45deg);transition:transform .12s} .sw-pn details[open] summary::before{transform:rotate(45deg)} .sw-pn details .in{display:grid;gap:10px;margin-top:10px}
@@ -504,7 +505,8 @@
       ${out ? `<section><h4>How it went<span class="sp"></span><small>${esc(stLabel)}</small></h4><div id="cpRes"></div></section>` : ''}
       <section><div class="med" id="cpMed"></div></section>
       <section><textarea id="cpCap" placeholder="One caption for every account. Tweak a platform below only where it needs it." ${out ? 'readonly' : ''}>${esc(M.caption)}</textarea>
-        ${out ? '' : `<div class="qa"><button type="button" id="cpRe">Rephrase in ${esc(brandName())}'s voice</button><button type="button" id="cpSaved">Saved captions</button><button type="button" id="cpSave">Save this caption</button></div>`}<div class="opts" id="cpOpts"></div></section>
+        ${out ? '' : `<div class="qa"><button type="button" id="cpWrite">Write it for me</button><button type="button" id="cpRe" ${M.caption.trim() ? '' : 'hidden'}>Rephrase in ${esc(brandName())}'s voice</button><button type="button" id="cpSaved">Saved captions</button><button type="button" id="cpSave">Save this caption</button></div>`}<div class="opts" id="cpOpts"></div>
+        ${out ? '' : `<div class="link"><input type="text" id="cpLink" value="${esc(M.targets.fb?.link || '')}" placeholder="Shop link (optional): https://" aria-label="Shop link"><span>Added to the caption and set as the Facebook link</span></div>`}</section>
       <section><h4>Where</h4><div class="accs" id="cpAccs"></div></section>
       <section><h4>When</h4><div class="when"><input type="date" id="cpDay" value="${lp.day}" ${out ? 'disabled' : ''} aria-label="Day"><input type="time" id="cpTime" value="${lp.hm}" ${out ? 'disabled' : ''} aria-label="Time"><span class="tz">${esc(ST.data.tz.replace(/_/g, ' '))}${M.auto && !out ? ', posts itself' : ''}</span></div></section>
       ${out ? '' : `<details><summary>Per-platform tweaks, only where needed</summary><div class="in">
@@ -549,7 +551,12 @@
       M.caption = body.querySelector('#cpCap').value;
       const v = id => { const e = body.querySelector(id); return e ? e.value : undefined; };
       M.targets.ig = { ...(M.targets.ig || {}), first_comment: v('#tIgC'), caption: v('#tIgCap') };
-      M.targets.fb = { ...(M.targets.fb || {}), caption: v('#tFbCap') };
+      const link = (v('#cpLink') || '').trim();
+      if (link && !/^https?:\/\//i.test(link)) throw new Error('The shop link needs to start with https://');
+      M.targets.fb = { ...(M.targets.fb || {}), caption: v('#tFbCap'), link: link || undefined };
+      if (link && !M.caption.includes(link)) { M.caption = `${M.caption.trimEnd()}
+
+${link}`.trim(); body.querySelector('#cpCap').value = M.caption; }
       M.targets.tt = { ...(M.targets.tt || {}), title: v('#tTtT'), privacy: v('#tTtP') };
       M.targets.yt = { ...(M.targets.yt || {}), title: v('#tYtT'), caption: v('#tYtCap'), visibility: v('#tYtV') };
       const day = body.querySelector('#cpDay').value, hm = body.querySelector('#cpTime').value || '09:00';
@@ -588,14 +595,23 @@
     on('#cpDel', async () => { if (!(await H.confirmModal('Delete this post?', p && p.status === 'posted' ? 'It stays on the platforms; only the card here goes.' : 'It will not go out.', 'Delete'))) return; try { await H.apiAH(`/api/social/post?id=${encodeURIComponent(M.id)}`, { method: 'DELETE' }); const c = document.querySelector('#v2panel .pclose'); if (c) c.click(); await reload(true); } catch (e) { err.textContent = e.message; } });
     on('#cpRetry', async () => { try { await H.apiAH('/api/social/post/retry', { method: 'POST', body: JSON.stringify({ id: M.id }) }); const c = document.querySelector('#v2panel .pclose'); if (c) c.click(); toast('Going again within a few minutes.'); await reload(false); } catch (e) { err.textContent = e.message; } });
     on('#cpDup', () => composer(null, { at: nextSlot(), items: M.media.map(m => ({ ...m, caption: M.caption })) }));
-    on('#cpRe', async () => {
-      const b = body.querySelector('#cpRe'), o = body.querySelector('#cpOpts'); b.disabled = true; b.textContent = 'Writing…';
-      try { const r = await H.apiAH('/api/social/rephrase', { method: 'POST', body: JSON.stringify({ act: ST.act, text: body.querySelector('#cpCap').value, note: M.media[0] ? `the post shows: ${M.media[0].title}` : '' }) });
+    /* Write it for me = Haiku in the brand's voice from what the post shows (and the shop link); Rephrase = the same
+       route on the words already in the box. Three options either way, a tap fills the box. */
+    const writeCap = async (id, fresh) => {
+      const b = body.querySelector(id), o = body.querySelector('#cpOpts'); if (!b) return;
+      const label = b.textContent; b.disabled = true; b.textContent = 'Writing…';
+      const link = (body.querySelector('#cpLink') || {}).value || '';
+      const note = [M.media[0] ? `the post shows: ${M.media[0].title}` : '', link.trim() ? `end with this shop link: ${link.trim()}` : ''].filter(Boolean).join('; ');
+      try { const r = await H.apiAH('/api/social/rephrase', { method: 'POST', body: JSON.stringify({ act: ST.act, text: fresh ? '' : body.querySelector('#cpCap').value, note }) });
         o.innerHTML = (r.captions || []).map(c => `<button type="button" class="opt">${esc(c)}</button>`).join('') || '<p class="hint">Nothing came back.</p>';
-        o.querySelectorAll('.opt').forEach(x => x.onclick = () => { body.querySelector('#cpCap').value = x.textContent; o.innerHTML = ''; });
+        o.querySelectorAll('.opt').forEach(x => x.onclick = () => { body.querySelector('#cpCap').value = x.textContent; o.innerHTML = ''; capChanged(); });
       } catch (e) { err.textContent = e.message; }
-      b.disabled = false; b.textContent = `Rephrase in ${brandName()}'s voice`;
-    });
+      b.disabled = false; b.textContent = label;
+    };
+    const capChanged = () => { const re = body.querySelector('#cpRe'); if (re) re.hidden = !body.querySelector('#cpCap').value.trim(); };
+    const capEl = body.querySelector('#cpCap'); if (capEl && !out) capEl.oninput = capChanged;
+    on('#cpWrite', () => writeCap('#cpWrite', true));
+    on('#cpRe', () => writeCap('#cpRe', false));
     on('#cpSaved', async () => {
       const o = body.querySelector('#cpOpts'); o.innerHTML = '<p class="hint">Reading…</p>';
       try { const r = await H.apiAH(`/api/social/captions?act=${encodeURIComponent(ST.act)}`, { fresh: true });

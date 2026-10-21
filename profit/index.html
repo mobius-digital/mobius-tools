@@ -2241,7 +2241,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <link rel="stylesheet" href="v2.css?v=46">
 <link rel="stylesheet" href="../logo/kit.css?v=2">
 <link rel="stylesheet" href="supply.css?v=6">
-<link rel="stylesheet" href="lx.css?v=36">
+<link rel="stylesheet" href="lx.css?v=37">
 <link rel="stylesheet" href="phone.css?v=16">
 <script src="/sheet.js?v=1"></script>
 <script src="/ask/ask-ui.js?v=14"></script>
@@ -2397,14 +2397,15 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="helper.js?v=2"></script>
 <script src="hero.js?v=1"></script>
 <script src="nudge.js?v=5"></script>
-<script src="lx.js?v=13"></script>
-<script src="v2.js?v=77"></script>
+<script src="lx.js?v=14"></script>
+<script src="v2.js?v=78"></script>
+<script src="inspo.js?v=1"></script>
 <script src="leaks.js?v=11"></script>
 <script src="desk.js?v=34"></script>
 <script src="agency.js?v=3"></script>
 <script src="calendar.js?v=15"></script>
 <script src="social.js?v=12"></script>
-<script src="socialweek.js?v=8"></script>
+<script src="socialweek.js?v=9"></script>
 <script src="make.js?v=2"></script>
 <script src="supply.js?v=8"></script>
 <script src="v4.js?v=19"></script>
@@ -2624,6 +2625,8 @@ async function boot() {
   /* THE ADDRESS IS THE VIEW (2026-10-09, share.js): ?page=&brand=&period= (or from=&to=)&cmp=&model=&ad=&camp= and
      #card=<id>. Read before anything loads, so a link or a refresh lands on exactly that view. A person's brand limits
      still apply: renderPicker() drops a brand they cannot see back to All clients. */
+  /* Save to Locus (2026-10-21): the phone share sheet (?share=1&url=) and the bookmarklet (?save=) wait for sign-in. */
+  if (window.LocusSave) window.LocusSave.readURL(qs);
   if (window.LocusShare) { window.LocusShare.init(shareHost()); window.LocusShare.readURL(qs); }
   // Internal deep link from the Slack draft message (?open=reports&act=...).
   const open = qs.get('open');
@@ -2676,6 +2679,7 @@ async function boot() {
     chrome(true);
     renderPicker();
     show(S.tab);
+    if (window.LocusSave) window.LocusSave.pending();
   } catch (e) {
     if (/unauthorized/i.test(e.message)) {
       const wasShared = S.tok && S.tok === sharedSession();
@@ -6020,12 +6024,14 @@ function askPaint() {
     const objs = t.length >= 2 ? askObjects().filter(o => o.label.toLowerCase().includes(t)).slice(0, 6) : [];
     const wordy = q.split(/\s+/).length > 2 || /\?$/.test(q);
     items = wordy ? [ask, ...pages, ...brands, ...objs, ...found] : [...pages, ...brands, ...objs, ...found, ask];
+    /* A pasted link: save it as inspiration first (Save to Locus, 2026-10-21). */
+    if (window.LocusSave && LocusSave.isLink(q)) items = [{ kind: 'save', label: 'Save to Locus as inspiration', url: q }, ask];
     head = '';
   }
   ASKB.items = items; ASKB.hi = Math.min(ASKB.hi, items.length - 1);
   const ico = k => k === 'ask' ? '<svg viewBox="0 0 16 16"><path d="M2.5 3.5h11v7.5H7l-3 2.5v-2.5H2.5z"/></svg>' : k === 'brand' ? '<svg viewBox="0 0 16 16"><circle cx="8" cy="6" r="2.6"/><path d="M3 13.5c.6-2.4 2.6-3.6 5-3.6s4.4 1.2 5 3.6"/></svg>' : '<svg viewBox="0 0 16 16"><path d="M6 3.5 10.5 8 6 12.5"/></svg>';
   pop.innerHTML = (head ? `<div class="ah">${head}</div>` : '') + items.map((x, i) => `<button type="button" class="ai ${x.kind}${i === ASKB.hi ? ' hi' : ''}" data-i="${i}">${ico(x.kind)}<span>${x.kind === 'go' ? `Go to <b>${esc(x.label)}</b>${x.where ? ` <em>${esc(x.where)}</em>` : ''}` : x.kind === 'brand' ? `Switch to <b>${esc(x.label)}</b>` : x.kind === 'ad' || x.kind === 'camp' ? `Open <b>${esc(x.label)}</b> <em>${esc(x.where)}</em>` : esc(x.label)}</span></button>`).join('')
-    + `<div class="af">Enter to ${items[ASKB.hi]?.kind === 'ask' ? 'ask' : 'open'} · ↑↓ to move · Esc to close</div>`;
+    + `<div class="af">Enter to ${items[ASKB.hi]?.kind === 'ask' ? 'ask' : items[ASKB.hi]?.kind === 'save' ? 'save' : 'open'} · ↑↓ to move · Esc to close</div>`;
   pop.hidden = false;
   pop.querySelectorAll('[data-i]').forEach(b => { b.onmousedown = e => e.preventDefault(); b.onclick = () => askDo(+b.dataset.i); });
 }
@@ -6036,6 +6042,7 @@ function askDo(i) {
   else if (x.kind === 'task') { window.ACT_OPEN = x.id; if (x.act && x.act !== 'all' && S.accounts.some(a => a.act_id === x.act)) { S.act = x.act; localStorage.setItem(LS.act, S.act); const cp = $('#clientPick'); if (cp) cp.value = S.act; } show('tasks'); }
   else if (x.kind === 'brief') { window.PD_CARD = x.id; if (x.act && S.accounts.some(a => a.act_id === x.act)) { S.act = x.act; localStorage.setItem(LS.act, S.act); const cp = $('#clientPick'); if (cp) cp.value = S.act; } show('production'); }
   else if (x.kind === 'ad' || x.kind === 'camp') { S.act = x.act; localStorage.setItem(LS.act, S.act); const cp = $('#clientPick'); if (cp) cp.value = S.act; window.V2PENDING = x.kind === 'ad' ? { ad: x.id } : { campaign: x.id }; show(x.kind === 'ad' ? 'adcreative' : 'campaigns'); }
+  else if (x.kind === 'save') window.LocusSave.save({ url: x.url });
   else if (x.kind === 'brand') { S.act = x.id; localStorage.setItem(LS.act, S.act); const cp = $('#clientPick'); if (cp) cp.value = S.act; show(S.tab); }
   else AskUI.ask(x.q, { fresh: true });
 }
@@ -6043,6 +6050,8 @@ function askDo(i) {
   const inp = document.getElementById('v2askIn'); if (!inp) return;
   inp.addEventListener('focus', () => { ASKB.hi = 0; inp.placeholder = 'Ask anything, or type a page or brand name'; askPaint(); });
   inp.addEventListener('input', () => { ASKB.hi = 0; askPaint(); });
+  /* A picture pasted into the Ask bar is saved as inspiration (Save to Locus). */
+  inp.addEventListener('paste', e => { const f = [...(e.clipboardData?.files || [])].find(x => /^image\//.test(x.type)); if (f && window.LocusSave) { e.preventDefault(); inp.blur(); window.LocusSave.save({ file: f }); } });
   inp.addEventListener('blur', () => setTimeout(() => { const p = $('#v2askPop'); if (p) p.hidden = true; askPlaceholder(); }, 120));
   inp.addEventListener('keydown', e => {
     if (e.key === 'ArrowDown') { e.preventDefault(); ASKB.hi = (ASKB.hi + 1) % Math.max(1, ASKB.items.length); askPaint(); }
