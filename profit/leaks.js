@@ -221,9 +221,10 @@
   function markTasked(act, id) { try { localStorage.setItem(tkey(act, id), String(Date.now())); } catch {} }
   async function confirmTasked(host, act) {
     if (!H || !H.apiAH || !host.querySelector('[data-lktask]:not([disabled])')) return;
-    let r; try { r = await H.apiAH(`/api/actions?act=${encodeURIComponent(act)}`); } catch { return; }
+    let r; try { r = await H.apiAH(`/api/actions?act=${encodeURIComponent(act)}&status=all`); } catch { return; }
     if (!host.isConnected) return;
-    for (const it of (r && r.items) || []) if (it.source === 'leak' && it.source_id) { markTasked(act, it.source_id); const b = host.querySelector(`[data-lktask="${CSS.escape(it.source_id)}"]`); if (b) { b.textContent = 'On Tasks'; b.disabled = true; } }
+    /* THE LOOP (2026-10-21): the leak says "On Tasks" while its task is open and "Done" once it is ticked anywhere (Tasks, Slack, the runner). */
+    for (const it of (r && r.items) || []) if (it.source === 'leak' && it.source_id) { markTasked(act, it.source_id); const b = host.querySelector(`[data-lktask="${CSS.escape(it.source_id)}"]`); if (b) { b.textContent = it.status === 'done' ? 'Done' : 'On Tasks'; b.disabled = true; b.classList.toggle('lk-done', it.status === 'done'); } }
   }
   async function makeTask(a, l, b) {
     b.disabled = true; const was = b.textContent; b.textContent = 'Adding...';
