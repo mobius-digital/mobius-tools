@@ -671,10 +671,11 @@ function openAdd() {
     <button class="avb-opt" type="button" data-a="ads">${ic('megaphone')}<span><b>From our ads</b><span>Pick ads that ran, sorted by orders, ROAS, CTR or spend.</span></span></button>
     <button class="avb-opt" type="button" data-a="upload">${ic('upload')}<span><b>Upload a video</b><span>A file from your phone or computer, ours or another brand's. Up to 95MB.</span></span></button>
     <button class="avb-opt" type="button" data-a="atria">${ic('link')}<span><b>Another brand's ad from Atria</b><span>Paste the Atria link. We save the video so it plays on the link.</span></span></button>
+    <button class="avb-opt" type="button" data-a="make">${ic('sparkles')}<span><b>Make from a link or an idea</b><span>Claude breaks the reference down and writes our version as a card on this board.</span></span></button>
     <p class="hint" style="margin:4px 0 0">Saw a good TikTok or Reel? Drop it in the ideas channel in Slack and press <b>Creator link</b>.</p></div>`, { cta: 'Close' });
   const m = modal.last;
   m.querySelector('[data-m="yes"]').style.display = 'none';
-  m.querySelectorAll('[data-a]').forEach(b => b.onclick = () => { m.remove(); ({ ads: openAdPicker, upload: openUpload, atria: openAtria })[b.dataset.a](); });
+  m.querySelectorAll('[data-a]').forEach(b => b.onclick = () => { m.remove(); ({ ads: openAdPicker, upload: openUpload, atria: openAtria, make: () => window.LocusMake && window.LocusMake.open({ act: S.act, exit: 'creators', onDone: r => { if (r.exit === 'creators') refresh().then(paint).catch(() => {}); } }) })[b.dataset.a](); });
 }
 const catSelect = (id) => `<label class="am-f">Category<select class="am-in" id="${id}"><option value="">No category</option>${(S.data.sections || []).filter(s => !s.pinned && s.enabled).map(s => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('')}</select></label>`;
 function openUpload() {

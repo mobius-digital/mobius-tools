@@ -37,6 +37,7 @@ import { clientScope } from './brandguard.js';
 import { coverUrl } from './creative.js';
 import { metaOf } from './brands.js';
 import { ideaState } from './ideas.js';
+import { markDone } from './actions.js';
 
 let F = fetch;
 export function useFetch(f) { F = f; }
@@ -573,14 +574,26 @@ export async function trayOf(env, d, act) {
     items.push({ ref: `ad:${a.ad_id}`, src: 'ad', kind: 'image', title: a.name || 'Meta ad', sub: `$${Math.round(a.spend).toLocaleString('en-US')} spent${roas ? `, ${roas.toFixed(1)}x` : ''}`, thumb: cov, file: cov, caption: '', at: null });
   }
   /* Make ours: drafts the ideas bot wrote for this brand (a script, no file: the composer starts from its words). */
-  const ideas = (await env.DB.prepare(`SELECT id FROM idea_thread WHERE act_id = ?1 AND draft_json IS NOT NULL ORDER BY updated_at DESC LIMIT 10`).bind(act).all().catch(() => ({ results: [] }))).results || [];
+  /* An idea sent out the Organic post door (make.js) is "picked": it goes first. A film uploaded for it (social_media.idea_id,
+     the Film task closes on that upload) makes the item postable: the clip rides on the idea's own card. */
+  const ideas = (await env.DB.prepare(`SELECT id, pushed_json FROM idea_thread WHERE act_id = ?1 AND draft_json IS NOT NULL AND status != 'discarded' ORDER BY updated_at DESC LIMIT 20`).bind(act).all().catch(() => ({ results: [] }))).results || [];
+  await ensureMakeCols(env);
+  const films = new Map();
+  for (const f of (await env.DB.prepare(`SELECT * FROM social_media WHERE act_id = ?1 AND idea_id IS NOT NULL ORDER BY created_at DESC`).bind(act).all().catch(() => ({ results: [] }))).results || []) if (!films.has(f.idea_id)) films.set(f.idea_id, f);
+  const picked = [];
   for (const i of ideas) {
     const s = await ideaState(env, i.id).catch(() => null);
     const sc = s?.script; if (!sc) continue;
-    items.push({ ref: `idea:${i.id}`, src: 'make', kind: 'text', title: sc.title || 'Our version', sub: s.take || '', thumb: null, file: null, caption: [sc.openers?.[0], sc.on_screen].filter(Boolean).join('\n'), link: s.link, at: s.updated_at });
+    const organic = !!(safe(i.pushed_json, {}) || {}).organic;
+    const film = films.get(i.id);
+    const it = { ref: `idea:${i.id}`, src: 'make', kind: film ? film.kind : 'text', title: sc.title || 'Our version', sub: s.take || '', thumb: film ? `${SELF}/social-m/${film.key}` : null, file: null, key: film ? film.key : null,
+      caption: [sc.openers?.[0], sc.on_screen].filter(Boolean).join('\n'), link: s.link, at: s.updated_at, organic, idea: i.id };
+    (organic ? picked : items).push(it);
   }
+  items.unshift(...picked);
   /* Uploads and tagged-in posts. */
   for (const m of (await env.DB.prepare(`SELECT * FROM social_media WHERE act_id = ?1 ORDER BY created_at DESC LIMIT 80`).bind(act).all()).results || []) {
+    if (m.idea_id && films.get(m.idea_id)?.id === m.id) continue;   // shown on its idea's card above
     const u = m.source === 'tagged' ? safe(m.url, {}) : null;
     items.push({ ref: `media:${m.id}`, src: m.source === 'tagged' ? 'tagged' : 'upload', kind: m.kind, title: m.name || (m.kind === 'video' ? 'Video' : 'Picture'), sub: m.who || '', who: m.who || null,
       thumb: u ? u.thumb : `${SELF}/social-m/${m.key}`, file: u ? u.src : null, key: u ? null : m.key, link: u ? u.link : null, caption: m.source === 'tagged' ? '' : '', at: m.created_at });
@@ -604,6 +617,160 @@ async function rephrase(env, act, text, note) {
   const txt = (j.content || []).filter(x => x.type === 'text').map(x => x.text).join('');
   const out = safe(txt.slice(txt.indexOf('{')), {})?.captions;
   return Array.isArray(out) ? out.map(c => clip(c, 2200)).filter(Boolean).slice(0, 3) : [clip(txt, 2200)];
+}
+
+/* ---------------- the week, the target, Fill the week, Results, the Monday nudge (2026-10-20) ---------------- */
+const PLANNED = new Set(['scheduled', 'posting', 'posted', 'partly', 'handoff']);
+const sget = async (env, k) => (await env.DB.prepare(`SELECT value FROM settings WHERE key = ?1`).bind(k).first().catch(() => null))?.value ?? null;
+const sput = (env, k, v) => env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(k, v).run();
+let makeCols = false;
+async function ensureMakeCols(env) {
+  if (makeCols) return; makeCols = true;
+  await env.DB.prepare(`ALTER TABLE social_media ADD COLUMN idea_id TEXT`).run().catch(() => {});
+}
+async function brandOf(env, act) {
+  const b = await env.DB.prepare(`SELECT name, tz, slack_channel FROM brand_accounts WHERE act_id = ?1`).bind(act).first().catch(() => null);
+  return { name: b?.name || null, tz: b?.tz || 'America/Chicago', slack_channel: b?.slack_channel || null };
+}
+/** The brand's weekly target (Brand settings > Social), default 5. */
+export async function targetOf(env, act) { const v = await sget(env, `socialTarget:${act}`); return v == null || v === '' ? 5 : Math.max(0, Math.min(21, Math.round(+v) || 0)); }
+/** Seven brand-local days from `from` and the posts on them (a post at 11pm Central on Sunday belongs to Sunday: a wide
+ *  UTC window filtered by the local day). */
+async function weekPosts(env, act, from, tz) {
+  const lo = new Date(from + 'T00:00:00Z'); lo.setUTCDate(lo.getUTCDate() - 1);
+  const hi = new Date(from + 'T00:00:00Z'); hi.setUTCDate(hi.getUTCDate() + 8);
+  const rows = (await env.DB.prepare(`SELECT * FROM social_post_out WHERE act_id = ?1 AND at >= ?2 AND at < ?3 ORDER BY at`).bind(act, lo.toISOString(), hi.toISOString()).all()).results || [];
+  const dayOf = iso => new Date(iso).toLocaleDateString('en-CA', { timeZone: tz });
+  const days = []; for (let i = 0; i < 7; i++) { const dd = new Date(from + 'T00:00:00Z'); dd.setUTCDate(dd.getUTCDate() + i); days.push(dd.toISOString().slice(0, 10)); }
+  const posts = rows.map(p => ({ ...pubPost(p), day: dayOf(p.at), hm: new Date(p.at).toLocaleTimeString('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit' }) })).filter(p => days.includes(p.day));
+  return { days, posts };
+}
+const mondayOf = ymd => { const d = new Date(ymd + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); return d.toISOString().slice(0, 10); };
+/** A brand-local day and hour as an instant (two passes through Intl, so a DST change lands on the right side). */
+export function zonedAt(day, hour, tz, minute = 0) {
+  const guess = Date.UTC(+day.slice(0, 4), +day.slice(5, 7) - 1, +day.slice(8, 10), hour, minute);
+  const off = t => { const p = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour12: false, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).formatToParts(new Date(t)); const g = k => +(p.find(x => x.type === k) || {}).value; return Date.UTC(g('year'), g('month') - 1, g('day'), g('hour') % 24, g('minute')) - t; };
+  let t = guess - off(guess); t = guess - off(t);
+  return new Date(t).toISOString();
+}
+/** Up to the target, unused tray items in the mix (2 statics, 1 creator clip, 1 winning ad, 1 make clip; a static when a
+ *  kind runs out), one per free day at a sensible hour, each captioned in the brand's voice. Nothing is saved here. */
+export async function fillWeek(env, d, act, week) {
+  const b = await brandOf(env, act);
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: b.tz });
+  const from = /^\d{4}-\d{2}-\d{2}$/.test(week || '') ? mondayOf(week) : mondayOf(today);
+  const w = await weekPosts(env, act, from, b.tz);
+  const target = await targetOf(env, act);
+  const planned = w.posts.filter(p => PLANNED.has(p.status));
+  const need = Math.max(0, target - planned.length);
+  const accs = await accountsOf(env, act);
+  const connected = Object.keys(PLATS).filter(k => accs[k]);
+  const out = { act, from, days: w.days, tz: b.tz, target, planned: planned.length, need, proposals: [], note: '' };
+  if (!need) { out.note = 'The week is already at its target.'; return out; }
+  if (!connected.length) { out.note = 'Connect an account in Brand settings > Social first; until then nothing can be scheduled.'; return out; }
+  const tray = await trayOf(env, d, act);
+  const pool = tray.filter(i => !i.used && i.kind !== 'text' && (i.file || i.key));
+  const bucket = { static: pool.filter(i => i.kind === 'image' && (i.src === 'studio' || i.src === 'upload')), creator: pool.filter(i => i.src === 'creator'), ad: pool.filter(i => i.src === 'ad'), make: pool.filter(i => i.src === 'make') };
+  const order = ['static', 'static', 'creator', 'ad', 'make', 'static', 'creator', 'static', 'ad', 'static', 'creator', 'static', 'ad', 'static', 'creator', 'static', 'ad', 'static', 'creator', 'static', 'ad'];
+  const fallback = { static: ['static', 'creator', 'ad', 'make'], creator: ['creator', 'static', 'ad', 'make'], ad: ['ad', 'static', 'creator', 'make'], make: ['make', 'static', 'creator', 'ad'] };
+  const picks = [];
+  for (let i = 0; picks.length < need && i < order.length; i++) {
+    const want = order[i];
+    const from2 = fallback[want].find(k => bucket[k].length);
+    if (!from2) break;
+    picks.push({ it: bucket[from2].shift(), want: from2 });
+  }
+  if (!picks.length) { out.note = 'Nothing unused is on the tray. Approve a Studio final, add a creator clip or upload a file, then fill again.'; return out; }
+  /* Days: free days first (today only if hours are left), then the days with the fewest posts. Hours rotate through the
+     times people are on their phones; today never gets an hour that has passed. */
+  const nowH = +new Date().toLocaleTimeString('en-GB', { timeZone: b.tz, hour: '2-digit', minute: '2-digit' }).slice(0, 2);
+  const count = Object.fromEntries(w.days.map(day => [day, planned.filter(p => p.day === day).length]));
+  const open = w.days.filter(day => day > today || (day === today && nowH < 20));
+  const HRS = [11, 9, 17, 13, 15, 19, 10];
+  const slots = [];
+  for (let i = 0; i < picks.length; i++) {
+    const free = open.filter(day => !count[day]);
+    const day = free[0] || open.slice().sort((x, y) => count[x] - count[y])[0];
+    if (!day) break;
+    let hour = HRS[i % HRS.length];
+    if (day === today && hour <= nowH) hour = Math.min(21, nowH + 1 + (count[day] || 0));
+    while (slots.some(s => s.day === day && s.hour === hour)) hour = hour >= 21 ? 7 : hour + 1;
+    count[day] = (count[day] || 0) + 1;
+    slots.push({ day, hour });
+  }
+  for (let i = 0; i < slots.length; i++) {
+    const { it } = picks[i], { day, hour } = slots[i];
+    const at = zonedAt(day, hour, b.tz);
+    let caption = '';
+    try { caption = (await rephrase(env, act, it.caption || it.title || '', `a ${it.kind === 'video' ? 'video' : 'picture'} for ${b.name || 'the brand'}: ${it.title || ''}${it.sub ? `, ${it.sub}` : ''}`))[0] || ''; }
+    catch { caption = it.caption || ''; }
+    const targets = Object.fromEntries(connected.map(k => [k, { on: k === 'yt' ? it.kind === 'video' : true }]));
+    out.proposals.push({ item: { ref: it.ref, src: it.src, kind: it.kind, title: it.title, sub: it.sub || '', thumb: it.thumb, file: it.file || null, key: it.key || null, who: it.who || null, idea: it.idea || null }, at, day, hm: `${String(hour).padStart(2, '0')}:00`, caption, targets });
+  }
+  out.left = { static: bucket.static.length, creator: bucket.creator.length, ad: bucket.ad.length, make: bucket.make.length };
+  if (out.proposals.length < need) out.note = `Only ${out.proposals.length} of the ${need} missing could be filled: the tray has nothing else unused.`;
+  return out;
+}
+/** Our posted cards from the last 30 days ranked by views, and what the watched brands usually get per platform (the
+ *  median of the Watch feed's posts in the same 30 days). */
+export async function resultsOf(env, act) {
+  const since = new Date(Date.now() - 30 * DAY).toISOString();
+  const rows = (await env.DB.prepare(`SELECT * FROM social_post_out WHERE act_id = ?1 AND status IN ('posted', 'partly') AND at >= ?2 ORDER BY at DESC`).bind(act, since).all()).results || [];
+  const ours = rows.map(r => {
+    const p = pubPost(r), per = {}; let views = 0, likes = 0, comments = 0, any = false;
+    for (const [plat, x] of Object.entries(p.results || {})) {
+      if (!x || !x.posted_at || x.by_hand) continue;
+      per[plat] = { views: x.views ?? null, likes: x.likes ?? null, comments: x.comments ?? null, url: x.url || null };
+      if (x.views != null) { views += x.views; any = true; } likes += x.likes || 0; comments += x.comments || 0;
+    }
+    return { ...p, views: any ? views : null, likes, comments, per };
+  }).sort((a, b2) => (b2.views || 0) - (a.views || 0));
+  const seen = (await env.DB.prepare(`SELECT plat, views, likes FROM social_post WHERE act_id = ?1 AND posted_at >= ?2 AND follow_id IN (SELECT id FROM social_follow WHERE act_id = ?1 AND kind = 'brand')`).bind(act, since.slice(0, 10)).all().catch(() => ({ results: [] }))).results || [];
+  const median = a => { if (!a.length) return null; const s = a.slice().sort((x, y) => x - y); const m2 = Math.floor(s.length / 2); return s.length % 2 ? s[m2] : Math.round((s[m2 - 1] + s[m2]) / 2); };
+  const usual = {};
+  for (const plat of ['ig', 'tt', 'yt']) { const v = seen.filter(s => s.plat === plat && s.views != null).map(s => s.views); const l = seen.filter(s => s.plat === plat && s.likes != null).map(s => s.likes); usual[plat] = { views: median(v), likes: median(l), n: Math.max(v.length, l.length) }; }
+  return { act, since, ours, usual };
+}
+/** Monday 8am brand local, to the brand's internal channel, only when planned < target (one Slack nudge, nothing else). */
+export async function socialNudgeTick(env, d) {
+  await ensureSocialPost(env);
+  const brands = (await env.DB.prepare(`SELECT s.act_id, a.name, a.tz, a.slack_channel FROM social_brand s JOIN brand_accounts a ON a.act_id = s.act_id WHERE a.active = 1`).all().catch(() => ({ results: [] }))).results || [];
+  const out = { checked: brands.length, posted: [], quiet: [] };
+  const now = new Date();
+  for (const b of brands) {
+    const tz = b.tz || 'America/Chicago';
+    if (new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short' }).format(now) !== 'Mon') continue;
+    const hour = +new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', hour12: false }).format(now) % 24;
+    if (hour < 8 || hour > 11) continue;                     // 8am, with a few hours of slack for a missed tick
+    const today = now.toLocaleDateString('en-CA', { timeZone: tz });
+    const key = `socialNudge:${b.act_id}:${today}`;
+    if (await sget(env, key)) continue;
+    const target = await targetOf(env, b.act_id);
+    if (!target || !b.slack_channel) continue;
+    await sput(env, key, 'checked');                           // claimed before the read, so two ticks never post twice
+    const w = await weekPosts(env, b.act_id, today, tz);
+    const planned = w.posts.filter(p => PLANNED.has(p.status)).length;
+    if (planned >= target) { out.quiet.push(b.act_id); continue; }
+    const link = `${LOCUS}?open=socialweek&act=${encodeURIComponent(b.act_id)}&fill=1`;
+    await d.slackPost(env, b.slack_channel, `${b.name} has ${planned} of ${target} posts planned this week. Fill the week: ${link}`);
+    out.posted.push(b.act_id);
+  }
+  return out;
+}
+/** The ideas a post's media carries: a Make card (ref idea:<id>) or a film uploaded for one (social_media.idea_id). */
+async function ideaIdsOf(env, media) {
+  const ids = new Set();
+  for (const mm of media || []) {
+    if (/^idea:/.test(mm.ref || '')) ids.add(mm.ref.slice(5));
+    else if (/^media:/.test(mm.ref || '')) { await ensureMakeCols(env); const r = await env.DB.prepare(`SELECT idea_id FROM social_media WHERE id = ?1`).bind(mm.ref.slice(6)).first().catch(() => null); if (r?.idea_id) ids.add(r.idea_id); }
+  }
+  return [...ids];
+}
+/** The open Film task of an idea (make.js exitOrganic, source_id = the idea id) is done once something is linked to it. */
+async function closeFilmTask(env, ideaId, by) {
+  const rows = (await env.DB.prepare(`SELECT id FROM p_action WHERE source_id = ?1 AND status = 'open'`).bind(ideaId).all().catch(() => ({ results: [] }))).results || [];
+  for (const r of rows) await markDone(env, r.id, true, { by: by || 'Locus', how: 'social', quiet: true }).catch(() => {});
+  return rows.length;
 }
 
 /* ---------------- shapes ---------------- */
@@ -658,7 +825,7 @@ export async function handleSocialPost(request, env, url, path, json, d) {
     try { const r = await ytCallback(env, url); return new Response(`<p style="font:16px system-ui;padding:40px">YouTube is connected: ${String(r.name).replace(/</g, '&lt;')}. Close this tab and go back to Locus.</p>`, { headers: { 'Content-Type': 'text/html' } }); }
     catch (e) { return new Response(`<p style="font:16px system-ui;padding:40px">YouTube did not connect: ${String(e.message).replace(/</g, '&lt;')}</p>`, { status: 400, headers: { 'Content-Type': 'text/html' } }); }
   }
-  const mine = ['/api/social/accounts', '/api/social/connect/', '/api/social/week', '/api/social/grid', '/api/social/tray', '/api/social/upload', '/api/social/post', '/api/social/captions', '/api/social/rephrase'];
+  const mine = ['/api/social/accounts', '/api/social/connect/', '/api/social/week', '/api/social/grid', '/api/social/tray', '/api/social/upload', '/api/social/post', '/api/social/captions', '/api/social/rephrase', '/api/social/fill', '/api/social/target', '/api/social/results'];
   if (!mine.some(p => path === p || path.startsWith(p + '/') || (p.endsWith('/') && path.startsWith(p)))) return null;
   if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
   await ensureSocialPost(env);
@@ -707,20 +874,39 @@ export async function handleSocialPost(request, env, url, path, json, d) {
     }
     if (path === '/api/social/week' && m === 'GET') {
       const act = actOf(url.searchParams.get('act'));
-      const b = await env.DB.prepare(`SELECT name, tz FROM brand_accounts WHERE act_id = ?1`).bind(act).first().catch(() => null);
-      const tz = b?.tz || 'America/Chicago';
-      const from = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get('from') || '') ? url.searchParams.get('from') : new Date().toLocaleDateString('en-CA', { timeZone: tz });
-      /* Brand-local days: a post at 11pm Central on Sunday belongs to Sunday. Wide UTC window, filtered by local day below. */
-      const lo = new Date(from + 'T00:00:00Z'); lo.setUTCDate(lo.getUTCDate() - 1);
-      const hi = new Date(from + 'T00:00:00Z'); hi.setUTCDate(hi.getUTCDate() + 8);
-      const rows = (await env.DB.prepare(`SELECT * FROM social_post_out WHERE act_id = ?1 AND at >= ?2 AND at < ?3 ORDER BY at`).bind(act, lo.toISOString(), hi.toISOString()).all()).results || [];
-      const dayOf = iso => new Date(iso).toLocaleDateString('en-CA', { timeZone: tz });
-      const days = []; for (let i = 0; i < 7; i++) { const dd = new Date(from + 'T00:00:00Z'); dd.setUTCDate(dd.getUTCDate() + i); days.push(dd.toISOString().slice(0, 10)); }
+      const b = await brandOf(env, act);
+      const from = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get('from') || '') ? url.searchParams.get('from') : new Date().toLocaleDateString('en-CA', { timeZone: b.tz });
+      const w = await weekPosts(env, act, from, b.tz);
       const accs = await accountsOf(env, act);
-      return json({ act, name: b?.name || null, tz, from, days, today: new Date().toLocaleDateString('en-CA', { timeZone: tz }),
-        posts: rows.map(p => ({ ...pubPost(p), day: dayOf(p.at), hm: new Date(p.at).toLocaleTimeString('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit' }) })).filter(p => days.includes(p.day)),
+      /* "2 of 5 planned" (2026-10-20): the brand's weekly target (Brand settings > Social) against the posts that will go out. */
+      return json({ act, name: b.name, tz: b.tz, from, days: w.days, today: new Date().toLocaleDateString('en-CA', { timeZone: b.tz }), posts: w.posts,
+        target: await targetOf(env, act), planned: w.posts.filter(p => PLANNED.has(p.status)).length,
         accounts: Object.fromEntries(Object.keys(PLATS).map(k => [k, accs[k] ? { on: true, mode: accs[k].mode, handle: accs[k].handle, pic: accs[k].pic, status: accs[k].status } : { on: false }])) });
     }
+    /* The brand's weekly target. */
+    if (path === '/api/social/target' && m === 'PUT') {
+      teamOnly(); const act = actOf(body.act);
+      const n = Math.round(+body.target);
+      if (!Number.isFinite(n) || n < 0 || n > 21) return json({ error: 'A number of posts a week, 0 to 21.' }, 400);
+      await sput(env, `socialTarget:${act}`, String(n));
+      return json({ ok: true, target: n });
+    }
+    /* Fill the week (2026-10-20): up to the target, unused tray items in the mix, spread over free hours, captioned in the
+       brand's voice. Proposals only: the panel's Schedule all saves each one through POST /api/social/post. */
+    if (path === '/api/social/fill' && m === 'POST') { teamOnly(); return json(await fillWeek(env, d, actOf(body.act), body.week)); }
+    /* Post now on a scheduled post: claimed here, published once, through the same path as the tick. */
+    if (path === '/api/social/post/now' && m === 'POST') {
+      const p = await postOf(body.id);
+      if (!p) return json({ error: 'That post is gone.' }, 404);
+      if (p.status !== 'scheduled') return json({ error: p.status === 'posting' ? 'It is posting right now.' : 'Only a scheduled post can go now. Schedule it first.' }, 400);
+      const claim = await env.DB.prepare(`UPDATE social_post_out SET status = 'posting', posting_at = ?2, at = ?2, updated_at = datetime('now') WHERE id = ?1 AND status = 'scheduled'`).bind(p.id, nowIso()).run();
+      if (!claim.meta?.changes) return json({ error: 'It just started posting.' }, 409);
+      const row = await env.DB.prepare(`SELECT * FROM social_post_out WHERE id = ?1`).bind(p.id).first();
+      if (d.waitUntil) d.waitUntil(publishPost(env, d, row).catch(() => {})); else await publishPost(env, d, row);
+      return json({ ok: true, post: pubPost(row) });
+    }
+    /* Results (2026-10-20): our posted cards from the last 30 days ranked by views, with the watched brands' usual per platform. */
+    if (path === '/api/social/results' && m === 'GET') return json(await resultsOf(env, actOf(url.searchParams.get('act'))));
     if (path === '/api/social/tray' && m === 'GET') return json({ items: await trayOf(env, d, actOf(url.searchParams.get('act'))) });
     if (path === '/api/social/upload' && m === 'POST') {
       const act = actOf(url.searchParams.get('act'));
@@ -737,7 +923,10 @@ export async function handleSocialPost(request, env, url, path, json, d) {
       await env.MEDIA.put(`social/${key}`, fin.body, { httpMetadata: { contentType: fin.type, cacheControl: 'public, max-age=31536000' } });
       const name = clip(decodeURIComponent(url.searchParams.get('name') || ''), 120) || (video ? 'Video' : 'Picture');
       await env.DB.prepare(`INSERT INTO social_media (id, act_id, kind, key, type, name, bytes, created_by) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`).bind(id, act, video ? 'video' : 'image', key, fin.type, name, fin.body.byteLength, email).run();
-      return json({ ok: true, item: { ref: `media:${id}`, src: 'upload', kind: video ? 'video' : 'image', title: name, thumb: `${SELF}/social-m/${key}`, key, used: false } });
+      /* The film for a Make draft (?idea=): the upload is linked to the idea and its Film task closes itself. */
+      const idea = /^[A-Za-z0-9]+:[0-9a-z.]+$/.test(url.searchParams.get('idea') || '') ? url.searchParams.get('idea') : null;
+      if (idea) { await ensureMakeCols(env); await env.DB.prepare(`UPDATE social_media SET idea_id = ?2 WHERE id = ?1`).bind(id, idea).run().catch(() => {}); await closeFilmTask(env, idea, email); }
+      return json({ ok: true, item: { ref: `media:${id}`, src: 'upload', kind: video ? 'video' : 'image', title: name, thumb: `${SELF}/social-m/${key}`, key, used: false, idea } });
     }
     if (path === '/api/social/post' && m === 'POST') {
       const act = actOf(body.act);
@@ -762,6 +951,8 @@ export async function handleSocialPost(request, env, url, path, json, d) {
         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
         ON CONFLICT(id) DO UPDATE SET at = excluded.at, status = excluded.status, caption = excluded.caption, media_json = excluded.media_json, targets_json = excluded.targets_json, auto = excluded.auto, error = NULL, updated_at = datetime('now')`)
         .bind(id, act, new Date(atMs).toISOString(), nextStatus, clip(body.caption, 2200), JSON.stringify(media), JSON.stringify(targets), JSON.stringify(keepRes), body.auto === false ? 0 : 1, old ? old.created_by : email).run();
+      /* A post that carries a Make draft (its card, or a film uploaded for it) closes the idea's Film task (make.js exitOrganic). */
+      for (const ideaId of await ideaIdsOf(env, media)) await closeFilmTask(env, ideaId, email).catch(() => {});
       /* Post now: run it in the request when it is one platform and a picture (seconds); else the 5-minute tick picks it up. */
       const row = await env.DB.prepare(`SELECT * FROM social_post_out WHERE id = ?1`).bind(id).first();
       if (body.now && status === 'scheduled') {

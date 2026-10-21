@@ -48,6 +48,14 @@
       .sw{--sw-r:10px}
       .sw .sw-top{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 12px;min-height:36px}
       .sw .sw-top .r{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+      .sw .sw-plan{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:3px 10px;white-space:nowrap} .sw .sw-plan.ok{color:var(--good);border-color:var(--good)}
+      .sw-fill .fr{display:grid;grid-template-columns:64px 1fr;gap:12px;border:1px solid var(--line);border-radius:10px;padding:10px;margin:0 0 10px}
+      .sw-fill .fr .th{width:64px;height:80px;border-radius:7px;background:var(--surface-2,var(--line)) center/cover no-repeat;position:relative} .sw-fill .fr .th i{position:absolute;left:4px;bottom:4px;font-style:normal;font-size:9px;font-weight:700;background:var(--ink);color:var(--surface);border-radius:4px;padding:1px 4px}
+      .sw-fill .fr .ft{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin:0 0 6px} .sw-fill .fr .ft b{font-size:13px}
+      .sw-fill .fr textarea{width:100%;box-sizing:border-box;min-height:56px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font:inherit;font-size:13px;padding:8px 10px;resize:vertical}
+      .sw-fill .fr .fa{display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap} .sw-fill .fr .fa .sp{flex:1}
+      .sw-fill .fr .acc.sm{padding:2px;border-radius:999px;border:1px solid transparent;background:none;cursor:pointer;opacity:.45} .sw-fill .fr .acc.sm.on{opacity:1;border-color:var(--brand)}
+      .sw-fill .foot{display:flex;gap:8px;margin-top:6px}
       .sw .sw-nav{display:inline-flex;align-items:center;gap:2px;background:var(--surface-2);border-radius:var(--r-sm,8px);padding:2px}
       .sw .sw-nav button{height:28px;min-width:28px;padding:0 9px;border:0;border-radius:6px;background:transparent;color:var(--ink-2);font:inherit;font-size:13px;font-weight:500;cursor:pointer}
       .sw .sw-nav button:hover{background:var(--surface);color:var(--ink)}
@@ -249,6 +257,7 @@
     }
     if (t !== H.RUN()) return;
     draw();
+    if (window.SOCIAL_FILL && !CLI()) { window.SOCIAL_FILL = 0; setTimeout(fillWeek, 50); }   // Monday's Slack nudge: ?open=socialweek&fill=1
     const want = window.SOCIAL_POST || (first ? BOOT_POST : null); window.SOCIAL_POST = null;
     if (want) { const p = ST.data.posts.find(x => x.id === want); if (p) composer(p); else H.apiAH(`/api/social/post?id=${encodeURIComponent(want)}`, { fresh: true }).then(r => r.post && composer(r.post)).catch(() => {}); }
   }
@@ -339,9 +348,10 @@
     $('#main').innerHTML = `<div class="v2 sw">${head}
       <div class="sw-top"><span class="sw-nav"><button type="button" data-nav="-1" aria-label="Previous week">&#8249;</button><button type="button" data-nav="0">This week</button><button type="button" data-nav="1" aria-label="Next week">&#8250;</button></span>
         <span class="sw-range">${md(d.days[0])} to ${md(d.days[6])}<small>${esc(d.tz.replace(/_/g, ' '))}</small></span>
+        ${d.target != null ? `<span class="sw-plan ${(d.planned || 0) >= d.target ? 'ok' : ''}" ${U() ? U().tipAttr(`${d.planned || 0} scheduled or posted this week, against the brand's target of ${d.target} (Brand settings > Social)`) : ''}>${d.planned || 0} of ${d.target} planned</span>` : ''}
         <span class="sw-seg" role="tablist"><button type="button" role="tab" data-sv="week" class="${ST.view === 'week' ? 'on' : ''}">Week</button><button type="button" role="tab" data-sv="list" class="${ST.view === 'list' ? 'on' : ''}">List</button><button type="button" role="tab" data-sv="preview" class="${ST.view === 'preview' ? 'on' : ''}" ${U() ? U().tipAttr('How the Instagram grid will look with what is scheduled') : ''}>Preview</button></span>
         <span class="r"><span class="sw-acc" id="swAccs">${Object.keys(PL).map(x => bubble(x, accs[x], '', !CLI())).join('')}</span>
-          ${PHONE() ? `<button type="button" class="sw-btn" id="swTrayBtn">${ic('inbox')} Ready</button>` : ''}<button type="button" class="sw-btn pri" id="swNew">${ic('plus')} Post</button></span></div>
+          ${PHONE() ? `<button type="button" class="sw-btn" id="swTrayBtn">${ic('inbox')} Ready</button>` : ''}${CLI() ? '' : `<button type="button" class="sw-btn" id="swFill" ${U() ? U().tipAttr('Pick unused tray items up to the weekly target, spread them over free hours, caption each in the brand voice. You review before anything is scheduled.') : ''}>${ic('sparkles')} Fill the week</button>`}<button type="button" class="sw-btn pri" id="swNew">${ic('plus')} Post</button></span></div>
       ${none ? `<div class="sw-note"><div><b>No accounts connected yet.</b> ${CLI() ? 'Ask the Mobius team to connect your Instagram, Facebook, TikTok and YouTube.' : 'Until then a scheduled post is handed to you in Slack at post time with the file and caption ready to paste.'}</div>${CLI() ? '' : '<button type="button" class="sw-btn sm" data-settings="1">Connect accounts</button>'}</div>` : ''}
       <div class="sw-body"><div class="sw-tray" id="swTray">${trayHtml(ST.tray)}</div>${ST.view === 'preview' ? `<div class="sw-ig" id="swIg"><p class="hint">Reading the grid…</p></div>` : list ? `<div class="sw-list" id="swList">${dayList()}</div>` : `<div class="sw-grid" id="swGrid">${grid()}</div>`}</div></div>`;
     if (ST.view === 'preview') igPreview();
@@ -378,6 +388,7 @@
     m.querySelectorAll('[data-settings]').forEach(b => b.onclick = () => { try { localStorage.setItem('pf_set_bsec', 'social'); } catch {} H.show('settings'); });
     $('#swAccs').querySelectorAll('button[data-bub]').forEach(b => b.onclick = () => { if (CLI()) return; try { localStorage.setItem('pf_set_bsec', 'social'); } catch {} H.show('settings'); });
     $('#swNew').onclick = () => composer(null, { at: nextSlot() });
+    const fb = $('#swFill'); if (fb) fb.onclick = fillWeek;
     m.querySelectorAll('[data-sv]').forEach(b => b.onclick = () => { ST.view = b.dataset.sv; store('sw_view', ST.view); draw(); });
     const tb = $('#swTrayBtn'); if (tb) tb.onclick = traySheet;
     wireTray($('#swTray'), false);
@@ -546,7 +557,18 @@
     };
     const on = (id, fn) => { const b = body.querySelector(id); if (b) b.onclick = fn; };
     on('#cpSched', () => save('scheduled', false));
-    on('#cpNow', () => save('scheduled', true));
+    /* Post now on a post that is already scheduled (2026-10-20): the worker claims it (scheduled -> posting) and publishes once,
+       through the same path as the tick, so a tick firing at the same moment can never post it twice. */
+    on('#cpNow', async () => {
+      if (!(p && p.status === 'scheduled')) return save('scheduled', true);
+      try {
+        body.querySelectorAll('.foot button').forEach(b => b.disabled = true);
+        await H.apiAH('/api/social/post/now', { method: 'POST', body: JSON.stringify({ id: p.id }) });
+        const c = document.querySelector('#v2panel .pclose'); if (c) c.click();
+        toast('Posting now. The card updates in a minute.');
+        await reload(true); setTimeout(() => reload(false).catch(() => {}), 25000);
+      } catch (e) { err.textContent = e.message; body.querySelectorAll('.foot button').forEach(b => b.disabled = false); }
+    });
     on('#cpDraft', () => save('draft', false));
     on('#cpDel', async () => { if (!(await H.confirmModal('Delete this post?', p && p.status === 'posted' ? 'It stays on the platforms; only the card here goes.' : 'It will not go out.', 'Delete'))) return; try { await H.apiAH(`/api/social/post?id=${encodeURIComponent(M.id)}`, { method: 'DELETE' }); const c = document.querySelector('#v2panel .pclose'); if (c) c.click(); await reload(true); } catch (e) { err.textContent = e.message; } });
     on('#cpRetry', async () => { try { await H.apiAH('/api/social/post/retry', { method: 'POST', body: JSON.stringify({ id: M.id }) }); const c = document.querySelector('#v2panel .pclose'); if (c) c.click(); toast('Going again within a few minutes.'); await reload(false); } catch (e) { err.textContent = e.message; } });
@@ -567,6 +589,65 @@
       } catch (e) { o.innerHTML = ''; err.textContent = e.message; }
     });
     on('#cpSave', async () => { const t = body.querySelector('#cpCap').value.trim(); if (!t) { err.textContent = 'Write a caption first.'; return; } try { await H.apiAH('/api/social/captions', { method: 'POST', body: JSON.stringify({ act: ST.act, text: t }) }); toast('Saved.'); } catch (e) { err.textContent = e.message; } });
+  }
+  /* ---------- Fill the week (2026-10-20): proposals from the worker, reviewed here, scheduled one by one ---------- */
+  async function fillWeek() {
+    const accs = ST.data.accounts || {};
+    U().panel.wide = !PHONE();
+    const body = U().panel('Fill the week', `<div class="sw-pn sw-fill"><p class="hint">Reading the tray…</p></div>`);
+    let r;
+    try { r = await H.apiAH('/api/social/fill', { method: 'POST', body: JSON.stringify({ act: ST.act, week: ST.from }) }); }
+    catch (e) { body.innerHTML = `<div class="sw-pn"><p class="err">${esc(e.message)}</p></div>`; return; }
+    const P = (r.proposals || []).map(x => ({ ...x, targets: { ...x.targets } }));
+    const used = () => new Set(P.map(x => x.item.ref));
+    const draw = () => {
+      body.innerHTML = `<div class="sw-pn sw-fill">
+        <p class="hint">${esc(r.planned)} of ${esc(r.target)} planned this week${r.need ? `, ${esc(r.need)} to go` : ''}. ${P.length ? 'Change a caption, swap or remove a row, then Schedule all. Nothing is saved until then.' : ''}</p>
+        ${r.note ? `<p class="hint" style="color:var(--warn)">${esc(r.note)}</p>` : ''}
+        ${P.map((x, i) => `<div class="fr" data-i="${i}">
+          <span class="th" ${x.item.thumb ? `style="background-image:url('${esc(x.item.thumb)}')"` : ''}><i>${x.item.kind === 'video' ? 'VIDEO' : 'PHOTO'}</i></span>
+          <div class="fb">
+            <div class="ft"><b>${esc(wd(x.day))} ${esc(hm12(x.hm))}</b><span class="hint">${esc(SRC[x.item.src] || x.item.src)} · ${esc(x.item.title || '')}</span></div>
+            <textarea data-cap="${i}" aria-label="Caption">${esc(x.caption || '')}</textarea>
+            <div class="fa">${Object.keys(PL).filter(k2 => accs[k2] && accs[k2].on).map(k2 => `<button type="button" class="acc sm ${x.targets[k2] && x.targets[k2].on ? 'on' : ''}" data-t="${i}:${k2}" role="switch" aria-checked="${!!(x.targets[k2] && x.targets[k2].on)}" aria-label="${esc(PL[k2])}" ${U() ? U().tipAttr(PL[k2]) : ''}>${bubble(k2, accs[k2], 'sm')}</button>`).join('')}
+              <span class="sp"></span><button type="button" class="sw-btn sm" data-swap="${i}">Swap</button><button type="button" class="sw-btn sm q" data-rm="${i}">Remove</button></div>
+          </div></div>`).join('')}
+        <div class="err" id="flErr"></div>
+        <div class="foot"><button type="button" class="sw-btn pri" id="flGo" ${P.length ? '' : 'disabled'}>Schedule all ${P.length}</button><button type="button" class="sw-btn q" id="flX">Cancel</button></div></div>`;
+      body.querySelectorAll('[data-cap]').forEach(t => t.oninput = () => { P[+t.dataset.cap].caption = t.value; });
+      body.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { const [i, k2] = b.dataset.t.split(':'); const x = P[+i]; x.targets[k2] = { ...(x.targets[k2] || {}), on: !(x.targets[k2] && x.targets[k2].on) }; draw(); });
+      body.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { P.splice(+b.dataset.rm, 1); draw(); });
+      body.querySelectorAll('[data-swap]').forEach(b => b.onclick = () => {
+        const i = +b.dataset.swap, taken = used();
+        const list = ST.tray.filter(it => !it.used && it.kind !== 'text' && (it.file || it.key) && !taken.has(it.ref));
+        if (!list.length) { body.querySelector('#flErr').textContent = 'Nothing else unused on the tray.'; return; }
+        const { w, done } = modal(`<div class="fl"><h3>Swap for</h3><div class="sw-pick">${list.map(it => `<button type="button" data-ref="${esc(it.ref)}"><span class="th" ${it.thumb ? `style="background-image:url('${esc(it.thumb)}')"` : ''}></span><span class="t">${esc(it.title)}</span></button>`).join('')}</div><div class="foot"><button type="button" class="sw-btn" data-x="1">Close</button></div></div>`);
+        w.querySelectorAll('[data-ref]').forEach(x2 => x2.onclick = () => {
+          const it = list.find(z => z.ref === x2.dataset.ref); done();
+          const x = P[i]; x.item = { ref: it.ref, src: it.src, kind: it.kind, title: it.title, sub: it.sub || '', thumb: it.thumb, file: it.file || null, key: it.key || null, who: it.who || null, idea: it.idea || null };
+          if (it.caption) x.caption = it.caption;
+          if (x.targets.yt) x.targets.yt.on = x.targets.yt.on && it.kind === 'video';
+          draw();
+        });
+      });
+      body.querySelector('#flX').onclick = () => { const c = document.querySelector('#v2panel .pclose'); if (c) c.click(); };
+      body.querySelector('#flGo').onclick = async () => {
+        const g = body.querySelector('#flGo'), err = body.querySelector('#flErr'); err.textContent = '';
+        const bad = P.findIndex(x => !Object.values(x.targets).some(t => t.on));
+        if (bad >= 0) { err.textContent = `Row ${bad + 1} has no account switched on.`; return; }
+        g.disabled = true; let n = 0;
+        for (const x of P) {
+          try {
+            await H.apiAH('/api/social/post', { method: 'POST', body: JSON.stringify({ act: ST.act, at: x.at, caption: x.caption || '', media: [mediaOut(x.item)], targets: x.targets, status: 'scheduled', auto: true }) });
+            n++; g.textContent = `Scheduled ${n} of ${P.length}…`;
+          } catch (e) { err.textContent = `Stopped at row ${n + 1}: ${e.message}`; g.disabled = false; g.textContent = `Schedule the rest (${P.length - n})`; P.splice(0, n); draw(); return; }
+        }
+        const c = document.querySelector('#v2panel .pclose'); if (c) c.click();
+        toast(`${n} post${n === 1 ? '' : 's'} scheduled.`);
+        await reload(true);
+      };
+    };
+    draw();
   }
   function resultsBox(el, p) {
     const res = p.results || {};

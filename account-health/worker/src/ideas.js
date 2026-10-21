@@ -174,6 +174,10 @@ export async function ensureIdeaTables(env) {
   /* Added 2026-10-19 (Locus Social, "Make ours"): a thread started from Locus. The bot posts the root, and the bot's
      own messages are never read as the thread, so the link and the ask live here as a human message (seed_json). */
   await env.DB.prepare(`ALTER TABLE idea_thread ADD COLUMN seed_json TEXT`).run().catch(() => {});
+  /* Added 2026-10-20 (Make in the app): where the idea came from (app | social | slack) and the exit the person had in
+     mind (organic | creators | brief | studio). An app idea has channel 'app' and no Slack thread at all. */
+  for (const sql of [`ALTER TABLE idea_thread ADD COLUMN source TEXT`, `ALTER TABLE idea_thread ADD COLUMN exit TEXT`])
+    await env.DB.prepare(sql).run().catch(() => {});
   ready = true;
 }
 export function _resetForTests() { ready = false; }
@@ -262,13 +266,25 @@ async function driveList(tok, folderId) {
 /* Drive's own 1024px copy of an image (credentialed fetch); the original can be a 6000px camera file. */
 const driveThumb = f => f.thumbnailLink ? f.thumbnailLink.replace(/=s\d+(-[a-z]+)?$/, '=s1024') : null;
 /** Headers for a media fetch: Slack's bot token, a Drive token for the reader who can see it, or none. */
+/* Our own files (an upload from the Make panel, a Social cover) are read straight from R2: a Worker cannot fetch its own
+   public URL. The shape is what every reader below uses (ok, headers.get, body, arrayBuffer). Null for any other URL. */
+const SELF_M = /^https:\/\/mobius-account-health\.mobius-digital\.workers\.dev\/(social-m|make-m)\/(.+)$/;
+async function selfObject(env, url) {
+  const m = SELF_M.exec(String(url || ''));
+  if (!m || !env.MEDIA) return null;
+  const obj = await env.MEDIA.get(`${m[1] === 'social-m' ? 'social' : 'make'}/${m[2]}`).catch(() => null);
+  if (!obj) return null;
+  const type = obj.httpMetadata?.contentType || 'application/octet-stream';
+  return { ok: true, status: 200, size: obj.size, body: obj.body, arrayBuffer: () => obj.arrayBuffer(),
+    headers: { get: k => (k = String(k).toLowerCase()) === 'content-type' ? type : k === 'content-length' ? String(obj.size) : null } };
+}
 async function authHeaders(env, auth) {
   if (!auth) return {};
   if (auth.kind === 'slack') return { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}` };
   if (auth.kind === 'drive') return { Authorization: `Bearer ${await googleToken(env, auth.sub)}` };
   return {};
 }
-const authOf = file => file?.drive ? { kind: 'drive', sub: file.drive } : { kind: 'slack' };
+const authOf = file => file?.drive ? { kind: 'drive', sub: file.drive } : file?.app ? { kind: 'app' } : { kind: 'slack' };
 /**
  * Drive links in the thread become real images and videos: a file link is the one file, a folder link
  * is everything in it (images and videos only; sub-folders are skipped). Needs the file shared with
@@ -339,11 +355,11 @@ export function parseThread(messages, { botUser = null, names = {} } = {}) {
     for (const f of m.files || []) {
       const key = `slack:${f.id}`;
       if (seen.has(key)) continue;
-      if (isVideoFile(f)) { seen.add(key); videos.push({ platform: 'slack', key, label: `V${videos.length + 1}`, from: m.ts, file: { id: f.id, name: f.name, mimetype: f.mimetype, size: f.size || 0, url: f.url_private_download || f.url_private } }); tags.push(videos[videos.length - 1].label); }
+      if (isVideoFile(f)) { seen.add(key); videos.push({ platform: 'slack', key, label: `V${videos.length + 1}`, from: m.ts, file: { id: f.id, name: f.name, mimetype: f.mimetype, size: f.size || 0, url: f.url_private_download || f.url_private || f.url, ...(f.app ? { app: true } : {}) } }); tags.push(videos[videos.length - 1].label); }
       /* thumb = Slack's own 1024px copy (only present when the original is bigger). It is what gets read
          and copied into Studio: a 4MB camera photo at 6000px is over Claude's size and pixel limits
          and would cost ten times the tokens for nothing (Grunk, 2026-10-06). */
-      else if (isImageFile(f)) { seen.add(key); images.push({ key, label: `I${images.length + 1}`, from: m.ts, file: { id: f.id, name: f.name, mimetype: f.mimetype, size: f.size || 0, url: f.url_private_download || f.url_private, thumb: f.thumb_1024 || f.thumb_960 || f.thumb_720 || null } }); tags.push(images[images.length - 1].label); }
+      else if (isImageFile(f)) { seen.add(key); images.push({ key, label: `I${images.length + 1}`, from: m.ts, file: { id: f.id, name: f.name, mimetype: f.mimetype, size: f.size || 0, url: f.url_private_download || f.url_private || f.url, ...(f.app ? { app: true } : {}), thumb: f.thumb_1024 || f.thumb_960 || f.thumb_720 || null } }); tags.push(images[images.length - 1].label); }
     }
     msgs.push({ ts: m.ts, user: m.user || null, name: names[m.user] || 'Someone', text: cleanText(m.text, botUser, names), tags, links: linksOf(m.text) });
   }
@@ -485,7 +501,7 @@ const NO_CLIP = new Set(['too big', 'no video on that ad', 'YouTube stays a link
 /* The clip's source again, for a video watched before storage existed or whose clip was undone. */
 async function clipSource(env, v, facts, meter) {
   if (v.platform === 'slack') {
-    const res = await F(v.file.url, { headers: { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}` } });
+    const res = (await selfObject(env, v.file.url)) || await F(v.file.url, { headers: await authHeaders(env, authOf(v.file)) });
     if (!res.ok || /text\/html/.test(res.headers.get('content-type') || '')) throw new Error('Slack would not hand the file over');
     return { res, mime: geminiMime(v.file.mimetype), size: v.file.size || +(res.headers.get('content-length') || 0) };
   }
@@ -721,7 +737,7 @@ function b64(buf) {
   return btoa(s);
 }
 async function imageBlock(env, url, auth) {
-  const r = await F(url, { headers: await authHeaders(env, auth).catch(() => ({})) }).catch(() => null);
+  const r = (await selfObject(env, url)) || await F(url, { headers: await authHeaders(env, auth).catch(() => ({})) }).catch(() => null);
   const type = (r?.headers.get('content-type') || '').split(';')[0].trim();
   if (!r?.ok || !/^image\/(png|jpeg|gif|webp)$/.test(type)) return { note: auth?.kind === 'slack' ? 'I could not open an attached image (the app needs the files:read scope).' : auth?.kind === 'drive' ? 'I could not open an image from Google Drive.' : 'I could not open an image from that post.' };
   const buf = await r.arrayBuffer();
@@ -1067,6 +1083,7 @@ export function ideaCard(row, acct, hub) {
   if (pushed.lucky_creators) done.push(`✓ On the Lucky creator app: ${pushed.lucky_creators.url ? `<${pushed.lucky_creators.url}|${esc(pushed.lucky_creators.title)}>` : esc(pushed.lucky_creators.title || 'saved')}${pushed.lucky_creators.clip ? ' (the clip plays on it)' : ''}`);
   if (pushed.asana_brief) done.push(`✓ Asana: <${pushed.asana_brief.url}|${esc(pushed.asana_brief.name)}>`);
   if (pushed.studio) done.push(`✓ Studio: batch "${esc(pushed.studio.name)}" (<${LOCUS}|open Locus>)`);
+  if (pushed.organic) done.push(`✓ Organic post: ${pushed.organic.url ? `<${pushed.organic.url}|${esc(pushed.organic.title || 'the film task')}>` : esc(pushed.organic.title || 'on the tray')}${pushed.organic.owner ? ` for ${esc(pushed.organic.owner)}` : ''}`);
   if (done.length) blocks.push({ type: 'section', text: { type: 'mrkdwn', text: done.join('\n') } });
   if (notes.length) blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: clip(notes.map(esc).join('\n'), 2900) }] });
   const els = [];
@@ -1085,6 +1102,8 @@ export function ideaCard(row, acct, hub) {
     if (!has(d)[k]) { els.push({ ...btn(`Make ${DESTS[k]} draft`, `idea_make_${k}`, row.id), value: JSON.stringify({ i: row.id, k }) }); continue; }
     els.push(btn(`${DESTS[k]}${k === pick ? ' (suggested)' : ''}`, ACTION_OF[k], row.id, k === pick ? { style: 'primary' } : {}));
   }
+  /* The fourth exit (2026-10-20): the draft becomes a tray item on Social > Week and a film task for the editor. */
+  if (!pushed.organic && EXIT) els.push(btn('Organic post', 'idea_organic', row.id));
   if (pushed.creator_link) els.push(btn('Undo creator link', 'idea_undo_link', row.id, { style: 'danger' }));
   if (pushed.lucky_creators) els.push(btn('Undo Lucky app', 'idea_undo_lucky', row.id, { style: 'danger' }));
   els.push(btn('Redo', 'idea_redo', row.id));
@@ -1163,7 +1182,7 @@ async function userNames(env, ids) {
 }
 /* Every brand the ideas bot can file for: every active brand (brand_accounts, act_id = the brand id),
    with or without a Meta account. */
-const acctsOf = async env => env.DB.prepare(`SELECT act_id, name, slack_channel FROM brand_accounts WHERE active = 1`).all().then(r => r.results || []).catch(() => []);
+export const acctsOf = async env => env.DB.prepare(`SELECT act_id, name, slack_channel FROM brand_accounts WHERE active = 1`).all().then(r => r.results || []).catch(() => []);
 
 /* 2026-10-19: every draft failed from 2026-10-18 with "The compiled grammar is too large" (the API now refuses
    IDEA_SCHEMA as a strict output format). The same call is retried once with the shape written into the prompt instead;
@@ -1183,15 +1202,17 @@ export async function runIdeaJob(env, job) {
   const meter = { in: 0, out: 0, searches: 0, g_in: 0, g_out: 0, downloads: 0, videos_new: 0, videos_cached: 0 };
   const runId = rid();
   let row = await getRow(env, id);
-  const done = () => slack(env, 'reactions.remove', { channel: job.channel, timestamp: job.ts, name: 'eyes' });
+  /* Made in the app (2026-10-20): no Slack thread, no card, no eyes. The seed messages ARE the thread. */
+  const inApp = job.channel === APP;
+  const done = () => inApp ? null : slack(env, 'reactions.remove', { channel: job.channel, timestamp: job.ts, name: 'eyes' });
   if (row?.status === 'working' && Date.now() - Date.parse(`${row.updated_at.replace(' ', 'T')}Z`) < 4 * 60e3) {
-    await say(env, job.channel, job.root, 'Still working on the last tag in this thread. Give me a minute.');
+    if (!inApp) await say(env, job.channel, job.root, 'Still working on the last tag in this thread. Give me a minute.');
     await done();
     return { skipped: 'busy' };
   }
   const accounts = await acctsOf(env);
   const acct = brandOverride(job.text, accounts) || (row?.act_id && accounts.find(a => a.act_id === row.act_id)) || accounts.find(a => a.slack_channel === job.channel);
-  if (!acct) { await say(env, job.channel, job.root, 'I can\'t tell which brand this is for. Tag me again with "for <brand>".'); await done(); return { skipped: 'no brand' }; }
+  if (!acct) { if (!inApp) await say(env, job.channel, job.root, 'I can\'t tell which brand this is for. Tag me again with "for <brand>".'); await done(); return { skipped: 'no brand' }; }
   const lucky = /lucky/i.test(acct.name);
   const compare = (job.kind || 'draft') === 'draft' && wantsCompare(job.text);
   await env.DB.prepare(`INSERT INTO idea_thread (id, act_id, channel, thread_ts, status) VALUES (?1, ?2, ?3, ?4, 'working')
@@ -1199,13 +1220,14 @@ export async function runIdeaJob(env, job) {
   await env.DB.prepare(`INSERT INTO idea_run (id, idea_id, act_id, kind) VALUES (?1, ?2, ?3, ?4)`).bind(runId, id, acct.act_id, compare ? 'compare' : job.kind || 'draft').run();
   const prevStatus = row?.status && !['working', 'queued'].includes(row.status) ? row.status : null;
   try {
-    const rep = await slack(env, 'conversations.replies', { channel: job.channel, ts: job.root, limit: 200 }, true);
+    const rep = inApp ? { ok: true, messages: [] } : await slack(env, 'conversations.replies', { channel: job.channel, ts: job.root, limit: 200 }, true);
     if (!rep.ok) throw Object.assign(new Error(`I could not read this thread: ${slackWhy(rep.error || 'error')}.`), { plain: true });
-    const names = await userNames(env, (rep.messages || []).filter(m => !m.bot_id).map(m => m.user));
-    /* A thread Locus started (Social > Make ours): the ask is the seed, read as the first human message. */
-    const seed = job.seed || safeJson(row?.seed_json, null);
-    if (seed?.user) names[seed.user] = seed.name || 'Someone';
-    const t = parseThread([...(seed ? [seed] : []), ...(rep.messages || [])], { botUser: job.bot, names });
+    const names = inApp ? {} : await userNames(env, (rep.messages || []).filter(m => !m.bot_id).map(m => m.user));
+    /* A thread Locus started (Social > Make ours, the Make panel): the ask is the seed, read as the first human
+       message. A steer typed in the panel is one more seed message, so the seed is a list (2026-10-20). */
+    const seed = [].concat(job.seed || safeJson(row?.seed_json, null) || []).filter(Boolean);
+    for (const s of seed) if (s.user) names[s.user] = s.name || 'Someone';
+    const t = parseThread([...seed, ...(rep.messages || [])], { botUser: job.bot, names });
     if (!t.msgs.length) throw Object.assign(new Error('There is nothing in this thread for me to read yet.'), { plain: true });
     const notes = [];
     await expandDrive(env, t, notes).catch(e => notes.push(`Google Drive: ${e.message}`));
@@ -1289,13 +1311,16 @@ export async function runIdeaJob(env, job) {
       runs = runs + 1, cost = cost + ?8, last_cost = ?8, deep = ?9, media_json = ?10, section_pick = CASE WHEN ?11 THEN section_pick ELSE NULL END, updated_at = datetime('now') WHERE id = ?1`)
       .bind(id, status, from, JSON.stringify(refs), JSON.stringify(d), t.msgs[t.msgs.length - 1].ts, JSON.stringify(notes), cost, deep ? 1 : 0, JSON.stringify(media), makeKey ? 1 : 0).run();
     row = await getRow(env, id);
-    /* A revision is a new reply, so the thread reads in order; the old card stops offering buttons. */
-    if (row.reply_ts) await slack(env, 'chat.update', { channel: job.channel, ts: row.reply_ts, text: 'Replaced by the newer draft below.',
-      blocks: [{ type: 'context', elements: [{ type: 'mrkdwn', text: '_Replaced by the newer draft below._' }] }] });
-    const card = ideaCard(row, acct, hub);
-    const posted = await say(env, job.channel, job.root, card.text, card.blocks);
-    if (!posted.ok) throw Object.assign(new Error(`I could not post the draft: ${slackWhy(posted.error || 'error')}.`), { plain: true });
-    await env.DB.prepare(`UPDATE idea_thread SET reply_ts = ?2 WHERE id = ?1`).bind(id, posted.ts).run();
+    let posted = { ok: true, ts: null };
+    if (!inApp) {
+      /* A revision is a new reply, so the thread reads in order; the old card stops offering buttons. */
+      if (row.reply_ts) await slack(env, 'chat.update', { channel: job.channel, ts: row.reply_ts, text: 'Replaced by the newer draft below.',
+        blocks: [{ type: 'context', elements: [{ type: 'mrkdwn', text: '_Replaced by the newer draft below._' }] }] });
+      const card = ideaCard(row, acct, hub);
+      posted = await say(env, job.channel, job.root, card.text, card.blocks);
+      if (!posted.ok) throw Object.assign(new Error(`I could not post the draft: ${slackWhy(posted.error || 'error')}.`), { plain: true });
+      await env.DB.prepare(`UPDATE idea_thread SET reply_ts = ?2 WHERE id = ?1`).bind(id, posted.ts).run();
+    }
     await env.DB.prepare(`UPDATE idea_run SET status = 'done', c_in = ?2, c_cache_read = ?3, c_cache_write = ?4, c_out = ?5, g_in = ?6, g_out = ?7,
       downloads = ?8, videos_new = ?9, videos_cached = ?10, cost = ?11, model = ?12, pick_cost = ?13, card_ts = ?14, finished_at = datetime('now') WHERE id = ?1`)
       .bind(runId, u.input_tokens || 0, u.cache_read_input_tokens || 0, u.cache_creation_input_tokens || 0, u.output_tokens || 0,
@@ -1307,7 +1332,8 @@ export async function runIdeaJob(env, job) {
     return { ok: true, status, cost, videos_new: meter.videos_new, videos_cached: meter.videos_cached };
   } catch (e) {
     const msg = e.plain ? e.message : `That did not work: ${clip(e.message, 300)}. Tag me again to retry.`;
-    await say(env, job.channel, job.root, msg);
+    if (!inApp) await say(env, job.channel, job.root, msg);
+    else await env.DB.prepare(`UPDATE idea_thread SET notes_json = ?2 WHERE id = ?1`).bind(id, JSON.stringify([msg])).run().catch(() => {});
     await env.DB.prepare(`UPDATE idea_thread SET status = ?2, updated_at = datetime('now') WHERE id = ?1`).bind(id, prevStatus || 'failed').run().catch(() => {});
     await env.DB.prepare(`UPDATE idea_run SET status = 'failed', error = ?2, g_in = ?3, g_out = ?4, finished_at = datetime('now') WHERE id = ?1`).bind(runId, clip(e.message, 500), meter.g_in, meter.g_out).run().catch(() => {});
     await done();
@@ -1355,7 +1381,11 @@ async function runCompare(env, c) {
 
 /* ---------------- the buttons ---------------- */
 export const approversOf = env => String(env.IDEA_APPROVERS || DEFAULT_APPROVERS).split(/[\s,]+/).filter(Boolean);
-const GATED = new Set(['idea_link', 'idea_lucky', 'idea_asana', 'idea_studio', 'idea_undo_link', 'idea_undo_lucky', 'idea_discard']);
+const GATED = new Set(['idea_link', 'idea_lucky', 'idea_asana', 'idea_studio', 'idea_organic', 'idea_undo_link', 'idea_undo_lucky', 'idea_discard']);
+/* The four exits (make.js) are registered here so the Slack card's buttons and Locus's panel call ONE function per exit
+   (make.js imports this file, so this file cannot import it). exit = organic | creators | brief | studio. */
+let EXIT = null;
+export function useExits(fn) { EXIT = fn; }
 
 /**
  * Admin key only (worker.js /api/ideas/admin): what the tag and the buttons do, for a thread whose run
@@ -1437,17 +1467,19 @@ export async function handleIdeaAction(env, ctx, p) {
       pushed.discarded_by = who;
       await env.DB.prepare(`UPDATE idea_thread SET status = 'discarded', pushed_json = ?2, updated_at = datetime('now') WHERE id = ?1`).bind(row.id, JSON.stringify(pushed)).run();
     } else {
-      const key = { idea_link: 'creator_link', idea_lucky: 'lucky_creators', idea_asana: 'asana_brief', idea_studio: 'studio' }[aid];
-      if (key && pushed[key]) return whisper(env, chan, user, `Already sent to ${DESTS[key]}.`, row.thread_ts);
+      const key = { idea_link: 'creator_link', idea_lucky: 'lucky_creators', idea_asana: 'asana_brief', idea_studio: 'studio', idea_organic: 'organic' }[aid];
+      if (key && pushed[key]) return whisper(env, chan, user, `Already sent to ${DESTS[key] || 'Organic post'}.`, row.thread_ts);
       if (aid === 'idea_link') reply = await pushCreator(env, row, acct, d, pushed);
       else if (aid === 'idea_undo_link') reply = await undoCreator(env, row, pushed);
       else if (aid === 'idea_lucky') reply = await pushLucky(env, row, acct, d, pushed, who);
       else if (aid === 'idea_undo_lucky') reply = await undoLucky(env, row, pushed);
-      else if (aid === 'idea_asana') reply = await pushAsana(env, row, acct, d, pushed);
+      /* The brief exit (make.js): a Production card mirrored to Asana like every other brief; the old Asana-only push when make.js is not loaded. */
+      else if (aid === 'idea_asana') reply = EXIT ? await EXIT(env, row, acct, d, pushed, who, 'brief') : await pushAsana(env, row, acct, d, pushed);
       else if (aid === 'idea_studio') reply = await pushStudio(env, row, acct, d, pushed);
+      else if (aid === 'idea_organic') reply = EXIT ? await EXIT(env, row, acct, d, pushed, who, 'organic') : { ok: false, text: 'Organic post is not set up on this worker.' };
       else return null;
       if (reply?.ok !== false) {
-        const status = Object.keys(DESTS).some(k => pushed[k]) ? 'pushed' : (d.questions || []).some(q => q.blocking) ? 'questions' : 'drafted';
+        const status = [...Object.keys(DESTS), 'organic'].some(k => pushed[k]) ? 'pushed' : (d.questions || []).some(q => q.blocking) ? 'questions' : 'drafted';
         await env.DB.prepare(`UPDATE idea_thread SET pushed_json = ?2, status = ?3, updated_at = datetime('now') WHERE id = ?1`).bind(row.id, JSON.stringify(pushed), status).run();
       }
     }
@@ -1719,7 +1751,7 @@ export async function pushAsana(env, row, acct, d, pushed) {
   const sec = (secs || []).find(s => /creative\s*brief/i.test(s.name)) || (secs || []).find(s => /brief/i.test(s.name));
   if (!sec) return { ok: false, text: `${acct.name}'s Asana project has no Creative Brief section.` };
   const num = await nextNumber(env, acct.act_id, doc.project_gid);
-  const permalink = (await slack(env, 'chat.getPermalink', { channel: row.channel, message_ts: row.thread_ts }, true)).permalink || '';
+  const permalink = row.channel === APP ? '' : (await slack(env, 'chat.getPermalink', { channel: row.channel, message_ts: row.thread_ts }, true)).permalink || '';
   const refs = safeJson(row.refs_json, []) || [];
   const name = `${num} - ${clip(a.title, 120)}`;
   let task;
@@ -1747,13 +1779,14 @@ async function studioRefs(env, row) {
   if (!env.MEDIA) return [];
   const srcs = [];
   try {
-    const rep = await slack(env, 'conversations.replies', { channel: row.channel, ts: row.thread_ts, limit: 200 }, true);
-    const t = parseThread(rep.messages || []);
+    const rep = row.channel === APP ? { messages: [] } : await slack(env, 'conversations.replies', { channel: row.channel, ts: row.thread_ts, limit: 200 }, true);
+    /* The seed (Social > Make ours, the Make panel) is read like the thread: an uploaded picture is an image here too. */
+    const seed = [].concat(safeJson(row.seed_json, null) || []).filter(Boolean);
+    const t = parseThread([...seed, ...(rep.messages || [])]);
     await expandDrive(env, t).catch(() => {});
     for (const im of t.images) srcs.push({ label: im.label, url: im.file.thumb || im.file.url, auth: authOf(im.file) });
     /* A post from Locus Social: its cover is the inspiration image (the link itself is a video page). */
-    const seed = safeJson(row.seed_json, null);
-    if (seed?.image) srcs.push({ label: 'V1', url: seed.image, auth: null });
+    for (const s of seed) if (s.image) srcs.push({ label: 'V1', url: s.image, auth: null });
     for (const v of t.videos.filter(v => v.platform === 'atria')) {
       const hit = await env.DB.prepare(`SELECT facts_json FROM idea_media WHERE key = ?1 AND status = 'ok'`).bind(v.key).first().catch(() => null);
       const a = safeJson(hit?.facts_json, {})?.atria;
@@ -1763,7 +1796,7 @@ async function studioRefs(env, row) {
   const out = [];
   for (const s of srcs.slice(0, 12)) {
     try {
-      const res = await F(s.url, { headers: await authHeaders(env, s.auth).catch(() => ({})) });
+      const res = (await selfObject(env, s.url)) || await F(s.url, { headers: await authHeaders(env, s.auth).catch(() => ({})) });
       const type = (res.headers.get('content-type') || '').split(';')[0];
       const ext = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' }[type];
       if (!res.ok || !ext) continue;
@@ -1851,14 +1884,19 @@ export async function ideaState(env, id) {
   const d = safeJson(row.draft_json, {}) || {};
   const pushed = safeJson(row.pushed_json, {}) || {};
   const c = d.creator_link || {}, a = d.asana || {}, st = d.studio || {};
-  const sent = Object.fromEntries(Object.keys(DESTS).filter(k => pushed[k]).map(k => [k, { url: pushed[k].url || null, name: pushed[k].name || pushed[k].title || null }]));
+  const sent = Object.fromEntries([...Object.keys(DESTS), 'organic'].filter(k => pushed[k]).map(k => [k, { url: pushed[k].url || null, name: pushed[k].name || pushed[k].title || null, id: pushed[k].id || pushed[k].card || pushed[k].task_id || null }]));
+  const notes = safeJson(row.notes_json, []) || [];
   return { id: row.id, status: row.status, updated_at: row.updated_at, cost: row.cost || 0,
+    /* The Make panel (2026-10-20): the breakdown as written, the exit the person had in mind, where it came from. */
+    teardown: d.teardown || null, exit: row.exit || null, source: row.source || (row.channel === APP ? 'app' : 'slack'), slack: row.channel !== APP,
+    caption: c.argument || a.primary_text || st.post_copy || '', error: row.status === 'failed' ? (notes[0] || '') : null,
+    refs: safeJson(row.refs_json, []) || [],
     pick: d.destination?.pick || null, why: d.destination?.reason || '', take: d.teardown?.summary || '', hook_why: d.teardown?.hook_why || '',
     mode: MODE[d.transfer?.mode] || '', questions: (d.questions || []).filter(q => q.q).map(q => q.q),
     script: { title: c.title || a.title || st.name || '', openers: c.openers || [], shots: c.shots || [], on_screen: c.on_screen || '', format: c.format || '' },
     asana: a.title ? { title: a.title, kind: a.kind || '', script: a.script || '' } : null,
     studio: (st.lines || []).length ? { name: st.name || '', lines: st.lines.slice(0, 12) } : null,
-    sent, link: `https://slack.com/app_redirect?channel=${row.channel}&message_ts=${row.thread_ts}` };
+    sent, link: row.channel === APP ? null : `https://slack.com/app_redirect?channel=${row.channel}&message_ts=${row.thread_ts}` };
 }
 /** Send a Locus-made draft on, the same as its Slack button (and the Slack card is redrawn to match). */
 export async function pushIdea(env, id, dest, who) {
@@ -1883,11 +1921,76 @@ export async function pushIdea(env, id, dest, who) {
     return { ok: true, writing: dest, text: `Writing the ${DESTS[dest]} version first. It is sent there the moment it is done (about a minute).` };
   }
   const reply = dest === 'creator_link' ? await pushCreator(env, row, acct, d, pushed) : dest === 'lucky_creators' ? await pushLucky(env, row, acct, d, pushed, who || 'Locus')
-    : dest === 'asana_brief' ? await pushAsana(env, row, acct, d, pushed) : await pushStudio(env, row, acct, d, pushed);
+    : dest === 'asana_brief' ? (EXIT ? await EXIT(env, row, acct, d, pushed, who || 'Locus', 'brief') : await pushAsana(env, row, acct, d, pushed)) : await pushStudio(env, row, acct, d, pushed);
   if (reply?.ok === false) return reply;
   await env.DB.prepare(`UPDATE idea_thread SET pushed_json = ?2, status = 'pushed', updated_at = datetime('now') WHERE id = ?1`).bind(row.id, JSON.stringify(pushed)).run();
-  const fresh = await getRow(env, row.id);
-  if (fresh.reply_ts) { const card = ideaCard(fresh, acct, await hubOf(env, acct.act_id)); await slack(env, 'chat.update', { channel: row.channel, ts: fresh.reply_ts, text: card.text, blocks: card.blocks }).catch(() => {}); }
-  if (reply?.text) await say(env, row.channel, row.thread_ts, `${reply.text}${who ? ` (sent from Locus by ${who})` : ''}`, reply.blocks).catch(() => {});
-  return { ok: true, text: reply?.text || '' };
+  await redrawCard(env, row, acct, reply, who);
+  return { ok: true, text: reply?.text || '', pushed: pushed[dest] || null };
 }
+/** After a push from Locus: the Slack card redrawn and the result said in the thread. Nothing for an app-made idea. */
+export async function redrawCard(env, row, acct, reply, who) {
+  if (row.channel === APP) return;
+  const fresh = await getRow(env, row.id);
+  if (fresh?.reply_ts) { const card = ideaCard(fresh, acct, await hubOf(env, acct.act_id)); await slack(env, 'chat.update', { channel: row.channel, ts: fresh.reply_ts, text: card.text, blocks: card.blocks }).catch(() => {}); }
+  if (reply?.text) await say(env, row.channel, row.thread_ts, `${reply.text}${who ? ` (sent from Locus by ${who})` : ''}`, reply.blocks).catch(() => {});
+}
+
+/* ---------------- Make in the app (2026-10-20) ----------------
+   ONE engine, four exits. The breakdown + draft step is callable without Slack: an app idea is an idea_thread row with
+   channel 'app' and the ask as its seed message (a link, a file, a typed idea, a steer). runIdeaJob reads the seed as
+   the thread, writes the draft and stores it; nothing is posted anywhere unless "Also post in Slack" was on, in which
+   case the row is a normal Slack-rooted thread (the bot posts the ask as the root, the card lands under it). */
+export const APP = 'app';
+const plainErr = (m, status = 400) => Object.assign(new Error(m), { plain: true, status });
+async function appRow(env, { act, url, file, text, image, note, who, exit, source, slack: inSlack }) {
+  await ensureIdeaTables(env);
+  const acct = (await acctsOf(env)).find(a => a.act_id === act);
+  if (!acct) throw plainErr('That brand is not active in Locus.');
+  const link = /^https?:\/\//.test(String(url || '').trim()) ? String(url).trim() : '';
+  const body = [clip(note, 600), clip(text, 4000)].filter(Boolean).join('\n');
+  if (!body && !link && !file) throw plainErr('Give it a link, a file or an idea first.');
+  const ask = [body, link].filter(Boolean).join('\n');
+  const name = who || 'the team';
+  let channel = APP, root = rid();
+  if (inSlack) {
+    if (!acct.slack_channel) throw plainErr(`${acct.name} has no internal Slack channel, so there is nowhere to post it.`);
+    const posted = await slack(env, 'chat.postMessage', { channel: acct.slack_channel, text: `*Make* (from Locus, by ${name}): ${clip(body, 600) || 'make our version of this.'}${link ? `\n${link}` : ''}`, unfurl_links: true });
+    if (!posted.ok) throw plainErr(`I could not post in ${acct.name}'s channel: ${slackWhy(posted.error || 'error')}.`);
+    channel = acct.slack_channel; root = posted.ts;
+  }
+  const seed = { ts: channel === APP ? `${Math.floor(Date.now() / 1000)}.000001` : root, user: 'ULOCUSAPP', name, text: ask,
+    files: file && file.url ? [{ id: clip(file.id, 40) || rid(), name: clip(file.name, 120) || 'file', mimetype: clip(file.mimetype, 60) || 'application/octet-stream', size: +file.size || 0, url: file.url, app: true }] : [], image: image || null };
+  const id = `${channel}:${root}`;
+  await env.DB.prepare(`INSERT INTO idea_thread (id, act_id, channel, thread_ts, status, from_name, seed_json, source, exit) VALUES (?1, ?2, ?3, ?4, 'queued', ?5, ?6, ?7, ?8)
+    ON CONFLICT(id) DO NOTHING`).bind(id, act, channel, root, name, JSON.stringify([seed]), source || 'app', ['organic', 'creators', 'brief', 'studio'].includes(exit) ? exit : null).run();
+  return { id, acct, job: { kind: 'draft', channel, root, ts: root, user: null, text: ask, bot: null, seed: [seed] } };
+}
+/** Breakdown + draft now, in this call (tests, a worker with no queue). Returns { id, breakdown, draft, state }. */
+export async function makeIdea(env, opts) {
+  const { id, job } = await appRow(env, opts);
+  const r = await runIdeaJob(env, job);
+  const row = await getRow(env, id);
+  const d = safeJson(row?.draft_json, {}) || {};
+  return { id, ok: r.ok !== false && !r.skipped, error: r.error || r.skipped || null, breakdown: d.teardown || null, draft: d, state: await ideaState(env, id) };
+}
+/** The same, on the queue: the panel polls GET /api/make?id= for the state. */
+export async function startMake(env, opts) {
+  const { id, job } = await appRow(env, opts);
+  if (env.IDEA_Q) await env.IDEA_Q.send(job); else await runIdeaJob(env, job);
+  return { id, state: await ideaState(env, id) };
+}
+/** Redo with a steer: the steer is one more seed message, so the draft is revised with it (no steer = a plain redo). */
+export async function steerIdea(env, id, note, who) {
+  await ensureIdeaTables(env);
+  const row = await getRow(env, id);
+  if (!row) throw plainErr('That draft is no longer stored.', 404);
+  const seed = [].concat(safeJson(row.seed_json, null) || []).filter(Boolean);
+  const steer = clip(note, 1000);
+  if (steer) seed.push({ ts: row.channel === APP ? `${Math.floor(Date.now() / 1000)}.000002` : `${(Date.now() / 1000).toFixed(6)}`, user: 'ULOCUSAPP', name: who || 'the team', text: steer });
+  await env.DB.prepare(`UPDATE idea_thread SET seed_json = ?2, status = 'queued', updated_at = datetime('now') WHERE id = ?1`).bind(id, JSON.stringify(seed)).run();
+  if (steer && row.channel !== APP) await say(env, row.channel, row.thread_ts, `Steer from Locus (${who || 'the team'}): ${steer}`).catch(() => {});
+  const job = { kind: steer ? 'draft' : 'redo', channel: row.channel, root: row.thread_ts, ts: row.reply_ts || row.thread_ts, user: null, text: steer, bot: null, seed };
+  if (env.IDEA_Q) await env.IDEA_Q.send(job); else await runIdeaJob(env, job);
+  return { ok: true, state: await ideaState(env, id) };
+}
+export { getRow as ideaRow };

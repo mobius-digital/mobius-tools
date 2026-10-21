@@ -16,7 +16,7 @@
    videos, search; about 5 quota units a brand pull, 100 a topic search, of 10,000 a day) and fall back to
    ScrapeCreators only while the key is not set. A carousel's or photo post's slides are read on the first open
    (POST /api/social/slides, one ScrapeCreators call), copied to R2 (social/t/<key>-<n>) and kept in social_post.media. */
-import { fetchSocialVideo, ideaFromLocus, ideaState, pushIdea, ideaRetry } from './ideas.js';
+import { fetchSocialVideo, startMake, ideaState, pushIdea, ideaRetry } from './ideas.js';
 import { clientScope } from './brandguard.js';
 
 let F = fetch;
@@ -25,7 +25,7 @@ const SC = 'https://api.scrapecreators.com';
 const SELF = 'https://mobius-account-health.mobius-digital.workers.dev';
 const HAIKU = 'claude-haiku-5-5';
 const DAY = 864e5;
-const PULL_EVERY = 20 * 3600e3;
+const PULL_EVERY = 4 * 3600e3;       // 2026-10-20: every 4 hours (Instagram and YouTube are free; the scraper pauses itself when low)
 const BREAKOUT = 3;
 const KEEP_DAYS = 120;
 const clip = (s, n) => { const t = String(s ?? '').replace(/\s+/g, ' ').trim(); return t.length > n ? `${t.slice(0, n - 1)}…` : t; };
@@ -761,7 +761,8 @@ export async function handleSocial(request, env, url, path, json, { isAdmin, ses
       const said = p.transcript ? `What they say in it: "${clip(p.transcript, 900)}"` : '';
       const note = [steer, clip(body.note, 500), said, stats ? `(${stats})` : ''].filter(Boolean).join(' ');
       const thumb = p.thumb ? `${SELF}/social-m/${p.thumb}` : p.thumb_src;
-      const r = await ideaFromLocus(env, { act: p.act_id, url: p.url, image: thumb, note, who, label: label.toLowerCase() });
+      /* 2026-10-20: Make runs in the app (make.js). The Slack thread is opt-in (body.slack); the draft comes back to Locus. */
+      const r = await startMake(env, { act: p.act_id, url: p.url, image: thumb, note: `${note} Make our version of this ${label.toLowerCase()}.`.trim(), who, exit: 'organic', source: 'social', slack: !!body.slack });
       await env.DB.prepare(`UPDATE social_post SET idea_id = ?2, saved = 1 WHERE id = ?1`).bind(p.id, r.id).run();
       return json({ ok: true, idea_id: r.id, state: await ideaState(env, r.id) });
     }

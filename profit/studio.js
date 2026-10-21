@@ -323,6 +323,7 @@ async function render({ tok, url, act, accounts, pick }) {
   if (S.lastAct !== act) { S.cur = null; S.products = null; S.lastAct = act; }
   await reload();
   /* Arriving from "Make iterations" on an ad: open that batch and plan it, so the only thing left is Make. */
+  if (window.STUDIO_BATCH) { S.openId = window.STUDIO_BATCH; window.STUDIO_BATCH = null; }   // ?open=studio&batch=<id> (the Make panel's Studio exit)
   if (S.openId) {
     const b = S.d.batches.find(x => x.id === S.openId); S.openId = null;
     if (b) { S.cur = b; S.err = ''; S.setupOpen = false; paint(); window.scrollTo(0, 0); if (!b.plan && S.autoPlan === b.id) { S.autoPlan = null; planAds(); } }
@@ -382,7 +383,7 @@ function paint() {
   };
   const spend = d.has_key ? `<span class="v2pill"${tip('What the image AI has cost for this brand since the 1st of the month: every ad made, redone, changed and fitted to 4:5.')}>This month $${(d.spent_month || 0).toFixed(2)}</span>` : '';
   main.innerHTML = `<div class="st">
-    ${head(`Studio: ${esc(d.account?.name || '')}`, leadLine(batches), `${spend}<button class="btn" id="stConn">Connections</button>`)}
+    ${head(`Studio: ${esc(d.account?.name || '')}`, leadLine(batches), `${spend}<button class="btn" id="stMake" title="Make our version of a link, a file or an idea, straight into Studio">Make</button><button class="btn" id="stConn">Connections</button>`)}
     ${d.has_key ? '' : keyCard()}
     <div class="st-layout">
       <div class="st-side">${V2card('Batches', '', `<div class="st-list">${batches.map(li).join('') || '<div class="st-empty"><b>No batches yet</b>Press New batch to read this week’s brief from Asana.</div>'}
@@ -420,7 +421,7 @@ function keyCard() {
     <p class="st-msg" id="stKeyMsg" style="margin-top:8px"></p>`, '', { cls: 'st-key' });
 }
 function wireTop() {
-  $('#stConn').onclick = connections;
+  $('#stConn').onclick = connections; const mk = $('#stMake'); if (mk) mk.onclick = () => window.LocusMake && window.LocusMake.open({ act: S.act, exit: 'studio' });
   const save = $('#stKeySave');
   if (save) save.onclick = async () => {
     const m = $('#stKeyMsg'); m.textContent = 'Checking the key with OpenAI…'; m.className = 'st-msg';
@@ -1769,6 +1770,8 @@ THE PRODUCT IN THIS AD: "${products[0].title}". Every line shows this exact prod
 }
 
 window.StudioTab = {
+  /* Make (2026-10-20): the Studio exit opens the batch it made on the next render. */
+  openBatch: id => { S.openId = id; S.autoPlan = null; },
   render,
   iterate,
   /* Creative > Library: "Dress with a product" on a person photo, and "Use as the ad" on a look. Both resolve when the window closes. */
