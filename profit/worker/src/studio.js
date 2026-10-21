@@ -27,7 +27,7 @@
 import { storagePrefix } from './brandids.js';
 
 const OA = 'https://api.openai.com/v1';
-const KINDS = new Set(['full', 'plate', 'final', 'square', 'ext', 'story']);
+const KINDS = new Set(['full', 'plate', 'final', 'square', 'ext', 'story', 'clean']);
 /* 2026-10-08 FEED + STORY. The ad is made at its real 4:5 size (the model takes 1024x1280 now), composed
    for the whole frame with everything off the edges. This replaced the square + AI-painted bands, which
    cut legs, frames and phone screens at the square's edge (Grunk Burgundy). One tall picture with the
@@ -189,12 +189,18 @@ async function imageCall(key, model, { prompt, images = [], size = '1024x1280', 
    like a real camera took it, never too-perfect AI. Graphic design is exempt. Memory: feedback-photoreal-not-perfect. */
 const PHOTO_REAL = 'Wherever the picture shows a real place, real people or the product in a scene, it must look PHOTOGRAPHED, not generated: a real camera or phone look with slight grain, a little softness and imperfect focus, natural uneven light, real clutter and imperfect framing. People are candid and imperfect: mid-motion or partly turned away, real skin texture, wrinkled clothes, never posed model smiles, never perfectly symmetrical faces; if a face would look fake, frame it out (back, hands, chest down, distance). No glossy CGI, no plastic skin, no over-clean colour. Flat graphic design parts (type, labels, shapes) stay clean.';
 const TYPE_RULES = 'TYPOGRAPHY like a top DTC brand\'s paid social, set by a senior designer: flat, crisp, well kerned letters on a clean grid; at most two typefaces; one clear headline; generous breathing room. NO bevels, glows, outlines, 3D text, metallic or gradient text, drop shadows, or glossy fake badges. Labels and callouts are simple flat shapes or plain text.';
+/* The brand kit (2026-10-21, Cole: "if you're going to use our foil, then use our foil ... and our actual logo"). With a
+   kit on, the model draws NO button and NO logo and leaves two bands empty; the browser then draws the brand's own button
+   and logo file on every ad (studio.js kitPass), so they are identical across a batch. */
+const KIT_SQUARE = 'Leave the top 10% and the bottom 14% of the square as background only: no words, badges or buttons there. Draw NO button, pill or shop-now label, and NO brand logo, wordmark or clover: the brand adds its own button and logo afterwards.';
+const KIT_FEED = 'Leave the band from 9% to 18% of the height and the band from 80% to 90% of the height as background only: no words, badges or buttons there. Draw NO button, pill or shop-now label, and NO brand logo, wordmark or clover: the brand adds its own button and logo afterwards.';
+const kitRule = spec => spec.kit ? (spec.square ? KIT_SQUARE : KIT_FEED) : '';
 function textLines(spec) {
   const lines = [];
   if (spec.headline) lines.push(`Headline: "${spec.headline}"`);
   if (spec.subline) lines.push(`Smaller line: "${spec.subline}"`);
   for (const c of spec.callouts || []) lines.push(`Callout (a small badge, label or pointer near the part of the product it describes): "${c}"`);
-  if (spec.cta) lines.push(`Button (a clean pill or label shape): "${spec.cta}"`);
+  if (spec.cta && !spec.kit) lines.push(`Button (a clean pill or label shape): "${spec.cta}"`);
   if (spec.art && spec.art.trim().split(/\s+/).length <= 3) lines.push(`Title art: "${spec.art}" as custom stylised lettering that is part of the scene itself`);
   return lines;
 }
@@ -213,6 +219,7 @@ function basePrompt(spec, brand) {
   return [
     `The attached photograph is the finished picture for a Meta feed ad for ${brand}. It is a real photo of the real product and it must stay exactly as shot: the same scene, product, people, light, colours, grain and framing. Do not restage, redraw, move, resize, recolour or add anything to the scene except what is asked below. The output is 4:5 portrait: keep the WHOLE photo, people and product uncropped; where the photo's shape differs, continue its own background naturally (same sky, ground, wall or studio backdrop), never stretch it.`,
     FEED_LAYOUT,
+    kitRule(spec),
     spec.look ? `Change only this on the photo: ${spec.look}` : '',
     lines.length ? `Add exactly this text, spelled exactly, and no other words:\n${lines.join('\n')}` : 'Add no text.',
     'Put the words in the photo\'s empty space (sky, wall, backdrop, a blank area), never over the product or a face, sized so every word fits completely.',
@@ -236,6 +243,7 @@ function adPrompt(spec, brand, k = 0, n = 1, counts = { prod: 0, inspo: 0 }) {
   return [
     `Create a finished, scroll-stopping Meta ad for ${brand}.`,
     spec.square ? SQUARE_LAYOUT : FEED_LAYOUT,
+    kitRule(spec),
     which,
     spec.exact ? 'THE PRODUCT IS ALREADY IN THE IMAGE, placed exactly where it must stay: a real photograph of the real product. Build the whole ad around it. Never redraw, move, resize, rotate, recolour, cover, crop or duplicate it. Give it a natural contact shadow and reflections that match the scene light, so it sits in the scene rather than on top of it.' : '',
     spec.dna && !spec.exact ? `THE PRODUCT, EXACTLY (its fingerprint; every point must be true in the ad, from any camera angle):\n${spec.dna}` : '',
@@ -394,7 +402,7 @@ async function saveAd(env, act, { bytes, spec, prompt, model, cost, check, paren
 function realPrompt(spec, brand, inspo = 0) {
   const names = (spec.products || []).map(p => p.title).filter(Boolean);
   const words = [spec.headline && `Headline "${spec.headline}"`, spec.subline && `smaller line "${spec.subline}"`,
-    ...(spec.callouts || []).map(c => `small label "${c}" next to the part it names`), spec.cta && `button "${spec.cta}"`].filter(Boolean);
+    ...(spec.callouts || []).map(c => `small label "${c}" next to the part it names`), spec.cta && !spec.kit && `button "${spec.cta}"`].filter(Boolean);
   const type = (STYLES[spec.style] || STYLES.auto).replace(/\.$/, '');
   return [
     `Photoreal Instagram ad, ${spec.square ? 'square' : '4:5 portrait'}, for ${brand}. The product in this image${names.length ? ` (${names.join(', ')})` : ''} is a REAL product photo already placed where it belongs. Paint the whole scene around it. The product is FIXED: its position, size, angle and which way it faces stay exactly as placed; never move, resize, rotate, flip or mirror it. Compose the scene and the words around where it already is.`,
@@ -407,6 +415,7 @@ function realPrompt(spec, brand, inspo = 0) {
     spec.dna ? `If any part of the product continues past the photo (a shaft running on to the edge of the frame), draw that part to match these facts about the real product: ${spec.dna.replace(/\s+/g, ' ').slice(0, 900)}` : 'If any part of the product continues past the photo (a shaft running on to the edge of the frame), continue it in the same material and colour as the part just before the edge of the photo, not the colour of a band or ring at that edge.',
     inspo ? 'The last attached image is inspiration only for mood and colour; never copy its products, logos or words.' : '',
     words.length ? `Words on the ad, spelled exactly, and no other words: ${words.join('; ')}. Type: ${type}; crisp and flat, no glow or 3D. Every word between ${spec.square ? '5% and 95%' : '12% and 88%'} of the height from the top, in empty space, never touching the product.` : 'No words on the ad.',
+    kitRule(spec),
   ].filter(Boolean).join(' ');
 }
 async function emptyCheck(key, model, bytes, box) {
@@ -456,7 +465,7 @@ function cleanSpec(s = {}) {
     who: clip(s.who, 300), headline: clip(s.headline, 160), subline: clip(s.subline, 240), cta: clip(s.cta, 40),
     callouts: (Array.isArray(s.callouts) ? s.callouts : []).map(c => clip(String(c).trim(), 60)).filter(Boolean).slice(0, 6),
     art: clip(s.art, 40), look: clip(s.look, 1200), notes: clip(s.notes, 800), style: STYLES[s.style] ? s.style : 'auto',
-    ref_use: ['copy', 'vibe', 'own'].includes(s.ref_use) ? s.ref_use : '', note: clip(s.note, 300), dna: clip(s.dna, 3000), exact: !!s.exact, real: !!s.real,
+    ref_use: ['copy', 'vibe', 'own'].includes(s.ref_use) ? s.ref_use : '', note: clip(s.note, 300), dna: clip(s.dna, 3000), exact: !!s.exact, real: !!s.real, kit: !!s.kit,
     cut: s.cut && /^https?:\/\//.test(s.cut.url || '') ? { url: clip(s.cut.url, 1000), x: +s.cut.x || 0, y: +s.cut.y || 0, w: +s.cut.w || 0, h: +s.cut.h || 0 } : null,
   };
 }
@@ -641,7 +650,21 @@ export async function handleStaff(request, env, url, path, json, CORS) {
     const batches = act ? ((await env.DB.prepare(`SELECT * FROM p_studio_batch WHERE act_id = ?1 AND status != 'archived' ORDER BY updated_at DESC LIMIT 200`).bind(act).all()).results || []).map(shapeBatch) : [];
     /* Archived batches (2026-10-21): kept until someone restores them; nothing is archived or removed by a timer. */
     const archived = act ? ((await env.DB.prepare(`SELECT * FROM p_studio_batch WHERE act_id = ?1 AND status = 'archived' ORDER BY updated_at DESC LIMIT 100`).bind(act).all()).results || []).map(shapeBatch) : [];
-    return json({ has_key: !!key, has_media: !!env.MEDIA, account: acct, ads: rows.map(shape), batches, archived, canva: canvaState, spent_month: Math.round((spent + lookSpent) * 100) / 100, styles: Object.keys(STYLES), fonts: FONTS });
+    const kit = act ? safeJson(await cfgGet(env, `kit:${act}`), null) : null;
+    return json({ has_key: !!key, has_media: !!env.MEDIA, account: acct, ads: rows.map(shape), batches, archived, kit, canva: canvaState, spent_month: Math.round((spent + lookSpent) * 100) / 100, styles: Object.keys(STYLES), fonts: FONTS });
+  }
+  /* The brand kit: {on, logo, logo_tint auto|none, button {style foil|solid, colors[], text, radius, font, weight, track}}. */
+  if (path === '/api/studio/kit' && request.method === 'PUT') {
+    if (!act) return json({ error: 'act is required' }, 400);
+    const k = body.kit && typeof body.kit === 'object' ? body.kit : null;
+    if (!k) { await env.DB.prepare(`DELETE FROM p_studio_cfg WHERE key = ?1`).bind(`kit:${act}`).run(); return json({ ok: true, kit: null }); }
+    const hex = v => /^#[0-9a-f]{6}$/i.test(v || '') ? v : null;
+    const b = k.button || {};
+    const clean = { on: !!k.on, logo: /^(https:\/\/|\/)\S+$/i.test(k.logo || '') ? clip(k.logo, 500) : '', logo_tint: k.logo_tint === 'none' ? 'none' : 'auto',
+      button: { style: b.style === 'solid' ? 'solid' : 'foil', colors: (Array.isArray(b.colors) ? b.colors : []).map(hex).filter(Boolean).slice(0, 4), text: hex(b.text) || '#17140F',
+        radius: Math.max(0, Math.min(60, +b.radius || 8)), font: clip(b.font || 'Archivo Narrow', 60), weight: [500, 600, 700, 800].includes(+b.weight) ? +b.weight : 700, track: Math.max(0, Math.min(0.3, +b.track || 0.06)) } };
+    await env.DB.prepare(`INSERT INTO p_studio_cfg (key, value, updated_at) VALUES (?1, ?2, datetime('now')) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`).bind(`kit:${act}`, JSON.stringify(clean)).run();
+    return json({ ok: true, kit: clean });
   }
 
   if (path === '/api/studio/key' && request.method === 'POST') {
@@ -889,7 +912,7 @@ export async function handleStaff(request, env, url, path, json, CORS) {
     const old = safeJson(base.spec_json, {});
     return stream(CORS, async send => {
       const m = await models(key);
-      const src = (await env.MEDIA.get(await keyOf(env, base, 'square'))) || (await env.MEDIA.get(await keyOf(env, base, 'full')));
+      const src = (await env.MEDIA.get(await keyOf(env, base, 'square'))) || (await env.MEDIA.get(await keyOf(env, base, 'clean'))) || (await env.MEDIA.get(await keyOf(env, base, 'full')));
       const full = new Uint8Array(await src.arrayBuffer());
       const sz = pngSize(full);
       const pairs = [['headline', 'The headline'], ['subline', 'The smaller line'], ['cta', 'The button']]
@@ -911,7 +934,7 @@ export async function handleStaff(request, env, url, path, json, CORS) {
     if (!row || !ask) return json({ error: 'id and an instruction are required' }, 400);
     return stream(CORS, async send => {
       const m = await models(key);
-      const src = (await env.MEDIA.get(await keyOf(env, row, 'square'))) || (await env.MEDIA.get(await keyOf(env, row, 'full')));
+      const src = (await env.MEDIA.get(await keyOf(env, row, 'square'))) || (await env.MEDIA.get(await keyOf(env, row, 'clean'))) || (await env.MEDIA.get(await keyOf(env, row, 'full')));
       const full = new Uint8Array(await src.arrayBuffer());
       const sz = pngSize(full);
       const prompt = `This is a finished ad. Make only this change: ${ask}\nKeep everything else exactly as it is: the product and its logos, the scene, the colours, and all other words in the same lettering. Keep every word inside the frame with a small margin. Spell every word exactly.`;
@@ -1005,7 +1028,7 @@ export async function handleStaff(request, env, url, path, json, CORS) {
     if (!row) return json({ error: 'ad not found' }, 404);
     return stream(CORS, async send => {
       const m = await models(key);
-      const src = await env.MEDIA.get(await keyOf(env, row, 'full'));
+      const src = (await env.MEDIA.get(await keyOf(env, row, 'clean'))) || await env.MEDIA.get(await keyOf(env, row, 'full'));
       const spec = safeJson(row.spec_json, {});
       const prompt = `This is a finished 4:5 feed ad. Make the 9:16 version of it for Stories and Reels: the same scene, the same product exactly as shown, the same headline and smaller line spelled exactly, the same lettering style and colours. LEAVE OUT any button or shop-now label: Stories and Reels add their own button. Extend the scene naturally above and below so it fills the tall frame, and move the words and button so they follow these rules.\n\n${STORY_LAYOUT}\n\nAdd nothing new: no extra words, logos or products.`;
       send({ type: 'status', text: 'Making the 9:16 version. About 40 seconds.' });
@@ -1026,6 +1049,19 @@ export async function handleStaff(request, env, url, path, json, CORS) {
     if (body.check && typeof body.check === 'object') {
       const ck = { ...(safeJson(row.check_json, {}) || {}), fit: { score: +body.check.score || 0, tries: +body.check.tries || 1, ok: !!body.check.ok, kind: body.kind === 'story' ? 'story' : 'feed' } };
       await env.DB.prepare(`UPDATE p_studio_ad SET check_json = ?2 WHERE id = ?1`).bind(row.id, JSON.stringify(ck)).run();
+    }
+    /* The brand kit was drawn on (kitPass): keep the picture from before it as 'clean', so Change and Vary start from
+       an ad without our button and logo, and mark the ad so the kit is never drawn twice. */
+    if (body.kit) {
+      const was = await env.MEDIA.get(await keyOf(env, row, 'full'));
+      if (was) await env.MEDIA.put(await keyOf(env, row, 'clean'), await was.arrayBuffer(), { httpMetadata: { contentType: 'image/png' } });
+      const ck = { ...(safeJson(row.check_json, {}) || {}), kit: true };
+      await env.DB.prepare(`UPDATE p_studio_ad SET check_json = ?2 WHERE id = ?1`).bind(row.id, JSON.stringify(ck)).run();
+      const bytes = unb64(String(body.png).replace(/^data:image\/png;base64,/, ''));
+      const { w, h } = pngSize(bytes);
+      await env.MEDIA.put(await keyOf(env, row, 'full'), bytes, { httpMetadata: { contentType: 'image/png' } });
+      await env.DB.prepare(`UPDATE p_studio_ad SET full_w = ?2, full_h = ?3, updated_at = datetime('now') WHERE id = ?1`).bind(row.id, w, h).run();
+      return json({ ok: true, ad: shape(await getAd(env, row.id)) });
     }
     if (body.kind === 'story') {
       await env.MEDIA.put(await keyOf(env, row, 'story'), unb64(String(body.png).replace(/^data:image\/png;base64,/, '')), { httpMetadata: { contentType: 'image/png' } });

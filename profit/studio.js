@@ -1725,7 +1725,63 @@ async function cropFeed(ad) {
   const i = S.d.ads.findIndex(a => a.id === ad.id); if (i >= 0) S.d.ads[i] = fin.ad; else S.d.ads.unshift(fin.ad);
   return fin.ad;
 }
-async function extend(ad) {
+/* The brand kit (2026-10-21, Cole: "if you're going to use our foil, then use our foil", "put our actual logo there").
+   An ad made with the kit on has empty bands (the worker's kitRule); this draws the brand's own button and logo file into
+   them, identical on every ad, and finalizes with kit:true (the worker keeps the picture before it as 'clean'). */
+let KIT_FONT = null;
+const kitFont = k => KIT_FONT || (KIT_FONT = (async () => {
+  const fam = k.button?.font || 'Archivo Narrow';
+  if (!document.querySelector('link[data-kitfont]')) {
+    const l = document.createElement('link'); l.rel = 'stylesheet'; l.dataset.kitfont = '1';
+    l.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(fam).replace(/%20/g, '+')}:wght@600;700&display=swap`;
+    document.head.appendChild(l); await new Promise(r => { l.onload = r; l.onerror = r; setTimeout(r, 4000); });
+  }
+  await document.fonts.load(`${k.button?.weight || 700} 40px "${fam}"`).catch(() => {});
+})());
+function kitLum(x, bx, by, bw, bh) {
+  const d = x.getImageData(Math.max(0, bx | 0), Math.max(0, by | 0), Math.max(1, bw | 0), Math.max(1, bh | 0)).data;
+  let t = 0, n = 0; for (let i = 0; i < d.length; i += 16) { t += 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]; n++; }
+  return n ? t / n / 255 : 0;
+}
+function kitButton(x, W, H, k, text) {
+  const bt = k.button || {}, fam = bt.font || 'Archivo Narrow', h = 72, r = Math.min(h / 2, +bt.radius || 8);
+  x.save(); x.font = `${bt.weight || 700} 30px "${fam}", Arial Narrow, sans-serif`;
+  if ('letterSpacing' in x) x.letterSpacing = `${Math.round((+bt.track || 0.06) * 30 * 10) / 10}px`;
+  const label = String(text || 'Shop now').toUpperCase(), tw = x.measureText(label).width;
+  const w = Math.min(W * 0.72, Math.max(300, tw + 104)), bx = (W - w) / 2, by = H * 0.885 - h;
+  const cs = (bt.colors || []).length ? bt.colors : ['#C29A2B', '#EDD27C', '#C29A2B'];
+  let fill = cs[0];
+  if (bt.style !== 'solid' && cs.length > 1) { fill = x.createLinearGradient(bx, by, bx + w, by + h * 0.6); cs.forEach((c, i) => fill.addColorStop(i / (cs.length - 1), c)); }
+  x.shadowColor = 'rgba(0,0,0,.28)'; x.shadowBlur = 14; x.shadowOffsetY = 4;
+  x.beginPath(); x.roundRect ? x.roundRect(bx, by, w, h, r) : x.rect(bx, by, w, h); x.fillStyle = fill; x.fill();
+  x.shadowColor = 'transparent'; x.fillStyle = bt.text || '#17140F'; x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.fillText(label, W / 2, by + h / 2 + 1); x.restore();
+}
+async function kitLogo(x, W, H, k) {
+  if (!k.logo) return;
+  const lg = await loadImg(k.logo);
+  const lh = H * 0.045, lw0 = lg.naturalWidth && lg.naturalHeight ? lh * lg.naturalWidth / lg.naturalHeight : lh * 3;
+  const lw = Math.min(W * 0.4, lw0), h = lw * lh / lw0, lx = (W - lw) / 2, ly = H * 0.115;
+  const c = document.createElement('canvas'); c.width = Math.ceil(lw * 2); c.height = Math.ceil(h * 2);
+  const cx = c.getContext('2d'); cx.drawImage(lg, 0, 0, c.width, c.height);
+  if (k.logo_tint !== 'none') { cx.globalCompositeOperation = 'source-in'; cx.fillStyle = kitLum(x, lx, ly, lw, h) > 0.6 ? '#17140F' : '#FFFFFF'; cx.fillRect(0, 0, c.width, c.height); }
+  x.drawImage(c, lx, ly, lw, h);
+}
+async function kitPass(ad) {
+  const k = S.d?.kit;
+  if (!ad || !k?.on || !ad.spec?.kit || ad.check?.kit) return ad;
+  await kitFont(k);
+  const src = await loadImg(img(ad, 'full')), W = src.naturalWidth, H = src.naturalHeight;
+  const out = document.createElement('canvas'); out.width = W; out.height = H;
+  const x = out.getContext('2d'); x.drawImage(src, 0, 0);
+  await kitLogo(x, W, H, k).catch(() => {});
+  kitButton(x, W, H, k, ad.spec.cta);
+  const fin = await post('/api/studio/finalize', { id: ad.id, png: out.toDataURL('image/png'), kit: true });
+  const i = S.d.ads.findIndex(a => a.id === ad.id); if (i >= 0) S.d.ads[i] = fin.ad; else S.d.ads.unshift(fin.ad);
+  return fin.ad;
+}
+const extend = async ad => kitPass(await extendFit(ad));
+async function extendFit(ad) {
   if (!ad) return ad;
   if (ad.full_h > ad.full_w * 1.3) return cropFeed(ad);
   if (ad.full_w !== ad.full_h) return ad;
@@ -1779,7 +1835,7 @@ function specOf(b, a) {
   const fa = su.from_ad?.fresh && su.from_ad.image && !a.photo_url ? su.from_ad.image : '';
   return { products: prods.map(p => ({ title: p.title, handle: p.handle })), images, inspo: fa ? [fa] : ref, ref_use: fa ? 'own' : a.ref_use, base: a.photo_url || '',
     headline: a.headline, subline: a.subline, callouts: a.callouts || [], cta: a.cta, art: a.art || '', look: a.look, style: a.style || 'auto', note: a.note,
-    who: b.brief.why || '', dna: prods.map(p => p.dna ? `${p.title}:\n${p.dna}` : '').filter(Boolean).join('\n\n') };
+    kit: !!S.d?.kit?.on, who: b.brief.why || '', dna: prods.map(p => p.dna ? `${p.title}:\n${p.dna}` : '').filter(Boolean).join('\n\n') };
 }
 async function makeBatch() {
   const b = S.cur, plan = b.plan;
