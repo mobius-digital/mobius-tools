@@ -29,6 +29,10 @@
   function css() {
     if (document.getElementById('mkcss')) return;
     document.head.insertAdjacentHTML('beforeend', `<style id="mkcss">
+      .mk-wrap .mk-m{width:min(600px,calc(100vw - 32px));max-width:600px;max-height:min(86vh,820px);display:flex;flex-direction:column;padding:0;overflow:hidden}
+      .mk-m .mk-hd{display:flex;align-items:center;gap:10px;padding:16px 20px 12px;border-bottom:1px solid var(--line)} .mk-m .mk-hd h3{margin:0;font-size:16px;font-weight:600;flex:1;min-width:0}
+      .mk-m .mk-x{background:none;border:0;color:var(--muted);font-size:20px;line-height:1;cursor:pointer;padding:4px 6px;border-radius:6px;min-height:0} .mk-m .mk-x:hover{color:var(--ink);background:var(--surface-2)}
+      .mk-m .mk-bd{padding:16px 20px 20px;overflow:auto}
       .mk{font-size:13px;color:var(--ink)} .mk p{margin:0 0 8px;color:var(--muted);line-height:1.45} .mk h4{margin:14px 0 6px;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
       .mk .bk{background:none;border:0;color:var(--muted);cursor:pointer;padding:0;margin:0 0 10px;font-size:13px} .mk .bk:hover{color:var(--ink)}
       .mk input[type=text],.mk input[type=url],.mk textarea{width:100%;box-sizing:border-box;border:1px solid var(--line);background:var(--surface-2,var(--surface));color:var(--ink);border-radius:8px;padding:9px 11px;font:inherit;font-size:13px}
@@ -65,7 +69,20 @@
     OPEN = M;
     const host = () => {
       if (M.mount) return M.mount;
-      if (!M.body || !M.body.isConnected) { if (U()) { U().panel.wide = !PHONE(); M.body = U().panel(M.title, '<div class="mk"></div>'); } else { toast('The panel helper is missing.'); return null; } }
+      /* Locus's standard pop-up (2026-10-21, Cole: the full-height sheet "doesn't look like our standard pop-up"): the
+         .modal-wrap / .modal every confirm uses, sized to what is in it, one title, a close cross. */
+      if (!M.body || !M.body.isConnected) {
+        document.querySelectorAll('.modal-wrap.mk-wrap').forEach(x => x.remove());
+        const w = document.createElement('div'); w.className = 'modal-wrap mk-wrap';
+        w.innerHTML = `<div class="modal mk-m" role="dialog" aria-label="${esc(M.title)}"><div class="mk-hd"><h3>${esc(M.title)}${M.post ? '' : `: ${esc(nameOf(act))}`}</h3><button type="button" class="mk-x" aria-label="Close">&#215;</button></div><div class="mk-bd"><div class="mk"></div></div></div>`;
+        document.body.appendChild(w);
+        const shut = () => { w.remove(); document.removeEventListener('keydown', key); clearTimeout(poll); if (OPEN === M) OPEN = null; };
+        const key = e => { if (e.key === 'Escape') shut(); };
+        document.addEventListener('keydown', key);
+        w.addEventListener('mousedown', e => { if (e.target === w) shut(); });
+        w.querySelector('.mk-x').onclick = shut;
+        M.shut = shut; M.body = w.querySelector('.mk-bd');
+      }
       return M.body;
     };
     const paint = html => { const h = host(); if (!h) return null; const box = h.querySelector('.mk') || h; if (box === h) { h.innerHTML = `<div class="mk">${html}</div>`; return h.querySelector('.mk'); } box.innerHTML = html; if (h.scrollTop !== undefined) h.scrollTop = 0; return box; };
@@ -75,7 +92,7 @@
     /* ---- step 1: what to make it from ---- */
     const form = () => {
       const ref = M.url || M.file || M.image;
-      const el = paint(`${backBtn}<h3 style="margin:0 0 6px;font-size:16px">${esc(M.title)}${M.post ? '' : `: ${esc(nameOf(act))}`}</h3>
+      const el = paint(`${backBtn}${M.mount ? `<h3 style="margin:0 0 6px;font-size:16px">${esc(M.title)}${M.post ? '' : `: ${esc(nameOf(act))}`}</h3>` : ''}
         <p>Claude reads the reference, breaks down why it works and writes ${esc(nameOf(act))}'s version: hook, shots, on-screen text, caption. About 20 to 30 cents.</p>
         ${ref ? `<div class="ref"><span class="th" ${M.image ? `style="background-image:url('${esc(M.image)}')"` : ''}></span><div class="t"><b>${esc(M.file ? M.file.name : M.url ? 'Link' : 'Picture')}</b><small>${esc(M.url || (M.file ? `${M.file.kind}, ${Math.round((M.file.size || 0) / 1048576 * 10) / 10} MB` : ''))}</small></div>${M.post ? '' : '<button type="button" data-clear aria-label="Remove">&#215;</button>'}</div>` : `
         <label class="fld"><span>A link</span><input type="url" id="mkUrl" placeholder="TikTok, Instagram, YouTube, Atria or Meta Ad Library link" value="${esc(M.url)}"></label>
@@ -85,7 +102,7 @@
           <label class="${M.mode !== 'recreate' ? 'on' : ''}"><input type="radio" name="mkMode" value="remix" ${M.mode !== 'recreate' ? 'checked' : ''}><b>Our own take</b><small>Keep the idea, change how it is told</small></label>
           <label class="${M.mode === 'recreate' ? 'on' : ''}"><input type="radio" name="mkMode" value="recreate" ${M.mode === 'recreate' ? 'checked' : ''}><b>Recreate it</b><small>Same hook shape, beats and pacing; only product and words change</small></label></div>` : ''}
         <div class="sw"><button type="button" class="v2sw ${M.slack ? 'on' : ''}" id="mkSlack" role="switch" aria-checked="${M.slack}" aria-label="Also post in Slack"><i></i></button><span>Also post it in the brand's Slack channel</span></div>
-        <div class="row"><button type="button" class="btn pri" id="mkGo">${ic('sparkles')} Make it</button><span class="err" id="mkErr"></span></div>`);
+        <div class="row"><button type="button" class="btn pri" id="mkGo">Make it</button><span class="err" id="mkErr"></span></div>`);
       if (!el) return;
       wireBack(el);
       const clr = el.querySelector('[data-clear]'); if (clr) clr.onclick = () => { M.url = ''; M.file = null; M.image = null; form(); };
@@ -121,7 +138,7 @@
           const r = await api('/api/make', { method: 'POST', body: JSON.stringify({ act, url: url || undefined, text: (url || M.file || M.image) ? undefined : text, file: M.file || undefined, image: M.image || undefined, note, exit: M.exit || undefined, post: M.post || undefined, slack: M.slack }) });
           M.id = r.id; if (M.onDone) M.onDone({ started: r.id });
           show(r.state, 0);
-        } catch (e) { err.textContent = e.message; g.disabled = false; g.innerHTML = `${ic('sparkles')} Make it`; }
+        } catch (e) { err.textContent = e.message; g.disabled = false; g.textContent = 'Make it'; }
       };
     };
 
@@ -192,7 +209,7 @@
     const openStudio = id => {
       clearTimeout(poll);
       if (window.StudioTab && window.StudioTab.openBatch) window.StudioTab.openBatch(id);
-      const c = document.querySelector('#v2panel .pclose'); if (c && !M.mount) c.click();
+      if (!M.mount && M.shut) M.shut();
       if (M.back && M.mount) M.back.fn();
       if (window.show) { if (window.S && window.S.act !== act) { const sel = document.getElementById('clientPick'); if (sel) sel.value = act; window.S.act = act; } window.show('studio'); }
     };

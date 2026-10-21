@@ -88,6 +88,14 @@
       .sw .sw-tray .hd{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line)}
       .sw .sw-tray .hd b{font-size:13px;font-weight:650} .sw .sw-tray .hd small{color:var(--muted);font-size:12px}
       .sw .sw-tray .hd .sp{flex:1}
+      .sw .sw-tray{z-index:6} .sw .sw-tray .hd .hd-per-menu{left:auto;right:0;z-index:30}
+      .sw .sw-tray .why{margin:0;padding:8px 12px;font-size:12px;line-height:1.45;color:var(--muted);border-bottom:1px solid var(--line)}
+      .sw-pv{display:grid;gap:12px} .sw-pv .md{border-radius:10px;overflow:hidden;background:#000;display:flex;justify-content:center;max-height:62vh}
+      .sw-pv .md video,.sw-pv .md img{max-width:100%;max-height:62vh;display:block;object-fit:contain} .sw-pv .md.pic{background:var(--surface-2)}
+      .sw-pv .strip{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory} .sw-pv .strip img{height:min(52vh,420px);border-radius:8px;scroll-snap-align:start;flex:none}
+      .sw-pv .meta{font-size:12.5px;color:var(--muted)} .sw-pv .cap{white-space:pre-wrap;font-size:13px;line-height:1.5;color:var(--ink-2);background:var(--surface-2);border-radius:8px;padding:10px 12px;max-height:180px;overflow:auto}
+      .sw-pv .note{font-size:12.5px;color:var(--ink-2);background:var(--warn-bg);border-radius:8px;padding:8px 10px}
+      .sw-pv .acts{display:flex;gap:8px;flex-wrap:wrap}
       .sw-sel{position:relative;display:inline-block}
       .sw-sel select{appearance:none;-webkit-appearance:none;height:30px;padding:0 26px 0 9px;border:1px solid var(--line-strong);border-radius:7px;background:var(--surface);color:var(--ink);font:inherit;font-size:12.5px;font-weight:500;cursor:pointer;max-width:200px;text-overflow:ellipsis}
       .sw-sel select:focus-visible{outline:2px solid var(--brand);outline-offset:1px}
@@ -342,7 +350,7 @@
     const opts = [['unused', 'Not used yet'], ['all', 'Everything'], ...Object.entries(SRC)].filter(([f]) => f === 'unused' || f === 'all' || counts[f]).map(([f, l]) => `<option value="${f}" ${ST.tf === f ? 'selected' : ''}>${l} (${counts[f]})</option>`).join('');
     /* A tray row (2026-10-21): the picture, what it is in words, where it came from, and its state, so nobody has to
        hover a thumbnail to know what it is. Grouped by what to do next: film it, post it, already on the week. */
-    const item = it => `<button type="button" class="sw-ti ${it.used ? 'used' : ''}" draggable="${inSheet ? 'false' : 'true'}" data-ref="${esc(it.ref)}" ${U() ? U().tipAttr(esc(it.kind === 'text' ? 'A script with no clip yet: film it, upload it, then drag it on.' : 'Drag onto an hour, or click to post it at the next free hour.')) : ''}>
+    const item = it => `<button type="button" class="sw-ti ${it.used ? 'used' : ''}" draggable="${inSheet ? 'false' : 'true'}" data-ref="${esc(it.ref)}" ${U() ? U().tipAttr(esc(it.kind === 'text' ? 'A script with no clip yet: film it, upload it, then drag it on.' : 'Click to see it, or drag it onto an hour.')) : ''}>
       <span class="th" ${it.thumb ? `style="background-image:url('${esc(it.thumb)}')"` : ''}>${it.thumb ? '' : it.kind === 'text' ? ic('pencil') : ic('image')}${it.kind === 'video' ? '<i class="kd">&#9654;</i>' : it.cards ? `<i class="kd">${it.cards.length}</i>` : ''}</span>
       <span class="tx"><b>${esc(it.title || 'Untitled')}</b><small>${ic(SRC_IC[it.src] || 'image')}${esc([SRC[it.src] || it.src, it.who || it.sub || ''].filter(Boolean).join(' · '))}</small></span>
       <span class="chip ${it.used ? 'u' : it.kind === 'text' ? 'f' : 'r'}">${it.used ? 'On the week' : it.kind === 'text' ? 'To film' : 'Ready'}</span></button>`;
@@ -350,6 +358,7 @@
     const PM = window.PillMenu;
     const pm = PM ? PM.html('swTf', 'Show', [['unused', 'Unused', `${counts.unused} not on the week yet`], ['all', 'All', `${counts.all} ready`], ...Object.entries(SRC).filter(([f]) => counts[f]).map(([f, l]) => [f, l, `${counts[f]}`])], ST.tf) : `<span class="sw-sel"><select data-tf aria-label="Show">${opts}</select></span>`;
     return `<div class="hd"><b>Ready</b><small>${list.length}</small><span class="sp"></span>${pm}</div>
+      <p class="why">Things we already have that could go out as a post: approved Studio ads, creator clips, our best Meta ads, our own versions from Social, uploads and posts we're tagged in. Click one to see it.</p>
       <div class="sw-tl">${list.length ? groups.map(([g, l]) => `<div class="gh">${esc(g)}<small>${l.length}</small></div>${l.map(item).join('')}`).join('') : `<div class="empty">${items.length ? 'Nothing here with this filter.' : 'Nothing ready yet. Make our version of a post on Social, approve a Studio final, add a creator clip, or upload a file.'}</div>`}</div>
       <div class="ft"><button type="button" class="sw-btn sm q" data-upload="1">${ic('plus')} Upload a photo or video</button><input type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime" hidden data-file="1"></div>`;
   }
@@ -359,7 +368,7 @@
     const none = !Object.values(accs).some(a => a.on);
     const list = PHONE() || ST.view === 'list';
     $('#main').innerHTML = `<div class="v2 sw">${head}
-      <div class="sw-top"><span class="sw-nav"><button type="button" data-nav="-1" aria-label="Previous week">&#8249;</button><button type="button" data-nav="0">This week</button><button type="button" data-nav="1" aria-label="Next week">&#8250;</button></span>
+      <div class="sw-top"><span class="sw-nav"><button type="button" data-nav="-1" aria-label="Previous week">&#8249;</button><button type="button" data-nav="0" ${d.days[0] === monday(d.today) ? 'aria-current="true" disabled style="opacity:.6;cursor:default"' : ''}>${d.days[0] === monday(d.today) ? 'This week' : 'Back to this week'}</button><button type="button" data-nav="1" aria-label="Next week">&#8250;</button></span>
         <span class="sw-range">${md(d.days[0])} to ${md(d.days[6])}<small>${esc(d.tz.replace(/_/g, ' '))}</small></span>
         ${d.target != null ? `<span class="sw-plan ${(d.planned || 0) >= d.target ? 'ok' : ''}" ${U() ? U().tipAttr(`${d.planned || 0} scheduled or posted this week, against the brand's target of ${d.target} (Brand settings > Social)`) : ''}>${d.planned || 0} of ${d.target} planned</span>` : ''}
         <span class="sw-seg" role="tablist"><button type="button" role="tab" data-sv="week" class="${ST.view === 'week' ? 'on' : ''}">Week</button><button type="button" role="tab" data-sv="list" class="${ST.view === 'list' ? 'on' : ''}">List</button><button type="button" role="tab" data-sv="preview" class="${ST.view === 'preview' ? 'on' : ''}" ${U() ? U().tipAttr('How the Instagram grid will look with what is scheduled') : ''}>Preview</button></span>
@@ -436,11 +445,27 @@
     const pm = root.querySelector('#swTf'); if (pm && window.PillMenu) window.PillMenu.wire(pm, v => { ST.tf = v; store('sw_tf', ST.tf); root.innerHTML = trayHtml(ST.tray, inSheet); wireTray(root, inSheet); });
     root.querySelectorAll('.sw-ti').forEach(b => {
       const it = ST.tray.find(x => x.ref === b.dataset.ref);
-      b.onclick = () => { if (inSheet) { const c = document.querySelector('#v2panel .pclose'); if (c) c.click(); if (window.LxPhone) window.LxPhone.close(); } composer(null, { at: nextSlot(), items: [it] }); };
+      b.onclick = () => { if (inSheet && window.LxPhone) window.LxPhone.close(); trayPreview(it); };
       b.ondragstart = e => { e.dataTransfer.setData('text/plain', it.ref); e.dataTransfer.effectAllowed = 'copy'; };
     });
     const up = root.querySelector('[data-upload]'), fi = root.querySelector('[data-file]');
     if (up && fi) { up.onclick = () => fi.click(); fi.onchange = async () => { const f = fi.files[0]; if (!f) return; up.disabled = true; up.textContent = 'Uploading…'; try { const it = await upload(f); ST.tray.unshift(it); root.innerHTML = trayHtml(ST.tray, inSheet); wireTray(root, inSheet); toast('In the tray. Drag it onto the week.'); } catch (e) { toast(e.message); up.disabled = false; up.innerHTML = `${ic('plus')} Upload a photo or video`; } }; }
+  }
+  /* A tray item, seen before it goes anywhere (2026-10-21, Cole: "if I click into it I just can't see what the video is"):
+     the video plays, a picture or carousel shows whole, the words it came with, then one button that puts it on the week. */
+  function trayPreview(it) {
+    const isAd = it.src === 'ad', vid = it.kind === 'video' && it.file;
+    const media = it.cards ? `<div class="strip">${it.cards.map(c => `<img src="${esc(c.thumb || c.src || '')}" alt="">`).join('')}</div>`
+      : vid ? `<div class="md"><video src="${esc(it.file)}" ${it.thumb ? `poster="${esc(it.thumb)}"` : ''} controls autoplay playsinline></video></div>`
+      : it.kind === 'text' ? '' : `<div class="md pic"><img src="${esc(it.file || it.thumb || '')}" alt=""></div>`;
+    const body = U().panel(it.title || 'Ready to post', `<div class="sw-pv">${media}
+      <div class="meta">${esc([SRC[it.src] || it.src, it.who || it.sub || ''].filter(Boolean).join(' · '))}${it.used ? ' · already on the week' : ''}</div>
+      ${isAd ? '<p class="note">This is the cover picture of the ad: posting it posts the picture. To post the video, upload the video file to the tray.</p>' : ''}
+      ${it.kind === 'text' ? '<p class="note">A script with no film yet. Film it, upload the clip, and it moves up to Ready.</p>' : ''}
+      ${it.caption ? `<div class="cap">${esc(it.caption)}</div>` : ''}
+      <div class="acts">${it.kind === 'text' ? '' : `<button type="button" class="sw-btn pri" data-pv="post">${ic('plus')} Put it on the week</button>`}${isAd ? '<button type="button" class="sw-btn" data-pv="ad">Play the ad</button>' : ''}</div></div>`);
+    const go = body.querySelector('[data-pv="post"]'); if (go) go.onclick = () => composer(null, { at: nextSlot(), items: [it] });
+    const pa = body.querySelector('[data-pv="ad"]'); if (pa) pa.onclick = () => { if (window.V2 && window.V2.playAd) window.V2.playAd({ id: it.ref.replace(/^ad:/, ''), name: it.title, act: ST.act }, H); };
   }
   function traySheet() {
     const html = `<div class="sw sw-sheet-tray"><div class="sw-tray" style="display:flex;position:static;max-height:none;border:0">${trayHtml(ST.tray, true)}</div></div>`;

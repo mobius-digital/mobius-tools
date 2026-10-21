@@ -2500,10 +2500,17 @@
     if (r.reason === 'not_connected') { host.innerHTML = ('<p class="v2hint"><b>Atria is not connected.</b> Cole connects it once for the whole team: Studio > Connections > Connect Atria.</p>'); return; }
     if (r.error) { host.innerHTML = /402|credit/i.test(r.error) ? ('<p class="v2hint"><b>Atria is out of credits.</b> Atria charges a credit per board read and the account has run out. Top up in Atria (Settings > Billing) and this fills itself.</p>') : `<p class="v2bad">Atria did not answer: ${esc(r.error)}</p>`; return; }
     const ads = r.ads || [];
-    host.innerHTML = ads.length ? `<div class="v2gal">${ads.map((x, i) => `<div class="g"><div class="th"${x.img ? ` style="background-image:url('${esc(x.img)}')"` : ''}>${x.days != null ? `<span class="v2pill ${x.days >= 60 ? 'good' : ''}"${tipAttr(x.days >= 60 ? 'Running 60+ days: the advertiser is likely making money on it.' : 'Still young: no signal yet.')}>${x.days} days</span>` : ''}<em>${esc(x.format || '')}</em></div>
+    host.innerHTML = ads.length ? `<div class="v2gal">${ads.map((x, i) => `<div class="g"><div class="th"${x.img ? ` style="background-image:url('${esc(x.img)}')"` : ''}>${x.days != null ? `<span class="v2pill ${x.days >= 60 ? 'good' : ''}"${tipAttr(`How long the advertiser ran this ad in total, from Atria. ${x.days >= 60 ? 'Running 60+ days usually means it makes them money.' : 'A Black Friday or holiday ad only runs a few days, so a short run is normal for those; for an evergreen ad it is no signal yet.'}`)}>Ran ${x.days} day${x.days === 1 ? '' : 's'}</span>` : ''}<em>${esc(x.format || '')}</em></div>
       <div class="b"><b title="${esc(x.advertiser)}">${esc(x.advertiser || 'Unknown advertiser')}</b><span class="v2hint" style="font-size:12px">${esc((x.title || x.body || '').slice(0, 110))}</span>
-      <div class="v2links"><a class="v2link" href="${esc(x.url)}" target="_blank" rel="noopener">Open in Atria ↗</a><button type="button" class="v2link" data-like="${i}">Brief one like it</button></div></div></div>`).join('')}</div>`
+      <div class="v2links"><a class="v2link" href="${esc(x.url)}" target="_blank" rel="noopener">Open in Atria ↗</a><button type="button" class="v2link" data-like="${i}">Brief one like it</button>${H.S.role === 'client' ? '' : `<button type="button" class="v2link" data-unsave="${i}">Remove</button>`}</div></div></div>`).join('')}</div>`
       : '<p class="lx-empty">This board is empty. Save ads into it in Atria and they show here.</p>';
+    host.querySelectorAll('[data-unsave]').forEach(btn => btn.onclick = async () => {
+      const x = ads[+btn.dataset.unsave];
+      if (window.confirmModal && !(await window.confirmModal('Take this ad off the board?', `${x.advertiser || 'This ad'} leaves "${(boards.find(b => b.id === pick) || {}).name || 'this board'}". It stays saved in Atria.`, 'Remove'))) return;
+      btn.disabled = true; btn.textContent = 'Removing…';
+      try { await H.apiAH('/api/atria/board/remove', { method: 'POST', body: JSON.stringify({ board_id: pick, ad_id: x.ad_id }) }); btn.closest('.g').remove(); }
+      catch (e) { btn.disabled = false; btn.textContent = 'Remove'; if (typeof noteModal === 'function') noteModal('Atria did not take it off', `<p>${esc(e.message)}</p>`); }
+    });
     host.querySelectorAll('[data-like]').forEach(btn => btn.onclick = () => { const x = ads[+btn.dataset.like]; H.AskUI.ask(`For ${a.name}: draft an Asana brief that borrows the shape of this reference ad, not its brand. Advertiser ${x.advertiser}, ${x.format || 'ad'}, running ${x.days ?? '?'} days, ${x.url}. Say what to keep (the structure, the hook) and how it becomes ours.`); });
   }
   const INSPO = { get: k => { try { return localStorage.getItem('pf_inspo_' + k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem('pf_inspo_' + k, v); } catch {} } };
