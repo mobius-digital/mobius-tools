@@ -15,6 +15,7 @@
   --bad:#F09182; --bad-bg:rgba(240,145,130,.14); --bad-on:#F09182;
   --unk:#8E8E9A; --unk-bg:#26262C; --wash:transparent;
   --c-meta:#5B8DEF; --c-google:#B5761A; --c-tiktok:#27A392; --c-email:#8F72E8; --c-amazon:#E3653D; --c-else:#2F93C2;
+  /* the money palette (2026-10-20): one hue per money category, the same on every river, waterfall and legend */ --m-kept:#5B8CFF; --m-ads:#E0A83A; --m-product:#A07CF0; --m-ship:#2FB3A3; --m-handling:#7D8BB0; --m-fees:#E0699B; --m-other:#7A7A88;
   /* review mark-up colours: drawn ON the ad, so vivid in both themes (2026-10-14, Cole: "so bland") */
   --ann-red:#FF453A; --ann-yellow:#FFD60A; --ann-blue:#0A84FF; --ann-green:#30D158; --ann-on:#FFFFFF; --ann-on-light:#141416;
   --v2-cmp:#6A6A76; --v2-grid:#26262D; --v2-tip-bg:#F2F2F4; --v2-tip-ink:#131316;
@@ -32,7 +33,7 @@
   --warn:#8F6412; --warn-bg:#F8EED6; --warn-on:#8F6412;
   --bad:#9C3A2E; --bad-bg:#F7E7E4; --bad-on:#9C3A2E;
   --unk:#6B6B78; --unk-bg:#ECECEF;
-  --c-meta:#3B6FD9; --c-google:#B87A14; --c-tiktok:#1E9C8C; --c-email:#7C5CE6; --c-amazon:#D95A33; --c-else:#2A86B3;
+  --c-meta:#3B6FD9; --c-google:#B87A14; --c-tiktok:#1E9C8C; --c-email:#7C5CE6; --c-amazon:#D95A33; --c-else:#2A86B3; --m-kept:#3B6DF2; --m-ads:#C28A14; --m-product:#7E55DB; --m-ship:#1A9A8A; --m-handling:#5F6E95; --m-fees:#C94E86; --m-other:#8A8A98;
   --v2-cmp:#A3A3AE; --v2-grid:#ECECF0; --v2-tip-bg:#151518; --v2-tip-ink:#FFFFFF;
   --rail-bg:#EDEDF0; --rail-ink:#2C2C33; --rail-muted:#8A8A96; --rail-hover:#E2E2E7; --rail-on:#DCE6FB; --rail-on-ink:#151518;
   color-scheme:light;
@@ -1835,7 +1836,8 @@ button.ds-chip.lx-chip svg{width:9px;height:6px;color:var(--muted)}
 [data-ui="v2"] .lx-bites{display:flex;height:14px;border-radius:var(--r-pill,999px);overflow:hidden;background:var(--surface-2);gap:2px}
 [data-ui="v2"] .lx-bites i{display:block;min-width:0}
 [data-ui="v2"] .lx-bites.ds-sk{height:14px}
-[data-ui="v2"] .b-kept{background:var(--brand)}[data-ui="v2"] .b-ads{background:var(--c-google)}[data-ui="v2"] .b-cogs{background:var(--c-amazon)}[data-ui="v2"] .b-ship{background:var(--c-tiktok)}[data-ui="v2"] .b-fees{background:var(--c-email)}[data-ui="v2"] .b-rest{background:transparent}
+/* the money palette (2026-10-20): --m-* tokens above, one hue per category, nothing grey, nothing red or green */
+[data-ui="v2"] .b-kept{background:var(--m-kept)}[data-ui="v2"] .b-ads{background:var(--m-ads)}[data-ui="v2"] .b-cogs{background:var(--m-product)}[data-ui="v2"] .b-ship{background:var(--m-ship)}[data-ui="v2"] .b-fees{background:var(--m-fees)}[data-ui="v2"] .b-rest{background:transparent}
 [data-ui="v2"] .lx-bites-l{display:flex;gap:6px 16px;flex-wrap:wrap;margin:8px 0 0;font-size:12.5px;color:var(--ink-2)}
 [data-ui="v2"] .lx-bites-l .sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin:0 6px 0 0;vertical-align:-1px}
 [data-ui="v2"] .lx-bites-l b{font-weight:600;color:var(--ink)}

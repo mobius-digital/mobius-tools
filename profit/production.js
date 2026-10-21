@@ -330,7 +330,7 @@ function dueOf(c) {
 function cardHtml(c) {
   const act = c.board === 'review' && c.versions ? `<button type="button" class="pd-act" data-review="${esc(c.id)}">Open review</button>`
     : c.board === 'ready' ? `<button type="button" class="pd-act" data-launch="${esc(c.id)}">Launch to Meta</button>` : '';
-  const img = c.thumb && (c.board === 'review' || c.board === 'ready' || c.board === 'live');
+  const img = !!c.thumb;   /* v4 (Cole): the picture shows on every stage that has one, not only after review */
   /* ONE status chip per card (2026-10-20): the thing that needs a person first; the upload count is a muted word on the date row */
   const status = c.needs_client ? `<span class="pd-pill w">Waiting on the client${c.needs_client === 'idea' ? ' (the idea)' : ''}</span>`
     : c.open_notes ? `<span class="pd-pill b">${plural(c.open_notes, 'open note')}</span>`
@@ -926,16 +926,16 @@ function archivedBox() {
   }).catch(e => { list.innerHTML = `<div class="pd-empty" style="color:var(--bad)">${esc(e.message || 'Could not load the archive.')}</div>`; });
 }
 
-function newBrief() {
+function newBrief(prefill = {}) {
   const brands = D.brands || [];
-  const act0 = D.act !== 'all' ? D.act : (BRAND !== 'all' ? BRAND : '');
+  const act0 = prefill.act || (D.act !== 'all' ? D.act : (BRAND !== 'all' ? BRAND : ''));
   const team = teamOf();
   const w = document.createElement('div'); w.className = 'pd-scrim';
   w.innerHTML = `<div class="pd-modal" role="dialog" aria-modal="true" aria-labelledby="pdNbT">
     <h3 id="pdNbT">New brief</h3>
     <p class="pd-hint">${D.mirror === false ? 'Goes to the Brief column with the next number.' : "Goes to the Brief column and the brand's Asana project with the next number."}</p>
     <label>Brand<select id="pdNbAct"><option value="">Pick the brand</option>${brands.map(b => `<option value="${esc(b.act_id)}"${b.act_id === act0 ? ' selected' : ''}>${esc(b.name)}</option>`).join('')}</select></label>
-    <label>Name<textarea id="pdNbText" maxlength="300" placeholder="Fall polo UGC hooks"></textarea><span class="pd-hint">Short, like a test title. The number goes in front.</span></label>
+    <label>Name<textarea id="pdNbText" maxlength="300" placeholder="Fall polo UGC hooks">${esc(prefill.text || '')}</textarea><span class="pd-hint">Short, like a test title. The number goes in front.</span></label>
     <div class="row"><label>Owner<select id="pdNbOwner"><option value="">Nobody yet</option>${team.map(n => `<option>${esc(n)}</option>`).join('')}</select></label>
       <label>Due<input type="date" id="pdNbDue"></label></div>
     <div class="err" id="pdNbErr" hidden></div>
@@ -977,6 +977,8 @@ async function render(host, first) {
   await load();
   if (t !== H.RUN()) return;
   paint();
+  /* v4 phase 6: the Ideas column (saved posts, call rows, leaks) in front of Brief, one brand at a time. */
+  if (window.V4 && window.V4.on && window.V4.ideasCol && D.act !== 'all') window.V4.ideasCol($('#main .pd-wrap'), H, D.act);
   if (!OPENED) {
     OPENED = true;
     const id = new URLSearchParams(location.search).get('card') || window.PD_CARD;
@@ -988,5 +990,5 @@ const leaving = () => { if (!$('#main .pd')) { const b = $('.pd-bulk'); if (b) b
 new MutationObserver(leaving).observe(document.body, { childList: true, subtree: false });
 document.addEventListener('click', e => { if ($('#main .pd') === null) leaving(); else if (!e.target.closest('#main')) { /* a click elsewhere keeps the selection */ } });
 
-window.ProductionTab = { render, mirrorCard: (el, h) => window.ProdSheet && window.ProdSheet.mirrorCard(el, h), move, launch, pickMenu, closeMenu };
+window.ProductionTab = { render, newBrief, mirrorCard: (el, h) => window.ProdSheet && window.ProdSheet.mirrorCard(el, h), move, launch, pickMenu, closeMenu };
 })();
