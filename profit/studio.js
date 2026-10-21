@@ -471,7 +471,7 @@ async function render({ tok, url, act, accounts, pick }) {
   if (window.STUDIO_BATCH) { S.openId = window.STUDIO_BATCH; window.STUDIO_BATCH = null; }   // ?open=studio&batch=<id> (the Make panel's Studio exit)
   if (S.openId) {
     const b = S.d.batches.find(x => x.id === S.openId); S.openId = null;
-    if (b) { S.cur = b; S.err = ''; paint(); window.scrollTo(0, 0); if (!b.plan && S.autoPlan === b.id) { S.autoPlan = null; planAds(); } }
+    if (b) { S.cur = b; S.err = ''; setView(b, pathState(b).now); paint(); window.scrollTo(0, 0); if (!b.plan && S.autoPlan === b.id) { S.autoPlan = null; planAds(); } }
   }
 }
 async function reload() {
@@ -589,7 +589,9 @@ function wireTop() {
 }
 function openBatch(id) {
   S.cur = id === 'loose' ? { id: 'loose' } : findB(id); S.err = '';
-  if (S.cur && S.view) delete S.view[S.cur.id];
+  /* The step on screen is fixed when the batch opens; only Back / Next / the stepper move it (picking a product used to
+     jump the page to Look before the photos could be ticked). */
+  if (S.cur && S.cur.id !== 'loose') setView(S.cur, pathState(S.cur).now);
   paint(); window.scrollTo(0, 0);
 }
 /* Connections (2026-10-05): the four connect buttons left the top of the page for one panel.
@@ -784,7 +786,7 @@ async function saveNew(list) {
     const r = await post('/api/studio/batch/save', { batch: { name: b.name, num: b.num || '', br_batch_id: b.br_batch_id || null, brief: { angle: b.angle || '', why: b.why || '', concept: b.concept || '', post_copy: b.post_copy || '', testing: b.testing || 'concepts', lines: (b.lines || []).map(l => ({ text: l.text || '', inspo: [] })) }, setup: { products: [], images: [], swipe: [] }, status: 'draft' } });
     first = first || r.batch;
   }
-  S.cur = first; await reload();
+  S.cur = first; if (first) setView(first, pathState(first).now); await reload();
 }
 
 /* ---------------- one batch: six steps, one on screen, one primary button ---------------- */
@@ -798,7 +800,8 @@ function batchView(b) {
   const top = `<section class="v2card st5-bc"><div class="st5-bh"><button type="button" class="st5-back" id="bBack">← All batches</button></div>
     <div class="st5-bh"><h2>${batchTitle(b)}</h2>${stage(st)}<span class="sp"></span>${bmenu}</div>${stepper}</section>`;
   const archStrip = arch ? (window.LxKit ? window.LxKit.strip({ tone: 'quiet', lead: 'Archived', text: 'This batch is off the list. Its ads are kept. Restore puts it back.' }) : '') + '<div class="st5-rs"><button type="button" class="btn" data-mrestore>Restore this batch</button></div>' : '';
-  const err = S.err ? `<p class="st-msg bad st5-err">${esc(S.err)}</p>` : '';
+  const nocred = /no credits|billing|quota|insufficient/i.test(S.err || '');
+  const err = S.err ? `<p class="st-msg bad st5-err">${nocred ? 'The image AI (OpenAI) account is out of credits, so nothing was made or charged. Add credits at platform.openai.com > Settings > Billing, then press Make again.' : esc(S.err)}</p>` : '';
   const panel = [briefStep, productStep, lookStep, makeStep, approveStep, launchStep][view](b, p);
   const busy = S.making && !S.makingAll ? `<div class="st5-busy"><span class="st-busy"><span class="st-spin"></span>${esc(S.making)}</span></div>` : '';
   return `${phead('Studio')}${S.d.has_key ? '' : keyCard()}${top}${archStrip}${err}${busy}${panel}${footBar(b, p, view)}<input type="file" id="bFile" accept="image/png,image/jpeg,image/webp" multiple hidden>`;
@@ -1735,8 +1738,8 @@ async function makeBatch() {
     const lane = async () => { while (next < total) { const i = next++; await one(i); } };
     await Promise.all([lane(), lane()]);
   }
-  b.status = 'made'; await saveCur();
-  S.making = ''; S.makingAll = false; S.prog = null; setView(b, 4); await reload();
+  if (done) { b.status = 'made'; await saveCur(); }
+  S.making = ''; S.makingAll = false; S.prog = null; if (done) setView(b, 4); await reload();
 }
 window.addEventListener('beforeunload', e => { if (S.making) { e.preventDefault(); e.returnValue = ''; } });
 /* Every ad button, wired inside root (the page, or the review panel). */

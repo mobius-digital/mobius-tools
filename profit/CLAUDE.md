@@ -4322,3 +4322,10 @@ Cole: "Studio looks like absolute shit. I still don't understand how things get 
   exit when the draft lands; the other three are "Also:" buttons and switch the view to that path. The Feed shows the
   same four as a guide card under This week (`sopHtml`, a `<details>` remembered in `soc_sop`). Checked on a stub
   harness (desktop, 390px light): every path's steps, the Brief path end to end. Shots `docs/locus-social/screens/2026-10-21-paths-*`.
+- **2026-10-21 (later), live run with two Takomo references (studio.js?v=38):** brief, product, look (Takomo pics dropped as
+  style ideas), plan all ran for real (batches "Putter shape choice, 3 concepts" and "Eclipse launch carousel", Lucky).
+  Make stopped at the first picture: OpenAI answered "You have no credits remaining" (Cole adds credits; Claude never
+  handles that account). Fixed from the run: the step on screen is set when a batch opens (picking a product used to jump
+  the page to Look before the second product could be added), a Make that made nothing stays on Make and does not mark
+  the batch 'made', and an out-of-credits answer reads in plain words. Studio has no real carousel format: a "carousel"
+  batch makes each slide as its own 4:5 ad and Launch makes single-image ads.
