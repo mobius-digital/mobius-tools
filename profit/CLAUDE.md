@@ -4445,3 +4445,18 @@ Cole: "Studio looks like absolute shit. I still don't understand how things get 
 - Purchases number opens the orders as a sheet with "Back to the ad" (`drillOrders(label, q, back)`), customer view backs to the orders.
 - Funnel: padded rows, one-line headers (This ad / Median / vs median). Trend switch is 7 / 14 / 30 days, default 14, and says it ignores the top dates.
 - Testing in a srcdoc iframe on tools.go-mobius-digital.com writes Cole's real localStorage (pf_model, pf_range): reset them after.
+
+## 2026-10-21: STUDIO BRAND KIT (one button and the real logo on every ad)
+- Cole: "if you're going to use our foil, then use our foil", "put our actual logo there". A brand's kit lives in
+  `p_studio_cfg` key `kit:<act>` (`PUT /api/studio/kit {act, kit}`; null deletes it; GET /api/studio returns `kit`):
+  `{on, logo (https or /path), logo_tint auto|none, button {style foil|solid, colors[], text, radius, font, weight, track}}`.
+  Lucky's is set: Lucky foil `#C29A2B > #EDD27C > #C29A2B`, text `#17140F`, Archivo Narrow 700, radius 8, logo
+  `/profit/kits/brand_lucky_golf/logo.svg` (the Whatnot app's one-path logo, white fill, tinted dark on light backgrounds).
+- With the kit on, `specOf` sends `kit: true`; the worker's `kitRule` tells the model to draw NO button and NO logo and to
+  leave two bands empty (square ads: top 10% / bottom 14% of the square; 4:5 ads: 9-18% and 80-90%). `extend` = `extendFit`
+  then `kitPass` (studio.js): the browser draws the button (from `spec.cta`, centred, bottom at 88.5%) and the logo (square
+  ads: centred in the painted top strip; 4:5: at 11.5%), then finalizes with `kit: true`. The worker keeps the picture
+  before as `clean` (only the first time) and marks `check.kit` so it is never drawn twice. Vary / change / story prefer
+  square, then clean. A kit only applies to ads MADE with it (`spec.kit`); older ads are untouched.
+- Tested live 2026-10-21 on one Eclipse ad (~$0.40): the first draw put the logo on the headline (the model ignores the
+  9-18% band on square ads), so the logo moved into the painted strip; the second draw was clean.

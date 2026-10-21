@@ -1054,7 +1054,7 @@ export async function handleStaff(request, env, url, path, json, CORS) {
        an ad without our button and logo, and mark the ad so the kit is never drawn twice. */
     if (body.kit) {
       const was = await env.MEDIA.get(await keyOf(env, row, 'full'));
-      if (was) await env.MEDIA.put(await keyOf(env, row, 'clean'), await was.arrayBuffer(), { httpMetadata: { contentType: 'image/png' } });
+      if (was && !safeJson(row.check_json, {})?.kit) await env.MEDIA.put(await keyOf(env, row, 'clean'), await was.arrayBuffer(), { httpMetadata: { contentType: 'image/png' } });
       const ck = { ...(safeJson(row.check_json, {}) || {}), kit: true };
       await env.DB.prepare(`UPDATE p_studio_ad SET check_json = ?2 WHERE id = ?1`).bind(row.id, JSON.stringify(ck)).run();
       const bytes = unb64(String(body.png).replace(/^data:image\/png;base64,/, ''));
