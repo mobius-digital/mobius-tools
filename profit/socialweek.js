@@ -1,6 +1,6 @@
 /* LOCUS SOCIAL: THE WEEK (rebuilt 2026-10-20 to the teardown spec, docs/locus-social/teardown/spec.html; first built
  * 2026-10-19). Later's calendar is the page: 28px hours so the working day fits in 450px, the tray a thumbnail grid with
- * an Unused filter and no spend or ROAS, the accounts as avatars in the controls row, a Week / List segment (List = a day
+ * plain chips (Finished ads, Creator clips...) and no spend or ROAS, the accounts as avatars in the controls row, a Week / List segment (List = a day
  * list, the only view on a phone), the composer as quiet rows with the accounts as tappable avatars.
  *
  * WHO USES IT: the person filling the brand's week of posts, once a week and whenever something new is ready.
@@ -27,6 +27,17 @@
   const PL = { ig: 'Instagram', fb: 'Facebook', tt: 'TikTok', yt: 'YouTube' };
   const PK = { ig: 'IG', fb: 'FB', tt: 'TT', yt: 'YT' };
   const SRC = { studio: 'Studio', creator: 'Creator', ad: 'Meta ad', make: 'Make ours', upload: 'Upload', tagged: 'Tagged in' };
+  /* The tray's chips (2026-10-21, Cole: the source names meant nothing). Each chip is a plain name over one or more sources,
+     with one line that says where those come from. */
+  const CHIPS = [
+    ['all', 'All', [], 'Finished ads, creator clips, our own versions, posts you were tagged in, and uploads.'],
+    ['ads', 'Finished ads', ['studio', 'ad'], 'Approved Studio ads and the Meta ads that spent most in the last 30 days.'],
+    ['creator', 'Creator clips', ['creator'], 'Videos creators sent through the creator link.'],
+    ['make', 'Our own versions', ['make'], 'Posts made with Make ours from the Feed.'],
+    ['tagged', 'Tagged in', ['tagged'], 'Instagram posts other accounts tagged the brand in.'],
+    ['upload', 'Uploads', ['upload'], 'Files added here with Upload.'],
+  ];
+  const chipOf = it => (CHIPS.find(c => c[2].includes(it.src)) || CHIPS[0])[0];
   const HOURS = Array.from({ length: 17 }, (_, i) => i + 6);   // 6am to 10pm
   const ROW = 28;
   const SRC_IC = { studio: 'image', creator: 'users', ad: 'megaphone', make: 'sparkles', upload: 'plus', tagged: 'tag' };
@@ -38,7 +49,7 @@
   const wd = s => new Date(s + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' });
   const h12 = h => (h % 12 || 12) + (h < 12 ? ' am' : ' pm');
   const hm12 = hm => { const [h, m] = hm.split(':').map(Number); return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'am' : 'pm'}`; };
-  const ST = { act: null, from: null, data: null, tray: null, tf: store('sw_tf') || 'unused', view: store('sw_view') || 'week', loading: false };
+  const ST = { act: null, from: null, data: null, tray: null, tf: store('sw_tf2') || 'all', hideUsed: store('sw_hide_used') === '1', view: store('sw_view') || 'week', loading: false };
   const BOOT_POST = new URLSearchParams(location.search).get('post');   // ?open=socialweek&post=<id> (Slack, the calendar)
 
   function css() {
@@ -82,26 +93,34 @@
       .sw .sw-note{display:flex;gap:10px;align-items:center;flex-wrap:wrap;border:1px solid var(--line);border-left:3px solid var(--warn);border-radius:var(--sw-r);padding:10px 14px;font-size:13px;line-height:1.5;margin:0 0 12px;color:var(--ink-2);background:var(--surface)}
       .sw .sw-note b{color:var(--ink)}
       /* body: the tray and the grid */
-      .sw .sw-body{display:grid;grid-template-columns:240px minmax(0,1fr);gap:12px;align-items:start}
+      .sw .sw-body{display:grid;grid-template-columns:272px minmax(0,1fr);gap:12px;align-items:start}
       .sw .sw-tray{border:1px solid var(--line);border-radius:var(--sw-r);background:var(--surface);position:sticky;top:8px;max-height:calc(100vh - 110px);display:flex;flex-direction:column;min-height:0}
-      .sw .sw-tray .hd{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line)}
+      .sw .sw-tray .hd{display:grid;gap:3px;padding:10px 12px 8px}
       .sw .sw-tray .hd b{font-size:13px;font-weight:650} .sw .sw-tray .hd small{color:var(--muted);font-size:12px}
-      .sw .sw-tray .hd .sp{flex:1}
+      .sw .sw-tray .chips{display:flex;flex-wrap:wrap;gap:5px;padding:0 10px 8px;border-bottom:1px solid var(--line)}
+      .sw .sw-tray .chips button{height:26px;padding:0 9px;border-radius:999px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink-2);font:inherit;font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap}
+      .sw .sw-tray .chips button:hover{background:var(--surface-2)} .sw .sw-tray .chips button.on{background:var(--ink);border-color:var(--ink);color:var(--surface)}
+      .sw .sw-tray .chips button.tog{margin-left:auto;border-style:dashed} .sw .sw-tray .chips button.tog.on{border-style:solid}
+      .sw .sw-tray .from{padding:7px 12px;font-size:11.5px;line-height:1.4;color:var(--muted);border-bottom:1px solid var(--line)}
       .sw-sel{position:relative;display:inline-block}
       .sw-sel select{appearance:none;-webkit-appearance:none;height:30px;padding:0 26px 0 9px;border:1px solid var(--line-strong);border-radius:7px;background:var(--surface);color:var(--ink);font:inherit;font-size:12.5px;font-weight:500;cursor:pointer;max-width:200px;text-overflow:ellipsis}
       .sw-sel select:focus-visible{outline:2px solid var(--brand);outline-offset:1px}
       .sw-sel::after{content:"";position:absolute;right:10px;top:50%;width:6px;height:6px;border-right:1.6px solid var(--muted);border-bottom:1.6px solid var(--muted);transform:translateY(-70%) rotate(45deg);pointer-events:none}
       .sw-sel.lg select{height:36px;font-size:13px;max-width:none;width:100%}
+      /* equal thumbnails, the title under each, every card the same size so nothing stacks or hides (2026-10-21) */
       .sw-tl{overflow-y:auto;overflow-x:hidden;min-height:80px;flex:1;padding:8px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-content:start}
-      .sw-ti{position:relative;aspect-ratio:9/16;border-radius:8px;overflow:hidden;border:1px solid var(--line);background:var(--surface-2) center/cover no-repeat;cursor:grab;padding:0;font:inherit;color:var(--ink);display:flex;align-items:center;justify-content:center;min-width:0}
-      .sw-ti.sq{aspect-ratio:1} .sw-ti:hover{border-color:var(--brand)} .sw-ti.used{opacity:.45} .sw-ti:active{cursor:grabbing}
-      .sw-ti .ic{position:absolute;left:5px;top:5px;width:18px;height:18px;border-radius:5px;background:rgba(16,16,20,.66);color:#fff;display:inline-flex;align-items:center;justify-content:center}
-      .sw-ti .ic svg{width:11px;height:11px}
+      .sw-ti{display:grid;gap:4px;padding:0;border:0;background:none;font:inherit;color:var(--ink);text-align:left;cursor:grab;min-width:0}
+      .sw-ti:active{cursor:grabbing}
+      .sw-ti .pic{position:relative;aspect-ratio:4/5;border-radius:8px;overflow:hidden;border:1px solid var(--line);background:var(--surface-2) center/cover no-repeat;display:flex;align-items:center;justify-content:center}
+      .sw-ti:hover .pic{border-color:var(--brand)} .sw-ti.used .pic{opacity:.5}
+      .sw-ti .tt{font-size:11.5px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:var(--ink-2)}
+      .sw-ti.used .tt{color:var(--muted)}
       .sw-ti .no{color:var(--muted)} .sw-ti .no svg{width:22px;height:22px}
       .sw-ti .kd{position:absolute;right:5px;bottom:5px;font-size:8.5px;font-style:normal;font-weight:700;background:rgba(16,16,20,.66);color:#fff;padding:1px 4px;border-radius:3px}
+      .sw-ti .us{position:absolute;left:5px;top:5px;font-size:8.5px;font-style:normal;font-weight:700;background:var(--ink);color:var(--surface);padding:1px 5px;border-radius:3px}
       .sw .sw-tray .hd .hd-period{position:relative} .sw .sw-tray .hd .hd-per-btn .hd-per-l{display:none} .sw .sw-tray .hd .hd-per-btn .hd-per-d{display:inline;color:var(--ink);font-size:12px;font-weight:600}
       .sw .sw-tray .empty{grid-column:1 / -1}
-      .sw .sw-tray .ft{padding:8px 10px;border-top:1px solid var(--line);display:flex;gap:8px;align-items:center}
+      .sw .sw-tray .ft{padding:8px 10px;border-top:1px solid var(--line);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
       .sw .sw-tray .ft small{color:var(--muted);font-size:11.5px;line-height:1.4}
       .sw .sw-tray .empty{padding:24px 12px;text-align:center;color:var(--muted);font-size:12.5px;line-height:1.5}
       /* the grid, Later's density */
@@ -181,6 +200,16 @@
       .sw-res .r .e{color:var(--bad)} .sw-res .r .w{color:var(--warn)}
       .sw-mr{display:flex;gap:10px;align-items:center;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;margin-top:2px}
       .sw-mr b{color:var(--ink);font-weight:600}
+      /* the tray inside the composer (2026-10-21): pick a thumbnail, no second window */
+      .sw-pn .ctray{display:grid;gap:8px}
+      .sw-pn .ctray .ch{display:flex;gap:5px;flex-wrap:wrap;align-items:center} .sw-pn .ctray .ch button{height:26px;padding:0 9px;border-radius:999px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink-2);font:inherit;font-size:12px;font-weight:500;cursor:pointer}
+      .sw-pn .ctray .ch button.on{background:var(--ink);border-color:var(--ink);color:var(--surface)} .sw-pn .ctray .ch .sp{flex:1}
+      .sw-pn .ctray .ch .q{border:0;background:none;color:var(--brand);padding:0;height:auto}
+      .sw-pn .ctray .gr{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px;max-height:38vh;overflow:auto;padding:2px}
+      .sw-pn .ctray .gr .sw-ti{cursor:pointer}
+      .sw-pn .ctray .gr .sw-ti.pk .pic{border:2px solid var(--brand)}
+      .sw-pn .ctray .none{font-size:12.5px;color:var(--muted)}
+      .sw-pn .link{display:flex;gap:8px;align-items:center;flex-wrap:wrap} .sw-pn .link input{flex:1;min-width:200px} .sw-pn .link span{font-size:12px;color:var(--muted)}
       .sw-pick{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;max-height:46vh;overflow:auto}
       .sw-pick button{border:1px solid var(--line);border-radius:8px;padding:0;background:var(--surface);cursor:pointer;text-align:left;font:inherit;color:var(--ink);overflow:hidden}
       .sw-pick button:hover{border-color:var(--brand)}
@@ -218,7 +247,7 @@
         .sw .sw-body,.sw .sw-sk{grid-template-columns:1fr} .sw .sw-tray{display:none} .sw .sw-seg{display:none}
         .sw .sw-grid{max-height:none} .sw .sw-gh,.sw .sw-gb{grid-template-columns:44px repeat(7,140px)}
         .sw .sw-top .r{margin-left:0;width:100%} .sw .sw-top .r .sw-btn{flex:1 1 auto}
-        .sw-sheet-tray .sw-tl{grid-template-columns:repeat(3,minmax(0,1fr))}
+        .sw-sheet-tray .sw-tl{grid-template-columns:repeat(3,minmax(0,1fr))} .sw-sheet-tray .sw-tray .chips button.tog{margin-left:0}
         .sw .sw-tray .hd .hd-per-btn .hd-per-d{display:inline}
         .sw-pn .med .m,.sw-pn .med .add{width:76px;height:76px} .sw-pn .foot .sw-btn{min-height:44px;flex:1 1 auto}
         .sw-pn .when input{flex:1 1 auto}
@@ -327,18 +356,23 @@
       }
     }
   }
+  /* One tray card: the thumbnail, the kind, a Used tag, the title under it. Shared by the tray and the composer. */
+  function trayItem(it, { drag = false, picked = false } = {}) {
+    return `<button type="button" class="sw-ti ${it.used ? 'used' : ''} ${picked ? 'pk' : ''}" draggable="${drag ? 'true' : 'false'}" data-ref="${esc(it.ref)}" ${U() ? U().tipAttr(esc(`${it.title}${it.who ? ` · ${it.who}` : ''} (${SRC[it.src] || it.src})${it.used ? ', already on the week' : ''}`)) : ''} aria-label="${esc(it.title)}">
+      <span class="pic" ${it.thumb ? `style="background-image:url('${esc(it.thumb)}')"` : ''}>${it.thumb ? '' : `<span class="no">${it.kind === 'text' ? ic('pencil') : ic('image')}</span>`}${it.used ? '<i class="us">Used</i>' : ''}${it.kind === 'video' ? '<i class="kd">VIDEO</i>' : it.kind === 'text' ? '<i class="kd">SCRIPT</i>' : ''}</span>
+      <span class="tt">${esc(it.title || '')}</span></button>`;
+  }
   function trayHtml(items, inSheet) {
-    const counts = { unused: items.filter(i => !i.used).length, all: items.length };
-    for (const s of Object.keys(SRC)) counts[s] = items.filter(i => i.src === s).length;
-    const list = ST.tf === 'unused' ? items.filter(i => !i.used) : ST.tf === 'all' ? items : items.filter(i => i.src === ST.tf);
-    const opts = [['unused', 'Not used yet'], ['all', 'Everything'], ...Object.entries(SRC)].filter(([f]) => f === 'unused' || f === 'all' || counts[f]).map(([f, l]) => `<option value="${f}" ${ST.tf === f ? 'selected' : ''}>${l} (${counts[f]})</option>`).join('');
-    const item = it => `<button type="button" class="sw-ti ${it.used ? 'used' : ''} ${it.kind === 'video' ? '' : 'sq'}" draggable="${inSheet ? 'false' : 'true'}" data-ref="${esc(it.ref)}" ${it.thumb ? `style="background-image:url('${esc(it.thumb)}')"` : ''} ${U() ? U().tipAttr(esc(`${it.title}${it.who ? ` · ${it.who}` : ''} (${SRC[it.src] || it.src})${it.used ? ', already on the week' : ''}. ${inSheet ? 'Tap to post it.' : 'Drag onto a day and hour, or click.'}`)) : ''} aria-label="${esc(it.title)}">
-      ${it.thumb ? '' : `<span class="no">${it.kind === 'text' ? ic('pencil') : ic('image')}</span>`}<span class="ic">${ic(SRC_IC[it.src] || 'image')}</span>${it.kind === 'video' ? '<i class="kd">VIDEO</i>' : it.kind === 'text' ? '<i class="kd">SCRIPT</i>' : ''}</button>`;
-    const PM = window.PillMenu;
-    const pm = PM ? PM.html('swTf', 'Show', [['unused', 'Unused', `${counts.unused} not on the week yet`], ['all', 'All', `${counts.all} ready`], ...Object.entries(SRC).filter(([f]) => counts[f]).map(([f, l]) => [f, l, `${counts[f]}`])], ST.tf) : `<span class="sw-sel"><select data-tf aria-label="Show">${opts}</select></span>`;
-    return `<div class="hd"><b>Ready</b><small>${list.length}</small><span class="sp"></span>${pm}</div>
-      <div class="sw-tl">${list.length ? list.map(item).join('') : `<div class="empty">${items.length ? 'Nothing here with this filter.' : 'Nothing ready yet. Approve a Studio final, add a creator clip, or upload a file.'}</div>`}</div>
-      <div class="ft"><button type="button" class="sw-btn sm q" data-upload="1">${ic('plus')} Upload a photo or video</button><input type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime" hidden data-file="1"></div>`;
+    const counts = {}; for (const [k2, , srcs] of CHIPS) counts[k2] = k2 === 'all' ? items.length : items.filter(i => srcs.includes(i.src)).length;
+    const unused = items.filter(i => !i.used).length;
+    if (ST.tf !== 'all' && !counts[ST.tf]) ST.tf = 'all';
+    const list = items.filter(i => (ST.tf === 'all' || chipOf(i) === ST.tf) && !(ST.hideUsed && i.used));
+    const chip = CHIPS.find(c => c[0] === ST.tf) || CHIPS[0];
+    return `<div class="hd"><b>Ready to post</b><small>${items.length} ready, ${unused} unused</small></div>
+      <div class="chips">${CHIPS.filter(c => c[0] === 'all' || counts[c[0]]).map(c => `<button type="button" class="${ST.tf === c[0] ? 'on' : ''}" data-chip="${c[0]}">${c[1]}${c[0] === 'all' ? '' : ` ${counts[c[0]]}`}</button>`).join('')}<button type="button" class="tog ${ST.hideUsed ? 'on' : ''}" data-hideused="1" ${U() ? U().tipAttr('Used = already on a post this week') : ''}>${ST.hideUsed ? 'Showing unused' : 'Hide used'}</button></div>
+      <div class="from">${chip[3]}</div>
+      <div class="sw-tl">${list.length ? list.map(it => trayItem(it, { drag: !inSheet })).join('') : `<div class="empty">${items.length ? 'Nothing here with this filter.' : 'Nothing ready yet. Approve a Studio final, add a creator clip, or upload a file.'}</div>`}</div>
+      <div class="ft"><button type="button" class="sw-btn sm q" data-upload="1">${ic('plus')} Upload a photo or video</button><input type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime" hidden data-file="1"><small>${inSheet ? 'Tap one to post it.' : 'Drag one onto a day and hour, or click it.'}</small></div>`;
   }
   function draw() {
     const d = ST.data, head = H.pageHead('socialweek', 'Social');
@@ -351,7 +385,7 @@
         ${d.target != null ? `<span class="sw-plan ${(d.planned || 0) >= d.target ? 'ok' : ''}" ${U() ? U().tipAttr(`${d.planned || 0} scheduled or posted this week, against the brand's target of ${d.target} (Brand settings > Social)`) : ''}>${d.planned || 0} of ${d.target} planned</span>` : ''}
         <span class="sw-seg" role="tablist"><button type="button" role="tab" data-sv="week" class="${ST.view === 'week' ? 'on' : ''}">Week</button><button type="button" role="tab" data-sv="list" class="${ST.view === 'list' ? 'on' : ''}">List</button><button type="button" role="tab" data-sv="preview" class="${ST.view === 'preview' ? 'on' : ''}" ${U() ? U().tipAttr('How the Instagram grid will look with what is scheduled') : ''}>Preview</button></span>
         <span class="r"><span class="sw-acc" id="swAccs">${Object.keys(PL).map(x => bubble(x, accs[x], '', !CLI())).join('')}</span>
-          ${PHONE() ? `<button type="button" class="sw-btn" id="swTrayBtn">${ic('inbox')} Ready</button>` : ''}${CLI() ? '' : `<button type="button" class="sw-btn" id="swFill" ${U() ? U().tipAttr('Pick unused tray items up to the weekly target, spread them over free hours, caption each in the brand voice. You review before anything is scheduled.') : ''}>${ic('sparkles')} Fill the week</button>`}<button type="button" class="sw-btn pri" id="swNew">${ic('plus')} Post</button></span></div>
+          ${PHONE() ? `<button type="button" class="sw-btn" id="swTrayBtn">${ic('inbox')} Ready</button>` : ''}${CLI() ? '' : `<button type="button" class="sw-btn" id="swFill" ${U() ? U().tipAttr('Pick unused tray items up to the weekly target, spread them over free hours, caption each in the brand voice. You review before anything is scheduled.') : ''}>Fill the week</button>`}<button type="button" class="sw-btn pri" id="swNew">${ic('plus')} Post something</button></span></div>
       ${none ? `<div class="sw-note"><div><b>No accounts connected yet.</b> ${CLI() ? 'Ask the Mobius team to connect your Instagram, Facebook, TikTok and YouTube.' : 'Until then a scheduled post is handed to you in Slack at post time with the file and caption ready to paste.'}</div>${CLI() ? '' : '<button type="button" class="sw-btn sm" data-settings="1">Connect accounts</button>'}</div>` : ''}
       <div class="sw-body"><div class="sw-tray" id="swTray">${trayHtml(ST.tray)}</div>${ST.view === 'preview' ? `<div class="sw-ig" id="swIg"><p class="hint">Reading the grid…</p></div>` : list ? `<div class="sw-list" id="swList">${dayList()}</div>` : `<div class="sw-grid" id="swGrid">${grid()}</div>`}</div></div>`;
     if (ST.view === 'preview') igPreview();
@@ -366,7 +400,7 @@
     if (!$('#swIg')) return;
     const a = r.account || null, posts = r.posts || [];
     const st = p => p.status === 'draft' ? 'Draft' : p.status === 'scheduled' ? `Scheduled ${new Date(p.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : p.status === 'posting' ? 'Posting' : '';
-    host.innerHTML = `<div class="ig-head"><span class="av" ${a && a.pic ? `style="background-image:url('${esc(a.pic)}')"` : ''}></span><div><b>${esc(a ? (a.handle ? `@${a.handle}` : a.name || 'Instagram') : 'Instagram not connected')}</b><small>${posts.length} post${posts.length === 1 ? '' : 's'} through Locus${a ? '' : ' · connect the account in Brand settings to post'}</small></div><span class="sp"></span><button type="button" class="sw-btn sm" id="igNew">${ic('plus')} Post</button></div>
+    host.innerHTML = `<div class="ig-head"><span class="av" ${a && a.pic ? `style="background-image:url('${esc(a.pic)}')"` : ''}></span><div><b>${esc(a ? (a.handle ? `@${a.handle}` : a.name || 'Instagram') : 'Instagram not connected')}</b><small>${posts.length} post${posts.length === 1 ? '' : 's'} through Locus${a ? '' : ' · connect the account in Brand settings to post'}</small></div><span class="sp"></span><button type="button" class="sw-btn sm" id="igNew">${ic('plus')} Post something</button></div>
       ${posts.length ? `<div class="ig-grid">${posts.map(p => { const m = p.media[0] || {}; const s = st(p); return `<button type="button" class="ig-cell ${p.status}" data-post="${esc(p.id)}" ${m.thumb ? `style="background-image:url('${esc(m.thumb)}')"` : ''} aria-label="${esc(p.caption || 'Post')}">${p.media.length > 1 ? '<i class="multi">&#9638;</i>' : m.kind === 'video' ? '<i class="multi">&#9654;</i>' : ''}${s ? `<span class="st">${esc(s)}</span>` : ''}</button>`; }).join('')}</div>` : '<div class="sw-note"><div>Nothing goes to Instagram yet. Schedule a post with Instagram switched on and it shows here in the order the grid will read.</div></div>'}`;
     host.querySelectorAll('[data-post]').forEach(b => b.onclick = () => { const p = (ST.data.posts || []).find(x => x.id === b.dataset.post) || posts.find(x => x.id === b.dataset.post); if (p) composer(p); });
     const nb = host.querySelector('#igNew'); if (nb) nb.onclick = () => composer(null, { at: nextSlot() });
@@ -418,8 +452,9 @@
   }
   function wireTray(root, inSheet) {
     if (!root) return;
-    const sel = root.querySelector('[data-tf]'); if (sel) sel.onchange = () => { ST.tf = sel.value; store('sw_tf', ST.tf); root.innerHTML = trayHtml(ST.tray, inSheet); wireTray(root, inSheet); };
-    const pm = root.querySelector('#swTf'); if (pm && window.PillMenu) window.PillMenu.wire(pm, v => { ST.tf = v; store('sw_tf', ST.tf); root.innerHTML = trayHtml(ST.tray, inSheet); wireTray(root, inSheet); });
+    const redraw = () => { root.innerHTML = trayHtml(ST.tray, inSheet); wireTray(root, inSheet); };
+    root.querySelectorAll('[data-chip]').forEach(b => b.onclick = () => { ST.tf = b.dataset.chip; store('sw_tf2', ST.tf); redraw(); });
+    const hu = root.querySelector('[data-hideused]'); if (hu) hu.onclick = () => { ST.hideUsed = !ST.hideUsed; store('sw_hide_used', ST.hideUsed ? '1' : '0'); redraw(); };
     root.querySelectorAll('.sw-ti').forEach(b => {
       const it = ST.tray.find(x => x.ref === b.dataset.ref);
       b.onclick = () => { if (inSheet) { const c = document.querySelector('#v2panel .pclose'); if (c) c.click(); if (window.LxPhone) window.LxPhone.close(); } composer(null, { at: nextSlot(), items: [it] }); };
@@ -430,8 +465,8 @@
   }
   function traySheet() {
     const html = `<div class="sw sw-sheet-tray"><div class="sw-tray" style="display:flex;position:static;max-height:none;border:0">${trayHtml(ST.tray, true)}</div></div>`;
-    if (window.LxPhone && window.LxPhone.isPhone && window.LxPhone.isPhone()) { window.LxPhone.open('Ready', html, b => wireTray(b.querySelector('.sw-tray'), true)); return; }
-    U().panel.wide = false; const body = U().panel('Ready', html); wireTray(body.querySelector('.sw-tray'), true);
+    if (window.LxPhone && window.LxPhone.isPhone && window.LxPhone.isPhone()) { window.LxPhone.open('Ready to post', html, b => wireTray(b.querySelector('.sw-tray'), true)); return; }
+    U().panel.wide = false; const body = U().panel('Ready to post', html); wireTray(body.querySelector('.sw-tray'), true);
   }
   async function upload(f) {
     if (f.size > 95 * 1024 * 1024) throw new Error('Files up to 95 MB.');
@@ -480,6 +515,7 @@
     const items = (opts.items || []).map(it => ({ ref: it.ref, src: it.src, kind: it.kind, title: it.title, thumb: it.thumb, file: it.file, key: it.key, who: it.who }));
     const M = { id: p ? p.id : null, at: p ? p.at : opts.at, caption: p ? p.caption : (items.find(i => i.caption) || opts.items?.[0] || {}).caption || '', media: p ? p.media.map(m => ({ ...m })) : items.filter(i => i.kind !== 'text'),
       targets: p ? JSON.parse(JSON.stringify(p.targets)) : Object.fromEntries(Object.keys(PL).map(x => [x, { on: !!(accs[x] && accs[x].on && (x === 'ig' || x === 'fb')) }])), auto: p ? p.auto : true, status: p ? p.status : 'draft', results: p ? p.results : {} };
+    let showTray = !M.media.length;   // the tray sits inside the composer until something is picked
     if (!p && opts.items?.[0]?.caption) M.caption = opts.items[0].caption;
     const out = p && ['posted', 'partly', 'handoff', 'failed', 'posting'].includes(p.status);
     const lp = localParts(M.at);
@@ -487,9 +523,10 @@
     U().panel.wide = !PHONE();
     const body = U().panel(p ? (out ? 'Your post' : 'Edit the post') : 'New post', `<div class="sw-pn">
       ${out ? `<section><h4>How it went<span class="sp"></span><small>${esc(stLabel)}</small></h4><div id="cpRes"></div></section>` : ''}
-      <section><div class="med" id="cpMed"></div></section>
+      <section><div class="med" id="cpMed"></div>${out ? '' : '<div class="ctray" id="cpTray"></div>'}</section>
       <section><textarea id="cpCap" placeholder="One caption for every account. Tweak a platform below only where it needs it." ${out ? 'readonly' : ''}>${esc(M.caption)}</textarea>
-        ${out ? '' : `<div class="qa"><button type="button" id="cpRe">Rephrase in ${esc(brandName())}'s voice</button><button type="button" id="cpSaved">Saved captions</button><button type="button" id="cpSave">Save this caption</button></div>`}<div class="opts" id="cpOpts"></div></section>
+        ${out ? '' : `<div class="qa"><button type="button" id="cpWrite">Write it for me</button><button type="button" id="cpRe" ${M.caption.trim() ? '' : 'hidden'}>Rephrase in ${esc(brandName())}'s voice</button><button type="button" id="cpSaved">Saved captions</button><button type="button" id="cpSave">Save this caption</button></div>`}<div class="opts" id="cpOpts"></div>
+        ${out ? '' : `<div class="link"><input type="text" id="cpLink" value="${esc(M.targets.fb?.link || '')}" placeholder="Shop link (optional): https://" aria-label="Shop link"><span>Added to the caption and set as the Facebook link</span></div>`}</section>
       <section><h4>Where</h4><div class="accs" id="cpAccs"></div></section>
       <section><h4>When</h4><div class="when"><input type="date" id="cpDay" value="${lp.day}" ${out ? 'disabled' : ''} aria-label="Day"><input type="time" id="cpTime" value="${lp.hm}" ${out ? 'disabled' : ''} aria-label="Time"><span class="tz">${esc(ST.data.tz.replace(/_/g, ' '))}${M.auto && !out ? ', posts itself' : ''}</span></div></section>
       ${out ? '' : `<details><summary>Per-platform tweaks, only where needed</summary><div class="in">
@@ -510,12 +547,35 @@
     const drawMedia = () => {
       const el = body.querySelector('#cpMed');
       el.innerHTML = M.media.map((m, i) => `<span class="m" ${m.thumb ? `style="background-image:url('${esc(m.thumb)}')"` : ''} ${U() ? U().tipAttr(esc(m.title || '')) : ''}><i>${m.kind === 'video' ? 'VIDEO' : 'PHOTO'}</i>${out ? '' : `<button type="button" data-rm="${i}" aria-label="Remove">&#215;</button>`}</span>`).join('')
-        + (out ? '' : `<button type="button" class="add" id="cpPick">${ic('inbox')}From the tray</button><button type="button" class="add" id="cpUp">${ic('plus')}Upload</button><input type="file" id="cpFile" hidden accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime">`)
+        + (out || showTray ? '' : `<button type="button" class="add" id="cpPick">${ic('inbox')}${M.media.length ? 'Add another' : 'Pick one'}</button>`)
         + (!M.media.length && out ? '<p class="hint">No picture or video.</p>' : '');
-      el.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { M.media.splice(+b.dataset.rm, 1); drawMedia(); });
-      const pk = el.querySelector('#cpPick'); if (pk) pk.onclick = () => pickModal(it => { M.media.push({ ref: it.ref, src: it.src, kind: it.kind, title: it.title, thumb: it.thumb, file: it.file, key: it.key, who: it.who }); if (!M.caption && it.caption) { M.caption = it.caption; body.querySelector('#cpCap').value = it.caption; } drawMedia(); });
-      const up = el.querySelector('#cpUp'), fi = el.querySelector('#cpFile');
-      if (up) { up.onclick = () => fi.click(); fi.onchange = async () => { const f = fi.files[0]; if (!f) return; up.disabled = true; up.textContent = 'Uploading…'; try { const it = await upload(f); ST.tray.unshift(it); M.media.push({ ref: it.ref, src: it.src, kind: it.kind, title: it.title, thumb: it.thumb, key: it.key }); drawMedia(); } catch (e) { err.textContent = e.message; up.disabled = false; up.innerHTML = `${ic('plus')}Upload`; } }; }
+      el.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { M.media.splice(+b.dataset.rm, 1); if (!M.media.length) showTray = true; drawMedia(); });
+      const pk = el.querySelector('#cpPick'); if (pk) pk.onclick = () => { showTray = true; drawMedia(); };
+      drawTray();
+    };
+    /* The tray inside the composer (2026-10-21): the same chips and cards as the Week's tray; a tap picks the thumbnail. */
+    let ctf = 'all';
+    const drawTray = () => {
+      const tr = body.querySelector('#cpTray'); if (!tr) return;
+      if (!showTray) { tr.innerHTML = ''; return; }
+      const items = ST.tray.filter(i => i.kind !== 'text');
+      const counts = {}; for (const [k2, , srcs] of CHIPS) counts[k2] = k2 === 'all' ? items.length : items.filter(i => srcs.includes(i.src)).length;
+      if (ctf !== 'all' && !counts[ctf]) ctf = 'all';
+      const picked = new Set(M.media.map(m => m.ref));
+      const list = items.filter(i => ctf === 'all' || chipOf(i) === ctf).sort((a, b) => (a.used ? 1 : 0) - (b.used ? 1 : 0));
+      tr.innerHTML = `<div class="ch">${CHIPS.filter(c => c[0] === 'all' || counts[c[0]]).map(c => `<button type="button" class="${ctf === c[0] ? 'on' : ''}" data-cchip="${c[0]}">${c[1]}${c[0] === 'all' ? '' : ` ${counts[c[0]]}`}</button>`).join('')}<span class="sp"></span><button type="button" class="q" id="cpUp">${ic('plus')} Upload</button>${M.media.length ? '<button type="button" class="q" id="cpHide">Done picking</button>' : ''}<input type="file" id="cpFile" hidden accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime"></div>
+        ${list.length ? `<div class="gr">${list.map(it => trayItem(it, { picked: picked.has(it.ref) })).join('')}</div>` : `<p class="none">${items.length ? 'Nothing here with this filter.' : 'Nothing ready yet. Upload a photo or video, or approve a Studio ad.'}</p>`}`;
+      tr.querySelectorAll('[data-cchip]').forEach(b => b.onclick = () => { ctf = b.dataset.cchip; drawTray(); });
+      tr.querySelectorAll('.sw-ti').forEach(b => b.onclick = () => {
+        const it = ST.tray.find(x => x.ref === b.dataset.ref); if (!it) return;
+        if (picked.has(it.ref)) { M.media = M.media.filter(m => m.ref !== it.ref); drawMedia(); return; }
+        M.media.push({ ref: it.ref, src: it.src, kind: it.kind, title: it.title, thumb: it.thumb, file: it.file, key: it.key, who: it.who });
+        if (!M.caption && it.caption) { M.caption = it.caption; body.querySelector('#cpCap').value = it.caption; }
+        showTray = false; drawMedia();
+      });
+      const hd = tr.querySelector('#cpHide'); if (hd) hd.onclick = () => { showTray = false; drawMedia(); };
+      const up = tr.querySelector('#cpUp'), fi = tr.querySelector('#cpFile');
+      if (up) { up.onclick = () => fi.click(); fi.onchange = async () => { const f = fi.files[0]; if (!f) return; up.disabled = true; up.textContent = 'Uploading…'; try { const it = await upload(f); ST.tray.unshift(it); M.media.push({ ref: it.ref, src: it.src, kind: it.kind, title: it.title, thumb: it.thumb, key: it.key }); showTray = false; drawMedia(); } catch (e) { err.textContent = e.message; up.disabled = false; up.innerHTML = `${ic('plus')} Upload`; } }; }
     };
     const drawAccs = () => {
       body.querySelector('#cpAccs').innerHTML = Object.keys(PL).map(x => {
@@ -534,7 +594,10 @@
       M.caption = body.querySelector('#cpCap').value;
       const v = id => { const e = body.querySelector(id); return e ? e.value : undefined; };
       M.targets.ig = { ...(M.targets.ig || {}), first_comment: v('#tIgC'), caption: v('#tIgCap') };
-      M.targets.fb = { ...(M.targets.fb || {}), caption: v('#tFbCap') };
+      const link = (v('#cpLink') || '').trim();
+      if (link && !/^https?:\/\//i.test(link)) throw new Error('The shop link needs to start with https://');
+      M.targets.fb = { ...(M.targets.fb || {}), caption: v('#tFbCap'), link: link || undefined };
+      if (link && !M.caption.includes(link)) { M.caption = `${M.caption.trimEnd()}\n\n${link}`.trim(); body.querySelector('#cpCap').value = M.caption; }
       M.targets.tt = { ...(M.targets.tt || {}), title: v('#tTtT'), privacy: v('#tTtP') };
       M.targets.yt = { ...(M.targets.yt || {}), title: v('#tYtT'), caption: v('#tYtCap'), visibility: v('#tYtV') };
       const day = body.querySelector('#cpDay').value, hm = body.querySelector('#cpTime').value || '09:00';
@@ -573,19 +636,28 @@
     on('#cpDel', async () => { if (!(await H.confirmModal('Delete this post?', p && p.status === 'posted' ? 'It stays on the platforms; only the card here goes.' : 'It will not go out.', 'Delete'))) return; try { await H.apiAH(`/api/social/post?id=${encodeURIComponent(M.id)}`, { method: 'DELETE' }); const c = document.querySelector('#v2panel .pclose'); if (c) c.click(); await reload(true); } catch (e) { err.textContent = e.message; } });
     on('#cpRetry', async () => { try { await H.apiAH('/api/social/post/retry', { method: 'POST', body: JSON.stringify({ id: M.id }) }); const c = document.querySelector('#v2panel .pclose'); if (c) c.click(); toast('Going again within a few minutes.'); await reload(false); } catch (e) { err.textContent = e.message; } });
     on('#cpDup', () => composer(null, { at: nextSlot(), items: M.media.map(m => ({ ...m, caption: M.caption })) }));
-    on('#cpRe', async () => {
-      const b = body.querySelector('#cpRe'), o = body.querySelector('#cpOpts'); b.disabled = true; b.textContent = 'Writing…';
-      try { const r = await H.apiAH('/api/social/rephrase', { method: 'POST', body: JSON.stringify({ act: ST.act, text: body.querySelector('#cpCap').value, note: M.media[0] ? `the post shows: ${M.media[0].title}` : '' }) });
+    /* Write it for me = Haiku in the brand's voice from nothing but what the post shows (and the shop link);
+       Rephrase = the same route on the words already in the box. Three options either way, a tap fills the box. */
+    const writeCap = async (id, fresh) => {
+      const b = body.querySelector(id), o = body.querySelector('#cpOpts'); if (!b) return;
+      const label = b.textContent; b.disabled = true; b.textContent = 'Writing…';
+      const link = (body.querySelector('#cpLink') || {}).value || '';
+      const note = [M.media[0] ? `the post shows: ${M.media[0].title}` : '', link ? `end with this shop link: ${link.trim()}` : ''].filter(Boolean).join('; ');
+      try { const r = await H.apiAH('/api/social/rephrase', { method: 'POST', body: JSON.stringify({ act: ST.act, text: fresh ? '' : body.querySelector('#cpCap').value, note }) });
         o.innerHTML = (r.captions || []).map(c => `<button type="button" class="opt">${esc(c)}</button>`).join('') || '<p class="hint">Nothing came back.</p>';
-        o.querySelectorAll('.opt').forEach(x => x.onclick = () => { body.querySelector('#cpCap').value = x.textContent; o.innerHTML = ''; });
+        o.querySelectorAll('.opt').forEach(x => x.onclick = () => { body.querySelector('#cpCap').value = x.textContent; o.innerHTML = ''; capChanged(); });
       } catch (e) { err.textContent = e.message; }
-      b.disabled = false; b.textContent = `Rephrase in ${brandName()}'s voice`;
-    });
+      b.disabled = false; b.textContent = label;
+    };
+    const capChanged = () => { const re = body.querySelector('#cpRe'); if (re) re.hidden = !body.querySelector('#cpCap').value.trim(); };
+    const capEl = body.querySelector('#cpCap'); if (capEl && !out) capEl.oninput = capChanged;
+    on('#cpWrite', () => writeCap('#cpWrite', true));
+    on('#cpRe', () => writeCap('#cpRe', false));
     on('#cpSaved', async () => {
       const o = body.querySelector('#cpOpts'); o.innerHTML = '<p class="hint">Reading…</p>';
       try { const r = await H.apiAH(`/api/social/captions?act=${encodeURIComponent(ST.act)}`, { fresh: true });
         o.innerHTML = (r.captions || []).map(c => `<button type="button" class="opt" data-cid="${esc(c.id)}">${esc(c.text)}<span style="display:block;color:var(--muted);font-size:11px;margin-top:3px">${esc(c.created_by || '')} · <u data-del="${esc(c.id)}">remove</u></span></button>`).join('') || '<p class="hint">No saved captions yet. Write one and press Save this one.</p>';
-        o.querySelectorAll('.opt').forEach(x => x.onclick = e => { if (e.target.dataset.del) { H.apiAH(`/api/social/captions?id=${encodeURIComponent(e.target.dataset.del)}`, { method: 'DELETE' }).then(() => x.remove()).catch(er => { err.textContent = er.message; }); return; } body.querySelector('#cpCap').value = x.firstChild.textContent; o.innerHTML = ''; });
+        o.querySelectorAll('.opt').forEach(x => x.onclick = e => { if (e.target.dataset.del) { H.apiAH(`/api/social/captions?id=${encodeURIComponent(e.target.dataset.del)}`, { method: 'DELETE' }).then(() => x.remove()).catch(er => { err.textContent = er.message; }); return; } body.querySelector('#cpCap').value = x.firstChild.textContent; o.innerHTML = ''; capChanged(); });
       } catch (e) { o.innerHTML = ''; err.textContent = e.message; }
     });
     on('#cpSave', async () => { const t = body.querySelector('#cpCap').value.trim(); if (!t) { err.textContent = 'Write a caption first.'; return; } try { await H.apiAH('/api/social/captions', { method: 'POST', body: JSON.stringify({ act: ST.act, text: t }) }); toast('Saved.'); } catch (e) { err.textContent = e.message; } });
@@ -668,11 +740,6 @@
       const { w, done } = modal(`<div class="fl"><h3>Posted by hand</h3><p class="hint">Paste the post's link if you have it (optional), so the card can show it.</p><input type="text" id="buUrl" placeholder="https://"><div class="foot"><button type="button" class="sw-btn" data-x="1">Cancel</button><button type="button" class="sw-btn pri" id="buOk">Mark posted</button></div></div>`, () => res(null));
       w.querySelector('#buOk').onclick = () => { const v = w.querySelector('#buUrl').value.trim(); done(true); res(v); };
     });
-  }
-  function pickModal(onPick) {
-    const list = ST.tray.filter(i => i.kind !== 'text');
-    const { w, done } = modal(`<div class="fl"><h3>From the tray</h3><div class="sw-pick">${list.map(it => `<button type="button" data-ref="${esc(it.ref)}"><span class="th" ${it.thumb ? `style="background-image:url('${esc(it.thumb)}')"` : ''}></span><span class="t">${esc(it.title)}</span></button>`).join('') || '<p class="hint">Nothing in the tray yet.</p>'}</div><div class="foot"><button type="button" class="sw-btn" data-x="1">Close</button></div></div>`);
-    w.querySelectorAll('[data-ref]').forEach(b => b.onclick = () => { onPick(list.find(i => i.ref === b.dataset.ref)); done(); });
   }
   function modal(html, onClose) {
     const w = document.createElement('div'); w.className = 'modal-wrap sw-m';

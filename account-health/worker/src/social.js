@@ -605,13 +605,12 @@ async function slidesOf(env, post) {
     const j = await sc(env, '/v2/tiktok/video', { url: post.url }, null);
     srcs = (j.aweme_detail?.image_post_info?.images || []).map(i => (i.display_image?.url_list || i.owner_watermark_image?.url_list || [])[0]).filter(Boolean);
   }
-  const keys = [];
-  for (const [i, src] of srcs.slice(0, 12).entries()) {
-    const key = env.MEDIA ? await copyCover(env, `${post.id}|slide|${i}`, src) : null;
-    if (key) keys.push(key);
-  }
-  if (keys.length) await env.DB.prepare(`UPDATE social_post SET media = ?2 WHERE id = ?1`).bind(post.id, JSON.stringify(keys)).run();
-  return { slides: keys.length ? keys.map(k => `${SELF}/social-m/${k}`) : srcs.slice(0, 12) };
+  /* 2026-10-21: copy every slide at once (not one after another), and a slide whose copy fails still shows from its
+     source URL, so one dead CDN link never hides the rest. The row keeps the copied keys only when every slide copied. */
+  const want = srcs.slice(0, 12);
+  const keys = env.MEDIA ? await Promise.all(want.map((src, i) => copyCover(env, `${post.id}|slide|${i}`, src).catch(() => null))) : want.map(() => null);
+  if (keys.length && keys.every(Boolean)) await env.DB.prepare(`UPDATE social_post SET media = ?2 WHERE id = ?1`).bind(post.id, JSON.stringify(keys)).run();
+  return { slides: want.map((src, i) => keys[i] ? `${SELF}/social-m/${keys[i]}` : src), copied: keys.filter(Boolean).length };
 }
 
 /* ---------------- routes ---------------- */

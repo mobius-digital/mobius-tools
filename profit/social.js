@@ -112,8 +112,7 @@
       .soc .soc-med .sv{position:absolute;top:8px;right:8px;width:22px;height:22px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;background:rgba(16,16,20,.66);color:#fff}
       .soc .soc-med .dur{position:absolute;bottom:8px;left:8px;font-size:10.5px;font-weight:600;background:rgba(16,16,20,.66);color:#fff;padding:2px 6px;border-radius:5px;font-variant-numeric:tabular-nums}
       .soc .soc-med .soc-x{position:absolute;bottom:8px;right:8px}
-      .soc .soc-med .snd{position:absolute;bottom:8px;right:8px;width:30px;height:30px;border-radius:50%;border:0;background:rgba(16,16,20,.72);color:#fff;display:none;align-items:center;justify-content:center;cursor:pointer}
-      .soc .soc-med.playing .snd{display:inline-flex} .soc .soc-med.playing .soc-x,.soc .soc-med.playing .dur{display:none}
+      .soc .soc-med.playing .soc-x,.soc .soc-med.playing .dur{display:none}
       .soc .soc-med .spin{position:absolute;left:50%;top:50%;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;border:2.5px solid rgba(255,255,255,.35);border-top-color:#fff;animation:socspin .8s linear infinite;display:none}
       .soc .soc-med.loading .spin{display:block}
       @keyframes socspin{to{transform:rotate(360deg)}}
@@ -172,12 +171,19 @@
       .soc-view .vmed{position:relative;height:100%;max-height:calc(100vh - 96px);aspect-ratio:9/16;max-width:100%;background:#000;border-radius:14px;overflow:hidden;display:flex;align-items:center;justify-content:center}
       .soc-view .vmed img,.soc-view .vmed video{width:100%;height:100%;object-fit:contain;display:block;background:#000}
       .soc-view .vmed iframe{width:100%;height:100%;border:0;background:#000}
-      .soc-view .vmed .snd{position:absolute;bottom:12px;right:12px;width:36px;height:36px;border-radius:50%;border:0;background:rgba(16,16,20,.72);color:#fff;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
-      .soc-view .vmed .note{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);font-size:12px;background:rgba(16,16,20,.8);padding:6px 10px;border-radius:7px;white-space:nowrap}
-      .soc-view .vslides{position:absolute;inset:0;display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none} .soc-view .vslides::-webkit-scrollbar{display:none}
+      /* one plain speaker: sound on or off, remembered. Sits above the native control bar. */
+      .soc-view .vmed .snd{position:absolute;top:12px;right:12px;width:36px;height:36px;border-radius:50%;border:0;background:rgba(16,16,20,.72);color:#fff;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;z-index:2}
+      .soc-view .vmed .snd:hover{background:rgba(16,16,20,.9)} .soc-view .vmed .snd svg{width:18px;height:18px}
+      .soc-view .vmed .note{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);font-size:12px;background:rgba(16,16,20,.8);padding:6px 10px;border-radius:7px;white-space:nowrap;color:#fff}
+      .soc-view .vmed button.note{border:0;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;bottom:auto;top:50%;transform:translate(-50%,-50%);padding:10px 16px;border-radius:999px;display:inline-flex;gap:8px;align-items:center;z-index:2}
+      .soc-view .vmed button.note svg{width:16px;height:16px}
+      .soc-view .vslides{position:absolute;inset:0;display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;scroll-behavior:smooth} .soc-view .vslides::-webkit-scrollbar{display:none}
       .soc-view .vslides img{flex:none;width:100%;height:100%;object-fit:contain;scroll-snap-align:start;background:#000}
       .soc-view .vdots{position:absolute;bottom:12px;left:0;right:0;display:flex;gap:5px;justify-content:center;pointer-events:none}
       .soc-view .vdots i{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.4)} .soc-view .vdots i.on{background:#fff}
+      .soc-view .vcnt{position:absolute;top:12px;left:12px;font-size:11.5px;font-weight:600;background:rgba(16,16,20,.72);color:#fff;padding:3px 8px;border-radius:999px;font-variant-numeric:tabular-nums;pointer-events:none}
+      .soc-view .vsl{position:absolute;top:50%;width:34px;height:34px;margin-top:-17px;border-radius:50%;border:0;background:rgba(16,16,20,.72);color:#fff;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;line-height:1;z-index:2}
+      .soc-view .vsl:hover{background:rgba(16,16,20,.9)} .soc-view .vsl:disabled{opacity:.25;cursor:default} .soc-view .vsl.l{left:10px} .soc-view .vsl.r{right:10px}
       .soc-view .vx,.soc-view .vprev,.soc-view .vnext{position:absolute;width:40px;height:40px;border-radius:50%;border:0;background:rgba(255,255,255,.1);color:#fff;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;font-size:20px;line-height:1}
       .soc-view .vx:hover,.soc-view .vprev:hover,.soc-view .vnext:hover{background:rgba(255,255,255,.2)}
       .soc-view .vx{top:16px;left:16px} .soc-view .vprev{left:16px;top:50%;margin-top:-20px} .soc-view .vnext{right:16px;top:50%;margin-top:-20px}
@@ -198,12 +204,18 @@
       .soc-view .vcap{font-size:13px;line-height:1.55;white-space:pre-wrap;color:var(--ink);overflow-wrap:anywhere}
       .soc-view .vtags{display:flex;gap:6px;flex-wrap:wrap}
       .soc-view .vtags span{font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:5px;background:var(--unk-bg);color:var(--ink-2)}
-      .soc-view .vbar{display:flex;gap:6px;padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line);background:var(--surface);align-items:center}
+      .soc-view .vbar{display:flex;gap:6px;padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line);background:var(--surface);align-items:center;flex-wrap:wrap}
       .soc-view .vbar .soc-btn{padding:0 10px} .soc-view .vbar .soc-btn.mk{flex:1;min-width:0}
-      .soc-view .vbar .grp{display:inline-flex}
-      .soc-view .vbar .grp .soc-btn:first-child{border-top-right-radius:0;border-bottom-right-radius:0}
-      .soc-view .vbar .grp .soc-btn:last-child{border-top-left-radius:0;border-bottom-left-radius:0;margin-left:-1px;width:26px;padding:0}
       .soc-view .vbar .soc-btn.sav.on{color:var(--brand-ink,var(--brand));border-color:var(--brand);background:var(--brand-soft)}
+      /* the tag row: shows once the post is saved, under the buttons; one tap picks a tag, + tag types a new one */
+      .soc-view .vtagrow{flex:1 1 100%;display:flex;gap:5px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--muted)}
+      .soc-view .vtagrow .lb{margin-right:2px}
+      .soc-view .vtagrow button{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 8px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font:inherit;font-size:11.5px;font-weight:600;color:var(--ink-2);cursor:pointer;white-space:nowrap;max-width:160px}
+      .soc-view .vtagrow button span{overflow:hidden;text-overflow:ellipsis}
+      .soc-view .vtagrow button:hover{border-color:var(--line-strong)}
+      .soc-view .vtagrow button.on{border-color:var(--brand);color:var(--brand-ink,var(--brand));background:var(--brand-soft)}
+      .soc-view .vtagrow button.add{border-style:dashed;color:var(--muted)}
+      .soc-view .vtagrow input{height:24px;padding:0 8px;border:1px solid var(--line-strong);border-radius:999px;background:var(--surface);color:var(--ink);font:inherit;font-size:11.5px;width:120px}
       /* make ours as a second step inside the column */
       .soc-view .vstep{display:grid;gap:10px}
       .soc-view .vstep .bk{font:inherit;font-size:12.5px;color:var(--muted);background:none;border:0;padding:0;cursor:pointer;text-align:left;display:inline-flex;gap:4px;align-items:center}
@@ -227,14 +239,6 @@
       .soc-view .vrow{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
       .soc-view .err{color:var(--bad);font-size:12.5px} .soc-view .err:empty{display:none}
       .soc-view .sent{font-size:12.5px;color:var(--good);font-weight:600;display:flex;gap:6px;align-items:center}
-      /* the tag picker (Save's chevron) */
-      .soc-tagpick{position:absolute;bottom:calc(100% + 6px);right:0;min-width:220px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg,12px);box-shadow:var(--sh-pop,0 12px 32px -12px rgba(0,0,0,.5));padding:8px;display:grid;gap:2px;z-index:5;color:var(--ink)}
-      .soc-tagpick button{display:flex;align-items:center;gap:8px;height:32px;padding:0 8px;border-radius:var(--r-sm,8px);border:0;background:transparent;font:inherit;font-size:13px;color:var(--ink);cursor:pointer;text-align:left;width:100%}
-      .soc-tagpick button:hover{background:var(--surface-2)} .soc-tagpick button.on{background:var(--brand-soft);color:var(--brand-ink,var(--brand))}
-      .soc-tagpick button small{margin-left:auto;color:var(--muted)}
-      .soc-tagpick .new{display:flex;gap:6px;padding:4px 0 0;border-top:1px solid var(--line);margin-top:4px;padding-top:8px}
-      .soc-tagpick .new input{flex:1;height:30px;min-width:0;padding:0 8px;border:1px solid var(--line-strong);border-radius:var(--r-sm,8px);background:var(--surface);color:var(--ink);font:inherit;font-size:12.5px}
-      .soc-view .vbar .grp{position:relative}
       /* modals */
       .soc-m .fl{display:grid;gap:12px} .soc-m h3{margin:0;font-size:16px;font-weight:650}
       .soc-m label.f{display:grid;gap:5px;font-size:12.5px;font-weight:600;color:var(--ink-2)}
@@ -266,8 +270,7 @@
         .soc-view .vx{top:calc(10px + env(safe-area-inset-top,0px));left:10px;width:36px;height:36px} .soc-view .vprev,.soc-view .vnext{display:none}
         .soc-view .vcol{border-left:0} .soc-view .vbody{padding:14px 16px 90px}
         .soc-view .vbar{position:fixed;left:0;right:0;bottom:0;padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px))} .soc-view .vbar .soc-btn{min-height:40px;flex:1 1 auto}
-        .soc-view .vbar .grp{flex:1 1 auto} .soc-view .vbar .grp .soc-btn:first-child{flex:1} .soc-view .vbar .grp .soc-btn:last-child{flex:none;width:34px}
-        .soc-tagpick{position:fixed;left:12px;right:12px;bottom:calc(72px + env(safe-area-inset-bottom,0px))}
+        .soc-view .vtagrow{flex-basis:100%}
       }`;
     document.head.appendChild(st);
   }
@@ -477,7 +480,7 @@
       <div class="soc-med ${isV ? 'vid' : ''}" data-med="${esc(p.id)}">${p.thumb ? `<img src="${esc(p.thumb)}" alt="" loading="lazy">` : ''}
         <span class="soc-pf" ${U() ? U().tipAttr(`${PL[p.plat] || ''} ${FM[p.fmt] || ''}${isM && p.slides ? `, ${p.slides} slides` : ''}`.trim()) : ''}>${PLK[p.plat] || ''}${isM && p.slides ? ` · ${p.slides}` : ''}</span>
         ${p.saved ? `<span class="sv" ${U() ? U().tipAttr(p.tag ? `Saved: ${p.tag}` : 'Saved') : ''}>${ic('bookmark')}</span>` : ''}
-        ${isV ? `<span class="spin"></span><button type="button" class="snd" data-snd="${esc(p.id)}" aria-label="Sound">${ic('mic')}</button>${p.dur ? `<span class="dur">${dur(p.dur)}</span>` : ''}` : ''}
+        ${isV ? `<span class="spin"></span>${p.dur ? `<span class="dur">${dur(p.dur)}</span>` : ''}` : ''}${isM && p.slides > 1 ? `<span class="dur">1 of ${p.slides}</span>` : ''}
         ${ratioPill(p)}</div>
       <div class="soc-body"><span class="soc-who"><b>${esc(p.handle ? `@${p.handle}` : p.who)}</b><small>${esc(ago(p.posted_at))}</small>${topic ? `<span class="tp">${esc(topic)}</span>` : ''}</span>
         <span class="soc-cap">${esc((p.caption || '').replace(/\s+/g, ' '))}</span>
@@ -521,13 +524,12 @@
     m.querySelectorAll('.soc-post').forEach(el => {
       const p = find(el.dataset.id);
       const med = el.querySelector('.soc-med');
-      el.onclick = e => { if (e.target.closest('.snd')) return; openPost(p, list); };
+      el.onclick = () => openPost(p, list);
       el.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPost(p, list); } };
       if (med && med.classList.contains('vid') && HOVER()) {
         let t; el.onmouseenter = () => { t = setTimeout(() => playIn(med, p), 350); };
         el.onmouseleave = () => { clearTimeout(t); stopIn(med); };
       }
-      const snd = el.querySelector('.snd'); if (snd) snd.onclick = e => { e.stopPropagation(); toggleSound(med); };
     });
   }
   function clear() { ST.q = ''; ST.qOpen = false; ST.win = 30; ST.paid = false; ST.src = ''; ST.plat = ''; ST.fmt = ''; ST.minv = 0; ST.mine = 0; ST.tag = ''; store('soc_win2', '30'); store('soc_paid', '0'); store('soc_minv', '0'); store('soc_mine', '0'); draw(); }
@@ -562,14 +564,21 @@
     med.classList.remove('playing', 'loading'); playing.delete(med);
   }
   function stopAll() { playing.forEach(stopIn); }
-  function toggleSound(med) {
-    const muted = med.dataset.muted !== '0';
+  /* The viewer's sound (2026-10-21): one plain speaker that mutes or unmutes, remembered in localStorage. The grid's hover
+     preview stays muted (browsers refuse sound before a click); the click that opens the viewer is the gesture. */
+  const SPK = on => on
+    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a9 9 0 0 1 0 14"/></svg>'
+    : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="m22 9-6 6"/><path d="m16 9 6 6"/></svg>';
+  const soundOn = () => store('soc_sound') !== '0';
+  function setSound(med, on) {
     const vid = med.querySelector('video'), fr = med.querySelector('iframe');
-    if (vid) vid.muted = !muted;
-    if (fr && fr.contentWindow) fr.contentWindow.postMessage(JSON.stringify({ event: 'command', func: muted ? 'unMute' : 'mute', args: '' }), '*');
-    med.dataset.muted = muted ? '0' : '1';
-    const b = med.querySelector('.snd'); if (b) { b.innerHTML = muted ? ic('zap') : ic('mic'); b.setAttribute('aria-label', muted ? 'Mute' : 'Sound on'); }
+    if (vid) vid.muted = !on;
+    if (fr && fr.contentWindow) fr.contentWindow.postMessage(JSON.stringify({ event: 'command', func: on ? 'unMute' : 'mute', args: '' }), '*');
+    med.dataset.muted = on ? '0' : '1'; store('soc_sound', on ? '1' : '0');
+    const b = med.querySelector('.snd'); if (b) { b.innerHTML = SPK(on); b.setAttribute('aria-label', on ? 'Mute' : 'Sound on'); }
+    const n = med.querySelector('button.note'); if (n && on) n.remove();
   }
+  function toggleSound(med) { setSound(med, med.dataset.muted !== '0'); }
 
   /* ---------- modals (in-app, never prompt()) ---------- */
   function modal(html) {
@@ -704,7 +713,7 @@
     document.addEventListener('keydown', e => {
       if (!V) return;
       if (e.key === 'Escape') { e.stopPropagation(); closePost(); }
-      else if (e.key === 'ArrowLeft') step(-1); else if (e.key === 'ArrowRight') step(1);
+      else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { const d = e.key === 'ArrowLeft' ? -1 : 1; if (!(V.slide && V.slide(d))) step(d); }
       else if (!e.ctrlKey && !e.metaKey && !e.altKey && !/^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || '') && !(e.target && e.target.isContentEditable)) {
         /* One-key shortcuts (2026-10-20, Sandcastles' S / M keys): S save, M make ours, C copy the link, T transcript. */
         const p = V.p, kk = e.key.toLowerCase();
@@ -746,16 +755,41 @@
       if (!V || V.p !== p) return;
       if (v.error) { m.insertAdjacentHTML('beforeend', `<span class="note">${esc(v.error)}</span>`); return; }
       const img = m.querySelector('img'); if (img) img.remove();
-      if (v.src) m.insertAdjacentHTML('afterbegin', `<video src="${esc(v.src)}" muted autoplay loop playsinline controls ${p.thumb ? `poster="${esc(p.thumb)}"` : ''}></video>`);
-      else m.insertAdjacentHTML('afterbegin', `<iframe src="${esc(ytSrc(v.embed, true))}" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen title="Video"></iframe>`);
-      if (!v.src) { m.dataset.muted = '1'; m.insertAdjacentHTML('beforeend', `<button type="button" class="snd" aria-label="Sound">${ic('mic')}</button>`); m.querySelector('.snd').onclick = () => toggleSound(m); }
+      const on = soundOn();
+      m.insertAdjacentHTML('beforeend', `<button type="button" class="snd" aria-label="${on ? 'Mute' : 'Sound on'}">${SPK(on)}</button>`);
+      m.querySelector('.snd').onclick = () => toggleSound(m);
+      if (v.src) {
+        /* The click that opened the viewer is the gesture: play with sound at once. A browser that still refuses gets a
+           muted start and a visible "Tap for sound" button (one tap unmutes). The native control bar scrubs. */
+        m.insertAdjacentHTML('afterbegin', `<video src="${esc(v.src)}" ${on ? '' : 'muted'} autoplay loop playsinline controls ${p.thumb ? `poster="${esc(p.thumb)}"` : ''}></video>`);
+        const vid = m.querySelector('video'); m.dataset.muted = on ? '0' : '1';
+        vid.onvolumechange = () => { if (!V || V.p !== p) return; const now = !vid.muted; if ((m.dataset.muted === '0') !== now) { m.dataset.muted = now ? '0' : '1'; store('soc_sound', now ? '1' : '0'); const b = m.querySelector('.snd'); if (b) b.innerHTML = SPK(now); } };
+        const tap = () => { vid.muted = true; m.dataset.muted = '1'; const b = m.querySelector('.snd'); if (b) b.innerHTML = SPK(false); vid.play().catch(() => {}); if (!m.querySelector('button.note')) { m.insertAdjacentHTML('beforeend', `<button type="button" class="note">${SPK(true)} Tap for sound</button>`); m.querySelector('button.note').onclick = e => { e.stopPropagation(); setSound(m, true); vid.play().catch(() => {}); }; } };
+        const pr = vid.play(); if (pr && pr.catch) pr.catch(() => { if (on && V && V.p === p) tap(); });
+      } else {
+        m.insertAdjacentHTML('afterbegin', `<iframe src="${esc(ytSrc(v.embed, !on))}" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen title="Video"></iframe>`);
+        m.dataset.muted = on ? '0' : '1';
+      }
     });
-    if (isM) slidesOf(p).then(s => {
-      if (!V || V.p !== p || !s.length) return;
-      m.innerHTML = `<div class="vslides">${s.map((u, i) => `<img src="${esc(u)}" alt="Slide ${i + 1}" loading="lazy">`).join('')}</div><div class="vdots">${s.map((_, i) => `<i class="${i ? '' : 'on'}"></i>`).join('')}</div>`;
-      const sl = m.querySelector('.vslides'), dots = [...m.querySelectorAll('.vdots i')];
-      sl.onscroll = () => { const i = Math.round(sl.scrollLeft / sl.clientWidth); dots.forEach((d, j) => d.classList.toggle('on', j === i)); };
-    });
+    V.slide = null;
+    if (isM) {
+      if (p.slides > 1) m.insertAdjacentHTML('beforeend', `<span class="vcnt">1 of ${p.slides}</span>`);
+      slidesOf(p).then(s => {
+        if (!V || V.p !== p || !s.length) return;
+        /* Every slide (2026-10-21): a swipeable strip, dots, left and right arrows, and "2 of 6" in the corner. */
+        const n = s.length;
+        m.innerHTML = `<div class="vslides">${s.map((u, i) => `<img src="${esc(u)}" alt="Slide ${i + 1}" ${i ? 'loading="lazy"' : ''}>`).join('')}</div>
+          ${n > 1 ? `<div class="vdots">${s.map((_, i) => `<i class="${i ? '' : 'on'}"></i>`).join('')}</div><span class="vcnt">1 of ${n}</span><button type="button" class="vsl l" aria-label="Previous slide" disabled>&#8249;</button><button type="button" class="vsl r" aria-label="Next slide">&#8250;</button>` : ''}`;
+        if (n < 2) return;
+        const sl = m.querySelector('.vslides'), dots = [...m.querySelectorAll('.vdots i')], cnt = m.querySelector('.vcnt'), L = m.querySelector('.vsl.l'), R = m.querySelector('.vsl.r');
+        const at = () => Math.round(sl.scrollLeft / Math.max(1, sl.clientWidth));
+        const go = i => { i = Math.max(0, Math.min(n - 1, i)); sl.scrollTo({ left: i * sl.clientWidth, behavior: 'smooth' }); };
+        const sync = () => { const i = at(); dots.forEach((d, j) => d.classList.toggle('on', j === i)); cnt.textContent = `${i + 1} of ${n}`; L.disabled = i <= 0; R.disabled = i >= n - 1; };
+        sl.onscroll = sync;
+        L.onclick = e => { e.stopPropagation(); go(at() - 1); }; R.onclick = e => { e.stopPropagation(); go(at() + 1); };
+        V.slide = d => { const i = at(); if ((d < 0 && i <= 0) || (d > 0 && i >= n - 1)) return false; go(i + d); return true; };
+      });
+    }
   }
   async function slidesOf(p) {
     if (SLIDES[p.id]) return SLIDES[p.id];
@@ -813,13 +847,32 @@
   }
   function bar(p) {
     const el = viewerEl(), b = el.querySelector('.vbar');
-    b.innerHTML = `${CLI() ? `<button type="button" class="soc-btn pri" id="svAsk">Ask the team</button>` : `<button type="button" class="soc-btn pri mk" id="svMake">${ic('sparkles')} ${p.idea_id ? 'Our version' : 'Make ours'}</button>`}
-      <span class="grp"><button type="button" class="soc-btn sav ${p.saved ? 'on' : ''}" id="svSave">${ic('bookmark')} ${p.saved ? 'Saved' : 'Save'}</button><button type="button" class="soc-btn sav ${p.saved ? 'on' : ''}" id="svTag" aria-label="Save with a tag">&#8964;</button></span>
-      <a class="soc-btn" href="${esc(p.url)}" target="_blank" rel="noopener" ${U() ? U().tipAttr(`Open on ${PL[p.plat] || ''}`) : ''}>${ic('external-link')} ${esc(PLK[p.plat] || 'Open')}</a>`;
+    /* 2026-10-21: Make ours is one primary button (a text label, no icon glyph), Save is one button, and the tag is picked
+       AFTER saving: a row of the brand's tags plus "+ tag" appears under the buttons, one tap each. */
+    b.innerHTML = `${CLI() ? `<button type="button" class="soc-btn pri" id="svAsk">Ask the team</button>` : `<button type="button" class="soc-btn pri mk" id="svMake">${p.idea_id ? 'Our version' : 'Make ours'}</button>`}
+      <button type="button" class="soc-btn sav ${p.saved ? 'on' : ''}" id="svSave" ${U() ? U().tipAttr(p.saved ? 'Saved. Click to remove it from Saved.' : 'Keep it on the Saved tab') : ''}>${ic('bookmark')} ${p.saved ? 'Saved' : 'Save'}</button>
+      <a class="soc-btn" href="${esc(p.url)}" target="_blank" rel="noopener" ${U() ? U().tipAttr(`Open on ${PL[p.plat] || ''}`) : ''}>${ic('external-link')} ${esc(PLK[p.plat] || 'Open')}</a>
+      ${p.saved ? tagRow(p) : ''}`;
     const mk = b.querySelector('#svMake'); if (mk) mk.onclick = () => makeStep(p);
     const ask = b.querySelector('#svAsk'); if (ask) ask.onclick = () => { closePost(); H.show('requests'); };
     b.querySelector('#svSave').onclick = () => saveToggle(p, p.saved ? null : p.tag, !p.saved);
-    b.querySelector('#svTag').onclick = e => { e.stopPropagation(); tagPicker(b.querySelector('.grp'), p); };
+    wireTagRow(b, p);
+  }
+  function tagRow(p) {
+    const tags = (ST.data && ST.data.tags) || [];
+    return `<div class="vtagrow"><span class="lb">Tag</span>${tags.map(t => `<button type="button" data-t="${esc(t.name)}" class="${p.tag === t.name ? 'on' : ''}"><i class="soc-tagdot" style="background:${tagColor(t.name)}"></i><span>${esc(t.name)}</span></button>`).join('')}${p.tag && !tags.some(t => t.name === p.tag) ? `<button type="button" data-t="${esc(p.tag)}" class="on"><i class="soc-tagdot" style="background:${tagColor(p.tag)}"></i><span>${esc(p.tag)}</span></button>` : ''}<button type="button" class="add" data-newtag="1">+ tag</button></div>`;
+  }
+  function wireTagRow(b, p) {
+    const row = b.querySelector('.vtagrow'); if (!row) return;
+    row.querySelectorAll('[data-t]').forEach(x => x.onclick = () => saveToggle(p, p.tag === x.dataset.t ? null : x.dataset.t, true));
+    const add = row.querySelector('[data-newtag]');
+    if (add) add.onclick = () => {
+      add.outerHTML = '<input type="text" placeholder="New tag" maxlength="40" aria-label="New tag">';
+      const inp = row.querySelector('input'); inp.focus();
+      const done = () => { const t = inp.value.trim(); if (t) saveToggle(p, t, true); else bar(p); };
+      inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); done(); } else if (e.key === 'Escape') { e.stopPropagation(); bar(p); } };
+      inp.onblur = () => setTimeout(() => { if (inp.isConnected) done(); }, 120);
+    };
   }
   async function saveToggle(p, tag, next) {
     try {
@@ -833,23 +886,6 @@
       toast(next ? (p.tag ? `Saved under ${p.tag}.` : 'Saved.') : 'Removed from Saved.');
     } catch (err) { toast(err.message); }
   }
-  function tagPicker(host, p) {
-    const old = host.querySelector('.soc-tagpick'); if (old) { old.remove(); return; }
-    const tags = (ST.data && ST.data.tags) || [];
-    host.insertAdjacentHTML('beforeend', `<div class="soc-tagpick" role="menu">
-      <button type="button" data-t="" class="${p.saved && !p.tag ? 'on' : ''}"><i class="soc-tagdot" style="background:var(--muted)"></i>No tag</button>
-      ${tags.map(t => `<button type="button" data-t="${esc(t.name)}" class="${p.tag === t.name ? 'on' : ''}"><i class="soc-tagdot" style="background:${tagColor(t.name)}"></i>${esc(t.name)}<small>${t.n}</small></button>`).join('')}
-      <div class="new"><input type="text" placeholder="New tag" maxlength="40" aria-label="New tag"><button type="button" class="soc-btn sm" data-new="1">Add</button></div></div>`);
-    const pk = host.querySelector('.soc-tagpick');
-    const off = e => { if (!pk.contains(e.target)) { pk.remove(); document.removeEventListener('click', off, true); } };
-    setTimeout(() => document.addEventListener('click', off, true), 0);
-    const pick = t => { pk.remove(); document.removeEventListener('click', off, true); saveToggle(p, t || null, true); };
-    pk.querySelectorAll('[data-t]').forEach(b => b.onclick = () => pick(b.dataset.t));
-    const inp = pk.querySelector('input'); inp.focus();
-    const add = () => { const t = inp.value.trim(); if (t) pick(t); };
-    pk.querySelector('[data-new]').onclick = add; inp.onkeydown = e => { if (e.key === 'Enter') add(); };
-  }
-
   /* ---------- Make ours: a second step in the same column. The brief itself lives in Slack; here the beats. ---------- */
   const stat = (cls, t) => `<span class="vstat ${cls}"><i></i>${esc(t)}</span>`;
   /* 2026-10-20: Make ours is the shared Make panel (make.js), drawn inside the viewer's column: breakdown, the draft,

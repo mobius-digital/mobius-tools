@@ -287,8 +287,14 @@ async function publishIg(env, acc, post, media, t) {
 async function publishFb(env, acc, post, media, t) {
   const page = acc.ext_id, tok = acc.token?.access;
   const message = capFor(post, t, 'fb', 60000);
+  /* 2026-10-21: the composer's Shop link. With a picture or video the link rides inside the message (the composer appends it);
+     with no media it becomes the post's link, so Facebook draws the product card. */
+  const link = /^https?:\/\//i.test(t?.link || '') ? t.link : null;
   let id, postId;
-  if (media.length === 1 && isVideo(media[0])) {
+  if (!media.length) {
+    const r = await graph(env, `${page}/feed`, link ? { message, link } : { message }, { method: 'POST', token: tok });
+    id = r.id; postId = r.id;
+  } else if (media.length === 1 && isVideo(media[0])) {
     const r = await graph(env, `${page}/videos`, { file_url: media[0].public, description: message }, { method: 'POST', token: tok });
     id = r.id; postId = r.id;
   } else if (media.length === 1) {
@@ -783,7 +789,7 @@ async function closeFilmTask(env, ideaId, by) {
 /* ---------------- shapes ---------------- */
 const pubPost = p => ({ id: p.id, act: p.act_id, at: p.at, status: p.status, caption: p.caption, media: safe(p.media_json, []).map(m => ({ ref: m.ref, src: m.src, kind: m.kind, title: m.title, thumb: m.thumb, who: m.who || null, staged: !!m.staged, public: m.public || null })),
   targets: safe(p.targets_json, {}), results: safe(p.results_json, {}), auto: !!p.auto, created_by: p.created_by, posted_at: p.posted_at, error: p.error, pulled_at: p.pulled_at, updated_at: p.updated_at });
-const VALID_T = { ig: ['on', 'caption', 'first_comment'], fb: ['on', 'caption'], tt: ['on', 'caption', 'title', 'privacy'], yt: ['on', 'caption', 'title', 'visibility'] };
+const VALID_T = { ig: ['on', 'caption', 'first_comment'], fb: ['on', 'caption', 'link'], tt: ['on', 'caption', 'title', 'privacy'], yt: ['on', 'caption', 'title', 'visibility'] };
 function cleanTargets(t) {
   const out = {};
   for (const plat of Object.keys(PLATS)) {
