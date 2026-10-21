@@ -1835,7 +1835,8 @@ button.ds-chip.lx-chip svg{width:9px;height:6px;color:var(--muted)}
 [data-ui="v2"] .lx-bites{display:flex;height:14px;border-radius:var(--r-pill,999px);overflow:hidden;background:var(--surface-2);gap:2px}
 [data-ui="v2"] .lx-bites i{display:block;min-width:0}
 [data-ui="v2"] .lx-bites.ds-sk{height:14px}
-[data-ui="v2"] .b-kept{background:var(--brand)}[data-ui="v2"] .b-ads{background:var(--c-google)}[data-ui="v2"] .b-cogs{background:var(--c-amazon)}[data-ui="v2"] .b-ship{background:var(--c-tiktok)}[data-ui="v2"] .b-fees{background:var(--c-email)}[data-ui="v2"] .b-rest{background:transparent}
+/* one river palette (2026-10-20): kept is the brand blue, ads is amber, the costs are three greys. Channel colours stay for channels. */
+[data-ui="v2"] .b-kept{background:var(--brand)}[data-ui="v2"] .b-ads{background:var(--warn)}[data-ui="v2"] .b-cogs{background:var(--line-strong)}[data-ui="v2"] .b-ship{background:var(--muted)}[data-ui="v2"] .b-fees{background:var(--faint,var(--ink-2))}[data-ui="v2"] .b-rest{background:transparent}
 [data-ui="v2"] .lx-bites-l{display:flex;gap:6px 16px;flex-wrap:wrap;margin:8px 0 0;font-size:12.5px;color:var(--ink-2)}
 [data-ui="v2"] .lx-bites-l .sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin:0 6px 0 0;vertical-align:-1px}
 [data-ui="v2"] .lx-bites-l b{font-weight:600;color:var(--ink)}
