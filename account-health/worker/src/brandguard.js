@@ -436,6 +436,7 @@ export const CLIENT_RULES = [
   R('POST', '/api/social/captions', 'need', { fields: ['text'] }),
   R('DELETE', '/api/social/captions', 'none', { own: [{ in: 'query', key: 'id', table: 'social_caption' }] }),
   R('POST', '/api/social/rephrase', 'need', { fields: ['text', 'note'], cap: ['clientAsk', 0.01] }),
+  R('GET', '/api/social/results'),
 
   /* ---- CALENDAR: read, add, edit, move, set the end, note, remove and put back. Never tick the team's work steps
      or make Asana tasks (Mobius's Asana). The handler checks each date's own brand. ---- */

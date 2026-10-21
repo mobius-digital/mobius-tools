@@ -343,7 +343,7 @@ async function briefToAsana(env, d, act, doc, row, it, m, who) {
   const top = Math.max(0, ...(Array.isArray(recent) ? recent : []).map(t => +numOf(t.name) || 0));
   if (top >= num) { num = top + 1; await env.DB.prepare(`UPDATE p_br_batch SET num = ?2 WHERE id = ?1`).bind(row.id, String(num)).run(); }
   const assignee = await asanaUserFor(env, d, doc, it.owner);
-  const from = m ? `<em>From the "${sEsc(m.title || 'call')}" call on ${m.date}: ${sEsc(it.text)}.${it.detail ? ` ${sEsc(it.detail)}` : ''} Confirmed by ${sEsc(who)} in Locus.</em>\n` : `<em>Added in Locus Production by ${sEsc(who)}.</em>\n`;
+  const from = m ? `<em>From the "${sEsc(m.title || 'call')}" call on ${m.date}: ${sEsc(it.text)}.${it.detail ? ` ${sEsc(it.detail)}` : ''} Confirmed by ${sEsc(who)} in Locus.</em>\n` : `<em>Added in Locus Production by ${sEsc(who)}.</em>\n${it.detail ? `${sEsc(it.detail)}\n` : ''}`;
   const html = briefFor(it.text).replace('<body>', `<body>${from}`);
   const t = await d.asana(env, '/tasks?opt_fields=name,permalink_url', { method: 'POST', body: { name: `${num} - ${clean(it.text, 120)}`, projects: [doc.project_gid], html_notes: html, ...(assignee ? { assignee: assignee.gid } : {}), ...(it.due ? { due_on: it.due } : {}) } });
   await d.asana(env, `/sections/${sec.gid}/addTask`, { method: 'POST', body: { task: t.gid } }).catch(() => {});
