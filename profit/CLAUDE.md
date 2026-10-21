@@ -4346,3 +4346,14 @@ Cole: "Studio looks like absolute shit. I still don't understand how things get 
   Delivery, Watch time, Where it ran, Ad copy, Next steps.
 - creative()'s `ctxOf` carries `sibs` (ads with the same `adset.id`), `verdictOf` and `open`. A grouped card (one per creative)
   has `adset: null`, so `setOf(r)` falls back to the set of its top ad (same id). previewAd uses `a.adset || cx.set`.
+
+## 2026-10-21 (round four): AD CALLS, PASS Q (Cole approved docs/locus-v4/goals-and-ad-calls.html)
+- One MAIN goal decides (`goal_metric`, platform goal `goal_meta` / `goal_google` in that metric); target ROAS (with the ROAS
+  guard on) and target CPA are GUARDRAILS when they are not the main metric; an empty field never counts.
+- hub.js `buyerList`: kind `mixed` when the main goal and a guardrail disagree (main met with 3+ sales but a guardrail broken,
+  or past the cut line with every set guardrail met); it replaces the old silent ROAS-guard keep. Every set row carries
+  `checks`, `evidence {for, against}` and, on Cut or Mixed, `funnel` when 60%+ of its 7-day sales are new customers and its
+  click rate beats the account median (sets with 1,000+ impressions). Mixed rows rank at half their spend.
+- desk.js: MIXED chip, a Mixed filter, no Do it button, "Decided on" in the Done log; "Feeds the funnel" tag with numbers on
+  hover. v4.js setPanel: numbers against goal or account, For keeping it / For cutting it boxes, the funnel line.
+- Not taught Mixed yet: nudge.js and the 8am Slack post ignore it (they only act on cut / scale / trim / refresh / fix).
