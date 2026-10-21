@@ -489,3 +489,134 @@ html.lx-irail[data-ui="v2"] body.nav-open .nav-scrim{display:block}
 
 /* a client reads: header actions are the team's unless a page flags one data-client-ok (2026-10-21) */
 body.is-client #main .ph .ph-acts > :not([data-client-ok]), body.is-client #hdActions > :not([data-client-ok]), body.is-client .v4-ring-go{display:none}
+
+/* ==========================================================================
+   THE INSTRUMENT KIT (2026-10-21, review round one, pass A; lx.js LxKit.ring / spark / river / funnel / scale /
+   waterfall / chip, row panels). Premium SaaS habits (Linear, Stripe, Vercel, Triple Whale): thin strokes, 2 to 4px
+   radius, the brand blue plus greys, numbers inside the chart, a visible scale, one legend line with hover detail,
+   a 400ms grow on first paint. Status is a chip, never the colour of a wide stroke. Tokens only.
+   ========================================================================== */
+:root[data-ui="v2"]{--lx-track:color-mix(in srgb,var(--ink) 9%,transparent);--lx-ease-out:cubic-bezier(.2,.7,.2,1)}
+@keyframes lx-grow-x{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes lx-grow-y{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+@keyframes lx-ring{from{stroke-dasharray:0 var(--rc,400)}}
+@keyframes lx-draw{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0 0 0 0)}}
+
+/* status chip: small, words, a dot */
+.lx-st{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:var(--r-xs,4px);font-size:11.5px;font-weight:600;white-space:nowrap;
+  color:var(--ink-2);background:var(--surface-2);border:1px solid var(--line)}
+.lx-st::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+.lx-st.good{color:var(--good);background:color-mix(in srgb,var(--good) 9%,transparent);border-color:color-mix(in srgb,var(--good) 28%,transparent)}
+.lx-st.warn{color:var(--warn);background:color-mix(in srgb,var(--warn) 10%,transparent);border-color:color-mix(in srgb,var(--warn) 30%,transparent)}
+.lx-st.bad{color:var(--bad);background:color-mix(in srgb,var(--bad) 9%,transparent);border-color:color-mix(in srgb,var(--bad) 28%,transparent)}
+.lx-st.brand{color:var(--brand-ink,var(--brand));background:var(--brand-soft);border-color:color-mix(in srgb,var(--brand) 30%,transparent)}
+
+/* the ring */
+.lx-ring{position:relative;width:var(--rs,132px);height:var(--rs,132px);margin:6px auto 0;flex:none}
+.lx-ring svg{width:100%;height:100%;transform:rotate(-90deg);overflow:visible}
+.lx-ring .lx-ring-p{animation:lx-ring .4s var(--lx-ease-out) both}
+.lx-ring .c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 14%}
+.lx-ring .c b{font-size:calc(var(--rs,132px) * .165);font-weight:600;letter-spacing:-.02em;color:var(--ink);font-variant-numeric:tabular-nums;line-height:1}
+.lx-ring .c small{font-size:11px;color:var(--muted);margin-top:5px;line-height:1.25}
+.lx-ring.sm{margin:0}.lx-ring.sm .c{padding:0}.lx-ring.sm .c b{font-size:12px;letter-spacing:0;font-weight:600}
+.lx-ring-chip{display:flex;justify-content:center;margin-top:10px}
+
+/* the sparkline: a 56px line with its scale on the right */
+.lx-spk{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto auto;column-gap:8px;margin-top:auto;padding-top:6px;align-items:stretch}
+.lx-spk .v2spark,[data-ui="v2"] .lx-spk .v2spark{grid-row:1 / 3;height:56px;margin:0;width:100%}
+.lx-spk .lx-spk-l{animation:lx-draw .4s var(--lx-ease-out) both}
+.lx-spk .mx,.lx-spk .mn{font-size:10.5px;line-height:1;color:var(--faint);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.lx-spk .mx{align-self:start;padding-top:1px}.lx-spk .mn{align-self:end}
+
+/* the river: a thin segmented bar on a baseline */
+.lx-river{margin:4px 0 0}
+.lx-river-t{position:relative;display:flex;gap:2px;height:22px;align-items:stretch}
+.lx-river-t > i{position:relative;display:flex;align-items:center;justify-content:center;min-width:2px;border-radius:3px;overflow:hidden;transform-origin:left;animation:lx-grow-x .4s var(--lx-ease-out) both;cursor:default}
+.lx-river-t > i span{font-size:11px;font-weight:600;font-style:normal;color:#fff;font-variant-numeric:tabular-nums;white-space:nowrap;text-shadow:0 1px 1px rgba(0,0,0,.18)}
+.lx-river-m{position:absolute;top:-5px;bottom:-5px;width:2px;margin-left:-1px;background:var(--ink);border-radius:1px}
+.lx-river-m::after{content:"";position:absolute;top:-3px;left:-3px;width:8px;height:8px;border-radius:50%;background:var(--ink)}
+.lx-river-base{display:flex;justify-content:space-between;border-top:1px solid var(--line-strong);margin-top:6px;padding-top:4px;font-size:10.5px;color:var(--faint);font-variant-numeric:tabular-nums}
+.lx-legend{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:8px;font-size:12px;color:var(--muted)}
+.lx-legend span{display:inline-flex;align-items:center;gap:6px;flex:none}
+.lx-legend i{width:8px;height:8px;border-radius:2px;flex:none}
+.lx-legend b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+@media (max-width:900px){.lx-legend{flex-wrap:wrap;white-space:normal}}
+
+/* the funnel: stepped bars, the carry-on rate between them */
+.lx-fun{display:flex;flex-direction:column}
+.lx-fun-s{display:grid;grid-template-columns:minmax(84px,120px) minmax(0,1fr) minmax(56px,auto);align-items:center;gap:12px;min-height:30px}
+.lx-fun-s .l{font-size:12.5px;color:var(--ink-2);font-weight:500}
+.lx-fun-s .t{position:relative;height:14px;background:var(--lx-track);border-radius:3px;display:flex;justify-content:center;overflow:hidden}
+.lx-fun-s .t i{display:block;height:100%;background:var(--brand);border-radius:3px;transform-origin:center;animation:lx-grow-x .4s var(--lx-ease-out) both}
+.lx-fun-s .v{font-size:13.5px;font-weight:600;text-align:right;font-variant-numeric:tabular-nums;color:var(--ink)}
+.lx-fun-d{display:flex;align-items:center;gap:10px;padding:3px 0 3px 132px;font-size:11.5px;color:var(--faint)}
+.lx-fun-d small{font-size:11px;color:var(--faint)}
+@media (max-width:520px){.lx-fun-d{padding-left:0;flex-wrap:wrap}.lx-fun-s{grid-template-columns:76px minmax(0,1fr) auto;gap:8px}}
+
+/* the marked bar (where a dial was) */
+.lx-scale{position:relative;padding-top:22px;margin:4px 8px 2px}
+.lx-scale-v{position:absolute;top:0;transform:translateX(-50%);font-size:13px;white-space:nowrap}
+.lx-scale-v b{font-weight:650;color:var(--ink);font-variant-numeric:tabular-nums}
+.lx-scale-t{position:relative;height:8px;border-radius:3px;background:var(--lx-track)}
+.lx-scale-t i{position:absolute;left:0;top:0;bottom:0;border-radius:3px;background:var(--brand);transform-origin:left;animation:lx-grow-x .4s var(--lx-ease-out) both}
+.lx-scale-t em{position:absolute;top:-4px;bottom:-4px;width:1.5px;margin-left:-.75px;background:var(--ink-2)}
+.lx-scale-m{position:relative;height:16px;margin-top:6px;font-size:10.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.lx-scale-m span{position:absolute;top:0;transform:translateX(-50%);white-space:nowrap}
+.lx-scale-m span:first-child{transform:none}
+
+/* the waterfall: columns, connectors, labels in the bars */
+.lx-wf{display:grid;grid-template-columns:repeat(var(--n,6),minmax(0,1fr));gap:10px;align-items:end;margin-top:6px}
+.lx-wf-c{display:flex;flex-direction:column;min-width:0}
+.lx-wf-a{position:relative;height:150px;border-bottom:1px solid var(--line-strong)}
+.lx-wf-a > i{position:absolute;left:0;right:0;border-radius:3px;display:flex;align-items:center;justify-content:center;transform-origin:bottom;animation:lx-grow-y .4s var(--lx-ease-out) both;min-height:2px}
+.lx-wf-a > i span{font-size:11px;font-weight:600;color:#fff;font-variant-numeric:tabular-nums;white-space:nowrap;text-shadow:0 1px 1px rgba(0,0,0,.18)}
+.lx-wf-a > .o{position:absolute;left:-6px;right:-6px;text-align:center;margin-bottom:3px;font-size:11px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.lx-wf-a > .cn{position:absolute;left:100%;width:10px;height:0;border-top:1px dashed var(--ink-2);opacity:.6}
+.lx-wf-c > .l{font-size:11.5px;color:var(--muted);text-align:center;margin-top:6px;line-height:1.25;min-height:2.5em}
+.lx-wf-c.tot > .l,.lx-wf-c.sub > .l{color:var(--ink);font-weight:600}
+@media (max-width:600px){.lx-wf{gap:4px}.lx-wf-a{height:130px}.lx-wf-a > .cn{width:4px}.lx-wf-a > i span,.lx-wf-a > .o{font-size:9.5px}.lx-wf-c > .l{font-size:10px}}
+
+/* bar lists: thin bars, the target as an outlined track with a tick */
+.lx-bar .t{height:6px;border-radius:2px;background:var(--lx-track)}
+.lx-bar .t i{border-radius:2px;transform-origin:left;animation:lx-grow-x .4s var(--lx-ease-out) both}
+.lx-bar .t i.g{background:transparent!important;opacity:1;border:1px dashed var(--line-strong);top:-2px;bottom:-2px;animation:none}
+.lx-bar .t b{top:-5px;bottom:-5px;width:1.5px;background:var(--ink-2);opacity:1}
+
+/* the money bar used for new vs returning and channel share (one thin line) */
+[data-ui="v2"] .v4 .v2stackbar,[data-ui="v2"] .v2drill .v2stackbar{height:10px;border-radius:3px;gap:2px;background:transparent}
+[data-ui="v2"] .v4 .v2stackbar i,[data-ui="v2"] .v2drill .v2stackbar i{border-radius:2px;transform-origin:left;animation:lx-grow-x .4s var(--lx-ease-out) both}
+
+/* the table standard: inline bars sit on a visible track (the scale), numbers tabular, a row with no action of its own
+   opens the row panel (lx.js) */
+[data-ui="v2"] .v2tbl td,[data-ui="v2"] .v2tbl th{font-variant-numeric:tabular-nums}
+[data-ui="v2"] .v2ib > i{grid-column:1;grid-row:1;height:4px;border-radius:2px;transform-origin:left;animation:lx-grow-x .4s var(--lx-ease-out) both}
+[data-ui="v2"] .v2ib::before{content:"";grid-column:1;grid-row:1;align-self:center;height:4px;border-radius:2px;background:var(--lx-track)}
+[data-ui="v2"] .v2ib > span{grid-column:2;grid-row:1}
+[data-ui="v2"] .v2tbl tbody tr.lx-rp{cursor:pointer}
+[data-ui="v2"] .v2tbl tbody tr.lx-rp:hover td{background:var(--surface-2)}
+.lx-rowp-from{margin:0 0 10px;font-size:12px;color:var(--muted)}
+.lx-rowp dl{margin:0;border-top:1px solid var(--line)}
+.lx-rowp dl > div{display:grid;grid-template-columns:minmax(110px,40%) minmax(0,1fr);gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)}
+.lx-rowp dt{font-size:12px;color:var(--muted)}
+.lx-rowp dd{margin:0;text-align:right;font-size:13.5px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+.lx-rowp dd .v2ib{grid-template-columns:90px auto}
+
+@media (prefers-reduced-motion:reduce){
+  .lx-ring .lx-ring-p,.lx-spk .lx-spk-l,.lx-river-t > i,.lx-fun-s .t i,.lx-scale-t i,.lx-wf-a > i,.lx-bar .t i,[data-ui="v2"] .v2ib > i,[data-ui="v2"] .v4 .v2stackbar i{animation:none}
+}
+
+/* v4 pages on the instrument kit (2026-10-21, pass A) */
+.v4 .v4-herorow{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 14px;margin:4px 0 12px}.v4 .v4-herorow .v4-hero{margin:0}
+.v4 .v4-norm2{font-size:13px;color:var(--muted);white-space:nowrap}.v4 .v4-norm2 b{color:var(--ink-2);font-weight:600;font-variant-numeric:tabular-nums}
+.v4 .v4-ring-cap.v4-sub2{margin-top:4px;color:var(--muted)}
+.v4 .v4-top.v4-mo{align-items:start}
+.v4 .v4-cusay{margin:6px 0 4px;font-size:13.5px;line-height:1.5;color:var(--ink-2)}.v4 .v4-cusay b{color:var(--ink);font-weight:650}
+.v4 .v4-cfacts{margin-top:12px}.v4 .v4-cu-go{margin-top:10px;align-self:flex-start}
+.v4 .v4-facts em{font-style:normal;font-size:11px;color:var(--muted);white-space:nowrap}
+.v4 .v4-top.v4-mo > section:nth-child(3){display:flex;flex-direction:column}
+.lx-fun-d small{white-space:nowrap}
+[data-ui="v2"] .v2bul .trk{height:4px;border-radius:2px;background:var(--lx-track)}[data-ui="v2"] .v2bul .trk i{border-radius:2px;transform-origin:left;animation:lx-grow-x .4s var(--lx-ease-out) both}[data-ui="v2"] .v2bul .trk b{top:-4px;height:12px;width:1.5px;background:var(--ink-2)}
+.lx-wf-a > i,.lx-river-t > i,.lx-fun-s .t i,.lx-scale-t i{font-style:normal}
+:root[data-ui="v2"]:not([data-theme="light"]) .lx-wf-a > i span,:root[data-ui="v2"]:not([data-theme="light"]) .lx-river-t > i span{color:#111114;text-shadow:none}
+.lx-wf-a > .o.dup{display:none}
+@media (max-width:600px){.lx-wf-a > i span{display:none}.lx-wf-a > .o.dup{display:block}.lx-wf-a > .o{font-size:9px;left:-3px;right:-3px}.lx-wf-c > .l{font-size:9.5px;overflow-wrap:anywhere}}

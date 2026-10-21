@@ -15,39 +15,33 @@
   const dateWord = s => s ? new Date(s + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '';
   /* the money palette (v2.css --m-*): one hue per money category, the same on the river, the waterfall and every legend */
   const BITE = { ads: 'var(--m-ads)', cogs: 'var(--m-product)', costs: 'var(--m-product)', shipping: 'var(--m-ship)', handling: 'var(--m-handling)', fees: 'var(--m-fees)' };
+  /* healthy carry-on rates for the site funnel (Shopify's published ecommerce averages, rounded) */
+  const FUN_BENCH = { cart: 0.06, order: 0.35 };
   const STEP = { Revenue: 'var(--m-kept)', Kept: 'var(--m-kept)', Product: 'var(--m-product)', Shipping: 'var(--m-ship)', Handling: 'var(--m-handling)', Fees: 'var(--m-fees)', 'Ad spend': 'var(--m-ads)', 'Gross profit': 'var(--line-strong)' };
 
-  /* ---------- the river: a left-to-right waterfall of yesterday ---------- */
+  /* ---------- the river: yesterday's sales as one thin segmented bar (LxKit.river) ---------- */
   function river(b) {
-    const cur = b.currency, W = 600, H0 = 92;
-    const bites = (b.bites || []).filter(x => x.v > 0);
-    const total = Math.max(b.sales || 0, bites.reduce((s, x) => s + x.v, 0) + Math.max(0, b.kept || 0), 1);
-    const sx = v => Math.max(0, v) / total * (W - 20);
-    let x = 10, out = `<svg class="v4-river" viewBox="0 0 ${W} ${H0}" preserveAspectRatio="none" role="img" aria-label="Sales ${K.money(b.sales, cur)}, kept ${K.money(b.kept, cur)}">`;
-    out += `<rect x="10" y="4" width="${sx(total).toFixed(1)}" height="30" rx="6" fill="var(--surface-2)"/>`;
-    for (const bt of bites) { const w = sx(bt.v); out += `<rect x="${x.toFixed(1)}" y="4" width="${Math.max(w - 2, 2).toFixed(1)}" height="30" rx="4" fill="${BITE[bt.k] || BITE.cogs}" opacity=".85"><title>${K.esc(bt.label)}: ${K.money(bt.v, cur)}</title></rect>`; x += w; }
-    if (b.kept > 0) out += `<rect x="${x.toFixed(1)}" y="4" width="${Math.max(sx(b.kept) - 2, 2).toFixed(1)}" height="30" rx="4" fill="var(--m-kept)"><title>Kept: ${K.money(b.kept, cur)}</title></rect>`;
-    if (b.normal != null && b.normal > 0) { const nx = Math.min(W - 12, x + sx(b.normal)); out += `<line x1="${nx.toFixed(1)}" y1="0" x2="${nx.toFixed(1)}" y2="40" stroke="var(--ink)" stroke-width="1.5" stroke-dasharray="3 3"/>`; }
-    out += '</svg>';
-    const lab = (c, l, v) => `<span><i style="background:${c}"></i>${K.esc(l)} <b>${K.money(v, cur)}</b></span>`;
-    const labs = [...(b.kept > 0 ? [lab('var(--m-kept)', 'Kept', b.kept)] : []), ...bites.map(bt => lab(BITE[bt.k] || BITE.cogs, bt.label, bt.v)), ...(b.normal != null ? [`<span class="v4-norm">a normal day keeps about <b>${K.money(b.normal, cur)}</b></span>`] : [])];
-    return out + `<div class="v4-river-l">${labs.join('')}</div>`;
+    const cur = b.currency, km = v => K.kmoney(v, cur);
+    const bites = (b.bites || []).filter(x => x.v > 0), sales = Math.max(b.sales || 0, 1);
+    /* kept first, so the tick for a normal day reads against the end of the kept segment */
+    const segs = [...(b.kept > 0 ? [{ label: 'Kept', v: b.kept, color: 'var(--m-kept)', tip: `<b>Kept</b> ${K.money(b.kept, cur)}, ${K.pct(b.kept / sales, 0)} of sales: what was left after ads, product, shipping and fees` }] : []),
+      ...bites.map(bt => ({ label: bt.label, v: bt.v, color: BITE[bt.k] || BITE.cogs, tip: `<b>${K.esc(bt.label)}</b> ${K.money(bt.v, cur)}, ${K.pct(bt.v / sales, 0)} of sales` }))];
+    return window.LxKit.river(segs, { total: b.sales, fmt: km, mark: b.normal, markLabel: b.normal != null ? `A normal day keeps about ${K.money(b.normal, cur)} (the last 28 days)` : '' });
   }
   function riverCard(b) {
     if (!b || !b.has) return `<div class="v2h"><h3>Yesterday</h3></div><p class="v2hint">Triple Whale has not synced yesterday for this brand yet.</p>`;
     const cur = b.currency;
     const n = b.kept == null ? `You sold <b>${K.money(b.sales, cur)}</b>` : b.kept < 0 ? `You <em class="lx-accent">actually</em> lost <b class="lost">${K.money(Math.abs(b.kept), cur)}</b>` : `You <em class="lx-accent">actually</em> kept <b>${K.money(b.kept, cur)}</b>`;
+    const vsNormal = b.kept != null && b.normal != null && b.normal > 0 ? `<span class="v4-norm2">a normal day keeps <b>${K.money(b.normal, cur)}</b> ${K.delta(b.kept, b.normal)}</span>` : '';
     return `<div class="v2h"><h3>Yesterday, ${K.esc(dateWord(b.date))}</h3><span class="cap">the P&amp;L line</span></div>
-      <h2 class="v4-hero${b.kept != null && b.kept < 0 ? ' is-lost' : ''}">${n}</h2>
+      <div class="v4-herorow"><h2 class="v4-hero${b.kept != null && b.kept < 0 ? ' is-lost' : ''}">${n}</h2>${vsNormal}</div>
       ${b.broken ? `<p class="v2hint">What was kept needs trustworthy cost data. <button type="button" class="v2link" data-go="costs">Open the cost check ›</button></p>` : river(b)}
       ${b.line ? `<p class="v4-line"><span class="lx-face" data-state="${(b.to_change || 0) + (b.to_fix || 0) > 0 ? 'found' : 'clear'}" aria-hidden="true"></span>${K.esc(b.line)}</p>` : ''}`;
   }
 
-  /* ---------- the month ring (size scales the number: Cole, the number must fit inside the circle) ---------- */
-  function ring(pct, label, sub, outer, size = 132) {
-    const r = 52, c = 2 * Math.PI * r, r2 = 60, c2 = 2 * Math.PI * r2, p = Math.max(0, Math.min(pct || 0, 1));
-    const tone = pct == null ? 'var(--line-strong)' : pct >= 0.98 ? 'var(--good)' : pct >= 0.85 ? 'var(--warn)' : 'var(--bad)';
-    return `<div class="v4-ring${size < 80 ? ' sm' : ''}" style="--rs:${size}px"><svg viewBox="0 0 132 132" aria-hidden="true"><circle cx="66" cy="66" r="${r}" fill="none" stroke="var(--surface-2)" stroke-width="10"/><circle cx="66" cy="66" r="${r}" fill="none" stroke="${tone}" stroke-width="10" stroke-linecap="round" stroke-dasharray="${(c * p).toFixed(1)} ${c.toFixed(1)}"/>${outer != null ? `<circle cx="66" cy="66" r="${r2}" fill="none" stroke="var(--line-strong)" stroke-width="2" stroke-linecap="round" stroke-dasharray="${(c2 * Math.max(0, Math.min(outer, 1))).toFixed(1)} ${c2.toFixed(1)}"/>` : ''}</svg><div class="c"><b>${label}</b><small>${sub}</small></div></div>`;
+  /* ---------- the month ring: the kit's thin brand-blue ring (LxKit.ring); status is a chip, never the stroke colour ---------- */
+  function ring(pct, label, sub, outer, size = 132, chip = '') {
+    return window.LxKit.ring(pct, { label, sub, outer, size, chip });
   }
   function monthCard(a, cur) {
     const now = new Date(), dim = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate(), elapsed = Math.max(1, now.getDate() - 1);
@@ -56,8 +50,9 @@
     if (mtd == null || !planNow) return `<div class="v2h"><h3>${month}</h3></div>${ring(null, '–', 'no plan')}<p class="v2hint v4-ring-cap">No monthly plan yet. <button type="button" class="v2link" data-go="plan">Set the goals ›</button></p>`;
     const pct = mtd / planNow, landing = mtd / elapsed * dim, outer = goal ? landing / goal : null;
     return `<div class="v2h"><h3>${month}</h3><span class="cap">${elapsed} of ${dim} days</span></div>
-      ${ring(pct, `${Math.round(pct * 100)}%`, 'of plan by now', outer)}
-      <p class="v4-ring-cap">${K.kmoney(mtd, cur)} banked of ${K.kmoney(planNow, cur)}${goal ? ` · lands at <b>${K.kmoney(landing, cur)}</b> of ${K.kmoney(goal, cur)}` : ` · pace to <b>${K.kmoney(landing, cur)}</b>`}</p>
+      ${ring(pct, `${Math.round(pct * 100)}%`, 'of plan by now', outer, 132, window.LxKit.planChip(pct))}
+      <p class="v4-ring-cap">${K.kmoney(mtd, cur)} of ${K.kmoney(planNow, cur)} planned by now</p>
+      <p class="v4-ring-cap v4-sub2">${goal ? `Lands at <b>${K.kmoney(landing, cur)}</b> of ${K.kmoney(goal, cur)}` : `On pace for <b>${K.kmoney(landing, cur)}</b>`}</p>
       <button type="button" class="v2link v4-ring-go" data-go="profit">P&amp;L ›</button>`;
   }
 
@@ -121,12 +116,12 @@
 
     const S0 = st && st.brands ? st.brands : [];
     const fun = S0.reduce((s, bb) => { const x = bb.cur || {}, y = bb.prev || {}; s.ses += x.sessions || 0; s.cart += x.carts || 0; s.ord += x.orders || 0; s.pses += y.sessions || 0; s.pcart += y.carts || 0; s.pord += y.orders || 0; return s; }, { ses: 0, cart: 0, ord: 0, pses: 0, pcart: 0, pord: 0 });
-    const funnel = fun.ses && window.LxKit ? K.card('Site funnel', `${K.pct(fun.ord / fun.ses, 2)} of sessions became an order${fun.pses ? `, against ${K.pct(fun.pord / fun.pses, 2)} before` : ''}.`,
-      window.LxKit.bars([
-        { label: 'Sessions', v: fun.ses, ghost: fun.pses, value: K.int(fun.ses), note: fun.pses ? K.delta(fun.ses, fun.pses).replace(/<[^>]+>/g, '') : '' },
-        { label: 'Added to cart', v: fun.cart, ghost: fun.pcart, value: K.int(fun.cart), note: `${K.pct(fun.cart / fun.ses)} of sessions` },
-        { label: 'Orders', v: fun.ord, ghost: fun.pord, value: K.int(fun.ord), note: `${K.pct(fun.ord / Math.max(1, fun.cart))} of carts` },
-      ], { max: Math.max(fun.ses, fun.pses) }), 'Triple Whale pixel') : '';
+    const funnel = fun.ses && window.LxKit ? K.card('Site funnel', `${K.pct(fun.ord / fun.ses, 2)} of sessions became an order${fun.pses ? `, against ${K.pct(fun.pord / fun.pses, 2)} before` : ''}`,
+      window.LxKit.funnel([
+        { label: 'Sessions', v: fun.ses, prev: fun.pses || null },
+        { label: 'Added to cart', v: fun.cart, prev: fun.pses ? fun.pcart : null, bench: FUN_BENCH.cart },
+        { label: 'Orders', v: fun.ord, prev: fun.pses ? fun.pord : null, bench: FUN_BENCH.order },
+      ], { fmt: K.int }), 'Triple Whale pixel', [`Each chip is the share of the step before that carried on, coloured against a healthy store: about ${Math.round(FUN_BENCH.cart * 100)}% of sessions add to cart and about ${Math.round(FUN_BENCH.order * 100)}% of carts become an order (Shopify's published ecommerce averages, rounded).`]) : '';
 
     $('#main').innerHTML = shell(`<div id="v4strip"></div>
       <div class="v4-top"><section class="v2card v4-r">${riverCard(b)}</section><section class="v2card v4-m">${monthCard(a, cur)}</section><section class="v2card v4-n">${queueCard(td, ov, sd)}</section></div>
@@ -193,30 +188,13 @@
      worth what we pay, where the money went (the waterfall), who paid and through what. Reads /api/client (the P&L line, month
      to date), /api/forecast (CTC's two layers: returning plus new at the trailing aMER), /api/customers (90 days) and
      /api/hub/paid (first orders by channel). Goals (the plan page) is this page's edit mode: Edit the plan opens it. */
-  function dial(v, max) {
-    const cx = 90, cy = 86, r = 70, a = Math.PI * Math.max(0, Math.min(v || 0, max)) / max;
-    const x = cx + r * Math.cos(Math.PI - a), y = cy - r * Math.sin(a);
-    const tick = t => { const b = Math.PI * t / max; return `<line x1="${(cx + r * Math.cos(Math.PI - b)).toFixed(1)}" y1="${(cy - r * Math.sin(b)).toFixed(1)}" x2="${(cx + (r + 9) * Math.cos(Math.PI - b)).toFixed(1)}" y2="${(cy - (r + 9) * Math.sin(b)).toFixed(1)}" stroke="var(--ink)" stroke-width="1.5"/>`; };
-    const tone = v == null ? 'var(--line-strong)' : v >= 3 ? 'var(--good)' : v >= 1.5 ? 'var(--warn)' : 'var(--bad)';
-    return `<svg class="v4-dial" viewBox="0 0 180 114" aria-hidden="true"><path d="M20 86 A70 70 0 0 1 160 86" fill="none" stroke="var(--surface-2)" stroke-width="12" stroke-linecap="round"/>${v ? `<path d="M20 86 A70 70 0 0 1 ${x.toFixed(1)} ${y.toFixed(1)}" fill="none" stroke="${tone}" stroke-width="12" stroke-linecap="round"/>` : ''}${tick(1.5)}${tick(3)}<text x="90" y="80" text-anchor="middle" font-size="26" font-weight="650" fill="var(--ink)">${v != null ? K.x2(v) : '–'}</text><text x="90" y="109" text-anchor="middle" font-size="10.5" fill="var(--ink-2)">back per $1 spent, 90 days</text></svg>`;
-  }
   function waterfall(t, cur, marginPct) {
     const steps = marginPct != null
       ? [['Revenue', t.sales, 'tot'], [`Costs at ${Math.round(marginPct * 100)}%`, -(t.sales - (t.gross_profit || 0))], ['Gross profit', t.gross_profit, 'sub'], ['Ad spend', -(t.spend || 0)], ['Kept', t.cm, 'tot']]
       : [['Revenue', t.sales, 'tot'], ['Product', -(t.cogs || 0)], ['Shipping', -(t.ship_cost || 0)], ['Handling', -(t.handling || 0)], ['Fees', -(t.fees || 0)], ['Gross profit', t.gross_profit, 'sub'], ['Ad spend', -(t.spend || 0)], ['Kept', t.cm, 'tot']].filter(st => st[2] || st[1] !== 0);
-    const W = 600, Hh = 170, max = Math.max(t.sales || 1, 1), n = steps.length, gap = 12, bw = Math.floor((W - 20 - gap * (n - 1)) / n);
-    const y = v => Hh - 24 - Math.max(0, v) / max * (Hh - 48);
-    let run = 0, out = `<svg class="v4-fall" viewBox="0 0 ${W} ${Hh}" aria-hidden="true">`;
-    steps.forEach((st, i) => {
-      const x = 10 + i * (bw + gap); let top, bot, fill, v = st[1] || 0;
-      if (st[2]) { top = y(v); bot = y(0); fill = st[2] === 'tot' ? (v < 0 ? 'var(--bad)' : 'var(--m-kept)') : 'var(--line-strong)'; run = v; }
-      else { const from = run; run = from + v; top = y(Math.max(from, run)); bot = y(Math.min(from, run)); fill = STEP[String(st[0]).replace(/ at \d+%$/, '')] || (/^Costs/.test(st[0]) ? 'var(--m-product)' : 'var(--m-other)'); }
-      out += `<rect x="${x}" y="${top.toFixed(1)}" width="${bw}" height="${Math.max(bot - top, 2).toFixed(1)}" rx="4" fill="${fill}" opacity="${st[2] ? 1 : .9}"><title>${K.esc(st[0])}: ${K.money(Math.abs(v), cur)}</title></rect>`;
-      out += `<text x="${x + bw / 2}" y="${(top - 6).toFixed(1)}" font-size="11.5" font-weight="600" text-anchor="middle" fill="var(--ink)">${v < 0 ? '−' : ''}${K.kmoney(Math.abs(v), cur)}</text>`;
-      out += `<text x="${x + bw / 2}" y="${Hh - 8}" font-size="11" text-anchor="middle" fill="var(--ink-2)">${K.esc(st[0])}</text>`;
-    });
-    return out + '</svg>';
+    return window.LxKit.waterfall(steps.map(([label, v, kind]) => ({ label, v: v || 0, kind, color: STEP[String(label).replace(/ at \d+%$/, '')] || (/^Costs/.test(label) ? 'var(--m-product)' : 'var(--m-other)') })), { fmt: v => K.kmoney(v, cur) });
   }
+
   async function month(host, first) {
     H = host; K = window.V2 && window.V2.kit; if (!K) { $('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">The v2 kit did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'; return; }
     window.V2.setHost(host);
@@ -251,7 +229,7 @@
       /* three rows, one path each: label, the number, and how far from the goal (green over, red short) */
       const prow = (l, v, g) => `<div class="v4-pr"><span>${l}</span><b>${km(v)}</b><small class="${g >= 0 ? 'good' : 'bad'}">${g >= 0 ? `${km(g)} over` : `${km(-g)} short`}</small></div>`;
       land = `<div class="v2h"><h3>Where the month lands</h3><span class="cap">${elapsed} of ${dim} days</span></div>
-        ${ring(proj / goal, km(proj), `of ${km(goal)} goal`, pace / goal, 150)}
+        ${ring(proj / goal, km(proj), `of ${km(goal)} goal`, pace / goal, 150, proj >= goal ? window.LxKit.chip('good', 'Lands over the goal') : proj >= goal * 0.9 ? window.LxKit.chip('warn', 'Close to the goal') : window.LxKit.chip('bad', 'Short of the goal'))}
         <div class="v4-paths">${prow('Spending the budget', proj, gapP)}${prow("At today's pace", pace, gapC)}${th && !th.already_there && th.revenue_per_day > 0 ? `<div class="v4-pr"><span>To hit it</span><b>${mo(th.revenue_per_day)} a day</b><small>${th.spend_per_day ? `${mo(th.spend_per_day)} of it ads` : ''}</small></div>` : th && th.already_there ? `<div class="v4-pr"><span>Already there</span><b>banked</b><small class="good">goal met</small></div>` : ''}</div>
         <button type="button" class="v2link v4-ring-go" data-go="plan">Edit the plan ›</button>`;
     }
@@ -264,13 +242,17 @@
     }), { max: Math.max(...weeks.map(w => Math.max(w.sales || 0, w.target_to_date || 0))) }) : '<p class="v2hint">Not enough Triple Whale history for the week view yet.</p>';
     const ret = mtd.ret_rev, nw = mtd.new_rev;
     const wkCard = `<div class="v2h"><h3>Weeks against target</h3><span class="cap">${fc && fc.basis && fc.basis.amer ? `new customers at ${K.x2(fc.basis.amer)} aMER` : 'grey is the target'}</span></div>${wk}
-      <div class="v4-facts"><span><small>Banked</small><b>${km(mtd.sales)}</b></span>${ret != null ? `<span><small>Returning</small><b>${km(ret)}</b></span>` : ''}${nw != null ? `<span><small>New</small><b>${km(nw)}</b></span>` : ''}<span><small>Spent</small><b>${km(mtd.spend)}</b></span>${mtd.mer ? `<span><small>MER</small><b>${K.x2(mtd.mer)}</b></span>` : ''}</div>`;
+      <div class="v4-facts"><span><small>Revenue</small><b>${km(mtd.sales)}</b>${nw != null && ret != null ? `<em>${km(nw)} new · ${km(ret)} returning</em>` : ''}</span><span><small>Ad spend</small><b>${km(mtd.spend)}</b></span>${mtd.mer ? `<span><small>MER</small><b>${K.x2(mtd.mer)}</b></span>` : ''}${mtd.spend && nw != null ? `<span><small>aMER</small><b>${K.x2(nw / mtd.spend)}</b></span>` : ''}</div>`;
 
     /* 3. is a customer worth what we pay (90 days, from /api/customers) */
     const h = cu && cu.headline;
-    const cuCard = h ? `<div class="v2h"><h3>Is a customer worth what we pay?</h3><span class="cap">${h.thin ? `only ${K.int(h.new_orders)} new customers, read it loosely` : `${K.int(h.new_orders)} new customers in 90 days`}</span></div>
-      <div class="v4-dialrow">${dial(h.payback, 4.5)}<div class="v4-cfacts">${h.cac != null ? `<div><b>${mo(h.cac)}</b><small>to get a customer</small></div>` : ''}${h.new_aov != null ? `<div><b>${mo(h.new_aov)}</b><small>first order</small></div>` : ''}${h.first_order_gp != null ? `<div><b>${mo(h.first_order_gp)}</b><small>left after costs</small></div>` : ''}${h.repeat_share != null ? `<div><b>${K.pct(h.repeat_share, 0)}</b><small>repeat orders${h.returning_aov ? `, ${mo(h.returning_aov)} each` : ''}</small></div>` : ''}</div></div>
-      <p class="v4-ring-cap v4-left">Under 1.5x the first order does not pay for the customer. Over 3x there is room to bid harder. <button type="button" class="v2link" data-go="customers">Customers ›</button></p>`
+    const pb = h ? h.payback : null, dollar = v => `$${(+v).toFixed(2)}`;
+    const cuSay = pb == null ? '' : `Each $1 of ads brings <b>${dollar(pb)}</b> back in 90 days. ${pb < 1.5 ? 'That is under $1.50, so the first order does not pay for the customer yet; repeat orders have to.' : pb < 3 ? 'Over $1.50, so a new customer pays for themselves; under $3, so bid with care.' : 'Over $3, so there is room to bid harder for new customers.'}`;
+    const cuCard = h ? `<div class="v2h"><h3>Is a customer worth what we pay?</h3><span class="find">${h.thin ? `only ${K.int(h.new_orders)} new customers, read it loosely` : `${K.int(h.new_orders)} new customers in the last 90 days`}</span></div>
+      <p class="v4-cusay">${cuSay}</p>
+      ${window.LxKit.scale(pb, { max: Math.max(4, (pb || 0) * 1.15), fmt: v => `${dollar(v)} back`, marks: [{ at: 1, label: '$1' }, { at: 1.5, label: '$1.50 pays back' }, { at: 3, label: '$3 bid harder' }] })}
+      <div class="v4-cfacts">${h.cac != null ? `<div><b>${mo(h.cac)}</b><small>What a new customer costs</small></div>` : ''}${h.new_aov != null ? `<div><b>${mo(h.new_aov)}</b><small>Their first order</small></div>` : ''}${h.first_order_gp != null ? `<div><b>${mo(h.first_order_gp)}</b><small>Left after costs</small></div>` : ''}${h.repeat_share != null ? `<div><b>${K.pct(h.repeat_share, 0)}</b><small>Come back and order again</small></div>` : ''}</div>
+      <button type="button" class="v2link v4-cu-go" data-go="customers" data-client-ok>See every customer month ›</button>`
       : `<div class="v2h"><h3>Is a customer worth what we pay?</h3></div><p class="v2hint">Customer numbers need Triple Whale orders synced for this brand.</p>`;
 
     /* 4. where the money went, month to date */

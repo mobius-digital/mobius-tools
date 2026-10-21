@@ -4156,3 +4156,28 @@ the shell plus Today > Morning, OFF by default so the team keeps the old rail un
   selector is missing are skipped by startTour, so a tour never breaks on an empty page).
 - docs/locus-v4/index.html: phases 5 and 7 marked built, the status note says all seven are live.
 - Still scheduled: delete the old renderers and the pf_v4 escape hatch on 2026-10-28.
+
+## 2026-10-21: review round one, PASS A, the instrument kit (lx.js / lx.css). Read before drawing any chart.
+
+Brief: `docs/locus-v4/review-2026-10-21.html`. Every chart primitive now lives in `window.LxKit` and follows one set of habits:
+thin strokes, 2 to 4px radius, the brand blue plus greys, numbers inside the chart, a visible scale, one legend line with the
+sentence on hover (`data-v2tip`), a 400ms grow on paint (off under prefers-reduced-motion). Status is a chip, never the colour of
+a wide stroke.
+- `LxKit.ring(pct, {label, sub, outer, size, chip})` thin brand ring + optional thin outer arc; `LxKit.planChip(pct)`,
+  `LxKit.chip(tone, text)` (class `.lx-st`, NOT `.lx-chip`). v4.js `ring()` wraps it.
+- `LxKit.spark(vals, {ghost, tips, fmt})` 56px line, baseline, max and min printed on a right-hand scale. v2.js `tspark` uses it,
+  so every headline tile in Locus got it. The svg keeps class `v2spark` and its last polyline is the main line (spkMark reads it).
+- `LxKit.river(segs, {total, fmt, mark, markLabel})` one thin segmented bar on a baseline; Morning puts Kept FIRST so the normal-day
+  tick reads against the end of the kept segment; "a normal day keeps $X" + delta sits beside the headline.
+- `LxKit.funnel(steps)` stepped centred bars with a carry-on chip coloured against `bench` (v4.js `FUN_BENCH`: 6% to cart, 35% cart
+  to order).
+- `LxKit.scale(v, {max, marks, fmt})` the marked bar that replaced Month's customer dial (plus one English sentence).
+- `LxKit.waterfall(steps)` HTML columns, dashed connectors, the amount inside a bar when it fits (above it otherwise; on a phone
+  always above). Text in bars is white on light, near black in dark.
+- Bar lists: 6px bars, the target as a dashed outlined track with a tick. `.v2ib` inline bars sit on a visible track.
+- **Row panels**: any `#main .v2tbl tbody tr` with no action of its own (no `.link`, no data-*, no `[data-go]` inside, 3+ cells)
+  opens `V2.panel` with every column of that row. A row that should NOT open one: put `.lx-norow` on its table.
+- **Tile panels**: `DRILL_TABS` in v2.js now includes morning, month, customers, brief, yesterday, plan, so Revenue / Orders /
+  Ad spend / MER tiles open the drill-down (day line, breakdown, definition) on the v4 pages.
+- Versions: lx.css?v=22, lx.js?v=8, v2.js?v=70, v4.js?v=12. Checked in Cole's Chrome (CORS srcdoc recipe): Today, Month, Calls,
+  Accounts + row panel, a tile panel, light and dark, 390px (no sideways scroll), Agency view.
