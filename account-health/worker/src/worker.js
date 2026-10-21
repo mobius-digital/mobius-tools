@@ -8251,6 +8251,23 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         const { results: brands } = await env.DB.prepare(`SELECT id, name FROM brands WHERE status IN ('active', 'demo') ORDER BY name`).all();
         return json({ ...access, owner, brands: brands || [], cole: 'U06C37MDWD7' });
       }
+      /* Correct or remove one of Locus's OWN messages in any channel, shared ones included (2026-10-21: its first
+         #lucky-email answer had a wrong price and a long prompt). Cole or the admin key only; Slack itself refuses
+         an app editing anyone else's message, and we check it is ours first. */
+      if (path === '/api/ask/own-message' && request.method === 'POST') {
+        const me = String(await sessionEmail(env, request).catch(() => '') || '').toLowerCase();
+        const owner = me ? me === String(env.OWNER_EMAIL || 'cole@go-mobius-digital.com').toLowerCase() : (env.ADMIN_TOKEN && request.headers.get('Authorization') === 'Bearer ' + env.ADMIN_TOKEN);
+        if (!owner) return json({ error: 'Only Cole can do this.' }, 403);
+        const ch = String(body.channel || ''), ts = String(body.ts || '');
+        const r = await slackApi(env, 'conversations.replies', { channel: ch, ts, latest: ts, inclusive: true, limit: 1 });
+        const msg = (r?.messages || []).find(m => m.ts === ts);
+        const who = await slackApi(env, 'auth.test', {});
+        if (!msg) return json({ error: `Slack: ${r?.error || 'message not found'}` }, 404);
+        if (!(msg.bot_id && msg.bot_id === who.bot_id) && msg.user !== who.user_id) return json({ error: 'That is not one of Locus\'s own messages.' }, 400);
+        const out = body.delete ? await slackApi(env, 'chat.delete', { channel: ch, ts })
+          : await slackApi(env, 'chat.update', { channel: ch, ts, text: String(body.text || '').replace(/—/g, ',').slice(0, 3900), blocks: [] });
+        return json(out.ok ? { ok: true, was: msg.text?.slice(0, 200) } : { error: `Slack: ${out.error}` }, out.ok ? 200 : 400);
+      }
       /* People to add: a name search over our workspace, or the members of one channel (Slack Connect people
          only show up there). Channels: every channel the app is in, with whether outsiders are in it. */
       if (path === '/api/ask/slack-people') {
