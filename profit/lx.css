@@ -654,3 +654,4 @@ body.is-client #main .ph .ph-acts > :not([data-client-ok]), body.is-client #hdAc
 
 /* the model menu on a credited card: a small pill in the card head */
 .v2h .lx-cmodel{display:inline-flex}.v2h .lx-cmodel .hd-per-btn{height:26px;padding:0 9px;font-size:12px}.v2h .lx-cmodel .hd-per-l{color:var(--muted);font-weight:500}.v2h .lx-cmodel .hd-per-d{display:inline!important}
+#railMin[aria-pressed="true"] svg{transform:rotate(180deg)}

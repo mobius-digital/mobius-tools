@@ -240,7 +240,7 @@ table.map code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5p
 <header class="col">
   <p class="eyebrow">Mobius Digital · Locus · 20 October 2026 · design, not code</p>
   <h1>Locus v4: the app <i>rebuilt</i> around the questions people bring to it</h1>
-  <p class="lead">Seven destinations, each named for a job. Every page opens on its answer. One object model, so a leak becomes a call, a call becomes a task, and the task shows up in the report. Every number on these mocks is Lucky Golf's, read from the live Locus workers on 20 October (Triple Whale last platform click, Oct 13 to 19 unless the mock says otherwise).</p>
+  <p class="lead">Eight destinations, each named for a job (review round one, 2026-10-21: Ads became Marketing with Email and Search, Products got its own item, Make left the top bar for Social, Pipeline and Inspiration, the rail collapses). Every page opens on its answer. One object model, so a leak becomes a call, a call becomes a task, and the task shows up in the report. Every number on these mocks is Lucky Golf's, read from the live Locus workers on 20 October (Triple Whale last platform click, Oct 13 to 19 unless the mock says otherwise).</p>
   <nav class="toc">
     <a href="#why">Why a new app</a><a href="#ia">The map</a><a href="#nav">Nav</a><a href="#today">Today</a><a href="#agency">Agency</a><a href="#ads">Ads</a><a href="#wall">Every ad</a><a href="#money">Money</a><a href="#make">Make</a><a href="#reports">Reports</a><a href="#work">Work</a><a href="#client">Client</a><a href="#phone">iPhone</a><a href="#research">Research</a><a href="#borrow">Who we borrow from</a><a href="#inside">Inside a tab</a><a href="#flow">The flow</a><a href="#plan">Build plan</a>
   </nav>
@@ -265,20 +265,21 @@ table.map code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5p
 </section>
 
 <section id="ia">
-  <h2>The map: seven <i>destinations</i>, every old page has a home</h2>
+  <h2>The map: eight <i>destinations</i>, every old page has a home</h2>
   <div class="col"><p>Left to right is the order on the rail. The grey line under each item is the old page ids that land there (so every saved link still routes). Who opens it is marked on each.</p></div>
   <div class="ia" id="iaGrid"></div>
   <div class="scroll"><table class="map">
     <thead><tr><th>New home</th><th>Tabs (views of one page)</th><th>Old page ids that route here</th><th>Agency view shows</th><th>Client sees</th></tr></thead>
     <tbody>
       <tr><td>Today</td><td>Morning · Leaks · Day check · Brief</td><td><code>overview yesterday leaks brief health</code></td><td>the brand board (one row per brand, ranked by what needs you)</td><td>Morning and Brief for their brand</td></tr>
-      <tr><td>Money</td><td>Month · P&amp;L · Customers · Store · Site · Email · Stock</td><td><code>profit plan customers store website search email stock buying drops</code></td><td>one row per brand on every tab (the Goals table model)</td><td>everything for their brand</td></tr>
-      <tr><td>Ads</td><td>Calls · Accounts · Ad wall · Tests · Changes</td><td><code>today channels meta campaigns adcreative tests changes mtoday mbrowser google gcampaigns gads gterms gchanges tiktok angles</code></td><td>Calls across brands, Accounts as brand rows</td><td>Calls read-only, Accounts, Ad wall, Changes</td></tr>
+      <tr><td>Money</td><td>Month · P&amp;L · Customers · Store · Site</td><td><code>month profit plan customers store website</code></td><td>one row per brand on every tab (the Goals table model)</td><td>everything for their brand</td></tr>
+      <tr><td>Marketing</td><td>Calls · Accounts · Ads · Tests (filter: Needs a call) · Changes · Email · Search</td><td><code>today channels meta campaigns adcreative tests changes mtoday mbrowser google gcampaigns gads gterms gchanges tiktok angles email search</code></td><td>Calls across brands, Accounts as brand rows</td><td>Calls read-only, Accounts, Ads, Changes, Email, Search</td></tr>
+      <tr><td>Products</td><td>Stock (by product or by variant) · Buying · Drops</td><td><code>stock buying drops</code></td><td>Stock, one row per client</td><td>all three for their brand</td></tr>
       <tr><td>Make</td><td>Pipeline · Studio · Library · Social · Creators · Brand</td><td><code>production studio copy library inspo social socialsaved socialweek amb answers research voice</code></td><td>Pipeline across brands; Brand per brand only</td><td>Pipeline (their ads, approvals), Brand answers and Voice</td></tr>
       <tr><td>Calendar</td><td>Month · Lanes · Season</td><td><code>calendar warplan warlive season war</code></td><td>13-week lanes, every brand</td><td>their dates, their season plan</td></tr>
       <tr><td>Reports</td><td>Weekly · Monthly · Requests · Dashboards</td><td><code>reports dash requests</code></td><td>reports waiting to send, per brand</td><td>their reports, what we asked them for</td></tr>
       <tr><td>Work</td><td>Meetings · Tasks · Monday call · Client call · Kickoff</td><td><code>calls meetings monday ccall tasks actions kickoff</code></td><td>the whole team's week</td><td>hidden</td></tr>
-      <tr><td>Foot</td><td>Find ⌘K · Ask · Tools · Settings</td><td><code>calc pulse economics workload settings guide clients newclient</code></td><td>Agency settings, economics, workload</td><td>Brand settings they own</td></tr>
+      <tr><td>Foot</td><td>Collapse · Tools (Calculators · Platform status · Guide) · Settings</td><td><code>calc pulse economics workload settings guide clients newclient</code></td><td>Agency settings, economics, workload</td><td>Brand settings they own</td></tr>
     </tbody>
   </table></div>
   <p class="note">One model, three scopes. The picker at the top of the rail is Lucky Golf, Agency (every brand) or, for a client login, fixed to their brand. Every page has a one-brand form and an every-brand form of the same tab; nothing is a separate "agency page" any more. Work is the only destination a client never gets.</p>
@@ -511,8 +512,9 @@ function mount(id,html,h){const fw=document.getElementById(id);fw.innerHTML=`<di
 (function(){
   const D=[
     ['today','Today','Did we make money, what needs me?',['Morning','Leaks','Day check','Brief'],'overview yesterday leaks brief',['Cole','Client','Buyer']],
-    ['money','Money','Will we hit the month, is a customer worth it?',['Month','P&L','Customers','Store','Site','Email','Stock'],'profit plan customers store website search email stock buying drops',['Cole','Client']],
-    ['ads','Ads','What do I change today, why?',['Calls','Accounts','Ads','Tests','Changes'],'today channels meta google tiktok angles campaigns adcreative gterms changes',['Buyer','Strategist']],
+    ['money','Money','Will we hit the month, is a customer worth it?',['Month','P&L','Customers','Store','Site'],'month profit plan customers store website',['Cole','Client']],
+    ['ads','Marketing','What do I change today, why?',['Calls','Accounts','Ads','Tests','Changes','Email','Search'],'today channels meta google tiktok angles tests campaigns adcreative gterms changes email search',['Buyer','Strategist']],
+    ['money','Products','Will stock hold, what do we order?',['Stock','Buying','Drops'],'stock buying drops',['Cole','Client']],
     ['make','Make','What are we making, where is it?',['Pipeline','Studio','Library','Social','Creators','Brand'],'production studio copy library inspo social amb answers research voice',['Strategist','Ravo','Client']],
     ['cal','Calendar','What is coming, are we ready?',['Month','Lanes','Season'],'calendar warplan warlive season',['Everyone']],
     ['rep','Reports','What happened, what do we need from you?',['Weekly','Monthly','Requests','Dashboards'],'reports dash requests',['Cole','Client']],

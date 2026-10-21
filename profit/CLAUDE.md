@@ -4215,3 +4215,20 @@ a wide stroke.
   tick and delta on a day that lost money. Versions: lx.css?v=24, lx.js?v=10, v2.js?v=71, v4.js?v=14, desk.js?v=33,
   calendar.js?v=15, supply.js?v=8, supply.css?v=6, production.js?v=15, requests.js?v=4. Checked in Cole's Chrome: Today,
   Calls (action column at one x on every row), Brief (dark), P&L, Customers, Dashboards, Pipeline, Stock, The Plan, 390px.
+
+## 2026-10-21: review round one, PASS C, structure (the rail). Supersedes the v4 seven destinations.
+
+- **Eight places** (`NAV4`): Today; Money (Month, P&L, Customers, Store, Site); **Marketing** (key stays `ads`, so every
+  `data-grp="ads"`, the phone bar and NAV_LAST still work: Calls, Accounts, Ads, Tests, Changes, Email, Search); **Products**
+  (`products`: Stock, Buying, Drops; the v4 rail button reuses `id="railProducts"` because the v3 block is removed before
+  wiring); Make; Calendar; Reports; Work. Crumbs for the moved pages are a third `Object.assign(TAB_CRUMB, ...)` just above NAV4.
+- **Test calls is a filter on Tests**: `TEST_JOBS` = Every test / Needs a call (same page ids `angles` / `tests`).
+- **Tools** = Calculators (`calc`, TAB_TITLE renamed), Platform status, Guide (`guide`), plus the owner's two agency pages.
+- **Make left the top bar** (`#hdMake` hidden in v4). `makeBtn(tab)` in pageHead draws it beside `.ph-acts` on Social,
+  Saved, Week, Pipeline and Inspiration (outside .ph-acts so pageActions never wipes it); one delegated click opens
+  LocusMake. Do NOT inject header buttons with a MutationObserver: it fought share.js's header observer and froze the tab.
+- **The rail collapses**: `#railMin` in the rail foot flips localStorage `pf_railmin`; lx.js `setRail` then applies the
+  iPad icon rail (`html.lx-irail`) on a wide window too. Hidden at iPad widths (already icons) and on a phone.
+- Every old id still routes (checked: email, search, stock, tests, calc, meta, mbrowser, store, production). The start
+  tour, PAGE_HELP (stock with `SupplyTab.HELP_STOCK`, email, calc, tests) and `docs/locus-v4/index.html` (the map and the
+  IA cards) match. Versions: lx.css?v=25, lx.js?v=11.

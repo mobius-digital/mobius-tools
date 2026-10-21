@@ -204,9 +204,25 @@
      the account button open the wide rail (body.nav-open + the scrim, the old drawer's own state, so index.html's
      close-on-pick and Escape still work); the two menus then open inside the wide rail, nothing clips. */
   const irail = matchMedia('(min-width:721px) and (max-width:1180px)');
-  const setRail = () => document.documentElement.classList.toggle('lx-irail', irail.matches);
+  /* THE RAIL COLLAPSES (review pass C, 2026-10-21): on a wide window the icon rail is a choice (localStorage pf_railmin),
+     the same 56px rail the iPad gets on its own; #railMin in the rail foot flips it. */
+  const pinnedMin = () => { try { return localStorage.getItem('pf_railmin') === '1'; } catch { return false; } };
+  const setRail = () => {
+    const on = irail.matches || (innerWidth > 1180 && pinnedMin());
+    document.documentElement.classList.toggle('lx-irail', on);
+    const b = document.getElementById('railMin');
+    if (b) { const min = innerWidth > 1180 && pinnedMin(); b.hidden = irail.matches || innerWidth <= 720; b.title = min ? 'Show the full menu' : 'Collapse the menu to icons'; b.setAttribute('aria-pressed', String(min)); const l = b.querySelector('span'); if (l) l.textContent = min ? 'Show the menu' : 'Collapse'; }
+  };
+  addEventListener('resize', () => { if (innerWidth > 1180) setRail(); });
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#railMin')) return;
+    e.preventDefault(); e.stopPropagation();
+    try { localStorage.setItem('pf_railmin', pinnedMin() ? '0' : '1'); } catch {}
+    document.body.classList.remove('nav-open'); const sc = document.getElementById('navScrim'); if (sc) sc.hidden = true;
+    setRail(); setTimeout(() => dispatchEvent(new Event('resize')), 240);
+  }, true);
   const openRail = open => { document.body.classList.toggle('nav-open', open); const s = document.getElementById('navScrim'); if (s) s.hidden = !open; const t = document.getElementById('navToggle'); if (t) t.setAttribute('aria-expanded', open ? 'true' : 'false'); setTimeout(() => dispatchEvent(new Event('resize')), 240); /* polish.js re-measures the rail's sliding highlight on resize */ };
-  setRail(); irail.addEventListener('change', () => { setRail(); if (!irail.matches) openRail(false); });
+  setRail(); irail.addEventListener('change', () => { setRail(); if (!document.documentElement.classList.contains('lx-irail')) openRail(false); });
   const sideEl = document.getElementById('side'); if (sideEl) sideEl.addEventListener('transitionend', e => { if (e.propertyName === 'width') dispatchEvent(new Event('resize')); });   /* a background tab stalls the transition; re-measure when it really ends */
   document.addEventListener('click', e => {
     if (!document.documentElement.classList.contains('lx-irail')) return;
