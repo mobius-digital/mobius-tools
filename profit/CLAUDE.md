@@ -4107,3 +4107,15 @@ the shell plus Today > Morning, OFF by default so the team keeps the old rail un
   `--muted` / `--faint`. The channel colours (Meta blue, Google gold, email purple) are only for channels. v4.js `BITE` and
   v2.css `.b-ads/.b-cogs/.b-ship/.b-fees` both changed. Versions: v4.js?v=9, v2.css bumped.
 
+### 2026-10-20 (late night): the MONEY PALETTE (polish pass 3). Cole: "you think grey is a good colour for that?"
+
+- Researched before changing: Adobe Spectrum, ServiceNow Horizon, GitLab Pajamas, GOV.UK chart colours and Shopify's own analytics
+  palette all say the same thing. Unordered categories (cost types) get DISTINCT HUES, never a run of greys and never a sequential
+  ramp; keep it to 7 or 8 segments; red and green stay for judgement. So the three greys from pass 2 are gone.
+- The tokens live in v2.css, light and dark: `--m-kept` (brand blue), `--m-ads` (amber), `--m-product` (violet), `--m-ship` (teal),
+  `--m-handling` (slate), `--m-fees` (pink), `--m-other`. The design page carries the same values. Channel colours (`--c-meta`,
+  `--c-google`, `--c-email`) are only for channels side by side.
+- Readers: v4.js `BITE` (the Morning river) and `STEP` (the Month waterfall), v2.css `.b-kept/.b-ads/.b-cogs/.b-ship/.b-fees`
+  (the hero river), the design page's `river()` and `waterfall()`. Any new money chart reads these tokens, never a literal.
+- Versions: v4.js?v=10, v2.css bumped again.
+

@@ -13,8 +13,9 @@
   const $ = (q, r = document) => r.querySelector(q);
   const sym = c => (!c || c === 'USD' ? '$' : c === 'GBP' ? '£' : c === 'EUR' ? '€' : c === 'CAD' ? 'CA$' : c === 'AUD' ? 'A$' : c + ' ');
   const dateWord = s => s ? new Date(s + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '';
-  /* one river palette (2026-10-20): kept is the brand blue, ads is amber, the three costs are greys; channel colours are for channels */
-  const BITE = { ads: 'var(--warn)', cogs: 'var(--line-strong)', costs: 'var(--line-strong)', shipping: 'var(--muted)', fees: 'var(--faint)' };
+  /* the money palette (v2.css --m-*): one hue per money category, the same on the river, the waterfall and every legend */
+  const BITE = { ads: 'var(--m-ads)', cogs: 'var(--m-product)', costs: 'var(--m-product)', shipping: 'var(--m-ship)', handling: 'var(--m-handling)', fees: 'var(--m-fees)' };
+  const STEP = { Revenue: 'var(--m-kept)', Kept: 'var(--m-kept)', Product: 'var(--m-product)', Shipping: 'var(--m-ship)', Handling: 'var(--m-handling)', Fees: 'var(--m-fees)', 'Ad spend': 'var(--m-ads)', 'Gross profit': 'var(--line-strong)' };
 
   /* ---------- the river: a left-to-right waterfall of yesterday ---------- */
   function river(b) {
@@ -25,11 +26,11 @@
     let x = 10, out = `<svg class="v4-river" viewBox="0 0 ${W} ${H0}" preserveAspectRatio="none" role="img" aria-label="Sales ${K.money(b.sales, cur)}, kept ${K.money(b.kept, cur)}">`;
     out += `<rect x="10" y="4" width="${sx(total).toFixed(1)}" height="30" rx="6" fill="var(--surface-2)"/>`;
     for (const bt of bites) { const w = sx(bt.v); out += `<rect x="${x.toFixed(1)}" y="4" width="${Math.max(w - 2, 2).toFixed(1)}" height="30" rx="4" fill="${BITE[bt.k] || BITE.cogs}" opacity=".85"><title>${K.esc(bt.label)}: ${K.money(bt.v, cur)}</title></rect>`; x += w; }
-    if (b.kept > 0) out += `<rect x="${x.toFixed(1)}" y="4" width="${Math.max(sx(b.kept) - 2, 2).toFixed(1)}" height="30" rx="4" fill="var(--brand)"><title>Kept: ${K.money(b.kept, cur)}</title></rect>`;
+    if (b.kept > 0) out += `<rect x="${x.toFixed(1)}" y="4" width="${Math.max(sx(b.kept) - 2, 2).toFixed(1)}" height="30" rx="4" fill="var(--m-kept)"><title>Kept: ${K.money(b.kept, cur)}</title></rect>`;
     if (b.normal != null && b.normal > 0) { const nx = Math.min(W - 12, x + sx(b.normal)); out += `<line x1="${nx.toFixed(1)}" y1="0" x2="${nx.toFixed(1)}" y2="40" stroke="var(--ink)" stroke-width="1.5" stroke-dasharray="3 3"/>`; }
     out += '</svg>';
     const lab = (c, l, v) => `<span><i style="background:${c}"></i>${K.esc(l)} <b>${K.money(v, cur)}</b></span>`;
-    const labs = [...(b.kept > 0 ? [lab('var(--brand)', 'Kept', b.kept)] : []), ...bites.map(bt => lab(BITE[bt.k] || BITE.cogs, bt.label, bt.v)), ...(b.normal != null ? [`<span class="v4-norm">a normal day keeps about <b>${K.money(b.normal, cur)}</b></span>`] : [])];
+    const labs = [...(b.kept > 0 ? [lab('var(--m-kept)', 'Kept', b.kept)] : []), ...bites.map(bt => lab(BITE[bt.k] || BITE.cogs, bt.label, bt.v)), ...(b.normal != null ? [`<span class="v4-norm">a normal day keeps about <b>${K.money(b.normal, cur)}</b></span>`] : [])];
     return out + `<div class="v4-river-l">${labs.join('')}</div>`;
   }
   function riverCard(b) {
@@ -208,9 +209,9 @@
     let run = 0, out = `<svg class="v4-fall" viewBox="0 0 ${W} ${Hh}" aria-hidden="true">`;
     steps.forEach((st, i) => {
       const x = 10 + i * (bw + gap); let top, bot, fill, v = st[1] || 0;
-      if (st[2]) { top = y(v); bot = y(0); fill = st[2] === 'tot' ? (v < 0 ? 'var(--bad)' : 'var(--brand)') : 'var(--line-strong)'; run = v; }
-      else { const from = run; run = from + v; top = y(Math.max(from, run)); bot = y(Math.min(from, run)); fill = 'var(--bad)'; }
-      out += `<rect x="${x}" y="${top.toFixed(1)}" width="${bw}" height="${Math.max(bot - top, 2).toFixed(1)}" rx="4" fill="${fill}" opacity="${st[2] ? 1 : .72}"><title>${K.esc(st[0])}: ${K.money(Math.abs(v), cur)}</title></rect>`;
+      if (st[2]) { top = y(v); bot = y(0); fill = st[2] === 'tot' ? (v < 0 ? 'var(--bad)' : 'var(--m-kept)') : 'var(--line-strong)'; run = v; }
+      else { const from = run; run = from + v; top = y(Math.max(from, run)); bot = y(Math.min(from, run)); fill = STEP[String(st[0]).replace(/ at \d+%$/, '')] || (/^Costs/.test(st[0]) ? 'var(--m-product)' : 'var(--m-other)'); }
+      out += `<rect x="${x}" y="${top.toFixed(1)}" width="${bw}" height="${Math.max(bot - top, 2).toFixed(1)}" rx="4" fill="${fill}" opacity="${st[2] ? 1 : .9}"><title>${K.esc(st[0])}: ${K.money(Math.abs(v), cur)}</title></rect>`;
       out += `<text x="${x + bw / 2}" y="${(top - 6).toFixed(1)}" font-size="11.5" font-weight="600" text-anchor="middle" fill="var(--ink)">${v < 0 ? '−' : ''}${K.kmoney(Math.abs(v), cur)}</text>`;
       out += `<text x="${x + bw / 2}" y="${Hh - 8}" font-size="11" text-anchor="middle" fill="var(--ink-2)">${K.esc(st[0])}</text>`;
     });
