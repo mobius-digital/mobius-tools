@@ -4338,3 +4338,11 @@ Cole: "Studio looks like absolute shit. I still don't understand how things get 
   brands first** (own-usual ratio 2x+), topic posts only fill the rest at 5x+ (before, all four were topic accounts at
   "523x its size" against follower count); quick arrow presses on a carousel now each move a slide (`S2.lock`).
   No Make ours path was run live (each one makes a real task, brief or batch). Shots `2026-10-21-live-*`.
+
+## 2026-10-21 (round four): THE AD SHEET (v2.js previewAd, lx.css "THE AD SHEET")
+- Reading order: Results (spend, cost per purchase vs goal, ROAS + revenue, purchases), The call, **Its ad set** (every ad in
+  the set: thumb, name, its call, spend with a hairline share of the set, cost per purchase, ROAS, hook; this ad highlighted;
+  first 8 then "Show all"; tap a row = open that ad), Funnel, Landing page (path on its own line, add-to-cart stats under it),
+  Delivery, Watch time, Where it ran, Ad copy, Next steps.
+- creative()'s `ctxOf` carries `sibs` (ads with the same `adset.id`), `verdictOf` and `open`. A grouped card (one per creative)
+  has `adset: null`, so `setOf(r)` falls back to the set of its top ad (same id). previewAd uses `a.adset || cx.set`.

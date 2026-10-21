@@ -790,3 +790,43 @@ html.lx-irail[data-ui="v2"] body:not(.nav-open) .rail-min{margin:0}
 [data-ui="v2"] .v4 .v2stackbar,[data-ui="v2"] .v2drill .v2stackbar,[data-ui="v2"] #main .v2stackbar{height:4px!important;border-radius:2px;gap:3px;background:transparent}
 [data-ui="v2"] #main .v2stackbar i{border-radius:2px}
 .lx-fun-st .t,.lx-scale-t{height:2px!important;border-radius:1px}.lx-fun-st .t i,.lx-scale-t i{border-radius:1px!important}
+
+/* ==========================================================================
+   THE AD SHEET (round four, 2026-10-21, Cole: "when I click into an ad the pop-up can be a lot better; show the other ads in
+   the set and how they compare; the landing page stats under the page"). Reading order: results against the goal, the call,
+   every ad in its set (spend share, cost per purchase, ROAS, CTR, hook; tap one to open it), funnel, landing page, delivery,
+   watch time, where it ran, copy, next steps. v2.js previewAd.
+   ========================================================================== */
+#v2panel .adt-stat{grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+#v2panel .adt-stat > div{display:flex;flex-direction:column;gap:2px;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:var(--surface)}
+#v2panel .adt-stat span{font-size:12px;color:var(--muted)}
+#v2panel .adt-stat b{font-size:20px;font-weight:650;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+#v2panel .adt-stat b .v2cell{font:inherit;color:var(--ink)}
+#v2panel .adt-stat small{font-size:11.5px;color:var(--muted)}
+@media (max-width:720px){#v2panel .adt-stat{grid-template-columns:repeat(2,minmax(0,1fr))}}
+#v2panel .adt{display:flex;flex-direction:column;gap:10px}
+#v2panel .adt-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+#v2panel .adt-h b{font-size:14px}#v2panel .adt-h > span:not(.v2pill){font-size:12.5px;color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:260px}
+#v2panel .adt .v2tbl{border:1px solid var(--line);border-radius:10px;overflow-x:auto}
+#v2panel .adt table{font-size:12.5px;min-width:0;width:100%}
+#v2panel .adt th,#v2panel .adt td{padding:8px 10px}
+#v2panel .adt td:first-child{display:flex;align-items:center;gap:10px;min-width:0;max-width:240px}
+#v2panel .adt-th{width:34px;height:42px;flex:none;border-radius:6px;background:var(--surface-2) center/cover no-repeat;border:1px solid var(--line)}
+#v2panel .adt-n{display:flex;flex-direction:column;gap:3px;min-width:0}
+#v2panel .adt-n b{font-weight:600;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
+#v2panel .adt-n em{font-style:normal;align-self:flex-start;font-size:10.5px;padding:1px 6px}
+#v2panel .adt td small{display:block;font-size:11px;color:var(--muted)}
+#v2panel .adt-sh{display:block;height:2px;border-radius:1px;background:color-mix(in srgb,var(--line) 70%,transparent);margin-bottom:5px;overflow:hidden}
+#v2panel .adt-sh i{display:block;height:100%;background:var(--brand)}
+#v2panel .adt tr.me td{background:color-mix(in srgb,var(--brand) 7%,transparent)}
+#v2panel .adt tr.me td:first-child{box-shadow:inset 3px 0 0 var(--brand)}
+#v2panel .adt tr.link{cursor:pointer}#v2panel .adt tr.link:hover td{background:var(--surface-2)}
+#v2panel .adt-f{margin:0;font-size:12.5px;color:var(--muted)}
+#v2panel .adt-sec{display:flex;flex-direction:column;gap:8px}
+#v2panel .adt-sec h4{margin:4px 0 0;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+#v2panel .v2lp{display:flex;flex-direction:column;gap:6px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+#v2panel .v2lp-p a{font-weight:600;font-size:14px;color:var(--ink);overflow-wrap:anywhere}
+#v2panel .v2lp-s{font-size:13px;color:var(--ink-2);line-height:1.5}
+#v2panel .v2lp-a{display:flex;gap:14px;flex-wrap:wrap}
+#v2panel .adt-all{align-self:flex-start}#v2panel .adt th{white-space:nowrap}
+#v2panel .adt th,#v2panel .adt td{padding:7px 8px}#v2panel .adt td:first-child{max-width:190px;gap:8px}#v2panel .adt-th{width:28px;height:35px}#v2panel .adt th{font-size:10.5px;letter-spacing:.04em}
