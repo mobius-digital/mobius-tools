@@ -4011,3 +4011,111 @@ Virlo (55 gaps, ranked): the side-session notes folder `social-feature-inventory
 - Checked in Cole's signed-in Chrome by injecting the worktree files over the live page (a CORS file server on
   127.0.0.1:8897; the page's `apiAH` is a global): feed 305 posts / 19 breaking out, Manage with 12 suggestions, the viewer
   with every button, S saves then a note saved, Week > Preview (empty for Lucky: nothing targets Instagram yet).
+
+## 2026-10-20: LOCUS v4, phase 1 (behind a switch). Read before touching the rail, NAV or the Morning page.
+
+Design page: https://claude.ai/artifact/GYvCTrYpSf52GAZAm535LH (source `docs/locus-v4/index.html`, seven phases). Phase 1 is
+the shell plus Today > Morning, OFF by default so the team keeps the old rail until Cole has looked.
+- **The switch** = `localStorage.pf_v4 === '1'` (`V4` const at the top of the boot script; `?v4=1` sets it, `?v4=0` clears it;
+  the profile menu's "Try the new Locus" / "Back to the old Locus" toggles it and reloads). `<html class="lx-v4">` while on.
+- **Seven destinations** (`NAV4`, copied over `NAV` in place when V4 is on, so navGo / NAV_OF / show / the seg code are
+  unchanged): Today (morning, leaks, yesterday, brief), Money (profit, plan, customers, store, website, search, email,
+  stock, buying, drops), Ads (today "Calls", channels, meta, google, tiktok, angles), Make (production "Pipeline", studio,
+  library, inspo, social, amb, answers "Brand"), Calendar (calendar, warplan "Season"), Reports (reports, dash, requests),
+  Work (calls "Meetings", tasks). Second-level jobs are segmented controls like META_JOBS: `SOCIAL_JOBS`, `BRAND_JOBS`,
+  `SEASON_JOBS`, and STUDIO_JOBS under Make. `V4_HOME` maps the ids that are now jobs (socialsaved, research, voice,
+  warlive, season, copy...) to the tab that hosts them; every old id still routes. The rail has two `.grp-btns[data-v]`
+  blocks; the one that does not match the flag is removed before wiring. The phone bar maps home -> morning and store ->
+  profit when V4 is on; `TAB_CRUMB` gets v4 crumbs; `TAB_TITLE.morning = 'Morning'`.
+- **Today > Morning** = `profit/v4.js` (`window.V4.render(H, first)`), drawn with `window.V2.kit` (v2.js now exports its
+  helpers and `setHost`) so every number matches Home: the leak strip, the money river (LxHero.load: sales through the
+  bites to kept, dashed tick = a normal day), the month ring (mtd vs plan by now, outer arc = where the month lands vs
+  the goal), Needs you (top /api/hub/today rows by stake, tests to call, the next season date), four tiles with their
+  lines, the share bar with a card per channel, the site funnel as kit bars, the calendar card. **Agency view falls back
+  to the old Overview** (`V4R`) until the brand board (phase 4). CSS at the end of lx.css (`.v4-*`, tokens only).
+- Checked 2026-10-20 in Cole's signed-in Chrome by loading the worktree's files from a local CORS server into a same-
+  origin srcdoc iframe (document.write into the live tab fails: top-level consts survive document.open). Brand and
+  agency scope, every group, old ids, dark and light, 390px, flag off = the old rail untouched.
+
+### 2026-10-20 (night): LOCUS v4, phases 2 to 6, all behind the same switch. Read with the phase 1 section above.
+
+- **`V4` is a top-level const in index.html's boot script (the flag), and top-level consts are GLOBAL LEXICAL scope shared by every
+  classic script.** In desk.js, `V4.on` resolved to the boolean's missing property, so the Google rows and the ad set panel silently
+  never drew. Every other file must write `window.V4.…` for the v4 object. The same trap waits for any other top-level const name.
+- **Phase 2, Ads as one queue.** `NAV4.ads` = Calls (`today`), Accounts (`channels`; jobs row `ACCOUNT_JOBS` = All, Meta, Meta
+  campaigns, Google, Google campaigns, Search terms, TikTok, filtered by the brand's connections), Ads (`adcreative`), Tests (`angles`;
+  `TEST_JOBS` = Angles, Test calls), Changes (`changes`; `CHANGE_JOBS` = Meta, Google). Today's calls gains Google rows
+  (`V4.extraCalls`: one row per search-term leak with `apply.kind === 'negative'`, kind `neg`, button "Add N negatives" = the leak
+  finder's own Add all modal) and a tap on an ad set's name opens `V4.setPanel` (the reason, six numbers against the goal, the ads in
+  the set with covers via `V2.thumbs`, the one button). `LeaksCard.setHost` exists for this.
+- **Phase 3, Money > Month** (`V4.render(host, first, 'month')`): where the month lands (ring = the forecast at the planned spend over
+  the goal, outer arc = today's pace, three sentences from `/api/forecast` `projected` / `at_current_pace` / `to_hit`), weeks against
+  target (`fc.weeks`, kit bars with the target as the ghost bar), customer payback dial (`/api/customers` headline `payback`, 1.5x and
+  3x ticks), the waterfall from `/api/client` `mtd` (a margin override collapses the cost steps into one), who paid (new vs returning,
+  first orders by channel from `/api/hub/paid` with the month as the window). **Goals (`plan`) is this page's edit mode**: it left the
+  tab row (`V4_HOME.plan = 'month'`), "Edit the plan" opens it. The ring's number scales with the ring (`--rs`; under 80px the caption
+  hides and the number is 12.5px: Cole, "the numbers aren't fitting inside the circle"). Stock / Buying / Drops tabs appear once the
+  Supply brand list loads (`show()` reruns once for Money).
+- **Phase 4, Agency view.** `V4R` no longer falls back: `V4.render(..., agency = true)` draws the brand board on Today (the book
+  yesterday from `/api/hub/kept`, the counts from `/api/hub/today` + `ovTodayLoad`, then one row per brand: kept against a normal day,
+  the month ring at 56px, the reasons from `CommandCenter.reasonsFor` (command.js now exports reasonsFor / worst / score / cached),
+  the week) and the month board on Money (banked vs planned by now, where it lands vs the goal, spend vs plan, MER vs goal, worst
+  first). Paused brands (`/api/hub/command` `paused`, The Golf Sock) sit on one unflagged line on both. A row opens that brand's page
+  through `data-go="act:<id>:<tab>"` (v2.js wireGo).
+- **Phase 5, the flow.** Reports: `V4.reportExtras` (called by `renderReports` after paint, internal page only) inserts Done (tasks
+  ticked inside the report window, `/api/actions?status=done`) and From you (open Requests) under the summary; nothing is drawn when
+  both are empty. Leaks: "Make it a task" becomes "On Tasks" the moment a task is made (localStorage `lk_task:<act>:<leak>` for 14
+  days) and `confirmTasked` checks the open task list after each paint (`source === 'leak'`), so a task made elsewhere shows too.
+  The Monday call runner, Finish bar and client lines were already callscreen.js.
+- **Phase 6, Make.** production.js inserts `V4.ideasCol` in front of Brief for one brand: saved Social posts (cover, "Nx its usual"),
+  Refresh call rows (the set's main ad as the cover), the two biggest leaks; "Brief it" opens `ProductionTab.newBrief({act, text})`
+  (newBrief takes a prefill now and is exported). `cardHtml` shows `c.thumb` on EVERY stage that has one (Cole: "will those show
+  inside those tabs like before?").
+- **Phase 7 so far:** 390px checked on Month and the boards (no sideways scroll), the audit page carries a superseded note, the
+  design page's phases carry their status. Old renderers stay until the switch is on by default.
+- Script versions: v4.js?v=7, lx.css?v=19, desk.js?v=31, leaks.js?v=10, command.js?v=6, production.js?v=12. All checked in Cole's
+  signed-in Chrome through the CORS server + srcdoc iframe recipe (phase 1 section); nothing deployed, nothing merged.
+
+### 2026-10-20 (late night): LOCUS v4 polish pass 1 (Cole: type, colour, spacing on every tab, professional like TrendTrack / ClickUp)
+
+- **Money > Month** no longer crams sentences: the three landing paths are rows (`.v4-pr`: label, number, "$2,973 short" in red
+  or "over" in green), the month's five numbers under the week bars are a stat strip (`.v4-facts`, label over value), the customer
+  card is the dial on top with four facts in a strip (`.v4-cfacts`: to get a customer, first order, left after costs, repeat orders).
+  Under 1360px the top row is two columns and the customer card spans both (dial left, facts right). The dial's caption moved
+  under the arc ends (viewBox 180x114).
+- **Ad cards are one shape everywhere:** the report's Best and worst (`.rp-adc-row`) and the call runner's `.cs .ads` are
+  `grid repeat(auto-fill, minmax(136px, 1fr))`, pictures 4:5, no `max-height` (that cap was squaring the wider cards), no orphan
+  divider. The design page's report mock matches (six 4:5 cards).
+- **Ads > Ads and Changes** are first-row tabs in v4, so `V4_HOME` maps `adcreative` and `changes` to themselves and Meta's second
+  job row (Overview / Campaigns / Ads / Changes) is gone there. Meta overview and campaigns live under Accounts.
+- **Money with a sign:** `money()` and `kmoney()` in v2.js write `-$21`, never `$-21`.
+- **Agency brand board:** gap chips are the count and the kind only ("4 Asana tasks overdue"), reasons clamp to two lines.
+- **Module page titles carry the brand in v4** (`V4_NAMED` in pageHead: Pipeline, Social, Tasks, Meetings, Library, Inspiration,
+  Creators, Studio, Dashboards): "Pipeline: Lucky Golf", "Tasks: every brand". accent.js got the words (Pipeline, Social, Tasks,
+  Meetings, Morning, the month names). TAB_TITLE production = Pipeline.
+- Morning's channel tiles fit three across (`.v4-share` minmax 128px).
+- Versions: v4.js?v=8, lx.css?v=20, v2.js?v=69, callscreen.js?v=8, accent.js?v=3. Checked at desktop and 390px in Cole's Chrome.
+
+### 2026-10-20 (late night): LOCUS v4 polish pass 2 (the design page, and one river palette)
+
+- Cole reviews the DESIGN PAGE mocks (docs/locus-v4, artifact GYvCTrYpSf52GAZAm535LH) as much as the app, so every mock is held to
+  the same bar. The page had no `<meta charset="utf-8">`, so a viewer that guessed wrong showed every arrow, dot and keyboard glyph
+  as garbage (âŒ˜, Â·, â–¼). It has one now. Mock fixes: the dial caption sits under the arc (viewBox 180x114), the report mock shows
+  three 4:5 ad cards a row, the runner mock's week ads are the same 4:5 cards, the Pipeline mock's board no longer pushes into its
+  rail (`.grid>*` and `.kan>*` get `min-width:0`), delta pills never wrap, the agency board's 7-day cell stacks MER under the number.
+- **One river palette, page and app:** kept = brand blue, ads = `--warn` amber, product / shipping / fees = `--line-strong` /
+  `--muted` / `--faint`. The channel colours (Meta blue, Google gold, email purple) are only for channels. v4.js `BITE` and
+  v2.css `.b-ads/.b-cogs/.b-ship/.b-fees` both changed. Versions: v4.js?v=9, v2.css bumped.
+
+### 2026-10-20 (late night): the MONEY PALETTE (polish pass 3). Cole: "you think grey is a good colour for that?"
+
+- Researched before changing: Adobe Spectrum, ServiceNow Horizon, GitLab Pajamas, GOV.UK chart colours and Shopify's own analytics
+  palette all say the same thing. Unordered categories (cost types) get DISTINCT HUES, never a run of greys and never a sequential
+  ramp; keep it to 7 or 8 segments; red and green stay for judgement. So the three greys from pass 2 are gone.
+- The tokens live in v2.css, light and dark: `--m-kept` (brand blue), `--m-ads` (amber), `--m-product` (violet), `--m-ship` (teal),
+  `--m-handling` (slate), `--m-fees` (pink), `--m-other`. The design page carries the same values. Channel colours (`--c-meta`,
+  `--c-google`, `--c-email`) are only for channels side by side.
+- Readers: v4.js `BITE` (the Morning river) and `STEP` (the Month waterfall), v2.css `.b-kept/.b-ads/.b-cogs/.b-ship/.b-fees`
+  (the hero river), the design page's `river()` and `waterfall()`. Any new money chart reads these tokens, never a literal.
+- Versions: v4.js?v=10, v2.css bumped again.
+

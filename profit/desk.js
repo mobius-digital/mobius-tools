@@ -313,8 +313,10 @@
           adset: `Test ${c.num}: ${c.title || 'untitled'}`, why: `${READ[c.suggest] || 'Spent enough to judge'}: ${cpaLine} on ${$(c.spend)}.` });
       }
     }
+    /* Locus v4 (phase 2): Google search-term negatives join the queue as one call per leak (v4.js extraCalls). */
+    if (window.V4 && window.V4.on && window.V4.extraCalls) { try { rows.push(...await window.V4.extraCalls(H, one)); } catch {} if (t !== H.RUN()) return; }
     const vis = rows.filter(r => !sn[r.key]);
-    const kinds = [['all', 'All'], ['fix', 'Fix'], ['scale', 'Scale'], ['cut', 'Cut'], ['trim', 'Trim'], ['refresh', 'Refresh'], ['call', 'Call']];
+    const kinds = [['all', 'All'], ['fix', 'Fix'], ['scale', 'Scale'], ['cut', 'Cut'], ['trim', 'Trim'], ['refresh', 'Refresh'], ['call', 'Call'], ...(window.V4 && window.V4.on ? [['neg', 'Google']] : [])];
     const cnt = k => vis.filter(r => k === 'all' || r.kind === k).length;
     const DO_TIP = { scale: 'Raise this ad set\'s budget 20%. You see the number and confirm before anything is written.', cut: 'Pause this ad set. You confirm before anything is written.', trim: 'Pause this one ad, not the set. You confirm before anything is written.' };
     const doList = vis.filter(r => DO_TIP[r.kind] && !dn[r.key]).sort((a, b) => (b.stake || 0) - (a.stake || 0));
@@ -335,12 +337,13 @@
       const meta = r.spend != null ? `${U().money(r.spend, cur)} spent · ${U().int(r.orders)} sale${Math.round(r.orders) === 1 ? '' : 's'} · ${r.cpa ? U().money(r.cpa, cur) + ' per sale' : 'no sale'}${r.goal ? ` · goal ${U().money(r.goal, cur)}` : ''}${r.n_ads ? ` · ${r.n_ads} ad${r.n_ads === 1 ? '' : 's'}` : ''}` : '';
       const anchor = (r.kind === 'cut' || r.kind === 'scale') && r.anchor && r.n_ads > 1 ? ` <span class="faint">Anchor: "${esc(r.anchor.name)}" (${Math.round((r.anchor.share || 0) * 100)}% of the set's spend).</span>` : '';
       const primary = DO_TIP[r.kind] ? `<button type="button" class="v2btn dk-p" data-do="${k}" title="${esc(DO_TIP[r.kind])}">Do it</button>`
+        : r.kind === 'neg' ? `<button type="button" class="v2btn dk-p" data-neg="${k}" title="Each search becomes an exact negative keyword on its own campaign. Google checks each one before it is written.">Add ${r.leak && r.leak.items ? r.leak.items.length : ''} negatives</button>`
         : r.kind === 'refresh' ? `<button type="button" class="v2btn dk-p" data-brief="${k}" title="Ask Locus to brief three iterations of this ad as an Asana brief.">Brief the iteration</button>`
         : am ? `<a class="v2btn dk-p" href="${esc(am)}" target="_blank" rel="noopener">Open in Ads Manager</a>` : '';
       const ad = adOf(r);
       const th = ad ? `<button type="button" class="dk-th" data-thumb="${esc(ad.id)}" data-play="${k}" aria-label="Play the ad ${esc(ad.name || '')}" title="${esc(r.kind === 'trim' ? 'The ad to turn off' : r.kind === 'refresh' ? 'The main ad' : `The set's main ad${ad.name ? `: ${ad.name}` : ''}`)}. Tap to play."><i>${window.icon ? window.icon('play', { size: 12 }) : '&#9654;'}</i></button>` : '';
       return `<div class="dk-row${dn[r.key] ? ' done' : ''}"><div class="dk-c1"><span class="dk-k ${r.kind}">${r.kind.toUpperCase()}</span>${th}</div>
-        <div><div class="nm">${esc(r.ad ? r.ad : r.adset || '')}</div><div class="meta">${r.ad && r.adset ? `in ${esc(r.adset)} · ` : ''}${meta}</div></div>
+        <div><div class="nm"${window.V4 && window.V4.on && r.adset_id ? ` data-set="${k}" role="button" tabindex="0" title="Open the ad set: the reason, the numbers and the ads in it"` : ''}>${esc(r.ad ? r.ad : r.adset || '')}</div><div class="meta">${r.ad && r.adset ? `in ${esc(r.adset)} · ` : ''}${meta}</div></div>
         <div class="why">${esc(r.why || '')}${anchor}</div>
         <div class="dk-acts">${primary}${gb(`data-done="${k}"`, dn[r.key] ? 'Undo' : 'Done')}<span class="dk-more"><button type="button" class="v2btn ghost dk-more-b" aria-haspopup="true" aria-expanded="false" title="More">&middot;&middot;&middot;</button><div class="dk-menu" role="menu">${am && r.kind !== 'fix' ? `<a href="${esc(am)}" target="_blank" rel="noopener">Open in Ads Manager</a>` : ''}<button type="button" data-locus="${k}">Open in Locus</button><button type="button" data-else="${k}">Something else</button><button type="button" data-snooze="${k}">Not now</button></div></span></div></div>`; };
     const groups = order.map(([id, rs]) => { rs.sort((a, b) => (b.stake || 0) - (a.stake || 0)); const name = rs[0].brand; const all = OPEN[id] || one; const list = all ? rs : rs.slice(0, 3);
@@ -400,6 +403,8 @@
       else W.pause(H, r, opts);
     });
     root.querySelectorAll('[data-locus]').forEach(b => b.onclick = () => { const r = find(b.dataset.locus); if (r) openInLocus(r); });
+    root.querySelectorAll('[data-neg]').forEach(b => b.onclick = () => { const r = find(b.dataset.neg); if (r && window.V4) window.V4.negatives(H, r, () => { markDone(r.key); today(false); }); });
+    root.querySelectorAll('[data-set]').forEach(el => { const open = () => { const r = find(el.dataset.set); if (!r || !window.V4) return; const row = el.closest('.dk-row'); window.V4.setPanel(H, r, { am: amLink(r), doIt: DO_TIP[r.kind] ? () => row.querySelector('[data-do]')?.click() : null, locus: () => openInLocus(r) }); }; el.onclick = open; el.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } }; });
     root.querySelectorAll('[data-else]').forEach(b => b.onclick = () => { const r = find(b.dataset.else); if (r) somethingElse(r); });
     root.querySelectorAll('[data-verdict]').forEach(b => b.onclick = () => { const r = find(b.dataset.key); if (r) callTest(r, b.dataset.verdict, () => { CALLED[r.key] = 1; CACHE.delete('/api/brand/tests-overview'); today(false); }); });
     /* The ad on the call: covers per brand (the cover cache is per ad account), a tap plays it. */

@@ -15,6 +15,9 @@
     answers: ['answers'], research: ['Research'], voice: ['Voice'], brand: ['Brand'], calendar: ['Calendar'], brief: ['Brief'], reports: ['monthly', 'Reports'], dash: ['Dashboards'],
     war: ['Room'], season: ['Plan'], calc: ['Scenarios'], pulse: ['status'], economics: ['economics'], workload: ['workload'],
     settings: ['settings', 'Settings'], health: ['Health', 'check'], costs: ['Costs'], guide: ['use'],
+    /* v4 pages and the module pages that now carry the brand in the title */
+    morning: ['Morning'], month: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December', 'Month'],
+    production: ['Pipeline'], social: ['Social'], socialsaved: ['Social'], socialweek: ['Social'], tasks: ['Tasks'], actions: ['Tasks'], calls: ['Meetings', 'call'], monday: ['call', 'Meetings'], meetings: ['Meetings'], ccall: ['call'],
   };
   const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   /** Wraps the first whole-word match of the page's word in the title's TEXT (never inside a tag or an existing accent). */

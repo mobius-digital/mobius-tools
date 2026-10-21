@@ -21,9 +21,10 @@
 
   /* ---------- formatting ---------- */
   const sym = c => (!c || c === 'USD' ? '$' : c === 'GBP' ? '£' : c === 'EUR' ? '€' : c === 'CAD' ? 'CA$' : c === 'AUD' ? 'A$' : c + ' ');
-  const money = (n, c, dp) => n == null || !isFinite(n) ? '–' : sym(c) + Math.round(n).toLocaleString('en-US', dp ? { minimumFractionDigits: dp, maximumFractionDigits: dp } : {});
+  /* the sign goes before the symbol: -$21, never $-21 */
+  const money = (n, c, dp) => n == null || !isFinite(n) ? '–' : (n < 0 ? '-' : '') + sym(c) + Math.round(Math.abs(n)).toLocaleString('en-US', dp ? { minimumFractionDigits: dp, maximumFractionDigits: dp } : {});
   const money2 = (n, c) => n == null || !isFinite(n) ? '–' : sym(c) + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const kmoney = (n, c) => n == null || !isFinite(n) ? '–' : Math.abs(n) >= 1e6 ? sym(c) + (n / 1e6).toFixed(2) + 'M' : Math.abs(n) >= 1e4 ? sym(c) + (n / 1e3).toFixed(1) + 'K' : money(n, c);
+  const kmoney = (n, c) => n == null || !isFinite(n) ? '–' : Math.abs(n) >= 1e6 ? (n < 0 ? '-' : '') + sym(c) + (Math.abs(n) / 1e6).toFixed(2) + 'M' : Math.abs(n) >= 1e4 ? (n < 0 ? '-' : '') + sym(c) + (Math.abs(n) / 1e3).toFixed(1) + 'K' : money(n, c);
   const int = n => n == null || !isFinite(n) ? '–' : Math.round(n).toLocaleString('en-US');
   const pct = (n, d = 1) => n == null || !isFinite(n) ? '–' : (n * 100).toFixed(d) + '%';
   const x2 = n => n == null || !isFinite(n) ? '–' : n.toFixed(2) + 'x';
@@ -3282,6 +3283,9 @@
 
   window.V2 = {
     adsBlock,
+    /* Locus v4 (2026-10-20): v4.js draws the new Today with the same tiles, lines and words as every v2 page. */
+    setHost(host) { H = host; },
+    kit: { esc, money, money2, kmoney, int, pct, x2, day, delta, tile, tspark, card, foot, legend, lineChart, wireLine, wireGo, mergeDays, cmpLabel, isPlat, modelQ, get, scopeAccts, oneCur, head, skPage, tipAttr, bullet, CH, MODEL_SHORT },
     render(tab, host, first) {
       H = host;
       if (tab === 'overview') return home(first);

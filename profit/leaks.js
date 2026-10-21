@@ -84,7 +84,7 @@
   }
 
   let CHECKED = null;   // the date of the AI check whose words are on screen (set by each draw)
-  function row(l, cur, max) {
+  function row(l, cur, max, act) {
     const [an, ac] = AREA[l.area] || [l.area, '--c-else'];
     const neg = l.apply && l.apply.kind === 'negative';
     const items = (l.items || []);
@@ -105,7 +105,7 @@
         <div class="lk-fix"><em>Suggestion</em>${esc(l.fix)}</div>
         <div class="lk-who">${esc(l.who || '')}${l.cost_how ? ` · cost = ${esc(l.cost_how)}` : ''}</div>
       </div>
-      <div class="lk-act">${btn}${isClient() ? '' : `<button type="button" class="lk-link lk-task" data-lktask="${esc(l.id)}">Make it a task</button><button type="button" class="lk-link lk-call" data-lkcall="${esc(l.id)}" title="Open this brand's client call with this leak on it">Put it on the call</button>`}<button type="button" class="lk-link lk-pb" data-lkpb="${esc(l.id)}">Push back</button></div>
+      <div class="lk-act">${btn}${isClient() ? '' : `<button type="button" class="lk-link lk-task" data-lktask="${esc(l.id)}"${tasked(act, l.id) ? ' disabled' : ''}>${tasked(act, l.id) ? 'On Tasks' : 'Make it a task'}</button><button type="button" class="lk-link lk-call" data-lkcall="${esc(l.id)}" title="Open this brand's client call with this leak on it">Put it on the call</button>`}<button type="button" class="lk-link lk-pb" data-lkpb="${esc(l.id)}">Push back</button></div>
     </div>`;
   }
 
@@ -193,6 +193,7 @@
     host.querySelectorAll('[data-lkhome]').forEach(b => b.onclick = () => H.show('leaks'));
     host.querySelectorAll('[data-lkpb]').forEach(b => b.onclick = () => { const l = d.leaks.find(x => x.id === b.dataset.lkpb); if (l) pushBack(a, d, l, redraw); });
     host.querySelectorAll('[data-lktask]').forEach(b => b.onclick = () => { const l = d.leaks.find(x => x.id === b.dataset.lktask); if (l) makeTask(a, l, b); });
+    confirmTasked(host, a.act_id);
     host.querySelectorAll('[data-lkcall]').forEach(b => b.onclick = () => { const l = d.leaks.find(x => x.id === b.dataset.lkcall); if (!l) return;
       /* callscreen.js reads CCALL_ADD when the client call opens and adds the line under "This week" (promised). */
       window.CCALL_ADD = { act: a.act_id, text: `Fix: ${l.title}${l.fix ? '. ' + l.fix : ''}`, source: 'leak', source_id: l.id };
@@ -213,6 +214,17 @@
   /* ---------- Make it a task (2026-10-20, the kit's connective tissue): one task on Work > Tasks, owner and due
      blank, the leak's number and suggestion as the details, the leak id as the source so the task links back. ---------- */
   function isClient() { return typeof window.isClient === 'function' && window.isClient(); }
+  /* "Task made" state (v4 phase 5): remembered per leak for 14 days the moment a task is made, and confirmed against
+     the open task list after each paint (a task made from another browser, or by someone else, still shows). */
+  const tkey = (act, id) => `lk_task:${act}:${id}`;
+  function tasked(act, id) { try { const v = localStorage.getItem(tkey(act, id)); return !!v && Date.now() - Number(v) < 14 * 864e5; } catch { return false; } }
+  function markTasked(act, id) { try { localStorage.setItem(tkey(act, id), String(Date.now())); } catch {} }
+  async function confirmTasked(host, act) {
+    if (!H || !H.apiAH || !host.querySelector('[data-lktask]:not([disabled])')) return;
+    let r; try { r = await H.apiAH(`/api/actions?act=${encodeURIComponent(act)}`); } catch { return; }
+    if (!host.isConnected) return;
+    for (const it of (r && r.items) || []) if (it.source === 'leak' && it.source_id) { markTasked(act, it.source_id); const b = host.querySelector(`[data-lktask="${CSS.escape(it.source_id)}"]`); if (b) { b.textContent = 'On Tasks'; b.disabled = true; } }
+  }
   async function makeTask(a, l, b) {
     b.disabled = true; const was = b.textContent; b.textContent = 'Adding...';
     const body = { act: a.act_id, text: l.title, detail: [l.number, l.fix].filter(Boolean).join('. ') + ' From the leak finder.', owner: '', due: '', area: 'ads', kind: 'team', source: 'leak', source_id: l.id };
@@ -222,6 +234,7 @@
     b.disabled = false; b.textContent = was;
     if (!r || r.error) { toast(`Could not add the task: ${(r && r.error) || 'no answer'}`); return; }
     const id = r.item ? r.item.id : r.id;
+    markTasked(a.act_id, l.id);
     b.textContent = 'On Tasks'; b.disabled = true;
     toast('Added to Tasks', { label: 'Open', run: () => { if (id) window.ACT_OPEN = id; H.show('tasks'); } });
   }
@@ -309,7 +322,7 @@
       const list = mine.slice(0, 3), sum = mine.filter(l => l.verdict !== 'not_the_cause' && l.verdict !== 'measurement').reduce((s, l) => s + (l.cost || 0), 0), max = Math.max(...list.map(l => l.cost || 0), 1);
       host.innerHTML = `<section class="v2card lk-card"><div class="v2h"><h3>${esc(PAGE_TITLE[page])}</h3><span class="cap">${list.length} of ${mine.length} · ranked by money a month</span></div>
         <p class="lx-lead" style="margin:0">${sum ? `<b>${km(sum, d.currency)} a month</b> by Locus's estimate, last ${d.days} days.` : ''} ${esc(mine.length > 1 ? 'Each leak is priced on its own; they can overlap.' : '')}</p>
-        <div class="lk-rows">${list.map(l => row(l, d.currency, max)).join('')}</div>
+        <div class="lk-rows">${list.map(l => row(l, d.currency, max, a.act_id)).join('')}</div>
         <div class="lk-more"><span>${mine.length > 3 ? `${mine.length - 3} more on this page's list. ` : ''}${(d.leaks || []).length} leak${(d.leaks || []).length === 1 ? '' : 's'} across ${esc(d.brand)}. ${d.ai_check && d.ai_check.at ? `AI check ${esc(new Date(d.ai_check.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))}.` : 'Not cross-checked yet.'}</span><button type="button" class="lk-link" data-lkhome="1">Every leak for ${esc(d.brand)} ›</button></div></section>`;
       wire(host, d, a, draw);
     };
@@ -340,7 +353,7 @@
       host.querySelectorAll('[data-go="leaks"]').forEach(b => b.onclick = () => H.show('leaks'));
       window.LxKit.wireStrip(host, body => {
         const max = Math.max(...mine.map(l => l.cost || 0), 1);
-        body.innerHTML = `<section class="v2card lk-card"><div class="lk-rows">${mine.map(l => row(l, d.currency, max)).join('')}</div>
+        body.innerHTML = `<section class="v2card lk-card"><div class="lk-rows">${mine.map(l => row(l, d.currency, max, a.act_id)).join('')}</div>
           <div class="lk-more"><span>${d.ai_check && d.ai_check.at ? `AI check ${esc(checkedOn(d))}.` : 'Not cross-checked yet.'}</span><button type="button" class="lk-link" data-lkhome="1">Every leak for ${esc(d.brand)} ›</button></div></section>`;
         wire(body, d, a, draw);
       });
@@ -375,8 +388,8 @@
       host.innerHTML = `<section class="v2card lk-card"><div class="v2h"><h3>Where ${esc(d.brand)} is losing money</h3><span class="cap">${all.length} leak${all.length === 1 ? '' : 's'} · last ${d.days} days · numbers refresh hourly</span></div>
         <p class="lx-lead" style="margin:0">${d.summary ? `<b>${esc(d.summary)}</b> ` : first ? `The biggest leak: <b>${esc(first.title)}</b>. ` : 'Nothing is leaking over the floors Locus uses. What was checked is below.'}${first ? esc(d.note) : ''}</p>
         ${first ? aiBar(d) : ''}
-        ${shown.length ? `<div class="lk-rows">${shown.map(l => row(l, d.currency, max)).join('')}</div>` : ''}
-        ${open && later.length ? `<div class="lk-group"><h4>Look elsewhere first, or check the numbers (${later.length})</h4><p class="v2hint" style="margin:0">The numbers are true, but the AI check points somewhere else first, or the number itself may be off. Kept here so nothing is hidden.</p><div class="lk-rows">${later.map(l => row(l, d.currency, max)).join('')}</div></div>` : ''}
+        ${shown.length ? `<div class="lk-rows">${shown.map(l => row(l, d.currency, max, a.act_id)).join('')}</div>` : ''}
+        ${open && later.length ? `<div class="lk-group"><h4>Look elsewhere first, or check the numbers (${later.length})</h4><p class="v2hint" style="margin:0">The numbers are true, but the AI check points somewhere else first, or the number itself may be off. Kept here so nothing is hidden.</p><div class="lk-rows">${later.map(l => row(l, d.currency, max, a.act_id)).join('')}</div></div>` : ''}
         ${!open && all.length > shown.length ? `<div class="lk-more"><span>${shown.length} of ${all.length} shown${sum ? `; the ${act.length} to act on add up to about ${km(sum, d.currency)} a month, priced one by one` : ''}.</span><button type="button" class="btn" data-lkall="1">Show all ${all.length} leaks</button></div>` : ''}
         ${open ? `${status(d)}${lessons(d)}<p class="v2hint" style="margin:0">Benchmarks: Littledata, Oct 2026 (Shopify stores, by device) for add to cart, checkout and conversion; Klaviyo 2026 for flow revenue per recipient. Platform campaigns use ${esc(d.brand)}'s own cut line from Ads rules. Read ${new Date(d.as_of).toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' })} Central.</p><div class="lk-more"><span></span><button type="button" class="lk-link" data-lkless="1">Show fewer</button></div>` : ''}</section>`;
       wire(host, d, a, draw);
@@ -414,5 +427,5 @@
     host.querySelectorAll('[data-lkbrand]').forEach(tr => { const go = () => pick ? pick(tr.dataset.lkbrand, 'leaks') : null; tr.onclick = go; tr.onkeydown = e => { if (e.key === 'Enter') go(); }; });
   }
 
-  window.LeaksCard = { top, strip, full, brands, drop: act => CACHE.delete(act) };
+  window.LeaksCard = { top, strip, full, brands, drop: act => CACHE.delete(act), load, addAll, setHost: h => { H = h; css(); } };
 })();

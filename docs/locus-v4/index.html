@@ -1,0 +1,866 @@
+<meta charset="utf-8">
+<title>Locus v4</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650&family=Instrument+Serif:ital@1&display=swap">
+<style>
+/* Layout: a reading column (760) for words, full-bleed 1440 frames scaled to fit for the mocks. Dark-first graphite, Locus's own tokens, one blue. */
+:root{
+  --bg:#131316;--surface:#1A1A1E;--surface-2:#212126;--ink:#F2F2F4;--ink-2:#B4B4BE;--muted:#8E8E9A;--faint:#5E5E6A;
+  --line:#2A2A31;--line-strong:#3A3A43;--blue:#5B8CFF;--blue-soft:rgba(91,140,255,.14);--blue-line:rgba(91,140,255,.4);
+  --good:#4FBF7A;--warn:#E3A33B;--bad:#E5635B;--good-soft:rgba(79,191,122,.14);--warn-soft:rgba(227,163,59,.14);--bad-soft:rgba(229,99,91,.14);
+  --meta:#6D8BFF;--google:#E8B84A;--email:#B07CF0;--amazon:#F0945C;--other:#7A7A88;
+  --m-kept:#5B8CFF;--m-ads:#E0A83A;--m-product:#A07CF0;--m-ship:#2FB3A3;--m-handling:#7D8BB0;--m-fees:#E0699B;
+  --sans:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;--serif:"Instrument Serif",Georgia,serif;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]){
+  --bg:#F6F6F7;--surface:#FFFFFF;--surface-2:#F3F3F5;--ink:#151518;--ink-2:#45454F;--muted:#6B6B78;--faint:#9A9AA6;
+  --line:#E6E6EB;--line-strong:#D5D5DC;--blue:#3B6DF2;--blue-soft:rgba(59,109,242,.10);--blue-line:rgba(59,109,242,.35);
+  --good:#1F9D55;--warn:#B8791B;--bad:#D23F36;--good-soft:rgba(31,157,85,.12);--warn-soft:rgba(184,121,27,.12);--bad-soft:rgba(210,63,54,.12);
+  --meta:#4A6CF0;--google:#C9961E;--email:#8E5CDB;--amazon:#D87A3C;--other:#8A8A98;color-scheme:light;
+  --m-kept:#3B6DF2;--m-ads:#C28A14;--m-product:#7E55DB;--m-ship:#1A9A8A;--m-handling:#5F6E95;--m-fees:#C94E86}}
+:root[data-theme="light"]{
+  --bg:#F6F6F7;--surface:#FFFFFF;--surface-2:#F3F3F5;--ink:#151518;--ink-2:#45454F;--muted:#6B6B78;--faint:#9A9AA6;
+  --line:#E6E6EB;--line-strong:#D5D5DC;--blue:#3B6DF2;--blue-soft:rgba(59,109,242,.10);--blue-line:rgba(59,109,242,.35);
+  --good:#1F9D55;--warn:#B8791B;--bad:#D23F36;--good-soft:rgba(31,157,85,.12);--warn-soft:rgba(184,121,27,.12);--bad-soft:rgba(210,63,54,.12);
+  --meta:#4A6CF0;--google:#C9961E;--email:#8E5CDB;--amazon:#D87A3C;--other:#8A8A98;color-scheme:light;
+  --m-kept:#3B6DF2;--m-ads:#C28A14;--m-product:#7E55DB;--m-ship:#1A9A8A;--m-handling:#5F6E95;--m-fees:#C94E86}
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;font-feature-settings:"tnum" 1,"cv11" 1;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 80px}
+a{color:var(--blue);text-decoration:none}a:hover{text-decoration:underline}
+.wrap{max-width:1400px;margin:0 auto}
+.col{max-width:760px}
+h1{font-size:44px;font-weight:650;letter-spacing:-.02em;line-height:1.08;margin:48px 0 10px;text-wrap:balance}
+h1 i,h2 i,.ser{font-family:var(--serif);font-style:italic;font-weight:400;letter-spacing:0}
+h2{font-size:26px;font-weight:650;letter-spacing:-.015em;line-height:1.2;margin:72px 0 8px;text-wrap:balance}
+h3{font-size:17px;font-weight:600;margin:28px 0 6px}
+p{margin:0 0 12px;color:var(--ink-2);max-width:66ch}
+p.lead{font-size:18px;color:var(--ink);max-width:60ch}
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 6px}
+.q{display:flex;gap:10px;align-items:baseline;margin:0 0 14px;color:var(--ink);font-size:15px;max-width:none}
+.q b{font-weight:600;color:var(--blue);white-space:nowrap}
+.toc{display:flex;flex-wrap:wrap;gap:6px 14px;margin:18px 0 0;font-size:13.5px}
+.toc a{color:var(--ink-2);padding:4px 0;border-bottom:1px solid transparent}.toc a:hover{color:var(--ink);text-decoration:none;border-color:var(--line-strong)}
+.rule{height:1px;background:var(--line);margin:40px 0}
+.note{font-size:13px;color:var(--muted);margin:10px 0 0;max-width:none}
+.pill{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:999px;font-size:11.5px;font-weight:600;background:var(--surface-2);color:var(--ink-2);border:1px solid var(--line)}
+kbd{font:inherit;font-size:11px;padding:1px 5px;border:1px solid var(--line-strong);border-radius:4px;color:var(--muted)}
+
+/* IA map */
+.ia{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:18px 0 8px}
+.ia .dest{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 14px 12px;min-width:0}
+.ia .dest h4{margin:0 0 2px;font-size:15px;font-weight:650;display:flex;align-items:center;gap:8px}
+.ia .dest .ask{font-size:12.5px;color:var(--muted);margin:0 0 10px;line-height:1.4}
+.ia .dest ul{margin:0;padding:0;list-style:none;font-size:13px;color:var(--ink-2)}
+.ia .dest li{padding:3px 0;border-top:1px solid var(--line)}
+.ia .dest li small{display:block;color:var(--faint);font-size:11px;font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:0;line-height:1.3;margin-top:1px}
+.ia .dest .who{margin-top:10px;display:flex;flex-wrap:wrap;gap:4px}
+.ia .dest .who span{font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);background:var(--surface-2);padding:2px 6px;border-radius:4px}
+.ia .dest.foot{background:transparent;border-style:dashed}
+table.map{width:100%;border-collapse:collapse;font-size:13px;margin:12px 0}
+table.map th{text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--line-strong)}
+table.map td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top;color:var(--ink-2)}
+table.map td:first-child{color:var(--ink);font-weight:600;white-space:nowrap}
+table.map code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;color:var(--muted)}
+.scroll{overflow-x:auto}
+
+/* Frames */
+.mock{margin:22px 0 10px}
+.fw{position:relative;width:100%;overflow:hidden;border-radius:14px;border:1px solid var(--line-strong);background:var(--bg);box-shadow:0 30px 80px -40px rgba(0,0,0,.6)}
+.frame{width:1440px;transform-origin:0 0;position:absolute;left:0;top:0;background:var(--bg);color:var(--ink);font-size:13px;line-height:1.45}
+.phones{display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start;margin:22px 0 10px}
+.ph{width:390px;max-width:100%;flex:0 1 390px}
+.phf{position:relative;width:100%;overflow:hidden;border-radius:38px;border:1px solid var(--line-strong);background:var(--bg);aspect-ratio:390/844;box-shadow:0 30px 80px -40px rgba(0,0,0,.6)}
+.phf .scr{position:absolute;inset:0;overflow:hidden;font-size:13px;line-height:1.4}
+.phcap{font-size:13px;color:var(--muted);margin:10px 4px 0}
+.phcap b{color:var(--ink);font-weight:600}
+
+/* App shell inside frames */
+.app{display:grid;grid-template-columns:232px 1fr;min-height:720px}
+.rail{background:var(--surface);border-right:1px solid var(--line);padding:14px 12px;display:flex;flex-direction:column;gap:4px}
+.rail .logo{display:flex;align-items:center;gap:8px;padding:4px 8px 12px;font-weight:650;font-size:15px}
+.rail .logo i{width:22px;height:22px;border-radius:7px;background:var(--blue);display:inline-block}
+.rail .pick{display:flex;align-items:center;gap:8px;height:34px;padding:0 10px;border:1px solid var(--line-strong);border-radius:8px;font-weight:600;font-size:13px;margin:0 0 6px}
+.rail .pick .av{width:18px;height:18px;border-radius:5px;background:#2E6B3F;display:inline-block;font-size:10px;color:#fff;text-align:center;line-height:18px;font-weight:700}
+.rail .pick .ch{margin-left:auto;color:var(--muted)}
+.rail .find{display:flex;align-items:center;gap:8px;height:32px;padding:0 10px;border-radius:8px;background:var(--surface-2);color:var(--muted);font-size:13px;margin:0 0 10px}
+.rail .find kbd{margin-left:auto}
+.rail .it{display:flex;align-items:center;gap:10px;height:34px;padding:0 10px;border-radius:8px;color:var(--ink-2);font-weight:500;font-size:13.5px}
+.rail .it svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.rail .it.on{background:var(--blue-soft);color:var(--ink)}
+.rail .it.on svg{stroke:var(--blue)}
+.rail .it .n{margin-left:auto;font-size:11px;font-weight:600;color:var(--muted)}
+.rail .it.on .n{color:var(--blue)}
+.rail .gap{flex:1}
+.rail .me{display:flex;align-items:center;gap:8px;padding:8px 10px;font-size:12.5px;color:var(--ink-2)}
+.rail .me i{width:24px;height:24px;border-radius:50%;background:var(--surface-2);display:inline-block;border:1px solid var(--line-strong)}
+.main{padding:18px 28px 40px;min-width:0}
+.hdr{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin:0 0 12px}
+.hdr .crumb{font-size:12px;color:var(--muted);margin:0 0 2px}
+.hdr .t{font-size:22px;font-weight:650;letter-spacing:-.015em;line-height:1.2}
+.hdr .t i{font-family:var(--serif);font-style:italic;font-weight:400}
+.acts{display:flex;gap:8px;align-items:center}
+.btn{height:32px;padding:0 12px;border-radius:7px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);font-weight:600;font-size:13px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn.p{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn.q{border-color:transparent;color:var(--ink-2)}
+.btn.sq{width:32px;padding:0;justify-content:center}
+.btn.sm{height:26px;font-size:12px;padding:0 9px}
+.tabs{display:flex;gap:18px;border-bottom:1px solid var(--line);margin:0 0 12px;font-size:13.5px;font-weight:500;color:var(--muted)}
+.tabs span{padding:8px 0 10px;position:relative}
+.tabs span.on{color:var(--ink);font-weight:600}
+.tabs span.on:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--blue);border-radius:2px}
+.tabs .n{font-size:11px;color:var(--muted);margin-left:5px;font-weight:600}
+.ctl{display:flex;gap:8px;align-items:center;margin:0 0 14px;flex-wrap:wrap}
+.cp{height:30px;padding:0 10px;border-radius:7px;border:1px solid var(--line-strong);background:var(--surface);font-size:12.5px;font-weight:600;color:var(--ink);display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.cp small{font-weight:500;color:var(--muted)}
+.cp .ch{color:var(--muted);font-size:10px}
+.seg{display:inline-flex;background:var(--surface-2);border-radius:8px;padding:3px;gap:2px}
+.seg span{height:24px;padding:0 10px;border-radius:6px;font-size:12.5px;font-weight:600;color:var(--muted);display:inline-flex;align-items:center;gap:5px}
+.seg span.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.strip{display:flex;align-items:center;gap:10px;height:40px;padding:0 12px;border:1px solid var(--line);border-left:3px solid var(--warn);border-radius:8px;background:var(--surface);font-size:13px;color:var(--ink-2);margin:0 0 14px}
+.strip b{color:var(--ink);font-weight:600}.strip .n{color:var(--warn);font-weight:650}.strip .go{margin-left:auto;color:var(--blue);font-weight:600}
+.grid{display:grid;gap:12px}.grid>*{min-width:0}.kan>*{min-width:0}
+.g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:repeat(3,1fr)}.g4{grid-template-columns:repeat(4,1fr)}.g32{grid-template-columns:3fr 2fr}.g23{grid-template-columns:2fr 3fr}.g21{grid-template-columns:2fr 1fr}.g12{grid-template-columns:1fr 2fr}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;min-width:0}
+.card h5{margin:0;font-size:14.5px;font-weight:600;display:flex;align-items:center;gap:8px;line-height:1.3}
+.card h5 .r{margin-left:auto;font-size:12px;color:var(--muted);font-weight:500}
+.card .cap{font-size:12px;color:var(--muted);margin:2px 0 10px}
+.tile .l{font-size:12px;color:var(--muted);font-weight:500}
+.tile .v{font-size:22px;font-weight:650;letter-spacing:-.01em;line-height:1.15;margin:4px 0 2px;display:flex;align-items:baseline;gap:8px}
+.tile .c{font-size:12px;color:var(--muted)}
+.d{display:inline-flex;align-items:center;height:18px;padding:0 6px;border-radius:999px;font-size:11px;font-weight:650;white-space:nowrap;flex:none}
+.d.up{background:var(--good-soft);color:var(--good)}.d.dn{background:var(--bad-soft);color:var(--bad)}.d.fl{background:var(--surface-2);color:var(--muted)}.d.wn{background:var(--warn-soft);color:var(--warn)}
+.chip{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:5px;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+.chip.cut{background:var(--bad-soft);color:var(--bad)}.chip.scale{background:var(--good-soft);color:var(--good)}.chip.refresh{background:var(--warn-soft);color:var(--warn)}.chip.call{background:var(--blue-soft);color:var(--blue)}.chip.keep{background:var(--surface-2);color:var(--ink-2)}.chip.fix{background:var(--bad-soft);color:var(--bad)}
+.src{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;vertical-align:1px}
+.hero{font-size:36px;font-weight:650;letter-spacing:-.02em;line-height:1.1}
+.hero i{font-family:var(--serif);font-style:italic;font-weight:400}
+.rows{display:flex;flex-direction:column}
+.row{display:flex;align-items:center;gap:12px;min-height:44px;padding:6px 0;border-top:1px solid var(--line);font-size:13px}
+.row:first-child{border-top:0}
+.row .t{flex:1;min-width:0}.row .btn{flex:none}.row .t b{font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.row .t small{color:var(--muted);display:block;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .m{font-weight:600;white-space:nowrap}
+.row .go{color:var(--muted)}
+.thumb{width:40px;height:50px;border-radius:6px;background:linear-gradient(135deg,#2a2a31,#3a3a43);flex:none;position:relative;overflow:hidden}
+.thumb:after{content:"";position:absolute;left:30%;top:30%;width:40%;height:40%;border-radius:50%;background:rgba(255,255,255,.08)}
+.thumb.v:before{content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border-left:10px solid rgba(255,255,255,.7);border-top:6px solid transparent;border-bottom:6px solid transparent}
+.bars{display:flex;flex-direction:column;gap:7px}
+.bar{display:grid;grid-template-columns:150px 1fr 70px;gap:10px;align-items:center;font-size:12.5px}
+.bar .l{color:var(--ink-2);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar .tr{height:16px;background:var(--surface-2);border-radius:4px;overflow:hidden}
+.bar .tr i{display:block;height:100%;background:var(--blue);border-radius:4px}
+.bar .v{text-align:right;font-weight:600;white-space:nowrap}
+.ring{position:relative;width:132px;height:132px;flex:none}
+.ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.ring .c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.ring .c b{font-size:calc(var(--rs,132px) * .165);font-weight:650;letter-spacing:-.01em;line-height:1}.ring .c small{font-size:11px;color:var(--muted);margin-top:3px}.ring.sm .c small{display:none}.ring.sm .c b{font-size:14px}
+.tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+.tbl th{text-align:left;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:600;padding:6px 8px;border-bottom:1px solid var(--line-strong)}
+.tbl td{padding:8px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+.tbl td.r,.tbl th.r{text-align:right}
+.tbl tr.tot td{font-weight:600;border-bottom:0}
+.tbl td .ib{display:inline-block;height:6px;background:var(--blue);border-radius:3px;vertical-align:middle;margin-right:6px;opacity:.75}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+.panel .ph-h{padding:14px 16px 10px;border-bottom:1px solid var(--line)}
+.panel .ph-b{padding:14px 16px;display:flex;flex-direction:column;gap:14px}
+.gal{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px}.gal .g{min-width:0}.gal .pic{position:relative;aspect-ratio:4/5;border-radius:8px;overflow:hidden;border:1px solid var(--line);margin-bottom:6px}.gal .pic .k{position:absolute;left:8px;top:8px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 7px;border-radius:999px;background:rgba(255,255,255,.92);color:var(--ink)}.gal .cut .pic .k{color:var(--bad)}.gal .scale .pic .k{color:var(--good)}.gal .watch .pic .k,.gal .refresh .pic .k{color:var(--warn)}.gal .pic .play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.9);color:#111;display:flex;align-items:center;justify-content:center;font-size:13px}.gal .pic .fmt{position:absolute;right:8px;bottom:8px;font-size:10px;font-weight:600;padding:2px 6px;border-radius:5px;background:rgba(0,0,0,.55);color:#fff}.gal .g b{display:block;font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.gal .kv{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:4px;font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums}.gal .kv small{display:block;font-size:10px;font-weight:500;color:var(--muted);letter-spacing:.03em;text-transform:uppercase}
+.wall{display:grid;grid-template-columns:repeat(12,1fr);grid-auto-rows:64px;gap:6px}
+.wall .a{border-radius:8px;position:relative;overflow:hidden;background:var(--surface-2);border:1px solid var(--line);padding:6px 8px;display:flex;flex-direction:column;justify-content:flex-end;font-size:11px;color:var(--ink-2)}
+.wall .a b{display:block;color:var(--ink);font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wall .a:before{content:"";position:absolute;left:0;top:0;right:0;height:3px}
+.wall .a.cut:before{background:var(--bad)}.wall .a.scale:before{background:var(--good)}.wall .a.watch:before{background:var(--warn)}.wall .a.none:before{background:var(--line-strong)}.wall .a.keep:before{background:var(--blue)}
+.wall .a .k{position:absolute;right:8px;top:6px;font-size:10px;font-weight:700;letter-spacing:.04em}
+.wall .a.cut .k{color:var(--bad)}.wall .a.scale .k{color:var(--good)}.wall .a.watch .k{color:var(--warn)}.wall .a.none .k{color:var(--muted)}.wall .a.keep .k{color:var(--blue)}
+.lanes{display:flex;flex-direction:column;gap:6px}
+.lane{display:grid;grid-template-columns:120px 1fr;gap:10px;align-items:center;font-size:12.5px}
+.lane .tr{position:relative;height:26px;background:var(--surface-2);border-radius:6px}
+.lane .ev{position:absolute;top:4px;height:18px;border-radius:4px;font-size:11px;font-weight:600;color:#fff;padding:0 6px;line-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kan{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.kan .colm h6{margin:0 0 8px;font-size:12px;font-weight:600;color:var(--ink-2);display:flex;justify-content:space-between}
+.kan .colm h6 span{color:var(--muted);font-weight:500}
+.kc{background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:0 0 6px;font-size:12px}
+.kc b{display:block;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kc small{color:var(--muted);font-size:11px}
+.sec{border-top:1px solid var(--line);padding:12px 0}
+.sec h6{margin:0;font-size:13.5px;font-weight:600}
+.sec .cap{font-size:12px;color:var(--muted);margin:1px 0 8px}
+.field{height:34px;border:1px dashed var(--line-strong);border-radius:7px;padding:0 10px;display:flex;align-items:center;color:var(--faint);font-size:12.5px}
+.ava{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px 0 3px;border-radius:999px;background:var(--surface-2);font-size:11.5px;font-weight:600;color:var(--ink-2)}
+.ava i{width:16px;height:16px;border-radius:50%;background:#5c4f8a;display:inline-block}
+.tick{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--line-strong);display:inline-block;flex:none}
+.tick.on{background:var(--good);border-color:var(--good);position:relative}
+.tick.on:after{content:"";position:absolute;left:5px;top:2px;width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.badge{position:absolute;z-index:3;width:26px;height:26px;border-radius:50%;background:var(--blue);color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 4px var(--bg)}
+.fl-note{font-size:13px;color:var(--ink-2);display:flex;gap:10px;align-items:flex-start;margin:8px 0 0}
+.fl-note .bb{width:22px;height:22px;border-radius:50%;background:var(--blue);color:#fff;font-weight:700;font-size:12px;display:inline-flex;align-items:center;justify-content:center;flex:none}
+.bottom{position:absolute;left:0;right:0;bottom:0;height:66px;border-top:1px solid var(--line);background:var(--surface);display:flex;justify-content:space-around;align-items:flex-start;padding:8px 6px 0;font-size:10.5px;font-weight:600;color:var(--muted)}
+.bottom span{display:flex;flex-direction:column;align-items:center;gap:3px;width:60px}
+.bottom span i{width:22px;height:22px;border-radius:7px;background:var(--surface-2);display:block}
+.bottom span.on{color:var(--blue)}.bottom span.on i{background:var(--blue-soft)}
+.bottom span.ask i{background:var(--blue);border-radius:50%;width:30px;height:30px;margin-top:-6px}
+.ptop{display:flex;align-items:center;justify-content:space-between;padding:12px 16px 6px;font-size:17px;font-weight:650}
+.ptop .pk{font-size:12px;font-weight:600;color:var(--ink-2);height:26px;padding:0 9px;border:1px solid var(--line-strong);border-radius:7px;display:flex;align-items:center;gap:5px}
+.ptabs{display:flex;gap:6px;padding:4px 16px 10px;overflow:hidden}
+.ptabs span{height:28px;padding:0 11px;border-radius:999px;background:var(--surface-2);font-size:12.5px;font-weight:600;color:var(--muted);display:inline-flex;align-items:center;white-space:nowrap}
+.ptabs span.on{background:var(--ink);color:var(--bg)}
+.pbody{padding:0 16px 80px;display:flex;flex-direction:column;gap:10px}
+.prow{display:flex;align-items:center;gap:10px;min-height:48px;border-top:1px solid var(--line);font-size:13.5px}
+.prow:first-child{border-top:0}
+.prow .t{flex:1;min-width:0}.prow .t b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.prow .t small{display:block;color:var(--muted);font-size:12px}
+.prow .v{font-weight:600;white-space:nowrap}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--surface);border-top-left-radius:18px;border-top-right-radius:18px;border-top:1px solid var(--line-strong);padding:8px 16px 28px;box-shadow:0 -20px 60px rgba(0,0,0,.45)}
+.sheet .hd{width:36px;height:4px;border-radius:2px;background:var(--line-strong);margin:0 auto 14px}
+.scrim{position:absolute;inset:0;background:rgba(0,0,0,.45)}
+
+/* flow diagram */
+.flow{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:18px 0}
+.flow .st{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px;position:relative;min-width:0}
+.flow .st .k{display:flex;align-items:center;gap:8px;margin:0 0 6px;font-weight:650;font-size:14px}
+.flow .st .k i{width:22px;height:22px;border-radius:50%;background:var(--blue);color:#fff;font-style:normal;font-size:12px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
+.flow .st .w{font-size:12px;color:var(--muted);margin:0 0 4px}
+.flow .st .b{font-size:13px;color:var(--ink-2)}
+.flow .st .b b{color:var(--ink);font-weight:600}
+
+/* build plan */
+.plan{display:flex;flex-direction:column;gap:10px;margin:18px 0}
+.phs{display:grid;grid-template-columns:64px 1fr;gap:16px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+.phs .num{font-size:30px;font-weight:650;letter-spacing:-.02em;color:var(--blue);line-height:1}
+.phs .num small{display:block;font-size:11px;color:var(--muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-top:4px}
+.phs h4{margin:0 0 4px;font-size:16px;font-weight:650}
+.phs p{font-size:13.5px;margin:0 0 6px}
+.phs .ship{font-size:12.5px;color:var(--muted)}.phs .ship b{color:var(--ink-2);font-weight:600}
+@media (max-width:720px){h1{font-size:34px}h2{font-size:22px}.phs{grid-template-columns:1fr}.ia{grid-template-columns:1fr 1fr}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+.built{margin:4px 0 0;font-size:12px;color:var(--good)}.built-note{padding:10px 14px;border:1px solid var(--good);border-radius:8px;background:color-mix(in srgb,var(--good) 8%,transparent);font-size:13.5px}
+</style>
+
+<div class="wrap">
+<header class="col">
+  <p class="eyebrow">Mobius Digital · Locus · 20 October 2026 · design, not code</p>
+  <h1>Locus v4: the app <i>rebuilt</i> around the questions people bring to it</h1>
+  <p class="lead">Seven destinations, each named for a job. Every page opens on its answer. One object model, so a leak becomes a call, a call becomes a task, and the task shows up in the report. Every number on these mocks is Lucky Golf's, read from the live Locus workers on 20 October (Triple Whale last platform click, Oct 13 to 19 unless the mock says otherwise).</p>
+  <nav class="toc">
+    <a href="#why">Why a new app</a><a href="#ia">The map</a><a href="#nav">Nav</a><a href="#today">Today</a><a href="#agency">Agency</a><a href="#ads">Ads</a><a href="#wall">Every ad</a><a href="#money">Money</a><a href="#make">Make</a><a href="#reports">Reports</a><a href="#work">Work</a><a href="#client">Client</a><a href="#phone">iPhone</a><a href="#research">Research</a><a href="#borrow">Who we borrow from</a><a href="#inside">Inside a tab</a><a href="#flow">The flow</a><a href="#plan">Build plan</a>
+  </nav>
+  <div class="card" style="margin:22px 0 0;padding:18px 20px;border-color:var(--blue-line);background:var(--blue-soft)">
+    <h5 style="font-size:15px">How to read this page, in three steps</h5>
+    <ol style="margin:8px 0 0;padding-left:20px;font-size:14.5px;color:var(--ink);line-height:1.6">
+      <li><b>The map.</b> Seven cards, one per rail item. Check that nothing you use is missing a home. One yes or no.</li>
+      <li><b>Eight screens.</b> Each one is a full picture of the new app at desktop size with a one-line question above it. Look at Today, Ads and Money first; they set the shape for the rest. For each: does it answer the question faster than today, and does it look like a product you would pay for?</li>
+      <li><b>The phone, the flow, the build plan.</b> Four phone screens, the one path through the app, and seven weekly phases. The only answer I need there is "build it in this order" or "change the order".</li>
+    </ol>
+    <p style="font-size:13px;margin:10px 0 0;color:var(--ink-2)">What these are: HTML mocks drawn with the real kit sizes and Lucky Golf's real numbers, scaled to fit this page. They are not the build. Anything you circle becomes the spec for that phase.</p>
+  </div>
+</header>
+
+<section class="col" id="why">
+  <h2>What changes, in <i>four</i> sentences</h2>
+  <p>Today Locus is twelve rail items and about seventy page ids, grouped by data source (Meta here, Google there, Shopify over there). The audit made them consistent; it did not make them fewer or make them answer anything on arrival. v4 groups by the job: Today, Money, Ads, Make, Calendar, Reports, Work. Each page shows the answer first as a picture (a money river, a pacing ring, a ranked bar list, a wall of the ads themselves) and the proof under it, and the brand picker is the only difference between one brand, every brand and what a client sees.</p>
+  <div class="grid g2" style="gap:10px;margin:16px 0 0">
+    <div class="card"><h5>Stays</h5><p style="font-size:13px;margin:6px 0 0">The engines: ad calls, leaks, Day check, P&amp;L math, Customers, the Monday call, Production, the Strategist. The graphite, Inter, the serif word, one blue. Triple Whale as the source of every revenue figure.</p></div>
+    <div class="card"><h5>Goes</h5><p style="font-size:13px;margin:6px 0 0">Twelve rail items. The "All channels / Meta / Google" split as the top of Ads. Separate Brand, Social, Creative and Production items. The Home that is a tile board. Any page whose first screen is a card of prose.</p></div>
+  </div>
+</section>
+
+<section id="ia">
+  <h2>The map: seven <i>destinations</i>, every old page has a home</h2>
+  <div class="col"><p>Left to right is the order on the rail. The grey line under each item is the old page ids that land there (so every saved link still routes). Who opens it is marked on each.</p></div>
+  <div class="ia" id="iaGrid"></div>
+  <div class="scroll"><table class="map">
+    <thead><tr><th>New home</th><th>Tabs (views of one page)</th><th>Old page ids that route here</th><th>Agency view shows</th><th>Client sees</th></tr></thead>
+    <tbody>
+      <tr><td>Today</td><td>Morning · Leaks · Day check · Brief</td><td><code>overview yesterday leaks brief health</code></td><td>the brand board (one row per brand, ranked by what needs you)</td><td>Morning and Brief for their brand</td></tr>
+      <tr><td>Money</td><td>Month · P&amp;L · Customers · Store · Site · Email · Stock</td><td><code>profit plan customers store website search email stock buying drops</code></td><td>one row per brand on every tab (the Goals table model)</td><td>everything for their brand</td></tr>
+      <tr><td>Ads</td><td>Calls · Accounts · Ad wall · Tests · Changes</td><td><code>today channels meta campaigns adcreative tests changes mtoday mbrowser google gcampaigns gads gterms gchanges tiktok angles</code></td><td>Calls across brands, Accounts as brand rows</td><td>Calls read-only, Accounts, Ad wall, Changes</td></tr>
+      <tr><td>Make</td><td>Pipeline · Studio · Library · Social · Creators · Brand</td><td><code>production studio copy library inspo social socialsaved socialweek amb answers research voice</code></td><td>Pipeline across brands; Brand per brand only</td><td>Pipeline (their ads, approvals), Brand answers and Voice</td></tr>
+      <tr><td>Calendar</td><td>Month · Lanes · Season</td><td><code>calendar warplan warlive season war</code></td><td>13-week lanes, every brand</td><td>their dates, their season plan</td></tr>
+      <tr><td>Reports</td><td>Weekly · Monthly · Requests · Dashboards</td><td><code>reports dash requests</code></td><td>reports waiting to send, per brand</td><td>their reports, what we asked them for</td></tr>
+      <tr><td>Work</td><td>Meetings · Tasks · Monday call · Client call · Kickoff</td><td><code>calls meetings monday ccall tasks actions kickoff</code></td><td>the whole team's week</td><td>hidden</td></tr>
+      <tr><td>Foot</td><td>Find ⌘K · Ask · Tools · Settings</td><td><code>calc pulse economics workload settings guide clients newclient</code></td><td>Agency settings, economics, workload</td><td>Brand settings they own</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note">One model, three scopes. The picker at the top of the rail is Lucky Golf, Agency (every brand) or, for a client login, fixed to their brand. Every page has a one-brand form and an every-brand form of the same tab; nothing is a separate "agency page" any more. Work is the only destination a client never gets.</p>
+</section>
+
+<section id="nav">
+  <h2>Navigation: one rail, <i>three</i> widths</h2>
+  <div class="col"><p class="q"><b>Answers</b> Where am I, where can I go, and how do I get to any ad, task or brand in two keystrokes?</p></div>
+  <div class="mock"><div class="fw" id="m-nav"></div></div>
+  <p class="note">232px rail with the picker and Find on top, seven items, Ask and the foot. Under 1180px it is a 56px icon rail; on a phone it is Today · Ads · Ask · Work · More (Store replaces Work for a client). Find reaches any brand, page, ad, ad set, task, brief or post by name and opens the panel without leaving the page. Rail counts are "needs you" counts only.</p>
+</section>
+
+<section id="today">
+  <h2>Today, one brand: the <i>money river</i></h2>
+  <div class="col"><p class="q"><b>Answers</b> Did yesterday make money, is the month on plan, and what do I touch today?</p></div>
+  <div class="mock"><div class="fw" id="m-today"></div></div>
+  <p class="note">First row: the river (sales flowing through each cost to what was kept, with a ghost mark for a normal day), the month ring (banked against plan by now, outer arc is where the month lands), and the queue (three things, one button each). Second row: the week as four numbers with sparklines, then where revenue came from as a share bar. The leaks are one strip with the biggest leak and the total; the full list is a tab. No tile board, no prose card.</p>
+</section>
+
+<section id="agency">
+  <h2>Today, Agency: the <i>brand board</i></h2>
+  <div class="col"><p class="q"><b>Answers</b> Which of the nine brands needs me first this morning, and why?</p></div>
+  <div class="mock"><div class="fw" id="m-agency"></div></div>
+  <p class="note">One row per brand, ranked by what needs attention: kept yesterday as a bar against the brand's normal day, the month ring, the one reason in words, and the "needs you" counts as chips that open the brand's page. The book total sits on top as one line. Setup-only brands fold to the bottom. The same rows are the every-brand form of Money and Ads.</p>
+</section>
+
+<section id="ads">
+  <h2>Ads: one <i>queue</i>, Meta and Google together</h2>
+  <div class="col"><p class="q"><b>Answers</b> What do I change today, why, and what does the ad look like?</p></div>
+  <div class="mock"><div class="fw" id="m-ads"></div></div>
+  <p class="note">The left is the queue: every call across Meta and Google ranked by money at stake, platform shown as a dot, one verdict chip. The right is the ad set: the reason as a sentence, the numbers against the goal, the ads in the set as a strip (anchor first), then the one button and the other ways out. Doing a call writes the change to Changes and, when it came from a leak, back to the leak. Accounts, Ads, Tests and Changes are tabs of the same page, not platforms.</p>
+</section>
+
+<section id="wall">
+  <h2>Ads: <i>every ad</i>, seen and judged</h2>
+  <div class="col"><p class="q"><b>Answers</b> Which ads are earning their spend, and what do they look like? This is Motion's job, done in Locus: the ad itself on every card, its numbers under it, the call on top. Sort by spend (the default, so the money is at the top), cost per sale, ROAS, hook, newest. Hover plays a video; click opens the ad with where people stop watching, where it ran, the ad set it sits in, and Make iterations.</p></div>
+  <div class="mock"><div class="fw" id="m-wall"></div></div>
+  <p class="note">Every ad that spent, sized by spend, coloured by the call (red cut, green scale, amber watch, grey not judged yet). Hover is the thumbnail and three numbers; click opens the ad panel. The right column is what the ingredients say, as ranked bars against the account's $95 cost per sale, which is the brief for the next batch. "Looks like 10 others" groups show as one tile with a count.</p>
+</section>
+
+<section id="money">
+  <h2>Money: the <i>brand workspace</i></h2>
+  <div class="col"><p class="q"><b>Answers</b> Will Lucky hit October, where did the margin go, and is a customer worth what we pay for one?</p></div>
+  <div class="mock"><div class="fw" id="m-money"></div></div>
+  <p class="note">Month tab: the landing ring with the two paths (spend as planned, spend at today's pace), the week targets as paired bars, the waterfall from revenue to contribution margin, and the customer dial (1.8x back per ad dollar over 90 days) with the first-order to repeat curve. P&amp;L, Customers, Store, Site, Email and Stock are tabs that go deeper; nothing on this tab needs a paragraph.</p>
+</section>
+
+<section id="make">
+  <h2>Make: ideas to <i>live</i> ads on one board</h2>
+  <div class="col"><p class="q"><b>Answers</b> What are we making next, where is each piece, and what should the next batch look like?</p></div>
+  <div class="mock"><div class="fw" id="m-make"></div></div>
+  <p class="note">Pipeline is the first tab, with the stage names your Asana boards already use (Creative Briefs, Creative Studio, Ready to Launch, Launched and testing, Analyze results) so nothing is renamed on the team. Ideas (saved posts, leaks that asked for an ad, call rows) sit before the first stage; the ages that matter are on each card. The right rail is the brief for the next batch, written from the ad wall: what ingredients are winning, what is leaning on old ads (6% of spend on ads under 14 days), what the Strategist suggests. Studio, Library, Social, Creators and Brand are tabs, so the brand's voice sits one click from the brief that needs it.</p>
+</section>
+
+<section id="reports">
+  <h2>Reports: the week as a <i>story</i> with the ads in it</h2>
+  <div class="col"><p class="q"><b>Answers</b> What happened last week, what did we do about it, and what do we need from the client?</p></div>
+  <div class="mock"><div class="fw" id="m-reports"></div></div>
+  <p class="note">Four numbers with one comparison each, the human sentence, then three lists fed by the system (This week from the Monday call, Done from Tasks, From you from Requests), then the ads as cards that open the ad panel. The client's copy is this page. Agency view is a row of report cards: seven waiting to send, each with its one-line state.</p>
+</section>
+
+<section id="work">
+  <h2>Work: the Monday call is a <i>runner</i>, not a form</h2>
+  <div class="col"><p class="q"><b>Answers</b> What do we decide about Lucky this week, who does what by when, and what will Finish write where?</p></div>
+  <div class="mock"><div class="fw" id="m-work"></div></div>
+  <p class="note">Steps across the top with counts, one brand per step. What Locus filled in reads as content (the week in four numbers, the ads, the leak on the call, last week's to-dos); what you type is a field with a placeholder. Each row has an owner pill and a date. The bottom bar always says what Finish will do: here 1 brief, 2 tasks, 1 request, 1 client line. Tasks is the other tab, grouped by due date, with the same side panel.</p>
+</section>
+
+<section id="client">
+  <h2>What the <i>client</i> sees</h2>
+  <div class="col"><p class="q"><b>Answers</b> How is my brand doing, what is the agency doing about it, and what do they need from me?</p></div>
+  <div class="mock"><div class="fw" id="m-client"></div></div>
+  <p class="note">The same app with the picker fixed to Lucky Golf and Work removed. Today adds two rows the agency does not need: what we did this week (from Tasks and the Monday call) and what we need from you (Requests, with an approve button). Every revenue figure is the same Triple Whale number the team sees. Nothing is a separate "client dashboard".</p>
+</section>
+
+<section id="phone">
+  <h2>iPhone: a list of things you can <i>tap</i></h2>
+  <div class="col"><p class="q"><b>Answers</b> Can Cole run the morning and a buyer clear the calls from a phone without pinching?</p></div>
+  <div class="phones" id="m-phones"></div>
+  <p class="note">One 44px header row with the picker. Tabs are a pill row. The river and the ring fit in one card; everything else is a row with a value. The call queue is rows with the verdict chip; a call opens as a full-height sheet with the ad strip, the reason and the one button. Period and attribution live in the "..." sheet. The bottom bar never animates; sheets spring up in 240ms and follow the finger down.</p>
+</section>
+
+
+
+<section id="research">
+  <h2>What I looked at in your accounts <i>today</i></h2>
+  <div class="col"><p>Opened in your Chrome, signed in as you, on 20 October. Each screenshot is followed by the one pattern taken into the mocks and where it landed. Full-size files are in docs/locus-v4/refs.</p></div>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin:18px 0">
+    <div class="card" style="padding:0;overflow:hidden"><img src="refs/triplewhale-summary.jpg" alt="Triple Whale Summary for Lucky Golf" style="display:block;width:100%;border-bottom:1px solid var(--line)"><div style="padding:12px 14px"><h5>Triple Whale, Summary (Lucky)</h5><p style="font-size:13px;margin:6px 0 0">Left rail: Moby on top, then Essentials (Summary, Acquisition, Creative, Conversion, Retention, Discovery), custom workspaces, Data / Help / Settings in the foot. The page is an Ask bar with suggested questions, then Pins: label, big number, delta, sparkline. Period and compare are two pills in the title row.</p><p style="font-size:13px;margin:6px 0 0;color:var(--blue)">Taken: the rail order and foot, Pins as the Today tiles, Ask with suggested questions on Today. The suggestions are Locus's own leaks.</p></div></div>
+    <div class="card" style="padding:0;overflow:hidden"><img src="refs/atria-inspo.jpg" alt="Atria Inspo feed" style="display:block;width:100%;border-bottom:1px solid var(--line)"><div style="padding:12px 14px"><h5>Atria, Inspo</h5><p style="font-size:13px;margin:6px 0 0">A 56px icon rail (Inspo, Raya, Analytics, AI Gen, Assets, Brands) with a second column for the section's own list (Ads, Brands, Advertisers, Top picks, Following, Saved, Boards). Views as pills (All ads, Trending, Following, + New view), then filters as pill menus in four named groups (Lifecycle, Targeting, Creative, Performance). Cards carry the brand, days running, two numbers and the thumbnail; everything else is on hover.</p><p style="font-size:13px;margin:6px 0 0;color:var(--blue)">Taken: the icon rail plus section column for iPad; grouped filter pills on Ads &rsaquo; Ads and Social; the card anatomy for every ad and post in Locus.</p></div></div>
+    <div class="card" style="padding:0;overflow:hidden"><img src="refs/trendtrack-brandtracker.jpg" alt="TrendTrack Brandtracker" style="display:block;width:100%;border-bottom:1px solid var(--line)"><div style="padding:12px 14px"><h5>TrendTrack, Brandtracker</h5><p style="font-size:13px;margin:6px 0 0">One row per shop: logo and site, niche chips, three best-seller thumbnails, revenue a month with a per-day line under it, visits with a sparkline, Meta ads live with a sparkline and "launched in 7 days". Period as a 24H / 7D / 14D / 30D segment; list or card toggle; a Compare tab.</p><p style="font-size:13px;margin:6px 0 0;color:var(--blue)">Taken: the row anatomy for the Agency brand board (number, per-day line, sparkline in one cell) and for Make &rsaquo; Social's followed brands.</p></div></div>
+    <div class="card" style="padding:0;overflow:hidden"><img src="refs/clickup-list.jpg" alt="ClickUp 4.0 list view" style="display:block;width:100%;border-bottom:1px solid var(--line)"><div style="padding:12px 14px"><h5>ClickUp 4.0, a list</h5><p style="font-size:13px;margin:6px 0 0">Two-level nav: a 56px icon rail (Home, Planner, AI, Teams, More) and a Home column with the personal items on top (Inbox, Assigned comments, My tasks) and the Spaces hierarchy under them. Views are tabs on the list (List, Board, Calendar, Gantt, Table, + View). Rows group by status with a collapsible header and count, and the group's own "Add task" row. Search sits in the top bar with its shortcut shown.</p><p style="font-size:13px;margin:6px 0 0;color:var(--blue)">Taken: personal items above the hierarchy (Work &rsaquo; Tasks opens on Mine); status groups with counts and an inline add row on Tasks; views as tabs, never a dropdown.</p></div></div>
+    <div class="card" style="padding:0;overflow:hidden"><img src="refs/asana-board.jpg" alt="Asana board for Bonk Golf" style="display:block;width:100%;border-bottom:1px solid var(--line)"><div style="padding:12px 14px"><h5>Asana, the Bonk Golf board</h5><p style="font-size:13px;margin:6px 0 0">Project tabs are views of one list (Overview, List, Board, Timeline, Dashboard, Calendar, Messages, Files). Columns are your real stages: Creative Briefs, Creative Studio, Ready to Launch, Launched and Testing, Analyze Results, Complete. A card is the number and name, two tags, the owner, a comment count. Inbox is a feed of stage changes.</p><p style="font-size:13px;margin:6px 0 0;color:var(--blue)">Taken: those stage names on Make &rsaquo; Pipeline, unchanged, so the team's vocabulary carries over; the Inbox feed is Today &rsaquo; Brief's "what moved" line.</p></div></div>
+  </div>
+  <div class="grid g2" style="gap:10px">
+    <div class="card"><h5>Could not reach, and why</h5><ul style="margin:8px 0 0;padding-left:18px;font-size:13.5px;color:var(--ink-2);line-height:1.6"><li><b style="color:var(--ink)">ClickUp</b>: read after you signed in (the workspace is a bare template, the shell was the point).</li><li><b style="color:var(--ink)">Atria &rsaquo; Analytics</b>: still says "expired session" after your sign-in; Reconnect opens a Facebook permission grant, which only you can click. Radar is documented well enough (letter grades per ad, fatigue flags) to build from.</li><li><b style="color:var(--ink)">Motion</b>: dropped. Its public docs, the G2 screenshots and Atria cover the same patterns (creative drawer, tag rollups).</li><li><b style="color:var(--ink)">TrendTrack shop pages</b>: the brand page froze Chrome's tab twice; Brandtracker and Home were enough for the pattern.</li></ul></div>
+    <div class="card"><h5>Already enough from public material</h5><p style="font-size:13.5px;margin:8px 0 0">Linear (side peek, command palette, motion), Attio (settings, record peek), Polar (compare pill, saved views), Northbeam (attribution captions), Mercury (confirm card), Stripe (page anatomy), Foreplay (boards, briefs), Sandcastles (outlier cards), Fellow (agenda as the page). These are in the audit's research notes with URLs and are already folded into the kit rules.</p></div>
+  </div>
+</section>
+
+<section id="borrow">
+  <h2>Who each screen <i>borrows</i> from, and what I need from you</h2>
+  <div class="col"><p>The yardstick is per job, not one product. Each destination copies the best product for that job, down to the pattern. The last column is what is still open after the pass through your accounts today.</p></div>
+  <div class="scroll"><table class="map">
+    <thead><tr><th>Destination</th><th>Borrow from</th><th>The pattern we take</th><th>From you</th></tr></thead>
+    <tbody>
+      <tr><td>Today</td><td>Triple Whale Summary, Mercury</td><td>One operating view: pinned numbers with sparklines, Moby one click from any tile. Mercury's "money first, one hero, tables below" and its confirm card that says exactly what a button will do.</td><td>Done today (Summary read). The phone app is still worth 10 minutes with me watching.</td></tr>
+      <tr><td>Money</td><td>Polar Analytics, Northbeam, Lifetimely</td><td>Date and compare as one pill, saved views, a column chooser on every table, attribution model as a caption under every chart. Lifetimely's cohort curve for Customers.</td><td>Nothing. Polar's docs and demo videos are enough; Northbeam's docs are public.</td></tr>
+      <tr><td>Ads</td><td>Motion, Northbeam, Google Ads' recommendations page</td><td>Motion: the creative is a card because the thumbnail is the content; the drawer holds results, tags (format, angle, who is on screen) and the comparison. Reports as tiles with up to six metrics. Google's recommendations: one row, one Apply, the reason in a sentence.</td><td>Motion dropped; Atria and its public docs cover the drawer and tag rollups.</td></tr>
+      <tr><td>Ad wall, Social, Library</td><td>Atria, TrendTrack, Foreplay, Sandcastles</td><td>Atria: every ad tagged (hook, angle, CTA, visual style), letter grades, filters as pills. TrendTrack: a brand's whole ad history, scaled formats, landing pages, ranked by spend signals. Foreplay: boards, one brief to many creators, Spyder's timeline. Sandcastles: 9:16 cards with the outlier multiple.</td><td>Atria Inspo and TrendTrack Brandtracker read today. Radar from its docs.</td></tr>
+      <tr><td>Make &rsaquo; Pipeline</td><td>Asana, ClickUp 4.0, Linear</td><td>Asana: list, board and calendar as views of one list; the task pane slides in; the tick animates. ClickUp 4.0: Home with Inbox and a Planner, hubs you pin, hierarchy in the sidebar. Linear: the side peek, keyboard first, status as a small icon, the triage inbox.</td><td>Asana and ClickUp read today. Linear: public.</td></tr>
+      <tr><td>Reports</td><td>Stripe Dashboard, Triple Whale weekly report, Whatagraph</td><td>Stripe's fixed page anatomy; the report as four numbers, a sentence, three lists, the ads as cards; one Send with a preview of what the client gets.</td><td>Nothing.</td></tr>
+      <tr><td>Work</td><td>Fellow, Notion meeting notes, Linear triage</td><td>Fellow: the agenda is the page, each item has an owner and becomes an action item on Finish. Notion: the meeting note is a page with linked tasks. Linear: triage one at a time with a Next button.</td><td>Nothing.</td></tr>
+      <tr><td>Shell, Find, settings</td><td>Linear, Attio, Vercel, Superhuman</td><td>Linear's command palette and motion; Attio's two-column settings and record peek; Vercel's grey scale and tabular numbers; Superhuman's palette rules.</td><td>Linear and Attio are free; I do them alone.</td></tr>
+    </tbody>
+  </table></div>
+  <div class="grid g2" style="gap:10px;margin:14px 0 0">
+    <div class="card"><h5>Nothing left for you to do here</h5><p style="font-size:13.5px;margin:8px 0 0">Triple Whale, Atria, TrendTrack, Asana and ClickUp were read in your accounts; Motion is dropped; the rest is public. The research is folded into the mocks above. Your only job now is the three steps in the blue box at the top.</p></div>
+    <div class="card"><h5>How the research turns into screens</h5><p style="font-size:13.5px;margin:8px 0 0">For each product: 20 minutes of clicking in your Chrome, screenshots into docs/locus-v4/refs, and one line per pattern ("Motion: the drawer opens on the right, 480px, tags as pills under the thumbnail, six metrics max"). The pattern goes into the matching mock here, with the source named under it. You review the mocks, not the research.</p></div>
+  </div>
+</section>
+
+<section id="inside">
+  <h2>Inside a tab: where <i>features</i> and settings live</h2>
+  <div class="col"><p>Your question was: a tab sometimes needs its own features and its own settings, so are those sub-tabs, panels, or a general settings page? The rule below decides it every time, so nothing gets invented per screen.</p></div>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;margin:16px 0">
+    <div class="card"><h5>1. Views of the same list are tabs</h5><p style="font-size:13px;margin:6px 0 0">Calls, Accounts, Ads, Tests, Changes are all the ad account seen a different way, so they are tabs under the title. A tab never has tabs; a second level is a segmented control in the control bar (Meta | Google on Accounts, List | Board on Pipeline).</p></div>
+    <div class="card"><h5>2. Things you do to the page are header actions</h5><p style="font-size:13px;margin:6px 0 0">One primary button, one quiet button, and "..." for the rest. Do all safe calls, + Brief, Send to client. Never in the top bar, never floating.</p></div>
+    <div class="card"><h5>3. Things you do to one item are in its panel</h5><p style="font-size:13px;margin:6px 0 0">Pause, lower budget, make it a task, put it on the call, push back, open in Ads Manager. The panel is the same component for an ad, a task, a leak or a post, so the buttons are always in the same place.</p></div>
+    <div class="card"><h5>4. Settings that change what you see stay on the page</h5><p style="font-size:13px;margin:6px 0 0">Period, compare, attribution, sort, size, colour, columns, which brands: control pills on the page, remembered per page. Social's "which brands to watch" is a pill on Social, not a Settings page.</p></div>
+    <div class="card"><h5>5. Settings that change how Locus judges live in the page's "..."</h5><p style="font-size:13px;margin:6px 0 0">The $64 goal CPA, the cut line, the judging spend, the posting credits, Slack channel for the brief: a sheet opened from the page's "..." menu ("Ads rules" from Calls, "Report settings" from Reports). The same sheet is reachable from Settings, so there is one place to edit and two doors.</p></div>
+    <div class="card"><h5>6. Only connections and people live in Settings</h5><p style="font-size:13px;margin:6px 0 0">Integrations, logins, who sees what, brand name and logo, the client's edition. These change once. Everything else has a door on the page it affects.</p></div>
+  </div>
+  <div class="col"><h3>Examples from the mocks</h3>
+    <ul style="margin:0;padding-left:18px;font-size:14px;color:var(--ink-2);line-height:1.65">
+      <li><b style="color:var(--ink)">Social needs a brand watchlist, a credits balance and a posting schedule.</b> Watchlist: a pill on the Social tab ("Takomo, Vice, Bad Birdie + 3"). Credits: one line in the page's "..." sheet and the 5am card, never in the content. Posting: Week is a view of the same tab, the composer is a sheet.</li>
+      <li><b style="color:var(--ink)">Ads needs the goal CPA and the cut line.</b> Shown as a caption wherever a call is judged ("goal $64, cut at 1.5x after 3x spent"); edited from "..." then Ads rules on Calls, the same sheet Settings opens.</li>
+      <li><b style="color:var(--ink)">Pipeline needs stage names, owners and the Launch to Meta mapping.</b> Stages and owners are edited on the board (rename a column, owner pill). Launch to Meta is a header action with its own confirm card that lists exactly what it will create.</li>
+      <li><b style="color:var(--ink)">Reports need a send day, channel and what the client sees.</b> "..." then Report settings on Reports. Preview as the client is a tab, not a setting.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="flow">
+  <h2>The connections: one <i>flow</i> through the mocks</h2>
+  <div class="col"><p>The blue numbers on the mocks above are this path. It is the test of "nothing may be a silo": one object, five surfaces, nothing retyped.</p></div>
+  <div class="flow">
+    <div class="st"><div class="k"><i>1</i>Leak found</div><div class="w">Today › strip, Leaks tab</div><div class="b"><b>Cart to checkout on phones is 28%, 45% is normal.</b> About $20.3K a month. Locus prices it, the AI check says "walk the phone cart first".</div></div>
+    <div class="st"><div class="k"><i>2</i>Put on the call</div><div class="w">Work › Monday call › Lucky step</div><div class="b">The leak appears under <b>On the call</b> with its number. Cole decides in the room: Ahsan walks the cart, Noma briefs a fix.</div></div>
+    <div class="st"><div class="k"><i>3</i>Finish writes</div><div class="w">Work › Tasks, Make › Pipeline</div><div class="b"><b>Task: walk the phone cart (Ahsan, Fri Oct 24)</b>, linked to the leak. The leak now shows "task made". The client line "We are fixing the phone cart" is queued for the report.</div></div>
+    <div class="st"><div class="k"><i>4</i>Done</div><div class="w">Work › Tasks, phone</div><div class="b">Ahsan ticks it on the phone with a note: "shipping shown late, express buttons missing". The tick writes to the leak and to <b>Done this week</b>.</div></div>
+    <div class="st"><div class="k"><i>5</i>Reported</div><div class="w">Reports › Weekly, Today › Brief, client view</div><div class="b">The weekly report's Done list carries it; the 5am brief says it; the client's Today shows it under <b>What we did</b>. The leak's number next month says whether it worked.</div></div>
+  </div>
+  <div class="col">
+    <h3>The objects and where each one opens</h3>
+    <p>Ad, ad set, call, leak, task, brief, post, report, request, calendar date. Each has one side panel (a full-height sheet on a phone) that opens from anywhere its name appears, with a URL you can paste into Slack. Every write goes one way: a decision on a call writes to Tasks, Pipeline, Requests and the report; a tick writes back to the thing that asked for it. Find reaches all of them.</p>
+  </div>
+</section>
+
+<section id="plan">
+  <h2>Build plan: seven phases, each one <i>shippable</i></h2>
+  <div class="col"><p class="built-note">Status 2026-10-20, evening: phases 1 to 6 are built on PR 44 behind the account menu's "Try the new Locus" switch (off by default). Cole reviews everything at the end; nothing changes for the team until the switch is on. Where a mock and the build differ, the build followed Cole's notes: ring numbers scale to the ring, the ad wall is the every-ad gallery, the river's words sit under the bars.</p></div>
+  <div class="col"><p>Every phase leaves Locus working for everyone, with every old page id still routing. The new shell goes first so each later phase lands inside it instead of beside it. No worker changes until phase 5; everything before it is the front end reading what the workers already return.</p></div>
+  <div class="plan">
+    <div class="phs"><div class="num">1<small>Week 1</small></div><div><h4>The v4 shell and Today for one brand</h4><p class="built"><b>Built, PR 44</b></p><p>Seven-item rail, picker as the scope, Find, icon rail, phone bar. The old NAV becomes a routing table: every old id lands on its new tab. Today › Morning built new: the river, the ring, the queue, the four numbers, the share bar, the leak strip. Day check, Leaks and Brief move in as tabs unchanged.</p><div class="ship"><b>Ships when</b> Cole opens Locus and sees the new rail and the new Today for Lucky; every other page still works where its old id now lives.</div></div></div>
+    <div class="phs"><div class="num">2<small>Week 2</small></div><div><h4>Ads as one queue</h4><p class="built"><b>Built, PR 44</b></p><p>Calls across Meta and Google in one ranked list with the ad set panel (reason, numbers, ad strip, one button). Accounts tab holds the Meta and Google tables as a segmented control. Ads &rsaquo; Ads: every ad as a card you can see and judge, Motion's job, on the existing creative data. Tests and Changes move in. Google search-term negatives are a call type.</p><div class="ship"><b>Ships when</b> a buyer clears a morning from the queue alone, and every change shows on Changes with its source.</div></div></div>
+    <div class="phs"><div class="num">3<small>Week 3</small></div><div><h4>Money</h4><p class="built"><b>Built, PR 44</b></p><p>The Month tab built new (landing ring, week bars, waterfall, customer dial). P&amp;L, Customers, Store, Site, Email and Stock move in as tabs on the kit, prose to the "..." menus. Goals become the Month tab's edit mode.</p><div class="ship"><b>Ships when</b> Cole answers "will Lucky hit October" from one screen without scrolling.</div></div></div>
+    <div class="phs"><div class="num">4<small>Week 4</small></div><div><h4>Agency rows on every page</h4><p class="built"><b>Built, PR 44</b></p><p>The brand board as Today's every-brand form; Money and Ads tabs gain their one-row-per-brand form (the Goals table as the model). The picker's Agency scope replaces the Agency view rail. Client login gets the same pages with Work hidden and the two extra Today rows.</p><div class="ship"><b>Ships when</b> switching the picker is the only difference between the three scopes, and a client login is checked on a real phone.</div></div></div>
+    <div class="phs"><div class="num">5<small>Weeks 5 and 6</small></div><div><h4>Work and the flow (worker changes start here)</h4><p class="built"><b>Built in part, PR 44: report story cards, leak task state; the call runner already existed</b></p><p>The Monday call runner with the Finish bar that writes tasks, briefs, requests and client lines with their source id. Leak gets "task made" state; tasks carry their source; Done writes to the report and the brief. Tasks and Meetings on the shared panel. Reports rebuilt as the story page with ad cards; Requests move in.</p><div class="ship"><b>Ships when</b> the five-step flow above runs end to end on a real leak with no retyping.</div></div></div>
+    <div class="phs"><div class="num">6<small>Week 7</small></div><div><h4>Make</h4><p class="built"><b>Built, PR 44: Ideas column, Brief it, pictures on every stage</b></p><p>Pipeline as the first tab with Ideas from saved posts, call rows and leaks; the next-batch brief rail from what the ads say; Studio, Library, Social, Creators and Brand as tabs. Calendar gains the Season tab (the Black Friday plan as a lens, not an item).</p><div class="ship"><b>Ships when</b> a strategist goes from a saved post to a Ready card without leaving Make, and the card shows on the Calendar.</div></div></div>
+    <div class="phs"><div class="num">7<small>Week 8</small></div><div><h4>Polish and retire</h4><p class="built"><b>In part: phone widths checked, docs and the audit page marked; the old renderers stay until the switch is on by default</b></p><p>Phone pass on a real iPhone and iPad, motion rules, light theme check, Find across every object, skeleton loads. Old page renderers that nothing reaches any more are deleted, and the audit page is marked superseded by this one.</p><div class="ship"><b>Ships when</b> Cole can run Monday from the phone, and index.html has lost the pages v4 replaced.</div></div></div>
+  </div>
+  <p class="note">Sources: the live app on 20 October 2026 as Lucky Golf and in Agency view (Home, Today's calls, Leaks, Meta campaigns and ads, P&amp;L, Customers, Tasks, Reports); docs/locus-audit/index.html; profit/CLAUDE.md. Pipeline stage counts other than Briefs (Asana, 13 stuck) and Live (Meta, 17 launched last week) are placeholders until Production is read into the board. Triple Whale's own API was not reachable for Lucky from this session, so every figure comes through the Locus workers, which read Triple Whale.</p>
+</section>
+</div>
+
+<script>
+/* ---------- shared pieces ---------- */
+const I = {
+  today:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>',
+  money:'<svg viewBox="0 0 24 24"><path d="M3 17l5-6 4 4 5-7 4 5"/><path d="M3 21h18"/></svg>',
+  ads:'<svg viewBox="0 0 24 24"><path d="M4 11h4l8-5v12l-8-5H4z"/><path d="M19 9a4 4 0 010 6"/></svg>',
+  make:'<svg viewBox="0 0 24 24"><path d="M12 3l2.5 5.5L20 10l-4 4 1 6-5-3-5 3 1-6-4-4 5.5-1.5z"/></svg>',
+  cal:'<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
+  rep:'<svg viewBox="0 0 24 24"><path d="M6 3h9l5 5v13H6z"/><path d="M14 3v6h6M9 13h6M9 17h6"/></svg>',
+  work:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg>',
+  ask:'<svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 00-7.5 14l-1 4 4-1A9 9 0 1012 3z"/></svg>',
+  tools:'<svg viewBox="0 0 24 24"><path d="M14 7a4 4 0 005 5l-8 8-3-3 8-8z"/><path d="M4 20l3-3"/></svg>',
+  set:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 00-.1-1l2-1.5-2-3.5-2.4 1a7 7 0 00-1.7-1L14.5 3h-5l-.3 2.7a7 7 0 00-1.7 1l-2.4-1-2 3.5 2 1.5a7 7 0 000 2l-2 1.5 2 3.5 2.4-1a7 7 0 001.7 1l.3 2.7h5l.3-2.7a7 7 0 001.7-1l2.4 1 2-3.5-2-1.5c.1-.3.1-.7.1-1z"/></svg>'
+};
+const ITEMS=[['today','Today',''],['money','Money',''],['ads','Ads','11'],['make','Make',''],['cal','Calendar',''],['rep','Reports','1'],['work','Work','1']];
+function rail(on, scope, client){
+  const items = ITEMS.filter(x=>!(client&&x[0]==='work')).map(([k,l,n])=>`<div class="it ${on===k?'on':''}">${I[k]}<span>${l}</span>${n&&!client?`<span class="n">${n}</span>`:''}</div>`).join('');
+  const pick = scope==='agency' ? `<span class="av" style="background:#333;">M</span>Agency <small style="color:var(--muted);font-weight:500">9 brands</small>` : `<span class="av">L</span>Lucky Golf`;
+  return `<aside class="rail">
+    <div class="logo"><i></i>Locus</div>
+    <div class="pick">${pick}${client?'':'<span class="ch">⌄</span>'}</div>
+    <div class="find">⌕ Find anything <kbd>⌘K</kbd></div>
+    ${items}
+    <div class="gap"></div>
+    <div class="it">${I.ask}<span>Ask</span></div>
+    ${client?'':`<div class="it">${I.tools}<span>Tools</span></div>`}
+    <div class="it">${I.set}<span>Settings</span></div>
+    <div class="me"><i></i>${client?'Will · Lucky Golf':'Cole'}</div>
+  </aside>`;
+}
+function hdr(crumb,title,acts){return `<div class="hdr"><div><div class="crumb">${crumb}</div><div class="t">${title}</div></div><div class="acts">${acts||''}</div></div>`;}
+function tabs(list,on){return `<div class="tabs">${list.map(t=>{const [l,n]=Array.isArray(t)?t:[t,''];return `<span class="${l===on?'on':''}">${l}${n?`<span class="n">${n}</span>`:''}</span>`}).join('')}</div>`;}
+function ctl(extra){return `<div class="ctl"><span class="cp">Last 7 days <small>vs before</small> <span class="ch">⌄</span></span><span class="cp"><small>Triple Whale</small> last platform click <span class="ch">⌄</span></span>${extra||''}</div>`;}
+function tile(l,v,d,c,spark){return `<div class="card tile"><div class="l">${l}</div><div class="v">${v}${d?`<span class="d ${d[0]}">${d[1]}</span>`:''}</div><div class="c">${c||''}</div>${spark||''}</div>`;}
+function spark(vals,w=200,h=36,color='var(--blue)'){const mx=Math.max(...vals),mn=Math.min(...vals);const pts=vals.map((v,i)=>[i*(w/(vals.length-1)),h-4-((v-mn)/((mx-mn)||1))*(h-10)]);const d=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');const last=pts[pts.length-1];return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" preserveAspectRatio="none" style="margin-top:8px;display:block"><path d="${d} L${w} ${h} L0 ${h}Z" fill="${color}" opacity=".12"/><path d="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round"/><circle cx="${last[0]}" cy="${last[1]}" r="3" fill="${color}"/></svg>`;}
+function ring(pct,label,sub,outer,size=132){const r=52,c=2*Math.PI*r,p=Math.min(pct,1);const r2=60,c2=2*Math.PI*r2;return `<div class="ring${size<80?" sm":""}" style="width:${size}px;height:${size}px;--rs:${size}px"><svg viewBox="0 0 132 132"><circle cx="66" cy="66" r="${r}" fill="none" stroke="var(--surface-2)" stroke-width="10"/><circle cx="66" cy="66" r="${r}" fill="none" stroke="var(--blue)" stroke-width="10" stroke-linecap="round" stroke-dasharray="${(c*p).toFixed(1)} ${c.toFixed(1)}"/>${outer!=null?`<circle cx="66" cy="66" r="${r2}" fill="none" stroke="var(--line-strong)" stroke-width="2" stroke-dasharray="${(c2*Math.min(outer,1)).toFixed(1)} ${c2.toFixed(1)}" stroke-linecap="round"/>`:''}</svg><div class="c"><b>${label}</b><small>${sub}</small></div></div>`;}
+function river(sales,parts,kept,normal,w=560,h=44){ /* waterfall left to right; the words sit in a legend row under it so nothing overlaps */
+  const total=sales;const sx=v=>v/total*(w-20);let x=10;const colors={Ads:'var(--m-ads)','Product':'var(--m-product)','Shipping':'var(--m-ship)','Fees':'var(--m-fees)'};
+  let out=`<svg viewBox="0 0 ${w} ${h}" style="display:block;width:100%;height:auto;overflow:visible">`;
+  out+=`<rect x="10" y="6" width="${sx(sales)}" height="30" rx="6" fill="var(--surface-2)"/>`;
+  parts.forEach(([n,v])=>{const wd=sx(v);out+=`<rect x="${x}" y="6" width="${Math.max(wd-2,2)}" height="30" rx="4" fill="${colors[n]}" opacity=".85"/>`;x+=wd;});
+  out+=`<rect x="${x}" y="6" width="${sx(kept)-2}" height="30" rx="4" fill="var(--m-kept)"/>`;
+  const nx=x+sx(normal);out+=`<line x1="${nx}" y1="0" x2="${nx}" y2="42" stroke="var(--ink)" stroke-dasharray="3 3" stroke-width="1.5"/>`;
+  out+=`</svg>`;
+  const leg=[['Kept',kept,'var(--blue)'],...parts.map(([n,v])=>[n,v,colors[n]])].map(([n,v,c])=>`<span style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap"><i class="src" style="background:${c}"></i>${n} <b style="color:var(--ink)">$${v.toLocaleString()}</b></span>`).join('');
+  return out+`<div style="display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:8px;font-size:12px;color:var(--ink-2)"><span style="white-space:nowrap">Sales <b style="color:var(--ink)">$${sales.toLocaleString()}</b></span>${leg}<span style="margin-left:auto;color:var(--muted);white-space:nowrap">a normal day keeps about <b style="color:var(--ink)">$${normal}</b></span></div>`;
+}
+function sharebar(parts){const tot=parts.reduce((a,p)=>a+p[1],0);return `<div style="display:flex;height:14px;border-radius:5px;overflow:hidden;gap:2px;margin:8px 0 10px">${parts.map(p=>`<div style="width:${p[1]/tot*100}%;background:${p[2]}"></div>`).join('')}</div><div style="display:flex;gap:16px;font-size:12px;color:var(--ink-2);flex-wrap:wrap">${parts.map(p=>`<span><i class="src" style="background:${p[2]}"></i>${p[0]} <b>${p[3]}</b> <small style="color:var(--muted)">${p[4]||''}</small></span>`).join('')}</div>`;}
+function bars(items,max,color){return `<div class="bars">${items.map(it=>`<div class="bar"><span class="l">${it[0]}</span><span class="tr"><i style="width:${it[1]/max*100}%;background:${it[3]||color||'var(--blue)'}"></i></span><span class="v">${it[2]}</span></div>`).join('')}</div>`;}
+function callrow(kind,plat,name,meta,money,on){const pc={meta:'var(--meta)',google:'var(--google)'}[plat];return `<div class="row" style="${on?'background:var(--blue-soft);margin:0 -8px;padding:6px 8px;border-radius:8px;border-top-color:transparent':''}"><span class="chip ${kind}" style="width:62px;justify-content:center">${kind}</span><div class="t"><b><i class="src" style="background:${pc}"></i>${name}</b><small>${meta}</small></div><span class="m">${money}</span></div>`;}
+function mount(id,html,h){const fw=document.getElementById(id);fw.innerHTML=`<div class="frame">${html}</div>`;fw.dataset.h=h||0;}
+
+/* ---------- IA grid ---------- */
+(function(){
+  const D=[
+    ['today','Today','Did we make money, what needs me?',['Morning','Leaks','Day check','Brief'],'overview yesterday leaks brief',['Cole','Client','Buyer']],
+    ['money','Money','Will we hit the month, is a customer worth it?',['Month','P&L','Customers','Store','Site','Email','Stock'],'profit plan customers store website search email stock buying drops',['Cole','Client']],
+    ['ads','Ads','What do I change today, why?',['Calls','Accounts','Ads','Tests','Changes'],'today channels meta google tiktok angles campaigns adcreative gterms changes',['Buyer','Strategist']],
+    ['make','Make','What are we making, where is it?',['Pipeline','Studio','Library','Social','Creators','Brand'],'production studio copy library inspo social amb answers research voice',['Strategist','Ravo','Client']],
+    ['cal','Calendar','What is coming, are we ready?',['Month','Lanes','Season'],'calendar warplan warlive season',['Everyone']],
+    ['rep','Reports','What happened, what do we need from you?',['Weekly','Monthly','Requests','Dashboards'],'reports dash requests',['Cole','Client']],
+    ['work','Work','What do we decide and who does it?',['Meetings','Tasks','Monday call','Client call','Kickoff'],'calls meetings monday ccall tasks actions',['Team only']],
+  ];
+  document.getElementById('iaGrid').innerHTML=D.map(([k,n,a,t,ids,who])=>`<div class="dest"><h4><span style="width:18px;height:18px;display:inline-flex;color:var(--blue)">${I[k].replace('<svg','<svg style="width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"')}</span>${n}</h4><p class="ask">${a}</p><ul>${t.map(x=>`<li>${x}</li>`).join('')}<li style="border-top:1px solid var(--line-strong)"><small>${ids}</small></li></ul><div class="who">${who.map(w=>`<span>${w}</span>`).join('')}</div></div>`).join('')+
+  `<div class="dest foot"><h4>Foot</h4><p class="ask">Find, Ask, Tools, Settings</p><ul><li>Find ⌘K</li><li>Ask (the Strategist)</li><li>Tools</li><li>Settings</li><li><small>calc pulse economics workload settings guide clients</small></li></ul></div>`;
+})();
+
+/* ---------- NAV mock ---------- */
+mount('m-nav',`<div style="display:grid;grid-template-columns:232px 56px 1fr 390px;min-height:520px">
+  ${rail('today','brand')}
+  <aside class="rail" style="padding:14px 8px;align-items:center;gap:6px"><div class="logo" style="padding:4px 0 12px"><i></i></div>
+    ${ITEMS.map(([k,l],i)=>`<div class="it ${i===0?'on':''}" style="width:40px;height:36px;justify-content:center;padding:0">${I[k]}</div>`).join('')}<div class="gap"></div><div class="it" style="width:40px;justify-content:center;padding:0">${I.ask}</div><div class="it" style="width:40px;justify-content:center;padding:0">${I.set}</div></aside>
+  <div class="main" style="padding:26px 32px">
+    <div class="eyebrow" style="margin-bottom:10px">Find, from any page</div>
+    <div class="panel" style="max-width:560px;box-shadow:0 30px 60px -20px rgba(0,0,0,.6)">
+      <div class="ph-h" style="display:flex;align-items:center;gap:10px;font-size:15px;color:var(--ink)">⌕ <span>black w</span><span style="opacity:.4">|</span><span style="margin-left:auto"><kbd>esc</kbd></span></div>
+      <div class="ph-b" style="gap:0;padding:6px 8px">
+        ${[['Ad set','Black Wedges | Still','Lucky Golf · cut · $1,405 · 12 sales','Ads › Calls'],['Ad','Black Wedges - 9','anchor, 45% of its set · $632 · 2.64x','panel'],['Ad','Black Wedges - 7','support · $313 · 1.10x','panel'],['Leak','"Black Wedges | Still" is on the cut line','$2,729 a month · check first','panel'],['Page','Ads › Ads (the gallery)','Ads','Ads › Ads']].map((r,i)=>`<div class="row" style="padding:7px 8px;${i===0?'background:var(--surface-2);border-radius:7px;border-top:0':''}"><span class="chip keep" style="width:54px;justify-content:center">${r[0]}</span><div class="t"><b>${r[1]}</b><small>${r[2]}</small></div><small style="color:var(--muted)">${r[3]}</small></div>`).join('')}
+      </div>
+    </div>
+    <div class="eyebrow" style="margin:28px 0 10px">The three scopes, one picker</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <span class="pick" style="display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 10px;border:1px solid var(--line-strong);border-radius:8px;font-weight:600"><span class="av" style="width:18px;height:18px;border-radius:5px;background:#2E6B3F;display:inline-block"></span>Lucky Golf ⌄</span>
+      <span class="pick" style="display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 10px;border:1px solid var(--line-strong);border-radius:8px;font-weight:600"><span class="av" style="width:18px;height:18px;border-radius:5px;background:#333;display:inline-block"></span>Agency <small style="color:var(--muted);font-weight:500">9 brands</small> ⌄</span>
+      <span class="pick" style="display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 10px;border:1px solid var(--line);border-radius:8px;font-weight:600;color:var(--ink-2)"><span class="av" style="width:18px;height:18px;border-radius:5px;background:#2E6B3F;display:inline-block"></span>Lucky Golf <small style="color:var(--muted);font-weight:500">client login, fixed</small></span>
+    </div>
+    <p class="note" style="max-width:560px">Pages do not change between scopes; their rows do. The Agency scope is every page's "one row per brand" form. A client login is the brand scope with Work hidden and two extra rows on Today.</p>
+  </div>
+  <div style="padding:26px 24px 0;border-left:1px solid var(--line)">
+    <div class="eyebrow" style="margin-bottom:10px">iPhone bar</div>
+    <div class="phf" style="aspect-ratio:auto;height:420px;border-radius:28px"><div class="scr">
+      <div class="ptop">Today <span class="pk">Lucky Golf ⌄</span></div>
+      <div class="ptabs"><span class="on">Morning</span><span>Leaks 12</span><span>Day check</span><span>Brief</span></div>
+      <div class="pbody"><div class="card" style="padding:12px 14px"><div class="tile"><div class="l">Yesterday, Mon Oct 19</div><div class="v" style="font-size:28px">Kept $651</div><div class="c">on $1,461 of sales · a normal day keeps $311</div></div></div></div>
+      <div class="bottom"><span class="on"><i></i>Today</span><span><i></i>Ads</span><span class="ask"><i></i>Ask</span><span><i></i>Work</span><span><i></i>More</span></div>
+    </div></div>
+  </div>
+</div>`,520);
+
+/* ---------- TODAY one brand ---------- */
+mount('m-today',`<div class="app">${rail('today','brand')}<div class="main" style="position:relative">
+  <div class="badge" style="left:214px;top:214px">1</div>
+  ${hdr('Today','<i>Morning</i>: Lucky Golf','<span class="btn q">Share</span><span class="btn sq">···</span>')}
+  ${tabs([['Morning'],['Leaks','12'],['Day check'],['Brief']],'Morning')}
+  ${ctl()}
+  <div class="strip"><span class="n">$55.7K a month</span><span>leaking in 12 places · biggest: <b>cart to checkout on phones is 28%, 45% is normal</b> ($20.3K)</span><span class="go">Put it on the call →</span></div>
+  <div class="grid" style="grid-template-columns:5fr 2fr 3fr">
+    <div class="card"><h5>Yesterday, Mon Oct 19 <span class="r">the P&amp;L line</span></h5><div class="hero" style="margin:6px 0 10px">You kept <i>$651</i></div>${river(1461,[['Ads',339],['Product',253],['Shipping',178],['Fees',39]],651,311)}<div class="cap" style="margin:8px 0 0">Normal day on Meta: 0 of 4 signs off. <span style="color:var(--blue);font-weight:600">Day check →</span></div></div>
+    <div class="card" style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center"><h5 style="align-self:flex-start">October</h5>${ring(0.99,'99%','of plan by now',0.94)}<div class="cap" style="margin:10px 0 0">$30.6K banked of $30.8K · lands at <b style="color:var(--ink)">$47.3K</b> of $50.3K</div></div>
+    <div class="card"><h5>Needs you <span class="r">3 things</span></h5><div class="rows" style="margin-top:4px">
+      <div class="row"><span class="chip cut">cut</span><div class="t"><b>10 ad sets to change</b><small>Black Wedges | Still first, $1,405 at $117 a sale</small></div><span class="btn sm p">Open calls</span></div>
+      <div class="row"><span class="chip call">call</span><div class="t"><b>Test 415 past its judging days</b><small>They'll notice the putter · $38, no sale</small></div><span class="btn sm">Call it</span></div>
+      <div class="row"><span class="chip keep" style="background:var(--blue-soft);color:var(--blue)">Nov 1</span><div class="t"><b>Early Bird goes live in 12 days</b><small>towel with any club · offer locked late</small></div><span class="btn sm">Calendar</span></div>
+    </div></div>
+  </div>
+  <div class="grid g4" style="margin-top:12px">
+    ${tile('Revenue','$10.9K',['up','▲ 4%'],'$10.4K the period before',spark([1320,1480,1610,1390,1720,1560,1805]))}
+    ${tile('Orders','58',['dn','▼ 5%'],'AOV $187.67 ▲ 10%',spark([8,9,10,7,9,8,7]))}
+    ${tile('Ad spend','$3,721',['dn','▼ 30%'],'$5,327 the period before',spark([610,590,540,520,500,480,481],200,36,'var(--muted)'))}
+    ${tile('MER','2.93x',['up','▲ 50%'],'goal 2.50x · aMER 2.29x',spark([2.1,2.4,2.9,2.6,3.3,3.1,3.6]))}
+  </div>
+  <div class="grid g32" style="margin-top:12px">
+    <div class="card"><h5>Where revenue came from <span class="r">last platform click · ROAS and first orders</span></h5>${sharebar([['Meta',6185,'var(--meta)','$6,185','1.98x · 23 first'],['Google',2335,'var(--google)','$2,335','1.32x · 18 first'],['Email and SMS',2361,'var(--email)','$2,361','▼ 24% · 1 first']])}</div>
+    <div class="card"><h5>Site funnel <span class="r">Triple Whale pixel</span></h5>${bars([['Sessions',7850,'7,850 ▼ 14%'],['Added to cart',250,'250 · 3.2%','var(--blue)'],['Orders',58,'58 · 23% of carts','var(--blue)']],7850)}</div>
+  </div>
+</div></div>`,900);
+
+/* ---------- AGENCY board ---------- */
+const BR=[
+  ['Dartee Golf',228,454,0.61,'$6,334','▼ 2%','3.08x','Bad day yesterday: revenue and Meta cost per sale off normal. 6 Asana tasks overdue.','act',['14 calls','1 report']],
+  ['Bonk Golf',477,1273,0.89,'$8,477','▼ 20%','2.81x','Creative fatigue on Meta: CTR down 20%, frequency up 24%. Early Black Friday Nov 1, ads briefed late.','act',['9 calls','1 report']],
+  ['Lucky Golf',651,1461,0.99,'$10.9K','▲ 4%','2.93x','On plan. 36 Meta ads in 11 sets look alike ($1,095). Phone cart is the leak.','look',['11 calls','1 test']],
+  ['Ice & Gold',736,1027,0.68,'$3,682','▲ 31%','2.67x','Month 32% behind plan. 25 ads in 10 sets look alike.','look',['6 calls','1 report']],
+  ['Grunk Dolfer',470,707,1.32,'$5,630','▼ 16%','2.63x','Month ahead of plan on Burgundy. Splatter Collection Fri Oct 23, ads briefed late.','look',['5 calls','1 task late']],
+  ['Party Patch',-21,362,0.97,'$4,277','▼ 1%','2.39x','No new Meta ad in 10 days. Lost $21 yesterday.','look',['4 calls','1 report']],
+];
+mount('m-agency',`<div class="app">${rail('today','agency')}<div class="main">
+  ${hdr('Today','<i>Morning</i>: every brand','<span class="btn q">Share</span><span class="btn sq">···</span>')}
+  ${tabs([['Brand board'],['Leaks','31'],['Day check'],['Briefs']],'Brand board')}
+  ${ctl('<span class="cp">Sort <small>needs you first</small> <span class="ch">⌄</span></span>')}
+  <div class="card" style="display:flex;align-items:center;gap:28px;padding:14px 20px;margin-bottom:12px">
+    <div><div style="font-size:12px;color:var(--muted);font-weight:500">The book, yesterday</div><div class="hero">Kept <i>$2,541</i> <span style="font-size:14px;color:var(--muted);font-weight:500;font-family:var(--sans);font-style:normal">on $5,283 across 6 brands · normal day $1,724</span></div></div>
+    <div style="margin-left:auto;display:flex;gap:22px;font-size:13px;color:var(--ink-2)"><span><b style="font-size:18px;color:var(--ink)">49</b> ad sets to change</span><span><b style="font-size:18px;color:var(--ink)">24</b> tests to call</span><span><b style="font-size:18px;color:var(--ink)">7</b> reports to send</span><span><b style="font-size:18px;color:var(--ink)">1</b> ad account to fix</span></div>
+  </div>
+  <div class="card" style="padding:6px 16px 10px">
+    <div style="display:grid;grid-template-columns:150px 260px 70px 1fr 200px;gap:14px;padding:8px 0;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:600;border-bottom:1px solid var(--line-strong)"><span>Brand</span><span>Kept yesterday · vs normal</span><span>Month</span><span>Why it needs you</span><span>7 days</span></div>
+    ${BR.map(b=>`<div style="display:grid;grid-template-columns:150px 260px 70px 1fr 200px;gap:14px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);font-size:13px">
+      <div><b style="font-weight:600">${b[0]}</b><div style="margin-top:4px;display:flex;gap:4px">${b[9].map(c=>`<span class="chip keep" style="text-transform:none;letter-spacing:0;font-weight:600">${c}</span>`).join('')}</div></div>
+      <div><div style="display:flex;align-items:center;gap:8px"><span class="tr" style="flex:1;height:14px;background:var(--surface-2);border-radius:4px;position:relative;overflow:hidden"><i style="position:absolute;left:0;top:0;height:100%;width:${Math.max(0,b[1])/800*100}%;background:${b[1]<0?'var(--bad)':'var(--blue)'};border-radius:4px;display:block;${b[1]<0?'width:3%':''}"></i></span><b style="width:52px;text-align:right;font-weight:650;color:${b[1]<0?'var(--bad)':'var(--ink)'}">${b[1]<0?'-$21':'$'+b[1]}</b></div><small style="color:var(--muted);font-size:11.5px">on $${b[2].toLocaleString()} of sales</small></div>
+      <div>${ring(b[3],Math.round(b[3]*100)+'%','',null,56)}</div>
+      <div style="color:var(--ink-2);display:flex;gap:8px;align-items:flex-start"><span class="chip ${b[8]==='act'?'cut':'refresh'}" style="flex:none">${b[8]==='act'?'act now':'look'}</span><span>${b[7]}</span></div>
+      <div><div style="display:flex;gap:8px;align-items:baseline"><b style="font-size:16px;font-weight:650">${b[4]}</b><span class="d ${b[5].startsWith('▲')?'up':'dn'}">${b[5]}</span></div><small style="color:var(--muted);font-size:11.5px">MER ${b[6]}</small></div>
+    </div>`).join('')}
+    <div style="padding:10px 0 2px;font-size:12.5px;color:var(--muted)">Setup only: <b style="color:var(--ink-2)">SpeedIn</b> (no store, no Meta, no goals) · <b style="color:var(--ink-2)">VetriPaws</b> (no store) · <b style="color:var(--ink-2)">Yak Sports</b> (no goals). Paused, not flagged: The Golf Sock.</div>
+  </div>
+</div></div>`,900);
+
+/* ---------- ADS queue ---------- */
+mount('m-ads',`<div class="app">${rail('ads','brand')}<div class="main" style="position:relative">
+  ${hdr('Ads','<i>Calls</i>: Lucky Golf','<span class="btn p">Do all 6 safe calls</span><span class="btn sq">···</span>')}
+  ${tabs([['Calls','13'],['Accounts'],['Ad wall','164'],['Tests','3'],['Changes']],'Calls')}
+  ${ctl('<span class="seg"><span class="on">All 13</span><span>Scale 4</span><span>Cut 3</span><span>Refresh 4</span><span>Call 1</span><span>Block 1</span></span><span class="cp"><i class="src" style="background:var(--meta)"></i>Meta <i class="src" style="background:var(--google);margin-left:6px"></i>Google <span class="ch">⌄</span></span>')}
+  <div class="grid" style="grid-template-columns:5fr 4fr;align-items:start">
+    <div class="card" style="padding:6px 16px">
+      <div class="rows">
+        ${callrow('cut','meta','Black Wedges | Still','$1,405 · 12 sales · $117 a sale · goal $64 · 39 ads','$1,405',true)}
+        ${callrow('cut','google','Pmax | Wedges','$5,968 in 30 days · 33 sales · $181 a sale · 2.8x the goal','$5,968 /30d')}
+        ${callrow('cut','meta','Trybe | LGP02 - 09/25','$227 · 1 sale · $227 a sale · anchor is 90% of spend','$227')}
+        ${callrow('scale','meta','Trybe | Partnerships | Wedges','$180 · 5 sales · $36 a sale · raise 20%, watch 3 days','$180')}
+        ${callrow('scale','meta','Trybe | LGW01 - 09/25','$165 · 3 sales · $55 a sale','$165')}
+        ${callrow('scale','meta','Josh Rutherford | Partnership','$160 · 3 sales · $53 a sale · 16 ads','$160')}
+        ${callrow('scale','meta','Trybe | Partnerships | Putters','$138 · 3 sales · $46 a sale','$138')}
+        ${callrow('refresh','meta','322 B | Still','main ad gets 41% fewer clicks than last week · brief a new version','$133')}
+        ${callrow('refresh','meta','320 A | Still','main ad gets 43% fewer clicks · 93% of the set','$123')}
+        ${callrow('cut','google','DG | Prospecting (video)','$780 in 30 days · 2 sales · $396 a sale · check first-click credit first','$780 /30d')}
+        ${callrow('call','meta','Test 415: They’ll notice the putter','past its judging days · $38 · no sale','$38')}
+        ${callrow('keep','google','Block 10 search terms','good good putters, scotty cameron… · $19 wasted, no sale','$19')}
+      </div>
+    </div>
+    <div class="panel" style="position:sticky;top:0">
+      <div class="badge" style="right:14px;top:14px;position:absolute">2</div>
+      <div class="ph-h"><div style="display:flex;gap:8px;align-items:center;margin-bottom:4px"><span class="chip cut">cut</span><span style="font-size:11.5px;color:var(--muted)"><i class="src" style="background:var(--meta)"></i>Meta · CBO | Black Wedge · $200 a day, paused</span></div><div style="font-size:17px;font-weight:650;letter-spacing:-.01em">Black Wedges | Still</div></div>
+      <div class="ph-b">
+        <div style="font-size:14px;line-height:1.5;color:var(--ink)">Cost per sale is <b>$117, 1.8x the $64 goal</b>, on $1,405 over 7 days. ROAS 1.87x is under the 2.5x goal. Clicks are strong (1.94% against the brand's 1.23%), so the leak is after the click: these ads land on the gold wedge page that converts 0.44%.</div>
+        <div class="grid g4" style="gap:8px">
+          ${['Spend|$1,405|▼ 1%','Sales|12|TW · Meta says 15','Per sale|$117|goal $64','ROAS|1.87x|goal 2.5x'].map(s=>{const [l,v,c]=s.split('|');return `<div style="background:var(--surface-2);border-radius:8px;padding:8px 10px"><div style="font-size:11px;color:var(--muted)">${l}</div><div style="font-size:17px;font-weight:650">${v}</div><div style="font-size:11px;color:var(--muted)">${c}</div></div>`}).join('')}
+        </div>
+        <div><div style="font-size:12px;color:var(--muted);margin-bottom:6px">The 39 ads · anchor first · tap to play</div><div style="display:flex;gap:8px">${[['Black Wedges - 9','45%','$632 · 2.64x','v'],['Black Wedges - 7','22%','$313 · 1.10x',''],['Black Wedges - 42','11%','$151 · no sale',''],['Black Wedges - 39','7%','$101 · no sale',''],['+35','','looks like 10 others','']].map(a=>`<div style="width:78px"><div class="thumb ${a[3]}" style="width:78px;height:98px;border-radius:8px;display:flex;align-items:flex-end;padding:6px;font-size:11px;font-weight:650;color:#fff">${a[1]}</div><div style="font-size:11px;font-weight:600;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${a[0]}</div><div style="font-size:10.5px;color:var(--muted)">${a[2]}</div></div>`).join('')}</div></div>
+        <div style="display:flex;gap:8px;align-items:center"><span class="btn p">Pause the ad set</span><span class="btn">Lower budget 30%</span><span class="btn q">Not now</span><span class="btn q" style="margin-left:auto">···</span></div>
+        <div style="font-size:12px;color:var(--muted);border-top:1px solid var(--line);padding-top:10px">Also a leak ($2,729 a month, check first) and on Monday's call. Pausing writes to Changes and closes the leak.</div>
+      </div>
+    </div>
+  </div>
+</div></div>`,900);
+
+/* ---------- AD WALL ---------- */
+const ADS=[['Black Wedges - 9',632,'cut','$70 · 2.64x',6,2],['Black Wedges - 7',313,'cut','$157 · 1.10x',4,2],['SwingSum LGP02 Gold',173,'cut','no sale',3,1],['Black Wedges - 42',151,'cut','no sale',3,1],['331 A | UGC',107,'none','$107',2,1],['Black Wedges - 39 +10',101,'none','looks like 10',2,1],['JamesGraham LGW02',85,'none','$21 · 6.09x',2,1],['Patrick LGW01',76,'none','$76 · 1.48x',2,1],['Jett - 2',72,'none','$72 · 2.86x',2,1],['Black Wedges - 20',70,'none','$70 · 8.81x',2,1],['320 A | Still',57,'watch','refresh',2,1],['322 B | Still',52,'watch','refresh',2,1],['Michael - 3',49,'none','5.47x',1,1],['SwingSum 0828',43,'none','5.76x',1,1],['330 C | UGC',42,'none','no sale',1,1],['324 B | Still',41,'watch','13.35x',1,1],['Josh - 1',37,'none','2.75x',1,1],['396 A | Still',36,'none','new, 7d',1,1],['Jesse LGW02',35,'none','3.49x',1,1],['Black Wedges - 3',34,'none','',1,1],['Black Wedges - 29',32,'none','',1,1],['Cole - 4 | UGC',27,'none','',1,1],['413 A | Still',22,'none','',1,1],['+140 more',400,'none','under $30 each',4,1]];
+mount('m-wall',`<div class="app">${rail('ads','brand')}<div class="main">
+  ${hdr('Ads','<i>Ads</i>: Lucky Golf','<span class="btn">Compare 2 to 4</span><span class="btn q">Save this view</span><span class="btn sq">···</span>')}
+  ${tabs([['Calls','13'],['Accounts'],['Ads','164'],['Tests','3'],['Changes']],'Ads')}
+  ${ctl('<span class="cp">Sort <small>spend, most first</small> <span class="ch">⌄</span></span><span class="cp">Call <small>all</small> <span class="ch">⌄</span></span><span class="cp">Format <small>all</small> <span class="ch">⌄</span></span><span class="cp">One card per creative</span>')}
+  <div class="grid" style="grid-template-columns:3fr 1.3fr;align-items:start">
+    <div class="card"><h5>164 ads spent $3,129 <span class="r">4 to cut · 3 to refresh · 157 under the $128 judging line</span></h5><div class="cap">Every ad that spent in the window. The picture is the ad; the chip is Locus's call; the three numbers are spend, cost per sale and ROAS under Triple Whale last platform click.</div>
+      <div class="gal">${ADS.slice(0,12).map((a,i)=>`<div class="g ${a[2]}"><div class="pic" style="background:${['#2b3a4a','#3a2f2a','#243a2e','#3a3448','#2e2e2e','#3b2a33'][i%6]}"><span class="k">${a[2]==='none'?'not judged':a[2]}</span>${i%3===0?'<span class="play">&#9654;</span>':''}<span class="fmt">${i%3===0?'Video':'Still'}</span></div><b>${a[0]}</b><div class="kv"><span><small>Spend</small>$${a[1]}</span><span><small>Per sale</small>${a[3].split(' · ')[0]==='no sale'?'–':a[3].split(' · ')[0]}</span><span><small>ROAS</small>${(a[3].split(' · ')[1]||'–')}</span></div></div>`).join('')}</div>
+      <div class="cap" style="margin:10px 0 0">Show 24 more · "Looks like 10 others" groups show once with a count when One card per creative is on.</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="card"><h5>What the ingredients say <span class="r">cost per sale vs the account's $95</span></h5><div class="cap">Best to worst. The next batch brief starts here.</div>
+        ${bars([['Hands only on screen',46,'$46','var(--good)'],['Video',82,'$82','var(--good)'],['Heavy words on the ad',88,'$88','var(--good)'],['Product as hero',89,'$89','var(--good)'],['Static',107,'$107','var(--warn)'],['Product in use',114,'$114','var(--warn)'],['A face on screen',123,'$123','var(--bad)'],['No words on the ad',204,'$204','var(--bad)']],204)}
+      </div>
+      <div class="card"><h5>Leaning on old ads</h5><div class="cap">Share of spend on ads under 14 days old</div>${bars([['Week of Sep 22',18,'18%'],['Sep 29',18,'18%'],['Oct 6',2,'2%','var(--bad)'],['Oct 13',6,'6%','var(--bad)']],32)}<div class="cap" style="margin:10px 0 0">17 launched last week against about 21 a week. <span style="color:var(--blue);font-weight:600">Brief a batch &rarr;</span></div></div>
+    </div>
+  </div>
+</div></div>`,900);
+
+/* ---------- MONEY ---------- */
+function waterfall(){const steps=[['Revenue',47969,'tot'],['Product',-10643],['Fulfilment',-3312],['Handling',-1550],['Fees',-1233],['Gross profit',31232,'sub'],['Ad spend',-21338],['Kept',9894,'tot']];const W=600,H=170,max=47969,bw=56,gap=14;let run=0;let s=`<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" style="display:block;overflow:visible">`;const y=v=>H-24-(v/max)*(H-44);steps.forEach((st,i)=>{const x=10+i*(bw+gap);let top,bot,fill;const SC={Product:'var(--m-product)',Fulfilment:'var(--m-ship)',Handling:'var(--m-handling)',Fees:'var(--m-fees)','Ad spend':'var(--m-ads)'};if(st[2]){top=y(st[1]);bot=y(0);fill=st[2]==='tot'?'var(--m-kept)':'var(--line-strong)';run=st[1];}else{const from=run;run=run+st[1];top=y(Math.max(from,run));bot=y(Math.min(from,run));fill=SC[st[0]]||'var(--other)';}s+=`<rect x="${x}" y="${top}" width="${bw}" height="${Math.max(bot-top,2)}" rx="4" fill="${fill}" opacity="${st[2]?1:.9}"/>`;s+=`<text x="${x+bw/2}" y="${top-6}" font-size="11.5" font-weight="600" text-anchor="middle" fill="var(--ink)">${(st[1]<0?'−':'')+'$'+(Math.abs(st[1])/1000).toFixed(1)+'K'}</text>`;s+=`<text x="${x+bw/2}" y="${H-8}" font-size="11" text-anchor="middle" fill="var(--muted)">${st[0]}</text>`;});return s+'</svg>';}
+function weekbars(){const d=[['Oct 1 to 7',11.3,11.8],['Oct 8 to 14',11.3,11.5],['Oct 15 to 21',9.7,7.7]];return `<div style="display:flex;flex-direction:column;gap:10px">${d.map(w=>`<div style="display:grid;grid-template-columns:90px 1fr 60px;gap:10px;align-items:center;font-size:12.5px"><span style="color:var(--ink-2)">${w[0]}</span><span style="display:flex;flex-direction:column;gap:3px"><span style="height:8px;border-radius:3px;background:var(--line-strong);width:${w[1]/12*100}%"></span><span style="height:12px;border-radius:3px;background:${w[2]>=w[1]?'var(--blue)':'var(--bad)'};width:${w[2]/12*100}%"></span></span><b style="text-align:right;color:${w[2]>=w[1]?'var(--good)':'var(--bad)'}">${w[2]>=w[1]?'+':''}${Math.round((w[2]/w[1]-1)*100)}%</b></div>`).join('')}<div style="font-size:11.5px;color:var(--muted)">grey is the target, blue is actual · this week against 6 of 7 days</div></div>`;}
+function dial(v,max){const a=Math.PI*(v/max);const cx=90,cy=86,r=70;const x=cx+r*Math.cos(Math.PI-a),y=cy-r*Math.sin(a);return `<svg viewBox="0 0 180 114" width="180" height="114"><path d="M20 86 A70 70 0 0 1 160 86" fill="none" stroke="var(--surface-2)" stroke-width="12" stroke-linecap="round"/><path d="M20 86 A70 70 0 0 1 ${x.toFixed(1)} ${y.toFixed(1)}" fill="none" stroke="var(--blue)" stroke-width="12" stroke-linecap="round"/><line x1="${(cx+r*Math.cos(Math.PI-Math.PI*1.5/max)).toFixed(1)}" y1="${(cy-r*Math.sin(Math.PI*1.5/max)).toFixed(1)}" x2="${(cx+(r+10)*Math.cos(Math.PI-Math.PI*1.5/max)).toFixed(1)}" y2="${(cy-(r+10)*Math.sin(Math.PI*1.5/max)).toFixed(1)}" stroke="var(--ink)" stroke-width="1.5"/><line x1="${(cx+r*Math.cos(Math.PI-Math.PI*3/max)).toFixed(1)}" y1="${(cy-r*Math.sin(Math.PI*3/max)).toFixed(1)}" x2="${(cx+(r+10)*Math.cos(Math.PI-Math.PI*3/max)).toFixed(1)}" y2="${(cy-(r+10)*Math.sin(Math.PI*3/max)).toFixed(1)}" stroke="var(--ink)" stroke-width="1.5"/><text x="90" y="80" text-anchor="middle" font-size="26" font-weight="650" fill="var(--ink)">${v}x</text><text x="90" y="109" text-anchor="middle" font-size="10.5" fill="var(--muted)">back per $1 of ads, 90 days</text></svg>`;}
+mount('m-money',`<div class="app">${rail('money','brand')}<div class="main">
+  ${hdr('Money','<i>October</i>: Lucky Golf','<span class="btn">Edit the plan</span><span class="btn q">Client link</span><span class="btn sq">···</span>')}
+  ${tabs([['Month'],['P&L'],['Customers'],['Store'],['Site'],['Email'],['Stock']],'Month')}
+  <div class="ctl"><span class="cp">October 2026 <span class="ch">⌄</span></span><span class="cp"><small>Triple Whale</small> Shopify revenue, total sales less tax</span></div>
+  <div class="grid" style="grid-template-columns:2fr 3fr 3fr">
+    <div class="card" style="display:flex;flex-direction:column;align-items:center;text-align:center"><h5 style="align-self:flex-start">Where the month lands <span class="r">19 of 31 days</span></h5><div style="margin:10px 0 6px">${ring(0.94,'$47.3K','of $50.3K goal',0.99,150)}</div><div style="align-self:stretch;text-align:left;font-size:12.5px;color:var(--ink-2);margin-top:8px">${[['Spending the budget','$47.3K','$3.0K short','bad'],["At today's pace",'$49.6K','$610 short','bad'],['To hit it','$1,640 a day','$739 of it ads','']].map((r,i)=>`<div style="display:grid;grid-template-columns:1fr auto;column-gap:10px;padding:7px 0;${i?'border-top:1px solid var(--line)':''}"><span>${r[0]}</span><b style="color:var(--ink);font-size:13.5px;text-align:right">${r[1]}</b><span></span><small style="font-size:11.5px;text-align:right;color:${r[3]==='bad'?'var(--bad)':r[3]==='good'?'var(--good)':'var(--ink-2)'}">${r[2]}</small></div>`).join('')}</div></div>
+    <div class="card"><h5>Weeks against target</h5><div class="cap">Returning base plus new customers at 1.58x aMER, the CTC way</div>${weekbars()}<div style="margin-top:12px;display:flex;gap:18px;font-size:12.5px;color:var(--ink-2)"><span>Banked <b style="color:var(--ink)">$30,576</b></span><span>Returning <b style="color:var(--ink)">$9,683</b></span><span>New <b style="color:var(--ink)">$20,893</b></span><span>Spent <b style="color:var(--ink)">$13.1K</b></span></div></div>
+    <div class="card"><h5>Is a customer worth what we pay? <span class="r">3,682 old enough to count</span></h5><div style="display:flex;flex-direction:column;gap:6px;align-items:center;margin-top:4px">${dial(1.8,4.5)}<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px 12px;align-self:stretch;padding-top:10px;border-top:1px solid var(--line)">${[['$93','to get a customer'],['$173','first order'],['$113','left after costs'],['9%','order again, day 17']].map(f=>`<div><b style="display:block;font-size:14px;color:var(--ink)">${f[0]}</b><small style="display:block;font-size:11px;color:var(--ink-2);line-height:1.35">${f[1]}</small></div>`).join('')}</div></div><div class="cap" style="margin:8px 0 0">Between 1.5x and 3x it works; the first order has to pay for the customer. <span style="color:var(--blue);font-weight:600">Customers →</span></div></div>
+  </div>
+  <div class="grid g32" style="margin-top:12px">
+    <div class="card"><h5>Where the money went <span class="r">last 30 days</span></h5><div class="cap">$47,969 came in; $9,894 was left after every variable cost, 21% of revenue, at 2.25x MER.</div>${waterfall()}</div>
+    <div class="card"><h5>Who paid, and through what</h5><div class="cap">70% of revenue from first-time buyers</div>${sharebar([['New customers',33800,'var(--blue)','$33.8K',''],['Returning',14200,'var(--line-strong)','$14.2K','']])}<div style="margin-top:14px">${bars([['Google ads',41,'41%','var(--google)'],['Meta ads',29,'29%','var(--meta)'],['On their own',26,'26%','var(--other)'],['Email and SMS',5,'5%','var(--email)']],41)}</div><div class="cap" style="margin:8px 0 0">First orders by last click. Only 45% of repeat orders arrive without an ad click.</div></div>
+  </div>
+</div></div>`,900);
+
+/* ---------- MAKE ---------- */
+mount('m-make',`<div class="app">${rail('make','brand')}<div class="main" style="position:relative">
+  <div class="badge" style="left:300px;top:316px">3</div>
+  ${hdr('Make','<i>Pipeline</i>: Lucky Golf','<span class="btn p">+ Brief</span><span class="btn q">Launch to Meta</span><span class="btn sq">···</span>')}
+  ${tabs([['Pipeline','19'],['Studio'],['Library'],['Social','3 saved'],['Creators'],['Brand']],'Pipeline')}
+  ${ctl('<span class="cp">Every format <span class="ch">⌄</span></span><span class="cp">Everyone <span class="ch">⌄</span></span><span class="cp" style="border-style:dashed;color:var(--muted)">Show archived</span>')}
+  <div class="grid" style="grid-template-columns:3.2fr 1fr;align-items:start">
+    <div class="card" style="padding:14px 16px 6px"><div class="kan">
+      <div class="colm"><h6>Ideas <span>4</span></h6>
+        <div class="kc"><b>@shi.golf · pitching wedge art</b><small>saved post · 1388x its usual</small></div>
+        <div class="kc"><b>Fix the gold wedge page</b><small>from leak · $4,689 a month</small></div>
+        <div class="kc"><b>Refresh 322 B | Still</b><small>from the call · clicks down 41%</small></div>
+        <div class="kc"><b>Hands-only wedge demo</b><small>from the ad wall · $46 a sale</small></div>
+      </div>
+      <div class="colm"><h6>Creative Briefs <span>13</span></h6>
+        <div class="kc" style="border-color:var(--warn)"><b>401 What you're really paying for</b><small>Hybrid Stryker · 70 days here</small></div>
+        <div class="kc" style="border-color:var(--bad)"><b>419-1 Stop hitting worm burners</b><small>Nomaqhawe · 5 days late</small></div>
+        <div class="kc"><b>Walk the phone cart, then brief</b><small>Noma · from Monday's call</small></div>
+        <div class="kc" style="opacity:.6"><b>+10 more</b><small>9 older than 10 days</small></div>
+      </div>
+      <div class="colm"><h6>Creative Studio <span>3</span></h6>
+        <div class="kc"><b>Early Bird: towel with any club</b><small>6 statics · real cut-out · Nov 1</small></div>
+        <div class="kc"><b>Black Wedge v2 (hands only)</b><small>4 statics · dressing</small></div>
+        <div class="kc"><b>Putter demo, 3 beats</b><small>video · script from the saved post</small></div>
+      </div>
+      <div class="colm"><h6>Ready to Launch <span>2</span></h6>
+        <div class="kc"><b>Fit Your Foursome, round 2</b><small>Cole to approve · 8 files</small></div>
+        <div class="kc"><b>322 B iteration</b><small>Ravo · version 2 uploaded</small></div>
+      </div>
+      <div class="colm"><h6>Launched, testing <span>17</span></h6>
+        <div class="kc"><b>396 A | Still</b><small>7 days · $36 · not judged yet</small></div>
+        <div class="kc"><b>Black Wedges 40 to 44</b><small>relaunched Oct 18 to 19</small></div>
+        <div class="kc" style="opacity:.6"><b>+11 more</b><small>6% of spend on ads under 14 days</small></div>
+      </div>
+    </div></div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="card"><h5>Next batch, from the wall</h5><div class="cap">What is earning, what is tired</div>
+        <div style="font-size:12.5px;color:var(--ink-2);line-height:1.6"><b style="color:var(--good)">Do more</b> hands only ($46), video ($82), heavy words, product as hero.<br><b style="color:var(--bad)">Stop</b> no-words statics ($204), launch-news hooks (no sale on $206).<br><b style="color:var(--warn)">Tired</b> 322 B, 320 A, 324 B, 327 C: clicks down 41 to 64%.<br><b style="color:var(--ink)">Gap</b> 6% of spend on new ads; about 21 a week is normal.</div>
+        <div style="margin-top:10px;display:flex;gap:6px"><span class="btn sm p">Write the brief</span><span class="btn sm">Ask the Strategist</span></div></div>
+      <div class="card"><h5>Brand, one click away</h5><div class="cap">Voice, client answers, research</div><div style="font-size:12.5px;color:var(--ink-2);line-height:1.5">"Tour quality, honest price." Wedges first, lefties, no AI products in Lucky ads. 2 answers missing: returns policy, hero photo rights.</div></div>
+    </div>
+  </div>
+</div></div>`,900);
+
+/* ---------- REPORTS ---------- */
+mount('m-reports',`<div class="app">${rail('rep','brand')}<div class="main" style="position:relative">
+  <div class="badge" style="left:300px;top:476px">5</div>
+  ${hdr('Reports','Week of <i>Oct 12 to 18</i>: Lucky Golf','<span class="btn p">Send to client</span><span class="btn">Edit</span><span class="btn sq">···</span>')}
+  ${tabs([['Weekly'],['Monthly'],['Requests','2'],['Dashboards']],'Weekly')}
+  <div class="ctl"><span class="cp">Week · Oct 12 to 18 <span class="ch">⌄</span></span><span class="pill" style="background:var(--warn-soft);color:var(--warn);border-color:transparent">Draft, not sent</span><span class="pill">11 on file</span></div>
+  <div class="grid g4">
+    ${tile('Revenue','$10,039',['dn','▼ 14%'],'$11,666 the week before · 12% under forecast')}
+    ${tile('Ad spend','$5,234',['dn','▼ 2%'],'$5,355 the week before')}
+    ${tile('MER','1.92x',['dn','▼ 12%'],'goal 2.50x · aMER 1.48x')}
+    ${tile('Kept after every cost','$1,788',['dn','▼ 11%'],'18% of revenue')}
+  </div>
+  <div class="grid g32" style="margin-top:12px">
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="card"><h5>In one sentence <span class="r">Cole, Mon Oct 20</span></h5><div style="font-size:15px;line-height:1.5;margin-top:6px">Sales were down 14% on a quiet week with no launch and fewer orders, not smaller ones; Meta held 1.98x and the Creator campaign carried it at $69 a sale.</div></div>
+      <div class="grid g3" style="gap:12px">
+        <div class="card"><h5>This week <span class="r">from the call</span></h5><div class="rows" style="margin-top:6px"><div class="row"><span class="tick"></span><div class="t"><b>Fix the phone cart</b><small>Ahsan walks it Fri</small></div></div><div class="row"><span class="tick"></span><div class="t"><b>Early Bird live Nov 1</b><small>towel with any club</small></div></div><div class="row"><span class="tick"></span><div class="t"><b>Black Wedge v2, hands only</b><small>brief, Thu</small></div></div></div></div>
+        <div class="card"><h5>Done <span class="r">from Tasks</span></h5><div class="rows" style="margin-top:6px"><div class="row"><span class="tick on"></span><div class="t"><b>Cut Trybe LGP02 set</b><small>Oct 19</small></div></div><div class="row"><span class="tick on"></span><div class="t"><b>Blocked 10 search terms</b><small>$19 a month</small></div></div><div class="row"><span class="tick on"></span><div class="t"><b>17 new ads live</b><small>Pipeline</small></div></div></div></div>
+        <div class="card"><h5>From you <span class="r">Requests</span></h5><div class="rows" style="margin-top:6px"><div class="row"><span class="chip refresh">open</span><div class="t"><b>White polo photos</b><small>asked Oct 13 · due Oct 22</small></div></div><div class="row"><span class="chip call">ok?</span><div class="t"><b>Early Bird offer</b><small>asked Oct 20</small></div></div></div></div>
+      </div>
+    </div>
+    <div class="card"><h5>Best and worst ads <span class="r">of 7 that spent $109+ · tap to open</span></h5><div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:8px">${[['2.46x','Trybe | Partnerships','$180','good','v'],['1.98x','Black Wedges - 42','$151','good',''],['1.62x','Black Wedges - 9','$567','',''],['0.93x','Black Wedges - 7','$370','bad',''],['0.84x','Trybe | LGP02','$227','bad','v'],['no sale','Black Wedges - 39','$105','bad','']].map(a=>`<div style="border:1px solid var(--line);border-radius:10px;overflow:hidden;min-width:0"><div class="thumb ${a[4]}" style="width:100%;height:auto;aspect-ratio:4/5;border-radius:0"></div><div style="padding:8px 10px 0;font-weight:650;font-size:15px;color:${a[3]==='good'?'var(--good)':a[3]==='bad'?'var(--bad)':'var(--ink)'}">${a[0]}</div><div style="font-size:12px;font-weight:600;padding:0 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${a[1]}</div><div style="font-size:11px;color:var(--muted);padding:0 10px 9px">${a[2]} spent</div></div>`).join('')}</div></div>
+  </div>
+  <div class="card" style="margin-top:12px;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;color:var(--ink-2)"><span>More detail: day by day, customers, Meta, Google, email, changes</span><span style="color:var(--muted)">⌄</span></div>
+</div></div>`,900);
+
+/* ---------- WORK ---------- */
+mount('m-work',`<div class="app">${rail('work','agency')}<div class="main" style="position:relative">
+  <div class="badge" style="left:300px;top:446px">2</div><div class="badge" style="left:300px;top:690px">3</div>
+  ${hdr('Work · Monday call · Oct 20','<i>Lucky Golf</i>, brand 4 of 9','<span class="btn">Present</span><span class="btn sq">···</span>')}
+  <div style="display:flex;gap:6px;align-items:center;margin:0 0 14px;font-size:12.5px"><span class="pill" style="background:var(--good-soft);color:var(--good);border-color:transparent">✓ Start</span>${['Dartee','Bonk','Ice & Gold'].map(b=>`<span class="pill" style="background:var(--good-soft);color:var(--good);border-color:transparent">✓ ${b}</span>`).join('')}<span class="pill" style="background:var(--ink);color:var(--bg);border-color:transparent">Lucky Golf</span>${['Grunk','Party Patch','Yak','VetriPaws','SpeedIn'].map(b=>`<span class="pill">${b}</span>`).join('')}<span class="pill" style="margin-left:auto">Finish</span></div>
+  <div class="grid" style="grid-template-columns:3fr 2fr;align-items:start">
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="card"><h5>Last week <span class="r">vs the week before</span></h5><div class="grid g4" style="gap:8px;margin-top:8px">${['Sales|$10,039|▼ 14%|dn','MER|1.92x|goal 2.5|wn','Cost per new customer|$78|▼ 42%|up','Kept|$1,788|18% of revenue|fl'].map(s=>{const[l,v,c,k]=s.split('|');return `<div style="background:var(--surface-2);border-radius:8px;padding:8px 10px;min-width:0"><div style="font-size:11px;color:var(--muted)">${l}</div><div style="font-size:18px;font-weight:650;display:flex;gap:6px;align-items:baseline;flex-wrap:wrap">${v}<span class="d ${k}">${c}</span></div></div>`}).join('')}</div>
+        <div style="font-size:12px;color:var(--muted);margin:12px 0 6px">Best and worst of 7 ads over $86</div><div style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px">${[['2.46x','Trybe | Partnerships','$180','good','v'],['1.98x','Black Wedges - 42','$151','good',''],['0.84x','Trybe | LGP02','$227','bad','v']].map(a=>`<div style="border:1px solid var(--line);border-radius:8px;overflow:hidden;min-width:0;background:var(--surface)"><div class="thumb ${a[4]}" style="width:100%;height:auto;aspect-ratio:4/5;border-radius:0"></div><div style="padding:6px 8px 0;font-weight:650;font-size:13px;color:${a[3]==='good'?'var(--good)':'var(--bad)'}">${a[0]}</div><div style="font-size:11px;padding:0 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink-2)">${a[1]}</div><div style="font-size:10.5px;color:var(--muted);padding:0 8px 7px">${a[2]} spent</div></div>`).join('')}</div></div>
+      <div class="card"><div class="sec" style="border-top:0;padding-top:0"><h6>On the call <span style="color:var(--muted);font-weight:500;font-size:12px;margin-left:6px">leaks and calls put here this week</span></h6>
+        <div class="rows" style="margin-top:6px"><div class="row"><span class="m" style="color:var(--warn)">$20.3K /mo</span><div class="t"><b>Cart to checkout on phones is 28%, 45% is normal</b><small>AI check: walk the phone cart first · Ahsan + Noma</small></div><span class="ava"><i></i>Ahsan</span><span class="cp" style="height:26px">Fri Oct 24 ⌄</span></div>
+        <div class="row"><span class="m" style="color:var(--bad)">$1,405</span><div class="t"><b>Black Wedges | Still on the cut line</b><small>$117 a sale · lands on the gold wedge page</small></div><span class="btn sm">Open the call</span></div></div></div>
+        <div class="sec"><h6>Last week's to-dos <span style="color:var(--muted);font-weight:500;font-size:12px;margin-left:6px">from Tasks</span></h6><div class="rows" style="margin-top:6px"><div class="row"><span class="tick on"></span><div class="t"><b>Cut the Trybe LGP02 set</b><small>done Oct 19</small></div></div><div class="row"><span class="tick"></span><div class="t"><b>Send the white polo photos to William</b><small>due Fri · Lucky</small></div></div></div></div>
+        <div class="sec"><h6>New ads to make <span style="color:var(--muted);font-weight:500;font-size:12px;margin-left:6px">each row becomes a brief on Pipeline</span></h6><div class="rows" style="margin-top:6px"><div class="row"><div class="t"><b>Black Wedge v2, hands only, 4 statics</b><small>from what the ads say</small></div><span class="ava"><i></i>Noma</span><span class="cp" style="height:26px">Thu Oct 23 ⌄</span></div></div><div class="field" style="margin-top:6px">+ Add a batch, written the way you would say it</div></div>
+        <div class="sec"><h6>Tell the client <span style="color:var(--muted);font-weight:500;font-size:12px;margin-left:6px">goes under This week in their report</span></h6><div class="field" style="height:auto;padding:8px 10px;color:var(--ink);border-style:solid">We are fixing the phone cart this week; Early Bird goes live Nov 1.</div></div>
+        <div class="sec" style="padding-bottom:0"><h6>New to-dos <span style="color:var(--muted);font-weight:500;font-size:12px;margin-left:6px">go to Tasks</span></h6><div class="field" style="margin-top:6px">Ahsan pause the retargeting ad set Friday</div></div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="card"><h5>Noma's plan <span class="r">Slack, Mon 5:42 AM</span></h5><div style="font-size:12.5px;color:var(--ink-2);line-height:1.5;margin-top:6px">Batch 1: Early Bird statics on real cut-outs. Batch 2: putter demo from the saved post. Holding Black Wedge until the page is fixed. <span style="color:var(--blue);font-weight:600">Open in Slack →</span></div></div>
+      <div class="card"><h5>Already being made <span class="r">12</span></h5><div class="rows" style="margin-top:4px">${[['Early Bird: towel with any club','Studio · 6 statics · Nov 1'],['Fit Your Foursome, round 2','Review · Cole'],['322 B iteration','Review · Ravo']].map(r=>`<div class="row" style="min-height:40px"><div class="thumb" style="width:28px;height:34px"></div><div class="t"><b>${r[0]}</b><small>${r[1]}</small></div><span class="go">›</span></div>`).join('')}</div></div>
+      <div class="card"><h5>Tasks, Lucky <span class="r">this week</span></h5><div class="rows" style="margin-top:4px"><div class="row"><span class="tick"></span><div class="t"><b>Walk the phone cart</b><small>Ahsan · Fri Oct 24 · from the leak</small></div></div><div class="row"><span class="tick"></span><div class="t"><b>Send the white polo photos</b><small>Cole · Fri</small></div></div><div class="row"><span class="tick on"></span><div class="t"><b>Block 10 search terms</b><small>Radhesh · done</small></div></div></div></div>
+    </div>
+  </div>
+  <div style="position:sticky;bottom:0;margin:14px -28px -40px;padding:12px 28px;background:var(--surface);border-top:1px solid var(--line);display:flex;align-items:center;gap:14px;font-size:13px"><span class="btn q">← Ice &amp; Gold</span><span style="color:var(--muted)">Brand 4 of 9 · 6:40 left</span><span style="margin-left:auto;color:var(--ink-2)">Finish will make <b>1 brief</b>, <b>2 tasks</b>, <b>1 request</b>, <b>1 client line</b> and post the recap</span><span class="btn p">Next: Grunk →</span></div>
+</div></div>`,900);
+
+/* ---------- CLIENT ---------- */
+mount('m-client',`<div class="app">${rail('today','brand',true)}<div class="main" style="position:relative">
+  <div class="badge" style="right:300px;top:640px">5</div>
+  ${hdr('Today','<i>Morning</i>: Lucky Golf','<span class="btn q">Share</span><span class="btn sq">···</span>')}
+  ${tabs([['Morning'],['Day check'],['Brief']],'Morning')}
+  ${ctl()}
+  <div class="grid" style="grid-template-columns:5fr 2fr 3fr">
+    <div class="card"><h5>Yesterday, Mon Oct 19 <span class="r">after every cost</span></h5><div class="hero" style="margin:6px 0 10px">You kept <i>$651</i></div>${river(1461,[['Ads',339],['Product',253],['Shipping',178],['Fees',39]],651,311)}</div>
+    <div class="card" style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center"><h5 style="align-self:flex-start">October</h5>${ring(0.99,'99%','of plan by now',0.94)}<div class="cap" style="margin:10px 0 0">$30.6K of $30.8K · lands at <b style="color:var(--ink)">$47.3K</b> of $50.3K</div></div>
+    <div class="card"><h5>Live now and coming <span class="r">Calendar</span></h5><div class="rows" style="margin-top:4px"><div class="row"><span class="chip scale">live</span><div class="t"><b>Fit Your Foursome giveaway</b><small>to Nov 16</small></div></div><div class="row"><span class="chip keep" style="background:var(--blue-soft);color:var(--blue)">Nov 1</span><div class="t"><b>Early Bird: towel with any club</b><small>+ divot tool at 2 or more · proposed</small></div></div><div class="row"><span class="chip keep">Nov 27</span><div class="t"><b>Black Friday</b><small>offers on the Season tab</small></div></div></div></div>
+  </div>
+  <div class="grid g4" style="margin-top:12px">
+    ${tile('Revenue','$10.9K',['up','▲ 4%'],'$10.4K the period before',spark([1320,1480,1610,1390,1720,1560,1805]))}
+    ${tile('Orders','58',['dn','▼ 5%'],'AOV $187.67 ▲ 10%',spark([8,9,10,7,9,8,7]))}
+    ${tile('Ad spend','$3,721',['dn','▼ 30%'],'Meta $3,129 · Google $1,767',spark([610,590,540,520,500,480,481],200,36,'var(--muted)'))}
+    ${tile('MER','2.93x',['up','▲ 50%'],'goal 2.50x',spark([2.1,2.4,2.9,2.6,3.3,3.1,3.6]))}
+  </div>
+  <div class="grid g2" style="margin-top:12px">
+    <div class="card"><h5>What Mobius did this week <span class="r">from the Monday call and Tasks</span></h5><div class="rows" style="margin-top:4px"><div class="row"><span class="tick on"></span><div class="t"><b>Cut the Trybe LGP02 ad set</b><small>Oct 19 · $227 a sale against a $64 goal</small></div></div><div class="row"><span class="tick on"></span><div class="t"><b>Blocked 10 wasted Google searches</b><small>other brands' putters</small></div></div><div class="row"><span class="tick"></span><div class="t"><b>Fixing the phone cart</b><small>28% of carts reach checkout, 45% is normal · this week</small></div></div><div class="row"><span class="tick"></span><div class="t"><b>Black Wedge ads, version 2</b><small>hands-only demo · briefed Thu</small></div></div></div></div>
+    <div class="card"><h5>What we need from you <span class="r">2 open</span></h5><div class="rows" style="margin-top:4px"><div class="row"><div class="t"><b>Photos of the white polos</b><small>on a white background · asked Oct 13 · due Oct 22</small></div><span class="btn sm">Upload</span></div><div class="row"><div class="t"><b>OK the Early Bird offer</b><small>towel with any club, + divot tool at 2 or more · from Nov 1</small></div><span class="btn sm p">Approve</span><span class="btn sm q">Change it</span></div></div></div>
+  </div>
+</div></div>`,900);
+
+/* ---------- PHONES ---------- */
+(function(){
+  const bar=(on,client)=>`<div class="bottom"><span class="${on==='today'?'on':''}"><i></i>Today</span><span class="${on==='ads'?'on':''}"><i></i>Ads</span><span class="ask"><i></i>Ask</span><span class="${on==='work'?'on':''}"><i></i>${client?'Money':'Work'}</span><span><i></i>More</span></div>`;
+  const p1=`<div class="scr" style="position:relative">
+    <div class="ptop">Today <span class="pk">Lucky Golf ⌄</span></div>
+    <div class="ptabs"><span class="on">Morning</span><span>Leaks 12</span><span>Day check</span><span>Brief</span></div>
+    <div class="pbody">
+      <div class="card" style="padding:12px 14px"><div style="font-size:11.5px;color:var(--muted)">Yesterday, Mon Oct 19</div><div class="hero" style="font-size:30px;margin:2px 0 8px">Kept <i>$651</i></div>${river(1461,[['Ads',339],['Product',253],['Shipping',178],['Fees',39]],651,311,340,96).replace(/font-size="11"/g,'font-size="10"').replace(/font-size="12"/g,'font-size="11"')}</div>
+      <div class="card" style="padding:12px 14px;display:flex;gap:14px;align-items:center">${ring(0.99,'99%','of plan',0.94,84)}<div style="font-size:12.5px;color:var(--ink-2);line-height:1.5"><b style="color:var(--ink)">October</b><br>$30.6K of $30.8K by now<br>lands at $47.3K of $50.3K</div></div>
+      <div class="card" style="padding:10px 14px 6px;border-left:3px solid var(--warn)"><div style="font-size:12.5px;color:var(--ink-2)"><b style="color:var(--warn)">$55.7K a month</b> leaking · phone cart first</div></div>
+      <div class="card" style="padding:4px 14px">
+        <div class="prow"><span class="chip cut">cut</span><div class="t"><b>10 ad sets to change</b><small>Black Wedges | Still first</small></div><span class="go" style="color:var(--muted)">›</span></div>
+        <div class="prow"><span class="chip call">call</span><div class="t"><b>Test 415 to call</b><small>past its judging days</small></div><span class="go" style="color:var(--muted)">›</span></div>
+        <div class="prow"><span class="chip keep" style="background:var(--blue-soft);color:var(--blue)">Nov 1</span><div class="t"><b>Early Bird goes live</b><small>offer locked late</small></div><span class="go" style="color:var(--muted)">›</span></div>
+      </div>
+      <div class="card" style="padding:4px 14px">
+        ${[['Revenue, 7 days','$10.9K','up','▲ 4%'],['Orders','58','dn','▼ 5%'],['Ad spend','$3,721','dn','▼ 30%'],['MER','2.93x','up','▲ 50%']].map(r=>`<div class="prow" style="min-height:42px"><div class="t"><b style="font-weight:500;color:var(--ink-2)">${r[0]}</b></div><span class="v">${r[1]}</span><span class="d ${r[2]}">${r[3]}</span></div>`).join('')}
+      </div>
+    </div>${bar('today')}</div>`;
+  const p2=`<div class="scr" style="position:relative">
+    <div class="ptop">Calls <span class="pk">Lucky Golf ⌄</span></div>
+    <div class="ptabs"><span class="on">All 13</span><span>Scale 4</span><span>Cut 3</span><span>Refresh 4</span><span>Call 1</span></div>
+    <div class="pbody"><div class="card" style="padding:4px 14px">
+      ${[['cut','meta','Black Wedges | Still','$1,405 · $117 a sale · goal $64'],['cut','google','Pmax | Wedges','$5,968 /30d · $181 a sale'],['cut','meta','Trybe | LGP02','$227 · 1 sale'],['scale','meta','Trybe | Partnerships | Wedges','$180 · $36 a sale'],['scale','meta','Trybe | LGW01','$165 · $55 a sale'],['scale','meta','Josh Rutherford | Partnership','$160 · $53 a sale'],['scale','meta','Trybe | Putters','$138 · $46 a sale'],['refresh','meta','322 B | Still','clicks down 41%'],['refresh','meta','320 A | Still','clicks down 43%'],['cut','google','DG | Prospecting','$780 /30d · $396 a sale'],['call','meta','Test 415','past judging days']].map(r=>`<div class="prow" style="min-height:50px"><span class="chip ${r[0]}" style="width:58px;justify-content:center">${r[0]}</span><div class="t"><b><i class="src" style="background:${r[1]==='meta'?'var(--meta)':'var(--google)'}"></i>${r[2]}</b><small>${r[3]}</small></div><span class="go" style="color:var(--muted)">›</span></div>`).join('')}
+    </div></div>${bar('ads')}</div>`;
+  const p3=`<div class="scr" style="position:relative">
+    <div class="ptop">Calls <span class="pk">Lucky Golf ⌄</span></div>
+    <div class="ptabs"><span class="on">All 13</span><span>Scale 4</span><span>Cut 3</span></div>
+    <div class="pbody"><div class="card" style="padding:4px 14px"><div class="prow"><span class="chip cut" style="width:58px;justify-content:center">cut</span><div class="t"><b>Black Wedges | Still</b><small>$1,405 · $117 a sale</small></div></div><div class="prow"><span class="chip cut" style="width:58px;justify-content:center">cut</span><div class="t"><b>Pmax | Wedges</b><small>$5,968 /30d</small></div></div></div></div>
+    <div class="scrim"></div>
+    <div class="sheet" style="top:88px;padding-bottom:0;display:flex;flex-direction:column"><div class="hd"></div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px"><span class="chip cut">cut</span><span style="font-size:11.5px;color:var(--muted)"><i class="src" style="background:var(--meta)"></i>Meta · CBO | Black Wedge</span></div>
+      <div style="font-size:19px;font-weight:650;letter-spacing:-.01em;margin-bottom:10px">Black Wedges | Still</div>
+      <div style="font-size:13.5px;line-height:1.5;color:var(--ink);margin-bottom:12px">Cost per sale is <b>$117, 1.8x the $64 goal</b>, on $1,405 over 7 days. Clicks are strong, so the leak is after the click: the gold wedge page converts 0.44%.</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px">${['Spend|$1,405','Sales|12','Per sale|$117','ROAS|1.87x'].map(s=>{const[l,v]=s.split('|');return `<div style="background:var(--surface-2);border-radius:8px;padding:7px 8px"><div style="font-size:10.5px;color:var(--muted)">${l}</div><div style="font-size:15px;font-weight:650">${v}</div></div>`}).join('')}</div>
+      <div style="display:flex;gap:8px;margin-bottom:14px">${['45%','22%','11%','7%','+35'].map((p,i)=>`<div class="thumb ${i===0?'v':''}" style="width:62px;height:78px;border-radius:8px;display:flex;align-items:flex-end;padding:5px;font-size:11px;font-weight:650;color:#fff">${p}</div>`).join('')}</div>
+      <div style="display:flex;flex-direction:column;gap:8px;padding-bottom:26px"><span class="btn p" style="height:44px;justify-content:center;font-size:14px">Pause the ad set</span><div style="display:flex;gap:8px"><span class="btn" style="flex:1;height:40px;justify-content:center">Lower budget 30%</span><span class="btn q" style="flex:1;height:40px;justify-content:center">Not now</span></div></div>
+    </div></div>`;
+  const p4=`<div class="scr" style="position:relative">
+    <div class="ptop">Tasks <span class="pk">Agency ⌄</span></div>
+    <div class="ptabs"><span class="on">Mine 4</span><span>This week 9</span><span>Late 1</span><span>Done 31</span></div>
+    <div class="pbody"><div class="card" style="padding:4px 14px">
+      <div class="prow" style="min-height:56px;position:relative"><span class="tick on"></span><div class="t"><b style="text-decoration:line-through;color:var(--muted)">Walk the phone cart</b><small>Lucky Golf · from the leak · shipping shown late, no express buttons</small></div><div class="badge" style="right:-6px;top:10px;width:22px;height:22px;font-size:11px">4</div></div>
+      <div class="prow" style="min-height:56px"><span class="tick"></span><div class="t"><b>Send the white polo photos to William</b><small>Lucky Golf · Fri Oct 24</small></div></div>
+      <div class="prow" style="min-height:56px"><span class="tick"></span><div class="t"><b>Pause the retargeting ad set</b><small>Dartee Golf · Fri · from the call</small></div></div>
+      <div class="prow" style="min-height:56px"><span class="tick"></span><div class="t"><b>Film two higher production concepts</b><small>Dartee Golf · Thu</small></div></div>
+    </div>
+    <div style="font-size:12px;color:var(--muted);padding:4px 2px">Ticked: the leak shows "done", the report's Done list gets the line, the 5am brief says it.</div></div>${bar('work')}</div>`;
+  document.getElementById('m-phones').innerHTML=[['Today','the river, the ring, the queue',p1],['Ads › Calls','the queue as rows',p2],['A call open','full-height sheet, one button',p3],['Work › Tasks','ticking writes back',p4]].map(x=>`<div class="ph"><div class="phf">${x[2]}</div><div class="phcap"><b>${x[0]}</b> · ${x[1]}</div></div>`).join('');
+})();
+
+/* ---------- scale frames ---------- */
+function fit(){document.querySelectorAll('.fw').forEach(fw=>{const f=fw.querySelector('.frame');if(!f)return;const s=Math.min(1,fw.clientWidth/1440);f.style.transform=`scale(${s})`;const h=f.scrollHeight;fw.style.height=(h*s)+'px';});}
+window.addEventListener('resize',fit);fit();setTimeout(fit,100);document.fonts&&document.fonts.ready.then(fit);
+</script>
