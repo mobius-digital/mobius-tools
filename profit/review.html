@@ -77,7 +77,7 @@
 <body>
 <header class="top"><b id="brand">Ad review</b><span class="muted" style="font-size:13px">from Mobius Digital</span><span class="who" id="who"></span></header>
 <main id="main"><p class="muted">Loading...</p></main>
-<script src="review-ui.js?v=9"></script>
+<script src="review-ui.js?v=10"></script>
 <script src="phone.js?v=4" defer></script>
 <script>
 (() => {
@@ -101,7 +101,10 @@
   const filesOf = ad => D.files.filter(f => (f.ad || '') === ad).sort((a, b) => (a.version || 0) - (b.version || 0));
   const canCall = () => !!(D.card.needs_client === 'ad' || D.card.client_sent_at);
   const ads = () => D.ads || [];
-  const viewerAds = () => ads().map(a => ({ ad: a.ad, label: label(a.ad), status: a.status, by: a.by, files: filesOf(a.ad) }));
+  /* a Carousel card's ad is ONE carousel: its cards in swipe order, one call (2026-10-21) */
+  const cardsOf = a => a.cards.map(c => { const f = D.files.find(x => x.id === c.file_id); return f && { ...f, card: c.k }; }).filter(Boolean);
+  const viewerAds = () => ads().map(a => a.carousel ? { ad: a.ad, label: `${label(a.ad)}, carousel`, status: a.status, by: a.by, carousel: true, files: cardsOf(a) }
+    : { ad: a.ad, label: label(a.ad), status: a.status, by: a.by, files: filesOf(a.ad) });
   const setName = v => { NAME = String(v || '').trim(); try { localStorage.setItem('rv_name', NAME); } catch {} };
 
   const paint = () => {
@@ -118,7 +121,7 @@
         <div class="legend"><span><b style="color:var(--good)">${n('approved')}</b> approved</span><span><b style="color:var(--bad)">${n('changes')}</b> changes asked</span><span><b style="color:var(--warn)">${n('review')}</b> waiting</span></div></div>` : ''}</section>`;
     const nameBox = !NAME && canCall() ? `<form class="name" data-nameform><label>Your name<span class="muted" style="font-size:12.5px;font-weight:400">So the team knows who approved. Asked once on this device.</span><input data-namein autocomplete="name" maxlength="60" required></label><button class="btn pri" type="submit">Start reviewing</button></form>` : '';
     const card = a => {
-      const vs = filesOf(a.ad), top = vs[vs.length - 1]; if (!top) return '';
+      const cs = a.carousel ? cardsOf(a) : null, vs = filesOf(a.ad), top = cs ? cs[0] : vs[vs.length - 1]; if (!top) return '';
       const st = STAT[a.status] || STAT.review;
       const media = top.video ? `<video src="${esc(top.url)}#t=0.5" muted preload="metadata" playsinline></video>` : `<img src="${esc(top.thumb || top.url)}" alt="" loading="lazy" decoding="async">`;
       let acts = '';
@@ -129,7 +132,7 @@
         else acts = `<div class="row"><span class="muted" style="flex:1;font-size:12.5px">${a.status === 'approved' ? 'Approved' : 'Sent back'}${a.by ? ` by ${esc(a.by)}` : ''}${a.at ? `, ${esc(short(a.at))}` : ''}</span><button type="button" class="btn sm" data-dec="reopen" data-file="${esc(a.file_id)}"${BUSY ? ' disabled' : ''}>Change</button></div>`;
       }
       return `<article class="card"><button type="button" class="pv" data-open="${esc(top.id)}" aria-label="Open ${esc(label(a.ad))} full size to leave notes">${media}
-          <span class="ov" style="top:10px;left:10px">${esc(label(a.ad))}</span>${top.video ? '<span class="ov" style="bottom:10px;left:10px">Video</span>' : ''}<span class="open"><span>View full size and mark up</span></span></button>
+          <span class="ov" style="top:10px;left:10px">${esc(label(a.ad))}</span>${cs ? `<span class="ov" style="top:10px;right:10px">Carousel · ${cs.length} cards</span>` : ''}${top.video ? '<span class="ov" style="bottom:10px;left:10px">Video</span>' : ''}<span class="open"><span>View full size and mark up</span></span></button>
         <div class="cb"><div class="row"><span class="st" style="--sc:${canCall() ? st[1] : 'var(--muted)'}"><i></i>${canCall() ? st[0] : 'For your notes'}</span><span style="flex:1"></span><span class="muted" style="font-size:12px">${a.notes ? `${a.notes} note${a.notes === 1 ? '' : 's'}` : 'No notes'}</span></div>${acts}</div></article>`;
     };
     const finished = all.length && canCall() && !n('review') ? `<div class="done"><b style="color:var(--good)">All ${all.length === 1 ? 'decided' : `${all.length} decided`}. Thank you${NAME ? `, ${esc(NAME)}` : ''}.</b><span class="muted">The team has it in Locus and Slack.</span></div>` : '';

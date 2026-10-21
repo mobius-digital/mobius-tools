@@ -127,6 +127,12 @@ textarea.ln-in{min-height:64px;resize:vertical;line-height:1.45}
 .lnb-row.short{opacity:1}
 .lnb-tick{margin:2px 0 0;width:16px;height:16px;accent-color:var(--brand)}
 .lnb-pic{width:64px;aspect-ratio:4/5;object-fit:cover;border-radius:var(--r-sm,8px);border:1px solid var(--line);background:var(--surface-2);display:block}
+.lnb-car{display:flex;gap:4px;max-width:180px;overflow-x:auto;scrollbar-width:thin}
+.lnb-car span{position:relative;flex:0 0 auto}
+.lnb-car img,.lnb-car i{width:40px;aspect-ratio:4/5;object-fit:cover;border-radius:4px;border:1px solid var(--line);background:var(--surface-2);display:block}
+.lnb-car b{position:absolute;left:3px;bottom:3px;font-size:10px;line-height:1;padding:2px 4px;border-radius:3px;background:rgba(0,0,0,.6);color:#fff;font-weight:600}
+.lnb-cards{margin:3px 0 0;padding:6px 8px 6px 26px;border:1px dashed var(--line-strong);border-radius:var(--r-sm,8px);font-size:13px;font-weight:500;color:var(--ink);background:var(--surface-2);line-height:1.5}
+.lnb-cards .none{color:var(--bad)}
 .lnb-vid{width:64px;aspect-ratio:4/5;border-radius:var(--r-sm,8px);border:1px solid var(--line);background:var(--surface-2);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px}
 .lnb-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 6px;font-size:13px;color:var(--ink)}
 .lnb-top b{font-weight:650}
@@ -287,6 +293,7 @@ function wireAfter(box, l, finish) {
 
 /* ---------------- the batch window: every approved ad of a Production card (2026-10-14) ---------------- */
 const SRC_TAG = { shared: 'from the brief', ad: "this ad's own line in the brief", set: 'from the ad set', none: 'Write it in the brief' };
+const MISSING_SAY = { headline: 'No headline in the brief', primary_text: 'No primary text in the brief', cards: 'A carousel needs 2 to 10 cards', video: 'A carousel takes pictures, not video' };
 function openBatch(o) {
   if (o.tok) L.tok = o.tok;
   const { box, close } = sheet(`<h3>Launch to Meta</h3><p class="ln-say">Reading the card, the brief and the brand's ad sets. A few seconds.</p>`);
@@ -306,19 +313,23 @@ function openBatch(o) {
   const title = () => `Launch ${n()} to Meta`;
   function rowHtml(a, i) {
     const short = a.missing.length > 0, on = picked.has(a.file_id);
-    const pic = a.video ? `<div class="lnb-vid">Video</div>` : `<img class="lnb-pic" src="${esc(a.thumb)}" alt="" loading="lazy">`;
+    /* a Carousel card's ad = its cards in swipe order, one Meta carousel (2026-10-21) */
+    const pic = a.carousel ? `<div class="lnb-car" title="${a.cards.length} cards, in swipe order">${a.cards.map(c => `<span>${c.thumb ? `<img src="${esc(c.thumb)}" alt="Card ${c.k}" loading="lazy">` : '<i></i>'}<b>${c.k}</b></span>`).join('')}</div>`
+      : a.video ? `<div class="lnb-vid">Video</div>` : `<img class="lnb-pic" src="${esc(a.thumb)}" alt="" loading="lazy">`;
+    const why = a.missing.map(k => MISSING_SAY[k]).filter(Boolean).join('; ');
     const donePill = a.launched.length ? `<span class="lnb-done">Already in Meta: ${a.launched.map(l => l.ads_manager ? `<a href="${esc(l.ads_manager)}" target="_blank" rel="noopener">${esc(l.ad_name)}</a>` : esc(l.ad_name)).join(', ')} (${esc(a.launched[0].adset_name)})</span>` : '';
     const tag = (f, k) => `<span class="lnb-tag${f.source === 'none' ? ' bad' : ''}">${esc(SRC_TAG[f.source] || '')}${f.source === 'none' && o.onBrief ? '<button type="button" data-brief>Open the brief</button>' : ''}${k === 'link' && f.value && P.ads.length > 1 ? `<button type="button" data-linkall="${esc(a.file_id)}">Use this link for all</button>` : ''}</span>`;
     const ro = (f, cls = '') => `<span class="lnb-ro${f.value ? '' : ' none'}${cls}">${esc(f.value || 'Not in the brief yet')}</span>`;
     return `<div class="lnb-row${on ? '' : ' off'}${short ? ' short' : ''}" data-row="${esc(a.file_id)}">
-      <input type="checkbox" class="lnb-tick" data-pick="${esc(a.file_id)}" ${on ? 'checked' : ''} ${short ? 'disabled title="The brief has no headline or primary text for this ad"' : ''} aria-label="Launch ${esc(a.ad ? 'ad ' + a.ad : 'this ad')}">
+      <input type="checkbox" class="lnb-tick" data-pick="${esc(a.file_id)}" ${on ? 'checked' : ''} ${short ? `disabled title="${esc(why)}"` : ''} aria-label="Launch ${esc(a.ad ? 'ad ' + a.ad : 'this ad')}">
       <div>${pic}</div>
       <div style="min-width:0">
-        <div class="lnb-top"><b>${esc(a.ad ? `Ad ${a.ad}` : 'The ad')}</b><span style="color:var(--muted);font-size:12px">v${esc(a.version)} · ${esc(a.format)}</span>${donePill}</div>
+        <div class="lnb-top"><b>${esc(a.ad ? `Ad ${a.ad}` : 'The ad')}</b><span style="color:var(--muted);font-size:12px">${a.carousel ? `${a.cards.length} cards · one carousel ad` : `v${esc(a.version)} · ${esc(a.format)}`}</span>${donePill}</div>
         <div class="lnb-g">
           <label class="lnb-f">Name in Meta<input class="ln-in" data-name="${esc(a.file_id)}" value="${esc(a.name)}"></label>
           <label class="lnb-f">Link<input class="ln-in" data-link="${esc(a.file_id)}" value="${esc(a.link.value)}" placeholder="https://" ${short ? 'disabled' : ''}>${tag(a.link, 'link')}</label>
-          <div class="lnb-f">Headline${ro(a.headline)}${tag(a.headline)}</div>
+          ${a.carousel ? `<div class="lnb-f">Card headlines<ol class="lnb-cards">${a.cards.map(c => `<li${c.headline ? '' : ' class="none"'}>${esc(c.headline || 'No headline: name the file "card k of n <headline>" or write a Headline in the brief')}</li>`).join('')}</ol><span class="lnb-tag">From each card's file name, else the brief's Headline</span></div>` : `<div class="lnb-f">Headline${ro(a.headline)}${tag(a.headline)}</div>`}
+          ${short && a.missing.some(k => k === 'cards' || k === 'video') ? `<div class="lnb-f" style="color:var(--bad)">${esc(why)}</div>` : ''}
           <div class="lnb-f">Primary text${ro(a.primary_text)}${tag(a.primary_text)}</div>
         </div>
       </div></div>`;
@@ -329,6 +340,7 @@ function openBatch(o) {
     const test = p.test ? `<p class="ln-test"><b>Test #${esc(p.test.num)}</b>${p.test.title ? `: ${esc(p.test.title)}` : ''}. Every ad is tied to this test in the test library by its name.</p>` : '';
     box.innerHTML = `<h3 data-ln="title">${esc(title())}${stepNote}</h3>
       <p class="ln-say">Every ad goes into ONE ad set, made <b>paused</b>, so nothing spends until someone turns it on. The words come from the brief: a Headline, Primary text or Landing page line written once is shared; the same line under an ad's own heading is that ad's. Check it first: the dry run shows the ad set before and after.</p>
+      ${p.carousel ? '<p class="ln-say">This card is a <b>carousel</b>: its cards go out as ONE Meta ad, in swipe order (Meta is told not to reorder them).</p>' : ''}
       ${test}
       ${(p.warnings || []).length ? `<div class="ln-warn">${p.warnings.map(w => `<p>${esc(w)}</p>`).join('')}</div>` : ''}
       <div class="ln-where">
@@ -404,7 +416,7 @@ function openBatch(o) {
   }
   function dryBatch(r) {
     const list = names => names.length ? `<ul>${names.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '<div>No ads yet.</div>';
-    const rows = r.rows.map(x => x.ok ? `<li class="new">${esc(x.name)} (new, paused)</li>` : `<li style="color:var(--bad)">${esc(x.name || x.ad)}: ${esc(x.error)}</li>`).join('');
+    const rows = r.rows.map(x => x.ok ? `<li class="new">${esc(x.name)} (new${x.carousel ? ` carousel, ${x.cards.length} cards` : ''}, paused)${x.carousel ? `<ol style="margin:4px 0 0;padding-left:18px">${x.cards.map(c => `<li>${esc(c.headline || '(no headline)')}</li>`).join('')}</ol>` : ''}</li>` : `<li style="color:var(--bad)">${esc(x.name || x.ad)}: ${esc(x.error)}</li>`).join('');
     return `${(r.warnings || []).length ? `<div class="ln-warn">${r.warnings.map(w => `<p>${esc(w)}</p>`).join('')}</div>` : ''}
       <div class="ln-ba"><div><b class="cap">Before</b>"${esc(r.before.adset)}": ${r.before.ads} ad${r.before.ads === 1 ? '' : 's'}${list(r.before.names || [])}</div>
       <div><b class="cap">After</b>"${esc(r.after.adset)}": ${r.after.ads} ads<ul>${(r.before.names || []).map(x => `<li>${esc(x)}</li>`).join('')}${rows}</ul>

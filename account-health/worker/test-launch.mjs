@@ -470,6 +470,52 @@ await check('carousel create: ONE ad, child_attachments in order, Meta may not r
   assert.ok(again.duplicate); assert.equal(graphPosts().length, n);
 });
 
+/* ---------------- a Production card whose format is Carousel = ONE carousel ad from its cards (2026-10-21) ---------------- */
+const PC = { c1: 'c1c1c1c1c1c1c1c1', c2: 'c2c2c2c2c2c2c2c2', c3: 'c3c3c3c3c3c3c3c3', c2b: 'c2b2c2b2c2b2c2b2' };
+await check('Production carousel: one ad of cards in swipe order (a re-sent card keeps its place), one approve, one carousel launch', async () => {
+  const brief = { v: 2, format: 'Carousel', sizes: [], html: `<h2>Copy</h2><p><strong>Primary text</strong></p><p>Three reasons, one swipe.</p><p><strong>Landing page</strong></p><p>https://luckygolf.com/products/eclipse</p>` };
+  db.exec(`INSERT INTO p_br_batch (id, act_id, num, title, angle_id, brief_json) VALUES ('bb430', 'brand_lucky', '430', 'Eclipse carousel', 'ang1', '${JSON.stringify(brief).replace(/'/g, "''")}')`);
+  const up = [[PC.c1, 1, '430-1 card 1 of 3 The clover.png'], [PC.c2, 2, '430-1 card 2 of 3 Two years.png'], [PC.c3, 3, '430-1 card 3 of 3 Milled.png'], [PC.c2b, 4, '430-1 card 2 of 3 Two years in the making.png']];
+  for (const [fid, v, name] of up) db.exec(`INSERT INTO p_work_file (id, batch_id, act_id, kind, version, r2_key, name, mime, ad) VALUES ('${fid}', 'bb430', 'brand_lucky', 'version', ${v}, 'work/${fid}.png', '${name}', 'image/png', '430-1')`);
+  /* one call for the whole carousel, made on its newest card */
+  db.exec(`INSERT INTO p_work_comment (id, batch_id, act_id, author_name, kind, file_id) VALUES ('apc430', 'bb430', 'brand_lucky', 'Nick', 'approval', '${PC.c2b}')`);
+  const n0 = graphPosts().length;
+  const p = await L.batchPrep(env, d, 'brand_lucky', { card_id: 'bb430' });
+  assert.ok(p.ok, p.error); assert.equal(p.carousel, true);
+  assert.equal(p.ads.length, 1, 'four uploads are ONE ad');
+  const a = p.ads[0];
+  assert.equal(a.carousel, true); assert.equal(a.name, '430-1 | Carousel'); assert.equal(a.file_id, PC.c2b); assert.deepEqual(a.missing, []);
+  assert.deepEqual(a.cards.map(c => c.file_id), [PC.c1, PC.c2b, PC.c3], 'swipe order from "card k of n"; the re-sent card 2 takes its place');
+  assert.deepEqual(a.cards.map(c => c.headline), ['The clover', 'Two years in the making', 'Milled'], 'each card\'s headline from its file name');
+  assert.ok(a.cards.every(c => /&w=600$/.test(c.thumb)));
+  const body = { card_id: 'bb430', adset: '2300013', cta: 'SHOP_NOW', ads: [{ file_id: a.file_id }] };
+  const pv = await L.batchPreview(env, d, 'brand_lucky', body, COLE);
+  assert.ok(pv.ok, pv.error); assert.ok(pv.rows[0].ok, pv.rows[0].error); assert.equal(pv.rows[0].carousel, true);
+  assert.deepEqual(pv.rows[0].cards.map(c => c.headline), ['The clover', 'Two years in the making', 'Milled']);
+  assert.match(pv.rows[0].summary + '', /./); assert.equal(graphPosts().length, n0, 'the dry run writes nothing');
+  const i0 = posts.length;
+  const r = await L.batchCreate(env, d, 'brand_lucky', body, COLE);
+  assert.ok(r.ok, r.error); assert.equal(r.made, 1, JSON.stringify(r.rows));
+  const mine = posts.slice(i0);
+  assert.equal(mine.filter(x => /adimages$/.test(x.path)).length, 3, 'three pictures, not one ad per file');
+  assert.equal(mine.filter(x => /adcreatives$/.test(x.path)).length, 1);
+  const ads = mine.filter(x => x.path === `${LUCKY}/ads`); assert.equal(ads.length, 1, 'ONE ad'); assert.equal(ads[0].body.status, 'PAUSED'); assert.equal(ads[0].body.name, '430-1 | Carousel');
+  const ld = JSON.parse(mine.find(x => /adcreatives$/.test(x.path)).body.object_story_spec).link_data;
+  assert.equal(ld.multi_share_optimized, false); assert.equal(ld.message, 'Three reasons, one swipe.');
+  assert.deepEqual(ld.child_attachments.map(c => c.name), ['The clover', 'Two years in the making', 'Milled']);
+  assert.equal(ld.child_attachments[1].link, 'https://luckygolf.com/products/eclipse');
+  const row = db.prepare(`SELECT * FROM p_launch WHERE id = ?`).get(r.rows[0].launch.id);
+  assert.equal(row.work_file, PC.c2b); assert.equal(row.batch_id, 'bb430'); assert.equal(row.source, 'asset');
+  assert.deepEqual(JSON.parse(row.cards), [PC.c1, PC.c2b, PC.c3]);
+  const again = await L.batchCreate(env, d, 'brand_lucky', body, COLE);
+  assert.ok(again.rows[0].duplicate, 'a repeat into the same set is refused');
+  /* a carousel with one card is not ready */
+  db.exec(`UPDATE p_work_file SET deleted_at = datetime('now') WHERE id IN ('${PC.c1}', '${PC.c3}')`);
+  db.exec(`INSERT INTO p_work_comment (id, batch_id, act_id, author_name, kind, file_id) VALUES ('apc430b', 'bb430', 'brand_lucky', 'Nick', 'approval', '${PC.c2b}')`);
+  const short = await L.batchPreview(env, d, 'brand_lucky', body, COLE);
+  assert.match(short.error, /Not ready to launch.*needs 2 to 10 cards/);
+});
+
 await check('meta_create_ad: cards and an image together, or one card, are refused', async () => {
   const a = mw.metaActions(d).find(x => x.name === 'meta_create_ad');
   const base = { brand: 'brand_lucky', adset: '2300013', primary_text: 'x', link: 'https://luckygolf.com', reason: 'test' };
