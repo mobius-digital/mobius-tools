@@ -12,7 +12,8 @@ import { handleSchedules, scheduleTick } from './askschedule.js';
 import { handleReview, reviewTick } from './review.js';
 import { handleAlerts, alertTick } from './alerts.js';
 import { handleSocial, socialTick, serveSocialMedia, useFetch as socialFetch } from './social.js';
-import { handleSocialPost, socialPostTick, socialResultsTick, handleSocialButton, useFetch as socialPostFetch } from './socialpost.js';
+import { handleSocialPost, socialPostTick, socialResultsTick, socialNudgeTick, handleSocialButton, useFetch as socialPostFetch } from './socialpost.js';
+import { handleMake as handleMakeApp, serveMakeMedia, runExit } from './make.js';
 import { handleCalendar, calendarTick, calendarView, liveOn as calendarLiveOn, useFetch as calendarFetch, calendarData, teamOf as calendarTeam, clientCalendarFor } from './calendar.js';
 /* The client posts (2026-10-19 reporting audit): the six-line daily and the weekly / monthly shape, built from stored numbers. */
 import { dailyPost, dailyThread, weeklyPost, weekSentence, internalChannel } from './clientpost.js';
@@ -61,7 +62,7 @@ import { handleVoice } from './voice.js';
 import { handleStudioAI } from './studio-ai.js';
 import { serveVideo, serveRef } from './studio-video.js';
 import { handleBrandAsana, handleAsanaHook, brandAsanaTick, unifyGoals, mondayTick, runMondayPlan, testMinimumsDue, refreshAccountAvg, useFetch as brandAsanaFetch, asana, asanaAll, readDoc as brandReadDoc } from './asana-brand.js';
-import { ideaStart, runIdeaJob, handleIdeaAction, adminIdea, useFetch as ideasFetch } from './ideas.js';
+import { ideaStart, runIdeaJob, handleIdeaAction, adminIdea, useExits, useFetch as ideasFetch } from './ideas.js';
 import { handleAtria, useFetch as atriaFetch } from './atria.js';
 import { handleNewClient, newClientTick, handleStripeWebhook, welcomeOnJoinByChannel, handleNewClientAction, onCallBooked, useFetch as newClientFetch } from './newclient.js';
 import { handleCalendly, useFetch as calendlyFetch } from './calendly.js';
@@ -241,6 +242,8 @@ socialFetch(xfetch);
 socialPostFetch(xfetch);
 /* Locus Social posting (socialpost.js): the Slack fallback, the tray's profit reads and the budget check. */
 function socialPostDeps() { return { slackPost, slackApi, mintSession, subCanAfford: n => subCanAfford(n), isAdmin, sessionEmail }; }
+/* Make (2026-10-20): the Organic post and Ad brief exits run from the Slack card and from Locus through one function (make.js). */
+useExits((env, row, acct, d, pushed, who, exit) => runExit(env, row, acct, d, pushed, who, exit, meetingDeps()));
 googleFetch(xfetch);
 clarityFetch(xfetch);
 surveyFetch(xfetch);
@@ -7593,6 +7596,8 @@ const AH_APP = {
         /* Locus Social posting: a catch-up for the 5-minute tick, then views / likes / comments once a day (socialpost.js). */
         ran.socialPost = await socialPostTick(env, socialPostDeps()).catch(e => ({ error: e.message }));
         ran.socialResults = await socialResultsTick(env, socialPostDeps()).catch(e => ({ error: e.message }));
+        /* Monday 8am brand local: "N of T posts planned this week" to the internal channel, only when short (socialpost.js). */
+        ran.socialNudge = await socialNudgeTick(env, socialPostDeps()).catch(e => ({ error: e.message }));
         /* Is Locus itself working: every page's routes, connections and freshness, once a Central morning (smoke.js). */
         ran.smoke = await smokeTick(env, smokeDeps()).catch(e => ({ error: e.message }));
         /* The Slack index: catch up and walk back a year, a page budget at a time (slackindex.js). */
@@ -7737,6 +7742,7 @@ const AH_APP = {
     if (path.startsWith('/cover/') && request.method === 'GET') return serveCover(env, path);
     /* Locus Social covers and copied videos (social.js): public by an unguessable key. */
     if (path.startsWith('/social-m/') && request.method === 'GET') return serveSocialMedia(env, path, request, CORS);
+    if (path.startsWith('/make-m/') && request.method === 'GET') return serveMakeMedia(env, path, request, CORS);
     /* Locus Social posting: TikTok and Google send the person back here after the grant (socialpost.js). */
     if ((path === '/social/tiktok/callback' || path === '/social/google/callback') && request.method === 'GET') return handleSocialPost(request, env, url, path, json, socialPostDeps());
     /* Photo library thumbnails (assets.js): public by an unguessable Drive file id, like Studio images. */
@@ -7842,6 +7848,11 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     }
     /* ---- Brand tab x Asana: sync, tag, results (admin) ---- */
     /* ---- The calendar (Lineup moved into Locus, 2026-10-09; calendar.js) ---- */
+    /* ---- Make in the app (make.js, 2026-10-20): breakdown + draft, four exits ---- */
+    if (path.startsWith('/api/make')) {
+      const r = await handleMakeApp(request, env, url, path, json, { ...meetingDeps(), waitUntil: p => ctx.waitUntil(p) });
+      if (r) return r;
+    }
     /* ---- Locus Social, phase 1: Watch (social.js, 2026-10-19) ---- */
     if (path.startsWith('/api/social')) {
       /* Phase 2 (socialpost.js): accounts, the Week, the tray, posts, captions. Answers null for Watch's routes. */

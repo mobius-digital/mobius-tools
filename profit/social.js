@@ -288,8 +288,24 @@
     el.innerHTML = `<div class="soc soc-set">
       <div class="onrow"><button type="button" class="v2sw ${on ? 'on' : ''}" id="socOn" role="switch" aria-checked="${on}" aria-label="Show Social for this brand"><i></i></button>
         <div><b>Show Social for ${esc(brandNameOf(act))}</b><small>Watch what the brands it follows post, save the best, and plan the week of posts.</small></div><span class="msg" id="socOnMsg"></span></div>
+      <div id="socTarget"></div>
       <div id="socFollows"></div>
       <div id="socConnect"></div></div>`;
+    /* The weekly target (2026-10-20): what "2 of 5 planned" on the Week counts against, and what Fill the week fills to. */
+    const target = async () => {
+      const c = el.querySelector('#socTarget'); if (!c) return;
+      if (!ST.on.includes(act) || CLI()) { c.innerHTML = ''; return; }
+      try {
+        const w = await H.apiAH(`/api/social/week?act=${encodeURIComponent(act)}`, { fresh: true });
+        c.innerHTML = `<style>.soc-tgt{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12.5px;color:var(--muted)} .soc-tgt input{width:64px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font:inherit;padding:6px 8px} .soc-tgt span{flex:1 1 240px}</style><h4>Posts a week</h4><div class="soc-tgt"><input type="number" min="0" max="21" id="socTgt" value="${Number(w.target ?? 5)}" aria-label="Posts a week"><span>planned posts a week. The Week shows "N of ${Number(w.target ?? 5)} planned" and Fill the week fills up to it. Monday 8am Slack says so only when the week is short.</span><button type="button" class="soc-btn sm" id="socTgtSave">Save</button><span class="msg" id="socTgtMsg"></span></div>`;
+        c.querySelector('#socTgtSave').onclick = async () => {
+          const msg = c.querySelector('#socTgtMsg');
+          try { const r = await H.apiAH('/api/social/target', { method: 'PUT', body: JSON.stringify({ act, target: +c.querySelector('#socTgt').value }) }); msg.textContent = `Saved: ${r.target} a week.`; }
+          catch (e) { msg.textContent = e.message; }
+        };
+      } catch (e) { c.innerHTML = `<p class="v2bad">${esc(e.message)}</p>`; }
+    };
+    target();
     const connect = () => { const c = el.querySelector('#socConnect'); if (!c) return; if (ST.on.includes(act) && window.SocialWeek) window.SocialWeek.connect(c, act, H); else c.innerHTML = ''; };
     const follows = async () => {
       const c = el.querySelector('#socFollows'); if (!c) return;
@@ -307,7 +323,7 @@
     el.querySelector('#socOn').onclick = async e => {
       const b = e.currentTarget, msg = el.querySelector('#socOnMsg'), next = !b.classList.contains('on');
       b.disabled = true;
-      try { await H.apiAH('/api/social/brand', { method: 'PUT', body: JSON.stringify({ act, on: next }) }); await loadBrands(true); rail(act); b.classList.toggle('on', next); b.setAttribute('aria-checked', String(next)); msg.textContent = next ? 'On. Social is in the rail.' : 'Off. Follows and saved posts are kept.'; connect(); follows(); }
+      try { await H.apiAH('/api/social/brand', { method: 'PUT', body: JSON.stringify({ act, on: next }) }); await loadBrands(true); rail(act); b.classList.toggle('on', next); b.setAttribute('aria-checked', String(next)); msg.textContent = next ? 'On. Social is in the rail.' : 'Off. Follows and saved posts are kept.'; connect(); follows(); target(); }
       catch (err) { msg.textContent = err.message; }
       b.disabled = false;
     };
@@ -328,7 +344,7 @@
   /* ---------- the page ---------- */
   async function render(tab, host, first) {
     H = host; css();
-    ST.page = tab === 'socialsaved' ? 'socialsaved' : 'social';
+    ST.page = tab === 'socialsaved' ? 'socialsaved' : tab === 'socialresults' ? 'socialresults' : 'social';
     const act = H.S.act;
     const t = H.RUN();
     const head = H.pageHead(ST.page, 'Social');
@@ -390,6 +406,7 @@
       const b = $('#socTurn'); if (b) b.onclick = async () => { b.disabled = true; await H.apiAH('/api/social/brand', { method: 'PUT', body: JSON.stringify({ act: ST.act, on: true }) }); await loadBrands(true); rail(ST.act); render(ST.page, H, true); };
       return;
     }
+    if (ST.page === 'socialresults') { drawResults(); return; }
     if (ST.view === 'manage') return drawManage();
     const posts = d.posts || [], fol = d.follows || [];
     const hot = posts.filter(p => p.breaking).length, nSaved = posts.filter(p => p.saved || p.idea_id).length;
@@ -835,9 +852,20 @@
 
   /* ---------- Make ours: a second step in the same column. The brief itself lives in Slack; here the beats. ---------- */
   const stat = (cls, t) => `<span class="vstat ${cls}"><i></i>${esc(t)}</span>`;
+  /* 2026-10-20: Make ours is the shared Make panel (make.js), drawn inside the viewer's column: breakdown, the draft,
+     Redo with a steer, and the four exits (Organic post is pre-picked here). Slack is a toggle, off by default. */
   function makeStep(p) {
     const el = viewerEl(), b = el.querySelector('.vbody');
     const back = () => column(p);
+    if (window.LocusMake) {
+      b.innerHTML = '<div class="vstep"></div>'; b.scrollTop = 0;
+      const label = `${FMT_WORD[p.fmt] || 'post'} from ${p.handle ? `@${p.handle}` : 'another brand'} on ${({ ig: 'Instagram', tt: 'TikTok', yt: 'YouTube', fb: 'Facebook' })[p.plat] || p.plat}`;
+      const stats = [p.views != null ? `${Number(p.views).toLocaleString('en-US')} views` : null, p.likes != null ? `${Number(p.likes).toLocaleString('en-US')} likes` : null].filter(Boolean).join(', ');
+      window.LocusMake.open({ act: ST.act, exit: 'organic', url: p.url, image: p.thumb || null, post: p.id, id: p.idea_id || null, mode: p.mk_mode || 'remix', title: 'Make ours',
+        note: `Make our version of this ${label}${stats ? ` (${stats})` : ''}.`, mount: b.querySelector('.vstep'), back: { label: 'Back to the post', fn: back },
+        onDone: r => { if (r.started) { p.idea_id = r.started; p.saved = true; bar(p); const c = $(`.soc-post[data-id="${CSS.escape(p.id)}"] .soc-body`); if (c && !c.querySelector('.soc-made')) c.insertAdjacentHTML('beforeend', `<span class="soc-made">${ic('sparkles')} Our version started</span>`); } } });
+      return;
+    }
     const shell = inner => { b.innerHTML = `<div class="vstep"><button type="button" class="bk" id="mkBack">&#8249; Back to the post</button><h3>Make ours</h3>${inner}</div>`; b.querySelector('#mkBack').onclick = back; b.scrollTop = 0; };
     if (!p.idea_id) {
       shell(`<p>Claude watches this post and writes ${esc(brandName())}'s version as a text brief in the brand's Slack channel: the hook, the shots, our product in it, never their footage. The beats show here. About 20 to 30 cents.</p>
@@ -894,6 +922,49 @@
       try { const r = await H.apiAH('/api/social/push', { method: 'POST', body: JSON.stringify({ id: p.id, dest: x.dataset.dest }) }); if (r.text) toast(r.text); showState(p, r.state, shell); }
       catch (e) { b.querySelector('#sdErr').textContent = e.message; x.disabled = false; x.textContent = was; }
     });
+  }
+
+  /* ---------- Results (2026-10-20): our posted cards from the last 30 days by views, beside what the watched brands usually get ---------- */
+  const FMT_WORD = { video: 'video', reel: 'reel', short: 'short', carousel: 'carousel', photo: 'photo', image: 'photo' };
+  const PLN = { ig: 'Instagram', fb: 'Facebook', tt: 'TikTok', yt: 'YouTube' };
+  const kk = n => { if (n == null) return '–'; const a = Math.abs(n); return a >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : a >= 1e3 ? `${(n / 1e3).toFixed(a >= 1e4 ? 0 : 1)}k` : String(Math.round(n)); };
+  async function drawResults() {
+    if (!document.getElementById('socrcss')) document.head.insertAdjacentHTML('beforeend', `<style id="socrcss">
+      .soc-res{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+      .soc-res .rc{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--surface);cursor:pointer;text-align:left;padding:0;color:var(--ink);font:inherit;display:flex;flex-direction:column}
+      .soc-res .rc:hover{border-color:var(--ink)}
+      .soc-res .rc .th{aspect-ratio:4/5;background:var(--surface-2,var(--line)) center/cover no-repeat;position:relative} .soc-res .rc .th .rk{position:absolute;top:8px;left:8px;background:var(--ink);color:var(--surface);border-radius:999px;font-size:11px;font-weight:600;padding:2px 8px}
+      .soc-res .rc .bd{padding:10px 12px 12px;display:flex;flex-direction:column;gap:6px}
+      .soc-res .rc .big{font-size:20px;font-weight:600;letter-spacing:-.01em;font-variant-numeric:tabular-nums} .soc-res .rc .big small{font-size:12px;font-weight:500;color:var(--muted);margin-left:5px}
+      .soc-res .rc .cap{font-size:12.5px;color:var(--ink);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+      .soc-res .rc .pl{font-size:12px;color:var(--muted);display:flex;justify-content:space-between;gap:8px} .soc-res .rc .pl b{color:var(--ink);font-weight:600} .soc-res .rc .pl .up{color:var(--good)} .soc-res .rc .pl .dn{color:var(--bad)}
+      .soc-res .rc .when{font-size:11.5px;color:var(--muted)}
+      .soc-usual{display:flex;gap:14px;flex-wrap:wrap;margin:0 0 14px;font-size:12.5px;color:var(--muted)} .soc-usual b{color:var(--ink)}
+    </style>`);
+    const head = H.pageHead('socialresults', 'Social');
+    $('#main').innerHTML = `<div class="v2 soc">${head}<div class="soc-sk">${'<i></i>'.repeat(PHONE() ? 4 : 8)}</div></div>`;
+    const t = H.RUN();
+    let r;
+    try { r = await H.apiAH(`/api/social/results?act=${encodeURIComponent(ST.act)}`, { fresh: true }); }
+    catch (e) { if (t !== H.RUN()) return; $('#main').innerHTML = `<div class="v2 soc">${head}<div class="soc-state err"><b>Results did not load</b><p>${esc(e.message)}</p></div></div>`; return; }
+    if (t !== H.RUN()) return;
+    const usual = r.usual || {};
+    const uline = ['ig', 'tt', 'yt'].filter(x => usual[x] && (usual[x].views != null || usual[x].likes != null)).map(x => `<span>${PLN[x]}: <b>${usual[x].views != null ? `${kk(usual[x].views)} views` : `${kk(usual[x].likes)} likes`}</b> is usual for the brands you watch (${usual[x].n} posts)</span>`).join('');
+    const ours = r.ours || [];
+    const cards = ours.map((p, i) => {
+      const m = (p.media || [])[0] || {};
+      const rows = Object.entries(p.per || {}).map(([x, v]) => {
+        const u = usual[x] && usual[x].views != null ? usual[x].views : null;
+        const cls = u && v.views != null ? (v.views >= u ? 'up' : 'dn') : '';
+        return `<span class="pl"><span>${esc(PLN[x] || x)}</span><span><b class="${cls}">${v.views != null ? `${kk(v.views)} views` : v.likes != null ? `${kk(v.likes)} likes` : 'no numbers yet'}</b>${u ? ` · usual ${kk(u)}` : ''}</span></span>`;
+      }).join('');
+      return `<button type="button" class="rc" data-post="${esc(p.id)}"><span class="th" ${m.thumb ? `style="background-image:url('${esc(m.thumb)}')"` : ''}><span class="rk">#${i + 1}</span></span>
+        <span class="bd"><span class="big">${p.views != null ? kk(p.views) : '–'}<small>views</small></span>${rows}<span class="cap">${esc(p.caption || m.title || '')}</span><span class="when">${esc(new Date(p.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))}${p.likes ? ` · ${kk(p.likes)} likes` : ''}${p.comments ? ` · ${kk(p.comments)} comments` : ''}</span></span></button>`;
+    }).join('');
+    $('#main').innerHTML = `<div class="v2 soc">${head}
+      ${uline ? `<div class="soc-usual">${uline}</div>` : ''}
+      ${ours.length ? `<div class="soc-res">${cards}</div>` : `<div class="soc-state"><b>Nothing posted through Locus in the last 30 days</b><p>Once a post goes out from the Week its views land here the day after, beside what the brands you watch usually get.</p></div>`}</div>`;
+    $('#main').querySelectorAll('[data-post]').forEach(b => b.onclick = () => { window.SOCIAL_POST = b.dataset.post; H.show('socialweek'); });
   }
 
   window.SocialTab = { render, settings, loadBrands, tabOk, open: openPost, setHost: h => { H = h; } };
