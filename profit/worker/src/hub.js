@@ -78,6 +78,11 @@ export async function handleHub(ctx) {
       const a = accts[0]; const w = win(a);
       return json({ ...base, window: w, ...(await creativeBrand(env, a, w, model)) });
     }
+    if (path === '/api/hub/ad-days') {
+      const ids = String(url.searchParams.get('ads') || '').split(',').filter(x => /^\d{5,25}$/.test(x)).slice(0, 25);
+      if (!ids.length) return json({ error: 'ads is required' }, 400);
+      return json({ ...base, ...(await adDays(env, accts[0], ids, model)) });
+    }
     if (path === '/api/hub/store') return json({ ...base, window: w0, brands: await storeMany(env, ctx, accts, w0) });
     if (path === '/api/hub/email') return json({ ...base, window: w0, brands: await emailMany(env, ctx, accts, w0) });
     if (path === '/api/hub/drill') return json({ ...base, window: w0, brands: await drillMany(env, ctx, accts, w0, model) });
@@ -659,6 +664,31 @@ async function attrByAd(env, act, from, to, model, platform) {
     const d = byDate[r.date] ||= { rev: 0, ord: 0 }; d.rev += r.rev || 0; d.ord += r.ord || 0;
   }
   return { byAd, byDate };
+}
+
+/* ONE AD, DAY BY DAY (2026-10-21, Cole: "what if it was good last week and suddenly went bad; when did it start?"). The last
+   90 days of the ad (or of every ad that runs the same creative), each day with Meta's delivery and Triple Whale's credit under
+   the screen's model, the same numbers the gallery adds up. The ad sheet draws the trends and the week table from it. */
+async function adDays(env, a, ids, model) {
+  const act = a.act_id, IN = ids.map((_, i) => `?${i + 2}`).join(',');
+  const { results } = await env.DB.prepare(`SELECT d.date, ${META_COLS} FROM ad_daily d WHERE d.act_id IN ${metaOf(1)} AND d.ad_id IN (${IN}) GROUP BY d.date ORDER BY d.date DESC LIMIT 90`)
+    .bind(act, ...ids).all();
+  const rows = (results || []).reverse();
+  const attr = {}; let attrLast = null;
+  if (model !== 'platform' && rows.length) {
+    const IN2 = ids.map((_, i) => `?${i + 5}`).join(',');
+    const { results: ar } = await env.DB.prepare(`SELECT date, SUM(revenue) rev, SUM(orders) ord FROM tw_ad_attr WHERE act_id = ?1 AND model = ?2 AND date BETWEEN ?3 AND ?4 AND (platform = 'meta' OR platform IS NULL) AND ad_id IN (${IN2}) GROUP BY date`)
+      .bind(act, model, rows[0].date, rows[rows.length - 1].date, ...ids).all();
+    for (const r of ar || []) { attr[r.date] = { rev: r.rev || 0, ord: r.ord || 0 }; if (!attrLast || r.date > attrLast) attrLast = r.date; }
+    const { results: lr } = await env.DB.prepare(`SELECT MAX(date) d FROM tw_ad_attr WHERE act_id = ?1 AND model = 'lastPlatformClick'`).bind(act).all().catch(() => ({ results: [] }));
+    if (lr && lr[0] && lr[0].d) attrLast = lr[0].d;
+  }
+  const days = rows.map(r => { const m = metaMetrics(r, model === 'platform' ? null : (attr[r.date] || { rev: 0, ord: 0 }));
+    return { date: r.date, spend: m.spend, impressions: m.impressions, reach: m.reach, clicks: m.clicks, purchases: m.purchases, revenue: m.revenue,
+      cpa: m.cpa, roas: m.roas, ctr: m.ctr, cpm: m.cpm, frequency: m.reach ? m.impressions / m.reach : null, hook: m.impressions && num(r.v3) ? num(r.v3) / m.impressions : null,
+      attr_pending: model !== 'platform' && attrLast != null && r.date > attrLast };
+  });
+  return { ads: ids, days, attr_last: attrLast };
 }
 
 /* ---------- Paid > Meta ---------- */

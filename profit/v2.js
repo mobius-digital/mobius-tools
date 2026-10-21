@@ -605,20 +605,52 @@
   const FIX = { cpm: 'Meta is charging a lot to reach this audience: test a broader audience or a fresher creative.', hook: 'New first three seconds on the same body: the opening loses people.', hold: 'Keep the opening, tighten the middle: people start and leave.', ctr: 'Sharper offer or call to action: people see it but do not click.', cvr: 'Fix the landing page or the offer: people click but do not buy.' };
   function gradeHtml(a, med, cur) {
     if (!med) return '';
-    /* round four (2026-10-21, Cole: "should there be more than click and purchase?"): video ads add hook and hold; every ad
-       shows what it costs to reach people (CPM, lower is better), the click rate and click-to-purchase. Each step is this ad
-       against the brand's median ad in the window, graded A to F; the weakest step names the iteration. */
-    const steps = [['hook', 'Hook rate', 'stops the scroll (3-second views)', a.hook, false], ['hold', 'Hold rate', 'keeps watching', a.hold, false],
-      ['cpm', 'Cost to reach 1,000', 'what Meta charges for the audience', a.cpm, true], ['ctr', 'Click rate', 'clicks through', a.ctr, false], ['cvr', 'Click to purchase', 'buys after the click', cvrOf(a), false]]
+    /* plain words (round six, Cole: "plainly state what it is"): each step is this ad against the typical (median) ad in the
+       account in the same dates, as "% better" or "% worse"; the biggest gap is named only when it is 10%+ worse. */
+    const steps = [['hook', 'Hook rate', 'share of views that watch 3 seconds', a.hook, false], ['hold', 'Hold rate', 'share of viewers who keep watching', a.hold, false],
+      ['cpm', 'CPM', 'cost per 1,000 views (lower is better)', a.cpm, true], ['ctr', 'CTR', 'clicks per view', a.ctr, false], ['cvr', 'Conversion rate', 'purchases per click', cvrOf(a), false]]
       .filter(([k, , , v]) => v != null && med[k]);
     if (steps.length < 2) return '';
-    const gr = r => r >= 1.25 ? 'A' : r >= 1.05 ? 'B' : r >= 0.9 ? 'C' : r >= 0.75 ? 'D' : 'F';
-    const scored = steps.map(([k, l, d, v, lower]) => ({ k, l, d, v, lower, r: lower ? med[k] / v : v / med[k] }));
-    const low = scored.filter(x => x.k !== 'cpm').slice().sort((p, q) => p.r - q.r)[0] || scored[0];
-    const weak = low && low.r < 0.9 ? low : null;   /* only a step below the brand's median (C or worse) is called weak */
     const fmt = (k, v) => k === 'cpm' ? money2(v, cur) : k === 'ctr' || k === 'cvr' ? pct(v, 2) : pct(v, 0);
-    return `<div class="adf">${scored.map(x => `<div class="adf-r${x === weak ? ' weak' : ''}"><span class="adf-l"><b>${x.l}</b><small>${x.d}</small></span><span class="adf-v">${fmt(x.k, x.v)}</span><span class="adf-m">median ${fmt(x.k, med[x.k])}</span><span class="adf-g g${gr(x.r)}"${tipAttr(`${x.l}: this ad ${fmt(x.k, x.v)}, the brand's median ad ${fmt(x.k, med[x.k])}${x.lower ? '. Lower is better.' : ''}`)}>${gr(x.r)}</span></div>`).join('')}</div>
-      ${weak ? `<div class="adf-fix"><b>Weakest step: ${esc(weak.l.toLowerCase())}.</b> ${esc(FIX[weak.k] || '')}</div>` : `<div class="adf-fix ok"><b>No weak step.</b> Every step is at or above this brand's median ad, so iterate on what already works rather than fixing a leak.</div>`}`;
+    const scored = steps.map(([k, l, d, v, lower]) => ({ k, l, d, v, lower, r: lower ? med[k] / v : v / med[k] }));
+    const word = x => { const dd = Math.round((x.r - 1) * 100); return Math.abs(dd) < 3 ? ['same', 'about the same'] : dd > 0 ? ['good', `${dd}% better`] : ['bad', `${-dd}% worse`]; };
+    const low = scored.slice().sort((p, q) => p.r - q.r)[0];
+    const weak = low && low.r < 0.9 ? low : null;
+    return `<div class="adf"><div class="adf-r adf-hd"><span>Step</span><span>This ad</span><span>Typical ad</span><span>Difference</span></div>${scored.map(x => { const w = word(x); return `<div class="adf-r${x === weak ? ' weak' : ''}"><span class="adf-l"><b>${x.l}</b><small>${x.d}</small></span><span class="adf-v">${fmt(x.k, x.v)}</span><span class="adf-m">${fmt(x.k, med[x.k])}</span><span class="adf-w ${w[0]}">${w[1]}</span></div>`; }).join('')}</div>
+      <p class="adf-note">Typical ad = the median ad in this account for the same dates.</p>
+      ${weak ? `<div class="adf-fix"><b>Biggest gap: ${esc(weak.l)}, ${Math.round((1 - weak.r) * 100)}% worse than the typical ad.</b> ${esc(FIX[weak.k] || '')}</div>` : `<div class="adf-fix ok"><b>No step is more than 10% worse than the typical ad.</b></div>`}`;
+  }
+  /* ONE AD OVER TIME (round six, 2026-10-21, Cole: "what if it was good last week and suddenly went bad; when did it start?").
+     /api/hub/ad-days gives the ad (or every ad behind one creative) day by day. A period switch (yesterday to 30 days) re-adds
+     the numbers with the period before beside them; six trend lines over the last 60 days; a week-by-week table. */
+  async function adTrend(a, cur, body) {
+    const box = body.querySelector('#adtr'); if (!box) return;
+    let d; try { d = await get(`/api/hub/ad-days?act=${encodeURIComponent(H.S.act)}&ads=${encodeURIComponent((a.ids || [a.id]).join(','))}${modelQ()}`); } catch (e) { box.innerHTML = `<p class="v2hint">Could not load this ad day by day: ${esc(e.message)}</p>`; return; }
+    if (!body.isConnected) return;
+    const all = (d.days || []).filter(x => x.spend > 0 || x.impressions > 0);
+    if (all.length < 2) { box.innerHTML = '<p class="v2hint">Not enough days of spend to show a trend yet.</p>'; return; }
+    const sum = rows => { const o = rows.reduce((t, r) => { t.spend += r.spend || 0; t.imp += r.impressions || 0; t.reach += r.reach || 0; t.clk += r.clicks || 0; t.pur += r.purchases || 0; t.rev += r.revenue || 0; return t; }, { spend: 0, imp: 0, reach: 0, clk: 0, pur: 0, rev: 0 });
+      return { spend: o.spend, purchases: o.pur, cpa: o.pur ? o.spend / o.pur : null, roas: o.spend ? o.rev / o.spend : null, ctr: o.imp ? o.clk / o.imp : null, cpm: o.imp ? o.spend * 1000 / o.imp : null, freq: o.reach ? o.imp / o.reach : null }; };
+    const P = [['1', 'Yesterday'], ['3', '3 days'], ['7', '7 days'], ['14', '14 days'], ['30', '30 days']];
+    let n = 7; try { n = +(localStorage.getItem('ad_trend_n') || 7) || 7; } catch {}
+    const M = [['spend', 'Spend', v => kmoney(v, cur), 'n'], ['purchases', 'Purchases', int, false], ['cpa', 'CPA', v => money(v, cur), true], ['roas', 'ROAS', x2, false], ['ctr', 'CTR', v => pct(v, 2), false], ['cpm', 'CPM', v => money2(v, cur), true], ['freq', 'Frequency, daily avg', v => v == null ? '–' : v.toFixed(2), 'n']];
+    const draw = () => {
+      const last = all.slice(-n), prev = all.slice(-2 * n, -n), c = sum(last), p = prev.length === n ? sum(prev) : null;
+      const pend = last.some(r => r.attr_pending);
+      const cells = M.map(([k, l, f, lower]) => `<div class="adtr-c"><span>${l}</span><b>${c[k] == null ? '–' : f(c[k])}</b>${p ? `<small>${delta(c[k], p[k], lower) || '<em>same</em>'} <i>before ${p[k] == null ? '–' : f(p[k])}</i></small>` : '<small><i>no earlier period</i></small>'}</div>`).join('');
+      const span = all.slice(-60), tip = (r, f, k) => `<b>${day(r.date)}</b> · ${f(r[k])}`;
+      const spk = (k, l, f) => { const v = span.map(r => k === 'freq' ? r.frequency : r[k]); return `<div class="adtr-s"><span>${l}</span>${window.LxKit && LxKit.spark ? LxKit.spark(v, { fmt: f, tips: span.map(r => `<b>${day(r.date)}</b> · ${l} ${(k === 'freq' ? r.frequency : r[k]) == null ? '–' : f(k === 'freq' ? r.frequency : r[k])}`) }) : ''}</div>`; };
+      const weeks = []; for (let e = all.length; e > 0 && weeks.length < 6; e -= 7) { const blk = all.slice(Math.max(0, e - 7), e); if (blk.length < 3) break; weeks.push({ from: blk[0].date, to: blk[blk.length - 1].date, ...sum(blk) }); }
+      box.innerHTML = `<div class="adtr-h"><b>How it is trending</b><div class="ingr-seg adtr-seg">${P.map(([v, l]) => `<button type="button" data-n="${v}" aria-selected="${+v === n}">${l}</button>`).join('')}</div></div>
+        <p class="adtr-cap">Last ${n === 1 ? 'day' : `${n} days`} with data (${esc(day(last[0].date))}${n > 1 ? ` to ${esc(day(last[last.length - 1].date))}` : ''}), against the ${n === 1 ? 'day' : `${n} days`} before.${pend ? ' Triple Whale has not credited the most recent day yet, so purchases there may rise.' : ''}</p>
+        <div class="adtr-grid">${cells}</div>
+        <h4 class="adtr-t">Day by day, last ${span.length} days</h4>
+        <div class="adtr-sp">${spk('spend', 'Spend', v => kmoney(v, cur))}${spk('purchases', 'Purchases', int)}${spk('cpa', 'CPA', v => money(v, cur))}${spk('ctr', 'CTR', v => pct(v, 2))}${spk('cpm', 'CPM', v => money2(v, cur))}${spk('freq', 'Frequency, daily', v => v == null ? '–' : v.toFixed(2))}</div>
+        <h4 class="adtr-t">Week by week</h4>
+        <div class="v2tbl lx-norow adtr-w"><table><thead><tr><th>Week</th><th>Spend</th><th>Purchases</th><th>CPA</th><th>ROAS</th><th>CTR</th><th>CPM</th><th>Freq., daily</th></tr></thead><tbody>${weeks.map(w => `<tr><td>${esc(day(w.from))} to ${esc(day(w.to))}</td><td>${kmoney(w.spend, cur)}</td><td>${int(w.purchases)}</td><td>${money(w.cpa, cur)}</td><td>${x2(w.roas)}</td><td>${pct(w.ctr, 2)}</td><td>${money2(w.cpm, cur)}</td><td>${w.freq == null ? '–' : w.freq.toFixed(2)}</td></tr>`).join('')}</tbody></table></div>`;
+      box.querySelectorAll('[data-n]').forEach(b => b.onclick = () => { n = +b.dataset.n; try { localStorage.setItem('ad_trend_n', String(n)); } catch {} draw(); if (panel.refit) panel.refit(); });
+    };
+    draw(); if (panel.refit) panel.refit();
   }
   /* THE LANDING PAGE LINE (2026-10-13, Ahsan: "the ad has clicks and add-to-carts; is the product page doing its job?").
      One line under the ad's numbers: the path the ad sends people to (the creative's link, read by account-health
@@ -664,12 +696,14 @@
       const buy = c => c && c.sessions ? (c.ecommercePurchases || 0) / c.sessions : null, pb = buy(d.cur), sb = site && !site.error ? buy(site.cur) : null;
       const tone = (v, n) => v == null || !n ? '' : v >= n ? 'good' : v >= n * 0.8 ? 'warn' : 'bad';
       const row = (l, v, n) => `<span class="lp-r"><span>${l}</span><b class="${tone(v, n)}">${pct(v, l === 'Add to cart' ? 1 : 2)}</b><small>${n != null ? `site ${pct(n, l === 'Add to cart' ? 1 : 2)}` : ''}</small></span>`;
-      said = `<span class="lp-rows">${row('Add to cart', pr, sr)}${pb != null ? row('Purchase', pb, sb) : ''}<span class="lp-r"><span>Visits</span><b>${int(d.cur.sessions)}</b><small>last 30 days, every source</small></span></span>`;
+      said = `<span class="lp-rows">${row('Add to cart', pr, sr)}${pb != null ? row('Purchase', pb, sb) : ''}</span><span class="lp-foot">This page, every visitor from every source, last 30 days (GA4), against the whole site.</span>`;
     }
     /* 3. Where to go next: the Website screen for the brand, and the page's heatmap in Clarity (the same link pattern
           as the Website screen's Behaviour card; the `url` parameter is unverified against Clarity, as noted there). */
     const heat = cl && !cl.error && cl.project ? ` <a href="https://clarity.microsoft.com/projects/view/${encodeURIComponent(cl.project)}/heatmaps?url=${encodeURIComponent(x.link.split(/[?#]/)[0])}" target="_blank" rel="noopener" class="v2link">Heatmap</a>` : '';
-    put(`<div class="v2lp-p">${pathHtml}</div><div class="v2lp-s">${said}</div><div class="v2lp-a"><button type="button" class="v2link" data-lpweb="1">Open in Website</button>${heat}<button type="button" class="v2link" data-lpleak="1">Compare landing pages in Leaks</button></div>`);
+    put(`<div class="v2lp-p">${pathHtml}</div><div class="v2lp-s">${said}</div><div class="v2lp-a"><button type="button" class="v2link" data-lpweb="1">Open in Website</button>${heat}<span data-lpleak-slot></span></div>`);
+    /* Leaks compares landing pages across every ad; link it only when it has found something about THIS page */
+    if (window.LeaksCard && window.LeaksCard.load) { try { window.LeaksCard.setHost && window.LeaksCard.setHost(H); const L = await window.LeaksCard.load(act); const hit = ((L && L.leaks) || []).find(l => JSON.stringify([l.title, l.fix, l.items]).includes(path)); const slot = body.querySelector('[data-lpleak-slot]'); if (slot && hit) slot.outerHTML = `<button type="button" class="v2link" data-lpleak="1">Leaks flags this page: ${esc(hit.title)}</button>`; } catch {} }
     const lk = body.querySelector('[data-lpleak]'); if (lk) lk.onclick = () => { if (panel.close) panel.close(); H.show('leaks'); };
     const ob = body.querySelector('[data-lpweb]'); if (ob) ob.onclick = () => { if (panel.close) panel.close(); H.show('website'); };
   }
@@ -698,7 +732,9 @@
       lead: `<span class="plead-th" data-thumb="${esc(a.id)}"${THUMBS.has(a.id) ? ` style="background-image:url('${THUMBS.get(a.id)}')"` : ''}></span>`,
       chip: `${cx && cx.call ? `<span class="ds-chip ${cx.call[1]}">${esc(cx.call[0])}</span>` : ''}<span class="ds-chip">${ICN(a.media_type === 'video' ? 'play-circle' : 'image', 14)}${a.media_type === 'video' ? 'Video' : a.media_type === 'carousel' ? 'Carousel' : 'Static'}</span>${a.age != null ? `<span class="ds-chip">${ICN('clock', 14)}${a.age} days</span>` : ''}` };
     const body = panel(a.name || 'Ad', `<div class="v2pv sheet-2"><div class="v2pv-media"><div class="v2pv-m" data-thumb="${esc(a.id)}"${THUMBS.has(a.id) ? ` style="background-image:url('${THUMBS.get(a.id)}')"` : ''}><button type="button" class="v2play" aria-label="Play">${ICN('play', 14)} Play</button></div></div>
-      <div class="v2pv-main"><div data-sec="Results" data-ic="chart-column" class="v2pstat adt-stat"><div><span>Spend</span><b>${kmoney(a.spend, cur)}</b><small>${a.age != null ? `${a.age} days running` : ''}</small></div><div><span>Cost per purchase</span><b class="${!g.cpa || a.cpa == null ? '' : a.cpa <= g.cpa ? 'good' : 'bad'}">${money(a.cpa, cur)}</b><small>${g.cpa ? `goal ${money(g.cpa, cur)}` : 'no goal set'}</small></div><div><span>ROAS</span><b>${x2(a.roas)}</b><small>${kmoney(a.revenue, cur)} revenue</small></div><div><span>Purchases</span><b><button type="button" class="v2cell" data-orders="2">${int(a.purchases)}</button></b><small>tap to see the orders</small></div></div>
+      <div class="v2pv-main"><div data-sec="Results" data-ic="chart-column" class="v2pstat adt-stat"><div><span>Spend</span><b>${kmoney(a.spend, cur)}</b><small>${esc(H.rangeLabel ? H.rangeLabel() : '')}</small></div><div><span>CPA</span><b class="${!g.cpa || a.cpa == null ? '' : a.cpa <= g.cpa ? 'good' : 'bad'}">${money(a.cpa, cur)}</b><small>${g.cpa ? `goal ${money(g.cpa, cur)}` : 'no goal set'}</small></div><div><span>ROAS</span><b>${x2(a.roas)}</b><small>${kmoney(a.revenue, cur)} revenue</small></div><div><span>Purchases</span><b><button type="button" class="v2cell" data-orders="2">${int(a.purchases)}</button></b><small>${esc(MODEL_SHORT[H.S.model] || '')}</small></div></div>
+      <p class="adt-when">${esc(H.rangeLabel ? H.rangeLabel() : 'These dates')}, the period picked at the top of the page. Purchases, CPA and ROAS are ${esc(MODEL_SHORT[H.S.model] || 'credited by Triple Whale')}.${a.first_spend ? ` First spend ${esc(day(a.first_spend))}.` : ''}</p>
+      <div data-sec="Trend" data-ic="chart-column" class="adtr" id="adtr"><p class="v2hint">Loading this ad day by day…</p></div>
       ${callLine || setCard ? `<div data-sec="The call" data-ic="target" class="v2pv-sec">${callLine}${setCard}</div>` : ''}
       ${sibTable ? `<div data-sec="Its ad set" data-ic="layout-grid" class="v2pv-sec">${sibTable}</div>` : ''}
       <div data-sec="Funnel" data-ic="activity" class="v2pv-sec">${gradeHtml(a, MED, cur)}</div>
@@ -719,6 +755,7 @@
     body.querySelectorAll('tr[data-sib]').forEach(tr => { if (tr.classList.contains('me')) return; tr.onclick = () => { const o = (cx.sibs || []).find(z => z.id === tr.dataset.sib); if (o && cx.open) cx.open(o); }; });
     if (sibs.length > 1) loadThumbs(body, sibs.map(o => o.id).filter(id => id !== a.id));
     landingLine(a, body);
+    adTrend(a, cur, body);
     const stu = body.querySelector('[data-studio]');
     if (stu) stu.onclick = () => iterateStep(a, cur, g, cx, x);
     const brk = body.querySelector('[data-brk]');
@@ -840,7 +877,7 @@
   function breakdownHtml(r, cur) {
     if (r.error && !(r.placements || []).length) return `<p class="v2bad">${esc(r.error)}</p>`;
     const tbl = (rows, label) => { if (!rows || !rows.length) return ''; const tot = rows.reduce((x, b) => x + b.spend, 0) || 1, mx = Math.max(...rows.map(b => b.spend), 1);
-      return `<h4>${label}</h4><div class="v2tbl"><table><thead><tr><th></th><th>Spend</th><th>CTR</th><th>CPM</th><th>Hook</th><th${tipAttr("Meta's own purchase count: Triple Whale cannot split by placement or age, so this column is only for comparing rows")}>Purchases*</th></tr></thead><tbody>${rows.filter(b => b.spend >= Math.max(1, tot * 0.01)).slice(0, 8).map(b => `<tr><td><b>${esc(b.key)}</b></td><td>${ib(b.spend, mx, null, `${kmoney(b.spend, cur)} · ${pct(b.spend / tot, 0)}`)}</td><td>${pct(b.impressions ? b.clicks / b.impressions : null, 2)}</td><td>${money2(b.impressions ? b.spend * 1000 / b.impressions : null, cur)}</td><td>${b.v3 && b.impressions ? pct(b.v3 / b.impressions, 0) : ' - '}</td><td>${int(b.meta_purchases)}</td></tr>`).join('')}</tbody></table></div>`; };
+      return `<h4>${label}</h4><div class="v2tbl lx-norow brk-t"><table><thead><tr><th></th><th>Spend</th><th>Share</th><th>CTR</th><th>CPM</th><th>Hook</th><th${tipAttr("Meta's own purchase count: Triple Whale cannot split by placement or age, so this column is only for comparing rows")}>Purchases*</th></tr></thead><tbody>${rows.filter(b => b.spend >= Math.max(1, tot * 0.01)).slice(0, 8).map(b => `<tr><td><b>${esc(b.key)}</b></td><td>${kmoney(b.spend, cur)}</td><td>${pct(b.spend / tot, 0)}</td><td>${pct(b.impressions ? b.clicks / b.impressions : null, 2)}</td><td>${money2(b.impressions ? b.spend * 1000 / b.impressions : null, cur)}</td><td>${b.v3 && b.impressions ? pct(b.v3 / b.impressions, 0) : ' - '}</td><td>${int(b.meta_purchases)}</td></tr>`).join('')}</tbody></table></div>`; };
     return `${tbl(r.placements, 'By placement')}${tbl(r.people, 'By age and gender')}<p class="v2hint">*Purchases here are Meta's own count, the only source that splits by placement and age. Use them to compare rows, not as the ad's result.</p>`;
   }
   function compareAds(list, cur, goal, open) {
