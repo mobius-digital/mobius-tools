@@ -4328,3 +4328,7 @@ Cole: "Studio looks like absolute shit. I still don't understand how things get 
   value, the target as a tick (no ghost bar). Yesterday on Today is a receipt (`river()` in v4.js, `.lx-rc`): Sales, each cost
   with its share and hairline, Kept, a normal day. Agency kept bars, table inline bars, the share bar and funnel bars are
   hairlines too. CSS block "RECEIPT ROWS" at the end of lx.css. Not seen in a browser: Chrome stopped responding (every tab).
+- **Week pass (socialweek.js?v=7):** the tray is labelled rows, not a 2-up thumbnail wall: picture, title, source · who,
+  and a state chip (To film / Ready / On the week), grouped To film, Ready to post, Already on the week; 288px wide.
+  A "How it works" line under the controls (drag on desktop, tap Ready on a phone). Tray and grid carry the v5 shadow
+  and radius. Drag, click and the phone sheet are unchanged (`.sw-ti[data-ref]`). Shot `docs/locus-social/screens/2026-10-21-week-tray.jpg`.
