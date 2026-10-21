@@ -32,6 +32,7 @@ import { SKIP as PAUSED } from './moved.js';
 import { readToday, messageFor } from './todaypost.js';
 import { ensureActions, markDone, reminderMessage, ROSTER } from './actions.js';
 import { breakoutsFor } from './social.js';
+import { readKept } from './morning.js';
 
 const LOCUS = 'https://tools.go-mobius-digital.com/profit/';
 export const DEFAULT_MORNING_HOUR = 5;
@@ -157,14 +158,27 @@ function dailyState(a, row) {
   if (row.status === 'skipped') { const m = String(row.text || '').match(/^No daily today: the (\w+) report/); return m ? `no client daily today, the ${m[1]} report covers it` : 'client daily skipped'; }
   return `client daily ${row.status}`;
 }
-function numbersLine(a, row) {
+/* 2026-10-21: the SAME numbers the Morning page shows (profit worker /api/hub/kept, read once per tick as the owner):
+   what was kept after every cost, on what sales, ads share. The brief row is the fallback when kept is not in. */
+function numbersLine(a, row, kb) {
   const day = safe(row && row.data_json, {})?.day;
   const act = day && day.a, plan = day && day.f, cur = a.currency;
+  if (kb && kb.has && kb.kept != null && kb.sales != null) {
+    const parts = [`Yesterday kept ${money(kb.kept, cur)} on ${money(kb.sales, cur)} of sales${plan && plan.sales ? ` (plan ${money(plan.sales, cur)})` : ''}`];
+    if (kb.ads_pct != null) parts.push(`ads at ${kb.ads_pct}%`);
+    return parts.join(' · ');
+  }
   if (!act || act.sales == null) return 'Yesterday\'s numbers are not in yet';
   const parts = [`Yesterday ${money(act.sales, cur)}${plan && plan.sales ? ` (plan ${money(plan.sales, cur)})` : ''}`];
   if (act.mer != null && isFinite(act.mer)) parts.push(`MER ${(+act.mer).toFixed(2)}x`);
   return parts.join(' · ');
 }
+/** /api/hub/kept for every brand, once; null when it cannot be read (the brief row then carries the line). */
+async function keptShared(env, d) {
+  if (!d || !d.mintSession) return null;
+  try { return await readKept(env, d); } catch (e) { return { brands: [], error: e.message }; }
+}
+const keptOf = (kept, act) => kept && Array.isArray(kept.brands) ? kept.brands.find(b => b.act_id === act) || null : null;
 /** "cut 9 ad sets, scale 1 · $2.4K at stake". */
 export function callsText(rows, cur) {
   const list = (rows || []).filter(r => CALL_KINDS.includes(r.kind));
@@ -189,6 +203,7 @@ export async function buildCard(env, d, a, today, shared = {}) {
   const monday = new Date(today + 'T12:00:00Z').getUTCDay() === 1;
   const brief = await env.DB.prepare(`SELECT status, posted_at, text, data_json FROM briefs WHERE act_id = ?1 AND date = ?2`).bind(a.act_id, yday).first().catch(() => null);
   const items = [], notes = [];
+  if (shared.kept && shared.kept.error) notes.push(`kept: ${shared.kept.error}`);
   /* Today's calls: one line, the media buyer tagged. */
   let rows = null;
   try { rows = ((await readToday(env, d, a.act_id)) || {}).rows || []; } catch (e) { notes.push(`calls: ${e.message}`); }
@@ -268,7 +283,7 @@ export async function buildCard(env, d, a, today, shared = {}) {
   }
   return {
     act: a.act_id, name: a.name, date: today, channel: a.slack_channel || null, ts: null,
-    nums: numbersLine(a, brief), daily: dailyState(a, brief), items: shown, more: items.length - shown.length,
+    nums: numbersLine(a, brief, keptOf(shared.kept, a.act_id)), daily: dailyState(a, brief), items: shown, more: items.length - shown.length,
     owes, weekly, calls: calls.length > 0, notes, leaks: leakIds, social_at: socialAt,
     /* For the thread only; never stored. */
     _rows: rows || [], _tasks: tasks,
@@ -390,6 +405,7 @@ export async function morningCardTick(env, d) {
       calendar: d.calendarData ? await d.calendarData(env, { act: 'all', from: tomorrow, to: tomorrow, today }).catch(() => null) : null,
       board: d.listBoard ? await d.listBoard(env, d, { act: 'all' }).catch(() => null) : null,
       team: d.teamOf ? await d.teamOf(env, live.map(a => a.act_id)).catch(() => ({})) : {},
+      kept: await keptShared(env, d),
     };
     for (const a of live) {
       if (!d.canAfford(60)) { out.deferred = 'budget'; break; }
@@ -420,6 +436,7 @@ export async function previewCard(env, d, act) {
     calendar: d.calendarData ? await d.calendarData(env, { act, from: tomorrow, to: tomorrow, today }).catch(() => null) : null,
     board: d.listBoard ? await d.listBoard(env, d, { act }).catch(() => null) : null,
     team: d.teamOf ? await d.teamOf(env, [act]).catch(() => ({})) : {},
+    kept: await keptShared(env, d),
   };
   const c = await buildCard(env, d, a, today, shared);
   const { _rows, _tasks, ...card } = c;
@@ -472,7 +489,7 @@ export async function cardBriefState(env, d, a) {
   const c = await loadCard(env, a.act_id, today);
   if (!c) return false;
   const row = await env.DB.prepare(`SELECT status, posted_at, text, data_json FROM briefs WHERE act_id = ?1 AND date = ?2`).bind(a.act_id, addDays(today, -1)).first().catch(() => null);
-  const daily = dailyState(a, row), nums = numbersLine(a, row);
+  const daily = dailyState(a, row), nums = numbersLine(a, row, keptOf(await keptShared(env, d), a.act_id));
   if (daily === c.daily && nums === c.nums) return false;
   c.daily = daily; c.nums = nums;
   return redraw(env, d, c);
