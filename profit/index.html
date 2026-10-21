@@ -3212,6 +3212,7 @@ Object.assign(PAGE_BRIEF, {
   inspo: { answers: 'Other brands’ ads saved as inspiration.', when: 'When briefing new creative.', todo: 'Browse the boards and use Brief one like it on anything worth borrowing.' },
   brief: { answers: 'Yesterday’s numbers written up for the client, ready to send.', when: 'Every morning.', todo: 'Read it, add What we did, then Send to client.' },
   reports: { answers: 'The weekly and monthly client reports.', when: 'Monday for weekly, the 1st for monthly.', todo: 'Read the draft, fix anything wrong, then Send.' },
+  requests: { answers: 'What the client has to approve or send us (an offer, a date, a photo, a budget), and what we owe them an answer on. One list each way.', when: 'Before a client call, and whenever something waits on them.', todo: 'Send for approval puts it in their channel with a Yes button. Add a request for anything else. Tick it when it comes back.' },
   dash: { answers: 'Saved views you or Locus built, which can post to Slack on a schedule.', when: 'Whenever you want the same view again.', todo: 'Open one, or ask Locus to build one.' },
   costs: { answers: 'Whether the brand’s cost data can be trusted, so profit numbers are real.', when: 'When contribution margin looks wrong.', todo: 'Fix costs in Triple Whale, or set a flat margin here.' },
   health: { answers: 'Whether each brand’s data is complete and syncing.', when: 'When a number looks wrong.', todo: 'Fix anything marked broken before trusting that brand’s numbers.' },
@@ -4797,6 +4798,44 @@ if (V4) Object.assign(TOURS, {
     { sel: '.v4-ring', title: 'The month', body: 'Banked against the plan by now. The outer arc is where the month lands at today\'s pace. Green is on plan, amber is close, red is behind.' },
     { sel: '.v4-top > section:last-child', title: 'Needs you', body: 'The few things waiting on a person, one button each. Everything else on this page is for reading.' },
   ] },
+
+  today: { name: 'The ad queue', steps: [
+    { sel: '.dk-counts', title: 'What kind of call', body: 'Fix, Scale, Cut, Trim, Refresh, Call. The number is how many. Fix first: an account that spent nothing beats every other call.' },
+    { sel: '.dk-row', title: 'One row, one call', body: 'The verdict, the ad set or ad, the numbers behind it and the reason in a sentence. Ranked by money at stake.' },
+    { sel: '.dk-row .dk-acts', title: 'Do it, or Done', body: '<b>Do it</b> makes the change through Locus and logs it. <b>Done</b> says you did it in Ads Manager. Either way it lands in Changes, in tomorrow\'s brief and as a ticked task the report can count.' },
+    { sel: '#hdPeriod', title: 'The window', body: 'Every number on a row is this window. It always ends yesterday.' },
+  ] },
+  leaks: { name: 'Leaks', steps: [
+    { sel: '.lk-rows', title: 'Where the money goes', body: 'Each line is one leak with a monthly price, cross-checked across channels so one problem shows once. Biggest first.' },
+    { sel: '.lk-link', title: 'Make it a task', body: 'Puts it on Tasks with an owner. The button then says On Tasks, then Done once ticked, so nothing is filed twice.' },
+  ] },
+  production: { name: 'The Pipeline', steps: [
+    { sel: '.pd-col', title: 'Ideas first', body: 'Saved posts, refresh calls and leaks that want an ad. <b>Brief it</b> prefills the brief. Then Brief, Making, Review, Ready, Live.' },
+    { sel: '.pd-card', title: 'A card is a brief', body: 'Its number is the ad\'s name in Meta. The picture shows on every stage once there is one. The chip is the one thing it needs from a person. Drag it to move it; Asana follows.' },
+    { sel: '.pd-live', title: 'Live reads the ad wall', body: 'How many of its ads are live, what they spent, sales, and the verdicts filed on them. The loop closes here.' },
+  ] },
+  reports: { name: 'The report as a story', steps: [
+    { sel: '.rp-pick', title: 'Which report', body: 'Week or month, which period, and where it stands: draft, sent, or handled automatically for a brand with no client channel.' },
+    { sel: '.v2tiles, .lx-sk-tiles', title: 'The numbers', body: 'Revenue, ad spend, MER and aMER against forecast and the period before.' },
+    { sel: '.rp-adc-row', title: 'Best and worst ads', body: 'The same 4:5 cards as the ad wall, ROAS first, so the client sees the work.' },
+    { sel: '.v4-repc', title: 'Done, and from you', body: 'What the team did (ticked tasks, ad changes) and what the client still owes. Both read the live lists, nothing is typed twice.' },
+  ] },
+  calls: { name: 'Meetings', steps: [
+    { sel: '.cl-run-g', title: 'Run a call', body: 'Monday, client or creative kickoff: a runner that walks each brand with its numbers and ads on screen and a timer. Nothing to fill in.' },
+    { sel: '.cl-row', title: 'What the call decided', body: 'Every item Locus read from the recording: tick what is right, change where it goes or who owns it, then one press sends each where it belongs.' },
+  ] },
+  tasks: { name: 'Tasks', steps: [
+    { sel: '.tk-segw', title: 'Three views', body: 'List, Board and Calendar are the same tasks. Filters by brand, person, due and area.' },
+    { sel: '.tk-card, .tk-row', title: 'One task', body: 'Where it came from (a call, a leak, an ad row) stays on it, so the report and the next call can count it. Tick it when done.' },
+  ] },
+  calendar: { name: 'The Calendar', steps: [
+    { sel: '.cal-ev, .cal-card', title: 'A date', body: 'What customers will see and when, with what has to be ready for it. Drag it to move it; the countdown and the brand channel follow.' },
+    { sel: '.cal-seg', title: 'Season', body: 'The plan behind the dates: offers, phases, the budget line.' },
+  ] },
+  social: { name: 'Social', steps: [
+    { sel: '.v2tabs, .so-tabs', title: 'Feed, Breaking out, Saved, Week, Results', body: 'What is being posted, what is doing far better than usual, what you kept, our plan for the week, and how ours did.' },
+    { sel: '[data-make], .so-make', title: 'Make ours', body: 'A brief for the Pipeline, a creator line, a Studio ad, or a post of our own, now or planned.' },
+  ] },
   month: { name: 'Money > Month', steps: [
     { sel: '.v4-land', title: 'Where the month lands', body: 'The ring is the forecast at the planned spend over the goal. Under it, three paths: spending the budget, today\'s pace, and what a day has to do to hit it.' },
     { sel: '.v4-top.v4-mo > section:nth-child(2)', title: 'Weeks against target', body: 'Each week against its share of the goal. Grey is the target, colour is the actual. The strip under it is the month in five numbers.' },
@@ -4805,6 +4844,81 @@ if (V4) Object.assign(TOURS, {
   ] },
 });
 const PAGE_HELP = {
+  today: `
+    <p><b>What this page is:</b> one queue of what to change in the ad accounts today, across Meta and Google. Ad set first: a Meta ad set is judged as a whole, then each ad inside it by its role. Google rows are search terms to add as negatives.</p>
+    <p><b>How it is ranked:</b> by money at stake, the spend the call touches over the window in the top bar. Fix rows (an account that spent nothing, a rejected ad) come first because nothing else matters until they are done.</p>
+    <p><b>The chips</b> under the heading filter by kind: Fix, Scale, Cut, Trim, Refresh, Call (tests past their judging day). The number is how many.</p>
+    <p><b>Each row:</b> the verdict, the ad set or ad, the numbers behind it (spent, sales, cost per sale against the goal), and the reason in a sentence. <b>Do it</b> makes the change through Locus's own connection and logs it. <b>Done</b> says you made it in Ads Manager yourself. Both land in Changes and in tomorrow's brief; both become a ticked task the client report can count.</p>
+    <p><b>Do all</b> at the top makes every change on the list that Locus can make itself, one confirmation. Rows it cannot make (a creative to refresh) stay for a person.</p>
+    <p><b>Agency view:</b> the same queue for every brand, worst first, with the brand on each row.</p>`,
+  leaks: `
+    <p><b>What this page is:</b> where this brand loses money, as a ranked list with a monthly price on each line. Each leak is cross-checked across channels (ads, site, email, search) before it is shown, so a slow page and the ads that send people to it are one leak, not two.</p>
+    <p><b>Each row:</b> the leak in plain words, what it costs a month (an estimate from the brand's own numbers), who should own it, and the evidence behind it. Open a row for the full working.</p>
+    <p><b>Make it a task</b> puts it on Tasks with the owner and the brand; the button then reads On Tasks, and Done once the task is ticked, so a leak is never filed twice. Dismiss hides one that is known and accepted.</p>
+    <p><b>The strip at the top of Morning</b> is this list's total and its biggest line.</p>`,
+  yesterday: `
+    <p><b>What this page is:</b> was yesterday a bad day for Meta advertisers in general, or just for us. Four signs are read: our brands paying more per sale than their usual, other advertisers' results, Meta's own status page, and advertisers complaining online. Two or more agreeing is a bad day.</p>
+    <p><b>Why it matters:</b> on a platform-wide bad day the ad calls on Today are wrong; the numbers moved for everyone. Read this before touching an account.</p>
+    <p><b>The verdict</b> at the top is Locus's call in one line, with the signs that drove it under it. Green: a normal day, trust the calls. Amber: mixed, read the reasons. Red: hold, do not cut or scale on yesterday's numbers.</p>`,
+  production: `
+    <p><b>What this page is:</b> every ad from idea to live, as a board. <b>Ideas</b> first: saved social posts, refresh calls from the ad queue and leaks that want an ad, each with a Brief it button that prefills the brief. Then <b>Brief</b>, <b>Making</b>, <b>Review</b>, <b>Ready</b>, <b>Live</b>.</p>
+    <p><b>Each card</b> is a numbered brief (the number is the ad's name in Meta), with its picture once there is one, the one thing it needs from a person, its owner and its date. Drag a card to move it; Asana follows and the brand channel gets one line.</p>
+    <p><b>Review</b> is where the team and the client mark up the versions; it lives only in Locus. <b>Ready</b> cards launch to Meta from the card. A <b>Live</b> card reads the ad wall: how many of its ads are live, what they spent, sales, and the verdicts filed on them.</p>
+    <p><b>Filters</b> above the board narrow by brand (Agency view), format and owner.</p>`,
+  reports: `
+    <p><b>What this page is:</b> the weekly and monthly client report as a story. The numbers first (revenue, ad spend, MER, aMER against forecast and the prior period), then the summary in plain English, the best and worst ads of the period as cards, what the team did (ticked tasks and ad changes), and what the client still owes.</p>
+    <p><b>Drafts</b> write themselves on Monday (weekly) and the 1st (monthly). Read the draft, Edit the wording if it needs it, then <b>Send to client</b>. A sent report is frozen so the client's link never changes. More holds Rewrite with AI, the client link and Generate for a past period.</p>
+    <p><b>Dashboards</b> are your own saved views. <b>Requests</b> is what the client has to approve.</p>
+    <p><b>A client</b> sees the same page for their brand with no team buttons.</p>`,
+  channels: `
+    <p><b>What this page is:</b> every ad channel side by side for the window in the top bar: spend, revenue, ROAS, cost per new customer, new customers. Revenue and ROAS come from Triple Whale under the model in the top bar; spend and delivery from each platform.</p>
+    <p><b>The jobs row</b> under the tabs goes one level deeper per platform: Meta, Meta campaigns, Google, Google campaigns, Search terms, TikTok.</p>
+    <p><b>Two models side by side</b> shows who gets the credit under a second model, for the argument about where the next dollar goes.</p>`,
+  adcreative: `
+    <p><b>What this page is:</b> every Meta ad as a card with its creative and its verdict (Scale, Keep, Trim, Cut, Watch), judged inside its ad set by the brand's own rules. The wall is the every-ad gallery; click a card for the why.</p>
+    <p><b>Filters</b> narrow by verdict, format and campaign. <b>Make more like this</b> on a winner opens Studio with the ad as the reference.</p>`,
+  changes: `
+    <p><b>What this page is:</b> what was changed on the ad account and when: budgets, status, bids, creative. Locus's own changes carry their reason and the row that called for them; changes made in Ads Manager by hand show the person. Changes that matter are the ones over the account's normal size.</p>
+    <p><b>Use it</b> when a number moved and you want to know whether a change caused it. Add the reason to any change that has none.</p>`,
+  social: `
+    <p><b>What this page is:</b> what the brand's own accounts and the accounts it follows are posting on Instagram, TikTok and YouTube. <b>Feed</b> is the latest. <b>Breaking out</b> is any post doing far better than that account usually does. <b>Saved</b> is what you kept. <b>Week</b> is the plan for our posts, with Fill the week. <b>Results</b> is how ours did.</p>
+    <p><b>Make ours</b> on any post opens Make: a brief for the Pipeline, a creator link line, a Studio ad, or a post of our own, posted now or planned.</p>`,
+  calendar: `
+    <p><b>What this page is:</b> one calendar for everything a customer will see and when: drops, sales, emails, the season plan, for every client. The team's tasks sit on the day they are due. Each date lists what has to be ready for it (photos, ads briefed and built, the email scheduled, the ads loaded).</p>
+    <p><b>Season</b> is the plan behind the dates: offers, phases and the budget line. Drag a date to move it; the countdown and the brand channel follow.</p>`,
+  tasks: `
+    <p><b>What this page is:</b> what the team owes, from approved calls, the ad queue, leaks and quick adds. List, Board and Calendar are the same tasks three ways. Filters by brand, person, due and area.</p>
+    <p><b>Add</b> a task in plain words at the top. Tick it when done, or press Done on the Slack reminder. A task made from a call, a leak or an ad row remembers where it came from, so the report and the next call can count it.</p>`,
+  calls: `
+    <p><b>What this page is:</b> the meetings. <b>Run a call</b> opens a runner (Monday, client, creative kickoff) that walks every brand with its numbers and ads on screen and a timer. <b>Waiting on</b> is every recorded call Locus has read, with what it decided: tasks, briefs, report lines, client asks. Nothing lives here; tick what is right, fix what is wrong, and one press sends each item where it belongs.</p>
+    <p><b>Past calls</b> below is the record: date, brand, who, length, what it made.</p>`,
+  requests: `
+    <p><b>What this page is:</b> the two lists between us and the client. <b>Waiting for us</b>: what they asked for. <b>Waiting for the client</b>: what we sent for approval (an offer, a date, a creative, a budget) with a Yes button in their channel.</p>
+    <p><b>Send for approval</b> writes the ask and posts it. <b>Add a request</b> records anything else. Tick either when it comes back; the report's From you section reads this list.</p>`,
+  dash: `
+    <p><b>What this page is:</b> saved views you or Locus built, for the same question every week. Each can post to Slack on a schedule.</p>
+    <p><b>Edit by hand</b> changes the layout; <b>Change it with Locus</b> rewrites it from a sentence.</p>`,
+  studio: `
+    <p><b>What this page is:</b> where the ads get made. Pick the brief or the angle, the real product photo from the Library, the format and the look; Studio paints the scene around the real product, checks the fit and the light, and hands back the ad for review on the Pipeline.</p>
+    <p><b>Words</b> writes the copy in the brand's voice. The brand's rules (no AI product for Lucky, photoreal people as a real shoot) are applied on every make.</p>`,
+  library: `
+    <p><b>What this page is:</b> every photo and video the brand has given us, by product, with the cut-outs Studio uses. Upload here first; Studio and the creator link read from it.</p>`,
+  inspo: `
+    <p><b>What this page is:</b> ads and posts worth copying, by brand and by angle, saved from the Social feed, the ad library and by hand. Brief it on any one opens the Pipeline with it as the reference.</p>`,
+  amb: `
+    <p><b>What this page is:</b> the public creator link TRYBE creators film from: the videos we want, four steps and a checklist, one page per brand. Edit the videos here; the link updates itself.</p>`,
+  answers: `
+    <p><b>What this page is:</b> the brand itself in three views. <b>Client answers</b> is the call sheet: what the client told us, by question. <b>Research</b> is what we found. <b>Voice</b> is how the brand talks, from the voice interview, and feeds every brief and ad.</p>`,
+  store: `
+    <p><b>What this page is:</b> the store's own numbers for the window: sales, orders, AOV, products, discounts, new against returning, from Shopify through Triple Whale. The place to check the product behind a number on Month.</p>`,
+  website: `
+    <p><b>What this page is:</b> the site's behaviour: visitors, add to cart, checkout, conversion by device and by page, from GA4. Leaks on the site (a slow page, phones that do not add to cart) are priced on Leaks.</p>`,
+  search: `
+    <p><b>What this page is:</b> Google Search Console: what people searched to find the site, where it ranks, and which pages win. The search-term leaks on the ad queue come from here and Google Ads together.</p>`,
+  email: `
+    <p><b>What this page is:</b> Klaviyo: campaigns and flows, what they made, list growth and the health of the sending. Email revenue here is Triple Whale's credit under the model in the top bar.</p>`,
+  stock: `
+    <p><b>What this page is:</b> stock on hand, days of cover at the current rate of sale, and what to reorder when. <b>Buying</b> is the order plan; <b>Drops</b> is the launch plan for new product.</p>`,
   morning: `
     <p><b>What this page is:</b> the first page of the day. Yesterday after every cost, the month against the plan, and the few things that need a person.</p>
     <p><b>The river:</b> sales on the left, each cost takes its bite (ads, product, shipping, fees), and what was kept is the blue at the end. The dashed line is what a normal day keeps, from the last 28 days. Every number is Triple Whale's.</p>
