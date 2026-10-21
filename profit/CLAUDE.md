@@ -4332,3 +4332,9 @@ Cole: "Studio looks like absolute shit. I still don't understand how things get 
   and a state chip (To film / Ready / On the week), grouped To film, Ready to post, Already on the week; 288px wide.
   A "How it works" line under the controls (drag on desktop, tap Ready on a phone). Tray and grid carry the v5 shadow
   and radius. Drag, click and the phone sheet are unchanged (`.sw-ti[data-ref]`). Shot `docs/locus-social/screens/2026-10-21-week-tray.jpg`.
+- **Live check, 2026-10-21 (Cole's Chrome, Lucky, real data, social.js?v=12):** 244 cards, plan strip (0 of 5, 1 to
+  film, 22 ready), YouTube plays with `mute=0`, an Instagram MP4 plays unmuted, a 7-slide carousel pages by arrows and
+  keys, the chooser opens, the Week tray groups 8 To film / 22 Ready. Fixed from it: **Worth making picks followed
+  brands first** (own-usual ratio 2x+), topic posts only fill the rest at 5x+ (before, all four were topic accounts at
+  "523x its size" against follower count); quick arrow presses on a carousel now each move a slide (`S2.lock`).
+  No Make ours path was run live (each one makes a real task, brief or batch). Shots `2026-10-21-live-*`.
