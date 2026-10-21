@@ -80,6 +80,8 @@
       .cl .cl-sc{overflow-x:auto}
       .cl .cl-tr{display:grid;grid-template-columns:28px minmax(0,1fr) 160px 140px 120px 28px;gap:12px;align-items:center;padding:6px 16px;border-top:1px solid var(--line);min-width:640px}
       .cl .cl-th{padding:10px 16px 4px;font-size:11px;letter-spacing:.4px;text-transform:uppercase;color:var(--faint,var(--muted))}
+      /* phone (2026-10-21): the item rows stack, the title full width and the meta under it, no 640px table on a 390px screen */
+      @media (max-width:720px){.cl .cl-tr.cl-th{display:none}.cl .cl-tr{min-width:0;padding:10px 12px;gap:6px 8px;align-items:start;grid-template-columns:28px minmax(0,1fr) auto 28px;grid-template-areas:'ck tw tw tw' 'ck go go go' 'ck who due q'}.cl .cl-row>input{grid-area:ck;margin-top:2px}.cl .cl-row>.tw{grid-area:tw}.cl .cl-row>div:nth-child(3){grid-area:go}.cl .cl-row>div:nth-child(4){grid-area:who}.cl .cl-row>div:nth-child(5){grid-area:due}.cl .cl-row>div:nth-child(6){grid-area:q}.cl .cl-row>div{justify-self:start;min-width:0}.cl .cl-row>div:nth-child(6){justify-self:end}}
       .cl .cl-row .t{color:var(--ink);font-size:13.5px;line-height:1.4;padding:3px 6px;margin-left:-6px}
       .cl .cl-row.off .t{text-decoration:line-through;color:var(--muted)}
       .cl .cl-row .tw{min-width:0}

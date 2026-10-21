@@ -5,6 +5,7 @@ import { handleCommand } from './command.js';
 import { handleAgency } from './agency.js';
 import { handleClients, clientAsk, clientOwnsRun, touchClient, meClient } from './clients.js';
 import { listBrands, addConnection, createBrand, brandByChannel, connectionNote, KINDS as BRAND_KINDS, metaOf, isBrandId, resolveBrandId, acctOf, metaSyncRows, setTripleWhale, storagePrefix, brandOf, connGet, connSet } from './brands.js';
+import { whoIs, channelInfo, brandForChannel, readAccess, writeAccess } from './slackaccess.js';
 import { movedTick, movedPreview } from './moved.js';
 import { ensureCreative, putCover, serveCover, assetKeyOf, creativeTick, tagTick, keyTick, adBreakdown as adSplit, adOriginal, useFetch as creativeFetch } from './creative.js';
 import { marketFor, metaDay, chatterFor, useFetch as marketFetch, usePulse } from './market.js';
@@ -2683,6 +2684,18 @@ async function styleBlock(env, kind, actId) {
     : '';
 }
 
+/* THE LOOP (2026-10-21): the team's ticked tasks (p_action, from Tasks, the leaks, the calls on Today and the Monday runner)
+   go into the brief next to the Change Log, so "what we're doing" says what was actually done. Empty when the table is
+   missing or nothing was ticked. */
+async function doneTaskLines(env, actId, sinceYmd) {
+  try {
+    const { results } = await env.DB.prepare(
+      `SELECT text, done_at, done_by, source FROM p_action WHERE act_id = ?1 AND status = 'done' AND done_at >= ?2 ORDER BY done_at DESC LIMIT 20`,
+    ).bind(actId, sinceYmd).all();
+    return (results || []).map(r => `- ${String(r.done_at).slice(0, 16).replace('T', ' ')} [team task done${r.source === 'today' ? ', from the calls' : r.source === 'monday' || r.source === 'meeting' ? ', from the call' : ''}] ${r.text}${r.done_by ? ` {by: ${r.done_by}}` : ''}`);
+  } catch { return []; }
+}
+
 async function writeBriefNarrative(env, acct, data, date, steer) {
   const f2 = n => n == null ? ' - ' : String(Math.round(n * 100) / 100);
   const lines = data.days.filter(x => x.date <= date).slice(-14).map(x =>
@@ -2692,6 +2705,7 @@ async function writeBriefNarrative(env, acct, data, date, steer) {
      WHERE act_id IN ${metaOf(1)} AND event_time >= ?2 AND confirmed != -1 ORDER BY event_time DESC LIMIT 40`,
   ).bind(acct.act_id, addDays(date, -7)).all();
   const evLines = evs.map(e => `- ${String(e.event_time).slice(0, 16).replace('T', ' ')} [${e.category}] ${e.summary}${e.reason ? ` {reason: ${e.reason}}` : ''}${e.note ? ` {note: ${e.note}}` : ''}`);
+  evLines.push(...await doneTaskLines(env, acct.act_id, addDays(date, -7)));
   // Its own last three briefs, so it can see what it already said and not
   // say it again (see PLAIN_VOICE).
   const { results: recent } = await env.DB.prepare(
@@ -2897,6 +2911,7 @@ async function writeBriefNarrativeV2(env, acct, data, date, steer) {
      WHERE act_id IN ${metaOf(1)} AND event_time >= ?2 AND confirmed != -1 ORDER BY event_time DESC LIMIT 40`,
   ).bind(acct.act_id, addDays(date, -2)).all();
   const evLines = evs.map(e => `- ${String(e.event_time).slice(0, 16).replace('T', ' ')} [${e.category}] ${e.summary}${e.reason ? ` {reason: ${e.reason}}` : ''}${e.note ? ` {note: ${e.note}}` : ''}`);
+  evLines.push(...await doneTaskLines(env, acct.act_id, addDays(date, -2)));
   const { results: recent } = await env.DB.prepare(
     `SELECT date, text FROM briefs WHERE act_id = ?1 AND date < ?2 AND text IS NOT NULL ORDER BY date DESC LIMIT 3`,
   ).bind(acct.act_id, date).all().catch(() => ({ results: [] }));
@@ -6428,6 +6443,11 @@ async function handleSlackInteract(request, env, ctx) {
       /* 2026-10-15: applied after the ack. A grouped card (Apply all) runs several changes in a row, past Slack's 3 seconds. */
       const say = body => payload.response_url ? xfetch(payload.response_url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => {}) : null;
       ctx.waitUntil((async () => {
+        /* Only Cole and the team apply a card (slackaccess.js); a guest or an outsider in a shared channel cannot. */
+        if (!val.cancel) {
+          const g = await whoIs(env, accessDeps(), payload.user?.id).catch(() => ({ ok: false }));
+          if (!g.ok || g.role === 'guest') { await slackWhisper(env, payload.channel?.id, payload.user?.id, 'Only the Mobius Digital team can apply this.'); return; }
+        }
         const many = String(val.askp || '').includes(',') && !val.cancel;
         if (many) await say({ replace_original: true, text: 'Applying them now...' });
         const res = await engine.applyProposal(env, String(val.askp || ''), h(), { cancel: !!val.cancel, ctx: { ...askCaller(env, 'Bearer ' + (env.ADMIN_TOKEN || ''), ctx), who: payload.user?.name || payload.user?.username || (payload.user?.id ? `<@${payload.user.id}>` : null), whoId: payload.user?.id || null } }).catch(e => ({ error: String(e.message || e) }));
@@ -7330,7 +7350,15 @@ async function handleSlackEvent(request, env, ctx) {
   const claim = await env.DB.prepare(`INSERT OR IGNORE INTO settings (key, value) VALUES (?1, ?2)`)
     .bind(`askSeen:${ev.channel}:${ev.ts}`, String(Date.now())).run().catch(() => ({ meta: { changes: 1 } }));
   if (!claim.meta?.changes) return ACK();
-  let brandRow = null, agencyCh = false;
+  /* WHO MAY USE LOCUS (slackaccess.js, 2026-10-21): Cole, the people on the Slack access list, and the team. Anyone
+     else gets nothing, and on a tag a private note only they can see. Checked in every channel, DMs included. */
+  const gate = await whoIs(env, accessDeps(), ev.user).catch(e => ({ ok: false, role: 'error', reply: `I could not check who you are (${e.message}). Try again in a minute.` }));
+  if (!gate.ok) {
+    if (dm) ctx.waitUntil(slackApi(env, 'chat.postMessage', { channel: ev.channel, thread_ts: ev.thread_ts || ev.ts, text: gate.reply, username: 'Locus' }).catch(() => {}));
+    else if (mentioned) ctx.waitUntil(slackApi(env, 'chat.postEphemeral', { channel: ev.channel, user: ev.user, thread_ts: ev.thread_ts || undefined, text: gate.reply }).catch(() => {}));
+    return ACK();
+  }
+  let brandRow = null, agencyCh = false, other = null;
   if (!dm && !group) {
     /* The brand comes from brands (brands.js), so a brand with no Meta account (Speedin) is still a
        brand. brand_accounts is the fallback (an active or demo brand's internal channel). */
@@ -7338,23 +7366,42 @@ async function handleSlackEvent(request, env, ctx) {
     brandRow = b ? { act_id: b.id, name: b.name, brand: b }
       : await env.DB.prepare(`SELECT act_id, name FROM brand_accounts WHERE slack_channel = ?1 LIMIT 1`).bind(ev.channel).first();
     /* The agency Strategist channel (settings.strategistChannel, #locus-alerts since 2026-10-10) answers like a DM:
-       any brand, named in the words, team members only. Any other channel that is not a brand's: stay silent. */
-    if (!brandRow && !(agencyCh = ev.channel === await getSetting(env, 'strategistChannel').catch(() => null))) return ACK();
+       any brand, named in the words. Any other channel the app is in (a shared channel with a partner agency, a
+       client channel, a project channel) answers too, unless Agency settings turned Locus off there. */
+    if (!brandRow && !(agencyCh = ev.channel === await getSetting(env, 'strategistChannel').catch(() => null))) {
+      if (gate.access.channels[ev.channel]?.off) return ACK();
+      const info = await channelInfo(env, accessDeps(), ev.channel).catch(() => ({ name: '', shared: false }));
+      const { results: brands } = await env.DB.prepare(`SELECT id, name FROM brands WHERE status IN ('active', 'demo')`).all().catch(() => ({ results: [] }));
+      other = { name: info.name, shared: info.shared, brand: await brandForChannel(env, gate.access, ev.channel, info.name, brands || []) };
+    }
   }
+  /* A person limited to some brands (a teammate in userBrands, or a guest) never gets another brand's channel. */
+  const chanBrand = brandRow?.act_id || other?.brand?.id || null;
+  if (gate.brands && chanBrand && !gate.brands.includes(chanBrand)) {
+    if (mentioned) ctx.waitUntil(slackApi(env, 'chat.postEphemeral', { channel: ev.channel, user: ev.user, text: 'You do not have Locus access for this brand. Ask Cole if you need it.' }).catch(() => {}));
+    return ACK();
+  }
+  const rule = await accessRule(env, gate);
+  const asker = `Asked by ${gate.name}${gate.role === 'guest' ? ', a person OUTSIDE Mobius Digital whom Cole gave read-only access: answer and analyze, never change anything, never offer to change anything, and never share internal costs, margins, other brands or the team\'s private notes' : ''}.`;
   /* DMs to the app come HERE since 2026-10-09 (slack-router sends every DM to Locus; they went to the Ledger).
-     Team members only (the numbers are the team's); the brand comes from the words; the Ledger is one tool
-     away (ask_ledger, Cole only). */
+     The brand comes from the words; the Ledger is one tool away (ask_ledger, Cole only). */
   let dmScreen = null;
   if (dm || group || agencyCh) {
-    const gate = await dmGate(env, ev).catch(e => ({ ok: false, reply: `I could not check who you are (${e.message}). Try again in a minute.` }));
-    if (!gate.ok) { ctx.waitUntil(slackApi(env, 'chat.postMessage', { channel: ev.channel, thread_ts: ev.thread_ts || ev.ts, text: gate.reply, username: 'Locus' }).catch(() => {})); return ACK(); }
-    dmScreen = { dm: true, note: gate.note + (agencyCh ? " This is the agency Strategist channel (Cole's private channel, where alerts land): any brand, named in the words." : '')
+    dmScreen = { dm: true, note: `This is a direct message from ${gate.name}${gate.email ? ` (${gate.email})` : ''} to you, the Strategist. There is no channel brand: work out the brand from their words and the conversation; when it matters and is unclear, ask which brand in one line. Questions about Mobius Digital's OWN money (the agency's income, expenses, receipts, bills, its P&L, taxes, the bank) go to ask_ledger, which only works for Cole.${rule}`
+      + (agencyCh ? " This is the agency Strategist channel (Cole's private channel, where alerts land): any brand, named in the words." : '')
       + (group ? ' This is a GROUP DM: other teammates read this thread and may ask you follow-ups. Answer whoever tagged you, by name; talk to the people the asker names.' : '') };
   }
   /* The channel IS the brand: a question in #lucky-ads is about Lucky Golf unless it names another
      brand. Without this the Strategist asked "which brand?" in Lucky's own channel (2026-10-04). */
+  const outsiders = other?.shared ? ' People OUTSIDE Mobius Digital (the client, a partner agency) are in this channel and read every word you post: write for them too. Never mention other brands, the agency\'s own money, internal margins or costs unless the asker asked for exactly that, and never paste the team\'s private notes.' : '';
   const screen = brandRow ? { slack_channel_brand: brandRow.name, act_id: brandRow.act_id,
-    note: `This is ${brandRow.name}'s internal team channel. Every question here is about ${brandRow.name} (act_id ${brandRow.act_id}) unless it names another brand. Never ask which brand.${brandRow.brand ? ' ' + connectionNote(brandRow.brand) : ''}` } : dmScreen;
+    note: `This is ${brandRow.name}'s internal team channel. Every question here is about ${brandRow.name} (act_id ${brandRow.act_id}) unless it names another brand. Never ask which brand.${brandRow.brand ? ' ' + connectionNote(brandRow.brand) : ''} ${asker}${rule}` }
+    : other ? { ...(other.brand ? { slack_channel_brand: other.brand.name, act_id: other.brand.id } : {}),
+      note: `This is #${other.name || ev.channel}, a Slack channel that is not a brand's internal team channel.${other.brand ? ` It is about ${other.brand.name} (act_id ${other.brand.id}): every question here is about ${other.brand.name} unless it names another brand. Never ask which brand.` : ' Work out the brand from the channel name and the words; when it matters and is unclear, ask which brand in one line.'}${outsiders} ${asker}${rule}` }
+    : dmScreen;
+  if (screen) screen.guest = gate.role === 'guest';
+  /* /slack/owns says yes for this channel from now on, so plain replies in Locus's threads here reach it too. */
+  if (other) ctx.waitUntil(putSetting(env, `locusChan:${ev.channel}`, '1').catch(() => {}));
   ctx.waitUntil((async () => {
     /* 2026-10-09, Cole: "stop having a list of words that make it do X or Y, it should judge from the
        context". EVERY tag goes to the Strategist. It reads the thread and decides; when the job is
@@ -7377,23 +7424,19 @@ async function handleSlackEvent(request, env, ctx) {
   return ACK();
 }
 
-/* Who may DM the Strategist: a full member of our workspace (no guests, no Slack Connect strangers, no bots) with
-   a Mobius email or one Locus allows. A person limited to some brands (settings userBrands) gets the ACCESS RULE. */
-async function dmGate(env, ev) {
-  const u = await slackApi(env, 'users.info', { user: ev.user });
-  if (!u?.ok) throw new Error(u?.error || 'Slack did not answer');
-  const x = u.user || {}, email = String(x.profile?.email || '').toLowerCase();
-  const no = { ok: false, reply: 'I only answer the Mobius Digital team here. Ask your Mobius contact in your shared channel.' };
-  if (x.is_bot || x.deleted || x.is_restricted || x.is_ultra_restricted || x.is_stranger || !email) return no;
-  if (!(await emailAllowed(env, email))) {
-    const map = safeJson(await getSetting(env, 'userBrands'), {}) || {};
-    if (!map[email]) return no;
-  }
-  const only = await brandsFor(env, email).catch(() => null);
-  let rule = '';
-  if (only) { const names = (await listAccounts(env, false)).filter(a => only.has(a.act_id)).map(a => a.name); rule = ` ACCESS RULE: this person may only see ${names.join(', ')}. Read, mention, compare or total no other brand; if asked about one, say they do not have access.`; }
-  const name = x.profile?.real_name || x.real_name || x.name || 'a teammate';
-  return { ok: true, email, note: `This is a direct message from ${name} (${email}) to you, the Strategist. There is no channel brand: work out the brand from their words and the conversation; when it matters and is unclear, ask which brand in one line. Questions about Mobius Digital's OWN money (the agency's income, expenses, receipts, bills, its P&L, taxes, the bank) go to ask_ledger, which only works for Cole.${rule}` };
+/* Who may use Locus in Slack lives in slackaccess.js (the access list + the team rule); these are its deps. */
+function accessDeps() {
+  return { slack: slackApi, getSetting, putSetting, emailAllowed, userBrands: async e => safeJson(await getSetting(e, 'userBrands'), {}) || {} };
+}
+/* A person limited to some brands gets the ACCESS RULE in the prompt (a team member in userBrands, or a guest). */
+async function accessRule(env, gate) {
+  let only = gate.brands ? new Set(gate.brands) : null;
+  if (!only && gate.role === 'team' && gate.email) only = await brandsFor(env, gate.email).catch(() => null);
+  if (!only) return '';
+  const { results } = await env.DB.prepare(`SELECT id, name FROM brands`).all().catch(() => ({ results: [] }));
+  const names = (await listAccounts(env, false)).filter(a => only.has(a.act_id)).map(a => a.name)
+    .concat((results || []).filter(b => only.has(b.id)).map(b => b.name));
+  return ` ACCESS RULE: this person may only see ${[...new Set(names)].join(', ') || 'one brand'}. Read, mention, compare or total no other brand; if asked about one, say they do not have access.`;
 }
 
 /* Is this channel a group DM? conversations.info once per channel, kept in settings (a channel never changes kind). */
@@ -7416,7 +7459,8 @@ async function strategistSlackAnswer(env, ev, screen) {
   /* who: the asker's Slack name, so a change made straight from a message is logged as theirs in the Change Log. */
   const u = ev.user ? await slackApi(env, 'users.info', { user: ev.user }).catch(() => null) : null;
   const who = u?.user?.real_name || u?.user?.profile?.real_name || u?.user?.name || (ev.user ? `<@${ev.user}>` : null);
-  return engine.answerSlack(env, ev, h(), { findings: findings.slice(0, 6), ...(screen ? { screen } : {}), who, call: askCaller(env, 'Bearer ' + (env.ADMIN_TOKEN || ''), null).call });
+  /* A guest (an outside person on the Slack access list) reads only: no call, so nothing applies straight from a message. */
+  return engine.answerSlack(env, ev, h(), { findings: findings.slice(0, 6), ...(screen ? { screen } : {}), who, call: screen?.guest ? null : askCaller(env, 'Bearer ' + (env.ADMIN_TOKEN || ''), null).call });
 }
 
 /* A thread is "open" (the Strategist answers plain replies in it) once it was mentioned there,
@@ -7809,7 +7853,10 @@ const AH_APP = {
         || (ch === await getSetting(env, 'strategistChannel').catch(() => null) ? { x: 1 } : null)
         || await env.DB.prepare(`SELECT 1 AS x FROM p_newclient WHERE slack_client = ?1 AND json_extract(steps_json, '$.slack_welcome') IS NULL LIMIT 1`).bind(ch).first().catch(() => null)
         /* A group DM is ours (2026-10-14): an app_mention carries no channel_type, so the router cannot tell by itself. */
-        || (await isGroupDm(env, ch) ? { x: 1 } : null)) : null;
+        || (await isGroupDm(env, ch) ? { x: 1 } : null)
+        /* 2026-10-21: any other channel Locus has answered in, or one the access list names and has not turned off. */
+        || ((await getSetting(env, `locusChan:${ch}`).catch(() => null)) === '1' ? { x: 1 } : null)
+        || (await readAccess(env, getSetting).then(a => a.channels[ch] && !a.channels[ch].off ? { x: 1 } : null).catch(() => null))) : null;
       return json({ owns: !!row });
     }
 
@@ -8238,6 +8285,78 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         return json({ model: (await getSetting(env, 'strategistModel')) || 'smart', presets: STRAT_PRESETS,
           instructions: (await getSetting(env, 'strategistInstructions')) || '', indexChannels: (await getSetting(env, 'strategistIndexChannels')) || '',
           channel: await getSetting(env, 'strategistChannel') });
+      }
+      /* WHO MAY USE LOCUS IN SLACK (slackaccess.js). Anyone on the team reads it; only Cole changes it. */
+      if (path === '/api/ask/slack-access') {
+        const me = String(await sessionEmail(env, request).catch(() => '') || '').toLowerCase();
+        const owner = me ? me === String(env.OWNER_EMAIL || 'cole@go-mobius-digital.com').toLowerCase() : await isAdmin(request, env);
+        let access = await readAccess(env, getSetting);
+        if (request.method === 'PUT') {
+          if (!owner) return json({ error: 'Only Cole changes who can use Locus.' }, 403);
+          const at = new Date().toISOString();
+          if (body.person) {
+            const id = String(body.person.id || '');
+            if (body.person.remove) delete access.people[id];
+            else access.people[id] = { ...(access.people[id] || {}), name: body.person.name, level: body.person.level, brands: body.person.brands || [], by: me || 'admin', at };
+          }
+          if (body.channel) {
+            const id = String(body.channel.id || '');
+            if (body.channel.remove) delete access.channels[id];
+            else access.channels[id] = { ...(access.channels[id] || {}), name: body.channel.name, brand: body.channel.brand || null, off: !!body.channel.off, by: me || 'admin', at };
+            await putSetting(env, `locusChan:${id}`, body.channel.off || body.channel.remove ? '0' : '1');
+          }
+          access = await writeAccess(env, putSetting, access);
+        }
+        const { results: brands } = await env.DB.prepare(`SELECT id, name FROM brands WHERE status IN ('active', 'demo') ORDER BY name`).all();
+        return json({ ...access, owner, brands: brands || [], cole: 'U06C37MDWD7' });
+      }
+      /* Correct or remove one of Locus's OWN messages in any channel, shared ones included (2026-10-21: its first
+         #lucky-email answer had a wrong price and a long prompt). Cole or the admin key only; Slack itself refuses
+         an app editing anyone else's message, and we check it is ours first. */
+      if (path === '/api/ask/own-message' && request.method === 'POST') {
+        const me = String(await sessionEmail(env, request).catch(() => '') || '').toLowerCase();
+        const owner = me ? me === String(env.OWNER_EMAIL || 'cole@go-mobius-digital.com').toLowerCase() : (env.ADMIN_TOKEN && request.headers.get('Authorization') === 'Bearer ' + env.ADMIN_TOKEN);
+        if (!owner) return json({ error: 'Only Cole can do this.' }, 403);
+        const ch = String(body.channel || ''), ts = String(body.ts || '');
+        const r = await slackApi(env, 'conversations.replies', { channel: ch, ts, latest: ts, inclusive: true, limit: 1 });
+        const msg = (r?.messages || []).find(m => m.ts === ts);
+        const who = await slackApi(env, 'auth.test', {});
+        if (!msg) return json({ error: `Slack: ${r?.error || 'message not found'}` }, 404);
+        if (!(msg.bot_id && msg.bot_id === who.bot_id) && msg.user !== who.user_id) return json({ error: 'That is not one of Locus\'s own messages.' }, 400);
+        const out = body.delete ? await slackApi(env, 'chat.delete', { channel: ch, ts })
+          : await slackApi(env, 'chat.update', { channel: ch, ts, text: String(body.text || '').replace(/—/g, ',').slice(0, 3900), blocks: [] });
+        return json(out.ok ? { ok: true, was: msg.text?.slice(0, 200) } : { error: `Slack: ${out.error}` }, out.ok ? 200 : 400);
+      }
+      /* People to add: a name search over our workspace, or the members of one channel (Slack Connect people
+         only show up there). Channels: every channel the app is in, with whether outsiders are in it. */
+      if (path === '/api/ask/slack-people') {
+        const ch = String(url.searchParams.get('channel') || '');
+        const q = String(url.searchParams.get('q') || '').toLowerCase().trim();
+        let ids = [];
+        if (/^[CG][A-Z0-9]{5,20}$/.test(ch)) {
+          const r = await slackApi(env, 'conversations.members', { channel: ch, limit: 200 });
+          if (!r?.ok) return json({ error: `Slack: ${r?.error || 'no answer'}. Add the Mobius Digital app to that channel first.` }, 400);
+          ids = (r.members || []).slice(0, 40);
+        } else if (q.length >= 2) {
+          const r = await slackApi(env, 'users.list', { limit: 400 });
+          ids = (r?.members || []).filter(u => !u.deleted && !u.is_bot && `${u.real_name || ''} ${u.name || ''} ${u.profile?.email || ''}`.toLowerCase().includes(q)).map(u => u.id).slice(0, 25);
+        }
+        /* whoIs keeps users.info a few minutes in the isolate, so each person is one Slack read. */
+        const deps = accessDeps();
+        const rows = await Promise.all(ids.map(id => whoIs(env, deps, id).then(g => ({ id, g })).catch(() => null)));
+        return json({ people: rows.filter(p => p && p.g.role !== 'bot').map(p => ({ id: p.id, name: p.g.name || p.id, role: p.g.role })) });
+      }
+      if (path === '/api/ask/slack-channels') {
+        const out = [];
+        let cursor = '';
+        for (let i = 0; i < 4; i++) {
+          const r = await slackApi(env, 'conversations.list', { types: 'public_channel,private_channel', exclude_archived: true, limit: 500, cursor: cursor || undefined });
+          if (!r?.ok) return json({ error: `Slack: ${r?.error || 'no answer'}` }, 400);
+          for (const c of r.channels || []) if (c.is_member) out.push({ id: c.id, name: c.name, shared: !!(c.is_ext_shared || c.is_shared || c.is_pending_ext_shared), private: !!c.is_private });
+          cursor = r.response_metadata?.next_cursor || '';
+          if (!cursor) break;
+        }
+        return json({ channels: out.sort((a, b) => a.name.localeCompare(b.name)) });
       }
       if (path === '/api/ask/memory') {
         if (request.method === 'POST') return json(await stratRemember(env, { scope: String(body.scope || 'agency'), topic: body.topic, text: body.text, until: body.until || null, source: 'added in Locus', by: await sessionEmail(env, request).catch(() => null) }));

@@ -2241,11 +2241,11 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <link rel="stylesheet" href="v2.css?v=46">
 <link rel="stylesheet" href="../logo/kit.css?v=2">
 <link rel="stylesheet" href="supply.css?v=4">
-<link rel="stylesheet" href="lx.css?v=20">
+<link rel="stylesheet" href="lx.css?v=21">
 <link rel="stylesheet" href="phone.css?v=16">
 <script src="/sheet.js?v=1"></script>
 <script src="/ask/ask-ui.js?v=14"></script>
-<script src="strategist.js?v=4"></script>
+<script src="strategist.js?v=5"></script>
 <body>
 <!-- The Mobius strip on first paint (DESIGN.md section 7): an overlay that ignores the pointer and is gone within 1.5s. -->
 <mobius-loader mode="load"></mobius-loader>
@@ -2377,12 +2377,12 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="clients.js?v=6"></script>
 <script src="requests.js?v=3"></script>
 <script src="actions.js?v=4"></script>
-<script src="calls.js?v=7"></script>
+<script src="calls.js?v=13"></script>
 <script src="callscreen.js?v=8"></script>
 <script src="tasks.js?v=9"></script>
 <script src="review-ui.js?v=9"></script>
 <script src="prodsheet.js?v=13"></script>
-<script src="production.js?v=12"></script>
+<script src="production.js?v=14"></script>
 <script src="sop.js?v=5"></script>
 <script src="expenses.js?v=1"></script>
 <script src="realfit.js?v=1"></script>
@@ -2397,15 +2397,15 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="nudge.js?v=4"></script>
 <script src="lx.js?v=7"></script>
 <script src="v2.js?v=69"></script>
-<script src="leaks.js?v=9"></script>
-<script src="desk.js?v=31"></script>
+<script src="leaks.js?v=10"></script>
+<script src="desk.js?v=32"></script>
 <script src="agency.js?v=3"></script>
 <script src="calendar.js?v=14"></script>
 <script src="social.js?v=9"></script>
 <script src="socialweek.js?v=5"></script>
 <script src="make.js?v=2"></script>
 <script src="supply.js?v=7"></script>
-<script src="v4.js?v=10"></script>
+<script src="v4.js?v=11"></script>
 <script src="askextra.js?v=3"></script>
 <script src="share.js?v=5"></script>
 <script src="survey.js?v=1"></script>
@@ -3110,6 +3110,7 @@ const PAGE_BRIEF = {
   socialweek: { answers: 'What is going out this week on Instagram, Facebook, TikTok and YouTube, what is ready to post (Studio finals, creator clips, winning ads, Make ours drafts, uploads), and how each post did once it is up.', when: 'Once a week to fill the week, and whenever something new is ready.', todo: 'Drag a tray item onto a day and hour, write the caption once, tick the accounts, Schedule. Posts go out on their own; the Posted cards show views, likes and comments.' },
   social: { answers: 'What other brands and topics are posting on Instagram, TikTok and YouTube, which posts are doing far better than that account usually does (Breaking out), the sounds and hashtags behind them, and our version of any post (Make ours: the creator link, a brief or Studio).', when: 'A few times a week, and whenever you need an idea for a post or an ad.', todo: 'Open Breaking out, watch the top few, press Make ours on the one that fits us, then send the draft to whoever should make it.' },
   calendar: { answers: 'One calendar: what customers will see and when (drops, sales, emails, the Black Friday plan) for every client, the team’s tasks on the day they are due, and what has to be ready for each date: photos, ads briefed and built, the email scheduled, the ads loaded.', when: 'Monday for the week ahead; whenever a client gives us a date.', todo: 'Work down “Work due this week”, late first. Make the Asana tasks for a new date; the countdown ticks itself from Asana, Klaviyo and Meta.' },
+  morning: { answers: 'What yesterday actually kept after every cost, where the month stands against the plan, and the few things that need you today. The one page to open first.', when: 'Every morning, with coffee.', todo: 'Read the river (what came in, what each cost took, what was kept), check the ring against the plan, then press the one button in Needs you.' },
   month: { answers: 'Where the month lands against the plan, week by week, and what a customer is worth against what we pay. Every money question on one page.', when: 'Monday, and whenever the plan is in doubt.', todo: 'Read the ring first. Red means the month misses even at the planned spend; amber means it needs today\u2019s pace to hold. Edit the plan is the Goals page.' },
   yesterday: { answers: 'Was yesterday a bad day on Meta, for advertisers in general: a bad day when two or more of four signs agree (our brands paying more per sale than usual, other advertisers, Meta posting a problem, advertisers complaining online).', when: 'Every morning, before touching an ad account.', todo: 'Red: hold big changes on Meta and wait it out. Normal or mixed: carry on.' },
   today: { answers: 'What to change today: ad sets to scale or cut, ads to switch off or refresh, things to fix, tests to call. Ad set first, ranked by money at stake.', when: 'Every morning, after Yesterday.', todo: 'Work down the list. Make the change in Ads Manager, then press Done so it lands in the Change Log and tomorrow\u2019s brief.' },
@@ -4778,7 +4779,45 @@ function glossaryModal() {
     <b>Platform</b> means that platform’s own attributed claim.</p><div class="gl">${body}</div>`, { wide: true });
 }
 
+
+/* v4 (2026-10-21): the rail changed, so the first tour and the new pages get their own. */
+if (V4) Object.assign(TOURS, {
+  start: { name: 'How Locus fits together', steps: [
+    { body: '<b>Seven places, one for each question you walk in with:</b> Today, Money, Ads, Make, Calendar, Reports and Work. Each place has its pages as tabs across the top. The bar at the top answers questions and jumps to any page or brand: press Ctrl+K. About a minute.' },
+    { sel: '#tabs [data-grp="today"]', title: 'Today', body: '<b>Morning</b> is what yesterday kept, where the month stands and what needs you. <b>Leaks</b> is where the brand loses money, priced. <b>Day check</b> is today so far against a normal day. <b>Brief</b> is the daily update that goes to the client.' },
+    { sel: '#tabs [data-grp="money"]', title: 'Money', body: '<b>Month</b> is where the month lands and whether a customer is worth what we pay. <b>P&amp;L</b>, <b>Customers</b>, <b>Store</b>, <b>Site</b>, <b>Search</b>, <b>Email</b> and <b>Stock</b> each go one level deeper.' },
+    { sel: '#tabs [data-grp="ads"]', title: 'Ads', body: 'One queue. <b>Calls</b> is what to change today, ad set first, and you can do it from the row. <b>Accounts</b> is each platform. <b>Ads</b> is every ad with its verdict. <b>Tests</b> and <b>Changes</b> keep the record.' },
+    { sel: '#tabs [data-grp="make"]', title: 'Make', body: '<b>Pipeline</b> is every brief from idea to launched, with the Ideas column in front. <b>Studio</b> makes the ads. <b>Library</b>, <b>Inspiration</b>, <b>Social</b>, <b>Creators</b> and <b>Brand</b> feed it.' },
+    { sel: '#tabs [data-grp="reports"]', title: 'Reports', body: 'The weekly and monthly as a story: the numbers, the sentence, what got done and what the client owes. <b>Requests</b> is what they must approve. <b>Dashboards</b> are yours.' },
+    { sel: '#hdPeriod', title: 'What period am I looking at?', body: 'This control is on every screen that follows a date range and always names the real dates. Every window ends yesterday, so a finished day is never mixed with a half day.' },
+    { sel: '[data-gloss]', title: 'If a number is unfamiliar', body: '<b>Metrics</b> defines every figure in Locus, including what to do when it moves. Next to it, <b>Help</b> explains the page you are on.' },
+  ] },
+  morning: { name: 'The Morning page', steps: [
+    { sel: '.v4-top', title: 'Yesterday, as a river', body: 'Sales flow left to right through each cost to what was kept, the blue at the end. The dashed line is what a normal day keeps, so you see at once whether yesterday was a good one.' },
+    { sel: '.v4-ring', title: 'The month', body: 'Banked against the plan by now. The outer arc is where the month lands at today\'s pace. Green is on plan, amber is close, red is behind.' },
+    { sel: '.v4-top > section:last-child', title: 'Needs you', body: 'The few things waiting on a person, one button each. Everything else on this page is for reading.' },
+  ] },
+  month: { name: 'Money > Month', steps: [
+    { sel: '.v4-land', title: 'Where the month lands', body: 'The ring is the forecast at the planned spend over the goal. Under it, three paths: spending the budget, today\'s pace, and what a day has to do to hit it.' },
+    { sel: '.v4-top.v4-mo > section:nth-child(2)', title: 'Weeks against target', body: 'Each week against its share of the goal. Grey is the target, colour is the actual. The strip under it is the month in five numbers.' },
+    { sel: '.v4-top.v4-mo > section:nth-child(3)', title: 'Is a customer worth what we pay?', body: 'The dial is what comes back per dollar of ads in 90 days. Under 1.5x the first order does not pay for the customer; over 3x there is room to bid harder.' },
+    { sel: '.v4-fall', title: 'Where the money went', body: 'Revenue down to what was kept, one bar per cost, the same colours as the river on Today.' },
+  ] },
+});
 const PAGE_HELP = {
+  morning: `
+    <p><b>What this page is:</b> the first page of the day. Yesterday after every cost, the month against the plan, and the few things that need a person.</p>
+    <p><b>The river:</b> sales on the left, each cost takes its bite (ads, product, shipping, fees), and what was kept is the blue at the end. The dashed line is what a normal day keeps, from the last 28 days. Every number is Triple Whale's.</p>
+    <p><b>The ring:</b> banked so far against what the plan said should be banked by today. The outer arc is where the month lands at today's pace.</p>
+    <p><b>Needs you:</b> ad sets to change, tests to call, reports to send, accounts to fix. One button each. If it is empty, nothing is waiting.</p>
+    <p><b>Agency view:</b> every brand as a row, kept against normal, the month ring, and why it needs you, worst first.</p>`,
+  month: `
+    <p><b>What this page is:</b> every money question on one page. Will the month hit the goal, is a customer worth what we pay, where did the money go, who paid.</p>
+    <p><b>Where the month lands:</b> the forecast is returning revenue on its own trend plus new revenue at the planned spend times the trailing aMER (the CTC method). "At today's pace" is what happens if nothing changes. "To hit it" is what a day has to do.</p>
+    <p><b>Weeks against target:</b> each week's share of the goal (grey) against what came in (colour). A week more than 8% under is red.</p>
+    <p><b>Is a customer worth what we pay:</b> cost to get a customer, the first order, what is left after costs, and how many order again, over the last 90 days. Under 1.5x back per dollar the first order does not pay for the customer.</p>
+    <p><b>Where the money went:</b> revenue to kept, one bar per cost. <b>Who paid:</b> new against returning, then first orders by channel under the attribution model in the top bar.</p>
+    <p><b>Edit the plan</b> opens Goals, which is this page's edit mode.</p>`,
   overview: `
     <p><b>What this page is:</b> every client's real economics side by side. Not ad metrics - <i>business</i> metrics. This is the page that tells you which clients are actually profitable.</p>
     <p><b>The columns:</b><br>
@@ -7331,7 +7370,7 @@ async function renderDash(first) {
   const msg = t => { const el = $('#dsMsg'); if (el) el.textContent = t; };
   /* THE KIT (2026-10-20): Edit by hand is the one header action; Post now, Change it with Locus and Delete sit under
      More. The header's buttons press the page's own (hidden) buttons, so every handler below stays as it was. */
-  pageActions(`<button class="btn quiet" data-dsa="dsEdit">Edit by hand</button>${pillMenu('dsMore', 'More', [['dsPost', 'Post to Slack now'], ['dsAskCh', 'Change it with Locus'], ['dsDel', 'Delete this dashboard']], '', { curText: '' })}`);
+  pageActions(isClient() ? '' : `<button class="btn quiet" data-dsa="dsEdit">Edit by hand</button>${pillMenu('dsMore', 'More', [['dsPost', 'Post to Slack now'], ['dsAskCh', 'Change it with Locus'], ['dsDel', 'Delete this dashboard']], '', { curText: '' })}`);
   const dsPress = id => { const b = document.getElementById(id); if (b) b.click(); };
   document.querySelectorAll('#main .ph-acts [data-dsa], #hdActions [data-dsa]').forEach(b => b.onclick = () => dsPress(b.dataset.dsa));
   wirePillMenu(document.getElementById('dsMore'), v => dsPress(v));
@@ -7854,7 +7893,7 @@ async function renderProfit(first) {
       <div class="v2stacklab"><span><i style="background:var(--brand)"></i>New ${K(t.new_rev)}</span><span><i style="background:var(--c-email)"></i>Returning ${K(t.ret_rev)}</span>${t.email_rev ? `<span>Klaviyo email placed ${K(t.email_rev)} (${fmtPct(t.email_share)}), across both</span>` : ''}</div>` : '<p class="v2hint">No new-vs-returning split for this window.</p>'}
       <p class="v2hint" style="margin-top:6px">What a customer costs, what they are worth over time and what they buy first and next is on <button type="button" class="v2link" data-go="customers">Customers ›</button></p></section>`;
 
-  pageActions(`${healthPill(h)}<button class="btn" id="pfCosts" title="Where each cost comes from, and the brand’s custom expenses">Costs</button><button class="btn" id="pfShare">↗ Client link</button>`);
+  pageActions(isClient() ? healthPill(h) : `${healthPill(h)}<button class="btn" id="pfCosts" title="Where each cost comes from, and the brand’s custom expenses">Costs</button><button class="btn" id="pfShare">↗ Client link</button>`);
   $('#main').innerHTML = shell(`Profit: ${name}`, `
     ${LX.say(say)}
     ${d.shipping?.mode === 'uncosted' ? `<div class="notice warn"><div><b>Shipping income has no cost behind it.</b> ${esc(d.shipping.note)}. See <b>Costs</b> for what that is worth.</div></div>` : ''}
@@ -8613,7 +8652,7 @@ async function renderBrief(first) {
       $('#bfMsg').textContent = 'Saved ✓ - this is exactly what will send';
     } catch (e) { $('#bfMsg').textContent = e.message; }
   };
-  pageActions(bfHead);
+  pageActions(isClient() ? '' : bfHead);   // a client reads the brief; sending and editing are the team's (2026-10-21)
   /* The client daily as it sits in the client channel, rewritten in place (account-health editClientPost). */
   const bfFix = $('#bfFixSent');
   if (bfFix) bfFix.onclick = async () => {
@@ -9972,10 +10011,11 @@ async function renderReports(first) {
   const editTopK = rep && !sent && rep.summary ? '<button class="btn quiet" data-rpa="edit">Edit</button>' : '';
   $('#main').innerHTML = shell(`
     ${lead ? LX.say(lead) : ''}
-    <div class="rp-pick lx-bar">${chips}${banner}<span class="lx-msg" id="rpGenMsg"></span></div>
+    <div class="rp-pick lx-bar">${chips}${isClient() ? '' : banner}<span class="lx-msg" id="rpGenMsg"></span></div>
     ${body}
     ${isClient() ? '' : configCard}${hiddenActs}`);
-  pageActions(`${sendTop}${editTopK}${pillMenu('rpMore', 'More', moreOpts, '', { curText: '' })}`);   // after the paint: shell() draws the header the actions live in
+  /* a client reads the report; the team's actions (send, edit, rewrite, generate, the link) are never theirs (2026-10-21) */
+  pageActions(isClient() ? '' : `${sendTop}${editTopK}${pillMenu('rpMore', 'More', moreOpts, '', { curText: '' })}`);   // after the paint: shell() draws the header the actions live in
   /* the header's buttons press the page's own (hidden) buttons, so every handler below stays as it was */
   const press = id => { const b = document.getElementById(id); if (b) b.click(); else noteModal('Not available', '<p>That action is not available on this report.</p>'); };
   document.querySelectorAll('#main .ph-acts [data-rpa], #hdActions [data-rpa]').forEach(b => b.onclick = () => press(b.dataset.rpa === 'send' ? 'rpSend' : 'rpEditTop'));
@@ -10719,7 +10759,7 @@ async function renderPlan(first) {
   };
 
   const saveLbl = `Save ${esc(monthLabel(p.month))} plan`;
-  pageActions(editable && c
+  pageActions(editable && c && !isClient()
     ? `<button class="btn" id="plShare">↗ Client link</button><button class="btn primary" id="plSave">${saveLbl}</button>`
     : '');
 

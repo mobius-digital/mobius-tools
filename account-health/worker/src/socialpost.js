@@ -615,8 +615,11 @@ async function rephrase(env, act, text, note) {
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.error?.message || `Claude HTTP ${r.status}`);
   const txt = (j.content || []).filter(x => x.type === 'text').map(x => x.text).join('');
-  const out = safe(txt.slice(txt.indexOf('{')), {})?.captions;
-  return Array.isArray(out) ? out.map(c => clip(c, 2200)).filter(Boolean).slice(0, 3) : [clip(txt, 2200)];
+  /* Haiku sometimes wraps the JSON in prose or breaks it; never hand raw JSON to a caption box. */
+  const a = txt.indexOf('{'), z = txt.lastIndexOf('}');
+  let out = a >= 0 && z > a ? safe(txt.slice(a, z + 1), {})?.captions : null;
+  if (!Array.isArray(out)) { const m = [...txt.matchAll(/"((?:[^"\\]|\\.){8,})"/g)].map(x => x[1].replace(/\\n/g, '\n').replace(/\\"/g, '"')); out = m.length ? m : [txt.replace(/^[^A-Za-z]*/, '').split('\n')[0]]; }
+  return out.map(c => clip(String(c), 2200)).filter(Boolean).slice(0, 3);
 }
 
 /* ---------------- the week, the target, Fill the week, Results, the Monday nudge (2026-10-20) ---------------- */
@@ -678,7 +681,11 @@ export async function fillWeek(env, d, act, week) {
     const want = order[i];
     const from2 = fallback[want].find(k => bucket[k].length);
     if (!from2) break;
-    picks.push({ it: bucket[from2].shift(), want: from2 });
+    /* Variety: five Black Wedges ads in a row is not a week. Prefer an item whose product or title is not already picked. */
+    const key = it => (it.sub || it.title || '').toLowerCase().replace(/\s*-\s*\d+$/, '');
+    const seen = new Set(picks.map(p => key(p.it)));
+    const at = bucket[from2].findIndex(it => !seen.has(key(it)));
+    picks.push({ it: bucket[from2].splice(at < 0 ? 0 : at, 1)[0], want: from2 });
   }
   if (!picks.length) { out.note = 'Nothing unused is on the tray. Approve a Studio final, add a creator clip or upload a file, then fill again.'; return out; }
   /* Days: free days first (today only if hours are left), then the days with the fewest posts. Hours rotate through the
