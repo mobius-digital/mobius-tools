@@ -114,7 +114,7 @@
       openDrill(t, label, m);
     }, true);
   }
-  const DRILL_TABS = new Set(['overview', 'profit', 'store', 'channels', 'meta', 'campaigns', 'google', 'tiktok', 'email']);
+  const DRILL_TABS = new Set(['overview', 'profit', 'store', 'channels', 'meta', 'campaigns', 'google', 'tiktok', 'email', 'morning', 'month', 'customers', 'brief', 'yesterday', 'plan']);
   const METRIC_OF = { revenue: 'revenue', 'returning revenue': 'revenue', orders: 'orders', 'average order': 'aov', 'ad spend': 'spend', spend: 'spend', mer: 'mer', amer: 'amer', roas: 'roas',
     'new customers': 'newcust', 'first orders': 'newcust', 'cost per new customer': 'cac', 'contribution margin': 'cm', 'net profit': 'net', 'email and sms': 'email', 'email and sms revenue': 'email',
     campaigns: 'email', flows: 'email', purchases: 'purchases', 'paid purchases': 'purchases', 'cost per purchase': 'cpa' };
@@ -179,7 +179,7 @@
   async function openDrill(t, label, m) {
     const v = t.querySelector('.v'), sub = t.querySelector('.sub'), bul = t.querySelector('.v2bul'), go = t.dataset.go;
     const sp = t.querySelector('svg.v2spark,svg[data-spk]');
-    const big = sp ? sp.outerHTML.replace('class="v2spark"', 'class="v2spark v2spark-big"') : '';
+    const big = sp ? sp.outerHTML.replace(/class="v2spark[^"]*"/, 'class="v2spark v2spark-big"') : '';
     const what = WHAT[m] || glossOne(label);
     const plat = PLAT_OF[H.S.tab] || null;
     const goBtn = go && !go.startsWith('act:') && go !== H.S.tab ? `<button type="button" class="v2link v2dgo" data-dgo="${esc(go)}">Open ${esc(PAGE_NAME[go] || 'its page')} ›</button>` : '';
@@ -363,6 +363,9 @@
     const v = (rows || []).map(r => { const x = g(r); return x == null || !isFinite(x) ? null : x; });
     if (v.filter(x => x != null).length < 2) return '';
     const pv = (prev || []).map(r => { const x = g(r); return x == null || !isFinite(x) ? null : x; });
+    const tips = rows.map((r, i) => `<b>${day(r.date)}</b> · ${esc(label)} ${v[i] == null ? '–' : fmt(v[i])}${pv[i] != null && H.S.cmp !== 'none' ? `<br><span class="faint">${esc(cmpLabel())}: ${fmt(pv[i])}</span>` : ''}`);
+    /* pass A (2026-10-21): the kit sparkline, 56px with a baseline and the min and max on its own scale */
+    if (window.LxKit && LxKit.spark) return LxKit.spark(v, { ghost: pv.length > 1 && H.S.cmp !== 'none' ? pv : null, tips, fmt });
     return spark(v, pv.length > 1 && H.S.cmp !== 'none' ? pv : null, 300, 34, rows.map((r, i) => `<b>${day(r.date)}</b> · ${esc(label)} ${v[i] == null ? '–' : fmt(v[i])}${pv[i] != null && H.S.cmp !== 'none' ? `<br><span class="faint">${esc(cmpLabel())}: ${fmt(pv[i])}</span>` : ''}`));
   }
   /* Sum day rows across brands by date (all-brands screens), then derive the ratios per day. */
