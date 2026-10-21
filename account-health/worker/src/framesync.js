@@ -22,7 +22,7 @@
  * Tests: node test-production2.mjs (Frame mocked).
  */
 import { frameApi, frameToken } from './frame.js';
-import { adOf, fileUrl } from './prodwork.js';
+import { adOf, fileUrl, isCarousel } from './prodwork.js';
 import { safeJson } from './research.js';
 import { connGet } from './brands.js';
 
@@ -154,8 +154,10 @@ async function note(env, r, body) {
 /** Put Frame in step for these ads of one card. Returns {moved, back, uploaded, kept, skipped?, error?}. */
 export async function frameSync(env, d, cardId, ads, { origin } = {}) {
   await ensure(env);
-  const r = await env.DB.prepare(`SELECT id, act_id, num, title, asset_url, frame_json FROM p_br_batch WHERE id = ?1`).bind(cardId).first();
+  const r = await env.DB.prepare(`SELECT id, act_id, num, title, asset_url, frame_json, brief_json FROM p_br_batch WHERE id = ?1`).bind(cardId).first();
   if (!r) return { skipped: 'no card' };
+  /* a carousel's uploads are its cards, not versions: never move one to the old-versions folder (2026-10-21) */
+  if (isCarousel(r.brief_json)) return { skipped: 'carousel' };
   let fj = safeJson(r.frame_json, {}) || {};
   /* only the ads asked for: another sync may be running for the others right now (five uploads at once) */
   const want = [...new Set((ads && ads.length ? ads : fj.pending || []).filter(Boolean))];

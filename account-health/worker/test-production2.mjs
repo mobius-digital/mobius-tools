@@ -11,7 +11,7 @@ import { handleProduction, moveCard, formatOf } from './src/production.js';
 import { useFetch as frameFetch } from './src/frame.js';
 import { useSleep as frameSleep, titleOf, frameRetry, OLD_FOLDER } from './src/framesync.js';
 import { briefText, normBrief, aiFill, saveCard, addComment, decide, getCard, uploadFile, sendToClient, serveFile, handleReviewLink, shareLink,
-  pruneFiles, setMirror, mirrorOn, normShape, briefHtml, savePhoto, teamPhotos, sanitizeHtml, htmlToText, textToHtml, asanaToHtml, templateHtml, briefFromAsana, adOf, fillSrc, templateOnly, htmlBlank } from './src/prodwork.js';
+  pruneFiles, setMirror, mirrorOn, normShape, briefHtml, savePhoto, teamPhotos, sanitizeHtml, htmlToText, textToHtml, asanaToHtml, templateHtml, briefFromAsana, adOf, fillSrc, templateOnly, htmlBlank, adsOf, cardOf } from './src/prodwork.js';
 
 const db = new DatabaseSync(':memory:');
 const bindSql = sql => { let hi = 0; return sql.replace(/\?(\d*)/g, (_, n) => { if (n) { hi = Math.max(hi, +n); return ':p' + n; } hi++; return ':p' + hi; }); };
@@ -436,6 +436,34 @@ await check('prune: 60 days after Live only the final version OF EACH AD stays; 
   const p = await teamPhotos(env, d);
   assert.equal(p.Cole, 'https://lh3.googleusercontent.com/a/cole'); assert.equal(p.Ahsan, 'https://slack/p/U_AHSAN');
   const calls = slack.length; await teamPhotos(env, d); assert.equal(slack.length, calls, 'Slack photos cached for a week');
+});
+
+await check('a Carousel card (2026-10-21): its uploads are the cards of ONE ad in swipe order, one call for the whole carousel, prune keeps every card', async () => {
+  assert.deepEqual(cardOf('30-1 card 2 of 3 Two years.png'), { k: 2, n: 3 }); assert.equal(cardOf('30-1 v2.png'), null); assert.equal(cardOf('card 4 of 3.png'), null);
+  add('c30', 'brand_alpha', '30', 'Eclipse carousel', 'production', 'Creative Studio', null);
+  db.exec(`UPDATE p_br_batch SET brief_json = '{"v":2,"html":"<p>x</p>","format":"Carousel","sizes":[]}', board_stage = 'review' WHERE id = 'c30'`);
+  const F = [['k1', 1, '30-1 card 1 of 3 Clover.png'], ['k2', 2, '30-1 card 2 of 3 Years.png'], ['k3', 3, '30-1 card 3 of 3 Milled.png'], ['k2b', 4, '30-1 card 2 of 3 Years again.png']];
+  for (const [id, v, name] of F) { db.exec(`INSERT INTO p_work_file (id, batch_id, act_id, kind, version, ad, r2_key, name, mime, size) VALUES ('${id}', 'c30', 'brand_alpha', 'version', ${v}, '30-1', 'work/brand_alpha/c30/${id}', '${name}', 'image/png', 3)`); R2.set(`work/brand_alpha/c30/${id}`, Buffer.from('png')); }
+  const card = await getCard(env, dd, 'https://ah.test', 'c30', null);
+  assert.equal(card.ads.length, 1, 'four uploads, one ad');
+  const a = card.ads[0];
+  assert.equal(a.carousel, true); assert.equal(a.file_id, 'k2b', 'the call sits on the newest card');
+  assert.deepEqual(a.cards.map(c => [c.k, c.file_id]), [[1, 'k1'], [2, 'k2b'], [3, 'k3']], 'swipe order; a re-sent card 2 takes its place');
+  /* no "card k of n" in the names: version order */
+  assert.deepEqual(adsOf([{ id: 'a', kind: 'version', version: 2, ad: '1-1', name: 'b.png' }, { id: 'b', kind: 'version', version: 1, ad: '1-1', name: 'a.png' }], [], { carousel: true })[0].cards.map(c => c.file_id), ['b', 'a']);
+  /* a note on any card counts for the carousel; a call on card 1 lands on the whole ad */
+  db.exec(`INSERT INTO p_work_comment (id, batch_id, act_id, author_name, kind, body, file_id) VALUES ('n30', 'c30', 'brand_alpha', 'Nick', 'note', 'Clover bigger', 'k1')`);
+  assert.equal((await getCard(env, dd, 'https://ah.test', 'c30', null)).ads[0].open, 1);
+  const ok = await call('/api/production/decide', { method: 'POST', body: { id: 'c30', ok: true, file_id: 'k1' }, email: 'cole@go-mobius-digital.com' });
+  assert.equal(ok.status, 200, JSON.stringify(ok.body)); assert.equal(ok.body.all_approved, true); assert.equal(ok.body.moved, 'ready');
+  assert.equal(ok.body.ads.length, 1); assert.equal(ok.body.ads[0].status, 'approved');
+  const ap = (await getCard(env, dd, 'https://ah.test', 'c30', null)).comments.find(c => c.kind === 'approval');
+  assert.equal(ap.file_id, 'k2b'); assert.match(ap.body, /^Approved 30-1 carousel \(3 cards\)\./);
+  /* 60 days after Live: the replaced card 2 goes, the three current cards stay */
+  db.exec(`UPDATE p_br_batch SET board_stage = 'live', board_at = '2026-07-01 10:00:00' WHERE id = 'c30'`);
+  await pruneFiles(env);
+  assert.deepEqual(db.prepare(`SELECT id FROM p_work_file WHERE batch_id = 'c30' AND deleted_at IS NULL ORDER BY version`).all().map(r => r.id), ['k1', 'k3', 'k2b']);
+  assert.equal(R2.has('work/brand_alpha/c30/k2'), false); assert.equal(R2.has('work/brand_alpha/c30/k1'), true);
 });
 
 await check('Frame in step: a new version moves the old one into "zz Old versions", a delete moves it out and brings the one before back, never a Frame delete', async () => {

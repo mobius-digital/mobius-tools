@@ -720,21 +720,43 @@ function commentOut(c, client, me) {
     fixed: !!c.fixed_at, fixed_by: client ? null : c.fixed_by || null, created_at: c.created_at, from_asana: !!c.asana_story_gid && /^asana:/.test(c.id), parent_id: c.parent_id || null };
 }
 
+/** A carousel card's file: "53-1 card 2 of 3 Headline.png" (how Studio's Send to the Pipeline names them) = {k: 2, n: 3}. */
+export function cardOf(name) {
+  const m = /\bcard\s*(\d{1,2})\s*of\s*(\d{1,2})\b/i.exec(String(name || ''));
+  return m && +m[1] >= 1 && +m[1] <= +m[2] ? { k: +m[1], n: +m[2] } : null;
+}
+/** The card's format says Carousel (2026-10-21): its uploads are the cards of one ad, not versions. */
+export const isCarousel = briefJson => { const b = safe(briefJson, null); return !!b && b.format === 'Carousel'; };
+/** The cards of one carousel ad, in swipe order. Names carry "card k of n": the newest file of each k up to the newest
+ *  file's n (a re-sent card takes its own place). No such names: every version in version order. */
+export function carouselCards(mine) {
+  const vs = mine.slice().sort((a, b) => (a.version || 0) - (b.version || 0));
+  const named = vs.filter(f => cardOf(f.name));
+  if (!named.length) return vs.map((f, i) => ({ f, k: i + 1 }));
+  const n = cardOf(named[named.length - 1].name).n, by = new Map();
+  for (const f of named) { const c = cardOf(f.name); if (c.k <= n) by.set(c.k, f); }
+  return [...by.entries()].sort((x, y) => x[0] - y[0]).map(([k, f]) => ({ f, k }));
+}
+
 /** Each ad of the test (48-1, 48-2...) with its newest version and ITS OWN call (2026-10-14 review redesign): the last
  *  approval / change request / reopen on the newest version decides it, so a new upload after a change request is back
- *  to "review". `open` = notes on that version not marked fixed (replies not counted). */
-export function adsOf(files, comments) {
+ *  to "review". `open` = notes on that version not marked fixed (replies not counted). A carousel card (`opts.carousel`)
+ *  makes each ad ONE carousel: `cards` in swipe order, the call on the newest of them, notes counted over every card. */
+export function adsOf(files, comments, opts = {}) {
   const vs = files.filter(f => f.kind === 'version');
   const ads = [...new Set(vs.map(f => f.ad || ''))];
   const out = ads.map(ad => {
     const mine = vs.filter(f => (f.ad || '') === ad).sort((a, b) => (a.version || 0) - (b.version || 0));
-    const top = mine[mine.length - 1];
+    const cards = opts.carousel ? carouselCards(mine) : null;
+    const top = cards ? cards.map(c => c.f).sort((a, b) => (a.version || 0) - (b.version || 0)).slice(-1)[0] : mine[mine.length - 1];
+    const ids = new Set(cards ? cards.map(c => c.f.id) : [top.id]);
     const calls = comments.filter(c => c.file_id === top.id && ['approval', 'change_request', 'reopen'].includes(c.kind));
     const last = calls[calls.length - 1];
     const status = !last || last.kind === 'reopen' ? 'review' : last.kind === 'approval' ? 'approved' : 'changes';
-    const notes = comments.filter(c => c.file_id === top.id && !c.parent_id && ['note', 'change_request'].includes(c.kind));
+    const notes = comments.filter(c => ids.has(c.file_id) && !c.parent_id && ['note', 'change_request'].includes(c.kind));
     return { ad, file_id: top.id, version: top.version, versions: mine.length, status, by: last && status !== 'review' ? last.who : null, at: last && status !== 'review' ? last.created_at : null,
-      open: notes.filter(c => !c.fixed).length, notes: notes.length, created_at: top.created_at };
+      open: notes.filter(c => !c.fixed).length, notes: notes.length, created_at: top.created_at,
+      ...(cards ? { carousel: true, cards: cards.map(c => ({ file_id: c.f.id, k: c.k, version: c.f.version })) } : {}) };
   });
   return out.sort((a, b) => String(a.ad).localeCompare(String(b.ad), undefined, { numeric: true }));
 }
@@ -783,7 +805,7 @@ export async function getCard(env, d, origin, id, scope, me = null) {
     asana_url: client ? null : r.asana_url || null, brief_url: client ? null : r.brief_url || null, asset_url: client ? null : r.asset_url || null,
     share: !client && r.share_token ? `${LOCUS}review.html?t=${r.share_token}` : null,
   };
-  return { card, brief, brief_from: from, files, comments, ads: adsOf(files, comments), team: client ? [] : ROSTER.map(x => x.name), mirror, client,
+  return { card, brief, brief_from: from, files, comments, ads: adsOf(files, comments, { carousel: brief.format === 'Carousel' }), team: client ? [] : ROSTER.map(x => x.name), mirror, client,
     templates: client || !brief.blank ? undefined : { new: templateHtml('new', brief.format, r.num), iter: templateHtml('iter', brief.format, r.num), resize: templateHtml('resize', brief.format, r.num), blank: templateHtml('blank') } };
 }
 
@@ -971,7 +993,15 @@ export async function decide(env, d, body, who, scope, opts = {}) {
   const latest = body.file_id ? await env.DB.prepare(`SELECT id, version, ad FROM p_work_file WHERE id = ?1 AND batch_id = ?2 AND kind = 'version' AND deleted_at IS NULL`).bind(String(body.file_id), r.id).first()
     : await env.DB.prepare(`SELECT id, version, ad FROM p_work_file WHERE batch_id = ?1 AND kind = 'version' AND deleted_at IS NULL ORDER BY created_at DESC, rowid DESC LIMIT 1`).bind(r.id).first();
   if (body.file_id && !latest) throw err(400, 'That file is not on this card.');
-  const what = idea ? 'the idea' : latest ? `${latest.ad ? latest.ad + ' ' : ''}v${latest.version}` : 'the ad';
+  /* A carousel is ONE ad (2026-10-21): any of its cards stands for it, the call lands on its newest card (what adsOf reads). */
+  const car = isCarousel(r.brief_json);
+  let carAd = null;
+  if (car && latest && !idea) {
+    const fs = (await env.DB.prepare(`SELECT id, kind, version, ad, name, created_at FROM p_work_file WHERE batch_id = ?1 AND kind = 'version' AND deleted_at IS NULL`).bind(r.id).all()).results || [];
+    carAd = adsOf(fs.map(f => ({ ...f, ad: f.ad || '' })), [], { carousel: true }).find(a => a.cards.some(c => c.file_id === latest.id)) || null;
+    if (carAd) { latest.id = carAd.file_id; latest.version = carAd.version; }
+  }
+  const what = idea ? 'the idea' : carAd ? `${latest.ad ? latest.ad + ' ' : ''}carousel (${carAd.cards.length} cards)` : latest ? `${latest.ad ? latest.ad + ' ' : ''}v${latest.version}` : 'the ad';
   const name = opts.name || (client ? (scope && scope.name) || clean(String(who || '').split('@')[0], 40) || 'Client' : nameOfEmail(who));
   const kind = reset ? 'reopen' : ok ? 'approval' : 'change_request';
   const line = reset ? `Reopened ${what} for review.` : ok ? `Approved ${what}.${text ? ` ${text}` : ''}` : text;
@@ -993,9 +1023,9 @@ export async function decide(env, d, body, who, scope, opts = {}) {
   /* Where the card goes now, from every ad's own call. */
   let ads = [];
   if (!idea) {
-    const files = (await env.DB.prepare(`SELECT id, kind, version, ad, created_at FROM p_work_file WHERE batch_id = ?1 AND deleted_at IS NULL`).bind(r.id).all()).results || [];
+    const files = (await env.DB.prepare(`SELECT id, kind, version, ad, name, created_at FROM p_work_file WHERE batch_id = ?1 AND deleted_at IS NULL`).bind(r.id).all()).results || [];
     const cs = ((await env.DB.prepare(`SELECT * FROM p_work_comment WHERE batch_id = ?1 ORDER BY created_at, rowid`).bind(r.id).all()).results || []).map(c => commentOut(c, false));
-    ads = adsOf(files.map(f => ({ ...f, ad: f.ad || '' })), cs);
+    ads = adsOf(files.map(f => ({ ...f, ad: f.ad || '' })), cs, { carousel: car });
   }
   const all = ads.length > 0 && ads.every(a => a.status === 'approved');
   const waiting = ads.some(a => a.status === 'review');
@@ -1031,9 +1061,9 @@ export async function decideMany(env, d, body, who, scope, opts = {}) {
   mustOwn(scope, r);
   let ids = Array.isArray(body.file_ids) ? body.file_ids.map(String) : null;
   if (!ids) {
-    const files = (await env.DB.prepare(`SELECT id, kind, version, ad, created_at FROM p_work_file WHERE batch_id = ?1 AND deleted_at IS NULL`).bind(r.id).all()).results || [];
+    const files = (await env.DB.prepare(`SELECT id, kind, version, ad, name, created_at FROM p_work_file WHERE batch_id = ?1 AND deleted_at IS NULL`).bind(r.id).all()).results || [];
     const cs = ((await env.DB.prepare(`SELECT * FROM p_work_comment WHERE batch_id = ?1 ORDER BY created_at, rowid`).bind(r.id).all()).results || []).map(c => commentOut(c, false));
-    ids = adsOf(files.map(f => ({ ...f, ad: f.ad || '' })), cs).filter(a => a.status === 'review').map(a => a.file_id);
+    ids = adsOf(files.map(f => ({ ...f, ad: f.ad || '' })), cs, { carousel: isCarousel(r.brief_json) }).filter(a => a.status === 'review').map(a => a.file_id);
   }
   if (!ids.length) throw err(400, 'Nothing is waiting for a call.');
   let out = null;
@@ -1286,9 +1316,21 @@ export async function pruneFiles(env) {
   if (!env.MEDIA) return 0;
   await ensureWork(env);
   const before = new Date(Date.now() - KEEP_DAYS * 864e5).toISOString().replace('T', ' ').slice(0, 19);
+  /* a carousel card's uploads are its cards, not versions: those are read on their own below (2026-10-21) */
   const rows = (await env.DB.prepare(`SELECT f.id, f.r2_key FROM p_work_file f JOIN p_br_batch b ON b.id = f.batch_id
     WHERE f.deleted_at IS NULL AND f.kind = 'version' AND COALESCE(b.board_stage, '') IN ('live', 'done') AND COALESCE(b.board_at, b.updated_at) < ?1
+      AND COALESCE(b.brief_json, '') NOT LIKE '%"format":"Carousel"%'
       AND f.version < (SELECT MAX(version) FROM p_work_file g WHERE g.batch_id = f.batch_id AND g.kind = 'version' AND g.deleted_at IS NULL AND COALESCE(g.ad, '') = COALESCE(f.ad, '')) LIMIT 40`).bind(before).all().catch(() => ({ results: [] }))).results || [];
+  /* carousels: every current card of each ad stays; only a card a newer upload of the same place replaced goes */
+  const car = (await env.DB.prepare(`SELECT f.id, f.r2_key, f.batch_id, f.ad, f.version, f.name FROM p_work_file f JOIN p_br_batch b ON b.id = f.batch_id
+    WHERE f.deleted_at IS NULL AND f.kind = 'version' AND COALESCE(b.board_stage, '') IN ('live', 'done') AND COALESCE(b.board_at, b.updated_at) < ?1
+      AND COALESCE(b.brief_json, '') LIKE '%"format":"Carousel"%' LIMIT 400`).bind(before).all().catch(() => ({ results: [] }))).results || [];
+  const groups = new Map();
+  for (const f of car) { const k = `${f.batch_id}|${f.ad || ''}`; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(f); }
+  for (const g of groups.values()) {
+    const keep = new Set(carouselCards(g).map(c => c.f.id));
+    for (const f of g) if (!keep.has(f.id) && rows.length < 40) rows.push(f);
+  }
   for (const f of rows) {
     FILE_ROWS.delete(f.id);
     await env.MEDIA.delete(f.r2_key).catch(() => {});

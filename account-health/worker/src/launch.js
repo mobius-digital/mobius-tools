@@ -37,7 +37,7 @@
  * name Locus uses for the ad: "5-2 | Still" or "5-2 | Video". Team only: the batch routes are not on the client rules.
  */
 import { metaActions, metaCan, gget, gall, gpost, metaActs } from './metawrite.js';
-import { fileUrl, ensureWork, adsOf } from './prodwork.js';
+import { fileUrl, ensureWork, adsOf, isCarousel, cardOf } from './prodwork.js';
 import { numOf } from './asana-brand.js';
 
 const PROFIT_ORIGIN = 'https://mobius-profit.mobius-digital.workers.dev';
@@ -363,7 +363,7 @@ export async function launchPreview(env, d, act, b, ctx) {
     test: r.src.test ? { id: r.src.test.id, num: r.src.test.num, title: r.src.test.title } : null, warnings };
 }
 export async function launchCreate(env, d, act, b, ctx) {
-  const r = await proposeFor(env, d, act, b, ctx); if (r.error) return { error: r.error };
+  const r = b.carousel ? await proposeWorkCarousel(env, d, act, b, ctx) : await proposeFor(env, d, act, b, ctx); if (r.error) return { error: r.error };
   if (r.p.error) return { error: r.p.error };
   if (r.p.patch.status !== 'PAUSED') return { error: 'Launches are always made paused.' };
   await ensure(env);
@@ -380,9 +380,9 @@ export async function launchCreate(env, d, act, b, ctx) {
   const now = new Date().toISOString();
   const who = ctx?.who || 'someone in Locus';
   const test = r.src.test;
-  await env.DB.prepare(`INSERT INTO p_launch (id, act, meta_act, source, studio_ad, studio_batch, batch_id, num, ad_id, ad_name, adset_id, adset_name, write_id, status, eff_status, checked_at, by, at, work_file, cta)
-    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, 'PAUSED', 'PAUSED', ?14, ?15, ?14, ?16, ?17)`)
-    .bind(id, act, r.p.patch.act, r.src.kind, r.src.studio_ad, r.src.studio_batch, test?.id || null, r.src.num || null, adId, r.p.patch.ad_name, r.p.patch.id, r.p.patch.name, out.write || null, now, who, r.src.work_file || null, r.p.patch.cta || null).run();
+  await env.DB.prepare(`INSERT INTO p_launch (id, act, meta_act, source, studio_ad, studio_batch, batch_id, num, ad_id, ad_name, adset_id, adset_name, write_id, status, eff_status, checked_at, by, at, work_file, cta, cards)
+    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, 'PAUSED', 'PAUSED', ?14, ?15, ?14, ?16, ?17, ?18)`)
+    .bind(id, act, r.p.patch.act, r.src.kind, r.src.studio_ad, r.src.studio_batch, test?.id || null, r.src.num || null, adId, r.p.patch.ad_name, r.p.patch.id, r.p.patch.name, out.write || null, now, who, r.src.work_file || null, r.p.patch.cta || null, r.src.cards ? JSON.stringify(r.src.cards) : null).run();
   /* Tie the ad to its test in the test library. The number in the name already does; the tag also wins when someone renames it. */
   if (test?.id && adId) await env.DB.prepare(`INSERT INTO p_br_adtag (act_id, ad_id, batch_id, tagged_by, tagged_at) VALUES (?1, ?2, ?3, ?4, ?5)
     ON CONFLICT(act_id, ad_id) DO UPDATE SET batch_id = excluded.batch_id, tagged_by = excluded.tagged_by, tagged_at = excluded.tagged_at`).bind(act, adId, test.id, `${who} (Launch to Meta)`, now).run().catch(() => {});
@@ -509,6 +509,26 @@ export async function carouselCreate(env, d, act, b, ctx) {
     note: out.note, ads_manager: adsManagerUrl(r.p.patch.act, adId) };
 }
 
+/** A Production card whose format is Carousel (2026-10-21): its approved ad is ONE carousel, the cards are its uploads in
+ *  swipe order (prodwork carouselCards), each card's headline from its file name ("53-1 card 2 of 3 <headline>.png"),
+ *  else the ad's. Same checks, dry run and PAUSED create as a single ad; p_launch.cards = the file ids in order. */
+async function proposeWorkCarousel(env, d, act, b, ctx) {
+  const src = { kind: 'asset', carousel: true, studio_ad: null, studio_batch: null, work_file: b.work_file, ad: b.ad || '', num: b.num || null, test: b.test || null,
+    format: 'Carousel', handle: null, cards: (b.cards || []).map(c => c.file_id) };
+  const bad = checkInput(b, src); if (bad) return { error: bad };
+  const cards = [];
+  for (const c of b.cards || []) cards.push({ image_url: await fileUrl(env, AH_ORIGIN, c.file_id, 48), headline: clip(c.headline, 255), link: '' });
+  const input = { ...createInput(act, src, b), image_url: undefined, cards,
+    reason: clip(b.reason || `Launched from Locus${src.num ? ` for test ${src.num}` : ''} (Production carousel, ${cards.length} cards)`, 300) };
+  const action = metaActions(d).find(a => a.name === 'meta_create_ad');
+  const c = { ...ctx, via: 'locus', screen: { act_id: act } };
+  const p = await action.propose(env, input, null, c);
+  return { src, action, c, p };
+}
+/** A card's own headline from its file name: "53-1 card 2 of 3 Spin you can hear.png" -> "Spin you can hear". */
+const cardTitle = name => cardOf(name) ? String(name || '').replace(/\.[a-z0-9]{2,5}$/i, '').replace(/^.*?\bcard\s*\d{1,2}\s*of\s*\d{1,2}\b\s*/i, '').trim() : '';
+const MISSING = { headline: 'no headline', primary_text: 'no primary text', cards: 'needs 2 to 10 cards', video: 'has a video card (a carousel takes pictures)' };
+
 /* ---------------- the batch: every approved ad of a Production card, one ad set, the brief's copy (2026-10-14) ---------------- */
 const adsManagerUrl = (metaAct, adId) => `https://adsmanager.facebook.com/adsmanager/manage/ads?act=${String(metaAct || '').replace('act_', '')}&selected_ad_ids=${adId}`;
 const fmtOfFile = f => /^video\//.test(f?.mime || '') ? 'Video' : 'Still';
@@ -521,7 +541,8 @@ export async function batchPrep(env, d, act, b) {
   if (!card) return { error: 'That card is not one of this brand\'s.' };
   const files = (await env.DB.prepare(`SELECT id, ad, version, mime, name, created_at, kind FROM p_work_file WHERE batch_id = ?1 AND kind = 'version' AND deleted_at IS NULL`).bind(card.id).all()).results || [];
   const cs = ((await env.DB.prepare(`SELECT file_id, kind, parent_id, fixed_at, author_name AS who, created_at FROM p_work_comment WHERE batch_id = ?1 ORDER BY created_at`).bind(card.id).all()).results || []).map(c => ({ ...c, fixed: !!c.fixed_at }));
-  const all = adsOf(files, cs);
+  const car = isCarousel(card.brief_json);
+  const all = adsOf(files, cs, { carousel: car });
   const approved = all.filter(a => a.status === 'approved');
   if (!approved.length) return { error: all.length ? 'No ad on this card is approved yet. Approve them on the Ads tab first.' : 'This card has no finished ads yet.' };
   const num = card.num ? String(parseInt(card.num, 10)) : null;
@@ -542,6 +563,21 @@ export async function batchPrep(env, d, act, b) {
     const f = files.find(x => x.id === a.file_id), fmt = fmtOfFile(f), own = copy.ads[String(a.ad || '')] || {};
     const field = (k, setv, setSrc) => own[k] ? { value: own[k], source: 'ad' } : copy.shared[k] ? { value: copy.shared[k], source: 'shared' } : setv ? { value: setv, source: setSrc } : { value: '', source: 'none' };
     const headline = field('headline'), primary_text = field('primary_text'), link = field('link', setc.link, 'set'), description = field('description');
+    if (a.carousel) {
+      /* ONE carousel ad: its cards in swipe order, each with its own headline (the file name's, else the ad's) */
+      const cards = [];
+      for (const c of a.cards) {
+        const cf = files.find(x => x.id === c.file_id), vid = /^video\//.test(cf?.mime || '');
+        cards.push({ file_id: c.file_id, k: c.k, video: vid, thumb: vid ? null : `${await fileUrl(env, AH_ORIGIN, c.file_id, 12)}&w=600`, headline: clip(cardTitle(cf?.name) || headline.value, 255) });
+      }
+      const name = a.ad ? `${a.ad} | Carousel` : adName({ num, line: ads.length, format: 'Carousel', headline: headline.value, taken });
+      const done = before.filter(l => l.work_file === a.file_id || l.ad_name === name);
+      ads.push({ file_id: a.file_id, ad: a.ad || '', version: a.version, format: 'Carousel', carousel: true, video: false, thumb: cards.find(c => c.thumb)?.thumb || null, cards,
+        name, headline: cards.every(c => c.headline) ? { value: cards[0].headline, source: 'cards' } : headline, primary_text, link, description,
+        missing: [cards.some(c => !c.headline) ? 'headline' : null, primary_text.value ? null : 'primary_text', cards.length < 2 || cards.length > 10 ? 'cards' : null, cards.some(c => c.video) ? 'video' : null].filter(Boolean),
+        launched: done.map(l => ({ ad_name: l.ad_name, adset_name: l.adset_name, eff_status: l.eff_status, ads_manager: l.ad_id ? adsManagerUrl(l.meta_act, l.ad_id) : null })) });
+      continue;
+    }
     const name = a.ad ? `${a.ad} | ${fmt}` : adName({ num, line: ads.length, format: fmt, headline: headline.value, taken });
     const done = before.filter(l => l.work_file === a.file_id || l.ad_name === name);
     ads.push({ file_id: a.file_id, ad: a.ad || '', version: a.version, format: fmt, video: fmt === 'Video', thumb: fmt === 'Video' ? null : `${await fileUrl(env, AH_ORIGIN, a.file_id, 12)}&w=600`,
@@ -555,7 +591,7 @@ export async function batchPrep(env, d, act, b) {
   if (pick && setc.count + ads.length > MAX_ADS) warnings.push(`"${pick.name}" has ${setc.count} ad${setc.count === 1 ? '' : 's'}; adding ${ads.length} makes ${setc.count + ads.length}. The team rule is up to ${MAX_ADS} per ad set.`);
   if (!can.can) warnings.push(can.fix);
   return {
-    ok: true, can: can.can, card: { id: card.id, num, title: card.title },
+    ok: true, can: can.can, card: { id: card.id, num, title: card.title }, carousel: car,
     test: num ? { id: card.id, num, title: card.title, verdict: card.verdict || null } : null,
     adsets: [...sets].sort((x, y) => (x.id === sug.id ? -1 : y.id === sug.id ? 1 : 0) || (x.status === 'ACTIVE' ? -1 : 0) - (y.status === 'ACTIVE' ? -1 : 0) || String(y.created).localeCompare(String(x.created))).slice(0, 60),
     suggested: sug.id, why: sug.why, cta: CTAS.includes(last?.cta) ? last.cta : 'SHOP_NOW',
@@ -572,14 +608,16 @@ async function batchRows(env, d, act, b) {
   if (sent.length > 12) return { error: 'Up to 12 ads in one go.' };
   const p = await batchPrep(env, d, act, { card_id: b.card_id, adset: b.adset }); if (p.error) return p;
   const rows = [], short = [];
+  let other = false;
   for (const x of sent) {
     const a = p.ads.find(y => y.file_id === x.file_id);
     if (!a) return { error: 'One of the picked ads is not an approved ad of this card.' };
-    if (a.missing.length) { short.push(`${a.ad ? 'Ad ' + a.ad : a.name}: no ${a.missing.map(k => k === 'headline' ? 'headline' : 'primary text').join(' or ')}`); continue; }
+    if (a.missing.length) { if (a.missing.some(k => k !== 'headline' && k !== 'primary_text')) other = true; short.push(`${a.ad ? 'Ad ' + a.ad : a.name}: ${a.missing.map(k => MISSING[k]).join(' and ').replace(/and no /g, 'or ')}`); continue; }
     rows.push({ work_file: a.file_id, ad: a.ad, adset: String(b.adset), cta: CTAS.includes(b.cta) ? b.cta : p.cta, name: clip(String(x.name || a.name).trim(), 300) || a.name,
-      headline: a.headline.value, primary_text: a.primary_text.value, description: a.description.value, link: String(x.link || a.link.value || '').trim(), again: b.again === true });
+      headline: a.headline.value, primary_text: a.primary_text.value, description: a.description.value, link: String(x.link || a.link.value || '').trim(), again: b.again === true,
+      ...(a.carousel ? { carousel: true, cards: a.cards, num: p.card.num, test: p.test } : {}) });
   }
-  if (short.length) return { error: `The brief is missing copy. ${short.join('; ')}. Write it in the brief first; nothing was made.`, short };
+  if (short.length) return { error: `${other ? 'Not ready to launch.' : 'The brief is missing copy.'} ${short.join('; ')}. ${other ? 'Fix it first' : 'Write it in the brief first'}; nothing was made.`, short };
   return { rows, prep: p };
 }
 /** A dry run per ad (nothing written): the ad set before, the names after, each ad's summary or the reason it would fail. */
@@ -588,10 +626,11 @@ export async function batchPreview(env, d, act, b, ctx) {
   const out = [];
   let setName = r.prep.set?.name || '';
   for (const row of r.rows) {
-    const p = await proposeFor(env, d, act, row, ctx);
+    const p = row.carousel ? await proposeWorkCarousel(env, d, act, row, ctx) : await proposeFor(env, d, act, row, ctx);
     if (p.error || p.p.error) { out.push({ file_id: row.work_file, ad: row.ad, name: row.name, error: p.error || p.p.error }); continue; }
     setName = p.p.patch.name || setName;
-    out.push({ file_id: row.work_file, ad: row.ad, ok: true, name: p.p.patch.ad_name, headline: p.p.patch.headline, link: p.p.patch.link, cta: p.p.patch.cta, summary: p.p.summary });
+    out.push({ file_id: row.work_file, ad: row.ad, ok: true, name: p.p.patch.ad_name, headline: p.p.patch.headline, link: p.p.patch.link, cta: p.p.patch.cta, summary: p.p.summary,
+      ...(row.carousel ? { carousel: true, cards: p.p.patch.media.cards.map(c => ({ headline: c.headline, link: c.link || p.p.patch.link })) } : {}) });
   }
   const set = await setCopy(env, d, String(b.adset));
   const warnings = [];

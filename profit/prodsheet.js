@@ -155,6 +155,10 @@ function css() {
 .ps-pv{position:relative;display:block;width:100%;aspect-ratio:4/5;background:var(--surface-2);border:0;padding:0;cursor:pointer;overflow:hidden}
 .ps-pv img,.ps-pv video{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none}
 .ps-pv:focus-visible{outline:2px solid var(--brand);outline-offset:-2px}
+.ps-pv.car{cursor:default;display:flex;align-items:center;gap:6px;padding:10px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:thin}
+.ps-pv.car .cd{position:relative;flex:0 0 72%;height:100%;border:0;padding:0;background:var(--surface);border-radius:var(--r-sm,6px);overflow:hidden;cursor:pointer;scroll-snap-align:center}
+.ps-pv.car .cd:focus-visible{outline:2px solid var(--brand);outline-offset:-2px}
+.ps-pv.car .cd .ov{left:6px;bottom:6px}
 .ps-pv .ov{position:absolute;display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 8px;border-radius:var(--r-sm,6px);background:var(--surface);color:var(--ink);font-size:11.5px;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.2)}
 .ps-pv .open{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--bg) 45%,transparent);opacity:0;transition:opacity .15s}
 @media (hover:hover){.ps-pv:hover .open{opacity:1}}.ps-pv:focus-visible .open{opacity:1}   /* hover only on a device that hovers: iOS keeps :hover after a tap, so the Open review overlay stayed over the card while scrolling */
@@ -487,8 +491,10 @@ async function open(H, id, opts = {}) {
     const ups = UP.length ? `<div class="ps-ups">${UP.map(u => `<div class="ps-card"><div class="ps-thumb">${u.err ? '!' : `${Math.round(u.pct * 100)}%`}</div><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:5px"><b style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(u.name)}</b>${u.err ? `<span class="ps-err">${esc(u.err)}</span>` : `<div class="ps-prog"><i style="width:${Math.round(u.pct * 100)}%"></i></div><span class="ps-hint">${u.pct >= 1 ? 'Finishing...' : `${fmtMB(u.size * u.pct)} of ${fmtMB(u.size)}`}</span>`}</div></div>`).join('')}</div>` : '';
     const STAT = { review: [T.client ? 'Waiting for you' : 'Needs review', 'var(--warn)'], changes: ['Changes asked', 'var(--bad)'], approved: ['Approved', 'var(--good)'] };
     const card = a => {
-      const vs = filesOfAd(a.ad), top = vs[vs.length - 1];
+      const vs = filesOfAd(a.ad), top = a.carousel ? T.data.files.find(f => f.id === a.file_id) : vs[vs.length - 1];
       if (!top) return '';
+      /* a Carousel card's ad is ONE carousel: its cards in swipe order (2026-10-21) */
+      const cards = a.carousel ? a.cards.map(c => ({ k: c.k, f: T.data.files.find(f => f.id === c.file_id) })).filter(c => c.f) : null;
       const st = STAT[a.status] || STAT.review;
       const asking = T.asking === a.file_id;
       const media = top.video ? `<video src="${esc(top.url)}#t=0.5" muted preload="metadata" playsinline></video>` : `<img src="${esc(top.thumb || top.url)}" alt="" loading="lazy" decoding="async">`;
@@ -505,8 +511,20 @@ async function open(H, id, opts = {}) {
       }
       /* what the media buyer does with an approved ad: download it, or launch it to Meta paused */
       const dl = `<a class="ps-btn ghost" href="${esc(top.download || top.url)}" download title="Download v${top.version}" style="flex:0 0 auto">${'<svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12M7 11l5 5 5-5M5 20h14"/></svg>'}Download</a>`;
-      const ship = a.status === 'approved' && !T.client && window.LaunchToMeta ? `<button type="button" class="ps-btn pri" data-launchf="${esc(top.id)}" style="flex:1 1 auto">Launch to Meta</button>` : '';
-      acts += `<div class="row">${ship}${dl}</div>`;
+      const ship = a.status === 'approved' && !T.client && window.LaunchToMeta ? (cards ? (window.LaunchToMeta.openBatch ? '<button type="button" class="ps-btn pri" data-launchcar style="flex:1 1 auto">Launch the carousel to Meta</button>' : '')
+        : `<button type="button" class="ps-btn pri" data-launchf="${esc(top.id)}" style="flex:1 1 auto">Launch to Meta</button>`) : '';
+      const dlc = cards ? `<button type="button" class="ps-btn ghost" data-dlcar="${esc(a.ad)}" title="Download every card" style="flex:0 0 auto">${'<svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12M7 11l5 5 5-5M5 20h14"/></svg>'}Download ${cards.length}</button>` : dl;
+      acts += `<div class="row">${ship}${dlc}</div>`;
+      if (cards) return `<article class="ps-ad">
+        <div class="ps-pv car" role="group" aria-label="${esc(adLabel(a.ad))}, ${cards.length} cards in swipe order">${cards.map(c => `<button type="button" class="cd" data-open="${esc(c.f.id)}" aria-label="Open card ${c.k} to review">${c.f.video ? `<video src="${esc(c.f.url)}#t=0.5" muted preload="metadata" playsinline></video>` : `<img src="${esc(c.f.thumb || c.f.url)}" alt="" loading="lazy" decoding="async">`}<span class="ov">Card ${c.k}</span></button>`).join('')}
+          <span class="ov" style="top:10px;left:10px;z-index:1">${esc(adLabel(a.ad))}</span>
+          <span class="ov" style="top:10px;right:10px;z-index:1">Carousel · ${cards.length} cards</span>
+          ${a.open ? `<span class="ov" style="bottom:10px;right:10px;z-index:1">${a.open} open note${a.open === 1 ? '' : 's'}</span>` : ''}</div>
+        <div class="ps-adb">
+          <div style="display:flex;align-items:center;gap:8px"><span class="ps-st" style="--sc:${st[1]}"><i></i>${st[0]}</span><span style="flex:1"></span>${a.status === 'review' || !canCall ? `<span class="ps-hint">${esc(by)}</span>` : ''}</div>
+          ${acts}
+          <span class="ps-hint">One call for the whole carousel. Tap a card to review it.</span>
+        </div></article>`;
       return `<article class="ps-ad">
         <button type="button" class="ps-pv" data-open="${esc(top.id)}" aria-label="Open ${esc(adLabel(a.ad))} to review">${media}
           <span class="ov" style="top:10px;left:10px">${esc(adLabel(a.ad))}</span>
@@ -769,10 +787,17 @@ async function open(H, id, opts = {}) {
     });
     const ar = $('[data-allrev]', host); if (ar) ar.onclick = () => { const a = (T.data.ads || []).find(x => x.status === 'review') || (T.data.ads || [])[0]; review(H, id, { version: a && a.file_id, onChange: afterRev, data: T.data }); };
     $$('[data-launchf]', host).forEach(b => b.onclick = () => window.LaunchToMeta.open({ act: c().act_id, tok: H.S.tok, workFile: b.dataset.launchf, onDone: afterRev }));
+    /* a carousel launches as ONE Meta carousel through the batch window (it reads the cards from the card) */
+    $$('[data-launchcar]', host).forEach(b => b.onclick = () => window.LaunchToMeta.openBatch({ act: c().act_id, tok: H.S.tok, cardId: id, onDone: afterRev, onBrief: () => { T.tab = 'brief'; paint(); } }));
+    $$('[data-dlcar]', host).forEach(b => b.onclick = async () => {
+      const a = (T.data.ads || []).find(x => x.carousel && x.ad === b.dataset.dlcar); if (!a) return;
+      for (const cd of a.cards) { const f = T.data.files.find(x => x.id === cd.file_id); if (!f) continue; const x = document.createElement('a'); x.href = f.download || f.url; x.download = f.name || ''; document.body.appendChild(x); x.click(); x.remove(); await new Promise(r => setTimeout(r, 400)); }
+      toast(`${a.cards.length} cards downloading.`);
+    });
     /* every approved ad of the card into one ad set, with the brief's copy (2026-10-14) */
     const la = $('[data-launchall]', host); if (la) la.onclick = () => window.LaunchToMeta.openBatch({ act: c().act_id, tok: H.S.tok, cardId: id, onDone: afterRev, onBrief: () => { T.tab = 'brief'; paint(); } });
     const dla = $('[data-dlall]', host); if (dla) dla.onclick = async () => {
-      const files = (T.data.ads || []).map(a => T.data.files.find(f => f.id === a.file_id)).filter(Boolean);
+      const files = (T.data.ads || []).flatMap(a => a.carousel ? a.cards.map(c => c.file_id) : [a.file_id]).map(fid => T.data.files.find(f => f.id === fid)).filter(Boolean);
       for (const f of files) { const x = document.createElement('a'); x.href = f.download || f.url; x.download = f.name || ''; document.body.appendChild(x); x.click(); x.remove(); await new Promise(r => setTimeout(r, 400)); }
       toast(`${files.length} file${files.length === 1 ? '' : 's'} downloading.`);
     };
@@ -848,7 +873,9 @@ async function review(H, id, opts = {}) {
   const k = data.card;
   const label = ad => ad ? `Ad ${ad}` : 'The ad';
   /* every ad of the test goes in (the strip along the bottom); the file asked for picks where it opens */
-  const adsOf = d => (d.ads || []).map(a => ({ ad: a.ad, label: label(a.ad), status: a.status, by: a.by, files: d.files.filter(f => f.kind === 'version' && (f.ad || '') === a.ad) }));
+  const adsOf = d => (d.ads || []).map(a => a.carousel
+    ? { ad: a.ad, label: `${label(a.ad)}, carousel`, status: a.status, by: a.by, carousel: true, files: a.cards.map(c => { const f = d.files.find(x => x.id === c.file_id); return f && { ...f, card: c.k }; }).filter(Boolean) }
+    : { ad: a.ad, label: label(a.ad), status: a.status, by: a.by, files: d.files.filter(f => f.kind === 'version' && (f.ad || '') === a.ad) });
   const canDecide = d => client ? (d.card.needs_client === 'ad' || !!d.card.client_sent_at) : true;
   const startFile = opts.version && data.files.find(f => f.id === opts.version);
   const fail = r => { if (r && r.error) throw new Error(r.error); return r; };

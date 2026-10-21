@@ -6,6 +6,7 @@
  * review link (review.html); it only talks through the callbacks it is given.
  *   ReviewUI.open({ title, num, format, formatColor, mode: 'team'|'client'|'guest', needsName,
  *     ads: [{ ad, label, status: 'review'|'changes'|'approved', by, files: [versions, oldest first] }],
+ *       an ad with `carousel: true` is ONE carousel: its files are the cards ({card: k}, in swipe order), one call for all
  *     startAd, start: a version id | 'compare', comments, canDecide: bool | (ad) => bool,
  *     api: { note(fileId, body, shape, at, name, parentId), decide(ok, body, fileId, name, reset), fixed(id, on), share(), reload() } })
  *   reload() returns { ads, comments, canDecide }.
@@ -179,7 +180,9 @@ function open(o) {
   try { if (o.needsName && !S.name) S.name = localStorage.getItem('rv_name') || ''; } catch {}
   const team = o.mode === 'team';
   const AD = () => S.ads[S.i] || null;
-  const vers = () => (AD() ? AD().files : []).slice().sort((a, b) => (a.version || 0) - (b.version || 0));
+  const car = () => !!(AD() && AD().carousel);
+  const vers = () => (AD() ? AD().files : []).slice().sort((a, b) => car() ? (a.card || 0) - (b.card || 0) : (a.version || 0) - (b.version || 0));
+  const vl = x => car() ? `Card ${x.card}` : `v${x.version}`;
   const latest = () => vers().slice(-1)[0] || null;
   const fileOf = id => vers().find(f => f.id === id) || null;
   const cur = () => fileOf(S.v) || latest();
@@ -188,8 +191,8 @@ function open(o) {
     if (!S.ads.length) return;
     S.i = (i + S.ads.length) % S.ads.length; S.cmp = false; S.pending = null; S.pendingAt = null; S.asking = false; S.hi = null; S.reply = null; S.err = '';
     const f = start && start !== 'compare' && vers().find(x => x.id === start);
-    S.v = f ? f.id : (latest() || {}).id || null;
-    S.cmp = start === 'compare' && vers().length > 1;
+    S.v = f ? f.id : ((car() ? vers()[0] : latest()) || {}).id || null;
+    S.cmp = start === 'compare' && vers().length > 1 && !car();
   };
   const si = Math.max(0, S.ads.findIndex(a => a.ad === o.startAd || (o.start && a.files.some(f => f.id === o.start))));
   goAd(si, o.start);
@@ -231,11 +234,12 @@ function open(o) {
   const headHtml = () => {
     const a = AD(), f = cur(), vs = vers(), L = latest();
     const st = STATUS[(a && a.status) || 'review'];
-    const seg = vs.map(x => `<button type="button" class="${!S.cmp && f && x.id === f.id ? 'on' : ''}" data-ver="${esc(x.id)}" aria-pressed="${!S.cmp && f && x.id === f.id}">v${x.version}${x === L ? ' (latest)' : ''}</button>`).join('')
-      + (vs.length > 1 ? `<button type="button" class="${S.cmp ? 'on' : ''}" data-cmp aria-pressed="${S.cmp}">Compare</button>` : '');
-    const oldVersion = f && L && f.id !== L.id;
+    const seg = vs.map(x => `<button type="button" class="${!S.cmp && f && x.id === f.id ? 'on' : ''}" data-ver="${esc(x.id)}" aria-pressed="${!S.cmp && f && x.id === f.id}">${vl(x)}${x === L && !car() ? ' (latest)' : ''}</button>`).join('')
+      + (vs.length > 1 && !car() ? `<button type="button" class="${S.cmp ? 'on' : ''}" data-cmp aria-pressed="${S.cmp}">Compare</button>` : '');
+    /* a carousel's cards are all current: any card can take the one call for the whole carousel */
+    const oldVersion = !car() && f && L && f.id !== L.id;
     const call = !a || !L ? '' : a.status === 'review'
-      ? (canDecide() && !S.cmp && !oldVersion ? `<button type="button" class="rv-btn" data-ask${S.busy ? ' disabled' : ''}>Ask for changes</button><button type="button" class="rv-btn ok" data-approve${S.busy ? ' disabled' : ''}>Approve v${L.version}</button>` : `<span class="rv-st" style="--sc:${st[1]}"><i></i>${st[0]}</span>`)
+      ? (canDecide() && !S.cmp && !oldVersion ? `<button type="button" class="rv-btn" data-ask${S.busy ? ' disabled' : ''}>Ask for changes</button><button type="button" class="rv-btn ok" data-approve${S.busy ? ' disabled' : ''}>${car() ? `Approve all ${vs.length} cards` : `Approve v${L.version}`}</button>` : `<span class="rv-st" style="--sc:${st[1]}"><i></i>${st[0]}</span>`)
       : `<span class="rv-st" style="--sc:${st[1]}" title="${esc(a.by ? `${st[0]} by ${a.by}` : st[0])}"><i></i>${st[0]}${a.by ? ` · ${esc(a.by)}` : ''}</span>${canDecide() || team ? `<button type="button" class="rv-btn" data-reopen${S.busy ? ' disabled' : ''}>Change</button>` : ''}`;
     return `<div class="rv-h">
       <button type="button" class="rv-btn" data-close aria-label="Close the review">${ic(I.left, 15, 2.2)}${esc(o.num || 'Back')}</button>
@@ -245,7 +249,7 @@ function open(o) {
       ${o.format ? `<span class="rv-tag" style="--tc:${o.formatColor || 'var(--brand)'}">${esc(o.format)}</span>` : ''}
       ${vs.length ? `<div class="rv-seg" role="group" aria-label="Version" style="margin-left:6px">${seg}</div>` : ''}
       <span class="sp"></span>
-      ${f ? `<a class="rv-btn ghost" href="${esc(f.download || f.url)}" download title="Download v${f.version}">${ic('M12 4v12M7 11l5 5 5-5M5 20h14', 16, 2)}Download</a>` : ''}
+      ${f ? `<a class="rv-btn ghost" href="${esc(f.download || f.url)}" download title="Download ${vl(f)}">${ic('M12 4v12M7 11l5 5 5-5M5 20h14', 16, 2)}Download</a>` : ''}
       ${team && o.api.share ? '<button type="button" class="rv-btn ghost" data-share>Copy client link</button>' : ''}
       ${call}
       <button type="button" class="rv-btn ic" data-close aria-label="Close">${ic(I.x, 15, 2.2)}</button>
@@ -269,7 +273,7 @@ function open(o) {
   };
 
   const stripHtml = () => `<div class="rv-strip" role="group" aria-label="Every ad in this test">
-    ${S.ads.map((a, k) => { const L = a.files.slice().sort((x, y) => (x.version || 0) - (y.version || 0)).slice(-1)[0]; const st = STATUS[a.status] || STATUS.review;
+    ${S.ads.map((a, k) => { const L = a.carousel ? a.files.slice().sort((x, y) => (x.card || 0) - (y.card || 0))[0] : a.files.slice().sort((x, y) => (x.version || 0) - (y.version || 0)).slice(-1)[0]; const st = STATUS[a.status] || STATUS.review;
       return `<button type="button" class="rv-thumb${k === S.i ? ' on' : ''}" data-ad="${k}" aria-label="${esc(a.label)}, ${st[0].toLowerCase()}" title="${esc(a.label)}: ${st[0]}">${L ? (L.video ? `<video src="${esc(L.url)}#t=0.5" muted preload="metadata"></video>` : `<img src="${esc(L.thumb || L.url)}" alt="" loading="lazy">`) : ''}<span class="l">${esc(a.ad || 'Ad')}</span><i style="--sc:${st[1]}"></i></button>`; }).join('')}
     <div class="rv-keys">${S.ads.length > 1 ? '<span class="rv-kbd">&#8592;</span><span class="rv-kbd">&#8594;</span> ads' : ''}<span class="rv-kbd" style="margin-left:8px">N</span> note${vers().some(f => f.video) ? '<span class="rv-kbd" style="margin-left:8px">Space</span> play' : ''}<span class="rv-kbd" style="margin-left:8px">Esc</span> close</div>
   </div>`;
@@ -294,16 +298,16 @@ function open(o) {
     const calls = f ? callsOf(f.id).map(c => `<div class="rv-sys">${esc(c.body)} ${esc(c.who)}, ${esc(when(c.created_at))}</div>`).join('') : '';
     const notesTab = `<div class="rv-chips" role="group" aria-label="Show">${[['open', `Open ${open.length}`], ['resolved', `Resolved ${res.length}`], ['all', 'All']].map(([k, l]) => `<button type="button" class="rv-chip${S.filter === k ? ' on' : ''}" data-filter="${k}">${l}</button>`).join('')}</div>
       <div class="rv-list">${S.cmp ? '<div class="rv-empty">Comparing the last two versions. Pick a version to read or add notes.</div>' : shown.map(noteHtml).join('') || `<div class="rv-empty">${all.length ? 'Nothing here with this filter.' : f ? 'No notes on this version yet. Pick a tool and draw on the ad, or click it to drop a note.' : ''}</div>`}${S.cmp ? '' : calls}</div>`;
-    const versTab = `<div class="rv-list">${vers().slice().reverse().map(x => `<button type="button" class="rv-ver${f && x.id === f.id && !S.cmp ? ' on' : ''}" data-ver="${esc(x.id)}"><span class="th">${x.video ? '' : `<img src="${esc(x.thumb || x.url)}" alt="" loading="lazy">`}</span><span style="display:flex;flex-direction:column;gap:2px;min-width:0"><b style="font-weight:600">v${x.version}${x === latest() ? ' (latest)' : ''}</b><span class="rv-hint">${esc([x.by, when(x.created_at)].filter(Boolean).join(', '))}</span><span class="rv-hint">${notesOf(x.id).length} note${notesOf(x.id).length === 1 ? '' : 's'}</span></span></button>`).join('')}</div>`;
+    const versTab = `<div class="rv-list">${(car() ? vers() : vers().slice().reverse()).map(x => `<button type="button" class="rv-ver${f && x.id === f.id && !S.cmp ? ' on' : ''}" data-ver="${esc(x.id)}"><span class="th">${x.video ? '' : `<img src="${esc(x.thumb || x.url)}" alt="" loading="lazy">`}</span><span style="display:flex;flex-direction:column;gap:2px;min-width:0"><b style="font-weight:600">${vl(x)}${x === latest() && !car() ? ' (latest)' : ''}</b><span class="rv-hint">${esc([x.by, when(x.created_at)].filter(Boolean).join(', '))}</span><span class="rv-hint">${notesOf(x.id).length} note${notesOf(x.id).length === 1 ? '' : 's'}</span></span></button>`).join('')}</div>`;
     const box = S.cmp || !f ? '' : `<div class="rv-box">
       ${o.needsName ? `<label>Your name<input data-name maxlength="60" value="${esc(S.name)}" autocomplete="name"></label>` : ''}
-      <label>${S.asking ? `What needs to change on ${esc(a ? a.label : 'the ad')} (required)` : `Note on ${esc(a ? a.ad || 'the ad' : 'the ad')} v${f.version}${S.pendingAt != null ? ` at ${mmss(S.pendingAt)}` : ''}`}<textarea data-body rows="3" placeholder="${S.pending ? 'Say what to change here.' : 'Click the ad to place a note, or just type'}"></textarea></label>
+      <label>${S.asking ? `What needs to change on ${esc(a ? a.label : 'the ad')} (required)` : `Note on ${esc(a ? a.ad || 'the ad' : 'the ad')} ${vl(f)}${S.pendingAt != null ? ` at ${mmss(S.pendingAt)}` : ''}`}<textarea data-body rows="3" placeholder="${S.pending ? 'Say what to change here.' : 'Click the ad to place a note, or just type'}"></textarea></label>
       ${S.err ? `<div class="rv-err">${esc(S.err)}</div>` : ''}
       <div class="row">${S.pending ? `<span class="rv-pend" style="--pc:${COLOR[S.pending.color]}">${S.pending.tool === 'pin' ? 'Pin' : S.pending.tool === 'mark' ? 'Highlight' : S.pending.tool[0].toUpperCase() + S.pending.tool.slice(1)} attached <button type="button" data-clear>Remove</button></span>` : ''}
         <span style="flex:1"></span><span class="rv-hint">Enter to post, Shift+Enter for a new line</span>
         ${S.asking ? '<button type="button" class="rv-btn" data-cancel>Cancel</button>' : ''}<button type="button" class="rv-btn pri" data-post${S.busy ? ' disabled' : ''}>${S.asking ? 'Send back' : 'Post'}</button></div></div>`;
     return `<aside class="rv-side" aria-label="Notes">
-      <div class="rv-tabs" role="tablist"><button type="button" role="tab" class="rv-tab${S.tab === 'notes' ? ' on' : ''}" aria-selected="${S.tab === 'notes'}" data-tab="notes">Notes <span class="rv-hint">${open.length}</span></button><button type="button" role="tab" class="rv-tab${S.tab === 'versions' ? ' on' : ''}" aria-selected="${S.tab === 'versions'}" data-tab="versions">Versions <span class="rv-hint">${vers().length}</span></button></div>
+      <div class="rv-tabs" role="tablist"><button type="button" role="tab" class="rv-tab${S.tab === 'notes' ? ' on' : ''}" aria-selected="${S.tab === 'notes'}" data-tab="notes">Notes <span class="rv-hint">${open.length}</span></button><button type="button" role="tab" class="rv-tab${S.tab === 'versions' ? ' on' : ''}" aria-selected="${S.tab === 'versions'}" data-tab="versions">${car() ? 'Cards' : 'Versions'} <span class="rv-hint">${vers().length}</span></button></div>
       ${S.tab === 'notes' ? notesTab : versTab}${box}</aside>`;
   };
 

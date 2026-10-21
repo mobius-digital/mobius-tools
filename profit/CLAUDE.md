@@ -4391,8 +4391,28 @@ Cole: "Studio looks like absolute shit. I still don't understand how things get 
   then Create paused, then Ads Manager / Undo / Turn it on. `index()` marks every card of a carousel launch as launched, so
   the chip and the Launch step's tick follow. **Send to the Pipeline** uploads the approved cards in swipe order as ONE ad
   of the test (`<num>-1 card k of n <headline>.png`, so prodwork reads them as versions of ad <num>-1, newest = the last
-  card) and sets the card's format to Carousel (`/api/production/field`). The Pipeline itself has no carousel view yet.
+  card) and sets the card's format to Carousel (`/api/production/field`). The Pipeline shows it as ONE carousel (next section).
 - Checked on a stub harness in the built-in browser (static files + mocked Studio and Launch API; not committed): the format
   switch, card fields, reorder saved, the window's dry run and create body (order, headlines, a card's own link), the chip
   after, the Pipeline send (one brief, 3 uploads in order, format set), 375px with no sideways scroll. Nothing was made,
   planned with a real model, or written to Meta.
+
+## 2026-10-21: THE PIPELINE READS A CAROUSEL CARD AS ONE AD (prodsheet.js?v=14, review-ui.js?v=10, launch.js?v=7)
+- A Production card whose `brief_json.format` is `Carousel` treats its uploads as the CARDS of one ad, not versions. The
+  worker decides it (account-health prodwork.js `adsOf(files, comments, {carousel})`): the ad carries `carousel: true` and
+  `cards: [{file_id, k, version}]` in swipe order, read from `card k of n` in the file name (a re-sent card k takes its
+  place), else version order. `file_id` = the newest card, where the ONE call lives; notes count over every card.
+- **Ads tab** (prodsheet.js `filesHtml`): a carousel is one article with its cards in a scrolling strip (`.ps-pv.car`, each
+  card a button that opens the viewer at that card), "Carousel · N cards", one Approve / Ask for changes, "Download N",
+  and "Launch the carousel to Meta" (`data-launchcar` = `LaunchToMeta.openBatch`). No Compare or Delete vN on it.
+  Download all takes every card.
+- **Viewer** (review-ui.js): an ad with `carousel: true` has files `{...file, card: k}`; buttons read Card 1..N (no
+  latest, no Compare, the tab is Cards), any card can make the call ("Approve all N cards"); the worker's `decide` maps
+  whichever card id it gets to the carousel's newest card. review.html (the client link) shows the first card with
+  "Carousel · N cards" and the same viewer.
+- **Launch** (launch.js `openBatch`): the row shows the card thumbs and each card's headline (from the file name
+  `card k of n <headline>`, else the brief's Headline); the dry run lists the cards; create = ONE carousel ad
+  (account-health `proposeWorkCarousel`, meta_create_ad `cards`). A carousel with under 2 or over 10 cards, or a video
+  card, cannot be ticked and says why.
+- Checked on a stub harness in the built-in browser (not committed): the strip, viewer labels and the decide body, the
+  launch window and its dry run body, 375px with the strip scrolling inside the card. Not run against real data or Meta.

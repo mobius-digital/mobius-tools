@@ -2640,3 +2640,20 @@ Monday call is at 8am. Tests: `node test-clientpost.mjs` (12 offline checks).
 - Tests: `node test-launch.mjs` 23 (source refusals and order, prep, dry run writes nothing, create = 3 adimages + 1 creative +
   1 PAUSED ad with child_attachments in order and the per-card link, the cards on the list, repeat refused, cards + image
   refused). NOT tested live: a real carousel create in Meta (only the mocked Graph API), the plan prompt on a real model.
+
+## 2026-10-21: A CAROUSEL CARD IN PRODUCTION = ONE AD (prodwork.js, launch.js batch routes, framesync.js)
+- `isCarousel(brief_json)` (format `Carousel`), `cardOf(name)` (`card k of n`), `carouselCards(files)` (newest file per k
+  up to the newest file's n; no such names = version order) in prodwork.js. `adsOf(files, comments, {carousel})` gives
+  each ad `carousel`, `cards` in swipe order and `file_id` = its newest card. getCard, decide and decideMany pass the flag.
+- **decide** on a carousel maps any card id to that newest card, so the whole carousel takes ONE call ("Approved 430-1
+  carousel (3 cards).").
+- **pruneFiles** leaves carousel cards out of the version rule (`brief_json NOT LIKE '%"format":"Carousel"%'`) and only
+  deletes a card a newer upload of the same k replaced. **frameSync** skips a carousel card (it would move cards to the old
+  versions folder).
+- **Launch batch** (`batchPrep` / `batchPreview` / `batchCreate`): a carousel ad is one row (`carousel`, `cards` with
+  thumb and headline: the file name's text after `card k of n`, else the ad's Headline), named `<ad> | Carousel`, missing
+  `cards` (not 2 to 10) or `video`; preview and create go through `proposeWorkCarousel` (meta_create_ad `cards`, picture
+  links from `fileUrl`), `launchCreate` writes `p_launch.cards` = the card file ids in order and `work_file` = the newest.
+- Tests: `node test-launch.mjs` 24 (prep, dry run writes nothing, create = 3 adimages + 1 creative + 1 PAUSED ad, cards in
+  order with a re-sent card in its place, repeat refused, one card refused), `node test-production2.mjs` 18 (adsOf, one
+  call through any card, prune keeps the current cards). NOT live: no real carousel was made in Meta.
