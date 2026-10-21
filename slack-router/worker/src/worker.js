@@ -118,7 +118,8 @@ const owned = new Map();
 async function locusOwns(env, channel) {
   if (!channel || !env.AUTH) return false;
   const hit = owned.get(channel);
-  if (hit && hit.at > Date.now() - 3600e3) return hit.owns;
+  /* A yes holds an hour; a no only two minutes, so a channel Locus just answered in for the first time picks up its thread replies. */
+  if (hit && hit.at > Date.now() - (hit.owns ? 3600e3 : 120e3)) return hit.owns;
   let owns = false;
   try {
     const r = await env.AUTH.fetch(new Request(`https://mobius-account-health.mobius-digital.workers.dev/slack/owns?channel=${encodeURIComponent(channel)}`));
@@ -167,7 +168,9 @@ export default {
          which answered as Controller). The Ledger never answers there. */
       const dm = ev.channel_type === 'im' || ev.channel_type === 'mpim';
       /* A reaction names its channel under item (reaction_added); Locus reads a ✅ on its action item reminders (2026-10-13). */
-      const who = dm || await locusOwns(env, ev.channel || ev.item?.channel) ? 'locus' : 'ledger';
+      /* 2026-10-21: a tag of Locus goes to Locus from ANY channel (a shared channel with a partner agency, a client
+         channel); Locus decides there who may use it (account-health slackaccess.js). */
+      const who = dm || ev.type === 'app_mention' || await locusOwns(env, ev.channel || ev.item?.channel) ? 'locus' : 'ledger';
       const [bindingName, target] = EVENT_TARGETS[who] || [];
       const binding = bindingName && env[bindingName];
       if (!binding) return new Response('', { status: 200 });
