@@ -2664,6 +2664,18 @@ async function styleBlock(env, kind, actId) {
     : '';
 }
 
+/* THE LOOP (2026-10-21): the team's ticked tasks (p_action, from Tasks, the leaks, the calls on Today and the Monday runner)
+   go into the brief next to the Change Log, so "what we're doing" says what was actually done. Empty when the table is
+   missing or nothing was ticked. */
+async function doneTaskLines(env, actId, sinceYmd) {
+  try {
+    const { results } = await env.DB.prepare(
+      `SELECT text, done_at, done_by, source FROM p_action WHERE act_id = ?1 AND status = 'done' AND done_at >= ?2 ORDER BY done_at DESC LIMIT 20`,
+    ).bind(actId, sinceYmd).all();
+    return (results || []).map(r => `- ${String(r.done_at).slice(0, 16).replace('T', ' ')} [team task done${r.source === 'today' ? ', from the calls' : r.source === 'monday' || r.source === 'meeting' ? ', from the call' : ''}] ${r.text}${r.done_by ? ` {by: ${r.done_by}}` : ''}`);
+  } catch { return []; }
+}
+
 async function writeBriefNarrative(env, acct, data, date, steer) {
   const f2 = n => n == null ? ' - ' : String(Math.round(n * 100) / 100);
   const lines = data.days.filter(x => x.date <= date).slice(-14).map(x =>
@@ -2673,6 +2685,7 @@ async function writeBriefNarrative(env, acct, data, date, steer) {
      WHERE act_id IN ${metaOf(1)} AND event_time >= ?2 AND confirmed != -1 ORDER BY event_time DESC LIMIT 40`,
   ).bind(acct.act_id, addDays(date, -7)).all();
   const evLines = evs.map(e => `- ${String(e.event_time).slice(0, 16).replace('T', ' ')} [${e.category}] ${e.summary}${e.reason ? ` {reason: ${e.reason}}` : ''}${e.note ? ` {note: ${e.note}}` : ''}`);
+  evLines.push(...await doneTaskLines(env, acct.act_id, addDays(date, -7)));
   // Its own last three briefs, so it can see what it already said and not
   // say it again (see PLAIN_VOICE).
   const { results: recent } = await env.DB.prepare(
@@ -2878,6 +2891,7 @@ async function writeBriefNarrativeV2(env, acct, data, date, steer) {
      WHERE act_id IN ${metaOf(1)} AND event_time >= ?2 AND confirmed != -1 ORDER BY event_time DESC LIMIT 40`,
   ).bind(acct.act_id, addDays(date, -2)).all();
   const evLines = evs.map(e => `- ${String(e.event_time).slice(0, 16).replace('T', ' ')} [${e.category}] ${e.summary}${e.reason ? ` {reason: ${e.reason}}` : ''}${e.note ? ` {note: ${e.note}}` : ''}`);
+  evLines.push(...await doneTaskLines(env, acct.act_id, addDays(date, -2)));
   const { results: recent } = await env.DB.prepare(
     `SELECT date, text FROM briefs WHERE act_id = ?1 AND date < ?2 AND text IS NOT NULL ORDER BY date DESC LIMIT 3`,
   ).bind(acct.act_id, date).all().catch(() => ({ results: [] }));

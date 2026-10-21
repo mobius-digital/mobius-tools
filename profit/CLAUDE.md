@@ -4119,3 +4119,31 @@ the shell plus Today > Morning, OFF by default so the team keeps the old rail un
   (the hero river), the design page's `river()` and `waterfall()`. Any new money chart reads these tokens, never a literal.
 - Versions: v4.js?v=10, v2.css bumped again.
 
+### 2026-10-21: v4 ON BY DEFAULT (PR 44 merged), and THE LOOP, edges 1 to 4
+
+- `V4` is true unless `pf_v4 === '0'` (profile menu "Use the old Locus for now", or `?v4=0`). The old renderers stay ONE WEEK
+  (to 2026-10-28) and then go; until then every `!V4` branch is the escape hatch, not a feature.
+- The loop is leak or call -> task -> done -> report -> brief -> next call. Wired tonight:
+  1. desk.js `logCallTask`: a call acted on (Done, Do it, Do all, the Google negatives) writes one p_action row (source `today`,
+     source_id `<day>:<row key>`) and ticks it at once, so Reports > Done, the Monday runner's last-week list and the brief see it.
+  2. leaks.js `confirmTasked` reads `status=all`: a leak says "On Tasks" while open and "Done" (green) once ticked anywhere.
+  3. worker.js `doneTaskLines`: both brief builders hand the model the ticked tasks next to the Change Log. Deployed
+     (mobius-account-health).
+  4. production.js `liveResults`: a Launched card reads /api/launch/list (its ads by card number) and /api/hub/creative (spend,
+     sales in the period) and prints "3 ads live · $412 · 5 sales · $82 a sale · 2 keep" under its title.
+- Not done: the Slack morning card reads yesterday from the brief's snapshot (briefs.data_json) while Morning reads /api/hub/kept
+  live; same P&L line, different moment. Left as is on purpose. Edges 1 to 4 were NOT seen in a browser (Chrome was down);
+  the first look is on Cole.
+
+
+## 2026-10-21 (later): a client reads, the team acts
+
+- `body.is-client` is set by applyClientMode(). One rule in lx.css hides every header action (`#main .ph .ph-acts > *`,
+  `#hdActions > *`, `.v4-ring-go`) for a client unless the page flags the button `data-client-ok` (Month's Customers is).
+  The JS gates match (reports, brief, P&L, dashboards, plan, Month), so nothing team-only is even in the DOM.
+- The ad wall (`/api/hub/creative`) is the PROFIT worker's; `/api/launch/list` is the account-health worker's.
+  production.js' live line uses `H.api` for the first and `H.apiAH` for the second.
+- Phone: the Meetings "Waiting on" rows stack under 720px (calls.js media block AFTER the base `.cl-tr` rule, same
+  specificity, so order decides). The past-calls table stays a horizontal scroller.
+- Verified this pass in Cole's Chrome (CORS iframe build): client sim on Reports / Month / Brief, dark mode on Morning,
+  Month, Pipeline, Ads queue; 390px on Ads queue, report cards, Requests, Tasks, Meetings, the Monday runner.
