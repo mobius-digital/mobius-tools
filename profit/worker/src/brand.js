@@ -114,9 +114,15 @@ export function rulesFor(acct, doc) {
   r.monday_post = !!(doc && +doc.monday_post > 0);
   r.goal_metric = GOAL_METRICS.includes(doc?.goal_metric) ? doc.goal_metric : 'cpa';
   r.roas_guard = !(doc && doc.roas_guard === 'off');
+  r.cpa_guard = !(doc && doc.cpa_guard === 'off');
+  /* New tests are Meta ads, so they are judged on the Meta goal when one is set (2026-10-22): test_cpa / test_roas. */
+  { const gm = doc && +doc.goal_meta > 0 ? +doc.goal_meta : null;
+    r.test_cpa = r.goal_metric === 'cpa' && gm ? gm : r.target_cpa;
+    r.test_roas = r.goal_metric === 'roas' && gm ? gm : r.target_roas || null;
+    if (r.test_roas) { r.win_roas = r.test_roas; r.lose_roas = Math.round(r.test_roas * 0.6 * 100) / 100; } }
   r.window_auto = !(doc && doc.window_auto === 'off');
   r.judge_spend_auto = !(doc && +doc.judge_spend > 0);
-  if (r.judge_spend_auto) r.judge_spend = r.target_cpa ? Math.round(r.target_cpa * 3) : DEFAULT_RULES.judge_spend;
+  if (r.judge_spend_auto) r.judge_spend = r.test_cpa ? Math.round(r.test_cpa * 3) : DEFAULT_RULES.judge_spend;
   r.set = !!(doc && Object.keys(TEST_KEYS).some(k => +doc[k] > 0));
   return r;
 }
@@ -132,11 +138,11 @@ function suggest(st, rules) {
   const enough = st.spend >= rules.judge_spend || (age >= rules.judge_days && st.spend >= rules.judge_spend / 3);
   if (!enough) return 'too_early';
   /* A brand whose ad goal is ROAS judges its tests on ROAS too (2026-10-22); every other measure on the CPA goal. */
-  if (rules.target_cpa && !(rules.goal_metric === 'roas' && rules.target_roas)) {
+  if (rules.test_cpa && !(rules.goal_metric === 'roas' && rules.test_roas)) {
     const cpa = st.orders > 0 ? st.spend / st.orders : null;
     const two = (st.orders || 0) >= 2;   // one sale is noise
-    if (two && cpa != null && cpa <= rules.target_cpa) return 'winner';
-    if (two && cpa != null && cpa <= (rules.acct_avg || rules.target_cpa * (1 + rules.yellow_pct / 100))) return 'keep';
+    if (two && cpa != null && cpa <= rules.test_cpa) return 'winner';
+    if (two && cpa != null && cpa <= Math.max(rules.acct_avg || 0, rules.test_cpa * (1 + rules.yellow_pct / 100))) return 'keep';
     return 'loser';
   }
   const roas = st.spend > 0 ? st.rev / st.spend : 0;
@@ -350,7 +356,7 @@ async function testsOverview(env) {
       n[box]++;
       /* Today's calls (profit/desk.js, 2026-10-13): one row per test that needs a call, with the numbers the buyer judges on. */
       if (box === 'call') calls.push({ id: b.id, num: parseInt(b.num, 10) || b.num, title: b.title, asana_url: b.asana_url || null, suggest: sug, spend: st.spend, orders: st.orders, cpa: st.cpa, roas: st.roas,
-        goal: rules.target_cpa || null, ads: st.ads, first: st.first,
+        goal: rules.test_cpa || null, ads: st.ads, first: st.first,
         ads_manager: st.list?.length && acct.meta_act ? `https://adsmanager.facebook.com/adsmanager/manage/ads?act=${acct.meta_act.replace(/^act_/, '')}&selected_ad_ids=${st.list.slice(0, 30).join(',')}` : null });
     }
     return { act_id: A, name: acct.name, total: batches.length, ...n, calls: calls.sort((p, q) => (q.spend || 0) - (p.spend || 0)) };
@@ -521,7 +527,7 @@ export async function handleStaff(request, env, url, path, json) {
         const R0 = body.rules || {};
         for (const k of Object.keys(TEST_KEYS)) if (k in R0) { const v = +R0[k]; if (Number.isFinite(v) && v >= 0) next[k] = v; }
         if (GOAL_METRICS.includes(R0.goal_metric)) next.goal_metric = R0.goal_metric;
-        for (const k of ['roas_guard', 'window_auto']) if (k in R0) next[k] = R0[k] === 'off' || R0[k] === false ? 'off' : 'on';
+        for (const k of ['roas_guard', 'cpa_guard', 'window_auto']) if (k in R0) next[k] = R0[k] === 'off' || R0[k] === false ? 'off' : 'on';
         /* The first save under v2 drops any number still sitting at an OLD default (it was never a choice). */
         if (!(+doc.rules_v >= RULES_V)) for (const [k, v] of Object.entries(OLD_DEFAULTS)) if (+doc[k] === v && !(k in next)) delete doc[k];
         doc = { ...doc, ...next, rules_v: RULES_V };

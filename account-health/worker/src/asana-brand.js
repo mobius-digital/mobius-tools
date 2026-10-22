@@ -648,13 +648,18 @@ function rulesOf(acct, doc) {
   else if (acct?.target_cpa > 0) r.target_cpa = +acct.target_cpa;
   if (acct?.target_roas > 0) { r.target_roas = +acct.target_roas; r.win_roas = acct.target_roas; r.lose_roas = Math.round(acct.target_roas * 0.6 * 100) / 100; }
   r.goal_metric = ['cpa', 'ncpa', 'roas', 'cpl'].includes(doc?.goal_metric) ? doc.goal_metric : 'cpa';
+  /* New tests are Meta ads, so they are judged on the Meta goal when one is set (2026-10-22): test_cpa / test_roas. */
+  { const gm = doc && +doc.goal_meta > 0 ? +doc.goal_meta : null;
+    r.test_cpa = r.goal_metric === 'cpa' && gm ? gm : r.target_cpa;
+    r.test_roas = r.goal_metric === 'roas' && gm ? gm : r.target_roas || null;
+    if (r.test_roas) { r.win_roas = r.test_roas; r.lose_roas = Math.round(r.test_roas * 0.6 * 100) / 100; } }
   for (const k of ['judge_spend', 'judge_days', 'yellow_pct', 'min_days', 'min_cap_pct', 'min_track', 'monday_post']) if (doc && +doc[k] > 0) r[k] = +doc[k];
   /* TWO LINES (Cole, 2026-10-04): Winner <= goal, Keep <= the account's own average.
      The average is trailing-30-day Meta spend / Triple Whale orders, refreshed on the
      1st of each month by refreshAccountAvg, so the keep line tightens as the account improves. */
   r.acct_avg = doc && +doc.acct_avg_cpa > 0 ? +doc.acct_avg_cpa : null;
   r.acct_avg_month = doc?.acct_avg_month || null;
-  if (!(doc && +doc.judge_spend > 0) && r.target_cpa) r.judge_spend = Math.round(r.target_cpa * 3);
+  if (!(doc && +doc.judge_spend > 0) && r.test_cpa) r.judge_spend = Math.round(r.test_cpa * 3);
   return r;
 }
 /** Moves any old Brand info target CPA onto the account (the one place), once. */
@@ -770,7 +775,7 @@ export async function mondayCalls(env, act, opts = {}) {
   if (opts.minOnly) return { act, name: acct.name, channel: acct.slack_channel, due, error: meta.error };
   const L = [];
   const keepLine = rules.acct_avg ? `${money(rules.acct_avg)} account average${rules.acct_avg_month ? ` (${rules.acct_avg_month})` : ''}` : `${money(rules.target_cpa * (1 + rules.yellow_pct / 100))}`;
-  const head = `*${acct.name} · this week's test calls*\nWinner: ${money(rules.target_cpa)} or less per sale · Keep: up to ${keepLine} · both need 2+ sales`;
+  const head = `*${acct.name} · this week's test calls*\nWinner: ${money(rules.test_cpa)} or less per sale · Keep: up to ${keepLine} · both need 2+ sales`;
   if (groups.loser.length) L.push(':red_circle: *Pause*', ...groups.loser);
   if (groups.winner.length) L.push(':trophy: *Winner: keep it and make variations*', ...groups.winner);
   if (groups.avg.length) L.push(':large_green_circle: *Keep*', ...groups.avg);
@@ -934,10 +939,10 @@ function judge(st, r, sc) {
   if (!(st.spend >= r.judge_spend || (age >= r.judge_days && st.spend >= r.judge_spend / 3))) return null;
   const strong = [sc.r_ctr, sc.r_hook, sc.r_cpatc].filter(x => x === 'top').length;
   /* A brand whose ad goal is ROAS judges its tests on ROAS too (2026-10-22); same rule as profit brand.js suggest. */
-  if (r.target_cpa && !(r.goal_metric === 'roas' && r.target_roas)) {
-    const T = r.target_cpa;
+  if (r.test_cpa && !(r.goal_metric === 'roas' && r.test_roas)) {
+    const T = r.test_cpa;
     const two = (st.orders || 0) >= 2;
-    const K = r.acct_avg || T * (1 + r.yellow_pct / 100);                // keep line; old yellow zone only until the first average exists
+    const K = Math.max(r.acct_avg || 0, T * (1 + r.yellow_pct / 100));                // keep line; old yellow zone only until the first average exists
     if (two && sc.cpa != null && sc.cpa <= T) return { call: 'winner', read: `CPA ${money(sc.cpa)} on ${st.orders} sales is at or under the ${money(T)} goal. Make variations of it.` };
     if (strong >= 2 && (sc.cpa == null || sc.cpa <= T * 2)) return { call: 'keep', reason: 'tof', read: `CPA is ${sc.cpa ? money(sc.cpa) : 'not there yet'} against a ${money(T)} target, but people are clicking, watching and adding to cart. Looks like a top of funnel ad doing its job.` };
     if (two && sc.cpa != null && sc.cpa <= K) return { call: 'keep', reason: 'avg', read: `CPA ${money(sc.cpa)} on ${st.orders} sales is at or under the account average (${money(K)}). It doesn't make the account worse; leave it running.` };
@@ -1012,7 +1017,7 @@ async function resultsPass(env, act, { limit = 8, quiet = false, rejudge = false
     const MARK = { top: '✅', mid: '➖', low: '⚠️' };
     const WORD = { top: 'top third for this brand', mid: 'average for this brand', low: 'bottom third for this brand' };
     const li = (mark, label, v, note) => `<li>${mark} <strong>${label}:</strong> ${v}${note ? ` · ${note}` : ''}</li>`;
-    const T = rules.target_cpa;
+    const T = rules.test_cpa;
     const cpaMark = !sc?.cpa ? '❌' : sc.cpa <= T ? '✅' : sc.cpa <= (rules.acct_avg || T * (1 + rules.yellow_pct / 100)) ? '⚠️' : '❌';
     const CALL = { winner: '✅ Suggested: Winner', keep: '⏳ Suggested: Keep running', loser: '❌ Suggested: Loser' };
     try {
