@@ -450,7 +450,7 @@ async function buyerList(env, ctx, accts) {
       const guards = [];
       if (m && m !== 'cpl') {
         if (metric !== 'roas' && R.roas_guard && R.target_roas) guards.push({ k: 'roas', ok: roas != null && roas >= R.target_roas, lim: R.target_roas });
-        if (metric !== 'cpa' && R.target_cpa) guards.push({ k: 'cpa', ok: cps != null && cps <= R.target_cpa, lim: R.target_cpa });
+        if (metric !== 'cpa' && R.cpa_guard && R.target_cpa) guards.push({ k: 'cpa', ok: cps != null && cps <= R.target_cpa, lim: R.target_cpa });
       }
       const gText = g => g.k === 'roas' ? `ROAS ${roas != null ? X1(roas) : '0x'} ${g.ok ? 'beats' : 'is under'} the ${X1(g.lim)} floor`
         : cps != null ? `cost per sale ${$(cps)} is ${g.ok ? 'under' : 'over'} the ${$(g.lim)} ceiling` : `no sale against the ${$(g.lim)} cost per sale ceiling`;
@@ -509,7 +509,9 @@ async function buyerList(env, ctx, accts) {
         const overLine = m === 'roas' ? roas != null && roas < tr / R.cr_cut_cpa_x : cpr != null && cpr > R.cr_cut_cpa_x * unit;
         const cutZero = !res && X.spend >= R.cr_cut_zero_x * unit;
         const cutBar = cutZero || (res > 0 && X.spend >= R.cr_cut_spend_x * unit && overLine);
-        const broken = guards.filter(g => !g.ok), met = guards.filter(g => g.ok);
+        /* ONE WAY EACH (2026-10-22, Cole: "I'm so confused"): the ROAS floor only stops a cut, the CPA ceiling only stops a
+           scale. Before, each also blocked the other call, so a 2.5x floor turned nearly every Scale into Mixed. */
+        const broken = guards.filter(g => g.k === 'cpa' && !g.ok), met = guards.filter(g => g.k === 'roas' && g.ok);
         const win = days === 14 ? '14 days (a slow set)' : '7 days';
         const goalTxt = m === 'roas' ? `${X1(tr)} goal ROAS` : `${$(unit)} goal`;
         /* Mixed: the main goal and a guardrail disagree. No button; the sentence says what disagrees. */
@@ -524,7 +526,7 @@ async function buyerList(env, ctx, accts) {
           else rows.push({ kind: 'scale', ...setRow, stake: 0.2 * X.spend,
             why: m === 'roas' ? `${n(res)} at ${X1(roas)} ROAS, at or over the ${X1(tr)} goal over ${win}. Raise the budget 20% and watch 3 days.`
               : `${n(res)} at ${$(cpr)} each, ${Math.round(cpr) < Math.round(unit) ? 'under' : 'at'} the ${goalTxt} over ${win}${met.length ? `; ${met.map(gText).join(' and ')}` : ''}. Raise the budget 20% and watch 3 days.` });
-        } else if (cutBar && guards.length && !broken.length) { working = true; rows.push(mixed(met)); kept.push(s.name); }
+        } else if (cutBar && met.length) { working = true; rows.push(mixed(met)); kept.push(s.name); }
         else if (cutZero) { working = false; rows.push({ kind: 'cut', ...setRow, stake: X.spend, ...(funnel ? { funnel } : {}),
           why: `Spent ${$(X.spend)} (${(X.spend / unit).toFixed(1)}x the goal) with no ${one} in ${win}.` }); }
         else if (cutBar) { working = false; rows.push({ kind: 'cut', ...setRow, stake: Math.max(0, X.spend - unit * res), ...(funnel ? { funnel } : {}),

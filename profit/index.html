@@ -11861,7 +11861,7 @@ async function renderSettings() {
     catch (e) { box.innerHTML = `<span class="tiny" style="color:var(--bad)">${esc(e.message)}</span>`; return; }
     const r = g.rules, cur = a.currency, h = pre?.headline || {}, mc = meta?.brands?.[0]?.cur || {};
     const T0 = r.target_cpa != null ? Math.round(r.target_cpa) : '', TR0 = g.goal_roas != null ? g.goal_roas : '';
-    const V = { metric: r.goal_metric || 'cpa', guard: r.roas_guard !== false, win: r.window_auto !== false, track: !!r.min_track, cleared: false,
+    const V = { metric: r.goal_metric || 'cpa', guard: r.roas_guard !== false, cguard: r.cpa_guard !== false, win: r.window_auto !== false, track: !!r.min_track, cleared: false,
       target_cpa: T0, goal_ncpa: r.goal_ncpa || '', target_roas: TR0, goal_cpl: r.goal_cpl || '', goal_meta: r.goal_meta || '', goal_google: r.goal_google || '', goal_tiktok: r.goal_tiktok || '',
       judge_spend: r.judge_spend_auto ? '' : r.judge_spend, judge_days: r.judge_days, min_days: r.min_days, min_cap_pct: r.min_cap_pct,
       cr_judge_x: r.cr_judge_x, cr_min_days: r.cr_min_days, cr_scale_buys: r.cr_scale_buys, cr_cut_zero_x: r.cr_cut_zero_x, cr_cut_spend_x: r.cr_cut_spend_x, cr_cut_cpa_x: r.cr_cut_cpa_x, cr_anchor_pct: r.cr_anchor_pct };
@@ -11911,9 +11911,9 @@ async function renderSettings() {
     };
     const guardCard = () => {
       const m = V.metric, rows = [];
-      if (m !== 'roas') rows.push(row('ROAS floor', 'Never cut an ad set at or above this ROAS. Never scale one below it.', `${inp('target_roas', 'x', 'none', 56)}${sw('roas_guard', V.guard, 'on', 'off')}`));
-      if (m !== 'cpa') rows.push(row('CPA ceiling', 'Never scale an ad set that costs more than this a sale. Never cut one under it.', inp('target_cpa', '$', 'none', 64)));
-      return card('2. Guardrails', '', `Optional. They never make a call on their own: when one disagrees with the goal, Today's calls shows the ad set as <b>Mixed</b> for you to decide.`, `<div class="ga-rows">${rows.join('')}</div>`);
+      if (m !== 'roas') rows.push(row('ROAS floor', 'An ad set at or above this ROAS on Meta is never cut, even when it misses the goal.', `${inp('target_roas', 'x', 'none', 56)}${sw('roas_guard', V.guard, 'on', 'off')}`));
+      if (m !== 'cpa') rows.push(row('CPA ceiling', 'An ad set that costs more than this a sale on Meta is never scaled, even when it hits the goal.', `${inp('target_cpa', '$', 'none', 64)}${sw('cpa_guard', V.cguard, 'on', 'off')}`));
+      return card('2. Guardrails', '', `Optional. They never make a call on their own: they only stop a call. A stopped call shows on Today's calls as <b>Mixed</b>, for you to decide.`, `<div class="ga-rows">${rows.join('')}</div>`);
     };
     const callsCard = () => {
       const m = V.metric, [one, many] = MS[m].res, gw = m === 'roas' ? 'the goal ROAS' : 'the goal';
@@ -11928,12 +11928,12 @@ async function renderSettings() {
       </div><p class="tiny gr-why">Why wait for 3x: an ad set that truly runs on goal shows no ${one} 37% of the time after 1x the goal spent, 14% after 2x and 5% after 3x.</p>`);
     };
     const testsCard = () => {
-      const m = V.metric, T = +V.target_cpa || null, TR = +V.target_roas || null, ro = m === 'roas' && TR;
-      const tag = ro ? `ROAS goal (${f(TR, 'x')})` : `CPA goal${T ? ` (${f(T, '$')})` : ''}`;
+      const m = V.metric, gm = +V.goal_meta || null, T = (m === 'cpa' && gm) || +V.target_cpa || null, TR = (m === 'roas' && gm) || +V.target_roas || null, ro = m === 'roas' && TR;
+      const tag = (gm && (m === 'cpa' || m === 'roas') ? 'Meta ' : '') + (ro ? `ROAS goal (${f(TR, 'x')})` : `CPA goal${T ? ` (${f(T, '$')})` : ''}`);
       return card('4. New tests', 'Meta', `Each new numbered test, judged once so the team learns what worked. Tests use the ${tag}${m === 'ncpa' || m === 'cpl' ? ': CAC and leads are not tracked per test' : ''}.`, `<div class="ga-rows">
         ${row('Ready to judge', '', `Spent ${inp('judge_spend', '$', T ? String(Math.round(T * 3)) : '150', 56)} or ran ${inp('judge_days', 'days', '7', 34)} with a third of that spent${T ? '. Blank = 3x the CPA goal.' : ''}`)}
         ${row('<span class="good">Winner</span>', '', ro ? `2+ sales at or over the goal ROAS` : `2+ sales at or under the CPA goal`)}
-        ${row('<span class="warn">Keep running</span>', '', ro ? `ROAS between 60% of the goal and the goal` : `2+ sales at or under the account's own 30-day CPA (${r.acct_avg ? f(r.acct_avg, '$') : 'not worked out yet'})`)}
+        ${row('<span class="warn">Keep running</span>', '', ro ? `ROAS between 60% of the goal and the goal` : `2+ sales at or under the account's own 30-day CPA (${r.acct_avg ? f(r.acct_avg, '$') : 'not worked out yet'}) or 30% over the goal, whichever is higher`)}
         ${row('<span class="bad">Loser</span>', '', 'Everything else.')}
         ${row('Minimum budget', 'A daily floor on a new test’s ad set so Meta gives it a fair start.', `Take it off after ${inp('min_days', 'days', '7', 34)}, or once judged. All minimums under ${inp('min_cap_pct', '%', '25', 34)} of the campaign budget. ${sw('min_track', V.track, 'shown on the test list', 'off')}`)}
       </div>`);
@@ -11954,6 +11954,7 @@ async function renderSettings() {
       });
       const tog = (k, onTxt, offTxt, key) => { const t = v(k); if (!t) return; const flip = () => { V[key] = !V[key]; t.classList.toggle('on', V[key]); t.setAttribute('aria-checked', V[key]); box.querySelector(`[data-gl="${k}"]`).textContent = V[key] ? onTxt : offTxt; }; t.onclick = flip; t.onkeydown = e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); flip(); } }; };
       tog('roas_guard', 'on', 'off', 'guard');
+      tog('cpa_guard', 'on', 'off', 'cguard');
       tog('window_auto', 'on', 'always 7 days', 'win');
       tog('min_track', 'shown on the test list', 'off', 'track');
       box.querySelectorAll('[data-fill]').forEach(b => b.onclick = () => { const i = v(b.dataset.fill); if (i) { i.value = b.dataset.v; V[b.dataset.fill] = b.dataset.v; i.focus(); } });
@@ -11968,7 +11969,7 @@ async function renderSettings() {
       if (!(need > 0)) { msg.textContent = `Set the ${MS[V.metric].name} goal, or pick a measure that has one. Without it Locus makes no ad calls.`; return; }
       v('save').disabled = true; msg.textContent = 'Saving…';
       try {
-        const rules = { goal_metric: V.metric, roas_guard: V.guard ? 'on' : 'off', window_auto: V.win ? 'on' : 'off',
+        const rules = { goal_metric: V.metric, roas_guard: V.guard ? 'on' : 'off', cpa_guard: V.cguard ? 'on' : 'off', window_auto: V.win ? 'on' : 'off',
           goal_ncpa: n('goal_ncpa') || 0, goal_cpl: n('goal_cpl') || 0, goal_meta: n('goal_meta') || 0, goal_google: n('goal_google') || 0, goal_tiktok: n('goal_tiktok') || 0,
           judge_spend: n('judge_spend') || 0, judge_days: n('judge_days') || 7, yellow_pct: r.yellow_pct || 30,
           min_track: V.track ? 1 : 0, monday_post: r.monday_post ? 1 : 0, min_days: n('min_days') || 7, min_cap_pct: n('min_cap_pct') || 25,
