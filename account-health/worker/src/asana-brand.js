@@ -650,7 +650,7 @@ function rulesOf(acct, doc) {
   r.goal_metric = ['cpa', 'ncpa', 'roas', 'cpl'].includes(doc?.goal_metric) ? doc.goal_metric : 'cpa';
   /* New tests are Meta ads, so they are judged on the Meta goal when one is set (2026-10-22): test_cpa / test_roas. */
   { const gm = doc && +doc.goal_meta > 0 ? +doc.goal_meta : null;
-    r.test_cpa = r.goal_metric === 'cpa' && gm ? gm : r.target_cpa;
+    r.test_cpa = (r.goal_metric === 'cpa' || r.goal_metric === 'ncpa') && gm ? gm : r.target_cpa;
     r.test_roas = r.goal_metric === 'roas' && gm ? gm : r.target_roas || null;
     if (r.test_roas) { r.win_roas = r.test_roas; r.lose_roas = Math.round(r.test_roas * 0.6 * 100) / 100; } }
   for (const k of ['judge_spend', 'judge_days', 'yellow_pct', 'min_days', 'min_cap_pct', 'min_track', 'monday_post']) if (doc && +doc[k] > 0) r[k] = +doc[k];
