@@ -719,7 +719,7 @@ async function metaBrand(env, a, w, model, detail) {
   };
   const cur = await tot(w.from, w.to);
   const prev = w.pf ? await tot(w.pf, w.pt) : null;
-  const goals = { cpa: a.target_cpa ?? null, roas: a.target_roas ?? null };
+  const goals = (await adGoalMap(env, [a]))[a.act_id];
   const out = { act_id: act, name: a.name, currency: a.currency, goals, cur, prev };
   if (!detail) return out;
 
@@ -778,6 +778,22 @@ async function metaBrand(env, a, w, model, detail) {
   return out;
 }
 
+/* THE AD GOAL ON THE META SCREENS (2026-10-22, Cole: "I changed it to ROAS but nothing changed"). goals.cpa / goals.roas
+   are the numbers a Meta screen colours against: the brand's ad goal in its own measure (the Meta platform goal first,
+   goalOf), plus the other one as the guardrail. metric says which one decides. One query for every brand. */
+async function adGoalMap(env, accts) {
+  const acts = accts.map(a => a.act_id); if (!acts.length) return {};
+  const { results } = await env.DB.prepare(`SELECT act_id, data_json FROM p_br_doc WHERE act_id IN (${inList(acts.length, 1)}) AND line_id = '' AND key = 'rules'`).bind(...acts).all().catch(() => ({ results: [] }));
+  const doc = {}; for (const r of results || []) { try { doc[r.act_id] = JSON.parse(r.data_json || '{}'); } catch {} }
+  const out = {};
+  for (const a of accts) {
+    const R = rulesFor(a, doc[a.act_id] || null), m = R.goal_metric;
+    out[a.act_id] = { metric: m, cpa: (m === 'cpa' ? goalOf(R, 'cpa') : R.target_cpa) || null, roas: (m === 'roas' ? goalOf(R, 'roas') : R.target_roas) || null,
+      ncpa: (m === 'ncpa' ? goalOf(R, 'ncpa') : +R.goal_ncpa) || null };
+  }
+  return out;
+}
+
 /** Meta totals for many brands: 2 queries per window, whatever the brand count. */
 async function metaMany(env, accts, w, model, ctx) {
   const acts = accts.map(a => a.act_id);
@@ -787,6 +803,7 @@ async function metaMany(env, accts, w, model, ctx) {
     WHERE c.brand_id IN (${inList(acts.length, 5)}) AND ((d.date BETWEEN ?1 AND ?2) OR (d.date BETWEEN ?3 AND ?4)) GROUP BY c.brand_id, win`)
     .bind(w.from, w.to, w.pf || '9999', w.pt || '0000', ...acts).all();
   const at = await attrMany(env, acts, lo, w.to, model, 'meta');
+  const GM = await adGoalMap(env, accts);
   const raw = {}; for (const r of results || []) (raw[r.act_id] ??= {})[r.win] = r;
   /* The day series per brand (2026-10-09, every tile carries its line): ONE grouped query for every brand and both
      windows; attribution per day comes from the attrMany read above. */
@@ -812,7 +829,7 @@ async function metaMany(env, accts, w, model, ctx) {
     const pA = model === 'platform' || !w.pf ? null : sumAttr(at[a.act_id], w.pf, w.pt);
     const cur = metaMetrics(raw[a.act_id]?.cur || {}, cA);
     if (live && model !== 'platform' && !at[a.act_id]?.[w.to]) Object.assign(cur, { purchases: null, revenue: null, roas: null, cpa: null, purchase_rate: null, attr_pending: true });
-    return { act_id: a.act_id, name: a.name, currency: a.currency, goals: { cpa: a.target_cpa ?? null, roas: a.target_roas ?? null },
+    return { act_id: a.act_id, name: a.name, currency: a.currency, goals: GM[a.act_id],
       cur, prev: w.pf ? metaMetrics(raw[a.act_id]?.prev || {}, pA) : null,
       series: seriesOf(a.act_id, w.from, w.to), prev_series: w.pf ? seriesOf(a.act_id, w.pf, w.pt) : [] };
   });
@@ -1051,7 +1068,7 @@ async function creativeBrand(env, a, w, model) {
   /* Rollups by format, angle and media type. */
   const roll = key => { const by = {}; for (const r of rows) { const k = r[key] || 'Untagged'; const b = by[k] ||= { key: k, ads: 0, spend: 0, revenue: 0, purchases: 0, impr: 0, clicks: 0, v3: 0 }; b.ads++; b.spend += r.spend; b.revenue += r.revenue; b.purchases += r.purchases; b.impr += r.impressions; b.clicks += r.clicks; b.v3 += (r.hook || 0) * r.impressions; }
     return Object.values(by).map(b => ({ ...b, roas: div(b.revenue, b.spend), cpa: div(b.spend, b.purchases), ctr: div(b.clicks, b.impr), hook: b.v3 ? div(b.v3, b.impr) : null })).sort((x, y) => y.spend - x.spend); };
-  return { act_id: act, name: a.name, currency: a.currency, goals: { cpa: a.target_cpa ?? null, roas: a.target_roas ?? null }, ads: rows.slice(0, 400), fatigue, weeks: weeks.map(x => ({ ...x, fresh_share: div(x.fresh, x.spend) })),
+  return { act_id: act, name: a.name, currency: a.currency, goals: (await adGoalMap(env, [a]))[act], ads: rows.slice(0, 400), fatigue, weeks: weeks.map(x => ({ ...x, fresh_share: div(x.fresh, x.spend) })),
     by_format: roll('format'), by_angle: roll('angle'), by_type: roll('media_type'),
     alike: alike.map(g => ({ ...g, adset_name: sName[g.adset_id] || null })) };
 }

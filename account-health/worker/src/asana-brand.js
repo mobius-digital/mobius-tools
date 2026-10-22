@@ -646,7 +646,8 @@ function rulesOf(acct, doc) {
   const r = { target_cpa: null, judge_spend: 150, judge_days: 7, win_roas: 2, lose_roas: 1.2, yellow_pct: 30, min_days: 7, min_cap_pct: 25, min_track: 0, monday_post: 0 };
   if (doc && +doc.target_cpa > 0) r.target_cpa = +doc.target_cpa;
   else if (acct?.target_cpa > 0) r.target_cpa = +acct.target_cpa;
-  if (acct?.target_roas > 0) { r.win_roas = acct.target_roas; r.lose_roas = Math.round(acct.target_roas * 0.6 * 100) / 100; }
+  if (acct?.target_roas > 0) { r.target_roas = +acct.target_roas; r.win_roas = acct.target_roas; r.lose_roas = Math.round(acct.target_roas * 0.6 * 100) / 100; }
+  r.goal_metric = ['cpa', 'ncpa', 'roas', 'cpl'].includes(doc?.goal_metric) ? doc.goal_metric : 'cpa';
   for (const k of ['judge_spend', 'judge_days', 'yellow_pct', 'min_days', 'min_cap_pct', 'min_track', 'monday_post']) if (doc && +doc[k] > 0) r[k] = +doc[k];
   /* TWO LINES (Cole, 2026-10-04): Winner <= goal, Keep <= the account's own average.
      The average is trailing-30-day Meta spend / Triple Whale orders, refreshed on the
@@ -932,7 +933,8 @@ function judge(st, r, sc) {
   const age = st.first ? Math.round((Date.parse(`${today()}T12:00:00Z`) - Date.parse(`${st.first}T12:00:00Z`)) / 864e5) : 0;
   if (!(st.spend >= r.judge_spend || (age >= r.judge_days && st.spend >= r.judge_spend / 3))) return null;
   const strong = [sc.r_ctr, sc.r_hook, sc.r_cpatc].filter(x => x === 'top').length;
-  if (r.target_cpa) {
+  /* A brand whose ad goal is ROAS judges its tests on ROAS too (2026-10-22); same rule as profit brand.js suggest. */
+  if (r.target_cpa && !(r.goal_metric === 'roas' && r.target_roas)) {
     const T = r.target_cpa;
     const two = (st.orders || 0) >= 2;
     const K = r.acct_avg || T * (1 + r.yellow_pct / 100);                // keep line; old yellow zone only until the first average exists

@@ -1,0 +1,203 @@
+<title>Goals and Ad Rules Explained</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: one reading column, the hierarchy as a ladder, then answers, then the fix list and the new screen mock. */
+:root{
+  --bg:#f3f4f6;--card:#ffffff;--ink:#14171c;--muted:#5b6370;--faint:#8a919c;--line:#e2e5ea;
+  --brand:#2f7fd0;--brand-soft:#e6f0fb;--good:#1f8a4c;--good-soft:#e5f4ea;--warn:#a86a06;--warn-soft:#fbf0db;--bad:#c23b31;--bad-soft:#fbe7e5;
+  --sans:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;--mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#111418;--card:#1a1e24;--ink:#eef0f3;--muted:#a3abb7;--faint:#7c8490;--line:#2b313a;
+  --brand:#6aaef0;--brand-soft:#1d2d40;--good:#57c986;--good-soft:#1b3326;--warn:#e3a94a;--warn-soft:#3a2d16;--bad:#f07a70;--bad-soft:#3d2120;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111418;--card:#1a1e24;--ink:#eef0f3;--muted:#a3abb7;--faint:#7c8490;--line:#2b313a;
+  --brand:#6aaef0;--brand-soft:#1d2d40;--good:#57c986;--good-soft:#1b3326;--warn:#e3a94a;--warn-soft:#3a2d16;--bad:#f07a70;--bad-soft:#3d2120;color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font:15px/1.55 var(--sans);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:32px 64px}
+.wrap{max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+h1{font-size:30px;line-height:1.15;margin:0;letter-spacing:-.02em;text-wrap:balance}
+h2{font-size:19px;margin:0 0 4px;letter-spacing:-.01em;text-wrap:balance}
+.lead{color:var(--muted);margin:6px 0 0;max-width:62ch}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:22px 24px;min-width:0}
+.cap{color:var(--muted);font-size:13.5px;margin:0 0 14px}
+.eyebrow{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-weight:600}
+/* the ladder */
+.ladder{display:flex;flex-direction:column;gap:8px}
+.rung{display:grid;grid-template-columns:150px 1fr;gap:14px;align-items:start;padding:12px 14px;border:1px solid var(--line);border-radius:8px}
+.rung b{display:block;font-size:14px}
+.rung .where{font-size:12.5px;color:var(--faint)}
+.rung p{margin:0;font-size:14px}
+.rung.on{border-color:var(--brand);background:var(--brand-soft)}
+.arrow{color:var(--faint);font-size:12px;padding-left:14px}
+/* Q and A */
+.qa{display:flex;flex-direction:column;gap:0}
+.qa details{border-top:1px solid var(--line);padding:12px 0}
+.qa details:first-child{border-top:0}
+.qa summary{cursor:pointer;font-weight:600;font-size:14.5px;list-style:none;display:flex;gap:10px}
+.qa summary::-webkit-details-marker{display:none}
+.qa summary::before{content:"+";color:var(--brand);font-weight:700;width:12px;flex:none}
+.qa details[open] summary::before{content:"\2212"}
+.qa .a{margin:8px 0 0 22px;font-size:14px;color:var(--ink)}
+.qa .a p{margin:0 0 8px}
+.qa .a ul{margin:0 0 8px;padding-left:18px}
+.num{font-family:var(--mono);font-size:13px;font-variant-numeric:tabular-nums}
+/* findings */
+.find{display:flex;flex-direction:column;gap:10px}
+.f{display:grid;grid-template-columns:78px 1fr;gap:12px;align-items:start}
+.chip{display:inline-block;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:99px;text-align:center}
+.chip.bug{background:var(--bad-soft);color:var(--bad)}
+.chip.wrong{background:var(--warn-soft);color:var(--warn)}
+.chip.words{background:var(--brand-soft);color:var(--brand)}
+.f p{margin:0;font-size:14px}
+.f small{display:block;color:var(--muted);font-size:13px;margin-top:2px}
+/* mock */
+.mock{display:flex;flex-direction:column;gap:14px}
+.ms{border:1px solid var(--line);border-radius:8px;padding:16px 18px}
+.ms h3{margin:0;font-size:15px}
+.ms .h{color:var(--muted);font-size:13px;margin:2px 0 12px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.seg span{padding:6px 14px;font-size:13.5px;font-weight:600;border-left:1px solid var(--line)}
+.seg span:first-child{border-left:0}
+.seg span.on{background:var(--brand);color:var(--card)}
+.def{font-size:13px;color:var(--muted);margin:8px 0 14px}
+.tb{width:100%;border-collapse:collapse;font-size:13.5px;font-variant-numeric:tabular-nums}
+.tb th{text-align:left;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);font-weight:600;padding:6px 8px;border-bottom:1px solid var(--line)}
+.tb td{padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.tb tr:last-child td{border-bottom:0}
+.in{display:inline-block;min-width:54px;padding:3px 8px;border:1px solid var(--line);border-radius:6px;font-family:var(--mono);font-size:12.5px;background:var(--bg)}
+.good{color:var(--good)}.warnc{color:var(--warn)}.badc{color:var(--bad)}
+.scroll{overflow-x:auto}
+.note{font-size:13px;color:var(--muted);margin:10px 0 0}
+.plat{display:flex;gap:18px;flex-wrap:wrap;margin-top:6px}
+.plat div{display:flex;flex-direction:column;gap:4px;font-size:13px}
+.plat small{color:var(--faint);font-size:12px}
+@media (max-width:560px){.rung{grid-template-columns:1fr;gap:4px}.f{grid-template-columns:1fr;gap:4px}.card{padding:18px 16px}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Locus · Brand settings · Goals and ad rules</div>
+    <h1>Goals and ad rules, explained</h1>
+    <p class="lead">What every section on the screen does today, the answers to your questions, what is broken, and the simpler screen it should become.</p>
+  </header>
+
+  <section class="card">
+    <h2>How the pieces fit</h2>
+    <p class="cap">Four levels, top to bottom. Each one only decides its own level. The highlighted one is what the "judged on" switch sets.</p>
+    <div class="ladder">
+      <div class="rung"><div><b>1. The brand's goal</b><span class="where">Home &gt; Goals (the plan)</span></div><p>Revenue and MER for the month (2.5x floor, Grunk 3.0x). Whole store, every channel. This is "is the business winning". The ad settings never change it.</p></div>
+      <div class="arrow">feeds</div>
+      <div class="rung on"><div><b>2. The ad goal</b><span class="where">Brand settings &gt; Goals and ad rules</span></div><p>ONE measure (CPA, CAC, ROAS or CPL) and one number. It is what an ad set must hit to be kept or scaled. Same goal on every ad platform unless you set a platform goal.</p></div>
+      <div class="arrow">optional override</div>
+      <div class="rung"><div><b>3. Platform goal</b><span class="where">same screen</span></div><p>Replaces level 2 on one platform only, in the same measure. Needed because Meta, Google and TikTok each give themselves credit differently.</p></div>
+      <div class="arrow">used by</div>
+      <div class="rung"><div><b>4. The calls</b><span class="where">Ads &gt; Today's calls</span></div><p>Every live Meta ad set judged daily (Scale, Cut, Trim, Refresh, Mixed). New numbered tests judged once (Winner, Keep, Loser). Google and TikTok have no daily calls; their goals feed the leak finder.</p></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Your questions</h2>
+    <div class="qa">
+      <details open><summary>"Goals and break-even at a glance": what is highlighted, and where do the numbers come from?</summary><div class="a">
+        <p>The highlighted row is the measure the calls use (it says "used for the calls"). Bonk shows cost per sale because nobody ever picked a measure, and cost per sale is the default.</p>
+        <ul>
+          <li><b>Goal</b>: the number we typed in "The goals" below. On Oct 15 we set every brand to 90-day AOV divided by 2.5 ROAS (Bonk <span class="num">$25</span>).</li>
+          <li><b>Break-even</b>: AOV times what an order keeps after product, shipping and fees (Triple Whale costs, last 90 days).</li>
+          <li><b>Real</b>: the last 90 days, whole store, Triple Whale: ad spend divided by orders (or by new customers, or MER for ROAS).</li>
+        </ul>
+        <p>The trap: "Real" is whole-store, but the calls judge Meta's own credited sales, which run about 2x worse. Bonk's real looks fine while Meta shows about <span class="num">$58</span> a sale, so the calls keep saying Cut.</p>
+      </div></details>
+      <details><summary>"What we agreed with the client": can it change?</summary><div class="a"><p>Yes, any time, in "The goals" section. Nothing is locked. The words mean "agree this number with the client before you change it", not that it is frozen. The at-a-glance table is just a read-only view of it.</p></div></details>
+      <details><summary>Why "cost per sale" and not CPA? Why not CAC?</summary><div class="a"><p>It was written in plain words on purpose. You are right that it reads worse: the team says CPA and CAC. The fix is the real term as the label with one line of definition under it (CPA, cost per any order; CAC, cost per new customer).</p></div></details>
+      <details><summary>"What this brand is judged on": is that the overall brand goal?</summary><div class="a"><p>No. It is only the measure the AD calls use. The overall brand goal is the MER plan on Home &gt; Goals. The section name is the problem; it should say "Ad goal".</p></div></details>
+      <details><summary>"The goals · Every platform": does each ad platform get its own goal?</summary><div class="a"><p>No. "Every platform" means the one number applies to Meta, Google and TikTok alike. Yes, ROAS 2.5 there means "every platform should run at 2.5" unless you set a platform goal.</p></div></details>
+      <details><summary>I fill in ROAS 2.5 AND CAC $20, but "judged on" is ROAS. What is used?</summary><div class="a">
+        <p>The calls use ROAS 2.5. CAC $20 is not used by any call; it only shows on reports and the goals table.</p>
+        <p>One exception, built Oct 21: goal CPA and goal ROAS also act as <b>guardrails</b> when they are not the main measure. If you judge on CPA and ROAS is filled in, a set over the CPA goal whose ROAS beats the ROAS goal is NOT cut; it shows as Mixed for you to decide. That is exactly your "great ROAS, why turn it off" case. CAC and CPL are never guardrails.</p>
+        <p>None of this is visible on the screen today. It is buried in one sentence of the Cut rule.</p>
+      </div></details>
+      <details><summary>A goal per platform: does Meta's replace the one above?</summary><div class="a">
+        <p>Yes, for that platform only, in the same measure. Meta's number drives Today's calls. Google and TikTok numbers only feed the leak finder, since there are no Google or TikTok calls.</p>
+        <p>The "$" you saw after switching to ROAS is a bug: the box picks its unit when the page opens and never updates. Worse, a saved Meta goal of 40 would silently become 40x ROAS if the measure changes.</p>
+      </div></details>
+      <details><summary>"Ad calls as sentences" vs "Test calls" vs "Test minimums"</summary><div class="a"><ul>
+        <li><b>Ad calls</b>: every live Meta ad set, every day. Should it get more money, less, or be turned off? Scale, Cut, Trim, Refresh, Mixed.</li>
+        <li><b>Test calls</b>: a NEW numbered test (batch 415 etc.), judged once, so the team learns. Winner, Keep running, Loser, with a learning written down.</li>
+        <li><b>Test minimums</b>: a forced daily spend on a new test's ad set so Meta gives it a fair start; Locus tells you in Slack when to take it off (7 days, or once judged).</li>
+      </ul><p>The sentences with number boxes inside them read badly. A table with one row per call is clearer.</p></div></details>
+      <details><summary>Where are TikTok and Google settings? Does Google need calls?</summary><div class="a">
+        <p>The same rules can apply to TikTok once it is connected directly; today it is not, so there are no TikTok calls. Settings should stay one set of rules for every platform, not a copy per platform.</p>
+        <p>Google for e-commerce is judged differently: by campaign (Search, Shopping, Performance Max) on ROAS, plus search terms to block. There are no ad-level "cut this ad" calls like Meta. The leak finder already covers it (wasted search terms, campaigns under goal). So no Google call rules are needed; the Google platform goal is all it needs.</p>
+      </div></details>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>What is wrong today</h2>
+    <p class="cap">Found by reading the screen and the code behind it.</p>
+    <div class="find">
+      <div class="f"><span class="chip bug">Bug</span><p>Platform goal boxes keep the old unit ($ or x) when you switch the measure.<small>Switch to ROAS and they still show "$".</small></p></div>
+      <div class="f"><span class="chip bug">Bug</span><p>Switching the measure re-reads saved platform goals in the new unit.<small>A Meta goal of $40 becomes a 40x ROAS goal, and every Meta set reads Cut.</small></p></div>
+      <div class="f"><span class="chip wrong">Wrong</span><p>The screen says Meta &gt; Ads colours follow the measure. They always use goal CPA.<small>A brand judged on ROAS still sees green and red against cost per sale on the Ads pages.</small></p></div>
+      <div class="f"><span class="chip wrong">Wrong</span><p>Test calls always use cost per sale, whatever the brand is judged on.</p></div>
+      <div class="f"><span class="chip wrong">Wrong</span><p>"Real" in the glance table is whole-store; the calls judge Meta's own numbers.<small>The table says fine while the calls say Cut. It needs a Meta column next to it.</small></p></div>
+      <div class="f"><span class="chip words">Words</span><p>"Cost per sale", "Cost per new customer", "What this brand is judged on", "Every platform".<small>Becomes CPA, CAC (definition under each), "Ad goal", "Same on every platform".</small></p></div>
+      <div class="f"><span class="chip words">Layout</span><p>Seven sections, guardrails hidden inside a sentence, rules written as sentences with boxes in them.<small>Becomes four cards, below.</small></p></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>The screen it should be</h2>
+    <p class="cap">Same settings, nothing removed. Example numbers, not live data.</p>
+    <div class="mock">
+      <div class="ms">
+        <h3>1. Ad goal</h3>
+        <p class="h">What every ad set is judged on, on every platform. The brand's overall goal (MER and revenue) is on Home &gt; Goals.</p>
+        <div class="seg"><span class="on">CPA</span><span>CAC</span><span>ROAS</span><span>CPL</span></div>
+        <p class="def">CPA: ad spend for any order. CAC: ad spend for a new customer. ROAS: revenue for each ad dollar. CPL: ad spend for a lead.</p>
+        <div class="scroll"><table class="tb">
+          <thead><tr><th>Goal</th><th>Break-even</th><th>Meta, last 30 days</th><th>Whole store, 90 days</th></tr></thead>
+          <tbody><tr><td><span class="in">$25</span></td><td>$35 <small class="good">goal makes money</small></td><td class="badc">$58</td><td class="good">$24</td></tr></tbody>
+        </table></div>
+        <div class="plat">
+          <div><b>Meta</b><span class="in">$45</span><small>Today's calls</small></div>
+          <div><b>Google</b><span class="in">same</span><small>Leak finder</small></div>
+          <div><b>TikTok</b><span class="in">same</span><small>Leak finder</small></div>
+        </div>
+        <p class="note">Platform goals: leave blank to use the goal above. Always in the measure picked; the unit follows it.</p>
+      </div>
+      <div class="ms">
+        <h3>2. Guardrails</h3>
+        <p class="h">Optional. They stop a call, they never make one. A set that breaks one shows as Mixed for you to decide.</p>
+        <div class="scroll"><table class="tb"><tbody>
+          <tr><td>Never cut a set while its ROAS is at or above</td><td><span class="in">2.5x</span></td></tr>
+          <tr><td>Never scale a set while its CPA is above</td><td><span class="in">blank</span></td></tr>
+        </tbody></table></div>
+      </div>
+      <div class="ms">
+        <h3>3. Daily ad calls <span class="chip words">Meta</span></h3>
+        <p class="h">Every live ad set, judged on the last 7 days (14 if it gets under 1 sale a day).</p>
+        <div class="scroll"><table class="tb">
+          <thead><tr><th>Call</th><th>When</th></tr></thead>
+          <tbody>
+            <tr><td><b>Wait</b></td><td>Until it has spent <span class="in">2x</span> the goal and run <span class="in">3</span> days</td></tr>
+            <tr><td><b class="good">Scale</b> +20%</td><td><span class="in">3</span>+ sales at or under the goal</td></tr>
+            <tr><td><b class="badc">Cut</b></td><td><span class="in">3x</span> the goal spent with no sale, or <span class="in">3x</span> spent at over <span class="in">1.5x</span> the goal</td></tr>
+            <tr><td><b class="warnc">Trim</b></td><td>A small ad past the cut line in a set that works. The main ad (<span class="in">50%</span>+ of spend) is never trimmed.</td></tr>
+            <tr><td><b>Refresh</b></td><td>Main ad's clicks down 20% and people see it more often</td></tr>
+          </tbody></table></div>
+      </div>
+      <div class="ms">
+        <h3>4. New tests <span class="chip words">Meta</span></h3>
+        <p class="h">A numbered test, judged once, on the ad goal above.</p>
+        <div class="scroll"><table class="tb"><tbody>
+          <tr><td><b>Ready to judge</b></td><td>Spent <span class="in">$75</span> or ran <span class="in">7</span> days</td></tr>
+          <tr><td><b class="good">Winner</b></td><td>2+ sales at or under the goal</td></tr>
+          <tr><td><b class="warnc">Keep running</b></td><td>2+ sales at or under the account's own 30-day average</td></tr>
+          <tr><td><b>Minimum budget</b></td><td>Off after <span class="in">7</span> days; all minimums under <span class="in">25%</span> of the campaign budget</td></tr>
+        </tbody></table></div>
+      </div>
+    </div>
+  </section>
+</div>
