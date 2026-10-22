@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>Locus: connecting YouTube</title>
+<style>body{font:15px/1.5 system-ui,sans-serif;color:#1d1d1f;background:#f6f7f9;display:grid;place-items:center;min-height:100vh;margin:0}p{margin:0}</style></head>
+<body><p>Connecting YouTube to Locus…</p>
+<script>
+/* Google's sign-in comes back here (tools.go-mobius-digital.com, a verified domain) and is handed straight to the
+   Locus worker, which swaps the code with the same redirect address. Nothing is read or kept on this page. */
+location.replace('https://mobius-account-health.mobius-digital.workers.dev/social/google/callback' + location.search);
+</script></body></html>

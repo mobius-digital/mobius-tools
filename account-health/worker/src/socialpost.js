@@ -172,11 +172,14 @@ async function ttCall(env, acc, path, body) {
 
 /* ---- YouTube (Google OAuth, per brand) ---- */
 const YT_SCOPES = 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly';
+/* YouTube's sign-in address. GOOGLE_YT_REDIRECT (a var) = the bridge page on tools.go-mobius-digital.com, which Google can
+   verify; unset = the worker's own callback, as before. The two must match in the Google Cloud client. */
+const ytRedirect = env => env.GOOGLE_YT_REDIRECT || `${SELF}/social/google/callback`;
 async function ytStart(env, act, email) {
   if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) throw plain('The Google OAuth client secret is not set yet (GOOGLE_CLIENT_SECRET on the account-health worker; the client id is already there).');
   const state = rid() + rid();
   await env.DB.prepare(`INSERT INTO social_oauth_state (state, act_id, plat, email) VALUES (?1, ?2, 'yt', ?3)`).bind(state, act, email || null).run();
-  const q = new URLSearchParams({ client_id: env.GOOGLE_CLIENT_ID, redirect_uri: `${SELF}/social/google/callback`, response_type: 'code', scope: YT_SCOPES, access_type: 'offline', prompt: 'consent', include_granted_scopes: 'true', state });
+  const q = new URLSearchParams({ client_id: env.GOOGLE_CLIENT_ID, redirect_uri: ytRedirect(env), response_type: 'code', scope: YT_SCOPES, access_type: 'offline', prompt: 'consent', include_granted_scopes: 'true', state });
   return { url: `https://accounts.google.com/o/oauth2/v2/auth?${q}` };
 }
 async function ytToken(env, body) {
@@ -190,7 +193,7 @@ async function ytCallback(env, url) {
   if (!st) throw new Error('That sign-in link is stale. Start again from Brand settings > Social.');
   await env.DB.prepare(`DELETE FROM social_oauth_state WHERE state = ?1`).bind(st.state).run();
   if (url.searchParams.get('error')) throw new Error(url.searchParams.get('error'));
-  const tok = await ytToken(env, { code: url.searchParams.get('code') || '', grant_type: 'authorization_code', redirect_uri: `${SELF}/social/google/callback` });
+  const tok = await ytToken(env, { code: url.searchParams.get('code') || '', grant_type: 'authorization_code', redirect_uri: ytRedirect(env) });
   const old = (await accountsOf(env, st.act_id)).yt;
   if (!tok.refresh && old?.token?.refresh) tok.refresh = old.token.refresh;
   const ch = await F('https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true', { headers: { Authorization: `Bearer ${tok.access}` } }).then(r => r.json()).catch(() => ({}));
@@ -869,7 +872,7 @@ export async function handleSocialPost(request, env, url, path, json, d) {
       const act = actOf(url.searchParams.get('act'));
       const accs = await accountsOf(env, act);
       const keys = { meta: !!env.META_TOKEN, tiktok: !!(env.TIKTOK_CLIENT_KEY && env.TIKTOK_CLIENT_SECRET), google: !!(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) };
-      return json({ accounts: Object.fromEntries(Object.keys(PLATS).map(p => [p, pubAccount(accs[p])])), keys: cs ? undefined : keys, callbacks: cs ? undefined : { tiktok: `${SELF}/social/tiktok/callback`, google: `${SELF}/social/google/callback` } });
+      return json({ accounts: Object.fromEntries(Object.keys(PLATS).map(p => [p, pubAccount(accs[p])])), keys: cs ? undefined : keys, callbacks: cs ? undefined : { tiktok: `${SELF}/social/tiktok/callback`, google: ytRedirect(env) } });
     }
     if (path === '/api/social/accounts/meta-pages' && m === 'GET') { teamOnly(); const r = await metaPages(env); return json({ pages: r.pages.map(({ _tok, ...p }) => p), missing: r.missing }); }
     if (path === '/api/social/accounts/meta' && m === 'POST') { teamOnly(); return json({ ok: true, ...(await connectMeta(env, actOf(body.act), body.page_id, email)) }); }
