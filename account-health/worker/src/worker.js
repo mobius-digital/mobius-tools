@@ -3150,8 +3150,8 @@ async function draftBrief(env, acct, date, { skipIfExists = false, steer } = {})
        to Locus, which meant every decision -- send it, reword it, write it
        again, don't send it -- cost a tab switch. The buttons underneath do all
        four, and Locus keeps every one of them for when he wants the charts. */
-    const preview = internalOnly(acct) ? null
-      : { daily: await clientDailyFor(env, acct, date, null, r.data), thread: clientDailyThreadFor(acct, date, r.data) };
+    // Internal-only brands (Lucky) get the same post shape (2026-10-22: #59 fixed redraws, this first post still drew the old brief).
+    const preview = { daily: await clientDailyFor(env, acct, date, null, r.data), thread: clientDailyThreadFor(acct, date, r.data) };
     const card = briefCard(acct, date, {
       status: draftStatus(acct), text: r.text, steer: steer ?? null,
       data_json: JSON.stringify({ health: r.health ?? null }),
