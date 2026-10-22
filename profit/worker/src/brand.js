@@ -117,7 +117,7 @@ export function rulesFor(acct, doc) {
   r.cpa_guard = !(doc && doc.cpa_guard === 'off');
   /* New tests are Meta ads, so they are judged on the Meta goal when one is set (2026-10-22): test_cpa / test_roas. */
   { const gm = doc && +doc.goal_meta > 0 ? +doc.goal_meta : null;
-    r.test_cpa = r.goal_metric === 'cpa' && gm ? gm : r.target_cpa;
+    r.test_cpa = (r.goal_metric === 'cpa' || r.goal_metric === 'ncpa') && gm ? gm : r.target_cpa;
     r.test_roas = r.goal_metric === 'roas' && gm ? gm : r.target_roas || null;
     if (r.test_roas) { r.win_roas = r.test_roas; r.lose_roas = Math.round(r.test_roas * 0.6 * 100) / 100; } }
   r.window_auto = !(doc && doc.window_auto === 'off');
