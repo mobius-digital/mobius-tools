@@ -131,7 +131,8 @@ function suggest(st, rules) {
   const age = st.first ? daysBetween(st.first, today()) : 0;
   const enough = st.spend >= rules.judge_spend || (age >= rules.judge_days && st.spend >= rules.judge_spend / 3);
   if (!enough) return 'too_early';
-  if (rules.target_cpa) {
+  /* A brand whose ad goal is ROAS judges its tests on ROAS too (2026-10-22); every other measure on the CPA goal. */
+  if (rules.target_cpa && !(rules.goal_metric === 'roas' && rules.target_roas)) {
     const cpa = st.orders > 0 ? st.spend / st.orders : null;
     const two = (st.orders || 0) >= 2;   // one sale is noise
     if (two && cpa != null && cpa <= rules.target_cpa) return 'winner';

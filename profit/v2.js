@@ -1659,7 +1659,10 @@
     let d, RR = {}; try { [d, RR] = await Promise.all([get(`/api/hub/creative?act=${encodeURIComponent(a.act_id)}&${H.rangeQ()}${modelQ()}`), get(`/api/brand/rules?act=${encodeURIComponent(a.act_id)}`).then(x => x.rules || {}).catch(() => ({}))]); } catch (e) { if (t === H.RUN()) $('#main').innerHTML = shell('adcreative', title, `<div class="v2card"><p class="v2bad">${esc(e.message)}</p></div>`); return; }
     if (t !== H.RUN()) return;
     const cur = d.currency, g = d.goals || {}, ads = d.ads || [];
-    const goal = g.cpa || (() => { const s = ads.reduce((x, r) => x + r.spend, 0), o = ads.reduce((x, r) => x + r.purchases, 0); return o ? s / o : null; })();
+    /* A brand judged on ROAS (Brand settings > Goals and ad rules) gets its cost line from the goal ROAS: the order value
+       of these ads divided by it, the same unit Today's calls use. */
+    const roasUnit = (() => { if (g.metric !== 'roas' || !(g.roas > 0)) return null; const r = ads.reduce((x, a) => x + (a.revenue || 0), 0), o = ads.reduce((x, a) => x + (a.purchases || 0), 0); return o && r ? r / o / g.roas : null; })();
+    const goal = roasUnit || g.cpa || (() => { const s = ads.reduce((x, r) => x + r.spend, 0), o = ads.reduce((x, r) => x + r.purchases, 0); return o ? s / o : null; })();
     /* THE RULE (2026-10-08, shown on screen): an ad is judged once it has spent one goal CPA and
        run 3 days. Scale = 2+ purchases at or under goal. Cut = 3x the goal spent with no purchase
        (an ad truly on goal has about a 5% chance of that), or 2x spent at a CPA over 1.5x goal.
