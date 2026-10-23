@@ -3152,6 +3152,8 @@ async function draftBrief(env, acct, date, { skipIfExists = false, steer } = {})
        four, and Locus keeps every one of them for when he wants the charts. */
     // Internal-only brands (Lucky) get the same post shape (2026-10-22: #59 fixed redraws, this first post still drew the old brief).
     const preview = { daily: await clientDailyFor(env, acct, date, null, r.data), thread: clientDailyThreadFor(acct, date, r.data) };
+    // Kept so "Edit the post" opens with this text; only redraws used to save it, so a fresh card opened an empty box.
+    await putSetting(env, `clientBuilt:${acct.act_id}:${date}`, preview.daily).catch(() => {});
     const card = briefCard(acct, date, {
       status: draftStatus(acct), text: r.text, steer: steer ?? null,
       data_json: JSON.stringify({ health: r.health ?? null }),
@@ -6521,7 +6523,9 @@ async function slackBlockAction(env, ctx, p) {
       await slackWhisper(env, chan, user, 'That one was sent already. Use Edit the sent post on the card.');
       return ACK();
     }
-    const value = (await clientDraftOf(env, acct.act_id, meta.d)) || (await getSetting(env, `clientBuilt:${acct.act_id}:${meta.d}`)) || '';
+    // Nothing kept (a card posted before the text was saved): build it now from stored numbers, no model, well inside 3s.
+    const value = (await clientDraftOf(env, acct.act_id, meta.d)) || (await getSetting(env, `clientBuilt:${acct.act_id}:${meta.d}`))
+      || (await Promise.race([clientPreviewFor(env, acct, meta.d).then(p => p?.daily), new Promise(r => setTimeout(() => r(''), 2000))]).catch(() => '')) || '';
     await slackApi(env, 'views.open', { trigger_id: p.trigger_id, view: editModal({
       callback_id: 'brief_edit_client_submit', meta, title: 'Edit the post',
       label: 'What the client gets, word for word', hint: '', value, submit: 'Save',
