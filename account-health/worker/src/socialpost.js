@@ -267,6 +267,15 @@ async function publishIg(env, acc, post, media, t) {
   const ig = acc.ext_id, tok = acc.token?.use_env ? env.META_TOKEN : acc.token?.access;
   const caption = capFor(post, t, 'ig', 2200);
   let creation;
+  /* 2026-10-22: a story (targets.ig.story). One picture or video, no caption, no first comment: Instagram stories take
+     neither. Made so highlight covers can go up from Locus (a highlight is built from stories). */
+  if (t.ig?.story) {
+    const m = media[0];
+    const c = await graph(env, `${ig}/media`, isVideo(m) ? { media_type: 'STORIES', video_url: m.public } : { media_type: 'STORIES', image_url: m.public }, { method: 'POST', token: tok });
+    if (isVideo(m)) await waitContainer(env, c.id, tok);
+    const pub = await graph(env, `${ig}/media_publish`, { creation_id: c.id }, { method: 'POST', token: tok });
+    return { id: pub.id, url: `https://www.instagram.com/stories/${acc.handle || ''}/`, story: true };
+  }
   if (media.length > 1) {
     const kids = [];
     for (const m of media.slice(0, 10)) {
@@ -806,12 +815,12 @@ async function closeFilmTask(env, ideaId, by) {
 /* ---------------- shapes ---------------- */
 const pubPost = p => ({ id: p.id, act: p.act_id, at: p.at, status: p.status, caption: p.caption, media: safe(p.media_json, []).map(m => ({ ref: m.ref, src: m.src, kind: m.kind, title: m.title, thumb: m.thumb, who: m.who || null, staged: !!m.staged, public: m.public || null })),
   targets: safe(p.targets_json, {}), results: safe(p.results_json, {}), auto: !!p.auto, created_by: p.created_by, posted_at: p.posted_at, error: p.error, pulled_at: p.pulled_at, updated_at: p.updated_at });
-const VALID_T = { ig: ['on', 'caption', 'first_comment'], fb: ['on', 'caption', 'link'], tt: ['on', 'caption', 'title', 'privacy'], yt: ['on', 'caption', 'title', 'visibility'] };
+const VALID_T = { ig: ['on', 'caption', 'first_comment', 'story'], fb: ['on', 'caption', 'link'], tt: ['on', 'caption', 'title', 'privacy'], yt: ['on', 'caption', 'title', 'visibility'] };
 function cleanTargets(t) {
   const out = {};
   for (const plat of Object.keys(PLATS)) {
     const x = t && t[plat]; if (!x || typeof x !== 'object') continue;
-    const o = {}; for (const k of VALID_T[plat]) if (x[k] !== undefined && x[k] !== null && x[k] !== '') o[k] = k === 'on' ? !!x[k] : clip(x[k], 2200);
+    const o = {}; for (const k of VALID_T[plat]) if (x[k] !== undefined && x[k] !== null && x[k] !== '') o[k] = k === 'on' || k === 'story' ? !!x[k] : clip(x[k], 2200);
     if (o.visibility && !['public', 'unlisted', 'private'].includes(o.visibility)) delete o.visibility;
     if (o.privacy && !['PUBLIC_TO_EVERYONE', 'MUTUAL_FOLLOW_FRIENDS', 'FOLLOWER_OF_CREATOR', 'SELF_ONLY'].includes(o.privacy)) delete o.privacy;
     out[plat] = o;
