@@ -1059,3 +1059,50 @@ html.lx-irail[data-ui="v2"] body:not(.nav-open) .rail-min{margin:0}
 #v2panel .od-t tr.link{cursor:pointer}
 #v2panel .od-t tr.link:hover td{background:var(--surface-2)}
 #v2panel .od .adt-stat{grid-template-columns:repeat(3,minmax(0,1fr))}
+
+/* ==============================================================================================
+   POP-UPS, NOT SIDE DRAWERS (2026-10-24, Cole: "instead of it coming off the right, can it just be a straight up
+   pop-up in the window, like a normal pop-up... this goes for all things that go from the right side").
+   On a desktop or tablet every panel that used to slide in from the right is a pop-up in the middle of the window:
+   fixed to the window (scroll position never matters), sized to what it holds, scrolls inside itself when tall,
+   the dimmed layer behind, and Esc / the dimmed layer / X close it (each caller already wires those). Phones keep
+   their bottom sheets (phone.css, under 721px), so all of this is min-width 721px.
+     #v2panel        V2.panel: every side panel in Locus (ads, tasks, posts, leaks, orders, the day, Tests...)
+     .cn-drawer      Brand / Agency settings > Integrations, a card's steps
+     .lb-drawer      the Tests fallback when v2.js is missing
+     #amDrawer       the creator-link idea editor: a wide editor, so a big fixed-height window (its jump row and
+                     scrolling body need a set height), still centred
+     #ask            Ask Locus: a chat, so a tall fixed-height window
+   The card sheet (#v2panel.sheet) was already a centred window and is left as it is.
+   ============================================================================================== */
+@keyframes lx-pop{from{opacity:0;transform:translateY(8px) scale(.985)}to{opacity:1;transform:none}}
+@media (min-width:721px){
+  [data-ui="v2"] #v2panel:not(.sheet){top:0;right:0;bottom:0;left:0;margin:auto;height:fit-content;max-height:calc(100dvh - 48px);
+    width:min(600px,calc(100vw - 48px));border:1px solid var(--line);border-radius:var(--r-xl);box-shadow:var(--sh-sheet);
+    transform:translateY(8px) scale(.985);opacity:0;transition:transform 200ms var(--ease-out,ease),opacity 160ms var(--ease,ease)}
+  [data-ui="v2"] #v2panel:not(.sheet).on{transform:none;opacity:1}
+  [data-ui="v2"] #v2panel.wide:not(.sheet){width:min(980px,calc(100vw - 48px))}
+  [data-ui="v2"] #v2panel:not(.sheet):not(.on){transition:transform 160ms var(--ease,ease),opacity 160ms var(--ease,ease),visibility 0s linear 160ms}
+  [data-ui="v2"] #v2panel:not(.sheet) .sbody{flex:1 1 auto;min-height:0}
+  [data-ui="v2"] #v2panel:not(.sheet) .pb{min-height:0}
+
+  [data-ui="v2"] .cn-drawer,[data-ui="v2"] .lb-drawer{top:0;right:0;bottom:0;left:0;margin:auto;height:fit-content;max-height:calc(100dvh - 48px);
+    width:min(560px,calc(100vw - 48px));border:1px solid var(--line);border-radius:var(--r-xl);box-shadow:var(--sh-sheet);
+    overflow-y:auto;overscroll-behavior:contain;animation:lx-pop 200ms var(--ease-out,ease) both}
+  [data-ui="v2"] .cn-drawer[hidden]{display:none}
+  [data-ui="v2"] .cn-scrim,[data-ui="v2"] .lb-scrim{background:rgba(17,17,20,.36)}
+  [data-theme="dark"] .cn-scrim,[data-theme="dark"] .lb-scrim{background:rgba(0,0,0,.55)}
+
+  [data-ui="v2"] #amDrawer{top:24px;bottom:24px;left:0;right:0;margin:0 auto;width:min(880px,calc(100vw - 48px));
+    border:1px solid var(--line);border-radius:var(--r-xl);box-shadow:var(--sh-sheet);overflow:hidden;animation:lx-pop 200ms var(--ease-out,ease) both}
+
+  [data-ui="v2"] #ask{top:0;right:0;bottom:0;left:0;margin:auto;width:min(680px,calc(100vw - 48px));height:min(820px,calc(100dvh - 48px));
+    border:1px solid var(--line);border-radius:var(--r-xl);box-shadow:var(--sh-sheet);overflow:hidden;
+    transform:translateY(8px) scale(.985);opacity:0;visibility:hidden;
+    transition:transform 200ms var(--ease-out,ease),opacity 160ms var(--ease,ease),visibility 0s linear 200ms}
+  [data-ui="v2"] #ask.on{transform:none;opacity:1;visibility:visible;transition:transform 200ms var(--ease-out,ease),opacity 160ms var(--ease,ease)}
+}
+@media (min-width:721px) and (prefers-reduced-motion:reduce){
+  [data-ui="v2"] #v2panel:not(.sheet),[data-ui="v2"] #ask{transition:none}
+  [data-ui="v2"] .cn-drawer,[data-ui="v2"] .lb-drawer,[data-ui="v2"] #amDrawer{animation:none}
+}

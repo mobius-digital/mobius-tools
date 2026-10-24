@@ -537,7 +537,9 @@ td.good,td.bad,td.warn{font-weight:600}
   --sh-card:none; --sh-pop:0 16px 40px -12px rgba(0,0,0,.7),0 2px 8px rgba(0,0,0,.4); --sh-sheet:0 40px 90px -20px rgba(0,0,0,.8);
 }
 [data-ui="v2"] body{font-size:14px;line-height:1.5;font-feature-settings:"tnum" 1,"cv11" 1,"ss01" 1;letter-spacing:-.003em}
-[data-ui="v2"] main{animation:lx-in var(--t) var(--ease) both}
+/* backwards, not both (2026-10-24): a fill that holds the end transform keeps <main> a containing block, so every
+   position:fixed pop-up inside the page (Integrations) sat at the top of the page and showed blank once scrolled */
+[data-ui="v2"] main{animation:lx-in var(--t) var(--ease) backwards}
 @keyframes lx-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){[data-ui="v2"] main{animation:none}}
 

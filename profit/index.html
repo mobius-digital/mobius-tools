@@ -2278,10 +2278,10 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
      NOT deferred: the app's own script is inline at the end of <body> and so
      runs before any deferred file would. -->
 <link rel="stylesheet" href="/sheet.css?v=1">
-<link rel="stylesheet" href="v2.css?v=46">
+<link rel="stylesheet" href="v2.css?v=47">
 <link rel="stylesheet" href="../logo/kit.css?v=2">
 <link rel="stylesheet" href="supply.css?v=6">
-<link rel="stylesheet" href="lx.css?v=37">
+<link rel="stylesheet" href="lx.css?v=38">
 <link rel="stylesheet" href="phone.css?v=16">
 <script src="/sheet.js?v=1"></script>
 <script src="/ask/ask-ui.js?v=14"></script>
@@ -12456,6 +12456,10 @@ async function renderSettings() {
     if (AGENCY && window.ProductionTab && window.ProductionTab.mirrorCard) window.ProductionTab.mirrorCard($('#pdMirror'), { apiAH, confirmModal, S });
     const close = () => { drawer.hidden = true; scrim.hidden = true; host.querySelectorAll('.cn-card.on').forEach(x => x.classList.remove('on')); };
     scrim.onclick = close;
+    /* Esc closes the pop-up too; one listener, swapped on each render */
+    if (window.__cnEsc) document.removeEventListener('keydown', window.__cnEsc);
+    window.__cnEsc = e => { if (e.key === 'Escape' && !drawer.hidden && drawer.isConnected && !document.querySelector('.modal-wrap')) close(); };
+    document.addEventListener('keydown', window.__cnEsc);
     const copyChip = v => `<button type="button" class="cn-copy" data-copy="${esc(v)}" title="Copy">${esc(v)} <span>copy</span></button>`;
     const saveLink = async (b, body) => mApi('/api/brand-links', { method: 'PUT', body: JSON.stringify({ act: b.act_id, ...body }) });
     const reopen = () => { RUN++; renderSettings(); };   // a pick or a tool switch changes the grading: redraw the section from the report
