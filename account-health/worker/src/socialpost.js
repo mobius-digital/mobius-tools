@@ -272,7 +272,9 @@ async function publishIg(env, acc, post, media, t) {
   if (t.ig?.story) {
     const m = media[0];
     const c = await graph(env, `${ig}/media`, isVideo(m) ? { media_type: 'STORIES', video_url: m.public } : { media_type: 'STORIES', image_url: m.public }, { method: 'POST', token: tok });
-    if (isVideo(m)) await waitContainer(env, c.id, tok);
+    /* 2026-10-24: wait for a picture too. Publishing an image story straight away fails about half the time with
+       "The requested resource does not exist" / "Media ID is not available" (the container is not ready yet). */
+    await waitContainer(env, c.id, tok);
     const pub = await graph(env, `${ig}/media_publish`, { creation_id: c.id }, { method: 'POST', token: tok });
     return { id: pub.id, url: `https://www.instagram.com/stories/${acc.handle || ''}/`, story: true };
   }
