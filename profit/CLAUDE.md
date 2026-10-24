@@ -4477,3 +4477,19 @@ Cole: "Studio looks like absolute shit. I still don't understand how things get 
 - PR 56's leftovers landed here: the composer's Shop link (targets.fb.link, appended to the caption) and Write it for me,
   the worker's fb link (VALID_T, publishFb) and slides copied at once. Brief: the More menu flips at the edge (lx.js
   fitMenus listens in the capture phase; menu buttons stop the click) and the date pill keeps its own width.
+
+## 2026-10-24: pop-ups, not side drawers
+
+Cole: "instead of it coming off the right, can it just be a straight up pop-up in the window, like a normal pop-up...
+this goes for all things that go from the right side", and the Integrations panel showed blank when the page was scrolled.
+- **The blank panel.** `[data-ui="v2"] main{animation:lx-in ... both}` kept the end transform "current", which makes
+  `<main>` the containing block for every `position:fixed` child: the Integrations drawer (`.cn-drawer`, rendered inside
+  `#main`) sat at the top of the page, off screen once scrolled. Now `backwards` (v2.css). Never give `main` (or any page
+  wrapper) a transform / filter / `both`-filled transform animation; pop-ups also belong on `body` where possible.
+- **One block at the end of lx.css** (min-width 721px only) turns every right-side panel into a centred pop-up, fixed to
+  the window, sized to its content (`height:fit-content`, max `100dvh - 48px`), scrolling inside: `#v2panel:not(.sheet)`
+  (V2.panel, so every caller), `.cn-drawer` (Integrations, now also closes on Esc), `.lb-drawer`, `#amDrawer` (the idea
+  editor: a wide editor, so a fixed-height 880px window, still centred) and `#ask` (Ask Locus: a 680 x 820 window). The
+  card sheet (`#v2panel.sheet`) was already centred. Phones keep their bottom sheets (phone.css, unchanged).
+- Checked on a scratch page loading the real stylesheets + v2.js at 1280 and 375 (deleted): scrolled 1800px, every pop-up
+  centred; the old `both` fill put the Integrations panel at -350px. Not checked signed in on the live site.
