@@ -252,6 +252,8 @@ export async function integrationsReport(env, { brand = null } = {}) {
     const legacy = !n && !ob;   // a brand set up before New client and the onboarding link existed
     const metaAge = daysAgo(metaD[id]?.latest), twAge = daysAgo(twD[id]?.latest), attrAge = daysAgo(twA[id]?.latest);
     const kd = klDocs[id], gd = gDocs[id] || {};
+    const metaSync = String(a.last_sync_insights || '').slice(0, 16);
+    const metaFresh = !!metaSync && (daysAgo(metaSync.slice(0, 10)) ?? 99) <= 1;
 
     /* Google Ads: ONE item, two levels. ok = linked directly and readable; part = only through Triple Whale. */
     const gTw = (ga[id]?.v || 0) > 0, gDirect = !!gd.ads && !!gp.ads?.ok, gSeen = !gd.ads || adsSeen.has(gd.ads) || !adsSeen.size;
@@ -284,9 +286,16 @@ export async function integrationsReport(env, { brand = null } = {}) {
 
     const items = [
       /* ---- Ads ---- */
-      C('meta', 'Meta', a.last_error ? 'bad' : metaAge == null ? 'off' : metaAge > 2 ? 'warn' : 'ok',
-        a.last_error ? `Sync failing: ${String(a.last_error).slice(0, 120)}` : metaAge == null ? (a.meta_act ? 'No Meta data yet.' : 'No Meta ad account connected.') : `Data through ${metaD[id].latest} (synced ${String(a.last_sync_insights || '').slice(0, 16) || 'never'}).`,
+      /* Connected = the sync reads the account without an error. No spend (every campaign paused) is
+         still connected: the sync succeeding is the proof, not having numbers. */
+      C('meta', 'Meta', a.last_error ? 'bad' : !a.meta_act ? 'off' : metaFresh || (metaAge != null && metaAge <= 2) ? 'ok' : 'warn',
+        a.last_error ? `Sync failing: ${String(a.last_error).slice(0, 120)}`
+          : !a.meta_act ? 'No Meta ad account connected.'
+          : metaAge != null && metaAge <= 2 ? `Data through ${metaD[id].latest} (synced ${metaSync || 'never'}).`
+          : metaFresh ? `Connected, synced ${metaSync}. No spend ${metaAge == null ? 'yet' : `since ${metaD[id].latest}`}: nothing is running (campaigns paused or off).`
+          : `Connected, but the last sync was ${metaSync || 'never'}.`,
         a.last_error ? 'Check the token still sees this ad account (Meta Business > System users > assets), then Settings > Jobs and data.'
+          : a.meta_act && metaFresh ? ''
           : a.meta_act ? 'Partner access from the client, then the brand in Settings > Brands.'
           : `Once the client shares their ad account, pick it here.${freeMeta.length ? '' : ' Locus sees no unattached ad account yet.'}`,
         { gets: GETS.meta, steps: STEPS.meta, input: a.meta_act ? null : { key: 'meta', label: 'Meta ad account', placeholder: 'act_1234567890' }, options: a.meta_act ? [] : OPT.meta }),
