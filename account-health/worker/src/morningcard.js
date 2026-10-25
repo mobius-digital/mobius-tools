@@ -212,6 +212,18 @@ export async function buildCard(env, d, a, today, shared = {}) {
   if (calls.length) {
     items.push({ key: 'calls', kind: 'calls', text: callsText(calls, a.currency), who: team.buyer || 'Ahsan', objs: [...new Set(calls.map(r => String(r.ad_id || r.adset_id || '')).filter(Boolean))], made: [], rank: 1e12 + calls.reduce((s, r) => s + (+r.stake || 0), 0) });
   }
+  /* A leads campaign that is running (2026-10-25): one line on what it produced yesterday, the buyer tagged. */
+  if (d.leadsYesterday) {
+    try {
+      for (const l of await d.leadsYesterday(env, a.act_id, yday)) {
+        const nm = clean(String(l.name || '').replace(/^\[[^\]]*\]\s*/, ''), 60);
+        const text = l.spend <= 0 ? `${nm}: spent nothing yesterday${l.budget ? ` on a ${money(l.budget, a.currency)}/day budget` : ''}, check it is delivering`
+          : l.leads > 0 ? `${nm}: ${Math.round(l.leads).toLocaleString('en-US')} lead${l.leads === 1 ? '' : 's'} yesterday for ${money(l.spend, a.currency)}, ${sym(a.currency)}${(l.spend / l.leads).toFixed(2)} each`
+          : `${nm}: ${money(l.spend, a.currency)} spent yesterday, no leads`;
+        items.push({ key: `leads:${l.id}`, kind: 'leads', text, who: team.buyer || 'Ahsan', rank: 1e11 });
+      }
+    } catch (e) { notes.push(`leads: ${e.message}`); }
+  }
   /* Tasks due today or overdue. */
   await ensureActions(env);
   const tasks = (await env.DB.prepare(`SELECT * FROM p_action WHERE status = 'open' AND act_id = ?1 AND due != '' AND due <= ?2 ORDER BY due, created_at`).bind(a.act_id, today).all().catch(() => ({ results: [] }))).results || [];
