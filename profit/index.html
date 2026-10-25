@@ -8639,7 +8639,7 @@ async function renderBrief(first) {
   const st = isClient() ? (bfSent ? { tone: 'ok', v: 'Sent to you' + (bfSent.posted_at ? ' ' + fmtAgo(bfSent.posted_at) : ''), d: 'The brief your team sent for this day.' } : { tone: '', v: 'No brief sent for this day', d: 'Briefs show here once your team sends them. The numbers below are this day\u2019s, live.' })
     : bfSent ? { tone: 'ok', v: 'Sent to the client' + (bfSent.posted_at ? ' ' + fmtAgo(bfSent.posted_at) : ''), d: 'This is the record of what they received, so it cannot be edited.' }
     : hBad ? { tone: 'bd', v: 'Blocked', d: hTxt + ' Spend below has been rebuilt from the platforms where a second source exists. <button class="btn" id="bfToHealth" style="padding:3px 9px;font-size:12px;margin-left:4px">Open Data Health</button>' }
-    : bfDraft && internalOnly ? { tone: hWarn ? 'wn' : 'ok', v: 'Handled automatically', d: `${bName} has no client channel, so this brief is for your team only and nothing goes out.${hWarn ? ' ' + hTxt : ''}` }
+    : bfDraft && internalOnly ? { tone: hWarn ? 'wn' : 'ok', v: 'Handled automatically', d: `${bName} has no client channel, so this brief is for your team only${bfCanTeam ? '. Post to team channel puts it in Slack' : ' and nothing goes out'}.${hWarn ? ' ' + hTxt : ''}` }
     : bfDraft && !bfCanSend ? { tone: 'bd', v: 'Nowhere to send', d: `The client channel saved for ${bName} no longer exists. Pick one in Settings and Send to client appears here.` }
     : bfDraft ? { tone: hWarn || !d.health ? 'wn' : 'ok', v: 'Waiting on you', d: hTxt }
     : bfRow?.status === 'skipped' ? { tone: '', v: 'Not sent', d: 'You chose not to send this day. Write the brief again if you changed your mind.' }
@@ -8681,10 +8681,13 @@ async function renderBrief(first) {
      to client, or Write the brief when there is nothing yet); everything else
      is a quiet secondary. */
   const bfCanFix = (!!bfSent || !!bfDraft) && !internalOnly && !isClient();
+  /* 2026-10-25: an internal-only brand (Lucky) posts its brief to its own team channel by hand. */
+  const bfCanTeam = internalOnly && !!acct?.slack_channel && !!bfDraft && !isClient();
   const bfFixLbl = bfSent ? 'Edit the sent post' : 'Edit the client post';
-  const bfHead = `${bfCanFix ? `<button class="btn quiet" data-bfa="bfFixSent">${bfFixLbl}</button>` : ''}${bfDraft && bfCanSend ? '<button class="btn primary" data-bfa="bfPost">Send to client</button>' : ''}${bfDraft && !bfSent ? '<button class="btn quiet" data-bfa="bfEditBtn">Edit wording</button>' : ''}${bfSent ? '' : (bfDraft ? '' : '<button class="btn primary" data-bfa="bfWrite">Write the brief</button>')}${pillMenu('bfMore', 'More', [...(bfDraft && !bfSent ? [['bfWrite', 'Rewrite with AI']] : []), ...(bfDraft || bfSent ? [['bfCopy', 'Copy the text']] : []), ...(bfSent || internalOnly ? [] : [['bfSkip', "Don't send this one"]])], '', { curText: '' })}`;
+  const bfHead = `${bfCanTeam ? '<button class="btn primary" data-bfa="bfTeam">Post to team channel</button>' : ''}${bfCanFix ? `<button class="btn quiet" data-bfa="bfFixSent">${bfFixLbl}</button>` : ''}${bfDraft && bfCanSend ? '<button class="btn primary" data-bfa="bfPost">Send to client</button>' : ''}${bfDraft && !bfSent ? '<button class="btn quiet" data-bfa="bfEditBtn">Edit wording</button>' : ''}${bfSent ? '' : (bfDraft ? '' : '<button class="btn primary" data-bfa="bfWrite">Write the brief</button>')}${pillMenu('bfMore', 'More', [...(bfDraft && !bfSent ? [['bfWrite', 'Rewrite with AI']] : []), ...(bfDraft || bfSent ? [['bfCopy', 'Copy the text']] : []), ...(bfSent || internalOnly ? [] : [['bfSkip', "Don't send this one"]])], '', { curText: '' })}`;
   const bfActs = `<div class="bf-acts lx-bar lx-tohead-bar">
         <button class="btn primary" id="bfPost" style="display:${bfDraft && bfCanSend ? '' : 'none'}">Send to client</button>
+        <button class="btn primary" id="bfTeam" style="display:${bfCanTeam ? '' : 'none'}">Post to team channel</button>
         ${bfCanFix ? `<button class="btn quiet" id="bfFixSent">${bfFixLbl}</button>` : ''}
         ${bfDraft ? '<button class="btn quiet" id="bfEditBtn"><svg class="li ni" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-pencil"/></svg> Edit wording</button><button class="btn" id="bfSave" style="display:none">Save changes</button><button class="btn quiet" id="bfCancel" style="display:none">Cancel</button>' : ''}
         ${bfSent ? '' : `<button class="btn ${bfDraft ? 'quiet' : 'primary'}" id="bfWrite" title="${bfDraft ? 'Claude writes it again. You can give it a one-line direction first, or leave that empty for a straight rewrite.' : 'Claude writes the brief from the numbers and the Change Log. Takes about 20 seconds.'}">${bfDraft ? '↻ Rewrite with AI' : '✦ Write the brief for ' + esc(dayLbl)}</button>`}
@@ -8921,6 +8924,16 @@ async function renderBrief(first) {
       $('#bfMsg').textContent = `Sent ✓ to ${r.channel}`;
       await inPlace(() => renderBrief());
     } catch (e) { $('#bfMsg').textContent = e.message; }
+  };
+  $('#bfTeam').onclick = async () => {
+    const name = await channelName(acct.slack_channel);
+    if ($('#bfEdit')) {
+      try { await api('/api/brief-text', { method: 'PUT', body: JSON.stringify({ act: S.act, date: d.date, text: bfBody() }) }); } catch { /* the post still uses the stored text */ }
+    }
+    if (!(await confirmModal('Post this brief to the team?', `This posts the numbers for ${d.date} to ${name}, with the full brief in the thread under it.`, `Post to ${name}`))) return;
+    $('#bfMsg').textContent = 'Posting…';
+    try { await api('/api/brief-send', { method: 'POST', body: JSON.stringify({ act: S.act, date: d.date, to: 'team' }) }); $('#bfMsg').textContent = `Posted ✓ to ${name}`; }
+    catch (e) { $('#bfMsg').textContent = e.message; }
   };
   $('#bfCopy').onclick = () => { navigator.clipboard.writeText(bfBody()).then(() => $('#bfMsg').textContent = 'Copied ✓'); };
   /* "Don't send this one." The catch-up that covers a morning you forget is the
@@ -10225,7 +10238,7 @@ async function renderReports(first) {
   const linkBtnHtml = '<button class="btn quiet" id="rpLink" title="One stable link per brand. It opens their archive of sent reports; drafts never show on it.">Copy client link</button>';
   const rpSt = !rep ? null
     : sent ? { tone: 'ok', pill: ['good', 'Sent' + (rep.sent_at ? ' ' + fmtAgo(rep.sent_at) : '')], d: 'Frozen: it cannot be rewritten or edited, so the numbers on the client\'s link never change.', a: linkBtnHtml }
-    : internalOnly ? { tone: 'ok', pill: ['good', 'Handled automatically'], d: `${esc(acct?.name || 'This brand')} has no client channel, so nothing goes out and nothing is waiting on you.`, a: regenBtn + editTop }
+    : internalOnly ? { tone: 'ok', pill: ['good', 'Handled automatically'], d: `${esc(acct?.name || 'This brand')} has no client channel, so nothing is waiting on you.${acct?.slack_channel && !isClient() ? ' Post to team channel puts it in Slack.' : ''}`, a: (acct?.slack_channel && !isClient() ? '<button class="btn primary" id="rpTeam">Post to team channel</button>' : '') + regenBtn + editTop }
     : canSend ? { tone: 'wn', pill: ['warn', rep.status === 'skipped' ? 'Skipped, not sent' : 'Draft, waiting on you'], d: 'The client has not seen this.', a: '<button class="btn primary" id="rpSend">Send to client</button>' + regenBtn + editTop + linkBtnHtml }
     : { tone: 'bd', pill: ['bad', 'Draft, nowhere to send'], d: `${esc(acct?.name || 'This brand')} ${clientChan ? `points at a Slack channel that no longer exists (<code>${esc(clientChan)}</code> was archived or deleted)` : 'has no client channel set'}. Pick one in Settings under <b>Client channel</b> and Send to client appears here. A send never falls back to an internal channel.`, a: regenBtn + editTop + linkBtnHtml };
   /* THE KIT (2026-10-20): the status is one chip in the control row and the actions sit in the page header
@@ -10249,7 +10262,8 @@ async function renderReports(first) {
     const w = (o, up, dn) => `<b class="${o >= -0.02 ? 'good' : o > -0.12 ? 'warn' : 'bad'}">${Math.abs(Math.round(o * 100))}% ${o >= 0 ? up : dn}</b>`;
     return `<b>${esc(repRangeLabel({ period: rep.period, start: rep.period_start, end: rep.period_end }))}</b>: ${fmtMoney(t.sales, cur)} revenue at ${fmtX(t.mer)} MER${vp != null ? `, ${w(vp, 'up on', 'down on')} the prior ${tag}` : ''}${vf != null ? `, ${w(vf, 'over', 'under')} forecast` : ''}.${t.cm != null ? ` ${fmtMoney(t.cm, cur)} kept after every cost.` : ''}`;
   })() : '';
-  const sendTop = rep && !sent && canSend ? '<button class="btn primary" data-rpa="send">Send to client</button>' : '';
+  const sendTop = rep && !sent && canSend ? '<button class="btn primary" data-rpa="send">Send to client</button>'
+    : rep && internalOnly && acct?.slack_channel ? '<button class="btn primary" data-rpa="team">Post to team channel</button>' : '';
   const editTopK = rep && !sent && rep.summary ? '<button class="btn quiet" data-rpa="edit">Edit</button>' : '';
   $('#main').innerHTML = shell(`
     ${lead ? LX.say(lead) : ''}
@@ -10260,7 +10274,7 @@ async function renderReports(first) {
   pageActions(isClient() ? '' : `${sendTop}${editTopK}${pillMenu('rpMore', 'More', moreOpts, '', { curText: '' })}`);   // after the paint: shell() draws the header the actions live in
   /* the header's buttons press the page's own (hidden) buttons, so every handler below stays as it was */
   const press = id => { const b = document.getElementById(id); if (b) b.click(); else noteModal('Not available', '<p>That action is not available on this report.</p>'); };
-  document.querySelectorAll('#main .ph-acts [data-rpa], #hdActions [data-rpa]').forEach(b => b.onclick = () => press(b.dataset.rpa === 'send' ? 'rpSend' : 'rpEditTop'));
+  document.querySelectorAll('#main .ph-acts [data-rpa], #hdActions [data-rpa]').forEach(b => b.onclick = () => press(b.dataset.rpa === 'send' ? 'rpSend' : b.dataset.rpa === 'team' ? 'rpTeam' : 'rpEditTop'));
   wirePillMenu(document.getElementById('rpMore'), v => press({ regen: 'rpRegen', link: 'rpLink', genw: 'rpGenW', genm: 'rpGenM' }[v]));
   Object.assign(RP_LAST, { ads: d ? d.ads : null, act: S.act, cur: acct?.currency, prevTag: rep && rep.period === 'weekly' ? 'week' : 'month', internal: true });
   /* One document listener for the whole session closes an open report menu on an outside
@@ -10353,6 +10367,15 @@ async function renderReports(first) {
       $('#rpMsg').textContent = `Posted ✓ to ${r.channel}`;
       await inPlace(() => renderReports());
     } catch (e) { $('#rpMsg').textContent = e.message; }
+  };
+
+  const teamBtn = $('#rpTeam');
+  if (teamBtn) teamBtn.onclick = async () => {
+    const name = await channelName(acct.slack_channel);
+    if (!(await confirmModal('Post this report to the team?', `This posts the ${rep.period} report (${repRangeLabel({ period: rep.period, start: rep.period_start, end: rep.period_end })}) to ${name}.`, `Post to ${name}`))) return;
+    $('#rpMsg').textContent = 'Posting…';
+    try { await api('/api/report-send', { method: 'POST', body: JSON.stringify({ act: S.act, period: rep.period, start: rep.period_start, to: 'team' }) }); $('#rpMsg').textContent = `Posted ✓ to ${name}`; }
+    catch (e) { $('#rpMsg').textContent = e.message; }
   };
 
   const linkBtn = $('#rpLink');

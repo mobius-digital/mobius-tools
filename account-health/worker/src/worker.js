@@ -80,7 +80,7 @@ import { klaviyoWriteRoute, klaviyoCan } from './klaviyowrite.js';
 import { handleLeaks, leaksFor } from './leaks.js';
 import { adsInvite as googleAdsInvite } from './google.js';
 import { useFetch as googleFetch, googleProbe, autoMatch as googleMatch, linkFor as googleLink, setLink as googleSetLink, websiteReport, websiteDrill, searchReport, adsReport, adsAds, adsTerms, adsChanges, enableApis, adsAccounts, adsCampaignWrite } from './google.js';
-import { locusWrite as metaLocusWrite, locusUndo as metaLocusUndo, metaLive } from './metawrite.js';
+import { locusWrite as metaLocusWrite, locusUndo as metaLocusUndo, metaLive, metaActs } from './metawrite.js';
 import { handleLaunch } from './launch.js';
 import { dataTools } from './stratdata.js';
 import { extraTools } from './allwrite.js';
@@ -3284,6 +3284,40 @@ async function sendBrief(env, acct, date, { skipIfSent = false, useStored = fals
   }
 }
 
+/* INTERNAL-ONLY BRANDS POST TO THEIR OWN CHANNEL (Cole, 2026-10-25: Lucky has no client channel, and the team still
+   wants the daily, the weekly and the monthly in #lucky-ads; before this there was no way to send them anywhere). A
+   button on the Brief and Reports pages and on the Slack card, never automatic. It goes to the brand's internal
+   `slack_channel` as the Locus bot: the daily in the client shape with the stored brief as its thread reply, a report
+   as clientReportText. The row's status does not change (still 'handled'); the last post is kept in settings
+   `teamPost:<brief|weekly|monthly>:<act>:<date>` so the page can say when it went. */
+async function postBriefToTeam(env, acct, date) {
+  if (acct.brief_channel) return { error: 'this brand has a client channel - use Send to client' };
+  const channel = acct.slack_channel;
+  if (!channel) return { error: 'no internal channel set for this brand - pick one in Settings' };
+  const row = await env.DB.prepare(`SELECT text, status FROM briefs WHERE act_id = ?1 AND date = ?2`).bind(acct.act_id, date).first().catch(() => null);
+  if (!row?.text || row.status === 'skipped') return { error: 'no brief is written for that day yet - write it first' };
+  const data = await briefData(env, acct, date).catch(() => null);
+  const top = await clientDailyFor(env, acct, date, row.text, data);
+  const p = await slackPost(env, channel, top, null, { username: 'Locus' });
+  if (p?.ts) await slackPost(env, channel, row.text, null, { username: 'Locus', thread_ts: p.ts }).catch(() => {});
+  const rec = { channel: p?.channel || channel, ts: p?.ts || null, at: new Date().toISOString() };
+  await putSetting(env, `teamPost:brief:${acct.act_id}:${date}`, JSON.stringify(rec));
+  return { ok: true, ...rec, date };
+}
+async function postReportToTeam(env, acct, period, start) {
+  if (acct.brief_channel) throw new Error('this brand has a client channel - use Send to client');
+  const channel = acct.slack_channel;
+  if (!channel) throw new Error('no internal channel set for this brand - pick one in Settings');
+  const row = await env.DB.prepare(`SELECT * FROM reports WHERE act_id = ?1 AND period = ?2 AND period_start = ?3`).bind(acct.act_id, period, start).first();
+  if (!row) throw new Error('no report generated for that period yet');
+  const data = safeJson(row.data_json, null);
+  if (!data) throw new Error('this report has no data - regenerate it first');
+  const p = await slackPost(env, channel, await clientReportText(env, acct, row, data), null, { username: 'Locus' });
+  const rec = { channel: p?.channel || channel, ts: p?.ts || null, at: new Date().toISOString() };
+  await putSetting(env, `teamPost:${period}:${acct.act_id}:${start}`, JSON.stringify(rec));
+  return { ok: true, ...rec };
+}
+
 /** The thread reply under the client daily (clientpost.js dailyThread): more numbers for the same day, nothing a model
  *  wrote. Orders and new vs returning, each ad channel that spent (Meta, Google) with the sales Triple Whale tracked to
  *  it, contribution margin only when judgeCogs trusts the cost data. Empty when the day has no numbers. */
@@ -6098,6 +6132,7 @@ function briefCard(acct, date, row, banner, preview = null) {
     // two buttons that change the words stay.
     if (bad) els.push(btn('Fix the numbers in Locus', 'noop_open', v, { url: LOCUS_HEALTH(acct.act_id, date) }));
     // The card now shows the numbers post, so the AI wording buttons only show for an old row with no preview.
+    if (!bad && acct.slack_channel && !acct.brief_channel) els.push(btn('Post to the team channel', 'brief_team', v, { style: 'primary' }));
     if (!preview?.daily) { els.push(btn('Edit the wording', 'brief_edit', v)); els.push(btn('Rewrite with AI', 'brief_rewrite', v)); }
     if (!bad) els.push(btn('Open in Locus', 'noop_open', v, { url: LOCUS_BRIEF(acct.act_id, date) }));
   } else if (status === 'skipped') {
@@ -6177,7 +6212,7 @@ async function reportCard(env, acct, row, banner) {
         'Send this report to the client?',
         `This posts the ${row.period} report (*${range}*) and its link to ${acct.brief_channel ? `<#${acct.brief_channel}>` : 'the client channel'} under your own name, and *freezes the report permanently*.`,
         'Send it') }));
-    }
+    } else if (acct.slack_channel && !acct.brief_channel) els.push(btn('Post to the team channel', 'report_team', v, { style: 'primary' }));
     els.push(btn('Edit the summary', 'report_edit', v));
     els.push(btn('Rewrite with AI', 'report_rewrite', v));
   }
@@ -6588,6 +6623,17 @@ async function slackBlockAction(env, ctx, p) {
         await slackSyncReport(env, acct, meta.p, meta.s, r.ok ? null : `:warning: *Not sent.* ${r.error}`);
         if (r.ok) await slackWhisper(env, chan, user, `Sent to <#${r.channel}> ✓`);
       }
+    })());
+    return ACK();
+  }
+
+  /* An internal-only brand's daily or report, posted to its own channel (postBriefToTeam). Anyone in the channel. */
+  if (id === 'brief_team' || id === 'report_team') {
+    ctx.waitUntil((async () => {
+      const r = id === 'brief_team'
+        ? await postBriefToTeam(env, acct, meta.d).catch(e => ({ error: e.message }))
+        : await postReportToTeam(env, acct, meta.p, meta.s).catch(e => ({ error: e.message }));
+      await slackWhisper(env, chan, user, r.ok ? `Posted to <#${r.channel}> ✓` : `Not posted: ${r.error}`);
     })());
     return ACK();
   }
@@ -7226,7 +7272,31 @@ function cardDeps() {
     teamOf: calendarTeam };
   return { ...base, calendarData, listBoard: (env, d, o) => listBoard(env, base, o),
     /* The leak finder's list (cached an hour) for the card's one "new leak" line. */
-    leaks: (env, act, o = {}) => leaksFor(env, { getSetting, putSetting, xfetch, mintSession, canAfford: n => subCanAfford(n) }, act, o) };
+    leaks: (env, act, o = {}) => leaksFor(env, { getSetting, putSetting, xfetch, mintSession, canAfford: n => subCanAfford(n) }, act, o),
+    leadsYesterday };
+}
+/* The morning card's leads line (Cole, 2026-10-25: "while the campaign's running, talk about the lead campaign and what
+   it produced the previous day"; it replaced a daily scheduled question that wrote a wall of text). Every ACTIVE
+   OUTCOME_LEADS campaign on the brand's Meta accounts, read LIVE for that day: spend and actions in two requests (Meta
+   zeroes spend when one request asks for both). Leads = the first action type present in LEAD_ACTIONS. */
+const LEAD_ACTIONS = ['lead', 'onsite_conversion.lead_grouped', 'offsite_conversion.fb_pixel_lead', 'complete_registration'];
+async function leadsYesterday(env, brandId, date) {
+  const out = [];
+  for (const { act } of await metaActs(env, brandId)) {
+    const camps = (await env.DB.prepare(`SELECT campaign_id, name, daily_budget FROM meta_campaigns WHERE act_id = ?1 AND objective = 'OUTCOME_LEADS' AND status = 'ACTIVE' LIMIT 3`)
+      .bind(act).all().catch(() => ({ results: [] }))).results || [];
+    for (const c of camps) {
+      const time_range = { since: date, until: date };
+      const [m, a] = await Promise.all([
+        meta(env, `${c.campaign_id}/insights`, { fields: 'spend', time_range }),
+        meta(env, `${c.campaign_id}/insights`, { fields: 'actions', time_range }),
+      ]);
+      const acts = a.data?.[0]?.actions || [];
+      const hit = LEAD_ACTIONS.map(t => acts.find(x => x.action_type === t)).find(Boolean);
+      out.push({ id: c.campaign_id, name: c.name, budget: c.daily_budget, spend: +(m.data?.[0]?.spend || 0), leads: hit ? +hit.value || 0 : 0 });
+    }
+  }
+  return out;
 }
 /* minoff.js: the daily "test minimum due off" line under each brand's morning card, and its Take it off buttons.
    The write is the Locus one (metawrite.js locusWrite kind min_spend, min 0) as the tapper; the synced ad set row
@@ -10082,6 +10152,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         const acct = await acctOf(env, b.act);
         if (!acct) return json({ error: 'unknown account' }, 404);
         const date = b.date || addDays(localDate(acct.tz), -1);
+        if (b.to === 'team') { const t = await postBriefToTeam(env, acct, date).catch(e => ({ error: e.message })); return t.ok ? json(t) : json(t, 400); }
         // Send what was reviewed. Regenerating here would discard any wording
         // edit made on the draft, which is the entire point of the review step.
         // `ignore_health` is the human override: someone has looked at the
@@ -10227,7 +10298,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         const b = await request.json().catch(() => ({}));
         const acct = await acctOf(env, b.act);
         if (!acct) return json({ error: 'unknown account' }, 404);
-        try { return json(await sendReport(env, acct, b.period, b.start)); }
+        try { return json(b.to === 'team' ? await postReportToTeam(env, acct, b.period, b.start) : await sendReport(env, acct, b.period, b.start)); }
         catch (e) { return json({ error: e.message }, 400); }
       }
       if (path === '/api/report-link' && request.method === 'POST') {
