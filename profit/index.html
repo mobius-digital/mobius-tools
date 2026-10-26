@@ -2710,7 +2710,9 @@ async function boot() {
        its own brand only, no All clients. The server enforces all of it (brandguard.js); this only draws it. */
     try { const me = await apiAH('/api/me'); S.role = me.role || 'team'; S.client = me.client || null; S.meEmail = me.email || ''; }
     catch (e) { if (/unauthorized/i.test(e.message)) throw e; S.role = 'team'; }
-    const r = await api('/api/overview?' + rangeQ());
+    /* A second boot() always follows a save, so it skips the worker's 90-second memo (refreshAccounts says why). */
+    const r = await api('/api/overview?' + rangeQ() + (boot.done ? '&fresh=1' : ''));
+    boot.done = true;
     S.accounts = r.accounts;
     S.kind = r.kind || 'admin';
     applyKind();
@@ -5095,8 +5097,10 @@ const PAGE_HELP = {
 /** Update the shared account snapshot in place, without touching the DOM.
  *  Anything that changes goals or the underlying data must call this, or other tabs
  *  keep serving the copy of S.accounts they were handed at page load. */
-async function refreshAccounts() {
-  try { const r = await api('/api/overview?' + rangeQ()); if (r && r.accounts) S.accounts = r.accounts; }
+async function refreshAccounts(fresh = true) {
+  /* `fresh` (2026-10-26): the worker memoises this answer for 90 seconds; every caller here follows a save, so it asks
+     for a fresh build. Only a period change (periodChanged) may take the memo. */
+  try { const r = await api('/api/overview?' + rangeQ() + (fresh ? '&fresh=1' : '')); if (r && r.accounts) S.accounts = r.accounts; }
   catch { /* a stale snapshot is better than a broken page */ }
 }
 
@@ -5527,7 +5531,7 @@ async function periodChanged() {
   const m = $('#main'); if (m && m.firstElementChild) m.classList.add('busy');
   const bar = loadBar.start();
   const tab = S.tab, run0 = RUN;
-  const snap = refreshAccounts();
+  const snap = refreshAccounts(false);
   if (!HUB_TABS.has(tab)) await snap.catch(() => {});
   if (RUN !== run0 || S.tab !== tab) { loadBar.end(bar); return; }   // the reader moved on while the snapshot loaded
   inPlace(() => show(tab, { bar }));
@@ -6645,7 +6649,9 @@ async function ovTodayLoad(all) {
   const q = S.act === 'all' ? 'all' : encodeURIComponent(S.act);
   const [bf, rp, ts, br] = await Promise.allSettled([
     api('/api/briefs?act=' + q), api('/api/reports?act=' + q),
-    api('/api/brand/tests-overview'), api('/api/brand/overview'),
+    /* One brand on screen: ask for that brand's row only (2026-10-26, speed; the counts below only read the brands in `all`). */
+    ...(() => { const one = all.length === 1 && all[0].act_id === S.act ? '?act=' + encodeURIComponent(S.act) : '';
+      return [api('/api/brand/tests-overview' + one), api('/api/brand/overview' + one)]; })(),
   ]);
   const ok = r => r.status === 'fulfilled' && r.value ? r.value : null;
   const tally = () => ({ n: 0, who: [] });

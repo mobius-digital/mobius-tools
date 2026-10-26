@@ -85,6 +85,8 @@ import { handleLaunch } from './launch.js';
 import { dataTools } from './stratdata.js';
 import { extraTools } from './allwrite.js';
 import { runStudioMake, studioMakeTools } from './studiomake.js';
+/* /api/tw-day's 60-second memo (2026-10-26, Locus speed): key = brand | shop | day -> { at, p }. */
+const TW_DAY_MEMO = new Map();
 
 const GRAPH = 'https://graph.facebook.com/v23.0';
 const BACKFILL_DAYS = 90;       // first sync of a new account
@@ -9613,6 +9615,13 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         const today = localDate(acct.tz);
         const want = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get('date') || '') ? url.searchParams.get('date') : today;
         if (want > today) return json({ error: 'that day has not happened yet' }, 400);
+        /* Speed (2026-10-26): Locus asks this once per brand for every Today view, the top-bar chip and the overview.
+           The live Triple Whale answer is kept 60 seconds per brand and day in this isolate (in-flight calls share);
+           `as_of` still says when it was read. A failed read is never kept. */
+        const twKey = `${acct.act_id}|${acct.tw_shop}|${want}`;
+        const twHit = TW_DAY_MEMO.get(twKey);
+        if (twHit && Date.now() - twHit.at < 60e3) { const b = await twHit.p.catch(() => null); if (b) return json(b); }
+        const twP = (async () => {
         const ask = addDays(want, await twShift(env, acct.tw_shop)); // see twShift: measured daily
         const { map, raw } = await twSummary(env, acct.tw_shop, ask, ask);
         const HOURLY = ['netSales', 'totalSales', 'totalNetTaxes', 'blendedAds', 'newCustomerSales', 'fb_ads_spend', 'ga_adCost', 'orders'];
@@ -9628,7 +9637,13 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         // A finished day is 24 hours; today is the hours that have happened.
         const len = want === today ? Math.max(1, maxX + 1) : 24;
         for (const k of Object.keys(hours)) hours[k] = hours[k].slice(0, len);
-        return json({ date: want, as_of: new Date().toISOString(), map, hours, hours_len: len });
+        return { date: want, as_of: new Date().toISOString(), map, hours, hours_len: len };
+        })();
+        const twEntry = { at: Date.now(), p: twP };
+        TW_DAY_MEMO.set(twKey, twEntry);
+        twP.catch(() => { if (TW_DAY_MEMO.get(twKey) === twEntry) TW_DAY_MEMO.delete(twKey); });
+        if (TW_DAY_MEMO.size > 200) for (const [k, v] of TW_DAY_MEMO) if (Date.now() - v.at > 60e3) TW_DAY_MEMO.delete(k);
+        return json(await twP);
       }
 
       if (path === '/api/pacing') {
