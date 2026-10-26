@@ -7256,7 +7256,7 @@ function morningDeps() { return { ...hubDeps(), mintSession, brandsFor, morningP
 function checkinDeps(ctx) {
   const m = meetingDeps();
   const wait = p => (ctx?.waitUntil ? ctx.waitUntil(p) : p);
-  return { getSetting, putSetting, slackApi, centralDate, centralHour, listBrands: m.listBrands,
+  return { getSetting, putSetting, slackApi, centralDate, centralHour, listBrands: m.listBrands, teamPost: actionDeps().teamPost, xfetch,
     prod: { ...actionDeps(), waitUntil: wait, moveCard: prodMove, formatOf: prodFormat, readDoc: prodReadDoc, origin: 'https://mobius-account-health.mobius-digital.workers.dev' } };
 }
 function meetingDeps() {

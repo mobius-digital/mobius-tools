@@ -291,9 +291,11 @@ export async function submitCheckin(env, d, p) {
     for (const part of parts) {
       const b = brands.find(x => shortName(x.name) === part.brand);
       if (!b?.slack_channel || b.slack_channel === b.brief_channel) continue;
-      const r = await d.slackApi(env, 'chat.postMessage', { channel: b.slack_channel, text: `${me.name}'s week for ${part.brand}`, unfurl_links: false,
-        blocks: [{ type: 'section', text: md(`*${me.name}'s week · ${part.brand}* (from #daily-checkin)`) }, part.rt] }).catch(() => null);
-      if (r?.ok) copied.push(part.brand);
+      /* Under the brand's morning card (its Monday thread), where the Monday call screen reads the plan from; top-level when the brand has no card today. */
+      const blocks = [{ type: 'section', text: md(`*${me.name}'s week · ${part.brand}* (from #daily-checkin)`) }, part.rt];
+      const ok = d.teamPost ? await d.teamPost(env, b.slack_channel, `${me.name}'s week for ${part.brand}`, blocks, {}).then(() => true).catch(() => false)
+        : (await d.slackApi(env, 'chat.postMessage', { channel: b.slack_channel, text: `${me.name}'s week for ${part.brand}`, unfurl_links: false, blocks }).catch(() => null))?.ok;
+      if (ok) copied.push(part.brand);
     }
     if (copied.length) blocks.push(ctxLine(`Copied to ${copied.map(n => `#${n.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-internal`).join(', ')}`));
     await postInThread(env, d, day, `${me.name}'s week`, blocks);
