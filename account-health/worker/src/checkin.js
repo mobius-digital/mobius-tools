@@ -3,13 +3,13 @@
  *
  * #daily-checkin (settings.checkinChannel) gets ONE Locus post a weekday at the morning hour. Its buttons open a short
  * Slack form for the person's role (settings.checkinPeople = {slack id: {name, roles: strategist|buyer|designer|editor}}):
- *   Post my plan     what's today (chips) + a rich text box with their brands as headings + walkthrough + Need from Cole
+ *   Post my plan     what's today (chips) + a rich text box with their brands as headings + walkthrough + Blocked on (Cole, the client, a creator, the team: each one becomes a Locus task)
  *   Post what I did  their morning lines as tick boxes + what didn't get done + seen in the data (buyer) + tomorrow
  *   Post my week     (Mondays) one rich text box; each brand's part is ALSO posted in that brand's internal channel
  *   I'm out today    one tap
  * Every answer is posted in the day post's THREAD under the person's name, their own formatting kept (the rich_text
  * block goes through as typed). The day post itself is the board: one line per person (plan / wrap-up / out), the
- * red "Need from Cole" lines and the batches sent for review, redrawn with chat.update after every answer.
+ * red "Blocked" lines, who missed the last check-in, and the batches sent for review, redrawn with chat.update after every answer.
  * Four hours past the morning hour, anyone with no plan and not out gets one DM with the button.
  *
  * FINISHED ADS (reviewPost): a person moving a Production card to Review posts the card to its brand's INTERNAL
@@ -23,7 +23,7 @@
 import { slackIdOf, morningHour } from './morningcard.js';
 import { adsOf, decide, decideMany, htmlToText, isCarousel } from './prodwork.js';
 import { teamOf } from './calendar.js';
-import { ROSTER } from './actions.js';
+import { ROSTER, addAction } from './actions.js';
 
 const LOCUS = 'https://tools.go-mobius-digital.com/profit/';
 const ORIGIN = 'https://mobius-account-health.mobius-digital.workers.dev';
@@ -137,13 +137,14 @@ function boardBlocks(date, day, people) {
     const week = weekday(date) === 1 ? (s.week ? ` · week ✓` : ' · week: not yet') : '';
     return `*${p.name}*  ${plan} · ${wrap}${week}`;
   });
-  const need = Object.entries(people).flatMap(([uid, p]) => (day.people?.[uid]?.need || []).map(n => `• ${p.name}: ${esc(n)}`));
+  const need = Object.entries(people).flatMap(([uid, p]) => (day.people?.[uid]?.need || []).map(n => `• ${p.name}, waiting on ${esc(needLine(n))}`));
   const sent = (day.sent || []).map(s => `• ${esc(s.label)} (${esc(s.by)})`);
   const blocks = [
     { type: 'section', text: md(`*☀️ ${dayName(date)} · Daily check-in*\nTap a button below. Everything you post goes in this thread.`) },
     { type: 'section', text: md(rows.join('\n') || '_No one on the check-in list yet._') },
   ];
-  if (need.length) blocks.push({ type: 'section', text: md(`🔴 *Need from Cole*\n${need.join('\n')}`) });
+  if (need.length) blocks.push({ type: 'section', text: md(`🔴 *Blocked*\n${need.join('\n')}`) });
+  if (day.missed?.length) blocks.push(ctxLine(`_Last check-in:_ ${day.missed.map(esc).join(' · ')}`));
   if (sent.length) blocks.push({ type: 'section', text: md(`🖼️ *Sent to Cole for review*\n${sent.join('\n')}`) });
   const btns = [
     { type: 'button', action_id: 'ci_plan', style: 'primary', text: pt('Post my plan'), value: date },
@@ -166,6 +167,15 @@ export async function ensureDay(env, d, { force = false, date = d.centralDate() 
   if (!force && (weekday(date) === 0 || weekday(date) === 6)) return null;
   const channel = await channelOf(env, d);
   day = { channel, people: {}, sent: [], ...(day || {}) };
+  /* who missed the last weekday's check-in, shown on today's post */
+  const prev = new Date(date + 'T12:00:00Z');
+  do prev.setUTCDate(prev.getUTCDate() - 1); while ([0, 6].includes(prev.getUTCDay()));
+  const last = await dayOf(env, d, prev.toISOString().slice(0, 10));
+  if (last?.ts) {
+    const ppl = await peopleOf(env, d);
+    day.missed = Object.entries(ppl).flatMap(([uid, p]) => { const s = last.people?.[uid] || {}; if (s.out) return []; if (!s.plan) return [`${p.name} no plan`]; if (!s.wrap) return [`${p.name} no wrap-up`]; return []; });
+    if (!day.missed.length) day.missed = ['everyone posted'];
+  }
   const people = await peopleOf(env, d);
   const r = await d.slackApi(env, 'chat.postMessage', { channel, text: `${dayName(date)} check-in`, blocks: boardBlocks(date, day, people), unfurl_links: false });
   if (!r?.ok) throw new Error(`could not post the check-in: ${r?.error || 'no answer'}`);
@@ -180,6 +190,14 @@ const rich = (action_id, initial, placeholder) => ({ type: 'rich_text_input', ac
 const plain = (action_id, placeholder, multi = false) => ({ type: 'plain_text_input', action_id, multiline: multi, ...(placeholder ? { placeholder: pt(placeholder) } : {}) });
 const checks = (action_id, opts) => ({ type: 'checkboxes', action_id, options: opts.map(o => ({ text: pt(o.text), value: o.value })) });
 
+/* "Blocked on": what is holding someone back, and who it waits on. Each one becomes an open task in Locus. */
+const BLOCKERS = [['cole', 'Cole'], ['client', 'the client'], ['creator', 'a creator'], ['team', 'someone on the team']];
+const blockedInputs = () => [
+  input('who', 'Blocked on', { type: 'static_select', action_id: 'v', placeholder: pt('Only if something is holding you back'), options: BLOCKERS.map(([v, t]) => ({ text: pt(t.replace(/^./, c => c.toUpperCase())), value: v })) }),
+  input('need', 'What you need', plain('v', 'Dartee: the final Early Bird price, so I can finish batch 16', true)),
+];
+const blockerLabel = v => (BLOCKERS.find(b => b[0] === v) || [null, 'someone'])[1];
+const needLine = n => typeof n === 'string' ? `Cole: ${n}` : `${blockerLabel(n.on)}: ${n.text}`;
 function planHint(p) {
   if (has(p, 'strategist') && has(p, 'buyer')) return 'Under each brand: what you are working on and why. Briefs, research, launches, cuts. Bold, bullets, links and @mentions all work.';
   if (has(p, 'strategist')) return 'Under each brand: the brief or research you are on and why. Bold, bullets, links and @mentions all work.';
@@ -200,7 +218,7 @@ export async function planModal(env, d, uid, uname, date) {
     input('type', "What's today?", checks('v', DAY_TYPES.map(t => ({ text: t, value: t })))),
     input('plan', 'My plan for today', rich('v', headings(names), 'Dartee: brief batch 15, Game of Belts. Why: ...'), { optional: false, hint: planHint(p) }),
     ...(has(p, 'strategist') ? [input('walk', 'Walkthrough with the creative team today?', plain('v', 'Yes, 10am with Ravo and William (Dartee 15)'))] : []),
-    input('need', 'Need from Cole', plain('v', 'Only if something is blocked on Cole', true)),
+    ...blockedInputs(),
   ];
   return { type: 'modal', callback_id: 'ci_plan_submit', private_metadata: JSON.stringify({ date }), title: pt('Post my plan'), submit: pt('Post'), close: pt('Cancel'), blocks };
 }
@@ -216,7 +234,7 @@ export async function wrapModal(env, d, uid, uname, date) {
     input('extra', 'Anything else I finished', rich('v')),
     ...(has(p, 'buyer') ? [input('seen', 'One thing I saw in the data', plain('v', 'Dartee founder videos are at 2.1% CTR, double the statics. @Noma more of these?', true), { hint: 'Tag the strategist on that brand.' })] : []),
     input('tomorrow', 'First thing tomorrow', plain('v')),
-    input('need', 'Need from Cole', plain('v', 'Only if something is blocked on Cole', true)),
+    ...blockedInputs(),
   ];
   return { type: 'modal', callback_id: 'ci_wrap_submit', private_metadata: JSON.stringify({ date }), title: pt('Post what I did'), submit: pt('Post'), close: pt('Cancel'), blocks };
 }
@@ -227,7 +245,7 @@ export async function weekModal(env, d, uid, uname, date) {
   const blocks = [
     input('week', 'My plan for the week', rich('v', headings(names), 'Batch 15 · Game of Belts giveaway · 8 ads · due Wed'), { optional: false, hint: weekHint(p) }),
     ...(has(p, 'strategist') ? [input('walk', 'Walkthroughs this week', plain('v', 'Tue 10am with Ravo and William (Dartee 15, Lucky 14)'))] : []),
-    input('need', 'Need from Cole', plain('v', 'Only if something is blocked on Cole', true)),
+    ...blockedInputs(),
   ];
   return { type: 'modal', callback_id: 'ci_week_submit', private_metadata: JSON.stringify({ date }), title: pt('Post my week'), submit: pt('Post'), close: pt('Cancel'), blocks };
 }
@@ -255,12 +273,14 @@ export async function submitCheckin(env, d, p) {
   const s = day.people[uid] = day.people[uid] || {};
   const now = new Date().toISOString();
   const need = clean(val(p.view, 'need')?.value, 500);
+  const on = val(p.view, 'who')?.selected_option?.value || (need ? 'cole' : '');
+  const needCtx = need ? [ctxLine(`🔴 *Blocked on ${blockerLabel(on)}:* ${esc(need)}`)] : [];
 
   if (cb === 'ci_plan_submit') {
     const rt = val(p.view, 'plan')?.rich_text_value;
     const types = (val(p.view, 'type')?.selected_options || []).map(o => o.value);
     const walk = clean(val(p.view, 'walk')?.value, 300);
-    const blocks = [head(me.name, 'plan', types.join(', ')), rt, ...(walk ? [ctxLine(`📅 *Walkthrough:* ${esc(walk)}`)] : []), ...(need ? [ctxLine(`🔴 *Need from Cole:* ${esc(need)}`)] : [])].filter(Boolean);
+    const blocks = [head(me.name, 'plan', types.join(', ')), rt, ...(walk ? [ctxLine(`📅 *Walkthrough:* ${esc(walk)}`)] : []), ...needCtx].filter(Boolean);
     await postInThread(env, d, day, `${me.name}'s plan`, blocks);
     s.plan = { at: now, types }; s.items = linesOf(rt); s.out = false;
     if (walk) s.items.push(`Walkthrough: ${walk}`);
@@ -278,13 +298,13 @@ export async function submitCheckin(env, d, p) {
     if (sentMine.length) blocks.push(ctxLine(`🖼️ *Sent to Cole for review:* ${sentMine.map(esc).join(', ')}`));
     if (seen) blocks.push({ type: 'section', text: md(`👀 *Seen in the data:* ${esc(seen).replace(/@(\w+)/g, (m, n) => m)}`) });
     if (tomorrow) blocks.push(ctxLine(`*Tomorrow:* ${esc(tomorrow)}`));
-    if (need) blocks.push(ctxLine(`🔴 *Need from Cole:* ${esc(need)}`));
+    blocks.push(...needCtx);
     await postInThread(env, d, day, `${me.name}'s wrap-up`, blocks);
     s.wrap = { at: now, done: picked.size, of: items.length };
   } else if (cb === 'ci_week_submit') {
     const rt = val(p.view, 'week')?.rich_text_value;
     const walk = clean(val(p.view, 'walk')?.value, 300);
-    const blocks = [head(me.name, 'week', `${dayName(date)} to Fri`), rt, ...(walk ? [ctxLine(`📅 *Walkthroughs:* ${esc(walk)}`)] : []), ...(need ? [ctxLine(`🔴 *Need from Cole:* ${esc(need)}`)] : [])].filter(Boolean);
+    const blocks = [head(me.name, 'week', `${dayName(date)} to Fri`), rt, ...(walk ? [ctxLine(`📅 *Walkthroughs:* ${esc(walk)}`)] : []), ...needCtx].filter(Boolean);
     const brands = (await d.listBrands(env)).filter(b => !PAUSED.test(b.name || ''));
     const parts = splitByBrand(rt, brands.map(b => shortName(b.name)));
     const copied = [];
@@ -301,7 +321,18 @@ export async function submitCheckin(env, d, p) {
     await postInThread(env, d, day, `${me.name}'s week`, blocks);
     s.week = { at: now, brands: copied };
   } else return;
-  s.need = need ? [...(s.need || []).filter(n => n !== need), need].slice(-3) : (s.need || []);
+  if (need && !(s.need || []).some(n => (n.text || n) === need)) {
+    s.need = [...(s.need || []), { on, text: need }].slice(-3);
+    /* the blocker as an open task in Locus: Cole's own when it waits on him, else the poster's (or the teammate they named) to chase */
+    const brands = (await d.listBrands(env).catch(() => [])).filter(b => !PAUSED.test(b.name || ''));
+    const low = need.toLowerCase();
+    const brand = brands.find(b => low.includes(shortName(b.name).toLowerCase()));
+    const named = ROSTER.find(r => r.name !== me.name && low.includes(r.name.toLowerCase()));
+    const owner = on === 'cole' ? 'Cole' : on === 'team' && named ? named.name : me.name;
+    await addAction(env, { act: brand?.act_id || '', text: on === 'cole' ? `${me.name} needs: ${need}` : `Get from ${blockerLabel(on)}: ${need}`,
+      detail: `${me.name} is blocked on ${blockerLabel(on)} (daily check-in, ${dayName(date)}).`, owner, kind: on === 'client' ? 'client_owes' : 'team',
+      source: 'manual', source_id: `checkin:${date}:${uid}`, created_by: me.name }).catch(e => console.log('checkin blocker task: ' + e.message));
+  }
   await saveDay(env, d, date, day);
   await redraw(env, d, date, day);
 }
