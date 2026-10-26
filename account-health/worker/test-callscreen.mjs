@@ -1,5 +1,5 @@
 // Offline checks for the call screens (src/callscreen.js). Run: node test-callscreen.mjs
-import { _test, handleCalls } from './src/callscreen.js';
+import { _test, handleCalls, reopenCall } from './src/callscreen.js';
 const { winnersLosers, callId, parked, typedLines } = _test;
 let n = 0, bad = 0;
 const ok = (c, m) => { n++; if (!c) { bad++; console.log('FAIL', m); } };
@@ -38,6 +38,24 @@ ok(r.status === 401, 'no login = 401');
 r = await handleCalls({ method: 'GET' }, env, url, '/api/calls/screen', json, { isAdmin: async () => true, clientScope: () => ({ ids: ['brand_x'] }) });
 ok(r.status === 403, 'a client login = 403');
 ok((await handleCalls({ method: 'GET' }, env, url, '/api/other', json, {})) === null, 'other paths pass through');
+
+// 6. Reopen (2026-10-26): a finished call goes back to open; Finish again skips what the first Finish made.
+{
+  const { itemKey, madeKeys, mergeResults } = _test;
+  const first = { brands: [{ brand_id: 'b1', tasks: [{ text: 'Ahsan pause the  retargeting' }, { text: 'Write a brief: Couch video', kind: 'team' }], briefs: [{ text: 'Hook test', num: 5 }, { text: 'Failed one', error: 'x' }], asks: [{ text: 'Send photos' }] }], agency: { brand_id: '', tasks: [{ text: 'Cole send calendar' }] }, warnings: [] };
+  const k = madeKeys(first);
+  ok(k.has(itemKey('b1', 'ahsan pause the retargeting')) && k.has(itemKey('b1', 'Hook test')) && k.has(itemKey('b1', 'Send photos')) && k.has(itemKey('', 'Cole send calendar')), 'made tasks, briefs and requests are keys');
+  ok(k.has(itemKey('b1', 'Couch video')), 'a brief that fell back to a task counts as made');
+  ok(!k.has(itemKey('b1', 'Failed one')) && !k.has(itemKey('b2', 'Hook test')), 'a failed line can be made again; another brand is separate');
+  const m = mergeResults(first, { brands: [{ brand_id: 'b1', tasks: [], briefs: [{ text: 'New one', num: 6 }], asks: [] }, { brand_id: 'b2', tasks: [{ text: 't' }], briefs: [], asks: [] }], agency: null, warnings: ['w'] });
+  ok(m.brands.length === 2 && m.brands[0].briefs.length === 3 && m.agency.tasks.length === 1 && m.warnings.join() === 'w', 'the summary adds the second Finish to the first');
+  const rows = { 'monday:2026-10-26': { id: 'monday:2026-10-26', kind: 'monday', status: 'finished', state_json: '{"theme":"x"}', result_json: '{}' } };
+  const fake = { DB: { prepare: sql => ({ bind: (...a) => ({ first: async () => rows[a[0]] || null, run: async () => { if (/SET status = 'live'/.test(sql)) rows[a[0]].status = 'live'; return {}; } }), first: async () => ({}), all: async () => ({ results: [] }), run: async () => ({}) }) } };
+  const ro = await reopenCall(fake, { id: 'monday:2026-10-26' }, 'cole@go-mobius-digital.com');
+  ok(ro.status === 'live' && rows['monday:2026-10-26'].status === 'live' && ro.state.theme === 'x', 'reopen sets the call back to open and hands back what was typed');
+  let missing = false; try { await reopenCall(fake, { id: 'nope' }, 'x'); } catch (e) { missing = e.status === 404; }
+  ok(missing, 'an unknown call = 404');
+}
 
 console.log(`${n - bad}/${n} passed`);
 process.exit(bad ? 1 : 0);

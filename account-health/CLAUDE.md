@@ -2657,3 +2657,21 @@ Monday call is at 8am. Tests: `node test-clientpost.mjs` (12 offline checks).
 - Tests: `node test-launch.mjs` 24 (prep, dry run writes nothing, create = 3 adimages + 1 creative + 1 PAUSED ad, cards in
   order with a re-sent card in its place, repeat refused, one card refused), `node test-production2.mjs` 18 (adsOf, one
   call through any card, prune keeps the current cards). NOT live: no real carousel was made in Meta.
+
+## 2026-10-26: ASANA MIRROR FIXES + STALE ARCHIVE + CALL REOPEN (production.js, asana-brand.js, meetings.js, launch.js, callscreen.js)
+- `moveTaskTo` / `sectionFits` / `asanaColumn` (asana-brand.js) are the one way a board column reaches Asana. Review =
+  Creative Studio: a card that jumps Brief to Review now moves its task to Studio (moveCard skips Asana only when the
+  task is already there).
+- `pushBoard` runs at the end of every `syncTasks`: an open card whose stored `asana_section` is a board section that
+  disagrees with `board_stage` (only a Locus move leaves them apart) has its task moved, and the stored section follows.
+  25 a run; a task two rows share is skipped. This is also the backfill (refused moves, the makeBrief `later` race,
+  which now also moves the new task to the card's column itself).
+- Sync never inserts a second row for an `asana_gid` already linked (a renumbered task moves its row's `num`); rows that
+  already share a gid are logged and returned as `dup_gids`, never deleted.
+- `archiveCard` completes the task AND moves it to Completed; `board_was` keeps the column for Archived / Put back.
+- Launch to Meta batch create moves the card to Live (Asana: Analyze Results); the answer carries `card`.
+- `POST /api/production/archive-stale {act?, days=30, dry?}`: open cards (brief/making/review/ready) with no update
+  (row, column move, note or file) for 30 days, each through archiveCard. Run by hand, not on a timer.
+- Calls: `POST /api/calls/reopen {id}` sets a finished call back to live; Finish again skips every line whose words the
+  first Finish made for that brand (`madeKeys`), skips brands with nothing new, never reposts a posted client recap, and
+  the Finished summary merges both runs. Tests: test-production.mjs 11, test-callscreen.mjs 20.
