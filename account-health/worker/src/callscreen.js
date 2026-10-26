@@ -33,6 +33,8 @@
  *   PUT  /api/calls/state {id, state}                         autosave (whole state, last write wins)
  *   POST /api/calls/parse {text, act}                         one typed line -> owner, due, brand (actions.js parseQuick)
  *   POST /api/calls/finish {id, recap?}                       Monday / client: everything typed, where it lives
+ *   POST /api/calls/reopen {id}                               a finished call back to open (2026-10-26); finishing again
+ *                                                             makes only what the first Finish did not (sameItem dedupe)
  *   POST /api/calls/kickoff/done {id, card, note, count, format, due, owner}
  *   GET  /api/calls/history                                   the last 30 finished calls
  */
@@ -360,10 +362,24 @@ export async function finishCall(env, d, body, who) {
     notes.brands.push({ brand_id: act, decisions: news ? [`Their news: ${news}`] : [], items: [...promised.map(x => item('team', x)), ...asks.map(x => item('client_owes', x))], this_week: [], need_from_client: [] });
     notes.summary = news ? `Client call with ${nameOf(act)}. Their news: ${news}` : `Client call with ${nameOf(act)}.`;
   }
-  if (!notes.brands.length) throw err(400, 'Nothing was typed on this call yet.');
-  /* The p_meeting row the confirm writes from. Its id ties a later Fireflies read of the same call to this one. */
+  /* REOPENED (2026-10-26): a call finished before keeps what its Finish made (result_json). Finishing again makes only
+     the lines that are new: a task, brief or request whose words were already made for that brand is dropped, and a
+     brand with nothing new and the same notes as last time is left out (no second Slack note). */
   await ensureMeetings(env);
   const mid = `live_${c.id.replace(/[^a-z0-9_]/gi, '_')}`;
+  const prev = c.result && Array.isArray(c.result.brands) ? c.result : null;
+  if (prev) {
+    const made = madeKeys(prev);
+    const before = safe((await env.DB.prepare(`SELECT notes_json FROM p_meeting WHERE id = ?1`).bind(mid).first().catch(() => null))?.notes_json, null);
+    const sameNotes = b => { const o = (before?.brands || []).find(x => (x.brand_id || '') === (b.brand_id || '')); return !!o && JSON.stringify([o.decisions || [], o.this_week || [], o.need_from_client || []]) === JSON.stringify([b.decisions || [], b.this_week || [], b.need_from_client || []]); };
+    notes.brands = notes.brands.map(b => ({ ...b, items: b.items.filter(i => !made.has(itemKey(b.brand_id, i.text))) })).filter(b => b.items.length || !sameNotes(b));
+    if (!notes.brands.length) {
+      await env.DB.prepare(`UPDATE p_call SET status = 'finished', finished_by = ?2, finished_at = ?3 WHERE id = ?1`).bind(c.id, who, now()).run();
+      return { ok: true, kind: c.kind, meeting: c.meeting_id || mid, result: prev, recap: prev.recap || null, nothing_new: true };
+    }
+  }
+  if (!notes.brands.length) throw err(400, 'Nothing was typed on this call yet.');
+  /* The p_meeting row the confirm writes from. Its id ties a later Fireflies read of the same call to this one. */
   const title = c.title || (c.kind === 'monday' ? 'Monday call' : 'Client call');
   await env.DB.prepare(`INSERT INTO p_meeting (id, title, date, at, duration, organizer, attendees_json, chars, kind, notes_json, status, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, NULL, ?5, '[]', 0, ?6, ?7, 'extracted', ?4, ?4)
     ON CONFLICT(id) DO UPDATE SET notes_json = excluded.notes_json, status = 'extracted', updated_at = excluded.updated_at`).bind(mid, title, c.date, now(), who, notes.kind, JSON.stringify(notes)).run();
@@ -380,14 +396,37 @@ export async function finishCall(env, d, body, who) {
   } catch (e) { console.log('brief note from call', e.message); }
   /* The client call's recap, only when the person ticked it and read it on the screen. */
   let recap = null;
-  if (c.kind === 'client' && body.recap && clean(body.recap, 4000)) {
+  if (c.kind === 'client' && body.recap && clean(body.recap, 4000) && !(prev && prev.recap && prev.recap.posted)) {
     const ch = (await env.DB.prepare(`SELECT brief_channel FROM brand_accounts WHERE act_id = ?1`).bind(c.act_id).first().catch(() => null))?.brief_channel;
     if (!ch) recap = { posted: false, why: 'This brand has no client channel.' };
     else { try { await d.slackPost(env, ch, noDash(keep(body.recap, 4000)), null, { username: 'Mobius Digital' }); recap = { posted: true }; } catch (e) { recap = { posted: false, why: e.message }; } }
   }
+  const all = prev ? mergeResults(prev, result) : result;
   await env.DB.prepare(`UPDATE p_call SET status = 'finished', finished_by = ?2, finished_at = ?3, meeting_id = ?4, result_json = ?5 WHERE id = ?1`)
-    .bind(c.id, who, now(), mid, JSON.stringify({ ...result, recap })).run();
-  return { ok: true, kind: c.kind, meeting: mid, result, recap };
+    .bind(c.id, who, now(), mid, JSON.stringify({ ...all, recap: recap || (prev && prev.recap) || null })).run();
+  return { ok: true, kind: c.kind, meeting: mid, result: all, recap };
+}
+/* What a Finish already made, as brand|words keys (a brief that fell back to a task keeps its words, so it counts too). */
+const itemKey = (act, text) => `${act || ''}|${String(text || '').toLowerCase().replace(/^write a brief:\s*/, '').replace(/\s+/g, ' ').trim()}`;
+function madeKeys(res) {
+  const out = new Set();
+  for (const r of [...(res.brands || []), ...(res.agency ? [res.agency] : [])]) for (const k of ['tasks', 'briefs', 'asks']) for (const t of r[k] || []) if (!t.error) out.add(itemKey(r.brand_id, t.text));
+  return out;
+}
+/* The Finished summary after a second Finish: what the first one made plus what this one added, per brand. */
+function mergeResults(a, b) {
+  const one = (x, y) => (!x ? y : !y ? x : { ...x, ...y, tasks: [...(x.tasks || []), ...(y.tasks || [])], briefs: [...(x.briefs || []), ...(y.briefs || [])], asks: [...(x.asks || []), ...(y.asks || [])], report: y.report || x.report, slack: !!(x.slack || y.slack) });
+  const ids = [...new Set([...(a.brands || []), ...(b.brands || [])].map(r => r.brand_id))];
+  return { brands: ids.map(id => one((a.brands || []).find(r => r.brand_id === id), (b.brands || []).find(r => r.brand_id === id))), agency: one(a.agency, b.agency), warnings: [...(b.warnings || [])] };
+}
+/** Reopen (2026-10-26): a finished call goes back to open so it can be edited and finished again. Nothing is undone. */
+export async function reopenCall(env, body, who) {
+  await ensureCalls(env);
+  const c = await loadCall(env, String(body.id || ''));
+  if (!c) throw err(404, 'No such call.');
+  if (c.status !== 'finished') return { ok: true, id: c.id, status: c.status };
+  await env.DB.prepare(`UPDATE p_call SET status = 'live', updated_by = ?2, updated_at = ?3 WHERE id = ?1`).bind(c.id, who, now()).run();
+  return { ok: true, id: c.id, status: 'live', state: c.state || {} };
 }
 
 /** The buyer's note the Daily Brief reads (worker.js briefNoteFor): keep what is under 2 days old, add the new lines. */
@@ -471,9 +510,10 @@ export async function handleCalls(request, env, url, path, json, d) {
     if (path === '/api/calls/parse') return json(await parseQuick(env, d, body.text, { act: String(body.act || '') }));
     if (path === '/api/calls/done') return json({ ok: true, item: await markDone(env, String(body.item || ''), body.done !== false, { by: who, how: 'tick' }) });
     if (path === '/api/calls/finish') return json(await finishCall(env, d, body, who));
+    if (path === '/api/calls/reopen') return json(await reopenCall(env, body, who));
     if (path === '/api/calls/kickoff/done') return json(await kickoffDone(env, d, body, who));
     return json({ error: 'not found' }, 404);
   } catch (e) { return json({ error: e.message }, e.status >= 400 && e.status < 600 ? e.status : 500); }
 }
 
-export const _test = { winnersLosers, readOf, callId, mondayOf, parked, typedLines };
+export const _test = { winnersLosers, readOf, callId, mondayOf, parked, typedLines, itemKey, madeKeys, mergeResults };

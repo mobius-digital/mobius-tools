@@ -39,7 +39,7 @@
  *   POST /api/meetings/poll       check Fireflies now
  */
 import { addAction, markDone, openItems as openActionItems, ROSTER, AREAS, AREA_RULE } from './actions.js';
-import { briefFor, ensureBoard } from './asana-brand.js';
+import { briefFor, ensureBoard, moveTaskTo, sectionFits } from './asana-brand.js';
 import { nextNumber } from './ideas.js';
 import { numOf } from './asana-brand.js';
 import { teamPost, tagOf, loadCard } from './morningcard.js';
@@ -348,8 +348,15 @@ async function briefToAsana(env, d, act, doc, row, it, m, who) {
   const t = await d.asana(env, '/tasks?opt_fields=name,permalink_url', { method: 'POST', body: { name: `${num} - ${clean(it.text, 120)}`, projects: [doc.project_gid], html_notes: html, ...(assignee ? { assignee: assignee.gid } : {}), ...(it.due ? { due_on: it.due } : {}) } });
   await d.asana(env, `/sections/${sec.gid}/addTask`, { method: 'POST', body: { task: t.gid } }).catch(() => {});
   const url = t.permalink_url || `https://app.asana.com/0/${doc.project_gid}/${t.gid}`;
+  /* The card may have moved while the task was being made (New brief answers first, 2026-10-26): its column wins, so
+     the task follows it out of Creative Brief(s) and the stored section is the one the task really sits in. */
+  let secName = clean(sec.name, 80);
+  const now = await env.DB.prepare(`SELECT board_stage FROM p_br_batch WHERE id = ?1`).bind(row.id).first().catch(() => null);
+  if (now?.board_stage && now.board_stage !== 'brief' && now.board_stage !== 'done' && !sectionFits(secName, now.board_stage)) {
+    try { secName = await moveTaskTo(env, d.asana, doc.project_gid, t.gid, now.board_stage); } catch (e) { console.log(`brief #${num} follow the card: ${e.message}`); }
+  }
   await env.DB.prepare(`UPDATE p_br_batch SET asana_gid = ?2, asana_url = ?3, asana_section = ?4, assignee_gid = COALESCE(?5, assignee_gid), assignee_name = COALESCE(?6, assignee_name) WHERE id = ?1`)
-    .bind(row.id, t.gid, url, clean(sec.name, 80), assignee?.gid || null, assignee?.name || null).run().catch(e => console.log('brief card link: ' + e.message));
+    .bind(row.id, t.gid, url, secName, assignee?.gid || null, assignee?.name || null).run().catch(e => console.log('brief card link: ' + e.message));
   return { gid: t.gid, url };
 }
 /** The brand's open weekly report draft, if the week's draft exists (drafted Monday 6am, sent after the call). */

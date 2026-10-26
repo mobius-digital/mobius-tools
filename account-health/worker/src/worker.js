@@ -8202,7 +8202,9 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     /* ---- Launch to Meta (2026-10-10, src/launch.js): an approved Studio ad or a creator asset becomes a PAUSED
        Meta ad through metawrite meta_create_ad, named "<test> <letter> | <Format>", tied to its test. Admin + brandsFor. */
     {
-      const r = await handleLaunch(request, env, url, path, json, { isAdmin, sessionEmail, brandsFor, resolveBrandId, md: { xfetch, listAccounts, getSetting, putSetting } });
+      const r = await handleLaunch(request, env, url, path, json, { isAdmin, sessionEmail, brandsFor, resolveBrandId, md: { xfetch, listAccounts, getSetting, putSetting,
+        /* a batch on Meta moves its Production card to Live (and the Asana task with it) */
+        moveCard: (e, id, who) => prodMove(e, actionDeps(), { id, to: 'live' }, who) } });
       if (r) return r;
     }
     /* ---- The client posts, previewed (2026-10-19): the six-line daily from the brand's latest brief and the weekly in
