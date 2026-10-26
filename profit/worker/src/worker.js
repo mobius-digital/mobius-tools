@@ -1,4 +1,5 @@
 import { guardBrands, clientScope } from './brandguard.js';
+import { memo, bumpMemo } from './memo.js';
 import { metaOf, isBrandId, resolveBrandId } from './brandids.js';
 /**
  * Mobius Profit — store-level business worker (Cloudflare Workers + D1)
@@ -1680,6 +1681,8 @@ export default {
   /* Per-brand access wraps every request (brandguard.js). Old brand ids are turned into brand ids
      first (normalizeBrandIds), so the guard and every handler below see brand ids only. */
   async fetch(request, env, ctx) {
+    /* A write clears the GET memo (memo.js) so nothing old is served after a save. */
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method)) bumpMemo();
     const req = await normalizeBrandIds(request, env).catch(() => request);
     return guardBrands(req, env, sessionEmail, r => this.handle(r || req, env, ctx), CORS);
   },
@@ -2103,8 +2106,21 @@ export default {
       if (path === '/api/overview') {
         /* A client: only its own brands are built (2026-10-14 audit; the guard's filter then has nothing to drop). */
         const cScope = clientScope(request);
-        const accounts = (await accountsFor()).filter(a => !cScope || cScope.ids.has(a.act_id));
-        const { results: healthRows } = await env.DB.prepare(`SELECT * FROM p_cost_health`).all();
+        /* SPEED (2026-10-26, "switching takes several seconds"): the answer is memoised for 90 seconds per isolate,
+           keyed by who is asking (session kind + the client's brand scope) and the exact query, so a period flipped
+           back and forth or a second screen reading the snapshot is instant. `fresh=1` (sent after a save) skips the
+           memo and replaces it, and any write through this worker clears it (memo.js). A team login limited to some
+           brands is still filtered by the guard on the way out, as before. */
+        const sp = new URLSearchParams(url.search); sp.delete('fresh'); sp.sort();
+        const ovKey = `ov|${kind}|${cScope ? [...cScope.ids].sort().join(',') : '*'}|${sp}`;
+        const body = await memo(ovKey, 90e3, async () => {
+        const [accts0, { results: healthRows }, connRows, toolRows] = await Promise.all([
+          accountsFor(),
+          env.DB.prepare(`SELECT * FROM p_cost_health`).all(),
+          env.DB.prepare(`SELECT brand_id, kind FROM connections`).all().then(r => r.results || []).catch(() => []),
+          env.DB.prepare(`SELECT key, value FROM settings WHERE key LIKE 'emailTool:%'`).all().then(r => r.results || []).catch(() => []),
+        ]);
+        const accounts = accts0.filter(a => !cScope || cScope.ids.has(a.act_id));
         const byAct = Object.fromEntries(healthRows.map(r => [r.act_id, r]));
         /* The compare period (Home, 2026-10-07): `cmp=prev` is the same number of days
            ending the day before the window; `cmp=yoy` is the same dates a year earlier;
@@ -2115,11 +2131,12 @@ export default {
         /* What each brand has connected (2026-10-09): the page tabs for Google, TikTok, Website and Search show only
            where the brand has that integration, and the Email tab is named for the brand's tool. */
         const connKinds = {};
-        try { for (const r of (await env.DB.prepare(`SELECT brand_id, kind FROM connections`).all()).results || []) (connKinds[r.brand_id] ??= new Set()).add(r.kind); } catch {}
+        for (const r of connRows) (connKinds[r.brand_id] ??= new Set()).add(r.kind);
         const emailTool = {};
-        try { for (const r of (await env.DB.prepare(`SELECT key, value FROM settings WHERE key LIKE 'emailTool:%'`).all()).results || []) emailTool[r.key.slice(10)] = r.value; } catch {}
-        const out = [];
-        for (const a of accounts) {
+        for (const r of toolRows) emailTool[r.key.slice(10)] = r.value;
+        /* Every brand is built at once (it was one after another: ten brands of D1 reads, plus a live Triple Whale
+           call each on Today, in series). Order is kept: Promise.all answers in the accounts' order. */
+        const out = await Promise.all(accounts.map(async a => {
           const today = localDate(a.tz);
           const ym = monthOf(today);
           // Fetch back to the 1st even when the picker window is shorter, so "MTD"
@@ -2151,7 +2168,7 @@ export default {
             const day = await twDay(env, request, a, today).catch(() => null);
             if (day) { const row = liveRow(a, day); if (row) { applyAdSpend([row], spread(exp, today, today, [row]).adByDate); rows.push(row); mtdRows.push(row); } live = { as_of: day.as_of }; }
           }
-          out.push({
+          return {
             ...pubAccount(a),
             window: totals(rows),
             mtd: totals(mtdRows),
@@ -2177,14 +2194,16 @@ export default {
             brief_enabled: !!a.brief_enabled,
             review_first: !!a.review_first,
             report_config: safeJson(a.report_config_json, {}),
-          });
-        }
+          };
+        }));
+        return { days, from: qFrom, to: qTo, accounts: out, kind };
+        }, { force: url.searchParams.get('fresh') === '1' });
         await refreshIfStale(env, ctx);
         // `kind` lets the frontend hide what a demo session cannot reach. The Daily
         // Brief and Settings both call PROXIED endpoints on the account-health
         // worker, which does not know the demo password and answers 401 - showing a
         // reviewer two tabs that only ever error is worse than not showing them.
-        return json({ days, from: qFrom, to: qTo, accounts: out, kind });
+        return json(body);
       }
 
       /* One client: the daily series and totals behind it. */

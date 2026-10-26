@@ -325,7 +325,7 @@
     return tilesHtml(r) + chanTable(r) + adsHtml(r, act);
   }
   const rowsHtml = (arr, asks = false) => arr.map((x, i) => x.on === false ? '' : `<div class="row ${asks ? 'asks' : ''}" data-i="${i}">
-      <div class="t${x.text ? '' : ' empty'}" data-f="text" data-ph="${asks ? 'What we need from them' : 'What to make'}">${esc(x.text)}</div>
+      <div class="t${x.text ? '' : ' empty'}" data-f="text" data-ph="${asks ? 'What we need from the client' : 'What to make'}">${esc(x.text)}</div>
       ${asks ? '' : ownerChip(x.owner, 'data-f="owner"')}${dueChip(x.due, 'data-f="due"')}
       <button type="button" class="x" data-f="del" aria-label="Remove" title="Remove">×</button></div>`).join('');
   function todoList(open, t, none) {
@@ -369,15 +369,15 @@
     return `${sec('How last week went', r ? `from the weekly report, ${short(r.period_start)} to ${short(r.period_end)}` : 'from the weekly report', readBody(r, b.act_id))}
       ${sec('Last week\'s to-dos', 'from Tasks', todoList(b.open || [], t, 'Nothing was due.'))}
       ${sec(strat ? `${esc(strat)}'s plan` : 'The plan', 'from Slack, as written', (b.posts || []).length ? postsHtml(b.posts, b.act_id) : empty('Nothing posted yet.'))}
-      ${sec('New ads to make this week', 'each row becomes a brief on Production when you finish',
+      ${sec('New ads to make this week', `Split from ${strat ? `${esc(strat)}'s` : 'the'} Slack plan. Untick what is wrong. Each row becomes a brief when you finish.`,
         `<div class="rows" data-list="batches" data-act="${esc(b.act_id)}">${rowsHtml(s.batches)}</div>
         <button type="button" class="add" data-add="batches" data-act="${esc(b.act_id)}">+ Add a batch, written the way you would say it</button>`)}
-      ${making.length ? sec(`Already being made · ${making.length}`, 'on Production', `<div class="cards">${making.map(c => `<button type="button" class="mini" data-card="${esc(c.id || '')}" data-asana="${esc(c.asana_url || '')}"><b>#${esc(c.num)}</b><span>${esc(c.title)}</span><small>${esc({ brief: 'Brief', making: 'Making', review: 'In review' }[c.board] || c.board)}${c.owner ? ' · ' + esc(c.owner) : ''}${c.due ? ' · ' + short(c.due) : ''}</small></button>`).join('')}</div>`) : ''}
+      ${making.length ? sec(`On the Production board now · ${making.length}`, 'Brief, Making and Review columns', `<div class="cards">${making.map(c => `<button type="button" class="mini" data-card="${esc(c.id || '')}" data-asana="${esc(c.asana_url || '')}"><b>#${esc(c.num)}</b><span>${esc(c.title)}</span><small>${esc({ brief: 'Brief', making: 'Making', review: 'In review' }[c.board] || c.board)}${c.owner ? ' · ' + esc(c.owner) : ''}${c.due ? ' · ' + short(c.due) : ''}</small></button>`).join('')}</div>`) : ''}
       ${sec('Tell the client', 'goes under This week in their report', `<textarea data-client="${esc(b.act_id)}" placeholder="Three new ads on the Burgundy couch video go live Thursday">${esc(s.client || '')}</textarea>`)}
       ${sec('New to-dos', 'go to Tasks',
         `<div class="rows" data-list="jobs" data-act="${esc(b.act_id)}">${rowsHtml(s.jobs)}</div>
         <input type="text" data-quick="jobs" data-act="${esc(b.act_id)}" placeholder="Ahsan pause the retargeting ad set Friday">`)}
-      ${sec('What we need from them', 'becomes a Request',
+      ${sec('What we need from the client', 'Things the client owes us. Becomes a Request they see.',
         `${(b.asks || []).length ? `<ul class="chk">${b.asks.map(a => `<li><span class="tx">${esc(a.title)}</span><span class="o">asked ${short(a.created_at)}</span></li>`).join('')}</ul>` : ''}
         <div class="rows" data-list="asks" data-act="${esc(b.act_id)}">${rowsHtml(s.asks, true)}</div>
         <button type="button" class="add" data-add="asks" data-act="${esc(b.act_id)}">+ Request</button>`)}
@@ -425,10 +425,10 @@
       ${sec('What we promise', 'goes to Tasks for our team',
         `<div class="rows" data-list="promised" data-act="${esc(D.act_id)}">${rowsHtml(STATE.promised)}</div>
         <input type="text" data-quick="promised" data-act="${esc(D.act_id)}" placeholder="Noma send the new offer ads Thursday">`)}`;
-    if (id === 'asks') return `${sec('Still waiting on', 'from their Requests',
+    if (id === 'asks') return `${sec('Still waiting on the client', 'from their Requests',
         ((D.asks || []).length ? `<ul class="chk">${D.asks.map(a => `<li><span class="tx">${esc(a.title)}</span><span class="o ${(Date.now() - Date.parse(a.created_at)) > 7 * 864e5 ? 'late' : ''}">asked ${short(a.created_at)}</span></li>`).join('')}</ul>` : empty('Nothing.'))
         + ((D.approvals || []).length ? `<p class="cs-sub">Waiting for their OK</p><ul class="chk">${D.approvals.map(a => `<li><span class="tx">${esc(a.title)}</span><span class="o">sent ${short(a.created_at)}</span></li>`).join('')}</ul>` : ''))}
-      ${sec('What we need from them', 'becomes a Request',
+      ${sec('What we need from the client', 'Things the client owes us. Becomes a Request they see.',
         `<div class="rows" data-list="asks" data-act="${esc(D.act_id)}">${rowsHtml(STATE.asks, true)}</div>
         <button type="button" class="add" data-add="asks" data-act="${esc(D.act_id)}">+ Request</button>`)}`;
     if (id === 'coming') return sec('Coming up', 'from the Calendar, the next five weeks',
@@ -548,7 +548,7 @@
       (KIND === 'kickoff' ? `<p class="cs-empty">${plural(r.briefs || 0, 'brief')} moved to Making.</p>` : `<div class="cs-tiles">${tile('Tasks', n('tasks'))}${tile('Briefs', n('briefs'))}${tile('Requests', n('asks'))}${tile('Reports', all.filter(b => b.report).length)}</div>
         ${(r.warnings || []).length ? `<div class="warnline">${r.warnings.map(esc).join('<br>')}</div>` : ''}
         ${r.recap ? `<p class="cs-empty">${r.recap.posted ? 'The recap is in the client\'s Slack channel.' : `The recap was not posted: ${esc(r.recap.why || '')}`}</p>` : ''}`)
-      + `<div class="cs-acts"><button type="button" class="btn" data-go="tasks">Tasks</button><button type="button" class="btn" data-go="production">Production</button><button type="button" class="btn" data-go="calls">${KIND === 'client' ? 'Home' : 'Meetings'}</button></div>`);
+      + `<div class="cs-acts"><button type="button" class="btn" data-reopen>Reopen</button><button type="button" class="btn" data-go="tasks">Tasks</button><button type="button" class="btn" data-go="production">Production</button><button type="button" class="btn" data-go="calls">${KIND === 'client' ? 'Home' : 'Meetings'}</button></div>`);
   }
   const headHtml = title => H.pageHead ? H.pageHead(KIND === 'client' ? 'ccall' : 'calls', title) : `<div class="ph"><div><div class="ph-t">${title}</div></div><div class="ph-r"><span class="ph-acts"></span></div></div>`;
   function acts(html) { if (typeof H.pageActions === 'function') H.pageActions(html); else if (typeof window.pageActions === 'function') window.pageActions(html); }
@@ -696,6 +696,17 @@
   function wire() {
     const root = $('#csRoot');
     $$('[data-go]', root).forEach(b => b.onclick = () => { clearInterval(CLOCK); present(false); H.show(b.dataset.go); });
+    /* Reopen (2026-10-26): the call back to open to fix or add a line; Finish again makes only what is new. */
+    $$('[data-reopen]', root).forEach(b => b.onclick = async () => {
+      const sure = window.confirmModal ? await window.confirmModal('Reopen the call?', 'You can change what was typed and finish again. What the first Finish made stays, and is not made twice.', 'Reopen') : true;
+      if (!sure) return;
+      b.disabled = true;
+      try {
+        const r = await post('/api/calls/reopen', { id: D.call.id });
+        D.call = { ...D.call, status: 'live' }; if (r && r.state) STATE = r.state;
+        POS = steps().length - 1; paint(); toast('Reopened. Finish again when you are done.');
+      } catch (e) { b.disabled = false; toast(e.message); }
+    });
     const pres = $('#csPresent'); if (pres) pres.onclick = () => present(!document.body.classList.contains('cs-present'));
     const n = $('#csNext'); if (n) { if (n.hasAttribute('data-finish')) wireFinish(n); else n.onclick = () => go(POS + 1); }
     const p = $('#csPrev'); if (p) p.onclick = () => go(POS - 1);

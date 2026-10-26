@@ -95,10 +95,25 @@ export function boardOf(section, stage) {
 }
 /* The section a board column moves an Asana task to. Review has none (Locus only). */
 export const BOARD_SECTION = { brief: /brief/i, making: /studio/i, ready: /ready/i, live: /analy/i, done: /complete/i };
+/* The Asana column a board column lives in: Review has no section, so its task sits in Creative Studio (Making). */
+export const asanaColumn = to => (to === 'review' ? 'making' : to);
+/* True when the stored Asana section already is where a card in board column `to` belongs. */
+export const sectionFits = (section, to) => !!section && boardOf(section, null) === asanaColumn(to);
+/** Moves one Asana task to the section of board column `to` (Review = Creative Studio). `asanaFn` is the worker's asana
+ *  helper; `cache` (an object) keeps the project's sections between calls. Answers the section's name, throws a reason. */
+export async function moveTaskTo(env, asanaFn, projectGid, taskGid, to, cache = {}) {
+  const key = asanaColumn(to);
+  if (!BOARD_SECTION[key]) throw new Error(`no Asana section for ${to}`);
+  if (!cache[projectGid]) cache[projectGid] = (await asanaFn(env, `/projects/${projectGid}/sections?opt_fields=name`)) || [];
+  const sec = cache[projectGid].find(s => BOARD_SECTION[key].test(s.name || ''));
+  if (!sec) throw new Error(`no ${{ brief: 'Brief', making: 'Studio', ready: 'Ready', live: 'Analyze Results', done: 'Completed' }[key]} section in the Asana project`);
+  await asanaFn(env, `/sections/${sec.gid}/addTask`, { method: 'POST', body: { task: taskGid } });
+  return String(sec.name || '').slice(0, 80);
+}
 let boardCols = false;
 export async function ensureBoard(env) {
   if (boardCols) return;
-  for (const c of ['board_stage TEXT', 'assignee_name TEXT', 'due_on TEXT', 'board_at TEXT']) await env.DB.prepare(`ALTER TABLE p_br_batch ADD COLUMN ${c}`).run().catch(() => {});
+  for (const c of ['board_stage TEXT', 'assignee_name TEXT', 'due_on TEXT', 'board_at TEXT', 'board_was TEXT']) await env.DB.prepare(`ALTER TABLE p_br_batch ADD COLUMN ${c}`).run().catch(() => {});
   boardCols = true;
 }
 
@@ -327,7 +342,13 @@ async function syncTasks(env, act, doc, { full = false } = {}) {
   const tasks = await asanaAll(env, `/tasks?project=${doc.project_gid}&opt_fields=${TASK_FIELDS}${since}`);
   const fields = (await ensureProjectFields(env, doc).catch(() => null)) || (await getSetting(env, 'brandAsanaFields')) || {};
   await ensureWork(env);
-  const existing = (await env.DB.prepare(`SELECT id, num, verdict, stage, asana_gid, asana_angle, brief_json, brief_hash FROM p_br_batch WHERE act_id = ?1`).bind(act).all()).results || [];
+  const existing = (await env.DB.prepare(`SELECT id, num, verdict, stage, asana_gid, asana_angle, brief_json, brief_hash, created_at FROM p_br_batch WHERE act_id = ?1`).bind(act).all()).results || [];
+  /* One row per Asana task (2026-10-26): a task already linked to a row is never inserted again under another number
+     (Ice & Gold had #17/#20 and #18/#19 sharing one task). The oldest linked row is the one kept up to date. */
+  const byGid = new Map();
+  for (const b of [...existing].sort((x, y) => String(x.created_at || '').localeCompare(String(y.created_at || '')))) if (b.asana_gid) (byGid.get(b.asana_gid) || byGid.set(b.asana_gid, []).get(b.asana_gid)).push(b);
+  const dupGids = [...byGid].filter(([, l]) => l.length > 1).map(([gid, l]) => ({ gid, nums: l.map(b => b.num) }));
+  if (dupGids.length) console.log(`asana sync ${act}: rows sharing one task ${JSON.stringify(dupGids)}`);
   let nextFree = Math.max(0, ...existing.map(b => parseInt(b.num, 10) || 0), ...tasks.map(t => +numOf(t.name) || 0)) + 1;
 
   /* AUTO-NUMBER: a task in a creative section with no number gets the next one. */
@@ -401,7 +422,14 @@ async function syncTasks(env, act, doc, { full = false } = {}) {
     const learning = cf[fields.learning]?.text_value || null;
     const cancelled = /cancel/i.test(status || '');
     let notes = clip(t.notes, 8000) || null;
-    const row = have.get(n);
+    let row = have.get(n);
+    /* No row under this number, but the task is already linked to one (it was renumbered): that row follows it. */
+    if (!row && byGid.has(t.gid)) {
+      row = byGid.get(t.gid)[0];
+      have.delete(String(parseInt(row.num, 10)));
+      st.push(env.DB.prepare(`UPDATE p_br_batch SET num = ?2 WHERE id = ?1`).bind(row.id, n));
+      row.num = n; have.set(n, row);
+    }
     /* Production v2: a brief written in Locus (brief_json) is never overwritten by the text Locus itself put in Asana.
        Only a real edit of the text in Asana (its hash moved) wins, and then the page is read back from Asana's html. */
     if (row && row.brief_json && notes != null) {
@@ -452,10 +480,36 @@ async function syncTasks(env, act, doc, { full = false } = {}) {
     }
   }
   for (let i = 0; i < st.length; i += 80) await env.DB.batch(st.slice(i, i + 80));
+  /* Locus's column out to Asana: a move Asana refused (or one made while the task did not exist yet) is pushed now. */
+  const pushed = await pushBoard(env, act, doc).catch(e => { console.log(`push board ${act}: ${e.message}`); return { moved: 0, failed: [] }; });
   /* Comments typed in Asana on open cards come into the card's thread in Locus (the mirror, prodwork.js). */
   const comments = full ? 0 : await pullStories(env, asana, act, tasks.filter(t => !t.completed && numOf(t.name))).catch(e => { console.log('stories: ' + e.message); return 0; });
   await putDoc(env, act, 'asana', { ...doc, last_sync: started, board_v: 1 });
-  return { tasks: tasks.length, numbered: byNum.size, created, updated, closed, angle_fixes: angleFixes, auto_numbered: numbered, comments };
+  return { tasks: tasks.length, numbered: byNum.size, created, updated, closed, angle_fixes: angleFixes, auto_numbered: numbered, comments, pushed: pushed.moved, push_failed: pushed.failed, dup_gids: dupGids };
+}
+
+/** Locus's Production column pushed out to Asana (2026-10-26). An open card whose stored Asana section is a board
+ *  section that disagrees with its column was moved in Locus after Asana was last read (the sync writes the section and
+ *  the column together, so only a Locus move leaves them apart): its task goes to the column's section and the stored
+ *  section follows, so the next read keeps the column. Review = Creative Studio. Up to `limit` tasks a run. */
+export async function pushBoard(env, act, doc, { limit = 25, asanaFn = asana } = {}) {
+  if (!doc?.project_gid) return { moved: 0, failed: [] };
+  await ensureBoard(env);
+  const rows = (await env.DB.prepare(`SELECT id, num, board_stage, asana_section, asana_gid FROM p_br_batch WHERE act_id = ?1 AND asana_gid IS NOT NULL
+    AND asana_section IS NOT NULL AND stage != 'done' AND board_stage IN ('brief', 'making', 'review', 'ready', 'live') ORDER BY CAST(num AS INTEGER) DESC`).bind(act).all()).results || [];
+  /* A task two rows share is left alone: the rows could disagree and push it back and forth. */
+  const seen = new Map(); for (const r of rows) seen.set(r.asana_gid, (seen.get(r.asana_gid) || 0) + 1);
+  const off = rows.filter(r => { const at = boardOf(r.asana_section, null); return seen.get(r.asana_gid) === 1 && at && at !== 'done' && !sectionFits(r.asana_section, r.board_stage); });
+  const cache = {}, failed = [];
+  let moved = 0;
+  for (const r of off.slice(0, limit)) {
+    try {
+      const name = await moveTaskTo(env, asanaFn, doc.project_gid, r.asana_gid, r.board_stage, cache);
+      await env.DB.prepare(`UPDATE p_br_batch SET asana_section = ?2 WHERE id = ?1`).bind(r.id, clip(name, 80)).run();
+      moved++;
+    } catch (e) { failed.push({ num: r.num, why: e.message }); }
+  }
+  return { moved, failed, waiting: Math.max(0, off.length - limit) };
 }
 
 /* ---------------- 2. TAG (+ 3. WARN) ---------------- */

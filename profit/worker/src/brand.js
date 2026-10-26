@@ -314,8 +314,8 @@ async function payload(env, acct) {
 }
 
 /* ---------------- all brands ---------------- */
-async function overview(env) {
-  const accts = (await env.DB.prepare(`SELECT act_id, name FROM brand_accounts WHERE active = 1 ORDER BY name`).all()).results || [];
+async function overview(env, one = null) {
+  const accts = ((await env.DB.prepare(`SELECT act_id, name FROM brand_accounts WHERE active = 1 ORDER BY name`).all()).results || []).filter(a => !one || a.act_id === one);
   const cnt = async (sql) => Object.fromEntries(((await env.DB.prepare(sql).all().catch(() => ({ results: [] }))).results || []).map(r => [r.act_id, r]));
   const [lines, personas, angles, batches, onboard] = await Promise.all([
     cnt(`SELECT act_id, COUNT(*) n FROM p_br_line GROUP BY act_id`),
@@ -332,9 +332,9 @@ async function overview(env) {
 
 /* The Tests tab with no brand picked: per brand, how many tests sit in each box.
    Same boxOf as a single brand, so the counts always match what the brand shows. */
-async function testsOverview(env) {
-  const accts = (await env.DB.prepare(`SELECT a.act_id, a.name, a.target_cpa, a.target_roas, a.meta_act FROM brand_accounts a
-    WHERE a.active = 1 AND EXISTS (SELECT 1 FROM p_br_batch b WHERE b.act_id = a.act_id) ORDER BY a.name`).all()).results || [];
+async function testsOverview(env, one = null) {
+  const accts = ((await env.DB.prepare(`SELECT a.act_id, a.name, a.target_cpa, a.target_roas, a.meta_act FROM brand_accounts a
+    WHERE a.active = 1 AND EXISTS (SELECT 1 FROM p_br_batch b WHERE b.act_id = a.act_id) ORDER BY a.name`).all()).results || []).filter(a => !one || a.act_id === one);
   const brands = await Promise.all(accts.map(async acct => {
     const A = acct.act_id;
     const [batches, doc, ads] = await Promise.all([
@@ -498,8 +498,12 @@ export async function handlePublic(request, env, url, path, json) {
 export async function handleStaff(request, env, url, path, json) {
   if (!path.startsWith('/api/brand')) return null;
   try {
-    if (path === '/api/brand/overview') return json(await overview(env));
-    if (path === '/api/brand/tests-overview') return json(await testsOverview(env));
+    /* ?act=<brand> (2026-10-26, speed): one brand's row only, so a brand page no longer builds every brand's tests.
+       No act (or act=all) answers every brand exactly as before. */
+    const only = url.searchParams.get('act');
+    const one = only && only !== 'all' ? only : null;
+    if (path === '/api/brand/overview') return json(await overview(env, one));
+    if (path === '/api/brand/tests-overview') return json(await testsOverview(env, one));
     const body = request.method === 'GET' ? {} : await request.json().catch(() => ({}));
     const act = request.method === 'GET' ? url.searchParams.get('act') : body.act;
 

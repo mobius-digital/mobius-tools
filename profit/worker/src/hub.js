@@ -28,6 +28,11 @@
  */
 import { metaOf } from './brandids.js';
 import { rulesFor, goalOf } from './brand.js';
+import { memo } from './memo.js';
+/* Speed (2026-10-26): the buyer's list is built once for a page that asks for /api/hub/kept and /api/hub/today at the
+   same moment (in-flight calls share, then 20 seconds), and the Agency view's command answer is kept 3 minutes. Keys
+   are the exact brand list asked for, and a write clears both (memo.js). The answers are unchanged. */
+const buyerListOnce = (env, ctx, accts) => memo(`bl|${accts.map(a => a.act_id).join(',')}`, 20e3, () => buyerList(env, ctx, accts));
 
 /* Brand-first phase 3 (2026-10-08): `act` / `a.act_id` here is the BRAND id. Meta's own tables
    (ad_daily, ads, meta_campaigns, meta_adsets, activities) stay on the Meta ad account id, so they
@@ -98,10 +103,10 @@ export async function handleHub(ctx) {
       return json({ items: [...(cs || []).map(c => ({ kind: 'camp', id: c.campaign_id, label: c.name, act: c.act_id, act_id: c.act_id, brand: nm[c.act_id] })), ...(ads || []).map(a => ({ kind: 'ad', id: a.ad_id, label: a.name, act: a.act_id, act_id: a.act_id, brand: nm[a.act_id] }))] });
     }
     if (path === '/api/hub/moved') return json({ ...base, items: await movedMany(env, ctx, accts) });
-    if (path === '/api/hub/command') return json(await commandMany(env, ctx, accts));
+    if (path === '/api/hub/command') return json(await memo(`cmd|${accts.map(a => a.act_id).join(',')}`, 180e3, () => commandMany(env, ctx, accts)));
     if (path === '/api/hub/stockads') return json({ brands: await Promise.all(accts.map(a => stockAds(env, ctx, a))) });
     if (path === '/api/hub/yesterday') return json(await yesterdayMany(env, ctx, accts.filter(a => !SKIP_HUB.test(a.name || '')), act === 'all'));
-    if (path === '/api/hub/today' && url.searchParams.get('live') !== '1') return json(await buyerList(env, ctx, accts.filter(a => !SKIP_HUB.test(a.name || ''))));
+    if (path === '/api/hub/today' && url.searchParams.get('live') !== '1') return json(await buyerListOnce(env, ctx, accts.filter(a => !SKIP_HUB.test(a.name || ''))));
     /* The hero number and the morning line (2026-10-11): what each brand kept yesterday, with the bites. */
     if (path === '/api/hub/kept') return json(await keptMany(env, ctx, act === 'all' ? accts.filter(a => !SKIP_HUB.test(a.name || '')) : accts, { calls: url.searchParams.get('calls') !== '0' }));
     /* Live "today so far" (the top-bar chip). It was /api/hub/today until 2026-10-09, when that path
@@ -592,7 +597,7 @@ async function keptMany(env, ctx, accts, opts = {}) {
       WHERE c.brand_id IN (${inList(acts.length, 3)}) AND d.date BETWEEN ?1 AND ?2 GROUP BY c.brand_id, d.date`).bind(lo, y, ...acts).all().then(r => r.results || []).catch(() => []),
     env.DB.prepare(`SELECT act_id, verdict FROM p_cost_health WHERE act_id IN (${inList(acts.length)})`).bind(...acts).all().then(r => r.results || []).catch(() => []),
     ctx.loadExpenses(env, acts).catch(() => ({})),
-    opts.calls === false ? Promise.resolve(null) : buyerList(env, ctx, accts.filter(a => !SKIP_HUB.test(a.name || ''))).catch(() => null),
+    opts.calls === false ? Promise.resolve(null) : buyerListOnce(env, ctx, accts.filter(a => !SKIP_HUB.test(a.name || ''))).catch(() => null),
   ]);
   const metaBy = {}; for (const r of metaRows) (metaBy[r.act_id] ??= {})[r.date] = { spend: r.spend };
   const verdict = Object.fromEntries(health.map(r => [r.act_id, r.verdict]));

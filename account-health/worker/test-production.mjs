@@ -4,8 +4,8 @@
  *   node test-production.mjs      (from account-health/worker) */
 import { DatabaseSync } from 'node:sqlite';
 import assert from 'node:assert/strict';
-import { boardOf } from './src/asana-brand.js';
-import { formatOf, cardOf, listBoard, moveCard, handleProduction, setField, archiveCard, restoreCard, duplicateCard, listArchived } from './src/production.js';
+import { boardOf, pushBoard } from './src/asana-brand.js';
+import { formatOf, cardOf, listBoard, moveCard, handleProduction, setField, archiveCard, restoreCard, duplicateCard, listArchived, archiveStale } from './src/production.js';
 
 const db = new DatabaseSync(':memory:');
 const bindSql = sql => sql.replace(/\?(\d+)/g, (_, n) => ':p' + n);
@@ -185,6 +185,63 @@ await check('Archived (2026-10-15 polish): cards archived in the last 60 days wi
   const back = await restoreCard(env, dd, { id: 'c2', to: c2.was }, 'x');
   assert.equal(back.to, 'making');
   assert.ok(!(await listArchived(env, dd, { act: 'brand_alpha' })).cards.some(c => c.id === 'c2'), 'off the archive once back on the board');
+});
+
+await check('the Asana mirror (2026-10-26): Brief straight to Review moves the task to Creative Studio; archive moves it to Completed; the sync pushes a Locus column Asana missed, never a shared task', async () => {
+  sections = [{ gid: 'S1', name: 'Creative Briefs' }, { gid: 'S2', name: 'Creative Studio' }, { gid: 'S3', name: 'Ready to Launch' }, { gid: 'S4', name: 'Analyze Results' }, { gid: 'S5', name: 'Completed Tasks' }];
+  add('m1', 'brand_alpha', '201', 'Jumps to review', 'idea', 'Creative Briefs', 'TM1');
+  calls = [];
+  const r = await moveCard(env, d, { id: 'm1', to: 'review' }, 'x');
+  assert.equal(r.asana.moved, true); assert.equal(r.asana.section, 'Creative Studio');
+  assert.ok(calls.some(c => c.path === '/sections/S2/addTask' && c.init.body.task === 'TM1'), 'the task left Creative Briefs');
+  assert.deepEqual({ ...db.prepare(`SELECT board_stage, asana_section FROM p_br_batch WHERE id = 'm1'`).get() }, { board_stage: 'review', asana_section: 'Creative Studio' });
+  /* archive: completed AND in the Completed section; the column it left is kept for Put back */
+  calls = [];
+  const a = await archiveCard(env, d, { id: 'm1' }, 'x');
+  assert.equal(a.asana.done, true); assert.equal(a.asana.section, 'Completed Tasks');
+  assert.ok(calls.some(c => c.path === '/sections/S5/addTask'));
+  assert.equal((await listArchived(env, d, { act: 'brand_alpha' })).cards.find(c => c.id === 'm1').was, 'review');
+  /* the push: Locus says Making / Ready, Asana's stored section still says Briefs (a refused move) */
+  add('m2', 'brand_alpha', '202', 'Asana refused', 'production', 'Creative Briefs', 'TM2');
+  add('m3', 'brand_alpha', '203', 'In step', 'production', 'Creative Studio', 'TM3');
+  add('m4', 'brand_alpha', '204', 'Dup A', 'idea', 'Creative Briefs', 'TDUP');
+  add('m5', 'brand_alpha', '205', 'Dup B', 'production', 'Creative Briefs', 'TDUP');
+  add('m6', 'brand_alpha', '206', 'Review in briefs', 'idea', 'Creative Briefs', 'TM6');
+  db.exec(`UPDATE p_br_batch SET board_stage = 'ready' WHERE id = 'm2'; UPDATE p_br_batch SET board_stage = 'making' WHERE id IN ('m3', 'm5'); UPDATE p_br_batch SET board_stage = 'brief' WHERE id = 'm4'; UPDATE p_br_batch SET board_stage = 'review' WHERE id = 'm6'`);
+  calls = [];
+  const asanaFn = async (e, path, init) => { calls.push({ path, init }); if (path.includes('/sections?')) return sections; return {}; };
+  const p = await pushBoard(env, 'brand_alpha', { project_gid: 'P1' }, { asanaFn });
+  const adds = calls.filter(c => c.path.endsWith('/addTask')).map(c => `${c.path} ${c.init.body.task}`).sort();
+  assert.deepEqual(adds, ['/sections/S2/addTask TM6', '/sections/S3/addTask TM2'], 'Ready and Review (Creative Studio) pushed; in-step and shared tasks left');
+  assert.equal(p.moved, 2); assert.equal(calls.filter(c => c.path.includes('/sections?')).length, 1, 'sections read once');
+  assert.equal(db.prepare(`SELECT asana_section FROM p_br_batch WHERE id = 'm2'`).get().asana_section, 'Ready to Launch', 'the stored section follows, so the next read keeps the column');
+  calls = [];
+  assert.equal((await pushBoard(env, 'brand_alpha', { project_gid: 'P1' }, { asanaFn })).moved, 0, 'nothing left to push');
+});
+
+await check('archiveStale (2026-10-26): open cards with no update for 30 days go through the archive path; Live, Done and fresh ones stay; dry lists only', async () => {
+  db.exec(`DELETE FROM p_br_batch`);
+  const old = '2026-01-05 10:00:00';
+  add('s1', 'brand_alpha', '301', 'Old brief', 'idea', 'Creative Briefs', 'TS1', old);
+  add('s2', 'brand_alpha', '302', 'Old live', 'live', 'Analyze Results', 'TS2', old);
+  add('s3', 'brand_alpha', '303', 'Fresh making', 'production', 'Creative Studio', 'TS3', new Date().toISOString().slice(0, 10));
+  add('s4', 'brand_beta', '9', 'Old ready, no Asana', 'production', 'Ready to Launch', null, old);
+  add('s5', 'brand_alpha', '304', 'Old row, new note', 'production', 'Creative Studio', 'TS5', old);
+  db.exec(`UPDATE p_br_batch SET created_at = '${old}', board_at = NULL`);
+  db.exec(`UPDATE p_br_batch SET created_at = datetime('now') WHERE id = 's3'`);
+  db.prepare(`INSERT INTO p_work_comment (id, act_id, batch_id, kind, body, created_at) VALUES ('wc1', 'brand_alpha', 's5', 'note', 'still on it', datetime('now'))`).run();
+  const dry = await archiveStale(env, d, { dry: true }, 'x');
+  assert.equal(dry.archived, 0); assert.equal(dry.found, 2);
+  assert.deepEqual(dry.brands.map(b => [b.brand, b.count, b.cards.map(c => c.title)]), [['Alpha Golf', 1, ['Old brief']], ['Beta Socks', 1, ['Old ready, no Asana']]]);
+  assert.equal(db.prepare(`SELECT board_stage FROM p_br_batch WHERE id = 's1'`).get().board_stage, null, 'dry touches nothing');
+  calls = [];
+  const run = await archiveStale(env, d, {}, 'x');
+  assert.equal(run.archived, 2);
+  assert.ok(calls.some(c => c.path === '/tasks/TS1' && c.init.body.completed === true), 'the Asana task completed');
+  const st = Object.fromEntries(db.prepare(`SELECT id, board_stage FROM p_br_batch`).all().map(r => [r.id, r.board_stage]));
+  assert.equal(st.s1, 'done'); assert.equal(st.s4, 'done'); assert.notEqual(st.s2, 'done'); assert.notEqual(st.s3, 'done'); assert.notEqual(st.s5, 'done');
+  const back = await restoreCard(env, d, { id: 's1', to: 'brief' }, 'x');
+  assert.equal(back.to, 'brief', 'Undo puts it back');
 });
 
 console.log(`\n${n} passed, ${bad} failed`);
