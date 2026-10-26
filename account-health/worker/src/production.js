@@ -150,7 +150,12 @@ export async function handleProduction(request, env, url, path, json, d) {
     if (path === '/api/production/archived' && request.method === 'GET') return json(await listArchived(env, dd, { act: url.searchParams.get('act') || 'all' }));
     if (request.method !== 'POST') return json({ error: 'not found' }, 404);
     const body = await request.json().catch(() => ({}));
-    if (path === '/api/production/move') return json({ ok: true, ...(await moveCard(env, dd, body, who)) });
+    if (path === '/api/production/move') {
+      const res = await moveCard(env, dd, body, who);
+      /* Moved to Review by a person = sent to Cole: its ads post to the brand's internal channel (checkin.js reviewPost). */
+      if (res.to === 'review' && res.from !== 'review' && d.onReview) d.onReview(env, res.id, who);
+      return json({ ok: true, ...res });
+    }
     if (path === '/api/production/brief') {
       const act = String(body.act || '');
       if (!(await d.listBrands(env)).some(b => b.act_id === act)) return json({ error: 'Pick the brand.' }, 400);
