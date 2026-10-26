@@ -82,6 +82,7 @@ import { adsInvite as googleAdsInvite } from './google.js';
 import { useFetch as googleFetch, googleProbe, autoMatch as googleMatch, linkFor as googleLink, setLink as googleSetLink, websiteReport, websiteDrill, searchReport, adsReport, adsAds, adsTerms, adsChanges, enableApis, adsAccounts, adsCampaignWrite } from './google.js';
 import { locusWrite as metaLocusWrite, locusUndo as metaLocusUndo, metaLive, metaActs } from './metawrite.js';
 import { handleLaunch } from './launch.js';
+import { handleBuyer, buyerPostTick, buyerSettings } from './buyerlist.js';
 import { dataTools } from './stratdata.js';
 import { extraTools } from './allwrite.js';
 import { runStudioMake, studioMakeTools } from './studiomake.js';
@@ -7313,6 +7314,15 @@ function minOffDeps() {
       return r;
     } };
 }
+/* buyerlist.js: the one Buyer list (Locus page and the one daily Slack post). The ad calls are read from the profit worker
+   as the owner (todaypost.js readToday), the test minimums from minoff.js state or live, the launches from the board. */
+function buyerDeps() {
+  const base = { getSetting, putSetting, centralHour, centralDate, slackPost, slackApi };
+  return { ...base, listAccounts, mintSession, canAfford: n => subCanAfford(n), tagOf: (env, name) => tagOf(env, base, name),
+    listBrands: async env => (await listAccounts(env, true)).map(a => ({ act_id: a.act_id, name: a.name, slack_channel: a.slack_channel || null })),
+    listBoard: (env, o) => listBoard(env, { centralDate, listBrands: async e => (await listAccounts(e, true)).map(a => ({ act_id: a.act_id, name: a.name })) }, o),
+    dueOff: (env, act) => testMinimumsDue(env, act) };
+}
 /* Every way a task gets done (the Locus tick, the Slack Done button, a ✅) ends in markDone; the card strikes its line. */
 onActionDone((env, row) => cardActionDone(env, cardDeps(), row));
 function hubDeps() {
@@ -7825,6 +7835,8 @@ const AH_APP = {
         ran.actions = await actionTick(env, actionDeps()).catch(e => ({ error: e.message }));
         /* Test minimums due off today, one line per brand under its morning card with a Take it off button (minoff.js, 2026-10-15). */
         ran.minOff = await minOffTick(env, minOffDeps()).catch(e => ({ error: e.message }));
+        /* The Buyer list: ONE post a day in the buyer channel (buyerlist.js, 2026-10-26); the morning cards no longer carry the calls. */
+        ran.buyerPost = await buyerPostTick(env, buyerDeps()).catch(e => ({ error: e.message }));
         /* Scheduled questions to the Strategist, posted to Slack (askschedule.js). */
         ran.askSchedules = await scheduleTick(env, hubDeps()).catch(e => ({ error: e.message }));
         /* The Monday account review per brand, Apply cards in the internal channel; off until settings.mondayReview = 'on' (review.js). */
@@ -8203,6 +8215,12 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
        Meta ad through metawrite meta_create_ad, named "<test> <letter> | <Format>", tied to its test. Admin + brandsFor. */
     {
       const r = await handleLaunch(request, env, url, path, json, { isAdmin, sessionEmail, brandsFor, resolveBrandId, md: { xfetch, listAccounts, getSetting, putSetting } });
+      if (r) return r;
+    }
+    /* ---- The Buyer list (2026-10-26, src/buyerlist.js): every brand's ad calls, test minimums due off and cards ready to
+       launch in one list, with shared Done / Skip state (p_buyer_state). Team only. */
+    {
+      const r = await handleBuyer(request, env, url, path, json, { isAdmin, sessionEmail, brandsFor, resolveBrandId, deps: buyerDeps() });
       if (r) return r;
     }
     /* ---- The client posts, previewed (2026-10-19): the six-line daily from the brand's latest brief and the weekly in
@@ -9928,6 +9946,8 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
           actionRemind: (await getSetting(env, 'actionRemind')) !== 'off',
           /* The daily "test minimum due off" line under each morning card (minoff.js). On unless 'off'. */
           minOffPost: await minOffOn(env),
+          /* The Buyer list (buyerlist.js): the owner shown on the page, its one daily post and where it goes. */
+          ...(await buyerSettings(env)),
           /* 2026-10-13: one hour for every morning post (Central) and the morning card's switch (morningcard.js). */
           morningHour: await morningHour(env),
           morningCard: await cardOn(env),
@@ -9951,6 +9971,9 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         if ('todayPost' in b) await putSetting(env, 'todayPost', b.todayPost ? 'on' : 'off');
         if ('actionRemind' in b) await putSetting(env, 'actionRemind', b.actionRemind ? 'on' : 'off');
         if ('minOffPost' in b) await putSetting(env, 'minOffPost', b.minOffPost ? 'on' : 'off');
+        if ('buyerPost' in b) await putSetting(env, 'buyerPost', b.buyerPost ? 'on' : 'off');
+        if ('buyerOwner' in b && String(b.buyerOwner || '').trim()) await putSetting(env, 'buyerOwner', String(b.buyerOwner).trim().slice(0, 40));
+        if ('buyerChannel' in b) await putSetting(env, 'buyerChannel', /^[CG][A-Z0-9]{6,}$/.test(String(b.buyerChannel || '')) ? String(b.buyerChannel) : '');
         if ('morningCard' in b) await putSetting(env, 'morningCard', b.morningCard ? 'on' : 'off');
         if ('morningHour' in b) {
           const h = +b.morningHour;

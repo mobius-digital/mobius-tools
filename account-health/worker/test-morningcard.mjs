@@ -58,6 +58,8 @@ const d = {
   listBoard: async () => ({ cards: [{ id: 'b9', act_id: 'brand_alpha', num: '312', title: 'Hook test', board: 'making', due: '2026-10-10', late: true, assignee: 'Ravo' }] }),
 };
 onActionDone((e, row) => cardActionDone(e, d, row));
+/* The calls line and its thread only ride on the card while the Buyer list post is OFF (2026-10-26); these checks cover that mode. */
+setSetting('buyerPost', 'off');
 const brief = (act, date, status, sales = 1438.11, plan = 1800.19, mer = 2.1052, posted = '2026-10-13T10:12:42.032Z') =>
   db.prepare(`INSERT OR REPLACE INTO briefs (act_id, date, posted_at, status, data_json) VALUES (?, ?, ?, ?, ?)`).run(act, date, posted, status, JSON.stringify({ day: { a: { sales, mer }, f: { sales: plan } } }));
 let n = 0, bad = 0;
@@ -251,6 +253,19 @@ await check('the leak finder: ONE line for the biggest NEW leak over $500, tagge
   const w = mon.items.find(i => i.key === 'leak:weekly');
   assert.ok(w, 'the weekly line'); assert.match(w.text, /^Weekly leak check: 3 leaks; I'd look at Cart to checkout on phones: 26\.9% first \(\$21\.7K a month, est\.\) · 6 searches to block · full list on Overview$/);
   assert.equal(mon.items.filter(i => i.kind === 'leak').length, 1);
+});
+
+await check('the Buyer list post on (the default): no calls line, no Make the calls button, no calls thread, the profit worker not read for calls', async () => {
+  db.prepare(`DELETE FROM settings WHERE key = 'buyerPost'`).run();
+  reads = [];
+  const c = await buildCard(env, d, ACCTS[0], '2026-10-16', {});
+  assert.ok(!c.items.some(i => i.kind === 'calls'), 'no calls line');
+  assert.equal(c.calls, false);
+  assert.equal(c._rows.length, 0, 'nothing for the thread');
+  assert.ok(!reads.some(p => /hub\/today/.test(p)), 'the calls are not read for the card');
+  setSetting('buyerPost', 'off');
+  const back = await buildCard(env, d, ACCTS[0], '2026-10-16', {});
+  assert.ok(back.items.some(i => i.kind === 'calls'), 'buyerPost off = the calls come back to the card');
 });
 
 console.log(`\n${n}/${n + bad} passed`);

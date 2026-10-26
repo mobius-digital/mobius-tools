@@ -312,3 +312,7 @@ CREATE TABLE IF NOT EXISTS social_media (id TEXT PRIMARY KEY, act_id TEXT NOT NU
   who TEXT, source TEXT NOT NULL DEFAULT 'upload', url TEXT, created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')));
 CREATE INDEX IF NOT EXISTS social_media_act ON social_media (act_id);
 CREATE TABLE IF NOT EXISTS social_oauth_state (state TEXT PRIMARY KEY, act_id TEXT NOT NULL, plat TEXT NOT NULL, email TEXT, at TEXT NOT NULL DEFAULT (datetime('now')));
+-- The Buyer list (2026-10-26, src/buyerlist.js): shared Done / Skip per brand + object + action (profit/worker/migrations/buyer-001.sql).
+CREATE TABLE IF NOT EXISTS p_buyer_state (brand TEXT NOT NULL, object TEXT NOT NULL, action TEXT NOT NULL, status TEXT NOT NULL,
+  name TEXT, by TEXT, at TEXT NOT NULL, quiet_until TEXT NOT NULL, PRIMARY KEY (brand, object, action));
+CREATE INDEX IF NOT EXISTS p_buyer_state_quiet ON p_buyer_state (quiet_until);

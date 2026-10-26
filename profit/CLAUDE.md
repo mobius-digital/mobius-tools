@@ -4493,3 +4493,18 @@ this goes for all things that go from the right side", and the Integrations pane
   card sheet (`#v2panel.sheet`) was already centred. Phones keep their bottom sheets (phone.css, unchanged).
 - Checked on a scratch page loading the real stylesheets + v2.js at 1280 and 375 (deleted): scrolled 1800px, every pop-up
   centred; the old `both` fill put the Integrations panel at -350px. Not checked signed in on the live site.
+
+## 2026-10-26: THE BUYER LIST (buyer.js, account-health src/buyerlist.js). Read before touching Today's calls state or the morning card calls.
+- Cole runs media buying until he hires a buyer (Ahsan is creative strategy only). Ads > **Buyer list** (page id `buyer`, first
+  under Ads / Marketing, Agency view and one brand, team only: AGENCY_TABS, SHOWABLE) is ONE list sorted by money at stake:
+  hub.js buyerList calls (Scale, Cut, Trim, Refresh, Mixed; no Fix), test minimums due off (minoff.js state for the day, else
+  asana-brand.js testMinimumsDue live, cached `buyerMin:<date>` 6h; stake = a week of the minimum) and Production cards in
+  Ready with approved ads not on Meta (listBoard + prodwork adsOf minus p_launch; Do = LaunchToMeta.openBatch, paused).
+- Do / Skip / Open (Mixed has Done instead of Do). **Shared state** in `p_buyer_state` (brand, object, action): Done = quiet
+  3 days, Skip = until tomorrow (Central dates), clear = back. Any `p_meta_write` on the object in 3 days hides the call
+  (watch 3 days). **Today's calls (desk.js) uses the same state** (`/api/buyer-list/state`), no localStorage any more.
+- Slack: `buyerPostTick` posts ONE message a day from settings.morningHour to settings.buyerChannel (default #daily-briefs
+  C0C8UA53U3W): head, owner (settings.buyerOwner, default Cole, tagged), top 5, launches waiting, Open in Locus. While
+  settings.buyerPost is on (default) the brand morning cards carry NO calls line, NO Make the calls button, NO calls thread.
+  Owner, channel and the switch are edited on the page ("Change", "Slack post"), which also previews the post.
+- Migration `worker/migrations/buyer-001.sql` (also made on first use). Tests: account-health `node test-buyerlist.mjs`.
