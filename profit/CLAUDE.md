@@ -4508,3 +4508,18 @@ this goes for all things that go from the right side", and the Integrations pane
   settings.buyerPost is on (default) the brand morning cards carry NO calls line, NO Make the calls button, NO calls thread.
   Owner, channel and the switch are edited on the page ("Change", "Slack post"), which also previews the post.
 - Migration `worker/migrations/buyer-001.sql` (also made on first use). Tests: account-health `node test-buyerlist.mjs`.
+
+## 2026-10-26: funnel role on the daily ad calls (hub.js buyerList). Read before touching Cut / Trim.
+- Every set row (and Trim / Refresh ad rows) carries `role` (opener | closer | both | null) and `first_click {role, heavier,
+  on_goal, fc_orders, fc_revenue, lc_orders, lc_revenue, fc_results, fc_cpa, fc_roas, fc_new_share, fc_known}`; set rows
+  also carry `ad_roles [{ad_id, role}]`. Source: tw_ad_attr fullFirstClick vs lastPlatformClick over the SAME window as the
+  call (7 or 14 days), the 1.3x line from account-health leakctx.js. Opener = first-click credit 1.3x+ last-click AND 2+
+  first-click sales at or better than the goal. New-customer share = fullFirstClick tw_order_touch orders whose
+  customer has no earlier tw_orders row, over the orders tw_orders can place. Null when the brand has no first-click rows.
+- **Opener guard**: a Cut or Trim whose role is opener becomes kind `mixed` with `kept_by: 'opener'` (no Do button) and a why
+  "Last click says cut (...), but first click credits it with N sales at $Y CPA and Z% new customers: it opens journeys.
+  Keep it; judge it on first click." A ROAS floor Mixed still wins over it. Brand field `n_opener_kept`.
+- **Every why ends with one numbers sentence**: days running, spend, CPA (or ROAS / cost per new customer / lead) vs goal,
+  CTR, CPM, frequency, hook rate (video_3s / impressions, video ads only). Cut, Trim and opener rows add "(N needed)" for
+  min days and "($X needed to judge)" for spend. The Buyer list shows only the first sentence (oneLine), so the call
+  sentence stays first. Desk (Today's calls) tags kept openers "Opens journeys". Tests: profit/worker/test-calls.mjs.

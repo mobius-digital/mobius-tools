@@ -315,7 +315,7 @@ const objKind = o => !o || OBJ_SALES.test(o) ? 'sales' : OBJ_LEADS.test(o) ? 'le
 const NOUN = { cpa: ['sale', 'sales'], roas: ['sale', 'sales'], ncpa: ['new customer', 'new customers'], cpl: ['lead', 'leads'] };
 const COST = { cpa: 'cost per sale', roas: 'cost per sale', ncpa: 'cost per new customer', cpl: 'cost per lead' };
 const cap = t => t[0].toUpperCase() + t.slice(1);
-async function buyerList(env, ctx, accts) {
+export async function buyerList(env, ctx, accts) {
   const as_of = new Date().toISOString();
   const y = accts.length ? ctx.addDays(ctx.localDate(accts[0].tz), -1) : null;
   if (!accts.length) return { as_of, rules_note: '', brands: [], rows: [] };
@@ -336,7 +336,7 @@ async function buyerList(env, ctx, accts) {
   const meta = accts.filter(a => metas[a.act_id]);
   const RULES = Object.fromEntries(meta.map(a => [a.act_id, rulesFor(a, docOf[a.act_id] || null)]));
   const W = meta.filter(a => toOf[a.act_id]).map(a => { const t = toOf[a.act_id]; return { act: a.act_id, f: ctx.addDays(t, -6), t, l2: ctx.addDays(t, -1), pf: ctx.addDays(t, -13), pt: ctx.addDays(t, -7) }; });
-  let adRows = [], attrRows = [], newRows = [];
+  let adRows = [], attrRows = [], newRows = [], fcNewRows = [];
   if (W.length) {
     /* Two parameters a brand (D1 binds at most 100); the window edges are worked out in SQL. pf..t = 14 days. */
     const vals = W.map((_, i) => `(?${i * 2 + 3}, ?${i * 2 + 4})`).join(', ');
@@ -346,7 +346,7 @@ async function buyerList(env, ctx, accts) {
     /* New customers per ad for every brand (2026-10-21): the ncpa goal reads them, and so do the evidence and the
        "Feeds the funnel" tag on every row. */
     const wantNew = true;
-    [adRows, attrRows, newRows] = await Promise.all([
+    [adRows, attrRows, newRows, fcNewRows] = await Promise.all([
       env.DB.prepare(`${CTE} SELECT c.brand_id act_id, d.act_id meta_act, d.ad_id, x.name ad_name, x.adset_id, s.name set_name, s.status set_status, s.daily_budget, s.campaign_id, mc.objective,
           COALESCE(x.first_spend_date, substr(x.created_time, 1, 10)) first_spend,
           SUM(CASE WHEN d.date BETWEEN w.f AND w.t THEN d.spend ELSE 0 END) spend,
@@ -354,6 +354,7 @@ async function buyerList(env, ctx, accts) {
           SUM(CASE WHEN d.date BETWEEN w.f AND w.t THEN d.impressions ELSE 0 END) impr,
           SUM(CASE WHEN d.date BETWEEN w.f AND w.t THEN d.reach ELSE 0 END) reach,
           SUM(CASE WHEN d.date BETWEEN w.f AND w.t THEN d.link_clicks ELSE 0 END) clicks,
+          SUM(CASE WHEN d.date BETWEEN w.f AND w.t THEN COALESCE(d.video_3s, 0) ELSE 0 END) v3,
           SUM(CASE WHEN d.date BETWEEN w.f AND w.t THEN COALESCE(d.leads, 0) ELSE 0 END) leads,
           SUM(COALESCE(d.leads, 0)) leads14,
           SUM(CASE WHEN d.date BETWEEN w.l2 AND w.t THEN d.spend ELSE 0 END) s2,
@@ -363,18 +364,36 @@ async function buyerList(env, ctx, accts) {
         FROM ad_daily d JOIN connections c ON c.kind = 'meta' AND c.external_id = d.act_id JOIN w ON w.brand = c.brand_id
         LEFT JOIN ads x ON x.act_id = d.act_id AND x.ad_id = d.ad_id LEFT JOIN meta_adsets s ON s.adset_id = x.adset_id LEFT JOIN meta_campaigns mc ON mc.campaign_id = s.campaign_id
         WHERE d.date BETWEEN ?1 AND ?2 AND d.date BETWEEN w.pf AND w.t GROUP BY c.brand_id, d.ad_id HAVING spend14 > 0`).bind(lo, hi, ...binds).all().then(r => r.results || []),
-      env.DB.prepare(`${CTE} SELECT t.act_id, t.ad_id, SUM(CASE WHEN t.date BETWEEN w.f AND w.t THEN t.orders ELSE 0 END) ord, SUM(CASE WHEN t.date BETWEEN w.f AND w.t THEN t.revenue ELSE 0 END) rev,
-          SUM(t.orders) ord14, SUM(t.revenue) rev14 FROM tw_ad_attr t JOIN w ON w.brand = t.act_id
-        WHERE t.date BETWEEN ?1 AND ?2 AND t.model = 'lastPlatformClick' AND (t.platform = 'meta' OR t.platform IS NULL) AND t.date BETWEEN w.pf AND w.t GROUP BY t.act_id, t.ad_id`).bind(lo, hi, ...binds).all().then(r => r.results || []),
+      /* Last platform click (the call) and full first click (the funnel role, 2026-10-26) in one pass. */
+      env.DB.prepare(`${CTE} SELECT t.act_id, t.ad_id,
+          SUM(CASE WHEN t.model = 'lastPlatformClick' AND t.date BETWEEN w.f AND w.t THEN t.orders ELSE 0 END) ord, SUM(CASE WHEN t.model = 'lastPlatformClick' AND t.date BETWEEN w.f AND w.t THEN t.revenue ELSE 0 END) rev,
+          SUM(CASE WHEN t.model = 'lastPlatformClick' THEN t.orders ELSE 0 END) ord14, SUM(CASE WHEN t.model = 'lastPlatformClick' THEN t.revenue ELSE 0 END) rev14,
+          SUM(CASE WHEN t.model = 'fullFirstClick' AND t.date BETWEEN w.f AND w.t THEN t.orders ELSE 0 END) ford, SUM(CASE WHEN t.model = 'fullFirstClick' AND t.date BETWEEN w.f AND w.t THEN t.revenue ELSE 0 END) frev,
+          SUM(CASE WHEN t.model = 'fullFirstClick' THEN t.orders ELSE 0 END) ford14, SUM(CASE WHEN t.model = 'fullFirstClick' THEN t.revenue ELSE 0 END) frev14,
+          SUM(CASE WHEN t.model = 'fullFirstClick' THEN 1 ELSE 0 END) fn_rows
+        FROM tw_ad_attr t JOIN w ON w.brand = t.act_id
+        WHERE t.date BETWEEN ?1 AND ?2 AND t.model IN ('lastPlatformClick', 'fullFirstClick') AND (t.platform = 'meta' OR t.platform IS NULL) AND t.date BETWEEN w.pf AND w.t GROUP BY t.act_id, t.ad_id`).bind(lo, hi, ...binds).all().then(r => r.results || []),
       /* New customers per ad: an order whose customer has no earlier order (tw_orders keeps 400 days). */
       wantNew ? env.DB.prepare(`${CTE} SELECT t.act_id, t.ad_id, SUM(CASE WHEN t.date BETWEEN w.f AND w.t THEN t.weight ELSE 0 END) n, SUM(t.weight) n14
           FROM tw_order_touch t JOIN w ON w.brand = t.act_id JOIN tw_orders o ON o.act_id = t.act_id AND o.order_id = t.order_id
           WHERE t.date BETWEEN ?1 AND ?2 AND t.model = 'lastPlatformClick' AND t.date BETWEEN w.pf AND w.t AND o.customer_id IS NOT NULL
             AND NOT EXISTS (SELECT 1 FROM tw_orders p WHERE p.act_id = o.act_id AND p.customer_id = o.customer_id AND p.date < o.date)
           GROUP BY t.act_id, t.ad_id`).bind(lo, hi, ...binds).all().then(r => r.results || []).catch(() => []) : [],
+      /* First-click orders per ad that tw_orders can place (a customer id), and how many were the customer's first order. */
+      env.DB.prepare(`${CTE} SELECT t.act_id, t.ad_id,
+          SUM(CASE WHEN t.date BETWEEN w.f AND w.t THEN t.weight ELSE 0 END) k, SUM(t.weight) k14,
+          SUM(CASE WHEN t.date BETWEEN w.f AND w.t AND NOT EXISTS (SELECT 1 FROM tw_orders p WHERE p.act_id = o.act_id AND p.customer_id = o.customer_id AND p.date < o.date) THEN t.weight ELSE 0 END) n,
+          SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM tw_orders p WHERE p.act_id = o.act_id AND p.customer_id = o.customer_id AND p.date < o.date) THEN t.weight ELSE 0 END) n14
+          FROM tw_order_touch t JOIN w ON w.brand = t.act_id JOIN tw_orders o ON o.act_id = t.act_id AND o.order_id = t.order_id
+          WHERE t.date BETWEEN ?1 AND ?2 AND t.model = 'fullFirstClick' AND t.date BETWEEN w.pf AND w.t AND o.customer_id IS NOT NULL
+          GROUP BY t.act_id, t.ad_id`).bind(lo, hi, ...binds).all().then(r => r.results || []).catch(() => []),
     ]);
   }
-  const atOf = {}; for (const r of attrRows) atOf[`${r.act_id}|${r.ad_id}`] = { ord: num(r.ord), rev: num(r.rev), ord14: num(r.ord14), rev14: num(r.rev14) };
+  const atOf = {}; for (const r of attrRows) atOf[`${r.act_id}|${r.ad_id}`] = { ord: num(r.ord), rev: num(r.rev), ord14: num(r.ord14), rev14: num(r.rev14),
+    ford: num(r.ford), frev: num(r.frev), ford14: num(r.ford14), frev14: num(r.frev14) };
+  /* A brand has first click when any of its ads has a fullFirstClick row (the role is null without it, never "closer"). */
+  const hasFc = new Set(attrRows.filter(r => num(r.fn_rows) > 0).map(r => r.act_id));
+  const fnOf = {}; for (const r of fcNewRows) fnOf[`${r.act_id}|${r.ad_id}`] = { k: num(r.k), k14: num(r.k14), n: num(r.n), n14: num(r.n14) };
   const nwOf = {}; for (const r of newRows) nwOf[`${r.act_id}|${r.ad_id}`] = { n: num(r.n), n14: num(r.n14) };
   const rows = [], brands = [];
   let note = null;
@@ -396,16 +415,20 @@ async function buyerList(env, ctx, accts) {
     const sets = {};
     for (const r of adRows.filter(r => r.act_id === a.act_id)) {
       if (!r.adset_id || !(num(r.spend14) > 0)) continue;
-      const at = atOf[`${a.act_id}|${r.ad_id}`] || { ord: 0, rev: 0, ord14: 0, rev14: 0 };
+      const at = atOf[`${a.act_id}|${r.ad_id}`] || { ord: 0, rev: 0, ord14: 0, rev14: 0, ford: 0, frev: 0, ford14: 0, frev14: 0 };
       const nw = nwOf[`${a.act_id}|${r.ad_id}`] || { n: 0, n14: 0 };
+      const fn = fnOf[`${a.act_id}|${r.ad_id}`] || { k: 0, k14: 0, n: 0, n14: 0 };
       const s = sets[r.adset_id] ||= { id: r.adset_id, name: r.set_name || `Ad set ${r.adset_id}`, status: r.set_status || null, budget: r.daily_budget ?? null, campaign: r.campaign_id || null,
-        obj: objKind(r.objective), objective: r.objective || null, meta_act: r.meta_act, first: null, w7: { spend: 0, orders: 0, revenue: 0, nc: 0, leads: 0 }, w14: { spend: 0, orders: 0, revenue: 0, nc: 0, leads: 0 }, s2: 0, ads: [] };
+        obj: objKind(r.objective), objective: r.objective || null, meta_act: r.meta_act, first: null, w7: { spend: 0, orders: 0, revenue: 0, nc: 0, leads: 0, ford: 0, frev: 0, fk: 0, fn: 0 }, w14: { spend: 0, orders: 0, revenue: 0, nc: 0, leads: 0, ford: 0, frev: 0, fk: 0, fn: 0 }, s2: 0, ads: [] };
       s.w7.spend += num(r.spend); s.w7.orders += at.ord; s.w7.revenue += at.rev; s.w7.nc += nw.n; s.w7.leads += num(r.leads);
       s.w14.spend += num(r.spend14); s.w14.orders += at.ord14; s.w14.revenue += at.rev14; s.w14.nc += nw.n14; s.w14.leads += num(r.leads14);
+      s.w7.ford += at.ford; s.w7.frev += at.frev; s.w7.fk += fn.k; s.w7.fn += fn.n;
+      s.w14.ford += at.ford14; s.w14.frev += at.frev14; s.w14.fk += fn.k14; s.w14.fn += fn.n14;
       s.s2 += num(r.s2);
       if (r.first_spend && (!s.first || r.first_spend < s.first)) s.first = r.first_spend;
       if (num(r.spend) > 0) s.ads.push({ id: r.ad_id, name: r.ad_name || r.ad_id, first: r.first_spend || null, spend: num(r.spend), orders: at.ord, revenue: at.rev, nc: nw.n, leads: num(r.leads),
-        impr: num(r.impr), reach: num(r.reach), clicks: num(r.clicks), p_impr: num(r.p_impr), p_reach: num(r.p_reach), p_clicks: num(r.p_clicks) });
+        impr: num(r.impr), reach: num(r.reach), clicks: num(r.clicks), v3: num(r.v3), p_impr: num(r.p_impr), p_reach: num(r.p_reach), p_clicks: num(r.p_clicks),
+        ford: at.ford, frev: at.frev, fk: fn.k, fn: fn.n });
     }
     const live = Object.values(sets).filter(s => s.w7.spend > 0 && !(s.status && OFF_STATUS.test(s.status) && !(s.s2 > 0)));
     /* The unit: the goal in dollars for the brand's metric. A ROAS goal turns into a cost per sale through the
@@ -432,7 +455,42 @@ async function buyerList(env, ctx, accts) {
     const ctrs = live.map(ctrOf).filter(v => v != null).sort((p, q) => p - q);
     const acctCtr = ctrs.length ? (ctrs.length % 2 ? ctrs[(ctrs.length - 1) / 2] : (ctrs[ctrs.length / 2 - 1] + ctrs[ctrs.length / 2]) / 2) : null;
     const P = v => `${Math.round(v * 100)}%`, P2 = v => `${(v * 100).toFixed(1)}%`, X1 = v => `${v >= 10 ? v.toFixed(1) : v.toFixed(2).replace(/0$/, '')}x`;
-    let judged = 0, notSales = 0, noLeadGoal = 0, slow = 0; const kept = [];
+    /* FUNNEL ROLE (2026-10-26, Cole: think like a top media buyer before telling anyone to cut). Triple Whale full first
+       click against last platform click over the SAME window, on the same 1.3x line as leakctx.js and the Opener / Closer
+       chips: opener = first-click credit (revenue; orders when neither has revenue) 1.3x+ its last-click credit AND, on 2+
+       first-click sales, a first-click cost per result (or ROAS) at or better than the goal; closer = last-click credit
+       1.3x+ its first-click credit; both = in between (or first-click heavy but off goal, flagged `heavier`). Null without
+       first-click data for the brand, or for a lead set. An opener is never Cut or Trimmed: last click cannot see the
+       journeys it starts, so the row turns Mixed and says to judge it on first click. */
+    const fcOn = hasFc.has(a.act_id);
+    const roleOf = (o, m, unit, tr) => {
+      if (!fcOn || !m || m === 'cpl' || !unit) return null;
+      const byRev = o.frev > 0 || o.revenue > 0, fcC = byRev ? o.frev : o.ford, lcC = byRev ? o.revenue : o.orders;
+      if (!(fcC > 0) && !(lcC > 0)) return null;
+      const fres = m === 'ncpa' ? o.fn : o.ford, fcpa = fres ? o.spend / fres : null, froas = o.spend ? o.frev / o.spend : null;
+      const onGoal = o.ford >= 2 && (m === 'roas' ? froas != null && froas >= tr : fcpa != null && fcpa <= unit);
+      const heavier = fcC >= lcC * 1.3;
+      return { role: heavier && onGoal ? 'opener' : lcC >= fcC * 1.3 ? 'closer' : 'both', heavier, on_goal: onGoal,
+        fc_orders: o.ford, fc_revenue: o.frev, lc_orders: o.orders, lc_revenue: o.revenue, fc_results: fres, fc_cpa: fcpa, fc_roas: froas,
+        fc_new_share: o.fk >= 2 ? Math.min(1, o.fn / o.fk) : null, fc_known: o.fk };
+    };
+    /* The numbers a buyer wants, in one sentence: days running, spend, the goal number, CTR, CPM, frequency, hook rate. */
+    const SHORT = { cpa: 'CPA', ncpa: 'cost per new customer', cpl: 'cost per lead' };
+    const statLine = ({ spend, res, revenue, age, d, m, unit, tr, need }) => {
+      const parts = [];
+      if (age != null) parts.push(`${age} day${age === 1 ? '' : 's'} running${need ? ` (${R.cr_min_days} needed)` : ''}`);
+      parts.push(`${$(spend)} spent${need && unit ? ` (${$(R.cr_judge_x * unit)} needed to judge)` : ''}`);
+      if (m === 'roas') parts.push(`ROAS ${X1(spend ? revenue / spend : 0)} vs ${X1(tr)} goal`);
+      else if (m && unit) parts.push(`${SHORT[m]} ${res ? $(spend / res) : 'none'} vs ${$(unit)} goal`);
+      if (d.impr >= 500) {
+        parts.push(`CTR ${P2(d.clicks / d.impr)}`, `CPM ${$(d.spend * 1000 / d.impr)}`);
+        if (d.reach) parts.push(`frequency ${(d.impr / d.reach).toFixed(1)}`);
+        if (d.v3 / d.impr >= 0.01) parts.push(`hook rate ${P(d.v3 / d.impr)}`);   // under 1%: a static ad with stray plays
+      }
+      return cap(parts.join(', ')) + '.';
+    };
+    const delivOf = ads => ads.reduce((t, x) => ({ spend: t.spend + x.spend, impr: t.impr + x.impr, clicks: t.clicks + x.clicks, reach: t.reach + x.reach, v3: t.v3 + x.v3 }), { spend: 0, impr: 0, clicks: 0, reach: 0, v3: 0 });
+    let judged = 0, notSales = 0, noLeadGoal = 0, slow = 0, openers = 0; const kept = [];
     for (const s of live) {
       /* What this set is judged on: its campaign's objective. */
       const m = s.obj === 'leads' ? 'cpl' : s.obj === 'reach' ? null : metric;
@@ -450,6 +508,7 @@ async function buyerList(env, ctx, accts) {
       const res = resOf(X), cpr = res ? X.spend / res : null, roas = div(X.revenue, X.spend);
       const tr = metric === 'roas' ? trMain : R.target_roas;
       const age = s.first ? Math.round((Date.parse(to) - Date.parse(s.first)) / 864e5) + 1 : null;
+      const fr = roleOf(X, m, unit, tr);
       /* The guardrails that apply to this set (sales sets only; a lead set has no sales to guard). */
       const cps = X.orders ? X.spend / X.orders : null;
       const guards = [];
@@ -500,7 +559,10 @@ async function buyerList(env, ctx, accts) {
       }
       const setRow = { ...base, meta_act: s.meta_act, campaign_id: s.campaign, objective: s.objective, adset_id: s.id, adset: s.name, ad_id: null, ad: null, spend: X.spend, orders: X.orders, results: res, revenue: X.revenue,
         cpa: cpr, goal: unit, goal_roas: tr, roas, n_ads: s.ads.length, anchor, top_ad: top ? { ad_id: top.id, name: top.name, share } : null, days, judged_on: m,
-        set: { spend: X.spend, orders: X.orders, revenue: X.revenue, cpa: cpr, status: s.status, budget: s.budget }, checks, evidence: ev };
+        set: { spend: X.spend, orders: X.orders, revenue: X.revenue, cpa: cpr, status: s.status, budget: s.budget }, checks, evidence: ev,
+        role: fr ? fr.role : null, first_click: fr, ad_roles: s.ads.map(x => ({ ad_id: x.id, role: (roleOf(x, m, unit, tr) || {}).role || null })) };
+      const sd = delivOf(s.ads);
+      const setStat = need => statLine({ spend: X.spend, res, revenue: X.revenue, age, d: sd, m, unit, tr, need });
       /* Feeds the funnel: a TAG on a Cut or Mixed row, never a call. 60%+ of its sales are new customers AND its click rate
          beats the account's median ad set click rate (7 days). */
       /* clearly above the account (round four): 60%+ new AND at least 5 points over the account's share, click rate 25%+ over the median */
@@ -525,18 +587,26 @@ async function buyerList(env, ctx, accts) {
           : res ? (m === 'roas' ? `ROAS ${mainNum} misses the ${X1(tr)} goal` : `${cap(many)} cost ${mainNum} against the ${$(unit)} goal`)
           : `No ${one} on ${$(X.spend)} spent`;
         const mixed = gs => ({ kind: 'mixed', ...setRow, stake: 0.5 * X.spend, ...(funnel ? { funnel } : {}),
-          why: `${mainSaid} but ${gs.map(gText).join(' and ')}.` });
+          why: `${mainSaid} but ${gs.map(gText).join(' and ')}. ${setStat(false)}` });
+        /* The role guard: last click says cut, first click says it starts the sales. Keep it, no button. */
+        const fcSaid = f => `first click credits it with ${n(f.fc_results)} at ${m === 'roas' ? `${X1(f.fc_roas)} ROAS` : `${$(f.fc_cpa)} ${m === 'cpa' ? 'CPA' : 'each'}`}${f.fc_new_share != null ? ` and ${P(f.fc_new_share)} new customers` : ''}`;
+        const openerRow = (row, lastSaid, f, stat) => ({ ...row, kind: 'mixed', kept_by: 'opener', stake: 0.5 * row.spend,
+          why: `Last click says cut (${lastSaid}), but ${fcSaid(f)}: it opens journeys. Keep it; judge it on first click. ${stat}` });
+        const lastSet = cutZero ? `${$(X.spend)}, 0 ${many} in ${days} days` : `${$(X.spend)}, ${n(res)} at ${m === 'roas' ? `${X1(roas)} ROAS` : `${$(cpr)} each`} in ${days} days`;
         if (res >= R.cr_scale_buys && onGoal) {
           if (broken.length) { rows.push(mixed(broken)); kept.push(s.name); }
           else rows.push({ kind: 'scale', ...setRow, stake: 0.2 * X.spend,
             why: m === 'roas' ? `${n(res)} at ${X1(roas)} ROAS, at or over the ${X1(tr)} goal over ${win}. Raise the budget 20% and watch 3 days.`
               : `${n(res)} at ${$(cpr)} each, ${Math.round(cpr) < Math.round(unit) ? 'under' : 'at'} the ${goalTxt} over ${win}${met.length ? `; ${met.map(gText).join(' and ')}` : ''}. Raise the budget 20% and watch 3 days.` });
+          if (!broken.length) rows[rows.length - 1].why += ` ${setStat(false)}`;
         } else if (cutBar && met.length) { working = true; rows.push(mixed(met)); kept.push(s.name); }
+        else if (cutBar && fr && fr.role === 'opener') { working = true; openers++;
+          rows.push({ ...openerRow(setRow, lastSet, fr, setStat(true)), ...(funnel ? { funnel } : {}) }); }
         else if (cutZero) { working = false; rows.push({ kind: 'cut', ...setRow, stake: X.spend, ...(funnel ? { funnel } : {}),
-          why: `Spent ${$(X.spend)} (${(X.spend / unit).toFixed(1)}x the goal) with no ${one} in ${win}.` }); }
+          why: `Spent ${$(X.spend)} (${(X.spend / unit).toFixed(1)}x the goal) with no ${one} in ${win}. ${setStat(true)}` }); }
         else if (cutBar) { working = false; rows.push({ kind: 'cut', ...setRow, stake: Math.max(0, X.spend - unit * res), ...(funnel ? { funnel } : {}),
-          why: m === 'roas' ? `ROAS ${X1(roas)} against the ${X1(tr)} goal, on ${$(X.spend)} spent over ${win}.`
-            : `${cap(COST[m])} ${$(cpr)}, ${(cpr / unit).toFixed(1)}x the ${goalTxt}, on ${$(X.spend)} spent over ${win}${broken.length ? `; ${broken.map(gText).join(' and ')}` : ''}.` }); }
+          why: (m === 'roas' ? `ROAS ${X1(roas)} against the ${X1(tr)} goal, on ${$(X.spend)} spent over ${win}.`
+            : `${cap(COST[m])} ${$(cpr)}, ${(cpr / unit).toFixed(1)}x the ${goalTxt}, on ${$(X.spend)} spent over ${win}${broken.length ? `; ${broken.map(gText).join(' and ')}` : ''}.`) + ` ${setStat(true)}` }); }
         if (working && s.ads.length >= 2) for (const ad of s.ads) {
           if (anchor && ad.id === anchor.ad_id) continue;
           /* Trim = the ad over the SAME line on its OWN spend (7 days), once it has run cr_min_days. */
@@ -547,9 +617,14 @@ async function buyerList(env, ctx, accts) {
           const aover = ares ? (ad.spend >= R.cr_cut_spend_x * unit && (m === 'roas' ? aroas < tr / R.cr_cut_cpa_x : acpr > R.cr_cut_cpa_x * unit) && !aguard)
             : ad.spend >= R.cr_cut_zero_x * unit;
           if (!aover) continue;
-          rows.push({ kind: 'trim', ...setRow, ad_id: ad.id, ad: ad.name, spend: ad.spend, orders: ad.orders, results: ares, revenue: ad.revenue, cpa: acpr, roas: aroas, days: 7, stake: Math.max(0, ad.spend - unit * ares),
-            why: ares ? `This ad costs ${$(acpr)} a ${one}, ${(acpr / unit).toFixed(1)}x the ${$(unit)} goal, on ${$(ad.spend)} of its own spend, while the set works${cpr != null ? ` at ${$(cpr)}` : ''}. Turn off this ad only.`
-              : `This ad spent ${$(ad.spend)} of its own (${(ad.spend / unit).toFixed(1)}x the goal) with no ${one} while the set works. Turn off this ad only.` });
+          const afr = roleOf(ad, m, unit, tr);
+          const adStat = statLine({ spend: ad.spend, res: ares, revenue: ad.revenue, age: aAge, d: delivOf([ad]), m, unit, tr, need: true });
+          const adRow = { ...setRow, ad_id: ad.id, ad: ad.name, spend: ad.spend, orders: ad.orders, results: ares, revenue: ad.revenue, cpa: acpr, roas: aroas, days: 7, role: afr ? afr.role : null, first_click: afr };
+          if (afr && afr.role === 'opener') { openers++;
+            rows.push(openerRow(adRow, ares ? `${$(ad.spend)}, ${n(ares)} at ${m === 'roas' ? `${X1(aroas)} ROAS` : `${$(acpr)} each`} in 7 days` : `${$(ad.spend)}, 0 ${many} in 7 days`, afr, adStat)); continue; }
+          rows.push({ kind: 'trim', ...adRow, stake: Math.max(0, ad.spend - unit * ares),
+            why: (ares ? `This ad costs ${$(acpr)} a ${one}, ${(acpr / unit).toFixed(1)}x the ${$(unit)} goal, on ${$(ad.spend)} of its own spend, while the set works${cpr != null ? ` at ${$(cpr)}` : ''}. Turn off this ad only.`
+              : `This ad spent ${$(ad.spend)} of its own (${(ad.spend / unit).toFixed(1)}x the goal) with no ${one} while the set works. Turn off this ad only.`) + ` ${adStat}` });
         }
       }
       /* Refresh: the main ad wears out. Runs for every objective (awareness sets included). */
@@ -560,19 +635,20 @@ async function buyerList(env, ctx, accts) {
           const freq = ad.reach ? ad.impr / ad.reach : null, pfreq = ad.p_reach ? ad.p_impr / ad.p_reach : null;
           const freqUp = freq == null || pfreq == null || freq > pfreq;
           if (pctr > 0 && ctr <= pctr * 0.8 && freqUp) rows.push({ kind: 'refresh', ...setRow, ad_id: ad.id, ad: ad.name, stake: 0.3 * s.w7.spend, ctr, prev_ctr: pctr, freq, prev_freq: pfreq,
-            why: `The main ad (${Math.round(anchor.share * 100)}% of the set's spend) gets ${Math.round((1 - ctr / pctr) * 100)}% fewer clicks than the week before (${(ctr * 100).toFixed(2)}% vs ${(pctr * 100).toFixed(2)}%)${freq != null && pfreq != null ? ` while people see it more often (${freq.toFixed(1)} vs ${pfreq.toFixed(1)} times)` : ''}. Brief a new version of it now; do not switch it off.` });
+            why: `The main ad (${Math.round(anchor.share * 100)}% of the set's spend) gets ${Math.round((1 - ctr / pctr) * 100)}% fewer clicks than the week before (${(ctr * 100).toFixed(2)}% vs ${(pctr * 100).toFixed(2)}%)${freq != null && pfreq != null ? ` while people see it more often (${freq.toFixed(1)} vs ${pfreq.toFixed(1)} times)` : ''}. Brief a new version of it now; do not switch it off. ${statLine({ spend: ad.spend, res: m ? resOf(ad) : 0, revenue: ad.revenue, age: ad.first ? Math.round((Date.parse(to) - Date.parse(ad.first)) / 864e5) + 1 : null, d: delivOf([ad]), m, unit, tr, need: false })}`, role: (roleOf(ad, m, unit, tr) || {}).role || null });
         }
       }
     }
     const notes = [];
     if (notSales) notes.push(`${notSales} awareness or traffic ad set${notSales === 1 ? '' : 's'} not judged on sales (only Refresh).`);
+    if (openers) notes.push(`${openers} cut or trim${openers === 1 ? '' : 's'} kept as opener${openers === 1 ? '' : 's'}: last click says cut, first click says ${openers === 1 ? 'it starts' : 'they start'} sales at goal.`);
     if (kept.length) notes.push(`${kept.length} ad set${kept.length === 1 ? '' : 's'} mixed: the main goal and a guardrail disagree, so the buyer decides (${kept.slice(0, 3).map(n => `"${n}"`).join(', ')}).`);
     if (noLeadGoal) notes.push(`${noLeadGoal} lead ad set${noLeadGoal === 1 ? '' : 's'} need a goal cost per lead (Home > Goals).`);
-    brands.push({ act_id: a.act_id, name: a.name, from, to, goal: unitMain, metric, n_sets_judged: judged, n_slow: slow, kept, note: notes.join(' ') || undefined });
+    brands.push({ act_id: a.act_id, name: a.name, from, to, goal: unitMain, metric, n_sets_judged: judged, n_slow: slow, n_opener_kept: openers, first_click: fcOn, kept, note: notes.join(' ') || undefined });
   }
   const r = note || rulesFor(null, null), pct = Math.round(r.cr_anchor_pct), [one, many] = NOUN[r.goal_metric] || NOUN.cpa;
   const goalWord = r.goal_metric === 'roas' ? 'goal (your order value at the goal ROAS)' : `goal ${COST[r.goal_metric]}`;
-  const rules_note = `Ad sets first, on Triple Whale last platform click over 7 days (14 for a set under 1 ${one} a day). A set waits until it has spent ${r.cr_judge_x}x the ${goalWord} AND run ${r.cr_min_days} days. Scale: ${r.cr_scale_buys}+ ${many} on goal and every guardrail met. Cut: ${r.cr_cut_zero_x}x the goal spent with no ${one}, OR ${r.cr_cut_spend_x}x spent at worse than ${r.cr_cut_cpa_x}x the goal, and a guardrail broken (or none set). Mixed: the main goal and a guardrail (${r.roas_guard ? 'goal ROAS, ' : ''}cost per sale, when set and not the main goal) disagree; you decide. In a working set the main ad (${pct}%+ of its spend) is never cut; a small ad is a Trim only on its own spend past the same line. Refresh: the main ad's clicks fell 20%+ and people see it more often. The same numbers as Ads > Meta > Ads${accts.length > 1 ? ' (each brand\'s own settings apply)' : ''}.`;
+  const rules_note = `Ad sets first, on Triple Whale last platform click over 7 days (14 for a set under 1 ${one} a day). A set waits until it has spent ${r.cr_judge_x}x the ${goalWord} AND run ${r.cr_min_days} days. Scale: ${r.cr_scale_buys}+ ${many} on goal and every guardrail met. Cut: ${r.cr_cut_zero_x}x the goal spent with no ${one}, OR ${r.cr_cut_spend_x}x spent at worse than ${r.cr_cut_cpa_x}x the goal, and a guardrail broken (or none set). Mixed: the main goal and a guardrail (${r.roas_guard ? 'goal ROAS, ' : ''}cost per sale, when set and not the main goal) disagree; you decide. In a working set the main ad (${pct}%+ of its spend) is never cut; a small ad is a Trim only on its own spend past the same line. Opener guard: a set or ad that Triple Whale first click credits with 1.3x+ its last-click credit, at the goal on 2+ sales, is never cut or trimmed; it turns Mixed and is judged on first click. Refresh: the main ad's clicks fell 20%+ and people see it more often. The same numbers as Ads > Meta > Ads${accts.length > 1 ? ' (each brand\'s own settings apply)' : ''}.`;
   return { as_of, rules_note, brands, rows: rows.sort((p, q) => q.stake - p.stake) };
 }
 
