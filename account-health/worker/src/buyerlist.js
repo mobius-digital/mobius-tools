@@ -59,13 +59,13 @@ async function putSetting(env, k, v) { await env.DB.prepare(`INSERT INTO setting
 export async function buyerPostOn(env) { return (await getSetting(env, 'buyerPost')) !== 'off'; }
 export async function buyerSettings(env) {
   const ch = await getSetting(env, 'buyerChannel'), ow = await getSetting(env, 'buyerOwner');
-  return { buyerOwner: clean(ow, 40) || DEFAULT_OWNER, buyerChannel: /^[CG][A-Z0-9]{6,}$/.test(ch || '') ? ch : DEFAULT_BUYER_CHANNEL, buyerPost: await buyerPostOn(env) };
+  return { buyerOwner: clean(ow, 40) || DEFAULT_OWNER, buyerChannel: /^[CGU][A-Z0-9]{6,}$/.test(ch || '') ? ch : DEFAULT_BUYER_CHANNEL, buyerPost: await buyerPostOn(env) };
 }
 export async function saveBuyerSettings(env, b) {
   if ('buyerOwner' in b) { const o = clean(b.buyerOwner, 40); if (!o) throw Object.assign(new Error('Pick who owns the list.'), { status: 400 }); await putSetting(env, 'buyerOwner', o); }
   if ('buyerChannel' in b) {
     const c = String(b.buyerChannel || '').trim();
-    if (c && !/^[CG][A-Z0-9]{6,}$/.test(c)) throw Object.assign(new Error('The channel is a Slack channel id, like C0C8UA53U3W.'), { status: 400 });
+    if (c && !/^[CGU][A-Z0-9]{6,}$/.test(c)) throw Object.assign(new Error('A Slack channel id (C0C8UA53U3W) or a person id for a DM (U06C37MDWD7).'), { status: 400 });
     await putSetting(env, 'buyerChannel', c);
   }
   if ('buyerPost' in b) await putSetting(env, 'buyerPost', b.buyerPost ? 'on' : 'off');
@@ -348,7 +348,7 @@ export async function handleBuyer(request, env, url, path, json, h) {
     if (path === '/api/buyer-list/post' && request.method === 'POST') {
       const b = await request.json().catch(() => ({}));
       const ch = String(b.channel || '').trim();
-      if (!/^[CG][A-Z0-9]{6,}$/.test(ch)) return json({ error: 'Which channel? A Slack channel id, like C0C8B4ZCGKT.' }, 400);
+      if (!/^[CGU][A-Z0-9]{6,}$/.test(ch)) return json({ error: 'Which channel? A Slack channel id, like C0C8B4ZCGKT.' }, 400);
       const list = await buildBuyerList(env, d, { act: 'all', only });
       return json(await postBuyerList(env, d, ch, list));
     }
