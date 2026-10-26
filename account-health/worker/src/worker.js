@@ -8149,9 +8149,16 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (r) return r;
     }
     /* ---- The daily check-in (checkin.js, 2026-10-26): post today's day now, or post a card's review again. Admin only. ---- */
-    if ((path === '/api/checkin/day' || path === '/api/checkin/review') && request.method === 'POST') {
+    if ((path === '/api/checkin/day' || path === '/api/checkin/review' || path === '/api/checkin/delete') && request.method === 'POST') {
       if (!(await isAdmin(request, env)) || clientScope(request)) return json({ error: 'unauthorized' }, 401);
       const b = await request.json().catch(() => ({}));
+      /* Take test posts back: the bot's own messages (chat.delete) and files (files.delete). */
+      if (path === '/api/checkin/delete') {
+        const out = [];
+        for (const ts of (b.ts || []).slice(0, 50)) out.push((await slackApi(env, 'chat.delete', { channel: String(b.channel || ''), ts: String(ts) }))?.error || 'ok');
+        for (const f of (b.files || []).slice(0, 50)) out.push((await slackApi(env, 'files.delete', { file: String(f) }))?.error || 'ok');
+        return json({ out });
+      }
       if (path === '/api/checkin/day') { const day = await ensureDay(env, checkinDeps(ctx), { force: true, date: b.date || centralDate() }); return json({ ok: true, channel: day.channel, ts: day.ts }); }
       return json(await reviewPost(env, checkinDeps(ctx), String(b.id || ''), b.who || (await sessionEmail(env, request).catch(() => null)) || 'cole@go-mobius-digital.com', b.channel ? { channel: String(b.channel), preview: true } : {}));
     }

@@ -369,42 +369,64 @@ async function cardState(env, id) {
   const ads = adsOf(files.map(f => ({ ...f, ad: f.ad || '' })), cs.map(c => ({ ...c, file_id: c.file_id })), { carousel: isCarousel(r.brief_json) });
   return { r, files, ads };
 }
-function reviewBlocks(st, by, state, picUrls) {
+/* The words of a review: who sent which batch, the angle and the test from the brief. */
+function reviewHead(st, by) {
   const { r, ads } = st;
   const brief = safe(r.brief_json, {}) || {};
   const text = brief.html ? htmlToText(brief.html) : String(r.brief_text || '');
-  const angle = fieldOf(text, ['Angle']), testing = fieldOf(text, ["What we're testing", 'What we’re testing', 'Testing']);
+  const angle = fieldOf(text, ['Angle']).replace(/[.]$/, ''), testing = fieldOf(text, ["What we're testing", 'What we’re testing', 'Testing']).replace(/[.]$/, '');
   const label = `${shortName(r.brand)} ${r.num ? `batch ${r.num}` : ''}${r.title ? ` · ${clean(r.title, 60)}` : ''}`.trim();
-  const blocks = [{ type: 'section', text: md(`*${by} sent ${esc(label)} for your look*\n${[angle && `*Angle:* ${esc(angle)}`, testing && `*Testing:* ${esc(testing)}`, `${ads.length} ad${ads.length === 1 ? '' : 's'}`].filter(Boolean).join(' · ')}`) }];
-  const videos = [];
-  for (const a of ads) {
-    const fs = a.carousel ? (a.cards || []) : [{ id: a.file_id, mime: a.mime, name: a.name }];
+  const line = [angle && `*Angle:* ${angle}`, testing && `*Testing:* ${testing}`, `${ads.length} ad${ads.length === 1 ? '' : 's'}`].filter(Boolean).join('  ·  ');
+  return { label, head: `*${by} sent ${label} for your look*
+${line}` };
+}
+/* Every picture of the batch (newest version of each ad, every card of a carousel) and the videos, in ad order. */
+function reviewMedia(st) {
+  const pics = [], videos = [];
+  for (const a of st.ads) {
+    const fs = a.carousel ? (a.cards || []) : [{ file_id: a.file_id }];
     for (const [i, f] of fs.entries()) {
-      const file = st.files.find(x => x.id === (f.id || f.file_id)) || f;
-      const title = `${a.ad || 'Ad'}${a.carousel ? ` · card ${i + 1}` : ''}${a.version ? ` · v${a.version}` : ''}`;
-      if (/^video\//.test(file.mime || '')) { videos.push(`▶ <${LOCUS}?open=production&card=${r.id}|${esc(title)} (video, watch in Locus)>`); continue; }
-      if (picUrls[file.id] && blocks.length < 44) blocks.push({ type: 'image', image_url: picUrls[file.id], alt_text: title, title: pt(title) });
+      const file = st.files.find(x => x.id === (f.id || f.file_id));
+      if (!file) continue;
+      const title = `${a.ad || 'Ad'}${a.carousel ? ` card ${i + 1}` : ''}${a.version ? ` v${a.version}` : ''}`;
+      if (/^video\//.test(file.mime || '')) videos.push(`▶ <${LOCUS}?open=production&card=${st.r.id}|${esc(title)} (video, watch in Locus)>`);
+      else if (/^image\//.test(file.mime || '')) pics.push({ id: file.id, title });
     }
   }
-  if (videos.length) blocks.push({ type: 'section', text: md(videos.join('\n')) });
-  if (state) blocks.push(ctxLine(state));
-  else blocks.push({ type: 'actions', block_id: 'rv_btns', elements: [
-    { type: 'button', action_id: 'rv_all', style: 'primary', text: pt('Approve all'), value: r.id },
-    { type: 'button', action_id: 'rv_chg', text: pt('Ask for changes'), value: r.id },
-  ] }, { type: 'actions', elements: [{ type: 'button', action_id: 'noop_open', text: pt('Open in Locus'), url: `${LOCUS}?open=production&card=${r.id}` }] },
-  ctxLine(`No notes in ${AUTO_APPROVE_HOURS} hours = approved. Reply in the thread or tap Ask for changes to send a note to the maker.`));
-  return { blocks, label };
+  return { pics, videos };
 }
-async function picsFor(env, st, warm = false) {
-  const out = {};
-  for (const f of st.files) if (f.kind === 'version' && /^image\//.test(f.mime || '')) {
-    out[f.id] = await rvUrl(env, f.id);
-    /* make the 1200-wide JPEG before Slack asks for it: Slack's image fetch gives up on a slow first answer and shows a broken picture */
-    if (warm) await serveReviewPic(env, new URL(out[f.id]).pathname).then(r => r.arrayBuffer()).catch(() => {});
+/* The small message under the pictures: the buttons, or what was decided. */
+function callBlocks(st, label, state) {
+  if (state) return [{ type: 'section', text: md(`*${esc(label)}*: ${state}`) }];
+  return [{ type: 'section', text: md(`Your call on *${esc(label)}*`) },
+    { type: 'actions', block_id: 'rv_btns', elements: [
+      { type: 'button', action_id: 'rv_all', style: 'primary', text: pt('Approve all'), value: st.r.id },
+      { type: 'button', action_id: 'rv_chg', text: pt('Ask for changes'), value: st.r.id } ] },
+    { type: 'actions', elements: [{ type: 'button', action_id: 'noop_open', text: pt('Open in Locus'), url: `${LOCUS}?open=production&card=${st.r.id}` }] },
+    ctxLine(`No notes in ${AUTO_APPROVE_HOURS} hours = approved.`)];
+}
+/* Upload pictures as ONE message so Slack lays them out as a grid, 10 to a message (Slack's limit). */
+async function postAlbum(env, d, channel, text, pics) {
+  const out = [];
+  for (let i = 0; i < pics.length; i += 10) {
+    const files = [];
+    for (const p of pics.slice(i, i + 10)) {
+      const res = await serveReviewPic(env, new URL(await rvUrl(env, p.id)).pathname);
+      if (!res.ok) continue;
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      const a = await d.slackApi(env, 'files.getUploadURLExternal', { filename: `${p.title.replace(/[^\w-]+/g, '-')}.jpg`, length: bytes.length });
+      if (!a?.ok) continue;
+      const up = await (d.xfetch || fetch)(a.upload_url, { method: 'POST', body: bytes });
+      if (up.ok) files.push({ id: a.file_id, title: p.title });
+    }
+    if (!files.length) continue;
+    const more = pics.length > 10 ? ` (${i / 10 + 1} of ${Math.ceil(pics.length / 10)})` : '';
+    const r = await d.slackApi(env, 'files.completeUploadExternal', { files, channel_id: channel, ...(i === 0 ? { initial_comment: text + more } : { initial_comment: more.trim() }) });
+    if (r?.ok) out.push(...files.map(f => f.id));
   }
   return out;
 }
-/** A card moved to Review by a person: its ads, as pictures, in the brand's internal channel. */
+/** A card moved to Review by a person: its ads, as a picture grid, in the brand's internal channel, then the buttons. */
 export async function reviewPost(env, d, cardId, whoEmail, opts = {}) {
   const st = await cardState(env, cardId);
   if (!st || !st.ads.length) return { skipped: 'no ads uploaded' };
@@ -412,12 +434,23 @@ export async function reviewPost(env, d, cardId, whoEmail, opts = {}) {
   const channel = opts.channel || (r.slack_channel && r.slack_channel !== r.brief_channel ? r.slack_channel : null);
   if (!channel) return { skipped: 'no internal channel' };
   const by = nameOfEmail(whoEmail);
-  const { blocks, label } = reviewBlocks(st, by, '', await picsFor(env, st, true));
-  const coleTag = '<@U06C37MDWD7>';
-  const res = await d.slackApi(env, 'chat.postMessage', { channel, text: `${coleTag} ${by} sent ${label} for your look`, blocks, unfurl_links: false });
+  const { label, head } = reviewHead(st, by);
+  const { pics, videos } = reviewMedia(st);
+  const text = `<@U06C37MDWD7> ${head}${videos.length ? '\n' + videos.join('\n') : ''}`;
+  const files = pics.length ? await postAlbum(env, d, channel, text, pics) : [];
+  if (!files.length) await d.slackApi(env, 'chat.postMessage', { channel, text, unfurl_links: false });
+  /* Slack shares an upload a moment after completeUploadExternal answers: wait for the pictures to land so the
+     buttons sit UNDER them, not above (seen 2026-10-26). */
+  for (let i = 0; files.length && i < 10; i++) {
+    const info = await d.slackApi(env, 'files.info', { file: files[files.length - 1] }).catch(() => null);
+    const sh = info?.file?.shares || {};
+    if ((sh.private || {})[channel] || (sh.public || {})[channel]) break;
+    await new Promise(r => setTimeout(r, 1000));
+  }
+  const res = await d.slackApi(env, 'chat.postMessage', { channel, text: `Your call on ${label}`, blocks: callBlocks(st, label, ''), unfurl_links: false });
   if (!res?.ok) return { error: res?.error || 'Slack refused' };
-  if (opts.preview) return { ok: true, preview: true, channel, ts: res.ts };
-  await d.putSetting(env, `rvPost:${r.id}`, JSON.stringify({ channel: res.channel || channel, ts: res.ts, at: new Date().toISOString(), act: r.act_id, by }));
+  if (opts.preview) return { ok: true, preview: true, channel, ts: res.ts, files };
+  await d.putSetting(env, `rvPost:${r.id}`, JSON.stringify({ channel: res.channel || channel, ts: res.ts, at: new Date().toISOString(), act: r.act_id, by, label, files }));
   const open = safe(await d.getSetting(env, 'rvOpen'), []);
   await d.putSetting(env, 'rvOpen', JSON.stringify([...new Set([...open, r.id])].slice(-200)));
   /* the line on today's check-in board */
@@ -430,15 +463,14 @@ export async function reviewPost(env, d, cardId, whoEmail, opts = {}) {
     await saveDay(env, d, date, day);
     await redraw(env, d, date, day);
   }
-  return { ok: true, channel, ts: res.ts };
+  return { ok: true, channel, ts: res.ts, files };
 }
 async function redrawReview(env, d, cardId, state) {
   const rec = safe(await d.getSetting(env, `rvPost:${cardId}`), null);
   if (!rec?.ts) return;
   const st = await cardState(env, cardId);
   if (!st) return;
-  const { blocks } = reviewBlocks(st, rec.by || 'Someone', state, await picsFor(env, st));
-  await d.slackApi(env, 'chat.update', { channel: rec.channel, ts: rec.ts, text: state, blocks }).catch(() => {});
+  await d.slackApi(env, 'chat.update', { channel: rec.channel, ts: rec.ts, text: state, blocks: callBlocks(st, rec.label || reviewHead(st, rec.by || '').label, state) }).catch(() => {});
   if (state) {
     await d.putSetting(env, `rvPost:${cardId}`, JSON.stringify({ ...rec, done: state }));
     const open = safe(await d.getSetting(env, 'rvOpen'), []);
