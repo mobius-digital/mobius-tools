@@ -649,7 +649,10 @@ export async function batchCreate(env, d, act, b, ctx) {
     out.push(c.error ? { file_id: row.work_file, ad: row.ad, name: row.name, error: c.error, duplicate: !!c.duplicate } : { file_id: row.work_file, ad: row.ad, name: c.launch.ad_name, ok: true, launch: c.launch, ads_manager: c.ads_manager });
   }
   const made = out.filter(x => x.ok).length;
-  return { ok: true, made, failed: out.length - made, adset: out.find(x => x.ok)?.launch.adset_name || r.prep.set?.name || '', rows: out };
+  /* The card's ads are on Meta: the card goes to Live on Production and its Asana task to Analyze Results (2026-10-26). */
+  let card = null;
+  if (made && d.moveCard) card = await d.moveCard(env, String(b.card_id || ''), ctx.who).then(m => ({ to: m.to, asana: m.asana })).catch(e => ({ error: e.message }));
+  return { ok: true, made, failed: out.length - made, card, adset: out.find(x => x.ok)?.launch.adset_name || r.prep.set?.name || '', rows: out };
 }
 
 /* ---------------- the list: live status, and judged -> learning filed ---------------- */
