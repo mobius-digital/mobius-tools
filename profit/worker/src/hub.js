@@ -490,13 +490,29 @@ export async function buyerList(env, ctx, accts) {
       return cap(parts.join(', ')) + '.';
     };
     const delivOf = ads => ads.reduce((t, x) => ({ spend: t.spend + x.spend, impr: t.impr + x.impr, clicks: t.clicks + x.clicks, reach: t.reach + x.reach, v3: t.v3 + x.v3 }), { spend: 0, impr: 0, clicks: 0, reach: 0, v3: 0 });
-    let judged = 0, notSales = 0, noLeadGoal = 0, slow = 0, openers = 0; const kept = [];
+    /* BEST SET GUARD (2026-10-26 live audit, Bonk "235 | Still": 24 of 59 Meta orders, the account's cheapest, was a Cut).
+       When the whole account is under its goal over the set's own window (7 or 14 days), a sales set holding 25%+ of the
+       account's results at better than the account's own number is what keeps the account up: never Cut it, it turns
+       Mixed (kept_by 'best_set'). */
+    const salesSets = metric === 'cpl' ? [] : live.filter(s => s.obj === 'sales');
+    const rW = (w, s) => metric === 'ncpa' ? s[w].nc : s[w].orders;
+    const acctW = w => { const a = salesSets.reduce((x, s) => ({ spend: x.spend + s[w].spend, res: x.res + rW(w, s), rev: x.rev + s[w].revenue }), { spend: 0, res: 0, rev: 0 });
+      a.num = metric === 'roas' ? (a.spend ? a.rev / a.spend : null) : a.res ? a.spend / a.res : null;
+      a.under = a.spend > 0 && (metric === 'roas' ? a.num == null || a.num < trMain : a.num == null || a.num > unitMain); return a; };
+    const ACW = { w7: acctW('w7'), w14: acctW('w14') };
+    const propsUp = (s, w) => {
+      const a = ACW[w], r = rW(w, s);
+      if (!a.under || !a.res || r < 3 || r / a.res < 0.25) return null;
+      const v = metric === 'roas' ? s[w].revenue / s[w].spend : s[w].spend / r;
+      return a.num == null || (metric === 'roas' ? v > a.num : v < a.num) ? { a, r, v } : null;
+    };
+    let judged = 0, notSales = 0, noLeadGoal = 0, slow = 0, openers = 0, bestKept = 0; const kept = [], leadNoGoal = [];
     for (const s of live) {
       /* What this set is judged on: its campaign's objective. */
       const m = s.obj === 'leads' ? 'cpl' : s.obj === 'reach' ? null : metric;
       if (s.obj === 'reach') notSales++;
       const unit = m ? unitOf(m) : null;
-      if (m === 'cpl' && !unit) noLeadGoal++;
+      if (m === 'cpl' && !unit) { noLeadGoal++; leadNoGoal.push(s.name); }
       s.ads.sort((p, q) => q.spend - p.spend);
       const top = s.ads[0], share = top ? top.spend / s.w7.spend : 0;
       const anchor = top && share >= R.cr_anchor_pct / 100 ? { ad_id: top.id, name: top.name, share } : null;
@@ -593,20 +609,34 @@ export async function buyerList(env, ctx, accts) {
         const openerRow = (row, lastSaid, f, stat) => ({ ...row, kind: 'mixed', kept_by: 'opener', stake: 0.5 * row.spend,
           why: `Last click says cut (${lastSaid}), but ${fcSaid(f)}: it opens journeys. Keep it; judge it on first click. ${stat}` });
         const lastSet = cutZero ? `${$(X.spend)}, 0 ${many} in ${days} days` : `${$(X.spend)}, ${n(res)} at ${m === 'roas' ? `${X1(roas)} ROAS` : `${$(cpr)} each`} in ${days} days`;
-        if (res >= R.cr_scale_buys && onGoal) {
+        /* Scale needs the last 7 days to agree (2026-10-26 audit, Trybe Jett Slepak): a slow set that qualifies on 14 days
+           but had no result in the last 7 is not scaled. */
+        const quiet7 = use14 && !resOf(s.w7);
+        if (res >= R.cr_scale_buys && onGoal && !quiet7) {
           if (broken.length) { rows.push(mixed(broken)); kept.push(s.name); }
           else rows.push({ kind: 'scale', ...setRow, stake: 0.2 * X.spend,
             why: m === 'roas' ? `${n(res)} at ${X1(roas)} ROAS, at or over the ${X1(tr)} goal over ${win}. Raise the budget 20% and watch 3 days.`
               : `${n(res)} at ${$(cpr)} each, ${Math.round(cpr) < Math.round(unit) ? 'under' : 'at'} the ${goalTxt} over ${win}${met.length ? `; ${met.map(gText).join(' and ')}` : ''}. Raise the budget 20% and watch 3 days.` });
           if (!broken.length) rows[rows.length - 1].why += ` ${setStat(false)}`;
         } else if (cutBar && met.length) { working = true; rows.push(mixed(met)); kept.push(s.name); }
+        else if (cutBar && m === metric && propsUp(s, use14 ? 'w14' : 'w7')) { working = true; bestKept++;
+          const { a: aw, r: rr, v: vv } = propsUp(s, use14 ? 'w14' : 'w7');
+          const v = m === 'roas' ? `${X1(vv)} ROAS` : `${$(vv)} each`, av = m === 'roas' ? `${X1(aw.num || 0)} ROAS` : aw.num != null ? `${$(aw.num)} a ${one}` : `no ${one}`;
+          rows.push({ kind: 'mixed', ...setRow, kept_by: 'best_set', stake: 0.5 * X.spend, ...(funnel ? { funnel } : {}),
+            why: `Last click says cut (${lastSet}), but this set brings ${n(rr)} of the account's ${n(aw.res)} at ${v}, while the whole account runs ${av} against the ${goalTxt}: it is the best you have. Cut the weaker sets first, then judge it again. ${setStat(true)}` }); }
         else if (cutBar && fr && fr.role === 'opener') { working = true; openers++;
           rows.push({ ...openerRow(setRow, lastSet, fr, setStat(true)), ...(funnel ? { funnel } : {}) }); }
-        else if (cutZero) { working = false; rows.push({ kind: 'cut', ...setRow, stake: X.spend, ...(funnel ? { funnel } : {}),
-          why: `Spent ${$(X.spend)} (${(X.spend / unit).toFixed(1)}x the goal) with no ${one} in ${win}. ${setStat(true)}` }); }
-        else if (cutBar) { working = false; rows.push({ kind: 'cut', ...setRow, stake: Math.max(0, X.spend - unit * res), ...(funnel ? { funnel } : {}),
-          why: (m === 'roas' ? `ROAS ${X1(roas)} against the ${X1(tr)} goal, on ${$(X.spend)} spent over ${win}.`
-            : `${cap(COST[m])} ${$(cpr)}, ${(cpr / unit).toFixed(1)}x the ${goalTxt}, on ${$(X.spend)} spent over ${win}${broken.length ? `; ${broken.map(gText).join(' and ')}` : ''}.`) + ` ${setStat(true)}` }); }
+        else if (cutBar) {
+          /* A strong small ad inside a set being cut (2026-10-26 audit, Dartee 347-1: 4.3x ROAS on $125): name it, move it. */
+          const star = s.ads.map(ad => { const r = resOf(ad); return { ad, r, v: m === 'roas' ? (ad.spend ? ad.revenue / ad.spend : 0) : r ? ad.spend / r : null }; })
+            .filter(x => x.r >= 2 && (m === 'roas' ? x.v >= tr : x.v != null && x.v <= unit)).sort((p, q) => m === 'roas' ? q.v - p.v : p.v - q.v)[0];
+          const keepTxt = star ? `; keep ad "${star.ad.name}" (${m === 'roas' ? `${X1(star.v)} ROAS` : `${$(star.v)} a ${one}`} on ${$(star.ad.spend)}, ${n(star.r)}${star.ad.nc && m !== 'ncpa' ? `, ${Math.round(star.ad.nc)} new` : ''}) and move it to a working set first` : '';
+          working = false;
+          rows.push({ kind: 'cut', ...setRow, stake: cutZero ? X.spend : Math.max(0, X.spend - unit * res), ...(funnel ? { funnel } : {}),
+            ...(star ? { keep_ad: { ad_id: star.ad.id, name: star.ad.name, spend: star.ad.spend, results: star.r, value: star.v } } : {}),
+            why: (cutZero ? `Spent ${$(X.spend)} (${(X.spend / unit).toFixed(1)}x the goal) with no ${one} in ${win}`
+              : m === 'roas' ? `ROAS ${X1(roas)} against the ${X1(tr)} goal, on ${$(X.spend)} spent over ${win}`
+              : `${cap(COST[m])} ${$(cpr)}, ${(cpr / unit).toFixed(1)}x the ${goalTxt}, on ${$(X.spend)} spent over ${win}${broken.length ? `; ${broken.map(gText).join(' and ')}` : ''}`) + `${keepTxt}. ${setStat(true)}` }); }
         if (working && s.ads.length >= 2) for (const ad of s.ads) {
           if (anchor && ad.id === anchor.ad_id) continue;
           /* Trim = the ad over the SAME line on its OWN spend (7 days), once it has run cr_min_days. */
@@ -643,8 +673,9 @@ export async function buyerList(env, ctx, accts) {
     if (notSales) notes.push(`${notSales} awareness or traffic ad set${notSales === 1 ? '' : 's'} not judged on sales (only Refresh).`);
     if (openers) notes.push(`${openers} cut or trim${openers === 1 ? '' : 's'} kept as opener${openers === 1 ? '' : 's'}: last click says cut, first click says ${openers === 1 ? 'it starts' : 'they start'} sales at goal.`);
     if (kept.length) notes.push(`${kept.length} ad set${kept.length === 1 ? '' : 's'} mixed: the main goal and a guardrail disagree, so the buyer decides (${kept.slice(0, 3).map(n => `"${n}"`).join(', ')}).`);
-    if (noLeadGoal) notes.push(`${noLeadGoal} lead ad set${noLeadGoal === 1 ? '' : 's'} need a goal cost per lead (Home > Goals).`);
-    brands.push({ act_id: a.act_id, name: a.name, from, to, goal: unitMain, metric, n_sets_judged: judged, n_slow: slow, n_opener_kept: openers, first_click: fcOn, kept, note: notes.join(' ') || undefined });
+    if (noLeadGoal) notes.push(`${noLeadGoal} lead ad set${noLeadGoal === 1 ? '' : 's'} (${leadNoGoal.slice(0, 3).map(x => `"${x}"`).join(', ')}) not judged: no lead goal set. Set a goal cost per lead in Home > Goals; sales rules never apply to them.`);
+    if (bestKept) notes.push(`${bestKept} ad set${bestKept === 1 ? '' : 's'} kept as the account's best while the whole account is under goal.`);
+    brands.push({ act_id: a.act_id, name: a.name, from, to, goal: unitMain, metric, n_sets_judged: judged, n_slow: slow, n_opener_kept: openers, n_best_kept: bestKept, lead_no_goal: leadNoGoal, first_click: fcOn, kept, note: notes.join(' ') || undefined });
   }
   const r = note || rulesFor(null, null), pct = Math.round(r.cr_anchor_pct), [one, many] = NOUN[r.goal_metric] || NOUN.cpa;
   const goalWord = r.goal_metric === 'roas' ? 'goal (your order value at the goal ROAS)' : `goal ${COST[r.goal_metric]}`;

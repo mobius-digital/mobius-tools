@@ -4523,3 +4523,10 @@ this goes for all things that go from the right side", and the Integrations pane
   CTR, CPM, frequency, hook rate (video_3s / impressions, video ads only). Cut, Trim and opener rows add "(N needed)" for
   min days and "($X needed to judge)" for spend. The Buyer list shows only the first sentence (oneLine), so the call
   sentence stays first. Desk (Today's calls) tags kept openers "Opens journeys". Tests: profit/worker/test-calls.mjs.
+- **Live audit fixes (same day, Dartee / Bonk):** (1) best set guard: when the account is under goal over the set's window,
+  a sales set with 25%+ of the account's results at better than the account's number is never Cut; Mixed `kept_by:
+  'best_set'` (Bonk "235 | Still"), brand `n_best_kept`. (2) a Cut set holding an ad on goal with 2+ results says "keep ad
+  X (...) and move it to a working set first" in its first sentence, row field `keep_ad`. (3) no Scale when a slow set
+  (14-day window) had no result in the last 7 days. (4) lead sets without goal_cpl are named in the brand note "not
+  judged: no lead goal set" (`lead_no_goal`); sales rules never apply to them. NOT built yet: judging split tests that
+  share a test number / concept together (Dartee "Muni"), and flagging sets paused and turned back on repeatedly (churn).
