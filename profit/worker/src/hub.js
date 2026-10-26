@@ -415,7 +415,7 @@ export async function buyerList(env, ctx, accts) {
     const sets = {};
     for (const r of adRows.filter(r => r.act_id === a.act_id)) {
       if (!r.adset_id || !(num(r.spend14) > 0)) continue;
-      const at = atOf[`${a.act_id}|${r.ad_id}`] || { ord: 0, rev: 0, ord14: 0, rev14: 0 };
+      const at = atOf[`${a.act_id}|${r.ad_id}`] || { ord: 0, rev: 0, ord14: 0, rev14: 0, ford: 0, frev: 0, ford14: 0, frev14: 0 };
       const nw = nwOf[`${a.act_id}|${r.ad_id}`] || { n: 0, n14: 0 };
       const fn = fnOf[`${a.act_id}|${r.ad_id}`] || { k: 0, k14: 0, n: 0, n14: 0 };
       const s = sets[r.adset_id] ||= { id: r.adset_id, name: r.set_name || `Ad set ${r.adset_id}`, status: r.set_status || null, budget: r.daily_budget ?? null, campaign: r.campaign_id || null,
@@ -485,7 +485,7 @@ export async function buyerList(env, ctx, accts) {
       if (d.impr >= 500) {
         parts.push(`CTR ${P2(d.clicks / d.impr)}`, `CPM ${$(d.spend * 1000 / d.impr)}`);
         if (d.reach) parts.push(`frequency ${(d.impr / d.reach).toFixed(1)}`);
-        if (d.v3 > 0) parts.push(`hook rate ${P(d.v3 / d.impr)}`);
+        if (d.v3 / d.impr >= 0.01) parts.push(`hook rate ${P(d.v3 / d.impr)}`);   // under 1%: a static ad with stray plays
       }
       return cap(parts.join(', ')) + '.';
     };

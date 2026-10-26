@@ -65,6 +65,7 @@ await check('opener kept: last click says cut, first click at goal turns it Mixe
 await check('closer cut: no first-click credit, still a Cut with the numbers', () => {
   const r = bySet('s2');
   assert.equal(r.length, 1); assert.equal(r[0].kind, 'cut'); assert.equal(r[0].role, 'closer'); assert.ok(!r[0].kept_by);
+  assert.equal(r[0].first_click.fc_orders, 0);   // an ad with no first-click row counts 0, never NaN
   assert.match(r[0].why, /10 days running \(3 needed\), \$315 spent \(\$80 needed to judge\), CPA \$315 vs \$40 goal, CTR 1\.5%, CPM \$23, frequency 1\.3, hook rate 20%\./);
 });
 await check('min days respected: a 2-day set is never called, however much it spent', () => {
