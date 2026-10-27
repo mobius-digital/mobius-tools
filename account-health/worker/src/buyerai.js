@@ -26,7 +26,7 @@
 import { brandBrain } from './brain.js';
 import { factsFor, factsBlock } from './stratmem.js';
 import { coverUrl } from './creative.js';
-import { buildBuyerList, setState } from './buyerlist.js';
+import { buildBuyerList, setState, postBuyerList } from './buyerlist.js';
 import { eligible, morningHour } from './morningcard.js';
 
 export const PASS_MODEL = 'claude-opus-5-5', TALK_MODEL = 'claude-sonnet-5-5';
@@ -366,8 +366,11 @@ export async function aiPassDone(env, d, today) {
 /** Every 5 minutes from an hour before the morning hour to noon Central: up to PER_TICK brands not read today, side by
  *  side. Stops at the day's cap. */
 export async function buyerAITick(env, d, { force = false, acts = null, perTick = PER_TICK } = {}) {
-  /* settings `buyerAIRunNow` = '1' (set from D1 or Claude Code): the next 5-minute tick reads every brand now, any hour. */
-  if (!force && (await getSetting(env, 'buyerAIRunNow')) === '1') { await putSetting(env, 'buyerAIRunNow', '0'); force = true; }
+  /* settings `buyerAIRunNow` (set from D1 or Claude Code): '1' = the next tick reads every brand now, any hour; a Slack
+     channel or person id = the same, then the Buyer list post goes there as a preview (the daily post is untouched). */
+  let postTo = null;
+  const rn = force ? null : await getSetting(env, 'buyerAIRunNow');
+  if (rn && rn !== '0') { await putSetting(env, 'buyerAIRunNow', '0'); force = true; if (/^[CGU][A-Z0-9]{6,}$/.test(rn)) postTo = rn; }
   if (!force && !(await buyerAIOn(env))) return { skipped: 'off' };
   const today = d.centralDate ? d.centralDate() : centralToday();
   if (!force) {
@@ -406,6 +409,8 @@ export async function buyerAITick(env, d, { force = false, acts = null, perTick 
   const fresh = await passState(env, today);   // another tick may have written meanwhile
   await putSetting(env, 'buyerAIDone', JSON.stringify({ ...fresh, ...st, acts: { ...fresh.acts, ...st.acts }, tries: { ...(fresh.tries || {}), ...(st.tries || {}) } }));
   if (!force) await putSetting(env, 'buyerAILock', '0');
-  return { date: today, ran, spent_today: await spentToday(env, today) };
+  let preview = null;
+  if (postTo) { try { preview = await postBuyerList(env, d, postTo, await buildBuyerList(env, d, { act: 'all', live: false })); } catch (e) { preview = { error: e.message }; } }
+  return { date: today, ran, spent_today: await spentToday(env, today), ...(preview ? { preview } : {}) };
 }
 export { POST_WAIT_HOURS };
