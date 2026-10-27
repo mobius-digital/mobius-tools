@@ -42,7 +42,7 @@ const d = {
   centralHour: () => hour, centralDate: () => today, canAfford: () => true,
   listAccounts: async () => ACCTS,
   mintSession: async () => ({ token: 't' }),
-  profit: async path => { assert.match(path, /^\/api\/hub\/today\?act=/); return { rows: CALLS }; },
+  profit: async path => { assert.match(path, /^\/api\/hub\/today\?act=/); return { rows: CALLS, banners: [{ act_id: 'brand_beta', brand: 'Beta Socks', kind: 'tracking_gap', text: 'Tracking gap on Beta Socks: no cuts until tracking is fixed.' }, { act_id: 'brand_gal', brand: 'Galway Bay', kind: 'tracking_gap', text: 'x' }] }; },
   dueOff: async (e, act) => { dueCalls.push(act); return act === 'brand_beta' ? { due: [{ id: '555', name: '415 | Test 415', min: 20, day: 6, why: 'judged' }] } : { due: [] }; },
   listBoard: async () => ({ cards: [
     { id: 'c1', act_id: 'brand_alpha', brand: 'Alpha Golf', num: '415', title: 'Gift hook', board: 'ready' },
@@ -80,6 +80,7 @@ await check('one list across brands, by money at stake: calls (no Fix), a test m
   assert.equal(list.rows[0].why, 'Spent $1,400 (3.5x the goal) with no sale in 7 days.');
   assert.equal(list.n, 6); assert.equal(list.n_brands, 2); assert.equal(list.stake, 1400 + 400 + 300 + 140 + 90);
   assert.equal(list.owner, 'Cole');
+  assert.deepEqual(list.banners.map(b => b.brand), ['Beta Socks'], 'tracking gap banner passes through, paused brands left out');
   assert.deepEqual(dueCalls.sort(), ['brand_alpha', 'brand_beta'], 'minimums read live once per brand when minoff.js has not run');
 });
 
