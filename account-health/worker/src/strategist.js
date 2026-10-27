@@ -221,6 +221,12 @@ const RULES = `
   "make the Asana task for this") is yours: read the thread, label it with the
   framework, review it, then fill_brief (an existing number) or create_brief.
   Put the approved words in as written; list what is still blank.
+- A TASK FOR SOMEONE ("add a task", "I need to work on X later") is a Locus action item: POST /api/actions with
+  act, text (verb first, 8 words max), detail, owner and due. The brand is the one the message names; never carry
+  a brand over from earlier in the thread. No brand named and none obvious from the words = ask which one.
+  Cole's tasks land in his Google Calendar on their own: the action is placed in the matching block (Lucky Golf
+  days: Promote / Build / Make; Mobius days: Review / Promote / Build) on the first day before the due date with
+  room, listed in that block's notes. Say which day and block it went to. Never make a separate calendar event.
 `;
 
 const TABLES = ['brand_accounts', 'connections', 'accounts', 'daily_insights', 'hourly_insights', 'tw_daily', 'activities', 'ads', 'ad_daily', 'briefs', 'reports',
