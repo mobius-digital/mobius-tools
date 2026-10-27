@@ -23,7 +23,9 @@ import { handleMeetings, handleFirefliesHook, meetingsTick } from './meetings.js
 import { handleCalls } from './callscreen.js';
 import { handleActions, actionTick, handleActionButton, handleReaction, onActionDone, slackName } from './actions.js';
 import { minOffTick, handleMinOffButton, minOffOn } from './minoff.js';
+import { checkinTick, checkinAction, submitCheckin, checkinErrors, reviewPost, reviewAction, reviewSubmit, serveReviewPic, ensureDay } from './checkin.js';
 import { handleProduction, listBoard, moveCard as prodMove, formatOf as prodFormat } from './production.js';
+import { readDoc as prodReadDoc } from './asana-brand.js';
 import { serveFile as prodFile, handleReviewLink, savePhoto } from './prodwork.js';
 import { connectGet, connectPost, connectOverview, pendingTick as connectPendingTick, onboardAdsTick } from './connect.js';
 import { morningCardTick, previewCard, teamPost, tagOf, cardActionDone, cardCallMade, cardProdDone, cardBriefState, cardReaction, cardOn, morningHour, DEFAULT_MORNING_HOUR } from './morningcard.js';
@@ -6456,6 +6458,14 @@ async function handleSlackInteract(request, env, ctx) {
       ctx.waitUntil(runMondayPlan(env, payload).catch(() => {}));
       return ACK();
     }
+    /* The daily check-in's buttons and forms, and the review post's Approve all / Ask for changes (checkin.js, 2026-10-26). */
+    if (payload.type === 'block_actions' && (payload.actions || []).some(a => /^ci_/.test(a.action_id || ''))) { await checkinAction(env, ctx, checkinDeps(ctx), payload); return ACK(); }
+    if (payload.type === 'block_actions' && (payload.actions || []).some(a => /^rv_/.test(a.action_id || ''))) { await reviewAction(env, ctx, checkinDeps(ctx), payload); return ACK(); }
+    if (payload.type === 'view_submission' && /^ci_/.test(payload.view?.callback_id || '')) {
+      const errors = checkinErrors(payload);
+      if (errors) return new Response(JSON.stringify({ response_action: 'errors', errors }), { headers: { 'content-type': 'application/json' } });
+      ctx.waitUntil(submitCheckin(env, checkinDeps(ctx), payload).catch(e => console.log('checkin submit: ' + e.message))); return ACK(); }
+    if (payload.type === 'view_submission' && /^rv_/.test(payload.view?.callback_id || '')) { await reviewSubmit(env, ctx, checkinDeps(ctx), payload); return ACK(); }
     /* Test minimums due off: Take it off / Take all N off under the morning card (minoff.js, 2026-10-15). */
     if (payload.type === 'block_actions' && (payload.actions || []).some(a => /^minoff_/.test(a.action_id || '')))
       return await handleMinOffButton(env, ctx, payload, minOffDeps(), { ACK, xfetch });
@@ -7249,6 +7259,13 @@ function smokeDeps() {
 /* morning.js: the numbers as the owner over the PROFIT binding, filtered per person with brandsFor. */
 function morningDeps() { return { ...hubDeps(), mintSession, brandsFor, morningPeople, emailAllowed, isClientEmail }; }
 /* meetings.js: Fireflies in, Asana / the weekly report / Requests / Slack out. */
+/* checkin.js: the daily check-in and the review posts. prod = what prodwork's decide needs (the Production route's deps). */
+function checkinDeps(ctx) {
+  const m = meetingDeps();
+  const wait = p => (ctx?.waitUntil ? ctx.waitUntil(p) : p);
+  return { getSetting, putSetting, slackApi, centralDate, centralHour, listBrands: m.listBrands, teamPost: actionDeps().teamPost, xfetch,
+    prod: { ...actionDeps(), waitUntil: wait, moveCard: prodMove, formatOf: prodFormat, readDoc: prodReadDoc, origin: 'https://mobius-account-health.mobius-digital.workers.dev' } };
+}
 function meetingDeps() {
   return {
     xfetch, slackPost, slackApi, centralDate, isAdmin, sessionEmail, clientScope, asana, asanaAll,
@@ -7842,6 +7859,8 @@ const AH_APP = {
         ran.actions = await actionTick(env, actionDeps()).catch(e => ({ error: e.message }));
         /* Test minimums due off today, one line per brand under its morning card with a Take it off button (minoff.js, 2026-10-15). */
         ran.minOff = await minOffTick(env, minOffDeps()).catch(e => ({ error: e.message }));
+        /* The team's daily check-in post in #daily-checkin, the no-plan nudge, and 24-hour review approvals (checkin.js, 2026-10-26). */
+        ran.checkin = await checkinTick(env, checkinDeps(ctx)).catch(e => ({ error: e.message }));
         /* The Buyer list: ONE post a day in the buyer channel (buyerlist.js, 2026-10-26); the morning cards no longer carry the calls. */
         ran.buyerPost = await buyerPostTick(env, buyerDeps()).catch(e => ({ error: e.message }));
         /* The morning read (buyerai.js): every brand, three side by side, from the hour BEFORE the post hour, so the post
@@ -8007,6 +8026,8 @@ const AH_APP = {
     }
     /* Ad covers (creative.js): public by a signed ad id, cached by the browser for a year. */
     if (path.startsWith('/cover/') && request.method === 'GET') return serveCover(env, path);
+    /* A Production picture for the review post in Slack (checkin.js, 2026-10-26): public, signed, no expiry. */
+    if (path.startsWith('/rv/') && request.method === 'GET') return serveReviewPic(env, path);
     /* Locus Social covers and copied videos (social.js): public by an unguessable key. */
     if (path.startsWith('/social-m/') && request.method === 'GET') return serveSocialMedia(env, path, request, CORS);
     if (path.startsWith('/make-m/') && request.method === 'GET') return serveMakeMedia(env, path, request, CORS);
@@ -8152,9 +8173,25 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       const r = await handleActions(request, env, url, path, json, actionDeps());
       if (r) return r;
     }
+    /* ---- The daily check-in (checkin.js, 2026-10-26): post today's day now, or post a card's review again. Admin only. ---- */
+    if ((path === '/api/checkin/day' || path === '/api/checkin/review' || path === '/api/checkin/delete') && request.method === 'POST') {
+      if (!(await isAdmin(request, env)) || clientScope(request)) return json({ error: 'unauthorized' }, 401);
+      const b = await request.json().catch(() => ({}));
+      /* Take test posts back: the bot's own messages (chat.delete) and files (files.delete). */
+      if (path === '/api/checkin/delete') {
+        const out = [];
+        for (const ts of (b.ts || []).slice(0, 50)) out.push((await slackApi(env, 'chat.delete', { channel: String(b.channel || ''), ts: String(ts) }))?.error || 'ok');
+        for (const f of (b.files || []).slice(0, 50)) out.push((await slackApi(env, 'files.delete', { file: String(f) }))?.error || 'ok');
+        return json({ out });
+      }
+      if (path === '/api/checkin/day') { const day = await ensureDay(env, checkinDeps(ctx), { force: true, date: b.date || centralDate() }); return json({ ok: true, channel: day.channel, ts: day.ts }); }
+      return json(await reviewPost(env, checkinDeps(ctx), String(b.id || ''), b.who || (await sessionEmail(env, request).catch(() => null)) || 'cole@go-mobius-digital.com', b.channel ? { channel: String(b.channel), preview: true } : {}));
+    }
     /* ---- Production: the brief-to-live board over p_br_batch, mirrored to Asana (production.js, 2026-10-13). Team only. ---- */
     if (path === '/api/production' || path.startsWith('/api/production/')) {
-      const r = await handleProduction(request, env, url, path, json, { ...actionDeps(), waitUntil: p => ctx.waitUntil(p) });
+      const r = await handleProduction(request, env, url, path, json, { ...actionDeps(), waitUntil: p => ctx.waitUntil(p),
+        /* A person moving a card to Review posts its ads to Cole as pictures (checkin.js). */
+        onReview: (env, id, who) => ctx.waitUntil(reviewPost(env, checkinDeps(ctx), id, who).then(r => console.log('review post: ' + JSON.stringify(r))).catch(e => console.log('review post: ' + e.message))) });
       if (r) return r;
     }
     if (path.startsWith('/api/brand-asana')) {
