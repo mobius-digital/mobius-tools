@@ -373,6 +373,10 @@ const duplicateAction = d => ({
 });
 
 const CTAS = ['SHOP_NOW', 'LEARN_MORE', 'ORDER_NOW', 'BUY_NOW', 'GET_OFFER', 'SIGN_UP', 'SUBSCRIBE', 'DOWNLOAD', 'CONTACT_US', 'SEE_MORE', 'NO_BUTTON'];
+/* Triple Whale + UTM tags on every new ad (2026-10-27; the 2026-10-20 tag pass): without tw_adid Triple Whale cannot
+   credit the ad, and a partnership ad cannot be edited afterwards, so the tags go on at launch. */
+export const TW_URL_TAGS = 'utm_source=facebook&utm_medium=paid&utm_campaign={{campaign.name}}&utm_term={{adset.name}}&utm_content={{ad.name}}&tw_source={{site_source_name}}&tw_adid={{ad.id}}';
+const ENHANCEMENTS = ['text_optimizations', 'enhance_cta', 'video_auto_crop', 'adapt_to_placement', 'add_text_overlay', 'creative_stickers', 'inline_comment'];
 /** The Facebook page (and Instagram account) an ad set's ads already run as; else the account's promotable page. */
 async function pageFor(env, d, act, adsetId) {
   const ads = await gget(d, env, `${adsetId}/ads`, { fields: 'creative{object_story_spec,effective_object_story_id}', limit: '5' }).catch(() => ({ data: [] }));
@@ -397,6 +401,8 @@ const createAdAction = d => ({
     headline: { type: 'string' }, primary_text: { type: 'string' }, description: { type: 'string' },
     link: { type: 'string', description: 'The landing page URL.' }, cta: { type: 'string', enum: CTAS },
     ad_name: { type: 'string', description: 'The team\'s naming pattern; default the headline.' }, page_id: { type: 'string' },
+    sponsor_ig: { type: 'string', description: 'A partnership ad: the creator\'s Instagram user id (they gave the brand partnership permission). The ad runs as the brand with the creator as partner.' },
+    plain: { type: 'boolean', description: 'Run the creative as made: Meta\'s automatic edits and other brands\' ads beside it off (creator videos).' },
     live: { type: 'boolean', description: 'Only when the person said to launch it live.' }, reason: REASON },
     required: ['brand', 'adset', 'primary_text', 'link', 'reason'] },
   propose: async (env, input, h, ctx) => {
@@ -451,7 +457,8 @@ const createAdAction = d => ({
     const name = clip(input.ad_name || input.headline || `New ad ${new Date().toISOString().slice(0, 10)}`, 300);
     return { summary: `${r.brand.name}: new ad "${name}" in "${r.obj.name}" (${status})`,
       detail: `${media.cards ? `Carousel, ${media.cards.length} cards in this order:\n${media.cards.map((c, i) => `  ${i + 1}. ${c.headline || '(no headline)'}${c.link ? ` -> ${c.link}` : ''}`).join('\n')}` : media.image_url ? `Image: ${media.image_url}` : `Video: ${media.video_id}${media.from ? ` (uploaded from ${media.from}; Meta is processing it)` : ''}`}\nHeadline: ${input.headline || '(none)'}\nPrimary text: ${clip(input.primary_text, 400)}\nLink: ${input.link} · Button: ${cta}\nPage ${pg.page_id}${pg.ig ? ` + Instagram ${pg.ig}` : ''} (${pg.from}).\nWhy: ${clip(input.reason, 300)}`,
-      patch: { ...common(r, 'meta_create_ad', input, ctx), ad_name: name, media, page_id: pg.page_id, ig: pg.ig, headline: clip(input.headline, 255), primary_text: clip(input.primary_text, 3000), description: clip(input.description, 255), link: input.link, cta, status } };
+      patch: { ...common(r, 'meta_create_ad', input, ctx), ad_name: name, media, page_id: pg.page_id, ig: pg.ig,
+        sponsor_ig: /^\d{6,}$/.test(String(input.sponsor_ig || '')) ? String(input.sponsor_ig) : null, plain: !!input.plain, headline: clip(input.headline, 255), primary_text: clip(input.primary_text, 3000), description: clip(input.description, 255), link: input.link, cta, status } };
   },
   apply: async (env, p, h, ctx) => {
     const cta = p.cta === 'NO_BUTTON' ? null : { type: p.cta, value: { link: p.link } };
@@ -493,7 +500,12 @@ const createAdAction = d => ({
       if (!thumb) return { error: `Video ${p.media.video_id} is in the ad account but Meta is still processing it. Make the ad again in a minute with video_id ${p.media.video_id} (no new upload needed).` };
       spec = { page_id: p.page_id, ...(p.ig ? { instagram_user_id: p.ig } : {}), video_data: { video_id: p.media.video_id, image_url: thumb, message: p.primary_text, ...(p.headline ? { title: p.headline } : {}), ...(p.description ? { link_description: p.description } : {}), call_to_action: cta || { type: 'LEARN_MORE', value: { link: p.link } } } };
     }
-    const cr = await gpost(d, env, `${p.act}/adcreatives`, { name: p.ad_name, object_story_spec: spec });
+    const extra = { url_tags: TW_URL_TAGS };
+    /* A partnership ad (the creator gave the brand permission): the brand's page and Instagram run it, the creator is the
+       partner, Meta picks one or both names per viewer (ad_format 3), the shape the Lucky creator app proved 2026-10-03. */
+    if (p.sponsor_ig) { extra.instagram_branded_content = { sponsor_id: p.sponsor_ig }; extra.branded_content = { ad_format: 3 }; }
+    if (p.plain) { extra.contextual_multi_ads = { enroll_status: 'OPT_OUT' }; extra.degrees_of_freedom_spec = { creative_features_spec: Object.fromEntries(ENHANCEMENTS.map(k => [k, { enroll_status: 'OPT_OUT' }])) }; }
+    const cr = await gpost(d, env, `${p.act}/adcreatives`, { name: p.ad_name, object_story_spec: spec, ...extra });
     const ad = await gpost(d, env, `${p.act}/ads`, { name: p.ad_name, adset_id: p.id, creative: { creative_id: cr.id }, status: p.status });
     const wid = await record(env, { ...p, level: 'ad', name: p.ad_name }, ctx, { before: null, after: { created: ad.id, creative: cr.id }, object: ad.id, summary: `New ad "${p.ad_name}" in "${p.name}" (${p.status})`, category: 'new_creative' });
     return { ok: true, write: wid, created: ad.id, creative: cr.id, note: `Ad "${p.ad_name}" made (${ad.id}), ${p.status}. Ads Manager: https://adsmanager.facebook.com/adsmanager/manage/ads?act=${p.act.replace('act_', '')}&selected_ad_ids=${ad.id} (undo: ${wid}).` };
@@ -1128,7 +1140,7 @@ export function writeActions(d) { return [...metaActions(d), ...asanaActions(d),
    are one code path. Two calls: dry (the confirm modal shows the summary and detail), then the write itself, which
    proposes again from a fresh read and refuses when the before-state is not what the modal showed (`expect`). The
    person typed the exact budget, so a step over 50% is allowed (big) and the modal says so. */
-const KIND = { pause: 'meta_pause', resume: 'meta_resume', budget: 'meta_budget', min_spend: 'meta_min_spend', rename: 'meta_rename', duplicate: 'meta_duplicate_adset' };
+const KIND = { pause: 'meta_pause', resume: 'meta_resume', budget: 'meta_budget', min_spend: 'meta_min_spend', rename: 'meta_rename', duplicate: 'meta_duplicate_adset', create_adset: 'meta_create_adset' };
 export const LOCUS_KINDS = Object.keys(KIND);
 function locusInput(b) {
   const lv = ['campaign', 'adset', 'ad'].includes(b.level) ? b.level : undefined;
@@ -1136,6 +1148,8 @@ function locusInput(b) {
   if (b.kind === 'budget') return { ...base, amount: +b.amount, big: true };
   if (b.kind === 'min_spend') return { ...base, ...(b.min != null && b.min !== '' ? { min: +b.min } : {}), ...(b.cap != null && b.cap !== '' ? { cap: +b.cap } : {}) };
   if (b.kind === 'rename') return { ...base, new_name: b.name };
+  /* 2026-10-27: a new empty ad set (a creator test) in a campaign; targeting, pixel and event from `like` (else a sibling). */
+  if (b.kind === 'create_adset') return { ...base, campaign: String(b.object || ''), name: String(b.name || ''), ...(b.like ? { like: String(b.like) } : {}) };
   if (b.kind === 'duplicate') return { ...base, new_name: b.name, ...(b.daily_budget != null && b.daily_budget !== '' ? { daily_budget: +b.daily_budget } : {}) };
   return base;
 }

@@ -85,6 +85,7 @@ async function graph(url, init = {}) {
     let m;
     if ((m = p.match(/^(act_\d+)\/adimages$/))) return J({ images: { bytes: { hash: 'HASH1' } } });
     if ((m = p.match(/^(act_\d+)\/adcreatives$/))) return J({ id: 'CR' + (++nextId) });
+    if ((m = p.match(/^(act_\d+)\/adsets$/))) return J(b.execution_options ? { success: true } : { id: String(2500000 + (++nextId)) });
     if ((m = p.match(/^(act_\d+)\/ads$/))) {
       const id = String(2400000 + (++nextId));
       const spec = JSON.parse(posts.find(x => x.path === `${m[1]}/adcreatives` && x === posts.at(-2))?.body.object_story_spec || '{}');
@@ -255,6 +256,37 @@ await check('a creator asset: "<num> <letter> | @handle", a Meta video id, tied 
   assert.equal(spec.video_data.video_id, '2300099'); assert.equal(spec.video_data.image_url, 'https://scontent/v9.jpg');
   assert.equal(posts.filter(x => x.path === `${LUCKY}/ads`).at(-1).body.status, 'PAUSED');
   assert.equal(db.prepare(`SELECT source FROM p_launch WHERE ad_id = ?`).get(r.launch.ad_id).source, 'creator');
+});
+
+await check('a creator VIDEO LINK (2026-10-27): uploaded to Meta once (advideos), partnership with the creator, Triple Whale tags, Meta edits off', async () => {
+  objs['2300777'] = { id: '2300777', picture: 'https://scontent/v7.jpg', status: { video_status: 'ready' }, _lv: 'video' };
+  const before = posts.filter(x => /advideos$/.test(x.path)).length;
+  const asset = { video_url: 'https://files.example.com/leo_carver_gold.mp4', handle: '@backyard_bogey', num: '415', sponsor_ig: '17841400000000001' };
+  /* the advideos post answers with the id above */
+  const once = posts.length;
+  const p = await L.launchPrep(env, { ...d, xfetch: async (u, i) => (String(u).includes('/advideos') ? (posts.push({ path: `${LUCKY}/advideos`, body: Object.fromEntries(new URLSearchParams(i.body)) }), J({ id: '2300777' })) : xfetch(u, i)) }, 'brand_lucky', { asset });
+  assert.ok(p.ok, p.error); assert.equal(p.source.video_id, '2300777'); assert.ok(posts.length > once);
+  const up = posts.filter(x => /advideos$/.test(x.path));
+  assert.equal(up.length, before + 1); assert.equal(up.at(-1).body.file_url, asset.video_url);
+  const r = await L.launchCreate(env, d, 'brand_lucky', { asset, adset: p.suggested, name: p.name, primary_text: 'Hit it.', headline: 'Carver 02 Gold', link: 'https://luckygolf.com/products/carver-02-gold' }, COLE);
+  assert.ok(r.ok, r.error);
+  assert.equal(posts.filter(x => /advideos$/.test(x.path)).length, before + 1, 'the same upload: never twice');
+  const cr = posts.filter(x => x.path === `${LUCKY}/adcreatives`).at(-1).body;
+  assert.equal(cr.url_tags, mw.TW_URL_TAGS); assert.match(cr.url_tags, /tw_adid=\{\{ad\.id\}\}/);
+  assert.deepEqual(JSON.parse(cr.instagram_branded_content), { sponsor_id: '17841400000000001' });
+  assert.deepEqual(JSON.parse(cr.branded_content), { ad_format: 3 });
+  assert.equal(JSON.parse(cr.contextual_multi_ads).enroll_status, 'OPT_OUT');
+  assert.equal(JSON.parse(cr.degrees_of_freedom_spec).creative_features_spec.video_auto_crop.enroll_status, 'OPT_OUT');
+  assert.equal(JSON.parse(cr.object_story_spec).video_data.video_id, '2300777');
+});
+await check('create_adset through the Locus write path: a new empty set in the campaign, PAUSED, targeting from like, logged', async () => {
+  objs['2300013'].targeting = { geo_locations: { countries: ['US'] }, age_min: 25 }; objs['2300013'].promoted_object = { pixel_id: 'PX', custom_event_type: 'PURCHASE' };
+  objs['2300013'].optimization_goal = 'OFFSITE_CONVERSIONS'; objs['2300013'].billing_event = 'IMPRESSIONS'; objs['2300003'].daily_budget = '50000';
+  const r = await mw.locusWrite(env, d, { act: 'brand_lucky', kind: 'create_adset', object: '2300003', name: '444 | UGC | Carver 02 Black', like: '2300013', reason: 'test' }, COLE);
+  assert.ok(r.ok, r.error); assert.ok(r.created);
+  const made = posts.filter(x => x.path === `${LUCKY}/adsets` && !/validate_only/.test(x.body.execution_options || '')).at(-1).body;
+  assert.equal(made.name, '444 | UGC | Carver 02 Black'); assert.equal(made.status, 'PAUSED'); assert.equal(made.campaign_id, '2300003');
+  assert.equal(made.daily_budget, undefined, 'a CBO set carries no budget'); assert.equal(JSON.parse(made.promoted_object).pixel_id, 'PX');
 });
 
 await check('list: live status from Meta on refresh; the verdict files the learning onto the launch and the angle, once', async () => {

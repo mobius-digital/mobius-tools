@@ -2761,3 +2761,33 @@ Monday call is at 8am. Tests: `node test-clientpost.mjs` (12 offline checks).
   daily budget), `fc_results`, `ctr`, `prev_ctr` for the short why.
 - **The DM** = head ("N changes ready across B brands, $X at stake") + top 5 one-liners + Open. A day with no rows is
   quiet (launched-yesterday alone no longer posts).
+
+## 2026-10-27: TEST MINIMUM = A NUDGE (asana-brand.js nudgeCall, buyerlist.js minRow, minoff.js, profit buyer.js?v=5) + CREATOR VIDEO LAUNCHES (launch.js, metawrite.js)
+- **The nudge** (Cole): a test minimum ($5 to $10 a day) only makes Meta show the set. Past `rules.min_days` and still under
+  the FULL `judge_spend` (the 1/3-spend judgement after judge_days does not count here), a set with a minimum is judged on
+  how Meta spent past it: `forced` = min x days; spend > `NUDGE_HIGH` (1.5) x forced AND on goal (ROAS goal: rev/spend >=
+  win_roas; else 1+ sale at or under test_cpa) = `winner` (minimum off, keep); spend <= `NUDGE_LOW` (1.15) x forced =
+  `not_picked` ("Meta did not pick it": minimum off AND pause; a loser on Monday); between = `campaign` (minimum off, the
+  campaign decides). Every outcome is in `due` with `nudge`, `spend`, `orders`, and `then: 'pause'` (not picked only).
+- **Buyer list rows** (`minRow`): action "Take the minimum off, keep it" / "Take the minimum off and pause" / "Take the
+  minimum off"; why = one line ("Meta did not pick it: $72 in 8 days on a $10/day minimum"). `do` stays `minoff`;
+  `then: 'pause'` makes the page (buyer.js `minOff`, and Agree to all through `commitOne`) write the minimum to 0, then
+  pause the set (`pauseAfter`: dry run + write with expect; both on the Undo toast). The Slack minoff line adds "Pause it
+  too (the Buyer list does both)"; the Slack button still only takes the minimum off.
+- **Launch to Meta, creator videos**: a creator asset may be `{video_url}` (a direct download link, e.g. the creator app's
+  presigned R2 link): uploaded to Meta ONCE (advideos file_url), the id kept in settings `launchVideo:<meta act>:<link>`,
+  so prep, preview and create share one upload. `asset.sponsor_ig` = a PARTNERSHIP ad (the creator's Instagram user id;
+  `instagram_branded_content {sponsor_id}` + `branded_content {ad_format: 3}`, the shape the Lucky creator app proved); a
+  creator asset also sends `plain` (Meta's creative enhancements and multi-advertiser ads OFF).
+- **Every new ad** (meta_create_ad) now carries `url_tags` = `TW_URL_TAGS` (UTMs + tw_source + tw_adid), so Triple Whale
+  credits it from day one (a partnership ad cannot be edited later).
+- **`/api/meta/write` kind `create_adset`** {object: campaign id, name, like?}: a new empty set through `meta_create_adset`
+  (PAUSED, targeting, pixel and event from `like`), logged with undo. Batch create passes the body's `reason` to every ad.
+- Live 2026-10-27 (Cole approved in chat): Lucky "444 | UGC | Carver 02 Black", "445 | UGC | Carver 02 Gold", "446 | UGC |
+  Carver 02 Black" in [MD] CBO (6 creator-app videos each, Leo and Swing Sum as partnership ads, $10/day minimum, test rows
+  444 to 446 made in p_br_batch to hold the numbers). The creator app was only READ: its own `ads` table does not list
+  these ads (creator My ads / payouts). VetriPaws card 124 into a new "124 | Still"; card 123 was already live by hand
+  (Oct 25, "123 | Still"), so not launched again. Meta refuses a VetriPaws minimum when the campaign's combined
+  minimums pass its $100 budget.
+- Tests: test-minoff 12 (nudgeCall, the due list, the rows), test-launch 26 (video link once, partnership, tags,
+  create_adset), profit test-buyer-page 6 (minimum off, then pause).

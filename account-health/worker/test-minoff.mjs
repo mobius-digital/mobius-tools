@@ -7,7 +7,8 @@
 import { DatabaseSync } from 'node:sqlite';
 import assert from 'node:assert/strict';
 import { minOffTick, handleMinOffButton, minOffMessage, minOffLine } from './src/minoff.js';
-import { testMinimumsDue, useFetch } from './src/asana-brand.js';
+import { testMinimumsDue, useFetch, nudgeCall } from './src/asana-brand.js';
+import { minRow } from './src/buyerlist.js';
 
 const db = new DatabaseSync(':memory:');
 const bindSql = sql => sql.replace(/\?(\d+)/g, (_, n) => ':p' + n);
@@ -60,10 +61,10 @@ await check('testMinimumsDue: judged (not a loser) or past min_days, and still s
   const r = await testMinimumsDue(env, 'brand_alpha');
   assert.equal(r.error, undefined, r.error);
   assert.equal(r.channel, 'C_ALPHA');
-  assert.deepEqual(r.due.map(x => x.id).sort(), ['as101', 'as104']);
+  assert.deepEqual(r.due.map(x => x.id).sort(), ['as101', 'as104']);   // 104: the nudge (2026-10-27) judges it past min_days
   const w = r.due.find(x => x.id === 'as101'), e = r.due.find(x => x.id === 'as104');
   assert.equal(w.min, 20); assert.equal(w.why, 'judged'); assert.equal(w.day, 10); assert.equal(w.act, 'act_1');
-  assert.equal(e.min, 15); assert.equal(e.why, 'past 3 days'); assert.equal(e.day, 5);
+  assert.equal(e.min, 15); assert.match(e.why, /^Meta did not pick it: \$20 in 5 days/); assert.equal(e.then, 'pause'); assert.equal(e.day, 5);
   assert.ok(graph.some(p => p.endsWith('act_1/adsets')), 'live Meta read');
   assert.ok(!graph.some(p => /user_tasks|permissions/.test(p)), 'the list-only path skips the Monday permission reads');
 });
@@ -72,6 +73,57 @@ await check('testMinimumsDue: a brand with no goal CPA says so (the tick retries
   const r = await testMinimumsDue(env, 'brand_alpha');
   assert.match(r.error, /goal cost per sale/);
   db.exec(`UPDATE brand_accounts SET target_cpa = 40`);
+});
+
+/* ---------- 1b. THE NUDGE (2026-10-27): a minimum past min_days, judged on how Meta spent past it ---------- */
+await check('nudgeCall: well past the minimum and on goal = winner; barely past = Meta did not pick it; between = the campaign decides', async () => {
+  const cpa = { goal_metric: 'cpa', test_cpa: 40, win_roas: 2 }, roas = { goal_metric: 'roas', test_roas: 2.2, win_roas: 2.2 };
+  assert.equal(nudgeCall({ spend: 125, orders: 4 }, 10, 8, cpa).kind, 'winner');          // $125 > 1.5 x $80, $31 a sale
+  assert.equal(nudgeCall({ spend: 120, orders: 1 }, 10, 8, cpa).kind, 'campaign');        // spent past it but $120 a sale
+  assert.equal(nudgeCall({ spend: 85, orders: 0 }, 10, 8, cpa).kind, 'not_picked');       // $85 <= 1.15 x $80
+  assert.equal(nudgeCall({ spend: 100, orders: 0 }, 10, 8, cpa).kind, 'campaign');
+  assert.equal(nudgeCall({ spend: 130, rev: 400 }, 10, 8, roas).kind, 'winner');           // ROAS 3.1x
+  assert.equal(nudgeCall({ spend: 130, rev: 100 }, 10, 8, roas).kind, 'campaign');
+  const np = nudgeCall({ spend: 72, orders: 0 }, 10, 8, cpa);
+  assert.equal(np.call, 'loser'); assert.match(np.why, /^Meta did not pick it: \$72 in 8 days on a \$10\/day minimum/);
+  assert.equal(nudgeCall({ spend: 50 }, 0, 8, cpa), null);
+  assert.ok(!/—/.test(JSON.stringify([np, nudgeCall({ spend: 120, orders: 4 }, 10, 8, cpa)])));
+});
+await check('testMinimumsDue: past min_days a set with a minimum is judged by the nudge (not starved), every outcome due off; not picked also pauses', async () => {
+  db.exec(`INSERT INTO brand_accounts VALUES ('brand_nudge', 'Nudge Golf', 40, NULL, 'C_N', 'act_9', 'C_N_CLIENT');
+    INSERT INTO connections VALUES ('brand_nudge', 'meta', 'act_9', 1, '2026-01-01');
+    INSERT INTO p_br_doc VALUES ('brand_nudge', '', 'rules', '{"judge_spend":156}');`);
+  /* 201 winner, 202 Meta did not pick it, 203 in between, 204 day 5 (not yet), 205 no minimum and starved (Monday pauses it, not due) */
+  const N = [{ num: '201', first: 8, spend: 140, orders: 5 }, { num: '202', first: 8, spend: 82, orders: 0 }, { num: '203', first: 8, spend: 105, orders: 1 },
+    { num: '204', first: 4, spend: 40, orders: 0 }, { num: '205', first: 8, spend: 20, orders: 0 }];
+  for (const t of N) {
+    db.prepare(`INSERT INTO p_br_batch VALUES (?, 'brand_nudge', ?, ?, 'live', NULL)`).run('n' + t.num, t.num, 'Test ' + t.num);
+    db.prepare(`INSERT INTO ads VALUES (?, 'act_9', ?)`).run('nad' + t.num, `${t.num} A | UGC`);
+    db.prepare(`INSERT INTO ad_daily VALUES ('act_9', ?, ?, ?, 1000, 10, 0, 0, 0)`).run('nad' + t.num, ago(t.first), t.spend);
+    db.prepare(`INSERT INTO tw_ad_attr VALUES ('brand_nudge', ?, ?, 'lastPlatformClick', ?, ?)`).run('nad' + t.num, ago(t.first), t.orders * 100, t.orders);
+  }
+  const NM = { 201: 1000, 202: 1000, 203: 1000, 204: 1000, 205: 0 };
+  useFetch(async url => {
+    const u = new URL(url);
+    if (u.pathname.endsWith('/adsets')) return { json: async () => ({ data: Object.entries(NM).map(([k, v]) => ({ id: 'ns' + k, name: `${k} | UGC | Carver`, campaign_id: 'c9', daily_min_spend_target: String(v) })) }) };
+    if (u.pathname.endsWith('/campaigns')) return { json: async () => ({ data: [{ id: 'c9', name: '[MD] CBO', daily_budget: '50000' }] }) };
+    return { json: async () => ({}) };
+  });
+  const r = await testMinimumsDue(env, 'brand_nudge');
+  assert.equal(r.error, undefined, r.error);
+  const by = Object.fromEntries(r.due.map(x => [x.id, x]));
+  assert.deepEqual(Object.keys(by).sort(), ['ns201', 'ns202', 'ns203']);
+  assert.equal(by.ns201.nudge, 'winner'); assert.equal(by.ns201.then, undefined);
+  assert.equal(by.ns202.nudge, 'not_picked'); assert.equal(by.ns202.then, 'pause'); assert.match(by.ns202.why, /Meta did not pick it/);
+  assert.equal(by.ns203.nudge, 'campaign'); assert.equal(by.ns203.min, 10); assert.equal(by.ns203.day, 9);
+  /* the Buyer list rows: one-line action, one-line why */
+  const rows = r.due.map(x => minRow({ act_id: 'brand_nudge', name: 'Nudge Golf' }, x));
+  const row = id => rows.find(x => x.object === id);
+  assert.equal(row('ns201').action, 'Take the minimum off, keep it');
+  assert.equal(row('ns202').action, 'Take the minimum off and pause'); assert.equal(row('ns202').then, 'pause'); assert.equal(row('ns202').do, 'minoff');
+  assert.equal(row('ns203').action, 'Take the minimum off'); assert.equal(row('ns203').then, null);
+  for (const x of rows) { assert.ok(x.why.length <= 140 && !/\n/.test(x.why), x.why); assert.ok(!/—/.test(x.action + x.why)); }
+  assert.match(minOffLine({ ...by.ns202, name: '202 | UGC | Carver' }), /Pause it too/);
 });
 
 /* ---------- 2. the tick ---------- */

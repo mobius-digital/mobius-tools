@@ -778,6 +778,22 @@ async function testMinimums(env, act) {
    else to open. Switched on per brand in Settings -> Goals (rules.monday_post). */
 const centralParts = (d = new Date()) => Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short', hour: 'numeric', hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit' })
   .formatToParts(d).map(p => [p.type, p.value]));
+/* THE NUDGE (2026-10-27, Cole): a test minimum ($5 to $10 a day) only makes sure Meta shows the set at all. After
+   min_days, what Meta spent on its own says whether it picked the set. `forced` = minimum x days; spend above
+   NUDGE_HIGH x forced and sales on goal = a winner; at or under NUDGE_LOW x forced = Meta did not pick it; between =
+   the campaign decides. Every outcome takes the minimum off. */
+export const NUDGE_HIGH = 1.5, NUDGE_LOW = 1.15;
+export function nudgeCall(st, min, day, rules) {
+  const spend = +st?.spend || 0, orders = +st?.orders || 0, forced = (+min || 0) * (+day || 0);
+  if (!(forced > 0)) return null;
+  const roasGoal = rules.goal_metric === 'roas' && rules.test_roas;
+  const onGoal = roasGoal ? spend > 0 && (+st.rev || 0) / spend >= rules.win_roas : orders >= 1 && !!rules.test_cpa && spend / orders <= rules.test_cpa;
+  const res = roasGoal ? `ROAS ${spend > 0 ? ((+st.rev || 0) / spend).toFixed(1) : '0'}x` : `${orders} sale${orders === 1 ? '' : 's'}`;
+  const spent = `${money(spend)} in ${day} days on a ${money(min)}/day minimum`;
+  if (spend > NUDGE_HIGH * forced && onGoal) return { kind: 'winner', call: 'winner', why: `Meta spent past the minimum and it sells: ${spent}, ${res}`, line: `Meta picked it and it sells (${spent}, ${res})` };
+  if (spend <= NUDGE_LOW * forced) return { kind: 'not_picked', call: 'loser', why: `Meta did not pick it: ${spent}`, line: `Meta did not pick it (${spent}), pause it` };
+  return { kind: 'campaign', call: 'keep', why: `Meta spent some past the minimum: ${spent}, ${res}`, line: `Meta spent some past the minimum (${spent}, ${res}), the campaign decides` };
+}
 export async function mondayCalls(env, act, opts = {}) {
   act = await resolveBrandId(env, act);
   const acct = await env.DB.prepare(`SELECT act_id, name, target_cpa, target_roas, slack_channel, brief_channel, meta_act FROM brand_accounts WHERE act_id = ?1`).bind(act).first();
@@ -813,17 +829,24 @@ export async function mondayCalls(env, act, opts = {}) {
     /* Past its days and still too little spend to judge: Meta would not spend on it.
        Theriot's rule: after 7 days without spending, it's dead. */
     const starved = !j && day && day > rules.judge_days;
-    const call = j ? (j.call === 'keep' && j.reason === 'avg' ? 'avg' : j.call) : starved ? 'loser' : 'early';
-    const minOff = min > 0 && call !== 'loser' && (call !== 'early' || (day && day > rules.min_days));   // a paused test needs no minimum change
+    /* A test minimum is a NUDGE (2026-10-27, Cole). Past min_days and still short of the judge spend, a set that has a
+       minimum is judged on how Meta spent on it: well past the minimum and on goal = a winner (minimum off, keep it);
+       barely past the minimum = Meta did not pick it (minimum off and pause); in between = minimum off, the campaign decides. */
+    const nudge = min > 0 && day && day > rules.min_days && st.spend < rules.judge_spend ? nudgeCall(st, min, day, rules) : null;
+    const call = nudge ? nudge.call : j ? (j.call === 'keep' && j.reason === 'avg' ? 'avg' : j.call) : starved ? 'loser' : 'early';
+    const minOff = min > 0 && (nudge ? true : call !== 'loser' && (call !== 'early' || (day && day > rules.min_days)));   // a paused test needs no minimum change, unless the nudge pauses it
     const name = sets[0]?.name || `${n} | ${r.title}`;
     const nums = `${money(st.spend)} spent, ${st.orders || 0} sale${st.orders === 1 ? '' : 's'}${st.orders ? ` (${money(st.spend / st.orders)} each)` : ''}`;
-    const line = call === 'early' ? `• ${name}: day ${day || '?'} of ${rules.judge_days}, ${money(st.spend)} spent`
+    const line = nudge ? `• ${name}: ${nudge.line}`
+      : call === 'early' ? `• ${name}: day ${day || '?'} of ${rules.judge_days}, ${money(st.spend)} spent`
       : starved ? `• ${name}: Meta wouldn't spend on it (${money(st.spend)} in ${day} days)` : `• ${name}: ${nums}`;
     groups[call].push(line + (minOff ? ` · *take the ${money(min)} minimum off*` : ''));
     if (call === 'loser' || minOff) { sets.forEach(a => open.add(`${a.act}|${a.id}`)); if (!sets.length) (st.ad_ids || []).forEach(id => openAds.add(id)); }
     if (call === 'loser') { if (sets.length) plan.pause.push(...sets.map(a => a.id)); else plan.pauseAds.push(...(st.ad_ids || [])); }
     else if (minOff) plan.clear.push(...sets.filter(a => a.min > 0).map(a => a.id));
-    if (minOff) for (const a of sets) if (a.min > 0) due.push({ id: a.id, name: a.name, act: a.act, min: a.min, day, why: call === 'early' ? `past ${rules.min_days} days` : 'judged' });
+    if (minOff) for (const a of sets) if (a.min > 0) due.push({ id: a.id, name: a.name, act: a.act, min: a.min, day,
+      why: nudge ? nudge.why : call === 'early' ? `past ${rules.min_days} days` : 'judged',
+      ...(nudge ? { nudge: nudge.kind, spend: Math.round(st.spend * 100) / 100, orders: st.orders || 0, ...(nudge.kind === 'not_picked' ? { then: 'pause' } : {}) } : {}) });
   }
   /* The daily minimum check (minoff.js, 2026-10-15) needs the list only: the same judgement as Monday, no message. */
   if (opts.minOnly) return { act, name: acct.name, channel: acct.slack_channel, due, error: meta.error };

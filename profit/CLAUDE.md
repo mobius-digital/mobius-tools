@@ -4624,3 +4624,7 @@ this goes for all things that go from the right side", and the Integrations pane
   ("• *Brand*: action, "name""), an Open button. No owner line, no launch or morning read lines.
 - Tests: profit `node test-buyer-page.mjs` (the row, groups, Agree to all bodies and run order), account-health
   `node test-buyerai.mjs` (10: prompt shape, tracking check, final call) and `node test-buyerlist.mjs` (13).
+- **2026-10-27 (buyer.js?v=5): the nudge.** A test-minimum row may carry `nudge` (winner | campaign | not_picked) and
+  `then: 'pause'` (account-health asana-brand.js nudgeCall, see account-health/CLAUDE.md "TEST MINIMUM = A NUDGE"). For
+  `then: 'pause'` the single Agree (`minOff`, "Do both") and Agree to all (`planOne` -> `commitOne`) take the minimum to 0,
+  then pause the set (`pauseAfter`, dry run + write with expect); the toast's Undo carries both writes.

@@ -36,7 +36,7 @@ export async function minOffOn(env) { return (await getSetting(env, 'minOffPost'
 export function minOffLine(it) {
   const base = `${esc(it.name)}: test minimum ${dollars(it.min)}/day`;
   if (it.done) return it.already ? `~${base}~ Already off in Meta (checked by ${esc(it.done)})` : `~${base}~ Done by ${esc(it.done)}, undo in Locus`;
-  return `${base} is due off (day ${it.day || '?'}, ${it.why}).${it.err ? ` _Didn't work: ${esc(it.err)}_` : ''}`;
+  return `${base} is due off (day ${it.day || '?'}, ${it.why}).${it.then === 'pause' ? ' Pause it too (the Buyer list does both).' : ''}${it.err ? ` _Didn't work: ${esc(it.err)}_` : ''}`;
 }
 /** The message (posted, and redrawn after a tap): the tag on the first line, a Take it off button per open line,
  *  Take all N off when two or more are open. */
@@ -80,7 +80,7 @@ export async function minOffTick(env, d) {
     try {
       const r = await d.dueOff(env, a.act_id);
       if (r.error) throw new Error(r.error);
-      const items = (r.due || []).slice(0, MAX_ITEMS).map(x => ({ id: String(x.id), name: x.name, min: x.min, day: x.day, why: x.why }));
+      const items = (r.due || []).slice(0, MAX_ITEMS).map(x => ({ id: String(x.id), name: x.name, min: x.min, day: x.day, why: x.why, ...(x.nudge ? { nudge: x.nudge, spend: x.spend, orders: x.orders, then: x.then || null } : {}) }));
       if (!items.length) { st.acts[a.act_id] = 'nothing due'; out.quiet.push(a.name); continue; }
       const buyer = team[a.act_id]?.buyer;
       const tag = buyer && d.tagOf ? await d.tagOf(env, buyer).catch(() => null) : null;
