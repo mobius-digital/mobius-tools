@@ -6,7 +6,7 @@
  *   node test-buyerlist.mjs      (from account-health/worker) */
 import { DatabaseSync } from 'node:sqlite';
 import assert from 'node:assert/strict';
-import { buildBuyerList, setState, readState, buyerMessage, buyerPostTick, buyerSettings, saveBuyerSettings, headOf, oneLine, DEFAULT_BUYER_CHANNEL,
+import { buildBuyerList, setState, readState, buyerMessage, buyerPostTick, buyerSettings, saveBuyerSettings, headOf, oneLine, shortWhy, DEFAULT_BUYER_CHANNEL,
   normDays, isLaunchDay, nextLaunchDay, launchedRows } from './src/buyerlist.js';
 import { cardToLive } from './src/launch.js';
 
@@ -78,8 +78,11 @@ let list;
 await check('one list across brands, by money at stake: calls (no Fix), a test minimum due off, a Ready card with approved ads not on Meta; paused brands left out', async () => {
   list = await buildBuyerList(env, d, { act: 'all' });
   assert.deepEqual(list.rows.map(r => [r.kind, r.brand, r.action]), [
-    ['cut', 'Alpha Golf', 'Cut the ad set'], ['scale', 'Beta Socks', 'Raise budget 20%'], ['mixed', 'Beta Socks', 'Your call'],
-    ['minoff', 'Beta Socks', 'Take test minimum off'], ['trim', 'Alpha Golf', 'Turn off this ad'], ['launch', 'Alpha Golf', 'Launch 1 approved ad']]);
+    ['cut', 'Alpha Golf', 'Pause this ad set'], ['trim', 'Alpha Golf', 'Pause this ad'], ['launch', 'Alpha Golf', 'Launch 1 approved ad'],
+    ['scale', 'Beta Socks', 'Raise budget 20%'], ['mixed', 'Beta Socks', 'Your call'], ['minoff', 'Beta Socks', 'Take the test minimum off']],
+    'grouped by brand, the brand with the most money at stake first, then by money inside it');
+  assert.deepEqual(list.groups.map(g => [g.brand, g.n, g.n_do, g.stake]), [['Alpha Golf', 3, 2, 1490], ['Beta Socks', 3, 2, 840]]);
+  assert.equal(list.n_do, 4, 'Agree to all can make the cut, the trim, the scale and the minimum; launch and Your call need Cole');
   assert.equal(list.rows.find(r => r.kind === 'minoff').stake, 140, 'a minimum = a week of it');
   assert.equal(list.rows.find(r => r.kind === 'mixed').do, null, 'Mixed has no Do');
   assert.equal(list.rows.find(r => r.kind === 'launch').card_id, 'c1');
@@ -112,7 +115,7 @@ await check('shared state: Done = quiet 3 days, Skip = until tomorrow, Clear = b
   db.prepare(`INSERT INTO p_meta_write VALUES ('mw2', 'act_1', 'brand_alpha', 'ad', '3331', 'Hook B', 'meta_pause', 'status', NULL, NULL, 'Paused', 'x', ?, NULL)`).run(new Date(Date.now() - 4 * 864e5).toISOString());
   const l = await buildBuyerList(env, d, { act: 'all' });
   assert.deepEqual(l.rows.map(r => r.kind).sort(), ['launch', 'minoff', 'trim'], 'cut done, mixed skipped, scale watched; the 4-day-old write no longer hides the trim');
-  assert.deepEqual(l.hidden, { done: 1, skipped: 1, watched: 1 });
+  assert.deepEqual(l.hidden, { done: 1, skipped: 1, watched: 1, dropped: 0 });
   const st = await readState(env, new Set(['brand_alpha']), today);
   assert.equal(st.states.length, 1); assert.equal(st.states[0].quiet_until, '2026-10-29');
   /* tomorrow: the skip is over, the done is not */
@@ -128,23 +131,29 @@ await check('shared state: Done = quiet 3 days, Skip = until tomorrow, Clear = b
   await assert.rejects(setState(env, { act: 'brand_alpha', object: '', action: 'cut', status: 'done' }, 'x', today));
 });
 
-await check('the Slack post: head with count, brands and money; owner tagged; top 5; launches named when outside the top 5; Open in Locus', async () => {
-  const rows = Array.from({ length: 7 }, (_, i) => ({ kind: 'cut', act_id: i < 4 ? 'a' : 'b', brand: i < 4 ? 'Alpha' : 'Beta', name: `Set ${i}`, action: 'Cut the ad set', stake: 1000 - i * 100, currency: 'USD' }))
+await check('the Slack DM: "N changes ready across B brands, $X at stake", the top 5 one-liners and Open; nothing else', async () => {
+  const rows = Array.from({ length: 7 }, (_, i) => ({ kind: 'cut', act_id: i < 4 ? 'a' : 'b', brand: i < 4 ? 'Alpha' : 'Beta', name: `Set ${i}`, action: 'Pause this ad set', stake: 1000 - i * 100, currency: 'USD' }))
     .concat([{ kind: 'launch', act_id: 'a', brand: 'Alpha', name: '#415 Gift hook', action: 'Launch 3 approved ads', stake: 0, n_ads: 3 }]);
-  const L = { n: rows.length, n_brands: 2, stake: rows.reduce((s, r) => s + r.stake, 0), currency: 'USD', owner: 'Cole', rows };
+  const L = { n: rows.length, n_brands: 2, stake: rows.reduce((s, r) => s + r.stake, 0), currency: 'USD', owner: 'Cole', rows, launched_yesterday: { n: 4, brands: ['Alpha'] }, ai: { n_read: 2 } };
   const m = buyerMessage(L, '<@U_COLE>');
   const lines = m.text.split('\n');
-  assert.equal(lines[0], '*Buyer list: 8 to do across 2 brands, $4.9K at stake*');
-  assert.equal(lines[1], 'Owner: <@U_COLE>');
-  assert.equal(lines[2], 'Launch today: 1 card (Alpha)');
-  assert.equal(lines[3], '1. *Alpha*: Cut the ad set, "Set 0" ($1,000 at stake)');
-  assert.equal(lines.filter(l => /^\d\. /.test(l)).length, 5);
-  assert.match(m.text, /Also 1 card ready to launch \(3 approved ads\)\./);
-  assert.match(m.text, /_and 3 more in Locus_/);
+  assert.equal(lines[0], '*8 changes ready across 2 brands, $4.9K at stake*');
+  assert.equal(lines[1], '• *Alpha*: Pause this ad set, "Set 0"');
+  assert.equal(lines.length, 6, 'the head and 5 one-liners, nothing else');
+  assert.ok(!/Owner|Launched yesterday|Morning read|more in Locus/.test(m.text));
   const btn = m.blocks.find(b => b.type === 'actions').elements[0];
-  assert.equal(btn.url, 'https://tools.go-mobius-digital.com/profit/?open=buyer&act=all'); assert.equal(btn.action_id, 'noop_open');
+  assert.equal(btn.url, 'https://tools.go-mobius-digital.com/profit/?open=buyer&act=all'); assert.equal(btn.action_id, 'noop_open'); assert.equal(btn.text.text, 'Open');
   assert.ok(!/—/.test(m.text), 'no em dashes');
   assert.equal(headOf({ n: 0 }), 'Buyer list: nothing to do today');
+  assert.equal(headOf({ n: 1, n_brands: 1, stake: 0 }), '1 change ready across 1 brand');
+});
+
+await check('one-line why: at most 3 numbers; the full reason stays for the details', () => {
+  assert.equal(shortWhy({ kind: 'cut', spend: 561, results: 0, days: 7, judged_on: 'roas', goal_roas: 2.2, currency: 'USD' }), '$561 in 7 days, 0 sales, goal ROAS 2.2x');
+  assert.equal(shortWhy({ kind: 'cut', spend: 400, results: 4, cpa: 100, goal: 52, days: 7, judged_on: 'cpa' }), '$400 in 7 days, $100 a sale, goal $52');
+  assert.equal(shortWhy({ kind: 'scale', spend: 400, results: 9, cpa: 20, goal: 40, days: 7, judged_on: 'cpa' }), '9 sales at $20 each in 7 days, goal $40');
+  assert.equal(shortWhy({ kind: 'trim', spend: 300, results: 1, roas: 0.8, goal_roas: 2.2, days: 7, judged_on: 'roas' }), '$300 in 7 days, ROAS 0.8x, goal ROAS 2.2x');
+  assert.equal(shortWhy({ kind: 'refresh', ctr: 0.0161, prev_ctr: 0.029, why: 'x' }), 'The main ad gets 44% fewer clicks than last week');
 });
 
 await check('the tick: nothing before the morning hour; ONE post a day to the buyer channel (default #daily-briefs); the switch', async () => {
@@ -152,7 +161,7 @@ await check('the tick: nothing before the morning hour; ONE post a day to the bu
   hour = 5; posts = [];
   const r = await buyerPostTick(env, d);
   assert.equal(posts.length, 1); assert.equal(posts[0].channel, DEFAULT_BUYER_CHANNEL); assert.equal(r.channel, 'C0C8UA53U3W');
-  assert.match(posts[0].text, /^\*Buyer list: \d+ to do across 2 brands/); assert.match(posts[0].text, /Owner: <@U_COLE>/);
+  assert.match(posts[0].text, /^\*\d+ changes ready across 2 brands/);
   hour = 6; await buyerPostTick(env, d);
   assert.equal(posts.length, 1, 'once a day');
   today = '2026-10-30'; setSetting('buyerPost', 'off');
@@ -221,20 +230,6 @@ await check('Launched: p_launch of the last 30 days, newest first, with brand, a
   const l = await buildBuyerList(env, d, { act: 'all' });
   assert.deepEqual(l.launched_yesterday, { n: 2, brands: ['Beta Socks', 'Alpha Golf'] });
   today = '2026-10-26';
-});
-
-await check('the daily post: "Launched yesterday" and "Launch today" lines when they apply, none otherwise', async () => {
-  const rows = [{ kind: 'cut', act_id: 'a', brand: 'Alpha', name: 'Set', action: 'Cut the ad set', stake: 100, currency: 'USD' },
-    { kind: 'launch', act_id: 'a', brand: 'Alpha', name: '#415 Gift hook', action: 'Launch 2 approved ads', stake: 0, n_ads: 2 },
-    { kind: 'launch', act_id: 'b', brand: 'Beta', name: '#90 Dated', action: 'Launch 1 approved ad', stake: 0, n_ads: 1 }];
-  const L = { n: 3, n_brands: 2, stake: 100, currency: 'USD', owner: 'Cole', rows, launched_yesterday: { n: 4, brands: ['Alpha', 'Beta'] } };
-  const lines = buyerMessage(L, null).text.split('\n');
-  assert.equal(lines[2], 'Launched yesterday: 4 ads (Alpha, Beta)');
-  assert.equal(lines[3], 'Launch today: 2 cards (Alpha, Beta)');
-  assert.match(buyerMessage(L, null).blocks[0].text.text, /Launch today/);
-  const quiet = buyerMessage({ ...L, rows: rows.slice(0, 1), launched_yesterday: { n: 0, brands: [] } }, null).text;
-  assert.ok(!/Launched yesterday|Launch today/.test(quiet));
-  assert.ok(!/\u2014/.test(lines.join('\n')), 'no em dashes');
 });
 
 await check('a single ad or carousel launch moves its card to Live only from Ready or Review', async () => {

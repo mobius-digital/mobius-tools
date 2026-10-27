@@ -6,7 +6,8 @@
  *   node test-buyerai.mjs      (from account-health/worker) */
 import { DatabaseSync } from 'node:sqlite';
 import assert from 'node:assert/strict';
-import { adNumbers, withCovers, disagree, decide, lessonsFor, lessonsText, readBrand, readAI, buyerAITick, aiPassDone, meter, spentToday, noDash, roleOf, DAY_CAP } from './src/buyerai.js';
+import { adNumbers, withCovers, disagree, decide, lessonsFor, lessonsText, readBrand, readAI, buyerAITick, aiPassDone, meter, spentToday, noDash, roleOf, DAY_CAP,
+  shortLine, trackVerdict, trackingCheck } from './src/buyerai.js';
 import { buildBuyerList, buyerMessage, buyerPostTick, readState } from './src/buyerlist.js';
 
 const db = new DatabaseSync(':memory:');
@@ -41,6 +42,11 @@ for (let i = 0; i < 7; i++) {
   db.prepare(`INSERT INTO ad_daily VALUES ('act_1', '1001', ?, 30, 1000, 2, 200, 20, 300, 400, 0)`).run(day);
   db.prepare(`INSERT INTO ad_daily VALUES ('act_1', '1002', ?, 10, 500, 0, 0, 5, 0, 300, 0)`).run(day);
 }
+/* Lucky's real 2026-10-27 case: "Black Wedges | Still" in the CBO, $561 in 7 days, Meta's own pixel counts 1 purchase
+   (Black Wedges - 7), Triple Whale 0. Not a tracking break: the cut stands. */
+db.exec(`INSERT INTO meta_adsets VALUES ('act_1', '600', '900', 'Black Wedges | Still', 'ACTIVE', NULL, 'OFFSITE_CONVERSIONS', NULL);
+  INSERT INTO ads VALUES ('act_1', '2001', 'Black Wedges - 9', '600', '900', '2026-10-20', '2026-10-20', 'ACTIVE'), ('act_1', '2002', 'Black Wedges - 7', '600', '900', '2026-10-20', '2026-10-20', 'ACTIVE');
+  INSERT INTO ad_daily VALUES ('act_1', '2001', '2026-10-22', 403.09, 15000, 0, 0, 300, 0, 9000, 0), ('act_1', '2002', '2026-10-22', 157.71, 6000, 1, 120, 100, 0, 4000, 0);`);
 db.exec(`INSERT INTO tw_ad_attr VALUES ('brand_lucky', '1001', '2026-10-20', 'lastPlatformClick', 'meta', 3, 300), ('brand_lucky', '1001', '2026-10-21', 'fullFirstClick', 'meta', 5, 600),
     ('brand_lucky', '1002', '2026-10-22', 'lastPlatformClick', 'meta', 1, 90);
   INSERT INTO tw_orders VALUES ('brand_lucky', 'o1', '2026-10-21', 'cu1'), ('brand_lucky', 'o2', '2026-10-21', 'cu2'), ('brand_lucky', 'o0', '2026-01-01', 'cu2');
@@ -52,6 +58,8 @@ const ACCTS = [{ act_id: 'brand_lucky', name: 'Lucky Golf', currency: 'USD' }, {
 const CALLS = [
   { kind: 'cut', act_id: 'brand_lucky', brand: 'Lucky Golf', meta_act: 'act_1', adset_id: '500', adset: '420 | Carver', stake: 280, currency: 'USD', goal: 52, judged_on: 'cpa', role: 'both', why: 'Spent $280 with 4 sales at $70 each, over the $52 goal.' },
   { kind: 'trim', act_id: 'brand_lucky', brand: 'Lucky Golf', meta_act: 'act_1', adset_id: '500', adset: '420 | Carver', ad_id: '1002', ad: 'Carver static', stake: 70, currency: 'USD', goal: 52, judged_on: 'cpa', why: 'This ad costs $70 a sale.' },
+  { kind: 'cut', act_id: 'brand_lucky', brand: 'Lucky Golf', meta_act: 'act_1', adset_id: '600', adset: 'Black Wedges | Still', stake: 561, spend: 561, results: 0, days: 7, goal_roas: 2.2, judged_on: 'roas', currency: 'USD',
+    why: 'Spent $561 (2.5x the goal) with no sale in 7 days. 7 days running, $561 spent, ROAS 0.00x against 2.2x, CTR 2.1%, CPM $27.' },
 ];
 const d = {
   centralHour: () => hour, centralDate: () => today, canAfford: () => true,
@@ -66,11 +74,19 @@ const d = {
     return { ok: true, status: 200, json: async () => ({ content: [{ type: 'text', text: JSON.stringify(out) }], usage: b.model === 'claude-opus-5-5' ? { input_tokens: 20000, output_tokens: 3000 } : { input_tokens: 3000, output_tokens: 200 } }) };
   },
 };
+/* The mock model answers the way the live one did on 2026-10-27 (long, an "if tracking is clean" chain, "check the UTMs"),
+   so the tests prove Locus shortens it and puts its own check in place of the ask. */
 const passOut = b => {
   const keys = [...b.messages[0].content.matchAll(/"key":"([^"]+)"/g)].map(m => m[1]);
-  return { summary: 'Hold the Carver cut \u2014 it opens journeys.', rows: keys.map((k, i) => ({ key: k, verdict: i === 0 ? 'drop' : 'keep', reason: i === 0 ? 'First click credits it with 5 sales.' : 'The static has 1 sale on $70.', change: '' })),
-    extra: [{ type: 'relaunch', name: 'Carver hook A', adset_id: '', ad_id: '1001', campaign_id: '', action: 'Copy it into the CBO as a winner', reason: '3 sales at $70 last click, 5 first click.', stake: 210 },
-      { type: 'other', name: 'Bad id', adset_id: 'abc', ad_id: '', campaign_id: '', action: 'x', reason: 'y', stake: -5 }] };
+  const row = k => k.endsWith('|500|cut') ? { key: k, verdict: 'drop', action: '', why: 'First click credits it with 5 sales, so it opens journeys \u2014 keep it.', move: 'none', budget: 0, ad_id: '' }
+    : k.endsWith('|600|cut') ? { key: k, verdict: 'change', action: 'Hold the cut today and check the UTMs on Black Wedges - 9 and - 7',
+      why: 'Zero last-click and zero first-click sales on $560 is odd for posts that drove 14 sales, which points to a UTM or tracking break. If tracking is clean, cut the set and keep the CBO whole.', move: 'none', budget: 0, ad_id: '' }
+    : k.endsWith('|1002|trim') ? { key: k, verdict: 'change', action: 'Turn off the static and move its budget into the video hook ad today', why: 'The static made 1 sale on $70 while the video made 3.', move: 'pause', budget: 0, ad_id: '' }
+    : { key: k, verdict: 'keep', action: '', why: 'Right as written.', move: 'none', budget: 0, ad_id: '' };
+  return { summary: 'Hold the Carver cut \u2014 it opens journeys.', rows: keys.map(row),
+    extra: [{ type: 'relaunch', name: 'Carver hook A', adset_id: '', ad_id: '1001', campaign_id: '', action: 'Turn back on', why: '3 sales at $70 each, 5 counted from the first visit.', move: 'resume', budget: 0, stake: 210 },
+      { type: 'tracking', name: 'Black Wedges | Still', adset_id: '600', ad_id: '', campaign_id: '900', action: 'Check UTMs and Triple Whale attribution on copied Black Wedges ads', why: '$561 with 0 sales.', move: 'none', budget: 0, stake: 561 },
+      { type: 'other', name: 'Bad id', adset_id: 'abc', ad_id: '', campaign_id: '', action: 'x', why: 'y', move: 'pause', budget: 0, stake: -5 }] };
 };
 
 const tests = [];
@@ -141,21 +157,76 @@ test('the morning read: ONE Opus call (effort medium) reading the plan, lessons,
   assert.match(u, /"new_share_pct":50/); assert.match(u, /"fc_sales":5/);
   const ai = (await readAI(env, null, today)).get('brand_lucky');
   assert.equal(ai.status, 'done'); assert.ok(!/[\u2014\u2013]/.test(ai.summary));
-  assert.equal(ai.extra.length, 2); assert.equal(ai.extra[0].ad_id, '1001'); assert.equal(ai.extra[1].adset_id, null, 'an id the data did not give is dropped'); assert.equal(ai.extra[1].stake, 0);
+  assert.deepEqual(ai.extra.map(x => x.name), ['Carver hook A', 'Bad id'], 'the "check UTMs" extra is gone: Locus checked, tracking is fine');
+  assert.equal(ai.extra[0].ad_id, '1001'); assert.equal(ai.extra[1].adset_id, null, 'an id the data did not give is dropped'); assert.equal(ai.extra[1].stake, 0);
   assert.equal(ai.rows.find(x => x.key === 'brand_lucky|500|cut').verdict, 'drop');
 });
 
-test('the list and the post read it: a verdict on each rule row, drops sink, the missed calls are rows "from the morning read"', async () => {
+test('the prompt shape: action max 8 words, why max 20, a move per change, never "check tracking"; Locus\'s own tracking check is in the input', async () => {
+  calls = [];
+  await readBrand(env, d, ACCTS[0], { today });
+  const b = calls[0], sys = b.system, u = b.messages[0].content, sch = b.output_config.format.schema;
+  assert.match(sys, /at most 8 words, starting with a verb/); assert.match(sys, /at most 20 words and at most 3 numbers/);
+  assert.match(sys, /NEVER tell Cole to check tracking, UTMs, tags, the pixel or attribution/);
+  assert.match(sys, /No "if X then Y" chains/); assert.match(sys, /never write UTM, CBO \(unless it is part of a campaign's name\), first click, last click/);
+  assert.deepEqual(sch.properties.rows.items.required, ['key', 'verdict', 'action', 'why', 'move', 'budget', 'ad_id']);
+  assert.deepEqual(sch.properties.rows.items.properties.move.enum, ['pause', 'resume', 'budget', 'none']);
+  assert.ok(sch.properties.extra.items.required.includes('why') && !('reason' in sch.properties.extra.items.properties));
+  assert.match(u, /TRACKING CHECKS \(Locus checked these itself/);
+  assert.match(u, /- Black Wedges \| Still \(600\): Tracking is fine: Meta also counts just 1 sale on \$561/, 'Meta counts 1 purchase on $561: not a tracking break');
+  assert.match(u, /- 420 \| Carver \(500\): Meta counts 14 sales, Triple Whale 4, on \$280 in 7 days/);
+  const ai = (await readAI(env, null, today)).get('brand_lucky');
+  const bw = ai.rows.find(x => x.key === 'brand_lucky|600|cut');
+  assert.equal(bw.verdict, 'keep', 'the ask to check UTMs becomes the rule\'s own call, with the fact');
+  assert.equal(bw.why, 'Tracking is fine: Meta also counts just 1 sale on $561'); assert.equal(bw.checked, bw.why);
+  const trim = ai.rows.find(x => x.key === 'brand_lucky|1002|trim');
+  assert.equal(trim.action, 'Turn off the static', 'cut to 8 words at a clause'); assert.equal(trim.move, 'pause');
+  for (const x of [...ai.rows, ...ai.extra]) {
+    assert.ok(x.action.split(/\s+/).filter(Boolean).length <= 8, `action too long: ${x.action}`);
+    assert.ok(x.why.split(/\s+/).length <= 20, `why too long: ${x.why}`);
+    assert.ok(!/\butms?\b|check (the )?track|\bif\b/i.test(`${x.action} ${x.why}`), `asks or chains: ${x.action} / ${x.why}`);
+  }
+  assert.ok(ai.summary.split(/\s+/).length <= 20);
+  assert.equal(shortLine('Hold the cut today and check the UTMs. If tracking is clean, cut it.', 8), 'Hold the cut today and check the UTMs');
+  assert.equal(shortLine('Pause it if sales do not come back by Friday', 8), 'Pause it');
+});
+
+test('tracking verdicts: fine, a real gap, and ads with no Triple Whale tag (read live from Meta) become the call', async () => {
+  assert.equal(trackVerdict({ meta: 1, tw: 0, spend: 572 }).fact, 'Tracking is fine: Meta also counts just 1 sale on $572');
+  assert.equal(trackVerdict({ meta: 3, tw: 3, spend: 300 }).fact, 'Tracking is fine: Meta also counts 3 sales on $300');
+  assert.equal(trackVerdict({ meta: 9, tw: 1, spend: 300 }).fine, false);
+  assert.equal(trackVerdict({ leads_goal: true, leads: 0, spend: 138 }).fact, 'Meta counts 0 leads on $138 in 7 days');
+  const metaCalls = [];
+  const envT = { ...env, META_TOKEN: 'tok' };
+  const dT = { ...d, xfetch: async url => { metaCalls.push(url); return { ok: true, json: async () => ({ 1001: { creative: { url_tags: 'utm_source=facebook' } }, 1002: { creative: { url_tags: 'tw_source={{site_source_name}}&tw_adid={{ad.id}}' } } }) }; } };
+  const nums = await adNumbers(env, { act: 'brand_lucky', metaActs: ['act_1'], adsetIds: ['500', '600'] });
+  const t = await trackingCheck(envT, dT, nums.ads);
+  assert.equal(metaCalls.length, 1, 'one Meta read, only for the set whose counts disagree'); assert.match(metaCalls[0], /ids=1001%2C1002/);
+  assert.deepEqual(t.get('500').tags, { read: true, n: 2, missing: 1 });
+  assert.equal(t.get('500').action, 'Add Triple Whale tags to 1 ad'); assert.match(t.get('500').fact, /^1 of 2 ads have no Triple Whale tag/);
+  assert.equal(t.get('600').fine, true); assert.equal(t.get('600').tags, null, 'a set whose counts agree is not read from Meta');
+});
+
+test('the list shows ONE final call per row: the read\'s change replaces the rule (tagged), a drop leaves the list, the tracking ask is a fact; Agree can make the moves', async () => {
+  await readBrand(env, d, ACCTS[0], { today });
   const list = await buildBuyerList(env, d, { act: 'all', live: false });
-  const cut = list.rows.find(r => r.kind === 'cut'), extra = list.rows.find(r => r.kind === 'ai' && r.ad_id === '1001');
-  assert.equal(cut.ai.verdict, 'drop'); assert.equal(cut.goal, 52); assert.equal(cut.metric, 'cpa');
-  assert.ok(extra); assert.equal(extra.from, 'morning read'); assert.equal(extra.do, null); assert.equal(extra.stake, 210);
-  assert.equal(list.rows[list.rows.length - 1].key, cut.key, 'the dropped call sinks under the rest');
+  const bw = list.rows.find(r => r.adset_id === '600' && r.kind === 'cut');
+  assert.equal(bw.action, 'Pause this ad set'); assert.equal(bw.why, '$561 in 7 days, 0 sales, goal ROAS 2.2x');
+  assert.equal(bw.checked, 'Tracking is fine: Meta also counts just 1 sale on $561'); assert.equal(bw.do, 'pause'); assert.ok(!bw.changed);
+  assert.match(bw.why_full, /CTR 2\.1%/, 'the full reason stays for the details');
+  const trim = list.rows.find(r => r.object === '1002');
+  assert.equal(trim.changed, true); assert.equal(trim.action, 'Turn off the static'); assert.equal(trim.rule.action, 'Pause this ad'); assert.equal(trim.do, 'pause'); assert.equal(trim.ad_id, '1002');
+  assert.ok(!list.rows.some(r => r.object === '500' && r.kind === 'cut'), 'the dropped cut is not on the list');
+  assert.equal(list.quiet.find(r => r.object === '500' && r.kind === 'cut').hidden.why, 'dropped'); assert.equal(list.hidden.dropped, 1);
+  const extra = list.rows.find(r => r.kind === 'ai' && r.ad_id === '1001');
+  assert.ok(extra); assert.equal(extra.from, 'morning read'); assert.equal(extra.do, 'resume'); assert.equal(extra.action, 'Turn back on'); assert.equal(extra.stake, 210);
+  assert.equal(list.rows.find(r => r.name === 'Bad id').do, null, 'no id to act on: needs Cole');
   assert.equal(list.counts.ai, 2); assert.equal(list.ai.n_read, 1);
+  assert.deepEqual(list.groups.map(g => g.brand), ['Lucky Golf']);
   const m = buyerMessage(list, '<@U_COLE>').text;
-  assert.match(m, /Morning read: 1 brand read, 2 calls the rules missed, 1 to drop\./);
-  assert.match(m, /\(from the morning read\)/); assert.match(m, /\(morning read says drop it\)/);
-  assert.ok(!/[\u2014\u2013]/.test(m));
+  assert.match(m, /^\*\d+ changes ready across 1 brand, \$[\d,.K]+ at stake\*/);
+  assert.match(m, /\u2022 \*Lucky Golf\*: Pause this ad set, "Black Wedges \| Still"/);
+  assert.ok(!/UTM|check|morning read|Owner/i.test(m)); assert.ok(!/[\u2014\u2013]/.test(m));
 });
 
 test('the tick: off switch, hours (an hour before the post to noon), one brand per paused brand skipped, the $5 cap, the lock', async () => {

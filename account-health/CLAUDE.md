@@ -2736,3 +2736,28 @@ Monday call is at 8am. Tests: `node test-clientpost.mjs` (12 offline checks).
   docs/strategist-brain/source-lucky-account-structure.md: one [MD] CBO since Oct 4, do not split it or turn the old
   Black Wedge campaign on.
 - Tests: account-health `node test-buyerai.mjs` (7) and `node test-buyerlist.mjs` (buyerAI off there).
+
+## 2026-10-27: THE BUYER LIST, SIMPLE (src/buyerai.js, src/buyerlist.js, profit buyer.js?v=4). Read before touching the morning read's answer, applyAI or the DM.
+- **The short shape** (`PASS_SCHEMA`, `passSystem`): per rule row {key, verdict keep|change|drop, action, why, move
+  pause|resume|budget|none, budget, ad_id}; per extra {type, name, ids, action, why, move, budget, stake}. action = at
+  most 8 words starting with a verb, why = ONE line, at most 20 words and 3 numbers, no "if X then Y", no UTM / CBO (unless
+  a campaign name) / first click / last click / CPM / CTR / attribution. `finishPass` enforces it after the model
+  (`shortLine`: first sentence, the "if" tail cut, cut at a clause before the limit). Old stored reads (reason / change)
+  still show, shortened. `reason` / `change` are still written (= why / action) for the Disagree flow and lessons.
+- **Locus checks before it asks** (`trackingCheck`, `trackVerdict`, `urlTagsOf`): per ad set over 7 days, Meta's own
+  pixel purchases (ad_daily.purchases) vs Triple Whale last platform click on the same ads; a gap = Meta 2+ more AND
+  Triple Whale under 70% of Meta. Only then the ads' Triple Whale tags are read live from Meta (`?ids=...&fields=
+  creative{url_tags,object_story_spec,asset_feed_spec}`, tw_adid / tw_source). Lead sets: Meta's lead count. The facts go
+  into the prompt as TRACKING CHECKS; the prompt forbids "check tracking / UTMs"; `ASKS_CHECK` catches any that slip:
+  a rule row turns keep with the fact as its why (`checked`), a "check" extra is dropped unless the check found ads with
+  no tag ("Add Triple Whale tags to N ads"). Rule rows held by hub.js's tracking gap guard are checked in
+  buildBuyerList (`gapChecked`): fine = back to the cut with Do and the fact; missing tags = that is the call; real gap
+  = "Keep it on for now" with the counts. Verified live 2026-10-27 on Lucky "Black Wedges | Still" (adset
+  120256158468190221): Meta 1 purchase on $561 (BW-7 $157.71 1, BW-9 $403.09 0), TW 0 = "Tracking is fine: Meta also
+  counts just 1 sale on $561", the cut stands.
+- **The list**: drop = quiet (`hidden.why 'dropped'`); change = the row shows the read's call, `changed`, `rule`, `do` from
+  `move` (budget -> `suggested_budget`, an ad move -> `ad_id` + level ad); `byBrand` groups (`groups`, `n_do`); `canDo`
+  = pause | resume | budget | minoff (what Agree to all makes). callRow carries `kept_by`, `was`, `budget` (the set's
+  daily budget), `fc_results`, `ctr`, `prev_ctr` for the short why.
+- **The DM** = head ("N changes ready across B brands, $X at stake") + top 5 one-liners + Open. A day with no rows is
+  quiet (launched-yesterday alone no longer posts).
