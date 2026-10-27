@@ -12,6 +12,11 @@
  *   Open  the ad set on Campaigns, the ad on Ads, the card on Production.
  * Server: account-health GET /api/buyer-list, POST /api/buyer-list/state, PUT /api/buyer-list/settings,
  * GET /api/buyer-list/preview (the one daily Slack post, settings buyerPost / buyerChannel / buyerOwner).
+ * Launch days (2026-10-26, Cole): Ready cards are Launch rows only on a launch day (settings.launchDays, default Mon and
+ * Thu) or on and after their own launch_on date; other days a quiet "Next launch: Thursday, N cards" line. Below the list,
+ * "Launched and scheduled": Scheduled (dated cards, cards waiting for the next launch day) and Launched (p_launch, last 30
+ * days, newest first; status read live from Meta after the page paints, GET /api/buyer-list/launched?refresh=1). A search
+ * box filters both by brand, card or ad. A tap on a row opens its details (a bottom sheet on a phone).
  * The host passes { S, api, apiAH, show, pageHead, pageActions, confirmModal, AskUI, RUN }. */
 (() => {
   let H = null;
@@ -26,7 +31,25 @@
   const DO_LABEL = { budget: 'Do', pause: 'Do', minoff: 'Do', launch: 'Do', brief: 'Do' };
   const DO_TIP = { budget: 'Raise this ad set\'s budget 20%. You see the number and confirm before anything is written.', pause: 'Turn it off in Meta. You see it first and confirm.',
     minoff: 'Set the test minimum to $0 in Meta. You see it first and confirm.', launch: 'Opens Launch to Meta for this card. The ads go up paused.', brief: 'Ask Locus to brief a new version of the main ad.' };
-  let KIND = 'all', SHOWQ = false, DATA = null, BUSY = false;
+  let KIND = 'all', SHOWQ = false, DATA = null, BUSY = false, LQ = '', LALL = false, LREAD = '';
+  const DAYS = [['mon', 'Monday'], ['tue', 'Tuesday'], ['wed', 'Wednesday'], ['thu', 'Thursday'], ['fri', 'Friday'], ['sat', 'Saturday'], ['sun', 'Sunday']];
+  const daysWords = v => { const on = String(v || 'mon,thu').split(','); const n = DAYS.filter(([k]) => on.includes(k)).map(([, w]) => w); return n.length > 1 ? `${n.slice(0, -1).join(', ')} and ${n[n.length - 1]}` : n[0] || ''; };
+  const ymdShort = ymd => { const t = new Date(ymd + 'T12:00:00Z'); return isNaN(t) ? ymd : t.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }); };
+  const whenCT = iso => { const t = new Date(iso); return isNaN(t) ? '' : t.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' }).replace(' AM', 'am').replace(' PM', 'pm'); };
+  /* Meta's effective_status in plain words; a launch never read again is just "Created paused". */
+  function statusOf(l) {
+    if (!l.checked) return { t: 'Created paused', c: '' };
+    const e = String(l.eff_status || l.status || '').toUpperCase();
+    if (e === 'ACTIVE') return { t: 'On', c: 'good' };
+    if (e === 'PAUSED') return { t: 'Paused', c: '' };
+    if (e === 'ADSET_PAUSED') return { t: 'Paused (ad set off)', c: '' };
+    if (e === 'CAMPAIGN_PAUSED') return { t: 'Paused (campaign off)', c: '' };
+    if (e === 'PENDING_REVIEW' || e === 'IN_PROCESS' || e === 'PREAPPROVED') return { t: 'In review at Meta', c: 'warn' };
+    if (e === 'DISAPPROVED') return { t: 'Rejected by Meta', c: 'bad' };
+    if (e === 'WITH_ISSUES') return { t: 'Has issues', c: 'bad' };
+    if (e === 'DELETED' || e === 'ARCHIVED') return { t: e === 'DELETED' ? 'Deleted' : 'Archived', c: 'bad' };
+    return { t: e ? e.charAt(0) + e.slice(1).toLowerCase().replace(/_/g, ' ') : 'Created paused', c: '' };
+  }
 
   function css() {
     if (document.getElementById('bycss')) return;
@@ -62,7 +85,25 @@
       .by-form label.row{flex-direction:row;align-items:center;gap:8px}
       .by-form label.row input{width:auto}
       .by-pre{white-space:pre-wrap;font:12.5px/1.5 var(--mono,ui-monospace,monospace);background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;max-height:260px;overflow:auto;margin:0 0 12px}
+      .by .by-next{margin:-4px 0 12px;font-size:13px;color:var(--muted)}
+      .by .by-lnch .v2h{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:space-between}
+      .by .by-lnch .by-find{max-width:260px;flex:1 1 180px;min-height:36px}
+      .by .by-lnch h4{margin:14px 0 4px;font-size:12px;font-weight:650;letter-spacing:.03em;color:var(--muted);text-transform:uppercase}
+      .by .by-l{display:grid;grid-template-columns:118px 140px minmax(0,1fr) 150px 72px;gap:12px;align-items:center;padding:9px 0;border-top:1px solid var(--line);cursor:pointer}
+      .by .by-l:hover{background:var(--surface-2)}
+      .by .by-l .w{font-variant-numeric:tabular-nums;font-size:12.5px}
+      .by .by-l .b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .by .by-l .a{min-width:0}.by .by-l .a .n{font-weight:550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .by .by-l .a .s{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .by .by-l .st{font-size:12px}.by .by-l .st.good{color:var(--good)}.by .by-l .st.warn{color:var(--warn)}.by .by-l .st.bad{color:var(--bad)}
+      .by .by-l .v2btn{margin:0;min-width:60px}
+      .by .by-lmore{margin-top:8px}
+      .by-dl{display:grid;grid-template-columns:110px 1fr;gap:6px 12px;margin:0 0 12px;font-size:13.5px}.by-dl dt{color:var(--muted)}.by-dl dd{margin:0;word-break:break-word}
+      .by-days{display:flex;flex-wrap:wrap;gap:8px}.by-days label{flex-direction:row;align-items:center;gap:6px;margin:0;border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-height:44px}
       @media (max-width:900px){
+        .by .by-l{grid-template-columns:1fr auto;grid-template-areas:"w st" "b b" "a a";gap:2px 10px;padding:12px 0}
+        .by .by-l .w{grid-area:w}.by .by-l .st{grid-area:st;text-align:right}.by .by-l .b{grid-area:b}.by .by-l .a{grid-area:a}.by .by-l .v2btn{display:none}
+        .by .by-lnch .by-find{max-width:none;flex-basis:100%;min-height:44px}
         .by .by-row{grid-template-columns:1fr auto;grid-template-areas:"br st" "nm nm" "what what" "btns btns";gap:6px 10px;padding:14px 0}
         .by .by-row.head{display:none}
         .by .by-br{grid-area:br}.by .by-st{grid-area:st}.by .by-nm{grid-area:nm}.by .by-what{grid-area:what}.by .by-btns{grid-area:btns;justify-content:stretch}
@@ -83,7 +124,7 @@
   function modal(title, hint, body, cta, onYes) {
     const w = document.createElement('div'); w.className = 'modal-wrap';
     w.innerHTML = `<div class="modal lx-nudge-m" role="dialog" aria-modal="true"><h3>${esc(title)}</h3>${hint ? `<p class="hint">${hint}</p>` : ''}<div class="by-form lx-nudge-mb">${body}</div><p class="lx-nudge-err" data-err hidden></p>
-      <div class="row lx-nudge-ma"><button class="btn" data-m="no" type="button">Cancel</button>${cta ? `<button class="btn primary" data-m="yes" type="button">${esc(cta)}</button>` : ''}</div></div>`;
+      <div class="row lx-nudge-ma"><button class="btn" data-m="no" type="button">${cta ? 'Cancel' : 'Close'}</button>${cta ? `<button class="btn primary" data-m="yes" type="button">${esc(cta)}</button>` : ''}</div></div>`;
     document.body.appendChild(w);
     const yes = w.querySelector('[data-m="yes"]'), err = w.querySelector('[data-err]');
     const close = () => { w.remove(); document.removeEventListener('keydown', key); };
@@ -113,7 +154,8 @@
     try { d = await H.apiAH(`/api/buyer-list?act=${encodeURIComponent(one ? one.act_id : 'all')}`); if (d && d.error) throw new Error(d.error); }
     catch (e) { if (t === H.RUN()) $('#main').innerHTML = shell(`<section class="v2card"><h3>Could not load the list</h3><p class="v2bad">${esc(e.message)}</p><button type="button" class="v2btn" id="byRetry">Try again</button></section>`); const b = $('#byRetry'); if (b) b.onclick = () => render(H, true); return; }
     if (t !== H.RUN()) return;
-    DATA = d; paint();
+    DATA = d; LREAD = ''; paint();
+    if ((d.launched || []).length) readLaunched(d.act);
   }
 
   function paint() {
@@ -123,6 +165,9 @@
     const kinds = ['all', 'cut', 'scale', 'trim', 'refresh', 'mixed', 'minoff', 'launch'].filter(k => k === 'all' || (d.counts || {})[k]);
     const chips = kinds.length > 2 ? `<div class="v2jobs by-chips" role="group" aria-label="Kind">${kinds.map(k => `<button type="button" class="${KIND === k ? 'on' : ''}" data-k="${k}" aria-pressed="${KIND === k}"><b>${k === 'all' ? rows.length : d.counts[k]}</b>${KIND_LABEL[k]}</button>`).join('')}</div>` : '';
     const stake = d.stake > 0 ? `, <b>${esc(kmoney(d.stake, d.currency))}</b> at stake` : '';
+    const nx = d.next_launch || {};
+    const next = !d.launch_today && nx.n ? `<p class="by-next">Next launch: <b>${esc(nx.day)}</b>, ${nx.n} card${nx.n === 1 ? '' : 's'} (${nx.n_ads} approved ad${nx.n_ads === 1 ? '' : 's'}). Ready cards go out on launch days, ${esc(daysWords(d.launch_days))}.</p>`
+      : d.launch_today && (d.counts || {}).launch ? `<p class="by-next">Launch day today: ${d.counts.launch} card${d.counts.launch === 1 ? '' : 's'} to launch.</p>` : '';
     const lead = `<p class="v2say lead by-lead"><b>${d.n} to do</b>${one ? '' : ` across ${d.n_brands} brand${d.n_brands === 1 ? '' : 's'}`}${stake}. <span class="by-own">Owner: <b>${esc(d.owner)}</b> <button type="button" class="v2link" id="byOwner">Change</button></span></p>`;
     const head = `<div class="by-row head" aria-hidden="true"><span>Brand</span><span>Ad set or ad</span><span>What to do, and why</span><span style="text-align:right">At stake</span><span></span></div>`;
     const list = shown.length ? `<section class="v2card">${head}${shown.map(row).join('')}</section>`
@@ -131,13 +176,87 @@
     const foot = `<div class="by-foot"><span>Sorted by money at stake. A minimum counts a week of it; launches have no money yet.</span>${nq ? `<button type="button" class="v2link" id="byQuiet">${SHOWQ ? 'Hide' : 'Show'} ${nq} quiet: ${[h.done ? `${h.done} done` : '', h.skipped ? `${h.skipped} skipped until tomorrow` : '', h.watched ? `${h.watched} changed in Meta in the last 3 days` : ''].filter(Boolean).join(', ')}</button>` : ''}</div>`;
     const quiet = SHOWQ && nq ? `<section class="v2card"><div class="v2h"><h3>Quiet for now</h3><span class="find">Done stays quiet 3 days, Skip until tomorrow, and a change made in Meta is watched 3 days before it is judged again.</span></div>${(d.quiet || []).map(qrow).join('')}</section>` : '';
     const notes = (d.notes || []).length ? `<p class="by-notes">Could not read everything: ${esc(d.notes.join(' · '))}</p>` : '';
-    $('#main').innerHTML = `<div class="v2 by">${H.pageHead('buyer', one ? `Buyer list: ${esc((H.S.accounts.find(a => a.act_id === d.act) || {}).name || '')}` : 'Buyer list').replace(/<p class="ph-sub">[\s\S]*?<\/p>/, '')}${lead}${chips}${list}${foot}${quiet}${notes}</div>`;
+    const lsec = `<section class="v2card by-lnch" id="byLaunch"><div class="v2h"><h3>Launched and scheduled</h3><input type="search" class="by-find" id="byFind" placeholder="${one ? 'Find a card or ad' : 'Find a brand, card or ad'}" value="${esc(LQ)}" aria-label="Find in launched and scheduled"></div>
+      <p class="v2hint" style="margin:4px 0 0">Launch days: ${esc(daysWords(d.launch_days))} (Central). A card with its own date goes out on that date. <button type="button" class="v2link" id="byDays">Change launch days</button></p><div id="byLBody">${launchBody()}</div></section>`;
+    $('#main').innerHTML = `<div class="v2 by">${H.pageHead('buyer', one ? `Buyer list: ${esc((H.S.accounts.find(a => a.act_id === d.act) || {}).name || '')}` : 'Buyer list').replace(/<p class="ph-sub">[\s\S]*?<\/p>/, '')}${lead}${next}${chips}${list}${foot}${quiet}${lsec}${notes}</div>`;
     if (typeof H.pageActions === 'function') H.pageActions('<button type="button" class="btn" id="bySlack" title="The one Buyer list post a day in Slack: where it goes, on or off, and what it says now.">Slack post</button>');
     wire();
   }
+  const LSHOW = 25;
+  const hit = (...xs) => { const q = LQ.trim().toLowerCase(); return !q || xs.some(x => String(x || '').toLowerCase().includes(q)); };
+  function launchBody() {
+    const d = DATA, one = d.act !== 'all';
+    const sch = (d.scheduled || []).filter(s => hit(s.brand, s.name));
+    const lau = (d.launched || []).filter(l => hit(l.brand, l.ad_name, l.adset, l.card));
+    const sRows = sch.map(s => `<div class="by-l" role="button" tabindex="0" data-ls="${esc(s.key)}">
+        <span class="w">${esc(ymdShort(s.date))}</span><span class="b">${one ? '' : esc(s.brand)}</span>
+        <div class="a"><div class="n" title="${esc(s.name)}">${esc(s.name)}</div><div class="s">${s.board === 'review' ? 'In review' : s.n_ads ? `${s.n_ads} approved ad${s.n_ads === 1 ? '' : 's'}, Ready` : 'Ready'}</div></div>
+        <span class="st">${s.dated ? 'Its own date' : 'Next launch day'}</span><button type="button" class="v2btn ghost" data-lopen="${esc(s.card_id)}" data-lact="${esc(s.act_id)}">Open</button></div>`).join('');
+    const lShown = LALL ? lau : lau.slice(0, LSHOW);
+    const lRows = lShown.map(l => { const st = statusOf(l); return `<div class="by-l" role="button" tabindex="0" data-ll="${esc(l.id)}">
+        <span class="w">${esc(whenCT(l.at))}</span><span class="b">${one ? '' : esc(l.brand)}</span>
+        <div class="a"><div class="n" title="${esc(l.ad_name)}">${esc(l.ad_name || 'Ad')}</div><div class="s">${esc([l.adset ? `in ${l.adset}` : '', l.by ? `by ${firstName(l.by)}` : ''].filter(Boolean).join(', '))}</div></div>
+        <span class="st ${st.c}">${esc(st.t)}</span>${l.card_id ? `<button type="button" class="v2btn ghost" data-lopen="${esc(l.card_id)}" data-lact="${esc(l.act_id)}">Card</button>` : '<span></span>'}</div>`; }).join('');
+    const q = LQ.trim();
+    return `<h4>Scheduled (${sch.length})</h4>${sRows || `<p class="v2hint">${q ? 'Nothing scheduled matches.' : 'No card is waiting for a launch day or a date.'}</p>`}
+      <h4>Launched, last 30 days (${lau.length})</h4>${lRows || `<p class="v2hint">${q ? 'No launch matches.' : 'Nothing launched from Locus in the last 30 days.'}</p>`}
+      ${lau.length > LSHOW ? `<button type="button" class="v2link by-lmore" id="byLAll">${LALL ? 'Show fewer' : `Show all ${lau.length}`}</button>` : ''}
+      ${LREAD ? `<p class="by-notes">${esc(LREAD)}</p>` : ''}`;
+  }
+  function paintLaunch() { const b = document.getElementById('byLBody'); if (!b) return; b.innerHTML = launchBody(); wireLaunch(); }
+  function wireLaunch() {
+    const root = document.getElementById('byLaunch'); if (!root) return;
+    const all = document.getElementById('byLAll'); if (all) all.onclick = () => { LALL = !LALL; paintLaunch(); };
+    root.querySelectorAll('[data-lopen]').forEach(b => b.onclick = e => { e.stopPropagation(); openCard(b.dataset.lact, b.dataset.lopen); });
+    const tap = (el, fn) => { el.onclick = fn; el.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn(); } }; };
+    root.querySelectorAll('[data-ll]').forEach(el => tap(el, () => launchedSheet((DATA.launched || []).find(l => l.id === el.dataset.ll))));
+    root.querySelectorAll('[data-ls]').forEach(el => tap(el, () => schedSheet((DATA.scheduled || []).find(s => s.key === el.dataset.ls))));
+  }
+  function openCard(act, id) { window.PD_CARD = id; pickAct(act, 'production'); }
+  function launchedSheet(l) {
+    if (!l) return;
+    const st = statusOf(l);
+    const m = modal(l.ad_name || 'Launched ad', esc(l.brand), `<dl class="by-dl">
+      <dt>Launched</dt><dd>${esc(whenCT(l.at))} Central${l.by ? `, by ${esc(firstName(l.by))}` : ''}</dd>
+      <dt>Ad set</dt><dd>${esc(l.adset || 'Not recorded')}</dd>
+      <dt>In Meta now</dt><dd>${esc(st.t)}${l.checked && l.checked_at ? ` <span class="faint">(read ${esc(whenCT(l.checked_at))})</span>` : ' <span class="faint">(not read since)</span>'}</dd>
+      <dt>Card</dt><dd>${l.card ? esc(l.card) : 'No Production card'}</dd></dl>
+      <div class="row" style="gap:8px;flex-wrap:wrap">${l.card_id ? '<button type="button" class="btn" data-x="card">Open the card</button>' : ''}${l.ads_manager ? `<a class="btn" href="${esc(l.ads_manager)}" target="_blank" rel="noopener">Open in Ads Manager</a>` : ''}</div>`, null, null);
+    const c = m.w.querySelector('[data-x="card"]'); if (c) c.onclick = () => { m.close(); openCard(l.act_id, l.card_id); };
+  }
+  function schedSheet(s) {
+    if (!s) return;
+    const m = modal(s.name, esc(s.brand), `<dl class="by-dl">
+      <dt>Goes out</dt><dd>${esc(ymdShort(s.date))}${s.dated ? ' (its own date)' : ' (the next launch day)'}</dd>
+      <dt>On Production</dt><dd>${s.board === 'review' ? 'In review' : 'Ready'}${s.n_ads ? `, ${s.n_ads} approved ad${s.n_ads === 1 ? '' : 's'} not on Meta yet` : ''}</dd></dl>
+      <p class="v2hint">It shows on the Buyer list as a Launch row on that day. To change the date, set Launch on the card.</p>
+      <div class="row"><button type="button" class="btn" data-x="card">Open the card</button></div>`, null, null);
+    m.w.querySelector('[data-x="card"]').onclick = () => { m.close(); openCard(s.act_id, s.card_id); };
+  }
+  function daysModal() {
+    const on = String(DATA.launch_days || 'mon,thu').split(',');
+    modal('Launch days', 'Ready cards with approved ads show as Launch rows on these days (Central). A card with its own launch date goes out on that date, any weekday.',
+      `<div class="by-days">${DAYS.map(([k, w]) => `<label><input type="checkbox" name="d" value="${k}"${on.includes(k) ? ' checked' : ''}> ${w}</label>`).join('')}</div>`, 'Save', async w => {
+        const v = [...w.querySelectorAll('input[name="d"]:checked')].map(x => x.value);
+        if (!v.length) throw new Error('Pick at least one day.');
+        const j = await ah('/api/buyer-list/settings', { launchDays: v.join(',') }, 'PUT');
+        if (!j || j.error) throw new Error((j && j.error) || 'Locus did not answer.');
+        toast(`Launch days: ${daysWords(j.settings.launchDays)}.`); reload();
+      });
+  }
+  /* Meta status for the launches, read after the page paints so the list never waits on Meta. */
+  async function readLaunched(act) {
+    try {
+      const j = await H.apiAH(`/api/buyer-list/launched?act=${encodeURIComponent(act)}&refresh=1`);
+      if (!DATA || DATA.act !== act || !j || !Array.isArray(j.launched)) return;
+      DATA.launched = j.launched; LREAD = j.error ? `Could not read the status from Meta: ${j.error}` : '';
+      if (H.S.tab === 'buyer') paintLaunch();
+    } catch {}
+  }
+
   function row(r) {
     const k = esc(r.key), cur = r.currency || 'USD';
-    const sub = r.kind === 'launch' ? 'Production, Ready' : r.set ? `in ${r.set}` : r.level === 'adset' ? 'Ad set' : '';
+    const sub = r.kind === 'launch' ? (r.launch_on ? `Production, Ready, dated ${ymdShort(r.launch_on)}` : 'Production, Ready') : r.set ? `in ${r.set}` : r.level === 'adset' ? 'Ad set' : '';
     const primary = r.do ? `<button type="button" class="v2btn" data-do="${k}" title="${esc(DO_TIP[r.do] || '')}">${DO_LABEL[r.do] || 'Do'}</button>`
       : `<button type="button" class="v2btn" data-done="${k}" title="Mark it decided. It stays quiet 3 days.">Done</button>`;
     return `<div class="by-row" data-key="${k}">
@@ -175,6 +294,9 @@
     const q = $('#byQuiet'); if (q) q.onclick = () => { SHOWQ = !SHOWQ; paint(); };
     const o = $('#byOwner'); if (o) o.onclick = ownerModal;
     const sl = document.getElementById('bySlack'); if (sl) sl.onclick = slackModal;
+    const dy = $('#byDays'); if (dy) dy.onclick = daysModal;
+    const fd = $('#byFind'); if (fd) fd.oninput = () => { LQ = fd.value; paintLaunch(); };
+    wireLaunch();
     root.querySelectorAll('[data-skip]').forEach(b => b.onclick = async () => {
       const r = find(b.dataset.skip); if (!r || BUSY) return;
       b.disabled = true;
@@ -221,7 +343,7 @@
     }
     if (r.do === 'launch') {
       const L = window.LaunchToMeta; if (!L) return toast('The Launch window did not load. Hard-refresh (Ctrl+Shift+R).', true);
-      const onDone = () => { state(r, 'done').catch(() => {}); drop(r.key, 'done'); };
+      const onDone = () => { state(r, 'done').catch(() => {}); drop(r.key, 'done'); setTimeout(reload, 400); };
       if (!r.work && r.studio_ad) return L.open({ act: r.act_id, tok: H.S.tok, studioAd: r.studio_ad, onDone });
       if (!L.openBatch) return toast('The Launch window did not load. Hard-refresh (Ctrl+Shift+R).', true);
       return L.openBatch({ act: r.act_id, tok: H.S.tok, cardId: r.card_id, onDone, onBrief: () => pickAct(r.act_id, 'production') });
