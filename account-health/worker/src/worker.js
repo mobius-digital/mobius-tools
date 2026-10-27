@@ -7844,6 +7844,9 @@ const AH_APP = {
         ran.minOff = await minOffTick(env, minOffDeps()).catch(e => ({ error: e.message }));
         /* The Buyer list: ONE post a day in the buyer channel (buyerlist.js, 2026-10-26); the morning cards no longer carry the calls. */
         ran.buyerPost = await buyerPostTick(env, buyerDeps()).catch(e => ({ error: e.message }));
+        /* The morning read (buyerai.js): every brand, three side by side, from the hour BEFORE the post hour, so the post
+           finds it done. Here because the 5-minute trigger has not fired since 2026-10-23 (lastSocialPost). */
+        ran.buyerAI = await buyerAITick(env, buyerDeps(), { perTick: 99 }).catch(e => ({ error: e.message }));
         /* Scheduled questions to the Strategist, posted to Slack (askschedule.js). */
         ran.askSchedules = await scheduleTick(env, hubDeps()).catch(e => ({ error: e.message }));
         /* The Monday account review per brand, Apply cards in the internal channel; off until settings.mondayReview = 'on' (review.js). */

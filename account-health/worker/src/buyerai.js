@@ -18,6 +18,7 @@
  *    lessons. It says keep / change / drop per rule row with one sentence, and adds the calls the rules miss (budget
  *    moves, relaunching a strong ad from a cut set, leads campaigns, tracking). Stored per brand per day in `p_buyer_ai`;
  *    the Buyer list and the daily post read it (rows marked "from the morning read"). Runs on the 5-minute cron, three
+ *    (2026-10-26: the 5-minute trigger is not firing, so worker.js also runs it on the hourly tick, every brand at once.)
  *    brands a tick, so 9 brands are read in about 15 minutes; the post waits for it (up to an hour past the post hour).
  *    Switch: settings `buyerAI` ('off' stops it). Cost: settings `aiSpend:buyer:<YYYY-MM>` = {calls, in, out, usd, by}
  *    and `aiSpend:buyer:day:<YYYY-MM-DD>` = usd; hard cap DAY_CAP dollars a day (a brand past it is marked 'capped').
