@@ -70,6 +70,14 @@ async function brandsFor(env, d, p) {
     .map(b => shortName(b.name));
 }
 export const shortName = n => String(n || '').replace(/\s+(golf|sports|co\.?)$/i, '').trim();
+/* Every active brand, the person's own first (Ahsan, 2026-10-27: "do I log each brand separately?"). A new brand in Locus
+   shows up here by itself. Each gets its own box in the plan and week forms. */
+async function brandList(env, d, p) {
+  const all = (await d.listBrands(env)).filter(b => !PAUSED.test(b.name || '') && !/^demo_/.test(b.act_id))
+    .map(b => ({ a: b.act_id, n: shortName(b.name) })).sort((x, y) => x.n.localeCompare(y.n));
+  const mine = new Set(await brandsFor(env, d, p).catch(() => []));
+  return [...all.filter(b => mine.has(b.n)), ...all.filter(b => !mine.has(b.n))].slice(0, 20);
+}
 
 /* ---------- rich text ---------- */
 const bold = t => ({ type: 'text', text: t, style: { bold: true } });
@@ -210,18 +218,48 @@ function weekHint(p) {
   if (has(p, 'buyer')) return 'Under each brand: the spend plan, what you will cut or launch, what new ads you need and by when.';
   return 'Per brand: the batches in your queue and when each one is done.';
 }
+/* One rich text box per brand (block ids `<prefix>_<brand id>`), plus one for anything that is not one brand's. */
+const brandBoxes = (prefix, list, placeholder) => [
+  ...list.map(b => input(`${prefix}_${b.a}`, b.n, rich('v', undefined, placeholder))),
+  input(`${prefix}_other`, 'Anything else (not one brand)', rich('v', undefined, 'Agency work, meetings, research across brands')),
+];
+const planHolder = p => has(p, 'strategist') ? 'Brief batch 15, Game of Belts (8 ads). Why: the giveaway line doubled clicks'
+  : has(p, 'buyer') ? 'Launch batch 12 into Early Bird, cut 3 tired ads. Why: frequency over 4'
+  : 'Batch 15: 6 statics from Noma\'s brief';
 export async function planModal(env, d, uid, uname, date) {
   const people = await peopleOf(env, d);
   const p = personOf(people, uid, uname);
-  const names = await brandsFor(env, d, p).catch(() => []);
+  const list = await brandList(env, d, p);
   const blocks = [
     input('type', "What's today?", checks('v', DAY_TYPES.map(t => ({ text: t, value: t })))),
-    input('plan', 'My plan for today', rich('v', headings(names), 'Dartee: brief batch 15, Game of Belts. Why: ...'), { optional: false, hint: planHint(p) }),
+    { type: 'context', elements: [md(`*Fill only the brands you're on today.* Leave the rest empty. ${planHint(p)}`)] },
+    ...brandBoxes('pb', list, planHolder(p)),
     ...(has(p, 'strategist') ? [input('walk', 'Walkthrough with the creative team today?', plain('v', 'Yes, 10am with Ravo and William (Dartee 15)'))] : []),
     ...blockedInputs(),
   ];
-  return { type: 'modal', callback_id: 'ci_plan_submit', private_metadata: JSON.stringify({ date }), title: pt('Post my plan'), submit: pt('Post'), close: pt('Cancel'), blocks };
+  return { type: 'modal', callback_id: 'ci_plan_submit', private_metadata: JSON.stringify({ date, brands: list }), title: pt('Post my plan'), submit: pt('Post'), close: pt('Cancel'), blocks };
 }
+/** The brands a person filled in, in form order: [{n, a, rt}]. */
+function brandParts(view, prefix, list) {
+  const parts = [];
+  for (const b of [...(list || []), { a: 'other', n: 'Other' }]) {
+    const rt = view?.state?.values?.[`${prefix}_${b.a}`]?.v?.rich_text_value;
+    if (rt && !rtEmpty(rt)) parts.push({ ...b, rt });
+  }
+  return parts;
+}
+/** Run inside Slack's three seconds: a plan or week with no brand filled in is sent back with a note on the first box. */
+export function checkinErrors(p) {
+  const cb = p.view?.callback_id || '';
+  const prefix = cb === 'ci_plan_submit' ? 'pb' : cb === 'ci_week_submit' ? 'wb' : null;
+  if (!prefix) return null;
+  const meta = safe(p.view?.private_metadata, {}) || {};
+  if (brandParts(p.view, prefix, meta.brands).length) return null;
+  const first = meta.brands?.[0] ? `${prefix}_${meta.brands[0].a}` : `${prefix}_other`;
+  return { [first]: 'Write something under at least one brand.' };
+}
+/* The filled brands as message blocks: the brand in bold, then exactly what they wrote. */
+const partBlocks = parts => parts.flatMap(x => [{ type: 'section', text: md(`*${esc(x.n)}*`) }, x.rt]);
 export async function wrapModal(env, d, uid, uname, date) {
   const people = await peopleOf(env, d);
   const p = personOf(people, uid, uname);
@@ -241,13 +279,14 @@ export async function wrapModal(env, d, uid, uname, date) {
 export async function weekModal(env, d, uid, uname, date) {
   const people = await peopleOf(env, d);
   const p = personOf(people, uid, uname);
-  const names = await brandsFor(env, d, p).catch(() => []);
+  const list = await brandList(env, d, p);
   const blocks = [
-    input('week', 'My plan for the week', rich('v', headings(names), 'Batch 15 · Game of Belts giveaway · 8 ads · due Wed'), { optional: false, hint: weekHint(p) }),
+    { type: 'context', elements: [md(`*Fill only the brands you're on this week.* ${weekHint(p)}`)] },
+    ...brandBoxes('wb', list, has(p, 'strategist') ? 'Batch 15 · Game of Belts · 8 ads · due Wed. Angle: ... Testing: ... Why: ...' : has(p, 'buyer') ? 'Hold $220/day until batch 14 is live Wed. Need 6 new ads by Thu' : 'Batch 15 statics by Wed, batch 16 by Fri'),
     ...(has(p, 'strategist') ? [input('walk', 'Walkthroughs this week', plain('v', 'Tue 10am with Ravo and William (Dartee 15, Lucky 14)'))] : []),
     ...blockedInputs(),
   ];
-  return { type: 'modal', callback_id: 'ci_week_submit', private_metadata: JSON.stringify({ date }), title: pt('Post my week'), submit: pt('Post'), close: pt('Cancel'), blocks };
+  return { type: 'modal', callback_id: 'ci_week_submit', private_metadata: JSON.stringify({ date, brands: list }), title: pt('Post my week'), submit: pt('Post'), close: pt('Cancel'), blocks };
 }
 
 /* ---------- posting an answer ---------- */
@@ -277,12 +316,13 @@ export async function submitCheckin(env, d, p) {
   const needCtx = need ? [ctxLine(`🔴 *Blocked on ${blockerLabel(on)}:* ${esc(need)}`)] : [];
 
   if (cb === 'ci_plan_submit') {
-    const rt = val(p.view, 'plan')?.rich_text_value;
+    const parts = brandParts(p.view, 'pb', meta.brands);
     const types = (val(p.view, 'type')?.selected_options || []).map(o => o.value);
     const walk = clean(val(p.view, 'walk')?.value, 300);
-    const blocks = [head(me.name, 'plan', types.join(', ')), rt, ...(walk ? [ctxLine(`📅 *Walkthrough:* ${esc(walk)}`)] : []), ...needCtx].filter(Boolean);
+    const blocks = [head(me.name, 'plan', types.join(', ')), ...partBlocks(parts), ...(walk ? [ctxLine(`📅 *Walkthrough:* ${esc(walk)}`)] : []), ...needCtx];
     await postInThread(env, d, day, `${me.name}'s plan`, blocks);
-    s.plan = { at: now, types }; s.items = linesOf(rt); s.out = false;
+    s.plan = { at: now, types }; s.out = false;
+    s.items = parts.flatMap(x => linesOf(x.rt).map(l => x.a === 'other' ? l : `${x.n}: ${l}`));
     if (walk) s.items.push(`Walkthrough: ${walk}`);
   } else if (cb === 'ci_wrap_submit') {
     const picked = new Set((val(p.view, 'done')?.selected_options || []).map(o => +o.value));
@@ -302,20 +342,19 @@ export async function submitCheckin(env, d, p) {
     await postInThread(env, d, day, `${me.name}'s wrap-up`, blocks);
     s.wrap = { at: now, done: picked.size, of: items.length };
   } else if (cb === 'ci_week_submit') {
-    const rt = val(p.view, 'week')?.rich_text_value;
+    const parts = brandParts(p.view, 'wb', meta.brands);
     const walk = clean(val(p.view, 'walk')?.value, 300);
-    const blocks = [head(me.name, 'week', `${dayName(date)} to Fri`), rt, ...(walk ? [ctxLine(`📅 *Walkthroughs:* ${esc(walk)}`)] : []), ...needCtx].filter(Boolean);
-    const brands = (await d.listBrands(env)).filter(b => !PAUSED.test(b.name || ''));
-    const parts = splitByBrand(rt, brands.map(b => shortName(b.name)));
+    const blocks = [head(me.name, 'week', `${dayName(date)} to Fri`), ...partBlocks(parts), ...(walk ? [ctxLine(`📅 *Walkthroughs:* ${esc(walk)}`)] : []), ...needCtx];
+    const brands = await d.listBrands(env);
     const copied = [];
     for (const part of parts) {
-      const b = brands.find(x => shortName(x.name) === part.brand);
+      const b = brands.find(x => x.act_id === part.a);
       if (!b?.slack_channel || b.slack_channel === b.brief_channel) continue;
       /* Under the brand's morning card (its Monday thread), where the Monday call screen reads the plan from; top-level when the brand has no card today. */
-      const blocks = [{ type: 'section', text: md(`*${me.name}'s week · ${part.brand}* (from #daily-checkin)`) }, part.rt];
-      const ok = d.teamPost ? await d.teamPost(env, b.slack_channel, `${me.name}'s week for ${part.brand}`, blocks, {}).then(() => true).catch(() => false)
-        : (await d.slackApi(env, 'chat.postMessage', { channel: b.slack_channel, text: `${me.name}'s week for ${part.brand}`, unfurl_links: false, blocks }).catch(() => null))?.ok;
-      if (ok) copied.push(part.brand);
+      const blocks = [{ type: 'section', text: md(`*${me.name}'s week · ${part.n}* (from #daily-checkin)`) }, part.rt];
+      const ok = d.teamPost ? await d.teamPost(env, b.slack_channel, `${me.name}'s week for ${part.n}`, blocks, {}).then(() => true).catch(() => false)
+        : (await d.slackApi(env, 'chat.postMessage', { channel: b.slack_channel, text: `${me.name}'s week for ${part.n}`, unfurl_links: false, blocks }).catch(() => null))?.ok;
+      if (ok) copied.push(part.n);
     }
     if (copied.length) blocks.push(ctxLine(`Copied to ${copied.map(n => `#${n.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-internal`).join(', ')}`));
     await postInThread(env, d, day, `${me.name}'s week`, blocks);

@@ -23,7 +23,7 @@ import { handleMeetings, handleFirefliesHook, meetingsTick } from './meetings.js
 import { handleCalls } from './callscreen.js';
 import { handleActions, actionTick, handleActionButton, handleReaction, onActionDone, slackName } from './actions.js';
 import { minOffTick, handleMinOffButton, minOffOn } from './minoff.js';
-import { checkinTick, checkinAction, submitCheckin, reviewPost, reviewAction, reviewSubmit, serveReviewPic, ensureDay } from './checkin.js';
+import { checkinTick, checkinAction, submitCheckin, checkinErrors, reviewPost, reviewAction, reviewSubmit, serveReviewPic, ensureDay } from './checkin.js';
 import { handleProduction, listBoard, moveCard as prodMove, formatOf as prodFormat } from './production.js';
 import { readDoc as prodReadDoc } from './asana-brand.js';
 import { serveFile as prodFile, handleReviewLink, savePhoto } from './prodwork.js';
@@ -6457,7 +6457,10 @@ async function handleSlackInteract(request, env, ctx) {
     /* The daily check-in's buttons and forms, and the review post's Approve all / Ask for changes (checkin.js, 2026-10-26). */
     if (payload.type === 'block_actions' && (payload.actions || []).some(a => /^ci_/.test(a.action_id || ''))) { await checkinAction(env, ctx, checkinDeps(ctx), payload); return ACK(); }
     if (payload.type === 'block_actions' && (payload.actions || []).some(a => /^rv_/.test(a.action_id || ''))) { await reviewAction(env, ctx, checkinDeps(ctx), payload); return ACK(); }
-    if (payload.type === 'view_submission' && /^ci_/.test(payload.view?.callback_id || '')) { ctx.waitUntil(submitCheckin(env, checkinDeps(ctx), payload).catch(e => console.log('checkin submit: ' + e.message))); return ACK(); }
+    if (payload.type === 'view_submission' && /^ci_/.test(payload.view?.callback_id || '')) {
+      const errors = checkinErrors(payload);
+      if (errors) return new Response(JSON.stringify({ response_action: 'errors', errors }), { headers: { 'content-type': 'application/json' } });
+      ctx.waitUntil(submitCheckin(env, checkinDeps(ctx), payload).catch(e => console.log('checkin submit: ' + e.message))); return ACK(); }
     if (payload.type === 'view_submission' && /^rv_/.test(payload.view?.callback_id || '')) { await reviewSubmit(env, ctx, checkinDeps(ctx), payload); return ACK(); }
     /* Test minimums due off: Take it off / Take all N off under the morning card (minoff.js, 2026-10-15). */
     if (payload.type === 'block_actions' && (payload.actions || []).some(a => /^minoff_/.test(a.action_id || '')))
