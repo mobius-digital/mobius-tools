@@ -365,6 +365,8 @@ export async function aiPassDone(env, d, today) {
 /** Every 5 minutes from an hour before the morning hour to noon Central: up to PER_TICK brands not read today, side by
  *  side. Stops at the day's cap. */
 export async function buyerAITick(env, d, { force = false, acts = null, perTick = PER_TICK } = {}) {
+  /* settings `buyerAIRunNow` = '1' (set from D1 or Claude Code): the next 5-minute tick reads every brand now, any hour. */
+  if (!force && (await getSetting(env, 'buyerAIRunNow')) === '1') { await putSetting(env, 'buyerAIRunNow', '0'); force = true; }
   if (!force && !(await buyerAIOn(env))) return { skipped: 'off' };
   const today = d.centralDate ? d.centralDate() : centralToday();
   if (!force) {
