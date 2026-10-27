@@ -75,5 +75,21 @@ await check('no em dashes in the page copy', () => {
   assert.ok(!/—/.test(fs.readFileSync(new URL('./buyer.js', import.meta.url), 'utf8')));
 });
 
+await check('the nudge: "Meta did not pick it" takes the minimum off THEN pauses the set (dry run + write each); a plain minimum row only takes it off', async () => {
+  const calls = [];
+  T.setHost({ S: {}, apiAH: async (path, o) => { const b = JSON.parse(o.body); calls.push(b); return b.dry ? { ok: true, dry: true, before: b.kind === 'pause' ? { status: 'ACTIVE' } : { daily_min_spend_target: '1000' } } : { ok: true, write: 'mw_' + b.kind }; } });
+  const NP = { key: 'brand_lucky|900|minoff', kind: 'minoff', act_id: 'brand_lucky', brand: 'Lucky Golf', level: 'adset', object: '900111', name: '444 | UGC | Carver', adset_id: '900111',
+    action: 'Take the minimum off and pause', why: 'Meta did not pick it: $72 in 8 days on a $10/day minimum', do: 'minoff', nudge: 'not_picked', then: 'pause' };
+  const plan = await T.planOne(NP);
+  const res = await T.commitOne(plan);
+  assert.equal(res.ok, true); assert.equal(res.summary, 'Minimum off and paused');
+  eq(calls.map(c => `${c.kind}${c.dry ? ' dry' : ''}`), ['min_spend dry', 'min_spend', 'pause dry', 'pause']);
+  eq(calls[1].expect, { daily_min_spend_target: '1000' }); eq(calls[3].expect, { status: 'ACTIVE' });
+  assert.equal(calls[3].object, '900111'); assert.equal(calls[3].level, 'adset');
+  calls.length = 0;
+  const r2 = await T.commitOne(await T.planOne({ ...NP, then: null, nudge: 'campaign' }));
+  assert.equal(r2.ok, true); eq(calls.map(c => c.kind), ['min_spend', 'min_spend']);
+});
+
 console.log(`\n${pass}/${pass + fail} passed`);
 if (fail) process.exit(1);

@@ -207,10 +207,17 @@ export function callRow(r) {
     goal: r.goal ?? null, goal_roas: r.goal_roas ?? null, metric: r.judged_on || r.metric || null, cpa: r.cpa ?? null, roas: r.roas ?? null, revenue: r.revenue ?? null,
     days: r.days ?? null, role: r.role ?? null, top_ad: r.top_ad || null, anchor_ad: r.anchor && r.anchor.ad_id ? String(r.anchor.ad_id) : null };
 }
+/* THE NUDGE (2026-10-27): a minimum judged on how Meta spent past it (asana-brand.js nudgeCall) carries `nudge`:
+   winner = minimum off and keep it, campaign = minimum off and let the campaign decide, not_picked = minimum off and
+   pause (`then: 'pause'`, the page makes both writes). */
+const NUDGE_ACTION = { winner: 'Take the minimum off, keep it', campaign: 'Take the minimum off', not_picked: 'Take the minimum off and pause' };
 export function minRow(a, it) {
+  const nudge = NUDGE_ACTION[it.nudge] ? it.nudge : null;
+  const why = nudge ? oneLine(it.why, 140) : `Meta must spend ${dollars(it.min)} a day on it${it.day ? `, day ${it.day}` : ''}`;
   return { key: `${a.act_id}|${it.id}|minoff`, kind: 'minoff', act_id: a.act_id, brand: a.name, currency: a.currency || 'USD', object: String(it.id), level: 'adset',
-    name: it.name, set: null, action: ACTION.minoff(), why: `Meta must spend ${dollars(it.min)} a day on it${it.day ? `, day ${it.day}` : ''}`, why_full: clean(`Meta has to spend ${dollars(it.min)} a day on it; day ${it.day || '?'}, ${it.why}.`, 600),
-    stake: Math.max(0, (+it.min || 0) * 7), do: 'minoff', adset_id: String(it.id), adset: it.name, min: +it.min || 0 };
+    name: it.name, set: null, action: nudge ? NUDGE_ACTION[nudge] : ACTION.minoff(), why, why_full: clean(`Meta has to spend ${dollars(it.min)} a day on it; day ${it.day || '?'}, ${it.why}.`, 600),
+    stake: Math.max(0, nudge === 'not_picked' || nudge === 'campaign' ? +it.spend || (+it.min || 0) * 7 : (+it.min || 0) * 7), do: 'minoff', adset_id: String(it.id), adset: it.name, min: +it.min || 0,
+    nudge, then: nudge === 'not_picked' ? 'pause' : null };
 }
 export function launchRow(c, n, { studio = null, work = 0 } = {}) {
   return { key: `${c.act_id}|${c.id}|launch`, kind: 'launch', act_id: c.act_id, brand: c.brand, currency: 'USD', object: String(c.id), level: 'card',
@@ -236,7 +243,7 @@ async function minimums(env, d, brands, today, { live = true } = {}) {
       try {
         const r = await d.dueOff(env, a.act_id);
         if (r && r.error) throw new Error(r.error);
-        items = ((r && r.due) || []).map(x => ({ id: String(x.id), name: x.name, min: x.min, day: x.day, why: x.why }));
+        items = ((r && r.due) || []).map(x => ({ id: String(x.id), name: x.name, min: x.min, day: x.day, why: x.why, ...(x.nudge ? { nudge: x.nudge, spend: x.spend, orders: x.orders, then: x.then || null } : {}) }));
         cache[a.act_id] = { at: new Date().toISOString(), items }; dirty = true;
       } catch (e) { notes.push(`${a.name}: ${e.message}`); cache[a.act_id] = { at: new Date().toISOString(), items: [], err: e.message }; dirty = true; }
     }

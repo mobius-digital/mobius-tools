@@ -221,10 +221,28 @@ async function sourceOf(env, act, b, d) {
       line: row.line ?? 0, format: 'Still', num: test?.num || (sb?.num ? String(parseInt(sb.num, 10)) : null), test,
       headline: spec.headline || '', primary_text: brief.post_copy || '', handle: null, product: (setup.products || [])[0]?.handle || null };
   }
-  const a = b.asset || {};
-  if (!a.image_url === !a.video_id) return { error: 'Give the asset as an image link or a Meta video id.' };
+  const a = { ...(b.asset || {}) };
+  /* 2026-10-27: a creator's video file by its download link (the Lucky creator app's file_url) is handed to Meta ONCE
+     (advideos file_url); the video id is kept in settings `launchVideo:<meta act>:<link>` so prep, the dry run and the
+     create all use the same upload. The ad is made once Meta has processed it (the dry run says when it is still busy). */
+  if (a.video_url && !a.video_id && !a.image_url) {
+    if (!/^https:\/\//.test(String(a.video_url))) return { error: 'The video link must be a full https:// download link.' };
+    const metas = await metaActs(env, act);
+    if (!metas.length) return { error: 'This brand has no Meta ad account connected in Locus.' };
+    const key = `launchVideo:${metas[0].act}:${String(a.video_url).slice(0, 400)}`;
+    let vid = (await env.DB.prepare(`SELECT value FROM settings WHERE key = ?1`).bind(key).first().catch(() => null))?.value || null;
+    if (!vid) {
+      try { vid = String((await gpost(d, env, `${metas[0].act}/advideos`, { file_url: String(a.video_url), name: clip(a.video_name || a.handle || 'Creator video', 100) })).id || ''); }
+      catch (e) { return { error: `Meta did not take the video: ${e.message}` }; }
+      if (!vid) return { error: 'Meta did not return a video id. Try again.' };
+      await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(key, vid).run().catch(() => {});
+    }
+    a.video_id = vid;
+  }
+  if (!a.image_url === !a.video_id) return { error: 'Give the asset as an image link, a video download link or a Meta video id.' };
   const test = await testFor(env, act, { batchId: a.batch_id, num: a.num });
   return { kind: a.handle ? 'creator' : 'asset', studio_ad: null, studio_batch: null, image_url: a.image_url || null, video_id: a.video_id ? String(a.video_id) : null,
+    sponsor_ig: /^\d{6,}$/.test(String(a.sponsor_ig || '')) ? String(a.sponsor_ig) : null,
     line: Number.isInteger(+a.line) ? +a.line : 0, format: a.format || null, handle: a.handle || null, num: test?.num || (a.num ? String(parseInt(a.num, 10)) : null), test,
     headline: a.headline || '', primary_text: a.primary_text || '', product: a.product || null, link: a.link || null };
 }
@@ -332,6 +350,7 @@ function createInput(act, src, b) {
   return { brand: act, adset: String(b.adset || ''), ...(src.video_id ? { video_id: src.video_id } : { image_url: src.image_url }),
     headline: clip(b.headline, 255), primary_text: clip(b.primary_text, 3000), description: clip(b.description, 255),
     link: String(b.link || '').trim(), cta: CTAS.includes(b.cta) ? b.cta : 'SHOP_NOW', ad_name: clip(String(b.name || '').trim(), 300),
+    ...(src.sponsor_ig ? { sponsor_ig: src.sponsor_ig } : {}), ...(src.kind === 'creator' ? { plain: true } : {}),
     reason: clip(b.reason || `Launched from Locus${src.num ? ` for test ${src.num}` : ''}${src.kind === 'studio' ? ' (Studio ad)' : src.handle ? ` (creator ${formatOf(src)})` : ''}`, 300) };
 }
 function checkInput(b, src) {
@@ -615,6 +634,7 @@ async function batchRows(env, d, act, b) {
     if (a.missing.length) { if (a.missing.some(k => k !== 'headline' && k !== 'primary_text')) other = true; short.push(`${a.ad ? 'Ad ' + a.ad : a.name}: ${a.missing.map(k => MISSING[k]).join(' and ').replace(/and no /g, 'or ')}`); continue; }
     rows.push({ work_file: a.file_id, ad: a.ad, adset: String(b.adset), cta: CTAS.includes(b.cta) ? b.cta : p.cta, name: clip(String(x.name || a.name).trim(), 300) || a.name,
       headline: a.headline.value, primary_text: a.primary_text.value, description: a.description.value, link: String(x.link || a.link.value || '').trim(), again: b.again === true,
+      ...(b.reason ? { reason: clip(String(b.reason), 300) } : {}),
       ...(a.carousel ? { carousel: true, cards: a.cards, num: p.card.num, test: p.test } : {}) });
   }
   if (short.length) return { error: `${other ? 'Not ready to launch.' : 'The brief is missing copy.'} ${short.join('; ')}. ${other ? 'Fix it first' : 'Write it in the brief first'}; nothing was made.`, short };
