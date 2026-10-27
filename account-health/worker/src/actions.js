@@ -132,7 +132,18 @@ export async function addAction(env, it) {
   row.owner_email = emailOf(row.owner);
   await env.DB.prepare(`INSERT INTO p_action (id, act_id, text, owner, owner_email, due, kind, status, source, source_id, created_at, created_by, asana_gid, asana_url, area, detail) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'open', ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)`)
     .bind(row.id, row.act_id, row.text, row.owner, row.owner_email, row.due, row.kind, row.source, row.source_id, row.created_at, row.created_by, row.asana_gid, row.asana_url, row.area, row.detail).run();
-  return { ...row, status: 'open', url: itemUrl(row) };
+  const out = { ...row, status: 'open', url: itemUrl(row) };
+  return { ...out, ...(await runPlaced(env, out)) };
+}
+
+/* Anything that files a new or re-dated row somewhere else (Cole's calendar blocks, blocks.js). Registered once by
+   worker.js; a hook returns extra fields for the answer ({calendar: {...}}); a failing hook never fails the write. */
+const PLACE_HOOKS = [];
+export function onActionPlaced(fn) { if (typeof fn === 'function') PLACE_HOOKS.push(fn); }
+async function runPlaced(env, row) {
+  const extra = {};
+  for (const h of PLACE_HOOKS) Object.assign(extra, (await Promise.resolve().then(() => h(env, row)).catch(e => { console.log('place hook:', e.message); return null; })) || {});
+  return extra;
 }
 export const itemUrl = r => `${LOCUS}?open=actions${r.act_id ? `&act=${encodeURIComponent(r.act_id)}` : ''}&item=${encodeURIComponent(r.id)}`;
 
@@ -182,7 +193,10 @@ export async function editAction(env, id, patch) {
   const remind = next.due !== r.due ? null : r.reminded_on;
   await env.DB.prepare(`UPDATE p_action SET text = ?2, owner = ?3, owner_email = ?4, due = ?5, kind = ?6, act_id = ?7, status = ?8, reminded_on = ?9, area = ?10, detail = ?11 WHERE id = ?1`)
     .bind(r.id, next.text, next.owner, emailOf(next.owner), next.due, next.kind, next.act_id, next.status, remind, next.area ?? null, next.detail).run();
-  return { ...r, ...next, url: itemUrl({ ...r, ...next }) };
+  const out = { ...r, ...next, url: itemUrl({ ...r, ...next }) };
+  /* A new owner, date, brand or wording can mean a different block (or none): place it again. */
+  const moved = next.owner !== r.owner || next.due !== r.due || next.act_id !== r.act_id || next.text !== r.text || next.status !== r.status;
+  return moved ? { ...out, ...(await runPlaced(env, { ...out, was: r })) } : out;
 }
 
 /** Open items grouped per brand (agency-wide first), the shape the Calls page and the Monday screen read. */

@@ -4629,6 +4629,22 @@ this goes for all things that go from the right side", and the Integrations pane
   `then: 'pause'` the single Agree (`minOff`, "Do both") and Agree to all (`planOne` -> `commitOne`) take the minimum to 0,
   then pause the set (`pauseAfter`, dry run + write with expect); the toast's Undo carries both writes.
 
+## 2026-10-27: photo library follows Drive shortcuts, skips archive / not-for-use folders
+
+- **Why:** Dartee looked "really old" in Studio because Locus read Cole's own Dartee folder (2024 Assets) while the
+  real library is "Cole x dartee", a folder Justin shares with cole@. Bonk's Assets holds two SHORTCUTS to the June
+  shoot that the walker dropped (a shortcut is neither a folder nor an image). Audit:
+  scratchpad `locus-asset-audit-2026-10-27.md` (brand by brand, Lucky and Grunk Air, Frame to Air plan).
+- **assets.js `syncAssets`:** the file list now asks for `shortcutDetails(targetId,targetMimeType)`. A folder
+  shortcut joins the walk under the shortcut's name (the `seen` set stops loops); an image shortcut is read once
+  (`files/<target>`) and indexed under the TARGET id, so one photo reached two ways is one row; other shortcuts are
+  ignored. `SKIP` also matches `archive | needs edit | not for use | do not use | don't use` ("06 - Archive",
+  "05-needs edited" in Dartee, "NOT for USE" in VetriPaws and SpeedIn) so Studio never picks from them.
+- **Test:** account-health `node test-assets.mjs` (8 checks: in-memory D1, mocked Drive, a throwaway RSA key for the
+  service-account JWT).
+- **Still a setting, not code:** a shared folder only counts once its link is in the brand's library folders
+  (Brand settings > photo library folders, `p_br_doc` 'assets'.folders) or is its Drive connection. Dartee needs
+  "Cole x dartee" added; Bonk needs BONK Content Library and the monthly shoot folders.
 ## 2026-10-27: client access audit (front end) + Meetings under a brand
 - A client's pages that broke or showed the team's buttons: Requests "Ask the team for something" now `data-client-ok`
   (it was hidden by the client header filter); goal CPA saves through `PUT /api/accounts/<id>` (the client-settings
