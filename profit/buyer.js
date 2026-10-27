@@ -566,12 +566,27 @@
     if (!/^\d{6,}$/.test(String(body.object || ''))) return { error: 'Locus has no id to change here; open it in Ads Manager.' };
     let dry; try { dry = await ah('/api/meta/write', { ...body, dry: true }); } catch (e) { dry = { error: e.message }; }
     if (!dry || dry.error) return { error: (dry && dry.error) || 'Meta did not answer.' };
-    return { body, dry, expect: expectOf(body.kind, dry.before) };
+    return { body, dry, expect: expectOf(body.kind, dry.before), then: body.kind === 'min_spend' && r.then === 'pause' ? r : null };
   }
   async function commitOne(p) {
     let w; try { w = await ah('/api/meta/write', { ...p.body, expect: p.expect }); } catch (e) { w = { error: e.message }; }
     if (!w || w.error) return { ok: false, error: (w && w.error) || 'Meta did not answer.' };
+    /* The nudge (2026-10-27): Meta did not pick the set = the minimum off, then the set paused. */
+    if (p.then) {
+      const pz = await pauseAfter(p.then);
+      if (!pz.ok) return { ok: false, error: `Minimum off, but not paused: ${pz.error}` };
+      return { ok: true, write: w, also: pz.write, summary: 'Minimum off and paused' };
+    }
     return { ok: true, write: w, summary: String(w.summary || '').replace(/^[^:]+:\s*/, '') };
+  }
+  /** Pause the ad set after its minimum came off (the nudge's not picked row): a dry run, then the write with expect. */
+  async function pauseAfter(r) {
+    const body = { act: r.act_id, kind: 'pause', level: 'adset', object: r.adset_id, reason: `From the Buyer list: ${r.action}. ${r.why || ''}`.slice(0, 280) };
+    let dry; try { dry = await ah('/api/meta/write', { ...body, dry: true }); } catch (e) { dry = { error: e.message }; }
+    if (!dry || dry.error) return { ok: false, error: (dry && dry.error) || 'Meta did not answer.' };
+    let w; try { w = await ah('/api/meta/write', { ...body, expect: dry.before && dry.before.status != null ? { status: dry.before.status } : undefined }); } catch (e) { w = { error: e.message }; }
+    if (!w || w.error) return { ok: false, error: (w && w.error) || 'Meta did not answer.' };
+    return { ok: true, write: w };
   }
   const stepHtml = s => (s || []).map(x => `<span class="lx-ba"><span>${esc(x.from ?? 'none')}</span><i>→</i><b>${esc(x.to ?? 'none')}</b></span>`).join('');
   const itOf = r => ({ act_id: r.act_id, brand: r.brand, adset_id: r.adset_id, ad_id: r.ad_id, why: r.why });
@@ -672,13 +687,17 @@
   /* Take the test minimum off: a dry run shows the minimum now and after, then the write with expect (stale = refused). */
   async function minOff(r, it) {
     const body = { act: r.act_id, kind: 'min_spend', level: 'adset', object: r.adset_id, min: 0, reason: `From the Buyer list: ${r.why_full || r.why}` };
-    const m = modal(`Take the test minimum off "${r.name}"?`, `${esc(r.brand)}. Meta stops having to spend a set amount on it each day; the budget stays as it is.`, '<p class="faint" data-s>Checking with Meta…</p>', 'Take it off', async () => {
+    const both = r.then === 'pause';
+    const m = modal(both ? `Take the minimum off and pause "${r.name}"?` : `Take the test minimum off "${r.name}"?`, `${esc(r.brand)}. ${both ? `${esc(r.why || 'Meta did not pick it')}. The minimum goes to $0 and the ad set is paused.` : 'Meta stops having to spend a set amount on it each day; the budget stays as it is.'}`, '<p class="faint" data-s>Checking with Meta…</p>', both ? 'Do both' : 'Take it off', async () => {
       if (!m.plan) throw new Error('Meta did not answer the check.');
       const w = await ah('/api/meta/write', { ...body, expect: m.plan });
       if (!w || w.error) throw new Error((w && w.error) || 'Meta did not answer.');
+      let pz = null;
+      if (both) { pz = await pauseAfter(r); if (!pz.ok) throw new Error(`The minimum came off, but the set was not paused: ${pz.error}`); }
       await afterDo(r)();
       const W = window.LxMetaWrite;
-      toast('Test minimum taken off.', false, w.write && W ? () => W.undo(H, [w], it, afterUndo(r)) : null);
+      const ws = pz ? [pz.write, w] : [w];
+      toast(pz ? 'Minimum off and the ad set paused.' : 'Test minimum taken off.', false, w.write && W ? () => W.undo(H, ws, it, afterUndo(r)) : null);
     });
     m.yes.disabled = true;
     let dry; try { dry = await ah('/api/meta/write', { ...body, dry: true }); } catch (e) { dry = { error: e.message }; }
@@ -715,5 +734,5 @@
     catch (e) { const pre = m.w.querySelector('[data-pre]'); if (pre) pre.textContent = e.message; }
   }
 
-  window.BuyerTab = { render, _test: { bodyOf, expectOf, canDo, groupsOf, runAll, row: r => row(r), setHost: h => { H = h; } } };
+  window.BuyerTab = { render, _test: { bodyOf, expectOf, canDo, groupsOf, runAll, planOne, commitOne, row: r => row(r), setHost: h => { H = h; } } };
 })();
