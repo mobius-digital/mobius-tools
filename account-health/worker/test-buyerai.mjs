@@ -197,6 +197,16 @@ test('the post waits for the morning read in the post hour, then goes anyway; th
   assert.equal(noDash('a \u2014 b \u2013 c'), 'a, b, c');
 });
 
+test('run now: settings buyerAIRunNow = a Slack id reads every brand at any hour, then posts the list there as a preview, once', async () => {
+  today = '2026-10-31'; hour = 20; posts = []; calls = [];
+  setSetting('buyerAIRunNow', 'C0C8B4ZCGKT');
+  const r = await buyerAITick(env, d);
+  assert.equal(r.ran.brand_lucky.status, 'done'); assert.equal(calls.length, 1);
+  assert.equal(r.preview.channel, 'C0C8B4ZCGKT'); assert.equal(posts.length, 1); assert.equal(posts[0].channel, 'C0C8B4ZCGKT');
+  assert.equal(setting('buyerAIRunNow'), '0');
+  assert.match((await buyerAITick(env, d)).skipped, /after noon/);
+});
+
 let pass = 0;
 for (const [name, fn] of tests) {
   try { await fn(); pass++; console.log(`PASS  ${name}`); }
