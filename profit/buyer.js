@@ -17,6 +17,12 @@
  * "Launched and scheduled": Scheduled (dated cards, cards waiting for the next launch day) and Launched (p_launch, last 30
  * days, newest first; status read live from Meta after the page paints, GET /api/buyer-list/launched?refresh=1). A search
  * box filters both by brand, card or ad. A tap on a row opens its details (a bottom sheet on a phone).
+ * REVIEW FLOW (2026-10-26, account-health buyerai.js): every ad call row opens to show the ad set's ads (cover, name, 7-day
+ * numbers each; a tap on a picture = the bigger view, playing when Meta gives a video). Agree = the Do above (the shared
+ * Meta write, logged, Undo). Disagree = "Why not?" -> Locus answers once in two sentences (drops it, or holds with
+ * numbers) -> Go with mine / Go with Locus; every disagreement is saved as a buyer lesson the morning read follows.
+ * The morning read (Opus, before the daily post) marks each rule row keep / change / drop and adds the calls the rules
+ * missed (kind 'ai', "From the morning read").
  * The host passes { S, api, apiAH, show, pageHead, pageActions, confirmModal, AskUI, RUN }. */
 (() => {
   let H = null;
@@ -26,9 +32,12 @@
   const money = (n, c) => n == null || !isFinite(n) ? '' : sym(c) + Math.round(n).toLocaleString('en-US');
   const kmoney = (n, c) => Math.abs(n) >= 1e4 ? `${sym(c)}${(n / 1e3).toFixed(1)}K` : money(n, c);
   const OWNERS = ['Cole', 'Ahsan', 'Noma', 'William', 'Ravo', 'Radhesh', 'Hamza'];
-  const KIND_LABEL = { all: 'All', cut: 'Cut', scale: 'Scale', trim: 'Trim', refresh: 'Refresh', mixed: 'Your call', minoff: 'Test minimums', launch: 'Launch' };
-  const CHIP = { cut: 'CUT', scale: 'SCALE', trim: 'TRIM', refresh: 'REFRESH', mixed: 'YOUR CALL', minoff: 'MINIMUM', launch: 'LAUNCH' };
-  const DO_LABEL = { budget: 'Do', pause: 'Do', minoff: 'Do', launch: 'Do', brief: 'Do' };
+  const KIND_LABEL = { all: 'All', cut: 'Cut', scale: 'Scale', trim: 'Trim', refresh: 'Refresh', mixed: 'Your call', minoff: 'Test minimums', launch: 'Launch', ai: 'Morning read' };
+  const CHIP = { cut: 'CUT', scale: 'SCALE', trim: 'TRIM', refresh: 'REFRESH', mixed: 'YOUR CALL', minoff: 'MINIMUM', launch: 'LAUNCH', ai: 'MORNING READ' };
+  const DO_LABEL = { budget: 'Agree', pause: 'Agree', minoff: 'Agree', launch: 'Launch', brief: 'Agree' };
+  const AI_SAYS = { keep: 'agrees', change: 'says change it', drop: 'says drop it' };
+  const ROLE = { opener: 'Opens journeys', closer: 'Closes sales', both: 'Opens and closes' };
+  let OPEN = new Set(), ADS = new Map();
   const DO_TIP = { budget: 'Raise this ad set\'s budget 20%. You see the number and confirm before anything is written.', pause: 'Turn it off in Meta. You see it first and confirm.',
     minoff: 'Set the test minimum to $0 in Meta. You see it first and confirm.', launch: 'Opens Launch to Meta for this card. The ads go up paused.', brief: 'Ask Locus to brief a new version of the main ad.' };
   let KIND = 'all', SHOWQ = false, DATA = null, BUSY = false, LQ = '', LALL = false, LREAD = '';
@@ -60,7 +69,7 @@
       .by .by-chips{margin:0 0 12px}
       .by .by-chips button{display:inline-flex;gap:6px;align-items:center}
       .by .by-chips button b{font-variant-numeric:tabular-nums}
-      .by .by-row{display:grid;grid-template-columns:150px minmax(0,1.1fr) minmax(0,1.6fr) 96px 228px;gap:12px;align-items:center;padding:11px 0;border-top:1px solid var(--line)}
+      .by .by-row{display:grid;grid-template-columns:150px minmax(0,1.1fr) minmax(0,1.6fr) 96px 300px;gap:12px;align-items:center;padding:11px 0;border-top:1px solid var(--line)}
       .by .by-row:first-of-type{border-top:0}
       .by .by-row.head{font-size:11.5px;color:var(--muted);padding:2px 0 6px;border-top:0}
       .by .by-br{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -78,6 +87,25 @@
       .by .by-btns{display:flex;gap:6px;justify-content:flex-end}
       .by .by-btns .v2btn{margin:0;min-width:64px}
       .by .by-q{opacity:.75}
+      .by .by-ai{font-size:12.5px;color:var(--ink);background:var(--surface-2);border-radius:6px;padding:4px 8px}
+      .by .by-ai b{font-weight:650}.by .by-ai.drop b{color:var(--bad)}.by .by-ai.change b{color:var(--warn)}.by .by-ai.keep b{color:var(--good)}
+      .by .by-k.ai{background:var(--brand-soft);color:var(--brand)}
+      .by .by-tog{background:none;border:0;padding:0;margin-top:3px;font:inherit;font-size:12px;color:var(--brand);cursor:pointer;min-height:24px}
+      .by .by-ads{grid-column:1/-1;padding:4px 0 6px}
+      .by .by-adg{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+      .by .by-ad{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface);display:flex;flex-direction:column}
+      .by .by-ad.hit{border-color:var(--warn);box-shadow:0 0 0 1px var(--warn)}
+      .by .by-adth{aspect-ratio:1/1;background:var(--surface-2) center/cover no-repeat;border:0;padding:0;cursor:zoom-in;position:relative;width:100%}
+      .by .by-adth span{position:absolute;left:6px;top:6px;font-size:10.5px;font-weight:650;background:rgba(0,0,0,.6);color:#fff;border-radius:5px;padding:2px 6px}
+      .by .by-adb{padding:8px 10px 10px;display:flex;flex-direction:column;gap:6px}
+      .by .by-adn{font-weight:600;font-size:13px;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;word-break:break-word}
+      .by .by-adtags{display:flex;gap:4px;flex-wrap:wrap}.by .by-adtags i{font-style:normal;font-size:10.5px;padding:2px 6px;border-radius:5px;background:var(--surface-2);color:var(--muted)}
+      .by .by-adm{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:12px;margin:0}.by .by-adm dt{color:var(--muted)}.by .by-adm dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
+      .by .by-adm dd.good{color:var(--good)}.by .by-adm dd.bad{color:var(--bad)}
+      .by-say{font-size:14.5px;line-height:1.5;background:var(--surface-2);border-radius:8px;padding:10px 12px;margin:0 0 12px}
+      .by-form textarea{min-height:90px;resize:vertical;font:inherit}
+      .by-ls{list-style:none;margin:0 0 12px;padding:0;max-height:60vh;overflow:auto}.by-ls li{border-top:1px solid var(--line);padding:10px 0;font-size:13.5px}.by-ls li:first-child{border-top:0}
+      .by-ls .m{font-size:12px;color:var(--muted)}
       .by .by-q .by-why{-webkit-line-clamp:1}
       .by .by-foot{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px;font-size:12.5px;color:var(--muted)}
       .by .by-notes{font-size:12px;color:var(--muted);margin-top:8px}
@@ -107,7 +135,10 @@
         .by .by-row{grid-template-columns:1fr auto;grid-template-areas:"br st" "nm nm" "what what" "btns btns";gap:6px 10px;padding:14px 0}
         .by .by-row.head{display:none}
         .by .by-br{grid-area:br}.by .by-st{grid-area:st}.by .by-nm{grid-area:nm}.by .by-what{grid-area:what}.by .by-btns{grid-area:btns;justify-content:stretch}
-        .by .by-btns .v2btn{flex:1;min-height:44px}
+        .by .by-btns .v2btn{flex:1;min-height:44px;min-width:0}
+        .by .by-btns{flex-wrap:wrap}
+        .by .by-adg{grid-template-columns:repeat(2,minmax(0,1fr))}
+        .by .by-tog{min-height:44px}
         .by .by-st small{display:inline;margin-left:4px}
       }`;
     document.head.appendChild(st);
@@ -162,7 +193,7 @@
     const d = DATA, one = d.act !== 'all';
     const rows = d.rows || [];
     const shown = rows.filter(r => KIND === 'all' || r.kind === KIND);
-    const kinds = ['all', 'cut', 'scale', 'trim', 'refresh', 'mixed', 'minoff', 'launch'].filter(k => k === 'all' || (d.counts || {})[k]);
+    const kinds = ['all', 'cut', 'scale', 'trim', 'refresh', 'mixed', 'ai', 'minoff', 'launch'].filter(k => k === 'all' || (d.counts || {})[k]);
     const chips = kinds.length > 2 ? `<div class="v2jobs by-chips" role="group" aria-label="Kind">${kinds.map(k => `<button type="button" class="${KIND === k ? 'on' : ''}" data-k="${k}" aria-pressed="${KIND === k}"><b>${k === 'all' ? rows.length : d.counts[k]}</b>${KIND_LABEL[k]}</button>`).join('')}</div>` : '';
     const stake = d.stake > 0 ? `, <b>${esc(kmoney(d.stake, d.currency))}</b> at stake` : '';
     const nx = d.next_launch || {};
@@ -173,14 +204,18 @@
     const list = shown.length ? `<section class="v2card">${head}${shown.map(row).join('')}</section>`
       : `<section class="v2card"><h3>Nothing to do</h3><p class="v2hint">${KIND === 'all' ? 'No ad set crossed a rule, no test minimum is due off and no card is waiting to launch. Done and skipped calls come back when they are due.' : 'Nothing of this kind right now.'}</p></section>`;
     const h = d.hidden || {}, nq = (h.done || 0) + (h.skipped || 0) + (h.watched || 0);
-    const foot = `<div class="by-foot"><span>Sorted by money at stake. A minimum counts a week of it; launches have no money yet.</span>${nq ? `<button type="button" class="v2link" id="byQuiet">${SHOWQ ? 'Hide' : 'Show'} ${nq} quiet: ${[h.done ? `${h.done} done` : '', h.skipped ? `${h.skipped} skipped until tomorrow` : '', h.watched ? `${h.watched} changed in Meta in the last 3 days` : ''].filter(Boolean).join(', ')}</button>` : ''}</div>`;
+    const foot = `<div class="by-foot"><span>Sorted by money at stake. A minimum counts a week of it; launches have no money yet.</span>${one ? '<button type="button" class="v2link" id="byCalls">Your calls</button>' : ''}${nq ? `<button type="button" class="v2link" id="byQuiet">${SHOWQ ? 'Hide' : 'Show'} ${nq} quiet: ${[h.done ? `${h.done} done` : '', h.skipped ? `${h.skipped} skipped until tomorrow` : '', h.watched ? `${h.watched} changed in Meta in the last 3 days` : ''].filter(Boolean).join(', ')}</button>` : ''}</div>`;
     const quiet = SHOWQ && nq ? `<section class="v2card"><div class="v2h"><h3>Quiet for now</h3><span class="find">Done stays quiet 3 days, Skip until tomorrow, and a change made in Meta is watched 3 days before it is judged again.</span></div>${(d.quiet || []).map(qrow).join('')}</section>` : '';
     /* Tracking gap (hub.js buyerList banners): one line per brand whose cuts are on hold. */
     const banners = (d.banners || []).map(b => `<p class="v2say by-gap" role="note"><b>${esc(b.brand)}</b>: ${esc(b.text)}</p>`).join('');
+    /* The morning read: one line, the brand summaries when one brand is open. */
+    const ai = d.ai || {};
+    const aiLine = !ai.on ? '' : ai.n_read ? `<p class="by-next">Morning read: ${ai.n_read} of ${ai.n_brands} brand${ai.n_brands === 1 ? '' : 's'} read today.${one && (ai.brands || [])[0] ? ` ${esc(ai.brands[0].summary)}` : ''}</p>`
+      : `<p class="by-next">The morning read has not run today yet.</p>`;
     const notes = (d.notes || []).length ? `<p class="by-notes">Could not read everything: ${esc(d.notes.join(' · '))}</p>` : '';
     const lsec = `<section class="v2card by-lnch" id="byLaunch"><div class="v2h"><h3>Launched and scheduled</h3><input type="search" class="by-find" id="byFind" placeholder="${one ? 'Find a card or ad' : 'Find a brand, card or ad'}" value="${esc(LQ)}" aria-label="Find in launched and scheduled"></div>
       <p class="v2hint" style="margin:4px 0 0">Launch days: ${esc(daysWords(d.launch_days))} (Central). A card with its own date goes out on that date. <button type="button" class="v2link" id="byDays">Change launch days</button></p><div id="byLBody">${launchBody()}</div></section>`;
-    $('#main').innerHTML = `<div class="v2 by">${H.pageHead('buyer', one ? `Buyer list: ${esc((H.S.accounts.find(a => a.act_id === d.act) || {}).name || '')}` : 'Buyer list').replace(/<p class="ph-sub">[\s\S]*?<\/p>/, '')}${lead}${banners}${next}${chips}${list}${foot}${quiet}${lsec}${notes}</div>`;
+    $('#main').innerHTML = `<div class="v2 by">${H.pageHead('buyer', one ? `Buyer list: ${esc((H.S.accounts.find(a => a.act_id === d.act) || {}).name || '')}` : 'Buyer list').replace(/<p class="ph-sub">[\s\S]*?<\/p>/, '')}${lead}${banners}${aiLine}${next}${chips}${list}${foot}${quiet}${lsec}${notes}</div>`;
     if (typeof H.pageActions === 'function') H.pageActions('<button type="button" class="btn" id="bySlack" title="The one Buyer list post a day in Slack: where it goes, on or off, and what it says now.">Slack post</button>');
     wire();
   }
@@ -259,14 +294,117 @@
   function row(r) {
     const k = esc(r.key), cur = r.currency || 'USD';
     const sub = r.kind === 'launch' ? (r.launch_on ? `Production, Ready, dated ${ymdShort(r.launch_on)}` : 'Production, Ready') : r.set ? `in ${r.set}` : r.level === 'adset' ? 'Ad set' : '';
-    const primary = r.do ? `<button type="button" class="v2btn" data-do="${k}" title="${esc(DO_TIP[r.do] || '')}">${DO_LABEL[r.do] || 'Do'}</button>`
-      : `<button type="button" class="v2btn" data-done="${k}" title="Mark it decided. It stays quiet 3 days.">Done</button>`;
+    const primary = r.do ? `<button type="button" class="v2btn" data-do="${k}" title="${esc(DO_TIP[r.do] || '')}">${DO_LABEL[r.do] || 'Agree'}</button>`
+      : `<button type="button" class="v2btn" data-done="${k}" title="${r.kind === 'ai' ? 'You made this change (or will). It stays quiet 3 days.' : 'Mark it decided. It stays quiet 3 days.'}">${r.kind === 'ai' || r.kind === 'mixed' ? 'Done' : 'Agree'}</button>`;
+    const canAds = r.kind !== 'launch' && (r.adset_id || r.ad_id);
+    const tog = canAds ? `<button type="button" class="by-tog" data-ads="${k}" aria-expanded="${OPEN.has(r.key)}">${OPEN.has(r.key) ? 'Hide the ads' : 'Show the ads'}</button>` : '';
+    const ai = r.ai ? `<div class="by-ai ${esc(r.ai.verdict)}" title="${esc(r.ai.reason)}"><b>Morning read ${esc(AI_SAYS[r.ai.verdict] || r.ai.verdict)}${r.ai.verdict === 'change' && r.ai.change ? `: ${esc(r.ai.change)}` : ''}.</b> ${esc(r.ai.reason)}</div>`
+      : r.kind === 'ai' ? '<div class="by-ai"><b>From the morning read.</b> The rules did not flag this; Locus did.</div>' : '';
+    const dis = r.kind !== 'launch' ? `<button type="button" class="v2btn ghost" data-dis="${k}" title="Say why not. Locus answers once, then your call stands and it remembers it.">Disagree</button>` : '';
     return `<div class="by-row" data-key="${k}">
       <span class="by-br" title="${esc(r.brand)}">${esc(r.brand)}</span>
-      <div class="by-nm"><div class="n" title="${esc(r.name)}">${esc(r.name)}</div>${sub ? `<div class="s" title="${esc(sub)}">${esc(sub)}</div>` : ''}</div>
-      <div class="by-what"><div class="by-act"><span class="by-k ${esc(r.kind)}">${CHIP[r.kind] || esc(r.kind.toUpperCase())}</span>${esc(r.action)}</div><div class="by-why" title="${esc(r.why_full || r.why)}">${esc(r.why)}</div></div>
+      <div class="by-nm"><div class="n" title="${esc(r.name)}">${esc(r.name)}</div>${sub ? `<div class="s" title="${esc(sub)}">${esc(sub)}</div>` : ''}${tog}</div>
+      <div class="by-what"><div class="by-act"><span class="by-k ${esc(r.kind)}">${CHIP[r.kind] || esc(r.kind.toUpperCase())}</span>${esc(r.action)}</div><div class="by-why" title="${esc(r.why_full || r.why)}">${esc(r.why)}</div>${ai}</div>
       <span class="by-st">${r.stake > 0 ? esc(money(r.stake, cur)) : '&ndash;'}<small>${r.stake > 0 ? 'at stake' : r.kind === 'launch' ? 'new ads' : ''}</small></span>
-      <div class="by-btns">${primary}<button type="button" class="v2btn ghost" data-skip="${k}" title="Hide it for everyone until tomorrow.">Skip</button><button type="button" class="v2btn ghost" data-open="${k}" title="${r.kind === 'launch' ? 'Open the card on Production.' : 'Open it in Locus.'}">Open</button></div></div>`;
+      <div class="by-btns">${primary}${dis}<button type="button" class="v2btn ghost" data-skip="${k}" title="Hide it for everyone until tomorrow.">Skip</button><button type="button" class="v2btn ghost" data-open="${k}" title="${r.kind === 'launch' ? 'Open the card on Production.' : 'Open it in Locus.'}">Open</button></div>
+      ${canAds && OPEN.has(r.key) ? `<div class="by-ads" data-adsbox="${k}">${adsHtml(r)}</div>` : ''}</div>`;
+  }
+  /* ---------- the ads under a row ---------- */
+  const fmtN = (v, d = 0) => v == null ? '&ndash;' : Number(v).toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: d });
+  function adsHtml(r) {
+    const st = ADS.get(r.key);
+    if (!st || st.loading) return '<p class="v2hint">Reading the ads&hellip;</p>';
+    if (st.error) return `<p class="v2bad">${esc(st.error)}</p>`;
+    if (!st.ads.length) return '<p class="v2hint">No ad in this set spent in the last 7 days.</p>';
+    const cur = r.currency || 'USD', roasGoal = r.metric === 'roas';
+    const goal = roasGoal ? r.goal_roas : r.goal;
+    const card = a => {
+      const vs = roasGoal ? (a.roas == null ? '' : goal ? (a.roas >= goal ? 'good' : 'bad') : '') : (a.cpa == null ? (a.spend > 0 && goal && a.spend >= goal ? 'bad' : '') : goal ? (a.cpa <= goal ? 'good' : 'bad') : '');
+      const tags = [a.status && a.status !== 'ACTIVE' ? a.status.charAt(0) + a.status.slice(1).toLowerCase().replace(/_/g, ' ') : '', ROLE[a.role] || '', a.video ? 'Video' : 'Image'].filter(Boolean);
+      const big = (r.kind === 'trim' && a.ad_id === String(r.ad_id)) ? ' hit' : '';
+      return `<div class="by-ad${big}">
+        <button type="button" class="by-adth" data-thumb="${esc(a.ad_id)}" data-play="${esc(a.ad_id)}" data-row="${esc(r.key)}"${a.cover ? ` style="background-image:url('${esc(a.cover)}')"` : ''} aria-label="See the ad ${esc(a.name)} bigger">${big ? '<span>This call</span>' : ''}</button>
+        <div class="by-adb"><div class="by-adn" title="${esc(a.name)}">${esc(a.name)}</div><div class="by-adtags">${tags.map(t => `<i>${esc(t)}</i>`).join('')}</div>
+        <dl class="by-adm"><dt>Spend</dt><dd>${esc(money(a.spend, cur))}</dd><dt>Sales</dt><dd>${fmtN(a.sales, a.sales % 1 ? 1 : 0)}</dd>
+          ${roasGoal ? `<dt>ROAS${goal ? ` (goal ${fmtN(goal, 1)}x)` : ''}</dt><dd class="${vs}">${a.roas == null ? '&ndash;' : `${fmtN(a.roas, 2)}x`}</dd>`
+            : `<dt>CPA${goal ? ` (goal ${esc(money(goal, cur))})` : ''}</dt><dd class="${vs}">${a.cpa == null ? (a.spend > 0 ? 'no sale' : '&ndash;') : esc(money(a.cpa, cur))}</dd>`}
+          <dt>CTR</dt><dd>${a.ctr == null ? '&ndash;' : `${fmtN(a.ctr, 2)}%`}</dd><dt>CPM</dt><dd>${a.cpm == null ? '&ndash;' : esc(money(a.cpm, cur))}</dd>
+          <dt>Frequency</dt><dd>${fmtN(a.freq, 2)}</dd>${a.video ? `<dt>Hook rate</dt><dd>${a.hook == null ? '&ndash;' : `${fmtN(a.hook, 1)}%`}</dd>` : ''}</dl></div></div>`;
+    };
+    return `<p class="v2hint" style="margin:0 0 8px">Last 7 days (${esc(st.from || '')} to ${esc(st.to || '')}). Sales are Triple Whale last click. Tap a picture to see it bigger.</p><div class="by-adg">${st.ads.map(card).join('')}</div>`;
+  }
+  async function loadAds(r) {
+    ADS.set(r.key, { loading: true });
+    const qs = new URLSearchParams({ act: r.act_id });
+    if (r.adset_id) qs.set('adset', r.adset_id);
+    if (r.ad_id) qs.set('ad', r.ad_id);
+    if (r.meta_act) qs.set('meta_act', r.meta_act);
+    try { const j = await H.apiAH(`/api/buyer-list/ads?${qs}`); if (!j || j.error) throw new Error((j && j.error) || 'Locus did not answer.'); ADS.set(r.key, { ads: j.ads || [], from: j.from, to: j.to }); }
+    catch (e) { ADS.set(r.key, { error: `Could not read the ads: ${e.message}` }); }
+    paintAds(r);
+  }
+  function paintAds(r) {
+    const box = document.querySelector(`[data-adsbox="${CSS.escape(r.key)}"]`); if (!box) return;
+    box.innerHTML = adsHtml(r);
+    const st = ADS.get(r.key) || {};
+    /* a cover not stored yet comes from /api/ad-creatives (the same cache the Ads page uses) */
+    const miss = (st.ads || []).filter(a => !a.cover).map(a => a.ad_id);
+    if (miss.length && window.V2 && window.V2.thumbs) window.V2.thumbs(box, miss, r.act_id, H);
+    box.querySelectorAll('[data-play]').forEach(b => b.onclick = () => {
+      const a = (st.ads || []).find(x => x.ad_id === b.dataset.play); if (!a) return;
+      if (!window.V2 || !window.V2.playAd) { window.V2PENDING = { ad: a.ad_id }; return pickAct(r.act_id, 'adcreative'); }
+      window.V2.playAd({ id: a.ad_id, name: a.name, act: r.act_id, note: `${r.brand}, in "${r.adset || r.name}". Last 7 days: ${money(a.spend, r.currency)} spent, ${a.sales} sales.` }, H, () => { window.V2PENDING = { ad: a.ad_id }; pickAct(r.act_id, 'adcreative'); });
+    });
+  }
+  function toggleAds(r) {
+    if (OPEN.has(r.key)) OPEN.delete(r.key); else { OPEN.add(r.key); if (!ADS.has(r.key) || ADS.get(r.key).error) loadAds(r); }
+    paint();
+    if (OPEN.has(r.key) && ADS.has(r.key) && !ADS.get(r.key).loading) paintAds(r);
+  }
+  /* ---------- Disagree: why not -> Locus answers once -> his call ---------- */
+  function disagreeModal(r) {
+    const m = modal(`Why not? ${r.action}`, `${esc(r.brand)}, "${esc(r.name)}". Locus answers once with the numbers, then your call stands and it remembers it.`,
+      `<label>Why not<textarea name="why" maxlength="1200" placeholder="Say it the way you would to a person. For example: it just launched, give it till Friday."></textarea></label><div data-ans></div>`, 'Tell Locus', async w => {
+        const why = w.querySelector('[name="why"]').value.trim();
+        if (why.length < 4) throw new Error('Say why, in a few words.');
+        const j = await ah('/api/buyer-list/disagree', { act: r.act_id, why, row: { key: r.key, kind: r.kind, object: r.object, action: r.action, name: r.name, set: r.set, adset: r.adset, adset_id: r.adset_id, ad_id: r.ad_id, meta_act: r.meta_act,
+          why: r.why, why_full: r.why_full, stake: r.stake, goal: r.goal, goal_roas: r.goal_roas, metric: r.metric, role: r.role, ai: r.ai || null } });
+        if (!j || j.error) throw new Error((j && j.error) || 'Locus did not answer.');
+        answerModal(r, j);
+      });
+    setTimeout(() => { const t = m.w.querySelector('textarea'); if (t) t.focus(); }, 30);
+  }
+  function answerModal(r, j) {
+    if (j.stance === 'drop') {
+      modal('Locus agrees', esc(r.brand), `<p class="by-say">${esc(j.answer)}</p><p class="v2hint">Your call is saved. Locus follows it from now on, and this row is quiet for 3 days.</p>`, null, null);
+      drop(r.key, 'done');
+      return;
+    }
+    const m = modal('Locus still thinks so', esc(r.brand), `<p class="by-say">${esc(j.answer)}</p><p class="v2hint">Your call is final either way, and Locus remembers it.</p>
+      <div class="row" style="gap:8px;flex-wrap:wrap"><button type="button" class="btn" data-x="mine">Go with mine</button>${r.do ? '<button type="button" class="btn primary" data-x="locus">Go with Locus</button>' : '<button type="button" class="btn primary" data-x="locus">Go with Locus</button>'}</div>`, null, null);
+    const go = async dec => {
+      m.w.querySelectorAll('[data-x]').forEach(b => { b.disabled = true; });
+      try {
+        const k = await ah('/api/buyer-list/decide', { act: r.act_id, id: j.id, decision: dec });
+        if (!k || k.error) throw new Error((k && k.error) || 'Locus did not answer.');
+        m.close();
+        if (dec === 'mine') { drop(r.key, 'done'); toast('Going with yours. Locus will remember it.'); }
+        else if (r.do) doIt(r);
+        else toast('Going with Locus. Make the change, then tap Done.');
+      } catch (e) { m.err.textContent = e.message; m.err.hidden = false; m.w.querySelectorAll('[data-x]').forEach(b => { b.disabled = false; }); }
+    };
+    m.w.querySelector('[data-x="mine"]').onclick = () => go('mine');
+    m.w.querySelector('[data-x="locus"]').onclick = () => go('locus');
+  }
+  async function lessonsModal() {
+    const act = DATA.act;
+    const m = modal('Your calls', 'Every time you disagreed with Locus on this brand. The morning read and every later answer follow these.', '<p class="v2hint" data-l>Reading&hellip;</p>', null, null);
+    try {
+      const j = await H.apiAH(`/api/buyer-list/lessons?act=${encodeURIComponent(act)}`); if (!j || j.error) throw new Error((j && j.error) || 'Locus did not answer.');
+      const el = m.w.querySelector('[data-l]'); if (!el) return;
+      const dec = l => l.decision === 'mine' ? (l.stance === 'drop' ? 'Locus agreed' : 'Went with yours') : l.decision === 'locus' ? 'Went with Locus' : 'Not decided';
+      el.outerHTML = (j.lessons || []).length ? `<ul class="by-ls">${j.lessons.map(l => `<li><div><b>${esc(l.name || '')}</b> <span class="m">${esc(String(l.at || '').slice(0, 10))}, ${esc(dec(l))}</span></div><div>You: &ldquo;${esc(l.text)}&rdquo;</div>${l.answer ? `<div class="m">Locus: ${esc(l.answer)}</div>` : ''}</li>`).join('')}</ul>` : '<p class="v2hint">No disagreements yet.</p>';
+    } catch (e) { const el = m.w.querySelector('[data-l]'); if (el) { el.className = 'v2bad'; el.textContent = e.message; } }
   }
   function qrow(r) {
     const hb = r.hidden || {}, when = hb.at ? new Date(hb.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
@@ -318,6 +456,10 @@
     });
     root.querySelectorAll('[data-open]').forEach(b => b.onclick = () => { const r = find(b.dataset.open); if (r) open(r); });
     root.querySelectorAll('[data-do]').forEach(b => b.onclick = () => { const r = find(b.dataset.do); if (r) doIt(r); });
+    root.querySelectorAll('[data-dis]').forEach(b => b.onclick = () => { const r = find(b.dataset.dis); if (r) disagreeModal(r); });
+    root.querySelectorAll('[data-ads]').forEach(b => b.onclick = () => { const r = find(b.dataset.ads); if (r) toggleAds(r); });
+    for (const k of OPEN) { const r = find(k); if (r && ADS.has(k) && !ADS.get(k).loading) paintAds(r); }
+    const yc = $('#byCalls'); if (yc) yc.onclick = lessonsModal;
   }
   function open(r) {
     if (r.kind === 'launch') return pickAct(r.act_id, 'production');
@@ -383,13 +525,16 @@
     const s = DATA.settings || {};
     const m = modal('The daily Slack post', 'ONE post a day at the morning hour: the count, the money at stake, the owner, the top 5 and an Open in Locus button. While it is on, the brand morning cards carry no ad calls.',
       `<label class="row"><input type="checkbox" name="on"${s.buyerPost ? ' checked' : ''}> Post the Buyer list every morning</label>
+       <label class="row"><input type="checkbox" name="ai"${s.buyerAI !== false ? ' checked' : ''}> Morning read first (one AI read per brand before the post, up to $5 a day)</label>
+       <p class="v2hint" data-spend style="margin:-6px 0 12px"></p>
        <label>Slack channel id<input type="text" name="ch" value="${esc(s.buyerChannel || '')}" placeholder="C0C8UA53U3W" maxlength="20" autocomplete="off"><small>Default #daily-briefs (C0C8UA53U3W).</small></label>
        <div><small class="faint">What it would say now</small><pre class="by-pre" data-pre>Reading…</pre></div>`, 'Save', async w => {
         const ch = w.querySelector('[name="ch"]').value.trim();
-        const j = await ah('/api/buyer-list/settings', { buyerPost: w.querySelector('[name="on"]').checked, buyerChannel: ch }, 'PUT');
+        const j = await ah('/api/buyer-list/settings', { buyerPost: w.querySelector('[name="on"]').checked, buyerAI: w.querySelector('[name="ai"]').checked, buyerChannel: ch }, 'PUT');
         if (!j || j.error) throw new Error((j && j.error) || 'Locus did not answer.');
         DATA.settings = j.settings; toast('Saved.');
       });
+    H.apiAH('/api/buyer-list/ai/spend').then(x => { const el = m.w.querySelector('[data-spend]'); if (el && x && !x.error) el.textContent = `Morning read cost today: $${(+x.today || 0).toFixed(2)} of $${x.cap}. This month: $${(+(x.month || {}).usd || 0).toFixed(2)}.`; }).catch(() => {});
     try { const p = await H.apiAH('/api/buyer-list/preview'); const pre = m.w.querySelector('[data-pre]'); if (pre) pre.textContent = p.error ? p.error : `${p.text}${p.last && p.last.done ? `\n\n(Today: ${p.last.done})` : ''}`; }
     catch (e) { const pre = m.w.querySelector('[data-pre]'); if (pre) pre.textContent = e.message; }
   }

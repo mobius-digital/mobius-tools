@@ -40,6 +40,7 @@
 import { readToday } from './todaypost.js';
 import { eligible, morningHour } from './morningcard.js';
 import { adsOf, isCarousel } from './prodwork.js';
+import { readAI, applyAI, aiPassDone, buyerAIOn, adNumbers, withCovers, metaActsOf, disagree, decide, lessonsFor, buyerAITick, spentToday, DAY_CAP, POST_WAIT_HOURS } from './buyerai.js';
 
 export const DEFAULT_BUYER_CHANNEL = 'C0C8UA53U3W';   // #daily-briefs
 export const DEFAULT_OWNER = 'Cole';
@@ -53,7 +54,7 @@ const LAST_HOUR = 12;
 const MIN_CACHE_MS = 6 * 3600e3;
 const LOCUS = 'https://tools.go-mobius-digital.com/profit/';
 const CALL_KINDS = ['scale', 'cut', 'trim', 'refresh', 'mixed'];
-export const KINDS = [...CALL_KINDS, 'minoff', 'launch'];
+export const KINDS = [...CALL_KINDS, 'minoff', 'launch', 'ai'];
 
 const safe = (s, d) => { try { return s == null ? d : JSON.parse(s); } catch { return d; } };
 const clean = (s, n = 300) => String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
@@ -75,7 +76,7 @@ export async function buyerPostOn(env) { return (await getSetting(env, 'buyerPos
 export async function buyerSettings(env) {
   const ch = await getSetting(env, 'buyerChannel'), ow = await getSetting(env, 'buyerOwner');
   return { buyerOwner: clean(ow, 40) || DEFAULT_OWNER, buyerChannel: /^[CGU][A-Z0-9]{6,}$/.test(ch || '') ? ch : DEFAULT_BUYER_CHANNEL, buyerPost: await buyerPostOn(env),
-    launchDays: normDays(await getSetting(env, 'launchDays')) || DEFAULT_LAUNCH_DAYS };
+    launchDays: normDays(await getSetting(env, 'launchDays')) || DEFAULT_LAUNCH_DAYS, buyerAI: await buyerAIOn(env) };
 }
 /** "mon, Thu" -> "mon,thu" (week order); null when no day is named. */
 export function normDays(v) {
@@ -97,6 +98,7 @@ export async function saveBuyerSettings(env, b) {
     await putSetting(env, 'buyerChannel', c);
   }
   if ('buyerPost' in b) await putSetting(env, 'buyerPost', b.buyerPost ? 'on' : 'off');
+  if ('buyerAI' in b) await putSetting(env, 'buyerAI', b.buyerAI ? 'on' : 'off');
   if ('launchDays' in b) {
     const v = normDays(Array.isArray(b.launchDays) ? b.launchDays.join(',') : b.launchDays);
     if (!v) throw Object.assign(new Error('Pick at least one launch day.'), { status: 400 });
@@ -173,7 +175,10 @@ export function callRow(r) {
     level: r.ad_id ? 'ad' : 'adset', name: r.ad || r.adset || '', set: r.ad ? r.adset || null : null, action: ACTION[r.kind](),
     why: oneLine(r.why), why_full: clean(r.why, 600), stake: Math.max(0, +r.stake || 0), do: r.kind === 'mixed' ? null : r.kind === 'scale' ? 'budget' : r.kind === 'refresh' ? 'brief' : 'pause',
     meta_act: r.meta_act || null, adset_id: r.adset_id || null, adset: r.adset || null, ad_id: r.ad_id || null, ad: r.ad || null, campaign_id: r.campaign_id || null,
-    suggested_budget: r.suggested_budget || null, n_ads: r.n_ads || null, spend: r.spend ?? null, results: r.results ?? r.orders ?? null };
+    suggested_budget: r.suggested_budget || null, n_ads: r.n_ads || null, spend: r.spend ?? null, results: r.results ?? r.orders ?? null,
+    /* the numbers the review flow shows and the AI reads (hub.js buyerList fields) */
+    goal: r.goal ?? null, goal_roas: r.goal_roas ?? null, metric: r.judged_on || r.metric || null, cpa: r.cpa ?? null, roas: r.roas ?? null, revenue: r.revenue ?? null,
+    days: r.days ?? null, role: r.role ?? null, top_ad: r.top_ad || null, anchor_ad: r.anchor && r.anchor.ad_id ? String(r.anchor.ad_id) : null };
 }
 export function minRow(a, it) {
   return { key: `${a.act_id}|${it.id}|minoff`, kind: 'minoff', act_id: a.act_id, brand: a.name, currency: a.currency || 'USD', object: String(it.id), level: 'adset',
@@ -274,7 +279,7 @@ export async function launchedRows(env, accts, { days = LAUNCHED_DAYS, limit = 4
 }
 
 /** The whole list. act = 'all' or one brand; only = the brands this person may see (null = every brand). */
-export async function buildBuyerList(env, d, { act = 'all', only = null, live = true } = {}) {
+export async function buildBuyerList(env, d, { act = 'all', only = null, live = true, noAI = false } = {}) {
   const today = d.centralDate ? d.centralDate() : centralToday();
   const accts = (await d.listAccounts(env, true)).filter(a => eligible(a) && (act === 'all' || a.act_id === act) && (!only || only.has(a.act_id)));
   const ids = new Set(accts.map(a => a.act_id));
@@ -290,10 +295,14 @@ export async function buildBuyerList(env, d, { act = 'all', only = null, live = 
     launchedRows(env, accts).catch(e => { notes.push(`Launched: ${e.message}`); return []; }),
   ]);
   notes.push(...(mins.notes || []));
-  const all = [...calls, ...mins.rows, ...launch.rows];
+  /* The morning read (buyerai.js): a verdict on each rule row, and the calls the rules missed as rows of kind 'ai'. */
+  let all = [...calls, ...mins.rows, ...launch.rows], ai = new Map();
+  if (!noAI) { try { ai = await readAI(env, ids, today); all = applyAI(all, ai, accts); } catch (e) { notes.push(`Morning read: ${e.message}`); } }
   const rows = [], quiet = [];
   for (const r of all) { const h = hiddenBy(r, st); if (h) quiet.push({ ...r, hidden: h }); else rows.push(r); }
-  rows.sort((p, q) => (q.stake || 0) - (p.stake || 0) || String(p.brand).localeCompare(String(q.brand)));
+  /* A rule row the morning read says to drop sinks under the rest (still shown, with the reason). */
+  const sunk = r => (r.ai && r.ai.verdict === 'drop' ? 1 : 0);
+  rows.sort((p, q) => sunk(p) - sunk(q) || (q.stake || 0) - (p.stake || 0) || String(p.brand).localeCompare(String(q.brand)));
   const stake = rows.reduce((s, r) => s + (r.stake || 0), 0);
   const brands = [...new Set(rows.map(r => r.act_id))];
   const cur = [...new Set(rows.filter(r => r.stake > 0).map(r => r.currency || 'USD'))];
@@ -301,7 +310,9 @@ export async function buildBuyerList(env, d, { act = 'all', only = null, live = 
     n: rows.length, n_brands: brands.length, stake, currency: cur.length === 1 ? cur[0] : 'USD', mixed_currency: cur.length > 1,
     counts: Object.fromEntries(KINDS.map(k => [k, rows.filter(r => r.kind === k).length])),
     hidden: { done: quiet.filter(r => r.hidden.why === 'done').length, skipped: quiet.filter(r => r.hidden.why === 'skipped').length, watched: quiet.filter(r => r.hidden.why === 'watched').length },
-    rows, quiet, notes, banners, ...launchView(today, set.launchDays, launch.scheduled, launched) };
+    rows, quiet, notes, banners, ...launchView(today, set.launchDays, launch.scheduled, launched),
+    ai: { on: set.buyerAI, n_read: [...ai.values()].filter(x => x.status === 'done').length, n_brands: accts.length,
+      brands: [...ai.entries()].filter(([, x]) => x.status === 'done' && x.summary).map(([k, x]) => ({ act_id: k, brand: (accts.find(a => a.act_id === k) || {}).name || k, summary: x.summary, at: x.at })) } };
 }
 /** The launch fields of the list: today a launch day?, the next one with its waiting cards, scheduled, launched. */
 export function launchView(today, days, scheduled, launched) {
@@ -314,7 +325,9 @@ export function launchView(today, days, scheduled, launched) {
 }
 
 /* ---------- the Slack post ---------- */
-const lineOf = (r, i) => `${i + 1}. *${mk(r.brand)}*: ${mk(r.action)}, ${mk(r.kind === 'launch' ? r.name : `"${r.name}"`)}${r.stake > 0 ? ` (${money(r.stake, r.currency)} at stake)` : ''}`;
+const AI_WORD = { keep: 'agrees', change: 'says change it', drop: 'says drop it' };
+const lineOf = (r, i) => `${i + 1}. *${mk(r.brand)}*: ${mk(r.action)}, ${mk(r.kind === 'launch' ? r.name : `"${r.name}"`)}${r.stake > 0 ? ` (${money(r.stake, r.currency)} at stake)` : ''}`
+  + (r.kind === 'ai' ? ' _(from the morning read)_' : r.ai ? ` _(morning read ${AI_WORD[r.ai.verdict] || r.ai.verdict}${r.ai.verdict === 'change' && r.ai.change ? `: ${mk(r.ai.change)}` : ''})_` : '');
 export function headOf(list) {
   if (!list.n) return 'Buyer list: nothing to do today';
   return `Buyer list: ${list.n} to do across ${list.n_brands} brand${list.n_brands === 1 ? '' : 's'}${list.stake > 0 ? `, ${moneyK(list.stake, list.currency)} at stake` : ''}`;
@@ -328,6 +341,11 @@ export function buyerMessage(list, ownerTag) {
   if (ly && ly.n) L.push(`Launched yesterday: ${ly.n} ad${ly.n === 1 ? '' : 's'} (${mk(ly.brands.join(', '))})`);
   const lt = list.rows.filter(r => r.kind === 'launch');
   if (lt.length) L.push(`Launch today: ${lt.length} card${lt.length === 1 ? '' : 's'} (${mk([...new Set(lt.map(r => r.brand))].join(', '))})`);
+  const ai = list.ai;
+  if (ai && ai.n_read) {
+    const ex = list.rows.filter(r => r.kind === 'ai').length, dr = list.rows.filter(r => r.ai && r.ai.verdict === 'drop').length, ch = list.rows.filter(r => r.ai && r.ai.verdict === 'change').length;
+    L.push(`Morning read: ${ai.n_read} brand${ai.n_read === 1 ? '' : 's'} read${ex ? `, ${ex} call${ex === 1 ? '' : 's'} the rules missed` : ''}${ch ? `, ${ch} to change` : ''}${dr ? `, ${dr} to drop` : ''}.`);
+  }
   const head2 = L.length;
   top.forEach((r, i) => L.push(lineOf(r, i)));
   const lw = list.rows.filter(r => r.kind === 'launch'), lwOut = lw.filter(r => !top.includes(r));
@@ -365,6 +383,8 @@ export async function buyerPostTick(env, d) {
   if (st.date !== today) st = { date: today, tries: 0 };
   if (st.done) return { skipped: `done today: ${st.done}` };
   if (d.canAfford && !d.canAfford(80)) return { deferred: 'budget' };
+  /* The morning read goes first (buyerai.js, from an hour before); the post waits for it up to an hour past the post hour. */
+  if (hour < from + POST_WAIT_HOURS && !(await aiPassDone(env, d, today).catch(() => true))) return { deferred: 'morning read not finished' };
   try {
     const list = await buildBuyerList(env, d, { act: 'all' });
     if (!list.n && !(list.launched_yesterday && list.launched_yesterday.n)) { st.done = 'nothing to do'; await putSetting(env, 'buyerPostDone', JSON.stringify(st)); return { date: today, quiet: true, notes: list.notes }; }
@@ -448,6 +468,49 @@ export async function handleBuyer(request, env, url, path, json, h) {
       if (!/^[CGU][A-Z0-9]{6,}$/.test(ch)) return json({ error: 'Which channel? A Slack channel id, like C0C8B4ZCGKT.' }, 400);
       const list = await buildBuyerList(env, d, { act: 'all', only });
       return json(await postBuyerList(env, d, ch, list));
+    }
+    /* ---- the review flow (buyerai.js) ---- */
+    const oneBrand = async raw => {
+      const act = await actOf(raw);
+      if (!act || act === 'all') throw Object.assign(new Error('Pick a brand first.'), { status: 400 });
+      if (only && !only.has(act)) throw Object.assign(new Error('You do not have access to this brand.'), { status: 403 });
+      return act;
+    };
+    /* The row's ads: cover, name and 7-day numbers each. */
+    if (path === '/api/buyer-list/ads' && request.method === 'GET') {
+      const act = await oneBrand(url.searchParams.get('act'));
+      const adset = String(url.searchParams.get('adset') || ''), ad = String(url.searchParams.get('ad') || '');
+      if (!/^\d{6,25}$/.test(adset) && !/^\d{6,25}$/.test(ad)) return json({ error: 'Which ad set?' }, 400);
+      const days = Math.min(30, Math.max(3, +url.searchParams.get('days') || 7));
+      const metaActs = await metaActsOf(env, act, url.searchParams.get('meta_act') || null);
+      const r = await adNumbers(env, { act, metaActs, adsetIds: /^\d{6,25}$/.test(adset) ? [adset] : [], adIds: /^\d{6,25}$/.test(ad) ? [ad] : [], days });
+      return json({ ...r, days, ads: await withCovers(env, r.ads) });
+    }
+    if (path === '/api/buyer-list/disagree' && request.method === 'POST') {
+      const b = await request.json().catch(() => ({}));
+      const act = await oneBrand(b.act);
+      const a = (await d.listAccounts(env, true)).find(x => x.act_id === act);
+      return json(await disagree(env, d, { act, brand: a ? a.name : act, row: b.row, why: b.why, author: email || 'Cole', today: d.centralDate ? d.centralDate() : centralToday() }));
+    }
+    if (path === '/api/buyer-list/decide' && request.method === 'POST') {
+      const b = await request.json().catch(() => ({}));
+      const act = await oneBrand(b.act);
+      return json(await decide(env, { act, id: String(b.id || ''), decision: b.decision, who: email || 'Cole', today: d.centralDate ? d.centralDate() : centralToday() }));
+    }
+    if (path === '/api/buyer-list/lessons' && request.method === 'GET') {
+      const act = await oneBrand(url.searchParams.get('act'));
+      return json({ lessons: (await lessonsFor(env, act, 60)).map(l => ({ id: l.id, at: l.created_at, kind: l.kind, name: l.name, text: l.text, author: l.author, stance: l.stance, answer: l.answer, decision: l.decision })) });
+    }
+    /* Run the morning read now (one brand, or every brand); force re-reads a brand already read today. */
+    if (path === '/api/buyer-list/ai/run' && request.method === 'POST') {
+      const b = await request.json().catch(() => ({}));
+      const acts = b.act && b.act !== 'all' ? [await oneBrand(b.act)] : (only ? [...only] : null);
+      return json(await buyerAITick(env, d, { force: true, acts }));
+    }
+    if (path === '/api/buyer-list/ai/spend' && request.method === 'GET') {
+      const day = d.centralDate ? d.centralDate() : centralToday();
+      const month = safe(await getSetting(env, `aiSpend:buyer:${day.slice(0, 7)}`), {}) || {};
+      return json({ day, today: await spentToday(env, day), cap: DAY_CAP, month, state: safe(await getSetting(env, 'buyerAIDone'), {}) });
     }
     return json({ error: 'not found' }, 404);
   } catch (e) { return json({ error: e.message }, e.status || 502); }

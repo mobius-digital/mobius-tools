@@ -83,6 +83,7 @@ import { useFetch as googleFetch, googleProbe, autoMatch as googleMatch, linkFor
 import { locusWrite as metaLocusWrite, locusUndo as metaLocusUndo, metaLive, metaActs } from './metawrite.js';
 import { handleLaunch, refreshStatus as launchRefresh } from './launch.js';
 import { handleBuyer, buyerPostTick, buyerSettings } from './buyerlist.js';
+import { buyerAITick } from './buyerai.js';
 import { dataTools } from './stratdata.js';
 import { extraTools } from './allwrite.js';
 import { runStudioMake, studioMakeTools } from './studiomake.js';
@@ -7320,7 +7321,7 @@ function minOffDeps() {
    as the owner (todaypost.js readToday), the test minimums from minoff.js state or live, the launches from the board. */
 function buyerDeps() {
   const base = { getSetting, putSetting, centralHour, centralDate, slackPost, slackApi };
-  return { ...base, listAccounts, mintSession, canAfford: n => subCanAfford(n), tagOf: (env, name) => tagOf(env, base, name),
+  return { ...base, listAccounts, mintSession, xfetch, canAfford: n => subCanAfford(n), tagOf: (env, name) => tagOf(env, base, name),
     listBrands: async env => (await listAccounts(env, true)).map(a => ({ act_id: a.act_id, name: a.name, slack_channel: a.slack_channel || null })),
     listBoard: (env, o) => listBoard(env, { centralDate, listBrands: async e => (await listAccounts(e, true)).map(a => ({ act_id: a.act_id, name: a.name })) }, o),
     dueOff: (env, act) => testMinimumsDue(env, act),
@@ -7750,6 +7751,8 @@ const AH_APP = {
     if (event.cron === '*/5 * * * *') {
       env = meterEnv(env); subReset(env);
       ctx.waitUntil(socialPostTick(env, socialPostDeps()).then(r => recordRun(env, 'lastSocialPost', r)).catch(() => {}));
+      /* The Buyer list's morning read (buyerai.js, 2026-10-26): from an hour before the morning hour, three brands a tick. */
+      ctx.waitUntil(buyerAITick(env, buyerDeps()).then(r => { if (r && !r.skipped && !r.done) return recordRun(env, 'lastBuyerAI', r); }).catch(() => {}));
       return;
     }
     if (event.cron === '0 * * * *') {
