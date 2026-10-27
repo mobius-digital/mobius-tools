@@ -4530,3 +4530,9 @@ this goes for all things that go from the right side", and the Integrations pane
   (14-day window) had no result in the last 7 days. (4) lead sets without goal_cpl are named in the brand note "not
   judged: no lead goal set" (`lead_no_goal`); sales rules never apply to them. NOT built yet: judging split tests that
   share a test number / concept together (Dartee "Muni"), and flagging sets paused and turned back on repeatedly (churn).
+- **Tracking gap guard (same day, Ice & Gold audit):** per brand over 7 days, Meta's own purchases (`ad_daily.purchases`)
+  on the spending sales sets 3+ and Triple Whale lastPlatformClick orders on those ads 30% of that or less = tracking gap.
+  Every Cut and Trim turns Mixed (`kept_by: 'tracking_gap'`, `was: 'cut'|'trim'`) with "Tracking gap: Meta counts N sales on
+  this set in 7 days, Triple Whale counts M. Fix tracking before cutting." first; brand `tracking_gap {meta, tw}`; the
+  answer carries `banners [{act_id, brand, kind, text}]`, passed through account-health buyerlist.js `banners` and shown
+  as one line on the Buyer list (buyer.js) and Today's calls (desk.js). Live 2026-10-26: I&G 19 vs 0, 2 cuts held.

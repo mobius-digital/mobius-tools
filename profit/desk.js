@@ -382,6 +382,8 @@
     const DO_TIP = { scale: 'Raise this ad set\'s budget 20%. You see the number and confirm before anything is written.', cut: 'Pause this ad set. You confirm before anything is written.', trim: 'Pause this one ad, not the set. You confirm before anything is written.' };
     const doList = vis.filter(r => DO_TIP[r.kind] && !dn[r.key]).sort((a, b) => (b.stake || 0) - (a.stake || 0));
     const doBar = doList.length ? `<span class="lx-tohead"><button type="button" class="v2btn dk-p" id="dkDoAll">${doList.length === 1 ? 'Do the 1 call' : `Do all ${doList.length} calls`}</button></span>` : '';
+    /* Tracking gap (hub.js buyerList banners): one line per brand whose cuts are on hold. */
+    const gapBan = (d.banners || []).filter(b => !one || b.act_id === one.act_id).map(b => `<p class="v2say dk-gap-ban" role="note">${esc(b.text)}</p>`).join('');
     const counts = `<div class="v2jobs dk-counts" role="group" aria-label="Kind of call">${kinds.map(([k, l]) => `<button type="button" class="dk-cnt${KIND === k ? ' on' : ''}" data-k="${k}"><b>${cnt(k)}</b>${l}</button>`).join('')}</div>`;
     const shown = vis.filter(r => KIND === 'all' || r.kind === KIND);
     const by = {}; for (const r of shown) (by[r.act_id] ??= []).push(r);
@@ -410,7 +412,7 @@
       const fu = r.funnel, fnl = fu ? `<span class="dk-fnl" title="${esc(`${Math.round(fu.new_share * 100)}% new customers${fu.acct_new_share != null ? ` against ${Math.round(fu.acct_new_share * 100)}% for the account` : ''}; click rate ${(fu.ctr * 100).toFixed(1)}% against the account median ${(fu.acct_ctr * 100).toFixed(1)}%.`)}">Feeds the funnel</span>` : '';
       /* Funnel role (2026-10-26): a Cut or Trim that first click shows opens journeys at goal is kept as Mixed (hub.js
          buyerList kept_by 'opener'); the tag says so and the why carries the numbers. */
-      const opn = r.kept_by === 'opener' ? `<span class="dk-fnl" title="${esc('Last click says cut; Triple Whale first click credits it with sales at goal. Judge it on first click.')}">Opens journeys</span>` : '';
+      const opn = r.kept_by === 'tracking_gap' ? `<span class="dk-fnl" title="${esc('Meta counts more sales than Triple Whale credits. Fix tracking before cutting.')}">Tracking gap</span>` : r.kept_by === 'opener' ? `<span class="dk-fnl" title="${esc('Last click says cut; Triple Whale first click credits it with sales at goal. Judge it on first click.')}">Opens journeys</span>` : '';
       const th = ad ? `<button type="button" class="dk-th" data-thumb="${esc(ad.id)}" data-play="${k}" aria-label="Play the ad ${esc(ad.name || '')}" title="${esc(r.kind === 'trim' ? 'The ad to turn off' : r.kind === 'refresh' ? 'The main ad' : `The set's main ad${ad.name ? `: ${ad.name}` : ''}`)}. Tap to play.">${chip}<i>${window.icon ? window.icon('play', { size: 12 }) : '&#9654;'}</i></button>` : `<span class="dk-th dk-th0">${chip}</span>`;
       return `<div class="dk-row${dn[r.key] ? ' done' : ''}"><div class="dk-c1">${th}${fnl}${opn}</div>
         <div><div class="nm"${window.V4 && window.V4.on && r.adset_id ? ` data-set="${k}" role="button" tabindex="0" title="${esc(r.ad ? r.ad : r.adset || '')}. Open the ad set: the reason, the numbers and the ads in it"` : ` title="${esc(r.ad ? r.ad : r.adset || '')}"`}>${esc(r.ad ? r.ad : r.adset || '')}</div><div class="meta">${r.ad && r.adset ? `in ${esc(r.adset)} · ` : ''}${meta}</div></div>
@@ -421,7 +423,7 @@
     const win = (d.brands || [])[0];
     const nAll = vis.length;
     const sub = `<b>${nAll} call${nAll === 1 ? '' : 's'} today, ad set first</b>, ranked by money at stake.${win ? ` Judged on last platform click, ${md(win.from)} to ${md(win.to)}.` : ''}`;
-    $('#main').innerHTML = shell('today', title, `<p class="v2say lead">${sub}</p>${doBar}${counts}
+    $('#main').innerHTML = shell('today', title, `<p class="v2say lead">${sub}</p>${gapBan}${doBar}${counts}
       ${groups || U().card('Nothing to do', '', `<p class="v2hint">${KIND === 'all' ? 'No ad set crossed a rule, nothing needs fixing and no test needs a call.' : 'Nothing of this kind today.'}</p>`)}
       ${one ? `<p class="v2hint"><button type="button" class="v2link" data-go="act:${esc(one.act_id)}:mtoday">Spend today, hour by hour, against a normal day ›</button></p>` : ''}`);
     const root = $('#main');

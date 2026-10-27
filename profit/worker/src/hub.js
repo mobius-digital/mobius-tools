@@ -355,6 +355,7 @@ export async function buyerList(env, ctx, accts) {
           SUM(CASE WHEN d.date BETWEEN w.f AND w.t THEN d.reach ELSE 0 END) reach,
           SUM(CASE WHEN d.date BETWEEN w.f AND w.t THEN d.link_clicks ELSE 0 END) clicks,
           SUM(CASE WHEN d.date BETWEEN w.f AND w.t THEN COALESCE(d.video_3s, 0) ELSE 0 END) v3,
+          SUM(CASE WHEN d.date BETWEEN w.f AND w.t THEN COALESCE(d.purchases, 0) ELSE 0 END) mp,
           SUM(CASE WHEN d.date BETWEEN w.f AND w.t THEN COALESCE(d.leads, 0) ELSE 0 END) leads,
           SUM(COALESCE(d.leads, 0)) leads14,
           SUM(CASE WHEN d.date BETWEEN w.l2 AND w.t THEN d.spend ELSE 0 END) s2,
@@ -395,7 +396,7 @@ export async function buyerList(env, ctx, accts) {
   const hasFc = new Set(attrRows.filter(r => num(r.fn_rows) > 0).map(r => r.act_id));
   const fnOf = {}; for (const r of fcNewRows) fnOf[`${r.act_id}|${r.ad_id}`] = { k: num(r.k), k14: num(r.k14), n: num(r.n), n14: num(r.n14) };
   const nwOf = {}; for (const r of newRows) nwOf[`${r.act_id}|${r.ad_id}`] = { n: num(r.n), n14: num(r.n14) };
-  const rows = [], brands = [];
+  const rows = [], brands = [], banners = [];
   let note = null;
   for (const a of meta) {
     const R = RULES[a.act_id];
@@ -422,13 +423,14 @@ export async function buyerList(env, ctx, accts) {
         obj: objKind(r.objective), objective: r.objective || null, meta_act: r.meta_act, first: null, w7: { spend: 0, orders: 0, revenue: 0, nc: 0, leads: 0, ford: 0, frev: 0, fk: 0, fn: 0 }, w14: { spend: 0, orders: 0, revenue: 0, nc: 0, leads: 0, ford: 0, frev: 0, fk: 0, fn: 0 }, s2: 0, ads: [] };
       s.w7.spend += num(r.spend); s.w7.orders += at.ord; s.w7.revenue += at.rev; s.w7.nc += nw.n; s.w7.leads += num(r.leads);
       s.w14.spend += num(r.spend14); s.w14.orders += at.ord14; s.w14.revenue += at.rev14; s.w14.nc += nw.n14; s.w14.leads += num(r.leads14);
+      s.w7.mp = (s.w7.mp || 0) + num(r.mp);
       s.w7.ford += at.ford; s.w7.frev += at.frev; s.w7.fk += fn.k; s.w7.fn += fn.n;
       s.w14.ford += at.ford14; s.w14.frev += at.frev14; s.w14.fk += fn.k14; s.w14.fn += fn.n14;
       s.s2 += num(r.s2);
       if (r.first_spend && (!s.first || r.first_spend < s.first)) s.first = r.first_spend;
       if (num(r.spend) > 0) s.ads.push({ id: r.ad_id, name: r.ad_name || r.ad_id, first: r.first_spend || null, spend: num(r.spend), orders: at.ord, revenue: at.rev, nc: nw.n, leads: num(r.leads),
         impr: num(r.impr), reach: num(r.reach), clicks: num(r.clicks), v3: num(r.v3), p_impr: num(r.p_impr), p_reach: num(r.p_reach), p_clicks: num(r.p_clicks),
-        ford: at.ford, frev: at.frev, fk: fn.k, fn: fn.n });
+        ford: at.ford, frev: at.frev, fk: fn.k, fn: fn.n, mp: num(r.mp) });
     }
     const live = Object.values(sets).filter(s => s.w7.spend > 0 && !(s.status && OFF_STATUS.test(s.status) && !(s.s2 > 0)));
     /* The unit: the goal in dollars for the brand's metric. A ROAS goal turns into a cost per sale through the
@@ -507,6 +509,7 @@ export async function buyerList(env, ctx, accts) {
       return a.num == null || (metric === 'roas' ? v > a.num : v < a.num) ? { a, r, v } : null;
     };
     let judged = 0, notSales = 0, noLeadGoal = 0, slow = 0, openers = 0, bestKept = 0; const kept = [], leadNoGoal = [];
+    const rowsAt = rows.length;
     for (const s of live) {
       /* What this set is judged on: its campaign's objective. */
       const m = s.obj === 'leads' ? 'cpl' : s.obj === 'reach' ? null : metric;
@@ -669,18 +672,38 @@ export async function buyerList(env, ctx, accts) {
         }
       }
     }
+    /* TRACKING GAP GUARD (2026-10-26 Ice & Gold audit: Meta's pixel counted 20 purchases in a week, Triple Whale credited 0
+       to this week's Meta clicks). Over the 7 days, when Meta's own purchases on the spending sales sets are 3+ and Triple
+       Whale's last platform click orders on those same ads are 30% of that or less, the brand has a tracking gap: every
+       Cut and Trim turns Mixed (kept_by 'tracking_gap', no Do button) and the brand gets one banner line. */
+    const gapSets = live.filter(s => s.obj === 'sales');
+    const gapMeta = gapSets.reduce((t, s) => t + (s.w7.mp || 0), 0), gapTw = gapSets.reduce((t, s) => t + s.w7.orders, 0);
+    const gap = gapMeta >= 3 && gapTw <= 0.3 * gapMeta ? { meta: Math.round(gapMeta), tw: Math.round(gapTw) } : null;
+    if (gap) {
+      const cnt = v => `${Math.round(v)} sale${Math.round(v) === 1 ? '' : 's'}`;
+      for (let i = rowsAt; i < rows.length; i++) {
+        const r = rows[i]; if (r.kind !== 'cut' && r.kind !== 'trim') continue;
+        const set = sets[r.adset_id], ad = r.ad_id && set ? set.ads.find(x => x.id === r.ad_id) : null;
+        const mp = ad ? ad.mp : set ? set.w7.mp || 0 : 0, tw = ad ? ad.orders : set ? set.w7.orders : 0;
+        rows[i] = { ...r, kind: 'mixed', kept_by: 'tracking_gap', was: r.kind, stake: 0.5 * (r.spend || 0),
+          why: `Tracking gap: Meta counts ${cnt(mp)} on this ${ad ? 'ad' : 'set'} in 7 days, Triple Whale counts ${cnt(tw)}. Fix tracking before cutting. ${r.why}` };
+      }
+      banners.push({ act_id: a.act_id, brand: a.name, kind: 'tracking_gap', ...gap,
+        text: `Tracking gap on ${a.name}: Meta counts ${cnt(gap.meta)} on its spending ads this week, Triple Whale credits ${cnt(gap.tw)} to them. No cuts until tracking is fixed.` });
+    }
     const notes = [];
+    if (gap) notes.push(`Tracking gap: Meta counts ${gap.meta} sales this week, Triple Whale ${gap.tw}; cuts are on hold.`);
     if (notSales) notes.push(`${notSales} awareness or traffic ad set${notSales === 1 ? '' : 's'} not judged on sales (only Refresh).`);
     if (openers) notes.push(`${openers} cut or trim${openers === 1 ? '' : 's'} kept as opener${openers === 1 ? '' : 's'}: last click says cut, first click says ${openers === 1 ? 'it starts' : 'they start'} sales at goal.`);
     if (kept.length) notes.push(`${kept.length} ad set${kept.length === 1 ? '' : 's'} mixed: the main goal and a guardrail disagree, so the buyer decides (${kept.slice(0, 3).map(n => `"${n}"`).join(', ')}).`);
     if (noLeadGoal) notes.push(`${noLeadGoal} lead ad set${noLeadGoal === 1 ? '' : 's'} (${leadNoGoal.slice(0, 3).map(x => `"${x}"`).join(', ')}) not judged: no lead goal set. Set a goal cost per lead in Home > Goals; sales rules never apply to them.`);
     if (bestKept) notes.push(`${bestKept} ad set${bestKept === 1 ? '' : 's'} kept as the account's best while the whole account is under goal.`);
-    brands.push({ act_id: a.act_id, name: a.name, from, to, goal: unitMain, metric, n_sets_judged: judged, n_slow: slow, n_opener_kept: openers, n_best_kept: bestKept, lead_no_goal: leadNoGoal, first_click: fcOn, kept, note: notes.join(' ') || undefined });
+    brands.push({ act_id: a.act_id, name: a.name, from, to, goal: unitMain, metric, n_sets_judged: judged, n_slow: slow, n_opener_kept: openers, n_best_kept: bestKept, tracking_gap: gap, lead_no_goal: leadNoGoal, first_click: fcOn, kept, note: notes.join(' ') || undefined });
   }
   const r = note || rulesFor(null, null), pct = Math.round(r.cr_anchor_pct), [one, many] = NOUN[r.goal_metric] || NOUN.cpa;
   const goalWord = r.goal_metric === 'roas' ? 'goal (your order value at the goal ROAS)' : `goal ${COST[r.goal_metric]}`;
   const rules_note = `Ad sets first, on Triple Whale last platform click over 7 days (14 for a set under 1 ${one} a day). A set waits until it has spent ${r.cr_judge_x}x the ${goalWord} AND run ${r.cr_min_days} days. Scale: ${r.cr_scale_buys}+ ${many} on goal and every guardrail met. Cut: ${r.cr_cut_zero_x}x the goal spent with no ${one}, OR ${r.cr_cut_spend_x}x spent at worse than ${r.cr_cut_cpa_x}x the goal, and a guardrail broken (or none set). Mixed: the main goal and a guardrail (${r.roas_guard ? 'goal ROAS, ' : ''}cost per sale, when set and not the main goal) disagree; you decide. In a working set the main ad (${pct}%+ of its spend) is never cut; a small ad is a Trim only on its own spend past the same line. Opener guard: a set or ad that Triple Whale first click credits with 1.3x+ its last-click credit, at the goal on 2+ sales, is never cut or trimmed; it turns Mixed and is judged on first click. Refresh: the main ad's clicks fell 20%+ and people see it more often. The same numbers as Ads > Meta > Ads${accts.length > 1 ? ' (each brand\'s own settings apply)' : ''}.`;
-  return { as_of, rules_note, brands, rows: rows.sort((p, q) => q.stake - p.stake) };
+  return { as_of, rules_note, brands, banners, rows: rows.sort((p, q) => q.stake - p.stake) };
 }
 
 /* ---------- THE HERO NUMBER AND THE MORNING LINE (2026-10-11, docs/two-products.md section 5) ----------

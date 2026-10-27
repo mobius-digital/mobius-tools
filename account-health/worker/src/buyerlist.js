@@ -218,8 +218,9 @@ export async function buildBuyerList(env, d, { act = 'all', only = null, live = 
   const accts = (await d.listAccounts(env, true)).filter(a => eligible(a) && (act === 'all' || a.act_id === act) && (!only || only.has(a.act_id)));
   const ids = new Set(accts.map(a => a.act_id));
   const notes = [];
+  let banners = [];
   const [calls, mins, launch, st, set] = await Promise.all([
-    readToday(env, d, act === 'all' ? 'all' : act).then(r => ((r && r.rows) || []).filter(x => CALL_KINDS.includes(x.kind) && ids.has(x.act_id)).map(callRow))
+    readToday(env, d, act === 'all' ? 'all' : act).then(r => { banners = ((r && r.banners) || []).filter(b => ids.has(b.act_id)).map(b => ({ act_id: b.act_id, brand: b.brand, kind: b.kind, text: clean(b.text, 300) })); return ((r && r.rows) || []).filter(x => CALL_KINDS.includes(x.kind) && ids.has(x.act_id)).map(callRow); })
       .catch(e => { notes.push(`Ad calls: ${e.message}`); return []; }),
     minimums(env, d, accts, today, { live }).catch(e => { notes.push(`Test minimums: ${e.message}`); return { rows: [], notes: [] }; }),
     launches(env, d, ids, act).catch(e => { notes.push(`Launches: ${e.message}`); return []; }),
@@ -238,7 +239,7 @@ export async function buildBuyerList(env, d, { act = 'all', only = null, live = 
     n: rows.length, n_brands: brands.length, stake, currency: cur.length === 1 ? cur[0] : 'USD', mixed_currency: cur.length > 1,
     counts: Object.fromEntries(KINDS.map(k => [k, rows.filter(r => r.kind === k).length])),
     hidden: { done: quiet.filter(r => r.hidden.why === 'done').length, skipped: quiet.filter(r => r.hidden.why === 'skipped').length, watched: quiet.filter(r => r.hidden.why === 'watched').length },
-    rows, quiet, notes };
+    rows, quiet, notes, banners };
 }
 
 /* ---------- the Slack post ---------- */

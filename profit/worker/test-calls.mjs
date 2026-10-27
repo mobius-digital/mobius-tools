@@ -12,7 +12,7 @@ db.exec(`CREATE TABLE connections (id TEXT, brand_id TEXT, kind TEXT, external_i
   CREATE TABLE tw_ad_attr (act_id TEXT, date TEXT, ad_id TEXT, model TEXT, revenue REAL, orders REAL, platform TEXT);
   CREATE TABLE p_br_doc (act_id TEXT, line_id TEXT, key TEXT, data_json TEXT);
   CREATE TABLE daily_insights (act_id TEXT, date TEXT, spend REAL);
-  CREATE TABLE ad_daily (act_id TEXT, ad_id TEXT, date TEXT, spend REAL, impressions INTEGER, reach INTEGER, link_clicks INTEGER, leads REAL, video_3s INTEGER);
+  CREATE TABLE ad_daily (act_id TEXT, ad_id TEXT, date TEXT, spend REAL, impressions INTEGER, reach INTEGER, link_clicks INTEGER, leads REAL, video_3s INTEGER, purchases REAL DEFAULT 0);
   CREATE TABLE ads (act_id TEXT, ad_id TEXT, name TEXT, adset_id TEXT, campaign_id TEXT, created_time TEXT, first_spend_date TEXT);
   CREATE TABLE meta_adsets (act_id TEXT, adset_id TEXT, campaign_id TEXT, name TEXT, status TEXT, daily_budget REAL);
   CREATE TABLE meta_campaigns (act_id TEXT, campaign_id TEXT, objective TEXT);
@@ -36,7 +36,7 @@ for (const [id, name] of SETS) ins('meta_adsets', 'act_1', id, 'cmp1', name, 'AC
 const ADS = [['a1', 's1', addDays(T, -9), 20, 0], ['a2', 's2', addDays(T, -9), 45, 400], ['a3', 's3', addDays(T, -1), 100, 0], ['a4', 's4', addDays(T, -9), 70, 0], ['a5', 's4', addDays(T, -9), 20, 0]];
 for (const [ad, set, first, sp, v3] of ADS) {
   ins('ads', 'act_1', ad, `Ad ${ad}`, set, 'cmp1', `${first}T00:00:00Z`, first);
-  for (let k = 0; k < 7; k++) { const d = addDays(T, -k); if (d >= first) ins('ad_daily', 'act_1', ad, d, sp, 2000, 1500, 30, 0, v3); }
+  for (let k = 0; k < 7; k++) { const d = addDays(T, -k); if (d >= first) ins('ad_daily', 'act_1', ad, d, sp, 2000, 1500, 30, 0, v3, 0); }
 }
 const attr = (ad, model, ord, rev, d = T) => ins('tw_ad_attr', 'brand_a', d, ad, model, rev, ord, 'meta');
 attr('a1', 'lastPlatformClick', 0, 0);              // last click: nothing
@@ -95,7 +95,7 @@ const BADS = [['b1a', 'b1', 100, 0, 6], ['b2a', 'b2', 50, 0, 6], ['b2b', 'b2', 1
 for (const [ad, set, sp, k0, k1] of BADS) {
   const first = addDays(T, -k1);
   ins('ads', 'act_2', ad, `Ad ${ad}`, set, set === 'b4' ? 'cmpL' : 'cmpS', `${first}T00:00:00Z`, first);
-  for (let k = k0; k <= k1; k++) ins('ad_daily', 'act_2', ad, addDays(T, -k), sp, 2000, 1500, 30, 0, 0);
+  for (let k = k0; k <= k1; k++) ins('ad_daily', 'act_2', ad, addDays(T, -k), sp, 2000, 1500, 30, 0, 0, 0);
 }
 const battr = (ad, ord, d = T) => ins('tw_ad_attr', 'brand_b', d, ad, 'lastPlatformClick', ord * 100, ord, 'meta');
 battr('b1a', 11);                       // $64 a sale: over the cut line, yet the account's best by far
@@ -122,6 +122,23 @@ await check('lead set: never judged on sales rules, labelled "no lead goal set"'
   assert.equal(rowB('b4').length, 0);
   assert.deepEqual(outB.brands[0].lead_no_goal, ['Giveaway leads']);
   assert.match(outB.brands[0].note, /"Giveaway leads"\) not judged: no lead goal set/);
+});
+/* Brand C (the 2026-10-26 Ice & Gold audit): Meta's pixel counts 6 purchases this week, Triple Whale credits 1. */
+ins('connections', 'c3', 'brand_c', 'meta', 'act_3', null);
+for (let k = 0; k <= 28; k += 7) ins('daily_insights', 'act_3', addDays(T, -k), 500);
+ins('meta_campaigns', 'act_3', 'cmpC', 'OUTCOME_SALES'); ins('meta_adsets', 'act_3', 'g1', 'cmpC', '04 | Still', 'ACTIVE', 100);
+ins('ads', 'act_3', 'g1a', 'Ad g1a', 'g1', 'cmpC', `${addDays(T, -9)}T00:00:00Z`, addDays(T, -9));
+for (let k = 0; k < 7; k++) ins('ad_daily', 'act_3', 'g1a', addDays(T, -k), 45, 2000, 1500, 30, 0, 0, k < 6 ? 1 : 0);
+ins('tw_ad_attr', 'brand_c', T, 'g1a', 'lastPlatformClick', 50, 1, 'meta');
+const outC = await buyerList(env, ctx, [{ act_id: 'brand_c', name: 'Gamma', currency: 'USD', tz: 'America/Chicago', target_cpa: 40 }]);
+await check('tracking gap: Meta counts far more sales than Triple Whale, so the Cut is held as Mixed with a banner', () => {
+  assert.equal(outC.rows.length, 1);
+  const r = outC.rows[0];
+  assert.equal(r.kind, 'mixed'); assert.equal(r.kept_by, 'tracking_gap'); assert.equal(r.was, 'cut');
+  assert.match(r.why, /^Tracking gap: Meta counts 6 sales on this set in 7 days, Triple Whale counts 1 sale\. Fix tracking before cutting\. Cost per sale \$315/);
+  assert.deepEqual(outC.brands[0].tracking_gap, { meta: 6, tw: 1 });
+  assert.equal(outC.banners.length, 1); assert.match(outC.banners[0].text, /^Tracking gap on Gamma: Meta counts 6 sales/);
+  assert.equal(out.banners.length, 0); assert.equal(outB.banners.length, 0);
 });
 console.log(`\n${checks.filter(Boolean).length}/${checks.length} passed`);
 if (checks.some(c => !c)) process.exit(1);
