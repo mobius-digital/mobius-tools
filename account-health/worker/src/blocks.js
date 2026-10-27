@@ -40,7 +40,8 @@ const MARK = '<b>This week:</b>';
 const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const ymdOk = s => /^\d{4}-\d{2}-\d{2}$/.test(s || '');
 const md = s => ymdOk(s) ? new Date(s + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }) : '';
-const isCole = r => String(r.owner || '').toLowerCase() === 'cole';
+/* Cole's task = owned by Cole, or made by Cole with no owner named ("Lucky: build the BF page by Thursday" in a DM). */
+const isCole = r => String(r.owner || '').toLowerCase() === 'cole' || (!r.owner && String(r.created_by || '').toLowerCase() === OWNER);
 
 /* Every outbound call goes through the worker's counted xfetch (CLAUDE.md, the subrequest budget); worker.js sets it. */
 let F = (...a) => fetch(...a);
@@ -173,7 +174,7 @@ export async function blockActionDone(env, row) {
 export async function blockRollTick(env, { limit = 25 } = {}) {
   await ensure(env);
   const nowIso = new Date().toISOString();
-  const { results } = await env.DB.prepare(`SELECT * FROM p_action WHERE status = 'open' AND lower(owner) = 'cole' AND kind != 'client_owes' AND (block_event IS NULL OR block_end < ?1) ORDER BY CASE WHEN due = '' THEN 1 ELSE 0 END, due LIMIT ?2`).bind(nowIso, limit).all();
+  const { results } = await env.DB.prepare(`SELECT * FROM p_action WHERE status = 'open' AND (lower(owner) = 'cole' OR (COALESCE(owner, '') = '' AND lower(created_by) = 'cole@go-mobius-digital.com')) AND kind != 'client_owes' AND (block_event IS NULL OR block_end < ?1) ORDER BY CASE WHEN due = '' THEN 1 ELSE 0 END, due LIMIT ?2`).bind(nowIso, limit).all();
   const out = { moved: 0, placed: 0, errors: 0 };
   for (const r of results || []) {
     try { const p = await placeTask(env, r, { keep: !!r.block }); if (p) r.block_event ? out.moved++ : out.placed++; }
