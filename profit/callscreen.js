@@ -407,7 +407,8 @@
   }
 
   /* ======================= CLIENT ======================= */
-  const CLIENT_STEPS = [{ id: 'news', name: 'Their news', mins: 5 }, { id: 'read', name: 'Last week', mins: 10 }, { id: 'week', name: 'This week', mins: 5 }, { id: 'asks', name: 'Requests', mins: 5 }, { id: 'coming', name: 'Coming up', mins: 5 }, { id: 'finish', name: 'Finish', mins: 2 }];
+  /* 25 minutes in a 30-minute slot (Cole, 2026-10-27); the Ads step shows what they review, what they approved, what went live. */
+  const CLIENT_STEPS = [{ id: 'news', name: 'Their news', mins: 3 }, { id: 'read', name: 'Last week', mins: 7 }, { id: 'ads', name: 'Ads', mins: 5 }, { id: 'week', name: 'This week', mins: 3 }, { id: 'asks', name: 'Requests', mins: 3 }, { id: 'coming', name: 'Coming up', mins: 2 }, { id: 'finish', name: 'Finish', mins: 2 }];
   function clientStep(id) {
     STATE.asks = STATE.asks || []; STATE.promised = STATE.promised || [];
     const wk = D.week || {};
@@ -420,6 +421,17 @@
       const tog = D.month && D.week ? `<div class="seg"><button type="button" class="${per === 'week' ? 'on' : ''}" data-per="week">Last week</button><button type="button" class="${per === 'month' ? 'on' : ''}" data-per="month">Last month</button></div>` : '';
       return sec(per === 'month' ? 'How last month went' : 'How last week went', r ? `from the report they got, ${label}` : 'from the weekly report',
         (r && r.status !== 'sent' ? '<p class="warnline">This report has not been sent to them yet.</p>' : '') + tog + readBody(r, D.act_id));
+    }
+    if (id === 'ads') {
+      const A = D.ads || { review: [], approved: [], live: [] };
+      const cardBtn = (c, cap) => `<button type="button" class="ad" data-editbrief="${esc(c.id)}" title="Open it"><div class="th" ${c.thumb ? `style="background-image:url('${esc(c.thumb)}')"` : ''}>${c.thumb ? '' : esc(c.format || 'Ad')}</div><div class="n">#${esc(c.num)} ${esc(c.title)}</div><div class="s">${cap(c)}</div></button>`;
+      const ago = c => c.since ? `in review since ${md(c.since)}` : '';
+      return `${sec('Ready for their review', 'Production cards in Review. Open one to show the ads; they approve or ask for changes on the card.',
+          A.review.length ? `<div class="ads">${A.review.map(c => cardBtn(c, x => `${x.versions ? plural(x.versions, 'version') + ' · ' : ''}${ago(x)}`)).join('')}</div>` : empty('Nothing waiting on them.'))}
+        ${sec('Approved, going live', 'what they said yes to',
+          A.approved.length ? `<div class="ads">${A.approved.map(c => cardBtn(c, x => x.launch_on ? `live ${md(x.launch_on)}` : 'launch date not set')).join('')}</div>` : empty('Nothing approved and waiting.'))}
+        ${sec('Went live', 'the last two weeks',
+          A.live.length ? `<ul class="chk">${A.live.map(r => `<li><span class="tx">${esc(r.name)}${r.card ? `<br><span style="color:var(--ink-2);font-size:13px">${esc(r.card)}</span>` : ''}</span><span class="o">${md(r.day)}${r.status && r.status !== 'ACTIVE' ? ` · ${esc(String(r.status).toLowerCase().replace(/_/g, ' '))}` : ''}</span></li>`).join('')}</ul>` : empty('Nothing launched in the last two weeks.'))}`;
     }
     if (id === 'week') return `${sec('This week', 'from their report', (wk.this_week || []).length ? `<ul class="chk">${wk.this_week.map(x => `<li><span class="tx">${esc(x)}</span></li>`).join('')}</ul>` : empty('Nothing in the last report.'))}
       ${sec('What we promise', 'goes to Tasks for our team',

@@ -4658,3 +4658,6 @@ this goes for all things that go from the right side", and the Integrations pane
   brand the "Client call" card opens that brand's call at once (caption names the brand); Agency view asks which client.
   The brand's Morning page has a team-only "Client call" header button (`data-go="ccall"`). Cole: "I never know where
   to go" and clicking Work bounced him into Agency view. ccall's Calls buttons go back to Meetings now, not Overview.
+
+## 2026-10-27: the client call gets an Ads step, 25 minutes
+- callscreen.js CLIENT_STEPS: Their news 3, Last week 7, **Ads 5**, This week 3, Requests 3, Coming up 2, Finish 2 (25 in a 30-minute slot). The Ads step = Production cards in Review (open one to show the ads, the client approves on the card), cards in Ready (approved, launch date), and p_launch rows of the last 14 days (`D.ads` from account-health callscreen.js clientData: listBoard + launchedRows). test-clients.mjs checks the payload.
