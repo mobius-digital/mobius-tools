@@ -263,11 +263,14 @@ export async function passInput(env, d, a, list, { today = centralToday() } = {}
       const from14 = addDays(to, -13);
       const top = await q(`SELECT x.adset_id, SUM(d.spend) sp FROM ad_daily d JOIN ads x ON x.act_id = d.act_id AND x.ad_id = d.ad_id
         WHERE d.date BETWEEN ?1 AND ?2 AND d.act_id IN (${inList(metaActs.length, 3)}) AND x.adset_id IS NOT NULL GROUP BY x.adset_id HAVING sp > 0 ORDER BY sp DESC LIMIT 25`, from14, to, ...metaActs);
-      const ids = top.map(t => String(t.adset_id));
+      /* Every rule row's set first (the first live read missed some and called them "$0 spend"), then the biggest. */
+      const ids = [...new Set([...ruleRows.map(r => r.adset_id).filter(Boolean).map(String), ...top.map(t => String(t.adset_id))])].slice(0, 30);
+      /* A few sets per read: adNumbers keeps at most 90 ads, and 25 sets can hold more. */
+      const chunked = async days => { const out = { ads: [] }; for (let i = 0; i < ids.length; i += 5) out.ads.push(...(await adNumbers(env, { act: a.act_id, metaActs, adsetIds: ids.slice(i, i + 5), days, to })).ads); return out; };
       if (ids.length) {
         const [w7, w14, meta] = await Promise.all([
-          adNumbers(env, { act: a.act_id, metaActs, adsetIds: ids, days: 7, to }),
-          adNumbers(env, { act: a.act_id, metaActs, adsetIds: ids, days: 14, to }),
+          chunked(7),
+          chunked(14),
           q(`SELECT s.adset_id, s.name, s.status, s.daily_budget, s.min_spend, s.optimization_goal, s.campaign_id, c.name cname FROM meta_adsets s LEFT JOIN meta_campaigns c ON c.campaign_id = s.campaign_id WHERE s.adset_id IN (${inList(ids.length, 1)})`, ...ids),
         ]);
         sets = ids.map(id => {
