@@ -708,7 +708,7 @@ const createAdsetAction = d => ({
   name: 'meta_create_adset',
   description: 'Make a new ad set in a Meta campaign, PAUSED: name, daily budget (only when the campaign has no Advantage campaign budget), optimisation (default: what the campaign\'s other ad sets use), and targeting copied from another ad set (like) or set by countries and ages. The pixel and conversion event come from the ad sets already running. Add ads with meta_create_ad. To copy a set WITH its ads use meta_duplicate_adset instead.',
   input_schema: { type: 'object', properties: { brand: { type: 'string' }, campaign: { type: 'string', description: 'The campaign id or exact name.' }, name: { type: 'string' }, daily_budget: { type: 'number' },
-    optimization: { type: 'string', enum: OPT }, like: { type: 'string', description: 'An ad set whose targeting, pixel and event to copy (id or name).' }, countries: { type: 'array', items: { type: 'string' } }, age_min: { type: 'integer' }, age_max: { type: 'integer' }, reason: REASON }, required: ['brand', 'campaign', 'name', 'reason'] },
+    optimization: { type: 'string', enum: OPT }, like: { type: 'string', description: 'An ad set whose targeting, pixel and event to copy (id or name).' }, countries: { type: 'array', items: { type: 'string' } }, age_min: { type: 'integer' }, age_max: { type: 'integer' }, start: { type: 'string', description: 'Launch later: YYYY-MM-DD HH:MM in the brand time zone, or ISO. Meta cannot move a start once the set exists.' }, reason: REASON }, required: ['brand', 'campaign', 'name', 'reason'] },
   propose: async (env, input, h, ctx) => {
     const r = await prep(env, d, { ...input, target: input.campaign, level: 'campaign' }, ctx, 'campaign'); if (r.error) return r;
     const camp = r.obj, cbo = +camp.daily_budget > 0 || +camp.lifetime_budget > 0;
@@ -727,13 +727,15 @@ const createAdsetAction = d => ({
     const optimization = OPT.includes(input.optimization) ? input.optimization : like?.optimization_goal || 'OFFSITE_CONVERSIONS';
     if (/OFFSITE_CONVERSIONS|VALUE/.test(optimization) && !like?.promoted_object) return { error: 'No running ad set to copy the pixel and conversion event from. Give like: an ad set that optimises for purchases.' };
     const name = clip(String(input.name || '').trim(), 300); if (!name) return { error: 'Give the ad set a name.' };
+    const start = input.start ? metaTime(input.start, r.brand.tz || 'America/Chicago') : null;
+    if (input.start && !start) return { error: 'start: give YYYY-MM-DD HH:MM or a full ISO time.' };
     const params = { name, campaign_id: camp.id, status: 'PAUSED', optimization_goal: optimization, billing_event: like?.billing_event || 'IMPRESSIONS', targeting,
       ...(like?.promoted_object ? { promoted_object: like.promoted_object } : {}), ...(like?.attribution_spec ? { attribution_spec: like.attribution_spec } : {}),
-      ...(!cbo ? { daily_budget: String(Math.round(input.daily_budget * 100)), bid_strategy: 'LOWEST_COST_WITHOUT_CAP' } : {}) };
+      ...(!cbo ? { daily_budget: String(Math.round(input.daily_budget * 100)), bid_strategy: 'LOWEST_COST_WITHOUT_CAP' } : {}), ...(start ? { start_time: start.toISOString() } : {}) };
     const bad = await validate(d, env, `${r.act}/adsets`, params); if (bad) return { error: bad };
     const ts = targetingSummary(targeting);
     return { summary: `${r.brand.name}: new ad set "${name}" in "${camp.name}" (PAUSED)`,
-      detail: `${!cbo ? `${money(Math.round(input.daily_budget * 100), r.cur)}/day` : 'Campaign budget'} · optimises for ${optimization.toLowerCase().replace(/_/g, ' ')} · ${ts.where || 'everywhere'}, ${ts.ages || '18-65'}${like ? ` · targeting, pixel and event from "${like.name}"` : ''}.\nWhy: ${clip(input.reason, 300)}`,
+      detail: `${!cbo ? `${money(Math.round(input.daily_budget * 100), r.cur)}/day` : 'Campaign budget'} · optimises for ${optimization.toLowerCase().replace(/_/g, ' ')} · ${ts.where || 'everywhere'}, ${ts.ages || '18-65'}${start ? ` · starts ${start.toISOString()}` : ''}${like ? ` · targeting, pixel and event from "${like.name}"` : ''}.\nWhy: ${clip(input.reason, 300)}`,
       patch: { action: 'meta_create_adset', act: r.act, brand: r.brand.act_id, level: 'adset', name, params, campaign: camp.name, reason: clip(input.reason, 300), proposer: ctx?.who || null } };
   },
   apply: async (env, p, h, ctx) => {
@@ -1140,7 +1142,7 @@ export function writeActions(d) { return [...metaActions(d), ...asanaActions(d),
    are one code path. Two calls: dry (the confirm modal shows the summary and detail), then the write itself, which
    proposes again from a fresh read and refuses when the before-state is not what the modal showed (`expect`). The
    person typed the exact budget, so a step over 50% is allowed (big) and the modal says so. */
-const KIND = { pause: 'meta_pause', resume: 'meta_resume', budget: 'meta_budget', min_spend: 'meta_min_spend', rename: 'meta_rename', duplicate: 'meta_duplicate_adset', create_adset: 'meta_create_adset' };
+const KIND = { pause: 'meta_pause', resume: 'meta_resume', budget: 'meta_budget', min_spend: 'meta_min_spend', rename: 'meta_rename', duplicate: 'meta_duplicate_adset', create_adset: 'meta_create_adset', schedule: 'meta_schedule' };
 export const LOCUS_KINDS = Object.keys(KIND);
 function locusInput(b) {
   const lv = ['campaign', 'adset', 'ad'].includes(b.level) ? b.level : undefined;
@@ -1149,7 +1151,9 @@ function locusInput(b) {
   if (b.kind === 'min_spend') return { ...base, ...(b.min != null && b.min !== '' ? { min: +b.min } : {}), ...(b.cap != null && b.cap !== '' ? { cap: +b.cap } : {}) };
   if (b.kind === 'rename') return { ...base, new_name: b.name };
   /* 2026-10-27: a new empty ad set (a creator test) in a campaign; targeting, pixel and event from `like` (else a sibling). */
-  if (b.kind === 'create_adset') return { ...base, campaign: String(b.object || ''), name: String(b.name || ''), ...(b.like ? { like: String(b.like) } : {}) };
+  if (b.kind === 'create_adset') return { ...base, campaign: String(b.object || ''), name: String(b.name || ''), ...(b.like ? { like: String(b.like) } : {}), ...(b.start ? { start: String(b.start) } : {}) };
+  /* 2026-10-27: start later (a scheduled launch day) and/or stop at a time. */
+  if (b.kind === 'schedule') return { ...base, ...(b.start ? { start: String(b.start) } : {}), ...(b.end ? { end: String(b.end) } : {}) };
   if (b.kind === 'duplicate') return { ...base, new_name: b.name, ...(b.daily_budget != null && b.daily_budget !== '' ? { daily_budget: +b.daily_budget } : {}) };
   return base;
 }
