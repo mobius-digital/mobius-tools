@@ -30,6 +30,8 @@ const load = f => { for (const st of fs.readFileSync(f, 'utf8').replace(/--[^\n]
 load(path.join(root, 'profit', 'worker', 'schema.sql'));
 load(path.join(root, 'profit', 'worker', 'migrations', 'brand-001.sql'));
 load(path.join(here, 'schema.sql'));
+/* Live D1 has these columns from hand-run ALTERs; without them the ads route threw inside a passing check. */
+for (const c of ['media_type TEXT']) { try { db.exec(`ALTER TABLE ads ADD COLUMN ${c}`); } catch { /* already there */ } }
 db.exec(`INSERT INTO brands (id, slug, name, status, currency, tz, source) VALUES
   ('brand_alpha', 'alpha', 'Alpha Golf', 'active', 'USD', 'America/Chicago', 'locus'),
   ('brand_beta', 'beta', 'Beta Socks', 'active', 'USD', 'America/Chicago', 'locus')`);
@@ -475,6 +477,32 @@ await check('inviting: owner only, Mobius emails refused, the email goes only on
   assert.equal((await ah(NEW, 'GET', '/api/reports?act=brand_alpha')).status, 403);
   assert.equal((await ah(OWNER, 'POST', '/api/clients/remove', { email: 'new@beta.com' })).status, 200);
   assert.equal((await ah(NEW, 'GET', '/api/me')).status, 401, 'removed = locked out at once');
+});
+
+await check('the 2026-10-27 audit: act_id alone is written back as act (no fall-through to every brand), an upload-typed body is refused off the upload routes, Creators / Today\'s calls / Social routes a client opens answer', async () => {
+  /* act_id only: the calendar used to answer every brand's dates (its handler reads `act`). */
+  const cal = await ah(CLIENT, 'GET', '/api/calendar?act_id=brand_alpha');
+  assert.equal(cal.status, 200, JSON.stringify(cal.j));
+  const items = cal.j.items || cal.j.events || [];
+  assert.ok(items.some(e => e.name === 'Alpha drop'), 'its own date is there');
+  assert.ok(!items.some(e => (e.act || e.act_id) === 'brand_beta' || e.name === 'Beta sale'), 'another brand\'s dates leaked through act_id');
+  /* a JSON body padded past the old 64-byte sniff and labelled as an upload: refused everywhere but the upload routes */
+  const raw = async (w, m, p, bodyText, ct) => (await (w === 'ah' ? AH : PF).fetch(new Request(`https://${w}.test${p}`, { method: m, headers: { Authorization: 'Bearer ' + CLIENT, 'Content-Type': ct }, body: bodyText }), w === 'ah' ? ahEnv : pfEnv, ctx)).status;
+  const padded = ' '.repeat(80) + JSON.stringify({ act: 'brand_alpha', meta: 'act_222' });
+  assert.equal(await raw('ah', 'PUT', '/api/brand-links', padded, 'multipart/form-data; boundary=x'), 403);
+  assert.equal(await raw('pf', 'PUT', '/api/goals', ' '.repeat(80) + JSON.stringify({ act: 'brand_beta', goals: {} }), 'image/png'), 403);
+  assert.equal(await raw('ah', 'PUT', '/api/brand-links', padded, 'application/octet-stream'), 403);
+  /* the routes the client pages call (2026-10-27): its own creator link and board ads, Done / Not now on Today's calls, the Week's grid */
+  db.exec(`INSERT OR IGNORE INTO p_amb_brand (act_id, slug, live) VALUES ('brand_alpha', 'alpha-creators', 1), ('brand_beta', 'beta-creators', 1)`);
+  assert.notEqual((await pf(CLIENT, 'GET', '/api/angles/alpha-creators')).status, 403, 'its own creator link');
+  assert.equal((await pf(CLIENT, 'GET', '/api/angles/beta-creators')).status, 403, 'another brand\'s creator link');
+  assert.notEqual((await pf(CLIENT, 'GET', '/api/amb/board-ads?act=brand_alpha')).status, 403);
+  assert.notEqual((await ah(CLIENT, 'GET', '/api/buyer-list/state?act=brand_alpha')).status, 403);
+  assert.equal((await ah(CLIENT, 'POST', '/api/buyer-list/state', { act: 'brand_beta', object: 'x', action: 'cut', status: 'done' })).status, 403);
+  assert.equal((await ah(CLIENT, 'POST', '/api/buyer-list/state', { act: 'brand_alpha', object: 'x', action: 'cut', status: 'done', owner: 'Cole' })).status, 403, 'only the state fields');
+  assert.notEqual((await ah(CLIENT, 'GET', '/api/social/grid?act=brand_alpha')).status, 403);
+  /* the team's paid switches on the day check are dropped, never refused */
+  assert.notEqual((await ah(CLIENT, 'GET', '/api/daycheck/now?act=brand_alpha&fresh=1&web=1')).status, 403);
 });
 
 await check('the command center answers the team (every brand with its reasons) and a limited teammate only their brands', async () => {

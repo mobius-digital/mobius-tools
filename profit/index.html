@@ -4609,7 +4609,7 @@ async function renderCreativeBrowser(host, act, range, opts) {
       : 'You set that number yourself under More options.'}</p>
     ${d.sales_route === false
       ? `<p>· <b>Sales do not count while you have your own threshold set.</b> A typed figure is a hard floor: an ad under it does not rank, however many sales it made. Pick a multiple under <b>Counts at</b> and the sales route comes back.</p>`
-      : `<p>· <b>Or it made ${d.min_purchases ?? 3} sales.</b> Sales are the other kind of evidence, and this is how a brand-new winner appears before it has spent much. Dartee's 357-13 took $79 against a $180 bar and returned 19x off 15 sales - a spend test alone would have hidden it for weeks.</p>`}
+      : `<p>· <b>Or it made ${d.min_purchases ?? 3} sales.</b> Sales are the other kind of evidence, and this is how a brand-new winner appears before it has spent much. One brand's ad took $79 against a $180 bar and returned 19x off 15 sales: a spend test alone would have hidden it for weeks.</p>`}
     <p>An ad with one lucky sale on $12 satisfies neither, which is the whole point: it would otherwise top every ROAS list.</p>
     <p><b>To see everything anyway:</b> set <b>Counts at → Any spend</b>, or sort by <b>Spend</b>, <b>Purchases</b> or <b>Newest</b> - those rank every ad that spent, because they are not ratios and cannot be flattered by a tiny denominator.</p>`));
 
@@ -4951,7 +4951,7 @@ const PAGE_HELP = {
     <p><b>Edit by hand</b> changes the layout; <b>Change it with Locus</b> rewrites it from a sentence.</p>`,
   studio: `
     <p><b>What this page is:</b> where the ads get made. Pick the brief or the angle, the real product photo from the Library, the format and the look; Studio paints the scene around the real product, checks the fit and the light, and hands back the ad for review on the Pipeline.</p>
-    <p><b>Words</b> writes the copy in the brand's voice. The brand's rules (no AI product for Lucky, photoreal people as a real shoot) are applied on every make.</p>`,
+    <p><b>Words</b> writes the copy in the brand's voice. The brand's rules (real product only where the brand says so, photoreal people as a real shoot) are applied on every make.</p>`,
   library: `
     <p><b>What this page is:</b> every photo and video the brand has given us, by product, with the cut-outs Studio uses. Upload here first; Studio and the creator link read from it.</p>`,
   inspo: `
@@ -5275,12 +5275,14 @@ function clientTabOk(t) {
    (show()), so every old ?open= link still lands. Client logins are always one client: AGENCY_TABS still decides
    what they can open. */
 const AGENCY_VIEW = 'Agency view';
-const AGENCY_ONLY = new Set(['calls', 'economics', 'workload', 'actions', 'meetings', 'monday']);
-const VIEW_BOTH = new Set(['buyer', 'morning', 'month', 'overview', 'yesterday', 'leaks', 'plan', 'requests', 'tasks', 'production', 'today', 'calendar', 'brief', 'reports', 'dash', 'warplan', 'warlive', 'war', 'season', 'pulse', 'settings', 'guide', 'health']);
+/* 2026-10-27: Meetings ('calls') shows in BOTH views. Under a brand its Client call card opens that brand's call at once; Cole
+   kept being bounced to Agency view by clicking Work and never knew where the client call lived. */
+const AGENCY_ONLY = new Set(['economics', 'workload', 'actions', 'meetings', 'monday']);
+const VIEW_BOTH = new Set(['calls', 'buyer', 'morning', 'month', 'overview', 'yesterday', 'leaks', 'plan', 'requests', 'tasks', 'production', 'today', 'calendar', 'brief', 'reports', 'dash', 'warplan', 'warlive', 'war', 'season', 'pulse', 'settings', 'guide', 'health']);
 const inAgency = () => !isClient() && S.act === 'all';
 const tabScope = t => AGENCY_ONLY.has(t) ? 'agency' : VIEW_BOTH.has(t) ? 'both' : 'client';
 function tabInView(g, t, agency = inAgency()) {
-  if (g === 'work') return agency;
+  if (g === 'work') return true;   // Meetings and Tasks in both views (2026-10-27)
   if (g === 'creative' && t === 'production') return !agency;
   if (g === 'home' && t === 'tasks') return !agency;   // under a client, Tasks sits in Home; in Agency view it is Work > Tasks
   const sc = tabScope(t);
@@ -5727,7 +5729,7 @@ function show(tab, opt) {
       <button class="btn primary" id="tabRetry">Try again</button></div>`;
     const rb = $('#tabRetry'); if (rb) rb.onclick = () => show(tab);
   };
-  const after = () => { done(); if (isClient()) { if (tab === 'overview' && window.ClientsTab) window.ClientsTab.welcome($('#main')); } else offerTour(tab); };
+  const after = () => { done(); if (isClient()) { if ((tab === 'overview' || tab === 'morning') && window.ClientsTab) window.ClientsTab.welcome($('#main')); } else offerTour(tab); };
   let r;
   const run = RUN;
   try { r = ({ morning: f => V4R(f), month: f => V4R(f, 'month'), warplan: f => DR('warplan', f), warlive: f => DR('warlive', f), actions: f => window.ActionsTab ? window.ActionsTab.render({ S, api, apiAH, show, pageHead, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'), calls: f => window.CallsTab ? window.CallsTab.render({ S, api, apiAH, show, pageHead, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'), ccall: f => CCALL(f), tasks: f => window.TasksTab ? window.TasksTab.render({ S, api, apiAH, show, pageHead, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'), production: f => window.ProductionTab ? window.ProductionTab.render({ S, api, apiAH, show, pageHead, AH_URL, confirmModal, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'),  requests: f => window.RequestsTab ? window.RequestsTab.render({ S, api, apiAH, show, pageHead, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'), calendar: f => CALR(f), social: f => SOCR(f), socialsaved: f => SOCR(f, 'socialsaved'), socialweek: f => SOCR(f, 'socialweek'), socialresults: f => SOCR(f, 'socialresults'), yesterday: f => DR('yesterday', f), leaks: f => V2R('leaks', f), buyer: f => BYR(f), today: f => DR('today', f), war: f => DR('war', f), pulse: f => DR('pulse', f), answers: f => renderBrand(f, 'client'), research: f => renderBrand(f, 'research'), voice: f => renderBrand(f, 'voice'), overview: f => V2R('overview', f), profit: renderProfit, plan: async f => { const r = await renderPlan(f); addGoalTargets(); return r; }, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: f => V2R('meta', f), customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles, copy: renderCopy, season: renderSeason, calc: renderCalc, guide: renderGuide, email: f => V2R('email', f), dash: renderDash, store: f => V2R('store', f), stock: f => SR('stock', f), buying: f => SR('buying', f), drops: f => SR('drops', f), website: f => V2R('website', f), inspo: f => V2R('inspo', f), library: f => V2R('library', f), search: f => V2R('search', f), google: f => V2R('google', f), gcampaigns: f => V2R('gcampaigns', f), gads: f => V2R('gads', f), gterms: f => V2R('gterms', f), gchanges: f => V2R('gchanges', f), economics: f => AGR('economics', f), workload: f => AGR('workload', f), tiktok: f => V2R('tiktok', f), channels: f => V2R('channels', f), campaigns: f => V2R('campaigns', f), adcreative: f => V2R('adcreative', f), changes: f => metaSub('changelog', f), mtoday: f => metaSub('today', f), mbrowser: f => metaSub('creative', f) })[tab](first); }
@@ -5874,7 +5876,7 @@ function CCALL() {
   window.CALL_OPEN = null;
   try { const u = new URL(location.href); if (u.searchParams.has('call')) { u.searchParams.delete('call'); history.replaceState(null, '', u); } } catch {}
   if (!window.CallScreen) { $('#main').innerHTML = `<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>`; return; }
-  return window.CallScreen.open({ S, api, apiAH, pageHead, RUN: () => RUN, show: t => show(t === 'calls' ? 'overview' : t) }, 'client', S.act);
+  return window.CallScreen.open({ S, api, apiAH, pageHead, RUN: () => RUN, show }, 'client', S.act);   // Meetings lives under the brand too now
 }
 /* Agency economics and Team workload (2026-10-10, agency.js), under Tools. */
 function AGR(tab, first) {
@@ -6296,12 +6298,13 @@ function renderGuide() {
   const order = GUIDE.slice().sort((a, b) => (b.role === role) - (a.role === role));
   /* v2 look (2026-10-08). The "Show only these tabs" buttons are gone with the role filter
      (applyRole is a no-op since the v3 shell), so a button that changed nothing is not drawn. */
+  const CLG = isClient();   // 2026-10-27: a client reads its own steps only, never the team's week or pages
   $('#main').innerHTML = `<div class="gd v2 lx">${LX.head('guide', 'How to use Locus')}
-    ${LX.say('What each page is for and what to do, in order. Find your role and follow the steps; every step has an Open button that takes you there.')}
-    <section class="gd-role" id="gdSop"><header><div><h3>How we work</h3><span>The week, the Monday call, the creative kickoff call, the client call, revisions and due dates. Each call has a screen under Work > Meetings. Set 2026-10-12; the words live in sop.js.</span></div></header>
-      ${window.SopPage ? window.SopPage.html() : '<p class="hint">The page did not load. Hard-refresh.</p>'}</section>
+    ${LX.say(CLG ? 'What each page is for and what to do, in order. Every step has an Open button that takes you there.' : 'What each page is for and what to do, in order. Find your role and follow the steps; every step has an Open button that takes you there.')}
+    ${CLG ? '' : `<section class="gd-role" id="gdSop"><header><div><h3>How we work</h3><span>The week, the Monday call, the creative kickoff call, the client call, revisions and due dates. Each call has a screen under Work > Meetings. Set 2026-10-12; the words live in sop.js.</span></div></header>
+      ${window.SopPage ? window.SopPage.html() : '<p class="hint">The page did not load. Hard-refresh.</p>'}</section>`}
     ${order.map(g => `<section class="gd-role"><header><div><h3>${esc(g.name)}</h3><span>${esc(g.sub)}</span></div></header>
-      ${g.parts.map(([when, steps]) => `<div class="gd-when">${esc(when)}</div>${steps.map(([t, d, go], i) => `<div class="gd-step"><i>${i + 1}</i><div><b>${esc(t)}</b><span>${esc(d)}</span></div>${go ? `<button class="btn" data-go="${go}">Open</button>` : '<span></span>'}</div>`).join('')}`).join('')}
+      ${g.parts.map(([when, steps]) => [when, CLG ? steps.filter(([, , go]) => !go || clientTabOk(go)) : steps]).filter(([, steps]) => steps.length).map(([when, steps]) => `<div class="gd-when">${esc(when)}</div>${steps.map(([t, d, go], i) => `<div class="gd-step"><i>${i + 1}</i><div><b>${esc(t)}</b><span>${esc(d)}</span></div>${go ? `<button class="btn" data-go="${go}">Open</button>` : '<span></span>'}</div>`).join('')}`).join('')}
     </section>`).join('')}
     <section class="gd-role"><header><div><h3>Replay a tour</h3><span>Each page has a short walkthrough; it is also on the page itself under Tour, top right.</span></div></header>
       <div class="row" style="margin:0;gap:8px;flex-wrap:wrap">${Object.entries(TOURS).map(([k, t]) => `<button class="btn" data-tour="${k}">${esc(t.name)}</button>`).join('')}</div></section>
@@ -12011,7 +12014,7 @@ async function renderSettings() {
           min_track: V.track ? 1 : 0, monday_post: r.monday_post ? 1 : 0, min_days: n('min_days') || 7, min_cap_pct: n('min_cap_pct') || 25,
           cr_judge_x: n('cr_judge_x') || 2, cr_min_days: n('cr_min_days') || 3, cr_scale_buys: n('cr_scale_buys') || 3, cr_cut_zero_x: n('cr_cut_zero_x') || 3, cr_cut_cpa_x: n('cr_cut_cpa_x') || 1.5, cr_cut_spend_x: n('cr_cut_spend_x') || 3, cr_anchor_pct: n('cr_anchor_pct') || 50 };
         await api('/api/brand/rules', { method: 'PUT', body: JSON.stringify({ act: a.act_id, rules }) });
-        if (cpa !== (T0 === '' ? '' : +T0)) await api('/api/client-settings', { method: 'PUT', body: JSON.stringify({ act: a.act_id, target_cpa: cpa }) });
+        if (cpa !== (T0 === '' ? '' : +T0) && window.MetaTab) await window.MetaTab.api(`/api/accounts/${a.act_id}`, { method: 'PUT', body: JSON.stringify({ target_cpa: cpa }) });   // the brand route: a client may save its own goal too
         if (roas !== (TR0 === '' ? '' : +TR0) && window.MetaTab) await window.MetaTab.api(`/api/accounts/${a.act_id}`, { method: 'PUT', body: JSON.stringify({ target_roas: roas }) });
         await refreshAccounts().catch(() => {});
         await loadGoals(box, a);

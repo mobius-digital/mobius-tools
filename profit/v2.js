@@ -2012,7 +2012,9 @@
     /* TikTok read directly (account-health tiktok.js): the Connect button until signed in, then each linked
        brand's campaigns from TikTok's own reporting. */
     if (kind === 'tiktok') {
-      H.apiAH('/api/tiktok/status').then(st => {
+      /* a client never reads the connection (team-only); it gets the report straight away */
+      (document.body.classList.contains('is-client') ? Promise.resolve({ connected: true, client: true }) : H.apiAH('/api/tiktok/status')).then(st => {
+        if (st && st.client) { const host = root.querySelector('#v2ttc'); if (host) host.innerHTML = ''; }
         if (t !== H.RUN() || !st) return;
         const host = root.querySelector('#v2ttc');
         if (host) host.innerHTML = st.connected ? `<p class="v2hint">TikTok is connected (${(st.advertisers || []).length} ad account${(st.advertisers || []).length === 1 ? '' : 's'}). Link a brand to its advertiser ID in Brand settings > Integrations.</p>`

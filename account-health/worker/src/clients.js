@@ -233,7 +233,8 @@ export async function clientAsk(env, request, body, d) {
   if ((use.cost || 0) >= CLIENT_CAPS.clientAsk.max) return { error: capMessage('clientAsk'), status: 429 };
   const name = (await brandNames(env, [brand]))[brand] || 'your brand';
   const runId = /^[a-z0-9]{6,16}$/.test(String(body.runId || '')) ? body.runId : null;
-  if (runId) await putJson(env, `askRunWho:${runId}`, cs.email).catch(() => {});
+  /* 2026-10-27 audit: never take over a run id that is already someone else's (a guessed team run). */
+  if (runId) { const owner = await getJson(env, `askRunWho:${runId}`, null).catch(() => null); if (owner && owner !== cs.email) return { error: 'That run is not yours.', status: 403 }; await putJson(env, `askRunWho:${runId}`, cs.email).catch(() => {}); }
   const { engine, h } = d.strategist();
   let r;
   try {
