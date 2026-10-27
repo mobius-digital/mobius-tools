@@ -155,6 +155,21 @@ async function all(env, path) {
   return out;
 }
 
+/** A Frame file's original download link (signed, short-lived: hand it on at once), by file id. Every account the
+ *  login sees is tried, so the caller needs only the id frame_list gave. Returns { id, name, url, type }. */
+export async function frameFileDownload(env, fileId) {
+  const id = String(fileId || '').trim();
+  if (!/^[0-9a-f-]{36}$/i.test(id)) throw new Error(`"${id}" is not a Frame file id. Read it with frame_list.`);
+  for (const a of await all(env, '/accounts')) {
+    const j = await frameApi(env, 'GET', `/accounts/${a.id}/files/${id}?include=media_links.original`).catch(() => null);
+    if (!j?.data) continue;
+    const url = j.data.media_links?.original?.download_url;
+    if (!url) throw new Error(`Frame has no download for "${j.data.name}" yet (still uploading or processing?).`);
+    return { id, name: j.data.name, url, type: j.data.media_type || j.data.type || '' };
+  }
+  throw new Error(`No Frame file has the id ${id}.`);
+}
+
 export async function frameWorkspaces(env) {
   const accounts = await all(env, '/accounts');
   const out = [];
