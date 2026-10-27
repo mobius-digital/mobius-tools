@@ -54,6 +54,7 @@ import { todayTick } from './todaypost.js';
  */
 
 import { buildStrategist } from './strategist.js';
+import { writeActions, writeTools } from './metawrite.js';
 import { indexEvent, backfillTick, indexStatus, forgetChannelCache } from './slackindex.js';
 import { consolidate, factsList, remember as stratRemember, forget as stratForget, editFact, skillsList, saveSkill, deleteSkill, usageSummary } from './stratmem.js';
 import { PRESETS as STRAT_PRESETS } from './strattools.js';
@@ -70,7 +71,7 @@ import { handleCalendly, useFetch as calendlyFetch } from './calendly.js';
 import { useFetch as mailFetch } from './mail.js';
 import { handleSign, useFetch as contractFetch } from './contract.js';
 import { handleFrame, useFetch as frameFetch } from './frame.js';
-import { handleMake } from './stratmake.js';
+import { handleMake, makeTools } from './stratmake.js';
 import { integrationsReport } from './integrations.js';
 import { smokeTick, handleSmoke } from './smoke.js';
 import { useFetch as clarityFetch, clarityReport, storeClarity, setClarityProject, forgetClarity } from './clarity.js';
@@ -8478,11 +8479,22 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (path === '/api/ask/tool' && request.method === 'POST') {
         if (!env.ADMIN_TOKEN || request.headers.get('Authorization') !== 'Bearer ' + env.ADMIN_TOKEN) return json({ error: 'Admin key only.' }, 403);
         const tdeps = { listAccounts, xfetch, slack: slackApi, getSetting, putSetting };
-        const tool = [...dataTools(tdeps), ...extraTools(tdeps), ...studioMakeTools(strategistDeps())].find(t => t.def.name === body.name);
+        const tool = [...dataTools(tdeps), ...extraTools(tdeps), ...studioMakeTools(strategistDeps()), ...makeTools(strategistDeps()), ...writeTools(strategistDeps())].find(t => t.def.name === body.name);
         if (!tool) return json({ error: 'No such tool.' }, 400);
         /* channel + user (+ thread): run it as though asked in that Slack conversation (make_canvas, studio_make). */
         const sctx = body.channel ? { surface: 'slack', channel: body.channel, thread: body.thread || null, ev: { user: body.user || null } } : { surface: 'web' };
         return json(await tool.run(env, body.input || {}, { ...sctx, screen: body.act ? { act_id: body.act } : null }));
+      }
+      /* One Strategist write action by name (metawrite.js), the admin key only: {name, input, apply}. Without apply = the
+         card (propose); with apply = propose then apply, logged as Claude Code. For a launch someone asked for in chat. */
+      if (path === '/api/ask/action' && request.method === 'POST') {
+        if (!env.ADMIN_TOKEN || request.headers.get('Authorization') !== 'Bearer ' + env.ADMIN_TOKEN) return json({ error: 'Admin key only.' }, 403);
+        const act = writeActions(strategistDeps()).find(a => a.name === body.name);
+        if (!act) return json({ error: 'No such action.' }, 400);
+        const ctx = { surface: 'web', via: 'locus', who: body.who || 'Claude Code for Cole' };
+        const card = await act.propose(env, body.input || {}, null, ctx);
+        if (card.error || !body.apply) return json(card);
+        return json({ card: { summary: card.summary, detail: card.detail }, result: await act.apply(env, card.patch, null, ctx) });
       }
       /* Re-run or push an ideas thread (ideas.js adminIdea): the admin key only. */
       if (path === '/api/ask/idea' && request.method === 'POST') {
