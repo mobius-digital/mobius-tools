@@ -542,6 +542,8 @@ export async function handleStaff(request, env, url, path, json) {
       const stmts = ids.map((id, i) => env.DB.prepare(`UPDATE ${col[0]} SET ${col[1]} = ?1 WHERE id = ?2 AND act_id = ?3`).bind(i + 1, id, acct.act_id));
       // Moving an angle into another section rides along with its new order.
       if (body.kind === 'angles' && body.section_id) {
+        const sec = await env.DB.prepare(`SELECT id FROM p_amb_section WHERE id = ?1 AND act_id = ?2`).bind(String(body.section_id), acct.act_id).first();
+        if (!sec) return json({ error: 'unknown section' }, 404);
         for (const id of ids) stmts.push(env.DB.prepare(`UPDATE p_amb_angle SET section_id = ?1 WHERE id = ?2 AND act_id = ?3`).bind(body.section_id, id, acct.act_id));
       }
       if (stmts.length) await env.DB.batch(stmts);

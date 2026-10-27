@@ -4670,3 +4670,11 @@ this goes for all things that go from the right side", and the Integrations pane
   in between, dashed = not confirmed, `.sale` tinted; under 600px the grid hides and `.cal-list` shows the same events
   as a list. Finish = the recap (drafted from the lists) with "Post it" and one Finish button. Checked headless (CDP)
   at 1280 and 375 against a stub payload; the Browser pane refused localhost that day.
+- **2026-10-27 (later): where the client call is.** In the v4 rail "Client call" was no tab at all (V4_HOME sent `ccall`
+  to Meetings), so Cole could not find it. It is now **Work > Client call** under a picked brand (`NAV4.work`,
+  `tabInView` hides it in Agency view), plus the Meetings card and the Morning header button. Leftovers from the access
+  audit closed: a client edits its own goals from Month (Edit the plan / Set the goals carry `data-client-ok`; PUT
+  /api/plan was always allowed), POST /api/social/transcript on CLIENT_RULES, amb/order refuses a section of another
+  brand, a social post refuses an upload key the brand does not own. test-clients.mjs 31/31. brand/tag ad ids stay
+  unchecked on purpose: p_br_adtag is keyed by the brand's own act_id, nothing crosses. social/follow was already
+  capped at 40 a brand.

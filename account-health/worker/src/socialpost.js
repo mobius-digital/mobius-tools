@@ -979,6 +979,12 @@ export async function handleSocialPost(request, env, url, path, json, d) {
       if (!Number.isFinite(atMs)) return json({ error: 'Pick a day and time.' }, 400);
       const status = body.status === 'scheduled' ? 'scheduled' : 'draft';
       const media = cleanMedia(body.media, old ? safe(old.media_json, []) : []);
+      /* An upload key names a file in R2: only this brand's own uploads (or keys already on this post) may ride on a post. */
+      const oldKeys = new Set((old ? safe(old.media_json, []) : []).map(x => x && x.key).filter(Boolean));
+      for (const mm of media) if (mm.key && !oldKeys.has(mm.key)) {
+        const mine = await env.DB.prepare(`SELECT 1 FROM social_media WHERE act_id = ?1 AND key = ?2`).bind(act, mm.key).first().catch(() => null);
+        if (!mine) return json({ error: 'That upload belongs to another brand.' }, 403);
+      }
       const targets = cleanTargets(body.targets);
       const onCount = Object.values(targets).filter(t => t.on).length;
       if (status === 'scheduled' && !media.length) return json({ error: 'Add a picture or video first.' }, 400);
