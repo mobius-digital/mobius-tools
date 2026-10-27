@@ -1,0 +1,244 @@
+<title>Cole's Operating Week</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: one reading column, the week grid breaks wider. Lucky = fairway green, Mobius = ink blue, shared = brass, life = sand. */
+:root{
+  --bg:#f6f7f4; --surface:#ffffff; --fg:#1b1f1c; --muted:#5d665f; --line:#dde2dc;
+  --lucky:#3f8a63; --lucky-bg:#e7f3ec; --mobius:#5a6fb0; --mobius-bg:#eaeefa;
+  --shared:#6b7280; --shared-bg:#f0f1f3; --life:#8a8f98; --life-bg:#f4f5f6; --off-bg:#f7f8f7;
+  --warn:#a5361f;
+  --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --body:"Source Sans 3",ui-sans-serif,system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#121512; --surface:#1a1e1b; --fg:#e8ece7; --muted:#9aa49c; --line:#2c332e;
+  --lucky:#7fd1a2; --lucky-bg:#173826; --mobius:#9db8ea; --mobius-bg:#1b2840;
+  --shared:#e2bd6a; --shared-bg:#3a2e14; --life:#cdbb9f; --life-bg:#332c22; --off-bg:#1d211e; --warn:#f08a70; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121512; --surface:#1a1e1b; --fg:#e8ece7; --muted:#9aa49c; --line:#2c332e;
+  --lucky:#7fd1a2; --lucky-bg:#173826; --mobius:#9db8ea; --mobius-bg:#1b2840;
+  --shared:#e2bd6a; --shared-bg:#3a2e14; --life:#cdbb9f; --life-bg:#332c22; --off-bg:#1d211e; --warn:#f08a70; color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font:17px/1.55 var(--body)}
+.wrap{max-width:760px;margin:0 auto;padding-block:48px 80px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wide{max-width:1040px}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;line-height:1.15;margin:0}
+h1{font-size:clamp(34px,6vw,54px);font-weight:800;letter-spacing:-.02em}
+h2{font-size:26px;font-weight:800;margin-top:56px}
+h3{font-size:18px;font-weight:600}
+p{margin:0}
+.lede{font-size:20px;color:var(--muted);margin-top:14px;max-width:62ch}
+.eyebrow{font:500 12px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.stack{display:grid;gap:14px;margin-top:16px}
+ul.clean{list-style:none;padding:0;margin:0;display:grid;gap:10px}
+ul.clean li{padding-left:18px;position:relative}
+ul.clean li::before{content:"";position:absolute;left:0;top:.62em;width:7px;height:7px;border-radius:2px;background:var(--muted)}
+.finding{display:grid;grid-template-columns:auto 1fr;gap:4px 16px;padding:16px 0;border-top:1px solid var(--line)}
+.finding:last-child{border-bottom:1px solid var(--line)}
+.big{font:800 34px/1 var(--display);font-variant-numeric:tabular-nums;min-width:64px}
+.finding .t{font-weight:700}
+.finding .d{grid-column:2;color:var(--muted)}
+.quote{border-left:3px solid var(--shared);padding:4px 0 4px 16px;margin-top:16px}
+.blocks3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px}
+.blocks3 div{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.blocks3 b{display:block;font-family:var(--display)}
+.blocks3 span{color:var(--muted);font-size:15px}
+.who{display:grid;grid-template-columns:150px 1fr;gap:10px 18px;margin-top:16px}
+.who dt{font-weight:700}
+.who dd{margin:0;color:var(--muted)}
+.rules{counter-reset:r;display:grid;gap:14px;margin-top:16px;padding:0;list-style:none}
+.rules li{counter-increment:r;display:grid;grid-template-columns:34px 1fr;gap:12px}
+.rules li::before{content:counter(r);font:800 22px/1.2 var(--display);color:var(--shared)}
+.rules b{display:block}
+.rules span{color:var(--muted)}
+/* week grid */
+.gridbox{overflow-x:auto;margin-top:18px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.week{display:grid;grid-template-columns:52px repeat(5,minmax(120px,1fr));grid-template-rows:36px repeat(26,26px);min-width:700px;position:relative;font-size:13px}
+.dayh{font:600 14px var(--display);padding:8px 8px;border-bottom:1px solid var(--line);grid-row:1}
+.dayh small{display:block;font:500 10px var(--mono);color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
+.hr{font:500 10px var(--mono);color:var(--muted);padding:2px 6px 0;border-top:1px solid var(--line);grid-column:1}
+.b{margin:2px 3px;border-radius:5px;padding:4px 7px;line-height:1.25;overflow:hidden;border-left:3px solid}
+.b b{display:block;font-weight:700;font-size:12.5px}
+.b span{color:var(--muted);font-size:11.5px}
+.L{background:var(--lucky-bg);border-color:var(--lucky)} .L b{color:var(--lucky)}
+.M{background:var(--mobius-bg);border-color:var(--mobius)} .M b{color:var(--mobius)}
+.S{background:var(--shared-bg);border-color:var(--shared)} .S b{color:var(--shared)}
+.F{background:var(--life-bg);border-color:var(--life)} .F b{color:var(--life)}
+.O{background:var(--off-bg);border-color:var(--line)} .O b{color:var(--muted)}
+.legend{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:12px;font-size:14px;color:var(--muted)}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px;border-left:3px solid}
+/* menus */
+.menus{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+.menu{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;min-width:0}
+.menu h3{margin-bottom:10px}
+.menu.lucky h3{color:var(--lucky)} .menu.mob h3{color:var(--mobius)}
+.menu dl{margin:0;display:grid;gap:10px}
+.menu dt{font-weight:700}
+.menu dd{margin:0;color:var(--muted);font-size:15px}
+table{width:100%;border-collapse:collapse;font-size:15px;margin-top:14px}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:500 11px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+td.now{font-family:var(--mono);font-size:13px;white-space:nowrap}
+.tag{display:inline-block;font:500 11px var(--mono);padding:2px 6px;border-radius:4px;background:var(--shared-bg);color:var(--shared)}
+.tag.warn{background:transparent;border:1px solid var(--warn);color:var(--warn)}
+.flow{display:grid;gap:0;margin-top:18px}
+.step{display:grid;grid-template-columns:110px 1fr;gap:16px;padding:14px 0;border-top:1px solid var(--line)}
+.step .k{font:500 12px var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--shared);padding-top:3px}
+.step p+p{margin-top:6px;color:var(--muted)}
+.example{font-family:var(--mono);font-size:14px;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:10px 12px;margin-top:8px;white-space:pre-wrap}
+.answer{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin-top:18px}
+.todo{margin-top:16px;display:grid;gap:10px}
+.todo div{display:grid;grid-template-columns:70px 1fr;gap:12px;align-items:baseline}
+.todo .who2{font:500 12px var(--mono);text-transform:uppercase;color:var(--muted)}
+a{color:var(--mobius)}
+@media (max-width:640px){
+  .blocks3,.menus{grid-template-columns:1fr}
+  .who{grid-template-columns:1fr;gap:2px}.who dd{margin-bottom:10px}
+  .step{grid-template-columns:1fr;gap:4px}
+  body{font-size:16px}
+}
+</style>
+
+<div class="wrap">
+  <div class="eyebrow">Lucky Golf + Mobius Digital · Central time · Oct 26, 2026</div>
+  <h1>One company at a time</h1>
+  <p class="lede">You feel scattered because both companies share every day and calls land anywhere. The fix is a fixed week where each block belongs to one company and one kind of work, calls live in two windows, and anything you tell Locus gets dropped into the right block on your calendar.</p>
+
+  <h2>What your calendar shows</h2>
+  <div class="stack">
+    <div class="finding"><div class="big">14</div><div class="t">calls last week, spread over all 5 days</div><div class="d">Monday held 7. The other 7 landed Tue 11am, Tue noon, Tue 3pm, Wed 8am, Wed 10am, Thu 1pm and Fri 8:30am. Every one of those cut a morning or afternoon in half.</div></div>
+    <div class="finding"><div class="big">2</div><div class="t">Bonk calls overlap every Monday</div><div class="d">Vince's "BONK Weekly Strategy" (1:30 to 2:30) and your "Bonk Golf & Mobius Digital" (1:45 to 2:15). One should go.</div></div>
+    <div class="finding"><div class="big">0</div><div class="t">blocks for work, gym, food or Lucky</div><div class="d">Only calls are on the calendar, so everything else gets done in the gaps, in whatever order Slack decides.</div></div>
+  </div>
+
+  <h2>The 4-4-4 day you saw</h2>
+  <p style="margin-top:12px">It is Alex Hormozi, in a Short called <a href="https://www.youtube.com/watch?v=5bHAsqZPJE8">"Time Schedule For New Entrepreneurs"</a>. Three 4-hour blocks, in this order:</p>
+  <div class="blocks3">
+    <div><b>1. Promote</b><span>Content, outreach, ads. Getting attention.</span></div>
+    <div><b>2. Build</b><span>Make the product or the offer better.</span></div>
+    <div><b>3. Deliver</b><span>Fulfil, serve customers, follow up.</span></div>
+  </div>
+  <div class="quote"><p><b>My take.</b> The order is the gold: promotion goes first because it is the thing delivery always pushes out. But he built it for someone with one business. Run it daily across two companies and you switch company and mode three or four times a day, which is exactly how you feel now. So keep his order, and apply it inside a company day, not across the whole day.</p></div>
+
+  <h2>What other operators do</h2>
+  <dl class="who">
+    <dt>Jack Dorsey</dt><dd>Ran Twitter and Square at once with theme days: each weekday had one job (management, product, growth, partners, culture). Closest match to your situation.</dd>
+    <dt>Paul Graham</dt><dd>Maker vs manager schedule. One call in the middle of a half-day kills the half-day. Stack meetings together.</dd>
+    <dt>Hormozi, Altman</dt><dd>No meetings in the morning. Mornings are for making things; calls are batched.</dd>
+    <dt>Dan Sullivan</dt><dd>Three kinds of day: Focus (revenue work only), Buffer (admin, team, catch-up), Free (no work at all). Scattered people live in Buffer every day.</dd>
+    <dt>Cal Newport</dt><dd>Every hour of the workday gets a block. When the day breaks, re-block the rest instead of winging it.</dd>
+    <dt>Dan Martell</dt><dd>The "Perfect Week" template, plus recording any task you repeat so someone else can take it.</dd>
+    <dt>The research</dt><dd>About 23 minutes to fully refocus after an interruption (Gloria Mark). Part of your head stays on the last task, worst when it was left half done (Sophie Leroy). Each extra live project costs roughly 20% of your time in switching (Weinberg).</dd>
+  </dl>
+
+  <h2>Five rules</h2>
+  <ol class="rules">
+    <li><div><b>One company per block, one kind of work per block.</b><span>A Lucky block never opens Mobius Slack, and the reverse.</span></div></li>
+    <li><div><b>Calls only in two windows.</b><span>Monday afternoon for every client call. Thursday afternoon for everything else. The 8am team meeting is the only morning call.</span></div></li>
+    <li><div><b>Media buying is one daily pass, every brand at once.</b><span>Lucky ads included. Buying is one skill, so it is one sitting off the Buyer list, then done.</span></div></li>
+    <li><div><b>The gym sits between the morning and afternoon, 10 to 12.</b><span>Two hours so it never gets squeezed. Breakfast at 6:30, lunch at 12, dinner after 5:30.</span></div></li>
+    <li><div><b>Friday plans the next week, so Monday never starts cold.</b><span>Every block for next week already knows what it holds before the weekend.</span></div></li>
+  </ol>
+
+  <h2>Whole days or half days?</h2>
+  <p style="margin-top:12px">Whole days. A half-day split means you change companies every single day at noon, and the morning company follows you into the afternoon (that is the residue the research talks about). Lucky work is making things: ads, pages, product. It needs a run of hours to get momentum, and a 3-hour morning ends right as you get going.</p>
+  <p style="margin-top:10px">The one thing that touches both every day is the 5:30 Buy hour, because ads cannot wait a week. Mobius Slack gets read at Start and at Shutdown, not in between. So Lucky gets Tuesday and Thursday morning, Mobius gets Monday and Wednesday, and Friday catches whichever slipped.</p>
+</div>
+
+<div class="wrap wide" style="padding-block:0">
+  <h2 style="margin-top:8px">The week</h2>
+  <div class="gridbox">
+    <div class="week" id="week"></div>
+  </div>
+  <div class="legend">
+    <span><i class="L"></i>Lucky Golf</span><span><i class="M"></i>Mobius Digital</span><span><i class="S"></i>Both companies</span><span><i class="F"></i>Life</span><span><i class="O"></i>Off</span>
+  </div>
+  <p style="margin-top:10px;color:var(--muted);font-size:15px">Day ends at 6, with a quick snack whenever the afternoon block needs one. Afternoon blocks run 12:30 to 5:30, then a 30-minute Shutdown. On Monday, calls run 12 to 5:30 and Shutdown is where you approve the call notes. Weekends are Free days.</p>
+</div>
+
+<div class="wrap" style="padding-top:0">
+  <h2>What goes in each block</h2>
+  <p style="margin-top:12px;color:var(--muted)">Promote means getting people to buy. Build means making the business better. A block is never "4 hours of promote" with nothing in it: Locus fills it from your list, and these are the kinds of things that land there.</p>
+  <div class="menus">
+    <div class="menu lucky"><h3>Lucky Golf</h3><dl>
+      <dt>Promote · Tue 7 to 10</dt><dd>Make and approve ad batches (the BF statics in ChatGPT), pick what to test next, the creator board and TRYBE videos, Klaviyo emails and texts, the giveaway push, PostPilot cards, this week's social posts.</dd>
+      <dt>Build · Tue 12:30 to 5</dt><dd>Website and landing pages (the theme), new products and the factory (polos, tech packs, SKUs), restock and inventory, money (the Ledger, the lender deck), fixing anything customers complain about.</dd>
+      <dt>Make · Thu 7 to 10</dt><dd>Shoot and record: talking-head ads, course footage, product photos. A week with no shoot uses it to finish the Tuesday list.</dd>
+    </dl></div>
+    <div class="menu mob"><h3>Mobius Digital</h3><dl>
+      <dt>Monday morning · 7 to 10</dt><dd><b>Week plans</b> (7:00): read each strategist's "Post my week" in #daily-checkin, so you walk into the 8am meeting knowing every brand's plan. 30 minutes, not 90. <b>Ad review</b> (9:00): the ads the team finished, posted as pictures on Review. Approve them or ask for changes, so nothing waits on you all week.</dd>
+      <dt>Promote · Wed 7 to 10</dt><dd>Finding new clients: lists and outreach, following up leads, writing proposals and agreements, prepping demos, Mobius's own posts and case studies.</dd>
+      <dt>Build · Wed 12:30 to 5</dt><dd>Locus, systems and SOPs, training the team so less lands on you, hiring (the media buyer).</dd>
+    </dl></div>
+  </div>
+  <p style="margin-top:14px;color:var(--muted);font-size:15px">Every day: <b style="color:var(--fg)">Start</b> (coffee, the 5am card, read Slack, answer nothing long), <b style="color:var(--fg)">Buy</b> (Buyer list, every brand including Lucky) and <b style="color:var(--fg)">Breakfast</b>. Friday morning is the Buffer block: catch up on whichever company is behind.</p>
+
+  <h2>Calls</h2>
+  <table>
+    <thead><tr><th>Call</th><th>Now</th><th>Goes to</th></tr></thead>
+    <tbody>
+      <tr><td>Team Meeting</td><td class="now">Mon 8:00</td><td>Stays. The only morning call: it is night for the team.</td></tr>
+      <tr><td>VitaPharm</td><td class="now">Mon 12:00</td><td>Stays, 12:00</td></tr>
+      <tr><td>Shopify Sales Team</td><td class="now">Mon 1:00</td><td>Stays, 1:00</td></tr>
+      <tr><td>Bonk, two invites</td><td class="now">Mon 1:30 + 1:45</td><td><span class="tag warn">Merge</span> keep Vince's, 1:30</td></tr>
+      <tr><td>Dartee creative call</td><td class="now">Mon 2:30</td><td>Stays, 2:30</td></tr>
+      <tr><td>Grunk Dolfer weekly</td><td class="now">Tue 3:00</td><td><span class="tag">Move</span> Mon 3:30</td></tr>
+      <tr><td>Ice &amp; Gold</td><td class="now">Mon 9:00</td><td><span class="tag">Move</span> Mon 4:30 (30 min)</td></tr>
+      <tr><td>Yak Sports (new)</td><td class="now">not set</td><td><span class="tag">Add</span> Mon 5:00 (30 min)</td></tr>
+      <tr><td>Every one-off (demos, Meta reps, vendors, PostPilot, Amazon)</td><td class="now">any day, any time</td><td><span class="tag">Move</span> Thu 12:30 to 5:00 only</td></tr>
+    </tbody>
+  </table>
+  <p style="margin-top:12px;color:var(--muted);font-size:15px">If Ice &amp; Gold or Yak sit in a later time zone, swap them with an earlier slot; the point is every client call is Monday afternoon. A full Monday is about 5 hours of calls, so default new client calls to 30 minutes. Give everyone else a booking page that only shows Thursday afternoon. When someone asks for another time, the answer is "Thursday afternoon works best."</p>
+
+  <h2>How a task gets into a block</h2>
+  <div class="flow">
+    <div class="step"><div class="k">You say it</div><div><p>DM Locus in Slack, from anywhere, in plain words. Or tell me here.</p><div class="example">Lucky: build the Black Friday landing page by Thursday</div></div></div>
+    <div class="step"><div class="k">Locus files it</div><div><p>It becomes a task on your list with the company, the block it belongs in (Lucky Build), a rough size, and the due date.</p></div></div>
+    <div class="step"><div class="k">Locus places it</div><div><p>It goes into the first matching block before the due date that has room: Tuesday afternoon. That block's calendar event is rewritten right away with its list.</p><p>If no block has room in time, Locus tells you in one line and asks what to bump.</p></div></div>
+    <div class="step"><div class="k">5am card</div><div><p>The morning card shows today's two blocks and what is in each. You open the block, the list is there.</p></div></div>
+    <div class="step"><div class="k">Friday</div><div><p>The Plan hour shows what did not get done, rolls it forward, and asks for each company's top 3 for next week.</p></div></div>
+  </div>
+  <div class="answer">
+    <h3>Can the blocks repeat every week if the notes change?</h3>
+    <p style="margin-top:8px">Yes. Google lets one day of a repeating event carry its own notes without touching the rest of the series. So each block is set up once as a repeating event, and Locus only rewrites that day's notes. You get the same calendar every week, with different contents.</p>
+  </div>
+
+  <h2>To turn it on</h2>
+  <div class="todo">
+    <div><span class="who2">You</span><span>Say yes to the week above, or tell me what to move.</span></div>
+    <div><span class="who2">You</span><span>Google Admin, Security, API controls, Domain-wide delegation: add the calendar scope to the Locus service account (I give you the exact line, one paste).</span></div>
+    <div><span class="who2">Me</span><span>Create the repeating blocks on your calendar and move nothing that has other people on it until you say so.</span></div>
+    <div><span class="who2">Me</span><span>Build the Slack drop, the block placement, the 5am card line and the Friday Plan screen in Locus.</span></div>
+    <div><span class="who2">You</span><span>Merge the Bonk invites, move Grunk, set up the Thursday booking page.</span></div>
+  </div>
+</div>
+
+<script>
+const START=5*60, SLOT=30;
+const days=[["Mon","Mobius · Deliver"],["Tue","Lucky Golf"],["Wed","Mobius · Promote + Build"],["Thu","Lucky + calls"],["Fri","Buffer + plan"]];
+const t=s=>{const[h,m]=s.split(":").map(Number);return h*60+m};
+const row=s=>Math.round((t(s)-START)/SLOT)+2;
+const all=d=>[
+ ["5:00","5:30","S","Start","Coffee, 5am card"],
+ ["5:30","6:30","S","Buy","Buyer list, all brands"],
+];
+const day=(a,b)=>[...all(),["6:30","7:00","F","Breakfast",""],...a,["10:00","12:00","F","Gym","2 hours, room to spare"],["12:00","12:30","F","Lunch",""],...b];
+const B={
+ 0:[...all(),["6:30","7:00","F","Breakfast",""],["7:00","8:00","M","Week plans","Read the team's plans"],["8:00","9:00","M","Team meeting",""],["9:00","10:00","M","Ad review","Approve finished ads"],["10:00","11:30","F","Gym",""],["11:30","12:00","F","Lunch",""],["12:00","17:30","M","Client calls","VitaPharm 12, Shopify 1, Bonk 1:30, Dartee 2:30, Grunk 3:30, Ice & Gold 4:30, Yak 5"],["17:30","18:00","S","Shutdown",""]],
+ 1:day([["7:00","10:00","L","Lucky · Promote","Ads, creators, email, social"]],[["12:30","17:30","L","Lucky · Build","Site, product, money"],["17:30","18:00","S","Shutdown",""]]),
+ 2:day([["7:00","10:00","M","Mobius · Promote","New clients"]],[["12:30","17:30","M","Mobius · Build","Locus, systems, hiring"],["17:30","18:00","S","Shutdown",""]]),
+ 3:day([["7:00","10:00","L","Lucky · Make","Shoot and record"]],[["12:30","17:30","S","Calls window","One-offs, both companies"],["17:30","18:00","S","Shutdown",""]]),
+ 4:day([["7:00","10:00","S","Buffer","Whichever company is behind"]],[["12:30","13:30","S","Plan next week","Top 3 each, fill blocks"],["13:30","18:00","O","Off","Free from here"]]),
+};
+const w=document.getElementById("week");
+const add=(html,style,cls)=>{const e=document.createElement("div");e.className=cls;e.style.cssText=style;e.innerHTML=html;w.appendChild(e)};
+add("","grid-column:1;grid-row:1","dayh");
+days.forEach((d,i)=>add(d[0]+"<small>"+d[1]+"</small>","grid-column:"+(i+2),"dayh"));
+for(let m=START;m<18*60;m+=60){const h=m/60;add((h>12?h-12:h)+(h<12?"am":"pm"),"grid-row:"+(row(Math.floor(h)+":00"))+" / span 2","hr")}
+const fmt=s=>{let[h,m]=s.split(":").map(Number);return (h>12?h-12:h)+(m?":"+String(m).padStart(2,"0"):"")};
+Object.entries(B).forEach(([d,list])=>list.forEach(([a,b,c,n,s])=>{
+  const short=(t(b)-t(a))<=30;
+  add("<b>"+n+(short?"":" <span style='font-weight:400'>"+fmt(a)+" to "+fmt(b)+"</span>")+"</b>"+(s&&!short?"<span>"+s+"</span>":""),
+  "grid-column:"+(+d+2)+";grid-row:"+row(a)+" / "+row(b),"b "+c)}));
+</script>

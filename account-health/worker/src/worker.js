@@ -21,7 +21,8 @@ import { dailyPost, dailyThread, weeklyPost, weekSentence, internalChannel } fro
 import { handleRequests, createAsk } from './requests.js';
 import { handleMeetings, handleFirefliesHook, meetingsTick } from './meetings.js';
 import { handleCalls } from './callscreen.js';
-import { handleActions, actionTick, handleActionButton, handleReaction, onActionDone, slackName } from './actions.js';
+import { handleActions, actionTick, handleActionButton, handleReaction, onActionDone, onActionPlaced, slackName } from './actions.js';
+import { blockActionPlaced, blockActionDone, blockRollTick, setBlockFetch } from './blocks.js';
 import { minOffTick, handleMinOffButton, minOffOn } from './minoff.js';
 import { checkinTick, checkinAction, submitCheckin, checkinErrors, reviewPost, reviewAction, reviewSubmit, serveReviewPic, ensureDay } from './checkin.js';
 import { handleProduction, listBoard, moveCard as prodMove, formatOf as prodFormat } from './production.js';
@@ -7347,6 +7348,10 @@ function buyerDeps() {
 }
 /* Every way a task gets done (the Locus tick, the Slack Done button, a ✅) ends in markDone; the card strikes its line. */
 onActionDone((env, row) => cardActionDone(env, cardDeps(), row));
+/* Cole's calendar blocks (blocks.js, 2026-10-27): his tasks land in a block day, done ones are ticked there. */
+setBlockFetch((...a) => xfetch(...a));
+onActionPlaced((env, row) => blockActionPlaced(env, row));
+onActionDone((env, row) => blockActionDone(env, row));
 function hubDeps() {
   return { getSetting, putSetting, listAccounts, localDate, addDays, centralHour, centralDate, slackPost, slackApi,
     subCanAfford, strategist, isAdmin, sessionEmail, postDashboard, auto: autoDeps() };
@@ -7820,6 +7825,11 @@ const AH_APP = {
           /* The morning card: one post per brand in its internal channel, after its brief (and Monday's weekly)
              so it can say "client daily sent 5:12" (morningcard.js, 2026-10-13). */
           ran.morningCard = await morningCardTick(env, cardDeps()).catch(e => ({ error: e.message }));
+          /* Cole's calendar blocks: once a Central day, open tasks whose block day passed move to the next one. */
+          if ((await getSetting(env, 'blockRollDay').catch(() => null)) !== centralDate() && subCanAfford(60)) {
+            ran.blocks = await blockRollTick(env).catch(e => ({ error: e.message }));
+            await putSetting(env, 'blockRollDay', centralDate()).catch(() => {});
+          }
         }
         // Whatever budget survived goes to keeping the data fresh. This used to
         // live entirely in the 03:30 nightly, which meant one invocation tried to
