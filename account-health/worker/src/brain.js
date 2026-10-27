@@ -373,7 +373,12 @@ export async function brandBrain(env, act, opts = {}) {
       sec('voice', 'How the brand sounds', r.join('\n\n'));
     }
   }
-  if (!hasSkill) gaps.push(data('', 'voice_guide')?.md ? 'No full copy skill (Brand info > Build the full skill).' : 'No copy skill and no voice interview yet: the voice here is a short AI read of the website.');
+  /* 2026-10-27: Dartee answered the interview but never pressed Finish (no guide), and this line told the Strategist
+     there was no interview at all. A started interview is named as such, with how many answers it holds. */
+  const answered = list(data('', 'voice_interview')?.turns).filter(t => t?.a).length;
+  if (!hasSkill) gaps.push(data('', 'voice_guide')?.md ? 'No full copy skill (Brand info > Build the full skill).'
+    : answered ? `The client answered ${answered} voice interview questions but never finished it, so no guide or copy skill was written yet (Brand info > Build the full skill uses the answers).`
+    : 'No copy skill and no voice interview yet: the voice here is a short AI read of the website.');
   else if (skill.source !== 'repo' && docOf('', 'voice_skill')?.status !== 'approved') gaps.push('The copy skill is a built draft, not approved yet.');
 
   if (list(vn?.gaps).length) gaps.push(`Viktor's research could not reach: ${list(vn.gaps).slice(0, 6).map(g => one(g, 120)).join('; ')}.`);
