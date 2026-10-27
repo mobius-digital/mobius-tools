@@ -2712,7 +2712,7 @@ Monday call is at 8am. Tests: `node test-clientpost.mjs` (12 offline checks).
   mine|locus}`; mine = Done 3 days, locus = the page runs the Do). Saved in `p_buyer_lesson` (migration
   profit/worker/migrations/buyer-002.sql, also made on first use). `lessonsText`: COLE'S FINAL CALL / LOCUS AGREED WITH
   COLE / SETTLED FOR LOCUS. `GET /api/buyer-list/lessons?act=` = "Your calls" on a one-brand page. A Disagree is ~1 cent.
-- **The morning read** (`readBrand`, `buyerAITick` on the 5-minute cron): from an hour BEFORE settings.morningHour to noon
+- **The morning read** (`readBrand`, `buyerAITick` on the HOURLY cron, every brand in one run; the 5-minute trigger has not fired since 2026-10-23, so it is a backup only; settings `buyerAIRunNow` = 1 runs it on the next tick at any hour): from an hour BEFORE settings.morningHour to noon
   Central, 3 brands a tick side by side (settings `buyerAILock`, 8 minutes, stops two ticks reading one brand), every
   eligible() brand once a day (settings `buyerAIDone` {date, acts, tries}). ONE Opus 5.5 call, effort medium, per brand
   reads: rule rows (list rows + quiet ones), ad sets that spent in 14 days (top 25) with 7 and 14 day numbers, first click,
