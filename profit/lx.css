@@ -489,6 +489,8 @@ html.lx-irail[data-ui="v2"] body.nav-open .nav-scrim{display:block}
 
 /* a client reads: header actions are the team's unless a page flags one data-client-ok (2026-10-21) */
 body.is-client #main .ph .ph-acts > :not([data-client-ok]), body.is-client #hdActions > :not([data-client-ok]), body.is-client .v4-ring-go{display:none}
+/* 2026-10-27 client audit: the team's wiring and buttons that only 403 for a client (New client, Studio's key and Connections, Check Drive, Remove from an Atria board, Something else on a call) */
+body.is-client .lc-pick-add, body.is-client .st-key, body.is-client [data-mconn], body.is-client #libSync, body.is-client [data-unsave], body.is-client [data-else]{display:none!important}
 
 /* ==========================================================================
    THE INSTRUMENT KIT (2026-10-21, review round one, pass A; lx.js LxKit.ring / spark / river / funnel / scale /

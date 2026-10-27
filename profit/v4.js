@@ -84,6 +84,8 @@
     const t = H.RUN(); const all = K.scopeAccts(); const a = all[0]; if (!a) return;
     const cur = a.currency; const title = `Morning: ${K.esc(a.name)}`;
     const shell = body => `<div class="v2 lx v4">${K.head('morning', title)}${body}</div>`;
+    /* 2026-10-27: the one door to the client call. Cole: "I never know where to go". Team only; a brand, never Agency view. */
+    if (H.pageActions && H.S.act && H.S.act !== 'all' && !document.body.classList.contains('is-client')) H.pageActions('<button type="button" class="v2btn" data-go="ccall">Client call</button>');
     if (first) $('#main').innerHTML = shell(`<div id="v4strip"></div><div class="v4-top"><section class="v2card v4-r v2sk"><i class="h"></i></section><section class="v2card v4-m v2sk"><i class="h"></i></section><section class="v2card v4-n v2sk"><i class="h"></i></section></div>${K.skPage({ tiles: 4, chart: false, rows: 3 })}`);
     const q = encodeURIComponent(H.S.act);
     const [ch, st, kept, td, ov, sd] = await Promise.all([

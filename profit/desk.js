@@ -613,7 +613,7 @@
       const j = await H.api('/api/brand/verdict', { method: 'POST', body: JSON.stringify(body) });
       if (!j || j.error) throw new Error(j && j.error || 'Could not save the call.');
       let asana = null;
-      try { asana = await H.apiAH('/api/brand-asana/result', { method: 'POST', body: JSON.stringify({ act: r.act_id, id: c.id, result: verdict, learning, keep_reason: reasonKey, check_again: check, who }) }); }
+      try { asana = document.body.classList.contains('is-client') ? null : await H.apiAH('/api/brand-asana/result', { method: 'POST', body: JSON.stringify({ act: r.act_id, id: c.id, result: verdict, learning, keep_reason: reasonKey, check_again: check, who }) }); }
       catch (e) { asana = { error: e.message }; }
       after();
       if (asana && asana.error) dtoast(`Saved in Locus. Asana was not updated: ${asana.error}`, true, c.asana_url ? { href: c.asana_url, label: 'Open the task' } : null);
@@ -1040,7 +1040,7 @@
     return { ids, rows: list.map(p => ({ p, tone: verdict(p)[0], txt: verdict(p)[1], ly: ids.includes(String(p.id)) })) };
   }
   const stockGate = v => !v ? '<p class="v2hint">Reading stock&hellip;</p>' : v.error ? `<p class="v2hint">Stock did not load: ${esc(v.error)}</p>`
-    : !v.connected ? '<p class="v2hint">No stock feed for this brand. Stock reads from Shopify once the brand installs the Mobius Digital app (Lucky Golf is connected). Check the best sellers by hand, then press Stock checked.</p>' : '';
+    : !v.connected ? '<p class="v2hint">No stock feed for this brand. Stock reads from Shopify once the brand installs the Mobius Digital app. Check the best sellers by hand, then press Stock checked.</p>' : '';
   /* The Plan: the full table. */
   function heroRows(d, v, n = 6) {
     const gate = stockGate(v); if (gate) return { html: gate, low: [] };

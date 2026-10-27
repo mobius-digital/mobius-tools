@@ -2791,3 +2791,23 @@ Monday call is at 8am. Tests: `node test-clientpost.mjs` (12 offline checks).
   minimums pass its $100 budget.
 - Tests: test-minoff 12 (nudgeCall, the due list, the rows), test-launch 26 (video link once, partnership, tags,
   create_adset), profit test-buyer-page 6 (minimum off, then pause).
+
+## 2026-10-27: client access audit before inviting clients (brandguard.js both copies, test-clients.mjs 29 checks)
+- **Two guard bugs fixed.** (1) A body with an upload Content-Type (multipart, octet-stream, image/video/audio) skipped
+  every body check (act, own, fields) and the 64-byte JSON sniff was beaten by padding; now only `UPLOAD_ROUTES`
+  (`/api/studio/upload`, `/api/studio-ai/upload`, `/api/amb/upload`, `/api/social/upload`) take a non-JSON body, every
+  other route answers 403 "Send that as JSON." (2) A request naming the brand only as `act_id` passed the check while the
+  handlers read `act` and fell back to every brand (calendar, data-health, daycheck, scenario, tw-sync, cohort-sync,
+  dashboard PUT, studio batch save): the guard now writes the checked brand back as `act` (query and JSON body) where it
+  was missing, and `rule.strip` drops query switches that are the team's (`/api/daycheck/now` fresh, web).
+- **Allowlist adds** for pages a client opens that 403ed: GET `/api/angles/<slug>` (own: p_amb_brand by slug),
+  GET `/api/amb/board-ads`, GET `/api/hub/moved`, GET + POST `/api/buyer-list/state` (fields object, action, status,
+  name; the handler holds a client to its brands), GET `/api/social/grid`, POST `/api/social/slides` and
+  `/api/social/post/now` (own id). `ALWAYS_OUT` now scrubs `by`, `created_by`, `agreed_by` (team emails on rows).
+  clients.js: a client may not claim an `askRunWho` id that already belongs to someone else.
+- **Left open (low, noted by the audit):** social media refs trust a client-supplied 24-hex R2 key and idea ids
+  (socialpost.js cleanMedia / ideaIdsOf: a known key could be published or deleted, an idea's Film task closed);
+  `/api/amb/order` section_id and `/api/brand/tag` ad_ids are not checked against the brand; `/api/social/follow`
+  spends scraper credits with no client cap; `PUT /api/clients/me` rewrites the whole map (race with an invite).
+  About half the client rules still have no line in test-clients.mjs (the "every page" check only proves the guard let
+  the request through).

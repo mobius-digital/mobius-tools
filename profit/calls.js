@@ -481,7 +481,7 @@
   function runHtml() {
     const card = (k, title, cap) => `<button type="button" class="cl-run-b" data-run="${k}"><b>${title}</b><span>${cap}</span></button>`;
     return `<section class="cl-run"><div class="cl-st" style="margin:0 0 8px"><b>Run a call</b></div>
-      <div class="cl-run-g">${card('monday', 'Monday call', 'Every brand, red first')}${card('client', 'Client call', 'One brand, the client watching')}${card('kickoff', 'Creative kickoff', 'Each brief with the design team')}</div></section>`;
+      <div class="cl-run-g">${card('monday', 'Monday call', 'Every brand, red first')}${card('client', 'Client call', BR !== 'all' ? `${esc(brandName(BR))}, the client watching` : 'One brand, the client watching')}${card('kickoff', 'Creative kickoff', 'Each brief with the design team')}</div></section>`;
   }
   const head = () => H.pageHead ? H.pageHead('calls', 'Meetings') : '<div class="ph"><div><div class="ph-t">Meetings</div></div><div class="ph-r"><span class="ph-acts"></span></div></div>';
   const acts = html => { if (typeof window.pageActions === 'function') window.pageActions(html); };

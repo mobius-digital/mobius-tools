@@ -183,7 +183,7 @@
       ${secs.filter(([, list, empty]) => list.length || empty).map(([lbl, list, empty]) => secCard(lbl, list, empty)).join('')}
       ${done.length ? `<details class="rq-sec rq-done"><summary>Done in the last 60 days (${done.length})</summary>${done.map(i => itemHTML(i, all)).join('')}</details>` : ''}
     </div>`;
-    if (typeof window.pageActions === 'function') { window.pageActions(all ? '' : isClient() ? '<button type="button" class="btn primary" data-press="rqNew">Ask the team for something</button>' : '<button type="button" class="btn primary" data-press="rqSend">Send for approval</button><button type="button" class="btn" data-press="rqNew">Add a request</button>'); }
+    if (typeof window.pageActions === 'function') { window.pageActions(all ? '' : isClient() ? '<button type="button" class="btn primary" data-press="rqNew" data-client-ok>Ask the team for something</button>' : '<button type="button" class="btn primary" data-press="rqSend">Send for approval</button><button type="button" class="btn" data-press="rqNew">Add a request</button>'); }
     $('#main').querySelectorAll('[data-press]').forEach(b => b.onclick = () => { const o = document.getElementById(b.dataset.press); if (o) o.click(); });
     wire(act);
   }

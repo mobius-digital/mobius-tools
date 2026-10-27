@@ -4628,3 +4628,17 @@ this goes for all things that go from the right side", and the Integrations pane
   `then: 'pause'` (account-health asana-brand.js nudgeCall, see account-health/CLAUDE.md "TEST MINIMUM = A NUDGE"). For
   `then: 'pause'` the single Agree (`minOff`, "Do both") and Agree to all (`planOne` -> `commitOne`) take the minimum to 0,
   then pause the set (`pauseAfter`, dry run + write with expect); the toast's Undo carries both writes.
+
+## 2026-10-27: client access audit (front end) + Meetings under a brand
+- A client's pages that broke or showed the team's buttons: Requests "Ask the team for something" now `data-client-ok`
+  (it was hidden by the client header filter); goal CPA saves through `PUT /api/accounts/<id>` (the client-settings
+  route is the team's); TikTok reads the report straight away (no `/api/tiktok/status`); the Asana mirror of a test
+  verdict is skipped for a client; the welcome card shows on Morning (V4) with the V4 rail words; Guide drops "How we
+  work" and any step whose Open is an agency page; lx.css hides `.lc-pick-add`, `.st-key`, `[data-mconn]`, `#libSync`,
+  `[data-unsave]`, `[data-else]` for `body.is-client`; no other brand named in a brand's own text (desk.js stock line,
+  PAGE_HELP studio, the test explainer). Not done: Month "Edit the plan" stays the team's (editions.md says a client
+  edits its goals; decide), Home's Today card still draws role columns, Social "T transcript" still 403s.
+- **Work > Meetings shows in BOTH views** (`calls` left AGENCY_ONLY for VIEW_BOTH, `tabInView('work')` true). Under a
+  brand the "Client call" card opens that brand's call at once (caption names the brand); Agency view asks which client.
+  The brand's Morning page has a team-only "Client call" header button (`data-go="ccall"`). Cole: "I never know where
+  to go" and clicking Work bounced him into Agency view. ccall's Calls buttons go back to Meetings now, not Overview.

@@ -218,7 +218,7 @@ export const CLIENT_RULES = [
   R('POST', '/api/tw-sync', 'need', { deny: (b, url) => (+url.searchParams.get('days') > 70 ? 'Your login re-reads up to 70 days; ask us for a longer re-pull.' : null) }),
   /* Day check: a market-level answer ("was it a bad day on Meta"); its brand rows are filtered to theirs. */
   R('GET', '/api/metaday', 'none', { post: oursHighOnly }),
-  R('GET', '/api/daycheck/now'),
+  R('GET', '/api/daycheck/now', 'need', { strip: ['fresh', 'web'] }),   // a client never triggers the paid re-read or web search (2026-10-27)
   R('POST', '/api/daycheck', 'opt', { cap: ['clientAsk', 0.02], post: verdictForClient }),
   /* The AI read at the top of a screen (never the command center's). */
   R('POST', '/api/read', 'opt', { deny: b => (b && b.screen === 'command' ? 'The command center is the agency view.' : null), cap: ['clientAsk', 0.02] }),
@@ -247,6 +247,10 @@ export const CLIENT_RULES = [
   /* ---- ADS: Today, All channels, Meta (every job), Google (every job), TikTok, Tests and angles ---- */
   R('GET', '/api/hub/today'),
   R('GET', '/api/hub/paid'),
+  R('GET', '/api/hub/moved'),   // the "moved" nudge items (2026-10-27)
+  /* Today's calls: Done / Not now are the Buyer list's shared state; the handler holds a client to its brands (2026-10-27) */
+  R('GET', '/api/buyer-list/state'),
+  R('POST', '/api/buyer-list/state', 'need', { fields: ['object', 'action', 'status', 'name'] }),
   R('GET', '/api/hub/drill'),
   R('GET', '/api/hub/orders'),
   R('GET', '/api/hub/customer'),
@@ -378,6 +382,9 @@ export const CLIENT_RULES = [
   /* Creators (the creator link, amb.js): every handler is scoped to the act it is given. */
   R('GET', '/api/amb'),
   R('GET', '/api/amb/ads'),
+  R('GET', '/api/amb/board-ads'),   // the "From our ads" picker on the Creators page (2026-10-27)
+  /* the creator link itself, read by the Creators page: the slug must be the brand's own board (2026-10-27) */
+  RX('GET', /^\/api\/angles\/([a-z0-9-]{1,50})$/, 'none', { own: [{ in: 'path', table: 'p_amb_brand', idcol: 'slug' }] }),
   R('GET', '/api/amb/season'),
   R('POST', '/api/amb/setup'),
   R('PUT', '/api/amb/brand'),
@@ -438,6 +445,9 @@ export const CLIENT_RULES = [
   R('DELETE', '/api/social/captions', 'none', { own: [{ in: 'query', key: 'id', table: 'social_caption' }] }),
   R('POST', '/api/social/rephrase', 'need', { fields: ['text', 'note'], cap: ['clientAsk', 0.01] }),
   R('GET', '/api/social/results'),
+  R('GET', '/api/social/grid'),   // the Week's Instagram preview (2026-10-27)
+  R('POST', '/api/social/slides', 'none', { own: [{ in: 'body', key: 'id', table: 'social_post' }] }),
+  R('POST', '/api/social/post/now', 'none', { own: [{ in: 'body', key: 'id', table: 'social_post_out' }] }),
 
   /* ---- CALENDAR: read, add, edit, move, set the end, note, remove and put back. Never tick the team's work steps
      or make Asana tasks (Mobius's Asana). The handler checks each date's own brand. ---- */
@@ -511,7 +521,7 @@ async function keepDashPosting(env, body) {
 }
 
 /* Keys a client never sees: the sending setup, Slack, team-internal notes and Mobius's own wiring. */
-const ALWAYS_OUT = new Set(['slack_channel', 'brief_channel', 'client_channel', 'internal_channel', 'report_config', 'report_config_json', 'review_first', 'brief_enabled', 'slack_ts', 'sent_channel', 'steer',
+const ALWAYS_OUT = new Set(['by', 'created_by', 'agreed_by', 'slack_channel', 'brief_channel', 'client_channel', 'internal_channel', 'report_config', 'report_config_json', 'review_first', 'brief_enabled', 'slack_ts', 'sent_channel', 'steer',
   'lastRun', 'team', 'storage_prefix', 'tw_shop_token', 'shopify_token', 'access_token', 'notes_internal', 'internal_notes', 'team_notes']);
 /* A Slack channel id under any key that names a channel ("channel", "posts_to"...), wherever it sits. */
 const SLACK_ID = /^[CGD][A-Z0-9]{8,12}$/;
@@ -551,6 +561,9 @@ async function recordsOwned(env, specs, { body, url, match }, allowed) {
   return true;
 }
 
+/* The only routes a client may send a non-JSON body to (multipart or raw media). */
+const UPLOAD_ROUTES = new Set(['/api/studio/upload', '/api/studio-ai/upload', '/api/amb/upload', '/api/social/upload']);
+
 const CLIENT_NO = 'Your Locus login has everything about your own brand. That part runs the agency itself, so it is for the Mobius team; ask us in Slack if you need it.';
 
 async function guardClient(request, env, client, handle, CORS) {
@@ -581,14 +594,10 @@ async function guardClient(request, env, client, handle, CORS) {
     const ct = request.headers.get('Content-Type') || '';
     if (!/multipart\/form-data|octet-stream|^image\/|^video\/|^audio\//i.test(ct)) {
       try { const t = await request.clone().text(); body = t && /^\s*[{[]/.test(t) ? JSON.parse(t) : null; } catch { body = null; }
-    } else if (request.body) {
-      /* An upload is never read whole (it can be 95MB), but its first bytes are: JSON dressed up as an upload would
-         reach a handler that calls request.json() without any of the checks above. */
-      try {
-        const rd = request.clone().body.getReader(); const { value } = await rd.read(); rd.cancel().catch(() => {});
-        const head = value ? new TextDecoder().decode(value.slice(0, 64)) : '';
-        if (/^\s*[{[]/.test(head)) return out(403, 'Send that as JSON.');
-      } catch {}
+    } else {
+      /* 2026-10-27 audit: an upload Content-Type used to skip every body check (act, own, fields), and a sniff of the
+         first 64 bytes was beaten by padding. Only the upload routes take a non-JSON body; everywhere else it is refused. */
+      if (!UPLOAD_ROUTES.has(rule.p)) return out(403, 'Send that as JSON.');
     }
     if (body && typeof body === 'object') {
       const vals = [body.act, body.act_id, body.screen && body.screen.act_id].filter(v => v !== undefined && v !== null && v !== '');
@@ -621,10 +630,24 @@ async function guardClient(request, env, client, handle, CORS) {
     if ((used.cost || 0) + charge > CLIENT_CAPS[key].max + 1e-9) return out(429, capMessage(key));
   }
   let req = request;
+  /* 2026-10-27 audit: the handlers read `act`; a request that named the brand only as act_id (query or body) passed
+     the check above and then ran for every brand. The brand the guard checked is written back as `act` wherever it
+     was missing, and `strip` drops query switches that are the team's (paid refreshes). */
+  const u2 = new URL(request.url);
+  let urlChanged = false;
+  if (act && !u2.searchParams.get('act')) { u2.searchParams.set('act', act); urlChanged = true; }
+  for (const k of rule.strip || []) if (u2.searchParams.has(k)) { u2.searchParams.delete(k); urlChanged = true; }
+  const bodyObj = body && typeof body === 'object' && !Array.isArray(body) ? body : null;
   if (rule.prep && body) {
     const next = await rule.prep(env, body);
+    if (act && next && typeof next === 'object' && !Array.isArray(next) && !next.act) next.act = act;
     const h = new Headers(request.headers); h.delete('Content-Length');
-    req = new Request(request.url, { method: m, headers: h, body: JSON.stringify(next) });
+    req = new Request(u2.toString(), { method: m, headers: h, body: JSON.stringify(next) });
+  } else if (act && bodyObj && !bodyObj.act) {
+    const h = new Headers(request.headers); h.delete('Content-Length');
+    req = new Request(u2.toString(), { method: m, headers: h, body: JSON.stringify({ ...bodyObj, act }) });
+  } else if (urlChanged) {
+    req = new Request(u2.toString(), request);
   }
   CLEARED.set(req, { email: client.email, name: client.name, brands: client.brands, access: client.access, ids: ids.all, brandOf });
   const res = await handle(req);
