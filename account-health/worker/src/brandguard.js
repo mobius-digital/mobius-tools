@@ -427,6 +427,7 @@ export const CLIENT_RULES = [
   R('PUT', '/api/social/follow', 'none', { own: [{ in: 'body', key: 'id', table: 'social_follow' }] }),
   R('DELETE', '/api/social/follow', 'none', { own: [{ in: 'query', key: 'id', table: 'social_follow' }] }),
   R('POST', '/api/social/save', 'none', { own: [{ in: 'body', key: 'id', table: 'social_post' }] }),
+  R('POST', '/api/social/transcript', 'none', { own: [{ in: 'body', key: 'id', table: 'social_post' }] }),
   R('POST', '/api/social/video', 'none', { own: [{ in: 'body', key: 'id', table: 'social_post' }] }),
   R('GET', '/api/social/idea', 'none', { own: [{ in: 'query', key: 'id', table: 'social_post' }] }),
   /* Phase 2 (socialpost.js, 2026-10-19): the brand's own Week, tray, posts and captions. Connecting an account, its mode

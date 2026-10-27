@@ -713,6 +713,24 @@ await check("Production (2026-10-14): a client reads its own brand (Needs you + 
   assert.equal(team.status, 200); assert.ok(Array.isArray(team.j.cards), 'the team gets the board');
 });
 
+await check('2026-10-27 leftovers: a client reads the transcript of its own Social post only, cannot move an idea into another brand\'s section, and cannot put another brand\'s upload on its post', async () => {
+  db.exec(`INSERT OR IGNORE INTO social_post (id, act_id, follow_id, plat, pid, fmt) VALUES ('spa', 'brand_alpha', 'f1', 'tt', 'p1', 'photo'), ('spb', 'brand_beta', 'f2', 'tt', 'p2', 'photo')`);
+  const own = await ah(CLIENT, 'POST', '/api/social/transcript', { id: 'spa' });
+  assert.equal(own.status, 200, 'own post'); assert.equal(own.j.text, '');
+  assert.equal((await ah(CLIENT, 'POST', '/api/social/transcript', { id: 'spb' })).status, 403, "another brand's post");
+  db.exec(`INSERT OR IGNORE INTO p_amb_section (id, act_id, name) VALUES ('seca', 'brand_alpha', 'A'), ('secb', 'brand_beta', 'B');
+    INSERT OR IGNORE INTO p_amb_angle (id, act_id, section_id, title) VALUES ('anga', 'brand_alpha', 'seca', 'idea')`);
+  const mv = await pf(CLIENT, 'POST', '/api/amb/order', { act: 'brand_alpha', kind: 'angles', ids: ['anga'], section_id: 'secb' });
+  assert.equal(mv.status, 404, "a section of another brand is unknown");
+  assert.equal(db.prepare(`SELECT section_id FROM p_amb_angle WHERE id = 'anga'`).get().section_id, 'seca');
+  assert.equal((await pf(CLIENT, 'POST', '/api/amb/order', { act: 'brand_alpha', kind: 'angles', ids: ['anga'], section_id: 'seca' })).status, 200);
+  db.exec(`INSERT OR IGNORE INTO social_media (id, act_id, kind, key, type, name) VALUES ('ma', 'brand_alpha', 'image', 'u/aaaaaaaaaaaaaaaaaaaaaaaa', 'image/jpeg', 'a'), ('mb', 'brand_beta', 'image', 'u/bbbbbbbbbbbbbbbbbbbbbbbb', 'image/jpeg', 'b')`);
+  const post = (key) => ah(CLIENT, 'POST', '/api/social/post', { act: 'brand_alpha', at: '2026-11-03T15:00:00.000Z', caption: 'x', media: [{ ref: 'm', src: 'upload', kind: 'image', key }], targets: {}, status: 'draft' });
+  assert.equal((await post('u/bbbbbbbbbbbbbbbbbbbbbbbb')).status, 403, "another brand's upload");
+  const ok = await post('u/aaaaaaaaaaaaaaaaaaaaaaaa'); assert.equal(ok.status, 200, 'own upload');
+  await ah(CLIENT, 'DELETE', `/api/social/post?id=${ok.j.post.id}`);
+});
+
 await check("Social phase 2 (2026-10-19): a client plans its own brand's week (never another's), posts and captions are its own rows, connecting accounts and the Pages list stay the team's", async () => {
   const week = await ah(CLIENT, 'GET', '/api/social/week?act=brand_alpha&from=2026-11-02');
   assert.equal(week.status, 200); assert.equal(week.j.act, 'brand_alpha'); assert.equal(week.j.days.length, 7);

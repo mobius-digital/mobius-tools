@@ -223,7 +223,7 @@
     const shell = body => `<div class="v2 lx v4">${K.head('month', title)}${body}</div>`;
     /* a client reads the month; editing the plan is the team's (body.is-client), Customers is theirs too */
     const client = document.body.classList.contains('is-client');
-    const acts = `${client ? '' : '<button type="button" class="v2btn" data-go="plan">Edit the plan</button>'}<button type="button" class="v2btn ghost" data-go="customers" data-client-ok>Customers</button>`;
+    const acts = `<button type="button" class="v2btn" data-go="plan" data-client-ok>Edit the plan</button><button type="button" class="v2btn ghost" data-go="customers" data-client-ok>Customers</button>`;
     if (first) { $('#main').innerHTML = shell(`<div class="v4-top v4-mo"><section class="v2card v2sk"><i class="h"></i></section><section class="v2card v2sk"><i class="h"></i></section><section class="v2card v2sk"><i class="h"></i></section></div>${K.skPage({ tiles: 0, chart: true, rows: 2 })}`); H.pageActions && H.pageActions(acts); }
     const q = encodeURIComponent(H.S.act);
     const [d, fc, cu, ch] = await Promise.all([
@@ -240,7 +240,7 @@
 
     /* 1. where the month lands: the ring is the forecast at the PLANNED spend over the goal; the outer arc is today's pace */
     let land;
-    if (!goal) land = `<div class="v2h"><h3>Where the month lands</h3><span class="cap">${elapsed} of ${dim} days</span></div>${ring(null, km(mtd.sales), 'banked so far', null, 150)}<p class="v4-ring-cap">No plan for ${monthName} yet, so nothing to land against.</p><button type="button" class="v2btn v4-ring-go" data-go="plan">Set the goals</button>`;
+    if (!goal) land = `<div class="v2h"><h3>Where the month lands</h3><span class="cap">${elapsed} of ${dim} days</span></div>${ring(null, km(mtd.sales), 'banked so far', null, 150)}<p class="v4-ring-cap">No plan for ${monthName} yet, so nothing to land against.</p><button type="button" class="v2btn v4-ring-go" data-go="plan" data-client-ok>Set the goals</button>`;
     else {
       const proj = fc && fc.projected != null ? fc.projected : mtd.sales / elapsed * dim, pace = fc && fc.at_current_pace ? fc.at_current_pace.sales : mtd.sales / elapsed * dim;
       const th = fc && fc.to_hit, gapP = proj - goal, gapC = pace - goal;
@@ -249,7 +249,7 @@
       land = `<div class="v2h"><h3>Where the month lands</h3><span class="cap">${elapsed} of ${dim} days</span></div>
         ${ring(proj / goal, km(proj), `of ${km(goal)} goal`, pace / goal, 150, proj >= goal ? window.LxKit.chip('good', 'Lands over the goal') : proj >= goal * 0.9 ? window.LxKit.chip('warn', 'Close to the goal') : window.LxKit.chip('bad', 'Short of the goal'))}
         <div class="v4-paths">${prow('Spending the budget', proj, gapP)}${prow("At today's pace", pace, gapC)}${th && !th.already_there && th.revenue_per_day > 0 ? `<div class="v4-pr"><span>To hit it</span><b>${mo(th.revenue_per_day)} a day</b><small>${th.spend_per_day ? `${mo(th.spend_per_day)} of it ads` : ''}</small></div>` : th && th.already_there ? `<div class="v4-pr"><span>Already there</span><b>banked</b><small class="good">goal met</small></div>` : ''}</div>
-        <button type="button" class="v2link v4-ring-go" data-go="plan">Edit the plan ›</button>`;
+        <button type="button" class="v2link v4-ring-go" data-go="plan" data-client-ok>Edit the plan ›</button>`;
     }
 
     /* 2. the weeks against target (CTC: returning base plus new customers at the trailing aMER) */
