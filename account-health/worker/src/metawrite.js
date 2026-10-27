@@ -1140,7 +1140,7 @@ export function writeActions(d) { return [...metaActions(d), ...asanaActions(d),
    are one code path. Two calls: dry (the confirm modal shows the summary and detail), then the write itself, which
    proposes again from a fresh read and refuses when the before-state is not what the modal showed (`expect`). The
    person typed the exact budget, so a step over 50% is allowed (big) and the modal says so. */
-const KIND = { pause: 'meta_pause', resume: 'meta_resume', budget: 'meta_budget', min_spend: 'meta_min_spend', rename: 'meta_rename', duplicate: 'meta_duplicate_adset', create_adset: 'meta_create_adset' };
+const KIND = { pause: 'meta_pause', resume: 'meta_resume', budget: 'meta_budget', min_spend: 'meta_min_spend', rename: 'meta_rename', duplicate: 'meta_duplicate_adset', create_adset: 'meta_create_adset', schedule: 'meta_schedule' };
 export const LOCUS_KINDS = Object.keys(KIND);
 function locusInput(b) {
   const lv = ['campaign', 'adset', 'ad'].includes(b.level) ? b.level : undefined;
@@ -1150,6 +1150,8 @@ function locusInput(b) {
   if (b.kind === 'rename') return { ...base, new_name: b.name };
   /* 2026-10-27: a new empty ad set (a creator test) in a campaign; targeting, pixel and event from `like` (else a sibling). */
   if (b.kind === 'create_adset') return { ...base, campaign: String(b.object || ''), name: String(b.name || ''), ...(b.like ? { like: String(b.like) } : {}) };
+  /* 2026-10-27: start later (a scheduled launch day) and/or stop at a time. */
+  if (b.kind === 'schedule') return { ...base, ...(b.start ? { start: String(b.start) } : {}), ...(b.end ? { end: String(b.end) } : {}) };
   if (b.kind === 'duplicate') return { ...base, new_name: b.name, ...(b.daily_budget != null && b.daily_budget !== '' ? { daily_budget: +b.daily_budget } : {}) };
   return base;
 }
