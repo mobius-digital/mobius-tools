@@ -11,7 +11,8 @@
  *   gets people / setting / shot / products / colours / a one-line description. The thumbnail is kept in R2
  *   (assets/<act>/<file id>.jpg) so the library loads fast and never re-asks Drive.
  * - Runs: hourly, one brand at a time (stalest first), within the subrequest budget; or Sync now.
- * Folders whose name says agreement / contract / invoice / legal are skipped.
+ * Folders whose name says agreement / contract / invoice / legal / archive / not for use are skipped.
+ * Drive shortcuts are followed (2026-10-27): a shortcut to a shared folder walks that folder.
  */
 import { googleToken } from './asana-brand.js';
 import { storagePrefix, connGet } from './brands.js';
@@ -21,8 +22,11 @@ export function useFetch(f) { F = f; }
 const safeJson = (s, fb) => { try { return s ? JSON.parse(s) : fb; } catch { return fb; } };
 const AS = env => env.GOOGLE_AS || 'cole@go-mobius-digital.com';
 const SCOPE = 'https://www.googleapis.com/auth/drive.readonly';
-const SKIP = /agreement|contract|invoice|legal|finance|billing/i;
+/* 2026-10-27: also skip what a client parks as not-for-use ("06 - Archive", "05-needs edited", "NOT for USE"),
+   so Studio never picks from it. */
+const SKIP = /agreement|contract|invoice|legal|finance|billing|archive|needs edit|not for use|do not use|don'?t use/i;
 const TAG_MODEL = 'claude-haiku-4-5-20251001';
+const FOLDER = 'application/vnd.google-apps.folder', SHORTCUT = 'application/vnd.google-apps.shortcut';
 let tabled = false;
 
 async function ensure(env) {
@@ -117,10 +121,22 @@ export async function syncAssets(env, act, { maxFolders = 500, maxFiles = 10000 
     let token = '';
     do {
       const q = encodeURIComponent(`'${f.id}' in parents and trashed = false`);
-      const j = await drive(env, `files?q=${q}&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=nextPageToken,files(id,name,mimeType,modifiedTime,thumbnailLink,imageMediaMetadata(width,height))${token ? `&pageToken=${encodeURIComponent(token)}` : ''}`);
+      const j = await drive(env, `files?q=${q}&pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=nextPageToken,files(id,name,mimeType,modifiedTime,thumbnailLink,imageMediaMetadata(width,height),shortcutDetails(targetId,targetMimeType))${token ? `&pageToken=${encodeURIComponent(token)}` : ''}`);
       const batch = [];
-      for (const x of j.files || []) {
-        if (x.mimeType === 'application/vnd.google-apps.folder') { if (!SKIP.test(x.name)) queue.push({ id: x.id, path: (f.path ? f.path + ' / ' : '') + x.name }); continue; }
+      for (let x of j.files || []) {
+        /* 2026-10-27: a Drive SHORTCUT ("Add shortcut to Drive" on a folder a client shared) used to be dropped: it is
+           neither a folder nor an image. Follow it: a folder target joins the walk under the shortcut's name, an image
+           target is read once for its own metadata and indexed under the target's id (so the same photo reached two
+           ways is one row). */
+        if (x.mimeType === SHORTCUT) {
+          const t = x.shortcutDetails || {};
+          if (!t.targetId) continue;
+          if (t.targetMimeType === FOLDER) { if (!SKIP.test(x.name)) queue.push({ id: t.targetId, path: (f.path ? f.path + ' / ' : '') + x.name }); continue; }
+          if (!/^image\//.test(t.targetMimeType || '')) continue;
+          x = await drive(env, `files/${t.targetId}?supportsAllDrives=true&fields=id,name,mimeType,modifiedTime,thumbnailLink,imageMediaMetadata(width,height)`).catch(() => null);
+          if (!x?.id) continue;
+        }
+        if (x.mimeType === FOLDER) { if (!SKIP.test(x.name)) queue.push({ id: x.id, path: (f.path ? f.path + ' / ' : '') + x.name }); continue; }
         if (!/^image\//.test(x.mimeType || '')) continue;
         files++;
         batch.push(env.DB.prepare(`INSERT INTO p_asset (act_id, file_id, name, mime, folder, path, modified, w, h, thumb_src, status, seen_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 'new', ?11)
