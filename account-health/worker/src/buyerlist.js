@@ -40,7 +40,7 @@
 import { readToday } from './todaypost.js';
 import { eligible, morningHour } from './morningcard.js';
 import { adsOf, isCarousel } from './prodwork.js';
-import { readAI, applyAI, aiPassDone, buyerAIOn, adNumbers, withCovers, metaActsOf, disagree, decide, lessonsFor, buyerAITick, spentToday, DAY_CAP, POST_WAIT_HOURS } from './buyerai.js';
+import { readAI, applyAI, aiPassDone, buyerAIOn, adNumbers, withCovers, metaActsOf, disagree, decide, lessonsFor, buyerAITick, spentToday, trackingCheck, DAY_CAP, POST_WAIT_HOURS } from './buyerai.js';
 
 export const DEFAULT_BUYER_CHANNEL = 'C0C8UA53U3W';   // #daily-briefs
 export const DEFAULT_OWNER = 'Cole';
@@ -156,10 +156,35 @@ export function hiddenBy(row, st) {
 }
 
 /* ---------- the rows ---------- */
+/* ONE-LINE ACTION, ONE-LINE WHY (2026-10-27, Cole: "what to do and why talks too much"). The action is a few words; the
+   why is ONE line with at most 3 numbers ("$561 in 7 days, 0 sales, goal ROAS 2.2x"). The full reason (every number,
+   the funnel role) stays in why_full, shown only under "Show ads". */
 const ACTION = {
-  scale: () => 'Raise budget 20%', cut: () => 'Cut the ad set', trim: () => 'Turn off this ad', refresh: () => 'Brief a new version',
-  mixed: () => 'Your call', minoff: () => 'Take test minimum off', launch: n => `Launch ${n} approved ad${n === 1 ? '' : 's'}`,
+  scale: r => { const b = +(r && r.budget) || 0; return b > 0 ? `Raise budget ${dollars0(b)} to ${dollars0(Math.round(b * 1.2))}/day` : 'Raise budget 20%'; },
+  cut: () => 'Pause this ad set', trim: () => 'Pause this ad', refresh: () => 'Brief a new version of the main ad',
+  mixed: r => (r && (r.kept_by === 'opener' || r.kept_by === 'best_set') ? 'Keep it on' : r && r.kept_by === 'tracking_gap' ? 'Keep it on for now' : 'Your call'),
+  minoff: () => 'Take the test minimum off', launch: n => `Launch ${n} approved ad${n === 1 ? '' : 's'}`,
 };
+const dollars0 = n => '$' + Math.round(+n || 0).toLocaleString('en-US');
+const x1 = v => `${(+v || 0).toFixed(1).replace(/\.0$/, '')}x`;
+const count = (n, w) => `${Number.isInteger(+n) ? +n : (+n).toFixed(1)} ${w}${Math.round(+n) === 1 ? '' : 's'}`;
+/** The one-line why: at most 3 numbers, plain words. Falls back to the first sentence of the rule's reason. */
+export function shortWhy(r) {
+  const cur = r.currency || 'USD', m = r.judged_on || r.metric, sp = +r.spend || 0, days = r.days || 7, res = +(r.results ?? r.orders ?? 0) || 0;
+  const unit = m === 'cpl' ? 'lead' : m === 'ncpa' ? 'new customer' : 'sale';
+  const goal = m === 'roas' ? (r.goal_roas ? `goal ROAS ${x1(r.goal_roas)}` : '') : r.goal ? `goal ${money(r.goal, cur)}` : '';
+  const join = (...xs) => xs.filter(Boolean).join(', ');
+  const kind = r.kind === 'mixed' && r.kept_by === 'tracking_gap' ? r.was || 'cut' : r.kind;
+  if (kind === 'scale' && res) return m === 'roas' ? join(`${count(res, unit)} at ROAS ${x1(r.roas)} in ${days} days`, goal) : join(`${count(res, unit)} at ${money(r.cpa, cur)} each in ${days} days`, goal);
+  if ((kind === 'cut' || kind === 'trim') && sp > 0) {
+    if (!res) return join(`${money(sp, cur)} in ${days} days`, `0 ${unit}s`, goal);
+    return m === 'roas' ? join(`${money(sp, cur)} in ${days} days`, `ROAS ${x1(r.roas)}`, goal) : join(`${money(sp, cur)} in ${days} days`, `${money(r.cpa, cur)} a ${unit}`, goal);
+  }
+  if (r.kind === 'mixed' && r.kept_by === 'opener' && r.fc_results) return `It starts ${count(r.fc_results, unit)} other ads finish, on ${money(sp, cur)} in ${days} days`;
+  if (r.kind === 'mixed' && r.kept_by === 'best_set') return join(`Your best set: ${count(res, unit)} on ${money(sp, cur)} in ${days} days`, goal);
+  if (r.kind === 'refresh' && r.ctr && r.prev_ctr) return `The main ad gets ${Math.round((1 - r.ctr / r.prev_ctr) * 100)}% fewer clicks than last week`;
+  return oneLine(r.why, 140);
+}
 /** One line of why: the first sentence of the call's reason, cut at a word. */
 export function oneLine(s, n = 170) {
   const t = clean(s, 1000);
@@ -172,8 +197,10 @@ export function oneLine(s, n = 170) {
 export function callRow(r) {
   const object = String(r.ad_id || r.adset_id || '');
   return { key: `${r.act_id}|${object}|${r.kind}`, kind: r.kind, act_id: r.act_id, brand: r.brand, currency: r.currency || 'USD', object,
-    level: r.ad_id ? 'ad' : 'adset', name: r.ad || r.adset || '', set: r.ad ? r.adset || null : null, action: ACTION[r.kind](),
-    why: oneLine(r.why), why_full: clean(r.why, 600), stake: Math.max(0, +r.stake || 0), do: r.kind === 'mixed' ? null : r.kind === 'scale' ? 'budget' : r.kind === 'refresh' ? 'brief' : 'pause',
+    level: r.ad_id ? 'ad' : 'adset', name: r.ad || r.adset || '', set: r.ad ? r.adset || null : null, action: ACTION[r.kind](r),
+    why: shortWhy(r), why_full: clean(r.why, 600), stake: Math.max(0, +r.stake || 0), do: r.kind === 'mixed' ? null : r.kind === 'scale' ? 'budget' : r.kind === 'refresh' ? 'brief' : 'pause',
+    kept_by: r.kept_by || null, was: r.was || null, budget: r.set && r.set.budget != null ? +r.set.budget : null, fc_results: r.first_click ? r.first_click.fc_results ?? null : null,
+    ctr: r.ctr ?? null, prev_ctr: r.prev_ctr ?? null,
     meta_act: r.meta_act || null, adset_id: r.adset_id || null, adset: r.adset || null, ad_id: r.ad_id || null, ad: r.ad || null, campaign_id: r.campaign_id || null,
     suggested_budget: r.suggested_budget || null, n_ads: r.n_ads || null, spend: r.spend ?? null, results: r.results ?? r.orders ?? null,
     /* the numbers the review flow shows and the AI reads (hub.js buyerList fields) */
@@ -182,7 +209,7 @@ export function callRow(r) {
 }
 export function minRow(a, it) {
   return { key: `${a.act_id}|${it.id}|minoff`, kind: 'minoff', act_id: a.act_id, brand: a.name, currency: a.currency || 'USD', object: String(it.id), level: 'adset',
-    name: it.name, set: null, action: ACTION.minoff(), why: oneLine(`Meta has to spend ${dollars(it.min)} a day on it; day ${it.day || '?'}, ${it.why}.`),
+    name: it.name, set: null, action: ACTION.minoff(), why: `Meta must spend ${dollars(it.min)} a day on it${it.day ? `, day ${it.day}` : ''}`, why_full: clean(`Meta has to spend ${dollars(it.min)} a day on it; day ${it.day || '?'}, ${it.why}.`, 600),
     stake: Math.max(0, (+it.min || 0) * 7), do: 'minoff', adset_id: String(it.id), adset: it.name, min: +it.min || 0 };
 }
 export function launchRow(c, n, { studio = null, work = 0 } = {}) {
@@ -278,6 +305,30 @@ export async function launchedRows(env, accts, { days = LAUNCHED_DAYS, limit = 4
     ads_manager: r.ad_id && r.meta_act ? `https://adsmanager.facebook.com/adsmanager/manage/ads?act=${String(r.meta_act).replace('act_', '')}&selected_ad_ids=${r.ad_id}` : null }));
 }
 
+/** A row Agree to all can make without Cole: a Meta change the page writes (pause, turn back on, budget, test minimum). */
+export const DO_KINDS = ['pause', 'resume', 'budget', 'minoff'];
+export const canDo = r => DO_KINDS.includes(r.do);
+/** Grouped by brand, the brand with the most money at stake first, then each brand's rows by money at stake. */
+export function byBrand(rows) {
+  const g = new Map();
+  for (const r of rows) { const x = g.get(r.act_id) || { act_id: r.act_id, brand: r.brand, currency: r.currency || 'USD', n: 0, n_do: 0, stake: 0, rows: [] }; x.n++; x.n_do += canDo(r) ? 1 : 0; x.stake += r.stake || 0; x.rows.push(r); g.set(r.act_id, x); }
+  const brands = [...g.values()].sort((p, q) => q.stake - p.stake || String(p.brand).localeCompare(String(q.brand)));
+  for (const b of brands) b.rows.sort((p, q) => (q.stake || 0) - (p.stake || 0));
+  return { rows: brands.flatMap(b => b.rows), brands: brands.map(({ rows: _r, ...b }) => ({ ...b, stake: Math.round(b.stake) })) };
+}
+/** A call the rules held for a tracking gap, checked: fine = the cut stands (with the fact); ads with no tag = that is the
+ *  call; a real gap with tags on = keep it on for now, with the counts. */
+async function gapChecked(env, d, r) {
+  const metaActs = await metaActsOf(env, r.act_id, r.meta_act);
+  const nums = await adNumbers(env, { act: r.act_id, metaActs, adsetIds: r.ad_id ? [] : [r.adset_id].filter(Boolean), adIds: r.ad_id ? [r.ad_id] : [] });
+  const ads = r.ad_id ? nums.ads.filter(a => a.ad_id === String(r.ad_id)).map(a => ({ ...a, adset_id: null })) : nums.ads;
+  if (!ads.length) return r;
+  const t = (await trackingCheck(env, d, ads)).get(String(r.ad_id || r.adset_id));
+  if (!t) return r;
+  if (t.fine) { const was = r.was || 'cut'; const back = { ...r, kind: was, kept_by: null }; return { ...back, action: ACTION[was](back), why: shortWhy(back), do: 'pause', stake: Math.max(r.stake || 0, +r.spend || 0), checked: t.fact }; }
+  return { ...r, action: t.action || ACTION.mixed(r), why: t.fact, checked: t.fact, do: null };
+}
+
 /** The whole list. act = 'all' or one brand; only = the brands this person may see (null = every brand). */
 export async function buildBuyerList(env, d, { act = 'all', only = null, live = true, noAI = false } = {}) {
   const today = d.centralDate ? d.centralDate() : centralToday();
@@ -298,19 +349,28 @@ export async function buildBuyerList(env, d, { act = 'all', only = null, live = 
   /* The morning read (buyerai.js): a verdict on each rule row, and the calls the rules missed as rows of kind 'ai'. */
   let all = [...calls, ...mins.rows, ...launch.rows], ai = new Map();
   if (!noAI) { try { ai = await readAI(env, ids, today); all = applyAI(all, ai, accts); } catch (e) { notes.push(`Morning read: ${e.message}`); } }
+  /* Locus checks before it asks (2026-10-27): a call held for a tracking gap is checked here (Meta's own count vs Triple
+     Whale on that set, the tags when they disagree) and says what it found instead of "fix tracking". */
+  if (!noAI && d.checkTracking !== false) all = await Promise.all(all.map(r => (r.kept_by === 'tracking_gap' && !r.changed ? gapChecked(env, d, r).catch(() => r) : r)));
   const rows = [], quiet = [];
-  for (const r of all) { const h = hiddenBy(r, st); if (h) quiet.push({ ...r, hidden: h }); else rows.push(r); }
-  /* A rule row the morning read says to drop sinks under the rest (still shown, with the reason). */
-  const sunk = r => (r.ai && r.ai.verdict === 'drop' ? 1 : 0);
-  rows.sort((p, q) => sunk(p) - sunk(q) || (q.stake || 0) - (p.stake || 0) || String(p.brand).localeCompare(String(q.brand)));
+  for (const r of all) {
+    const h = hiddenBy(r, st);
+    if (h) quiet.push({ ...r, hidden: h });
+    /* The morning read says drop it: ONE final call, so it leaves the list (quiet, with the reason). */
+    else if (r.ai && r.ai.verdict === 'drop') quiet.push({ ...r, hidden: { why: 'dropped', by: 'Locus', summary: r.ai.why || r.ai.reason || '' } });
+    else rows.push(r);
+  }
+  const { rows: sorted, brands: groups } = byBrand(rows);
   const stake = rows.reduce((s, r) => s + (r.stake || 0), 0);
-  const brands = [...new Set(rows.map(r => r.act_id))];
+  const brands = groups.map(g => g.act_id);
   const cur = [...new Set(rows.filter(r => r.stake > 0).map(r => r.currency || 'USD'))];
   return { as_of: new Date().toISOString(), today, act, owner: set.buyerOwner, settings: set,
     n: rows.length, n_brands: brands.length, stake, currency: cur.length === 1 ? cur[0] : 'USD', mixed_currency: cur.length > 1,
+    n_do: rows.filter(canDo).length, groups,
     counts: Object.fromEntries(KINDS.map(k => [k, rows.filter(r => r.kind === k).length])),
-    hidden: { done: quiet.filter(r => r.hidden.why === 'done').length, skipped: quiet.filter(r => r.hidden.why === 'skipped').length, watched: quiet.filter(r => r.hidden.why === 'watched').length },
-    rows, quiet, notes, banners, ...launchView(today, set.launchDays, launch.scheduled, launched),
+    hidden: { done: quiet.filter(r => r.hidden.why === 'done').length, skipped: quiet.filter(r => r.hidden.why === 'skipped').length, watched: quiet.filter(r => r.hidden.why === 'watched').length,
+      dropped: quiet.filter(r => r.hidden.why === 'dropped').length },
+    rows: sorted, quiet, notes, banners, ...launchView(today, set.launchDays, launch.scheduled, launched),
     ai: { on: set.buyerAI, n_read: [...ai.values()].filter(x => x.status === 'done').length, n_brands: accts.length,
       brands: [...ai.entries()].filter(([, x]) => x.status === 'done' && x.summary).map(([k, x]) => ({ act_id: k, brand: (accts.find(a => a.act_id === k) || {}).name || k, summary: x.summary, at: x.at })) } };
 }
@@ -325,37 +385,20 @@ export function launchView(today, days, scheduled, launched) {
 }
 
 /* ---------- the Slack post ---------- */
-const AI_WORD = { keep: 'agrees', change: 'says change it', drop: 'says drop it' };
-const lineOf = (r, i) => `${i + 1}. *${mk(r.brand)}*: ${mk(r.action)}, ${mk(r.kind === 'launch' ? r.name : `"${r.name}"`)}${r.stake > 0 ? ` (${money(r.stake, r.currency)} at stake)` : ''}`
-  + (r.kind === 'ai' ? ' _(from the morning read)_' : r.ai ? ` _(morning read ${AI_WORD[r.ai.verdict] || r.ai.verdict}${r.ai.verdict === 'change' && r.ai.change ? `: ${mk(r.ai.change)}` : ''})_` : '');
+/* THE SHORT DM (2026-10-27, Cole): the head ("N changes ready across B brands, $X at stake"), the top 5 one-liners
+   (brand: action, "name") and Open. Nothing else: the page has the rest. */
+const lineOf = r => `• *${mk(r.brand)}*: ${mk(r.action)}, ${mk(r.kind === 'launch' ? r.name : `"${r.name}"`)}`;
 export function headOf(list) {
   if (!list.n) return 'Buyer list: nothing to do today';
-  return `Buyer list: ${list.n} to do across ${list.n_brands} brand${list.n_brands === 1 ? '' : 's'}${list.stake > 0 ? `, ${moneyK(list.stake, list.currency)} at stake` : ''}`;
+  return `${list.n} change${list.n === 1 ? '' : 's'} ready across ${list.n_brands} brand${list.n_brands === 1 ? '' : 's'}${list.stake > 0 ? `, ${moneyK(list.stake, list.currency)} at stake` : ''}`;
 }
-/** The one daily message: the head, the owner, the top 5 lines, launches waiting (when none made the top 5), Open in Locus. */
-export function buyerMessage(list, ownerTag) {
-  const head = headOf(list);
-  const top = list.rows.slice(0, TOP_N);
-  const L = [`*${mk(head)}*`, `Owner: ${ownerTag || mk(list.owner)}`];
-  const ly = list.launched_yesterday;
-  if (ly && ly.n) L.push(`Launched yesterday: ${ly.n} ad${ly.n === 1 ? '' : 's'} (${mk(ly.brands.join(', '))})`);
-  const lt = list.rows.filter(r => r.kind === 'launch');
-  if (lt.length) L.push(`Launch today: ${lt.length} card${lt.length === 1 ? '' : 's'} (${mk([...new Set(lt.map(r => r.brand))].join(', '))})`);
-  const ai = list.ai;
-  if (ai && ai.n_read) {
-    const ex = list.rows.filter(r => r.kind === 'ai').length, dr = list.rows.filter(r => r.ai && r.ai.verdict === 'drop').length, ch = list.rows.filter(r => r.ai && r.ai.verdict === 'change').length;
-    L.push(`Morning read: ${ai.n_read} brand${ai.n_read === 1 ? '' : 's'} read${ex ? `, ${ex} call${ex === 1 ? '' : 's'} the rules missed` : ''}${ch ? `, ${ch} to change` : ''}${dr ? `, ${dr} to drop` : ''}.`);
-  }
-  const head2 = L.length;
-  top.forEach((r, i) => L.push(lineOf(r, i)));
-  const lw = list.rows.filter(r => r.kind === 'launch'), lwOut = lw.filter(r => !top.includes(r));
-  if (lwOut.length) L.push(`Also ${lwOut.length} card${lwOut.length === 1 ? '' : 's'} ready to launch (${lwOut.reduce((s, r) => s + (r.n_ads || 0), 0)} approved ads).`);
-  if (list.n > top.length) L.push(`_and ${list.n - top.length} more in Locus_`);
+/** The one daily message: the head, the top 5 one-liners, Open in Locus. (ownerTag is kept for callers; not shown.) */
+export function buyerMessage(list, ownerTag) { // eslint-disable-line no-unused-vars
+  const L = [`*${mk(headOf(list))}*`, ...list.rows.slice(0, TOP_N).map(lineOf)];
   const text = L.join('\n');
   const blocks = [
-    { type: 'section', text: { type: 'mrkdwn', text: L.slice(0, head2).join('\n') } },
-    ...(L.length > head2 ? [{ type: 'section', text: { type: 'mrkdwn', text: L.slice(head2).join('\n').slice(0, 2900) } }] : []),
-    { type: 'actions', elements: [{ type: 'button', action_id: 'noop_open', text: { type: 'plain_text', text: 'Open in Locus' }, url: `${LOCUS}?open=buyer&act=all` }] },
+    { type: 'section', text: { type: 'mrkdwn', text: text.slice(0, 2900) } },
+    { type: 'actions', elements: [{ type: 'button', action_id: 'noop_open', text: { type: 'plain_text', text: 'Open' }, url: `${LOCUS}?open=buyer&act=all` }] },
   ];
   return { text, blocks };
 }
@@ -387,7 +430,7 @@ export async function buyerPostTick(env, d) {
   if (hour < from + POST_WAIT_HOURS && !(await aiPassDone(env, d, today).catch(() => true))) return { deferred: 'morning read not finished' };
   try {
     const list = await buildBuyerList(env, d, { act: 'all' });
-    if (!list.n && !(list.launched_yesterday && list.launched_yesterday.n)) { st.done = 'nothing to do'; await putSetting(env, 'buyerPostDone', JSON.stringify(st)); return { date: today, quiet: true, notes: list.notes }; }
+    if (!list.n) { st.done = 'nothing to do'; await putSetting(env, 'buyerPostDone', JSON.stringify(st)); return { date: today, quiet: true, notes: list.notes }; }
     const set = await buyerSettings(env);
     const r = await postBuyerList(env, d, set.buyerChannel, list);
     st.done = 'posted'; st.n = list.n; st.ts = r.ts; st.channel = set.buyerChannel; st.at = new Date().toISOString();

@@ -4597,3 +4597,30 @@ this goes for all things that go from the right side", and the Integrations pane
   docs/strategist-brain/source-lucky-account-structure.md: one [MD] CBO since Oct 4, do not split it or turn the old
   Black Wedge campaign on.
 - Tests: account-health `node test-buyerai.mjs` (7) and `node test-buyerlist.mjs` (buyerAI off there).
+
+## 2026-10-27: THE BUYER LIST, SIMPLE (buyer.js?v=4, account-health buyerlist.js + buyerai.js). Read before touching a Buyer list row, the morning read's answer or the DM.
+- Cole found v3 too confusing (names squished, "what to do and why" talked too much, the morning read note took long to
+  get to the point and told him to check UTMs Locus can check itself, no way to approve everything at once).
+- **The row**: the full ad set / ad name on its OWN line (never clamped or split), the level ("Ad set", "Ad", "Campaign")
+  and brand as small labels beside it, a bold action of a few words ("Pause this ad set", "Raise budget $100 to
+  $120/day", "Turn back on"), ONE why line with at most 3 numbers (buyerlist.js `shortWhy`: "$561 in 7 days, 0 sales,
+  goal ROAS 2.2x"), an optional green "Locus checked: ..." line, then the buttons, then "Show ads" (or "Show details")
+  as its own control below. Everything else (the rule's full reason `why_full`, spend, sales, CPA/ROAS vs goal, days,
+  role, budget, the rule's own call when Locus changed it) lives inside Show ads (`detailsHtml`). No kind chips, no
+  CUT/SCALE pills, no "Morning read says" box any more.
+- **One final call per row** (buyerai.js `applyAI`): keep = the rule's call stands; change = the row shows the read's
+  action and why, tagged "Locus changed this" (hover = what the rule said), `rule {action, why, do}` kept, and Agree
+  makes the read's `move`; drop = the row leaves the list (quiet, `hidden.why 'dropped'`, "N Locus dropped").
+  Extra calls are tagged "Locus found this". Rows Agree to all cannot make are tagged "Needs you".
+- **Grouped by brand**, the brand with the most money at stake first (`byBrand`; list.groups, list.n_do).
+- **Agree to all N** (top of the page, and per brand when 2+ brands): one sheet (bottom sheet on a phone) lists every
+  change in one line; Your call / launches / briefs / rows with no Meta move are listed under "Needs you (skipped)".
+  Budgets: the read's number, else the live budget +20% (metaLive), a set on its campaign's budget is skipped. On the
+  button `runAll` makes them one at a time through `/api/meta/write` (dry run, then the write with expect: locusWrite,
+  p_meta_write, Change Log, Undo 24 hours), marks each Done, shows each result with its own Undo; one failure never
+  stops the rest. Single Agree: pause / budget = LxMetaWrite as before (it.ad_id only when the row is on an ad);
+  resume and a morning-read budget = `confirmOne` (Meta's before and after, then the write).
+- **The DM** (`buyerMessage`): "*N changes ready across B brands, $X at stake*", the top 5 one-liners
+  ("• *Brand*: action, "name""), an Open button. No owner line, no launch or morning read lines.
+- Tests: profit `node test-buyer-page.mjs` (the row, groups, Agree to all bodies and run order), account-health
+  `node test-buyerai.mjs` (10: prompt shape, tracking check, final call) and `node test-buyerlist.mjs` (13).

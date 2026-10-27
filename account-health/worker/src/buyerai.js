@@ -228,14 +228,21 @@ export async function decide(env, { act, id, decision, who, today = centralToday
 }
 
 /* ---------- the morning read ---------- */
-const PASS_SCHEMA = { type: 'object', additionalProperties: false, required: ['summary', 'rows', 'extra'],
+/* THE SHORT SHAPE (2026-10-27, Cole: "what to do and why talks too much"; the Black Wedges note took too long to get to the
+   point and told him to check UTMs Locus can check itself). Every line the read writes is ONE action of at most 8 words
+   and ONE why of at most 20 words with at most 3 numbers. `move` says what the change is in Meta, so Agree (and Agree to
+   all) can make it: pause | resume | budget (with `budget`, the new daily amount) | none. */
+export const ACTION_WORDS = 8, WHY_WORDS = 20;
+const MOVES = ['pause', 'resume', 'budget', 'none'];
+export const PASS_SCHEMA = { type: 'object', additionalProperties: false, required: ['summary', 'rows', 'extra'],
   properties: {
     summary: { type: 'string' },
-    rows: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['key', 'verdict', 'reason', 'change'],
-      properties: { key: { type: 'string' }, verdict: { type: 'string', enum: ['keep', 'change', 'drop'] }, reason: { type: 'string' }, change: { type: 'string' } } } },
-    extra: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['type', 'name', 'adset_id', 'ad_id', 'campaign_id', 'action', 'reason', 'stake'],
+    rows: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['key', 'verdict', 'action', 'why', 'move', 'budget', 'ad_id'],
+      properties: { key: { type: 'string' }, verdict: { type: 'string', enum: ['keep', 'change', 'drop'] }, action: { type: 'string' }, why: { type: 'string' },
+        move: { type: 'string', enum: MOVES }, budget: { type: 'number' }, ad_id: { type: 'string' } } } },
+    extra: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['type', 'name', 'adset_id', 'ad_id', 'campaign_id', 'action', 'why', 'move', 'budget', 'stake'],
       properties: { type: { type: 'string', enum: ['budget', 'relaunch', 'leads', 'tracking', 'cut', 'scale', 'other'] }, name: { type: 'string' }, adset_id: { type: 'string' }, ad_id: { type: 'string' },
-        campaign_id: { type: 'string' }, action: { type: 'string' }, reason: { type: 'string' }, stake: { type: 'number' } } } },
+        campaign_id: { type: 'string' }, action: { type: 'string' }, why: { type: 'string' }, move: { type: 'string', enum: MOVES }, budget: { type: 'number' }, stake: { type: 'number' } } } },
   } };
 export function passSystem(brand) {
   return `You are the senior media buyer at a DTC ecommerce agency, reading ${brand}'s Meta account first thing in the morning for Cole, who owns the agency and makes every call. A rules engine already wrote today's calls (RULE ROWS). Your job: check each one against the full picture, and add the calls the rules cannot see.
@@ -243,11 +250,125 @@ How to read it:
 - Sales and revenue are Triple Whale last platform click (the call). First click shows who opens journeys: an ad set whose first-click credit is well above its last-click credit starts journeys other channels finish; cutting it costs sales later. New-customer share is the part of its first-click orders that were a customer's first order.
 - Judge the ad set first, then each ad by its role in the set. Compare per day and per window, never raw totals across different windows.
 - THE ACCOUNT PLAN and Cole's FINAL CALLS (under MEMORY and LESSONS) win over the rules. Never suggest something the plan rules out (for example splitting a campaign the plan keeps whole, or turning on a campaign the plan turned off).
-- A tracking gap (Meta counts sales Triple Whale does not) means hold cuts until tracking is fixed; say it once as a tracking row.
-For every RULE ROW give: verdict keep (right as written) | change (right idea, different move: say the move in "change") | drop (wrong today), and ONE plain sentence of reason with the one or two numbers that matter. Use the row's key exactly.
-Then EXTRA: up to 6 calls the rules missed, only when the numbers clearly back them: budget moves between campaigns or ad sets, relaunching a strong ad that sits in a cut or paused set (name the ad and its numbers), a leads campaign that needs a goal or a look, tracking problems, anything else a good buyer would do this morning. Each: type, name (the ad set, ad or campaign as named in the data), the ids you were given ('' when none), action (a short instruction, under 12 words), reason (one sentence with numbers), stake (the dollars a week it moves, 0 if unclear). No extra row that repeats a rule row.
-summary = one sentence: the most important thing for this brand today.
-Plain words, like a person talking. No jargon, no em dashes, never invent a number: use only the numbers given.`;
+- TRACKING: Locus already checked tracking itself for every ad set (TRACKING CHECKS: Meta's own pixel purchases next to Triple Whale's, and the Triple Whale tags on the ads when they disagree). NEVER tell Cole to check tracking, UTMs, tags, the pixel or attribution. Use the check as a fact in the why ("Tracking is fine: Meta also counts 1 sale on $572") and give the real move. Only when the check finds ads with no Triple Whale tag is "Add Triple Whale tags to N ads" a call.
+For every RULE ROW give: verdict keep (right as written) | change (right idea, different move) | drop (wrong today). Use the row's key exactly.
+Write every change and every EXTRA row in the short shape:
+- action: what to do, at most ${ACTION_WORDS} words, starting with a verb. Examples: "Pause this ad set", "Turn back on", "Lower budget $100 to $50/day", "Turn off Black Wedges - 9".
+- why: ONE line, at most ${WHY_WORDS} words and at most 3 numbers. Example: "$561 in 7 days, 0 sales, goal ROAS 2.2x".
+- move: the change in Meta: pause (turn off the ad set, or the ad when ad_id is set) | resume (turn it back on) | budget (set the daily budget to "budget" dollars) | none (anything else). budget = the new daily amount for a budget move, else 0. On a rule row, ad_id = the one ad the move is on when it is not the row's own object (for example turning off one ad inside the set), else "".
+For keep and drop: action is "", move is none, why is the one line that says why (same limits).
+Then EXTRA: up to 6 calls the rules missed, only when the numbers clearly back them: budget moves between campaigns or ad sets, relaunching a strong ad that sits in a cut or paused set, a leads campaign that needs a goal, ads with no Triple Whale tag, anything else a good buyer would do this morning. Each: type, name (the ad set, ad or campaign as named in the data), the ids you were given ('' when none), action, why, move, budget, stake (the dollars a week it moves, 0 if unclear). No extra row that repeats a rule row.
+summary = one line, at most ${WHY_WORDS} words: the most important thing for this brand today.
+Plain words, like a person talking. No "if X then Y" chains, no hedging, no jargon: never write UTM, CBO (unless it is part of a campaign's name), first click, last click, CPM, CTR or attribution in an action or a why. No em dashes. Never invent a number: use only the numbers given.`;
+}
+/* ---------- the short lines and Locus's own tracking check ---------- */
+/** At most `max` words: the first sentence, no "if ... then" tail, cut at a clause (", " "; " " and " ": ") before the
+ *  limit, else at a word. No ellipsis. */
+export function shortLine(s, max) {
+  let t = noDash(clip(s, 600)).replace(/^[\s"']+|[\s"']+$/g, '');
+  if (!t) return '';
+  t = (t.match(/^.*?[.!?](?=\s|$)/) || [t])[0].replace(/[.!?]+$/, '');
+  const noIf = t.replace(/[\s,;]+\bif\b[\s\S]*$/i, '').replace(/^if\b[^,]*,\s*(then\s+)?/i, '');
+  if (noIf.split(/\s+/).length >= 2) t = noIf;
+  const w = t.trim().split(/\s+/);
+  if (w.length <= max) return t.trim();
+  const head = w.slice(0, max).join(' ');
+  const cut = Math.max(head.lastIndexOf(', '), head.lastIndexOf('; '), head.lastIndexOf(' and '), head.lastIndexOf(': '));
+  return (cut > head.length * 0.4 ? head.slice(0, cut) : head).replace(/[ ,;:]+$/, '').trim();
+}
+/** A line that sends the buyer off to check something Locus can check itself. */
+export const ASKS_CHECK = /\b(check|verify|confirm|look into|audit|investigate|make sure)\b[^.]{0,60}\b(utms?|tracking|tags?|pixel|attribution|capi|event|fires?|firing)\b|\butms?\b/i;
+const plural = (n, w) => `${Math.round(n)} ${w}${Math.round(n) === 1 ? '' : 's'}`;
+const usd = n => '$' + Math.round(+n || 0).toLocaleString('en-US');
+/** The tracking verdict for one ad set over 7 days: Meta's own pixel purchases next to Triple Whale's last platform click
+ *  orders on the same ads, and (when they disagree) the Triple Whale tags on the ads. fine = no gap; action only when
+ *  there is a thing to do (ads with no tag). The fact is one plain line. */
+export function trackVerdict(t) {
+  const meta = Math.round(+t.meta || 0), tw = Math.round(+t.tw || 0), sp = +t.spend || 0;
+  if (t.leads_goal) return { fine: (t.leads || 0) > 0 || sp < 50, meta, tw, fact: `Meta counts ${plural(t.leads || 0, 'lead')} on ${usd(sp)} in 7 days` };
+  const gap = meta - tw >= 2 && tw < 0.7 * meta;
+  if (!gap) return { fine: true, meta, tw, fact: meta <= tw ? `Tracking is fine: Meta ${meta === tw ? 'also ' : ''}counts ${plural(meta, 'sale')} on ${usd(sp)}`
+    : `Tracking is fine: Meta also counts just ${plural(meta, 'sale')} on ${usd(sp)}` };
+  const tags = t.tags || null;
+  if (tags && tags.read && tags.missing > 0) return { fine: false, meta, tw, missing: tags.missing, action: `Add Triple Whale tags to ${plural(tags.missing, 'ad')}`,
+    fact: `${tags.missing} of ${plural(tags.n, 'ad')} have no Triple Whale tag; Meta counts ${meta} sales, Triple Whale ${tw}` };
+  if (tags && tags.read) return { fine: false, meta, tw, fact: `Tags are on every ad, but Meta counts ${meta} sales and Triple Whale ${tw}` };
+  return { fine: false, meta, tw, fact: `Meta counts ${plural(meta, 'sale')}, Triple Whale ${tw}, on ${usd(sp)} in 7 days` };
+}
+/** Triple Whale tags on each ad, read live from Meta (creative url_tags and the link). Map ad_id -> {tw, utm}; null when
+ *  Meta cannot be read here (no token, a test). */
+export async function urlTagsOf(env, d, adIds) {
+  if (!env.META_TOKEN || !d.xfetch || !adIds.length) return null;
+  const out = new Map();
+  for (let i = 0; i < adIds.length; i += 50) {
+    const u = new URL('https://graph.facebook.com/v23.0/');
+    u.searchParams.set('ids', adIds.slice(i, i + 50).join(','));
+    u.searchParams.set('fields', 'creative{url_tags,object_story_spec,asset_feed_spec}');
+    u.searchParams.set('access_token', env.META_TOKEN);
+    const j = await (await d.xfetch(u.toString())).json().catch(() => ({}));
+    if (!j || j.error) throw new Error((j && j.error && j.error.message) || 'Meta did not answer');
+    for (const [id, a] of Object.entries(j)) {
+      const c = (a && a.creative) || {}, s = `${c.url_tags || ''} ${JSON.stringify(c.object_story_spec || {})} ${JSON.stringify(c.asset_feed_spec || {})}`;
+      out.set(String(id), { tw: /tw_adid|tw_source/i.test(s), utm: /utm_/i.test(s) });
+    }
+  }
+  return out;
+}
+/** Locus's own tracking check: per ad set id (or ad id for a lone ad) {meta, tw, spend, leads, tags, fine, fact, action}.
+ *  `ads` = 7-day adNumbers rows. The live tag read runs only for the sets whose counts disagree. */
+export async function trackingCheck(env, d, ads, { leadSets = new Set() } = {}) {
+  const by = new Map();
+  for (const a of ads) {
+    const k = String(a.adset_id || a.ad_id);
+    const t = by.get(k) || { meta: 0, tw: 0, spend: 0, leads: 0, ads: [] };
+    t.meta += a.meta_purchases || 0; t.tw += a.sales || 0; t.spend += a.spend || 0; t.leads += a.leads || 0; t.ads.push(String(a.ad_id)); by.set(k, t);
+  }
+  const gaps = [...by.entries()].filter(([k, t]) => !leadSets.has(k) && !trackVerdict(t).fine);
+  let tags = null, tagErr = null;
+  if (gaps.length) { try { tags = await urlTagsOf(env, d, [...new Set(gaps.flatMap(([, t]) => t.ads))].slice(0, 150)); } catch (e) { tagErr = e.message; } }
+  const out = new Map();
+  for (const [k, t] of by) {
+    const tg = tags && gaps.some(([g]) => g === k) ? { read: true, n: t.ads.length, missing: t.ads.filter(id => tags.has(id) && !tags.get(id).tw).length } : null;
+    const v = trackVerdict({ ...t, leads_goal: leadSets.has(k), tags: tg });
+    out.set(k, { meta: v.meta, tw: v.tw, spend: r2(t.spend), leads: t.leads, tags: tg, fine: v.fine, fact: v.fact, action: v.action || null, ...(tagErr ? { tag_error: tagErr } : {}) });
+  }
+  return out;
+}
+/** The model's answer in the short shape, with Locus's own check in place of any "go check the tracking". */
+export function finishPass(out, inp) {
+  const keys = new Map(inp.ruleRows.map(r => [r.key, r]));
+  const trackOf = id => { const s = id && inp.sets.find(x => x.adset_id === String(id)); return s && s.tracking ? s.tracking : null; };
+  const move = m => (MOVES.includes(m) ? m : 'none');
+  const rows = [];
+  for (const r of out.rows || []) {
+    const rule = keys.get(r.key); if (!rule) continue;
+    let verdict = ['keep', 'change', 'drop'].includes(r.verdict) ? r.verdict : 'keep';
+    let action = verdict === 'change' ? shortLine(r.action || r.change, ACTION_WORDS) : '', why = shortLine(r.why || r.reason, WHY_WORDS), mv = verdict === 'change' ? move(r.move) : 'none';
+    const t = trackOf(rule.adset_id), asked = ASKS_CHECK.test(`${r.action || ''} ${r.why || ''} ${r.change || ''} ${r.reason || ''}`);
+    let checked = null;
+    if (asked) {
+      checked = t ? t.fact : null;
+      if (t && !t.fine && t.action) { verdict = 'change'; action = t.action; why = t.fact; mv = 'none'; }
+      else { verdict = 'keep'; action = ''; mv = 'none'; why = t ? t.fact : shortLine(rule.why, WHY_WORDS); }
+    }
+    if (verdict === 'change' && !action) verdict = 'keep';
+    rows.push({ key: r.key, verdict, action, why, move: mv, budget: mv === 'budget' && +r.budget > 0 ? Math.round(+r.budget) : null,
+      ad_id: mv !== 'none' && ID.test(r.ad_id || '') ? r.ad_id : null, checked, reason: why, change: action });
+  }
+  const extra = [];
+  for (const x of (out.extra || []).slice(0, 6)) {
+    const ids = { adset_id: ID.test(x.adset_id || '') ? x.adset_id : null, ad_id: ID.test(x.ad_id || '') ? x.ad_id : null, campaign_id: ID.test(x.campaign_id || '') ? x.campaign_id : null };
+    let action = shortLine(x.action, ACTION_WORDS), why = shortLine(x.why || x.reason, WHY_WORDS), mv = move(x.move), checked = null;
+    if (x.type === 'tracking' || ASKS_CHECK.test(`${x.action || ''} ${x.why || ''} ${x.reason || ''}`)) {
+      const t = trackOf(ids.adset_id);
+      if (!t || !t.action) continue;                      // checked and fine, or nothing Locus could check: never pass the ask on
+      action = t.action; why = t.fact; checked = t.fact; mv = 'none';
+    }
+    if (!action) continue;
+    extra.push({ id: `ai${extra.length + 1}`, type: x.type, name: noDash(clip(x.name, 200)), ...ids, action, why, move: mv,
+      budget: mv === 'budget' && +x.budget > 0 ? Math.round(+x.budget) : null, checked, reason: why, stake: Math.max(0, Math.round(+x.stake || 0)) });
+  }
+  return { summary: shortLine(out.summary, WHY_WORDS), rows, extra };
 }
 /** Everything the read sees for one brand, from D1 and the list already built. */
 export async function passInput(env, d, a, list, { today = centralToday() } = {}) {
@@ -283,6 +404,11 @@ export async function passInput(env, d, a, list, { today = centralToday() } = {}
             ads: a14.slice(0, 6).map(x => { const y = a7.find(z => z.ad_id === x.ad_id) || {}; return { ad_id: x.ad_id, name: x.name, status: x.status, spend7: y.spend ?? 0, sales7: y.sales ?? 0, cpa7: y.cpa ?? null, roas7: y.roas ?? null,
               spend14: x.spend, sales14: x.sales, cpa14: x.cpa, roas14: x.roas, ctr7: y.ctr ?? null, hook7: y.hook ?? null, freq7: y.freq ?? null, role: y.role ?? x.role, leads14: x.leads }; }) };
         });
+        /* Locus checks tracking itself (Meta's pixel count vs Triple Whale, the tags when they disagree): the read states
+           it as a fact and never sends Cole off to check UTMs. */
+        const leadSets = new Set(sets.filter(s => /LEAD/i.test(s.optimizing_for || '')).map(s => s.adset_id));
+        const tr = await trackingCheck(env, d, w7.ads, { leadSets }).catch(() => new Map());
+        for (const s of sets) s.tracking = tr.get(s.adset_id) || null;
       }
       camps = (await q(`SELECT c.campaign_id, c.name, c.objective, c.status, c.daily_budget, c.lifetime_budget, c.bid_strategy,
           (SELECT SUM(d.spend) FROM ad_daily d JOIN ads x ON x.act_id = d.act_id AND x.ad_id = d.ad_id WHERE x.campaign_id = c.campaign_id AND d.date BETWEEN ?1 AND ?2) spend7
@@ -304,6 +430,7 @@ export function passUser(a, inp) {
     `THE ACCOUNT PLAN (follow it):\n${inp.plan.length ? inp.plan.map(f => `- ${f.topic}: ${f.text}`).join('\n') : '(none saved)'}`,
     `RULE ROWS (today's calls from the rules; quiet = already done, skipped or changed in Meta in the last 3 days):\n${JSON.stringify(inp.ruleRows)}`,
     `TRACKING BANNERS:\n${inp.banners.map(b => b.text).join('\n') || '(none)'}`,
+    `TRACKING CHECKS (Locus checked these itself, last 7 days; state them as facts, never ask Cole to check):\n${inp.sets.filter(s => s.tracking).map(s => `- ${s.name} (${s.adset_id}): ${s.tracking.fact}${s.tracking.action ? `. To do: ${s.tracking.action}` : ''}`).join('\n') || '(no ad set spent)'}`,
     `CAMPAIGNS (budgets per day, spend last 7 days):\n${JSON.stringify(inp.camps)}`,
     `AD SETS that spent in the last 14 days, biggest first, with their top ads (last7 / last14; sales = Triple Whale last click, fc = first click):\n${JSON.stringify(inp.sets)}`,
     `LESSONS (Cole's calls when he disagreed with Locus):\n${lessonsText(inp.lessons) || '(none yet)'}`,
@@ -320,12 +447,7 @@ export async function readBrand(env, d, a, { today = centralToday(), list = null
     return { act_id: a.act_id, status: 'empty' };
   }
   const { out, usd } = await callModel(env, d, { model: PASS_MODEL, system: passSystem(a.name), user: passUser(a, inp), schema: PASS_SCHEMA, max: 12000, effort: 'medium', what: 'pass', day: today });
-  const keys = new Set(inp.ruleRows.map(r => r.key));
-  const res = { summary: noDash(clip(out.summary, 400)),
-    rows: (out.rows || []).filter(r => keys.has(r.key)).map(r => ({ key: r.key, verdict: ['keep', 'change', 'drop'].includes(r.verdict) ? r.verdict : 'keep', reason: noDash(clip(r.reason, 400)), change: noDash(clip(r.change, 200)) })),
-    extra: (out.extra || []).slice(0, 6).map((x, i) => ({ id: `ai${i + 1}`, type: x.type, name: noDash(clip(x.name, 200)), adset_id: ID.test(x.adset_id || '') ? x.adset_id : null,
-      ad_id: ID.test(x.ad_id || '') ? x.ad_id : null, campaign_id: ID.test(x.campaign_id || '') ? x.campaign_id : null,
-      action: noDash(clip(x.action, 120)), reason: noDash(clip(x.reason, 400)), stake: Math.max(0, Math.round(+x.stake || 0)) })) };
+  const res = finishPass(out, inp);
   await saveAI(env, a.act_id, today, 'done', res, usd, null);
   return { act_id: a.act_id, status: 'done', usd, n_rows: res.rows.length, n_extra: res.extra.length };
 }
@@ -342,16 +464,34 @@ export async function readAI(env, acts, day = centralToday()) {
   for (const r of rows) if (!acts || acts.has(r.act_id)) m.set(r.act_id, { status: r.status, at: r.at, usd: r.usd, error: r.error, ...(safe(r.json, {}) || {}) });
   return m;
 }
-/** The morning read on the list: each rule row gets `ai`, the extra calls become rows of kind 'ai'. */
+/** A move the page can make (Agree, Agree to all): pause | resume | budget; anything else needs Cole. */
+const DO_OF = { pause: 'pause', resume: 'resume', budget: 'budget' };
+/** The morning read on the list. ONE final call per row (2026-10-27, Cole): keep = the rule's call stands (with Locus's
+ *  check when it made one); change = the row SHOWS the read's action and why, tagged `changed` ("Locus changed this"),
+ *  the rule's own call kept in `rule` for the details, and Agree makes the read's move; drop = `ai.verdict` drop (the list
+ *  moves it to quiet). The extra calls become rows of kind 'ai'. Older stored reads (reason / change) still show, shortened. */
 export function applyAI(rows, ai, accts) {
-  const out = rows.map(r => { const x = ai.get(r.act_id); const v = x && (x.rows || []).find(y => y.key === r.key); return v ? { ...r, ai: { verdict: v.verdict, reason: v.reason, change: v.change || '' } } : r; });
+  const out = rows.map(r => {
+    const x = ai.get(r.act_id); const v = x && (x.rows || []).find(y => y.key === r.key);
+    if (!v) return r;
+    const why = shortLine(v.why || v.reason, WHY_WORDS), action = shortLine(v.action || v.change, ACTION_WORDS);
+    const tag = { verdict: v.verdict, why, action, checked: v.checked || null, reason: why, change: action };
+    if (v.verdict === 'change' && action) {
+      const mv = DO_OF[v.move] || null, adId = v.ad_id || (mv ? r.ad_id : null);
+      return { ...r, ai: tag, changed: true, rule: { action: r.action, why: r.why, do: r.do }, action, why, checked: v.checked || null,
+        do: mv, ...(mv ? { ad_id: adId || null, level: adId ? 'ad' : r.level } : {}), suggested_budget: mv === 'budget' && v.budget > 0 ? v.budget : r.suggested_budget || null };
+    }
+    return { ...r, ai: tag, checked: v.checked || null };
+  });
   for (const [act, x] of ai) {
     const a = accts.find(y => y.act_id === act); if (!a) continue;
     for (const e of x.extra || []) {
       const object = String(e.ad_id || e.adset_id || e.campaign_id || `ai:${String(e.name).toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 60)}`);
+      const mv = DO_OF[e.move] || null, why = shortLine(e.why || e.reason, WHY_WORDS);
       out.push({ key: `${act}|${object}|ai`, kind: 'ai', ai_type: e.type, from: 'morning read', act_id: act, brand: a.name, currency: a.currency || 'USD', object,
-        level: e.ad_id ? 'ad' : e.adset_id ? 'adset' : e.campaign_id ? 'campaign' : 'account', name: e.name, set: null, action: e.action, why: e.reason, why_full: e.reason,
-        stake: e.stake || 0, do: null, adset_id: e.adset_id || null, ad_id: e.ad_id || null, campaign_id: e.campaign_id || null });
+        level: e.ad_id ? 'ad' : e.adset_id ? 'adset' : e.campaign_id ? 'campaign' : 'account', name: e.name, set: null, action: shortLine(e.action, ACTION_WORDS), why, why_full: e.reason || why,
+        checked: e.checked || null, stake: e.stake || 0, do: mv && (e.ad_id || e.adset_id || (mv === 'budget' && e.campaign_id)) ? mv : null,
+        suggested_budget: mv === 'budget' && e.budget > 0 ? e.budget : null, adset_id: e.adset_id || null, ad_id: e.ad_id || null, campaign_id: e.campaign_id || null });
     }
   }
   return out;

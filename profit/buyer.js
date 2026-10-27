@@ -34,11 +34,11 @@
   const OWNERS = ['Cole', 'Ahsan', 'Noma', 'William', 'Ravo', 'Radhesh', 'Hamza'];
   const KIND_LABEL = { all: 'All', cut: 'Cut', scale: 'Scale', trim: 'Trim', refresh: 'Refresh', mixed: 'Your call', minoff: 'Test minimums', launch: 'Launch', ai: 'Morning read' };
   const CHIP = { cut: 'CUT', scale: 'SCALE', trim: 'TRIM', refresh: 'REFRESH', mixed: 'YOUR CALL', minoff: 'MINIMUM', launch: 'LAUNCH', ai: 'MORNING READ' };
-  const DO_LABEL = { budget: 'Agree', pause: 'Agree', minoff: 'Agree', launch: 'Launch', brief: 'Agree' };
+  const DO_LABEL = { budget: 'Agree', pause: 'Agree', resume: 'Agree', minoff: 'Agree', launch: 'Launch', brief: 'Agree' };
   const AI_SAYS = { keep: 'agrees', change: 'says change it', drop: 'says drop it' };
   const ROLE = { opener: 'Opens journeys', closer: 'Closes sales', both: 'Opens and closes' };
   let OPEN = new Set(), ADS = new Map();
-  const DO_TIP = { budget: 'Raise this ad set\'s budget 20%. You see the number and confirm before anything is written.', pause: 'Turn it off in Meta. You see it first and confirm.',
+  const DO_TIP = { budget: 'Change the budget. You see the number and confirm before anything is written.', pause: 'Turn it off in Meta. You see it first and confirm.', resume: 'Turn it back on in Meta. You see it first and confirm.',
     minoff: 'Set the test minimum to $0 in Meta. You see it first and confirm.', launch: 'Opens Launch to Meta for this card. The ads go up paused.', brief: 'Ask Locus to brief a new version of the main ad.' };
   let KIND = 'all', SHOWQ = false, DATA = null, BUSY = false, LQ = '', LALL = false, LREAD = '';
   const DAYS = [['mon', 'Monday'], ['tue', 'Tuesday'], ['wed', 'Wednesday'], ['thu', 'Thursday'], ['fri', 'Friday'], ['sat', 'Saturday'], ['sun', 'Sunday']];
@@ -69,17 +69,39 @@
       .by .by-chips{margin:0 0 12px}
       .by .by-chips button{display:inline-flex;gap:6px;align-items:center}
       .by .by-chips button b{font-variant-numeric:tabular-nums}
-      .by .by-row{display:grid;grid-template-columns:150px minmax(0,1.1fr) minmax(0,1.6fr) 96px 300px;gap:12px;align-items:center;padding:11px 0;border-top:1px solid var(--line)}
-      .by .by-row:first-of-type{border-top:0}
-      .by .by-row.head{font-size:11.5px;color:var(--muted);padding:2px 0 6px;border-top:0}
-      .by .by-br{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-      .by .by-nm{min-width:0}
-      .by .by-nm .n{font-weight:550;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;word-break:break-word}
-      .by .by-nm .s{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .by .by-what{min-width:0;display:flex;flex-direction:column;gap:4px}
-      .by .by-act{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-weight:600}
-      .by .by-why{font-size:12.5px;color:var(--muted);display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
-      .by .by-st{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+      .by .by-row{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1.5fr) 92px auto;grid-template-areas:"main what st btns" "more more more more" "ads ads ads ads";gap:4px 14px;align-items:start;padding:14px 0 10px;border-top:1px solid var(--line)}
+      .by .by-grp .by-row:first-of-type{border-top:0}
+      .by .by-main{grid-area:main;min-width:0}
+      .by .by-tags{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:3px}
+      .by .by-tags span{font-size:11px;line-height:1;padding:3px 6px;border-radius:5px;background:var(--surface-2);color:var(--muted);white-space:nowrap}
+      .by .by-tags .by-lv{color:var(--ink);font-weight:600}
+      .by .by-tags .by-chg{background:var(--brand-soft);color:var(--brand);font-weight:600}
+      .by .by-tags .by-you{background:var(--warn-bg);color:var(--warn);font-weight:600}
+      .by .by-n{font-weight:600;font-size:14.5px;line-height:1.35;white-space:normal;overflow-wrap:anywhere}
+      .by .by-in{font-size:12px;color:var(--muted);overflow-wrap:anywhere;margin-top:2px}
+      .by .by-what{grid-area:what;min-width:0;display:flex;flex-direction:column;gap:3px}
+      .by .by-act{font-weight:700;font-size:14.5px;line-height:1.35}
+      .by .by-why{font-size:13px;color:var(--muted);line-height:1.4}
+      .by .by-chk{font-size:12px;color:var(--good);line-height:1.4}
+      .by .by-st{grid-area:st;text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+      .by .by-btns{grid-area:btns}
+      .by .by-more{grid-area:more}
+      .by .by-gh{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 4px}
+      .by .by-gh h3{margin:0}
+      .by .by-gh .m{color:var(--muted);font-size:13px;flex:1 1 auto}
+      .by .by-gh .v2btn{margin:0}
+      .by .by-det{font-size:13px;line-height:1.5;margin:0 0 10px}
+      .by .by-det p{margin:0 0 6px}
+      .by .by-det dl{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px 16px;margin:6px 0 0}
+      .by .by-det dl div{display:flex;justify-content:space-between;gap:8px;border-bottom:1px dashed var(--line);padding:2px 0}
+      .by .by-det dt{color:var(--muted)}.by .by-det dd{margin:0;font-variant-numeric:tabular-nums}
+      .by-all{max-height:56vh;overflow:auto;margin:0 0 10px}
+      .by-all h4{margin:12px 0 4px;font-size:12px;font-weight:650;letter-spacing:.03em;color:var(--muted);text-transform:uppercase}
+      .by-all h4:first-child{margin-top:0}
+      .by-al{display:flex;gap:10px;align-items:baseline;justify-content:space-between;padding:7px 0;border-top:1px solid var(--line);font-size:13.5px}
+      .by-al .t{min-width:0;overflow-wrap:anywhere}.by-al .st{flex:0 0 auto;font-size:12.5px;color:var(--muted);text-align:right;max-width:45%}
+      .by-al .st.ok{color:var(--good)}.by-al .st.bad{color:var(--bad)}
+      .by-al.you{color:var(--muted)}
       .by .by-st small{display:block;font-size:11px;font-weight:400;color:var(--muted)}
       .by .by-k{font-size:10px;font-weight:700;letter-spacing:.05em;padding:3px 6px;border-radius:5px;background:var(--surface-2);color:var(--ink)}
       .by .by-k.scale{background:var(--good-bg);color:var(--good)}.by .by-k.cut{background:var(--bad-bg);color:var(--bad)}.by .by-k.trim,.by .by-k.minoff{background:var(--warn-bg);color:var(--warn)}
@@ -90,8 +112,8 @@
       .by .by-ai{font-size:12.5px;color:var(--ink);background:var(--surface-2);border-radius:6px;padding:4px 8px}
       .by .by-ai b{font-weight:650}.by .by-ai.drop b{color:var(--bad)}.by .by-ai.change b{color:var(--warn)}.by .by-ai.keep b{color:var(--good)}
       .by .by-k.ai{background:var(--brand-soft);color:var(--brand)}
-      .by .by-tog{background:none;border:0;padding:0;margin-top:3px;font:inherit;font-size:12px;color:var(--brand);cursor:pointer;min-height:24px}
-      .by .by-ads{grid-column:1/-1;padding:4px 0 6px}
+      .by .by-tog{background:none;border:0;padding:0;font:inherit;font-size:12.5px;color:var(--brand);cursor:pointer;min-height:28px}
+      .by .by-ads{grid-area:ads;padding:4px 0 6px}
       .by .by-adg{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
       .by .by-ad{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface);display:flex;flex-direction:column}
       .by .by-ad.hit{border-color:var(--warn);box-shadow:0 0 0 1px var(--warn)}
@@ -132,9 +154,9 @@
         .by .by-l{grid-template-columns:1fr auto;grid-template-areas:"w st" "b b" "a a";gap:2px 10px;padding:12px 0}
         .by .by-l .w{grid-area:w}.by .by-l .st{grid-area:st;text-align:right}.by .by-l .b{grid-area:b}.by .by-l .a{grid-area:a}.by .by-l .v2btn{display:none}
         .by .by-lnch .by-find{max-width:none;flex-basis:100%;min-height:44px}
-        .by .by-row{grid-template-columns:1fr auto;grid-template-areas:"br st" "nm nm" "what what" "btns btns";gap:6px 10px;padding:14px 0}
-        .by .by-row.head{display:none}
-        .by .by-br{grid-area:br}.by .by-st{grid-area:st}.by .by-nm{grid-area:nm}.by .by-what{grid-area:what}.by .by-btns{grid-area:btns;justify-content:stretch}
+        .by .by-row{grid-template-columns:1fr auto;grid-template-areas:"main st" "what what" "btns btns" "more more" "ads ads";gap:6px 10px;padding:14px 0}
+        .by .by-btns{justify-content:stretch}
+        .by .by-gh .v2btn{flex:1 1 100%;min-height:44px}
         .by .by-btns .v2btn{flex:1;min-height:44px;min-width:0}
         .by .by-btns{flex-wrap:wrap}
         .by .by-adg{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -192,19 +214,19 @@
   function paint() {
     const d = DATA, one = d.act !== 'all';
     const rows = d.rows || [];
-    const shown = rows.filter(r => KIND === 'all' || r.kind === KIND);
-    const kinds = ['all', 'cut', 'scale', 'trim', 'refresh', 'mixed', 'ai', 'minoff', 'launch'].filter(k => k === 'all' || (d.counts || {})[k]);
-    const chips = kinds.length > 2 ? `<div class="v2jobs by-chips" role="group" aria-label="Kind">${kinds.map(k => `<button type="button" class="${KIND === k ? 'on' : ''}" data-k="${k}" aria-pressed="${KIND === k}"><b>${k === 'all' ? rows.length : d.counts[k]}</b>${KIND_LABEL[k]}</button>`).join('')}</div>` : '';
+    const groups = groupsOf(rows);
+    const nDo = rows.filter(canDo).length;
     const stake = d.stake > 0 ? `, <b>${esc(kmoney(d.stake, d.currency))}</b> at stake` : '';
     const nx = d.next_launch || {};
     const next = !d.launch_today && nx.n ? `<p class="by-next">Next launch: <b>${esc(nx.day)}</b>, ${nx.n} card${nx.n === 1 ? '' : 's'} (${nx.n_ads} approved ad${nx.n_ads === 1 ? '' : 's'}). Ready cards go out on launch days, ${esc(daysWords(d.launch_days))}.</p>`
       : d.launch_today && (d.counts || {}).launch ? `<p class="by-next">Launch day today: ${d.counts.launch} card${d.counts.launch === 1 ? '' : 's'} to launch.</p>` : '';
-    const lead = `<p class="v2say lead by-lead"><b>${d.n} to do</b>${one ? '' : ` across ${d.n_brands} brand${d.n_brands === 1 ? '' : 's'}`}${stake}. <span class="by-own">Owner: <b>${esc(d.owner)}</b> <button type="button" class="v2link" id="byOwner">Change</button></span></p>`;
-    const head = `<div class="by-row head" aria-hidden="true"><span>Brand</span><span>Ad set or ad</span><span>What to do, and why</span><span style="text-align:right">At stake</span><span></span></div>`;
-    const list = shown.length ? `<section class="v2card">${head}${shown.map(row).join('')}</section>`
-      : `<section class="v2card"><h3>Nothing to do</h3><p class="v2hint">${KIND === 'all' ? 'No ad set crossed a rule, no test minimum is due off and no card is waiting to launch. Done and skipped calls come back when they are due.' : 'Nothing of this kind right now.'}</p></section>`;
-    const h = d.hidden || {}, nq = (h.done || 0) + (h.skipped || 0) + (h.watched || 0);
-    const foot = `<div class="by-foot"><span>Sorted by money at stake. A minimum counts a week of it; launches have no money yet.</span>${one ? '<button type="button" class="v2link" id="byCalls">Your calls</button>' : ''}${nq ? `<button type="button" class="v2link" id="byQuiet">${SHOWQ ? 'Hide' : 'Show'} ${nq} quiet: ${[h.done ? `${h.done} done` : '', h.skipped ? `${h.skipped} skipped until tomorrow` : '', h.watched ? `${h.watched} changed in Meta in the last 3 days` : ''].filter(Boolean).join(', ')}</button>` : ''}</div>`;
+    const lead = `<p class="v2say lead by-lead"><b>${d.n} change${d.n === 1 ? '' : 's'} ready</b>${one ? '' : ` across ${d.n_brands} brand${d.n_brands === 1 ? '' : 's'}`}${stake}. <span class="by-own">Owner: <b>${esc(d.owner)}</b> <button type="button" class="v2link" id="byOwner">Change</button></span></p>
+      ${nDo > 1 ? `<p class="by-lead"><button type="button" class="v2btn" id="byAll" title="See every change in one list, then Locus makes them one by one. Rows that need you are skipped.">Agree to all ${nDo}</button></p>` : ''}`;
+    /* Grouped by brand, the brand with the most money at stake first; each brand has its own Agree to all. */
+    const list = rows.length ? groups.map(g => `<section class="v2card by-grp"><div class="by-gh"><h3>${esc(g.brand)}</h3><span class="m">${g.rows.length} change${g.rows.length === 1 ? '' : 's'}${g.stake > 0 ? `, ${esc(kmoney(g.stake, g.currency))} at stake` : ''}</span>${!one && g.n_do > 1 && groups.length > 1 ? `<button type="button" class="v2btn ghost" data-allb="${esc(g.act_id)}">Agree to all ${g.n_do}</button>` : ''}</div>${g.rows.map(row).join('')}</section>`).join('')
+      : `<section class="v2card"><h3>Nothing to do</h3><p class="v2hint">No ad set crossed a rule, no test minimum is due off and no card is waiting to launch. Done and skipped calls come back when they are due.</p></section>`;
+    const h = d.hidden || {}, nq = (h.done || 0) + (h.skipped || 0) + (h.watched || 0) + (h.dropped || 0);
+    const foot = `<div class="by-foot"><span>Biggest money first. A minimum counts a week of it; launches have no money yet.</span>${one ? '<button type="button" class="v2link" id="byCalls">Your calls</button>' : ''}${nq ? `<button type="button" class="v2link" id="byQuiet">${SHOWQ ? 'Hide' : 'Show'} ${nq} quiet: ${[h.done ? `${h.done} done` : '', h.skipped ? `${h.skipped} skipped until tomorrow` : '', h.watched ? `${h.watched} changed in Meta in the last 3 days` : '', h.dropped ? `${h.dropped} Locus dropped` : ''].filter(Boolean).join(', ')}</button>` : ''}</div>`;
     const quiet = SHOWQ && nq ? `<section class="v2card"><div class="v2h"><h3>Quiet for now</h3><span class="find">Done stays quiet 3 days, Skip until tomorrow, and a change made in Meta is watched 3 days before it is judged again.</span></div>${(d.quiet || []).map(qrow).join('')}</section>` : '';
     /* Tracking gap (hub.js buyerList banners): one line per brand whose cuts are on hold. */
     const banners = (d.banners || []).map(b => `<p class="v2say by-gap" role="note"><b>${esc(b.brand)}</b>: ${esc(b.text)}</p>`).join('');
@@ -215,8 +237,8 @@
     const notes = (d.notes || []).length ? `<p class="by-notes">Could not read everything: ${esc(d.notes.join(' · '))}</p>` : '';
     const lsec = `<section class="v2card by-lnch" id="byLaunch"><div class="v2h"><h3>Launched and scheduled</h3><input type="search" class="by-find" id="byFind" placeholder="${one ? 'Find a card or ad' : 'Find a brand, card or ad'}" value="${esc(LQ)}" aria-label="Find in launched and scheduled"></div>
       <p class="v2hint" style="margin:4px 0 0">Launch days: ${esc(daysWords(d.launch_days))} (Central). A card with its own date goes out on that date. <button type="button" class="v2link" id="byDays">Change launch days</button></p><div id="byLBody">${launchBody()}</div></section>`;
-    $('#main').innerHTML = `<div class="v2 by">${H.pageHead('buyer', one ? `Buyer list: ${esc((H.S.accounts.find(a => a.act_id === d.act) || {}).name || '')}` : 'Buyer list').replace(/<p class="ph-sub">[\s\S]*?<\/p>/, '')}${lead}${banners}${aiLine}${next}${chips}${list}${foot}${quiet}${lsec}${notes}</div>`;
-    if (typeof H.pageActions === 'function') H.pageActions('<button type="button" class="btn" id="bySlack" title="The one Buyer list post a day in Slack: where it goes, on or off, and what it says now.">Slack post</button>');
+    $('#main').innerHTML = `<div class="v2 by">${H.pageHead('buyer', one ? `Buyer list: ${esc((H.S.accounts.find(a => a.act_id === d.act) || {}).name || '')}` : 'Buyer list').replace(/<p class="ph-sub">[\s\S]*?<\/p>/, '')}${lead}${banners}${aiLine}${next}${list}${foot}${quiet}${lsec}${notes}</div>`;
+    if (typeof H.pageActions === 'function') H.pageActions('<button type="button" class="btn" id="bySlack" title="The one Buyer list message a day in Slack: where it goes, on or off, and what it says now.">Slack post</button>');
     wire();
   }
   const LSHOW = 25;
@@ -291,27 +313,52 @@
     } catch {}
   }
 
+  /* ONE ROW (2026-10-27, Cole: names were squished, "what to do and why" talked too much). The full name on its own line,
+     never cut; the level and brand as small labels beside it; a bold action of a few words and ONE short why line; the
+     buttons; "Show ads" below. Every other number lives inside Show ads. When the morning read changed the rule's call,
+     the row shows only the final call, tagged "Locus changed this". */
+  const LEVEL = { adset: 'Ad set', ad: 'Ad', campaign: 'Campaign', account: 'Account', card: 'Card' };
   function row(r) {
     const k = esc(r.key), cur = r.currency || 'USD';
-    const sub = r.kind === 'launch' ? (r.launch_on ? `Production, Ready, dated ${ymdShort(r.launch_on)}` : 'Production, Ready') : r.set ? `in ${r.set}` : r.level === 'adset' ? 'Ad set' : '';
+    const lvl = r.kind === 'launch' ? 'Card' : LEVEL[r.level] || 'Ad set';
+    const sub = r.kind === 'launch' ? (r.launch_on ? `Ready on Production, dated ${ymdShort(r.launch_on)}` : 'Ready on Production') : r.set ? `in ${r.set}` : '';
     const primary = r.do ? `<button type="button" class="v2btn" data-do="${k}" title="${esc(DO_TIP[r.do] || '')}">${DO_LABEL[r.do] || 'Agree'}</button>`
-      : `<button type="button" class="v2btn" data-done="${k}" title="${r.kind === 'ai' ? 'You made this change (or will). It stays quiet 3 days.' : 'Mark it decided. It stays quiet 3 days.'}">${r.kind === 'ai' || r.kind === 'mixed' ? 'Done' : 'Agree'}</button>`;
+      : `<button type="button" class="v2btn" data-done="${k}" title="Mark it decided (you made the change, or will). It stays quiet 3 days.">Done</button>`;
+    const tags = `<span class="by-lv">${lvl}</span><span>${esc(r.brand)}</span>${r.changed ? `<span class="by-chg" title="${esc(r.rule ? `The rule said: ${r.rule.action}. ${r.rule.why}` : '')}">Locus changed this</span>` : r.kind === 'ai' ? '<span class="by-chg" title="The rules did not flag this; the morning read did.">Locus found this</span>' : ''}${!canDo(r) && r.kind !== 'launch' ? '<span class="by-you" title="Agree to all skips it: Locus cannot make this change by itself.">Needs you</span>' : ''}`;
     const canAds = r.kind !== 'launch' && (r.adset_id || r.ad_id);
-    const tog = canAds ? `<button type="button" class="by-tog" data-ads="${k}" aria-expanded="${OPEN.has(r.key)}">${OPEN.has(r.key) ? 'Hide the ads' : 'Show the ads'}</button>` : '';
-    const ai = r.ai ? `<div class="by-ai ${esc(r.ai.verdict)}" title="${esc(r.ai.reason)}"><b>Morning read ${esc(AI_SAYS[r.ai.verdict] || r.ai.verdict)}${r.ai.verdict === 'change' && r.ai.change ? `: ${esc(r.ai.change)}` : ''}.</b> ${esc(r.ai.reason)}</div>`
-      : r.kind === 'ai' ? '<div class="by-ai"><b>From the morning read.</b> The rules did not flag this; Locus did.</div>' : '';
+    const tog = r.kind !== 'launch' ? `<button type="button" class="by-tog" data-ads="${k}" aria-expanded="${OPEN.has(r.key)}">${OPEN.has(r.key) ? (canAds ? 'Hide ads' : 'Hide details') : (canAds ? 'Show ads' : 'Show details')}</button>` : '';
     const dis = r.kind !== 'launch' ? `<button type="button" class="v2btn ghost" data-dis="${k}" title="Say why not. Locus answers once, then your call stands and it remembers it.">Disagree</button>` : '';
     return `<div class="by-row" data-key="${k}">
-      <span class="by-br" title="${esc(r.brand)}">${esc(r.brand)}</span>
-      <div class="by-nm"><div class="n" title="${esc(r.name)}">${esc(r.name)}</div>${sub ? `<div class="s" title="${esc(sub)}">${esc(sub)}</div>` : ''}${tog}</div>
-      <div class="by-what"><div class="by-act"><span class="by-k ${esc(r.kind)}">${CHIP[r.kind] || esc(r.kind.toUpperCase())}</span>${esc(r.action)}</div><div class="by-why" title="${esc(r.why_full || r.why)}">${esc(r.why)}</div>${ai}</div>
+      <div class="by-main"><div class="by-tags">${tags}</div><div class="by-n">${esc(r.name)}</div>${sub ? `<div class="by-in">${esc(sub)}</div>` : ''}</div>
+      <div class="by-what"><div class="by-act">${esc(r.action)}</div><div class="by-why">${esc(r.why)}</div>${r.checked && r.checked !== r.why ? `<div class="by-chk">Locus checked: ${esc(r.checked)}</div>` : ''}</div>
       <span class="by-st">${r.stake > 0 ? esc(money(r.stake, cur)) : '&ndash;'}<small>${r.stake > 0 ? 'at stake' : r.kind === 'launch' ? 'new ads' : ''}</small></span>
       <div class="by-btns">${primary}${dis}<button type="button" class="v2btn ghost" data-skip="${k}" title="Hide it for everyone until tomorrow.">Skip</button><button type="button" class="v2btn ghost" data-open="${k}" title="${r.kind === 'launch' ? 'Open the card on Production.' : 'Open it in Locus.'}">Open</button></div>
-      ${canAds && OPEN.has(r.key) ? `<div class="by-ads" data-adsbox="${k}">${adsHtml(r)}</div>` : ''}</div>`;
+      ${tog ? `<div class="by-more">${tog}</div>` : ''}
+      ${tog && OPEN.has(r.key) ? `<div class="by-ads" data-adsbox="${k}">${canAds ? adsHtml(r) : detailsHtml(r)}</div>` : ''}</div>`;
+  }
+  /* Everything the one-line why leaves out: the rule's own call when Locus changed it, the full reason, the numbers. */
+  function detailsHtml(r) {
+    const cur = r.currency || 'USD', roasGoal = r.metric === 'roas';
+    const p = [];
+    if (r.changed && r.rule) p.push(`<p><b>The rule said:</b> ${esc(r.rule.action)}. ${esc(r.rule.why)}</p>`);
+    if (r.ai && r.ai.verdict === 'keep' && r.ai.why && r.ai.why !== r.why && r.ai.why !== r.checked) p.push(`<p><b>Locus agrees:</b> ${esc(r.ai.why)}</p>`);
+    if (r.why_full && r.why_full !== r.why) p.push(`<p>${esc(r.why_full)}</p>`);
+    const n = [['Spend', r.spend != null ? money(r.spend, cur) : ''], ['Sales', r.results != null ? fmtN(r.results, r.results % 1 ? 1 : 0) : ''],
+      roasGoal ? ['ROAS', r.roas != null ? `${fmtN(r.roas, 2)}x${r.goal_roas ? ` (goal ${fmtN(r.goal_roas, 1)}x)` : ''}` : ''] : ['Cost a sale', r.cpa != null ? `${money(r.cpa, cur)}${r.goal ? ` (goal ${money(r.goal, cur)})` : ''}` : ''],
+      ['Days', r.days != null ? String(r.days) : ''], ['Role', ROLE[r.role] || ''], ['Budget', r.budget > 0 ? `${money(r.budget, cur)}/day` : '']].filter(([, v]) => v);
+    return `<div class="by-det">${p.join('')}${n.length ? `<dl>${n.map(([a, b]) => `<div><dt>${esc(a)}</dt><dd>${b}</dd></div>`).join('')}</dl>` : ''}</div>`;
+  }
+  const canDo = r => ['pause', 'resume', 'budget', 'minoff'].includes(r.do);
+  /** The rows by brand, the brand with the most money at stake first (the server sends them in this order already). */
+  function groupsOf(rows) {
+    const g = new Map();
+    for (const r of rows) { const x = g.get(r.act_id) || { act_id: r.act_id, brand: r.brand, currency: r.currency || 'USD', stake: 0, n_do: 0, rows: [] }; x.stake += r.stake || 0; x.n_do += canDo(r) ? 1 : 0; x.rows.push(r); g.set(r.act_id, x); }
+    return [...g.values()].sort((p, q) => q.stake - p.stake);
   }
   /* ---------- the ads under a row ---------- */
   const fmtN = (v, d = 0) => v == null ? '&ndash;' : Number(v).toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: d });
-  function adsHtml(r) {
+  const adsHtml = r => detailsHtml(r) + adsGrid(r);
+  function adsGrid(r) {
     const st = ADS.get(r.key);
     if (!st || st.loading) return '<p class="v2hint">Reading the ads&hellip;</p>';
     if (st.error) return `<p class="v2bad">${esc(st.error)}</p>`;
@@ -357,7 +404,8 @@
     });
   }
   function toggleAds(r) {
-    if (OPEN.has(r.key)) OPEN.delete(r.key); else { OPEN.add(r.key); if (!ADS.has(r.key) || ADS.get(r.key).error) loadAds(r); }
+    const canAds = r.adset_id || r.ad_id;
+    if (OPEN.has(r.key)) OPEN.delete(r.key); else { OPEN.add(r.key); if (canAds && (!ADS.has(r.key) || ADS.get(r.key).error)) loadAds(r); }
     paint();
     if (OPEN.has(r.key) && ADS.has(r.key) && !ADS.get(r.key).loading) paintAds(r);
   }
@@ -408,11 +456,12 @@
   }
   function qrow(r) {
     const hb = r.hidden || {}, when = hb.at ? new Date(hb.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
-    const why = hb.why === 'done' ? `Done by ${firstName(hb.by) || 'someone'} ${when}, quiet until ${hb.until}` : hb.why === 'skipped' ? `Skipped by ${firstName(hb.by) || 'someone'}, back tomorrow` : `Changed in Meta ${when} by ${firstName(hb.by) || 'someone'}${hb.summary ? `: ${hb.summary}` : ''}. Watched 3 days.`;
-    return `<div class="by-row by-q" data-key="${esc(r.key)}"><span class="by-br">${esc(r.brand)}</span><div class="by-nm"><div class="n">${esc(r.name)}</div></div>
-      <div class="by-what"><div class="by-act"><span class="by-k ${esc(r.kind)}">${CHIP[r.kind] || ''}</span>${esc(r.action)}</div><div class="by-why" title="${esc(why)}">${esc(why)}</div></div>
+    const why = hb.why === 'done' ? `Done by ${firstName(hb.by) || 'someone'} ${when}, quiet until ${hb.until}` : hb.why === 'skipped' ? `Skipped by ${firstName(hb.by) || 'someone'}, back tomorrow`
+      : hb.why === 'dropped' ? `Locus dropped this today${hb.summary ? `: ${hb.summary}` : ''}` : `Changed in Meta ${when} by ${firstName(hb.by) || 'someone'}${hb.summary ? `: ${hb.summary}` : ''}. Watched 3 days.`;
+    return `<div class="by-row by-q" data-key="${esc(r.key)}"><div class="by-main"><div class="by-tags"><span class="by-lv">${LEVEL[r.level] || 'Ad set'}</span><span>${esc(r.brand)}</span></div><div class="by-n">${esc(r.name)}</div></div>
+      <div class="by-what"><div class="by-act">${esc(r.action)}</div><div class="by-why">${esc(why)}</div></div>
       <span class="by-st">${r.stake > 0 ? esc(money(r.stake, r.currency)) : '&ndash;'}</span>
-      <div class="by-btns">${hb.why === 'watched' ? '' : `<button type="button" class="v2btn ghost" data-back="${esc(r.key)}" title="Put it back on the list now.">Put it back</button>`}</div></div>`;
+      <div class="by-btns">${hb.why === 'watched' || hb.why === 'dropped' ? '' : `<button type="button" class="v2btn ghost" data-back="${esc(r.key)}" title="Put it back on the list now.">Put it back</button>`}</div></div>`;
   }
 
   const find = k => (DATA.rows || []).find(r => r.key === k) || (DATA.quiet || []).find(r => r.key === k);
@@ -460,6 +509,8 @@
     root.querySelectorAll('[data-ads]').forEach(b => b.onclick = () => { const r = find(b.dataset.ads); if (r) toggleAds(r); });
     for (const k of OPEN) { const r = find(k); if (r && ADS.has(k) && !ADS.get(k).loading) paintAds(r); }
     const yc = $('#byCalls'); if (yc) yc.onclick = lessonsModal;
+    const all = $('#byAll'); if (all) all.onclick = () => agreeAll(DATA.rows || []);
+    root.querySelectorAll('[data-allb]').forEach(b => b.onclick = () => agreeAll((DATA.rows || []).filter(r => r.act_id === b.dataset.allb)));
   }
   function open(r) {
     if (r.kind === 'launch') return pickAct(r.act_id, 'production');
@@ -472,7 +523,10 @@
   const afterUndo = r => async () => { await state(r, 'clear').catch(() => {}); reload(); };
   function doIt(r) {
     const W = window.LxMetaWrite;
-    const it = { act_id: r.act_id, brand: r.brand, currency: r.currency, adset_id: r.adset_id, adset: r.adset || r.name, ad_id: r.kind === 'trim' ? r.ad_id : null, ad: r.kind === 'trim' ? r.ad : null, why: r.why_full || r.why, campaign_id: r.campaign_id, meta_act: r.meta_act };
+    const onAd = r.level === 'ad' && r.ad_id;
+    const it = { act_id: r.act_id, brand: r.brand, currency: r.currency, adset_id: r.adset_id, adset: r.adset || r.name, ad_id: onAd ? r.ad_id : null, ad: onAd ? (r.ad || r.name) : null, why: r.why_full || r.why, campaign_id: r.campaign_id, meta_act: r.meta_act };
+    /* Turn back on, and a budget the morning read set (a campaign's too): one confirm with Meta's before and after. */
+    if (r.do === 'resume' || (r.do === 'budget' && (r.suggested_budget > 0 && (!r.adset_id || r.changed || r.kind === 'ai')))) return confirmOne(r);
     if (r.do === 'pause' || r.do === 'budget') {
       if (!W) return toast('The Meta write helper did not load. Hard-refresh (Ctrl+Shift+R).', true);
       const opts = { reason: 'From the Buyer list', onDone: afterDo(r), onUndo: afterUndo(r), onCampaign: () => open(r) };
@@ -492,6 +546,128 @@
       if (!L.openBatch) return toast('The Launch window did not load. Hard-refresh (Ctrl+Shift+R).', true);
       return L.openBatch({ act: r.act_id, tok: H.S.tok, cardId: r.card_id, onDone, onBrief: () => pickAct(r.act_id, 'production') });
     }
+  }
+  /* ---------- one change, the same server path as every Do (account-health /api/meta/write = metawrite.js locusWrite:
+     a dry run, then the write with `expect` from it so a change Meta already moved is refused, logged in the Change Log,
+     Undo for 24 hours) ---------- */
+  function bodyOf(r, amount) {
+    const kind = r.do === 'minoff' ? 'min_spend' : r.do;
+    const level = kind === 'budget' || kind === 'min_spend' ? (r.adset_id ? 'adset' : 'campaign') : r.level === 'ad' && r.ad_id ? 'ad' : r.adset_id ? 'adset' : r.ad_id ? 'ad' : 'campaign';
+    const object = level === 'ad' ? r.ad_id : level === 'adset' ? r.adset_id : r.campaign_id;
+    return { act: r.act_id, kind, level, object, reason: `From the Buyer list: ${r.action}. ${r.why || ''}`.slice(0, 280),
+      ...(kind === 'budget' ? { amount } : {}), ...(kind === 'min_spend' ? { min: 0 } : {}) };
+  }
+  const expectOf = (kind, b) => { b = b || {};
+    if (kind === 'budget') return b.daily_budget != null ? { daily_budget: b.daily_budget } : b.lifetime_budget != null ? { lifetime_budget: b.lifetime_budget } : undefined;
+    if (kind === 'min_spend') return b.daily_min_spend_target != null ? { daily_min_spend_target: b.daily_min_spend_target } : {};
+    return b.status != null ? { status: b.status } : undefined; };
+  async function planOne(r, amount) {
+    const body = bodyOf(r, amount);
+    if (!/^\d{6,}$/.test(String(body.object || ''))) return { error: 'Locus has no id to change here; open it in Ads Manager.' };
+    let dry; try { dry = await ah('/api/meta/write', { ...body, dry: true }); } catch (e) { dry = { error: e.message }; }
+    if (!dry || dry.error) return { error: (dry && dry.error) || 'Meta did not answer.' };
+    return { body, dry, expect: expectOf(body.kind, dry.before) };
+  }
+  async function commitOne(p) {
+    let w; try { w = await ah('/api/meta/write', { ...p.body, expect: p.expect }); } catch (e) { w = { error: e.message }; }
+    if (!w || w.error) return { ok: false, error: (w && w.error) || 'Meta did not answer.' };
+    return { ok: true, write: w, summary: String(w.summary || '').replace(/^[^:]+:\s*/, '') };
+  }
+  const stepHtml = s => (s || []).map(x => `<span class="lx-ba"><span>${esc(x.from ?? 'none')}</span><i>→</i><b>${esc(x.to ?? 'none')}</b></span>`).join('');
+  const itOf = r => ({ act_id: r.act_id, brand: r.brand, adset_id: r.adset_id, ad_id: r.ad_id, why: r.why });
+  /** One change with its own confirm: Meta's before and after first, then the write; Undo on the toast. */
+  async function confirmOne(r) {
+    const amount = r.do === 'budget' ? r.suggested_budget : undefined;
+    let plan = null;
+    const m = modal(`${r.action}?`, `${esc(r.brand)}, "${esc(r.name)}". ${esc(r.why || '')}`, '<p class="faint" data-s>Checking with Meta…</p>', 'Make the change', async () => {
+      if (!plan || plan.error) throw new Error((plan && plan.error) || 'Meta did not answer the check.');
+      const res = await commitOne(plan);
+      if (!res.ok) throw new Error(res.error);
+      await afterDo(r)();
+      const W = window.LxMetaWrite;
+      toast(res.summary || 'Done.', false, res.write.write && W ? () => W.undo(H, [res.write], itOf(r), afterUndo(r)) : null);
+    });
+    m.yes.disabled = true;
+    plan = await planOne(r, amount);
+    const s = m.w.querySelector('[data-s]'); if (!s) return;
+    if (plan.error) { s.className = 'v2bad'; s.textContent = plan.error; return; }
+    s.className = ''; s.innerHTML = stepHtml(plan.dry.step) + (plan.dry.detail ? ` <span class="faint">${esc(plan.dry.detail)}</span>` : '');
+    m.yes.disabled = false;
+  }
+  /** Runs the ticked changes in order, one at a time: dry run, then the write with expect; Done for everyone on success;
+   *  one failure never stops the rest. io = { planOne, commitOne, state }; each(i, 'start'|'end', item, result). */
+  async function runAll(todo, io, each = () => {}) {
+    let ok = 0, bad = 0;
+    for (const [i, p] of todo.entries()) {
+      if (!p.ok) continue;
+      each(i, 'start', p);
+      let res;
+      try { const plan = await io.planOne(p.r, p.amount); res = plan.error ? { ok: false, error: plan.error } : await io.commitOne(plan); }
+      catch (e) { res = { ok: false, error: e.message }; }
+      if (res.ok) { ok++; await io.state(p.r, 'done').catch(() => {}); } else bad++;
+      each(i, 'end', p, res);
+    }
+    return { ok, bad };
+  }
+  /* AGREE TO ALL (2026-10-27, Cole: "approve everything at once"). One sheet (centred on a computer, a bottom sheet on a
+     phone) lists every change in one line; the rows that need Cole (Your call, launches, briefs, anything Locus has no
+     Meta move for) are listed under "Needs you" and skipped. On the button, each change goes to Meta one at a time
+     through the same path as Agree (dry run, write with expect, Change Log, Undo 24 hours), each line shows its result. */
+  async function agreeAll(list) {
+    if (document.querySelector('.by-all-w')) return;
+    const W = window.LxMetaWrite;
+    const todo = list.filter(canDo).map(r => ({ r, amount: null, ok: true, note: '' })), you = list.filter(r => !canDo(r));
+    if (!todo.length) return toast('Nothing here Locus can change by itself; every row needs you.', true);
+    const brands = new Set(list.map(r => r.act_id)).size > 1;
+    const lineTxt = (r, b) => `${b ? `${r.brand}: ` : ''}${r.action}, "${r.name}"`;
+    let lastB = null;
+    const items = todo.map((p, i) => { const g = brands && p.r.brand !== lastB ? `<h4>${esc(p.r.brand)}</h4>` : ''; lastB = p.r.brand; return `${g}<div class="by-al" data-i="${i}"><span class="t">${esc(lineTxt(p.r, false))}</span><span class="st" data-st></span></div>`; }).join('');
+    const yours = you.length ? `<h4>Needs you (skipped)</h4>${you.map(r => `<div class="by-al you"><span class="t">${esc(lineTxt(r, brands))}</span><span class="st">${esc(r.kind === 'launch' ? 'Launch it yourself' : r.do === 'brief' ? 'A brief to write' : 'Your call')}</span></div>`).join('')}` : '';
+    const w = document.createElement('div'); w.className = 'modal-wrap by-all-w';
+    w.innerHTML = `<div class="modal lx-nudge-m" role="dialog" aria-modal="true" aria-labelledby="byAllH"><h3 id="byAllH">Agree to all ${todo.length}?</h3>
+      <p class="hint">Locus makes each change in Meta, one at a time. Each one is logged and can be undone for 24 hours.</p>
+      <div class="by-all">${items}${yours}</div><p class="lx-nudge-err" data-err hidden></p>
+      <div class="row lx-nudge-ma"><span class="faint" data-sum></span><button class="btn" data-m="no" type="button">Cancel</button><button class="btn primary" data-m="yes" type="button" disabled>Reading budgets…</button></div></div>`;
+    document.body.appendChild(w);
+    const yes = w.querySelector('[data-m="yes"]'), no = w.querySelector('[data-m="no"]'), sum = w.querySelector('[data-sum]');
+    let running = false, ran = false;
+    const close = () => { if (running) return; w.remove(); document.removeEventListener('keydown', key); if (ran) reload(); };
+    const key = e => { if (e.key === 'Escape') close(); };
+    document.addEventListener('keydown', key);
+    w.addEventListener('mousedown', e => { if (e.target === w) close(); });
+    no.onclick = close;
+    const st = i => w.querySelector(`.by-al[data-i="${i}"] .st`);
+    const skip = (i, why) => { todo[i].ok = false; const s = st(i); s.className = 'st bad'; s.textContent = why; };
+    /* Budgets: the morning read's own number, else the live budget + 20% (one Meta read per brand). */
+    for (const act of new Set(todo.filter(p => p.r.do === 'budget').map(p => p.r.act_id))) {
+      let live = null, err = null;
+      if (todo.some(p => p.r.act_id === act && p.r.do === 'budget' && !(p.r.suggested_budget > 0))) { try { live = W && W.metaLive ? await W.metaLive(H, act) : null; } catch (e) { err = e.message; } }
+      if (!w.isConnected) return;
+      todo.forEach((p, i) => { if (p.r.do !== 'budget' || p.r.act_id !== act) return;
+        if (p.r.suggested_budget > 0) { p.amount = Math.round(p.r.suggested_budget); return; }
+        const o = live && live.adsets && live.adsets[p.r.adset_id];
+        if (!o) return skip(i, err ? `Could not read the budget: ${err}` : 'Meta did not return this ad set.');
+        if (!o.daily) return skip(i, 'Runs on its campaign\'s budget: needs you');
+        p.amount = Math.round(o.daily * 1.2);
+        const s = st(i); s.textContent = `${money(o.daily, p.r.currency)} to ${money(p.amount, p.r.currency)}/day`; });
+    }
+    const n = todo.filter(p => p.ok).length;
+    yes.disabled = !n; yes.textContent = n === 1 ? 'Make 1 change' : `Make ${n} changes`;
+    yes.onclick = async () => {
+      if (ran) return close();
+      running = true; yes.disabled = true; no.disabled = true; yes.textContent = 'Writing to Meta…';
+      const { ok, bad } = await runAll(todo, { planOne, commitOne, state }, (i, phase, p, res) => {
+        const s = st(i); if (!s) return;
+        if (phase === 'start') { s.className = 'st'; s.textContent = 'Writing…'; return; }
+        if (!res.ok) { s.className = 'st bad'; s.textContent = `Not made: ${res.error}`; return; }
+        s.className = 'st ok'; s.innerHTML = `<span>Done${res.summary ? `: ${esc(res.summary)}` : ''}</span>${res.write.write && W ? ' <button type="button" class="v2link" data-undo>Undo</button>' : ''}`;
+        const u = s.querySelector('[data-undo]');
+        if (u) u.onclick = () => { u.disabled = true; u.textContent = 'Undoing…'; W.undo(H, [res.write], itOf(p.r), async () => { await state(p.r, 'clear').catch(() => {}); s.className = 'st'; s.textContent = 'Undone. Meta has the old value back.'; }); };
+      });
+      running = false; ran = true; no.hidden = true;
+      sum.textContent = `${ok} made${bad ? `, ${bad} not made` : ''}. Undo is on each line for 24 hours.`;
+      yes.disabled = false; yes.textContent = 'Close';
+    };
   }
   /* Take the test minimum off: a dry run shows the minimum now and after, then the write with expect (stale = refused). */
   async function minOff(r, it) {
@@ -539,5 +715,5 @@
     catch (e) { const pre = m.w.querySelector('[data-pre]'); if (pre) pre.textContent = e.message; }
   }
 
-  window.BuyerTab = { render };
+  window.BuyerTab = { render, _test: { bodyOf, expectOf, canDo, groupsOf, runAll, row: r => row(r), setHost: h => { H = h; } } };
 })();
