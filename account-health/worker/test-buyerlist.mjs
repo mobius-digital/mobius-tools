@@ -33,6 +33,8 @@ let BOARD = [
   { id: 'c3', act_id: 'brand_beta', brand: 'Beta Socks', num: '88', title: 'Still making', board: 'making' },
 ];
 let today = '2026-10-26', hour = 5, posts = [], dueCalls = [];
+/* The morning read (buyerai.js) is tested in test-buyerai.mjs; off here so the post does not wait for it. */
+setSetting('buyerAI', 'off');
 const ACCTS = [
   { act_id: 'brand_alpha', name: 'Alpha Golf', currency: 'USD' },
   { act_id: 'brand_beta', name: 'Beta Socks', currency: 'USD' },
@@ -163,7 +165,7 @@ await check('the tick: nothing before the morning hour; ONE post a day to the bu
 
 await check('settings: owner, channel, post switch; bad input refused', async () => {
   const s = await saveBuyerSettings(env, { buyerOwner: 'Ahsan', buyerChannel: '', buyerPost: false });
-  assert.deepEqual(s, { buyerOwner: 'Ahsan', buyerChannel: DEFAULT_BUYER_CHANNEL, buyerPost: false, launchDays: 'mon,thu' });
+  assert.deepEqual(s, { buyerOwner: 'Ahsan', buyerChannel: DEFAULT_BUYER_CHANNEL, buyerPost: false, launchDays: 'mon,thu', buyerAI: false });
   assert.equal((await saveBuyerSettings(env, { launchDays: ['thu', 'Tue'] })).launchDays, 'tue,thu', 'week order');
   await assert.rejects(saveBuyerSettings(env, { launchDays: 'someday' }));
   await saveBuyerSettings(env, { launchDays: 'mon,thu' });
