@@ -38,7 +38,7 @@
  */
 import { metaActions, metaCan, gget, gall, gpost, metaActs } from './metawrite.js';
 import { fileUrl, ensureWork, adsOf, isCarousel, cardOf } from './prodwork.js';
-import { numOf } from './asana-brand.js';
+import { numOf, boardOf } from './asana-brand.js';
 
 const PROFIT_ORIGIN = 'https://mobius-profit.mobius-digital.workers.dev';
 const AH_ORIGIN = 'https://mobius-account-health.mobius-digital.workers.dev';
@@ -649,7 +649,10 @@ export async function batchCreate(env, d, act, b, ctx) {
     out.push(c.error ? { file_id: row.work_file, ad: row.ad, name: row.name, error: c.error, duplicate: !!c.duplicate } : { file_id: row.work_file, ad: row.ad, name: c.launch.ad_name, ok: true, launch: c.launch, ads_manager: c.ads_manager });
   }
   const made = out.filter(x => x.ok).length;
-  return { ok: true, made, failed: out.length - made, adset: out.find(x => x.ok)?.launch.adset_name || r.prep.set?.name || '', rows: out };
+  /* The card's ads are on Meta: the card goes to Live on Production and its Asana task to Analyze Results (2026-10-26). */
+  let card = null;
+  if (made && d.moveCard) card = await d.moveCard(env, String(b.card_id || ''), ctx.who).then(m => ({ to: m.to, asana: m.asana })).catch(e => ({ error: e.message }));
+  return { ok: true, made, failed: out.length - made, card, adset: out.find(x => x.ok)?.launch.adset_name || r.prep.set?.name || '', rows: out };
 }
 
 /* ---------------- the list: live status, and judged -> learning filed ---------------- */
@@ -678,8 +681,9 @@ export async function fileLearnings(env, act) {
   }
   return filed;
 }
-/** Live status for the newest launches: one ads-edge read per Meta account (`ad.id IN`, 25 at a time). */
-async function refreshStatus(env, d, rows) {
+/** Live status for the newest launches: one ads-edge read per Meta account (`ad.id IN`, 25 at a time).
+ *  Also used by the Buyer list's Launched section (buyerlist.js, GET /api/buyer-list/launched?refresh=1). */
+export async function refreshStatus(env, d, rows) {
   const by = new Map();
   for (const r of rows) if (r.ad_id && r.meta_act && !['ARCHIVED', 'DELETED'].includes(r.eff_status)) (by.get(r.meta_act) || by.set(r.meta_act, []).get(r.meta_act)).push(r);
   const now = new Date().toISOString();
@@ -711,6 +715,17 @@ export async function launchList(env, d, act, { refresh = false, only = null } =
     ads_manager: r.ad_id && r.meta_act ? `https://adsmanager.facebook.com/adsmanager/manage/ads?act=${String(r.meta_act).replace('act_', '')}&selected_ad_ids=${r.ad_id}` : null })) };
 }
 
+/** A single ad or a carousel went up for a Production card: the card goes to Live (and its Asana task with it), the
+ *  same as the batch (2026-10-26). Only a card still in Ready or Review moves; Brief / Making / Live / Done stay. */
+export async function cardToLive(env, d, batchId, who) {
+  if (!batchId || !d.moveCard) return null;
+  const c = await env.DB.prepare(`SELECT board_stage, stage, asana_section FROM p_br_batch WHERE id = ?1`).bind(String(batchId)).first().catch(() => null);
+  if (!c) return null;
+  const at = c.board_stage || boardOf(c.asana_section, c.stage);
+  if (at !== 'ready' && at !== 'review') return null;
+  return d.moveCard(env, String(batchId), who).then(m => ({ to: m.to, asana: m.asana })).catch(e => ({ error: e.message }));
+}
+
 /* ---------------- routes ---------------- */
 /** worker.js: `const r = await handleLaunch(request, env, url, path, json, h); if (r) return r;` with
  *  h = { isAdmin, sessionEmail, brandsFor, resolveBrandId, md } (md = the metawrite helpers object). */
@@ -739,11 +754,19 @@ export async function handleLaunch(request, env, url, path, json, h) {
     /* Launch to Meta, step 2: the dry run (the ad set before and after); nothing is written. */
     if (path === '/api/launch/preview' && request.method === 'POST') return json(await launchPreview(env, h.md, act, body, ctx));
     /* Launch to Meta, step 3: create the ad PAUSED through metawrite meta_create_ad, tie it to its test. */
-    if (path === '/api/launch/create' && request.method === 'POST') return json(await launchCreate(env, h.md, act, body, ctx));
+    if (path === '/api/launch/create' && request.method === 'POST') {
+      const r = await launchCreate(env, h.md, act, body, ctx);
+      if (r.ok && r.launch?.batch_id) r.card = await cardToLive(env, h.md, r.launch.batch_id, ctx.who);
+      return json(r);
+    }
     /* A Studio carousel batch = ONE carousel ad (2026-10-21): prep, the dry run, then create paused. Team only. */
     if (path === '/api/launch/carousel-prep' && request.method === 'POST') return json(await carouselPrep(env, h.md, act, body));
     if (path === '/api/launch/carousel-preview' && request.method === 'POST') return json(await carouselPreview(env, h.md, act, body, ctx));
-    if (path === '/api/launch/carousel-create' && request.method === 'POST') { const r = await carouselCreate(env, h.md, act, body, ctx); return json(r, r.error ? 400 : 200); }
+    if (path === '/api/launch/carousel-create' && request.method === 'POST') {
+      const r = await carouselCreate(env, h.md, act, body, ctx);
+      if (r.ok && r.launch?.batch_id) r.card = await cardToLive(env, h.md, r.launch.batch_id, ctx.who);
+      return json(r, r.error ? 400 : 200);
+    }
     /* The batch (2026-10-14): every approved ad of a Production card into one ad set. Team only (not on the client rules). */
     if (path === '/api/launch/batch-prep' && request.method === 'POST') return json(await batchPrep(env, h.md, act, body));
     if (path === '/api/launch/batch-preview' && request.method === 'POST') return json(await batchPreview(env, h.md, act, body, ctx));

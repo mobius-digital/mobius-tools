@@ -4493,3 +4493,107 @@ this goes for all things that go from the right side", and the Integrations pane
   card sheet (`#v2panel.sheet`) was already centred. Phones keep their bottom sheets (phone.css, unchanged).
 - Checked on a scratch page loading the real stylesheets + v2.js at 1280 and 375 (deleted): scrolled 1800px, every pop-up
   centred; the old `both` fill put the Integrations panel at -350px. Not checked signed in on the live site.
+
+## 2026-10-26: THE BUYER LIST (buyer.js, account-health src/buyerlist.js). Read before touching Today's calls state or the morning card calls.
+- Cole runs media buying until he hires a buyer (Ahsan is creative strategy only). Ads > **Buyer list** (page id `buyer`, first
+  under Ads / Marketing, Agency view and one brand, team only: AGENCY_TABS, SHOWABLE) is ONE list sorted by money at stake:
+  hub.js buyerList calls (Scale, Cut, Trim, Refresh, Mixed; no Fix), test minimums due off (minoff.js state for the day, else
+  asana-brand.js testMinimumsDue live, cached `buyerMin:<date>` 6h; stake = a week of the minimum) and Production cards in
+  Ready with approved ads not on Meta (listBoard + prodwork adsOf minus p_launch; Do = LaunchToMeta.openBatch, paused).
+- Do / Skip / Open (Mixed has Done instead of Do). **Shared state** in `p_buyer_state` (brand, object, action): Done = quiet
+  3 days, Skip = until tomorrow (Central dates), clear = back. Any `p_meta_write` on the object in 3 days hides the call
+  (watch 3 days). **Today's calls (desk.js) uses the same state** (`/api/buyer-list/state`), no localStorage any more.
+- Slack: `buyerPostTick` posts ONE message a day from settings.morningHour to settings.buyerChannel (default #daily-briefs
+  C0C8UA53U3W): head, owner (settings.buyerOwner, default Cole, tagged), top 5, launches waiting, Open in Locus. While
+  settings.buyerPost is on (default) the brand morning cards carry NO calls line, NO Make the calls button, NO calls thread.
+  Owner, channel and the switch are edited on the page ("Change", "Slack post"), which also previews the post.
+- Migration `worker/migrations/buyer-001.sql` (also made on first use). Tests: account-health `node test-buyerlist.mjs`.
+
+## 2026-10-26: LAUNCH DAYS + LAUNCHED AND SCHEDULED on the Buyer list (buyerlist.js, profit buyer.js?v=2). Read before touching launch rows.
+- **Launch days** = settings `launchDays` (default `mon,thu`, Central; `PUT /api/buyer-list/settings {launchDays}`, also
+  "Change launch days" on the page). A Ready card with approved ads not on Meta is a Launch row ONLY on a launch day, or on
+  and after its own `launch_on` (dated BFCM batches, any weekday; the row carries `launch_on`). Any other day it is not a
+  to-do: `list.next_launch {date, day, n, n_ads}` = the quiet "Next launch: Thursday, N cards" line under the lead.
+- `list.scheduled` = Ready / Review cards with a future launch_on (dated) + Ready cards waiting for the next launch day,
+  sorted by date. `list.launched` = p_launch of the last 30 days (`launchedRows`, LEFT JOIN p_br_batch for the card
+  number and title), newest first; `checked` false = never read again, shown as "Created paused".
+  `GET /api/buyer-list/launched?act=&refresh=1` reads the status live (launch.js `refreshStatus`, exported, dep
+  `launchStatus` in buyerDeps; rows read in the last 30 minutes are skipped). The page calls it after it paints.
+- **The daily post** adds "Launched yesterday: N ads (brands)" and "Launch today: N cards (brands)" under the owner when
+  they apply; a day with only launches yesterday still posts.
+- **Card to Live**: the single ad (`/api/launch/create`) and the carousel (`/api/launch/carousel-create`) now move their
+  Production card to Live too (launch.js `cardToLive`, only from Ready or Review), like the batch since PR #102.
+- Page: "Launched and scheduled" card under the list (agency view and per brand), one search box (brand, card or ad), a
+  tap on a row = its details in the modal (a bottom sheet on a phone), Open / Card = Production with that card open
+  (`window.PD_CARD`; production.js now honours it on every visit, not only the first, which also fixes search's brief kind).
+- Tests: account-health `node test-buyerlist.mjs` (launch days, dated cards, launched rows, post lines, cardToLive).
+
+## 2026-10-26: funnel role on the daily ad calls (hub.js buyerList). Read before touching Cut / Trim.
+- Every set row (and Trim / Refresh ad rows) carries `role` (opener | closer | both | null) and `first_click {role, heavier,
+  on_goal, fc_orders, fc_revenue, lc_orders, lc_revenue, fc_results, fc_cpa, fc_roas, fc_new_share, fc_known}`; set rows
+  also carry `ad_roles [{ad_id, role}]`. Source: tw_ad_attr fullFirstClick vs lastPlatformClick over the SAME window as the
+  call (7 or 14 days), the 1.3x line from account-health leakctx.js. Opener = first-click credit 1.3x+ last-click AND 2+
+  first-click sales at or better than the goal. New-customer share = fullFirstClick tw_order_touch orders whose
+  customer has no earlier tw_orders row, over the orders tw_orders can place. Null when the brand has no first-click rows.
+- **Opener guard**: a Cut or Trim whose role is opener becomes kind `mixed` with `kept_by: 'opener'` (no Do button) and a why
+  "Last click says cut (...), but first click credits it with N sales at $Y CPA and Z% new customers: it opens journeys.
+  Keep it; judge it on first click." A ROAS floor Mixed still wins over it. Brand field `n_opener_kept`.
+- **Every why ends with one numbers sentence**: days running, spend, CPA (or ROAS / cost per new customer / lead) vs goal,
+  CTR, CPM, frequency, hook rate (video_3s / impressions, video ads only). Cut, Trim and opener rows add "(N needed)" for
+  min days and "($X needed to judge)" for spend. The Buyer list shows only the first sentence (oneLine), so the call
+  sentence stays first. Desk (Today's calls) tags kept openers "Opens journeys". Tests: profit/worker/test-calls.mjs.
+- **Live audit fixes (same day, Dartee / Bonk):** (1) best set guard: when the account is under goal over the set's window,
+  a sales set with 25%+ of the account's results at better than the account's number is never Cut; Mixed `kept_by:
+  'best_set'` (Bonk "235 | Still"), brand `n_best_kept`. (2) a Cut set holding an ad on goal with 2+ results says "keep ad
+  X (...) and move it to a working set first" in its first sentence, row field `keep_ad`. (3) no Scale when a slow set
+  (14-day window) had no result in the last 7 days. (4) lead sets without goal_cpl are named in the brand note "not
+  judged: no lead goal set" (`lead_no_goal`); sales rules never apply to them. NOT built yet: judging split tests that
+  share a test number / concept together (Dartee "Muni"), and flagging sets paused and turned back on repeatedly (churn).
+- **Tracking gap guard (same day, Ice & Gold audit):** per brand over 7 days, Meta's own purchases (`ad_daily.purchases`)
+  on the spending sales sets 3+ and Triple Whale lastPlatformClick orders on those ads 30% of that or less = tracking gap.
+  Every Cut and Trim turns Mixed (`kept_by: 'tracking_gap'`, `was: 'cut'|'trim'`) with "Tracking gap: Meta counts N sales on
+  this set in 7 days, Triple Whale counts M. Fix tracking before cutting." first; brand `tracking_gap {meta, tw}`; the
+  answer carries `banners [{act_id, brand, kind, text}]`, passed through account-health buyerlist.js `banners` and shown
+  as one line on the Buyer list (buyer.js) and Today's calls (desk.js). Live 2026-10-26: I&G 19 vs 0, 2 cuts held.
+
+## 2026-10-26: THE BUYER REVIEW FLOW + THE MORNING READ (account-health src/buyerai.js, profit buyer.js?v=3). Read before touching Buyer list rows, Disagree or the morning post.
+- Cole is the media buyer for now. Locus suggests every change, shows the data AND the ads; he agrees (Locus makes the
+  change) or disagrees and says why (Locus answers once, with numbers, or agrees) and Locus remembers his call.
+- **The ads**: every ad call row has "Show the ads": `GET /api/buyer-list/ads?act=&adset=&ad=&meta_act=` = the set's ads
+  that spent in the last 7 days (plus the Trim ad by id), each with `cover` (creative.js `/cover/<ad>.<sig>.webp` when the
+  cover is in R2, else the page falls back to V2.thumbs / `/api/ad-creatives`), spend, sales + revenue (Triple Whale last
+  platform click, never Meta's), CPA or ROAS against the row's goal, CTR, CPM, frequency, hook rate (video only), role
+  (first vs last click, 1.3x line + 2 first-click sales, as hub.js), new-customer share. A tap on a picture = V2.playAd
+  (the bigger view, Meta's preview or the mp4). Ad set rows by default; ad rows only for Trim (the rules' own call).
+- **Agree** = the existing Do (LxMetaWrite: dry run, write with expect, p_meta_write log, Undo). Mixed and morning-read rows
+  have Done instead. **Disagree** = "Why not?" -> `POST /api/buyer-list/disagree {act, row, why}`: ONE Sonnet 5.5 call
+  (`talkSystem`) reads the row, the set and its ads (7 days), his earlier calls and his words, and answers in two plain
+  sentences, stance `drop` ("Fair, I'll drop it.": his call stands at once, decision mine, the row Done 3 days) or `hold`
+  ("I still think X because Y"): then Go with mine / Go with Locus (`POST /api/buyer-list/decide {act, id, decision:
+  mine|locus}`; mine = Done 3 days, locus = the page runs the Do). Saved in `p_buyer_lesson` (migration
+  profit/worker/migrations/buyer-002.sql, also made on first use). `lessonsText`: COLE'S FINAL CALL / LOCUS AGREED WITH
+  COLE / SETTLED FOR LOCUS. `GET /api/buyer-list/lessons?act=` = "Your calls" on a one-brand page. A Disagree is ~1 cent.
+- **The morning read** (`readBrand`, `buyerAITick` on the HOURLY cron, every brand in one run; the 5-minute trigger has not fired since 2026-10-23, so it is a backup only; settings `buyerAIRunNow` = 1 runs it on the next tick at any hour): from an hour BEFORE settings.morningHour to noon
+  Central, 3 brands a tick side by side (settings `buyerAILock`, 8 minutes, stops two ticks reading one brand), every
+  eligible() brand once a day (settings `buyerAIDone` {date, acts, tries}). ONE Opus 5.5 call, effort medium, per brand
+  reads: rule rows (list rows + quiet ones), ad sets that spent in 14 days (top 25) with 7 and 14 day numbers, first click,
+  new-customer share, budgets and their top 6 ads, campaigns with budgets and 7-day spend, the short brain, memory facts
+  (strat_fact; any brand fact on account / structure / plan / campaign is printed as THE ACCOUNT PLAN), buyer lessons,
+  tracking banners. Answer (json schema): per rule row keep | change | drop + one sentence (+ the change), up to 6 extra
+  calls (budget, relaunch, leads, tracking, cut, scale, other) with ids it was given (others dropped), and a summary.
+  Stored in `p_buyer_ai` (act_id, day). Em dashes are stripped from every model answer (`noDash`).
+- **On the list** (`applyAI` in buildBuyerList; `noAI: true` skips it): rule rows carry `ai {verdict, reason, change}`,
+  shown under the why; a drop sinks under the rest; the extra calls are rows of kind `ai` ("MORNING READ" chip,
+  `from: 'morning read'`, Done / Disagree / Skip / Open, no Do). `list.ai {on, n_read, n_brands, brands[{summary}]}`.
+  callRow now also carries goal, goal_roas, metric, cpa, roas, revenue, days, role, top_ad, anchor_ad.
+- **The post** adds "Morning read: N brands read, X calls the rules missed, Y to change, Z to drop." and tags each top line
+  "(morning read agrees / says change it / says drop it)" or "(from the morning read)". buyerPostTick WAITS for the read
+  during the post hour (`aiPassDone`), then posts anyway the hour after.
+- **Switch + money**: settings `buyerAI` ('off' stops it; the "Slack post" modal has the checkbox and today's cost).
+  `aiSpend:buyer:<YYYY-MM>` {calls, in, out, usd, by: {pass, disagree}} and `aiSpend:buyer:day:<YYYY-MM-DD>`; hard cap
+  DAY_CAP $5 a day (a brand past it = 'capped', no call). `GET /api/buyer-list/ai/spend`; `POST /api/buyer-list/ai/run
+  {act?}` runs it now (force, re-reads). Prices Opus 5.5 $4 / $20, Sonnet 5.5 $2 / $10 per M.
+- **Lucky's account plan** is a brand memory fact (strat_fact scope brand_lucky_golf, topic 'account structure'), from
+  docs/strategist-brain/source-lucky-account-structure.md: one [MD] CBO since Oct 4, do not split it or turn the old
+  Black Wedge campaign on.
+- Tests: account-health `node test-buyerai.mjs` (7) and `node test-buyerlist.mjs` (buyerAI off there).

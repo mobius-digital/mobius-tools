@@ -15,7 +15,7 @@
  * Production v2 (2026-10-14, prodwork.js): the card's sheet (brief, notes, files), approve / ask for changes, the
  * client's own Production (GET /api/production for a client = Needs you + Coming up), the Asana mirror switch.
  */
-import { boardOf, BOARD_SECTION, ensureBoard, readDoc } from './asana-brand.js';
+import { boardOf, ensureBoard, readDoc, moveTaskTo, sectionFits } from './asana-brand.js';
 import { makeBrief, asanaUserFor } from './meetings.js';
 import { ROSTER } from './actions.js';
 import { ensureWork, mirrorOn, workRoutes, clientBoard, fileUrl, templateHtml, saveCard, normBrief } from './prodwork.js';
@@ -96,29 +96,31 @@ export async function listBoard(env, d, { act = 'all' } = {}) {
   return { cards: out, live: { shown: Math.min(live.length, LIVE_SHOWN), total: live.length }, brands: brands.map(b => ({ act_id: b.act_id, name: b.name })), team: ROSTER.map(r => r.name), synced_at: synced, today, mirror };
 }
 
-/** A drag: the card's column in Locus, the task's section in Asana (none for Review), one line in the brand's channel. */
+/** A drag: the card's column in Locus, the task's section in Asana. Review has no Asana section: its task sits in
+ *  Creative Studio, so a card that jumps from Brief straight to Review (a version upload, a send to the client) moves
+ *  its task to Creative Studio; one already there is left alone. A move Asana refused is pushed again by the hourly sync
+ *  (asana-brand.js pushBoard), because the stored Asana section then still disagrees with the column. */
 export async function moveCard(env, d, { id, to }, who) {
   if (!COLUMNS.includes(to)) throw Object.assign(new Error('Pick a column.'), { status: 400 });
   await ensureBoard(env);
   const r = await env.DB.prepare(`SELECT id, act_id, num, title, stage, board_stage, asana_section, asana_gid, asana_url FROM p_br_batch WHERE id = ?1`).bind(String(id || '')).first();
   if (!r) throw Object.assign(new Error('No such card.'), { status: 404 });
   const from = r.board_stage || boardOf(r.asana_section, r.stage);
-  let asana = { moved: false, why: to === 'review' ? 'Review lives only in Locus; the Asana task stays in Creative Studio.' : '' };
+  let asana = { moved: false, why: '' };
   let section = r.asana_section;
   const mirror = await mirrorOn(env);
-  if (to !== 'review' && r.asana_gid && !mirror) asana.why = 'The Asana mirror is off.';
-  else if (to !== 'review' && r.asana_gid) {
+  if (to === 'review' && sectionFits(r.asana_section, to)) asana.why = 'Review lives only in Locus; the Asana task stays in Creative Studio.';
+  else if (!r.asana_gid) asana.why = 'This card has no Asana task.';
+  else if (!mirror) asana.why = 'The Asana mirror is off.';
+  else {
     try {
       const doc = safe((await env.DB.prepare(`SELECT data_json FROM p_br_doc WHERE act_id = ?1 AND line_id = '' AND key = 'asana'`).bind(r.act_id).first())?.data_json, null);
       if (!doc?.project_gid) throw new Error('the brand is not connected to Asana');
-      const secs = (await d.asana(env, `/projects/${doc.project_gid}/sections?opt_fields=name`)) || [];
-      const sec = secs.find(s => BOARD_SECTION[to].test(s.name || ''));
-      if (!sec) throw new Error(`no ${LABEL[to]} section in the Asana project`);
-      await d.asana(env, `/sections/${sec.gid}/addTask`, { method: 'POST', body: { task: r.asana_gid } });
-      section = clean(sec.name, 80); asana = { moved: true, section: sec.name };
+      section = await moveTaskTo(env, d.asana, doc.project_gid, r.asana_gid, to);
+      asana = { moved: true, section };
     } catch (e) { asana = { moved: false, why: e.message }; }
-  } else if (to !== 'review') asana.why = 'This card has no Asana task.';
-  /* The Asana section is written only when the move landed there, so a failed move is put right by the next sync. */
+  }
+  /* The Asana section is written only when the move landed there, so a failed move is pushed again by the next sync. */
   await env.DB.prepare(`UPDATE p_br_batch SET board_stage = ?2, board_at = datetime('now'), stage = ?3, asana_section = ?4, updated_at = datetime('now') WHERE id = ?1`)
     .bind(r.id, to, STAGE_OF[to], asana.moved ? section : r.asana_section).run();
   /* No Slack line per drag any more (2026-10-13, the morning card): the board is the record. A late card that moves
@@ -174,6 +176,8 @@ export async function handleProduction(request, env, url, path, json, d) {
     if (path === '/api/production/card/delete') return json(await archiveCard(env, dd, body, who));
     if (path === '/api/production/card/restore') return json(await restoreCard(env, dd, body, who));
     if (path === '/api/production/duplicate') return json(await duplicateCard(env, dd, body, who));
+    /* Stale cards off the board (2026-10-26): {act?, days?, dry?}; each one through archiveCard, so Undo / Put back works. */
+    if (path === '/api/production/archive-stale') return json(await archiveStale(env, dd, body, who));
     return json({ error: 'not found' }, 404);
   } catch (e) { return json({ error: e.message }, e.status >= 400 && e.status < 600 ? e.status : 500); }
 }
@@ -219,15 +223,23 @@ export async function setField(env, d, body, who) {
 /** "Delete card" on the board = archived: off the board (stage done), the Asana task marked complete (mirror on).
  *  Nothing is destroyed; restoreCard puts it back where it was. */
 export async function archiveCard(env, d, body, who) {
-  await ensureWork(env);
+  await ensureWork(env); await ensureBoard(env);
   const r = await rowById(env, body.id);
   const was = r.board_stage || boardOf(r.asana_section, r.stage) || 'brief';
   let asana = { done: false, why: '' };
   if (r.asana_gid && d.asana) {
     if (!(await mirrorOn(env))) asana.why = 'The Asana mirror is off.';
-    else { try { await d.asana(env, `/tasks/${r.asana_gid}`, { method: 'PUT', body: { completed: true } }); asana = { done: true, why: '' }; } catch (e) { asana = { done: false, why: e.message }; } }
+    else {
+      try { await d.asana(env, `/tasks/${r.asana_gid}`, { method: 'PUT', body: { completed: true } }); asana = { done: true, why: '' }; } catch (e) { asana = { done: false, why: e.message }; }
+      /* and into the project's Completed section (2026-10-26), so Asana's board matches Locus's archive */
+      if (asana.done) {
+        const doc = await asanaDocOf(env, r.act_id);
+        if (doc?.project_gid) { try { asana.section = await moveTaskTo(env, d.asana, doc.project_gid, r.asana_gid, 'done'); } catch (e) { asana.why = `Completed, but not moved: ${e.message}`; } }
+      }
+    }
   } else if (!r.asana_gid) asana.why = 'This card has no Asana task.';
-  await env.DB.prepare(`UPDATE p_br_batch SET board_stage = 'done', stage = 'done', board_at = datetime('now'), updated_at = datetime('now') WHERE id = ?1`).bind(r.id).run();
+  /* board_was keeps the column it left, for the Archived list and Put back (the Asana section turns Completed). */
+  await env.DB.prepare(`UPDATE p_br_batch SET board_was = ?2, board_stage = 'done', stage = 'done', board_at = datetime('now'), updated_at = datetime('now') WHERE id = ?1`).bind(r.id, COLUMNS.includes(was) ? was : null).run();
   return { ok: true, id: r.id, was, asana, by: nameOfEmail(who) };
 }
 /** The cards archived ("Delete card") in the last 60 days, newest first, so one can be put back from the board's
@@ -235,18 +247,18 @@ export async function archiveCard(env, d, body, who) {
  *  the row still carries, else Brief); the list offers every column anyway. */
 export const ARCHIVED_DAYS = 60;
 export async function listArchived(env, d, { act = 'all' } = {}) {
-  await ensureWork(env);
+  await ensureWork(env); await ensureBoard(env);
   const brands = await d.listBrands(env);
   const ids = act !== 'all' ? [act] : brands.map(b => b.act_id);
   if (!ids.length) return { cards: [], days: ARCHIVED_DAYS };
   const ph = ids.map((_, i) => `?${i + 1}`).join(', ');
   const since = new Date(Date.now() - ARCHIVED_DAYS * 864e5).toISOString().slice(0, 10);
-  const rows = (await env.DB.prepare(`SELECT id, act_id, num, title, stage, board_stage, board_at, asana_section, asana_url, brief_text, brief_json, assignee_name, due_on, updated_at
+  const rows = (await env.DB.prepare(`SELECT id, act_id, num, title, stage, board_stage, board_was, board_at, asana_section, asana_url, brief_text, brief_json, assignee_name, due_on, updated_at
     FROM p_br_batch WHERE act_id IN (${ph}) AND board_stage = 'done' AND COALESCE(board_at, updated_at) >= ?${ids.length + 1}
     ORDER BY COALESCE(board_at, updated_at) DESC LIMIT 200`).bind(...ids, since).all()).results || [];
   const cards = rows.map(r => {
     const brand = brands.find(b => b.act_id === r.act_id);
-    const was = boardOf(r.asana_section, 'production');
+    const was = COLUMNS.includes(r.board_was) ? r.board_was : boardOf(r.asana_section, 'production');
     return {
       id: r.id, act_id: r.act_id, brand: brand?.name || r.act_id, num: r.num, title: r.title || '',
       format: (safe(r.brief_json, null) || {}).format || formatOf(r.title, r.brief_text), assignee: r.assignee_name || '',
@@ -263,6 +275,37 @@ export async function restoreCard(env, d, body, who) {
   if (r.asana_gid && d.asana && await mirrorOn(env)) await d.asana(env, `/tasks/${r.asana_gid}`, { method: 'PUT', body: { completed: false } }).catch(() => {});
   const m = await moveCard(env, d, { id: r.id, to }, who);
   return { ok: true, id: r.id, to, asana: m.asana };
+}
+
+/** Stale cards archived (2026-10-26, Cole): an open card (Brief, Making, Review, Ready; never Live or Done) with no
+ *  update for `days` (30) days goes through the normal archive path: off the board, the Asana task completed and moved to
+ *  Completed, back with Put back. "Update" = the newest of the row's own change, its column move, its creation, a note
+ *  or a file on the card. `dry` lists them without archiving. Answers per brand {brand, count, cards: [{num, title}]}. */
+export async function archiveStale(env, d, { act = 'all', days = 30, dry = false } = {}, who) {
+  await ensureWork(env); await ensureBoard(env);
+  const n = Math.max(7, Math.min(365, parseInt(days, 10) || 30));
+  const cutoff = new Date(Date.now() - n * 864e5).toISOString().replace('T', ' ').slice(0, 19);
+  const brands = await d.listBrands(env);
+  const ids = act && act !== 'all' ? [act] : brands.map(b => b.act_id);
+  if (!ids.length) return { ok: true, days: n, archived: 0, brands: [] };
+  const ph = ids.map((_, i) => `?${i + 1}`).join(', ');
+  const rows = (await env.DB.prepare(`SELECT b.id, b.act_id, b.num, b.title, b.stage, b.board_stage, b.asana_section,
+      MAX(COALESCE(b.updated_at, ''), COALESCE(b.board_at, ''), COALESCE(b.created_at, ''),
+        COALESCE((SELECT MAX(c.created_at) FROM p_work_comment c WHERE c.batch_id = b.id), ''),
+        COALESCE((SELECT MAX(f.created_at) FROM p_work_file f WHERE f.batch_id = b.id), '')) AS last_at
+    FROM p_br_batch b WHERE b.act_id IN (${ph}) AND b.stage NOT IN ('done', 'live') AND COALESCE(b.board_stage, '') NOT IN ('done', 'live')`).bind(...ids).all()).results || [];
+  const stale = rows.filter(r => ['brief', 'making', 'review', 'ready'].includes(r.board_stage || boardOf(r.asana_section, r.stage)) && String(r.last_at || '').replace('T', ' ') < cutoff)
+    .sort((a, b) => String(a.act_id).localeCompare(String(b.act_id)) || (parseInt(a.num, 10) || 0) - (parseInt(b.num, 10) || 0));
+  const out = new Map();
+  let archived = 0;
+  for (const r of stale) {
+    const name = brands.find(b => b.act_id === r.act_id)?.name || r.act_id;
+    const g = out.get(r.act_id) || out.set(r.act_id, { act_id: r.act_id, brand: name, count: 0, cards: [] }).get(r.act_id);
+    const one = { id: r.id, num: r.num, title: r.title || '', last: String(r.last_at || '').slice(0, 10) };
+    if (!dry) { try { const a = await archiveCard(env, d, { id: r.id }, who); one.asana = a.asana; archived++; } catch (e) { one.error = e.message; } }
+    g.count++; g.cards.push(one);
+  }
+  return { ok: true, days: n, dry: !!dry, archived, found: stale.length, brands: [...out.values()] };
 }
 
 /** "Duplicate as iteration": a new numbered brief under the same brand whose page starts from the Iteration template,

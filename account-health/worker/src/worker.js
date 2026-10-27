@@ -83,10 +83,14 @@ import { handleLeaks, leaksFor } from './leaks.js';
 import { adsInvite as googleAdsInvite } from './google.js';
 import { useFetch as googleFetch, googleProbe, autoMatch as googleMatch, linkFor as googleLink, setLink as googleSetLink, websiteReport, websiteDrill, searchReport, adsReport, adsAds, adsTerms, adsChanges, enableApis, adsAccounts, adsCampaignWrite } from './google.js';
 import { locusWrite as metaLocusWrite, locusUndo as metaLocusUndo, metaLive, metaActs } from './metawrite.js';
-import { handleLaunch } from './launch.js';
+import { handleLaunch, refreshStatus as launchRefresh } from './launch.js';
+import { handleBuyer, buyerPostTick, buyerSettings } from './buyerlist.js';
+import { buyerAITick } from './buyerai.js';
 import { dataTools } from './stratdata.js';
 import { extraTools } from './allwrite.js';
 import { runStudioMake, studioMakeTools } from './studiomake.js';
+/* /api/tw-day's 60-second memo (2026-10-26, Locus speed): key = brand | shop | day -> { at, p }. */
+const TW_DAY_MEMO = new Map();
 
 const GRAPH = 'https://graph.facebook.com/v23.0';
 const BACKFILL_DAYS = 90;       // first sync of a new account
@@ -7330,6 +7334,17 @@ function minOffDeps() {
       return r;
     } };
 }
+/* buyerlist.js: the one Buyer list (Locus page and the one daily Slack post). The ad calls are read from the profit worker
+   as the owner (todaypost.js readToday), the test minimums from minoff.js state or live, the launches from the board. */
+function buyerDeps() {
+  const base = { getSetting, putSetting, centralHour, centralDate, slackPost, slackApi };
+  return { ...base, listAccounts, mintSession, xfetch, canAfford: n => subCanAfford(n), tagOf: (env, name) => tagOf(env, base, name),
+    listBrands: async env => (await listAccounts(env, true)).map(a => ({ act_id: a.act_id, name: a.name, slack_channel: a.slack_channel || null })),
+    listBoard: (env, o) => listBoard(env, { centralDate, listBrands: async e => (await listAccounts(e, true)).map(a => ({ act_id: a.act_id, name: a.name })) }, o),
+    dueOff: (env, act) => testMinimumsDue(env, act),
+    /* the Launched section's live Meta status (launch.js refreshStatus: one ads read per account) */
+    launchStatus: (env, rows) => launchRefresh(env, { xfetch, listAccounts, getSetting, putSetting }, rows) };
+}
 /* Every way a task gets done (the Locus tick, the Slack Done button, a ✅) ends in markDone; the card strikes its line. */
 onActionDone((env, row) => cardActionDone(env, cardDeps(), row));
 function hubDeps() {
@@ -7753,6 +7768,8 @@ const AH_APP = {
     if (event.cron === '*/5 * * * *') {
       env = meterEnv(env); subReset(env);
       ctx.waitUntil(socialPostTick(env, socialPostDeps()).then(r => recordRun(env, 'lastSocialPost', r)).catch(() => {}));
+      /* The Buyer list's morning read (buyerai.js, 2026-10-26): from an hour before the morning hour, three brands a tick. */
+      ctx.waitUntil(buyerAITick(env, buyerDeps()).then(r => { if (r && !r.skipped && !r.done) return recordRun(env, 'lastBuyerAI', r); }).catch(() => {}));
       return;
     }
     if (event.cron === '0 * * * *') {
@@ -7844,6 +7861,11 @@ const AH_APP = {
         ran.minOff = await minOffTick(env, minOffDeps()).catch(e => ({ error: e.message }));
         /* The team's daily check-in post in #daily-checkin, the no-plan nudge, and 24-hour review approvals (checkin.js, 2026-10-26). */
         ran.checkin = await checkinTick(env, checkinDeps(ctx)).catch(e => ({ error: e.message }));
+        /* The Buyer list: ONE post a day in the buyer channel (buyerlist.js, 2026-10-26); the morning cards no longer carry the calls. */
+        ran.buyerPost = await buyerPostTick(env, buyerDeps()).catch(e => ({ error: e.message }));
+        /* The morning read (buyerai.js): every brand, three side by side, from the hour BEFORE the post hour, so the post
+           finds it done. Here because the 5-minute trigger has not fired since 2026-10-23 (lastSocialPost). */
+        ran.buyerAI = await buyerAITick(env, buyerDeps(), { perTick: 99 }).catch(e => ({ error: e.message }));
         /* Scheduled questions to the Strategist, posted to Slack (askschedule.js). */
         ran.askSchedules = await scheduleTick(env, hubDeps()).catch(e => ({ error: e.message }));
         /* The Monday account review per brand, Apply cards in the internal channel; off until settings.mondayReview = 'on' (review.js). */
@@ -8239,7 +8261,15 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     /* ---- Launch to Meta (2026-10-10, src/launch.js): an approved Studio ad or a creator asset becomes a PAUSED
        Meta ad through metawrite meta_create_ad, named "<test> <letter> | <Format>", tied to its test. Admin + brandsFor. */
     {
-      const r = await handleLaunch(request, env, url, path, json, { isAdmin, sessionEmail, brandsFor, resolveBrandId, md: { xfetch, listAccounts, getSetting, putSetting } });
+      const r = await handleLaunch(request, env, url, path, json, { isAdmin, sessionEmail, brandsFor, resolveBrandId, md: { xfetch, listAccounts, getSetting, putSetting,
+        /* a batch on Meta moves its Production card to Live (and the Asana task with it) */
+        moveCard: (e, id, who) => prodMove(e, actionDeps(), { id, to: 'live' }, who) } });
+      if (r) return r;
+    }
+    /* ---- The Buyer list (2026-10-26, src/buyerlist.js): every brand's ad calls, test minimums due off and cards ready to
+       launch in one list, with shared Done / Skip state (p_buyer_state). Team only. */
+    {
+      const r = await handleBuyer(request, env, url, path, json, { isAdmin, sessionEmail, brandsFor, resolveBrandId, deps: buyerDeps() });
       if (r) return r;
     }
     /* ---- The client posts, previewed (2026-10-19): the six-line daily from the brand's latest brief and the weekly in
@@ -9650,6 +9680,13 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         const today = localDate(acct.tz);
         const want = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get('date') || '') ? url.searchParams.get('date') : today;
         if (want > today) return json({ error: 'that day has not happened yet' }, 400);
+        /* Speed (2026-10-26): Locus asks this once per brand for every Today view, the top-bar chip and the overview.
+           The live Triple Whale answer is kept 60 seconds per brand and day in this isolate (in-flight calls share);
+           `as_of` still says when it was read. A failed read is never kept. */
+        const twKey = `${acct.act_id}|${acct.tw_shop}|${want}`;
+        const twHit = TW_DAY_MEMO.get(twKey);
+        if (twHit && Date.now() - twHit.at < 60e3) { const b = await twHit.p.catch(() => null); if (b) return json(b); }
+        const twP = (async () => {
         const ask = addDays(want, await twShift(env, acct.tw_shop)); // see twShift: measured daily
         const { map, raw } = await twSummary(env, acct.tw_shop, ask, ask);
         const HOURLY = ['netSales', 'totalSales', 'totalNetTaxes', 'blendedAds', 'newCustomerSales', 'fb_ads_spend', 'ga_adCost', 'orders'];
@@ -9665,7 +9702,13 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         // A finished day is 24 hours; today is the hours that have happened.
         const len = want === today ? Math.max(1, maxX + 1) : 24;
         for (const k of Object.keys(hours)) hours[k] = hours[k].slice(0, len);
-        return json({ date: want, as_of: new Date().toISOString(), map, hours, hours_len: len });
+        return { date: want, as_of: new Date().toISOString(), map, hours, hours_len: len };
+        })();
+        const twEntry = { at: Date.now(), p: twP };
+        TW_DAY_MEMO.set(twKey, twEntry);
+        twP.catch(() => { if (TW_DAY_MEMO.get(twKey) === twEntry) TW_DAY_MEMO.delete(twKey); });
+        if (TW_DAY_MEMO.size > 200) for (const [k, v] of TW_DAY_MEMO) if (Date.now() - v.at > 60e3) TW_DAY_MEMO.delete(k);
+        return json(await twP);
       }
 
       if (path === '/api/pacing') {
@@ -9965,6 +10008,8 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
           actionRemind: (await getSetting(env, 'actionRemind')) !== 'off',
           /* The daily "test minimum due off" line under each morning card (minoff.js). On unless 'off'. */
           minOffPost: await minOffOn(env),
+          /* The Buyer list (buyerlist.js): the owner shown on the page, its one daily post and where it goes. */
+          ...(await buyerSettings(env)),
           /* 2026-10-13: one hour for every morning post (Central) and the morning card's switch (morningcard.js). */
           morningHour: await morningHour(env),
           morningCard: await cardOn(env),
@@ -9988,6 +10033,9 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         if ('todayPost' in b) await putSetting(env, 'todayPost', b.todayPost ? 'on' : 'off');
         if ('actionRemind' in b) await putSetting(env, 'actionRemind', b.actionRemind ? 'on' : 'off');
         if ('minOffPost' in b) await putSetting(env, 'minOffPost', b.minOffPost ? 'on' : 'off');
+        if ('buyerPost' in b) await putSetting(env, 'buyerPost', b.buyerPost ? 'on' : 'off');
+        if ('buyerOwner' in b && String(b.buyerOwner || '').trim()) await putSetting(env, 'buyerOwner', String(b.buyerOwner).trim().slice(0, 40));
+        if ('buyerChannel' in b) await putSetting(env, 'buyerChannel', /^[CG][A-Z0-9]{6,}$/.test(String(b.buyerChannel || '')) ? String(b.buyerChannel) : '');
         if ('morningCard' in b) await putSetting(env, 'morningCard', b.morningCard ? 'on' : 'off');
         if ('morningHour' in b) {
           const h = +b.morningHour;

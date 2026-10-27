@@ -9,7 +9,8 @@
  * The host (index.html) passes the same helpers it gives v2.js: window.DeskTab.render(tab, host, first).
  * Today (2026-10-13) can change an ad account: "Do it" runs the shared Meta write (nudge.js window.LxMetaWrite, dry run,
  * modal, write with expect, Undo). "Done" writes a manual line to the Change Log (which the Daily Brief's "What we did"
- * reads); "Not now" hides a row on this computer until tomorrow. */
+ * reads); "Not now" hides a row until tomorrow. 2026-10-26: Done and Not now are shared on the server with Ads > Buyer list
+ * (account-health buyerlist.js, p_buyer_state); a Meta change on the object in the last 3 days hides the call too. */
 (() => {
   let H = null;
   const $ = s => document.querySelector(s);
@@ -297,6 +298,11 @@
    * ======================================================================================= */
   let KIND = 'all';
   const OPEN = {};
+  /* The shared Done / Not now (2026-10-26): what a call is about (the ad, else the ad set, else the test or the row) and
+     the server write. LOCAL keeps this session's clicks so the page answers at once. */
+  const LOCAL = {};
+  const objOf = r => String(r.ad_id || r.adset_id || (r.kind === 'call' && r.test ? `test:${r.test.id}` : r.key));
+  const putState = (r, status) => { if (!r || !H.apiAH) return; H.apiAH('/api/buyer-list/state', { method: 'POST', body: JSON.stringify({ act: r.act_id, object: objOf(r), action: r.kind, status, name: r.ad || r.adset || '' }) }).catch(() => {}); };
   const CALLED = {};
   const OWNERS = ['Cole', 'Ahsan', 'Noma', 'William', 'Ravo', 'Radhesh', 'Hamza'];
   const KEEP_WHY = [['tof', 'Top of funnel doing its job'], ['data', 'Not enough data yet'], ['scaling', 'Scaling'], ['waiting', 'Waiting on offer or landing page'], ['other', 'Other']];
@@ -340,8 +346,10 @@
     catch (e) { if (t === H.RUN()) $('#main').innerHTML = shell('today', title, U().card('Could not load', '', `<p class="v2bad">${esc(e.message)}</p>`)); return; }
     if (t !== H.RUN()) return;
     const todayKey = ymdL(new Date());
-    const done = store('pf_today_done'), snooze = store('pf_today_snooze');
-    const dn = done[todayKey] || {}, sn = snooze[todayKey] || {};
+    /* Done / Not now are shared on the server since 2026-10-26 (the Buyer list's state), never this computer's storage. */
+    const srv = await H.apiAH(`/api/buyer-list/state?act=${encodeURIComponent(H.S.act)}`).catch(() => null);
+    if (t !== H.RUN()) return;
+    const dn = {}, sn = {};
     const rows = (d.rows || []).map(r => ({ ...r, key: `${r.kind}:${r.adset_id || ''}:${r.ad_id || ''}:${r.act_id}` }));
     /* Test calls: one row per test that has spent enough to judge (brand.js testsOverview `calls`). */
     for (const b of (tests?.brands || [])) {
@@ -357,12 +365,25 @@
     }
     /* Locus v4 (phase 2): Google search-term negatives join the queue as one call per leak (v4.js extraCalls). */
     if (window.V4 && window.V4.on && window.V4.extraCalls) { try { rows.push(...await window.V4.extraCalls(H, one)); } catch {} if (t !== H.RUN()) return; }
+    /* THE BUYER LIST STATE (2026-10-26, account-health buyerlist.js, p_buyer_state): the same memory as Ads > Buyer list.
+       Done today = greyed with Undo; done earlier (quiet 3 days) or skipped (until tomorrow) = hidden for everyone; a change
+       written to Meta on the object in the last 3 days hides the call too (watch 3 days). LOCAL = this session's clicks. */
+    for (const r of rows) {
+      const o = objOf(r), lk = LOCAL[r.key];
+      if (lk === 'clear') continue;
+      const s = srv && (srv.states || []).find(x => x.brand === r.act_id && x.object === o && x.action === r.kind);
+      if (lk === 'done' || (s && s.status === 'done' && ymdL(new Date(s.at)) === todayKey)) { dn[r.key] = 1; continue; }
+      if (lk === 'skipped' || s) { sn[r.key] = 1; continue; }
+      if (srv && (srv.watched || []).some(w => w.brand === r.act_id && String(w.object) === o)) sn[r.key] = 1;
+    }
     const vis = rows.filter(r => !sn[r.key]);
     const kinds = [['all', 'All'], ['fix', 'Fix'], ['scale', 'Scale'], ['cut', 'Cut'], ['mixed', 'Mixed'], ['trim', 'Trim'], ['refresh', 'Refresh'], ['call', 'Call'], ...(window.V4 && window.V4.on ? [['neg', 'Google']] : [])];
     const cnt = k => vis.filter(r => k === 'all' || r.kind === k).length;
     const DO_TIP = { scale: 'Raise this ad set\'s budget 20%. You see the number and confirm before anything is written.', cut: 'Pause this ad set. You confirm before anything is written.', trim: 'Pause this one ad, not the set. You confirm before anything is written.' };
     const doList = vis.filter(r => DO_TIP[r.kind] && !dn[r.key]).sort((a, b) => (b.stake || 0) - (a.stake || 0));
     const doBar = doList.length ? `<span class="lx-tohead"><button type="button" class="v2btn dk-p" id="dkDoAll">${doList.length === 1 ? 'Do the 1 call' : `Do all ${doList.length} calls`}</button></span>` : '';
+    /* Tracking gap (hub.js buyerList banners): one line per brand whose cuts are on hold. */
+    const gapBan = (d.banners || []).filter(b => !one || b.act_id === one.act_id).map(b => `<p class="v2say dk-gap-ban" role="note">${esc(b.text)}</p>`).join('');
     const counts = `<div class="v2jobs dk-counts" role="group" aria-label="Kind of call">${kinds.map(([k, l]) => `<button type="button" class="dk-cnt${KIND === k ? ' on' : ''}" data-k="${k}"><b>${cnt(k)}</b>${l}</button>`).join('')}</div>`;
     const shown = vis.filter(r => KIND === 'all' || r.kind === KIND);
     const by = {}; for (const r of shown) (by[r.act_id] ??= []).push(r);
@@ -389,17 +410,20 @@
       /* GOALS AND AD CALLS (2026-10-21): a Cut or Mixed set that brings mostly new customers with a good click rate carries
          a "Feeds the funnel" tag (hub.js buyerList `funnel`), never a call of its own. */
       const fu = r.funnel, fnl = fu ? `<span class="dk-fnl" title="${esc(`${Math.round(fu.new_share * 100)}% new customers${fu.acct_new_share != null ? ` against ${Math.round(fu.acct_new_share * 100)}% for the account` : ''}; click rate ${(fu.ctr * 100).toFixed(1)}% against the account median ${(fu.acct_ctr * 100).toFixed(1)}%.`)}">Feeds the funnel</span>` : '';
+      /* Funnel role (2026-10-26): a Cut or Trim that first click shows opens journeys at goal is kept as Mixed (hub.js
+         buyerList kept_by 'opener'); the tag says so and the why carries the numbers. */
+      const opn = r.kept_by === 'tracking_gap' ? `<span class="dk-fnl" title="${esc('Meta counts more sales than Triple Whale credits. Fix tracking before cutting.')}">Tracking gap</span>` : r.kept_by === 'opener' ? `<span class="dk-fnl" title="${esc('Last click says cut; Triple Whale first click credits it with sales at goal. Judge it on first click.')}">Opens journeys</span>` : '';
       const th = ad ? `<button type="button" class="dk-th" data-thumb="${esc(ad.id)}" data-play="${k}" aria-label="Play the ad ${esc(ad.name || '')}" title="${esc(r.kind === 'trim' ? 'The ad to turn off' : r.kind === 'refresh' ? 'The main ad' : `The set's main ad${ad.name ? `: ${ad.name}` : ''}`)}. Tap to play.">${chip}<i>${window.icon ? window.icon('play', { size: 12 }) : '&#9654;'}</i></button>` : `<span class="dk-th dk-th0">${chip}</span>`;
-      return `<div class="dk-row${dn[r.key] ? ' done' : ''}"><div class="dk-c1">${th}${fnl}</div>
+      return `<div class="dk-row${dn[r.key] ? ' done' : ''}"><div class="dk-c1">${th}${fnl}${opn}</div>
         <div><div class="nm"${window.V4 && window.V4.on && r.adset_id ? ` data-set="${k}" role="button" tabindex="0" title="${esc(r.ad ? r.ad : r.adset || '')}. Open the ad set: the reason, the numbers and the ads in it"` : ` title="${esc(r.ad ? r.ad : r.adset || '')}"`}>${esc(r.ad ? r.ad : r.adset || '')}</div><div class="meta">${r.ad && r.adset ? `in ${esc(r.adset)} · ` : ''}${meta}</div></div>
         <div class="dk-rs"><div class="why" title="${esc(r.why || '')}">${esc(r.why || '')}</div>${anchor}</div>
         <div class="dk-acts">${primary}${gb(`data-done="${k}"`, dn[r.key] ? 'Undo' : 'Done')}<span class="dk-more"><button type="button" class="v2btn ghost dk-more-b" aria-haspopup="true" aria-expanded="false" title="More">&middot;&middot;&middot;</button><div class="dk-menu" role="menu">${am && r.kind !== 'fix' ? `<a href="${esc(am)}" target="_blank" rel="noopener">Open in Ads Manager</a>` : ''}<button type="button" data-locus="${k}">Open in Locus</button><button type="button" data-else="${k}">Something else</button><button type="button" data-snooze="${k}">Not now</button></div></span></div></div>`; };
     const groups = order.map(([id, rs]) => { rs.sort((a, b) => (b.stake || 0) - (a.stake || 0)); const name = rs[0].brand; const all = OPEN[id] || one; const list = all ? rs : rs.slice(0, 3);
-      return `<section class="v2card"><div class="v2h"><h3>${esc(name)}</h3><span class="cap">${rs.length} to do</span>${window.LxKit && LxKit.cardMenu ? LxKit.cardMenu([esc(d.rules_note || ''), 'Do it writes the change to Meta after you confirm it: a dry run shows before and after first, the write is logged in the Change Log, and Undo is on the toast for 24 hours. Winner, Keep running and Loser close or park a test here and in Asana. Something else puts an action item on Work > Tasks. Done only writes a line to the Change Log, which the Daily Brief reads for "What we did". Not now hides a row on this computer until tomorrow.']) : ''}</div>${list.map(row).join('')}${rs.length > 3 && !one ? `<button type="button" class="v2link" data-more="${esc(id)}" style="margin-top:8px">${OPEN[id] ? 'Show fewer' : `Show ${rs.length - 3} more`}</button>` : ''}</section>`; }).join('');
+      return `<section class="v2card"><div class="v2h"><h3>${esc(name)}</h3><span class="cap">${rs.length} to do</span>${window.LxKit && LxKit.cardMenu ? LxKit.cardMenu([esc(d.rules_note || ''), 'Do it writes the change to Meta after you confirm it: a dry run shows before and after first, the write is logged in the Change Log, and Undo is on the toast for 24 hours. Winner, Keep running and Loser close or park a test here and in Asana. Something else puts an action item on Work > Tasks. Done writes a line to the Change Log, which the Daily Brief reads for "What we did", and keeps the call quiet 3 days for everyone. Not now hides it for everyone until tomorrow. The same memory as Ads > Buyer list.']) : ''}</div>${list.map(row).join('')}${rs.length > 3 && !one ? `<button type="button" class="v2link" data-more="${esc(id)}" style="margin-top:8px">${OPEN[id] ? 'Show fewer' : `Show ${rs.length - 3} more`}</button>` : ''}</section>`; }).join('');
     const win = (d.brands || [])[0];
     const nAll = vis.length;
     const sub = `<b>${nAll} call${nAll === 1 ? '' : 's'} today, ad set first</b>, ranked by money at stake.${win ? ` Judged on last platform click, ${md(win.from)} to ${md(win.to)}.` : ''}`;
-    $('#main').innerHTML = shell('today', title, `<p class="v2say lead">${sub}</p>${doBar}${counts}
+    $('#main').innerHTML = shell('today', title, `<p class="v2say lead">${sub}</p>${gapBan}${doBar}${counts}
       ${groups || U().card('Nothing to do', '', `<p class="v2hint">${KIND === 'all' ? 'No ad set crossed a rule, nothing needs fixing and no test needs a call.' : 'Nothing of this kind today.'}</p>`)}
       ${one ? `<p class="v2hint"><button type="button" class="v2link" data-go="act:${esc(one.act_id)}:mtoday">Spend today, hour by hour, against a normal day ›</button></p>` : ''}`);
     const root = $('#main');
@@ -417,8 +441,8 @@
         .then(res => { const id = res && res.item ? res.item.id : res && res.id; if (id) return H.apiAH('/api/actions/done', { method: 'POST', body: JSON.stringify({ id, done: true }) }); })
         .catch(() => {});
     };
-    const markDone = k => { const d2 = store('pf_today_done'); const day = d2[todayKey] || {}; day[k] = 1; d2[todayKey] = day; Object.keys(d2).forEach(x => { if (x !== todayKey) delete d2[x]; }); store('pf_today_done', d2); };
-    const unDone = k => { const d2 = store('pf_today_done'); const day = d2[todayKey] || {}; delete day[k]; d2[todayKey] = day; store('pf_today_done', d2); };
+    const markDone = k => { LOCAL[k] = 'done'; putState(find(k), 'done'); };
+    const unDone = k => { LOCAL[k] = 'clear'; putState(find(k), 'clear'); };
     root.querySelectorAll('[data-k]').forEach(b => b.onclick = () => { KIND = b.dataset.k; today(false); });
     const closeMore = () => root.querySelectorAll('.dk-more.open').forEach(m => { m.classList.remove('open'); const b = m.querySelector('.dk-more-b'); if (b) b.setAttribute('aria-expanded', 'false'); });
     root.querySelectorAll('.dk-more-b').forEach(b => b.onclick = e => {
@@ -439,7 +463,7 @@
     document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMore(); }, { once: true });
     root.querySelectorAll('[data-more]').forEach(b => b.onclick = () => { OPEN[b.dataset.more] = !OPEN[b.dataset.more]; today(false); });
     root.querySelectorAll('[data-go]').forEach(el => el.onclick = () => { const [, id, tab] = el.dataset.go.split(':'); pickAct(id, tab); });
-    root.querySelectorAll('[data-snooze]').forEach(b => b.onclick = () => { const s2 = store('pf_today_snooze'); s2[todayKey] = { ...(s2[todayKey] || {}), [b.dataset.snooze]: 1 }; Object.keys(s2).forEach(k => { if (k !== todayKey) delete s2[k]; }); store('pf_today_snooze', s2); today(false); });
+    root.querySelectorAll('[data-snooze]').forEach(b => b.onclick = () => { const k = b.dataset.snooze; LOCAL[k] = 'skipped'; putState(find(k), 'skipped'); today(false); });
     root.querySelectorAll('[data-done]').forEach(b => b.onclick = async () => {
       const k = b.dataset.done, r = find(k); if (!r) return;
       if (dn[k]) { unDone(k); return today(false); }

@@ -17,6 +17,8 @@
  *   router acks only the action id noop_open, and an id must be unique inside a block).
  * Its THREAD, posted right after: the full Today's calls list (todaypost.js messageFor) and one reminder line per owner
  * with the Done buttons (actions.js reminderMessage; the p_action rows point at that reply so Done and ✅ work there).
+ * 2026-10-26: while settings.buyerPost is on (default) the calls line, the Make the calls button and the calls thread are
+ * gone from every card: the calls go to ONE Buyer list post a day (buyerlist.js) instead.
  *
  * The card keeps itself up to date (chat.update, never a new post): a task done anywhere (actions.js onActionDone), a
  * call made on the page (cardCallMade), a Production card moved on or judged (cardProdDone), the client daily sent
@@ -204,9 +206,13 @@ export async function buildCard(env, d, a, today, shared = {}) {
   const brief = await env.DB.prepare(`SELECT status, posted_at, text, data_json FROM briefs WHERE act_id = ?1 AND date = ?2`).bind(a.act_id, yday).first().catch(() => null);
   const items = [], notes = [];
   if (shared.kept && shared.kept.error) notes.push(`kept: ${shared.kept.error}`);
-  /* Today's calls: one line, the media buyer tagged. */
+  /* Today's calls: one line, the media buyer tagged. 2026-10-26 (the Buyer list, buyerlist.js): while the one daily Buyer
+     list post is on (settings.buyerPost, default on) the card carries NO calls line and NO calls thread; the calls live
+     in that one post and on Ads > Buyer list. Switching buyerPost off brings them back here. */
   let rows = null;
-  try { rows = ((await readToday(env, d, a.act_id)) || {}).rows || []; } catch (e) { notes.push(`calls: ${e.message}`); }
+  const buyerOn = (await getSetting(env, 'buyerPost')) !== 'off';
+  if (buyerOn) rows = [];
+  else try { rows = ((await readToday(env, d, a.act_id)) || {}).rows || []; } catch (e) { notes.push(`calls: ${e.message}`); }
   const calls = (rows || []).filter(r => CALL_KINDS.includes(r.kind));
   const team = shared.team && shared.team[a.act_id] || {};
   if (calls.length) {
