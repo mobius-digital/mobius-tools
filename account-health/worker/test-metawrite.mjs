@@ -72,6 +72,7 @@ async function graph(url, init = {}) {
     posts.push({ path: p, body: b });
     let m;
     if ((m = p.match(/^(act_\d+)\/adimages$/))) return J({ images: { bytes: { hash: 'HASH1' } } });
+    if ((m = p.match(/^(act_\d+)\/advideos$/))) { objs['2300199'] = { id: '2300199', status: { video_status: 'ready' }, picture: 'https://scontent/v199.jpg', _lv: 'video' }; return J({ id: '2300199' }); }
     if ((m = p.match(/^(act_\d+)\/adcreatives$/))) return J({ id: 'CR' + (++nextId) });
     if ((m = p.match(/^(act_\d+)\/ads$/))) { const id = String(2400000 + (++nextId)); objs[id] = { id, name: b.name, status: b.status, adset_id: b.adset_id, account_id: m[1].slice(4), _lv: 'ad', _act: m[1] }; return J({ id }); }
     if ((m = p.match(/^(\w+)\/copies$/))) { const id = String(2400000 + (++nextId)); objs[id] = { ...objs[m[1]], id, status: 'PAUSED', effective_status: 'PAUSED' }; return J({ copied_adset_id: id, ad_object_ids: [{ ad_object_id: 'X' }] }); }
@@ -305,6 +306,17 @@ await check('create_ad: image uploaded to adimages, creative with the set\'s pag
   assert.equal(activities().at(-1).category, 'new_creative'); assert.match(r.note, /adsmanager\.facebook\.com/);
   const v = await acts.meta_create_ad.propose(env, { brand: 'Lucky', adset: '2300011', video_id: '2300099', primary_text: 'x', link: 'https://luckygolf.com', live: true, reason: 'x' });
   assert.ok(!v.error, v.error); assert.equal(v.patch.status, 'ACTIVE'); assert.deepEqual(v.patch.media, { video_id: '2300099', thumb: 'https://scontent/v9.jpg' });
+  /* 2026-10-27: a video from a download link (Frame's, here a plain one) is uploaded on the card, the ad waits for processing */
+  const two = await acts.meta_create_ad.propose(env, { brand: 'Lucky', adset: '2300011', video_id: '2300099', video_url: 'https://f.example.com/291-1.mp4', primary_text: 'x', link: 'https://luckygolf.com', reason: 'x' });
+  assert.match(two.error, /exactly one/);
+  const u = await acts.meta_create_ad.propose(env, { brand: 'Lucky', adset: '2300011', video_url: 'https://f.example.com/291-1.mp4', ad_name: '291-1 | UGC', primary_text: 'x', link: 'https://luckygolf.com', reason: 'x' });
+  assert.ok(!u.error, u.error);
+  assert.deepEqual(posts.find(x => x.path === `${LUCKY}/advideos`).body, { file_url: 'https://f.example.com/291-1.mp4', name: '291-1 | UGC' });
+  assert.equal(u.patch.media.video_id, '2300199'); assert.equal(u.patch.media.thumb, null); assert.match(u.detail, /Meta is processing it/);
+  const ur = await acts.meta_create_ad.apply(env, u.patch, null, COLE);
+  assert.ok(ur.ok, ur.error);
+  const vspec = JSON.parse(posts.filter(x => x.path === `${LUCKY}/adcreatives`).at(-1).body.object_story_spec);
+  assert.equal(vspec.video_data.video_id, '2300199'); assert.equal(vspec.video_data.image_url, 'https://scontent/v199.jpg');
 });
 
 await check('meta_read: campaigns with their ad sets, dollars, targeting summary, ads for one set', async () => {

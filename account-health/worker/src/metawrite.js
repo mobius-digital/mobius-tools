@@ -28,6 +28,7 @@ import { resolveBrandId } from './brands.js';
 import { asana, asanaAll, numOf, googleToken } from './asana-brand.js';
 import { serveFile } from './prodwork.js';
 import { recordWrite, registerUndo, doneNote } from './extwrite.js';
+import { frameFileDownload } from './frame.js';
 
 const GRAPH = 'https://graph.facebook.com/v23.0';
 const BUSINESS_ID = '695359915477596';
@@ -386,10 +387,12 @@ async function pageFor(env, d, act, adsetId) {
 }
 const createAdAction = d => ({
   name: 'meta_create_ad',
-  description: 'Make a new ad in a named ad set: from an image URL the worker can download (a Studio final PNG, a Locus asset link; it is uploaded to the ad account), an existing Meta video id, or cards (2 to 10 images in order = ONE carousel ad, each card with its own headline and optional link), with the headline, primary text, link and button. It is created PAUSED unless live: true. The page and Instagram account are taken from the ads already in that set.',
+  description: 'Make a new ad in a named ad set: from an image URL the worker can download (a Studio final PNG, a Locus asset link; it is uploaded to the ad account), a video Meta is handed to upload (frame_file = a Frame file id from frame_list, or video_url = a direct download link; it is uploaded to the ad account first), an existing Meta video id, or cards (2 to 10 images in order = ONE carousel ad, each card with its own headline and optional link), with the headline, primary text, link and button. It is created PAUSED unless live: true. The page and Instagram account are taken from the ads already in that set.',
   input_schema: { type: 'object', properties: {
     brand: { type: 'string' }, adset: { type: 'string', description: 'The ad set, exact name or id.' },
     image_url: { type: 'string' }, video_id: { type: 'string', description: 'An advideos id already in the ad account (instead of image_url).' },
+    frame_file: { type: 'string', description: 'A Frame.io file id (from frame_list): the video is sent from Frame straight into the ad account.' },
+    video_url: { type: 'string', description: 'A direct download link to a video file Meta can fetch (not a review page).' },
     cards: { type: 'array', description: 'A carousel instead of image_url: 2 to 10 cards, shown in this order.', items: { type: 'object', properties: { image_url: { type: 'string' }, headline: { type: 'string' }, description: { type: 'string' }, link: { type: 'string', description: 'This card\'s own page; default the ad\'s link.' } }, required: ['image_url'] } },
     headline: { type: 'string' }, primary_text: { type: 'string' }, description: { type: 'string' },
     link: { type: 'string', description: 'The landing page URL.' }, cta: { type: 'string', enum: CTAS },
@@ -398,7 +401,8 @@ const createAdAction = d => ({
     required: ['brand', 'adset', 'primary_text', 'link', 'reason'] },
   propose: async (env, input, h, ctx) => {
     const cards = Array.isArray(input.cards) && input.cards.length ? input.cards : null;
-    if (cards ? !!(input.image_url || input.video_id) : !input.image_url === !input.video_id) return { error: 'Give exactly one of image_url, video_id or cards.' };
+    const given = [input.image_url, input.video_id, input.frame_file, input.video_url].filter(Boolean).length;
+    if (cards ? given : given !== 1) return { error: 'Give exactly one of image_url, video_id, frame_file, video_url or cards.' };
     if (cards && (cards.length < 2 || cards.length > 10)) return { error: 'A carousel takes 2 to 10 cards.' };
     if (!/^https:\/\//.test(input.link || '')) return { error: 'The link must be a full https:// URL.' };
     const r = await prep(env, d, { ...input, target: input.adset, level: 'adset' }, ctx, 'adset'); if (r.error) return r;
@@ -424,6 +428,19 @@ const createAdAction = d => ({
       const type = res.headers?.get?.('content-type') || '';
       if (!res.ok || !/^image\//.test(type)) return { error: `The worker could not download an image from ${input.image_url} (${res.ok ? type || 'not an image' : `HTTP ${res.status}`}). Give a public or Locus asset link.` };
       media = { image_url: input.image_url };
+    } else if (input.frame_file || input.video_url) {
+      /* 2026-10-27: a finished video that only lives in Frame (or behind a download link) is handed to Meta here, the
+         same advideos file_url upload Launch to Meta uses. Uploading only fills the ad account's video library; the ad
+         itself is made on Apply, once Meta has processed the video. */
+      let src;
+      try { src = input.frame_file ? await frameFileDownload(env, input.frame_file) : { name: '', url: String(input.video_url) }; }
+      catch (e) { return { error: e.message }; }
+      if (!/^https:\/\//.test(src.url)) return { error: 'video_url must be a full https:// download link.' };
+      let up;
+      try { up = await gpost(d, env, `${r.act}/advideos`, { file_url: src.url, name: clip(input.ad_name || src.name || 'Locus upload', 100) }); }
+      catch (e) { return { error: `Meta did not take the video: ${e.message}` }; }
+      if (!up?.id) return { error: 'Meta did not return a video id. Try again.' };
+      media = { video_id: String(up.id), thumb: null, from: input.frame_file ? `Frame: ${src.name}` : src.url };
     } else {
       const v = await gget(d, env, String(input.video_id), { fields: 'id,title,picture' }).catch(e => ({ error: e.message }));
       if (v.error || !v.picture) return { error: `Meta video ${input.video_id} could not be read${v.error ? ` (${v.error})` : ' (no thumbnail yet; is it still processing?)'}.` };
@@ -433,7 +450,7 @@ const createAdAction = d => ({
     const status = input.live ? 'ACTIVE' : 'PAUSED';
     const name = clip(input.ad_name || input.headline || `New ad ${new Date().toISOString().slice(0, 10)}`, 300);
     return { summary: `${r.brand.name}: new ad "${name}" in "${r.obj.name}" (${status})`,
-      detail: `${media.cards ? `Carousel, ${media.cards.length} cards in this order:\n${media.cards.map((c, i) => `  ${i + 1}. ${c.headline || '(no headline)'}${c.link ? ` -> ${c.link}` : ''}`).join('\n')}` : media.image_url ? `Image: ${media.image_url}` : `Video: ${media.video_id}`}\nHeadline: ${input.headline || '(none)'}\nPrimary text: ${clip(input.primary_text, 400)}\nLink: ${input.link} · Button: ${cta}\nPage ${pg.page_id}${pg.ig ? ` + Instagram ${pg.ig}` : ''} (${pg.from}).\nWhy: ${clip(input.reason, 300)}`,
+      detail: `${media.cards ? `Carousel, ${media.cards.length} cards in this order:\n${media.cards.map((c, i) => `  ${i + 1}. ${c.headline || '(no headline)'}${c.link ? ` -> ${c.link}` : ''}`).join('\n')}` : media.image_url ? `Image: ${media.image_url}` : `Video: ${media.video_id}${media.from ? ` (uploaded from ${media.from}; Meta is processing it)` : ''}`}\nHeadline: ${input.headline || '(none)'}\nPrimary text: ${clip(input.primary_text, 400)}\nLink: ${input.link} · Button: ${cta}\nPage ${pg.page_id}${pg.ig ? ` + Instagram ${pg.ig}` : ''} (${pg.from}).\nWhy: ${clip(input.reason, 300)}`,
       patch: { ...common(r, 'meta_create_ad', input, ctx), ad_name: name, media, page_id: pg.page_id, ig: pg.ig, headline: clip(input.headline, 255), primary_text: clip(input.primary_text, 3000), description: clip(input.description, 255), link: input.link, cta, status } };
   },
   apply: async (env, p, h, ctx) => {
@@ -465,7 +482,16 @@ const createAdAction = d => ({
       if (!hash) return { error: 'Meta took the image but returned no hash.' };
       spec = { page_id: p.page_id, ...(p.ig ? { instagram_user_id: p.ig } : {}), link_data: { image_hash: hash, link: p.link, message: p.primary_text, ...(p.headline ? { name: p.headline } : {}), ...(p.description ? { description: p.description } : {}), ...(cta ? { call_to_action: cta } : {}) } };
     } else {
-      spec = { page_id: p.page_id, ...(p.ig ? { instagram_user_id: p.ig } : {}), video_data: { video_id: p.media.video_id, image_url: p.media.thumb, message: p.primary_text, ...(p.headline ? { title: p.headline } : {}), ...(p.description ? { link_description: p.description } : {}), call_to_action: cta || { type: 'LEARN_MORE', value: { link: p.link } } } };
+      let thumb = p.media.thumb;
+      /* A video uploaded on the card: wait for Meta's processing (it gives the cover frame), up to about a minute. */
+      for (let i = 0; !thumb && i < 8; i++) {
+        const v = await gget(d, env, p.media.video_id, { fields: 'status,picture' }).catch(() => ({}));
+        if (v.status?.video_status === 'error') return { error: `Meta could not process video ${p.media.video_id}. Upload it again.` };
+        if (v.status?.video_status === 'ready' && v.picture) thumb = v.picture;
+        else await new Promise(res => setTimeout(res, 8000));
+      }
+      if (!thumb) return { error: `Video ${p.media.video_id} is in the ad account but Meta is still processing it. Make the ad again in a minute with video_id ${p.media.video_id} (no new upload needed).` };
+      spec = { page_id: p.page_id, ...(p.ig ? { instagram_user_id: p.ig } : {}), video_data: { video_id: p.media.video_id, image_url: thumb, message: p.primary_text, ...(p.headline ? { title: p.headline } : {}), ...(p.description ? { link_description: p.description } : {}), call_to_action: cta || { type: 'LEARN_MORE', value: { link: p.link } } } };
     }
     const cr = await gpost(d, env, `${p.act}/adcreatives`, { name: p.ad_name, object_story_spec: spec });
     const ad = await gpost(d, env, `${p.act}/ads`, { name: p.ad_name, adset_id: p.id, creative: { creative_id: cr.id }, status: p.status });
