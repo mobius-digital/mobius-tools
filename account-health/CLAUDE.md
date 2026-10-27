@@ -2675,3 +2675,22 @@ Monday call is at 8am. Tests: `node test-clientpost.mjs` (12 offline checks).
 - Calls: `POST /api/calls/reopen {id}` sets a finished call back to live; Finish again skips every line whose words the
   first Finish made for that brand (`madeKeys`), skips brands with nothing new, never reposts a posted client recap, and
   the Finished summary merges both runs. Tests: test-production.mjs 11, test-callscreen.mjs 20.
+
+## 2026-10-26: LAUNCH DAYS + LAUNCHED AND SCHEDULED on the Buyer list (buyerlist.js, profit buyer.js?v=2). Read before touching launch rows.
+- **Launch days** = settings `launchDays` (default `mon,thu`, Central; `PUT /api/buyer-list/settings {launchDays}`, also
+  "Change launch days" on the page). A Ready card with approved ads not on Meta is a Launch row ONLY on a launch day, or on
+  and after its own `launch_on` (dated BFCM batches, any weekday; the row carries `launch_on`). Any other day it is not a
+  to-do: `list.next_launch {date, day, n, n_ads}` = the quiet "Next launch: Thursday, N cards" line under the lead.
+- `list.scheduled` = Ready / Review cards with a future launch_on (dated) + Ready cards waiting for the next launch day,
+  sorted by date. `list.launched` = p_launch of the last 30 days (`launchedRows`, LEFT JOIN p_br_batch for the card
+  number and title), newest first; `checked` false = never read again, shown as "Created paused".
+  `GET /api/buyer-list/launched?act=&refresh=1` reads the status live (launch.js `refreshStatus`, exported, dep
+  `launchStatus` in buyerDeps; rows read in the last 30 minutes are skipped). The page calls it after it paints.
+- **The daily post** adds "Launched yesterday: N ads (brands)" and "Launch today: N cards (brands)" under the owner when
+  they apply; a day with only launches yesterday still posts.
+- **Card to Live**: the single ad (`/api/launch/create`) and the carousel (`/api/launch/carousel-create`) now move their
+  Production card to Live too (launch.js `cardToLive`, only from Ready or Review), like the batch since PR #102.
+- Page: "Launched and scheduled" card under the list (agency view and per brand), one search box (brand, card or ad), a
+  tap on a row = its details in the modal (a bottom sheet on a phone), Open / Card = Production with that card open
+  (`window.PD_CARD`; production.js now honours it on every visit, not only the first, which also fixes search's brief kind).
+- Tests: account-health `node test-buyerlist.mjs` (launch days, dated cards, launched rows, post lines, cardToLive).

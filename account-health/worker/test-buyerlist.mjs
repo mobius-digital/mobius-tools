@@ -6,7 +6,9 @@
  *   node test-buyerlist.mjs      (from account-health/worker) */
 import { DatabaseSync } from 'node:sqlite';
 import assert from 'node:assert/strict';
-import { buildBuyerList, setState, readState, buyerMessage, buyerPostTick, buyerSettings, saveBuyerSettings, headOf, oneLine, DEFAULT_BUYER_CHANNEL } from './src/buyerlist.js';
+import { buildBuyerList, setState, readState, buyerMessage, buyerPostTick, buyerSettings, saveBuyerSettings, headOf, oneLine, DEFAULT_BUYER_CHANNEL,
+  normDays, isLaunchDay, nextLaunchDay, launchedRows } from './src/buyerlist.js';
+import { cardToLive } from './src/launch.js';
 
 const db = new DatabaseSync(':memory:');
 const bindSql = sql => sql.replace(/\?(\d+)/g, (_, n) => ':p' + n);
@@ -17,13 +19,19 @@ db.exec(`CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT);
   CREATE TABLE p_meta_write (id TEXT PRIMARY KEY, act TEXT NOT NULL, brand TEXT, level TEXT, object TEXT NOT NULL, name TEXT, action TEXT NOT NULL, field TEXT, before TEXT, after TEXT, summary TEXT, by TEXT, at TEXT NOT NULL, undone TEXT);
   CREATE TABLE p_work_file (id TEXT, batch_id TEXT, ad TEXT, version INTEGER, mime TEXT, name TEXT, created_at TEXT, kind TEXT, deleted_at TEXT);
   CREATE TABLE p_work_comment (id TEXT, batch_id TEXT, file_id TEXT, kind TEXT, parent_id TEXT, fixed_at TEXT, author_name TEXT, created_at TEXT);
-  CREATE TABLE p_br_batch (id TEXT, act_id TEXT, brief_json TEXT);
-  CREATE TABLE p_launch (id TEXT, act TEXT, batch_id TEXT, work_file TEXT, studio_ad TEXT, cards TEXT, eff_status TEXT);
+  CREATE TABLE p_br_batch (id TEXT, act_id TEXT, brief_json TEXT, num TEXT, title TEXT, stage TEXT, board_stage TEXT, asana_section TEXT);
+  CREATE TABLE p_launch (id TEXT, act TEXT, meta_act TEXT, batch_id TEXT, num TEXT, work_file TEXT, studio_ad TEXT, cards TEXT, ad_id TEXT, ad_name TEXT, adset_id TEXT, adset_name TEXT,
+    status TEXT, eff_status TEXT, checked_at TEXT, by TEXT, at TEXT);
   CREATE TABLE p_studio_batch (id TEXT, br_batch_id TEXT);
   CREATE TABLE p_studio_ad (id TEXT, batch_id TEXT, status TEXT, created_at TEXT);`);
 const setting = k => (db.prepare(`SELECT value FROM settings WHERE key = ?`).get(k) || {}).value ?? null;
 const setSetting = (k, v) => db.prepare(`INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).run(k, v);
 
+let BOARD = [
+  { id: 'c1', act_id: 'brand_alpha', brand: 'Alpha Golf', num: '415', title: 'Gift hook', board: 'ready' },
+  { id: 'c2', act_id: 'brand_alpha', brand: 'Alpha Golf', num: '416', title: 'Nothing approved', board: 'ready' },
+  { id: 'c3', act_id: 'brand_beta', brand: 'Beta Socks', num: '88', title: 'Still making', board: 'making' },
+];
 let today = '2026-10-26', hour = 5, posts = [], dueCalls = [];
 const ACCTS = [
   { act_id: 'brand_alpha', name: 'Alpha Golf', currency: 'USD' },
@@ -44,11 +52,7 @@ const d = {
   mintSession: async () => ({ token: 't' }),
   profit: async path => { assert.match(path, /^\/api\/hub\/today\?act=/); return { rows: CALLS, banners: [{ act_id: 'brand_beta', brand: 'Beta Socks', kind: 'tracking_gap', text: 'Tracking gap on Beta Socks: no cuts until tracking is fixed.' }, { act_id: 'brand_gal', brand: 'Galway Bay', kind: 'tracking_gap', text: 'x' }] }; },
   dueOff: async (e, act) => { dueCalls.push(act); return act === 'brand_beta' ? { due: [{ id: '555', name: '415 | Test 415', min: 20, day: 6, why: 'judged' }] } : { due: [] }; },
-  listBoard: async () => ({ cards: [
-    { id: 'c1', act_id: 'brand_alpha', brand: 'Alpha Golf', num: '415', title: 'Gift hook', board: 'ready' },
-    { id: 'c2', act_id: 'brand_alpha', brand: 'Alpha Golf', num: '416', title: 'Nothing approved', board: 'ready' },
-    { id: 'c3', act_id: 'brand_beta', brand: 'Beta Socks', num: '88', title: 'Still making', board: 'making' },
-  ] }),
+  listBoard: async () => ({ cards: BOARD }),
   slackPost: async (e, channel, text, blocks, opts) => { posts.push({ channel, text, blocks, opts }); return { ok: true, ts: '1.0' }; },
   tagOf: async (e, name) => name === 'Cole' ? '<@U_COLE>' : null,
 };
@@ -57,8 +61,8 @@ db.exec(`INSERT INTO p_work_file VALUES ('f1', 'c1', '1', 1, 'image/png', 'a', '
   ('f3', 'c1', '3', 1, 'image/png', 'c', '2026-10-20', 'version', NULL), ('f4', 'c2', '1', 1, 'image/png', 'd', '2026-10-20', 'version', NULL);
   INSERT INTO p_work_comment VALUES ('k1', 'c1', 'f1', 'approval', NULL, NULL, 'Cole', '2026-10-21'), ('k2', 'c1', 'f2', 'approval', NULL, NULL, 'Cole', '2026-10-21'),
   ('k3', 'c1', 'f3', 'change_request', NULL, NULL, 'Cole', '2026-10-21');
-  INSERT INTO p_br_batch VALUES ('c1', 'brand_alpha', NULL), ('c2', 'brand_alpha', NULL);
-  INSERT INTO p_launch VALUES ('l1', 'brand_alpha', 'c1', 'f2', NULL, NULL, 'PAUSED');`);
+  INSERT INTO p_br_batch (id, act_id, brief_json, num, title) VALUES ('c1', 'brand_alpha', NULL, '415', 'Gift hook'), ('c2', 'brand_alpha', NULL, '416', 'Nothing approved');
+  INSERT INTO p_launch (id, act, batch_id, work_file, eff_status, at) VALUES ('l1', 'brand_alpha', 'c1', 'f2', 'PAUSED', '2026-01-01T00:00:00Z');`);
 
 let n = 0, bad = 0;
 const check = async (name, fn) => { try { await fn(); n++; console.log('PASS ', name); } catch (e) { bad++; console.log('FAIL ', name, '\n   ', e.stack.split('\n').slice(0, 4).join('\n   ')); } };
@@ -130,7 +134,8 @@ await check('the Slack post: head with count, brands and money; owner tagged; to
   const lines = m.text.split('\n');
   assert.equal(lines[0], '*Buyer list: 8 to do across 2 brands, $4.9K at stake*');
   assert.equal(lines[1], 'Owner: <@U_COLE>');
-  assert.equal(lines[2], '1. *Alpha*: Cut the ad set, "Set 0" ($1,000 at stake)');
+  assert.equal(lines[2], 'Launch today: 1 card (Alpha)');
+  assert.equal(lines[3], '1. *Alpha*: Cut the ad set, "Set 0" ($1,000 at stake)');
   assert.equal(lines.filter(l => /^\d\. /.test(l)).length, 5);
   assert.match(m.text, /Also 1 card ready to launch \(3 approved ads\)\./);
   assert.match(m.text, /_and 3 more in Locus_/);
@@ -158,10 +163,87 @@ await check('the tick: nothing before the morning hour; ONE post a day to the bu
 
 await check('settings: owner, channel, post switch; bad input refused', async () => {
   const s = await saveBuyerSettings(env, { buyerOwner: 'Ahsan', buyerChannel: '', buyerPost: false });
-  assert.deepEqual(s, { buyerOwner: 'Ahsan', buyerChannel: DEFAULT_BUYER_CHANNEL, buyerPost: false });
+  assert.deepEqual(s, { buyerOwner: 'Ahsan', buyerChannel: DEFAULT_BUYER_CHANNEL, buyerPost: false, launchDays: 'mon,thu' });
+  assert.equal((await saveBuyerSettings(env, { launchDays: ['thu', 'Tue'] })).launchDays, 'tue,thu', 'week order');
+  await assert.rejects(saveBuyerSettings(env, { launchDays: 'someday' }));
+  await saveBuyerSettings(env, { launchDays: 'mon,thu' });
   await assert.rejects(saveBuyerSettings(env, { buyerChannel: '#daily-briefs' }));
   await assert.rejects(saveBuyerSettings(env, { buyerOwner: '  ' }));
   assert.equal((await buyerSettings(env)).buyerOwner, 'Ahsan');
+});
+
+await check('launch days: Monday and Thursday by default; the next one is never today', () => {
+  assert.equal(normDays('Mon, thursday'), 'mon,thu'); assert.equal(normDays(''), null);
+  assert.ok(isLaunchDay('2026-10-26', 'mon,thu')); assert.ok(!isLaunchDay('2026-10-27', 'mon,thu')); assert.ok(isLaunchDay('2026-10-29', 'mon,thu'));
+  assert.equal(nextLaunchDay('2026-10-26', 'mon,thu'), '2026-10-29'); assert.equal(nextLaunchDay('2026-10-29', 'mon,thu'), '2026-11-02');
+});
+
+/* c4: Ready, one approved ad, its own date Wed Oct 28. c5: Review, dated Nov 27 (BFCM). */
+db.exec(`INSERT INTO p_work_file VALUES ('f5', 'c4', '1', 1, 'image/png', 'e', '2026-10-20', 'version', NULL);
+  INSERT INTO p_work_comment VALUES ('k5', 'c4', 'f5', 'approval', NULL, NULL, 'Cole', '2026-10-21');
+  INSERT INTO p_br_batch (id, act_id, num, title) VALUES ('c4', 'brand_beta', '90', 'Dated drop'), ('c5', 'brand_beta', '91', 'Black Friday');`);
+BOARD.push({ id: 'c4', act_id: 'brand_beta', brand: 'Beta Socks', num: '90', title: 'Dated drop', board: 'ready', launch_on: '2026-10-28' },
+  { id: 'c5', act_id: 'brand_beta', brand: 'Beta Socks', num: '91', title: 'Black Friday', board: 'review', launch_on: '2026-11-27' });
+
+await check('a Ready card is a Launch row only on a launch day; any other day it waits for the next one (quiet line), a dated card waits for its date', async () => {
+  today = '2026-10-27';   // Tuesday
+  let l = await buildBuyerList(env, d, { act: 'all' });
+  assert.ok(!l.rows.some(r => r.kind === 'launch'), 'no launch to-dos on a Tuesday');
+  assert.equal(l.launch_today, false);
+  assert.deepEqual(l.next_launch, { date: '2026-10-29', day: 'Thursday', n: 1, n_ads: 1 });
+  assert.deepEqual(l.scheduled.map(s => [s.card_id, s.date, s.dated, s.n_ads, s.board]),
+    [['c4', '2026-10-28', true, 1, 'ready'], ['c1', '2026-10-29', false, 1, 'ready'], ['c5', '2026-11-27', true, null, 'review']]);
+  today = '2026-10-28';   // Wednesday, c4's own date
+  l = await buildBuyerList(env, d, { act: 'all' });
+  assert.deepEqual(l.rows.filter(r => r.kind === 'launch').map(r => [r.card_id, r.launch_on]), [['c4', '2026-10-28']], 'a dated card goes out on its date, any weekday');
+  today = '2026-10-29';   // Thursday
+  l = await buildBuyerList(env, d, { act: 'all' });
+  assert.deepEqual(l.rows.filter(r => r.kind === 'launch').map(r => r.card_id).sort(), ['c1', 'c4'], 'launch day: both, and the past-dated one stays until launched');
+  assert.deepEqual(l.scheduled.map(s => s.card_id), ['c5']);
+  today = '2026-10-26';
+});
+
+const realToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago' }).format(new Date());
+const realYest = new Date(Date.parse(realToday + 'T12:00:00Z') - 864e5).toISOString().slice(0, 10);
+await check('Launched: p_launch of the last 30 days, newest first, with brand, ad, ad set, who, status and the card; yesterday counted for the post', async () => {
+  const at1 = new Date(Date.parse(realYest + 'T17:00:00Z')).toISOString(), at2 = new Date(Date.parse(realYest + 'T18:00:00Z')).toISOString();
+  db.prepare(`INSERT INTO p_launch (id, act, meta_act, batch_id, num, ad_id, ad_name, adset_id, adset_name, status, eff_status, checked_at, by, at) VALUES
+    ('l2', 'brand_alpha', 'act_1', 'c1', '415', '9001', '415-1 | Still', '77', 'Testing', 'PAUSED', 'PAUSED', ?1, 'cole@go-mobius-digital.com', ?1),
+    ('l3', 'brand_beta', 'act_2', NULL, NULL, '9002', '90-1 | Video', '78', 'Testing', 'ACTIVE', 'ACTIVE', ?2, 'ahsan@x', ?2),
+    ('l4', 'brand_beta', 'act_2', NULL, NULL, '9003', 'old', '78', 'Testing', 'PAUSED', 'PAUSED', NULL, 'x', '2026-01-02T00:00:00Z')`.replace(/\?(\d)/g, ':p$1')).run({ p1: at1, p2: at2 });
+  const rows = await launchedRows(env, ACCTS);
+  assert.deepEqual(rows.map(r => [r.id, r.brand, r.ad_name, r.adset, r.card]), [['l3', 'Beta Socks', '90-1 | Video', 'Testing', null], ['l2', 'Alpha Golf', '415-1 | Still', 'Testing', '#415 Gift hook']]);
+  assert.equal(rows[1].checked, false, 'never read again = created paused'); assert.match(rows[0].ads_manager, /act=2&selected_ad_ids=9002/);
+  assert.equal((await launchedRows(env, ACCTS.slice(1))).length, 1, 'only the brands asked for');
+  today = realToday;
+  const l = await buildBuyerList(env, d, { act: 'all' });
+  assert.deepEqual(l.launched_yesterday, { n: 2, brands: ['Beta Socks', 'Alpha Golf'] });
+  today = '2026-10-26';
+});
+
+await check('the daily post: "Launched yesterday" and "Launch today" lines when they apply, none otherwise', async () => {
+  const rows = [{ kind: 'cut', act_id: 'a', brand: 'Alpha', name: 'Set', action: 'Cut the ad set', stake: 100, currency: 'USD' },
+    { kind: 'launch', act_id: 'a', brand: 'Alpha', name: '#415 Gift hook', action: 'Launch 2 approved ads', stake: 0, n_ads: 2 },
+    { kind: 'launch', act_id: 'b', brand: 'Beta', name: '#90 Dated', action: 'Launch 1 approved ad', stake: 0, n_ads: 1 }];
+  const L = { n: 3, n_brands: 2, stake: 100, currency: 'USD', owner: 'Cole', rows, launched_yesterday: { n: 4, brands: ['Alpha', 'Beta'] } };
+  const lines = buyerMessage(L, null).text.split('\n');
+  assert.equal(lines[2], 'Launched yesterday: 4 ads (Alpha, Beta)');
+  assert.equal(lines[3], 'Launch today: 2 cards (Alpha, Beta)');
+  assert.match(buyerMessage(L, null).blocks[0].text.text, /Launch today/);
+  const quiet = buyerMessage({ ...L, rows: rows.slice(0, 1), launched_yesterday: { n: 0, brands: [] } }, null).text;
+  assert.ok(!/Launched yesterday|Launch today/.test(quiet));
+  assert.ok(!/\u2014/.test(lines.join('\n')), 'no em dashes');
+});
+
+await check('a single ad or carousel launch moves its card to Live only from Ready or Review', async () => {
+  db.exec(`INSERT INTO p_br_batch (id, act_id, board_stage, stage) VALUES ('m1', 'brand_alpha', 'ready', 'production'), ('m2', 'brand_alpha', 'live', 'live'), ('m3', 'brand_alpha', NULL, 'production');
+    UPDATE p_br_batch SET asana_section = 'Ready to launch' WHERE id = 'm3';`);
+  const moved = [];
+  const md = { moveCard: async (e, id) => { moved.push(id); return { to: 'live', asana: { moved: true } }; } };
+  assert.deepEqual(await cardToLive(env, md, 'm1', 'x'), { to: 'live', asana: { moved: true } });
+  assert.equal(await cardToLive(env, md, 'm2', 'x'), null);
+  await cardToLive(env, md, 'm3', 'x'); await cardToLive(env, md, null, 'x');
+  assert.deepEqual(moved, ['m1', 'm3']);
 });
 
 console.log(`\n${n}/${n + bad} passed`);

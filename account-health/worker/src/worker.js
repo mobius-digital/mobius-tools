@@ -81,7 +81,7 @@ import { handleLeaks, leaksFor } from './leaks.js';
 import { adsInvite as googleAdsInvite } from './google.js';
 import { useFetch as googleFetch, googleProbe, autoMatch as googleMatch, linkFor as googleLink, setLink as googleSetLink, websiteReport, websiteDrill, searchReport, adsReport, adsAds, adsTerms, adsChanges, enableApis, adsAccounts, adsCampaignWrite } from './google.js';
 import { locusWrite as metaLocusWrite, locusUndo as metaLocusUndo, metaLive, metaActs } from './metawrite.js';
-import { handleLaunch } from './launch.js';
+import { handleLaunch, refreshStatus as launchRefresh } from './launch.js';
 import { handleBuyer, buyerPostTick, buyerSettings } from './buyerlist.js';
 import { dataTools } from './stratdata.js';
 import { extraTools } from './allwrite.js';
@@ -7323,7 +7323,9 @@ function buyerDeps() {
   return { ...base, listAccounts, mintSession, canAfford: n => subCanAfford(n), tagOf: (env, name) => tagOf(env, base, name),
     listBrands: async env => (await listAccounts(env, true)).map(a => ({ act_id: a.act_id, name: a.name, slack_channel: a.slack_channel || null })),
     listBoard: (env, o) => listBoard(env, { centralDate, listBrands: async e => (await listAccounts(e, true)).map(a => ({ act_id: a.act_id, name: a.name })) }, o),
-    dueOff: (env, act) => testMinimumsDue(env, act) };
+    dueOff: (env, act) => testMinimumsDue(env, act),
+    /* the Launched section's live Meta status (launch.js refreshStatus: one ads read per account) */
+    launchStatus: (env, rows) => launchRefresh(env, { xfetch, listAccounts, getSetting, putSetting }, rows) };
 }
 /* Every way a task gets done (the Locus tick, the Slack Done button, a ✅) ends in markDone; the card strikes its line. */
 onActionDone((env, row) => cardActionDone(env, cardDeps(), row));

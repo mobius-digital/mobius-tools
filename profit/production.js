@@ -1028,9 +1028,10 @@ async function render(host, first) {
   /* THE LOOP (2026-10-21): a Launched card reads the ad wall. Its ads (p_launch, matched on the card number), their spend and
      sales in the period, and the verdicts already filed, on the card itself. */
   if (D.act !== 'all') liveResults(D.act);
-  if (!OPENED) {
-    OPENED = true;
-    const id = new URLSearchParams(location.search).get('card') || window.PD_CARD;
+  /* window.PD_CARD (search, the Buyer list) opens its card every time it is set, not only on the first visit */
+  if (!OPENED || window.PD_CARD) {
+    const id = window.PD_CARD || (!OPENED && new URLSearchParams(location.search).get('card'));
+    OPENED = true; window.PD_CARD = null;
     if (id) openCard(id);
   }
 }
