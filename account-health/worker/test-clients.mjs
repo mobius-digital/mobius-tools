@@ -505,6 +505,13 @@ await check('the 2026-10-27 audit: act_id alone is written back as act (no fall-
   assert.notEqual((await ah(CLIENT, 'GET', '/api/daycheck/now?act=brand_alpha&fresh=1&web=1')).status, 403);
 });
 
+await check('the client call screen (2026-10-27): the team gets the Ads step (review, approved, went live) for the brand; a client login never opens it', async () => {
+  const r = await ah(OWNER, 'GET', '/api/calls/screen?kind=client&act=brand_alpha');
+  assert.equal(r.status, 200, JSON.stringify(r.j).slice(0, 300));
+  assert.ok(r.j.ads && Array.isArray(r.j.ads.review) && Array.isArray(r.j.ads.approved) && Array.isArray(r.j.ads.live), 'ads step keys');
+  assert.equal((await ah(CLIENT, 'GET', '/api/calls/screen?kind=client&act=brand_alpha')).status, 403);
+});
+
 await check('the command center answers the team (every brand with its reasons) and a limited teammate only their brands', async () => {
   const c = await pf(OWNER, 'GET', '/api/hub/command?act=all');
   assert.equal(c.status, 200, JSON.stringify(c.j).slice(0, 300));

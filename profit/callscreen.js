@@ -196,6 +196,49 @@
       body.cs-present main{padding-top:24px!important}
       body.cs-present .cs{max-width:1180px}
       body.cs-present main .ph .ph-crumb,body.cs-present main .ph .ph-menu-w{display:none}
+      /* THE CLIENT DECK (2026-10-27): one big slide per step, shared on the call. Cole: "it should be like I'm presenting this". */
+      .cs.cs-deck .cs-sec{padding:26px 30px;gap:18px}
+      .cs.cs-deck .cs-sec header h3{font-size:24px;letter-spacing:-.015em}
+      .cs.cs-deck .cs-sec header .cap{font-size:14px}
+      .cs.cs-deck .cs-sub{font-size:13px}
+      .cs.cs-deck .cs-tile{padding:16px 18px 14px}
+      .cs.cs-deck .cs-tile .l{font-size:13px}
+      .cs.cs-deck .cs-tile .v{font-size:32px}
+      .cs.cs-deck .cs-tile .sub{font-size:13px}
+      .cs.cs-deck table.cs-tbl{font-size:15px}.cs.cs-deck .cs-tbl td{height:42px}
+      .cs.cs-deck .ads{grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:12px}
+      .cs.cs-deck .ad .n{font-size:13px}
+      .cs.cs-deck textarea.big{font-size:19px;line-height:1.5;min-height:200px;padding:14px 16px}
+      .cs.cs-deck .lines{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+      .cs.cs-deck .lines li{display:flex;gap:16px;align-items:flex-start;font-size:20px;line-height:1.4;color:var(--ink);padding:12px 0;border-top:1px solid var(--line)}
+      .cs.cs-deck .lines li:first-child{border-top:0}
+      .cs.cs-deck .lines li i{font-style:normal;flex:0 0 32px;height:32px;border-radius:50%;background:var(--ink);color:var(--surface);display:grid;place-items:center;font-size:14px;font-weight:600;margin-top:2px}
+      .cs.cs-deck .chk li{font-size:17px;min-height:48px}
+      .cs.cs-deck .chk li .o{font-size:13px}
+      .cs.cs-deck .cs-empty{font-size:17px}
+      .cs.cs-deck .row .t{font-size:17px}
+      .cs.cs-deck .cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+      .cs.cs-deck .cal .dow{font-size:12px;font-weight:600;color:var(--muted);text-align:center;padding:0 0 4px;text-transform:uppercase;letter-spacing:.04em}
+      .cs.cs-deck .cal .day{min-height:88px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--bg);padding:6px 7px;display:flex;flex-direction:column;gap:4px;min-width:0}
+      .cs.cs-deck .cal .day.today{border-color:var(--brand);box-shadow:inset 0 0 0 1px var(--brand)}
+      .cs.cs-deck .cal .day.other{opacity:.55}
+      .cs.cs-deck .cal .day .d{font-size:12px;font-weight:600;color:var(--muted);font-variant-numeric:tabular-nums}
+      .cs.cs-deck .cal .day.today .d{color:var(--brand)}
+      .cs.cs-deck .cal .ev{font-size:12px;line-height:1.3;font-weight:600;color:var(--ink);background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--r-sm);padding:4px 6px;overflow:hidden;min-width:0}
+      .cs.cs-deck .cal .ev.tent{border-style:dashed;font-weight:500;color:var(--ink-2)}
+      .cs.cs-deck .cal .ev.sale{background:var(--good-bg);border-color:transparent}
+      .cs.cs-deck .cal .ev small{display:block;font-weight:500;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .cs.cs-deck .cal .ev.cont{opacity:.7}
+      .cs.cs-deck .cal .ev.quiet{height:10px;padding:0;border-width:1px;background:var(--line);border-color:transparent;opacity:.6;margin-top:7px}
+      .cs.cs-deck .cal .ev.quiet.sale{background:var(--good-bg);opacity:1}
+      .cs.cs-deck .cal .ev.quiet.tent{background:transparent;border:1px dashed var(--line-strong)}
+      .cs.cs-deck .cal-list{display:none;list-style:none;margin:0;padding:0}
+      .cs.cs-deck .cal-list li{display:flex;flex-direction:column;gap:2px;padding:10px 0;border-top:1px solid var(--line);font-size:15px}
+      .cs.cs-deck .cal-list li:first-child{border-top:0}
+      .cs.cs-deck .cal-list li span{font-size:13px;color:var(--muted)}
+      .cs.cs-deck .cal-list li.tent b{font-weight:500;color:var(--ink-2)}
+      @media (max-width:600px){.cs.cs-deck .cal{display:none}.cs.cs-deck .cal-list{display:block}}
+      @media (max-width:760px){.cs.cs-deck .cs-sec{padding:16px}.cs.cs-deck .cs-sec header h3{font-size:20px}.cs.cs-deck .lines li{font-size:17px}.cs.cs-deck .cal .day{min-height:56px;padding:4px}.cs.cs-deck .cal .ev{font-size:10px;padding:2px 4px}.cs.cs-deck .cal .ev small{display:none}}
       @media (max-width:760px){.cs .cs-sec{padding:14px}.cs .row,.cs .row.asks{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}.cs .row .t{flex:1 1 100%}.cs .row .x{margin-left:auto}.cs .deal label input{width:100%}}
     `;
     document.head.appendChild(st);
@@ -407,37 +450,73 @@
   }
 
   /* ======================= CLIENT ======================= */
-  const CLIENT_STEPS = [{ id: 'news', name: 'Their news', mins: 5 }, { id: 'read', name: 'Last week', mins: 10 }, { id: 'week', name: 'This week', mins: 5 }, { id: 'asks', name: 'Requests', mins: 5 }, { id: 'coming', name: 'Coming up', mins: 5 }, { id: 'finish', name: 'Finish', mins: 2 }];
+  /* 25 minutes in a 30-minute slot (Cole, 2026-10-27); the Ads step shows what they review, what they approved, what went live. */
+  const CLIENT_STEPS = [{ id: 'news', name: 'Their news', mins: 3 }, { id: 'read', name: 'Last week', mins: 7 }, { id: 'ads', name: 'Ads', mins: 5 }, { id: 'week', name: 'This week', mins: 3 }, { id: 'asks', name: 'Requests', mins: 3 }, { id: 'coming', name: 'Coming up', mins: 2 }, { id: 'finish', name: 'Finish', mins: 2 }];
   function clientStep(id) {
     STATE.asks = STATE.asks || []; STATE.promised = STATE.promised || [];
     const wk = D.week || {};
-    if (id === 'news') return sec('Their news', 'goes to the team in Slack',
-      `<textarea data-news style="min-height:140px" placeholder="Anything launching, stock problems, what customers say, anything changed on their side">${esc(STATE.news || '')}</textarea>`);
+    if (id === 'news') return sec('What is new on your side?', 'Launches, stock, what customers are saying, anything that changed. Typed here, it goes to our team.',
+      `<textarea data-news class="big" placeholder="New colour drops Nov 10. Polos are low in large. Customers keep asking for a hat.">${esc(STATE.news || '')}</textarea>`);
     if (id === 'read') {
       const per = STATE.period === 'month' && D.month ? 'month' : 'week';
       const r = per === 'month' ? D.month : D.week;
       const label = r ? (r.period === 'monthly' ? dt(r.period_start).toLocaleDateString('en-US', { month: 'long', timeZone: 'UTC' }) : `${short(r.period_start)} to ${short(r.period_end)}`) : '';
       const tog = D.month && D.week ? `<div class="seg"><button type="button" class="${per === 'week' ? 'on' : ''}" data-per="week">Last week</button><button type="button" class="${per === 'month' ? 'on' : ''}" data-per="month">Last month</button></div>` : '';
-      return sec(per === 'month' ? 'How last month went' : 'How last week went', r ? `from the report they got, ${label}` : 'from the weekly report',
+      return sec(per === 'month' ? 'How last month went' : 'How last week went', r ? `${label}, from the report you got` : 'from the weekly report',
         (r && r.status !== 'sent' ? '<p class="warnline">This report has not been sent to them yet.</p>' : '') + tog + readBody(r, D.act_id));
     }
-    if (id === 'week') return `${sec('This week', 'from their report', (wk.this_week || []).length ? `<ul class="chk">${wk.this_week.map(x => `<li><span class="tx">${esc(x)}</span></li>`).join('')}</ul>` : empty('Nothing in the last report.'))}
-      ${sec('What we promise', 'goes to Tasks for our team',
-        `<div class="rows" data-list="promised" data-act="${esc(D.act_id)}">${rowsHtml(STATE.promised)}</div>
-        <input type="text" data-quick="promised" data-act="${esc(D.act_id)}" placeholder="Noma send the new offer ads Thursday">`)}`;
-    if (id === 'asks') return `${sec('Still waiting on the client', 'from their Requests',
-        ((D.asks || []).length ? `<ul class="chk">${D.asks.map(a => `<li><span class="tx">${esc(a.title)}</span><span class="o ${(Date.now() - Date.parse(a.created_at)) > 7 * 864e5 ? 'late' : ''}">asked ${short(a.created_at)}</span></li>`).join('')}</ul>` : empty('Nothing.'))
-        + ((D.approvals || []).length ? `<p class="cs-sub">Waiting for their OK</p><ul class="chk">${D.approvals.map(a => `<li><span class="tx">${esc(a.title)}</span><span class="o">sent ${short(a.created_at)}</span></li>`).join('')}</ul>` : ''))}
-      ${sec('What we need from the client', 'Things the client owes us. Becomes a Request they see.',
-        `<div class="rows" data-list="asks" data-act="${esc(D.act_id)}">${rowsHtml(STATE.asks, true)}</div>
-        <button type="button" class="add" data-add="asks" data-act="${esc(D.act_id)}">+ Request</button>`)}`;
-    if (id === 'coming') return sec('Coming up', 'from the Calendar, the next five weeks',
-      (D.coming || []).length ? `<ul class="chk">${D.coming.map(e => `<li><span class="tx"><b>${md(e.start)}</b> · ${esc(e.name)}${e.offer ? `<br><span style="color:var(--ink-2);font-size:13px">${esc(e.offer)}</span>` : ''}</span><span class="o ${e.confirmed ? '' : 'late'}">${e.confirmed ? 'Confirmed' : 'Not confirmed'}</span></li>`).join('')}</ul>` : empty('Nothing on the calendar.'));
+    if (id === 'ads') {
+      const A = D.ads || { review: [], approved: [], live: [] };
+      const cardBtn = (c, cap) => `<button type="button" class="ad" data-editbrief="${esc(c.id)}" title="Open it"><div class="th" ${c.thumb ? `style="background-image:url('${esc(c.thumb)}')"` : ''}>${c.thumb ? '' : esc(c.format || 'Ad')}</div><div class="n">#${esc(c.num)} ${esc(c.title)}</div><div class="s">${cap(c)}</div></button>`;
+      const ago = c => c.since ? `in review since ${md(c.since)}` : '';
+      return `${sec('Ads for you to look at', 'Open one to see them. You approve or ask for changes on the card.',
+          A.review.length ? `<div class="ads">${A.review.map(c => cardBtn(c, x => `${x.versions ? plural(x.versions, 'version') + ' · ' : ''}${ago(x)}`)).join('')}</div>` : empty('Nothing waiting on you.'))}
+        ${sec('Approved, going live', 'what you said yes to',
+          A.approved.length ? `<div class="ads">${A.approved.map(c => cardBtn(c, x => x.launch_on ? `live ${md(x.launch_on)}` : 'launch date not set')).join('')}</div>` : empty('Nothing approved and waiting.'))}
+        ${sec('Went live', 'the last two weeks',
+          A.live.length ? `<ul class="chk">${A.live.map(r => `<li><span class="tx">${esc(r.name)}${r.card ? `<br><span style="color:var(--ink-2);font-size:13px">${esc(r.card)}</span>` : ''}</span><span class="o">${md(r.day)}${r.status && r.status !== 'ACTIVE' ? ` · ${esc(String(r.status).toLowerCase().replace(/_/g, ' '))}` : ''}</span></li>`).join('')}</ul>` : empty('Nothing launched in the last two weeks.'))}`;
+    }
+    if (id === 'week') {
+      /* The plan = the "This week" lines of the report they got, plus anything sent here from Leaks ("Put it on the call").
+         Nothing is typed on this slide: Fireflies writes the notes and Cole approves them after the call (Work > Meetings). */
+      const lines = [...(wk.this_week || []), ...(STATE.promised || []).filter(x => x.text && x.on !== false).map(x => x.text)];
+      return sec('What we are doing this week', lines.length ? 'the plan from your weekly report' : 'nothing planned in the last report yet',
+        lines.length ? `<ol class="lines">${lines.map((x, i) => `<li><i>${i + 1}</i><span>${esc(x)}</span></li>`).join('')}</ol>` : empty('Say it on the call; the notes catch it and it lands in your next report.'));
+    }
+    if (id === 'asks') {
+      const open = (D.asks || []).map(a => `<li><span class="tx">${esc(a.title)}</span><span class="o ${(Date.now() - Date.parse(a.created_at)) > 7 * 864e5 ? 'late' : ''}">asked ${short(a.created_at)}</span></li>`);
+      const ok = (D.approvals || []).map(a => `<li><span class="tx">${esc(a.title)}</span><span class="o">your OK, sent ${short(a.created_at)}</span></li>`);
+      const all = [...open, ...ok];
+      return sec('What we need from you', 'Everything open on your Requests page, and anything new we agree today. New ones appear there when the call ends.',
+        (all.length ? `<ul class="chk">${all.join('')}</ul>` : empty('Nothing open.'))
+        + `<div class="rows" data-list="asks" data-act="${esc(D.act_id)}">${rowsHtml(STATE.asks, true)}</div>
+        <button type="button" class="add" data-add="asks" data-act="${esc(D.act_id)}">+ Add one</button>`);
+    }
+    if (id === 'coming') return sec('The next five weeks', 'your calendar: drops, sales, sends. Dashed = not confirmed yet.', calendarGrid(D.coming || [], D.today));
     const recap = STATE.recap != null ? STATE.recap : recapText();
-    return `${D.has_client_channel ? sec('Recap', 'goes to their Slack channel when ticked',
+    return `${D.has_client_channel ? sec('The recap', 'goes to your Slack channel when ticked. Our notes from the call follow once we have checked them.',
         `<textarea data-recap style="min-height:140px">${esc(recap)}</textarea>
         <label style="display:flex;gap:8px;align-items:center;font-size:14px"><input type="checkbox" data-postrecap ${STATE.post_recap ? 'checked' : ''} style="width:16px;height:16px;accent-color:var(--brand);margin:0"> Post it</label>`) : ''}
-      ${sec('Finish', 'promises to Tasks, requests to their Requests page, their news to Slack', `<div class="cs-acts"><button type="button" class="btn pri" data-finish ${BUSY ? 'disabled' : ''}>Finish</button></div>`)}`;
+      ${sec('That is the call', 'Finish sends the new requests to your Requests page and your news to our team. The notes come from the recording.', `<div class="cs-acts"><button type="button" class="btn pri" data-finish ${BUSY ? 'disabled' : ''}>Finish</button></div>`)}`;
+  }
+  /* Five weeks from this week's Monday, the brand's dates placed on their days (a multi-day sale runs across its days). */
+  function calendarGrid(events, today) {
+    const t0 = dt(today || new Date().toISOString()); const dow = (t0.getUTCDay() + 6) % 7;
+    const start = new Date(t0); start.setUTCDate(t0.getUTCDate() - dow);
+    const key = d => d.toISOString().slice(0, 10);
+    const cells = [];
+    for (let i = 0; i < 35; i++) { const d = new Date(start); d.setUTCDate(start.getUTCDate() + i); cells.push(d); }
+    const onDay = k => events.filter(e => e.start && (e.end ? (k >= e.start && k <= e.end) : k === e.start));
+    const todayK = key(t0);
+    const head = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => `<div class="dow">${d}</div>`).join('');
+    const days = cells.map(d => {
+      const k = key(d), evs = onDay(k), first = d.getUTCDate() === 1 || k === key(cells[0]);
+      const ev = e => { const cont = !!e.end && k !== e.start; const quiet = cont && d.getUTCDay() !== 1; const sale = /sale|offer|promo|black|cyber|deal/i.test(`${e.kind || ''} ${e.name || ''}`);
+        return `<div class="ev ${e.confirmed ? '' : 'tent'} ${sale ? 'sale' : ''} ${cont ? 'cont' : ''} ${quiet ? 'quiet' : ''}" title="${esc(e.name)}${e.offer ? ` · ${esc(e.offer)}` : ''}">${quiet ? '' : esc(e.name)}${e.offer && !cont ? `<small>${esc(e.offer)}</small>` : ''}</div>`; };
+      return `<div class="day ${k === todayK ? 'today' : ''} ${d < t0 ? 'other' : ''}"><span class="d">${first ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }) : d.getUTCDate()}</span>${evs.map(ev).join('')}</div>`;
+    }).join('');
+    const list = events.filter(e => e.start).sort((a, b) => a.start < b.start ? -1 : 1).map(e => `<li class="${e.confirmed ? '' : 'tent'}"><b>${esc(e.name)}</b><span>${md(e.start)}${e.end && e.end !== e.start ? ` to ${md(e.end)}` : ''}${e.offer ? ` · ${esc(e.offer)}` : ''}${e.confirmed ? '' : ' · not confirmed'}</span></li>`).join('');
+    return `<div class="cal">${head}${days}</div><ul class="cal-list">${list}</ul>` + (events.length ? '' : empty('Nothing on the calendar for the next five weeks.'));
   }
   function recapText() {
     const wk = (D.week && D.week.this_week) || [];
@@ -534,7 +613,7 @@
   function willHtml() {
     const list = (parts, tail) => { const p = parts.filter(Boolean); if (!p.length && !tail) return 'Finish will close the call'; if (tail) return `Finish will ${p.length ? 'make ' + p.join(', ') + ' and ' : ''}${tail}`; return 'Finish will make ' + (p.length > 1 ? p.slice(0, -1).join(', ') + ' and ' + p[p.length - 1] : p[0]); };
     if (KIND === 'monday') { const c = mondayCounts(); return list([c.briefs ? `<b>${plural(c.briefs, 'brief')}</b>` : '', c.jobs ? `<b>${plural(c.jobs, 'task')}</b>` : '', c.asks ? `<b>${plural(c.asks, 'request')}</b>` : ''], 'post the recaps'); }
-    if (KIND === 'client') { const prom = (STATE.promised || []).filter(x => x.text).length, asks = (STATE.asks || []).filter(x => x.text && x.on !== false).length; return list([prom ? `<b>${plural(prom, 'task')}</b>` : '', asks ? `<b>${plural(asks, 'request')}</b>` : ''], STATE.post_recap && D.has_client_channel ? 'post the recap' : 'tell the team'); }
+    if (KIND === 'client') { const asks = (STATE.asks || []).filter(x => x.text && x.on !== false).length; return list([asks ? `<b>${plural(asks, 'request')}</b>` : ''], STATE.post_recap && D.has_client_channel ? 'post the recap' : 'tell the team'); }
     const n = kickList().filter(c => (STATE.done || {})[c.id] || c.kickoff_at).length;
     return `Finish will close the kickoff with <b>${plural(n, 'brief')}</b> moved to Making`;
   }
@@ -557,7 +636,7 @@
     const title = KIND === 'client' ? esc(D.name) : TITLE[KIND];
     const finished = D.call && D.call.status === 'finished';
     const last = POS === steps().length - 1;
-    host.innerHTML = `${headHtml(title)}<div class="v2 cs" id="csRoot">
+    host.innerHTML = `${headHtml(title)}<div class="v2 cs${KIND === 'client' ? ' cs-deck' : ''}" id="csRoot">
       ${finished ? finishedHtml() : `<nav class="cs-steps" id="csSteps" aria-label="Steps">${stepsHtml()}</nav>
         <div id="csMain" style="display:flex;flex-direction:column;gap:16px">${mainHtml()}</div>
         <div class="cs-bar"><div class="r"><button type="button" class="btn" id="csPrev" ${POS === 0 ? 'disabled' : ''}>← Back</button><span class="where" id="csWhere">${whereHtml()}</span><span class="cs-saved" id="csSaved"></span><button type="button" class="btn pri" id="csNext" ${last ? 'data-finish' : ''}>${nextLabel()}</button></div><div class="cs-will" id="csWill">${willHtml()}</div></div>`}

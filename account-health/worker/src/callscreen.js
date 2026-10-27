@@ -45,6 +45,7 @@ import { SKIP } from './moved.js';
 import { calendarData } from './calendar.js';
 import { listBoard, setField, moveCard } from './production.js';
 import { addComment, ensureWork } from './prodwork.js';
+import { launchedRows } from './buyerlist.js';
 
 const HAIKU = 'claude-haiku-5-5';
 const SONNET = 'claude-sonnet-5-5';
@@ -236,8 +237,16 @@ async function clientData(env, d, act, who) {
   const [wk, mo, wkAny] = await Promise.all([latestReport(env, act, 'weekly', { sentOnly: true }), latestReport(env, act, 'monthly', { sentOnly: true }), latestReport(env, act, 'weekly')]);
   const req = await listRequests(env, act).catch(() => ({ items: [] }));
   const cal = await calendarData(env, { act, from: today, to: addDays(today, 35), lite: true }).catch(() => ({ items: [] }));
+  /* The Ads step (2026-10-27): what the client is asked to look at (Production cards in Review), what they approved and
+     is going live (Ready), and what went live in the last 14 days (p_launch). The client is watching, so cards only. */
+  const board = await listBoard(env, d, { act }).catch(() => ({ cards: [] }));
+  const cardOut = c => ({ id: c.id, num: c.num, title: c.title, board: c.board, format: c.format || '', owner: c.assignee || '', due: c.due || '', since: c.since || '', thumb: c.thumb || null, versions: c.versions || 0, launch_on: c.launch_on || '', needs_client: c.needs_client || '', approved_by: c.approved_by || null });
+  const cards = (board.cards || []).filter(c => !parked(c, today));
+  const live = (await launchedRows(env, [b], { days: 14 }).catch(() => [])).filter(r => !['ARCHIVED', 'DELETED'].includes(r.eff_status || ''));
   return {
     kind: 'client', today, act_id: act, name: b.name,
+    ads: { review: cards.filter(c => c.board === 'review').map(cardOut), approved: cards.filter(c => c.board === 'ready').map(cardOut),
+      live: live.slice(0, 30).map(r => ({ id: r.id, name: r.ad_name || r.adset || 'Ad', day: r.day, card: r.card || '', status: r.eff_status || r.status || '', ads_manager: r.ads_manager })) },
     week: readOf(wk || wkAny), month: readOf(mo),
     asks: (req.items || []).filter(x => x.kind === 'ask' && x.status === 'open').map(x => ({ id: x.id, title: x.title, body: x.body, created_at: x.created_at })),
     approvals: (req.items || []).filter(x => x.kind === 'approval' && x.status === 'open').map(x => ({ id: x.id, title: x.title, created_at: x.created_at })),
