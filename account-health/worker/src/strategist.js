@@ -1145,11 +1145,14 @@ const BUILD_ACTIONS = (d) => {
 const SLACK_TOOLS = (d) => [{
   def: { name: 'draft_from_thread',
     description: 'Hand THIS Slack thread to the ideas pipeline: it opens every reference in the thread (TikTok / Reel / YouTube / Atria / Ad Library links, uploaded videos and images, Drive folders), does a teardown and posts a draft card here with buttons for the creator link, an Asana brief and Studio. Use it when the thread carries a reference and the ask is to turn it into ads, a brief or angles. `steer` = anything the person asked for that the pipeline should honour (e.g. "for Asana", "3 statics", "the Night Out line").',
-    input_schema: { type: 'object', properties: { steer: { type: 'string' } }, required: [] } },
+    input_schema: { type: 'object', properties: { steer: { type: 'string' }, brand: { type: 'string', description: 'The brand name this is for (e.g. "Dartee"). Always pass it: the pipeline cannot tell the brand in a channel that is not a brand internal channel.' } }, required: ['brand'] } },
   run: async (env, input, ctx) => {
     if (!ctx?.ev?.channel) return { is_error: true, text: 'Only from a Slack thread.' };
     const ev = ctx.ev;
-    const text = `${String(ev.text || '')} idea${input?.steer ? ' ' + clip(input.steer, 400) : ''}`;
+    /* 2026-10-27: the Strategist knew the brand but the pipeline only reads "for <brand>" or the channel, so a tag in a
+       non-internal channel (Dartee, Justin's thread) answered "I can't tell which brand". The brand rides in the text. */
+    const brand = input?.brand ? ` for ${clip(String(input.brand), 60)}.` : '';
+    const text = `${String(ev.text || '')} idea${input?.steer ? ' ' + clip(input.steer, 400) : ''}${brand}`;
     try {
       if (d.closeThread) await d.closeThread(env, ev.channel, ev.thread_ts || ev.ts).catch(() => {});
       await ideaStart(env, { ...ev, text, type: 'app_mention' }, null);
