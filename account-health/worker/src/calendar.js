@@ -77,7 +77,7 @@ async function ensure(env) {
 export async function teamOf(env, ids) {
   const out = {};
   const rows = ids.length ? (await env.DB.prepare(`SELECT act_id, key, value FROM p_season_answer WHERE key IN ('strategist','buyer','email_owner') AND act_id IN (${ids.map((_, i) => `?${i + 1}`).join(',')})`).bind(...ids).all().catch(() => ({ results: [] }))).results || [] : [];
-  for (const id of ids) out[id] = { strat: 'Ahsan', buyer: 'Ahsan', email: 'the email owner', cole: 'Cole' };
+  for (const id of ids) out[id] = { strat: 'Ahsan', buyer: 'Cole', email: 'the email owner', cole: 'Cole' };
   const short = v => String(v || '').split(/[.(,]/)[0].trim().slice(0, 40);
   for (const r of rows) { const t = out[r.act_id]; if (!t || !short(r.value) || /^unknown/i.test(r.value)) continue; if (r.key === 'strategist') t.strat = short(r.value); if (r.key === 'buyer') t.buyer = short(r.value); if (r.key === 'email_owner') t.email = short(r.value); }
   return out;
@@ -183,7 +183,7 @@ async function asanaDone(env, act, gids) {
 /* ---------- the countdown ---------- */
 function stepsFor(e, team, today, sig) {
   const kind = e.src === 'season' ? 'season' : e.kind;
-  const T = team[e.act] || { strat: 'Ahsan', buyer: 'Ahsan', email: 'the email owner', cole: 'Cole' };
+  const T = team[e.act] || { strat: 'Ahsan', buyer: 'Cole', email: 'the email owner', cole: 'Cole' };
   if (e.src === 'drop' || e.src === 'email') return [];
   return (STEPS[kind] || []).map(([key, label, off, role]) => {
     const due = key === 'assets' && e.assets_due ? e.assets_due : add(e.start, off);
