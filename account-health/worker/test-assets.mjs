@@ -88,4 +88,27 @@ assert.equal(rows.find(x => x.file_id === 'p9').name, 'hero-target.jpg', 'an ima
 assert.ok(!ids.some(x => x.startsWith('bad')), 'Agreements, Archive, NOT for USE and needs-edited folders are skipped');
 assert.equal(calls.filter(u => /'A' in parents/.test(decodeURIComponent(u))).length, 1, 'a shortcut loop back to a walked folder is not walked twice');
 assert.equal(r.files, 4);
-console.log('test-assets: 8 checks passed');
+/* ---------------- tagBacklog: the brand with the most untagged images gets tagged, within the budget ---------------- */
+db.exec(`INSERT INTO brands (id, slug, name, status, currency, tz, legacy_key, source) VALUES ('brand_tiny', 'tiny', 'Tiny', 'active', 'USD', 'America/Chicago', 'act_9', 'locus')`);   // brand_bonk is already there
+db.exec(`INSERT INTO p_asset (act_id, file_id, name, thumb_src, status) VALUES ('brand_tiny', 't1', 'one.jpg', 'https://t/t1=s220', 'new')`);
+const seen = [];
+const tagFetch = async (url, opts) => {
+  if (url.startsWith('https://api.anthropic.com/')) { seen.push('claude'); return J({ content: [{ type: 'text', text: '{"people":1,"setting":"golf course","shot":"full body","products":["Hat"],"wearing":["hat"],"colors":["white"],"description":"a golfer in a white hat"}' }], usage: { input_tokens: 900, output_tokens: 60 } }); }
+  if (/^https:\/\/t\//.test(url)) { seen.push('thumb'); return { ok: true, status: 200, headers: { get: () => 'image/jpeg' }, arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer }; }
+  return drive(url, opts);
+};
+assets.useFetch(tagFetch);
+const puts = [];
+const env2 = { ...env, ANTHROPIC_API_KEY: 'test', MEDIA: { put: async k => { puts.push(k); } } };
+let budget = 3;   // enough for three rounds of 2, then the gate closes
+const b = await assets.tagBacklog(env2, () => budget-- > 0, { batch: 2, max: 10 });
+assert.equal(b.error, undefined, b.error);
+assert.equal(b.rounds, 3, 'stops when the budget gate closes');
+assert.equal(b.tagged, 5, 'Bonk (4 new) is tagged before Tiny (1 new), five in total');
+assert.deepEqual(b.brands, { brand_bonk: 4, brand_tiny: 1 });
+assert.equal(db.prepare(`SELECT COUNT(*) n FROM p_asset WHERE status = 'new'`).get().n, 0, 'nothing left untagged');
+assert.equal(db.prepare(`SELECT setting FROM p_asset WHERE file_id = 'p1'`).get().setting, 'golf course');
+assert.equal(puts.length, 5, 'one thumbnail in R2 per tagged image');
+const again = await assets.tagBacklog(env2, () => true, { batch: 2, max: 10 });
+assert.equal(again.rounds, 0, 'an empty backlog does no work');
+console.log('test-assets: 16 checks passed');

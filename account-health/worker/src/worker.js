@@ -1,5 +1,5 @@
 import { useFetch as tiktokFetch, tiktokStatus, tiktokStart, tiktokCallback, tiktokReport, setTiktokLink } from './tiktok.js';
-import { useFetch as assetsFetch, syncAssets, tagAssets, listAssets, assetsTick, assetFile, removeLook } from './assets.js';
+import { useFetch as assetsFetch, syncAssets, tagAssets, listAssets, assetsTick, assetFile, removeLook, tagBacklog } from './assets.js';
 import { guardBrands, brandsFor, clientScope, isClientEmail } from './brandguard.js';
 import { handleCommand } from './command.js';
 import { handleAgency } from './agency.js';
@@ -7899,6 +7899,8 @@ const AH_APP = {
         // Ad-level brands the nightly could not finish because Meta rate-limited it.
         const adRetry = await adRetryPass(env).catch(e => ({ error: e.message }));
         if (adRetry) ran.adRetry = adRetry;
+        /* Last, on purpose: the photo library's untagged backlog gets whatever budget the hour left (assets.js tagBacklog). */
+        ran.assetBacklog = await tagBacklog(env, () => subCanAfford(120)).catch(e => ({ error: e.message }));
         await recordRun(env, 'lastHourly', ran);
       })());
     } else {

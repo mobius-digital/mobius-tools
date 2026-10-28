@@ -4678,3 +4678,8 @@ this goes for all things that go from the right side", and the Integrations pane
   brand, a social post refuses an upload key the brand does not own. test-clients.mjs 31/31. brand/tag ad ids stay
   unchecked on purpose: p_br_adtag is keyed by the brand's own act_id, nothing crosses. social/follow was already
   capped at 40 a brand.
+- **2026-10-28, tagging backlog:** `assetsTick` tags 20 images for ONE brand an hour (the stalest), so a 3,000-image
+  library (Dartee once "Cole x dartee" was added, 3,266 found / 159 tagged) would take months. New `tagBacklog`
+  (assets.js) runs LAST in the hourly cron and spends whatever subrequest budget is left (`subCanAfford(120)` per
+  25-image round, 300 an hour max) on the brand with the most untagged images. Untagged images never match a
+  library search by setting or product, so this is what makes a newly added folder usable. Test: test-assets.mjs.
