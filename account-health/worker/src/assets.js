@@ -269,6 +269,25 @@ export async function removeLook(env, act, id) {
   return { ok: !!r.meta?.changes };
 }
 
+/** Hourly, LAST in the hour (2026-10-28): whatever subrequest budget the other jobs left goes to the brand with the
+ *  most untagged images, 25 at a time, up to `max` an hour. Before this, a brand with a 3,000-image library (Dartee
+ *  after "Cole x dartee" was added) got 20 tags every eighth hour from assetsTick and would have taken months. */
+export async function tagBacklog(env, canAfford = () => true, { batch = 25, max = 300 } = {}) {
+  await ensure(env);
+  let tagged = 0, failed = 0, rounds = 0; const brands = {};
+  while (tagged + failed < max && canAfford()) {
+    const top = await env.DB.prepare(`SELECT p.act_id, COUNT(*) n FROM p_asset p JOIN brand_accounts b ON b.act_id = p.act_id AND b.active = 1
+      WHERE p.status = 'new' GROUP BY p.act_id ORDER BY n DESC LIMIT 1`).first().catch(() => null);
+    if (!top?.n) break;
+    const r = await tagAssets(env, top.act_id, Math.min(batch, max - tagged - failed)).catch(e => ({ error: e.message }));
+    rounds++;
+    if (r.error) return { tagged, failed, rounds, brands, error: r.error };
+    if (!(r.tagged + r.failed)) break;   // nothing moved: do not spin
+    tagged += r.tagged; failed += r.failed; brands[top.act_id] = (brands[top.act_id] || 0) + r.tagged;
+  }
+  return { tagged, failed, rounds, brands };
+}
+
 /** Hourly: the stalest brand (by last sync) gets a sync and a small tagging batch. */
 export async function assetsTick(env, canAfford = () => true) {
   await ensure(env);
