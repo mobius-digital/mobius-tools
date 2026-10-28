@@ -831,11 +831,13 @@ async function adDays(env, a, ids, model) {
 /* ---------- Paid > Meta ---------- */
 const META_COLS = `SUM(d.spend) spend, SUM(d.impressions) impr, SUM(d.reach) reach, SUM(d.link_clicks) clicks, SUM(d.clicks_all) clicks_all, SUM(d.add_to_cart) atc,
   SUM(d.purchases) p_ord, SUM(d.revenue) p_rev, SUM(d.video_3s) v3, SUM(d.video_thruplay) thru, SUM(d.video_plays) plays,
-  SUM(d.video_p25) p25, SUM(d.video_p50) p50, SUM(d.video_p75) p75, SUM(d.video_p100) p100`;
+  SUM(d.video_p25) p25, SUM(d.video_p50) p50, SUM(d.video_p75) p75, SUM(d.video_p100) p100, SUM(d.leads) leads`;
 function metaMetrics(r, attr) {
   const spend = num(r.spend), impr = num(r.impr), clicks = num(r.clicks), atc = num(r.atc);
   const ord = attr ? attr.ord : num(r.p_ord), rev = attr ? attr.rev : num(r.p_rev);
   return { spend, impressions: impr, reach: num(r.reach), clicks, atc, purchases: ord, revenue: rev, platform_purchases: num(r.p_ord), platform_revenue: num(r.p_rev),
+    /* Leads (2026-10-28, Cole: lead campaigns had no numbers): Meta's own lead count (instant forms + pixel leads), never TW. */
+    leads: num(r.leads), cpl: div(spend, num(r.leads)), lead_rate: div(num(r.leads), clicks),
     roas: div(rev, spend), cpa: div(spend, ord), cpm: div(spend * 1000, impr), ctr: div(clicks, impr), cpc: div(spend, clicks), cost_per_atc: div(spend, atc),
     atc_rate: div(atc, clicks), purchase_rate: div(ord, atc), frequency: div(impr, num(r.reach)),
     hook: num(r.v3) ? div(num(r.v3), impr) : null, hold: num(r.v3) ? div(num(r.thru), num(r.v3)) : null,
@@ -881,7 +883,7 @@ async function metaBrand(env, a, w, model, detail) {
     for (const [k, id] of [['camp', r.campaign_id], ['set', r.adset_id]]) { const b = prevBy[k][id] ||= { spend: 0, p_ord: 0, ord: 0 }; b.spend += num(r.spend); b.p_ord += num(r.p_ord); }
   }
   if (model !== 'platform') for (const r of prevAdIds || []) { const at = prevAttrAd[r.ad_id]; if (!at) continue; for (const [k, id] of [['camp', r.campaign_id], ['set', r.adset_id]]) { const b = prevBy[k][id] ||= { spend: 0, p_ord: 0, ord: 0 }; b.ord += at.ord; } }
-  const add = (t, r) => { for (const k of ['spend', 'impr', 'reach', 'clicks', 'clicks_all', 'atc', 'p_ord', 'p_rev', 'v3', 'thru', 'plays']) t[k] = (t[k] || 0) + num(r[k]); };
+  const add = (t, r) => { for (const k of ['spend', 'impr', 'reach', 'clicks', 'clicks_all', 'atc', 'p_ord', 'p_rev', 'v3', 'thru', 'plays', 'leads']) t[k] = (t[k] || 0) + num(r[k]); };
   const campMap = {};
   for (const r of adRows || []) {
     const cid = r.campaign_id || '?', sid = r.adset_id || '?';
@@ -893,7 +895,7 @@ async function metaBrand(env, a, w, model, detail) {
     s.ads.push({ id: r.ad_id, name: r.ad_name || r.ad_id, media_type: r.media_type || null, first_spend: r.first_spend_date || (r.created_time || '').slice(0, 10) || null, ...metaMetrics(r, model === 'platform' ? null : at) });
   }
   const pm = (b) => b ? { spend: b.spend, purchases: model === 'platform' ? b.p_ord : b.ord, cpa: div(b.spend, model === 'platform' ? b.p_ord : b.ord) } : null;
-  out.campaigns = Object.values(campMap).map(c => ({ id: c.id, name: c.name, objective: c.objective, status: c.status, budget: c.budget,
+  out.campaigns = Object.values(campMap).map(c => ({ id: c.id, name: c.name, objective: c.objective, obj: objKind(c.objective), status: c.status, budget: c.budget,
     ...metaMetrics(c.raw, model === 'platform' ? null : c.attr), prev: pm(prevBy.camp[c.id]),
     adsets: Object.values(c.sets).map(s => ({ id: s.id, name: s.name, status: s.status, budget: s.budget, min_spend: s.min_spend, goal: s.goal, ...metaMetrics(s.raw, model === 'platform' ? null : s.attr), prev: pm(prevBy.set[s.id]),
       ads: s.ads.sort((x, y) => y.spend - x.spend) })).sort((x, y) => y.spend - x.spend) }))
@@ -926,7 +928,7 @@ async function adGoalMap(env, accts) {
   for (const a of accts) {
     const R = rulesFor(a, doc[a.act_id] || null), m = R.goal_metric;
     out[a.act_id] = { metric: m, cpa: (m === 'cpa' ? goalOf(R, 'cpa') : R.target_cpa) || null, roas: (m === 'roas' ? goalOf(R, 'roas') : R.target_roas) || null,
-      ncpa: (m === 'ncpa' ? goalOf(R, 'ncpa') : +R.goal_ncpa) || null };
+      ncpa: (m === 'ncpa' ? goalOf(R, 'ncpa') : +R.goal_ncpa) || null, cpl: +R.goal_cpl || null };
   }
   return out;
 }
@@ -1139,10 +1141,11 @@ async function creativeBrand(env, a, w, model) {
      click starts journeys (top of funnel); one credited more on the last click closes them. */
   const fc = model === 'fullFirstClick' ? byAd : (await attrByAd(env, act, w.from, w.to, 'fullFirstClick', 'meta')).byAd;
   const lc = model === 'lastPlatformClick' ? byAd : (await attrByAd(env, act, w.from, w.to, 'lastPlatformClick', 'meta')).byAd;
-  const { results: camps } = await env.DB.prepare(`SELECT campaign_id, name FROM meta_campaigns WHERE act_id IN ${metaOf(1)}`).bind(act).all().catch(() => ({ results: [] }));
+  const { results: camps } = await env.DB.prepare(`SELECT campaign_id, name, objective FROM meta_campaigns WHERE act_id IN ${metaOf(1)}`).bind(act).all().catch(() => ({ results: [] }));
   const { results: setRows } = await env.DB.prepare(`SELECT adset_id, name FROM meta_adsets WHERE act_id IN ${metaOf(1)}`).bind(act).all().catch(() => ({ results: [] }));
   const sName = Object.fromEntries((setRows || []).map(x => [x.adset_id, x.name]));
   const cName = Object.fromEntries((camps || []).map(c => [c.campaign_id, c.name]));
+  const cObj = Object.fromEntries((camps || []).map(c => [c.campaign_id, objKind(c.objective)]));
   /* Angle per ad: the batch number leading the ad name -> the test library -> its angle. */
   const { results: batches } = await env.DB.prepare(`SELECT b.num, g.name angle FROM p_br_batch b LEFT JOIN p_br_angle g ON g.id = b.angle_id WHERE b.act_id = ?1`).bind(act).all().catch(() => ({ results: [] }));
   const angleOf = Object.fromEntries((batches || []).map(b => [String(b.num).replace(/^\D+/, ''), b.angle]));
@@ -1154,7 +1157,7 @@ async function creativeBrand(env, a, w, model) {
     const m = metaMetrics(r, model === 'platform' ? null : (byAd[r.ad_id] || { rev: 0, ord: 0 }));
     const first = r.first_spend_date || (r.created_time || '').slice(0, 10) || null;
     const b = batchOf(r.name);
-    return { id: r.ad_id, name: r.name || r.ad_id, media_type: r.media_type || (num(r.v3) > 0 ? 'video' : 'image'), campaign: cName[r.campaign_id] || null, adset_id: r.adset_id || null,
+    return { id: r.ad_id, name: r.name || r.ad_id, media_type: r.media_type || (num(r.v3) > 0 ? 'video' : 'image'), campaign: cName[r.campaign_id] || null, obj: cObj[r.campaign_id] || 'sales', adset_id: r.adset_id || null,
       fc_rev: model === 'platform' ? null : num((fc[r.ad_id] || {}).rev), lc_rev: model === 'platform' ? null : num((lc[r.ad_id] || {}).rev),
       first_spend: first, age: first ? Math.max(0, Math.round((Date.parse(today) - Date.parse(first)) / 864e5)) : null,
       format: formatOf(r.name), batch: b, angle: b ? (angleOf[b] || null) : null, asset_key: r.asset_key || null, tags: r.asset_key ? (tagOf[r.asset_key] || null) : null, last_day: r.last_day || null, ...m };
@@ -1164,8 +1167,8 @@ async function creativeBrand(env, a, w, model) {
      on the traffic it warms. So every ad carries its ad set's totals, its share of that spend and its
      rank, and the Creative screen judges the set first and the ad by its role in it. */
   const sets = {};
-  for (const r of rows) { if (!r.adset_id) continue; const x = sets[r.adset_id] ||= { id: r.adset_id, name: sName[r.adset_id] || null, spend: 0, revenue: 0, purchases: 0, ads: 0 }; x.spend += r.spend; x.revenue += r.revenue || 0; x.purchases += r.purchases || 0; x.ads++; }
-  for (const x of Object.values(sets)) { x.cpa = div(x.spend, x.purchases); x.roas = div(x.revenue, x.spend); }
+  for (const r of rows) { if (!r.adset_id) continue; const x = sets[r.adset_id] ||= { id: r.adset_id, name: sName[r.adset_id] || null, spend: 0, revenue: 0, purchases: 0, ads: 0 }; x.spend += r.spend; x.revenue += r.revenue || 0; x.purchases += r.purchases || 0; x.leads = (x.leads || 0) + (r.leads || 0); x.ads++; }
+  for (const x of Object.values(sets)) { x.cpa = div(x.spend, x.purchases); x.roas = div(x.revenue, x.spend); x.cpl = div(x.spend, x.leads); }
   /* CUSTOMER VALUE PER AD (2026-10-08, the Hyros idea). The ad that STARTED a customer is the Meta ad on
      the first-click touch of their first order (tw_order_touch, fullFirstClick); their value is everything
      they spent in the 90 days from that first order (tw_orders). Only customers whose first order is 90+
@@ -1179,7 +1182,7 @@ async function creativeBrand(env, a, w, model) {
   for (const g of alike) for (const x of g.ads) { const r = rows.find(y => y.id === x.id); if (r) { r.twins = g.ads.filter(y => y.id !== x.id).map(y => ({ id: y.id, name: y.name })); r.twin_kind = g.kind; } }
   const rankIn = {};
   for (const r of rows) { if (!r.adset_id) continue; const k = rankIn[r.adset_id] = (rankIn[r.adset_id] || 0) + 1; const x = sets[r.adset_id];
-    r.adset = { id: x.id, name: x.name, spend: x.spend, purchases: x.purchases, revenue: x.revenue, cpa: x.cpa, roas: x.roas, ads: x.ads }; r.set_share = div(r.spend, x.spend); r.set_rank = k; }
+    r.adset = { id: x.id, name: x.name, spend: x.spend, purchases: x.purchases, revenue: x.revenue, cpa: x.cpa, roas: x.roas, leads: x.leads || 0, cpl: x.cpl, ads: x.ads }; r.set_share = div(r.spend, x.spend); r.set_rank = k; }
   /* Fatigue: CPA by days since an ad first spent, over every ad-day in the window. */
   const { results: adDays } = await env.DB.prepare(`SELECT d.ad_id, d.date, d.spend, d.impressions, d.link_clicks, d.purchases FROM ad_daily d WHERE d.act_id IN ${metaOf(1)} AND d.date BETWEEN ?2 AND ?3 AND d.spend > 0`).bind(act, w.from, w.to).all();
   const { results: attrDays } = model === 'platform' ? { results: [] } : await env.DB.prepare(`SELECT ad_id, date, SUM(orders) ord FROM tw_ad_attr WHERE act_id = ?1 AND model = ?2 AND date BETWEEN ?3 AND ?4 AND (platform = 'meta' OR platform IS NULL) GROUP BY ad_id, date`).bind(act, model, w.from, w.to).all();
