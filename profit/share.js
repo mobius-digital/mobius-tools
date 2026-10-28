@@ -26,7 +26,7 @@
   const RANGE = new Set(['gcampaigns', 'website', 'search', 'overview', 'profit', 'customers', 'email', 'google', 'tiktok', 'store', 'meta', 'campaigns', 'adcreative', 'channels']);
 
   /* ---------- 1. the address ---------- */
-  const EXTRA = { tab: null, ad: null, camp: null };     // the open ad / campaign, for the page it was opened on
+  const EXTRA = { tab: null, ad: null, camp: null, adset: null };   // the open ad / campaign / ad set, for the page it was opened on
   let CARD = null, CARD_TAB = null;                      // #card=<id> from a link, until the reader leaves that page
 
   function readURL(qs) {
@@ -45,10 +45,12 @@
        view link a missing one means the default, never whatever this browser last picked. */
     const cmp = g('cmp') || (page ? 'prev' : null); if (['prev', 'yoy', 'none'].includes(cmp)) { S.cmp = cmp; save('pf_cmp', cmp); }
     const model = g('model') || (page ? 'lastPlatformClick' : null); if (model && H.MODELS.some(m => m[0] === model)) { S.model = model; save('pf_model', model); }
-    const ad = g('ad'), camp = g('camp');
-    if ((ad && /^[\w-]{3,40}$/.test(ad)) || (camp && /^[\w-]{3,40}$/.test(camp))) {
-      window.V2PENDING = Object.assign({}, ad ? { ad } : {}, camp ? { campaign: camp } : {});
-      Object.assign(EXTRA, { tab: S.tab, ad: ad || null, camp: camp || null });
+    /* ?ad= opens one ad on Creative, ?camp= one campaign on Campaigns, ?adset= (2026-10-28, for client updates that
+       link the ad set turned off) its campaign with that ad set row lit, as Today > Open in Locus does. */
+    const ad = g('ad'), camp = g('camp'), adset = g('adset'), idOk = v => v && /^[\w-]{3,40}$/.test(v);
+    if (idOk(ad) || idOk(camp) || idOk(adset)) {
+      window.V2PENDING = Object.assign({}, idOk(ad) ? { ad } : {}, idOk(camp) ? { campaign: camp } : {}, idOk(adset) ? { adset } : {});
+      Object.assign(EXTRA, { tab: S.tab, ad: idOk(ad) ? ad : null, camp: idOk(camp) ? camp : null, adset: idOk(adset) ? adset : null });
     }
     readHash(S.tab);
   }
@@ -67,7 +69,7 @@
     if (r.preset === 'custom') { const rr = H.resolveRange(); p.set('from', rr.from); p.set('to', rr.to); } else p.set('period', r.preset);
     if (S.cmp && S.cmp !== 'prev') p.set('cmp', S.cmp);
     if (S.model && S.model !== 'lastPlatformClick') p.set('model', S.model);
-    if (extra && EXTRA.tab === tab) { if (EXTRA.camp) p.set('camp', EXTRA.camp); if (EXTRA.ad) p.set('ad', EXTRA.ad); }
+    if (extra && EXTRA.tab === tab) { if (EXTRA.camp) p.set('camp', EXTRA.camp); if (EXTRA.adset) p.set('adset', EXTRA.adset); if (EXTRA.ad) p.set('ad', EXTRA.ad); }
     return p;
   }
   function write() {
