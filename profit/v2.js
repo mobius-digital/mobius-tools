@@ -747,7 +747,7 @@
       chip: `${cx && cx.call ? `<span class="ds-chip ${cx.call[1]}">${esc(cx.call[0])}</span>` : ''}<span class="ds-chip">${ICN(a.media_type === 'video' ? 'play-circle' : 'image', 14)}${a.media_type === 'video' ? 'Video' : a.media_type === 'carousel' ? 'Carousel' : 'Static'}</span>${live != null ? `<span class="ds-chip"${tipAttr(`First spend ${day(a.first_spend)}`)}>${ICN('clock', 14)}${live} day${live === 1 ? '' : 's'} live</span>` : ''}`,
       actions: `${window.cardPeriod ? window.cardPeriod() : ''}${window.cardModel ? window.cardModel() : ''}` };
     const body = panel(a.name || 'Ad', `<div class="v2pv sheet-2"><div class="v2pv-media"><div class="v2pv-m" data-thumb="${esc(a.id)}"${THUMBS.has(a.id) ? ` style="background-image:url('${THUMBS.get(a.id)}')"` : ''}><button type="button" class="v2play" aria-label="Play">${ICN('play', 14)} Play</button></div></div>
-      <div class="v2pv-main"><div data-sec="Results" data-ic="chart-column" class="v2pstat adt-stat"><div><span>Spend</span><b>${kmoney(a.spend, cur)}</b><small>${esc(H.rangeLabel ? H.rangeLabel() : '')}</small></div><div><span>CPA</span><b class="${!g.cpa || a.cpa == null ? '' : a.cpa <= g.cpa ? 'good' : 'bad'}">${money(a.cpa, cur)}</b><small>${g.cpa ? `goal ${money(g.cpa, cur)}` : 'no goal set'}</small></div><div><span>ROAS</span><b>${x2(a.roas)}</b><small>${kmoney(a.revenue, cur)} revenue</small></div><div><span>Purchases</span><b><button type="button" class="v2cell" data-orders="2">${int(a.purchases)}</button></b><small>${esc(MODEL_SHORT[H.S.model] || '')}</small></div></div>
+      <div class="v2pv-main"><div data-sec="Results" data-ic="chart-column" class="v2pstat adt-stat"><div><span>Spend</span><b>${kmoney(a.spend, cur)}</b><small>${esc(H.rangeLabel ? H.rangeLabel() : '')}</small></div>${a.obj === 'leads' ? `<div><span>CPL</span><b class="${!g.cpl || a.cpl == null ? '' : a.cpl <= g.cpl ? 'good' : 'bad'}">${money2(a.cpl, cur)}</b><small>${g.cpl ? `goal ${money2(g.cpl, cur)}` : 'cost per lead'}</small></div><div><span>Leads</span><b>${int(a.leads)}</b><small>${pct(a.lead_rate, 1)} of clicks</small></div>` : `<div><span>CPA</span><b class="${!g.cpa || a.cpa == null ? '' : a.cpa <= g.cpa ? 'good' : 'bad'}">${money(a.cpa, cur)}</b><small>${g.cpa ? `goal ${money(g.cpa, cur)}` : 'no goal set'}</small></div>`}<div><span>ROAS</span><b>${x2(a.roas)}</b><small>${kmoney(a.revenue, cur)} revenue</small></div><div><span>Purchases</span><b><button type="button" class="v2cell" data-orders="2">${int(a.purchases)}</button></b><small>${esc(MODEL_SHORT[H.S.model] || '')}</small></div></div>
       <div data-sec="Trend" data-ic="chart-column" class="adtr" id="adtr"><p class="v2hint">Loading this ad day by day…</p></div>
       ${callLine || setCard ? `<div data-sec="The call" data-ic="target" class="v2pv-sec">${callLine}${setCard}</div>` : ''}
       ${sibTable ? `<div data-sec="Its ad set" data-ic="layout-grid" class="v2pv-sec">${sibTable}</div>` : ''}
@@ -1146,6 +1146,8 @@
       tile({ compact: true, label: 'Cost per purchase', src: credit, hint: 'lower is better', value: pend ? '–' : money(c.cpa, cur), delta: pend ? '' : delta(c.cpa, p.cpa, true), bullet: pend ? '' : bullet(c.cpa, g.cpa, true, g.cpa ? `goal ${money(g.cpa, cur)}` : ''), spark: pend ? '' : tspark(R, P, 'cpa', v => money(v, cur), 'cost per purchase') }),
       tile({ compact: true, label: 'CPM', src: SRC, hint: 'lower is better', value: money2(c.cpm, cur), delta: delta(c.cpm, p.cpm, true), sub: c.cpc != null ? `${money2(c.cpc, cur)} per click` : '', spark: tspark(R, P, 'cpm', v => money2(v, cur), 'CPM') }),
       tile({ compact: true, label: 'CTR', src: SRC, hint: 'link clicks', value: pct(c.ctr, 2), delta: delta(c.ctr, p.ctr, false, true), sub: `${int(c.clicks)} clicks`, spark: tspark(R, P, 'ctr', v => pct(v, 2), 'CTR') }),
+      /* Lead campaigns (2026-10-28): only when the brand has leads in either window. Meta's own count. */
+      (c.leads || 0) + ((p && p.leads) || 0) > 0 ? tile({ compact: true, label: 'Leads', src: SRC, value: int(c.leads), delta: p ? delta(c.leads, p.leads) : '', sub: c.cpl != null ? `${money2(c.cpl, cur)} per lead` : 'no leads yet' }) : '',
     ].join('');
   }
   /** Spend against revenue by day, the compare period's revenue dashed: the same lineChart as Home. */
@@ -1274,6 +1276,8 @@
     { k: 'revenue', l: 'Revenue', v: x => x.revenue },
     { k: 'roas', l: 'ROAS', v: x => x.roas },
     { k: 'cpa', l: 'CPA', v: x => x.cpa, lo: 1 },
+    { k: 'leads', l: 'Leads', v: x => x.leads, tip: 'Meta’s lead count: instant forms and pixel leads.' },
+    { k: 'cpl', l: 'CPL', v: x => x.cpl, lo: 1, tip: 'Cost per lead.' },
     { k: 'cpm', l: 'CPM', v: x => x.cpm, lo: 1 },
     { k: 'ctr', l: 'CTR', v: x => x.ctr, tip: 'Link clicks per impression.' },
     { k: 'cpc', l: 'CPC', v: x => x.cpc, lo: 1, tip: 'Cost per link click.' },
@@ -1355,16 +1359,18 @@
     const camps = (b.campaigns || []).map(c => decorate(c, 0)); const mx = Math.max(...camps.map(x => x.spend), 1); const g = b.goals || {};
     const cols = TBL.cols(st, defs), by = TBL.cmp(st, defs);
     const cpaCls = v => !g.cpa || v == null ? '' : v <= g.cpa ? 'good' : v <= g.cpa * 1.3 ? 'warn' : 'bad';
+    const cplCls = v => !g.cpl || v == null ? '' : v <= g.cpl ? 'good' : v <= g.cpl * 1.3 ? 'warn' : 'bad';
     const cell = (x, d, lvl, kind) => {
       switch (d.k) {
         case 'status': return full ? statusCell(x, lvl) : (x.status && !/ACTIVE/.test(x.status) ? `<span class="v2pill">${esc(x.status.toLowerCase().replace(/_/g, ' '))}</span>` : '<span class="faint">on</span>');
         case 'budget': return full ? budgetCell(x, lvl, cur) : (lvl < 2 && x.budget ? `${money(x.budget, cur)}/day` : lvl === 1 && x.min_spend ? `min ${money(x.min_spend, cur)}` : '<span class="faint">–</span>');
         case 'spend': return ib(x.spend, mx, null, kmoney(x.spend, cur));
-        case 'purchases': return `<button type="button" class="v2cell" data-drill="${kind}:${esc(x.id)}" title="See the orders">${int(x.purchases)}</button>`;
+        case 'purchases': return x.obj === 'leads' ? `${int(x.leads)}<span class="sub">leads</span>` : `<button type="button" class="v2cell" data-drill="${kind}:${esc(x.id)}" title="See the orders">${int(x.purchases)}</button>`;
         case 'platform_purchases': return `<span class="faint">${int(x.platform_purchases)}</span>`;
         case 'revenue': case 'platform_revenue': return kmoney(x[d.k], cur);
         case 'roas': return x2(x.roas);
-        case 'cpa': return `<span class="${cpaCls(x.cpa)}">${money(x.cpa, cur)}</span>${x.prev && x.prev.cpa ? delta(x.cpa, x.prev.cpa, true) : ''}`;
+        case 'cpa': return x.obj === 'leads' ? `<span class="${cplCls(x.cpl)}">${money2(x.cpl, cur)}</span><span class="sub">per lead</span>` : `<span class="${cpaCls(x.cpa)}">${money(x.cpa, cur)}</span>${x.prev && x.prev.cpa ? delta(x.cpa, x.prev.cpa, true) : ''}`;
+        case 'cpl': return `<span class="${cplCls(x.cpl)}">${money2(x.cpl, cur)}</span>`;
         case 'cpm': case 'cpc': case 'cost_per_atc': return money2(x[d.k], cur);
         case 'ctr': return pct(x.ctr, 2);
         case 'frequency': return x.frequency ? x.frequency.toFixed(2) : '–';
@@ -1381,9 +1387,9 @@
     const shownCamps = full ? sorted(camps) : sorted(camps.slice().sort((p, q) => q.spend - p.spend).slice(0, 5));
     for (const cp of shownCamps) {
       rows += row(cp, 0, 'campaign');
-      if (CAMP_OPEN.has(cp.id)) for (const s of sorted((cp.adsets || []).map(z => decorate(z, 1)))) {
+      if (CAMP_OPEN.has(cp.id)) for (const s of sorted((cp.adsets || []).map(z => decorate(Object.assign(z, { obj: cp.obj }), 1)))) {
         rows += row(s, 1, 'adset');
-        if (CAMP_OPEN.has(s.id)) for (const a of sorted((s.ads || []).map(z => decorate(z, 2))).slice(0, 25)) rows += row(a, 2, 'ad');
+        if (CAMP_OPEN.has(s.id)) for (const a of sorted((s.ads || []).map(z => decorate(Object.assign(z, { obj: cp.obj }), 2))).slice(0, 25)) rows += row(a, 2, 'ad');
       }
     }
     const c = b.cur, tot = d => {
@@ -1662,7 +1668,14 @@
     /* A brand judged on ROAS (Brand settings > Goals and ad rules) gets its cost line from the goal ROAS: the order value
        of these ads divided by it, the same unit Today's calls use. */
     const roasUnit = (() => { if (g.metric !== 'roas' || !(g.roas > 0)) return null; const r = ads.reduce((x, a) => x + (a.revenue || 0), 0), o = ads.reduce((x, a) => x + (a.purchases || 0), 0); return o && r ? r / o / g.roas : null; })();
-    const goal = roasUnit || g.cpa || (() => { const s = ads.reduce((x, r) => x + r.spend, 0), o = ads.reduce((x, r) => x + r.purchases, 0); return o ? s / o : null; })();
+    const goal = roasUnit || g.cpa || (() => { const S0 = ads.filter(r => r.obj !== 'leads'), s = S0.reduce((x, r) => x + r.spend, 0), o = S0.reduce((x, r) => x + r.purchases, 0); return o ? s / o : null; })();
+    /* LEAD ADS (2026-10-28, Cole: lead campaigns had no numbers and every lead ad read Cut for having no purchases). An ad in
+       a lead campaign is judged on cost per lead with the same rule: the brand's goal CPL (Settings > Goals), else the
+       average CPL of its lead ads in these dates. Leads are Meta's count. */
+    const isLead = x => !!x && x.obj === 'leads';
+    for (const r of ads) if (isLead(r) && r.adset) r.adset.obj = 'leads';
+    const leadGoal = +g.cpl || +RR.goal_cpl || (() => { const L0 = ads.filter(isLead), s = L0.reduce((x, r) => x + r.spend, 0), l = L0.reduce((x, r) => x + (r.leads || 0), 0); return l ? s / l : null; })();
+    const goalFor = x => isLead(x) ? leadGoal : goal, resFor = x => isLead(x) ? (x.leads || 0) : x.purchases, costFor = x => isLead(x) ? x.cpl : x.cpa;
     /* THE RULE (2026-10-08, shown on screen): an ad is judged once it has spent one goal CPA and
        run 3 days. Scale = 2+ purchases at or under goal. Cut = 3x the goal spent with no purchase
        (an ad truly on goal has about a 5% chance of that), or 2x spent at a CPA over 1.5x goal.
@@ -1692,12 +1705,14 @@
     const valNote = r => { const t = valTag(r); if (!t) return ''; return t === 'more'
       ? `People this ad brought in spent ${money(r.ltv90, cur)} each in their first 90 days, ${x2(r.ltv_x)} their first order. The brand's average ad gets ${x2(brandX)}. They come back more, so this ad can afford a higher cost per purchase than the goal. The call above does not include this; it is your judgment.`
       : `People this ad brought in spent ${money(r.ltv90, cur)} each in their first 90 days, ${x2(r.ltv_x)} their first order, against ${x2(brandX)} for the brand's average ad. They come back less than usual.`; };
-    const own = r => { const G = goal; if (!goal) return 'nogoal'; if (r.age != null && r.age < K.days) return 'new'; if (r.spend < goal * K.jx) return 'thin';
-      if (r.purchases >= K.buys && (r.cpa <= G || roasOk(r))) return 'scale';
-      if ((!r.purchases && r.spend >= G * K.zx) || (r.purchases && r.spend >= G * K.sx && r.cpa > G * K.cx && !roasOk(r))) return 'cut';
+    const own = r => { const G = goalFor(r), n = resFor(r), c = costFor(r), ok = !isLead(r) && roasOk(r); if (!G) return 'nogoal'; if (r.age != null && r.age < K.days) return 'new'; if (r.spend < G * K.jx) return 'thin';
+      if (n >= K.buys && (c <= G || ok)) return 'scale';
+      if ((!n && r.spend >= G * K.zx) || (n && r.spend >= G * K.sx && c > G * K.cx && !ok)) return 'cut';
       return 'watch'; };
-    const setCall = x => { const G = goal; if (!goal || !x) return null; if (x.spend < goal * K.jx) return 'thin'; if (x.purchases >= K.buys && (x.cpa <= G || roasOk(x))) return 'scale';
-      if ((!x.purchases && x.spend >= G * K.zx) || (x.purchases && x.spend >= G * K.sx && x.cpa > G * K.cx && !roasOk(x))) return 'cut'; return 'watch'; };
+    const setCall = x => { const G = goalFor(x); if (!G || !x) return null; const n = resFor(x), c = costFor(x), ok = !isLead(x) && roasOk(x); if (x.spend < G * K.jx) return 'thin'; if (n >= K.buys && (c <= G || ok)) return 'scale';
+      if ((!n && x.spend >= G * K.zx) || (n && x.spend >= G * K.sx && c > G * K.cx && !ok)) return 'cut'; return 'watch'; };
+    /* What a card's cost line says: per purchase, or per lead on a lead ad. */
+    const costTxt = x => isLead(x) ? (x.cpl == null ? 'no leads' : `${money2(x.cpl, cur)} per lead`) : (x.cpa == null ? 'no purchases' : `${money(x.cpa, cur)} per purchase`);
     const role = r => !r.adset || r.adset.ads <= 1 ? 'solo' : (r.set_share >= K.anchor || (r.set_rank === 1 && r.set_share >= K.anchor - 0.1)) ? 'anchor' : 'support';
     const funnelRole = r => r.fc_rev == null || r.lc_rev == null || (r.fc_rev + r.lc_rev) < (goal || 50) ? null : r.fc_rev >= r.lc_rev * 1.3 ? 'opener' : r.lc_rev >= r.fc_rev * 1.3 ? 'closer' : null;
     const verdict = r => { const o = own(r); if (o === 'new' || o === 'thin' || o === 'nogoal') return o; const sc = setCall(r.adset), ro = role(r);
@@ -1707,10 +1722,10 @@
       return o === 'cut' ? 'trim' : o; };
     const whyOf = r => { const vn = valNote(r); return [whyBase(r), vn].filter(Boolean).join(' '); };
     const whyBase = r => { const sc = setCall(r.adset), ro = role(r), x = r.adset, o = own(r);
-      const setTxt = x ? `its ad set${x.name ? ` "${x.name}"` : ''} spent ${kmoney(x.spend, cur)} at ${money(x.cpa, cur)} per purchase (${sc === 'scale' ? 'on goal' : sc === 'cut' ? 'missing the goal' : sc === 'watch' ? 'close to goal' : 'not judged yet'})` : '';
+      const setTxt = x ? `its ad set${x.name ? ` "${x.name}"` : ''} spent ${kmoney(x.spend, cur)} at ${costTxt(x)} (${sc === 'scale' ? 'on goal' : sc === 'cut' ? 'missing the goal' : sc === 'watch' ? 'close to goal' : 'not judged yet'})` : '';
       const v = verdict(r);
       if (v === 'cut' && sc === 'cut' && ro !== 'solo') return `The whole set misses: ${setTxt}. Turn off the ad set, not one ad.`;
-      if (v === 'keep') return `Carries ${pct(r.set_share, 0)} of the set, and ${setTxt}. Its own cost per purchase is ${money(r.cpa, cur)}, but the set works through it: keep it, and test a new opener beside it before switching it off.`;
+      if (v === 'keep') return `Carries ${pct(r.set_share, 0)} of the set, and ${setTxt}. Its own cost is ${costTxt(r)}, but the set works through it: keep it, and test a new opener beside it before switching it off.`;
       if (v === 'watch' && ro === 'anchor' && o === 'cut') return `Carries ${pct(r.set_share, 0)} of the set and looks weak on its own, but ${setTxt}. Replace it with a stronger opener rather than switching it off.`;
       if (v === 'trim') return `Takes only ${pct(r.set_share, 0)} of the set and is over the cut line on its own; ${setTxt}. Low risk to switch off.`;
       if (ro === 'support' && v === 'scale') return `Beats the goal on ${pct(r.set_share, 0)} of the set's spend. Worth its own ad set to see if it holds at more budget.`;
@@ -1723,10 +1738,10 @@
        was winning. In a multi-ad set every card now carries "Set: on goal / close to goal / missing goal / not judged
        yet" beside its role chip, the same words the sheet's ad set box shows. */
     const setChip = r => { const sc = setCall(r.adset), x = r.adset; if (!sc || !SET_VL[sc] || !x) return '';
-      return `<span class="set-${SET_VL[sc][1]}"${tipAttr(esc(`The ad set${x.name ? ` "${x.name}"` : ''} spent ${kmoney(x.spend, cur)} at ${x.cpa == null ? 'no purchases' : `${money(x.cpa, cur)} per purchase`} over its ${x.ads} ads. The set is judged first; this ad's call then follows from its role in it.`))}>${SET_VL[sc][0]}</span>`; };
+      return `<span class="set-${SET_VL[sc][1]}"${tipAttr(esc(`The ad set${x.name ? ` "${x.name}"` : ''} spent ${kmoney(x.spend, cur)} at ${costTxt(x)} over its ${x.ads} ads. The set is judged first; this ad's call then follows from its role in it.`))}>${SET_VL[sc][0]}</span>`; };
     /* LOOK-ALIKES (2026-10-18): another live ad in the same set that Meta likely counts as this one (hub.js lookAlikeGroups). */
     const twinChip = r => r.twins && r.twins.length ? `<span class="lowval"${tipAttr(esc(`${r.twin_kind === 'same' ? 'The same creative also runs as' : 'Looks like'} ${r.twins.map(t => t.name).join(', ')} in the same ad set (same format, hook, person, product and offer, and mostly the same words). Meta likely shows them as one ad, so this is not a real test. Make it genuinely different, or keep the stronger one.`))}>${r.twin_kind === 'same' ? 'Same creative twice' : `Looks like ${r.twins.length} other${r.twins.length === 1 ? '' : 's'}`}</span>` : '';
-    const RULE = `<b>How a card gets its call:</b> the ad set is judged first on its own totals, then the ad by its role in it (anchor or support). A set (and an ad) is judged once it has spent ${K.jx}x the goal CPA (${money(bar, cur)}${g.cpa ? '' : goal ? ', from the account average: no goal CPA set' : ', a placeholder: no goal CPA set'}) and run ${K.days} days. <b>Scale</b>: ${K.buys}+ purchases at or under the goal${K.guard && K.troas ? ` or at ${K.troas}x ROAS` : ''}. <b>Cut</b>: ${K.zx}x the goal spent with no purchase, OR ${K.sx}x spent at a CPA over ${K.cx}x the goal${K.guard && K.troas ? `, never while ROAS is ${K.troas}x or better` : ''}. A set that misses means <b>Cut</b> for every ad in it. In a set that works, the ad carrying ${Math.round(K.anchor * 100)}%+ of its spend reads <b>Keep</b> (replace it, never just switch it off) and a small ad over the cut line reads <b>Trim</b>. <button type="button" class="v2link" data-go="settings">Change these ›</button><br><span class="faint">Today's calls judge the last 7 days on last platform click, with these same numbers; this page judges the dates and attribution picked above.</span>`;
+    const RULE = `<b>How a card gets its call:</b> the ad set is judged first on its own totals, then the ad by its role in it (anchor or support). A set (and an ad) is judged once it has spent ${K.jx}x the goal CPA (${money(bar, cur)}${g.cpa ? '' : goal ? ', from the account average: no goal CPA set' : ', a placeholder: no goal CPA set'}) and run ${K.days} days. <b>Scale</b>: ${K.buys}+ purchases at or under the goal${K.guard && K.troas ? ` or at ${K.troas}x ROAS` : ''}. <b>Cut</b>: ${K.zx}x the goal spent with no purchase, OR ${K.sx}x spent at a CPA over ${K.cx}x the goal${K.guard && K.troas ? `, never while ROAS is ${K.troas}x or better` : ''}. A set that misses means <b>Cut</b> for every ad in it. In a set that works, the ad carrying ${Math.round(K.anchor * 100)}%+ of its spend reads <b>Keep</b> (replace it, never just switch it off) and a small ad over the cut line reads <b>Trim</b>. <button type="button" class="v2link" data-go="settings">Change these ›</button>${ads.some(isLead) ? `<br><b>Lead ads</b> (lead campaigns) use the same rule on cost per lead: ${leadGoal ? `${money2(leadGoal, cur)} ${+g.cpl || +RR.goal_cpl ? 'goal CPL' : 'a lead, the average of the lead ads here (no goal CPL set)'}` : 'no leads yet'}, and ${K.buys}+ leads to scale.` : ''}<br><span class="faint">Today's calls judge the last 7 days on last platform click, with these same numbers; this page judges the dates and attribution picked above.</span>`;
     const top = ads.slice(0, 60);
     const VCOL = { scale: '--good', keep: '--c-meta', watch: '--warn', trim: '--warn', cut: '--bad', thin: '--v2-cmp', new: '--v2-cmp', nogoal: '--v2-cmp' };
     /* a grouped card (one per creative) has no set of its own: use the set of its top-spending ad (same id) */
@@ -1834,7 +1849,8 @@
        gallery wrapper serves every card, so a repaint never re-wires 24+ cards. */
     const galItem = r => { const v = verdict(r); const wy = v === 'nogoal' ? 'No goal CPA is set for this brand, so no ad can be called yet. Set one in brand settings, Goals.' : whyOf(r);
       return `<div class="g${CR_PICK.has(r.id) ? ' picked' : ''}" data-ad="${esc(r.id)}" data-prev="${esc(r.id)}" role="button" tabindex="0" aria-label="Open ${esc(r.name)}"><div class="th" data-thumb="${esc(r.id)}"${THUMBS.has(r.id) ? ` style="background-image:url('${THUMBS.get(r.id)}')"` : ''}><span class="v2play-s">${window.icon ? window.icon('play', { size: 16 }) : ''}</span><label class="v2pick"${tipAttr('Pick up to 4 to compare')}><input type="checkbox" data-pick="${esc(r.id)}"${CR_PICK.has(r.id) ? ' checked' : ''} aria-label="Pick ${esc(r.name)} to compare"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 8.5l2.6 2.6L12 5.6"/></svg></label><span class="v2pill ${VL[v][1]}"${wy ? tipAttr(esc(wy)) : ''}>${VL[v][0]}</span><em>${esc(r.media_type || '')}${r.age != null ? ` · ${r.age}d` : ''}</em></div><div class="b"><b title="${esc(r.name)}">${esc(r.name)}</b>
-      <div class="kv"><span>Spend<b>${kmoney(r.spend, cur)}</b></span><span>CPA<b class="${r.cpa == null ? (r.spend > 0 && goal && r.spend >= bar ? 'bad' : '') : !goal ? '' : r.cpa <= goal ? 'good' : 'bad'}">${r.cpa == null && r.spend > 0 ? 'none' : money(r.cpa, cur)}</b></span><span>ROAS<b>${x2(r.roas)}</b></span></div>
+      ${isLead(r) ? `<div class="kv"><span>Spend<b>${kmoney(r.spend, cur)}</b></span><span>CPL<b class="${r.cpl == null ? (r.spend > 0 && leadGoal && r.spend >= leadGoal * K.jx ? 'bad' : '') : !leadGoal ? '' : r.cpl <= leadGoal ? 'good' : 'bad'}">${r.cpl == null && r.spend > 0 ? 'none' : money2(r.cpl, cur)}</b></span><span>Leads<b>${int(r.leads)}</b></span></div>`
+      : `<div class="kv"><span>Spend<b>${kmoney(r.spend, cur)}</b></span><span>CPA<b class="${r.cpa == null ? (r.spend > 0 && goal && r.spend >= bar ? 'bad' : '') : !goal ? '' : r.cpa <= goal ? 'good' : 'bad'}">${r.cpa == null && r.spend > 0 ? 'none' : money(r.cpa, cur)}</b></span><span>ROAS<b>${x2(r.roas)}</b></span></div>`}
       ${(() => { const bits = []; if (r.n_ads > 1) bits.push(`in ${r.n_ads} ads`); if (role(r) !== 'solo') bits.push(`${role(r) === 'anchor' ? 'anchor' : 'support'}, ${pct(r.set_share, 0)} of its set`); if (r.twins && r.twins.length) bits.push(r.twin_kind === 'same' ? 'same creative twice' : `looks like ${r.twins.length} other${r.twins.length === 1 ? '' : 's'}`); if (valTag(r)) bits.push(valTag(r) === 'more' ? 'customers come back' : 'customers do not come back'); return bits.length ? `<span class="v2one" title="${esc(whyOf(r))}">${esc(bits.join(' · '))}</span>` : ''; })()}
     </div></div>`; };
     /* PAGES OF 24 (2026-10-09, "it's super laggy"): the gallery draws 24 cards and appends the next 24 on "Show more"
