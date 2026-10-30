@@ -272,7 +272,7 @@ async function status(id, autorun) {
     const sent = st?.status === 'done';
     return `<div style="margin-top:16px"><b style="font-size:14px">${sent ? (st.paid ? '<svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-circle-check"/></svg>' : '<svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-send"/></svg>') : busy === 'stripe' ? '<svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-hourglass"/></svg>' : '2.'} First invoice, ${amt}</b>
       <span class="tiny${st?.status === 'failed' ? ' nc-bad' : ''}" style="display:block;margin-top:2px">${busy === 'stripe' ? 'Sending…' : esc(st?.text || `Stripe emails ${run.contact_email} the first invoice. When they pay it, their card is saved and the retainer bills itself every month from then on.`)}${st?.url ? ` <a href="${esc(st.url)}" target="_blank" rel="noopener">Open the invoice</a>` : ''}</span>
-      ${sent || busy ? (sent && !st.paid ? `<button class="btn" data-go="stripe" style="margin-top:6px">Check if paid</button>` : '') : `<button class="btn primary" id="ncInvoice" style="margin-top:6px">${st?.status === 'failed' ? 'Try again' : 'Send the invoice'}</button>`}</div>`;
+      ${sent && run.act_id ? `<button class="btn" id="ncBilling" style="margin:6px 6px 0 0">Billing day</button>` : ''}${sent || busy ? (sent && !st.paid ? `<button class="btn" data-go="stripe" style="margin-top:6px">Check if paid</button>` : '') : `<button class="btn primary" id="ncInvoice" style="margin-top:6px">${st?.status === 'failed' ? 'Try again' : 'Send the invoice'}</button>`}</div>`;
   };
   const paint = () => {
     if (closed) return;
@@ -347,6 +347,8 @@ async function status(id, autorun) {
       try { const j = await post('/api/new-client/contract-preview', { id, vars: cv }); previewAgreement(j.html, cv); }
       catch (e) { noteModal('Could not build the preview', `<p>${esc(e.message)}</p>`); }
     };
+    const nb = body.querySelector('#ncBilling');
+    if (nb) nb.onclick = () => billing(run.act_id, run.name);
     const inv = body.querySelector('#ncInvoice');
     if (inv) inv.onclick = async () => {
       if (!(await confirmModal(`Send the first invoice?`, `Stripe emails ${run.contact_email} an invoice for $${Number(run.retainer).toLocaleString('en-US')}. When they pay it, their card is saved and the retainer bills itself every month. Nothing is charged until they pay.`, 'Send the invoice'))) return;
@@ -506,5 +508,102 @@ async function connectFrame() {
   };
 }
 
-window.NewClient = { open, status, connectFrame };
+/* ---------------- Retainer billing day (2026-10-30) ----------------
+   Moves a client's retainer to a new day of the month. Opened from the brand row (Settings > the
+   brand > The brand) or the First invoice line of a setup. Reads Stripe first so the card shows
+   what is true now; every change of day / gap / start re-asks the worker for the plan (a dry run),
+   so the line above the button is exactly what Move does. Money, so one button, one confirm. */
+async function billing(act, name) {
+  css();
+  const w = shell('<div id="nbBody"><p class="hint">Reading Stripe…</p></div>', 560);
+  const body = w.querySelector('#nbBody');
+  const close = () => { w.remove(); document.removeEventListener('keydown', k); };
+  const k = e => { if (e.key === 'Escape') close(); };
+  document.addEventListener('keydown', k);
+  const d8 = iso => iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+  const amt = (c, cur) => (c / 100).toLocaleString('en-US', { style: 'currency', currency: String(cur || 'usd').toUpperCase() });
+  const th = n => `${n}${n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th'}`;
+  let st = null, plan = null, note = '', seq = 0;
+  const pick = { day: 15, gap: 'free', start: '' };
+
+  const unknown = () => `<h3>${esc(name)}: retainer billing</h3>
+    <p class="hint" style="margin-bottom:12px">Locus does not know ${esc(name)}'s Stripe subscription yet (only clients set up through New client are known on their own). Paste its id once: Stripe > Customers > ${esc(name)} > the subscription, the id starting sub_.</p>
+    <div class="ab-form"><div class="ab-f"><label>Subscription id</label><input type="text" id="nbSub" placeholder="sub_..."></div></div>
+    <p class="tiny nc-bad" id="nbErr" style="min-height:16px;margin:8px 0 0"></p>
+    <div class="row" style="justify-content:flex-end;gap:8px;margin:6px 0 0"><button class="btn" data-m="no">Close</button><button class="btn primary" id="nbLook">Look it up</button></div>`;
+
+  const card = () => {
+    const b = st.billing;
+    const row = (l, v) => `<div class="nc-step" style="grid-template-columns:130px minmax(0,1fr)"><span class="tiny" style="margin:0">${l}</span><span style="font-size:13.5px">${v}</span></div>`;
+    const days = Array.from({ length: 28 }, (_, i) => i + 1);
+    return `<h3>${esc(name)}: retainer billing</h3>
+      <p class="hint" style="margin-bottom:6px">Mobius Digital's Stripe, as it is right now.</p>
+      ${row('Customer', `${esc(b.customer_name)}${b.customer_email && b.customer_email !== b.customer_name ? ` <span class="tiny" style="display:inline">${esc(b.customer_email)}</span>` : ''}`)}
+      ${row('Retainer', `${amt(b.amount, b.currency)} a ${esc(b.interval)}${b.status !== 'active' ? ` (${esc(b.status)})` : ''}`)}
+      ${row('Bills on', `the ${th(b.billing_day)}${b.collection === 'charge_automatically' ? (b.card_on_file ? ', card on file' : ', <span class="nc-bad">no card on file</span>') : ', Stripe emails an invoice'}`)}
+      ${row(b.trial_end ? 'Free until' : 'Paid through', esc(d8(b.trial_end || b.period_end)))}
+      ${row('Next invoice', b.next_invoice ? `${esc(d8(b.next_invoice.date))}, ${amt(b.next_invoice.amount_due, b.currency)}` : 'none coming')}
+      <div style="border-top:1px solid var(--line);margin:4px 0 0;padding-top:12px">
+        <b style="font-size:14px">Move to a new day</b>
+        <div class="nc-two" style="margin-top:8px">
+          <div class="ab-f"><label style="font-size:13px">Day of the month</label><select id="nbDay">${days.map(n => `<option value="${n}"${n === pick.day ? ' selected' : ''}>the ${th(n)}</option>`).join('')}</select></div>
+          <div class="ab-f"><label style="font-size:13px">Starting (optional)</label><input type="text" id="nbStart" placeholder="the next one after it is paid up" value="${esc(pick.start)}"></div>
+        </div>
+        <div class="ab-f" style="margin-top:8px"><label style="font-size:13px">The days in between</label>
+          <div class="nc-chips" id="nbGap">${[['free', 'Give them free'], ['charge', 'Charge them (prorated)']].map(([v, l]) => `<button type="button" class="nc-chip" data-g="${v}" aria-pressed="${pick.gap === v}"><svg class="nc-ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>${l}</button>`).join('')}</div></div>
+        <p class="tiny" id="nbPlan" style="margin:10px 0 0;min-height:32px;line-height:1.5">Working it out…</p>
+        ${note ? `<div class="notice" style="margin:10px 0 0"><svg class="li ni" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-circle-check"/></svg><div>${esc(note)}</div></div>` : ''}
+      </div>
+      <div class="row" style="justify-content:flex-end;gap:8px;margin:12px 0 0"><button class="btn" data-m="no">Close</button><button class="btn primary" id="nbMove" disabled>Move the billing day</button></div>`;
+  };
+
+  const preview = async () => {
+    const me = ++seq, el = body.querySelector('#nbPlan'), mv = body.querySelector('#nbMove');
+    plan = null; mv.disabled = true; el.classList.remove('nc-bad'); el.textContent = 'Working it out…';
+    try {
+      const j = await post('/api/new-client/billing-day', { act, sub: st.sub, day: pick.day, gap: pick.gap, start: pick.start || undefined, dry: true });
+      if (me !== seq) return;
+      plan = j.plan; el.textContent = j.plan.text; mv.disabled = false;
+    } catch (e) { if (me === seq) { el.classList.add('nc-bad'); el.textContent = e.message; } }
+  };
+
+  const paint = () => {
+    body.innerHTML = st && st.known ? card() : unknown();
+    body.querySelectorAll('[data-m="no"]').forEach(b => b.onclick = close);
+    const look = body.querySelector('#nbLook');
+    if (look) look.onclick = async () => {
+      const sub = body.querySelector('#nbSub').value.trim(), err = body.querySelector('#nbErr');
+      if (!/^sub_/.test(sub)) return err.textContent = 'That is not a subscription id: it starts with sub_.';
+      look.disabled = true; err.textContent = '';
+      try { st = await ah(`/api/new-client/billing?act=${encodeURIComponent(act)}&sub=${encodeURIComponent(sub)}`); if (st.billing) pick.day = st.billing.billing_day === 15 ? 1 : 15; paint(); }
+      catch (e) { look.disabled = false; err.textContent = e.message; }
+    };
+    if (!(st && st.known)) return;
+    body.querySelector('#nbDay').onchange = e => { pick.day = +e.target.value; preview(); };
+    body.querySelector('#nbStart').onchange = e => { pick.start = e.target.value.trim(); preview(); };
+    body.querySelector('#nbGap').onclick = e => {
+      const b = e.target.closest('.nc-chip'); if (!b) return;
+      pick.gap = b.dataset.g;
+      body.querySelectorAll('#nbGap .nc-chip').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.g === pick.gap)));
+      preview();
+    };
+    body.querySelector('#nbMove').onclick = async () => {
+      if (!plan) return;
+      if (!(await confirmModal(`Move ${name} to the ${th(plan.day)}?`, `${plan.text} Stripe changes now; ${st.billing.customer_name} is not emailed about it.`, 'Move it'))) return;
+      const mv = body.querySelector('#nbMove'); mv.disabled = true; mv.textContent = 'Moving…';
+      try {
+        const j = await post('/api/new-client/billing-day', { act, sub: st.sub, day: pick.day, gap: pick.gap, start: pick.start || undefined });
+        st = { ...st, billing: j.billing }; note = `Done. ${j.plan.text}`; pick.start = ''; paint();
+      } catch (e) { mv.disabled = false; mv.textContent = 'Move the billing day'; const el = body.querySelector('#nbPlan'); el.classList.add('nc-bad'); el.textContent = e.message; }
+    };
+    preview();
+  };
+
+  try { st = await ah(`/api/new-client/billing?act=${encodeURIComponent(act)}`); }
+  catch (e) { body.innerHTML = `<h3>Could not read Stripe</h3><p class="hint">${esc(e.message)}</p><div class="row" style="justify-content:flex-end;margin:10px 0 0"><button class="btn" data-m="no">Close</button></div>`; body.querySelector('[data-m="no"]').onclick = close; return; }
+  if (st.known && st.billing) pick.day = st.billing.billing_day === 15 ? 1 : 15;
+  paint();
+}
+
+window.NewClient = { open, status, connectFrame, billing };
 })();
