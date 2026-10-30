@@ -642,6 +642,127 @@ async function stepFrame(env, r) {
 }
 const RUN = { invite: stepInvite, asana: stepAsana, onboard: stepOnboard, drive: stepDrive, slack: stepSlack, frame: stepFrame, stripe: stepStripe, contract: stepContract, email: stepEmail, summary: stepSummary };
 
+/* ---------------- Retainer billing day (2026-10-30) ----------------
+   Moves a client's retainer subscription to a new day of the month (Yak Sports, the 2nd to the
+   15th, was the first). Stripe only takes billing_cycle_anchor 'now' or 'unchanged' on an existing
+   subscription, so a future day is reached with a trial that ends on it: trial_end = the next <day>
+   on or after the end of the period they already paid for, proration_behavior none. The gap between
+   the two is either free (nothing else happens) or charged: a one-off invoice item for the prorated
+   gap, made FIRST and attached to the subscription, so it rides on the first invoice of the new day.
+   Which subscription: the one the New client run made, else the one saved for the brand in
+   settings.stripeSubs (an id pasted once on the card or by the Strategist is kept there). */
+const BILL_TZ = 'America/Chicago';
+const ymdIn = ts => new Intl.DateTimeFormat('en-CA', { timeZone: BILL_TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(ts * 1000));
+const isoOf = ts => ts ? new Date(ts * 1000).toISOString() : null;
+const dayWord = n => `${n}${n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th'}`;
+const niceDate = ts => new Date(ts * 1000).toLocaleDateString('en-US', { timeZone: BILL_TZ, month: 'short', day: 'numeric', year: 'numeric' });
+const money = (cents, cur = 'usd') => (cents / 100).toLocaleString('en-US', { style: 'currency', currency: cur.toUpperCase() });
+
+async function subsMap(env) {
+  return safeJson((await env.DB.prepare(`SELECT value FROM settings WHERE key = 'stripeSubs'`).first().catch(() => null))?.value, {}) || {};
+}
+/** The brand's retainer subscription id: pasted > its New client run > saved for the brand. */
+async function subFor(env, act, pasted) {
+  const p = String(pasted || '').trim();
+  if (p) { if (!/^sub_[A-Za-z0-9]+$/.test(p)) throw new Error('A subscription id starts with sub_ (Stripe > Customers > the client > Subscriptions).'); return p; }
+  if (!act) return null;
+  const run = await env.DB.prepare(`SELECT json_extract(steps_json, '$.stripe.subscription') AS s FROM p_newclient WHERE act_id = ?1 AND json_extract(steps_json, '$.stripe.subscription') IS NOT NULL ORDER BY created_at DESC LIMIT 1`).bind(act).first().catch(() => null);
+  return run?.s || (await subsMap(env))[act]?.sub || null;
+}
+
+/** What the card shows: the subscription as Stripe has it now, plus its next invoice. */
+export async function readBilling(env, subId) {
+  const s = await stripe(env, 'GET', `subscriptions/${subId}?expand[]=customer`);
+  const items = s.items?.data || [];
+  const amount = items.reduce((t, it) => t + (it.price?.unit_amount || 0) * (it.quantity || 1), 0);
+  const up = await stripe(env, 'GET', `invoices/upcoming?subscription=${subId}`).catch(() => null);
+  const cust = typeof s.customer === 'object' && s.customer ? s.customer : { id: s.customer };
+  const card = !!(s.default_payment_method || cust.invoice_settings?.default_payment_method || cust.default_source);
+  const te = s.status === 'trialing' ? s.trial_end : null;
+  return {
+    sub: s.id, status: s.status, customer: cust.id, customer_name: cust.name || cust.email || cust.id, customer_email: cust.email || null,
+    amount, currency: s.currency || 'usd', interval: items[0]?.price?.recurring?.interval || 'month',
+    collection: s.collection_method, card_on_file: card,
+    period_start: isoOf(s.current_period_start), period_end: isoOf(s.current_period_end), trial_end: isoOf(te),
+    billing_day: +ymdIn(te || s.current_period_end).slice(8, 10),
+    next_invoice: up ? { date: isoOf(up.next_payment_attempt || up.created), amount_due: up.amount_due, items: (up.lines?.data || []).map(l => ({ text: l.description, amount: l.amount })) } : null,
+    schedule: s.schedule || null, cancel_at: isoOf(s.cancel_at),
+    _raw: { ps: s.current_period_start, pe: s.current_period_end, te },
+  };
+}
+
+/** The move, worked out without touching Stripe. start = optional 'YYYY-MM-DD' (must fall on that day). */
+export function planBillingDay(info, day, gap, start) {
+  day = Math.round(Number(day));
+  if (!(day >= 1 && day <= 28)) throw new Error('The billing day has to be 1 to 28 (every month has those).');
+  if (!['charge', 'free'].includes(gap)) throw new Error("Say whether the gap is charged ('charge') or free ('free').");
+  if (info.interval !== 'month') throw new Error(`This subscription bills every ${info.interval}, not monthly. Change it in Stripe.`);
+  if (['canceled', 'incomplete_expired'].includes(info.status)) throw new Error(`This subscription is ${info.status}.`);
+  if (info.schedule) throw new Error('This subscription runs on a Stripe schedule, which owns its dates. Change it in Stripe.');
+  if (info.cancel_at) throw new Error(`This subscription is set to cancel on ${niceDate(Date.parse(info.cancel_at) / 1000)}. Undo that in Stripe first.`);
+  const now = Math.floor(Date.now() / 1000);
+  /* Paid through: the end of the current period, or of a trial already running. */
+  const from = Math.max(info._raw.te || info._raw.pe, now);
+  const at = (yy, mm) => Date.UTC(yy, mm - 1, day, 12) / 1000;   // noon UTC = that calendar day in every US zone
+  let target;
+  if (start) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || +start.slice(8) !== day) throw new Error(`The start date has to be a ${dayWord(day)} (YYYY-MM-${String(day).padStart(2, '0')}).`);
+    target = at(+start.slice(0, 4), +start.slice(5, 7));
+    if (target <= now) throw new Error('The start date has to be in the future.');
+  } else {
+    /* The next <day> on or after the paid-through date. */
+    const [y, m, dd] = ymdIn(from).split('-').map(Number);
+    const next = () => at(m === 12 ? y + 1 : y, m === 12 ? 1 : m + 1);
+    target = dd <= day ? at(y, m) : next();
+    if (target <= now) target = next();
+  }
+  if (ymdIn(target) === ymdIn(from)) throw new Error(`It already bills on the ${dayWord(day)}: the next charge is ${niceDate(from)}.`);
+  if (target - now > 730 * 86400) throw new Error('Stripe takes a new date up to two years out.');
+  const gapSec = Math.max(0, target - from);
+  const periodSec = Math.max(1, info._raw.pe - info._raw.ps);
+  const gapDays = Math.round(gapSec / 86400);
+  const gapAmount = gap === 'charge' ? Math.round(info.amount * gapSec / periodSec) : 0;
+  const what = gapSec > 0 ? `${niceDate(from)} to ${niceDate(target)} (${gapDays} day${gapDays === 1 ? '' : 's'})` : '';
+  return {
+    day, gap, trial_end: target, target: isoOf(target), from: isoOf(from), gap_days: gapDays, gap_amount: gapAmount,
+    text: `Bills on the ${dayWord(day)} from ${niceDate(target)}: ${money(info.amount, info.currency)} that day, then every ${dayWord(day)}.`
+      + (gapSec <= 0 ? '' : gap === 'charge'
+        ? ` The gap, ${what}, is charged: ${money(gapAmount, info.currency)} added to that first invoice.`
+        : ` The gap, ${what}, is free: nothing is charged for it.`)
+      + (info.collection === 'charge_automatically' && !info.card_on_file ? ' No card is saved on this customer, so that charge fails until they add one.' : ''),
+  };
+}
+
+/** Does it: the gap item first (if charged), then the trial that lands the new day. b.dry = plan only. */
+export async function moveBillingDay(env, act, b, by) {
+  const subId = await subFor(env, act, b.sub);
+  if (!subId) throw new Error('Locus does not know this brand\'s Stripe subscription yet. Paste its id (sub_...) once.');
+  const info = await readBilling(env, subId);
+  const plan = planBillingDay(info, b.day, b.gap, b.start);
+  if (b.dry) return { info, plan, sub: subId };
+  let item = null;
+  if (plan.gap_amount > 0) {
+    item = await stripe(env, 'POST', 'invoiceitems', {
+      customer: info.customer, subscription: subId, amount: plan.gap_amount, currency: info.currency,
+      description: `Retainer, ${niceDate(Date.parse(plan.from) / 1000)} to ${niceDate(plan.trial_end)} (billing moves to the ${dayWord(plan.day)})`,
+      metadata: { locus: 'billing-day', act: act || '' },
+    });
+  }
+  try {
+    await stripe(env, 'POST', `subscriptions/${subId}`, { trial_end: plan.trial_end, proration_behavior: 'none', metadata: { billing_day: String(plan.day) } });
+  } catch (e) {
+    if (item) await stripe(env, 'DELETE', `invoiceitems/${item.id}`).catch(() => {});
+    throw e;
+  }
+  if (act) {
+    const map = await subsMap(env), prev = map[act] || {};
+    map[act] = { sub: subId, customer: info.customer, history: [...(prev.history || []).slice(-9), { at: new Date().toISOString(), by: by || null, from_day: info.billing_day, to_day: plan.day, start: plan.target, gap: plan.gap, gap_amount: plan.gap_amount, item: item?.id || null }] };
+    await env.DB.prepare(`INSERT INTO settings (key, value) VALUES ('stripeSubs', ?1) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(JSON.stringify(map)).run();
+  }
+  return { info: await readBilling(env, subId), plan, sub: subId, item: item?.id || null };
+}
+export const billingView = i => { if (!i) return i; const { _raw, ...rest } = i; return rest; };
+
 /* ---------------- routes (admin) ---------------- */
 export async function handleNewClient(request, env, path, json, isAdmin, who) {
   if (!path.startsWith('/api/new-client')) return null;
@@ -681,6 +802,24 @@ export async function handleNewClient(request, env, path, json, isAdmin, who) {
       await env.DB.prepare(`INSERT INTO p_newclient (id, name, website, contact_name, contact_email, retainer, start_date, team_json, slug, created_by, act_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)`)
         .bind(id, name, website || null, String(b.contact_name || '').trim().slice(0, 120) || null, email || null, Number(b.retainer) || null, /^\d{4}-\d{2}-\d{2}$/.test(b.start_date || '') ? b.start_date : null, JSON.stringify(team), slugOf(b.slug || name), (who && await who(request, env).catch(() => null)) || null, brandId).run();
       return json({ ok: true, run: view(await getRun(env, id)) });
+    }
+    /* Retainer billing day (any brand, not only new ones): read, then move (billing-day, dry = preview). */
+    if (path === '/api/new-client/billing') {
+      const act = b.act ? await resolveBrandId(env, String(b.act)) : null;
+      const sub = await subFor(env, act, b.sub);
+      if (!sub) return json({ ok: true, act, sub: null, known: false });
+      const billing = billingView(await readBilling(env, sub));
+      if (act && b.sub) {
+        const map = await subsMap(env);
+        if (map[act]?.sub !== sub) { map[act] = { ...(map[act] || {}), sub, customer: billing.customer }; await env.DB.prepare(`INSERT INTO settings (key, value) VALUES ('stripeSubs', ?1) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(JSON.stringify(map)).run(); }
+      }
+      return json({ ok: true, act, sub, known: true, billing });
+    }
+    if (path === '/api/new-client/billing-day' && request.method === 'POST') {
+      const act = b.act ? await resolveBrandId(env, String(b.act)) : null;
+      const by = who ? await who(request, env).catch(() => null) : null;
+      try { const out = await moveBillingDay(env, act, b, by); return json({ ok: true, ...out, info: undefined, billing: billingView(out.info) }); }
+      catch (e) { return json({ error: e.message }, 400); }
     }
     const r = b.id ? await getRun(env, String(b.id)) : null;
     if (!r) return json({ error: 'unknown client' }, 404);

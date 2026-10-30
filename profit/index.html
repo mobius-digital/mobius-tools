@@ -11837,6 +11837,7 @@ async function renderSettings() {
         ${field('Brand name', 'What clients and reports see.', `<input type="text" data-k="name" value="${esc(a.name)}">`)}
         ${field('Time zone', 'Every "yesterday" and every hourly chart for this brand uses it.', `<div class="brow-static ro">${esc(tzName(a.tz))}</div>`)}
         ${field('Currency', 'From the store.', `<div class="brow-static ro">${esc(a.currency || 'USD')}</div>`)}
+        ${CL ? '' : field('Retainer billing', 'Their monthly retainer in our Stripe: what they pay, the day it bills and the next invoice. Move it to another day here.', `<div class="brow-static"><button class="btn btn-s" data-k="billing">Billing day</button></div>`)}
         ${CL ? '' : `<div class="brow-danger2"><span><b>Archive this brand</b><br><span class="tiny">For a client who has left. Locus stops syncing it and hides it from every page. Nothing is deleted; bring it back any time from Agency settings, Clients, <b>+ Add a brand</b>.</span></span>
           <button class="btn" data-k="off"><svg viewBox="0 0 24 24"><use href="#i-archive"/></svg>Archive ${esc(a.name)}</button></div>`}`)}
         ${grp('Ads rules', 'How each ad set and ad is called', `
@@ -12106,6 +12107,8 @@ async function renderSettings() {
       const m = metaOf(a.act_id);
       const q = k => row.querySelector(`[data-k="${k}"]`);
 
+      const bb = q('billing');
+      if (bb) bb.onclick = () => window.NewClient && window.NewClient.billing(a.act_id, a.name);
       q('name').onchange = async e => {
         const v = e.target.value.trim(); if (!v) return;
         try { await saveMeta(a, { name: v }); a.name = v; m.name = v; flash(e.target); row.querySelector('.brow-name').textContent = v; await refreshAccounts(); }
