@@ -182,6 +182,8 @@
    ========================================================================== */
 html.lx-irail[data-ui="v2"] .app{grid-template-columns:56px minmax(0,1fr)}
 html.lx-irail[data-ui="v2"] .nav-toggle{display:none}
+/* the sign-in gate and other no-chrome views hide the rail, so they get the one full-width column back */
+html.lx-irail[data-ui="v2"] body.nochrome .app{grid-template-columns:minmax(0,1fr)}
 html.lx-irail[data-ui="v2"] .side{position:sticky;top:0;left:auto;bottom:auto;width:56px;height:100vh;transform:none;transition:width var(--t-panel) var(--ease),box-shadow var(--t-panel) var(--ease);padding:10px 8px 10px;z-index:40;overflow:hidden}
 html.lx-irail[data-ui="v2"] body:not(.nav-open) .side-brand{padding:4px 0 10px;justify-content:center}
 html.lx-irail[data-ui="v2"] body:not(.nav-open) .side-brand>span,
