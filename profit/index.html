@@ -2429,7 +2429,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="expenses.js?v=1"></script>
 <script src="realfit.js?v=1"></script>
 <script src="studio.js?v=42"></script>
-<script src="launch.js?v=7"></script>
+<script src="launch.js?v=8"></script>
 <script src="season.js?v=19"></script>
 <script src="calc.js?v=11"></script>
 <script src="command.js?v=6"></script>
@@ -2442,7 +2442,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="inspo.js?v=1"></script>
 <script src="leaks.js?v=11"></script>
 <script src="desk.js?v=35"></script>
-<script src="buyer.js?v=5"></script>
+<script src="buyer.js?v=6"></script>
 <script src="agency.js?v=3"></script>
 <script src="calendar.js?v=15"></script>
 <script src="social.js?v=12"></script>
@@ -12698,14 +12698,63 @@ async function renderSettings() {
    worker, which holds the data, the model key and the Slack app; the same
    brain answers the team in each brand's Slack channel (../ask/ask-ui.js). */
 const AH_URL = (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && (() => { try { return localStorage.getItem('pf_ah'); } catch { return null; } })()) || 'https://mobius-account-health.mobius-digital.workers.dev';
+/* ---------- The turn-on guard (2026-10-31) ----------
+   Every screen that turns something on in Meta (Buyer list, Today, nudges, Launch, Ads > Meta) posts to account-health
+   /api/meta/write. When someone ELSE paused that object in the last 14 days the worker answers need 'over_pause' with
+   who, when and why; this box asks why the pause no longer holds and sends the same request again with it, so the dry
+   run shows the warning and the Change Log keeps both reasons. One box for every screen: the answer is kept 15 minutes
+   per object, so the write after the dry run does not ask twice. A drop or sale lock (sold out, sale ended) is not
+   overridable here; it comes back as a plain error. */
+const OVER_PAUSE = new Map();
+function overPauseModal(h) {
+  return new Promise(resolve => {
+    const w = document.createElement('div');
+    w.className = 'modal-wrap';
+    w.innerHTML = `<div class="modal" style="max-width:520px" role="dialog" aria-modal="true"><h3>Someone paused this on purpose</h3>
+      <p class="hint"><b>${esc(h.by)}</b> paused <b>${esc(h.name || 'it')}</b> on ${esc(h.day || String(h.at || '').slice(0, 10))}.</p>
+      <p class="hint">${h.why ? `Their reason: ${esc(h.why)}` : 'They gave no reason.'}</p>
+      <label class="tiny" style="display:block;margin:14px 0 5px;font-weight:600">Why should it be back on now?</label>
+      <textarea id="opTa" rows="3" maxlength="200" placeholder="e.g. new hook in the set, CPA back under goal on the test"
+        style="width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:10px;font:inherit;font-size:13.5px;line-height:1.5"></textarea>
+      <p class="tiny" style="margin:6px 0 0;opacity:.75">This goes in the Change Log next to their reason.</p>
+      <div class="row" style="justify-content:flex-end;gap:8px;margin:14px 0 0">
+        <button class="btn" data-m="no" type="button">Leave it off</button><button class="btn primary" data-m="yes" type="button" disabled>Turn it on anyway</button></div></div>`;
+    document.body.appendChild(w);
+    const ta = w.querySelector('#opTa'), yes = w.querySelector('[data-m="yes"]');
+    const done = v => { w.remove(); document.removeEventListener('keydown', k); resolve(v); };
+    const k = e => { if (e.key === 'Escape') done(null); };
+    document.addEventListener('keydown', k);
+    ta.oninput = () => { yes.disabled = !ta.value.trim(); };
+    w.addEventListener('mousedown', e => { if (e.target === w) done(null); });
+    w.querySelector('[data-m="no"]').onclick = () => done(null);
+    yes.onclick = () => done(ta.value.trim() || null);
+    if (!matchMedia('(max-width:720px)').matches) setTimeout(() => ta.focus(), 30);
+  });
+}
+async function metaWriteGuard(path, opts, send) {
+  if (path !== '/api/meta/write' || !opts || !opts.body) return send(opts || {});
+  let b; try { b = JSON.parse(opts.body); } catch { return send(opts); }
+  const key = `${b.act}|${b.object}`, kept = OVER_PAUSE.get(key);
+  if (b.kind === 'resume' && !b.over_pause && kept && Date.now() - kept.at < 15 * 60e3) b.over_pause = kept.why;
+  let j = await send({ ...opts, body: JSON.stringify(b) });
+  if (j && j.need === 'over_pause' && j.held) {
+    const why = await overPauseModal(j.held);
+    if (!why) return { ...j, error: `Left off. ${j.error}` };
+    OVER_PAUSE.set(key, { why, at: Date.now() });
+    j = await send({ ...opts, body: JSON.stringify({ ...b, over_pause: why }) });
+  }
+  return j;
+}
+window.lxMetaGuard = metaWriteGuard;
 async function apiAH(path, opts = {}) {
   /* Same 90-second read cache as api(); Locus's own calls (/api/ask...) are never cached. */
-  const go = async () => {
-    const res = await fetch(AH_URL + path, { ...opts, headers: { 'Authorization': 'Bearer ' + S.tok, ...(opts.body ? { 'Content-Type': 'application/json' } : {}) } });
+  const go = async (o = opts) => {
+    const res = await fetch(AH_URL + path, { ...o, headers: { 'Authorization': 'Bearer ' + S.tok, ...(o.body ? { 'Content-Type': 'application/json' } : {}) } });
     const j = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(j.error || ('HTTP ' + res.status));
     return j;
   };
+  if (path === '/api/meta/write') { READS.clear(); return metaWriteGuard(path, opts, go); }
   return /^\/api\/ask\b/.test(path) ? (String(opts.method || 'GET').toUpperCase() !== 'GET' ? (READS.clear(), go()) : go()) : cachedRead('a' + path, path, opts, go);
 }
 const SCREEN_NAMES = { overview: 'Overview (every brand at a glance)', profit: 'Profit', plan: 'Plan', brief: 'Daily Brief', reports: 'Reports', customers: 'Customers', meta: 'Meta (spend from Meta, sales from Triple Whale)', tests: 'Tests', costs: 'Costs', settings: 'Settings', health: 'Data health', google: 'Google (what Triple Whale sees; not connected directly)', tiktok: 'TikTok (what Triple Whale sees; not connected directly)', email: 'Email and SMS (Klaviyo)', dash: 'Dashboards (saved, drawn live)', store: 'Store sales (Triple Whale store level)' };

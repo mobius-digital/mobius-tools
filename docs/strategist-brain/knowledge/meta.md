@@ -220,6 +220,8 @@ Format: WHAT to do. NUMBER and its source. WHY in one line. WHAT TO WATCH and fo
 - "Partnership ads failed because one creator flopped." Judge creators by batch, by product, over 2 tests.
 - "Meta says it, so it happened." Meta's numbers are for steering Meta. Triple Whale last platform click is the Mobius number; MER and new customers are the truth test.
 - "The catalog ad has 8x ROAS." Catalog ads harvest people who already viewed the product. Check the existing-customer share before giving it budget credit.
+- "That ad was a top performer, turn it back on." Check WHY it is off first. A one-time sale (Black Friday, the Masters, a limited drop) or a sold-out product made those numbers; they cannot come back. In Locus, drops and sales live on the Buyer list (Drops and sales): when one ends or sells out, every ad set and ad whose name carries its tag (for example [SALE BF] or [DROP Azalea]) is paused and locked, and Locus refuses to turn a locked one on until the drop is reopened (back in stock, a new run). Name sale and drop ads with the tag from day one so this works.
+- "It was paused, so turning it on is harmless." Someone paused it for a reason. Locus refuses to turn on anything another person paused in the last 14 days until you say why that reason no longer holds, and the Change Log keeps both: who paused it and why, and why it came back. On 2026-10-27 three sets Ahsan had paused were turned back on without that, and all three lost money.
 
 ## 7. Sources
 

@@ -21,7 +21,10 @@
  *     refused with the exact fix;
  *   - re-read the object at Apply and refuse when it changed since the card was made;
  *   - one row in p_meta_write (for undo) and one manual line in `activities` (the Change Log) naming who
- *     approved it.
+ *     approved it;
+ *   - turning something ON (2026-10-31, `pauseGuard`): a pause by someone else in the last 14 days is refused unless
+ *     the input says why the pause no longer holds (`over_pause`), and an object a drop or sale locked (drops.js:
+ *     the sale ended or it sold out) is refused outright until the drop is reopened.
  * All HTTP goes through d.xfetch (counted, see THE SUBREQUEST BUDGET in account-health/CLAUDE.md).
  */
 import { resolveBrandId } from './brands.js';
@@ -29,6 +32,7 @@ import { asana, asanaAll, numOf, googleToken } from './asana-brand.js';
 import { serveFile } from './prodwork.js';
 import { recordWrite, registerUndo, doneNote } from './extwrite.js';
 import { frameFileDownload } from './frame.js';
+import { lockFor } from './drops.js';
 
 const GRAPH = 'https://graph.facebook.com/v23.0';
 const BUSINESS_ID = '695359915477596';
@@ -214,7 +218,9 @@ async function ensureTable(env) {
   await env.DB.prepare(`CREATE INDEX IF NOT EXISTS p_meta_write_brand ON p_meta_write (brand, at)`).run().catch(() => {});
   tabled = true;
 }
-const approver = ctx => ctx?.who || 'someone in Locus';
+const approver = ctx => ctx?.who || 'someone';
+/* "<who> in Locus", once: a name that already says Locus (a drop's own pause, "Locus (end date passed)") is not doubled. */
+const locusActor = by => (/\bLocus\b/i.test(by) ? by : `${by} in Locus`);
 async function record(env, p, ctx, { before, after, object, summary, category }) {
   await ensureTable(env);
   const id = rid('mw_');
@@ -230,7 +236,7 @@ async function logChange(env, p, { summary, category, by, object, note, via }) {
   await env.DB.prepare(`INSERT INTO activities (id, act_id, event_time, event_type, category, summary, reason, note, confirmed, manual, actor, object_type, object_id, object_name)
     VALUES (?1, ?2, ?3, ?12, ?4, ?5, ?6, ?7, 1, 1, ?8, ?9, ?10, ?11)`)
     .bind(`manual:${crypto.randomUUID()}`, p.act, new Date().toISOString(), category || 'other', summary, p.reason || null, note || null,
-      locus ? `${by} in Locus` : `the Strategist, approved by ${by}`, LEVELS[p.level]?.type || null, object || p.id, p.name || null, locus ? 'locus_write' : 'strategist_write').run().catch(() => {});
+      locus ? locusActor(by) : `the Strategist, approved by ${by}`, LEVELS[p.level]?.type || null, object || p.id, p.name || null, locus ? 'locus_write' : 'strategist_write').run().catch(() => {});
 }
 /** Apply re-reads the object: a card made before someone else changed it must not overwrite that change. */
 async function unchanged(env, d, p) {
@@ -261,21 +267,75 @@ const base = (extra, req = []) => ({ type: 'object', properties: { brand: { type
 const statusLine = o => `${o.status}${o.effective_status && o.effective_status !== o.status ? ` (delivering: ${o.effective_status})` : ''}`;
 const common = (r, action, input, ctx) => ({ action, act: r.act, brand: r.brand.act_id, level: r.level, id: r.obj.id, name: r.obj.name, reason: clip(input.reason, 300), proposer: ctx?.who || null });
 
+/* ---------------- the turn-on guard (2026-10-31) ----------------
+   On 2026-10-27 a chat turned back on three ad sets Ahsan had paused days before, without saying they had been paused or
+   why, and all three lost money. Now turning something on first looks up its last pause: p_meta_write (a pause made
+   through Locus or the Strategist: by, at, write id) and the Change Log (`activities`: a pause made straight in Meta, by
+   whoever did it, and the reason tagged on it). A pause by someone else in the last PAUSE_DAYS is refused unless the
+   input carries `over_pause` (one line: why the pause no longer holds); with it, the card and the Change Log say "Paused
+   by X on DATE: <reason>. Turned back on because: <over_pause>." A drop lock (drops.js: the sale ended or it sold out)
+   refuses with no way past it but reopening the drop. */
+const PAUSE_DAYS = 14;
+const OVER_PAUSE = { type: 'string', description: 'Only when someone else paused it in the last 14 days (the first try is refused and names who, when and why): one line on why that pause no longer holds. Never invent it; ask the person.' };
+const dayWord = iso => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Chicago' });
+/* The person behind a name: "cole@go-mobius-digital.com", "Cole Wetzler", "Cole via Claude chat" and "cole in Locus" are
+   one person (the first name); a Slack id matches only itself. */
+const personOf = s => {
+  const t = String(s || '').trim().toLowerCase().replace(/^the strategist, approved by /, '').replace(/ in locus$/, '');
+  return (t.includes('@') ? t.split('@')[0] : t).split(/[\s._-]+/)[0] || '';
+};
+export const samePerson = (a, b) => !!personOf(a) && personOf(a) === personOf(b);
+/** The newest pause of one object in the last PAUSE_DAYS: {by, at, why, write} or null. */
+export async function lastPause(env, id) {
+  await ensureTable(env);
+  const since = new Date(Date.now() - PAUSE_DAYS * 864e5).toISOString();
+  const [w, a] = await Promise.all([
+    env.DB.prepare(`SELECT id, by, at FROM p_meta_write WHERE object = ?1 AND after LIKE '%"status":"PAUSED"%' AND undone IS NULL AND at >= ?2 ORDER BY at DESC LIMIT 1`).bind(String(id), since).first().catch(() => null),
+    env.DB.prepare(`SELECT actor, event_time, reason FROM activities WHERE object_id = ?1 AND category IN ('ad_paused', 'campaign_paused') AND event_time >= ?2 ORDER BY event_time DESC LIMIT 1`).bind(String(id), since).first().catch(() => null),
+  ]);
+  if (!w && !a) return null;
+  const at = r => Date.parse(r.at || r.event_time) || 0;
+  /* A pause made in Meta AFTER the Locus one (more than two minutes later, so not Meta's own echo of it) is the newer one. */
+  const fromMeta = a && (!w || at(a) > at(w) + 120e3);
+  const why = a && a.reason ? clip(a.reason, 200) : null;
+  if (fromMeta) return { by: String(a.actor || 'someone in Meta').replace(/^the Strategist, approved by /, '').replace(/ in Locus$/, ''), at: a.event_time, why, write: null };
+  return { by: w.by, at: w.at, why, write: w.id };
+}
+async function pauseGuard(env, r, input, ctx) {
+  const lock = await lockFor(env, r.brand.act_id, r.obj.id, r.obj.name).catch(() => null);
+  if (lock && lock.locked) return { error: lock.text, locked: true };
+  const p = await lastPause(env, r.obj.id);
+  /* A drop's own pause stops counting once the drop is reopened (back in stock, a new drop). */
+  if (!p || (lock && lock.released && lock.released.includes(p.write))) return {};
+  const said = `Paused by ${p.by} on ${dayWord(p.at)}${p.why ? `: ${p.why.replace(/\.$/, '')}` : ' (no reason given)'}.`;
+  const over = clip(String(input.over_pause || '').trim(), 200).replace(/\.$/, '');
+  if (over) return { text: `${said} Turned back on because: ${over}.` };
+  if (ctx?.who && samePerson(p.by, ctx.who)) return {};
+  return { error: `${p.by} paused "${r.obj.name}" on ${dayWord(p.at)}${p.why ? ` because: ${p.why}` : ' and gave no reason'}. Say why that no longer holds to turn it back on.`,
+    need: 'over_pause', held: { by: p.by, at: p.at, day: dayWord(p.at), why: p.why, write: p.write, name: r.obj.name } };
+}
+
 function statusAction(d, name, to) {
   const verb = to === 'PAUSED' ? 'Pause' : 'Turn on';
   return {
     name,
     description: `${verb} one campaign, ad set or ad in Meta. Name exactly one; nothing else is touched. Judge the ad set first; never ${to === 'PAUSED' ? 'pause the anchor of a working set' : 'turn on something paused for a reason without saying the reason is gone'}.`,
-    input_schema: base({}),
+    input_schema: base(to === 'ACTIVE' ? { over_pause: OVER_PAUSE } : {}),
     propose: async (env, input, h, ctx) => {
       const r = await prep(env, d, input, ctx); if (r.error) return r;
       if (r.obj.status === to) return { error: `${LEVEL_WORD[r.level]} "${r.obj.name}" is already ${to}.` };
+      let held = '';
+      if (to === 'ACTIVE') {
+        const g = await pauseGuard(env, r, input, ctx);
+        if (g.error) return g;
+        held = g.text || '';
+      }
       const parent = r.level !== 'campaign' && /^(CAMPAIGN|ADSET)_PAUSED$/.test(r.obj.effective_status || '') && to === 'ACTIVE'
         ? ` Its ${r.obj.effective_status === 'CAMPAIGN_PAUSED' ? 'campaign' : 'ad set'} is paused, so it will not deliver until that is on too.` : '';
       const cat = r.level === 'ad' ? (to === 'PAUSED' ? 'ad_paused' : 'ad_relaunched') : (to === 'PAUSED' ? 'campaign_paused' : 'campaign_relaunched');
       const line = `${verb} ${LEVEL_WORD[r.level]} "${r.obj.name}"`;
-      return { summary: `${r.brand.name}: ${line}`, detail: `${r.obj.status} → ${to}. ${LEVEL_WORD[r.level]} ${r.obj.id} in ${r.actName}.${parent}\nWhy: ${clip(input.reason, 300)}`,
-        patch: { ...common(r, name, input, ctx), before: { status: r.obj.status }, after: { status: to }, category: cat, logLine: `${line}: ${r.obj.status} → ${to}`, done: `${line}: done.` } };
+      return { summary: `${r.brand.name}: ${line}`, detail: `${r.obj.status} → ${to}. ${LEVEL_WORD[r.level]} ${r.obj.id} in ${r.actName}.${parent}\nWhy: ${clip(input.reason, 300)}${held ? `\n${held}` : ''}`,
+        patch: { ...common(r, name, input, ctx), ...(held ? { reason: clip(`${clip(input.reason, 200)}. ${held}`, 600) } : {}), before: { status: r.obj.status }, after: { status: to }, category: cat, logLine: `${line}: ${r.obj.status} → ${to}`, done: `${line}: done.` } };
     },
     apply: (env, p, h, ctx) => applyUpdate(env, d, p, ctx),
   };
@@ -1146,7 +1206,8 @@ const KIND = { pause: 'meta_pause', resume: 'meta_resume', budget: 'meta_budget'
 export const LOCUS_KINDS = Object.keys(KIND);
 function locusInput(b) {
   const lv = ['campaign', 'adset', 'ad'].includes(b.level) ? b.level : undefined;
-  const base = { brand: String(b.act || ''), target: String(b.object || ''), level: lv, reason: clip(b.reason || 'Changed by hand in Locus', 300) };
+  const base = { brand: String(b.act || ''), target: String(b.object || ''), level: lv, reason: clip(b.reason || 'Changed by hand in Locus', 300),
+    ...(b.kind === 'resume' && b.over_pause ? { over_pause: clip(b.over_pause, 200) } : {}) };
   if (b.kind === 'budget') return { ...base, amount: +b.amount, big: true };
   if (b.kind === 'min_spend') return { ...base, ...(b.min != null && b.min !== '' ? { min: +b.min } : {}), ...(b.cap != null && b.cap !== '' ? { cap: +b.cap } : {}) };
   if (b.kind === 'rename') return { ...base, new_name: b.name };
@@ -1164,7 +1225,8 @@ export async function locusWrite(env, d, b, ctx) {
   const act = metaActions(d).find(a => a.name === name);
   const c = { ...ctx, via: 'locus', screen: { act_id: b.act } };
   const p = await act.propose(env, locusInput(b), null, c);
-  if (p.error) return { error: p.error };
+  /* need 'over_pause' = the turn-on guard: the screen shows who paused it and why, and asks for the reason. */
+  if (p.error) return { error: p.error, ...(p.need ? { need: p.need, held: p.held } : {}), ...(p.locked ? { locked: true } : {}) };
   const step = p.patch.before && p.patch.after ? Object.keys(p.patch.after).map(k => ({ field: k, from: p.patch.before[k] ?? null, to: p.patch.after[k] })) : null;
   if (b.dry) return { ok: true, dry: true, summary: p.summary, detail: p.detail, level: p.patch.level, name: p.patch.name, step, before: p.patch.before || null };
   if (b.expect && p.patch.before) {

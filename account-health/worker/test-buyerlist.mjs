@@ -115,7 +115,7 @@ await check('shared state: Done = quiet 3 days, Skip = until tomorrow, Clear = b
   db.prepare(`INSERT INTO p_meta_write VALUES ('mw2', 'act_1', 'brand_alpha', 'ad', '3331', 'Hook B', 'meta_pause', 'status', NULL, NULL, 'Paused', 'x', ?, NULL)`).run(new Date(Date.now() - 4 * 864e5).toISOString());
   const l = await buildBuyerList(env, d, { act: 'all' });
   assert.deepEqual(l.rows.map(r => r.kind).sort(), ['launch', 'minoff', 'trim'], 'cut done, mixed skipped, scale watched; the 4-day-old write no longer hides the trim');
-  assert.deepEqual(l.hidden, { done: 1, skipped: 1, watched: 1, dropped: 0 });
+  assert.deepEqual(l.hidden, { done: 1, skipped: 1, watched: 1, dropped: 0, locked: 0 });
   const st = await readState(env, new Set(['brand_alpha']), today);
   assert.equal(st.states.length, 1); assert.equal(st.states[0].quiet_until, '2026-10-29');
   /* tomorrow: the skip is over, the done is not */

@@ -35,12 +35,14 @@ const L = { tok: '', acts: new Map(), all: null, allAt: 0, byAd: new Map(), byBa
 
 function ls(k) { try { return localStorage.getItem(k); } catch { return null; } }
 const tok = () => L.tok || ls('mobius_session') || ls('pf_token') || '';
-async function ah(path, opts = {}) {
+async function ahRaw(path, opts = {}) {
   const res = await fetch(AH_URL + path, { ...opts, headers: { Authorization: 'Bearer ' + tok(), ...(opts.body ? { 'Content-Type': 'application/json' } : {}) } });
   const j = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(j.error || ('HTTP ' + res.status));
   return j;
 }
+/* Turning a launch on goes through the shared turn-on guard (index.html lxMetaGuard: who paused it and why, then the reason). */
+const ah = (path, opts = {}) => (window.lxMetaGuard ? window.lxMetaGuard(path, opts, o => ahRaw(path, o)) : ahRaw(path, opts));
 const postAH = (p, b) => ah(p, { method: 'POST', body: JSON.stringify(b) });
 
 /* ---------------- the cache: launches by Studio ad and by test ---------------- */

@@ -4683,3 +4683,14 @@ this goes for all things that go from the right side", and the Integrations pane
   (assets.js) runs LAST in the hourly cron and spends whatever subrequest budget is left (`subCanAfford(120)` per
   25-image round, 300 an hour max) on the brand with the most untagged images. Untagged images never match a
   library search by setting or product, so this is what makes a newly added folder usable. Test: test-assets.mjs.
+
+## 2026-10-31: the turn-on box and Drops and sales (index.html `metaWriteGuard`, buyer.js?v=6, launch.js?v=8)
+- **One box for every screen that turns something on.** `apiAH` (and launch.js's own `ah`, through `window.lxMetaGuard`)
+  sends `/api/meta/write` through `metaWriteGuard`: an answer with `need: 'over_pause'` opens `overPauseModal` (who paused
+  it, when, their reason, "Why should it be back on now?", Leave it off / Turn it on anyway), then sends the same body
+  again with `over_pause`. The reason is kept 15 minutes per act|object so the write after the dry run does not ask twice.
+  Cancel = the answer's error with "Left off." in front. Buyer list, Today, nudges, Launch and Ads > Meta all get it with
+  no change of their own. A drop lock is a plain error (no box).
+- **Drops and sales** (Buyer list page action): a brand's drops with status (Live / Sale ended / Sold out), tag, end date,
+  products, how many are locked off; Add / Edit / Remove (live only) / Sold out / Sale ended / Reopen, each an in-app
+  modal. Quiet rows hidden by a lock read "Off for good: <drop> sold out ([TAG]). Reopen it in Drops and sales to bring it back."

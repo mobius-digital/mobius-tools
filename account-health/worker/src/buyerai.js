@@ -28,6 +28,7 @@ import { factsFor, factsBlock } from './stratmem.js';
 import { coverUrl } from './creative.js';
 import { buildBuyerList, setState, postBuyerList } from './buyerlist.js';
 import { eligible, morningHour } from './morningcard.js';
+import { locksFor, lockedBy } from './drops.js';
 
 export const PASS_MODEL = 'claude-opus-5-5', TALK_MODEL = 'claude-sonnet-5-5';
 /* Dollars per million tokens: [input, output, cache read] (stratmake.js PRICE). */
@@ -352,6 +353,8 @@ export function finishPass(out, inp) {
       else { verdict = 'keep'; action = ''; mv = 'none'; why = t ? t.fact : shortLine(rule.why, WHY_WORDS); }
     }
     if (verdict === 'change' && !action) verdict = 'keep';
+    /* A drop or sale that ended or sold out locked it (drops.js): never a turn-on move. */
+    if (mv === 'resume' && isLocked(inp, r.ad_id || rule.ad_id || rule.adset_id, rule.name)) { verdict = 'keep'; action = ''; mv = 'none'; why = shortLine(rule.why, WHY_WORDS); }
     rows.push({ key: r.key, verdict, action, why, move: mv, budget: mv === 'budget' && +r.budget > 0 ? Math.round(+r.budget) : null,
       ad_id: mv !== 'none' && ID.test(r.ad_id || '') ? r.ad_id : null, checked, reason: why, change: action });
   }
@@ -365,11 +368,13 @@ export function finishPass(out, inp) {
       action = t.action; why = t.fact; checked = t.fact; mv = 'none';
     }
     if (!action) continue;
+    if ((mv === 'resume' || x.type === 'relaunch') && isLocked(inp, ids.ad_id || ids.adset_id || ids.campaign_id, x.name)) continue;
     extra.push({ id: `ai${extra.length + 1}`, type: x.type, name: noDash(clip(x.name, 200)), ...ids, action, why, move: mv,
       budget: mv === 'budget' && +x.budget > 0 ? Math.round(+x.budget) : null, checked, reason: why, stake: Math.max(0, Math.round(+x.stake || 0)) });
   }
   return { summary: shortLine(out.summary, WHY_WORDS), rows, extra };
 }
+const isLocked = (inp, id, name) => !!(inp.locks && lockedBy(inp.locks, id, name));
 /** Everything the read sees for one brand, from D1 and the list already built. */
 export async function passInput(env, d, a, list, { today = centralToday() } = {}) {
   const q = (sql, ...b) => env.DB.prepare(sql).bind(...b).all().then(r => r.results || []).catch(() => []);
@@ -423,13 +428,15 @@ export async function passInput(env, d, a, list, { today = centralToday() } = {}
     env.DB.prepare(`SELECT target_cpa, target_roas, currency FROM brand_accounts WHERE act_id = ?1`).bind(a.act_id).first().catch(() => null),
   ]);
   const plan = facts.filter(f => f.scope !== 'agency' && /account|structure|plan|campaign/i.test(`${f.topic} ${f.text}`));
-  return { metaActs, to, ruleRows, sets, camps, brain, facts, plan, lessons, acct, banners: (list.banners || []).filter(b => b.act_id === a.act_id) };
+  const locks = (await locksFor(env, new Set([a.act_id])).catch(() => new Map())).get(a.act_id) || null;
+  return { metaActs, to, ruleRows, sets, camps, brain, facts, plan, lessons, acct, locks, banners: (list.banners || []).filter(b => b.act_id === a.act_id) };
 }
 export function passUser(a, inp) {
   return [`BRAND: ${a.name} (${a.currency || 'USD'}). Data through ${inp.to || 'unknown'}. Goal: ${inp.acct ? JSON.stringify({ target_cpa: inp.acct.target_cpa, target_roas: inp.acct.target_roas }) : 'not set'}`,
     `THE ACCOUNT PLAN (follow it):\n${inp.plan.length ? inp.plan.map(f => `- ${f.topic}: ${f.text}`).join('\n') : '(none saved)'}`,
     `RULE ROWS (today's calls from the rules; quiet = already done, skipped or changed in Meta in the last 3 days):\n${JSON.stringify(inp.ruleRows)}`,
     `TRACKING BANNERS:\n${inp.banners.map(b => b.text).join('\n') || '(none)'}`,
+    `OFF FOR GOOD (a sale ended or the product sold out; never suggest turning these on, relaunching them or their ads, however well they did):\n${inp.locks && inp.locks.tags.length ? inp.locks.tags.map(t => `- anything named with ${t.tag}: ${t.name}, ${t.status === 'sold_out' ? 'sold out' : 'ended'}`).join('\n') : '(none)'}`,
     `TRACKING CHECKS (Locus checked these itself, last 7 days; state them as facts, never ask Cole to check):\n${inp.sets.filter(s => s.tracking).map(s => `- ${s.name} (${s.adset_id}): ${s.tracking.fact}${s.tracking.action ? `. To do: ${s.tracking.action}` : ''}`).join('\n') || '(no ad set spent)'}`,
     `CAMPAIGNS (budgets per day, spend last 7 days):\n${JSON.stringify(inp.camps)}`,
     `AD SETS that spent in the last 14 days, biggest first, with their top ads (last7 / last14; sales = Triple Whale last click, fc = first click):\n${JSON.stringify(inp.sets)}`,

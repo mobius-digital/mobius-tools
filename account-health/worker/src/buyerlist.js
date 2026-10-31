@@ -38,6 +38,7 @@
  *   GET  /api/buyer-list/preview                 the Slack post as it would go out now (nothing posted)
  *   POST /api/buyer-list/post {channel}          post it now to that channel (a test; the daily post is untouched) */
 import { readToday } from './todaypost.js';
+import { locksFor, lockedBy } from './drops.js';
 import { eligible, morningHour } from './morningcard.js';
 import { adsOf, isCarousel } from './prodwork.js';
 import { readAI, applyAI, aiPassDone, buyerAIOn, adNumbers, withCovers, metaActsOf, disagree, decide, lessonsFor, buyerAITick, spentToday, trackingCheck, DAY_CAP, POST_WAIT_HOURS } from './buyerai.js';
@@ -360,9 +361,15 @@ export async function buildBuyerList(env, d, { act = 'all', only = null, live = 
      Whale on that set, the tags when they disagree) and says what it found instead of "fix tracking". */
   if (!noAI && d.checkTracking !== false) all = await Promise.all(all.map(r => (r.kept_by === 'tracking_gap' && !r.changed ? gapChecked(env, d, r).catch(() => r) : r)));
   const rows = [], quiet = [];
+  /* Drops and sales (2026-10-31, drops.js): a sale that ended or a product that sold out locks its ads; a row that would
+     turn one back on leaves the list (quiet, with the reason), whoever suggested it. */
+  const locks = await locksFor(env, ids).catch(() => new Map());
+  const turnsOn = r => r.do === 'resume' || r.ai_type === 'relaunch' || /\b(turn (it |them )?(back )?on|relaunch|resume|unpause)\b/i.test(r.action || '');
   for (const r of all) {
     const h = hiddenBy(r, st);
+    const lk = !h && turnsOn(r) ? lockedBy(locks.get(r.act_id), r.ad_id || r.adset_id || r.object, r.name || r.set) : null;
     if (h) quiet.push({ ...r, hidden: h });
+    else if (lk) quiet.push({ ...r, hidden: { why: 'locked', by: 'Locus', summary: `Off for good: ${lk.name} ${lk.status === 'sold_out' ? 'sold out' : 'ended'} (${lk.tag})` } });
     /* The morning read says drop it: ONE final call, so it leaves the list (quiet, with the reason). */
     else if (r.ai && r.ai.verdict === 'drop') quiet.push({ ...r, hidden: { why: 'dropped', by: 'Locus', summary: r.ai.why || r.ai.reason || '' } });
     else rows.push(r);
@@ -376,7 +383,7 @@ export async function buildBuyerList(env, d, { act = 'all', only = null, live = 
     n_do: rows.filter(canDo).length, groups,
     counts: Object.fromEntries(KINDS.map(k => [k, rows.filter(r => r.kind === k).length])),
     hidden: { done: quiet.filter(r => r.hidden.why === 'done').length, skipped: quiet.filter(r => r.hidden.why === 'skipped').length, watched: quiet.filter(r => r.hidden.why === 'watched').length,
-      dropped: quiet.filter(r => r.hidden.why === 'dropped').length },
+      dropped: quiet.filter(r => r.hidden.why === 'dropped').length, locked: quiet.filter(r => r.hidden.why === 'locked').length },
     rows: sorted, quiet, notes, banners, ...launchView(today, set.launchDays, launch.scheduled, launched),
     ai: { on: set.buyerAI, n_read: [...ai.values()].filter(x => x.status === 'done').length, n_brands: accts.length,
       brands: [...ai.entries()].filter(([, x]) => x.status === 'done' && x.summary).map(([k, x]) => ({ act_id: k, brand: (accts.find(a => a.act_id === k) || {}).name || k, summary: x.summary, at: x.at })) } };
