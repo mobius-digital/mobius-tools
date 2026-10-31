@@ -69,17 +69,21 @@ async function shapeFor(env, d, acct, today) {
   if (!acct.tw_shop || !env.TW_API_KEY) return out;
   const shift = await d.twShift(env, acct.tw_shop).catch(() => 0);
   const rev = [], ord = [], spend = [];
+  /* The five days are read at once, not one after another: in a row they took ~25s on the first check of each
+     local day, which is what the 8am smoke check kept timing out on (2026-10-31). */
+  const asks = [];
   for (let i = 1; i <= SHAPE_DAYS; i++) {
-    if (d.subCanAfford && !d.subCanAfford(12)) break;
-    const day = d.addDays(today, -i), ask = d.addDays(day, shift);
-    try {
-      const { raw } = await d.twSummary(env, acct.tw_shop, ask, ask);
-      const s = hourArr(raw, ['netSales', 'totalSales']), tax = hourArr(raw, ['totalNetTaxes']);
-      if (s) rev.push(s.map((v, h) => Math.max(0, v - (tax ? tax[h] : 0))));
-      const o = hourArr(raw, ['totalOrdersWithAmount', 'totalOrders', 'orders']); if (o) ord.push(o);
-      const sp = hourArr(raw, ['blendedAds']); if (sp) spend.push(sp);
-      out.days++;
-    } catch { /* one missing day only thins the curve */ }
+    if (d.subCanAfford && !d.subCanAfford(12 * (asks.length + 1))) break;
+    asks.push(d.addDays(d.addDays(today, -i), shift));
+  }
+  const raws = await Promise.all(asks.map(ask => d.twSummary(env, acct.tw_shop, ask, ask).then(r => r.raw).catch(() => null)));
+  for (const raw of raws) {
+    if (!raw) continue;   // one missing day only thins the curve
+    const s = hourArr(raw, ['netSales', 'totalSales']), tax = hourArr(raw, ['totalNetTaxes']);
+    if (s) rev.push(s.map((v, h) => Math.max(0, v - (tax ? tax[h] : 0))));
+    const o = hourArr(raw, ['totalOrdersWithAmount', 'totalOrders', 'orders']); if (o) ord.push(o);
+    const sp = hourArr(raw, ['blendedAds']); if (sp) spend.push(sp);
+    out.days++;
   }
   out.rev = cumShare(rev); out.ord = cumShare(ord); out.spend = cumShare(spend);
   if (out.days) await d.putSetting(env, key, JSON.stringify(out));
