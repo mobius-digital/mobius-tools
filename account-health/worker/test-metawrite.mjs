@@ -204,7 +204,7 @@ await check('pause: finds the ad set by name, card shows before and after, apply
 await check('resume: refuses a no-op, payload status ACTIVE, by id', async () => {
   const no = await acts.meta_pause.propose(env, { brand: 'Lucky', target: '2300011', level: 'adset', reason: 'x' });
   assert.match(no.error, /already PAUSED/);
-  const p = await acts.meta_resume.propose(env, { brand: 'Lucky', target: '2300011', reason: 'back under goal' });
+  const p = await acts.meta_resume.propose(env, { brand: 'Lucky', target: '2300011', reason: 'back under goal' }, null, COLE);
   assert.ok(!p.error, p.error); assert.deepEqual(p.patch.after, { status: 'ACTIVE' });
   await acts.meta_resume.apply(env, p.patch, null, COLE);
   assert.deepEqual(posts.at(-1).body, { status: 'ACTIVE' }); assert.equal(objs['2300011'].status, 'ACTIVE');
@@ -376,6 +376,116 @@ await check('Locus screen writes (POST /api/meta/write): dry shows before and af
   assert.match(ro.error, /can only read/);
   const live = await mw.metaLive(env, d, 'brand_lucky');
   assert.equal(live.can, true); assert.equal(live.adsets['2300011'].campaign, '2300002');
+});
+
+/* ---------------- 2026-10-31: the turn-on guard, write names, drops and sales ---------------- */
+const AHSAN = { who: 'ahsan@go-mobius-digital.com' };
+const lastLine = () => db.prepare(`SELECT actor, reason, summary FROM activities WHERE manual = 1 ORDER BY rowid DESC LIMIT 1`).get();
+objs['2300014'] = { id: '2300014', name: '347 | UGC', status: 'ACTIVE', effective_status: 'ACTIVE', campaign_id: '2300002', account_id: '111', _lv: 'adset', _act: LUCKY };
+objs['2300015'] = { id: '2300015', name: '337 | UGC', status: 'PAUSED', effective_status: 'PAUSED', campaign_id: '2300002', account_id: '111', _lv: 'adset', _act: LUCKY };
+
+await check('turn-on guard: someone else\'s pause in 14 days is refused with who, when and why; over_pause carries both into the card and the Change Log', async () => {
+  const p = await mw.locusWrite(env, d, { act: 'brand_lucky', kind: 'pause', level: 'adset', object: '2300014', reason: 'CPA $96 vs $55 goal, 7 days' }, AHSAN);
+  assert.ok(!p.error, p.error);
+  const no = await mw.locusWrite(env, d, { act: 'brand_lucky', kind: 'resume', level: 'adset', object: '2300014', dry: true }, COLE);
+  assert.equal(no.need, 'over_pause'); assert.equal(no.held.by, 'ahsan@go-mobius-digital.com'); assert.match(no.error, /ahsan@go-mobius-digital\.com paused "347 \| UGC" on \w{3} \d+ because: CPA \$96/);
+  assert.equal(objs['2300014'].status, 'PAUSED', 'nothing written');
+  /* the Strategist the same way, and its schema carries the field */
+  const s = await acts.meta_resume.propose(env, { brand: 'Lucky', target: '2300014', reason: 'top performer' }, null, { who: 'U_COLE' });
+  assert.equal(s.need, 'over_pause');
+  assert.ok(acts.meta_resume.input_schema.properties.over_pause); assert.ok(!acts.meta_pause.input_schema.properties.over_pause);
+  const dry = await mw.locusWrite(env, d, { act: 'brand_lucky', kind: 'resume', level: 'adset', object: '2300014', dry: true, over_pause: 'New hook in the set, CPA back under goal on the test' }, COLE);
+  assert.ok(!dry.error, dry.error);
+  assert.match(dry.detail, /Paused by ahsan@go-mobius-digital\.com on \w{3} \d+: CPA \$96 vs \$55 goal, 7 days\. Turned back on because: New hook in the set, CPA back under goal on the test\./);
+  const w = await mw.locusWrite(env, d, { act: 'brand_lucky', kind: 'resume', level: 'adset', object: '2300014', expect: dry.before, over_pause: 'New hook in the set, CPA back under goal on the test' }, COLE);
+  assert.ok(!w.error, w.error); assert.equal(objs['2300014'].status, 'ACTIVE');
+  const l = lastLine();
+  assert.match(l.reason, /Paused by ahsan@go-mobius-digital\.com on .*Turned back on because: New hook/); assert.equal(l.actor, 'cole@go-mobius-digital.com in Locus');
+});
+
+await check('turn-on guard: the pauser may turn it back on; a pause made straight in Meta is found in the Change Log with its reason', async () => {
+  await mw.locusWrite(env, d, { act: 'brand_lucky', kind: 'pause', level: 'adset', object: '2300014', reason: 'test' }, AHSAN);
+  const own = await mw.locusWrite(env, d, { act: 'brand_lucky', kind: 'resume', level: 'adset', object: '2300014', dry: true }, { who: 'Ahsan via Slack' });
+  assert.ok(!own.error, own.error);
+  db.prepare(`INSERT INTO activities (id, act_id, event_time, event_type, category, actor, object_type, object_id, object_name, reason) VALUES ('ev1', '${LUCKY}', ?, 'update_ad_set_run_status', 'campaign_paused', 'Ahsan Raza', 'ADSET', '2300015', '337 | UGC', 'Losing money, CPA 2x')`).run(new Date(Date.now() - 3 * 864e5).toISOString());
+  const r = await mw.locusWrite(env, d, { act: 'brand_lucky', kind: 'resume', level: 'adset', object: '2300015', dry: true }, { who: 'Cole via Claude chat' });
+  assert.equal(r.need, 'over_pause'); assert.match(r.error, /^Ahsan Raza paused "337 \| UGC" on .* because: Losing money, CPA 2x/);
+  /* older than 14 days: no guard */
+  db.prepare(`UPDATE activities SET event_time = ? WHERE id = 'ev1'`).run(new Date(Date.now() - 20 * 864e5).toISOString());
+  const old = await mw.locusWrite(env, d, { act: 'brand_lucky', kind: 'resume', level: 'adset', object: '2300015', dry: true }, { who: 'Cole via Claude chat' });
+  assert.ok(!old.error, old.error);
+  assert.ok(mw.samePerson('cole@go-mobius-digital.com', 'Cole via Claude chat')); assert.ok(mw.samePerson('Ahsan Raza', 'ahsan@go-mobius-digital.com')); assert.ok(!mw.samePerson('U_AHSAN', 'ahsan@go-mobius-digital.com'));
+});
+
+await check('write names: a Locus actor is never "in Locus in Locus"', async () => {
+  assert.ok(!(await mw.locusWrite(env, d, { act: 'brand_lucky', kind: 'resume', level: 'adset', object: '2300014', reason: 'x' }, AHSAN)).error);
+  assert.ok(!(await mw.locusWrite(env, d, { act: 'brand_lucky', kind: 'pause', level: 'adset', object: '2300014', reason: 'x' }, { who: 'Locus (end date passed)' })).error);
+  assert.equal(lastLine().actor, 'Locus (end date passed)');
+  await mw.locusWrite(env, d, { act: 'brand_lucky', kind: 'resume', level: 'adset', object: '2300014', reason: 'x', over_pause: 'test' }, {});
+  assert.equal(lastLine().actor, 'someone in Locus');
+  const src = fs.readFileSync(path.join(here, 'src', 'worker.js'), 'utf8');
+  assert.match(src, /const who = email \|\| String\(body\.by \|\| ''\)\.trim\(\)\.slice\(0, 80\);/); assert.match(src, /Say who is making this change: add "by"/);
+  assert.ok(!src.includes("'someone in Locus'"));
+});
+
+const drops = await import('./src/drops.js');
+await check('drops: sold out pauses every ad set and ad carrying the tag, locks them, and the guard refuses them until it is reopened', async () => {
+  objs['2300016'] = { id: '2300016', name: '[DROP Azalea] 1007 | Still', status: 'ACTIVE', effective_status: 'ACTIVE', campaign_id: '2300002', account_id: '111', _lv: 'adset', _act: LUCKY };
+  objs['2300024'] = { id: '2300024', name: '[DROP Azalea] 1007-1', status: 'ACTIVE', effective_status: 'ACTIVE', adset_id: '2300016', campaign_id: '2300002', account_id: '111', _lv: 'ad', _act: LUCKY };
+  objs['2300025'] = { id: '2300025', name: '[drop azalea] 412-9 | UGC', status: 'ACTIVE', effective_status: 'ACTIVE', adset_id: '2300011', campaign_id: '2300002', account_id: '111', _lv: 'ad', _act: LUCKY };
+  objs['2300026'] = { id: '2300026', name: '[DROP Azalea] 412-8 | UGC', status: 'PAUSED', effective_status: 'PAUSED', adset_id: '2300011', campaign_id: '2300002', account_id: '111', _lv: 'ad', _act: LUCKY };
+  assert.match((await drops.saveDrop(env, { act: 'brand_lucky', name: 'Azalea', tag: 'x' }, 'cole')).error, /tag/);
+  const s = await drops.saveDrop(env, { act: 'brand_lucky', name: 'Azalea restock', tag: '[DROP Azalea]', products: 'Azalea Polo' }, 'cole@go-mobius-digital.com');
+  assert.ok(s.ok, s.error); assert.deepEqual(s.drop.products, ['Azalea Polo']);
+  assert.match((await drops.saveDrop(env, { act: 'brand_lucky', name: 'Other', tag: '[drop azalea]' }, 'cole')).error, /already uses/);
+  const before = posts.length;
+  const c = await drops.closeDrop(env, d, { act: 'brand_lucky', id: s.drop.id, status: 'sold_out' }, 'cole@go-mobius-digital.com');
+  assert.ok(c.ok, c.error); assert.equal(c.sweep.found, 4); assert.equal(c.sweep.locked, 4);
+  assert.equal(c.sweep.paused, 2, 'the set and the ad in another set; the ad inside the set and the paused one need no write');
+  assert.deepEqual(posts.slice(before).map(p => p.path).sort(), ['2300016', '2300025']);
+  assert.equal(objs['2300016'].status, 'PAUSED'); assert.equal(objs['2300024'].status, 'ACTIVE');
+  assert.match(lastLine().reason, /Off: sold out \(Azalea restock\)/);
+  assert.equal(c.drop.locked, 4); assert.equal(c.drop.status, 'sold_out');
+  const r = await mw.locusWrite(env, d, { act: 'brand_lucky', kind: 'resume', level: 'adset', object: '2300016', dry: true, over_pause: 'it was a top performer' }, COLE);
+  assert.ok(r.locked); assert.match(r.error, /is off because Azalea restock sold out \(tag \[DROP Azalea\]\)/);
+  const ad = await mw.locusWrite(env, d, { act: 'brand_lucky', kind: 'resume', level: 'ad', object: '2300026', dry: true }, COLE);
+  assert.ok(ad.locked, 'an already-paused tagged ad is locked too');
+  const st = await acts.meta_resume.propose(env, { brand: 'Lucky', target: '2300016', reason: 'best ROAS', over_pause: 'x' }, null, COLE);
+  assert.match(st.error, /stays off until the drop is reopened/);
+  /* the Buyer list and the morning read see it */
+  const m = await drops.locksFor(env, new Set(['brand_lucky']));
+  assert.ok(drops.lockedBy(m.get('brand_lucky'), '2300016', '')); assert.ok(drops.lockedBy(m.get('brand_lucky'), '999', 'a new [DROP AZALEA] ad'));
+  assert.ok(!drops.lockedBy(m.get('brand_lucky'), '2300011', '412 | UGC'));
+  assert.match((await drops.deleteDrop(env, { act: 'brand_lucky', id: s.drop.id })).error, /Reopen it first/);
+  /* reopened: the lock is gone and the drop's own pause is not "someone else's" */
+  const o = await drops.reopenDrop(env, { act: 'brand_lucky', id: s.drop.id });
+  assert.ok(o.ok); assert.equal(o.drop.locked, 0);
+  assert.equal(objs['2300016'].status, 'PAUSED', 'reopening turns nothing on');
+  const back = await mw.locusWrite(env, d, { act: 'brand_lucky', kind: 'resume', level: 'adset', object: '2300016', dry: true }, AHSAN);
+  assert.ok(!back.error, back.error);
+  assert.equal((await drops.listDrops(env, 'brand_lucky'))[0].status, 'live');
+});
+
+await check('drops tick: an end date that passed closes the drop and pauses its tag; the buyer list hides a turn-on row for it', async () => {
+  objs['2300017'] = { id: '2300017', name: '[SALE BF] 500 | Still', status: 'ACTIVE', effective_status: 'ACTIVE', campaign_id: '2300002', account_id: '111', _lv: 'adset', _act: LUCKY };
+  const s = await drops.saveDrop(env, { act: 'brand_lucky', name: 'Black Friday', tag: '[SALE BF]', ends: '2026-10-30' }, 'cole');
+  const ran = await drops.dropsTick(env, { ...d, centralDate: () => '2026-10-31' });
+  assert.deepEqual(ran.ended, ['Black Friday']); assert.equal(objs['2300017'].status, 'PAUSED');
+  const dr = (await drops.listDrops(env, 'brand_lucky')).find(x => x.id === s.drop.id);
+  assert.equal(dr.status, 'ended'); assert.equal(dr.closed_by, 'Locus (end date passed)');
+  assert.equal(lastLine().actor, 'Locus (end date passed)');
+  assert.match(lastLine().reason, /Off: sale ended \(Black Friday\)/);
+  const again = await drops.dropsTick(env, { ...d, centralDate: () => '2026-10-31' });
+  assert.deepEqual(again.ended, []);
+  const bl = fs.readFileSync(path.join(here, 'src', 'buyerlist.js'), 'utf8');
+  assert.match(bl, /hidden: \{ why: 'locked'/);
+  const ba = await import('./src/buyerai.js');
+  const inp = { ruleRows: [{ key: 'k1', adset_id: '2300017', name: '[SALE BF] 500 | Still', why: 'was best' }], sets: [], locks: (await drops.locksFor(env, new Set(['brand_lucky']))).get('brand_lucky') };
+  const out = ba.finishPass({ rows: [{ key: 'k1', verdict: 'change', action: 'Turn it back on now', why: 'best ROAS', move: 'resume' }], extra: [{ type: 'relaunch', name: '[SALE BF] 500 | Still', adset_id: '2300017', action: 'Relaunch the BF winner', why: 'x', move: 'resume' }] }, inp);
+  assert.equal(out.rows[0].move, 'none'); assert.equal(out.rows[0].verdict, 'keep'); assert.equal(out.extra.length, 0);
+  const pu = ba.passUser({ name: 'Lucky Golf' }, { ...inp, plan: [], banners: [], camps: [], lessons: [], facts: [], brain: '', acct: null, to: '2026-10-30' });
+  assert.match(pu, /OFF FOR GOOD[^\n]*\n- anything named with \[SALE BF\]: Black Friday, ended/);
+  const src = fs.readFileSync(path.join(here, 'src', 'drops.js'), 'utf8'); assert.ok(!src.includes('—'), 'em dash in drops.js');
 });
 
 const failed = checks.filter(c => !c.pass);

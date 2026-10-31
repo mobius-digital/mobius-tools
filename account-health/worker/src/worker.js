@@ -84,6 +84,7 @@ import { handleLeaks, leaksFor } from './leaks.js';
 import { adsInvite as googleAdsInvite } from './google.js';
 import { useFetch as googleFetch, googleProbe, autoMatch as googleMatch, linkFor as googleLink, setLink as googleSetLink, websiteReport, websiteDrill, searchReport, adsReport, adsAds, adsTerms, adsChanges, enableApis, adsAccounts, adsCampaignWrite } from './google.js';
 import { locusWrite as metaLocusWrite, locusUndo as metaLocusUndo, metaLive, metaActs } from './metawrite.js';
+import { handleDrops, dropsTick } from './drops.js';
 import { handleLaunch, refreshStatus as launchRefresh } from './launch.js';
 import { handleBuyer, buyerPostTick, buyerSettings } from './buyerlist.js';
 import { buyerAITick } from './buyerai.js';
@@ -7876,6 +7877,8 @@ const AH_APP = {
         /* The morning read (buyerai.js): every brand, three side by side, from the hour BEFORE the post hour, so the post
            finds it done. Here because the 5-minute trigger has not fired since 2026-10-23 (lastSocialPost). */
         ran.buyerAI = await buyerAITick(env, buyerDeps(), { perTick: 99 }).catch(e => ({ error: e.message }));
+        /* Drops and sales: an end date passed or the stock hit 0 = everything tagged goes off and is locked (drops.js). */
+        ran.drops = await dropsTick(env, { xfetch, listAccounts, getSetting, putSetting, centralDate, can: n => subCanAfford(n) }).catch(e => ({ error: e.message }));
         /* Scheduled questions to the Strategist, posted to Slack (askschedule.js). */
         ran.askSchedules = await scheduleTick(env, hubDeps()).catch(e => ({ error: e.message }));
         /* The Monday account review per brand, Apply cards in the internal channel; off until settings.mondayReview = 'on' (review.js). */
@@ -8244,10 +8247,13 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (!/^[\w-]{3,80}$/.test(act)) return json({ error: 'Pick a brand first.' }, 400);
       if (only && !only.has(act)) return json({ error: 'You do not have access to this brand.' }, 403);
       const md = { xfetch, listAccounts, getSetting, putSetting };
-      const who = email || 'someone in Locus';
+      /* 2026-10-31: the admin key carries no name, so a write through it must say who is behind it ("Cole via Claude
+         chat"); the Change Log said "someone in Locus in Locus" for the 36 changes of 2026-10-27. */
+      const who = email || String(body.by || '').trim().slice(0, 80);
       try {
         if (path === '/api/meta/live') return json(await metaLive(env, md, act));
         if (request.method !== 'POST') return json({ error: 'method not allowed' }, 405);
+        if (!who && path !== '/api/google/write') return json({ error: 'Say who is making this change: add "by" to the body, e.g. "Cole via Claude chat". The admin key carries no name.' }, 400);
         if (path === '/api/google/write') return json(await adsCampaignWrite(env, act, body));
         if (path === '/api/meta/undo') {
           const r = await metaLocusUndo(env, md, { act, write: body.write }, { who });
@@ -8269,6 +8275,12 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
           await env.DB.prepare(`UPDATE ${t} SET ${m[0]} = ?2 WHERE ${k} = ?1`).bind(String(id), m[1](v)).run().catch(() => {});
         }
       }
+    }
+    /* ---- Drops and sales (2026-10-31, src/drops.js): when one ends or sells out, every Meta ad set and ad carrying its tag
+       is paused and locked, so nothing suggests turning it back on. Team only, brandsFor limits. */
+    {
+      const r = await handleDrops(request, env, url, path, json, { isAdmin, sessionEmail, brandsFor, resolveBrandId, clientScope, md: { xfetch, listAccounts, getSetting, putSetting, centralDate } });
+      if (r) return r;
     }
     /* ---- Launch to Meta (2026-10-10, src/launch.js): an approved Studio ad or a creator asset becomes a PAUSED
        Meta ad through metawrite meta_create_ad, named "<test> <letter> | <Format>", tied to its test. Admin + brandsFor. */

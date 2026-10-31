@@ -2811,3 +2811,33 @@ Monday call is at 8am. Tests: `node test-clientpost.mjs` (12 offline checks).
   spends scraper credits with no client cap; `PUT /api/clients/me` rewrites the whole map (race with an invite).
   About half the client rules still have no line in test-clients.mjs (the "every page" check only proves the guard let
   the request through).
+
+## 2026-10-31: THE TURN-ON GUARD, WRITE NAMES, DROPS AND SALES (metawrite.js `pauseGuard`, src/drops.js). Read before touching meta_resume, /api/meta/write or the Buyer list's hidden rows.
+- **Why:** on 2026-10-27 a Claude chat pushed 36 Buyer list changes with the admin key and turned back on three sets Ahsan
+  had paused (Dartee 347 | UGC, Grunk 337 | UGC, Bonk 235 | Still) without saying so; all three lost money and the Change
+  Log said "someone in Locus in Locus".
+- **The guard** (statusAction propose, to ACTIVE): `lastPause(env, id)` = the newest pause in 14 days from p_meta_write
+  (Locus / Strategist pause: by, at, write id) or `activities` (category ad_paused / campaign_paused: a pause made straight
+  in Meta, its actor and tagged reason; it wins when it is 2+ minutes newer). Paused by someone else (`samePerson`: first
+  name of an email, a name or "X via Claude chat"; a Slack id only matches itself) = refused with `need: 'over_pause'` and
+  `held {by, at, day, why, write, name}`; with `over_pause` the detail and the Change Log reason carry "Paused by X on DATE:
+  <why>. Turned back on because: <over_pause>." No `who` at propose = treated as someone else. meta_resume's schema has
+  `over_pause`; locusInput passes it for kind resume; locusWrite returns need / held / locked.
+- **Write names:** `/api/meta/write` and `/api/meta/undo` with no session email (the admin key) need `by` in the body
+  ("Cole via Claude chat") or answer 400. `locusActor` never doubles "in Locus" (a name with Locus in it stays as is).
+- **Drops and sales** (src/drops.js, header has the whole design): `p_drop` + `p_drop_lock`, created on first use. Close
+  (button, end date passed on the hourly tick after buyerAI, or every listed product at 0 on hand in Supply `/api/state`)
+  = `sweepDrop`: Graph `<level>.name CONTAIN tag` on ad sets and ads, every match locked, ACTIVE ones paused through
+  `locusWrite` kind pause (reason "Off: sold out (<drop>)" / "Off: sale ended (<drop>)"), an ad inside a tagged set not
+  written twice, 25 pauses a run (`left` = next hour). The tick sweeps closed drops again for 2 days. Locked = the guard
+  refuses (over_pause does not help) with "... stays off until the drop is reopened"; a closed drop's TAG also locks
+  objects that were never swept (`lockedBy` by id or name). Reopen = locks `released`, nothing turned on, and the drop's
+  own pause no longer counts as someone else's. Buyer list: a row that would turn a locked object on goes quiet
+  (`hidden.why 'locked'`, counted in `hidden.locked`). Morning read: OFF FOR GOOD block in `passUser`, `finishPass` drops
+  resume / relaunch moves on locked ids or names. Nudges never suggest turning on (nothing to change there).
+- Routes (team only, not on CLIENT_RULES): `GET /api/drops?act=`, `POST /api/drops`, `/api/drops/close {id, status}`,
+  `/api/drops/reopen`, `/api/drops/delete`; the admin key needs `by` there too. Screens: profit buyer.js "Drops and sales".
+- Strategist: PLAYBOOK "TURNING SOMETHING BACK ON"; knowledge meta.md Traps has both lines.
+- Tests: test-metawrite.mjs 20 (guard, Meta-side pause, names, drops close / lock / reopen, tick + morning read), test-buyerlist 13.
+- **NOT tested live:** the Graph `name CONTAIN` filter with brackets in the tag, Supply's product titles matching what a
+  person types, a real sweep on a big account, the over_pause box on each screen against the live worker.

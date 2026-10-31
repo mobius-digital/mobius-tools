@@ -128,6 +128,8 @@
       .by-form textarea{min-height:90px;resize:vertical;font:inherit}
       .by-ls{list-style:none;margin:0 0 12px;padding:0;max-height:60vh;overflow:auto}.by-ls li{border-top:1px solid var(--line);padding:10px 0;font-size:13.5px}.by-ls li:first-child{border-top:0}
       .by-ls .m{font-size:12px;color:var(--muted)}
+      .by-drops{list-style:none;margin:0 0 12px;padding:0;max-height:55vh;overflow:auto}.by-drops li{border-top:1px solid var(--line);padding:10px 0;font-size:13.5px}.by-drops li:first-child{border-top:0}.by-drops .m{font-size:12px;color:var(--muted);margin-top:2px}.by-drops code{font-size:12px}.by-drops .by-btns{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+      .by-chip{display:inline-block;font-size:11.5px;font-weight:600;padding:1px 7px;border-radius:999px;background:var(--line)}.by-chip.good{background:var(--good-bg);color:var(--good)}.by-chip.warn{background:var(--warn-bg);color:var(--warn)}
       .by .by-q .by-why{-webkit-line-clamp:1}
       .by .by-foot{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px;font-size:12.5px;color:var(--muted)}
       .by .by-notes{font-size:12px;color:var(--muted);margin-top:8px}
@@ -238,7 +240,7 @@
     const lsec = `<section class="v2card by-lnch" id="byLaunch"><div class="v2h"><h3>Launched and scheduled</h3><input type="search" class="by-find" id="byFind" placeholder="${one ? 'Find a card or ad' : 'Find a brand, card or ad'}" value="${esc(LQ)}" aria-label="Find in launched and scheduled"></div>
       <p class="v2hint" style="margin:4px 0 0">Launch days: ${esc(daysWords(d.launch_days))} (Central). A card with its own date goes out on that date. <button type="button" class="v2link" id="byDays">Change launch days</button></p><div id="byLBody">${launchBody()}</div></section>`;
     $('#main').innerHTML = `<div class="v2 by">${H.pageHead('buyer', one ? `Buyer list: ${esc((H.S.accounts.find(a => a.act_id === d.act) || {}).name || '')}` : 'Buyer list').replace(/<p class="ph-sub">[\s\S]*?<\/p>/, '')}${lead}${banners}${aiLine}${next}${list}${foot}${quiet}${lsec}${notes}</div>`;
-    if (typeof H.pageActions === 'function') H.pageActions('<button type="button" class="btn" id="bySlack" title="The one Buyer list message a day in Slack: where it goes, on or off, and what it says now.">Slack post</button>');
+    if (typeof H.pageActions === 'function') H.pageActions('<button type="button" class="btn" id="byDrops" title="One-time sales and limited drops: when one ends or sells out, its ads go off and stay off.">Drops and sales</button><button type="button" class="btn" id="bySlack" title="The one Buyer list message a day in Slack: where it goes, on or off, and what it says now.">Slack post</button>');
     wire();
   }
   const LSHOW = 25;
@@ -457,11 +459,11 @@
   function qrow(r) {
     const hb = r.hidden || {}, when = hb.at ? new Date(hb.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
     const why = hb.why === 'done' ? `Done by ${firstName(hb.by) || 'someone'} ${when}, quiet until ${hb.until}` : hb.why === 'skipped' ? `Skipped by ${firstName(hb.by) || 'someone'}, back tomorrow`
-      : hb.why === 'dropped' ? `Locus dropped this today${hb.summary ? `: ${hb.summary}` : ''}` : `Changed in Meta ${when} by ${firstName(hb.by) || 'someone'}${hb.summary ? `: ${hb.summary}` : ''}. Watched 3 days.`;
+      : hb.why === 'dropped' ? `Locus dropped this today${hb.summary ? `: ${hb.summary}` : ''}` : hb.why === 'locked' ? `${hb.summary || 'Off for good'}. Reopen it in Drops and sales to bring it back.` : `Changed in Meta ${when} by ${firstName(hb.by) || 'someone'}${hb.summary ? `: ${hb.summary}` : ''}. Watched 3 days.`;
     return `<div class="by-row by-q" data-key="${esc(r.key)}"><div class="by-main"><div class="by-tags"><span class="by-lv">${LEVEL[r.level] || 'Ad set'}</span><span>${esc(r.brand)}</span></div><div class="by-n">${esc(r.name)}</div></div>
       <div class="by-what"><div class="by-act">${esc(r.action)}</div><div class="by-why">${esc(why)}</div></div>
       <span class="by-st">${r.stake > 0 ? esc(money(r.stake, r.currency)) : '&ndash;'}</span>
-      <div class="by-btns">${hb.why === 'watched' || hb.why === 'dropped' ? '' : `<button type="button" class="v2btn ghost" data-back="${esc(r.key)}" title="Put it back on the list now.">Put it back</button>`}</div></div>`;
+      <div class="by-btns">${hb.why === 'watched' || hb.why === 'dropped' || hb.why === 'locked' ? '' : `<button type="button" class="v2btn ghost" data-back="${esc(r.key)}" title="Put it back on the list now.">Put it back</button>`}</div></div>`;
   }
 
   const find = k => (DATA.rows || []).find(r => r.key === k) || (DATA.quiet || []).find(r => r.key === k);
@@ -483,6 +485,7 @@
     const q = $('#byQuiet'); if (q) q.onclick = () => { SHOWQ = !SHOWQ; paint(); };
     const o = $('#byOwner'); if (o) o.onclick = ownerModal;
     const sl = document.getElementById('bySlack'); if (sl) sl.onclick = slackModal;
+    const dr = document.getElementById('byDrops'); if (dr) dr.onclick = dropsModal;
     const dy = $('#byDays'); if (dy) dy.onclick = daysModal;
     const fd = $('#byFind'); if (fd) fd.oninput = () => { LQ = fd.value; paintLaunch(); };
     wireLaunch();
@@ -715,6 +718,78 @@
       if (!j || j.error) throw new Error((j && j.error) || 'Locus did not answer.');
       DATA.owner = v; paint(); toast(`${v} owns the Buyer list.`);
     });
+  }
+
+  /* ---------- Drops and sales (2026-10-31, account-health src/drops.js) ----------
+     A brand's one-time sales and limited drops, each with the tag its ad names carry. Marked sold out or ended (here, the
+     end date passing, or the stock hitting 0 in Supply), Locus pauses every ad set and ad with the tag and locks them: no
+     list, nudge, morning read or Strategist suggests them back on, and turning one on is refused until it is reopened. */
+  const DSTAT = { live: ['Live', 'good'], ended: ['Sale ended', 'warn'], sold_out: ['Sold out', 'warn'] };
+  async function dropsModal() {
+    const brands = (H.S.accounts || []).filter(a => a.active !== false && !a.demo);
+    let act = DATA && DATA.act !== 'all' ? DATA.act : (brands[0] || {}).act_id;
+    const m = modal('Drops and sales', 'When a sale ends or a product sells out, Locus turns off every ad set and ad whose name has the tag, and nothing suggests turning them back on until you reopen it.',
+      `${DATA && DATA.act !== 'all' ? '' : `<label>Brand<select name="brand">${brands.map(a => `<option value="${esc(a.act_id)}"${a.act_id === act ? ' selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>`}<div data-dl><p class="v2hint">Reading…</p></div>
+       <button type="button" class="v2btn" data-add>Add a drop or sale</button>`, null, null);
+    const host = m.w.querySelector('[data-dl]');
+    const sel = m.w.querySelector('[name="brand"]'); if (sel) sel.onchange = () => { act = sel.value; load(); };
+    m.w.querySelector('[data-add]').onclick = () => editDrop(act, null, load);
+    async function load() {
+      host.innerHTML = '<p class="v2hint">Reading…</p>';
+      let j; try { j = await ah(`/api/drops?act=${encodeURIComponent(act)}`); } catch (e) { j = { error: e.message }; }
+      if (!j || j.error) { host.innerHTML = `<p class="v2bad">${esc((j && j.error) || 'Locus did not answer.')}</p>`; return; }
+      const ds = j.drops || [];
+      host.innerHTML = (ds.length ? `<ul class="by-drops">${ds.map(x => {
+        const [w, tone] = DSTAT[x.status] || [x.status, ''];
+        const sub = [x.ends ? `ends ${x.ends}` : '', x.products.length ? x.products.join(', ') : '', x.status !== 'live' ? `${x.locked} locked off${x.closed_by ? `, by ${firstName(x.closed_by)}` : ''}` : ''].filter(Boolean).join(' · ');
+        const btns = x.status === 'live'
+          ? `<button type="button" class="v2btn ghost" data-close="sold_out" data-id="${esc(x.id)}">Sold out</button><button type="button" class="v2btn ghost" data-close="ended" data-id="${esc(x.id)}">Sale ended</button><button type="button" class="v2link" data-edit="${esc(x.id)}">Edit</button><button type="button" class="v2link" data-del="${esc(x.id)}">Remove</button>`
+          : `<button type="button" class="v2btn ghost" data-open="${esc(x.id)}">Reopen</button>`;
+        return `<li><div><b>${esc(x.name)}</b> <span class="by-chip ${tone}">${esc(w)}</span> <code>${esc(x.tag)}</code></div>${sub ? `<div class="m">${esc(sub)}</div>` : ''}${x.errors.length ? `<div class="v2bad">${esc(x.errors.join(' · '))}</div>` : ''}<div class="by-btns">${btns}</div></li>`;
+      }).join('')}</ul>` : '<p class="v2hint">No drops or sales yet. Add one, then name its ads with the tag (for example [SALE BF] 412 | UGC).</p>')
+        + (j.stock ? '' : '<p class="v2hint">Stock is not connected for this brand, so Locus cannot mark it sold out by itself. Use the button.</p>');
+      host.querySelectorAll('[data-close]').forEach(b => b.onclick = () => {
+        const x = ds.find(y => y.id === b.dataset.id), st = b.dataset.close;
+        modal(st === 'sold_out' ? `${x.name}: sold out?` : `${x.name}: sale over?`, `Locus turns off every ad set and ad whose name has <code>${esc(x.tag)}</code> and keeps them off until you reopen it.`, '', st === 'sold_out' ? 'Mark sold out' : 'Mark ended', async () => {
+          const r = await ah('/api/drops/close', { act, id: x.id, status: st });
+          if (!r || r.error) throw new Error((r && r.error) || 'Locus did not answer.');
+          const s = r.sweep || {};
+          toast(s.error ? `Marked, but Meta answered: ${s.error}` : `Turned off ${s.paused || 0}, ${s.locked || 0} locked off${(s.errors || []).length ? `, ${s.errors.length} failed` : ''}${s.left ? `, ${s.left} more next hour` : ''}.`, !!s.error || !!(s.errors || []).length);
+          load();
+        });
+      });
+      host.querySelectorAll('[data-open]').forEach(b => b.onclick = () => {
+        const x = ds.find(y => y.id === b.dataset.open);
+        modal(`Reopen ${x.name}?`, 'Back in stock or a new run. The lock comes off; nothing is turned on. Turn on what you want from the list or Ads.', '', 'Reopen', async () => {
+          const r = await ah('/api/drops/reopen', { act, id: x.id });
+          if (!r || r.error) throw new Error((r && r.error) || 'Locus did not answer.');
+          toast(`${x.name} is live again.`); load();
+        });
+      });
+      host.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => editDrop(act, ds.find(y => y.id === b.dataset.edit), load));
+      host.querySelectorAll('[data-del]').forEach(b => b.onclick = () => {
+        const x = ds.find(y => y.id === b.dataset.del);
+        modal(`Remove ${x.name}?`, 'It leaves the list. Its ads are not touched.', '', 'Remove', async () => {
+          const r = await ah('/api/drops/delete', { act, id: x.id });
+          if (!r || r.error) throw new Error((r && r.error) || 'Locus did not answer.');
+          load();
+        });
+      });
+    }
+    load();
+  }
+  function editDrop(act, x, done) {
+    modal(x ? `Edit ${x.name}` : 'Add a drop or sale', 'The tag is how Locus finds the ads: put it in every ad set or ad name for this drop.',
+      `<label>Name<input type="text" name="name" maxlength="80" value="${esc(x ? x.name : '')}" placeholder="Black Friday 2026"></label>
+       <label>Tag in the ad names<input type="text" name="tag" maxlength="40" value="${esc(x ? x.tag : '')}" placeholder="[SALE BF]" autocomplete="off"></label>
+       <label>Ends <span class="faint">(optional; the next morning Locus turns its ads off)</span><input type="date" name="ends" value="${esc(x && x.ends ? x.ends : '')}"></label>
+       <label>Products <span class="faint">(optional, as named in Stock; all at 0 = sold out)</span><input type="text" name="products" maxlength="400" value="${esc(x ? x.products.join(', ') : '')}" placeholder="Azalea Polo"></label>`,
+      x ? 'Save' : 'Add', async w => {
+        const v = n => w.querySelector(`[name="${n}"]`).value.trim();
+        const r = await ah('/api/drops', { act, id: x ? x.id : undefined, name: v('name'), tag: v('tag'), ends: v('ends'), products: v('products') });
+        if (!r || r.error) throw new Error((r && r.error) || 'Locus did not answer.');
+        done();
+      });
   }
   async function slackModal() {
     const s = DATA.settings || {};
