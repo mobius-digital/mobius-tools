@@ -68,6 +68,7 @@ import { serveVideo, serveRef } from './studio-video.js';
 import { handleBrandAsana, handleAsanaHook, brandAsanaTick, unifyGoals, mondayTick, runMondayPlan, testMinimumsDue, refreshAccountAvg, useFetch as brandAsanaFetch, asana, asanaAll, readDoc as brandReadDoc } from './asana-brand.js';
 import { ideaStart, runIdeaJob, handleIdeaAction, adminIdea, useExits, useFetch as ideasFetch } from './ideas.js';
 import { handleAtria, useFetch as atriaFetch } from './atria.js';
+import { handleMcp } from './mcp.js';
 import { handleNewClient, newClientTick, handleStripeWebhook, welcomeOnJoinByChannel, handleNewClientAction, onCallBooked, useFetch as newClientFetch } from './newclient.js';
 import { handleCalendly, useFetch as calendlyFetch } from './calendly.js';
 import { useFetch as mailFetch } from './mail.js';
@@ -7244,6 +7245,11 @@ function autoDeps() {
   return { getSetting, putSetting, listAccounts, localDate, localHourFrac, addDays, twSummary, twShift, metaAll, pickAction, PURCHASE_TYPES, xfetch,
     subCanAfford, centralHour, centralDate, slackApi, isAdmin, sessionEmail, goalsFor, daysInMonth, twMetaDaily, mintSession, postDashboard };
 }
+/* What Claude Code's MCP door (mcp.js) needs from here: Locus as Cole (in-process, or PROFIT), Slack, the index. */
+function mcpDeps() {
+  return { mintSession, slackPost, slackApi, listAccounts, getSetting, xfetch, idx: idxDeps(),
+    ahFetch: (req, env) => AH_APP.fetch(req, env, { waitUntil() {} }) };
+}
 /* What the Slack index (slackindex.js) needs from here. */
 function idxDeps() {
   return { slackApi, getSetting, putSetting, safeJson, xfetch, canAfford: n => subCanAfford(n) };
@@ -7925,6 +7931,9 @@ const AH_APP = {
       const last = await env.DB.prepare(`SELECT key, value FROM settings WHERE key IN ('lastHourly', 'lastRun')`).all();
       return json({ cron, settled: out.map(o => o.status === 'fulfilled' ? 'ok' : String(o.reason?.message || o.reason)), runs: last.results });
     }
+    /* Claude Code's MCP door (mcp.js, 2026-11-01): its own token, every Locus call made as Cole, so it sits above the
+       brand guard (which keys off a session this token is not). */
+    if (new URL(request.url).pathname === '/mcp') return handleMcp(request, env, ctx, mcpDeps());
     /* Phase 3: `?act=` carries a brand id. An old id (act_, asana_, demo_harborline, a slug) from a
        saved link, a bookmark or an older client is resolved to its brand id ONCE here, before the
        access guard and every handler, so nothing downstream sees an old id. */

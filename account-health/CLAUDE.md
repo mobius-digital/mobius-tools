@@ -2841,3 +2841,36 @@ Monday call is at 8am. Tests: `node test-clientpost.mjs` (12 offline checks).
 - Tests: test-metawrite.mjs 20 (guard, Meta-side pause, names, drops close / lock / reopen, tick + morning read), test-buyerlist 13.
 - **NOT tested live:** the Graph `name CONTAIN` filter with brackets in the tag, Supply's product titles matching what a
   person types, a real sweep on a big account, the over_pause box on each screen against the live worker.
+
+## 2026-11-01: THE LOCUS MCP (`src/mcp.js`). Claude Code's direct door to Locus and Slack.
+
+Cole: "you literally made Locus, I don't understand why you don't have access to Locus." Sessions used to drive his
+Chrome for Locus and Slack (frozen when minimised, blocked on writes); now they call the worker.
+- **Route `/mcp`** (POST = JSON-RPC 2.0 over Streamable HTTP, plain JSON answers, no SSE; GET 405; DELETE 204).
+  Wired in `fetch` ABOVE the brand guard. Auth = `Authorization: Bearer <MCP_TOKEN>` (secret; ADMIN_TOKEN accepted
+  too), constant-time compare, 401 with `WWW-Authenticate` otherwise. Protocol 2025-06-18 (older ones echoed back).
+  `initialize`, `ping`, `tools/list`, `tools/call`; notifications get 202; batches answered as arrays.
+- **Every Locus call is made AS COLE**: `ah` routes in-process through `AH_APP.fetch` (`https://ah.internal`) with a
+  minted owner session, `profit` routes over the PROFIT binding. Routes come from `src/routes.js`; `CLIENT_FACING`
+  (sends, invoices, payouts) is refused through the generic door, as in the Strategist. `meta_write` / `meta_undo` go
+  with the ADMIN_TOKEN and `by: "Claude Code (Cole)"` so the route's own Change Log line names the session.
+- **Every other write leaves one `activities` row**: event_type `claude_code_write`, actor "Claude Code (Cole)",
+  object_type `mcp`, act_id = the brand when the body or card says one, else `agency`. Meta writes are not logged
+  twice (the route does it).
+- **Slack**: `slack_search` = slackindex.js `search` (index, then Slack's own search as Cole); `slack_read_thread` =
+  `readThread`; `slack_read_channel` = conversations.history (bot token, Cole's user token when the bot is not in the
+  channel; a person = their DM); `slack_list_channels` = conversations.list crossed with brand_accounts;
+  `slack_post` = `slackPost` with slackwrite.js `classify`: internal channels and teammates' DMs go at once, a client
+  channel / Slack Connect / guest DM is REFUSED unless `as_cole: true` (then SLACK_USER_TOKEN, under Cole's name,
+  never the bot). Note `classify` calls a shared channel "outside" even when it is a brand's `slack_channel`
+  (bonk-internal reads so today); that is the Strategist's rule, unchanged here.
+- **Card ids**: production tools take the card id, or `brand` + `num` ("Ice & Gold card 41") resolved on p_br_batch.
+  `production_upload` fetches a URL (or decodes base64) in the worker and posts the bytes to `/api/production/upload`
+  with an explicit Content-Length (uploadFile reads it); 95MB cap like the Files tab.
+- **Verified live 2026-11-01**: initialize + tools/list, locus_brands, Ice & Gold cards, card 41 in full, review link
+  minted for card 41, #ice-gold refused without as_cole, a test DM to Cole posted and read back, both writes in
+  activities as "Claude Code (Cole)". Config line: `worker/README.md`, "Claude Code's door". The token lives only in
+  Cloudflare and Cole's `~/.claude.json`; never in the repo.
+- **Adding a tool**: one `t(name, description, properties, required, run)` entry in `tools(d)`; a write calls
+  `logWrite`. Deps come from worker.js `mcpDeps()` (mintSession, slackPost, slackApi, listAccounts, getSetting,
+  xfetch, idx, ahFetch).
