@@ -2841,3 +2841,24 @@ Monday call is at 8am. Tests: `node test-clientpost.mjs` (12 offline checks).
 - Tests: test-metawrite.mjs 20 (guard, Meta-side pause, names, drops close / lock / reopen, tick + morning read), test-buyerlist 13.
 - **NOT tested live:** the Graph `name CONTAIN` filter with brackets in the tag, Supply's product titles matching what a
   person types, a real sweep on a big account, the over_pause box on each screen against the live worker.
+
+## 2026-11-02: Pages, the brand's burner TikTok pages (`src/burners.js`)
+- Lucky Golf's slideshow pages that sell clubs through a per-page promo code (PAGE-OFFER, e.g. CHIP-SHIP). Never linked
+  to the brand's main account: nothing here posts, nothing goes to Slack, nothing is written to the Change Log.
+- Tables `burner_page`, `burner_post`, `burner_snap` (followers per day), `burner_test`, `burner_meta` (created on first
+  use, also in schema.sql). The three Lucky pages (Short Game Daily, Golf Gear Honest, Golf Hot Takes; warming, start
+  2026-11-01, no code yet) are seeded ONCE by `ensureBurners` (`burner_meta.seeded`), so a deleted page stays deleted.
+- **The password is write-only.** AES-GCM sealed with a key from SESSION_SECRET (`sealPw` / `openPw`), never in a list or
+  a write answer (`has_pw` only), returned only by `GET /api/burners/:id/password` (no-store) when someone presses Reveal.
+  PUT `{password}` replaces it, `{clear_password: true}` removes it, anything else leaves it.
+- Numbers: one ScrapeCreators call a page (`/v3/tiktok/profile/videos`, 1 credit; plus `/v1/tiktok/profile` only when the
+  page has no posts yet) on Refresh, and in the background when the overview opens and a page was read 12+ hours ago.
+  social.js now exports `sc`, `ttItem`, `copyCover` for it. Views over a range = views of posts made in the range.
+- Orders by code: Triple Whale `orders_table.discount_code` through stratdata.js `twSql` (codes split on commas, upper
+  case). No code, no TW key or no TW shop = no orders (null + a note), never a zero. Profile visits are not in TikTok's
+  public data: the funnel shows them as a dash.
+- Routes (team only; not on CLIENT_RULES, and the handler refuses a client scope): `GET/POST /api/burners`,
+  `PUT/DELETE /api/burners/:id`, `POST /api/burners/:id/refresh`, `GET /api/burners/:id/password`,
+  `GET/POST /api/burners/tests`, `PUT/DELETE /api/burners/tests/:id`. Screen: profit/burners.js (Make > Social > Pages).
+- Tests: `node test-burners.mjs` (7 offline checks). NOT tested live: the real ScrapeCreators answer for these handles,
+  the TW discount_code query against Lucky's warehouse.
