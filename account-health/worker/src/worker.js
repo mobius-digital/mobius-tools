@@ -8260,7 +8260,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
          chat"); the Change Log said "someone in Locus in Locus" for the 36 changes of 2026-10-27. */
       const who = email || String(body.by || '').trim().slice(0, 80);
       try {
-        if (path === '/api/meta/live') return json(await metaLive(env, md, act));
+        if (path === '/api/meta/live') return json(await metaLive(env, md, act, { campaign: url.searchParams.get('campaign') || body.campaign || null }));
         if (request.method !== 'POST') return json({ error: 'method not allowed' }, 405);
         if (!who && path !== '/api/google/write') return json({ error: 'Say who is making this change: add "by" to the body, e.g. "Cole via Claude chat". The admin key carries no name.' }, 400);
         if (path === '/api/google/write') return json(await adsCampaignWrite(env, act, body));

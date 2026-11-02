@@ -812,12 +812,30 @@ const adCopyAction = d => ({
     const r = await prep(env, d, { ...input, level: 'ad' }, ctx, 'ad'); if (r.error) return r;
     const ad = await gget(d, env, r.obj.id, { fields: 'name,creative{id,name,object_story_spec,asset_feed_spec,effective_object_story_id,object_story_id}' });
     const c = ad.creative || {};
-    if (c.asset_feed_spec) return { error: `"${ad.name}" is built from several options (dynamic / Advantage+ creative). Change its words in Ads Manager.` };
     const s = c.object_story_spec;
-    if (!s || !(s.link_data || s.video_data)) return { error: `"${ad.name}" runs an existing post${c.object_story_id ? ` (${c.object_story_id})` : ''}, so its words live on the post. Change them on the page, or make a new ad.` };
     if (input.link && !/^https:\/\//.test(input.link)) return { error: 'link must be a full https:// address.' };
-    const spec = JSON.parse(JSON.stringify(s));
     const was = {}, now = {};
+    /* 2026-11-02: a creative built from several options (asset_feed_spec: feed + story images, several bodies) is copied
+       with the same assets; each text kind is replaced whole (one option) when given, and every link_urls entry takes
+       the new page. The BFCM loader made every season ad this way. */
+    const afsReal = c.asset_feed_spec && ['images', 'videos', 'bodies', 'titles', 'link_urls'].some(k => Array.isArray(c.asset_feed_spec[k]) && c.asset_feed_spec[k].length);
+    if (afsReal) {
+      const A = JSON.parse(JSON.stringify(c.asset_feed_spec));
+      const one = (k, v, word, field = 'text') => { if (v == null || v === '') return; was[word] = A[k]?.[0]?.[field] ?? ''; A[k] = [{ [field]: v }]; now[word] = v; };
+      one('bodies', input.primary_text, 'primary text'); one('titles', input.headline, 'headline'); one('descriptions', input.description, 'description');
+      if (input.link) { was.link = A.link_urls?.[0]?.website_url ?? ''; A.link_urls = (A.link_urls?.length ? A.link_urls : [{}]).map(l => ({ ...l, website_url: input.link, ...(l.display_url ? { display_url: input.link } : {}) })); now.link = input.link; }
+      if (input.cta) { was.button = A.call_to_action_types?.[0] || ''; A.call_to_action_types = [input.cta]; now.button = input.cta; }
+      if (!Object.keys(now).length) return { error: 'Give the new primary text, headline, description, link or button.' };
+      const story = { page_id: s?.page_id, ...(s?.instagram_user_id ? { instagram_user_id: s.instagram_user_id } : {}), ...(s?.instagram_actor_id ? { instagram_actor_id: s.instagram_actor_id } : {}) };
+      if (!story.page_id) return { error: `"${ad.name}": its creative names no page, so a copy cannot be made here.` };
+      const params = { name: clip(`${c.name || ad.name} (copy edit ${new Date().toISOString().slice(0, 10)})`, 300), object_story_spec: story, asset_feed_spec: A };
+      const bad = await validate(d, env, `${r.act}/adcreatives`, params); if (bad) return { refused: bad, afs: c.asset_feed_spec, story: s, summary: 'refused', detail: bad, patch: { ...common(r, 'meta_ad_copy', input, ctx), old: c.id, params, lines: [], logLine: '' } };
+      const lines = Object.keys(now).map(k => `${k}: "${clip(was[k], 160)}" → "${clip(now[k], 160)}"`);
+      return { summary: `${r.brand.name}: new words on ad "${ad.name}"`, detail: `${lines.join('\n')}\nThe ad switches to a copy of its creative (same images, every placement) with these words; it goes back through review.\nWhy: ${clip(input.reason, 300)}`,
+        patch: { ...common(r, 'meta_ad_copy', input, ctx), old: c.id, params, lines, logLine: `New words on ad "${ad.name}": ${lines.join('; ')}` } };
+    }
+    if (!s || !(s.link_data || s.video_data)) return { error: `"${ad.name}" runs an existing post${c.object_story_id ? ` (${c.object_story_id})` : ''}, so its words live on the post. Change them on the page, or make a new ad.` };
+    const spec = JSON.parse(JSON.stringify(s));
     const set = (obj, k, v, word) => { if (v == null || v === '') return; was[word] = obj[k] ?? ''; obj[k] = v; now[word] = v; };
     if (spec.link_data) {
       const L = spec.link_data;
@@ -832,7 +850,7 @@ const adCopyAction = d => ({
       if (V.image_hash && V.image_url) delete V.image_url;
     }
     if (!Object.keys(now).length) return { error: 'Give the new primary text, headline, description, link or button.' };
-    const params = { name: clip(`${c.name || ad.name} (copy edit ${new Date().toISOString().slice(0, 10)})`, 300), object_story_spec: spec };
+    const params = { name: clip(`${c.name || ad.name} (copy edit ${new Date().toISOString().slice(0, 10)})`, 300), object_story_spec: spec, ...(c.asset_feed_spec && !afsReal ? { asset_feed_spec: c.asset_feed_spec } : {}) };
     const bad = await validate(d, env, `${r.act}/adcreatives`, params); if (bad) return { error: bad };
     const lines = Object.keys(now).map(k => `${k}: "${clip(was[k], 160)}" → "${clip(now[k], 160)}"`);
     return { summary: `${r.brand.name}: new words on ad "${ad.name}"`, detail: `${lines.join('\n')}\nThe ad switches to a copy of its creative with these words; it goes back through review.\nWhy: ${clip(input.reason, 300)}`,
@@ -1202,7 +1220,7 @@ export function writeActions(d) { return [...metaActions(d), ...asanaActions(d),
    are one code path. Two calls: dry (the confirm modal shows the summary and detail), then the write itself, which
    proposes again from a fresh read and refuses when the before-state is not what the modal showed (`expect`). The
    person typed the exact budget, so a step over 50% is allowed (big) and the modal says so. */
-const KIND = { pause: 'meta_pause', resume: 'meta_resume', budget: 'meta_budget', min_spend: 'meta_min_spend', rename: 'meta_rename', duplicate: 'meta_duplicate_adset', create_adset: 'meta_create_adset', schedule: 'meta_schedule' };
+const KIND = { pause: 'meta_pause', resume: 'meta_resume', budget: 'meta_budget', min_spend: 'meta_min_spend', rename: 'meta_rename', duplicate: 'meta_duplicate_adset', create_adset: 'meta_create_adset', schedule: 'meta_schedule', ad_copy: 'meta_ad_copy' };
 export const LOCUS_KINDS = Object.keys(KIND);
 function locusInput(b) {
   const lv = ['campaign', 'adset', 'ad'].includes(b.level) ? b.level : undefined;
@@ -1215,6 +1233,8 @@ function locusInput(b) {
   if (b.kind === 'create_adset') return { ...base, campaign: String(b.object || ''), name: String(b.name || ''), ...(b.like ? { like: String(b.like) } : {}), ...(b.start ? { start: String(b.start) } : {}) };
   /* 2026-10-27: start later (a scheduled launch day) and/or stop at a time. */
   if (b.kind === 'schedule') return { ...base, ...(b.start ? { start: String(b.start) } : {}), ...(b.end ? { end: String(b.end) } : {}) };
+  /* 2026-11-02: new words or a new landing page on one ad (a copy of its creative; Meta reviews it again). */
+  if (b.kind === 'ad_copy') return { ...base, ...Object.fromEntries(['primary_text', 'headline', 'description', 'link', 'cta'].filter(k => b[k] != null && b[k] !== '').map(k => [k, String(b[k])])) };
   if (b.kind === 'duplicate') return { ...base, new_name: b.name, ...(b.daily_budget != null && b.daily_budget !== '' ? { daily_budget: +b.daily_budget } : {}) };
   return base;
 }
@@ -1253,7 +1273,7 @@ export async function locusUndo(env, d, b, ctx) {
 }
 /** Live state for the Campaigns screen: status, budgets and spend limits straight from Meta, plus whether the token
  *  may write, so a read-only account says why on the controls instead of failing at the click. */
-export async function metaLive(env, d, brandId) {
+export async function metaLive(env, d, brandId, opt = {}) {
   const metas = await metaActs(env, brandId);
   if (!metas.length) return { error: 'No Meta ad account connected.' };
   const out = { accounts: [], campaigns: {}, adsets: {}, ads: {} };
@@ -1264,11 +1284,18 @@ export async function metaLive(env, d, brandId) {
     const [cs, ss, as] = await Promise.all([
       gall(d, env, `${m.act}/campaigns`, { fields: 'id,name,status,effective_status,daily_budget,lifetime_budget', limit: '200' }, 3).catch(() => []),
       gall(d, env, `${m.act}/adsets`, { fields: 'id,name,status,effective_status,campaign_id,daily_budget,lifetime_budget,daily_min_spend_target,daily_spend_cap', limit: '300' }, 3).catch(() => []),
-      gall(d, env, `${m.act}/ads`, { fields: 'id,status,effective_status', limit: '500' }, 4).catch(() => []),
+      gall(d, env, `${m.act}/ads`, { fields: 'id,name,status,effective_status,adset_id,campaign_id', limit: '500' }, 4).catch(() => []),
     ]);
     for (const c of cs) out.campaigns[c.id] = { act: m.act, name: c.name, status: c.status, eff: c.effective_status, daily: c2(c.daily_budget), lifetime: c2(c.lifetime_budget) };
     for (const s of ss) out.adsets[s.id] = { act: m.act, name: s.name, status: s.status, eff: s.effective_status, campaign: s.campaign_id, daily: c2(s.daily_budget), lifetime: c2(s.lifetime_budget), min: c2(s.daily_min_spend_target), cap: c2(s.daily_spend_cap) };
-    for (const a of as) out.ads[a.id] = { act: m.act, status: a.status, eff: a.effective_status };
+    for (const a of as) out.ads[a.id] = { act: m.act, name: a.name, status: a.status, eff: a.effective_status, adset: a.adset_id, campaign: a.campaign_id };
+  }
+  /* 2026-11-02: one campaign only (its ad sets and ads), so a big account's answer fits a tool call. */
+  if (opt.campaign) {
+    const cid = String(opt.campaign);
+    out.campaigns = Object.fromEntries(Object.entries(out.campaigns).filter(([k]) => k === cid));
+    out.adsets = Object.fromEntries(Object.entries(out.adsets).filter(([, v]) => v.campaign === cid));
+    out.ads = Object.fromEntries(Object.entries(out.ads).filter(([, v]) => v.campaign === cid));
   }
   out.can = out.accounts.some(a => a.can);
   return out;
