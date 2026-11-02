@@ -13,6 +13,7 @@ import { handleSchedules, scheduleTick } from './askschedule.js';
 import { handleReview, reviewTick } from './review.js';
 import { handleAlerts, alertTick } from './alerts.js';
 import { handleSocial, socialTick, serveSocialMedia, useFetch as socialFetch } from './social.js';
+import { handleBurners } from './burners.js';
 import { handleSocialPost, socialPostTick, socialResultsTick, socialNudgeTick, handleSocialButton, useFetch as socialPostFetch } from './socialpost.js';
 import { handleMake as handleMakeApp, serveMakeMedia, runExit } from './make.js';
 import { handleCalendar, calendarTick, calendarView, liveOn as calendarLiveOn, useFetch as calendarFetch, calendarData, teamOf as calendarTeam, clientCalendarFor } from './calendar.js';
@@ -8154,6 +8155,11 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     /* ---- Make in the app (make.js, 2026-10-20): breakdown + draft, four exits ---- */
     if (path.startsWith('/api/make')) {
       const r = await handleMakeApp(request, env, url, path, json, { ...meetingDeps(), waitUntil: p => ctx.waitUntil(p) });
+      if (r) return r;
+    }
+    /* ---- Pages: the brand's burner TikTok pages and their tests (burners.js, 2026-11-02). Team only. ---- */
+    if (path === '/api/burners' || path.startsWith('/api/burners/')) {
+      const r = await handleBurners(request, env, url, path, json, { isAdmin, waitUntil: p => ctx.waitUntil(p) });
       if (r) return r;
     }
     /* ---- Locus Social, phase 1: Watch (social.js, 2026-10-19) ---- */

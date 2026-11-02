@@ -4694,3 +4694,11 @@ this goes for all things that go from the right side", and the Integrations pane
 - **Drops and sales** (Buyer list page action): a brand's drops with status (Live / Sale ended / Sold out), tag, end date,
   products, how many are locked off; Add / Edit / Remove (live only) / Sold out / Sale ended / Reopen, each an in-app
   modal. Quiet rows hidden by a lock read "Off for good: <drop> sold out ([TAG]). Reopen it in Drops and sales to bring it back."
+
+## 2026-11-02: Pages (`burners.js`, Make > Social > Pages)
+- The brand's own burner TikTok pages as ranked cards (followers + growth, views, posts, orders by promo code, best 3
+  posts) over 7 days / 30 days / since start, with one funnel strip (views > profile visits > orders). Tests is the second
+  view: Live tests and Leaderboard (wins ranked by their number); lost and killed are archived and found by search.
+- Team only: `burners` is in AGENCY_TABS, so a client never sees it; shown where Social is on for the brand
+  (SOCIAL_JOBS segment). The password field is write-only: masked, Reveal fetches it once with `fresh: true`.
+- Data: account-health `/api/burners*` (see account-health/CLAUDE.md). Screenshots: docs/locus-pages/.

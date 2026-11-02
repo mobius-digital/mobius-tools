@@ -316,3 +316,19 @@ CREATE TABLE IF NOT EXISTS social_oauth_state (state TEXT PRIMARY KEY, act_id TE
 CREATE TABLE IF NOT EXISTS p_buyer_state (brand TEXT NOT NULL, object TEXT NOT NULL, action TEXT NOT NULL, status TEXT NOT NULL,
   name TEXT, by TEXT, at TEXT NOT NULL, quiet_until TEXT NOT NULL, PRIMARY KEY (brand, object, action));
 CREATE INDEX IF NOT EXISTS p_buyer_state_quiet ON p_buyer_state (quiet_until);
+-- Pages (2026-11-02, src/burners.js): the brand's burner TikTok pages, their posts, daily followers, and the tests log.
+-- pw_enc = AES-GCM sealed with SESSION_SECRET; never sent in a list.
+CREATE TABLE IF NOT EXISTS burner_page (id TEXT PRIMARY KEY, act_id TEXT NOT NULL, name TEXT NOT NULL, handle TEXT, email TEXT, style TEXT,
+  code TEXT, offer TEXT, status TEXT NOT NULL DEFAULT 'warming', start_date TEXT, notes TEXT, pw_enc TEXT,
+  followers INTEGER, pulled_at TEXT, error TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')));
+CREATE INDEX IF NOT EXISTS burner_page_act ON burner_page (act_id);
+CREATE TABLE IF NOT EXISTS burner_post (id TEXT PRIMARY KEY, page_id TEXT NOT NULL, pid TEXT NOT NULL, url TEXT, caption TEXT, fmt TEXT,
+  thumb TEXT, thumb_src TEXT, posted_at TEXT, views INTEGER, likes INTEGER, comments INTEGER, shares INTEGER, saves INTEGER,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')));
+CREATE INDEX IF NOT EXISTS burner_post_page ON burner_post (page_id, posted_at);
+CREATE TABLE IF NOT EXISTS burner_snap (page_id TEXT NOT NULL, day TEXT NOT NULL, followers INTEGER, PRIMARY KEY (page_id, day));
+CREATE TABLE IF NOT EXISTS burner_test (id TEXT PRIMARY KEY, act_id TEXT NOT NULL, what TEXT NOT NULL, pages_json TEXT NOT NULL DEFAULT '[]',
+  start_date TEXT, end_date TEXT, result TEXT, metric TEXT, value REAL, verdict TEXT NOT NULL DEFAULT '', notes TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')));
+CREATE INDEX IF NOT EXISTS burner_test_act ON burner_test (act_id);
+CREATE TABLE IF NOT EXISTS burner_meta (k TEXT PRIMARY KEY, v TEXT);

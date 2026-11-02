@@ -80,7 +80,7 @@ export async function ensureSocial(env) {
 }
 
 /* ---------------- ScrapeCreators ---------------- */
-async function sc(env, path, params, meter) {
+export async function sc(env, path, params, meter) {
   if (!env.DOWNLOADER_KEY) throw Object.assign(new Error('The ScrapeCreators key (DOWNLOADER_KEY) is not set on the server.'), { plain: true });
   if (meter?.paused) throw Object.assign(new Error('ScrapeCreators paused: credits low (only TikTok needs it; top up to resume)'), { plain: true });
   const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v != null && v !== '')).toString();
@@ -231,7 +231,7 @@ function igItem(raw, followers) {
     shares: null, saves: null, followers: num(it.owner?.follower_count ?? it.user?.follower_count ?? followers), dur: +it.video_duration || null,
     sound: null, slides: num(it.carousel_media_count ?? it.carousel_media?.length) };
 }
-function ttItem(a) {
+export function ttItem(a) {
   if (!a?.aweme_id) return null;
   const photo = !!(a.image_post_info || (Array.isArray(a.image_infos) && a.image_infos.length) || a.content_type === 'photo' || a.aweme_type === 150);
   const s = a.statistics || {};
@@ -344,7 +344,7 @@ export async function pullFollow(env, f, { can = () => true, paused = false, onl
   await env.DB.prepare(`UPDATE social_follow SET pulled_at = datetime('now'), error = ?2, credits = credits + ?3, pulls_json = ?4 WHERE id = ?1`).bind(f.id, error, meter.credits, JSON.stringify(pulls)).run();
   return { follow: f.id, name: f.name, posts: posts.length, added, covers, credits: meter.credits, error, platforms: plats };
 }
-async function copyCover(env, id, src) {
+export async function copyCover(env, id, src) {
   try {
     const r = await F(src, { headers: { 'User-Agent': 'Mozilla/5.0', Referer: /tiktok/.test(src) ? 'https://www.tiktok.com/' : /instagram|fbcdn/.test(src) ? 'https://www.instagram.com/' : '' } });
     const type = (r.headers.get('content-type') || '').split(';')[0];
