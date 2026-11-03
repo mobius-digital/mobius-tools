@@ -14,7 +14,7 @@
  * The request bodies (/api/calls/*) are unchanged from the first build.
  */
 (() => {
-  let H = null, D = null, KIND = 'monday', POS = 0, STATE = {}, SEV = {}, SAVE_T = null, CLOCK = null, CLOCK_START = 0, CLOCK_FOR = 0, CARD = {}, BUSY = false, SHOW_OLD = false, OPEN_POSTS = {};
+  let H = null, D = null, KIND = 'monday', POS = 0, RESUME_Y = 0, STATE = {}, SEV = {}, SAVE_T = null, CLOCK = null, CLOCK_START = 0, CLOCK_FOR = 0, CARD = {}, BUSY = false, SHOW_OLD = false, OPEN_POSTS = {};
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -181,6 +181,24 @@
       .cs .cs-will{font-size:12px;font-weight:500;color:var(--muted)}
       .cs .cs-will b{color:var(--ink-2);font-weight:600}
       .cs .cs-saved{font-size:12px;color:var(--muted)}
+      .cs .cs-time{font-size:12px;color:var(--muted)}
+      .cs .cs-part{display:flex;align-items:center;gap:10px;margin:10px 0 -4px;font-size:13px;font-weight:650;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-2)}
+      .cs .cs-part span{width:24px;height:24px;border-radius:50%;background:var(--ink);color:var(--surface);display:grid;place-items:center;font-size:12px;letter-spacing:0}
+      .cs .cs-legend{margin:0;font-size:13px;color:var(--ink-2);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+      .cs .cs-legend .dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-left:6px}
+      .cs .cs-legend .dot.bad{background:var(--bad)}.cs .cs-legend .dot.warn{background:var(--warn)}.cs .cs-legend .dot.good{background:var(--good)}
+      .cs .ad .th .tag{position:absolute;left:8px;top:8px;font-size:11px;font-weight:700;padding:2px 7px;border-radius:var(--r-pill);background:var(--good-bg);color:var(--good)}
+      .cs .ad .th .tag.lose{background:var(--bad-bg);color:var(--bad)}
+      .cs .ad .m span:last-child{font-weight:500;color:var(--ink-2)}
+      .cs .mini small .late{color:var(--bad);font-weight:600}
+      .cs .cs-adt tbody tr{cursor:pointer}.cs .cs-adt tbody tr:hover td{background:var(--surface-2)}
+      .cs .cs-adt td:first-child{max-width:340px}
+      .cs .cs-adt .an{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .cs .cs-adt small.off{display:block;margin:0;font-weight:500;color:var(--muted)}
+      .cs .cs-adt th .srt{background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer;white-space:nowrap}
+      .cs .cs-adt th .srt.on{color:var(--ink);font-weight:650}
+      .cs textarea:placeholder-shown{border-style:dashed;background:var(--bg)}
+      .cs input[type=text]:placeholder-shown{border-style:dashed;background:var(--bg)}
       .cs-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);max-width:min(560px,calc(100vw - 32px));background:var(--ink);color:var(--surface);padding:10px 16px;border-radius:var(--r-lg);font-size:13px;z-index:9999;box-shadow:0 8px 30px rgba(0,0,0,.25)}
       .cs-pop{position:fixed;z-index:9600;min-width:220px;max-width:320px;max-height:420px;overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:6px;box-shadow:var(--sh-pop,0 12px 32px -10px rgba(15,15,25,.3));font-family:inherit;color:var(--ink);animation:lx-pop var(--t-fast) var(--ease) both}
       .cs-pop .h{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:7px 9px 5px}
@@ -288,10 +306,10 @@
   }
   const pic = n => n && window.ProdSheet && window.ProdSheet.photoOf ? window.ProdSheet.photoOf(n) : '';
   const av = n => n && pic(n) ? `<img class="cs-av" src="${esc(pic(n))}" alt="" referrerpolicy="no-referrer">` : n ? `<span class="cs-av" style="background:${HUE[n] || 'var(--line-strong)'}">${esc(n[0])}</span>` : '<span class="cs-av none">+</span>';
-  const ownerChip = (o, attrs = '') => o ? `<button type="button" class="cs-chip" ${attrs} aria-label="Who: ${esc(o)}">${av(o)}<span>${esc(o)}</span></button>` : `<button type="button" class="cs-chip need" ${attrs} aria-label="Pick who">${av('')}<span>Who</span></button>`;
+  const ownerChip = (o, attrs = '') => o ? `<button type="button" class="cs-chip" ${attrs} aria-label="Who: ${esc(o)}">${av(o)}<span>${esc(o)}</span></button>` : `<button type="button" class="cs-chip need" ${attrs} aria-label="Pick who">${av('')}<span>Pick who</span></button>`;
   function dueChip(due, attrs = '') {
     const t = today();
-    if (!due) return `<button type="button" class="cs-chip date need" ${attrs} aria-label="Pick a date">${ICON.cal}<span>When</span></button>`;
+    if (!due) return `<button type="button" class="cs-chip date need" ${attrs} aria-label="Pick a date">${ICON.cal}<span>Pick a date</span></button>`;
     const cls = due < t ? ' late' : due === t ? ' now' : '';
     const label = due === t ? 'Today' : due === addDays(t, 1) ? 'Tomorrow' : md(due);
     return `<button type="button" class="cs-chip date${cls}" ${attrs} aria-label="Due ${esc(label)}">${ICON.cal}<span>${esc(label)}${cls === ' late' ? ', late' : ''}</span></button>`;
@@ -330,45 +348,87 @@
 
   /* ---------- shared pieces ---------- */
   const delta = (a, b, lowerBetter) => { const v = pct(a, b); if (v == null) return ''; const tone = Math.abs(v) < 1 ? 'flat' : (lowerBetter ? v <= 0 : v >= 0) ? 'up' : 'down'; return `<span class="cs-d ${tone}">${v > 0 ? '+' : ''}${v}%</span>`; };
+  /* 2026-11-03 rewrite (Cole on the Nov 2 calls: "I don't know what I'm looking at"): every tile says what it counts in
+     its own label, and the line under it says what it is compared with. The section caption says where it all comes from.
+     Lead ads: MER is shown with AND without the lead ads' spend (Cole did that sum with Siri on the call). */
+  const cents = n => n == null ? '–' : '$' + (+n).toFixed(2);
   function tilesHtml(r) {
-    const t = r.totals || {}, p = r.prior || {}, f = r.plan || {};
+    const t = r.totals || {}, p = r.prior || {}, f = r.plan || {}, L = r.leads;
     const tile = (l, v, d, sub) => `<div class="cs-tile"><span class="l">${l}</span><span class="v">${v}${d}</span><span class="sub">${sub}</span></div>`;
-    const vsWeek = 'against the week before';
+    const was = (v, f2) => v != null ? `${f2(v)} the week before` : 'no week before to compare';
+    const sales = t.sales, spend = t.spend;
+    const merNoLeads = L && sales != null && spend > L.spend ? sales / (spend - L.spend) : null;
+    const noLeads = merNoLeads ? `. Without lead ads: ${x2(merNoLeads)}` : '';
+    const merSub = f.mer ? `${t.mer >= f.mer ? 'on' : 'under'} the ${x2(f.mer)} goal${noLeads}` : `${was(p.mer, x2)}${noLeads}`;
     return `<div class="cs-tiles">
-      ${tile('Sales', money(t.sales), delta(t.sales, p.sales), p.sales != null ? `${money(p.sales)} ${vsWeek}` : 'nothing to compare with')}
-      ${tile('Ad spend', money(t.spend), delta(t.spend, p.spend, true), p.spend != null ? `${money(p.spend)} ${vsWeek}` : 'nothing to compare with')}
-      ${tile('MER', x2(t.mer), f.mer && t.mer != null ? `<span class="cs-d ${t.mer >= f.mer ? 'up' : 'down'}">goal ${x2(f.mer)}</span>` : delta(t.mer, p.mer), f.mer ? (t.mer >= f.mer ? 'on the goal' : 'under the goal') : p.mer != null ? `${x2(p.mer)} ${vsWeek}` : 'no goal set')}
-      ${tile('Orders', t.orders != null ? Math.round(t.orders).toLocaleString('en-US') : '–', delta(t.orders, p.orders), p.orders != null ? `${Math.round(p.orders).toLocaleString('en-US')} ${vsWeek}` : 'nothing to compare with')}
-      ${t.ncpa != null ? tile('New customer cost', money(t.ncpa), delta(t.ncpa, p.ncpa, true), p.ncpa != null ? `${money(p.ncpa)} ${vsWeek}` : 'nothing to compare with') : ''}
+      ${tile('Sales, whole store', money(sales), delta(sales, p.sales), was(p.sales, money))}
+      ${tile('Ad spend, every channel', money(spend), delta(spend, p.spend, true), was(p.spend, money))}
+      ${tile('MER (sales ÷ ad spend)', x2(t.mer), f.mer && t.mer != null ? `<span class="cs-d ${t.mer >= f.mer ? 'up' : 'down'}">goal ${x2(f.mer)}</span>` : delta(t.mer, p.mer), merSub)}
+      ${tile('Orders', t.orders != null ? Math.round(t.orders).toLocaleString('en-US') : '–', delta(t.orders, p.orders), was(p.orders, v => Math.round(v).toLocaleString('en-US')))}
+      ${t.ncpa != null ? tile('Cost per new customer', money(t.ncpa), delta(t.ncpa, p.ncpa, true), was(p.ncpa, money)) : ''}
+      ${L ? tile('Lead ads (inside ad spend)', money(L.spend), '', `${L.leads.toLocaleString('en-US')} leads at ${cents(L.leads ? L.spend / L.leads : null)} each`) : ''}
     </div>`;
   }
   function chanTable(r) {
     const rows = (r.channels || []).filter(c => c.cur && (c.cur.spend || c.cur.revenue));
     if (!rows.length) return '';
     const cell = (a, b, f, lower) => { const v = pct(a, b); return `${f(a)}${v == null ? '' : `<small class="${(lower ? v <= 0 : v >= 0) ? 'up' : 'down'}">${v > 0 ? '+' : ''}${v}%</small>`}`; };
-    return `<p class="cs-sub">By channel, Triple Whale</p><div class="cs-tw"><table class="cs-tbl"><thead><tr><th>Channel</th><th>Spend</th><th>Sales</th><th>ROAS</th></tr></thead><tbody>
+    return `<p class="cs-sub">Each channel: what it spent, and the sales Triple Whale gives it (last click)</p><div class="cs-tw"><table class="cs-tbl"><thead><tr><th>Channel</th><th>Spent</th><th>Sales it got</th><th>ROAS</th></tr></thead><tbody>
       ${rows.map(c => `<tr><td>${esc(CHAN[c.id] || c.label)}</td><td>${c.cur.spend != null ? cell(c.cur.spend, c.prev && c.prev.spend, money, true) : '–'}</td><td>${cell(c.cur.revenue, c.prev && c.prev.revenue, money)}</td><td>${c.cur.roas != null ? x2(c.cur.roas) : '–'}</td></tr>`).join('')}
       </tbody></table></div>`;
   }
   function adCard(a, cls, act) {
     const th = a.thumb ? `style="background-image:url('${esc(a.thumb)}')"` : '';
-    return `<button type="button" class="ad ${cls}" data-ad="${esc(a.ad_id)}" data-act="${esc(act)}" data-name="${esc(a.name)}" title="${a.video ? 'Play it' : 'Open it'}"><div class="th" ${th}>${a.thumb ? '' : esc(a.headline || a.name)}${a.video ? '<span class="play">▶</span>' : ''}</div>
-      <div class="m ${cls === 'lose' ? 'lose' : ''}"><span>${a.roas != null ? x2(a.roas) + ' ROAS' : ''}</span></div><div class="n">${esc(a.name)}</div><div class="s">${money(a.spend)} spent</div></button>`;
+    const cpa = a.orders ? a.spend / a.orders : null;
+    return `<button type="button" class="ad ${cls}" data-ad="${esc(a.ad_id)}" data-act="${esc(act)}" data-name="${esc(a.name)}" title="${a.video ? 'Play it here' : 'See it here'}"><div class="th" ${th}>${a.thumb ? '' : esc(a.headline || a.name)}${a.video ? '<span class="play">▶</span>' : ''}${cls ? `<span class="tag ${cls}">${cls === 'win' ? 'Best' : 'Worst'}</span>` : ''}</div>
+      <div class="m ${cls === 'lose' ? 'lose' : ''}"><span>${a.roas != null ? x2(a.roas) + ' ROAS' : ''}</span><span>${cpa != null ? money(cpa) + ' a sale' : a.orders === 0 ? 'no sales' : ''}</span></div><div class="n">${esc(a.name)}</div><div class="s">${money(a.spend)} spent${a.orders != null ? ` · ${plural(Math.round(a.orders), 'sale')}` : ''}</div></button>`;
   }
   function adsHtml(r, act) {
     if (!r || !(r.winners || []).length) return '';
     const tw = r.basis === 'tw';
-    const sub = tw ? `Best and worst of ${plural(r.pool || 0, 'ad')} over ${money(r.floor)}, all together ${x2(r.bar)}` : 'Biggest spenders, no Triple Whale attribution on this report';
+    const sub = tw ? `The 3 best and 3 worst ads by ROAS, out of the ${plural(r.pool || 0, 'ad')} that spent ${money(r.floor)} or more. ROAS and sales are Triple Whale (last click), spend is Meta. Together they ran at ${x2(r.bar)}. Click one to play it here.`
+      : 'The ads that spent the most. This report has no Triple Whale numbers per ad, so there is no ROAS. Click one to play it here.';
     return `<p class="cs-sub">${sub}</p>
       <div class="ads">${r.winners.map(a => adCard(a, 'win', act)).join('')}${(r.losers || []).map(a => adCard(a, 'lose', act)).join('')}</div>
-      <button type="button" class="cs-link" data-allads="${esc(act)}">Every ad ›</button>`;
+      ${allAdsHtml(act, r)}`;
+  }
+  /* Every ad of the report's week, opened IN PLACE (Cole: "show in ads" opened another screen mid-call). /api/ads for the
+     same dates, Triple Whale last click, sortable by its headings; a row plays the ad in the side panel. */
+  const ADS = {};
+  const adsKey = (act, r) => `${act}|${r.period_start}|${r.period_end}`;
+  const pc = v => v != null ? Math.round(v * 100) + '%' : '–';
+  const AD_COLS = [['spend', 'Spent', a => money(a.spend)], ['revenue', 'Sales', a => money(a.revenue)], ['roas', 'ROAS', a => a.roas != null ? x2(a.roas) : '–'], ['cpa', 'Cost per sale', a => a.cpa != null ? money(a.cpa) : '–'], ['purchases', 'Sales', a => a.purchases != null ? String(Math.round(a.purchases)) : '–'], ['hook', 'Hook rate', a => pc(a.hook)], ['hold', 'Hold rate', a => pc(a.hold)]];
+  AD_COLS[1][1] = 'Sales $'; AD_COLS[4][1] = 'Orders';
+  function allAdsHtml(act, r) {
+    const k = adsKey(act, r), A = ADS[k];
+    if (!A || !A.open) return `<button type="button" class="cs-link" data-allads="${esc(k)}">Show every ad from ${short(r.period_start)} to ${short(r.period_end)} ▾</button>`;
+    const close = `<button type="button" class="cs-link" data-allads="${esc(k)}">Hide the list ▴</button>`;
+    if (A.loading) return `${close}<p class="cs-empty">Loading every ad…</p>`;
+    if (A.error) return `${close}<p class="cs-empty" style="color:var(--bad)">${esc(A.error)}</p>`;
+    const col = AD_COLS.find(c => c[0] === A.sort) || AD_COLS[0];
+    const lowFirst = A.sort === 'cpa';
+    const rows = [...(A.rows || [])].sort((a, b) => { const x = a[col[0]], y = b[col[0]]; if (x == null) return 1; if (y == null) return -1; return lowFirst ? x - y : y - x; });
+    return `${close}<p class="cs-sub">${plural(rows.length, 'ad')} spent money from ${short(r.period_start)} to ${short(r.period_end)}. Spend, hook and hold are Meta; sales and ROAS are Triple Whale (last click). Click a heading to sort, a row to play the ad.</p>
+      <div class="cs-tw"><table class="cs-tbl cs-adt"><thead><tr><th>Ad</th>${AD_COLS.map(c => `<th><button type="button" class="srt${c[0] === A.sort ? ' on' : ''}" data-adsort="${esc(k)}" data-col="${c[0]}">${c[1]}${c[0] === A.sort ? (lowFirst ? ' ▴' : ' ▾') : ''}</button></th>`).join('')}</tr></thead><tbody>
+      ${rows.map(a => `<tr data-ad="${esc(a.ad_id)}" data-act="${esc(act)}" data-name="${esc(a.name)}" title="Play it here"><td><span class="an">${a.is_video ? '▶ ' : ''}${esc(a.name)}</span>${a.status && a.status !== 'ACTIVE' ? `<small class="off">${esc(String(a.status).toLowerCase())}</small>` : ''}</td>${AD_COLS.map(c => `<td>${c[2](a)}</td>`).join('')}</tr>`).join('')}
+      </tbody></table></div>`;
+  }
+  async function loadAllAds(k) {
+    const [act, from, to] = k.split('|'), A = ADS[k];
+    A.loading = true; A.error = ''; paintMain();
+    try {
+      const d = await H.apiAH(`/api/ads?act=${encodeURIComponent(act)}&from=${from}&to=${to}&sort=spend&limit=60&attr=lastPlatformClick&mult=0`);
+      if (d && d.error) throw new Error(d.error);
+      A.rows = (d.ads || []).filter(a => a.spend > 0);
+    } catch (e) { A.error = 'Could not load the ads: ' + e.message; }
+    A.loading = false; paintMain();
   }
   function readBody(r, act) {
-    if (!r) return empty('No weekly report yet.');
+    if (!r) return empty('No weekly report for this brand yet, so there are no numbers to show. A report needs Triple Whale connected.');
     return tilesHtml(r) + chanTable(r) + adsHtml(r, act);
   }
   const rowsHtml = (arr, asks = false) => arr.map((x, i) => x.on === false ? '' : `<div class="row ${asks ? 'asks' : ''}" data-i="${i}">
-      <div class="t${x.text ? '' : ' empty'}" data-f="text" data-ph="${asks ? 'What we need from the client' : 'What to make'}">${esc(x.text)}</div>
+      <div class="t${x.text ? '' : ' empty'}" data-f="text" data-ph="${asks ? 'Type what we need from them' : 'Type what to make'}">${esc(x.text)}</div>
       ${asks ? '' : ownerChip(x.owner, 'data-f="owner"')}${dueChip(x.due, 'data-f="due"')}
       <button type="button" class="x" data-f="del" aria-label="Remove" title="Remove">×</button></div>`).join('');
   function todoList(open, t, none) {
@@ -406,34 +466,47 @@
   }
   function mondaySteps() { return [{ id: 'open', name: 'Start', mins: 5 }, ...mondayList().map(b => ({ id: b.act_id, name: b.name, sev: SEV[b.act_id], mins: SEV[b.act_id] === 'good' ? 2 : SEV[b.act_id] === 'bad' || SEV[b.act_id] === 'warn' ? 7 : 4 })), { id: 'close', name: 'Finish', mins: 5 }]; }
   function strategistOf(b) { const p = (b.posts || []).find(x => ROLE[teamName(x.by)] === 'Strategist'); return p ? teamName(p.by) : ''; }
+  /* 2026-11-03: the order Cole says it out loud on the call ("results from last week, what we're doing this week, what's
+     upcoming"), numbered, and then one band of boxes you type in. Every caption = what the box is + where it comes from. */
+  const part = (n, t) => `<div class="cs-part"><span>${n}</span>${t}</div>`;
   function mondayBrand(b) {
     const s = brandState(b.act_id), r = b.read, strat = strategistOf(b), t = today();
-    const making = b.making || [];
-    return `${sec('How last week went', r ? `from the weekly report, ${short(r.period_start)} to ${short(r.period_end)}` : 'from the weekly report', readBody(r, b.act_id))}
-      ${sec('Last week\'s to-dos', 'from Tasks', todoList(b.open || [], t, 'Nothing was due.'))}
-      ${sec(strat ? `${esc(strat)}'s plan` : 'The plan', 'from Slack, as written', (b.posts || []).length ? postsHtml(b.posts, b.act_id) : empty('Nothing posted yet.'))}
-      ${sec('New ads to make this week', `Split from ${strat ? `${esc(strat)}'s` : 'the'} Slack plan. Untick what is wrong. Each row becomes a brief when you finish.`,
+    const making = b.making || [], posts = b.posts || [], who = strat || 'the strategist';
+    const firstPost = posts[0];
+    const boardLine = c => `${esc({ brief: 'Brief written, not started', making: 'Being made', review: 'Waiting for review' }[c.board] || c.board)}${c.owner ? ' · ' + esc(c.owner) : ' · nobody on it'}${c.due ? ` · <span class="${c.due < t ? 'late' : ''}">${c.due < t ? 'was due ' : 'due '}${short(c.due)}</span>` : ''}`;
+    return `${part(1, `How last week went`)}
+      ${sec(`${esc(b.name)}: last week's numbers`, r ? `From the weekly report for ${short(r.period_start)} to ${short(r.period_end)}. Sales, spend, MER and orders are Triple Whale, the whole store, every channel. Each tile compares with the week before.` : 'From the weekly report.', readBody(r, b.act_id))}
+      ${sec('Did last week\'s to-dos get done?', 'Every open to-do for this brand in Locus Tasks that was due by today. Tick it when it is done (Asana gets ticked too).', todoList(b.open || [], t, 'Nothing was due. Nothing to check.'))}
+      ${part(2, `What we are doing this week`)}
+      ${sec(strat ? `${esc(strat)}'s Monday plan, from Slack` : 'The strategist\'s Monday plan, from Slack', firstPost ? `What ${esc(who)} posted in this brand's internal Slack channel before the call, word for word.` : `Nothing posted in this brand's internal Slack channel yet. The strategist posts the plan there before the call.`, posts.length ? postsHtml(posts, b.act_id) : empty(`No Monday plan posted for ${esc(b.name)}.`))}
+      ${sec('Ads to brief this week', `Each line is one batch of new ads. Locus pulled them out of ${esc(who)}'s Slack plan above. Fix a line, remove a wrong one, or add one. When you press Finish, each line becomes a brief on Production and in Asana.`,
         `<div class="rows" data-list="batches" data-act="${esc(b.act_id)}">${rowsHtml(s.batches)}</div>
-        <button type="button" class="add" data-add="batches" data-act="${esc(b.act_id)}">+ Add a batch, written the way you would say it</button>`)}
-      ${making.length ? sec(`On the Production board now · ${making.length}`, 'Brief, Making and Review columns', `<div class="cards">${making.map(c => `<button type="button" class="mini" data-card="${esc(c.id || '')}" data-asana="${esc(c.asana_url || '')}"><b>#${esc(c.num)}</b><span>${esc(c.title)}</span><small>${esc({ brief: 'Brief', making: 'Making', review: 'In review' }[c.board] || c.board)}${c.owner ? ' · ' + esc(c.owner) : ''}${c.due ? ' · ' + short(c.due) : ''}</small></button>`).join('')}</div>`) : ''}
-      ${sec('Tell the client', 'goes under This week in their report', `<textarea data-client="${esc(b.act_id)}" placeholder="Three new ads on the Burgundy couch video go live Thursday">${esc(s.client || '')}</textarea>`)}
-      ${sec('New to-dos', 'go to Tasks',
+        <button type="button" class="add" data-add="batches" data-act="${esc(b.act_id)}">+ Add a batch of ads to brief</button>`)}
+      ${part(3, `What is already being made`)}
+      ${sec(`On the Production board${making.length ? `: ${making.length}` : ''}`, 'Ads already briefed for this brand and not live yet, from the Production board: where each one is, who is making it, when it is due. Click one to open it here.',
+        making.length ? `<div class="cards">${making.map(c => `<button type="button" class="mini" data-card="${esc(c.id || '')}" data-asana="${esc(c.asana_url || '')}"><b>#${esc(c.num)}</b><span>${esc(c.title)}</span><small>${boardLine(c)}</small></button>`).join('')}</div>` : empty('Nothing on the board for this brand.'))}
+      ${part(4, `Typed on the call`)}
+      ${sec('New to-dos for the team', 'Type one as a sentence with who and when, then press Enter. Example: Ahsan pauses the retargeting ad set Friday. They go to Locus Tasks when you press Finish.',
         `<div class="rows" data-list="jobs" data-act="${esc(b.act_id)}">${rowsHtml(s.jobs)}</div>
-        <input type="text" data-quick="jobs" data-act="${esc(b.act_id)}" placeholder="Ahsan pause the retargeting ad set Friday">`)}
-      ${sec('What we need from the client', 'Things the client owes us. Becomes a Request they see.',
-        `${(b.asks || []).length ? `<ul class="chk">${b.asks.map(a => `<li><span class="tx">${esc(a.title)}</span><span class="o">asked ${short(a.created_at)}</span></li>`).join('')}</ul>` : ''}
+        <input type="text" data-quick="jobs" data-act="${esc(b.act_id)}" placeholder="Type a to-do and press Enter">`)}
+      ${sec('What we need from the client', `Things ${esc(b.name)} owes us. Listed first: ones already asked and still open. Add one and the client sees it on their Requests page after Finish.`,
+        `${(b.asks || []).length ? `<ul class="chk">${b.asks.map(a => `<li><span class="tx">${esc(a.title)}</span><span class="o">asked ${short(a.created_at)}, still open</span></li>`).join('')}</ul>` : ''}
         <div class="rows" data-list="asks" data-act="${esc(b.act_id)}">${rowsHtml(s.asks, true)}</div>
-        <button type="button" class="add" data-add="asks" data-act="${esc(b.act_id)}">+ Request</button>`)}
-      ${sec('Call notes', 'go in the Slack recap', `<textarea data-read="${esc(b.act_id)}" placeholder="Keep spend flat until the new photos land">${esc(s.read || '')}</textarea>`)}`;
+        <button type="button" class="add" data-add="asks" data-act="${esc(b.act_id)}">+ Add something we need from them</button>`)}
+      ${sec('What to tell the client this week', 'Goes word for word under "This week" in their next weekly report. One line per thing. Leave it empty and Locus writes it from the plan.', `<textarea data-client="${esc(b.act_id)}" placeholder="Type it the way the client should read it">${esc(s.client || '')}</textarea>`)}
+      ${sec('Notes for the team', 'Anything else decided. Goes in this brand\'s internal Slack recap after Finish. The client never sees it.', `<textarea data-read="${esc(b.act_id)}" placeholder="Type notes here">${esc(s.read || '')}</textarea>`)}`;
   }
   function mondayOpen() {
     STATE.agency = STATE.agency || [];
     if (STATE.theme == null) STATE.theme = D.theme || '';
-    return `${sec('This week, every brand', 'goes in every Slack recap', `<textarea data-theme placeholder="Every brand gets its Black Friday early-bird ads live by Friday">${esc(STATE.theme)}</textarea>`)}
-      ${sec('Agency to-dos', 'from Tasks', todoList(D.agency_open || [], today(), 'Nothing open.'))}
-      ${sec('New agency to-dos', 'go to Tasks',
+    const n = mondayList().length;
+    return `${sec('How this call runs', `One brand at a time, red first. For each brand: 1. how last week went, 2. what we are doing this week, 3. what is already being made, 4. what we typed. About ${Math.round(mondaySteps().reduce((m, x) => m + x.mins, 0))} minutes for ${plural(n, 'brand')}. Press Next or the right arrow key to move on.`,
+        `<p class="cs-legend"><span class="dot bad"></span>Red: something needs fixing today <span class="dot warn"></span>Amber: worth a look <span class="dot good"></span>Green: on track. The colours come from Home.</p>`)}
+      ${sec('Agency to-dos still open', 'Agency jobs (not one brand\'s) from Locus Tasks that were due by today. Tick one when it is done.', todoList(D.agency_open || [], today(), 'Nothing open.'))}
+      ${sec('Add an agency to-do', 'Type it as a sentence with who and when, then press Enter. Example: Cole sends the Black Friday calendar Wednesday. Goes to Locus Tasks when you press Finish.',
         `<div class="rows" data-list="agency" data-act="">${rowsHtml(STATE.agency)}</div>
-        <input type="text" data-quick="agency" data-act="" placeholder="Cole send the Black Friday calendar to every client Wednesday">`)}`;
+        <input type="text" data-quick="agency" data-act="" placeholder="Type a to-do and press Enter">`)}
+      ${sec('One line for every brand this week (optional)', 'Only if you want it: what you type here goes at the top of every brand\'s Slack recap after Finish.', `<textarea data-theme placeholder="Type it here, or leave it empty">${esc(STATE.theme)}</textarea>`)}`;
   }
   function mondayCounts() {
     let jobs = (STATE.agency || []).filter(x => x.text).length, briefs = 0, asks = 0;
@@ -444,7 +517,7 @@
   }
   function mondayClose() {
     const lines = mondayList().map(b => { const s = (STATE.brands || {})[b.act_id] || {}; return { b, bt: (s.batches || []).filter(x => x.text && x.on !== false).length, j: (s.jobs || []).filter(x => x.text).length, a: (s.asks || []).filter(x => x.text && x.on !== false).length, n: !!s.read, cl: !!(s.client || '').trim() }; }).filter(x => x.bt || x.j || x.a || x.n || x.cl);
-    return sec('Finish', 'briefs to Production and Asana, to-dos to Tasks, requests to the client, This week to the report, one recap per Slack channel',
+    return sec('Finish the call', 'What Finish makes, brand by brand: briefs go to Production and Asana, to-dos to Locus Tasks, requests to the client\'s Requests page, "tell the client" lines to their next report, and one recap per brand in its internal Slack channel.',
       (lines.length ? `<ul class="chk">${lines.map(x => `<li><span class="tx"><b>${esc(x.b.name)}</b></span><span class="o">${[x.bt ? plural(x.bt, 'brief') : '', x.j ? plural(x.j, 'to-do') : '', x.a ? plural(x.a, 'request') : '', x.cl ? 'This week' : '', x.n ? 'notes' : ''].filter(Boolean).join(' · ')}</span></li>`).join('')}</ul>` : empty('Nothing typed yet.'))
       + `<div class="cs-acts"><button type="button" class="btn pri" data-finish ${BUSY ? 'disabled' : ''}>Finish</button></div>`);
   }
@@ -455,49 +528,50 @@
   function clientStep(id) {
     STATE.asks = STATE.asks || []; STATE.promised = STATE.promised || [];
     const wk = D.week || {};
-    if (id === 'news') return sec('What is new on your side?', 'Launches, stock, what customers are saying, anything that changed. Typed here, it goes to our team.',
-      `<textarea data-news class="big" placeholder="New colour drops Nov 10. Polos are low in large. Customers keep asking for a hat.">${esc(STATE.news || '')}</textarea>`);
+    if (id === 'news') return sec('What is new on your side?', 'Launches, stock, what customers are saying, anything that changed. We type it here while you talk, and it goes to our team.',
+      `<textarea data-news class="big" placeholder="Type their news here">${esc(STATE.news || '')}</textarea>`);
     if (id === 'read') {
       const per = STATE.period === 'month' && D.month ? 'month' : 'week';
       const r = per === 'month' ? D.month : D.week;
-      const label = r ? (r.period === 'monthly' ? dt(r.period_start).toLocaleDateString('en-US', { month: 'long', timeZone: 'UTC' }) : `${short(r.period_start)} to ${short(r.period_end)}`) : '';
-      const tog = D.month && D.week ? `<div class="seg"><button type="button" class="${per === 'week' ? 'on' : ''}" data-per="week">Last week</button><button type="button" class="${per === 'month' ? 'on' : ''}" data-per="month">Last month</button></div>` : '';
-      return sec(per === 'month' ? 'How last month went' : 'How last week went', r ? `${label}, from the report you got` : 'from the weekly report',
-        (r && r.status !== 'sent' ? '<p class="warnline">This report has not been sent to them yet.</p>' : '') + tog + readBody(r, D.act_id));
+      const lbl = x => x ? (x.period === 'monthly' ? dt(x.period_start).toLocaleDateString('en-US', { month: 'long', timeZone: 'UTC' }) : `${short(x.period_start)} to ${short(x.period_end)}`) : '';
+      const label = lbl(r);
+      const tog = D.month && D.week ? `<div class="seg"><button type="button" class="${per === 'week' ? 'on' : ''}" data-per="week">Last week: ${lbl(D.week)}</button><button type="button" class="${per === 'month' ? 'on' : ''}" data-per="month">Last month: ${lbl(D.month)}</button></div>` : '';
+      return sec(per === 'month' ? `How ${label} went` : `How last week went: ${label}`, r ? `The numbers from the ${per === 'month' ? 'monthly' : 'weekly'} report we sent you for ${label}. Sales, spend and MER are your whole store from Triple Whale, every channel together. Each tile compares with the ${per === 'month' ? 'month' : 'week'} before.` : 'From your weekly report.',
+        (r && r.status !== 'sent' ? '<p class="warnline">This report has not been sent to them yet.</p>' : '') + tog + readBody(r, D.act_id).replace(/the week before/g, per === 'month' ? 'the month before' : 'the week before'));
     }
     if (id === 'ads') {
       const A = D.ads || { review: [], approved: [], live: [] };
       const cardBtn = (c, cap) => `<button type="button" class="ad" data-editbrief="${esc(c.id)}" title="Open it"><div class="th" ${c.thumb ? `style="background-image:url('${esc(c.thumb)}')"` : ''}>${c.thumb ? '' : esc(c.format || 'Ad')}</div><div class="n">#${esc(c.num)} ${esc(c.title)}</div><div class="s">${cap(c)}</div></button>`;
       const ago = c => c.since ? `in review since ${md(c.since)}` : '';
-      return `${sec('Ads for you to look at', 'Open one to see them. You approve or ask for changes on the card.',
+      return `${sec('New ads waiting for your OK', 'Ads we made for you that need a yes before they go live. Click one to see it; you approve it or ask for changes there.',
           A.review.length ? `<div class="ads">${A.review.map(c => cardBtn(c, x => `${x.versions ? plural(x.versions, 'version') + ' · ' : ''}${ago(x)}`)).join('')}</div>` : empty('Nothing waiting on you.'))}
-        ${sec('Approved, going live', 'what you said yes to',
+        ${sec('Approved, going live soon', 'Ads you said yes to, with the day each one goes live.',
           A.approved.length ? `<div class="ads">${A.approved.map(c => cardBtn(c, x => x.launch_on ? `live ${md(x.launch_on)}` : 'launch date not set')).join('')}</div>` : empty('Nothing approved and waiting.'))}
-        ${sec('Went live', 'the last two weeks',
+        ${sec('Went live in the last two weeks', 'New ads that started running on Meta, newest first.',
           A.live.length ? `<ul class="chk">${A.live.map(r => `<li><span class="tx">${esc(r.name)}${r.card ? `<br><span style="color:var(--ink-2);font-size:13px">${esc(r.card)}</span>` : ''}</span><span class="o">${md(r.day)}${r.status && r.status !== 'ACTIVE' ? ` · ${esc(String(r.status).toLowerCase().replace(/_/g, ' '))}` : ''}</span></li>`).join('')}</ul>` : empty('Nothing launched in the last two weeks.'))}`;
     }
     if (id === 'week') {
       /* The plan = the "This week" lines of the report they got, plus anything sent here from Leaks ("Put it on the call").
          Nothing is typed on this slide: Fireflies writes the notes and Cole approves them after the call (Work > Meetings). */
       const lines = [...(wk.this_week || []), ...(STATE.promised || []).filter(x => x.text && x.on !== false).map(x => x.text)];
-      return sec('What we are doing this week', lines.length ? 'the plan from your weekly report' : 'nothing planned in the last report yet',
+      return sec('What we are doing this week', lines.length ? 'The plan from your weekly report, plus anything we added for this call.' : 'Nothing in the last report yet.',
         lines.length ? `<ol class="lines">${lines.map((x, i) => `<li><i>${i + 1}</i><span>${esc(x)}</span></li>`).join('')}</ol>` : empty('Say it on the call; the notes catch it and it lands in your next report.'));
     }
     if (id === 'asks') {
       const open = (D.asks || []).map(a => `<li><span class="tx">${esc(a.title)}</span><span class="o ${(Date.now() - Date.parse(a.created_at)) > 7 * 864e5 ? 'late' : ''}">asked ${short(a.created_at)}</span></li>`);
       const ok = (D.approvals || []).map(a => `<li><span class="tx">${esc(a.title)}</span><span class="o">your OK, sent ${short(a.created_at)}</span></li>`);
       const all = [...open, ...ok];
-      return sec('What we need from you', 'Everything open on your Requests page, and anything new we agree today. New ones appear there when the call ends.',
+      return sec('What we need from you', 'Everything still open on your Requests page in Locus, oldest first, plus anything new we agree today. New ones show up there when the call ends.',
         (all.length ? `<ul class="chk">${all.join('')}</ul>` : empty('Nothing open.'))
         + `<div class="rows" data-list="asks" data-act="${esc(D.act_id)}">${rowsHtml(STATE.asks, true)}</div>
         <button type="button" class="add" data-add="asks" data-act="${esc(D.act_id)}">+ Add one</button>`);
     }
-    if (id === 'coming') return sec('The next five weeks', 'your calendar: drops, sales, sends. Dashed = not confirmed yet.', calendarGrid(D.coming || [], D.today));
+    if (id === 'coming') return sec('Your next five weeks', 'Launches, sales and emails on your Locus calendar. A dashed box is not confirmed yet. If a date is wrong, say so now and we fix it.', calendarGrid(D.coming || [], D.today));
     const recap = STATE.recap != null ? STATE.recap : recapText();
     return `${D.has_client_channel ? sec('The recap', 'goes to your Slack channel when ticked. Our notes from the call follow once we have checked them.',
         `<textarea data-recap style="min-height:140px">${esc(recap)}</textarea>
         <label style="display:flex;gap:8px;align-items:center;font-size:14px"><input type="checkbox" data-postrecap ${STATE.post_recap ? 'checked' : ''} style="width:16px;height:16px;accent-color:var(--brand);margin:0"> Post it</label>`) : ''}
-      ${sec('That is the call', 'Finish sends the new requests to your Requests page and your news to our team. The notes come from the recording.', `<div class="cs-acts"><button type="button" class="btn pri" data-finish ${BUSY ? 'disabled' : ''}>Finish</button></div>`)}`;
+      ${sec('That is the call', 'Finish puts the new requests on your Requests page and sends your news to our team. The full notes come from the call recording.', `<div class="cs-acts"><button type="button" class="btn pri" data-finish ${BUSY ? 'disabled' : ''}>Finish</button></div>`)}`;
   }
   /* Five weeks from this week's Monday, the brand's dates placed on their days (a multi-day sale runs across its days). */
   function calendarGrid(events, today) {
@@ -605,8 +679,8 @@
   function whereHtml() {
     const st = steps(), s = st[POS];
     if (!s) return '';
-    const where = KIND === 'monday' ? (s.id === 'open' ? '<b>Start</b>' : s.id === 'close' ? '<b>Finish</b>' : `<b>Brand ${POS} of ${st.length - 2}</b>`) : `<b>${esc(s.name)}</b> · ${POS + 1} of ${st.length}`;
-    return `${where}<span>·</span><span class="cs-clock" id="csClock"></span>`;
+    const where = KIND === 'monday' ? (s.id === 'open' ? '<b>Start</b>' : s.id === 'close' ? '<b>Finish</b>' : `<b>${esc(s.name)}</b> · brand ${POS} of ${st.length - 2}`) : `<b>${esc(s.name)}</b> · step ${POS + 1} of ${st.length}`;
+    return `${where}<span>·</span><span class="cs-clock" id="csClock"></span><span class="cs-time">of ${s.mins} min</span>`;
   }
   /* One sentence of what Finish will do, counted live, on every step. */
   const nextLabel = () => { const n = steps()[POS + 1]; return n ? `Next: ${esc(n.name)} →` : 'Finish'; };
@@ -627,7 +701,7 @@
       (KIND === 'kickoff' ? `<p class="cs-empty">${plural(r.briefs || 0, 'brief')} moved to Making.</p>` : `<div class="cs-tiles">${tile('Tasks', n('tasks'))}${tile('Briefs', n('briefs'))}${tile('Requests', n('asks'))}${tile('Reports', all.filter(b => b.report).length)}</div>
         ${(r.warnings || []).length ? `<div class="warnline">${r.warnings.map(esc).join('<br>')}</div>` : ''}
         ${r.recap ? `<p class="cs-empty">${r.recap.posted ? 'The recap is in the client\'s Slack channel.' : `The recap was not posted: ${esc(r.recap.why || '')}`}</p>` : ''}`)
-      + `<div class="cs-acts"><button type="button" class="btn" data-reopen>Reopen</button><button type="button" class="btn" data-go="tasks">Tasks</button><button type="button" class="btn" data-go="production">Production</button><button type="button" class="btn" data-go="calls">${KIND === 'client' ? 'Home' : 'Meetings'}</button></div>`);
+      + `<div class="cs-acts"><button type="button" class="btn" data-reopen>Reopen</button><button type="button" class="btn" data-tab="tasks">Tasks (new tab)</button><button type="button" class="btn" data-tab="production">Production (new tab)</button><button type="button" class="btn" data-go="calls">${KIND === 'client' ? 'Home' : 'Meetings'}</button></div>`);
   }
   const headHtml = title => H.pageHead ? H.pageHead(KIND === 'client' ? 'ccall' : 'calls', title) : `<div class="ph"><div><div class="ph-t">${title}</div></div><div class="ph-r"><span class="ph-acts"></span></div></div>`;
   function acts(html) { if (typeof H.pageActions === 'function') H.pageActions(html); else if (typeof window.pageActions === 'function') window.pageActions(html); }
@@ -653,12 +727,52 @@
     const n = $('#csNext'); if (n) { n.innerHTML = nextLabel(); if (last) { n.setAttribute('data-finish', ''); wireFinish(n); } else { n.removeAttribute('data-finish'); n.onclick = () => go(POS + 1); } }
     wireMain(); wireSteps();
   }
-  function go(i) {
+  /* ---------- where you are lives in the URL (2026-11-03) ----------
+     Cole on the Nov 2 call: Back left Locus, and a reload started the call from the top. Every step is its own history
+     entry (?open=calls&call=<kind>[&act=]&step=<id>&y=<scroll>), the entry under the first step is an "exit" marker that
+     goes back to Meetings, the scroll is kept on the entry as you scroll, and the last place is also saved on this
+     computer (localStorage cs_pos) so opening the same call again from Meetings resumes it. */
+  const stepId = () => { const s = steps()[POS]; return s ? s.id : ''; };
+  function urlFor(id, y) {
+    const p = new URLSearchParams(); p.set('open', 'calls'); p.set('call', KIND);
+    if (KIND === 'client' && D && D.act_id) p.set('act', D.act_id);
+    if (id) p.set('step', id); if (y > 40) p.set('y', String(Math.round(y)));
+    return location.pathname + '?' + p.toString();
+  }
+  const navState = (id, y) => ({ cs: 1, kind: KIND, act: KIND === 'client' && D ? D.act_id : '', step: id, y: Math.round(y || 0) });
+  function savePos() {
+    if (!D || !D.call || !$('#csRoot')) return;
+    const id = stepId(), y = window.scrollY;
+    try { history.replaceState(navState(id, y), '', urlFor(id, y)); } catch {}
+    try { localStorage.setItem('cs_pos', JSON.stringify({ call: D.call.id, step: id, y: Math.round(y), at: Date.now() })); } catch {}
+  }
+  let SCROLL_T = null;
+  window.addEventListener('scroll', () => { if (!$('#csRoot')) return; clearTimeout(SCROLL_T); SCROLL_T = setTimeout(savePos, 300); }, { passive: true });
+  window.addEventListener('popstate', e => {
+    const st = e.state;
+    if (!st || !st.cs) return;
+    if (st.cs === 'exit') { if ($('#csRoot')) { try { history.replaceState(null, '', location.pathname); } catch {} present(false); closePop(); H && H.show('calls'); } return; }
+    if (!$('#csRoot') || st.kind !== KIND || (st.kind === 'client' && D && st.act !== D.act_id)) {
+      /* Back from another page into the call: reopen it on that step. */
+      if (!H) return;
+      window.CALL_STEP = st.step; window.CALL_Y = st.y || 0;
+      if (st.kind === 'client') { if (st.act) { H.S.act = st.act; try { localStorage.setItem('pf_act', st.act); } catch {} } window.CALL_OPEN = 'client'; H.show('ccall'); }
+      else { window.CALL_OPEN = st.kind; H.show('calls'); }
+      return;
+    }
+    const i = steps().findIndex(s => s.id === st.step);
+    go(i >= 0 ? i : 0, { push: false, y: st.y || 0 });
+  });
+  function go(i, how = {}) {
     const n = steps().length; if (!n) return;
     closePop();
+    if (how.push !== false) savePos();                      // the entry you leave keeps its scroll
     POS = Math.max(0, Math.min(n - 1, i));
     paintMain(); const s = steps()[POS]; startClock((s ? s.mins : 5) * 60);
-    const r = $('#csRoot'); if (r) window.scrollTo({ top: Math.max(0, r.getBoundingClientRect().top + window.scrollY - 12), behavior: 'smooth' });
+    if (how.push !== false) { try { history.pushState(navState(stepId(), 0), '', urlFor(stepId(), 0)); } catch {} }
+    if (how.y) { window.scrollTo(0, how.y); savePos(); return; }
+    const r = $('#csRoot'); if (r) window.scrollTo({ top: Math.max(0, r.getBoundingClientRect().top + window.scrollY - 12), behavior: how.push === false ? 'auto' : 'smooth' });
+    savePos();
   }
 
   /* ---------- Present: full screen, Locus menus hidden, Exit or Esc ---------- */
@@ -680,28 +794,30 @@
     if (KIND === 'monday') { if (name === 'agency') return (STATE.agency = STATE.agency || []); const st = brandState(act); st.edited = true; return st[name]; }
     return (STATE[name] = STATE[name] || []);
   }
-  function openInAds(act, adId) {
-    present(false);
-    H.S.act = act; try { localStorage.setItem('pf_act', act); } catch {}
-    const cp = document.getElementById('clientPick'); if (cp) cp.value = act;
-    if (adId) window.V2PENDING = { ad: adId };
-    H.show('adcreative');
-  }
+  /* Anything that has to leave the call opens in a NEW TAB, so the call stays where it is (Cole, 2026-11-03). */
+  const newTab = (open, act) => window.open(`${location.pathname}?open=${encodeURIComponent(open)}${act ? `&act=${encodeURIComponent(act)}` : ''}`, '_blank', 'noopener');
+  function openInAds(act) { newTab('adcreative', act); }
   function wireMain() {
     const root = $('#csMain'); if (!root) return;
     $$('textarea', root).forEach(t => { grow(t); t.addEventListener('input', () => grow(t)); });
     $$('[data-ad]', root).forEach(b => b.onclick = () => {
       const id = b.dataset.ad, act = b.dataset.act;
-      if (window.V2 && window.V2.playAd) window.V2.playAd({ id, name: b.dataset.name, act, note: '' }, H, () => openInAds(act, id));
+      if (window.V2 && window.V2.playAd) window.V2.playAd({ id, name: b.dataset.name, act, note: 'Plays here; the call stays where it is. "See its numbers on Ads" opens a new tab.' }, H, () => openInAds(act, id));
       else openInAds(act, id);
     });
-    $$('[data-allads]', root).forEach(b => b.onclick = () => openInAds(b.dataset.allads));
+    $$('[data-allads]', root).forEach(b => b.onclick = () => {
+      const k = b.dataset.allads, A = ADS[k] = ADS[k] || { sort: 'spend' };
+      A.open = !A.open;
+      if (A.open && !A.rows && !A.loading) loadAllAds(k); else paintMain();
+    });
+    $$('[data-adsort]', root).forEach(b => b.onclick = e => { e.stopPropagation(); const A = ADS[b.dataset.adsort]; if (!A) return; A.sort = b.dataset.col; paintMain(); });
+    $$('[data-tab]', root).forEach(b => b.onclick = () => newTab(b.dataset.tab, b.dataset.act || ''));
     $$('[data-fold]', root).forEach(b => b.onclick = () => { const k = b.dataset.fold, rest = b.closest('.slk').querySelector('.rest'); OPEN_POSTS[k] = !OPEN_POSTS[k]; rest.hidden = !OPEN_POSTS[k]; b.textContent = OPEN_POSTS[k] ? 'Less' : 'More'; });
     $$('[data-card]', root).forEach(b => b.onclick = () => {
       const id = b.dataset.card, url = b.dataset.asana;
       if (id && window.ProdSheet && window.ProdSheet.open) window.ProdSheet.open(H, id, { tab: 'brief' });
       else if (url) window.open(url, '_blank', 'noopener');
-      else { present(false); H.show('production'); }
+      else newTab('production');
     });
     $$('[data-item] input[type=checkbox]', root).forEach(cb => cb.onchange = async () => {
       const li = cb.closest('[data-item]'); li.classList.toggle('off', cb.checked);
@@ -742,7 +858,7 @@
       listOf(name, act).push(p); save(); paintMain();
       const again = $(`[data-quick="${name}"]`); if (again) again.focus();
     });
-    $$('[data-editbrief]', root).forEach(b => b.onclick = () => { if (window.ProdSheet) window.ProdSheet.open(H, b.dataset.editbrief, { onChange: () => { delete CARD[b.dataset.editbrief]; loadCard(b.dataset.editbrief); } }); else H.show('production'); });
+    $$('[data-editbrief]', root).forEach(b => b.onclick = () => { if (window.ProdSheet) window.ProdSheet.open(H, b.dataset.editbrief, { onChange: () => { delete CARD[b.dataset.editbrief]; loadCard(b.dataset.editbrief); } }); else newTab('production'); });
     $$('[data-kickdone]', root).forEach(b => b.onclick = async () => {
       const id = b.dataset.kickdone, deal = (STATE.deal || {})[id] || {};
       b.disabled = true; b.textContent = 'Saving';
@@ -775,6 +891,7 @@
   function wire() {
     const root = $('#csRoot');
     $$('[data-go]', root).forEach(b => b.onclick = () => { clearInterval(CLOCK); present(false); H.show(b.dataset.go); });
+    $$('#csRoot > section [data-tab]').forEach(b => b.onclick = () => newTab(b.dataset.tab, ''));
     /* Reopen (2026-10-26): the call back to open to fix or add a line; Finish again makes only what is new. */
     $$('[data-reopen]', root).forEach(b => b.onclick = async () => {
       const sure = window.confirmModal ? await window.confirmModal('Reopen the call?', 'You can change what was typed and finish again. What the first Finish made stays, and is not made twice.', 'Reopen') : true;
@@ -830,9 +947,21 @@
       }
       if (cmd && Array.isArray(cmd.brands)) for (const b of cmd.brands) SEV[b.act_id] = b.paused ? undefined : (b.reasons || []).reduce((w, r) => r.sev === 'bad' ? 'bad' : (w === 'bad' ? w : r.sev === 'warn' ? 'warn' : w), 'good');
       if (KIND === 'kickoff') { const first = kickList().findIndex(c => !((STATE.done || {})[c.id] || c.kickoff_at)); POS = first >= 0 ? first : 0; }
+      /* Resume: the URL's step (a reload or Back), else where this computer last was on this same call (12 hours). */
+      let want = window.CALL_STEP, wantY = window.CALL_Y || 0; window.CALL_STEP = null; window.CALL_Y = 0;
+      if (!want) { try { const p = JSON.parse(localStorage.getItem('cs_pos') || 'null'); if (p && p.call === D.call.id && Date.now() - p.at < 12 * 3600e3) { want = p.step; wantY = p.y || 0; } } catch {} }
+      if (want) { const i = steps().findIndex(s => s.id === want); if (i >= 0) POS = i; else wantY = 0; }
+      RESUME_Y = want ? wantY : 0;
     } catch (e) { $('#main').innerHTML = `${headHtml(TITLE[KIND])}<div class="v2 cs" id="csRoot">${sec('Did not load', '', `<p class="cs-empty" style="color:var(--bad)">${esc(e.message)}</p><div class="cs-acts"><button type="button" class="btn" data-go="calls">Meetings</button></div>`)}</div>`; $$('[data-go]').forEach(b => b.onclick = () => H.show(b.dataset.go)); return; }
     paint();
+    /* History: an exit marker under the call, then this step on top, so Back from the first step returns to Meetings. */
+    try {
+      if (history.state && history.state.cs === 1) history.replaceState(navState(stepId(), RESUME_Y), '', urlFor(stepId(), RESUME_Y));   // reopened by Back
+      else { history.replaceState({ cs: 'exit' }, '', location.pathname); history.pushState(navState(stepId(), RESUME_Y), '', urlFor(stepId(), RESUME_Y)); }
+    } catch {}
+    if (RESUME_Y) { const y = RESUME_Y; requestAnimationFrame(() => setTimeout(() => window.scrollTo(0, y), 60)); }
+    RESUME_Y = 0;
     document.removeEventListener('keydown', keys); document.addEventListener('keydown', keys);
   }
-  window.CallScreen = { open, back: () => { present(false); closePop(); H && H.show('calls'); } };
+  window.CallScreen = { open, back: () => { present(false); closePop(); try { history.replaceState(null, '', location.pathname); } catch {} H && H.show('calls'); } };
 })();
