@@ -122,7 +122,7 @@ function pickTotals(t) { const o = {}; for (const k of NUM_KEYS) o[k] = t?.[k] ?
  *  An ad with no Triple Whale row reads 0 (a real zero under that model); a report with no attribution has no ROAS
  *  and the ads are listed by spend, said so. */
 export function winnersLosers(data) {
-  const top = data?.ads?.top || [];
+  const top = (data?.ads?.top || []).filter(a => !a.lead);
   const attr = data?.attr?.ads?.[ATTR] || null;
   const rows = top.map(a => {
     const t = attr ? (attr[a.ad_id] || { revenue: 0, orders: 0 }) : null;
@@ -174,8 +174,22 @@ async function withLeads(env, act, read) {
   return read;
 }
 async function latestReport(env, act, period, { sentOnly = false } = {}) {
-  return env.DB.prepare(`SELECT period, period_start, period_end, status, summary, data_json, sent_at FROM reports WHERE act_id = ?1 AND period = ?2 ${sentOnly ? `AND status = 'sent'` : ''} ORDER BY period_start DESC LIMIT 1`)
+  const rep = await env.DB.prepare(`SELECT period, period_start, period_end, status, summary, data_json, sent_at FROM reports WHERE act_id = ?1 AND period = ?2 ${sentOnly ? `AND status = 'sent'` : ''} ORDER BY period_start DESC LIMIT 1`)
     .bind(act, period).first().catch(() => null);
+  return markLeads(env, rep);
+}
+/* Reports frozen before 2026-11-03 carry lead ads in their top ads with no flag: mark them from the campaign's objective
+   so the best and worst ads are never a giveaway ad judged on ROAS. */
+async function markLeads(env, rep) {
+  const data = rep && safe(rep.data_json, null), top = data?.ads?.top || [];
+  const ids = top.filter(a => a.ad_id && a.lead == null).map(a => String(a.ad_id));
+  if (!ids.length) return rep;
+  const { results } = await env.DB.prepare(`SELECT x.ad_id FROM ads x JOIN meta_campaigns c ON c.campaign_id = x.campaign_id WHERE c.objective IN ('OUTCOME_LEADS', 'LEAD_GENERATION') AND x.ad_id IN (${ids.map((_, i) => `?${i + 1}`).join(', ')})`)
+    .bind(...ids).all().catch(() => ({ results: [] }));
+  const lead = new Set((results || []).map(r => String(r.ad_id)));
+  if (!lead.size) return rep;
+  for (const a of top) if (lead.has(String(a.ad_id))) a.lead = 1;
+  return { ...rep, data_json: JSON.stringify(data) };
 }
 
 /* ---------- the strategist's Slack plan, split into the screen's fields ---------- */

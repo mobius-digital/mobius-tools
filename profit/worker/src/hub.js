@@ -27,7 +27,7 @@
  *   GET /api/hub/command?act=all      the agency command center: why each brand needs attention (team only)
  */
 import { metaOf } from './brandids.js';
-import { rulesFor, goalOf } from './brand.js';
+import { rulesFor, goalOf, LEAD_CPL } from './brand.js';
 import { memo } from './memo.js';
 /* Speed (2026-10-26): the buyer's list is built once for a page that asks for /api/hub/kept and /api/hub/today at the
    same moment (in-flight calls share, then 20 seconds), and the Agency view's command answer is kept 3 minutes. Keys
@@ -478,12 +478,14 @@ export async function buyerList(env, ctx, accts) {
     };
     /* The numbers a buyer wants, in one sentence: days running, spend, the goal number, CTR, CPM, frequency, hook rate. */
     const SHORT = { cpa: 'CPA', ncpa: 'cost per new customer', cpl: 'cost per lead' };
+    /* A lead costs cents, not dollars (2026-11-03: "$0 each, goal $1"): per-result money on a lead set keeps the cents. */
+    const cents = v => (v == null ? '' : `${a.currency && a.currency !== 'USD' ? a.currency + ' ' : '$'}${(+v).toFixed(2)}`), U = m => m === 'cpl' ? cents : $;
     const statLine = ({ spend, res, revenue, age, d, m, unit, tr, need }) => {
       const parts = [];
       if (age != null) parts.push(`${age} day${age === 1 ? '' : 's'} running${need ? ` (${R.cr_min_days} needed)` : ''}`);
       parts.push(`${$(spend)} spent${need && unit ? ` (${$(R.cr_judge_x * unit)} needed to judge)` : ''}`);
       if (m === 'roas') parts.push(`ROAS ${X1(spend ? revenue / spend : 0)} vs ${X1(tr)} goal`);
-      else if (m && unit) parts.push(`${SHORT[m]} ${res ? $(spend / res) : 'none'} vs ${$(unit)} goal`);
+      else if (m && unit) parts.push(`${SHORT[m]} ${res ? U(m)(spend / res) : 'none'} vs ${U(m)(unit)} goal`);
       if (d.impr >= 500) {
         parts.push(`CTR ${P2(d.clicks / d.impr)}`, `CPM ${$(d.spend * 1000 / d.impr)}`);
         if (d.reach) parts.push(`frequency ${(d.impr / d.reach).toFixed(1)}`);
@@ -513,6 +515,7 @@ export async function buyerList(env, ctx, accts) {
     for (const s of live) {
       /* What this set is judged on: its campaign's objective. */
       const m = s.obj === 'leads' ? 'cpl' : s.obj === 'reach' ? null : metric;
+      const $u = U(m);
       if (s.obj === 'reach') notSales++;
       const unit = m ? unitOf(m) : null;
       if (m === 'cpl' && !unit) { noLeadGoal++; leadNoGoal.push(s.name); }
@@ -540,14 +543,14 @@ export async function buyerList(env, ctx, accts) {
       /* The numbers and the evidence, on every set row (the ad set panel on Ads > Calls reads them). */
       const [one1, many1] = m ? NOUN[m] : NOUN.cpa;
       const onGoal = m === 'roas' ? roas != null && roas >= tr : cpr != null && cpr <= unit;
-      const mainNum = m === 'roas' ? (roas != null ? X1(roas) : '0x') : cpr != null ? $(cpr) : 'none';
+      const mainNum = m === 'roas' ? (roas != null ? X1(roas) : '0x') : cpr != null ? $u(cpr) : 'none';
       const nShare = s.w7.orders ? Math.min(1, s.w7.nc / s.w7.orders) : null, ctr = ctrOf(s);
       const freq = top && top.reach ? top.impr / top.reach : null, spShare = acct.spend ? s.w7.spend / acct.spend : null;
       const checks = [], ev = { for: [], against: [] };
       if (m && unit) {
-        checks.push({ label: `${m === 'roas' ? 'ROAS' : cap(COST[m])} (main goal)`, value: mainNum, vs: `goal ${m === 'roas' ? X1(tr) : $(unit)} · ${onGoal ? 'on' : res ? (m === 'roas' ? 'under' : 'over') : 'no ' + one1}`, tone: onGoal ? 'good' : res || X.spend >= unit ? 'bad' : '' });
-        if (onGoal) ev.for.push(m === 'roas' ? `ROAS ${mainNum}, at or over the ${X1(tr)} goal` : `${cap(many1)} at ${mainNum}, under the ${$(unit)} goal`);
-        else if (res) ev.against.push(m === 'roas' ? `ROAS ${mainNum}, under the ${X1(tr)} goal` : `${cap(many1)} at ${mainNum}, over the ${$(unit)} goal`);
+        checks.push({ label: `${m === 'roas' ? 'ROAS' : cap(COST[m])} (main goal)`, value: mainNum, vs: `goal ${m === 'roas' ? X1(tr) : $u(unit)} · ${onGoal ? 'on' : res ? (m === 'roas' ? 'under' : 'over') : 'no ' + one1}`, tone: onGoal ? 'good' : res || X.spend >= unit ? 'bad' : '' });
+        if (onGoal) ev.for.push(m === 'roas' ? `ROAS ${mainNum}, at or over the ${X1(tr)} goal` : `${cap(many1)} at ${mainNum}, under the ${$u(unit)} goal`);
+        else if (res) ev.against.push(m === 'roas' ? `ROAS ${mainNum}, under the ${X1(tr)} goal` : `${cap(many1)} at ${mainNum}, over the ${$u(unit)} goal`);
         else if (X.spend >= unit) ev.against.push(`No ${one1} on ${$(X.spend)} spent`);
       }
       for (const g of guards) {
@@ -599,19 +602,19 @@ export async function buyerList(env, ctx, accts) {
            scale. Before, each also blocked the other call, so a 2.5x floor turned nearly every Scale into Mixed. */
         const broken = guards.filter(g => g.k === 'cpa' && !g.ok), met = guards.filter(g => g.k === 'roas' && g.ok);
         const win = days === 14 ? '14 days (a slow set)' : '7 days';
-        const goalTxt = m === 'roas' ? `${X1(tr)} goal ROAS` : `${$(unit)} goal`;
+        const goalTxt = m === 'roas' ? `${X1(tr)} goal ROAS` : `${$u(unit)} goal`;
         /* Mixed: the main goal and a guardrail disagree. No button; the sentence says what disagrees. */
         const mainSaid = onGoal
-          ? (m === 'roas' ? `ROAS ${mainNum} beats the ${X1(tr)} goal` : `Cheap ${many} (${mainNum} against ${$(unit)})`)
-          : res ? (m === 'roas' ? `ROAS ${mainNum} misses the ${X1(tr)} goal` : `${cap(many)} cost ${mainNum} against the ${$(unit)} goal`)
+          ? (m === 'roas' ? `ROAS ${mainNum} beats the ${X1(tr)} goal` : `Cheap ${many} (${mainNum} against ${$u(unit)})`)
+          : res ? (m === 'roas' ? `ROAS ${mainNum} misses the ${X1(tr)} goal` : `${cap(many)} cost ${mainNum} against the ${$u(unit)} goal`)
           : `No ${one} on ${$(X.spend)} spent`;
         const mixed = gs => ({ kind: 'mixed', ...setRow, stake: 0.5 * X.spend, ...(funnel ? { funnel } : {}),
           why: `${mainSaid} but ${gs.map(gText).join(' and ')}. ${setStat(false)}` });
         /* The role guard: last click says cut, first click says it starts the sales. Keep it, no button. */
-        const fcSaid = f => `first click credits it with ${n(f.fc_results)} at ${m === 'roas' ? `${X1(f.fc_roas)} ROAS` : `${$(f.fc_cpa)} ${m === 'cpa' ? 'CPA' : 'each'}`}${f.fc_new_share != null ? ` and ${P(f.fc_new_share)} new customers` : ''}`;
+        const fcSaid = f => `first click credits it with ${n(f.fc_results)} at ${m === 'roas' ? `${X1(f.fc_roas)} ROAS` : `${$u(f.fc_cpa)} ${m === 'cpa' ? 'CPA' : 'each'}`}${f.fc_new_share != null ? ` and ${P(f.fc_new_share)} new customers` : ''}`;
         const openerRow = (row, lastSaid, f, stat) => ({ ...row, kind: 'mixed', kept_by: 'opener', stake: 0.5 * row.spend,
           why: `Last click says cut (${lastSaid}), but ${fcSaid(f)}: it opens journeys. Keep it; judge it on first click. ${stat}` });
-        const lastSet = cutZero ? `${$(X.spend)}, 0 ${many} in ${days} days` : `${$(X.spend)}, ${n(res)} at ${m === 'roas' ? `${X1(roas)} ROAS` : `${$(cpr)} each`} in ${days} days`;
+        const lastSet = cutZero ? `${$(X.spend)}, 0 ${many} in ${days} days` : `${$(X.spend)}, ${n(res)} at ${m === 'roas' ? `${X1(roas)} ROAS` : `${$u(cpr)} each`} in ${days} days`;
         /* Scale needs the last 7 days to agree (2026-10-26 audit, Trybe Jett Slepak): a slow set that qualifies on 14 days
            but had no result in the last 7 is not scaled. */
         const quiet7 = use14 && !resOf(s.w7);
@@ -619,12 +622,12 @@ export async function buyerList(env, ctx, accts) {
           if (broken.length) { rows.push(mixed(broken)); kept.push(s.name); }
           else rows.push({ kind: 'scale', ...setRow, stake: 0.2 * X.spend,
             why: m === 'roas' ? `${n(res)} at ${X1(roas)} ROAS, at or over the ${X1(tr)} goal over ${win}. Raise the budget 20% and watch 3 days.`
-              : `${n(res)} at ${$(cpr)} each, ${Math.round(cpr) < Math.round(unit) ? 'under' : 'at'} the ${goalTxt} over ${win}${met.length ? `; ${met.map(gText).join(' and ')}` : ''}. Raise the budget 20% and watch 3 days.` });
+              : `${n(res)} at ${$u(cpr)} each, ${(m === 'cpl' ? cpr < unit : Math.round(cpr) < Math.round(unit)) ? 'under' : 'at'} the ${goalTxt} over ${win}${met.length ? `; ${met.map(gText).join(' and ')}` : ''}. Raise the budget 20% and watch 3 days.` });
           if (!broken.length) rows[rows.length - 1].why += ` ${setStat(false)}`;
         } else if (cutBar && met.length) { working = true; rows.push(mixed(met)); kept.push(s.name); }
         else if (cutBar && m === metric && propsUp(s, use14 ? 'w14' : 'w7')) { working = true; bestKept++;
           const { a: aw, r: rr, v: vv } = propsUp(s, use14 ? 'w14' : 'w7');
-          const v = m === 'roas' ? `${X1(vv)} ROAS` : `${$(vv)} each`, av = m === 'roas' ? `${X1(aw.num || 0)} ROAS` : aw.num != null ? `${$(aw.num)} a ${one}` : `no ${one}`;
+          const v = m === 'roas' ? `${X1(vv)} ROAS` : `${$u(vv)} each`, av = m === 'roas' ? `${X1(aw.num || 0)} ROAS` : aw.num != null ? `${$u(aw.num)} a ${one}` : `no ${one}`;
           rows.push({ kind: 'mixed', ...setRow, kept_by: 'best_set', stake: 0.5 * X.spend, ...(funnel ? { funnel } : {}),
             why: `Last click says cut (${lastSet}), but this set brings ${n(rr)} of the account's ${n(aw.res)} at ${v}, while the whole account runs ${av} against the ${goalTxt}: it is the best you have. Cut the weaker sets first, then judge it again. ${setStat(true)}` }); }
         else if (cutBar && fr && fr.role === 'opener') { working = true; openers++;
@@ -633,13 +636,13 @@ export async function buyerList(env, ctx, accts) {
           /* A strong small ad inside a set being cut (2026-10-26 audit, Dartee 347-1: 4.3x ROAS on $125): name it, move it. */
           const star = s.ads.map(ad => { const r = resOf(ad); return { ad, r, v: m === 'roas' ? (ad.spend ? ad.revenue / ad.spend : 0) : r ? ad.spend / r : null }; })
             .filter(x => x.r >= 2 && (m === 'roas' ? x.v >= tr : x.v != null && x.v <= unit)).sort((p, q) => m === 'roas' ? q.v - p.v : p.v - q.v)[0];
-          const keepTxt = star ? `; keep ad "${star.ad.name}" (${m === 'roas' ? `${X1(star.v)} ROAS` : `${$(star.v)} a ${one}`} on ${$(star.ad.spend)}, ${n(star.r)}${star.ad.nc && m !== 'ncpa' ? `, ${Math.round(star.ad.nc)} new` : ''}) and move it to a working set first` : '';
+          const keepTxt = star ? `; keep ad "${star.ad.name}" (${m === 'roas' ? `${X1(star.v)} ROAS` : `${$u(star.v)} a ${one}`} on ${$(star.ad.spend)}, ${n(star.r)}${star.ad.nc && m !== 'ncpa' ? `, ${Math.round(star.ad.nc)} new` : ''}) and move it to a working set first` : '';
           working = false;
           rows.push({ kind: 'cut', ...setRow, stake: cutZero ? X.spend : Math.max(0, X.spend - unit * res), ...(funnel ? { funnel } : {}),
             ...(star ? { keep_ad: { ad_id: star.ad.id, name: star.ad.name, spend: star.ad.spend, results: star.r, value: star.v } } : {}),
             why: (cutZero ? `Spent ${$(X.spend)} (${(X.spend / unit).toFixed(1)}x the goal) with no ${one} in ${win}`
               : m === 'roas' ? `ROAS ${X1(roas)} against the ${X1(tr)} goal, on ${$(X.spend)} spent over ${win}`
-              : `${cap(COST[m])} ${$(cpr)}, ${(cpr / unit).toFixed(1)}x the ${goalTxt}, on ${$(X.spend)} spent over ${win}${broken.length ? `; ${broken.map(gText).join(' and ')}` : ''}`) + `${keepTxt}. ${setStat(true)}` }); }
+              : `${cap(COST[m])} ${$u(cpr)}, ${(cpr / unit).toFixed(1)}x the ${goalTxt}, on ${$(X.spend)} spent over ${win}${broken.length ? `; ${broken.map(gText).join(' and ')}` : ''}`) + `${keepTxt}. ${setStat(true)}` }); }
         if (working && s.ads.length >= 2) for (const ad of s.ads) {
           if (anchor && ad.id === anchor.ad_id) continue;
           /* Trim = the ad over the SAME line on its OWN spend (7 days), once it has run cr_min_days. */
@@ -654,9 +657,9 @@ export async function buyerList(env, ctx, accts) {
           const adStat = statLine({ spend: ad.spend, res: ares, revenue: ad.revenue, age: aAge, d: delivOf([ad]), m, unit, tr, need: true });
           const adRow = { ...setRow, ad_id: ad.id, ad: ad.name, spend: ad.spend, orders: ad.orders, results: ares, revenue: ad.revenue, cpa: acpr, roas: aroas, days: 7, role: afr ? afr.role : null, first_click: afr };
           if (afr && afr.role === 'opener') { openers++;
-            rows.push(openerRow(adRow, ares ? `${$(ad.spend)}, ${n(ares)} at ${m === 'roas' ? `${X1(aroas)} ROAS` : `${$(acpr)} each`} in 7 days` : `${$(ad.spend)}, 0 ${many} in 7 days`, afr, adStat)); continue; }
+            rows.push(openerRow(adRow, ares ? `${$(ad.spend)}, ${n(ares)} at ${m === 'roas' ? `${X1(aroas)} ROAS` : `${$u(acpr)} each`} in 7 days` : `${$(ad.spend)}, 0 ${many} in 7 days`, afr, adStat)); continue; }
           rows.push({ kind: 'trim', ...adRow, stake: Math.max(0, ad.spend - unit * ares),
-            why: (ares ? `This ad costs ${$(acpr)} a ${one}, ${(acpr / unit).toFixed(1)}x the ${$(unit)} goal, on ${$(ad.spend)} of its own spend, while the set works${cpr != null ? ` at ${$(cpr)}` : ''}. Turn off this ad only.`
+            why: (ares ? `This ad costs ${$u(acpr)} a ${one}, ${(acpr / unit).toFixed(1)}x the ${$u(unit)} goal, on ${$(ad.spend)} of its own spend, while the set works${cpr != null ? ` at ${$u(cpr)}` : ''}. Turn off this ad only.`
               : `This ad spent ${$(ad.spend)} of its own (${(ad.spend / unit).toFixed(1)}x the goal) with no ${one} while the set works. Turn off this ad only.`) + ` ${adStat}` });
         }
       }
@@ -845,6 +848,26 @@ function metaMetrics(r, attr) {
        seconds, 25%, 50%, 75% and the end. Meta's own watch counts, video ads only. */
     curve: num(r.v3) && num(r.p25) ? [num(r.v3), num(r.p25), num(r.p50), num(r.p75), num(r.p100)].map(v => div(v, impr)) : null };
 }
+/* LEAD CAMPAIGNS ON THE ACCOUNT TOTALS (2026-11-03, Cole: lead campaigns looked wrong everywhere). A lead or giveaway
+   campaign buys leads, not sales, so its spend is judged on cost per lead and kept out of the account's sales numbers:
+   `roas` and `cpa` are over the sales spend, `leads` and `cpl` are the lead campaigns' own (Meta's count), and `spend`
+   stays the whole account so it still matches Ads Manager. One query for every brand and both windows. */
+async function leadSplit(env, acts, w) {
+  if (!acts.length) return {};
+  const { results } = await env.DB.prepare(`SELECT c.brand_id act_id, CASE WHEN d.date >= ?1 THEN 'cur' ELSE 'prev' END win, SUM(d.spend) spend, SUM(d.leads) leads
+    FROM ad_daily d JOIN connections c ON c.kind = 'meta' AND c.external_id = d.act_id JOIN ads x ON x.ad_id = d.ad_id JOIN meta_campaigns mc ON mc.campaign_id = x.campaign_id
+    WHERE mc.objective IN ('OUTCOME_LEADS', 'LEAD_GENERATION') AND c.brand_id IN (${inList(acts.length, 5)}) AND ((d.date BETWEEN ?1 AND ?2) OR (d.date BETWEEN ?3 AND ?4)) GROUP BY c.brand_id, win`)
+    .bind(w.from, w.to, w.pf || '9999', w.pt || '0000', ...acts).all().catch(() => ({ results: [] }));
+  const out = {}; for (const r of results || []) (out[r.act_id] ??= {})[r.win] = { spend: num(r.spend), leads: num(r.leads) };
+  return out;
+}
+function withLeads(m, L) {
+  if (!m || !L || !(L.spend > 0)) return m;
+  const sales = Math.max(0, m.spend - L.spend);
+  Object.assign(m, { lead_spend: L.spend, sales_spend: sales, leads: L.leads, cpl: div(L.spend, L.leads) });
+  if (m.purchases != null) Object.assign(m, { roas: div(m.revenue, sales), cpa: div(sales, m.purchases) });
+  return m;
+}
 async function metaBrand(env, a, w, model, detail) {
   const act = a.act_id;
   const tot = async (from, to) => {
@@ -856,8 +879,9 @@ async function metaBrand(env, a, w, model, detail) {
     if (live && at && !num(at.n)) Object.assign(m, { purchases: null, revenue: null, roas: null, cpa: null, purchase_rate: null, attr_pending: true });
     return m;
   };
-  const cur = await tot(w.from, w.to);
-  const prev = w.pf ? await tot(w.pf, w.pt) : null;
+  const LS = (await leadSplit(env, [act], w))[act] || {};
+  const cur = withLeads(await tot(w.from, w.to), LS.cur);
+  const prev = w.pf ? withLeads(await tot(w.pf, w.pt), LS.prev) : null;
   const goals = (await adGoalMap(env, [a]))[a.act_id];
   const out = { act_id: act, name: a.name, currency: a.currency, goals, cur, prev };
   if (!detail) return out;
@@ -928,7 +952,7 @@ async function adGoalMap(env, accts) {
   for (const a of accts) {
     const R = rulesFor(a, doc[a.act_id] || null), m = R.goal_metric;
     out[a.act_id] = { metric: m, cpa: (m === 'cpa' ? goalOf(R, 'cpa') : R.target_cpa) || null, roas: (m === 'roas' ? goalOf(R, 'roas') : R.target_roas) || null,
-      ncpa: (m === 'ncpa' ? goalOf(R, 'ncpa') : +R.goal_ncpa) || null, cpl: +R.goal_cpl || null };
+      ncpa: (m === 'ncpa' ? goalOf(R, 'ncpa') : +R.goal_ncpa) || null, cpl: +R.goal_cpl || null, cpl_lo: LEAD_CPL.lo, cpl_auto: !!R.goal_cpl_auto };
   }
   return out;
 }
@@ -943,6 +967,7 @@ async function metaMany(env, accts, w, model, ctx) {
     .bind(w.from, w.to, w.pf || '9999', w.pt || '0000', ...acts).all();
   const at = await attrMany(env, acts, lo, w.to, model, 'meta');
   const GM = await adGoalMap(env, accts);
+  const LS = await leadSplit(env, acts, w);
   const raw = {}; for (const r of results || []) (raw[r.act_id] ??= {})[r.win] = r;
   /* The day series per brand (2026-10-09, every tile carries its line): ONE grouped query for every brand and both
      windows; attribution per day comes from the attrMany read above. */
@@ -966,10 +991,10 @@ async function metaMany(env, accts, w, model, ctx) {
   return accts.map(a => {
     const cA = model === 'platform' ? null : sumAttr(at[a.act_id], w.from, w.to);
     const pA = model === 'platform' || !w.pf ? null : sumAttr(at[a.act_id], w.pf, w.pt);
-    const cur = metaMetrics(raw[a.act_id]?.cur || {}, cA);
+    const cur = withLeads(metaMetrics(raw[a.act_id]?.cur || {}, cA), LS[a.act_id]?.cur);
     if (live && model !== 'platform' && !at[a.act_id]?.[w.to]) Object.assign(cur, { purchases: null, revenue: null, roas: null, cpa: null, purchase_rate: null, attr_pending: true });
     return { act_id: a.act_id, name: a.name, currency: a.currency, goals: GM[a.act_id],
-      cur, prev: w.pf ? metaMetrics(raw[a.act_id]?.prev || {}, pA) : null,
+      cur, prev: w.pf ? withLeads(metaMetrics(raw[a.act_id]?.prev || {}, pA), LS[a.act_id]?.prev) : null,
       series: seriesOf(a.act_id, w.from, w.to), prev_series: w.pf ? seriesOf(a.act_id, w.pf, w.pt) : [] };
   });
 }
@@ -1190,8 +1215,10 @@ async function creativeBrand(env, a, w, model) {
   const firstOf = Object.fromEntries(rows.map(r => [r.id, r.first_spend]));
   const BUCKETS = [[0, 3, 'Days 0-3'], [4, 7, 'Days 4-7'], [8, 14, 'Week 2'], [15, 21, 'Week 3'], [22, 30, 'Week 4'], [31, 60, 'Month 2'], [61, 9999, 'Older']];
   const fat = BUCKETS.map(([lo, hi, label]) => ({ label, lo, hi, spend: 0, orders: 0, impr: 0, clicks: 0, ads: new Set() }));
+  /* Lead ads buy leads, not sales: they stay out of the cost-per-purchase rollups below (2026-11-03). */
+  const leadAd = new Set(rows.filter(r => r.obj === 'leads').map(r => r.id));
   for (const r of adDays || []) {
-    const f = firstOf[r.ad_id]; if (!f) continue;
+    const f = firstOf[r.ad_id]; if (!f || leadAd.has(r.ad_id)) continue;
     const age = Math.round((Date.parse(r.date) - Date.parse(f)) / 864e5); const b = fat.find(x => age >= x.lo && age <= x.hi); if (!b) continue;
     b.spend += num(r.spend); b.orders += model === 'platform' ? num(r.purchases) : num(ordAt[`${r.ad_id}|${r.date}`]); b.impr += num(r.impressions); b.clicks += num(r.link_clicks); b.ads.add(r.ad_id);
   }
@@ -1206,7 +1233,7 @@ async function creativeBrand(env, a, w, model) {
   for (const [id, f] of Object.entries(fs)) if (f && f >= from12 && f <= w.to) weeks[wIdx(f)].launched++;
   for (const r of wk || []) { const i = wIdx(r.date); if (i < 0) continue; weeks[i].spend += num(r.spend); const f = fs[r.ad_id]; if (f && (Date.parse(r.date) - Date.parse(f)) / 864e5 < 14) weeks[i].fresh += num(r.spend); }
   /* Rollups by format, angle and media type. */
-  const roll = key => { const by = {}; for (const r of rows) { const k = r[key] || 'Untagged'; const b = by[k] ||= { key: k, ads: 0, spend: 0, revenue: 0, purchases: 0, impr: 0, clicks: 0, v3: 0 }; b.ads++; b.spend += r.spend; b.revenue += r.revenue; b.purchases += r.purchases; b.impr += r.impressions; b.clicks += r.clicks; b.v3 += (r.hook || 0) * r.impressions; }
+  const roll = key => { const by = {}; for (const r of rows) { if (r.obj === 'leads') continue; const k = r[key] || 'Untagged'; const b = by[k] ||= { key: k, ads: 0, spend: 0, revenue: 0, purchases: 0, impr: 0, clicks: 0, v3: 0 }; b.ads++; b.spend += r.spend; b.revenue += r.revenue; b.purchases += r.purchases; b.impr += r.impressions; b.clicks += r.clicks; b.v3 += (r.hook || 0) * r.impressions; }
     return Object.values(by).map(b => ({ ...b, roas: div(b.revenue, b.spend), cpa: div(b.spend, b.purchases), ctr: div(b.clicks, b.impr), hook: b.v3 ? div(b.v3, b.impr) : null })).sort((x, y) => y.spend - x.spend); };
   return { act_id: act, name: a.name, currency: a.currency, goals: (await adGoalMap(env, [a]))[act], ads: rows.slice(0, 400), fatigue, weeks: weeks.map(x => ({ ...x, fresh_share: div(x.fresh, x.spend) })),
     by_format: roll('format'), by_angle: roll('angle'), by_type: roll('media_type'),

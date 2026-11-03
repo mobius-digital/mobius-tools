@@ -4610,8 +4610,9 @@ async function reportData(env, acct, period, start, end) {
               -- rather than summed; summing would grow with the window length.
               CASE WHEN SUM(d.impressions) > 0
                    THEN SUM(d.video_avg_watch * d.impressions) / SUM(d.impressions) END AS avg_watch,
-              COALESCE(a.name, d.ad_id) AS name, a.media_type
-       FROM ad_daily d LEFT JOIN ads a ON a.act_id = d.act_id AND a.ad_id = d.ad_id
+              COALESCE(a.name, d.ad_id) AS name, a.media_type,
+              MAX(CASE WHEN mc.objective IN ('OUTCOME_LEADS', 'LEAD_GENERATION') THEN 1 ELSE 0 END) AS lead
+       FROM ad_daily d LEFT JOIN ads a ON a.act_id = d.act_id AND a.ad_id = d.ad_id LEFT JOIN meta_campaigns mc ON mc.campaign_id = a.campaign_id
        WHERE d.act_id IN ${metaOf(1)} AND d.date >= ?2 AND d.date <= ?3
        GROUP BY d.ad_id HAVING SUM(d.spend) > 0 ORDER BY spend DESC LIMIT 500`,
     ).bind(acct.act_id, start, end).all();
@@ -4626,7 +4627,8 @@ async function reportData(env, acct, period, start, end) {
     const prevById = Object.fromEntries(prevAdRows.map(r => [r.ad_id, r]));
     const floor = Math.max(50, metaSpend * 0.03);
     const TOP_N = 10;
-    const qualified = adRows.filter(r => r.spend >= floor);
+    /* Lead and giveaway ads buy leads, not sales (2026-11-03): they are never ranked on ROAS or cost per purchase here. */
+    const qualified = adRows.filter(r => r.spend >= floor && !r.lead);
     for (const r of adRows) adSpendById[r.ad_id] = r.spend;
     for (const r of qualified) bigAdIds.add(r.ad_id);
     const shown = qualified.slice(0, TOP_N);

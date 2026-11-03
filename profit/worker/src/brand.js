@@ -96,6 +96,8 @@ export const TEST_KEYS = { judge_spend: 0, judge_days: 7, yellow_pct: 30, min_tr
 /* What the brand is judged on (rules doc `goal_metric`): cpa = cost per sale (accounts.target_cpa), ncpa = cost per new
    customer (goal_ncpa), roas (accounts.target_roas), cpl = cost per lead (goal_cpl). */
 export const GOAL_METRICS = ['cpa', 'ncpa', 'roas', 'cpl'];
+/* The agency's cost-per-lead band (Cole, 2026-11-03): under lo is cheap enough to scale hard, up to hi is on goal. */
+export const LEAD_CPL = { lo: 0.5, hi: 0.75 };
 /* Docs saved before v2 carry the OLD defaults as typed numbers (the Settings form wrote every field). Those are dropped so
    the new defaults apply; a number someone really chose (anything else) stays. */
 const OLD_DEFAULTS = { cr_judge_x: 1, cr_scale_buys: 2, cr_cut_spend_x: 2 };
@@ -120,6 +122,10 @@ export function rulesFor(acct, doc) {
     r.test_cpa = (r.goal_metric === 'cpa' || r.goal_metric === 'ncpa') && gm ? gm : r.target_cpa;
     r.test_roas = r.goal_metric === 'roas' && gm ? gm : r.target_roas || null;
     if (r.test_roas) { r.win_roas = r.test_roas; r.lose_roas = Math.round(r.test_roas * 0.6 * 100) / 100; } }
+  /* LEAD GOAL (2026-11-03, Cole): every brand's lead and giveaway campaigns are judged on $0.50 to $0.75 a lead. A brand
+     with no goal of its own gets the top of that band, so lead rows are judged everywhere instead of asking for a goal. */
+  r.goal_cpl_auto = !(r.goal_cpl > 0);
+  if (r.goal_cpl_auto) r.goal_cpl = LEAD_CPL.hi;
   r.window_auto = !(doc && doc.window_auto === 'off');
   r.judge_spend_auto = !(doc && +doc.judge_spend > 0);
   if (r.judge_spend_auto) r.judge_spend = r.test_cpa ? Math.round(r.test_cpa * 3) : DEFAULT_RULES.judge_spend;
