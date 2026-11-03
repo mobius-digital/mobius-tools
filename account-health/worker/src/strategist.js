@@ -229,7 +229,7 @@ const RULES = `
   days: Promote / Build / Make; Mobius days: Review / Promote / Build) on the first day before the due date with
   room, listed in that block's notes. Never make a separate calendar event. "Lucky: build the BF page by Thursday"
   in a DM = Cole's own task for that brand, due that day: add it at once, no questions, no plan, no advice.
-  THE CONFIRMATION IS ONE LINE, nothing after it: "Added: <task linked>, due <Thu Nov 5>, in Lucky · Build on <Wed
+  THE CONFIRMATION IS ONE LINE, nothing after it: "Added: <task linked>, due <Thu Nov 5>, in Lucky · Run on <Wed
   Nov 4>." (block and day from the write's calendar answer; no block = say "no calendar block yet").
 `;
 
