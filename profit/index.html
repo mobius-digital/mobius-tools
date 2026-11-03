@@ -2419,8 +2419,8 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="clients.js?v=6"></script>
 <script src="requests.js?v=4"></script>
 <script src="actions.js?v=4"></script>
-<script src="calls.js?v=13"></script>
-<script src="callscreen.js?v=10"></script>
+<script src="calls.js?v=14"></script>
+<script src="callscreen.js?v=12"></script>
 <script src="tasks.js?v=9"></script>
 <script src="review-ui.js?v=10"></script>
 <script src="prodsheet.js?v=14"></script>
@@ -2683,7 +2683,11 @@ async function boot() {
     /* A Slack note or reminder opens one task (?open=actions|tasks&item=<id>); the old call page ids open Calls. */
     if ((open === 'actions' || open === 'tasks') && qs.get('item')) window.ACT_OPEN = qs.get('item');
     if (qs.get('meeting')) window.ACT_MEETING = qs.get('meeting');   // a call from Slack (?open=actions|calls&meeting=<id>)
-    if (open === 'calls' && ['monday', 'client', 'kickoff'].includes(qs.get('call'))) window.CALL_OPEN = qs.get('call');   // a call screen (?open=calls&call=monday|client|kickoff&act=)
+    if (open === 'calls' && ['monday', 'client', 'kickoff'].includes(qs.get('call'))) {   // a call screen (?open=calls&call=monday|client|kickoff&act=&step=&y=)
+      window.CALL_OPEN = qs.get('call');
+      /* 2026-11-03: the call screen keeps its step and scroll in the URL, so a reload lands where Cole was. */
+      window.CALL_STEP = qs.get('step') || null; window.CALL_Y = +qs.get('y') || 0;
+    }
     // New-client Slack posts open a brand straight on Brand info or Research.
     if (open === 'brand' && ['research', 'info', 'voice', 'client'].includes(qs.get('view'))) localStorage.setItem('br_view', qs.get('view') === 'info' ? 'client' : qs.get('view'));
     // A Slack draft notice names one specific day. Without carrying the date
@@ -5585,6 +5589,8 @@ window.showTab = tab => show(tab);
 let LAST_VIEW = null;   // was the last page shown in Agency view (show())
 const SHOWABLE = new Set(["buyer", "morning", "month", "calls", "ccall", "tasks", "production", "actions", "warplan", "warlive", "monday", "meetings", "requests", "gcampaigns", "gads", "gterms", "gchanges", "calendar", "social", "socialsaved", "socialweek", "socialresults", "yesterday", "leaks", "today", "war", "pulse", "answers", "research", "voice", "stock", "buying", "drops", "overview", "profit", "plan", "costs", "brief", "reports", "meta", "customers", "settings", "health", "amb", "brand", "studio", "tests", "angles", "copy", "season", "calc", "guide", "email", "dash", "store", "website", "inspo", "library", "search", "google", "tiktok", "channels", "campaigns", "adcreative", "changes", "mtoday", "mbrowser", "economics", "workload"]);   // keep in step with the renderer map in show()
 function show(tab, opt) {
+  /* Leaving a call screen drops its ?call= link, so a reload of the next page does not reopen the call (2026-11-03). */
+  if (/[?&]call=/.test(location.search) && tab !== 'ccall' && !(tab === 'calls' && window.CALL_OPEN)) { try { history.replaceState(null, '', location.pathname); } catch {} }
   const prevTab = S.tab;
   if (typeof syncPick === 'function') syncPick();
   /* Old ids that moved (2026-10-09): the Creative browser is Creative; 'brand' opens the brand view last used. */

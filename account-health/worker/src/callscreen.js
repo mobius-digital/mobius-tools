@@ -46,6 +46,7 @@ import { calendarData } from './calendar.js';
 import { listBoard, setField, moveCard } from './production.js';
 import { addComment, ensureWork } from './prodwork.js';
 import { launchedRows } from './buyerlist.js';
+import { resolveBrandId } from './brands.js';
 
 const HAIKU = 'claude-haiku-5-5';
 const SONNET = 'claude-sonnet-5-5';
@@ -155,6 +156,23 @@ function readOf(rep) {
     this_week: data.this_week || [], need_from_you: data.need_from_you || [], summary: String(rep.summary || '').slice(0, 1500),
   };
 }
+/* Lead ads in the report's window (2026-11-03, Cole on the Nov 2 call: "this spend minus 1400 is actually what our
+   campaigns are spending", then worked out MER with Siri). Meta spend and leads of every ad in an OUTCOME_LEADS campaign
+   on the brand's Meta accounts, from ad_daily, so the screen can show MER with and without the lead ads. null = none. */
+async function leadsOf(env, act, from, to) {
+  if (!act || !ymdOk(from) || !ymdOk(to)) return null;
+  const bid = await resolveBrandId(env, act).catch(() => act);
+  const r = await env.DB.prepare(`SELECT SUM(d.spend) AS spend, SUM(d.leads) AS leads FROM ad_daily d
+      JOIN ads a ON a.act_id = d.act_id AND a.ad_id = d.ad_id
+      JOIN meta_campaigns c ON c.campaign_id = a.campaign_id
+     WHERE c.objective = 'OUTCOME_LEADS' AND d.date >= ?2 AND d.date <= ?3
+       AND d.act_id IN (SELECT external_id FROM connections WHERE brand_id = ?1 AND kind = 'meta')`).bind(bid, from, to).first().catch(() => null);
+  return r && r.spend > 0 ? { spend: Math.round(r.spend * 100) / 100, leads: Math.round(r.leads || 0) } : null;
+}
+async function withLeads(env, act, read) {
+  if (read) read.leads = await leadsOf(env, act, read.period_start, read.period_end);
+  return read;
+}
 async function latestReport(env, act, period, { sentOnly = false } = {}) {
   const rep = await env.DB.prepare(`SELECT period, period_start, period_end, status, summary, data_json, sent_at FROM reports WHERE act_id = ?1 AND period = ?2 ${sentOnly ? `AND status = 'sent'` : ''} ORDER BY period_start DESC LIMIT 1`)
     .bind(act, period).first().catch(() => null);
@@ -210,7 +228,7 @@ async function mondayData(env, d, who) {
   for (const c of board.cards || []) if (['brief', 'making', 'review'].includes(c.board) && !parked(c, today)) (prod[c.act_id] = prod[c.act_id] || []).push({ num: c.num, title: c.title, board: c.board, owner: c.assignee || '', due: c.due || '' });
   const brands = await Promise.all(ms.brands.map(async b => {
     const rep = await latestReport(env, b.act_id, 'weekly');
-    const read = readOf(rep);
+    const read = await withLeads(env, b.act_id, readOf(rep));
     /* The plan thread, split once per version of the thread (a new reply re-splits it). */
     let plan = null;
     if (b.thread.length) {
@@ -261,7 +279,7 @@ async function clientData(env, d, act, who) {
     kind: 'client', today, act_id: act, name: b.name,
     ads: { review: cards.filter(c => c.board === 'review').map(cardOut), approved: cards.filter(c => c.board === 'ready').map(cardOut),
       live: live.slice(0, 30).map(r => ({ id: r.id, name: r.ad_name || r.adset || 'Ad', day: r.day, card: r.card || '', status: r.eff_status || r.status || '', ads_manager: r.ads_manager })) },
-    week: readOf(wk || wkAny), month: readOf(mo),
+    week: await withLeads(env, act, readOf(wk || wkAny)), month: await withLeads(env, act, readOf(mo)),
     asks: (req.items || []).filter(x => x.kind === 'ask' && x.status === 'open').map(x => ({ id: x.id, title: x.title, body: x.body, created_at: x.created_at })),
     approvals: (req.items || []).filter(x => x.kind === 'approval' && x.status === 'open').map(x => ({ id: x.id, title: x.title, created_at: x.created_at })),
     coming: (cal.items || []).filter(e => e.act === act && (e.start || '') >= today).slice(0, 12).map(e => ({ id: e.id, name: e.name, start: e.start, end: e.end || null, kind: e.kind_label || e.kind, confirmed: !!e.confirmed, offer: e.offer || '' })),

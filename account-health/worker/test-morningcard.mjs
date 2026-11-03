@@ -98,20 +98,21 @@ await check('one card per brand to its INTERNAL channel; internal = client chann
   assert.deepEqual(top.map(p => p.channel).sort(), ['C_ALPHA', 'C_BETA'], 'one top-level post per brand, never a client channel');
   alphaCard = top.find(p => p.channel === 'C_ALPHA');
   const lines = alphaCard.text.split('\n');
-  assert.equal(lines[0], '*Alpha Golf · Tue Oct 13*');
-  assert.equal(lines[1], 'Yesterday $1,438 (plan $1,800) · MER 2.11x · client daily sent 5:12');
-  assert.equal(lines[2], '<@U_AHSAN> Today\'s ad calls: cut 2 ad sets, scale 1 · $2.4K at stake', 'calls first, one line, buyer tagged');
-  const action = lines.slice(2).filter(l => /^(<@|\*[A-Z])/.test(l) && !/^\*Client owes/.test(l));
-  assert.equal(action.length, MAX_LINES + 1, 'the calls line plus three lines at most');
+  if (process.env.SHOW) (await import('node:fs')).writeFileSync(process.env.SHOW, alphaCard.text + '\n----\n' + top.find(p => p.channel === 'C_BETA').text);
+  assert.equal(lines[0], '*Alpha Golf:* <@U_COLE> Gifting angles for Trybe creators', 'line 1 = Cole\'s one job, tagged, even when it ranks below the others');
+  assert.equal(lines[1], '_Yesterday $1,438 (plan $1,800) · MER 2.11x_', 'the numbers are a quiet second line; a sent daily is not news');
+  assert.equal(lines[2], '<@U_AHSAN> Today\'s ad calls: cut 2 ad sets, scale 1 · $2.4K at stake', 'calls next, one line, buyer tagged');
+  const action = lines.filter(l => /^(<@|\*[A-Z])/.test(l) && !/^\*(Client owes|Alpha)/.test(l));
+  assert.equal(action.length, MAX_LINES, 'Cole\'s line plus the calls line plus the rest, three task lines at most');
   assert.ok(lines.includes('_and 3 more in Locus_'), 'the rest are counted');
   assert.ok(lines.some(l => l === '<@U_RAD> Review the Web Skitters site · 2 days late'), 'no roster email: one users.list match');
-  assert.ok(lines.some(l => /^\*Ravo\* 312 - Hook test · Making · 3 days late$/.test(l)), 'late production card, a bold name when Slack has no id');
+  assert.ok(lines.some(l => /^\*Ravo\* Finish 312 Hook test \(3 days late\)$/.test(l)), 'late production card says what to do, a bold name when Slack has no id');
   assert.ok(lines.includes('*Client owes* Fall polo samples · 4 days'));
   assert.ok(!/Weekly report/.test(alphaCard.text), 'no weekly line on a Tuesday');
   const btns = alphaCard.blocks.filter(b => b.type === 'actions').map(b => b.elements[0]);
   assert.deepEqual(btns.map(b => [b.text.text, b.url, b.action_id]), [['Open Alpha Golf in Locus', 'https://tools.go-mobius-digital.com/profit/?act=brand_alpha', 'noop_open'], ['Make the ad calls', 'https://tools.go-mobius-digital.com/profit/?open=today&act=brand_alpha&doall=1', 'noop_open']]);
   const beta = top.find(p => p.channel === 'C_BETA');
-  assert.match(beta.text.split('\n')[1], /client daily waiting for your OK$/);
+  assert.equal(beta.text.split('\n')[0], '*Beta Socks:* <@U_COLE> Approve the client daily, it is waiting on you', 'a daily waiting is Cole\'s job, line 1');
   assert.equal(beta.blocks.filter(b => b.type === 'actions').length, 1, 'no calls = no Make the calls button');
   assert.ok(!/—/.test(JSON.stringify(posts)), 'no em dash anywhere');
 });
@@ -177,7 +178,7 @@ await check('calls made on the page count on the line; all made = struck; a judg
   assert.ok(!/312 - Hook test/.test(updates[3].text), 'a judged production card leaves the card');
   brief('brand_beta', '2026-10-12', 'sent', 900, 1000, 3, '2026-10-13T12:40:00Z');
   await cardBriefState(env, d, ACCTS[1]);
-  assert.match(updates[4].text, /Yesterday \$900 \(plan \$1,000\) · MER 3\.00x · client daily sent 7:40/);
+  assert.match(updates[4].text, /^\*Beta Socks:\* nothing needs you today, Cole\n_Yesterday \$900 \(plan \$1,000\) · MER 3\.00x_/, 'the daily sent later = Cole\'s line leaves, line 1 says so');
 });
 
 await check('later posts go in the card\'s thread with the person tagged (alerts, requests, calendar, meetings use teamPost); no card = top-level', async () => {
@@ -213,7 +214,7 @@ await check('preview: the card as words for one brand, nothing posted; the switc
   posts = [];
   const p = await previewCard(env, d, 'brand_alpha');
   assert.equal(posts.length, 0);
-  assert.match(p.text, /^Alpha Golf · Tue Oct 13\n/); assert.match(p.text, /@Ahsan Today's ad calls/); assert.ok(!/<@/.test(p.text));
+  assert.match(p.text, /^Alpha Golf: nothing needs you today, Cole\nYesterday /, 'Cole\'s task was ticked done above, so line 1 says nothing needs him'); assert.match(p.text, /@Ahsan Today's ad calls/); assert.ok(!/<@/.test(p.text));
   assert.ok(p.thread.length >= 1);
   await assert.rejects(previewCard(env, d, 'brand_nope'), /No such active brand/);
   setSetting('morningCard', 'off'); assert.deepEqual(await morningCardTick(env, d), { skipped: 'off' }); setSetting('morningCard', 'on');
@@ -221,10 +222,10 @@ await check('preview: the card as words for one brand, nothing posted; the switc
   setSetting('briefHour', '6'); db.prepare(`DELETE FROM settings WHERE key = 'morningHour'`).run(); assert.equal(await morningHour(env), 6, 'falls back to briefHour');
 });
 
-await check('a report day: the skipped daily reads "no client daily today, the weekly report covers it", numbers still shown', async () => {
+await check('a report day: the skipped daily is not news (2026-11-03), numbers still shown', async () => {
   db.prepare(`UPDATE briefs SET status = 'skipped', text = 'No daily today: the weekly report covers Mon, Oct 12.' WHERE act_id = 'brand_beta' AND date = '2026-10-12'`).run();
   const p = await previewCard(env, d, 'brand_beta');
-  assert.match(p.text.split('\n')[1], /^Yesterday \$900 \(plan \$1,000\) · MER 3\.00x · no client daily today, the weekly report covers it$/);
+  assert.match(p.text.split('\n')[1], /^Yesterday \$900 \(plan \$1,000\) · MER 3\.00x$/);
 });
 
 await check('callsText: nouns and money', () => {
@@ -242,7 +243,7 @@ await check('the leak finder: ONE line for the biggest NEW leak over $500, tagge
   setSetting(`morningCard:brand_beta:${prev}`, JSON.stringify({ leaks: ['old'] }));
   const c = await buildCard(env, dl, ACCTS[1], day, {});
   const line = c.items.find(i => i.kind === 'leak');
-  assert.ok(line, 'a new leak line'); assert.match(line.text, /^New leak: "Pmax \| Wedges" costs 3\.1x the goal per sale · \$4\.5K a month, est\./);
+  assert.ok(line, 'a new leak line'); assert.match(line.text, /^Fix a new leak: "Pmax \| Wedges" costs 3\.1x the goal per sale \(\$4\.5K a month, est\.\)/);
   assert.equal(line.tag, '<@U_AHSAN>'); assert.equal(c.items.filter(i => i.kind === 'leak').length, 1);
   const quiet = await buildCard(env, { ...d, leaks: async () => ({ leaks: [{ id: 'old', cost: 900 }] }) }, ACCTS[1], day, {});
   assert.ok(!quiet.items.some(i => i.kind === 'leak'), 'nothing new = no line');
@@ -251,7 +252,7 @@ await check('the leak finder: ONE line for the biggest NEW leak over $500, tagge
   const mon = await buildCard(env, { ...d, leaks: async (e, act, o) => { asked = o; return { leaks: [{ id: 'x', cost: 3000, title: 'Black Wedges is on the cut line', verdict: 'not_the_cause', owner: 'Ahsan' }, { id: 'y', cost: 21700, title: 'Cart to checkout on phones: 26.9%', verdict: 'real', owner: 'Noma' }, { id: 'z', cost: 9, title: '6 searches', apply: { kind: 'negative' }, items: [1, 2, 3, 4, 5, 6], verdict: 'real' }] }; } }, ACCTS[1], '2026-10-19', {});
   assert.equal(asked && asked.ai, true, 'Monday runs the AI check');
   const w = mon.items.find(i => i.key === 'leak:weekly');
-  assert.ok(w, 'the weekly line'); assert.match(w.text, /^Weekly leak check: 3 leaks; I'd look at Cart to checkout on phones: 26\.9% first \(\$21\.7K a month, est\.\) · 6 searches to block · full list on Overview$/);
+  assert.ok(w, 'the weekly line'); assert.match(w.text, /^Fix the biggest leak: Cart to checkout on phones: 26\.9% \(\$21\.7K a month, est\.; 3 in all on Overview\)$/);
   assert.equal(mon.items.filter(i => i.kind === 'leak').length, 1);
 });
 
