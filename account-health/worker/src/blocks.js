@@ -25,10 +25,12 @@ const CAL = {
 };
 /* The blocks a task can land in. title = the event title on the calendar, exactly. */
 export const BLOCKS = [
-  /* 2026-11-03 Lucky is two blocks, Hormozi's Promote and Build (Cole: no categories for their own sake). Filming is
-     Promote, so Thursday's block is a second Lucky · Promote. Rows placed under the old lucky_make key are re-judged. */
-  { key: 'lucky_promote', cal: 'lucky', title: 'Lucky · Promote', what: 'Lucky Golf getting a sale this month, and ALL filming or recording for any product or launch: ad and content ideas, offers, creators, emails and texts, giveaway, social posts, approving ads' },
-  { key: 'lucky_build', cal: 'lucky', title: 'Lucky · Build', what: 'Lucky Golf making the business better for later: the customer flywheel and lifetime value plan, new products (design, samples, launch plans), factory, stock and reorders, website, money, systems, customer fixes' },
+  /* 2026-11-03 Lucky = Hormozi's Promote / Build / Deliver. Judge by what the task is FOR: a sale = Promote (even when
+     Cole builds the page, email or ad himself), the business later = Build, someone who already paid = Deliver.
+     Thursday morning is a second Lucky · Promote (filming). Rows under the old lucky_make key are re-judged. */
+  { key: 'lucky_promote', cal: 'lucky', title: 'Lucky · Promote', what: 'Lucky Golf work whose job is getting a sale soon, even when Cole builds it himself: sale and landing pages, campaign emails, ads, offers, giveaway, creators, social posts, and ALL filming or recording' },
+  { key: 'lucky_build', cal: 'lucky', title: 'Lucky · Build', what: 'Lucky Golf work that makes the business better for later: the customer flywheel and lifetime value plan, new products (design, samples, launch plans), email flows that run forever, site structure and speed, money and the lender, systems, hiring' },
+  { key: 'lucky_deliver', cal: 'lucky', title: 'Lucky · Deliver', what: 'Lucky Golf work for people who already paid: order and shipping problems, returns and refunds, customer emails and DMs, reordering stock, factory follow-ups on orders, warranty claims' },
   { key: 'mobius_review', cal: 'mobius', title: 'Mobius · Ad review', what: 'Mobius Digital: approving or sending back ads and briefs the team made for clients' },
   { key: 'mobius_promote', cal: 'mobius', title: 'Mobius · Promote', what: 'Mobius Digital finding new clients: outreach, leads, proposals, agreements, demos, its own content' },
   { key: 'mobius_build', cal: 'mobius', title: 'Mobius · Build', what: 'Mobius Digital running the agency: Locus, systems, SOPs, training, hiring, and client work for a brand that is not Lucky Golf' },
@@ -90,7 +92,8 @@ export async function judgeBlock(env, row) {
   try {
     const system = `Cole runs two companies: Lucky Golf (his own golf brand) and Mobius Digital (his ad agency; every brand other than Lucky Golf is a Mobius client). His week is fixed blocks. Pick the ONE block this task of his belongs in.
 BLOCKS: ${BLOCKS.map(b => `${b.key} = ${b.what}`).join('; ')}.
-A task for a client brand is never a Lucky block. A Lucky Golf task is never a Mobius block.`;
+A task for a client brand is never a Lucky block. A Lucky Golf task is never a Mobius block.
+For Lucky, judge by what the task is FOR, never by its verb: "build the Black Friday landing page" or "write the Cyber Monday email" is for a sale (lucky_promote); "set up the post-purchase flow" makes the business better for later (lucky_build); "answer refund emails" serves people who already paid (lucky_deliver).`;
     const user = `Brand: ${brand || 'none'}\nArea: ${row.area || 'none'}\nTask: ${row.text}${row.detail ? `\nDetails: ${String(row.detail).slice(0, 600)}` : ''}`;
     const r = await F('https://api.anthropic.com/v1/messages', {
       method: 'POST', headers: { 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
