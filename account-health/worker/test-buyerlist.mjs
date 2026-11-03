@@ -7,7 +7,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import assert from 'node:assert/strict';
 import { buildBuyerList, setState, readState, buyerMessage, buyerPostTick, buyerSettings, saveBuyerSettings, headOf, oneLine, shortWhy, DEFAULT_BUYER_CHANNEL,
-  normDays, isLaunchDay, nextLaunchDay, launchedRows } from './src/buyerlist.js';
+  normDays, isLaunchDay, nextLaunchDay, launchedRows, isStalled, stalledRow } from './src/buyerlist.js';
 import { cardToLive } from './src/launch.js';
 
 const db = new DatabaseSync(':memory:');
@@ -241,6 +241,24 @@ await check('a single ad or carousel launch moves its card to Live only from Rea
   assert.equal(await cardToLive(env, md, 'm2', 'x'), null);
   await cardToLive(env, md, 'm3', 'x'); await cardToLive(env, md, null, 'x');
   assert.deepEqual(moved, ['m1', 'm3']);
+});
+
+await check('not spending: a live set Meta spent under $5 on in 7 days is a pause row; scheduled, ended, new, lead and giveaway sets are left alone', async () => {
+  const now = Date.parse('2026-11-10T12:00:00Z'), old = '2026-10-20T10:00:00-0500';
+  const base = { adset_id: '1', name: '445 Carver 02 Gold', campaign: 'Prospecting', objective: 'OUTCOME_SALES', optimization_goal: 'OFFSITE_CONVERSIONS', created_time: old, start_time: old, spend: 2.4 };
+  assert.equal(isStalled(base, now), true);
+  assert.equal(isStalled({ ...base, spend: 5 }, now), false);
+  assert.equal(isStalled({ ...base, start_time: '2026-11-27T00:00:00-0600' }, now), false, 'BFCM set scheduled for later');
+  assert.equal(isStalled({ ...base, start_time: '2026-11-06T00:00:00-0600' }, now), false, 'started in the last 7 days');
+  assert.equal(isStalled({ ...base, created_time: '2026-11-05T00:00:00-0600' }, now), false, 'made in the last 7 days');
+  assert.equal(isStalled({ ...base, end_time: '2026-11-01T00:00:00-0500' }, now), false, 'already ended');
+  assert.equal(isStalled({ ...base, objective: 'OUTCOME_LEADS' }, now), false);
+  assert.equal(isStalled({ ...base, campaign: 'Game of Belts Giveaway' }, now), false);
+  assert.equal(isStalled({ ...base, start_time: null }, now), false);
+  const r = stalledRow({ act_id: 'brand_alpha', name: 'Alpha Golf' }, { ...base, act_id: 'act_1', campaign_id: '9' });
+  assert.equal(r.why, 'Meta stopped spending on it: $2 in 7 days. Pause it so the account stays clean.');
+  assert.deepEqual([r.key, r.kind, r.do, r.adset_id, r.campaign_id, r.stake], ['brand_alpha|1|stalled', 'stalled', 'pause', '1', '9', 0]);
+  assert.ok(!/[–—]/.test(r.why + r.why_full + r.action));
 });
 
 console.log(`\n${n}/${n + bad} passed`);

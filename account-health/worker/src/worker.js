@@ -374,6 +374,8 @@ async function ensureStructTables(env) {
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS meta_adsets (act_id TEXT NOT NULL, adset_id TEXT PRIMARY KEY, campaign_id TEXT, name TEXT, status TEXT,
     daily_budget REAL, optimization_goal TEXT, min_spend REAL, created_time TEXT, synced_at TEXT NOT NULL DEFAULT (datetime('now')))`).run();
   await env.DB.prepare(`CREATE INDEX IF NOT EXISTS meta_adsets_camp ON meta_adsets (act_id, campaign_id)`).run().catch(() => {});
+  /* 2026-11-03: start and end, so the Buyer list's "not spending" row skips sets scheduled for later (BFCM) or ended */
+  for (const c of ['start_time', 'end_time']) await env.DB.prepare(`ALTER TABLE meta_adsets ADD COLUMN ${c} TEXT`).run().catch(() => {});
   structTabled = true;
 }
 async function syncMetaStructure(env, acct, force = false) {
@@ -383,16 +385,16 @@ async function syncMetaStructure(env, acct, force = false) {
   if (!force && at && Date.now() - Date.parse(at) < 6 * 3600e3) return { skipped: 'fresh' };
   const cents = v => v == null || v === '' ? null : (+v) / 100;
   const camps = await metaAll(env, `${acct.act_id}/campaigns`, { fields: 'id,name,objective,status,effective_status,daily_budget,lifetime_budget,bid_strategy,created_time', limit: 200 }, 10);
-  const sets = await metaAll(env, `${acct.act_id}/adsets`, { fields: 'id,name,campaign_id,status,effective_status,daily_budget,optimization_goal,daily_min_spend_target,created_time', limit: 200 }, 15);
+  const sets = await metaAll(env, `${acct.act_id}/adsets`, { fields: 'id,name,campaign_id,status,effective_status,daily_budget,optimization_goal,daily_min_spend_target,created_time,start_time,end_time', limit: 200 }, 15);
   const stmts = [];
   for (const c of camps) stmts.push(env.DB.prepare(`INSERT INTO meta_campaigns (act_id, campaign_id, name, objective, status, daily_budget, lifetime_budget, bid_strategy, created_time, synced_at)
       VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,datetime('now')) ON CONFLICT(campaign_id) DO UPDATE SET name = excluded.name, objective = excluded.objective, status = excluded.status,
       daily_budget = excluded.daily_budget, lifetime_budget = excluded.lifetime_budget, bid_strategy = excluded.bid_strategy, synced_at = excluded.synced_at`)
     .bind(acct.act_id, String(c.id), c.name || null, c.objective || null, c.effective_status || c.status || null, cents(c.daily_budget), cents(c.lifetime_budget), c.bid_strategy || null, c.created_time || null));
-  for (const a of sets) stmts.push(env.DB.prepare(`INSERT INTO meta_adsets (act_id, adset_id, campaign_id, name, status, daily_budget, optimization_goal, min_spend, created_time, synced_at)
-      VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,datetime('now')) ON CONFLICT(adset_id) DO UPDATE SET campaign_id = excluded.campaign_id, name = excluded.name, status = excluded.status,
-      daily_budget = excluded.daily_budget, optimization_goal = excluded.optimization_goal, min_spend = excluded.min_spend, synced_at = excluded.synced_at`)
-    .bind(acct.act_id, String(a.id), a.campaign_id ? String(a.campaign_id) : null, a.name || null, a.effective_status || a.status || null, cents(a.daily_budget), a.optimization_goal || null, cents(a.daily_min_spend_target), a.created_time || null));
+  for (const a of sets) stmts.push(env.DB.prepare(`INSERT INTO meta_adsets (act_id, adset_id, campaign_id, name, status, daily_budget, optimization_goal, min_spend, created_time, start_time, end_time, synced_at)
+      VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,datetime('now')) ON CONFLICT(adset_id) DO UPDATE SET campaign_id = excluded.campaign_id, name = excluded.name, status = excluded.status,
+      daily_budget = excluded.daily_budget, optimization_goal = excluded.optimization_goal, min_spend = excluded.min_spend, start_time = excluded.start_time, end_time = excluded.end_time, synced_at = excluded.synced_at`)
+    .bind(acct.act_id, String(a.id), a.campaign_id ? String(a.campaign_id) : null, a.name || null, a.effective_status || a.status || null, cents(a.daily_budget), a.optimization_goal || null, cents(a.daily_min_spend_target), a.created_time || null, a.start_time || null, a.end_time || null));
   for (let i = 0; i < stmts.length; i += 50) await env.DB.batch(stmts.slice(i, i + 50).map(x => x.__raw || x));
   await putSetting(env, key, new Date().toISOString());
   return { campaigns: camps.length, adsets: sets.length };

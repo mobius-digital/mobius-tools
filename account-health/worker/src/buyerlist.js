@@ -55,7 +55,7 @@ const LAST_HOUR = 12;
 const MIN_CACHE_MS = 6 * 3600e3;
 const LOCUS = 'https://tools.go-mobius-digital.com/profit/';
 const CALL_KINDS = ['scale', 'cut', 'trim', 'refresh', 'mixed'];
-export const KINDS = [...CALL_KINDS, 'minoff', 'launch', 'ai'];
+export const KINDS = [...CALL_KINDS, 'minoff', 'stalled', 'launch', 'ai'];
 
 const safe = (s, d) => { try { return s == null ? d : JSON.parse(s); } catch { return d; } };
 const clean = (s, n = 300) => String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
@@ -164,7 +164,7 @@ const ACTION = {
   scale: r => { const b = +(r && r.budget) || 0; return b > 0 ? `Raise budget ${dollars0(b)} to ${dollars0(Math.round(b * 1.2))}/day` : 'Raise budget 20%'; },
   cut: () => 'Pause this ad set', trim: () => 'Pause this ad', refresh: () => 'Brief a new version of the main ad',
   mixed: r => (r && (r.kept_by === 'opener' || r.kept_by === 'best_set') ? 'Keep it on' : r && r.kept_by === 'tracking_gap' ? 'Keep it on for now' : 'Your call'),
-  minoff: () => 'Take the test minimum off', launch: n => `Launch ${n} approved ad${n === 1 ? '' : 's'}`,
+  minoff: () => 'Take the test minimum off', stalled: () => 'Pause this ad set', launch: n => `Launch ${n} approved ad${n === 1 ? '' : 's'}`,
 };
 const dollars0 = n => '$' + Math.round(+n || 0).toLocaleString('en-US');
 const x1 = v => `${(+v || 0).toFixed(1).replace(/\.0$/, '')}x`;
@@ -219,6 +219,46 @@ export function minRow(a, it) {
     name: it.name, set: null, action: nudge ? NUDGE_ACTION[nudge] : ACTION.minoff(), why, why_full: clean(`Meta has to spend ${dollars(it.min)} a day on it; day ${it.day || '?'}, ${it.why}.`, 600),
     stake: Math.max(0, nudge === 'not_picked' || nudge === 'campaign' ? +it.spend || (+it.min || 0) * 7 : (+it.min || 0) * 7), do: 'minoff', adset_id: String(it.id), adset: it.name, min: +it.min || 0,
     nudge, then: nudge === 'not_picked' ? 'pause' : null };
+}
+/* NOT SPENDING (2026-11-03, Cole: "set it and forget it"): a live ad set in a live campaign that Meta stopped spending on
+   (under STALL_SPEND in STALL_DAYS, no test minimum, on for STALL_DAYS+) is paused so the account stays clean. Read from the
+   synced tables (meta_adsets, meta_campaigns, ads, ad_daily), no Meta call. Left alone: sets that start later or already
+   ended (BFCM sets go up scheduled), lead and giveaway campaigns, sets started in the last STALL_DAYS days. */
+export const STALL_DAYS = 7, STALL_SPEND = 5;
+const LEADISH = /\b(lead|leads|giveaway|sweepstakes?|contest)\b/i;
+const LEAD_GOALS = new Set(['LEAD_GENERATION', 'QUALITY_LEAD']);
+export function stalledRow(a, s) {
+  const cur = a.currency || 'USD', sp = +s.spend || 0;
+  return { key: `${a.act_id}|${s.adset_id}|stalled`, kind: 'stalled', act_id: a.act_id, brand: a.name, currency: cur, object: String(s.adset_id), level: 'adset',
+    name: s.name || '', set: null, action: ACTION.stalled(),
+    why: `Meta stopped spending on it: ${money(sp, cur)} in ${STALL_DAYS} days. Pause it so the account stays clean.`,
+    why_full: clean(`Live in "${s.campaign || 'its campaign'}" with no test minimum, on since ${String(s.start_time || s.created_time || '').slice(0, 10)}, and Meta spent ${dollars(sp)} on it in the last ${STALL_DAYS} days. Pause it so the account stays clean.`, 600),
+    stake: 0, do: 'pause', meta_act: s.act_id || null, adset_id: String(s.adset_id), adset: s.name || '', campaign_id: s.campaign_id || null, spend: sp, days: STALL_DAYS };
+}
+/** The verdict on one synced ad set: true = it belongs on the list as "not spending". */
+export function isStalled(s, now = Date.now()) {
+  const t = iso => Date.parse(iso || '') || 0, cutoff = now - STALL_DAYS * 864e5;
+  if (+s.spend >= STALL_SPEND) return false;
+  if (!t(s.start_time) || t(s.start_time) > cutoff || (s.created_time && t(s.created_time) > cutoff)) return false;
+  if (s.end_time && t(s.end_time) && t(s.end_time) < now) return false;
+  return !(/LEAD/i.test(s.objective || '') || LEAD_GOALS.has(s.optimization_goal) || LEADISH.test(`${s.campaign || ''} ${s.name || ''}`));
+}
+/** Live ad sets Meta stopped spending on, per brand (see NOT SPENDING above). */
+async function stalled(env, brands, today, now = Date.now()) {
+  const out = [];
+  const fresh = new Date(now - 864e5).toISOString().replace('T', ' ').slice(0, 19), from = addDays(today, -(STALL_DAYS - 1));
+  for (const a of brands) {
+    const acts = [...new Set([a.act_id, ...(await metaActsOf(env, a.act_id, null).catch(() => []))].filter(Boolean))];
+    const ph = acts.map((_, i) => `?${i + 3}`).join(', ');
+    const sets = (await env.DB.prepare(`SELECT s.act_id, s.adset_id, s.campaign_id, s.name, s.optimization_goal, s.created_time, s.start_time, s.end_time,
+        c.name AS campaign, c.objective, (SELECT COALESCE(SUM(d.spend), 0) FROM ads x JOIN ad_daily d ON d.act_id = x.act_id AND d.ad_id = x.ad_id
+          WHERE x.adset_id = s.adset_id AND d.date >= ?1) AS spend
+      FROM meta_adsets s JOIN meta_campaigns c ON c.campaign_id = s.campaign_id
+      WHERE s.act_id IN (${ph}) AND s.status = 'ACTIVE' AND c.status = 'ACTIVE' AND COALESCE(s.min_spend, 0) = 0 AND s.synced_at >= ?2 AND s.start_time IS NOT NULL`)
+      .bind(from, fresh, ...acts).all()).results || [];
+    for (const s of sets) if (isStalled(s, now)) out.push(stalledRow(a, s));
+  }
+  return out;
 }
 export function launchRow(c, n, { studio = null, work = 0 } = {}) {
   return { key: `${c.act_id}|${c.id}|launch`, kind: 'launch', act_id: c.act_id, brand: c.brand, currency: 'USD', object: String(c.id), level: 'card',
@@ -345,17 +385,20 @@ export async function buildBuyerList(env, d, { act = 'all', only = null, live = 
   const notes = [];
   let banners = [];
   const set = await buyerSettings(env);
-  const [calls, mins, launch, st, launched] = await Promise.all([
+  const [calls, mins, launch, st, launched, stall] = await Promise.all([
     readToday(env, d, act === 'all' ? 'all' : act).then(r => { banners = ((r && r.banners) || []).filter(b => ids.has(b.act_id)).map(b => ({ act_id: b.act_id, brand: b.brand, kind: b.kind, text: clean(b.text, 300) })); return ((r && r.rows) || []).filter(x => CALL_KINDS.includes(x.kind) && ids.has(x.act_id)).map(callRow); })
       .catch(e => { notes.push(`Ad calls: ${e.message}`); return []; }),
     minimums(env, d, accts, today, { live }).catch(e => { notes.push(`Test minimums: ${e.message}`); return { rows: [], notes: [] }; }),
     launches(env, d, ids, act, { today, days: set.launchDays }).catch(e => { notes.push(`Launches: ${e.message}`); return { rows: [], scheduled: [] }; }),
     readState(env, ids, today),
     launchedRows(env, accts).catch(e => { notes.push(`Launched: ${e.message}`); return []; }),
+    stalled(env, accts, today).catch(e => { notes.push(`Not spending: ${e.message}`); return []; }),
   ]);
   notes.push(...(mins.notes || []));
   /* The morning read (buyerai.js): a verdict on each rule row, and the calls the rules missed as rows of kind 'ai'. */
-  let all = [...calls, ...mins.rows, ...launch.rows], ai = new Map();
+  /* a set already on the list (a call or its minimum) keeps that row, not a second one */
+  const onList = new Set([...calls, ...mins.rows].map(r => String(r.adset_id || '')).filter(Boolean));
+  let all = [...calls, ...mins.rows, ...stall.filter(r => !onList.has(r.adset_id)), ...launch.rows], ai = new Map();
   if (!noAI) { try { ai = await readAI(env, ids, today); all = applyAI(all, ai, accts); } catch (e) { notes.push(`Morning read: ${e.message}`); } }
   /* Locus checks before it asks (2026-10-27): a call held for a tracking gap is checked here (Meta's own count vs Triple
      Whale on that set, the tags when they disagree) and says what it found instead of "fix tracking". */
