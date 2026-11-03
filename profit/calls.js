@@ -535,7 +535,7 @@
     H = host; css(); BR = H.S.act || 'all';
     const t = H.RUN();
     if (first || !D) { $('#main').innerHTML = `${head()}<div class="v2 cl"><section class="cl-card"><div class="cl-empty">Loading</div></section></div>`; acts(''); }
-    const run = new URLSearchParams(location.search).get('call') || window.CALL_OPEN; window.CALL_OPEN = null;
+    const run = window.CALL_OPEN; window.CALL_OPEN = null;   // the URL's ?call= is read once at load (index.html), never again
     if (run && window.CallScreen) { try { const u = new URL(location.href); u.searchParams.delete('call'); history.replaceState(null, '', u); } catch {} return window.CallScreen.open(H, run, H.S.act && H.S.act !== 'all' ? H.S.act : ''); }
     try { await load(); }
     catch (e) { if (t === H.RUN()) { $('#main').innerHTML = `${head()}<div class="v2 cl"><section class="cl-card"><div class="cl-empty" style="color:var(--bad)">${esc(e.message)}</div></section></div>`; acts(''); } return; }
