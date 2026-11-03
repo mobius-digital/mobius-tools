@@ -1,6 +1,6 @@
 /**
  * Cole's calendar blocks (2026-10-27). Cole's week is fixed blocks, one company and one kind of work each
- * (Lucky · Promote, Mobius · Build...), as repeating events on three calendars of his (Lucky Golf · Blocks,
+ * (Lucky · Think, Mobius · Build...), as repeating events on three calendars of his (Lucky Golf · Blocks,
  * Mobius · Blocks, Routine · Blocks). A task owned by Cole lands in ONE day's block: the first matching block
  * before its due date that has room. That day's event notes are rewritten with its list, so opening the block
  * on his calendar shows what to do in it. Done or reopened = the notes are rewritten again (actions.js hooks).
@@ -25,9 +25,11 @@ const CAL = {
 };
 /* The blocks a task can land in. title = the event title on the calendar, exactly. */
 export const BLOCKS = [
-  { key: 'lucky_promote', cal: 'lucky', title: 'Lucky · Promote', what: 'Lucky Golf getting people to buy: ad batches, testing, creators, email and texts, giveaway, direct mail, social posts' },
-  { key: 'lucky_build', cal: 'lucky', title: 'Lucky · Build', what: 'Lucky Golf making the business better: website and landing pages, products, factory, inventory, money, customer fixes' },
-  { key: 'lucky_make', cal: 'lucky', title: 'Lucky · Make', what: 'Lucky Golf shooting and recording: filming ads, course footage, product photos' },
+  /* 2026-11-03 Lucky blocks renamed (Promote -> Think, Build -> Run): Cole owns Lucky, the team and Claude do the
+     marketing work, so his Tuesday morning is deciding what gets pushed. Keys kept so placed rows still resolve. */
+  { key: 'lucky_promote', cal: 'lucky', title: 'Lucky · Think', what: 'Lucky Golf deciding what to push: offers, prices, drop dates, marketing ideas and angles, picking this week\'s moves, approving ads, emails and pages before they go out' },
+  { key: 'lucky_build', cal: 'lucky', title: 'Lucky · Run', what: 'Lucky Golf running the business: stock and reorders, products, factory and samples, website and checkout, money and the lender, customer fixes' },
+  { key: 'lucky_make', cal: 'lucky', title: 'Lucky · Make', what: 'Lucky Golf filming and shooting: recording videos, talking-head ads, course footage, product photos' },
   { key: 'mobius_review', cal: 'mobius', title: 'Mobius · Ad review', what: 'Mobius Digital: approving or sending back ads and briefs the team made for clients' },
   { key: 'mobius_promote', cal: 'mobius', title: 'Mobius · Promote', what: 'Mobius Digital finding new clients: outreach, leads, proposals, agreements, demos, its own content' },
   { key: 'mobius_build', cal: 'mobius', title: 'Mobius · Build', what: 'Mobius Digital running the agency: Locus, systems, SOPs, training, hiring, and client work for a brand that is not Lucky Golf' },
