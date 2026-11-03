@@ -32,8 +32,8 @@
   const money = (n, c) => n == null || !isFinite(n) ? '' : sym(c) + Math.round(n).toLocaleString('en-US');
   const kmoney = (n, c) => Math.abs(n) >= 1e4 ? `${sym(c)}${(n / 1e3).toFixed(1)}K` : money(n, c);
   const OWNERS = ['Cole', 'Ahsan', 'Noma', 'William', 'Ravo', 'Radhesh', 'Hamza'];
-  const KIND_LABEL = { all: 'All', cut: 'Cut', scale: 'Scale', trim: 'Trim', refresh: 'Refresh', mixed: 'Your call', minoff: 'Test minimums', launch: 'Launch', ai: 'Morning read' };
-  const CHIP = { cut: 'CUT', scale: 'SCALE', trim: 'TRIM', refresh: 'REFRESH', mixed: 'YOUR CALL', minoff: 'MINIMUM', launch: 'LAUNCH', ai: 'MORNING READ' };
+  const KIND_LABEL = { all: 'All', cut: 'Cut', scale: 'Scale', trim: 'Trim', refresh: 'Refresh', mixed: 'Your call', minoff: 'Test minimums', stalled: 'Not spending', launch: 'Launch', ai: 'Morning read' };
+  const CHIP = { cut: 'CUT', scale: 'SCALE', trim: 'TRIM', refresh: 'REFRESH', mixed: 'YOUR CALL', minoff: 'MINIMUM', stalled: 'NOT SPENDING', launch: 'LAUNCH', ai: 'MORNING READ' };
   const DO_LABEL = { budget: 'Agree', pause: 'Agree', resume: 'Agree', minoff: 'Agree', launch: 'Launch', brief: 'Agree' };
   const AI_SAYS = { keep: 'agrees', change: 'says change it', drop: 'says drop it' };
   const ROLE = { opener: 'Opens journeys', closer: 'Closes sales', both: 'Opens and closes' };
