@@ -45,7 +45,10 @@ const LAST_HOUR = 12;
 const NOT_OURS = /harborline/i;
 const CALL_KINDS = ['scale', 'cut', 'trim', 'refresh', 'mixed'];
 const VERB = { scale: 'scale', cut: 'cut', trim: 'trim', refresh: 'refresh', mixed: 'decide on' };
-const BOARD = { brief: 'Brief', making: 'Making', review: 'Review', ready: 'Ready', live: 'Live' };
+/* A late Production card says what to DO with it (2026-11-03: "380 - ... · Making · 10 days late" read as status). */
+const PROD_VERB = { brief: 'Write the brief for', making: 'Finish', review: 'Review', ready: 'Launch', live: 'Judge' };
+const LEAD_CPL_MAX = 0.75;   // dollars a lead, every brand (memory lead-cpl-kpi): at or under it a lead campaign is fine
+const isColeName = w => /^cole\b/i.test(clean(w, 40));
 
 const safe = (s, d) => { try { return s == null ? d : JSON.parse(s); } catch { return d; } };
 const clean = (s, n = 200) => String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
@@ -204,7 +207,7 @@ export async function buildCard(env, d, a, today, shared = {}) {
   const yday = addDays(today, -1), tomorrow = addDays(today, 1);
   const monday = new Date(today + 'T12:00:00Z').getUTCDay() === 1;
   const brief = await env.DB.prepare(`SELECT status, posted_at, text, data_json FROM briefs WHERE act_id = ?1 AND date = ?2`).bind(a.act_id, yday).first().catch(() => null);
-  const items = [], notes = [];
+  const items = [], notes = [], leadsInfo = [];
   if (shared.kept && shared.kept.error) notes.push(`kept: ${shared.kept.error}`);
   /* Today's calls: one line, the media buyer tagged. 2026-10-26 (the Buyer list, buyerlist.js): while the one daily Buyer
      list post is on (settings.buyerPost, default on) the card carries NO calls line and NO calls thread; the calls live
@@ -223,13 +226,18 @@ export async function buildCard(env, d, a, today, shared = {}) {
     try {
       for (const l of await d.leadsYesterday(env, a.act_id, yday)) {
         const nm = clean(String(l.name || '').replace(/^\[[^\]]*\]\s*/, ''), 60);
-        const text = l.spend <= 0 ? `${nm}: spent nothing yesterday${l.budget ? ` on a ${money(l.budget, a.currency)}/day budget` : ''}, check it is delivering`
-          : l.leads > 0 ? `${nm}: ${Math.round(l.leads).toLocaleString('en-US')} lead${l.leads === 1 ? '' : 's'} yesterday for ${money(l.spend, a.currency)}, ${sym(a.currency)}${(l.spend / l.leads).toFixed(2)} each`
-          : `${nm}: ${money(l.spend, a.currency)} spent yesterday, no leads`;
+        const cpl = l.leads > 0 ? l.spend / l.leads : null;
+        /* 2026-11-03: a lead campaign inside the KPI is news, not a job: it rides on the numbers line. Only a problem is a line. */
+        if (cpl != null && cpl <= LEAD_CPL_MAX) { leadsInfo.push(`${Math.round(l.leads).toLocaleString('en-US')} leads at ${sym(a.currency)}${cpl.toFixed(2)}`); continue; }
+        const text = l.spend <= 0 ? `Check ${nm} is delivering: it spent nothing yesterday${l.budget ? ` on a ${money(l.budget, a.currency)}/day budget` : ''}`
+          : cpl != null ? `Fix ${nm}: ${sym(a.currency)}${cpl.toFixed(2)} a lead yesterday, over the ${sym(a.currency)}${LEAD_CPL_MAX.toFixed(2)} limit`
+          : `Fix ${nm}: ${money(l.spend, a.currency)} spent yesterday, no leads`;
         items.push({ key: `leads:${l.id}`, kind: 'leads', text, who: team.buyer || 'Cole', rank: 1e11 });
       }
     } catch (e) { notes.push(`leads: ${e.message}`); }
   }
+  /* The client daily waiting for an OK is a job (Cole's), so it is a line of its own, first. */
+  if (brief && brief.status === 'draft' && a.brief_enabled) items.push({ key: 'daily', kind: 'daily', text: 'Approve the client daily, it is waiting on you', who: 'Cole', rank: 2e12 });
   /* Tasks due today or overdue. */
   await ensureActions(env);
   const tasks = (await env.DB.prepare(`SELECT * FROM p_action WHERE status = 'open' AND act_id = ?1 AND due != '' AND due <= ?2 ORDER BY due, created_at`).bind(a.act_id, today).all().catch(() => ({ results: [] }))).results || [];
@@ -242,14 +250,14 @@ export async function buildCard(env, d, a, today, shared = {}) {
   for (const e of ((shared.calendar && shared.calendar.items) || []).filter(x => x.act === a.act_id && x.start === tomorrow)) {
     const open = (e.steps || []).filter(s => s.state !== 'done');
     if (!open.length) continue;
-    items.push({ key: `cal:${e.id}`, kind: 'cal', text: `Live tomorrow: ${clean(e.name, 80)} · not yet: ${open.map(s => String(s.label || '').toLowerCase()).join(', ')}`, who: /^[A-Z][a-z]+$/.test(open[0].who || '') ? open[0].who : (team.strat || ''), rank: 500 });
+    items.push({ key: `cal:${e.id}`, kind: 'cal', text: `Get ${clean(e.name, 80)} ready, it goes live tomorrow: still ${open.map(s => String(s.label || '').toLowerCase()).join(', ')}`, who: /^[A-Z][a-z]+$/.test(open[0].who || '') ? open[0].who : (team.strat || ''), rank: 500 });
   }
   /* Production cards that are late, by up to 30 days (Lucky had a Brief card 123 days late on 2026-10-13: an old card
      nobody closed is not today's job, and it would push real work off the five lines). */
   for (const c of ((shared.board && shared.board.cards) || []).filter(x => x.act_id === a.act_id && x.late)) {
     const late = daysBetween(c.due, today);
     if (late > 30) continue;
-    items.push({ key: `prod:${c.id}`, kind: 'prod', id: c.id, text: `${c.num ? `${c.num} - ` : ''}${clean(c.title, 80)} · ${BOARD[c.board] || c.board} · ${late} day${late === 1 ? '' : 's'} late`, who: c.assignee || team.strat || '', rank: late * 1000 });
+    items.push({ key: `prod:${c.id}`, kind: 'prod', id: c.id, text: `${PROD_VERB[c.board] || 'Move on'} ${c.num ? `${c.num} ` : ''}${words(c.title, 70)} (${late} day${late === 1 ? '' : 's'} late)`, who: c.assignee || team.strat || '', rank: late * 1000 });
   }
   /* The leak finder (2026-10-13, leaks.js): ONE line when a NEW leak over LEAK_FLOOR a month appeared since yesterday's
      card (leak ids are kept on the card), tagged to its owner from the brand's roster. The first day only records the
@@ -270,8 +278,8 @@ export async function buildCard(env, d, a, today, shared = {}) {
       const nw = Array.isArray(prev) ? big.find(l => !prev.includes(l.id)) : null;
       if (monday && actOn.length) {
         const top = actOn[0], n = (L.leaks || []).length, neg = (L.leaks || []).find(l => l.apply && l.apply.kind === 'negative');
-        items.push({ key: 'leak:weekly', kind: 'leak', text: `Weekly leak check: ${n} leak${n === 1 ? '' : 's'}; I'd look at ${clean(top.title, 80)} first (${moneyK(top.cost || 0, a.currency)} a month, est.)${neg ? ` · ${neg.items.length} search${neg.items.length === 1 ? '' : 'es'} to block` : ''} · full list on Overview`, who: top.owner || '', rank: top.cost || 0 });
-      } else if (nw) items.push({ key: `leak:${nw.id}`, kind: 'leak', text: `New leak: ${clean(nw.title, 90)} · ${moneyK(nw.cost, a.currency)} a month, est. (full list on Overview)`, who: nw.owner || '', rank: nw.cost });
+        items.push({ key: 'leak:weekly', kind: 'leak', text: `Fix the biggest leak: ${words(top.title, 80)} (${moneyK(top.cost || 0, a.currency)} a month, est.; ${n} in all on Overview)`, who: top.owner || '', rank: top.cost || 0 });
+      } else if (nw) items.push({ key: `leak:${nw.id}`, kind: 'leak', text: `Fix a new leak: ${words(nw.title, 80)} (${moneyK(nw.cost, a.currency)} a month, est.)`, who: nw.owner || '', rank: nw.cost });
     } catch (e) { notes.push(`leaks: ${e.message}`); }
   }
   /* Social (2026-10-20): ONE line when a followed account's post broke out (3x its usual) since yesterday's card, tagged to
@@ -283,12 +291,15 @@ export async function buildCard(env, d, a, today, shared = {}) {
     if (hot.length) {
       const h = hot[0], n = h.metric === 'views' ? h.views : h.likes, kk = v => v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `${Math.round(v / 1e3)}k` : String(Math.round(v || 0));
       const fmt = { reel: 'Reel', carousel: 'carousel', post: 'post', tiktok: 'TikTok', photos: 'photo post', short: 'Short', video: 'video' }[h.fmt] || 'post';
-      items.push({ key: `social:${h.id}`, kind: 'social', text: `Breaking out on Social: @${h.handle || h.who} ${fmt}, ${kk(n || 0)} ${h.metric || 'views'}${h.base ? ` (usually ${kk(h.base)}, ${h.ratio >= 10 ? Math.round(h.ratio) : h.ratio}x)` : ''}${hot.length > 1 ? ` · ${hot.length - 1} more` : ''} · Social > Breaking out`, who: team.strat || '', rank: 400 + Math.min(600, (h.ratio || 0) * 10) });
+      items.push({ key: `social:${h.id}`, kind: 'social', fyi: true, text: `FYI, breaking out on Social: @${h.handle || h.who} ${fmt}, ${kk(n || 0)} ${h.metric || 'views'}${h.base ? ` (usually ${kk(h.base)}, ${h.ratio >= 10 ? Math.round(h.ratio) : h.ratio}x)` : ''}${hot.length > 1 ? ` · ${hot.length - 1} more` : ''} · Social > Breaking out`, who: team.strat || '', rank: 400 + Math.min(600, (h.ratio || 0) * 10) });
     }
   } catch (e) { notes.push(`social: ${e.message}`); }
   items.sort((p, q) => q.rank - p.rank);
   /* The ad calls line always fits; then at most MAX_LINES other lines (2026-10-20). */
-  const shown = items.filter(i => i.kind === 'calls').concat(items.filter(i => i.kind !== 'calls').slice(0, MAX_LINES));
+  /* 2026-11-03: Cole's top job is always on the card (it is line 1), inside the same MAX_LINES. */
+  const coleTop = items.find(i => !i.fyi && isColeName(i.who));
+  const others = items.filter(i => i.kind !== 'calls' && i !== coleTop);
+  const shown = [coleTop, ...items.filter(i => i.kind === 'calls' && i !== coleTop), ...others.slice(0, MAX_LINES - (coleTop && coleTop.kind !== 'calls' ? 1 : 0))].filter(Boolean);
   for (const it of shown) { it.tag = await tagOf(env, d, it.who).catch(() => null); it.done = false; delete it.rank; }
   /* What the client owes us (Requests asks), one line. */
   const asks = (await env.DB.prepare(`SELECT id, title, created_at FROM p_request WHERE act_id = ?1 AND kind = 'ask' AND status = 'open' ORDER BY created_at`).bind(a.act_id).all().catch(() => ({ results: [] }))).results || [];
@@ -301,7 +312,7 @@ export async function buildCard(env, d, a, today, shared = {}) {
   }
   return {
     act: a.act_id, name: a.name, date: today, channel: a.slack_channel || null, ts: null,
-    nums: numbersLine(a, brief, keptOf(shared.kept, a.act_id)), daily: dailyState(a, brief), items: shown, more: items.length - shown.length,
+    nums: [numbersLine(a, brief, keptOf(shared.kept, a.act_id)), ...leadsInfo].join(' · '), daily: dailyState(a, brief), items: shown, more: items.length - shown.length,
     owes, weekly, calls: calls.length > 0, notes, leaks: leakIds, social_at: socialAt,
     /* For the thread only; never stored. */
     _rows: rows || [], _tasks: tasks,
@@ -311,14 +322,21 @@ export async function buildCard(env, d, a, today, shared = {}) {
 /** The card as Slack draws it. A done line leaves the card and is counted in one "✓ N done" line at the end (2026-10-20;
  *  struck-through lines kept the clutter and Cole could not tell what was left). */
 export function cardMessage(c) {
-  const L = [`*${esc(c.name)} · ${dayLabel(c.date)}*`, [esc(c.nums), esc(c.daily)].filter(Boolean).join(' · ')];
-  let done = 0;
-  for (const it of c.items || []) {
-    if (it.done) { done++; continue; }
+  /* 2026-11-03 (Cole skipped every card for a week: line 1 was the brand and date, line 2 a row of numbers, then other
+     people's status lines, and nothing said what HE should do). Line 1 is now the one thing Cole does today, tagged so
+     it pings him, or plainly that nothing needs him. The numbers drop to a quiet second line; other people's jobs follow,
+     each phrased as a job; FYI lines (Social) come last. */
+  const items = c.items || [], open = items.filter(i => !i.done), done = items.length - open.length;
+  const jobs = open.filter(i => !i.fyi), mine = jobs.find(i => isColeName(i.who));
+  const lineOf = it => {
     const note = it.kind === 'calls' && (it.made || []).length ? ` · ${it.made.length} of ${(it.objs || []).length} made` : '';
     const body = `${esc(it.text)}${note}`;
-    L.push(it.tag ? `${it.tag} ${body}` : body);
-  }
+    return it.tag ? `${it.tag} ${body}` : body;
+  };
+  const head = mine ? `*${esc(c.name)}:* ${lineOf(mine)}` : `*${esc(c.name)}:* nothing needs you today, Cole${jobs.length ? '' : ', or anyone'}`;
+  const daily = /not written|skipped$/.test(c.daily || '') ? c.daily : '';
+  const L = [head, `_${[esc(c.nums), esc(daily)].filter(Boolean).join(' · ')}_`];
+  for (const it of jobs.filter(i => i !== mine).concat(open.filter(i => i.fyi))) L.push(lineOf(it));
   if (c.more > 0) L.push(`_and ${c.more} more in Locus_`);
   if (done) L.push(`✓ ${done} done${(c.items || []).length === done ? ', all of it' : ''}`);
   if (c.owes) L.push(`*Client owes* ${esc(c.owes)}`);
@@ -507,9 +525,12 @@ export async function cardBriefState(env, d, a) {
   const c = await loadCard(env, a.act_id, today);
   if (!c) return false;
   const row = await env.DB.prepare(`SELECT status, posted_at, text, data_json FROM briefs WHERE act_id = ?1 AND date = ?2`).bind(a.act_id, addDays(today, -1)).first().catch(() => null);
-  const daily = dailyState(a, row), nums = numbersLine(a, row, keptOf(await keptShared(env, d), a.act_id));
-  if (daily === c.daily && nums === c.nums) return false;
-  c.daily = daily; c.nums = nums;
+  const daily = dailyState(a, row);
+  const waiting = (c.items || []).find(i => i.kind === 'daily');
+  const shut = !!(waiting && !waiting.done && row && row.status !== 'draft');
+  if (daily === c.daily && !shut) return false;
+  c.daily = daily;
+  if (shut) waiting.done = true;
   return redraw(env, d, c);
 }
 const CHECKS = new Set(['white_check_mark', 'heavy_check_mark', 'ballot_box_with_check']);
