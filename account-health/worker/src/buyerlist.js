@@ -231,7 +231,7 @@ export function stalledRow(a, s) {
   const cur = a.currency || 'USD', sp = +s.spend || 0;
   return { key: `${a.act_id}|${s.adset_id}|stalled`, kind: 'stalled', act_id: a.act_id, brand: a.name, currency: cur, object: String(s.adset_id), level: 'adset',
     name: s.name || '', set: null, action: ACTION.stalled(),
-    why: `Meta stopped spending on it: ${money(sp, cur)} in ${STALL_DAYS} days. Pause it so the account stays clean.`,
+    why: `Meta stopped spending on it: ${sym(cur)}${dollars(sp).slice(1)} in ${STALL_DAYS} days. Pause it so the account stays clean.`,
     why_full: clean(`Live in "${s.campaign || 'its campaign'}" with no test minimum, on since ${String(s.start_time || s.created_time || '').slice(0, 10)}, and Meta spent ${dollars(sp)} on it in the last ${STALL_DAYS} days. Pause it so the account stays clean.`, 600),
     stake: 0, do: 'pause', meta_act: s.act_id || null, adset_id: String(s.adset_id), adset: s.name || '', campaign_id: s.campaign_id || null, spend: sp, days: STALL_DAYS };
 }
