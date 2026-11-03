@@ -5808,7 +5808,7 @@ function goalsGlance(a, g, pre) {
       goal: g?.goal_roas > 0 ? +g.goal_roas : null, be: margin ? 1 / margin : null, real: h.mer ?? null,
       realSub: 'whole store (MER)' },
   ];
-  if (r.goal_cpl > 0 || m === 'cpl') rows.push({ k: 'cpl', name: 'CPL', sub: 'Cost per lead', lower: true, f: mo,
+  if ((r.goal_cpl > 0 && !r.goal_cpl_auto) || m === 'cpl') rows.push({ k: 'cpl', name: 'CPL', sub: 'Cost per lead', lower: true, f: mo,
     goal: r.goal_cpl > 0 ? +r.goal_cpl : null, be: null, real: null, realSub: '' });
   // Better = under for a cost, over for ROAS. Real is green at the goal, amber between goal and break-even, red past it.
   const beats = (row, v, line) => row.lower ? v <= line : v >= line;
@@ -11902,7 +11902,7 @@ async function renderSettings() {
     const r = g.rules, cur = a.currency, h = pre?.headline || {}, mc = meta?.brands?.[0]?.cur || {};
     const T0 = r.target_cpa != null ? Math.round(r.target_cpa) : '', TR0 = g.goal_roas != null ? g.goal_roas : '';
     const V = { metric: r.goal_metric || 'cpa', guard: r.roas_guard !== false, cguard: r.cpa_guard !== false, win: r.window_auto !== false, track: !!r.min_track, cleared: false,
-      target_cpa: T0, goal_ncpa: r.goal_ncpa || '', target_roas: TR0, goal_cpl: r.goal_cpl || '', goal_meta: r.goal_meta || '', goal_google: r.goal_google || '', goal_tiktok: r.goal_tiktok || '',
+      target_cpa: T0, goal_ncpa: r.goal_ncpa || '', target_roas: TR0, goal_cpl: r.goal_cpl_auto ? '' : r.goal_cpl || '', goal_meta: r.goal_meta || '', goal_google: r.goal_google || '', goal_tiktok: r.goal_tiktok || '',
       judge_spend: r.judge_spend_auto ? '' : r.judge_spend, judge_days: r.judge_days, min_days: r.min_days, min_cap_pct: r.min_cap_pct,
       cr_judge_x: r.cr_judge_x, cr_min_days: r.cr_min_days, cr_scale_buys: r.cr_scale_buys, cr_cut_zero_x: r.cr_cut_zero_x, cr_cut_spend_x: r.cr_cut_spend_x, cr_cut_cpa_x: r.cr_cut_cpa_x, cr_anchor_pct: r.cr_anchor_pct };
     const margin = pre?.cm_ok !== false && h.margin > 0 && h.margin < 1 ? h.margin : null;

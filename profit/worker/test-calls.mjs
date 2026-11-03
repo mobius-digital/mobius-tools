@@ -118,10 +118,11 @@ await check('a cut set with a strong small ad names it: move it to a working set
 await check('scale needs the last 7 days: a slow set on goal over 14 days with no sale this week is not scaled', () => {
   assert.equal(rowB('b3').length, 0);
 });
-await check('lead set: never judged on sales rules, labelled "no lead goal set"', () => {
-  assert.equal(rowB('b4').length, 0);
-  assert.deepEqual(outB.brands[0].lead_no_goal, ['Giveaway leads']);
-  assert.match(outB.brands[0].note, /"Giveaway leads"\) not judged: no lead goal set/);
+await check('lead set: judged on cost per lead against the agency goal ($0.75 when the brand set none), never on sales', () => {
+  const r = rowB('b4');
+  assert.equal(r.length, 1);
+  assert.match(r[0].why, /lead/); assert.doesNotMatch(r[0].why, /\bsales?\b|ROAS/);
+  assert.deepEqual(outB.brands[0].lead_no_goal, []);
 });
 /* Brand C (the 2026-10-26 Ice & Gold audit): Meta's pixel counts 6 purchases this week, Triple Whale credits 1. */
 ins('connections', 'c3', 'brand_c', 'meta', 'act_3', null);

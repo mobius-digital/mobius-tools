@@ -258,7 +258,7 @@ Write every change and every EXTRA row in the short shape:
 - why: ONE line, at most ${WHY_WORDS} words and at most 3 numbers. Example: "$561 in 7 days, 0 sales, goal ROAS 2.2x".
 - move: the change in Meta: pause (turn off the ad set, or the ad when ad_id is set) | resume (turn it back on) | budget (set the daily budget to "budget" dollars) | none (anything else). budget = the new daily amount for a budget move, else 0. On a rule row, ad_id = the one ad the move is on when it is not the row's own object (for example turning off one ad inside the set), else "".
 For keep and drop: action is "", move is none, why is the one line that says why (same limits).
-Then EXTRA: up to 6 calls the rules missed, only when the numbers clearly back them: budget moves between campaigns or ad sets, relaunching a strong ad that sits in a cut or paused set, a leads campaign that needs a goal, ads with no Triple Whale tag, anything else a good buyer would do this morning. Each: type, name (the ad set, ad or campaign as named in the data), the ids you were given ('' when none), action, why, move, budget, stake (the dollars a week it moves, 0 if unclear). No extra row that repeats a rule row.
+Then EXTRA: up to 6 calls the rules missed, only when the numbers clearly back them: budget moves between campaigns or ad sets, relaunching a strong ad that sits in a cut or paused set, a leads or giveaway campaign judged on cost per lead (every brand's lead goal is $0.50 to $0.75 a lead: raise the budget hard while it is under that, cut when it is well over; never judge it on sales or ROAS and never ask for a lead goal), ads with no Triple Whale tag, anything else a good buyer would do this morning. Each: type, name (the ad set, ad or campaign as named in the data), the ids you were given ('' when none), action, why, move, budget, stake (the dollars a week it moves, 0 if unclear). No extra row that repeats a rule row.
 summary = one line, at most ${WHY_WORDS} words: the most important thing for this brand today.
 Plain words, like a person talking. No "if X then Y" chains, no hedging, no jargon: never write UTM, CBO (unless it is part of a campaign's name), first click, last click, CPM, CTR or attribution in an action or a why. No em dashes. Never invent a number: use only the numbers given.`;
 }
@@ -493,6 +493,8 @@ export function applyAI(rows, ai, accts) {
   for (const [act, x] of ai) {
     const a = accts.find(y => y.act_id === act); if (!a) continue;
     for (const e of x.extra || []) {
+      /* Every brand has a lead goal now (2026-11-03, $0.50 to $0.75): a read written before that asked for one is dropped. */
+      if (e.type === 'leads' && (!e.move || e.move === 'none') && /goal/i.test(`${e.action || ''}`)) continue;
       const object = String(e.ad_id || e.adset_id || e.campaign_id || `ai:${String(e.name).toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 60)}`);
       const mv = DO_OF[e.move] || null, why = shortLine(e.why || e.reason, WHY_WORDS);
       out.push({ key: `${act}|${object}|ai`, kind: 'ai', ai_type: e.type, from: 'morning read', act_id: act, brand: a.name, currency: a.currency || 'USD', object,
