@@ -256,7 +256,7 @@ await check('not spending: a live set Meta spent under $5 on in 7 days is a paus
   assert.equal(isStalled({ ...base, campaign: 'Game of Belts Giveaway' }, now), false);
   assert.equal(isStalled({ ...base, start_time: null }, now), false);
   const r = stalledRow({ act_id: 'brand_alpha', name: 'Alpha Golf' }, { ...base, act_id: 'act_1', campaign_id: '9' });
-  assert.equal(r.why, 'Meta stopped spending on it: $2 in 7 days. Pause it so the account stays clean.');
+  assert.equal(r.why, 'Meta stopped spending on it: $2.40 in 7 days. Pause it so the account stays clean.');
   assert.deepEqual([r.key, r.kind, r.do, r.adset_id, r.campaign_id, r.stake], ['brand_alpha|1|stalled', 'stalled', 'pause', '1', '9', 0]);
   assert.ok(!/[–—]/.test(r.why + r.why_full + r.action));
 });
