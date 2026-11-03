@@ -187,10 +187,9 @@
       .cs .cs-legend{margin:0;font-size:13px;color:var(--ink-2);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
       .cs .cs-legend .dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-left:6px}
       .cs .cs-legend .dot.bad{background:var(--bad)}.cs .cs-legend .dot.warn{background:var(--warn)}.cs .cs-legend .dot.good{background:var(--good)}
-      .cs .ad .th .tag{position:absolute;left:8px;top:8px;font-size:11px;font-weight:700;padding:2px 7px;border-radius:var(--r-pill);background:var(--good-bg);color:var(--good)}
-      .cs .ad .th .tag.lose{background:var(--bad-bg);color:var(--bad)}
-      .cs .ad .m span:last-child{font-weight:500;color:var(--ink-2)}
-      .cs .mini small .late{color:var(--bad);font-weight:600}
+      .cs .ad .th .tag{position:absolute;left:8px;top:8px;font-size:11px;font-weight:700;padding:3px 8px;border-radius:var(--r-pill);background:#16a34a;color:#fff;box-shadow:0 1px 3px rgba(0,0,0,.35)}
+      .cs .ad .th .tag.lose{background:#dc2626}
+            .cs .mini small .late{color:var(--bad);font-weight:600}
       .cs .cs-adt tbody tr{cursor:pointer}.cs .cs-adt tbody tr:hover td{background:var(--surface-2)}
       .cs .cs-adt td:first-child{max-width:340px}
       .cs .cs-adt .an{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -381,12 +380,12 @@
     const th = a.thumb ? `style="background-image:url('${esc(a.thumb)}')"` : '';
     const cpa = a.orders ? a.spend / a.orders : null;
     return `<button type="button" class="ad ${cls}" data-ad="${esc(a.ad_id)}" data-act="${esc(act)}" data-name="${esc(a.name)}" title="${a.video ? 'Play it here' : 'See it here'}"><div class="th" ${th}>${a.thumb ? '' : esc(a.headline || a.name)}${a.video ? '<span class="play">▶</span>' : ''}${cls ? `<span class="tag ${cls}">${cls === 'win' ? 'Best' : 'Worst'}</span>` : ''}</div>
-      <div class="m ${cls === 'lose' ? 'lose' : ''}"><span>${a.roas != null ? x2(a.roas) + ' ROAS' : ''}</span><span>${cpa != null ? money(cpa) + ' a sale' : a.orders === 0 ? 'no sales' : ''}</span></div><div class="n">${esc(a.name)}</div><div class="s">${money(a.spend)} spent${a.orders != null ? ` · ${plural(Math.round(a.orders), 'sale')}` : ''}</div></button>`;
+      <div class="m ${cls === 'lose' ? 'lose' : ''}"><span>${a.roas != null ? x2(a.roas) + ' ROAS' : ''}</span></div><div class="n">${esc(a.name)}</div><div class="s">${money(a.spend)} spent${a.orders != null ? ` · ${plural(Math.round(a.orders), 'sale')}` : ''}${cpa != null ? `<br>${money(cpa)} per sale` : ''}</div></button>`;
   }
   function adsHtml(r, act) {
     if (!r || !(r.winners || []).length) return '';
     const tw = r.basis === 'tw';
-    const sub = tw ? `The 3 best and 3 worst ads by ROAS, out of the ${plural(r.pool || 0, 'ad')} that spent ${money(r.floor)} or more. ROAS and sales are Triple Whale (last click), spend is Meta. Together they ran at ${x2(r.bar)}. Click one to play it here.`
+    const sub = tw ? `The 3 best and 3 worst ads by ROAS, out of the ${plural(r.pool || 0, 'ad')} that spent ${money(r.floor)} or more. ROAS and sales are Triple Whale (last click), spend is Meta. Click one to play it here.`
       : 'The ads that spent the most. This report has no Triple Whale numbers per ad, so there is no ROAS. Click one to play it here.';
     return `<p class="cs-sub">${sub}</p>
       <div class="ads">${r.winners.map(a => adCard(a, 'win', act)).join('')}${(r.losers || []).map(a => adCard(a, 'lose', act)).join('')}</div>
@@ -452,10 +451,10 @@
   /* The post as content, folded after its first paragraph. One line under it says who and where it came from. */
   function postsHtml(posts, key) {
     return `<div class="posts">${posts.map((p, i) => {
-      const n = teamName(p.by), paras = String(p.text || '').split(/\n\s*\n/), k = `${key}:${i}`, open = !!OPEN_POSTS[k];
+      const n = teamName(p.by), paras = String(p.text || '').split(/\n\s*\n/), k = `${key}:${i}`, open = paras.length <= 8 || !!OPEN_POSTS[k];
       const first = slackText(paras[0]), rest = paras.slice(1).join('\n\n');
       return `<div class="slk"><p class="txt">${first}</p>${rest ? `<p class="txt rest" ${open ? '' : 'hidden'}>${slackText(rest)}</p>` : ''}
-        <p class="src">${esc(n)}${ROLE[n] ? `, ${esc(ROLE[n])}` : ''} · Slack, ${esc(when(p.at))}${p.permalink ? ` · <a href="${esc(p.permalink)}" target="_blank" rel="noopener">open</a>` : ''}${rest ? ` · <button type="button" data-fold="${esc(k)}">${open ? 'Less' : 'More'}</button>` : ''}</p></div>`;
+        <p class="src">${esc(n)}${ROLE[n] ? `, ${esc(ROLE[n])}` : ''} · Slack, ${esc(when(p.at))}${p.permalink ? ` · <a href="${esc(p.permalink)}" target="_blank" rel="noopener">open</a>` : ''}${rest && paras.length > 8 ? ` · <button type="button" data-fold="${esc(k)}">${open ? 'Less' : 'More'}</button>` : ''}</p></div>`;
     }).join('')}</div>`;
   }
 
@@ -771,7 +770,8 @@
     paintMain(); const s = steps()[POS]; startClock((s ? s.mins : 5) * 60);
     if (how.push !== false) { try { history.pushState(navState(stepId(), 0), '', urlFor(stepId(), 0)); } catch {} }
     if (how.y) { window.scrollTo(0, how.y); savePos(); return; }
-    const r = $('#csRoot'); if (r) window.scrollTo({ top: Math.max(0, r.getBoundingClientRect().top + window.scrollY - 12), behavior: how.push === false ? 'auto' : 'smooth' });
+    /* Instant, never smooth: a new step starts at its top, and the scroll saved for it is that top, not the old step's. */
+    const r = $('#csRoot'); if (r) window.scrollTo(0, Math.max(0, r.getBoundingClientRect().top + window.scrollY - 12));
     savePos();
   }
 
