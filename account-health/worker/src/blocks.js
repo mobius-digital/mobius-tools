@@ -27,8 +27,8 @@ const CAL = {
 export const BLOCKS = [
   /* 2026-11-03 Lucky is two blocks, Hormozi's Promote and Build (Cole: no categories for their own sake). Filming is
      Promote, so Thursday's block is a second Lucky · Promote. Rows placed under the old lucky_make key are re-judged. */
-  { key: 'lucky_promote', cal: 'lucky', title: 'Lucky · Promote', what: 'Lucky Golf getting a sale this month: ad and content ideas, offers, filming and recording videos, creators, emails and texts, giveaway, social posts, approving ads' },
-  { key: 'lucky_build', cal: 'lucky', title: 'Lucky · Build', what: 'Lucky Golf making the business better for later: the customer flywheel and lifetime value plan, products and launches, factory, stock and reorders, website, money, systems, customer fixes' },
+  { key: 'lucky_promote', cal: 'lucky', title: 'Lucky · Promote', what: 'Lucky Golf getting a sale this month, and ALL filming or recording for any product or launch: ad and content ideas, offers, creators, emails and texts, giveaway, social posts, approving ads' },
+  { key: 'lucky_build', cal: 'lucky', title: 'Lucky · Build', what: 'Lucky Golf making the business better for later: the customer flywheel and lifetime value plan, new products (design, samples, launch plans), factory, stock and reorders, website, money, systems, customer fixes' },
   { key: 'mobius_review', cal: 'mobius', title: 'Mobius · Ad review', what: 'Mobius Digital: approving or sending back ads and briefs the team made for clients' },
   { key: 'mobius_promote', cal: 'mobius', title: 'Mobius · Promote', what: 'Mobius Digital finding new clients: outreach, leads, proposals, agreements, demos, its own content' },
   { key: 'mobius_build', cal: 'mobius', title: 'Mobius · Build', what: 'Mobius Digital running the agency: Locus, systems, SOPs, training, hiring, and client work for a brand that is not Lucky Golf' },

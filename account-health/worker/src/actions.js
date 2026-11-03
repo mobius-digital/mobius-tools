@@ -246,7 +246,9 @@ TODAY is ${day} (${dow}). due = YYYY-MM-DD when the line gives a day ("by Wed", 
 text = the task as a SHORT title: starts with a verb, at most 8 words, specific enough to tick off, without the brand name, the owner or the date words ("Raise Prospecting 1 to $400/day").
 detail = everything else the line says that the title left out (the reason, the numbers, a link, what exactly), in the person's own words; '' when the title holds it all.
 ${AREA_RULE}`;
-    const o = await haiku(env, d, system, text, QUICK_SCHEMA, 400);
+    /* 2026-11-03: about 1 in 3 lines came back unparsed (no brand, so a Lucky task landed in Mobius · Build); one retry
+       with more room fixes it. */
+    const o = await haiku(env, d, system, text, QUICK_SCHEMA, 400).catch(() => haiku(env, d, system, text, QUICK_SCHEMA, 1000));
     const ids = new Set(brands.map(b => b.act_id));
     const owner = ROSTER.find(r => r.name.toLowerCase() === String(o.owner || '').toLowerCase())?.name || '';
     const cut = splitTitle(clean(o.text, 300) || text, o.detail);
