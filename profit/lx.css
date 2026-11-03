@@ -102,7 +102,8 @@
 [data-ui="v2"] .v2say.lead{font-size:15px}
 [data-ui="v2"] .v2foot{font-size:var(--fs-meta)}
 [data-ui="v2"] .v2tbl table{font-size:var(--fs-cell)}
-[data-ui="v2"] .v2tbl td{height:var(--row-h);padding:0 9px}
+/* 2026-11-03 Cole: wrapped rows sat on the lines. Rows keep the 40px floor; a cell that wraps gets 10px above and below. */
+[data-ui="v2"] .v2tbl td{height:var(--row-h);padding:10px 9px}
 [data-ui="v2"] .v2tbl th{padding:6px 10px}
 [data-ui="v2"] .v2d{font-size:11.5px}
 [data-ui="v2"] .btn{border-radius:var(--r-sm);font-weight:550}
