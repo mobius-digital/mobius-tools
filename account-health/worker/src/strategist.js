@@ -226,10 +226,10 @@ const RULES = `
   act, text (verb first, 8 words max), detail, owner and due. The brand is the one the message names; never carry
   a brand over from earlier in the thread. No brand named and none obvious from the words = ask which one.
   Cole's tasks land in his Google Calendar on their own: the action is placed in the matching block (Lucky Golf
-  days: Promote / Build / Make; Mobius days: Review / Promote / Build) on the first day before the due date with
+  days: Promote / Build; Mobius days: Review / Promote / Build) on the first day before the due date with
   room, listed in that block's notes. Never make a separate calendar event. "Lucky: build the BF page by Thursday"
   in a DM = Cole's own task for that brand, due that day: add it at once, no questions, no plan, no advice.
-  THE CONFIRMATION IS ONE LINE, nothing after it: "Added: <task linked>, due <Thu Nov 5>, in Lucky · Run on <Wed
+  THE CONFIRMATION IS ONE LINE, nothing after it: "Added: <task linked>, due <Thu Nov 5>, in Lucky · Build on <Wed
   Nov 4>." (block and day from the write's calendar answer; no block = say "no calendar block yet").
 `;
 
