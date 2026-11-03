@@ -224,7 +224,7 @@ export function minRow(a, it) {
    (under STALL_SPEND in STALL_DAYS, no test minimum, on for STALL_DAYS+) is paused so the account stays clean. Read from the
    synced tables (meta_adsets, meta_campaigns, ads, ad_daily), no Meta call. Left alone: sets that start later or already
    ended (BFCM sets go up scheduled), lead and giveaway campaigns, sets started in the last STALL_DAYS days. */
-export const STALL_DAYS = 7, STALL_SPEND = 5;
+export const STALL_DAYS = 7, STALL_SPEND = 20;
 const LEADISH = /\b(lead|leads|giveaway|sweepstakes?|contest)\b/i;
 const LEAD_GOALS = new Set(['LEAD_GENERATION', 'QUALITY_LEAD']);
 export function stalledRow(a, s) {

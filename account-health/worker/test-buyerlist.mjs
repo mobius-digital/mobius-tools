@@ -243,11 +243,12 @@ await check('a single ad or carousel launch moves its card to Live only from Rea
   assert.deepEqual(moved, ['m1', 'm3']);
 });
 
-await check('not spending: a live set Meta spent under $5 on in 7 days is a pause row; scheduled, ended, new, lead and giveaway sets are left alone', async () => {
+await check('not spending: a live set Meta spent under $20 on in 7 days is a pause row; scheduled, ended, new, lead and giveaway sets are left alone', async () => {
   const now = Date.parse('2026-11-10T12:00:00Z'), old = '2026-10-20T10:00:00-0500';
   const base = { adset_id: '1', name: '445 Carver 02 Gold', campaign: 'Prospecting', objective: 'OUTCOME_SALES', optimization_goal: 'OFFSITE_CONVERSIONS', created_time: old, start_time: old, spend: 2.4 };
   assert.equal(isStalled(base, now), true);
-  assert.equal(isStalled({ ...base, spend: 5 }, now), false);
+  assert.equal(isStalled({ ...base, spend: 20 }, now), false);
+  assert.equal(isStalled({ ...base, spend: 15 }, now), true);
   assert.equal(isStalled({ ...base, start_time: '2026-11-27T00:00:00-0600' }, now), false, 'BFCM set scheduled for later');
   assert.equal(isStalled({ ...base, start_time: '2026-11-06T00:00:00-0600' }, now), false, 'started in the last 7 days');
   assert.equal(isStalled({ ...base, created_time: '2026-11-05T00:00:00-0600' }, now), false, 'made in the last 7 days');
