@@ -21,8 +21,8 @@ import { dailyPost, dailyThread, weeklyPost, weekSentence, internalChannel } fro
 import { handleRequests, createAsk } from './requests.js';
 import { handleMeetings, handleFirefliesHook, meetingsTick } from './meetings.js';
 import { handleCalls } from './callscreen.js';
-import { handleActions, actionTick, handleActionButton, handleReaction, onActionDone, onActionPlaced, slackName } from './actions.js';
-import { blockActionPlaced, blockActionDone, blockRollTick, setBlockFetch } from './blocks.js';
+import { handleActions, actionTick, handleActionButton, handleReaction, onActionDone, onActionPlaced, slackName, markDone } from './actions.js';
+import { blockActionPlaced, blockActionDone, blockRollTick, setBlockFetch, setBlockDone, handleGcalPush, blockSyncTick, blockMigrate, ensureWatches } from './blocks.js';
 import { minOffTick, handleMinOffButton, minOffOn } from './minoff.js';
 import { checkinTick, checkinAction, submitCheckin, checkinErrors, reviewPost, reviewAction, reviewSubmit, serveReviewPic, ensureDay } from './checkin.js';
 import { handleProduction, listBoard, moveCard as prodMove, formatOf as prodFormat } from './production.js';
@@ -7363,6 +7363,9 @@ onActionDone((env, row) => cardActionDone(env, cardDeps(), row));
 setBlockFetch((...a) => xfetch(...a));
 onActionPlaced((env, row) => blockActionPlaced(env, row));
 onActionDone((env, row) => blockActionDone(env, row));
+/* Cole deleted a task's event on his calendar = done (blocks.js syncCalendar). */
+setBlockDone((env, id, o) => markDone(env, id, true, o));
+const blockDeps = () => ({ getSetting, putSetting });
 function hubDeps() {
   return { getSetting, putSetting, listAccounts, localDate, addDays, centralHour, centralDate, slackPost, slackApi,
     subCanAfford, strategist, isAdmin, sessionEmail, postDashboard, auto: autoDeps() };
@@ -7842,6 +7845,8 @@ const AH_APP = {
             await putSetting(env, 'blockRollDay', centralDate()).catch(() => {});
           }
         }
+        /* Cole's task events: catch any he deleted that the Google push missed, and keep the push channels open. */
+        if (subCanAfford(30)) ran.blockSync = await blockSyncTick(env, blockDeps()).catch(e => ({ error: e.message }));
         // Whatever budget survived goes to keeping the data fresh. This used to
         // live entirely in the 03:30 nightly, which meant one invocation tried to
         // sync every brand and got through one; daily_insights sat a day stale and
@@ -7971,6 +7976,8 @@ const AH_APP = {
     /* Stripe: the first retainer invoice was paid (signed with the endpoint secret, newclient.js). */
     if (path === '/stripe/webhook' && request.method === 'POST') return handleStripeWebhook(request, env);
     /* Fireflies: a call's transcript is ready (meetings.js; signed when FIREFLIES_WEBHOOK_SECRET is set). */
+    /* Google Calendar push: something changed on one of Cole's block calendars (blocks.js, checked by our own token). */
+    if (path === '/gcal/push' && request.method === 'POST') return handleGcalPush(request, env, ctx, blockDeps());
     if (path === '/fireflies/webhook' && request.method === 'POST') return handleFirefliesHook(request, env, ctx, meetingDeps(), json);
     if (path === '/slack/actions' && request.method === 'POST') {
       await ensureSlackColumns(env).catch(() => {});
@@ -8200,6 +8207,15 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     if (path === '/api/actions' || path.startsWith('/api/actions/')) {
       const r = await handleActions(request, env, url, path, json, actionDeps());
       if (r) return r;
+    }
+    /* ---- Cole's task events (blocks.js, 2026-11-03): lay old-style blocks out as events, open the push channels,
+       read each calendar once. Admin only; safe to run again. ---- */
+    if (path === '/api/blocks/setup' && request.method === 'POST') {
+      if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+      const migrated = await blockMigrate(env);
+      const watch = await ensureWatches(env, blockDeps()).catch(e => ({ error: e.message }));
+      const sync = await blockSyncTick(env, blockDeps()).catch(e => ({ error: e.message }));
+      return json({ ok: true, migrated, watch, sync });
     }
     /* ---- The daily check-in (checkin.js, 2026-10-26): post today's day now, or post a card's review again. Admin only. ---- */
     if ((path === '/api/checkin/day' || path === '/api/checkin/review' || path === '/api/checkin/delete') && request.method === 'POST') {
