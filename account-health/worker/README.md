@@ -109,3 +109,34 @@ See `../PRD.md` → "Worker API". Everything except `/health` needs `Authorizati
 - **Timezone.** All daily bucketing uses the ad account's own timezone (Meta's `date_start`
   is already in it).
 - Renaming the worker would wipe its secrets — don't.
+
+## Claude Code's door: the Locus MCP (2026-11-01)
+
+Claude Code sessions reach Locus and Mobius's Slack straight through this worker (`src/mcp.js`, route `/mcp`,
+MCP over Streamable HTTP), never through Cole's Chrome. Every Locus call is made as Cole; every write lands in
+the Change Log as "Claude Code (Cole)".
+
+One-time setup, you do this once:
+
+1. The secret is already set (`MCP_TOKEN`). To rotate it: `npx.cmd wrangler secret put MCP_TOKEN` with a new
+   long random string, then update the config below.
+2. Put this in your Claude Code MCP settings (`~/.claude.json`, under `mcpServers`, next to the other servers),
+   with the token in place of `<MCP_TOKEN>`:
+
+```
+"locus": { "type": "http", "url": "https://mobius-account-health.mobius-digital.workers.dev/mcp", "headers": { "Authorization": "Bearer <MCP_TOKEN>" } }
+```
+
+Or from a terminal: `claude mcp add --transport http --scope user locus https://mobius-account-health.mobius-digital.workers.dev/mcp --header "Authorization: Bearer <MCP_TOKEN>"`.
+
+Tools: `locus_brands`, `locus_routes`, `locus_get`, `locus_post` (any route in `src/routes.js`), `production_cards`,
+`production_card`, `production_create`, `production_move`, `production_archive`, `production_field`, `production_upload`
+(from a URL or base64), `production_share` (the client review link), `meta_live`, `meta_write`, `meta_undo`, `klaviyo`,
+`slack_search`, `slack_read_thread`, `slack_read_channel`, `slack_list_channels`, `slack_post`. A client-facing Slack
+channel is refused unless `as_cole: true` is passed, which posts under Cole's own name.
+
+Quick check from a shell:
+
+```
+curl -s -X POST https://mobius-account-health.mobius-digital.workers.dev/mcp -H "Authorization: Bearer <MCP_TOKEN>" -H "Content-Type: application/json" -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}"
+```
