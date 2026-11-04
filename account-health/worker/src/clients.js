@@ -13,6 +13,7 @@
  *   GET  /api/clients/draft           team: the invite email text for {brands, name, email}
  *   POST /api/clients/invite          OWNER: add or update clients and, with send:true + approved:true, email them
  *   POST /api/clients/remove          OWNER: {email, brand?} take one brand or the whole login away
+ *   POST /api/clients/preview         OWNER: {email} a session token for an invited client, to see Locus as they do
  *   GET  /api/clients/me              the signed-in client: their brands, creator link
  *   PUT  /api/clients/me              the signed-in client: {name?, welcomed?} (their own profile only)
  * Nothing here sends anything unless the owner pressed Send on text they saw (the New client rule).
@@ -107,7 +108,7 @@ export async function meClient(env, email) {
 }
 
 /* ---------------- routes ---------------- */
-export async function handleClients(request, env, path, json, { isAdmin, sessionEmail }) {
+export async function handleClients(request, env, path, json, { isAdmin, sessionEmail, mintSession }) {
   if (!path.startsWith('/api/clients')) return null;
   const url = new URL(request.url);
   const cs = clientScope(request);
@@ -197,6 +198,16 @@ export async function handleClients(request, env, path, json, { isAdmin, session
       }
     }
     return json({ ok: !failed.length, added, sent, failed });
+  }
+
+  /* See Locus as a client (2026-11-04): Cole signs in as an invited client without their Google account. Owner only. */
+  if (path === '/api/clients/preview' && request.method === 'POST') {
+    const e = lower(b.email);
+    const users = (await getJson(env, 'clientUsers', {})) || {};
+    if (!users[e]) return json({ error: 'No client login with that email.' }, 404);
+    if (!mintSession) return json({ error: 'preview is not wired' }, 500);
+    const s = await mintSession(env, e);
+    return json({ ...s, role: 'client', name: users[e].name || '', brands: users[e].brands || [] });
   }
 
   if (path === '/api/clients/remove' && request.method === 'POST') {
