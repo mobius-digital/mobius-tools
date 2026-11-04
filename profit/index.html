@@ -2321,12 +2321,12 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
       <div class="grp v2nav" data-g="main"><div class="grp-btns" data-v="v4">
           <button data-t="morning" data-grp="today" title="Morning, Leaks, Day check, Brief"><svg class="ic"><use href="#i-home"/></svg><span>Today</span></button>
           <button data-t="month" data-grp="money" title="Month, P&amp;L, Customers, Store, Site"><svg class="ic"><use href="#i-store"/></svg><span>Money</span></button>
-          <button data-t="today" data-grp="ads" title="Calls, Accounts, Ads, Tests, Changes, Email, Search"><svg class="ic"><use href="#i-mega"/></svg><span>Marketing</span></button>
+          <button data-t="today" data-grp="ads" title="Calls, Accounts, Ads, Tests, Changes, Email, Search"><svg class="ic"><use href="#i-mega"/></svg><span>Ads</span></button>
           <button data-t="stock" data-grp="products" id="railProducts" hidden title="Stock, Buying, Drops"><svg class="ic"><use href="#i-products"/></svg><span>Products</span></button>
           <button data-t="production" data-grp="make" title="Pipeline, Studio, Library, Inspiration, Social, Creators, Brand"><svg class="ic"><use href="#i-brush"/></svg><span>Make</span></button>
           <button data-t="calendar" data-grp="calendar" title="Calendar and the season"><svg class="ic"><use href="#i-cal"/></svg><span>Calendar</span></button>
           <button data-t="reports" data-grp="reports" title="Weekly and monthly, Dashboards, Requests"><svg class="ic"><use href="#i-reports"/></svg><span>Reports</span></button>
-          <button data-t="tasks" data-grp="work" id="railWork4" title="Meetings and Tasks"><svg class="ic"><use href="#i-circle-check"/></svg><span>Work</span></button></div>
+          <button data-t="tasks" data-grp="work" id="railWork4" title="Meetings and Tasks"><svg class="ic"><use href="#i-circle-check"/></svg><span>Clients</span></button></div>
         <div class="grp-btns" data-v="v3">
           <button data-t="overview" data-grp="home" title="Overview, Day check, P&amp;L, Goals, Requests"><svg class="ic"><use href="#i-home"/></svg><span>Home</span></button>
           <button data-t="today" data-grp="ads" title="Today, Meta, Google, TikTok, All channels, Tests and angles"><svg class="ic"><use href="#i-mega"/></svg><span>Ads</span></button>
@@ -2337,7 +2337,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
           <button data-t="research" data-grp="brand" title="Client answers, Research, Voice"><svg class="ic"><use href="#i-bookmark"/></svg><span>Brand</span></button>
           <button data-t="calendar" data-grp="calendar" title="Drops, sales and emails for every client, and what is due for each"><svg class="ic"><use href="#i-cal"/></svg><span>Calendar</span></button>
           <button data-t="social" data-grp="social" id="railSocial" hidden title="What other brands post on Instagram, TikTok and YouTube, and our version of it"><svg class="ic"><use href="#i-play-circle"/></svg><span>Social</span></button>
-          <button data-t="tasks" data-grp="work" id="railWork" title="Meetings waiting for your OK, what the team owes, and every ad from brief to live"><svg class="ic"><use href="#i-circle-check"/></svg><span>Work</span></button>
+          <button data-t="tasks" data-grp="work" id="railWork" title="Meetings waiting for your OK, what the team owes, and every ad from brief to live"><svg class="ic"><use href="#i-circle-check"/></svg><span>Clients</span></button>
           <button data-t="brief" data-grp="reports" title="Daily Brief, Weekly and monthly, Dashboards"><svg class="ic"><use href="#i-reports"/></svg><span>Reports</span></button>
           <button data-t="warplan" data-grp="season" id="railSeason" hidden title="The War Room and the season plan"><svg class="ic"><use href="#i-flame"/></svg><span id="railSeasonLbl">Black Friday</span></button></div></div>
       <nav class="subtabs" id="subtabs" style="display:none"><div class="in"></div></nav>
@@ -2404,7 +2404,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
        and the round button that replaced it looked clunky). The helper's face is its icon; it opens the chat, which
        comes up from the bottom (phone.css, phone.js). Shown when the ask bar would be. -->
   <button id="tbAsk" type="button" aria-label="Ask Locus" hidden><span class="lx-face" data-state="clear"></span><span>Ask</span></button>
-  <button data-t="production" data-grp="work"><svg class="ic"><use href="#i-circle-check"/></svg><span>Work</span></button>
+  <button data-t="production" data-grp="work"><svg class="ic"><use href="#i-circle-check"/></svg><span>Clients</span></button>
   <button data-t="store" data-grp="store"><svg class="ic"><use href="#i-store"/></svg><span>Store</span></button>
   <button id="tbMore" aria-label="More destinations"><svg class="ic"><use href="#i-more"/></svg><span>More</span></button>
 </nav>
@@ -3634,7 +3634,7 @@ const backToSettings = () => `<p class="set-back"><button type="button" class="l
 /* The crumb says which band a tab lives in (Every day / Every week / Making ads /
    Monthly and setup) so the page names its own place in the week. Mirrors the rail. */
 const TAB_CRUMB = {
-  calendar: ['Calendar', 'Calendar'], social: ['Social', 'Feed'], socialsaved: ['Social', 'Saved'], socialweek: ['Social', 'Week'], socialresults: ['Social', 'Results'], actions: ['Work', 'Tasks'], calls: ['Work', 'Meetings'], ccall: ['Home', 'Client call'], tasks: ['Work', 'Tasks'], production: ['Work', 'Production'],
+  calendar: ['Calendar', 'Calendar'], social: ['Social', 'Feed'], socialsaved: ['Social', 'Saved'], socialweek: ['Social', 'Week'], socialresults: ['Social', 'Results'], actions: ['Clients', 'Tasks'], calls: ['Clients', 'Meetings'], ccall: ['Home', 'Client call'], tasks: ['Clients', 'Tasks'], production: ['Clients', 'Production'],
   overview: ['Home', 'Overview'], yesterday: ['Home', 'Day check'], leaks: ['Home', 'Leaks'], profit: ['Home', 'P&amp;L'], plan: ['Home', 'Goals'], season: ['Season', 'Offers and dates'], war: ['Season', 'War Room'], warplan: ['Season', 'The Plan'], warlive: ['Season', 'Live'], calc: ['Tools', 'Scenarios'], pulse: ['Tools', 'Platform status'],
   buyer: ['Ads', 'Buyer list'], today: ['Ads', 'Today’s calls'], gcampaigns: ['Ads', 'Google &nbsp;/&nbsp; Campaigns'], gads: ['Ads', 'Google &nbsp;/&nbsp; Ads'], gterms: ['Ads', 'Google &nbsp;/&nbsp; Search terms'], gchanges: ['Ads', 'Google &nbsp;/&nbsp; Changes'], answers: ['Brand', 'Client answers'], research: ['Brand', 'Research'], voice: ['Brand', 'Voice'],
   meta: ['Ads', 'Meta'], tests: ['Ads', 'Today’s calls &nbsp;/&nbsp; Test calls'], campaigns: ['Ads', 'Meta &nbsp;/&nbsp; Campaigns'], adcreative: ['Ads', 'Meta &nbsp;/&nbsp; Ads'], changes: ['Ads', 'Meta &nbsp;/&nbsp; Changes'], mtoday: ['Ads', 'Meta &nbsp;/&nbsp; Today'], mbrowser: ['Ads', 'Meta &nbsp;/&nbsp; Creative browser'],
@@ -3651,7 +3651,7 @@ if (V4) Object.assign(TAB_CRUMB, { morning: ['Today', 'Morning'], month: ['Money
   today: ['Ads', 'Calls'], tests: ['Ads', 'Calls &nbsp;/&nbsp; Test calls'], channels: ['Ads', 'Overview'],
   production: ['Make', 'Pipeline'], studio: ['Make', 'Studio'], copy: ['Make', 'Studio &nbsp;/&nbsp; Words'], library: ['Make', 'Library'], inspo: ['Make', 'Inspiration'], social: ['Make', 'Social'], socialsaved: ['Make', 'Social &nbsp;/&nbsp; Saved'], socialweek: ['Make', 'Social &nbsp;/&nbsp; Week'], amb: ['Make', 'Creators'], answers: ['Make', 'Brand'], research: ['Make', 'Brand &nbsp;/&nbsp; Research'], voice: ['Make', 'Brand &nbsp;/&nbsp; Voice'], brand: ['Make', 'Brand'],
   warplan: ['Calendar', 'Season'], warlive: ['Calendar', 'Season &nbsp;/&nbsp; Live'], season: ['Calendar', 'Season &nbsp;/&nbsp; Offers and dates'], war: ['Calendar', 'Season'],
-  requests: ['Reports', 'Requests'], calls: ['Work', 'Meetings'], tasks: ['Work', 'Tasks'], ccall: ['Work', 'Client call'] });
+  requests: ['Reports', 'Requests'], calls: ['Clients', 'Meetings'], tasks: ['Clients', 'Tasks'], ccall: ['Clients', 'Client call'] });
 /* Who opens each page. Shown beside the crumb on every page and used by the rail's
    "Show tabs for" filter, so nobody has to guess whether a tab is theirs. */
 const TAB_WHO = { calls: 'everyone', ccall: 'everyone', tasks: 'everyone', production: 'everyone', actions: 'everyone', calendar: 'everyone', social: 'everyone', socialsaved: 'everyone', socialweek: 'everyone', socialresults: 'everyone', yesterday: 'everyone', leaks: 'everyone', buyer: 'buyer', today: 'buyer', war: 'everyone', warplan: 'everyone', warlive: 'everyone', pulse: 'everyone', answers: 'strategist', research: 'strategist', voice: 'strategist', overview: 'everyone', season: 'everyone', calc: 'everyone', email: 'everyone', dash: 'everyone', store: 'everyone', channels: 'buyer', campaigns: 'buyer', adcreative: 'everyone', changes: 'buyer', mtoday: 'buyer', mbrowser: 'everyone', brief: 'buyer', meta: 'buyer', google: 'buyer', tiktok: 'buyer', tests: 'buyer', reports: 'buyer',
@@ -3744,7 +3744,7 @@ const TOURS = {
     { sel: '#hdModel', title: 'Whose credit?', body: 'On Ads screens this menu picks who gets credit for an order: a Triple Whale model or the platform itself. Spend and delivery are always the platform’s own.' },
     { sel: '#tabs [data-grp="creative"]', title: 'Creative', body: '<b>AI ads</b> makes a batch from a brief. <b>Creators</b> is the public link TRYBE creators film from. <b>Library</b> is every photo the brand has. <b>Inspiration</b> is the swipe file. Who buys and how the brand talks live under <b>Brand</b>.' },
     { sel: '#tabs [data-grp="reports"]', title: 'Reports', body: '<b>Daily Brief</b> and <b>Weekly and monthly</b> go to clients after review. <b>Dashboards</b> are yours: build one or ask Locus.' },
-    { sel: '#tabs [data-grp="work"]', title: 'Work', body: 'Meetings: every recorded meeting Locus read waits for your OK, and one press sends the tasks, briefs, report lines and client asks where they belong. Tasks: what the team owes, as a list or a board (the Calendar page shows them by due date); Slack reminds the owner the morning it is due. Production: every ad from brief to live, mirrored to Asana.' },
+    { sel: '#tabs [data-grp="work"]', title: 'Clients', body: 'Meetings: every recorded meeting Locus read waits for your OK, and one press sends the tasks, briefs, report lines and client asks where they belong. Tasks: what the team owes, as a list or a board (the Calendar page shows them by due date); Slack reminds the owner the morning it is due. Production: every ad from brief to live, mirrored to Asana.' },
     { sel: '#hdPeriod', title: 'What period am I looking at?', body: 'This control is on every screen that follows a date range and always names the real dates. <b>Every window ends yesterday</b> - today is still settling on every source, so it is never included.' },
     { sel: '[data-gloss]', title: 'If a number is unfamiliar', body: '<b>Metrics</b> defines every figure in Locus, including what to do when it moves. Next to it, <b>? How to use</b> explains the page you are on. You can replay any of these tours from <b>Settings</b>.' },
   ] },
@@ -4841,7 +4841,7 @@ if (V4) Object.assign(TOURS, {
     { body: '<b>Eight places, one for each question you walk in with:</b> Today, Money, Marketing, Products, Make, Calendar, Reports and Work. The menu collapses to icons from its foot. Each place has its pages as tabs across the top. The bar at the top answers questions and jumps to any page or brand: press Ctrl+K. About a minute.' },
     { sel: '#tabs [data-grp="today"]', title: 'Today', body: '<b>Morning</b> is what yesterday kept, where the month stands and what needs you. <b>Leaks</b> is where the brand loses money, priced. <b>Day check</b> is today so far against a normal day. <b>Brief</b> is the daily update that goes to the client.' },
     { sel: '#tabs [data-grp="money"]', title: 'Money', body: '<b>Month</b> is where the month lands and whether a customer is worth what we pay. <b>P&amp;L</b>, <b>Customers</b>, <b>Store</b> and <b>Site</b> each go one level deeper. Only the store\'s own money lives here.' },
-    { sel: '#tabs [data-grp="ads"]', title: 'Marketing', body: 'Every channel that spends or sends. <b>Calls</b> is what to change today, ad set first, and you can do it from the row. <b>Accounts</b> is each platform. <b>Ads</b> is every ad with its verdict. <b>Tests</b> (with a Needs a call filter) and <b>Changes</b> keep the record. <b>Email</b> and <b>Search</b> sit here too.' },
+    { sel: '#tabs [data-grp="ads"]', title: 'Ads', body: 'Every channel that spends or sends. <b>Calls</b> is what to change today, ad set first, and you can do it from the row. <b>Accounts</b> is each platform. <b>Ads</b> is every ad with its verdict. <b>Tests</b> (with a Needs a call filter) and <b>Changes</b> keep the record. <b>Email</b> and <b>Search</b> sit here too.' },
     { sel: '#tabs [data-grp="products"]', title: 'Products', body: '<b>Stock</b> by product or by variant, how many days are left against the lead time. <b>Buying</b> is the factory orders. <b>Drops</b> is what is being designed.' },
     { sel: '#tabs [data-grp="make"]', title: 'Make', body: '<b>Pipeline</b> is every brief from idea to launched, with the Ideas column in front. <b>Studio</b> makes the ads. <b>Library</b>, <b>Inspiration</b>, <b>Social</b>, <b>Creators</b> and <b>Brand</b> feed it. The <b>Make</b> button sits on Social, Pipeline and Inspiration, where the thing is made.' },
     { sel: '#tabs [data-grp="reports"]', title: 'Reports', body: 'The weekly and monthly as a story: the numbers, the sentence, what got done and what the client owes. <b>Requests</b> is what they must approve. <b>Dashboards</b> are yours.' },
@@ -5154,7 +5154,7 @@ const NAV = {
   /* Social (2026-10-19, social.js): Watch = what other brands post, and our version of it. Shown per brand (Brand settings > Social). Week (posting) is phase 2. */
   social: { label: 'Social', tabs: [['social', 'Feed'], ['socialsaved', 'Saved'], ['socialweek', 'Week'], ['socialresults', 'Results']] },
   /* Work (2026-10-13, docs/handoffs/work-in-locus.md): the team's calls and action items, in Locus, not Asana. Team only (AGENCY_TABS). */
-  work: { label: 'Work', tabs: [['calls', 'Meetings'], ['tasks', 'Tasks'], ['production', 'Production']] },   // 2026-10-20: "Calls" collided with Ads > Today's ad calls   // Agency view only (2026-10-19)   // 2026-10-13 fourth pass: calls.js, tasks.js, production.js
+  work: { label: 'Clients', tabs: [['calls', 'Meetings'], ['tasks', 'Tasks'], ['production', 'Production']] },   // 2026-10-20: "Calls" collided with Ads > Today's ad calls   // Agency view only (2026-10-19)   // 2026-10-13 fourth pass: calls.js, tasks.js, production.js
   reports: { label: 'Reports', tabs: [['brief', 'Daily Brief'], ['reports', 'Weekly and monthly'], ['dash', 'Dashboards']] },
   season: { label: 'Black Friday', tabs: [['warplan', 'The Plan'], ['warlive', 'Live'], ['season', 'Offers and dates']] },   // 2026-10-13: one Season item, three pages; `war` still routes
   /* 2026-10-10: Agency economics (Cole only; hidden for everyone else) and Team workload (agency.js). */
@@ -5163,29 +5163,29 @@ const NAV = {
 /* LOCUS v4 (phase 1): seven destinations by job. The second level inside a tab is a segmented control (SOCIAL_JOBS,
    BRAND_JOBS, SEASON_JOBS, like META_JOBS), never a second tab row. Every old id lands: NAV_OF below maps the ones
    that are not in a tab list. Agency view and one brand share the same list (tabInView decides per tab). */
-if (V4) Object.assign(TAB_CRUMB, { email: ['Marketing', 'Email'], search: ['Marketing', 'Search'], stock: ['Products', 'Stock'], buying: ['Products', 'Buying'], drops: ['Products', 'Drops'],
-  buyer: ['Marketing', 'Buyer list'], today: ['Marketing', 'Calls'], tests: ['Marketing', 'Tests'], angles: ['Marketing', 'Tests'], channels: ['Marketing', 'Accounts'], meta: ['Marketing', 'Accounts'], campaigns: ['Marketing', 'Accounts'], mtoday: ['Marketing', 'Accounts'],
-  google: ['Marketing', 'Accounts'], gcampaigns: ['Marketing', 'Accounts'], gads: ['Marketing', 'Accounts'], gterms: ['Marketing', 'Accounts'], tiktok: ['Marketing', 'Accounts'], adcreative: ['Marketing', 'Ads'], mbrowser: ['Marketing', 'Ads'],
-  changes: ['Marketing', 'Changes'], gchanges: ['Marketing', 'Changes'], calc: ['Tools', 'Calculators'], pulse: ['Tools', 'Platform status'], guide: ['Tools', 'Guide'] });
+if (V4) Object.assign(TAB_CRUMB, { email: ['Ads', 'Email'], search: ['Ads', 'Search'], stock: ['Products', 'Stock'], buying: ['Products', 'Buying'], drops: ['Products', 'Drops'],
+  buyer: ['Ads', 'Buyer list'], today: ['Ads', 'Calls'], tests: ['Ads', 'Tests'], angles: ['Ads', 'Tests'], channels: ['Ads', 'Accounts'], meta: ['Ads', 'Accounts'], campaigns: ['Ads', 'Accounts'], mtoday: ['Ads', 'Accounts'],
+  google: ['Ads', 'Accounts'], gcampaigns: ['Ads', 'Accounts'], gads: ['Ads', 'Accounts'], gterms: ['Ads', 'Accounts'], tiktok: ['Ads', 'Accounts'], adcreative: ['Ads', 'Ads'], mbrowser: ['Ads', 'Ads'],
+  changes: ['Ads', 'Changes'], gchanges: ['Ads', 'Changes'], calc: ['Tools', 'Calculators'], pulse: ['Tools', 'Platform status'], guide: ['Tools', 'Guide'] });
 const NAV4 = {
   today: { label: 'Today', tabs: [['morning', 'Morning'], ['leaks', 'Leaks'], ['yesterday', 'Day check'], ['brief', 'Brief']] },
   /* review round one, pass C (2026-10-21): Money is the store's money only; Marketing is every channel that spends or
      sends (Email and Search moved here); Products is its own item (Stock, Buying, Drops). The key stays 'ads' so every
      data-grp, the phone bar and NAV_LAST keep working. */
   money: { label: 'Money', tabs: [['month', 'Month'], ['profit', 'P&L'], ['customers', 'Customers'], ['store', 'Store', 'b-shopify'], ['website', 'Site', 'b-ga']] },
-  ads: { label: 'Marketing', tabs: [['buyer', 'Buyer list'], ['today', 'Calls'], ['channels', 'Accounts'], ['adcreative', 'Ads'], ['angles', 'Tests'], ['changes', 'Changes'], ['email', 'Email', 'b-klaviyo'], ['search', 'Search', 'b-google']] },
+  ads: { label: 'Ads', tabs: [['buyer', 'Buyer list'], ['today', 'Calls'], ['channels', 'Accounts'], ['adcreative', 'Ads'], ['angles', 'Tests'], ['changes', 'Changes'], ['email', 'Email', 'b-klaviyo'], ['search', 'Search', 'b-google']] },
   products: { label: 'Products', tabs: [['stock', 'Stock'], ['buying', 'Buying'], ['drops', 'Drops']] },
   make: { label: 'Make', tabs: [['production', 'Pipeline'], ['studio', 'Studio'], ['library', 'Library'], ['inspo', 'Inspiration'], ['social', 'Social'], ['amb', 'Creators'], ['answers', 'Brand']] },
   calendar: { label: 'Calendar', tabs: [['calendar', 'Calendar'], ['warplan', 'Season']] },
   reports: { label: 'Reports', tabs: [['reports', 'Weekly and monthly'], ['dash', 'Dashboards'], ['requests', 'Requests']] },
-  work: { label: 'Work', tabs: [['calls', 'Meetings'], ['tasks', 'Tasks'], ['ccall', 'Client call']] },   // ccall (2026-10-27): the shared-screen client call, shown under a picked brand only (tabInView)
+  work: { label: 'Clients', tabs: [['calls', 'Meetings'], ['tasks', 'Tasks'], ['ccall', 'Client call']] },   // ccall (2026-10-27): the shared-screen client call, shown under a picked brand only (tabInView)
   tools: { label: 'Tools', tabs: [['calc', 'Calculators'], ['pulse', 'Platform status'], ['guide', 'Guide'], ['economics', 'Agency economics'], ['workload', 'Team workload']] },
 };
 if (V4) { for (const k of Object.keys(NAV)) delete NAV[k]; Object.assign(NAV, NAV4); }
 /* pass C help (2026-10-21): where things moved, and the Stock explainer that left the page (supply.js HELP_STOCK) */
 if (V4) Object.assign(PAGE_HELP, {
   stock: PAGE_HELP.stock + `<p><b>Where it lives:</b> Products, with <b>Buying</b> and <b>Drops</b>. <b>By product</b> is one row per Shopify product; <b>By variant</b> is one row per size, loft and hand. The bar is days of stock left; the tick is the lead time, so red means it runs out before a reorder could land.</p>` + (window.SupplyTab && SupplyTab.HELP_STOCK ? `<p>${esc(SupplyTab.HELP_STOCK)}</p>` : ''),
-  email: PAGE_HELP.email + '<p><b>Where it lives:</b> Marketing, beside the ad channels, because email spends attention the way ads spend money.</p>',
+  email: PAGE_HELP.email + '<p><b>Where it lives:</b> Ads, beside the ad channels, because email spends attention the way ads spend money.</p>',
   calc: '<p><b>What this page is:</b> the calculators. Leads works out what a lead or an order can cost and still hit the target; ROAS works out the breakeven and what is kept at any return. Prefilled with the brand’s own numbers; save a scenario and share it with the client.</p><p><b>Where it lives:</b> Tools, with Platform status and the Guide.</p>',
   tests: '<p><b>What this page is:</b> the tests that need a call today, the filter on <b>Tests</b>. Winner, Keep running or Loser, each with a one-line learning that goes to Asana. <b>Every test</b> shows the rest.</p>',
 });

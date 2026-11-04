@@ -195,7 +195,7 @@ function welcome(main) {
     <p class="hint" style="margin:0">This is ${esc(b ? b.name : 'your brand')} in Locus: the same system, the same screens and the same numbers Mobius works from every day.</p>
     <ul><li><b>Today</b>: the morning read, leaks, the day check and the daily brief.</li>
       <li><b>Money</b>: the month, the P&amp;L, your customers and your store.</li>
-      <li><b>Marketing</b>: every channel side by side, each ad, the tests, every change we made, email and search.</li>
+      <li><b>Ads</b>: every channel side by side, each ad, the tests, every change we made, email and search.</li>
       <li><b>Products</b> and <b>Make</b>: stock and drops, the ad studio, the photo library, inspiration, social, your creator link and what we know about your customers.</li>
       <li><b>Calendar</b> and <b>Reports</b>: your launches and the season plan, every report we sent, your dashboards and Requests (approve what we send you, ask us for anything).</li>
       <li><b>Ask</b>: type a question about your numbers in the bar at the top and Locus answers from your own data.</li></ul>
