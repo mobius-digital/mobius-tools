@@ -7456,6 +7456,15 @@ async function handleSlackEvent(request, env, ctx) {
        channel is the team's own, and a reply there never reaches a model. Decided BEFORE
        claiming the message, so a bowed-out plain copy cannot swallow its app_mention twin. */
     if (ev.type !== 'message' || !inThread || !ev.user) return ACK();
+    /* 2026-11-04, Cole: Locus kept answering him and Nikolai (Rebel Email) in #lucky-email with nobody tagging it. A
+       plain reply only reaches the Strategist in the team's own rooms: a brand's internal channel, the agency channel
+       or a group DM. In a shared or client channel the people there are talking to each other; a tag is the only door. */
+    if (!group) {
+      const ours = await brandByChannel(env, ev.channel).catch(() => null)
+        || await env.DB.prepare(`SELECT 1 AS x FROM brand_accounts WHERE slack_channel = ?1 AND (brief_channel IS NULL OR brief_channel != slack_channel) LIMIT 1`).bind(ev.channel).first().catch(() => null)
+        || ev.channel === await getSetting(env, 'strategistChannel').catch(() => null);
+      if (!ours) return ACK();
+    }
     if (!(await strategistThreadOpen(env, ev.channel, ev.thread_ts))) return ACK();
     /* Cole (2026-10-06): "what if I'm talking to Ahsan in the thread?" A reply that tags a person
        is theirs (the bot's own tag was handled above, so any tag left is a human). Anything else
