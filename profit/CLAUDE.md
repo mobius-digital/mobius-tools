@@ -4694,3 +4694,12 @@ this goes for all things that go from the right side", and the Integrations pane
 - **Drops and sales** (Buyer list page action): a brand's drops with status (Live / Sale ended / Sold out), tag, end date,
   products, how many are locked off; Add / Edit / Remove (live only) / Sold out / Sale ended / Reopen, each an in-app
   modal. Quiet rows hidden by a lock read "Off for good: <drop> sold out ([TAG]). Reopen it in Drops and sales to bring it back."
+
+## 2026-11-04: THE STRUCTURE REVIEW, steps 1 and 2 (page https://claude.ai/artifact/ERGvYEz3m3NfJtpAH1HdWw). Read before touching the rail or the calls pages.
+
+- Step 1 (PR 156): the rail says **Ads** (was Marketing, key still `ads`) and **Clients** (was Work, key still `work`). Labels only.
+- Step 2: **one Calls tab**. For the team `show('today')` lands on `buyer` (top of show()) and `tabInView('ads','today')` is false, so every
+  old `?open=today` / `data-go="today"` link opens the Buyer list for that brand. A client login still gets desk.js `today()` (the Buyer
+  list is in AGENCY_TABS); both tabs are labelled Calls. Delete desk.js `today()` only once buyer.js has a client read-only view.
+- Not on the Buyer list: test calls (Tests > Needs a call) and the `?doall=1` sheet (the Buyer list's own Agree / Yes to all replaces it).
+- Next (the page's order): Ads tabs All / Calls / Launch / Meta / Google / TikTok / Tests, then the per-platform level switch.

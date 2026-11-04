@@ -5164,7 +5164,7 @@ const NAV = {
    BRAND_JOBS, SEASON_JOBS, like META_JOBS), never a second tab row. Every old id lands: NAV_OF below maps the ones
    that are not in a tab list. Agency view and one brand share the same list (tabInView decides per tab). */
 if (V4) Object.assign(TAB_CRUMB, { email: ['Ads', 'Email'], search: ['Ads', 'Search'], stock: ['Products', 'Stock'], buying: ['Products', 'Buying'], drops: ['Products', 'Drops'],
-  buyer: ['Ads', 'Buyer list'], today: ['Ads', 'Calls'], tests: ['Ads', 'Tests'], angles: ['Ads', 'Tests'], channels: ['Ads', 'Accounts'], meta: ['Ads', 'Accounts'], campaigns: ['Ads', 'Accounts'], mtoday: ['Ads', 'Accounts'],
+  buyer: ['Ads', 'Calls'], today: ['Ads', 'Calls'], tests: ['Ads', 'Tests'], angles: ['Ads', 'Tests'], channels: ['Ads', 'Accounts'], meta: ['Ads', 'Accounts'], campaigns: ['Ads', 'Accounts'], mtoday: ['Ads', 'Accounts'],
   google: ['Ads', 'Accounts'], gcampaigns: ['Ads', 'Accounts'], gads: ['Ads', 'Accounts'], gterms: ['Ads', 'Accounts'], tiktok: ['Ads', 'Accounts'], adcreative: ['Ads', 'Ads'], mbrowser: ['Ads', 'Ads'],
   changes: ['Ads', 'Changes'], gchanges: ['Ads', 'Changes'], calc: ['Tools', 'Calculators'], pulse: ['Tools', 'Platform status'], guide: ['Tools', 'Guide'] });
 const NAV4 = {
@@ -5173,7 +5173,7 @@ const NAV4 = {
      sends (Email and Search moved here); Products is its own item (Stock, Buying, Drops). The key stays 'ads' so every
      data-grp, the phone bar and NAV_LAST keep working. */
   money: { label: 'Money', tabs: [['month', 'Month'], ['profit', 'P&L'], ['customers', 'Customers'], ['store', 'Store', 'b-shopify'], ['website', 'Site', 'b-ga']] },
-  ads: { label: 'Ads', tabs: [['buyer', 'Buyer list'], ['today', 'Calls'], ['channels', 'Accounts'], ['adcreative', 'Ads'], ['angles', 'Tests'], ['changes', 'Changes'], ['email', 'Email', 'b-klaviyo'], ['search', 'Search', 'b-google']] },
+  ads: { label: 'Ads', tabs: [['buyer', 'Calls'], ['today', 'Calls'], ['channels', 'Accounts'], ['adcreative', 'Ads'], ['angles', 'Tests'], ['changes', 'Changes'], ['email', 'Email', 'b-klaviyo'], ['search', 'Search', 'b-google']] },
   products: { label: 'Products', tabs: [['stock', 'Stock'], ['buying', 'Buying'], ['drops', 'Drops']] },
   make: { label: 'Make', tabs: [['production', 'Pipeline'], ['studio', 'Studio'], ['library', 'Library'], ['inspo', 'Inspiration'], ['social', 'Social'], ['amb', 'Creators'], ['answers', 'Brand']] },
   calendar: { label: 'Calendar', tabs: [['calendar', 'Calendar'], ['warplan', 'Season']] },
@@ -5287,6 +5287,7 @@ const inAgency = () => !isClient() && S.act === 'all';
 const tabScope = t => AGENCY_ONLY.has(t) ? 'agency' : VIEW_BOTH.has(t) ? 'both' : 'client';
 function tabInView(g, t, agency = inAgency()) {
   if (g === 'work') return t !== 'ccall' || !agency;   // Meetings and Tasks in both views (2026-10-27); Client call only under a brand
+  if (V4 && g === 'ads' && t === 'today') return isClient();   // one Calls tab: the team's is the Buyer list (step 2)
   if (g === 'creative' && t === 'production') return !agency;
   if (g === 'home' && t === 'tasks') return !agency;   // under a client, Tasks sits in Home; in Agency view it is Work > Tasks
   const sc = tabScope(t);
@@ -5600,6 +5601,9 @@ function show(tab, opt) {
   if (tab === 'actions') tab = window.ACT_MEETING ? 'calls' : 'tasks';
   if (tab === 'brand') tab = BRAND_VIEW_TAB[localStorage.getItem('br_view')] || 'research';
   if (V4 && tab === 'overview') tab = 'morning';
+  /* ONE CALLS PAGE (2026-11-04, structure step 2): for the team, Today's calls is the Buyer list (same rows, shared Done / Skip, every brand or one).
+     A client login keeps the read-only Today's calls page until the Buyer list has a client view; both tabs are named Calls and each viewer sees one. */
+  if (V4 && tab === 'today' && !isClient()) tab = 'buyer';
   if (!V4 && tab === 'morning') tab = 'overview';
   if (!V4 && tab === 'month') tab = 'profit';
   /* An unknown page id (a stale saved tab, a bad link) lands on Overview instead of
