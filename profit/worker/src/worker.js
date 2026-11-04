@@ -23,7 +23,7 @@ import { handlePublic as ambPublic, handleStaff as ambStaff } from './amb.js';
 import { handlePublic as brandPublic, handleStaff as brandStaff } from './brand.js';
 import { handlePublic as studioPublic, handleStaff as studioStaff } from './studio.js';
 
-const DASHBOARD_URL = 'https://tools.go-mobius-digital.com/profit/';
+const DASHBOARD_URL = 'https://locus.go-mobius-digital.com/profit/';
 import { handleSeason, seasonPublic } from './season.js';
 import { handleShopifyApp } from './shopifyapp.js';
 import { handleScenario } from './scenario.js';

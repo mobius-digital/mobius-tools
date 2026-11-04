@@ -32,7 +32,7 @@ import { mirrorOn, saveCard, textToHtml } from './prodwork.js';
 import { clip, safeJson } from './research.js';
 
 const SELF = 'https://mobius-account-health.mobius-digital.workers.dev';
-const LOCUS = 'https://tools.go-mobius-digital.com/profit/';
+const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 export const EXITS = ['organic', 'creators', 'brief', 'studio'];
 const rid = () => crypto.randomUUID().replace(/-/g, '').slice(0, 16);
 const plain = (m, status = 400) => Object.assign(new Error(m), { plain: true, status });

@@ -13,7 +13,7 @@
  *   2026-10-13: OFF while the morning card is on (settings.morningCard); the card reuses readToday and messageFor. */
 import { SKIP as PAUSED } from './moved.js';
 const PROFIT_ORIGIN = 'https://mobius-profit.mobius-digital.workers.dev';
-const LOCUS = 'https://tools.go-mobius-digital.com/profit/';
+const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 export const TODAY_HOUR = 8, TODAY_LAST_HOUR = 13;
 const KINDS = ['scale', 'cut', 'trim', 'refresh', 'mixed'];
 const VERB = { scale: 'Scale', cut: 'Cut', trim: 'Trim', refresh: 'Refresh', mixed: 'Mixed, your call' };

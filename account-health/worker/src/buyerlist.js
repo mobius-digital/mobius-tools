@@ -53,7 +53,7 @@ const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const LAST_HOUR = 12;
 const MIN_CACHE_MS = 6 * 3600e3;
-const LOCUS = 'https://tools.go-mobius-digital.com/profit/';
+const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 const CALL_KINDS = ['scale', 'cut', 'trim', 'refresh', 'mixed'];
 export const KINDS = [...CALL_KINDS, 'minoff', 'stalled', 'launch', 'ai'];
 

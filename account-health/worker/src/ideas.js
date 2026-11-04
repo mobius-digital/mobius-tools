@@ -97,8 +97,8 @@ const r4 = n => Math.round((n || 0) * 10000) / 10000;
 const wantsQuick = text => /\bquick\b/i.test(String(text || ''));
 const wantsCompare = text => /\bcompare\b/i.test(stripTags(text));
 export const DEFAULT_APPROVERS = 'U06C37MDWD7,U06K732S4BD';   // Cole, Ahsan
-const LOCUS = 'https://tools.go-mobius-digital.com/profit/';
-const ANGLES = 'https://tools.go-mobius-digital.com/angles/';
+const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
+const ANGLES = 'https://locus.go-mobius-digital.com/angles/';
 /* Images are read from Slack's 1024px copies (parseThread), about 1,000 tokens each, so eight is cheap. */
 const MAX_VIDEOS = 3, MAX_IMAGES = 8, MAX_VIDEO_BYTES = 300e6, MAX_IMAGE_BYTES = 3.7e6;
 /* A reference clip kept for the creator link: same cap as an Ambassadors-tab upload (amb.js MAX_UPLOAD).

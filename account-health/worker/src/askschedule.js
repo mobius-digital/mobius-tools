@@ -41,7 +41,7 @@ export const KINDS = { question: 'Answer a question', task: 'Do a task (changes 
 const MODEL_KINDS = new Set(['question', 'task', 'report']);
 export const MAX_PER_DAY = 10;
 const MAX_PER_TICK = 3;
-const LOCUS = 'https://tools.go-mobius-digital.com/profit/';
+const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 const hex = n => Array.from(crypto.getRandomValues(new Uint8Array(n))).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, n);
 const hourWord = h => `${h % 12 === 0 ? 12 : h % 12}${h < 12 ? 'am' : 'pm'}`;
 export const whenText = r => `${CADENCE_L[r.cadence] || r.cadence} at ${hourWord(+r.hour_central || 0)} Central`;

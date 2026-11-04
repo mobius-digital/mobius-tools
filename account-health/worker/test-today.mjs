@@ -32,7 +32,7 @@ await check('the line and the message: call, name, money at stake, why, the Locu
   assert.match(lineFor(ROWS.brand_alpha[2]), /^\*Trim\* the ad "312 C \| UGC" in "Broad \| Gift", \$95 at stake\./);
   const m = messageFor({ act_id: 'brand_alpha', name: 'Alpha Golf' }, ROWS.brand_alpha);
   assert.match(m.text, /^Today's ad calls: Alpha Golf\n\*Scale\*/); assert.ok(!/Meta spent nothing/.test(m.text), 'fix rows stay out');
-  assert.equal(m.blocks.length, 5, 'header, one section per call, button, footer'); assert.equal(m.blocks[3].elements[0].url, 'https://tools.go-mobius-digital.com/profit/?open=today&act=brand_alpha');
+  assert.equal(m.blocks.length, 5, 'header, one section per call, button, footer'); assert.equal(m.blocks[3].elements[0].url, 'https://locus.go-mobius-digital.com/profit/?open=today&act=brand_alpha');
   assert.ok(!/—/.test(JSON.stringify(m)), 'no em dash');
   const many = Array.from({ length: 60 }, (_, i) => ({ kind: 'cut', adset: 'Set ' + i, stake: 100 - i, why: 'A full reason that is not cut. '.repeat(4) }));
   const mm = messageFor({ act_id: 'brand_alpha', name: 'Alpha Golf' }, many);

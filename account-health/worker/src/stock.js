@@ -92,7 +92,7 @@ export async function stockView(env, acct, what = 'summary', opts = {}) {
      Eclipse Blade, out for months with 362 on order, vanished and the Strategist said no putters were coming). */
   const live = st.products.filter(p => p.status !== 'off' && (p.velocity > 0.001 || p.onHand > 0 || p.incoming > 0));
   const base = { brand: acct.name, today: st.today, black_friday: J.SE.black_friday, cyber_monday: J.SE.cyber_monday, buying_on: !!b.buys, drops_on: !!b.makes,
-    ad_spend_30d: ads.total, ad_spend_tied_to_products: ads.mapped, open: 'https://tools.go-mobius-digital.com/profit/?open=stock&act=' + acct.act_id };
+    ad_spend_30d: ads.total, ad_spend_tied_to_products: ads.mapped, open: 'https://locus.go-mobius-digital.com/profit/?open=stock&act=' + acct.act_id };
   if (what === 'products') return { ...base, products: live.map(prod) };
   /* Every size of every product (or the ones named): on hand, sales, what is on order and when it lands. The grain
      for "do we have enough of each SKU for $X" (2026-10-18: without it the Strategist looped and answered nothing). */

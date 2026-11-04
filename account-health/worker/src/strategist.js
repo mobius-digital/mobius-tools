@@ -285,7 +285,7 @@ HOW YOU WORK (2026-10-09; Cole: "an assistant who understands and does stuff", t
   * Never hand work back. If a tool can do it (match ads to files, count orders, read the board, search
     again), do it, then act (send the cards). "A human should sort these" is not an answer.
 
-WHERE THINGS ARE IN LOCUS (2026-10-09 restructure; when you send someone somewhere, use these names, and link as https://tools.go-mobius-digital.com/profit/?open=<page id>&act=<brand id>)
+WHERE THINGS ARE IN LOCUS (2026-10-09 restructure; when you send someone somewhere, use these names, and link as https://locus.go-mobius-digital.com/profit/?open=<page id>&act=<brand id>)
 - Two views (2026-10-19). The client picker's top choice is AGENCY VIEW (act=all; never call it "All clients"): Home (the command center, Day check, Goals, Requests for every brand), Ads (Today's calls, every brand), Calendar, Work, Reports, the season item, Tools (Platform status, Agency economics, Team workload). Picking a client shows only that client's pages. Work is Agency view only: Calls (open=calls; the Monday call open=calls&call=monday, the creative kickoff open=calls&call=kickoff), Tasks (open=tasks), Production (open=production, every brand's ads from brief to live). For one client, its Production board is under Creative (open=production&act=<brand id>) and its client call is Home > Client call (open=ccall&act=<brand id>). A link to a page in the other view switches the view by itself.
 - Home: Overview (open=overview, the central dashboard with Needs you today; in Agency view the command center), Day check (open=yesterday: was yesterday a bad day ON META for advertisers in general; bad when 2+ of 4 signs agree: our brands' Meta cost per sale, Breezeway's panel, Meta's status page, advertisers online), P&L (open=profit), Goals (open=plan: the month's revenue, spend and MER plus the goal cost per sale and goal ROAS).
 - Ads: Today (open=today: the media buyer's list for the day, ad set first: scale, cut, trim, refresh, fix, test calls), Meta (open=meta; jobs Campaigns open=campaigns where people also pause, change budgets, rename and copy ad sets by hand, Ads open=adcreative = the creative gallery, Changes open=changes), Google (open=google; jobs Campaigns open=gcampaigns with pause and budget by hand, Ads open=gads, Search terms open=gterms, Changes open=gchanges), TikTok (open=tiktok), All channels (open=channels), Tests and angles (open=angles). Test calls open from Today (open=tests).
@@ -883,10 +883,10 @@ async function snapshot(env, h, d) {
 
 const rid = () => crypto.randomUUID().replace(/-/g, '').slice(0, 16);
 const clip = (v, n) => v == null ? null : String(v).slice(0, n);
-const SHARE_URL = 'https://tools.go-mobius-digital.com/profit/share.html?s=';
+const SHARE_URL = 'https://locus.go-mobius-digital.com/profit/share.html?s=';
 /* The saved-dashboards table, the same statement as profit/worker/src/dashboard.js (shared D1). */
 const DASH_SQL = `CREATE TABLE IF NOT EXISTS p_dashboard (id TEXT PRIMARY KEY, act_id TEXT, name TEXT NOT NULL, for_who TEXT, spec_json TEXT NOT NULL, schedule TEXT, channel TEXT, pinned INTEGER NOT NULL DEFAULT 1, created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), last_posted TEXT)`;
-const LOCUS_URL = 'https://tools.go-mobius-digital.com/profit/';
+const LOCUS_URL = 'https://locus.go-mobius-digital.com/profit/';
 
 /* ---------------- Asana briefs (2026-10-07) ----------------
    Ahsan asked the bot to fill in brief 397 from an approved thread and it could not; Viktor did it by

@@ -38,7 +38,7 @@ import { recordWrite, registerUndo, doneNote } from './extwrite.js';
 
 export const AH_ORIGIN = 'https://mobius-account-health.mobius-digital.workers.dev';
 const PROFIT_ORIGIN = 'https://mobius-profit.mobius-digital.workers.dev';
-const LOCUS_URL = 'https://tools.go-mobius-digital.com/profit/';
+const LOCUS_URL = 'https://locus.go-mobius-digital.com/profit/';
 const OA = 'https://api.openai.com/v1';
 const ANT = 'https://api.anthropic.com/v1';
 

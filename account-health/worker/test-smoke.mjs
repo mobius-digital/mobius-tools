@@ -150,7 +150,7 @@ eq(posts[0].p.channel, 'C_STRAT', 'to the Strategist channel');
 const txt = posts[0].p.text;
 ok(/2 of \d+ checks failed/.test(txt), 'the headline says how many failed');
 ok(txt.includes('Bonk Golf, Ads &gt; Meta: HTTP 500: D1_ERROR: no such column'), 'the line names the brand, the page and the error');
-ok(txt.includes('<https://tools.go-mobius-digital.com/profit/?open=meta&act=brand_bonk|Open>'), 'and links to that page in Locus');
+ok(txt.includes('<https://locus.go-mobius-digital.com/profit/?open=meta&act=brand_bonk|Open>'), 'and links to that page in Locus');
 ok(txt.includes('Lucky Golf, Email and SMS: HTTP 502: Klaviyo said the key is invalid'), 'an in-process route failure is reported the same way');
 ok(!/\u2014|\u2013/.test(txt), 'no em or en dashes in the message');
 const last = JSON.parse(await getSetting(null, 'smokeLast'));

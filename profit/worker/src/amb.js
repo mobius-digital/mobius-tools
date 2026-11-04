@@ -2,7 +2,7 @@
  * Ambassadors: the living creator brief (2026-09-16).
  *
  * Staff keep each brand's angles on Locus's Ambassadors tab; creators read them on
- * a public link, tools.go-mobius-digital.com/angles/<slug>. The link is the brief:
+ * a public link, locus.go-mobius-digital.com/angles/<slug>. The link is the brief:
  * the PDF uploaded to TRYBE only points at it, so it never goes stale.
  *
  * THE PUBLIC PAYLOAD CARRIES NO MONEY. Cole's rule: no sales figures on a public

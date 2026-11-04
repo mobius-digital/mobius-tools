@@ -28,7 +28,7 @@
  * Preview without posting: GET /api/moved-preview (admin), with each brand's verdict. */
 import { marketLine, metaDay, chatterFor } from './market.js';
 import { liveOn } from './calendar.js';
-const LOCUS = 'https://tools.go-mobius-digital.com/profit/';
+const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 export const MOVED_HOUR = 8;
 const MOVED_LAST_HOUR = 13;
 /* Paused brands and the test account never get a post (memory: paused-brands, golf-sock-paused). */

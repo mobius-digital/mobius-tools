@@ -25,7 +25,7 @@ import { adsOf, decide, decideMany, htmlToText, isCarousel } from './prodwork.js
 import { teamOf } from './calendar.js';
 import { ROSTER, addAction } from './actions.js';
 
-const LOCUS = 'https://tools.go-mobius-digital.com/profit/';
+const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 const ORIGIN = 'https://mobius-account-health.mobius-digital.workers.dev';
 export const DEFAULT_CHANNEL = 'C0CC92YD8CU';
 export const DEFAULT_PEOPLE = {

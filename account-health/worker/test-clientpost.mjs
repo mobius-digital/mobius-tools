@@ -96,7 +96,7 @@ const TOTALS = { sales: 5890, spend: 3105, mer: 1.90, cm: 1784 }, PREV = { sales
 await check('the weekly: title, the rule sentence, labelled bullets with ONE comparison each, contribution margin defined, This week, We need from you with dates, the link', () => {
   const t = weeklyPost({ brand: 'Grunk Dolfer', period: 'weekly', start: '2026-10-12', end: '2026-10-18', totals: { ...TOTALS, amer: 1.2 }, previous: { ...PREV, amer: 1.41 },
     this_week: ['Splatter Collection goes live Friday; the drop email goes today', 'Three Splatter ads into testing by Thursday'],
-    from_you: [{ text: 'Is Splatter full price or a deal?', asked: '2026-10-13', due: '2026-10-22' }, 'Photos for Splatter Collection (live Fri Oct 23)'], url: 'https://tools.go-mobius-digital.com/profit/?reports=abc' });
+    from_you: [{ text: 'Is Splatter full price or a deal?', asked: '2026-10-13', due: '2026-10-22' }, 'Photos for Splatter Collection (live Fri Oct 23)'], url: 'https://locus.go-mobius-digital.com/profit/?reports=abc' });
   assert.equal(t, [
     '*Grunk Dolfer \u00b7 Weekly report, Oct 12 to 18*',
     '_A quieter week: sales down 15% on the same ad spend._',
@@ -113,7 +113,7 @@ await check('the weekly: title, the rule sentence, labelled bullets with ONE com
     '', '*We need from you*',
     '\u2022 Is Splatter full price or a deal? (asked Oct 13, needed by Oct 22)',
     '\u2022 Photos for Splatter Collection (live Fri Oct 23)',
-    '', '<https://tools.go-mobius-digital.com/profit/?reports=abc|Open the full report>'].join('\n'));
+    '', '<https://locus.go-mobius-digital.com/profit/?reports=abc|Open the full report>'].join('\n'));
   assert.ok(!/vs plan|Hey Team|Profit|\u25B2|\u25BC/.test(t), 'no plan comparison, no opener, no "Profit", no arrows');
 });
 await check('weekSentence: one fixed sentence per shape of the week, never a model', () => {

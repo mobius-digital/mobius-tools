@@ -33,7 +33,7 @@ import { brandBrain, SPECIFICITY } from './brain.js';
 import { slackIdOf } from './morningcard.js';
 import { frameLater } from './framesync.js';
 
-const LOCUS = 'https://tools.go-mobius-digital.com/profit/';
+const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 const AI_MODEL = 'claude-sonnet-5-5';
 const MAX_BYTES = 95 * 1024 * 1024;   // one request body tops out at 100MB: bigger files come in parts (uploadStart / uploadPart / uploadFinish)
 const KEEP_DAYS = 60;                  // live this long: only the final version stays

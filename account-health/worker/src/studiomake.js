@@ -16,7 +16,7 @@
  */
 const AH_ORIGIN = 'https://mobius-account-health.mobius-digital.workers.dev';
 const PROFIT_ORIGIN = 'https://mobius-profit.mobius-digital.workers.dev';
-const LOCUS = 'https://tools.go-mobius-digital.com/profit/';
+const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 const MAX_ADS = 24, LANES = 2;
 const clip = (s, n) => String(s ?? '').slice(0, n);
 const safeJson = (s, d) => { try { return s == null ? d : JSON.parse(s); } catch { return d; } };

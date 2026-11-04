@@ -110,7 +110,7 @@ await check('one card per brand to its INTERNAL channel; internal = client chann
   assert.ok(lines.includes('*Client owes* Fall polo samples · 4 days'));
   assert.ok(!/Weekly report/.test(alphaCard.text), 'no weekly line on a Tuesday');
   const btns = alphaCard.blocks.filter(b => b.type === 'actions').map(b => b.elements[0]);
-  assert.deepEqual(btns.map(b => [b.text.text, b.url, b.action_id]), [['Open Alpha Golf in Locus', 'https://tools.go-mobius-digital.com/profit/?act=brand_alpha', 'noop_open'], ['Make the ad calls', 'https://tools.go-mobius-digital.com/profit/?open=today&act=brand_alpha&doall=1', 'noop_open']]);
+  assert.deepEqual(btns.map(b => [b.text.text, b.url, b.action_id]), [['Open Alpha Golf in Locus', 'https://locus.go-mobius-digital.com/profit/?act=brand_alpha', 'noop_open'], ['Make the ad calls', 'https://locus.go-mobius-digital.com/profit/?open=today&act=brand_alpha&doall=1', 'noop_open']]);
   const beta = top.find(p => p.channel === 'C_BETA');
   assert.equal(beta.text.split('\n')[0], '*Beta Socks:* <@U_COLE>, client update: Approve the client daily, it is waiting on you', 'a daily waiting is Cole\'s job, line 1');
   assert.equal(beta.blocks.filter(b => b.type === 'actions').length, 1, 'no calls = no Make the calls button');

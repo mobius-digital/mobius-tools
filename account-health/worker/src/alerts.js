@@ -60,7 +60,7 @@ export async function ensureAlerts(env) {
 
 const OWNER = 'cole@go-mobius-digital.com';
 const COLE_SLACK = 'U06C37MDWD7';
-const LOCUS = 'https://tools.go-mobius-digital.com/profit/';
+const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 const LEDGER_URL = 'https://mobius-ledger.mobius-digital.workers.dev/api/ask';
 const SKIP = /golf sock|harborline|galway|instyler|gum of gods|judy ?p|le ?pickle|popby/i;
 const hex = n => Array.from(crypto.getRandomValues(new Uint8Array(n))).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, n);

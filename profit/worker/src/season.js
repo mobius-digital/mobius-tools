@@ -572,7 +572,7 @@ export async function handleSeason({ path, request, env, accountsFor, email, ser
          ON CONFLICT(act_id, season) DO UPDATE SET token = excluded.token, created_at = datetime('now')`,
       ).bind(b.act, SEASON, token).run();
     }
-    return json({ ok: true, token, url: `https://tools.go-mobius-digital.com/profit/?season=${token}` });
+    return json({ ok: true, token, url: `https://locus.go-mobius-digital.com/profit/?season=${token}` });
   }
   return json({ error: 'not found' }, 404);
 }
