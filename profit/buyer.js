@@ -23,6 +23,14 @@
  * numbers) -> Go with mine / Go with Locus; every disagreement is saved as a buyer lesson the morning read follows.
  * The morning read (Opus, before the daily post) marks each rule row keep / change / drop and adds the calls the rules
  * missed (kind 'ai', "From the morning read").
+ * THE CARD (2026-11-05, Cole: "inside Locus the ad cards already show all the stats and play the video, why not use the same
+ * card types"): the page is one card per brand (name, week chips, one line) and rows in the order raise, cut, trim, refresh,
+ * keep, note, launch, tidy. Each row = kind tag + level and object, the directive headline (`card.do`), 3 to 6 number chips
+ * (`card.facts`, good / bad), a bold Why line (`card.because`), every ad behind the object as a sideways strip of large
+ * thumbnails (the same covers and player as the Ads page: V2.thumbs + V2.playAd, a tap = the ad's numbers and the video),
+ * then Yes / No, or a "Nothing to do" label. Yes runs the row's write (the same dry run, write with expect, Change Log, Undo)
+ * and records the decision; No records it and opens a one-line Why, saved as a buyer lesson (/api/buyer-list/disagree).
+ * "x of y decided" at the top; "What we did" drafts the plain client update per brand from the Yes rows.
  * The host passes { S, api, apiAH, show, pageHead, pageActions, confirmModal, AskUI, RUN }. */
 (() => {
   let H = null;
@@ -37,7 +45,6 @@
   const DO_LABEL = { budget: 'Agree', pause: 'Agree', resume: 'Agree', minoff: 'Agree', launch: 'Launch', brief: 'Agree' };
   const AI_SAYS = { keep: 'agrees', change: 'says change it', drop: 'says drop it' };
   const ROLE = { opener: 'Opens journeys', closer: 'Closes sales', both: 'Opens and closes' };
-  let OPEN = new Set(), ADS = new Map();
   const DO_TIP = { budget: 'Change the budget. You see the number and confirm before anything is written.', pause: 'Turn it off in Meta. You see it first and confirm.', resume: 'Turn it back on in Meta. You see it first and confirm.',
     minoff: 'Set the test minimum to $0 in Meta. You see it first and confirm.', launch: 'Opens Launch to Meta for this card. The ads go up paused.', brief: 'Ask Locus to brief a new version of the main ad.' };
   let KIND = 'all', SHOWQ = false, DATA = null, BUSY = false, LQ = '', LALL = false, LREAD = '';
@@ -152,7 +159,52 @@
       .by .by-lmore{margin-top:8px}
       .by-dl{display:grid;grid-template-columns:110px 1fr;gap:6px 12px;margin:0 0 12px;font-size:13.5px}.by-dl dt{color:var(--muted)}.by-dl dd{margin:0;word-break:break-word}
       .by-days{display:flex;flex-wrap:wrap;gap:8px}.by-days label{flex-direction:row;align-items:center;gap:6px;margin:0;border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-height:44px}
+      /* the card (2026-11-05) */
+      .by .by-card{padding:0;overflow:hidden}
+      .by .by-bh{padding:14px 18px 12px;border-bottom:1px solid var(--line);display:grid;gap:8px}
+      .by .by-bh .nm{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+      .by .by-bh h3{margin:0;font-size:18px}
+      .by .by-bh .m{color:var(--muted);font-size:13px;flex:1 1 auto}
+      .by .by-bh .line{font-size:14px;color:var(--muted);max-width:70ch;margin:0}
+      .by .by-bh .v2btn{margin:0}
+      .by .by-week,.by .by-facts{display:flex;gap:6px;flex-wrap:wrap}
+      .by .by-f{font-size:12.5px;font-variant-numeric:tabular-nums;padding:4px 8px;border-radius:6px;background:var(--surface-2);color:var(--ink);white-space:nowrap}
+      .by .by-f small{color:var(--muted);font-size:11.5px;margin-right:4px}
+      .by .by-f.good{background:var(--good-bg);color:var(--good)}.by .by-f.bad{background:var(--bad-bg);color:var(--bad)}
+      .by .by-cr{padding:14px 18px;border-bottom:1px solid var(--line);display:grid;gap:9px}
+      .by .by-cr:last-child{border-bottom:0}
+      .by .by-cr.yes{box-shadow:inset 4px 0 0 var(--good)}.by .by-cr.no{box-shadow:inset 4px 0 0 var(--bad)}
+      .by .by-ch{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px 14px;align-items:start}
+      .by .by-lab{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px}
+      .by .by-lab .lv{font-size:12px;color:var(--muted)}.by .by-lab .lv b{color:var(--ink);font-weight:600}
+      .by .by-k.raise,.by .by-k.launch{background:var(--good-bg);color:var(--good)}.by .by-k.keep,.by .by-k.tidy,.by .by-k.note{background:var(--surface-2);color:var(--muted)}
+      .by .by-do{font-size:16px;font-weight:700;line-height:1.3;overflow-wrap:anywhere}
+      .by .by-bec{font-size:14px;line-height:1.45;max-width:72ch}.by .by-bec b{color:var(--muted);margin-right:5px}
+      .by .by-strip{display:flex;gap:10px;overflow-x:auto;padding:2px 0 6px;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}
+      .by .by-ad{flex:0 0 190px;scroll-snap-align:start;display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--muted)}
+      .by .by-adth{aspect-ratio:4/5;width:100%;border-radius:10px;border:2px solid transparent;background:var(--surface-2) center/cover no-repeat;cursor:zoom-in;padding:0;position:relative}
+      .by .by-ad.focus .by-adth{border-color:var(--brand)}.by .by-ad.off .by-adth{opacity:.45}
+      .by .by-adth span{position:absolute;left:6px;top:6px;font-size:10.5px;font-weight:650;background:rgba(0,0,0,.6);color:#fff;border-radius:5px;padding:2px 6px}
+      .by .by-adth i{position:absolute;right:6px;bottom:6px;width:26px;height:26px;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:11px}
+      .by .by-ad .nm{color:var(--ink);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .by .by-ad .st{font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.by .by-ad .st.good{color:var(--good)}.by .by-ad .st.bad{color:var(--bad)}
+      .by .by-more{flex:0 0 auto;align-self:center;font-size:12.5px;color:var(--muted);padding:0 8px}
+      .by .by-dec{display:flex;gap:6px;align-items:center;flex-shrink:0}
+      .by .by-dec .v2btn{margin:0;min-width:58px;font-weight:700}
+      .by .by-dec .v2btn.on.yes{background:var(--good);border-color:var(--good);color:#fff}.by .by-dec .v2btn.on.no{background:var(--bad);border-color:var(--bad);color:#fff}
+      .by .by-fyi{font-size:12px;font-weight:650;color:var(--muted);border:1px dashed var(--line);border-radius:8px;padding:7px 10px;white-space:nowrap}
+      .by .by-note{display:flex;gap:8px;align-items:center}
+      .by .by-note input{flex:1;min-width:0;font:inherit;font-size:13.5px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
+      .by .by-said{font-size:13px;color:var(--muted);font-style:italic}
+      .by .by-ans{font-size:13px;color:var(--ink);background:var(--surface-2);border-radius:6px;padding:5px 9px}
+      .by .by-cf{display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+      .by .by-cf .v2link{font-size:12.5px}
+      .by-wwd{white-space:pre-wrap;font:inherit;font-size:13.5px;line-height:1.5;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin:0 0 12px;min-height:90px;width:100%;resize:vertical;color:var(--ink)}
+      .by-kv{display:grid;grid-template-columns:1fr auto;gap:4px 12px;font-size:13.5px;margin-top:10px}.by-kv span:nth-child(odd){color:var(--muted)}.by-kv span:nth-child(even){font-variant-numeric:tabular-nums;text-align:right}
       @media (max-width:900px){
+        .by .by-ch{grid-template-columns:1fr}
+        .by .by-dec{justify-content:stretch}.by .by-dec .v2btn{flex:1;min-height:44px}
+        .by .by-ad{flex-basis:160px}
         .by .by-l{grid-template-columns:1fr auto;grid-template-areas:"w st" "b b" "a a";gap:2px 10px;padding:12px 0}
         .by .by-l .w{grid-area:w}.by .by-l .st{grid-area:st;text-align:right}.by .by-l .b{grid-area:b}.by .by-l .a{grid-area:a}.by .by-l .v2btn{display:none}
         .by .by-lnch .by-find{max-width:none;flex-basis:100%;min-height:44px}
@@ -206,7 +258,7 @@
     const shell = body => `<div class="v2 by">${H.pageHead('buyer', title).replace(/<p class="ph-sub">[\s\S]*?<\/p>/, '')}${body}</div>`;
     if (first || !DATA || DATA.act !== (one ? one.act_id : 'all')) $('#main').innerHTML = shell('<section class="v2card"><p class="v2hint">Reading every brand&rsquo;s calls, test minimums and cards ready to launch&hellip;</p></section>');
     let d;
-    try { d = await H.apiAH(`/api/buyer-list?act=${encodeURIComponent(one ? one.act_id : 'all')}`); if (d && d.error) throw new Error(d.error); }
+    try { d = await H.apiAH(`/api/buyer-list?act=${encodeURIComponent(one ? one.act_id : 'all')}&ads=1`); if (d && d.error) throw new Error(d.error); }
     catch (e) { if (t === H.RUN()) $('#main').innerHTML = shell(`<section class="v2card"><h3>Could not load the list</h3><p class="v2bad">${esc(e.message)}</p><button type="button" class="v2btn" id="byRetry">Try again</button></section>`); const b = $('#byRetry'); if (b) b.onclick = () => render(H, true); return; }
     if (t !== H.RUN()) return;
     DATA = d; LREAD = ''; paint();
@@ -217,31 +269,44 @@
     const d = DATA, one = d.act !== 'all';
     const rows = d.rows || [];
     const groups = groupsOf(rows);
-    const nDo = rows.filter(canDo).length;
-    const stake = d.stake > 0 ? `, <b>${esc(kmoney(d.stake, d.currency))}</b> at stake` : '';
+    const nDo = rows.filter(r => canDo(r) && !r.decided).length;
+    const dec = decidedOf(rows);
     const nx = d.next_launch || {};
     const next = !d.launch_today && nx.n ? `<p class="by-next">Next launch: <b>${esc(nx.day)}</b>, ${nx.n} card${nx.n === 1 ? '' : 's'} (${nx.n_ads} approved ad${nx.n_ads === 1 ? '' : 's'}). Ready cards go out on launch days, ${esc(daysWords(d.launch_days))}.</p>`
       : d.launch_today && (d.counts || {}).launch ? `<p class="by-next">Launch day today: ${d.counts.launch} card${d.counts.launch === 1 ? '' : 's'} to launch.</p>` : '';
-    const lead = `<p class="v2say lead by-lead"><b>${d.n} change${d.n === 1 ? '' : 's'} ready</b>${one ? '' : ` across ${d.n_brands} brand${d.n_brands === 1 ? '' : 's'}`}${stake}. <span class="by-own">Owner: <b>${esc(d.owner)}</b> <button type="button" class="v2link" id="byOwner">Change</button></span></p>
-      ${nDo > 1 ? `<p class="by-lead"><button type="button" class="v2btn" id="byAll" title="See every change in one list, then Locus makes them one by one. Rows that need you are skipped.">Agree to all ${nDo}</button></p>` : ''}`;
-    /* Grouped by brand, the brand with the most money at stake first; each brand has its own Agree to all. */
-    const list = rows.length ? groups.map(g => `<section class="v2card by-grp"><div class="by-gh"><h3>${esc(g.brand)}</h3><span class="m">${g.rows.length} change${g.rows.length === 1 ? '' : 's'}${g.stake > 0 ? `, ${esc(kmoney(g.stake, g.currency))} at stake` : ''}</span>${!one && g.n_do > 1 && groups.length > 1 ? `<button type="button" class="v2btn ghost" data-allb="${esc(g.act_id)}">Agree to all ${g.n_do}</button>` : ''}</div>${g.rows.map(row).join('')}</section>`).join('')
+    const lead = `<p class="v2say lead by-lead">${dec.of ? `<b>${dec.n} of ${dec.of} decided</b>${dec.n === dec.of ? '. All set.' : ''}` : '<b>Nothing needs a decision today</b>'}${one ? '' : ` across ${groups.length} brand${groups.length === 1 ? '' : 's'}`}. <span class="by-own">Owner: <b>${esc(d.owner)}</b> <button type="button" class="v2link" id="byOwner">Change</button></span></p>
+      <p class="by-lead"><span class="v2hint">Yes makes the change in Meta (logged, Undo for 24 hours). No leaves it and teaches Locus your reason. Tap an ad for its numbers and the video.</span>${nDo > 1 ? ` <button type="button" class="v2btn" id="byAll" title="See every change in one list, then Locus makes them one by one. Rows that need you are skipped.">Yes to all ${nDo}</button>` : ''}</p>`;
+    /* One card per brand, the brand with the most money at stake first; rows in the card order. */
+    const list = rows.length ? groups.map(brandCard).join('')
       : `<section class="v2card"><h3>Nothing to do</h3><p class="v2hint">No ad set crossed a rule, no test minimum is due off and no card is waiting to launch. Done and skipped calls come back when they are due.</p></section>`;
     const h = d.hidden || {}, nq = (h.done || 0) + (h.skipped || 0) + (h.watched || 0) + (h.dropped || 0);
-    const foot = `<div class="by-foot"><span>Biggest money first. A minimum counts a week of it; launches have no money yet.</span>${one ? '<button type="button" class="v2link" id="byCalls">Your calls</button>' : ''}${nq ? `<button type="button" class="v2link" id="byQuiet">${SHOWQ ? 'Hide' : 'Show'} ${nq} quiet: ${[h.done ? `${h.done} done` : '', h.skipped ? `${h.skipped} skipped until tomorrow` : '', h.watched ? `${h.watched} changed in Meta in the last 3 days` : '', h.dropped ? `${h.dropped} Locus dropped` : ''].filter(Boolean).join(', ')}</button>` : ''}</div>`;
+    const foot = `<div class="by-foot"><span>Brands with the most money at stake first. Sales are Triple Whale last click.</span>${one ? '<button type="button" class="v2link" id="byCalls">Your calls</button>' : ''}${nq ? `<button type="button" class="v2link" id="byQuiet">${SHOWQ ? 'Hide' : 'Show'} ${nq} quiet: ${[h.done ? `${h.done} done` : '', h.skipped ? `${h.skipped} skipped until tomorrow` : '', h.watched ? `${h.watched} changed in Meta in the last 3 days` : '', h.dropped ? `${h.dropped} Locus dropped` : ''].filter(Boolean).join(', ')}</button>` : ''}</div>`;
     const quiet = SHOWQ && nq ? `<section class="v2card"><div class="v2h"><h3>Quiet for now</h3><span class="find">Done stays quiet 3 days, Skip until tomorrow, and a change made in Meta is watched 3 days before it is judged again.</span></div>${(d.quiet || []).map(qrow).join('')}</section>` : '';
     /* Tracking gap (hub.js buyerList banners): one line per brand whose cuts are on hold. */
     const banners = (d.banners || []).map(b => `<p class="v2say by-gap" role="note"><b>${esc(b.brand)}</b>: ${esc(b.text)}</p>`).join('');
-    /* The morning read: one line, the brand summaries when one brand is open. */
     const ai = d.ai || {};
-    const aiLine = !ai.on ? '' : ai.n_read ? `<p class="by-next">Morning read: ${ai.n_read} of ${ai.n_brands} brand${ai.n_brands === 1 ? '' : 's'} read today.${one && (ai.brands || [])[0] ? ` ${esc(ai.brands[0].summary)}` : ''}</p>`
-      : `<p class="by-next">The morning read has not run today yet.</p>`;
+    const aiLine = !ai.on ? '' : ai.n_read ? `<p class="by-next">Morning read: ${ai.n_read} of ${ai.n_brands} brand${ai.n_brands === 1 ? '' : 's'} read today.</p>` : `<p class="by-next">The morning read has not run today yet: the rows below are the rules' own calls.</p>`;
     const notes = (d.notes || []).length ? `<p class="by-notes">Could not read everything: ${esc(d.notes.join(' · '))}</p>` : '';
     const lsec = `<section class="v2card by-lnch" id="byLaunch"><div class="v2h"><h3>Launched and scheduled</h3><input type="search" class="by-find" id="byFind" placeholder="${one ? 'Find a card or ad' : 'Find a brand, card or ad'}" value="${esc(LQ)}" aria-label="Find in launched and scheduled"></div>
       <p class="v2hint" style="margin:4px 0 0">Launch days: ${esc(daysWords(d.launch_days))} (Central). A card with its own date goes out on that date. <button type="button" class="v2link" id="byDays">Change launch days</button></p><div id="byLBody">${launchBody()}</div></section>`;
     $('#main').innerHTML = `<div class="v2 by">${H.pageHead('buyer', one ? `Buyer list: ${esc((H.S.accounts.find(a => a.act_id === d.act) || {}).name || '')}` : 'Buyer list').replace(/<p class="ph-sub">[\s\S]*?<\/p>/, '')}${lead}${banners}${aiLine}${next}${list}${foot}${quiet}${lsec}${notes}</div>`;
-    if (typeof H.pageActions === 'function') H.pageActions('<button type="button" class="btn" id="byDrops" title="One-time sales and limited drops: when one ends or sells out, its ads go off and stay off.">Drops and sales</button><button type="button" class="btn" id="bySlack" title="The one Buyer list message a day in Slack: where it goes, on or off, and what it says now.">Slack post</button>');
+    if (typeof H.pageActions === 'function') H.pageActions(`${one ? `<button type="button" class="btn" id="byWwd" title="The plain client update from today's Yes rows: what we changed, one line each.">What we did</button>` : ''}<button type="button" class="btn" id="byDrops" title="One-time sales and limited drops: when one ends or sells out, its ads go off and stay off.">Drops and sales</button><button type="button" class="btn" id="bySlack" title="The one Buyer list message a day in Slack: where it goes, on or off, and what it says now.">Slack post</button>`);
     wire();
+  }
+  const decidedOf = rows => { const t = rows.filter(r => (r.card || {}).decide); return { n: t.filter(r => r.decided).length, of: t.length }; };
+  const CARD_ORDER = ['raise', 'cut', 'trim', 'refresh', 'keep', 'note', 'launch', 'tidy'];
+  const cardKind = r => (r.card && r.card.kind) || { scale: 'raise', cut: 'cut', trim: 'trim', refresh: 'refresh', mixed: 'keep', minoff: 'trim', stalled: 'tidy', launch: 'launch', ai: 'note' }[r.kind] || 'note';
+  const factHtml = f => `<span class="by-f${f.good ? ' good' : f.bad ? ' bad' : ''}"><small>${esc(f.l)}</small>${esc(f.v)}</span>`;
+  /** One brand: the name, the week as chips, one line (the morning read), then its rows in the card order. */
+  function brandCard(g) {
+    const ai = ((DATA.ai || {}).brands || []).find(b => b.act_id === g.act_id) || null;
+    const dec = decidedOf(g.rows);
+    const sorted = g.rows.slice().sort((p, q) => CARD_ORDER.indexOf(cardKind(p)) - CARD_ORDER.indexOf(cardKind(q)) || (q.stake || 0) - (p.stake || 0));
+    const week = ai && ai.week && ai.week.length ? `<div class="by-week">${ai.week.map(factHtml).join('')}</div>` : '';
+    const line = ai && ai.headline ? `<p class="line">${esc(ai.headline)}</p>` : '';
+    const wwd = DATA.act === 'all' && dec.n ? `<button type="button" class="v2btn ghost" data-wwd="${esc(g.act_id)}">What we did</button>` : '';
+    const all = g.n_do > 1 && DATA.act === 'all' ? `<button type="button" class="v2btn ghost" data-allb="${esc(g.act_id)}">Yes to all ${g.n_do}</button>` : '';
+    return `<section class="v2card by-card" id="by_${esc(g.act_id)}"><div class="by-bh"><div class="nm"><h3>${esc(g.brand)}</h3><span class="m">${dec.of ? `${dec.n} of ${dec.of} decided` : 'nothing to decide'}${g.stake > 0 ? `, ${esc(kmoney(g.stake, g.currency))} at stake` : ''}</span>${all}${wwd}</div>${week}${line}</div>${sorted.map(row).join('')}</section>`;
   }
   const LSHOW = 25;
   const hit = (...xs) => { const q = LQ.trim().toLowerCase(); return !q || xs.some(x => String(x || '').toLowerCase().includes(q)); };
@@ -315,136 +380,124 @@
     } catch {}
   }
 
-  /* ONE ROW (2026-10-27, Cole: names were squished, "what to do and why" talked too much). The full name on its own line,
-     never cut; the level and brand as small labels beside it; a bold action of a few words and ONE short why line; the
-     buttons; "Show ads" below. Every other number lives inside Show ads. When the morning read changed the rule's call,
-     the row shows only the final call, tagged "Locus changed this". */
+  /* ONE ROW = THE CARD ROW (2026-11-05): the kind tag + level and object, the directive, the chips, the Why line, the ads
+     behind it as a sideways strip, then Yes / No or the label. A decided row stays, marked, until tomorrow. */
   const LEVEL = { adset: 'Ad set', ad: 'Ad', campaign: 'Campaign', account: 'Account', card: 'Card' };
+  const KTAG = { raise: 'RAISE', cut: 'CUT', trim: 'TRIM', refresh: 'REFRESH', keep: 'KEEP', note: 'NOTE', launch: 'LAUNCH', tidy: 'TIDY' };
   function row(r) {
-    const k = esc(r.key), cur = r.currency || 'USD';
-    const lvl = r.kind === 'launch' ? 'Card' : LEVEL[r.level] || 'Ad set';
-    const sub = r.kind === 'launch' ? (r.launch_on ? `Ready on Production, dated ${ymdShort(r.launch_on)}` : 'Ready on Production') : r.set ? `in ${r.set}` : '';
-    const primary = r.do ? `<button type="button" class="v2btn" data-do="${k}" title="${esc(DO_TIP[r.do] || '')}">${DO_LABEL[r.do] || 'Agree'}</button>`
-      : `<button type="button" class="v2btn" data-done="${k}" title="Mark it decided (you made the change, or will). It stays quiet 3 days.">Done</button>`;
-    const tags = `<span class="by-lv">${lvl}</span><span>${esc(r.brand)}</span>${r.changed ? `<span class="by-chg" title="${esc(r.rule ? `The rule said: ${r.rule.action}. ${r.rule.why}` : '')}">Locus changed this</span>` : r.kind === 'ai' ? '<span class="by-chg" title="The rules did not flag this; the morning read did.">Locus found this</span>' : ''}${!canDo(r) && r.kind !== 'launch' ? '<span class="by-you" title="Agree to all skips it: Locus cannot make this change by itself.">Needs you</span>' : ''}`;
-    const canAds = r.kind !== 'launch' && (r.adset_id || r.ad_id);
-    const tog = r.kind !== 'launch' ? `<button type="button" class="by-tog" data-ads="${k}" aria-expanded="${OPEN.has(r.key)}">${OPEN.has(r.key) ? (canAds ? 'Hide ads' : 'Hide details') : (canAds ? 'Show ads' : 'Show details')}</button>` : '';
-    const dis = r.kind !== 'launch' ? `<button type="button" class="v2btn ghost" data-dis="${k}" title="Say why not. Locus answers once, then your call stands and it remembers it.">Disagree</button>` : '';
-    return `<div class="by-row" data-key="${k}">
-      <div class="by-main"><div class="by-tags">${tags}</div><div class="by-n">${esc(r.name)}</div>${sub ? `<div class="by-in">${esc(sub)}</div>` : ''}</div>
-      <div class="by-what"><div class="by-act">${esc(r.action)}</div><div class="by-why">${esc(r.why)}</div>${r.checked && r.checked !== r.why ? `<div class="by-chk">Locus checked: ${esc(r.checked)}</div>` : ''}</div>
-      <span class="by-st">${r.stake > 0 ? esc(money(r.stake, cur)) : '&ndash;'}<small>${r.stake > 0 ? 'at stake' : r.kind === 'launch' ? 'new ads' : ''}</small></span>
-      <div class="by-btns">${primary}${dis}<button type="button" class="v2btn ghost" data-skip="${k}" title="Hide it for everyone until tomorrow.">Skip</button><button type="button" class="v2btn ghost" data-open="${k}" title="${r.kind === 'launch' ? 'Open the card on Production.' : 'Open it in Locus.'}">Open</button></div>
-      ${tog ? `<div class="by-more">${tog}</div>` : ''}
-      ${tog && OPEN.has(r.key) ? `<div class="by-ads" data-adsbox="${k}">${canAds ? adsHtml(r) : detailsHtml(r)}</div>` : ''}</div>`;
-  }
-  /* Everything the one-line why leaves out: the rule's own call when Locus changed it, the full reason, the numbers. */
-  function detailsHtml(r) {
-    const cur = r.currency || 'USD', roasGoal = r.metric === 'roas';
-    const p = [];
-    if (r.changed && r.rule) p.push(`<p><b>The rule said:</b> ${esc(r.rule.action)}. ${esc(r.rule.why)}</p>`);
-    if (r.ai && r.ai.verdict === 'keep' && r.ai.why && r.ai.why !== r.why && r.ai.why !== r.checked) p.push(`<p><b>Locus agrees:</b> ${esc(r.ai.why)}</p>`);
-    if (r.why_full && r.why_full !== r.why) p.push(`<p>${esc(r.why_full)}</p>`);
-    const n = [['Spend', r.spend != null ? money(r.spend, cur) : ''], ['Sales', r.results != null ? fmtN(r.results, r.results % 1 ? 1 : 0) : ''],
-      roasGoal ? ['ROAS', r.roas != null ? `${fmtN(r.roas, 2)}x${r.goal_roas ? ` (goal ${fmtN(r.goal_roas, 1)}x)` : ''}` : ''] : ['Cost a sale', r.cpa != null ? `${money(r.cpa, cur)}${r.goal ? ` (goal ${money(r.goal, cur)})` : ''}` : ''],
-      ['Days', r.days != null ? String(r.days) : ''], ['Role', ROLE[r.role] || ''], ['Budget', r.budget > 0 ? `${money(r.budget, cur)}/day` : '']].filter(([, v]) => v);
-    return `<div class="by-det">${p.join('')}${n.length ? `<dl>${n.map(([a, b]) => `<div><dt>${esc(a)}</dt><dd>${b}</dd></div>`).join('')}</dl>` : ''}</div>`;
+    const k = esc(r.key), c = r.card || {}, kind = cardKind(r), d = r.decided || null;
+    const lvl = LEVEL[c.level] || LEVEL[r.level] || 'Ad set';
+    const obj = c.object || r.name || '';
+    const tags = `<span class="by-k ${kind}">${KTAG[kind] || kind}</span><span class="lv">${lvl}: <b>${esc(obj)}</b></span>${r.changed ? `<span class="by-chg" title="${esc(r.rule ? `The rule said: ${r.rule.action}. ${r.rule.why}` : '')}">Locus changed this</span>` : r.kind === 'ai' ? '<span class="by-chg" title="The rules did not flag this; the morning read did.">Locus found this</span>' : ''}`;
+    /* a row with no card (the read has not run, an old row): the rules' own call decides */
+    const decide = c.decide != null ? !!c.decide : (!!r.do || ['raise', 'cut', 'trim', 'refresh', 'tidy', 'launch'].includes(kind));
+    const dec = decide
+      ? `<div class="by-dec"><button type="button" class="v2btn yes${d && d.decision === 'yes' ? ' on' : ''}" data-yes="${k}" title="${esc(r.do ? (DO_TIP[r.do] || 'Make the change.') : 'Mark it decided: you made the change, or will.')}">Yes</button><button type="button" class="v2btn no${d && d.decision === 'no' ? ' on' : ''}" data-no="${k}" title="Leave it. Say why in one line so Locus learns.">No</button></div>`
+      : `<div class="by-dec"><span class="by-fyi">${esc(c.fyi || 'Nothing to do')}</span></div>`;
+    const facts = (c.facts || []).length ? `<div class="by-facts">${c.facts.map(factHtml).join('')}</div>` : '';
+    const why = c.because || r.why || '';
+    const because = why ? `<div class="by-bec"><b>Why</b>${esc(why)}</div>` : '';
+    const sub = r.kind === 'launch' ? (r.launch_on ? `Ready on Production, dated ${ymdShort(r.launch_on)}` : 'Ready on Production') : '';
+    const note = decide && d && d.decision === 'no' ? (d.note ? `<div class="by-said">You said: ${esc(d.note)}</div>${LAST_ANS.has(r.key) ? `<div class="by-ans">Locus: ${esc(LAST_ANS.get(r.key))}</div>` : ''}`
+      : `<div class="by-note"><input type="text" maxlength="600" data-note="${k}" placeholder="Why not? One line. Locus learns from it." aria-label="Why not"><button type="button" class="v2btn ghost" data-save="${k}">Save</button></div>`) : '';
+    const cf = `<div class="by-cf">${sub ? `<span>${esc(sub)}</span>` : ''}${r.checked && r.checked !== why ? `<span class="by-chk">Locus checked: ${esc(r.checked)}</span>` : ''}${d ? `<span>${d.decision === 'yes' ? 'Yes' : 'No'} by ${esc(firstName(d.by) || 'you')}, ${esc(whenCT(d.at))}</span>` : ''}<button type="button" class="v2link" data-open="${k}">Open in Locus</button>${!d ? `<button type="button" class="v2link" data-skip="${k}" title="Hide it for everyone until tomorrow.">Later</button>` : ''}</div>`;
+    return `<div class="by-cr${d ? ` ${d.decision}` : ''}" data-key="${k}">
+      <div class="by-ch"><div><div class="by-lab">${tags}</div><div class="by-do">${esc(c.do || r.action)}</div></div>${dec}</div>
+      ${facts}${because}${stripHtml(r)}${note}${cf}</div>`;
   }
   const canDo = r => ['pause', 'resume', 'budget', 'minoff'].includes(r.do);
   /** The rows by brand, the brand with the most money at stake first (the server sends them in this order already). */
   function groupsOf(rows) {
     const g = new Map();
-    for (const r of rows) { const x = g.get(r.act_id) || { act_id: r.act_id, brand: r.brand, currency: r.currency || 'USD', stake: 0, n_do: 0, rows: [] }; x.stake += r.stake || 0; x.n_do += canDo(r) ? 1 : 0; x.rows.push(r); g.set(r.act_id, x); }
+    for (const r of rows) { const x = g.get(r.act_id) || { act_id: r.act_id, brand: r.brand, currency: r.currency || 'USD', stake: 0, n_do: 0, rows: [] }; x.stake += r.stake || 0; x.n_do += canDo(r) && !r.decided ? 1 : 0; x.rows.push(r); g.set(r.act_id, x); }
     return [...g.values()].sort((p, q) => q.stake - p.stake);
   }
-  /* ---------- the ads under a row ---------- */
+  const LAST_ANS = new Map();
   const fmtN = (v, d = 0) => v == null ? '&ndash;' : Number(v).toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: d });
-  const adsHtml = r => detailsHtml(r) + adsGrid(r);
-  function adsGrid(r) {
-    const st = ADS.get(r.key);
-    if (!st || st.loading) return '<p class="v2hint">Reading the ads&hellip;</p>';
-    if (st.error) return `<p class="v2bad">${esc(st.error)}</p>`;
-    if (!st.ads.length) return '<p class="v2hint">No ad in this set spent in the last 7 days.</p>';
-    const cur = r.currency || 'USD', roasGoal = r.metric === 'roas';
-    const goal = roasGoal ? r.goal_roas : r.goal;
-    const card = a => {
-      const vs = roasGoal ? (a.roas == null ? '' : goal ? (a.roas >= goal ? 'good' : 'bad') : '') : (a.cpa == null ? (a.spend > 0 && goal && a.spend >= goal ? 'bad' : '') : goal ? (a.cpa <= goal ? 'good' : 'bad') : '');
-      const tags = [a.status && a.status !== 'ACTIVE' ? a.status.charAt(0) + a.status.slice(1).toLowerCase().replace(/_/g, ' ') : '', ROLE[a.role] || '', a.video ? 'Video' : 'Image'].filter(Boolean);
-      const big = (r.kind === 'trim' && a.ad_id === String(r.ad_id)) ? ' hit' : '';
-      return `<div class="by-ad${big}">
-        <button type="button" class="by-adth" data-thumb="${esc(a.ad_id)}" data-play="${esc(a.ad_id)}" data-row="${esc(r.key)}"${a.cover ? ` style="background-image:url('${esc(a.cover)}')"` : ''} aria-label="See the ad ${esc(a.name)} bigger">${big ? '<span>This call</span>' : ''}</button>
-        <div class="by-adb"><div class="by-adn" title="${esc(a.name)}">${esc(a.name)}</div><div class="by-adtags">${tags.map(t => `<i>${esc(t)}</i>`).join('')}</div>
-        <dl class="by-adm"><dt>Spend</dt><dd>${esc(money(a.spend, cur))}</dd><dt>Sales</dt><dd>${fmtN(a.sales, a.sales % 1 ? 1 : 0)}</dd>
-          ${roasGoal ? `<dt>ROAS${goal ? ` (goal ${fmtN(goal, 1)}x)` : ''}</dt><dd class="${vs}">${a.roas == null ? '&ndash;' : `${fmtN(a.roas, 2)}x`}</dd>`
-            : `<dt>CPA${goal ? ` (goal ${esc(money(goal, cur))})` : ''}</dt><dd class="${vs}">${a.cpa == null ? (a.spend > 0 ? 'no sale' : '&ndash;') : esc(money(a.cpa, cur))}</dd>`}
-          <dt>CTR</dt><dd>${a.ctr == null ? '&ndash;' : `${fmtN(a.ctr, 2)}%`}</dd><dt>CPM</dt><dd>${a.cpm == null ? '&ndash;' : esc(money(a.cpm, cur))}</dd>
-          <dt>Frequency</dt><dd>${fmtN(a.freq, 2)}</dd>${a.video ? `<dt>Hook rate</dt><dd>${a.hook == null ? '&ndash;' : `${fmtN(a.hook, 1)}%`}</dd>` : ''}</dl></div></div>`;
+  /** Every ad behind the row, biggest spend first, the row's own ad first and ringed; a paused one faded. */
+  function stripHtml(r) {
+    const A = r.ads; if (!A) return '';
+    if (!A.ads.length) return '<p class="v2hint" style="margin:0">No ad in it spent in the last 7 days.</p>';
+    const cur = r.currency || 'USD', roasGoal = r.metric === 'roas', goal = roasGoal ? r.goal_roas : r.goal;
+    const one = a => {
+      const vs = a.leads > 0 ? '' : roasGoal ? (a.roas == null ? '' : goal ? (a.roas >= goal ? 'good' : 'bad') : '') : (a.cpa == null ? (a.spend > 0 && goal && a.spend >= goal ? 'bad' : '') : goal ? (a.cpa <= goal ? 'good' : 'bad') : '');
+      const stat = a.leads > 0 ? `${fmtN(a.leads)} leads, ${money(a.spend, cur)}` : `${money(a.spend, cur)}, ${fmtN(a.sales, a.sales % 1 ? 1 : 0)} sale${a.sales === 1 ? '' : 's'}${a.roas ? `, ${fmtN(a.roas, 1)}x` : ''}`;
+      return `<div class="by-ad${a.focus ? ' focus' : ''}${a.off ? ' off' : ''}"><button type="button" class="by-adth" data-thumb="${esc(a.ad_id)}" data-play="${esc(a.ad_id)}" data-row="${esc(r.key)}"${a.cover ? ` style="background-image:url('${esc(a.cover)}')"` : ''} aria-label="Open the ad ${esc(a.name)}">${a.focus && A.ads.length > 1 ? '<span>This one</span>' : ''}${a.off ? '<span>Off</span>' : ''}${a.video ? '<i>Play</i>' : ''}</button><div class="nm" title="${esc(a.name)}">${esc(a.name)}</div><div class="st ${vs}">${esc(stat)}</div></div>`;
     };
-    return `<p class="v2hint" style="margin:0 0 8px">Last 7 days (${esc(st.from || '')} to ${esc(st.to || '')}). Sales are Triple Whale last click. Tap a picture to see it bigger.</p><div class="by-adg">${st.ads.map(card).join('')}</div>`;
+    return `<div class="by-strip">${A.ads.map(one).join('')}${A.n > A.ads.length ? `<span class="by-more">+${A.n - A.ads.length} more, each smaller</span>` : ''}</div>`;
   }
-  async function loadAds(r) {
-    ADS.set(r.key, { loading: true });
-    const qs = new URLSearchParams({ act: r.act_id });
-    if (r.adset_id) qs.set('adset', r.adset_id);
-    if (r.ad_id) qs.set('ad', r.ad_id);
-    if (r.meta_act) qs.set('meta_act', r.meta_act);
-    try { const j = await H.apiAH(`/api/buyer-list/ads?${qs}`); if (!j || j.error) throw new Error((j && j.error) || 'Locus did not answer.'); ADS.set(r.key, { ads: j.ads || [], from: j.from, to: j.to }); }
-    catch (e) { ADS.set(r.key, { error: `Could not read the ads: ${e.message}` }); }
-    paintAds(r);
+  /** A tap on a thumbnail: the same player as the Ads page (V2.playAd) with the ad's own numbers under it. */
+  function adPop(r, a) {
+    const cur = r.currency || 'USD';
+    const kv = [['Spend, 7 days', money(a.spend, cur)], ['Sales (Triple Whale last click)', fmtN(a.sales, a.sales % 1 ? 1 : 0)], ['Revenue', a.revenue != null ? money(a.revenue, cur) : ''], ['ROAS', a.roas != null ? `${fmtN(a.roas, 2)}x` : ''],
+      ['Cost per sale', a.cpa != null ? money(a.cpa, cur) : ''], ['Leads', a.leads > 0 ? fmtN(a.leads) : ''], ['First-click sales', a.fc_sales ? fmtN(a.fc_sales, 1) : ''], ['CTR', a.ctr != null ? `${fmtN(a.ctr, 2)}%` : ''],
+      ['CPM', a.cpm != null ? money(a.cpm, cur) : ''], ['Frequency', a.freq != null ? fmtN(a.freq, 2) : ''], ['Hook rate', a.hook != null ? `${fmtN(a.hook, 1)}%` : ''], ['Role', ROLE[a.role] || ''], ['Status', a.status ? a.status.charAt(0) + a.status.slice(1).toLowerCase().replace(/_/g, ' ') : '']]
+      .filter(x => x[1] !== '' && x[1] != null);
+    const extra = `<div class="by-kv">${kv.map(x => `<span>${esc(x[0])}</span><span>${x[1]}</span>`).join('')}</div>`;
+    if (!window.V2 || !window.V2.playAd) { window.V2PENDING = { ad: a.ad_id }; return pickAct(r.act_id, 'adcreative'); }
+    window.V2.playAd({ id: a.ad_id, name: a.name, act: r.act_id, note: `${r.brand}, in "${r.adset || r.name}".`, extra }, H, () => { window.V2PENDING = { ad: a.ad_id }; pickAct(r.act_id, 'adcreative'); });
   }
-  function paintAds(r) {
-    const box = document.querySelector(`[data-adsbox="${CSS.escape(r.key)}"]`); if (!box) return;
-    box.innerHTML = adsHtml(r);
-    const st = ADS.get(r.key) || {};
-    /* a cover not stored yet comes from /api/ad-creatives (the same cache the Ads page uses) */
-    const miss = (st.ads || []).filter(a => !a.cover).map(a => a.ad_id);
-    if (miss.length && window.V2 && window.V2.thumbs) window.V2.thumbs(box, miss, r.act_id, H);
-    box.querySelectorAll('[data-play]').forEach(b => b.onclick = () => {
-      const a = (st.ads || []).find(x => x.ad_id === b.dataset.play); if (!a) return;
-      if (!window.V2 || !window.V2.playAd) { window.V2PENDING = { ad: a.ad_id }; return pickAct(r.act_id, 'adcreative'); }
-      window.V2.playAd({ id: a.ad_id, name: a.name, act: r.act_id, note: `${r.brand}, in "${r.adset || r.name}". Last 7 days: ${money(a.spend, r.currency)} spent, ${a.sales} sales.` }, H, () => { window.V2PENDING = { ad: a.ad_id }; pickAct(r.act_id, 'adcreative'); });
-    });
+  /* ---------- Yes / No ---------- */
+  const decision = (r, body) => ah('/api/buyer-list/decision', { act: r.act_id, object: r.object, action: r.kind, name: r.name, line: (r.card || {}).do || r.action, ...body });
+  function markDecided(r, dec, extra = {}) {
+    const i = (DATA.rows || []).findIndex(x => x.key === r.key); if (i < 0) return;
+    const nu = { ...DATA.rows[i] };
+    if (dec) nu.decided = { decision: dec, note: extra.note || '', by: H.S.meEmail || 'you', at: new Date().toISOString(), write_id: extra.write_id || null }; else delete nu.decided;
+    DATA.rows[i] = nu;
+    if (H.S.tab === 'buyer') paint();
   }
-  function toggleAds(r) {
-    const canAds = r.adset_id || r.ad_id;
-    if (OPEN.has(r.key)) OPEN.delete(r.key); else { OPEN.add(r.key); if (canAds && (!ADS.has(r.key) || ADS.get(r.key).error)) loadAds(r); }
-    paint();
-    if (OPEN.has(r.key) && ADS.has(r.key) && !ADS.get(r.key).loading) paintAds(r);
+  /** Yes: the row's own write (the same path as before: dry run, confirm, write with expect, Change Log, Undo), then the
+   *  decision is recorded with the write id. A row with no Meta move is just recorded. A lit Yes tapped again = cleared. */
+  async function sayYes(r) {
+    if (r.decided && r.decided.decision === 'yes') return clearDecision(r);
+    if (r.do) return doIt(r);
+    try { const j = await decision(r, { decision: 'yes' }); if (j && j.error) throw new Error(j.error); markDecided(r, 'yes'); }
+    catch (e) { toast(`Could not save it: ${e.message}`, true); }
   }
-  /* ---------- Disagree: why not -> Locus answers once -> his call ---------- */
-  function disagreeModal(r) {
-    const m = modal(`Why not? ${r.action}`, `${esc(r.brand)}, "${esc(r.name)}". Locus answers once with the numbers, then your call stands and it remembers it.`,
-      `<label>Why not<textarea name="why" maxlength="1200" placeholder="Say it the way you would to a person. For example: it just launched, give it till Friday."></textarea></label><div data-ans></div>`, 'Tell Locus', async w => {
-        const why = w.querySelector('[name="why"]').value.trim();
-        if (why.length < 4) throw new Error('Say why, in a few words.');
-        const j = await ah('/api/buyer-list/disagree', { act: r.act_id, why, row: { key: r.key, kind: r.kind, object: r.object, action: r.action, name: r.name, set: r.set, adset: r.adset, adset_id: r.adset_id, ad_id: r.ad_id, meta_act: r.meta_act,
-          why: r.why, why_full: r.why_full, stake: r.stake, goal: r.goal, goal_roas: r.goal_roas, metric: r.metric, role: r.role, ai: r.ai || null } });
-        if (!j || j.error) throw new Error((j && j.error) || 'Locus did not answer.');
-        answerModal(r, j);
+  async function sayNo(r) {
+    if (r.decided && r.decided.decision === 'no') return clearDecision(r);
+    try { const j = await decision(r, { decision: 'no' }); if (j && j.error) throw new Error(j.error); markDecided(r, 'no'); const inp = document.querySelector(`[data-note="${CSS.escape(r.key)}"]`); if (inp) inp.focus(); }
+    catch (e) { toast(`Could not save it: ${e.message}`, true); }
+  }
+  async function clearDecision(r) {
+    try { const j = await decision(r, { decision: 'clear' }); if (j && j.error) throw new Error(j.error); LAST_ANS.delete(r.key); markDecided(r, null); }
+    catch (e) { toast(`Could not clear it: ${e.message}`, true); }
+  }
+  /** His one-line why on a No: saved on the decision and as a buyer lesson (Locus answers once; his call stands either way). */
+  async function saveNote(r, why) {
+    why = String(why || '').trim();
+    if (why.length < 4) return toast('Say why, in a few words.', true);
+    try {
+      const j = await ah('/api/buyer-list/disagree', { act: r.act_id, why, row: { key: r.key, kind: r.kind, object: r.object, action: r.action, name: r.name, set: r.set, adset: r.adset, adset_id: r.adset_id, ad_id: r.ad_id, meta_act: r.meta_act,
+        why: r.why, why_full: r.why_full, stake: r.stake, goal: r.goal, goal_roas: r.goal_roas, metric: r.metric, role: r.role, ai: r.ai || null } });
+      if (!j || j.error) throw new Error((j && j.error) || 'Locus did not answer.');
+      if (j.answer) LAST_ANS.set(r.key, j.answer);
+      /* his No stands: the lesson is filed as his call (Locus answered once, the answer is shown under his line) */
+      if (j.id) await ah('/api/buyer-list/decide', { act: r.act_id, id: j.id, decision: 'mine' }).catch(() => {});
+      await decision(r, { decision: 'no', note: why }).catch(() => {});
+      markDecided(r, 'no', { note: why });
+    } catch (e) { toast(`Could not save it: ${e.message}`, true); }
+  }
+  /* ---------- What we did: the plain client update per brand from today's Yes rows ---------- */
+  async function whatWeDid(act) {
+    const a = (H.S.accounts || []).find(x => x.act_id === act) || { name: act };
+    const m = modal(`What we did: ${a.name}`, 'One line per change, plain words, nothing else. Edit it, then copy it or post it to the client channel as Cole.',
+      `<textarea class="by-wwd" data-t aria-label="The update">Reading…</textarea><p class="v2hint" data-ch></p><div class="row" style="gap:8px;flex-wrap:wrap"><button type="button" class="btn" data-x="copy">Copy</button><button type="button" class="btn primary" data-x="post" disabled>Post to the client channel</button></div>`, null, null);
+    const ta = m.w.querySelector('[data-t]'), ch = m.w.querySelector('[data-ch]'), post = m.w.querySelector('[data-x="post"]');
+    let j; try { j = await ah(`/api/buyer-list/what-we-did?act=${encodeURIComponent(act)}`); } catch (e) { j = { error: e.message }; }
+    if (!j || j.error) { ta.value = ''; ch.className = 'v2bad'; ch.textContent = (j && j.error) || 'Locus did not answer.'; return; }
+    ta.value = j.text || '';
+    ch.textContent = !j.text ? 'No Yes on this brand today yet.' : j.channel ? 'Posts as you (Cole) in the client channel, the way call recaps do.' : `${a.name} has no client channel in Locus: copy the text and post it yourself.`;
+    post.disabled = !j.text || !j.channel;
+    m.w.querySelector('[data-x="copy"]').onclick = async () => { try { await navigator.clipboard.writeText(ta.value); toast('Copied.'); } catch { toast('Could not copy; select the text.', true); } };
+    post.onclick = () => {
+      const text = ta.value.trim(); if (!text) return;
+      modal('Post it to the client?', `It goes to ${esc(a.name)}'s client channel under your name. Clients read it as a message from you.`, `<pre class="by-pre">${esc(text)}</pre>`, 'Post as Cole', async () => {
+        const k = await ah('/api/buyer-list/what-we-did', { act, text });
+        if (!k || k.error) throw new Error((k && k.error) || 'Slack did not answer.');
+        m.close(); toast('Posted to the client channel.');
       });
-    setTimeout(() => { const t = m.w.querySelector('textarea'); if (t) t.focus(); }, 30);
-  }
-  function answerModal(r, j) {
-    if (j.stance === 'drop') {
-      modal('Locus agrees', esc(r.brand), `<p class="by-say">${esc(j.answer)}</p><p class="v2hint">Your call is saved. Locus follows it from now on, and this row is quiet for 3 days.</p>`, null, null);
-      drop(r.key, 'done');
-      return;
-    }
-    const m = modal('Locus still thinks so', esc(r.brand), `<p class="by-say">${esc(j.answer)}</p><p class="v2hint">Your call is final either way, and Locus remembers it.</p>
-      <div class="row" style="gap:8px;flex-wrap:wrap"><button type="button" class="btn" data-x="mine">Go with mine</button>${r.do ? '<button type="button" class="btn primary" data-x="locus">Go with Locus</button>' : '<button type="button" class="btn primary" data-x="locus">Go with Locus</button>'}</div>`, null, null);
-    const go = async dec => {
-      m.w.querySelectorAll('[data-x]').forEach(b => { b.disabled = true; });
-      try {
-        const k = await ah('/api/buyer-list/decide', { act: r.act_id, id: j.id, decision: dec });
-        if (!k || k.error) throw new Error((k && k.error) || 'Locus did not answer.');
-        m.close();
-        if (dec === 'mine') { drop(r.key, 'done'); toast('Going with yours. Locus will remember it.'); }
-        else if (r.do) doIt(r);
-        else toast('Going with Locus. Make the change, then tap Done.');
-      } catch (e) { m.err.textContent = e.message; m.err.hidden = false; m.w.querySelectorAll('[data-x]').forEach(b => { b.disabled = false; }); }
     };
-    m.w.querySelector('[data-x="mine"]').onclick = () => go('mine');
-    m.w.querySelector('[data-x="locus"]').onclick = () => go('locus');
   }
   async function lessonsModal() {
     const act = DATA.act;
@@ -507,13 +560,19 @@
       try { await state(r, 'clear'); reload(); } catch (e) { b.disabled = false; toast(e.message, true); }
     });
     root.querySelectorAll('[data-open]').forEach(b => b.onclick = () => { const r = find(b.dataset.open); if (r) open(r); });
-    root.querySelectorAll('[data-do]').forEach(b => b.onclick = () => { const r = find(b.dataset.do); if (r) doIt(r); });
-    root.querySelectorAll('[data-dis]').forEach(b => b.onclick = () => { const r = find(b.dataset.dis); if (r) disagreeModal(r); });
-    root.querySelectorAll('[data-ads]').forEach(b => b.onclick = () => { const r = find(b.dataset.ads); if (r) toggleAds(r); });
-    for (const k of OPEN) { const r = find(k); if (r && ADS.has(k) && !ADS.get(k).loading) paintAds(r); }
+    root.querySelectorAll('[data-yes]').forEach(b => b.onclick = () => { const r = find(b.dataset.yes); if (r) sayYes(r); });
+    root.querySelectorAll('[data-no]').forEach(b => b.onclick = () => { const r = find(b.dataset.no); if (r) sayNo(r); });
+    root.querySelectorAll('[data-save]').forEach(b => b.onclick = () => { const r = find(b.dataset.save); const i = root.querySelector(`[data-note="${CSS.escape(b.dataset.save)}"]`); if (r && i) saveNote(r, i.value); });
+    root.querySelectorAll('[data-note]').forEach(i => i.onkeydown = e => { if (e.key === 'Enter') { const r = find(i.dataset.note); if (r) saveNote(r, i.value); } });
+    root.querySelectorAll('[data-play]').forEach(b => b.onclick = () => { const r = find(b.dataset.row); const a = r && r.ads && r.ads.ads.find(x => x.ad_id === b.dataset.play); if (r && a) adPop(r, a); });
+    root.querySelectorAll('[data-wwd]').forEach(b => b.onclick = () => whatWeDid(b.dataset.wwd));
+    const ww = $('#byWwd'); if (ww) ww.onclick = () => whatWeDid(DATA.act);
+    /* covers not stored yet come from /api/ad-creatives, the same cache the Ads page uses */
+    const byAct = {}; root.querySelectorAll('.by-cr .by-adth[data-thumb]').forEach(el => { if (el.style.backgroundImage) return; const r = find(el.closest('.by-cr').dataset.key); if (r) (byAct[r.act_id] ||= []).push(el.dataset.thumb); });
+    if (window.V2 && window.V2.thumbs) for (const [act, ids] of Object.entries(byAct)) window.V2.thumbs(root, ids, act, H);
     const yc = $('#byCalls'); if (yc) yc.onclick = lessonsModal;
-    const all = $('#byAll'); if (all) all.onclick = () => agreeAll(DATA.rows || []);
-    root.querySelectorAll('[data-allb]').forEach(b => b.onclick = () => agreeAll((DATA.rows || []).filter(r => r.act_id === b.dataset.allb)));
+    const all = $('#byAll'); if (all) all.onclick = () => agreeAll((DATA.rows || []).filter(r => !r.decided));
+    root.querySelectorAll('[data-allb]').forEach(b => b.onclick = () => agreeAll((DATA.rows || []).filter(r => r.act_id === b.dataset.allb && !r.decided)));
   }
   function open(r) {
     if (r.kind === 'launch') return pickAct(r.act_id, 'production');
@@ -522,8 +581,8 @@
     pickAct(r.act_id, 'channels');
   }
   /* After a change is written: Done for everyone (the write is also in p_meta_write, which watches it 3 days). */
-  const afterDo = r => async () => { await state(r, 'done').catch(() => {}); drop(r.key, 'done'); };
-  const afterUndo = r => async () => { await state(r, 'clear').catch(() => {}); reload(); };
+  const afterDo = r => async writes => { const w = Array.isArray(writes) ? writes.find(x => x && x.write) : null; await decision(r, { decision: 'yes', write_id: w ? w.write : null }).catch(() => state(r, 'done').catch(() => {})); markDecided(r, 'yes', { write_id: w ? w.write : null }); };
+  const afterUndo = r => async () => { await decision(r, { decision: 'clear' }).catch(() => {}); reload(); };
   function doIt(r) {
     const W = window.LxMetaWrite;
     const onAd = r.level === 'ad' && r.ad_id;
@@ -539,12 +598,12 @@
     if (r.do === 'brief') {
       if (!H.AskUI) return toast('Locus could not open the ask bar here.', true);
       H.AskUI.ask(`For ${r.brand}: the main ad "${r.ad || ''}" in ad set "${r.adset || ''}" is tiring (${r.why_full || r.why}). Brief three iterations of it as an Asana brief: same angle, new hooks.`);
-      state(r, 'done').then(() => drop(r.key, 'done')).catch(() => {});
+      decision(r, { decision: 'yes' }).then(() => markDecided(r, 'yes')).catch(() => {});
       return;
     }
     if (r.do === 'launch') {
       const L = window.LaunchToMeta; if (!L) return toast('The Launch window did not load. Hard-refresh (Ctrl+Shift+R).', true);
-      const onDone = () => { state(r, 'done').catch(() => {}); drop(r.key, 'done'); setTimeout(reload, 400); };
+      const onDone = () => { decision(r, { decision: 'yes' }).catch(() => {}); markDecided(r, 'yes'); setTimeout(reload, 400); };
       if (!r.work && r.studio_ad) return L.open({ act: r.act_id, tok: H.S.tok, studioAd: r.studio_ad, onDone });
       if (!L.openBatch) return toast('The Launch window did not load. Hard-refresh (Ctrl+Shift+R).', true);
       return L.openBatch({ act: r.act_id, tok: H.S.tok, cardId: r.card_id, onDone, onBrief: () => pickAct(r.act_id, 'production') });
@@ -601,7 +660,7 @@
       if (!plan || plan.error) throw new Error((plan && plan.error) || 'Meta did not answer the check.');
       const res = await commitOne(plan);
       if (!res.ok) throw new Error(res.error);
-      await afterDo(r)();
+      await afterDo(r)([res.write]);
       const W = window.LxMetaWrite;
       toast(res.summary || 'Done.', false, res.write.write && W ? () => W.undo(H, [res.write], itOf(r), afterUndo(r)) : null);
     });
@@ -622,7 +681,7 @@
       let res;
       try { const plan = await io.planOne(p.r, p.amount); res = plan.error ? { ok: false, error: plan.error } : await io.commitOne(plan); }
       catch (e) { res = { ok: false, error: e.message }; }
-      if (res.ok) { ok++; await io.state(p.r, 'done').catch(() => {}); } else bad++;
+      if (res.ok) { ok++; await (io.decide ? io.decide(p.r, res) : io.state(p.r, 'done')).catch(() => {}); } else bad++;
       each(i, 'end', p, res);
     }
     return { ok, bad };
@@ -674,7 +733,7 @@
     yes.onclick = async () => {
       if (ran) return close();
       running = true; yes.disabled = true; no.disabled = true; yes.textContent = 'Writing to Meta…';
-      const { ok, bad } = await runAll(todo, { planOne, commitOne, state }, (i, phase, p, res) => {
+      const { ok, bad } = await runAll(todo, { planOne, commitOne, state, decide: (r, res) => decision(r, { decision: 'yes', write_id: res.write && res.write.write || null }) }, (i, phase, p, res) => {
         const s = st(i); if (!s) return;
         if (phase === 'start') { s.className = 'st'; s.textContent = 'Writing…'; return; }
         if (!res.ok) { s.className = 'st bad'; s.textContent = `Not made: ${res.error}`; return; }
@@ -697,7 +756,7 @@
       if (!w || w.error) throw new Error((w && w.error) || 'Meta did not answer.');
       let pz = null;
       if (both) { pz = await pauseAfter(r); if (!pz.ok) throw new Error(`The minimum came off, but the set was not paused: ${pz.error}`); }
-      await afterDo(r)();
+      await afterDo(r)([w]);
       const W = window.LxMetaWrite;
       const ws = pz ? [pz.write, w] : [w];
       toast(pz ? 'Minimum off and the ad set paused.' : 'Test minimum taken off.', false, w.write && W ? () => W.undo(H, ws, it, afterUndo(r)) : null);
@@ -809,5 +868,5 @@
     catch (e) { const pre = m.w.querySelector('[data-pre]'); if (pre) pre.textContent = e.message; }
   }
 
-  window.BuyerTab = { render, _test: { bodyOf, expectOf, canDo, groupsOf, runAll, planOne, commitOne, row: r => row(r), setHost: h => { H = h; } } };
+  window.BuyerTab = { render, _test: { bodyOf, expectOf, canDo, groupsOf, runAll, planOne, commitOne, row: r => row(r), brandCard, stripHtml, cardKind, setHost: h => { H = h; }, setData: x => { DATA = x; } } };
 })();

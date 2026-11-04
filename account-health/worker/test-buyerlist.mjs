@@ -7,7 +7,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import assert from 'node:assert/strict';
 import { buildBuyerList, setState, readState, buyerMessage, buyerPostTick, buyerSettings, saveBuyerSettings, headOf, oneLine, shortWhy, DEFAULT_BUYER_CHANNEL,
-  normDays, isLaunchDay, nextLaunchDay, launchedRows, isStalled, stalledRow } from './src/buyerlist.js';
+  normDays, isLaunchDay, nextLaunchDay, launchedRows, isStalled, stalledRow, cardOf, setDecision, readDecisions, pastTense, whatWeDidText } from './src/buyerlist.js';
 import { cardToLive } from './src/launch.js';
 
 const db = new DatabaseSync(':memory:');
@@ -260,6 +260,62 @@ await check('not spending: a live set Meta spent under $20 on in 7 days is a pau
   assert.equal(r.why, 'Meta stopped spending on it: $2.40 in 7 days. Pause it so the account stays clean.');
   assert.deepEqual([r.key, r.kind, r.do, r.adset_id, r.campaign_id, r.stake], ['brand_alpha|1|stalled', 'stalled', 'pause', '1', '9', 0]);
   assert.ok(!/[–—]/.test(r.why + r.why_full + r.action));
+});
+
+await check('the card (2026-11-05): a rule row with no read gets kind, level, object, the directive, chips with good / bad, the Why, decide; the read wins when it ran', () => {
+  const c = cardOf({ kind: 'cut', level: 'adset', name: 'Retarget 7d', action: 'Pause this ad set', why: 'No sale on $1,400.', why_full: 'Spent $1,400 (3.5x the goal) with no sale in 7 days.', spend: 1400, days: 7, results: 0,
+    cpa: null, goal: 40, metric: 'cpa', budget: 200, currency: 'USD', do: 'pause', ad_id: '9', top_ad: '8' });
+  assert.deepEqual([c.kind, c.level, c.object, c.do, c.decide, c.fyi, c.ad_ids], ['cut', 'adset', 'Retarget 7d', 'Pause this ad set', true, null, ['9', '8']]);
+  assert.deepEqual(c.facts.map(f => [f.l, f.v, !!f.good, !!f.bad]), [['Spend 7d', '$1,400', false, false], ['Sales', '0', false, true], ['Budget', '$200/day', false, false]]);
+  assert.equal(c.because, 'Spent $1,400 (3.5x the goal) with no sale in 7 days.');
+  const s = cardOf({ kind: 'scale', name: 'Broad | Gift', set: null, action: 'Raise the budget', why: 'x', roas: 3.1, goal_roas: 2.5, metric: 'roas', spend: 400, results: 9, currency: 'USD', do: 'budget' });
+  assert.equal(s.kind, 'raise'); assert.deepEqual(s.facts.find(f => f.l === 'ROAS'), { l: 'ROAS', v: '3.1x vs 2.5x', good: true, bad: false });
+  const m = cardOf({ kind: 'mixed', name: 'LAL 1%', action: 'Your call', why: 'Cheap sales but over the ceiling.' });
+  assert.deepEqual([m.kind, m.decide, m.fyi], ['keep', false, 'Nothing to do']);
+  const l = cardOf({ kind: 'launch', name: '#415 Gift hook', action: 'Launch 2 approved ads', n_ads: 2, do: 'launch' });
+  assert.deepEqual([l.kind, l.level, l.decide, l.facts], ['launch', 'card', true, [{ l: 'Approved ads', v: '2', good: false, bad: false }]]);
+  const r = cardOf({ kind: 'cut', name: 'Hook B', set: 'Broad', action: 'Pause', why: 'x', card: { kind: 'trim', level: 'ad', object: 'Hook B in Broad', do: 'Turn off Hook B, keep the set', facts: [{ l: 'Spend', v: '$90' }], because: 'The set works; this ad does not.', decide: true, fyi: null, ad_ids: ['3331'] } });
+  assert.deepEqual([r.kind, r.level, r.object, r.do, r.because, r.ad_ids], ['trim', 'ad', 'Hook B in Broad', 'Turn off Hook B, keep the set', 'The set works; this ad does not.', ['3331']]);
+  const n = cardOf({ kind: 'minoff', nudge: 'not_picked', name: '415 | Test 415', action: 'Take the minimum off and pause', why: 'x', do: 'minoff', min: 20, currency: 'USD' });
+  assert.equal(n.kind, 'cut'); assert.ok(n.facts.some(f => f.l === 'Minimum' && f.v === '$20/day'));
+});
+
+await check('Yes / No: a decided row stays on the list today, marked, and counts as decided; No carries his line; clear = back to undecided; tomorrow it is quiet (Done)', async () => {
+  today = '2026-11-05';
+  const before = await buildBuyerList(env, d, { act: 'all' });
+  const cut = before.rows.find(r => r.kind === 'cut' && r.act_id === 'brand_alpha');
+  assert.ok(cut && cut.card && cut.card.kind === 'cut' && cut.card.decide, 'every row carries its card');
+  assert.equal(before.decided.n, 0);
+  const y = await setDecision(env, { act: 'brand_alpha', object: cut.object, action: 'cut', decision: 'yes', line: cut.card.do, name: cut.name, write_id: 'mw9' }, 'cole@go-mobius-digital.com', today);
+  assert.equal(y.ok, true);
+  await setDecision(env, { act: 'brand_beta', object: '444', action: 'mixed', decision: 'no', note: 'Give it till Friday', line: 'Your call', name: 'LAL 1%' }, 'ahsan@go-mobius-digital.com', today);
+  const l = await buildBuyerList(env, d, { act: 'all' });
+  const c2 = l.rows.find(r => r.key === cut.key), m2 = l.rows.find(r => r.kind === 'mixed');
+  assert.deepEqual([c2.decided.decision, c2.decided.write_id, c2.decided.by], ['yes', 'mw9', 'cole@go-mobius-digital.com'], 'still on the list, marked Yes');
+  assert.deepEqual([m2.decided.decision, m2.decided.note], ['no', 'Give it till Friday']);
+  assert.equal(l.decided.n, 1, 'only rows that asked count: the cut asked, the keep did not');
+  assert.equal(l.n, l.rows.filter(r => !r.decided).length, 'n = still undecided');
+  const decs = await readDecisions(env, new Set(['brand_alpha']), today);
+  assert.equal(decs.size, 1);
+  await setDecision(env, { act: 'brand_alpha', object: cut.object, action: 'cut', decision: 'clear' }, 'x', today);
+  assert.ok(!(await buildBuyerList(env, d, { act: 'all' })).rows.find(r => r.key === cut.key).decided, 'clear = undecided again');
+  await setDecision(env, { act: 'brand_alpha', object: cut.object, action: 'cut', decision: 'yes', line: cut.card.do, name: cut.name }, 'x', today);
+  today = '2026-11-06';
+  assert.ok(!(await buildBuyerList(env, d, { act: 'all' })).rows.find(r => r.key === cut.key), 'tomorrow a decided row is quiet (Done, 3 days)');
+  await assert.rejects(setDecision(env, { act: 'brand_alpha', object: '111', action: 'cut', decision: 'maybe' }, 'x', today));
+  today = '2026-10-26';
+});
+
+await check('What we did: one plain past-tense line per Yes row, nothing from a No, empty with no Yes; no em dashes', () => {
+  assert.equal(pastTense('Turn off ad set 368 (it never found a sale).'), 'Turned off ad set 368');
+  assert.equal(pastTense('Raise Broad | Gift from $200 to $240 a day'), 'Raised Broad | Gift from $200 to $240 a day');
+  assert.equal(pastTense('Turn it back on'), 'Turned on');
+  assert.equal(pastTense('Launch 2 approved ads'), 'Launched 2 approved ads');
+  assert.equal(pastTense('Your call'), 'Your call');
+  const t = whatWeDidText('Alpha Golf', [{ decision: 'yes', line: 'Turn off ad set 368' }, { decision: 'no', line: 'Raise Broad' }, { decision: 'yes', line: null, name: 'Launch 2 approved ads' }]);
+  assert.equal(t, 'Quick update on the Alpha Golf ads today:\n• Turned off ad set 368\n• Launched 2 approved ads');
+  assert.equal(whatWeDidText('Alpha Golf', [{ decision: 'no', line: 'x' }]), '');
+  assert.ok(!t.includes('—'));
 });
 
 console.log(`\n${n}/${n + bad} passed`);

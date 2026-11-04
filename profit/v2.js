@@ -3452,11 +3452,12 @@
   };
   /* The ad alone, playing: Today has the ad id and name but not its numbers, so this is the cover and Meta's preview in the
      same side panel (a bottom sheet on a phone), with a way to the full preview on Ads > Meta > Ads. Plays on open. */
+  /* The Buyer list (2026-11-05) passes `extra`: the ad's own numbers as HTML, drawn under the player. */
   function playAd(ad, onMore) {
     const id = String(ad.id || ''); if (!id) return;
     const th = THUMBS.has(id) ? ` style="background-image:url('${THUMBS.get(id)}')"` : '';
     const body = panel(ad.name || 'Ad', `<div class="v2pv"><div class="v2pv-media"><div class="v2pv-m" data-thumb="${esc(id)}"${th}><button type="button" class="v2play" aria-label="Play">Play</button></div></div>
-      ${ad.note ? `<p class="v2hint" style="margin-top:10px">${esc(ad.note)}</p>` : ''}${onMore ? '<p style="margin-top:10px"><button type="button" class="v2btn ghost" data-more="1">See its numbers on Ads</button></p>' : ''}</div>`);
+      ${ad.note ? `<p class="v2hint" style="margin-top:10px">${esc(ad.note)}</p>` : ''}${ad.extra || ''}${onMore ? '<p style="margin-top:10px"><button type="button" class="v2btn ghost" data-more="1">See its numbers on Ads</button></p>' : ''}</div>`);
     loadThumbs(body, [id], ad.act);
     const more = body.querySelector('[data-more]'); if (more) more.onclick = () => { if (panel.close) panel.close(); onMore(); };
     const m = body.querySelector('.v2pv-m');

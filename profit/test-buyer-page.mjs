@@ -24,24 +24,58 @@ const MIXED = { key: 'brand_dartee|8|mixed', kind: 'mixed', act_id: 'brand_darte
 const LAUNCH = { key: 'brand_lucky|c1|launch', kind: 'launch', act_id: 'brand_lucky', brand: 'Lucky Golf', level: 'card', object: 'c1', name: '#415 Gift hook', action: 'Launch 2 approved ads', why: 'x', stake: 0, do: 'launch' };
 const RESUME = { key: 'brand_lucky|1001|ai', kind: 'ai', act_id: 'brand_lucky', brand: 'Lucky Golf', level: 'ad', object: '1001', name: 'Carver hook A', ad_id: '1001', action: 'Turn back on', why: '3 sales at $70 each', stake: 210, do: 'resume' };
 
-await check('the row: full name on its own line, level and brand as labels, one bold action and one why, Show ads below; Locus changed this', () => {
+await check('the card row: kind tag, level and object, the directive, the Why line, Yes / No; the rules decide when there is no card', () => {
   T.setHost({ S: {} });
   const h = T.row(BW);
-  assert.match(h, /<div class="by-tags"><span class="by-lv">Ad set<\/span><span>Lucky Golf<\/span>/);
-  assert.match(h, /<div class="by-n">Black Wedges \| Still<\/div>/, 'the whole name, one line, never split or cut');
-  assert.match(h, /<div class="by-act">Pause this ad set<\/div><div class="by-why">\$561 in 7 days, 0 sales, goal ROAS 2\.2x<\/div>/);
+  assert.match(h, /<span class="by-k cut">CUT<\/span><span class="lv">Ad set: <b>Black Wedges \| Still<\/b><\/span>/);
+  assert.match(h, /<div class="by-do">Pause this ad set<\/div>/);
+  assert.match(h, /<div class="by-bec"><b>Why<\/b>\$561 in 7 days, 0 sales, goal ROAS 2\.2x<\/div>/);
+  assert.match(h, /data-yes="brand_lucky\|600\|cut"[^>]*>Yes<\/button><button[^>]*data-no="brand_lucky\|600\|cut"[^>]*>No<\/button>/, 'a cut with a Meta move asks Yes / No');
   assert.match(h, /Locus checked: Tracking is fine: Meta also counts just 1 sale on \$561/);
-  assert.match(h, /<div class="by-more"><button type="button" class="by-tog" data-ads="[^"]+" aria-expanded="false">Show ads<\/button><\/div>/, 'Show ads is its own control below');
-  assert.ok(!/Locus changed this|Needs you|MORNING READ|CUT/.test(h));
+  assert.ok(!/Nothing to do|by-note/.test(h), 'no note box until he says No');
   const t = T.row(TRIM);
-  assert.match(t, /<span class="by-lv">Ad<\/span>/); assert.match(t, /Locus changed this/); assert.match(t, /in 420 \| Carver/);
-  assert.match(t, /<div class="by-act">Turn off the static<\/div>/); assert.ok(!/Pause this ad</.test(t), 'only the final call shows');
-  assert.match(T.row(MIXED), /Needs you/);
+  assert.match(t, /<span class="by-k trim">TRIM<\/span><span class="lv">Ad: <b>Carver static<\/b><\/span>/); assert.match(t, /Locus changed this/);
+  assert.match(t, /<div class="by-do">Turn off the static<\/div>/); assert.ok(!/Pause this ad</.test(t), 'only the final call shows');
+  const m = T.row({ ...MIXED, card: { kind: 'keep', level: 'adset', object: 'LAL', do: 'Leave LAL alone', facts: [{ l: 'Spend', v: '$300' }, { l: 'ROAS', v: '2.9x', good: true }], because: 'It is on goal.', decide: false, fyi: 'Nothing to do', ad_ids: [] } });
+  assert.match(m, /<span class="by-k keep">KEEP<\/span>/); assert.match(m, /<span class="by-fyi">Nothing to do<\/span>/);
+  assert.match(m, /<span class="by-f"><small>Spend<\/small>\$300<\/span><span class="by-f good"><small>ROAS<\/small>2\.9x<\/span>/, 'facts are chips, good ones marked');
+  assert.ok(!/data-yes/.test(m));
+  const d = T.row({ ...BW, decided: { decision: 'no', note: 'Give it till Friday', by: 'cole@go-mobius-digital.com', at: '2026-11-05T15:00:00Z' } });
+  assert.match(d, /class="by-cr no"/); assert.match(d, /class="v2btn no on"/); assert.match(d, /You said: Give it till Friday/); assert.match(d, /No by Cole, /);
+  const n = T.row({ ...BW, decided: { decision: 'no', note: '', by: 'cole@x', at: '2026-11-05T15:00:00Z' } });
+  assert.match(n, /<input type="text" maxlength="600" data-note="brand_lucky\|600\|cut"/, 'a No with no reason yet shows the one-line Why box');
+});
+
+await check('the ad strip: every ad behind the row, the row own ad ringed, a paused one faded, a tap plays it', () => {
+  const r = { ...BW, goal_roas: 2.2, metric: 'roas', ads: { n: 3, days: 7, ads: [
+    { ad_id: '1', name: 'Hero | Video', spend: 400, sales: 1, roas: 0.5, focus: true, off: false, video: true, cover: 'https://x/1.webp' },
+    { ad_id: '2', name: 'Static B', spend: 161, sales: 0, roas: 0, focus: false, off: true, video: false, cover: null }] } };
+  const h = T.stripHtml(r);
+  assert.match(h, /<div class="by-ad focus"><button type="button" class="by-adth" data-thumb="1" data-play="1" data-row="brand_lucky\|600\|cut" style="background-image:url\('https:\/\/x\/1.webp'\)"/);
+  assert.match(h, /<span>This one<\/span>/); assert.match(h, /<i>Play<\/i>/);
+  assert.match(h, /<div class="by-ad off"><button type="button" class="by-adth" data-thumb="2" data-play="2"/, 'no cover yet = V2.thumbs fills it from [data-thumb]');
+  assert.match(h, /<span>Off<\/span>/); assert.match(h, /\+1 more, each smaller/);
+  assert.match(h, /<div class="st bad">\$400, 1 sale, 0\.5x<\/div>/);
+  assert.equal(T.stripHtml({ ...BW, ads: { n: 0, days: 7, ads: [] } }), '<p class="v2hint" style="margin:0">No ad in it spent in the last 7 days.</p>');
+  assert.equal(T.stripHtml(BW), '', 'no ads read = no strip');
+});
+
+await check('one card per brand: name, week chips, the one line, "x of y decided", rows in the card order', () => {
+  T.setData({ act: 'all', ai: { brands: [{ act_id: 'brand_lucky', headline: 'Lucky is on goal this week.', week: [{ l: 'Spend', v: '$4.2K' }, { l: 'MER', v: '2.8x', good: true }] }] } });
+  const rows = [{ ...TRIM, card: { kind: 'trim', decide: true } }, { ...BW, card: { kind: 'cut', decide: true }, decided: { decision: 'yes', by: 'a@b', at: '2026-11-05T15:00:00Z' } }, { ...LAUNCH, card: { kind: 'launch', decide: true } }, { ...RESUME, card: { kind: 'raise', decide: true } }];
+  const g = T.groupsOf(rows);
+  const h = T.brandCard(g[0]);
+  assert.match(h, /<h3>Lucky Golf<\/h3><span class="m">1 of 4 decided, \$841 at stake<\/span>/);
+  assert.match(h, /<div class="by-week"><span class="by-f"><small>Spend<\/small>\$4\.2K<\/span><span class="by-f good"><small>MER<\/small>2\.8x<\/span><\/div><p class="line">Lucky is on goal this week\.<\/p>/);
+  const order = [...h.matchAll(/class="by-k (\w+)"/g)].map(m => m[1]);
+  eq(order, ['raise', 'cut', 'trim', 'launch']);
+  assert.match(h, /data-wwd="brand_lucky">What we did</, 'a Yes today = the client update button');
 });
 
 await check('grouped by brand, the brand with the most money at stake first', () => {
   const g = T.groupsOf([BW, TRIM, SCALE, MIXED, LAUNCH]);
   eq(g.map(x => [x.brand, x.rows.length, x.n_do, x.stake]), [['Dartee', 2, 1, 1200], ['Lucky Golf', 3, 2, 631]]);
+  eq(T.groupsOf([BW, { ...TRIM, decided: { decision: 'yes' } }])[0].n_do, 1, 'a decided row is not counted in Yes to all');
 });
 
 await check('Agree to all: only Meta changes Locus can make; each body hits the right object and level', () => {
