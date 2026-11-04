@@ -912,7 +912,7 @@ function lookStep(b) {
       body = `<div class="st-fa">${base || ref ? `<button type="button" class="st-fa-img" data-zu="${esc(base || ref)}"><img src="${esc(base || ref)}" alt=""><span>${base ? 'The base' : 'Product from here, new look'}</span></button>` : ''}
         <div><p class="st-lbl">Made from the ad</p><p class="st-fa-a">${esc(fa.name || '')}</p><p class="hint" style="margin:6px 0 0">${base ? 'Testing words: every line keeps this picture and only the words change.' : 'Testing the look: Studio keeps the product from this ad and makes a new scene, layout and type for each line.'}</p>
           <p class="st-lbl" style="margin-top:14px">Testing: ${esc(testName)}${fa.change ? ` · you asked: “${esc(fa.change)}”` : ''}</p></div></div>`;
-    } else body = `<div class="st-empty"><b>Start from an ad that is selling</b>Open Marketing > Ads, open a winning ad and press Make iterations. Locus writes a batch from what it learned and brings the ad here.<div style="margin-top:12px"><button type="button" class="btn" id="bGoAds">Open the ads</button></div></div>`;
+    } else body = `<div class="st-empty"><b>Start from an ad that is selling</b>Open Ads > Ads, open a winning ad and press Make iterations. Locus writes a batch from what it learned and brings the ad here.<div style="margin-top:12px"><button type="button" class="btn" id="bGoAds">Open the ads</button></div></div>`;
   } else if (mode === 'photo') {
     body = `<p class="hint" style="margin:0 0 4px">Give each line the photo that is the ad. A line with no photo is designed by the AI.</p>
       ${lines.map((l, i) => `<div class="st-bl st5-ll">${lineHead(l, i)}<div class="st-thumbs">${l.photo

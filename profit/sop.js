@@ -73,9 +73,9 @@
     return `<div class="sop">
       <div class="row" style="justify-content:flex-end;margin:0 0 12px"><button type="button" class="btn" onclick="window.print()">Print or save as PDF</button></div>
       ${card('The week', 'Set 2026-10-12. Every time is Central.', `<table class="sop-tbl"><tr><th>When</th><th>What</th><th>Who</th></tr>${WEEK.map(r => `<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td><td>${esc(r[2])}</td></tr>`).join('')}</table>`)}
-      ${card('The Monday call', 'Same order every week, per brand, with a clock. Run it from Work > Calls > Monday call and share that screen.', `<table class="sop-tbl"><tr><th>Part</th><th>What happens</th></tr>${CALL.map(r => `<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td></tr>`).join('')}</table>`)}
-      ${card('The creative kickoff call', 'Required for every brief. A real conversation about the idea, not a read-through. 15 to 20 minutes for a group of briefs. Run it from Work > Calls > Creative kickoff.', `<ol>${KICKOFF.map(x => `<li>${esc(x)}</li>`).join('')}</ol>`)}
-      ${card('The client call', 'Strategist leads, Cole joins when it matters. 30 minutes, same order every time. Run it from Work > Calls > Client call.', `<table class="sop-tbl"><tr><th>Part</th><th>What happens</th></tr>${CLIENT.map(r => `<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td></tr>`).join('')}</table>`)}
+      ${card('The Monday call', 'Same order every week, per brand, with a clock. Run it from Clients > Meetings > Monday call and share that screen.', `<table class="sop-tbl"><tr><th>Part</th><th>What happens</th></tr>${CALL.map(r => `<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td></tr>`).join('')}</table>`)}
+      ${card('The creative kickoff call', 'Required for every brief. A real conversation about the idea, not a read-through. 15 to 20 minutes for a group of briefs. Run it from Clients > Meetings > Creative kickoff.', `<ol>${KICKOFF.map(x => `<li>${esc(x)}</li>`).join('')}</ol>`)}
+      ${card('The client call', 'Strategist leads, Cole joins when it matters. 30 minutes, same order every time. Run it from Clients > Meetings > Client call.', `<table class="sop-tbl"><tr><th>Part</th><th>What happens</th></tr>${CLIENT.map(r => `<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td></tr>`).join('')}</table>`)}
       ${card('Revisions, due dates, creative', '', RULES.map(r => `<div class="sop-rule"><b>${esc(r[0])}</b>${esc(r[1])}</div>`).join(''))}
     </div>`;
   }
