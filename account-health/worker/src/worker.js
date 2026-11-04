@@ -7456,21 +7456,12 @@ async function handleSlackEvent(request, env, ctx) {
        channel is the team's own, and a reply there never reaches a model. Decided BEFORE
        claiming the message, so a bowed-out plain copy cannot swallow its app_mention twin. */
     if (ev.type !== 'message' || !inThread || !ev.user) return ACK();
-    /* 2026-11-04, Cole: Locus kept answering him and Nikolai (Rebel Email) in #lucky-email with nobody tagging it. A
-       plain reply only reaches the Strategist in the team's own rooms: a brand's internal channel, the agency channel
-       or a group DM. In a shared or client channel the people there are talking to each other; a tag is the only door. */
-    if (!group) {
-      const ours = await brandByChannel(env, ev.channel).catch(() => null)
-        || await env.DB.prepare(`SELECT 1 AS x FROM brand_accounts WHERE slack_channel = ?1 AND (brief_channel IS NULL OR brief_channel != slack_channel) LIMIT 1`).bind(ev.channel).first().catch(() => null)
-        || ev.channel === await getSetting(env, 'strategistChannel').catch(() => null);
-      if (!ours) return ACK();
-    }
     if (!(await strategistThreadOpen(env, ev.channel, ev.thread_ts))) return ACK();
     /* Cole (2026-10-06): "what if I'm talking to Ahsan in the thread?" A reply that tags a person
        is theirs (the bot's own tag was handled above, so any tag left is a human). Anything else
        is read once by a small model that says whether it is for the Strategist. */
     if (/<@U[A-Z0-9]+/.test(ev.text || '')) return ACK();
-    if (!(await replyForStrategist(env, ev).catch(e => { console.log('reply gate: ' + e.message); return true; }))) { console.log(`reply gate: no for ${ev.channel}:${ev.ts}`); return ACK(); }
+    if (!(await replyForStrategist(env, ev).catch(e => { console.log('reply gate: ' + e.message); return false; }))) { console.log(`reply gate: no for ${ev.channel}:${ev.ts}`); return ACK(); }
   }
   /* A bare tag in a thread ("@Locus" and nothing else) means "this, please": it carries the asker's own messages since
      the Strategist last spoke. It used to reach the engine as an empty question and be dropped without a word (Cole,
@@ -7597,22 +7588,22 @@ async function strategistSlackAnswer(env, ev, screen) {
   return engine.answerSlack(env, ev, h(), { findings: findings.slice(0, 6), ...(screen ? { screen } : {}), who, call: screen?.guest ? null : askCaller(env, 'Bearer ' + (env.ADMIN_TOKEN || ''), null).call });
 }
 
-/* A thread is "open" (the Strategist answers plain replies in it) once it was mentioned there,
-   or when it posted the thread's first message itself (a finding, a briefing, an answer). The
-   mark lives in settings as askThread:<channel>:<ts> = 1; a thread checked and found not to be
-   the Strategist's is marked 0 so the root is read from Slack only once. A later mention flips it. */
+/* A thread is "open" (plain replies in it go to the reply gate) only once the Strategist was TAGGED there. The mark
+   lives in settings as askThread2:<channel>:<ts> = 1 (2026-11-04: a new key, because askThread: rows also held threads
+   opened just for being Locus's own post, which is no longer a door). An idea thread is marked 0. */
 async function openStrategistThread(env, channel, ts) {
   if (!channel || !ts) return;
-  await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, '1') ON CONFLICT(key) DO UPDATE SET value = '1'`).bind(`askThread:${channel}:${ts}`).run();
+  await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, '1') ON CONFLICT(key) DO UPDATE SET value = '1'`).bind(`askThread2:${channel}:${ts}`).run();
 }
 /* Does a plain reply in an open thread want the Strategist? Haiku reads the last few messages and
    the new one. A question or instruction aimed at nobody in particular, or a follow-up to what the
    Strategist said, is YES; teammates talking to each other (a named person, a plan, a status, a
-   thanks) is NO. Unsure = YES, so a real question is never left hanging. About a tenth of a cent. */
+   thanks) is NO. Unsure = NO (2026-11-04): a missed question costs a tag, a wrong jump-in costs a deleted message in front of a client. About a tenth of a cent. */
 const GATE_SYSTEM = `You decide whether an AI assistant called the Strategist, which sits in a marketing team's Slack thread, should answer the newest message.
 YES when the message is for the Strategist: a question or an instruction aimed at nobody in particular, a follow-up to something the Strategist said, a correction of it, or an answer to a question the Strategist asked.
-NO when teammates are talking to each other: the message names or addresses a specific person, or it is a plan, a status update, an agreement, a thanks or small talk between people.
-When unsure, YES. Reply with exactly one word: YES or NO.`;
+NO when people are talking to each other: the message names or addresses a specific person, answers or reacts to what another PERSON just said ("wym?", "ohh I get it", "so you want..."), or it is a plan, a status update, an agreement, a thanks or small talk between people.
+When the message right before the newest one is from another person (not the assistant), the newest message is almost always a reply to them: NO unless it plainly asks the assistant for something.
+When unsure, NO. Reply with exactly one word: YES or NO.`;
 const plainTag = t => String(t || '').replace(/<@[A-Z0-9]+(?:\|[^>]*)?>/g, '').trim();
 /* The asker's messages in this thread after the Strategist's last post, as one text; 'answered' when one of them was
    already claimed (it is being or was answered); null when there is none. */
@@ -7652,24 +7643,20 @@ async function replyForStrategist(env, ev) {
   const j = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(j.error?.message || `Claude API HTTP ${res.status}`);
   const a = (j.content || []).map(b => b.text || '').join('').trim().toUpperCase();
-  return !/^NO\b/.test(a);
+  return /^YES\b/.test(a);
 }
 async function closeStrategistThread(env, channel, ts) {
   if (!channel || !ts) return;
-  await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, '0') ON CONFLICT(key) DO UPDATE SET value = '0'`).bind(`askThread:${channel}:${ts}`).run();
+  await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, '0') ON CONFLICT(key) DO UPDATE SET value = '0'`).bind(`askThread2:${channel}:${ts}`).run();
 }
 async function strategistThreadOpen(env, channel, ts) {
   /* An idea thread is never the Strategist's, whatever happened in it before the ideas bot took over. */
   if (await env.DB.prepare(`SELECT 1 AS x FROM idea_thread WHERE id = ?1`).bind(`${channel}:${ts}`).first().catch(() => null)) return false;
-  const key = `askThread:${channel}:${ts}`;
-  const have = await env.DB.prepare(`SELECT value FROM settings WHERE key = ?1`).bind(key).first().catch(() => null);
-  if (have) return have.value === '1';
-  /* Not seen before: is the thread's first message the Strategist's own? */
-  const r = await slackApi(env, 'conversations.replies', { channel, ts, limit: 1, inclusive: true });
-  const root = (r?.messages || [])[0];
-  const mine = !!root && !!root.bot_id && /^(strategist|locus)$/i.test(String(root.username || root.bot_profile?.name || ''));
-  await env.DB.prepare(`INSERT OR IGNORE INTO settings (key, value) VALUES (?1, ?2)`).bind(key, mine ? '1' : '0').run().catch(() => {});
-  return mine;
+  /* 2026-11-04, Cole: "I need to tag Locus for it to be in a thread." A thread is open ONLY after someone tagged the
+     Strategist in it (openStrategistThread). A thread Locus started itself (a post, a card, a message sent through it)
+     is not: it answered Cole and Nikolai in #lucky-email under its own post with nobody tagging it. */
+  const have = await env.DB.prepare(`SELECT value FROM settings WHERE key = ?1`).bind(`askThread2:${channel}:${ts}`).first().catch(() => null);
+  return !!have && have.value === '1';
 }
 
 async function nightly(env) {

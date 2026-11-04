@@ -219,7 +219,7 @@ export async function buildCard(env, d, a, today, shared = {}) {
   const calls = (rows || []).filter(r => CALL_KINDS.includes(r.kind));
   const team = shared.team && shared.team[a.act_id] || {};
   if (calls.length) {
-    items.push({ key: 'calls', kind: 'calls', text: callsText(calls, a.currency), who: team.buyer || 'Cole', objs: [...new Set(calls.map(r => String(r.ad_id || r.adset_id || '')).filter(Boolean))], made: [], rank: 1e12 + calls.reduce((s, r) => s + (+r.stake || 0), 0) });
+    items.push({ key: 'calls', kind: 'calls', text: callsText(calls, a.currency), who: team.buyer || 'Cole', role: 'media buying', objs: [...new Set(calls.map(r => String(r.ad_id || r.adset_id || '')).filter(Boolean))], made: [], rank: 1e12 + calls.reduce((s, r) => s + (+r.stake || 0), 0) });
   }
   /* A leads campaign that is running (2026-10-25): one line on what it produced yesterday, the buyer tagged. */
   if (d.leadsYesterday) {
@@ -232,12 +232,12 @@ export async function buildCard(env, d, a, today, shared = {}) {
         const text = l.spend <= 0 ? `Check ${nm} is delivering: it spent nothing yesterday${l.budget ? ` on a ${money(l.budget, a.currency)}/day budget` : ''}`
           : cpl != null ? `Fix ${nm}: ${sym(a.currency)}${cpl.toFixed(2)} a lead yesterday, over the ${sym(a.currency)}${LEAD_CPL_MAX.toFixed(2)} limit`
           : `Fix ${nm}: ${money(l.spend, a.currency)} spent yesterday, no leads`;
-        items.push({ key: `leads:${l.id}`, kind: 'leads', text, who: team.buyer || 'Cole', rank: 1e11 });
+        items.push({ key: `leads:${l.id}`, kind: 'leads', text, who: team.buyer || 'Cole', role: 'media buying', rank: 1e11 });
       }
     } catch (e) { notes.push(`leads: ${e.message}`); }
   }
   /* The client daily waiting for an OK is a job (Cole's), so it is a line of its own, first. */
-  if (brief && brief.status === 'draft' && a.brief_enabled) items.push({ key: 'daily', kind: 'daily', text: 'Approve the client daily, it is waiting on you', who: 'Cole', rank: 2e12 });
+  if (brief && brief.status === 'draft' && a.brief_enabled) items.push({ key: 'daily', kind: 'daily', text: 'Approve the client daily, it is waiting on you', who: 'Cole', role: 'client update', rank: 2e12 });
   /* Tasks due today or overdue. */
   await ensureActions(env);
   const tasks = (await env.DB.prepare(`SELECT * FROM p_action WHERE status = 'open' AND act_id = ?1 AND due != '' AND due <= ?2 ORDER BY due, created_at`).bind(a.act_id, today).all().catch(() => ({ results: [] }))).results || [];
@@ -250,14 +250,14 @@ export async function buildCard(env, d, a, today, shared = {}) {
   for (const e of ((shared.calendar && shared.calendar.items) || []).filter(x => x.act === a.act_id && x.start === tomorrow)) {
     const open = (e.steps || []).filter(s => s.state !== 'done');
     if (!open.length) continue;
-    items.push({ key: `cal:${e.id}`, kind: 'cal', text: `Get ${clean(e.name, 80)} ready, it goes live tomorrow: still ${open.map(s => String(s.label || '').toLowerCase()).join(', ')}`, who: /^[A-Z][a-z]+$/.test(open[0].who || '') ? open[0].who : (team.strat || ''), rank: 500 });
+    items.push({ key: `cal:${e.id}`, kind: 'cal', text: `Get ${clean(e.name, 80)} ready, it goes live tomorrow: still ${open.map(s => String(s.label || '').toLowerCase()).join(', ')}`, who: /^[A-Z][a-z]+$/.test(open[0].who || '') ? open[0].who : (team.strat || ''), role: open[0].role || '', rank: 500 });
   }
   /* Production cards that are late, by up to 30 days (Lucky had a Brief card 123 days late on 2026-10-13: an old card
      nobody closed is not today's job, and it would push real work off the five lines). */
   for (const c of ((shared.board && shared.board.cards) || []).filter(x => x.act_id === a.act_id && x.late)) {
     const late = daysBetween(c.due, today);
     if (late > 30) continue;
-    items.push({ key: `prod:${c.id}`, kind: 'prod', id: c.id, text: `${PROD_VERB[c.board] || 'Move on'} ${c.num ? `${c.num} ` : ''}${words(c.title, 70)} (${late} day${late === 1 ? '' : 's'} late)`, who: c.assignee || team.strat || '', rank: late * 1000 });
+    items.push({ key: `prod:${c.id}`, kind: 'prod', id: c.id, text: `${PROD_VERB[c.board] || 'Move on'} ${c.num ? `${c.num} ` : ''}${words(c.title, 70)} (${late} day${late === 1 ? '' : 's'} late)`, who: c.assignee || team.strat || '', role: 'creative', rank: late * 1000 });
   }
   /* The leak finder (2026-10-13, leaks.js): ONE line when a NEW leak over LEAK_FLOOR a month appeared since yesterday's
      card (leak ids are kept on the card), tagged to its owner from the brand's roster. The first day only records the
@@ -291,7 +291,7 @@ export async function buildCard(env, d, a, today, shared = {}) {
     if (hot.length) {
       const h = hot[0], n = h.metric === 'views' ? h.views : h.likes, kk = v => v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `${Math.round(v / 1e3)}k` : String(Math.round(v || 0));
       const fmt = { reel: 'Reel', carousel: 'carousel', post: 'post', tiktok: 'TikTok', photos: 'photo post', short: 'Short', video: 'video' }[h.fmt] || 'post';
-      items.push({ key: `social:${h.id}`, kind: 'social', fyi: true, text: `FYI, breaking out on Social: @${h.handle || h.who} ${fmt}, ${kk(n || 0)} ${h.metric || 'views'}${h.base ? ` (usually ${kk(h.base)}, ${h.ratio >= 10 ? Math.round(h.ratio) : h.ratio}x)` : ''}${hot.length > 1 ? ` · ${hot.length - 1} more` : ''} · Social > Breaking out`, who: team.strat || '', rank: 400 + Math.min(600, (h.ratio || 0) * 10) });
+      items.push({ key: `social:${h.id}`, kind: 'social', fyi: true, text: `FYI, breaking out on Social: @${h.handle || h.who} ${fmt}, ${kk(n || 0)} ${h.metric || 'views'}${h.base ? ` (usually ${kk(h.base)}, ${h.ratio >= 10 ? Math.round(h.ratio) : h.ratio}x)` : ''}${hot.length > 1 ? ` · ${hot.length - 1} more` : ''} · Social > Breaking out`, who: team.strat || '', role: 'creative strategy', rank: 400 + Math.min(600, (h.ratio || 0) * 10) });
     }
   } catch (e) { notes.push(`social: ${e.message}`); }
   items.sort((p, q) => q.rank - p.rank);
@@ -331,7 +331,9 @@ export function cardMessage(c) {
   const lineOf = it => {
     const note = it.kind === 'calls' && (it.made || []).length ? ` · ${it.made.length} of ${(it.objs || []).length} made` : '';
     const body = `${esc(it.text)}${note}`;
-    return it.tag ? `${it.tag} ${body}` : body;
+    /* 2026-11-04 (Cole): each line says who it is for AND what kind of job it is, "@Ahsan, creative strategy: ...". */
+    const who = it.tag ? `${it.tag}${it.role ? `, ${esc(it.role)}` : ''}: ` : '';
+    return `${who}${body}`;
   };
   const head = mine ? `*${esc(c.name)}:* ${lineOf(mine)}` : `*${esc(c.name)}:* nothing needs you today, Cole${jobs.length ? '' : ', or anyone'}`;
   const daily = /not written|skipped$/.test(c.daily || '') ? c.daily : '';

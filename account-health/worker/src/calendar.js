@@ -63,6 +63,8 @@ const STEPS = {
   site: [],
   season: [['offer', 'Offer locked', -30, 'cole'], ['briefs', 'Ads briefed', -23, 'strat'], ['built', 'Ads built', -9, 'strat'], ['loaded', 'Ads loaded', -4, 'buyer']],
 };
+/* What kind of job a step is, said next to the name in Slack so the person knows why it is theirs (Cole, 2026-11-04). */
+export const ROLE_JOB = { strat: 'creative strategy', buyer: 'media buying', email: 'email', cole: 'offer', client: 'client' };
 const ASANA_STEPS = ['briefs', 'built', 'email', 'loaded'];   // the steps "Make the Asana tasks" makes a task for
 
 let ensured = false;
@@ -201,7 +203,7 @@ function stepsFor(e, team, today, sig) {
     const t = e.ticks && e.ticks[key]; if (t && !done) { done = true; note = `Ticked by ${t.by || 'someone'}`; }
     if ((key === 'briefs' || key === 'built') && !gid && !done) note = e.src === 'season' ? 'Not ticked (tasks live on the Black Friday plan)' : 'No Asana task yet';
     const state = done ? 'done' : due < today ? 'late' : 'open';
-    return { key, label, due, who, state, note, how, asana: gid || null };
+    return { key, label, due, who, role: ROLE_JOB[role] || '', state, note, how, asana: gid || null };
   });
 }
 
@@ -494,13 +496,19 @@ export async function calendarTick(env, d) {
     if (!b.channel || b.channel === b.client_channel) continue;
     const mine = data.items.filter(e => e.act === b.id);
     const lines = [], owners = [];
+    /* 2026-11-04: the open steps are said per person and job ("@Ahsan, creative strategy: ads briefed (was due Oct 17)"),
+       so each line reads as who it is for and why. */
+    const byPerson = open => {
+      const g = new Map();
+      for (const s of open) { const k = `${s.who}|${s.role}`; if (!g.has(k)) g.set(k, { who: s.who, role: s.role, steps: [] }); g.get(k).steps.push(`${s.label.toLowerCase()} (${s.state === 'late' ? `was due ${md(s.due)}` : md(s.due)})`); }
+      return [...g.values()].map(x => `• ${x.who}${x.role ? `, ${x.role}` : ''}: ${x.steps.join('; ')}`).join('\n');
+    };
     for (const e of mine) {
       const open = (e.steps || []).filter(s => s.state !== 'done');
       const before = lines.length;
       const ready = (e.steps || []).filter(s => s.state === 'done').map(s => s.label.toLowerCase());
-      const notYet = open.map(s => `${s.label.toLowerCase()} (${s.state === 'late' ? `was due ${md(s.due)}` : md(s.due)}, ${s.who})`);
-      if (e.start === add(today, 1) && open.length && !carded) lines.push(`*Live tomorrow: ${e.name}.* Not yet: ${notYet.join('; ')}.`);
-      if (e.start === add(today, 7) && open.length) lines.push(`*One week out: ${e.name}*, ${wd(e.start)} ${md(e.start)}.${ready.length ? ` Ready: ${ready.join(', ')}.` : ''} Not yet: ${notYet.join('; ')}.`);
+      if (e.start === add(today, 1) && open.length && !carded) lines.push(`*Live tomorrow: ${e.name}.* Still to do:\n${byPerson(open)}`);
+      if (e.start === add(today, 7) && open.length) lines.push(`*One week out: ${e.name}*, ${wd(e.start)} ${md(e.start)}.${ready.length ? ` Ready: ${ready.join(', ')}.` : ''} Still to do:\n${byPerson(open)}`);
       if (lines.length > before) owners.push(...open.map(s => s.who));
       if (monday && e.src === 'cal' && e.kind === 'sale' && !e.end && e.start <= add(today, -7)) lines.push(`*Still running? ${e.name}* has no end date (${Math.round((Date.parse(today) - Date.parse(e.start)) / 864e5)} days in). Set the end in Locus, or tap "It ended today" on it.`);
     }

@@ -99,20 +99,20 @@ await check('one card per brand to its INTERNAL channel; internal = client chann
   alphaCard = top.find(p => p.channel === 'C_ALPHA');
   const lines = alphaCard.text.split('\n');
   if (process.env.SHOW) (await import('node:fs')).writeFileSync(process.env.SHOW, alphaCard.text + '\n----\n' + top.find(p => p.channel === 'C_BETA').text);
-  assert.equal(lines[0], '*Alpha Golf:* <@U_COLE> Gifting angles for Trybe creators', 'line 1 = Cole\'s one job, tagged, even when it ranks below the others');
+  assert.equal(lines[0], '*Alpha Golf:* <@U_COLE>: Gifting angles for Trybe creators', 'line 1 = Cole\'s one job, tagged, even when it ranks below the others');
   assert.equal(lines[1], '_Yesterday $1,438 (plan $1,800) · MER 2.11x_', 'the numbers are a quiet second line; a sent daily is not news');
-  assert.equal(lines[2], '<@U_AHSAN> Today\'s ad calls: cut 2 ad sets, scale 1 · $2.4K at stake', 'calls next, one line, buyer tagged');
+  assert.equal(lines[2], '<@U_AHSAN>, media buying: Today\'s ad calls: cut 2 ad sets, scale 1 · $2.4K at stake', 'calls next, one line, buyer tagged');
   const action = lines.filter(l => /^(<@|\*[A-Z])/.test(l) && !/^\*(Client owes|Alpha)/.test(l));
   assert.equal(action.length, MAX_LINES, 'Cole\'s line plus the calls line plus the rest, three task lines at most');
   assert.ok(lines.includes('_and 3 more in Locus_'), 'the rest are counted');
-  assert.ok(lines.some(l => l === '<@U_RAD> Review the Web Skitters site · 2 days late'), 'no roster email: one users.list match');
-  assert.ok(lines.some(l => /^\*Ravo\* Finish 312 Hook test \(3 days late\)$/.test(l)), 'late production card says what to do, a bold name when Slack has no id');
+  assert.ok(lines.some(l => l === '<@U_RAD>: Review the Web Skitters site · 2 days late'), 'no roster email: one users.list match');
+  assert.ok(lines.some(l => /^\*Ravo\*, creative: Finish 312 Hook test \(3 days late\)$/.test(l)), 'late production card says what to do, a bold name when Slack has no id');
   assert.ok(lines.includes('*Client owes* Fall polo samples · 4 days'));
   assert.ok(!/Weekly report/.test(alphaCard.text), 'no weekly line on a Tuesday');
   const btns = alphaCard.blocks.filter(b => b.type === 'actions').map(b => b.elements[0]);
   assert.deepEqual(btns.map(b => [b.text.text, b.url, b.action_id]), [['Open Alpha Golf in Locus', 'https://tools.go-mobius-digital.com/profit/?act=brand_alpha', 'noop_open'], ['Make the ad calls', 'https://tools.go-mobius-digital.com/profit/?open=today&act=brand_alpha&doall=1', 'noop_open']]);
   const beta = top.find(p => p.channel === 'C_BETA');
-  assert.equal(beta.text.split('\n')[0], '*Beta Socks:* <@U_COLE> Approve the client daily, it is waiting on you', 'a daily waiting is Cole\'s job, line 1');
+  assert.equal(beta.text.split('\n')[0], '*Beta Socks:* <@U_COLE>, client update: Approve the client daily, it is waiting on you', 'a daily waiting is Cole\'s job, line 1');
   assert.equal(beta.blocks.filter(b => b.type === 'actions').length, 1, 'no calls = no Make the calls button');
   assert.ok(!/—/.test(JSON.stringify(posts)), 'no em dash anywhere');
 });
@@ -149,7 +149,7 @@ await check('Done anywhere updates the card in place: struck through, no new mes
   assert.equal(updates.length, 1); assert.equal(updates[0].channel, 'C_ALPHA');
   assert.ok(!updates[0].text.includes('Review the Web Skitters site') && updates[0].text.includes('✓ 1 done'), 'a done line leaves the card and is counted');
   await markDone(env, ids.t2, false);
-  assert.ok(updates[1].text.includes('<@U_RAD> Review the Web Skitters site · 2 days late') && !updates[1].text.includes('✓ 1 done'));
+  assert.ok(updates[1].text.includes('<@U_RAD>: Review the Web Skitters site · 2 days late') && !updates[1].text.includes('✓ 1 done'));
 });
 
 await check('a ✅ on the card itself marks every task line on it done (one redraw); a ✅ elsewhere is ignored', async () => {
@@ -214,7 +214,7 @@ await check('preview: the card as words for one brand, nothing posted; the switc
   posts = [];
   const p = await previewCard(env, d, 'brand_alpha');
   assert.equal(posts.length, 0);
-  assert.match(p.text, /^Alpha Golf: nothing needs you today, Cole\nYesterday /, 'Cole\'s task was ticked done above, so line 1 says nothing needs him'); assert.match(p.text, /@Ahsan Today's ad calls/); assert.ok(!/<@/.test(p.text));
+  assert.match(p.text, /^Alpha Golf: nothing needs you today, Cole\nYesterday /, 'Cole\'s task was ticked done above, so line 1 says nothing needs him'); assert.match(p.text, /@Ahsan, media buying: Today's ad calls/); assert.ok(!/<@/.test(p.text));
   assert.ok(p.thread.length >= 1);
   await assert.rejects(previewCard(env, d, 'brand_nope'), /No such active brand/);
   setSetting('morningCard', 'off'); assert.deepEqual(await morningCardTick(env, d), { skipped: 'off' }); setSetting('morningCard', 'on');
