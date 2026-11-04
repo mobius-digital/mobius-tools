@@ -31,7 +31,7 @@ import { metaOf } from './brands.js';
 import { keyFor, klaviyo } from './klaviyo.js';
 import { supplyFetch } from './stock.js';
 import { clientScope } from './brandguard.js';
-import { teamPost, cardOn } from './morningcard.js';
+import { teamPost, cardOn, tagOf } from './morningcard.js';
 import { calendarPosts } from './socialpost.js';
 
 let F = (...a) => fetch(...a);
@@ -77,7 +77,8 @@ async function ensure(env) {
 export async function teamOf(env, ids) {
   const out = {};
   const rows = ids.length ? (await env.DB.prepare(`SELECT act_id, key, value FROM p_season_answer WHERE key IN ('strategist','buyer','email_owner') AND act_id IN (${ids.map((_, i) => `?${i + 1}`).join(',')})`).bind(...ids).all().catch(() => ({ results: [] }))).results || [] : [];
-  for (const id of ids) out[id] = { strat: 'Ahsan', buyer: 'Cole', email: 'the email owner', cole: 'Cole' };
+  /* No call sheet answer = no named strategist (2026-11-04: the old 'Ahsan' default tagged him on brands he does not run). */
+  for (const id of ids) out[id] = { strat: 'the strategist', buyer: 'Cole', email: 'the email owner', cole: 'Cole' };
   const short = v => String(v || '').split(/[.(,]/)[0].trim().slice(0, 40);
   for (const r of rows) { const t = out[r.act_id]; if (!t || !short(r.value) || /^unknown/i.test(r.value)) continue; if (r.key === 'strategist') t.strat = short(r.value); if (r.key === 'buyer') t.buyer = short(r.value); if (r.key === 'email_owner') t.email = short(r.value); }
   return out;
@@ -183,7 +184,7 @@ async function asanaDone(env, act, gids) {
 /* ---------- the countdown ---------- */
 function stepsFor(e, team, today, sig) {
   const kind = e.src === 'season' ? 'season' : e.kind;
-  const T = team[e.act] || { strat: 'Ahsan', buyer: 'Cole', email: 'the email owner', cole: 'Cole' };
+  const T = team[e.act] || { strat: 'the strategist', buyer: 'Cole', email: 'the email owner', cole: 'Cole' };
   if (e.src === 'drop' || e.src === 'email') return [];
   return (STEPS[kind] || []).map(([key, label, off, role]) => {
     const due = key === 'assets' && e.assets_due ? e.assets_due : add(e.start, off);
@@ -465,13 +466,18 @@ export async function calendarTick(env, d) {
   const chanOf = slug => { const b = brands.find(x => x.act_id === idOfSlug(slug)); return b && b.slack_channel && b.slack_channel !== b.brief_channel ? b.slack_channel : null; };
   /* 2026-10-13: team posts go under today's morning card in the brand channel (a reply, the strategist tagged);
      with no card today they post top-level as before (morningcard.js teamPost). */
-  const leads = await teamOf(env, brands.map(b => b.act_id)).catch(() => ({}));
-  const leadOf = id => (leads[id] || {}).strat || null;
+  /* 2026-11-04 (Cole: "why is Locus mentioning Ahsan every morning?"): a post tags only the people who own a step still
+     open in it ("Ahsan + Noma" tags both), never the brand's strategist by default. A client's date change is an FYI. */
+  const tagsFor = async names => {
+    const firsts = [...new Set(names.flatMap(n => String(n || '').split(/\s*(?:\+|&|,|\band\b)\s*/)).map(n => n.trim()).filter(n => /^[A-Z][a-z]+$/.test(n)))];
+    const tags = (await Promise.all(firsts.map(n => tagOf(env, d, n).catch(() => null)))).filter(Boolean);
+    return tags.length ? tags.join(' ') : null;
+  };
   for (const l of logs || []) {
     if (team.has(l.changed_by)) continue;
     const ch = chanOf(l.brand_id); if (!ch) continue;
     const text = `*${l.changed_by} changed a date: ${l.event_name}.* ${l.change_summary}.`;
-    try { await teamPost(env, d, ch, text, [{ type: 'section', text: { type: 'mrkdwn', text } }, { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open in Locus' }, url: `${LOCUS}?open=calendar&act=${idOfSlug(l.brand_id)}${l.event_id ? `&ev=${l.event_id}` : ''}` }] }], { username: 'Locus', tagName: leadOf(idOfSlug(l.brand_id)) }); out.posted.push(`change:${l.event_name}`); } catch {}
+    try { await teamPost(env, d, ch, text, [{ type: 'section', text: { type: 'mrkdwn', text } }, { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open in Locus' }, url: `${LOCUS}?open=calendar&act=${idOfSlug(l.brand_id)}${l.event_id ? `&ev=${l.event_id}` : ''}` }] }], { username: 'Locus' }); out.posted.push(`change:${l.event_name}`); } catch {}
   }
   if (logs?.length) await d.putSetting(env, 'calLogCursor', logs[logs.length - 1].created_at);
   /* 2. Reminders, once a Central day from 8am. */
@@ -487,18 +493,20 @@ export async function calendarTick(env, d) {
   for (const b of data.brands) {
     if (!b.channel || b.channel === b.client_channel) continue;
     const mine = data.items.filter(e => e.act === b.id);
-    const lines = [];
+    const lines = [], owners = [];
     for (const e of mine) {
       const open = (e.steps || []).filter(s => s.state !== 'done');
+      const before = lines.length;
       const ready = (e.steps || []).filter(s => s.state === 'done').map(s => s.label.toLowerCase());
       const notYet = open.map(s => `${s.label.toLowerCase()} (${s.state === 'late' ? `was due ${md(s.due)}` : md(s.due)}, ${s.who})`);
       if (e.start === add(today, 1) && open.length && !carded) lines.push(`*Live tomorrow: ${e.name}.* Not yet: ${notYet.join('; ')}.`);
       if (e.start === add(today, 7) && open.length) lines.push(`*One week out: ${e.name}*, ${wd(e.start)} ${md(e.start)}.${ready.length ? ` Ready: ${ready.join(', ')}.` : ''} Not yet: ${notYet.join('; ')}.`);
+      if (lines.length > before) owners.push(...open.map(s => s.who));
       if (monday && e.src === 'cal' && e.kind === 'sale' && !e.end && e.start <= add(today, -7)) lines.push(`*Still running? ${e.name}* has no end date (${Math.round((Date.parse(today) - Date.parse(e.start)) / 864e5)} days in). Set the end in Locus, or tap "It ended today" on it.`);
     }
     if (!lines.length) continue;
     const text = lines.join('\n');
-    try { await teamPost(env, d, b.channel, text, [{ type: 'section', text: { type: 'mrkdwn', text } }, { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open the calendar' }, url: `${LOCUS}?open=calendar&act=${b.id}` }] }], { username: 'Locus', tagName: leadOf(b.id) }); out.posted.push(b.name); } catch (e) { out.error = e.message; }
+    try { await teamPost(env, d, b.channel, text, [{ type: 'section', text: { type: 'mrkdwn', text } }, { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open the calendar' }, url: `${LOCUS}?open=calendar&act=${b.id}` }] }], { username: 'Locus', tag: await tagsFor(owners) }); out.posted.push(b.name); } catch (e) { out.error = e.message; }
   }
   /* The calendar posts NOTHING to a client channel any more (the reporting audit, 2026-10-19): what used to be the
      Monday "This week and next" and "we need from you" posts rides inside the weekly report's This week and From you
