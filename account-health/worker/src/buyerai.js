@@ -235,16 +235,36 @@ export async function decide(env, { act, id, decision, who, today = centralToday
    all) can make it: pause | resume | budget (with `budget`, the new daily amount) | none. */
 export const ACTION_WORDS = 8, WHY_WORDS = 20;
 const MOVES = ['pause', 'resume', 'budget', 'none'];
-export const PASS_SCHEMA = { type: 'object', additionalProperties: false, required: ['summary', 'rows', 'extra'],
+/* THE CARD (2026-11-05, Cole approved the shape on the Media Buying Calls page): every row also carries what the Buyer
+   list draws: kind tag, level + object, a directive headline (`do`), 3 to 6 number chips (`facts`, each good / bad), a
+   plain "Why" line (`because`), Yes/No (`decide`) or a label (`fyi`), and the ids of the ads behind it (`ad_ids`). The brand
+   gets week chips (`week`) and one line (`headline`). The old short fields (action, why, move, budget) stay: Agree and
+   Agree to all still run on them. */
+export const CARD_KINDS = ['raise', 'cut', 'trim', 'refresh', 'keep', 'note', 'launch', 'tidy'];
+const FACT = { type: 'object', additionalProperties: false, required: ['l', 'v', 'good', 'bad'], properties: { l: { type: 'string' }, v: { type: 'string' }, good: { type: 'boolean' }, bad: { type: 'boolean' } } };
+const CARD_PROPS = { kind: { type: 'string', enum: CARD_KINDS }, level: { type: 'string', enum: ['campaign', 'adset', 'ad', 'account'] }, object: { type: 'string' }, do: { type: 'string' },
+  facts: { type: 'array', items: FACT }, because: { type: 'string' }, decide: { type: 'boolean' }, fyi: { type: 'string' }, ad_ids: { type: 'array', items: { type: 'string' } } };
+const CARD_KEYS = Object.keys(CARD_PROPS);
+export const PASS_SCHEMA = { type: 'object', additionalProperties: false, required: ['summary', 'headline', 'week', 'rows', 'extra'],
   properties: {
-    summary: { type: 'string' },
-    rows: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['key', 'verdict', 'action', 'why', 'move', 'budget', 'ad_id'],
+    summary: { type: 'string' }, headline: { type: 'string' }, week: { type: 'array', items: FACT },
+    rows: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['key', 'verdict', 'action', 'why', 'move', 'budget', 'ad_id', ...CARD_KEYS],
       properties: { key: { type: 'string' }, verdict: { type: 'string', enum: ['keep', 'change', 'drop'] }, action: { type: 'string' }, why: { type: 'string' },
-        move: { type: 'string', enum: MOVES }, budget: { type: 'number' }, ad_id: { type: 'string' } } } },
-    extra: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['type', 'name', 'adset_id', 'ad_id', 'campaign_id', 'action', 'why', 'move', 'budget', 'stake'],
+        move: { type: 'string', enum: MOVES }, budget: { type: 'number' }, ad_id: { type: 'string' }, ...CARD_PROPS } } },
+    extra: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['type', 'name', 'adset_id', 'ad_id', 'campaign_id', 'action', 'why', 'move', 'budget', 'stake', ...CARD_KEYS],
       properties: { type: { type: 'string', enum: ['budget', 'relaunch', 'leads', 'tracking', 'cut', 'scale', 'other'] }, name: { type: 'string' }, adset_id: { type: 'string' }, ad_id: { type: 'string' },
-        campaign_id: { type: 'string' }, action: { type: 'string' }, why: { type: 'string' }, move: { type: 'string', enum: MOVES }, budget: { type: 'number' }, stake: { type: 'number' } } } },
+        campaign_id: { type: 'string' }, action: { type: 'string' }, why: { type: 'string' }, move: { type: 'string', enum: MOVES }, budget: { type: 'number' }, stake: { type: 'number' }, ...CARD_PROPS } } },
   } };
+/** The model's card fields, cleaned: no em dashes, at most 6 chips, only Meta-shaped ad ids, 12 at most. Null when empty. */
+export function cleanCard(x) {
+  if (!x) return null;
+  const kind = CARD_KINDS.includes(x.kind) ? x.kind : null;
+  const facts = (Array.isArray(x.facts) ? x.facts : []).filter(f => f && f.l && f.v).slice(0, 6).map(f => ({ l: noDash(clip(f.l, 24)), v: noDash(clip(f.v, 40)), good: !!f.good, bad: !!f.bad && !f.good }));
+  const c = { kind, level: ['campaign', 'adset', 'ad', 'account'].includes(x.level) ? x.level : null, object: noDash(clip(x.object, 120)) || null, do: noDash(clip(x.do, 220)) || null,
+    facts, because: noDash(clip(x.because, 360)) || null, decide: typeof x.decide === 'boolean' ? x.decide : null, fyi: noDash(clip(x.fyi, 60)) || null,
+    ad_ids: [...new Set((Array.isArray(x.ad_ids) ? x.ad_ids : []).map(String).filter(id => ID.test(id)))].slice(0, 12) };
+  return c.kind || c.do || c.facts.length || c.because || c.ad_ids.length ? c : null;
+}
 export function passSystem(brand) {
   return `You are the senior media buyer at a DTC ecommerce agency, reading ${brand}'s Meta account first thing in the morning for Cole, who owns the agency and makes every call. A rules engine already wrote today's calls (RULE ROWS). Your job: check each one against the full picture, and add the calls the rules cannot see.
 How to read it:
@@ -260,6 +280,15 @@ Write every change and every EXTRA row in the short shape:
 For keep and drop: action is "", move is none, why is the one line that says why (same limits).
 Then EXTRA: up to 6 calls the rules missed, only when the numbers clearly back them: budget moves between campaigns or ad sets, relaunching a strong ad that sits in a cut or paused set, a leads or giveaway campaign judged on cost per lead (every brand's lead goal is $0.50 to $0.75 a lead: raise the budget hard while it is under that, cut when it is well over; never judge it on sales or ROAS and never ask for a lead goal), ads with no Triple Whale tag, anything else a good buyer would do this morning. Each: type, name (the ad set, ad or campaign as named in the data), the ids you were given ('' when none), action, why, move, budget, stake (the dollars a week it moves, 0 if unclear). No extra row that repeats a rule row.
 summary = one line, at most ${WHY_WORDS} words: the most important thing for this brand today.
+THE CARD (what Cole sees on the Buyer list; every RULE ROW and every EXTRA row carries these too):
+- kind: raise | cut | trim | refresh | keep | note | launch | tidy. A rule row keeps its own kind unless your verdict changes the call (a cut you turn into "turn off the losers, keep the set" is trim; a keep is keep).
+- level + object: campaign | adset | ad | account, and its name as it is in the data ("368 | Still").
+- do: the directive, ONE sentence with the object and the numbers in it ("Turn off ad set 368", "Raise Early Black Friday $300 to $400 a day"). A cut is a cut: turn the set off, never just lift its minimum. Before cutting a set with a winner in it, look at the losers' first-click sales and CTR: when the losers feed nothing and the winners are at goal, turn off the losers and keep the set (kind trim); cut the set only when the losers feed the winners or nothing in it is at goal. Say which. A minimum in plain words ("make Meta spend at least $50 a day here"). "Anchor" = the ad set carrying most of the campaign. Something scheduled says "starts by itself". A tidy row lists the names and spend.
+- facts: 3 to 6 chips, label + value, only the numbers that made the call (Spend 7d, Sales, ROAS vs goal, Cost per sale, CTR, Freq, First click, Hook, Leads, Cost per lead, Ends). good = true when it beats the goal, bad = true when it misses; both false when it is just context.
+- because: one or two short plain sentences: the why, in words Cole would say. Say when first click changes the call ("warms people up, keep") and when it does not.
+- decide: true for raise, cut, trim, refresh, tidy, a launch that needs a hand, and a note that asks a question (then "do" says what Yes and No mean); false for the rest, with fyi = "Nothing to do" | "Starts by itself" | "Needs new ads" | "Watch".
+- ad_ids: the ids of the ads behind the object, from the AD SETS block (a set's ads; a campaign's biggest set's ads; the one ad), biggest spend first, the ad the row is about first of all.
+Then also: headline = one line for the brand (at most 30 words, the week in a sentence); week = 3 to 5 chips for the brand's last 7 days (Spend, ROAS vs goal, Sales, Leads at cost per lead, Sale on site when you know it) with good / bad.
 Plain words, like a person talking. No "if X then Y" chains, no hedging, no jargon: never write UTM, CBO (unless it is part of a campaign's name), first click, last click, CPM, CTR or attribution in an action or a why. No em dashes. Never invent a number: use only the numbers given.`;
 }
 /* ---------- the short lines and Locus's own tracking check ---------- */
@@ -355,8 +384,10 @@ export function finishPass(out, inp) {
     if (verdict === 'change' && !action) verdict = 'keep';
     /* A drop or sale that ended or sold out locked it (drops.js): never a turn-on move. */
     if (mv === 'resume' && isLocked(inp, r.ad_id || rule.ad_id || rule.adset_id, rule.name)) { verdict = 'keep'; action = ''; mv = 'none'; why = shortLine(rule.why, WHY_WORDS); }
+    const card = cleanCard(r);
+    if (card && asked) { card.do = action || card.do; card.because = why; }
     rows.push({ key: r.key, verdict, action, why, move: mv, budget: mv === 'budget' && +r.budget > 0 ? Math.round(+r.budget) : null,
-      ad_id: mv !== 'none' && ID.test(r.ad_id || '') ? r.ad_id : null, checked, reason: why, change: action });
+      ad_id: mv !== 'none' && ID.test(r.ad_id || '') ? r.ad_id : null, checked, reason: why, change: action, card });
   }
   const extra = [];
   for (const x of (out.extra || []).slice(0, 6)) {
@@ -369,10 +400,13 @@ export function finishPass(out, inp) {
     }
     if (!action) continue;
     if ((mv === 'resume' || x.type === 'relaunch') && isLocked(inp, ids.ad_id || ids.adset_id || ids.campaign_id, x.name)) continue;
+    const card = cleanCard(x);
+    if (card && checked) { card.do = action; card.because = why; }
     extra.push({ id: `ai${extra.length + 1}`, type: x.type, name: noDash(clip(x.name, 200)), ...ids, action, why, move: mv,
-      budget: mv === 'budget' && +x.budget > 0 ? Math.round(+x.budget) : null, checked, reason: why, stake: Math.max(0, Math.round(+x.stake || 0)) });
+      budget: mv === 'budget' && +x.budget > 0 ? Math.round(+x.budget) : null, checked, reason: why, stake: Math.max(0, Math.round(+x.stake || 0)), card });
   }
-  return { summary: shortLine(out.summary, WHY_WORDS), rows, extra };
+  const week = (Array.isArray(out.week) ? out.week : []).filter(f => f && f.l && f.v).slice(0, 5).map(f => ({ l: noDash(clip(f.l, 24)), v: noDash(clip(f.v, 40)), good: !!f.good, bad: !!f.bad && !f.good }));
+  return { summary: shortLine(out.summary, WHY_WORDS), headline: noDash(clip(out.headline || out.summary, 240)), week, rows, extra };
 }
 const isLocked = (inp, id, name) => !!(inp.locks && lockedBy(inp.locks, id, name));
 /** Everything the read sees for one brand, from D1 and the list already built. */
@@ -453,7 +487,7 @@ export async function readBrand(env, d, a, { today = centralToday(), list = null
     await saveAI(env, a.act_id, today, 'empty', { summary: '', rows: [], extra: [] }, 0, null);
     return { act_id: a.act_id, status: 'empty' };
   }
-  const { out, usd } = await callModel(env, d, { model: PASS_MODEL, system: passSystem(a.name), user: passUser(a, inp), schema: PASS_SCHEMA, max: 12000, effort: 'medium', what: 'pass', day: today });
+  const { out, usd } = await callModel(env, d, { model: PASS_MODEL, system: passSystem(a.name), user: passUser(a, inp), schema: PASS_SCHEMA, max: 16000, effort: 'medium', what: 'pass', day: today });
   const res = finishPass(out, inp);
   await saveAI(env, a.act_id, today, 'done', res, usd, null);
   return { act_id: a.act_id, status: 'done', usd, n_rows: res.rows.length, n_extra: res.extra.length };
@@ -483,12 +517,13 @@ export function applyAI(rows, ai, accts) {
     if (!v) return r;
     const why = shortLine(v.why || v.reason, WHY_WORDS), action = shortLine(v.action || v.change, ACTION_WORDS);
     const tag = { verdict: v.verdict, why, action, checked: v.checked || null, reason: why, change: action };
+    const card = v.card || null;
     if (v.verdict === 'change' && action) {
       const mv = DO_OF[v.move] || null, adId = v.ad_id || (mv ? r.ad_id : null);
-      return { ...r, ai: tag, changed: true, rule: { action: r.action, why: r.why, do: r.do }, action, why, checked: v.checked || null,
+      return { ...r, ai: tag, changed: true, rule: { action: r.action, why: r.why, do: r.do }, action, why, checked: v.checked || null, card,
         do: mv, ...(mv ? { ad_id: adId || null, level: adId ? 'ad' : r.level } : {}), suggested_budget: mv === 'budget' && v.budget > 0 ? v.budget : r.suggested_budget || null };
     }
-    return { ...r, ai: tag, checked: v.checked || null };
+    return { ...r, ai: tag, checked: v.checked || null, card };
   });
   for (const [act, x] of ai) {
     const a = accts.find(y => y.act_id === act); if (!a) continue;
@@ -499,7 +534,7 @@ export function applyAI(rows, ai, accts) {
       const mv = DO_OF[e.move] || null, why = shortLine(e.why || e.reason, WHY_WORDS);
       out.push({ key: `${act}|${object}|ai`, kind: 'ai', ai_type: e.type, from: 'morning read', act_id: act, brand: a.name, currency: a.currency || 'USD', object,
         level: e.ad_id ? 'ad' : e.adset_id ? 'adset' : e.campaign_id ? 'campaign' : 'account', name: e.name, set: null, action: shortLine(e.action, ACTION_WORDS), why, why_full: e.reason || why,
-        checked: e.checked || null, stake: e.stake || 0, do: mv && (e.ad_id || e.adset_id || (mv === 'budget' && e.campaign_id)) ? mv : null,
+        checked: e.checked || null, stake: e.stake || 0, do: mv && (e.ad_id || e.adset_id || (mv === 'budget' && e.campaign_id)) ? mv : null, card: e.card || null,
         suggested_budget: mv === 'budget' && e.budget > 0 ? e.budget : null, adset_id: e.adset_id || null, ad_id: e.ad_id || null, campaign_id: e.campaign_id || null });
     }
   }

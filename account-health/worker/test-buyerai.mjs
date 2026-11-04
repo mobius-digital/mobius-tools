@@ -169,7 +169,12 @@ test('the prompt shape: action max 8 words, why max 20, a move per change, never
   assert.match(sys, /at most 8 words, starting with a verb/); assert.match(sys, /at most 20 words and at most 3 numbers/);
   assert.match(sys, /NEVER tell Cole to check tracking, UTMs, tags, the pixel or attribution/);
   assert.match(sys, /No "if X then Y" chains/); assert.match(sys, /never write UTM, CBO \(unless it is part of a campaign's name\), first click, last click/);
-  assert.deepEqual(sch.properties.rows.items.required, ['key', 'verdict', 'action', 'why', 'move', 'budget', 'ad_id']);
+  assert.deepEqual(sch.properties.rows.items.required.slice(0, 7), ['key', 'verdict', 'action', 'why', 'move', 'budget', 'ad_id']);
+  /* the card (2026-11-05): kind tag, level + object, the directive, chips, why, decide or fyi, the ads behind it; week chips + a headline per brand */
+  for (const k of ['kind', 'level', 'object', 'do', 'facts', 'because', 'decide', 'fyi', 'ad_ids']) { assert.ok(sch.properties.rows.items.required.includes(k), k); assert.ok(sch.properties.extra.items.required.includes(k), k); }
+  assert.deepEqual(sch.properties.rows.items.properties.kind.enum, ['raise', 'cut', 'trim', 'refresh', 'keep', 'note', 'launch', 'tidy']);
+  assert.deepEqual(sch.required, ['summary', 'headline', 'week', 'rows', 'extra']);
+  assert.match(sys, /A cut is a cut: turn the set off, never just lift its minimum/); assert.match(sys, /Something scheduled says "starts by itself"/);
   assert.deepEqual(sch.properties.rows.items.properties.move.enum, ['pause', 'resume', 'budget', 'none']);
   assert.ok(sch.properties.extra.items.required.includes('why') && !('reason' in sch.properties.extra.items.properties));
   assert.match(u, /TRACKING CHECKS \(Locus checked these itself/);

@@ -41,7 +41,7 @@ import { readToday } from './todaypost.js';
 import { locksFor, lockedBy } from './drops.js';
 import { eligible, morningHour } from './morningcard.js';
 import { adsOf, isCarousel } from './prodwork.js';
-import { readAI, applyAI, aiPassDone, buyerAIOn, adNumbers, withCovers, metaActsOf, disagree, decide, lessonsFor, buyerAITick, spentToday, trackingCheck, DAY_CAP, POST_WAIT_HOURS } from './buyerai.js';
+import { readAI, applyAI, aiPassDone, buyerAIOn, adNumbers, withCovers, metaActsOf, disagree, decide, lessonsFor, buyerAITick, spentToday, trackingCheck, DAY_CAP, POST_WAIT_HOURS, noDash, CARD_KINDS } from './buyerai.js';
 
 export const DEFAULT_BUYER_CHANNEL = 'C0C8UA53U3W';   // #daily-briefs
 export const DEFAULT_OWNER = 'Cole';
@@ -356,6 +356,121 @@ export async function launchedRows(env, accts, { days = LAUNCHED_DAYS, limit = 4
 /** A row Agree to all can make without Cole: a Meta change the page writes (pause, turn back on, budget, test minimum). */
 export const DO_KINDS = ['pause', 'resume', 'budget', 'minoff'];
 export const canDo = r => DO_KINDS.includes(r.do);
+
+/* ---------- THE CARD (2026-11-05): the shape Cole approved on the Media Buying Calls page, now on the Buyer list ----------
+   Each row carries `card` = {kind, level, object, do, facts[], because, decide, fyi, ad_ids}. The morning read writes it
+   (buyerai.js PASS_SCHEMA); where the read has not run, or left a field out, the rule row fills it in from its own numbers.
+   Rows are drawn per brand in CARD_ORDER. `decide` rows get Yes / No; the rest a label. */
+export const CARD_ORDER = ['raise', 'cut', 'trim', 'refresh', 'keep', 'note', 'launch', 'tidy'];
+const KIND_CARD = { scale: 'raise', cut: 'cut', trim: 'trim', refresh: 'refresh', mixed: 'keep', minoff: 'trim', stalled: 'tidy', launch: 'launch' };
+const AI_CARD = { budget: 'raise', scale: 'raise', relaunch: 'note', leads: 'raise', tracking: 'note', cut: 'cut', other: 'note' };
+const fact = (l, v, good, bad) => (v == null || v === '' ? null : { l, v: String(v), good: !!good, bad: !!bad && !good });
+/** The card for one list row: the read's card where it exists, the rule's numbers for anything missing. */
+export function cardOf(r) {
+  const c = r.card || {};
+  const cur = r.currency || 'USD', m = r.metric, goalRoas = +r.goal_roas || 0, goal = +r.goal || 0;
+  const kind = CARD_KINDS.includes(c.kind) ? c.kind : r.kind === 'ai' ? (AI_CARD[r.ai_type] || 'note') : r.kind === 'minoff' && r.nudge === 'not_picked' ? 'cut' : KIND_CARD[r.kind] || 'note';
+  const level = c.level || (r.kind === 'launch' ? 'card' : r.level || 'adset');
+  const unit = m === 'cpl' ? 'lead' : 'sale';
+  const facts = c.facts && c.facts.length ? c.facts : [
+    r.spend != null ? fact(r.days ? `Spend ${r.days}d` : 'Spend', money(r.spend, cur)) : null,
+    r.results != null ? fact(unit === 'lead' ? 'Leads' : 'Sales', Number.isInteger(+r.results) ? +r.results : (+r.results).toFixed(1), false, +r.results === 0 && +r.spend > 0) : null,
+    m === 'roas' && r.roas != null ? fact('ROAS', `${x1(r.roas)}${goalRoas ? ` vs ${x1(goalRoas)}` : ''}`, goalRoas && r.roas >= goalRoas, goalRoas && r.roas < goalRoas)
+      : r.cpa != null ? fact(unit === 'lead' ? 'Cost per lead' : 'Cost per sale', `${money(r.cpa, cur)}${goal ? ` vs ${money(goal, cur)}` : ''}`, goal && r.cpa <= goal, goal && r.cpa > goal) : null,
+    r.fc_results ? fact('First click', count(r.fc_results, unit)) : null,
+    r.budget > 0 ? fact('Budget', `${money(r.budget, cur)}/day`) : null,
+    r.min > 0 ? fact('Minimum', `${money(r.min, cur)}/day`) : null,
+    r.kind === 'launch' && r.n_ads ? fact('Approved ads', r.n_ads) : null,
+  ].filter(Boolean).slice(0, 6);
+  const decide = typeof c.decide === 'boolean' ? c.decide : !!r.do || ['raise', 'cut', 'trim', 'refresh', 'tidy', 'launch'].includes(kind);
+  const ids = [...new Set([...(c.ad_ids || []), r.ad_id, r.top_ad, r.anchor_ad].filter(Boolean).map(String))];
+  return { kind, level, object: c.object || (r.set ? `${r.name} in ${r.set}` : r.name || ''), do: noDash(c.do || r.action || ''), facts, because: noDash(c.because || r.why_full || r.why || ''),
+    decide, fyi: decide ? null : (c.fyi || (r.kind === 'launch' ? 'Starts by itself' : 'Nothing to do')), ad_ids: ids };
+}
+/** Every ad behind each row (the set's ads over 7 days, biggest spend first; the row's own ad first; Triple Whale sales),
+ *  with covers from R2 for the first `COVER_CAP` ads. One adNumbers read per 5 sets per brand, never per row. */
+export const ADS_PER_ROW = 8, COVER_CAP = 160;
+export async function rowAds(env, rows, { days = 7 } = {}) {
+  const byAct = new Map();
+  for (const r of rows) { if (r.kind === 'launch') continue; const g = byAct.get(r.act_id) || []; g.push(r); byAct.set(r.act_id, g); }
+  const out = new Map();
+  for (const [act, list] of byAct) {
+    const metaActs = await metaActsOf(env, act, null).catch(() => []);
+    if (!metaActs.length) continue;
+    const sets = [...new Set(list.map(r => r.adset_id).filter(Boolean).map(String))];
+    const ids = [...new Set(list.flatMap(r => cardOf(r).ad_ids))].filter(id => /^\d{6,25}$/.test(id));
+    const ads = [];
+    for (let i = 0; i < sets.length; i += 5) ads.push(...(await adNumbers(env, { act, metaActs, adsetIds: sets.slice(i, i + 5), days }).catch(() => ({ ads: [] }))).ads);
+    const have = new Set(ads.map(a => a.ad_id));
+    const lone = ids.filter(id => !have.has(id));
+    for (let i = 0; i < lone.length; i += 40) ads.push(...(await adNumbers(env, { act, metaActs, adIds: lone.slice(i, i + 40), days }).catch(() => ({ ads: [] }))).ads.filter(a => !have.has(a.ad_id)));
+    const byId = new Map(ads.map(a => [a.ad_id, a]));
+    for (const r of list) {
+      const c = cardOf(r), own = new Set(c.ad_ids);
+      let mine = r.adset_id && r.level !== 'ad' ? ads.filter(a => a.adset_id === String(r.adset_id)) : [];
+      if (!mine.length) mine = c.ad_ids.map(id => byId.get(id)).filter(Boolean);
+      else for (const id of c.ad_ids) if (!mine.some(a => a.ad_id === id) && byId.get(id)) mine.push(byId.get(id));
+      mine.sort((p, q) => (own.has(q.ad_id) - own.has(p.ad_id)) || (q.spend || 0) - (p.spend || 0));
+      const focus = String(r.ad_id || c.ad_ids[0] || '');
+      out.set(r.key, { n: mine.length, days, ads: mine.slice(0, ADS_PER_ROW).map(a => ({ ad_id: a.ad_id, name: a.name, cover: null, spend: a.spend, sales: a.sales, revenue: a.revenue, cpa: a.cpa, roas: a.roas, leads: a.leads,
+        ctr: a.ctr, cpm: a.cpm, freq: a.freq, hook: a.hook, video: a.video, fc_sales: a.fc_sales, role: a.role, status: a.status, focus: a.ad_id === focus, off: !!a.status && a.status !== 'ACTIVE' })) });
+    }
+  }
+  /* covers: the first COVER_CAP shown ads; the page fills the rest from /api/ad-creatives like every other screen */
+  const shown = []; const seen = new Set();
+  for (const v of out.values()) for (const a of v.ads) if (!seen.has(a.ad_id) && shown.length < COVER_CAP) { seen.add(a.ad_id); shown.push(a); }
+  const cov = new Map((await withCovers(env, shown).catch(() => [])).map(a => [a.ad_id, a.cover]));
+  for (const v of out.values()) for (const a of v.ads) a.cover = cov.get(a.ad_id) || null;
+  return out;
+}
+/* ---------- decisions (Yes / No per row, per day) ---------- */
+const DEC_SQL = `CREATE TABLE IF NOT EXISTS p_buyer_decision (brand TEXT NOT NULL, object TEXT NOT NULL, action TEXT NOT NULL, day TEXT NOT NULL, decision TEXT NOT NULL,
+  note TEXT, line TEXT, name TEXT, write_id TEXT, by TEXT, at TEXT NOT NULL, PRIMARY KEY (brand, object, action, day))`;
+let decTabled = false;
+async function ensureDecisions(env) { if (decTabled) return; await env.DB.prepare(DEC_SQL).run(); decTabled = true; }
+const dkey = r => `${r.act_id}|${r.object}|${r.kind}`;
+/** Yes = the change was made (or will be; `write_id` when Locus wrote it), No = left alone, with his one-line why. Both
+ *  set the shared state Done (quiet 3 days from tomorrow); today the row stays on the card, marked. */
+export async function setDecision(env, { act, object, action, decision, note, line, name, write_id }, who, today = centralToday()) {
+  await ensureDecisions(env);
+  if (!['yes', 'no', 'clear'].includes(decision)) throw Object.assign(new Error('Yes, no or clear.'), { status: 400 });
+  const brand = String(act || ''), obj = String(object || '').slice(0, 120), kind = String(action || '').slice(0, 40);
+  if (!brand || !obj || !kind) throw Object.assign(new Error('Which row? (brand, object and action are needed)'), { status: 400 });
+  if (decision === 'clear') {
+    await env.DB.prepare(`DELETE FROM p_buyer_decision WHERE brand = ?1 AND object = ?2 AND action = ?3 AND day = ?4`).bind(brand, obj, kind, today).run();
+    await setState(env, { act: brand, object: obj, action: kind, status: 'clear' }, who, today).catch(() => {});
+    return { ok: true, cleared: true };
+  }
+  const at = new Date().toISOString();
+  await env.DB.prepare(`INSERT INTO p_buyer_decision (brand, object, action, day, decision, note, line, name, write_id, by, at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+    ON CONFLICT(brand, object, action, day) DO UPDATE SET decision = excluded.decision, note = COALESCE(excluded.note, p_buyer_decision.note), line = COALESCE(excluded.line, p_buyer_decision.line),
+      name = COALESCE(excluded.name, p_buyer_decision.name), write_id = COALESCE(excluded.write_id, p_buyer_decision.write_id), by = excluded.by, at = excluded.at`)
+    .bind(brand, obj, kind, today, decision, clean(note, 600) || null, clean(line, 300) || null, clean(name, 200) || null, write_id ? String(write_id).slice(0, 80) : null, clean(who, 120) || null, at).run();
+  await setState(env, { act: brand, object: obj, action: kind, status: 'done', name }, who, today).catch(() => {});
+  return { ok: true, decision, at, by: who };
+}
+export async function readDecisions(env, acts, today = centralToday()) {
+  await ensureDecisions(env);
+  const rows = ((await env.DB.prepare(`SELECT brand, object, action, decision, note, line, name, write_id, by, at FROM p_buyer_decision WHERE day = ?1`).bind(today).all().catch(() => ({ results: [] }))).results) || [];
+  return new Map(rows.filter(r => !acts || acts.has(r.brand)).map(r => [`${r.brand}|${r.object}|${r.action}`, r]));
+}
+/** The directive as a thing that happened: "Turn off ad set 368" -> "Turned off ad set 368". */
+const PAST = { turn: 'Turned', switch: 'Switched', raise: 'Raised', lower: 'Lowered', cut: 'Cut', pause: 'Paused', take: 'Took', keep: 'Kept', launch: 'Launched', add: 'Added', move: 'Moved',
+  set: 'Set', put: 'Put', leave: 'Left', brief: 'Briefed', drop: 'Dropped', stop: 'Stopped', start: 'Started', resume: 'Resumed', split: 'Split', load: 'Loaded', reload: 'Reloaded', trim: 'Trimmed' };
+export function pastTense(s) {
+  const t = noDash(clean(s, 300)).replace(/\s*\([^)]*\)\s*/g, ' ').replace(/[.!]+$/, '').replace(/\s+/g, ' ').trim();
+  const m = t.match(/^([A-Za-z]+)\b(.*)$/); if (!m) return t;
+  const verb = m[1].toLowerCase(), rest = m[2];
+  if (!PAST[verb]) return t;
+  return `${PAST[verb]}${rest.replace(/^ (it|them|this|that) (back )?(on|off)\b/i, ' $3')}`;
+}
+/** The plain client update for one brand from today's Yes rows: one line per change, nothing else (Cole 2026-10-28). */
+export function whatWeDidText(brand, decs) {
+  const yes = decs.filter(d => d.decision === 'yes' && (d.line || d.name));
+  if (!yes.length) return '';
+  const lines = yes.map(d => `• ${pastTense(d.line || d.name)}`);
+  return `Quick update on the ${brand} ads today:\n${lines.join('\n')}`;
+}
 /** Grouped by brand, the brand with the most money at stake first, then each brand's rows by money at stake. */
 export function byBrand(rows) {
   const g = new Map();
@@ -378,7 +493,7 @@ async function gapChecked(env, d, r) {
 }
 
 /** The whole list. act = 'all' or one brand; only = the brands this person may see (null = every brand). */
-export async function buildBuyerList(env, d, { act = 'all', only = null, live = true, noAI = false } = {}) {
+export async function buildBuyerList(env, d, { act = 'all', only = null, live = true, noAI = false, ads = false } = {}) {
   const today = d.centralDate ? d.centralDate() : centralToday();
   const accts = (await d.listAccounts(env, true)).filter(a => eligible(a) && (act === 'all' || a.act_id === act) && (!only || only.has(a.act_id)));
   const ids = new Set(accts.map(a => a.act_id));
@@ -408,7 +523,11 @@ export async function buildBuyerList(env, d, { act = 'all', only = null, live = 
      turn one back on leaves the list (quiet, with the reason), whoever suggested it. */
   const locks = await locksFor(env, ids).catch(() => new Map());
   const turnsOn = r => r.do === 'resume' || r.ai_type === 'relaunch' || /\b(turn (it |them )?(back )?on|relaunch|resume|unpause)\b/i.test(r.action || '');
+  /* Decided today (Yes / No on the card): the row stays on its brand's card, marked, until tomorrow. */
+  const decs = await readDecisions(env, ids, today).catch(() => new Map());
   for (const r of all) {
+    const dc = decs.get(dkey(r));
+    if (dc) { rows.push({ ...r, decided: { decision: dc.decision, note: dc.note || '', by: dc.by, at: dc.at, write_id: dc.write_id || null } }); continue; }
     const h = hiddenBy(r, st);
     const lk = !h && turnsOn(r) ? lockedBy(locks.get(r.act_id), r.ad_id || r.adset_id || r.object, r.name || r.set) : null;
     if (h) quiet.push({ ...r, hidden: h });
@@ -417,19 +536,23 @@ export async function buildBuyerList(env, d, { act = 'all', only = null, live = 
     else if (r.ai && r.ai.verdict === 'drop') quiet.push({ ...r, hidden: { why: 'dropped', by: 'Locus', summary: r.ai.why || r.ai.reason || '' } });
     else rows.push(r);
   }
+  /* The card on every row, and the ads behind it when the page asks (`ads`); the post and the tick do not. */
+  for (const r of rows) r.card = cardOf(r);
+  if (ads) { try { const m = await rowAds(env, rows); for (const r of rows) r.ads = m.get(r.key) || null; } catch (e) { notes.push(`Ads: ${e.message}`); } }
   const { rows: sorted, brands: groups } = byBrand(rows);
   const stake = rows.reduce((s, r) => s + (r.stake || 0), 0);
   const brands = groups.map(g => g.act_id);
   const cur = [...new Set(rows.filter(r => r.stake > 0).map(r => r.currency || 'USD'))];
+  const toDecide = rows.filter(r => r.card.decide);
   return { as_of: new Date().toISOString(), today, act, owner: set.buyerOwner, settings: set,
-    n: rows.length, n_brands: brands.length, stake, currency: cur.length === 1 ? cur[0] : 'USD', mixed_currency: cur.length > 1,
-    n_do: rows.filter(canDo).length, groups,
+    n: rows.filter(r => !r.decided).length, n_brands: brands.length, stake, currency: cur.length === 1 ? cur[0] : 'USD', mixed_currency: cur.length > 1,
+    n_do: rows.filter(r => canDo(r) && !r.decided).length, groups, decided: { n: toDecide.filter(r => r.decided).length, of: toDecide.length },
     counts: Object.fromEntries(KINDS.map(k => [k, rows.filter(r => r.kind === k).length])),
     hidden: { done: quiet.filter(r => r.hidden.why === 'done').length, skipped: quiet.filter(r => r.hidden.why === 'skipped').length, watched: quiet.filter(r => r.hidden.why === 'watched').length,
       dropped: quiet.filter(r => r.hidden.why === 'dropped').length, locked: quiet.filter(r => r.hidden.why === 'locked').length },
     rows: sorted, quiet, notes, banners, ...launchView(today, set.launchDays, launch.scheduled, launched),
     ai: { on: set.buyerAI, n_read: [...ai.values()].filter(x => x.status === 'done').length, n_brands: accts.length,
-      brands: [...ai.entries()].filter(([, x]) => x.status === 'done' && x.summary).map(([k, x]) => ({ act_id: k, brand: (accts.find(a => a.act_id === k) || {}).name || k, summary: x.summary, at: x.at })) } };
+      brands: [...ai.entries()].filter(([, x]) => x.status === 'done' && (x.summary || x.headline)).map(([k, x]) => ({ act_id: k, brand: (accts.find(a => a.act_id === k) || {}).name || k, summary: x.summary, headline: x.headline || x.summary || '', week: x.week || [], at: x.at })) } };
 }
 /** The launch fields of the list: today a launch day?, the next one with its waiting cards, scheduled, launched. */
 export function launchView(today, days, scheduled, launched) {
@@ -451,7 +574,7 @@ export function headOf(list) {
 }
 /** The one daily message: the head, the top 5 one-liners, Open in Locus. (ownerTag is kept for callers; not shown.) */
 export function buyerMessage(list, ownerTag) { // eslint-disable-line no-unused-vars
-  const L = [`*${mk(headOf(list))}*`, ...list.rows.slice(0, TOP_N).map(lineOf)];
+  const L = [`*${mk(headOf(list))}*`, ...list.rows.filter(r => !r.decided).slice(0, TOP_N).map(lineOf)];
   const text = L.join('\n');
   const blocks = [
     { type: 'section', text: { type: 'mrkdwn', text: text.slice(0, 2900) } },
@@ -517,7 +640,32 @@ export async function handleBuyer(request, env, url, path, json, h) {
       const act = await actOf(url.searchParams.get('act'));
       if (!act) return json({ error: 'No such brand.' }, 404);
       if (act !== 'all' && only && !only.has(act)) return json({ error: 'You do not have access to this brand.' }, 403);
-      return json(await buildBuyerList(env, d, { act, only }));
+      return json(await buildBuyerList(env, d, { act, only, ads: url.searchParams.get('ads') !== '0' }));
+    }
+    /* Yes / No on a card row (2026-11-05). Yes after the write (write_id) or on its own; No with his one-line why. */
+    if (path === '/api/buyer-list/decision' && request.method === 'POST') {
+      const b = await request.json().catch(() => ({}));
+      const act = await actOf(b.act);
+      if (!act || act === 'all') return json({ error: 'Pick a brand first.' }, 400);
+      if (only && !only.has(act)) return json({ error: 'You do not have access to this brand.' }, 403);
+      return json(await setDecision(env, { ...b, act }, email || 'someone in Locus', d.centralDate ? d.centralDate() : centralToday()));
+    }
+    /* "What we did": the plain client update per brand from today's Yes rows; post=1 sends it to the client channel as Cole. */
+    if (path === '/api/buyer-list/what-we-did' && (request.method === 'GET' || request.method === 'POST')) {
+      const b = request.method === 'POST' ? await request.json().catch(() => ({})) : {};
+      const act = await actOf(request.method === 'POST' ? b.act : url.searchParams.get('act'));
+      if (!act || act === 'all') return json({ error: 'Pick a brand first.' }, 400);
+      if (only && !only.has(act)) return json({ error: 'You do not have access to this brand.' }, 403);
+      const today = d.centralDate ? d.centralDate() : centralToday();
+      const a = (await d.listAccounts(env, true)).find(x => x.act_id === act) || { name: act };
+      const decs = [...(await readDecisions(env, new Set([act]), today)).values()];
+      const text = clean(b.text, 2000) || whatWeDidText(a.name, decs);
+      const ch = (await env.DB.prepare(`SELECT brief_channel FROM brand_accounts WHERE act_id = ?1`).bind(act).first().catch(() => null) || {}).brief_channel || null;
+      if (request.method === 'GET') return json({ act, brand: a.name, text, n_yes: decs.filter(x => x.decision === 'yes').length, n_no: decs.filter(x => x.decision === 'no').length, channel: ch });
+      if (!text) return json({ error: 'Nothing to say yet: no Yes on this brand today.' }, 400);
+      if (!ch) return json({ error: `${a.name} has no client channel in Locus. Copy the text and post it yourself.` }, 400);
+      const p = await d.slackPost(env, ch, noDash(text), null, { asUser: true });
+      return json({ ok: true, channel: ch, ts: (p && p.ts) || null, text });
     }
     /* Launched in the last 30 days; refresh=1 reads each ad's status from Meta first (one ads read per account, rows not
        read in the last 30 minutes, the newest 50 per account). */
