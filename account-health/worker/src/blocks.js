@@ -19,7 +19,7 @@ import { ensureActions } from './actions.js';
 const OWNER = 'cole@go-mobius-digital.com';
 const SCOPE = 'https://www.googleapis.com/auth/calendar.events';
 const TZ = 'America/Chicago';
-const LOCUS = 'https://tools.go-mobius-digital.com/profit/';
+const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 const CAL = {
   lucky: 'c_88bdf16eef8d2a9aa71ef2a8a3d05368c546f278726d10340f70d101caa7a6d2@group.calendar.google.com',
   mobius: 'c_ab09ff1076fa0d3265ddccdae6a6d8ece9ff5899a6045d2e7ecf453afd70e7fd@group.calendar.google.com',

@@ -24,7 +24,7 @@ import { clientScope } from './brandguard.js';
 import { resolveBrandId } from './brands.js';
 import { teamPost } from './morningcard.js';
 
-const LOCUS = 'https://tools.go-mobius-digital.com/profit/';
+const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 const WHAT = ['studio', 'link', 'offer', 'date'];
 const clean = (s, n = 2000) => String(s ?? '').trim().slice(0, n);
 const okUrl = s => { try { const u = new URL(String(s || '')); return /^https?:$/.test(u.protocol) ? u.toString().slice(0, 600) : ''; } catch { return ''; } };

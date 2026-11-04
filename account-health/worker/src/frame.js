@@ -77,7 +77,7 @@ function page(ok, msg) {
   const e = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   return new Response(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Frame</title>
 <body style="font:16px system-ui;padding:40px 16px;color:#13202B;max-width:560px;margin:0 auto"><h2>${ok ? 'Frame is connected' : 'Frame did not connect'}</h2><p>${e(msg)}</p>
-<p><a href="https://tools.go-mobius-digital.com/profit/?open=settings">Back to Locus</a>. You can close this tab.</p></body>`, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } });
+<p><a href="https://locus.go-mobius-digital.com/profit/?open=settings">Back to Locus</a>. You can close this tab.</p></body>`, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } });
 }
 
 export async function frameCallback(env, url) {

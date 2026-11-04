@@ -1,7 +1,7 @@
 /* Locus - the Ambassadors tab (2026-09-16).
  *
  * The staff side of the creator link. Each brand gets one public page,
- * tools.go-mobius-digital.com/angles/<slug>, that its TRYBE creators read
+ * locus.go-mobius-digital.com/angles/<slug>, that its TRYBE creators read
  * instead of a PDF brief. Everything on it is edited here:
  *   Ideas         lanes (p_amb_section), ideas (p_amb_angle), openers, shot plans, proof
  *   Link & brief  the address, where creators submit, the look, the intro,
@@ -24,7 +24,7 @@
 (function () {
 'use strict';
 
-const PUBLIC_BASE = 'https://tools.go-mobius-digital.com/angles/';
+const PUBLIC_BASE = 'https://locus.go-mobius-digital.com/angles/';
 /* The account-health worker holds the Atria connection: "Pull the video in" on an inspiration row goes there. */
 const AH_URL = (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && (() => { try { return localStorage.getItem('pf_ah'); } catch { return null; } })()) || 'https://mobius-account-health.mobius-digital.workers.dev';
 const LUCIDE_URL = 'https://cdn.jsdelivr.net/npm/lucide-static@1.46.0/icon-nodes.json';

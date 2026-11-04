@@ -38,7 +38,7 @@ let F = (...a) => fetch(...a);
 /** The worker hands in its counted fetch (xfetch), like every other module. */
 export function useFetch(f) { F = f; }
 
-const LOCUS = 'https://tools.go-mobius-digital.com/profit/';
+const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 const SKIP = /galway|instyler|gum of gods|judy ?p|le ?pickle|popby|golf sock|harborline/i;
 const safe = (s, d) => { try { return s == null ? d : JSON.parse(s); } catch { return d; } };
 const add = (s, n) => { const d = new Date(s + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };

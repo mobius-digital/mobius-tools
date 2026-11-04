@@ -10,7 +10,7 @@
  *   The numbers are read ONCE as the owner (a minted session over the PROFIT binding) and filtered per person with
  *   brandsFor, so a client or a limited teammate only ever gets their own brands' lines. */
 const PROFIT_ORIGIN = 'https://mobius-profit.mobius-digital.workers.dev';
-const LOCUS = 'https://tools.go-mobius-digital.com/profit/';
+const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 const nice = s => s ? new Date(s + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' }) : '';
 
 /** Reads /api/hub/kept?act=all as the owner. deps.profit(path, token) may replace the binding (tests). */

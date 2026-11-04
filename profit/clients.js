@@ -69,7 +69,7 @@ async function card(host, opts = {}) {
       <td>${c.last_invite ? `emailed ${ago(c.last_invite)}` : c.invited_at ? `added ${ago(c.invited_at)}` : ''}</td>
       <td style="white-space:nowrap">${d.can_edit ? `<button class="btn" data-k="resend">Resend invite</button> <button class="btn" data-k="remove" style="color:var(--bad)">Remove</button>` : ''}</td></tr>`).join('');
   host.innerHTML = `<div class="card set-card"><h3>${act ? `Client logins for ${esc(one?.name || '')}` : 'Client logins'}</h3>
-    <p class="hint set-why">A client signs in with Google, using the email you invite, at <b>tools.go-mobius-digital.com/profit</b>, and gets the brand edition of Locus: everything this brand has, the same screens the team uses. When they add a date, ask for something or change a live ad, the team hears about it in Slack and the Change Log says who.</p>
+    <p class="hint set-why">A client signs in with Google, using the email you invite, at <b>locus.go-mobius-digital.com/profit</b>, and gets the brand edition of Locus: everything this brand has, the same screens the team uses. When they add a date, ask for something or change a live ad, the team hears about it in Slack and the Change Log says who.</p>
     <div class="tbl-wrap"><table class="cl-tbl"><thead><tr><th>Person</th><th>Brands</th><th>Last sign-in</th><th>Invite</th><th></th></tr></thead>
       <tbody>${rows || `<tr><td colspan="5" class="tiny">No client logins${act ? ' for this brand' : ''} yet.</td></tr>`}</tbody></table></div>
     ${d.can_edit ? `<div class="row" style="margin:12px 0 0;gap:8px"><button class="btn primary" data-k="invite">Invite a client</button></div>` : '<p class="tiny" style="margin-top:10px">Only Cole invites or removes clients.</p>'}
@@ -154,7 +154,7 @@ async function invite(o = {}) {
         const r = await apiAH('/api/clients/invite', { method: 'POST', body: JSON.stringify({ emails: list, name: st.name, brands: [...st.brands], send, approved: send, subject: st.subject, body: st.body }) });
         if (r.failed && r.failed.length) { msg.style.color = 'var(--bad)'; msg.textContent = r.failed.map(f => `${f.email}: ${f.error}`).join(' '); btns.forEach(b => b.disabled = false); if (o.onDone) o.onDone(); return; }
         close();
-        noteModal(send ? 'Invite sent' : 'Access given', `<p>${esc((send ? r.sent : r.added).join(', '))} ${send ? 'got the email and' : ''} can sign in now with Google at tools.go-mobius-digital.com/profit.</p>`);
+        noteModal(send ? 'Invite sent' : 'Access given', `<p>${esc((send ? r.sent : r.added).join(', '))} ${send ? 'got the email and' : ''} can sign in now with Google at locus.go-mobius-digital.com/profit.</p>`);
         if (o.onDone) o.onDone();
       } catch (e) { msg.style.color = 'var(--bad)'; msg.textContent = e.message; btns.forEach(b => b.disabled = false); }
     };

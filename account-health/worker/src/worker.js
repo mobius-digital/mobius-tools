@@ -109,7 +109,7 @@ const ACTIVITY_BACKFILL_DAYS = 90;
 // One platform: the Meta screens are now a tab inside Mobius (was the separate
 // Account Health dashboard, which is kept only as a redirect). This worker is
 // unchanged - it still owns the Meta sync, both crons and every secret.
-const DASHBOARD_URL = 'https://tools.go-mobius-digital.com/profit/';
+const DASHBOARD_URL = 'https://locus.go-mobius-digital.com/profit/';
 
 /* ------------------------------------------------------------------ */
 /*  SUBREQUEST BUDGET - the thing this worker never had                */
@@ -1218,7 +1218,7 @@ async function screenRead(env, b) {
  * Runs inside the hourly tick after the cheaper jobs; one dashboard costs a few D1 reads
  * per brand and one Slack call. `POST /api/dashboard-post {id}` posts one now. */
 const DASH_POST_HOUR = 8;
-const DASH_URL = 'https://tools.go-mobius-digital.com/profit/?open=dash&id=';
+const DASH_URL = 'https://locus.go-mobius-digital.com/profit/?open=dash&id=';
 const DASH_TABLE = `CREATE TABLE IF NOT EXISTS p_dashboard (id TEXT PRIMARY KEY, act_id TEXT, name TEXT NOT NULL, for_who TEXT, spec_json TEXT NOT NULL, schedule TEXT, channel TEXT, pinned INTEGER NOT NULL DEFAULT 1, created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), last_posted TEXT)`;
 const centralDate = (d = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: BRIEF_TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
 function dashRange(acct, range, from, to) {
@@ -8663,7 +8663,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
        Returns the URL rather than streaming it, so the browser talks straight
        to the CDN and seeking/range requests work properly. */
     /* ---- YOUR ADS (2026-10-03): the client's own page of every ad we ran for them.
-       tools.go-mobius-digital.com/yourads/?t=<the brand's report token> (the same stable token as their
+       locus.go-mobius-digital.com/yourads/?t=<the brand's report token> (the same stable token as their
        report archive). Public by token, like the archive; only that brand's ads, newest first, no money.
        /thumb serves one ad's image (cached creative), ?dl=1 as a download. ---- */
     let yam;
@@ -8704,7 +8704,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
       const act = url.searchParams.get('act') || '';
       if (!isBrandId(act)) return json({ error: 'act is required' }, 400);
-      return json({ url: `https://tools.go-mobius-digital.com/yourads/?t=${await reportToken(env, act)}` });
+      return json({ url: `https://locus.go-mobius-digital.com/yourads/?t=${await reportToken(env, act)}` });
     }
     if (path === '/api/ad-video') {
       const adId = url.searchParams.get('ad');

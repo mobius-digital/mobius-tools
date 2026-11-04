@@ -280,7 +280,7 @@ function seasonPlanAction(d) {
     },
   };
 }
-const LOCUS_SEASON = 'https://tools.go-mobius-digital.com/profit/?open=season&act=';
+const LOCUS_SEASON = 'https://locus.go-mobius-digital.com/profit/?open=season&act=';
 
 /* ---------------- config hooks ---------------- */
 export function stratHooks(d) {

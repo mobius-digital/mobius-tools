@@ -33,7 +33,7 @@
  * that line marks every item in it done (handleReaction, from the reaction_added event).
  */
 
-const LOCUS = 'https://tools.go-mobius-digital.com/profit/';
+const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 const SQL = [
   `CREATE TABLE IF NOT EXISTS p_action (
     id            TEXT PRIMARY KEY,

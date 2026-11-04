@@ -36,7 +36,7 @@ import { ensureActions, markDone, reminderMessage, ROSTER } from './actions.js';
 import { breakoutsFor } from './social.js';
 import { readKept } from './morning.js';
 
-const LOCUS = 'https://tools.go-mobius-digital.com/profit/';
+const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 export const DEFAULT_MORNING_HOUR = 5;
 export const MAX_LINES = 3;   // 2026-10-20 (the tasks audit): three task lines at most; the ad calls line is on top of that
 export const LEAK_FLOOR = 500;   // dollars a month: a new leak under this never reaches the card

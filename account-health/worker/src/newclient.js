@@ -910,7 +910,7 @@ async function yourAdsUrl(env, act) {
     tokens[tok] = { act_id: act, created: new Date().toISOString() };
     await env.DB.prepare(`INSERT INTO settings (key, value) VALUES ('reportTokens', ?1) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(JSON.stringify(tokens)).run();
   }
-  return `https://tools.go-mobius-digital.com/yourads/?t=${tok}`;
+  return `https://locus.go-mobius-digital.com/yourads/?t=${tok}`;
 }
 
 /* Ticks a box on the client's onboarding form that Locus already knows the answer to, so the
@@ -979,7 +979,7 @@ async function welcomeOnJoin(env, r) {
 
 /* Where the strategist reads the answers. A client with a brand (every one started since phase 3) opens
    Brand info straight on it; an older pending one has only their form. */
-const LOCUS_BRAND = (act, view) => `https://tools.go-mobius-digital.com/profit/?open=brand&act=${encodeURIComponent(act)}&view=${view}`;
+const LOCUS_BRAND = (act, view) => `https://locus.go-mobius-digital.com/profit/?open=brand&act=${encodeURIComponent(act)}&view=${view}`;
 const answersLink = (r, view = 'info') => r.act_id ? `<${LOCUS_BRAND(r.act_id, view)}|${view === 'research' ? 'Open Research in Locus' : 'Open their answers in Locus'}>`
   : r.token ? `<${ONBOARD_FORM}${r.token}|Open their answers> (their form; the brand opens in Locus once it is adopted)` : '';
 

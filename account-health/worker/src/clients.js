@@ -23,7 +23,7 @@ import { clientOf, clientScope, brandsFor, CLIENT_SWITCHES, CLIENT_CAPS, capUse,
 
 const OWNER = 'cole@go-mobius-digital.com';
 const DOMAIN = 'go-mobius-digital.com';
-export const LOCUS_URL = 'https://tools.go-mobius-digital.com/profit/';
+export const LOCUS_URL = 'https://locus.go-mobius-digital.com/profit/';
 const lower = s => String(s || '').trim().toLowerCase();
 const emailOk = e => /^[^@\s,;<>]+@[^@\s,;<>]+\.[^@\s,;<>]+$/.test(e);
 const firstName = s => String(s || '').trim().split(/\s+/)[0] || '';
@@ -133,7 +133,7 @@ export async function handleClients(request, env, path, json, { isAdmin, session
     /* The creator link, where the page is live. */
     for (const b of me?.brands || []) {
       const row = await env.DB.prepare(`SELECT slug, live FROM p_amb_brand WHERE act_id = ?1`).bind(b.id).first().catch(() => null);
-      if (row?.slug && row.live) b.creator_link = `https://tools.go-mobius-digital.com/angles/${row.slug}`;
+      if (row?.slug && row.live) b.creator_link = `https://locus.go-mobius-digital.com/angles/${row.slug}`;
     }
     return json({ client: true, email: cs.email, ...me });
   }

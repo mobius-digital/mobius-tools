@@ -142,7 +142,7 @@ await check('the Slack DM: "N changes ready across B brands, $X at stake", the t
   assert.equal(lines.length, 6, 'the head and 5 one-liners, nothing else');
   assert.ok(!/Owner|Launched yesterday|Morning read|more in Locus/.test(m.text));
   const btn = m.blocks.find(b => b.type === 'actions').elements[0];
-  assert.equal(btn.url, 'https://tools.go-mobius-digital.com/profit/?open=buyer&act=all'); assert.equal(btn.action_id, 'noop_open'); assert.equal(btn.text.text, 'Open');
+  assert.equal(btn.url, 'https://locus.go-mobius-digital.com/profit/?open=buyer&act=all'); assert.equal(btn.action_id, 'noop_open'); assert.equal(btn.text.text, 'Open');
   assert.ok(!/—/.test(m.text), 'no em dashes');
   assert.equal(headOf({ n: 0 }), 'Buyer list: nothing to do today');
   assert.equal(headOf({ n: 1, n_brands: 1, stake: 0 }), '1 change ready across 1 brand');

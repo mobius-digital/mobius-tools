@@ -47,7 +47,7 @@ import { typedOnCall } from './callscreen.js';
 
 const MODEL = 'claude-sonnet-5-5';
 const FF = 'https://api.fireflies.ai/graphql';
-const LOCUS = 'https://tools.go-mobius-digital.com/profit/';
+const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 const MAX_CHARS = 140000;          // about 35k tokens of transcript; longer calls are thinned evenly
 const LOOKBACK_DAYS = 2;           // the first poll ever looks back this far, never further
 

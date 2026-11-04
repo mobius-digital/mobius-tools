@@ -30,7 +30,7 @@ import { supplyFetch } from './stock.js';
 const OWNER = 'cole@go-mobius-digital.com';
 const PROFIT_ORIGIN = 'https://mobius-profit.mobius-digital.workers.dev';
 const AH_ORIGIN = 'https://ah.internal';
-const LOCUS = 'https://tools.go-mobius-digital.com/profit/';
+const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 const GRAPH = 'https://graph.facebook.com/v23.0';
 
 export const TICK_CAP = 1500;     // most subrequests one hourly tick gives the smoke check

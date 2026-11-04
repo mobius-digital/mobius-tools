@@ -36,7 +36,7 @@ export async function readLink(u) {
   const out = { title: '', image: '', site };
   try {
     const r = await fetch(u, { redirect: 'follow', signal: AbortSignal.timeout(6000),
-      headers: { 'user-agent': 'Mozilla/5.0 (compatible; LocusBot/1.0; +https://tools.go-mobius-digital.com/profit/)', accept: 'text/html' } });
+      headers: { 'user-agent': 'Mozilla/5.0 (compatible; LocusBot/1.0; +https://locus.go-mobius-digital.com/profit/)', accept: 'text/html' } });
     if (!r.ok || !/html/i.test(r.headers.get('content-type') || '')) return out;
     const html = (await r.text()).slice(0, 400000);
     out.title = clip(metaOf(html, 'og:title') || metaOf(html, 'twitter:title') || ent((html.match(/<title[^>]*>([^<]*)/i) || [])[1] || ''), 200);
