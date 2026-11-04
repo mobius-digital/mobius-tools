@@ -567,7 +567,7 @@
     }
     if (id === 'coming') return sec('Your next five weeks', 'Launches, sales and emails on your Locus calendar. A dashed box is not confirmed yet. If a date is wrong, say so now and we fix it.', calendarGrid(D.coming || [], D.today));
     const recap = STATE.recap != null ? STATE.recap : recapText();
-    return `${D.has_client_channel ? sec('The recap', 'goes to your Slack channel when ticked. Our notes from the call follow once we have checked them.',
+    return `${D.has_client_channel ? sec('The recap', 'goes to your Slack channel when ticked, posted as you, not as Locus. Our notes from the call follow once we have checked them.',
         `<textarea data-recap style="min-height:140px">${esc(recap)}</textarea>
         <label style="display:flex;gap:8px;align-items:center;font-size:14px"><input type="checkbox" data-postrecap ${STATE.post_recap ? 'checked' : ''} style="width:16px;height:16px;accent-color:var(--brand);margin:0"> Post it</label>`) : ''}
       ${sec('That is the call', 'Finish puts the new requests on your Requests page and sends your news to our team. The full notes come from the call recording.', `<div class="cs-acts"><button type="button" class="btn pri" data-finish ${BUSY ? 'disabled' : ''}>Finish</button></div>`)}`;
@@ -699,7 +699,7 @@
     return sec('Finished', `by ${esc(firstName(c.finished_by))}${c.finished_at ? ` at ${clock(c.finished_at)}` : ''}`,
       (KIND === 'kickoff' ? `<p class="cs-empty">${plural(r.briefs || 0, 'brief')} moved to Making.</p>` : `<div class="cs-tiles">${tile('Tasks', n('tasks'))}${tile('Briefs', n('briefs'))}${tile('Requests', n('asks'))}${tile('Reports', all.filter(b => b.report).length)}</div>
         ${(r.warnings || []).length ? `<div class="warnline">${r.warnings.map(esc).join('<br>')}</div>` : ''}
-        ${r.recap ? `<p class="cs-empty">${r.recap.posted ? 'The recap is in the client\'s Slack channel.' : `The recap was not posted: ${esc(r.recap.why || '')}`}</p>` : ''}`)
+        ${r.recap ? `<p class="cs-empty">${r.recap.posted ? 'The recap is in the client\'s Slack channel, posted as you.' : `The recap was not posted: ${esc(r.recap.why || '')}`}</p>` : ''}`)
       + `<div class="cs-acts"><button type="button" class="btn" data-reopen>Reopen</button><button type="button" class="btn" data-tab="tasks">Tasks (new tab)</button><button type="button" class="btn" data-tab="production">Production (new tab)</button><button type="button" class="btn" data-go="calls">${KIND === 'client' ? 'Home' : 'Meetings'}</button></div>`);
   }
   const headHtml = title => H.pageHead ? H.pageHead(KIND === 'client' ? 'ccall' : 'calls', title) : `<div class="ph"><div><div class="ph-t">${title}</div></div><div class="ph-r"><span class="ph-acts"></span></div></div>`;
