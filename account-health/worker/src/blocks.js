@@ -137,7 +137,7 @@ export async function layoutBlock(env, cal, eventId) {
     const r = rows[i];
     const st = Math.max(t0, Math.min(t0 + i * slot, t1 - slot));
     const body = {
-      summary: r.text,
+      summary: `☐ ${r.text}`,
       description: `${r.detail ? esc(r.detail) + '<br><br>' : ''}${r.due ? `Due ${md(r.due)}.<br>` : ''}<a href="${LOCUS}?open=actions&item=${encodeURIComponent(r.id)}">Open in Locus</a><br>Delete this event when it is done.`,
       start: { dateTime: new Date(st).toISOString(), timeZone: TZ },
       end: { dateTime: new Date(st + slot).toISOString(), timeZone: TZ },
