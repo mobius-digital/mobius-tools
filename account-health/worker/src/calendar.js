@@ -501,7 +501,8 @@ export async function calendarTick(env, d) {
     const byPerson = open => {
       const g = new Map();
       for (const s of open) { const k = `${s.who}|${s.role}`; if (!g.has(k)) g.set(k, { who: s.who, role: s.role, steps: [] }); g.get(k).steps.push(`${s.label.toLowerCase()} (${s.state === 'late' ? `was due ${md(s.due)}` : md(s.due)})`); }
-      return [...g.values()].map(x => `• ${x.who}${x.role ? `, ${x.role}` : ''}: ${x.steps.join('; ')}`).join('\n');
+      /* One step = one bullet under its person, never a run-on line (Cole, 2026-11-04). */
+      return [...g.values()].map(x => [`*${x.who}${x.role ? `, ${x.role}` : ''}*`, ...x.steps.map(s => `• ${s}`)].join('\n')).join('\n');
     };
     for (const e of mine) {
       const open = (e.steps || []).filter(s => s.state !== 'done');
