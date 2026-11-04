@@ -1,0 +1,50 @@
+# Locus at locus.go-mobius-digital.com.
+#
+# GitHub Pages gives one repository one custom domain, and this repository's
+# Pages site is tools.go-mobius-digital.com (Pulse, Restock, the Ledger and
+# Locus at /profit/). To give Locus an address of its own without moving the
+# domain's DNS to Cloudflare (which would put the Workspace mail records in
+# the blast radius, see DNS-MOVE-PLAN.md), the same tree is published a second
+# time to the mobius-digital/locus repository, whose Pages site answers to
+# locus.go-mobius-digital.com. Same paths (/profit/, /hq/, /mobius.css), so
+# every link that worked under tools.* works under locus.* unchanged; the root
+# goes straight to Locus.
+#
+# Needs the LOCUS_DEPLOY_KEY secret: the private half of a write deploy key on
+# mobius-digital/locus (made 2026-11-04).
+name: Publish Locus
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    if: ${{ github.repository == 'mobius-digital/mobius-tools' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the site tree
+        run: |
+          mkdir -p /tmp/site
+          rsync -a --exclude .git --exclude .github --exclude node_modules ./ /tmp/site/
+          echo "locus.go-mobius-digital.com" > /tmp/site/CNAME
+          cat > /tmp/site/index.html <<'HTML'
+          <!doctype html><meta charset="utf-8"><title>Locus</title>
+          <meta http-equiv="refresh" content="0; url=/profit/">
+          <script>location.replace('/profit/' + location.search + location.hash);</script>
+          <a href="/profit/">Open Locus</a>
+          HTML
+          touch /tmp/site/.nojekyll
+
+      - name: Publish to mobius-digital/locus
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          deploy_key: ${{ secrets.LOCUS_DEPLOY_KEY }}
+          external_repository: mobius-digital/locus
+          publish_branch: gh-pages
+          publish_dir: /tmp/site
+          force_orphan: true
+          cname: locus.go-mobius-digital.com

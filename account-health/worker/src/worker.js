@@ -8162,7 +8162,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     }
     /* ---- Client logins (clients.js; who may open what is brandguard.js) ---- */
     if (path.startsWith('/api/clients')) {
-      const r = await handleClients(request, env, path, json, { isAdmin, sessionEmail });
+      const r = await handleClients(request, env, path, json, { isAdmin, sessionEmail, mintSession });
       if (r) return r;
     }
     /* ---- Brand tab x Asana: sync, tag, results (admin) ---- */
