@@ -795,8 +795,26 @@ async function paintDiscord() {
     ${pick}
     ${inp('dcCore', 'What Core earns, in words: $10 a sale')}${inp('dcVip', 'What VIP earns, in words: $15 a sale')}
     <button class="btn primary" id="dcBuild" type="button">${d.built_at ? 'Check the server and add anything missing' : 'Build the server'}</button>
-    ${d.built_at ? `<p style="margin:10px 0 0">Built. Channels: ${esc((d.channels || []).join(', '))}. Invite on the hub: <a href="${esc(d.invite)}" target="_blank" rel="noopener">${esc(d.invite)}</a></p>` : '<p style="margin:10px 0 0">Build makes the channels, pins the welcome and rules posts, creates an invite that never expires and puts it on the hub.</p>'}${msg}`;
+    ${d.built_at ? `<p style="margin:10px 0 0">Built. Channels: ${esc((d.channels || []).join(', '))}. Invite on the hub: <a href="${esc(d.invite)}" target="_blank" rel="noopener">${esc(d.invite)}</a></p>` : '<p style="margin:10px 0 0">Build makes the channels, pins the welcome and rules posts, creates an invite that never expires and puts it on the hub.</p>'}${msg}
+    ${d.guild_id ? `<h4 style="margin:18px 0 6px">The look</h4>
+    <p style="margin:0 0 8px">Who posts in this brand's Discord and how it looks. Saving applies it: server picture, the bot's name in the server, role colour, channel names, and the first posts come back from the mascot.</p>
+    ${inp('dcMascot', 'Mascot name, e.g. Gus the Gator')}${inp('dcAvatar', 'Mascot picture link (square, https://)')}
+    ${inp('dcEmoji', 'Brand emoji for the sections, e.g. 🐊')}${inp('dcColor', 'Brand colour, e.g. #0F7F73')}
+    ${inp('dcIcon', 'Server picture link (square, https://)')}
+    <button class="btn primary" id="dcLook" type="button">Save the look and apply it</button><p class="am-msg" id="dcLookMsg" style="margin:8px 0 0"></p>` : ''}`;
   $('#dcCore').value = d.core || ''; $('#dcVip').value = d.vip || '';
+  if ($('#dcLook')) {
+    const L = d.look?.saved || {};
+    $('#dcMascot').value = L.mascot || ''; $('#dcAvatar').value = L.avatar || ''; $('#dcEmoji').value = L.emoji || ''; $('#dcColor').value = L.color || ''; $('#dcIcon').value = L.icon || '';
+    $('#dcLook').onclick = async () => {
+      $('#dcLook').disabled = true; flashMsg($('#dcLookMsg'), 'Applying. This takes about 30 seconds.');
+      try {
+        const r = await post('/api/amb/discord/look', { act, mascot: $('#dcMascot').value, avatar: $('#dcAvatar').value, emoji: $('#dcEmoji').value, color: $('#dcColor').value, icon: $('#dcIcon').value }, 'PUT');
+        flashMsg($('#dcLookMsg'), r.notes && r.notes.length ? `Applied, except: ${r.notes.join(' ')}` : 'Applied.', !(r.notes && r.notes.length));
+      } catch (e) { flashMsg($('#dcLookMsg'), e.message, false); }
+      $('#dcLook').disabled = false;
+    };
+  }
   $('#dcBuild').onclick = async () => {
     const gid = $('#dcSrv').value;
     if (!gid) return flashMsg($('#dcMsg'), 'Pick the server first.', false);
