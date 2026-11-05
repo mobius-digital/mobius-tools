@@ -91,6 +91,7 @@ import { handleSiteReview } from './sitereview.js';
 import { handleBuyer, buyerPostTick, buyerSettings } from './buyerlist.js';
 import { buyerAITick } from './buyerai.js';
 import { handleTrybe, trybeTick } from './trybe.js';
+import { handleLucky } from './lucky.js';
 import { dataTools } from './stratdata.js';
 import { extraTools } from './allwrite.js';
 import { runStudioMake, studioMakeTools } from './studiomake.js';
@@ -8335,6 +8336,11 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
        numbers, the creators to rebook. One Trybe key per brand. A client reads Live and Creators for its own brand. */
     {
       const r = await handleTrybe(request, env, url, path, json, { isAdmin, sessionEmail, brandsFor, resolveBrandId, isClient: r => !!clientScope(r), deps: trybeDeps() });
+      if (r) return r;
+    }
+    /* ---- Lucky's creator app (2026-11-05, src/lucky.js): read it live and act through its own staff code. */
+    {
+      const r = await handleLucky(request, env, url, path, json, { isAdmin, sessionEmail, brandsFor, isClient: r => !!clientScope(r) });
       if (r) return r;
     }
     /* ---- The Buyer list (2026-10-26, src/buyerlist.js): every brand's ad calls, test minimums due off and cards ready to
