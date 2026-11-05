@@ -757,7 +757,9 @@ function paintWeek(body) {
       <section class="avc-card"><h3>${ic('shuffle', 17)}A first line that sold</h3><p>A winning opening line for other creators to use.</p>
         ${inp('wkSame', sm.line, 'Golf is a drinking sport. This is Chunkman, not Jumpman.', 220)}${inp('wkWho', sm.who, 'Who said it first', 80)}</section>
     </div>
-    <div class="av-save"><span class="am-msg" id="wkMsg"></span><button class="btn primary" id="wkSave" type="button">Save this week</button></div>`;
+    <div class="av-save"><span class="am-msg" id="wkMsg"></span><button class="btn primary" id="wkSave" type="button">Save this week</button></div>
+    <section class="avc-card" id="dcCard" style="margin-top:18px"><h3>${ic('users', 17)}Creator Discord</h3><p>Checking what is connected.</p></section>`;
+  paintDiscord();
   body.querySelectorAll('[data-pick]').forEach(s => s.onchange = () => { const a = ideas.find(x => x.id === s.value); const i = s.dataset.pick; s.dataset.angle = a ? a.id : ''; if (!a) return; $('#wkT' + i).value = `${a.title}${a.format ? ` (${String(a.format).toLowerCase()})` : ''}`.slice(0, 120); $('#wkO' + i).value = (a.openers || [])[0] || ''; });
   $('#wkSave').onclick = async () => {
     const v = id => $('#' + id).value.trim();
@@ -768,6 +770,43 @@ function paintWeek(body) {
       selling: v('wkSell').split('\n').map(l => l.trim()).filter(Boolean), discord: v('wkDiscord') };
     try { S.data = await post('/api/amb/brand', { week }, 'PUT'); flashMsg($('#wkMsg'), 'Saved. Creators see it on their next load.'); }
     catch (e) { flashMsg($('#wkMsg'), e.message, false); }
+  };
+}
+/* The creator Discord (2026-11-05): one bot for the agency, one server per brand. Build makes the channels, the first
+   posts and the invite, and puts the invite on the hub. */
+async function paintDiscord() {
+  const card = $('#dcCard'); if (!card) return;
+  const act = S.data.account.act_id;
+  const inp = (id, ph, type = 'text') => `<input class="wk-in" id="${id}" type="${type}" placeholder="${esc(ph)}" autocomplete="off">`;
+  let d, a;
+  try { [d, a] = await Promise.all([api('/api/amb/discord?act=' + encodeURIComponent(act)), api('/api/amb/discord?act=all')]); }
+  catch (e) { card.innerHTML = `<h3>${ic('users', 17)}Creator Discord</h3><p>${esc(e.message)}</p>`; return; }
+  const head = `<h3>${ic('users', 17)}Creator Discord</h3>`;
+  const msg = `<p class="am-msg" id="dcMsg" style="margin:8px 0 0"></p>`;
+  if (!d.has_token) {
+    card.innerHTML = `${head}<p>Locus needs a Discord bot, once for the whole agency. In the Discord Developer Portal: New Application, Bot, turn on Message Content Intent, Reset Token, then paste the token here. It is stored in Locus and never shown again.</p>
+      ${inp('dcTok', 'Bot token', 'password')}<button class="btn primary" id="dcTokSave" type="button">Save the bot token</button>${msg}`;
+    $('#dcTokSave').onclick = async () => { try { await post('/api/amb/discord/token', { token: $('#dcTok').value }, 'PUT'); paintDiscord(); } catch (e) { flashMsg($('#dcMsg'), e.message, false); } };
+    return;
+  }
+  const servers = a.servers || [];
+  const pick = `<select class="wk-pick" id="dcSrv"><option value="">Pick this brand's server…</option>${servers.map(s => `<option value="${esc(s.id)}" ${s.id === d.guild_id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>`;
+  card.innerHTML = `${head}<p>Bot: <b>${esc(a.bot || 'connected')}</b>. ${servers.length ? '' : 'The bot is in no server yet. '}To add it to a server: <a href="${esc(a.invite_bot || '#')}" target="_blank" rel="noopener">open this link</a> and pick the server.</p>
+    ${pick}
+    ${inp('dcCore', 'What Core earns, in words: $10 a sale')}${inp('dcVip', 'What VIP earns, in words: $15 a sale')}
+    <button class="btn primary" id="dcBuild" type="button">${d.built_at ? 'Check the server and add anything missing' : 'Build the server'}</button>
+    ${d.built_at ? `<p style="margin:10px 0 0">Built. Channels: ${esc((d.channels || []).join(', '))}. Invite on the hub: <a href="${esc(d.invite)}" target="_blank" rel="noopener">${esc(d.invite)}</a></p>` : '<p style="margin:10px 0 0">Build makes the channels, pins the welcome and rules posts, creates an invite that never expires and puts it on the hub.</p>'}${msg}`;
+  $('#dcCore').value = d.core || ''; $('#dcVip').value = d.vip || '';
+  $('#dcBuild').onclick = async () => {
+    const gid = $('#dcSrv').value;
+    if (!gid) return flashMsg($('#dcMsg'), 'Pick the server first.', false);
+    $('#dcBuild').disabled = true; flashMsg($('#dcMsg'), 'Building. This takes about 20 seconds.');
+    try {
+      if (gid !== d.guild_id) await post('/api/amb/discord/server', { act, guild_id: gid }, 'PUT');
+      await post('/api/amb/discord/build', { act, core: $('#dcCore').value.trim(), vip: $('#dcVip').value.trim() });
+      S.data = await api('/api/amb?act=' + encodeURIComponent(act));
+      paint();
+    } catch (e) { $('#dcBuild').disabled = false; flashMsg($('#dcMsg'), e.message, false); }
   };
 }
 function paintChecklist(body) {

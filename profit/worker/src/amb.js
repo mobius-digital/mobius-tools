@@ -18,6 +18,7 @@
 
 import { metaOf, storagePrefix } from './brandids.js';
 import { clientScope } from './brandguard.js';
+import { handleDiscord } from './discord.js';
 
 /* Brand-first phase 3 (2026-10-08): act_id in p_amb_* is the BRAND id. Meta's ads / ad_daily stay on
    the Meta ad account id: read them with `act_id IN ${metaOf(n)}`. Uploads go under the brand's
@@ -478,6 +479,8 @@ export async function handleStaff(request, env, url, path, json) {
   const method = request.method;
   const body = method === 'GET' || method === 'DELETE' ? {} : await request.json().catch(() => ({}));
   const act = url.searchParams.get('act') || body.act;
+  // The creator Discord (bot token, a brand's server, build, read, post): discord.js.
+  if (path.startsWith('/api/amb/discord')) return handleDiscord(request, env, url, path, body, json, mustAccount, !!clientScope(request));
   try {
     // Every brand, for the all-clients view.
     if (path === '/api/amb/overview' && method === 'GET') {
