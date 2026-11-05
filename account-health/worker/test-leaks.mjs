@@ -130,7 +130,7 @@ const checks = [];
 async function check(name, fn) { try { await fn(); checks.push(true); console.log('PASS ', name); } catch (e) { checks.push(false); console.log('FAIL ', name, '\n      ' + (e.stack || e.message).split('\n').slice(0, 3).join('\n      ')); } }
 
 JUDGE = { terms: [{ i: 0, label: 'irrelevant', why: "another brand's driver" }, { i: 1, label: 'relevant', why: 'they sell wedges' }, { i: 2, label: 'brand', why: 'the brand' }],
-  categories: [{ i: 0, label: 'irrelevant', why: 'another brand’s hats' }], flows: { missing: ['post_purchase', 'winback'], replaced: [] } };
+  categories: [{ i: 0, label: 'irrelevant', why: 'another brand’s hats' }], flows: { covered: { welcome: 'F1', abandoned_cart: 'F2', browse_abandonment: 'F2', post_purchase: '', winback: '' }, replaced: [] } };
 let res;
 await check('one read: every source, one judge call and one cross-check call, the leaks to act on ranked by money a month', async () => {
   res = await L.leaksFor(env, d, 'brand_x', { days: 30, fresh: true, ai: true });
@@ -183,6 +183,18 @@ await check('email: missing core flows priced from orders or sign-ups; an earnin
   const pp = res.leaks.find(l => l.id === 'email:missing:post_purchase'), wb = res.leaks.find(l => l.id === 'email:missing:winback'), off = res.leaks.find(l => l.id === 'email:off:F3');
   assert.equal(pp.cost, Math.round(300 * 1.80)); assert.match(pp.benchmark, /Klaviyo 2026/);
   assert.equal(wb.cost, null, 'win-back cannot be priced'); assert.equal(off && off.cost, 500, 'a third of its 90-day revenue: it stopped earning before the 30 days ahead of going off');
+});
+await check('flows: a gap is named only when no LIVE flow covers it; live and not-live flows are listed apart', async () => {
+  assert.match(seen.user, /LIVE FLOWS[^\n]*\nF1 \| Welcome series[\s\S]*F2 \| Cart reminder[\s\S]*NOT LIVE FLOWS[^\n]*\nF3 \| Old browse/);
+  assert.ok(!res.leaks.some(l => l.id === 'email:missing:abandoned_cart' || l.id === 'email:missing:welcome'));
+  /* Party Patch 2026-11-05: a live cart flow and a draft with the same name. Pointing at the draft is a gap; the live id is not. */
+  const fl = [{ id: 'L', name: 'Abandoned Cart Reminder', status: 'live' }, { id: 'D', name: 'Abandoned Cart Reminder', status: 'draft' }];
+  const all = (id, ac) => ({ covered: { welcome: id, abandoned_cart: ac, browse_abandonment: id, post_purchase: id, winback: id }, replaced: [] });
+  assert.deepEqual(L.flowsMissing(all('L', 'L'), fl), []);
+  assert.deepEqual(L.flowsMissing(all('L', 'D'), fl), ['abandoned_cart'], 'a draft never covers a core flow');
+  assert.deepEqual(L.flowsMissing(all('L', ''), fl), ['abandoned_cart']);
+  assert.deepEqual(L.flowsMissing(all('L', 'nope'), fl), ['abandoned_cart'], 'an id that is not on the account is a gap');
+  assert.deepEqual(L.flowsMissing({ missing: ['winback', 'bogus'], replaced: [] }, fl), ['winback'], 'labels saved before the change still read');
 });
 await check('the cross-check reads the other channels before calling a leak', async () => {
   const u = JSON.parse(seen.reviewUser.slice(seen.reviewUser.indexOf('LEAKS (ranked by money):') + 24));
@@ -271,7 +283,7 @@ await check('the answer is cached; the next read makes no call', async () => {
   assert.equal(again.cached, true); assert.equal(seen.model + seen.gaql.length + seen.ga4, before);
 });
 await check('a replaced flow that earns about as much is not a leak', async () => {
-  JUDGE = { ...JUDGE, flows: { missing: [], replaced: [{ off: 'F3', by: 'F1' }] } };
+  JUDGE = { ...JUDGE, flows: { covered: { welcome: 'F1', abandoned_cart: 'F2', browse_abandonment: 'F2', post_purchase: 'F1', winback: 'F1' }, replaced: [{ off: 'F3', by: 'F1' }] } };
   BYF.F1 = Array.from({ length: 120 }, (_, i) => (i >= 97 ? 40 : 0));
   const r = await L.leaksFor(env, d, 'brand_x', { days: 30, fresh: true, ai: true });
   assert.ok(!r.leaks.some(l => l.id === 'email:off:F3'));

@@ -66,6 +66,15 @@ export const BENCH = {
 export const FLOW_RPR = { welcome: 5.75, abandoned_cart: 6.77, browse_abandonment: 2.08, post_purchase: 1.80, winback: 0.82 };
 const FLOW_SRC = 'Klaviyo 2026 Omnichannel Benchmark Report, email revenue per recipient';
 const CORE = { welcome: 'welcome', abandoned_cart: 'abandoned cart', browse_abandonment: 'browse abandonment', post_purchase: 'post purchase', winback: 'win-back' };
+/** The core flows with no live flow behind them: the model names, per core flow, the live flow that covers it; a blank
+ *  answer, or an id that is not a live flow on the account, is a gap. Labels saved before 2026-11-05 carry the old
+ *  `missing` list and are read as they are until the next AI check. */
+export function flowsMissing(jf, flows) {
+  if (!jf) return [];
+  if (!jf.covered) return (jf.missing || []).filter(k => CORE[k]);
+  const live = new Set((flows || []).filter(f => f.status === 'live').map(f => f.id));
+  return Object.keys(CORE).filter(k => !live.has(String(jf.covered[k] || '').trim()));
+}
 
 /* Floors: under these a step or page says "not enough data yet" instead of a verdict (website-cro.md section 3). */
 export const FLOOR = { sessions: 1000, events: 300, lp_sessions: 500, term_spend: 1, pmax_clicks: 10, cost: 50 };
@@ -89,8 +98,12 @@ const JUDGE_SCHEMA = {
   properties: {
     terms: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['i', 'label', 'why'], properties: { i: { type: 'integer' }, label: { type: 'string', enum: ['irrelevant', 'relevant', 'brand'] }, why: { type: 'string' } } } },
     categories: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['i', 'label', 'why'], properties: { i: { type: 'integer' }, label: { type: 'string', enum: ['irrelevant', 'relevant', 'brand'] }, why: { type: 'string' } } } },
-    flows: { type: 'object', additionalProperties: false, required: ['missing', 'replaced'],
-      properties: { missing: { type: 'array', items: { type: 'string', enum: Object.keys(CORE) } },
+    /* covered: for EVERY core flow, the id of the LIVE flow that does that job, or "" when none does. "Missing" is
+       worked out in code from it (flowsMissing), so a gap is only ever named when the model could not point at a live
+       flow, and an id that is not live never counts (2026-11-05: Party Patch was told it had no abandoned cart flow
+       while two were live; the old schema let the model just list gaps). */
+    flows: { type: 'object', additionalProperties: false, required: ['covered', 'replaced'],
+      properties: { covered: { type: 'object', additionalProperties: false, required: Object.keys(CORE), properties: Object.fromEntries(Object.keys(CORE).map(k => [k, { type: 'string' }])) },
         replaced: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['off', 'by'], properties: { off: { type: 'string' }, by: { type: 'string' } } } } } },
   },
 };
@@ -108,19 +121,21 @@ TASK 1, search terms. Each line is a Google search that cost money and did not c
 
 TASK 2, Performance Max search categories (Google groups searches into categories). Same three labels, same care.
 
-TASK 3, email flows. From the flow list (name, trigger, status, revenue over 90 days), say which CORE flows the account has NO live version of: welcome (new subscriber), abandoned_cart (cart or checkout abandonment), browse_abandonment, post_purchase (thank you, cross-sell, review ask after an order), winback (lapsed customers). Judge from what each flow is for, not its exact words. Then for every flow that is NOT live but earned revenue, name the live flow that replaced it (its id) in "replaced", or leave it out when nothing replaced it.
+TASK 3, email flows. The flow list comes in two parts: LIVE flows (sending now) and NOT LIVE flows (draft, manual). Accounts often hold old drafts with the same name as a live flow; only the LIVE part decides coverage. For each CORE flow, give in "covered" the id of a LIVE flow that does that job, or "" when no live flow does: welcome (new subscriber), abandoned_cart (cart or checkout abandonment; an abandoned checkout flow counts), browse_abandonment (viewed a product or the site and left), post_purchase (thank you, cross-sell, review ask after an order), winback (lapsed customers). Judge from what each flow is for, not its exact words; read every live flow before answering "". Then for every flow that is NOT live but earned revenue, name the live flow that replaced it (its id) in "replaced", or leave it out when nothing replaced it.
 ${lessons ? `
 THE TEAM'S LESSONS (follow the ones marked HOLDS or PARTLY):
 ${lessons}
 ` : ''}Return JSON only.`;
 }
 export async function judge(env, d, brand, brain, terms, cats, flows, lessons = '') {
-  if (!terms.length && !cats.length && !flows.length) return { terms: [], categories: [], flows: { missing: [], replaced: [] } };
+  if (!terms.length && !cats.length && !flows.length) return { terms: [], categories: [], flows: { covered: {}, replaced: [] } };
   if (!env.ANTHROPIC_API_KEY) throw new Error('no model key');
+  const flowLine = f => `${f.id} | ${f.name} | ${f.trigger || ''} | ${f.status} | $${Math.round(f.revenue || 0)}`;
+  const liveF = flows.filter(f => f.status === 'live'), offF = flows.filter(f => f.status !== 'live');
   const user = [
     `SEARCH TERMS (i | search | campaign | spend | clicks):\n${terms.map((t, i) => `${i} | ${t.term} | ${t.campaign} | $${t.spend.toFixed(2)} | ${t.clicks}`).join('\n') || '(none)'}`,
     `PERFORMANCE MAX CATEGORIES (i | category | campaign | clicks):\n${cats.map((c, i) => `${i} | ${c.label} | ${c.campaign} | ${c.clicks}`).join('\n') || '(none)'}`,
-    `FLOWS (id | name | trigger | status | revenue 90 days):\n${flows.map(f => `${f.id} | ${f.name} | ${f.trigger || ''} | ${f.status} | $${Math.round(f.revenue || 0)}`).join('\n') || '(no Klaviyo)'}`,
+    flows.length ? `LIVE FLOWS (id | name | trigger | status | revenue 90 days):\n${liveF.map(flowLine).join('\n') || '(none live)'}\n\nNOT LIVE FLOWS (id | name | trigger | status | revenue 90 days):\n${offF.map(flowLine).join('\n') || '(none)'}` : 'FLOWS:\n(no Klaviyo)',
   ].join('\n\n');
   const r = await d.xfetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -236,7 +251,7 @@ export async function leaksFor(env, d, act, { days = 30, fresh = false, ai = fal
       if (d.canAfford && !d.canAfford(3)) throw new Error('out of budget this hour');
       const brain = (await brandBrain(env, act, { short: true, creator: false, voice: false }).catch(() => ({ md: '' }))).md || '';
       J = await judge(env, d, a.name, brain.slice(0, 9000), terms, cats, flows, lessonsText(lessons, ['google_search', 'google_pmax', 'email']));
-      labels = { terms: {}, cats: {}, flows: J.flows || { missing: [], replaced: [] } };
+      labels = { terms: {}, cats: {}, flows: J.flows || { covered: {}, replaced: [] } };
       for (const x of J.terms || []) if (terms[x.i]) labels.terms[tKey(terms[x.i])] = { label: x.label, why: x.why };
       for (const x of J.categories || []) if (cats[x.i]) labels.cats[cKey(cats[x.i])] = { label: x.label, why: x.why };
     } catch (e) { judgeErr = e.message; }
@@ -347,7 +362,7 @@ export async function leaksFor(env, d, act, { days = 30, fresh = false, ai = fal
     areas.email = { state: 'ok' };
     const gained = daily ? (daily.days || []).filter(x => x.date >= from && x.date <= to).reduce((s, x) => s + (x.gained || 0), 0) : null;
     const orders = +(store?.orders || 0);
-    for (const k of J.flows?.missing || []) {
+    for (const k of flowsMissing(J.flows, flows)) {
       const recips = k === 'welcome' ? gained : k === 'post_purchase' ? orders : null;
       const cost = recips != null ? recips * FLOW_RPR[k] * scale : null;
       leaks.push({ id: `email:missing:${k}`, area: 'email', title: `No live ${CORE[k]} flow`,
