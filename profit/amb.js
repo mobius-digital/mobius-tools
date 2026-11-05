@@ -393,9 +393,10 @@ function paint() {
   }
   const keep = snapshotEditor();
   // Three screens (2026-10-15). The old Ideas and Link and brief views open from Settings > More.
-  if (!['videos', 'checklist', 'settings', 'angles', 'link'].includes(S.view)) S.view = 'videos';
+  if (!['week', 'videos', 'checklist', 'settings', 'angles', 'link'].includes(S.view)) S.view = 'videos';
   const tab = ['angles', 'link'].includes(S.view) ? 'settings' : S.view;
   const tabs = `<nav class="v2tabs am-sub" aria-label="Creator link screens">
+    <button data-v="week" class="${tab === 'week' ? 'on' : ''}">This week</button>
     <button data-v="videos" class="${tab === 'videos' ? 'on' : ''}">Videos</button>
     <button data-v="checklist" class="${tab === 'checklist' ? 'on' : ''}">Checklist</button>
     <button data-v="settings" class="${tab === 'settings' ? 'on' : ''}">Settings</button></nav>`;
@@ -414,6 +415,7 @@ function paint() {
   wireTop();
   const body = $('#amBody');
   closeDrawer();
+  if (S.view === 'week') return paintWeek(body);
   if (S.view === 'videos') return paintVideos(body);
   if (S.view === 'checklist') return paintChecklist(body);
   if (S.view === 'settings') return paintSettings(body);
@@ -727,6 +729,41 @@ function openAtria() {
 
 /* ---------- Checklist ---------- */
 const SKIP_START = /^\s*(never|don'?t|do not|avoid|skip|no\b)/i;
+/* This week (2026-11-05): the block at the top of the creator hub. Offer, Monday call and its recordings, one idea a
+   day (picked from the brand's ideas or typed), and the line creators re-film. Empty fields are not drawn. */
+function paintWeek(body) {
+  boardCss();
+  const w = S.data.brand.week || {}, c = w.call || {}, o = w.offer || {}, sm = w.same || {};
+  const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+  const daily = DAYS.map(d => (w.daily || []).find(x => x.day === d) || { day: d, title: '', opener: '' });
+  const ideas = (S.data.angles || []).filter(a => a.status === 'live');
+  const inp = (id, v, ph, max) => `<input class="wk-in" id="${id}" value="${esc(v || '')}" placeholder="${esc(ph)}" maxlength="${max}">`;
+  const recs = (c.recordings || []).map(r => `${r.title} | ${r.url}`).join('\n');
+  body.innerHTML = `<style>.wk-in,.wk-ta{width:100%;box-sizing:border-box;padding:9px 11px;border-radius:9px;border:1px solid var(--line);background:transparent;color:inherit;font:inherit;margin:0 0 8px}.wk-ta{min-height:96px;resize:vertical}.wk-dayrow{display:grid;grid-template-columns:44px minmax(0,1fr);gap:8px;align-items:start}.wk-dayrow>b{padding-top:9px}.wk-pick{width:100%;box-sizing:border-box;padding:8px 10px;border-radius:9px;border:1px solid var(--line);background:transparent;color:inherit;font:inherit;margin:0 0 6px}</style>
+    <p class="hint" style="margin:6px 0 14px">The block at the top of the creator link. Update it every Monday. Anything left empty is not shown.</p>
+    <div class="avc">
+      <section class="avc-card"><h3>${ic('megaphone', 17)}The offer</h3><p>Word for word from the site, so every creator says it the same way.</p>
+        ${inp('wkTitle', w.title, 'Week of Nov 9', 60)}${inp('wkHead', o.head, 'Early Black Friday: buy one, get one 50% off.', 120)}${inp('wkLine', o.line, 'What it covers, the code, the end date', 300)}</section>
+      <section class="avc-card"><h3>${ic('video', 17)}Monday call</h3><p>The join link, then every recording so nobody misses one.</p>
+        ${inp('wkWhen', c.when, 'Mondays 12:00 CT, 30 minutes, live with Cole', 160)}${inp('wkJoin', c.join, 'https://meet.google.com/...', 500)}
+        <textarea class="wk-ta" id="wkRecs" placeholder="One recording per line: Nov 9 call | https://...">${esc(recs)}</textarea></section>
+      <section class="avc-card"><h3>${ic('calendar-days', 17)}One idea a day</h3><p>Pick from this brand's ideas or type your own.</p>
+        ${daily.map((x, i) => `<div class="wk-dayrow" data-day="${x.day}"><b>${x.day}</b><div><select class="wk-pick" data-pick="${i}"><option value="">Pick an idea…</option>${ideas.map(a => `<option value="${esc(a.id)}">${esc(a.title)}</option>`).join('')}</select>${inp('wkT' + i, x.title, 'The idea', 120)}${inp('wkO' + i, x.opener, 'The opening line', 220)}</div></div>`).join('')}</section>
+      <section class="avc-card"><h3>${ic('shuffle', 17)}Same line, new creator</h3><p>A winning opening line for other creators to film their own way.</p>
+        ${inp('wkSame', sm.line, 'Golf is a drinking sport. This is Chunkman, not Jumpman.', 220)}${inp('wkWho', sm.who, 'Who said it first', 80)}</section>
+    </div>
+    <div class="av-save"><span class="am-msg" id="wkMsg"></span><button class="btn primary" id="wkSave" type="button">Save this week</button></div>`;
+  body.querySelectorAll('[data-pick]').forEach(s => s.onchange = () => { const a = ideas.find(x => x.id === s.value); if (!a) return; const i = s.dataset.pick; $('#wkT' + i).value = `${a.title}${a.format ? ` (${String(a.format).toLowerCase()})` : ''}`.slice(0, 120); $('#wkO' + i).value = (a.openers || [])[0] || ''; });
+  $('#wkSave').onclick = async () => {
+    const v = id => $('#' + id).value.trim();
+    const week = { title: v('wkTitle'), offer: { head: v('wkHead'), line: v('wkLine') },
+      call: { when: v('wkWhen'), join: v('wkJoin'), recordings: v('wkRecs').split('\n').map(l => { const k = l.lastIndexOf('|'); return k < 0 ? null : { title: l.slice(0, k).trim(), url: l.slice(k + 1).trim() }; }).filter(Boolean) },
+      daily: DAYS.map((d, i) => ({ day: d, title: v('wkT' + i), opener: v('wkO' + i) })).filter(x => x.title),
+      same: { line: v('wkSame'), who: v('wkWho') } };
+    try { S.data = await post('/api/amb/brand', { week }, 'PUT'); flashMsg($('#wkMsg'), 'Saved. Creators see it on their next load.'); }
+    catch (e) { flashMsg($('#wkMsg'), e.message, false); }
+  };
+}
 function paintChecklist(body) {
   boardCss();
   const b = S.data.brand;

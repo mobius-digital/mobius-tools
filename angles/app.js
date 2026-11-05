@@ -187,6 +187,20 @@ function checklist() {
     ${list('ck-skip', 'Skip these', skip)}
   </section>`;
 }
+/* This week (2026-11-05): the offer said exactly, the Monday call (join link, then every recording), one idea a day
+   and the line three creators film. Set in Locus (Ads > Trybe > Briefs > This week); nothing set = nothing drawn. */
+function week() {
+  const w = D.brand.week; if (!w) return '';
+  const offer = w.offer && w.offer.head ? `<div class="wk-offer"><span class="wk-l">The offer, say it exactly</span><b>${esc(w.offer.head)}</b>${w.offer.line ? `<p>${esc(w.offer.line)}</p>` : ''}</div>` : '';
+  const c = w.call || {}, recs = c.recordings || [];
+  const call = c.when || c.join || recs.length ? `<div class="wk-box"><span class="wk-l">Monday call</span>${c.when ? `<p>${esc(c.when)}</p>` : ''}
+    ${c.join ? `<a class="btn btn-acc wk-join" href="${esc(c.join)}" target="_blank" rel="noopener">Join the call${ic('arrow-right', 15)}</a>` : ''}
+    ${recs.length ? `<div class="wk-recs"><span class="wk-s">Recordings</span>${recs.map(r => `<a href="${esc(r.url)}" target="_blank" rel="noopener">${ic('play', 13)}<span>${esc(r.title)}</span></a>`).join('')}</div>` : ''}</div>` : '';
+  const daily = (w.daily || []).length ? `<div class="wk-box"><span class="wk-l">This week's ideas, one a day</span>${w.daily.map(x => `<div class="wk-day"><i>${esc(x.day)}</i><div><b>${esc(x.title)}</b>${x.opener ? `<q>${esc(x.opener)}</q>` : ''}</div></div>`).join('')}</div>` : '';
+  const same = w.same && w.same.line ? `<div class="wk-box"><span class="wk-l">Same line, your version</span><q class="wk-line">${esc(w.same.line)}</q>${w.same.who ? `<p>First said by ${esc(w.same.who)}. Open your video with it: your course, your delivery.</p>` : ''}</div>` : '';
+  if (!offer && !call && !daily && !same) return '';
+  return `<section class="card week" id="week"><h2>${ic('calendar-days', 18)}${esc(w.title || 'This week')}</h2>${offer}<div class="wk-grid">${call}${daily}${same}</div></section>`;
+}
 function steps() {
   const b = D.brand;
   const S = [
@@ -218,6 +232,7 @@ function render() {
       <p class="lede">${D.board ? `Our best videos right now, and other brands doing it well.` : `Videos that worked, ours and other brands'.`} Pick one, film yours today. That's the whole job.</p>
       <a class="lede-link" href="#checklist">${ic('check', 14)}Read "Before you film" first</a>
     </section>
+    ${week()}
     ${cs.length > 1 ? `<div class="cats" role="group" aria-label="Show"><button class="cat ${CAT === 'all' ? 'on' : ''}" data-cat="all">All<span>${TILES.length}</span></button>${cs.map(c => `<button class="cat ${CAT === c.id ? 'on' : ''}" data-cat="${esc(c.id)}">${esc(c.name)}<span>${c.n}</span></button>`).join('')}</div>` : ''}
     <div class="grid">${list.slice(0, cut).map(tile).join('') || '<p class="empty">No videos here yet.</p>'}</div>
     ${cut < list.length ? `<button class="more" data-more>See all ${list.length} videos${ic('chevron-down', 15)}</button>` : ''}
