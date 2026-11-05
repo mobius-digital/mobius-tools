@@ -581,7 +581,8 @@ async function postWinnersV2(env, d, act, dc, slug, wins, today, channel) {
   await dcHookSay(env, act, dc, channel, msg.open);
   for (const w of msg.items) {
     const clip2 = await winnerClip(env, d, act, w).catch(() => null);
-    await dcHookSay(env, act, dc, channel, clip2 && clip2.url ? `${w.text}\n${clip2.url}` : w.text, clip2 && clip2.file);
+    await dcHookSay(env, act, dc, channel, w.text, clip2 && clip2.file);
+    if (clip2 && clip2.url) await dcHookSay(env, act, dc, channel, clip2.url);   // a link on its own shows as just the player
   }
   await dcHookSay(env, act, dc, channel, msg.close);
   return msg;
