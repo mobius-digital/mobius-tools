@@ -83,7 +83,7 @@ export function cleanWeek(w) {
     offer: { head: t(w.offer?.head, 120), line: t(w.offer?.line, 300) },
     call: { when: t(w.call?.when, 160), join: httpsUrl(w.call?.join),
       recordings: (Array.isArray(w.call?.recordings) ? w.call.recordings : []).map(r => ({ title: t(r?.title, 80), url: httpsUrl(r?.url) })).filter(r => r.title && r.url).slice(0, 30) },
-    daily: (Array.isArray(w.daily) ? w.daily : []).map(x => ({ day: t(x?.day, 10), title: t(x?.title, 120), opener: t(x?.opener, 220) })).filter(x => x.title).slice(0, 7),
+    daily: (Array.isArray(w.daily) ? w.daily : []).map(x => ({ day: t(x?.day, 10), title: t(x?.title, 120), opener: t(x?.opener, 220), ...(/^[a-f0-9]{16}$/.test(x?.angle_id || '') ? { angle_id: x.angle_id } : {}) })).filter(x => x.title).slice(0, 7),
     same: { line: t(w.same?.line, 220), who: t(w.same?.who, 80) },
   };
   const empty = !out.title && !out.offer.head && !out.call.when && !out.call.join && !out.call.recordings.length && !out.daily.length && !out.same.line;
@@ -96,19 +96,26 @@ export function cleanWeek(w) {
 export async function trybeLeaders(env, actId, days = 30) {
   const from = addDays(today(), -(days - 1));
   const { results } = await env.DB.prepare(
-    `SELECT s.sub_id, s.creator_id, s.creator, s.product, SUM(t.orders) AS orders
+    `SELECT s.sub_id, s.creator_id, s.creator, s.product, s.transcript, a.ad_id, SUM(t.orders) AS orders
        FROM p_trybe_ad a JOIN p_trybe_sub s ON s.act_id = a.act_id AND s.trybe_id = a.trybe_id
        JOIN tw_ad_attr t ON t.act_id = a.act_id AND t.ad_id = a.ad_id
       WHERE a.act_id = ?1 AND s.status = 'approved' AND t.model = 'lastPlatformClick' AND t.date >= ?2 AND (t.platform = 'meta' OR t.platform IS NULL)
-      GROUP BY s.sub_id HAVING SUM(t.orders) >= 1 ORDER BY orders DESC LIMIT 200`).bind(actId, from).all();
-  const rows = results || [];
-  if (!rows.length) return null;
+      GROUP BY s.sub_id, a.ad_id HAVING SUM(t.orders) > 0 LIMIT 600`).bind(actId, from).all();
   const short = n => { const p = String(n || 'Creator').trim().split(/\s+/); return p.length > 1 ? `${p[0]} ${p[p.length - 1][0].toUpperCase()}.` : p[0]; };
+  const vids = new Map();   // one row per video: its sales across its ads, and the ad that sold most (the one the page plays)
+  for (const r of results || []) {
+    const v = vids.get(r.sub_id) || { creator_id: r.creator_id, name: short(r.creator), product: String(r.product || '').split(', ').slice(0, 2).join(', '), line: clip(String(r.transcript || '').split(/(?<=[.!?])\s/)[0], 110), sales: 0, ad_id: null, best: 0 };
+    v.sales += +r.orders || 0;
+    if ((+r.orders || 0) > v.best) { v.best = +r.orders || 0; v.ad_id = String(r.ad_id); }
+    vids.set(r.sub_id, v);
+  }
+  const list = [...vids.values()].filter(v => v.sales >= 1).sort((a, b) => b.sales - a.sales);
+  if (!list.length) return null;
   const by = new Map();
-  for (const r of rows) { const g = by.get(r.creator_id) || { name: short(r.creator), sales: 0, videos: 0 }; g.sales += +r.orders || 0; g.videos++; by.set(r.creator_id, g); }
+  for (const v of list) { const g = by.get(v.creator_id) || { name: v.name, sales: 0, videos: 0, ad_id: v.ad_id }; g.sales += v.sales; g.videos++; by.set(v.creator_id, g); }
   return { days,
-    creators: [...by.values()].sort((a, b) => b.sales - a.sales).slice(0, 5).map(g => ({ name: g.name, sales: Math.round(g.sales), videos: g.videos })),
-    videos: rows.slice(0, 5).map(r => ({ name: short(r.creator), product: String(r.product || '').split(', ').slice(0, 2).join(', '), sales: Math.round(+r.orders || 0) })) };
+    creators: [...by.values()].sort((a, b) => b.sales - a.sales).slice(0, 5).map(g => ({ name: g.name, sales: Math.round(g.sales), videos: g.videos, ad_id: g.ad_id })),
+    videos: list.slice(0, 6).map(v => ({ name: v.name, product: v.product, line: v.line, sales: Math.round(v.sales), ad_id: v.ad_id })) };
 }
 
 async function loadAll(env, actId) {
