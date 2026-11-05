@@ -1,0 +1,875 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<link rel="icon" type="image/png" sizes="32x32" href="../../../../logo/locus/icons/favicon-32.png">
+<title>Yak Before and After</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,700;0,800;1,700;1,800&family=Montserrat:wght@400;500;600;700;800&display=swap">
+<style>
+/* Layout: an audit document. Each page gets NOW (live screenshots) beside NEW (a 1200px mockup scaled
+   to fit), stacked on phones. The document wears Yak's own system: black, Yak gold, ice gray,
+   Montserrat body, italic condensed display. */
+:root{
+  --bg:#f4f5f6; --paper:#ffffff; --ink:#111214; --muted:#5f6670; --line:#dfe3e7; --soft:#eceff2;
+  --gold:#BC955C; --gold-ink:#8a6a3a; --bad:#c42b2b; --badbg:#fbe6e6; --ok:#1f7a4d; --okbg:#e3f3ea; --warn:#93600b; --warnbg:#fbf0dc;
+  --display:"Barlow Condensed","Arial Narrow",Impact,sans-serif;
+  --body:"Montserrat",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#101215; --paper:#181b20; --ink:#eceef1; --muted:#9aa3ad; --line:#2b3038; --soft:#20242a;
+  --gold:#d1ac72; --gold-ink:#d1ac72; --bad:#ff8c8c; --badbg:#3a1c1c; --ok:#6bd59e; --okbg:#173326; --warn:#f0bd62; --warnbg:#3a2b12; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#101215; --paper:#181b20; --ink:#eceef1; --muted:#9aa3ad; --line:#2b3038; --soft:#20242a;
+  --gold:#d1ac72; --gold-ink:#d1ac72; --bad:#ff8c8c; --badbg:#3a1c1c; --ok:#6bd59e; --okbg:#173326; --warn:#f0bd62; --warnbg:#3a2b12; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:14px/1.6 var(--body);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1240px;margin:0 auto;padding-block:28px 90px;display:flex;flex-direction:column;gap:56px}
+h1,h2,h3{font-family:var(--display);font-style:italic;font-weight:800;text-transform:uppercase;margin:0;letter-spacing:.3px;text-wrap:balance}
+h1{font-size:clamp(42px,7vw,72px);line-height:.92}
+h2{font-size:34px;line-height:1}
+h3{font-size:22px;line-height:1.05}
+p{margin:0}
+a{color:var(--gold-ink)}
+.eyebrow{font:700 11px/1 var(--body);letter-spacing:1.6px;text-transform:uppercase;color:var(--muted)}
+.lede{color:var(--muted);font-size:15px;max-width:72ch}
+.sec{display:flex;flex-direction:column;gap:16px}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:16px}
+.pill{display:inline-flex;align-items:center;font:700 10.5px/1 var(--body);letter-spacing:.8px;text-transform:uppercase;padding:5px 8px;border-radius:999px;white-space:nowrap}
+.ok{background:var(--okbg);color:var(--ok)} .no{background:var(--badbg);color:var(--bad)} .half{background:var(--warnbg);color:var(--warn)}
+.done{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.done .card{display:flex;flex-direction:column;gap:6px}
+.done b{font-size:15px}
+@media (max-width:760px){.done{grid-template-columns:1fr}}
+.jump{display:flex;flex-wrap:wrap;gap:6px}
+.jump a{font:600 12px/1 var(--body);padding:8px 11px;border-radius:999px;background:var(--paper);border:1px solid var(--line);color:var(--ink);text-decoration:none}
+
+/* design system */
+.ds{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+@media (max-width:860px){.ds{grid-template-columns:1fr}}
+.ds .card{display:flex;flex-direction:column;gap:12px;min-width:0}
+.sw{display:flex;flex-wrap:wrap;gap:8px}
+.sw div{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted);width:86px}
+.sw i{display:block;height:44px;border-radius:6px;border:1px solid var(--line)}
+.sw s{color:var(--bad)}
+.spec{display:flex;flex-direction:column;gap:6px;color:var(--ink)}
+.spec .d1{font:800 italic 40px/.95 var(--display);text-transform:uppercase}
+.spec .d2{font:700 13px/1.3 var(--body);text-transform:uppercase;letter-spacing:.6px}
+.spec .d3{font:400 14px/1.5 var(--body)}
+.btns{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.b{font:700 12px/1 var(--body);letter-spacing:.8px;text-transform:uppercase;padding:13px 18px;border-radius:4px;display:inline-block}
+.b.k{background:#111;color:#fff} .b.g{background:#BC955C;color:#111} .b.o{box-shadow:inset 0 0 0 1.5px currentColor;color:var(--ink)}
+.b.old{background:#BC955C;color:#fff;border-radius:14px;font-weight:600;letter-spacing:0;text-transform:none}
+.cmp-t{width:100%;border-collapse:collapse;font-size:13px}
+.cmp-t th,.cmp-t td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+.cmp-t th{font:700 10.5px/1.2 var(--body);letter-spacing:.8px;text-transform:uppercase;color:var(--muted)}
+.tbl{overflow-x:auto}
+.voice{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.voice div{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.voice .was{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--bad)}
+.voice .now{font-weight:700}
+@media (max-width:760px){.voice{grid-template-columns:1fr}}
+
+/* inspiration */
+.insp{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.insp .card{padding:0;overflow:hidden;display:flex;flex-direction:column;min-width:0}
+.insp img{width:100%;aspect-ratio:4/3;object-fit:cover;object-position:top;display:block;border-bottom:1px solid var(--line)}
+.insp .t{padding:12px;display:flex;flex-direction:column;gap:6px;font-size:12.5px}
+.insp .t b{font-size:14px}
+.insp .take{color:var(--ink)} .insp .skip{color:var(--muted)}
+@media (max-width:1000px){.insp{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:560px){.insp{grid-template-columns:1fr}}
+
+/* before / after */
+.ba{display:flex;flex-direction:column;gap:12px;scroll-margin-top:16px}
+.ba-head{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:flex-end;justify-content:space-between}
+.ba-head .l{display:flex;flex-direction:column;gap:6px;min-width:0}
+.ba-head .u{font:12px/1.4 ui-monospace,Consolas,monospace;color:var(--muted)}
+.chg{margin:0;padding-left:18px;font-size:13px;display:flex;flex-direction:column;gap:2px;max-width:80ch}
+.toggle{font:700 11px/1 var(--body);letter-spacing:.8px;text-transform:uppercase;padding:9px 12px;border-radius:999px;border:1px solid var(--line);background:var(--paper);color:var(--ink);cursor:pointer}
+.toggle:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;align-items:start}
+.ba.full .cols{grid-template-columns:1fr}
+@media (max-width:820px){.cols{grid-template-columns:1fr}}
+.col{display:flex;flex-direction:column;gap:6px;min-width:0}
+.col .lab{font:800 italic 18px/1 var(--display);text-transform:uppercase;display:flex;gap:8px;align-items:center}
+.col .lab.n{color:var(--muted)} .col .lab.y{color:var(--gold-ink)}
+.shots{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
+.shots img{display:block;width:100%;max-width:100%}
+.none{border:1.5px dashed var(--line);border-radius:8px;padding:30px 18px;text-align:center;color:var(--muted);background:var(--paper)}
+.frame{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff;position:relative}
+.scaler{width:1200px;transform-origin:0 0}
+
+/* findings */
+.find{display:flex;flex-direction:column;gap:6px}
+.find div{display:grid;grid-template-columns:96px 1fr;gap:12px;background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:13px}
+@media (max-width:560px){.find div{grid-template-columns:1fr}}
+
+/* ============ MOCKUP SYSTEM (fixed light: it is the website) ============ */
+.m{--k:#111214;--g:#BC955C;--gd:#9c7a45;--ice:#EEF1F3;--w:#fff;--mut:#5f6670;--ln:#e2e6ea;--red:#D22B2B;
+  font-family:var(--body);color:var(--k);background:var(--w);font-size:15px;line-height:1.5}
+.m img{display:block;max-width:100%}
+.m .bar{background:var(--k);color:#fff;text-align:center;font:600 12px/1 var(--body);letter-spacing:1.2px;text-transform:uppercase;padding:12px}
+.m .bar b{color:var(--g)}
+.m .nav{display:flex;align-items:center;gap:30px;padding:18px 40px;border-bottom:1px solid var(--ln)}
+.m .nav img{height:30px;width:auto}
+.m .nav nav{display:flex;gap:24px;font:700 12px/1 var(--body);letter-spacing:1px;text-transform:uppercase}
+.m .nav nav .hot{color:var(--red)}
+.m .nav .r{margin-left:auto;font:600 12px/1 var(--body);letter-spacing:.8px;text-transform:uppercase}
+.m .D{font-family:var(--display);font-style:italic;font-weight:800;text-transform:uppercase;line-height:.9;letter-spacing:.3px;margin:0}
+.m .D1{font-size:84px} .m .D2{font-size:52px} .m .D3{font-size:34px} .m .D4{font-size:24px}
+.m .eb{font:700 12px/1 var(--body);letter-spacing:1.6px;text-transform:uppercase;color:var(--gd)}
+.m .sub{font-size:17px;color:#3b4148;max-width:52ch}
+.m .mut{color:var(--mut)}
+.m .btn{display:inline-block;font:700 13px/1 var(--body);letter-spacing:1px;text-transform:uppercase;padding:16px 26px;border-radius:4px;background:var(--k);color:#fff;white-space:nowrap}
+.m .btn.g{background:var(--g);color:var(--k)} .m .btn.o{background:transparent;color:var(--k);box-shadow:inset 0 0 0 2px var(--k)} .m .btn.w{background:#fff;color:var(--k)} .m .btn.s{padding:11px 16px;font-size:12px}
+.m .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.m .sec{padding:56px 40px;display:flex;flex-direction:column;gap:26px}
+.m .ice{background:var(--ice)} .m .blk{background:var(--k);color:#fff} .m .blk .sub,.m .blk .mut{color:#b7bec6}
+.m .hero{display:grid;grid-template-columns:1fr 1fr;min-height:560px}
+.m .hero .tx{padding:64px 48px;display:flex;flex-direction:column;justify-content:center;gap:20px}
+.m .hero .ph{position:relative;overflow:hidden;background:#cfd6dc}
+.m .hero .ph img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.m .fullhero{position:relative;height:620px;overflow:hidden;color:#fff}
+.m .fullhero img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.m .fullhero::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,0,0,.72),rgba(0,0,0,.15) 65%)}
+.m .fullhero .tx{position:relative;z-index:1;padding:90px 56px;display:flex;flex-direction:column;gap:20px;max-width:640px}
+.m .fullhero .sub{color:#e6e9ec}
+.m .g2{display:grid;grid-template-columns:repeat(2,1fr);gap:18px} .m .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px} .m .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
+.m .pc{display:flex;flex-direction:column;gap:10px;min-width:0}
+.m .pc .im{position:relative;background:var(--ice);border-radius:4px;overflow:hidden}
+.m .pc .im img{width:100%;aspect-ratio:4/5;object-fit:cover}
+.m .tag{position:absolute;top:10px;left:10px;font:700 10px/1 var(--body);letter-spacing:1px;text-transform:uppercase;background:#fff;color:var(--k);padding:6px 8px;border-radius:3px}
+.m .tag.g{background:var(--g);color:var(--k)} .m .tag.r{background:var(--red);color:#fff} .m .tag.k{background:var(--k);color:#fff}
+.m .qa{position:absolute;right:10px;bottom:10px;width:38px;height:38px;border-radius:50%;background:#fff;display:grid;place-items:center;font-weight:700;font-size:20px;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.m .pc .tl{display:flex;justify-content:space-between;gap:10px;font:700 13px/1.3 var(--body);text-transform:uppercase;letter-spacing:.4px}
+.m .pc .ft{font-size:13px;color:var(--mut);margin-top:-6px}
+.m .pc .pr s{color:var(--mut);font-weight:500;margin-right:4px}
+.m .pc .pr.sale{color:var(--red)}
+.m .dots{display:flex;gap:5px;align-items:center;font-size:11px;color:var(--mut)}
+.m .dots i{width:14px;height:14px;border-radius:50%;border:1px solid rgba(0,0,0,.15);display:block}
+.m .stars{color:#e0a020;letter-spacing:1px}
+.m .life{position:relative;border-radius:4px;overflow:hidden;color:#fff;min-height:100%}
+.m .life img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.m .life::after{content:"";position:absolute;inset:0;background:linear-gradient(0deg,rgba(0,0,0,.75),rgba(0,0,0,0) 60%)}
+.m .life .tx{position:absolute;left:18px;right:18px;bottom:18px;z-index:1;display:flex;flex-direction:column;gap:8px}
+.m .chips{display:flex;gap:8px;flex-wrap:wrap}
+.m .chip{font:600 12px/1 var(--body);letter-spacing:.6px;text-transform:uppercase;padding:10px 14px;border:1.5px solid var(--ln);border-radius:4px;background:#fff}
+.m .chip.on{background:var(--k);color:#fff;border-color:var(--k)}
+.m .style{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}
+.m .style div{display:grid;grid-template-columns:150px 1fr;gap:16px;align-items:center;background:var(--ice);border-radius:4px;overflow:hidden}
+.m .style img{width:150px;height:170px;object-fit:cover}
+.m .proof{display:flex;justify-content:space-between;gap:20px;padding:26px 40px;border-bottom:1px solid var(--ln)}
+.m .proof div{display:flex;flex-direction:column;gap:2px;font-size:12px;letter-spacing:.6px;text-transform:uppercase;font-weight:600;color:var(--mut)}
+.m .proof b{font:800 italic 30px/1 var(--display);color:var(--k);letter-spacing:.2px}
+.m .rev{background:#fff;border:1px solid var(--ln);border-radius:4px;padding:22px;display:flex;flex-direction:column;gap:10px;font-size:15px}
+.m .rev .who{font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.6px;font-weight:600}
+.m .gift{display:flex;gap:14px;align-items:center;border:2px solid var(--g);border-radius:4px;padding:12px 14px;background:#fffaf2}
+.m .gift img{width:64px;height:64px;object-fit:cover;border-radius:3px;flex:none}
+.m .gift b{display:block;font-size:14px}
+.m .gift span{font-size:12.5px;color:var(--mut)}
+.m .tiers{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.m .tier{border:2px solid var(--ln);border-radius:4px;padding:14px;display:flex;flex-direction:column;gap:3px;position:relative}
+.m .tier.on{border-color:var(--k)}
+.m .tier .t{position:absolute;top:-10px;left:12px;font:700 10px/1 var(--body);letter-spacing:1px;text-transform:uppercase;background:var(--g);color:var(--k);padding:5px 7px;border-radius:3px}
+.m .tier .p{font:800 italic 34px/1 var(--display)}
+.m .tier .e{font-size:12px;color:var(--mut)} .m .tier .v{font-size:12px;font-weight:700;color:#0e7a45}
+.m .pdp{display:grid;grid-template-columns:1.15fr 1fr;gap:44px;padding:36px 40px}
+.m .gal{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.m .gal figure{margin:0;position:relative;background:var(--ice);border-radius:4px;overflow:hidden}
+.m .gal img{width:100%;aspect-ratio:4/5;object-fit:cover}
+.m .gal figcaption{position:absolute;left:10px;bottom:10px;right:10px;font:700 11px/1.3 var(--body);letter-spacing:.4px;text-transform:uppercase;background:#fff;padding:8px 10px;border-radius:3px}
+.m .gal .wide{grid-column:span 2} .m .gal .wide img{aspect-ratio:16/9}
+.m .buy{display:flex;flex-direction:column;gap:16px}
+.m .sizes{display:flex;gap:8px}
+.m .sizes span{min-width:54px;text-align:center;padding:12px 0;border:1.5px solid var(--ln);border-radius:4px;font-weight:700;font-size:13px}
+.m .sizes span.on{background:var(--k);color:#fff;border-color:var(--k)}
+.m .lines{display:flex;flex-direction:column;gap:8px;font-size:13.5px;border-top:1px solid var(--ln);padding-top:14px}
+.m .acc div{display:flex;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--ln);font:700 13px/1 var(--body);letter-spacing:.6px;text-transform:uppercase}
+.m .sw2{display:flex;gap:8px}
+.m .sw2 i{width:30px;height:30px;border-radius:50%;border:1px solid rgba(0,0,0,.15);display:block}
+.m .sw2 i.on{outline:2px solid var(--k);outline-offset:3px}
+.m .drawer-w{display:grid;grid-template-columns:1fr 470px;background:rgba(17,18,20,.45);min-height:820px}
+.m .drawer{background:#fff;padding:26px;display:flex;flex-direction:column;gap:18px}
+.m .barP{height:8px;background:var(--ice);border-radius:99px;overflow:hidden}
+.m .barP i{display:block;height:100%;background:var(--g)}
+.m .li{display:grid;grid-template-columns:76px 1fr auto;gap:14px;align-items:center;font-size:14px}
+.m .li img{width:76px;height:92px;object-fit:cover;border-radius:3px;background:var(--ice)}
+.m .li b{display:block;font-size:13px;text-transform:uppercase;letter-spacing:.4px}
+.m .up{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.m .up div{display:flex;gap:10px;align-items:center;border:1px solid var(--ln);border-radius:4px;padding:8px;font-size:12px}
+.m .up img{width:48px;height:58px;object-fit:cover;border-radius:3px}
+.m .pay{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.m .pay span{border-radius:4px;padding:12px;text-align:center;font-weight:800;color:#fff;font-size:14px}
+.m .cd{display:flex;gap:10px}
+.m .cd div{background:#fff;color:var(--k);border-radius:4px;padding:10px 14px;text-align:center;min-width:76px}
+.m .cd b{display:block;font:800 italic 40px/1 var(--display)}
+.m .cd small{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--mut)}
+.m .bench{background:var(--k);color:#fff;border-radius:4px;padding:18px 22px;display:flex;align-items:center;gap:20px}
+.m .bench .sl{display:flex;gap:10px}
+.m .bench .sl i{width:64px;height:76px;border-radius:3px;border:1.5px dashed #5c636b;display:grid;place-items:center;font-style:normal;color:#8d959e;overflow:hidden}
+.m .bench .sl img{width:100%;height:100%;object-fit:cover}
+.m .cmpT{display:grid;grid-template-columns:200px 1fr 1fr;border:1px solid var(--ln);border-radius:4px;overflow:hidden;font-size:14px}
+.m .cmpT>div{padding:14px 16px;border-bottom:1px solid var(--ln)}
+.m .cmpT .h{font:700 11px/1.3 var(--body);letter-spacing:1px;text-transform:uppercase;color:var(--mut);background:var(--ice)}
+.m .say{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.m .say div{border:1px solid var(--ln);border-radius:4px;padding:18px;font-size:15px}
+.m .cal{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.m .cal div{border:1px solid var(--ln);border-radius:4px;padding:16px;font-size:13.5px}
+.m .cal div.on{background:var(--k);color:#fff;border-color:var(--k)}
+.m .cal b{display:block;font:800 italic 26px/1 var(--display);margin-bottom:4px}
+.m .foot{background:var(--k);color:#c9ced4;padding:44px 40px;display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr;gap:30px;font-size:13px}
+.m .foot b{color:#fff;font-size:12px;letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:8px}
+.m .foot .field{background:#fff;color:var(--mut);border-radius:4px;padding:12px;margin-top:8px}
+.m .field{border:1.5px solid var(--ln);border-radius:4px;padding:14px;color:var(--mut);font-size:14px}
+.m .bc{font-size:12px;color:var(--mut);letter-spacing:.4px}
+.m .colhead{display:flex;justify-content:space-between;align-items:flex-end;gap:20px}
+.m .sizetbl{width:100%;border-collapse:collapse;font-size:14px}
+.m .sizetbl th,.m .sizetbl td{border-bottom:1px solid var(--ln);padding:10px 12px;text-align:left}
+.m .sizetbl th{background:var(--ice);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--mut)}
+
+/* CRO */
+.cro-g{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+@media (max-width:820px){.cro-g{grid-template-columns:1fr}}
+.cro-g .card{display:flex;flex-direction:column;gap:7px;min-width:0}
+.cro-g .q{font:800 italic 22px/1.05 var(--display);text-transform:uppercase}
+.cro-g .n{color:var(--muted);font-size:13px} .cro-g .n b{color:var(--bad)}
+.cro-g .f{font-size:13.5px} .cro-g .f b{color:var(--ok)}
+.cro-g .w{display:flex;flex-wrap:wrap;gap:5px}
+.cro-g .w a{font:700 10.5px/1 var(--body);letter-spacing:.6px;text-transform:uppercase;padding:5px 8px;border-radius:999px;background:var(--soft);color:var(--ink);text-decoration:none}
+.stop{font-size:13px;background:var(--paper);border:1px solid var(--line);border-left:4px solid var(--gold);border-radius:6px;padding:8px 12px;max-width:80ch}
+.stop b{font:700 10.5px/1 var(--body);letter-spacing:.8px;text-transform:uppercase;color:var(--gold-ink);margin-right:6px}
+.m .reel{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
+.m .reel figure{margin:0;position:relative;aspect-ratio:9/16;border-radius:8px;overflow:hidden;background:#222;color:#fff}
+.m .reel img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.m .reel figure::after{content:"";position:absolute;inset:0;background:linear-gradient(0deg,rgba(0,0,0,.8),rgba(0,0,0,0) 55%)}
+.m .reel .pl{position:absolute;top:10px;left:10px;z-index:1;width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.9);color:#111;display:grid;place-items:center;font-size:12px;font-style:normal}
+.m .reel .ty{position:absolute;top:12px;right:10px;z-index:1;font:700 9.5px/1 var(--body);letter-spacing:1px;text-transform:uppercase;background:var(--g);color:#111;padding:5px 6px;border-radius:3px}
+.m .reel figcaption{position:absolute;left:10px;right:10px;bottom:10px;z-index:1;display:flex;flex-direction:column;gap:8px;font:700 13px/1.25 var(--body)}
+.m .reel figcaption span{display:flex;justify-content:space-between;align-items:center;background:#fff;color:#111;border-radius:4px;padding:7px 8px;font-size:11px;letter-spacing:.3px;text-transform:uppercase}
+.m .feat{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.m .feat div{display:flex;flex-direction:column;gap:10px;font-size:14px}
+.m .feat img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:4px;background:var(--ice)}
+.m .feat b{font:800 italic 22px/1 var(--display);text-transform:uppercase}
+.m .fit{display:grid;grid-template-columns:1.2fr 1fr;gap:28px;align-items:start}
+.m .meter{display:flex;flex-direction:column;gap:8px;font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.6px;font-weight:600}
+.m .meter i{display:block;height:8px;border-radius:99px;background:#d4dade;position:relative}
+.m .meter i::after{content:"";position:absolute;left:50%;top:-4px;width:16px;height:16px;border-radius:50%;background:var(--k);transform:translateX(-50%)}
+.m .meter span{display:flex;justify-content:space-between}
+.m .revs{display:grid;grid-template-columns:240px 1fr 1fr 1fr;gap:14px;align-items:stretch}
+.m .big{font:800 italic 76px/.9 var(--display)}
+.m .faq div{display:flex;flex-direction:column;gap:6px;padding:16px 0;border-bottom:1px solid var(--ln)}
+.m .faq b{display:flex;justify-content:space-between;font:700 14px/1.3 var(--body);text-transform:uppercase;letter-spacing:.4px}
+.m .faq p{font-size:14.5px;color:#3b4148;max-width:80ch}
+.m .kit{display:grid;grid-template-columns:repeat(3,1fr) 1.1fr;gap:14px;align-items:center}
+.m .ph-note{font-size:12px;color:var(--mut)}
+</style>
+</head>
+<body data-review-act="brand_yak_sports" data-review-slug="site-rebuild" data-review-title="Site rebuild">
+<div class="wrap">
+
+<header class="sec">
+  <span class="eyebrow">Mobius Digital · Yak Sports site audit · Nov 5, 2026</span>
+  <h1>Yak Before and After</h1>
+  <p class="lede">Every page on yaksports.com today, next to what it becomes. The new pages use Yak's own logo, black and gold, and Montserrat, plus one new headline font that matches the italic type already in Yak's banners. The copy follows Yak's voice guide.</p>
+  <nav class="jump" aria-label="Jump to">
+    <a href="#cro">Why people don't buy</a><a href="#trust">Trust</a><a href="#system">Look + voice</a><a href="#inspo">Inspiration</a><a href="#home">Homepage</a><a href="#ebf">Early Black Friday</a><a href="#hoodies">Hoodies</a><a href="#joggers">Joggers</a><a href="#allcols">All collections</a><a href="#pdp">Product page</a><a href="#compare">Compare</a><a href="#cart">Cart</a><a href="#bf">Black Friday</a><a href="#gifts">Gift guide</a><a href="#story">Our story</a><a href="#policies">Shipping + returns</a><a href="#findings">Every finding</a>
+  </nav>
+</header>
+
+<section class="sec">
+  <div class="done">
+    <div class="card"><span class="pill ok">Live now</span><b>Free beanie works</b><span>Add any of the 4 hoodies and a Grey Player Beanie drops into the cart at $0. Tested on the live site.</span></div>
+    <div class="card"><span class="pill ok">Live now</span><b>Beanie back to $30</b><span>So "free $30 beanie" in the ads is true. Grey 318 in stock, White 56.</span></div>
+    <div class="card"><span class="pill half">Next</span><b>Build the pages below</b><span>Early Black Friday page first, so the 22 Early Bird ads stop landing on a page that never mentions the beanie.</span></div>
+  </div>
+</section>
+
+
+<!-- CRO -->
+<section class="sec" id="cro">
+  <div style="display:flex;flex-direction:column;gap:6px"><span class="eyebrow">Conversion audit</span><h2>Why people don't buy, and what fixes it</h2></div>
+  <p class="lede">Every page below exists to answer a doubt. These are the ten that stop a Yak sale today, what the shopper sees now, and where the new site answers it. Each page further down starts with the doubts it fixes.</p>
+  <div class="cro-g">
+    <div class="card"><span class="q">"Who is Yak? Never heard of them."</span><span class="n"><b>Now:</b> no proof in the first scroll. 10 reviews on the Playmaker, none showing on the Breakaway. Our Story is three lines.</span><span class="f"><b>Fix:</b> stars and review count on every product card and under every price. The kid-and-dad founding story on the homepage and product page. Real customer photos.</span><span class="w"><a href="#home">Home</a><a href="#hoodies">Collections</a><a href="#pdp">Product</a><a href="#story">Story</a></span></div>
+    <div class="card"><span class="q">"$79 for a hoodie?"</span><span class="n"><b>Now:</b> the Playmaker description is an article about men's jackets. Not one line says why it costs $79.</span><span class="f"><b>Fix:</b> a "why it's $79" block with close-ups: stretch, hood, pocket, fabric. The free $30 beanie shown as part of the value.</span><span class="w"><a href="#pdp">Product</a><a href="#compare">Compare</a></span></div>
+    <div class="card"><span class="q">"Will it fit me? Will it fit my kid?"</span><span class="n"><b>Now:</b> no size chart on the page, no model size, no fit notes.</span><span class="f"><b>Fix:</b> a size table on the page, model height and size on the photos, a fit line pulled from reviews ("fit great and are true to size"), youth sizes by age.</span><span class="w"><a href="#pdp">Product</a><a href="#gifts">Gift guide</a></span></div>
+    <div class="card"><span class="q">"Which one do I get?"</span><span class="n"><b>Now:</b> two $79 hoodies, the same gray photos, and both say "4-way stretch."</span><span class="f"><b>Fix:</b> the compare page, plus a compare strip on both product pages and a "Compare the two" button on Hoodies.</span><span class="w"><a href="#compare">Compare</a><a href="#pdp">Product</a><a href="#hoodies">Hoodies</a></span></div>
+    <div class="card"><span class="q">"Is the beanie really free?"</span><span class="n"><b>Now:</b> fixed today in the cart ($0). The product page and the "added to cart" pop-up still don't mention it.</span><span class="f"><b>Fix:</b> the beanie line under the price, in the pop-up, and in the cart with a Grey/White switch.</span><span class="w"><a href="#pdp">Product</a><a href="#cart">Cart</a><a href="#ebf">Early BF</a></span></div>
+    <div class="card"><span class="q">"Will it get here in time?"</span><span class="n"><b>Now:</b> no ship time anywhere. The shipping page says "ST THOMAS COLLECTION · COMING SOON."</span><span class="f"><b>Fix:</b> a ships-in line under Add to cart, "order by Dec 17" from Dec 1, and real policy pages. Needs Rob's ship days.</span><span class="w"><a href="#pdp">Product</a><a href="#cart">Cart</a><a href="#policies">Policies</a></span></div>
+    <div class="card"><span class="q">"What if it's the wrong size?"</span><span class="n"><b>Now:</b> a "30-Day Returns" icon on the product page, and the returns page it points to is broken.</span><span class="f"><b>Fix:</b> "free exchanges" under the button and in the cart, holiday exchanges until Jan 15 (Rob to OK), and a returns page that works.</span><span class="w"><a href="#pdp">Product</a><a href="#cart">Cart</a><a href="#policies">Policies</a></span></div>
+    <div class="card"><span class="q">"Should I wait for Black Friday?"</span><span class="n"><b>Now:</b> nothing says what's coming, so people who wait just leave.</span><span class="f"><b>Fix:</b> the Early Black Friday page says it straight: beanie now (ends Nov 25), bundles Nov 26. People who want to wait leave an email for early access.</span><span class="w"><a href="#ebf">Early BF</a><a href="#bf">Black Friday</a></span></div>
+    <div class="card"><span class="q">"15% off, or a free beanie?"</span><span class="n"><b>Now:</b> a "Join the Herd, 15% off" box sits on every product page next to the beanie offer. Two offers make one muddy message, and Yak's voice guide says don't sell on discounts.</span><span class="f"><b>Fix:</b> until Black Friday the sign-up gives early access, not 15%. Rob to OK.</span><span class="w"><a href="#pdp">Product</a><a href="#ebf">Early BF</a></span></div>
+    <div class="card"><span class="q">"I'm on my phone."</span><span class="n"><b>Now:</b> Meta traffic is mostly phones. The free-shipping bar only shows on the full cart page, and the cart is a small pop-up.</span><span class="f"><b>Fix:</b> a slide-out cart with the beanie, a shipping bar, and Shop Pay / Apple Pay. Big size buttons and an add-to-cart bar that stays on screen.</span><span class="w"><a href="#cart">Cart</a><a href="#pdp">Product</a></span></div>
+  </div>
+</section>
+
+<section class="sec" id="trust">
+  <div style="display:flex;flex-direction:column;gap:6px"><span class="eyebrow">Trust</span><h2>What Yak has, what it needs</h2></div>
+  <div class="card tbl"><table class="cmp-t">
+    <tr><th>Trust signal</th><th>On the site now</th><th>New</th></tr>
+    <tr><td><b>Reviews</b></td><td>Loox is installed. Playmaker 5.0 from 10 reviews. None on the Breakaway page. No stars on product cards.</td><td>Stars on every card and under every price. Loox asks every November buyer for a photo or video review.</td></tr>
+    <tr><td><b>Video</b></td><td>0 videos on any product page.</td><td>A swipe row of short videos on the product page and homepage: people wearing it, reviewing it, gifting it. Each one has a shop button.</td></tr>
+    <tr><td><b>Real people</b></td><td>Gray studio photos only.</td><td>Shoot photos and customer photos in the gallery and grids.</td></tr>
+    <tr><td><b>Returns</b></td><td>The icon says 30 days. The page is broken.</td><td>Free exchanges said plainly, plus a working page.</td></tr>
+    <tr><td><b>Shipping speed</b></td><td>Not stated anywhere.</td><td>A ships-in line on the product page and in the cart.</td></tr>
+    <tr><td><b>Payment</b></td><td>Shop Pay, hidden under "More payment options."</td><td>Shop Pay, Apple Pay and Google Pay in the cart, plus "4 payments of $19.75."</td></tr>
+    <tr><td><b>Story</b></td><td>Three lines.</td><td>The founding story on the homepage, product page and Our Story.</td></tr>
+  </table></div>
+  <div class="card" style="display:flex;flex-direction:column;gap:6px"><b>How we'll know it worked</b><span>Before each page goes live we write down its add-to-cart rate, checkout rate, conversion rate and order value from Shopify, then compare two weeks later. The product page goes first because every ad ends up there. One big change at a time, so we know which one moved the number.</span></div>
+</section>
+
+<!-- DESIGN SYSTEM -->
+<section class="sec" id="system">
+  <div class="sec-head" style="display:flex;flex-direction:column;gap:6px"><span class="eyebrow">Are we using Yak's design system?</span><h2>Yes. Kept, fixed, then extended.</h2>
+  <p class="lede">Yak has a system in its theme today: the black and gold logo, Montserrat, black text, Yak gold buttons. The problem is it's applied loosely: gold, navy, purple and red buttons all at once, 14px rounded corners, and headlines baked into images. The new system keeps everything Yak owns and tightens it. My first round of mockups used colors I picked, not Yak's. Everything below is redone in Yak's real system.</p></div>
+  <div class="ds">
+    <div class="card">
+      <h3>Color</h3>
+      <div class="sw">
+        <div><i style="background:#111214"></i>Black · keep<br>text, main buttons</div>
+        <div><i style="background:#BC955C"></i>Yak gold · keep<br>offers only</div>
+        <div><i style="background:#ffffff"></i>White · keep</div>
+        <div><i style="background:#EEF1F3"></i>Ice · new<br>matches the studio backdrop</div>
+        <div><i style="background:#D22B2B"></i>Red · keep<br>sale prices only</div>
+        <div><i style="background:#803CEE"></i><s>Purple · drop</s></div>
+        <div><i style="background:#1b2c55"></i><s>Navy · drop</s></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Type</h3>
+      <div class="spec">
+        <span class="d1">Can't stop the Yak</span>
+        <span class="small muted" style="font-size:12px">Headlines: Barlow Condensed, heavy italic. New, but it's the same look as the "COLLECTIONS" and "YAKSAK" lettering already baked into Yak's banners, now as real text.</span>
+        <span class="d2">Playmaker Hoodie · $79</span>
+        <span class="d3">Body and product names stay in Montserrat, Yak's current font.</span>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Buttons</h3>
+      <div class="btns"><span class="b old">Shop now</span><span class="muted" style="font-size:12px">today: gold, 14px round, on every card</span></div>
+      <div class="btns"><span class="b k">Add to cart</span><span class="b g">Get the free beanie</span><span class="b o">Compare</span></div>
+      <span style="font-size:12.5px;color:var(--muted)">One shape: 4px corners, uppercase, bold. Black = buy. Gold = the deal. Outline = everything else.</span>
+    </div>
+    <div class="card">
+      <h3>Product cards + photos</h3>
+      <span style="font-size:13px">Portrait photo on ice gray · one corner tag (Best seller / New / Free beanie) · round + quick add on the photo · name and price on one line · one "feel" line · color dots with +N. No more gold Shop Now + eye button under every card.</span>
+      <span style="font-size:13px">Lifestyle photos (couples, kids, the rack of colors) go in the hero, the "Can't decide?" tile and one tile every 8 to 12 products. None of the five competitors does lifestyle tiles inside the grid, so it's how Yak's grid looks different.</span>
+    </div>
+  </div>
+
+  <div class="card" style="display:flex;flex-direction:column;gap:12px">
+    <h3>Voice (from Yak's own guide)</h3>
+    <p style="font-size:13.5px;max-width:90ch"><b>Yak backs the athlete, not the spotlight.</b> It talks like the guy in the locker room who's been around: short sentences, a bit rude, one joke per piece, rink words used without explaining them (lids, flow, hockey stank, the Herd). Never "elevate your game," never corporate filler, never "you're already great." Every claim backed by something real: a review, a spec, the founding story.</p>
+    <div class="voice">
+      <div><span class="was">Shop the collections. Find your style.</span><span class="now">Buy the hoodie. The beanie's on us.</span><span style="font-size:12px;color:var(--muted)">Homepage hero</span></div>
+      <div><span class="was">Men's Hooded Jackets | Explore the Best Men's Hooded Jackets for Style and Comfort</span><span class="now">The one you play in. Stretches with you, room in the hood for flow, a zip pocket for your phone.</span><span style="font-size:12px;color:var(--muted)">Playmaker description</span></div>
+      <div><span class="was">Our Player's Picks</span><span class="now">Build your bench. Any 2 for $129. Any 3 for $179.</span><span style="font-size:12px;color:var(--muted)">Black Friday page</span></div>
+      <div><span class="was">Sale price $79.00</span><span class="now">$79 · comes with a free beanie</span><span style="font-size:12px;color:var(--muted)">Collection cards (there's no sale)</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- INSPIRATION -->
+<section class="sec" id="inspo">
+  <div class="sec-head" style="display:flex;flex-direction:column;gap:6px"><span class="eyebrow">Where the ideas come from</span><h2>Inspiration, checked live Nov 5</h2>
+  <p class="lede">The five brands you named, pulled today. Plus Comfrt and Ten Thousand from the earlier research. Each card says what Yak takes and what it skips.</p></div>
+  <div class="insp">
+    <div class="card"><img src="comp/primo-collection-1.jpg" alt="Primo hoodies collection page"><div class="t"><b>Primo</b><span class="take">Take: clean white cards with one corner tag, quick add on the photo, "Bundle Deals" in the main menu, a delivery date on the product page.</span><span class="skip">Skip: their filter sidebar (Yak has 8 products, not 79).</span></div></div>
+    <div class="card"><img src="comp/breezy-collection-1.jpg" alt="Breezy hoodies collection page"><div class="t"><b>Breezy</b><span class="take">Take: calm, square buttons, small gold "Best Seller" labels, lots of white space.</span><span class="skip">Skip: flat-lay hoodies with no person in them. Yak sells fit.</span></div></div>
+    <div class="card"><img src="comp/bylt-bundle-3pack-1.jpg" alt="BYLT 3-pack builder"><div class="t"><b>BYLT</b><span class="take">Take: the pack builder (step 1 size, step 2 colors, old price struck through) for Black Friday's 2 and 3 packs. "Model is 6'2", wears L."</span><span class="skip">Skip: 30% off sitewide. Yak's guide says don't sell on discounts.</span></div></div>
+    <div class="card"><img src="comp/trueclassic-product-1.jpg" alt="True Classic hoodie product page"><div class="t"><b>True Classic</b><span class="take">Take: style tiles at the top of the collection, ranking hoodies with one line each, stars + customer count next to the title, 2-pack vs single.</span><span class="skip">Skip: member pricing and the paid club in the cart.</span></div></div>
+    <div class="card"><img src="comp/mottandbow-home-1.jpg" alt="Mott and Bow homepage"><div class="t"><b>Mott &amp; Bow</b><span class="take">Take: the proof strip under the hero (customers, reviews, years) and pack pricing on the product page.</span><span class="skip">Skip: the 30% back pop-up. One offer at a time.</span></div></div>
+  </div>
+</section>
+
+<!-- ========== HOMEPAGE ========== -->
+<section class="ba" id="home">
+  <div class="ba-head"><div class="l"><span class="eyebrow">Page 1</span><h2>Homepage</h2><span class="u">yaksports.com</span>
+    <ul class="chg"><li>Today the first screen says "Shop the collections, find your style" with a golfer, and hoodies don't show up until well down the page. 5 everyday ads land here.</li><li>New: the offer and the hoodie up top, proof right under it, then "pick your hoodie," then Why Yak, best sellers, the YAKSAK (where Yak started) and reviews.</li></ul><p class="stop"><b>Stops</b>"Who is Yak?" and "Is there a deal right now?" The beanie, stars, best sellers and the founding story all sit in the first two scrolls.</p></div>
+    <button class="toggle" type="button">See new page larger</button></div>
+  <div class="cols">
+    <div class="col"><span class="lab n">Now</span><div class="shots"><img src="now/home-1.jpg" alt="Current homepage, top"><img src="now/home-2.jpg" alt="Current homepage, middle"><img src="now/home-3.jpg" alt="Current homepage, lower"></div></div>
+    <div class="col"><span class="lab y">New</span><div class="frame"><div class="scaler"><div class="m">
+      <div class="bar">Early Black Friday · <b>Free $30 beanie with any hoodie</b> · ends Nov 25</div>
+      <div class="nav"><img src="img/logo.png" alt="Yak Sports"><nav><span class="hot">Black Friday</span><span>Hoodies</span><span>Joggers</span><span>Youth</span><span>Hats</span><span>YAKSAK Bags</span><span>Team Program</span></nav><span class="r">Search · Account · Cart (0)</span></div>
+      <div class="fullhero"><img src="img/maroon-beanie.jpg" alt="Player in a maroon Playmaker hoodie and grey Player Beanie"><div class="tx">
+        <span class="eb" style="color:#BC955C">Early Black Friday · Nov 5 to 25</span>
+        <h3 class="D D1">Buy the hoodie. The beanie's on us.</h3>
+        <p class="sub">Any Playmaker or Breakaway hoodie comes with a free $30 Player Beanie. Adult and youth. Every color.</p>
+        <div class="row"><span class="btn g">Shop hoodies</span><span class="btn w">Which hoodie?</span></div>
+      </div></div>
+      <div class="proof"><div><b>5.0 ★</b>from real buyers</div><div><b>13</b>Playmaker colors</div><div><b>Plymouth, MN</b>started by a player + his dad</div><div><b>30 days</b>free exchanges</div><div><b>[X] days</b>to ship</div></div>
+      <div class="sec">
+        <div class="colhead"><h3 class="D D2">Two hoodies. Pick your feel.</h3><span class="btn o s">Compare them</span></div>
+        <div class="style">
+          <div><img src="img/pm-glacier2.jpg" alt="Playmaker hoodie"><span><span class="eb">Best seller</span><h4 class="D D3" style="margin:6px 0">Playmaker</h4><span class="mut" style="font-size:14px">The one you play in. Stretch, a zip phone pocket, a hood with room for flow. $79</span></span></div>
+          <div><img src="img/ba-ash2.jpg" alt="Breakaway hoodie"><span><span class="eb">The soft one</span><h4 class="D D3" style="margin:6px 0">Breakaway</h4><span class="mut" style="font-size:14px">The one they'll steal. Buttery, drapes, made for the stands and the drive home. $79</span></span></div>
+        </div>
+      </div>
+      <div class="sec blk">
+        <h3 class="D D2">Why Yak</h3>
+        <div class="g3">
+          <div><p class="mut" style="text-decoration:line-through">Fleece that pills by wash three.</p><p style="font-weight:700;font-size:18px">"Washes well with no pilling."</p><p class="sub" style="font-size:14px">Courtney H., verified buyer</p></div>
+          <div><p class="mut" style="text-decoration:line-through">A hoodie that fights you in the cold rink.</p><p style="font-weight:700;font-size:18px">Stretch that moves when you do.</p><p class="sub" style="font-size:14px">Plus a zip pocket for the phone, keys or the lucky puck.</p></div>
+          <div><p class="mut" style="text-decoration:line-through">$118 for the fancy-brand hoodie.</p><p style="font-weight:700;font-size:18px">$79. Same feel.</p><p class="sub" style="font-size:14px">And this month, a free beanie with it.</p></div>
+        </div>
+      </div>
+      <div class="sec">
+        <div class="colhead"><h3 class="D D2">Best sellers</h3><span class="mut" style="font-weight:700;font-size:12px;letter-spacing:1px">SEE ALL →</span></div>
+        <div class="g4">
+          <div class="pc"><div class="im"><img src="img/pm-red.jpg" alt="Playmaker in red"><span class="tag k">Best seller</span><span class="qa">+</span></div><div class="tl"><span>Playmaker Hoodie</span><span>$79</span></div><div class="ft">Athletic · stretch</div><div class="dots"><i style="background:#c92a2a"></i><i style="background:#1b2c55"></i><i style="background:#6e1f2e"></i><i style="background:#9cc8ea"></i>+9</div></div>
+          <div class="pc"><div class="im"><img src="img/ba-kelly.jpg" alt="Breakaway in kelly green"><span class="tag g">Free beanie</span><span class="qa">+</span></div><div class="tl"><span>Breakaway Hoodie</span><span>$79</span></div><div class="ft">Soft · drapes</div><div class="dots"><i style="background:#22a14d"></i><i style="background:#a6abb0"></i><i style="background:#111"></i><i style="background:#cdb78c"></i>+1</div></div>
+          <div class="pc"><div class="im"><img src="img/bj.jpg" alt="Breakaway jogger"><span class="tag">Matches the hoodie</span><span class="qa">+</span></div><div class="tl"><span>Breakaway Jogger</span><span>$99</span></div><div class="ft">Soft · tapered</div><div class="dots"><i style="background:#111"></i><i style="background:#b9ae9a"></i></div></div>
+          <div class="pc"><div class="im"><img src="img/yba.jpg" alt="Youth Breakaway"><span class="tag">Youth</span><span class="qa">+</span></div><div class="tl"><span>Youth Breakaway</span><span>$79</span></div><div class="ft">YS to YXL</div><div class="dots"><i style="background:#a6abb0"></i><i style="background:#111"></i><i style="background:#22a14d"></i>+2</div></div>
+        </div>
+      </div>
+      <div class="hero ice" style="min-height:440px"><div class="ph"><img src="img/couple.jpg" alt="Couple in Breakaway hoodies"></div><div class="tx"><span class="eb">Where it started</span><h3 class="D D2">The YAKSAK came first.</h3><p class="sub">A 12-year-old player and his dad built a bag that lets the hockey stank out. Hoodies came later. The attitude came with it.</p><div class="row"><span class="btn">Shop YAKSAK bags</span><span class="btn o">Our story</span></div></div></div>
+      <div class="sec"><div class="g3">
+        <div class="rev"><span class="stars">★★★★★</span>"I have ordered most of the colors they come in."<span class="who">Nicholas T. · verified</span></div>
+        <div class="rev"><span class="stars">★★★★★</span>"Unbelievable quality, especially for the price!"<span class="who">Whitney W. · verified</span></div>
+        <div class="rev"><span class="stars">★★★★★</span>"My son loves these sweatshirts!"<span class="who">Lindsey C. · verified</span></div>
+      </div></div>
+      <div class="foot"><div><img src="img/logo.png" alt="" style="height:26px;filter:invert(1) brightness(2)"><p style="margin-top:12px">Join the Herd. First dibs on drops and deals.</p><div class="field">Email address</div></div><div><b>Shop</b>Hoodies<br>Joggers<br>Youth<br>Hats<br>YAKSAK Bags</div><div><b>Help</b>Shipping<br>Returns + exchanges<br>Size guide<br>Contact</div><div><b>Yak</b>Our story<br>Team Program<br>Fundraising<br>Ambassadors</div></div>
+    </div></div></div></div>
+  </div>
+</section>
+
+<!-- ========== EBF ========== -->
+<section class="ba" id="ebf">
+  <div class="ba-head"><div class="l"><span class="eyebrow">Page 2 · new</span><h2>Early Black Friday page</h2><span class="u">yaksports.com/pages/early-black-friday</span>
+    <ul class="chg"><li>Today all 22 Early Bird ads land on the hoodies collection (left), which never mentions the beanie or Early Black Friday.</li><li>New: the ad's promise word for word, how it works in 3 steps, the 4 hoodies with quick add, and Black Friday early access at the bottom.</li></ul><p class="stop"><b>Stops</b>"Should I wait for Black Friday?" and "Is the beanie real?" It says what you get today, when it ends, and what's coming Nov 26.</p></div>
+    <button class="toggle" type="button">See new page larger</button></div>
+  <div class="cols">
+    <div class="col"><span class="lab n">Now (where the ads land)</span><div class="shots"><img src="now/col-hoodies-1.jpg" alt="Current hoodies collection"><img src="now/col-hoodies-2.jpg" alt="Current hoodies collection, lower"></div></div>
+    <div class="col"><span class="lab y">New</span><div class="frame"><div class="scaler"><div class="m">
+      <div class="bar">Early Black Friday · <b>Free $30 beanie with any hoodie</b> · ends Nov 25</div>
+      <div class="nav"><img src="img/logo.png" alt="Yak Sports"><nav><span class="hot">Black Friday</span><span>Hoodies</span><span>Joggers</span><span>Youth</span></nav><span class="r">Cart (0)</span></div>
+      <div class="hero blk"><div class="tx"><span class="eb" style="color:#BC955C">Early Black Friday · Nov 5 to 25</span><h3 class="D D1">Free $30 beanie with any hoodie.</h3><p class="sub">Grab a Playmaker or Breakaway, adult or youth. The Player Beanie lands in your cart at $0. Nothing to type in.</p><div class="row"><span class="btn g">Pick your hoodie</span></div><p class="mut" style="font-size:13px">One beanie per order · while they last · free exchanges</p></div><div class="ph"><img src="img/maroon-beanie2.jpg" alt="Maroon Playmaker with grey beanie"></div></div>
+      <div class="sec ice"><div class="g3">
+        <div><h4 class="D D3">1 · Pick a hoodie</h4><p class="mut">Playmaker or Breakaway. Adult or youth. Any color.</p></div>
+        <div><h4 class="D D3">2 · Beanie adds itself</h4><p class="mut">Grey, at $0. Want white? Swap it in the cart.</p></div>
+        <div><h4 class="D D3">3 · Same box</h4><p class="mut">Both ship together. Ends Nov 25 at midnight.</p></div>
+      </div></div>
+      <div class="sec">
+        <div class="chips"><span class="chip on">All</span><span class="chip">Adult</span><span class="chip">Youth</span><span class="chip">Athletic</span><span class="chip">Soft</span></div>
+        <div class="g4">
+          <div class="pc"><div class="im"><img src="img/pm-maroon.jpg" alt="Playmaker maroon"><span class="tag g">+ Free beanie</span><span class="qa">+</span></div><div class="tl"><span>Playmaker Hoodie</span><span>$79</span></div><div class="ft">Athletic · 13 colors</div></div>
+          <div class="pc"><div class="im"><img src="img/ba-navy.jpg" alt="Breakaway navy"><span class="tag g">+ Free beanie</span><span class="qa">+</span></div><div class="tl"><span>Breakaway Hoodie</span><span>$79</span></div><div class="ft">Soft · 5 colors</div></div>
+          <div class="pc"><div class="im"><img src="img/ypm.jpg" alt="Youth Playmaker"><span class="tag g">+ Free beanie</span><span class="qa">+</span></div><div class="tl"><span>Youth Playmaker</span><span>$79</span></div><div class="ft">YS to YXL · 12 colors</div></div>
+          <div class="pc"><div class="im"><img src="img/yba.jpg" alt="Youth Breakaway"><span class="tag g">+ Free beanie</span><span class="qa">+</span></div><div class="tl"><span>Youth Breakaway</span><span>$79</span></div><div class="ft">YS to YXL · 5 colors</div></div>
+        </div>
+        <div class="gift"><img src="img/beanie-grey.jpg" alt="Grey Player Beanie"><span><b>The Player Beanie · <s>$30</s> free</b><span>Double-layer rib knit. Grey goes in by default, white if you want it.</span></span></div>
+      </div>
+      <div class="hero" style="min-height:360px"><div class="ph"><img src="img/rack.jpg" alt="Every Playmaker color on a rack"></div><div class="tx"><span class="eb">Black Friday opens Nov 26</span><h3 class="D D2">Any 2 for $129. Any 3 for $179.</h3><p class="sub">Get the link before everyone else.</p><div class="row"><span class="field" style="min-width:260px">Email address</span><span class="btn">Get early access</span></div></div></div>
+    </div></div></div></div>
+  </div>
+</section>
+
+<!-- ========== HOODIES COLLECTION ========== -->
+<section class="ba" id="hoodies">
+  <div class="ba-head"><div class="l"><span class="eyebrow">Page 3 · collection template</span><h2>Hoodies collection</h2><span class="u">yaksports.com/collections/hoodies</span>
+    <ul class="chg"><li>Today: no title, youth first, "Sale price $79.00" with no sale, a filter column for 4 products, and a gold Shop Now + eye button under every card.</li><li>New: title + one line, Playmaker vs Breakaway style tiles up top, filter chips, clean cards, joggers in the grid, and the "Can't decide?" tile as a lifestyle photo.</li></ul><p class="stop"><b>Stops</b>"Which one?" and "Will it fit?" Stars on every card, a Compare button, color dots, and a lifestyle tile for people who can't pick.</p></div>
+    <button class="toggle" type="button">See new page larger</button></div>
+  <div class="cols">
+    <div class="col"><span class="lab n">Now</span><div class="shots"><img src="now/col-hoodies-1.jpg" alt="Current hoodies collection top"><img src="now/col-hoodies-3.jpg" alt="Current hoodies collection bottom"></div></div>
+    <div class="col"><span class="lab y">New</span><div class="frame"><div class="scaler"><div class="m">
+      <div class="bar">Early Black Friday · <b>Free $30 beanie with any hoodie</b> · ends Nov 25</div>
+      <div class="nav"><img src="img/logo.png" alt="Yak Sports"><nav><span class="hot">Black Friday</span><span>Hoodies</span><span>Joggers</span><span>Youth</span></nav><span class="r">Cart (0)</span></div>
+      <div class="sec" style="padding-bottom:10px">
+        <span class="bc">Home / Hoodies</span>
+        <div class="colhead"><div><h3 class="D D2">Hoodies</h3><p class="sub">Two hoodies, one price, every team color. Free beanie with any of them until Nov 25.</p></div><span class="btn o s">Compare the two</span></div>
+        <div class="style">
+          <div><img src="img/pm-glacier.jpg" alt="Playmaker"><span><h4 class="D D3">Playmaker</h4><span class="mut" style="font-size:14px">Athletic, stretch, zip phone pocket. The one you play in.</span></span></div>
+          <div><img src="img/ba-ash.jpg" alt="Breakaway"><span><h4 class="D D3">Breakaway</h4><span class="mut" style="font-size:14px">Buttery and relaxed. The one they'll steal.</span></span></div>
+        </div>
+        <div class="row" style="justify-content:space-between"><div class="chips"><span class="chip on">Adult</span><span class="chip">Youth</span><span class="chip">Hoodies</span><span class="chip">Joggers</span><span class="chip">Size</span><span class="chip">Color</span></div><span class="mut" style="font-size:12px;font-weight:700;letter-spacing:1px">8 PRODUCTS · BEST SELLING</span></div>
+      </div>
+      <div class="sec" style="padding-top:10px">
+        <div class="g4">
+          <div class="pc"><div class="im"><img src="img/pm-kelly.jpg" alt="Playmaker kelly green"><span class="tag k">Best seller</span><span class="qa">+</span></div><div class="tl"><span>Playmaker Hoodie</span><span>$79</span></div><div class="ft">Athletic · <span class="stars">★★★★★</span> (10)</div><div class="dots"><i style="background:#1f9a4a"></i><i style="background:#c92a2a"></i><i style="background:#1b2c55"></i><i style="background:#9cc8ea"></i>+9</div></div>
+          <div class="pc"><div class="im"><img src="img/ba-black.jpg" alt="Breakaway black"><span class="tag g">Free beanie</span><span class="qa">+</span></div><div class="tl"><span>Breakaway Hoodie</span><span>$79</span></div><div class="ft">Soft · drapes</div><div class="dots"><i style="background:#111"></i><i style="background:#a6abb0"></i><i style="background:#22a14d"></i><i style="background:#1d2d57"></i>+1</div></div>
+          <div class="life" style="grid-row:span 1"><img src="img/couple.jpg" alt="Couple wearing one of each hoodie"><div class="tx"><span class="eb" style="color:#BC955C">Can't decide?</span><h4 class="D D3">Get one of each.</h4><span style="font-size:13px">Two hoodies clears free shipping. Both come with a free beanie.</span><span class="btn g s" style="align-self:flex-start">Shop both</span></div></div>
+          <div class="pc"><div class="im"><img src="img/bj.jpg" alt="Breakaway jogger"><span class="tag">Matches</span><span class="qa">+</span></div><div class="tl"><span>Breakaway Jogger</span><span>$99</span></div><div class="ft">Pairs with the Breakaway</div></div>
+          <div class="pc"><div class="im"><img src="img/pj.jpg" alt="Playmaker jogger"><span class="qa">+</span></div><div class="tl"><span>Playmaker Jogger</span><span>$78</span></div><div class="ft">Athletic stretch</div></div>
+          <div class="pc"><div class="im"><img src="img/pm-amethyst.jpg" alt="Playmaker amethyst"><span class="tag">Team color</span><span class="qa">+</span></div><div class="tl"><span>Playmaker · Amethyst</span><span>$79</span></div><div class="ft">1 of 13 colors</div></div>
+          <div class="pc"><div class="im"><img src="img/yba.jpg" alt="Youth Breakaway"><span class="tag">Youth</span><span class="qa">+</span></div><div class="tl"><span>Youth Breakaway</span><span>$79</span></div><div class="ft">YS to YXL</div></div>
+          <div class="pc"><div class="im"><img src="img/ypm.jpg" alt="Youth Playmaker"><span class="tag">Youth</span><span class="qa">+</span></div><div class="tl"><span>Youth Playmaker</span><span>$79</span></div><div class="ft">YS to YXL</div></div>
+        </div>
+      </div>
+      <div class="proof" style="border-top:1px solid #e2e6ea"><div><b>30 days</b>free exchanges</div><div><b>True to size</b>see the size guide</div><div><b>5.0 ★</b>verified buyers</div><div><b>[X] days</b>to ship</div></div>
+    </div></div></div></div>
+  </div>
+</section>
+
+<!-- ========== JOGGERS ========== -->
+<section class="ba" id="joggers">
+  <div class="ba-head"><div class="l"><span class="eyebrow">Page 4 · same template</span><h2>Joggers collection</h2><span class="u">yaksports.com/collections/joggers</span>
+    <ul class="chg"><li>Today the old $30 fleece jogger with a red "Save $20" leads, ahead of the two joggers that matter. Two everyday jogger ads land on the homepage instead of here.</li><li>New: same template as hoodies. Breakaway vs Playmaker jogger tiles, the hoodie + jogger set as the lifestyle tile, clearance joggers at the end.</li></ul><p class="stop"><b>Stops</b>"What do I wear it with?" Each jogger shows its matching hoodie and the set price.</p></div>
+    <button class="toggle" type="button">See new page larger</button></div>
+  <div class="cols">
+    <div class="col"><span class="lab n">Now</span><div class="shots"><img src="now/col-joggers-1.jpg" alt="Current joggers collection"><img src="now/col-joggers-2.jpg" alt="Current joggers collection lower"></div></div>
+    <div class="col"><span class="lab y">New</span><div class="frame"><div class="scaler"><div class="m">
+      <div class="bar">Free shipping over $150 · <b>A hoodie + jogger gets you there</b></div>
+      <div class="nav"><img src="img/logo.png" alt="Yak Sports"><nav><span class="hot">Black Friday</span><span>Hoodies</span><span>Joggers</span><span>Youth</span></nav><span class="r">Cart (0)</span></div>
+      <div class="sec" style="padding-bottom:10px">
+        <span class="bc">Home / Joggers</span>
+        <div class="colhead"><div><h3 class="D D2">Joggers</h3><p class="sub">Sweats you can leave the house in. Match them to your hoodie.</p></div></div>
+        <div class="style">
+          <div><img src="img/pj.jpg" alt="Playmaker jogger"><span><h4 class="D D3">Playmaker Jogger</h4><span class="mut" style="font-size:14px">Athletic stretch. Practice, gym, travel day. $78</span></span></div>
+          <div><img src="img/bj.jpg" alt="Breakaway jogger"><span><h4 class="D D3">Breakaway Jogger</h4><span class="mut" style="font-size:14px">The soft one, cut to match the Breakaway hoodie. $99</span></span></div>
+        </div>
+      </div>
+      <div class="sec" style="padding-top:10px"><div class="g4">
+        <div class="pc"><div class="im"><img src="img/pj.jpg" alt="Playmaker jogger"><span class="tag k">Best seller</span><span class="qa">+</span></div><div class="tl"><span>Playmaker Jogger</span><span>$78</span></div><div class="ft">Black · Steel grey</div></div>
+        <div class="pc"><div class="im"><img src="img/bj.jpg" alt="Breakaway jogger"><span class="qa">+</span></div><div class="tl"><span>Breakaway Jogger</span><span>$99</span></div><div class="ft">Black · Stone</div></div>
+        <div class="life"><img src="img/couple2.jpg" alt="Matching hoodie and jogger sets"><div class="tx"><span class="eb" style="color:#BC955C">The full set</span><h4 class="D D3">Hoodie + jogger.</h4><span style="font-size:13px">Matched colors, one box, free shipping.</span><span class="btn g s" style="align-self:flex-start">Build a set</span></div></div>
+        <div class="pc"><div class="im"><img src="img/fleece.jpg" alt="Fleece jogger"><span class="tag r">Clearance</span><span class="qa">+</span></div><div class="tl"><span>Fleece Jogger</span><span class="pr sale"><s>$50</s>$30</span></div><div class="ft">Last sizes</div></div>
+      </div></div>
+    </div></div></div></div>
+  </div>
+</section>
+
+<!-- ========== ALL COLLECTIONS ========== -->
+<section class="ba" id="allcols">
+  <div class="ba-head"><div class="l"><span class="eyebrow">Page 5 · every other collection</span><h2>All collections use one template</h2><span class="u">yaksports.com/collections/…</span>
+    <ul class="chg"><li>Every collection runs on the same layout, so fixing the template fixes all of them: title + one line, style tiles when there are two product lines, clean cards, a lifestyle tile every 8 to 12 products.</li><li>The menu today points at collections that don't help: an empty Collegiate, "Hockeyak," "Coastal," "Liberty." About 25 of Yak's 80 collections are empty.</li></ul><p class="stop"><b>Stops</b>"Where's the thing I want?" Three items in the menu, and empty collections hidden.</p></div>
+    <button class="toggle" type="button">See new page larger</button></div>
+  <div class="cols">
+    <div class="col"><span class="lab n">Now (all products)</span><div class="shots"><img src="now/col-all-1.jpg" alt="Current all products page"><img src="now/col-all-2.jpg" alt="Current all products lower"></div></div>
+    <div class="col"><span class="lab y">New menu + what happens to each collection</span>
+      <div class="card tbl" style="padding:6px 8px"><table class="cmp-t">
+        <tr><th>Collection</th><th>Today</th><th>New</th></tr>
+        <tr><td>Hoodies</td><td>Not in menu, 4 products</td><td><b>Top menu.</b> Rebuilt (page 3)</td></tr>
+        <tr><td>Joggers</td><td>Not in menu</td><td><b>Top menu.</b> Rebuilt (page 4)</td></tr>
+        <tr><td>Youth (21)</td><td>Under Shop</td><td><b>Top menu.</b> Same template, kids' photos</td></tr>
+        <tr><td>Hats (in Accessories, 107)</td><td>Mixed with everything</td><td><b>Top menu as Hats.</b> Hockey Yak lids, snapbacks, beanies</td></tr>
+        <tr><td>YAKSAK bags</td><td>Banner only</td><td><b>Top menu.</b> Where Yak started</td></tr>
+        <tr><td>Black Friday Early Savings</td><td>"Our Player's Picks," full prices</td><td>Replaced by the Black Friday page (page 9)</td></tr>
+        <tr><td>Hockeyak (45)</td><td>Collections menu</td><td>Keep as "Original Hockey Yak," footer only</td></tr>
+        <tr><td>Coastal (19), Liberty (11), Sticks (13), Yak (8)</td><td>Collections menu</td><td>Keep, move to a "More" menu</td></tr>
+        <tr><td>Collegiate (0)</td><td>Empty, in the menu</td><td>Remove from menu until stocked</td></tr>
+        <tr><td>~25 empty + "copy" collections</td><td>Live, empty pages</td><td>Unpublish, redirect any that had links</td></tr>
+        <tr><td>Locker Room Clean-Out</td><td>Doesn't exist</td><td>New for Nov 26 to 30, then hidden</td></tr>
+        <tr><td>EBF Free Beanie Hoodies</td><td>New today</td><td>Hidden. Only powers the beanie discount</td></tr>
+      </table></div>
+      <div class="card" style="font-size:13px"><b>New top menu:</b> Black Friday (red, Nov 5 to 30) · Hoodies · Joggers · Youth · Hats · YAKSAK Bags · Team Program · More. Gifts replaces Black Friday on Dec 1.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== PDP ========== -->
+<section class="ba" id="pdp">
+  <div class="ba-head"><div class="l"><span class="eyebrow">Page 6 · product template</span><h2>Product page</h2><span class="u">yaksports.com/products/playmaker-hoodie-3</span>
+    <ul class="chg"><li>Today, below the photos: a closed "Description" tab (on the Playmaker it's an article about men's jackets), then 10 reviews. No video, no fabric facts, no size help, nothing about the beanie.</li><li>New, top to bottom: photos that sell, the beanie under the price, size help, delivery, exchanges and Shop Pay under the button. Then <b>why it's $79</b> (close-ups), a <b>swipe row of videos</b> (worn, reviewed, gifted, each one shoppable), <b>fit</b>, <b>reviews</b>, <b>the full kit</b>, <b>questions</b>, and the story.</li></ul><p class="stop"><b>Stops</b>"Worth $79?", "Will it fit?", "Will it get here?", "What if it's wrong?", "Do real people wear this?" Each block below the photos answers one.</p></div>
+    <button class="toggle" type="button">See new page larger</button></div>
+  <div class="cols">
+    <div class="col"><span class="lab n">Now</span><div class="shots"><img src="now/pdp-playmaker-hoodie-1.jpg" alt="Current Playmaker page"><img src="now/pdp-playmaker-hoodie-2.jpg" alt="Current Playmaker page lower"><img src="now/pdp-playmaker-hoodie-3.jpg" alt="Current Playmaker description"></div></div>
+    <div class="col"><span class="lab y">New</span><div class="frame"><div class="scaler"><div class="m">
+      <div class="bar">Early Black Friday · <b>Free $30 beanie with any hoodie</b> · ends Nov 25</div>
+      <div class="nav"><img src="img/logo.png" alt="Yak Sports"><nav><span class="hot">Black Friday</span><span>Hoodies</span><span>Joggers</span><span>Youth</span></nav><span class="r">Cart (0)</span></div>
+      <div class="pdp">
+        <div class="gal">
+          <figure><img src="img/pm-glacier.jpg" alt="Playmaker front"><figcaption>Glacier Blue · front</figcaption></figure>
+          <figure><img src="img/pm-glacier2.jpg" alt="Playmaker stretch"><figcaption>Stretch that moves when you do</figcaption></figure>
+          <figure><img src="img/pm-maroon.jpg" alt="Playmaker hood"><figcaption>Lined 3-piece hood. Room for flow.</figcaption></figure>
+          <figure><img src="img/pm-grey.jpg" alt="Playmaker fit"><figcaption>Model [6'1"] wears M · true to size</figcaption></figure>
+          <figure class="wide"><img src="img/kids.jpg" alt="Kids in Yak hoodies"><figcaption>Same hoodie, youth sizes YS to YXL</figcaption></figure>
+        </div>
+        <div class="buy">
+          <span style="font-size:13px"><span class="stars">★★★★★</span> 5.0 · 10 reviews · "true to size"</span>
+          <h3 class="D D2">Playmaker Hoodie</h3>
+          <div style="font:800 italic 34px/1 var(--display)">$79</div>
+          <div class="gift"><img src="img/beanie-grey.jpg" alt="Grey Player Beanie"><span><b>Comes with a free $30 Player Beanie</b><span>Early Black Friday, ends Nov 25. It goes in your cart on its own.</span></span></div>
+          <p style="font-size:15px">The one you play in. Stretches with you, room in the hood for flow, and a zip pocket inside the pouch for your phone or the lucky puck.</p>
+          <div style="font:700 12px/1 var(--body);letter-spacing:1px;text-transform:uppercase">Color: Glacier Blue · 13 colors</div>
+          <div class="sw2"><i class="on" style="background:#9cc8ea"></i><i style="background:#6e1f2e"></i><i style="background:#1b2c55"></i><i style="background:#c92a2a"></i><i style="background:#1f9a4a"></i><i style="background:#2463c9"></i><i style="background:#111"></i><i style="background:#fff"></i></div>
+          <div class="row" style="justify-content:space-between;font:700 12px/1 var(--body);letter-spacing:1px;text-transform:uppercase"><span>Size</span><span style="color:#9c7a45">Find my size</span></div>
+          <div class="sizes"><span>S</span><span class="on">M</span><span>L</span><span>XL</span><span>2XL</span><span>3XL</span></div>
+          <span class="btn" style="text-align:center">Add to cart · $79</span>
+          <div class="gift" style="border-color:#e2e6ea;background:#fff"><img src="img/pj.jpg" alt="Playmaker jogger"><span style="flex:1"><b>Make it a set: Playmaker Jogger · $78</b><span>Hoodie + jogger clears free shipping.</span></span><span class="btn o s">Add</span></div>
+          <div class="lines"><div>🚚 Ships in [X] days · free over $150</div><div>🎁 Order by Dec 17 for Christmas</div><div>↺ Free 30-day exchanges · holiday orders until Jan 15</div><div>◔ Or 4 payments of $19.75 with Shop Pay</div></div>
+          <div class="acc"><div>Playmaker vs Breakaway <span>+</span></div><div>Fabric + care <span>+</span></div><div>Size guide <span>+</span></div><div>Reviews (10) <span>+</span></div></div>
+        </div>
+      </div>
+      <div class="sec ice">
+        <div><span class="eb">Why it's $79</span><h3 class="D D2" style="margin-top:8px">Built like gear. Feels like a hoodie.</h3></div>
+        <div class="feat">
+          <div><img src="img/pm-glacier2.jpg" alt="Stretch close-up"><b>Stretch that moves</b><span>Shoot, swing, or reach for the remote. It goes where you go and snaps back.</span></div>
+          <div><img src="img/pm-maroon.jpg" alt="Hood close-up"><b>Room for flow</b><span>A three-piece hood that sits right and fits over a lid.</span></div>
+          <div><img src="img/pm-black.jpg" alt="Pocket close-up"><b>Phone stays put</b><span>A zip pocket inside the pouch, for your phone or the lucky puck.</span></div>
+          <div><img src="img/fleece.jpg" alt="Fabric close-up"><b>Survives the wash</b><span>"Washes well with no pilling." Courtney H. said that, not us.</span></div>
+        </div>
+      </div>
+      <div class="sec">
+        <div class="colhead"><div><span class="eb">On real people</span><h3 class="D D2" style="margin-top:8px">Worn. Washed. Gifted.</h3><p class="sub" style="margin-top:8px">Tap a video to shop what's in it.</p></div><span class="mut" style="font-weight:700;font-size:12px;letter-spacing:1px">SWIPE →</span></div>
+        <div class="reel">
+          <figure><img src="img/couple.jpg" alt=""><i class="pl">▶</i><b class="ty">Worn</b><figcaption>"We stole each other's."<span>Breakaway · $79 <b>+</b></span></figcaption></figure>
+          <figure><img src="img/kids2.jpg" alt=""><i class="pl">▶</i><b class="ty">Gifted</b><figcaption>Christmas morning, matching.<span>Youth Playmaker · $79 <b>+</b></span></figcaption></figure>
+          <figure><img src="img/ad-e01.jpg" alt=""><i class="pl">▶</i><b class="ty">Review</b><figcaption>30 seconds, honest take.<span>Playmaker · $79 <b>+</b></span></figcaption></figure>
+          <figure><img src="img/ad-eb16.jpg" alt=""><i class="pl">▶</i><b class="ty">Rink</b><figcaption>Warm-up to parking lot.<span>Playmaker · $79 <b>+</b></span></figcaption></figure>
+          <figure><img src="img/couple2.jpg" alt=""><i class="pl">▶</i><b class="ty">Fit</b><figcaption>Same hoodie, 3 sizes.<span>Size guide <b>→</b></span></figcaption></figure>
+          <figure><img src="img/ad-en02.jpg" alt=""><i class="pl">▶</i><b class="ty">Unboxed</b><figcaption>Hoodie plus the free beanie.<span>Player Beanie · free <b>+</b></span></figcaption></figure>
+        </div>
+        <p class="ph-note">Video slots. They start with Yak's own ad videos, then customer videos from Loox review requests and creator videos as they come in.</p>
+      </div>
+      <div class="sec ice">
+        <span class="eb">Fit</span>
+        <div class="fit">
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <h3 class="D D2">Fits true to size.</h3>
+            <table class="sizetbl"><tr><th>Size</th><th>Chest</th><th>Length</th><th>Usually fits</th></tr><tr><td>S</td><td>[Rob's chart]</td><td>[ ]</td><td>[ ]</td></tr><tr><td>M</td><td>[ ]</td><td>[ ]</td><td>[ ]</td></tr><tr><td>L</td><td>[ ]</td><td>[ ]</td><td>[ ]</td></tr><tr><td>XL</td><td>[ ]</td><td>[ ]</td><td>[ ]</td></tr><tr><td>2XL</td><td>[ ]</td><td>[ ]</td><td>[ ]</td></tr></table>
+            <span class="mut" style="font-size:13px">Youth: YS 6-7 · YM 8-10 · YL 12-14 · YXL 16 [Rob to confirm]</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:16px">
+            <div class="meter">What reviewers say<i></i><span><span>Runs small</span><span>True to size</span><span>Runs big</span></span></div>
+            <div class="rev">"These are fantastic hoodies!! They fit great and are true to size. I have ordered most of the colors they come in."<span class="who">Nicholas T. · Navy · L · verified</span></div>
+            <div class="rev" style="flex-direction:row;gap:14px;align-items:center"><img src="img/pm-grey.jpg" alt="" style="width:70px;height:84px;object-fit:cover;border-radius:3px;flex:none"><span>Model is [6'1"] and wears <b>M</b>. Between sizes? Go up if you'll layer it.</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="sec">
+        <span class="eb">Reviews</span>
+        <div class="revs">
+          <div style="display:flex;flex-direction:column;gap:8px"><span class="big">5.0</span><span class="stars" style="font-size:20px">★★★★★</span><span class="mut">10 reviews · all verified</span><span class="btn o s" style="align-self:flex-start;margin-top:8px">Write a review</span></div>
+          <div class="rev"><span class="stars">★★★★★</span>"This is the absolute BEST hoodie! It's soft, but durable and washes well with no pilling."<span class="who">Courtney H.</span></div>
+          <div class="rev"><span class="stars">★★★★★</span>"This royal blue totally pops and is super comfortable. I may have one in every color if I don't be too careful!"<span class="who">Jeffrey F. · Royal Blue · XL</span></div>
+          <div class="rev"><span class="stars">★★★★★</span>"My son loves these sweatshirts!"<span class="who">Lindsey C. · verified</span></div>
+        </div>
+      </div>
+      <div class="sec ice">
+        <div><span class="eb">The full kit</span><h3 class="D D2" style="margin-top:8px">Dress like you mean it.</h3></div>
+        <div class="kit">
+          <div class="pc"><div class="im"><img src="img/pm-glacier.jpg" alt=""></div><div class="tl"><span>Playmaker Hoodie</span><span>$79</span></div></div>
+          <div class="pc"><div class="im"><img src="img/pj.jpg" alt=""></div><div class="tl"><span>Playmaker Jogger</span><span>$78</span></div></div>
+          <div class="pc"><div class="im"><img src="img/beanie-grey.jpg" alt=""><span class="tag g">Free</span></div><div class="tl"><span>Player Beanie</span><span><s class="mut">$30</s> $0</span></div></div>
+          <div style="display:flex;flex-direction:column;gap:12px"><span class="D D3">$157 for all three</span><span class="mut">Clears free shipping. The beanie's on us until Nov 25.</span><span class="btn" style="align-self:flex-start">Add the kit</span></div>
+        </div>
+      </div>
+      <div class="sec">
+        <span class="eb">Questions</span>
+        <div class="faq">
+          <div><b>Will it get here by Christmas? <span>–</span></b><p>Order by Dec 17 and it gets there with standard shipping. [Rob: ship days]</p></div>
+          <div><b>Can they swap the size? <span>+</span></b></div>
+          <div><b>Does it shrink? <span>+</span></b></div>
+          <div><b>Playmaker or Breakaway? <span>+</span></b></div>
+          <div><b>How do I wash it? <span>+</span></b></div>
+        </div>
+      </div>
+      <div class="hero blk" style="min-height:300px"><div class="tx"><span class="eb" style="color:#BC955C">Why Yak exists</span><h3 class="D D2">A 12-year-old and his dad built a better hockey bag.</h3><p class="sub">The hoodies came later. The attitude came with them.</p><span class="btn w" style="align-self:flex-start">Our story</span></div><div class="ph"><img src="img/rack2.jpg" alt=""></div></div>
+    </div></div></div></div>
+  </div>
+</section>
+
+<!-- ========== COMPARE ========== -->
+<section class="ba" id="compare">
+  <div class="ba-head"><div class="l"><span class="eyebrow">Page 7 · new · the one you remembered</span><h2>Playmaker vs Breakaway</h2><span class="u">yaksports.com/pages/hoodies</span>
+    <ul class="chg"><li>Today there's no way to compare them. Both are $79, both look the same on gray, and both product pages say "4-way stretch." Shoppers have to open both pages and guess.</li><li>New: "if you say…" chooser, two columns you can buy from, a side-by-side table, "get both." Everyday hoodie ads point here.</li></ul><p class="stop"><b>Stops</b>"Which one do I get?" Pick by feel in 5 seconds, or get both.</p></div>
+    <button class="toggle" type="button">See new page larger</button></div>
+  <div class="cols">
+    <div class="col"><span class="lab n">Now (no compare page; the Breakaway page)</span><div class="shots"><img src="now/pdp-breakaway-hoodie-1.jpg" alt="Current Breakaway page"><img src="now/pdp-breakaway-hoodie-2.jpg" alt="Current Breakaway page lower"></div></div>
+    <div class="col"><span class="lab y">New</span><div class="frame"><div class="scaler"><div class="m">
+      <div class="bar">Early Black Friday · <b>Free $30 beanie with either one</b> · ends Nov 25</div>
+      <div class="nav"><img src="img/logo.png" alt="Yak Sports"><nav><span class="hot">Black Friday</span><span>Hoodies</span><span>Joggers</span><span>Youth</span></nav><span class="r">Cart (0)</span></div>
+      <div class="sec">
+        <h3 class="D D2">Which Yak hoodie is yours?</h3>
+        <p class="sub">Same price. Two different feels.</p>
+        <div class="say"><div>"I want the softest thing I own."<h4 class="D D4" style="margin-top:8px">→ Breakaway</h4></div><div>"It's going to the rink or the gym."<h4 class="D D4" style="margin-top:8px">→ Playmaker</h4></div><div>"It's a gift and I can't pick."<h4 class="D D4" style="margin-top:8px">→ One of each</h4></div></div>
+        <div class="g2">
+          <div class="pc"><div class="im"><img src="img/ba-ash.jpg" alt="Breakaway"><span class="tag">The soft one</span></div><div class="tl"><span>Breakaway · $79</span><span>5 colors</span></div><div class="ft">The one they'll steal. Buttery, drapes.</div><div class="sizes"><span>S</span><span class="on">M</span><span>L</span><span>XL</span><span>2XL</span></div><span class="btn" style="align-self:flex-start">Add Breakaway</span></div>
+          <div class="pc"><div class="im"><img src="img/pm-glacier.jpg" alt="Playmaker"><span class="tag k">Best seller</span></div><div class="tl"><span>Playmaker · $79</span><span>13 colors</span></div><div class="ft">The one you play in. Stretch + zip pocket.</div><div class="sizes"><span>S</span><span class="on">M</span><span>L</span><span>XL</span><span>2XL</span></div><span class="btn" style="align-self:flex-start">Add Playmaker</span></div>
+        </div>
+        <div class="cmpT">
+          <div class="h"></div><div class="h">Breakaway</div><div class="h">Playmaker</div>
+          <div class="h">Feels</div><div>Buttery, drapes</div><div>Smooth, stretchy</div>
+          <div class="h">Made for</div><div>Stands, travel, couch</div><div>Rink, gym, golf</div>
+          <div class="h">Fit</div><div>Relaxed</div><div>Tapered, holds its shape</div>
+          <div class="h">Standout</div><div>Softness</div><div>Zip phone pocket · 3-piece hood</div>
+          <div class="h">Fabric</div><div>48% rayon · 46% poly · 6% spandex</div><div>86% poly · 14% spandex</div>
+          <div class="h">Reviews</div><div>New</div><div><span class="stars">★★★★★</span> 5.0 (10)</div>
+        </div>
+      </div>
+    </div></div></div></div>
+  </div>
+</section>
+
+<!-- ========== CART ========== -->
+<section class="ba" id="cart">
+  <div class="ba-head"><div class="l"><span class="eyebrow">Page 8 · cart</span><h2>Cart</h2><span class="u">after Add to cart</span>
+    <ul class="chg"><li>Today: a small "added to your cart" pop-up and a plain cart page. The free-shipping bar only shows on the full cart page. No add-ons. (The free beanie now shows here at $0 as of today.)</li><li>New: a slide-out cart with the beanie at $0, a progress bar to free shipping, one-tap add-ons, Shop Pay / Apple Pay, and a gift note.</li></ul><p class="stop"><b>Stops</b>"Did I get the beanie?", "What's shipping?", "Can I pay fast?"</p></div>
+    <button class="toggle" type="button">See new page larger</button></div>
+  <div class="cols">
+    <div class="col"><span class="lab n">Now</span><div class="shots"><img src="now/cart-popover-1.jpg" alt="Current added to cart pop-up"><img src="now/cart-page-1.jpg" alt="Current cart page"></div></div>
+    <div class="col"><span class="lab y">New</span><div class="frame"><div class="scaler"><div class="m">
+      <div class="drawer-w"><div></div><div class="drawer">
+        <div class="row" style="justify-content:space-between"><h3 class="D D3">Your cart (2)</h3><span>✕</span></div>
+        <div style="font-size:13px;font-weight:700">🎁 Free beanie unlocked. $71 more for free shipping.</div>
+        <div class="barP"><i style="width:53%"></i></div>
+        <div class="li"><img src="img/pm-glacier.jpg" alt=""><span><b>Playmaker Hoodie</b><span class="mut">Glacier Blue · M · − 1 +</span></span><span>$79</span></div>
+        <div class="li"><img src="img/beanie-grey.jpg" alt=""><span><b>Player Beanie · free gift</b><span class="mut">Grey ● · <u>switch to white</u></span></span><span><s class="mut">$30</s> <b style="color:#0e7a45">$0</b></span></div>
+        <div style="font:700 12px/1 var(--body);letter-spacing:1px;text-transform:uppercase">Make it a set</div>
+        <div class="up"><div><img src="img/pj.jpg" alt=""><span><b>Playmaker Jogger</b><br>$78 · + Add</span></div><div><img src="img/yba.jpg" alt=""><span><b>Youth Breakaway</b><br>$79 · + Add</span></div></div>
+        <div style="font-size:13px">☐ This is a gift. Add a note.</div>
+        <div class="row" style="justify-content:space-between;font-weight:800;font-size:16px"><span>Subtotal</span><span>$79.00</span></div>
+        <span class="btn" style="text-align:center">Checkout · $79</span>
+        <div class="pay"><span style="background:#5a31f4">Shop Pay</span><span style="background:#000"> Pay</span><span style="background:#3c4043">G Pay</span></div>
+        <div class="mut" style="font-size:12px;text-align:center">★★★★★ 5.0 · free 30-day exchanges · secure checkout</div>
+      </div></div>
+    </div></div></div></div>
+  </div>
+</section>
+
+<!-- ========== BF ========== -->
+<section class="ba" id="bf">
+  <div class="ba-head"><div class="l"><span class="eyebrow">Page 9 · new · Nov 26 to 30</span><h2>Black Friday page</h2><span class="u">yaksports.com/pages/black-friday</span>
+    <ul class="chg"><li>Today the Black Friday collection is titled "Our Player's Picks" and every product shows full price. The deal only appears at checkout.</li><li>New: countdown, three price tiles, a bundle builder where the price drops as you add, and the Locker Room Clean-Out underneath. The Black Friday ads point here.</li></ul><p class="stop"><b>Stops</b>"Is this the best deal I'll see?" Bundle math is shown, there's a countdown, and clean-out prices are marked final sale.</p></div>
+    <button class="toggle" type="button">See new page larger</button></div>
+  <div class="cols">
+    <div class="col"><span class="lab n">Now</span><div class="shots"><img src="now/col-bf-early-savings-1.jpg" alt="Current BF collection"><img src="now/col-bf-early-savings-2.jpg" alt="Current BF collection lower"></div></div>
+    <div class="col"><span class="lab y">New</span><div class="frame"><div class="scaler"><div class="m">
+      <div class="bar">Black Friday · <b>Any 2 for $129 · Any 3 for $179</b> · up to 80% off the clean-out</div>
+      <div class="nav"><img src="img/logo.png" alt="Yak Sports"><nav><span class="hot">Black Friday</span><span>Hoodies</span><span>Joggers</span><span>Clean-Out</span></nav><span class="r">Cart (0)</span></div>
+      <div class="sec blk" style="gap:20px"><span class="eb" style="color:#BC955C">Black Friday · Nov 26 to 29</span><h3 class="D D1">Build your bench.</h3><p class="sub">Mix any hoodies and joggers. Adult or youth. Every color.</p><div class="cd"><div><b>02</b><small>days</small></div><div><b>14</b><small>hrs</small></div><div><b>08</b><small>min</small></div><div><b>41</b><small>sec</small></div></div></div>
+      <div class="sec" style="padding-bottom:20px"><div class="tiers">
+        <div class="tier"><span class="e">Single</span><span class="p">$79</span><span class="e">Any hoodie</span></div>
+        <div class="tier on"><span class="t">Most popular</span><span class="e">The Pair</span><span class="p">$129</span><span class="e">Any 2 · $64.50 each</span><span class="v">Save $29</span></div>
+        <div class="tier"><span class="t">Best deal</span><span class="e">The Hat Trick</span><span class="p">$179</span><span class="e">Any 3 · $59.67 each · ships free</span><span class="v">Save $58</span></div>
+      </div></div>
+      <div class="sec" style="padding-top:10px">
+        <h3 class="D D3">Pick your bench</h3>
+        <div class="g4">
+          <div class="pc"><div class="im"><img src="img/pm-royal.jpg" alt="Playmaker royal"><span class="tag k">✓ On bench · M</span></div><div class="tl"><span>Playmaker Hoodie</span><span>$79</span></div></div>
+          <div class="pc"><div class="im"><img src="img/ba-sand.jpg" alt="Breakaway sand"><span class="tag k">✓ On bench · M</span></div><div class="tl"><span>Breakaway Hoodie</span><span>$79</span></div></div>
+          <div class="pc"><div class="im"><img src="img/pj.jpg" alt="Playmaker jogger"><span class="qa">+</span></div><div class="tl"><span>Playmaker Jogger</span><span>$78</span></div></div>
+          <div class="pc"><div class="im"><img src="img/bj.jpg" alt="Breakaway jogger"><span class="qa">+</span></div><div class="tl"><span>Breakaway Jogger</span><span>$99</span></div></div>
+        </div>
+        <div class="bench"><div class="sl"><i><img src="img/pm-royal.jpg" alt=""></i><i><img src="img/ba-sand.jpg" alt=""></i><i>+</i></div><span style="flex:1"><h4 class="D D3">The Pair: $129</h4><span style="color:#b7bec6">Add 1 more for the Hat Trick, $179 with free shipping.</span></span><span class="btn g">Checkout · $129</span></div>
+      </div>
+      <div class="sec ice">
+        <div class="colhead"><h3 class="D D2">Locker Room Clean-Out</h3><span class="eb" style="color:#D22B2B">60 to 80% off · final sale</span></div>
+        <div class="g4">
+          <div class="pc"><div class="im"><img src="img/canada.jpg" alt="Outlet hoodie"><span class="tag r">−80%</span></div><div class="tl"><span>Outlet hoodies</span><span class="pr sale"><s>$70</s>$14</span></div><div class="ft">Only [3] left in M</div></div>
+          <div class="pc"><div class="im"><img src="img/fleece.jpg" alt="Fleece jogger"><span class="tag r">−80%</span></div><div class="tl"><span>Fleece joggers</span><span class="pr sale"><s>$50</s>$10</span></div><div class="ft">Only [2] left</div></div>
+          <div class="pc"><div class="im"><img src="img/snap.jpg" alt="Snapback"><span class="tag r">−80%</span></div><div class="tl"><span>Legacy snapbacks</span><span class="pr sale"><s>$30</s>$6</span></div><div class="ft">Hockey Yak originals</div></div>
+          <div class="pc"><div class="im"><img src="img/swim.jpg" alt="Swim trunk"><span class="tag r">−60%</span></div><div class="tl"><span>Swim trunks</span><span class="pr sale"><s>$50</s>$20</span></div><div class="ft">Next summer, sorted</div></div>
+        </div>
+      </div>
+    </div></div></div></div>
+  </div>
+</section>
+
+<!-- ========== GIFTS ========== -->
+<section class="ba" id="gifts">
+  <div class="ba-head"><div class="l"><span class="eyebrow">Page 10 · new · Dec 1 to 17</span><h2>Christmas gift guide</h2><span class="u">yaksports.com/pages/gifts</span>
+    <ul class="chg"><li>Today there's no gift page. The 9 Christmas ads would land on the homepage.</li><li>New: shop by person (the player, the hockey mom, the kid, the coach), plus a "will it get there?" calendar with the Dec 17 cutoff.</li></ul><p class="stop"><b>Stops</b>"Will it fit them?", "Will it arrive by Christmas?", "Can they swap it?"</p></div>
+    <button class="toggle" type="button">See new page larger</button></div>
+  <div class="cols">
+    <div class="col"><span class="lab n">Now</span><div class="none">No gift page exists today.</div></div>
+    <div class="col"><span class="lab y">New</span><div class="frame"><div class="scaler"><div class="m">
+      <div class="bar">Order by Dec 17 for Christmas · <b>Free shipping over $150</b></div>
+      <div class="nav"><img src="img/logo.png" alt="Yak Sports"><nav><span class="hot">Gifts</span><span>Hoodies</span><span>Joggers</span><span>Youth</span></nav><span class="r">Cart (0)</span></div>
+      <div class="hero"><div class="tx"><span class="eb">Gifts that get worn</span><h3 class="D D1">Gifts for the whole bench.</h3><p class="sub">Adult and youth in 13 colors, so everyone gets their own. Wrong size? Exchanges are free until Jan 15.</p><div class="row"><span class="btn">Shop by person</span><span class="btn o">Under $100</span></div></div><div class="ph"><img src="img/kids2.jpg" alt="Kids in matching hoodies"></div></div>
+      <div class="sec ice"><h3 class="D D2">Who's it for?</h3><div class="g4">
+        <div class="pc"><div class="im"><img src="img/pm-navy.jpg" alt="Playmaker navy"></div><div class="tl"><span>The player</span><span>$79</span></div><div class="ft">Playmaker. Stretch for the rink.</div></div>
+        <div class="pc"><div class="im"><img src="img/ba-ash2.jpg" alt="Breakaway ash"></div><div class="tl"><span>The hockey mom</span><span>$79</span></div><div class="ft">Breakaway. Softest thing in the bleachers.</div></div>
+        <div class="pc"><div class="im"><img src="img/ypm.jpg" alt="Youth Playmaker"></div><div class="tl"><span>The kid</span><span>$79</span></div><div class="ft">Same hoodie as the grown-ups.</div></div>
+        <div class="pc"><div class="im"><img src="img/bj.jpg" alt="Jogger"></div><div class="tl"><span>The coach</span><span>$177</span></div><div class="ft">Hoodie + jogger set.</div></div>
+      </div></div>
+      <div class="sec"><h3 class="D D2">Will it get there?</h3><div class="cal"><div class="on"><b>Dec 1 to 17</b>Standard shipping. Under the tree.</div><div><b>Dec 18 to 20</b>[Expedited only, confirm]</div><div><b>Dec 21+</b>Gift card by email, instant.</div><div><b>Jan 15</b>Last day for holiday exchanges.</div></div></div>
+    </div></div></div></div>
+  </div>
+</section>
+
+<!-- ========== STORY ========== -->
+<section class="ba" id="story">
+  <div class="ba-head"><div class="l"><span class="eyebrow">Page 11</span><h2>Our story</h2><span class="u">yaksports.com/pages/about-us</span>
+    <ul class="chg"><li>Today the story is good but buried in one long block, the browser tab still says "OUR HOCKEYAK STORY," and the page doesn't link to any product.</li><li>New: the same story told short, in Yak's voice, broken into three beats, ending with the bag and the hoodies.</li></ul><p class="stop"><b>Stops</b>"Who is Yak?" A real family, a real first product, a real reason.</p></div>
+    <button class="toggle" type="button">See new page larger</button></div>
+  <div class="cols">
+    <div class="col"><span class="lab n">Now</span><div class="shots"><img src="now/page-our-story-1.jpg" alt="Current our story page"><img src="now/page-our-story-2.jpg" alt="Current our story lower"></div></div>
+    <div class="col"><span class="lab y">New</span><div class="frame"><div class="scaler"><div class="m">
+      <div class="nav"><img src="img/logo.png" alt="Yak Sports"><nav><span>Hoodies</span><span>Joggers</span><span>Youth</span><span>YAKSAK Bags</span></nav><span class="r">Cart (0)</span></div>
+      <div class="hero blk"><div class="tx"><span class="eb" style="color:#BC955C">Our story</span><h3 class="D D1">Started by a kid and his dad. Still built that way.</h3><p class="sub">Yak backs the player putting in the hours, not the name on the poster.</p></div><div class="ph"><img src="img/rack2.jpg" alt="Yak hoodies on a rack"></div></div>
+      <div class="sec"><div class="g3">
+        <div><h4 class="D D3">12 years old</h4><p class="mut">Jackson wanted a brand for hockey players like him. With his dad backing him, he built one. The YAKSAK bag came first.</p></div>
+        <div><h4 class="D D3">Hockeyak → Yak</h4><p class="mut">It started as Hockeyak. It grew past the rink, so now it's Yak Sports. Same attitude, more sports.</p></div>
+        <div><h4 class="D D3">The Herd</h4><p class="mut">Players, parents, coaches. The ones who show up early and carry the load. That's who we make this for.</p></div>
+      </div><div class="row"><span class="btn">Shop the hoodies</span><span class="btn o">See the YAKSAK</span></div></div>
+    </div></div></div></div>
+  </div>
+</section>
+
+<!-- ========== POLICIES ========== -->
+<section class="ba" id="policies">
+  <div class="ba-head"><div class="l"><span class="eyebrow">Page 12</span><h2>Shipping + returns</h2><span class="u">yaksports.com/pages/deliveries · /pages/returns</span>
+    <ul class="chg"><li>Today both pages say "ST THOMAS COLLECTION · COMING SOON." Gift buyers check these before they pay.</li><li>New: one clear page with ship times, the $150 free-shipping line, the Dec 17 cutoff, 30-day exchanges and the size guide.</li></ul><p class="stop"><b>Stops</b>"Can I trust this store?" Clear ship times, free exchanges, a size chart. No "coming soon."</p></div>
+    <button class="toggle" type="button">See new page larger</button></div>
+  <div class="cols">
+    <div class="col"><span class="lab n">Now</span><div class="shots"><img src="now/page-returns-1.jpg" alt="Current returns page"><img src="now/page-deliveries-1.jpg" alt="Current shipping page"></div></div>
+    <div class="col"><span class="lab y">New</span><div class="frame"><div class="scaler"><div class="m">
+      <div class="nav"><img src="img/logo.png" alt="Yak Sports"><nav><span>Hoodies</span><span>Joggers</span><span>Youth</span></nav><span class="r">Cart (0)</span></div>
+      <div class="sec"><h3 class="D D2">Shipping, returns + sizing</h3>
+        <div class="cal"><div class="on"><b>[X] days</b>to ship from Minnesota</div><div><b>$150</b>free shipping over this</div><div><b>Dec 17</b>order by for Christmas</div><div><b>30 days</b>free exchanges</div></div>
+        <div class="g2"><div><h4 class="D D3">Returns + exchanges</h4><p class="mut">Unworn, tags on, within 30 days. Swap sizes free. Holiday orders: until Jan 15. Clean-out items are final sale.</p></div><div><h4 class="D D3">Shipping</h4><p class="mut">US and Canada. Most orders ship in [X] business days. Made-to-order team gear takes 2 to 3 weeks and says so on the product.</p></div></div>
+        <h4 class="D D3">Size guide · adult</h4>
+        <table class="sizetbl"><tr><th>Size</th><th>Chest (in)</th><th>Length (in)</th><th>Most people who wear it</th></tr><tr><td>S</td><td>[38–40]</td><td>[27]</td><td>5'6" to 5'9"</td></tr><tr><td>M</td><td>[40–42]</td><td>[28]</td><td>5'10" to 6'1"</td></tr><tr><td>L</td><td>[42–44]</td><td>[29]</td><td>6'0" to 6'3"</td></tr><tr><td>XL</td><td>[44–46]</td><td>[30]</td><td>6'2"+ or broad</td></tr></table>
+      </div>
+    </div></div></div></div>
+  </div>
+</section>
+
+<!-- FINDINGS -->
+<section class="sec" id="findings">
+  <div style="display:flex;flex-direction:column;gap:6px"><span class="eyebrow">The full audit</span><h2>Every finding, worst first</h2></div>
+  <div class="find">
+    <div><span class="pill ok">Fixed today</span><span>Free beanie wasn't set up and the beanie was $10 while ads said $30. Now automatic, $30, tested.</span></div>
+    <div><span class="pill no">Critical</span><span>All 22 Early Bird ads land on a page that never mentions the beanie or Early Black Friday. Fix: page 2.</span></div>
+    <div><span class="pill no">Critical</span><span>Shipping and returns pages say "ST THOMAS COLLECTION · COMING SOON." Fix: page 12.</span></div>
+    <div><span class="pill no">Critical</span><span>Playmaker page shows "Save $-1.00" (compare-at $78 on a $79 price). Breakaway compare-at is $0. Fix: clear both.</span></div>
+    <div><span class="pill no">Critical</span><span>Black Friday collection is "Our Player's Picks" at full price; the deal is hidden until checkout. Fix: page 9 + bundle app by Nov 18.</span></div>
+    <div><span class="pill half">High</span><span>Playmaker description opens with a "Men's Hooded Jackets" SEO article, which is also its Google snippet. Fix: real copy (page 6).</span></div>
+    <div><span class="pill half">High</span><span>Homepage doesn't lead with hoodies; first screen is "Shop the collections" with a golfer. Fix: page 1.</span></div>
+    <div><span class="pill half">High</span><span>Nothing explains Playmaker vs Breakaway, and both pages claim "4-way stretch." Fix: page 7, plus Rob confirms the stretch claim.</span></div>
+    <div><span class="pill half">High</span><span>No size guide anywhere. Fix: size drawer + policies page.</span></div>
+    <div><span class="pill half">High</span><span>Hoodies collection: no title, youth first, "Sale price" with no sale, SEO title still "Shop Hockeyak Hockey Hoodies." Fix: page 3.</span></div>
+    <div><span class="pill half">High</span><span>Hoodies, Joggers and Youth aren't in the top menu; an empty Collegiate is. Fix: new menu (page 5).</span></div>
+    <div><span class="pill half">High</span><span>Breakaway has 0 reviews going into its biggest month. Fix: review request email to past Breakaway buyers.</span></div>
+    <div><span class="pill half">Medium</span><span>Cart has no add-ons and the free-shipping bar only shows on the full cart page. Fix: page 8.</span></div>
+    <div><span class="pill half">Medium</span><span>Design is loose: gold, navy and purple buttons, 14px corners, headlines baked into images. Fix: the system above.</span></div>
+    <div><span class="pill half">Medium</span><span>Studio backdrop color changes from shot to shot, so grids look uneven. Fix: color-match, or the ice gray card behind every photo.</span></div>
+    <div><span class="pill half">Medium</span><span>Phone: announcement bar wraps to two lines. Fix: shorter phase lines.</span></div>
+    <div><span class="pill half">Low</span><span>~25 empty collections live, "Our Hockeyak Story" tab title, the old fleece jogger leads Joggers. Fix: cleanup in December.</span></div>
+  </div>
+  <p class="lede" style="font-size:13px">Checked Nov 5: every page above on desktop and phone, a real cart, Yak's theme settings, Yak's voice guide in Locus, and the live sites of Primo, Breezy, BYLT, True Classic and Mott &amp; Bow. [Brackets] are numbers Rob needs to confirm.</p>
+</section>
+
+</div>
+
+<script>
+(function(){
+  function fit(){
+    document.querySelectorAll('.frame').forEach(function(f){
+      var s=f.querySelector('.scaler'); if(!s) return;
+      var k=f.clientWidth/1200; s.style.transform='scale('+k+')'; f.style.height=(s.offsetHeight*k)+'px';
+    });
+  }
+  window.addEventListener('resize',fit);
+  if('ResizeObserver' in window){ var ro=new ResizeObserver(fit); document.querySelectorAll('.frame').forEach(function(f){ro.observe(f)}); }
+  document.querySelectorAll('img').forEach(function(i){ if(!i.complete) i.addEventListener('load',fit); });
+  document.querySelectorAll('.ba .toggle').forEach(function(b){
+    b.addEventListener('click',function(){
+      var ba=b.closest('.ba'); var on=ba.classList.toggle('full');
+      b.textContent=on?'Side by side':'See new page larger'; fit();
+    });
+  });
+  fit();
+})();
+</script>
+<script src="../../review-kit.js?v=1"></script>
+</body>
+</html>

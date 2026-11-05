@@ -4779,3 +4779,20 @@ Why: brands fill Trybe with approved creator videos and launch a fraction. Spec:
 - Copy rule: every line must make sense to a creator who has never heard of the brand. No inside phrases
   ("Hands first, then talk" was one).
 
+## 2026-11-05: SITE REVIEWS (profit/reviews/, review-kit.js, sitereviews.js, account-health src/sitereview.js)
+
+A client walks through a proposed site rebuild page by page: Approve or Needs changes plus a note on every
+`<section class="ba">`, then an overall note and "Send my review". Cole gets one Slack DM (bot, U06C37MDWD7, never a
+client channel): counts, then one line per page with its note. Answers stay editable until sent, then locked until the
+team presses Reopen.
+- **A new review = a folder + one line.** Put the document at `profit/reviews/<brand-slug>/<review-slug>/index.html`
+  (a full document with `<meta charset="utf-8">`), body `data-review-act="brand_x" data-review-slug="..." data-review-title="..."`,
+  `<script src="../../review-kit.js?v=N">` at the end, and add an entry (act, slug, title, path, sections) to
+  `profit/reviews/index.json`. Nothing in the worker names a brand.
+- **Two ways in**, like the Your ads page: `?t=<token>` with no login (minted once by Copy link, POST /api/site-review/link,
+  team only), or a Locus sign-in on the same browser (pf_token): a client login of that brand passes brandguard's
+  three rules (GET /api/site-review, PUT /answer, POST /send); the list, link, reopen and DELETE /answers are team only.
+- **Where the team sees it:** Clients > Requests (a client sees it on Reports > Requests), the "Site reviews" card
+  above the request groups. Shows nothing for a brand with no review.
+- Tables p_site_review (one row per act+slug: token, sections, overall, sent) and p_site_review_answer, made on first use.
+- Test: account-health `test-clients.mjs` "site reviews". Clear test answers with DELETE /api/site-review/answers?act=&slug=.
