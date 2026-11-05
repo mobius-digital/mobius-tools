@@ -123,7 +123,7 @@ export function cleanBrief(b) {
 export async function trybeLeaders(env, actId, days = 30) {
   const from = addDays(today(), -(days - 1));
   const { results } = await env.DB.prepare(
-    `SELECT s.sub_id, s.creator_id, s.creator, s.product, s.transcript, a.ad_id, SUM(t.orders) AS orders
+    `SELECT s.sub_id, s.creator_id, s.creator, s.product, s.transcript, s.thumb, a.ad_id, SUM(t.orders) AS orders
        FROM p_trybe_ad a JOIN p_trybe_sub s ON s.act_id = a.act_id AND s.trybe_id = a.trybe_id
        JOIN tw_ad_attr t ON t.act_id = a.act_id AND t.ad_id = a.ad_id
       WHERE a.act_id = ?1 AND s.status = 'approved' AND t.model = 'lastPlatformClick' AND t.date >= ?2 AND (t.platform = 'meta' OR t.platform IS NULL)
@@ -131,7 +131,7 @@ export async function trybeLeaders(env, actId, days = 30) {
   const short = n => { const p = String(n || 'Creator').trim().split(/\s+/); return p.length > 1 ? `${p[0]} ${p[p.length - 1][0].toUpperCase()}.` : p[0]; };
   const vids = new Map();   // one row per video: its sales across its ads, and the ad that sold most (the one the page plays)
   for (const r of results || []) {
-    const v = vids.get(r.sub_id) || { creator_id: r.creator_id, name: short(r.creator), product: String(r.product || '').split(', ').slice(0, 2).join(', '), line: clip(String(r.transcript || '').split(/(?<=[.!?])\s/)[0], 110), sales: 0, ad_id: null, best: 0 };
+    const v = vids.get(r.sub_id) || { creator_id: r.creator_id, name: short(r.creator), product: String(r.product || '').split(', ').slice(0, 2).join(', '), line: clip(String(r.transcript || '').split(/(?<=[.!?])\s/)[0], 110), thumb: /^https:\/\/cdn\.jointrybe\.com\//.test(r.thumb || '') ? r.thumb : null, sales: 0, ad_id: null, best: 0 };
     v.sales += +r.orders || 0;
     if ((+r.orders || 0) > v.best) { v.best = +r.orders || 0; v.ad_id = String(r.ad_id); }
     vids.set(r.sub_id, v);
@@ -142,7 +142,7 @@ export async function trybeLeaders(env, actId, days = 30) {
   for (const v of list) { const g = by.get(v.creator_id) || { name: v.name, sales: 0, videos: 0, ad_id: v.ad_id }; g.sales += v.sales; g.videos++; by.set(v.creator_id, g); }
   return { days,
     creators: [...by.values()].sort((a, b) => b.sales - a.sales).slice(0, 5).map(g => ({ name: g.name, sales: Math.round(g.sales), videos: g.videos, ad_id: g.ad_id })),
-    videos: list.slice(0, 6).map(v => ({ name: v.name, product: v.product, line: v.line, sales: Math.round(v.sales), ad_id: v.ad_id })) };
+    videos: list.slice(0, 6).map(v => ({ name: v.name, product: v.product, line: v.line, thumb: v.thumb, sales: Math.round(v.sales), ad_id: v.ad_id })) };
 }
 
 async function loadAll(env, actId) {

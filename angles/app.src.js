@@ -184,7 +184,7 @@ function ideaOf(x) {
 const examplesOf = a => (a ? [...TILES.filter(t => t.a && t.a.id === a.id && !t.theirs), ...TILES.filter(t => t.a && t.a.id === a.id && t.theirs)] : []);
 const exampleOf = a => examplesOf(a)[0] || null;
 /* A preview image for anything that plays: a stored frame, the ad's cover (filled in by loadCovers), or the clip's first frame. */
-const thumbOf = t => !t ? '' : t.p.thumb ? `<img src="${esc(t.p.thumb)}" alt="" loading="lazy">`
+const thumbOf = t => !t ? '' : t.p.thumb ? `<img src="${esc(t.p.thumb)}" alt="" loading="lazy" onerror="this.remove()">`
   : t.p.kind === 'upload' ? `<video class="pv" data-src="${esc(API + t.p.file)}#t=0.8" preload="none" muted playsinline tabindex="-1" aria-hidden="true"></video>` : '';
 const coverOf = t => (t && t.p.kind === 'meta' && !t.p.thumb ? `data-cover="${esc(t.p.ad_id)}"` : '');
 const firstLine = a => (a && (a.openers || []).find(Boolean)) || '';
@@ -227,7 +227,7 @@ function sellingBox() {
     <div class="sell">
       ${lines.length ? `<ul class="sell-l">${lines.map(x => `<li>${ic('trending-up', 15)}<span>${esc(x)}</span></li>`).join('')}</ul>` : ''}
       ${same ? `<div class="sell-line"><span class="wk-s">An opening line that made sales${w.same.who ? `, first said by ${esc(w.same.who)}` : ''}</span><b>“${esc(w.same.line)}”</b><button class="copy" type="button" data-copy="${esc(w.same.line)}">${ic('copy', 13)}Copy this line</button></div>` : ''}
-      ${vids.length ? `<div class="sell-v">${vids.map(t => `<button class="tile" type="button" data-top="${t.i}" ${coverOf(t)} aria-label="Play: ${esc(t.top.cap)}"><span class="tl-star">#${t.top.rank}</span><span class="tl-play">${ic('play', 16)}</span><span class="tl-cap"><b>${esc(t.top.cap)}</b></span></button>`).join('')}</div>
+      ${vids.length ? `<div class="sell-v">${vids.map(t => `<button class="tile" type="button" data-top="${t.i}" ${coverOf(t)} aria-label="Play: ${esc(t.top.cap)}">${thumbOf(t)}<span class="tl-star">#${t.top.rank}</span><span class="tl-play">${ic('play', 16)}</span><span class="tl-cap"><b>${esc(t.top.cap)}</b></span></button>`).join('')}</div>
         <button class="more" type="button" data-tab="sold">See every video that sold in the last ${L.days} days${ic('arrow-right', 15)}</button>` : ''}
     </div>`;
 }
@@ -266,13 +266,13 @@ function startTab() {
 }
 function buildTop() {
   const L = D.leaders; if (!L) return [];
-  return (L.videos || []).filter(v => v.ad_id).map((v, k) => ({ p: { kind: 'meta', ad_id: v.ad_id }, a: null, theirs: false, i: k,
+  return (L.videos || []).filter(v => v.ad_id).map((v, k) => ({ p: { kind: 'meta', ad_id: v.ad_id, thumb: v.thumb || '' }, a: null, theirs: false, i: k,
     top: { cap: `${v.name}: ${v.sales} sale${v.sales === 1 ? '' : 's'}`, sub: v.product || 'Creator video', line: v.line || '', rank: k + 1 } }));
 }
 function soldTab() {
   const L = D.leaders; if (!L) return '';
   const tiles = TOP.map(t => `<button class="tile" data-top="${t.i}" ${coverOf(t)} aria-label="Play: ${esc(t.top.cap)}">
-    <span class="tl-star">#${t.top.rank}</span><span class="tl-play">${ic('play', 18)}</span>
+    ${thumbOf(t)}<span class="tl-star">#${t.top.rank}</span><span class="tl-play">${ic('play', 18)}</span>
     <span class="tl-cap"><b>${esc(t.top.cap)}</b><small>${esc(t.top.sub)}</small></span></button>`).join('');
   const who = (L.creators || []).map((c, k) => { const t = TOP.find(x => x.p.ad_id === c.ad_id); return `<button class="lb-row" type="button" ${t ? `data-top="${t.i}"` : 'disabled'}><i>${k + 1}</i><div><b>${esc(c.name)}</b><span>${c.videos} video${c.videos === 1 ? '' : 's'} with sales${t ? '. Tap to watch their best one.' : ''}</span></div><em>${c.sales} sale${c.sales === 1 ? '' : 's'}</em></button>`; }).join('');
   return `${head('Videos that sold', `Videos from creators like you that we ran as ads, ranked by sales in the last ${L.days} days. Tap one to watch it and read its first line.`)}
@@ -574,4 +574,6 @@ async function boot() {
   }
 }
 boot();
+/* A link to another tab of the page that is already open (#rules from a Discord post) switches tabs. */
+addEventListener('hashchange', () => { const h = OLD_TAB[location.hash.slice(1)] || location.hash.slice(1); if (D && h && h !== TAB && TABS().some(t => t[0] === h)) { TAB = h; render(); scrollTo(0, 0); } });
 })();
