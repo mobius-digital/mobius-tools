@@ -4749,7 +4749,7 @@ Why: brands fill Trybe with approved creator videos and launch a fraction. Spec:
 - **Rebook** = at least 2 sales at or under the account's 30 day cost per sale, and no new video in 14 days.
 - **Daily** (`trybeTick`, hourly cron, once a Central day from 4am, setting `trybeDay`): sync every keyed brand, then one
   Slack line in the brand's internal channel for videos that crossed 3 days (each video once, `alerted`), plus the
-  rebook list on Mondays. `settings.trybeAlerts = 'off'` silences the posts; the sync still runs.
+  rebook list on Mondays. The posts are OFF until `settings.trybeAlerts = 'on'` (the switch is on the Agency view, `PUT /api/trybe/alerts {on}`); the sync runs either way.
 - **Calls**: buyerlist.js adds a `kind: 'trybe'` banner per brand with videos over 3 days. Never to a client, never into
   the morning read's prompt.
 - **Rules** are text per brand (`settings trybeRules:<brand>`). Shown and editable; the morning read does not read them yet.
