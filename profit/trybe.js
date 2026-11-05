@@ -21,7 +21,7 @@
   const n1 = n => String(Math.round((+n || 0) * 10) / 10);
   const ago = iso => { if (!iso) return 'never'; const h = (Date.now() - Date.parse(iso)) / 36e5; return h < 1 ? 'just now' : h < 24 ? `${Math.round(h)}h ago` : `${Math.round(h / 24)}d ago`; };
   /* Briefs = the creator link page (page id amb), opened as its own page; the shell draws this same switch above it. */
-  const VIEWS = () => (CL() ? [['live', 'Live'], ['creators', 'Creators'], ['briefs', 'Briefs']] : [['review', 'Review'], ['queue', 'Queue'], ['live', 'Live'], ['creators', 'Creators'], ['discord', 'Discord'], ['briefs', 'Briefs'], ['rules', 'Rules']]);
+  const VIEWS = () => (CL() ? [['live', 'Live'], ['creators', 'Creators'], ['briefs', 'Briefs']] : [['review', 'Review'], ['queue', 'Queue'], ['live', 'Live'], ['creators', 'Creators'], ['follow', 'Follow up'], ['discord', 'Discord'], ['briefs', 'Briefs'], ['rules', 'Rules']]);
   const STATE = { not_launched: ['Not launched', 'bad'], no_spend: ['Launched, no spend yet', 'warn'], scheduled: ['Scheduled', ''], review: ['In Meta review', ''], rejected: ['Rejected by Meta', 'bad'], off: ['In Meta, turned off', ''] };
 
   function css() {
@@ -78,12 +78,49 @@
 @media (max-width:640px){.tb .tb-mini{grid-template-columns:minmax(0,1fr)}.tb .tb-mini>div:first-child:empty{display:none}}
 .tb-pop .tb-mini{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line);font-size:13px}
 .tb-pop .tb-foot{display:flex;gap:10px;margin-top:14px}
+.tb .tb-sw{display:inline-flex;border:1px solid var(--line);border-radius:10px;padding:2px;gap:2px;background:var(--panel-2,rgba(127,127,127,.08))}
+.tb .tb-sw button{border:0;background:none;color:var(--muted);font:inherit;font-size:13px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;white-space:nowrap}
+.tb .tb-sw button.on{background:var(--panel,#fff);color:var(--text,inherit);box-shadow:0 1px 2px rgba(0,0,0,.18)}
+.tb .tb-sc-h{flex-wrap:wrap;gap:10px}
+.tb .tb-sc-ctl{display:flex;gap:8px;flex-wrap:wrap}
+.tb .tb-sc-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:4px 0 14px}
+.tb .tb-sc-strip>div{background:var(--panel,transparent);padding:12px 14px}
+.tb .tb-sc-strip span,.tb .tb-pc-nums span{display:block;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.tb .tb-sc-strip b{display:block;font-size:22px;margin-top:2px;font-variant-numeric:tabular-nums}
+.tb .tb-sc-strip i{display:block;font-style:normal;font-size:12px;color:var(--muted)}
+.tb .tb-pcs{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.tb .tb-pc{display:flex;flex-direction:column;gap:10px;text-align:left;font:inherit;color:inherit;background:var(--panel,transparent);border:1px solid var(--line);border-left:4px solid var(--line);border-radius:12px;padding:14px 16px;cursor:default;width:100%;box-sizing:border-box}
+.tb button.tb-pc{cursor:pointer}.tb button.tb-pc:hover{border-color:var(--muted)}
+.tb .tb-pc.good{border-left-color:var(--good)}.tb .tb-pc.bad{border-left-color:var(--bad)}
+.tb .tb-pc-h{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.tb .tb-pc-h b{font-size:15.5px;margin-right:auto}
+.tb .tb-pc-cpa b{font-size:30px;line-height:1.1;font-variant-numeric:tabular-nums;margin-right:8px}.tb .tb-pc-cpa span{font-size:12.5px;color:var(--muted)}
+.tb .tb-pc-bar{height:5px;border-radius:3px;background:var(--panel-2,rgba(127,127,127,.15));overflow:hidden}.tb .tb-pc-bar i{display:block;height:100%;background:currentColor;opacity:.55}
+.tb .tb-pc.good .tb-pc-bar i{background:var(--good);opacity:1}.tb .tb-pc.bad .tb-pc-bar i{background:var(--bad);opacity:1}
+.tb .tb-pc-nums{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;font-variant-numeric:tabular-nums}.tb .tb-pc-nums b{display:block;font-size:14.5px;margin-top:1px}
+.tb .tb-pc-flow{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:var(--muted)}.tb .tb-pc-flow b{color:var(--text,inherit)}
+.tb .tb-pc-foot{display:flex;gap:6px 14px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:8px}
+.tb .tb-qgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
+.tb .tb-q{display:flex;flex-direction:column;gap:8px;text-align:left;font:inherit;color:inherit;background:var(--panel,transparent);border:1px solid var(--line);border-radius:12px;padding:12px 14px;cursor:pointer}
+.tb .tb-q:hover{border-color:var(--muted)}.tb .tb-q.late{border-left:4px solid var(--bad)}.tb .tb-q.clear{opacity:.8}
+.tb .tb-q-nm{font-weight:700}.tb .tb-q-big{display:flex;align-items:baseline;gap:8px}.tb .tb-q-big b{font-size:28px;line-height:1;font-variant-numeric:tabular-nums}.tb .tb-q-big span{font-size:13px;color:var(--muted)}
+.tb .tb-q.late .tb-q-big b{color:var(--bad)}.tb .tb-q-chips{display:flex;gap:6px;flex-wrap:wrap}
+.tb .tb-alert{justify-content:space-between;border-top:1px solid var(--line);padding-top:12px;margin-top:14px}
+.tb .tb-job{display:flex;gap:14px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}.tb .tb-job-n{text-align:right;flex:none;min-width:56px}.tb .tb-job-n b{font-size:22px}
+.tb .tb-week{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}.tb .tb-day{padding:12px 14px}.tb .tb-day.on{outline:2px solid var(--accent,#2f6bff)}
+.tb .tb-rules{margin:0;padding-left:20px;line-height:1.5}.tb .tb-rules li{margin:0 0 6px}
+.tb .tb-fu-g{margin-top:14px}.tb .tb-fu{padding:12px 0;border-top:1px solid var(--line);display:grid;gap:8px}
+.tb .tb-fu-who{display:flex;align-items:center;gap:4px 10px;flex-wrap:wrap}.tb .tb-fu-who .tb-av{margin:0}
+.tb .tb-fu-msg{min-height:72px}.tb .tb-fu-act{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 @media (max-width:900px){
   .tb .tb-top{grid-template-columns:repeat(2,minmax(0,1fr))}
   .tb .tb-row{grid-template-columns:54px minmax(0,1fr)}
   .tb .tb-nums{grid-column:1 / -1;grid-template-columns:repeat(4,1fr);text-align:left}
   .tb .tb-tags{grid-column:1 / -1;justify-content:flex-start;max-width:none}
   .tb .v2btn,.tb .v2jobs button,.tb .tb-bar input,.tb .tb-bar select{min-height:44px}
+  .tb .tb-sc-strip{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .tb .tb-pcs,.tb .tb-qgrid{grid-template-columns:minmax(0,1fr)}
+  .tb .tb-sw button{min-height:40px}
+  .tb .tb-fu-act .v2btn{flex:1 1 auto;justify-content:center}
   .tb-pop{align-items:flex-end;padding:0}
   .tb-pop .tb-sheet,.tb-pop .tb-sheet.vid{width:100%;max-height:92vh;border-radius:18px 18px 0 0;border-bottom:0}
 }`;
@@ -117,13 +154,14 @@
     const c = d.counts;
     const badge = { review: c.pending, queue: c.not_launched, live: c.live, creators: c.creators };
     const seg = `<div class="v2jobs tb-seg" role="tablist">${VIEWS().map(([id, label]) => `<button type="button" role="tab" data-tbv="${id}" class="${VIEW === id ? 'on' : ''}" aria-selected="${VIEW === id}">${label}${badge[id] != null ? ` (${badge[id]})` : ''}</button>`).join('')}</div>`;
-    const body = VIEW === 'queue' ? queue() : VIEW === 'live' ? live() : VIEW === 'creators' ? creators() : VIEW === 'discord' ? '<section class="v2card" id="tbDc"><p class="v2hint">Reading the Discord…</p></section>' : VIEW === 'review' ? '<section class="v2card" id="tbRv"><p class="v2hint">Getting the videos waiting in Trybe…</p></section>' : rules();
+    const body = VIEW === 'queue' ? queue() : VIEW === 'live' ? live() : VIEW === 'creators' ? creators() : VIEW === 'discord' ? '<section class="v2card" id="tbDc"><p class="v2hint">Reading the Discord…</p></section>' : VIEW === 'review' ? '<section class="v2card" id="tbRv"><p class="v2hint">Getting the videos waiting in Trybe…</p></section>' : VIEW === 'follow' ? '<section class="v2card" id="tbFu"><p class="v2hint">Reading creators and samples from Trybe…</p></section>' : rules();
     const meta = `<p class="tb-meta">Updated ${esc(ago(d.synced_at))}. ${CL() ? '' : 'Locus reads Trybe and Meta once a day; press Update for now. '}Sales and revenue are Triple Whale, spend is Meta, last ${d.account.days} days.</p>`;
     $('#main').innerHTML = shell(`${meta}${top()}${seg}${body}`);
     if (H.pageActions) H.pageActions(CL() ? '' : `<button type="button" class="btn" id="tbSync">Update</button>${d.portal ? `<a class="btn primary" id="tbOpen" href="${esc(d.portal)}" target="_blank" rel="noopener">Launch in Trybe</a>` : ''}`);
     wire();
     if (VIEW === 'discord') discordView();
     if (VIEW === 'review') reviewView();
+    if (VIEW === 'follow') followView();
     if (keepFocus) { const el = document.getElementById(keepFocus); if (el) { el.focus(); try { el.setSelectionRange(el.value.length, el.value.length); } catch {} } }
   }
 
@@ -345,53 +383,70 @@
   }
   function paintAll() {
     const d = DATA, b = d.brands || [];
-    const rows = b.map(r => `<tr class="link" data-tbact="${esc(r.act_id)}"><td><span class="nm">${esc(r.name)}</span>${r.has_key ? '' : ' <span class="v2pill warn">No key</span>'}</td>
-      <td class="num" data-l="Not launched">${r.queue}</td><td class="num" data-l="Over ${d.stale_days} days">${r.stale ? `<span class="tb-b">${r.stale}</span>` : '0'}</td><td class="num" data-l="Oldest">${r.queue ? `${r.oldest}d` : ''}</td><td class="num" data-l="Launched, no spend">${r.no_spend || 0}</td><td class="num" data-l="Waiting on review">${r.pending}</td><td class="num" data-l="Approved">${r.approved}</td><td class="num" data-l="Updated">${esc(ago(r.synced_at))}</td></tr>`).join('');
-    const waiting = b.reduce((s, r) => s + r.queue, 0);
-    const none = (d.no_key || []).map(x => `<button type="button" class="v2link" data-tbact="${esc(x.act_id)}">${esc(x.name)}</button>`).join(', ');
     const aseg = `<div class="v2jobs tb-seg" role="tablist">${[['week', 'This week'], ['numbers', 'Scorecard and queue']].map(([id, l]) => `<button type="button" role="tab" data-av="${id}" class="${AV === id ? 'on' : ''}">${l}</button>`).join('')}</div>`;
-    if (AV === 'week') { $('#main').innerHTML = shell(`${aseg}<div id="tbWeek"><p class="v2hint">Getting today's numbers…</p></div>`); document.querySelectorAll('[data-av]').forEach(b => { b.onclick = () => { AV = b.dataset.av; paintAll(); }; }); if (H.pageActions) H.pageActions(''); weekView(); return; }
-    $('#main').innerHTML = shell(`${aseg}<section class="v2card" id="tbScore"><div class="v2h"><h3>Creator scorecard</h3><span class="cap">Getting the numbers…</span></div></section><section class="v2card"><div class="v2h"><h3>${waiting} approved video${waiting === 1 ? '' : 's'} not launched</h3><span class="cap">across ${b.length} brand${b.length === 1 ? '' : 's'}</span></div>
-      ${b.length ? `<div class="v2tbl"><table><thead><tr><th>Brand</th><th class="num">Not launched</th><th class="num">Over ${d.stale_days} days</th><th class="num">Oldest</th><th class="num">Launched, no spend</th><th class="num">Waiting on review</th><th class="num">Approved</th><th class="num">Updated</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="v2hint">No brand has a Trybe key yet. Open a brand to connect it.</p>'}
-      ${none ? `<p class="v2hint">Not connected: ${none}</p>` : ''}
-      <div class="tb-foot"><span class="v2hint">Slack lines are <b>${d.alerts ? 'on' : 'off'}</b>: each brand's internal channel hears when approved videos sit ${d.stale_days} days without being launched, and gets Monday's list of creators to ask for more.</span><button type="button" class="v2btn ghost" id="tbAlerts">${d.alerts ? 'Turn off' : 'Turn on'}</button></div></section>`);
+    const wireAv = () => document.querySelectorAll('[data-av]').forEach(x => { x.onclick = () => { AV = x.dataset.av; paintAll(); }; });
+    if (AV === 'week') { $('#main').innerHTML = shell(`${aseg}<div id="tbWeek"><p class="v2hint">Getting today's numbers…</p></div>`); wireAv(); if (H.pageActions) H.pageActions(''); weekView(); return; }
+    const waiting = b.reduce((s, r) => s + r.queue, 0), stale = b.reduce((s, r) => s + (r.stale || 0), 0);
+    const none = (d.no_key || []).map(x => `<button type="button" class="v2link" data-tbact="${esc(x.act_id)}">${esc(x.name)}</button>`).join(', ');
+    const qcard = r => `<button type="button" class="tb-q ${r.stale ? 'late' : r.queue ? '' : 'clear'}" data-tbact="${esc(r.act_id)}">
+        <span class="tb-q-nm">${esc(r.name)}${r.has_key ? '' : ' <span class="v2pill warn">No key</span>'}</span>
+        <span class="tb-q-big"><b>${r.queue}</b><span>${r.queue === 1 ? 'video' : 'videos'} not launched</span></span>
+        <span class="tb-q-chips">${r.stale ? `<span class="v2pill bad">${r.stale} over ${d.stale_days} days</span>` : ''}${r.queue ? `<span class="v2pill">oldest ${r.oldest}d</span>` : '<span class="v2pill good">all launched</span>'}${r.no_spend ? `<span class="v2pill warn">${r.no_spend} on, no spend</span>` : ''}${r.pending ? `<span class="v2pill">${r.pending} to review</span>` : ''}</span>
+        <span class="tb-sub">${r.approved} approved in all · updated ${esc(ago(r.synced_at))}</span></button>`;
+    $('#main').innerHTML = shell(`${aseg}<section class="v2card tb-sc" id="tbScore"><div class="v2h"><h3>Creator scorecard</h3><span class="cap">Getting the numbers…</span></div></section>
+      <section class="v2card"><div class="v2h"><h3>Launch queue</h3><span class="cap">${waiting} not launched${stale ? `, <span class="tb-b">${stale} late</span>` : ''}</span></div>
+      <p class="v2hint">Approved videos with no ad yet. Every one gets launched within ${d.stale_days} days. Tap a brand to launch.</p>
+      ${b.length ? `<div class="tb-qgrid">${b.map(qcard).join('')}</div>` : '<p class="v2hint">No brand has a Trybe key yet. Open a brand to connect it.</p>'}
+      ${none ? `<p class="v2hint" style="margin-top:12px">Not connected: ${none}</p>` : ''}
+      <div class="tb-foot tb-alert"><span class="v2hint">Slack lines are <b>${d.alerts ? 'on' : 'off'}</b>: each brand's channel hears when videos sit ${d.stale_days} days, reviews wait 2 days or Discord goes unanswered.</span><button type="button" class="v2btn ghost" id="tbAlerts">${d.alerts ? 'Turn off' : 'Turn on'}</button></div></section>`);
     if (H.pageActions) H.pageActions('');
-    wire();
-    document.querySelectorAll('[data-av]').forEach(b => { b.onclick = () => { AV = b.dataset.av; paintAll(); }; });
+    wire(); wireAv();
     score();
   }
 
   /* This week (2026-11-05): the weekly creator program routine as a week, today lit up, with the live counts that
-     turn each line into a job (account-health /api/trybe/week). Roles: owner (Cole: calls, scorecard), media buyer
+     turn each line into a job (account-health /api/trybe/week). Roles: owner (Cole: scorecard, calls), media buyer
      (launches, keep or cut), creative strategists (Ahsan, Noma: review videos, notes, next week's set), creator manager
-     (Cole until hired: accept creators, samples, Discord replies). Locus does the posts itself. */
+     (Cole until hired: accept creators and samples daily, invites, follow ups, Discord replies). Locus does the posts.
+     Round 3 (Cole, 11-05): samples are daily, invites are a Tuesday job with written rules, Thursday is follow ups. */
   let AV = 'week';
   const ROLES = { owner: ['Owner', 'Cole'], buyer: ['Media buyer', 'Cole for now'], strat: ['Creative strategists', 'Ahsan, Noma'], mgr: ['Creator manager', 'Cole until hired'], locus: ['Locus', 'runs itself'] };
   const DAILY = [
     { who: 'strat', what: 'Review new videos', how: 'Ads, Trybe, a brand, Review. Approve, or send back with a note.', n: 'review' },
     { who: 'mgr', what: 'Answer Discord', how: 'Ads, Trybe, a brand, Discord. Clear "Waiting on an answer".', n: 'discord' },
+    { who: 'mgr', what: 'Accept creators and approve samples', how: 'In Trybe: Creators (applications) and the sample requests. Approve a sample only for a creator with a plan for a video. Lucky: in the Lucky app.' },
     { who: 'buyer', what: 'Launch approved videos', how: 'Ads, Trybe, a brand, Queue. Then keep or cut on Ads, Calls.', n: 'launch' },
   ];
   const WEEK = [
     { d: 1, name: 'Monday', jobs: [
-      { who: 'owner', what: 'Scorecard, 15 minutes', how: 'This tab, Scorecard and queue. Which program is off goal, which has videos waiting.' },
-      { who: 'locus', what: 'Posts the week\u2019s videos in every Discord', how: 'Morning, as each mascot, with the deal and the call time.' },
-      { who: 'owner', what: 'Creator calls, 4:30 to 7:00', how: 'Grunk 4:30, Dartee 5:00, Ice & Gold 5:30, Party Patch 6:00, Lucky 6:30. 10 minutes on two videos that sold, 10 on this week\u2019s set.' },
+      { who: 'owner', what: 'Scorecard, in the morning', how: 'This tab, Scorecard and queue, 15 minutes before the day starts. Which program is off goal, which has videos waiting. Not for the calls.' },
+      { who: 'locus', what: 'Posts the week’s videos in every Discord', how: 'Morning, as each mascot, with the deal and the call time.' },
+      { who: 'owner', what: 'Creator calls, 4:30 to 7:00', how: 'Grunk 4:30, Dartee 5:00, Ice & Gold 5:30, Party Patch 6:00, Lucky 6:30. Show the videos that sold (a brand, Live, sort by Most sales, press play), then this week’s set.' },
       { who: 'owner', what: 'Record the calls', how: 'Upload unlisted to YouTube, paste the link in Briefs, Start here, recordings.' } ] },
     { d: 2, name: 'Tuesday', jobs: [
-      { who: 'mgr', what: 'Accept new creators and ship samples', how: 'In Trybe: applications and samples. Lucky: in the Lucky app.' },
-      { who: 'strat', what: 'Notes before upload', how: 'Reply in each Discord\u2019s #feedback-before-upload.' } ] },
+      { who: 'mgr', what: 'Invite new creators', how: 'Trybe, Discovery, by the invite rules below. Claude builds the list, Cole says yes, Claude sends the invites.' },
+      { who: 'strat', what: 'Notes before upload', how: 'Reply in each Discord’s #feedback-before-upload.' } ] },
     { d: 3, name: 'Wednesday', jobs: [
       { who: 'buyer', what: 'Creator ads on Calls', how: 'Ads, Calls. Creator ads follow the same wait, scale and cut rules as every ad.' } ] },
     { d: 4, name: 'Thursday', jobs: [
-      { who: 'strat', what: 'Find what\u2019s selling for next week', how: 'Our winners (Scorecard), competitor ads, inspo. Pick next week\u2019s 5 ideas.' },
-      { who: 'mgr', what: 'Ask winners for more', how: 'Ads, Trybe, a brand, Creators. "Ask for more" = sells and has gone quiet.' } ] },
+      { who: 'strat', what: 'Find what’s selling for next week', how: 'Our winners (Scorecard), competitor ads, inspo. Pick next week’s 5 ideas.' },
+      { who: 'mgr', what: 'Follow ups', how: 'Ads, Trybe, a brand, Follow up: videos sold then went quiet, quiet with no sale, sample with no video. Locus drafts each message, Cole says yes, Claude sends it in Trybe Chat.' } ] },
     { d: 5, name: 'Friday', jobs: [
-      { who: 'locus', what: 'Posts the winners in every Discord', how: 'Creator videos with a Triple Whale sale in the last 7 days.' },
-      { who: 'strat', what: 'Set next week\u2019s videos', how: 'Ads, Trybe, Briefs, Start here: title, deal, 5 ideas. Lucky: the board in the Lucky app.' },
+      { who: 'locus', what: 'Posts the winners in every Discord', how: 'Creator videos with a Triple Whale sale in the last 7 days, with the videos.' },
+      { who: 'strat', what: 'Set next week’s videos', how: 'Ads, Trybe, Briefs, Start here: title, deal, 5 ideas. Lucky: the board in the Lucky app.' },
       { who: 'owner', what: 'Pick VIPs', how: 'Creators whose videos sold move up. Tell Claude who, or invite them to the VIP program in Trybe.' } ] },
     { d: 6, name: 'Saturday', jobs: [] },
     { d: 0, name: 'Sunday', jobs: [] },
+  ];
+  /* The invite rules Claude follows in Trybe Discovery (Phil Kiel's playbook, 2026-11-05). */
+  const INVITE = [
+    ['Month 1: go wide', 'Use every invite credit each week. Many mid-size creators beat a few big ones: you are looking for who sells, and you only learn that from videos.'],
+    ['Skip the top tier', 'Over about $20k Trybe sales in 30 days = busy with many brands, slow to film. Start in the middle: some sales, lots of videos.'],
+    ['Fit first', 'Their niche and their videos fit the product. They talk to camera like a person, not an ad.'],
+    ['Look at Trybe’s numbers', 'Approval 50% or more, and 4 or more videos in the last 30 days.'],
+    ['An invite is not a sample', 'Inviting costs nothing. A sample is approved later, daily, only for a creator with a plan for a video.'],
+    ['Keep the ones who deliver', 'After a month, keep a creator who makes 10 or more videos a month, or $5k or more in sales, with 50% or more approved, and a first video within 14 days of a sample. Below that: no more samples.'],
+    ['Nothing sends without Cole', 'Claude builds the shortlist per brand and sends the invites only after Cole says yes.'],
   ];
   async function weekView() {
     const box = document.getElementById('tbWeek'); if (!box) return;
@@ -402,44 +457,98 @@
     const per = k => w.programs.filter(p => +p[k] > 0).map(p => `<button type="button" class="v2link" data-wk="${esc(p.act_id)}">${esc(p.name)} ${p[k]}</button>`).join(', ');
     const tag = r => `<span class="v2pill" title="${esc(ROLES[r][1])}">${esc(ROLES[r][0])}</span>`;
     const today = WEEK.find(x => x.d === w.dow) || WEEK[0];
-    const dailyRows = DAILY.map(j => { const n = tot(j.n); return `<div style="display:flex;gap:14px;align-items:center;padding:10px 0;border-top:1px solid var(--line)"><div style="flex:1;min-width:0"><div><b>${esc(j.what)}</b> ${tag(j.who)}</div><div class="tb-sub">${esc(j.how)}</div>${n ? `<div class="tb-sub" style="margin-top:4px">${per(j.n)}</div>` : ''}</div><div style="text-align:right;flex:none;min-width:56px"><b style="font-size:22px" class="${n ? 'tb-b' : 'tb-g'}">${n}</b><div class="tb-sub">${n ? 'to do' : 'clear'}</div></div></div>`; }).join('');
-    const todayRows = today.jobs.length ? today.jobs.map(j => `<div style="display:flex;gap:14px;align-items:center;padding:10px 0;border-top:1px solid var(--line)"><div style="flex:1;min-width:0"><div><b>${esc(j.what)}</b> ${tag(j.who)}</div><div class="tb-sub">${esc(j.how)}</div></div></div>`).join('') : '<p class="v2hint">Nothing extra today. Just the daily three.</p>';
-    const cols = WEEK.filter(x => x.d >= 1 && x.d <= 5).map(x => `<div class="v2card" style="padding:12px 14px;${x.d === w.dow ? 'outline:2px solid var(--accent,#2f6bff);' : ''}"><div style="font-weight:700;margin-bottom:6px">${esc(x.name)}${x.d === w.dow ? ' <span class="v2pill good">Today</span>' : ''}</div>${x.jobs.map(j => `<div style="margin:0 0 8px"><div style="font-size:13.5px">${esc(j.what)}</div><div class="tb-sub">${esc(ROLES[j.who][0])}</div></div>`).join('')}<div class="tb-sub" style="border-top:1px solid var(--line);padding-top:6px">Every day: review, Discord, launch</div></div>`).join('');
+    const dailyRows = DAILY.map(j => { const n = j.n ? tot(j.n) : null; return `<div class="tb-job"><div style="flex:1;min-width:0"><div><b>${esc(j.what)}</b> ${tag(j.who)}</div><div class="tb-sub">${esc(j.how)}</div>${n ? `<div class="tb-sub" style="margin-top:4px">${per(j.n)}</div>` : ''}</div>${n == null ? '' : `<div class="tb-job-n"><b class="${n ? 'tb-b' : 'tb-g'}">${n}</b><div class="tb-sub">${n ? 'to do' : 'clear'}</div></div>`}</div>`; }).join('');
+    const todayRows = today.jobs.length ? today.jobs.map(j => `<div class="tb-job"><div style="flex:1;min-width:0"><div><b>${esc(j.what)}</b> ${tag(j.who)}</div><div class="tb-sub">${esc(j.how)}</div></div></div>`).join('') : '<p class="v2hint">Nothing extra today. Just the daily four.</p>';
+    const cols = WEEK.filter(x => x.d >= 1 && x.d <= 5).map(x => `<div class="v2card tb-day${x.d === w.dow ? ' on' : ''}"><div style="font-weight:700;margin-bottom:6px">${esc(x.name)}${x.d === w.dow ? ' <span class="v2pill good">Today</span>' : ''}</div>${x.jobs.map(j => `<div style="margin:0 0 8px"><div style="font-size:13.5px">${esc(j.what)}</div><div class="tb-sub">${esc(ROLES[j.who][0])}</div></div>`).join('')}<div class="tb-sub" style="border-top:1px solid var(--line);padding-top:6px">Every day: review, Discord, samples, launch</div></div>`).join('');
     const roles = Object.values(ROLES).map(([r, who]) => `<li><b>${esc(r)}</b>: ${esc(who)}</li>`).join('');
+    const disc = w.programs.filter(p => p.portal).map(p => `<a class="v2btn ghost" href="${esc(p.portal.replace('/brand?', '/brand/discovery?'))}" target="_blank" rel="noopener">${esc(p.name)}</a>`).join('');
     box.innerHTML = `<section class="v2card"><div class="v2h"><h3>Today, ${esc(today.name)}</h3><span class="cap">live from Trybe, the Lucky app and Discord</span></div>
         <h3 style="font-size:14px;margin:4px 0 6px">Every day</h3>${dailyRows}
         <h3 style="font-size:14px;margin:14px 0 6px">Also today</h3>${todayRows}</section>
       <section class="v2card"><div class="v2h"><h3>The week</h3><span class="cap">the creator program routine</span></div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px">${cols}</div>
+        <div class="tb-week">${cols}</div>
         <p class="v2hint" style="margin-top:10px">Weekends: one look at Discord is enough.</p></section>
+      <section class="v2card" id="tbInvite"><div class="v2h"><h3>Invite rules</h3><span class="cap">Tuesdays, in Trybe Discovery</span></div>
+        <ol class="tb-rules">${INVITE.map(([h, t]) => `<li><b>${esc(h)}.</b> ${esc(t)}</li>`).join('')}</ol>
+        ${disc ? `<div class="tb-foot" style="flex-wrap:wrap"><span class="v2hint">Open Discovery:</span>${disc}</div>` : ''}</section>
       <section class="v2card"><div class="v2h"><h3>Who does what</h3></div><ul style="margin:0;padding-left:18px">${roles}</ul>
-        <p class="v2hint">The creator manager is the one hire: accepts creators, ships samples, answers Discord. Strategists judge the videos and give notes before upload.</p></section>`;
+        <p class="v2hint">The creator manager is the one hire: accepts creators, approves samples, invites, follows up, answers Discord. Strategists judge the videos and give notes before upload.</p></section>`;
     box.querySelectorAll('[data-wk]').forEach(b => { b.onclick = () => { if (H.setViewAct) H.setViewAct(b.dataset.wk); H.show('trybe'); }; });
   }
 
-  /* The scorecard (2026-11-05): one row per creator program, last 7 days, with the 30 day cost per sale beside it.
-     Sales are Triple Whale, spend is Meta. Lucky comes from its own creator app. */
-  let SCORE = null, SCORE_W = '7';
+  /* The scorecard (2026-11-05; redesigned in round 3): one card per creator program. Triple Whale is the standard
+     (Phil ranks creators on third party numbers); Meta's own purchases are a second opinion on a switch. Spend is Meta. */
+  const SCORE = {}; let SCORE_W = '7', SCORE_M = 'tw';
   async function score() {
     const box = document.getElementById('tbScore'); if (!box) return;
-    try { if (!SCORE) SCORE = await H.apiAH('/api/trybe/scorecard'); if (SCORE && SCORE.error) throw new Error(SCORE.error); }
-    catch (e) { box.innerHTML = `<div class="v2h"><h3>Creator scorecard</h3></div><p class="v2bad">${esc(e.message)}</p>`; return; }
-    const k = SCORE_W === '7' ? 'last_7' : 'last_30';
-    const cpaCell = w => w.cpa == null ? (w.spend > 0 ? '<span class="tb-b">no sale</span>' : '') : `<span class="${w.on_goal == null ? '' : w.on_goal ? 'tb-g' : 'tb-b'}">${money(w.cpa)}</span>${w.goal_cpa ? `<span class="tb-sub"> / ${money(w.goal_cpa)}</span>` : ''}`;
-    const v = x => (x == null ? '' : x);
-    const rows = SCORE.cards.map(c => {
-      if (c.error) return `<tr><td><span class="nm">${esc(c.name)}</span></td><td colspan="8" class="v2hint">${esc(c.error)}</td></tr>`;
+    const sw = (id, val, opts) => `<div class="tb-sw" role="group" id="${id}">${opts.map(([v, l]) => `<button type="button" data-v="${v}" class="${v === val ? 'on' : ''}" aria-pressed="${v === val}">${l}</button>`).join('')}</div>`;
+    const head = `<div class="v2h tb-sc-h"><h3>Creator scorecard</h3><div class="tb-sc-ctl">${sw('tbScW', SCORE_W, [['7', '7 days'], ['30', '30 days']])}${sw('tbScM', SCORE_M, [['tw', 'Triple Whale'], ['meta', 'Meta']])}</div></div>`;
+    const wireSw = () => {
+      box.querySelectorAll('#tbScW button').forEach(x => { x.onclick = () => { SCORE_W = x.dataset.v; score(); }; });
+      box.querySelectorAll('#tbScM button').forEach(x => { x.onclick = () => { SCORE_M = x.dataset.v; score(); }; });
+    };
+    if (!SCORE[SCORE_M]) { box.innerHTML = `${head}<p class="v2hint">Getting the numbers…</p>`; wireSw(); }
+    try { if (!SCORE[SCORE_M]) SCORE[SCORE_M] = await H.apiAH('/api/trybe/scorecard?model=' + SCORE_M); if (SCORE[SCORE_M].error) throw new Error(SCORE[SCORE_M].error); }
+    catch (e) { box.innerHTML = `${head}<p class="v2bad">${esc(e.message)}</p>`; wireSw(); delete SCORE[SCORE_M]; return; }
+    const S = SCORE[SCORE_M], k = SCORE_W === '7' ? 'last_7' : 'last_30';
+    const ok = S.cards.filter(c => !c.error);
+    const sum = f => ok.reduce((a, c) => a + (+((c[k] || {})[f]) || 0), 0);
+    const tSpend = sum('spend'), tOrders = sum('orders'), tSales = sum('sales');
+    const onGoal = ok.filter(c => (c[k] || {}).on_goal === true).length, judged = ok.filter(c => (c[k] || {}).on_goal != null).length;
+    const strip = `<div class="tb-sc-strip">
+        <div><span>Creator ad spend</span><b>${money(tSpend)}</b></div>
+        <div><span>Sales</span><b>${money(tSales)}</b><i>${n1(tOrders)} orders</i></div>
+        <div><span>Cost per sale</span><b>${tOrders > 0 ? money(tSpend / tOrders) : 'none'}</b><i>all programs</i></div>
+        <div><span>On goal</span><b>${onGoal} of ${judged || ok.length}</b><i>programs</i></div></div>`;
+    const card = c => {
+      if (c.error) return `<div class="tb-pc"><div class="tb-pc-h"><b>${esc(c.name)}</b></div><p class="v2hint">${esc(c.error)}</p></div>`;
       const w = c[k] || {};
-      return `<tr${c.source === 'trybe' ? ` class="link" data-tbact="${esc(c.act_id)}"` : ''}><td><span class="nm">${esc(c.name)}</span>${c.source === 'lucky_app' ? ' <span class="v2pill">Lucky app</span>' : ''}</td>
-        <td class="num" data-l="Creator ad spend">${money(w.spend)}</td><td class="num" data-l="Sales">${money(w.sales)}</td><td class="num" data-l="Cost per sale / goal">${cpaCell(w)}</td>
-        <td class="num" data-l="Videos with a sale">${SCORE_W === '7' ? v(w.winners) : ''}</td><td class="num" data-l="Videos in / approved / launched">${v(w.videos_in)} / ${v(w.approved)} / ${v(w.launched)}</td>
-        <td class="num" data-l="Waiting to launch">${c.waiting != null ? (c.waiting > 0 ? `<span class="tb-b">${c.waiting}</span>` : '0') : ''}</td><td class="num" data-l="Active creators">${v(c.creators_active)}</td><td class="num" data-l="Discord">${v(c.discord)}</td></tr>`;
-    }).join('');
-    box.innerHTML = `<div class="v2h"><h3>Creator scorecard</h3><span class="cap"><select id="tbScoreW" aria-label="Window"><option value="7"${SCORE_W === '7' ? ' selected' : ''}>Last 7 days</option><option value="30"${SCORE_W === '30' ? ' selected' : ''}>Last 30 days</option></select></span></div>
-      <p class="v2hint">Creator ads only. Sales from Triple Whale, spend from Meta. Cost per sale is green at or under the brand's goal.</p>
-      <div class="v2tbl"><table><thead><tr><th>Program</th><th class="num">Creator ad spend</th><th class="num">Sales</th><th class="num">Cost per sale / goal</th><th class="num">${SCORE_W === '7' ? 'Videos with a sale' : ''}</th><th class="num">Videos in / approved / launched</th><th class="num">Waiting to launch</th><th class="num">Active creators</th><th class="num">Discord</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-    const sel = document.getElementById('tbScoreW'); if (sel) sel.onchange = () => { SCORE_W = sel.value; score(); };
+      const st = w.cpa == null ? (w.spend > 0 ? ['No sale yet', 'bad'] : ['No spend', '']) : w.on_goal == null ? ['No goal set', ''] : w.on_goal ? ['On goal', 'good'] : ['Over goal', 'bad'];
+      const bar = w.cpa != null && w.goal_cpa ? Math.min(100, Math.round(w.goal_cpa / w.cpa * 100)) : 0;
+      return `<${c.source === 'trybe' ? 'button type="button"' : 'div'} class="tb-pc ${st[1]}"${c.source === 'trybe' ? ` data-tbact="${esc(c.act_id)}"` : ''}>
+        <div class="tb-pc-h"><b>${esc(c.name)}</b>${c.source === 'lucky_app' ? '<span class="v2pill">Lucky app</span>' : ''}<span class="v2pill ${st[1]}">${st[0]}</span></div>
+        <div class="tb-pc-cpa"><b class="${st[1] === 'good' ? 'tb-g' : st[1] === 'bad' ? 'tb-b' : ''}">${w.cpa == null ? 'none' : money(w.cpa)}</b><span>cost per sale${w.goal_cpa ? ` · goal ${money(w.goal_cpa)}` : ''}</span></div>
+        ${w.goal_cpa ? `<div class="tb-pc-bar" title="Goal divided by cost per sale"><i style="width:${bar}%"></i></div>` : ''}
+        <div class="tb-pc-nums"><div><span>Spend</span><b>${money(w.spend)}</b></div><div><span>Sales</span><b>${money(w.sales)}</b></div><div><span>Orders</span><b>${n1(w.orders)}</b></div><div><span>ROAS</span><b>${w.roas == null ? '' : w.roas.toFixed(2)}</b></div></div>
+        <div class="tb-pc-flow"><span><b>${w.videos_in ?? ''}</b> in</span><span>›</span><span><b>${w.approved ?? ''}</b> approved</span><span>›</span><span><b>${w.launched ?? ''}</b> launched</span>${SCORE_W === '7' && w.winners != null ? `<span>›</span><span><b>${w.winners}</b> sold</span>` : ''}</div>
+        <div class="tb-pc-foot">${c.waiting != null ? `<span class="${c.waiting > 0 ? 'tb-b' : ''}">${c.waiting} waiting to launch</span>` : ''}${c.creators_active != null ? `<span>${c.creators_active} active creators</span>` : ''}${c.discord != null ? `<span>${c.discord} in Discord</span>` : ''}</div>
+      </${c.source === 'trybe' ? 'button' : 'div'}>`;
+    };
+    box.innerHTML = `${head}
+      <p class="v2hint">Creator ads only, ${SCORE_W === '7' ? 'last 7 days' : 'last 30 days'}. ${SCORE_M === 'tw' ? 'Sales from Triple Whale (the standard), spend from Meta.' : 'Sales as Meta counts them (a second opinion; Meta counts more than Triple Whale). Spend from Meta.'} Monday morning read: which program is off goal, which has videos waiting.</p>
+      ${strip}<div class="tb-pcs">${S.cards.map(card).join('')}</div>`;
+    wireSw();
     box.querySelectorAll('[data-tbact]').forEach(r => { r.onclick = () => { if (H.setViewAct) H.setViewAct(r.dataset.tbact); H.show('trybe'); }; });
+  }
+
+  /* ---- Follow up (round 3, 2026-11-05): three lists of creators to message one by one in Trybe Chat. Trybe's API has
+     no messages, so Locus drafts each one; Claude sends them in Chrome after Cole's yes, or anyone copies and sends.
+     "Sent" hides the creator for 14 days (account-health /api/trybe/followups). ---- */
+  async function followView() {
+    const box = document.getElementById('tbFu'); if (!box) return;
+    const act = H.S.act;
+    let r;
+    try { r = await H.apiAH('/api/trybe/followups?act=' + encodeURIComponent(act)); if (r && r.error) throw new Error(r.error); }
+    catch (e) { box.innerHTML = `<p class="v2bad">${esc(e.message)}</p>`; return; }
+    const chat = (r.portal || 'https://jointrybe.com/brand').replace('/brand?', '/brand/chat?');
+    const item = c => `<div class="tb-fu" data-cid="${esc(c.creator_id)}">
+        <div class="tb-fu-who">${c.avatar ? `<img class="tb-av" loading="lazy" alt="" src="${esc(c.avatar)}">` : ''}<b>${esc(c.name)}</b>
+          <span class="tb-sub">${c.kind === 'sold' ? `${c.orders} sale${c.orders === 1 ? '' : 's'}${c.cpa != null ? `, ${money(c.cpa)} a sale` : ''}, last video ${c.days} days ago` : c.kind === 'quiet' ? `${c.approved} approved, no sale, last video ${c.days} days ago` : c.state === 'needs_resubmit' ? 'video sent back, new cut owed' : `video was due ${esc(c.due)}${c.days > 0 ? ` (${c.days} days late)` : ''}`}</span></div>
+        <textarea class="tb-fu-msg" rows="3" aria-label="Message to ${esc(c.first)}">${esc(c.message)}</textarea>
+        <div class="tb-fu-act"><button type="button" class="v2btn ghost" data-fu="copy">Copy</button><a class="v2btn ghost" href="${esc(chat)}" target="_blank" rel="noopener">Open Trybe Chat</a><button type="button" class="v2btn" data-fu="sent">Sent</button></div></div>`;
+    const group = (title, why, list) => `<div class="tb-fu-g"><div class="v2h"><h3>${title} (${list.length})</h3></div><p class="v2hint">${why}</p>${list.length ? list.map(item).join('') : '<p class="v2hint">Nobody right now.</p>'}</div>`;
+    box.innerHTML = `<div class="v2h"><h3>Follow up</h3><span class="cap">Thursdays · one message per creator, in Trybe Chat</span></div>
+      <p class="v2hint">Locus writes each message. Edit it if you like, send it in Trybe Chat, then press Sent (hides them for ${r.rules.snooze_days} days). Claude can send the whole list in Chrome once Cole says yes.${r.note ? ` ${esc(r.note)}` : ''}</p>
+      ${group('Sold, then went quiet', `Their videos made sales (Triple Whale, 30 days) and no new video in ${r.rules.sold_days} days. Ask for more of the same.`, r.sold)}
+      ${group('Quiet, no sale', `Approved videos, nothing sold, no new video in ${r.rules.quiet_days} days. Ask what happened and show what is selling.`, r.quiet)}
+      ${group('Sample, no video', 'Trybe says they owe a video for a sample: past due, or sent back for a new cut.', r.sample)}`;
+    box.querySelectorAll('[data-fu]').forEach(b => { b.onclick = async () => {
+      const row = b.closest('[data-cid]'), msg = row.querySelector('.tb-fu-msg').value;
+      if (b.dataset.fu === 'copy') { try { await navigator.clipboard.writeText(msg); toast('Copied'); } catch { toast('Select the text and copy it'); } return; }
+      b.disabled = true;
+      try { const x = await H.apiAH('/api/trybe/followups/sent', { method: 'POST', body: JSON.stringify({ act, creator_id: row.dataset.cid }) }); if (x && x.error) throw new Error(x.error); row.remove(); toast('Marked sent'); }
+      catch (e) { toast(e.message); b.disabled = false; }
+    }; });
   }
 
   /* ---- pop ups: a bottom sheet on a phone ---- */

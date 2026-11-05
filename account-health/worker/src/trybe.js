@@ -274,7 +274,8 @@ export async function trybeView(env, d, act, { client = false, today } = {}) {
    lastPlatformClick), cost per sale against the brand's goal, videos in / approved / launched, winners (videos with a
    sale), active creators and Discord members. Lucky runs its own creator app: its row comes from the app's summary feed,
    re-priced against our own Triple Whale rows so every brand is judged on one model. */
-async function creatorMoney(env, act, ids, from) {
+/* `model`: 'tw' (default, Triple Whale lastPlatformClick, the standard) or 'meta' (Meta's own purchases, a second opinion). */
+async function creatorMoney(env, act, ids, from, model = 'tw') {
   const out = { spend: 0, orders: 0, revenue: 0, byAd: new Map() };
   if (!ids.length) return out;
   const acts = await metaActs(env, act);
@@ -283,10 +284,10 @@ async function creatorMoney(env, act, ids, from) {
     const chunk = ids.slice(i, i + 60);
     const ph = chunk.map((_, j) => `?${j + 2}`).join(', ');
     const aph = acts.map((_, j) => `?${chunk.length + 2 + j}`).join(', ');
-    const sp = (await env.DB.prepare(`SELECT ad_id, SUM(spend) AS spend FROM ad_daily WHERE date >= ?1 AND ad_id IN (${ph}) AND act_id IN (${aph}) GROUP BY ad_id`)
+    const sp = (await env.DB.prepare(`SELECT ad_id, SUM(spend) AS spend, SUM(purchases) AS orders, SUM(revenue) AS revenue FROM ad_daily WHERE date >= ?1 AND ad_id IN (${ph}) AND act_id IN (${aph}) GROUP BY ad_id`)
       .bind(from, ...chunk, ...acts).all().catch(() => ({ results: [] }))).results || [];
-    const tw = (await env.DB.prepare(`SELECT ad_id, SUM(orders) AS orders, SUM(revenue) AS revenue FROM tw_ad_attr WHERE date >= ?1 AND ad_id IN (${ph}) AND act_id = ?${chunk.length + 2} AND model = ?${chunk.length + 3} AND (platform = 'meta' OR platform IS NULL) GROUP BY ad_id`)
-      .bind(from, ...chunk, act, ATTR_MODEL).all().catch(() => ({ results: [] }))).results || [];
+    const tw = model === 'meta' ? sp : ((await env.DB.prepare(`SELECT ad_id, SUM(orders) AS orders, SUM(revenue) AS revenue FROM tw_ad_attr WHERE date >= ?1 AND ad_id IN (${ph}) AND act_id = ?${chunk.length + 2} AND model = ?${chunk.length + 3} AND (platform = 'meta' OR platform IS NULL) GROUP BY ad_id`)
+      .bind(from, ...chunk, act, ATTR_MODEL).all().catch(() => ({ results: [] }))).results || []);
     for (const r of sp) { out.spend += +r.spend || 0; bump(String(r.ad_id), 'spend', +r.spend || 0); }
     for (const r of tw) { out.orders += +r.orders || 0; out.revenue += +r.revenue || 0; bump(String(r.ad_id), 'orders', +r.orders || 0); }
   }
@@ -307,13 +308,13 @@ async function discordMembers(env, act) {
   } catch { return null; }
 }
 const dayOf = x => String(x || '').slice(0, 10);
-async function brandCard(env, b, today) {
+async function brandCard(env, b, today, model = 'tw') {
   const f7 = addDays(today, -6), f30 = addDays(today, -29);
   const goal = +b.target_cpa || null;
   const subs = (await env.DB.prepare(`SELECT trybe_id, creator_id, status, created_at, approved_seen, ads_count FROM p_trybe_sub WHERE act_id = ?1`).bind(b.act_id).all()).results || [];
   const ads = (await env.DB.prepare(`SELECT ad_id, name, created_time FROM p_trybe_ad WHERE act_id = ?1`).bind(b.act_id).all().catch(() => ({ results: [] }))).results || [];
   const ids = ads.map(a => String(a.ad_id));
-  const [m7, m30, dc] = await Promise.all([creatorMoney(env, b.act_id, ids, f7), creatorMoney(env, b.act_id, ids, f30), discordMembers(env, b.act_id)]);
+  const [m7, m30, dc] = await Promise.all([creatorMoney(env, b.act_id, ids, f7, model), creatorMoney(env, b.act_id, ids, f30, model), discordMembers(env, b.act_id)]);
   const vid = new Map();   // trybe id -> orders in 7 days
   for (const a of ads) { const id = trybeIdOf(a.name); if (!id) continue; vid.set(id, (vid.get(id) || 0) + ((m7.byAd.get(String(a.ad_id)) || {}).orders || 0)); }
   const launched = from => new Set(ads.filter(a => dayOf(a.created_time) >= from).map(a => trybeIdOf(a.name)).filter(Boolean)).size;
@@ -324,7 +325,7 @@ async function brandCard(env, b, today) {
     creators_active: new Set(subs.filter(s => dayOf(s.created_at) >= f30).map(s => s.creator_id)).size, discord: dc,
     waiting: subs.filter(s => s.status === 'approved' && !(+s.ads_count > 0) && !withAds.has(s.trybe_id)).length };
 }
-async function luckyCard(env, b, today) {
+async function luckyCard(env, b, today, model = 'tw') {
   const base = { act_id: b.act_id, name: b.name, source: 'lucky_app' };
   if (!env.LUCKY_PROGRAM_KEY) return { ...base, error: 'The Lucky app key is not set in Locus yet.' };
   let j;
@@ -335,7 +336,7 @@ async function luckyCard(env, b, today) {
   } catch { return { ...base, error: 'Could not reach the Lucky app.' }; }
   const goal = +b.target_cpa || null;
   const ids = (j.ad_ids || []).map(a => String(a.ad_id)).filter(Boolean);
-  const [m7, m30] = await Promise.all([creatorMoney(env, b.act_id, ids, addDays(today, -6)), creatorMoney(env, b.act_id, ids, addDays(today, -29))]);
+  const [m7, m30] = await Promise.all([creatorMoney(env, b.act_id, ids, addDays(today, -6), model), creatorMoney(env, b.act_id, ids, addDays(today, -29), model)]);
   /* Our own Triple Whale rows first (the same model as every brand); the app's own figure only when we have none. */
   const pick = (m, w) => (m.orders > 0 || m.spend > 0) ? sideOf(m, goal) : sideOf({ spend: +w.creator_ad_spend || 0, orders: +w.creator_ad_orders || 0, revenue: +w.creator_ad_sales || 0 }, goal);
   const w7 = j.last_7_days || {}, w30 = j.last_30_days || {};
@@ -345,15 +346,16 @@ async function luckyCard(env, b, today) {
     creators_active: j.creators?.active ?? null, levels: j.creators?.by_level || null, discord: j.discord_members ?? null, new_joins_7: w7.new_joins ?? null,
     payouts_owed: j.payouts?.owed ?? null, notes: (j.notes || []).slice(0, 3) };
 }
-export async function trybeScorecard(env, d, brands, { today } = {}) {
+export async function trybeScorecard(env, d, brands, { today, model = 'tw' } = {}) {
+  model = model === 'meta' ? 'meta' : 'tw';
   await ensureTrybe(env);
   today = today || (d.centralDate ? d.centralDate() : new Date().toISOString().slice(0, 10));
   const keyed = new Set(await keyedBrands(env));
   const goals = new Map(((await env.DB.prepare(`SELECT id, target_cpa FROM brands`).all().catch(() => ({ results: [] }))).results || []).map(r => [r.id, r.target_cpa]));
   const list = brands.map(b => ({ ...b, target_cpa: goals.get(b.act_id) }));
-  const cards = await Promise.all(list.map(b => b.act_id === 'brand_lucky_golf' ? luckyCard(env, b, today)
-    : keyed.has(b.act_id) ? brandCard(env, b, today).catch(e => ({ act_id: b.act_id, name: b.name, source: 'trybe', error: e.message })) : null));
-  return { today, cards: cards.filter(Boolean).filter(c => c.error || (c.last_30 && (c.last_30.spend > 0 || c.last_30.videos_in > 0))) };
+  const cards = await Promise.all(list.map(b => b.act_id === 'brand_lucky_golf' ? luckyCard(env, b, today, model)
+    : keyed.has(b.act_id) ? brandCard(env, b, today, model).catch(e => ({ act_id: b.act_id, name: b.name, source: 'trybe', error: e.message })) : null));
+  return { today, model, cards: cards.filter(Boolean).filter(c => c.error || (c.last_30 && (c.last_30.spend > 0 || c.last_30.videos_in > 0))) };
 }
 
 /* ---------- the week (2026-11-05): the live counts behind Ads > Trybe > This week ----------
@@ -381,7 +383,8 @@ async function discordWaiting(env, act) {
 export async function trybeWeek(env, d, brands, { today } = {}) {
   today = today || (d.centralDate ? d.centralDate() : new Date().toISOString().slice(0, 10));
   const all = await trybeAll(env, d, brands, { today });
-  const rows = await Promise.all((all.brands || []).filter(b => b.has_key).map(async b => ({ act_id: b.act_id, name: b.name, review: b.pending, launch: b.queue, stale: b.stale, discord: await discordWaiting(env, b.act_id) })));
+  const portal = async act => portalOf((await env.DB.prepare(`SELECT thumb FROM p_trybe_sub WHERE act_id = ?1 AND thumb IS NOT NULL LIMIT 5`).bind(act).all().catch(() => ({ results: [] }))).results || []);
+  const rows = await Promise.all((all.brands || []).filter(b => b.has_key).map(async b => ({ act_id: b.act_id, name: b.name, review: b.pending, launch: b.queue, stale: b.stale, discord: await discordWaiting(env, b.act_id), portal: await portal(b.act_id) })));
   let lucky = null;
   if (env.LUCKY_PROGRAM_KEY && brands.some(b => b.act_id === 'brand_lucky_golf')) {
     const get = async path => { const r = await fetch('https://creators.luckygolf.com' + path, { headers: { Authorization: `Bearer ${env.LUCKY_PROGRAM_KEY}` } }); return r.ok ? r.json() : null; };
@@ -460,15 +463,204 @@ export function fridayPost(wins, slug) {
   const lines = wins.slice(0, 6).map((x, i) => `**${i + 1}. ${x.creator}**${x.product ? `, ${x.product}` : ''}: ${x.orders} sale${x.orders === 1 ? '' : 's'}`).join('\n');
   return { title: 'This week\'s winners', description: noDash(`These creator videos made sales in the last 7 days:\n\n${lines}\n\nWatch what they did, then make your version. This week's ideas: https://locus.go-mobius-digital.com/angles/${slug}/`).slice(0, 4000) };
 }
-export async function discordWeekly(env, today, { force } = {}) {
+/* ---------- Friday winners, v2 (2026-11-05, Cole: "looks plain") ----------
+   A person's voice, not a report: a short opener, then one message per winning video with the video itself, so it plays
+   inside Discord, then a short closer. Wording rotates by week and brand so it never reads templated. The video is
+   attached when it fits Discord's 10 MB upload; a bigger file is copied to our storage and linked as an mp4, which
+   Discord plays inline too (Trybe's own link dies in 20 minutes). Style 'v2' is on only after Cole's yes
+   (settings.trybeWinnersStyle); a preview posts into a team-only #winners-preview channel. */
+const pickBy = (arr, seed) => { let h = 0; for (const ch of String(seed)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return arr[h % arr.length]; };
+const WIN_OPEN = [
+  n => `Hey everyone, this week's winners are in! 🏆 ${n === 1 ? 'One video' : `${n} videos`} made sales this week.`,
+  n => `Happy Friday! 🎉 Here's what sold this week. ${n === 1 ? 'One video' : `${n} videos`} brought in orders.`,
+  n => `Hey team 👋 Friday means winners. ${n === 1 ? 'This one' : `These ${n}`} made sales this week.`,
+  n => `Winners time! 🔥 ${n === 1 ? 'One video' : `${n} videos`} sold this week. Have a watch.`,
+  n => `Big week, creators 🙌 ${n === 1 ? 'Here is the video' : `Here are the ${n} videos`} that sold.`,
+];
+const MEDAL = ['🥇', '🥈', '🥉', '🔥', '🔥', '🔥'];
+const WIN_LINE = [
+  (c, p, o) => `**${c}**${p ? ` with the ${p}` : ''}: ${o} sale${o === 1 ? '' : 's'}`,
+  (c, p, o) => `${o} sale${o === 1 ? '' : 's'} for **${c}**${p ? ` (${p})` : ''}`,
+  (c, p, o) => `**${c}**'s ${p ? `${p} ` : ''}video sold ${o === 1 ? 'once' : `${o} times`}`,
+];
+const WIN_CLOSE = [
+  hub => `Steal what works and make your version 👊 This week's ideas: ${hub}`,
+  hub => `Want to be up here next Friday? Pick an idea and film it 🎬 ${hub}`,
+  hub => `Same hook, your spin. Next week's ideas are here: ${hub}`,
+  hub => `Nice work everyone 💪 Ideas for next week: ${hub}`,
+];
+const shortProduct = p => clip(String(p || '').split(',')[0].split(' - ')[0].split(' | ')[0], 32);
+const firstName = n => String(n || 'A creator').trim().split(/\s+/)[0];
+/** The words of a v2 winners post (pure; the tests and the preview use it). */
+export function fridayMessages(wins, slug, seed) {
+  const hub = `https://locus.go-mobius-digital.com/angles/${slug}/`;
+  const list = wins.slice(0, 4);
+  const lineOf = pickBy(WIN_LINE, seed + 'l');
+  return {
+    open: noDash(pickBy(WIN_OPEN, seed + 'o')(list.length)),
+    items: list.map((w, i) => ({ ...w, text: noDash(`${MEDAL[i]} ${lineOf(firstName(w.creator), shortProduct(w.product), w.orders)}`) })),
+    close: noDash(pickBy(WIN_CLOSE, seed + 'c')(hub)),
+  };
+}
+const WIN_ATTACH_MAX = 9.5 * 1024 * 1024, WIN_FILE_MAX = 95 * 1024 * 1024;
+async function hookFor(env, act, d, key) {
+  const look = d.look || {}, chan = (d.channels || {})[key];
+  if (!chan) throw new Error(`no #${key} channel`);
+  d.hooks = d.hooks || {};
+  if (!d.hooks[key]) {
+    const tok = (await dcDoc(env, 'agency') || {}).token;
+    if (!tok) throw new Error('no Discord bot token');
+    const r = await fetch(`${DC_API}/channels/${chan}/webhooks`, { method: 'POST', headers: { Authorization: `Bot ${tok}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: String(look.mascot || 'Creators').slice(0, 80) }) });
+    if (!r.ok) throw new Error(`Discord answered ${r.status} making a webhook`);
+    const w = await r.json(); d.hooks[key] = { id: w.id, token: w.token }; await dcSave(env, act, d);
+  }
+  return d.hooks[key];
+}
+/** One plain message as the mascot, with an optional file. Discord unfurls an mp4 link in the text into a player. */
+async function dcHookSay(env, act, d, key, content, file) {
+  const look = d.look || {}, h = await hookFor(env, act, d, key);
+  const payload = { username: String(look.mascot || 'Creators').slice(0, 80), allowed_mentions: { parse: [] }, content: String(content).slice(0, 2000) };
+  if (/^https:\/\//.test(look.avatar || '')) payload.avatar_url = look.avatar;
+  let init;
+  if (file) {
+    const fd = new FormData();
+    fd.append('payload_json', JSON.stringify({ ...payload, attachments: [{ id: 0, filename: file.name }] }));
+    fd.append('files[0]', new Blob([file.buf], { type: file.type }), file.name);
+    init = { method: 'POST', body: fd };
+  } else init = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) };
+  const r = await fetch(`${DC_API}/webhooks/${h.id}/${h.token}?wait=true`, init);
+  if (!r.ok) throw new Error(`Discord answered ${r.status} posting in #${key}`);
+  return (await r.json()).id;
+}
+/** The video for a winner: attach it when small, else keep a copy in R2 and link it (public, unguessable). */
+async function winnerClip(env, d, act, w) {
+  const k = await keyFor(env, act);
+  if (!k || !k.key || !w.sub_id) return null;
+  const s = await trybeGet(d, k.key, `/submissions/${encodeURIComponent(w.sub_id)}`).catch(() => null);
+  const u = s && s.asset && s.asset.url;
+  if (!u || (s.media_type && s.media_type !== 'video')) return null;
+  const r = await fetch(u);
+  if (!r.ok) return null;
+  const size = +r.headers.get('content-length') || 0;
+  if (size > WIN_FILE_MAX) return null;
+  const buf = await r.arrayBuffer();
+  if (buf.byteLength <= WIN_ATTACH_MAX) return { file: { buf, type: 'video/mp4', name: `${firstName(w.creator).toLowerCase().replace(/[^a-z0-9]/g, '') || 'winner'}.mp4` } };
+  if (!env.MEDIA) return null;
+  const id = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`trybe-win:${act}:${w.sub_id}`)))].slice(0, 12).map(b => b.toString(16).padStart(2, '0')).join('');
+  const key = `studio/vid/${id}.mp4`;
+  if (!(await env.MEDIA.head(key).catch(() => null))) await env.MEDIA.put(key, buf, { httpMetadata: { contentType: 'video/mp4' } });
+  return { url: `https://mobius-account-health.mobius-digital.workers.dev/studio-vid/${id}.mp4` };
+}
+/** The team-only channel previews go to (made once: hidden from @everyone, the Team role can see it). */
+async function previewChannel(env, act, d) {
+  if (d.channels && d.channels['winners-preview']) return 'winners-preview';
+  const tok = (await dcDoc(env, 'agency') || {}).token;
+  if (!tok || !d.guild_id) throw new Error('no Discord bot or server');
+  const ow = [{ id: d.guild_id, type: 0, deny: '1024' }];
+  if (d.roles && d.roles.team) ow.push({ id: d.roles.team, type: 0, allow: '1024' });
+  const r = await fetch(`${DC_API}/guilds/${d.guild_id}/channels`, { method: 'POST', headers: { Authorization: `Bot ${tok}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'winners-preview', type: 0, topic: 'Team only. Previews of the Friday winners post before it goes out.', permission_overwrites: ow }) });
+  if (!r.ok) throw new Error(`Discord answered ${r.status} making #winners-preview`);
+  d.channels = { ...(d.channels || {}), 'winners-preview': (await r.json()).id };
+  await dcSave(env, act, d);
+  return 'winners-preview';
+}
+/** This week's winning videos for a brand (Triple Whale, last 7 days), best first. */
+async function winnersOf(env, act, today) {
+  const from = addDays(today, -6);
+  const ads = (await env.DB.prepare(`SELECT ad_id, name FROM p_trybe_ad WHERE act_id = ?1`).bind(act).all()).results || [];
+  const m = await creatorMoney(env, act, ads.map(a => String(a.ad_id)), from);
+  const byVid = new Map();
+  for (const a of ads) { const id = trybeIdOf(a.name); const o = (m.byAd.get(String(a.ad_id)) || {}).orders || 0; if (id && o > 0) byVid.set(id, (byVid.get(id) || 0) + o); }
+  const subs = new Map(((await env.DB.prepare(`SELECT sub_id, trybe_id, creator, product FROM p_trybe_sub WHERE act_id = ?1`).bind(act).all()).results || []).map(s => [s.trybe_id, s]));
+  return [...byVid.entries()].map(([id, o]) => { const s = subs.get(id) || {}; return { trybe_id: id, sub_id: s.sub_id || null, creator: s.creator || 'A creator', product: s.product || '', orders: Math.round(o) }; })
+    .filter(w => w.orders > 0).sort((a, z) => z.orders - a.orders);
+}
+async function postWinnersV2(env, d, act, dc, slug, wins, today, channel) {
+  const msg = fridayMessages(wins, slug, `${today}:${slug}`);
+  await dcHookSay(env, act, dc, channel, msg.open);
+  for (const w of msg.items) {
+    const clip2 = await winnerClip(env, d, act, w).catch(() => null);
+    await dcHookSay(env, act, dc, channel, clip2 && clip2.url ? `${w.text}\n${clip2.url}` : w.text, clip2 && clip2.file);
+  }
+  await dcHookSay(env, act, dc, channel, msg.close);
+  return msg;
+}
+
+/* ---------- follow-ups (2026-11-05, Cole) ----------
+   Three lists of creators to message one by one in Trybe (Trybe's Brand API has no messages, so Locus drafts and
+   Claude in Chrome sends after Cole's yes; a "Sent" press hides the creator for 14 days):
+   - sold: their videos sold (Triple Whale, 30 days) and no new video in 14 days. Ask for more of the same.
+   - quiet: approved videos, no sale, no new video in 21 days. Ask what happened, point at the winners.
+   - sample: a sample owed (Trybe's own sample obligation: overdue, or sent back and owed again). Ask if it arrived. */
+export const QUIET_DAYS = 21, FOLLOW_SNOOZE = 14;
+const FOLLOW_TEXT = {
+  sold: [
+    (f, b, x) => `Hey ${f}! Your ${x.product ? `${x.product} ` : ''}video has been selling for ${b} 🙌 Could you film 2 more in the same style this week? This week's ideas: ${x.hub}`,
+    (f, b, x) => `Hi ${f}, quick one: your ${b} video made ${x.orders} sale${x.orders === 1 ? '' : 's'} this month 🔥 We'd love another one or two like it. Ideas here: ${x.hub}`,
+  ],
+  quiet: [
+    (f, b, x) => `Hey ${f}, haven't seen a new ${b} video from you in a bit. How's it going? Anything in the way, or anything we can make easier? The videos selling right now are in #winners${x.invite ? ` on our Discord (${x.invite})` : ' on our Discord'}, and this week's ideas are here: ${x.hub}`,
+    (f, b, x) => `Hi ${f}! Checking in from ${b}. Your last video was ${x.days} days ago. What happened, and what would help you make the next one? Here's what is working right now: ${x.hub}`,
+  ],
+  sample: [
+    (f, b, x) => `Hey ${f}, checking in on your ${b} sample. Did it arrive OK? ${x.state === 'needs_resubmit' ? 'Your video needs one more pass, the notes are on it in Trybe.' : `Your video was due ${x.due}.`} If anything's in the way, tell me and we'll sort it. Ideas that are working now: ${x.hub}`,
+    (f, b, x) => `Hi ${f}! How are you liking the ${b} sample? ${x.state === 'needs_resubmit' ? 'We just need a new cut of your video (notes in Trybe).' : `We're still waiting on your video (it was due ${x.due}).`} Need an idea? Here's this week's list: ${x.hub}`,
+  ],
+};
+const prettyDay = iso => { const t = Date.parse(String(iso || '').slice(0, 10) + 'T12:00:00Z'); return t ? new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }) : 'a while ago'; };
+export function followText(kind, first, brand, x, seed) { return noDash(pickBy(FOLLOW_TEXT[kind], seed)(first, brand, x)); }
+export async function trybeFollowups(env, d, act, { today } = {}) {
+  await ensureTrybe(env);
+  today = today || (d.centralDate ? d.centralDate() : new Date().toISOString().slice(0, 10));
+  const k = await keyFor(env, act);
+  if (!k || !k.key) throw new Error('No Trybe key for this brand yet.');
+  const v = await trybeView(env, d, act, { today });
+  const amb = await env.DB.prepare(`SELECT slug, display_name FROM p_amb_brand WHERE act_id = ?1`).bind(act).first().catch(() => null);
+  const brand = amb?.display_name || (await env.DB.prepare(`SELECT name FROM brands WHERE id = ?1`).bind(act).first().catch(() => null))?.name || 'the brand';
+  const hub = amb?.slug ? `https://locus.go-mobius-digital.com/angles/${amb.slug}/` : '';
+  const invite = (await dcDoc(env, act))?.invite || '';
+  const sent = new Map(((await env.DB.prepare(`SELECT key, value FROM settings WHERE key LIKE ?1`).bind(`trybeFollow:${act}:%`).all().catch(() => ({ results: [] }))).results || [])
+    .map(r => [r.key.split(':').pop(), r.value]));
+  const snoozed = id => { const at = sent.get(id); return at && daysBetween(at, today) < FOLLOW_SNOOZE; };
+  const subs = (await env.DB.prepare(`SELECT creator_id, creator, status, product, created_at FROM p_trybe_sub WHERE act_id = ?1`).bind(act).all()).results || [];
+  const per = new Map();
+  for (const s of subs) {
+    const g = per.get(s.creator_id) || { name: s.creator, approved: 0, last: null, product: '' };
+    if (s.status === 'approved') { g.approved++; if (!g.product && s.product) g.product = shortProduct(s.product); }
+    if (s.created_at && (!g.last || s.created_at > g.last)) g.last = s.created_at;
+    per.set(s.creator_id, g);
+  }
+  const crs = new Map(((await env.DB.prepare(`SELECT creator_id, name, avatar, gmv FROM p_trybe_creator WHERE act_id = ?1`).bind(act).all()).results || []).map(c => [c.creator_id, c]));
+  /* The live roster with samples (Trybe: active creators only). */
+  const roster = await pages(d, k.key, '/creators', {}, 10).catch(() => null);
+  const active = roster ? new Map(roster.map(c => [c.id, c])) : null;
+  const row = (kind, id, name, x) => ({ kind, creator_id: id, name, first: firstName(name), avatar: (active?.get(id)?.avatar_url) || crs.get(id)?.avatar || null, ...x,
+    message: followText(kind, firstName(name), brand, { ...x, hub, invite }, `${today}:${id}:${kind}`), sent_at: sent.get(id) || null });
+  const sold = v.creators.filter(c => c.orders > 0 && c.quiet_days != null && c.quiet_days >= REBOOK_DAYS && (!active || active.has(c.creator_id)) && !snoozed(c.creator_id))
+    .map(c => row('sold', c.creator_id, c.name, { orders: Math.round(c.orders), cpa: c.cpa, days: c.quiet_days, product: (per.get(c.creator_id) || {}).product || '', beats: c.beats }))
+    .sort((a, z) => z.orders - a.orders);
+  const soldIds = new Set(v.creators.filter(c => c.orders > 0).map(c => c.creator_id));
+  const quiet = [...per.entries()].filter(([id, g]) => g.approved > 0 && !soldIds.has(id) && !(+(crs.get(id) || {}).gmv > 0) && g.last && daysBetween(day(g.last), today) >= QUIET_DAYS && (!active || active.has(id)) && !snoozed(id))
+    .map(([id, g]) => row('quiet', id, g.name, { approved: g.approved, days: daysBetween(day(g.last), today), product: g.product }))
+    .sort((a, z) => a.days - z.days);
+  const sample = (roster || []).filter(c => c.samples && c.samples.obligation && ['overdue', 'needs_resubmit'].includes(c.samples.obligation.state) && !snoozed(c.id))
+    .map(c => row('sample', c.id, c.name, { state: c.samples.obligation.state, due: prettyDay(c.samples.obligation.due_at), days: daysBetween(day(c.samples.obligation.due_at), today), samples: c.samples.approved, score: c.samples.sample_score?.score ?? null }))
+    .sort((a, z) => (z.days || 0) - (a.days || 0));
+  return { act, brand, today, portal: v.portal, roster: roster ? roster.length : null, sold, quiet, sample,
+    rules: { sold_days: REBOOK_DAYS, quiet_days: QUIET_DAYS, snooze_days: FOLLOW_SNOOZE }, note: roster ? null : 'Trybe did not send the creator list, so samples are missing this time.' };
+}
+
+export async function discordWeekly(env, today, { force, preview = false, only = null, d: deps = {} } = {}) {
   const dow = new Date(today + 'T12:00:00Z').getUTCDay();
   const kind = force || (dow === 1 ? 'monday' : dow === 5 ? 'friday' : null);
   if (!kind) return { skipped: 'not Monday or Friday' };
-  const rows = (await env.DB.prepare(`SELECT act_id FROM p_br_doc WHERE line_id = '' AND key = 'discord' AND act_id != 'agency'`).all().catch(() => ({ results: [] }))).results || [];
-  const out = { kind, posted: [], errors: [] };
+  const rows = ((await env.DB.prepare(`SELECT act_id FROM p_br_doc WHERE line_id = '' AND key = 'discord' AND act_id != 'agency'`).all().catch(() => ({ results: [] }))).results || []).filter(r => !only || r.act_id === only);
+  const v2 = preview || (await getSetting(env, 'trybeWinnersStyle')) === 'v2';
+  const out = { kind, preview, style: kind === 'friday' ? (v2 ? 'v2' : 'v1') : undefined, posted: [], errors: [], messages: {} };
   for (const { act_id: act } of rows) {
     const stamp = `discordPost:${act}:${kind}:${today}`;
-    if (await getSetting(env, stamp)) continue;
+    if (!preview && await getSetting(env, stamp)) continue;
     try {
       const d = await dcDoc(env, act);
       if (!d || !d.built_at || !d.channels) continue;
@@ -476,7 +668,15 @@ export async function discordWeekly(env, today, { force } = {}) {
       if (!b) continue;
       let embed;
       if (kind === 'monday') embed = mondayPost(b.display_name, b.slug, safeJson(b.week_json, {}) || {});
-      else {
+      else if (v2) {
+        const wins = await winnersOf(env, act, today);
+        if (!wins.length) { if (!preview) await putSetting(env, stamp, 'none'); continue; }
+        const ch = preview ? await previewChannel(env, act, d) : 'winners';
+        out.messages[act] = await postWinnersV2(env, deps, act, d, b.slug, wins, today, ch);
+        if (!preview) await putSetting(env, stamp, 'posted');
+        out.posted.push(act);
+        continue;
+      } else {
         const from = addDays(today, -6);
         const ads = (await env.DB.prepare(`SELECT ad_id, name FROM p_trybe_ad WHERE act_id = ?1`).bind(act).all()).results || [];
         const ids = ads.map(a => String(a.ad_id));
@@ -544,7 +744,7 @@ export async function trybeTick(env, d, { force = false } = {}) {
       await runAll(env, fresh.map(q => env.DB.prepare(`UPDATE p_trybe_sub SET alerted = ?3 WHERE act_id = ?1 AND sub_id = ?2`).bind(b.act_id, q.sub_id, today)));
     } catch (e) { out.errors.push(`${b.name}: ${e.message}`); }
   }
-  out.discord = await discordWeekly(env, today).catch(e => ({ error: e.message }));
+  out.discord = await discordWeekly(env, today, { d }).catch(e => ({ error: e.message }));
   await putSetting(env, 'trybeDay', today);
   return out;
 }
@@ -573,7 +773,15 @@ export async function handleTrybe(request, env, url, path, json, h) {
       if (client) return json({ error: 'That part is the Mobius team' + "'" + 's.' }, 403);
       const bb = await request.json().catch(() => ({}));
       const kind = bb.kind === 'friday' ? 'friday' : 'monday';
-      return json(await discordWeekly(env, d.centralDate ? d.centralDate() : new Date().toISOString().slice(0, 10), { force: kind }));
+      const only = bb.act ? await actOf(bb.act) : null;
+      return json(await discordWeekly(env, d.centralDate ? d.centralDate() : new Date().toISOString().slice(0, 10), { force: kind, preview: !!bb.preview && kind === 'friday', only: only || null, d }));
+    }
+    /* The Friday winners style: 'v2' (videos in the post, Cole's yes needed) or 'v1' (the plain list). */
+    if (path === '/api/trybe/winners-style' && request.method === 'PUT') {
+      if (client) return json({ error: 'That part is the Mobius team' + "'" + 's.' }, 403);
+      const st = (await request.json().catch(() => ({}))).style === 'v2' ? 'v2' : 'v1';
+      await putSetting(env, 'trybeWinnersStyle', st);
+      return json({ ok: true, style: st });
     }
     if (path === '/api/trybe/week' && request.method === 'GET') {
       if (client) return json({ error: 'That part is the Mobius team' + "'" + 's.' }, 403);
@@ -581,7 +789,7 @@ export async function handleTrybe(request, env, url, path, json, h) {
     }
     if (path === '/api/trybe/scorecard' && request.method === 'GET') {
       if (client) return json({ error: 'That part is the Mobius team' + "'" + 's.' }, 403);
-      return json(await trybeScorecard(env, d, (await d.listBrands(env)).filter(b => !only || only.has(b.act_id))));
+      return json(await trybeScorecard(env, d, (await d.listBrands(env)).filter(b => !only || only.has(b.act_id)), { model: url.searchParams.get('model') || 'tw' }));
     }
     /* One video's file: Trybe hands out a link that lasts 20 minutes, so the page asks when someone presses play. */
     if (path === '/api/trybe/video' && request.method === 'GET') {
@@ -639,6 +847,15 @@ export async function handleTrybe(request, env, url, path, json, h) {
         VALUES (?1, ?2, ?3, 'trybe_review', 'creators', ?4, NULL, 'Reviewed in Trybe from Locus.', 1, 1, ?5, 'trybe_submission', ?6, NULL)`)
         .bind(`manual:${crypto.randomUUID()}`, meta?.meta_act || act, new Date().toISOString(), `Trybe video ${verb === 'approve' ? 'approved' : verb === 'reject' ? 'rejected' : 'sent back for changes'}${comment ? `: ${clip(comment, 120)}` : ''}`, `${who} in Locus`, id).run().catch(() => {});
       return json({ ok: true, id, status: j?.status || null });
+    }
+    if (path === '/api/trybe/followups' && request.method === 'GET') return json(await trybeFollowups(env, d, act));
+    if (path === '/api/trybe/followups/sent' && request.method === 'POST') {
+      const id = String(b.creator_id || '');
+      if (!/^creator_[0-9a-f-]{8,}$/.test(id)) return json({ error: 'Give the creator id.' }, 400);
+      const at = d.centralDate ? d.centralDate() : new Date().toISOString().slice(0, 10);
+      if (b.undo) await env.DB.prepare(`DELETE FROM settings WHERE key = ?1`).bind(`trybeFollow:${act}:${id}`).run();
+      else await putSetting(env, `trybeFollow:${act}:${id}`, at);
+      return json({ ok: true, creator_id: id, sent_at: b.undo ? null : at });
     }
     if (path === '/api/trybe/rules' && request.method === 'PUT') {
       const t = noDash(String(b.rules || '')).trim().slice(0, 4000);
