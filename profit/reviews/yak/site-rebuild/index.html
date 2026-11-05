@@ -309,6 +309,21 @@ a{color:var(--gold-ink)}
 .m .sheet>div{display:flex;flex-direction:column;gap:14px}
 .m .q2{display:flex;flex-direction:column;gap:8px;font-size:13px}
 .m .ans{background:var(--ice);border-radius:4px;padding:12px 14px;font-size:14px}
+
+/* v3 */
+.m .fitln{background:var(--ice);border-radius:4px;padding:9px 12px;font-size:13.5px;color:var(--k);margin-top:-4px}
+.m .rsum{display:grid;grid-template-columns:220px 320px 1fr;gap:28px;align-items:center;border-bottom:1px solid var(--ln);padding-bottom:22px}
+.m .rsum>div:first-child{display:flex;flex-direction:column;gap:6px}
+.m .rlist{display:flex;flex-direction:column}
+.m .rlist>div{display:grid;grid-template-columns:220px 1fr;gap:28px;padding:20px 0;border-bottom:1px solid var(--ln)}
+.m .rlist span{display:flex;flex-direction:column;gap:4px}
+.m .rlist small{color:var(--mut);font-size:12px}
+.m .rlist p{font-size:15px}
+.m .tryon{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.m .tryon figure{margin:0;position:relative;aspect-ratio:4/5;border-radius:8px;overflow:hidden;background:var(--ice)}
+.m .tryon img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.m .tryon i{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,.92);display:grid;place-items:center;font-style:normal;font-size:20px;color:#111}
+.m .tryon figcaption{position:absolute;left:10px;bottom:10px;background:#fff;border-radius:3px;padding:6px 8px;font:700 11px/1 var(--body);letter-spacing:.4px;text-transform:uppercase}
 </style>
 </head>
 <body data-review-act="brand_yak_sports" data-review-slug="site-rebuild" data-review-title="Site rebuild">
@@ -319,7 +334,7 @@ a{color:var(--gold-ink)}
   <h1>Yak Before and After</h1>
   <p class="lede">Every page on yaksports.com today, next to what it becomes. The new pages use Yak's own logo, black and gold, and Montserrat, plus one new headline font that matches the italic type already in Yak's banners. The copy follows Yak's voice guide.</p>
   <nav class="jump" aria-label="Jump to">
-    <a href="#cro">Why people don't buy</a><a href="#trust">Trust</a><a href="#system">Look + voice</a><a href="#inspo">Inspiration</a><a href="#home">Homepage</a><a href="#ebf">Early Black Friday</a><a href="#hoodies">Hoodies</a><a href="#joggers">Joggers</a><a href="#allcols">All collections</a><a href="#pdp">Product page</a><a href="#compare">Compare</a><a href="#cart">Cart</a><a href="#bf">Black Friday</a><a href="#gifts">Gift guide</a><a href="#story">Our story</a><a href="#policies">Shipping + returns</a><a href="#findings">Every finding</a>
+    <a href="#cro">Why people don't buy</a><a href="#trust">Trust</a><a href="#system">Look + voice</a><a href="#inspo">Inspiration</a><a href="#inspomap">Inspo map</a><a href="#home">Homepage</a><a href="#ebf">Early Black Friday</a><a href="#hoodies">Hoodies</a><a href="#joggers">Joggers</a><a href="#allcols">All collections</a><a href="#pdp">Product page</a><a href="#compare">Compare</a><a href="#cart">Cart</a><a href="#bf">Black Friday</a><a href="#gifts">Gift guide</a><a href="#story">Our story</a><a href="#policies">Shipping + returns</a><a href="#findings">Every finding</a>
   </nav>
 </header>
 
@@ -337,7 +352,7 @@ a{color:var(--gold-ink)}
   <div style="display:flex;flex-direction:column;gap:6px"><span class="eyebrow">Conversion audit</span><h2>Why people don't buy, and what fixes it</h2></div>
   <p class="lede">Every page below exists to answer a doubt. These are the ten that stop a Yak sale today, what the shopper sees now, and where the new site answers it. Each page further down starts with the doubts it fixes.</p>
   <div class="cro-g">
-    <div class="card"><span class="q">"Who is Yak? Never heard of them."</span><span class="n"><b>Now:</b> no proof in the first scroll. 10 reviews on the Playmaker, none showing on the Breakaway. Our Story is three lines.</span><span class="f"><b>Fix:</b> stars and review count on every product card and under every price. The kid-and-dad founding story on the homepage and product page. Real customer photos.</span><span class="w"><a href="#home">Home</a><a href="#hoodies">Collections</a><a href="#pdp">Product</a><a href="#story">Story</a></span></div>
+    <div class="card"><span class="q">"Who is Yak? Never heard of them."</span><span class="n"><b>Now:</b> no proof in the first scroll. 10 reviews on the Playmaker, none showing on the Breakaway. Our Story is three lines.</span><span class="f"><b>Fix:</b> stars and review count on every product card and under every price. The kid-and-dad founding story on the homepage and Our Story. Real customer try-on videos on the homepage.</span><span class="w"><a href="#home">Home</a><a href="#hoodies">Collections</a><a href="#pdp">Product</a><a href="#story">Story</a></span></div>
     <div class="card"><span class="q">"$79 for a hoodie?"</span><span class="n"><b>Now:</b> the Playmaker description is an article about men's jackets. Not one line says why it costs $79.</span><span class="f"><b>Fix:</b> a "why it's $79" block with close-ups: stretch, hood, pocket, fabric. The free $30 beanie shown as part of the value.</span><span class="w"><a href="#pdp">Product</a><a href="#compare">Compare</a></span></div>
     <div class="card"><span class="q">"Will it fit me? Will it fit my kid?"</span><span class="n"><b>Now:</b> no size chart on the page, no model size, no fit notes.</span><span class="f"><b>Fix:</b> "Fits true to size" right above the sizes, "Find my size | Size guide" that pops up, and the model's height and size under the photo. Same as BYLT and Mott &amp; Bow.</span><span class="w"><a href="#pdp">Product</a><a href="#gifts">Gift guide</a></span></div>
     <div class="card"><span class="q">"Which one do I get?"</span><span class="n"><b>Now:</b> two $79 hoodies, the same gray photos, and both say "4-way stretch."</span><span class="f"><b>Fix:</b> the compare page, plus a compare strip on both product pages and a "Compare the two" button on Hoodies.</span><span class="w"><a href="#compare">Compare</a><a href="#pdp">Product</a><a href="#hoodies">Hoodies</a></span></div>
@@ -423,16 +438,45 @@ a{color:var(--gold-ink)}
   <div class="insp">
     <div class="card"><img src="comp/primo-collection-1.jpg" alt="Primo hoodies collection page"><div class="t"><b>Primo</b><span class="take">Take: clean white cards with one corner tag, quick add on the photo, "Bundle Deals" in the main menu, a delivery date on the product page.</span><span class="skip">Skip: their filter sidebar (Yak has 8 products, not 79).</span></div></div>
     <div class="card"><img src="comp/breezy-collection-1.jpg" alt="Breezy hoodies collection page"><div class="t"><b>Breezy</b><span class="take">Take: calm, square buttons, small gold "Best Seller" labels, lots of white space.</span><span class="skip">Skip: flat-lay hoodies with no person in them. Yak sells fit.</span></div></div>
-    <div class="card"><img src="comp/bylt-bundle-3pack-1.jpg" alt="BYLT 3-pack builder"><div class="t"><b>BYLT</b><span class="take">Take: the pack builder (step 1 size, step 2 colors, old price struck through) for Black Friday's 2 and 3 packs. "Model is 6'2", wears L."</span><span class="skip">Skip: 30% off sitewide. Yak's guide says don't sell on discounts.</span></div></div>
+    <div class="card"><img src="comp/bylt-bundle-3pack-1.jpg" alt="BYLT 3-pack builder"><div class="t"><b>BYLT</b><span class="take">Take: the pack builder (step 1 size, step 2 colors, old price struck through) for Black Friday's 2 and 3 packs. "Model is 6'1 and wears a size M" under the sizes.</span><span class="skip">Skip: 30% off sitewide. Yak's guide says don't sell on discounts.</span></div></div>
     <div class="card"><img src="comp/trueclassic-product-1.jpg" alt="True Classic hoodie product page"><div class="t"><b>True Classic</b><span class="take">Take: style tiles at the top of the collection, ranking hoodies with one line each, stars + customer count next to the title, 2-pack vs single.</span><span class="skip">Skip: member pricing and the paid club in the cart.</span></div></div>
     <div class="card"><img src="comp/mottandbow-home-1.jpg" alt="Mott and Bow homepage"><div class="t"><b>Mott &amp; Bow</b><span class="take">Take: the proof strip under the hero (customers, reviews, years) and pack pricing on the product page.</span><span class="skip">Skip: the 30% back pop-up. One offer at a time.</span></div></div>
   </div>
 </section>
+<section class="sec" id="inspomap">
+  <div style="display:flex;flex-direction:column;gap:6px"><span class="eyebrow">Where each idea came from</span><h2>The inspo map</h2>
+  <p class="lede">Every piece of the new site and the brand it came from. "Ours" means none of the five does it; those are marked so Rob can push back on them first.</p></div>
+  <div class="card tbl"><table class="cmp-t">
+    <tr><th>Page</th><th>Piece</th><th>From</th></tr>
+    <tr><td>Homepage</td><td>Proof strip under the hero</td><td>Mott &amp; Bow, True Classic ("7M+ customers, 70K+ reviews")</td></tr>
+    <tr><td>Homepage</td><td>Row of customer try-on videos</td><td>True Classic homepage ("Real guys. Real try-ons.")</td></tr>
+    <tr><td>Homepage</td><td>Offer in the hero ("Buy the hoodie. The beanie's on us.")</td><td>Ours (Yak's Early Black Friday offer)</td></tr>
+    <tr><td>Collections</td><td>Stars and one-line description on each card</td><td>True Classic</td></tr>
+    <tr><td>Collections</td><td>One corner tag, quick add "+"</td><td>Primo, Breezy ("Best Seller")</td></tr>
+    <tr><td>Collections</td><td>Lifestyle photo tile inside the grid ("Can't decide?")</td><td>Ours (your call)</td></tr>
+    <tr><td>Product</td><td>Row of all 4 hoodies at the top</td><td>True Classic (#1 Best Seller, #2...)</td></tr>
+    <tr><td>Product</td><td>Color swatches as little product photos</td><td>Primo</td></tr>
+    <tr><td>Product</td><td>Fit note + "Find my size | Size guide" above the sizes</td><td>Mott &amp; Bow, BYLT, Primo (fit note)</td></tr>
+    <tr><td>Product</td><td>"Model is 6'1", wearing M"</td><td>Mott &amp; Bow (under photo), BYLT (under sizes)</td></tr>
+    <tr><td>Product</td><td>Arrival date under the button</td><td>True Classic ("Arrives 11/07 - 11/12"), Primo ("Get it on or before...")</td></tr>
+    <tr><td>Product</td><td>"Style it with" joggers with a "+"</td><td>True Classic</td></tr>
+    <tr><td>Product</td><td>Details, Fit, Shipping as tabs under the button</td><td>Mott &amp; Bow, True Classic, Breezy</td></tr>
+    <tr><td>Product</td><td>One on-model video clip in the photos</td><td>BYLT</td></tr>
+    <tr><td>Product</td><td>Product band, then You might also like, then all reviews last</td><td>True Classic, BYLT, Mott &amp; Bow</td></tr>
+    <tr><td>Product</td><td>Sizing bar on reviews (runs small / true / big)</td><td>BYLT</td></tr>
+    <tr><td>Product</td><td>Free beanie box under the price</td><td>Ours (the offer)</td></tr>
+    <tr><td>Compare</td><td>Two hoodies side by side, pick by feel</td><td>True Classic's hoodie row and "Compare Lengths", made into its own page (ours)</td></tr>
+    <tr><td>Black Friday</td><td>Buy more, save more tiers; pack builder</td><td>True Classic ("1 / 3 Save 40%"), Mott &amp; Bow (3-pack, 2-pack), BYLT (pack builder)</td></tr>
+    <tr><td>Cart</td><td>Slide-out cart, shipping bar, add-ons</td><td>Ours (common on Shopify stores; not checked on the five)</td></tr>
+    <tr><td>Gift guide, Story, Policies</td><td>Layout and copy</td><td>Ours, in Yak's voice guide</td></tr>
+  </table></div>
+</section>
+
 
 <!-- ========== HOMEPAGE ========== -->
 <section class="ba" id="home">
   <div class="ba-head"><div class="l"><span class="eyebrow">Page 1</span><h2>Homepage</h2><span class="u">yaksports.com</span>
-    <ul class="chg"><li>Today the first screen says "Shop the collections, find your style" with a golfer, and hoodies don't show up until well down the page. 5 everyday ads land here.</li><li>New: the offer and the hoodie up top, proof right under it, then "pick your hoodie," then Why Yak, best sellers, the YAKSAK (where Yak started) and reviews.</li></ul><p class="stop"><b>Stops</b>"Who is Yak?" and "Is there a deal right now?" The beanie, stars, best sellers and the founding story all sit in the first two scrolls.</p></div>
+    <ul class="chg"><li>Today the first screen says "Shop the collections, find your style" with a golfer, and hoodies don't show up until well down the page. 5 everyday ads land here.</li><li>New: the offer and the hoodie up top, proof right under it, then "pick your hoodie," then Why Yak, best sellers, a row of try-on videos (True Classic's homepage does this), the YAKSAK (where Yak started) and reviews.</li></ul><p class="stop"><b>Stops</b>"Who is Yak?" and "Is there a deal right now?" The beanie, stars, best sellers and the founding story all sit in the first two scrolls.</p></div>
     <button class="toggle" type="button">See new page larger</button></div>
   <div class="cols">
     <div class="col"><span class="lab n">Now</span><div class="shots"><img src="now/home-1.jpg" alt="Current homepage, top"><img src="now/home-2.jpg" alt="Current homepage, middle"><img src="now/home-3.jpg" alt="Current homepage, lower"></div></div>
@@ -469,6 +513,16 @@ a{color:var(--gold-ink)}
           <div class="pc"><div class="im"><img src="img/bj.jpg" alt="Breakaway jogger"><span class="tag">Matches the hoodie</span><span class="qa">+</span></div><div class="tl"><span>Breakaway Jogger</span><span>$99</span></div><div class="ft">Soft · tapered</div><div class="dots"><i style="background:#111"></i><i style="background:#b9ae9a"></i></div></div>
           <div class="pc"><div class="im"><img src="img/yba.jpg" alt="Youth Breakaway"><span class="tag">Youth</span><span class="qa">+</span></div><div class="tl"><span>Youth Breakaway</span><span>$79</span></div><div class="ft">YS to YXL</div><div class="dots"><i style="background:#a6abb0"></i><i style="background:#111"></i><i style="background:#22a14d"></i>+2</div></div>
         </div>
+      </div>
+      <div class="sec">
+        <div class="colhead"><div><span class="eb">Real players. Real try-ons.</span><h3 class="D D2" style="margin-top:8px">Don't take our word for it.</h3></div><span class="mut" style="font-weight:700;font-size:12px;letter-spacing:1px">SWIPE →</span></div>
+        <div class="tryon">
+          <figure><img src="img/pm-maroon.jpg" alt=""><i>▶</i><figcaption>Playmaker · Maroon · M</figcaption></figure>
+          <figure><img src="img/ba-ash2.jpg" alt=""><i>▶</i><figcaption>Breakaway · Ash · S</figcaption></figure>
+          <figure><img src="img/pm-royal.jpg" alt=""><i>▶</i><figcaption>Playmaker · Royal · L</figcaption></figure>
+          <figure><img src="img/ypm.jpg" alt=""><i>▶</i><figcaption>Youth Playmaker · YM</figcaption></figure>
+        </div>
+        <span class="mut" style="font-size:12px">From True Classic's homepage ("Real guys. Real try-ons."): 4 phone videos of customers trying it on. Yak's need filming: creators or customers, 15 to 30 seconds each.</span>
       </div>
       <div class="hero ice" style="min-height:440px"><div class="ph"><img src="img/couple.jpg" alt="Couple in Breakaway hoodies"></div><div class="tx"><span class="eb">Where it started</span><h3 class="D D2">The YAKSAK came first.</h3><p class="sub">A 12-year-old player and his dad built a bag that lets the hockey stank out. Hoodies came later. The attitude came with it.</p><div class="row"><span class="btn">Shop YAKSAK bags</span><span class="btn o">Our story</span></div></div></div>
       <div class="sec"><div class="g3">
@@ -607,7 +661,7 @@ a{color:var(--gold-ink)}
 <!-- ========== PDP ========== -->
 <section class="ba" id="pdp">
   <div class="ba-head"><div class="l"><span class="eyebrow">Page 6 · product template · rebuilt Nov 5 from the five brands</span><h2>Product page</h2><span class="u">yaksports.com/products/playmaker-hoodie-3</span>
-    <ul class="chg"><li>Today, below the photos: a closed "Description" tab (on the Playmaker it's an article about men's jackets), then 10 reviews. No fit help, no ship date, nothing about the beanie.</li><li>New: everything that decides the sale sits next to the photos, the way BYLT, Mott &amp; Bow and True Classic do it. Below the fold there are only three things: a product band, reviews with a sizing bar, and "you might also like."</li></ul><p class="stop"><b>Stops</b>"Which one?", "Will it fit?", "When does it get here?", "Worth $79?", "Do real people like it?" All answered before you scroll.</p></div>
+    <ul class="chg"><li>Today, below the photos: a closed "Description" tab (on the Playmaker it's an article about men's jackets), then 10 reviews. No fit help, no ship date, nothing about the beanie.</li><li>New: everything that decides the sale sits next to the photos, the way BYLT, Mott &amp; Bow and True Classic do it: fit note and "Find my size" right above the sizes, the model's size under the photo, arrival date under the button.</li><li>Below the fold, in the same order True Classic, BYLT and Mott &amp; Bow use: a product band, then "You might also like," then every review at the bottom with a sizing bar and filters.</li><li>The play button in the photos is a 10-second on-model clip (turn around, stretch, hood up), the way BYLT does it. It needs filming or a cut from Yak's ad footage.</li></ul><p class="stop"><b>Stops</b>"Which one?", "Will it fit?", "When does it get here?", "Worth $79?", "Do real people like it?" All answered before you scroll.</p></div>
     <button class="toggle" type="button">See new page larger</button></div>
 
   <div class="card" style="display:flex;flex-direction:column;gap:12px">
@@ -619,7 +673,15 @@ a{color:var(--gold-ink)}
       <div class="card"><img src="pdp/primo-product-1.jpg" alt="Primo product page"><div class="t"><b>Primo</b><span class="take">Color swatches are little photos of the product. "Get it on or before Sunday, November 15" above the button. Their hoodie page says "true to size, but we recommend sizing up for a looser fit."</span></div></div>
       <div class="card"><img src="pdp/breezy-product-1.jpg" alt="Breezy product page"><div class="t"><b>Breezy</b><span class="take">Simplest of the five: stars, color, "Size chart" link, Shop Pay button. Description, Features and Care as tabs below.</span></div></div>
     </div>
-    <span class="mut" style="font-size:12.5px">None of the five put labels on their photos, a video row, an FAQ or the brand story on a product page. So those are gone from Yak's.</span>
+    <div class="card tbl" style="padding:0"><table class="cmp-t">
+      <tr><th>On the product page</th><th>True Classic</th><th>BYLT</th><th>Mott &amp; Bow</th><th>Primo</th><th>Breezy</th><th>Yak (new)</th></tr>
+      <tr><td><b>Fit note by the sizes</b></td><td>Size Guide link</td><td>Size Guide | Find My Size</td><td>Find your size | Size Guide + "runs small, size up"</td><td>"true to size, size up for looser"</td><td>Size chart link</td><td>Fit line + Find my size | Size guide</td></tr>
+      <tr><td><b>"Model is X, wears Y"</b></td><td>On some (zip hoodie: 6'2")</td><td>Under the sizes</td><td>Under the photo</td><td>No</td><td>No</td><td>Under the photo</td></tr>
+      <tr><td><b>Video</b></td><td>None on the page. Try-on videos are on the homepage.</td><td>One clip in the photos</td><td>None</td><td>None</td><td>None</td><td>One clip in the photos</td></tr>
+      <tr><td><b>Order below the fold</b></td><td>Guarantee + "why you'll love it" &rarr; You may also like &rarr; Reviews</td><td>Complete the look &rarr; You might also like &rarr; Bought together &rarr; Reviews</td><td>Product story &rarr; features &rarr; "see the rest" &rarr; Reviews</td><td>Paired with &rarr; gallery &rarr; also bought</td><td>Details tabs &rarr; Reviews</td><td>Product band &rarr; You might also like &rarr; Reviews</td></tr>
+      <tr><td><b>FAQ / brand story</b></td><td>No (footer links)</td><td>No</td><td>No</td><td>No</td><td>No</td><td>No</td></tr>
+    </table></div>
+    <span class="mut" style="font-size:12.5px">Checked live Nov 5 on each brand's hoodie page (Mott &amp; Bow on its jeans page; its hoodie collection is empty right now).</span>
   </div>
 
   <div class="cols">
@@ -648,7 +710,7 @@ a{color:var(--gold-ink)}
           <div style="font:700 12px/1 var(--body);letter-spacing:1px;text-transform:uppercase">Color: Glacier Blue</div>
           <div class="psw"><img class="on" src="img/pm-glacier.jpg" alt=""><img src="img/pm-maroon.jpg" alt=""><img src="img/pm-navy.jpg" alt=""><img src="img/pm-red.jpg" alt=""><img src="img/pm-kelly.jpg" alt=""><img src="img/pm-royal.jpg" alt=""><img src="img/pm-black.jpg" alt=""><span>+6</span></div>
           <div class="row" style="justify-content:space-between;font:700 12px/1 var(--body);letter-spacing:1px;text-transform:uppercase"><span>Size</span><span class="links"><u>Find my size</u> | <u>Size guide</u></span></div>
-          <div class="fitln">Fits true to size. Size up if you want it roomy.</div>
+          <div class="fitln"><b>Fit:</b> true to size. Size up if you want it roomy.</div>
           <div class="sizes"><span>S</span><span class="on">M</span><span>L</span><span>XL</span><span>2XL</span><span>3XL</span></div>
           <span class="btn" style="text-align:center">Add to cart · $79</span>
           <div class="lines"><div>🚚 Arrives <b>Nov [10 to 14]</b> · free shipping over $150</div><div>◔ Or 4 payments of $19.75 with Shop Pay</div></div>
@@ -661,16 +723,6 @@ a{color:var(--gold-ink)}
 
       <div class="band"><img src="img/couple.jpg" alt="Two people in Yak hoodies"><div class="tx"><span class="eb" style="color:#BC955C">Why you'll live in it</span><h3 class="D D2">Built for the rink. Worn everywhere else.</h3><p class="sub">Stretches when you move, holds its shape, and washes without pilling. Rink, gym, car ride home.</p></div></div>
 
-      <div class="sec">
-        <span class="eb">Reviews</span>
-        <div class="revs">
-          <div style="display:flex;flex-direction:column;gap:10px"><span class="big">5.0</span><span class="stars" style="font-size:20px">★★★★★</span><span class="mut">10 reviews · all verified</span><div class="meter" style="margin-top:6px">Sizing<i></i><span><span>Small</span><span>True to size</span><span>Big</span></span></div></div>
-          <div class="rev"><span class="stars">★★★★★</span>"This is the absolute BEST hoodie! It's soft, but durable and washes well with no pilling."<span class="who">Courtney H.</span></div>
-          <div class="rev"><span class="stars">★★★★★</span>"These are fantastic hoodies!! They fit great and are true to size."<span class="who">Nicholas T. · Navy · L</span></div>
-          <div class="rev"><span class="stars">★★★★★</span>"My son loves these sweatshirts!"<span class="who">Lindsey C. · verified</span></div>
-        </div>
-      </div>
-
       <div class="sec ice">
         <div class="colhead"><h3 class="D D3">You might also like</h3></div>
         <div class="g4">
@@ -681,6 +733,23 @@ a{color:var(--gold-ink)}
         </div>
       </div>
 
+      <div class="sec">
+        <div class="colhead"><h3 class="D D2">Reviews</h3><span class="btn o s">Write a review</span></div>
+        <div class="rsum">
+          <div><span class="big">5.0</span><span class="stars" style="font-size:20px">★★★★★</span><span class="mut">10 reviews · all verified</span></div>
+          <div class="meter">Sizing<i></i><span><span>Runs small</span><span>True to size</span><span>Runs big</span></span></div>
+          <div class="chips"><span class="chip on">All (10)</span><span class="chip">With photos</span><span class="chip">Size M</span><span class="chip">Youth</span><span class="chip">Most recent ▾</span></div>
+        </div>
+        <div class="rlist">
+          <div><span><b>Courtney H.</b><small>Verified · Oct 23, 2026</small></span><p><span class="stars">★★★★★</span><br>"This is the absolute BEST hoodie! It's soft, but durable and washes well with no pilling."</p></div>
+          <div><span><b>Robert K.</b><small>Oct 22, 2026</small></span><p><span class="stars">★★★★★</span><br>"One of the best hoodies I've ever had!"</p></div>
+          <div><span><b>Lindsey C.</b><small>Verified · Oct 10, 2026</small></span><p><span class="stars">★★★★★</span><br>"My son loves these sweatshirts!"</p></div>
+          <div><span><b>Nick S.</b><small>Verified · Military Green / XL</small></span><p><span class="stars">★★★★★</span><br>"The quality and comfort of the materials is second to none!"</p></div>
+          <div><span><b>Jeffrey F.</b><small>Verified · Royal Blue / XL</small></span><p><span class="stars">★★★★★</span><br>"This royal blue totally pops and is super comfortable. I may have one in every color if I don't be too careful!"</p></div>
+          <div><span><b>Nicholas T.</b><small>Verified · Navy / L</small></span><p><span class="stars">★★★★★</span><br>"These are fantastic hoodies!! They fit great and are true to size. I have ordered most of the colors they come in."</p></div>
+        </div>
+        <span class="btn o" style="align-self:center">Show more reviews</span>
+      </div>
       <div class="sec">
         <span class="eb">When you tap "Find my size" (pops up, from the bottom on phones)</span>
         <div class="sheet">
@@ -864,7 +933,7 @@ a{color:var(--gold-ink)}
     <div><span class="pill half">High</span><span>Playmaker description opens with a "Men's Hooded Jackets" SEO article, which is also its Google snippet. Fix: real copy (page 6).</span></div>
     <div><span class="pill half">High</span><span>Homepage doesn't lead with hoodies; first screen is "Shop the collections" with a golfer. Fix: page 1.</span></div>
     <div><span class="pill half">High</span><span>Nothing explains Playmaker vs Breakaway, and both pages claim "4-way stretch." Fix: page 7, plus Rob confirms the stretch claim.</span></div>
-    <div><span class="pill half">High</span><span>No size guide anywhere. Fix: size drawer + policies page.</span></div>
+    <div><span class="pill half">High</span><span>Product page has no fit note, no model size, no size guide and no arrival date. BYLT, Mott &amp; Bow, True Classic and Primo all put these next to the sizes. Fix: page 6 ("Find my size" pop-up, model line, arrival date).</span></div><div><span class="pill half">High</span><span>No video of anyone wearing Yak, anywhere on the site. Fix: 4 try-on videos for the homepage (True Classic style) and one 10-second on-model clip per hoodie (BYLT style). Needs filming.</span></div><div><span class="pill half">High</span><span>"Join the Herd, 15% off" box sits next to the free beanie offer on every product page. Two offers, one muddy message. Fix: early access sign-up instead until Black Friday (Rob to OK).</span></div>
     <div><span class="pill half">High</span><span>Hoodies collection: no title, youth first, "Sale price" with no sale, SEO title still "Shop Hockeyak Hockey Hoodies." Fix: page 3.</span></div>
     <div><span class="pill half">High</span><span>Hoodies, Joggers and Youth aren't in the top menu; an empty Collegiate is. Fix: new menu (page 5).</span></div>
     <div><span class="pill half">High</span><span>Breakaway has 0 reviews going into its biggest month. Fix: review request email to past Breakaway buyers.</span></div>
