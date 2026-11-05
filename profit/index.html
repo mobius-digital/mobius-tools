@@ -2441,8 +2441,8 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="v2.js?v=84"></script>
 <script src="inspo.js?v=1"></script>
 <script src="leaks.js?v=11"></script>
-<script src="desk.js?v=35"></script>
-<script src="buyer.js?v=9"></script>
+<script src="desk.js?v=36"></script>
+<script src="buyer.js?v=10"></script>
 <script src="agency.js?v=3"></script>
 <script src="calendar.js?v=15"></script>
 <script src="social.js?v=12"></script>
@@ -5182,7 +5182,7 @@ const NAV4 = {
   /* THE STRUCTURE REVIEW (2026-11-04, steps 4 to 9): Ads is paid media by platform. Calls (the Buyer list; a client's read-only page), Launch
      (Ready cards and what went out), All (every channel side by side), then one tab per platform whose levels are a switch under it
      (META_JOBS, GOOGLE_JOBS), then Tests. Email and Search moved to Money; the Brief is Reports > Daily; Requests is Clients > Requests. */
-  ads: { label: 'Ads', tabs: [['buyer', 'Calls'], ['today', 'Calls'], ['launch', 'Launch'], ['channels', 'All'], ['meta', 'Meta', 'b-meta'], ['google', 'Google', 'b-google'], ['tiktok', 'TikTok', 'b-tiktok'], ['angles', 'Tests']] },
+  ads: { label: 'Ads', tabs: [['buyer', 'Calls'], ['launch', 'Launch'], ['channels', 'All'], ['meta', 'Meta', 'b-meta'], ['google', 'Google', 'b-google'], ['tiktok', 'TikTok', 'b-tiktok'], ['angles', 'Tests']] },
   products: { label: 'Products', tabs: [['stock', 'Stock'], ['buying', 'Buying'], ['drops', 'Drops']] },
   make: { label: 'Make', tabs: [['production', 'Pipeline'], ['studio', 'Studio'], ['library', 'Library'], ['inspo', 'Inspiration'], ['social', 'Social'], ['amb', 'Creators'], ['answers', 'Brand']] },
   calendar: { label: 'Calendar', tabs: [['calendar', 'Calendar'], ['warplan', 'Season']] },
@@ -5264,7 +5264,7 @@ function navGo(g) { const ok = t => (!isClient() || clientTabOk(t)) && tabInView
    Agency settings, which a client never opens. A NEW PAGE IS IN THE BRAND EDITION BY DEFAULT: add it to AGENCY_TABS
    only when it runs many brands at once, and add its routes to CLIENT_RULES in brandguard.js (both copies). */
 const isClient = () => S.role === 'client';
-const AGENCY_TABS = new Set(['buyer', 'launch', 'economics', 'workload', 'calls', 'tasks', 'actions', 'meetings', 'monday', 'ccall']);   // production left 2026-10-14: a client sees Production for its own brand (prodsheet.js client view); actions (and the old ids that route to it): the team's page, never a client's
+const AGENCY_TABS = new Set(['launch', 'economics', 'workload', 'calls', 'tasks', 'actions', 'meetings', 'monday', 'ccall']);   // production left 2026-10-14: a client sees Production for its own brand (prodsheet.js client view); actions (and the old ids that route to it): the team's page, never a client's
 /* Kept for older callers: every page that is not the agency's. */
 const CLIENT_TABS = { has: t => !AGENCY_TABS.has(t) };   // stock, buying and drops included (2026-10-12)
 /* The four access switches are gone (2026-10-10): everything is on. Kept for older callers. */
@@ -5297,7 +5297,6 @@ const tabScope = t => AGENCY_ONLY.has(t) ? 'agency' : VIEW_BOTH.has(t) ? 'both' 
 function tabInView(g, t, agency = inAgency()) {
   if (V4 && t === 'requests') return g === 'work' ? !isClient() : g === 'reports' ? isClient() : true;   // one Requests tab each: Clients for the team, Reports for a client login
   if (g === 'work') return t !== 'ccall' || !agency;   // Meetings and Tasks in both views (2026-10-27); Client call only under a brand
-  if (V4 && g === 'ads' && t === 'today') return isClient();   // one Calls tab: the team's is the Buyer list (step 2)
   if (g === 'creative' && t === 'production') return !agency;
   if (g === 'home' && t === 'tasks') return !agency;   // under a client, Tasks sits in Home; in Agency view it is Work > Tasks
   const sc = tabScope(t);
@@ -5613,7 +5612,7 @@ function show(tab, opt) {
   if (V4 && tab === 'overview') tab = 'morning';
   /* ONE CALLS PAGE (2026-11-04, structure step 2): for the team, Today's calls is the Buyer list (same rows, shared Done / Skip, every brand or one).
      A client login keeps the read-only Today's calls page until the Buyer list has a client view; both tabs are named Calls and each viewer sees one. */
-  if (V4 && tab === 'today' && !isClient()) tab = 'buyer';
+  if (V4 && tab === 'today') tab = 'buyer';   // one Calls page for everyone (2026-11-05): a client login reads its own brand's calls there
   if (!V4 && tab === 'morning') tab = 'overview';
   if (!V4 && tab === 'month') tab = 'profit';
   /* An unknown page id (a stale saved tab, a bad link) lands on Overview instead of

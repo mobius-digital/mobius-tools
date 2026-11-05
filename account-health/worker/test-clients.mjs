@@ -498,6 +498,11 @@ await check('the 2026-10-27 audit: act_id alone is written back as act (no fall-
   assert.equal((await pf(CLIENT, 'GET', '/api/angles/beta-creators')).status, 403, 'another brand\'s creator link');
   assert.notEqual((await pf(CLIENT, 'GET', '/api/amb/board-ads?act=brand_alpha')).status, 403);
   assert.notEqual((await ah(CLIENT, 'GET', '/api/buyer-list/state?act=brand_alpha')).status, 403);
+  assert.notEqual((await ah(CLIENT, 'GET', '/api/buyer-list?act=brand_alpha')).status, 403, 'a client reads its own calls');
+  assert.equal((await ah(CLIENT, 'GET', '/api/buyer-list?act=brand_beta')).status, 403);
+  assert.equal((await ah(CLIENT, 'GET', '/api/buyer-list?act=all')).status, 403);
+  assert.equal((await ah(CLIENT, 'POST', '/api/buyer-list/decision', { act: 'brand_alpha', object: 'x', action: 'cut', decision: 'yes' })).status, 403, 'the team decides');
+  assert.equal((await ah(CLIENT, 'GET', '/api/buyer-list/ready-check?act=brand_alpha')).status, 403);
   assert.equal((await ah(CLIENT, 'POST', '/api/buyer-list/state', { act: 'brand_beta', object: 'x', action: 'cut', status: 'done' })).status, 403);
   assert.equal((await ah(CLIENT, 'POST', '/api/buyer-list/state', { act: 'brand_alpha', object: 'x', action: 'cut', status: 'done', owner: 'Cole' })).status, 403, 'only the state fields');
   assert.notEqual((await ah(CLIENT, 'GET', '/api/social/grid?act=brand_alpha')).status, 403);

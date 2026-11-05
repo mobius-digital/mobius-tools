@@ -249,6 +249,7 @@ export const CLIENT_RULES = [
   R('GET', '/api/hub/paid'),
   R('GET', '/api/hub/moved'),   // the "moved" nudge items (2026-10-27)
   /* Today's calls: Done / Not now are the Buyer list's shared state; the handler holds a client to its brands (2026-10-27) */
+  R('GET', '/api/buyer-list'),   // Ads > Calls, read only, the client's own brand (2026-11-05); every other buyer-list route is the team's
   R('GET', '/api/buyer-list/state'),
   R('POST', '/api/buyer-list/state', 'need', { fields: ['object', 'action', 'status', 'name'] }),
   R('GET', '/api/hub/drill'),

@@ -50,6 +50,9 @@
   /* 2026-11-04 (the structure review): this file draws two pages from the one list. Ads > Calls ('buyer') is every row that is not a launch;
      Ads > Launch ('launch') is the Ready cards to launch plus Launched and scheduled. */
   const LMODE = () => !!(H && H.S && H.S.tab === 'launch');
+  /* A CLIENT LOGIN (2026-11-05) reads its own brand's calls here: the same rows, the why and the ads, no Yes / No, no team
+     tools. The team makes the changes; a decided row says so. The server leaves launches and the owner out for a client. */
+  const CL = () => !!(H && H.S && H.S.role === 'client');
   const HERE = () => !!(H && H.S && (H.S.tab === 'buyer' || H.S.tab === 'launch'));
   let KIND = 'all', SHOWQ = false, DATA = null, BUSY = false, LQ = '', LALL = false, LREAD = '';
   const DAYS = [['mon', 'Monday'], ['tue', 'Tuesday'], ['wed', 'Wednesday'], ['thu', 'Thursday'], ['fri', 'Friday'], ['sat', 'Saturday'], ['sun', 'Sunday']];
@@ -280,7 +283,9 @@
     const nx = d.next_launch || {};
     const next = !d.launch_today && nx.n ? `<p class="by-next">Next launch: <b>${esc(nx.day)}</b>, ${nx.n} card${nx.n === 1 ? '' : 's'} (${nx.n_ads} approved ad${nx.n_ads === 1 ? '' : 's'}). Ready cards go out on launch days, ${esc(daysWords(d.launch_days))}.${lm ? '' : ' <button type="button" class="v2link" data-go="launch">Open Launch ›</button>'}</p>`
       : d.launch_today && (d.counts || {}).launch ? `<p class="by-next">Launch day today: ${d.counts.launch} card${d.counts.launch === 1 ? '' : 's'} to launch.${lm ? '' : ' <button type="button" class="v2link" data-go="launch">Open Launch ›</button>'}</p>` : '';
-    const lead = lm ? `<p class="v2say lead by-lead"><b>${rows.length ? `${rows.length} card${rows.length === 1 ? '' : 's'} ready to launch` : 'Nothing to launch today'}</b>${one ? '' : ` across ${groups.length} brand${groups.length === 1 ? '' : 's'}`}.</p>
+    const lead = CL() ? `<p class="v2say lead by-lead"><b>${rows.length ? `${rows.length} call${rows.length === 1 ? '' : 's'} on your ads today` : 'Nothing to change on your ads today'}</b>.</p>
+      <p class="by-lead"><span class="v2hint">What the Mobius team is changing and why, ad set first. The team makes each change; a row says when it is done. Tap an ad for its numbers and the video.</span></p>`
+      : lm ? `<p class="v2say lead by-lead"><b>${rows.length ? `${rows.length} card${rows.length === 1 ? '' : 's'} ready to launch` : 'Nothing to launch today'}</b>${one ? '' : ` across ${groups.length} brand${groups.length === 1 ? '' : 's'}`}.</p>
       <p class="by-lead"><span class="v2hint">Launch opens Launch to Meta for the card; the ads go up paused. Below: what is scheduled and what went out, with its status read from Meta.</span></p>`
       : `<p class="v2say lead by-lead">${dec.of ? `<b>${dec.n} of ${dec.of} decided</b>${dec.n === dec.of ? '. All set.' : ''}` : '<b>Nothing needs a decision today</b>'}${one ? '' : ` across ${groups.length} brand${groups.length === 1 ? '' : 's'}`}. <span class="by-own">Owner: <b>${esc(d.owner)}</b> <button type="button" class="v2link" id="byOwner">Change</button></span></p>
       <p class="by-lead"><span class="v2hint">Yes makes the change in Meta (logged, Undo for 24 hours). No leaves it and teaches Locus your reason. Tap an ad for its numbers and the video.</span>${nDo > 1 ? ` <button type="button" class="v2btn" id="byAll" title="See every change in one list, then Locus makes them one by one. Rows that need you are skipped.">Yes to all ${nDo}</button>` : ''}</p>`;
@@ -289,7 +294,7 @@
       : `<section class="v2card"><h3>Nothing to do</h3><p class="v2hint">No ad set crossed a rule, no test minimum is due off. Done and skipped calls come back when they are due.</p></section>`;
     const listL = rows.length ? list : '';
     const h = d.hidden || {}, nq = (h.done || 0) + (h.skipped || 0) + (h.watched || 0) + (h.dropped || 0);
-    const foot = `<div class="by-foot"><span>Brands with the most money at stake first. Sales are Triple Whale last click.</span>${one ? '<button type="button" class="v2link" id="byCalls">Your calls</button>' : ''}${nq ? `<button type="button" class="v2link" id="byQuiet">${SHOWQ ? 'Hide' : 'Show'} ${nq} quiet: ${[h.done ? `${h.done} done` : '', h.skipped ? `${h.skipped} skipped until tomorrow` : '', h.watched ? `${h.watched} changed in Meta in the last 3 days` : '', h.dropped ? `${h.dropped} Locus dropped` : ''].filter(Boolean).join(', ')}</button>` : ''}</div>`;
+    const foot = `<div class="by-foot"><span>Brands with the most money at stake first. Sales are Triple Whale last click.</span>${one && !CL() ? '<button type="button" class="v2link" id="byCalls">Your calls</button>' : ''}${nq ? `<button type="button" class="v2link" id="byQuiet">${SHOWQ ? 'Hide' : 'Show'} ${nq} quiet: ${[h.done ? `${h.done} done` : '', h.skipped ? `${h.skipped} skipped until tomorrow` : '', h.watched ? `${h.watched} changed in Meta in the last 3 days` : '', h.dropped ? `${h.dropped} Locus dropped` : ''].filter(Boolean).join(', ')}</button>` : ''}</div>`;
     const quiet = SHOWQ && nq ? `<section class="v2card"><div class="v2h"><h3>Quiet for now</h3><span class="find">Done stays quiet 3 days, Skip until tomorrow, and a change made in Meta is watched 3 days before it is judged again.</span></div>${(d.quiet || []).map(qrow).join('')}</section>` : '';
     /* Tracking gap (hub.js buyerList banners): one line per brand whose cuts are on hold. */
     const banners = (d.banners || []).map(b => `<p class="v2say by-gap" role="note"><b>${esc(b.brand)}</b>: ${esc(b.text)}</p>`).join('');
@@ -298,8 +303,8 @@
     const notes = (d.notes || []).length ? `<p class="by-notes">Could not read everything: ${esc(d.notes.join(' · '))}</p>` : '';
     const lsec = `<section class="v2card by-lnch" id="byLaunch"><div class="v2h"><h3>Launched and scheduled</h3><input type="search" class="by-find" id="byFind" placeholder="${one ? 'Find a card or ad' : 'Find a brand, card or ad'}" value="${esc(LQ)}" aria-label="Find in launched and scheduled"></div>
       <p class="v2hint" style="margin:4px 0 0">Launch days: ${esc(daysWords(d.launch_days))} (Central). A card with its own date goes out on that date. <button type="button" class="v2link" id="byDays">Change launch days</button></p><div id="byLBody">${launchBody()}</div></section>`;
-    $('#main').innerHTML = `<div class="v2 by">${H.pageHead(lm ? 'launch' : 'buyer', one ? `${lm ? 'Launch' : 'Calls'}: ${esc((H.S.accounts.find(a => a.act_id === d.act) || {}).name || '')}` : lm ? 'Launch' : 'Calls').replace(/<p class="ph-sub">[\s\S]*?<\/p>/, '')}${lm ? `${lead}${next}${listL}${checkSec()}${lsec}${notes}` : `${lead}${banners}${aiLine}${next}${list}${foot}${quiet}${notes}`}</div>`;
-    if (typeof H.pageActions === 'function') H.pageActions(lm ? `<button type="button" class="btn" id="byDrops" title="One-time sales and limited drops: when one ends or sells out, its ads go off and stay off.">Drops and sales</button>` : `${one ? `<button type="button" class="btn" id="byWwd" title="The plain client update from today's Yes rows: what we changed, one line each.">What we did</button>` : ''}<button type="button" class="btn" id="byDrops" title="One-time sales and limited drops: when one ends or sells out, its ads go off and stay off.">Drops and sales</button><button type="button" class="btn" id="bySlack" title="The one Buyer list message a day in Slack: where it goes, on or off, and what it says now.">Slack post</button>`);
+    $('#main').innerHTML = `<div class="v2 by">${H.pageHead(lm ? 'launch' : 'buyer', one ? `${lm ? 'Launch' : 'Calls'}: ${esc((H.S.accounts.find(a => a.act_id === d.act) || {}).name || '')}` : lm ? 'Launch' : 'Calls').replace(/<p class="ph-sub">[\s\S]*?<\/p>/, '')}${lm ? `${lead}${next}${listL}${checkSec()}${lsec}${notes}` : `${lead}${banners}${CL() ? '' : aiLine}${CL() ? '' : next}${list}${foot}${quiet}${notes}`}</div>`;
+    if (typeof H.pageActions === 'function') H.pageActions(CL() ? '' : lm ? `<button type="button" class="btn" id="byDrops" title="One-time sales and limited drops: when one ends or sells out, its ads go off and stay off.">Drops and sales</button>` : `${one ? `<button type="button" class="btn" id="byWwd" title="The plain client update from today's Yes rows: what we changed, one line each.">What we did</button>` : ''}<button type="button" class="btn" id="byDrops" title="One-time sales and limited drops: when one ends or sells out, its ads go off and stay off.">Drops and sales</button><button type="button" class="btn" id="bySlack" title="The one Buyer list message a day in Slack: where it goes, on or off, and what it says now.">Slack post</button>`);
     wire();
   }
   const decidedOf = rows => { const t = rows.filter(r => (r.card || {}).decide); return { n: t.filter(r => r.decided).length, of: t.length }; };
@@ -313,8 +318,8 @@
     const sorted = g.rows.slice().sort((p, q) => CARD_ORDER.indexOf(cardKind(p)) - CARD_ORDER.indexOf(cardKind(q)) || (q.stake || 0) - (p.stake || 0));
     const week = ai && ai.week && ai.week.length ? `<div class="by-week">${ai.week.map(factHtml).join('')}</div>` : '';
     const line = ai && ai.headline ? `<p class="line">${esc(ai.headline)}</p>` : '';
-    const wwd = DATA.act === 'all' && dec.n ? `<button type="button" class="v2btn ghost" data-wwd="${esc(g.act_id)}">What we did</button>` : '';
-    const all = g.n_do > 1 && DATA.act === 'all' ? `<button type="button" class="v2btn ghost" data-allb="${esc(g.act_id)}">Yes to all ${g.n_do}</button>` : '';
+    const wwd = !CL() && DATA.act === 'all' && dec.n ? `<button type="button" class="v2btn ghost" data-wwd="${esc(g.act_id)}">What we did</button>` : '';
+    const all = !CL() && g.n_do > 1 && DATA.act === 'all' ? `<button type="button" class="v2btn ghost" data-allb="${esc(g.act_id)}">Yes to all ${g.n_do}</button>` : '';
     return `<section class="v2card by-card" id="by_${esc(g.act_id)}"><div class="by-bh"><div class="nm"><h3>${esc(g.brand)}</h3><span class="m">${dec.of ? `${dec.n} of ${dec.of} decided` : 'nothing to decide'}${g.stake > 0 ? `, ${esc(kmoney(g.stake, g.currency))} at stake` : ''}</span>${all}${wwd}</div>${week}${line}</div>${sorted.map(row).join('')}</section>`;
   }
   const LSHOW = 25;
@@ -445,16 +450,17 @@
     const tags = `<span class="by-k ${kind}">${KTAG[kind] || kind}</span><span class="lv">${lvl}: <b>${esc(obj)}</b></span>${r.changed ? `<span class="by-chg" title="${esc(r.rule ? `The rule said: ${r.rule.action}. ${r.rule.why}` : '')}">Locus changed this</span>` : r.kind === 'ai' ? '<span class="by-chg" title="The rules did not flag this; the morning read did.">Locus found this</span>' : ''}`;
     /* a row with no card (the read has not run, an old row): the rules' own call decides */
     const decide = c.decide != null ? !!c.decide : (!!r.do || ['raise', 'cut', 'trim', 'refresh', 'tidy', 'launch'].includes(kind));
-    const dec = decide
+    const dec = CL() ? `<div class="by-dec"><span class="by-fyi">${!decide ? esc(c.fyi || 'Nothing to do') : d ? (d.decision === 'yes' ? 'Done' : 'Left as it is') : 'With the team'}</span></div>`
+      : decide
       ? `<div class="by-dec"><button type="button" class="v2btn yes${d && d.decision === 'yes' ? ' on' : ''}" data-yes="${k}" title="${esc(r.do ? (DO_TIP[r.do] || 'Make the change.') : 'Mark it decided: you made the change, or will.')}">Yes</button><button type="button" class="v2btn no${d && d.decision === 'no' ? ' on' : ''}" data-no="${k}" title="Leave it. Say why in one line so Locus learns.">No</button></div>`
       : `<div class="by-dec"><span class="by-fyi">${esc(c.fyi || 'Nothing to do')}</span></div>`;
     const facts = (c.facts || []).length ? `<div class="by-facts">${c.facts.map(factHtml).join('')}</div>` : '';
     const why = c.because || r.why || '';
     const because = why ? `<div class="by-bec"><b>Why</b>${esc(why)}</div>` : '';
     const sub = r.kind === 'launch' ? (r.launch_on ? `Ready on Production, dated ${ymdShort(r.launch_on)}` : 'Ready on Production') : '';
-    const note = decide && d && d.decision === 'no' ? (d.note ? `<div class="by-said">You said: ${esc(d.note)}</div>${LAST_ANS.has(r.key) ? `<div class="by-ans">Locus: ${esc(LAST_ANS.get(r.key))}</div>` : ''}`
+    const note = CL() ? '' : decide && d && d.decision === 'no' ? (d.note ? `<div class="by-said">You said: ${esc(d.note)}</div>${LAST_ANS.has(r.key) ? `<div class="by-ans">Locus: ${esc(LAST_ANS.get(r.key))}</div>` : ''}`
       : `<div class="by-note"><input type="text" maxlength="600" data-note="${k}" placeholder="Why not? One line. Locus learns from it." aria-label="Why not"><button type="button" class="v2btn ghost" data-save="${k}">Save</button></div>`) : '';
-    const cf = `<div class="by-cf">${sub ? `<span>${esc(sub)}</span>` : ''}${r.checked && r.checked !== why ? `<span class="by-chk">Locus checked: ${esc(r.checked)}</span>` : ''}${d ? `<span>${d.decision === 'yes' ? 'Yes' : 'No'} by ${esc(firstName(d.by) || 'you')}, ${esc(whenCT(d.at))}</span>` : ''}<button type="button" class="v2link" data-open="${k}">Open in Locus</button>${!d ? `<button type="button" class="v2link" data-skip="${k}" title="Hide it for everyone until tomorrow.">Later</button>` : ''}</div>`;
+    const cf = `<div class="by-cf">${sub ? `<span>${esc(sub)}</span>` : ''}${r.checked && r.checked !== why ? `<span class="by-chk">Locus checked: ${esc(r.checked)}</span>` : ''}${d ? `<span>${d.decision === 'yes' ? 'Yes' : 'No'} by ${esc(firstName(d.by) || 'you')}, ${esc(whenCT(d.at))}</span>` : ''}<button type="button" class="v2link" data-open="${k}">Open in Locus</button>${!d && !CL() ? `<button type="button" class="v2link" data-skip="${k}" title="Hide it for everyone until tomorrow.">Later</button>` : ''}</div>`;
     return `<div class="by-cr${d ? ` ${d.decision}` : ''}" data-key="${k}">
       <div class="by-ch"><div><div class="by-lab">${tags}</div><div class="by-do">${esc(c.do || r.action)}</div></div>${dec}</div>
       ${facts}${because}${stripHtml(r)}${note}${cf}</div>`;
