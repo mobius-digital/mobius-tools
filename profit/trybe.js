@@ -220,12 +220,38 @@
       <td class="num" data-l="Not launched">${r.queue}</td><td class="num" data-l="Over ${d.stale_days} days">${r.stale ? `<span class="tb-b">${r.stale}</span>` : '0'}</td><td class="num" data-l="Oldest">${r.queue ? `${r.oldest}d` : ''}</td><td class="num" data-l="Launched, no spend">${r.no_spend || 0}</td><td class="num" data-l="Waiting on review">${r.pending}</td><td class="num" data-l="Approved">${r.approved}</td><td class="num" data-l="Updated">${esc(ago(r.synced_at))}</td></tr>`).join('');
     const waiting = b.reduce((s, r) => s + r.queue, 0);
     const none = (d.no_key || []).map(x => `<button type="button" class="v2link" data-tbact="${esc(x.act_id)}">${esc(x.name)}</button>`).join(', ');
-    $('#main').innerHTML = shell(`<section class="v2card"><div class="v2h"><h3>${waiting} approved video${waiting === 1 ? '' : 's'} not launched</h3><span class="cap">across ${b.length} brand${b.length === 1 ? '' : 's'}</span></div>
+    $('#main').innerHTML = shell(`<section class="v2card" id="tbScore"><div class="v2h"><h3>Creator scorecard</h3><span class="cap">Getting the numbers…</span></div></section><section class="v2card"><div class="v2h"><h3>${waiting} approved video${waiting === 1 ? '' : 's'} not launched</h3><span class="cap">across ${b.length} brand${b.length === 1 ? '' : 's'}</span></div>
       ${b.length ? `<div class="v2tbl"><table><thead><tr><th>Brand</th><th class="num">Not launched</th><th class="num">Over ${d.stale_days} days</th><th class="num">Oldest</th><th class="num">Launched, no spend</th><th class="num">Waiting on review</th><th class="num">Approved</th><th class="num">Updated</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="v2hint">No brand has a Trybe key yet. Open a brand to connect it.</p>'}
       ${none ? `<p class="v2hint">Not connected: ${none}</p>` : ''}
       <div class="tb-foot"><span class="v2hint">Slack lines are <b>${d.alerts ? 'on' : 'off'}</b>: each brand's internal channel hears when approved videos sit ${d.stale_days} days without being launched, and gets Monday's list of creators to ask for more.</span><button type="button" class="v2btn ghost" id="tbAlerts">${d.alerts ? 'Turn off' : 'Turn on'}</button></div></section>`);
     if (H.pageActions) H.pageActions('');
     wire();
+    score();
+  }
+
+  /* The scorecard (2026-11-05): one row per creator program, last 7 days, with the 30 day cost per sale beside it.
+     Sales are Triple Whale, spend is Meta. Lucky comes from its own creator app. */
+  let SCORE = null, SCORE_W = '7';
+  async function score() {
+    const box = document.getElementById('tbScore'); if (!box) return;
+    try { if (!SCORE) SCORE = await H.apiAH('/api/trybe/scorecard'); if (SCORE && SCORE.error) throw new Error(SCORE.error); }
+    catch (e) { box.innerHTML = `<div class="v2h"><h3>Creator scorecard</h3></div><p class="v2bad">${esc(e.message)}</p>`; return; }
+    const k = SCORE_W === '7' ? 'last_7' : 'last_30';
+    const cpaCell = w => w.cpa == null ? (w.spend > 0 ? '<span class="tb-b">no sale</span>' : '') : `<span class="${w.on_goal == null ? '' : w.on_goal ? 'tb-g' : 'tb-b'}">${money(w.cpa)}</span>${w.goal_cpa ? `<span class="tb-sub"> / ${money(w.goal_cpa)}</span>` : ''}`;
+    const v = x => (x == null ? '' : x);
+    const rows = SCORE.cards.map(c => {
+      if (c.error) return `<tr><td><span class="nm">${esc(c.name)}</span></td><td colspan="8" class="v2hint">${esc(c.error)}</td></tr>`;
+      const w = c[k] || {};
+      return `<tr${c.source === 'trybe' ? ` class="link" data-tbact="${esc(c.act_id)}"` : ''}><td><span class="nm">${esc(c.name)}</span>${c.source === 'lucky_app' ? ' <span class="v2pill">Lucky app</span>' : ''}</td>
+        <td class="num" data-l="Creator ad spend">${money(w.spend)}</td><td class="num" data-l="Sales">${money(w.sales)}</td><td class="num" data-l="Cost per sale / goal">${cpaCell(w)}</td>
+        <td class="num" data-l="Videos with a sale">${SCORE_W === '7' ? v(w.winners) : ''}</td><td class="num" data-l="Videos in / approved / launched">${v(w.videos_in)} / ${v(w.approved)} / ${v(w.launched)}</td>
+        <td class="num" data-l="Waiting to launch">${c.waiting != null ? (c.waiting > 0 ? `<span class="tb-b">${c.waiting}</span>` : '0') : ''}</td><td class="num" data-l="Active creators">${v(c.creators_active)}</td><td class="num" data-l="Discord">${v(c.discord)}</td></tr>`;
+    }).join('');
+    box.innerHTML = `<div class="v2h"><h3>Creator scorecard</h3><span class="cap"><select id="tbScoreW" aria-label="Window"><option value="7"${SCORE_W === '7' ? ' selected' : ''}>Last 7 days</option><option value="30"${SCORE_W === '30' ? ' selected' : ''}>Last 30 days</option></select></span></div>
+      <p class="v2hint">Creator ads only. Sales from Triple Whale, spend from Meta. Cost per sale is green at or under the brand's goal.</p>
+      <div class="v2tbl"><table><thead><tr><th>Program</th><th class="num">Creator ad spend</th><th class="num">Sales</th><th class="num">Cost per sale / goal</th><th class="num">${SCORE_W === '7' ? 'Videos with a sale' : ''}</th><th class="num">Videos in / approved / launched</th><th class="num">Waiting to launch</th><th class="num">Active creators</th><th class="num">Discord</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    const sel = document.getElementById('tbScoreW'); if (sel) sel.onchange = () => { SCORE_W = sel.value; score(); };
+    box.querySelectorAll('[data-tbact]').forEach(r => { r.onclick = () => { if (H.setViewAct) H.setViewAct(r.dataset.tbact); H.show('trybe'); }; });
   }
 
   /* ---- pop ups: a bottom sheet on a phone ---- */
