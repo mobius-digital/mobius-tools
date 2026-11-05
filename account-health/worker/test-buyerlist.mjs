@@ -318,5 +318,33 @@ await check('What we did: one plain past-tense line per Yes row, nothing from a 
   assert.ok(!t.includes('—'));
 });
 
+await check('Ready against Meta: a name must START with the card number; one line says live, scheduled, paused or nothing', async () => {
+  const { numHit, adPlace, metaVerdict } = await import('./src/buyerlist.js');
+  assert.ok(numHit('408', '408 | Still | 353-1 iteration'));
+  assert.ok(numHit('408', '#408 A'));
+  assert.ok(numHit(332, '332-27 ebf-35'));
+  assert.ok(numHit('26', '26-1 Adeola Gold Link Set'));
+  assert.ok(!numHit('408', '4081 | Still'), 'a longer number is another card');
+  assert.ok(!numHit('408', 'Iteration of 408'), 'the number must lead the name');
+  assert.ok(!numHit('', 'anything') && !numHit(null, '408'));
+  const now = Date.parse('2026-11-05T12:00:00Z');
+  const set = (start, end) => ({ id: 's1', name: '408 | Still', start, end });
+  assert.equal(adPlace({ eff: 'ACTIVE', set: set('2026-11-01T00:00:00Z', null) }, now), 'live');
+  assert.equal(adPlace({ eff: 'ACTIVE', set: set('2026-11-26T06:00:00Z', '2026-12-01T06:00:00Z') }, now), 'scheduled');
+  assert.equal(adPlace({ eff: 'ACTIVE', set: set('2026-10-01T00:00:00Z', '2026-11-01T00:00:00Z') }, now), 'ended');
+  assert.equal(adPlace({ eff: 'CAMPAIGN_PAUSED', set: set(null, null) }, now), 'camp_off');
+  assert.equal(adPlace({ eff: 'PAUSED', set: set(null, null) }, now), 'ad_off');
+  assert.equal(metaVerdict([], now).state, 'none');
+  const live = metaVerdict([{ eff: 'ACTIVE', set: set('2026-11-01T00:00:00Z', null), camp: { name: 'CBO' } }, { eff: 'PAUSED', set: set('2026-11-01T00:00:00Z', null), camp: { name: 'CBO' } }], now);
+  assert.equal(live.state, 'live'); assert.equal(live.n, 2);
+  assert.match(live.line, /^1 ad live in "408 \| Still"\. 1 off or ended\.$/);
+  const sch = metaVerdict([1, 2, 3].map(() => ({ eff: 'ACTIVE', set: set('2026-11-26T06:00:00Z', '2026-12-01T06:00:00Z'), camp: { name: 'BFCM 2026' } })), now);
+  assert.equal(sch.state, 'scheduled');
+  assert.match(sch.line, /^3 ads start Thu, Nov 26 in "408 \| Still", by themselves\.$/);
+  const off = metaVerdict([{ eff: 'CAMPAIGN_PAUSED', set: set(null, null), camp: { name: 'Holiday 2026' } }], now);
+  assert.equal(off.state, 'paused'); assert.match(off.line, /the campaign is off/);
+  for (const v of [live, sch, off, metaVerdict([], now)]) assert.ok(!v.line.includes('—'));
+});
+
 console.log(`\n${n}/${n + bad} passed`);
 if (bad) process.exit(1);

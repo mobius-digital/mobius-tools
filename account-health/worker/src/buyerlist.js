@@ -41,6 +41,7 @@ import { readToday } from './todaypost.js';
 import { locksFor, lockedBy } from './drops.js';
 import { eligible, morningHour } from './morningcard.js';
 import { adsOf, isCarousel } from './prodwork.js';
+import { gall } from './metawrite.js';
 import { readAI, applyAI, aiPassDone, buyerAIOn, adNumbers, withCovers, metaActsOf, disagree, decide, lessonsFor, buyerAITick, spentToday, trackingCheck, DAY_CAP, POST_WAIT_HOURS, noDash, CARD_KINDS } from './buyerai.js';
 
 export const DEFAULT_BUYER_CHANNEL = 'C0C8UA53U3W';   // #daily-briefs
@@ -338,6 +339,92 @@ export function schedRow(c, n, date, isDated) {
     name: `${c.num ? `#${c.num} ` : ''}${c.title || 'Untitled card'}`, board: c.board, date, dated: !!isDated, n_ads: n };
 }
 const sortSched = a => a.sort((p, q) => String(p.date).localeCompare(String(q.date)) || String(p.brand).localeCompare(String(q.brand)));
+
+/* ---------- READY AGAINST META (2026-11-05, the structure review; what /launch did by hand in chat) ----------
+   Locus only knows an ad is on Meta when Locus launched it (p_launch). Batches loaded another way (the Graph loader, Ads
+   Manager) stay "Ready, not on Meta" here. So for every Ready card, and every Review card with a date, ask Meta for ads and
+   ad sets NAMED with the card's number (ad.name / adset.name CONTAIN, then a strict "starts with the number" test), and say
+   in one line what Meta has: live, starts on a date, paused (and at which level), ended, or nothing by that name.
+   Two Graph reads per card and Meta account, one brand per request (the page asks brand by brand), 20 cards at most. */
+export const CHECK_CARDS = 20;
+/* Card numbers get reused over the years (Ice & Gold's #15 matched a batch 15 from the spring): only ads made in the last CHECK_DAYS count. */
+export const CHECK_DAYS = 120;
+/** Does this ad or ad set name start with the card's number? "408 | Still", "#408 A", "332-27 ebf-35" yes; "4081", "v408" no. */
+export function numHit(num, name) {
+  const n = String(num == null ? '' : num).trim().replace(/^#/, '');
+  if (!n || !/^[\w.-]+$/.test(n)) return false;
+  return new RegExp(`^\\s*#?\\s*${n.replace(/[.\-]/g, '\\$&')}(?![0-9])`, 'i').test(String(name || ''));
+}
+const dayCT = iso => new Date(iso).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/Chicago' });
+/** One ad's place: live, scheduled, review, ad_off, set_off, camp_off, problem, ended. */
+export function adPlace(a, now = Date.now()) {
+  const t = iso => Date.parse(iso || '') || 0, s = a.set || {};
+  if (t(s.end) && t(s.end) <= now) return 'ended';
+  const e = String(a.eff || '').toUpperCase();
+  if (e === 'ACTIVE') return t(s.start) > now ? 'scheduled' : 'live';
+  if (['PENDING_REVIEW', 'IN_PROCESS', 'PREAPPROVED'].includes(e)) return 'review';
+  if (e === 'ADSET_PAUSED') return 'set_off';
+  if (e === 'CAMPAIGN_PAUSED') return 'camp_off';
+  if (['DISAPPROVED', 'WITH_ISSUES'].includes(e)) return 'problem';
+  return 'ad_off';
+}
+/** What Meta has for one card, from the ads named with its number: { state, n, line, sets }. */
+export function metaVerdict(ads, now = Date.now()) {
+  if (!ads.length) return { state: 'none', n: 0, line: 'Nothing in Meta is named with this number.', sets: [] };
+  const by = {}; for (const a of ads) { const p = adPlace(a, now); (by[p] = by[p] || []).push(a); }
+  const n = ads.length, c = k => (by[k] || []).length, pl = (k, w) => `${k} ad${k === 1 ? '' : 's'}${w ? ` ${w}` : ''}`;
+  const setMap = new Map();
+  for (const a of ads) { const s = a.set || {}, k = s.id || s.name || '?'; const x = setMap.get(k) || { name: s.name || '', campaign: (a.camp || {}).name || '', start: s.start || null, end: s.end || null, n: 0 }; x.n++; setMap.set(k, x); }
+  const sets = [...setMap.values()].sort((p, q) => q.n - p.n).slice(0, 4);
+  const where = sets[0] && sets[0].name ? ` in "${sets[0].name}"${sets.length > 1 ? ` and ${sets.length - 1} more ad set${sets.length === 2 ? '' : 's'}` : ''}` : '';
+  const rest = k => { const o = n - c(k); return o > 0 ? ` ${o} more cannot run yet.` : ''; };
+  if (c('live')) return { state: 'live', n, sets, line: `${pl(c('live'), 'live')}${where}.${c('scheduled') ? ` ${pl(c('scheduled'), 'scheduled')}.` : ''}${n - c('live') - c('scheduled') > 0 ? ` ${n - c('live') - c('scheduled')} off or ended.` : ''}` };
+  if (c('scheduled')) { const first = by.scheduled.map(a => a.set.start).sort()[0]; return { state: 'scheduled', n, sets, start: first, line: `${pl(c('scheduled'))} start ${dayCT(first)}${where}, by themselves.${rest('scheduled')}` }; }
+  if (c('review')) return { state: 'review', n, sets, line: `${pl(c('review'))} in Meta's review${where}.${rest('review')}` };
+  if (c('camp_off')) return { state: 'paused', n, sets, line: `${pl(n)} in Meta${where}, but the campaign is off. Turn the campaign on when it should run.` };
+  if (c('set_off')) return { state: 'paused', n, sets, line: `${pl(n)} in Meta${where}, but the ad set is off.` };
+  if (c('ad_off')) return { state: 'paused', n, sets, line: `${pl(n)} in Meta${where}, all paused.` };
+  if (c('problem')) return { state: 'problem', n, sets, line: `${pl(c('problem'))} rejected or with issues in Meta${where}.` };
+  const end = by.ended.map(a => a.set.end).sort().pop();
+  return { state: 'ended', n, sets, line: `${pl(n)} in Meta${where}, the ad set ended ${dayCT(end)}.` };
+}
+/** Ready cards (and Review cards with a date) for one brand, each with what Meta has under its number. */
+export async function readyCheck(env, d, a, { now = Date.now(), today = centralToday() } = {}) {
+  if (!d.listBoard) return { act: a.act_id, brand: a.name, cards: [], n_cards: 0 };
+  const board = await d.listBoard(env, { act: a.act_id });
+  const dated = c => /^\d{4}-\d{2}-\d{2}$/.test(c.launch_on || '') ? c.launch_on : '';
+  const all = ((board && board.cards) || []).filter(c => c.act_id === a.act_id && (c.board === 'ready' || (c.board === 'review' && dated(c))));
+  const cards = all.slice(0, CHECK_CARDS);
+  const acts = (await metaActsOf(env, a.act_id, null).catch(() => [])).filter(x => /^act_/.test(String(x)));
+  const AD_F = 'id,name,effective_status,created_time,adset{id,name,start_time,end_time},campaign{id,name}';
+  const young = x => !x.created_time || Date.parse(x.created_time) >= now - CHECK_DAYS * 864e5;
+  const SET_F = 'id,name,start_time,end_time,campaign{id,name},ads.limit(200){id,name,effective_status,created_time}';
+  const out = [];
+  for (const c of cards) {
+    const base = { card_id: c.id, act_id: c.act_id, brand: a.name, num: c.num || null, name: `${c.num ? `#${c.num} ` : ''}${c.title || 'Untitled card'}`, board: c.board, launch_on: dated(c) || null };
+    if (!c.num) { out.push({ ...base, state: 'nonum', n: 0, line: 'The card has no number, so it cannot be matched to Meta by name.', sets: [] }); continue; }
+    if (!acts.length) { out.push({ ...base, state: 'error', n: 0, line: 'This brand has no Meta ad account connected in Locus.', sets: [] }); continue; }
+    try {
+      const ads = new Map(), near = [];   // near = names that contain the number without starting with it (shown, never counted)
+      for (const act of acts) {
+        const [byAd, bySet] = await Promise.all([
+          gall(d, env, `${act}/ads`, { fields: AD_F, filtering: [{ field: 'ad.name', operator: 'CONTAIN', value: String(c.num) }], limit: '200' }, 1),
+          gall(d, env, `${act}/adsets`, { fields: SET_F, filtering: [{ field: 'adset.name', operator: 'CONTAIN', value: String(c.num) }], limit: '50' }, 1),
+        ]);
+        for (const x of byAd) if (!numHit(c.num, x.name)) near.push(x.name);
+        for (const s of bySet) if (!numHit(c.num, s.name)) near.push(s.name);
+        for (const x of byAd) if (numHit(c.num, x.name) && young(x)) ads.set(String(x.id), { id: String(x.id), name: x.name, eff: x.effective_status, set: x.adset ? { id: x.adset.id, name: x.adset.name, start: x.adset.start_time || null, end: x.adset.end_time || null } : null, camp: x.campaign ? { name: x.campaign.name } : null });
+        for (const s of bySet) if (numHit(c.num, s.name)) for (const x of ((s.ads && s.ads.data) || [])) if (!ads.has(String(x.id)) && young(x))
+          ads.set(String(x.id), { id: String(x.id), name: x.name, eff: x.effective_status, set: { id: s.id, name: s.name, start: s.start_time || null, end: s.end_time || null }, camp: s.campaign ? { name: s.campaign.name } : null });
+      }
+      const v = metaVerdict([...ads.values()], now);
+      if (v.state === 'none' && near.length && (String(c.num).length >= 3 || near.length <= 5)) v.line = `Nothing in Meta starts with this number. ${near.length} name${near.length === 1 ? ' contains' : 's contain'} it, for example "${clean(near[0], 70)}".`;
+      out.push({ ...base, ...v, near: near.length });
+    } catch (e) { out.push({ ...base, state: 'error', n: 0, line: `Could not read Meta: ${clean(e.message, 160)}`, sets: [] }); }
+  }
+  const inMeta = out.filter(x => ['live', 'scheduled', 'review', 'paused', 'problem', 'ended'].includes(x.state)).length;
+  return { act: a.act_id, brand: a.name, as_of: new Date(now).toISOString(), today, cards: out, n_cards: out.length, n_in_meta: inMeta, n_missing: out.filter(x => x.state === 'none').length, more: Math.max(0, all.length - cards.length) };
+}
 
 /** p_launch rows of the last LAUNCHED_DAYS days for these brands, newest first, with the card's number and title. */
 export async function launchedRows(env, accts, { days = LAUNCHED_DAYS, limit = 400 } = {}) {
@@ -686,6 +773,15 @@ export async function handleBuyer(request, env, url, path, json, h) {
         }
       }
       return json({ launched: rows, refreshed, error });
+    }
+    /* Ready against Meta (readyCheck): one brand per call, read live from Meta by the card's number in ad and ad set names. */
+    if (path === '/api/buyer-list/ready-check' && request.method === 'GET') {
+      const act = await actOf(url.searchParams.get('act'));
+      if (!act || act === 'all') return json({ error: 'Pick a brand first.' }, 400);
+      if (only && !only.has(act)) return json({ error: 'You do not have access to this brand.' }, 403);
+      const a = (await d.listAccounts(env, true)).find(x => x.act_id === act);
+      if (!a) return json({ error: 'No such brand.' }, 404);
+      return json(await readyCheck(env, d, a, { today: d.centralDate ? d.centralDate() : centralToday() }));
     }
     if (path === '/api/buyer-list/state' && request.method === 'GET') {
       const act = await actOf(url.searchParams.get('act'));

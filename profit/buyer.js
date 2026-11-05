@@ -267,6 +267,7 @@
     catch (e) { if (t === H.RUN()) $('#main').innerHTML = shell(`<section class="v2card"><h3>Could not load the list</h3><p class="v2bad">${esc(e.message)}</p><button type="button" class="v2btn" id="byRetry">Try again</button></section>`); const b = $('#byRetry'); if (b) b.onclick = () => render(H, true); return; }
     if (t !== H.RUN()) return;
     DATA = d; LREAD = ''; paint();
+    if (LMODE() && (CHK.act !== d.act || !CHK.done)) runCheck();
     if ((d.launched || []).length) readLaunched(d.act);
   }
 
@@ -297,7 +298,7 @@
     const notes = (d.notes || []).length ? `<p class="by-notes">Could not read everything: ${esc(d.notes.join(' · '))}</p>` : '';
     const lsec = `<section class="v2card by-lnch" id="byLaunch"><div class="v2h"><h3>Launched and scheduled</h3><input type="search" class="by-find" id="byFind" placeholder="${one ? 'Find a card or ad' : 'Find a brand, card or ad'}" value="${esc(LQ)}" aria-label="Find in launched and scheduled"></div>
       <p class="v2hint" style="margin:4px 0 0">Launch days: ${esc(daysWords(d.launch_days))} (Central). A card with its own date goes out on that date. <button type="button" class="v2link" id="byDays">Change launch days</button></p><div id="byLBody">${launchBody()}</div></section>`;
-    $('#main').innerHTML = `<div class="v2 by">${H.pageHead(lm ? 'launch' : 'buyer', one ? `${lm ? 'Launch' : 'Calls'}: ${esc((H.S.accounts.find(a => a.act_id === d.act) || {}).name || '')}` : lm ? 'Launch' : 'Calls').replace(/<p class="ph-sub">[\s\S]*?<\/p>/, '')}${lm ? `${lead}${next}${listL}${lsec}${notes}` : `${lead}${banners}${aiLine}${next}${list}${foot}${quiet}${notes}`}</div>`;
+    $('#main').innerHTML = `<div class="v2 by">${H.pageHead(lm ? 'launch' : 'buyer', one ? `${lm ? 'Launch' : 'Calls'}: ${esc((H.S.accounts.find(a => a.act_id === d.act) || {}).name || '')}` : lm ? 'Launch' : 'Calls').replace(/<p class="ph-sub">[\s\S]*?<\/p>/, '')}${lm ? `${lead}${next}${listL}${checkSec()}${lsec}${notes}` : `${lead}${banners}${aiLine}${next}${list}${foot}${quiet}${notes}`}</div>`;
     if (typeof H.pageActions === 'function') H.pageActions(lm ? `<button type="button" class="btn" id="byDrops" title="One-time sales and limited drops: when one ends or sells out, its ads go off and stay off.">Drops and sales</button>` : `${one ? `<button type="button" class="btn" id="byWwd" title="The plain client update from today's Yes rows: what we changed, one line each.">What we did</button>` : ''}<button type="button" class="btn" id="byDrops" title="One-time sales and limited drops: when one ends or sells out, its ads go off and stay off.">Drops and sales</button><button type="button" class="btn" id="bySlack" title="The one Buyer list message a day in Slack: where it goes, on or off, and what it says now.">Slack post</button>`);
     wire();
   }
@@ -318,6 +319,51 @@
   }
   const LSHOW = 25;
   const hit = (...xs) => { const q = LQ.trim().toLowerCase(); return !q || xs.some(x => String(x || '').toLowerCase().includes(q)); };
+  /* READY AGAINST META (2026-11-05, account-health buyerlist.js readyCheck): Locus only knows an ad is on Meta when Locus launched
+     it. This asks Meta, brand by brand, for ads and ad sets named with each Ready (or dated Review) card's number and says in
+     one line what is there. Runs by itself when Launch opens; "Check again" reruns it. Reads only, changes nothing. */
+  const CHK = { act: null, brands: [], busy: false, done: false, at: '' };
+  const CHK_ST = { live: ['Live', 'good'], scheduled: ['Starts by itself', 'good'], review: ['In review', 'warn'], paused: ['In Meta, off', 'warn'], problem: ['Rejected', 'bad'], ended: ['Ended', 'warn'], none: ['Not in Meta', 'bad'], nonum: ['No number', 'warn'], error: ['Could not read', 'warn'] };
+  const CHK_ORDER = ['none', 'problem', 'paused', 'ended', 'error', 'nonum', 'review', 'scheduled', 'live'];
+  function checkBody() {
+    const one = DATA && DATA.act !== 'all';
+    if (!CHK.brands.length) return `<p class="v2hint">${CHK.busy ? 'Asking Meta what it has under each card&rsquo;s number&hellip;' : CHK.done ? 'No card is in Ready, and no card in Review has a launch date.' : 'Not checked yet.'}</p>`;
+    return CHK.brands.map(g => {
+      if (g.error) return `${one ? '' : `<h4>${esc(g.brand)}</h4>`}<p class="by-notes">Could not check ${esc(g.brand)}: ${esc(g.error)}</p>`;
+      const rows = [...g.cards].sort((x, y) => CHK_ORDER.indexOf(x.state) - CHK_ORDER.indexOf(y.state)).map(c => { const st = CHK_ST[c.state] || CHK_ST.error; return `<div class="by-l">
+        <span class="w">${c.launch_on ? esc(ymdShort(c.launch_on)) : c.board === 'review' ? 'Review' : 'Ready'}</span><span class="b">${one ? '' : esc(g.brand)}</span>
+        <div class="a"><div class="n" title="${esc(c.name)}">${esc(c.name)}</div><div class="s">${esc(c.line || '')}</div></div>
+        <span class="st ${st[1]}">${st[0]}</span><button type="button" class="v2btn ghost" data-lopen="${esc(c.card_id)}" data-lact="${esc(c.act_id)}">Card</button></div>`; }).join('');
+      const head = `${g.n_cards} card${g.n_cards === 1 ? '' : 's'}: ${g.n_in_meta} in Meta, ${g.n_missing} not found${g.more ? `, ${g.more} more not checked` : ''}`;
+      return `<h4>${one ? '' : `${esc(g.brand)}: `}${head}</h4>${rows}`;
+    }).join('') + (CHK.busy ? '<p class="v2hint">Still checking the other brands&hellip;</p>' : '');
+  }
+  const checkSec = () => `<section class="v2card by-lnch" id="byCheck"><div class="v2h"><h3>Ready cards against Meta</h3><button type="button" class="v2btn ghost" id="byCheckGo"${CHK.busy ? ' disabled' : ''}>Check again</button></div>
+      <p class="v2hint" style="margin:4px 0 0">Matched by the card&rsquo;s number at the start of an ad or ad set name, read live from Meta${CHK.at ? ` at ${esc(CHK.at)} Central` : ''}. A batch named another way reads Not in Meta.</p><div id="byCheckBody">${checkBody()}</div></section>`;
+  function paintCheck() {
+    const s = document.getElementById('byCheck'); if (!s || !LMODE()) return;
+    s.outerHTML = checkSec(); wireCheck();
+  }
+  function wireCheck() {
+    const go = document.getElementById('byCheckGo'); if (go) go.onclick = () => runCheck(true);
+    const root = document.getElementById('byCheck'); if (root) root.querySelectorAll('[data-lopen]').forEach(x => x.onclick = e => { e.stopPropagation(); openCard(x.dataset.lact, x.dataset.lopen); });
+  }
+  async function runCheck(again) {
+    if (CHK.busy || !DATA) return;
+    const act = DATA.act;
+    Object.assign(CHK, { act, brands: [], busy: true, done: false }); paintCheck();
+    const acts = act !== 'all' ? [act] : (H.S.accounts || []).map(a => a.act_id);
+    for (const id of acts) {
+      if (!DATA || DATA.act !== act || !LMODE()) break;
+      try { const j = await H.apiAH(`/api/buyer-list/ready-check?act=${encodeURIComponent(id)}`); if (j && j.error) throw new Error(j.error); if ((j.cards || []).length) CHK.brands.push(j); }
+      catch (e) { CHK.brands.push({ act: id, brand: ((H.S.accounts || []).find(a => a.act_id === id) || {}).name || id, cards: [], error: e.message }); }
+      paintCheck();
+    }
+    CHK.busy = false; CHK.done = !!DATA && DATA.act === act;
+    CHK.at = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' });
+    paintCheck();
+    if (again) toast('Checked against Meta.');
+  }
   function launchBody() {
     const d = DATA, one = d.act !== 'all';
     const sch = (d.scheduled || []).filter(s => hit(s.brand, s.name));
@@ -549,7 +595,7 @@
     const dr = document.getElementById('byDrops'); if (dr) dr.onclick = dropsModal;
     const dy = $('#byDays'); if (dy) dy.onclick = daysModal;
     const fd = $('#byFind'); if (fd) fd.oninput = () => { LQ = fd.value; paintLaunch(); };
-    wireLaunch();
+    wireLaunch(); wireCheck();
     root.querySelectorAll('[data-skip]').forEach(b => b.onclick = async () => {
       const r = find(b.dataset.skip); if (!r || BUSY) return;
       b.disabled = true;
