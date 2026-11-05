@@ -4706,7 +4706,13 @@ this goes for all things that go from the right side", and the Integrations pane
   levels are the switch under it: `META_JOBS` (Overview, Campaigns, Ads, Changes), `GOOGLE_JOBS` with a direct Google Ads link. `V4_HOME` maps the level
   ids to their platform tab (campaigns / adcreative / changes / mtoday / mbrowser -> meta, g* -> google). `ACCOUNT_JOBS` and `CHANGE_JOBS` are unused.
 - **Launch** is buyer.js in a second mode (`LMODE()`: `H.S.tab === 'launch'`): launch rows + Launched and scheduled. Calls shows every other row and a link
-  to Launch. Team only (`AGENCY_TABS`), both views (`VIEW_BOTH`). There is no Ready-vs-Meta diff on the server yet; /launch still does that in chat.
+  to Launch. Team only (`AGENCY_TABS`), both views (`VIEW_BOTH`).
+- **Ready cards against Meta** (2026-11-05, buyer.js?v=9 `runCheck` / `checkSec`, account-health buyerlist.js `readyCheck`, GET
+  `/api/buyer-list/ready-check?act=<brand>`): for every Ready card and every Review card with a date, Meta is asked live for ads and ad sets whose
+  name STARTS with the card's number (`numHit`; CONTAIN filter, then the strict test; ads made in the last 120 days only, numbers get reused).
+  One line per card (`metaVerdict`): Live, Starts by itself, In review, In Meta but off (ad / ad set / campaign), Ended, Not in Meta. Two Graph
+  reads per card and Meta account, 20 cards a brand; the page asks brand by brand (Agency view walks every brand). Reads only. A batch named
+  without its number (Bonk "Gift cards | parked", Lucky 453) reads Not in Meta: the fix is the name in Meta, not the code.
 - **One call on the gallery** (v2.js `creative()`, `callOf`): where Calls has an open ad-level call, or a Cut on the ad's set, the card's pill shows that call
   (tip starts "Today's call on Ads > Calls"). Team only, 3.5 second cap on the read. The gallery's own verdict uses the same rule numbers.
 - Moved: Email and Search to **Money**; the Brief to **Reports > Daily**; Requests to **Clients** (a client login sees it under Reports: `tabInView`).
