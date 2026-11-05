@@ -90,6 +90,27 @@ export function cleanWeek(w) {
   return empty ? null : out;
 }
 
+/* Top creators and top videos for the hub (2026-11-05): Triple Whale sales, last 30 days, from the ads Trybe built
+   (p_trybe_ad / p_trybe_sub, filled by the account-health Trybe sync). Sales counts only, never money. First name and
+   last initial, because the page needs no sign-in. No Trybe key or no sales = null, and the section is not drawn. */
+export async function trybeLeaders(env, actId, days = 30) {
+  const from = addDays(today(), -(days - 1));
+  const { results } = await env.DB.prepare(
+    `SELECT s.sub_id, s.creator_id, s.creator, s.product, SUM(t.orders) AS orders
+       FROM p_trybe_ad a JOIN p_trybe_sub s ON s.act_id = a.act_id AND s.trybe_id = a.trybe_id
+       JOIN tw_ad_attr t ON t.act_id = a.act_id AND t.ad_id = a.ad_id
+      WHERE a.act_id = ?1 AND s.status = 'approved' AND t.model = 'lastPlatformClick' AND t.date >= ?2 AND (t.platform = 'meta' OR t.platform IS NULL)
+      GROUP BY s.sub_id HAVING SUM(t.orders) >= 1 ORDER BY orders DESC LIMIT 200`).bind(actId, from).all();
+  const rows = results || [];
+  if (!rows.length) return null;
+  const short = n => { const p = String(n || 'Creator').trim().split(/\s+/); return p.length > 1 ? `${p[0]} ${p[p.length - 1][0].toUpperCase()}.` : p[0]; };
+  const by = new Map();
+  for (const r of rows) { const g = by.get(r.creator_id) || { name: short(r.creator), sales: 0, videos: 0 }; g.sales += +r.orders || 0; g.videos++; by.set(r.creator_id, g); }
+  return { days,
+    creators: [...by.values()].sort((a, b) => b.sales - a.sales).slice(0, 5).map(g => ({ name: g.name, sales: Math.round(g.sales), videos: g.videos })),
+    videos: rows.slice(0, 5).map(r => ({ name: short(r.creator), product: String(r.product || '').split(', ').slice(0, 2).join(', '), sales: Math.round(+r.orders || 0) })) };
+}
+
 async function loadAll(env, actId) {
   const [brand, secs, angles, proof] = await Promise.all([
     env.DB.prepare(`SELECT * FROM p_amb_brand WHERE act_id = ?1`).bind(actId).first(),
@@ -311,6 +332,7 @@ async function publicPayload(env, slug, preview = false) {
     live: true,
     preview: !b.live,
     brand: (() => { const x = shapeBrand(b, acct); delete x.act_id; delete x.live; x.hooks = hooks; return x; })(),
+    leaders: await trybeLeaders(env, b.act_id).catch(() => null),
     board: b.board_mode === 'auto' ? await autoBoard(env, b) : null,
     picks: (proofBy.get(BOARD) || []).filter(p => p.kind === 'meta' || p.kind === 'upload'),   // videos put straight on the board (ads and uploads), in the team's order
     season_chart: (() => { const se = safeJson(b.season_json, null); return se?.mode === 'custom' ? customShape(se.custom) : null; })()
