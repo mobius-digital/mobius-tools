@@ -140,7 +140,7 @@ async function send(env, act, slug, b, who, slackPost, slackApi) {
   };
   const text = [
     `<@${COLE_SLACK}> *${sl(brand)} sent their review: ${sl(r.title || slug)}* (${sl(name)})`,
-    `${ok} approved, ${ch} need changes${open ? `, ${open} not reviewed` : ''}`,
+    `${ok} approved, ${ch} need${ch === 1 ? 's' : ''} changes${open ? `, ${open} not reviewed` : ''}`,
     ...order.map(line),
     ...(overall ? [`Overall: "${sl(overall).replace(/\s*\n+\s*/g, ' / ')}"`] : []),
     `In Locus: Clients > Requests (${sl(brand)})`,
