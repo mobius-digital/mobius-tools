@@ -72,7 +72,7 @@ const CHANNELS = [
   { cat: 'START HERE', name: 'welcome', e: '👋', ro: true, topic: 'How this works. Read this first.' },
   { cat: 'START HERE', name: 'rules', e: '📌', ro: true, topic: 'What gets a video approved.' },
   { cat: 'START HERE', name: 'announcements', e: '📣', ro: true, topic: 'News from the team.' },
-  { cat: 'FILM', name: 'this-week', e: '🎬', ro: true, topic: 'The videos to film this week. One idea every weekday.' },
+  { cat: 'FILM', name: 'this-week', e: '🎬', ro: true, topic: 'The videos to film this week. New every Monday.' },
   { cat: 'FILM', name: 'questions', e: '💬', topic: 'Ask anything. We answer within a day.' },
   { cat: 'FILM', name: 'feedback-before-upload', e: '🎯', topic: 'Post a video here and get notes before you upload it.' },
   { cat: 'WINS', name: 'winners', e: '🏆', ro: true, topic: 'The videos that sold, every Friday.' },
@@ -87,11 +87,11 @@ export function firstPosts(b) {
   const ch = n => (b.ch && b.ch[n] ? `<#${b.ch[n]}>` : `#${n}`);
   const skip = (b.skip || []).slice(0, 4).map(x => `Do not: ${String(x).replace(/\.$/, '')}.`);
   const rules = [...skip, 'If you say the deal, say it exactly as written on the hub.', 'No music playing and no other brand logos in the shot.', '30 to 45 seconds, filmed upright on a phone.', 'One video per idea. Write the idea name in the notes when you upload.'];
-  const me = b.mascot && b.mascot !== b.name ? `I'm ${b.mascot}. I post the videos to film every weekday and the winners every Friday. The team answers your questions.\n\n` : '';
+  const me = b.mascot && b.mascot !== b.name ? `I'm ${b.mascot}. I post the videos to film every Monday and the winners every Friday. The team answers your questions.\n\n` : '';
   return {
-    welcome: { title: `Welcome to ${b.name} Creators`, text: `${me}This Discord is where we talk. TRYBE is only where you upload your videos and get paid.\n\n**How it works**\n1. Open the creator hub: ${b.hub}\n2. Pick one of this week's videos and film it on your phone.\n3. Upload it on TRYBE.\n4. We run the good ones as ads.${b.core ? ` You earn ${b.core}.` : ' You earn on every sale.'}\n\n**Where things are**\n${ch('rules')} what gets a video approved\n${ch('this-week')} one video idea every weekday\n${ch('questions')} anything you are unsure about\n${ch('feedback-before-upload')} post a video and get notes first\n${ch('winners')} the videos that sold, every Friday\n\n**Moving up**\nWhen your videos make sales you get invited to VIP.${b.vip ? ` VIP earns ${b.vip}.` : ' VIP earns more.'}` },
+    welcome: { title: `Welcome to ${b.name} Creators`, text: `${me}This Discord is where we talk. TRYBE is only where you upload your videos and get paid.\n\n**How it works**\n1. Open the creator hub: ${b.hub}\n2. Pick one of this week's videos and film it on your phone.\n3. Upload it on TRYBE.\n4. We run the good ones as ads.${b.core ? ` You earn ${b.core}.` : ' You earn on every sale.'}\n\n**Where things are**\n${ch('rules')} what gets a video approved\n${ch('this-week')} the videos to film, new every Monday\n${ch('questions')} anything you are unsure about\n${ch('feedback-before-upload')} post a video and get notes first\n${ch('winners')} the videos that sold, every Friday\n\n**Moving up**\nWhen your videos make sales you get invited to VIP.${b.vip ? ` VIP earns ${b.vip}.` : ' VIP earns more.'}` },
     rules: { title: 'The rules', text: `A video that breaks one cannot run as an ad.\n\n${rules.map((x, i) => `${i + 1}. ${x}`).join('\n')}\n\nThe full list, with examples: ${b.hub}#rules\n\n**In this server:** be kind, no selling to each other, and ask before you share someone else's video.` },
-    'this-week': { title: "This week's videos are up", text: `${b.hub}\n\nFive videos to film. Each one has an example to watch, the first line to say and the shots to get.\n\nStart with idea 1. A new one is posted here every weekday morning.` },
+    'this-week': { title: "This week's videos are up", text: `${b.hub}\n\nFive videos to film. Each one has an example to watch, the first line to say and the shots to get.\n\nFilm the ones you like best. A new set goes up here every Monday, right before the call.` },
     vip: { title: 'Welcome to VIP', text: `You are here because your videos made sales. That is the only way in.\n\n1. ${b.vip ? `You now earn ${b.vip}.` : 'You now earn more on every sale.'}\n2. You get next week's videos here first, on Friday.\n3. When a video of yours wins, we ask you first for the next version.\n\nKeep VIP private. Other creators earn their way in the same way you did.` },
   };
 }
@@ -102,7 +102,8 @@ function lookOf(d, b) {
   const color = HEX.test(l.color || '') ? l.color : (HEX.test(b?.accent || '') ? b.accent : '#5865F2');
   return { mascot: l.mascot || b?.display_name || 'Creators', avatar: l.avatar || l.icon || b?.logo_url || '', emoji: l.emoji || '', color, icon: l.icon || b?.logo_url || '' };
 }
-const sigOf = (look, core, vip) => JSON.stringify([look.mascot, look.avatar, look.emoji, look.color, core || '', vip || '']);
+const POSTS_V = 2;   // bump when the first-post wording changes, so every server gets the new text
+const sigOf = (look, core, vip) => JSON.stringify([POSTS_V, look.mascot, look.avatar, look.emoji, look.color, core || '', vip || '']);
 
 /* Post as the mascot through the channel's webhook (made once, kept in the brand's doc). */
 async function hookPost(token, d, key, chanId, look, msg) {
