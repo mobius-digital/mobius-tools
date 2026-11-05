@@ -47,6 +47,10 @@
   const ROLE = { opener: 'Opens journeys', closer: 'Closes sales', both: 'Opens and closes' };
   const DO_TIP = { budget: 'Change the budget. You see the number and confirm before anything is written.', pause: 'Turn it off in Meta. You see it first and confirm.', resume: 'Turn it back on in Meta. You see it first and confirm.',
     minoff: 'Set the test minimum to $0 in Meta. You see it first and confirm.', launch: 'Opens Launch to Meta for this card. The ads go up paused.', brief: 'Ask Locus to brief a new version of the main ad.' };
+  /* 2026-11-04 (the structure review): this file draws two pages from the one list. Ads > Calls ('buyer') is every row that is not a launch;
+     Ads > Launch ('launch') is the Ready cards to launch plus Launched and scheduled. */
+  const LMODE = () => !!(H && H.S && H.S.tab === 'launch');
+  const HERE = () => !!(H && H.S && (H.S.tab === 'buyer' || H.S.tab === 'launch'));
   let KIND = 'all', SHOWQ = false, DATA = null, BUSY = false, LQ = '', LALL = false, LREAD = '';
   const DAYS = [['mon', 'Monday'], ['tue', 'Tuesday'], ['wed', 'Wednesday'], ['thu', 'Thursday'], ['fri', 'Friday'], ['sat', 'Saturday'], ['sun', 'Sunday']];
   const daysWords = v => { const on = String(v || 'mon,thu').split(','); const n = DAYS.filter(([k]) => on.includes(k)).map(([, w]) => w); return n.length > 1 ? `${n.slice(0, -1).join(', ')} and ${n[n.length - 1]}` : n[0] || ''; };
@@ -254,8 +258,9 @@
     H = host; css();
     const t = H.RUN();
     const one = H.S.act !== 'all' ? H.S.accounts.find(a => a.act_id === H.S.act) : null;
-    const title = one ? `Buyer list: ${esc(one.name)}` : 'Buyer list';
-    const shell = body => `<div class="v2 by">${H.pageHead('buyer', title).replace(/<p class="ph-sub">[\s\S]*?<\/p>/, '')}${body}</div>`;
+    const lm = LMODE(), nm = lm ? 'Launch' : 'Calls';
+    const title = one ? `${nm}: ${esc(one.name)}` : nm;
+    const shell = body => `<div class="v2 by">${H.pageHead(lm ? 'launch' : 'buyer', title).replace(/<p class="ph-sub">[\s\S]*?<\/p>/, '')}${body}</div>`;
     if (first || !DATA || DATA.act !== (one ? one.act_id : 'all')) $('#main').innerHTML = shell('<section class="v2card"><p class="v2hint">Reading every brand&rsquo;s calls, test minimums and cards ready to launch&hellip;</p></section>');
     let d;
     try { d = await H.apiAH(`/api/buyer-list?act=${encodeURIComponent(one ? one.act_id : 'all')}&ads=1`); if (d && d.error) throw new Error(d.error); }
@@ -266,19 +271,22 @@
   }
 
   function paint() {
-    const d = DATA, one = d.act !== 'all';
-    const rows = d.rows || [];
+    const d = DATA, one = d.act !== 'all', lm = LMODE();
+    const rows = (d.rows || []).filter(r => lm ? r.kind === 'launch' : r.kind !== 'launch');
     const groups = groupsOf(rows);
     const nDo = rows.filter(r => canDo(r) && !r.decided).length;
     const dec = decidedOf(rows);
     const nx = d.next_launch || {};
-    const next = !d.launch_today && nx.n ? `<p class="by-next">Next launch: <b>${esc(nx.day)}</b>, ${nx.n} card${nx.n === 1 ? '' : 's'} (${nx.n_ads} approved ad${nx.n_ads === 1 ? '' : 's'}). Ready cards go out on launch days, ${esc(daysWords(d.launch_days))}.</p>`
-      : d.launch_today && (d.counts || {}).launch ? `<p class="by-next">Launch day today: ${d.counts.launch} card${d.counts.launch === 1 ? '' : 's'} to launch.</p>` : '';
-    const lead = `<p class="v2say lead by-lead">${dec.of ? `<b>${dec.n} of ${dec.of} decided</b>${dec.n === dec.of ? '. All set.' : ''}` : '<b>Nothing needs a decision today</b>'}${one ? '' : ` across ${groups.length} brand${groups.length === 1 ? '' : 's'}`}. <span class="by-own">Owner: <b>${esc(d.owner)}</b> <button type="button" class="v2link" id="byOwner">Change</button></span></p>
+    const next = !d.launch_today && nx.n ? `<p class="by-next">Next launch: <b>${esc(nx.day)}</b>, ${nx.n} card${nx.n === 1 ? '' : 's'} (${nx.n_ads} approved ad${nx.n_ads === 1 ? '' : 's'}). Ready cards go out on launch days, ${esc(daysWords(d.launch_days))}.${lm ? '' : ' <button type="button" class="v2link" data-go="launch">Open Launch ›</button>'}</p>`
+      : d.launch_today && (d.counts || {}).launch ? `<p class="by-next">Launch day today: ${d.counts.launch} card${d.counts.launch === 1 ? '' : 's'} to launch.${lm ? '' : ' <button type="button" class="v2link" data-go="launch">Open Launch ›</button>'}</p>` : '';
+    const lead = lm ? `<p class="v2say lead by-lead"><b>${rows.length ? `${rows.length} card${rows.length === 1 ? '' : 's'} ready to launch` : 'Nothing to launch today'}</b>${one ? '' : ` across ${groups.length} brand${groups.length === 1 ? '' : 's'}`}.</p>
+      <p class="by-lead"><span class="v2hint">Launch opens Launch to Meta for the card; the ads go up paused. Below: what is scheduled and what went out, with its status read from Meta.</span></p>`
+      : `<p class="v2say lead by-lead">${dec.of ? `<b>${dec.n} of ${dec.of} decided</b>${dec.n === dec.of ? '. All set.' : ''}` : '<b>Nothing needs a decision today</b>'}${one ? '' : ` across ${groups.length} brand${groups.length === 1 ? '' : 's'}`}. <span class="by-own">Owner: <b>${esc(d.owner)}</b> <button type="button" class="v2link" id="byOwner">Change</button></span></p>
       <p class="by-lead"><span class="v2hint">Yes makes the change in Meta (logged, Undo for 24 hours). No leaves it and teaches Locus your reason. Tap an ad for its numbers and the video.</span>${nDo > 1 ? ` <button type="button" class="v2btn" id="byAll" title="See every change in one list, then Locus makes them one by one. Rows that need you are skipped.">Yes to all ${nDo}</button>` : ''}</p>`;
     /* One card per brand, the brand with the most money at stake first; rows in the card order. */
     const list = rows.length ? groups.map(brandCard).join('')
-      : `<section class="v2card"><h3>Nothing to do</h3><p class="v2hint">No ad set crossed a rule, no test minimum is due off and no card is waiting to launch. Done and skipped calls come back when they are due.</p></section>`;
+      : `<section class="v2card"><h3>Nothing to do</h3><p class="v2hint">No ad set crossed a rule, no test minimum is due off. Done and skipped calls come back when they are due.</p></section>`;
+    const listL = rows.length ? list : '';
     const h = d.hidden || {}, nq = (h.done || 0) + (h.skipped || 0) + (h.watched || 0) + (h.dropped || 0);
     const foot = `<div class="by-foot"><span>Brands with the most money at stake first. Sales are Triple Whale last click.</span>${one ? '<button type="button" class="v2link" id="byCalls">Your calls</button>' : ''}${nq ? `<button type="button" class="v2link" id="byQuiet">${SHOWQ ? 'Hide' : 'Show'} ${nq} quiet: ${[h.done ? `${h.done} done` : '', h.skipped ? `${h.skipped} skipped until tomorrow` : '', h.watched ? `${h.watched} changed in Meta in the last 3 days` : '', h.dropped ? `${h.dropped} Locus dropped` : ''].filter(Boolean).join(', ')}</button>` : ''}</div>`;
     const quiet = SHOWQ && nq ? `<section class="v2card"><div class="v2h"><h3>Quiet for now</h3><span class="find">Done stays quiet 3 days, Skip until tomorrow, and a change made in Meta is watched 3 days before it is judged again.</span></div>${(d.quiet || []).map(qrow).join('')}</section>` : '';
@@ -289,8 +297,8 @@
     const notes = (d.notes || []).length ? `<p class="by-notes">Could not read everything: ${esc(d.notes.join(' · '))}</p>` : '';
     const lsec = `<section class="v2card by-lnch" id="byLaunch"><div class="v2h"><h3>Launched and scheduled</h3><input type="search" class="by-find" id="byFind" placeholder="${one ? 'Find a card or ad' : 'Find a brand, card or ad'}" value="${esc(LQ)}" aria-label="Find in launched and scheduled"></div>
       <p class="v2hint" style="margin:4px 0 0">Launch days: ${esc(daysWords(d.launch_days))} (Central). A card with its own date goes out on that date. <button type="button" class="v2link" id="byDays">Change launch days</button></p><div id="byLBody">${launchBody()}</div></section>`;
-    $('#main').innerHTML = `<div class="v2 by">${H.pageHead('buyer', one ? `Buyer list: ${esc((H.S.accounts.find(a => a.act_id === d.act) || {}).name || '')}` : 'Buyer list').replace(/<p class="ph-sub">[\s\S]*?<\/p>/, '')}${lead}${banners}${aiLine}${next}${list}${foot}${quiet}${lsec}${notes}</div>`;
-    if (typeof H.pageActions === 'function') H.pageActions(`${one ? `<button type="button" class="btn" id="byWwd" title="The plain client update from today's Yes rows: what we changed, one line each.">What we did</button>` : ''}<button type="button" class="btn" id="byDrops" title="One-time sales and limited drops: when one ends or sells out, its ads go off and stay off.">Drops and sales</button><button type="button" class="btn" id="bySlack" title="The one Buyer list message a day in Slack: where it goes, on or off, and what it says now.">Slack post</button>`);
+    $('#main').innerHTML = `<div class="v2 by">${H.pageHead(lm ? 'launch' : 'buyer', one ? `${lm ? 'Launch' : 'Calls'}: ${esc((H.S.accounts.find(a => a.act_id === d.act) || {}).name || '')}` : lm ? 'Launch' : 'Calls').replace(/<p class="ph-sub">[\s\S]*?<\/p>/, '')}${lm ? `${lead}${next}${listL}${lsec}${notes}` : `${lead}${banners}${aiLine}${next}${list}${foot}${quiet}${notes}`}</div>`;
+    if (typeof H.pageActions === 'function') H.pageActions(lm ? `<button type="button" class="btn" id="byDrops" title="One-time sales and limited drops: when one ends or sells out, its ads go off and stay off.">Drops and sales</button>` : `${one ? `<button type="button" class="btn" id="byWwd" title="The plain client update from today's Yes rows: what we changed, one line each.">What we did</button>` : ''}<button type="button" class="btn" id="byDrops" title="One-time sales and limited drops: when one ends or sells out, its ads go off and stay off.">Drops and sales</button><button type="button" class="btn" id="bySlack" title="The one Buyer list message a day in Slack: where it goes, on or off, and what it says now.">Slack post</button>`);
     wire();
   }
   const decidedOf = rows => { const t = rows.filter(r => (r.card || {}).decide); return { n: t.filter(r => r.decided).length, of: t.length }; };
@@ -355,7 +363,7 @@
     const m = modal(s.name, esc(s.brand), `<dl class="by-dl">
       <dt>Goes out</dt><dd>${esc(ymdShort(s.date))}${s.dated ? ' (its own date)' : ' (the next launch day)'}</dd>
       <dt>On Production</dt><dd>${s.board === 'review' ? 'In review' : 'Ready'}${s.n_ads ? `, ${s.n_ads} approved ad${s.n_ads === 1 ? '' : 's'} not on Meta yet` : ''}</dd></dl>
-      <p class="v2hint">It shows on the Buyer list as a Launch row on that day. To change the date, set Launch on the card.</p>
+      <p class="v2hint">It shows on Ads > Launch as a Launch row on that day. To change the date, set Launch on the card.</p>
       <div class="row"><button type="button" class="btn" data-x="card">Open the card</button></div>`, null, null);
     m.w.querySelector('[data-x="card"]').onclick = () => { m.close(); openCard(s.act_id, s.card_id); };
   }
@@ -376,7 +384,7 @@
       const j = await H.apiAH(`/api/buyer-list/launched?act=${encodeURIComponent(act)}&refresh=1`);
       if (!DATA || DATA.act !== act || !j || !Array.isArray(j.launched)) return;
       DATA.launched = j.launched; LREAD = j.error ? `Could not read the status from Meta: ${j.error}` : '';
-      if (H.S.tab === 'buyer') paintLaunch();
+      if (HERE()) paintLaunch();
     } catch {}
   }
 
@@ -444,7 +452,7 @@
     const nu = { ...DATA.rows[i] };
     if (dec) nu.decided = { decision: dec, note: extra.note || '', by: H.S.meEmail || 'you', at: new Date().toISOString(), write_id: extra.write_id || null }; else delete nu.decided;
     DATA.rows[i] = nu;
-    if (H.S.tab === 'buyer') paint();
+    if (HERE()) paint();
   }
   /** Yes: the row's own write (the same path as before: dry run, confirm, write with expect, Change Log, Undo), then the
    *  decision is recorded with the write id. A row with no Meta move is just recorded. A lit Yes tapped again = cleared. */
@@ -520,7 +528,7 @@
   }
 
   const find = k => (DATA.rows || []).find(r => r.key === k) || (DATA.quiet || []).find(r => r.key === k);
-  async function reload() { if (H && H.S.tab === 'buyer') await render(H, false); }
+  async function reload() { if (HERE()) await render(H, false); }
   /* The row leaves the list at once (the server already has it) and the totals follow; no second read of every brand. */
   function drop(k, why = 'done') {
     const i = (DATA.rows || []).findIndex(r => r.key === k); if (i < 0) return;
@@ -529,7 +537,7 @@
     DATA.n = DATA.rows.length; DATA.stake = DATA.rows.reduce((s, x) => s + (x.stake || 0), 0); DATA.n_brands = new Set(DATA.rows.map(x => x.act_id)).size;
     DATA.counts = { ...DATA.counts, [r.kind]: Math.max(0, (DATA.counts[r.kind] || 1) - 1) };
     DATA.hidden = { ...DATA.hidden, [why]: (DATA.hidden[why] || 0) + 1 };
-    if (H.S.tab === 'buyer') paint();
+    if (HERE()) paint();
   }
 
   function wire() {
@@ -771,11 +779,11 @@
   }
   function ownerModal() {
     const cur = DATA.owner;
-    modal('Who owns the Buyer list?', 'Shown on this page and tagged on the daily Slack post.', `<label>Owner<select name="owner">${[...new Set([cur, ...OWNERS])].map(o => `<option${o === cur ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select></label>`, 'Save', async w => {
+    modal('Who owns the calls?', 'Shown on this page and tagged on the daily Slack post.', `<label>Owner<select name="owner">${[...new Set([cur, ...OWNERS])].map(o => `<option${o === cur ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select></label>`, 'Save', async w => {
       const v = w.querySelector('select').value;
       const j = await ah('/api/buyer-list/settings', { buyerOwner: v }, 'PUT');
       if (!j || j.error) throw new Error((j && j.error) || 'Locus did not answer.');
-      DATA.owner = v; paint(); toast(`${v} owns the Buyer list.`);
+      DATA.owner = v; paint(); toast(`${v} owns the calls.`);
     });
   }
 
@@ -853,7 +861,7 @@
   async function slackModal() {
     const s = DATA.settings || {};
     const m = modal('The daily Slack post', 'ONE post a day at the morning hour: the count, the money at stake, the owner, the top 5 and an Open in Locus button. While it is on, the brand morning cards carry no ad calls.',
-      `<label class="row"><input type="checkbox" name="on"${s.buyerPost ? ' checked' : ''}> Post the Buyer list every morning</label>
+      `<label class="row"><input type="checkbox" name="on"${s.buyerPost ? ' checked' : ''}> Post the calls every morning</label>
        <label class="row"><input type="checkbox" name="ai"${s.buyerAI !== false ? ' checked' : ''}> Morning read first (one AI read per brand before the post, up to $5 a day)</label>
        <p class="v2hint" data-spend style="margin:-6px 0 12px"></p>
        <label>Slack channel id<input type="text" name="ch" value="${esc(s.buyerChannel || '')}" placeholder="C0C8UA53U3W" maxlength="20" autocomplete="off"><small>Default #daily-briefs (C0C8UA53U3W).</small></label>

@@ -4702,4 +4702,13 @@ this goes for all things that go from the right side", and the Integrations pane
   old `?open=today` / `data-go="today"` link opens the Buyer list for that brand. A client login still gets desk.js `today()` (the Buyer
   list is in AGENCY_TABS); both tabs are labelled Calls. Delete desk.js `today()` only once buyer.js has a client read-only view.
 - Not on the Buyer list: test calls (Tests > Needs a call) and the `?doall=1` sheet (the Buyer list's own Agree / Yes to all replaces it).
-- Next (the page's order): Ads tabs All / Calls / Launch / Meta / Google / TikTok / Tests, then the per-platform level switch.
+- Steps 4 to 10 (same day): `NAV4.ads` = Calls (`buyer`; `today` for a client), Launch (`launch`), All (`channels`), Meta, Google, TikTok, Tests. A platform's
+  levels are the switch under it: `META_JOBS` (Overview, Campaigns, Ads, Changes), `GOOGLE_JOBS` with a direct Google Ads link. `V4_HOME` maps the level
+  ids to their platform tab (campaigns / adcreative / changes / mtoday / mbrowser -> meta, g* -> google). `ACCOUNT_JOBS` and `CHANGE_JOBS` are unused.
+- **Launch** is buyer.js in a second mode (`LMODE()`: `H.S.tab === 'launch'`): launch rows + Launched and scheduled. Calls shows every other row and a link
+  to Launch. Team only (`AGENCY_TABS`), both views (`VIEW_BOTH`). There is no Ready-vs-Meta diff on the server yet; /launch still does that in chat.
+- **One call on the gallery** (v2.js `creative()`, `callOf`): where Calls has an open ad-level call, or a Cut on the ad's set, the card's pill shows that call
+  (tip starts "Today's call on Ads > Calls"). Team only, 3.5 second cap on the read. The gallery's own verdict uses the same rule numbers.
+- Moved: Email and Search to **Money**; the Brief to **Reports > Daily**; Requests to **Clients** (a client login sees it under Reports: `tabInView`).
+- Checked signed in on the local trio (statics :8788, profit dev :8799, account-health dev :8798, dev token from .dev.vars served by the static server):
+  every page id above on Lucky, Agency view Calls and Launch, the gallery override on Bonk. Report routes answer 401 locally, as before.
