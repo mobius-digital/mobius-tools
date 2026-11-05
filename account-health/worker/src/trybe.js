@@ -566,6 +566,34 @@ export async function handleTrybe(request, env, url, path, json, h) {
       return json({ ok: true, has_key: true, ...v, sync: s });
     }
     if (path === '/api/trybe/sync' && request.method === 'POST') return json({ ok: true, sync: await syncBrand(env, d, act) });
+    /* Review (2026-11-05): approve, reject or ask for changes on a pending video, the same as the buttons in the Trybe
+       brand portal (Trybe Brand API POST /submissions/{id}/approve|reject|request-revision). Approving pays the creator
+       for that video and notifies them; every review notifies the creator. Each review goes in the Change Log. */
+    if (path === '/api/trybe/review' && request.method === 'GET') {
+      const k = await keyFor(env, act); if (!k || !k.key) return json({ error: 'No Trybe key for this brand yet.' }, 400);
+      const rows = await pages(d, k.key, '/submissions', { status: 'pending' }, 3);
+      return json({ act, count: rows.length, items: rows.map(x => ({ id: x.id, creator: x.creator?.name || 'Creator', product: (x.products || []).map(y => y.name).filter(Boolean).join(', '), program: x.program?.name || '',
+        angle: (x.angles || [])[0]?.name || '', media: x.media_type || null, thumb: x.thumbnail_url || null, line: clip(x.transcript?.text, 300), created_at: x.created_at || null })).sort((a, z) => String(a.created_at).localeCompare(String(z.created_at))) });
+    }
+    if (path === '/api/trybe/review' && request.method === 'POST') {
+      const k = await keyFor(env, act); if (!k || !k.key) return json({ error: 'No Trybe key for this brand yet.' }, 400);
+      const verb = { approve: 'approve', reject: 'reject', changes: 'request-revision' }[b.decision];
+      const id = String(b.id || '');
+      if (!verb || !/^submission_[0-9a-f-]{36}$/.test(id)) return json({ error: 'Give the video id and approve, reject or changes.' }, 400);
+      const comment = noDash(String(b.comment || '')).trim().slice(0, 1000);
+      if (verb === 'request-revision' && !comment) return json({ error: 'Say what to change so the creator knows.' }, 400);
+      const r = await (d.xfetch || fetch)(`${API}/submissions/${encodeURIComponent(id)}/${verb}`, { method: 'POST', headers: { Authorization: `Bearer ${k.key}`, 'Content-Type': 'application/json', 'User-Agent': 'locus-trybe' }, body: JSON.stringify(comment ? { comment } : {}) });
+      const j = await r.json().catch(() => null);
+      if (!r.ok) return json({ error: (j && j.error && j.error.message) || `Trybe answered ${r.status}` }, 400);
+      await env.DB.prepare(`UPDATE p_trybe_sub SET status = ?3, approved_seen = CASE WHEN ?3 = 'approved' THEN COALESCE(approved_seen, ?4) ELSE approved_seen END WHERE act_id = ?1 AND sub_id = ?2`)
+        .bind(act, id, j?.status || null, new Date().toISOString().slice(0, 10)).run().catch(() => {});
+      const who = email || 'someone';
+      const meta = await env.DB.prepare(`SELECT meta_act FROM brand_accounts WHERE act_id = ?1`).bind(act).first().catch(() => null);
+      await env.DB.prepare(`INSERT INTO activities (id, act_id, event_time, event_type, category, summary, reason, note, confirmed, manual, actor, object_type, object_id, object_name)
+        VALUES (?1, ?2, ?3, 'trybe_review', 'creators', ?4, NULL, 'Reviewed in Trybe from Locus.', 1, 1, ?5, 'trybe_submission', ?6, NULL)`)
+        .bind(`manual:${crypto.randomUUID()}`, meta?.meta_act || act, new Date().toISOString(), `Trybe video ${verb === 'approve' ? 'approved' : verb === 'reject' ? 'rejected' : 'sent back for changes'}${comment ? `: ${clip(comment, 120)}` : ''}`, `${who} in Locus`, id).run().catch(() => {});
+      return json({ ok: true, id, status: j?.status || null });
+    }
     if (path === '/api/trybe/rules' && request.method === 'PUT') {
       const t = noDash(String(b.rules || '')).trim().slice(0, 4000);
       if (t) await putSetting(env, `trybeRules:${act}`, t); else await env.DB.prepare(`DELETE FROM settings WHERE key = ?1`).bind(`trybeRules:${act}`).run();
