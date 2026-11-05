@@ -41,6 +41,17 @@ const CALL_MS = 25e3;             // one route may take this long before it coun
 const POOL = 4;                   // profit routes in flight at once (in-process routes always one at a time)
 const SEED_AH = 25;               // opening guess for an in-process route; replaced by the highest seen
 const GUARD = 2;                  // the access guard's reads before handle() resets the meter
+/* D1 BUSY (2026-11-05). D1 refuses everything for a few seconds after a burst ("D1 DB is overloaded. Too many resources
+   consumed within a 10 second window"). The checks then fail in 0 ms, so the pool used to race through the rest of the
+   plan inside that window: 47 of 451 "failed" while every page worked a minute later. Now a busy answer pauses ALL
+   workers for BUSY_WAIT and the same check is tried again; only a check still busy after BUSY_TRIES (about 25 s of
+   D1 refusing) counts, BUSY_STOP of those in a row stop the tick so the rest wait for the next hour instead of
+   failing, and the Slack post folds every busy line into one. */
+export const D1_BUSY = /D1 DB is overloaded|Too many resources consumed/i;
+const BUSY_WAIT = 12e3;
+const BUSY_TRIES = 3;
+const BUSY_STOP = 3;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 /* ---------------------------------------------------------------------------------------------------------
  * THE ROUTE TABLE: what each Locus page calls (profit/index.html, v2.js, desk.js, calendar.js, season.js,
@@ -278,7 +289,9 @@ async function runChecks(env, d, plan, next, { cap, maxChecks, maxMs }) {
   const restore = d.meter.hold();
   const t0 = Date.now();
   let spent = 0, inflight = 0, i = next, started = 0, stopped = null, worstAh = SEED_AH;
+  let coolUntil = 0, busyRun = 0;
   const results = [];
+  const wait = async () => { while (Date.now() < coolUntil) await (d.sleep || sleep)(coolUntil - Date.now()); };
   /* In-process routes reset the meter, so they run one at a time. */
   let chain = Promise.resolve();
   const lock = () => { let rel; const p = new Promise(r => { rel = r; }); const prev = chain; chain = chain.then(() => p); return prev.then(() => rel); };
@@ -289,12 +302,21 @@ async function runChecks(env, d, plan, next, { cap, maxChecks, maxMs }) {
       if (started >= maxChecks) { stopped = stopped || 'checks'; return; }
       if (Date.now() - t0 > maxMs) { stopped = stopped || 'time'; return; }
       if (spent + inflight + estimate(c) > cap) { stopped = stopped || 'budget'; return; }
+      if (busyRun >= BUSY_STOP) { stopped = stopped || 'd1 busy'; return; }
       i++; started++;
       const est = estimate(c); inflight += est;
-      const r = await hit(env, d, c, auth, lock);
-      inflight -= est; spent += r.cost;
+      let r, tries = 0;
+      for (;;) {
+        await wait();
+        r = await hit(env, d, c, auth, lock);
+        spent += r.cost;
+        if (r.ok || !D1_BUSY.test(r.error || '') || ++tries >= BUSY_TRIES) break;
+        coolUntil = Math.max(coolUntil, Date.now() + BUSY_WAIT);   // every worker waits, not just this one
+      }
+      inflight -= est;
       if (c.w === 'ah' && r.cost > worstAh) worstAh = r.cost;
-      results.push({ id: c.id, ok: r.ok, status: r.status, ms: r.ms, ...(r.ok ? {} : { error: r.error }) });
+      busyRun = !r.ok && D1_BUSY.test(r.error || '') ? busyRun + 1 : 0;
+      results.push({ id: c.id, ok: r.ok, status: r.status, ms: r.ms, ...(tries ? { tries: tries + 1 } : {}), ...(r.ok ? {} : { error: r.error }) });
     }
   };
   try { await Promise.all(Array.from({ length: POOL }, worker)); }
@@ -332,8 +354,11 @@ export function slackText(s, dayLabel) {
   if (!n) return `Locus check, ${dayLabel}: all ${s.total} checks passed.`;
   const head = `*Locus check, ${dayLabel}: ${n} of ${s.total} ${s.total === 1 ? 'check' : 'checks'} failed*`;
   const e = t => String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const lines = s.failed.slice(0, 25).map(f => `• ${e(f.brand)}, ${e(f.page)}: ${e(f.error)}${f.path ? ` (${e(f.path.split("?")[0])})` : ""} <${f.link}|Open>`);
-  const more = n > 25 ? [`and ${n - 25} more: <${LOCUS}?open=pulse|Tools, Platform status>`] : [];
+  /* D1 refusing for a stretch is ONE problem, not one per page: fold those lines into a single one. */
+  const busy = s.failed.filter(f => D1_BUSY.test(f.error || '')), rest = s.failed.filter(f => !D1_BUSY.test(f.error || ''));
+  const busyLine = busy.length ? [`• The database (D1) was overloaded for a stretch, so ${busy.length} ${busy.length === 1 ? 'page' : 'pages'} could not be read even after waiting (${e([...new Set(busy.map(f => f.page))].slice(0, 6).join(', '))}). The pages themselves are not broken. <${LOCUS}?open=pulse|Platform status>`] : [];
+  const lines = [...busyLine, ...rest.slice(0, 25).map(f => `• ${e(f.brand)}, ${e(f.page)}: ${e(f.error)}${f.path ? ` (${e(f.path.split("?")[0])})` : ""} <${f.link}|Open>`)];
+  const more = rest.length > 25 ? [`and ${rest.length - 25} more: <${LOCUS}?open=pulse|Tools, Platform status>`] : [];
   const gap = s.not_checked ? [`${s.not_checked} checks did not fit in the subrequest budget and were not run.`] : [];
   return [head, ...lines, ...more, ...gap].join('\n');
 }

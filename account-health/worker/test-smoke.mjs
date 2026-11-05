@@ -269,6 +269,27 @@ await smokeTick(env, d);
 env.PROFIT = P;
 ok(slack.find(s => s.method === 'chat.postMessage').p.text.includes('The PROFIT service binding is missing'), 'a missing binding is a failure line, not a crash');
 
+/* ================= 8b. D1 busy: wait and try again, never a page-by-page flood (2026-11-05) ================= */
+const BUSY_ERR = { error: 'D1_ERROR: D1 DB is overloaded. Too many resources consumed within a 10 second window' };
+const slept = []; d.sleep = async ms => { slept.push(ms); NOWMS += ms; };
+let NOWMS = 0; const realNow = Date.now; Date.now = () => realNow() + NOWMS;
+/* A burst: the first two reads of customers say busy, then D1 answers. */
+reset(); delSetting('smokeRun'); putSetting(null, 'strategistChannel', 'C_STRAT');
+let busyLeft = 2; const P2 = env.PROFIT;
+env.PROFIT = { async fetch(req) { const u = new URL(req.url); if (u.pathname === '/api/customers' && busyLeft > 0) { busyLeft--; return answer('', 500, BUSY_ERR); } return P2.fetch(req); } };
+let b1 = await smokeRunNow(env, d, { dry: true });
+ok(!b1.failed.some(f => /overloaded/.test(f.error || '')), 'a short D1 burst is waited out: the check passes on a later try');
+ok(slept.length > 0 && slept.every(ms => ms > 0 && ms <= 12e3), 'it waits (about 12 s) before trying again');
+/* D1 down for good: a few busy lines, the tick stops, and Slack gets ONE line for all of them. */
+reset(); slept.length = 0;
+env.PROFIT = { async fetch(req) { const u = new URL(req.url); if (/^\/api\/(customers|studio|brand|hub\/orders)$/.test(u.pathname)) return answer('', 500, BUSY_ERR); return P2.fetch(req); } };
+b1 = await smokeRunNow(env, d, { dry: true });
+const busyN = b1.failed.filter(f => /overloaded/.test(f.error || '')).length;
+ok(busyN >= 1 && b1.not_checked > 0, 'D1 refusing after three tries stops the run; the rest is not marked failed');
+const bt = slackText(b1, 'Thu, Nov 5');
+ok(/The database \(D1\) was overloaded for a stretch, so \d+ pages? could not be read/.test(bt) && (bt.match(/overloaded/g) || []).length === 1, 'Slack folds every D1-busy line into one');
+env.PROFIT = P2; delete d.sleep; Date.now = realNow;
+
 /* ================= 9. text rules ================= */
 const src = readFileSync(new URL('./src/smoke.js', import.meta.url), 'utf8');
 ok(!/\u2014/.test(src), 'no em dashes in smoke.js');

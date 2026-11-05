@@ -81,7 +81,8 @@ function fixFor(k, msg) {
 const G_KIND = { ga4: 'ga4', gsc: 'gsc', ads: 'google_ads' };
 export async function linkFor(env, act) {
   const out = {};
-  for (const [k, kind] of Object.entries(G_KIND)) { const c = await connGet(env, act, kind).catch(() => null); if (c) out[k] = c.external_id; }
+  /* A D1 error is NOT "not linked" (2026-11-05: a D1 overload made every GA4 brand read "not_linked" in the morning check). */
+  for (const [k, kind] of Object.entries(G_KIND)) { const c = await connGet(env, act, kind).catch(e => { if (/D1_ERROR/.test(e?.message || '')) throw e; return null; }); if (c) out[k] = c.external_id; }
   return out;
 }
 export async function setLink(env, act, patch) {
