@@ -245,3 +245,114 @@ footer .col{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .steps{margin-top:0}
 .st-go{width:100%;margin-top:16px}
 @media (max-width:640px){.idea-h{grid-template-columns:30px minmax(0,1fr)}.idea-go{grid-column:2}.idea-b{padding-left:16px}}
+
+/* ---------- hub v2 (2026-11-05): Start here, idea cards with preview images, the brief sheet, product and rules ---------- */
+.hero{padding:22px 0 16px}
+.hero::before{display:none}
+.hero h1{font-size:27px;line-height:1.18;font-weight:780;letter-spacing:-.025em;max-width:640px;text-wrap:balance}
+.hero .wk-date{margin:0 0 8px}
+.steps{padding:16px 18px;margin-top:0}
+.steps .wk-l{margin-bottom:12px}
+.wk-offer{margin-top:14px}
+.of-dont{margin-top:12px;display:grid;gap:6px}
+.of-dont li{display:flex;gap:8px;align-items:flex-start;font-size:14px;color:var(--ink-2)}
+.of-dont li svg{color:var(--bad);margin-top:3px}
+.of-why{font-size:13px!important;color:var(--muted)!important;margin-top:12px!important;padding-top:10px;border-top:1px solid var(--line)}
+.muted{color:var(--muted)!important;font-size:13.5px!important}
+.sell{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px 18px;display:grid;gap:14px}
+.sell-l{display:grid;gap:10px}
+.sell-l li{display:flex;gap:10px;align-items:flex-start;font-size:15.5px;font-weight:600;line-height:1.4}
+.sell-l li svg{color:var(--good);margin-top:3px}
+.sell-line{padding:12px 14px;border-radius:12px;background:var(--surface-2)}
+.sell-line .wk-s{margin:0 0 4px}
+.sell-line b{display:block;font-size:18px;font-weight:750;line-height:1.3}
+.copy{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 12px;margin-top:8px;border-radius:10px;border:1px solid var(--line-strong);font-size:13px;font-weight:650;color:var(--ink-2);white-space:nowrap}
+.copy:hover{color:var(--ink);border-color:var(--ink-2)}
+.sell-v{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.sell-v .tile{aspect-ratio:3/4}
+.sell .more{margin-top:-4px;justify-content:flex-start;width:auto}
+.icards{display:grid;gap:10px}
+.icards.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.icard{display:grid;grid-template-columns:92px minmax(0,1fr);gap:14px;align-items:stretch;width:100%;padding:10px;background:var(--surface);border:1px solid var(--line);border-radius:16px;text-align:left;transition:border-color .15s,transform .15s}
+.icard.flat{cursor:default}
+.ic-th{position:relative;display:block;aspect-ratio:3/4;border-radius:10px;overflow:hidden;background:var(--surface-2)}
+.ic-th img,.ic-th video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.ic-th i{position:absolute;left:6px;bottom:6px;width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,.92);color:#111;display:flex;align-items:center;justify-content:center}
+.ic-th i svg{fill:currentColor;margin-left:1px}
+.ic-th em{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--faint)}
+.ic-b{display:flex;flex-direction:column;gap:4px;min-width:0;padding:2px 4px 2px 0}
+.ic-n{font-size:11.5px;font-weight:750;letter-spacing:.05em;text-transform:uppercase;color:var(--acc)}
+.ic-b b{font-size:16px;font-weight:720;line-height:1.3}
+.ic-say{font-size:14px;color:var(--ink-2);line-height:1.4;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.ic-go{display:inline-flex;align-items:center;gap:5px;margin-top:auto;padding-top:6px;font-size:13px;font-weight:650;color:var(--acc)}
+@media (hover:hover) and (pointer:fine){button.icard:hover{border-color:var(--line-strong);transform:translateY(-2px)}}
+.more[data-tab]{margin-top:10px}
+/* product and rules */
+.rgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.rcard{padding:16px 18px;min-width:0}
+.rcard.wide{grid-column:1/-1}
+.rcard h3{font-size:17px;font-weight:750;letter-spacing:-.01em;margin:0}
+.rc-sub{font-size:13.5px;color:var(--muted);margin-top:3px}
+.rc-p{font-size:14.5px;color:var(--ink-2);margin-top:10px;white-space:pre-line}
+.feat{margin:12px 0 0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.feat div{padding:10px 12px;border-radius:12px;background:var(--surface-2)}
+.feat dt{font-size:14px;font-weight:700}
+.feat dd{margin:2px 0 0;font-size:13.5px;color:var(--ink-2)}
+.rl{margin-top:12px;display:grid;gap:8px}
+.rl li{display:flex;gap:9px;align-items:flex-start;font-size:14.5px;color:var(--ink-2);line-height:1.45}
+.rl li svg{margin-top:3px;color:var(--muted)}
+.rcard.good .rl li svg{color:var(--good)}
+.rcard.bad .rl li svg{color:var(--bad)}
+.rcard.bad{border-color:color-mix(in srgb,var(--bad) 35%,var(--line))}
+.rcard .ck-boxes{margin-top:12px}
+.fin{margin-top:12px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 16px}
+.fin label{display:flex;gap:10px;align-items:flex-start;min-height:36px;padding:6px 0;font-size:14.5px;color:var(--ink-2);cursor:pointer}
+.fin input{width:20px;height:20px;margin:1px 0 0;accent-color:var(--acc);flex:none}
+.fin input:checked + span{color:var(--muted);text-decoration:line-through}
+#panel > .st-go{margin-top:20px}
+/* the brief sheet */
+.pl.is{grid-template-columns:320px minmax(0,1fr);max-width:900px;height:min(760px,calc(100dvh - 48px))}
+.pl.is.novid{grid-template-columns:minmax(0,1fr);max-width:600px;height:auto}
+.is-v{display:flex;flex-direction:column;background:#000;min-height:0}
+.is-v .pl-v{flex:1;min-height:0;position:relative}
+.is-v .pl-v video{max-height:100%;max-width:100%}
+.is-poster{position:absolute;inset:0;display:block;width:100%;height:100%;background:#000}
+.is-poster img,.is-poster video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.is-poster small{position:absolute;left:0;right:0;bottom:0;padding:30px 12px 12px;font-size:12.5px;color:#fff;text-align:left;background:linear-gradient(transparent,rgba(0,0,0,.8))}
+.is-more{display:flex;gap:6px;padding:8px;background:#0b0b0d;overflow-x:auto}
+.is-more button{position:relative;flex:none;width:44px;aspect-ratio:3/4;border-radius:8px;overflow:hidden;background:#222;border:2px solid transparent;opacity:.6}
+.is-more button.on{border-color:#fff;opacity:1}
+.is-more img,.is-more video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.is-b{display:flex;flex-direction:column;gap:12px;padding:20px 22px;overflow-y:auto;min-height:0;overscroll-behavior:contain}
+.is-b > *{flex-shrink:0}
+.is-b .pl-t{font-size:21px;font-weight:760;line-height:1.22;letter-spacing:-.015em;padding-right:44px}
+.is-p{font-size:15px;color:var(--ink-2)}
+.is-blk{padding:12px 14px;border-radius:12px;background:var(--surface-2)}
+.is-l{display:block;font-size:12px;font-weight:750;letter-spacing:.05em;text-transform:uppercase;color:var(--acc);margin-bottom:6px}
+.is-blk p{font-size:15px;line-height:1.45}
+.is-say{display:grid;gap:8px}
+.is-say li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;font-size:15.5px;font-weight:650;line-height:1.35}
+.is-say .copy{margin:0}
+.is-note{font-size:13px!important;color:var(--muted);margin-top:8px}
+.is-shots{margin:0;padding-left:20px;list-style:decimal;display:grid;gap:6px;font-size:15px;line-height:1.45}
+.is-shots b{font-weight:700}
+.is-dd{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}
+.is-dd > div{padding:12px 14px;border-radius:12px;font-size:14.5px}
+.is-dd .good{background:var(--good-bg)}.is-dd .good .is-l{color:var(--good)}
+.is-dd .bad{background:var(--bad-bg)}.is-dd .bad .is-l{color:var(--bad)}
+.is-go{width:100%}
+.is-b .pl-nav{margin-top:0;padding-top:0}
+.pl-brief{width:100%;margin-top:4px}
+@media (max-width:767px){.icards.two,.rgrid,.feat,.fin{grid-template-columns:1fr}.rcard.wide{grid-column:auto}}
+@media (max-width:639px){
+  .hero h1{font-size:23px}
+  .tabs{top:56px}
+  .tabs button{padding:0 11px;font-size:14.5px}
+  .icard{grid-template-columns:84px minmax(0,1fr);gap:12px}
+  .ic-b b{font-size:15.5px}
+  .sell,.rcard,.steps{padding:14px}
+  .pl.is{display:block;height:auto;max-height:94dvh;overflow-y:auto;overscroll-behavior:contain}
+  .is-v .pl-v{height:52dvh;flex:none}
+  .is-b{overflow:visible;padding:16px 16px calc(16px + var(--safe-b))}
+  .is-b .pl-t{font-size:19px;padding-right:0}
+}
