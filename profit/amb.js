@@ -779,7 +779,7 @@ async function paintDiscord() {
   const act = S.data.account.act_id;
   const inp = (id, ph, type = 'text') => `<input class="wk-in" id="${id}" type="${type}" placeholder="${esc(ph)}" autocomplete="off">`;
   let d, a;
-  try { [d, a] = await Promise.all([api('/api/amb/discord?act=' + encodeURIComponent(act)), api('/api/amb/discord?act=all')]); }
+  try { [d, a] = await Promise.all([api('/api/amb/discord?act=' + encodeURIComponent(act)), api('/api/amb/discord')]); }
   catch (e) { card.innerHTML = `<h3>${ic('users', 17)}Creator Discord</h3><p>${esc(e.message)}</p>`; return; }
   const head = `<h3>${ic('users', 17)}Creator Discord</h3>`;
   const msg = `<p class="am-msg" id="dcMsg" style="margin:8px 0 0"></p>`;
