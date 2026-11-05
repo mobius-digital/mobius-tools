@@ -37,17 +37,20 @@ export async function handleLucky(request, env, url, path, json, h) {
   const email = await h.sessionEmail(env, request).catch(() => null);
   const only = await h.brandsFor(env, email).catch(() => null);
   if (only && !only.has('brand_lucky_golf')) return json({ error: 'You do not have access to Lucky Golf.' }, 403);
-  const name = path.replace(/^\/api\/lucky\/?/, '');
   try {
-    if (request.method === 'GET' && READS[name]) return json(await call(env, READS[name]));
-    if (request.method === 'POST' && name === 'review') {
+    if (path === '/api/lucky/summary' && request.method === 'GET') return json(await call(env, READS['summary']));
+    if (path === '/api/lucky/review-queue' && request.method === 'GET') return json(await call(env, READS['review-queue']));
+    if (path === '/api/lucky/creators' && request.method === 'GET') return json(await call(env, READS['creators']));
+    if (path === '/api/lucky/discord-recap' && request.method === 'GET') return json(await call(env, READS['discord-recap']));
+    if (path === '/api/lucky/this-week' && request.method === 'GET') return json(await call(env, READS['this-week']));
+    if (path === '/api/lucky/review' && request.method === 'POST') {
       const b = await request.json().catch(() => ({}));
       if (!b.id || !['approve', 'reject', 'changes'].includes(b.decision)) return json({ error: 'Give the video id and approve, reject or changes.' }, 400);
       const r = await call(env, WRITES.review, { id: String(b.id), decision: b.decision, note: clip(b.note, 1000) });
       await logChange(env, email, `Lucky creator video ${b.decision === 'approve' ? 'approved' : b.decision === 'reject' ? 'rejected' : 'sent back for changes'}${b.note ? `: ${clip(b.note, 120)}` : ''}`, String(b.id));
       return json(r);
     }
-    if (request.method === 'POST' && name === 'announce') {
+    if (path === '/api/lucky/announce' && request.method === 'POST') {
       const b = await request.json().catch(() => ({}));
       const text = clip(b.text, 2000);
       if (!text) return json({ error: 'Write the announcement first.' }, 400);
