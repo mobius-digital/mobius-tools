@@ -89,6 +89,7 @@ import { handleDrops, dropsTick } from './drops.js';
 import { handleLaunch, refreshStatus as launchRefresh } from './launch.js';
 import { handleBuyer, buyerPostTick, buyerSettings } from './buyerlist.js';
 import { buyerAITick } from './buyerai.js';
+import { handleTrybe, trybeTick } from './trybe.js';
 import { dataTools } from './stratdata.js';
 import { extraTools } from './allwrite.js';
 import { runStudioMake, studioMakeTools } from './studiomake.js';
@@ -7348,6 +7349,11 @@ function minOffDeps() {
 }
 /* buyerlist.js: the one Buyer list (Locus page and the one daily Slack post). The ad calls are read from the profit worker
    as the owner (todaypost.js readToday), the test minimums from minoff.js state or live, the launches from the board. */
+/* trybe.js: the daily Trybe pull, the stale alert in the brand's internal channel, the Trybe tab. */
+function trybeDeps() {
+  return { xfetch, centralDate, centralHour, slackPost, canAfford: n => subCanAfford(n),
+    listBrands: async env => (await listAccounts(env, true)).map(a => ({ act_id: a.act_id, name: a.name, slack_channel: a.slack_channel || null, brief_channel: a.brief_channel || null })) };
+}
 function buyerDeps() {
   const base = { getSetting, putSetting, centralHour, centralDate, slackPost, slackApi };
   return { ...base, listAccounts, mintSession, xfetch, canAfford: n => subCanAfford(n), tagOf: (env, name) => tagOf(env, base, name),
@@ -7835,6 +7841,9 @@ const AH_APP = {
           /* The morning card: one post per brand in its internal channel, after its brief (and Monday's weekly)
              so it can say "client daily sent 5:12" (morningcard.js, 2026-10-13). */
           ran.morningCard = await morningCardTick(env, cardDeps()).catch(e => ({ error: e.message }));
+          /* Trybe (trybe.js): once a Central day from 4am, every brand with a key is pulled, then its internal channel
+             hears about approved videos that sat 3 days (and Monday's rebook list). */
+          if (subCanAfford(80)) ran.trybe = await trybeTick(env, trybeDeps()).catch(e => ({ error: e.message }));
           /* Cole's calendar blocks: once a Central day, open tasks whose block day passed move to the next one. */
           if ((await getSetting(env, 'blockRollDay').catch(() => null)) !== centralDate() && subCanAfford(60)) {
             ran.blocks = await blockRollTick(env).catch(e => ({ error: e.message }));
@@ -8313,6 +8322,12 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       const r = await handleLaunch(request, env, url, path, json, { isAdmin, sessionEmail, brandsFor, resolveBrandId, md: { xfetch, listAccounts, getSetting, putSetting,
         /* a batch on Meta moves its Production card to Live (and the Asana task with it) */
         moveCard: (e, id, who) => prodMove(e, actionDeps(), { id, to: 'live' }, who) } });
+      if (r) return r;
+    }
+    /* ---- Ads > Trybe (2026-11-05, src/trybe.js): approved creator videos that never ran, the live ones on Triple Whale
+       numbers, the creators to rebook. One Trybe key per brand. A client reads Live and Creators for its own brand. */
+    {
+      const r = await handleTrybe(request, env, url, path, json, { isAdmin, sessionEmail, brandsFor, resolveBrandId, isClient: r => !!clientScope(r), deps: trybeDeps() });
       if (r) return r;
     }
     /* ---- The Buyer list (2026-10-26, src/buyerlist.js): every brand's ad calls, test minimums due off and cards ready to

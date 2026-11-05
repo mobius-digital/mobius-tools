@@ -463,7 +463,7 @@ export async function passInput(env, d, a, list, { today = centralToday() } = {}
   ]);
   const plan = facts.filter(f => f.scope !== 'agency' && /account|structure|plan|campaign/i.test(`${f.topic} ${f.text}`));
   const locks = (await locksFor(env, new Set([a.act_id])).catch(() => new Map())).get(a.act_id) || null;
-  return { metaActs, to, ruleRows, sets, camps, brain, facts, plan, lessons, acct, locks, banners: (list.banners || []).filter(b => b.act_id === a.act_id) };
+  return { metaActs, to, ruleRows, sets, camps, brain, facts, plan, lessons, acct, locks, banners: (list.banners || []).filter(b => b.act_id === a.act_id && b.kind !== 'trybe') };
 }
 export function passUser(a, inp) {
   return [`BRAND: ${a.name} (${a.currency || 'USD'}). Data through ${inp.to || 'unknown'}. Goal: ${inp.acct ? JSON.stringify({ target_cpa: inp.acct.target_cpa, target_roas: inp.acct.target_roas }) : 'not set'}`,
