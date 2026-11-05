@@ -66,6 +66,30 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 /* ---------------- read models ---------------- */
 
+/* "This week" (2026-11-05, the Trybe program): the block at the top of the creator hub. The column is added on the
+   first save; reads work without it (week = null). */
+let weekReady = false;
+async function ensureWeek(env) {
+  if (weekReady) return;
+  await env.DB.prepare(`ALTER TABLE p_amb_brand ADD COLUMN week_json TEXT`).run().catch(() => {});
+  weekReady = true;
+}
+const httpsUrl = (u, n = 500) => (/^https:\/\/\S+$/i.test(String(u || '').trim()) ? String(u).trim().slice(0, n) : null);
+export function cleanWeek(w) {
+  if (!w || typeof w !== 'object') return null;
+  const t = (v, n) => String(v == null ? '' : v).trim().slice(0, n);
+  const out = {
+    title: t(w.title, 60),
+    offer: { head: t(w.offer?.head, 120), line: t(w.offer?.line, 300) },
+    call: { when: t(w.call?.when, 160), join: httpsUrl(w.call?.join),
+      recordings: (Array.isArray(w.call?.recordings) ? w.call.recordings : []).map(r => ({ title: t(r?.title, 80), url: httpsUrl(r?.url) })).filter(r => r.title && r.url).slice(0, 30) },
+    daily: (Array.isArray(w.daily) ? w.daily : []).map(x => ({ day: t(x?.day, 10), title: t(x?.title, 120), opener: t(x?.opener, 220) })).filter(x => x.title).slice(0, 7),
+    same: { line: t(w.same?.line, 220), who: t(w.same?.who, 80) },
+  };
+  const empty = !out.title && !out.offer.head && !out.call.when && !out.call.join && !out.call.recordings.length && !out.daily.length && !out.same.line;
+  return empty ? null : out;
+}
+
 async function loadAll(env, actId) {
   const [brand, secs, angles, proof] = await Promise.all([
     env.DB.prepare(`SELECT * FROM p_amb_brand WHERE act_id = ?1`).bind(actId).first(),
@@ -123,6 +147,7 @@ function shapeBrand(b, acct) {
     pdf: safeJson(b.pdf_json, null),
     guide: safeJson(b.guide_json, []),          // "How to keep them watching", [{title, text}]
     hooks: safeJson(b.hooks_json, []),          // "First seconds" bank, [{title, how, kind, url, clip}]
+    week: safeJson(b.week_json, null),          // "This week" on the creator hub: offer, Monday call + recordings, one idea a day (2026-11-05)
     checklist: safeJson(b.checklist_json, null),   // the creator checklist {do:[{title,text}], say:[], skip:[]}, three short lines each (amb-009)
     skip: b.skip_json == null ? null : safeJson(b.skip_json, []),   // checklist "Skip these"; null = guess from rules (old brands)
     board_mode: b.board_mode === 'auto' ? 'auto' : 'picked', board_n: b.board_n || 20, board_sort: BOARD_SORTS.has(b.board_sort) ? b.board_sort : 'orders',   // the video board (amb-004)
@@ -488,6 +513,7 @@ export async function handleStaff(request, env, url, path, json) {
           say: lines(c.say), skip: lines(c.skip),
         })).run();
       }
+      if (has('week')) { await ensureWeek(env); const w = cleanWeek(body.week); await env.DB.prepare(`UPDATE p_amb_brand SET week_json = ?2, updated_at = datetime('now') WHERE act_id = ?1`).bind(acct.act_id, w ? JSON.stringify(w) : null).run(); }
       if (has('skip')) await env.DB.prepare(`UPDATE p_amb_brand SET skip_json = ?2 WHERE act_id = ?1`).bind(acct.act_id, JSON.stringify(arr(body.skip, 12, 300))).run();
       if (has('board_mode') || has('board_n') || has('board_sort')) {
         // A changed mode, size or ranking re-ranks on the next page load (board_at cleared).
