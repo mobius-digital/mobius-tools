@@ -46,7 +46,7 @@ export async function handleLucky(request, env, url, path, json, h) {
     if (path === '/api/lucky/review' && request.method === 'POST') {
       const b = await request.json().catch(() => ({}));
       if (!b.id || !['approve', 'reject', 'changes'].includes(b.decision)) return json({ error: 'Give the video id and approve, reject or changes.' }, 400);
-      const r = await call(env, WRITES.review, { id: String(b.id), decision: b.decision, note: clip(b.note, 1000) });
+      const r = await call(env, WRITES.review, { id: String(b.id), decision: b.decision, note: clip(b.note, 1000), by: email || undefined });
       await logChange(env, email, `Lucky creator video ${b.decision === 'approve' ? 'approved' : b.decision === 'reject' ? 'rejected' : 'sent back for changes'}${b.note ? `: ${clip(b.note, 120)}` : ''}`, String(b.id));
       return json(r);
     }
@@ -55,7 +55,7 @@ export async function handleLucky(request, env, url, path, json, h) {
       const text = clip(b.text, 2000);
       if (!text) return json({ error: 'Write the announcement first.' }, 400);
       const discord = ['none', 'announcements', 'wins'].includes(b.discord) ? b.discord : 'none';
-      const r = await call(env, WRITES.announce, { text, title: clip(b.title, 120) || undefined, discord, notify: b.notify !== false });
+      const r = await call(env, WRITES.announce, { text, title: clip(b.title, 120) || undefined, discord, notify: b.notify !== false, by: email || undefined });
       await logChange(env, email, `Lucky announcement posted${discord !== 'none' ? ` (and in Discord #${discord})` : ''}: ${clip(b.title || text, 120)}`, r.id ? String(r.id) : null);
       return json(r);
     }
