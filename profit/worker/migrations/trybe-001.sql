@@ -15,3 +15,9 @@ CREATE TABLE IF NOT EXISTS p_trybe_creator (
   act_id TEXT NOT NULL, creator_id TEXT NOT NULL, name TEXT, avatar TEXT, joined_at TEXT, last_sub_at TEXT, last_ad_day TEXT,
   earnings REAL NOT NULL DEFAULT 0, gmv REAL NOT NULL DEFAULT 0, synced_at TEXT,
   PRIMARY KEY (act_id, creator_id));
+
+-- 2026-11-05 v3: every Meta ad named trybe=, read live (Locus's ads table only holds ads that spent).
+CREATE TABLE IF NOT EXISTS p_trybe_ad (
+  act_id TEXT NOT NULL, ad_id TEXT PRIMARY KEY, trybe_id TEXT, name TEXT, status TEXT,
+  adset_id TEXT, adset TEXT, campaign TEXT, start_time TEXT, created_time TEXT, synced_at TEXT
+);

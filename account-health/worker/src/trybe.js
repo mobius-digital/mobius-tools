@@ -10,13 +10,16 @@
  *   date on a brand's first sync); the 3 day clock runs from it.
  * - A video is matched to its Meta ads by `trybe=<trybe_id>` in the ad name (Trybe's own rule; its Build Ads names
  *   them that way). Sales, revenue: Triple Whale (tw_ad_attr, lastPlatformClick). Spend: Meta (ad_daily).
- * - Queue = approved videos Trybe has never seen deliver. `not_in_meta` (no ad carries its id) or `no_delivery`
- *   (an ad exists and Meta never spent on it).
+ * - Queue = approved videos Trybe has never seen deliver. Locus's `ads` table only holds ads that SPENT, so the sync reads
+ *   every ad named `trybe=` live from Meta into p_trybe_ad. States: `not_launched` (no ad carries its id), `scheduled`
+ *   (its ad set starts later), `review` / `rejected` (Meta), `off` (its ads are paused), `no_spend` (on, no delivery yet).
+ *   Only `not_launched` is the backlog; the alert, the banner and the Agency view count that alone.
  * - Rebook = a creator whose ads beat the account's cost per sale and who has not posted in REBOOK_DAYS.
  * - The Slack lines are off until settings.trybeAlerts = 'on' (the Agency view has the switch); the sync runs either way.
  * - A client reads Live and Creators for its own brand, never the Queue or the Rules.
  * No em dashes in anything this posts. */
 import { noDash } from './buyerai.js';
+import { gall, metaActs as metaAccounts } from './metawrite.js';
 
 const API = 'https://api.jointrybe.com/v1';
 export const STALE_DAYS = 3, REBOOK_DAYS = 14, WINDOW_DAYS = 30, REBOOK_MIN_ORDERS = 2;
@@ -40,11 +43,17 @@ const CR_SQL = `CREATE TABLE IF NOT EXISTS p_trybe_creator (
   act_id TEXT NOT NULL, creator_id TEXT NOT NULL, name TEXT, avatar TEXT, joined_at TEXT, last_sub_at TEXT, last_ad_day TEXT,
   earnings REAL NOT NULL DEFAULT 0, gmv REAL NOT NULL DEFAULT 0, synced_at TEXT,
   PRIMARY KEY (act_id, creator_id))`;
+const AD_SQL = `CREATE TABLE IF NOT EXISTS p_trybe_ad (
+  act_id TEXT NOT NULL, ad_id TEXT NOT NULL, trybe_id TEXT, name TEXT, status TEXT, adset_id TEXT, adset TEXT, campaign TEXT,
+  start_time TEXT, created_time TEXT, synced_at TEXT,
+  PRIMARY KEY (act_id, ad_id))`;
 let made = false;
 export async function ensureTrybe(env) {
   if (made) return;
   await env.DB.prepare(SUB_SQL).run();
   await env.DB.prepare(CR_SQL).run();
+  await env.DB.prepare(AD_SQL).run();
+  await env.DB.prepare(`CREATE INDEX IF NOT EXISTS p_trybe_ad_tid ON p_trybe_ad (act_id, trybe_id)`).run().catch(() => {});
   await env.DB.prepare(`CREATE INDEX IF NOT EXISTS p_trybe_sub_status ON p_trybe_sub (act_id, status)`).run().catch(() => {});
   made = true;
 }
@@ -134,11 +143,41 @@ export async function syncBrand(env, d, act, { today } = {}) {
   const perf = await pages(d, k.key, '/creator-performance', { start_date: addDays(today, -90), end_date: addDays(today, -1), active_only: 'true', sort_by: 'spend' }, 20);
   await runAll(env, perf.map(p => env.DB.prepare(CR_UPSERT).bind(act, p.creator?.id, p.creator?.name || null, p.creator?.avatar_url || null, p.creator?.joined_at || null,
     p.activity?.last_submission_at || null, p.activity?.last_ad_day || null, (p.performance?.earnings_cents || 0) / 100, (p.performance?.trybe_gmv_cents || 0) / 100, now)));
-  const out = { at: now, subs: subs.length, creators: perf.length };
+  /* Every Meta ad named trybe=, spent or not (Locus's own ads table only knows ads that spent). A failed read keeps the last one. */
+  let metaAds = null, metaErr = null;
+  try { metaAds = await readMetaAds(env, d, act); } catch (e) { metaErr = e.message; }
+  if (metaAds) {
+    await env.DB.prepare(`DELETE FROM p_trybe_ad WHERE act_id = ?1`).bind(act).run();
+    await runAll(env, metaAds.filter(a => trybeIdOf(a.name)).map(a => env.DB.prepare(`INSERT OR REPLACE INTO p_trybe_ad (act_id, ad_id, trybe_id, name, status, adset_id, adset, campaign, start_time, created_time, synced_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)`)
+      .bind(act, String(a.id), trybeIdOf(a.name), a.name || null, a.effective_status || a.status || null, a.adset?.id || a.adset_id || null, a.adset?.name || null, a.campaign?.name || null, a.adset?.start_time || null, a.created_time || null, now)));
+  }
+  const out = { at: now, subs: subs.length, creators: perf.length, meta_ads: metaAds ? metaAds.length : null, ...(metaErr ? { meta_error: metaErr } : {}) };
   await putSetting(env, `trybeSync:${act}`, JSON.stringify(out));
   return out;
 }
 
+/** The brand's Meta ads whose name carries a Trybe id, live. `d.metaAds` replaces the Graph read in tests. */
+async function readMetaAds(env, d, act) {
+  if (d.metaAds) return d.metaAds(env, act);
+  const out = [];
+  for (const m of await metaAccounts(env, act)) {
+    const fields = 'id,name,effective_status,created_time,adset{id,name,start_time},campaign{name}';
+    /* Meta filters by name for us; if it refuses the filter, read every ad and keep the ones named trybe=. */
+    const rows = await gall(d, env, `${m.act}/ads`, { fields, filtering: JSON.stringify([{ field: 'name', operator: 'CONTAIN', value: 'trybe=' }]), limit: '200' }, 15)
+      .catch(() => gall(d, env, `${m.act}/ads`, { fields, limit: '300' }, 20));
+    out.push(...rows.filter(a => trybeIdOf(a.name)));
+  }
+  return out;
+}
+const ON = new Set(['ACTIVE']), REVIEW = new Set(['PENDING_REVIEW', 'IN_PROCESS', 'PREAPPROVED', 'PENDING_BILLING_INFO']), REJECTED = new Set(['DISAPPROVED', 'WITH_ISSUES']);
+/** Where a never-delivered video stands, from its Meta ads. */
+export function queueState(ads, nowIso) {
+  if (!ads || !ads.length) return 'not_launched';
+  if (ads.some(a => ON.has(a.status))) return ads.every(a => !ON.has(a.status) || (a.start_time && a.start_time > nowIso)) ? 'scheduled' : 'no_spend';
+  if (ads.some(a => REVIEW.has(a.status))) return 'review';
+  if (ads.every(a => REJECTED.has(a.status))) return 'rejected';
+  return 'off';
+}
 /* ---------- the read ---------- */
 async function metaActs(env, act) {
   const r = (await env.DB.prepare(`SELECT external_id FROM connections WHERE brand_id = ?1 AND kind = 'meta'`).bind(act).all().catch(() => ({ results: [] }))).results || [];
@@ -158,7 +197,7 @@ export async function trybeView(env, d, act, { client = false, today } = {}) {
   const acts = await metaActs(env, act);
   const ph = acts.map((_, i) => `?${i + 1}`).join(', ');
   /* The Meta ads that carry a Trybe id, their 30 day spend, and the account's 30 day spend. */
-  const ads = (await env.DB.prepare(`SELECT ad_id, name, status FROM ads WHERE act_id IN (${ph}) AND name LIKE '%trybe=%'`).bind(...acts).all().catch(() => ({ results: [] }))).results || [];
+  const ads = (await env.DB.prepare(`SELECT ad_id, name, status, adset, campaign, start_time, created_time FROM p_trybe_ad WHERE act_id = ?1`).bind(act).all().catch(() => ({ results: [] }))).results || [];
   const spendRows = (await env.DB.prepare(`SELECT ad_id, SUM(spend) AS spend FROM ad_daily WHERE act_id IN (${ph}) AND date >= ?${acts.length + 1} GROUP BY ad_id`).bind(...acts, from).all().catch(() => ({ results: [] }))).results || [];
   const twRows = (await env.DB.prepare(`SELECT ad_id, SUM(revenue) AS revenue, SUM(orders) AS orders FROM tw_ad_attr WHERE act_id = ?1 AND model = ?2 AND date >= ?3 AND (platform = 'meta' OR platform IS NULL) GROUP BY ad_id`)
     .bind(act, ATTR_MODEL, from).all().catch(() => ({ results: [] }))).results || [];
@@ -170,18 +209,20 @@ export async function trybeView(env, d, act, { client = false, today } = {}) {
   const byId = new Map();   // trybe_id -> { ads, on, spend, orders, revenue }
   for (const a of ads) {
     const id = trybeIdOf(a.name); if (!id) continue;
-    const g = byId.get(id) || { ads: 0, on: 0, spend: 0, orders: 0, revenue: 0 };
+    const g = byId.get(id) || { ads: 0, on: 0, spend: 0, orders: 0, revenue: 0, list: [] };
+    g.list.push(a);
     const tw = twOf.get(String(a.ad_id)) || { revenue: 0, orders: 0 };
     g.ads++; if (a.status === 'ACTIVE') g.on++;
     g.spend += spendOf.get(String(a.ad_id)) || 0; g.orders += tw.orders; g.revenue += tw.revenue;
     byId.set(id, g);
   }
   const row = s => ({ sub_id: s.sub_id, trybe_id: s.trybe_id, creator_id: s.creator_id, creator: s.creator || 'Creator', product: s.product || '', program: s.program || '', angle: s.angle || '', thumb: s.thumb || null, media: s.media });
+  const where = g => { const a = (g.list || []).find(x => x.status === 'ACTIVE') || (g.list || [])[0]; return a ? { adset: a.adset || '', campaign: a.campaign || '' } : {}; };
   const num = g => ({ ads: g.ads, on: g.on, spend: round2(g.spend), orders: round2(g.orders), revenue: round2(g.revenue), cpa: g.orders > 0 ? round2(g.spend / g.orders) : null, roas: g.spend > 0 ? round2(g.revenue / g.spend) : null });
 
   /* Live: approved videos whose ads spent in the window. */
   const live = approved.filter(s => (byId.get(s.trybe_id) || {}).spend > 0)
-    .map(s => ({ ...row(s), ...num(byId.get(s.trybe_id)), line: clip(s.transcript, 220), transcript: client ? undefined : s.transcript || '' }))
+    .map(s => ({ ...row(s), ...num(byId.get(s.trybe_id)), ...where(byId.get(s.trybe_id)), line: clip(s.transcript, 220), transcript: client ? undefined : s.transcript || '' }))
     .sort((a, b) => b.spend - a.spend);
 
   /* Creators: the live rows rolled up, with Trybe's own activity dates. */
@@ -194,11 +235,13 @@ export async function trybeView(env, d, act, { client = false, today } = {}) {
     g.videos++; g.ads += v.ads; g.on += v.on; g.spend += v.spend; g.orders += v.orders; g.revenue += v.revenue;
     agg.set(v.creator_id, g);
   }
+  const made = new Map();
+  for (const s of approved) made.set(s.creator_id, (made.get(s.creator_id) || 0) + 1);
   const creators = [...agg.values()].map(g => {
     const c = crs.get(g.creator_id) || {}, last = day(lastSub.get(g.creator_id) || c.last_sub_at), quiet = daysBetween(last, today);
     const n = num(g);
     const beats = acctCpa != null && n.cpa != null && n.orders >= REBOOK_MIN_ORDERS && n.cpa <= acctCpa;
-    return { creator_id: g.creator_id, name: g.name, avatar: c.avatar || null, videos: g.videos, ...n, last_video: last || null, quiet_days: quiet,
+    return { creator_id: g.creator_id, name: g.name, avatar: c.avatar || null, videos: g.videos, approved: made.get(g.creator_id) || g.videos, ...n, last_video: last || null, quiet_days: quiet,
       beats, rebook: beats && quiet != null && quiet >= REBOOK_DAYS, ...(client ? {} : { earnings: round2(c.earnings) }) };
   }).sort((a, b) => b.revenue - a.revenue || b.spend - a.spend);
 
@@ -210,16 +253,19 @@ export async function trybeView(env, d, act, { client = false, today } = {}) {
 
   /* Queue: approved, and Trybe has never seen it deliver. Oldest approval first, then the creator's sales. */
   const sold = new Map(creators.map(c => [c.creator_id, c.orders]));
+  const nowIso = new Date().toISOString();
   const queue = approved.filter(s => !(+s.ads_count > 0) && !((byId.get(s.trybe_id) || {}).spend > 0)).map(s => {
     const g = byId.get(s.trybe_id);
-    return { ...row(s), state: g ? 'no_delivery' : 'not_in_meta', meta_ads: g ? g.ads : 0, meta_on: g ? g.on : 0, approved_seen: s.approved_seen || null,
+    const launched = g ? day(g.list.map(a => a.created_time || '').sort().pop()) : null;
+    return { ...row(s), state: queueState(g && g.list, nowIso), meta_ads: g ? g.ads : 0, meta_on: g ? g.on : 0, ...(g ? where(g) : {}), launched, launched_days: launched ? daysBetween(launched, today) : null, starts: g ? day(g.list.map(a => a.start_time || '').sort().pop()) || null : null, approved_seen: s.approved_seen || null,
       days: daysBetween(s.approved_seen || day(s.created_at), today) ?? 0, submitted: day(s.created_at), line: clip(s.transcript, 220), creator_orders: sold.get(s.creator_id) || 0 };
   }).sort((a, b) => b.days - a.days || b.creator_orders - a.creator_orders);
-  const stale = queue.filter(q => q.days >= STALE_DAYS);
+  const waiting = queue.filter(q => q.state === 'not_launched');
+  const stale = waiting.filter(q => q.days >= STALE_DAYS);
   return { act, has_key: !!(k && k.key), key_at: k?.verified_at || null, synced_at: sync?.at || null, portal: portalOf(subs), stale_days: STALE_DAYS, rebook_days: REBOOK_DAYS,
     account, queue, live, creators, rules: (await getSetting(env, `trybeRules:${act}`)) || DEFAULT_RULES, rules_default: !(await getSetting(env, `trybeRules:${act}`)),
-    counts: { approved: approved.length, queue: queue.length, not_in_meta: queue.filter(q => q.state === 'not_in_meta').length, no_delivery: queue.filter(q => q.state === 'no_delivery').length,
-      stale: stale.length, oldest: queue.length ? queue[0].days : 0, live: live.length, creators: creators.length, rebook: creators.filter(c => c.rebook).length,
+    counts: { approved: approved.length, queue: queue.length, not_launched: waiting.length, no_spend: queue.filter(q => q.state === 'no_spend').length, other: queue.filter(q => !['not_launched', 'no_spend'].includes(q.state)).length,
+      stale: stale.length, oldest: waiting.length ? Math.max(...waiting.map(q => q.days)) : 0, live: live.length, creators: creators.length, rebook: creators.filter(c => c.rebook).length,
       pending: subs.filter(s => s.status === 'pending').length, revision: subs.filter(s => s.status === 'revision_requested').length } };
 }
 
@@ -229,16 +275,17 @@ export async function trybeAll(env, d, brands, { today } = {}) {
   today = today || (d.centralDate ? d.centralDate() : new Date().toISOString().slice(0, 10));
   const keyed = new Set(await keyedBrands(env));
   const cut = addDays(today, -STALE_DAYS);
-  const rows = (await env.DB.prepare(`SELECT act_id, SUM(status = 'approved') AS approved, SUM(status = 'approved' AND ads_count = 0) AS queue,
-      SUM(status = 'approved' AND ads_count = 0 AND approved_seen <= ?1) AS stale, SUM(status = 'pending') AS pending, MIN(CASE WHEN status = 'approved' AND ads_count = 0 THEN approved_seen END) AS oldest
-    FROM p_trybe_sub GROUP BY act_id`).bind(cut).all()).results || [];
+  const NL = `status = 'approved' AND ads_count = 0 AND NOT EXISTS (SELECT 1 FROM p_trybe_ad a WHERE a.act_id = s.act_id AND a.trybe_id = s.trybe_id)`;
+  const rows = (await env.DB.prepare(`SELECT act_id, SUM(status = 'approved') AS approved, SUM(${NL}) AS queue, SUM(status = 'approved' AND ads_count = 0) AS never,
+      SUM(${NL} AND approved_seen <= ?1) AS stale, SUM(status = 'pending') AS pending, MIN(CASE WHEN ${NL} THEN approved_seen END) AS oldest
+    FROM p_trybe_sub s GROUP BY act_id`).bind(cut).all()).results || [];
   const by = new Map(rows.map(r => [r.act_id, r]));
   const out = [];
   for (const b of brands) {
     const r = by.get(b.act_id) || {}, has = keyed.has(b.act_id);
     if (!has && !r.approved) continue;
     const sync = safeJson(await getSetting(env, `trybeSync:${b.act_id}`), null);
-    out.push({ act_id: b.act_id, name: b.name, has_key: has, synced_at: sync?.at || null, approved: +r.approved || 0, queue: +r.queue || 0, stale: +r.stale || 0, pending: +r.pending || 0,
+    out.push({ act_id: b.act_id, name: b.name, has_key: has, synced_at: sync?.at || null, approved: +r.approved || 0, queue: +r.queue || 0, no_spend: Math.max(0, (+r.never || 0) - (+r.queue || 0)), stale: +r.stale || 0, pending: +r.pending || 0,
       oldest: r.oldest ? daysBetween(r.oldest, today) : 0 });
   }
   return { act: 'all', brands: out.sort((a, b) => b.queue - a.queue), no_key: brands.filter(b => !keyed.has(b.act_id)).map(b => ({ act_id: b.act_id, name: b.name })), stale_days: STALE_DAYS, alerts: (await getSetting(env, 'trybeAlerts')) === 'on' };
@@ -248,17 +295,18 @@ export async function trybeAll(env, d, brands, { today } = {}) {
 export async function trybeBanners(env, ids, today) {
   await ensureTrybe(env);
   const cut = addDays(today, -STALE_DAYS);
-  const rows = (await env.DB.prepare(`SELECT act_id, COUNT(*) AS n, MIN(approved_seen) AS oldest FROM p_trybe_sub WHERE status = 'approved' AND ads_count = 0 AND approved_seen <= ?1 GROUP BY act_id`).bind(cut).all()).results || [];
+  const rows = (await env.DB.prepare(`SELECT act_id, COUNT(*) AS n, MIN(approved_seen) AS oldest FROM p_trybe_sub s WHERE status = 'approved' AND ads_count = 0 AND approved_seen <= ?1
+      AND NOT EXISTS (SELECT 1 FROM p_trybe_ad a WHERE a.act_id = s.act_id AND a.trybe_id = s.trybe_id) GROUP BY act_id`).bind(cut).all()).results || [];
   return rows.filter(r => ids.has(r.act_id) && r.n > 0).map(r => ({ act_id: r.act_id, kind: 'trybe',
-    text: `${r.n} approved Trybe video${r.n === 1 ? ' has' : 's have'} waited ${STALE_DAYS} days or more without running (oldest ${daysBetween(r.oldest, today)} days). Launch them from Ads > Trybe.` }));
+    text: `${r.n} approved Trybe video${r.n === 1 ? ' has' : 's have'} waited ${STALE_DAYS} days or more without being launched (oldest ${daysBetween(r.oldest, today)} days). See Ads > Trybe.` }));
 }
 
 /* ---------- the daily tick: sync, then the stale alert (and Monday's rebook list) ---------- */
 export function staleMessage(brand, stale, rebook, link) {
   const lines = [];
   if (stale.length) {
-    lines.push(`*Trybe: ${stale.length} approved video${stale.length === 1 ? ' is' : 's are'} not live after ${STALE_DAYS} days.* Oldest: ${stale[0].days} days.`);
-    for (const q of stale.slice(0, 5)) lines.push(`• ${q.creator}${q.product ? `, ${clip(q.product, 40)}` : ''}: ${q.days} days${q.state === 'no_delivery' ? ' (in Meta, no spend)' : ''}`);
+    lines.push(`*Trybe: ${stale.length} approved video${stale.length === 1 ? ' has' : 's have'} not been launched after ${STALE_DAYS} days.* Oldest: ${stale[0].days} days.`);
+    for (const q of stale.slice(0, 5)) lines.push(`• ${q.creator}${q.product ? `, ${clip(q.product, 40)}` : ''}: ${q.days} days`);
     if (stale.length > 5) lines.push(`• and ${stale.length - 5} more`);
   }
   if (rebook.length) {
@@ -286,7 +334,7 @@ export async function trybeTick(env, d, { force = false } = {}) {
       if (!alertsOn || !b.slack_channel || (b.brief_channel && b.slack_channel === b.brief_channel)) continue;
       const v = await trybeView(env, d, b.act_id, { today });
       const seen = new Set(((await env.DB.prepare(`SELECT sub_id FROM p_trybe_sub WHERE act_id = ?1 AND alerted IS NOT NULL`).bind(b.act_id).all()).results || []).map(r => r.sub_id));
-      const fresh = v.queue.filter(q => q.days >= STALE_DAYS && !seen.has(q.sub_id));
+      const fresh = v.queue.filter(q => q.state === 'not_launched' && q.days >= STALE_DAYS && !seen.has(q.sub_id));
       const msg = staleMessage(b.name, fresh, monday ? v.creators.filter(c => c.rebook) : [], `${d.appUrl || 'https://locus.go-mobius-digital.com'}/?open=trybe&act=${b.act_id}`);
       if (!msg) continue;
       await d.slackPost(env, b.slack_channel, msg, null, { username: 'Locus' });
@@ -317,6 +365,18 @@ export async function handleTrybe(request, env, url, path, json, h) {
       }
       if (!allowed(act)) return json({ error: 'You do not have access to this brand.' }, 403);
       return json(await trybeView(env, d, act, { client }));
+    }
+    /* One video's file: Trybe hands out a link that lasts 20 minutes, so the page asks when someone presses play. */
+    if (path === '/api/trybe/video' && request.method === 'GET') {
+      const act = await actOf(url.searchParams.get('act'));
+      if (!allowed(act)) return json({ error: 'You do not have access to this brand.' }, 403);
+      const sub = String(url.searchParams.get('sub') || '');
+      const own = await env.DB.prepare(`SELECT media, thumb FROM p_trybe_sub WHERE act_id = ?1 AND sub_id = ?2`).bind(act, sub).first();
+      if (!own) return json({ error: 'No such video.' }, 404);
+      const k = await keyFor(env, act);
+      if (!k || !k.key) return json({ error: 'No Trybe key for this brand yet.' }, 400);
+      const s = await trybeGet(d, k.key, `/submissions/${encodeURIComponent(sub)}`);
+      return json({ url: s.asset?.url || null, expires_at: s.asset?.expires_at || null, media: s.media_type || own.media, thumb: s.thumbnail_url || own.thumb });
     }
     if (client) return json({ error: 'That part is the Mobius team\'s.' }, 403);
     /* The Slack lines (3 days unlaunched, Monday's rebook list) for every brand: on or off. Off until turned on. */

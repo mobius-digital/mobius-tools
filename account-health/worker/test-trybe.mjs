@@ -5,7 +5,7 @@
  *   node test-trybe.mjs      (from account-health/worker) */
 import { DatabaseSync } from 'node:sqlite';
 import assert from 'node:assert/strict';
-import { storeKey, keyFor, syncBrand, trybeView, trybeAll, trybeBanners, trybeTick, trybeIdOf, staleMessage, handleTrybe, STALE_DAYS } from './src/trybe.js';
+import { storeKey, keyFor, syncBrand, trybeView, trybeAll, trybeBanners, trybeTick, trybeIdOf, staleMessage, handleTrybe, queueState, STALE_DAYS } from './src/trybe.js';
 
 const db = new DatabaseSync(':memory:');
 const bindSql = sql => sql.replace(/\?(\d+)/g, (_, n) => ':p' + n);
@@ -28,7 +28,8 @@ const sub = (n, o = {}) => ({ id: `submission_${n}`, trybe_id: `0000000${n}`.sli
 let SUBS = [sub(1, { ads: 2 }), sub(2), sub(3, { at: '2026-11-04T10:00:00Z' }), sub(4, { status: 'pending' }), sub(5, { c: 'creator_b', cn: 'Bo', ads: 1, at: '2026-09-01T10:00:00Z' })];
 let calls = [], posts = [];
 let TODAY = '2026-11-05';
-const d = { centralDate: () => TODAY, centralHour: () => 6, canAfford: () => true,
+let META = [];
+const d = { metaAds: async () => META, centralDate: () => TODAY, centralHour: () => 6, canAfford: () => true,
   listBrands: async () => [{ act_id: 'brand_alpha', name: 'Alpha Golf', slack_channel: 'C1', brief_channel: 'C2' }, { act_id: 'brand_beta', name: 'Beta', slack_channel: 'C3' }],
   slackPost: async (e, ch, text) => { posts.push({ ch, text }); return { ts: '1' }; },
   xfetch: async (u, o) => { calls.push(u); const url = new URL(u);
@@ -61,9 +62,15 @@ assert.equal(seen('submission_6'), '2026-11-06');
 assert.equal(seen('submission_2'), '2026-10-20');
 
 /* Meta + Triple Whale: video 1 and 5 spent; video 3 has an ad that never spent */
-db.exec(`INSERT INTO ads VALUES ('act_1', 'a1', 'Ann_Wedge_trybe=00000001', 'ACTIVE'), ('act_1', 'a1b', 'Ann_Wedge_v2_trybe=00000001', 'PAUSED'), ('act_1', 'a3', 'Ann_trybe=00000003', 'ACTIVE'),
-    ('act_1', 'a5', 'Bo_trybe=00000005', 'ACTIVE'), ('act_1', 'x', 'GD-EB-L09 | Still', 'ACTIVE');
-  INSERT INTO ad_daily VALUES ('act_1', 'a1', '2026-11-01', 100), ('act_1', 'a1b', '2026-11-02', 20), ('act_1', 'a5', '2026-11-03', 60), ('act_1', 'x', '2026-11-03', 820), ('act_1', 'a1', '2026-09-01', 999);
+META = [{ id: 'a1', name: 'Ann_Wedge_trybe=00000001', effective_status: 'ACTIVE', created_time: '2026-10-25T00:00:00Z', adset: { id: 's1', name: 'Trybe | 10/25' }, campaign: { name: 'Creators' } },
+  { id: 'a1b', name: 'Ann_Wedge_v2_trybe=00000001', effective_status: 'ADSET_PAUSED', adset: { id: 's0', name: 'Old' } },
+  { id: 'a3', name: 'Ann_trybe=00000003', effective_status: 'ACTIVE', created_time: '2026-11-05T00:00:00Z', adset: { id: 's2', name: 'Trybe | 11/05' }, campaign: { name: 'Creators' } },
+  { id: 'a5', name: 'Bo_trybe=00000005', effective_status: 'ACTIVE', adset: { id: 's1', name: 'Trybe | 10/25' } }, { id: 'x', name: 'GD-EB-L09 | Still', effective_status: 'ACTIVE' }];
+await syncBrand(env, d, 'brand_alpha');
+assert.equal(db.prepare(`SELECT COUNT(*) AS n FROM p_trybe_ad`).get().n, 4, 'only ads named trybe= are kept');
+assert.equal(queueState([], ''), 'not_launched'); assert.equal(queueState([{ status: 'PAUSED' }], ''), 'off'); assert.equal(queueState([{ status: 'PENDING_REVIEW' }], ''), 'review');
+assert.equal(queueState([{ status: 'ACTIVE', start_time: '2026-12-01' }], '2026-11-06'), 'scheduled'); assert.equal(queueState([{ status: 'DISAPPROVED' }], ''), 'rejected');
+db.exec(`INSERT INTO ad_daily VALUES ('act_1', 'a1', '2026-11-01', 100), ('act_1', 'a1b', '2026-11-02', 20), ('act_1', 'a5', '2026-11-03', 60), ('act_1', 'x', '2026-11-03', 820), ('act_1', 'a1', '2026-09-01', 999);
   INSERT INTO tw_ad_attr VALUES ('brand_alpha', '2026-11-01', 'a1', 'lastPlatformClick', 300, 2, 'meta'), ('brand_alpha', '2026-11-03', 'a5', 'lastPlatformClick', 400, 4, 'meta'),
     ('brand_alpha', '2026-11-03', 'x', 'lastPlatformClick', 900, 14, 'meta'), ('brand_alpha', '2026-11-03', 'a1', 'firstClick', 9999, 99, 'meta');`);
 const v = await trybeView(env, d, 'brand_alpha');
@@ -71,8 +78,9 @@ assert.equal(v.account.spend, 1000); assert.equal(v.account.orders, 20); assert.
 assert.deepEqual(v.live.map(x => [x.trybe_id, x.spend, x.orders, x.ads, x.on]), [['00000001', 120, 2, 2, 1], ['00000005', 60, 4, 1, 1]]);
 assert.equal(v.account.share, 0.18); assert.equal(v.account.trybe_cpa, 30);
 /* the queue: oldest approval first; 3 is in Meta with no spend, the rest are not in Meta */
-assert.deepEqual(v.queue.map(q => [q.trybe_id, q.state, q.days]), [['00000002', 'not_in_meta', 17], ['00000003', 'no_delivery', 2], ['00000004', 'not_in_meta', 0], ['00000006', 'not_in_meta', 0]]);
-assert.equal(v.counts.stale, 1); assert.equal(v.counts.not_in_meta, 3); assert.equal(v.counts.no_delivery, 1);
+assert.deepEqual(v.queue.map(q => [q.trybe_id, q.state, q.days]), [['00000002', 'not_launched', 17], ['00000003', 'no_spend', 2], ['00000004', 'not_launched', 0], ['00000006', 'not_launched', 0]]);
+assert.equal(v.counts.stale, 1); assert.equal(v.counts.not_launched, 3); assert.equal(v.counts.no_spend, 1);
+assert.equal(v.queue[1].adset, 'Trybe | 11/05'); assert.equal(v.queue[1].launched, '2026-11-05'); assert.equal(v.live[0].adset, 'Trybe | 10/25');
 assert.match(v.portal, /jointrybe\.com\/brand\?b=61f30dbd/);
 /* creators: Bo beats the account ($15 a sale vs $50) and has been quiet since Sep 1 = rebook; Ann costs $60 = no */
 const bo = v.creators.find(c => c.name === 'Bo'), ann = v.creators.find(c => c.name === 'Ann');
@@ -88,7 +96,7 @@ const H0 = { isAdmin: async () => true, sessionEmail: async () => 'x@y', brandsF
 const R0 = (path, method, body) => handleTrybe(new Request('https://x' + path, { method, body: JSON.stringify(body) }), env, new URL('https://x' + path), path, json0, H0);
 const all = await trybeAll(env, d, await d.listBrands());
 assert.equal(all.alerts, false);
-assert.deepEqual(all.brands.map(b => [b.act_id, b.queue, b.stale]), [['brand_alpha', 4, 1]]);
+assert.deepEqual(all.brands.map(b => [b.act_id, b.queue, b.no_spend, b.stale]), [['brand_alpha', 3, 1, 1]]);
 assert.deepEqual(all.no_key.map(b => b.act_id), ['brand_beta']);
 const bn = await trybeBanners(env, new Set(['brand_alpha']), TODAY);
 assert.equal(bn.length, 1); assert.match(bn[0].text, /^1 approved Trybe video has waited 3 days or more/);
@@ -100,13 +108,14 @@ assert.equal((await R0('/api/trybe/alerts', 'PUT', { on: true })).o.alerts, true
 /* the tick: once a day; one Slack line per brand for videos not yet alerted; never twice */
 const t1 = await trybeTick(env, d);
 assert.equal(t1.synced, 1); assert.equal(t1.posted, 1);
-assert.equal(posts[0].ch, 'C1'); assert.match(posts[0].text, /Trybe: 1 approved video is not live after 3 days/); assert.ok(!/[—–]/.test(posts[0].text));
+assert.equal(posts[0].ch, 'C1'); assert.match(posts[0].text, /Trybe: 1 approved video has not been launched after 3 days/); assert.ok(!/[—–]/.test(posts[0].text));
 assert.deepEqual(await trybeTick(env, d), { skipped: 'done today' });
 TODAY = '2026-11-07'; posts = [];
 const t2 = await trybeTick(env, d);
-assert.equal(t2.posted, 1); assert.match(posts[0].text, /Trybe: 1 approved video is not live/, 'video 3 turned 3 days old; video 2 is not repeated');
-TODAY = '2026-11-08'; posts = [];
-assert.equal((await trybeTick(env, d)).posted, 0, 'the same video is not alerted twice');
+assert.equal(t2.posted, 0, 'video 2 is not repeated; video 3 is launched (no spend yet), so it is not backlog');
+TODAY = '2026-11-09'; posts = [];
+const t3 = await trybeTick(env, d);
+assert.equal(t3.posted, 1); assert.match(posts[0].text, /Trybe: 2 approved videos have not been launched/, 'videos 4 and 6 turned 3 days old');
 /* Monday adds the rebook list */
 assert.match(staleMessage('Alpha', [], [{ name: 'Bo', quiet_days: 66, cpa: 15 }], 'https://x'), /Rebook this week:\* Bo \(66 days quiet, \$15 a sale\)/);
 assert.equal(staleMessage('Alpha', [], [], 'https://x'), null);
