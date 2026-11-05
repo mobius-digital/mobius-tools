@@ -8064,7 +8064,7 @@ const AH_APP = {
     /* Site reviews (sitereview.js, 2026-11-05): a client approves a proposed site rebuild page by page. The token
        routes are public; the rest check isAdmin (a client passes only where brandguard.js cleared it). */
     if (path.startsWith('/api/site-review')) {
-      const r = await handleSiteReview(request, env, url, path, json, { isAdmin, sessionEmail, clientScope, slackPost });
+      const r = await handleSiteReview(request, env, url, path, json, { isAdmin, sessionEmail, clientScope, slackPost, slackApi });
       if (r) return r;
     }
     if (path.startsWith('/api/review/')) {
