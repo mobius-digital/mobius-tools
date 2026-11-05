@@ -388,6 +388,79 @@ export async function trybeBanners(env, ids, today) {
     text: `${r.n} approved Trybe video${r.n === 1 ? ' has' : 's have'} waited ${STALE_DAYS} days or more without being launched (oldest ${daysBetween(r.oldest, today)} days). See Ads > Trybe.` }));
 }
 
+/* ---------- the creator Discord's weekly posts (2026-11-05) ----------
+   Monday: this week's video set from the hub, before the call. Friday: the creator videos that made a sale in the last
+   7 days (Triple Whale). Posted as the brand's mascot through the channel webhook that profit/worker/src/discord.js keeps
+   in the brand's doc; a missing webhook is made with the agency bot. Once per brand per day, only on built servers. */
+const DC_API = 'https://discord.com/api/v10';
+async function dcDoc(env, act) { const r = await env.DB.prepare(`SELECT data_json FROM p_br_doc WHERE act_id = ?1 AND line_id = '' AND key = 'discord'`).bind(act).first().catch(() => null); return safeJson(r?.data_json, null); }
+async function dcSave(env, act, data) { await env.DB.prepare(`UPDATE p_br_doc SET data_json = ?2, updated_at = datetime('now') WHERE act_id = ?1 AND line_id = '' AND key = 'discord'`).bind(act, JSON.stringify(data)).run(); }
+async function dcHookPost(env, act, d, key, embed) {
+  const look = d.look || {}, chan = (d.channels || {})[key];
+  if (!chan) throw new Error(`no #${key} channel`);
+  d.hooks = d.hooks || {};
+  if (!d.hooks[key]) {
+    const tok = (await dcDoc(env, 'agency') || {}).token;
+    if (!tok) throw new Error('no Discord bot token');
+    const r = await fetch(`${DC_API}/channels/${chan}/webhooks`, { method: 'POST', headers: { Authorization: `Bot ${tok}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: String(look.mascot || 'Creators').slice(0, 80) }) });
+    if (!r.ok) throw new Error(`Discord answered ${r.status} making a webhook`);
+    const w = await r.json(); d.hooks[key] = { id: w.id, token: w.token }; await dcSave(env, act, d);
+  }
+  const h = d.hooks[key];
+  const color = /^#[0-9a-f]{6}$/i.test(look.color || '') ? parseInt(look.color.slice(1), 16) : 0x5865F2;
+  const body = { username: String(look.mascot || 'Creators').slice(0, 80), allowed_mentions: { parse: [] }, embeds: [{ ...embed, color }] };
+  if (/^https:\/\//.test(look.avatar || '')) body.avatar_url = look.avatar;
+  const r = await fetch(`${DC_API}/webhooks/${h.id}/${h.token}?wait=true`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  if (!r.ok) throw new Error(`Discord answered ${r.status} posting in #${key}`);
+  return (await r.json()).id;
+}
+export function mondayPost(name, slug, w) {
+  const hub = `https://locus.go-mobius-digital.com/angles/${slug}/`;
+  const ideas = (w.daily || []).slice(0, 7).map((x, i) => `**${i + 1}. ${x.title}**${x.opener ? `\nFirst line: "${x.opener}"` : ''}`).join('\n\n');
+  const offer = w.offer && w.offer.head ? `\n\n**The deal to say:** ${w.offer.head}${w.offer.line ? ` ${w.offer.line}` : ''}` : '';
+  const call = w.call && w.call.when ? `\n\n**Monday call:** ${w.call.when}, in the Monday Call room here on Discord.` : '';
+  return { title: `${w.title || 'This week'}: the videos to film`, description: noDash(`${ideas || 'This week\'s videos are on the hub.'}${offer}\n\nExamples, the shots and the rules for each one: ${hub}${call}`).slice(0, 4000) };
+}
+export function fridayPost(wins, slug) {
+  const lines = wins.slice(0, 6).map((x, i) => `**${i + 1}. ${x.creator}**${x.product ? `, ${x.product}` : ''}: ${x.orders} sale${x.orders === 1 ? '' : 's'}`).join('\n');
+  return { title: 'This week\'s winners', description: noDash(`These creator videos made sales in the last 7 days:\n\n${lines}\n\nWatch what they did, then make your version. This week's ideas: https://locus.go-mobius-digital.com/angles/${slug}/`).slice(0, 4000) };
+}
+export async function discordWeekly(env, today, { force } = {}) {
+  const dow = new Date(today + 'T12:00:00Z').getUTCDay();
+  const kind = force || (dow === 1 ? 'monday' : dow === 5 ? 'friday' : null);
+  if (!kind) return { skipped: 'not Monday or Friday' };
+  const rows = (await env.DB.prepare(`SELECT act_id FROM p_br_doc WHERE line_id = '' AND key = 'discord' AND act_id != 'agency'`).all().catch(() => ({ results: [] }))).results || [];
+  const out = { kind, posted: [], errors: [] };
+  for (const { act_id: act } of rows) {
+    const stamp = `discordPost:${act}:${kind}:${today}`;
+    if (await getSetting(env, stamp)) continue;
+    try {
+      const d = await dcDoc(env, act);
+      if (!d || !d.built_at || !d.channels) continue;
+      const b = await env.DB.prepare(`SELECT slug, display_name, week_json FROM p_amb_brand WHERE act_id = ?1`).bind(act).first();
+      if (!b) continue;
+      let embed;
+      if (kind === 'monday') embed = mondayPost(b.display_name, b.slug, safeJson(b.week_json, {}) || {});
+      else {
+        const from = addDays(today, -6);
+        const ads = (await env.DB.prepare(`SELECT ad_id, name FROM p_trybe_ad WHERE act_id = ?1`).bind(act).all()).results || [];
+        const ids = ads.map(a => String(a.ad_id));
+        const m = await creatorMoney(env, act, ids, from);
+        const byVid = new Map();
+        for (const a of ads) { const id = trybeIdOf(a.name); const o = (m.byAd.get(String(a.ad_id)) || {}).orders || 0; if (id && o > 0) byVid.set(id, (byVid.get(id) || 0) + o); }
+        if (!byVid.size) { await putSetting(env, stamp, 'none'); continue; }
+        const subs = new Map(((await env.DB.prepare(`SELECT trybe_id, creator, product FROM p_trybe_sub WHERE act_id = ?1`).bind(act).all()).results || []).map(s => [s.trybe_id, s]));
+        const wins = [...byVid.entries()].map(([id, o]) => ({ creator: String((subs.get(id) || {}).creator || 'A creator').split(' ')[0], product: (subs.get(id) || {}).product || '', orders: Math.round(o) })).sort((a, z) => z.orders - a.orders);
+        embed = fridayPost(wins, b.slug);
+      }
+      await dcHookPost(env, act, d, kind === 'monday' ? 'this-week' : 'winners', embed);
+      await putSetting(env, stamp, 'posted');
+      out.posted.push(act);
+    } catch (e) { out.errors.push(`${act}: ${e.message}`); }
+  }
+  return out;
+}
+
 /* ---------- the daily tick: sync, then the stale alert (and Monday's rebook list) ---------- */
 export function staleMessage(brand, stale, rebook, link) {
   const lines = [];
@@ -429,6 +502,7 @@ export async function trybeTick(env, d, { force = false } = {}) {
       await runAll(env, fresh.map(q => env.DB.prepare(`UPDATE p_trybe_sub SET alerted = ?3 WHERE act_id = ?1 AND sub_id = ?2`).bind(b.act_id, q.sub_id, today)));
     } catch (e) { out.errors.push(`${b.name}: ${e.message}`); }
   }
+  out.discord = await discordWeekly(env, today).catch(e => ({ error: e.message }));
   await putSetting(env, 'trybeDay', today);
   return out;
 }
@@ -452,6 +526,12 @@ export async function handleTrybe(request, env, url, path, json, h) {
       }
       if (!allowed(act)) return json({ error: 'You do not have access to this brand.' }, 403);
       return json(await trybeView(env, d, act, { client }));
+    }
+    if (path === '/api/trybe/discord-weekly' && request.method === 'POST') {
+      if (client) return json({ error: 'That part is the Mobius team' + "'" + 's.' }, 403);
+      const bb = await request.json().catch(() => ({}));
+      const kind = bb.kind === 'friday' ? 'friday' : 'monday';
+      return json(await discordWeekly(env, d.centralDate ? d.centralDate() : new Date().toISOString().slice(0, 10), { force: kind }));
     }
     if (path === '/api/trybe/scorecard' && request.method === 'GET') {
       if (client) return json({ error: 'That part is the Mobius team' + "'" + 's.' }, 403);
