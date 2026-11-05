@@ -269,6 +269,93 @@ export async function trybeView(env, d, act, { client = false, today } = {}) {
       pending: subs.filter(s => s.status === 'pending').length, revision: subs.filter(s => s.status === 'revision_requested').length } };
 }
 
+/* ---------- the scorecard (2026-11-05, Cole: "how am I supposed to analyze this?") ----------
+   One row per creator program, for the last 7 and 30 days: creator ad spend (Meta), sales and orders (Triple Whale,
+   lastPlatformClick), cost per sale against the brand's goal, videos in / approved / launched, winners (videos with a
+   sale), active creators and Discord members. Lucky runs its own creator app: its row comes from the app's summary feed,
+   re-priced against our own Triple Whale rows so every brand is judged on one model. */
+async function creatorMoney(env, act, ids, from) {
+  const out = { spend: 0, orders: 0, revenue: 0, byAd: new Map() };
+  if (!ids.length) return out;
+  const acts = await metaActs(env, act);
+  const bump = (id, k, v) => { const g = out.byAd.get(id) || { spend: 0, orders: 0 }; g[k] += v; out.byAd.set(id, g); };
+  for (let i = 0; i < ids.length; i += 60) {
+    const chunk = ids.slice(i, i + 60);
+    const ph = chunk.map((_, j) => `?${j + 2}`).join(', ');
+    const aph = acts.map((_, j) => `?${chunk.length + 2 + j}`).join(', ');
+    const sp = (await env.DB.prepare(`SELECT ad_id, SUM(spend) AS spend FROM ad_daily WHERE date >= ?1 AND ad_id IN (${ph}) AND act_id IN (${aph}) GROUP BY ad_id`)
+      .bind(from, ...chunk, ...acts).all().catch(() => ({ results: [] }))).results || [];
+    const tw = (await env.DB.prepare(`SELECT ad_id, SUM(orders) AS orders, SUM(revenue) AS revenue FROM tw_ad_attr WHERE date >= ?1 AND ad_id IN (${ph}) AND act_id = ?${chunk.length + 2} AND model = ?${chunk.length + 3} AND (platform = 'meta' OR platform IS NULL) GROUP BY ad_id`)
+      .bind(from, ...chunk, act, ATTR_MODEL).all().catch(() => ({ results: [] }))).results || [];
+    for (const r of sp) { out.spend += +r.spend || 0; bump(String(r.ad_id), 'spend', +r.spend || 0); }
+    for (const r of tw) { out.orders += +r.orders || 0; out.revenue += +r.revenue || 0; bump(String(r.ad_id), 'orders', +r.orders || 0); }
+  }
+  return out;
+}
+const sideOf = (m, goal) => ({ spend: round2(m.spend), orders: round2(m.orders), sales: round2(m.revenue), cpa: m.orders > 0 ? round2(m.spend / m.orders) : null,
+  roas: m.spend > 0 ? round2(m.revenue / m.spend) : null, goal_cpa: goal || null, on_goal: goal && m.orders > 0 ? m.spend / m.orders <= goal : null });
+async function discordMembers(env, act) {
+  try {
+    const row = k => env.DB.prepare(`SELECT data_json FROM p_br_doc WHERE act_id = ?1 AND line_id = '' AND key = 'discord'`).bind(k).first();
+    const [a, b] = await Promise.all([row('agency'), row(act)]);
+    const tok = (safeJson(a?.data_json, {}) || {}).token, gid = (safeJson(b?.data_json, {}) || {}).guild_id;
+    if (!tok || !gid) return null;
+    const r = await fetch(`https://discord.com/api/v10/guilds/${gid}?with_counts=true`, { headers: { Authorization: `Bot ${tok}` } });
+    if (!r.ok) return null;
+    const g = await r.json();
+    return Math.max(0, (+g.approximate_member_count || 0) - 2);   // minus the owner and the bot
+  } catch { return null; }
+}
+const dayOf = x => String(x || '').slice(0, 10);
+async function brandCard(env, b, today) {
+  const f7 = addDays(today, -6), f30 = addDays(today, -29);
+  const goal = +b.target_cpa || null;
+  const subs = (await env.DB.prepare(`SELECT trybe_id, creator_id, status, created_at, approved_seen, ads_count FROM p_trybe_sub WHERE act_id = ?1`).bind(b.act_id).all()).results || [];
+  const ads = (await env.DB.prepare(`SELECT ad_id, name, created_time FROM p_trybe_ad WHERE act_id = ?1`).bind(b.act_id).all().catch(() => ({ results: [] }))).results || [];
+  const ids = ads.map(a => String(a.ad_id));
+  const [m7, m30, dc] = await Promise.all([creatorMoney(env, b.act_id, ids, f7), creatorMoney(env, b.act_id, ids, f30), discordMembers(env, b.act_id)]);
+  const vid = new Map();   // trybe id -> orders in 7 days
+  for (const a of ads) { const id = trybeIdOf(a.name); if (!id) continue; vid.set(id, (vid.get(id) || 0) + ((m7.byAd.get(String(a.ad_id)) || {}).orders || 0)); }
+  const launched = from => new Set(ads.filter(a => dayOf(a.created_time) >= from).map(a => trybeIdOf(a.name)).filter(Boolean)).size;
+  const side = (m, from) => ({ ...sideOf(m, goal), videos_in: subs.filter(s => dayOf(s.created_at) >= from).length,
+    approved: subs.filter(s => s.status === 'approved' && dayOf(s.approved_seen) >= from).length, launched: launched(from) });
+  const withAds = new Set(ads.map(a => trybeIdOf(a.name)).filter(Boolean));
+  return { act_id: b.act_id, name: b.name, source: 'trybe', last_7: { ...side(m7, f7), winners: [...vid.values()].filter(n => n > 0).length }, last_30: side(m30, f30),
+    creators_active: new Set(subs.filter(s => dayOf(s.created_at) >= f30).map(s => s.creator_id)).size, discord: dc,
+    waiting: subs.filter(s => s.status === 'approved' && !(+s.ads_count > 0) && !withAds.has(s.trybe_id)).length };
+}
+async function luckyCard(env, b, today) {
+  const base = { act_id: b.act_id, name: b.name, source: 'lucky_app' };
+  if (!env.LUCKY_PROGRAM_KEY) return { ...base, error: 'The Lucky app key is not set in Locus yet.' };
+  let j;
+  try {
+    const r = await fetch('https://creators.luckygolf.com/api/stats/program-summary', { headers: { Authorization: `Bearer ${env.LUCKY_PROGRAM_KEY}` } });
+    if (!r.ok) return { ...base, error: `The Lucky app answered ${r.status}.` };
+    j = await r.json();
+  } catch { return { ...base, error: 'Could not reach the Lucky app.' }; }
+  const goal = +b.target_cpa || null;
+  const ids = (j.ad_ids || []).map(a => String(a.ad_id)).filter(Boolean);
+  const [m7, m30] = await Promise.all([creatorMoney(env, b.act_id, ids, addDays(today, -6)), creatorMoney(env, b.act_id, ids, addDays(today, -29))]);
+  /* Our own Triple Whale rows first (the same model as every brand); the app's own figure only when we have none. */
+  const pick = (m, w) => (m.orders > 0 || m.spend > 0) ? sideOf(m, goal) : sideOf({ spend: +w.creator_ad_spend || 0, orders: +w.creator_ad_orders || 0, revenue: +w.creator_ad_sales || 0 }, goal);
+  const w7 = j.last_7_days || {}, w30 = j.last_30_days || {};
+  return { ...base,
+    last_7: { ...pick(m7, w7), videos_in: w7.videos_submitted ?? null, approved: w7.videos_approved ?? null, launched: w7.ads_launched ?? null, winners: [...m7.byAd.values()].filter(x => x.orders > 0).length },
+    last_30: { ...pick(m30, w30), videos_in: w30.videos_submitted ?? null, approved: w30.videos_approved ?? null, launched: w30.ads_launched ?? null },
+    creators_active: j.creators?.active ?? null, levels: j.creators?.by_level || null, discord: j.discord_members ?? null, new_joins_7: w7.new_joins ?? null,
+    payouts_owed: j.payouts?.owed ?? null, notes: (j.notes || []).slice(0, 3) };
+}
+export async function trybeScorecard(env, d, brands, { today } = {}) {
+  await ensureTrybe(env);
+  today = today || (d.centralDate ? d.centralDate() : new Date().toISOString().slice(0, 10));
+  const keyed = new Set(await keyedBrands(env));
+  const goals = new Map(((await env.DB.prepare(`SELECT id, target_cpa FROM brands`).all().catch(() => ({ results: [] }))).results || []).map(r => [r.id, r.target_cpa]));
+  const list = brands.map(b => ({ ...b, target_cpa: goals.get(b.act_id) }));
+  const cards = await Promise.all(list.map(b => b.act_id === 'brand_lucky_golf' ? luckyCard(env, b, today)
+    : keyed.has(b.act_id) ? brandCard(env, b, today).catch(e => ({ act_id: b.act_id, name: b.name, source: 'trybe', error: e.message })) : null));
+  return { today, cards: cards.filter(Boolean).filter(c => c.error || (c.last_30 && (c.last_30.spend > 0 || c.last_30.videos_in > 0))) };
+}
+
 /** Agency view: one line per brand. Cheap: counts from D1 only. */
 export async function trybeAll(env, d, brands, { today } = {}) {
   await ensureTrybe(env);
@@ -365,6 +452,10 @@ export async function handleTrybe(request, env, url, path, json, h) {
       }
       if (!allowed(act)) return json({ error: 'You do not have access to this brand.' }, 403);
       return json(await trybeView(env, d, act, { client }));
+    }
+    if (path === '/api/trybe/scorecard' && request.method === 'GET') {
+      if (client) return json({ error: 'That part is the Mobius team' + "'" + 's.' }, 403);
+      return json(await trybeScorecard(env, d, (await d.listBrands(env)).filter(b => !only || only.has(b.act_id))));
     }
     /* One video's file: Trybe hands out a link that lasts 20 minutes, so the page asks when someone presses play. */
     if (path === '/api/trybe/video' && request.method === 'GET') {
