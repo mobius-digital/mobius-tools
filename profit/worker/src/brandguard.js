@@ -180,8 +180,6 @@ const noDocSecrets = b => { const d = b && b.docs; if (d && typeof d === 'object
 /* Leak finder lessons for a client: its own brand's only, no team emails. */
 const ownLessons = ids => b => { const L = b && (b.lessons || b.rows); if (Array.isArray(L)) { const kept = L.filter(x => x && x.act_id && ids.has(x.act_id)).map(x => { const { added_by, decided_by, ...rest } = x; return rest; }); if (b.lessons) b.lessons = kept; else b.rows = kept; } return b; };
 /* /api/accounts for a client: no count of the Meta accounts Mobius reaches. */
-/* Day check for a client: the "our brands" sign keeps only bad-or-not, never how many brands Mobius runs or how
-   many had a bad day; the AI verdict's own why / todo can repeat those counts, so a client gets the client line. */
 /* Day check for a client (Cole 2026-11-05: "remove that entirely, that should just be for us internally"): the
    accounts-we-run sign is dropped, and each day's count and verdict are worked out again from the three outside signs
    (Breezeway's panel, Meta's status page, advertisers online): 3 = very bad, 2 = bad, 1 = mixed. */
@@ -423,7 +421,7 @@ export const CLIENT_RULES = [
   R('POST', '/api/brand/save-many'),
   R('POST', '/api/brand/del'),
   R('POST', '/api/brand/merge'),
-  R('POST', '/api/brand/tag'),
+  R('POST', '/api/brand/tag', 'need', { bodyAds: ['ad_ids', 'ad_id'] }),   // only the brand's own ads (2026-11-05 audit)
   R('POST', '/api/brand/verdict'),
   R('PUT', '/api/brand/doc', 'need', { deny: docDeny }),
   R('POST', '/api/brand/onboard'),
@@ -434,7 +432,7 @@ export const CLIENT_RULES = [
   R('GET', '/api/social/brands', 'none'),
   R('PUT', '/api/social/brand', 'need', { fields: ['on'] }),
   R('GET', '/api/social'),
-  R('POST', '/api/social/follow', 'need', { fields: ['kind', 'text', 'name', 'ig', 'tt', 'yt'] }),
+  R('POST', '/api/social/follow', 'need', { fields: ['kind', 'text', 'name', 'ig', 'tt', 'yt'], cap: ['clientAsk', 0.05] }),   // each follow pulls posts (scraper credits); 40 a brand in social.js, ~40 a day here
   R('PUT', '/api/social/follow', 'none', { own: [{ in: 'body', key: 'id', table: 'social_follow' }] }),
   R('DELETE', '/api/social/follow', 'none', { own: [{ in: 'query', key: 'id', table: 'social_follow' }] }),
   R('POST', '/api/social/save', 'none', { own: [{ in: 'body', key: 'id', table: 'social_post' }] }),
@@ -626,6 +624,10 @@ async function guardClient(request, env, client, handle, CORS) {
     const raw = url.searchParams.get(rule.ads) || '';
     const list = raw.split(',').map(x => x.trim()).filter(Boolean);
     if (rule.act === 'none' && !list.length) return out(403, CLIENT_NO);
+    if (!(await adsOwned(env, list, ids.all))) return out(403, 'You do not have access to that ad.');
+  }
+  if (rule.bodyAds) {
+    const list = rule.bodyAds.flatMap(k => { const v = body && body[k]; return v == null ? [] : Array.isArray(v) ? v : [v]; }).map(String).filter(Boolean);
     if (!(await adsOwned(env, list, ids.all))) return out(403, 'You do not have access to that ad.');
   }
   if (rule.own && !(await recordsOwned(env, rule.own, { body, url, match }, ids.all))) return out(403, 'That belongs to another brand.');

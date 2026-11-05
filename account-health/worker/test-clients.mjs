@@ -130,6 +130,30 @@ await check('/api/me says who: client (with brands, every old switch reading on)
   assert.equal((await ah(OWNER, 'GET', '/api/me')).j.role, 'owner');
 });
 
+/* 2026-11-05 audit: EVERY rule that names a brand refuses another brand's id, in the query and in the body, before any
+   handler runs (half the rules had no line of their own). One sweep over CLIENT_RULES, so a new rule is covered too. */
+await check('every brand-scoped client rule refuses another brand (query and body)', async () => {
+  const { CLIENT_RULES } = await import('./src/brandguard.js');
+  const open = [];
+  for (const r of CLIENT_RULES) {
+    if (!r.p || r.act === 'none') continue;
+    const q = await ran('ah', CLIENT, r.m, `${r.p}?act=brand_beta`, r.m === 'GET' ? undefined : {});
+    if (q.status !== 403) open.push(`${r.m} ${r.p}?act=brand_beta -> ${q.status}`);
+    if (r.m !== 'GET' && r.m !== 'DELETE') {
+      const b = await ran('ah', CLIENT, r.m, r.p, { act: 'brand_beta' });
+      if (b.status !== 403) open.push(`${r.m} ${r.p} body act=brand_beta -> ${b.status}`);
+    }
+  }
+  assert.deepEqual(open, [], 'not refused:\n' + open.join('\n'));
+});
+await check('brand/tag takes only the brand\'s own ads; social follows ride the daily cap', async () => {
+  const { CLIENT_RULES } = await import('./src/brandguard.js');
+  assert.equal((await pf(CLIENT, 'POST', '/api/brand/tag', { act: 'brand_alpha', ad_ids: ['9002'] })).status, 403, 'another brand\'s ad');
+  assert.equal((await pf(CLIENT, 'POST', '/api/brand/tag', { act: 'brand_alpha', ad_id: '9002' })).status, 403, 'single ad_id too');
+  assert.ok(passed(await ran('pf', CLIENT, 'POST', '/api/brand/tag', { act: 'brand_alpha', ad_ids: ['9001'] })), 'own ad');
+  assert.ok(CLIENT_RULES.find(r => r.m === 'POST' && r.p === '/api/social/follow').cap, 'follow is capped');
+});
+
 /* THE BRAND EDITION: every page a single brand has answers a client for its own brand. */
 const PAGE_ROUTES = [
   // Home: Overview, Day check, P&L, Goals, Requests
