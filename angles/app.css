@@ -194,38 +194,54 @@ footer .col{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 
-/* Hub sections (2026-11-05): every section has a plain heading; boxes are skimmable */
-.sec-h{margin:30px 0 12px;scroll-margin-top:76px}
+/* The hub's tabs and sections (2026-11-05) */
+.tabs{position:sticky;top:60px;z-index:29;background:var(--bg);border-bottom:1px solid var(--line)}
+.tabs .col{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+.tabs .col::-webkit-scrollbar{display:none}
+.tabs button{flex:none;min-height:48px;padding:0 14px;font-size:15px;font-weight:650;color:var(--muted);border-bottom:3px solid transparent;white-space:nowrap}
+.tabs button:hover{color:var(--ink)}
+.tabs button.on{color:var(--ink);border-bottom-color:var(--acc)}
+#panel{padding-top:8px;padding-bottom:40px;min-height:60vh}
+.sec-h{margin:24px 0 12px}
 .sec-h h2{font-size:21px;font-weight:780;letter-spacing:-.02em;line-height:1.2}
 .sec-h p{font-size:14px;color:var(--muted);margin-top:3px}
-.jump{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
-.jump a{display:inline-flex;align-items:center;min-height:38px;padding:0 14px;border-radius:999px;border:1px solid var(--line-strong);font-size:14px;font-weight:650;background:var(--surface)}
-.jump a:hover{border-color:var(--acc);color:var(--acc)}
-.week,.lb{display:grid;gap:12px}
-.lb{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+.wk-date{font-size:13px;font-weight:650;color:var(--muted);margin:18px 0 10px;text-transform:uppercase;letter-spacing:.05em}
 .wk-l{display:block;font-size:12px;font-weight:750;letter-spacing:.05em;text-transform:uppercase;color:var(--acc);margin-bottom:8px}
 .wk-s{display:block;font-size:12px;font-weight:650;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin:12px 0 2px}
 .wk-offer{background:var(--surface);border:2px solid var(--acc);border-radius:16px;padding:16px 18px}
 .wk-offer b{display:block;font-size:22px;font-weight:780;line-height:1.2;letter-spacing:-.02em}
 .wk-offer p,.wk-box p{font-size:14.5px;color:var(--ink-2);margin-top:5px}
-.wk-offer .wk-how{font-size:13px;color:var(--muted);margin-top:8px}
-.wk-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.wk-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-top:14px}
 .wk-grid:empty{display:none}
 .wk-box{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px 18px;min-width:0}
-.wk-ideas{margin:0;padding:0;list-style:none;counter-reset:idea}
-.wk-ideas li{counter-increment:idea;display:grid;grid-template-columns:28px minmax(0,1fr);column-gap:10px;padding:10px 0;border-top:1px solid var(--line)}
-.wk-ideas li:first-child{border-top:0;padding-top:2px}
-.wk-ideas li::before{content:counter(idea);grid-row:1 / span 2;width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:750;background:rgba(var(--acc-rgb),.16);color:var(--acc)}
-.wk-ideas b{font-size:15.5px;font-weight:700}
-.wk-ideas span{grid-column:2;font-size:14px;color:var(--ink-2);margin-top:2px}
 .wk-line{display:block;font-size:18px;font-weight:750;line-height:1.3}
 .wk-join{margin-top:12px}
 .wk-recs a{display:flex;align-items:center;gap:8px;min-height:40px;font-size:14.5px;font-weight:600;border-top:1px solid var(--line)}
 .wk-recs a:first-of-type{border-top:0}
-.lb-row{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--line)}
+.ideas{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+.idea{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.idea.open{border-color:var(--line-strong)}
+.idea-h{display:grid;grid-template-columns:30px minmax(0,1fr) auto;gap:12px;align-items:center;width:100%;padding:14px 16px;text-align:left}
+.idea-h:disabled{cursor:default}
+.idea-n{width:28px;height:28px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:13.5px;font-weight:750;background:rgba(var(--acc-rgb),.16);color:var(--acc)}
+.idea-t b{display:block;font-size:16px;font-weight:700;line-height:1.3}
+.idea-t span{display:block;font-size:14px;color:var(--ink-2);margin-top:2px}
+.idea-go{display:inline-flex;align-items:center;gap:4px;font-size:13.5px;font-weight:650;color:var(--acc);white-space:nowrap}
+.idea.open .idea-go svg{transform:rotate(180deg)}
+.idea-b{padding:0 16px 16px 58px;font-size:14.5px;color:var(--ink-2);display:grid;gap:8px}
+.idea-b b{color:var(--ink)}
+.idea-b ol{margin:0;padding-left:20px;list-style:decimal;display:grid;gap:4px}
+.idea-ex{position:relative;display:flex;align-items:flex-end;width:132px;aspect-ratio:9/16;border-radius:12px;overflow:hidden;background:var(--surface-2);border:1px solid var(--line);margin-top:4px}
+.idea-ex img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.idea-ex span{position:relative;display:flex;align-items:center;gap:6px;width:100%;padding:22px 10px 10px;font-size:13px;font-weight:700;color:#fff;background:linear-gradient(transparent,rgba(0,0,0,.78))}
+.lb{padding:6px 18px}
+.lb-row{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:10px;align-items:center;width:100%;padding:11px 0;border-top:1px solid var(--line);text-align:left}
 .lb-row:first-of-type{border-top:0}
+.lb-row:disabled{cursor:default}
 .lb-row i{font-style:normal;font-size:13px;font-weight:750;color:var(--muted);text-align:center}
 .lb-row b{display:block;font-size:15px;font-weight:700}
-.lb-row span{display:block;font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lb-row span{display:block;font-size:13px;color:var(--muted)}
 .lb-row em{font-style:normal;font-size:14px;font-weight:750;color:var(--good);white-space:nowrap;font-variant-numeric:tabular-nums}
 .steps{margin-top:0}
+.st-go{width:100%;margin-top:16px}
+@media (max-width:640px){.idea-h{grid-template-columns:30px minmax(0,1fr)}.idea-go{grid-column:2}.idea-b{padding-left:16px}}

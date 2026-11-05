@@ -10489,7 +10489,12 @@ export { dashNumbers, dashBlocks, dashRange };
 async function anglesBoardAds(env, slug) {
   if (!/^[a-z0-9-]{1,50}$/.test(slug || '')) return [];
   const row = await env.DB.prepare(`SELECT board_json FROM p_amb_brand WHERE slug = ?1 AND live = 1 AND board_mode = 'auto'`).bind(slug).first().catch(() => null);
-  try { return (JSON.parse(row?.board_json || '[]') || []).map(x => String(x.ad_id)); } catch { return []; }
+  let ids = [];
+  try { ids = (JSON.parse(row?.board_json || '[]') || []).map(x => String(x.ad_id)); } catch { ids = []; }
+  /* The hub's Top videos (2026-11-05) are the brand's own creator ads, named trybe= by Trybe's Build Ads. */
+  const tr = await env.DB.prepare(`SELECT a.ad_id FROM p_trybe_ad a JOIN p_amb_brand b ON b.act_id = a.act_id WHERE b.slug = ?1 AND b.live = 1`).bind(slug).all().catch(() => ({ results: [] }));
+  for (const r of tr.results || []) ids.push(String(r.ad_id));
+  return ids;
 }
 
 export default AH_APP;

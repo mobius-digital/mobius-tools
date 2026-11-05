@@ -137,6 +137,7 @@ const shown = () => TILES.filter(t => CAT === 'all' || t.sec === CAT);
    covers call brings it). Another brand's: the team's "steal this" note, and whose it is. */
 function words(t) {
   const p = t.p;
+  if (t.top) return { cap: t.top.cap, sub: t.top.sub, chip: '' };
   if (t.theirs) return { cap: p.note || t.a?.title || '', sub: `From ${whoOf(p) || 'another brand'}, not ours`, chip: secName(t.sec) };
   if (t.rank) return { cap: t.a?.title || '', sub: `Top ad #${t.rank}`, chip: secName(t.sec) || 'Our ad', capAd: t.a ? '' : p.ad_id };
   return { cap: p.note || t.a?.title || '', sub: p.kind === 'meta' ? 'Ran as our ad' : 'Our video', chip: secName(t.sec) || (t.a ? '' : 'Our ad'), capAd: !p.note && !t.a && p.kind === 'meta' ? p.ad_id : '' };
@@ -187,43 +188,76 @@ function checklist() {
     ${list('ck-skip', 'Do not say these', skip)}
   </section>`;
 }
-/* The hub, top to bottom, answers a creator's questions in order (2026-11-05, Cole: "tell people what it is"):
-   what do I film this week, who is selling, which videos do I copy, how does it work, what are the rules.
-   Every heading says what the section is. Nothing set in Locus = that section is not drawn. */
-const head = (id, title, sub) => `<div class="sec-h" id="${id}"><h2>${esc(title)}</h2>${sub ? `<p>${esc(sub)}</p>` : ''}</div>`;
-function week() {
+/* THE HUB IS FOUR TABS (2026-11-05, Cole: "actual tabs that you click through"; "tell people what it is"):
+     This week     the deal to say, the ideas to film (tap one: what it is, how to film it, an example video), one opening line
+     Top videos    the creator videos that sold, playable, and the creators behind them
+     All videos    the video board
+     How it works  the four steps and the rules
+   The tab lives in the address (#week, #top, #videos, #how) so a link can open one. Nothing set in Locus = that part is not drawn. */
+let TAB = '';
+let TOP = [];
+const head = (title, sub) => `<div class="sec-h"><h2>${esc(title)}</h2>${sub ? `<p>${esc(sub)}</p>` : ''}</div>`;
+const TABS = () => [[D.brand.week ? 'week' : '', 'This week'], [D.leaders ? 'top' : '', 'Top videos'], ['videos', 'All videos'], ['how', 'How it works']].filter(x => x[0]);
+/* The idea behind a weekly line: by its id, else by its title (weeks saved before ids were kept). */
+function ideaOf(x) {
+  const all = ideas();
+  return all.find(a => a.id === x.angle_id) || all.find(a => x.title && x.title.toLowerCase().startsWith(String(a.title || '').toLowerCase())) || null;
+}
+const exampleOf = a => (a ? TILES.find(t => t.a && t.a.id === a.id && !t.theirs) || TILES.find(t => t.a && t.a.id === a.id) : null);
+function weekTab() {
   const w = D.brand.week; if (!w) return '';
-  const offer = w.offer && w.offer.head ? `<div class="wk-offer"><span class="wk-l">The deal right now</span><b>${esc(w.offer.head)}</b>${w.offer.line ? `<p>${esc(w.offer.line)}</p>` : ''}<p class="wk-how">Say the deal this way in your video.</p></div>` : '';
-  const ideas = (w.daily || []).length ? `<div class="wk-box"><span class="wk-l">Film one of these ${w.daily.length} ideas</span><ol class="wk-ideas">${w.daily.map(x => `<li><b>${esc(x.title)}</b>${x.opener ? `<span>First line: “${esc(x.opener)}”</span>` : ''}</li>`).join('')}</ol></div>` : '';
-  const same = w.same && w.same.line ? `<div class="wk-box"><span class="wk-l">A first line that sold</span><b class="wk-line">“${esc(w.same.line)}”</b><p>${w.same.who ? `From ${esc(w.same.who)}'s video. ` : ''}Use it as the first line of your video.</p></div>` : '';
+  const offer = w.offer && w.offer.head ? `<div class="wk-offer"><span class="wk-l">The deal to say in your video</span><b>${esc(w.offer.head)}</b>${w.offer.line ? `<p>${esc(w.offer.line)}</p>` : ''}</div>` : '';
+  const row = (x, k) => {
+    const a = ideaOf(x), ex = exampleOf(a);
+    const shots = a ? (a.shots || []).filter(sh => sh.text) : [];
+    const more = a && (a.argument || shots.length || ex);
+    return `<li class="idea"><button class="idea-h" type="button" ${more ? `data-idea="${k}" aria-expanded="false"` : 'disabled'}><span class="idea-n">${k + 1}</span><span class="idea-t"><b>${esc(x.title)}</b>${x.opener ? `<span>Say first: “${esc(x.opener)}”</span>` : ''}</span>${more ? `<span class="idea-go">${ex ? 'See example' : 'How to film'}${ic('chevron-down', 15)}</span>` : ''}</button>
+      ${more ? `<div class="idea-b" hidden>${a.argument ? `<p><b>What it is.</b> ${esc(a.argument)}</p>` : ''}
+        ${shots.length ? `<p><b>How to film it.</b></p><ol>${shots.map(sh => `<li>${esc(String(sh.text))}</li>`).join('')}</ol>` : ''}
+        ${ex ? `<button class="idea-ex" type="button" data-t="${ex.i}" ${ex.p.kind === 'meta' ? `data-cover="${esc(ex.p.ad_id)}"` : ''}>${ex.p.thumb ? `<img src="${esc(ex.p.thumb)}" alt="" loading="lazy">` : ''}<span>${ic('play', 16)}Watch an example${ex.theirs ? ' (another brand)' : ''}</span></button>` : ''}</div>` : ''}</li>`;
+  };
+  const list = (w.daily || []).length ? `${head(`Film one of these ${w.daily.length} ideas`, 'Tap an idea to see how to film it and watch an example.')}<ol class="ideas">${w.daily.map(row).join('')}</ol>` : '';
+  const same = w.same && w.same.line ? `<div class="wk-box"><span class="wk-l">Or start your video with this line</span><b class="wk-line">“${esc(w.same.line)}”</b><p>${w.same.who ? `${esc(w.same.who)} opened a video with this line and it made sales. ` : 'This opening line made sales. '}Say it in your first 3 seconds, then film the rest your way.</p></div>` : '';
   const c = w.call || {}, recs = c.recordings || [];
-  const call = c.when || c.join || recs.length ? `<div class="wk-box" id="call"><span class="wk-l">Weekly call</span>${c.when ? `<p>${esc(c.when)}</p>` : ''}
+  const call = c.when || c.join || recs.length ? `<div class="wk-box"><span class="wk-l">Weekly call</span>${c.when ? `<p>${esc(c.when)}</p>` : ''}
     ${c.join ? `<a class="btn btn-acc wk-join" href="${esc(c.join)}" target="_blank" rel="noopener">Join the call${ic('arrow-right', 15)}</a>` : ''}
     ${recs.length ? `<div class="wk-recs"><span class="wk-s">Watch a past call</span>${recs.map(r => `<a href="${esc(r.url)}" target="_blank" rel="noopener">${ic('play', 13)}<span>${esc(r.title)}</span></a>`).join('')}</div>` : ''}</div>` : '';
-  if (!offer && !ideas && !same && !call) return '';
-  return `${head('week', 'What to film this week', w.title || '')}<section class="week">${offer}${ideas}<div class="wk-grid">${same}${call}</div></section>`;
+  const b = D.brand;
+  return `${w.title ? `<p class="wk-date">${esc(w.title)}</p>` : ''}${offer}${list}<div class="wk-grid">${same}${call}</div>
+    ${b.submit_url ? `<a class="btn btn-acc st-go" href="${esc(b.submit_url)}" target="_blank" rel="noopener">Submit your video on ${esc(plat())}${ic('arrow-right', 15)}</a>` : ''}`;
 }
-function leaders() {
-  const L = D.leaders; if (!L || !(L.creators || []).length) return '';
-  const row = (k, name, sub, n) => `<div class="lb-row"><i>${k + 1}</i><div><b>${esc(name)}</b>${sub ? `<span>${esc(sub)}</span>` : ''}</div><em>${n} sale${n === 1 ? '' : 's'}</em></div>`;
-  return `${head('top', 'Top creators', `Sales from creator videos running as ads, last ${L.days} days.`)}
-  <section class="lb"><div class="wk-box"><span class="wk-l">Creators</span>${L.creators.map((c, k) => row(k, c.name, `${c.videos} video${c.videos === 1 ? '' : 's'} with sales`, c.sales)).join('')}</div>
-  <div class="wk-box"><span class="wk-l">Videos</span>${(L.videos || []).map((v, k) => row(k, v.name, v.product, v.sales)).join('')}</div></section>`;
+function buildTop() {
+  const L = D.leaders; if (!L) return [];
+  return (L.videos || []).filter(v => v.ad_id).map((v, k) => ({ p: { kind: 'meta', ad_id: v.ad_id }, a: null, theirs: false, i: k,
+    top: { cap: `${v.name}: ${v.sales} sale${v.sales === 1 ? '' : 's'}`, sub: v.product || 'Creator video', line: v.line || '', rank: k + 1 } }));
 }
-function jump() {
-  const w = D.brand.week, has = id => !!document.getElementById(id);
-  const links = [[w ? 'week' : '', 'This week'], [D.leaders ? 'top' : '', 'Top creators'], ['videos', 'Videos to copy'], ['checklist', 'Rules']].filter(x => x[0]);
-  return links.length > 1 ? `<nav class="jump" aria-label="Sections">${links.map(([id, l]) => `<a href="#${id}" data-jump="${id}">${esc(l)}</a>`).join('')}</nav>` : '';
+function topTab() {
+  const L = D.leaders; if (!L) return '';
+  const tiles = TOP.map(t => `<button class="tile" data-top="${t.i}" data-cover="${esc(t.p.ad_id)}" aria-label="Play: ${esc(t.top.cap)}">
+    <span class="tl-star">#${t.top.rank}</span><span class="tl-play">${ic('play', 18)}</span>
+    <span class="tl-cap"><b>${esc(t.top.cap)}</b><small>${esc(t.top.sub)}</small></span></button>`).join('');
+  const who = (L.creators || []).map((c, k) => { const t = TOP.find(x => x.p.ad_id === c.ad_id); return `<button class="lb-row" type="button" ${t ? `data-top="${t.i}"` : 'disabled'}><i>${k + 1}</i><div><b>${esc(c.name)}</b><span>${c.videos} video${c.videos === 1 ? '' : 's'} with sales${t ? '. Tap to watch their best one.' : ''}</span></div><em>${c.sales} sale${c.sales === 1 ? '' : 's'}</em></button>`; }).join('');
+  return `${head('Videos that sold', `Creator videos we ran as ads, ranked by sales in the last ${L.days} days. Tap one to watch it.`)}
+    <div class="grid">${tiles}</div>
+    ${head('Top creators', 'Total sales from each creator\'s videos.')}<div class="wk-box lb">${who}</div>`;
+}
+function videosTab() {
+  const cs = cats(), list = shown();
+  const cut = SHOW_ALL ? list.length : Math.min(list.length, SHOW_FIRST);
+  return `${head('All videos', 'Tap a video to watch it. Film the same idea your own way.')}
+    ${cs.length > 1 ? `<div class="cats" role="group" aria-label="Show"><button class="cat ${CAT === 'all' ? 'on' : ''}" data-cat="all">All<span>${TILES.length}</span></button>${cs.map(c => `<button class="cat ${CAT === c.id ? 'on' : ''}" data-cat="${esc(c.id)}">${esc(c.name)}<span>${c.n}</span></button>`).join('')}</div>` : ''}
+    <div class="grid">${list.slice(0, cut).map(tile).join('') || '<p class="empty">No videos here yet.</p>'}</div>
+    ${cut < list.length ? `<button class="more" data-more>See all ${list.length} videos${ic('chevron-down', 15)}</button>` : ''}`;
 }
 function steps() {
   const b = D.brand;
   const S = [
-    ['Pick an idea', 'Choose one from this week or copy a video above.'],
+    ['Pick an idea', 'Choose one from This week, or copy a video.'],
     ['Film your version', 'Same idea, your place, your voice, our product.'],
     ['Check the rules', 'Read the rules below before you send it.'],
     [`Submit on ${plat()}`, 'We run the good ones as ads. You earn on the sales.'],
   ];
-  return `${head('how', 'How it works', '')}<section class="card steps">
+  return `${head('How it works', '')}<section class="card steps">
     <div class="st-row">${S.map(([t, d], k) => `<div class="st"><b><span>${k + 1}</span>${esc(t)}</b><p>${esc(d)}</p></div>`).join('')}</div>
     ${b.submit_url ? `<a class="btn btn-acc st-go" href="${esc(b.submit_url)}" target="_blank" rel="noopener">${esc(b.submit_label || `Open our ${plat()} campaign`)}${ic('arrow-right', 15)}</a>` : ''}
   </section>`;
@@ -231,36 +265,27 @@ function steps() {
 function render() {
   const b = D.brand;
   document.title = `${b.display_name} creator hub`;
-  const cs = cats();
-  const list = shown();
-  const cut = SHOW_ALL ? list.length : Math.min(list.length, SHOW_FIRST);
+  const tabs = TABS();
+  if (!tabs.some(t => t[0] === TAB)) TAB = tabs[0][0];
   const pv = D.preview ? `<div class="pv-bar" role="status"><b>Preview.</b> This link is switched off, so creators see "being set up". Only signed-in Mobius staff can see this page.</div>` : '';
+  const body = TAB === 'week' ? weekTab() : TAB === 'top' ? topTab() : TAB === 'videos' ? videosTab() : `${steps()}${checklist()}`;
   app.innerHTML = `${pv}
   <header class="top"><div class="col">
-    <a class="brand" href="#" aria-label="${esc(b.display_name)} creators">${b.logo_url ? `<img src="${esc(LOGO_TRIM[b.logo_url] || b.logo_url)}" alt="${esc(b.display_name)}" crossorigin="anonymous" data-logo="${esc(b.logo_url)}">` : `<span class="nm">${esc(b.display_name)}</span>`}<span class="tag-c">Creators</span></a>
-    <a class="top-link" href="#checklist">${ic('list-checks', 16)}<span>Rules</span></a>
+    <a class="brand" href="#" aria-label="${esc(b.display_name)} creators">${b.logo_url ? `<img src="${esc(LOGO_TRIM[b.logo_url] || b.logo_url)}" alt="${esc(b.display_name)}" crossorigin="anonymous" data-logo="${esc(b.logo_url)}">` : `<span class="nm">${esc(b.display_name)}</span>`}<span class="tag-c">Creator hub</span></a>
+    ${b.submit_url ? `<a class="top-link" href="${esc(b.submit_url)}" target="_blank" rel="noopener"><span>Submit a video</span>${ic('arrow-right', 15)}</a>` : ''}
   </div></header>
-  <main class="col">
-    <section class="hero">
-      <h1>${esc(b.display_name)} creator hub</h1>
-      <p class="lede">What to film this week, which videos are selling, and the rules. Film a video, then submit it on ${esc(plat())}.</p>
-      ${jump()}
-    </section>
-    ${week()}
-    ${leaders()}
-    ${head('videos', 'Videos to copy', 'Tap a video to watch it. Film the same idea your own way.')}
-    ${cs.length > 1 ? `<div class="cats" role="group" aria-label="Show"><button class="cat ${CAT === 'all' ? 'on' : ''}" data-cat="all">All<span>${TILES.length}</span></button>${cs.map(c => `<button class="cat ${CAT === c.id ? 'on' : ''}" data-cat="${esc(c.id)}">${esc(c.name)}<span>${c.n}</span></button>`).join('')}</div>` : ''}
-    <div class="grid">${list.slice(0, cut).map(tile).join('') || '<p class="empty">No videos here yet.</p>'}</div>
-    ${cut < list.length ? `<button class="more" data-more>See all ${list.length} videos${ic('chevron-down', 15)}</button>` : ''}
-    ${steps()}
-    ${checklist()}
-  </main>
+  <nav class="tabs" role="tablist" aria-label="Sections"><div class="col">${tabs.map(([id, l]) => `<button type="button" role="tab" data-tab="${id}" class="${TAB === id ? 'on' : ''}" aria-selected="${TAB === id}">${esc(l)}</button>`).join('')}</div></nav>
+  <main class="col" id="panel">${body}</main>
   <footer><div class="col"><span>Questions? Message ${esc(b.display_name)} on ${esc(plat())}.</span><span>Powered by Mobius Digital</span></div></footer>`;
   wire();
 }
 function wire() {
+  app.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { TAB = b.dataset.tab; SHOW_ALL = false; try { history.replaceState(null, '', '#' + TAB); } catch {} render(); scrollTo(0, 0); });
+  app.querySelectorAll('[data-idea]').forEach(h => h.onclick = () => { const b = h.parentElement.querySelector('.idea-b'); const open = b.hidden; b.hidden = !open; h.setAttribute('aria-expanded', String(open)); h.parentElement.classList.toggle('open', open); if (open) loadCovers(TILES.map(t => t.p)); });
+  app.querySelectorAll('[data-top]').forEach(el => el.onclick = () => openPlayer(TOP[+el.dataset.top]));
   app.querySelectorAll('[data-cat]').forEach(c => c.onclick = () => {
     CAT = c.dataset.cat; SHOW_ALL = false;
+    if (!app.querySelector('.cats')) return;
     const y = app.querySelector('.cats').getBoundingClientRect().top;
     const x = app.querySelector('.cats').scrollLeft;
     render();
@@ -276,10 +301,9 @@ function wire() {
     el.addEventListener('mouseenter', () => { if (v.dataset.src) loadPreview(v); v.play().catch(() => {}); });
     el.addEventListener('mouseleave', () => { v.pause(); try { v.currentTime = .8; } catch {} });
   });
-  app.querySelectorAll('a[href^="#"]:not(.brand)').forEach(a => a.onclick = e => { const id = a.getAttribute('href').slice(1); if (!id) return; e.preventDefault(); document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' }); });
   app.querySelector('.brand').onclick = e => { e.preventDefault(); scrollTo({ top: 0, behavior: 'smooth' }); };
   wirePreviews();
-  loadCovers(shown().map(t => t.p));
+  loadCovers(TAB === 'top' ? TOP.map(t => t.p) : TAB === 'videos' ? shown().map(t => t.p) : []);
 }
 
 /* First frames: a clip's <video> gets its src only when it is near the screen. */
@@ -303,7 +327,7 @@ function openPlayer(t) {
        <p class="pl-s">Not our brand, but they did it well. Take the idea, film it with ${esc(D.brand.display_name)}.</p>`
     : `<span class="chip chip-ours">${esc(wd.sub)}</span>
        <b class="pl-t">${esc(cap || 'One of our top ads')}</b>
-       ${a?.argument ? `<p class="pl-s">${esc(a.argument)}</p>` : ''}`;
+       ${t.top?.line ? `<p class="pl-s">Their first line: “${esc(t.top.line)}”</p>` : a?.argument ? `<p class="pl-s">${esc(a.argument)}</p>` : ''}`;
   const w = document.createElement('div');
   w.className = 'pl-wrap'; w.id = 'player';
   w.innerHTML = `<div class="pl" role="dialog" aria-modal="true" aria-label="Video">
@@ -317,7 +341,7 @@ function openPlayer(t) {
   document.body.appendChild(w);
   document.body.classList.add('locked');
   requestAnimationFrame(() => w.classList.add('on'));
-  const list = shown();
+  const list = t.top ? TOP : shown();
   const k = list.indexOf(t);
   w.querySelectorAll('[data-step]').forEach(b => b.onclick = () => { const n = list[(k + +b.dataset.step + list.length) % list.length]; if (n) openPlayer(n); });
   w.querySelector('[data-close]').onclick = closePlayer;
@@ -418,9 +442,11 @@ async function boot() {
     }
     D = j;
     TILES = buildTiles();
+    TOP = buildTop();
+    TAB = ({ rules: 'how', checklist: 'how' })[location.hash.slice(1)] || location.hash.slice(1);
     render();
     // Old links (#rules from the PDF and Slack) land on the checklist.
-    if (/^#(rules|checklist)/.test(location.hash)) setTimeout(() => document.getElementById('checklist')?.scrollIntoView(), 50);
+    /* #rules and #checklist open How it works (set at boot) */
   } catch (e) {
     app.innerHTML = `<div class="center"><div><h1>Page not found</h1><p class="sub">${esc(e.message)}</p></div></div>`;
   }

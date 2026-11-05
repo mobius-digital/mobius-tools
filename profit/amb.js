@@ -753,12 +753,12 @@ function paintWeek(body) {
         ${inp('wkSame', sm.line, 'Golf is a drinking sport. This is Chunkman, not Jumpman.', 220)}${inp('wkWho', sm.who, 'Who said it first', 80)}</section>
     </div>
     <div class="av-save"><span class="am-msg" id="wkMsg"></span><button class="btn primary" id="wkSave" type="button">Save this week</button></div>`;
-  body.querySelectorAll('[data-pick]').forEach(s => s.onchange = () => { const a = ideas.find(x => x.id === s.value); if (!a) return; const i = s.dataset.pick; $('#wkT' + i).value = `${a.title}${a.format ? ` (${String(a.format).toLowerCase()})` : ''}`.slice(0, 120); $('#wkO' + i).value = (a.openers || [])[0] || ''; });
+  body.querySelectorAll('[data-pick]').forEach(s => s.onchange = () => { const a = ideas.find(x => x.id === s.value); const i = s.dataset.pick; s.dataset.angle = a ? a.id : ''; if (!a) return; $('#wkT' + i).value = `${a.title}${a.format ? ` (${String(a.format).toLowerCase()})` : ''}`.slice(0, 120); $('#wkO' + i).value = (a.openers || [])[0] || ''; });
   $('#wkSave').onclick = async () => {
     const v = id => $('#' + id).value.trim();
     const week = { title: v('wkTitle'), offer: { head: v('wkHead'), line: v('wkLine') },
       call: { when: v('wkWhen'), join: v('wkJoin'), recordings: v('wkRecs').split('\n').map(l => { const k = l.lastIndexOf('|'); return k < 0 ? null : { title: l.slice(0, k).trim(), url: l.slice(k + 1).trim() }; }).filter(Boolean) },
-      daily: DAYS.map((d, i) => ({ day: d, title: v('wkT' + i), opener: v('wkO' + i) })).filter(x => x.title),
+      daily: DAYS.map((d, i) => ({ day: d, title: v('wkT' + i), opener: v('wkO' + i), angle_id: body.querySelector(`[data-pick="${i}"]`).dataset.angle || (daily[i].title === v('wkT' + i) ? daily[i].angle_id : '') || '' })).filter(x => x.title),
       same: { line: v('wkSame'), who: v('wkWho') } };
     try { S.data = await post('/api/amb/brand', { week }, 'PUT'); flashMsg($('#wkMsg'), 'Saved. Creators see it on their next load.'); }
     catch (e) { flashMsg($('#wkMsg'), e.message, false); }
