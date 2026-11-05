@@ -356,6 +356,41 @@ export async function trybeScorecard(env, d, brands, { today } = {}) {
   return { today, cards: cards.filter(Boolean).filter(c => c.error || (c.last_30 && (c.last_30.spend > 0 || c.last_30.videos_in > 0))) };
 }
 
+/* ---------- the week (2026-11-05): the live counts behind Ads > Trybe > This week ----------
+   Per program: videos waiting for review, approved but not launched, creator messages nobody answered in Discord.
+   Lucky comes from its own app. Cheap enough to load on open: D1 counts plus one Discord read per server. */
+async function discordWaiting(env, act) {
+  try {
+    const [a, b] = await Promise.all([dcDoc(env, 'agency'), dcDoc(env, act)]);
+    if (!a?.token || !b?.guild_id || !b.channels) return null;
+    const H = { Authorization: `Bot ${a.token}` };
+    const g = await (await fetch(`${DC_API}/guilds/${b.guild_id}`, { headers: H })).json().catch(() => ({}));
+    const team = new Set([g.owner_id, ...(b.team_ids || [])].filter(Boolean));
+    let n = 0;
+    for (const name of ['questions', 'feedback-before-upload', 'vip']) {
+      const id = b.channels[name]; if (!id) continue;
+      const rows = ((await (await fetch(`${DC_API}/channels/${id}/messages?limit=50`, { headers: H })).json().catch(() => [])) || []);
+      if (!Array.isArray(rows)) continue;
+      const list = rows.slice().reverse(), staff = m => m.webhook_id || m.author?.bot || team.has(m.author?.id);
+      let last = -1; list.forEach((m, i) => { if (staff(m)) last = i; });
+      n += list.filter((m, i) => !staff(m) && i > last).length;
+    }
+    return n;
+  } catch { return null; }
+}
+export async function trybeWeek(env, d, brands, { today } = {}) {
+  today = today || (d.centralDate ? d.centralDate() : new Date().toISOString().slice(0, 10));
+  const all = await trybeAll(env, d, brands, { today });
+  const rows = await Promise.all((all.brands || []).filter(b => b.has_key).map(async b => ({ act_id: b.act_id, name: b.name, review: b.pending, launch: b.queue, stale: b.stale, discord: await discordWaiting(env, b.act_id) })));
+  let lucky = null;
+  if (env.LUCKY_PROGRAM_KEY && brands.some(b => b.act_id === 'brand_lucky_golf')) {
+    const get = async path => { const r = await fetch('https://creators.luckygolf.com' + path, { headers: { Authorization: `Bearer ${env.LUCKY_PROGRAM_KEY}` } }); return r.ok ? r.json() : null; };
+    const [q, rc] = await Promise.all([get('/api/locus/review-queue').catch(() => null), get('/api/locus/discord-recap').catch(() => null)]);
+    lucky = { act_id: 'brand_lucky_golf', name: 'Lucky Golf', review: q ? (q.count ?? (q.videos || []).length) : null, launch: null, stale: null, discord: rc ? (rc.unanswered_questions || []).length : null };
+  }
+  return { today, dow: new Date(today + 'T12:00:00Z').getUTCDay(), programs: lucky ? [...rows, lucky] : rows };
+}
+
 /** Agency view: one line per brand. Cheap: counts from D1 only. */
 export async function trybeAll(env, d, brands, { today } = {}) {
   await ensureTrybe(env);
@@ -532,6 +567,10 @@ export async function handleTrybe(request, env, url, path, json, h) {
       const bb = await request.json().catch(() => ({}));
       const kind = bb.kind === 'friday' ? 'friday' : 'monday';
       return json(await discordWeekly(env, d.centralDate ? d.centralDate() : new Date().toISOString().slice(0, 10), { force: kind }));
+    }
+    if (path === '/api/trybe/week' && request.method === 'GET') {
+      if (client) return json({ error: 'That part is the Mobius team' + "'" + 's.' }, 403);
+      return json(await trybeWeek(env, d, (await d.listBrands(env)).filter(b => !only || only.has(b.act_id))));
     }
     if (path === '/api/trybe/scorecard' && request.method === 'GET') {
       if (client) return json({ error: 'That part is the Mobius team' + "'" + 's.' }, 403);

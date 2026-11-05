@@ -346,13 +346,72 @@
       <td class="num" data-l="Not launched">${r.queue}</td><td class="num" data-l="Over ${d.stale_days} days">${r.stale ? `<span class="tb-b">${r.stale}</span>` : '0'}</td><td class="num" data-l="Oldest">${r.queue ? `${r.oldest}d` : ''}</td><td class="num" data-l="Launched, no spend">${r.no_spend || 0}</td><td class="num" data-l="Waiting on review">${r.pending}</td><td class="num" data-l="Approved">${r.approved}</td><td class="num" data-l="Updated">${esc(ago(r.synced_at))}</td></tr>`).join('');
     const waiting = b.reduce((s, r) => s + r.queue, 0);
     const none = (d.no_key || []).map(x => `<button type="button" class="v2link" data-tbact="${esc(x.act_id)}">${esc(x.name)}</button>`).join(', ');
-    $('#main').innerHTML = shell(`<section class="v2card" id="tbScore"><div class="v2h"><h3>Creator scorecard</h3><span class="cap">Getting the numbers…</span></div></section><section class="v2card"><div class="v2h"><h3>${waiting} approved video${waiting === 1 ? '' : 's'} not launched</h3><span class="cap">across ${b.length} brand${b.length === 1 ? '' : 's'}</span></div>
+    const aseg = `<div class="v2jobs tb-seg" role="tablist">${[['week', 'This week'], ['numbers', 'Scorecard and queue']].map(([id, l]) => `<button type="button" role="tab" data-av="${id}" class="${AV === id ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+    if (AV === 'week') { $('#main').innerHTML = shell(`${aseg}<div id="tbWeek"><p class="v2hint">Getting today's numbers…</p></div>`); document.querySelectorAll('[data-av]').forEach(b => { b.onclick = () => { AV = b.dataset.av; paintAll(); }; }); if (H.pageActions) H.pageActions(''); weekView(); return; }
+    $('#main').innerHTML = shell(`${aseg}<section class="v2card" id="tbScore"><div class="v2h"><h3>Creator scorecard</h3><span class="cap">Getting the numbers…</span></div></section><section class="v2card"><div class="v2h"><h3>${waiting} approved video${waiting === 1 ? '' : 's'} not launched</h3><span class="cap">across ${b.length} brand${b.length === 1 ? '' : 's'}</span></div>
       ${b.length ? `<div class="v2tbl"><table><thead><tr><th>Brand</th><th class="num">Not launched</th><th class="num">Over ${d.stale_days} days</th><th class="num">Oldest</th><th class="num">Launched, no spend</th><th class="num">Waiting on review</th><th class="num">Approved</th><th class="num">Updated</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="v2hint">No brand has a Trybe key yet. Open a brand to connect it.</p>'}
       ${none ? `<p class="v2hint">Not connected: ${none}</p>` : ''}
       <div class="tb-foot"><span class="v2hint">Slack lines are <b>${d.alerts ? 'on' : 'off'}</b>: each brand's internal channel hears when approved videos sit ${d.stale_days} days without being launched, and gets Monday's list of creators to ask for more.</span><button type="button" class="v2btn ghost" id="tbAlerts">${d.alerts ? 'Turn off' : 'Turn on'}</button></div></section>`);
     if (H.pageActions) H.pageActions('');
     wire();
+    document.querySelectorAll('[data-av]').forEach(b => { b.onclick = () => { AV = b.dataset.av; paintAll(); }; });
     score();
+  }
+
+  /* This week (2026-11-05): the weekly creator program routine as a week, today lit up, with the live counts that
+     turn each line into a job (account-health /api/trybe/week). Roles: owner (Cole: calls, scorecard), media buyer
+     (launches, keep or cut), creative strategists (Ahsan, Noma: review videos, notes, next week's set), creator manager
+     (Cole until hired: accept creators, samples, Discord replies). Locus does the posts itself. */
+  let AV = 'week';
+  const ROLES = { owner: ['Owner', 'Cole'], buyer: ['Media buyer', 'Cole for now'], strat: ['Creative strategists', 'Ahsan, Noma'], mgr: ['Creator manager', 'Cole until hired'], locus: ['Locus', 'runs itself'] };
+  const DAILY = [
+    { who: 'strat', what: 'Review new videos', how: 'Ads, Trybe, a brand, Review. Approve, or send back with a note.', n: 'review' },
+    { who: 'mgr', what: 'Answer Discord', how: 'Ads, Trybe, a brand, Discord. Clear "Waiting on an answer".', n: 'discord' },
+    { who: 'buyer', what: 'Launch approved videos', how: 'Ads, Trybe, a brand, Queue. Then keep or cut on Ads, Calls.', n: 'launch' },
+  ];
+  const WEEK = [
+    { d: 1, name: 'Monday', jobs: [
+      { who: 'owner', what: 'Scorecard, 15 minutes', how: 'This tab, Scorecard and queue. Which program is off goal, which has videos waiting.' },
+      { who: 'locus', what: 'Posts the week\u2019s videos in every Discord', how: 'Morning, as each mascot, with the deal and the call time.' },
+      { who: 'owner', what: 'Creator calls, 4:30 to 7:00', how: 'Grunk 4:30, Dartee 5:00, Ice & Gold 5:30, Party Patch 6:00, Lucky 6:30. 10 minutes on two videos that sold, 10 on this week\u2019s set.' },
+      { who: 'owner', what: 'Record the calls', how: 'Upload unlisted to YouTube, paste the link in Briefs, Start here, recordings.' } ] },
+    { d: 2, name: 'Tuesday', jobs: [
+      { who: 'mgr', what: 'Accept new creators and ship samples', how: 'In Trybe: applications and samples. Lucky: in the Lucky app.' },
+      { who: 'strat', what: 'Notes before upload', how: 'Reply in each Discord\u2019s #feedback-before-upload.' } ] },
+    { d: 3, name: 'Wednesday', jobs: [
+      { who: 'buyer', what: 'Creator ads on Calls', how: 'Ads, Calls. Creator ads follow the same wait, scale and cut rules as every ad.' } ] },
+    { d: 4, name: 'Thursday', jobs: [
+      { who: 'strat', what: 'Find what\u2019s selling for next week', how: 'Our winners (Scorecard), competitor ads, inspo. Pick next week\u2019s 5 ideas.' },
+      { who: 'mgr', what: 'Ask winners for more', how: 'Ads, Trybe, a brand, Creators. "Ask for more" = sells and has gone quiet.' } ] },
+    { d: 5, name: 'Friday', jobs: [
+      { who: 'locus', what: 'Posts the winners in every Discord', how: 'Creator videos with a Triple Whale sale in the last 7 days.' },
+      { who: 'strat', what: 'Set next week\u2019s videos', how: 'Ads, Trybe, Briefs, Start here: title, deal, 5 ideas. Lucky: the board in the Lucky app.' },
+      { who: 'owner', what: 'Pick VIPs', how: 'Creators whose videos sold move up. Tell Claude who, or invite them to the VIP program in Trybe.' } ] },
+    { d: 6, name: 'Saturday', jobs: [] },
+    { d: 0, name: 'Sunday', jobs: [] },
+  ];
+  async function weekView() {
+    const box = document.getElementById('tbWeek'); if (!box) return;
+    let w;
+    try { w = await H.apiAH('/api/trybe/week'); if (w && w.error) throw new Error(w.error); }
+    catch (e) { box.innerHTML = `<p class="v2bad">${esc(e.message)}</p>`; return; }
+    const tot = k => w.programs.reduce((a, p) => a + (+p[k] || 0), 0);
+    const per = k => w.programs.filter(p => +p[k] > 0).map(p => `<button type="button" class="v2link" data-wk="${esc(p.act_id)}">${esc(p.name)} ${p[k]}</button>`).join(', ');
+    const tag = r => `<span class="v2pill" title="${esc(ROLES[r][1])}">${esc(ROLES[r][0])}</span>`;
+    const today = WEEK.find(x => x.d === w.dow) || WEEK[0];
+    const dailyRows = DAILY.map(j => { const n = tot(j.n); return `<div class="tb-mini"><div></div><div><div><b>${esc(j.what)}</b> ${tag(j.who)}</div><div class="tb-sub">${esc(j.how)}</div>${n ? `<div class="tb-sub" style="margin-top:4px">${per(j.n)}</div>` : ''}</div><div style="text-align:right"><b style="font-size:22px" class="${n ? 'tb-b' : 'tb-g'}">${n}</b><div class="tb-sub">${n ? 'to do' : 'clear'}</div></div></div>`; }).join('');
+    const todayRows = today.jobs.length ? today.jobs.map(j => `<div class="tb-mini"><div></div><div><div><b>${esc(j.what)}</b> ${tag(j.who)}</div><div class="tb-sub">${esc(j.how)}</div></div><div></div></div>`).join('') : '<p class="v2hint">Nothing extra today. Just the daily three.</p>';
+    const cols = WEEK.filter(x => x.d >= 1 && x.d <= 5).map(x => `<div class="v2card" style="padding:12px 14px;${x.d === w.dow ? 'outline:2px solid var(--accent,#2f6bff);' : ''}"><div style="font-weight:700;margin-bottom:6px">${esc(x.name)}${x.d === w.dow ? ' <span class="v2pill good">Today</span>' : ''}</div>${x.jobs.map(j => `<div style="margin:0 0 8px"><div style="font-size:13.5px">${esc(j.what)}</div><div class="tb-sub">${esc(ROLES[j.who][0])}</div></div>`).join('')}<div class="tb-sub" style="border-top:1px solid var(--line);padding-top:6px">Every day: review, Discord, launch</div></div>`).join('');
+    const roles = Object.values(ROLES).map(([r, who]) => `<li><b>${esc(r)}</b>: ${esc(who)}</li>`).join('');
+    box.innerHTML = `<section class="v2card"><div class="v2h"><h3>Today, ${esc(today.name)}</h3><span class="cap">live from Trybe, the Lucky app and Discord</span></div>
+        <h3 style="font-size:14px;margin:4px 0 6px">Every day</h3>${dailyRows}
+        <h3 style="font-size:14px;margin:14px 0 6px">Also today</h3>${todayRows}</section>
+      <section class="v2card"><div class="v2h"><h3>The week</h3><span class="cap">the creator program routine</span></div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px">${cols}</div>
+        <p class="v2hint" style="margin-top:10px">Weekends: one look at Discord is enough.</p></section>
+      <section class="v2card"><div class="v2h"><h3>Who does what</h3></div><ul style="margin:0;padding-left:18px">${roles}</ul>
+        <p class="v2hint">The creator manager is the one hire: accepts creators, ships samples, answers Discord. Strategists judge the videos and give notes before upload.</p></section>`;
+    box.querySelectorAll('[data-wk]').forEach(b => { b.onclick = () => { if (H.setViewAct) H.setViewAct(b.dataset.wk); H.show('trybe'); }; });
   }
 
   /* The scorecard (2026-11-05): one row per creator program, last 7 days, with the 30 day cost per sale beside it.
