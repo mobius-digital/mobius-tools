@@ -511,6 +511,7 @@ export function staleMessage(brand, stale, rebook, link) {
   lines.push(`<${link}|Open Ads > Trybe for ${brand}>`);
   return noDash(lines.join('\n'));
 }
+const subs2 = v => v.__subs || [];
 export async function trybeTick(env, d, { force = false } = {}) {
   const today = d.centralDate();
   if (!force && (await getSetting(env, 'trybeDay')) === today) return { skipped: 'done today' };
@@ -528,9 +529,15 @@ export async function trybeTick(env, d, { force = false } = {}) {
       await syncBrand(env, d, b.act_id, { today }); out.synced++;
       if (!alertsOn || !b.slack_channel || (b.brief_channel && b.slack_channel === b.brief_channel)) continue;
       const v = await trybeView(env, d, b.act_id, { today });
+      v.__subs = ((await env.DB.prepare(`SELECT status, created_at FROM p_trybe_sub WHERE act_id = ?1 AND status = 'pending'`).bind(b.act_id).all()).results || []);
       const seen = new Set(((await env.DB.prepare(`SELECT sub_id FROM p_trybe_sub WHERE act_id = ?1 AND alerted IS NOT NULL`).bind(b.act_id).all()).results || []).map(r => r.sub_id));
       const fresh = v.queue.filter(q => q.state === 'not_launched' && q.days >= STALE_DAYS && !seen.has(q.sub_id));
-      const msg = staleMessage(b.name, fresh, monday ? v.creators.filter(c => c.rebook) : [], `${d.appUrl || 'https://locus.go-mobius-digital.com'}/?open=trybe&act=${b.act_id}`);
+      let msg = staleMessage(b.name, fresh, monday ? v.creators.filter(c => c.rebook) : [], `${d.appUrl || 'https://locus.go-mobius-digital.com'}/?open=trybe&act=${b.act_id}`);
+      /* Falling behind (2026-11-05): videos waiting for review 2 days or more, and creators waiting on a Discord answer. */
+      const oldReview = subs2(v).filter(s => s.status === 'pending' && s.created_at && daysBetween(day(s.created_at), today) >= 2).length;
+      const dcWait = await discordWaiting(env, b.act_id);
+      const behind = [oldReview ? `${oldReview} video${oldReview === 1 ? '' : 's'} waiting for review 2 days or more (Ads, Trybe, Review).` : '', dcWait ? `${dcWait} creator${dcWait === 1 ? '' : 's'} waiting on an answer in Discord (Ads, Trybe, Discord).` : ''].filter(Boolean);
+      if (behind.length) msg = noDash([`*Creator program falling behind:*`, ...behind.map(x => `• ${x}`), msg || `<${d.appUrl || 'https://locus.go-mobius-digital.com'}/?open=trybe&act=${b.act_id}|Open Ads > Trybe for ${b.name}>`].join(String.fromCharCode(10)));
       if (!msg) continue;
       await d.slackPost(env, b.slack_channel, msg, null, { username: 'Locus' });
       out.posted++;
