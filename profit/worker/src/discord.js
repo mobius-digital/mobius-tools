@@ -148,6 +148,16 @@ async function build(env, token, act, d, brand, opt) {
   const have = await dc(token, 'GET', `/guilds/${g}/channels`);
   const byId = id => have.find(c => c.id === id);
   const byName = (names, type) => have.find(c => c.type === type && names.some(n => c.name.toLowerCase() === n.toLowerCase()));
+  /* Once per server: Discord's starter channels ("general" and the "General" voice room, with their two sections)
+     go, so creators land on welcome. Only on the first styled build, so a channel the team adds later stays. */
+  if (!d.cleaned) {
+    const starter = have.filter(c => (c.type === 0 && c.name === 'general') || (c.type === 2 && c.name === 'General'));
+    for (const c of starter) await dc(token, 'DELETE', `/channels/${c.id}`).catch(() => {});
+    for (const c of have.filter(c => c.type === 4 && ['Text Channels', 'Voice Channels'].includes(c.name))) {
+      if (!have.some(x => x.parent_id === c.id && !starter.includes(x))) await dc(token, 'DELETE', `/channels/${c.id}`).catch(() => {});
+    }
+    d.cleaned = true;
+  }
   const cats = { ...(d.cats || {}) }, chans = { ...(d.channels || {}) }, made = [];
   for (const cat of CATS) {
     const want = catName(look, cat);
