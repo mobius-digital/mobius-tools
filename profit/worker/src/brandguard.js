@@ -251,6 +251,7 @@ export const CLIENT_RULES = [
   /* Today's calls: Done / Not now are the Buyer list's shared state; the handler holds a client to its brands (2026-10-27) */
   R('GET', '/api/buyer-list'),   // Ads > Calls, read only, the client's own brand (2026-11-05); every other buyer-list route is the team's
   R('GET', '/api/buyer-list/state'),
+  R('GET', '/api/trybe/video'),   // press play on one of the client's own creator videos (a 20 minute link from Trybe)
   R('GET', '/api/trybe'),   // Ads > Trybe: Live and Creators for the client's own brand; the handler trims the rest (2026-11-05)
   R('POST', '/api/buyer-list/state', 'need', { fields: ['object', 'action', 'status', 'name'] }),
   R('GET', '/api/hub/drill'),

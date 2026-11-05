@@ -4744,8 +4744,16 @@ Why: brands fill Trybe with approved creator videos and launch a fraction. Spec:
   brand's first sync). The 3 day clock (`STALE_DAYS`) runs from it.
 - **Matching**: an ad belongs to a video when its name carries `trybe=<trybe_id>` (Trybe's Build Ads names them
   `Creator_Product_YYYYMMDD_trybe=1b2c3d4e`). Sales and revenue are `tw_ad_attr` lastPlatformClick; spend is `ad_daily`.
-- **Queue** = approved and Trybe has never seen it deliver (`ads.count` 0): `not_in_meta` or `no_delivery` (an ad exists,
-  Meta never spent). Launching stays in Trybe (partnership ads, the creator's commission); the page links to it.
+- **Queue** = approved and Trybe has never seen it deliver (`ads.count` 0). Locus's `ads` table only holds ads that SPENT
+  (it is filled from insights rows), so the sync reads every ad named `trybe=` live from Meta into `p_trybe_ad` and the
+  state comes from there: `not_launched`, `no_spend` (on, no delivery yet), `scheduled`, `review`, `rejected`, `off`.
+  Only `not_launched` is the backlog (the tile, the Slack line, the Calls banner, the Agency view). Launching stays in
+  Trybe (partnership ads, the creator's commission); the page links to it.
+- **v3 (the same day, Cole's first look)**: tiles are label, number, one short line; every list has search, filter and
+  sort (module state `UI`); a thumbnail plays the video (`GET /api/trybe/video`, a 20 minute link from Trybe, asked on
+  press); a creator's name opens their sheet; metrics read Spend, Sales, CPA, ROAS; Rebook is called "Ask for more";
+  "Updated X ago" sits under the title. Pop ups are bottom sheets on a phone. No scale or cut buttons here: those
+  calls stay on Ads > Calls.
 - **Rebook** = at least 2 sales at or under the account's 30 day cost per sale, and no new video in 14 days.
 - **Daily** (`trybeTick`, hourly cron, once a Central day from 4am, setting `trybeDay`): sync every keyed brand, then one
   Slack line in the brand's internal channel for videos that crossed 3 days (each video once, `alerted`), plus the
