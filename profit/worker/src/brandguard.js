@@ -182,8 +182,16 @@ const ownLessons = ids => b => { const L = b && (b.lessons || b.rows); if (Array
 /* /api/accounts for a client: no count of the Meta accounts Mobius reaches. */
 /* Day check for a client: the "our brands" sign keeps only bad-or-not, never how many brands Mobius runs or how
    many had a bad day; the AI verdict's own why / todo can repeat those counts, so a client gets the client line. */
-const oursHighOnly = b => { const walk = o => { if (!o || typeof o !== 'object') return; if (Array.isArray(o)) { o.forEach(walk); return; } for (const k of Object.keys(o)) { if (k === 'ours' && o[k] && typeof o[k] === 'object' && !Array.isArray(o[k])) o[k] = { high: !!o[k].high }; else walk(o[k]); } }; walk(b); return b; };
-const verdictForClient = b => { if (b && typeof b === 'object' && 'headline' in b) { b.why = b.client_line || ''; delete b.todo; } return b; };
+/* Day check for a client (Cole 2026-11-05: "remove that entirely, that should just be for us internally"): the
+   accounts-we-run sign is dropped, and each day's count and verdict are worked out again from the three outside signs
+   (Breezeway's panel, Meta's status page, advertisers online): 3 = very bad, 2 = bad, 1 = mixed. */
+const VERDICT3 = h => h >= 3 ? 'vbad' : h >= 2 ? 'bad' : h === 1 ? 'mixed' : 'normal';
+const noOurs = b => { if (!b || typeof b !== 'object') return b; const fix = d => { if (!d || !d.signs) return; const s = d.signs; delete s.ours;
+  d.hits = [s.breezeway && s.breezeway !== 'NORMAL', (s.outage || []).length > 0, s.chatter && s.chatter.issues].filter(Boolean).length; d.verdict = VERDICT3(d.hits); };
+  (b.days || []).forEach(fix); if (b.latest) fix(b.latest); delete b.thresholds;
+  b.how = 'A bad day on Meta when two or more of three outside signs agree: other advertisers (a public panel) calling it bad, Meta posting a problem, and advertisers reporting problems online. One sign = mixed.'; return b; };
+/* The verdict's headline and reasons are written for the team; a client gets only the line written to be safe for them. */
+const verdictForClient = b => { if (b && typeof b === 'object' && 'headline' in b) { b.headline = b.client_line || ''; b.why = ''; delete b.todo; delete b.scope; } return b; };
 const noDiscover = b => { if (b && typeof b === 'object') delete b.lastDiscover; return b; };
 
 const R = (m, p, act = 'need', more = {}) => ({ m, p, act, ...more });
@@ -217,7 +225,7 @@ export const CLIENT_RULES = [
   R('GET', '/api/data-health'),
   R('POST', '/api/tw-sync', 'need', { deny: (b, url) => (+url.searchParams.get('days') > 70 ? 'Your login re-reads up to 70 days; ask us for a longer re-pull.' : null) }),
   /* Day check: a market-level answer ("was it a bad day on Meta"); its brand rows are filtered to theirs. */
-  R('GET', '/api/metaday', 'none', { post: oursHighOnly }),
+  R('GET', '/api/metaday', 'none', { post: noOurs }),
   R('GET', '/api/daycheck/now', 'need', { strip: ['fresh', 'web'] }),   // a client never triggers the paid re-read or web search (2026-10-27)
   R('POST', '/api/daycheck', 'opt', { cap: ['clientAsk', 0.02], post: verdictForClient }),
   /* The AI read at the top of a screen (never the command center's). */
