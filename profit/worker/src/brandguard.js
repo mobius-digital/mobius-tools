@@ -288,6 +288,10 @@ export const CLIENT_RULES = [
   R('GET', '/api/ad-breakdown', 'none', { ads: 'ad' }),
   R('POST', '/api/ad-share'),
   R('GET', '/api/your-ads-link'),
+  /* Site reviews (sitereview.js): read, answer and send their own brand's review. The list, the link and reopen stay team only. */
+  R('GET', '/api/site-review'),
+  R('PUT', '/api/site-review/answer'),
+  R('POST', '/api/site-review/send'),
   R('GET', '/api/google/ads'),
   R('GET', '/api/google/ads-ads'),
   R('GET', '/api/google/ads-terms'),

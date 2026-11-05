@@ -1,0 +1,59 @@
+[
+ {
+  "act": "brand_yak_sports",
+  "slug": "site-rebuild",
+  "title": "Site rebuild",
+  "path": "reviews/yak/site-rebuild/",
+  "added": "2026-11-05",
+  "sections": [
+   {
+    "id": "home",
+    "title": "Homepage"
+   },
+   {
+    "id": "ebf",
+    "title": "Early Black Friday page"
+   },
+   {
+    "id": "hoodies",
+    "title": "Hoodies collection"
+   },
+   {
+    "id": "joggers",
+    "title": "Joggers collection"
+   },
+   {
+    "id": "allcols",
+    "title": "All collections use one template"
+   },
+   {
+    "id": "pdp",
+    "title": "Product page"
+   },
+   {
+    "id": "compare",
+    "title": "Playmaker vs Breakaway"
+   },
+   {
+    "id": "cart",
+    "title": "Cart"
+   },
+   {
+    "id": "bf",
+    "title": "Black Friday page"
+   },
+   {
+    "id": "gifts",
+    "title": "Christmas gift guide"
+   },
+   {
+    "id": "story",
+    "title": "Our story"
+   },
+   {
+    "id": "policies",
+    "title": "Shipping + returns"
+   }
+  ]
+ }
+]

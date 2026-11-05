@@ -87,6 +87,7 @@ import { useFetch as googleFetch, googleProbe, autoMatch as googleMatch, linkFor
 import { locusWrite as metaLocusWrite, locusUndo as metaLocusUndo, metaLive, metaActs } from './metawrite.js';
 import { handleDrops, dropsTick } from './drops.js';
 import { handleLaunch, refreshStatus as launchRefresh } from './launch.js';
+import { handleSiteReview } from './sitereview.js';
 import { handleBuyer, buyerPostTick, buyerSettings } from './buyerlist.js';
 import { buyerAITick } from './buyerai.js';
 import { handleTrybe, trybeTick } from './trybe.js';
@@ -8060,6 +8061,12 @@ const AH_APP = {
           if (request.method === 'POST') return json(await connectPost(env, cm[1], await request.json().catch(() => ({})), connectDeps));
         } catch (e) { return json({ error: e.message }, e.status || 400); }
       } }
+    /* Site reviews (sitereview.js, 2026-11-05): a client approves a proposed site rebuild page by page. The token
+       routes are public; the rest check isAdmin (a client passes only where brandguard.js cleared it). */
+    if (path.startsWith('/api/site-review')) {
+      const r = await handleSiteReview(request, env, url, path, json, { isAdmin, sessionEmail, clientScope, slackPost });
+      if (r) return r;
+    }
     if (path.startsWith('/api/review/')) {
       const r = await handleReviewLink(request, env, url, path, json, { ...actionDeps(), waitUntil: p => ctx.waitUntil(p), moveCard: prodMove, formatOf: prodFormat, readDoc: brandReadDoc });
       if (r) return r;

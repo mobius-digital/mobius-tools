@@ -63,7 +63,7 @@ const EMPTY = mint('empty@alpha.com'), GUEST = mint('guest@outside.com'), STRANG
 const FORGED_DEV = mint('cole@go-mobius-digital.com', 'dev');
 
 const realFetch = globalThis.fetch;
-const mails = [];
+const mails = [], slackSent = [];
 /* The model, when a check sets it: body -> the Messages API answer. */
 const MOCK = { anthropic: null };
 globalThis.fetch = async (url, init = {}) => {
@@ -73,6 +73,7 @@ globalThis.fetch = async (url, init = {}) => {
     return new Response(JSON.stringify({ aud: 'cid', email, email_verified: 'true' }), { status: 200 });
   }
   if (u.startsWith('https://oauth2.googleapis.com/token')) return new Response(JSON.stringify({ access_token: 'gtok', expires_in: 3600 }), { status: 200 });
+  if (u.startsWith('https://slack.com/api/chat.postMessage')) { slackSent.push(JSON.parse(init.body)); return new Response(JSON.stringify({ ok: true, ts: '1.1' }), { status: 200 }); }
   if (u.includes('gmail/v1/users/me/messages/send')) { mails.push(JSON.parse(init.body)); return new Response('{}', { status: 200 }); }
   if (u.startsWith('https://api.anthropic.com/') && MOCK.anthropic) return new Response(JSON.stringify({ model: 'claude-opus-5-5', ...MOCK.anthropic(JSON.parse(init.body)) }), { status: 200 });
   return new Response(JSON.stringify({ error: 'offline: ' + u }), { status: 503 });
@@ -786,6 +787,35 @@ await check("Social phase 2 (2026-10-19): a client plans its own brand's week (n
   assert.equal((await ah(CLIENT, 'DELETE', `/api/social/post?id=${id}`)).status, 200);
   assert.ok(passed(await ah(TEAM, 'GET', '/api/social/accounts/meta-pages')), 'the team reaches the Pages list (it fails offline on Meta, which is fine)');
   assert.ok(passed(await pf(CLIENT, 'GET', '/api/calendar?act=brand_alpha&from=2026-11-02&to=2026-11-08')), 'the calendar with its posts layer still answers a client');
+});
+
+await check('site reviews: a client answers and sends its own brand only; the token link opens one review; the list and link are team only', async () => {
+  const sections = [{ id: 'home', title: 'Homepage' }, { id: 'cart', title: 'Cart' }];
+  assert.equal((await ah(CLIENT, 'GET', '/api/site-review?act=brand_beta&slug=site-rebuild')).status, 403, "another brand's review");
+  assert.equal((await ah(CLIENT, 'PUT', '/api/site-review/answer', { act: 'brand_beta', slug: 'site-rebuild', section: 'home', status: 'approved' })).status, 403);
+  assert.equal((await ah(CLIENT, 'POST', '/api/site-review/send', { act: 'brand_beta', slug: 'site-rebuild' })).status, 403);
+  for (const [m, p, b] of [['GET', '/api/site-review/list?act=brand_alpha'], ['POST', '/api/site-review/link', { act: 'brand_alpha', slug: 'site-rebuild', path: 'reviews/alpha/site-rebuild/' }],
+    ['POST', '/api/site-review/reopen', { act: 'brand_alpha', slug: 'site-rebuild' }], ['DELETE', '/api/site-review/answers?act=brand_alpha&slug=site-rebuild']])
+    assert.equal((await ah(CLIENT, m, p, b)).status, 403, `${m} ${p}`);
+  assert.equal((await ah(null, 'GET', '/api/site-review?act=brand_alpha&slug=site-rebuild')).status, 401, 'no login, no token');
+  const link = await ah(OWNER, 'POST', '/api/site-review/link', { act: 'brand_alpha', slug: 'site-rebuild', title: 'Site rebuild', path: 'reviews/alpha/site-rebuild/', sections });
+  assert.equal(link.status, 200); const tok = /\?t=([a-f0-9]{32})$/.exec(link.j.url)[1];
+  assert.equal((await ah(CLIENT, 'PUT', '/api/site-review/answer', { act: 'brand_alpha', slug: 'site-rebuild', section: 'home', status: 'approved' })).status, 200);
+  assert.equal((await ah(null, 'PUT', `/api/site-review/t/${tok}/answer`, { section: 'cart', status: 'changes', note: 'Bigger <!channel> button', who: 'Rob' })).status, 200);
+  assert.equal((await ah(null, 'PUT', `/api/site-review/t/${tok}/answer`, { section: 'nope', status: 'approved' })).status, 400, 'unknown section');
+  const pub = await ah(null, 'GET', `/api/site-review/t/${tok}`);
+  assert.equal(pub.status, 200); assert.equal(pub.j.answers.length, 2); assert.equal(pub.j.link, undefined, 'the public view has no link field');
+  assert.equal((await ah(null, 'GET', `/api/site-review/t/${'0'.repeat(32)}`)).status, 404);
+  slackSent.length = 0;
+  const sent = await ah(null, 'POST', `/api/site-review/t/${tok}/send`, { overall: 'Looks good', who: 'Rob' });
+  assert.equal(sent.status, 200); assert.equal(sent.j.approved, 1); assert.equal(sent.j.changes, 1);
+  assert.equal(slackSent.length, 1); assert.equal(slackSent[0].channel, 'U06C37MDWD7', 'a DM to Cole, never a client channel');
+  assert.ok(!slackSent[0].text.includes('<!channel>'), 'notes are escaped'); assert.ok(!/—/.test(slackSent[0].text));
+  assert.equal((await ah(null, 'PUT', `/api/site-review/t/${tok}/answer`, { section: 'home', status: 'changes' })).status, 409, 'locked once sent');
+  const list = await ah(OWNER, 'GET', '/api/site-review/list?act=brand_alpha');
+  assert.equal(list.j.reviews.length, 1); assert.ok(list.j.reviews[0].sent_at); assert.ok(list.j.reviews[0].link);
+  assert.equal((await ah(OWNER, 'DELETE', '/api/site-review/answers?act=brand_alpha&slug=site-rebuild')).status, 200);
+  assert.equal((await ah(OWNER, 'GET', '/api/site-review/list?act=brand_alpha')).j.reviews[0].answers.length, 0);
 });
 
 globalThis.fetch = realFetch;
