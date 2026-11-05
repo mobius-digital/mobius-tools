@@ -30,7 +30,9 @@ async function putSetting(env, key, v) {
 }
 
 export async function clarityDoc(env, act) {
-  const r = await env.DB.prepare(`SELECT data_json FROM p_br_doc WHERE act_id = ?1 AND line_id = '' AND key = 'clarity'`).bind(act).first().catch(() => null);
+  /* A D1 error is not "not connected": pass it on so the caller says what really happened. */
+  const r = await env.DB.prepare(`SELECT data_json FROM p_br_doc WHERE act_id = ?1 AND line_id = '' AND key = 'clarity'`).bind(act).first()
+    .catch(e => { if (/D1_ERROR/.test(e?.message || '')) throw e; return null; });
   return safeJson(r?.data_json, null);
 }
 
