@@ -8318,7 +8318,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     /* ---- The Buyer list (2026-10-26, src/buyerlist.js): every brand's ad calls, test minimums due off and cards ready to
        launch in one list, with shared Done / Skip state (p_buyer_state). Team only. */
     {
-      const r = await handleBuyer(request, env, url, path, json, { isAdmin, sessionEmail, brandsFor, resolveBrandId, deps: buyerDeps() });
+      const r = await handleBuyer(request, env, url, path, json, { isAdmin, sessionEmail, brandsFor, resolveBrandId, isClient: r => !!clientScope(r), deps: buyerDeps() });
       if (r) return r;
     }
     /* ---- The client posts, previewed (2026-10-19): the six-line daily from the brand's latest brief and the weekly in

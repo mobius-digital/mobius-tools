@@ -727,7 +727,10 @@ export async function handleBuyer(request, env, url, path, json, h) {
       const act = await actOf(url.searchParams.get('act'));
       if (!act) return json({ error: 'No such brand.' }, 404);
       if (act !== 'all' && only && !only.has(act)) return json({ error: 'You do not have access to this brand.' }, 403);
-      return json(await buildBuyerList(env, d, { act, only, ads: url.searchParams.get('ads') !== '0' }));
+      const out = await buildBuyerList(env, d, { act, only, ads: url.searchParams.get('ads') !== '0' });
+      /* A client login (brandguard lets it read its own brand only): the calls, never the launch queue, the owner or the team's settings. */
+      if (h.isClient && h.isClient(request)) { out.rows = (out.rows || []).filter(r => r.kind !== 'launch'); out.launched = []; out.next_launch = null; out.launch_today = false; delete out.owner; delete out.settings; if (out.counts) out.counts.launch = 0; }
+      return json(out);
     }
     /* Yes / No on a card row (2026-11-05). Yes after the write (write_id) or on its own; No with his one-line why. */
     if (path === '/api/buyer-list/decision' && request.method === 'POST') {

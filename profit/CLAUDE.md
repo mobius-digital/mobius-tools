@@ -4713,6 +4713,12 @@ this goes for all things that go from the right side", and the Integrations pane
   One line per card (`metaVerdict`): Live, Starts by itself, In review, In Meta but off (ad / ad set / campaign), Ended, Not in Meta. Two Graph
   reads per card and Meta account, 20 cards a brand; the page asks brand by brand (Agency view walks every brand). Reads only. A batch named
   without its number (Bonk "Gift cards | parked", Lucky 453) reads Not in Meta: the fix is the name in Meta, not the code.
+- **One Calls page for everyone (2026-11-05, buyer.js?v=10).** A client login reads Ads > Calls for its own brand, read only (`CL()`):
+  the same rows, the why and the ads; no Yes / No, no Later, no owner, Slack post, drops or lessons. brandguard lets a client GET
+  `/api/buyer-list` only (both copies); the handler drops launch rows, the launch queue, the owner and settings for a client. `today`
+  routes to `buyer` for everyone, `buyer` left `AGENCY_TABS` (Launch stays the team's), and the old Today's calls renderer in desk.js is
+  deleted. Renamed in Meta the same day so the Launch check finds them: Bonk `335 | Gift cards`, `336 | Run-back`, Ice & Gold
+  `15 | Gift cards`, `25 | Early Bird | ...` (ad sets, through meta_write, undo in the Change Log).
 - **One call on the gallery** (v2.js `creative()`, `callOf`): where Calls has an open ad-level call, or a Cut on the ad's set, the card's pill shows that call
   (tip starts "Today's call on Ads > Calls"). Team only, 3.5 second cap on the read. The gallery's own verdict uses the same rule numbers.
 - Moved: Email and Search to **Money**; the Brief to **Reports > Daily**; Requests to **Clients** (a client login sees it under Reports: `tabInView`).
