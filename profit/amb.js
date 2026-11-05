@@ -744,12 +744,12 @@ function paintWeek(body) {
     <div class="avc">
       <section class="avc-card"><h3>${ic('megaphone', 17)}The offer</h3><p>Word for word from the site, so every creator says it the same way.</p>
         ${inp('wkTitle', w.title, 'Week of Nov 9', 60)}${inp('wkHead', o.head, 'Early Black Friday: buy one, get one 50% off.', 120)}${inp('wkLine', o.line, 'What it covers, the code, the end date', 300)}</section>
-      <section class="avc-card"><h3>${ic('video', 17)}Monday call</h3><p>The join link, then every recording so nobody misses one.</p>
+      <section class="avc-card"><h3>${ic('video', 17)}Weekly call</h3><p>The join link, then every recording so nobody misses one.</p>
         ${inp('wkWhen', c.when, 'Mondays 12:00 CT, 30 minutes, live with Cole', 160)}${inp('wkJoin', c.join, 'https://meet.google.com/...', 500)}
         <textarea class="wk-ta" id="wkRecs" placeholder="One recording per line: Nov 9 call | https://...">${esc(recs)}</textarea></section>
-      <section class="avc-card"><h3>${ic('calendar-days', 17)}One idea a day</h3><p>Pick from this brand's ideas or type your own.</p>
+      <section class="avc-card"><h3>${ic('calendar-days', 17)}Ideas to film this week</h3><p>Up to five. Pick from this brand's ideas or type your own. Creators see them as a numbered list.</p>
         ${daily.map((x, i) => `<div class="wk-dayrow" data-day="${x.day}"><b>${x.day}</b><div><select class="wk-pick" data-pick="${i}"><option value="">Pick an idea…</option>${ideas.map(a => `<option value="${esc(a.id)}">${esc(a.title)}</option>`).join('')}</select>${inp('wkT' + i, x.title, 'The idea', 120)}${inp('wkO' + i, x.opener, 'The opening line', 220)}</div></div>`).join('')}</section>
-      <section class="avc-card"><h3>${ic('shuffle', 17)}Same line, new creator</h3><p>A winning opening line for other creators to film their own way.</p>
+      <section class="avc-card"><h3>${ic('shuffle', 17)}A first line that sold</h3><p>A winning opening line for other creators to use.</p>
         ${inp('wkSame', sm.line, 'Golf is a drinking sport. This is Chunkman, not Jumpman.', 220)}${inp('wkWho', sm.who, 'Who said it first', 80)}</section>
     </div>
     <div class="av-save"><span class="am-msg" id="wkMsg"></span><button class="btn primary" id="wkSave" type="button">Save this week</button></div>`;
