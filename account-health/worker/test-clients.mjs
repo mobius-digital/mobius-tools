@@ -293,12 +293,13 @@ await check('the 2026-10-14 audit: every brand field is checked (array act, a se
   /* The war plan is edited on its own page; the weekly summary needs the client's own act. */
   assert.equal((await pf(CLIENT, 'PUT', '/api/season/answer', { act: 'brand_alpha', key: 'war', value: '{}' })).status, 403);
   assert.equal((await ah(CLIENT, 'POST', '/api/summarise', { act_id: 'brand_alpha', from: '2026-10-01', to: '2026-10-07' })).status, 403);
-  /* Day check: the agency count is reduced to bad-or-not. */
+  /* Day check: the accounts-we-run sign never reaches a client; the verdict is redone from the three outside signs. */
   const { CLIENT_RULES } = await import('./src/brandguard.js');
-  const md = CLIENT_RULES.find(r => r.p === '/api/metaday').post({ days: [{ signs: { ours: { high: true, brands: 9, worse: 5, score: 1.2, cpm_change: 0.3 } } }] });
-  assert.deepEqual(md.days[0].signs.ours, { high: true });
-  const dv = CLIENT_RULES.find(r => r.p === '/api/daycheck').post({ headline: 'Bad day on Meta', why: '5 of our 9 brands', todo: 'hold', client_line: 'Meta was expensive for everyone.' });
-  assert.equal(dv.why, 'Meta was expensive for everyone.'); assert.equal(dv.todo, undefined);
+  const md = CLIENT_RULES.find(r => r.p === '/api/metaday').post({ thresholds: { high: 0.6 }, how: 'our brands ...', days: [{ hits: 2, verdict: 'bad', signs: { ours: { high: true, brands: 9, worse: 5, score: 1.2, cpm_change: 0.3 }, breezeway: 'BAD', outage: [], chatter: null } }, { hits: 3, verdict: 'vbad', signs: { ours: { high: true }, breezeway: 'BAD', outage: ['Ads Manager: outage'], chatter: { issues: true } } }] });
+  assert.equal(md.days[0].signs.ours, undefined); assert.equal(md.days[0].hits, 1); assert.equal(md.days[0].verdict, 'mixed');
+  assert.equal(md.days[1].hits, 3); assert.equal(md.days[1].verdict, 'vbad'); assert.equal(md.thresholds, undefined); assert.ok(!/our brands/i.test(md.how));
+  const dv = CLIENT_RULES.find(r => r.p === '/api/daycheck').post({ headline: 'Mixed: our accounts did not move', why: '5 of our 9 brands', todo: 'hold', client_line: 'Meta was expensive for everyone.' });
+  assert.equal(dv.headline, 'Meta was expensive for everyone.'); assert.equal(dv.why, ''); assert.equal(dv.todo, undefined);
 });
 
 await check('reports and briefs: a client reads what was SENT, never a draft, the review or the send', async () => {

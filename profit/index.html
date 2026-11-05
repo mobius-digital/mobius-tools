@@ -2441,7 +2441,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="v2.js?v=84"></script>
 <script src="inspo.js?v=1"></script>
 <script src="leaks.js?v=11"></script>
-<script src="desk.js?v=37"></script>
+<script src="desk.js?v=38"></script>
 <script src="buyer.js?v=10"></script>
 <script src="trybe.js?v=4"></script>
 <script src="agency.js?v=3"></script>
@@ -3166,7 +3166,7 @@ const PAGE_BRIEF = {
   calendar: { answers: 'One calendar: what customers will see and when (drops, sales, emails, the Black Friday plan) for every client, the team’s tasks on the day they are due, and what has to be ready for each date: photos, ads briefed and built, the email scheduled, the ads loaded.', when: 'Monday for the week ahead; whenever a client gives us a date.', todo: 'Work down “Work due this week”, late first. Make the Asana tasks for a new date; the countdown ticks itself from Asana, Klaviyo and Meta.' },
   morning: { answers: 'What yesterday actually kept after every cost, where the month stands against the plan, and the few things that need you today. The one page to open first.', when: 'Every morning, with coffee.', todo: 'Read the river (what came in, what each cost took, what was kept), check the ring against the plan, then press the one button in Needs you.' },
   month: { answers: 'Where the month lands against the plan, week by week, and what a customer is worth against what we pay. Every money question on one page.', when: 'Monday, and whenever the plan is in doubt.', todo: 'Read the ring first. Red means the month misses even at the planned spend; amber means it needs today\u2019s pace to hold. Edit the plan is the Goals page.' },
-  yesterday: { answers: 'Was yesterday an off day for everyone on Meta, or just this brand: an off day when two or more of four signs agree (the accounts we run paying more per sale than usual, a public panel of other advertisers, Meta posting a problem, media buyers complaining online).', when: 'Every morning, before touching an ad account.', todo: 'Red: hold big changes on Meta and wait it out. Normal or mixed: carry on.' },
+  yesterday: { answers: 'Was yesterday an off day for everyone on Meta, or just this brand: an off day when two or more signs agree (a public panel of other advertisers, Meta posting a problem, media buyers complaining online).', when: 'Every morning, before touching an ad account.', todo: 'Red: hold big changes on Meta and wait it out. Normal or mixed: carry on.' },
   today: { answers: 'What to change today: ad sets to scale or cut, ads to switch off or refresh, things to fix, tests to call. Ad set first, ranked by money at stake.', when: 'Every morning, after Yesterday.', todo: 'Work down the list. Make the change in Ads Manager, then press Done so it lands in the Change Log and tomorrow\u2019s brief.' },
   war: { answers: 'During the season: sales today against the plan, the offer running now and what changes next, for every brand.', when: 'Every day of list week and the Black Friday weekend.', todo: 'Check the live column at each desk slot; open The plan for the full offer and timeline.' },
   pulse: { answers: 'Is Meta, Google or Shopify having a problem right now, and what changed recently.', when: 'When numbers look strange across several brands at once.', todo: 'If a platform shows a problem, hold changes on that platform until it clears.' },
@@ -3540,7 +3540,7 @@ const TAB_PURPOSE = {
   socialweek: 'Your week of posts as a time grid: drag ready content on, write one caption, and Locus posts it to Instagram, Facebook, TikTok and YouTube at the hour you set.',
   calendar:  'What customers see and when, for every client, and what has to be ready for each date. The countdown ticks itself from Asana, Klaviyo and Meta.',
   leaks: 'Every place the brand is losing money, ranked by what it costs a month: ads, search terms, the site, email. Each one opens with its number, what good looks like and the fix.',
-  yesterday: 'Was yesterday an off day for everyone on Meta, or just this brand? One answer a day from four signs; red when two or more agree. The last 30 days as squares, and how the brand did that day.',
+  yesterday: 'Was yesterday an off day for everyone on Meta, or just this brand? One answer a day from the signs; red when two or more agree. The last 30 days as squares, and how the brand did that day.',
   gads: 'The top Google ads by spend, with headlines as chips, descriptions and Google-reported numbers, plus Performance Max asset groups.',
   gterms: 'The top 50 Google search terms by spend, with brand terms and terms that never converted marked.',
   gchanges: 'The Google Ads change history in plain words: who changed what, old to new, grouped by day.',
@@ -4916,7 +4916,7 @@ const PAGE_HELP = {
     <p><b>Make it a task</b> puts it on Tasks with the owner and the brand; the button then reads On Tasks, and Done once the task is ticked, so a leak is never filed twice. Dismiss hides one that is known and accepted.</p>
     <p><b>The strip at the top of Morning</b> is this list's total and its biggest line.</p>`,
   yesterday: `
-    <p><b>What this page is:</b> was yesterday an off day for every Meta advertiser, or just for this brand. Four signs are read: the accounts we run paying more per sale than their usual (averaged, no names shared), a public panel of other e-commerce advertisers, Meta's own status page, and media buyers complaining on X and Reddit. Two or more agreeing is an off day.</p>
+    <p><b>What this page is:</b> was yesterday an off day for every Meta advertiser, or just for this brand. The signs read: a public panel of other e-commerce advertisers, Meta's own status page, and media buyers complaining on X and Reddit. Two or more agreeing is an off day.</p>
     <p><b>Why it matters:</b> on a platform-wide bad day the ad calls on Today are wrong; the numbers moved for everyone. Read this before touching an account.</p>
     <p><b>The verdict</b> at the top is Locus's call in one line, with the signs that drove it under it. Green: a normal day, trust the calls. Amber: mixed, read the reasons. Red: hold, do not cut or scale on yesterday's numbers.</p>`,
   production: `
