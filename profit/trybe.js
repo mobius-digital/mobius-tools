@@ -109,6 +109,7 @@
     const d = DATA;
     if (d.act === 'all') return paintAll();
     if (VIEW === 'briefs' || !VIEWS().some(v => v[0] === VIEW)) VIEW = VIEWS()[0][0];
+    if (H.S.act === 'brand_lucky_golf' && !CL()) return paintLucky();
     if (!d.has_key) { $('#main').innerHTML = shell(keyCard()); wire(); if (H.pageActions) H.pageActions(''); return; }
     const c = d.counts;
     const badge = { queue: c.not_launched, live: c.live, creators: c.creators };
@@ -134,6 +135,65 @@
     t.push(tile('Live videos', c.live, `${c.creators} creator${c.creators === 1 ? '' : 's'}`));
     if (!CL()) t.push(tile('Ask for more', c.rebook, 'winners gone quiet', c.rebook ? 'good' : ''));
     return `<div class="tb-top">${t.join('')}</div>`;
+  }
+
+  /* ---- Lucky (2026-11-05): Lucky's creators live in its own app. This view reads the app live and acts through it
+     (account-health /api/lucky/*, src/lucky.js): review videos, this week's board, creators, the Clubhouse and announcements. */
+  let LV = 'review';
+  const LVIEWS = [['review', 'Review'], ['week', 'This week'], ['lcreators', 'Creators'], ['clubhouse', 'Discord']];
+  async function paintLucky() {
+    const seg = `<div class="v2jobs tb-seg" role="tablist">${LVIEWS.map(([id, l]) => `<button type="button" role="tab" data-lv="${id}" class="${LV === id ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+    $('#main').innerHTML = shell(`<p class="tb-meta">Lucky runs its own creator app, not Trybe. Everything here is read live from the app, and every button runs inside the app. Money and creator pay stay in the app.</p>${seg}<section class="v2card" id="tbLucky"><p class="v2hint">Reading the Lucky app…</p></section>`);
+    if (H.pageActions) H.pageActions(`<a class="btn primary" href="https://creators.luckygolf.com/staff" target="_blank" rel="noopener">Open the Lucky app</a>`);
+    document.querySelectorAll('[data-lv]').forEach(b => { b.onclick = () => { LV = b.dataset.lv; paintLucky(); }; });
+    const box = document.getElementById('tbLucky');
+    const get = p => H.apiAH('/api/lucky/' + p);
+    try {
+      if (LV === 'review') {
+        const r = await get('review-queue');
+        const items = r.items || r.queue || r.videos || [];
+        box.innerHTML = `<div class="v2h"><h3>${items.length} video${items.length === 1 ? '' : 's'} waiting for review</h3></div>` + (items.length ? items.slice(0, 60).map(v => `<div class="tb-mini" data-lid="${esc(v.id)}"><div></div><div><div><b>${esc(v.creator_first_name || 'Creator')}</b> <span class="v2pill">${esc(v.level || '')}</span> ${esc(v.product || '')}${v.campaign ? ` · ${esc(v.campaign)}` : ''}</div><div class="tb-sub">${esc(v.submitted_at ? ago(v.submitted_at) : '')}${v.video_file ? ` · <a href="${esc(v.video_file)}" target="_blank" rel="noopener">Watch</a>` : (v.post_links && v.post_links[0] ? ` · <a href="${esc(v.post_links[0])}" target="_blank" rel="noopener">Watch</a>` : v.open_in_app ? ` · <a href="${esc(v.open_in_app)}" target="_blank" rel="noopener">Open in the app</a>` : '')}</div><input class="tb-note" placeholder="Note to the creator (optional)" style="width:100%;margin-top:6px;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:transparent;color:inherit;font:inherit;font-size:13px"></div><div style="text-align:right;display:flex;flex-direction:column;gap:6px"><button type="button" class="v2btn" data-ld="approve">Approve</button><button type="button" class="v2btn ghost" data-ld="changes">Changes</button><button type="button" class="v2btn ghost" data-ld="reject">Reject</button></div></div>`).join('') : '<p class="v2hint">Nothing waiting.</p>');
+        box.querySelectorAll('[data-ld]').forEach(b => { b.onclick = async () => {
+          const row = b.closest('[data-lid]'); const note = row.querySelector('.tb-note').value.trim();
+          if (b.dataset.ld !== 'approve' && !note) return toast('Add a note so the creator knows why');
+          row.querySelectorAll('button').forEach(x => { x.disabled = true; });
+          try { const x = await H.apiAH('/api/lucky/review', { method: 'POST', body: JSON.stringify({ id: row.dataset.lid, decision: b.dataset.ld, note }) }); if (x && x.error) throw new Error(x.error); toast(b.dataset.ld === 'approve' ? 'Approved in the Lucky app' : 'Sent to the creator'); row.remove(); }
+          catch (e) { toast(e.message); row.querySelectorAll('button').forEach(x => { x.disabled = false; }); }
+        }; });
+      } else if (LV === 'week') {
+        const r = await get('this-week');
+        const camps = r.campaigns || [], ideas = r.ideas || [];
+        box.innerHTML = `<div class="v2h"><h3>What Lucky creators are asked to film</h3></div>${camps.map(c => `<p><b>${esc(c.title || c.name)}</b>${c.due || c.film_by ? ` · film by ${esc(c.due || c.film_by)}` : ''}${c.aces_only ? ' · Aces only' : ''}</p>`).join('')}
+          <div class="v2tbl"><table><thead><tr><th>Idea</th><th>First line</th><th>Club</th></tr></thead><tbody>${ideas.slice(0, 40).map(i => `<tr><td>${i.hot ? '<span class="v2pill good">Team pick</span> ' : ''}${esc(i.title)}</td><td>${esc(i.opener || '')}</td><td>${esc(i.club || '')}</td></tr>`).join('')}</tbody></table></div><p class="v2hint">Change the board in the Lucky app (Staff, Board).</p>`;
+      } else if (LV === 'lcreators') {
+        const r = await get('creators');
+        const list = r.creators || r.items || [];
+        box.innerHTML = `<div class="v2h"><h3>${list.length} creators</h3></div><div class="v2tbl"><table><thead><tr><th>Creator</th><th>Level</th><th class="num">Uploaded</th><th class="num">Approved</th><th class="num">Ad sales, 30 days</th><th class="num">Last video</th></tr></thead><tbody>${list.map(c => `<tr><td>${esc(c.first_name)}</td><td>${esc(c.level)}</td><td class="num">${c.videos_uploaded ?? ''}</td><td class="num">${c.videos_approved ?? ''}</td><td class="num">${money(c.ad_sales_30d)}</td><td class="num">${esc(c.last_video_at ? ago(c.last_video_at) : 'never')}</td></tr>`).join('')}</tbody></table></div>`;
+      } else {
+        const r = await get('discord-recap');
+        const un = r.unanswered_questions || [];
+        const ch = r.channels || [];
+        const nx = r.next || [];
+        box.innerHTML = `<div class="v2h"><h3>Lucky Clubhouse</h3><span class="cap">${r.members ?? ''} members</span></div>
+          <h3 style="font-size:14px;margin:6px 0">Waiting on an answer (${un.length})</h3>${un.length ? un.map(q => `<div class="tb-mini"><div></div><div><b>${esc(q.author_first_name || 'Creator')} in #${esc(q.channel || '')}</b><div class="tb-sub">${esc(q.text || '')}</div></div><div>${q.link ? `<a class="v2btn ghost" href="${esc(q.link)}" target="_blank" rel="noopener">Answer</a>` : ''}</div></div>`).join('') : '<p class="v2hint">Nobody is waiting.</p>'}
+          <h3 style="font-size:14px;margin:16px 0 6px">This week</h3><div class="v2tbl"><table><thead><tr><th>Channel</th><th class="num">Creator messages, 7 days</th></tr></thead><tbody>${(Array.isArray(ch) ? ch : Object.entries(ch).map(([name, count]) => ({ name, count }))).map(c => `<tr><td>#${esc(c.channel || c.name)}</td><td class="num">${c.from_creators ?? c.messages ?? ''}</td></tr>`).join('')}</tbody></table></div>
+          <p class="v2hint">Next: ${(Array.isArray(nx) ? nx : []).map(n => esc(n.label || n.what)).join(' · ')}</p>
+          <h3 style="font-size:14px;margin:16px 0 6px">Post an announcement</h3>
+          <p class="v2hint">Goes on every creator's Home in the app with a push, and in Discord if you pick a channel.</p>
+          <input id="tbLaTitle" placeholder="Title (optional)" style="width:100%;margin:0 0 8px;padding:8px 10px;border-radius:9px;border:1px solid var(--line);background:transparent;color:inherit;font:inherit">
+          <textarea id="tbLaTxt" rows="4" style="width:100%;padding:10px;border-radius:9px;border:1px solid var(--line);background:transparent;color:inherit;font:inherit" placeholder="What creators should know"></textarea>
+          <div class="tb-foot"><select id="tbLaDc" aria-label="Also post in Discord"><option value="none">App only</option><option value="announcements">Also in #announcements</option><option value="wins">Also in #wins</option></select><button type="button" class="v2btn" id="tbLaPost">Post it</button></div>`;
+        const btn = document.getElementById('tbLaPost');
+        btn.onclick = async () => {
+          const text = document.getElementById('tbLaTxt').value.trim(); if (!text) return toast('Write the announcement first');
+          if (!confirm('This pushes to every Lucky creator. Post it?')) return;
+          btn.disabled = true;
+          try { const x = await H.apiAH('/api/lucky/announce', { method: 'POST', body: JSON.stringify({ text, title: document.getElementById('tbLaTitle').value.trim(), discord: document.getElementById('tbLaDc').value }) }); if (x && x.error) throw new Error(x.error); toast('Posted'); document.getElementById('tbLaTxt').value = ''; }
+          catch (e) { toast(e.message); }
+          btn.disabled = false;
+        };
+      }
+    } catch (e) { box.innerHTML = `<p class="v2bad">${esc(e.message)}</p>`; }
   }
 
   /* ---- Discord (2026-11-05): who is waiting on an answer, what each channel did this week, what posts next, and a box
