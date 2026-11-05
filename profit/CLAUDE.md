@@ -4764,3 +4764,18 @@ Why: brands fill Trybe with approved creator videos and launch a fraction. Spec:
   the morning read's prompt.
 - **Rules** are text per brand (`settings trybeRules:<brand>`). Shown and editable; the morning read does not read them yet.
 - Tests: `node test-trybe.mjs` (account-health/worker).
+
+## The creator hub, v2 (2026-11-05, the Trybe Scale program)
+
+- Rebuilt on Phil Kiel's creator brief (x.com/PhilKiel/status/2113216005728325780). Four tabs, plain names:
+  **Start here** (how it works, the deal said exactly, what is selling with numbers, the videos to film this week,
+  call, Discord), **Video ideas** (each idea is a card with a preview image; tap opens its brief: example video, what
+  to show first, what to say first, the shots, do and do not), **Videos that sold**, **Product and rules** (features,
+  names, how to film, say it this way, do not, extra clips, upload label, last check).
+- New data: `week.selling[]` and `week.discord` in `week_json`; `brief_json` on `p_amb_brand`
+  (`cleanBrief`: features, names, offer_dont, broll, label, final), saved with `PUT /api/amb/brand {brief}`.
+- Staff screens under Ads > Trybe > Briefs carry the hub's own tab names: Start here, Video ideas, Example videos,
+  Product and rules, Settings. Each screen says which hub tab it fills.
+- Copy rule: every line must make sense to a creator who has never heard of the brand. No inside phrases
+  ("Hands first, then talk" was one).
+

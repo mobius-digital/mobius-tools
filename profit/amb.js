@@ -394,13 +394,15 @@ function paint() {
   const keep = snapshotEditor();
   // Three screens (2026-10-15). The old Ideas and Link and brief views open from Settings > More.
   if (!['week', 'videos', 'checklist', 'settings', 'angles', 'link'].includes(S.view)) S.view = 'videos';
-  const tab = ['angles', 'link'].includes(S.view) ? 'settings' : S.view;
-  const tabs = `<nav class="v2tabs am-sub" aria-label="Creator link screens">
-    <button data-v="week" class="${tab === 'week' ? 'on' : ''}">This week</button>
-    <button data-v="videos" class="${tab === 'videos' ? 'on' : ''}">Videos</button>
-    <button data-v="checklist" class="${tab === 'checklist' ? 'on' : ''}">Checklist</button>
+  // Hub v2 (2026-11-05): the screens are named after the creator hub's own tabs, so it is plain which screen edits what.
+  const tab = S.view === 'link' ? 'settings' : S.view;
+  const tabs = `<nav class="v2tabs am-sub" aria-label="Creator hub screens">
+    <button data-v="week" class="${tab === 'week' ? 'on' : ''}">Start here</button>
+    <button data-v="angles" class="${tab === 'angles' ? 'on' : ''}">Video ideas</button>
+    <button data-v="videos" class="${tab === 'videos' ? 'on' : ''}">Example videos</button>
+    <button data-v="checklist" class="${tab === 'checklist' ? 'on' : ''}">Product and rules</button>
     <button data-v="settings" class="${tab === 'settings' ? 'on' : ''}">Settings</button></nav>`;
-  const back = ['angles', 'link'].includes(S.view) ? `<p style="margin:0 0 10px"><button class="btn" type="button" id="amBack">${ic('arrow-left', 14)} Back to Settings</button></p>` : '';
+  const back = S.view === 'link' ? `<p style="margin:0 0 10px"><button class="btn" type="button" id="amBack">${ic('arrow-left', 14)} Back to Settings</button></p>` : '';
   main.innerHTML = `<div class="am">
     ${head()}
     ${topBar()}
@@ -740,14 +742,17 @@ function paintWeek(body) {
   const inp = (id, v, ph, max) => `<input class="wk-in" id="${id}" value="${esc(v || '')}" placeholder="${esc(ph)}" maxlength="${max}">`;
   const recs = (c.recordings || []).map(r => `${r.title} | ${r.url}`).join('\n');
   body.innerHTML = `<style>.wk-in,.wk-ta{width:100%;box-sizing:border-box;padding:9px 11px;border-radius:9px;border:1px solid var(--line);background:transparent;color:inherit;font:inherit;margin:0 0 8px}.wk-ta{min-height:96px;resize:vertical}.wk-dayrow{display:grid;grid-template-columns:44px minmax(0,1fr);gap:8px;align-items:start}.wk-dayrow>b{padding-top:9px}.wk-pick{width:100%;box-sizing:border-box;padding:8px 10px;border-radius:9px;border:1px solid var(--line);background:transparent;color:inherit;font:inherit;margin:0 0 6px}</style>
-    <p class="hint" style="margin:6px 0 14px">The block at the top of the creator link. Update it every Monday. Anything left empty is not shown.</p>
+    <p class="hint" style="margin:6px 0 14px">This screen fills the creator hub's <b>Start here</b> tab: the deal, what is selling, the videos to film this week, the call and the Discord. Update it every Monday. Anything left empty is not shown.</p>
     <div class="avc">
       <section class="avc-card"><h3>${ic('megaphone', 17)}The offer</h3><p>Word for word from the site, so every creator says it the same way.</p>
         ${inp('wkTitle', w.title, 'Week of Nov 9', 60)}${inp('wkHead', o.head, 'Early Black Friday: buy one, get one 50% off.', 120)}${inp('wkLine', o.line, 'What it covers, the code, the end date', 300)}</section>
+      <section class="avc-card"><h3>${ic('target', 17)}What is selling right now</h3><p>Up to five lines, one per line, each with a number from the ad account. Example: Videos that open on the print get 2x more people to keep watching.</p>
+        <textarea class="wk-ta" id="wkSell" placeholder="One line each, with a number">${esc((w.selling || []).join('\n'))}</textarea></section>
       <section class="avc-card"><h3>${ic('video', 17)}Weekly call</h3><p>The join link, then every recording so nobody misses one.</p>
         ${inp('wkWhen', c.when, 'Mondays 12:00 CT, 30 minutes, live with Cole', 160)}${inp('wkJoin', c.join, 'https://meet.google.com/...', 500)}
-        <textarea class="wk-ta" id="wkRecs" placeholder="One recording per line: Nov 9 call | https://...">${esc(recs)}</textarea></section>
-      <section class="avc-card"><h3>${ic('calendar-days', 17)}Ideas to film this week</h3><p>Up to five. Pick from this brand's ideas or type your own. Creators see them as a numbered list.</p>
+        <textarea class="wk-ta" id="wkRecs" placeholder="One recording per line: Nov 9 call | https://...">${esc(recs)}</textarea>
+        <p style="margin:6px 0 6px"><b>Creator Discord invite link</b></p>${inp('wkDiscord', w.discord, 'https://discord.gg/...', 500)}</section>
+      <section class="avc-card"><h3>${ic('calendar-days', 17)}Videos to film this week</h3><p>Up to five. Pick from this brand's video ideas so each one shows its example video and how to film it. A typed one shows as text only.</p>
         ${daily.map((x, i) => `<div class="wk-dayrow" data-day="${x.day}"><b>${x.day}</b><div><select class="wk-pick" data-pick="${i}"><option value="">Pick an idea…</option>${ideas.map(a => `<option value="${esc(a.id)}">${esc(a.title)}</option>`).join('')}</select>${inp('wkT' + i, x.title, 'The idea', 120)}${inp('wkO' + i, x.opener, 'The opening line', 220)}</div></div>`).join('')}</section>
       <section class="avc-card"><h3>${ic('shuffle', 17)}A first line that sold</h3><p>A winning opening line for other creators to use.</p>
         ${inp('wkSame', sm.line, 'Golf is a drinking sport. This is Chunkman, not Jumpman.', 220)}${inp('wkWho', sm.who, 'Who said it first', 80)}</section>
@@ -759,7 +764,8 @@ function paintWeek(body) {
     const week = { title: v('wkTitle'), offer: { head: v('wkHead'), line: v('wkLine') },
       call: { when: v('wkWhen'), join: v('wkJoin'), recordings: v('wkRecs').split('\n').map(l => { const k = l.lastIndexOf('|'); return k < 0 ? null : { title: l.slice(0, k).trim(), url: l.slice(k + 1).trim() }; }).filter(Boolean) },
       daily: DAYS.map((d, i) => ({ day: d, title: v('wkT' + i), opener: v('wkO' + i), angle_id: body.querySelector(`[data-pick="${i}"]`).dataset.angle || (daily[i].title === v('wkT' + i) ? daily[i].angle_id : '') || '' })).filter(x => x.title),
-      same: { line: v('wkSame'), who: v('wkWho') } };
+      same: { line: v('wkSame'), who: v('wkWho') },
+      selling: v('wkSell').split('\n').map(l => l.trim()).filter(Boolean), discord: v('wkDiscord') };
     try { S.data = await post('/api/amb/brand', { week }, 'PUT'); flashMsg($('#wkMsg'), 'Saved. Creators see it on their next load.'); }
     catch (e) { flashMsg($('#wkMsg'), e.message, false); }
   };
@@ -781,13 +787,30 @@ function paintChecklist(body) {
     skip: x => one('skip', x, 'Something that gets a video dropped'),
   };
   const card = (k, cls, icon, title, line, items) => `<section class="avc-card ${cls}"><h3>${ic(icon, 17)}${esc(title)}</h3><p>${esc(line)}</p><div data-list="${k}">${items.map(ROW[k]).join('')}</div><p class="hint avc-warn" data-warn="${k}" style="margin:0 0 8px;color:var(--warn)"></p><button class="btn avc-add" type="button" data-add="${k}">${ic('plus', 14)} Add a line</button></section>`;
-  body.innerHTML = `<p class="hint" style="margin:6px 0 14px">The checklist under the videos on the creator link. <b>Three short lines a box.</b> Creators skim; the full rules stay under Settings &gt; More for briefs and the Strategist.</p>
-    <div class="avc avc3">
-      ${card('do', '', 'list-checks', 'Before you film', 'How to make a video people watch.', c.do || [])}
-      ${card('say', '', 'megaphone', 'Say it right', 'Only if they mention it. Nobody has to say these.', c.say || [])}
-      ${card('skip', 'stop', 'ban', 'Skip these', 'Claims we cannot make, videos we have plenty of.', c.skip || [])}
+  const br = b.brief || {};
+  const ta = (id, v, ph, rows = 5) => `<textarea class="wk-ta" id="${id}" rows="${rows}" placeholder="${esc(ph)}" style="width:100%;box-sizing:border-box;padding:9px 11px;border-radius:9px;border:1px solid var(--line);background:transparent;color:inherit;font:inherit;min-height:${rows * 22}px;resize:vertical">${esc(v || '')}</textarea>`;
+  body.innerHTML = `<p class="hint" style="margin:6px 0 14px">This screen fills the creator hub's <b>Product and rules</b> tab. Write every line so a creator who has never heard of the brand understands it. <b>Three short lines a box</b> for the rules.</p>
+    <div class="avc">
+      <section class="avc-card"><h3>${ic('gift', 17)}The product</h3><p>Up to six features, one per line, as <b>Name | one plain line</b>. Creators are told to only mention a feature they have used.</p>
+        ${ta('bfFeat', (br.features || []).map(f => `${f.name} | ${f.line}`).join('\n'), 'Sizes | Small through 4XL in every polo', 6)}</section>
+      <section class="avc-card"><h3>${ic('type', 17)}Say and spell the names right</h3><p>One per line. The brand name, the product names as printed on the box, how to say them.</p>
+        ${ta('bfNames', (br.names || []).join('\n'), 'It is Grunk Dolfer. Two words.', 4)}</section>
+      <section class="avc-card"><h3>${ic('ban', 17)}Never do this with the deal</h3><p>One per line. Shows under the deal on Start here.</p>
+        ${ta('bfDont', (br.offer_dont || []).join('\n'), 'Do not make up a discount code.', 3)}</section>
+      <section class="avc-card"><h3>${ic('clapperboard', 17)}Extra clips we always need</h3><p>One per line. Silent 5 to 10 second clips the editor uses.</p>
+        ${ta('bfBroll', (br.broll || []).join('\n'), 'Putting the polo on, shot from the chest up', 6)}</section>
+      <section class="avc-card"><h3>${ic('upload', 17)}How to label an upload</h3><p>One short paragraph. What to type in the notes when they upload.</p>
+        ${ta('bfLabel', br.label, 'In the notes, write the idea name and which opening line you used.', 3)}</section>
+      <section class="avc-card"><h3>${ic('shield-check', 17)}Last check before you upload</h3><p>Up to ten boxes, one per line. Creators tick them on the page.</p>
+        ${ta('bfFinal', (br.final || []).join('\n'), 'I said the deal exactly as written.', 8)}</section>
     </div>
-    <div class="av-save"><span class="am-msg" id="cMsg"></span><button class="btn primary" id="cSave" type="button">Save the checklist</button></div>`;
+    <p class="hint" style="margin:18px 0 10px"><b>The three rule lists</b></p>
+    <div class="avc avc3">
+      ${card('do', '', 'list-checks', 'How to film it', 'A plain instruction, then one line on how. No inside jokes.', c.do || [])}
+      ${card('say', '', 'megaphone', 'If you mention these, say them this way', 'Only if they mention it. Nobody has to say these.', c.say || [])}
+      ${card('skip', 'stop', 'ban', 'Do not film or say these', 'Claims we cannot make, videos we have plenty of.', c.skip || [])}
+    </div>
+    <div class="av-save"><span class="am-msg" id="cMsg"></span><button class="btn primary" id="cSave" type="button">Save product and rules</button></div>`;
   const fit = t => { t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; };
   const warn = () => ['do', 'say', 'skip'].forEach(k => { const n = body.querySelectorAll(`[data-list="${k}"] .avc-row`).length; body.querySelector(`[data-warn="${k}"]`).textContent = n > 3 ? `${n} lines. Creators read about three; cut one if you can.` : ''; });
   body.addEventListener('input', e => { if (e.target.matches('.avc-item textarea')) fit(e.target); });
@@ -799,7 +822,10 @@ function paintChecklist(body) {
   $('#cSave').onclick = async () => {
     const rows = k => [...body.querySelectorAll(`[data-list="${k}"] .avc-row`)].map(r => [r.querySelector('[data-f="a"]').value.trim(), r.querySelector('[data-f="b"]')?.value.trim() || '']).filter(([a]) => a);
     const checklist = { do: rows('do').map(([title, text]) => ({ title, text })), say: rows('say').map(([a]) => a), skip: rows('skip').map(([a]) => a) };
-    try { S.data = await post('/api/amb/brand', { checklist }, 'PUT'); flashMsg($('#cMsg'), 'Saved. Creators see it on their next load.'); }
+    const ls = id => $('#' + id).value.split('\n').map(l => l.trim()).filter(Boolean);
+    const brief = { features: ls('bfFeat').map(l => { const k = l.indexOf('|'); return k < 0 ? { name: l, line: '' } : { name: l.slice(0, k).trim(), line: l.slice(k + 1).trim() }; }),
+      names: ls('bfNames'), offer_dont: ls('bfDont'), broll: ls('bfBroll'), label: $('#bfLabel').value.trim(), final: ls('bfFinal') };
+    try { S.data = await post('/api/amb/brand', { checklist, brief }, 'PUT'); flashMsg($('#cMsg'), 'Saved. Creators see it on their next load.'); }
     catch (e) { flashMsg($('#cMsg'), e.message, false); }
   };
 }

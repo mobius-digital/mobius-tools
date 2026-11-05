@@ -85,9 +85,36 @@ export function cleanWeek(w) {
       recordings: (Array.isArray(w.call?.recordings) ? w.call.recordings : []).map(r => ({ title: t(r?.title, 80), url: httpsUrl(r?.url) })).filter(r => r.title && r.url).slice(0, 30) },
     daily: (Array.isArray(w.daily) ? w.daily : []).map(x => ({ day: t(x?.day, 10), title: t(x?.title, 120), opener: t(x?.opener, 220), ...(/^[a-f0-9]{16}$/.test(x?.angle_id || '') ? { angle_id: x.angle_id } : {}) })).filter(x => x.title).slice(0, 7),
     same: { line: t(w.same?.line, 220), who: t(w.same?.who, 80) },
+    // 2026-11-05 (hub v2, Phil Kiel's brief): what is selling right now, said with numbers, and the creator Discord.
+    selling: (Array.isArray(w.selling) ? w.selling : []).map(x => t(x, 180)).filter(Boolean).slice(0, 5),
+    discord: httpsUrl(w.discord),
   };
-  const empty = !out.title && !out.offer.head && !out.call.when && !out.call.join && !out.call.recordings.length && !out.daily.length && !out.same.line;
+  const empty = !out.title && !out.offer.head && !out.call.when && !out.call.join && !out.call.recordings.length && !out.daily.length && !out.same.line && !out.selling.length && !out.discord;
   return empty ? null : out;
+}
+
+/* The brief (2026-11-05, hub v2): the parts of Phil Kiel's creator brief that do not change week to week. The product in
+   a few one-line features, how to say the names, what never to do with the offer, the extra clips every video needs,
+   how to label an upload and the last check before sending. Stored as brief_json; the column is added on first save. */
+let briefReady = false;
+async function ensureBrief(env) {
+  if (briefReady) return;
+  await env.DB.prepare(`ALTER TABLE p_amb_brand ADD COLUMN brief_json TEXT`).run().catch(() => {});
+  briefReady = true;
+}
+export function cleanBrief(b) {
+  if (!b || typeof b !== 'object') return null;
+  const t = (v, n) => String(v == null ? '' : v).trim().slice(0, n);
+  const lines = (v, n, m) => (Array.isArray(v) ? v : []).map(x => t(x, m)).filter(Boolean).slice(0, n);
+  const out = {
+    features: (Array.isArray(b.features) ? b.features : []).map(x => ({ name: t(x?.name, 60), line: t(x?.line, 160) })).filter(x => x.name).slice(0, 8),
+    names: lines(b.names, 6, 160),
+    offer_dont: lines(b.offer_dont, 6, 160),
+    broll: lines(b.broll, 10, 160),
+    label: t(b.label, 300),
+    final: lines(b.final, 10, 160),
+  };
+  return out.features.length || out.names.length || out.offer_dont.length || out.broll.length || out.label || out.final.length ? out : null;
 }
 
 /* Top creators and top videos for the hub (2026-11-05): Triple Whale sales, last 30 days, from the ads Trybe built
@@ -175,6 +202,7 @@ function shapeBrand(b, acct) {
     pdf: safeJson(b.pdf_json, null),
     guide: safeJson(b.guide_json, []),          // "How to keep them watching", [{title, text}]
     hooks: safeJson(b.hooks_json, []),          // "First seconds" bank, [{title, how, kind, url, clip}]
+    brief: safeJson(b.brief_json, null),        // the parts of the brief that stay the same: features, names, offer don'ts, extra clips, upload label, last check (hub v2)
     week: safeJson(b.week_json, null),          // "This week" on the creator hub: offer, Monday call + recordings, one idea a day (2026-11-05)
     checklist: safeJson(b.checklist_json, null),   // the creator checklist {do:[{title,text}], say:[], skip:[]}, three short lines each (amb-009)
     skip: b.skip_json == null ? null : safeJson(b.skip_json, []),   // checklist "Skip these"; null = guess from rules (old brands)
@@ -543,6 +571,7 @@ export async function handleStaff(request, env, url, path, json) {
         })).run();
       }
       if (has('week')) { await ensureWeek(env); const w = cleanWeek(body.week); await env.DB.prepare(`UPDATE p_amb_brand SET week_json = ?2, updated_at = datetime('now') WHERE act_id = ?1`).bind(acct.act_id, w ? JSON.stringify(w) : null).run(); }
+      if (has('brief')) { await ensureBrief(env); const br = cleanBrief(body.brief); await env.DB.prepare(`UPDATE p_amb_brand SET brief_json = ?2, updated_at = datetime('now') WHERE act_id = ?1`).bind(acct.act_id, br ? JSON.stringify(br) : null).run(); }
       if (has('skip')) await env.DB.prepare(`UPDATE p_amb_brand SET skip_json = ?2 WHERE act_id = ?1`).bind(acct.act_id, JSON.stringify(arr(body.skip, 12, 300))).run();
       if (has('board_mode') || has('board_n') || has('board_sort')) {
         // A changed mode, size or ranking re-ranks on the next page load (board_at cleared).
