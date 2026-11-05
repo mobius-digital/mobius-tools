@@ -808,8 +808,10 @@ async function ideaIdsOf(env, media) {
   return [...ids];
 }
 /** The open Film task of an idea (make.js exitOrganic, source_id = the idea id) is done once something is linked to it. */
-async function closeFilmTask(env, ideaId, by) {
-  const rows = (await env.DB.prepare(`SELECT id FROM p_action WHERE source_id = ?1 AND status = 'open'`).bind(ideaId).all().catch(() => ({ results: [] }))).results || [];
+/* Only the brand's own task (2026-11-05 audit): an idea id from another brand, sent on a post or an upload, closes nothing. */
+async function closeFilmTask(env, ideaId, by, act) {
+  if (!act) return 0;
+  const rows = (await env.DB.prepare(`SELECT id FROM p_action WHERE source_id = ?1 AND act_id = ?2 AND status = 'open'`).bind(ideaId, act).all().catch(() => ({ results: [] }))).results || [];
   for (const r of rows) await markDone(env, r.id, true, { by: by || 'Locus', how: 'social', quiet: true }).catch(() => {});
   return rows.length;
 }
@@ -832,7 +834,7 @@ function cleanTargets(t) {
 /** The browser never sees url / key / staged (pubPost strips them), so an item of a post being edited is matched to the
  * stored one by its ref and keeps the stored file and staging. */
 function cleanMedia(list, old = []) {
-  return (Array.isArray(list) ? list : []).slice(0, 10).map(m => { const was = m && m.ref ? old.find(x => x && x.ref === m.ref) : null; return was ? { ...was, ...m, url: m.file || m.url || was.url, key: m.key || was.key, staged: was.staged, public: was.public, type: was.type } : m; }).map(m => ({ ref: clip(m.ref, 120) || null, src: clip(m.src, 20) || null, kind: m.kind === 'video' ? 'video' : 'image', title: clip(m.title, 160) || null, thumb: /^https?:\/\//.test(m.thumb || '') ? clip(m.thumb, 600) : null,
+  return (Array.isArray(list) ? list : []).slice(0, 10).map(m => { const was = m && m.ref ? old.find(x => x && x.ref === m.ref) : null; return was ? { ...was, ...m, url: m.file || m.url || was.url, key: m.key || was.key, staged: was.staged, public: was.public, type: was.type } : { ...m, staged: null, public: null, type: null }; }).map(m => ({ ref: clip(m.ref, 120) || null, src: clip(m.src, 20) || null, kind: m.kind === 'video' ? 'video' : 'image', title: clip(m.title, 160) || null, thumb: /^https?:\/\//.test(m.thumb || '') ? clip(m.thumb, 600) : null,
     url: /^https?:\/\//.test(m.file || m.url || '') ? clip(m.file || m.url, 600) : null, key: /^u\/[0-9a-f]{24}$/.test(m.key || '') ? m.key : null, who: clip(m.who, 80) || null, staged: /^u\/[0-9a-f]{24}$/.test(m.staged || '') ? m.staged : null, public: m.staged ? m.public : null, type: m.staged ? m.type || null : null })).filter(m => m.url || m.key);
 }
 
@@ -966,7 +968,7 @@ export async function handleSocialPost(request, env, url, path, json, d) {
       await env.DB.prepare(`INSERT INTO social_media (id, act_id, kind, key, type, name, bytes, created_by) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`).bind(id, act, video ? 'video' : 'image', key, fin.type, name, fin.body.byteLength, email).run();
       /* The film for a Make draft (?idea=): the upload is linked to the idea and its Film task closes itself. */
       const idea = /^[A-Za-z0-9]+:[0-9a-z.]+$/.test(url.searchParams.get('idea') || '') ? url.searchParams.get('idea') : null;
-      if (idea) { await ensureMakeCols(env); await env.DB.prepare(`UPDATE social_media SET idea_id = ?2 WHERE id = ?1`).bind(id, idea).run().catch(() => {}); await closeFilmTask(env, idea, email); }
+      if (idea) { await ensureMakeCols(env); await env.DB.prepare(`UPDATE social_media SET idea_id = ?2 WHERE id = ?1`).bind(id, idea).run().catch(() => {}); await closeFilmTask(env, idea, email, act); }
       return json({ ok: true, item: { ref: `media:${id}`, src: 'upload', kind: video ? 'video' : 'image', title: name, thumb: `${SELF}/social-m/${key}`, key, used: false, idea } });
     }
     if (path === '/api/social/post' && m === 'POST') {
@@ -999,7 +1001,7 @@ export async function handleSocialPost(request, env, url, path, json, d) {
         ON CONFLICT(id) DO UPDATE SET at = excluded.at, status = excluded.status, caption = excluded.caption, media_json = excluded.media_json, targets_json = excluded.targets_json, auto = excluded.auto, error = NULL, updated_at = datetime('now')`)
         .bind(id, act, new Date(atMs).toISOString(), nextStatus, clip(body.caption, 2200), JSON.stringify(media), JSON.stringify(targets), JSON.stringify(keepRes), body.auto === false ? 0 : 1, old ? old.created_by : email).run();
       /* A post that carries a Make draft (its card, or a film uploaded for it) closes the idea's Film task (make.js exitOrganic). */
-      for (const ideaId of await ideaIdsOf(env, media)) await closeFilmTask(env, ideaId, email).catch(() => {});
+      for (const ideaId of await ideaIdsOf(env, media)) await closeFilmTask(env, ideaId, email, act).catch(() => {});
       /* Post now: run it in the request when it is one platform and a picture (seconds); else the 5-minute tick picks it up. */
       const row = await env.DB.prepare(`SELECT * FROM social_post_out WHERE id = ?1`).bind(id).first();
       if (body.now && status === 'scheduled') {
