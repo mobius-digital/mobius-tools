@@ -13,6 +13,7 @@
  * - Queue = approved videos Trybe has never seen deliver. `not_in_meta` (no ad carries its id) or `no_delivery`
  *   (an ad exists and Meta never spent on it).
  * - Rebook = a creator whose ads beat the account's cost per sale and who has not posted in REBOOK_DAYS.
+ * - The Slack lines are off until settings.trybeAlerts = 'on' (the Agency view has the switch); the sync runs either way.
  * - A client reads Live and Creators for its own brand, never the Queue or the Rules.
  * No em dashes in anything this posts. */
 import { noDash } from './buyerai.js';
@@ -240,7 +241,7 @@ export async function trybeAll(env, d, brands, { today } = {}) {
     out.push({ act_id: b.act_id, name: b.name, has_key: has, synced_at: sync?.at || null, approved: +r.approved || 0, queue: +r.queue || 0, stale: +r.stale || 0, pending: +r.pending || 0,
       oldest: r.oldest ? daysBetween(r.oldest, today) : 0 });
   }
-  return { act: 'all', brands: out.sort((a, b) => b.queue - a.queue), no_key: brands.filter(b => !keyed.has(b.act_id)).map(b => ({ act_id: b.act_id, name: b.name })), stale_days: STALE_DAYS };
+  return { act: 'all', brands: out.sort((a, b) => b.queue - a.queue), no_key: brands.filter(b => !keyed.has(b.act_id)).map(b => ({ act_id: b.act_id, name: b.name })), stale_days: STALE_DAYS, alerts: (await getSetting(env, 'trybeAlerts')) === 'on' };
 }
 
 /** Ads > Calls: one line per brand with videos waiting (buyerlist.js adds it to its banners; never shown to a client). */
@@ -274,7 +275,7 @@ export async function trybeTick(env, d, { force = false } = {}) {
   await ensureTrybe(env);
   const keyed = new Set(await keyedBrands(env));
   if (!keyed.size) return { skipped: 'no keys' };
-  const alertsOn = (await getSetting(env, 'trybeAlerts')) !== 'off';
+  const alertsOn = (await getSetting(env, 'trybeAlerts')) === 'on';   // off until someone turns it on (Agency view, or PUT /api/trybe/alerts)
   const monday = new Date(today + 'T12:00:00Z').getUTCDay() === 1;
   const brands = (await d.listBrands(env)).filter(b => keyed.has(b.act_id));
   const out = { synced: 0, posted: 0, errors: [] };
@@ -318,6 +319,12 @@ export async function handleTrybe(request, env, url, path, json, h) {
       return json(await trybeView(env, d, act, { client }));
     }
     if (client) return json({ error: 'That part is the Mobius team\'s.' }, 403);
+    /* The Slack lines (3 days unlaunched, Monday's rebook list) for every brand: on or off. Off until turned on. */
+    if (path === '/api/trybe/alerts' && request.method === 'PUT') {
+      const on = !!(await request.json().catch(() => ({}))).on;
+      await putSetting(env, 'trybeAlerts', on ? 'on' : 'off');
+      return json({ ok: true, alerts: on });
+    }
     const b = request.method === 'GET' ? {} : await request.json().catch(() => ({}));
     const act = await actOf(b.act || url.searchParams.get('act'));
     if (!allowed(act)) return json({ error: act ? 'You do not have access to this brand.' : 'No such brand.' }, act ? 403 : 404);

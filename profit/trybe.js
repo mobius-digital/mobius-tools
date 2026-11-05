@@ -154,7 +154,8 @@
     const none = (d.no_key || []).map(x => `<button type="button" class="v2link" data-tbact="${esc(x.act_id)}">${esc(x.name)}</button>`).join(', ');
     $('#main').innerHTML = shell(`<section class="v2card"><div class="v2h"><h3>${waiting} approved video${waiting === 1 ? '' : 's'} never ran</h3><span class="cap">across ${b.length} brand${b.length === 1 ? '' : 's'}</span></div>
       ${b.length ? `<div class="v2tbl"><table><thead><tr><th>Brand</th><th class="num">Never run</th><th class="num">Over ${d.stale_days} days</th><th class="num">Oldest</th><th class="num">Waiting on review</th><th class="num">Approved</th><th class="num">Read</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="v2hint">No brand has a Trybe key yet. Open a brand to connect it.</p>'}
-      ${none ? `<p class="v2hint">Not connected: ${none}</p>` : ''}</section>`);
+      ${none ? `<p class="v2hint">Not connected: ${none}</p>` : ''}
+      <div class="tb-foot"><span class="v2hint">Slack lines are <b>${d.alerts ? 'on' : 'off'}</b>: each brand's internal channel hears when videos sit ${d.stale_days} days, and Monday's rebook list.</span><button type="button" class="v2btn ghost" id="tbAlerts">${d.alerts ? 'Turn off' : 'Turn on'}</button></div></section>`);
     if (H.pageActions) H.pageActions('');
     wire();
   }
@@ -168,6 +169,8 @@
     if (sync) sync.onclick = async () => { sync.disabled = true; sync.textContent = 'Reading…'; try { await ah('/api/trybe/sync', { act: H.S.act }); toast('Trybe read'); await render(H, false); } catch (e) { toast(e.message); sync.disabled = false; sync.textContent = 'Read Trybe now'; } };
     const save = $('#tbRulesSave');
     if (save) save.onclick = async () => { save.disabled = true; try { const r = await ah('/api/trybe/rules', { act: H.S.act, rules: $('#tbRules').value }, 'PUT'); DATA.rules = r.rules; DATA.rules_default = r.rules_default; toast('Rules saved'); paint(); } catch (e) { toast(e.message); save.disabled = false; } };
+    const al = $('#tbAlerts');
+    if (al) al.onclick = async () => { al.disabled = true; try { const r = await ah('/api/trybe/alerts', { on: !DATA.alerts }, 'PUT'); DATA.alerts = r.alerts; toast(r.alerts ? 'Slack lines on' : 'Slack lines off'); paint(); } catch (e) { toast(e.message); al.disabled = false; } };
     const kn = $('#tbKeyNew'); if (kn) kn.onclick = () => { DATA.has_key = false; paint(); };
     const ks = $('#tbKeySave');
     if (ks) ks.onclick = async () => {

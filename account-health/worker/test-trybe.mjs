@@ -83,12 +83,20 @@ const cv = await trybeView(env, d, 'brand_alpha', { client: true });
 assert.equal(cv.queue, undefined); assert.equal(cv.rules, undefined); assert.equal(cv.creators[0].earnings, undefined); assert.equal(cv.live[0].transcript, undefined);
 
 /* agency view + the Calls banner */
+const json0 = (o, s = 200) => ({ o, s });
+const H0 = { isAdmin: async () => true, sessionEmail: async () => 'x@y', brandsFor: async () => null, resolveBrandId: async (e, id) => id, isClient: () => false, deps: d };
+const R0 = (path, method, body) => handleTrybe(new Request('https://x' + path, { method, body: JSON.stringify(body) }), env, new URL('https://x' + path), path, json0, H0);
 const all = await trybeAll(env, d, await d.listBrands());
+assert.equal(all.alerts, false);
 assert.deepEqual(all.brands.map(b => [b.act_id, b.queue, b.stale]), [['brand_alpha', 4, 1]]);
 assert.deepEqual(all.no_key.map(b => b.act_id), ['brand_beta']);
 const bn = await trybeBanners(env, new Set(['brand_alpha']), TODAY);
 assert.equal(bn.length, 1); assert.match(bn[0].text, /^1 approved Trybe video has waited 3 days or more/);
 
+db.prepare(`INSERT INTO settings (key, value) VALUES ('trybeAlerts', 'off')`).run();
+assert.equal((await trybeTick(env, d, { force: true })).posted, 0, 'alerts are off until turned on');
+db.exec(`DELETE FROM settings WHERE key IN ('trybeDay', 'trybeAlerts')`);
+assert.equal((await R0('/api/trybe/alerts', 'PUT', { on: true })).o.alerts, true);
 /* the tick: once a day; one Slack line per brand for videos not yet alerted; never twice */
 const t1 = await trybeTick(env, d);
 assert.equal(t1.synced, 1); assert.equal(t1.posted, 1);
