@@ -4724,3 +4724,33 @@ this goes for all things that go from the right side", and the Integrations pane
 - Moved: Email and Search to **Money**; the Brief to **Reports > Daily**; Requests to **Clients** (a client login sees it under Reports: `tabInView`).
 - Checked signed in on the local trio (statics :8788, profit dev :8799, account-health dev :8798, dev token from .dev.vars served by the static server):
   every page id above on Lucky, Agency view Calls and Launch, the gallery override on Bonk. Report routes answer 401 locally, as before.
+
+## 2026-11-05: ADS > TRYBE (trybe.js?v=1, account-health src/trybe.js)
+
+Why: brands fill Trybe with approved creator videos and launch a fraction. Spec: https://claude.ai/artifact/9BJkh1mCRzQEVDiSFeo9BK
+(Phil Kiel's "launch queue, leaderboard on real revenue, rebook list, stale alerts").
+
+- **Page id `trybe`**, a tab in `NAV4.ads` between TikTok and Tests. `TRY(f)` calls `TrybeTab.render(host, first)`. In every
+  index.html list (`?open=`, TAB_PURPOSE, TAB_CRUMB, TAB_WHO, VIEW_BOTH, TAB_TITLE, SHOWABLE, the show map). Not in
+  AGENCY_TABS: a client sees it for its own brand.
+- **Views** are a `.v2jobs` switch inside the page (module state `VIEW`, no sub page ids): Queue, Live, Creators, Rules.
+  A client login gets Live and Creators only (`CL()` in trybe.js, and the handler trims the answer).
+- **Agency view** = one row per brand with a key (never run, over 3 days, oldest, waiting on review); a row opens the brand.
+- **Server** (account-health `src/trybe.js`, routes `/api/trybe`, `/api/trybe/key` PUT, `/api/trybe/sync` POST,
+  `/api/trybe/rules` PUT). One Trybe Brand API key per brand in `p_br_doc` key `trybe` (a key sees one brand; the Trybe
+  MCP connector is one brand per login, so the API is the only way to run several). Tables `p_trybe_sub`,
+  `p_trybe_creator`, made on first use (`profit/worker/migrations/trybe-001.sql` is the reference).
+- **The API has no approval date.** `approved_seen` = the day Locus first saw the video approved (the submitted day on a
+  brand's first sync). The 3 day clock (`STALE_DAYS`) runs from it.
+- **Matching**: an ad belongs to a video when its name carries `trybe=<trybe_id>` (Trybe's Build Ads names them
+  `Creator_Product_YYYYMMDD_trybe=1b2c3d4e`). Sales and revenue are `tw_ad_attr` lastPlatformClick; spend is `ad_daily`.
+- **Queue** = approved and Trybe has never seen it deliver (`ads.count` 0): `not_in_meta` or `no_delivery` (an ad exists,
+  Meta never spent). Launching stays in Trybe (partnership ads, the creator's commission); the page links to it.
+- **Rebook** = at least 2 sales at or under the account's 30 day cost per sale, and no new video in 14 days.
+- **Daily** (`trybeTick`, hourly cron, once a Central day from 4am, setting `trybeDay`): sync every keyed brand, then one
+  Slack line in the brand's internal channel for videos that crossed 3 days (each video once, `alerted`), plus the
+  rebook list on Mondays. `settings.trybeAlerts = 'off'` silences the posts; the sync still runs.
+- **Calls**: buyerlist.js adds a `kind: 'trybe'` banner per brand with videos over 3 days. Never to a client, never into
+  the morning read's prompt.
+- **Rules** are text per brand (`settings trybeRules:<brand>`). Shown and editable; the morning read does not read them yet.
+- Tests: `node test-trybe.mjs` (account-health/worker).

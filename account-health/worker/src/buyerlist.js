@@ -42,6 +42,7 @@ import { locksFor, lockedBy } from './drops.js';
 import { eligible, morningHour } from './morningcard.js';
 import { adsOf, isCarousel } from './prodwork.js';
 import { gall } from './metawrite.js';
+import { trybeBanners } from './trybe.js';
 import { readAI, applyAI, aiPassDone, buyerAIOn, adNumbers, withCovers, metaActsOf, disagree, decide, lessonsFor, buyerAITick, spentToday, trackingCheck, DAY_CAP, POST_WAIT_HOURS, noDash, CARD_KINDS } from './buyerai.js';
 
 export const DEFAULT_BUYER_CHANNEL = 'C0C8UA53U3W';   // #daily-briefs
@@ -597,6 +598,8 @@ export async function buildBuyerList(env, d, { act = 'all', only = null, live = 
     stalled(env, accts, today).catch(e => { notes.push(`Not spending: ${e.message}`); return []; }),
   ]);
   notes.push(...(mins.notes || []));
+  /* Ads > Trybe: approved creator videos that sat 3 days without running, one line per brand (the team's, never a client's). */
+  try { const names = new Map(accts.map(a => [a.act_id, a.name])); banners.push(...(await trybeBanners(env, ids, today)).map(t => ({ ...t, brand: names.get(t.act_id) || '' }))); } catch { /* no Trybe tables yet */ }
   /* The morning read (buyerai.js): a verdict on each rule row, and the calls the rules missed as rows of kind 'ai'. */
   /* a set already on the list (a call or its minimum) keeps that row, not a second one */
   const onList = new Set([...calls, ...mins.rows].map(r => String(r.adset_id || '')).filter(Boolean));
@@ -729,7 +732,7 @@ export async function handleBuyer(request, env, url, path, json, h) {
       if (act !== 'all' && only && !only.has(act)) return json({ error: 'You do not have access to this brand.' }, 403);
       const out = await buildBuyerList(env, d, { act, only, ads: url.searchParams.get('ads') !== '0' });
       /* A client login (brandguard lets it read its own brand only): the calls, never the launch queue, the owner or the team's settings. */
-      if (h.isClient && h.isClient(request)) { out.rows = (out.rows || []).filter(r => r.kind !== 'launch'); out.launched = []; out.next_launch = null; out.launch_today = false; delete out.owner; delete out.settings; if (out.counts) out.counts.launch = 0; }
+      if (h.isClient && h.isClient(request)) { out.rows = (out.rows || []).filter(r => r.kind !== 'launch'); out.banners = (out.banners || []).filter(x => x.kind !== 'trybe'); out.launched = []; out.next_launch = null; out.launch_today = false; delete out.owner; delete out.settings; if (out.counts) out.counts.launch = 0; }
       return json(out);
     }
     /* Yes / No on a card row (2026-11-05). Yes after the write (write_id) or on its own; No with his one-line why. */
