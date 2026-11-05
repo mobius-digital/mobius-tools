@@ -113,6 +113,10 @@ async function brandArg(env, d, want) {
 const needBrand = async (env, d, want) => { const id = await brandArg(env, d, want); if (!id) throw new Error('Name the brand.'); return id; };
 
 /* ---------------- the record: one activities row per write ---------------- */
+/* A key, token, secret or password in a write's body never reaches the Change Log (2026-11-05: a brand's Trybe API key
+   goes through PUT /api/trybe/key). The field name decides; the value is replaced, the rest of the body is kept. */
+const SECRET_FIELD = /(^|_)(key|token|secret|password|passwd|pwd|authorization)$/i;
+export const bodyForLog = body => JSON.stringify(body || {}, (k, v) => (k && SECRET_FIELD.test(k) && v != null && v !== '' ? '[hidden]' : v));
 async function logWrite(env, { act, summary, object, note }) {
   await env.DB.prepare(`INSERT INTO activities (id, act_id, event_time, event_type, category, summary, note, confirmed, manual, actor, object_type, object_id)
     VALUES (?1, ?2, ?3, 'claude_code_write', 'other', ?4, ?5, 1, 1, ?6, 'mcp', ?7)`)
@@ -221,7 +225,7 @@ function tools(d) {
         const method = ['POST', 'PUT', 'DELETE'].includes(String(input.method || '').toUpperCase()) ? String(input.method).toUpperCase() : 'POST';
         const path = withQuery(String(input.path || ''), input.query);
         const r = await callLocus(env, d, { method, path, body: input.body || {} });
-        if (!r.error && !/^\/api\/meta\/(write|undo)/.test(path)) await logWrite(env, { act: await actOfBody(env, d, input.body, path), summary: `${method} ${path.split('?')[0]}${input.why ? `: ${input.why}` : ''}`, object: path.split('?')[0], note: `Body: ${clip(JSON.stringify(input.body || {}), 1500)}` });
+        if (!r.error && !/^\/api\/meta\/(write|undo)/.test(path)) await logWrite(env, { act: await actOfBody(env, d, input.body, path), summary: `${method} ${path.split('?')[0]}${input.why ? `: ${input.why}` : ''}`, object: path.split('?')[0], note: `Body: ${clip(bodyForLog(input.body), 1500)}` });
         return r;
       }),
     /* ---- Production ---- */
