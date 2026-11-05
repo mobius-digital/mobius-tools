@@ -810,8 +810,10 @@ const adCopyAction = d => ({
   input_schema: { type: 'object', properties: { brand: { type: 'string' }, target: { type: 'string', description: 'The ad, exact name or id.' }, primary_text: { type: 'string' }, headline: { type: 'string' }, description: { type: 'string' }, link: { type: 'string' }, cta: { type: 'string', enum: CTAS }, reason: REASON }, required: ['brand', 'target', 'reason'] },
   propose: async (env, input, h, ctx) => {
     const r = await prep(env, d, { ...input, level: 'ad' }, ctx, 'ad'); if (r.error) return r;
-    const ad = await gget(d, env, r.obj.id, { fields: 'name,creative{id,name,object_story_spec,asset_feed_spec,effective_object_story_id,object_story_id}' });
+    const ad = await gget(d, env, r.obj.id, { fields: 'name,creative{id,name,url_tags,object_story_spec,asset_feed_spec,effective_object_story_id,object_story_id}' });
     const c = ad.creative || {};
+    /* 2026-11-05: keep the tracking tags on the copy (Triple Whale tw_adid + UTMs); an untagged creative gets the standard set. */
+    const tags = { url_tags: c.url_tags || TW_URL_TAGS };
     const s = c.object_story_spec;
     if (input.link && !/^https:\/\//.test(input.link)) return { error: 'link must be a full https:// address.' };
     const was = {}, now = {};
@@ -828,7 +830,7 @@ const adCopyAction = d => ({
       if (!Object.keys(now).length) return { error: 'Give the new primary text, headline, description, link or button.' };
       const story = { page_id: s?.page_id, ...(s?.instagram_user_id ? { instagram_user_id: s.instagram_user_id } : {}), ...(s?.instagram_actor_id ? { instagram_actor_id: s.instagram_actor_id } : {}) };
       if (!story.page_id) return { error: `"${ad.name}": its creative names no page, so a copy cannot be made here.` };
-      const params = { name: clip(`${c.name || ad.name} (copy edit ${new Date().toISOString().slice(0, 10)})`, 300), object_story_spec: story, asset_feed_spec: A };
+      const params = { name: clip(`${c.name || ad.name} (copy edit ${new Date().toISOString().slice(0, 10)})`, 300), object_story_spec: story, asset_feed_spec: A, ...tags };
       const bad = await validate(d, env, `${r.act}/adcreatives`, params); if (bad) return { refused: bad, afs: c.asset_feed_spec, story: s, summary: 'refused', detail: bad, patch: { ...common(r, 'meta_ad_copy', input, ctx), old: c.id, params, lines: [], logLine: '' } };
       const lines = Object.keys(now).map(k => `${k}: "${clip(was[k], 160)}" → "${clip(now[k], 160)}"`);
       return { summary: `${r.brand.name}: new words on ad "${ad.name}"`, detail: `${lines.join('\n')}\nThe ad switches to a copy of its creative (same images, every placement) with these words; it goes back through review.\nWhy: ${clip(input.reason, 300)}`,
@@ -850,7 +852,7 @@ const adCopyAction = d => ({
       if (V.image_hash && V.image_url) delete V.image_url;
     }
     if (!Object.keys(now).length) return { error: 'Give the new primary text, headline, description, link or button.' };
-    const params = { name: clip(`${c.name || ad.name} (copy edit ${new Date().toISOString().slice(0, 10)})`, 300), object_story_spec: spec, ...(c.asset_feed_spec && !afsReal ? { asset_feed_spec: c.asset_feed_spec } : {}) };
+    const params = { name: clip(`${c.name || ad.name} (copy edit ${new Date().toISOString().slice(0, 10)})`, 300), object_story_spec: spec, ...(c.asset_feed_spec && !afsReal ? { asset_feed_spec: c.asset_feed_spec } : {}), ...tags };
     const bad = await validate(d, env, `${r.act}/adcreatives`, params); if (bad) return { error: bad };
     const lines = Object.keys(now).map(k => `${k}: "${clip(was[k], 160)}" → "${clip(now[k], 160)}"`);
     return { summary: `${r.brand.name}: new words on ad "${ad.name}"`, detail: `${lines.join('\n')}\nThe ad switches to a copy of its creative with these words; it goes back through review.\nWhy: ${clip(input.reason, 300)}`,
