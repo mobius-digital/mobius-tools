@@ -4749,6 +4749,8 @@ Why: brands fill Trybe with approved creator videos and launch a fraction. Spec:
   state comes from there: `not_launched`, `no_spend` (on, no delivery yet), `scheduled`, `review`, `rejected`, `off`.
   Only `not_launched` is the backlog (the tile, the Slack line, the Calls banner, the Agency view). Launching stays in
   Trybe (partnership ads, the creator's commission); the page links to it.
+- **Briefs live here (2026-11-05)**: the creator link page (page id `amb`, was Make > Creators) is a view of Ads > Trybe.
+  `V4_HOME.amb = 'trybe'`; `TRYBE_JOBS` draws the switch above the briefs page and Trybe draws the same one itself.
 - **v3 (the same day, Cole's first look)**: tiles are label, number, one short line; every list has search, filter and
   sort (module state `UI`); a thumbnail plays the video (`GET /api/trybe/video`, a 20 minute link from Trybe, asked on
   press); a creator's name opens their sheet; metrics read Spend, Sales, CPA, ROAS; Rebook is called "Ask for more";

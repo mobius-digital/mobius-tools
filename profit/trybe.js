@@ -20,7 +20,8 @@
   const pct = n => (n == null ? '' : Math.round(n * 100) + '%');
   const n1 = n => String(Math.round((+n || 0) * 10) / 10);
   const ago = iso => { if (!iso) return 'never'; const h = (Date.now() - Date.parse(iso)) / 36e5; return h < 1 ? 'just now' : h < 24 ? `${Math.round(h)}h ago` : `${Math.round(h / 24)}d ago`; };
-  const VIEWS = () => (CL() ? [['live', 'Live'], ['creators', 'Creators']] : [['queue', 'Queue'], ['live', 'Live'], ['creators', 'Creators'], ['rules', 'Rules']]);
+  /* Briefs = the creator link page (page id amb), opened as its own page; the shell draws this same switch above it. */
+  const VIEWS = () => (CL() ? [['live', 'Live'], ['creators', 'Creators'], ['briefs', 'Briefs']] : [['queue', 'Queue'], ['live', 'Live'], ['creators', 'Creators'], ['briefs', 'Briefs'], ['rules', 'Rules']]);
   const STATE = { not_launched: ['Not launched', 'bad'], no_spend: ['Launched, no spend yet', 'warn'], scheduled: ['Scheduled', ''], review: ['In Meta review', ''], rejected: ['Rejected by Meta', 'bad'], off: ['In Meta, turned off', ''] };
 
   function css() {
@@ -107,7 +108,7 @@
   function paint(keepFocus) {
     const d = DATA;
     if (d.act === 'all') return paintAll();
-    if (!VIEWS().some(v => v[0] === VIEW)) VIEW = VIEWS()[0][0];
+    if (VIEW === 'briefs' || !VIEWS().some(v => v[0] === VIEW)) VIEW = VIEWS()[0][0];
     if (!d.has_key) { $('#main').innerHTML = shell(keyCard()); wire(); if (H.pageActions) H.pageActions(''); return; }
     const c = d.counts;
     const badge = { queue: c.not_launched, live: c.live, creators: c.creators };
@@ -267,7 +268,7 @@
 
   function wire() {
     const root = $('#main'); if (!root) return;
-    root.querySelectorAll('[data-tbv]').forEach(b => { b.onclick = () => { VIEW = b.dataset.tbv; paint(); }; });
+    root.querySelectorAll('[data-tbv]').forEach(b => { b.onclick = () => { if (b.dataset.tbv === 'briefs') return H.show('amb'); VIEW = b.dataset.tbv; paint(); }; });
     root.querySelectorAll('[data-tbplay]').forEach(b => { b.onclick = e => { e.stopPropagation(); watch(b.dataset.tbplay); }; });
     root.querySelectorAll('[data-tbwho]').forEach(b => { b.onclick = () => creator(b.dataset.tbwho); });
     root.querySelectorAll('[data-tbact]').forEach(r => { r.onclick = () => { if (H.setViewAct) H.setViewAct(r.dataset.tbact); H.show('trybe'); }; });
@@ -291,5 +292,5 @@
     };
   }
 
-  window.TrybeTab = { render };
+  window.TrybeTab = { render, setView: v => { VIEW = v; } };
 })();
