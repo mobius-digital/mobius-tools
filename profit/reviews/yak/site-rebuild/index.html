@@ -268,6 +268,47 @@ a{color:var(--gold-ink)}
 .m .faq p{font-size:14.5px;color:#3b4148;max-width:80ch}
 .m .kit{display:grid;grid-template-columns:repeat(3,1fr) 1.1fr;gap:14px;align-items:center}
 .m .ph-note{font-size:12px;color:var(--mut)}
+
+/* PDP v2 */
+.m .pick{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:22px 40px 0}
+.m .pick div{display:grid;grid-template-columns:64px 1fr;grid-template-rows:auto auto auto;column-gap:12px;align-items:center;border:1.5px solid var(--ln);border-radius:4px;padding:8px;font-size:12px}
+.m .pick div.on{border-color:var(--k)}
+.m .pick img{grid-row:1/4;width:64px;height:72px;object-fit:cover;border-radius:3px;background:var(--ice)}
+.m .pick .n{font:700 9.5px/1 var(--body);letter-spacing:1px;text-transform:uppercase;color:var(--gd)}
+.m .pick b{font-size:13px;text-transform:uppercase;letter-spacing:.3px}
+.m .pick small{color:var(--mut);font-size:12px}
+.m .pdp2{display:grid;grid-template-columns:1.2fr 1fr;gap:44px;padding:24px 40px 44px}
+.m .gal2{display:grid;grid-template-columns:84px 1fr;gap:12px;align-items:start}
+.m .gal2 .thumbs{display:flex;flex-direction:column;gap:10px}
+.m .gal2 .thumbs img{width:84px;height:100px;object-fit:cover;border-radius:3px;background:var(--ice);border:1.5px solid transparent}
+.m .gal2 .thumbs img.on{border-color:var(--k)}
+.m .gal2 .vt{position:relative}
+.m .gal2 .vt i{position:absolute;inset:0;display:grid;place-items:center;color:#fff;font-style:normal;font-size:20px;background:rgba(0,0,0,.35);border-radius:3px}
+.m .gal2 .main{background:var(--ice);border-radius:4px;overflow:hidden;display:flex;flex-direction:column}
+.m .gal2 .main img{width:100%;aspect-ratio:4/5;object-fit:cover}
+.m .gal2 .modelln{font-size:12px;color:var(--mut);text-align:center;padding:10px;background:#fff}
+.m .psw{display:flex;gap:8px;align-items:center}
+.m .psw img{width:46px;height:54px;object-fit:cover;border-radius:3px;background:var(--ice);border:1.5px solid var(--ln)}
+.m .psw img.on{border-color:var(--k);outline:2px solid var(--k);outline-offset:1px}
+.m .psw span{font-size:12px;font-weight:700;color:var(--mut)}
+.m .links{font-weight:600;letter-spacing:.4px;text-transform:none;font-size:12.5px;color:var(--k)}
+.m .fitln{font-size:13px;color:#3b4148;margin-top:-6px}
+.m .styleit{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.m .styleit div{display:grid;grid-template-columns:52px 1fr 30px;gap:10px;align-items:center;border:1px solid var(--ln);border-radius:4px;padding:8px;font-size:12.5px}
+.m .styleit img{width:52px;height:62px;object-fit:cover;border-radius:3px;background:var(--ice)}
+.m .styleit i{font-style:normal;width:30px;height:30px;border-radius:50%;border:1.5px solid var(--k);display:grid;place-items:center;font-weight:700}
+.m .specs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;background:var(--ice);border-radius:4px;padding:14px}
+.m .specs div{display:flex;flex-direction:column;align-items:center;font-size:11.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--mut);font-weight:600}
+.m .specs b{font:800 italic 24px/1 var(--display);color:var(--k)}
+.m .band{position:relative;height:440px;overflow:hidden;color:#fff}
+.m .band img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.m .band::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,0,0,.72),rgba(0,0,0,.1) 60%)}
+.m .band .tx{position:relative;z-index:1;padding:80px 56px;display:flex;flex-direction:column;gap:16px;max-width:600px}
+.m .band .sub{color:#e6e9ec}
+.m .sheet{display:grid;grid-template-columns:1fr 1fr;gap:30px;border:1px solid var(--ln);border-radius:10px;padding:26px;box-shadow:0 10px 30px rgba(0,0,0,.08);max-width:900px}
+.m .sheet>div{display:flex;flex-direction:column;gap:14px}
+.m .q2{display:flex;flex-direction:column;gap:8px;font-size:13px}
+.m .ans{background:var(--ice);border-radius:4px;padding:12px 14px;font-size:14px}
 </style>
 </head>
 <body data-review-act="brand_yak_sports" data-review-slug="site-rebuild" data-review-title="Site rebuild">
@@ -298,7 +339,7 @@ a{color:var(--gold-ink)}
   <div class="cro-g">
     <div class="card"><span class="q">"Who is Yak? Never heard of them."</span><span class="n"><b>Now:</b> no proof in the first scroll. 10 reviews on the Playmaker, none showing on the Breakaway. Our Story is three lines.</span><span class="f"><b>Fix:</b> stars and review count on every product card and under every price. The kid-and-dad founding story on the homepage and product page. Real customer photos.</span><span class="w"><a href="#home">Home</a><a href="#hoodies">Collections</a><a href="#pdp">Product</a><a href="#story">Story</a></span></div>
     <div class="card"><span class="q">"$79 for a hoodie?"</span><span class="n"><b>Now:</b> the Playmaker description is an article about men's jackets. Not one line says why it costs $79.</span><span class="f"><b>Fix:</b> a "why it's $79" block with close-ups: stretch, hood, pocket, fabric. The free $30 beanie shown as part of the value.</span><span class="w"><a href="#pdp">Product</a><a href="#compare">Compare</a></span></div>
-    <div class="card"><span class="q">"Will it fit me? Will it fit my kid?"</span><span class="n"><b>Now:</b> no size chart on the page, no model size, no fit notes.</span><span class="f"><b>Fix:</b> a size table on the page, model height and size on the photos, a fit line pulled from reviews ("fit great and are true to size"), youth sizes by age.</span><span class="w"><a href="#pdp">Product</a><a href="#gifts">Gift guide</a></span></div>
+    <div class="card"><span class="q">"Will it fit me? Will it fit my kid?"</span><span class="n"><b>Now:</b> no size chart on the page, no model size, no fit notes.</span><span class="f"><b>Fix:</b> "Fits true to size" right above the sizes, "Find my size | Size guide" that pops up, and the model's height and size under the photo. Same as BYLT and Mott &amp; Bow.</span><span class="w"><a href="#pdp">Product</a><a href="#gifts">Gift guide</a></span></div>
     <div class="card"><span class="q">"Which one do I get?"</span><span class="n"><b>Now:</b> two $79 hoodies, the same gray photos, and both say "4-way stretch."</span><span class="f"><b>Fix:</b> the compare page, plus a compare strip on both product pages and a "Compare the two" button on Hoodies.</span><span class="w"><a href="#compare">Compare</a><a href="#pdp">Product</a><a href="#hoodies">Hoodies</a></span></div>
     <div class="card"><span class="q">"Is the beanie really free?"</span><span class="n"><b>Now:</b> fixed today in the cart ($0). The product page and the "added to cart" pop-up still don't mention it.</span><span class="f"><b>Fix:</b> the beanie line under the price, in the pop-up, and in the cart with a Grey/White switch.</span><span class="w"><a href="#pdp">Product</a><a href="#cart">Cart</a><a href="#ebf">Early BF</a></span></div>
     <div class="card"><span class="q">"Will it get here in time?"</span><span class="n"><b>Now:</b> no ship time anywhere. The shipping page says "ST THOMAS COLLECTION · COMING SOON."</span><span class="f"><b>Fix:</b> a ships-in line under Add to cart, "order by Dec 17" from Dec 1, and real policy pages. Needs Rob's ship days.</span><span class="w"><a href="#pdp">Product</a><a href="#cart">Cart</a><a href="#policies">Policies</a></span></div>
@@ -314,7 +355,7 @@ a{color:var(--gold-ink)}
   <div class="card tbl"><table class="cmp-t">
     <tr><th>Trust signal</th><th>On the site now</th><th>New</th></tr>
     <tr><td><b>Reviews</b></td><td>Loox is installed. Playmaker 5.0 from 10 reviews. None on the Breakaway page. No stars on product cards.</td><td>Stars on every card and under every price. Loox asks every November buyer for a photo or video review.</td></tr>
-    <tr><td><b>Video</b></td><td>0 videos on any product page.</td><td>A swipe row of short videos on the product page and homepage: people wearing it, reviewing it, gifting it. Each one has a shop button.</td></tr>
+    <tr><td><b>Video</b></td><td>0 videos on any product page.</td><td>One short video inside the photo gallery, like BYLT does.</td></tr>
     <tr><td><b>Real people</b></td><td>Gray studio photos only.</td><td>Shoot photos and customer photos in the gallery and grids.</td></tr>
     <tr><td><b>Returns</b></td><td>The icon says 30 days. The page is broken.</td><td>Free exchanges said plainly, plus a working page.</td></tr>
     <tr><td><b>Shipping speed</b></td><td>Not stated anywhere.</td><td>A ships-in line on the product page and in the cart.</td></tr>
@@ -565,103 +606,91 @@ a{color:var(--gold-ink)}
 
 <!-- ========== PDP ========== -->
 <section class="ba" id="pdp">
-  <div class="ba-head"><div class="l"><span class="eyebrow">Page 6 · product template</span><h2>Product page</h2><span class="u">yaksports.com/products/playmaker-hoodie-3</span>
-    <ul class="chg"><li>Today, below the photos: a closed "Description" tab (on the Playmaker it's an article about men's jackets), then 10 reviews. No video, no fabric facts, no size help, nothing about the beanie.</li><li>New, top to bottom: photos that sell, the beanie under the price, size help, delivery, exchanges and Shop Pay under the button. Then <b>why it's $79</b> (close-ups), a <b>swipe row of videos</b> (worn, reviewed, gifted, each one shoppable), <b>fit</b>, <b>reviews</b>, <b>the full kit</b>, <b>questions</b>, and the story.</li></ul><p class="stop"><b>Stops</b>"Worth $79?", "Will it fit?", "Will it get here?", "What if it's wrong?", "Do real people wear this?" Each block below the photos answers one.</p></div>
+  <div class="ba-head"><div class="l"><span class="eyebrow">Page 6 · product template · rebuilt Nov 5 from the five brands</span><h2>Product page</h2><span class="u">yaksports.com/products/playmaker-hoodie-3</span>
+    <ul class="chg"><li>Today, below the photos: a closed "Description" tab (on the Playmaker it's an article about men's jackets), then 10 reviews. No fit help, no ship date, nothing about the beanie.</li><li>New: everything that decides the sale sits next to the photos, the way BYLT, Mott &amp; Bow and True Classic do it. Below the fold there are only three things: a product band, reviews with a sizing bar, and "you might also like."</li></ul><p class="stop"><b>Stops</b>"Which one?", "Will it fit?", "When does it get here?", "Worth $79?", "Do real people like it?" All answered before you scroll.</p></div>
     <button class="toggle" type="button">See new page larger</button></div>
+
+  <div class="card" style="display:flex;flex-direction:column;gap:12px">
+    <b>What the five brands actually do on a product page (checked live Nov 5)</b>
+    <div class="insp">
+      <div class="card"><img src="pdp/bylt-top.jpg" alt="BYLT product page"><div class="t"><b>BYLT</b><span class="take">"Size Guide | Find My Size" next to the sizes, then "Model is 6'1 and wears a size M" under them. One video sits inside the photo grid. Reviews have a "runs small / true to size" bar.</span></div></div>
+      <div class="card"><img src="pdp/mottandbow-product-1.jpg" alt="Mott and Bow product page"><div class="t"><b>Mott &amp; Bow</b><span class="take">"Find your size | Size Guide" plus a one-line fit note above the sizes. "Model is 5'10" wearing size 32" under the photo. Fabric facts as icons, then Fit, Care, Shipping tabs under the button.</span></div></div>
+      <div class="card"><img src="pdp/trueclassic-product-1.jpg" alt="True Classic product page"><div class="t"><b>True Classic</b><span class="take">A row of their 4 hoodies on top (#1 Best Seller, #2...). Arrival dates under the price. "Style It With" joggers with a + right in the buy box. Guarantee and returns tabs under the button.</span></div></div>
+      <div class="card"><img src="pdp/primo-product-1.jpg" alt="Primo product page"><div class="t"><b>Primo</b><span class="take">Color swatches are little photos of the product. "Get it on or before Sunday, November 15" above the button. Their hoodie page says "true to size, but we recommend sizing up for a looser fit."</span></div></div>
+      <div class="card"><img src="pdp/breezy-product-1.jpg" alt="Breezy product page"><div class="t"><b>Breezy</b><span class="take">Simplest of the five: stars, color, "Size chart" link, Shop Pay button. Description, Features and Care as tabs below.</span></div></div>
+    </div>
+    <span class="mut" style="font-size:12.5px">None of the five put labels on their photos, a video row, an FAQ or the brand story on a product page. So those are gone from Yak's.</span>
+  </div>
+
   <div class="cols">
-    <div class="col"><span class="lab n">Now</span><div class="shots"><img src="now/pdp-playmaker-hoodie-1.jpg" alt="Current Playmaker page"><img src="now/pdp-playmaker-hoodie-2.jpg" alt="Current Playmaker page lower"><img src="now/pdp-playmaker-hoodie-3.jpg" alt="Current Playmaker description"></div></div>
+    <div class="col"><span class="lab n">Now</span><div class="shots"><img src="now/pdp-playmaker-hoodie-1.jpg" alt="Current Playmaker page"><img src="now/pdp-playmaker-hoodie-2.jpg" alt="Current Playmaker page lower"><img src="now/pdp-playmaker-hoodie-3.jpg" alt="Current Playmaker reviews"></div></div>
     <div class="col"><span class="lab y">New</span><div class="frame"><div class="scaler"><div class="m">
       <div class="bar">Early Black Friday · <b>Free $30 beanie with any hoodie</b> · ends Nov 25</div>
       <div class="nav"><img src="img/logo.png" alt="Yak Sports"><nav><span class="hot">Black Friday</span><span>Hoodies</span><span>Joggers</span><span>Youth</span></nav><span class="r">Cart (0)</span></div>
-      <div class="pdp">
-        <div class="gal">
-          <figure><img src="img/pm-glacier.jpg" alt="Playmaker front"><figcaption>Glacier Blue · front</figcaption></figure>
-          <figure><img src="img/pm-glacier2.jpg" alt="Playmaker stretch"><figcaption>Stretch that moves when you do</figcaption></figure>
-          <figure><img src="img/pm-maroon.jpg" alt="Playmaker hood"><figcaption>Lined 3-piece hood. Room for flow.</figcaption></figure>
-          <figure><img src="img/pm-grey.jpg" alt="Playmaker fit"><figcaption>Model [6'1"] wears M · true to size</figcaption></figure>
-          <figure class="wide"><img src="img/kids.jpg" alt="Kids in Yak hoodies"><figcaption>Same hoodie, youth sizes YS to YXL</figcaption></figure>
+
+      <div class="pick">
+        <div class="on"><img src="img/pm-glacier.jpg" alt=""><span class="n">#1 Best seller</span><b>Playmaker</b><small>Stretchy, for playing</small></div>
+        <div><img src="img/ba-ash.jpg" alt=""><span class="n">#2</span><b>Breakaway</b><small>Softest, for hanging out</small></div>
+        <div><img src="img/ypm.jpg" alt=""><span class="n">Youth</span><b>Youth Playmaker</b><small>Same hoodie, kid sizes</small></div>
+        <div><img src="img/yba.jpg" alt=""><span class="n">Youth</span><b>Youth Breakaway</b><small>Same soft, kid sizes</small></div>
+      </div>
+
+      <div class="pdp2">
+        <div class="gal2">
+          <div class="thumbs"><img class="on" src="img/pm-glacier.jpg" alt=""><img src="img/pm-glacier2.jpg" alt=""><img src="img/pm-glacier3.jpg" alt=""><div class="vt"><img src="img/pm-glacier2.jpg" alt=""><i>▶</i></div></div>
+          <div class="main"><img src="img/pm-glacier.jpg" alt="Playmaker Hoodie in Glacier Blue"><span class="modelln">Model is [6'1"] wearing M</span></div>
         </div>
         <div class="buy">
-          <span style="font-size:13px"><span class="stars">★★★★★</span> 5.0 · 10 reviews · "true to size"</span>
+          <span style="font-size:13px"><span class="stars">★★★★★</span> 5.0 · 10 reviews</span>
           <h3 class="D D2">Playmaker Hoodie</h3>
           <div style="font:800 italic 34px/1 var(--display)">$79</div>
           <div class="gift"><img src="img/beanie-grey.jpg" alt="Grey Player Beanie"><span><b>Comes with a free $30 Player Beanie</b><span>Early Black Friday, ends Nov 25. It goes in your cart on its own.</span></span></div>
-          <p style="font-size:15px">The one you play in. Stretches with you, room in the hood for flow, and a zip pocket inside the pouch for your phone or the lucky puck.</p>
-          <div style="font:700 12px/1 var(--body);letter-spacing:1px;text-transform:uppercase">Color: Glacier Blue · 13 colors</div>
-          <div class="sw2"><i class="on" style="background:#9cc8ea"></i><i style="background:#6e1f2e"></i><i style="background:#1b2c55"></i><i style="background:#c92a2a"></i><i style="background:#1f9a4a"></i><i style="background:#2463c9"></i><i style="background:#111"></i><i style="background:#fff"></i></div>
-          <div class="row" style="justify-content:space-between;font:700 12px/1 var(--body);letter-spacing:1px;text-transform:uppercase"><span>Size</span><span style="color:#9c7a45">Find my size</span></div>
+          <div style="font:700 12px/1 var(--body);letter-spacing:1px;text-transform:uppercase">Color: Glacier Blue</div>
+          <div class="psw"><img class="on" src="img/pm-glacier.jpg" alt=""><img src="img/pm-maroon.jpg" alt=""><img src="img/pm-navy.jpg" alt=""><img src="img/pm-red.jpg" alt=""><img src="img/pm-kelly.jpg" alt=""><img src="img/pm-royal.jpg" alt=""><img src="img/pm-black.jpg" alt=""><span>+6</span></div>
+          <div class="row" style="justify-content:space-between;font:700 12px/1 var(--body);letter-spacing:1px;text-transform:uppercase"><span>Size</span><span class="links"><u>Find my size</u> | <u>Size guide</u></span></div>
+          <div class="fitln">Fits true to size. Size up if you want it roomy.</div>
           <div class="sizes"><span>S</span><span class="on">M</span><span>L</span><span>XL</span><span>2XL</span><span>3XL</span></div>
           <span class="btn" style="text-align:center">Add to cart · $79</span>
-          <div class="gift" style="border-color:#e2e6ea;background:#fff"><img src="img/pj.jpg" alt="Playmaker jogger"><span style="flex:1"><b>Make it a set: Playmaker Jogger · $78</b><span>Hoodie + jogger clears free shipping.</span></span><span class="btn o s">Add</span></div>
-          <div class="lines"><div>🚚 Ships in [X] days · free over $150</div><div>🎁 Order by Dec 17 for Christmas</div><div>↺ Free 30-day exchanges · holiday orders until Jan 15</div><div>◔ Or 4 payments of $19.75 with Shop Pay</div></div>
-          <div class="acc"><div>Playmaker vs Breakaway <span>+</span></div><div>Fabric + care <span>+</span></div><div>Size guide <span>+</span></div><div>Reviews (10) <span>+</span></div></div>
+          <div class="lines"><div>🚚 Arrives <b>Nov [10 to 14]</b> · free shipping over $150</div><div>◔ Or 4 payments of $19.75 with Shop Pay</div></div>
+          <div style="font:700 12px/1 var(--body);letter-spacing:1px;text-transform:uppercase">Style it with</div>
+          <div class="styleit"><div><img src="img/pj.jpg" alt=""><span>Playmaker Jogger<br><b>$78</b></span><i>+</i></div><div><img src="img/beanie-grey.jpg" alt=""><span>Player Beanie<br><b>Free</b> with a hoodie</span><i>+</i></div></div>
+          <div class="specs"><div><b>4-way</b>stretch</div><div><b>Zip</b>phone pocket</div><div><b>3-piece</b>hood</div></div>
+          <div class="acc"><div>Details + fabric <span>+</span></div><div>Fit <span>+</span></div><div>Shipping, returns + exchanges <span>+</span></div></div>
         </div>
       </div>
-      <div class="sec ice">
-        <div><span class="eb">Why it's $79</span><h3 class="D D2" style="margin-top:8px">Built like gear. Feels like a hoodie.</h3></div>
-        <div class="feat">
-          <div><img src="img/pm-glacier2.jpg" alt="Stretch close-up"><b>Stretch that moves</b><span>Shoot, swing, or reach for the remote. It goes where you go and snaps back.</span></div>
-          <div><img src="img/pm-maroon.jpg" alt="Hood close-up"><b>Room for flow</b><span>A three-piece hood that sits right and fits over a lid.</span></div>
-          <div><img src="img/pm-black.jpg" alt="Pocket close-up"><b>Phone stays put</b><span>A zip pocket inside the pouch, for your phone or the lucky puck.</span></div>
-          <div><img src="img/fleece.jpg" alt="Fabric close-up"><b>Survives the wash</b><span>"Washes well with no pilling." Courtney H. said that, not us.</span></div>
-        </div>
-      </div>
-      <div class="sec">
-        <div class="colhead"><div><span class="eb">On real people</span><h3 class="D D2" style="margin-top:8px">Worn. Washed. Gifted.</h3><p class="sub" style="margin-top:8px">Tap a video to shop what's in it.</p></div><span class="mut" style="font-weight:700;font-size:12px;letter-spacing:1px">SWIPE →</span></div>
-        <div class="reel">
-          <figure><img src="img/couple.jpg" alt=""><i class="pl">▶</i><b class="ty">Worn</b><figcaption>"We stole each other's."<span>Breakaway · $79 <b>+</b></span></figcaption></figure>
-          <figure><img src="img/kids2.jpg" alt=""><i class="pl">▶</i><b class="ty">Gifted</b><figcaption>Christmas morning, matching.<span>Youth Playmaker · $79 <b>+</b></span></figcaption></figure>
-          <figure><img src="img/ad-e01.jpg" alt=""><i class="pl">▶</i><b class="ty">Review</b><figcaption>30 seconds, honest take.<span>Playmaker · $79 <b>+</b></span></figcaption></figure>
-          <figure><img src="img/ad-eb16.jpg" alt=""><i class="pl">▶</i><b class="ty">Rink</b><figcaption>Warm-up to parking lot.<span>Playmaker · $79 <b>+</b></span></figcaption></figure>
-          <figure><img src="img/couple2.jpg" alt=""><i class="pl">▶</i><b class="ty">Fit</b><figcaption>Same hoodie, 3 sizes.<span>Size guide <b>→</b></span></figcaption></figure>
-          <figure><img src="img/ad-en02.jpg" alt=""><i class="pl">▶</i><b class="ty">Unboxed</b><figcaption>Hoodie plus the free beanie.<span>Player Beanie · free <b>+</b></span></figcaption></figure>
-        </div>
-        <p class="ph-note">Video slots. They start with Yak's own ad videos, then customer videos from Loox review requests and creator videos as they come in.</p>
-      </div>
-      <div class="sec ice">
-        <span class="eb">Fit</span>
-        <div class="fit">
-          <div style="display:flex;flex-direction:column;gap:14px">
-            <h3 class="D D2">Fits true to size.</h3>
-            <table class="sizetbl"><tr><th>Size</th><th>Chest</th><th>Length</th><th>Usually fits</th></tr><tr><td>S</td><td>[Rob's chart]</td><td>[ ]</td><td>[ ]</td></tr><tr><td>M</td><td>[ ]</td><td>[ ]</td><td>[ ]</td></tr><tr><td>L</td><td>[ ]</td><td>[ ]</td><td>[ ]</td></tr><tr><td>XL</td><td>[ ]</td><td>[ ]</td><td>[ ]</td></tr><tr><td>2XL</td><td>[ ]</td><td>[ ]</td><td>[ ]</td></tr></table>
-            <span class="mut" style="font-size:13px">Youth: YS 6-7 · YM 8-10 · YL 12-14 · YXL 16 [Rob to confirm]</span>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:16px">
-            <div class="meter">What reviewers say<i></i><span><span>Runs small</span><span>True to size</span><span>Runs big</span></span></div>
-            <div class="rev">"These are fantastic hoodies!! They fit great and are true to size. I have ordered most of the colors they come in."<span class="who">Nicholas T. · Navy · L · verified</span></div>
-            <div class="rev" style="flex-direction:row;gap:14px;align-items:center"><img src="img/pm-grey.jpg" alt="" style="width:70px;height:84px;object-fit:cover;border-radius:3px;flex:none"><span>Model is [6'1"] and wears <b>M</b>. Between sizes? Go up if you'll layer it.</span></div>
-          </div>
-        </div>
-      </div>
+
+      <div class="band"><img src="img/couple.jpg" alt="Two people in Yak hoodies"><div class="tx"><span class="eb" style="color:#BC955C">Why you'll live in it</span><h3 class="D D2">Built for the rink. Worn everywhere else.</h3><p class="sub">Stretches when you move, holds its shape, and washes without pilling. Rink, gym, car ride home.</p></div></div>
+
       <div class="sec">
         <span class="eb">Reviews</span>
         <div class="revs">
-          <div style="display:flex;flex-direction:column;gap:8px"><span class="big">5.0</span><span class="stars" style="font-size:20px">★★★★★</span><span class="mut">10 reviews · all verified</span><span class="btn o s" style="align-self:flex-start;margin-top:8px">Write a review</span></div>
+          <div style="display:flex;flex-direction:column;gap:10px"><span class="big">5.0</span><span class="stars" style="font-size:20px">★★★★★</span><span class="mut">10 reviews · all verified</span><div class="meter" style="margin-top:6px">Sizing<i></i><span><span>Small</span><span>True to size</span><span>Big</span></span></div></div>
           <div class="rev"><span class="stars">★★★★★</span>"This is the absolute BEST hoodie! It's soft, but durable and washes well with no pilling."<span class="who">Courtney H.</span></div>
-          <div class="rev"><span class="stars">★★★★★</span>"This royal blue totally pops and is super comfortable. I may have one in every color if I don't be too careful!"<span class="who">Jeffrey F. · Royal Blue · XL</span></div>
+          <div class="rev"><span class="stars">★★★★★</span>"These are fantastic hoodies!! They fit great and are true to size."<span class="who">Nicholas T. · Navy · L</span></div>
           <div class="rev"><span class="stars">★★★★★</span>"My son loves these sweatshirts!"<span class="who">Lindsey C. · verified</span></div>
         </div>
       </div>
+
       <div class="sec ice">
-        <div><span class="eb">The full kit</span><h3 class="D D2" style="margin-top:8px">Dress like you mean it.</h3></div>
-        <div class="kit">
-          <div class="pc"><div class="im"><img src="img/pm-glacier.jpg" alt=""></div><div class="tl"><span>Playmaker Hoodie</span><span>$79</span></div></div>
-          <div class="pc"><div class="im"><img src="img/pj.jpg" alt=""></div><div class="tl"><span>Playmaker Jogger</span><span>$78</span></div></div>
-          <div class="pc"><div class="im"><img src="img/beanie-grey.jpg" alt=""><span class="tag g">Free</span></div><div class="tl"><span>Player Beanie</span><span><s class="mut">$30</s> $0</span></div></div>
-          <div style="display:flex;flex-direction:column;gap:12px"><span class="D D3">$157 for all three</span><span class="mut">Clears free shipping. The beanie's on us until Nov 25.</span><span class="btn" style="align-self:flex-start">Add the kit</span></div>
+        <div class="colhead"><h3 class="D D3">You might also like</h3></div>
+        <div class="g4">
+          <div class="pc"><div class="im"><img src="img/ba-ash.jpg" alt=""><span class="qa">+</span></div><div class="tl"><span>Breakaway Hoodie</span><span>$79</span></div><div class="ft">The soft one</div></div>
+          <div class="pc"><div class="im"><img src="img/pj.jpg" alt=""><span class="qa">+</span></div><div class="tl"><span>Playmaker Jogger</span><span>$78</span></div><div class="ft">Matches your hoodie</div></div>
+          <div class="pc"><div class="im"><img src="img/ypm.jpg" alt=""><span class="qa">+</span></div><div class="tl"><span>Youth Playmaker</span><span>$79</span></div><div class="ft">Same hoodie, kid sizes</div></div>
+          <div class="pc"><div class="im"><img src="img/beanie-grey.jpg" alt=""><span class="tag g">Free w/ hoodie</span><span class="qa">+</span></div><div class="tl"><span>Player Beanie</span><span>$30</span></div><div class="ft">Grey or White</div></div>
         </div>
       </div>
+
       <div class="sec">
-        <span class="eb">Questions</span>
-        <div class="faq">
-          <div><b>Will it get here by Christmas? <span>–</span></b><p>Order by Dec 17 and it gets there with standard shipping. [Rob: ship days]</p></div>
-          <div><b>Can they swap the size? <span>+</span></b></div>
-          <div><b>Does it shrink? <span>+</span></b></div>
-          <div><b>Playmaker or Breakaway? <span>+</span></b></div>
-          <div><b>How do I wash it? <span>+</span></b></div>
+        <span class="eb">When you tap "Find my size" (pops up, from the bottom on phones)</span>
+        <div class="sheet">
+          <div><h3 class="D D3">Find your size</h3><span class="mut">Two questions. No tape measure.</span>
+            <div class="q2"><b>How tall are you?</b><div class="chips"><span class="chip">Under 5'8"</span><span class="chip on">5'8" to 6'0"</span><span class="chip">6'1"+</span></div></div>
+            <div class="q2"><b>How do you like it?</b><div class="chips"><span class="chip on">Fitted</span><span class="chip">Roomy</span></div></div>
+            <div class="ans">Go with <b>M</b>. Most people your height wear M.</div></div>
+          <div><table class="sizetbl"><tr><th>Size</th><th>Chest</th><th>Length</th></tr><tr><td>S</td><td>[Rob's chart]</td><td>[ ]</td></tr><tr><td>M</td><td>[ ]</td><td>[ ]</td></tr><tr><td>L</td><td>[ ]</td><td>[ ]</td></tr><tr><td>XL</td><td>[ ]</td><td>[ ]</td></tr><tr><td>2XL</td><td>[ ]</td><td>[ ]</td></tr></table><span class="mut" style="font-size:12px">Youth sizes by age go here too. Needs Rob's size chart.</span></div>
         </div>
       </div>
-      <div class="hero blk" style="min-height:300px"><div class="tx"><span class="eb" style="color:#BC955C">Why Yak exists</span><h3 class="D D2">A 12-year-old and his dad built a better hockey bag.</h3><p class="sub">The hoodies came later. The attitude came with them.</p><span class="btn w" style="align-self:flex-start">Our story</span></div><div class="ph"><img src="img/rack2.jpg" alt=""></div></div>
     </div></div></div></div>
   </div>
 </section>

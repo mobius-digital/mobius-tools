@@ -4789,6 +4789,9 @@ team presses Reopen.
   (a full document with `<meta charset="utf-8">`), body `data-review-act="brand_x" data-review-slug="..." data-review-title="..."`,
   `<script src="../../review-kit.js?v=N">` at the end, and add an entry (act, slug, title, path, sections) to
   `profit/reviews/index.json`. Nothing in the worker names a brand.
+  Easiest: `node profit/reviews/sync-review.mjs "<source folder>" <brand-folder> <slug> <brand id> "<title>"` does all of
+  it (mirrors the folder, wraps the HTML, rewrites the index line) and is safe to re-run whenever the source is edited.
+  Yak: source is `C:/Users/wetzl/Mobius Digital/Yak Sports/Site Review`, args `yak site-rebuild brand_yak_sports "Site rebuild"`.
 - **Two ways in**, like the Your ads page: `?t=<token>` with no login (minted once by Copy link, POST /api/site-review/link,
   team only), or a Locus sign-in on the same browser (pf_token): a client login of that brand passes brandguard's
   three rules (GET /api/site-review, PUT /answer, POST /send); the list, link, reopen and DELETE /answers are team only.
