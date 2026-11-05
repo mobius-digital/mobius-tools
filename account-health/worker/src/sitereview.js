@@ -118,7 +118,7 @@ async function saveAnswer(env, act, slug, b, who) {
   return { ok: true };
 }
 
-async function send(env, act, slug, b, who, slackPost) {
+async function send(env, act, slug, b, who, slackPost, slackApi) {
   let r = await row(env, act, slug);
   if (r?.sent_at) return { status: 409, error: 'This review was already sent.' };
   r = await upsert(env, act, slug, b);
@@ -145,9 +145,14 @@ async function send(env, act, slug, b, who, slackPost) {
     ...(overall ? [`Overall: "${sl(overall).replace(/\s*\n+\s*/g, ' / ')}"`] : []),
     `In Locus: Clients > Requests (${sl(brand)})`,
   ].join('\n');
-  let slack = true;
-  try { await slackPost(env, COLE_SLACK, text, null, { username: 'Locus' }); } catch { slack = false; }
-  return { ok: true, sent_at: at, approved: ok, changes: ch, open, slack };
+  /* A DM from the Locus bot: open the conversation first (a bare user id does not reliably land). */
+  let slack = true, slack_error = null;
+  try {
+    const o = await slackApi(env, 'conversations.open', { users: COLE_SLACK });
+    if (!o?.ok) throw new Error(`conversations.open: ${o?.error || 'failed'}`);
+    await slackPost(env, o.channel.id, text, null, { username: 'Locus' });
+  } catch (e) { slack = false; slack_error = String(e.message || e).slice(0, 160); }
+  return { ok: true, sent_at: at, approved: ok, changes: ch, open, slack, ...(slack_error ? { slack_error } : {}) };
 }
 
 /** Returns a Response for a site-review route, or null. */
@@ -166,7 +171,7 @@ export async function handleSiteReview(request, env, url, path, json, d) {
     if (!tm[2] && m === 'GET') return json(await view(env, r, r.act_id, r.slug, false));
     const b = await body();
     if (tm[2] === '/answer' && m === 'PUT') return done(await saveAnswer(env, r.act_id, r.slug, b, b.who));
-    if (tm[2] === '/send' && m === 'POST') return done(await send(env, r.act_id, r.slug, b, b.who, d.slackPost));
+    if (tm[2] === '/send' && m === 'POST') return done(await send(env, r.act_id, r.slug, b, b.who, d.slackPost, d.slackApi));
     return json({ error: 'not found' }, 404);
   }
 
@@ -191,7 +196,7 @@ export async function handleSiteReview(request, env, url, path, json, d) {
   if (!SLUG.test(slug)) return json({ error: 'slug is required' }, 400);
   if (path === '/api/site-review' && m === 'GET') return json(await view(env, await row(env, act, slug), act, slug, team));
   if (path === '/api/site-review/answer' && m === 'PUT') return done(await saveAnswer(env, act, slug, q, await whoOf()));
-  if (path === '/api/site-review/send' && m === 'POST') return done(await send(env, act, slug, q, await whoOf(), d.slackPost));
+  if (path === '/api/site-review/send' && m === 'POST') return done(await send(env, act, slug, q, await whoOf(), d.slackPost, d.slackApi));
 
   if (!team) return json({ error: 'unauthorized' }, 401);
   if (path === '/api/site-review/link' && m === 'POST') {

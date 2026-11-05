@@ -52,6 +52,7 @@
     .rk-sheet .row .rk-b{flex:1;justify-content:center}
     .rk-h .rk-b{flex:1;justify-content:center}
   }
+  .rk[hidden],.rk-end[hidden],.rk-b[hidden]{display:none!important}
   @keyframes rkup{from{transform:translateY(100%)}to{transform:none}}`;
   document.head.appendChild(css);
 
@@ -159,7 +160,7 @@
       SENT = { at: r.sent_at, by: NAME || '' }; OVERALL = end.querySelector('textarea').value; paintAll();
       end.scrollIntoView({ behavior: 'smooth', block: 'center' });
     } catch (e) { err.textContent = e.message; }
-    btn.disabled = false; btn.textContent = 'Send my review';
+    btn.disabled = false; btn.textContent = 'Send my review'; btn.hidden = !!SENT;
   };
   end.querySelector('[data-send]').onclick = doSend;
 

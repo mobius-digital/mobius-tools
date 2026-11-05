@@ -63,7 +63,7 @@ const EMPTY = mint('empty@alpha.com'), GUEST = mint('guest@outside.com'), STRANG
 const FORGED_DEV = mint('cole@go-mobius-digital.com', 'dev');
 
 const realFetch = globalThis.fetch;
-const mails = [], slackSent = [];
+const mails = [], slackSent = [], slackOpened = [];
 /* The model, when a check sets it: body -> the Messages API answer. */
 const MOCK = { anthropic: null };
 globalThis.fetch = async (url, init = {}) => {
@@ -73,6 +73,7 @@ globalThis.fetch = async (url, init = {}) => {
     return new Response(JSON.stringify({ aud: 'cid', email, email_verified: 'true' }), { status: 200 });
   }
   if (u.startsWith('https://oauth2.googleapis.com/token')) return new Response(JSON.stringify({ access_token: 'gtok', expires_in: 3600 }), { status: 200 });
+  if (u.startsWith('https://slack.com/api/conversations.open')) { slackOpened.push(String(init.body || '')); return new Response(JSON.stringify({ ok: true, channel: { id: 'D0COLEDM1' } }), { status: 200 }); }
   if (u.startsWith('https://slack.com/api/chat.postMessage')) { slackSent.push(JSON.parse(init.body)); return new Response(JSON.stringify({ ok: true, ts: '1.1' }), { status: 200 }); }
   if (u.includes('gmail/v1/users/me/messages/send')) { mails.push(JSON.parse(init.body)); return new Response('{}', { status: 200 }); }
   if (u.startsWith('https://api.anthropic.com/') && MOCK.anthropic) return new Response(JSON.stringify({ model: 'claude-opus-5-5', ...MOCK.anthropic(JSON.parse(init.body)) }), { status: 200 });
@@ -806,10 +807,11 @@ await check('site reviews: a client answers and sends its own brand only; the to
   const pub = await ah(null, 'GET', `/api/site-review/t/${tok}`);
   assert.equal(pub.status, 200); assert.equal(pub.j.answers.length, 2); assert.equal(pub.j.link, undefined, 'the public view has no link field');
   assert.equal((await ah(null, 'GET', `/api/site-review/t/${'0'.repeat(32)}`)).status, 404);
-  slackSent.length = 0;
+  slackSent.length = 0; ahEnv.SLACK_BOT_TOKEN = 'xoxb-test';
   const sent = await ah(null, 'POST', `/api/site-review/t/${tok}/send`, { overall: 'Looks good', who: 'Rob' });
   assert.equal(sent.status, 200); assert.equal(sent.j.approved, 1); assert.equal(sent.j.changes, 1);
-  assert.equal(slackSent.length, 1); assert.equal(slackSent[0].channel, 'U06C37MDWD7', 'a DM to Cole, never a client channel');
+  assert.equal(slackSent.length, 1); delete ahEnv.SLACK_BOT_TOKEN;
+  assert.equal(slackSent[0].channel, 'D0COLEDM1', 'posted into the DM it opened'); assert.ok(slackOpened.some(b => b.includes('U06C37MDWD7')), 'a DM to Cole, never a client channel'); assert.equal(sent.j.slack, true);
   assert.ok(!slackSent[0].text.includes('<!channel>'), 'notes are escaped'); assert.ok(!/—/.test(slackSent[0].text));
   assert.equal((await ah(null, 'PUT', `/api/site-review/t/${tok}/answer`, { section: 'home', status: 'changes' })).status, 409, 'locked once sent');
   const list = await ah(OWNER, 'GET', '/api/site-review/list?act=brand_alpha');
