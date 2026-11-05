@@ -21,7 +21,7 @@
   const n1 = n => String(Math.round((+n || 0) * 10) / 10);
   const ago = iso => { if (!iso) return 'never'; const h = (Date.now() - Date.parse(iso)) / 36e5; return h < 1 ? 'just now' : h < 24 ? `${Math.round(h)}h ago` : `${Math.round(h / 24)}d ago`; };
   /* Briefs = the creator link page (page id amb), opened as its own page; the shell draws this same switch above it. */
-  const VIEWS = () => (CL() ? [['live', 'Live'], ['creators', 'Creators'], ['briefs', 'Briefs']] : [['queue', 'Queue'], ['live', 'Live'], ['creators', 'Creators'], ['briefs', 'Briefs'], ['rules', 'Rules']]);
+  const VIEWS = () => (CL() ? [['live', 'Live'], ['creators', 'Creators'], ['briefs', 'Briefs']] : [['queue', 'Queue'], ['live', 'Live'], ['creators', 'Creators'], ['discord', 'Discord'], ['briefs', 'Briefs'], ['rules', 'Rules']]);
   const STATE = { not_launched: ['Not launched', 'bad'], no_spend: ['Launched, no spend yet', 'warn'], scheduled: ['Scheduled', ''], review: ['In Meta review', ''], rejected: ['Rejected by Meta', 'bad'], off: ['In Meta, turned off', ''] };
 
   function css() {
@@ -113,11 +113,12 @@
     const c = d.counts;
     const badge = { queue: c.not_launched, live: c.live, creators: c.creators };
     const seg = `<div class="v2jobs tb-seg" role="tablist">${VIEWS().map(([id, label]) => `<button type="button" role="tab" data-tbv="${id}" class="${VIEW === id ? 'on' : ''}" aria-selected="${VIEW === id}">${label}${badge[id] != null ? ` (${badge[id]})` : ''}</button>`).join('')}</div>`;
-    const body = VIEW === 'queue' ? queue() : VIEW === 'live' ? live() : VIEW === 'creators' ? creators() : rules();
+    const body = VIEW === 'queue' ? queue() : VIEW === 'live' ? live() : VIEW === 'creators' ? creators() : VIEW === 'discord' ? '<section class="v2card" id="tbDc"><p class="v2hint">Reading the Discord…</p></section>' : rules();
     const meta = `<p class="tb-meta">Updated ${esc(ago(d.synced_at))}. ${CL() ? '' : 'Locus reads Trybe and Meta once a day; press Update for now. '}Sales and revenue are Triple Whale, spend is Meta, last ${d.account.days} days.</p>`;
     $('#main').innerHTML = shell(`${meta}${top()}${seg}${body}`);
     if (H.pageActions) H.pageActions(CL() ? '' : `<button type="button" class="btn" id="tbSync">Update</button>${d.portal ? `<a class="btn primary" id="tbOpen" href="${esc(d.portal)}" target="_blank" rel="noopener">Launch in Trybe</a>` : ''}`);
     wire();
+    if (VIEW === 'discord') discordView();
     if (keepFocus) { const el = document.getElementById(keepFocus); if (el) { el.focus(); try { el.setSelectionRange(el.value.length, el.value.length); } catch {} } }
   }
 
@@ -133,6 +134,40 @@
     t.push(tile('Live videos', c.live, `${c.creators} creator${c.creators === 1 ? '' : 's'}`));
     if (!CL()) t.push(tile('Ask for more', c.rebook, 'winners gone quiet', c.rebook ? 'good' : ''));
     return `<div class="tb-top">${t.join('')}</div>`;
+  }
+
+  /* ---- Discord (2026-11-05): who is waiting on an answer, what each channel did this week, what posts next, and a box
+     to post as the brand's mascot. Reads profit /api/amb/discord/recap; posting uses /api/amb/discord/post. ---- */
+  async function discordView() {
+    const box = document.getElementById('tbDc'); if (!box) return;
+    const act = H.S.act;
+    let r;
+    try { r = await H.api('/api/amb/discord/recap?act=' + encodeURIComponent(act)); if (r && r.error) throw new Error(r.error); }
+    catch (e) { box.innerHTML = `<h3>Discord</h3><p class="v2hint">${esc(/server first|Pick this brand/i.test(e.message) ? 'This brand has no creator Discord yet. Build one in Briefs, Start here, Creator Discord.' : e.message)}</p>`; return; }
+    const when = iso => iso ? new Date(iso).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+    const wait = r.waiting.length ? r.waiting.map(w => `<div class="tb-mini"><div></div><div><div><b>${esc(w.who)}</b> in #${esc(w.channel)}${w.files ? `, ${w.files} file${w.files === 1 ? '' : 's'}` : ''}</div><div class="tb-sub">${esc(w.text || '(no text)')}</div></div><div style="text-align:right"><a class="v2btn ghost" href="${esc(w.link)}" target="_blank" rel="noopener">Answer</a><div class="tb-sub">${esc(when(w.at))}</div></div></div>`).join('') : '<p class="v2hint">Nobody is waiting on an answer.</p>';
+    const ch = r.channels.map(c => `<tr><td>#${esc(c.name)}</td><td class="num" data-l="Creator messages, 7 days">${c.creator_messages_7d}</td><td class="num" data-l="Last message">${esc(c.last_at ? ago(c.last_at) : 'none')}</td></tr>`).join('');
+    const opts = ['announcements', 'this-week', 'winners', 'questions', 'vip'].map(c => `<option value="${c}">#${c}</option>`).join('');
+    box.innerHTML = `<div class="v2h"><h3>${esc(r.guild_name)}</h3><span class="cap">${r.members} member${r.members === 1 ? '' : 's'}, ${r.online} online</span></div>
+      <div class="tb-top">
+        <div class="v2card tb-stat ${r.waiting.length ? 'bad' : 'good'}"><span class="l">Waiting on an answer</span><b>${r.waiting.length}</b><span class="s">${r.waiting.length ? 'answer in Discord' : 'all answered'}</span></div>
+        <div class="v2card tb-stat"><span class="l">Next video set</span><b>${esc(r.next_posts.monday.slice(5))}</b><span class="s">Monday, posted by ${esc(r.look.mascot)}</span></div>
+        <div class="v2card tb-stat"><span class="l">Next winners post</span><b>${esc(r.next_posts.friday.slice(5))}</b><span class="s">Friday, if a creator video sold</span></div>
+      </div>
+      <h3 style="font-size:14px;margin:6px 0">Waiting on an answer</h3>${wait}
+      <h3 style="font-size:14px;margin:16px 0 6px">This week</h3><div class="v2tbl"><table><thead><tr><th>Channel</th><th class="num">Creator messages, 7 days</th><th class="num">Last message</th></tr></thead><tbody>${ch}</tbody></table></div>
+      <h3 style="font-size:14px;margin:16px 0 6px">Post as ${esc(r.look.mascot)}</h3>
+      <div class="tb-bar"><select id="tbDcCh" aria-label="Channel">${opts}</select></div>
+      <textarea id="tbDcTxt" rows="4" style="width:100%;padding:10px;border-radius:9px;border:1px solid var(--line);background:var(--panel,transparent);color:inherit;font:inherit" placeholder="What ${esc(r.look.mascot)} says. Goes out right away."></textarea>
+      <div class="tb-foot"><span class="v2hint">${r.invite ? `Invite link: <a href="${esc(r.invite)}" target="_blank" rel="noopener">${esc(r.invite)}</a>` : ''}</span><button type="button" class="v2btn" id="tbDcPost">Post it</button></div>`;
+    const btn = document.getElementById('tbDcPost');
+    btn.onclick = async () => {
+      const text = document.getElementById('tbDcTxt').value.trim(); if (!text) return toast('Write the message first');
+      btn.disabled = true;
+      try { const x = await H.api('/api/amb/discord/post', { method: 'POST', body: JSON.stringify({ act, channel: document.getElementById('tbDcCh').value, text }) }); if (x && x.error) throw new Error(x.error); toast('Posted'); document.getElementById('tbDcTxt').value = ''; }
+      catch (e) { toast(e.message); }
+      btn.disabled = false;
+    };
   }
 
   /* ---- the bar: search, filter, sort ---- */

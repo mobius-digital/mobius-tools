@@ -273,6 +273,26 @@ export async function handleDiscord(request, env, url, path, body, json, mustAcc
       if (body.pin) await dc(token, 'PUT', `/channels/${id}/pins/${m.id}`).catch(() => {});
       return json({ ok: true, id: m.id });
     }
+    /* The recap for Ads > Trybe > Discord (2026-11-05): members, activity per channel in the last 7 days, and creator
+       messages nobody on the team has answered yet (no later message from the owner, the bot, the mascot or a Team id). */
+    if (path === '/api/amb/discord/recap' && method === 'GET') {
+      const g = await dc(token, 'GET', `/guilds/${d.guild_id}?with_counts=true`);
+      const team = new Set([g.owner_id, ...(d.team_ids || [])].filter(Boolean));
+      const since = Date.now() - 7 * 864e5;
+      const chans = [], waiting = [];
+      for (const name of ['questions', 'feedback-before-upload', 'vip']) {
+        const id = (d.channels || {})[name]; if (!id) continue;
+        const rows = ((await dc(token, 'GET', `/channels/${id}/messages?limit=50`).catch(() => [])) || []).reverse();
+        const staff = m => m.webhook_id || m.author?.bot || team.has(m.author?.id);
+        let lastStaff = -1; rows.forEach((m, i) => { if (staff(m)) lastStaff = i; });
+        const recent = rows.filter(m => Date.parse(m.timestamp) >= since && !staff(m));
+        chans.push({ name, creator_messages_7d: recent.length, last_at: rows.length ? rows[rows.length - 1].timestamp : null });
+        rows.forEach((m, i) => { if (!staff(m) && i > lastStaff) waiting.push({ channel: name, who: m.author?.global_name || m.author?.username || 'Creator', text: String(m.content || '').slice(0, 300), files: (m.attachments || []).length, at: m.timestamp, link: `https://discord.com/channels/${d.guild_id}/${id}/${m.id}` }); });
+      }
+      const now = new Date(), next = dow => { const t = new Date(now); t.setUTCDate(t.getUTCDate() + ((dow - t.getUTCDay() + 7) % 7 || 7)); return t.toISOString().slice(0, 10); };
+      return json({ guild_name: g.name, members: Math.max(0, (+g.approximate_member_count || 0) - 2), online: +g.approximate_presence_count || 0, invite: d.invite || null, look: lookOf(d, b),
+        channels: chans, waiting: waiting.sort((x, y) => String(x.at).localeCompare(String(y.at))), next_posts: { monday: next(1), friday: next(5) }, built_at: d.built_at || null });
+    }
     if (path === '/api/amb/discord/vip' && method === 'POST') {
       const uid = String(body.user_id || '');
       if (!/^\d{15,22}$/.test(uid) || !d.roles?.vip) return json({ error: 'Give the member\'s user id, and build the server first.' }, 400);
