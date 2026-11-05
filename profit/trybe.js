@@ -21,7 +21,7 @@
   const n1 = n => String(Math.round((+n || 0) * 10) / 10);
   const ago = iso => { if (!iso) return 'never'; const h = (Date.now() - Date.parse(iso)) / 36e5; return h < 1 ? 'just now' : h < 24 ? `${Math.round(h)}h ago` : `${Math.round(h / 24)}d ago`; };
   /* Briefs = the creator link page (page id amb), opened as its own page; the shell draws this same switch above it. */
-  const VIEWS = () => (CL() ? [['live', 'Live'], ['creators', 'Creators'], ['briefs', 'Briefs']] : [['queue', 'Queue'], ['live', 'Live'], ['creators', 'Creators'], ['discord', 'Discord'], ['briefs', 'Briefs'], ['rules', 'Rules']]);
+  const VIEWS = () => (CL() ? [['live', 'Live'], ['creators', 'Creators'], ['briefs', 'Briefs']] : [['review', 'Review'], ['queue', 'Queue'], ['live', 'Live'], ['creators', 'Creators'], ['discord', 'Discord'], ['briefs', 'Briefs'], ['rules', 'Rules']]);
   const STATE = { not_launched: ['Not launched', 'bad'], no_spend: ['Launched, no spend yet', 'warn'], scheduled: ['Scheduled', ''], review: ['In Meta review', ''], rejected: ['Rejected by Meta', 'bad'], off: ['In Meta, turned off', ''] };
 
   function css() {
@@ -112,14 +112,15 @@
     if (H.S.act === 'brand_lucky_golf' && !CL()) return paintLucky();
     if (!d.has_key) { $('#main').innerHTML = shell(keyCard()); wire(); if (H.pageActions) H.pageActions(''); return; }
     const c = d.counts;
-    const badge = { queue: c.not_launched, live: c.live, creators: c.creators };
+    const badge = { review: c.pending, queue: c.not_launched, live: c.live, creators: c.creators };
     const seg = `<div class="v2jobs tb-seg" role="tablist">${VIEWS().map(([id, label]) => `<button type="button" role="tab" data-tbv="${id}" class="${VIEW === id ? 'on' : ''}" aria-selected="${VIEW === id}">${label}${badge[id] != null ? ` (${badge[id]})` : ''}</button>`).join('')}</div>`;
-    const body = VIEW === 'queue' ? queue() : VIEW === 'live' ? live() : VIEW === 'creators' ? creators() : VIEW === 'discord' ? '<section class="v2card" id="tbDc"><p class="v2hint">Reading the Discord…</p></section>' : rules();
+    const body = VIEW === 'queue' ? queue() : VIEW === 'live' ? live() : VIEW === 'creators' ? creators() : VIEW === 'discord' ? '<section class="v2card" id="tbDc"><p class="v2hint">Reading the Discord…</p></section>' : VIEW === 'review' ? '<section class="v2card" id="tbRv"><p class="v2hint">Getting the videos waiting in Trybe…</p></section>' : rules();
     const meta = `<p class="tb-meta">Updated ${esc(ago(d.synced_at))}. ${CL() ? '' : 'Locus reads Trybe and Meta once a day; press Update for now. '}Sales and revenue are Triple Whale, spend is Meta, last ${d.account.days} days.</p>`;
     $('#main').innerHTML = shell(`${meta}${top()}${seg}${body}`);
     if (H.pageActions) H.pageActions(CL() ? '' : `<button type="button" class="btn" id="tbSync">Update</button>${d.portal ? `<a class="btn primary" id="tbOpen" href="${esc(d.portal)}" target="_blank" rel="noopener">Launch in Trybe</a>` : ''}`);
     wire();
     if (VIEW === 'discord') discordView();
+    if (VIEW === 'review') reviewView();
     if (keepFocus) { const el = document.getElementById(keepFocus); if (el) { el.focus(); try { el.setSelectionRange(el.value.length, el.value.length); } catch {} } }
   }
 
@@ -135,6 +136,36 @@
     t.push(tile('Live videos', c.live, `${c.creators} creator${c.creators === 1 ? '' : 's'}`));
     if (!CL()) t.push(tile('Ask for more', c.rebook, 'winners gone quiet', c.rebook ? 'good' : ''));
     return `<div class="tb-top">${t.join('')}</div>`;
+  }
+
+  /* ---- Review (2026-11-05): the videos waiting in Trybe, approved or sent back from here (account-health /api/trybe/review).
+     Approving pays the creator for that video and notifies them, exactly like the button in Trybe. ---- */
+  async function reviewView() {
+    const box = document.getElementById('tbRv'); if (!box) return;
+    const act = H.S.act;
+    let r;
+    try { r = await H.apiAH('/api/trybe/review?act=' + encodeURIComponent(act)); if (r && r.error) throw new Error(r.error); }
+    catch (e) { box.innerHTML = `<p class="v2bad">${esc(e.message)}</p>`; return; }
+    const items = r.items || [];
+    box.innerHTML = `<div class="v2h"><h3>${items.length} video${items.length === 1 ? '' : 's'} waiting for review</h3><span class="cap">oldest first</span></div>
+      <p class="v2hint">Approve pays the creator for the video and tells them, the same as in Trybe. Changes and Reject send your note to the creator.</p>` +
+      (items.length ? items.map(v => `<div class="tb-mini" data-rid="${esc(v.id)}">${v.thumb ? `<button type="button" class="tb-th" data-rvplay="${esc(v.id)}" style="width:56px;height:84px;border:0;border-radius:8px;cursor:pointer;background:#000 center/cover no-repeat;background-image:url('${esc(v.thumb)}')" aria-label="Watch"></button>` : '<div></div>'}<div><div><b>${esc(v.creator)}</b> ${esc(v.product || '')}${v.angle ? ` · ${esc(v.angle)}` : ''}</div><div class="tb-sub">${esc(v.created_at ? ago(v.created_at) : '')}${v.line ? ` · "${esc(v.line)}"` : ''}</div><input class="tb-note" placeholder="Note to the creator" style="width:100%;margin-top:6px;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:transparent;color:inherit;font:inherit;font-size:13px"></div><div style="display:flex;flex-direction:column;gap:6px"><button type="button" class="v2btn" data-rd="approve">Approve</button><button type="button" class="v2btn ghost" data-rd="changes">Changes</button><button type="button" class="v2btn ghost" data-rd="reject">Reject</button></div></div>`).join('') : '<p class="v2hint">Nothing waiting.</p>');
+    box.querySelectorAll('[data-rvplay]').forEach(b => { b.onclick = () => watchSub(b.dataset.rvplay); });
+    box.querySelectorAll('[data-rd]').forEach(b => { b.onclick = async () => {
+      const row = b.closest('[data-rid]'); const comment = row.querySelector('.tb-note').value.trim();
+      if (b.dataset.rd === 'changes' && !comment) return toast('Say what to change');
+      row.querySelectorAll('button').forEach(x => { x.disabled = true; });
+      try { const x = await H.apiAH('/api/trybe/review', { method: 'POST', body: JSON.stringify({ act, id: row.dataset.rid, decision: b.dataset.rd, comment }) }); if (x && x.error) throw new Error(x.error); toast(b.dataset.rd === 'approve' ? 'Approved in Trybe' : 'Sent to the creator'); row.remove(); }
+      catch (e) { toast(e.message); row.querySelectorAll('button').forEach(x => { x.disabled = false; }); }
+    }; });
+  }
+  async function watchSub(sub) {
+    const w = pop(`<h3>Video</h3><div id="tbVid"><p class="v2hint">Getting the video from Trybe…</p></div>`, 'vid');
+    try {
+      const v = await H.apiAH(`/api/trybe/video?act=${encodeURIComponent(H.S.act)}&sub=${encodeURIComponent(sub)}`);
+      const box = w.querySelector('#tbVid'); if (!box) return;
+      box.innerHTML = !v.url ? '<p class="v2bad">Trybe has no file for this one.</p>' : v.media === 'image' ? `<img class="tb-img" alt="" src="${esc(v.url)}">` : `<video controls autoplay playsinline src="${esc(v.url)}"></video>`;
+    } catch (e) { const box = w.querySelector('#tbVid'); if (box) box.innerHTML = `<p class="v2bad">${esc(e.message)}</p>`; }
   }
 
   /* ---- Lucky (2026-11-05): Lucky's creators live in its own app. This view reads the app live and acts through it
