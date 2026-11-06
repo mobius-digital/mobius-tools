@@ -520,15 +520,15 @@
     const row = (j, btns) => `<div class="tb-job" data-job="${esc(j.id)}"><div style="flex:1;min-width:0"><div><b>${esc(j.title)}</b></div><div class="tb-sub">${esc(j.kind_label)}${j.detail && j.detail.why ? `. ${esc(j.detail.why)}` : ''}${j.result ? `. ${esc(j.result)}` : ''}</div></div>${btns}</div>`;
     const el = document.createElement('section');
     el.className = 'v2card';
-    el.innerHTML = `<div class="v2h"><h3>Jobs for Claude</h3><span class="cap">done in Chrome on Cole's computer, every hour on weekdays, 8am to 6pm, while the Claude app is open</span></div>
-      <p class="v2hint">Things with no button in Trybe's connection: moving a creator to VIP or back, Trybe chat messages, group chat posts, Build Ads. Yes means Claude does it on the next run.</p>
+    el.innerHTML = `<div class="v2h"><h3>Jobs for Claude</h3><span class="cap">done in Chrome on Cole's computer within a few minutes of a Yes, while it is on and logged in</span></div>
+      <p class="v2hint">Things with no button in Trybe's connection: moving a creator to VIP or back, Trybe chat messages, group chat posts, Build Ads. Yes means Claude does it within a few minutes.</p>
       ${waiting.length ? `<h3 style="font-size:14px;margin:8px 0 4px">Needs your yes (${waiting.length})</h3>${waiting.map(j => row(j, `<button type="button" class="v2btn ghost" data-jd="no">No</button><button type="button" class="v2btn" data-jd="yes">Yes</button>`)).join('')}` : '<p class="v2hint">Nothing waiting for your yes.</p>'}
       ${queued.length ? `<h3 style="font-size:14px;margin:12px 0 4px">Up next (${queued.length})</h3>${queued.map(j => row(j, '<span class="v2pill">approved</span>')).join('')}` : ''}
       ${done.length ? `<h3 style="font-size:14px;margin:12px 0 4px">Done lately</h3>${done.map(j => row(j, `<span class="v2pill ${j.status === 'done' ? 'good' : 'bad'}">${esc(j.status)}</span>`)).join('')}` : ''}`;
     if (waiting.length || queued.length) box.prepend(el); else box.append(el);   // empty card goes to the bottom, today's work first
     el.querySelectorAll('[data-jd]').forEach(b => { b.onclick = async () => {
       const id = b.closest('[data-job]').dataset.job; b.disabled = true;
-      try { const x = await H.apiAH('/api/trybe/jobs/decide', { method: 'POST', body: JSON.stringify({ id, yes: b.dataset.jd === 'yes' }) }); if (x && x.error) throw new Error(x.error); toast(b.dataset.jd === 'yes' ? 'Approved: Claude does it on the next run' : 'Declined'); b.closest('[data-job]').remove(); }
+      try { const x = await H.apiAH('/api/trybe/jobs/decide', { method: 'POST', body: JSON.stringify({ id, yes: b.dataset.jd === 'yes' }) }); if (x && x.error) throw new Error(x.error); toast(b.dataset.jd === 'yes' ? 'Approved: Claude does it within a few minutes' : 'Declined'); b.closest('[data-job]').remove(); }
       catch (e) { toast(e.message); b.disabled = false; }
     }; });
   }
@@ -688,7 +688,7 @@
           const x = await H.apiAH('/api/trybe/jobs', { method: 'POST', body: JSON.stringify({ act, kind: 'trybe_chat_send', approved: true, title: `Send ${name} a follow up in Trybe Chat`, detail: { creator: name, creator_id: row.dataset.cid, message: msg, chat: chat } }) });
           if (x && x.error) throw new Error(x.error);
           await H.apiAH('/api/trybe/followups/sent', { method: 'POST', body: JSON.stringify({ act, creator_id: row.dataset.cid }) });
-          toast('Queued: Claude sends it on the next run'); row.remove();
+          toast('Queued: Claude sends it within a few minutes'); row.remove();
         } catch (e) { toast(e.message); b.disabled = false; }
         return;
       }
