@@ -293,6 +293,44 @@
 
   /* ---- Discord (2026-11-05): who is waiting on an answer, what each channel did this week, what posts next, and a box
      to post as the brand's mascot. Reads profit /api/amb/discord/recap; posting uses /api/amb/discord/post. ---- */
+  /* Members (2026-11-06): the join link, who is in, VIP, what the daily check would do, the switch, the VIP bar and
+     the Discord sign-in secret (pasted here by Cole once; Locus never shows it again). */
+  async function membersPanel(box, act) {
+    let m;
+    try { m = await H.apiAH('/api/trybe/discord-members?act=' + encodeURIComponent(act)); if (m && m.error) throw new Error(m.error); }
+    catch (e) { return; }
+    const last = m.last || {};
+    const list = (arr, why) => (arr || []).map(r => `<li>${esc(r.name || 'A creator')}${why ? `: ${esc(r.why || why)}` : ''}${r.sales_60d != null ? ` <span class="tb-sub">($${r.sales_60d} in 60 days, ${r.approval}% approved)</span>` : ''}</li>`).join('');
+    const el = document.createElement('section');
+    el.className = 'tb-members';
+    el.innerHTML = `<h3 style="font-size:16px;margin:22px 0 6px">Members</h3>
+      <div class="tb-top">
+        <div class="v2card tb-stat"><span class="l">Joined</span><b>${m.joined}</b><span class="s">of ${m.roster ?? '?'} on the Trybe roster</span></div>
+        <div class="v2card tb-stat"><span class="l">VIP</span><b>${m.vip}</b><span class="s">at $${m.vip_bar} in sales over 60 days</span></div>
+        <div class="v2card tb-stat ${m.auto ? 'good' : ''}"><span class="l">Daily check</span><b>${m.auto ? 'On' : 'Off'}</b><span class="s">${m.auto ? 'roles and removals run daily' : 'shows what it would do, does nothing'}</span></div>
+      </div>
+      <p class="v2hint">Join link (send this, not the Discord invite): ${m.join_link ? `<a href="${esc(m.join_link)}" target="_blank" rel="noopener">${esc(m.join_link)}</a> <button type="button" class="v2btn ghost" id="tbJoinCopy">Copy</button>` : 'no hub yet'}</p>
+      ${m.oauth_ready ? '' : `<div class="v2card" style="padding:12px 14px;margin:8px 0"><b>One step for Cole: Discord sign-in</b>
+        <ol class="v2hint" style="margin:6px 0 8px;padding-left:18px"><li>Discord Developer Portal, the Locus app, OAuth2.</li><li>Redirects: add <code>https://mobius-account-health.mobius-digital.workers.dev/join/callback</code>, save.</li><li>Client Secret: Reset Secret, copy it, paste it here.</li></ol>
+        <div class="tb-foot"><input type="password" id="tbOauth" placeholder="Client Secret" aria-label="Discord client secret" style="flex:1;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:transparent;color:inherit;font:inherit"><button type="button" class="v2btn" id="tbOauthSave">Save</button></div></div>`}
+      ${last.today ? `<p class="v2hint">Last check ${esc(last.today)}${last.dry ? ' (dry run, nothing changed)' : ''}: ${last.remove?.length || 0} to remove, ${last.warn?.length || 0} to warn, ${last.vip_on?.length || 0} to VIP, ${last.vip_off?.length || 0} back to Core.</p>
+        ${last.remove?.length ? `<ul class="v2hint">${list(last.remove, 'remove')}</ul>` : ''}${last.vip_on?.length ? `<p class="v2hint">New VIP:</p><ul class="v2hint">${list(last.vip_on)}</ul>` : ''}` : ''}
+      <div class="tb-foot"><span class="v2hint">VIP bar $<input id="tbVipBar" type="number" min="50" step="50" value="${m.vip_bar}" style="width:90px;padding:4px 6px;border-radius:6px;border:1px solid var(--line);background:transparent;color:inherit;font:inherit"> in 60 days</span>
+        <button type="button" class="v2btn ghost" id="tbVipSave">Save bar</button><button type="button" class="v2btn ghost" id="tbDry">Run a dry check</button></div>`;
+    box.appendChild(el);
+    const $q = s => el.querySelector(s);
+    if ($q('#tbJoinCopy')) $q('#tbJoinCopy').onclick = async () => { try { await navigator.clipboard.writeText(m.join_link); toast('Copied'); } catch { toast(m.join_link); } };
+    if ($q('#tbOauthSave')) $q('#tbOauthSave').onclick = async () => {
+      const v = $q('#tbOauth').value.trim(); if (!v) return toast('Paste the Client Secret');
+      try { const x = await H.apiAH('/api/trybe/discord-oauth', { method: 'PUT', body: JSON.stringify({ secret: v }) }); if (x && x.error) throw new Error(x.error); toast('Saved'); $q('#tbOauth').value = ''; } catch (e) { toast(e.message); }
+    };
+    $q('#tbVipSave').onclick = async () => {
+      try { const x = await H.apiAH('/api/trybe/vip-bar', { method: 'PUT', body: JSON.stringify({ act, sales: +$q('#tbVipBar').value }) }); if (x && x.error) throw new Error(x.error); toast('VIP bar saved'); } catch (e) { toast(e.message); }
+    };
+    $q('#tbDry').onclick = async () => {
+      try { const x = await H.apiAH('/api/trybe/discord-sync?act=' + encodeURIComponent(act)); if (x && x.error) throw new Error(x.error); toast(`Dry check: ${x.remove?.length || 0} remove, ${x.warn?.length || 0} warn, ${x.vip_on?.length || 0} VIP`); } catch (e) { toast(e.message); }
+    };
+  }
   async function discordView() {
     const box = document.getElementById('tbDc'); if (!box) return;
     const act = H.S.act;
@@ -323,6 +361,7 @@
       catch (e) { toast(e.message); }
       btn.disabled = false;
     };
+    if (!CL()) membersPanel(box, act);
   }
 
   /* ---- the bar: search, filter, sort ---- */
