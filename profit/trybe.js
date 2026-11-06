@@ -9,7 +9,7 @@
  * Agency view lists every brand with a Trybe key. A client login reads Live and Creators for its own brand.
  * Data: account-health /api/trybe (src/trybe.js). Tokens only, no em dashes. */
 (() => {
-  let H = null, DATA = null, VIEW = 'queue';
+  let H = null, DATA = null, VIEW = 'review';   // the day starts with review (audit 2026-11-06)
   const UI = { queue: { q: '', f: 'not_launched', p: '', s: 'wait' }, live: { q: '', f: 'on', p: '', s: 'spend' }, creators: { q: '', f: 'all', s: 'revenue' } };
   const $ = s => document.querySelector(s);
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -485,7 +485,9 @@
       { who: 'owner', what: 'Scorecard, in the morning', how: 'This tab, Scorecard and queue, 15 minutes before the day starts. Which program is off goal, which has videos waiting. Not for the calls.' },
       { who: 'locus', what: 'Posts the week’s videos in every Discord', how: 'Morning, as each mascot, with the deal and the call time.' },
       { who: 'owner', what: 'Creator calls, 4:30 to 7:00', how: 'Grunk 4:30, Dartee 5:00, Ice & Gold 5:30, Party Patch 6:00, Lucky 6:30. Show the videos that sold (a brand, Live, sort by Most sales, press play), then this week’s set.' },
-      { who: 'owner', what: 'Record the calls', how: 'Upload unlisted to YouTube, paste the link in Briefs, Start here, recordings.' } ] },
+      { who: 'owner', what: 'Record the calls', how: 'Upload unlisted to YouTube, paste the link in Briefs, Start here, recordings.' },
+      { who: 'owner', what: 'Post Lucky’s Monday update', how: 'Lucky app, Staff, From the team: read the draft and tap Post. Locus posts the other brands itself; Lucky’s Friday post goes out on its own.' },
+      { who: 'strat', what: 'First Monday of the month: recuts', how: 'Ads, Trybe, a brand, Recuts. Tick up to 10 of last month’s best sellers, Add to the pipeline. Ravo has 5 days.' } ] },
     { d: 2, name: 'Tuesday', jobs: [
       { who: 'strat', what: 'Notes before upload', how: 'Reply in each Discord’s #feedback-before-upload.' } ] },
     { d: 3, name: 'Wednesday', jobs: [
@@ -496,7 +498,7 @@
     { d: 5, name: 'Friday', jobs: [
       { who: 'locus', what: 'Posts the winners in every Discord', how: 'Creator videos with a Triple Whale sale in the last 7 days, with the videos.' },
       { who: 'strat', what: 'Set next week’s videos', how: 'Ads, Trybe, Briefs, Start here: title, deal, 5 ideas. Lucky: the board in the Lucky app.' },
-      { who: 'owner', what: 'Pick VIPs', how: 'Creators whose videos sold move up. Tell Claude who, or invite them to the VIP program in Trybe.' } ] },
+      { who: 'owner', what: 'Pick VIPs', how: 'A brand, Discord, Members lists who passed the VIP bar. Once the daily check is on, Locus queues the Trybe move in Jobs for Claude: say Yes. Until then tell Claude who.' } ] },
     { d: 6, name: 'Saturday', jobs: [] },
     { d: 0, name: 'Sunday', jobs: [] },
   ];
@@ -518,12 +520,12 @@
     const row = (j, btns) => `<div class="tb-job" data-job="${esc(j.id)}"><div style="flex:1;min-width:0"><div><b>${esc(j.title)}</b></div><div class="tb-sub">${esc(j.kind_label)}${j.detail && j.detail.why ? `. ${esc(j.detail.why)}` : ''}${j.result ? `. ${esc(j.result)}` : ''}</div></div>${btns}</div>`;
     const el = document.createElement('section');
     el.className = 'v2card';
-    el.innerHTML = `<div class="v2h"><h3>Jobs for Claude</h3><span class="cap">done in Chrome on Cole's computer, weekdays 9:30 and 2:30</span></div>
+    el.innerHTML = `<div class="v2h"><h3>Jobs for Claude</h3><span class="cap">done in Chrome on Cole's computer, every hour on weekdays, 8am to 6pm, while the Claude app is open</span></div>
       <p class="v2hint">Things with no button in Trybe's connection: moving a creator to VIP or back, Trybe chat messages, group chat posts, Build Ads. Yes means Claude does it on the next run.</p>
       ${waiting.length ? `<h3 style="font-size:14px;margin:8px 0 4px">Needs your yes (${waiting.length})</h3>${waiting.map(j => row(j, `<button type="button" class="v2btn ghost" data-jd="no">No</button><button type="button" class="v2btn" data-jd="yes">Yes</button>`)).join('')}` : '<p class="v2hint">Nothing waiting for your yes.</p>'}
       ${queued.length ? `<h3 style="font-size:14px;margin:12px 0 4px">Up next (${queued.length})</h3>${queued.map(j => row(j, '<span class="v2pill">approved</span>')).join('')}` : ''}
       ${done.length ? `<h3 style="font-size:14px;margin:12px 0 4px">Done lately</h3>${done.map(j => row(j, `<span class="v2pill ${j.status === 'done' ? 'good' : 'bad'}">${esc(j.status)}</span>`)).join('')}` : ''}`;
-    box.prepend(el);
+    if (waiting.length || queued.length) box.prepend(el); else box.append(el);   // empty card goes to the bottom, today's work first
     el.querySelectorAll('[data-jd]').forEach(b => { b.onclick = async () => {
       const id = b.closest('[data-job]').dataset.job; b.disabled = true;
       try { const x = await H.apiAH('/api/trybe/jobs/decide', { method: 'POST', body: JSON.stringify({ id, yes: b.dataset.jd === 'yes' }) }); if (x && x.error) throw new Error(x.error); toast(b.dataset.jd === 'yes' ? 'Approved: Claude does it on the next run' : 'Declined'); b.closest('[data-job]').remove(); }
@@ -540,10 +542,10 @@
     const tag = r => `<span class="v2pill" title="${esc(ROLES[r][1])}">${esc(ROLES[r][0])}</span>`;
     const today = WEEK.find(x => x.d === w.dow) || WEEK[0];
     const dailyRows = DAILY.map(j => { const n = j.n ? tot(j.n) : null; return `<div class="tb-job"><div style="flex:1;min-width:0"><div><b>${esc(j.what)}</b> ${tag(j.who)}</div><div class="tb-sub">${esc(j.how)}</div>${n ? `<div class="tb-sub" style="margin-top:4px">${per(j.n)}</div>` : ''}</div>${n == null ? '' : `<div class="tb-job-n"><b class="${n ? 'tb-b' : 'tb-g'}">${n}</b><div class="tb-sub">${n ? 'to do' : 'clear'}</div></div>`}</div>`; }).join('');
-    const todayRows = today.jobs.length ? today.jobs.map(j => `<div class="tb-job"><div style="flex:1;min-width:0"><div><b>${esc(j.what)}</b> ${tag(j.who)}</div><div class="tb-sub">${esc(j.how)}</div></div></div>`).join('') : '<p class="v2hint">Nothing extra today. Just the daily four.</p>';
-    const cols = WEEK.filter(x => x.d >= 1 && x.d <= 5).map(x => `<div class="v2card tb-day${x.d === w.dow ? ' on' : ''}"><div style="font-weight:700;margin-bottom:6px">${esc(x.name)}${x.d === w.dow ? ' <span class="v2pill good">Today</span>' : ''}</div>${x.jobs.map(j => `<div style="margin:0 0 8px"><div style="font-size:13.5px">${esc(j.what)}</div><div class="tb-sub">${esc(ROLES[j.who][0])}</div></div>`).join('')}<div class="tb-sub" style="border-top:1px solid var(--line);padding-top:6px">Every day: review, Discord, samples, launch</div></div>`).join('');
+    const todayRows = today.jobs.length ? today.jobs.map(j => `<div class="tb-job"><div style="flex:1;min-width:0"><div><b>${esc(j.what)}</b> ${tag(j.who)}</div><div class="tb-sub">${esc(j.how)}</div></div></div>`).join('') : '<p class="v2hint">Nothing extra today. Just the daily five.</p>';
+    const cols = WEEK.filter(x => x.d >= 1 && x.d <= 5).map(x => `<div class="v2card tb-day${x.d === w.dow ? ' on' : ''}"><div style="font-weight:700;margin-bottom:6px">${esc(x.name)}${x.d === w.dow ? ' <span class="v2pill good">Today</span>' : ''}</div>${x.jobs.map(j => `<div style="margin:0 0 8px"><div style="font-size:13.5px">${esc(j.what)}</div><div class="tb-sub">${esc(ROLES[j.who][0])}</div></div>`).join('')}<div class="tb-sub" style="border-top:1px solid var(--line);padding-top:6px">Every day: review, Discord, samples, invites, launch</div></div>`).join('');
     const roles = Object.values(ROLES).map(([r, who]) => `<li><b>${esc(r)}</b>: ${esc(who)}</li>`).join('');
-    const disc = w.programs.filter(p => p.portal).map(p => `<a class="v2btn ghost" href="${esc(p.portal.replace('/brand?', '/brand/discovery?'))}" target="_blank" rel="noopener">${esc(p.name)}</a>`).join('');
+    const disc = w.programs.filter(p => p.portal && p.portal.includes('?b=')).map(p => `<a class="v2btn ghost" href="${esc(p.portal.replace('/brand?', '/brand/discovery?'))}" target="_blank" rel="noopener">${esc(p.name)}</a>`).join('');
     box.innerHTML = `<section class="v2card"><div class="v2h"><h3>Today, ${esc(today.name)}</h3><span class="cap">live from Trybe, the Lucky app and Discord</span></div>
         <h3 style="font-size:14px;margin:4px 0 6px">Every day</h3>${dailyRows}
         <h3 style="font-size:14px;margin:14px 0 6px">Also today</h3>${todayRows}</section>
