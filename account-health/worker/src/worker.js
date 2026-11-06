@@ -90,7 +90,7 @@ import { handleLaunch, refreshStatus as launchRefresh } from './launch.js';
 import { handleSiteReview } from './sitereview.js';
 import { handleBuyer, buyerPostTick, buyerSettings } from './buyerlist.js';
 import { buyerAITick } from './buyerai.js';
-import { handleTrybe, trybeTick } from './trybe.js';
+import { handleTrybe, trybeTick, handleTrybeJoin } from './trybe.js';
 import { handleLucky } from './lucky.js';
 import { dataTools } from './stratdata.js';
 import { extraTools } from './allwrite.js';
@@ -8019,6 +8019,11 @@ const AH_APP = {
 
     /* ---- Atria (the ideas bot reads Atria ad links): Connect / status / Disconnect are admin,
        the OAuth callback is public (the state it carries is the proof). See atria.js. ---- */
+    /* ---- Creator Discord join (trybe.js handleTrybeJoin): PUBLIC pages, Discord sign in + Trybe roster match ---- */
+    if (path.startsWith('/join/')) {
+      const r = await handleTrybeJoin(request, env, url, path, trybeDeps());
+      if (r) return r;
+    }
     /* ---- Studio videos: PUBLIC mp4 (24 random hex id), Range-aware; see studio-video.js ---- */
     if (path.startsWith('/studio-vid/')) {
       const r = await serveVideo(request, env, path);
