@@ -2444,7 +2444,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="leaks.js?v=11"></script>
 <script src="desk.js?v=39"></script>
 <script src="buyer.js?v=10"></script>
-<script src="trybe.js?v=14"></script>
+<script src="trybe.js?v=15"></script>
 <script src="agency.js?v=3"></script>
 <script src="calendar.js?v=15"></script>
 <script src="social.js?v=12"></script>
@@ -12445,7 +12445,7 @@ async function renderSettings() {
     const link = u => /^https?:\/\//.test(u || '') ? `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(u.replace(/^https?:\/\//, '').slice(0, 60))}</a>` : esc(u || '');
     const ICON = { meta: ['meta', '#0866FF'], tiktok: ['tiktok', '#000000'], google_ads: ['googleads', '#4285F4'], tw: ['/brand/logos/triplewhale.png'], shopify: ['shopify', '#95BF47'], asana: ['asana', '#F06A6A'], slack: ['slack', '#4A154B'],
       google: ['google', '#4285F4'], drive: ['googledrive', '#4285F4'], ga4: ['googleanalytics', '#E37400'], gsc: ['googlesearchconsole', '#458CF5'], frame: ['/brand/logos/frameio.svg'], klaviyo: ['klaviyo', '#1E1E1E'], attentive: [null, 'A', '#1A1A1A'],
-      atria: ['/brand/logos/atria.svg'], studio: ['openai', '#000'], canva: ['canva', '#00C4CC'], gemini: ['googlegemini', '#8E75FF'], downloader: [null, 'DL', '#647684'], stripe: ['stripe', '#635BFF'], lucky_app: [null, 'LG', '#2F7D4F'], anthropic: ['anthropic', '#C15F3C'] };
+      atria: ['/brand/logos/atria.svg'], studio: ['openai', '#000'], canva: ['canva', '#00C4CC'], gemini: ['googlegemini', '#8E75FF'], downloader: [null, 'DL', '#647684'], stripe: ['stripe', '#635BFF'], lucky_app: [null, 'LG', '#2F7D4F'], discord: ['discord', '#5865F2'], anthropic: ['anthropic', '#C15F3C'] };
     const logoKey = it => it.key === 'email' ? (it.tool === 'attentive' ? 'attentive' : 'klaviyo') : it.key;
     /* Real marks from profit/logos (icons.js logo()); the old CDN lookup stays as the fallback for a key with no file. */
     const logo = k => window.logoSrc && window.logoSrc(k) ? window.logo(k, 36) : logoCdn(k);
@@ -12558,9 +12558,11 @@ async function renderSettings() {
       const save = drawer.querySelector('#cnSave');
       if (save) save.onclick = async () => {
         const v = drawer.querySelector('#cnLink').value.trim();
-        save.disabled = true; msg(inp.secret ? `Checking with ${it.key === 'email' ? 'Klaviyo' : it.key === 'survey' ? (v.includes(':') ? 'KnoCommerce' : 'Fairing') : it.key === 'clarity' ? 'Clarity' : 'the service'}…` : 'Saving…');
+        save.disabled = true; msg(inp.secret ? `Checking with ${it.key === 'email' ? 'Klaviyo' : it.key === 'survey' ? (v.includes(':') ? 'KnoCommerce' : 'Fairing') : it.key === 'clarity' ? 'Clarity' : it.key === 'discord' ? 'Discord' : 'the service'}…` : 'Saving…');
         try {
-          if (inp.key === 'tw_shop' && !it.input) { const vv = v.toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, ''); await mApi(`/api/accounts/${b.act_id}`, { method: 'PUT', body: JSON.stringify({ tw_shop: vv }) }); }
+          if (!v) { msg('Paste it first.'); save.disabled = false; return; }
+          if (inp.route) await mApi(inp.route, { method: 'PUT', body: JSON.stringify({ [inp.key]: v }) });   // agency-wide (Discord sign-in): its own route, no brand
+          else if (inp.key === 'tw_shop' && !it.input) { const vv = v.toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, ''); await mApi(`/api/accounts/${b.act_id}`, { method: 'PUT', body: JSON.stringify({ tw_shop: vv }) }); }
           else await saveLink(b, { [inp.key]: v });
           close(); reopen();
         } catch (err) { msg(err.message); save.disabled = false; }

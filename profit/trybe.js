@@ -112,6 +112,21 @@
 .tb .tb-fu-g{margin-top:14px}.tb .tb-fu{padding:12px 0;border-top:1px solid var(--line);display:grid;gap:8px}
 .tb .tb-fu-who{display:flex;align-items:center;gap:4px 10px;flex-wrap:wrap}.tb .tb-fu-who .tb-av{margin:0}
 .tb .tb-fu-msg{min-height:96px}.tb .tb-fu-act a.v2btn{text-decoration:none}.tb .tb-fu-act{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.tb .tb-mem{margin-top:14px}
+.tb .tb-mem-note{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:10px 12px;border-radius:10px;background:var(--warn-bg,rgba(217,164,65,.12));color:var(--text,inherit);font-size:13.5px;margin:0 0 12px}
+.tb .tb-mem-join{display:flex;gap:10px;align-items:center;padding:8px 8px 8px 14px;border:1px solid var(--line);border-radius:12px;background:var(--panel-2,rgba(127,127,127,.06));margin:0 0 8px}
+.tb .tb-mem-join .l{font-size:11.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);flex:none}
+.tb .tb-mem-join code{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13.5px;background:none;padding:0}
+.tb .tb-mem-join .v2btn{flex:none}
+.tb .tb-stat b small{font-size:14px;font-weight:500;color:var(--muted);margin-left:4px}
+.tb .tb-mem-bar{display:block;height:5px;border-radius:3px;background:var(--panel-2,rgba(127,127,127,.15));overflow:hidden;margin-top:8px}.tb .tb-mem-bar i{display:block;height:100%;background:var(--good)}
+.tb .tb-mem-set{display:flex;gap:12px 24px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:12px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin:0 0 4px}
+.tb .tb-mem-sw{display:flex;gap:10px;align-items:flex-start;cursor:pointer;flex:1 1 320px;min-width:0}.tb .tb-mem-sw span{font-weight:600}.tb .tb-mem-sw small{display:block;font-weight:400;font-size:12.5px;color:var(--muted);margin-top:2px}
+.tb .tb-mem-vip{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.tb .tb-mem-vip>span:first-child{font-weight:600}
+.tb .tb-mem-in{display:inline-flex;align-items:center;gap:2px;border:1px solid var(--line);border-radius:8px;padding:0 0 0 10px}.tb .tb-mem-in input{width:80px;border:0;background:transparent;color:inherit;font:inherit;padding:7px 8px 7px 2px;font-variant-numeric:tabular-nums}
+.tb .tb-mem-h{display:flex;gap:10px;align-items:center;justify-content:space-between;margin:16px 0 8px}.tb .tb-mem-h h4{margin:0;font-size:14px}
+.tb .tb-mem-list{list-style:none;margin:0;padding:0}.tb .tb-mem-list li{display:grid;grid-template-columns:110px auto minmax(0,1fr);gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}.tb .tb-mem-list li .v2pill{justify-self:start}
+@media (max-width:640px){.tb .tb-mem-list li{grid-template-columns:auto minmax(0,1fr)}.tb .tb-mem-list li .tb-sub{grid-column:1 / -1;margin:0}.tb .tb-mem-join{flex-wrap:wrap}.tb .tb-mem-join code{flex-basis:100%;order:2}.tb .tb-mem-join .v2btn{order:3;width:100%;justify-content:center}}
 @media (max-width:900px){
   .tb .tb-top{grid-template-columns:repeat(2,minmax(0,1fr))}
   .tb .tb-row{grid-template-columns:54px minmax(0,1fr)}
@@ -295,40 +310,67 @@
      to post as the brand's mascot. Reads profit /api/amb/discord/recap; posting uses /api/amb/discord/post. ---- */
   /* Members (2026-11-06): the join link, who is in, VIP, what the daily check would do, the switch, the VIP bar and
      the Discord sign-in secret (pasted here by Cole once; Locus never shows it again). */
+  /* Redesigned 2026-11-06 (Cole: "super clunky"): one card. The join link with Copy, three stats (joined of the roster
+     with a bar, VIP, daily check), the two settings in one row, the last check as a short list, who is in. The Discord
+     sign-in secret is agency-wide and lives in Agency settings > Integrations > Discord sign-in; here only a one-line
+     notice with a button when it is missing. */
   async function membersPanel(box, act) {
     let m;
     try { m = await H.apiAH('/api/trybe/discord-members?act=' + encodeURIComponent(act)); if (m && m.error) throw new Error(m.error); }
     catch (e) { return; }
-    const last = m.last || {};
-    const list = (arr, why) => (arr || []).map(r => `<li>${esc(r.name || 'A creator')}${why ? `: ${esc(r.why || why)}` : ''}${r.sales_60d != null ? ` <span class="tb-sub">($${r.sales_60d} in 60 days, ${r.approval}% approved)</span>` : ''}</li>`).join('');
     const el = document.createElement('section');
-    el.className = 'tb-members';
-    el.innerHTML = `<h3 style="font-size:16px;margin:22px 0 6px">Members</h3>
-      <div class="tb-top">
-        <div class="v2card tb-stat"><span class="l">Joined</span><b>${m.joined}</b><span class="s">of ${m.roster ?? '?'} on the Trybe roster</span></div>
-        <div class="v2card tb-stat"><span class="l">VIP</span><b>${m.vip}</b><span class="s">at $${m.vip_bar} in sales over 60 days</span></div>
-        <div class="v2card tb-stat ${m.auto ? 'good' : ''}"><span class="l">Daily check</span><b>${m.auto ? 'On' : 'Off'}</b><span class="s">${m.auto ? 'roles and removals run daily' : 'shows what it would do, does nothing'}</span></div>
-      </div>
-      <p class="v2hint">Join link (send this, not the Discord invite): ${m.join_link ? `<a href="${esc(m.join_link)}" target="_blank" rel="noopener">${esc(m.join_link)}</a> <button type="button" class="v2btn ghost" id="tbJoinCopy">Copy</button>` : 'no hub yet'}</p>
-      ${m.oauth_ready ? '' : `<div class="v2card" style="padding:12px 14px;margin:8px 0"><b>One step for Cole: Discord sign-in</b>
-        <ol class="v2hint" style="margin:6px 0 8px;padding-left:18px"><li>Discord Developer Portal, the Locus app, OAuth2.</li><li>Redirects: add <code>https://mobius-account-health.mobius-digital.workers.dev/join/callback</code>, save.</li><li>Client Secret: Reset Secret, copy it, paste it here.</li></ol>
-        <div class="tb-foot"><input type="password" id="tbOauth" placeholder="Client Secret" aria-label="Discord client secret" style="flex:1;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:transparent;color:inherit;font:inherit"><button type="button" class="v2btn" id="tbOauthSave">Save</button></div></div>`}
-      ${last.today ? `<p class="v2hint">Last check ${esc(last.today)}${last.dry ? ' (dry run, nothing changed)' : ''}: ${last.remove?.length || 0} to remove, ${last.warn?.length || 0} to warn, ${last.vip_on?.length || 0} to VIP, ${last.vip_off?.length || 0} back to Core.</p>
-        ${last.remove?.length ? `<ul class="v2hint">${list(last.remove, 'remove')}</ul>` : ''}${last.vip_on?.length ? `<p class="v2hint">New VIP:</p><ul class="v2hint">${list(last.vip_on)}</ul>` : ''}` : ''}
-      <div class="tb-foot"><span class="v2hint">VIP bar $<input id="tbVipBar" type="number" min="50" step="50" value="${m.vip_bar}" style="width:90px;padding:4px 6px;border-radius:6px;border:1px solid var(--line);background:transparent;color:inherit;font:inherit"> in 60 days</span>
-        <button type="button" class="v2btn ghost" id="tbVipSave">Save bar</button><button type="button" class="v2btn ghost" id="tbDry">Run a dry check</button></div>`;
-    box.appendChild(el);
-    const $q = s => el.querySelector(s);
-    if ($q('#tbJoinCopy')) $q('#tbJoinCopy').onclick = async () => { try { await navigator.clipboard.writeText(m.join_link); toast('Copied'); } catch { toast(m.join_link); } };
-    if ($q('#tbOauthSave')) $q('#tbOauthSave').onclick = async () => {
-      const v = $q('#tbOauth').value.trim(); if (!v) return toast('Paste the Client Secret');
-      try { const x = await H.apiAH('/api/trybe/discord-oauth', { method: 'PUT', body: JSON.stringify({ secret: v }) }); if (x && x.error) throw new Error(x.error); toast('Saved'); $q('#tbOauth').value = ''; } catch (e) { toast(e.message); }
+    el.className = 'v2card tb-mem';
+    box.insertAdjacentElement('afterend', el);
+    const fmtDay = iso => iso ? new Date(String(iso).length === 10 ? iso + 'T12:00:00' : iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+    const GROUPS = [['remove', 'Remove', 'bad'], ['warn', 'Warn', 'warn'], ['vip_on', 'New VIP', 'good'], ['vip_off', 'Back to Core', '']];
+    const lastHtml = last => {
+      if (!last || !last.today) return '<p class="v2hint" style="margin:0">No check has run yet. Run a dry check to see what it would do.</p>';
+      const rows = GROUPS.flatMap(([k, label, cls]) => (last[k] || []).map(r => `<li><span class="v2pill ${cls}">${label}</span><b>${esc(r.name || 'A creator')}</b><span class="tb-sub">${esc(r.why || (r.sales_60d != null ? `$${r.sales_60d} in sales in 60 days, ${r.approval}% approved` : ''))}</span></li>`));
+      return `<p class="tb-sub" style="margin:0 0 6px">${esc(fmtDay(last.today))}${last.dry ? ', dry run: nothing was changed' : ''}</p>${rows.length ? `<ul class="tb-mem-list">${rows.join('')}</ul>` : '<p class="v2hint" style="margin:0">Nothing to change. Everyone is where they should be.</p>'}`;
     };
-    $q('#tbVipSave').onclick = async () => {
-      try { const x = await H.apiAH('/api/trybe/vip-bar', { method: 'PUT', body: JSON.stringify({ act, sales: +$q('#tbVipBar').value }) }); if (x && x.error) throw new Error(x.error); toast('VIP bar saved'); } catch (e) { toast(e.message); }
+    const paint = () => {
+      const roster = m.roster, share = roster ? Math.min(1, m.joined / roster) : null;
+      const people = (m.members || []).filter(r => !r.removed_at).sort((a, b) => (b.vip - a.vip) || String(a.name || '').localeCompare(String(b.name || '')));
+      el.innerHTML = `<div class="v2h"><h3>Members</h3><span class="cap">Trybe creators in the Discord</span></div>
+        ${m.oauth_ready ? '' : `<div class="tb-mem-note"><span>Discord sign-in is not set up, so the join link does not work yet.</span><button type="button" class="v2btn ghost" data-mem="setup">Set it up</button></div>`}
+        <div class="tb-mem-join"><span class="l">Join link</span>${m.join_link ? `<code>${esc(m.join_link)}</code><button type="button" class="v2btn" data-mem="copy">Copy</button>` : '<span class="tb-sub">This brand has no creator Discord yet.</span>'}</div>
+        <p class="tb-sub" style="margin:-4px 0 14px">Send this link to creators, not the Discord invite. It checks they are on the Trybe roster before letting them in.</p>
+        <div class="tb-top">
+          <div class="v2card tb-stat"><span class="l">Joined</span><b>${m.joined}${roster != null ? `<small> of ${roster}</small>` : ''}</b>${share != null ? `<span class="tb-mem-bar"><i style="width:${Math.round(share * 100)}%"></i></span>` : ''}<span class="s">${roster != null ? `${Math.round((share || 0) * 100)}% of the Trybe roster` : 'roster not readable'}</span></div>
+          <div class="v2card tb-stat"><span class="l">VIP</span><b>${m.vip}</b><span class="s">$${Number(m.vip_bar).toLocaleString('en-US')}+ in sales in 60 days</span></div>
+          <div class="v2card tb-stat ${m.auto ? 'good' : ''}"><span class="l">Daily check</span><b>${m.auto ? 'On' : 'Off'}</b><span class="s">${m.auto ? 'roles and removals run each day' : 'only shows what it would do'}</span></div>
+        </div>
+        <div class="tb-mem-set">
+          <label class="tb-mem-sw"><input type="checkbox" class="lx-sw" data-mem="auto"${m.auto ? ' checked' : ''}><span>Run the daily check<small>Every brand. Adds VIP roles, warns at 53 days, removes at 60 days with no video.</small></span></label>
+          <label class="tb-mem-vip"><span>VIP bar</span><span class="tb-mem-in">$<input type="number" min="50" step="50" value="${m.vip_bar}" data-mem="bar" aria-label="VIP bar in dollars"></span><span class="tb-sub">in 60 days</span><button type="button" class="v2btn ghost" data-mem="bar-save">Save</button></label>
+        </div>
+        <div class="tb-mem-h"><h4>Last check</h4><button type="button" class="v2btn ghost" data-mem="dry">Run a dry check</button></div>
+        <div data-mem="last">${lastHtml(m.last)}</div>
+        <div class="tb-mem-h"><h4>In the Discord (${people.length})</h4></div>
+        ${people.length ? `<div class="v2tbl"><table><thead><tr><th>Creator</th><th>Discord</th><th class="num">Joined</th></tr></thead><tbody>${people.map(r => `<tr><td>${esc(r.name || 'Creator')}${r.vip ? ' <span class="v2pill good">VIP</span>' : ''}</td><td class="tb-sub">${esc(r.username || '')}</td><td class="num">${esc(fmtDay(r.joined_at))}</td></tr>`).join('')}</tbody></table></div>` : '<p class="v2hint" style="margin:0">Nobody has joined through the link yet.</p>'}`;
     };
-    $q('#tbDry').onclick = async () => {
-      try { const x = await H.apiAH('/api/trybe/discord-sync?act=' + encodeURIComponent(act)); if (x && x.error) throw new Error(x.error); toast(`Dry check: ${x.remove?.length || 0} remove, ${x.warn?.length || 0} warn, ${x.vip_on?.length || 0} VIP`); } catch (e) { toast(e.message); }
+    paint();
+    el.onclick = async e => {
+      const t = e.target.closest('[data-mem]'); if (!t) return;
+      const k = t.dataset.mem;
+      if (k === 'copy') { try { await navigator.clipboard.writeText(m.join_link); toast('Copied'); } catch { toast(m.join_link); } }
+      else if (k === 'setup') { if (window.openAgencySettings) window.openAgencySettings('connections'); }
+      else if (k === 'bar-save') {
+        const v = +el.querySelector('[data-mem="bar"]').value; t.disabled = true;
+        try { const x = await H.apiAH('/api/trybe/vip-bar', { method: 'PUT', body: JSON.stringify({ act, sales: v }) }); if (x && x.error) throw new Error(x.error); m.vip_bar = x.vip_bar; toast('VIP bar saved'); paint(); } catch (er) { toast(er.message); t.disabled = false; }
+      } else if (k === 'dry') {
+        t.disabled = true; t.textContent = 'Checking…';
+        try { const x = await H.apiAH('/api/trybe/discord-sync?act=' + encodeURIComponent(act)); if (x && x.error) throw new Error(x.error); m.last = x; el.querySelector('[data-mem="last"]').innerHTML = lastHtml(x); }
+        catch (er) { toast(er.message); }
+        t.disabled = false; t.textContent = 'Run a dry check';
+      }
+    };
+    el.onchange = async e => {
+      const t = e.target.closest('[data-mem="auto"]'); if (!t) return;
+      const on = t.checked;
+      if (on && typeof window.confirmModal === 'function' && !(await window.confirmModal('Turn on the daily check?', 'For every brand: it adds and removes VIP roles, warns creators at 53 days and removes them at 60 days with no video.', 'Turn it on'))) { t.checked = false; return; }
+      try { const x = await H.apiAH('/api/trybe/discord-auto', { method: 'PUT', body: JSON.stringify({ act, on }) }); if (x && x.error) throw new Error(x.error); m.auto = on; toast(on ? 'Daily check on' : 'Daily check off'); paint(); }
+      catch (er) { toast(er.message); t.checked = !on; }
     };
   }
   async function discordView() {

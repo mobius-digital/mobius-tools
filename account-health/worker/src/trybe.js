@@ -1247,7 +1247,18 @@ export async function handleTrybe(request, env, url, path, json, h) {
     const b = request.method === 'GET' ? {} : await request.json().catch(() => ({}));
     { const jr = await jobRoutes(request, env, path, url, json, b, email); if (jr) return jr; }
     /* The Discord sign-in secret is agency-wide (one Discord app for every brand), so it needs no brand. */
-    if (path === '/api/trybe/discord-oauth' && request.method === 'PUT') { const sec = String(b.secret || '').trim(); if (sec.length < 20) return json({ error: 'Paste the Client Secret.' }, 400); await putSetting(env, 'discordOAuth', JSON.stringify({ client_id: String(b.client_id || '1567972923413631028'), secret: sec })); return json({ ok: true }); }
+    /* Shown and saved on Agency settings > Integrations > Discord (2026-11-06). Checked with Discord before it is kept
+       (a client_credentials grant only succeeds with the right secret); never returned. GET = connected or not. */
+    if (path === '/api/trybe/discord-oauth' && request.method === 'GET') { const c = await oauthCfg(env); return json({ connected: !!c.secret, client_id: c.client_id || DC_CLIENT_ID, redirect: `${JOIN_BASE}/join/callback`, saved_at: c.saved_at || null }); }
+    if (path === '/api/trybe/discord-oauth' && request.method === 'PUT') {
+      const sec = String(b.secret || '').trim(); if (sec.length < 20) return json({ error: 'Paste the Client Secret.' }, 400);
+      const cid = String(b.client_id || DC_CLIENT_ID);
+      const tr = await (d.xfetch || fetch)(`${DC_API}/oauth2/token`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: 'Basic ' + btoa(`${cid}:${sec}`) },
+        body: new URLSearchParams({ grant_type: 'client_credentials', scope: 'identify' }) }).catch(() => null);
+      if (tr && (tr.status === 401 || tr.status === 400)) { const t = await tr.json().catch(() => ({})); if (t.error === 'invalid_client' || tr.status === 401) return json({ error: 'Discord did not accept that secret. Reset it again in the Developer Portal and paste the new one.' }, 400); }
+      await putSetting(env, 'discordOAuth', JSON.stringify({ client_id: cid, secret: sec, saved_at: new Date().toISOString() }));
+      return json({ ok: true, connected: true });
+    }
     const act = await actOf(b.act || url.searchParams.get('act'));
     if (!allowed(act)) return json({ error: act ? 'You do not have access to this brand.' : 'No such brand.' }, act ? 403 : 404);
     if (path === '/api/trybe/key' && request.method === 'PUT') {
