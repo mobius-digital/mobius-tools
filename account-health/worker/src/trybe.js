@@ -764,6 +764,13 @@ export async function trybeTick(env, d, { force = false } = {}) {
     } catch (e) { out.errors.push(`${b.name}: ${e.message}`); }
   }
   out.discord = await discordWeekly(env, today, { d }).catch(e => ({ error: e.message }));
+  /* Discord members (2026-11-06): real run only when switched on, else a dry run so Locus can show what would happen. */
+  try {
+    const auto = (await getSetting(env, 'trybeDiscordAuto')) === 'on';
+    const acts = ((await env.DB.prepare(`SELECT act_id FROM p_br_doc WHERE line_id = '' AND key = 'discord' AND act_id != 'agency'`).all().catch(() => ({ results: [] }))).results || []).map(r => r.act_id);
+    out.discordSync = [];
+    for (const a of acts) out.discordSync.push(await trybeDiscordSync(env, d, a, { dry: !auto, today }).catch(e => ({ act: a, error: e.message })));
+  } catch (e) { out.discordSync = { error: e.message }; }
   await putSetting(env, 'trybeDay', today);
   return out;
 }
@@ -808,7 +815,7 @@ function pickTest(v, m) {
 }
 const med = a => { const s = a.filter(x => x != null && isFinite(x)).sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : null; };
 /** Last N days of every Trybe video of the brand: spend, sales (Triple Whale), and the delivery rates, best seller first. */
-export async function trybeRecutPicks(env, d, act, { days = 30, n = 10, today, all = false } = {}) {
+export async function trybeRecutPicks(env, d, act, { days = 30, n = 10, today, includeRecent = false } = {}) {
   await ensureTrybe(env);
   today = today || (d.centralDate ? d.centralDate() : new Date().toISOString().slice(0, 10));
   const from = addDays(today, -days);
@@ -840,7 +847,7 @@ export async function trybeRecutPicks(env, d, act, { days = 30, n = 10, today, a
   const m = { hook: med(all.map(v => v.hook)), hold: med(all.map(v => v.hold)), ctr: med(all.map(v => v.ctr)) };
   const goal = +((await env.DB.prepare(`SELECT target_cpa FROM brands WHERE id = ?1`).bind(act).first().catch(() => null))?.target_cpa) || null;
   const recent = s => s && s.at && daysBetween(String(s.at).slice(0, 10), today) < 60;
-  const picks = all.filter(v => v.orders > 0 && subs.get(v.trybe_id)?.sub_id && (all || !recent(sent.get(subs.get(v.trybe_id).sub_id))))
+  const picks = all.filter(v => v.orders > 0 && subs.get(v.trybe_id)?.sub_id && (includeRecent || !recent(sent.get(subs.get(v.trybe_id).sub_id))))
     .sort((a, z) => z.orders - a.orders || z.spend - a.spend).slice(0, n)
     .map(v => { const s = subs.get(v.trybe_id); const test = pickTest(v, m);
       return { sub_id: s.sub_id, trybe_id: v.trybe_id, creator: s.creator, product: shortProduct(s.product), thumb: s.thumb || null,
@@ -883,7 +890,7 @@ export async function trybeRecutBrief(env, d, act, subId, { test, note = '', why
   today = today || (d.centralDate ? d.centralDate() : new Date().toISOString().slice(0, 10));
   const own = await env.DB.prepare(`SELECT sub_id, trybe_id, creator, product FROM p_trybe_sub WHERE act_id = ?1 AND sub_id = ?2`).bind(act, subId).first();
   if (!own) throw new Error('No such video for this brand.');
-  const pk = (await trybeRecutPicks(env, d, act, { n: 200, today, all: true }).catch(() => ({ picks: [] }))).picks.find(p => p.sub_id === subId) || {};
+  const pk = (await trybeRecutPicks(env, d, act, { n: 200, today, includeRecent: true }).catch(() => ({ picks: [] }))).picks.find(p => p.sub_id === subId) || {};
   test = RECUT_TESTS[test] ? test : (pk.test || 'fresh');
   const T = RECUT_TESTS[test];
   const product = shortProduct(own.product) || 'the product';
@@ -922,6 +929,202 @@ export async function trybeRecutAnnounce(env, d, act, cards) {
 export async function trybeRecuts(env, act) {
   const rows = (await env.DB.prepare(`SELECT key, value FROM settings WHERE key LIKE ?1`).bind(`trybeRecut:${act}:%`).all().catch(() => ({ results: [] }))).results || [];
   return rows.map(r => ({ sub_id: r.key.split(':').pop(), ...(safeJson(r.value, {}) || {}) })).sort((a, z) => String(z.at).localeCompare(String(a.at)));
+}
+
+/* ---------- Discord join + daily sync (2026-11-06, Cole: "make sure it's automatic", "clean, not random") ----------
+   Creators join through a Locus link, not a plain Discord invite, so Locus knows which Discord account is which Trybe
+   creator. The page: Join with Discord (Discord sign in, scopes identify + guilds.join) -> "Find your Trybe profile"
+   (type your name as it shows on Trybe; Trybe's API gives no emails) -> pick your photo -> the bot adds them to the
+   brand's server. Only creators on the brand's live Trybe roster can finish; a profile can be claimed once.
+   Daily sync (off until Cole's yes, settings trybeDiscordAuto = 'on'; a dry run is always available):
+     left the Trybe program            -> removed from the server
+     no video submitted in 60 days     -> warned on day 53 (DM), removed on day 60; rejoin by submitting again
+     VIP milestone (TW sales of their videos in 60 days >= the brand's bar, and 50%+ approved) -> VIP role, Slack note
+     VIP with no approved video in 60 days -> back to Core (VIP role off)
+   Tables: p_dc_member (who is who), p_dc_join (sign-in in progress). Settings: discordOAuth {client_id, secret},
+   trybeVipBar:<act> (dollars), trybeDiscordAuto, trybeDiscordPlan:<act> (last run). */
+const DC_CLIENT_ID = '1567972923413631028';
+const JOIN_BASE = 'https://mobius-account-health.mobius-digital.workers.dev';
+const VIP_BAR = { brand_grunk_dolfer: 750, brand_dartee_golf: 1200, brand_ice_and_gold: 1500, brand_party_patch: 500 };
+const INACTIVE_DAYS = 60, WARN_DAYS = 53;
+async function ensureDcTables(env) {
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS p_dc_member (act_id TEXT, creator_id TEXT, discord_id TEXT, username TEXT, name TEXT, joined_at TEXT, vip INTEGER DEFAULT 0,
+    vip_at TEXT, warned_at TEXT, removed_at TEXT, reason TEXT, PRIMARY KEY (act_id, creator_id))`).run();
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS p_dc_join (state TEXT PRIMARY KEY, act_id TEXT, discord_id TEXT, username TEXT, token TEXT, created_at TEXT)`).run();
+}
+async function brandBySlug(env, slug) {
+  return env.DB.prepare(`SELECT act_id, slug, display_name FROM p_amb_brand WHERE slug = ?1`).bind(slug).first().catch(() => null);
+}
+async function oauthCfg(env) { return safeJson(await getSetting(env, 'discordOAuth'), null) || {}; }
+const pageHtml = (title, body, look = {}) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${hEsc(title)}</title>
+<style>:root{--c:${/^#[0-9a-f]{6}$/i.test(look.color || '') ? look.color : '#1f5c4a'}}*{box-sizing:border-box}body{margin:0;font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#f4f5f3;color:#16191b;display:grid;place-items:center;min-height:100vh;padding:20px}
+.card{background:#fff;border:1px solid #dcdfdc;border-radius:16px;padding:28px 24px;max-width:440px;width:100%;display:grid;gap:14px;text-align:center}.av{width:72px;height:72px;border-radius:50%;margin:0 auto;object-fit:cover;background:#eee}
+h1{font-size:22px;margin:0}p{margin:0;color:#5d6468}.btn{display:block;background:var(--c);color:#fff;text-decoration:none;font-weight:700;padding:13px 16px;border-radius:10px;border:0;font-size:16px;cursor:pointer;width:100%}
+.btn.dc{background:#5865F2}input{font:inherit;padding:12px;border:1px solid #cfd3cf;border-radius:10px;width:100%}.pick{display:grid;gap:8px}.who{display:flex;gap:12px;align-items:center;text-align:left;padding:10px;border:1px solid #dcdfdc;border-radius:12px;background:#fff;cursor:pointer;font:inherit;width:100%}
+.who img{width:44px;height:44px;border-radius:50%;object-fit:cover;background:#eee}.who b{display:block}.bad{color:#b4372b}.steps{font-size:13px;color:#8a9194}</style></head><body><main class="card">${body}</main></body></html>`;
+const html = (s, status = 200) => new Response(s, { status, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } });
+async function liveRoster(env, d, act) {
+  const k = await keyFor(env, act);
+  if (!k || !k.key) return null;
+  return (await pages(d, k.key, '/creators', {}, 10).catch(() => null));
+}
+/** Public pages: /join/<slug>, /join/callback, /join/find, /join/claim. */
+export async function handleTrybeJoin(request, env, url, path, d) {
+  if (!path.startsWith('/join/')) return null;
+  await ensureDcTables(env);
+  const cfg = await oauthCfg(env);
+  const redirect = `${JOIN_BASE}/join/callback`;
+  if (path === '/join/callback') {
+    const code = url.searchParams.get('code'), state = url.searchParams.get('state') || '';
+    const [slug] = state.split('.');
+    const b = await brandBySlug(env, slug);
+    if (!code || !b) return html(pageHtml('Join', '<h1>That link did not work</h1><p>Open the join link again from Trybe.</p>'), 400);
+    const tr = await fetch(`${DC_API}/oauth2/token`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ client_id: cfg.client_id || DC_CLIENT_ID, client_secret: cfg.secret || '', grant_type: 'authorization_code', code, redirect_uri: redirect }) });
+    const tok = await tr.json().catch(() => ({}));
+    if (!tok.access_token) return html(pageHtml('Join', '<h1>Discord did not let us in</h1><p>Try the join link again. If it keeps happening, message the team in Trybe.</p>'), 400);
+    const me = await (await fetch(`${DC_API}/users/@me`, { headers: { Authorization: `Bearer ${tok.access_token}` } })).json().catch(() => ({}));
+    await env.DB.prepare(`INSERT OR REPLACE INTO p_dc_join (state, act_id, discord_id, username, token, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)`)
+      .bind(state, b.act_id, me.id || null, me.username || null, tok.access_token, new Date().toISOString()).run();
+    const done = await env.DB.prepare(`SELECT creator_id FROM p_dc_member WHERE act_id = ?1 AND discord_id = ?2 AND removed_at IS NULL`).bind(b.act_id, me.id).first().catch(() => null);
+    if (done) return claimFinish(env, d, b, state, done.creator_id);
+    return html(pageHtml(`Join ${b.display_name}`, `<h1>Find your Trybe profile</h1><p>Type your name the way it shows on Trybe.</p>
+      <form method="get" action="/join/find"><input type="hidden" name="s" value="${hEsc(state)}"><input name="q" autofocus required placeholder="Your name on Trybe" aria-label="Your name on Trybe"><p style="margin-top:10px"><button class="btn">Find me</button></p></form>
+      <p class="steps">Step 2 of 3</p>`));
+  }
+  if (path === '/join/find') {
+    const state = url.searchParams.get('s') || '', q = String(url.searchParams.get('q') || '').toLowerCase().trim();
+    const j = await env.DB.prepare(`SELECT act_id FROM p_dc_join WHERE state = ?1`).bind(state).first().catch(() => null);
+    if (!j) return html(pageHtml('Join', '<h1>Start again</h1><p>Open the join link from Trybe.</p>'), 400);
+    const roster = (await liveRoster(env, d, j.act_id)) || [];
+    const words = q.split(/\s+/).filter(Boolean);
+    const hits = roster.filter(c => words.length && words.every(w => String(c.name || '').toLowerCase().includes(w))).slice(0, 6);
+    const list = hits.map(c => `<form method="post" action="/join/claim"><input type="hidden" name="s" value="${hEsc(state)}"><input type="hidden" name="c" value="${hEsc(c.id)}">
+      <button class="who"><img src="${hEsc(c.avatar_url || '')}" alt=""><span><b>${hEsc(c.name)}</b><span>That's me</span></span></button></form>`).join('');
+    return html(pageHtml('Find your profile', hits.length ? `<h1>Is this you?</h1><p>Tap your profile.</p><div class="pick">${list}</div><p><a href="/join/callback-retry?s=${encodeURIComponent(state)}">Not you? Search again</a></p><p class="steps">Step 3 of 3</p>`
+      : `<h1>We could not find you</h1><p>Use the exact name on your Trybe profile. You need to be accepted into the program on Trybe first.</p><form method="get" action="/join/find"><input type="hidden" name="s" value="${hEsc(state)}"><input name="q" required placeholder="Your name on Trybe" aria-label="Your name on Trybe"><p style="margin-top:10px"><button class="btn">Search again</button></p></form>`));
+  }
+  if (path === '/join/callback-retry') {
+    const state = url.searchParams.get('s') || '';
+    return html(pageHtml('Find your profile', `<h1>Find your Trybe profile</h1><form method="get" action="/join/find"><input type="hidden" name="s" value="${hEsc(state)}"><input name="q" required placeholder="Your name on Trybe" aria-label="Your name on Trybe"><p style="margin-top:10px"><button class="btn">Find me</button></p></form>`));
+  }
+  if (path === '/join/claim' && request.method === 'POST') {
+    const f = await request.formData();
+    const state = String(f.get('s') || ''), cid = String(f.get('c') || '');
+    const j = await env.DB.prepare(`SELECT act_id FROM p_dc_join WHERE state = ?1`).bind(state).first().catch(() => null);
+    const b = j ? await env.DB.prepare(`SELECT act_id, slug, display_name FROM p_amb_brand WHERE act_id = ?1`).bind(j.act_id).first() : null;
+    if (!b) return html(pageHtml('Join', '<h1>Start again</h1><p>Open the join link from Trybe.</p>'), 400);
+    return claimFinish(env, d, b, state, cid);
+  }
+  // /join/<slug>: the first page
+  const slug = path.slice('/join/'.length).replace(/\/$/, '');
+  const b = await brandBySlug(env, slug);
+  const dcd = b ? await dcDoc(env, b.act_id) : null;
+  if (!b || !dcd || !dcd.guild_id) return html(pageHtml('Join', '<h1>No creator Discord here yet</h1>'), 404);
+  const state = `${slug}.${crypto.randomUUID().replace(/-/g, '')}`;
+  const auth = `https://discord.com/oauth2/authorize?${new URLSearchParams({ client_id: cfg.client_id || DC_CLIENT_ID, response_type: 'code', redirect_uri: redirect, scope: 'identify guilds.join', state, prompt: 'none' })}`;
+  const look = dcd.look || {};
+  return html(pageHtml(`Join ${b.display_name} Creators`, `${/^https:/.test(look.avatar || '') ? `<img class="av" src="${hEsc(look.avatar)}" alt="">` : ''}<h1>${hEsc(b.display_name)} Creators</h1>
+    <p>The creator Discord: this week's videos to film, notes before you upload, the winners every Friday and the Monday call.</p>
+    <a class="btn dc" href="${hEsc(auth)}">Join with Discord</a><p class="steps">Step 1 of 3. For creators in the ${hEsc(b.display_name)} program on Trybe.</p>`, look));
+}
+async function claimFinish(env, d, b, state, cid) {
+  const j = await env.DB.prepare(`SELECT * FROM p_dc_join WHERE state = ?1`).bind(state).first().catch(() => null);
+  const dcd = await dcDoc(env, b.act_id); const tok = (await dcDoc(env, 'agency') || {}).token;
+  if (!j || !dcd || !tok) return html(pageHtml('Join', '<h1>Start again</h1><p>Open the join link from Trybe.</p>'), 400);
+  const roster = (await liveRoster(env, d, b.act_id)) || [];
+  const c = roster.find(x => x.id === cid);
+  if (!c) return html(pageHtml('Join', '<h1>Not on the roster</h1><p>You need to be accepted into the program on Trybe first.</p>'), 403);
+  const taken = await env.DB.prepare(`SELECT discord_id FROM p_dc_member WHERE act_id = ?1 AND creator_id = ?2 AND removed_at IS NULL`).bind(b.act_id, cid).first().catch(() => null);
+  if (taken && taken.discord_id !== j.discord_id) return html(pageHtml('Join', '<h1>That profile is already linked</h1><p>Message the team in Trybe and we will sort it.</p>'), 409);
+  const add = await fetch(`${DC_API}/guilds/${dcd.guild_id}/members/${j.discord_id}`, { method: 'PUT', headers: { Authorization: `Bot ${tok}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ access_token: j.token }) });
+  if (!add.ok && add.status !== 204) return html(pageHtml('Join', `<h1>Discord said no (${add.status})</h1><p>Try again in a minute. If it keeps happening, message the team in Trybe.</p>`), 502);
+  await env.DB.prepare(`INSERT INTO p_dc_member (act_id, creator_id, discord_id, username, name, joined_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+    ON CONFLICT(act_id, creator_id) DO UPDATE SET discord_id = excluded.discord_id, username = excluded.username, name = excluded.name, removed_at = NULL, reason = NULL, warned_at = NULL`)
+    .bind(b.act_id, cid, j.discord_id, j.username, c.name || null, new Date().toISOString()).run();
+  await env.DB.prepare(`DELETE FROM p_dc_join WHERE state = ?1`).bind(state).run();
+  const open = `https://discord.com/channels/${dcd.guild_id}`;
+  return html(pageHtml("You're in", `<h1>You're in, ${hEsc(firstName(c.name))}</h1><p>Start with #welcome. This week's videos are in #this-week.</p><a class="btn dc" href="${open}">Open Discord</a>`, dcd.look || {}));
+}
+async function dcCall(tok, method, p, body) {
+  const r = await fetch(`${DC_API}${p}`, { method, headers: { Authorization: `Bot ${tok}`, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  return r.ok || r.status === 204 || r.status === 404;
+}
+/** One brand's sync. dry = report only. */
+export async function trybeDiscordSync(env, d, act, { dry = true, today } = {}) {
+  await ensureDcTables(env);
+  today = today || (d.centralDate ? d.centralDate() : new Date().toISOString().slice(0, 10));
+  const dcd = await dcDoc(env, act); const tok = (await dcDoc(env, 'agency') || {}).token;
+  if (!dcd || !dcd.guild_id || !tok) return { act, skipped: 'no Discord server' };
+  const members = (await env.DB.prepare(`SELECT * FROM p_dc_member WHERE act_id = ?1 AND removed_at IS NULL`).bind(act).all()).results || [];
+  const roster = await liveRoster(env, d, act);
+  if (!roster) return { act, skipped: 'Trybe did not send the roster, nothing done' };
+  const onRoster = new Set(roster.map(c => c.id));
+  const subs = (await env.DB.prepare(`SELECT creator_id, trybe_id, status, created_at FROM p_trybe_sub WHERE act_id = ?1`).bind(act).all()).results || [];
+  const ads = (await env.DB.prepare(`SELECT ad_id, name FROM p_trybe_ad WHERE act_id = ?1`).bind(act).all()).results || [];
+  const from = addDays(today, -INACTIVE_DAYS);
+  const money = await creatorMoney(env, act, ads.map(a => String(a.ad_id)), from).catch(() => ({ byAd: new Map() }));
+  const revByAd = new Map();
+  if (ads.length) {
+    for (let i = 0; i < ads.length; i += 60) {
+      const chunk = ads.slice(i, i + 60).map(a => String(a.ad_id)); const ph = chunk.map((_, k) => `?${k + 2}`).join(', ');
+      const rows = (await env.DB.prepare(`SELECT ad_id, SUM(revenue) AS r FROM tw_ad_attr WHERE date >= ?1 AND ad_id IN (${ph}) AND act_id = ?${chunk.length + 2} AND model = ?${chunk.length + 3} AND (platform = 'meta' OR platform IS NULL) GROUP BY ad_id`)
+        .bind(from, ...chunk, act, ATTR_MODEL).all().catch(() => ({ results: [] }))).results || [];
+      for (const r of rows) revByAd.set(String(r.ad_id), +r.r || 0);
+    }
+  }
+  const tidToCreator = new Map(subs.map(s => [s.trybe_id, s.creator_id]));
+  const sales = new Map(), orders = new Map();
+  for (const a of ads) { const cr = tidToCreator.get(trybeIdOf(a.name)); if (!cr) continue; sales.set(cr, (sales.get(cr) || 0) + (revByAd.get(String(a.ad_id)) || 0)); orders.set(cr, (orders.get(cr) || 0) + ((money.byAd.get(String(a.ad_id)) || {}).orders || 0)); }
+  const bar = +(await getSetting(env, `trybeVipBar:${act}`)) || VIP_BAR[act] || 1000;
+  const out = { act, today, dry, bar, members: members.length, remove: [], warn: [], vip_on: [], vip_off: [], ok: 0 };
+  for (const m of members) {
+    const mine = subs.filter(s => s.creator_id === m.creator_id);
+    const last = mine.map(s => day(s.created_at)).filter(Boolean).sort().pop() || null;
+    const since = [last, day(m.joined_at)].filter(Boolean).sort().pop();
+    const idle = since ? daysBetween(since, today) : 0;
+    const decided = mine.filter(s => ['approved', 'rejected', 'revision_requested'].includes(s.status));
+    const rate = decided.length ? mine.filter(s => s.status === 'approved').length / decided.length : 0;
+    const lastApproved = mine.filter(s => s.status === 'approved').map(s => day(s.created_at)).sort().pop();
+    const row = { name: m.name, creator_id: m.creator_id, idle_days: idle, sales_60d: Math.round(sales.get(m.creator_id) || 0), orders_60d: Math.round(orders.get(m.creator_id) || 0), approval: Math.round(rate * 100) };
+    if (!onRoster.has(m.creator_id)) { out.remove.push({ ...row, why: 'left the Trybe program' }); if (!dry) { await dcCall(tok, 'DELETE', `/guilds/${dcd.guild_id}/members/${m.discord_id}`); await env.DB.prepare(`UPDATE p_dc_member SET removed_at = ?3, reason = 'left the program' WHERE act_id = ?1 AND creator_id = ?2`).bind(act, m.creator_id, today).run(); } continue; }
+    if (idle >= INACTIVE_DAYS) { out.remove.push({ ...row, why: `no video in ${idle} days` }); if (!dry) { await dcCall(tok, 'DELETE', `/guilds/${dcd.guild_id}/members/${m.discord_id}`); await env.DB.prepare(`UPDATE p_dc_member SET removed_at = ?3, reason = 'inactive' WHERE act_id = ?1 AND creator_id = ?2`).bind(act, m.creator_id, today).run(); } continue; }
+    if (idle >= WARN_DAYS && !m.warned_at) {
+      out.warn.push(row);
+      if (!dry) {
+        const ch = await fetch(`${DC_API}/users/@me/channels`, { method: 'POST', headers: { Authorization: `Bot ${tok}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ recipient_id: m.discord_id }) }).then(r => r.json()).catch(() => null);
+        if (ch && ch.id) await fetch(`${DC_API}/channels/${ch.id}/messages`, { method: 'POST', headers: { Authorization: `Bot ${tok}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: noDash(`Hey ${firstName(m.name)}, we haven't seen a new video from you in ${idle} days. Submit one on Trybe in the next week to keep your spot in the creator Discord. This week's ideas are in #this-week.`) }) }).catch(() => null);
+        await env.DB.prepare(`UPDATE p_dc_member SET warned_at = ?3 WHERE act_id = ?1 AND creator_id = ?2`).bind(act, m.creator_id, today).run();
+      }
+    }
+    if (idle < WARN_DAYS && m.warned_at && !dry) await env.DB.prepare(`UPDATE p_dc_member SET warned_at = NULL WHERE act_id = ?1 AND creator_id = ?2`).bind(act, m.creator_id).run();
+    const hits = (sales.get(m.creator_id) || 0) >= bar && rate >= 0.5;
+    if (hits && !m.vip && dcd.roles && dcd.roles.vip) {
+      out.vip_on.push(row);
+      if (!dry) { await dcCall(tok, 'PUT', `/guilds/${dcd.guild_id}/members/${m.discord_id}/roles/${dcd.roles.vip}`); await env.DB.prepare(`UPDATE p_dc_member SET vip = 1, vip_at = ?3 WHERE act_id = ?1 AND creator_id = ?2`).bind(act, m.creator_id, today).run(); }
+    } else if (m.vip && (!lastApproved || daysBetween(lastApproved, today) >= INACTIVE_DAYS) && dcd.roles && dcd.roles.vip) {
+      out.vip_off.push(row);
+      if (!dry) { await dcCall(tok, 'DELETE', `/guilds/${dcd.guild_id}/members/${m.discord_id}/roles/${dcd.roles.vip}`); await env.DB.prepare(`UPDATE p_dc_member SET vip = 0 WHERE act_id = ?1 AND creator_id = ?2`).bind(act, m.creator_id).run(); }
+    } else out.ok++;
+  }
+  if (!dry && out.vip_on.length && d.listBrands && d.slackPost) {
+    const brand = (await d.listBrands(env)).find(x => x.act_id === act);
+    if (brand && brand.slack_channel) await d.slackPost(env, brand.slack_channel, noDash(`New VIP creators (over $${bar} in sales from their videos in 60 days, 50%+ approved): ${out.vip_on.map(r => `${r.name} ($${r.sales_60d})`).join(', ')}. Discord VIP role is on. Next: invite them to the VIP program in Trybe and post the congrats in #announcements.`), null, { username: 'Locus' }).catch(() => null);
+  }
+  await putSetting(env, `trybeDiscordPlan:${act}`, JSON.stringify(out));
+  return out;
+}
+/** Everyone on the live roster with where they stand (for the launch list and Locus). */
+export async function trybeDiscordMembers(env, d, act) {
+  await ensureDcTables(env);
+  const members = (await env.DB.prepare(`SELECT * FROM p_dc_member WHERE act_id = ?1`).bind(act).all()).results || [];
+  const roster = await liveRoster(env, d, act);
+  const slug = (await env.DB.prepare(`SELECT slug FROM p_amb_brand WHERE act_id = ?1`).bind(act).first().catch(() => null))?.slug;
+  return { act, join_link: slug ? `${JOIN_BASE}/join/${slug}` : null, roster: roster ? roster.length : null, joined: members.filter(m => !m.removed_at).length,
+    vip: members.filter(m => m.vip && !m.removed_at).length, removed: members.filter(m => m.removed_at).length, members,
+    auto: (await getSetting(env, 'trybeDiscordAuto')) === 'on', vip_bar: +(await getSetting(env, `trybeVipBar:${act}`)) || VIP_BAR[act] || 1000,
+    oauth_ready: !!(await oauthCfg(env)).secret, last: safeJson(await getSetting(env, `trybeDiscordPlan:${act}`), null) };
 }
 
 /* ---------- routes ---------- */
@@ -1034,6 +1237,12 @@ export async function handleTrybe(request, env, url, path, json, h) {
       try { return json({ ok: true, ...(await trybeRecutBrief(env, d, act, sub, { test: b.test, note: b.note, why: b.why })) }); }
       catch (e) { return json({ error: e.message }, 400); }
     }
+    /* Discord join + sync (2026-11-06): members, a dry run or a real run, the switch, the VIP bar, the Discord sign-in secret. */
+    if (path === '/api/trybe/discord-members' && request.method === 'GET') return json(await trybeDiscordMembers(env, d, act));
+    if (path === '/api/trybe/discord-sync') return json(await trybeDiscordSync(env, d, act, { dry: request.method === 'GET' || !!b.dry }));
+    if (path === '/api/trybe/discord-auto' && request.method === 'PUT') { await putSetting(env, 'trybeDiscordAuto', b.on ? 'on' : 'off'); return json({ ok: true, auto: !!b.on }); }
+    if (path === '/api/trybe/vip-bar' && request.method === 'PUT') { const v = Math.round(+b.sales || 0); if (v < 50) return json({ error: 'Give the sales bar in dollars.' }, 400); await putSetting(env, `trybeVipBar:${act}`, String(v)); return json({ ok: true, vip_bar: v }); }
+    if (path === '/api/trybe/discord-oauth' && request.method === 'PUT') { const sec = String(b.secret || '').trim(); if (sec.length < 20) return json({ error: 'Paste the Client Secret.' }, 400); await putSetting(env, 'discordOAuth', JSON.stringify({ client_id: String(b.client_id || '1567972923413631028'), secret: sec })); return json({ ok: true }); }
     if (path === '/api/trybe/recut-announce' && request.method === 'POST') return json(await trybeRecutAnnounce(env, d, act, Array.isArray(b.cards) ? b.cards.slice(0, 20) : []));
     if (path === '/api/trybe/followups/sent' && request.method === 'POST') {
       const id = String(b.creator_id || '');
