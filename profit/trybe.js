@@ -21,7 +21,7 @@
   const n1 = n => String(Math.round((+n || 0) * 10) / 10);
   const ago = iso => { if (!iso) return 'never'; const h = (Date.now() - Date.parse(iso)) / 36e5; return h < 1 ? 'just now' : h < 24 ? `${Math.round(h)}h ago` : `${Math.round(h / 24)}d ago`; };
   /* Briefs = the creator link page (page id amb), opened as its own page; the shell draws this same switch above it. */
-  const VIEWS = () => (CL() ? [['live', 'Live'], ['creators', 'Creators'], ['briefs', 'Briefs']] : [['review', 'Review'], ['queue', 'Queue'], ['live', 'Live'], ['creators', 'Creators'], ['follow', 'Follow up'], ['discord', 'Discord'], ['briefs', 'Briefs'], ['rules', 'Rules']]);
+  const VIEWS = () => (CL() ? [['live', 'Live'], ['creators', 'Creators'], ['briefs', 'Briefs']] : [['review', 'Review'], ['queue', 'Queue'], ['live', 'Live'], ['creators', 'Creators'], ['follow', 'Follow up'], ['recuts', 'Recuts'], ['discord', 'Discord'], ['briefs', 'Briefs'], ['rules', 'Rules']]);
   const STATE = { not_launched: ['Not launched', 'bad'], no_spend: ['Launched, no spend yet', 'warn'], scheduled: ['Scheduled', ''], review: ['In Meta review', ''], rejected: ['Rejected by Meta', 'bad'], off: ['In Meta, turned off', ''] };
 
   function css() {
@@ -108,6 +108,7 @@
 .tb .tb-job{display:flex;gap:14px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}.tb .tb-job-n{text-align:right;flex:none;min-width:56px}.tb .tb-job-n b{font-size:22px}
 .tb .tb-week{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}.tb .tb-day{padding:12px 14px}.tb .tb-day.on{outline:2px solid var(--accent,#2f6bff)}
 .tb .tb-rules{margin:0;padding-left:20px;line-height:1.5}.tb .tb-rules li{margin:0 0 6px}
+.tb .tb-rc{display:grid;grid-template-columns:auto auto minmax(0,1fr);gap:10px;align-items:start;padding:12px 0;border-top:1px solid var(--line)}.tb .tb-rc-pick{padding-top:4px}.tb .tb-rc-main{display:grid;gap:6px;min-width:0}.tb .tb-rc-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.tb .tb-rc-row select{font:inherit;padding:5px 8px;border-radius:8px;border:1px solid var(--line);background:transparent;color:inherit}.tb .tb-rc-why{flex:1 1 220px;min-width:0}.tb .tb-rc .tb-note{width:100%}.tb .tb-recut{margin-top:12px;display:grid;gap:8px}
 .tb .tb-fu-g{margin-top:14px}.tb .tb-fu{padding:12px 0;border-top:1px solid var(--line);display:grid;gap:8px}
 .tb .tb-fu-who{display:flex;align-items:center;gap:4px 10px;flex-wrap:wrap}.tb .tb-fu-who .tb-av{margin:0}
 .tb .tb-fu-msg{min-height:96px}.tb .tb-fu-act a.v2btn{text-decoration:none}.tb .tb-fu-act{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
@@ -156,7 +157,7 @@
     const c = d.counts;
     const badge = { review: c.pending, queue: c.not_launched, live: c.live, creators: c.creators };
     const seg = `<div class="v2jobs tb-seg" role="tablist">${VIEWS().map(([id, label]) => `<button type="button" role="tab" data-tbv="${id}" class="${VIEW === id ? 'on' : ''}" aria-selected="${VIEW === id}">${label}${badge[id] != null ? ` (${badge[id]})` : ''}</button>`).join('')}</div>`;
-    const body = VIEW === 'queue' ? queue() : VIEW === 'live' ? live() : VIEW === 'creators' ? creators() : VIEW === 'discord' ? '<section class="v2card" id="tbDc"><p class="v2hint">Reading the Discord…</p></section>' : VIEW === 'review' ? '<section class="v2card" id="tbRv"><p class="v2hint">Getting the videos waiting in Trybe…</p></section>' : VIEW === 'follow' ? '<section class="v2card" id="tbFu"><p class="v2hint">Reading creators and samples from Trybe…</p></section>' : rules();
+    const body = VIEW === 'queue' ? queue() : VIEW === 'live' ? live() : VIEW === 'creators' ? creators() : VIEW === 'discord' ? '<section class="v2card" id="tbDc"><p class="v2hint">Reading the Discord…</p></section>' : VIEW === 'review' ? '<section class="v2card" id="tbRv"><p class="v2hint">Getting the videos waiting in Trybe…</p></section>' : VIEW === 'follow' ? '<section class="v2card" id="tbFu"><p class="v2hint">Reading creators and samples from Trybe…</p></section>' : VIEW === 'recuts' ? '<section class="v2card" id="tbRc"><p class="v2hint">Reading last month&rsquo;s best sellers…</p></section>' : rules();
     const meta = `<p class="tb-meta">Updated ${esc(ago(d.synced_at))}. ${CL() ? '' : 'Locus reads Trybe and Meta once a day; press Update for now. '}Sales and revenue are Triple Whale, spend is Meta, last ${d.account.days} days.</p>`;
     $('#main').innerHTML = shell(`${meta}${top()}${seg}${body}`);
     if (H.pageActions) H.pageActions(CL() ? '' : `<button type="button" class="btn" id="tbSync">Update</button>${d.portal ? `<a class="btn primary" id="tbOpen" href="${esc(d.portal)}" target="_blank" rel="noopener">Launch in Trybe</a>` : ''}`);
@@ -164,6 +165,7 @@
     if (VIEW === 'discord') discordView();
     if (VIEW === 'review') reviewView();
     if (VIEW === 'follow') followView();
+    if (VIEW === 'recuts') recutView();
     if (keepFocus) { const el = document.getElementById(keepFocus); if (el) { el.focus(); try { el.setSelectionRange(el.value.length, el.value.length); } catch {} } }
   }
 
@@ -202,23 +204,22 @@
       catch (e) { toast(e.message); row.querySelectorAll('button').forEach(x => { x.disabled = false; }); }
     }; });
   }
-  /* Recut (2026-11-06): send this video to Ravo. Frame pulls the file from Trybe into the brand's
-     "Creator recuts" folder and Locus tags Ravo in the brand's Slack with the note. */
+  /* Recut from any video popup (2026-11-06 v2): makes one pipeline card for Ravo with the full brief. */
   function recutUI(box, sub) {
     const el = document.createElement('div');
     el.className = 'tb-recut';
-    el.innerHTML = `<p class="v2hint">Recut: Ravo moves the best line to the first second and adds the brand's text. The original keeps running.</p>
-      <textarea class="tb-note" rows="2" placeholder="Note for Ravo, e.g. start at 0:12, hook = the price line"></textarea>
-      <div class="tb-foot"><span></span><button type="button" class="v2btn">Send to Ravo</button></div>`;
+    el.innerHTML = `<p class="v2hint">Recut this video: a card goes into the pipeline for Ravo with the numbers, the test and the original file. The original keeps running.</p>
+      <textarea class="tb-note" rows="2" placeholder="Note for Ravo, e.g. open on the line at 0:12"></textarea>
+      <div class="tb-foot"><span></span><button type="button" class="v2btn">Add a recut card</button></div>`;
     box.appendChild(el);
     const btn = el.querySelector('button');
     btn.onclick = async () => {
-      btn.disabled = true; btn.textContent = 'Sending…';
+      btn.disabled = true; btn.textContent = 'Making the card…';
       try {
-        const x = await H.apiAH('/api/trybe/recut', { method: 'POST', body: JSON.stringify({ act: H.S.act, sub_id: sub, note: el.querySelector('textarea').value.trim() }) });
-        if (x && x.error) throw new Error(x.error);
-        btn.textContent = 'Sent to Ravo'; toast('In Frame, Ravo tagged in Slack');
-      } catch (e) { toast(e.message); btn.disabled = false; btn.textContent = 'Send to Ravo'; }
+        const c = await makeRecutCard(H.S.act, { sub_id: sub, note: el.querySelector('textarea').value.trim() });
+        await H.apiAH('/api/trybe/recut-announce', { method: 'POST', body: JSON.stringify({ act: H.S.act, cards: [c] }) }).catch(() => null);
+        btn.textContent = `Card #${c.num} made`; toast('In the pipeline, Ravo told in Slack');
+      } catch (e) { toast(e.message); btn.disabled = false; btn.textContent = 'Add a recut card'; }
     };
   }
   async function watchSub(sub) {
@@ -545,6 +546,57 @@
   /* ---- Follow up (round 3, 2026-11-05): three lists of creators to message one by one in Trybe Chat. Trybe's API has
      no messages, so Locus drafts each one; Claude sends them in Chrome after Cole's yes, or anyone copies and sends.
      "Sent" hides the creator for 14 days (account-health /api/trybe/followups). ---- */
+  /* Recuts (2026-11-06, Cole): once a month the strategist picks up to 10 of last month's best selling creator videos,
+     keeps or changes the suggested test, and puts them in the pipeline as cards for Ravo, each with the full brief.
+     One Slack line then tells the team the cards are there and why. */
+  const pctx = x => (x == null ? '–' : `${(x * 100).toFixed(1)}%`);
+  async function makeRecutCard(act, p) {
+    const br = await H.apiAH('/api/trybe/recut-brief', { method: 'POST', body: JSON.stringify({ act, sub_id: p.sub_id, test: p.test, note: p.note || '', why: p.why || '' }) });
+    if (br && br.error) throw new Error(br.error);
+    const made = await H.apiAH('/api/production/brief', { method: 'POST', body: JSON.stringify({ act, text: br.title, owner: br.owner, due: br.due }) });
+    if (made && made.error) throw new Error(made.error);
+    const sv = await H.apiAH('/api/production/save', { method: 'POST', body: JSON.stringify({ id: made.id, brief: { v: 2, html: br.html, format: br.format, sizes: [] } }) });
+    if (sv && sv.error) throw new Error(sv.error);
+    return { num: made.num, id: made.id, title: br.title, test: br.test };
+  }
+  async function recutView() {
+    const box = document.getElementById('tbRc'); if (!box) return;
+    const act = H.S.act;
+    let r;
+    try { r = await H.apiAH('/api/trybe/recut-picks?act=' + encodeURIComponent(act)); if (r && r.error) throw new Error(r.error); }
+    catch (e) { box.innerHTML = `<p class="v2bad">${esc(e.message)}</p>`; return; }
+    const picks = r.picks || [], tests = r.tests || {}, avg = r.brand_avg || {};
+    const opts = cur => Object.entries(tests).map(([k, l]) => `<option value="${k}"${k === cur ? ' selected' : ''}>${esc(l)}</option>`).join('');
+    box.innerHTML = `<div class="v2h"><h3>Recuts: last 30 days' best sellers</h3><span class="cap">monthly, up to 10</span></div>
+      <p class="v2hint">Each tick becomes a card in the pipeline for Ravo with the numbers, the goal, what to change and the original file. Locus suggests the test from the video's own numbers against the brand's creator videos (watch 3s ${pctx(avg.hook)}, watch through ${pctx(avg.hold)}, click ${pctx(avg.ctr)}). Change it if you know better.${r.recently ? ` ${r.recently} video${r.recently === 1 ? ' was' : 's were'} recut in the last 60 days and ${r.recently === 1 ? 'is' : 'are'} left out.` : ''}</p>` +
+      (picks.length ? picks.map((p, i) => `<div class="tb-rc" data-sub="${esc(p.sub_id)}">
+        <label class="tb-rc-pick"><input type="checkbox" checked aria-label="Recut ${esc(p.creator)}'s video"></label>
+        ${p.thumb ? `<button type="button" class="tb-th" data-rcplay="${esc(p.sub_id)}" style="width:52px;height:78px;border:0;border-radius:8px;cursor:pointer;background:#000 center/cover url('${esc(p.thumb)}')" aria-label="Play"></button>` : '<div></div>'}
+        <div class="tb-rc-main"><b>${esc(p.creator)}</b> <span class="tb-sub">${esc(p.product || '')} · ${p.orders} sale${p.orders === 1 ? '' : 's'}, ${money(p.cpa)} a sale · watch 3s ${pctx(p.hook)} · through ${pctx(p.hold)} · click ${pctx(p.ctr)}</span>
+          <div class="tb-rc-row"><select aria-label="Test">${opts(p.test)}</select><span class="tb-sub tb-rc-why">${esc(p.why)}</span></div>
+          <textarea class="tb-note" rows="1" placeholder="Note for Ravo (optional), e.g. open on the line at 0:12"></textarea></div></div>`).join('') +
+        `<div class="tb-foot"><span class="v2hint" id="tbRcMsg"></span><button type="button" class="v2btn" id="tbRcGo">Add to the pipeline</button></div>`
+        : '<p class="v2hint">No creator video sold in the last 30 days that has not been recut already.</p>');
+    box.querySelectorAll('[data-rcplay]').forEach(b => { b.onclick = () => watchSub(b.dataset.rcplay); });
+    box.querySelectorAll('.tb-rc select').forEach(s => { s.onchange = () => { s.closest('.tb-rc').querySelector('.tb-rc-why').textContent = s.value === picks.find(p => p.sub_id === s.closest('.tb-rc').dataset.sub).test ? picks.find(p => p.sub_id === s.closest('.tb-rc').dataset.sub).why : 'Your call: the card explains this test.'; }; });
+    const go = document.getElementById('tbRcGo'); if (!go) return;
+    go.onclick = async () => {
+      const rows = [...box.querySelectorAll('.tb-rc')].filter(x => x.querySelector('input[type=checkbox]').checked);
+      if (!rows.length) return toast('Tick at least one video');
+      go.disabled = true;
+      const msg = document.getElementById('tbRcMsg'), made = [];
+      for (const [i, row] of rows.entries()) {
+        const p = picks.find(x => x.sub_id === row.dataset.sub);
+        const test = row.querySelector('select').value;
+        msg.textContent = `Making card ${i + 1} of ${rows.length}…`;
+        try { made.push(await makeRecutCard(act, { sub_id: p.sub_id, test, note: row.querySelector('textarea').value.trim(), why: test === p.test ? p.why : '' })); row.style.opacity = .5; }
+        catch (e) { toast(`${p.creator}: ${e.message}`); }
+      }
+      if (made.length) await H.apiAH('/api/trybe/recut-announce', { method: 'POST', body: JSON.stringify({ act, cards: made }) }).catch(() => null);
+      msg.textContent = made.length ? `${made.length} card${made.length === 1 ? '' : 's'} in the pipeline (${made.map(m => '#' + m.num).join(', ')}), Ravo told in Slack.` : 'No card was made.';
+      go.textContent = 'Done';
+    };
+  }
   async function followView() {
     const box = document.getElementById('tbFu'); if (!box) return;
     const act = H.S.act;

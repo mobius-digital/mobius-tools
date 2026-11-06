@@ -768,57 +768,156 @@ export async function trybeTick(env, d, { force = false } = {}) {
   return out;
 }
 
-/* ---------- recuts (2026-11-06, Cole: "the recut flow makes sense, standardized across the board") ----------
-   Phil's 10 edits a month per brand: the editor recuts a good creator video (best line to the first second, the
-   brand's edit guide for text) and both versions run. Locus does the fetching: Trybe's file link lives about 20
-   minutes, so Frame pulls it straight from Trybe (remote upload) into the brand's "Creator recuts" folder, and Locus
-   tags Ravo in the brand's internal Slack channel with the note. Ravo uploads the recut next to it with "RECUT" in
-   the name; it launches like any Frame video (meta_create_ad frame_file) on the creator's handle.
-   Kept in settings `trybeRecut:<act>:<sub_id>` = {at, by, note, creator, product, file, folder}. */
+/* ---------- recuts v2 (2026-11-06, Cole: "it needs to be put into the pipeline, that's where tasks are") ----------
+   Phil's 10 recuts a month per brand. Once a month the strategist opens Ads > Trybe > a brand > Recuts: Locus lists
+   the creator videos that sold the most in the last 30 days (Triple Whale sales, Meta delivery) and suggests WHAT to
+   change on each from its own numbers against the brand's other creator videos:
+     hook   = few people stop on it (3-second views / impressions low)  -> new opening
+     tight  = they stop but leave early (thruplays / 3-second views low) -> shorter cut
+     offer  = they watch but do not click (link clicks / impressions low) -> clearer deal at the end
+     fresh  = it is good everywhere                                      -> 2 new openings so it lasts and scales
+   The strategist keeps or changes the test, adds a note, ticks the ones to do, and presses Add to the pipeline.
+   Each tick = one Production card (Brief column, owner Ravo, due in 5 days) with the whole brief: the numbers, why,
+   the goal, what to change, how to deliver, and the media buyer's line. The original file goes to Frame when Frame is
+   connected, else Locus keeps a copy (Trybe's own link dies in 20 minutes). Then ONE Slack line in the brand's internal
+   channel says the cards are in the pipeline and why. Settings `trybeRecut:<act>:<sub_id>` = what was sent (a video is
+   not suggested again for 60 days). */
 const RAVO = 'U07N0RRSP4J';
 const RECUT_FOLDER = 'Creator recuts';
+const GUIDE_URL = 'https://claude.ai/artifact/H4RNW1uUSmA1kD3Rv6QW9u';
+const pct = x => (x == null ? 'n/a' : `${(x * 100).toFixed(1)}%`);
+const RECUT_TESTS = {
+  hook: { label: 'New hook', why: (v, m) => `Few people stop on it: ${pct(v.hook)} watch 3 seconds, the brand's creator videos average ${pct(m.hook)}. The rest of the video sells, so a better opening should sell more.`,
+    goal: 'Beat the original\'s cost per sale with a stronger first 2 seconds.',
+    do: ['Open on the strongest line or the most visual moment. The product is on screen in second 1.', 'Add a headline per the edit guide, on screen for the first 2 to 3 seconds.', 'Keep everything after the opening as it is.'] },
+  tight: { label: 'Tighter cut', why: (v, m) => `People stop on it but leave early: ${pct(v.hold)} of them watch it through, the brand's average is ${pct(m.hold)}.`,
+    goal: 'Keep more people to the end, where the product and the deal are.',
+    do: ['Cut it to 15 to 20 seconds.', 'Cut every pause, repeat and slow bit.', 'Keep the original opening.'] },
+  offer: { label: 'Clearer offer', why: (v, m) => `People watch it but few click: ${pct(v.ctr)} click the link, the brand's average is ${pct(m.ctr)}.`,
+    goal: 'Turn the watching into clicks with the deal on screen.',
+    do: ['Add the current deal as a headline in the last 3 seconds, or a simple end card.', 'Name the product on screen once.', 'Keep the original opening and cut.'] },
+  fresh: { label: 'Fresh hooks', why: () => 'It sells and its numbers are good everywhere. New openings keep it from wearing out so we can spend more on it.',
+    goal: 'Two new versions that sell as well as the original, so the winner can take more budget.',
+    do: ['Make 2 versions, each with a different first 2 seconds (a different line or a different shot).', 'Same middle and end as the original.', 'Headline per the edit guide.'] },
+};
+function pickTest(v, m) {
+  if (v.hook != null && m.hook && v.hook < m.hook * 0.85) return 'hook';
+  if (v.hold != null && m.hold && v.hold < m.hold * 0.85) return 'tight';
+  if (v.ctr != null && m.ctr && v.ctr < m.ctr * 0.85) return 'offer';
+  return 'fresh';
+}
+const med = a => { const s = a.filter(x => x != null && isFinite(x)).sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : null; };
+/** Last N days of every Trybe video of the brand: spend, sales (Triple Whale), and the delivery rates, best seller first. */
+export async function trybeRecutPicks(env, d, act, { days = 30, n = 10, today } = {}) {
+  await ensureTrybe(env);
+  today = today || (d.centralDate ? d.centralDate() : new Date().toISOString().slice(0, 10));
+  const from = addDays(today, -days);
+  const ads = (await env.DB.prepare(`SELECT ad_id, name FROM p_trybe_ad WHERE act_id = ?1`).bind(act).all()).results || [];
+  const ids = ads.map(a => String(a.ad_id));
+  const acts = await metaActs(env, act);
+  const byAd = new Map();
+  for (let i = 0; i < ids.length; i += 60) {
+    const chunk = ids.slice(i, i + 60);
+    const ph = chunk.map((_, j) => `?${j + 2}`).join(', ');
+    const aph = acts.map((_, j) => `?${chunk.length + 2 + j}`).join(', ');
+    const rows = (await env.DB.prepare(`SELECT ad_id, SUM(spend) s, SUM(impressions) im, SUM(video_3s) v3, SUM(video_thruplay) tp, SUM(link_clicks) lc FROM ad_daily
+      WHERE date >= ?1 AND ad_id IN (${ph}) AND act_id IN (${aph}) GROUP BY ad_id`).bind(from, ...chunk, ...acts).all().catch(() => ({ results: [] }))).results || [];
+    for (const r of rows) byAd.set(String(r.ad_id), r);
+  }
+  const money = await creatorMoney(env, act, ids, from);
+  const vids = new Map();
+  for (const a of ads) {
+    const tid = trybeIdOf(a.name); if (!tid) continue;
+    const r = byAd.get(String(a.ad_id)) || {}, o = (money.byAd.get(String(a.ad_id)) || {}).orders || 0;
+    const g = vids.get(tid) || { trybe_id: tid, spend: 0, orders: 0, im: 0, v3: 0, tp: 0, lc: 0, ads: 0 };
+    g.spend += +r.s || 0; g.orders += o; g.im += +r.im || 0; g.v3 += +r.v3 || 0; g.tp += +r.tp || 0; g.lc += +r.lc || 0; g.ads++;
+    vids.set(tid, g);
+  }
+  const subs = new Map(((await env.DB.prepare(`SELECT sub_id, trybe_id, creator, product, thumb FROM p_trybe_sub WHERE act_id = ?1`).bind(act).all()).results || []).map(s => [s.trybe_id, s]));
+  const sent = new Map(((await env.DB.prepare(`SELECT key, value FROM settings WHERE key LIKE ?1`).bind(`trybeRecut:${act}:%`).all().catch(() => ({ results: [] }))).results || [])
+    .map(r => [r.key.split(':').pop(), safeJson(r.value, {}) || {}]));
+  const all = [...vids.values()].filter(v => v.im >= 1000).map(v => ({ ...v, hook: v.im ? v.v3 / v.im : null, hold: v.v3 ? v.tp / v.v3 : null, ctr: v.im ? v.lc / v.im : null }));
+  const m = { hook: med(all.map(v => v.hook)), hold: med(all.map(v => v.hold)), ctr: med(all.map(v => v.ctr)) };
+  const goal = +((await env.DB.prepare(`SELECT target_cpa FROM brands WHERE id = ?1`).bind(act).first().catch(() => null))?.target_cpa) || null;
+  const recent = s => s && s.at && daysBetween(String(s.at).slice(0, 10), today) < 60;
+  const picks = all.filter(v => v.orders > 0 && subs.get(v.trybe_id)?.sub_id && !recent(sent.get(subs.get(v.trybe_id).sub_id)))
+    .sort((a, z) => z.orders - a.orders || z.spend - a.spend).slice(0, n)
+    .map(v => { const s = subs.get(v.trybe_id); const test = pickTest(v, m);
+      return { sub_id: s.sub_id, trybe_id: v.trybe_id, creator: s.creator, product: shortProduct(s.product), thumb: s.thumb || null,
+        spend: round2(v.spend), orders: Math.round(v.orders), cpa: v.orders ? round2(v.spend / v.orders) : null, hook: v.hook, hold: v.hold, ctr: v.ctr,
+        test, why: noDash(RECUT_TESTS[test].why(v, m)) }; });
+  return { act, from, today, days, goal_cpa: goal, brand_avg: m, tests: Object.fromEntries(Object.entries(RECUT_TESTS).map(([k, t]) => [k, t.label])),
+    picks, recently: [...sent.entries()].filter(([, s]) => recent(s)).length };
+}
 async function recutFolder(env, d, act) {
   const p = await frameProject(env, { listAccounts: async e => (await d.listBrands(e)).map(b => ({ act_id: b.act_id, name: b.name })) }, { brand: act }, {});
   const kids = await frameApi(env, 'GET', `/accounts/${p.account}/folders/${p.root}/children?page_size=100`);
   let f = (kids.data || []).find(i => i.type === 'folder' && i.name.toLowerCase() === RECUT_FOLDER.toLowerCase());
   if (!f) f = (await frameApi(env, 'POST', `/accounts/${p.account}/folders/${p.root}/folders`, { data: { name: RECUT_FOLDER } })).data;
   if (!f?.id) throw new Error('Frame made no "Creator recuts" folder.');
-  return { account: p.account, project: p.id, project_name: p.name, folder: f.id, url: `https://next.frame.io/project/${p.id}/${f.id}` };
+  return { account: p.account, folder: f.id, url: `https://next.frame.io/project/${p.id}/${f.id}` };
 }
-export async function trybeRecut(env, d, act, subId, { note = '', by = '' } = {}) {
-  const own = await env.DB.prepare(`SELECT sub_id, trybe_id, creator, product, status FROM p_trybe_sub WHERE act_id = ?1 AND sub_id = ?2`).bind(act, subId).first();
-  if (!own) throw new Error('No such video for this brand.');
+/** The original file where the editor can get it: Frame when connected, else a Locus copy. */
+async function recutFile(env, d, act, subId, name) {
   const k = await keyFor(env, act);
   if (!k || !k.key) throw new Error('No Trybe key for this brand yet.');
   const s = await trybeGet(d, k.key, `/submissions/${encodeURIComponent(subId)}`);
   if (s.media_type && s.media_type !== 'video') throw new Error('That one is not a video.');
   if (!s.asset?.url) throw new Error('Trybe sent no file for that video.');
-  const name = noDash(`${own.creator || 'Creator'} - ${shortProduct(own.product) || 'video'} - ${own.trybe_id || subId.slice(-6)} - ORIGINAL.mp4`).replace(/[\/:*?"<>|]/g, '');
-  /* Frame when it is connected; else (or if Frame fails) Locus keeps the file and Ravo gets a download link. */
-  let where = null, file = null, link = null, via = 'frame';
   try {
-    where = await recutFolder(env, d, act);
+    const where = await recutFolder(env, d, act);
     const up = await frameApi(env, 'POST', `/accounts/${where.account}/folders/${where.folder}/files/remote_upload`, { data: { name, source_url: s.asset.url } });
-    file = up.data?.id || null;
-    link = where.url;
+    return { via: 'frame', link: where.url, file: up.data?.id || null };
   } catch (e) {
     if (!env.MEDIA) throw e;
-    via = 'locus';
     const r = await fetch(s.asset.url);
     if (!r.ok) throw new Error(`Trybe's file did not download (${r.status}).`);
-    const buf = await r.arrayBuffer();
     const id = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`trybe-recut:${act}:${subId}`)))].slice(0, 12).map(x => x.toString(16).padStart(2, '0')).join('');
-    await env.MEDIA.put(`studio/vid/${id}.mp4`, buf, { httpMetadata: { contentType: 'video/mp4', contentDisposition: `attachment; filename="${name}"` } });
-    link = `https://mobius-account-health.mobius-digital.workers.dev/studio-vid/${id}.mp4`;
+    await env.MEDIA.put(`studio/vid/${id}.mp4`, await r.arrayBuffer(), { httpMetadata: { contentType: 'video/mp4', contentDisposition: `attachment; filename="${name}"` } });
+    return { via: 'locus', link: `https://mobius-account-health.mobius-digital.workers.dev/studio-vid/${id}.mp4`, file: null };
   }
-  const rec = { at: new Date().toISOString(), by, note: String(note || '').slice(0, 500), creator: own.creator, product: shortProduct(own.product), trybe_id: own.trybe_id, via, file, folder: link, name };
+}
+const hEsc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+/** One recut's card: title + the brief as the Production page (v2 html), in the shape the team's briefs use. */
+export async function trybeRecutBrief(env, d, act, subId, { test, note = '', why = '', today } = {}) {
+  today = today || (d.centralDate ? d.centralDate() : new Date().toISOString().slice(0, 10));
+  const own = await env.DB.prepare(`SELECT sub_id, trybe_id, creator, product FROM p_trybe_sub WHERE act_id = ?1 AND sub_id = ?2`).bind(act, subId).first();
+  if (!own) throw new Error('No such video for this brand.');
+  const pk = (await trybeRecutPicks(env, d, act, { n: 50, today }).catch(() => ({ picks: [] }))).picks.find(p => p.sub_id === subId) || {};
+  test = RECUT_TESTS[test] ? test : (pk.test || 'fresh');
+  const T = RECUT_TESTS[test];
+  const product = shortProduct(own.product) || 'the product';
+  const name = noDash(`${own.creator || 'Creator'} - ${product} - ${own.trybe_id} - ORIGINAL.mp4`).replace(/[\\/:*?"<>|]/g, '');
+  const f = await recutFile(env, d, act, subId, name);
+  const goalCpa = +((await env.DB.prepare(`SELECT target_cpa FROM brands WHERE id = ?1`).bind(act).first().catch(() => null))?.target_cpa) || null;
+  const nums = pk.orders ? `${pk.orders} sale${pk.orders === 1 ? '' : 's'} on $${Math.round(pk.spend)} in the last 30 days ($${Math.round(pk.cpa)} per sale${goalCpa ? `, goal $${Math.round(goalCpa)}` : ''}).` : 'Picked by the strategist.';
+  const P = (label, html) => `<p><strong>${label}</strong></p><p>${html}</p><p><br></p>`;
+  const ul = items => `<ul>${items.map(x => `<li>${hEsc(x)}</li>`).join('')}</ul><p><br></p>`;
+  const html = [
+    P('What this is', `A recut of ${hEsc(own.creator)}'s ${hEsc(product)} video (Trybe ${hEsc(own.trybe_id)}), one of the brand's best selling creator videos. The original keeps running. Your version runs next to it.`),
+    P('Numbers', hEsc(nums)),
+    P(`Test: ${hEsc(T.label)}`, hEsc(why || pk.why || T.why({}, {}))),
+    P('Goal', hEsc(T.goal)),
+    `<p><strong>What to change</strong></p>${ul(T.do)}`,
+    note ? P('Strategist note', hEsc(note)) : '',
+    P('Text', `Follow the brand's edit guide: <a target="_blank" rel="noopener" href="${GUIDE_URL}">${GUIDE_URL}</a>`),
+    P('Original file', `<a target="_blank" rel="noopener" href="${hEsc(f.link)}">${f.via === 'frame' ? 'Frame, Creator recuts' : 'Download the original'}</a>`),
+    `<p><strong>Deliver</strong></p>${ul([`9:16, 1080x1920, the creator's own audio, no music over talking.`, `Name it RECUT ${own.trybe_id} ${T.label} v1 and upload it to this card.`, `Keep the creator's face and voice. Do not change what they say.`])}`,
+    `<p><strong>FOR MEDIABUYER</strong></p>${ul(['Launch in the same ad set as the original, on the creator\'s handle (partnership ad), same copy.', 'Judge after it spends 2x the goal and runs 3 days. Keep the cheaper one per sale.'])}`,
+  ].join('');
+  const rec = { at: new Date().toISOString(), test, note: String(note || '').slice(0, 500), creator: own.creator, product, trybe_id: own.trybe_id, via: f.via, folder: f.link, file: f.file, name };
   await putSetting(env, `trybeRecut:${act}:${subId}`, JSON.stringify(rec));
+  return { title: noDash(`Recut: ${own.creator} ${product} (${T.label})`).slice(0, 300), html, format: 'UGC', owner: 'Ravo', due: addDays(today, 5), test, sub_id: subId, file: f.link, via: f.via };
+}
+/** The one Slack line after the cards are made: in the brand's internal channel, Ravo tagged. */
+export async function trybeRecutAnnounce(env, d, act, cards) {
   const brand = (await d.listBrands(env)).find(b => b.act_id === act);
-  if (brand?.slack_channel && d.slackPost) {
-    const msg = noDash(`<@${RAVO}>, recut: ${own.creator}'s ${rec.product || ''} video (${own.trybe_id || 'Trybe'}).\n${rec.note ? `Note: ${rec.note}\n` : ''}Original: ${via === 'frame' ? `<${link}|Frame, ${RECUT_FOLDER}>` : `<${link}|download the file>`}. Follow the brand's edit guide, keep the original, upload yours next to it with RECUT in the name.`);
-    await d.slackPost(env, brand.slack_channel, msg, null, { username: 'Locus' }).catch(() => null);
-  }
-  return { ok: true, ...rec };
+  if (!brand?.slack_channel || !d.slackPost || !cards?.length) return { ok: false };
+  const tests = [...new Set(cards.map(c => (RECUT_TESTS[c.test] || {}).label).filter(Boolean))];
+  const nums = cards.map(c => c.num).filter(Boolean).map(n => `#${n}`).join(', ');
+  const msg = noDash(`<@${RAVO}>, ${cards.length} recut${cards.length === 1 ? '' : 's'} added to the ${brand.name} pipeline${nums ? ` (${nums})` : ''}. These are the creator videos that sold the most in the last 30 days. We recut them because a winner with a better opening or a tighter cut usually sells more than a new video does. Tests this round: ${tests.join(', ')}. Each card has the numbers, the goal, what to change and the original file. Due in 5 days.`);
+  await d.slackPost(env, brand.slack_channel, msg, null, { username: 'Locus' });
+  return { ok: true };
 }
 export async function trybeRecuts(env, act) {
   const rows = (await env.DB.prepare(`SELECT key, value FROM settings WHERE key LIKE ?1`).bind(`trybeRecut:${act}:%`).all().catch(() => ({ results: [] }))).results || [];
@@ -925,14 +1024,17 @@ export async function handleTrybe(request, env, url, path, json, h) {
       return json({ ok: true, id, status: j?.status || null });
     }
     if (path === '/api/trybe/followups' && request.method === 'GET') return json(await trybeFollowups(env, d, act));
-    /* Recuts (2026-11-06): send a Trybe video to Ravo's Frame folder, list what was sent. */
+    /* Recuts v2 (2026-11-06): the month's picks, one card's brief, the one Slack line. The page makes the cards
+       through /api/production/brief + /api/production/save, so the pipeline (and its Asana mirror) works as always. */
     if (path === '/api/trybe/recuts' && request.method === 'GET') return json({ act, recuts: await trybeRecuts(env, act) });
-    if (path === '/api/trybe/recut' && request.method === 'POST') {
-      const sub = String(b.sub_id || b.id || '');
+    if (path === '/api/trybe/recut-picks' && request.method === 'GET') return json(await trybeRecutPicks(env, d, act, { days: Math.min(90, +url.searchParams.get('days') || 30) }));
+    if (path === '/api/trybe/recut-brief' && request.method === 'POST') {
+      const sub = String(b.sub_id || '');
       if (!/^submission_[0-9a-f-]{8,}$/.test(sub)) return json({ error: 'Give the video (submission) id.' }, 400);
-      try { return json(await trybeRecut(env, d, act, sub, { note: b.note, by: b.by || '' })); }
+      try { return json({ ok: true, ...(await trybeRecutBrief(env, d, act, sub, { test: b.test, note: b.note, why: b.why })) }); }
       catch (e) { return json({ error: e.message }, 400); }
     }
+    if (path === '/api/trybe/recut-announce' && request.method === 'POST') return json(await trybeRecutAnnounce(env, d, act, Array.isArray(b.cards) ? b.cards.slice(0, 20) : []));
     if (path === '/api/trybe/followups/sent' && request.method === 'POST') {
       const id = String(b.creator_id || '');
       if (!/^creator_[0-9a-f-]{8,}$/.test(id)) return json({ error: 'Give the creator id.' }, 400);
