@@ -47,13 +47,13 @@ export async function integrationsReport(env, { brand = null } = {}) {
 
   /* ---------------- agency-wide ---------------- */
   const fields = await setting('brandAsanaFields');
-  const [atria, frame, openai, canvaId, canvaTok, discover, slackWho] = await Promise.all([
+  const [atria, frame, openai, canvaId, canvaTok, discover, slackWho, discordCfg] = await Promise.all([
     atriaStatus(env).catch(() => ({ connected: false })), frameStatus(env).catch(() => ({ connected: false })),
-    cfg('openai_key'), cfg('canva_client_id'), cfg('canva_tokens'), setting('lastDiscover'), setting('slackSendWho'),
+    cfg('openai_key'), cfg('canva_client_id'), cfg('canva_tokens'), setting('lastDiscover'), setting('slackSendWho'), setting('discordOAuth'),
   ]);
   /* used_by says which part of Locus leans on it, so "does Dartee have Stripe?" never comes up: these
      are Mobius's own, not a brand's. `only` names the one brand a connection serves (the Lucky app). */
-  const AG = { meta: 'Data', tw: 'Data', google: 'Data', tiktok: 'Data', asana: 'Work', slack: 'Work', stripe: 'Work', frame: 'Work',
+  const AG = { meta: 'Data', tw: 'Data', google: 'Data', tiktok: 'Data', asana: 'Work', slack: 'Work', stripe: 'Work', frame: 'Work', discord: 'Work',
     anthropic: 'AI and creative', studio: 'AI and creative', gemini: 'AI and creative', atria: 'AI and creative', canva: 'AI and creative', downloader: 'AI and creative', lucky_app: 'Lucky only' };
   const A = (key, name, on, { warn = false, note = '', fix = '', used_by = '', only = null } = {}) => ({ key, name, group: AG[key] || 'Other', needs: 'once', state: on ? (warn ? 'warn' : 'ok') : 'off', note, fix, used_by, only });
   const luckyAct = (await first(`SELECT act_id FROM brand_accounts WHERE lower(name) LIKE 'lucky%' AND active = 1 LIMIT 1`))?.act_id || null;
@@ -94,6 +94,18 @@ export async function integrationsReport(env, { brand = null } = {}) {
     A('atria', 'Atria (ad library)', !!atria.connected, { used_by: 'the ideas pipeline, Season swipe files, the creator links', note: atria.connected ? `Connected ${String(atria.since || '').slice(0, 10)}.` : 'Reference ads from Atria links are read through it.', fix: 'Locus > Studio > Connections > Connect Atria (Cole signs in once for the whole workspace).' }),
     A('canva', 'Canva', set(canvaId) && set(canvaTok), { used_by: 'Studio (optional)', warn: set(canvaId) && !set(canvaTok), note: set(canvaId) && !set(canvaTok) ? 'App set up, not signed in.' : 'Optional: pushes Studio ads into Canva.', fix: 'Locus > Studio > Connections > Connect Canva.' }),
     A('downloader', 'Video downloader (ScrapeCreators)', set(env.DOWNLOADER_KEY), { used_by: 'the ideas pipeline', note: 'Fetches TikTok and Instagram videos.', fix: 'Set DOWNLOADER_KEY on the account-health worker.' }),
+    /* Discord sign-in (2026-11-06): one Discord app for every brand's creator Discord. Creators join through the Locus
+       join link and sign in with Discord; that needs the app's Client Secret, pasted here once (trybe.js discord-oauth). */
+    { ...A('discord', 'Discord sign-in', !!discordCfg?.secret, { used_by: 'the creator join links (Ads > Trybe > Discord)',
+        note: discordCfg?.secret ? `Creators can join with Discord.${discordCfg.saved_at ? ` Secret saved ${String(discordCfg.saved_at).slice(0, 10)}.` : ''}` : 'Creators cannot sign in on the join links until the secret is saved.',
+        fix: 'Paste the Discord app\'s Client Secret below.' }),
+      gets: 'Creators sign in with Discord on each brand\'s join link, so Locus knows who joined.',
+      steps: [
+        { t: 'Open the Discord Developer Portal, the Locus app, then OAuth2.', u: 'https://discord.com/developers/applications/1567972923413631028/oauth2' },
+        { t: 'Under Redirects, add this address and press Save Changes:', c: 'https://mobius-account-health.mobius-digital.workers.dev/join/callback' },
+        { t: 'Under Client Secret, press Reset Secret, copy it and paste it below. Locus checks it with Discord before saving and never shows it again.' },
+      ],
+      input: { key: 'secret', route: '/api/trybe/discord-oauth', secret: true, label: 'Client Secret', placeholder: 'Client Secret' } },
     A('lucky_app', 'Lucky creator app', set(env.LUCKY_SUPABASE_URL) && set(env.LUCKY_SUPABASE_SERVICE_KEY), { used_by: 'the ideas pipeline, Lucky Golf only', only: luckyAct, note: 'Files creator angles into creators.luckygolf.com.', fix: 'Set LUCKY_SUPABASE_URL and LUCKY_SUPABASE_SERVICE_KEY on the account-health worker.' }),
   ];
 
