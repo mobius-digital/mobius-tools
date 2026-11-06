@@ -519,7 +519,7 @@ async function fAll(env, path, max = 5) {
   return out;
 }
 /** The brand's Frame project: the one named in the input, else the brand's linked project, else the one named like the brand. */
-async function frameProject(env, d, input, ctx) {
+export async function frameProject(env, d, input, ctx) {
   const st = await frameStatus(env);
   if (!st.connected) throw new Error(NEEDS_FRAME);
   const act = await brandFor(env, d, input, ctx);

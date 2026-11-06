@@ -19,6 +19,8 @@
  * - A client reads Live and Creators for its own brand, never the Queue or the Rules.
  * No em dashes in anything this posts. */
 import { noDash } from './buyerai.js';
+import { frameApi } from './frame.js';
+import { frameProject } from './stratmake.js';
 import { gall, metaActs as metaAccounts } from './metawrite.js';
 
 const API = 'https://api.jointrybe.com/v1';
@@ -766,6 +768,48 @@ export async function trybeTick(env, d, { force = false } = {}) {
   return out;
 }
 
+/* ---------- recuts (2026-11-06, Cole: "the recut flow makes sense, standardized across the board") ----------
+   Phil's 10 edits a month per brand: the editor recuts a good creator video (best line to the first second, the
+   brand's edit guide for text) and both versions run. Locus does the fetching: Trybe's file link lives about 20
+   minutes, so Frame pulls it straight from Trybe (remote upload) into the brand's "Creator recuts" folder, and Locus
+   tags Ravo in the brand's internal Slack channel with the note. Ravo uploads the recut next to it with "RECUT" in
+   the name; it launches like any Frame video (meta_create_ad frame_file) on the creator's handle.
+   Kept in settings `trybeRecut:<act>:<sub_id>` = {at, by, note, creator, product, file, folder}. */
+const RAVO = 'U07N0RRSP4J';
+const RECUT_FOLDER = 'Creator recuts';
+async function recutFolder(env, d, act) {
+  const p = await frameProject(env, { listAccounts: async e => (await d.listBrands(e)).map(b => ({ act_id: b.act_id, name: b.name })) }, { brand: act }, {});
+  const kids = await frameApi(env, 'GET', `/accounts/${p.account}/folders/${p.root}/children?page_size=100`);
+  let f = (kids.data || []).find(i => i.type === 'folder' && i.name.toLowerCase() === RECUT_FOLDER.toLowerCase());
+  if (!f) f = (await frameApi(env, 'POST', `/accounts/${p.account}/folders/${p.root}/folders`, { data: { name: RECUT_FOLDER } })).data;
+  if (!f?.id) throw new Error('Frame made no "Creator recuts" folder.');
+  return { account: p.account, project: p.id, project_name: p.name, folder: f.id, url: `https://next.frame.io/project/${p.id}/${f.id}` };
+}
+export async function trybeRecut(env, d, act, subId, { note = '', by = '' } = {}) {
+  const own = await env.DB.prepare(`SELECT sub_id, trybe_id, creator, product, status FROM p_trybe_sub WHERE act_id = ?1 AND sub_id = ?2`).bind(act, subId).first();
+  if (!own) throw new Error('No such video for this brand.');
+  const k = await keyFor(env, act);
+  if (!k || !k.key) throw new Error('No Trybe key for this brand yet.');
+  const s = await trybeGet(d, k.key, `/submissions/${encodeURIComponent(subId)}`);
+  if (s.media_type && s.media_type !== 'video') throw new Error('That one is not a video.');
+  if (!s.asset?.url) throw new Error('Trybe sent no file for that video.');
+  const where = await recutFolder(env, d, act);
+  const name = noDash(`${own.creator || 'Creator'} - ${shortProduct(own.product) || 'video'} - ${own.trybe_id || subId.slice(-6)} - ORIGINAL.mp4`).replace(/[\\/:*?"<>|]/g, '');
+  const up = await frameApi(env, 'POST', `/accounts/${where.account}/folders/${where.folder}/files/remote_upload`, { data: { name, source_url: s.asset.url } });
+  const rec = { at: new Date().toISOString(), by, note: String(note || '').slice(0, 500), creator: own.creator, product: shortProduct(own.product), trybe_id: own.trybe_id, file: up.data?.id || null, folder: where.url, name };
+  await putSetting(env, `trybeRecut:${act}:${subId}`, JSON.stringify(rec));
+  const brand = (await d.listBrands(env)).find(b => b.act_id === act);
+  if (brand?.slack_channel && d.slackPost) {
+    const msg = noDash(`<@${RAVO}>, recut: ${own.creator}'s ${rec.product || ''} video (${own.trybe_id || 'Trybe'}).\n${rec.note ? `Note: ${rec.note}\n` : ''}Original is in Frame: <${where.url}|${RECUT_FOLDER}>. Follow the brand's edit guide, keep the original, upload yours next to it with RECUT in the name.`);
+    await d.slackPost(env, brand.slack_channel, msg, null, { username: 'Locus' }).catch(() => null);
+  }
+  return { ok: true, ...rec };
+}
+export async function trybeRecuts(env, act) {
+  const rows = (await env.DB.prepare(`SELECT key, value FROM settings WHERE key LIKE ?1`).bind(`trybeRecut:${act}:%`).all().catch(() => ({ results: [] }))).results || [];
+  return rows.map(r => ({ sub_id: r.key.split(':').pop(), ...(safeJson(r.value, {}) || {}) })).sort((a, z) => String(z.at).localeCompare(String(a.at)));
+}
+
 /* ---------- routes ---------- */
 export async function handleTrybe(request, env, url, path, json, h) {
   if (!/^\/api\/trybe(\/|$)/.test(path)) return null;
@@ -866,6 +910,14 @@ export async function handleTrybe(request, env, url, path, json, h) {
       return json({ ok: true, id, status: j?.status || null });
     }
     if (path === '/api/trybe/followups' && request.method === 'GET') return json(await trybeFollowups(env, d, act));
+    /* Recuts (2026-11-06): send a Trybe video to Ravo's Frame folder, list what was sent. */
+    if (path === '/api/trybe/recuts' && request.method === 'GET') return json({ act, recuts: await trybeRecuts(env, act) });
+    if (path === '/api/trybe/recut' && request.method === 'POST') {
+      const sub = String(b.sub_id || b.id || '');
+      if (!/^submission_[0-9a-f-]{8,}$/.test(sub)) return json({ error: 'Give the video (submission) id.' }, 400);
+      try { return json(await trybeRecut(env, d, act, sub, { note: b.note, by: b.by || '' })); }
+      catch (e) { return json({ error: e.message }, 400); }
+    }
     if (path === '/api/trybe/followups/sent' && request.method === 'POST') {
       const id = String(b.creator_id || '');
       if (!/^creator_[0-9a-f-]{8,}$/.test(id)) return json({ error: 'Give the creator id.' }, 400);
