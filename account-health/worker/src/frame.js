@@ -55,7 +55,10 @@ export async function frameStatus(env) {
   await ensureCfg(env);
   const t = safeJson(await cfgGet(env, K.tokens), null);
   const c = safeJson(await cfgGet(env, K.client), null);
-  return { connected: !!t?.refresh || !!(t?.access && t.exp > Date.now()), since: t?.since || null, has_client: !!c?.id, workspace: t?.workspace || null };
+  const live = !!t && !t.dead && (!!t.refresh || !!(t.access && t.exp > Date.now()));
+  return { connected: live, since: t?.since || null, has_client: !!c?.id, workspace: t?.workspace || null,
+    ...(t?.fail ? { last_refresh_error: { at: new Date(t.fail.at).toISOString(), status: t.fail.status, why: t.fail.why } } : {}),
+    ...(t?.dead ? { needs: 'Adobe refused the saved sign-in. Locus > Settings > New client > Connect Frame.' } : {}) };
 }
 
 /* ---------------- connect ---------------- */
@@ -105,25 +108,57 @@ export async function frameCallback(env, url) {
 
 async function disconnect(env) { await ensureCfg(env); for (const k of Object.values(K)) await cfgSet(env, k, null); }
 
-/** A live access token, refreshed before expiry. Null = not connected. */
+/** A live access token, refreshed before expiry. Null = not connected.
+ *
+ * 2026-11-06: Frame dropped on its own after Nov 4. The old code DELETED the tokens on any 400/401 from
+ * Adobe's refresh, and several Frame calls run at once (a burst of /api/frame/children), so two of them
+ * could refresh the same token together: Adobe rotates the refresh token, the loser gets invalid_grant
+ * and wiped the row the winner had just saved. Now: one refresh at a time (a 30 s lock row), the loser
+ * waits and reads the winner's token, and a failure NEVER deletes anything. It is written on the row as
+ * `fail` {at, status, why}; after a 400/401 the row is `dead` until a refresh works again (retried at most
+ * every 10 minutes) or Cole reconnects. Status says why, so a drop is never silent again. */
+const LOCK = 'frame_refresh_lock';
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 export async function frameToken(env, force = false) {
   await ensureCfg(env);
   const t = safeJson(await cfgGet(env, K.tokens), null);
   if (!t?.access) return null;
-  if (!force && t.exp > Date.now() + 60e3) return t.access;
+  if (!force && !t.dead && t.exp > Date.now() + 60e3) return t.access;
   const c = safeJson(await cfgGet(env, K.client), null);
-  if (!t.refresh || !c?.id) { await cfgSet(env, K.tokens, null); return null; }
-  const body = new URLSearchParams({ grant_type: 'refresh_token', client_id: c.id, client_secret: c.secret, refresh_token: t.refresh });
-  const r = await F(`${IMS}/token/v3`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body }).catch(() => null);
-  const j = r ? await r.json().catch(() => ({})) : {};
-  if (!r?.ok || !j.access_token) {
-    const now = safeJson(await cfgGet(env, K.tokens), null);
-    if (now?.access && now.access !== t.access && now.exp > Date.now() + 60e3) return now.access;
-    if (r && [400, 401].includes(r.status)) await cfgSet(env, K.tokens, null);
+  if (!t.refresh || !c?.id) return t.exp > Date.now() + 60e3 && !t.dead ? t.access : null;
+  if (t.dead && Date.now() - (t.fail?.at || 0) < 10 * 60e3) return null;
+  /* One refresh at a time. A stale lock (over 30 s) is taken over. */
+  const now0 = Date.now();
+  const got = await env.DB.prepare(`INSERT INTO p_studio_cfg (key, value, updated_at) VALUES (?1, ?2, datetime('now')) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at WHERE CAST(p_studio_cfg.value AS INTEGER) < ?3`)
+    .bind(LOCK, String(now0), now0 - 30e3).run().catch(() => null);
+  if (!got?.meta?.changes) {
+    for (let i = 0; i < 8; i++) {
+      await sleep(750);
+      const n = safeJson(await cfgGet(env, K.tokens), null);
+      if (n?.access && n.access !== t.access && !n.dead && n.exp > Date.now() + 60e3) return n.access;
+    }
     return null;
   }
-  await cfgSet(env, K.tokens, JSON.stringify({ ...t, access: j.access_token, refresh: j.refresh_token || t.refresh, exp: Date.now() + (j.expires_in || 3600) * 1000 }));
-  return j.access_token;
+  try {
+    /* Someone may have refreshed between our read and the lock. */
+    const cur = safeJson(await cfgGet(env, K.tokens), null) || t;
+    if (cur.access !== t.access && !cur.dead && cur.exp > Date.now() + 60e3) return cur.access;
+    const body = new URLSearchParams({ grant_type: 'refresh_token', client_id: c.id, client_secret: c.secret, refresh_token: cur.refresh });
+    const r = await F(`${IMS}/token/v3`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body }).catch(e => ({ ok: false, status: 0, _e: e }));
+    const j = r?.json ? await r.json().catch(() => ({})) : {};
+    if (!r?.ok || !j.access_token) {
+      const why = clip(String(j.error_description || j.error || r?._e?.message || `HTTP ${r?.status}`), 200);
+      const dead = [400, 401].includes(r?.status);
+      await cfgSet(env, K.tokens, JSON.stringify({ ...cur, dead: dead || !!cur.dead, fail: { at: Date.now(), status: r?.status || 0, why } }));
+      console.log(`frame refresh failed: ${r?.status} ${why}`);
+      return !dead && cur.exp > Date.now() + 60e3 ? cur.access : null;
+    }
+    const { dead: _d, fail: _f, ...keep } = cur;
+    await cfgSet(env, K.tokens, JSON.stringify({ ...keep, access: j.access_token, refresh: j.refresh_token || cur.refresh, exp: Date.now() + (j.expires_in || 3600) * 1000, refreshed: new Date().toISOString() }));
+    return j.access_token;
+  } finally {
+    await cfgSet(env, LOCK, null).catch(() => {});
+  }
 }
 
 /* ---------------- API ---------------- */
