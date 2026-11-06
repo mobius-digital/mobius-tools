@@ -202,12 +202,32 @@
       catch (e) { toast(e.message); row.querySelectorAll('button').forEach(x => { x.disabled = false; }); }
     }; });
   }
+  /* Recut (2026-11-06): send this video to Ravo. Frame pulls the file from Trybe into the brand's
+     "Creator recuts" folder and Locus tags Ravo in the brand's Slack with the note. */
+  function recutUI(box, sub) {
+    const el = document.createElement('div');
+    el.className = 'tb-recut';
+    el.innerHTML = `<p class="v2hint">Recut: Ravo moves the best line to the first second and adds the brand's text. The original keeps running.</p>
+      <textarea class="tb-note" rows="2" placeholder="Note for Ravo, e.g. start at 0:12, hook = the price line"></textarea>
+      <div class="tb-foot"><span></span><button type="button" class="v2btn">Send to Ravo</button></div>`;
+    box.appendChild(el);
+    const btn = el.querySelector('button');
+    btn.onclick = async () => {
+      btn.disabled = true; btn.textContent = 'Sending…';
+      try {
+        const x = await H.apiAH('/api/trybe/recut', { method: 'POST', body: JSON.stringify({ act: H.S.act, sub_id: sub, note: el.querySelector('textarea').value.trim() }) });
+        if (x && x.error) throw new Error(x.error);
+        btn.textContent = 'Sent to Ravo'; toast('In Frame, Ravo tagged in Slack');
+      } catch (e) { toast(e.message); btn.disabled = false; btn.textContent = 'Send to Ravo'; }
+    };
+  }
   async function watchSub(sub) {
     const w = pop(`<h3>Video</h3><div id="tbVid"><p class="v2hint">Getting the video from Trybe…</p></div>`, 'vid');
     try {
       const v = await H.apiAH(`/api/trybe/video?act=${encodeURIComponent(H.S.act)}&sub=${encodeURIComponent(sub)}`);
       const box = w.querySelector('#tbVid'); if (!box) return;
       box.innerHTML = !v.url ? '<p class="v2bad">Trybe has no file for this one.</p>' : v.media === 'image' ? `<img class="tb-img" alt="" src="${esc(v.url)}">` : `<video controls autoplay playsinline src="${esc(v.url)}"></video>`;
+      if (v.url && v.media !== 'image') recutUI(box, sub);
     } catch (e) { const box = w.querySelector('#tbVid'); if (box) box.innerHTML = `<p class="v2bad">${esc(e.message)}</p>`; }
   }
 
@@ -571,6 +591,7 @@
       if (v && v.error) throw new Error(v.error);
       const box = w.querySelector('#tbVid'); if (!box) return;
       box.innerHTML = !v.url ? '<p class="v2bad">Trybe has no file for this one.</p>' : v.media === 'image' ? `<img class="tb-img" alt="" src="${esc(v.url)}">` : `<video controls autoplay playsinline poster="${esc(v.thumb || '')}" src="${esc(v.url)}"></video>`;
+      if (v.url && v.media !== 'image') recutUI(box, sub);
     } catch (e) { const box = w.querySelector('#tbVid'); if (box) box.innerHTML = `<p class="v2bad">${esc(e.message)}</p>`; }
   }
   function creator(id) {
