@@ -480,7 +480,11 @@ async function render({ tok, url, act, accounts, pick }) {
     return;
   }
   main.innerHTML = `<div class="st"><div class="v2card"><span class="st-busy"><span class="st-spin"></span>Loading the batches…</span></div></div>`;
-  if (S.lastAct !== act) { S.cur = null; S.products = null; S.lastAct = act; }
+  if (S.lastAct !== act) { S.products = null; S.lastAct = act; }
+  /* Opening Studio from the rail lands on the batch list, never on the last batch looked at (2026-11-06: Ahsan kept
+     landing on #144's Launch step and read Launch / Archive as the only ways to make more). A link that names a batch
+     (Make panel, Make iterations, Social) still opens it below. */
+  if (!S.openId && !window.STUDIO_BATCH) { S.cur = null; S.err = ''; }
   await reload();
   /* Arriving from "Make iterations" on an ad: open that batch and plan it, so the only thing left is Make. */
   if (window.STUDIO_BATCH) { S.openId = window.STUDIO_BATCH; window.STUDIO_BATCH = null; }   // ?open=studio&batch=<id> (the Make panel's Studio exit)
@@ -822,7 +826,7 @@ function batchView(b) {
   const bmenu = menu([['data-mdl', 'Download all'], ['data-mcanva', 'Send to Canva'], [`data-vnew="${b.id}"`, 'Make a video'], ['data-mconn', 'Connections'],
     arch ? ['data-mrestore', 'Restore this batch'] : ['data-march', 'Archive this batch', 'st5-danger']], 'Batch menu', 'More');
   const top = `<section class="v2card st5-bc"><div class="st5-bh"><button type="button" class="st5-back" id="bBack">← All batches</button></div>
-    <div class="st5-bh"><h2>${batchTitle(b)}</h2>${stage(st)}<span class="sp"></span>${bmenu}</div>${stepper}</section>`;
+    <div class="st5-bh"><h2>${batchTitle(b)}</h2>${stage(st)}<span class="sp"></span><button type="button" class="btn" id="bNewBatch">New batch</button>${bmenu}</div>${stepper}</section>`;
   const archStrip = arch ? (window.LxKit ? window.LxKit.strip({ tone: 'quiet', lead: 'Archived', text: 'This batch is off the list. Its ads are kept. Restore puts it back.' }) : '') + '<div class="st5-rs"><button type="button" class="btn" data-mrestore>Restore this batch</button></div>' : '';
   const nocred = /no credits|billing|quota|insufficient/i.test(S.err || '');
   const err = S.err ? `<p class="st-msg bad st5-err">${nocred ? 'The image AI (OpenAI) account is out of credits, so nothing was made or charged. Add credits at platform.openai.com > Settings > Billing, then press Make again.' : esc(S.err)}</p>` : '';
@@ -1302,6 +1306,7 @@ function wireBatch() {
   const on = (sel, fn) => document.querySelectorAll(sel).forEach(x => { x.onclick = e => fn(x, e); });
   const go = i => { if (viewOf(b) === 2 && i > 2 && !su.look_mode) { su.look_mode = lookMode(b); queueSave(); } setView(b, i); paint(); window.scrollTo(0, 0); };
   on('#bBack', () => { S.cur = null; S.err = ''; paint(); window.scrollTo(0, 0); });
+  on('#bNewBatch', () => newBatch());
   on('[data-step]', x => go(+x.dataset.step));
   on('[data-go-step]', x => go(+x.dataset.goStep));
   on('[data-march]', () => archiveBatch(b));
