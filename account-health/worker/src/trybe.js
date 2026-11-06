@@ -648,7 +648,8 @@ export async function trybeFollowups(env, d, act, { today } = {}) {
   const sample = (roster || []).filter(c => c.samples && c.samples.obligation && ['overdue', 'needs_resubmit'].includes(c.samples.obligation.state) && !snoozed(c.id))
     .map(c => row('sample', c.id, c.name, { state: c.samples.obligation.state, due: prettyDay(c.samples.obligation.due_at), days: daysBetween(day(c.samples.obligation.due_at), today), samples: c.samples.approved, score: c.samples.sample_score?.score ?? null }))
     .sort((a, z) => (z.days || 0) - (a.days || 0));
-  return { act, brand, today, portal: v.portal, roster: roster ? roster.length : null, sold, quiet, sample,
+  const owes = new Set(sample.map(x => x.creator_id));   // a creator who owes a sample video hears about that, not twice
+  return { act, brand, today, portal: v.portal, roster: roster ? roster.length : null, sold, quiet: quiet.filter(x => !owes.has(x.creator_id)), sample,
     rules: { sold_days: REBOOK_DAYS, quiet_days: QUIET_DAYS, snooze_days: FOLLOW_SNOOZE }, note: roster ? null : 'Trybe did not send the creator list, so samples are missing this time.' };
 }
 
