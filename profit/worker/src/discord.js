@@ -102,8 +102,26 @@ function lookOf(d, b) {
   const color = HEX.test(l.color || '') ? l.color : (HEX.test(b?.accent || '') ? b.accent : '#5865F2');
   return { mascot: l.mascot || b?.display_name || 'Creators', avatar: l.avatar || l.icon || b?.logo_url || '', emoji: l.emoji || '', color, icon: l.icon || b?.logo_url || '' };
 }
-const POSTS_V = 2;   // bump when the first-post wording changes, so every server gets the new text
+const POSTS_V = 3;   // 3 (Cole 11-05): plain messages, not boxed embeds   // bump when the first-post wording changes, so every server gets the new text
 const sigOf = (look, core, vip) => JSON.stringify([POSTS_V, look.mascot, look.avatar, look.emoji, look.color, core || '', vip || '']);
+
+/* Discord drops a "<bot> pinned a message" line in the channel every time we pin. Creators do not need them: delete them
+   (Cole 11-05: "Dart pinned a message, back to back"). Message type 6 = CHANNEL_PINNED_MESSAGE. */
+async function dropPinNotices(token, chanId) {
+  const rows = await dc(token, 'GET', `/channels/${chanId}/messages?limit=100`).catch(() => []);
+  let n = 0;
+  for (const m of rows || []) if (m.type === 6) { await dc(token, 'DELETE', `/channels/${chanId}/messages/${m.id}`).catch(() => {}); n++; }
+  return n;
+}
+async function tidy(token, d) {
+  let n = 0;
+  for (const id of Object.values(d.channels || {})) n += await dropPinNotices(token, id);
+  return n;
+}
+/* A post as the mascot reads like a person's message: bold first line, plain text, links without preview cards. */
+const asText = p => ({ content: noDash(`**${p.title}**
+
+${p.text}`).replace(/(^|\s)(https:\/\/\S+)/g, '$1<$2>').slice(0, 1990) });
 
 /* Post as the mascot through the channel's webhook (made once, kept in the brand's doc). */
 async function hookPost(token, d, key, chanId, look, msg) {
@@ -188,10 +206,11 @@ async function build(env, token, act, d, brand, opt) {
     if (old && typeof old === 'object' && old.sig === sig) continue;
     const oldId = typeof old === 'string' ? old : old?.id;
     if (oldId) await dc(token, 'DELETE', `/channels/${chans[name]}/messages/${oldId}`).catch(() => {});
-    const m = await hookPost(token, d, name, chans[name], look, { embeds: [{ title: noDash(p.title).slice(0, 250), description: noDash(p.text).slice(0, 4000), color: colorInt }] });
+    const m = await hookPost(token, d, name, chans[name], look, asText(p));
     if (name !== 'this-week') await dc(token, 'PUT', `/channels/${chans[name]}/pins/${m.id}`).catch(() => {});
     posted[name] = { id: m.id, sig };
   }
+  await tidy(token, { channels: chans });
   let invite = d.invite;
   if (!invite) { const iv = await dc(token, 'POST', `/channels/${chans.welcome}/invites`, { max_age: 0, max_uses: 0, unique: false }); invite = `https://discord.gg/${iv.code}`; }
   const out = { ...d, channels: chans, cats, roles: { team, vip }, posted, invite, core, vip: vipPay, built_at: new Date().toISOString() };
@@ -270,9 +289,11 @@ export async function handleDiscord(request, env, url, path, body, json, mustAcc
       if (!id || !text) return json({ error: 'Give a channel and the text.' }, 400);
       const m = await hookPost(token, d, key, id, lookOf(d, b), { content: text, flags: 4 });
       await putDoc(env, acct.act_id, d);   // keeps a webhook made just now
-      if (body.pin) await dc(token, 'PUT', `/channels/${id}/pins/${m.id}`).catch(() => {});
+      if (body.pin) { await dc(token, 'PUT', `/channels/${id}/pins/${m.id}`).catch(() => {}); await dropPinNotices(token, id); }
       return json({ ok: true, id: m.id });
     }
+    /* Clear the "pinned a message" lines from every channel of this brand's server. */
+    if (path === '/api/amb/discord/tidy' && method === 'POST') return json({ ok: true, removed: await tidy(token, d) });
     /* The recap for Ads > Trybe > Discord (2026-11-05): members, activity per channel in the last 7 days, and creator
        messages nobody on the team has answered yet (no later message from the owner, the bot, the mascot or a Team id). */
     if (path === '/api/amb/discord/recap' && method === 'GET') {

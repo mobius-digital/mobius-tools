@@ -445,8 +445,11 @@ async function dcHookPost(env, act, d, key, embed) {
     const w = await r.json(); d.hooks[key] = { id: w.id, token: w.token }; await dcSave(env, act, d);
   }
   const h = d.hooks[key];
-  const color = /^#[0-9a-f]{6}$/i.test(look.color || '') ? parseInt(look.color.slice(1), 16) : 0x5865F2;
-  const body = { username: String(look.mascot || 'Creators').slice(0, 80), allowed_mentions: { parse: [] }, embeds: [{ ...embed, color }] };
+  /* Plain text, not a boxed embed (Cole 11-05: the box "doesn't look like a message"). Links get no preview card. */
+  const text = noDash(`**${embed.title}**
+
+${embed.description || ''}`).replace(/(^|\s)(https:\/\/\S+)/g, '$1<$2>').slice(0, 1990);
+  const body = { username: String(look.mascot || 'Creators').slice(0, 80), allowed_mentions: { parse: [] }, content: text };
   if (/^https:\/\//.test(look.avatar || '')) body.avatar_url = look.avatar;
   const r = await fetch(`${DC_API}/webhooks/${h.id}/${h.token}?wait=true`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   if (!r.ok) throw new Error(`Discord answered ${r.status} posting in #${key}`);
@@ -496,10 +499,13 @@ export function fridayMessages(wins, slug, seed) {
   const hub = `https://locus.go-mobius-digital.com/angles/${slug}/`;
   const list = wins.slice(0, 4);
   const lineOf = pickBy(WIN_LINE, seed + 'l');
+  const items = list.map((w, i) => ({ ...w, text: noDash(`${MEDAL[i]} ${lineOf(firstName(w.creator), shortProduct(w.product), w.orders)}`) }));
   return {
     open: noDash(pickBy(WIN_OPEN, seed + 'o')(list.length)),
-    items: list.map((w, i) => ({ ...w, text: noDash(`${MEDAL[i]} ${lineOf(firstName(w.creator), shortProduct(w.product), w.orders)}`) })),
-    close: noDash(pickBy(WIN_CLOSE, seed + 'c')(hub)),
+    items,
+    /* One message: the opener, the list, then the videos below it in the same order. */
+    head: noDash([pickBy(WIN_OPEN, seed + 'o')(list.length), '', ...items.map(x => x.text), '', 'Watch them below 👇'].join(String.fromCharCode(10))),
+    close: noDash(pickBy(WIN_CLOSE, seed + 'c')(`<${hub}>`)),
   };
 }
 const WIN_ATTACH_MAX = 9.5 * 1024 * 1024, WIN_FILE_MAX = 95 * 1024 * 1024;
@@ -517,15 +523,16 @@ async function hookFor(env, act, d, key) {
   return d.hooks[key];
 }
 /** One plain message as the mascot, with an optional file. Discord unfurls an mp4 link in the text into a player. */
-async function dcHookSay(env, act, d, key, content, file) {
+async function dcHookSay(env, act, d, key, content, file, files) {
+  files = files || (file ? [file] : []);
   const look = d.look || {}, h = await hookFor(env, act, d, key);
-  const payload = { username: String(look.mascot || 'Creators').slice(0, 80), allowed_mentions: { parse: [] }, content: String(content).slice(0, 2000) };
+  const payload = { username: String(look.mascot || 'Creators').slice(0, 80), allowed_mentions: { parse: [] }, content: String(content || '').slice(0, 2000) };
   if (/^https:\/\//.test(look.avatar || '')) payload.avatar_url = look.avatar;
   let init;
-  if (file) {
+  if (files.length) {
     const fd = new FormData();
-    fd.append('payload_json', JSON.stringify({ ...payload, attachments: [{ id: 0, filename: file.name }] }));
-    fd.append('files[0]', new Blob([file.buf], { type: file.type }), file.name);
+    fd.append('payload_json', JSON.stringify({ ...payload, attachments: files.map((f, i) => ({ id: i, filename: f.name })) }));
+    files.forEach((f, i) => fd.append(`files[${i}]`, new Blob([f.buf], { type: f.type }), f.name));
     init = { method: 'POST', body: fd };
   } else init = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) };
   const r = await fetch(`${DC_API}/webhooks/${h.id}/${h.token}?wait=true`, init);
@@ -577,13 +584,21 @@ async function winnersOf(env, act, today) {
     .filter(w => w.orders > 0).sort((a, z) => z.orders - a.orders);
 }
 async function postWinnersV2(env, d, act, dc, slug, wins, today, channel) {
+  /* Layout (Cole 11-05: "stacked, clunky"): 1) the opener and the list of winners, 2) the videos together in one message,
+     which Discord shows side by side as a gallery, 3) a one line closer. A file too big for Discord's 10 MB upload is
+     linked on its own line, so Discord shows only the player. */
   const msg = fridayMessages(wins, slug, `${today}:${slug}`);
-  await dcHookSay(env, act, dc, channel, msg.open);
-  for (const w of msg.items) {
-    const clip2 = await winnerClip(env, d, act, w).catch(() => null);
-    await dcHookSay(env, act, dc, channel, w.text, clip2 && clip2.file);
-    if (clip2 && clip2.url) await dcHookSay(env, act, dc, channel, clip2.url);   // a link on its own shows as just the player
+  await dcHookSay(env, act, dc, channel, msg.head);
+  const clips = [];
+  for (const w of msg.items) clips.push(await winnerClip(env, d, act, w).catch(() => null));
+  const files = clips.filter(c => c && c.file).map((c, i) => ({ ...c.file, name: `${i + 1}-${c.file.name}` }));
+  let groups = [];
+  for (const f of files) { const g = groups[groups.length - 1]; if (g && g.size + f.buf.byteLength <= 24 * 1024 * 1024 && g.list.length < 10) { g.list.push(f); g.size += f.buf.byteLength; } else groups.push({ list: [f], size: f.buf.byteLength }); }
+  for (const g of groups) {
+    try { await dcHookSay(env, act, dc, channel, '', null, g.list); }
+    catch { for (const f of g.list) await dcHookSay(env, act, dc, channel, '', f).catch(() => {}); }
   }
+  for (const c of clips) if (c && c.url) await dcHookSay(env, act, dc, channel, c.url);
   await dcHookSay(env, act, dc, channel, msg.close);
   return msg;
 }
