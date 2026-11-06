@@ -808,7 +808,7 @@ function pickTest(v, m) {
 }
 const med = a => { const s = a.filter(x => x != null && isFinite(x)).sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : null; };
 /** Last N days of every Trybe video of the brand: spend, sales (Triple Whale), and the delivery rates, best seller first. */
-export async function trybeRecutPicks(env, d, act, { days = 30, n = 10, today } = {}) {
+export async function trybeRecutPicks(env, d, act, { days = 30, n = 10, today, all = false } = {}) {
   await ensureTrybe(env);
   today = today || (d.centralDate ? d.centralDate() : new Date().toISOString().slice(0, 10));
   const from = addDays(today, -days);
@@ -840,7 +840,7 @@ export async function trybeRecutPicks(env, d, act, { days = 30, n = 10, today } 
   const m = { hook: med(all.map(v => v.hook)), hold: med(all.map(v => v.hold)), ctr: med(all.map(v => v.ctr)) };
   const goal = +((await env.DB.prepare(`SELECT target_cpa FROM brands WHERE id = ?1`).bind(act).first().catch(() => null))?.target_cpa) || null;
   const recent = s => s && s.at && daysBetween(String(s.at).slice(0, 10), today) < 60;
-  const picks = all.filter(v => v.orders > 0 && subs.get(v.trybe_id)?.sub_id && !recent(sent.get(subs.get(v.trybe_id).sub_id)))
+  const picks = all.filter(v => v.orders > 0 && subs.get(v.trybe_id)?.sub_id && (all || !recent(sent.get(subs.get(v.trybe_id).sub_id))))
     .sort((a, z) => z.orders - a.orders || z.spend - a.spend).slice(0, n)
     .map(v => { const s = subs.get(v.trybe_id); const test = pickTest(v, m);
       return { sub_id: s.sub_id, trybe_id: v.trybe_id, creator: s.creator, product: shortProduct(s.product), thumb: s.thumb || null,
@@ -883,7 +883,7 @@ export async function trybeRecutBrief(env, d, act, subId, { test, note = '', why
   today = today || (d.centralDate ? d.centralDate() : new Date().toISOString().slice(0, 10));
   const own = await env.DB.prepare(`SELECT sub_id, trybe_id, creator, product FROM p_trybe_sub WHERE act_id = ?1 AND sub_id = ?2`).bind(act, subId).first();
   if (!own) throw new Error('No such video for this brand.');
-  const pk = (await trybeRecutPicks(env, d, act, { n: 50, today }).catch(() => ({ picks: [] }))).picks.find(p => p.sub_id === subId) || {};
+  const pk = (await trybeRecutPicks(env, d, act, { n: 200, today, all: true }).catch(() => ({ picks: [] }))).picks.find(p => p.sub_id === subId) || {};
   test = RECUT_TESTS[test] ? test : (pk.test || 'fresh');
   const T = RECUT_TESTS[test];
   const product = shortProduct(own.product) || 'the product';
