@@ -387,7 +387,7 @@
     const wireAv = () => document.querySelectorAll('[data-av]').forEach(x => { x.onclick = () => { AV = x.dataset.av; paintAll(); }; });
     if (AV === 'week') { $('#main').innerHTML = shell(`${aseg}<div id="tbWeek"><p class="v2hint">Getting today's numbers…</p></div>`); wireAv(); if (H.pageActions) H.pageActions(''); weekView(); return; }
     const waiting = b.reduce((s, r) => s + r.queue, 0), stale = b.reduce((s, r) => s + (r.stale || 0), 0);
-    const none = (d.no_key || []).map(x => `<button type="button" class="v2link" data-tbact="${esc(x.act_id)}">${esc(x.name)}</button>`).join(', ');
+    const none = (d.no_key || []).filter(x => x.act_id !== 'brand_lucky_golf').map(x => `<button type="button" class="v2link" data-tbact="${esc(x.act_id)}">${esc(x.name)}</button>`).join(', ');
     const qcard = r => `<button type="button" class="tb-q ${r.stale ? 'late' : r.queue ? '' : 'clear'}" data-tbact="${esc(r.act_id)}">
         <span class="tb-q-nm">${esc(r.name)}${r.has_key ? '' : ' <span class="v2pill warn">No key</span>'}</span>
         <span class="tb-q-big"><b>${r.queue}</b><span>${r.queue === 1 ? 'video' : 'videos'} not launched</span></span>
@@ -494,7 +494,7 @@
     const ok = S.cards.filter(c => !c.error);
     const sum = f => ok.reduce((a, c) => a + (+((c[k] || {})[f]) || 0), 0);
     const tSpend = sum('spend'), tOrders = sum('orders'), tSales = sum('sales');
-    const onGoal = ok.filter(c => (c[k] || {}).on_goal === true).length, judged = ok.filter(c => (c[k] || {}).on_goal != null).length;
+    const onGoal = ok.filter(c => (c[k] || {}).on_goal === true).length, judged = ok.filter(c => +((c[k] || {}).spend) > 0).length;
     const strip = `<div class="tb-sc-strip">
         <div><span>Creator ad spend</span><b>${money(tSpend)}</b></div>
         <div><span>Sales</span><b>${money(tSales)}</b><i>${n1(tOrders)} orders</i></div>
