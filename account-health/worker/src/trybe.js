@@ -1246,6 +1246,8 @@ export async function handleTrybe(request, env, url, path, json, h) {
     }
     const b = request.method === 'GET' ? {} : await request.json().catch(() => ({}));
     { const jr = await jobRoutes(request, env, path, url, json, b, email); if (jr) return jr; }
+    /* The Discord sign-in secret is agency-wide (one Discord app for every brand), so it needs no brand. */
+    if (path === '/api/trybe/discord-oauth' && request.method === 'PUT') { const sec = String(b.secret || '').trim(); if (sec.length < 20) return json({ error: 'Paste the Client Secret.' }, 400); await putSetting(env, 'discordOAuth', JSON.stringify({ client_id: String(b.client_id || '1567972923413631028'), secret: sec })); return json({ ok: true }); }
     const act = await actOf(b.act || url.searchParams.get('act'));
     if (!allowed(act)) return json({ error: act ? 'You do not have access to this brand.' : 'No such brand.' }, act ? 403 : 404);
     if (path === '/api/trybe/key' && request.method === 'PUT') {
@@ -1299,7 +1301,6 @@ export async function handleTrybe(request, env, url, path, json, h) {
     if (path === '/api/trybe/discord-sync') return json(await trybeDiscordSync(env, d, act, { dry: request.method === 'GET' || !!b.dry }));
     if (path === '/api/trybe/discord-auto' && request.method === 'PUT') { await putSetting(env, 'trybeDiscordAuto', b.on ? 'on' : 'off'); return json({ ok: true, auto: !!b.on }); }
     if (path === '/api/trybe/vip-bar' && request.method === 'PUT') { const v = Math.round(+b.sales || 0); if (v < 50) return json({ error: 'Give the sales bar in dollars.' }, 400); await putSetting(env, `trybeVipBar:${act}`, String(v)); return json({ ok: true, vip_bar: v }); }
-    if (path === '/api/trybe/discord-oauth' && request.method === 'PUT') { const sec = String(b.secret || '').trim(); if (sec.length < 20) return json({ error: 'Paste the Client Secret.' }, 400); await putSetting(env, 'discordOAuth', JSON.stringify({ client_id: String(b.client_id || '1567972923413631028'), secret: sec })); return json({ ok: true }); }
     if (path === '/api/trybe/recut-announce' && request.method === 'POST') return json(await trybeRecutAnnounce(env, d, act, Array.isArray(b.cards) ? b.cards.slice(0, 20) : []));
     if (path === '/api/trybe/followups/sent' && request.method === 'POST') {
       const id = String(b.creator_id || '');
