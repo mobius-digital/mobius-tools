@@ -63,13 +63,13 @@ async function card(host, opts = {}) {
   let d;
   try { d = await apiAH('/api/clients' + (act ? `?act=${encodeURIComponent(act)}` : ''), { fresh: true }); }
   catch (e) { host.innerHTML = `<div class="card set-card"><h3>Client logins</h3><p style="color:var(--bad)">${esc(e.message)}</p></div>`; return; }
-  const rows = d.clients.map(c => `<tr data-e="${esc(c.email)}"><td><b>${esc(c.name || c.email)}</b>${c.name ? `<span class="tiny">${esc(c.email)}</span>` : ''}</td>
+  const rows = d.clients.map(c => `<tr data-e="${esc(c.email)}"><td><b>${esc(c.name || c.email)}</b>${c.name ? `<span class="tiny">${esc(c.email)}</span>` : ''}${c.invited_as ? `<span class="tiny">invited as ${esc(c.invited_as)}</span>` : ''}</td>
       <td>${c.brands.map(b => esc(b.name)).join(', ')}</td>
       <td>${c.last_sign_in ? ago(c.last_sign_in) : '<span class="faint">not yet</span>'}${c.last_seen && c.last_seen !== c.last_sign_in ? `<span class="tiny">last open ${ago(c.last_seen)}</span>` : ''}</td>
       <td>${c.last_invite ? `emailed ${ago(c.last_invite)}` : c.invited_at ? `added ${ago(c.invited_at)}` : ''}</td>
-      <td style="white-space:nowrap">${d.can_edit ? `<button class="btn" data-k="resend">Resend invite</button> <button class="btn" data-k="remove" style="color:var(--bad)">Remove</button>` : ''}</td></tr>`).join('');
+      <td style="white-space:nowrap">${d.can_edit ? `<button class="btn" data-k="link" title="Copy their personal invite link to paste in Slack or a text">Copy invite link</button> <button class="btn" data-k="resend">Resend invite</button> <button class="btn" data-k="remove" style="color:var(--bad)">Remove</button>` : ''}</td></tr>`).join('');
   host.innerHTML = `<div class="card set-card"><h3>${act ? `Client logins for ${esc(one?.name || '')}` : 'Client logins'}</h3>
-    <p class="hint set-why">A client signs in with Google, using the email you invite, at <b>locus.go-mobius-digital.com/profit</b>, and gets the brand edition of Locus: everything this brand has, the same screens the team uses. When they add a date, ask for something or change a live ad, the team hears about it in Slack and the Change Log says who.</p>
+    <p class="hint set-why">Each invite carries a personal link to <b>locus.go-mobius-digital.com/profit</b>. On it the client signs in with any Google account they like (that account becomes their login), or, with no Google account, asks for a sign-in link by email. They get the brand edition of Locus: everything this brand has, the same screens the team uses. When they add a date, ask for something or change a live ad, the team hears about it in Slack and the Change Log says who.</p>
     <div class="tbl-wrap"><table class="cl-tbl"><thead><tr><th>Person</th><th>Brands</th><th>Last sign-in</th><th>Invite</th><th></th></tr></thead>
       <tbody>${rows || `<tr><td colspan="5" class="tiny">No client logins${act ? ' for this brand' : ''} yet.</td></tr>`}</tbody></table></div>
     ${d.can_edit ? `<div class="row" style="margin:12px 0 0;gap:8px"><button class="btn primary" data-k="invite">Invite a client</button></div>` : '<p class="tiny" style="margin-top:10px">Only Cole invites or removes clients.</p>'}
@@ -79,6 +79,14 @@ async function card(host, opts = {}) {
   const q = s => host.querySelector(s);
   if (q('[data-k="invite"]')) q('[data-k="invite"]').onclick = () => invite({ brands: act ? [act] : [], onDone: reload });
   host.querySelectorAll('[data-k="resend"]').forEach(b => b.onclick = () => { const e = b.closest('tr').dataset.e; const c = d.clients.find(x => x.email === e); invite({ emails: e, name: c.name, brands: c.brands.map(x => x.id), resend: true, onDone: reload }); });
+  host.querySelectorAll('[data-k="link"]').forEach(b => b.onclick = async () => {
+    const e = b.closest('tr').dataset.e;
+    try {
+      const r = await apiAH('/api/clients/link', { method: 'POST', body: JSON.stringify({ email: e }) });
+      let copied = false; try { await navigator.clipboard.writeText(r.link); copied = true; } catch {}
+      noteModal(copied ? 'Invite link copied' : 'Invite link', `<p>${copied ? 'Paste it to' : 'Send this to'} ${esc(e)}. It works for 30 days and once: they sign in with any Google account, or ask for an emailed link.</p><p><input type="text" readonly value="${esc(r.link)}" style="width:100%" onclick="this.select()"></p>`);
+    } catch (err) { noteModal('Could not get the link', `<p>${esc(err.message)}</p>`); }
+  });
   host.querySelectorAll('[data-k="remove"]').forEach(b => b.onclick = async () => {
     const e = b.closest('tr').dataset.e; const c = d.clients.find(x => x.email === e);
     const which = act && c.brands.length > 1 ? `${one?.name || 'this brand'} is taken off their login; they keep their other brands.` : 'They can no longer sign in to Locus. Nothing they added is removed.';
@@ -102,7 +110,7 @@ async function invite(o = {}) {
   const brandList = S.accounts.slice().sort((a, b) => a.name.localeCompare(b.name));
   const form = () => {
     m.innerHTML = `<h3>${o.resend ? 'Resend the Locus invite' : 'Invite a client to Locus'}</h3>
-      <p class="hint">They sign in with Google using this email and get everything Locus has for the brands you tick. Nothing is sent until you press Send on the next screen.</p>
+      <p class="hint">The invite carries their own sign-in link: any Google account works, or they get a link by email. They get everything Locus has for the brands you tick. Nothing is sent until you press Send on the next screen.</p>
       <label class="set-lbl" for="clEm">Their email</label>
       <input type="text" id="clEm" placeholder="name@theirbrand.com, another@theirbrand.com" value="${esc(st.emails)}"${o.resend ? ' readonly' : ''}>
       <p class="hint">Any email works, Gmail or not. Several people: separate them with commas.</p>
@@ -133,7 +141,7 @@ async function invite(o = {}) {
   const mail = () => {
     const list = st.emails.split(/[\s,;]+/).filter(Boolean);
     m.innerHTML = `<h3>The invite email</h3>
-      <p class="hint">Goes to <b>${esc(list.join(', '))}</b> from your Gmail with your signature, exactly as written here. Edit anything.</p>
+      <p class="hint">Goes to <b>${esc(list.join(', '))}</b> from your Gmail with your signature, exactly as written here. Edit anything; <b>{{sign-in link}}</b> becomes each person's own invite link.</p>
       <label class="set-lbl" for="clSub">Subject</label><input type="text" id="clSub" value="${esc(st.subject)}">
       <label class="set-lbl" for="clMsg">Message</label><textarea id="clMsg" rows="14">${esc(st.body)}</textarea>
       <p class="tiny" id="clErr" style="margin-top:10px"></p>
@@ -154,7 +162,8 @@ async function invite(o = {}) {
         const r = await apiAH('/api/clients/invite', { method: 'POST', body: JSON.stringify({ emails: list, name: st.name, brands: [...st.brands], send, approved: send, subject: st.subject, body: st.body }) });
         if (r.failed && r.failed.length) { msg.style.color = 'var(--bad)'; msg.textContent = r.failed.map(f => `${f.email}: ${f.error}`).join(' '); btns.forEach(b => b.disabled = false); if (o.onDone) o.onDone(); return; }
         close();
-        noteModal(send ? 'Invite sent' : 'Access given', `<p>${esc((send ? r.sent : r.added).join(', '))} ${send ? 'got the email and' : ''} can sign in now with Google at locus.go-mobius-digital.com/profit.</p>`);
+        const links = Object.entries(r.links || {}).map(([e, l]) => `<p class="tiny" style="margin:6px 0 0">${esc(e)}<br><input type="text" readonly value="${esc(l)}" style="width:100%" onclick="this.select()"></p>`).join('');
+        noteModal(send ? 'Invite sent' : 'Access given', `<p>${esc((send ? r.sent : r.added).join(', '))} ${send ? 'got the email with their own sign-in link.' : 'can sign in now. Send them their link:'}</p>${send ? '' : links}`);
         if (o.onDone) o.onDone();
       } catch (e) { msg.style.color = 'var(--bad)'; msg.textContent = e.message; btns.forEach(b => b.disabled = false); }
     };
