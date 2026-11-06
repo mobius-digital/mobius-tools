@@ -793,14 +793,29 @@ export async function trybeRecut(env, d, act, subId, { note = '', by = '' } = {}
   const s = await trybeGet(d, k.key, `/submissions/${encodeURIComponent(subId)}`);
   if (s.media_type && s.media_type !== 'video') throw new Error('That one is not a video.');
   if (!s.asset?.url) throw new Error('Trybe sent no file for that video.');
-  const where = await recutFolder(env, d, act);
-  const name = noDash(`${own.creator || 'Creator'} - ${shortProduct(own.product) || 'video'} - ${own.trybe_id || subId.slice(-6)} - ORIGINAL.mp4`).replace(/[\\/:*?"<>|]/g, '');
-  const up = await frameApi(env, 'POST', `/accounts/${where.account}/folders/${where.folder}/files/remote_upload`, { data: { name, source_url: s.asset.url } });
-  const rec = { at: new Date().toISOString(), by, note: String(note || '').slice(0, 500), creator: own.creator, product: shortProduct(own.product), trybe_id: own.trybe_id, file: up.data?.id || null, folder: where.url, name };
+  const name = noDash(`${own.creator || 'Creator'} - ${shortProduct(own.product) || 'video'} - ${own.trybe_id || subId.slice(-6)} - ORIGINAL.mp4`).replace(/[\/:*?"<>|]/g, '');
+  /* Frame when it is connected; else (or if Frame fails) Locus keeps the file and Ravo gets a download link. */
+  let where = null, file = null, link = null, via = 'frame';
+  try {
+    where = await recutFolder(env, d, act);
+    const up = await frameApi(env, 'POST', `/accounts/${where.account}/folders/${where.folder}/files/remote_upload`, { data: { name, source_url: s.asset.url } });
+    file = up.data?.id || null;
+    link = where.url;
+  } catch (e) {
+    if (!env.MEDIA) throw e;
+    via = 'locus';
+    const r = await fetch(s.asset.url);
+    if (!r.ok) throw new Error(`Trybe's file did not download (${r.status}).`);
+    const buf = await r.arrayBuffer();
+    const id = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`trybe-recut:${act}:${subId}`)))].slice(0, 12).map(x => x.toString(16).padStart(2, '0')).join('');
+    await env.MEDIA.put(`studio/vid/${id}.mp4`, buf, { httpMetadata: { contentType: 'video/mp4', contentDisposition: `attachment; filename="${name}"` } });
+    link = `https://mobius-account-health.mobius-digital.workers.dev/studio-vid/${id}.mp4`;
+  }
+  const rec = { at: new Date().toISOString(), by, note: String(note || '').slice(0, 500), creator: own.creator, product: shortProduct(own.product), trybe_id: own.trybe_id, via, file, folder: link, name };
   await putSetting(env, `trybeRecut:${act}:${subId}`, JSON.stringify(rec));
   const brand = (await d.listBrands(env)).find(b => b.act_id === act);
   if (brand?.slack_channel && d.slackPost) {
-    const msg = noDash(`<@${RAVO}>, recut: ${own.creator}'s ${rec.product || ''} video (${own.trybe_id || 'Trybe'}).\n${rec.note ? `Note: ${rec.note}\n` : ''}Original is in Frame: <${where.url}|${RECUT_FOLDER}>. Follow the brand's edit guide, keep the original, upload yours next to it with RECUT in the name.`);
+    const msg = noDash(`<@${RAVO}>, recut: ${own.creator}'s ${rec.product || ''} video (${own.trybe_id || 'Trybe'}).\n${rec.note ? `Note: ${rec.note}\n` : ''}Original: ${via === 'frame' ? `<${link}|Frame, ${RECUT_FOLDER}>` : `<${link}|download the file>`}. Follow the brand's edit guide, keep the original, upload yours next to it with RECUT in the name.`);
     await d.slackPost(env, brand.slack_channel, msg, null, { username: 'Locus' }).catch(() => null);
   }
   return { ok: true, ...rec };
