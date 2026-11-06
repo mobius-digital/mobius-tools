@@ -2416,7 +2416,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="../onboard/questions.js?v=12"></script>
 <script src="brand.js?v=24"></script>
 <script src="newclient.js?v=16"></script>
-<script src="clients.js?v=6"></script>
+<script src="clients.js?v=7"></script>
 <script src="requests.js?v=5"></script>
 <script src="sitereviews.js?v=1"></script>
 <script src="actions.js?v=4"></script>
@@ -2710,6 +2710,13 @@ async function boot() {
   if (connected) return renderConnected(connected);
   const storeTok = new URLSearchParams(location.search).get('store');
   if (storeTok) return renderStoreView(storeTok);
+  /* An emailed sign-in link signs straight in; an invite link opens the invite page, even over an old session on this
+     browser (the person may be signing in for the first time on a shared or team machine). */
+  if (qs.get('signin') || qs.get('invite')) {
+    const r = await gateFromUrl(qs);
+    if (r && r !== 'in') return renderGate(r);
+    if (r !== 'in' && GATE.invite) { if (GATE.invite.ok || !S.tok) return renderGate(); history.replaceState(null, '', location.pathname); GATE.invite = null; }
+  }
   if (!S.tok) return renderGate();
   setChip('…','off');
   try {
@@ -3018,9 +3025,13 @@ function renderGate(err, offerRetry) {
         </div>
       </div>
   <div class="gate kit-gate-card">
-    <p>Sign in with Google, using the email Mobius invited.</p>
-    <a class="cta" style="display:flex;text-align:center;text-decoration:none" href="../hq/?next=/profit/">Continue with Google</a>
-    ${err ? `<div class="err">${esc(err)}</div>` : ''}
+    <div id="gInvite"></div>
+    <p id="gLead">Sign in to Locus.</p>
+    <div id="gBtn" style="display:flex;justify-content:center;min-height:44px"></div>
+    <div id="gMail" style="margin-top:14px;text-align:center">
+      <button type="button" class="linkbtn" id="gMailOpen" style="background:none;border:0;color:var(--muted);font:inherit;font-size:13px;text-decoration:underline;cursor:pointer">No Google account? Email me a sign-in link</button>
+    </div>
+    <div id="gMsg" class="err" style="display:${err ? '' : 'none'}">${esc(err || '')}</div>
     ${offerRetry ? `<button class="cta" id="gRetry" style="margin-top:10px;background:var(--surface);color:var(--ink);border:1px solid var(--line-strong)">Retry with my HQ sign-in</button>` : ''}
     <details style="margin-top:16px"><summary style="font-size:12px;color:var(--muted);cursor:pointer">Use a password instead</summary>
       <label>Password</label><input id="gTok" type="password" placeholder="password">
@@ -3038,9 +3049,97 @@ function renderGate(err, offerRetry) {
     boot();
   };
   const rb = $('#gRetry');
-  if (rb) rb.onclick = () => { S.tok = sharedSession() || ''; if (!S.tok) return renderGate('No Mobius session found - sign in at HQ first.'); boot(); };
+  if (rb) rb.onclick = () => { S.tok = sharedSession() || ''; if (!S.tok) return renderGate('Sign in again below.'); boot(); };
   $('#gGo').onclick = go;
   $('#gTok').addEventListener('keydown', e => { if (e.key==='Enter') go(); });
+  gateSignIn();
+}
+
+/* LOCUS SIGNS PEOPLE IN ITSELF (2026-11-06, Cole: "the Locus subdomain needs its own sign-in, not Mobius Digital Tools").
+   The Google button is drawn right here (no hop to /hq). An invite link (?invite=<token>) lets the person pick ANY Google
+   account, and anyone invited can ask for an emailed one-time link instead (no Google account needed: Rob at Yak is on
+   Outlook). The session is stored under both Locus's key and the shared Mobius keys, so the other tools still see it. */
+const GOOGLE_CLIENT_ID = '1095210859237-eqn8nsr9p3mcui7cuq17l3jas4dgpl8a.apps.googleusercontent.com';
+const GATE = { invite: null };
+function keepSession(j) {
+  S.tok = j.token;
+  try {
+    localStorage.setItem(LS.tok, j.token);
+    localStorage.setItem('mobius_session', j.token); localStorage.setItem('mobius_session_email', j.email || ''); localStorage.setItem('mobius_session_exp', String(j.exp || 0));
+    if (j.role === 'client') localStorage.setItem('mobius_session_role', 'client'); else localStorage.removeItem('mobius_session_role');
+  } catch {}
+}
+function gateMsg(text, good) { const m = $('#gMsg'); if (!m) return; m.style.display = text ? '' : 'none'; m.style.color = good ? 'var(--good, #1a7f37)' : ''; m.textContent = text || ''; }
+async function ahPost(path, body) {
+  const r = await fetch(AH_URL + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || 'Something went wrong. Try again.');
+  return j;
+}
+function gateSignIn() {
+  const inv = GATE.invite;
+  if (inv) {
+    $('#gInvite').innerHTML = inv.ok
+      ? `<h2 style="margin:0 0 6px;font-size:20px">${inv.name ? `${esc(inv.name)}, you` : 'You'} are invited to Locus</h2><p style="margin:0 0 12px">for <b>${esc(inv.brands.join(', '))}</b>.</p>`
+      : `<p class="err" style="margin:0 0 12px">${esc(inv.error)}</p>`;
+    $('#gLead').textContent = inv.ok ? 'Sign in with any Google account you like. It becomes your Locus login.' : 'Already have a login? Sign in below.';
+  }
+  /* Google's button, drawn on this page. If Google refuses this address (origin not set up), fall back to the old hop. */
+  const draw = () => {
+    if (!window.google?.accounts?.id) return;
+    google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: onGateGoogle, ux_mode: 'popup', context: 'signin' });
+    google.accounts.id.renderButton($('#gBtn'), { theme: 'filled_black', size: 'large', shape: 'pill', text: 'continue_with', width: 280 });
+  };
+  if (window.google?.accounts?.id) draw();
+  else if (!document.getElementById('gsiJs')) {
+    const s = document.createElement('script'); s.id = 'gsiJs'; s.src = 'https://accounts.google.com/gsi/client'; s.async = true;
+    s.onload = draw;
+    s.onerror = () => { $('#gBtn').innerHTML = `<a class="cta" style="display:flex;justify-content:center;text-decoration:none" href="../hq/?next=/profit/">Continue with Google</a>`; };
+    document.head.appendChild(s);
+  } else document.getElementById('gsiJs').addEventListener('load', draw);
+  $('#gMailOpen').onclick = () => {
+    const box = $('#gMail');
+    if (inv && inv.ok) {
+      box.innerHTML = `<button class="cta" id="gMailGo" style="background:var(--surface);color:var(--ink);border:1px solid var(--line-strong)">Email a sign-in link to ${esc(inv.email)}</button>`;
+    } else {
+      box.innerHTML = `<label style="text-align:left">The email Mobius invited</label><input id="gMailEm" type="email" placeholder="you@yourbrand.com" autocomplete="email"><button class="cta" id="gMailGo" style="margin-top:10px">Email me a sign-in link</button>`;
+      setTimeout(() => $('#gMailEm')?.focus(), 0);
+      $('#gMailEm').addEventListener('keydown', e => { if (e.key === 'Enter') $('#gMailGo').click(); });
+    }
+    $('#gMailGo').onclick = async () => {
+      const email = $('#gMailEm') ? $('#gMailEm').value.trim() : '';
+      if (!(inv && inv.ok) && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return gateMsg('Type the email Mobius invited.');
+      $('#gMailGo').disabled = true; gateMsg('Sending…', true);
+      try {
+        const r = await ahPost('/api/clients/login-link', inv && inv.ok ? { invite: inv.token } : { email });
+        gateMsg(`If ${r.to || email} has a Locus login, a sign-in link is on its way. Open it on this device within 20 minutes. Check spam if it is not there in a minute.`, true);
+      } catch (e) { gateMsg(e.message); $('#gMailGo').disabled = false; }
+    };
+  };
+}
+async function onGateGoogle(resp) {
+  gateMsg('Signing you in…', true);
+  try {
+    const j = await ahPost('/api/google-login', { credential: resp.credential, ...(GATE.invite?.ok ? { invite: GATE.invite.token } : {}) });
+    keepSession(j); GATE.invite = null; history.replaceState(null, '', location.pathname); boot();
+  } catch (e) {
+    gateMsg(/no Locus login/i.test(e.message) ? `${e.message.split(' has no')[0]} is not invited to Locus. Use your invite link, sign in with the invited email, or ask Mobius to invite this one.` : e.message);
+  }
+}
+/* ?invite=<token> shows whose invite it is; ?signin=<token> is an emailed one-time link and signs straight in. */
+async function gateFromUrl(qs) {
+  const st = qs.get('signin');
+  if (st) {
+    history.replaceState(null, '', location.pathname);
+    try { keepSession(await ahPost('/api/clients/signin', { t: st })); return 'in'; }
+    catch (e) { return e.message; }
+  }
+  const it = qs.get('invite');
+  if (it) {
+    try { const r = await fetch(AH_URL + '/api/clients/invite-info?t=' + encodeURIComponent(it)).then(x => x.json()); GATE.invite = { ...r, token: it }; }
+    catch { GATE.invite = { ok: false, error: 'Could not read this invite. Refresh the page.' }; }
+  }
+  return null;
 }
 $('#btnOut').onclick = () => { S.tok=''; localStorage.removeItem(LS.tok); ['mobius_session','mobius_session_email','mobius_session_exp','mobius_session_role'].forEach(k=>localStorage.removeItem(k)); S.role = null; S.client = null; document.body.classList.remove('is-client'); renderGate(); };
 

@@ -64,6 +64,8 @@ const FORGED_DEV = mint('cole@go-mobius-digital.com', 'dev');
 
 const realFetch = globalThis.fetch;
 const mails = [], slackSent = [], slackOpened = [];
+/* The plain-text part of a captured Gmail send. */
+const mailText = m => { const raw = Buffer.from(m.raw.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'); const part = raw.split('text/plain; charset=UTF-8')[1] || ''; const b = part.split('\r\n\r\n')[1].split('\r\n')[0]; return Buffer.from(b, 'base64').toString('utf8'); };
 /* The model, when a check sets it: body -> the Messages API answer. */
 const MOCK = { anthropic: null };
 globalThis.fetch = async (url, init = {}) => {
@@ -491,11 +493,14 @@ await check('inviting: owner only, Mobius emails refused, the email goes only on
   assert.equal(dom.j.failed.length, 1); assert.match(dom.j.failed[0].error, /Mobius account/);
   assert.equal((await ah(OWNER, 'POST', '/api/clients/invite', { emails: 'new@beta.com', brands: ['brand_beta'], send: true, subject: 's', body: 'b' })).status, 400, 'no send without approval');
   const draft = await ah(OWNER, 'GET', '/api/clients/draft?brands=brand_beta&email=new@beta.com&name=Sam%20Lee');
-  assert.match(draft.j.body, /Hi Sam,/); assert.match(draft.j.body, /Continue with Google/); assert.ok(!/\u2014/.test(draft.j.body + draft.j.subject), 'no em dashes');
+  assert.match(draft.j.body, /Hi Sam,/); assert.match(draft.j.body, /\{\{sign-in link\}\}/); assert.match(draft.j.body, /any Google account/); assert.ok(!/\u2014/.test(draft.j.body + draft.j.subject), 'no em dashes');
   assert.ok(!/read-only/i.test(draft.j.body), 'the invite no longer says read-only');
   setSetting('clientAccess', {});
   const inv = await ah(OWNER, 'POST', '/api/clients/invite', { emails: 'new@beta.com', brands: ['brand_beta'], access: { pl: false }, send: true, approved: true, subject: draft.j.subject, body: draft.j.body });
   assert.equal(inv.status, 200, JSON.stringify(inv.j)); assert.deepEqual(inv.j.sent, ['new@beta.com']); assert.equal(mails.length, 1);
+  const tok = getSetting('clientUsers')['new@beta.com'].invite.token;
+  assert.match(mailText(mails[0]), new RegExp(`\\?invite=${tok}`), 'the email carries their own invite link');
+  assert.ok(!/\{\{sign-in link\}\}/.test(mailText(mails[0])), 'the placeholder is replaced');
   assert.deepEqual(getSetting('clientAccess'), {}, 'an old screen\'s switches are ignored');
   assert.equal((await ah(OWNER, 'PUT', '/api/clients/access', { act: 'brand_beta', pl: false })).status, 404, 'the switch route is gone');
   const list = await ah(OWNER, 'GET', '/api/clients?act=brand_beta');
@@ -504,6 +509,40 @@ await check('inviting: owner only, Mobius emails refused, the email goes only on
   assert.equal((await ah(NEW, 'GET', '/api/reports?act=brand_alpha')).status, 403);
   assert.equal((await ah(OWNER, 'POST', '/api/clients/remove', { email: 'new@beta.com' })).status, 200);
   assert.equal((await ah(NEW, 'GET', '/api/me')).status, 401, 'removed = locked out at once');
+});
+
+await check('invite links (2026-11-06): any Google account claims an invite once; no Google account = an emailed one-time link; strangers learn nothing', async () => {
+  const before = mails.length;
+  await ah(OWNER, 'POST', '/api/clients/invite', { emails: 'rob@outlook-only.com', name: 'Rob', brands: ['brand_beta'] });
+  const link = (await ah(OWNER, 'POST', '/api/clients/link', { email: 'rob@outlook-only.com' })).j.link;
+  const t = /invite=([0-9a-f]{32})/.exec(link)[1];
+  assert.equal((await ah(TEAM, 'POST', '/api/clients/link', { email: 'rob@outlook-only.com' })).status, 403, 'only Cole copies links');
+  const info = await ah(null, 'GET', '/api/clients/invite-info?t=' + t);
+  assert.equal(info.j.ok, true); assert.deepEqual(info.j.brands, ['Beta Socks']); assert.ok(!info.j.email.includes('rob@'), 'the address is masked');
+  assert.equal((await ah(null, 'GET', '/api/clients/invite-info?t=' + 'f'.repeat(32))).j.ok, false);
+  /* Emailed link: by invite (goes to the invited address) and by typed email; a stranger gets the same answer and no mail. */
+  const sent = await ah(null, 'POST', '/api/clients/login-link', { invite: t });
+  assert.equal(sent.status, 200); assert.equal(mails.length, before + 1);
+  const st = /signin=([0-9a-f]{48})/.exec(mailText(mails[mails.length - 1]))[1];
+  const stranger = await ah(null, 'POST', '/api/clients/login-link', { email: 'nobody@else.com' });
+  assert.equal(stranger.status, 200); assert.equal(mails.length, before + 1, 'no mail to a stranger');
+  await ah(null, 'POST', '/api/clients/login-link', { email: 'rob@outlook-only.com' });
+  assert.equal(mails.length, before + 1, 'one link a minute per address');
+  const s1 = await ah(null, 'POST', '/api/clients/signin', { t: st });
+  assert.equal(s1.status, 200); assert.equal(s1.j.role, 'client'); assert.equal(s1.j.email, 'rob@outlook-only.com');
+  assert.equal((await ah(s1.j.token, 'GET', '/api/me')).j.role, 'client');
+  assert.equal((await ah(null, 'POST', '/api/clients/signin', { t: st })).status, 401, 'one use');
+  /* Any Google account through a fresh invite: it takes over the login; the invite is spent; the old address is gone. */
+  await ah(OWNER, 'POST', '/api/clients/invite', { emails: 'shreya@old-domain.com', name: 'Shreya', brands: ['brand_beta'] });
+  const t2 = /invite=([0-9a-f]{32})/.exec((await ah(OWNER, 'POST', '/api/clients/link', { email: 'shreya@old-domain.com' })).j.link)[1];
+  assert.equal((await ah(null, 'POST', '/api/google-login', { credential: 'ravo@go-mobius-digital.com', invite: t2 })).j.role, 'team', 'a Mobius account stays team and does not spend it');
+  const g = await ah(null, 'POST', '/api/google-login', { credential: 'shreya.p@gmail.com', invite: t2 });
+  assert.equal(g.status, 200, JSON.stringify(g.j)); assert.equal(g.j.role, 'client');
+  const users = getSetting('clientUsers');
+  assert.ok(!users['shreya@old-domain.com'], 'the invited address is replaced'); assert.equal(users['shreya.p@gmail.com'].invited_as, 'shreya@old-domain.com');
+  assert.deepEqual(users['shreya.p@gmail.com'].brands, ['brand_beta']); assert.ok(!users['shreya.p@gmail.com'].invite, 'invite spent');
+  assert.equal((await ah(null, 'POST', '/api/google-login', { credential: 'thief@gmail.com', invite: t2 })).status, 403, 'a spent invite claims nothing');
+  await ah(OWNER, 'POST', '/api/clients/remove', { email: 'shreya.p@gmail.com' }); await ah(OWNER, 'POST', '/api/clients/remove', { email: 'rob@outlook-only.com' });
 });
 
 await check('the 2026-10-27 audit: act_id alone is written back as act (no fall-through to every brand), an upload-typed body is refused off the upload routes, Creators / Today\'s calls / Social routes a client opens answer', async () => {

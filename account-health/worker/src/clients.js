@@ -42,23 +42,117 @@ async function brandNames(env, ids) {
   return Object.fromEntries(rows.map(r => [r.id, r.name]));
 }
 
+/* ---------------- invite links and emailed sign-in links (2026-11-06) ----------------
+ * Cole: clients could not sign in when the invited email was not a Google account (Rob at Yak: Outlook) or when they
+ * use another address (Shreya). So an invite is a LINK, not an address:
+ *  - the invite link (`?invite=<token>`, 30 days, one use) lets the person sign in with ANY Google account; that Google
+ *    email takes over the invited login (`invited_as` keeps the address we sent it to);
+ *  - "Email me a sign-in link" sends a one-time link (`?signin=<token>`, 20 minutes) to an invited address, so a person
+ *    with no Google account at all still gets in.
+ * Tokens: users[email].invite = {token, exp}; settings `signin:<token>` = {email, exp}. */
+export const LINK_PLACEHOLDER = '{{sign-in link}}';
+const INVITE_DAYS = 30, SIGNIN_MIN = 20;
+const hex = n => [...crypto.getRandomValues(new Uint8Array(n))].map(b => b.toString(16).padStart(2, '0')).join('');
+const inviteUrl = t => `${LOCUS_URL}?invite=${t}`;
+const maskEmail = e => { const [u, d] = String(e).split('@'); return `${u.slice(0, 2)}${'*'.repeat(Math.max(1, Math.min(6, u.length - 2)))}@${d}`; };
+
+/** The client's current invite link, made (or renewed when expired) on the way. */
+async function ensureInvite(env, email) {
+  const e = lower(email);
+  const users = (await getJson(env, 'clientUsers', {})) || {};
+  if (!users[e]) return null;
+  const cur = users[e].invite;
+  if (cur?.token && Date.parse(cur.exp) > Date.now() + 86400e3) return inviteUrl(cur.token);
+  users[e].invite = { token: hex(16), exp: new Date(Date.now() + INVITE_DAYS * 86400e3).toISOString() };
+  await putJson(env, 'clientUsers', users);
+  return inviteUrl(users[e].invite.token);
+}
+function findInvite(users, token) {
+  if (!/^[0-9a-f]{32}$/.test(token || '')) return null;
+  for (const [email, u] of Object.entries(users)) if (u?.invite?.token === token) return { email, u, live: Date.parse(u.invite.exp) > Date.now() };
+  return null;
+}
+
+/** Google sign-in through an invite link: the Google email takes over the invited login. Returns true when it did.
+ *  Team and Mobius emails never become clients (googleLogin checks the team first). */
+export async function claimInvite(env, token, googleEmail) {
+  const g = lower(googleEmail);
+  if (!emailOk(g) || g.endsWith('@' + DOMAIN) || g === lower(env.OWNER_EMAIL || OWNER) || (await teamGuests(env)).includes(g)) return false;
+  const users = (await getJson(env, 'clientUsers', {})) || {};
+  const hit = findInvite(users, token);
+  if (!hit || !hit.live) return false;
+  const rec = { ...hit.u }; delete rec.invite;
+  if (hit.email !== g) {
+    const into = users[g] && typeof users[g] === 'object' ? users[g] : null;
+    users[g] = into ? { ...into, brands: [...new Set([...(into.brands || []), ...(rec.brands || [])])], name: into.name || rec.name } : { ...rec, invited_as: hit.email };
+    delete users[hit.email];
+  } else users[g] = rec;
+  await putJson(env, 'clientUsers', users);
+  return true;
+}
+
+/** What the invite page shows before sign-in: whose invite, which brands. Nothing else. */
+async function inviteInfo(env, token) {
+  const users = (await getJson(env, 'clientUsers', {})) || {};
+  const hit = findInvite(users, token);
+  if (!hit) return { ok: false, error: 'This invite link is not valid any more. Ask Mobius for a new one.' };
+  if (!hit.live) return { ok: false, error: 'This invite link has expired. Ask Mobius for a new one.' };
+  const names = await brandNames(env, hit.u.brands || []);
+  return { ok: true, name: firstName(hit.u.name), email: maskEmail(hit.email), brands: (hit.u.brands || []).map(b => names[b] || b) };
+}
+
+/** Email a one-time sign-in link to an invited client. Always answers the same way (no telling who has a login). */
+async function sendSigninLink(env, email, invite) {
+  const users = (await getJson(env, 'clientUsers', {})) || {};
+  let e = lower(email);
+  if (invite) { const hit = findInvite(users, invite); if (!hit || !hit.live) return { ok: false, error: 'This invite link is not valid any more. Ask Mobius for a new one.' }; e = hit.email; }
+  const done = { ok: true, to: e && invite ? maskEmail(e) : null };
+  if (!emailOk(e) || !users[e]) return done;
+  const gate = `signinSent:${e}`;
+  const last = await getJson(env, gate, 0);
+  if (Date.now() - (+last || 0) < 60e3) return done;
+  await putJson(env, gate, Date.now());
+  const t = hex(24);
+  await putJson(env, `signin:${t}`, { email: e, exp: Date.now() + SIGNIN_MIN * 60e3 });
+  const hi = firstName(users[e].name) || 'there';
+  await sendMail(env, e, 'Your Locus sign-in link', `Hi ${hi},
+
+Here is your link to sign in to Locus:
+${LOCUS_URL}?signin=${t}
+
+It works once, for the next ${SIGNIN_MIN} minutes. If you did not ask for it, ignore this email.`);
+  return done;
+}
+
+/** Redeem an emailed sign-in link. One use. */
+async function redeemSignin(env, token, mintSession) {
+  if (!/^[0-9a-f]{48}$/.test(token || '')) return null;
+  const key = `signin:${token}`;
+  const v = await getJson(env, key, null);
+  await env.DB.prepare(`DELETE FROM settings WHERE key = ?1`).bind(key).run().catch(() => {});
+  if (!v || v.exp < Date.now()) return null;
+  const users = (await getJson(env, 'clientUsers', {})) || {};
+  if (!users[v.email]) return null;
+  if (users[v.email].invite) { delete users[v.email].invite; await putJson(env, 'clientUsers', users); }
+  await touchClient(env, v.email, 'login').catch(() => {});
+  return { ...(await mintSession(env, v.email)), role: 'client', name: users[v.email].name || '' };
+}
+
 /* ---------------- the invite email ---------------- */
-export function inviteDraft({ brands = [], name = '', email = '' }) {
+export function inviteDraft({ brands = [], name = '' }) {
   const list = brands.filter(Boolean);
   const what = list.length > 1 ? `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]}` : list[0] || 'your brand';
   const hi = firstName(name) || 'there';
-  const who = email || 'the email this was sent to';
   return {
     subject: `Your Locus login for ${list.length === 1 ? list[0] : 'your brands'}`,
     body: `Hi ${hi},
 
 You now have your own login to Locus, the system we use to run ${what}. You see exactly what we see: sales and profit, ad spend and results by channel, email and SMS, your store and customers, stock, the creative studio, the marketing calendar, your plan and goals, and the reports we send you.
 
-To sign in:
-- Open ${LOCUS_URL}
-- Press Continue with Google and pick ${who}
+To sign in, open your personal link:
+${LINK_PLACEHOLDER}
 
-If ${who} is not a Google account yet, you can still use it: on Google's sign-in screen choose Create account, then "Use my current email address instead". It takes a minute and needs no Gmail.
+Sign in with any Google account you like. No Google account? Press "Email me a sign-in link" on that page and we send a link to this address. After the first time, sign in at ${LOCUS_URL}
 
 You can work in it too: add dates to the calendar, ask us for something under Requests, set your goals, make ads in the studio, and ask the assistant anything about your numbers. Changes to live ads always show you what will happen and wait for you to confirm.
 
@@ -111,6 +205,19 @@ export async function meClient(env, email) {
 export async function handleClients(request, env, path, json, { isAdmin, sessionEmail, mintSession }) {
   if (!path.startsWith('/api/clients')) return null;
   const url = new URL(request.url);
+  /* Public: the sign-in page's own routes (no session yet). */
+  if (path === '/api/clients/invite-info' && request.method === 'GET') return json(await inviteInfo(env, url.searchParams.get('t')));
+  if (path === '/api/clients/login-link' && request.method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    try { const r = await sendSigninLink(env, b.email, b.invite); return json(r, r.ok ? 200 : 400); }
+    catch (e) { return json({ error: 'Could not send the email just now. Try again in a minute.' }, 502); }
+  }
+  if (path === '/api/clients/signin' && request.method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    const s = mintSession ? await redeemSignin(env, b.t, mintSession) : null;
+    return s ? json(s) : json({ error: 'This sign-in link has expired or was already used. Ask for a new one.' }, 401);
+  }
+
   const cs = clientScope(request);
   const who = await sessionEmail(env, request).catch(() => null);
 
@@ -150,7 +257,8 @@ export async function handleClients(request, env, path, json, { isAdmin, session
     const allIds = [...new Set(Object.values(users).flatMap(u => (u && u.brands) || []))];
     const names = await brandNames(env, allIds);
     const rows = Object.entries(users).map(([email, u]) => ({ email, name: u.name || null, brands: (u.brands || []).filter(b => !only || only.has(b)).map(b => ({ id: b, name: names[b] || b })),
-      invited_at: u.invited_at || null, invited_by: u.invited_by || null, last_invite: u.last_invite || null, last_sign_in: u.last_sign_in || null, last_seen: u.last_seen || null }))
+      invited_at: u.invited_at || null, invited_by: u.invited_by || null, last_invite: u.last_invite || null, last_sign_in: u.last_sign_in || null, last_seen: u.last_seen || null,
+      invited_as: u.invited_as || null }))
       .filter(r => r.brands.length && (!act || act === 'all' || r.brands.some(b => b.id === act)))
       .sort((a, b) => a.email.localeCompare(b.email));
     /* `access` and `switches` stay in the answer (always everything) for any screen that still reads them. */
@@ -186,9 +294,13 @@ export async function handleClients(request, env, path, json, { isAdmin, session
       if (err) { failed.push({ email: e, error: err }); continue; }
       added.push(e);
     }
+    const links = {};
+    for (const e of added) links[e] = await ensureInvite(env, e);
     if (send) {
       for (const e of added) {
-        try { await sendMail(env, e, subject, text); sent.push(e); }
+        /* Each person gets their own link where the text says {{sign-in link}} (or at the end if the line was edited out). */
+        const body = text.includes(LINK_PLACEHOLDER) ? text.split(LINK_PLACEHOLDER).join(links[e]) : `${text}\n\nYour sign-in link: ${links[e]}`;
+        try { await sendMail(env, e, subject, body); sent.push(e); }
         catch (err) { failed.push({ email: e, error: /sign-in failed|unauthorized_client|access_denied|insufficient/i.test(err.message) ? 'Locus may not send from your Gmail yet (gmail.send delegation). Copy the email and send it yourself.' : err.message }); }
       }
       if (sent.length) {
@@ -197,7 +309,13 @@ export async function handleClients(request, env, path, json, { isAdmin, session
         await putJson(env, 'clientUsers', users);
       }
     }
-    return json({ ok: !failed.length, added, sent, failed });
+    return json({ ok: !failed.length, added, sent, failed, links });
+  }
+
+  /* A client's invite link, to paste anywhere (Slack, a text). Owner. */
+  if (path === '/api/clients/link' && request.method === 'POST') {
+    const link = await ensureInvite(env, b.email);
+    return link ? json({ ok: true, link }) : json({ error: 'No client login with that email.' }, 404);
   }
 
   /* See Locus as a client (2026-11-04): Cole signs in as an invited client without their Google account. Owner only. */

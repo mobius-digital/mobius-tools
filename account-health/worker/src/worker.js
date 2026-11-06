@@ -3,7 +3,7 @@ import { useFetch as assetsFetch, syncAssets, tagAssets, listAssets, assetsTick,
 import { guardBrands, brandsFor, clientScope, isClientEmail } from './brandguard.js';
 import { handleCommand } from './command.js';
 import { handleAgency } from './agency.js';
-import { handleClients, clientAsk, clientOwnsRun, touchClient, meClient } from './clients.js';
+import { handleClients, clientAsk, clientOwnsRun, touchClient, meClient, claimInvite } from './clients.js';
 import { listBrands, addConnection, createBrand, brandByChannel, connectionNote, KINDS as BRAND_KINDS, metaOf, isBrandId, resolveBrandId, acctOf, metaSyncRows, setTripleWhale, storagePrefix, brandOf, connGet, connSet } from './brands.js';
 import { whoIs, channelInfo, brandForChannel, readAccess, writeAccess } from './slackaccess.js';
 import { movedTick, movedPreview } from './moved.js';
@@ -7064,7 +7064,7 @@ async function emailAllowed(env, email) {
 }
 
 /** Verify a Google ID token (from Google Identity Services) and mint a session. */
-async function googleLogin(env, credential) {
+async function googleLogin(env, credential, invite) {
   if (!env.GOOGLE_CLIENT_ID || env.GOOGLE_CLIENT_ID.startsWith('PASTE')) {
     return { error: 'Google sign-in is not configured yet', status: 501 };
   }
@@ -7074,7 +7074,8 @@ async function googleLogin(env, credential) {
   if (info.email_verified !== 'true' && info.email_verified !== true) return { error: 'Email not verified', status: 401 };
   /* A client login (clients.js) signs in the same way; brandguard.js decides what it may open. */
   const team = await emailAllowed(env, info.email);
-  const client = !team && await isClientEmail(env, info.email);
+  /* An invite link (?invite=) lets the person use ANY Google account: that email takes over the invited login. */
+  const client = !team && ((invite && await claimInvite(env, invite, info.email).catch(() => false)) || await isClientEmail(env, info.email));
   if (!team && !client) return { error: `${info.email} has no Locus login. Ask Mobius Digital to invite this email.`, status: 403 };
   const s = await mintSession(env, info.email);
   if (client) await touchClient(env, info.email, 'login').catch(() => {});
@@ -9386,8 +9387,8 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     if (path === '/' ) return Response.redirect(DASHBOARD_URL, 302);
 
     if (path === '/api/google-login' && request.method === 'POST') {
-      const { credential } = await request.json().catch(() => ({}));
-      const r = await googleLogin(env, credential);
+      const { credential, invite } = await request.json().catch(() => ({}));
+      const r = await googleLogin(env, credential, invite);
       return r.error ? json({ error: r.error }, r.status) : json(r);
     }
 
