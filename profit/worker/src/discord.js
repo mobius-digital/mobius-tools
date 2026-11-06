@@ -215,9 +215,11 @@ async function build(env, token, act, d, brand, opt) {
   if (!invite) { const iv = await dc(token, 'POST', `/channels/${chans.welcome}/invites`, { max_age: 0, max_uses: 0, unique: false }); invite = `https://discord.gg/${iv.code}`; }
   const out = { ...d, channels: chans, cats, roles: { team, vip }, posted, invite, core, vip: vipPay, built_at: new Date().toISOString() };
   await putDoc(env, act, out);
-  /* The hub shows the invite on Start here. */
-  const row = await env.DB.prepare(`SELECT week_json FROM p_amb_brand WHERE act_id = ?1`).bind(act).first().catch(() => null);
-  if (row) { const w = safeJson(row.week_json, {}) || {}; if (w.discord !== invite) { w.discord = invite; await env.DB.prepare(`UPDATE p_amb_brand SET week_json = ?2, updated_at = datetime('now') WHERE act_id = ?1`).bind(act, JSON.stringify(w)).run(); } }
+  /* The hub shows the Locus JOIN link on Start here (2026-11-06): creators sign in with Discord and are matched to
+     the Trybe roster, so the open discord.gg invite is no longer shown anywhere. */
+  const row = await env.DB.prepare(`SELECT week_json, slug FROM p_amb_brand WHERE act_id = ?1`).bind(act).first().catch(() => null);
+  const join = row && row.slug ? `https://mobius-account-health.mobius-digital.workers.dev/join/${row.slug}` : invite;
+  if (row) { const w = safeJson(row.week_json, {}) || {}; if (w.discord !== join) { w.discord = join; await env.DB.prepare(`UPDATE p_amb_brand SET week_json = ?2, updated_at = datetime('now') WHERE act_id = ?1`).bind(act, JSON.stringify(w)).run(); } }
   return { made, out, notes };
 }
 
@@ -294,6 +296,13 @@ export async function handleDiscord(request, env, url, path, body, json, mustAcc
     }
     /* Clear the "pinned a message" lines from every channel of this brand's server. */
     if (path === '/api/amb/discord/tidy' && method === 'POST') return json({ ok: true, removed: await tidy(token, d) });
+    /* Revoke every open invite (2026-11-06): creators join through the Locus join link only. */
+    if (path === '/api/amb/discord/revoke-invites' && method === 'POST') {
+      const list = await dc(token, 'GET', `/guilds/${d.guild_id}/invites`).catch(() => []);
+      let n = 0;
+      for (const iv of Array.isArray(list) ? list : []) { await dc(token, 'DELETE', `/invites/${iv.code}`).catch(() => null); n++; }
+      return json({ ok: true, revoked: n });
+    }
     /* The recap for Ads > Trybe > Discord (2026-11-05): members, activity per channel in the last 7 days, and creator
        messages nobody on the team has answered yet (no later message from the owner, the bot, the mascot or a Team id). */
     if (path === '/api/amb/discord/recap' && method === 'GET') {
