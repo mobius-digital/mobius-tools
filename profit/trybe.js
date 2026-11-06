@@ -81,7 +81,7 @@
 .tb .tb-sw{display:inline-flex;border:1px solid var(--line);border-radius:10px;padding:2px;gap:2px;background:var(--panel-2,rgba(127,127,127,.08))}
 .tb .tb-sw button{border:0;background:none;color:var(--muted);font:inherit;font-size:13px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;white-space:nowrap}
 .tb .tb-sw button.on{background:var(--panel,#fff);color:var(--text,inherit);box-shadow:0 1px 2px rgba(0,0,0,.18)}
-.tb .tb-sc-h{flex-wrap:wrap;gap:10px}
+.tb .tb-sc-h{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}.tb .tb-sc-h h3{margin:0}
 .tb .tb-sc-ctl{display:flex;gap:8px;flex-wrap:wrap}
 .tb .tb-sc-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:4px 0 14px}
 .tb .tb-sc-strip>div{background:var(--panel,transparent);padding:12px 14px}
@@ -110,7 +110,7 @@
 .tb .tb-rules{margin:0;padding-left:20px;line-height:1.5}.tb .tb-rules li{margin:0 0 6px}
 .tb .tb-fu-g{margin-top:14px}.tb .tb-fu{padding:12px 0;border-top:1px solid var(--line);display:grid;gap:8px}
 .tb .tb-fu-who{display:flex;align-items:center;gap:4px 10px;flex-wrap:wrap}.tb .tb-fu-who .tb-av{margin:0}
-.tb .tb-fu-msg{min-height:72px}.tb .tb-fu-act{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.tb .tb-fu-msg{min-height:96px}.tb .tb-fu-act a.v2btn{text-decoration:none}.tb .tb-fu-act{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 @media (max-width:900px){
   .tb .tb-top{grid-template-columns:repeat(2,minmax(0,1fr))}
   .tb .tb-row{grid-template-columns:54px minmax(0,1fr)}
@@ -120,6 +120,8 @@
   .tb .tb-sc-strip{grid-template-columns:repeat(2,minmax(0,1fr))}
   .tb .tb-pcs,.tb .tb-qgrid{grid-template-columns:minmax(0,1fr)}
   .tb .tb-sw button{min-height:40px}
+  .tb .tb-sc-h{flex-direction:column;align-items:flex-start}.tb .tb-sc-ctl{width:100%}.tb .tb-sc-ctl .tb-sw{flex:1 1 auto}.tb .tb-sc-ctl .tb-sw button{flex:1}
+  .tb .tb-fu-msg{min-height:140px}
   .tb .tb-fu-act .v2btn{flex:1 1 auto;justify-content:center}
   .tb-pop{align-items:flex-end;padding:0}
   .tb-pop .tb-sheet,.tb-pop .tb-sheet.vid{width:100%;max-height:92vh;border-radius:18px 18px 0 0;border-bottom:0}
