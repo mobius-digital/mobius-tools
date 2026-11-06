@@ -509,6 +509,27 @@
     ['An invite is not a sample', 'Inviting costs nothing. A sample is approved later, daily, only for a creator with a plan for a video.'],
     ['Keep the ones who deliver', 'After a month, keep a creator who makes 10 or more videos a month, or $5k or more in sales, with 50% or more approved, and a first video within 14 days of a sample. Below that: no more samples.'],
       ];
+  /* Jobs for Claude (2026-11-06): work with no API (Trybe program moves, Trybe chat and group messages, Build Ads).
+     Yes here approves it; the scheduled "Trybe jobs" Claude run on Cole's computer does it in Chrome and marks it done. */
+  async function jobsCard(box) {
+    let r; try { r = await H.apiAH('/api/trybe/jobs'); if (r && r.error) throw new Error(r.error); } catch (e) { return; }
+    const jobs = r.jobs || [];
+    const waiting = jobs.filter(j => j.status === 'waiting'), queued = jobs.filter(j => j.status === 'approved'), done = jobs.filter(j => ['done', 'failed'].includes(j.status)).slice(0, 8);
+    const row = (j, btns) => `<div class="tb-job" data-job="${esc(j.id)}"><div style="flex:1;min-width:0"><div><b>${esc(j.title)}</b></div><div class="tb-sub">${esc(j.kind_label)}${j.detail && j.detail.why ? `. ${esc(j.detail.why)}` : ''}${j.result ? `. ${esc(j.result)}` : ''}</div></div>${btns}</div>`;
+    const el = document.createElement('section');
+    el.className = 'v2card';
+    el.innerHTML = `<div class="v2h"><h3>Jobs for Claude</h3><span class="cap">done in Chrome on Cole's computer, weekdays 9:30 and 2:30</span></div>
+      <p class="v2hint">Things with no button in Trybe's connection: moving a creator to VIP or back, Trybe chat messages, group chat posts, Build Ads. Yes means Claude does it on the next run.</p>
+      ${waiting.length ? `<h3 style="font-size:14px;margin:8px 0 4px">Needs your yes (${waiting.length})</h3>${waiting.map(j => row(j, `<button type="button" class="v2btn ghost" data-jd="no">No</button><button type="button" class="v2btn" data-jd="yes">Yes</button>`)).join('')}` : '<p class="v2hint">Nothing waiting for your yes.</p>'}
+      ${queued.length ? `<h3 style="font-size:14px;margin:12px 0 4px">Up next (${queued.length})</h3>${queued.map(j => row(j, '<span class="v2pill">approved</span>')).join('')}` : ''}
+      ${done.length ? `<h3 style="font-size:14px;margin:12px 0 4px">Done lately</h3>${done.map(j => row(j, `<span class="v2pill ${j.status === 'done' ? 'good' : 'bad'}">${esc(j.status)}</span>`)).join('')}` : ''}`;
+    box.prepend(el);
+    el.querySelectorAll('[data-jd]').forEach(b => { b.onclick = async () => {
+      const id = b.closest('[data-job]').dataset.job; b.disabled = true;
+      try { const x = await H.apiAH('/api/trybe/jobs/decide', { method: 'POST', body: JSON.stringify({ id, yes: b.dataset.jd === 'yes' }) }); if (x && x.error) throw new Error(x.error); toast(b.dataset.jd === 'yes' ? 'Approved: Claude does it on the next run' : 'Declined'); b.closest('[data-job]').remove(); }
+      catch (e) { toast(e.message); b.disabled = false; }
+    }; });
+  }
   async function weekView() {
     const box = document.getElementById('tbWeek'); if (!box) return;
     let w;
@@ -535,6 +556,7 @@
       <section class="v2card"><div class="v2h"><h3>Who does what</h3></div><ul style="margin:0;padding-left:18px">${roles}</ul>
         <p class="v2hint">The creator manager is the one hire: accepts creators, approves samples, invites, follows up, answers Discord. Strategists judge the videos and give notes before upload.</p></section>`;
     box.querySelectorAll('[data-wk]').forEach(b => { b.onclick = () => { if (H.setViewAct) H.setViewAct(b.dataset.wk); H.show('trybe'); }; });
+    jobsCard(box);
   }
 
   /* The scorecard (2026-11-05; redesigned in round 3): one card per creator program. Triple Whale is the standard
@@ -647,7 +669,7 @@
         <div class="tb-fu-who">${c.avatar ? `<img class="tb-av" loading="lazy" alt="" src="${esc(c.avatar)}">` : ''}<b>${esc(c.name)}</b>
           <span class="tb-sub">${c.kind === 'sold' ? `${c.orders} sale${c.orders === 1 ? '' : 's'}${c.cpa != null ? `, ${money(c.cpa)} a sale` : ''}, last video ${c.days} days ago` : c.kind === 'quiet' ? `${c.approved} approved, no sale, last video ${c.days} days ago` : c.state === 'needs_resubmit' ? 'video sent back, new cut owed' : `video was due ${esc(c.due)}${c.days > 0 ? ` (${c.days} days late)` : ''}`}</span></div>
         <textarea class="tb-fu-msg" rows="3" aria-label="Message to ${esc(c.first)}">${esc(c.message)}</textarea>
-        <div class="tb-fu-act"><button type="button" class="v2btn ghost" data-fu="copy">Copy</button><a class="v2btn ghost" href="${esc(chat)}" target="_blank" rel="noopener">Open Trybe Chat</a><button type="button" class="v2btn" data-fu="sent">Sent</button></div></div>`;
+        <div class="tb-fu-act"><button type="button" class="v2btn ghost" data-fu="copy">Copy</button><a class="v2btn ghost" href="${esc(chat)}" target="_blank" rel="noopener">Open Trybe Chat</a><button type="button" class="v2btn ghost" data-fu="claude">Have Claude send it</button><button type="button" class="v2btn" data-fu="sent">Sent</button></div></div>`;
     const group = (title, why, list) => `<div class="tb-fu-g"><div class="v2h"><h3>${title} (${list.length})</h3></div><p class="v2hint">${why}</p>${list.length ? list.map(item).join('') : '<p class="v2hint">Nobody right now.</p>'}</div>`;
     box.innerHTML = `<div class="v2h"><h3>Follow up</h3><span class="cap">Thursdays · one message per creator, in Trybe Chat</span></div>
       <p class="v2hint">Locus writes each message. Edit it if you like, send it in Trybe Chat, then press Sent (hides them for ${r.rules.snooze_days} days). Claude can send the whole list in Chrome once Cole says yes.${r.note ? ` ${esc(r.note)}` : ''}</p>
@@ -657,6 +679,17 @@
     box.querySelectorAll('[data-fu]').forEach(b => { b.onclick = async () => {
       const row = b.closest('[data-cid]'), msg = row.querySelector('.tb-fu-msg').value;
       if (b.dataset.fu === 'copy') { try { await navigator.clipboard.writeText(msg); toast('Copied'); } catch { toast('Select the text and copy it'); } return; }
+      if (b.dataset.fu === 'claude') {
+        b.disabled = true;
+        const name = (row.querySelector('.tb-fu-who b') || {}).textContent || 'the creator';
+        try {
+          const x = await H.apiAH('/api/trybe/jobs', { method: 'POST', body: JSON.stringify({ act, kind: 'trybe_chat_send', approved: true, title: `Send ${name} a follow up in Trybe Chat`, detail: { creator: name, creator_id: row.dataset.cid, message: msg, chat: chat } }) });
+          if (x && x.error) throw new Error(x.error);
+          await H.apiAH('/api/trybe/followups/sent', { method: 'POST', body: JSON.stringify({ act, creator_id: row.dataset.cid }) });
+          toast('Queued: Claude sends it on the next run'); row.remove();
+        } catch (e) { toast(e.message); b.disabled = false; }
+        return;
+      }
       b.disabled = true;
       try { const x = await H.apiAH('/api/trybe/followups/sent', { method: 'POST', body: JSON.stringify({ act, creator_id: row.dataset.cid }) }); if (x && x.error) throw new Error(x.error); row.remove(); toast('Marked sent'); }
       catch (e) { toast(e.message); b.disabled = false; }

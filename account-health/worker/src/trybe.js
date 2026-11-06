@@ -1108,9 +1108,14 @@ export async function trybeDiscordSync(env, d, act, { dry = true, today } = {}) 
       if (!dry) { await dcCall(tok, 'DELETE', `/guilds/${dcd.guild_id}/members/${m.discord_id}/roles/${dcd.roles.vip}`); await env.DB.prepare(`UPDATE p_dc_member SET vip = 0 WHERE act_id = ?1 AND creator_id = ?2`).bind(act, m.creator_id).run(); }
     } else out.ok++;
   }
+  if (!dry) {
+    const bn = (await env.DB.prepare(`SELECT display_name FROM p_amb_brand WHERE act_id = ?1`).bind(act).first().catch(() => null))?.display_name || act;
+    for (const r of out.vip_on) await addJob(env, { act, kind: 'trybe_program_move', title: `Move ${r.name} to the ${bn} VIP program in Trybe`, detail: { creator: r.name, creator_id: r.creator_id, to: 'VIP', why: `$${r.sales_60d} in sales in 60 days, ${r.approval}% approved` } });
+    for (const r of out.vip_off) await addJob(env, { act, kind: 'trybe_program_move', title: `Move ${r.name} back to the ${bn} Core program in Trybe`, detail: { creator: r.name, creator_id: r.creator_id, to: 'Core', why: 'no approved video in 60 days' } });
+  }
   if (!dry && out.vip_on.length && d.listBrands && d.slackPost) {
     const brand = (await d.listBrands(env)).find(x => x.act_id === act);
-    if (brand && brand.slack_channel) await d.slackPost(env, brand.slack_channel, noDash(`New VIP creators (over $${bar} in sales from their videos in 60 days, 50%+ approved): ${out.vip_on.map(r => `${r.name} ($${r.sales_60d})`).join(', ')}. Discord VIP role is on. Next: invite them to the VIP program in Trybe and post the congrats in #announcements.`), null, { username: 'Locus' }).catch(() => null);
+    if (brand && brand.slack_channel) await d.slackPost(env, brand.slack_channel, noDash(`New VIP creators (over $${bar} in sales from their videos in 60 days, 50%+ approved): ${out.vip_on.map(r => `${r.name} ($${r.sales_60d})`).join(', ')}. Discord VIP role is on. The Trybe program move is waiting for Cole's yes in Locus (Ads, Trybe, Jobs for Claude).`), null, { username: 'Locus' }).catch(() => null);
   }
   await putSetting(env, `trybeDiscordPlan:${act}`, JSON.stringify(out));
   return out;
@@ -1125,6 +1130,57 @@ export async function trybeDiscordMembers(env, d, act) {
     vip: members.filter(m => m.vip && !m.removed_at).length, removed: members.filter(m => m.removed_at).length, members,
     auto: (await getSetting(env, 'trybeDiscordAuto')) === 'on', vip_bar: +(await getSetting(env, `trybeVipBar:${act}`)) || VIP_BAR[act] || 1000,
     oauth_ready: !!(await oauthCfg(env)).secret, last: safeJson(await getSetting(env, `trybeDiscordPlan:${act}`), null) };
+}
+
+/* ---------- Jobs for Claude (2026-11-06, Cole: "you always say you'll do it in Chrome, but how?") ----------
+   Some work has no API: moving a creator between Trybe programs, sending a Trybe chat message, posting in a Trybe
+   group chat, building ads in Trybe. Locus queues it as a job. Cole presses Yes in Locus (or Locus creates it already
+   approved when his own click asked for it). A scheduled Claude Code run on Cole's computer ("Trybe jobs", weekdays
+   9:30 and 2:30) reads the approved jobs, does each one in Claude in Chrome, and marks it done with what happened.
+   Table p_claude_job. status: waiting (needs Cole) | approved | done | failed | declined. */
+const JOB_KINDS = {
+  trybe_program_move: 'Move a creator between Trybe programs',
+  trybe_chat_send: 'Send a Trybe chat message to one creator',
+  trybe_group_post: 'Post in a brand\'s Trybe group chat',
+  trybe_build_ads: 'Launch approved videos with Trybe Build Ads',
+  other: 'Something else in Chrome',
+};
+async function ensureJobs(env) {
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS p_claude_job (id TEXT PRIMARY KEY, act_id TEXT, kind TEXT, title TEXT, detail_json TEXT, status TEXT,
+    created_at TEXT, created_by TEXT, decided_at TEXT, decided_by TEXT, done_at TEXT, result TEXT)`).run();
+}
+export async function addJob(env, { act = null, kind = 'other', title, detail = {}, approved = false, by = 'Locus' }) {
+  await ensureJobs(env);
+  const id = crypto.randomUUID().replace(/-/g, '').slice(0, 12);
+  const now = new Date().toISOString();
+  await env.DB.prepare(`INSERT INTO p_claude_job (id, act_id, kind, title, detail_json, status, created_at, created_by, decided_at, decided_by) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)`)
+    .bind(id, act, JOB_KINDS[kind] ? kind : 'other', noDash(String(title || '').slice(0, 200)), JSON.stringify(detail || {}), approved ? 'approved' : 'waiting', now, by, approved ? now : null, approved ? by : null).run();
+  return id;
+}
+async function listJobs(env, { status, act, days = 14 } = {}) {
+  await ensureJobs(env);
+  const since = new Date(Date.now() - days * 864e5).toISOString();
+  const rows = (await env.DB.prepare(`SELECT * FROM p_claude_job WHERE created_at >= ?1 ORDER BY created_at DESC LIMIT 200`).bind(since).all()).results || [];
+  return rows.filter(r => (!status || status.split(',').includes(r.status)) && (!act || r.act_id === act))
+    .map(r => ({ ...r, detail: safeJson(r.detail_json, {}), detail_json: undefined, kind_label: JOB_KINDS[r.kind] || r.kind }));
+}
+async function jobRoutes(request, env, path, url, json, b, who) {
+  if (path === '/api/trybe/jobs' && request.method === 'GET') return json({ jobs: await listJobs(env, { status: url.searchParams.get('status') || '', act: url.searchParams.get('act') || '' }), kinds: JOB_KINDS });
+  if (path === '/api/trybe/jobs' && request.method === 'POST') {
+    if (!b.title) return json({ error: 'Say what to do.' }, 400);
+    return json({ ok: true, id: await addJob(env, { act: b.act || null, kind: b.kind, title: b.title, detail: b.detail, approved: !!b.approved, by: who || 'Cole' }) });
+  }
+  if (path === '/api/trybe/jobs/decide' && request.method === 'POST') {
+    await ensureJobs(env);
+    await env.DB.prepare(`UPDATE p_claude_job SET status = ?2, decided_at = ?3, decided_by = ?4 WHERE id = ?1 AND status = 'waiting'`).bind(String(b.id || ''), b.yes ? 'approved' : 'declined', new Date().toISOString(), who || 'Cole').run();
+    return json({ ok: true });
+  }
+  if (path === '/api/trybe/jobs/done' && request.method === 'POST') {
+    await ensureJobs(env);
+    await env.DB.prepare(`UPDATE p_claude_job SET status = ?2, done_at = ?3, result = ?4 WHERE id = ?1`).bind(String(b.id || ''), b.ok === false ? 'failed' : 'done', new Date().toISOString(), noDash(String(b.result || '').slice(0, 1000))).run();
+    return json({ ok: true });
+  }
+  return null;
 }
 
 /* ---------- routes ---------- */
@@ -1189,6 +1245,7 @@ export async function handleTrybe(request, env, url, path, json, h) {
       return json({ ok: true, alerts: on });
     }
     const b = request.method === 'GET' ? {} : await request.json().catch(() => ({}));
+    { const jr = await jobRoutes(request, env, path, url, json, b, email); if (jr) return jr; }
     const act = await actOf(b.act || url.searchParams.get('act'));
     if (!allowed(act)) return json({ error: act ? 'You do not have access to this brand.' : 'No such brand.' }, act ? 403 : 404);
     if (path === '/api/trybe/key' && request.method === 'PUT') {
