@@ -410,13 +410,14 @@
      turn each line into a job (account-health /api/trybe/week). Roles: owner (Cole: scorecard, calls), media buyer
      (launches, keep or cut), creative strategists (Ahsan, Noma: review videos, notes, next week's set), creator manager
      (Cole until hired: accept creators and samples daily, invites, follow ups, Discord replies). Locus does the posts.
-     Round 3 (Cole, 11-05): samples are daily, invites are a Tuesday job with written rules, Thursday is follow ups. */
+     Round 3 (Cole, 11-05): samples are daily, invites are daily (Cole 11-06: we invite every day) with written rules, Thursday is follow ups. */
   let AV = 'week';
   const ROLES = { owner: ['Owner', 'Cole'], buyer: ['Media buyer', 'Cole for now'], strat: ['Creative strategists', 'Ahsan, Noma'], mgr: ['Creator manager', 'Cole until hired'], locus: ['Locus', 'runs itself'] };
   const DAILY = [
     { who: 'strat', what: 'Review new videos', how: 'Ads, Trybe, a brand, Review. Approve, or send back with a note.', n: 'review' },
     { who: 'mgr', what: 'Answer Discord', how: 'Ads, Trybe, a brand, Discord. Clear "Waiting on an answer".', n: 'discord' },
     { who: 'mgr', what: 'Accept creators and approve samples', how: 'In Trybe: Creators (applications) and the sample requests. Approve a sample only for a creator with a plan for a video. Lucky: in the Lucky app.' },
+    { who: 'mgr', what: 'Invite new creators', how: 'Trybe, Discovery, by the invite rules below. Use the day’s invite credits every day.' },
     { who: 'buyer', what: 'Launch approved videos', how: 'Ads, Trybe, a brand, Queue. Then keep or cut on Ads, Calls.', n: 'launch' },
   ];
   const WEEK = [
@@ -426,7 +427,6 @@
       { who: 'owner', what: 'Creator calls, 4:30 to 7:00', how: 'Grunk 4:30, Dartee 5:00, Ice & Gold 5:30, Party Patch 6:00, Lucky 6:30. Show the videos that sold (a brand, Live, sort by Most sales, press play), then this week’s set.' },
       { who: 'owner', what: 'Record the calls', how: 'Upload unlisted to YouTube, paste the link in Briefs, Start here, recordings.' } ] },
     { d: 2, name: 'Tuesday', jobs: [
-      { who: 'mgr', what: 'Invite new creators', how: 'Trybe, Discovery, by the invite rules below. Claude builds the list, Cole says yes, Claude sends the invites.' },
       { who: 'strat', what: 'Notes before upload', how: 'Reply in each Discord’s #feedback-before-upload.' } ] },
     { d: 3, name: 'Wednesday', jobs: [
       { who: 'buyer', what: 'Creator ads on Calls', how: 'Ads, Calls. Creator ads follow the same wait, scale and cut rules as every ad.' } ] },
@@ -442,14 +442,13 @@
   ];
   /* The invite rules Claude follows in Trybe Discovery (Phil Kiel's playbook, 2026-11-05). */
   const INVITE = [
-    ['Month 1: go wide', 'Use every invite credit each week. Many mid-size creators beat a few big ones: you are looking for who sells, and you only learn that from videos.'],
+    ['Month 1: go wide', 'Use every invite credit, every day. Many mid-size creators beat a few big ones: you are looking for who sells, and you only learn that from videos.'],
     ['Skip the top tier', 'Over about $20k Trybe sales in 30 days = busy with many brands, slow to film. Start in the middle: some sales, lots of videos.'],
     ['Fit first', 'Their niche and their videos fit the product. They talk to camera like a person, not an ad.'],
     ['Look at Trybe’s numbers', 'Approval 50% or more, and 4 or more videos in the last 30 days.'],
     ['An invite is not a sample', 'Inviting costs nothing. A sample is approved later, daily, only for a creator with a plan for a video.'],
     ['Keep the ones who deliver', 'After a month, keep a creator who makes 10 or more videos a month, or $5k or more in sales, with 50% or more approved, and a first video within 14 days of a sample. Below that: no more samples.'],
-    ['Nothing sends without Cole', 'Claude builds the shortlist per brand and sends the invites only after Cole says yes.'],
-  ];
+      ];
   async function weekView() {
     const box = document.getElementById('tbWeek'); if (!box) return;
     let w;
@@ -470,7 +469,7 @@
       <section class="v2card"><div class="v2h"><h3>The week</h3><span class="cap">the creator program routine</span></div>
         <div class="tb-week">${cols}</div>
         <p class="v2hint" style="margin-top:10px">Weekends: one look at Discord is enough.</p></section>
-      <section class="v2card" id="tbInvite"><div class="v2h"><h3>Invite rules</h3><span class="cap">Tuesdays, in Trybe Discovery</span></div>
+      <section class="v2card" id="tbInvite"><div class="v2h"><h3>Invite rules</h3><span class="cap">Every day, in Trybe Discovery</span></div>
         <ol class="tb-rules">${INVITE.map(([h, t]) => `<li><b>${esc(h)}.</b> ${esc(t)}</li>`).join('')}</ol>
         ${disc ? `<div class="tb-foot" style="flex-wrap:wrap"><span class="v2hint">Open Discovery:</span>${disc}</div>` : ''}</section>
       <section class="v2card"><div class="v2h"><h3>Who does what</h3></div><ul style="margin:0;padding-left:18px">${roles}</ul>
