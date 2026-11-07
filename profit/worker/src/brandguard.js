@@ -280,6 +280,7 @@ export const CLIENT_RULES = [
   R('GET', '/api/creative'),
   R('GET', '/api/ads'),
   R('GET', '/api/activities'),
+  R('GET', '/api/ad-updates'),
   R('POST', '/api/activities'),
   RX('PATCH', /^\/api\/activities\/([^/]+)$/, 'none', { own: [{ in: 'path', table: 'activities' }] }),
   R('POST', '/api/summarise', 'need', { cap: ['clientAsk', 0.05], deny: b => (!b || typeof b.act !== 'string' || !b.act ? 'Pick your brand first.' : null) }),

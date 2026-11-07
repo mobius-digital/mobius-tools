@@ -166,7 +166,7 @@ const PAGE_ROUTES = [
   ['ah', '/api/metaday?days=30'], ['ah', '/api/daycheck/now?act=brand_alpha'], ['ah', '/api/requests?act=brand_alpha'], ['ah', '/api/production?act=brand_alpha'], ['pf', '/api/data-health?act=brand_alpha&days=14'],
   // Ads: Today, All channels, Meta and its jobs, Google and its jobs, TikTok, Tests and angles
   ['pf', '/api/hub/today?act=brand_alpha'], ['pf', '/api/hub/paid?platform=all&act=brand_alpha'], ['pf', '/api/hub/paid?platform=meta&act=brand_alpha'], ['pf', '/api/hub/drill?act=brand_alpha'],
-  ['pf', '/api/hub/orders?act=brand_alpha'], ['pf', '/api/hub/creative?act=brand_alpha'], ['ah', '/api/meta/live?act=brand_alpha'], ['ah', '/api/activities?act=brand_alpha'], ['ah', '/api/series?act=brand_alpha&days=45'],
+  ['pf', '/api/hub/orders?act=brand_alpha'], ['pf', '/api/hub/creative?act=brand_alpha'], ['ah', '/api/meta/live?act=brand_alpha'], ['ah', '/api/activities?act=brand_alpha'], ['ah', '/api/ad-updates?act=brand_alpha'], ['ah', '/api/series?act=brand_alpha&days=45'],
   ['ah', '/api/creative?act=brand_alpha'], ['pf', '/api/ads?act=brand_alpha'], ['ah', '/api/launch/list?act=brand_alpha'], ['ah', '/api/google/ads?act=brand_alpha'], ['ah', '/api/google/ads-ads?act=brand_alpha'],
   ['ah', '/api/google/ads-terms?act=brand_alpha'], ['ah', '/api/google/ads-changes?act=brand_alpha'], ['ah', '/api/tiktok/report?act=brand_alpha'], ['pf', '/api/brand/tests-overview'], ['ah', '/api/your-ads-link?act=brand_alpha'],
   // Email and SMS, Store

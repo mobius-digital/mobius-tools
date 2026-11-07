@@ -1940,3 +1940,41 @@ body.lx-gate-on .topbar{display:none}
 .v2tbl .v2alk{background:none;border:0;padding:0;margin:0;font:inherit;color:var(--ink);text-align:left;cursor:pointer;max-width:100%}
 .v2tbl .v2alk:hover{text-decoration:underline}
 .v2tbl .v2alk:focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:4px}
+
+/* ---- Ads > Updates (2026-11-07): one box per change, its ads inside on a grey band ---- */
+.upd-help{margin:-4px 0 10px}
+.upd-tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:4px 0 16px;overflow-x:auto}
+.upd-tabs button{appearance:none;background:none;border:0;border-bottom:2px solid transparent;padding:10px 12px 9px;font:600 13.5px var(--sans,inherit);color:var(--muted);cursor:pointer;white-space:nowrap}
+.upd-tabs button i{font-style:normal;display:inline-block;min-width:20px;margin-left:6px;padding:0 6px;border-radius:99px;background:var(--surface-2);font-size:12px;font-variant-numeric:tabular-nums}
+.upd-tabs button.on{color:var(--ink);border-bottom-color:var(--brand)}
+.upd-tabs button.on i{background:var(--brand-soft);color:var(--brand)}
+.upd-tabs button.none{color:var(--faint)}
+.upd-list{display:grid;gap:18px}
+.upd-day{display:flex;align-items:baseline;gap:10px;font-weight:700;font-size:15px;margin-top:6px}
+.upd-day span{font-weight:500;font-size:12.5px;color:var(--muted)}
+.upd-box{background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--r-lg,14px);overflow:hidden}
+.upd-hd{padding:16px 18px 14px;display:grid;gap:9px}
+.upd-lab{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--muted);font-weight:500}
+.upd-n{margin-left:auto;color:var(--faint);font-weight:600}
+.upd-r1{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.upd-r1 h3{margin:0;font-size:17px;font-weight:700;line-height:1.3;text-wrap:balance;min-width:0}
+.upd-mv{display:flex;align-items:center;gap:8px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.upd-mv s{color:var(--muted);text-decoration-color:var(--faint)}
+.upd-mv span{color:var(--faint)}
+.upd-why{margin:0;color:var(--ink-2);max-width:78ch;line-height:1.5}
+.upd-facts{display:flex;gap:6px;flex-wrap:wrap}
+.upd-facts span{background:var(--surface-2);border-radius:6px;padding:4px 9px;font-size:12.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.upd-facts small{color:var(--muted);font-size:12px;margin-right:5px}
+.upd-facts b.good{color:var(--good)} .upd-facts b.bad{color:var(--bad)}
+.upd-ads{background:var(--surface-2);border-top:1px solid var(--line);padding:12px 18px 16px;display:grid;gap:10px}
+.upd-ah{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);font-weight:500}
+.upd-ads .v2gal{grid-template-columns:repeat(auto-fill,minmax(170px,1fr))}
+.upd-ads .v2link{justify-self:start}
+
+/* ---- every ad card, the same size whatever the ad's shape (2026-11-07, Cole): the 4:5 frame shows the whole ad,
+   uncropped, and a blurred copy of it fills the sides of a 9:16 or the top and bottom of a square ---- */
+.v2gal .th{overflow:hidden}
+.v2gal .th[style*="background-image"]::before,.v2gal .th[style*="background-image"]::after{content:"";position:absolute;background-image:inherit;background-position:center;background-repeat:no-repeat;pointer-events:none}
+.v2gal .th[style*="background-image"]::before{inset:-18px;background-size:cover;filter:blur(16px);opacity:.5}
+.v2gal .th[style*="background-image"]::after{inset:0;background-size:contain}
+.v2gal .th > *{z-index:2}
