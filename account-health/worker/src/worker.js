@@ -645,6 +645,14 @@ const safeJson = (s, fb) => { try { return s ? JSON.parse(s) : fb; } catch { ret
    per-day query can return one row per Meta account per date. This folds them into one row per
    date (numbers summed, everything else from the first row), so day counts and per-day maths stay
    right for a brand with two ad accounts. One account = the rows come back unchanged. */
+/* activities.client_why (2026-11-07, Ads > Updates): the sentence a client reads about a change. Added on first use;
+   a duplicate-column error means it is already there. */
+let CLIENT_WHY_OK = false;
+async function ensureClientWhy(env) {
+  if (CLIENT_WHY_OK) return;
+  await env.DB.prepare(`ALTER TABLE activities ADD COLUMN client_why TEXT`).run().catch(() => {});
+  CLIENT_WHY_OK = true;
+}
 function sumByDate(rows, key = 'date') {
   const by = new Map();
   for (const r of rows || []) {
@@ -10177,6 +10185,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       }
 
       if (path === '/api/activities' && request.method === 'GET') {
+        await ensureClientWhy(env);
         const act = url.searchParams.get('act');
         const from = url.searchParams.get('from') || '2000-01-01';
         const to = url.searchParams.get('to') || '2999-12-31T23:59:59';
@@ -10185,7 +10194,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         /* activities is Meta's (filed by Meta account); each row comes back with act_id = its BRAND and
            meta_act = the Meta account it came from. */
         const COLS = `a.id, b.id AS act_id, a.act_id AS meta_act, a.event_time, a.event_type, a.translated, a.actor, a.object_type, a.object_id,
-             a.object_name, a.extra_json, a.category, a.summary, a.reason, a.suggested_reason, a.note, a.confirmed, a.manual, a.created_at, b.name AS account_name`;
+             a.object_name, a.extra_json, a.category, a.summary, a.reason, a.suggested_reason, a.note, a.confirmed, a.manual, a.created_at, a.client_why, b.name AS account_name`;
         const { results } = await env.DB.prepare(all
           ? `SELECT ${COLS} FROM activities a JOIN connections c ON c.kind = 'meta' AND c.external_id = a.act_id JOIN brands b ON b.id = c.brand_id
              WHERE b.status = 'active' AND a.event_time BETWEEN ?1 AND ?2 ORDER BY a.event_time DESC LIMIT ?3`
@@ -10195,21 +10204,21 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         return json({ rows: results });
       }
       /* AD UPDATES (2026-11-07, Cole: "the change log, but way better, for the client"). One brand's changes with a
-         client-facing why, newest first, for Ads > Updates and the brand's own login. A change shows only once it has a
-         confirmed reason that is not the default stamp, so a client never sees an unexplained or automatic change:
-         buying-call writes carry their why (meta_write `reason`); changes made by hand wait for "Add why" in the Change
-         Log; Meta's own automatic edits (confirmed 0 or -1) never show. Before/after come from p_meta_write (Locus's
+         client-facing why, newest first, for Ads > Updates and the brand's own login. A change shows ONLY when someone
+         wrote its client why (activities.client_why), never from the team's `reason` (those are notes like "slug was
+         misspelled; Cole 11-02"): buying-call writes carry it (meta_write `client_why`); a change made by hand gets it
+         in Meta > Changes > Add why; Meta's own automatic edits never show. Before/after come from p_meta_write (Locus's
          Meta writes, joined by the "Write mw_..." note) and p_ext_write (Google, TikTok). */
       if (path === '/api/ad-updates' && request.method === 'GET') {
         const act = url.searchParams.get('act');
         if (!act || act === 'all') return json({ error: 'Pick one brand.' }, 400);
         const to = url.searchParams.get('to') || '2999-12-31T23:59:59';
         const from = url.searchParams.get('from') || new Date(Date.now() - 45 * 864e5).toISOString().slice(0, 10);
+        await ensureClientWhy(env);
         const { results: acts } = await env.DB.prepare(
-          `SELECT a.id, a.event_time, a.event_type, a.actor, a.object_type, a.object_id, a.object_name, a.category, a.summary, a.reason, a.note, a.manual
+          `SELECT a.id, a.event_time, a.event_type, a.actor, a.object_type, a.object_id, a.object_name, a.category, a.summary, a.client_why AS reason, a.note, a.manual
              FROM activities a JOIN connections c ON c.kind = 'meta' AND c.external_id = a.act_id
-            WHERE c.brand_id = ?1 AND a.event_time BETWEEN ?2 AND ?3 AND a.confirmed = 1 AND COALESCE(a.event_type, '') <> 'strategist_write'
-              AND TRIM(COALESCE(a.reason, '')) <> '' AND a.reason NOT IN ('Changed by hand in Locus', 'Changed by the Strategist')
+            WHERE c.brand_id = ?1 AND a.event_time BETWEEN ?2 AND ?3 AND a.confirmed <> -1 AND TRIM(COALESCE(a.client_why, '')) <> ''
             ORDER BY a.event_time DESC LIMIT 400`).bind(act, from, to).all();
         const ids = [...new Set(acts.map(r => (String(r.note || '').match(/\b(mw_[0-9a-f]+)/) || [])[1]).filter(Boolean))];
         const W = new Map();
@@ -10256,14 +10265,16 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
          change's client-facing why here after the fact. Same fields, same row. */
       if ((m = path.match(/^\/api\/activities\/(.+)$/)) && (request.method === 'PATCH' || request.method === 'PUT')) {
         const body = await request.json();
+        await ensureClientWhy(env);
         // confirmed: 1 = confirmed deliberate, 0 = untouched, -1 = dismissed (noise; excluded from summaries)
         const confirmed = body.dismissed != null ? (body.dismissed ? -1 : 0)
           : body.confirmed == null ? null : (body.confirmed ? 1 : 0);
         await env.DB.prepare(
           `UPDATE activities SET reason = COALESCE(?2, reason), note = COALESCE(?3, note),
-             confirmed = COALESCE(?4, confirmed), category = COALESCE(?5, category) WHERE id = ?1`,
+             confirmed = COALESCE(?4, confirmed), category = COALESCE(?5, category),
+             client_why = CASE WHEN ?6 IS NULL THEN client_why WHEN TRIM(?6) = '' THEN NULL ELSE ?6 END WHERE id = ?1`,
         ).bind(decodeURIComponent(m[1]), body.reason ?? null, body.note ?? null,
-          confirmed, body.category ?? null).run();
+          confirmed, body.category ?? null, body.client_why == null ? null : String(body.client_why).slice(0, 600)).run();
         return json({ ok: true });
       }
       if (path === '/api/activities' && request.method === 'POST') {   // manual entry

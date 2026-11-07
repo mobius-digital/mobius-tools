@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS hourly_insights (
   PRIMARY KEY (act_id, date, hour)
 );
 
+-- activities.client_why TEXT (2026-11-07, Ads > Updates): added at runtime by ensureClientWhy (worker.js) and ensureTable (metawrite.js)
 CREATE TABLE IF NOT EXISTS activities (
   id           TEXT PRIMARY KEY,                 -- Meta event id, or "manual:<uuid>"
   act_id       TEXT NOT NULL,

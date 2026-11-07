@@ -4805,12 +4805,14 @@ team presses Reopen.
 - Cole: "the change log, but way better": one page per brand that shows each change to the ads, why, and the ads it
   touched, which the client opens with their own Locus login (the Slack update links here instead of the Your ads page).
 - **Route** account-health `GET /api/ad-updates?act=&from=&to=` (default 45 days; on CLIENT_RULES in both brandguard
-  copies; a SMOKE_ROUTES row). Source = `activities` with `confirmed = 1` and a written reason that is not the default
-  stamp ("Changed by hand in Locus"), never `strategist_write` (its reasons are written for the team). Before/after
-  from `p_meta_write` (joined on the "Write mw_..." note; undone writes drop out) and `p_ext_write` (Google, TikTok).
-  So: a buying-call write shows because `meta_write` is sent with `reason` = the client-facing why; a change made by
-  hand shows once someone adds its why in Meta > Changes; Meta's automatic edits never show. **The why is
-  client-facing: write it the way Cole would say it to the client.**
+  copies; a SMOKE_ROUTES row). Source = `activities` rows (not dismissed) with **`client_why`** written: a column of
+  its own (added at runtime by `ensureClientWhy` / metawrite `ensureTable`), never the team's `reason`, which holds
+  notes like "slug was misspelled; Cole 11-02" (the first version read `reason` and surfaced 102 of those on Bonk).
+  A buying-call write carries it (`meta_write` with `extra: {client_why}`; `locusInput` -> `common` -> `logChange`);
+  a change made by hand gets it in Meta > Changes > Add why ("What the client reads on Ads > Updates"); PUT or PATCH
+  `/api/activities/:id {client_why}` sets it after the fact ('' clears). Meta's automatic edits never show.
+  Before/after from `p_meta_write` (joined on the "Write mw_..." note; undone writes drop out) and `p_ext_write`.
+  **The client why is written the way Cole would say it to the client.**
 - **Page** `adUpdates()` in v2.js, tab id `adupdates` (NAV4 Ads after Calls, SHOWABLE, the renderer map, `?open=`,
   TAB_TITLE, TAB_CRUMB). Platform tabs Meta / Google / TikTok / Trybe with counts; days newest first; one `.upd-box`
   per change (label, level, before -> after, the why, the 7-day totals of its ads) with its ads on a grey band
