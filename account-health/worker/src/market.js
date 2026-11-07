@@ -20,12 +20,8 @@
  * Nothing here posts or writes anything but its own cache rows. */
 let F = fetch;
 export function useFetch(f) { F = f; }
-/* Pulse is a worker on the same account, so its workers.dev URL is refused from here (2026-10-10: the Strategist said
-   "Pulse returned an error"). The PULSE service binding reaches it; meterEnv hands it over at every entry point. */
-let PULSE = null;
-export function usePulse(b) { if (b && typeof b.fetch === 'function') PULSE = b; }
-
-const PULSE_URL = 'https://mobius-ad-status.mobius-digital.workers.dev/api/status';
+/* Pulse lives inside this worker since 2026-11-06 (pulse.js): read straight from the settings table. */
+import { pulseStatus } from './pulse.js';
 const BREEZEWAY_URL = 'https://headwinds.s3.us-east-1.amazonaws.com/cpa_z_data.json';
 export const BREEZEWAY_NOTE = 'Breezeway: Meta cost per purchase across about 50 of their own customers, one score for the whole panel. Unofficial public file; a hint, not a verdict.';
 /* The cheapest Haiku already used in this worker (the Strategist's reply gate). */
@@ -55,11 +51,9 @@ function centralStart(date) {
 
 /* ---------------- Pulse ---------------- */
 let pulseMemo = null;   // { at, j } per isolate, 5 minutes: the Yesterday grid asks for several dates at once
-async function pulseJson() {
+async function pulseJson(env) {
   if (pulseMemo && Date.now() - pulseMemo.at < 5 * 60e3) return pulseMemo.j;
-  const r = PULSE ? await PULSE.fetch(new Request(PULSE_URL, { headers: { accept: 'application/json' } })) : await F(PULSE_URL, { headers: { accept: 'application/json' } });
-  if (!r.ok) throw new Error(`Pulse answered ${r.status}`);
-  const j = await r.json();
+  const j = await pulseStatus(env);
   pulseMemo = { at: Date.now(), j };
   return j;
 }
@@ -87,7 +81,7 @@ const adsRelated = x => !(x.platform_id === 'meta' && /whatsapp|messenger|messag
 
 export async function pulseFor(env, date) {
   try {
-    const j = await pulseJson();
+    const j = await pulseJson(env);
     const s = centralStart(date), e = centralStart(addDays(date, 1));
     const all = j.incidents || [];
     const from = all.reduce((m, i) => (!m || i.ts < m ? i.ts : m), null);
@@ -263,7 +257,7 @@ export async function metaDay(env, { days = 30 } = {}) {
   const hi = hist.length >= 60 ? q(0.85) : 0.6, top = hist.length >= 60 ? q(0.99) : 1.23;
   let bw = []; try { bw = (await breezewayRows(env, last)).rows; } catch {}
   const BW = Object.fromEntries(bw.map(x => [x.date, x.hyb_status]));
-  let ints = []; try { ints = pulseIntervals((await pulseJson()).incidents).filter(x => x.platform_id === 'meta' && adsRelated(x)); } catch {}
+  let ints = []; try { ints = pulseIntervals((await pulseJson(env)).incidents).filter(x => x.platform_id === 'meta' && adsRelated(x)); } catch {}
   const out = [];
   for (let d = first; d <= last; d = addDays(d, 1)) {
     const p = panel(d), s = centralStart(d), e = centralStart(addDays(d, 1));

@@ -147,11 +147,14 @@ await check('brandNow: slow revenue, no orders for 3 hours and stuck Meta spend 
   assert.ok(!/—/.test(JSON.stringify(b)));
 });
 await check('checkNow: all brands + the market now (Pulse, Breezeway); a brand with no Triple Whale says so', async () => {
+  /* Pulse lives inside Locus since 2026-11-06 (pulse.js): its state is a settings row, not a fetch. */
+  await env.DB.prepare(`INSERT INTO settings (key, value) VALUES ('pulse:state', ?1) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
+    .bind(JSON.stringify({ meta: { worst: 'degraded', services: { a: { name: 'Ads Manager', state: 'degraded' } } } })).run();
   const r = await checkNow(env, d, { act: 'all' });
   assert.equal(r.brands.length, 2);
   assert.match(r.headline, /Something looks off on Lucky Golf/);
   assert.ok(r.weird);
-  assert.deepEqual(r.market.platforms_now.map(p => p.platform), ['Meta']);
+  assert.deepEqual(r.market.platforms_now.map(p => p.platform), ['Meta Ads']);
   assert.equal(r.market.breezeway.status, 'BAD');
   assert.match(r.brands.find(b => b.act_id === 'brand_bonk').notes.join(' '), /No Triple Whale shop/);
   assert.equal(r.chatter, null, 'the web search runs only when asked');

@@ -1119,14 +1119,14 @@ const hits = [];
 const binding = name => ({ fetch: async req => { hits.push({ name, url: req.url }); return new Response('', { status: 200 }); } });
 const renv = { SLACK_SIGNING_SECRET: secret, LEDGER: binding('LEDGER'), AUTH: binding('AUTH'), PULSE: binding('PULSE') };
 const route = async payload => { hits.length = 0; const raw = 'payload=' + encodeURIComponent(JSON.stringify(payload)); await router.fetch(new Request('https://r.test/slack', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...sign(raw) }, body: raw }), renv); return hits[0]?.name; };
-await check('router: idea_ buttons go to account-health; Ledger, Locus and Pulse unchanged', async () => {
+await check('router: idea_ and pulse_send buttons go to account-health (Pulse moved into Locus 2026-11-06)', async () => {
   assert.equal(await route({ type: 'block_actions', actions: [{ action_id: 'idea_link', value: '{"i":"C1:1.2"}' }] }), 'AUTH');
   assert.equal(await route({ type: 'block_actions', actions: [{ action_id: 'idea_undo_link', value: '{"i":"C1:1.2"}' }] }), 'AUTH');
-  assert.equal(await route({ type: 'block_actions', actions: [{ action_id: 'x', value: '{"id":1,"tax":"Meals"}' }] }), 'LEDGER');
-  assert.equal(await route({ type: 'block_actions', actions: [{ action_id: 'x', value: '{"undo":5}' }] }), 'LEDGER');
+  assert.equal(await route({ type: 'block_actions', actions: [{ action_id: 'x', value: '{"id":1,"tax":"Meals"}' }] }), undefined, 'Cashew has its own app: an old Ledger tap is dropped');
+  assert.equal(await route({ type: 'block_actions', actions: [{ action_id: 'x', value: '{"undo":5}' }] }), undefined);
   assert.equal(await route({ type: 'block_actions', actions: [{ action_id: 'brief_send', value: '{}' }] }), 'AUTH');
-  assert.equal(await route({ type: 'block_actions', actions: [{ action_id: 'pulse_x', value: '{}' }] }), 'PULSE');
-  assert.equal(hits[0].url, 'https://mobius-ad-status.mobius-digital.workers.dev/slack/interact');
+  assert.equal(await route({ type: 'block_actions', actions: [{ action_id: 'pulse_send', value: '{}' }] }), 'AUTH');
+  assert.equal(hits[0].url, 'https://mobius-account-health.mobius-digital.workers.dev/slack/actions');
 });
 
 const failed = checks.filter(c => !c.pass);

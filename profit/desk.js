@@ -5,7 +5,7 @@
  *   Season > The Plan  warplan: the sale planned step by step               GET /api/season/war (2026-10-09 rebuild)
  *   Season > Live      warlive: today against the plan, hour by hour        GET /api/season/war&live=1
  *                      (`war` still renders for old links: the mode comes from window.WAR_MODE or the in-page switch)
- *   Tools > Platform status   Pulse, the ad-platform outage monitor          mobius-ad-status worker /api/status (public)
+ *   Tools > Platform status   Pulse, the ad-platform outage monitor          account-health /api/pulse/status (public)
  * The host (index.html) passes the same helpers it gives v2.js: window.DeskTab.render(tab, host, first).
  * Today (2026-10-13) can change an ad account: "Do it" runs the shared Meta write (nudge.js window.LxMetaWrite, dry run,
  * modal, write with expect, Undo). "Done" writes a manual line to the Change Log (which the Daily Brief's "What we did"
@@ -16,7 +16,7 @@
   const $ = s => document.querySelector(s);
   const U = () => window.V2UI;
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const PULSE = 'https://mobius-ad-status.mobius-digital.workers.dev/api/status';
+  const PULSE = 'https://mobius-account-health.mobius-digital.workers.dev/api/pulse/status';   // inside Locus since 2026-11-06 (pulse.js)
   const CACHE = new Map();
   const get = path => { const hit = CACHE.get(path); if (hit && Date.now() - hit.at < 5 * 60e3) return hit.p; const p = H.api(path); CACHE.set(path, { at: Date.now(), p }); p.catch(() => CACHE.delete(path)); return p; };
   const head = (tab, title) => H.pageHead(tab, title).replace(/<p class="ph-sub">[\s\S]*?<\/p>/, '');
