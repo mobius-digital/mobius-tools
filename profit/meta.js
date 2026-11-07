@@ -503,14 +503,15 @@ async function renderChangeLog() {
     if (what === 'why') {
       const v = await clWhyModal(r);
       if (!v) return;
-      const was = { reason: r.reason, note: r.note }, body = {};
+      const was = { reason: r.reason, note: r.note, client_why: r.client_why }, body = {};
       if ((v.reason || '') !== (r.reason || '')) body.reason = v.reason || '';
       if ((v.note || '') !== (r.note || '')) body.note = v.note || '';
+      if ((v.client_why || '') !== (r.client_why || '')) body.client_why = v.client_why || '';
       if (!Object.keys(body).length) return;
-      r.reason = v.reason || null; r.note = v.note || '';
+      r.reason = v.reason || null; r.note = v.note || ''; r.client_why = v.client_why || null;
       clPatchRow(r.id); clDrawSummary();
       try { await patch(body); }
-      catch (err) { r.reason = was.reason; r.note = was.note; clPatchRow(r.id); clDrawSummary(); mnote(err.message); }
+      catch (err) { r.reason = was.reason; r.note = was.note; r.client_why = was.client_why; clPatchRow(r.id); clDrawSummary(); mnote(err.message); }
       return;
     }
     if (what === 'ok') {
@@ -665,6 +666,8 @@ function clWhyModal(r) {
       <div class="cl2-why-chips">${CL_REASONS.map(x => `<button type="button" class="chip ${x === pick ? 'on' : ''}" data-why="${esc(x)}">${esc(x)}</button>`).join('')}</div>
       <label class="cl2-wl" for="clWhyOwn">Or write your own</label>
       <input id="clWhyOwn" type="text" placeholder="e.g. Tracking broke after the site update">
+      <label class="cl2-wl" for="clWhyClient">What the client reads on Ads &gt; Updates (optional)</label>
+      <textarea id="clWhyClient" placeholder="e.g. It spent $160 over two weeks without a sale, so we turned it off."></textarea>
       <label class="cl2-wl" for="clWhyNote">Note for the team (optional)</label>
       <textarea id="clWhyNote" placeholder="e.g. ROAS held 3 days, look again Friday before scaling further"></textarea>
       <p class="hint" style="margin:10px 0 0">The reason is what the client's Daily Brief is written from. Leave both reason boxes empty to clear it.</p>
@@ -676,11 +679,12 @@ function clWhyModal(r) {
     const own = w.querySelector('#clWhyOwn'), note = w.querySelector('#clWhyNote');
     own.value = pick ? '' : start;
     note.value = r.note || '';
+    const cw = w.querySelector('#clWhyClient'); cw.value = r.client_why || '';
     const paint = () => w.querySelectorAll('[data-why]').forEach(c => c.classList.toggle('on', c.dataset.why === pick));
     w.querySelectorAll('[data-why]').forEach(c => c.onclick = () => { pick = pick === c.dataset.why ? '' : c.dataset.why; own.value = ''; paint(); });
     own.oninput = () => { if (own.value.trim()) { pick = ''; paint(); } };
     const done = v => { w.remove(); document.removeEventListener('keydown', onKey); resolve(v); };
-    const save = () => done({ reason: own.value.trim() || pick, note: note.value.trim() });
+    const save = () => done({ reason: own.value.trim() || pick, note: note.value.trim(), client_why: cw.value.trim() });
     const onKey = e => {
       if (e.key === 'Escape') done(null);
       if (e.key === 'Enter' && (e.target === own || e.ctrlKey || e.metaKey)) save();

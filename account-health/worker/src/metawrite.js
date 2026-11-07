@@ -216,6 +216,8 @@ async function ensureTable(env) {
   if (tabled) return;
   await env.DB.prepare(WRITE_SQL).run();
   await env.DB.prepare(`CREATE INDEX IF NOT EXISTS p_meta_write_brand ON p_meta_write (brand, at)`).run().catch(() => {});
+  /* the client-facing why (Ads > Updates, 2026-11-07); a duplicate-column error just means it is there */
+  await env.DB.prepare(`ALTER TABLE activities ADD COLUMN client_why TEXT`).run().catch(() => {});
   tabled = true;
 }
 const approver = ctx => ctx?.who || 'someone';
@@ -233,10 +235,10 @@ async function record(env, p, ctx, { before, after, object, summary, category })
 async function logChange(env, p, { summary, category, by, object, note, via }) {
   /* A change made by hand on a Locus screen (ctx.via 'locus') is logged as that person's, not the Strategist's. */
   const locus = via === 'locus';
-  await env.DB.prepare(`INSERT INTO activities (id, act_id, event_time, event_type, category, summary, reason, note, confirmed, manual, actor, object_type, object_id, object_name)
-    VALUES (?1, ?2, ?3, ?12, ?4, ?5, ?6, ?7, 1, 1, ?8, ?9, ?10, ?11)`)
+  await env.DB.prepare(`INSERT INTO activities (id, act_id, event_time, event_type, category, summary, reason, note, confirmed, manual, actor, object_type, object_id, object_name, client_why)
+    VALUES (?1, ?2, ?3, ?12, ?4, ?5, ?6, ?7, 1, 1, ?8, ?9, ?10, ?11, ?13)`)
     .bind(`manual:${crypto.randomUUID()}`, p.act, new Date().toISOString(), category || 'other', summary, p.reason || null, note || null,
-      locus ? locusActor(by) : `the Strategist, approved by ${by}`, LEVELS[p.level]?.type || null, object || p.id, p.name || null, locus ? 'locus_write' : 'strategist_write').run().catch(() => {});
+      locus ? locusActor(by) : `the Strategist, approved by ${by}`, LEVELS[p.level]?.type || null, object || p.id, p.name || null, locus ? 'locus_write' : 'strategist_write', p.client_why || null).run().catch(() => {});
 }
 /** Apply re-reads the object: a card made before someone else changed it must not overwrite that change. */
 async function unchanged(env, d, p) {
@@ -265,7 +267,7 @@ const LEVEL = { type: 'string', enum: ['campaign', 'adset', 'ad'], description: 
 const REASON = { type: 'string', description: 'Why, in one line with the number behind it (shown on the card and written in the Change Log).' };
 const base = (extra, req = []) => ({ type: 'object', properties: { brand: { type: 'string' }, target: TARGET, level: LEVEL, reason: REASON, ...extra }, required: ['brand', 'target', 'reason', ...req] });
 const statusLine = o => `${o.status}${o.effective_status && o.effective_status !== o.status ? ` (delivering: ${o.effective_status})` : ''}`;
-const common = (r, action, input, ctx) => ({ action, act: r.act, brand: r.brand.act_id, level: r.level, id: r.obj.id, name: r.obj.name, reason: clip(input.reason, 300), proposer: ctx?.who || null });
+const common = (r, action, input, ctx) => ({ action, act: r.act, brand: r.brand.act_id, level: r.level, id: r.obj.id, name: r.obj.name, reason: clip(input.reason, 300), client_why: input.client_why ? clip(input.client_why, 600) : null, proposer: ctx?.who || null });
 
 /* ---------------- the turn-on guard (2026-10-31) ----------------
    On 2026-10-27 a chat turned back on three ad sets Ahsan had paused days before, without saying they had been paused or
@@ -1226,7 +1228,7 @@ const KIND = { pause: 'meta_pause', resume: 'meta_resume', budget: 'meta_budget'
 export const LOCUS_KINDS = Object.keys(KIND);
 function locusInput(b) {
   const lv = ['campaign', 'adset', 'ad'].includes(b.level) ? b.level : undefined;
-  const base = { brand: String(b.act || ''), target: String(b.object || ''), level: lv, reason: clip(b.reason || 'Changed by hand in Locus', 300),
+  const base = { brand: String(b.act || ''), target: String(b.object || ''), level: lv, reason: clip(b.reason || 'Changed by hand in Locus', 300), ...(b.client_why ? { client_why: clip(b.client_why, 600) } : {}),
     ...(b.kind === 'resume' && b.over_pause ? { over_pause: clip(b.over_pause, 200) } : {}) };
   if (b.kind === 'budget') return { ...base, amount: +b.amount, big: true };
   if (b.kind === 'min_spend') return { ...base, ...(b.min != null && b.min !== '' ? { min: +b.min } : {}), ...(b.cap != null && b.cap !== '' ? { cap: +b.cap } : {}) };
