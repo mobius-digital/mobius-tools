@@ -10252,7 +10252,9 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         }
         return json({ ok: true, confirmed: n });
       }
-      if ((m = path.match(/^\/api\/activities\/(.+)$/)) && request.method === 'PATCH') {
+      /* PUT too (2026-11-07): Claude Code's locus_post writes POST / PUT / DELETE only, and the buying call fills in each
+         change's client-facing why here after the fact. Same fields, same row. */
+      if ((m = path.match(/^\/api\/activities\/(.+)$/)) && (request.method === 'PATCH' || request.method === 'PUT')) {
         const body = await request.json();
         // confirmed: 1 = confirmed deliberate, 0 = untouched, -1 = dismissed (noise; excluded from summaries)
         const confirmed = body.dismissed != null ? (body.dismissed ? -1 : 0)
