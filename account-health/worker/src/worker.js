@@ -8,7 +8,8 @@ import { listBrands, addConnection, createBrand, brandByChannel, connectionNote,
 import { whoIs, channelInfo, brandForChannel, readAccess, writeAccess } from './slackaccess.js';
 import { movedTick, movedPreview } from './moved.js';
 import { ensureCreative, putCover, serveCover, assetKeyOf, creativeTick, tagTick, keyTick, adBreakdown as adSplit, adOriginal, useFetch as creativeFetch } from './creative.js';
-import { marketFor, metaDay, chatterFor, useFetch as marketFetch, usePulse } from './market.js';
+import { marketFor, metaDay, chatterFor, useFetch as marketFetch } from './market.js';
+import { pulseTick, pulseStatus, pulseImport, pulseButton } from './pulse.js';
 import { handleSchedules, scheduleTick } from './askschedule.js';
 import { handleReview, reviewTick } from './review.js';
 import { handleAlerts, alertTick } from './alerts.js';
@@ -215,7 +216,6 @@ function costReport() { return Object.fromEntries(COST_SEEN); }
  *  Statements keep a `__raw` handle because D1's batch() needs the real
  *  objects, not these wrappers. */
 function meterEnv(env) {
-  usePulse(env && env.PULSE);
   if (env.__metered) return env;
   const raw = env.DB;
   if (!raw) return env;
@@ -6485,6 +6485,9 @@ async function handleSlackInteract(request, env, ctx) {
     /* Locus Social's "Posted it" button on a Notify fallback DM (socialpost.js, 2026-10-19). */
     if (payload.type === 'block_actions' && (payload.actions || []).some(a => /^soc_/.test(a.action_id || '')))
       return await handleSocialButton(env, ctx, payload, socialPostDeps(), { ACK, xfetch });
+    /* Platform status: "Send to all clients" on an #outages card (pulse.js). */
+    if (payload.type === 'block_actions' && (payload.actions || []).some(a => a.action_id === 'pulse_send'))
+      return await pulseButton(env, ctx, payload, { slackApi, ACK });
     /* The ideas bot's buttons (Creator link, Asana brief, Studio, Redo, Discard...). */
     if (payload.type === 'block_actions' && (payload.actions || []).some(a => /^idea_/.test(a.action_id || '')))
       return env.IDEAS_BOT === 'off' ? ACK() : await handleIdeaAction(env, ctx, payload);
@@ -7791,6 +7794,8 @@ const AH_APP = {
        tick below also runs it as a catch-up and pulls the results once a day. */
     if (event.cron === '*/5 * * * *') {
       env = meterEnv(env); subReset(env);
+      /* Platform status (pulse.js, 2026-11-06): the outage monitor that was the separate Pulse worker. */
+      ctx.waitUntil(pulseTick(env, { F: xfetch, slackApi }).then(r => { if (r.changes) return recordRun(env, 'lastPulse', r); }).catch(e => console.log('pulse: ' + e.message)));
       ctx.waitUntil(socialPostTick(env, socialPostDeps()).then(r => recordRun(env, 'lastSocialPost', r)).catch(() => {}));
       /* The Buyer list's morning read (buyerai.js, 2026-10-26): from an hour before the morning hour, three brands a tick. */
       ctx.waitUntil(buyerAITick(env, buyerDeps()).then(r => { if (r && !r.skipped && !r.done) return recordRun(env, 'lastBuyerAI', r); }).catch(() => {}));
@@ -9142,6 +9147,12 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
       await chatterFor(env, addDays(centralDate(), -1)).catch(() => null);
       return json(await metaDay(env, { days: Math.min(60, Math.max(1, +url.searchParams.get('days') || 30)) }));
+    }
+    /* Platform status, public like the old Pulse feed (it only repeats the platforms' own public status pages). */
+    if (path === '/api/pulse/status' && request.method === 'GET') return json(await pulseStatus(env));
+    if (path === '/api/pulse/import' && request.method === 'POST') {
+      if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
+      return json(await pulseImport(env, await request.json().catch(() => ({}))));
     }
     if (path === '/api/market' && request.method === 'GET') {
       if (!(await isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);

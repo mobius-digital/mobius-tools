@@ -61,10 +61,9 @@ const safeJson = (s, d) => { try { const v = JSON.parse(s); return v == null ? d
             buttons Slack reports anyway; and the ideas bot's cards, idea_*.
             Modal submissions carry NO actions array at all, which is why
             this cannot be a block_actions-only test.
-   Pulse  — everything else, which is what it got before this existed.
-   Pulse is the default deliberately: it is the oldest tool here and the one
-   whose buttons must not change behaviour, so an unrecognised payload keeps
-   going exactly where it always went. */
+   Locus  — everything else since 2026-11-06. The separate Pulse worker was the
+   default until then; it moved into Locus (pulse.js, the #outages "Send to all
+   clients" button is pulse_send) and the mobius-ad-status worker was deleted. */
 const LOCUS_ID = /^(brief|report)_|^noop_open$/;
 
 /* The ideas bot's buttons (account-health ideas.js). Checked FIRST and by action id only, so
@@ -80,7 +79,7 @@ function ownerOf(payload) {
   for (const x of acts) {
     const v = safeJson(x.value, null);
     /* askp = Apply / No thanks; run = the Stop button on a working answer (2026-10-09). */
-    if (v && (v.askp !== undefined || v.run !== undefined)) return v.app === 'locus' ? 'locus' : v.app === 'supply' ? 'pulse' : 'ledger';
+    if (v && (v.askp !== undefined || v.run !== undefined)) return v.app === 'locus' || v.app === 'supply' ? 'locus' : 'ledger';
   }
   const ledger = acts.some(x => {
     if (/^led_/.test(x.action_id || '')) return true;
@@ -94,13 +93,12 @@ function ownerOf(payload) {
   if (acts.some(x => LOCUS_ID.test(x.action_id || ''))) return 'locus';
   if (payload.type === 'view_submission' && LOCUS_ID.test(payload.view?.callback_id || '')) return 'locus';
   if (payload.type === 'view_submission' && /^(ci_|rv_)/.test(payload.view?.callback_id || '')) return 'locus';
-  return 'pulse';
+  return 'locus';
 }
 
 const TARGETS = {
   ledger: null,
   locus: ['AUTH', 'https://mobius-account-health.mobius-digital.workers.dev/slack/actions'],
-  pulse: ['PULSE', 'https://mobius-ad-status.mobius-digital.workers.dev/slack/interact'],
 };
 
 /* EVENTS: WHO ANSWERS AN @-MENTION. The same one-URL rule applies to Slack's
@@ -149,7 +147,7 @@ export default {
         put_this_in_slack: 'https://mobius-slack.mobius-digital.workers.dev/slack',
         and_this_in_event_subscriptions: 'https://mobius-slack.mobius-digital.workers.dev/slack/events',
         signing_secret_set: !!env.SLACK_SIGNING_SECRET,
-        routes: { ledger: !!env.LEDGER, locus: !!env.AUTH, pulse: !!env.PULSE },
+        routes: { ledger: !!env.LEDGER, locus: !!env.AUTH },
       });
     }
 

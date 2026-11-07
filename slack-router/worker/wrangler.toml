@@ -22,9 +22,6 @@ compatibility_date = "2026-07-01"
 binding = "AUTH"
 service = "mobius-account-health"
 
-[[services]]
-binding = "PULSE"
-service = "mobius-ad-status"
 
 # Secrets (set once, never committed):
 #   npx wrangler secret put SLACK_SIGNING_SECRET
