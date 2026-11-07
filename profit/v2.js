@@ -3420,6 +3420,94 @@
      amb.js, index.html renderers), so the whole app draws tiles, cards, charts and tooltips one way.
      None of these read the host state; `chip(cur, prev, lower)` is the delta pill without the
      compare-period switch (lower = true when lower is better, 'n' = neutral). */
+  /* ---------- Ads > Updates (2026-11-07, Cole: "the change log, but way better, so the client can see what we did") ----------
+     Every change made to the brand's ads, newest first, one box per change: what changed, before and after, the why in
+     plain words, and under it the ads it touched as the SAME cards as Meta > Ads, each opening the SAME ad sheet
+     (previewAd: trend, funnel, landing page, Play...). Platform tabs (Meta, Google, TikTok, Trybe) count their changes.
+     The list comes from account-health /api/ad-updates: only changes with a confirmed, written why (a buying-call
+     change carries its own; one made by hand waits for "Add why" in the Change Log; Meta's automatic edits never
+     show). The ads come from /api/hub/creative over the last 7 days. A brand login sees this for its own brand. */
+  let UPD_TAB = 'meta';
+  const UPD_PLAT = [['meta', 'Meta'], ['google', 'Google'], ['tiktok', 'TikTok'], ['trybe', 'Trybe']];
+  const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  /* what the change was, as [label, tone, before, after] */
+  function updWhat(c, cur) {
+    const b = c.before || {}, f = c.after || {}, cents = v => v == null || v === '' ? null : +v / 100;
+    const day$ = v => v == null ? null : `${money(v, cur)} a day`;
+    if ('status' in f) { const off = /PAUSED|ARCHIVED|DELETED/.test(String(f.status));
+      return [off ? 'Turned off' : 'Turned on', off ? 'bad' : 'good', b.status ? (/PAUSED|ARCHIVED/.test(String(b.status)) ? 'Off' : 'On') : null, off ? 'Off' : 'On']; }
+    if ('daily_budget' in f || 'lifetime_budget' in f || 'budget' in f) {
+      const k = 'daily_budget' in f ? 'daily_budget' : 'lifetime_budget' in f ? 'lifetime_budget' : 'budget';
+      const conv = k === 'budget' ? (v => v == null ? null : +v) : cents, was = conv(b[k]), now = conv(f[k]);
+      const fmt = v => v == null ? null : k === 'lifetime_budget' ? `${money(v, cur)} total` : day$(v);
+      return [was != null && now < was ? 'Budget lowered' : 'Budget raised', was != null && now < was ? 'warn' : 'good', fmt(was), fmt(now)]; }
+    if ('daily_spend_cap' in f) { const was = cents(b.daily_spend_cap), now = cents(f.daily_spend_cap);
+      return ['Spend limit changed', '', was ? `Up to ${day$(was)}` : 'No limit', now ? `Up to ${day$(now)}` : 'No limit']; }
+    if ('daily_min_spend_target' in f) { const was = cents(b.daily_min_spend_target), now = cents(f.daily_min_spend_target);
+      return [now ? 'Minimum set' : 'Minimum taken off', '', was ? `At least ${day$(was)}` : 'No minimum', now ? `At least ${day$(now)}` : 'No minimum']; }
+    const CAT = { ad_paused: ['Turned off', 'bad'], campaign_paused: ['Turned off', 'bad'], ad_relaunched: ['Turned on', 'good'], campaign_relaunched: ['Turned on', 'good'],
+      budget: ['Budget changed', ''], new_creative: ['New ads', 'good'], new_adset: ['New ad set', 'good'], new_campaign: ['New campaign', 'good'], targeting: ['Audience changed', ''], bid_strategy: ['Bidding changed', ''] };
+    const x = CAT[c.category] || ['Changed', '']; return [x[0], x[1], null, null];
+  }
+  const LEVEL_WORD = { campaign: 'Campaign', adset: 'Ad set', ad: 'Ad', account: 'Account' };
+  async function adUpdates(first) {
+    const t = H.RUN(); const a = H.S.accounts.find(x => x.act_id === H.S.act);
+    if (!a) { $('#main').innerHTML = shell('adupdates', 'Ad updates', `<div class="v2card"><p class="v2hint">Pick one brand in the menu to see what changed in its ads.</p></div>`); return; }
+    const title = `Ad updates: ${esc(a.name)}`, client = H.S.role === 'client';
+    if (first) $('#main').innerHTML = shell('adupdates', title, `<section class="v2card v2sk"><i class="h"></i>${skGal(4)}</section>`);
+    const now = new Date(), wk = new Date(now.getTime() - 6 * 864e5);
+    let u, d; try { [u, d] = await Promise.all([H.apiAH(`/api/ad-updates?act=${encodeURIComponent(a.act_id)}`), noMeta(a) ? Promise.resolve({ ads: [] }) : get(`/api/hub/creative?act=${encodeURIComponent(a.act_id)}&from=${ymd(wk)}&to=${ymd(now)}`).catch(() => ({ ads: [] }))]); }
+    catch (e) { if (t === H.RUN()) $('#main').innerHTML = shell('adupdates', title, `<div class="v2card"><p class="v2bad">${esc(e.message)}</p></div>`); return; }
+    if (t !== H.RUN()) return;
+    const cur = (d && d.currency) || a.currency, g = (d && d.goals) || {}, ads = (d && d.ads) || [], changes = (u && u.changes) || [];
+    const goal = g.cpa || (() => { const s = ads.reduce((x, r) => x + r.spend, 0), o = ads.reduce((x, r) => x + (r.purchases || 0), 0); return o ? s / o : null; })();
+    CR_WIN = (d && d.window) || { from: ymd(wk), to: ymd(now) }; MED = medians(ads, goal || 50);
+    const byId = new Map(ads.map(r => [String(r.id), r]));
+    const setAds = id => ads.filter(r => r.adset && String(r.adset.id) === String(id)).sort((p, q) => q.spend - p.spend);
+    const adsOf = c => { if (c.platform !== 'meta') return [];
+      if (c.level === 'ad') { const r = byId.get(String(c.object_id)); if (!r) return []; const s = r.adset ? setAds(r.adset.id) : [r]; return [r, ...s.filter(o => o !== r)]; }
+      if (c.level === 'adset') return setAds(c.object_id);
+      if (c.level === 'campaign') return ads.filter(r => r.campaign && r.campaign === c.name).sort((p, q) => q.spend - p.spend);
+      return []; };
+    const counts = Object.fromEntries(UPD_PLAT.map(([k]) => [k, changes.filter(c => c.platform === k).length]));
+    if (!counts[UPD_TAB]) UPD_TAB = UPD_PLAT.find(([k]) => counts[k])?.[0] || 'meta';
+    const cxOf = r => ({ set: r.adset || null, sibs: r.adset ? setAds(r.adset.id) : [], open: o => previewAd(o, cur, g, cxOf(o)) });
+    const card = (r, off, focus) => `<div class="g${focus ? ' picked' : ''}" data-prev="${esc(r.id)}" role="button" tabindex="0" aria-label="Open ${esc(r.name)}"><div class="th" data-thumb="${esc(r.id)}"${THUMBS.has(String(r.id)) ? ` style="background-image:url('${THUMBS.get(String(r.id))}')"` : ''}>${r.media_type === 'video' ? `<span class="v2play-s">${window.icon ? window.icon('play', { size: 16 }) : ''}</span>` : ''}${off ? '<span class="v2pill bad">Off</span>' : ''}<em>${esc(r.media_type === 'video' ? 'Video' : r.media_type === 'carousel' ? 'Carousel' : 'Static')}</em></div><div class="b"><b title="${esc(r.name)}">${esc(r.name)}</b>
+      ${r.obj === 'leads' ? `<div class="kv"><span>Spend<b>${kmoney(r.spend, cur)}</b></span><span>CPL<b>${r.cpl == null ? 'none' : money2(r.cpl, cur)}</b></span><span>Leads<b>${int(r.leads)}</b></span></div>`
+      : `<div class="kv"><span>Spend<b>${kmoney(r.spend, cur)}</b></span><span>CPA<b class="${r.cpa == null ? '' : !goal ? '' : r.cpa <= goal ? 'good' : 'bad'}">${r.cpa == null && r.spend > 0 ? 'none' : money(r.cpa, cur)}</b></span><span>ROAS<b>${x2(r.roas)}</b></span></div>`}</div></div>`;
+    const box = (c, i, n) => { const [lab, tone, was, is] = updWhat(c, cur), list = adsOf(c), off = /Turned off/.test(lab);
+      const move = was && is && was !== is ? `<div class="upd-mv"><s>${esc(was)}</s><span aria-hidden="true">→</span><b>${esc(is)}</b></div>` : is ? `<div class="upd-mv"><b>${esc(is)}</b></div>` : '';
+      const tot = list.reduce((s, r) => ({ spend: s.spend + r.spend, p: s.p + (r.purchases || 0), rev: s.rev + (r.revenue || 0) }), { spend: 0, p: 0, rev: 0 });
+      const facts = list.length ? `<div class="upd-facts"><span><small>Spent, 7 days</small><b>${kmoney(tot.spend, cur)}</b></span><span><small>Sales</small><b>${int(tot.p)}</b></span><span><small>Cost per sale</small><b class="${!tot.p || !goal ? '' : tot.spend / tot.p <= goal ? 'good' : 'bad'}">${tot.p ? money(tot.spend / tot.p, cur) : 'none'}</b></span><span><small>ROAS</small><b>${tot.spend ? x2(tot.rev / tot.spend) : '–'}</b></span></div>` : '';
+      return `<article class="upd-box" data-i="${i}"><div class="upd-hd"><div class="upd-lab"><span class="v2pill ${tone}">${esc(lab)}</span><span>${esc(LEVEL_WORD[c.level] || '')}</span><span class="upd-n">${n}</span></div>
+        <div class="upd-r1"><h3>${esc(c.name || c.summary || 'Change')}</h3>${move}</div><p class="upd-why">${esc(c.why)}</p>${facts}</div>
+        ${list.length ? `<div class="upd-ads"><div class="upd-ah"><span>${off ? 'The ads that were in it' : c.level === 'ad' ? 'This ad and the others in its ad set' : `The ads in this ${c.level === 'campaign' ? 'campaign' : 'ad set'}`}</span><span>${list.length} ad${list.length === 1 ? '' : 's'}, most spend first</span></div>
+          <div class="v2gal">${list.slice(0, 8).map((r, k) => card(r, off && (c.level !== 'ad' || k === 0), c.level === 'ad' && k === 0)).join('')}</div>${list.length > 8 ? `<button type="button" class="v2link" data-all="${i}">Show all ${list.length} ads</button>` : ''}</div>`
+        : c.platform === 'meta' && c.level !== 'account' ? `<div class="upd-ads"><p class="v2hint">No spend on these ads in the last 7 days.</p></div>` : ''}</article>`; };
+    const paint = () => {
+      const mine = changes.filter(c => c.platform === UPD_TAB), byDay = new Map();
+      for (const c of mine) { const k = ymd(new Date(c.at)); (byDay.get(k) || byDay.set(k, []).get(k)).push(c); }
+      const tabs = `<div class="upd-tabs" role="tablist">${UPD_PLAT.map(([k, l]) => `<button type="button" role="tab" class="${k === UPD_TAB ? 'on' : ''}${counts[k] ? '' : ' none'}" aria-selected="${k === UPD_TAB}" data-plat="${k}">${l}<i>${counts[k]}</i></button>`).join('')}</div>`;
+      const lead = `<p class="v2say lead">${changes.length ? `${changes.length} change${changes.length === 1 ? '' : 's'} in the last 45 days, newest first. Each one says what we changed, why, and the ads it touched. Tap any ad for its full numbers.` : 'Nothing has changed yet.'}</p>`;
+      const help = client ? '' : `<p class="v2hint upd-help">Shows a change once it has a confirmed why: buying-call changes carry theirs; for a change made by hand, add the why in Meta &gt; Changes. Meta's automatic edits never show. <button type="button" class="v2link" data-copy="1">Copy the client link</button></p>`;
+      let body = '', n = 0;
+      if (!mine.length) body = `<div class="v2card"><p class="v2hint">Nothing changed in ${esc((UPD_PLAT.find(p => p[0] === UPD_TAB) || [])[1] || '')} in the last 45 days. When it does, you'll see it here.</p></div>`;
+      for (const [k, list] of byDay) body += `<div class="upd-day">${esc(new Date(k + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }))}<span>${list.length} change${list.length === 1 ? '' : 's'}</span></div>${list.map(c => box(c, changes.indexOf(c), `${++n} of ${mine.length}`)).join('')}`;
+      $('#main').innerHTML = shell('adupdates', title, `${lead}${help}${tabs}<div class="upd-list">${body}</div>`);
+      const root = $('#main'), lst = root.querySelector('.upd-list');
+      loadThumbs(root, [...root.querySelectorAll('.th[data-thumb]')].map(el => el.dataset.thumb));
+      root.querySelectorAll('[data-plat]').forEach(b => b.onclick = () => { UPD_TAB = b.dataset.plat; paint(); });
+      const cp = root.querySelector('[data-copy]'); if (cp) cp.onclick = async () => { const link = `${location.origin}${location.pathname}?open=adupdates&act=${encodeURIComponent(a.act_id)}`; try { await navigator.clipboard.writeText(link); cp.textContent = 'Copied'; } catch { cp.textContent = link; } };
+      /* one delegated listener on the list, which every paint replaces (never on #main, which survives) */
+      lst.addEventListener('click', e => {
+        const all = e.target.closest('[data-all]');
+        if (all) { const c = changes[+all.dataset.all], list = adsOf(c), off = /Turned off/.test(updWhat(c, cur)[0]);
+          all.previousElementSibling.innerHTML = list.map((r, k) => card(r, off && (c.level !== 'ad' || k === 0), c.level === 'ad' && k === 0)).join(''); all.remove(); loadThumbs(root, list.map(r => String(r.id))); return; }
+        const el = e.target.closest('.g[data-prev]'); if (!el) return; const r = byId.get(el.dataset.prev); if (r) previewAd(r, cur, g, cxOf(r)); });
+      lst.addEventListener('keydown', e => { const el = e.target.closest('.g[data-prev]'); if (el && e.target === el && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); el.click(); } });
+    };
+    paint();
+  }
   const chip = (cur, prev, lower, label) => { if (cur == null || prev == null || !isFinite(cur) || !isFinite(prev) || !prev) return ''; const d = cur / prev - 1; if (!isFinite(d)) return ''; const tone = Math.abs(d) < 0.015 || lower === 'n' ? 'flat' : ((d > 0) !== !!lower) ? 'up' : 'down'; return `<span class="v2d ${tone}"${label ? tipAttr(label) : ''}>${d >= 0 ? '▲' : '▼'} ${Math.abs(Math.round(d * 100))}%</span>`; };
   window.V2UI = { addBands, markDots, clearDots, tile, card, spark, bullet, ib, legend, lineChart, wireLine, stackChart, wireStack, panel, tipAttr, foot, chip, esc, kmoney, money, money2, pct, x2, int, day,
     setHost: h => { if (!H) H = h; } };
@@ -3436,6 +3524,7 @@
       if (tab === 'meta') return meta(first, 'overview');
       if (tab === 'campaigns') return meta(first, 'campaigns');
       if (tab === 'adcreative') return creative(first);
+      if (tab === 'adupdates') return adUpdates(first);
       if (tab === 'google' || tab === 'tiktok') return platform(tab, first);
       if (tab === 'gcampaigns') return gcampaigns(first);
       if (tab === 'gads') return gads(first);

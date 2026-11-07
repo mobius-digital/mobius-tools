@@ -4799,3 +4799,23 @@ team presses Reopen.
   above the request groups. Shows nothing for a brand with no review.
 - Tables p_site_review (one row per act+slug: token, sections, overall, sent) and p_site_review_answer, made on first use.
 - Test: account-health `test-clients.mjs` "site reviews". Clear test answers with DELETE /api/site-review/answers?act=&slug=.
+
+## 2026-11-07: Ads > Updates (what we changed, for the client)
+
+- Cole: "the change log, but way better": one page per brand that shows each change to the ads, why, and the ads it
+  touched, which the client opens with their own Locus login (the Slack update links here instead of the Your ads page).
+- **Route** account-health `GET /api/ad-updates?act=&from=&to=` (default 45 days; on CLIENT_RULES in both brandguard
+  copies; a SMOKE_ROUTES row). Source = `activities` with `confirmed = 1` and a written reason that is not the default
+  stamp ("Changed by hand in Locus"), never `strategist_write` (its reasons are written for the team). Before/after
+  from `p_meta_write` (joined on the "Write mw_..." note; undone writes drop out) and `p_ext_write` (Google, TikTok).
+  So: a buying-call write shows because `meta_write` is sent with `reason` = the client-facing why; a change made by
+  hand shows once someone adds its why in Meta > Changes; Meta's automatic edits never show. **The why is
+  client-facing: write it the way Cole would say it to the client.**
+- **Page** `adUpdates()` in v2.js, tab id `adupdates` (NAV4 Ads after Calls, SHOWABLE, the renderer map, `?open=`,
+  TAB_TITLE, TAB_CRUMB). Platform tabs Meta / Google / TikTok / Trybe with counts; days newest first; one `.upd-box`
+  per change (label, level, before -> after, the why, the 7-day totals of its ads) with its ads on a grey band
+  inside the box as the SAME `.v2gal .g` cards as Meta > Ads, each opening the SAME `previewAd` sheet (trend,
+  funnel, landing page, Play...). Ads come from `/api/hub/creative` for the last 7 days, matched by ad set id,
+  campaign name, or the ad and its set. Team view has "Copy the client link" (`?open=adupdates&act=`).
+- **Every ad card is the same size** (v2.css, all `.v2gal` grids): the 4:5 frame shows the whole ad uncropped and a
+  blurred copy fills the sides of a 9:16 or the top and bottom of a square (`::before` blur, `::after` the ad).

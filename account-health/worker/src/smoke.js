@@ -85,6 +85,7 @@ export const SMOKE_ROUTES = [
   R('Ads > Google campaigns', 'gcampaigns', 'ah', '/api/google/ads?act={act}&from={from}&to={to}', 'brand', 'google_ads'),
   R('Ads > Google ads', 'gads', 'ah', '/api/google/ads-ads?act={act}&from={from}&to={to}', 'brand', 'google_ads'),
   R('Ads > Google search terms', 'gterms', 'ah', '/api/google/ads-terms?act={act}&from={from}&to={to}', 'brand', 'google_ads'),
+  R('Ads > Updates', 'adupdates', 'ah', '/api/ad-updates?act={act}', 'brand', 'meta'),
   R('Ads > Google changes', 'gchanges', 'ah', '/api/google/ads-changes?act={act}&from={from}&to={to}', 'brand', 'google_ads'),
   R('Ads > TikTok', 'tiktok', 'ah', '/api/tiktok/report?act={act}&from={from}&to={to}', 'brand', 'tiktok'),
   R('Email and SMS', 'email', 'profit', '/api/hub/email?act={act}&days=30', 'both'),

@@ -10194,6 +10194,51 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         ).bind(...(all ? [from, to, limit] : [from, to, limit, act])).all();
         return json({ rows: results });
       }
+      /* AD UPDATES (2026-11-07, Cole: "the change log, but way better, for the client"). One brand's changes with a
+         client-facing why, newest first, for Ads > Updates and the brand's own login. A change shows only once it has a
+         confirmed reason that is not the default stamp, so a client never sees an unexplained or automatic change:
+         buying-call writes carry their why (meta_write `reason`); changes made by hand wait for "Add why" in the Change
+         Log; Meta's own automatic edits (confirmed 0 or -1) never show. Before/after come from p_meta_write (Locus's
+         Meta writes, joined by the "Write mw_..." note) and p_ext_write (Google, TikTok). */
+      if (path === '/api/ad-updates' && request.method === 'GET') {
+        const act = url.searchParams.get('act');
+        if (!act || act === 'all') return json({ error: 'Pick one brand.' }, 400);
+        const to = url.searchParams.get('to') || '2999-12-31T23:59:59';
+        const from = url.searchParams.get('from') || new Date(Date.now() - 45 * 864e5).toISOString().slice(0, 10);
+        const { results: acts } = await env.DB.prepare(
+          `SELECT a.id, a.event_time, a.event_type, a.actor, a.object_type, a.object_id, a.object_name, a.category, a.summary, a.reason, a.note, a.manual
+             FROM activities a JOIN connections c ON c.kind = 'meta' AND c.external_id = a.act_id
+            WHERE c.brand_id = ?1 AND a.event_time BETWEEN ?2 AND ?3 AND a.confirmed = 1 AND COALESCE(a.event_type, '') <> 'strategist_write'
+              AND TRIM(COALESCE(a.reason, '')) <> '' AND a.reason NOT IN ('Changed by hand in Locus', 'Changed by the Strategist')
+            ORDER BY a.event_time DESC LIMIT 400`).bind(act, from, to).all();
+        const ids = [...new Set(acts.map(r => (String(r.note || '').match(/\b(mw_[0-9a-f]+)/) || [])[1]).filter(Boolean))];
+        const W = new Map();
+        for (let i = 0; i < ids.length; i += 50) {
+          const ch = ids.slice(i, i + 50);
+          const { results } = await env.DB.prepare(`SELECT id, level, object, name, action, field, before, after, undone FROM p_meta_write WHERE id IN (${ch.map(() => '?').join(',')})`).bind(...ch).all().catch(() => ({ results: [] }));
+          for (const w of results) W.set(w.id, w);
+        }
+        const X = new Map();
+        const { results: ext } = await env.DB.prepare(`SELECT id, platform, object, name, action, before, after, undone, at FROM p_ext_write WHERE brand = ?1 AND at BETWEEN ?2 AND ?3`).bind(act, from, to).all().catch(() => ({ results: [] }));
+        for (const w of ext) X.set(`${w.object}|${String(w.at).slice(0, 16)}`, w);
+        const J = s => { try { return s ? JSON.parse(s) : null; } catch { return null; } };
+        const plat = r => /^google/i.test(r.event_type || '') || /^GOOGLE/.test(r.object_type || '') ? 'google' : /^tiktok/i.test(r.event_type || '') || /^TIKTOK/.test(r.object_type || '') ? 'tiktok' : /trybe/i.test(r.event_type || '') ? 'trybe' : 'meta';
+        const lvl = t => { const s = String(t || '').toUpperCase(); return /ADSET|AD_SET|ADGROUP|AD_GROUP/.test(s) ? 'adset' : /CAMPAIGN/.test(s) ? 'campaign' : /(^|_)AD$/.test(s) ? 'ad' : 'account'; };
+        const seen = new Set(), changes = [];
+        for (const r of acts) {
+          const mw = W.get((String(r.note || '').match(/\b(mw_[0-9a-f]+)/) || [])[1]);
+          if (mw && mw.undone) continue;                    // undone in Locus: it did not happen
+          const p = plat(r), xw = p !== 'meta' ? X.get(`${r.object_id}|${String(r.event_time).slice(0, 16)}`) : null;
+          if (xw && xw.undone) continue;
+          /* Meta's own log brings a second row for a Locus write; once both are confirmed, keep one per object per minute */
+          const k = `${r.object_id}|${String(r.event_time).slice(0, 16)}|${r.category}`;
+          if (seen.has(k)) continue; seen.add(k);
+          changes.push({ id: r.id, at: r.event_time, platform: p, level: mw ? mw.level : lvl(r.object_type), object_id: r.object_id, name: (mw && mw.name) || r.object_name || (xw && xw.name) || '',
+            category: r.category, action: mw ? mw.action : xw ? xw.action : null, field: mw ? mw.field : null, summary: r.summary, why: r.reason,
+            before: J(mw ? mw.before : xw ? xw.before : null), after: J(mw ? mw.after : xw ? xw.after : null) });
+        }
+        return json({ act, from, to, changes });
+      }
       if (path === '/api/activities/bulk-confirm' && request.method === 'POST') {
         const { ids } = await request.json().catch(() => ({}));
         if (!Array.isArray(ids) || !ids.length) return json({ error: 'ids required' }, 400);
