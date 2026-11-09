@@ -1628,6 +1628,8 @@ export async function handleBrandAsana(request, env, path, json, isAdmin) {
   }
 }
 export { readDoc, asana };
+/* The team scorecard (agency.js, 2026-11-09) reads a test's spend and the brand's test rules the same way the result calls do. */
+export { batchStats, rulesOf, getDoc };
 
 /* Shared with newclient.js (Locus's New client button). */
 export { asanaAll, googleToken, setDrive, PENDING, BRIEF_READERS };

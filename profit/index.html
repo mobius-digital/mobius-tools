@@ -2416,7 +2416,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="../onboard/questions.js?v=12"></script>
 <script src="brand.js?v=24"></script>
 <script src="newclient.js?v=16"></script>
-<script src="clients.js?v=7"></script>
+<script src="clients.js?v=8"></script>
 <script src="requests.js?v=5"></script>
 <script src="sitereviews.js?v=1"></script>
 <script src="actions.js?v=4"></script>
@@ -2434,7 +2434,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="season.js?v=19"></script>
 <script src="calc.js?v=11"></script>
 <script src="command.js?v=6"></script>
-<script src="accent.js?v=3"></script>
+<script src="accent.js?v=4"></script>
 <script src="helper.js?v=2"></script>
 <script src="hero.js?v=1"></script>
 <script src="nudge.js?v=5"></script>
@@ -2445,7 +2445,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="desk.js?v=39"></script>
 <script src="buyer.js?v=10"></script>
 <script src="trybe.js?v=15"></script>
-<script src="agency.js?v=3"></script>
+<script src="agency.js?v=4"></script>
 <script src="calendar.js?v=15"></script>
 <script src="social.js?v=12"></script>
 <script src="socialweek.js?v=11"></script>
@@ -2673,7 +2673,7 @@ async function boot() {
   if (window.LocusShare) { window.LocusShare.init(shareHost()); window.LocusShare.readURL(qs); }
   // Internal deep link from the Slack draft message (?open=reports&act=...).
   const open = qs.get('open');
-  if (open && ['buyer', 'adupdates', 'launch', 'trybe', 'month', 'morning', 'calls', 'ccall', 'tasks', 'production', 'actions', 'warplan', 'warlive', 'monday', 'meetings', 'requests', 'gcampaigns', 'gads', 'gterms', 'gchanges', 'calendar', 'social', 'socialsaved', 'socialweek', 'socialresults', 'yesterday', 'leaks', 'today', 'war', 'pulse', 'answers', 'research', 'voice', 'stock', 'buying', 'drops', 'overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings', 'health', 'brand', 'tests', 'angles', 'studio', 'amb', 'copy', 'season', 'calc', 'google', 'tiktok', 'email', 'dash', 'store', 'channels', 'campaigns', 'adcreative', 'changes', 'meta', 'guide', 'website', 'inspo', 'library', 'search', 'mtoday', 'mbrowser', 'economics', 'workload'].includes(open)) {
+  if (open && ['buyer', 'adupdates', 'launch', 'trybe', 'month', 'morning', 'calls', 'ccall', 'tasks', 'production', 'actions', 'warplan', 'warlive', 'monday', 'meetings', 'requests', 'gcampaigns', 'gads', 'gterms', 'gchanges', 'calendar', 'social', 'socialsaved', 'socialweek', 'socialresults', 'yesterday', 'leaks', 'today', 'war', 'pulse', 'answers', 'research', 'voice', 'stock', 'buying', 'drops', 'overview', 'profit', 'plan', 'brief', 'reports', 'costs', 'customers', 'settings', 'health', 'brand', 'tests', 'angles', 'studio', 'amb', 'copy', 'season', 'calc', 'google', 'tiktok', 'email', 'dash', 'store', 'channels', 'campaigns', 'adcreative', 'changes', 'meta', 'guide', 'website', 'inspo', 'library', 'search', 'mtoday', 'mbrowser', 'economics', 'workload', 'scorecard'].includes(open)) {
     if (open === 'dash') { try { localStorage.setItem('pf_dash', /^db_[0-9a-f]{10}$/.test(qs.get('id') || '') ? qs.get('id') : ''); } catch {} }
     if (qs.get('act')) { S.act = qs.get('act'); localStorage.setItem(LS.act, S.act); }
     /* A Slack calendar ping opens the date itself (?open=calendar&ev=<id>). */
@@ -3355,6 +3355,7 @@ Object.assign(PAGE_BRIEF, {
   search: { answers: 'How the brand shows up in Google’s free search results.', when: 'Monthly.', todo: 'Watch brand searches grow, and look at queries sitting in positions 4 to 15: those are the cheapest wins.' },
   season: { answers: 'Every offer and date for each brand, and what is due this week.', when: 'Weekly through Q4.', todo: 'Check the offers are locked and the tasks due this week are done.' },
   economics: { answers: 'Which clients earn the most per hour of team time, and which cost more than they pay.', when: 'At the start of a month, for the month before.', todo: 'Set each person’s monthly cost once, match any Ledger names, then read the sentence at the top.' },
+  scorecard: { answers: 'What each person on the team did, how much, and how good it was.', when: 'Friday or Monday, once a week.', todo: 'Press each person, read the items behind their numbers, and give their week 1 to 5 stars.' },
   workload: { answers: 'Who has what due this week across every client, and what is late.', when: 'Monday morning, and before handing someone new work.', todo: 'Filter to a person, open late tasks in Asana and move or finish them.' },
   calc: { answers: 'What-if math: what a lead or a ROAS level is worth, and where a brand breaks even.', when: 'When setting goals or pitching a budget.', todo: 'Move the dials, compare scenarios, save or share the one you agree on.' },
   studio: { answers: 'Static ads made by AI from a brief, a product and real photos.', when: 'When a brief needs static ads.', todo: 'Start a batch from the Asana brief, pick the product and photos, make the ads, approve or redo each one.' },
@@ -3657,6 +3658,7 @@ const TAB_PURPOSE = {
   overview:  'Which clients are making money right now. Start here every morning - click a client to dig into theirs.',
   economics: 'What each client paid Mobius in a month against the team time and AI it took. Team time is an estimate from finished Asana tasks. Cole only.',
   workload:  'Who has what due this week across every client, from Asana, with what is late.',
+  scorecard: 'What each person did and how good it was: cards moved, ads launched, files, tasks, test win rate, changes asked, on time and a weekly rating from Cole. Cole only.',
   calc:      'The lead math and the ROAS math with the brand numbers already in the boxes: what a lead can cost, what a plan returns, where breakeven sits. Scenarios save per brand.',
   season:    'The BFCM plan for every brand: the offer for each part of the season, when it runs, and what is due this week. Tick things off here; the briefs themselves stay in Asana.',
   profit:    "Did this brand make money in the window: revenue, orders, average order, every cost, what was left. Same numbers as the Daily Brief and Reports.",
@@ -5262,7 +5264,7 @@ const NAV = {
   reports: { label: 'Reports', tabs: [['brief', 'Daily Brief'], ['reports', 'Weekly and monthly'], ['dash', 'Dashboards']] },
   season: { label: 'Black Friday', tabs: [['warplan', 'The Plan'], ['warlive', 'Live'], ['season', 'Offers and dates']] },   // 2026-10-13: one Season item, three pages; `war` still routes
   /* 2026-10-10: Agency economics (Cole only; hidden for everyone else) and Team workload (agency.js). */
-  tools: { label: 'Tools', tabs: [['calc', 'Scenarios'], ['pulse', 'Platform status'], ['economics', 'Agency economics'], ['workload', 'Team workload']] },
+  tools: { label: 'Tools', tabs: [['calc', 'Scenarios'], ['pulse', 'Platform status'], ['economics', 'Agency economics'], ['workload', 'Team workload'], ['scorecard', 'Team scorecard']] },
 };
 /* LOCUS v4 (phase 1): seven destinations by job. The second level inside a tab is a segmented control (SOCIAL_JOBS,
    BRAND_JOBS, SEASON_JOBS, like META_JOBS), never a second tab row. Every old id lands: NAV_OF below maps the ones
@@ -5290,7 +5292,7 @@ const NAV4 = {
   calendar: { label: 'Calendar', tabs: [['calendar', 'Calendar'], ['warplan', 'Season']] },
   reports: { label: 'Reports', tabs: [['brief', 'Daily'], ['reports', 'Weekly and monthly'], ['dash', 'Dashboards'], ['requests', 'Requests']] },   // Requests shows here for a client login only (tabInView); the team's is Clients > Requests
   work: { label: 'Clients', tabs: [['calls', 'Meetings'], ['tasks', 'Tasks'], ['requests', 'Requests'], ['ccall', 'Client call']] },   // ccall (2026-10-27): the shared-screen client call, shown under a picked brand only (tabInView)
-  tools: { label: 'Tools', tabs: [['calc', 'Calculators'], ['pulse', 'Platform status'], ['guide', 'Guide'], ['economics', 'Agency economics'], ['workload', 'Team workload']] },
+  tools: { label: 'Tools', tabs: [['calc', 'Calculators'], ['pulse', 'Platform status'], ['guide', 'Guide'], ['economics', 'Agency economics'], ['workload', 'Team workload'], ['scorecard', 'Team scorecard']] },
 };
 if (V4) { for (const k of Object.keys(NAV)) delete NAV[k]; Object.assign(NAV, NAV4); }
 /* pass C help (2026-10-21): where things moved, and the Stock explainer that left the page (supply.js HELP_STOCK) */
@@ -5366,7 +5368,7 @@ function navGo(g) { const ok = t => (!isClient() || clientTabOk(t)) && tabInView
    Agency settings, which a client never opens. A NEW PAGE IS IN THE BRAND EDITION BY DEFAULT: add it to AGENCY_TABS
    only when it runs many brands at once, and add its routes to CLIENT_RULES in brandguard.js (both copies). */
 const isClient = () => S.role === 'client';
-const AGENCY_TABS = new Set(['launch', 'economics', 'workload', 'calls', 'tasks', 'actions', 'meetings', 'monday', 'ccall']);   // production left 2026-10-14: a client sees Production for its own brand (prodsheet.js client view); actions (and the old ids that route to it): the team's page, never a client's
+const AGENCY_TABS = new Set(['launch', 'economics', 'workload', 'scorecard', 'calls', 'tasks', 'actions', 'meetings', 'monday', 'ccall']);   // production left 2026-10-14: a client sees Production for its own brand (prodsheet.js client view); actions (and the old ids that route to it): the team's page, never a client's
 /* Kept for older callers: every page that is not the agency's. */
 const CLIENT_TABS = { has: t => !AGENCY_TABS.has(t) };   // stock, buying and drops included (2026-10-12)
 /* The four access switches are gone (2026-10-10): everything is on. Kept for older callers. */
@@ -5392,7 +5394,9 @@ function clientTabOk(t) {
 const AGENCY_VIEW = 'Agency view';
 /* 2026-10-27: Meetings ('calls') shows in BOTH views. Under a brand its Client call card opens that brand's call at once; Cole
    kept being bounced to Agency view by clicking Work and never knew where the client call lived. */
-const AGENCY_ONLY = new Set(['economics', 'workload', 'actions', 'meetings', 'monday']);
+/* Cole's own pages (2026-11-09): hidden from the Tools tabs and search for anyone else, and show() sends them to Team workload. */
+const OWNER_TABS = new Set(['economics', 'scorecard']);
+const AGENCY_ONLY = new Set(['economics', 'workload', 'scorecard', 'actions', 'meetings', 'monday']);
 const VIEW_BOTH = new Set(['calls', 'buyer', 'launch', 'trybe', 'morning', 'month', 'overview', 'yesterday', 'leaks', 'plan', 'requests', 'tasks', 'production', 'today', 'calendar', 'brief', 'reports', 'dash', 'warplan', 'warlive', 'war', 'season', 'pulse', 'settings', 'guide', 'health']);
 const inAgency = () => !isClient() && S.act === 'all';
 const tabScope = t => AGENCY_ONLY.has(t) ? 'agency' : VIEW_BOTH.has(t) ? 'both' : 'client';
@@ -5454,7 +5458,7 @@ const META_JOBS = [['meta', 'Overview'], ['campaigns', 'Campaigns'], ['adcreativ
 /** Tab titles, so an error page can still say which tab it is. */
 const TAB_TITLE = { buyer: 'Calls', adupdates: 'Ad updates', launch: 'Launch', trybe: 'Trybe', morning: 'Morning', month: 'Month', leaks: 'Leaks', actions: 'Tasks', calls: 'Meetings', ccall: 'Client call', tasks: 'Tasks', production: 'Pipeline', warplan: 'The Plan', warlive: 'Live', monday: 'Meetings', meetings: 'Meetings', requests: 'Requests', gcampaigns: 'Google campaigns', gads: 'Google ads', gterms: 'Google search terms', gchanges: 'Google changes', calendar: 'Calendar', social: 'Social', socialsaved: 'Social', socialweek: 'Social', socialresults: 'Social', yesterday: 'Day check', today: 'Today’s calls', war: 'War Room', pulse: 'Platform status', answers: 'Client answers', research: 'Research', voice: 'Voice', library: 'Library', inspo: 'Inspiration', website: 'Website', search: 'Search', season: 'The Plan', calc: 'Calculators', overview: 'Overview', profit: 'Profit', plan: 'Goals', brief: 'Daily Brief', google: 'Google', tiktok: 'TikTok', email: 'Email and SMS', dash: 'Dashboards', store: 'Sales', stock: 'Stock', buying: 'Buying', drops: 'Drops', channels: 'All channels', campaigns: 'Meta campaigns', adcreative: 'Meta ads', changes: 'Meta changes', mtoday: 'Today', mbrowser: 'Creative browser',
   reports: 'Reports', meta: 'Meta', customers: 'Customers', costs: 'Costs', settings: 'Settings',
-  health: 'Data Health', economics: 'Agency economics', workload: 'Team workload', amb: 'Creators', brand: 'Brand', copy: 'Copy desk', studio: 'AI ads', tests: 'Test calls', angles: 'Angles', guide: 'How to use Locus' };
+  health: 'Data Health', economics: 'Agency economics', workload: 'Team workload', scorecard: 'Team scorecard', amb: 'Creators', brand: 'Brand', copy: 'Copy desk', studio: 'AI ads', tests: 'Test calls', angles: 'Angles', guide: 'How to use Locus' };
 /* Pages that are part of a bigger question live UNDER a parent in the rail
    (2026-10-04). The parent's own id is its first page. Meta is a section too, but
    meta.js fills its own sub-tabs. */
@@ -5702,7 +5706,7 @@ window.openFixedCosts = openFixedCosts;
 
 window.showTab = tab => show(tab);
 let LAST_VIEW = null;   // was the last page shown in Agency view (show())
-const SHOWABLE = new Set(["buyer", "adupdates", "launch", "trybe", "morning", "month", "calls", "ccall", "tasks", "production", "actions", "warplan", "warlive", "monday", "meetings", "requests", "gcampaigns", "gads", "gterms", "gchanges", "calendar", "social", "socialsaved", "socialweek", "socialresults", "yesterday", "leaks", "today", "war", "pulse", "answers", "research", "voice", "stock", "buying", "drops", "overview", "profit", "plan", "costs", "brief", "reports", "meta", "customers", "settings", "health", "amb", "brand", "studio", "tests", "angles", "copy", "season", "calc", "guide", "email", "dash", "store", "website", "inspo", "library", "search", "google", "tiktok", "channels", "campaigns", "adcreative", "changes", "mtoday", "mbrowser", "economics", "workload"]);   // keep in step with the renderer map in show()
+const SHOWABLE = new Set(["buyer", "adupdates", "launch", "trybe", "morning", "month", "calls", "ccall", "tasks", "production", "actions", "warplan", "warlive", "monday", "meetings", "requests", "gcampaigns", "gads", "gterms", "gchanges", "calendar", "social", "socialsaved", "socialweek", "socialresults", "yesterday", "leaks", "today", "war", "pulse", "answers", "research", "voice", "stock", "buying", "drops", "overview", "profit", "plan", "costs", "brief", "reports", "meta", "customers", "settings", "health", "amb", "brand", "studio", "tests", "angles", "copy", "season", "calc", "guide", "email", "dash", "store", "website", "inspo", "library", "search", "google", "tiktok", "channels", "campaigns", "adcreative", "changes", "mtoday", "mbrowser", "economics", "workload", "scorecard"]);   // keep in step with the renderer map in show()
 function show(tab, opt) {
   /* Leaving a call screen drops its ?call= link, so a reload of the next page does not reopen the call (2026-11-03). */
   if (/[?&]call=/.test(location.search) && tab !== 'ccall' && !(tab === 'calls' && window.CALL_OPEN)) { try { history.replaceState(null, '', location.pathname); } catch {} }
@@ -5723,7 +5727,7 @@ function show(tab, opt) {
   /* An unknown page id (a stale saved tab, a bad link) lands on Overview instead of
      "This page didn't load" with a Try again that retries the same unknown id. */
   if (!SHOWABLE.has(tab)) tab = 'overview';
-  if (tab === 'economics' && S.role !== 'owner') tab = 'workload';   // Cole's page (the server refuses anyone else too)
+  if (OWNER_TABS.has(tab) && S.role !== 'owner') tab = 'workload';   // Cole's pages (the server refuses anyone else too): economics, the team scorecard
   /* AGENCY VIEW vs ONE CLIENT (2026-10-19): a page opened in the other view switches the view, so old links still land.
      A picker change re-shows the same page; when that page has no version in the new view, open Overview instead. */
   if (!isClient() && S.accounts.length) {
@@ -5786,7 +5790,7 @@ function show(tab, opt) {
       if (k === 'google') return ck.includes('google_ads') || chSpend('google'); if (k === 'tiktok') return ck.includes('tiktok') || chSpend('tiktok');
       if (k === 'website') return ck.includes('ga4'); if (k === 'search') return ck.includes('gsc'); return true; };
     const socOk = k => k !== 'social' || inAgency() || !window.SocialTab || window.SocialTab.tabOk(S.act) || /^social/.test(S.tab);
-    const tabsHere = def ? def.tabs.filter(t => tabInView(grp, t[0]) && (t[0] !== 'economics' || S.role === 'owner') && (!window.SupplyTab || window.SupplyTab.tabOk(t[0], S.act)) && platOk(t[0]) && socOk(t[0]) && (!isClient() || clientTabOk(t[0]))).map(t => t[0] === 'email' && oneA && oneA.email_tool === 'attentive' ? ['email', 'Attentive'] : t) : [];
+    const tabsHere = def ? def.tabs.filter(t => tabInView(grp, t[0]) && (!OWNER_TABS.has(t[0]) || S.role === 'owner') && (!window.SupplyTab || window.SupplyTab.tabOk(t[0], S.act)) && platOk(t[0]) && socOk(t[0]) && (!isClient() || clientTabOk(t[0]))).map(t => t[0] === 'email' && oneA && oneA.email_tool === 'attentive' ? ['email', 'Attentive'] : t) : [];
     const row1 = tabsHere.length > 1 ? tabsHere : null;
     const rp = $('#railProducts'); if (rp) rp.hidden = inAgency() || !(window.SupplyTab && window.SupplyTab.tabOk('stock', S.act));
     const hmk = $('#hdMake'); if (hmk) hmk.hidden = V4 || isClient() || inAgency() || !S.tok;   // v4 (pass C): Make lives on Social, Pipeline and Inspiration   // Make (2026-10-20): one brand, the team
@@ -5856,7 +5860,7 @@ function show(tab, opt) {
   const after = () => { done(); if (isClient()) { if ((tab === 'overview' || tab === 'morning') && window.ClientsTab) window.ClientsTab.welcome($('#main')); } else offerTour(tab); };
   let r;
   const run = RUN;
-  try { r = ({ morning: f => V4R(f), month: f => V4R(f, 'month'), warplan: f => DR('warplan', f), warlive: f => DR('warlive', f), actions: f => window.ActionsTab ? window.ActionsTab.render({ S, api, apiAH, show, pageHead, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'), calls: f => window.CallsTab ? window.CallsTab.render({ S, api, apiAH, show, pageHead, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'), ccall: f => CCALL(f), tasks: f => window.TasksTab ? window.TasksTab.render({ S, api, apiAH, show, pageHead, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'), production: f => window.ProductionTab ? window.ProductionTab.render({ S, api, apiAH, show, pageHead, AH_URL, confirmModal, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'),  requests: f => window.RequestsTab ? window.RequestsTab.render({ S, api, apiAH, show, pageHead, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'), calendar: f => CALR(f), social: f => SOCR(f), socialsaved: f => SOCR(f, 'socialsaved'), socialweek: f => SOCR(f, 'socialweek'), socialresults: f => SOCR(f, 'socialresults'), yesterday: f => DR('yesterday', f), leaks: f => V2R('leaks', f), adupdates: f => V2R('adupdates', f), buyer: f => BYR(f), launch: f => BYR(f), trybe: f => TRY(f), today: f => DR('today', f), war: f => DR('war', f), pulse: f => DR('pulse', f), answers: f => renderBrand(f, 'client'), research: f => renderBrand(f, 'research'), voice: f => renderBrand(f, 'voice'), overview: f => V2R('overview', f), profit: renderProfit, plan: async f => { const r = await renderPlan(f); addGoalTargets(); return r; }, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: f => V2R('meta', f), customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles, copy: renderCopy, season: renderSeason, calc: renderCalc, guide: renderGuide, email: f => V2R('email', f), dash: renderDash, store: f => V2R('store', f), stock: f => SR('stock', f), buying: f => SR('buying', f), drops: f => SR('drops', f), website: f => V2R('website', f), inspo: f => V2R('inspo', f), library: f => V2R('library', f), search: f => V2R('search', f), google: f => V2R('google', f), gcampaigns: f => V2R('gcampaigns', f), gads: f => V2R('gads', f), gterms: f => V2R('gterms', f), gchanges: f => V2R('gchanges', f), economics: f => AGR('economics', f), workload: f => AGR('workload', f), tiktok: f => V2R('tiktok', f), channels: f => V2R('channels', f), campaigns: f => V2R('campaigns', f), adcreative: f => V2R('adcreative', f), changes: f => metaSub('changelog', f), mtoday: f => metaSub('today', f), mbrowser: f => metaSub('creative', f) })[tab](first); }
+  try { r = ({ morning: f => V4R(f), month: f => V4R(f, 'month'), warplan: f => DR('warplan', f), warlive: f => DR('warlive', f), actions: f => window.ActionsTab ? window.ActionsTab.render({ S, api, apiAH, show, pageHead, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'), calls: f => window.CallsTab ? window.CallsTab.render({ S, api, apiAH, show, pageHead, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'), ccall: f => CCALL(f), tasks: f => window.TasksTab ? window.TasksTab.render({ S, api, apiAH, show, pageHead, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'), production: f => window.ProductionTab ? window.ProductionTab.render({ S, api, apiAH, show, pageHead, AH_URL, confirmModal, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'),  requests: f => window.RequestsTab ? window.RequestsTab.render({ S, api, apiAH, show, pageHead, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'), calendar: f => CALR(f), social: f => SOCR(f), socialsaved: f => SOCR(f, 'socialsaved'), socialweek: f => SOCR(f, 'socialweek'), socialresults: f => SOCR(f, 'socialresults'), yesterday: f => DR('yesterday', f), leaks: f => V2R('leaks', f), adupdates: f => V2R('adupdates', f), buyer: f => BYR(f), launch: f => BYR(f), trybe: f => TRY(f), today: f => DR('today', f), war: f => DR('war', f), pulse: f => DR('pulse', f), answers: f => renderBrand(f, 'client'), research: f => renderBrand(f, 'research'), voice: f => renderBrand(f, 'voice'), overview: f => V2R('overview', f), profit: renderProfit, plan: async f => { const r = await renderPlan(f); addGoalTargets(); return r; }, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: f => V2R('meta', f), customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles, copy: renderCopy, season: renderSeason, calc: renderCalc, guide: renderGuide, email: f => V2R('email', f), dash: renderDash, store: f => V2R('store', f), stock: f => SR('stock', f), buying: f => SR('buying', f), drops: f => SR('drops', f), website: f => V2R('website', f), inspo: f => V2R('inspo', f), library: f => V2R('library', f), search: f => V2R('search', f), google: f => V2R('google', f), gcampaigns: f => V2R('gcampaigns', f), gads: f => V2R('gads', f), gterms: f => V2R('gterms', f), gchanges: f => V2R('gchanges', f), economics: f => AGR('economics', f), workload: f => AGR('workload', f), scorecard: f => AGR('scorecard', f), tiktok: f => V2R('tiktok', f), channels: f => V2R('channels', f), campaigns: f => V2R('campaigns', f), adcreative: f => V2R('adcreative', f), changes: f => metaSub('changelog', f), mtoday: f => metaSub('today', f), mbrowser: f => metaSub('creative', f) })[tab](first); }
   catch (e) { done(); return fail(e); }            // a synchronous renderer that threw
   if (r && typeof r.then === 'function') r.then(after, e => { done(); fail(e); }); else after();
   /* The address is the view (share.js): page, brand, period, compare and attribution, on every show(). */
@@ -6186,7 +6190,7 @@ function askObjects() {
 }
 function askPages() {
   const out = [];
-  for (const [g, v] of Object.entries(NAV)) for (const [k, l] of v.tabs) if ((k !== 'economics' || S.role === 'owner') && (!isClient() || clientTabOk(k))) out.push({ kind: 'go', tab: k, label: l, where: v.label });
+  for (const [g, v] of Object.entries(NAV)) for (const [k, l] of v.tabs) if ((!OWNER_TABS.has(k) || S.role === 'owner') && (!isClient() || clientTabOk(k))) out.push({ kind: 'go', tab: k, label: l, where: v.label });
   for (const [k, l] of META_JOBS) if (k !== 'meta') out.push({ kind: 'go', tab: k, label: `Meta ${l.toLowerCase()}`, where: 'Ads' });
   out.push({ kind: 'go', tab: 'settings', label: 'Settings', where: '' }, { kind: 'go', tab: 'guide', label: 'How to use Locus', where: '' });
   return out;

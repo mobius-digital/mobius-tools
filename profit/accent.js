@@ -13,7 +13,7 @@
     angles: ['angles'], tests: ['calls'], email: ['SMS', 'Attentive', 'Email'], store: ['Sales'], customers: ['Customers'], website: ['Website'], search: ['Search'],
     stock: ['Stock'], buying: ['Buying'], drops: ['Drops'], studio: ['ads', 'Studio'], copy: ['desk', 'Words'], amb: ['Creators', 'link'], library: ['Library'], inspo: ['Inspiration'],
     answers: ['answers'], research: ['Research'], voice: ['Voice'], brand: ['Brand'], calendar: ['Calendar'], brief: ['Brief'], reports: ['monthly', 'Reports'], dash: ['Dashboards'],
-    war: ['Room'], season: ['Plan'], calc: ['Scenarios'], pulse: ['status'], economics: ['economics'], workload: ['workload'],
+    war: ['Room'], season: ['Plan'], calc: ['Scenarios'], pulse: ['status'], economics: ['economics'], workload: ['workload'], scorecard: ['scorecard'],
     settings: ['settings', 'Settings'], health: ['Health', 'check'], costs: ['Costs'], guide: ['use'],
     /* v4 pages and the module pages that now carry the brand in the title */
     morning: ['Morning'], month: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December', 'Month'],

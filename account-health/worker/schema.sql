@@ -317,3 +317,6 @@ CREATE TABLE IF NOT EXISTS social_oauth_state (state TEXT PRIMARY KEY, act_id TE
 CREATE TABLE IF NOT EXISTS p_buyer_state (brand TEXT NOT NULL, object TEXT NOT NULL, action TEXT NOT NULL, status TEXT NOT NULL,
   name TEXT, by TEXT, at TEXT NOT NULL, quiet_until TEXT NOT NULL, PRIMARY KEY (brand, object, action));
 CREATE INDEX IF NOT EXISTS p_buyer_state_quiet ON p_buyer_state (quiet_until);
+-- The team scorecard (2026-11-09, src/agency.js): Cole's weekly 1 to 5 rating per person (profit/worker/migrations/team-001.sql).
+CREATE TABLE IF NOT EXISTS p_team_rating (person TEXT NOT NULL, week TEXT NOT NULL, stars INTEGER NOT NULL, note TEXT,
+  by_email TEXT, at TEXT NOT NULL, PRIMARY KEY (person, week));
