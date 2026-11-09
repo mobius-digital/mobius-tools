@@ -260,6 +260,7 @@ async function mondayData(env, d, who) {
       making: (prod[b.act_id] || []).slice(0, 24),
       creators: creatorSet.has(b.act_id) && b.act_id !== LUCKY,
       winners: creatorSet.has(b.act_id) && b.act_id !== LUCKY ? await callWinners(env, b.act_id, today).catch(() => []) : [],
+      trybe: creatorSet.has(b.act_id) && b.act_id !== LUCKY ? await trybeCounts(env, b.act_id, today).catch(() => null) : null,
       asks: (asks.items || []).filter(x => x.act_id === b.act_id && x.kind === 'ask' && x.status === 'open').map(x => ({ id: x.id, title: x.title, body: x.body, created_at: x.created_at })),
     };
   }));
@@ -292,6 +293,15 @@ async function clientData(env, d, act, who) {
     approvals: (req.items || []).filter(x => x.kind === 'approval' && x.status === 'open').map(x => ({ id: x.id, title: x.title, created_at: x.created_at })),
     coming: (cal.items || []).filter(e => e.act === act && (e.start || '') >= today).slice(0, 12).map(e => ({ id: e.id, name: e.name, start: e.start, end: e.end || null, kind: e.kind_label || e.kind, confirmed: !!e.confirmed, offer: e.offer || '' })),
     has_client_channel: !!(await env.DB.prepare(`SELECT brief_channel FROM brand_accounts WHERE act_id = ?1`).bind(act).first().catch(() => null))?.brief_channel,
+    /* Calls v2: what this week's Monday call approved for this brand (plan lines voted Yes or Changes, and what we send
+       them), so the client call shows the plan without retyping it. Internal names and notes are left out. */
+    monday: await (async () => {
+      const mc = await loadCall(env, callId('monday', '', mondayOf(today))).catch(() => null);
+      const s = mc && mc.state && mc.state.brands && mc.state.brands[act];
+      if (!s) return null;
+      const ok = arr => (arr || []).filter(x => x && clean(x.text, 300) && x.on !== false && (x.vote === 'y' || x.vote === 'c')).map(x => noDash(clean(x.text, 300)));
+      return { meta: ok(s.batches), google: ok(s.gplan), send: (s.sends || []).filter(x => x && clean(x.text, 300)).map(x => noDash(clean(x.text, 300))) };
+    })(),
     call, team: ROSTER.map(r => r.name),
   };
 }
@@ -417,11 +427,22 @@ async function clientLines(env, d, rows) {
   try { const o = await model(env, d, { model: SONNET, system, user, schema: WEEK_SCHEMA, max: 3000 }); return Object.fromEntries((o.brands || []).map(b => [b.brand_id, (b.this_week || []).map(x => noDash(clean(x, 300))).filter(Boolean).slice(0, 4)])); }
   catch { return {}; }
 }
+/** Calls v2: the Trybe tiles (approved videos not in an ad yet, those waiting over a week, pending). Same rule as trybe.js queueAll. */
+async function trybeCounts(env, act, today) {
+  const NL = `status = 'approved' AND ads_count = 0 AND NOT EXISTS (SELECT 1 FROM p_trybe_ad a WHERE a.act_id = s.act_id AND a.trybe_id = s.trybe_id)`;
+  const r = await env.DB.prepare(`SELECT SUM(${NL}) AS queue, SUM(${NL} AND approved_seen <= ?2) AS stale, SUM(status = 'pending') AS pending FROM p_trybe_sub s WHERE act_id = ?1`).bind(act, addDays(today, -7)).first();
+  return { queue: +(r && r.queue) || 0, stale: +(r && r.stale) || 0, pending: +(r && r.pending) || 0 };
+}
 /** Calls v2: one brand's typed state as the plan it kept and the decision lines for its Slack recap. */
-function v2Lines(s) {
-  const kept = (s.batches || []).filter(x => x && clean(x.text, 300) && x.on !== false && x.vote !== 'n');
+function v2Lines(s, who = {}) {
+  const live = arr => (arr || []).filter(x => x && clean(x.text, 300) && x.on !== false && x.vote !== 'n');
+  const kept = live(s.batches), gkept = live(s.gplan);
+  const planLine = (x, tag) => `${tag}${x.vote === 'y' ? ' approved' : x.vote === 'c' ? ' needs changes' : ''}: ${clean(x.text, 300)}${x.vote === 'c' && clean(x.note, 300) ? `. Change: ${clean(x.note, 300)}` : ''}${x.owner ? ` (${clean(x.owner, 40)})` : ''}`;
   const extra = [
-    ...kept.map(x => `Plan${x.vote === 'y' ? ' (approved)' : ''}: ${clean(x.text, 300)}${x.owner ? ` (${clean(x.owner, 40)})` : ''}`),
+    ...kept.map(x => planLine(x, `Meta plan${who.meta ? ` (${who.meta})` : ''}`)),
+    ...gkept.map(x => planLine(x, 'Google plan (Radhesh)')),
+    ...(s.calls || []).filter(x => x && clean(x.text, 300)).map(x => `For the media buyer: ${clean(x.text, 300)}`),
+    ...(s.changes || []).filter(x => clean(x, 300)).map(x => `Changed on the call: ${clean(x, 300)}`),
     ...(s.ideas || []).filter(x => x && clean(x.text, 300)).map(x => `Idea: ${clean(x.text, 300)}`),
     ...(s.sends || []).filter(x => x && clean(x.text, 300)).map(x => `We send the client: ${clean(x.text, 300)}${ymdOk(x.due) ? ` by ${x.due}` : ''}`),
     ...Object.entries(s.money || {}).filter(([, m]) => m && m.m).map(([camp, m]) => `Money: ${m.m} ${clean(camp, 120)}${m.amt ? ` to ${clean(String(m.amt), 20)} a day` : ''}`),
@@ -469,7 +490,7 @@ export async function finishCall(env, d, body, who) {
          dropped, an unvoted line stays a decision. The new boxes (ideas, what we send the client, money moves, the
          ads-or-site read, the live offer) go in the brand's Slack recap as decisions. */
       const v2 = st.layout === 2;
-      const { kept, extra } = v2 ? v2Lines(s) : { kept: [], extra: [] };
+      const { kept, extra } = v2 ? v2Lines(s, { meta: clean(s.strat, 40) }) : { kept: [], extra: [] };
       const r = { brand_id: act, name: nameOf(act), read: clean(s.read, 2000), client: typedLines(s.client), batches: v2 ? [] : (s.batches || []).filter(x => x && clean(x.text, 300) && x.on !== false), plan: v2 ? kept : [], extra, jobs: (s.jobs || []).filter(x => x && clean(x.text, 300)), asks: (s.asks || []).filter(x => x && clean(x.text, 300) && x.on !== false) };
       if (r.read || r.client.length || r.batches.length || r.extra.length || r.jobs.length || r.asks.length) rows.push(r);
     }
