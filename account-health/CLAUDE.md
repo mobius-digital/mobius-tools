@@ -2887,7 +2887,7 @@ it belonged to. Every team message is now one of two things. Tests: `node test-l
   channel, msg, {thread})` resolves the person, builds it and posts (`thread: true` = under today's morning card).
 - **Several asks for different people in one message (the morning card, the calendar, Trybe)**: `laneLines(groups,
   {foot, buttons})`, groups = `[{lane, brand, items: [{who, ask, why}]}]`: one header per lane + brand (same ones merge),
-  one line per ask, each starting with its own tag; `foot` = one quiet context line (the card's numbers). Its `text` is
+  each person tagged ONCE on its own line with their asks as bullets under it (Cole 2026-11-09: never the same tag line after line); `foot` = one quiet context line (the card's numbers). Its `text` is
   the notification line, then every line of the message.
 - **The lanes, a fixed list (keep it this short)**: MEDIA BUYING, CREATIVE (creative strategy, briefs, production,
   reviews, social), CREATORS (Trybe, Discord, the creator program, recuts), CLIENT (client requests, comments, client

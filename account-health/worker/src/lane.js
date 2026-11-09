@@ -12,7 +12,7 @@
  *    do. Line 3 = "Why:" in one short line (optional). Then the buttons the message already had. Nothing else.
  *    laneBlocks() builds it; lanePost() resolves the person, builds it and posts it (under today's morning card when
  *    asked). A message with several asks for different people (the morning card) uses laneLines(): one lane header
- *    per group, one line per ask, each line tagging its person.
+ *    per group, each person tagged once, their asks as bullets under the tag.
  *
  * 2. AN FYI (nobody has to do anything): it does NOT post. fyi() stores one line (brand + lane + Central date) and
  *    roundupTick() posts ONE end-of-day roundup per brand in its internal channel (from 4pm Central, once a day, only
@@ -127,7 +127,7 @@ export function laneBlocks({ lane, brand, who, ask, why, buttons, lines } = {}) 
 }
 
 /** Several asks in one message: groups = [{lane, brand, items: [{who, ask, why}]}] (same lane + brand groups merge).
- *  One section per group: its header, then one line per ask, each starting with its person. opts.foot = quiet lines
+ *  One section per group: its header, then each person tagged once with their asks as bullets under it. opts.foot = quiet lines
  *  under the asks (context), opts.buttons as laneBlocks. Returns {text, blocks}. */
 export function laneLines(groups, { foot, buttons } = {}) {
   const merged = [];
@@ -138,14 +138,24 @@ export function laneLines(groups, { foot, buttons } = {}) {
     const hit = merged.find(m => m.key === key);
     if (hit) hit.items.push(...items); else merged.push({ key, lane: laneName(g.lane), brand: one(g.brand) || 'Agency', items: [...items] });
   }
-  const lineOf = i => `${whoText(i.who)}  ${one(i.ask)}${one(i.why) ? ` _(${one(i.why)})_` : ''}`;
+  /* 2026-11-09 (Cole): one tag per person, their asks as bullets under it, never the same tag on line after line. */
+  const lineOf = i => `• ${one(i.ask)}${one(i.why) ? ` _(${one(i.why)})_` : ''}`;
   const blocks = [];
   for (const g of merged) {
-    let cur = [laneHead(g.lane, g.brand)];
+    const people = [];
     for (const i of g.items) {
-      const l = lineOf(i);
-      if (cur.join('\n').length + l.length > 2800) { blocks.push({ type: 'section', text: { type: 'mrkdwn', text: cur.join('\n') } }); cur = [laneHead(g.lane, g.brand)]; }
-      cur.push(l);
+      const w = whoText(i.who);
+      const hit = people.find(p => p.who === w);
+      if (hit) hit.items.push(i); else people.push({ who: w, items: [i] });
+    }
+    let cur = [laneHead(g.lane, g.brand)];
+    for (const p of people) {
+      cur.push(p.who);
+      for (const i of p.items) {
+        const l = lineOf(i);
+        if (cur.join('\n').length + l.length > 2800) { blocks.push({ type: 'section', text: { type: 'mrkdwn', text: cur.join('\n') } }); cur = [laneHead(g.lane, g.brand), p.who]; }
+        cur.push(l);
+      }
     }
     blocks.push({ type: 'section', text: { type: 'mrkdwn', text: cur.join('\n') } });
   }

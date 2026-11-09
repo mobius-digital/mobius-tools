@@ -59,8 +59,8 @@ await check('laneLines: one header per lane + brand, one line per ask with its o
     { lane: 'CREATIVE', brand: 'Dartee', items: [{ who: 'Ravo', ask: 'Finish 312 Hook test (3 days late)' }] },
     { lane: 'MEDIA BUYING', brand: 'Dartee', items: [{ who: '', ask: 'Fix Leads: $0.91 a lead' }] },
   ], { foot: ['Yesterday $1,438 (plan $1,800)'] });
-  assert.equal(m.blocks[0].text.text, '*MEDIA BUYING · Dartee*\n<@U_AHSAN>  Cut 2 ad sets _($2.4K at stake)_\n<@U06C37MDWD7>  Fix Leads: $0.91 a lead');
-  assert.equal(m.blocks[1].text.text, '*CREATIVE · Dartee*\n*Ravo*  Finish 312 Hook test (3 days late)');
+  assert.equal(m.blocks[0].text.text, '*MEDIA BUYING · Dartee*\n<@U_AHSAN>\n• Cut 2 ad sets _($2.4K at stake)_\n<@U06C37MDWD7>\n• Fix Leads: $0.91 a lead');
+  assert.equal(m.blocks[1].text.text, '*CREATIVE · Dartee*\n*Ravo*\n• Finish 312 Hook test (3 days late)');
   assert.equal(m.blocks[2].type, 'context');
   assert.match(m.text, /^MEDIA BUYING · Dartee: Cut 2 ad sets \(and 2 more\)\n/, 'the notification line first, then every line');
 });
