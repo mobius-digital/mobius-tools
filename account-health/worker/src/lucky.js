@@ -62,3 +62,6 @@ export async function handleLucky(request, env, url, path, json, h) {
     return json({ error: 'not found' }, 404);
   } catch (e) { return json({ error: e.message }, 400); }
 }
+
+/** What Lucky's creators are asked to film this week (the app's own feed), for the creator call screen (callscreen.js). */
+export async function luckyThisWeek(env) { return call(env, READS['this-week']); }

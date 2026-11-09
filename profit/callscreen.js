@@ -9,7 +9,9 @@
  * types is a field whose placeholder says what to type. Owner and date are pills that open Locus's own menus.
  * Present = full screen with the Locus menus hidden; Exit or Esc leaves it; the page scrolls.
  * What is typed autosaves to the call row (account-health callscreen.js, p_call). Finish sends it where it lives.
- * Opened from Work > Meetings ("Run a call"), or ?open=calls&call=monday|client|kickoff[&act=].
+ * Opened from Work > Meetings ("Run a call"), or ?open=calls&call=monday|client|kickoff|creator[&act=].
+ * 2026-11-09: the creator call (one brand's creators on Discord, 20 minutes; Lucky 45 on its Stage): What's new, What
+ * sold (this week's winning creator videos, played in place), What we want, Questions, One ask. The Mobius Call Playbook.
  * Classic script, own closure. window.CallScreen = { open(host, kind, act) }; host = {S, api, apiAH, show, pageHead}.
  * The request bodies (/api/calls/*) are unchanged from the first build.
  */
@@ -198,6 +200,17 @@
       .cs .cs-adt th .srt.on{color:var(--ink);font-weight:650}
       .cs textarea:placeholder-shown{border-style:dashed;background:var(--bg)}
       .cs input[type=text]:placeholder-shown{border-style:dashed;background:var(--bg)}
+      .cs .ad .vid{width:100%;aspect-ratio:9/16;max-height:420px;background:#000;display:block}
+      .cs .ask{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+      .cs .ask label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:500;color:var(--muted);min-width:0}
+      .cs .ask label.grow{flex:1 1 320px}
+      .cs.cs-deck .ask input[type=text]{font-size:18px;min-height:44px}
+      .cs .ask input[type=date]{min-height:44px;width:180px}
+      .cs .ideas{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+      .cs .idea{border:1px solid var(--line);border-radius:var(--r-lg);background:var(--bg);overflow:hidden;display:flex;flex-direction:column;min-width:0;text-decoration:none;color:inherit}
+      .cs .idea .th{aspect-ratio:4/5;background:var(--line) center/cover no-repeat}
+      .cs .idea b{padding:8px 10px 0;font-size:14px;color:var(--ink)}
+      .cs .idea span{padding:2px 10px 10px;font-size:13px;color:var(--ink-2)}
       .cs-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);max-width:min(560px,calc(100vw - 32px));background:var(--ink);color:var(--surface);padding:10px 16px;border-radius:var(--r-lg);font-size:13px;z-index:9999;box-shadow:0 8px 30px rgba(0,0,0,.25)}
       .cs-pop{position:fixed;z-index:9600;min-width:220px;max-width:320px;max-height:420px;overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:6px;box-shadow:var(--sh-pop,0 12px 32px -10px rgba(15,15,25,.3));font-family:inherit;color:var(--ink);animation:lx-pop var(--t-fast) var(--ease) both}
       .cs-pop .h{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:7px 9px 5px}
@@ -598,6 +611,58 @@
     return [`Thanks for the time today. Here is what we agreed.`, wk.length || prom.length ? `\nWhat we are doing:\n${[...wk, ...prom].map(x => `• ${x}`).join('\n')}` : '', asks.length ? `\nWhat we need from you:\n${asks.map(x => `• ${x}`).join('\n')}` : ''].filter(Boolean).join('\n');
   }
 
+  /* ======================= CREATOR ======================= */
+  /* 20 minutes on Discord for a Trybe brand, 45 for Lucky's Stage (the playbook's times). Nothing here is written for
+     the creators by Locus: what shows is what the hub and the app already tell them, and the one ask posts to #this-week
+     only when "Post it" is ticked. */
+  function creatorSteps() {
+    const L = !!(D && D.lucky);
+    return [{ id: 'news', name: 'What\'s new', mins: L ? 5 : 2 }, { id: 'sold', name: 'What sold', mins: L ? 10 : 5 }, { id: 'want', name: 'What we want', mins: L ? 10 : 6 },
+      { id: 'qs', name: L ? 'Guest and questions' : 'Questions', mins: L ? 15 : 5 }, { id: 'ask', name: 'One ask', mins: L ? 5 : 2 }];
+  }
+  function creatorStep(id) {
+    const w = D.week || {}, warn = (D.warn || []).map(x => `<p class="warnline">${esc(x)}</p>`).join('');
+    const hubBtn = D.hub ? `<div class="cs-acts"><a class="btn" href="${esc(D.hub)}" target="_blank" rel="noopener">${D.lucky ? 'Open the shoot list (new tab)' : 'Open the creator hub (new tab)'}</a></div>` : '';
+    if (id === 'news') {
+      const lines = [];
+      if (w.title) lines.push(w.title);
+      if (w.offer && w.offer.head) lines.push(`The deal: ${w.offer.head}${w.offer.line ? ` ${w.offer.line}` : ''}`);
+      for (const c of D.campaigns || []) lines.push(`${c.name}${c.film_by ? `: film by ${md(c.film_by)}` : ''}`);
+      return warn + sec('What\'s new this week', 'The deal and the dates, from the brand\'s creator hub' + (D.lucky ? ' and the Lucky app' : '') + '. Type anything else new while you talk: a contest, a product, a date.',
+        (lines.length ? `<ol class="lines">${lines.map((x, i) => `<li><i>${i + 1}</i><span>${esc(x)}</span></li>`).join('')}</ol>` : empty('Nothing on the hub for this week yet.'))
+        + `<textarea data-cf="news" class="big" style="min-height:120px" placeholder="Type anything else new">${esc(STATE.news || '')}</textarea>`);
+    }
+    if (id === 'sold') {
+      if (D.lucky) return sec('What sold', 'Lucky\'s winners live in the Lucky app (the leaderboard and the Friday post). Play two or three from there.', `<div class="cs-acts"><a class="btn" href="https://creators.luckygolf.com" target="_blank" rel="noopener">Open the Lucky app (new tab)</a></div>`
+        + `<textarea data-cf="why" placeholder="Type why each one worked: the hook, the first 3 seconds, the offer">${esc(STATE.why || '')}</textarea>`);
+      const ws = D.winners || [];
+      return warn + sec('What sold this week', 'Creator videos with a sale in the last 7 days (Triple Whale), best first: the same list as Friday\'s #winners post. Click one to play it here. Say why each worked: the hook, the first 3 seconds, the offer.',
+        (ws.length ? `<div class="ads">${ws.map(x => `<button type="button" class="ad" data-clip="${esc(x.sub_id || '')}" title="Play it"><div class="th" ${x.thumb ? `style="background-image:url('${esc(x.thumb)}')"` : ''}>${x.thumb ? '' : 'Video'}<span class="play">▶</span></div><div class="m"><span>${plural(x.orders, 'sale')}</span></div><div class="n">${esc(x.creator)}</div><div class="s">${esc(x.product || x.angle || '')}</div></button>`).join('')}</div>`
+          : empty('No creator video made a sale in the last 7 days. Show last week\'s best from the hub instead.'))
+        + `<textarea data-cf="why" placeholder="Type why they worked, if worth keeping">${esc(STATE.why || '')}</textarea>`);
+    }
+    if (id === 'want') {
+      const ideas = D.lucky
+        ? ((D.ideas || []).length ? `<div class="ideas">${D.ideas.map(x => `<a class="idea" href="${esc(x.link || D.hub || '#')}" target="_blank" rel="noopener"><div class="th" ${x.thumb ? `style="background-image:url('${esc(x.thumb)}')"` : ''}></div><b>${esc(x.title)}</b><span>${esc(x.opener ? `"${x.opener}"` : x.format)}</span></a>`).join('')}</div>` : empty('No hot ideas in the app this week.'))
+        : ((w.daily || []).length ? `<ol class="lines">${w.daily.map((x, i) => `<li><i>${i + 1}</i><span><b>${esc(x.title)}</b>${x.opener ? `<br><span style="color:var(--ink-2);font-size:.85em">First line: "${esc(x.opener)}"</span>` : ''}</span></li>`).join('')}</ol>` : empty('No videos on the hub for this week yet.'));
+      const sell = (w.selling || []).length ? `<p class="cs-sub">Selling right now</p><ul class="chk">${w.selling.map(x => `<li><span class="tx">${esc(x)}</span></li>`).join('')}</ul>` : '';
+      return sec('The videos we want this week', D.lucky ? 'The hot ideas in the Lucky app, with the first line to say. Each opens its page with the example and the shots.' : 'From the brand\'s creator hub: the videos to film and the first line of each. The hub has the examples and the shots.',
+        ideas + sell + hubBtn + `<textarea data-cf="skip" placeholder="Type what to skip this week (what we will not approve)">${esc(STATE.skip || '')}</textarea>`);
+    }
+    if (id === 'qs') return sec(D.lucky ? 'Guest, then questions' : 'Questions', D.lucky ? 'The guest creator first (their numbers, their ads, how they think), then open questions. Type anything worth keeping.' : 'Open questions from the creators. Type anything worth keeping.',
+      `<textarea data-cf="qs" class="big" placeholder="Type questions and answers worth keeping">${esc(STATE.qs || '')}</textarea>`);
+    const canPost = !D.lucky;
+    return sec('One ask, one date', 'The one thing every creator does this week, with the day it is due. Reviews come back within 2 days.',
+      `<div class="ask"><label class="grow">The ask<input type="text" data-cf="ask" value="${esc(STATE.ask || '')}" placeholder="Type the ask, like: 2 videos from this week's list"></label><label>Due<input type="date" data-cf="ask_due" value="${esc(STATE.ask_due || '')}"></label></div>`
+      + (canPost ? `<label style="display:flex;gap:8px;align-items:center;font-size:14px"><input type="checkbox" data-cpost ${STATE.post ? 'checked' : ''} style="width:16px;height:16px;accent-color:var(--brand);margin:0"> Post it in #this-week on the brand's Discord</label>` : '<p class="cs-empty">Lucky: post the ask from the Lucky app.</p>')
+      + `<div class="cs-acts"><button type="button" class="btn pri" data-finish ${BUSY ? 'disabled' : ''}>Finish</button></div>`);
+  }
+  function pickCreator(list) {
+    $('#main').innerHTML = `${headHtml('Creator call')}<div class="v2 cs" id="csRoot">${sec('Which brand\'s creators are on the call', 'Mondays, Central time', `<div class="picker">${(list || []).map(b => `<button type="button" data-pick="${esc(b.act_id)}">${esc(b.name)}${b.when ? `<br><small style="color:var(--muted);font-weight:500">${esc(b.when)}</small>` : ''}</button>`).join('') || empty('No creator programs in Locus.')}</div>`)}</div>`;
+    acts('');
+    $$('[data-pick]').forEach(b => b.onclick = () => open(H, 'creator', b.dataset.pick));
+  }
+
   /* ======================= KICKOFF ======================= */
   function kickList() { return (D.briefs || []).filter(c => SHOW_OLD || !c.old); }
   function twoDays() {
@@ -641,9 +706,10 @@
   function steps() {
     if (KIND === 'monday') return mondaySteps();
     if (KIND === 'client') return CLIENT_STEPS;
+    if (KIND === 'creator') return creatorSteps();
     return kickList().map(c => ({ id: c.id, name: `${c.brand} #${c.num}`, mins: 4, c }));
   }
-  const TITLE = { monday: 'Monday call', client: 'Client call', kickoff: 'Creative kickoff' };
+  const TITLE = { monday: 'Monday call', client: 'Client call', kickoff: 'Creative kickoff', creator: 'Creator call' };
   const isDone = (s, i) => KIND === 'kickoff' ? !!((STATE.done || {})[s.id] || (s.c && s.c.kickoff_at)) : i < POS;
   /* ONE row: Start, the brands that fit, "+N" for the rest, Finish always last. */
   function stepsHtml() {
@@ -651,7 +717,7 @@
     const last = st.length - 1, MAXV = 6;
     const pill = (s, i) => { const done = isDone(s, i) && i !== POS; const dot = KIND === 'monday' && s.id !== 'open' && s.id !== 'close' ? `<span class="dot ${s.sev || ''}"></span>` : ''; return `<button type="button" class="cs-pill ${done ? 'done' : ''}" data-pos="${i}" aria-current="${i === POS}">${done ? ICON.check : dot}${esc(s.name)}</button>`; };
     let vis = [], hidden = [];
-    if (KIND === 'client' || st.length <= MAXV + 2) vis = st.map((s, i) => i);
+    if (KIND === 'client' || KIND === 'creator' || st.length <= MAXV + 2) vis = st.map((s, i) => i);
     else {
       const mid = st.slice(1, last).map((s, i) => i + 1);
       let start = Math.max(1, Math.min(POS - 1, last - MAXV)); if (POS === 0) start = 1;
@@ -672,6 +738,7 @@
     if (!s) return sec('Nothing to show', '', empty(KIND === 'kickoff' ? 'No briefs waiting. Finish a Monday call or add one on Production.' : 'Nothing to show.'));
     if (KIND === 'monday') return s.id === 'open' ? mondayOpen() : s.id === 'close' ? mondayClose() : mondayBrand(D.brands.find(b => b.act_id === s.id));
     if (KIND === 'client') return clientStep(s.id);
+    if (KIND === 'creator') return creatorStep(s.id);
     loadCard(s.id);
     return kickStep(s.c);
   }
@@ -687,6 +754,7 @@
     const list = (parts, tail) => { const p = parts.filter(Boolean); if (!p.length && !tail) return 'Finish will close the call'; if (tail) return `Finish will ${p.length ? 'make ' + p.join(', ') + ' and ' : ''}${tail}`; return 'Finish will make ' + (p.length > 1 ? p.slice(0, -1).join(', ') + ' and ' + p[p.length - 1] : p[0]); };
     if (KIND === 'monday') { const c = mondayCounts(); return list([c.briefs ? `<b>${plural(c.briefs, 'brief')}</b>` : '', c.jobs ? `<b>${plural(c.jobs, 'task')}</b>` : '', c.asks ? `<b>${plural(c.asks, 'request')}</b>` : ''], 'post the recaps'); }
     if (KIND === 'client') { const asks = (STATE.asks || []).filter(x => x.text && x.on !== false).length; return list([asks ? `<b>${plural(asks, 'request')}</b>` : ''], STATE.post_recap && D.has_client_channel ? 'post the recap' : 'tell the team'); }
+    if (KIND === 'creator') return STATE.ask && STATE.post && !D.lucky ? 'Finish will post <b>the ask</b> in #this-week and close the call' : 'Finish will close the call';
     const n = kickList().filter(c => (STATE.done || {})[c.id] || c.kickoff_at).length;
     return `Finish will close the kickoff with <b>${plural(n, 'brief')}</b> moved to Making`;
   }
@@ -697,7 +765,7 @@
     const n = k => all.reduce((s, b) => s + (b[k] || []).filter(t => !t.error).length, 0);
     const tile = (l, v) => `<div class="cs-tile"><span class="l">${l}</span><span class="v">${v}</span></div>`;
     return sec('Finished', `by ${esc(firstName(c.finished_by))}${c.finished_at ? ` at ${clock(c.finished_at)}` : ''}`,
-      (KIND === 'kickoff' ? `<p class="cs-empty">${plural(r.briefs || 0, 'brief')} moved to Making.</p>` : `<div class="cs-tiles">${tile('Tasks', n('tasks'))}${tile('Briefs', n('briefs'))}${tile('Requests', n('asks'))}${tile('Reports', all.filter(b => b.report).length)}</div>
+      (KIND === 'creator' ? `<p class="cs-empty">${r.ask ? `The ask: ${esc(r.ask)}` : 'No ask typed.'}</p>${r.posted ? `<p class="cs-empty">${r.posted.ok ? 'Posted in #this-week.' : `Not posted: ${esc(r.posted.why || '')}`}</p>` : ''}` : KIND === 'kickoff' ? `<p class="cs-empty">${plural(r.briefs || 0, 'brief')} moved to Making.</p>` : `<div class="cs-tiles">${tile('Tasks', n('tasks'))}${tile('Briefs', n('briefs'))}${tile('Requests', n('asks'))}${tile('Reports', all.filter(b => b.report).length)}</div>
         ${(r.warnings || []).length ? `<div class="warnline">${r.warnings.map(esc).join('<br>')}</div>` : ''}
         ${r.recap ? `<p class="cs-empty">${r.recap.posted ? 'The recap is in the client\'s Slack channel, posted as you.' : `The recap was not posted: ${esc(r.recap.why || '')}`}</p>` : ''}`)
       + `<div class="cs-acts"><button type="button" class="btn" data-reopen>Reopen</button><button type="button" class="btn" data-tab="tasks">Tasks (new tab)</button><button type="button" class="btn" data-tab="production">Production (new tab)</button><button type="button" class="btn" data-go="calls">${KIND === 'client' ? 'Home' : 'Meetings'}</button></div>`);
@@ -706,10 +774,10 @@
   function acts(html) { if (typeof H.pageActions === 'function') H.pageActions(html); else if (typeof window.pageActions === 'function') window.pageActions(html); }
   function paint() {
     const host = $('#main'); if (!host) return;
-    const title = KIND === 'client' ? esc(D.name) : TITLE[KIND];
+    const title = KIND === 'client' ? esc(D.name) : KIND === 'creator' ? `${esc(D.name)} creators` : TITLE[KIND];
     const finished = D.call && D.call.status === 'finished';
     const last = POS === steps().length - 1;
-    host.innerHTML = `${headHtml(title)}<div class="v2 cs${KIND === 'client' ? ' cs-deck' : ''}" id="csRoot">
+    host.innerHTML = `${headHtml(title)}<div class="v2 cs${KIND === 'client' || KIND === 'creator' ? ' cs-deck' : ''}" id="csRoot">
       ${finished ? finishedHtml() : `<nav class="cs-steps" id="csSteps" aria-label="Steps">${stepsHtml()}</nav>
         <div id="csMain" style="display:flex;flex-direction:column;gap:16px">${mainHtml()}</div>
         <div class="cs-bar"><div class="r"><button type="button" class="btn" id="csPrev" ${POS === 0 ? 'disabled' : ''}>← Back</button><span class="where" id="csWhere">${whereHtml()}</span><span class="cs-saved" id="csSaved"></span><button type="button" class="btn pri" id="csNext" ${last ? 'data-finish' : ''}>${nextLabel()}</button></div><div class="cs-will" id="csWill">${willHtml()}</div></div>`}
@@ -734,11 +802,11 @@
   const stepId = () => { const s = steps()[POS]; return s ? s.id : ''; };
   function urlFor(id, y) {
     const p = new URLSearchParams(); p.set('open', 'calls'); p.set('call', KIND);
-    if (KIND === 'client' && D && D.act_id) p.set('act', D.act_id);
+    if ((KIND === 'client' || KIND === 'creator') && D && D.act_id) p.set('act', D.act_id);
     if (id) p.set('step', id); if (y > 40) p.set('y', String(Math.round(y)));
     return location.pathname + '?' + p.toString();
   }
-  const navState = (id, y) => ({ cs: 1, kind: KIND, act: KIND === 'client' && D ? D.act_id : '', step: id, y: Math.round(y || 0) });
+  const navState = (id, y) => ({ cs: 1, kind: KIND, act: (KIND === 'client' || KIND === 'creator') && D ? D.act_id : '', step: id, y: Math.round(y || 0) });
   function savePos() {
     if (!D || !D.call || !$('#csRoot')) return;
     const id = stepId(), y = window.scrollY;
@@ -751,12 +819,12 @@
     const st = e.state;
     if (!st || !st.cs) return;
     if (st.cs === 'exit') { if ($('#csRoot')) { try { history.replaceState(null, '', location.pathname); } catch {} present(false); closePop(); H && H.show('calls'); } return; }
-    if (!$('#csRoot') || st.kind !== KIND || (st.kind === 'client' && D && st.act !== D.act_id)) {
+    if (!$('#csRoot') || st.kind !== KIND || ((st.kind === 'client' || st.kind === 'creator') && D && st.act !== D.act_id)) {
       /* Back from another page into the call: reopen it on that step. */
       if (!H) return;
       window.CALL_STEP = st.step; window.CALL_Y = st.y || 0;
       if (st.kind === 'client') { if (st.act) { H.S.act = st.act; try { localStorage.setItem('pf_act', st.act); } catch {} } window.CALL_OPEN = 'client'; H.show('ccall'); }
-      else { window.CALL_OPEN = st.kind; H.show('calls'); }
+      else { window.CALL_OPEN = st.kind; window.CALL_ACT = st.kind === 'creator' ? (st.act || '') : ''; H.show('calls'); }
       return;
     }
     const i = steps().findIndex(s => s.id === st.step);
@@ -871,6 +939,17 @@
         if (next >= 0) go(next); else paintMain();
       } catch (e) { toast(e.message); b.disabled = false; b.textContent = 'Agreed, move it to Making'; }
     });
+    $$('[data-cf]', root).forEach(f => f.oninput = () => { STATE[f.dataset.cf] = f.value; if (f.tagName === 'TEXTAREA') grow(f); save(); });
+    const cp = $('[data-cpost]', root); if (cp) cp.onchange = () => { STATE.post = cp.checked; save(); };
+    $$('[data-clip]', root).forEach(b => b.onclick = async () => {
+      const sub = b.dataset.clip; if (!sub || b.dataset.playing) return;
+      b.dataset.playing = '1'; const th = $('.th', b); if (th) th.textContent = 'Loading';
+      try {
+        const r = await H.apiAH(`/api/calls/clip?act=${encodeURIComponent(D.act_id)}&sub=${encodeURIComponent(sub)}`);
+        if (!r || !r.url) throw new Error((r && r.error) || 'No video.');
+        if (th) th.outerHTML = `<video class="vid" src="${esc(r.url)}" controls autoplay playsinline></video>`;
+      } catch (e) { delete b.dataset.playing; if (th) th.textContent = 'Did not play'; toast(e.message); }
+    });
     $$('[data-finish]', root).forEach(wireFinish);
   }
   function wireFinish(b) {
@@ -882,8 +961,8 @@
       clearTimeout(SAVE_T);
       try {
         await H.apiAH('/api/calls/state', { method: 'PUT', body: JSON.stringify({ id: D.call.id, state: STATE }) });
-        const r = await post('/api/calls/finish', { id: D.call.id, recap: KIND === 'client' && STATE.post_recap ? (STATE.recap != null ? STATE.recap : recapText()) : '' });
-        D.call = { ...D.call, status: 'finished', finished_by: H.S.meEmail || '', finished_at: new Date().toISOString(), result: r.result ? { ...r.result, recap: r.recap } : { briefs: r.briefs } };
+        const r = await post('/api/calls/finish', { id: D.call.id, recap: KIND === 'client' && STATE.post_recap ? (STATE.recap != null ? STATE.recap : recapText()) : '', post: KIND === 'creator' && !!STATE.post });
+        D.call = { ...D.call, status: 'finished', finished_by: H.S.meEmail || '', finished_at: new Date().toISOString(), result: KIND === 'creator' ? r.result : r.result ? { ...r.result, recap: r.recap } : { briefs: r.briefs } };
         clearInterval(CLOCK); BUSY = false; paint();
       } catch (e) { BUSY = false; b.disabled = false; b.textContent = 'Finish'; toast(e.message); }
     };
@@ -925,10 +1004,11 @@
     $$('[data-pick]').forEach(b => b.onclick = () => open(H, 'client', b.dataset.pick));
   }
   async function open(host, kind, act) {
-    H = host; css(); KIND = ['monday', 'client', 'kickoff'].includes(kind) ? kind : 'monday';
+    H = host; css(); KIND = ['monday', 'client', 'kickoff', 'creator'].includes(kind) ? kind : 'monday';
     const a = act && act !== 'all' ? act : '';
     POS = 0; CARD = {}; BUSY = false; OPEN_POSTS = {}; closePop();
     if (KIND === 'client' && !a) { pickBrand(); return; }
+    if (KIND === 'creator' && !a) { try { const p = await H.apiAH('/api/calls/screen?kind=creator'); pickCreator(p.pick || []); } catch (e) { toast(e.message); } return; }
     $('#main').innerHTML = `${headHtml(TITLE[KIND])}<div class="v2 cs">${sec('Loading', 'last week\'s numbers, the Slack posts and the open to-dos', '')}</div>`;
     acts('');
     try {

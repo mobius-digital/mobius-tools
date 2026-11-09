@@ -2420,13 +2420,13 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="requests.js?v=5"></script>
 <script src="sitereviews.js?v=1"></script>
 <script src="actions.js?v=4"></script>
-<script src="calls.js?v=14"></script>
-<script src="callscreen.js?v=12"></script>
+<script src="calls.js?v=15"></script>
+<script src="callscreen.js?v=13"></script>
 <script src="tasks.js?v=9"></script>
 <script src="review-ui.js?v=10"></script>
 <script src="prodsheet.js?v=14"></script>
 <script src="production.js?v=16"></script>
-<script src="sop.js?v=5"></script>
+<script src="sop.js?v=6"></script>
 <script src="expenses.js?v=1"></script>
 <script src="realfit.js?v=1"></script>
 <script src="studio.js?v=43"></script>
@@ -2685,7 +2685,8 @@ async function boot() {
     /* A Slack note or reminder opens one task (?open=actions|tasks&item=<id>); the old call page ids open Calls. */
     if ((open === 'actions' || open === 'tasks') && qs.get('item')) window.ACT_OPEN = qs.get('item');
     if (qs.get('meeting')) window.ACT_MEETING = qs.get('meeting');   // a call from Slack (?open=actions|calls&meeting=<id>)
-    if (open === 'calls' && ['monday', 'client', 'kickoff'].includes(qs.get('call'))) {   // a call screen (?open=calls&call=monday|client|kickoff&act=&step=&y=)
+    if (open === 'calls' && ['monday', 'client', 'kickoff', 'creator'].includes(qs.get('call'))) {   // a call screen (?open=calls&call=monday|client|kickoff|creator&act=&step=&y=)
+      if (qs.get('call') === 'creator') window.CALL_ACT = qs.get('act') || '';   // the creator call keeps its brand in the agency view
       window.CALL_OPEN = qs.get('call');
       /* 2026-11-03: the call screen keeps its step and scroll in the URL, so a reload lands where Cole was. */
       window.CALL_STEP = qs.get('step') || null; window.CALL_Y = +qs.get('y') || 0;
@@ -6430,7 +6431,7 @@ function renderGuide() {
   const CLG = isClient();   // 2026-10-27: a client reads its own steps only, never the team's week or pages
   $('#main').innerHTML = `<div class="gd v2 lx">${LX.head('guide', 'How to use Locus')}
     ${LX.say(CLG ? 'What each page is for and what to do, in order. Every step has an Open button that takes you there.' : 'What each page is for and what to do, in order. Find your role and follow the steps; every step has an Open button that takes you there.')}
-    ${CLG ? '' : `<section class="gd-role" id="gdSop"><header><div><h3>How we work</h3><span>The week, the Monday call, the creative kickoff call, the client call, revisions and due dates. Each call has a screen under Work > Meetings. Set 2026-10-12; the words live in sop.js.</span></div></header>
+    ${CLG ? '' : `<section class="gd-role" id="gdSop"><header><div><h3>How we work</h3><span>Monday, the team call, the client call, the creator call, the kickoff, revisions and due dates. Each call has a screen under Work > Meetings > Run a call. The Mobius Call Playbook, 2026-11-09; the words live in sop.js.</span></div></header>
       ${window.SopPage ? window.SopPage.html() : '<p class="hint">The page did not load. Hard-refresh.</p>'}</section>`}
     ${order.map(g => `<section class="gd-role"><header><div><h3>${esc(g.name)}</h3><span>${esc(g.sub)}</span></div></header>
       ${g.parts.map(([when, steps]) => [when, CLG ? steps.filter(([, , go]) => !go || clientTabOk(go)) : steps]).filter(([, steps]) => steps.length).map(([when, steps]) => `<div class="gd-when">${esc(when)}</div>${steps.map(([t, d, go], i) => `<div class="gd-step"><i>${i + 1}</i><div><b>${esc(t)}</b><span>${esc(d)}</span></div>${go ? `<button class="btn" data-go="${go}">Open</button>` : '<span></span>'}</div>`).join('')}`).join('')}

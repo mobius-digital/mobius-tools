@@ -60,7 +60,8 @@
       .cl .cl-card{background:var(--surface);border:1px solid var(--line);border-radius:8px;min-width:0}
       .cl .cl-card.open{border-color:var(--line-strong)}
       .cl .cl-card.ring{box-shadow:0 0 0 2px var(--brand)}
-      .cl .cl-run-g{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+      .cl .cl-run-g{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+      @media (max-width:1000px){.cl .cl-run-g{grid-template-columns:repeat(2,minmax(0,1fr))}}
       .cl .cl-run-b{text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:14px 16px;display:flex;flex-direction:column;gap:3px;min-width:0;font:inherit;cursor:pointer;transition:border-color var(--t-fast,120ms) var(--ease,ease)}
       .cl .cl-run-b:hover{border-color:var(--line-strong)}
       .cl .cl-run-b b{font-size:15px;font-weight:600;color:var(--ink);letter-spacing:-.005em}
@@ -481,7 +482,7 @@
   function runHtml() {
     const card = (k, title, cap) => `<button type="button" class="cl-run-b" data-run="${k}"><b>${title}</b><span>${cap}</span></button>`;
     return `<section class="cl-run"><div class="cl-st" style="margin:0 0 8px"><b>Run a call</b></div>
-      <div class="cl-run-g">${card('monday', 'Monday call', 'Every brand, red first')}${card('client', 'Client call', BR !== 'all' ? `${esc(brandName(BR))}, the client watching` : 'One brand, the client watching')}${card('kickoff', 'Creative kickoff', 'Each brief with the design team')}</div></section>`;
+      <div class="cl-run-g">${card('monday', 'Monday call', 'Every brand, red first')}${card('client', 'Client call', BR !== 'all' ? `${esc(brandName(BR))}, the client watching` : 'One brand, the client watching')}${card('kickoff', 'Creative kickoff', 'Each brief with the design team')}${card('creator', 'Creator call', BR !== 'all' ? `${esc(brandName(BR))}'s creators, on Discord` : 'One brand\'s creators, on Discord')}</div></section>`;
   }
   const head = () => H.pageHead ? H.pageHead('calls', 'Meetings') : '<div class="ph"><div><div class="ph-t">Meetings</div></div><div class="ph-r"><span class="ph-acts"></span></div></div>';
   const acts = html => { if (typeof window.pageActions === 'function') window.pageActions(html); };
@@ -513,7 +514,7 @@
         if (BR !== 'all') return window.LocusPick(BR, 'ccall');
         return listMenu(x, 'Which client is on the call?', ((D.brands && D.brands.length ? D.brands : H.S.accounts) || []).slice().sort((a, b) => a.name.localeCompare(b.name)).map(b => ({ v: b.act_id, label: b.name })), v => window.LocusPick(v, 'ccall'));
       }
-      if (window.CallScreen) window.CallScreen.open(H, x.dataset.run, x.dataset.run === 'client' ? (BR !== 'all' ? BR : '') : ''); else toast('The call screen did not load. Hard-refresh (Ctrl+Shift+R).');
+      if (window.CallScreen) window.CallScreen.open(H, x.dataset.run, ['client', 'creator'].includes(x.dataset.run) ? (BR !== 'all' ? BR : '') : ''); else toast('The call screen did not load. Hard-refresh (Ctrl+Shift+R).');
     });
     const b = $('#clBrand'); if (b) b.onclick = () => listMenu(b, 'Brand', [{ v: 'all', label: 'All brands', on: BR === 'all' }, ...(D.brands || []).map(x => ({ v: x.act_id, label: x.name, on: BR === x.act_id }))], v => { BR = v; paint(); });
     const poll = $('#clPoll'); if (poll) poll.onclick = async () => { poll.disabled = true; poll.textContent = 'Checking...'; try { const r = await post('/api/meetings/poll', {}); await load(); paint(); toast(r.read && r.read.length ? `Read ${plural(r.read.length, 'new call')}.` : r.errors && r.errors.length ? `Fireflies: ${r.errors[0].error}` : 'Nothing new on Fireflies.'); } catch (e) { toast(e.message); poll.disabled = false; poll.textContent = 'Check Fireflies now'; } };
@@ -535,8 +536,8 @@
     H = host; css(); BR = H.S.act || 'all';
     const t = H.RUN();
     if (first || !D) { $('#main').innerHTML = `${head()}<div class="v2 cl"><section class="cl-card"><div class="cl-empty">Loading</div></section></div>`; acts(''); }
-    const run = window.CALL_OPEN; window.CALL_OPEN = null;   // the URL's ?call= is read once at load (index.html), never again
-    if (run && window.CallScreen) { try { const u = new URL(location.href); u.searchParams.delete('call'); history.replaceState(null, '', u); } catch {} return window.CallScreen.open(H, run, H.S.act && H.S.act !== 'all' ? H.S.act : ''); }
+    const run = window.CALL_OPEN, runAct = window.CALL_ACT || ''; window.CALL_OPEN = null; window.CALL_ACT = null;   // the URL's ?call= is read once at load (index.html), never again
+    if (run && window.CallScreen) { try { const u = new URL(location.href); u.searchParams.delete('call'); history.replaceState(null, '', u); } catch {} return window.CallScreen.open(H, run, runAct || (H.S.act && H.S.act !== 'all' ? H.S.act : '')); }
     try { await load(); }
     catch (e) { if (t === H.RUN()) { $('#main').innerHTML = `${head()}<div class="v2 cl"><section class="cl-card"><div class="cl-empty" style="color:var(--bad)">${esc(e.message)}</div></section></div>`; acts(''); } return; }
     if (t !== H.RUN()) return;

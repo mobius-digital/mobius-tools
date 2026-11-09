@@ -1329,3 +1329,34 @@ export async function handleTrybe(request, env, url, path, json, h) {
     return json({ error: 'not found' }, 404);
   } catch (e) { return json({ error: e.message }, 400); }
 }
+
+/* ---------- the creator call screen (callscreen.js kind 'creator', 2026-11-09) ----------
+   Cole: "is this planned out at all?" The Monday creator call is presented from Locus like the client call: the
+   brand's week from its creator hub, this week's winning creator videos (Triple Whale, last 7 days, the same list the
+   Friday #winners post uses), and one ask. These three helpers are all the call screen needs from here. */
+/** This week's winners with their Trybe thumbnail, best first (at most `n`). */
+export async function callWinners(env, act, today, n = 6) {
+  await ensureTrybe(env);
+  const wins = (await winnersOf(env, act, today).catch(() => [])).slice(0, n);
+  if (!wins.length) return [];
+  const ids = wins.map(w => w.sub_id).filter(Boolean);
+  const subs = ids.length ? ((await env.DB.prepare(`SELECT sub_id, thumb, media, angle FROM p_trybe_sub WHERE act_id = ?1 AND sub_id IN (${ids.map((_, i) => `?${i + 2}`).join(',')})`).bind(act, ...ids).all()).results || []) : [];
+  const by = new Map(subs.map(s => [s.sub_id, s]));
+  return wins.map(w => ({ ...w, thumb: by.get(w.sub_id)?.thumb || null, angle: by.get(w.sub_id)?.angle || '' }));
+}
+/** A playable link for one Trybe video (asked for when someone clicks it on the call, never up front). */
+export async function callClipUrl(env, d, act, subId) {
+  const k = await keyFor(env, act);
+  if (!k || !k.key) throw new Error('This brand has no Trybe key in Locus.');
+  const s = await trybeGet(d, k.key, `/submissions/${encodeURIComponent(subId)}`);
+  const u = s && s.asset && s.asset.url;
+  if (!u) throw new Error('Trybe has no video file for this one.');
+  return u;
+}
+/** The call's one ask, posted in the brand's #this-week as the mascot (only when the person ticked "Post it"). */
+export async function postCallAsk(env, act, text) {
+  const dc = await dcDoc(env, act);
+  if (!dc || !dc.built_at || !dc.channels) throw new Error('This brand has no creator Discord built in Locus.');
+  await dcHookPost(env, act, dc, 'this-week', { title: 'From today\'s call', description: String(text || '').slice(0, 1800) });
+  return true;
+}

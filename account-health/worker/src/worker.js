@@ -26,6 +26,7 @@ import { handleActions, actionTick, handleActionButton, handleReaction, onAction
 import { blockActionPlaced, blockActionDone, blockRollTick, setBlockFetch, setBlockDone, handleGcalPush, blockSyncTick, blockMigrate, ensureWatches } from './blocks.js';
 import { minOffTick, handleMinOffButton, minOffOn } from './minoff.js';
 import { checkinTick, checkinAction, submitCheckin, checkinErrors, reviewPost, reviewAction, reviewSubmit, serveReviewPic, ensureDay } from './checkin.js';
+import { callNudgeTick } from './callnudge.js';
 import { handleProduction, listBoard, moveCard as prodMove, formatOf as prodFormat } from './production.js';
 import { readDoc as prodReadDoc } from './asana-brand.js';
 import { serveFile as prodFile, handleReviewLink, savePhoto } from './prodwork.js';
@@ -7908,6 +7909,8 @@ const AH_APP = {
         ran.minOff = await minOffTick(env, minOffDeps()).catch(e => ({ error: e.message }));
         /* The team's daily check-in post in #daily-checkin, the no-plan nudge, and 24-hour review approvals (checkin.js, 2026-10-26). */
         ran.checkin = await checkinTick(env, checkinDeps(ctx)).catch(e => ({ error: e.message }));
+        /* Monday 7am: brands with no strategist plan yet; from noon: a call of today left open (callnudge.js, 2026-11-09). */
+        ran.callNudge = await callNudgeTick(env, checkinDeps(ctx)).catch(e => ({ error: e.message }));
         /* The Buyer list: ONE post a day in the buyer channel (buyerlist.js, 2026-10-26); the morning cards no longer carry the calls. */
         ran.buyerPost = await buyerPostTick(env, buyerDeps()).catch(e => ({ error: e.message }));
         /* The morning read (buyerai.js): every brand, three side by side, from the hour BEFORE the post hour, so the post
