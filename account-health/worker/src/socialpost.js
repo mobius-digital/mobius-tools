@@ -38,6 +38,8 @@ import { coverUrl } from './creative.js';
 import { metaOf } from './brands.js';
 import { ideaState } from './ideas.js';
 import { markDone } from './actions.js';
+import { laneBlocks, lanePost, laneOwner } from './lane.js';
+import { teamOf } from './calendar.js';
 
 let F = fetch;
 export function useFetch(f) { F = f; }
@@ -397,9 +399,13 @@ export async function notifyHandoff(env, d, post, plat, media, t, why) {
   const sl = s => String(s || '').replace(/[\u2014\u2013]/g, ', ').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const cap = capFor(post, t, plat, 2200);
   const files = media.map((m, i) => `<${m.public || m.url}|${isVideo(m) ? 'video' : 'picture'} ${i + 1}>`).join(', ');
-  const text = `Time to post on ${PLATS[plat]} for ${sl(b?.name || 'the brand')} (${why}).`;
+  /* 2026-11-09 (the lane format, lane.js): "*CREATIVE · Brand*", the person tagged with the ask and the why, then what to
+     post (the file and the caption are the job itself, so they stay). */
+  const head = laneBlocks({ lane: 'CREATIVE', brand: b?.name || 'Agency', who: /^[UW][A-Z0-9]{6,}$/.test(to) ? to : 'Cole', ask: `Post this on ${PLATS[plat]} by hand`, why: sl(why) });
+  const text = `${head.text} (${sl(why)})`;
   const blocks = [
-    { type: 'section', text: { type: 'mrkdwn', text: `*${text}*\nFile: ${files}\n\n${sl(cap) || '_(no caption)_'}${plat === 'ig' && t.ig?.first_comment ? `\n\n_First comment:_ ${sl(t.ig.first_comment)}` : ''}${plat === 'yt' && t.yt?.title ? `\n\n_Title:_ ${sl(t.yt.title)}` : ''}` } },
+    head.blocks[0],
+    { type: 'section', text: { type: 'mrkdwn', text: `File: ${files}\n\n${sl(cap) || '_(no caption)_'}${plat === 'ig' && t.ig?.first_comment ? `\n\n_First comment:_ ${sl(t.ig.first_comment)}` : ''}${plat === 'yt' && t.yt?.title ? `\n\n_Title:_ ${sl(t.yt.title)}` : ''}`.slice(0, 2900) } },
     { type: 'actions', elements: [
       { type: 'button', text: { type: 'plain_text', text: 'Posted it' }, style: 'primary', action_id: 'soc_done', value: JSON.stringify({ id: post.id, plat }) },
       { type: 'button', text: { type: 'plain_text', text: 'Open in Locus' }, url: `${LOCUS}?act=${encodeURIComponent(post.act_id)}&open=socialweek&post=${post.id}` } ] },
@@ -793,7 +799,10 @@ export async function socialNudgeTick(env, d) {
     const planned = w.posts.filter(p => PLANNED.has(p.status)).length;
     if (planned >= target) { out.quiet.push(b.act_id); continue; }
     const link = `${LOCUS}?open=socialweek&act=${encodeURIComponent(b.act_id)}&fill=1`;
-    await d.slackPost(env, b.slack_channel, `${b.name} has ${planned} of ${target} posts planned this week. Fill the week: ${link}`);
+    /* 2026-11-09 (the lane format, lane.js): an ask to the brand's strategist (Cole when none is named). */
+    const team = ((await teamOf(env, [b.act_id]).catch(() => ({})))[b.act_id]) || {};
+    await lanePost(env, d, b.slack_channel, { lane: 'CREATIVE', brand: b.name, who: laneOwner('CREATIVE', team), ask: `Fill this week's social posts: ${planned} of ${target} planned`,
+      buttons: [{ label: 'Fill the week', url: link }] });
     out.posted.push(b.act_id);
   }
   return out;

@@ -24,6 +24,7 @@
  */
 import { slackAnswer } from './askschedule.js';
 import { resolveBrandId } from './brands.js';
+import { laneBlocks } from './lane.js';
 
 /* Paused brands, the test account and the demo never get a review (memory: paused-brands, golf-sock-paused). */
 const SKIP = /galway|instyler|gum of gods|judy ?p|le ?pickle|popby|golf sock|harborline/i;
@@ -88,8 +89,10 @@ export async function reviewBrand(env, d, b, { dry = false, who = 'Monday review
   const proposals = (r.proposals || []).slice(0, MAX_CARDS);
   const chunks = []; for (let i = 0; i < text.length && chunks.length < 8; i += 2900) chunks.push(text.slice(i, i + 2900));
   const n = proposals.length;
+  const head = laneBlocks({ lane: 'MEDIA BUYING', brand: b.name, who: 'Cole', ask: n ? `Read the Monday review and decide on the ${n} suggested change${n > 1 ? 's' : ''} in the thread` : 'Read the Monday review' });
   const blocks = [
-    { type: 'section', text: { type: 'mrkdwn', text: `*Monday review: ${b.name}*` } },
+    /* 2026-11-09 (the lane format, lane.js): lane first, Cole tagged with the one ask. */
+    head.blocks[0],
     ...chunks.map(c => ({ type: 'section', text: { type: 'mrkdwn', text: c } })),
     { type: 'context', elements: [{ type: 'mrkdwn', text: `The Strategist's Monday account review, run automatically. ${n ? `${n} suggested change${n > 1 ? 's' : ''} in the thread, each waiting for a person to press Apply.` : 'No changes suggested.'}${r.costLine ? ` ${r.costLine}.` : ''} Turn it off in Locus: Agency settings > The Strategist.` }] },
     { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open in Locus' }, url: `${LOCUS}?open=overview&act=${encodeURIComponent(b.act_id)}`, action_id: 'noop_open' }] },
@@ -97,7 +100,7 @@ export async function reviewBrand(env, d, b, { dry = false, who = 'Monday review
   const cost = +r.cost || 0;
   if (dry) return { ok: true, dry: true, brand: b.name, channel: b.channel, text, blocks, proposals: proposals.map(p => ({ summary: p.summary, detail: p.detail || '' })), cost, costLine: r.costLine || null, model: r.model };
   if (!b.channel || b.skip) return { error: b.skip || 'no internal channel' };
-  const fallback = `Monday review: ${b.name}`;
+  const fallback = head.text;
   const msg = { channel: b.channel, text: fallback, blocks, unfurl_links: false, username: 'Locus' };
   let posted = await d.slackApi(env, 'chat.postMessage', msg).catch(e => ({ ok: false, error: e.message }));
   if (posted && posted.ok === false && /missing_scope|invalid_arg|not_allowed/.test(String(posted.error || ''))) { const { username, ...plain } = msg; posted = await d.slackApi(env, 'chat.postMessage', plain).catch(e => ({ ok: false, error: e.message })); }

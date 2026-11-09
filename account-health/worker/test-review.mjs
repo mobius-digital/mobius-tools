@@ -120,7 +120,7 @@ await check(`Monday 11am: ${MAX_PER_TICK} brands, one message each to the INTERN
   assert.equal(tops.length, 2);
   assert.deepEqual(tops.map(c => c.p.channel), ['CLUCKYINT1', 'CBONKINT01']);
   for (const c of slackCalls) assert.ok(!CLIENT_CHANNELS.has(c.p.channel), 'never a client channel');
-  assert.ok(tops[0].p.blocks[0].text.text.includes('Monday review: Lucky Golf'));
+  assert.ok(tops[0].p.blocks[0].text.text.startsWith('*MEDIA BUYING · Lucky Golf*'));
   assert.ok(JSON.stringify(tops[0].p.blocks).includes(`${MAX_CARDS} suggested changes in the thread`));
   assert.ok(!JSON.stringify(tops[0].p.blocks).includes('ask_apply'), 'the read itself carries no Apply button (a tap would replace it)');
   assert.equal(cards.length, MAX_CARDS * 2);

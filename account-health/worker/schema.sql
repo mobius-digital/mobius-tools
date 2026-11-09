@@ -317,3 +317,7 @@ CREATE TABLE IF NOT EXISTS social_oauth_state (state TEXT PRIMARY KEY, act_id TE
 CREATE TABLE IF NOT EXISTS p_buyer_state (brand TEXT NOT NULL, object TEXT NOT NULL, action TEXT NOT NULL, status TEXT NOT NULL,
   name TEXT, by TEXT, at TEXT NOT NULL, quiet_until TEXT NOT NULL, PRIMARY KEY (brand, object, action));
 CREATE INDEX IF NOT EXISTS p_buyer_state_quiet ON p_buyer_state (quiet_until);
+-- The FYI roundup (2026-11-09, src/lane.js; profit/worker/migrations/slackfyi-001.sql): what asks nobody to act waits here for the brand's end-of-day post.
+CREATE TABLE IF NOT EXISTS slack_fyi (id INTEGER PRIMARY KEY AUTOINCREMENT, act_id TEXT NOT NULL DEFAULT '', lane TEXT NOT NULL, line TEXT NOT NULL,
+  day TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')), posted_at TEXT, UNIQUE (act_id, day, lane, line));
+CREATE INDEX IF NOT EXISTS slack_fyi_open ON slack_fyi (posted_at, act_id);

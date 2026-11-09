@@ -33,6 +33,7 @@
  * that line marks every item in it done (handleReaction, from the reaction_added event).
  */
 
+import { laneBlocks, laneOfArea } from './lane.js';
 const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 const SQL = [
   `CREATE TABLE IF NOT EXISTS p_action (
@@ -278,18 +279,28 @@ const DONE_BTN = (r, n) => ({ type: 'button', action_id: `act_done_${n}`, text: 
  *  tag (optional) = the owner's Slack tag (<@U...>), so a line in the morning card's thread notifies them. */
 export function reminderMessage(brandName, owner, items, today, tag) {
   const late = items.filter(i => i.due < today), due = items.filter(i => i.due === today);
-  const who = owner || 'Nobody owns these';
-  /* 2026-10-20 (the tasks audit): the morning card above already lists each task, so this reply does not repeat them. It
-     is the owner's tag, the count, and a Done button per task (the title is the label); past four, "and N more in Locus".
-     The plain text (notifications, the index) still carries the lines. */
-  const head = `${tag || `*${sEsc(who)}*`}, ${brandName ? sEsc(brandName) + ': ' : ''}${due.length ? `${due.length} due today` : ''}${due.length && late.length ? ', ' : ''}${late.length ? `${late.length} overdue` : ''}. Press Done as you go.`;
-  const text = [head, ...items.map(i => `• ${i.kind === 'brief' ? 'Brief: ' : ''}${sEsc(i.text)}${i.due < today ? ` _(was due ${md(i.due)})_` : ''}`)].join('\n');
-  const blocks = [{ type: 'section', text: { type: 'mrkdwn', text: (items.length > 4 ? `${head}\n_${items.length - 4} more in Locus_` : head).slice(0, 2900) } }];
+  /* 2026-11-09 (the lane format, lane.js): "*EMAIL · Dartee*", the owner tagged with the ask, Done buttons under it. One
+     task = the task itself is the ask ("Why: was due Nov 6" when late); several = the count, and each Done button carries
+     its title (the morning card above already lists them). The plain text (notifications, the index) keeps every line. */
+  const lane = laneOf(items);
+  const one = items.length === 1 ? items[0] : null;
+  const count = [due.length ? `${due.length} due today` : '', late.length ? `${late.length} overdue` : ''].filter(Boolean).join(', ');
+  const ask = one ? `${one.kind === 'brief' ? 'Brief: ' : ''}${sEsc(one.text)}` : `Finish ${items.length} tasks: ${count}`;
+  const why = one ? (one.due < today ? `was due ${md(one.due)}` : 'due today') : (items.length > 4 ? `${items.length - 4} more in Locus` : '');
   const btns = items.slice(0, 4).map((r, n) => DONE_BTN(r, n));
   btns.push({ type: 'button', action_id: 'noop_open', text: { type: 'plain_text', text: 'Open in Locus' }, url: `${LOCUS}?open=actions${items[0].act_id ? `&act=${encodeURIComponent(items[0].act_id)}` : ''}` });
-  blocks.push({ type: 'actions', elements: btns });
-  return { text, blocks };
+  const m = laneBlocks({ lane, brand: brandName || 'Agency', who: tag || owner, ask, why, buttons: btns });
+  const text = [m.text, ...items.map(i => `• ${i.kind === 'brief' ? 'Brief: ' : ''}${sEsc(i.text)}${i.due < today ? ` _(was due ${md(i.due)})_` : ''}`)].join('\n');
+  return { text, blocks: m.blocks };
 }
+/** The lane a set of tasks belongs to: the most common one from their areas; none known = OPS. */
+function laneOf(items) {
+  const n = {};
+  for (const i of items) { const l = laneOfArea(i.area, i.kind); if (l) n[l] = (n[l] || 0) + 1; }
+  return Object.keys(n).sort((a, b) => n[b] - n[a])[0] || 'OPS';
+}
+/** The "*LANE · Brand*" line of a posted reminder, so a redraw keeps it. */
+const laneHeadOf = msg => { const t = String(msg?.blocks?.[0]?.text?.text || '').split('\n')[0]; return /^\*[A-Z ]+ · .+\*$/.test(t) ? t : ''; };
 
 export async function actionTick(env, d) {
   const areas = await judgeAreas(env, d).catch(e => ({ error: e.message }));
@@ -335,11 +346,11 @@ export async function actionTick(env, d) {
 
 /* ---------- Slack: the Done button and the ✅ reaction ---------- */
 /** The reminder line, redrawn after a tap: done items struck through, buttons only for what is still open. */
-function redraw(items, today, by) {
+function redraw(items, today, by, lane = '') {
   const open = items.filter(i => i.status === 'open');
   const lines = items.map(i => i.status === 'open' ? `• ${sEsc(i.text)}${i.due && i.due < today ? ` _(was due ${md(i.due)})_` : ''}` : `• ~${sEsc(i.text)}~ ✓${i.done_by ? ` ${sEsc(i.done_by)}` : ''}`);
   const head = open.length ? `*${sEsc(items[0].owner || 'Nobody owns these')}*, ${open.length} still open.` : `*${sEsc(items[0].owner || '')}* ✓ All done${by ? ` (${sEsc(by)})` : ''}.`;
-  const text = [head, ...lines].join('\n');
+  const text = [lane, head, ...lines].filter(Boolean).join('\n');
   const blocks = [{ type: 'section', text: { type: 'mrkdwn', text: text.slice(0, 2900) } }];
   if (open.length) blocks.push({ type: 'actions', elements: open.slice(0, 4).map((r, n) => DONE_BTN(r, n)).concat([{ type: 'button', action_id: 'noop_open', text: { type: 'plain_text', text: 'Open in Locus' }, url: `${LOCUS}?open=actions${items[0].act_id ? `&act=${encodeURIComponent(items[0].act_id)}` : ''}` }]) });
   return { text, blocks };
@@ -361,7 +372,7 @@ export async function handleActionButton(env, ctx, payload, d, { ACK, xfetch }) 
     const ts = payload.container?.message_ts || payload.message?.ts || null, ch = payload.container?.channel_id || payload.channel?.id || null;
     const { results } = ts && ch ? await env.DB.prepare(`SELECT * FROM p_action WHERE slack_channel = ?1 AND slack_ts = ?2 ORDER BY due, created_at`).bind(ch, ts).all() : { results: [r] };
     const items = results && results.length ? results : [r];
-    const msg = redraw(items, centralToday(), who);
+    const msg = redraw(items, centralToday(), who, laneHeadOf(payload.message));
     await xfetch(payload.response_url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ replace_original: true, text: msg.text, blocks: msg.blocks }) }).catch(() => {});
   })());
   return ACK();

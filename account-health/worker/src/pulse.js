@@ -140,7 +140,7 @@ export async function pulseTick(env, { F = fetch, slackApi } = {}) {
   for (const [pid, list] of Object.entries(groups)) {
     if (!slackApi) break;
     const p = PLATFORMS.find(x => x.id === pid), id = `pulse:alert:${Date.now()}:${pid}`;
-    const card = alertCard(p, list, { button: id });
+    const card = alertCard(p, list, { button: id, team: true });
     const r = await slackApi(env, 'chat.postMessage', { channel: OUTAGES_CHANNEL, username: 'Locus', icon_url: 'https://tools.go-mobius-digital.com/favicon.png', unfurl_links: false, ...card });
     await put(env, id, { pid, list, channel: r?.channel || OUTAGES_CHANNEL, ts: r?.ts || null, at: now });
     posted.push({ pid, ok: !!r?.ok, error: r?.ok ? undefined : r?.error });
@@ -153,10 +153,11 @@ function when(iso) {
   return new Date(iso || Date.now()).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago', timeZoneName: 'short' });
 }
 /** The same colored-bar card for #outages and for the client channels. `button` = the stored alert id (internal only). */
-export function alertCard(p, list, { button, at, footer } = {}) {
+export function alertCard(p, list, { button, at, footer, team } = {}) {
   const short = p?.short || p?.name || 'Platform';
   const fixed = list.every(t => t.to === 'operational'), down = list.some(t => t.to === 'outage');
-  const blocks = [];
+  /* 2026-11-09 (the lane format, lane.js): the team card in #outages starts with its lane; a client never sees it. */
+  const blocks = team ? [{ type: 'section', text: { type: 'mrkdwn', text: '*OPS · Agency*' } }] : [];
   list.forEach((t, i) => {
     const what = t.service.replace(new RegExp(`^${short}\\s+`, 'i'), '');
     const status = t.to === 'operational' ? 'Working again' : t.to === 'outage' ? 'Outage' : 'Slow or partly down';
@@ -170,7 +171,7 @@ export function alertCard(p, list, { button, at, footer } = {}) {
   if (footer) lines.push(footer);
   blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: lines.join('\n') }] });
   if (button) blocks.push({ type: 'actions', elements: [{ type: 'button', action_id: 'pulse_send', value: button, style: fixed ? 'primary' : 'danger', text: { type: 'plain_text', text: 'Send to all clients' } }] });
-  return { text: `${short}: ${list.map(t => `${t.service} ${t.to === 'operational' ? 'working again' : t.to}`).join(', ')}`, attachments: [{ color: fixed ? '#2EB67D' : down ? '#D0342C' : '#ECB22E', blocks }] };
+  return { text: `${team ? 'OPS · Agency: ' : ''}${short}: ${list.map(t => `${t.service} ${t.to === 'operational' ? 'working again' : t.to}`).join(', ')}`, attachments: [{ color: fixed ? '#2EB67D' : down ? '#D0342C' : '#ECB22E', blocks }] };
 }
 
 /** Every active brand's client channel, read now (a new client is included the day it is set up). */
@@ -199,7 +200,7 @@ export async function pulseButton(env, ctx, payload, { slackApi, ACK }) {
     }
     a.result = { ok, bad }; await put(env, id, a);
     const note = `📣 Sent to ${ok.length} of ${list.length} clients ${a.sent}${ok.length ? `: ${ok.join(', ')}` : ''}${bad.length ? `\n⚠️ Not sent: ${bad.join(', ')}` : ''}`;
-    if (ch && ts) await slackApi(env, 'chat.update', { channel: ch, ts, ...alertCard(p, a.list, { at: a.at, footer: note }) });
+    if (ch && ts) await slackApi(env, 'chat.update', { channel: ch, ts, ...alertCard(p, a.list, { at: a.at, footer: note, team: true }) });
   })().catch(e => console.log('pulse send: ' + e.message)));
   return ACK();
 }

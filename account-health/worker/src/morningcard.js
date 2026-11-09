@@ -35,6 +35,7 @@ import { readToday, messageFor } from './todaypost.js';
 import { ensureActions, markDone, reminderMessage, ROSTER } from './actions.js';
 import { breakoutsFor } from './social.js';
 import { readKept } from './morning.js';
+import { laneLines, laneName, laneOfArea, laneOwner, fyi } from './lane.js';
 
 const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 export const DEFAULT_MORNING_HOUR = 5;
@@ -146,7 +147,8 @@ export async function teamPost(env, d, channel, text, blocks, opts = {}) {
   const card = channel ? await todaysCard(env, channel, dayOf(d)).catch(() => null) : null;
   if (!card) return d.slackPost(env, channel, text, blocks, rest);
   const tag = t0 || (tagName ? await tagOf(env, d, tagName) : null);
-  const pre = s => (tag ? `${tag} ${s}` : s);
+  /* A lane message (lane.js) already carries its tag on line 2: never a second one in front of the lane header. */
+  const pre = s => (tag && !String(s).includes(tag) ? `${tag} ${s}` : s);
   let b = blocks;
   if (tag && Array.isArray(b) && b[0] && b[0].type === 'section' && b[0].text && b[0].text.type === 'mrkdwn') b = [{ ...b[0], text: { ...b[0].text, text: pre(b[0].text.text) } }, ...b.slice(1)];
   return d.slackPost(env, channel, pre(text), b, { ...rest, thread_ts: card.ts });
@@ -207,7 +209,7 @@ export async function buildCard(env, d, a, today, shared = {}) {
   const yday = addDays(today, -1), tomorrow = addDays(today, 1);
   const monday = new Date(today + 'T12:00:00Z').getUTCDay() === 1;
   const brief = await env.DB.prepare(`SELECT status, posted_at, text, data_json FROM briefs WHERE act_id = ?1 AND date = ?2`).bind(a.act_id, yday).first().catch(() => null);
-  const items = [], notes = [], leadsInfo = [];
+  const items = [], notes = [], leadsInfo = [], fyis = [];
   if (shared.kept && shared.kept.error) notes.push(`kept: ${shared.kept.error}`);
   /* Today's calls: one line, the media buyer tagged. 2026-10-26 (the Buyer list, buyerlist.js): while the one daily Buyer
      list post is on (settings.buyerPost, default on) the card carries NO calls line and NO calls thread; the calls live
@@ -219,7 +221,7 @@ export async function buildCard(env, d, a, today, shared = {}) {
   const calls = (rows || []).filter(r => CALL_KINDS.includes(r.kind));
   const team = shared.team && shared.team[a.act_id] || {};
   if (calls.length) {
-    items.push({ key: 'calls', kind: 'calls', text: callsText(calls, a.currency), who: team.buyer || 'Cole', role: 'media buying', objs: [...new Set(calls.map(r => String(r.ad_id || r.adset_id || '')).filter(Boolean))], made: [], rank: 1e12 + calls.reduce((s, r) => s + (+r.stake || 0), 0) });
+    items.push({ key: 'calls', kind: 'calls', text: callsText(calls, a.currency), who: team.buyer || 'Cole', lane: 'MEDIA BUYING', objs: [...new Set(calls.map(r => String(r.ad_id || r.adset_id || '')).filter(Boolean))], made: [], rank: 1e12 + calls.reduce((s, r) => s + (+r.stake || 0), 0) });
   }
   /* A leads campaign that is running (2026-10-25): one line on what it produced yesterday, the buyer tagged. */
   if (d.leadsYesterday) {
@@ -232,32 +234,32 @@ export async function buildCard(env, d, a, today, shared = {}) {
         const text = l.spend <= 0 ? `Check ${nm} is delivering: it spent nothing yesterday${l.budget ? ` on a ${money(l.budget, a.currency)}/day budget` : ''}`
           : cpl != null ? `Fix ${nm}: ${sym(a.currency)}${cpl.toFixed(2)} a lead yesterday, over the ${sym(a.currency)}${LEAD_CPL_MAX.toFixed(2)} limit`
           : `Fix ${nm}: ${money(l.spend, a.currency)} spent yesterday, no leads`;
-        items.push({ key: `leads:${l.id}`, kind: 'leads', text, who: team.buyer || 'Cole', role: 'media buying', rank: 1e11 });
+        items.push({ key: `leads:${l.id}`, kind: 'leads', text, who: team.buyer || 'Cole', lane: 'MEDIA BUYING', rank: 1e11 });
       }
     } catch (e) { notes.push(`leads: ${e.message}`); }
   }
   /* The client daily waiting for an OK is a job (Cole's), so it is a line of its own, first. */
-  if (brief && brief.status === 'draft' && a.brief_enabled) items.push({ key: 'daily', kind: 'daily', text: 'Approve the client daily, it is waiting on you', who: 'Cole', role: 'client update', rank: 2e12 });
+  if (brief && brief.status === 'draft' && a.brief_enabled) items.push({ key: 'daily', kind: 'daily', text: 'Approve the client daily, it is waiting on you', who: 'Cole', lane: 'CLIENT', rank: 2e12 });
   /* Tasks due today or overdue. */
   await ensureActions(env);
   const tasks = (await env.DB.prepare(`SELECT * FROM p_action WHERE status = 'open' AND act_id = ?1 AND due != '' AND due <= ?2 ORDER BY due, created_at`).bind(a.act_id, today).all().catch(() => ({ results: [] }))).results || [];
   for (const t of tasks) {
     const late = daysBetween(t.due, today);
     /* The title only (short since 2026-10-20; the details are one click away), "late" only when it is: everything on the card is today's. */
-    items.push({ key: `task:${t.id}`, kind: 'task', text: `${t.kind === 'brief' ? 'Brief: ' : ''}${words(t.text, 90)}${late > 0 ? ` · ${late} day${late === 1 ? '' : 's'} late` : ''}`, who: t.owner || '', ids: [t.id], rank: late > 0 ? late * 1000 : 1 });
+    items.push({ key: `task:${t.id}`, kind: 'task', text: `${t.kind === 'brief' ? 'Brief: ' : ''}${words(t.text, 90)}${late > 0 ? ` · ${late} day${late === 1 ? '' : 's'} late` : ''}`, who: t.owner || '', lane: laneOfArea(t.area, t.kind) || (t.owner && t.owner === team.buyer ? 'MEDIA BUYING' : 'OPS'), ids: [t.id], rank: late > 0 ? late * 1000 : 1 });
   }
   /* A date going live tomorrow with something still open. */
   for (const e of ((shared.calendar && shared.calendar.items) || []).filter(x => x.act === a.act_id && x.start === tomorrow)) {
     const open = (e.steps || []).filter(s => s.state !== 'done');
     if (!open.length) continue;
-    items.push({ key: `cal:${e.id}`, kind: 'cal', text: `Get ${clean(e.name, 80)} ready, it goes live tomorrow: still ${open.map(s => String(s.label || '').toLowerCase()).join(', ')}`, who: /^[A-Z][a-z]+$/.test(open[0].who || '') ? open[0].who : (team.strat || ''), role: open[0].role || '', rank: 500 });
+    items.push({ key: `cal:${e.id}`, kind: 'cal', text: `Get ${clean(e.name, 80)} ready, it goes live tomorrow: still ${open.map(s => String(s.label || '').toLowerCase()).join(', ')}`, who: /^[A-Z][a-z]+$/.test(open[0].who || '') ? open[0].who : (team.strat || ''), lane: laneName(open[0].role), rank: 500 });
   }
   /* Production cards that are late, by up to 30 days (Lucky had a Brief card 123 days late on 2026-10-13: an old card
      nobody closed is not today's job, and it would push real work off the five lines). */
   for (const c of ((shared.board && shared.board.cards) || []).filter(x => x.act_id === a.act_id && x.late)) {
     const late = daysBetween(c.due, today);
     if (late > 30) continue;
-    items.push({ key: `prod:${c.id}`, kind: 'prod', id: c.id, text: `${PROD_VERB[c.board] || 'Move on'} ${c.num ? `${c.num} ` : ''}${words(c.title, 70)} (${late} day${late === 1 ? '' : 's'} late)`, who: c.assignee || team.strat || '', role: 'creative', rank: late * 1000 });
+    items.push({ key: `prod:${c.id}`, kind: 'prod', id: c.id, text: `${PROD_VERB[c.board] || 'Move on'} ${c.num ? `${c.num} ` : ''}${words(c.title, 70)} (${late} day${late === 1 ? '' : 's'} late)`, who: c.assignee || team.strat || '', lane: 'CREATIVE', rank: late * 1000 });
   }
   /* The leak finder (2026-10-13, leaks.js): ONE line when a NEW leak over LEAK_FLOOR a month appeared since yesterday's
      card (leak ids are kept on the card), tagged to its owner from the brand's roster. The first day only records the
@@ -278,8 +280,8 @@ export async function buildCard(env, d, a, today, shared = {}) {
       const nw = Array.isArray(prev) ? big.find(l => !prev.includes(l.id)) : null;
       if (monday && actOn.length) {
         const top = actOn[0], n = (L.leaks || []).length, neg = (L.leaks || []).find(l => l.apply && l.apply.kind === 'negative');
-        items.push({ key: 'leak:weekly', kind: 'leak', text: `Fix the biggest leak: ${words(top.title, 80)} (${moneyK(top.cost || 0, a.currency)} a month, est.; ${n} in all on Overview)`, who: top.owner || '', rank: top.cost || 0 });
-      } else if (nw) items.push({ key: `leak:${nw.id}`, kind: 'leak', text: `Fix a new leak: ${words(nw.title, 80)} (${moneyK(nw.cost, a.currency)} a month, est.)`, who: nw.owner || '', rank: nw.cost });
+        items.push({ key: 'leak:weekly', kind: 'leak', text: `Fix the biggest leak: ${words(top.title, 80)} (${moneyK(top.cost || 0, a.currency)} a month, est.; ${n} in all on Overview)`, who: top.owner || '', lane: 'MEDIA BUYING', rank: top.cost || 0 });
+      } else if (nw) items.push({ key: `leak:${nw.id}`, kind: 'leak', text: `Fix a new leak: ${words(nw.title, 80)} (${moneyK(nw.cost, a.currency)} a month, est.)`, who: nw.owner || '', lane: 'MEDIA BUYING', rank: nw.cost });
     } catch (e) { notes.push(`leaks: ${e.message}`); }
   }
   /* Social (2026-10-20): ONE line when a followed account's post broke out (3x its usual) since yesterday's card, tagged to
@@ -291,7 +293,7 @@ export async function buildCard(env, d, a, today, shared = {}) {
     if (hot.length) {
       const h = hot[0], n = h.metric === 'views' ? h.views : h.likes, kk = v => v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `${Math.round(v / 1e3)}k` : String(Math.round(v || 0));
       const fmt = { reel: 'Reel', carousel: 'carousel', post: 'post', tiktok: 'TikTok', photos: 'photo post', short: 'Short', video: 'video' }[h.fmt] || 'post';
-      items.push({ key: `social:${h.id}`, kind: 'social', fyi: true, text: `FYI, breaking out on Social: @${h.handle || h.who} ${fmt}, ${kk(n || 0)} ${h.metric || 'views'}${h.base ? ` (usually ${kk(h.base)}, ${h.ratio >= 10 ? Math.round(h.ratio) : h.ratio}x)` : ''}${hot.length > 1 ? ` · ${hot.length - 1} more` : ''} · Social > Breaking out`, who: team.strat || '', role: 'creative strategy', rank: 400 + Math.min(600, (h.ratio || 0) * 10) });
+      fyis.push({ key: `social:${h.id}`, kind: 'social', fyi: true, text: `Breaking out on Social: @${h.handle || h.who} ${fmt}, ${kk(n || 0)} ${h.metric || 'views'}${h.base ? ` (usually ${kk(h.base)}, ${h.ratio >= 10 ? Math.round(h.ratio) : h.ratio}x)` : ''}${hot.length > 1 ? ` · ${hot.length - 1} more` : ''} · Social > Breaking out`, who: team.strat || '', lane: 'CREATIVE', rank: 400 + Math.min(600, (h.ratio || 0) * 10) });
     }
   } catch (e) { notes.push(`social: ${e.message}`); }
   items.sort((p, q) => q.rank - p.rank);
@@ -308,54 +310,49 @@ export async function buildCard(env, d, a, today, shared = {}) {
   let weekly = '';
   if (monday) {
     const rep = await env.DB.prepare(`SELECT status FROM reports WHERE act_id = ?1 AND period = 'weekly' AND period_start = ?2`).bind(a.act_id, addDays(today, -7)).first().catch(() => null);
-    weekly = rep ? 'Weekly report drafted · write this week\'s plan in this thread' : 'Weekly report not drafted yet · write this week\'s plan in this thread';
+    weekly = rep ? 'Write this week\'s plan in this thread (the weekly report is drafted)' : 'Write this week\'s plan in this thread (the weekly report is not drafted yet)';
   }
   return {
     act: a.act_id, name: a.name, date: today, channel: a.slack_channel || null, ts: null,
     nums: [numbersLine(a, brief, keptOf(shared.kept, a.act_id)), ...leadsInfo].join(' · '), daily: dailyState(a, brief), items: shown, more: items.length - shown.length,
-    owes, weekly, calls: calls.length > 0, notes, leaks: leakIds, social_at: socialAt,
+    owes, weekly, owes_tag: owes || weekly ? await tagOf(env, d, laneOwner('CLIENT', team)).catch(() => null) : null, owes_who: laneOwner('CLIENT', team), calls: calls.length > 0, notes, leaks: leakIds, social_at: socialAt,
     /* For the thread only; never stored. */
-    _rows: rows || [], _tasks: tasks,
+    _rows: rows || [], _tasks: tasks, _fyis: fyis,
   };
 }
 
-/** The card as Slack draws it. A done line leaves the card and is counted in one "✓ N done" line at the end (2026-10-20;
- *  struck-through lines kept the clutter and Cole could not tell what was left). */
+/** The card as Slack draws it (2026-11-09, the lane format, lane.js): one lane header per kind of job ("*MEDIA BUYING ·
+ *  Dartee*"), one line per job under it, each starting with its person's tag; Cole's own job is the first group. The
+ *  numbers, "and N more" and "N done" are one quiet context line under the jobs. A done line leaves the card and is
+ *  counted (2026-10-20). FYI lines (Social) no longer ride on the card: they go to the end-of-day roundup. */
 export function cardMessage(c) {
-  /* 2026-11-03 (Cole skipped every card for a week: line 1 was the brand and date, line 2 a row of numbers, then other
-     people's status lines, and nothing said what HE should do). Line 1 is now the one thing Cole does today, tagged so
-     it pings him, or plainly that nothing needs him. The numbers drop to a quiet second line; other people's jobs follow,
-     each phrased as a job; FYI lines (Social) come last. */
   const items = c.items || [], open = items.filter(i => !i.done), done = items.length - open.length;
   const jobs = open.filter(i => !i.fyi), mine = jobs.find(i => isColeName(i.who));
-  const lineOf = it => {
-    const note = it.kind === 'calls' && (it.made || []).length ? ` · ${it.made.length} of ${(it.objs || []).length} made` : '';
-    const body = `${esc(it.text)}${note}`;
-    /* 2026-11-04 (Cole): each line says who it is for AND what kind of job it is, "@Ahsan, creative strategy: ...". */
-    const who = it.tag ? `${it.tag}${it.role ? `, ${esc(it.role)}` : ''}: ` : '';
-    return `${who}${body}`;
-  };
-  const head = mine ? `*${esc(c.name)}:* ${lineOf(mine)}` : `*${esc(c.name)}:* nothing needs you today, Cole${jobs.length ? '' : ', or anyone'}`;
+  const note = it => (it.kind === 'calls' && (it.made || []).length ? ` · ${it.made.length} of ${(it.objs || []).length} made` : '');
+  const groups = (mine ? [mine, ...jobs.filter(i => i !== mine)] : jobs)
+    .map(it => ({ lane: it.lane || laneName(it.role), brand: c.name, items: [{ who: it.tag || it.who, ask: `${esc(it.text)}${note(it)}` }] }));
+  const owner = c.owes_tag || c.owes_who || 'Cole';
+  if (c.owes) groups.push({ lane: 'CLIENT', brand: c.name, items: [{ who: owner, ask: `Chase the client: ${esc(c.owes)}` }] });
+  if (c.weekly) groups.push({ lane: 'CLIENT', brand: c.name, items: [{ who: owner, ask: esc(c.weekly) }] });
   const daily = /not written|skipped$/.test(c.daily || '') ? c.daily : '';
-  const L = [head, `_${[esc(c.nums), esc(daily)].filter(Boolean).join(' · ')}_`];
-  for (const it of jobs.filter(i => i !== mine).concat(open.filter(i => i.fyi))) L.push(lineOf(it));
-  if (c.more > 0) L.push(`_and ${c.more} more in Locus_`);
-  if (done) L.push(`✓ ${done} done${(c.items || []).length === done ? ', all of it' : ''}`);
-  if (c.owes) L.push(`*Client owes* ${esc(c.owes)}`);
-  if (c.weekly) L.push(esc(c.weekly));
-  const text = L.join('\n');
+  const foot = [[esc(c.nums), esc(daily)].filter(Boolean).join(' · '), c.more > 0 ? `and ${c.more} more in Locus` : '', done ? `✓ ${done} done${items.length === done ? ', all of it' : ''}` : ''].filter(Boolean);
   const btn = (label, url) => ({ type: 'actions', elements: [{ type: 'button', action_id: 'noop_open', text: { type: 'plain_text', text: label.slice(0, 75) }, url }] });
-  /* 2026-10-15: short sections (the head, then a few lines each) so Slack never folds the card behind Show more. */
-  const parts = [L.slice(0, 2)];
-  for (const l of L.slice(2)) { const last = parts[parts.length - 1]; if (parts.length > 1 && last.length < 2 && last.join('\n').length + l.length < 400) last.push(l); else parts.push([l]); }
-  const blocks = [...parts.map(p => ({ type: 'section', text: { type: 'mrkdwn', text: p.join('\n').slice(0, 2900) } })), btn(`Open ${c.name} in Locus`, `${LOCUS}?act=${encodeURIComponent(c.act)}`)];
+  const buttons = [btn(`Open ${c.name} in Locus`, `${LOCUS}?act=${encodeURIComponent(c.act)}`)];
   /* 2026-10-15: straight onto Today's calls with the Do all sheet open, every change ticked; nothing runs until Cole confirms. */
-  if (c.calls && !(c.items || []).some(i => i.kind === 'calls' && i.done)) blocks.push(btn('Make the ad calls', `${LOCUS}?open=today&act=${encodeURIComponent(c.act)}&doall=1`));
-  return { text, blocks };
+  if (c.calls && !items.some(i => i.kind === 'calls' && i.done)) buttons.push(btn('Make the ad calls', `${LOCUS}?open=today&act=${encodeURIComponent(c.act)}&doall=1`));
+  if (!groups.length) {
+    const head = `*${esc(c.name)} · ${dayLabel(c.date)}*\nNothing needs anyone today`;
+    return { text: [head, ...foot].join('\n'), blocks: [{ type: 'section', text: { type: 'mrkdwn', text: head } }, ...(foot.length ? [{ type: 'context', elements: [{ type: 'mrkdwn', text: foot.join(' · ').slice(0, 2900) }] }] : []), ...buttons] };
+  }
+  const m = laneLines(groups, { foot: [foot.join(' · ')], buttons });
+  /* text = the notification line ("MEDIA BUYING · Dartee: ..."), then every line of the card. */
+  return { text: m.text, blocks: m.blocks };
 }
 /** The card as plain words, for the Locus preview: tags shown as @Name, bold and italics dropped. */
 export function cardPlain(c) {
-  return (c.items || []).reduce((s, it) => s.split(it.tag || '\u0000').join(`@${clean(it.who, 40).split(' ')[0]}`), cardMessage(c).text)
+  const tags = [...(c.items || []).map(it => [it.tag, it.who]), [c.owes_tag, c.owes_who]].filter(([t, w]) => t && w);
+  const words = cardMessage(c).blocks.filter(b => b.type === 'section' || b.type === 'context').map(b => (b.text ? b.text.text : (b.elements || []).map(e => e.text).join(' '))).join('\n');
+  return tags.reduce((s, [t, w]) => s.split(t).join(`@${clean(w, 40).split(' ')[0]}`), words)
     .replace(/<@[A-Z0-9]+>/g, '@someone').replace(/\*([^*\n]+)\*/g, '$1').replace(/(^|\s)_([^_\n]+)_/g, '$1$2').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
 }
 
@@ -385,7 +382,9 @@ async function readiness(env, a, today) {
 /** Post one brand's card and its thread. Returns the stored card. */
 export async function postCard(env, d, a, today, shared = {}) {
   const c = await buildCard(env, d, a, today, shared);
-  const { _rows, _tasks, ...card } = c;
+  const { _rows, _tasks, _fyis, ...card } = c;
+  /* FYI lines (a Social breakout) go to the brand's end-of-day roundup, never on the card (lane.js, 2026-11-09). */
+  for (const f of _fyis || []) await fyi(env, { act: a.act_id, lane: f.lane, line: f.text });
   /* Nothing to say = no post (2026-10-14: SpeedIn, not launched, got a card reading only "Yesterday's numbers are not
      in yet"). A brand with no numbers, no lines, nothing owed and no weekly line stays quiet that day. */
   if (!(card.items || []).length && !card.owes && !card.weekly && !(card.leaks || []).length && /not in yet/.test(card.nums)) return { ...card, empty: true };
@@ -396,7 +395,7 @@ export async function postCard(env, d, a, today, shared = {}) {
   await saveCard(env, card);
   if (!card.ts) return card;
   /* The thread: the full calls list, then one reminder line per owner with its Done buttons. Nothing else at 5am. */
-  const calls = messageFor(a, _rows);
+  const calls = messageFor(a, _rows, await tagOf(env, d, ((shared.team || {})[a.act_id] || {}).buyer || 'Cole').catch(() => null));
   if (calls) {
     const blocks = calls.blocks.filter(b => b.type !== 'context' && b.type !== 'actions');
     const r = await d.slackPost(env, card.channel, calls.text, blocks, { username: 'Locus', thread_ts: card.ts }).catch(() => null);
@@ -477,7 +476,7 @@ export async function previewCard(env, d, act) {
     kept: await keptShared(env, d),
   };
   const c = await buildCard(env, d, a, today, shared);
-  const { _rows, _tasks, ...card } = c;
+  const { _rows, _tasks, _fyis, ...card } = c;
   const m = cardMessage(card);
   const calls = messageFor(a, _rows);
   const owners = [...new Set(_tasks.map(t => t.owner || 'Nobody'))];

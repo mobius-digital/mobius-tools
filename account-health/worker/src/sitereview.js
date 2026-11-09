@@ -16,6 +16,7 @@
  *
  * Answers are editable until the review is sent; after that every write is refused until the team reopens it. */
 
+import { laneBlocks } from './lane.js';
 export const SITE_REVIEW_SQL = [
   `CREATE TABLE IF NOT EXISTS p_site_review (
     act_id      TEXT NOT NULL,
@@ -138,19 +139,19 @@ async function send(env, act, slug, b, who, slackPost, slackApi) {
     const a = by.get(s.id); const note = a?.note ? `: "${sl(a.note).replace(/\s*\n+\s*/g, ' / ')}"` : '';
     return `${a?.status === 'approved' ? 'Approved' : a?.status === 'changes' ? '*Needs changes*' : 'Not reviewed'}  ${sl(s.title)}${note}`;
   };
-  const text = [
-    `<@${COLE_SLACK}> *${sl(brand)} sent their review: ${sl(r.title || slug)}* (${sl(name)})`,
-    `${ok} approved, ${ch} need${ch === 1 ? 's' : ''} changes${open ? `, ${open} not reviewed` : ''}`,
-    ...order.map(line),
-    ...(overall ? [`Overall: "${sl(overall).replace(/\s*\n+\s*/g, ' / ')}"`] : []),
-    `In Locus: Clients > Requests (${sl(brand)})`,
-  ].join('\n');
+  /* 2026-11-09 (the lane format, lane.js): "*CLIENT · Brand*", Cole tagged with the ask and the counts as the why;
+     each page's call and note under it (they are the review itself). */
+  const head = laneBlocks({ lane: 'CLIENT', brand, who: COLE_SLACK, ask: `Go through ${sl(name)}'s review of ${sl(r.title || slug)}`,
+    why: `${ok} approved, ${ch} need${ch === 1 ? 's' : ''} changes${open ? `, ${open} not reviewed` : ''}` });
+  const detail = [...order.map(line), ...(overall ? [`Overall: "${sl(overall).replace(/\s*\n+\s*/g, ' / ')}"`] : []), `In Locus: Clients > Requests (${sl(brand)})`].join('\n');
+  const text = `${head.text}\n${detail}`;
+  const blocks = [head.blocks[0], { type: 'section', text: { type: 'mrkdwn', text: detail.slice(0, 2900) } }];
   /* A DM from the Locus bot: open the conversation first (a bare user id does not reliably land). */
   let slack = true, slack_error = null;
   try {
     const o = await slackApi(env, 'conversations.open', { users: COLE_SLACK });
     if (!o?.ok) throw new Error(`conversations.open: ${o?.error || 'failed'}`);
-    await slackPost(env, o.channel.id, text, null, { username: 'Locus' });
+    await slackPost(env, o.channel.id, text, blocks, { username: 'Locus' });
   } catch (e) { slack = false; slack_error = String(e.message || e).slice(0, 160); }
   return { ok: true, sent_at: at, approved: ok, changes: ch, open, slack, ...(slack_error ? { slack_error } : {}) };
 }

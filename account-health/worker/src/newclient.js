@@ -36,8 +36,15 @@ import { sendMail } from './mail.js';
 import { ensureCalendlyHook } from './calendly.js';
 import { createBrand, addConnection, resolveBrandId, setTripleWhale } from './brands.js';
 import { todaysCard } from './morningcard.js';
+import { laneBlocks, fyi } from './lane.js';
 /* 2026-10-13: a ping about a brand that already has today's morning card goes in the card's thread. */
 const inThread = async (env, ch) => { const c = await todaysCard(env, ch).catch(() => null); return c ? { thread_ts: c.ts } : {}; };
+/* 2026-11-09 (the lane format, lane.js): a team ask about a new client, OPS lane, in the internal channel (under today's card). */
+async function laneInternal(env, r, msg) {
+  const m = laneBlocks({ lane: 'OPS', brand: r.name, ...msg });
+  return slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { ...(await inThread(env, r.slack_internal)), channel: r.slack_internal, unfurl_links: false, text: m.text, blocks: [m.blocks[0], ...(msg.extra || []), ...m.blocks.slice(1)] });
+}
+const firstId = async (env, list) => Object.values(await slackIds(env, list).catch(() => ({})))[0] || 'Cole';
 
 let F = (...a) => fetch(...a);
 export function useFetch(f) { F = f; }
@@ -563,7 +570,11 @@ async function markPaid(env, r, subId, inv) {
   await setStep(env, r.id, 'stripe', next);
   if (!st.paid) {
     await tickForm(env, r.token, 'st_invoice');
-    if (r.slack_internal && env.SLACK_BOT_TOKEN) await slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { ...(await inThread(env, r.slack_internal)), channel: r.slack_internal, text: `*${r.name} paid their first invoice.* ${next.autopay ? 'The retainer is on autopay from here.' : 'Autopay did NOT switch on: see Locus > New client.'} Work can start.` }).catch(() => {});
+    /* 2026-11-09 (lane.js): paid with autopay on asks nobody for anything (a roundup line); autopay off is Cole's ask. */
+    if (r.slack_internal && env.SLACK_BOT_TOKEN) {
+      if (next.autopay) await fyi(env, { act: r.act_id || '', lane: 'OPS', line: `${r.name} paid their first invoice. The retainer is on autopay; work can start.` });
+      else await laneInternal(env, r, { who: 'Cole', ask: `Switch on autopay for ${r.name} in Locus > New client`, why: 'they paid the first invoice, but autopay did not switch on' }).catch(() => {});
+    }
   }
   return next;
 }
@@ -980,8 +991,8 @@ async function welcomeOnJoin(env, r) {
 /* Where the strategist reads the answers. A client with a brand (every one started since phase 3) opens
    Brand info straight on it; an older pending one has only their form. */
 const LOCUS_BRAND = (act, view) => `https://locus.go-mobius-digital.com/profit/?open=brand&act=${encodeURIComponent(act)}&view=${view}`;
-const answersLink = (r, view = 'info') => r.act_id ? `<${LOCUS_BRAND(r.act_id, view)}|${view === 'research' ? 'Open Research in Locus' : 'Open their answers in Locus'}>`
-  : r.token ? `<${ONBOARD_FORM}${r.token}|Open their answers> (their form; the brand opens in Locus once it is adopted)` : '';
+const answersBtn = (r, view = 'info') => r.act_id ? [{ label: view === 'research' ? 'Open Research in Locus' : 'Open their answers in Locus', url: LOCUS_BRAND(r.act_id, view) }]
+  : r.token ? [{ label: 'Open their answers', url: `${ONBOARD_FORM}${r.token}` }] : [];
 
 /* ---------------- the strategy call, booked in Calendly (calendly.js) ---------------- */
 export async function onCallBooked(env, r, info) {
@@ -997,11 +1008,11 @@ export async function onCallBooked(env, r, info) {
   }
   await setStep(env, r.id, 'call', st.call);
   const team = safeJson(r.team_json, {});
-  const ids = await slackIds(env, roleList(team.strategist)).catch(() => ({}));
-  const tag = Object.values(ids).map(id => `<@${id}>`).join(' ');
-  if (r.slack_internal) await slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { ...(await inThread(env, r.slack_internal)), channel: r.slack_internal, unfurl_links: false,
-    text: info.canceled ? `*${r.name} cancelled the strategy call* (${when}). Their form's "book the call" box is open again.` : `*${r.name} booked the strategy call: ${when}.* ${tag ? `${tag} ` : ''}Review their answers and run Research in Locus before it.${answersLink(r) ? `
-${answersLink(r)}` : ''}` });
+  /* 2026-11-09 (lane.js): a booking is the strategist's ask; a cancellation asks nobody (a roundup line). */
+  if (!r.slack_internal) return;
+  if (info.canceled) { await fyi(env, { act: r.act_id || '', lane: 'OPS', line: `${r.name} cancelled the strategy call (${when}). Their form's "book the call" box is open again.` }); return; }
+  await laneInternal(env, r, { who: await firstId(env, roleList(team.strategist)), ask: `Review ${r.name}'s answers and run Research in Locus before the strategy call`, why: `they booked it for ${when}`,
+    buttons: answersBtn(r) });
 }
 
 /* ---------------- nudges: what the client has not done yet ----------------
@@ -1020,11 +1031,8 @@ async function nudges(env) {
     if (r.c_status === 'sent' && Date.now() - Date.parse(r.c_sent || 0) > 3 * DAY && !st.nudge.agreement) due.push(['agreement', 'has not signed the agreement', 'Re-send the signing link']);
     if (st.email?.status === 'done' && r.ob_status !== 'submitted' && Date.now() - Date.parse(st.email.at || 0) > 5 * DAY && !st.nudge.form) due.push(['form', 'has not sent the onboarding form', 'Send them a reminder']);
     for (const [kind, what, label] of due) {
-      const text = `<@U06C37MDWD7> *${r.name}* ${what} yet.`;
-      const j = await slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { ...(await inThread(env, r.slack_internal)), channel: r.slack_internal, text, blocks: [
-        { type: 'section', text: { type: 'mrkdwn', text } },
-        { type: 'actions', elements: [{ type: 'button', style: 'primary', text: { type: 'plain_text', text: label }, action_id: 'nc_remind', value: JSON.stringify({ id: r.id, kind }) }] },
-        { type: 'context', elements: [{ type: 'mrkdwn', text: 'Sends a short, friendly reminder as you. Nothing goes out unless you press it.' }] }] });
+      const j = await laneInternal(env, r, { who: 'Cole', ask: `${label} to ${r.name} (it goes as you, only when you press it)`, why: `${r.name} ${what} yet`,
+        buttons: [{ type: 'button', style: 'primary', text: { type: 'plain_text', text: label }, action_id: 'nc_remind', value: JSON.stringify({ id: r.id, kind }) }] });
       if (j.ok) { st.nudge[kind] = new Date().toISOString(); n++; }
     }
     if (due.length) await setStep(env, r.id, 'nudge', st.nudge);
@@ -1100,16 +1108,16 @@ async function shopifyHeadsUp(env) {
     if (!m) continue;
     const store = `${m[1].toLowerCase()}.myshopify.com`;
     const code = String(ans.shopify_code || '').trim();
-    const text = `<@U06C37MDWD7> *${r.name}* gave their Shopify store. Send the collaborator request, then press the button and Locus tells them to approve it.`;
-    const j = await slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { ...(await inThread(env, r.slack_internal)), channel: r.slack_internal, unfurl_links: false, text, blocks: [
-      { type: 'section', text: { type: 'mrkdwn', text } },
-      { type: 'section', fields: [{ type: 'mrkdwn', text: `*Store*\n\`${store}\`` }, { type: 'mrkdwn', text: `*Request code*\n${code ? `\`${code}\`` : 'none needed'}` }] },
-      { type: 'context', elements: [{ type: 'mrkdwn', text: 'Partner dashboard > *Stores* > *Add store* > *Request access to a store* > paste the store address' + (code ? ' and the code' : '') + ' > pick the permissions > *Request access*.' }] },
-      { type: 'actions', elements: [
+    /* 2026-11-09 (lane.js): Cole's ask; the store, the code and the clicks stay (they are the job itself). */
+    const j = await laneInternal(env, r, { who: 'Cole', ask: `Send ${r.name} the Shopify collaborator request, then press I sent the request`, why: 'they gave their store; Locus then tells them to approve it',
+      extra: [
+        { type: 'section', fields: [{ type: 'mrkdwn', text: `*Store*\n\`${store}\`` }, { type: 'mrkdwn', text: `*Request code*\n${code ? `\`${code}\`` : 'none needed'}` }] },
+        { type: 'context', elements: [{ type: 'mrkdwn', text: 'Partner dashboard > *Stores* > *Add store* > *Request access to a store* > paste the store address' + (code ? ' and the code' : '') + ' > pick the permissions > *Request access*.' }] },
+      ],
+      buttons: [
         { type: 'button', text: { type: 'plain_text', text: 'Open Shopify Partners' }, url: 'https://partners.shopify.com/organizations', action_id: 'nc_open_partners' },
         { type: 'button', style: 'primary', text: { type: 'plain_text', text: 'I sent the request' }, action_id: 'nc_shopify_sent', value: JSON.stringify({ id: r.id }) },
-      ] },
-    ] });
+      ] });
     if (j.ok) { await setStep(env, r.id, 'shopify_ping', { store, at: new Date().toISOString() }); told++; }
     if (r.act_id) {
       const bid = await resolveBrandId(env, r.act_id);
@@ -1142,9 +1150,9 @@ export async function newClientTick(env) {
     const steps = safeJson(r.steps_json, {});
     if (steps.form_ping) continue;
     const team = safeJson(r.team_json, {});
-    const j = await slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { ...(await inThread(env, r.slack_internal)), channel: r.slack_internal, unfurl_links: false,
-      text: `*${r.name} sent their onboarding form.* Next: open Locus > Brand > ${r.name} > Research and press "Research this brand", then review the answers and the drafts before the strategy call${team.strategist ? ` (${team.strategist})` : ''}.${answersLink(r, 'research') ? `
-${answersLink(r, 'research')}` : ''}` });
+    /* 2026-11-09 (lane.js): the strategist's ask (Cole when none is picked). */
+    const j = await laneInternal(env, r, { who: await firstId(env, roleList(team.strategist)), ask: `Press "Research this brand" for ${r.name} in Locus, then review the answers and drafts before the strategy call`,
+      why: 'they sent their onboarding form', buttons: answersBtn(r, 'research') });
     if (j.ok) { await setStep(env, r.id, 'form_ping', { status: 'done', at: new Date().toISOString() }); told++; }
     /* The voice interview, where they will see it: their Slack channel (as Cole) once they are in,
        else email. Asana's "Help us find your voice" task already carries it and ticks itself on Finish. */

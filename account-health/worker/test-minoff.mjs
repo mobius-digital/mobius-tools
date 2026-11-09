@@ -171,11 +171,12 @@ await check('the tick: one message per brand with something due, buyer tagged, a
   assert.equal(posts.length, 1);
   const p = posts[0];
   assert.equal(p.channel, 'C_ALPHA');
-  assert.equal(p.text, '<@U_NOMA> 101 | Hook test: test minimum $20/day is due off (day 10, judged).\n104 | Price test: test minimum $15.50/day is due off (day 9, past 7 days).');
-  assert.equal(p.blocks.length, 3);
-  assert.equal(p.blocks[0].accessory.action_id, 'minoff_one_0'); assert.equal(p.blocks[0].accessory.text.text, 'Take it off');
-  assert.deepEqual(JSON.parse(p.blocks[1].accessory.value), { a: 'brand_alpha', d: '2026-10-15', s: '222' });
-  const all = p.blocks[2].elements[0];
+  assert.equal(p.blocks[0].text.text, '*MEDIA BUYING · Alpha Golf*\n<@U_NOMA>  Take 2 test minimums off', 'lane first, the buyer tagged');
+  assert.equal(p.text, 'MEDIA BUYING · Alpha Golf: Take 2 test minimums off\n101 | Hook test: test minimum $20/day is due off (day 10, judged).\n104 | Price test: test minimum $15.50/day is due off (day 9, past 7 days).');
+  assert.equal(p.blocks.length, 4);
+  assert.equal(p.blocks[1].accessory.action_id, 'minoff_one_0'); assert.equal(p.blocks[1].accessory.text.text, 'Take it off');
+  assert.deepEqual(JSON.parse(p.blocks[2].accessory.value), { a: 'brand_alpha', d: '2026-10-15', s: '222' });
+  const all = p.blocks[3].elements[0];
   assert.equal(all.action_id, 'minoff_all'); assert.equal(all.text.text, 'Take all 2 off'); assert.ok(all.confirm, 'Take all asks first');
   assert.ok(!/—/.test(JSON.stringify(p)), 'no em dash');
   const saved = JSON.parse(getSetting('minOff:brand_alpha:2026-10-15'));
@@ -195,7 +196,7 @@ await check('the tick: a single due set gets no Take all button; past the wait i
   afford = true;
   r = await minOffTick(env, d);
   assert.deepEqual(r.posted, ['Alpha Golf (1)']);
-  assert.equal(posts[0].blocks.length, 1, 'one line, no Take all');
+  assert.equal(posts[0].blocks.length, 2, 'the lane head and one line, no Take all');
 });
 await check('the tick: switched off with settings.minOffPost = off; a failing brand retries once, then is recorded', async () => {
   setSetting('minOffPost', 'off');
@@ -228,9 +229,9 @@ await check('Take it off: locusWrite kind min_spend, min 0, as the Slack tapper;
   assert.deepEqual(writes[0].ctx, { who: 'Cole' });
   const m = replaced[0];
   assert.equal(m.replace_original, true);
-  assert.equal(m.blocks[0].text.text, '<@U_NOMA> ~101 | Hook test: test minimum $20/day~ Done by Cole, undo in Locus');
-  assert.equal(m.blocks[0].accessory, undefined, 'no button on a done line');
-  assert.equal(m.blocks[3].elements[0].text.text, 'Take all 2 off');
+  assert.equal(m.blocks[1].text.text, '~101 | Hook test: test minimum $20/day~ Done by Cole, undo in Locus');
+  assert.equal(m.blocks[1].accessory, undefined, 'no button on a done line');
+  assert.equal(m.blocks[4].elements[0].text.text, 'Take all 2 off');
   assert.equal(JSON.parse(getSetting('minOff:brand_alpha:2026-10-15')).items[0].write, 'mw_111');
 });
 await check('Take all N off: every open line, already-off counts as done, a refusal keeps its button with the reason; a second tap says already done', async () => {
@@ -240,14 +241,14 @@ await check('Take all N off: every open line, already-off counts as done, a refu
   await run(tapPayload('minoff_all', { a: 'brand_alpha', d: '2026-10-15' }));
   assert.deepEqual(writes.map(w => w.b.object), ['222', '333'], 'the done one is not written again');
   const m = replaced[0];
-  assert.match(m.blocks[1].text.text, /^~104 \| Price test: test minimum \$15\/day~ Already off in Meta \(checked by Cole\)$/);
-  assert.match(m.blocks[2].text.text, /due off \(day 12, judged\)\. _Didn't work: Meta: \(#100\) Permission denied_$/);
-  assert.equal(m.blocks[2].accessory.action_id, 'minoff_one_2', 'the failed line keeps its button');
-  assert.equal(m.blocks.length, 3, 'one open line left: no Take all');
+  assert.match(m.blocks[2].text.text, /^~104 \| Price test: test minimum \$15\/day~ Already off in Meta \(checked by Cole\)$/);
+  assert.match(m.blocks[3].text.text, /due off \(day 12, judged\)\. _Didn't work: Meta: \(#100\) Permission denied_$/);
+  assert.equal(m.blocks[3].accessory.action_id, 'minoff_one_2', 'the failed line keeps its button');
+  assert.equal(m.blocks.length, 4, 'the lane head and three lines, one open: no Take all');
   delete WRITE['333'];
   replaced = [];
   await run(tapPayload('minoff_one_2', { a: 'brand_alpha', d: '2026-10-15', s: '333' }));
-  assert.match(replaced[0].blocks[2].text.text, /^~106 \| Box test.*Done by Cole/);
+  assert.match(replaced[0].blocks[3].text.text, /^~106 \| Box test.*Done by Cole/);
   replaced = []; writes = [];
   await run(tapPayload('minoff_all', { a: 'brand_alpha', d: '2026-10-15' }));
   assert.equal(writes.length, 0); assert.equal(replaced[0].text, 'Already done.'); assert.equal(replaced[0].replace_original, false);
@@ -260,7 +261,8 @@ await check('an old message (no state) says so and writes nothing', async () => 
 await check('the line and message helpers', async () => {
   assert.equal(minOffLine({ name: 'A <b>', min: 7, day: 8, why: 'past 7 days' }), 'A &lt;b&gt;: test minimum $7/day is due off (day 8, past 7 days).');
   const m = minOffMessage({ act: 'x', date: 'y', items: [{ id: '1', name: 'A', min: 5, day: 8, why: 'judged', done: 'Ravo' }] });
-  assert.equal(m.text, '~A: test minimum $5/day~ Done by Ravo, undo in Locus'); assert.equal(m.blocks.length, 1);
+  assert.equal(m.text.split('\n')[1], '~A: test minimum $5/day~ Done by Ravo, undo in Locus'); assert.equal(m.blocks.length, 2);
+  assert.equal(m.blocks[0].text.text, '*MEDIA BUYING · Agency*\n<@U06C37MDWD7>  All 1 test minimum is off', 'no brand = Agency, no buyer = Cole');
 });
 
 console.log(`\n${n} passed, ${bad} failed`);
