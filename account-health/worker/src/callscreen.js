@@ -47,11 +47,14 @@ import { listBoard, setField, moveCard } from './production.js';
 import { addComment, ensureWork } from './prodwork.js';
 import { launchedRows } from './buyerlist.js';
 import { resolveBrandId } from './brands.js';
+import { callWinners, callClipUrl, postCallAsk } from './trybe.js';
+import { luckyThisWeek } from './lucky.js';
 
 const HAIKU = 'claude-haiku-5-5';
 const SONNET = 'claude-sonnet-5-5';
 const ATTR = 'lastPlatformClick';
-const KINDS = ['monday', 'client', 'kickoff'];
+const KINDS = ['monday', 'client', 'kickoff', 'creator'];
+const LUCKY = 'brand_lucky_golf';
 
 const safe = (s, d) => { try { return s == null ? d : JSON.parse(s); } catch { return d; } };
 const now = () => new Date().toISOString();
@@ -94,7 +97,7 @@ async function model(env, d, { model: m = HAIKU, system, user, schema, max = 150
 }
 
 /* ---------- the call row ---------- */
-function callId(kind, act, date) { return kind === 'client' ? `client:${act}:${date}` : `${kind}:${date}`; }
+function callId(kind, act, date) { return kind === 'client' || kind === 'creator' ? `${kind}:${act}:${date}` : `${kind}:${date}`; }
 async function loadCall(env, id) {
   const r = await env.DB.prepare(`SELECT * FROM p_call WHERE id = ?1`).bind(id).first();
   return r ? { ...r, state: safe(r.state_json, {}) || {}, result: safe(r.result_json, null), state_json: undefined, result_json: undefined } : null;
@@ -288,6 +291,48 @@ async function clientData(env, d, act, who) {
   };
 }
 
+/* ---------- creator (2026-11-09) ----------
+   The Monday creator call on Discord, one brand at a time (Grunk 4:30, Dartee 5:00, Ice & Gold 5:30, Party Patch 6:00,
+   Lucky on its Stage). Cole: "Here's what you go over. Here's what you do." Everything shown comes from what Locus
+   already has: the brand's week on its creator hub (p_amb_brand.week_json: the deal, the call time, the videos to film,
+   what is selling), this week's winning creator videos (trybe.js callWinners, Triple Whale, last 7 days), and for Lucky
+   the app's own "this week" feed. Typed on the call: the news, what to skip, questions, and the one ask with its date. */
+async function creatorBrands(env) {
+  const rows = ((await env.DB.prepare(`SELECT b.act_id, b.display_name, b.week_json FROM p_amb_brand b WHERE b.act_id IN (SELECT act_id FROM p_br_doc WHERE line_id = '' AND key = 'discord' AND act_id != 'agency')`).all().catch(() => ({ results: [] }))).results) || [];
+  const out = rows.map(r => ({ act_id: r.act_id, name: r.display_name || r.act_id, when: (safe(r.week_json, {}) || {}).call?.when || '' }));
+  if (!out.some(r => r.act_id === LUCKY)) out.push({ act_id: LUCKY, name: 'Lucky Golf', when: 'Mondays on the Lucky Clubhouse Stage' });
+  /* Call order on Monday: the hub's call time when it has one ("Mondays at 4:30 pm"), Lucky last. */
+  const mins = w => { const m = /(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i.exec(w || ''); if (!m) return 9999; let h = +m[1] % 12; if (!m[3] || /pm/i.test(m[3])) h += 12; return h * 60 + (+m[2] || 0); };
+  return out.sort((a, b) => (a.act_id === LUCKY) - (b.act_id === LUCKY) || mins(a.when) - mins(b.when) || a.name.localeCompare(b.name));
+}
+async function creatorData(env, d, act, who) {
+  const today = d.centralDate ? d.centralDate() : centralToday();
+  const brands = await creatorBrands(env);
+  if (!act) return { kind: 'creator', today, pick: brands };
+  const b = brands.find(x => x.act_id === act);
+  if (!b) throw err(400, 'This brand has no creator program in Locus.');
+  const call = await openCall(env, 'creator', act, today, who, `${b.name} creator call ${today}`);
+  const row = await env.DB.prepare(`SELECT slug, display_name, week_json FROM p_amb_brand WHERE act_id = ?1`).bind(act).first().catch(() => null);
+  const week = safe(row?.week_json, null) || {};
+  const out = {
+    kind: 'creator', today, act_id: act, name: b.name, when: b.when, lucky: act === LUCKY,
+    hub: row?.slug ? `https://locus.go-mobius-digital.com/angles/${row.slug}/` : null,
+    week: { title: week.title || '', offer: week.offer || null, call: week.call || null, daily: week.daily || [], selling: week.selling || [], same: week.same || null },
+    winners: [], ideas: [], campaigns: [], warn: [], call, team: ROSTER.map(r => r.name),
+  };
+  if (act === LUCKY) {
+    try {
+      const t = await luckyThisWeek(env);
+      out.ideas = (t.ideas || []).filter(x => x.hot).slice(0, 8).map(x => ({ title: x.title, opener: x.opener || '', format: x.format || '', club: x.club || '', thumb: x.thumbnail || null, link: x.link || null, campaign: x.campaign || '' }));
+      out.campaigns = (t.campaigns || []).map(c => ({ name: c.name, film_by: c.film_by || '' }));
+      out.hub = t.page || 'https://creators.luckygolf.com/shoot';
+    } catch (e) { out.warn.push(`The Lucky app did not answer: ${e.message}`); }
+  } else {
+    out.winners = await callWinners(env, act, today).catch(e => { out.warn.push(`Winners did not load: ${e.message}`); return []; });
+  }
+  return out;
+}
+
 /* ---------- kickoff ---------- */
 async function brandDrive(env, act) {
   const c = await env.DB.prepare(`SELECT external_id FROM connections WHERE brand_id = ?1 AND kind = 'drive' LIMIT 1`).bind(act).first().catch(() => null);
@@ -377,6 +422,21 @@ export async function finishCall(env, d, body, who) {
   if (c.kind === 'kickoff') {
     await env.DB.prepare(`UPDATE p_call SET status = 'finished', finished_by = ?2, finished_at = ?3, result_json = ?4 WHERE id = ?1`).bind(c.id, who, now(), JSON.stringify({ briefs: Object.keys(c.state?.done || {}).length })).run();
     return { ok: true, kind: 'kickoff', briefs: Object.keys(c.state?.done || {}).length };
+  }
+  if (c.kind === 'creator') {
+    /* The creator call makes no tasks: it closes with the one ask, posted in the brand's #this-week only when ticked
+       (nothing creator-facing goes out unless the person on the call says so; Lucky posts from its own app). */
+    const st = c.state || {};
+    const ask = noDash(keep(st.ask, 600));
+    const by = ymdOk(st.ask_due) ? st.ask_due : '';
+    const line = ask ? `${ask}${by ? ` By ${new Date(by + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'UTC' })}.` : ''}` : '';
+    let posted = null;
+    if (body.post && line && c.act_id !== LUCKY && !(c.result && c.result.posted && c.result.posted.ok)) {
+      try { await postCallAsk(env, c.act_id, line); posted = { ok: true }; } catch (e) { posted = { ok: false, why: e.message }; }
+    }
+    const result = { ask: line, posted: posted || (c.result && c.result.posted) || null };
+    await env.DB.prepare(`UPDATE p_call SET status = 'finished', finished_by = ?2, finished_at = ?3, result_json = ?4 WHERE id = ?1`).bind(c.id, who, now(), JSON.stringify(result)).run();
+    return { ok: true, kind: 'creator', result };
   }
   const brands = await d.listBrands(env);
   const nameOf = id => brands.find(b => b.act_id === id)?.name || id;
@@ -488,7 +548,7 @@ async function appendBriefNote(env, brandId, lines) {
 export async function typedOnCall(env, date) {
   try {
     await ensureCalls(env);
-    const rows = (await env.DB.prepare(`SELECT kind, act_id, meeting_id FROM p_call WHERE date = ?1 AND status = 'finished' AND kind != 'kickoff'`).bind(date).all()).results || [];
+    const rows = (await env.DB.prepare(`SELECT kind, act_id, meeting_id FROM p_call WHERE date = ?1 AND status = 'finished' AND kind IN ('monday', 'client')`).bind(date).all()).results || [];
     const out = [];
     for (const r of rows) {
       const m = await env.DB.prepare(`SELECT notes_json FROM p_meeting WHERE id = ?1`).bind(r.meeting_id).first().catch(() => null);
@@ -530,7 +590,14 @@ export async function handleCalls(request, env, url, path, json, d) {
       const act = url.searchParams.get('act') || '';
       if (kind === 'monday') return json(await mondayData(env, d, who));
       if (kind === 'client') return json(await clientData(env, d, act, who));
+      if (kind === 'creator') return json(await creatorData(env, d, act && act !== 'all' ? act : '', who));
       return json(await kickoffData(env, d, act && act !== 'all' ? act : 'all', who, url.origin));
+    }
+    /* A creator video for the creator call, asked for on click (Trybe's file links are not kept). */
+    if (path === '/api/calls/clip' && request.method === 'GET') {
+      const act = url.searchParams.get('act') || '', sub = url.searchParams.get('sub') || '';
+      if (!act || !sub) return json({ error: 'Need act and sub.' }, 400);
+      return json({ url: await callClipUrl(env, d, act, sub) });
     }
     if (path === '/api/calls/google' && request.method === 'GET') {
       const act = url.searchParams.get('act') || '', from = url.searchParams.get('from'), to = url.searchParams.get('to');
