@@ -211,6 +211,39 @@
       .cs .idea .th{aspect-ratio:4/5;background:var(--line) center/cover no-repeat}
       .cs .idea b{padding:8px 10px 0;font-size:14px;color:var(--ink)}
       .cs .idea span{padding:2px 10px 10px;font-size:13px;color:var(--ink-2)}
+      /* calls v2 (2026-11-09) */
+      .cs .v2pick{display:none!important}
+      .cs .v2gal-client .v2pill,.cs .v2gal-client .v2one{display:none!important}
+      .cs .cs-chans{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
+      .cs .cs-chan{border:1px solid var(--line);border-radius:var(--r-lg);background:var(--bg);padding:12px 14px;text-align:left;font:inherit;color:var(--ink);cursor:pointer;display:flex;flex-direction:column;gap:4px;font-variant-numeric:tabular-nums;transition:border-color var(--t-fast) var(--ease)}
+      .cs .cs-chan:hover{border-color:var(--line-strong)}
+      .cs .cs-chan.on{border-color:var(--brand);box-shadow:inset 0 0 0 1px var(--brand)}
+      .cs .cs-chan b{font-size:14px;font-weight:650}
+      .cs .cs-chan span{display:flex;justify-content:space-between;gap:8px;font-size:13px;font-weight:600}
+      .cs .cs-chan span i{font-style:normal;font-weight:500;color:var(--muted)}
+      .cs .cs-chan small{font-size:11px;margin-left:4px;font-weight:600}.cs .cs-chan small.up{color:var(--good)}.cs .cs-chan small.down{color:var(--bad)}
+      .cs .cs-camp tr.cmp{cursor:pointer}.cs .cs-camp tr.cmp td:first-child{font-weight:650}
+      .cs .cs-camp tr.set td{background:var(--surface-2)}.cs .cs-camp tr.set td:first-child{padding-left:18px;font-weight:550}
+      .cs .cs-camp tr.adr{cursor:pointer}.cs .cs-camp tr.adr td:first-child{padding-left:34px;font-weight:500;color:var(--ink-2)}
+      .cs .cs-camp tr.cmp:hover td,.cs .cs-camp tr.adr:hover td{background:var(--surface-2)}
+      .cs .cs-camp td:first-child{max-width:420px;overflow-wrap:anywhere}
+      .cs .muted{color:var(--muted)}
+      .cs .cs-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;min-width:0}
+      .cs .cs-box{border:1px solid var(--line);border-radius:var(--r-lg);background:var(--bg);padding:12px 14px;display:flex;flex-direction:column;gap:10px;min-width:0}
+      .cs .cs-meter{display:flex;flex-direction:column;gap:5px;font-size:13px}
+      .cs .cs-meter small{display:block;color:var(--muted);font-size:12px}
+      .cs .cs-meter .bar{height:8px;border-radius:4px;background:var(--surface-2);overflow:hidden}.cs .cs-meter .bar i{display:block;height:100%}
+      .cs .row.cs-plan{grid-template-columns:minmax(0,1fr) auto auto auto 28px}
+      .cs .cs-vote{display:inline-flex;gap:4px}
+      .cs .cs-vote button{height:28px;min-width:34px;border:1px solid var(--line-strong);border-radius:var(--r-sm);background:var(--surface);cursor:pointer;font-size:14px;filter:grayscale(1);opacity:.7}
+      .cs .cs-vote button.y{background:var(--good-bg);border-color:var(--good);filter:none;opacity:1}
+      .cs .cs-vote button.n{background:var(--bad-bg);border-color:var(--bad);filter:none;opacity:1}
+      .cs .row.cs-money{grid-template-columns:minmax(0,1fr) auto auto 0}
+      .cs .cs-board{display:grid;grid-template-columns:repeat(4,minmax(170px,1fr));gap:10px;overflow-x:auto}
+      .cs .cs-board .col{background:var(--surface-2);border-radius:var(--r-lg);padding:8px;display:flex;flex-direction:column;gap:6px;min-width:170px}
+      .cs .cs-board h4{margin:2px 4px 2px;font-size:12px;font-weight:600;color:var(--muted);display:flex;justify-content:space-between;text-transform:uppercase;letter-spacing:.04em}
+      .cs .cs-board .mini{background:var(--surface)}
+      .cs .cs-board .mini span{white-space:normal}
       .cs-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);max-width:min(560px,calc(100vw - 32px));background:var(--ink);color:var(--surface);padding:10px 16px;border-radius:var(--r-lg);font-size:13px;z-index:9999;box-shadow:0 8px 30px rgba(0,0,0,.25)}
       .cs-pop{position:fixed;z-index:9600;min-width:220px;max-width:320px;max-height:420px;overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:6px;box-shadow:var(--sh-pop,0 12px 32px -10px rgba(15,15,25,.3));font-family:inherit;color:var(--ink);animation:lx-pop var(--t-fast) var(--ease) both}
       .cs-pop .h{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:7px 9px 5px}
@@ -485,7 +518,7 @@
     const s = brandState(b.act_id), r = b.read, strat = strategistOf(b), t = today();
     const making = b.making || [], posts = b.posts || [], who = strat || 'the strategist';
     const firstPost = posts[0];
-    const boardLine = c => `${esc({ brief: 'Brief written, not started', making: 'Being made', review: 'Waiting for review' }[c.board] || c.board)}${c.owner ? ' · ' + esc(c.owner) : ' · nobody on it'}${c.due ? ` · <span class="${c.due < t ? 'late' : ''}">${c.due < t ? 'was due ' : 'due '}${short(c.due)}</span>` : ''}`;
+    const boardLine = c => `${esc({ brief: 'Brief written, not started', making: 'Being made', review: 'Waiting for review', ready: 'Ready to launch' }[c.board] || c.board)}${c.owner ? ' · ' + esc(c.owner) : ' · nobody on it'}${c.due ? ` · <span class="${c.due < t ? 'late' : ''}">${c.due < t ? 'was due ' : 'due '}${short(c.due)}</span>` : ''}`;
     return `${part(1, `How last week went`)}
       ${sec(`${esc(b.name)}: last week's numbers`, r ? `From the weekly report for ${short(r.period_start)} to ${short(r.period_end)}. Sales, spend, MER and orders are Triple Whale, the whole store, every channel. Each tile compares with the week before.` : 'From the weekly report.', readBody(r, b.act_id))}
       ${sec('Did last week\'s to-dos get done?', 'Every open to-do for this brand in Locus Tasks that was due by today. Tick it when it is done (Asana gets ticked too).', todoList(b.open || [], t, 'Nothing was due. Nothing to check.'))}
@@ -508,6 +541,185 @@
       ${sec('What to tell the client this week', 'Goes word for word under "This week" in their next weekly report. One line per thing. Leave it empty and Locus writes it from the plan.', `<textarea data-client="${esc(b.act_id)}" placeholder="Type it the way the client should read it">${esc(s.client || '')}</textarea>`)}
       ${sec('Notes for the team', 'Anything else decided. Goes in this brand\'s internal Slack recap after Finish. The client never sees it.', `<textarea data-read="${esc(b.act_id)}" placeholder="Type notes here">${esc(s.read || '')}</textarea>`)}`;
   }
+  /* ======================= MONDAY, LAYOUT 2 (2026-11-09, the Nov 9 call) =======================
+     Cole on the call: "here's the overview, then a channel breakdown, click one and see its campaigns, the ads that
+     worked with the ad set they're in, click one and see every metric, then what we're focused on this week, Trybe,
+     what's being made, what we need from the client, what we send them, tasks." Built in that order, with the gaps the
+     analysis found (ads or site, offer and dates, drops coming, money moves). Every ad is the Ads page's own card
+     (V2.adSet) and opens the Ads page's side sheet in place; nothing on this page opens another page. A preview:
+     ?layout=2 (or the "New layout" button) turns it on for this computer; Finish knows it from STATE.layout. */
+  const LAYOUT_KEY = 'cs_layout';
+  const layout2 = () => { try { return localStorage.getItem(LAYOUT_KEY) === '2'; } catch { return false; } };
+  const BX = {};   // per brand: { ads, adsErr, adf, ch, camp, google, links, cal, rv }
+  const bx = act => (BX[act] = BX[act] || { adf: 'best', ch: '', camp: '' });
+  const fx = n => n == null || !isFinite(n) ? '–' : (n * 100).toFixed(n < 0.1 ? 2 : 1) + '%';
+  async function loadBrand2(b) {
+    const X = bx(b.act_id), r = b.read;
+    if (!r || X.loading) return; X.loading = true;
+    const from = r.period_start, to = r.period_end, t = today(), to21 = addDays(t, 21);
+    const jobs = [
+      window.V2 && V2.adSet ? V2.adSet(b.act_id, from, to, H, { label: `${short(from)} to ${short(to)}` }).then(m => { X.ads = m; }).catch(e => { X.adsErr = e.message; }) : Promise.resolve(),
+      H.apiAH(`/api/ads?act=${encodeURIComponent(b.act_id)}&from=${from}&to=${to}&sort=spend&limit=60&attr=lastPlatformClick&mult=0`).then(d => { X.links = (d && d.ads) || []; }).catch(() => { X.links = []; }),
+      H.apiAH(`/api/calendar?act=${encodeURIComponent(b.act_id)}&from=${t}&to=${to21}&lite=1`).then(d => { X.cal = ((d && d.items) || []).filter(e => e.act === b.act_id && (e.start || '') >= t && (e.start || '') <= to21); }).catch(() => { X.cal = []; }),
+      b.creators ? H.apiAH(`/api/trybe/review?act=${encodeURIComponent(b.act_id)}`).then(d => { X.rv = d && !d.error ? d.items || [] : null; }).catch(() => { X.rv = null; }) : Promise.resolve(),
+    ];
+    await Promise.all(jobs); X.loading = false; X.loaded = true;
+    const s = steps()[POS]; if (KIND === 'monday' && s && s.id === b.act_id) paintMain();
+  }
+  const isLeadRow = (M, a) => M && M.isLead ? M.isLead(a) : a.obj === 'leads';
+  function adsPart(b) {
+    const X = bx(b.act_id), M = X.ads, r = b.read;
+    if (!r) return empty('No weekly report for this brand yet, so there is no week to show ads for.');
+    if (X.adsErr) return `<p class="cs-empty" style="color:var(--bad)">The ads did not load: ${esc(X.adsErr)}</p>`;
+    if (!M) return empty('Loading the ads…');
+    const rows = M.ads || [], sales = rows.filter(a => !isLeadRow(M, a)), leads = rows.filter(a => isLeadRow(M, a));
+    const bar = M.bar || 0;
+    const lists = {
+      best: sales.filter(a => a.spend >= bar && (a.purchases || 0) >= 2).sort((p, q) => (q.roas || 0) - (p.roas || 0)).slice(0, 8),
+      worst: sales.filter(a => a.spend >= bar).sort((p, q) => (q.cpa == null ? 1e9 : q.cpa) - (p.cpa == null ? 1e9 : p.cpa)).slice(0, 8),
+      all: rows.slice().sort((p, q) => q.spend - p.spend).slice(0, 24),
+      leads: leads.slice().sort((p, q) => q.spend - p.spend).slice(0, 12),
+    };
+    const chips = [['best', 'Best'], ['worst', 'Worst'], ['all', `All by spend (${rows.length})`], ...(leads.length ? [['leads', `Lead ads (${leads.length})`]] : [])];
+    const f = lists[X.adf] ? X.adf : 'best', list = lists[f];
+    const say = { best: `Ads past the ${money(bar)} judging bar with 2+ sales, highest ROAS first.`, worst: `Ads past the ${money(bar)} judging bar, highest cost per sale first.`, all: 'Every ad that spent this week, biggest first.', leads: 'Lead ads, judged on cost per lead.' }[f];
+    return `<div class="seg" role="group" aria-label="Which ads">${chips.map(([k, l]) => `<button type="button" class="${k === f ? 'on' : ''}" data-adf="${k}" data-act="${esc(b.act_id)}">${esc(l)}</button>`).join('')}</div>
+      <p class="cs-sub">${say} The same cards and calls as Ads > Meta > Ads. Tap one for every number and the rest of its ad set.</p>
+      ${list.length ? M.cards(list) : empty('No ads fit this one.')}`;
+  }
+  function chanPart(b) {
+    const X = bx(b.act_id), r = b.read; if (!r) return '';
+    const rows = (r.channels || []).filter(c => c.cur && (c.cur.spend || c.cur.revenue));
+    if (!rows.length) return empty('No channel numbers in the report.');
+    const d = (a, p, lower) => { const v = pct(a, p); return v == null ? '' : `<small class="${(lower ? v <= 0 : v >= 0) ? 'up' : 'down'}">${v > 0 ? '+' : ''}${v}%</small>`; };
+    const cards = rows.map(c => `<button type="button" class="cs-chan${X.ch === c.id ? ' on' : ''}" data-ch="${esc(c.id)}" data-act="${esc(b.act_id)}" aria-expanded="${X.ch === c.id}">
+        <b>${esc(CHAN[c.id] || c.label)}</b>
+        <span><i>Spent</i>${c.cur.spend != null ? money(c.cur.spend) : '–'}${c.cur.spend != null ? d(c.cur.spend, c.prev && c.prev.spend, true) : ''}</span>
+        <span><i>Sales</i>${money(c.cur.revenue)}${d(c.cur.revenue, c.prev && c.prev.revenue)}</span>
+        <span><i>ROAS</i>${c.cur.roas != null ? x2(c.cur.roas) : '–'}</span></button>`).join('');
+    return `<p class="cs-sub">Triple Whale, last click. Tap a channel to open it here.</p><div class="cs-chans">${cards}</div>${chanDetail(b)}`;
+  }
+  function chanDetail(b) {
+    const X = bx(b.act_id); if (!X.ch) return '';
+    if (X.ch === 'meta') {
+      const M = X.ads; if (!M) return empty('Loading the campaigns…');
+      const by = new Map();
+      for (const a of M.ads || []) { const k = a.campaign || 'No campaign'; const C = by.get(k) || { name: k, spend: 0, rev: 0, p: 0, imp: 0, clk: 0, sets: new Map() }; C.spend += a.spend || 0; C.rev += a.revenue || 0; C.p += a.purchases || 0; C.imp += a.impressions || 0; C.clk += a.clicks || 0;
+        const sk = (a.adset && a.adset.name) || 'No ad set'; const S = C.sets.get(sk) || { name: sk, spend: 0, rev: 0, p: 0, ads: [] }; S.spend += a.spend || 0; S.rev += a.revenue || 0; S.p += a.purchases || 0; S.ads.push(a); C.sets.set(sk, S); by.set(k, C); }
+      const cs = [...by.values()].sort((p, q) => q.spend - p.spend);
+      const row = (cls, name, o, attrs = '') => `<tr class="${cls}" ${attrs}><td>${name}</td><td>${money(o.spend)}</td><td>${o.p != null ? Math.round(o.p) : '–'}</td><td>${o.spend ? x2(o.rev / o.spend) : '–'}</td><td>${o.p ? money(o.spend / o.p) : '–'}</td><td>${o.ctr != null ? fx(o.ctr) : ''}</td></tr>`;
+      return `<div class="cs-tw"><table class="cs-tbl cs-camp"><thead><tr><th>Meta campaign, ad set, ad</th><th>Spent</th><th>Sales</th><th>ROAS</th><th>Cost per sale</th><th>CTR</th></tr></thead><tbody>
+        ${cs.map(c => { const open = X.camp === c.name; return row('cmp', `${open ? '▾' : '▸'} ${esc(c.name)}`, { ...c, ctr: c.imp ? c.clk / c.imp : null }, `data-camp="${esc(c.name)}" data-act="${esc(b.act_id)}"`)
+          + (open ? [...c.sets.values()].sort((p, q) => q.spend - p.spend).map(s => row('set', `${esc(s.name)} <small class="muted">${plural(s.ads.length, 'ad')}</small>`, s)
+            + s.ads.sort((p, q) => q.spend - p.spend).map(a => row('adr', esc(a.name), { spend: a.spend, rev: a.revenue, p: a.purchases, ctr: a.ctr }, `data-adrow="${esc(a.id)}" data-act="${esc(b.act_id)}"`)).join('')).join('') : ''); }).join('')}
+        </tbody></table></div><p class="cs-sub">Sales and ROAS are Triple Whale (last click); spend and CTR are Meta. Tap an ad for its sheet.</p>`;
+    }
+    if (X.ch === 'google') {
+      const G = X.google; if (!G) { loadGoogle(b); return empty('Loading Google by campaign type…'); }
+      if (G.error) return `<p class="cs-empty">${esc(G.error)}</p>`;
+      return (G.rows || []).length ? `<div class="cs-tw"><table class="cs-tbl"><thead><tr><th>Google, by campaign type</th><th>Spent</th><th>Campaigns</th></tr></thead><tbody>${G.rows.map(x => `<tr><td>${esc(x.label)}</td><td>${money(x.spend)}</td><td>${x.campaigns}</td></tr>`).join('')}</tbody></table></div><p class="cs-sub">Google Ads' own spend. Radhesh's read is in his Slack post.</p>` : empty('No Google spend by campaign this week.');
+    }
+    return `<p class="cs-empty">No breakdown for ${esc(CHAN[X.ch] || X.ch)} on the call yet.</p>`;
+  }
+  async function loadGoogle(b) {
+    const X = bx(b.act_id), r = b.read; if (X.gLoading) return; X.gLoading = true;
+    try { X.google = await H.apiAH(`/api/calls/google?act=${encodeURIComponent(b.act_id)}&from=${r.period_start}&to=${r.period_end}`); } catch (e) { X.google = { error: e.message }; }
+    X.gLoading = false; paintMain();
+  }
+  function diagPart(b) {
+    const X = bx(b.act_id), M = X.ads, s = brandState(b.act_id), v = s.diag || {};
+    const sales = M ? (M.ads || []).filter(a => !isLeadRow(M, a)) : [];
+    const im = sales.reduce((n, a) => n + (a.impressions || 0), 0), cl = sales.reduce((n, a) => n + (a.clicks || 0), 0), pu = sales.reduce((n, a) => n + (a.purchases || 0), 0);
+    const ctr = im ? cl / im : null, cvr = cl ? pu / cl : null;
+    const meter = (l, v2, good, max, cap) => `<div class="cs-meter"><span><b>${l}</b> ${fx(v2)}<small>${cap}</small></span><div class="bar"><i style="width:${v2 == null ? 0 : Math.min(100, v2 / max * 100)}%;background:${v2 == null ? 'var(--line)' : v2 >= good ? 'var(--good)' : v2 >= good * 0.7 ? 'var(--warn)' : 'var(--bad)'}"></i></div></div>`;
+    return `<div class="cs-two"><div class="cs-box">${M ? meter('Ads: CTR', ctr, 0.012, 0.03, 'link clicks per view. About 1.2% or more is healthy.') + meter('Site: conversion', cvr, 0.02, 0.05, 'sales per link click. About 2% or more is healthy.') : empty('Loading…')}
+        <div class="cs-acts"><button type="button" class="cs-link" data-tab="website" data-act="${esc(b.act_id)}">Open Website and Clarity (new tab)</button></div></div>
+      <div class="cs-box"><p class="cs-sub" style="margin:0">${esc(strategistOf(b) || 'The strategist')}'s call: where is the problem?</p>
+        <div class="seg" role="group">${['Ads', 'Site', 'Both', 'Neither'].map(o => `<button type="button" class="${v.pick === o ? 'on' : ''}" data-diag="${o}" data-act="${esc(b.act_id)}">${o}</button>`).join('')}</div>
+        <textarea data-diagtxt="${esc(b.act_id)}" placeholder="Type one line: what is wrong and what changes this week">${esc(v.txt || '')}</textarea></div></div>`;
+  }
+  function planPart(b) {
+    const s = brandState(b.act_id), posts = b.posts || [], who = strategistOf(b) || 'The strategist';
+    const lines = (s.batches || []).map((x, i) => x.on === false ? '' : `<div class="row cs-plan" data-i="${i}">
+        <div class="t${x.text ? '' : ' empty'}" data-f="text" data-ph="Type a line of the plan">${esc(x.text)}</div>
+        ${ownerChip(x.owner, 'data-f="owner"')}${dueChip(x.due, 'data-f="due"')}
+        <span class="cs-vote"><button type="button" class="${x.vote === 'y' ? 'y' : ''}" data-vote="y" title="Yes, do it" aria-pressed="${x.vote === 'y'}">👍</button><button type="button" class="${x.vote === 'n' ? 'n' : ''}" data-vote="n" title="Not this week" aria-pressed="${x.vote === 'n'}">👎</button></span>
+        <button type="button" class="x" data-f="del" aria-label="Remove" title="Remove">×</button></div>`).join('');
+    const none = !posts.length ? `<p class="warnline">${esc(who)} has not posted a plan for ${esc(b.name)} in Slack yet. Talk it through and type the lines here.</p>` : '';
+    return `${none}${posts.length ? `<details class="cs-more"${(s.batches || []).length ? '' : ' open'}><summary>${esc(teamName(posts[0].by))}'s post in Slack, word for word</summary>${postsHtml(posts, b.act_id)}</details>` : ''}
+      <div class="rows" data-list="batches" data-act="${esc(b.act_id)}">${lines}</div>
+      <button type="button" class="add" data-add="batches" data-act="${esc(b.act_id)}">+ Add a line to the plan</button>
+      <p class="cs-sub">👍 = do it, 👎 = not this week. The strategist makes the briefs; Finish posts the approved plan in ${esc(b.name)}'s Slack recap.</p>`;
+  }
+  function offerPart(b) {
+    const X = bx(b.act_id), s = brandState(b.act_id);
+    const by = new Map(); for (const a of X.links || []) { if (!a.link) continue; const u = String(a.link).split(/[?#]/)[0]; const o = by.get(u) || { u, spend: 0, p: 0 }; o.spend += a.spend || 0; o.p += a.purchases || 0; by.set(u, o); }
+    const pages = [...by.values()].sort((p, q) => q.spend - p.spend).slice(0, 5);
+    const heads = [...new Set((X.links || []).filter(a => a.spend > 20).map(a => a.headline).filter(Boolean))].slice(0, 6);
+    return `<div class="cs-two"><div class="cs-box"><p class="cs-sub" style="margin:0">Where the ad money sent people</p>${X.links ? (pages.length ? `<ul class="chk">${pages.map(p => `<li><span class="tx"><a class="cs-link" href="${esc(p.u)}" target="_blank" rel="noopener">${esc(p.u.replace(/^https?:\/\/(www\.)?/, ''))}</a></span><span class="o">${money(p.spend)} · ${plural(Math.round(p.p), 'sale')}</span></li>`).join('')}</ul>` : empty('No links found.')) : empty('Loading…')}</div>
+      <div class="cs-box"><p class="cs-sub" style="margin:0">What the ads promise</p>${heads.length ? `<ul class="chk">${heads.map(h => `<li><span class="tx">“${esc(h)}”</span></li>`).join('')}</ul>` : empty(X.links ? 'No headlines.' : 'Loading…')}
+        <input type="text" data-offer="${esc(b.act_id)}" value="${esc(s.offer || '')}" placeholder="Type what the site says now and when it ends"></div></div>
+      <p class="cs-sub">Do the ads and the site say the same thing, with the same end date?</p>`;
+  }
+  function dropsPart(b) {
+    const X = bx(b.act_id); if (!X.cal) return empty('Loading the calendar…');
+    const who = strategistOf(b) || 'the strategist';
+    return X.cal.length ? `<ul class="chk">${X.cal.slice(0, 8).map(e => `<li><span class="tx"><b>${esc(e.name)}</b>${e.offer ? ` <span class="muted">· ${esc(e.offer)}</span>` : ''}</span><span class="o">${md(e.start)}${e.confirmed ? '' : ' · not confirmed'} · ${esc(who)}</span></li>`).join('')}</ul>` : empty('Nothing on the calendar in the next 3 weeks.');
+  }
+  function boardPart(b) {
+    const t = today(), cards = b.making || [];
+    const cols = [['brief', 'Brief'], ['making', 'Making'], ['review', 'Review'], ['ready', 'Ready to launch']];
+    return `<div class="cs-board">${cols.map(([k, l]) => { const cs = cards.filter(c => c.board === k); return `<div class="col"><h4>${l}<span>${cs.length}</span></h4>${cs.map(c => `<button type="button" class="mini" data-card="${esc(c.id || '')}" data-asana="${esc(c.asana_url || '')}"><b>#${esc(c.num)}</b><span>${esc(c.title)}</span><small>${esc(c.owner || 'Nobody')}${c.due ? ` · <span class="${c.due < t && k !== 'ready' ? 'late' : ''}">${short(c.due)}</span>` : ''}</small></button>`).join('') || '<p class="cs-empty" style="font-size:12px">None</p>'}</div>`; }).join('')}</div>
+      <p class="cs-sub">"Done" means Ready to launch: made, approved, waiting to load. Anything else is still being made.</p>`;
+  }
+  function trybePart(b) {
+    const X = bx(b.act_id), ws = b.winners || [];
+    const M = X.ads, rowOf = id => M && (M.ads || []).find(a => String(a.id) === String(id));
+    const winners = ws.length ? `<div class="ads">${ws.map(w => `<button type="button" class="ad" ${w.ad_id ? `data-adrow="${esc(w.ad_id)}" data-act="${esc(b.act_id)}"` : `data-clip2="${esc(w.sub_id || '')}" data-act="${esc(b.act_id)}"`}><div class="th" ${w.thumb ? `style="background-image:url('${esc(w.thumb)}')"` : ''}>${w.thumb ? '' : 'Video'}<span class="play">▶</span></div><div class="m"><span>${plural(w.orders, 'sale')}</span><span>${rowOf(w.ad_id) ? money(rowOf(w.ad_id).spend) : ''}</span></div><div class="n">${esc(w.creator)}</div><div class="s">${esc(w.product || w.angle || '')}</div></button>`).join('')}</div>` : empty('No creator video made a sale in the last 7 days.');
+    const rv = X.rv;
+    const wait = rv == null ? (X.loaded ? 'Trybe did not answer.' : 'Asking Trybe…') : `${plural(rv.length, 'video')} waiting on a decision in Trybe.`;
+    return `${winners}<div class="cs-acts" style="align-items:center"><span class="cs-sub" style="margin:0">${wait}</span><button type="button" class="btn" data-creatorcall="${esc(b.act_id)}">Open ${esc(b.name)}'s creator call (new tab)</button></div>`;
+  }
+  function moneyPart(b) {
+    const X = bx(b.act_id), M = X.ads, s = brandState(b.act_id); s.money = s.money || {};
+    if (!M) return empty('Loading the campaigns…');
+    const by = new Map(); for (const a of M.ads || []) { const k = a.campaign || 'No campaign'; const o = by.get(k) || { spend: 0, rev: 0, p: 0, lead: isLeadRow(M, a) }; o.spend += a.spend || 0; o.rev += a.revenue || 0; o.p += a.purchases || 0; by.set(k, o); }
+    const cs = [...by.entries()].sort((p, q) => q[1].spend - p[1].spend).slice(0, 8);
+    return `<div class="rows">${cs.map(([name, o]) => { const m = s.money[name] || {}; return `<div class="row cs-money"><div class="t"><b>${esc(name)}</b><br><small class="muted">${money(o.spend)} this week${o.lead ? ' · lead ads' : ` · ${o.spend ? x2(o.rev / o.spend) : '–'} ROAS`}</small></div>
+      <span class="seg">${['Raise', 'Hold', 'Cut'].map(k => `<button type="button" class="${m.m === k ? 'on' : ''}" data-money="${esc(name)}" data-m="${k}" data-act="${esc(b.act_id)}">${k}</button>`).join('')}</span>
+      <input type="text" inputmode="decimal" data-amt="${esc(name)}" data-act="${esc(b.act_id)}" value="${esc(m.amt || '')}" placeholder="$ a day" style="width:96px"><span></span></div>`; }).join('')}</div>
+      <p class="cs-sub">What we decided to do with each campaign's budget. Finish puts it in the Slack recap; the media buying call makes the change.</p>`;
+  }
+  function mondayBrand2(b) {
+    const s = brandState(b.act_id), r = b.read, t = today(), X = bx(b.act_id);
+    if (!X.loaded && !X.loading) loadBrand2(b);
+    const strat = strategistOf(b);
+    const list = (name, ph, add) => `<div class="rows" data-list="${name}" data-act="${esc(b.act_id)}">${rowsHtml(s[name] = s[name] || [], true).replace(/data-ph="[^"]*"/g, `data-ph="${esc(ph)}"`)}</div><button type="button" class="add" data-add="${name}" data-act="${esc(b.act_id)}">${add}</button>`;
+    return `${part(1, 'How last week went')}
+      ${sec(`${esc(b.name)}: last week`, r ? `${short(r.period_start)} to ${short(r.period_end)}, from the weekly report. Triple Whale, whole store, every channel, against the week before.` : 'From the weekly report.', r ? tilesHtml(r) : empty('No weekly report for this brand yet.'))}
+      ${sec('Channels', 'What each channel spent and what it brought in.', chanPart(b))}
+      ${sec('The ads', `Meta, ${r ? `${short(r.period_start)} to ${short(r.period_end)}` : 'last week'}.`, adsPart(b))}
+      ${sec('Did last week\'s to-dos get done?', 'Open to-dos for this brand in Locus Tasks, due by today. Tick one when it is done.', todoList(b.open || [], t, 'Nothing to check: nothing was saved from last week\'s call for this brand.'))}
+      ${sec('Ads problem or site problem?', 'From this week\'s sales ads (lead ads left out).', diagPart(b))}
+      ${part(2, 'This week')}
+      ${sec(strat ? `${esc(strat)}'s plan` : 'The plan', 'From the strategist\'s Slack post before the call, one line per batch.', planPart(b))}
+      ${sec('Offer and dates', 'From the ads that ran this week.', offerPart(b))}
+      ${sec('Coming up: next 3 weeks', 'Drops, sales and sends on the Locus calendar.', dropsPart(b))}
+      ${part(3, 'Being made')}
+      ${sec(`On the Production board${(b.making || []).length ? `: ${b.making.length}` : ''}`, 'Tap a card to open it here.', boardPart(b))}
+      ${b.creators ? sec('Trybe creators', 'Creator videos that sold in the last 7 days, and what is waiting on a decision.', trybePart(b)) : ''}
+      ${part(4, 'Typed on the call')}
+      ${sec('Money moves', 'Raise, hold or cut each campaign.', moneyPart(b))}
+      <div class="cs-two">
+        ${sec('Extra ideas', 'Anything someone thought of on the call. Goes in the Slack recap.', list('ideas', 'Type the idea', '+ Add an idea'))}
+        ${sec('Tasks', 'Who and when, then Enter. They go to Locus Tasks.', `<div class="rows" data-list="jobs" data-act="${esc(b.act_id)}">${rowsHtml(s.jobs || [])}</div><input type="text" data-quick="jobs" data-act="${esc(b.act_id)}" placeholder="Type a task and press Enter">`)}
+        ${sec('What we need from the client', `Shows on ${esc(b.name)}'s Requests page after Finish.`, `${(b.asks || []).length ? `<ul class="chk">${b.asks.map(a => `<li><span class="tx">${esc(a.title)}</span><span class="o">asked ${short(a.created_at)}</span></li>`).join('')}</ul>` : ''}<div class="rows" data-list="asks" data-act="${esc(b.act_id)}">${rowsHtml(s.asks || [], true)}</div><button type="button" class="add" data-add="asks" data-act="${esc(b.act_id)}">+ Add something we need</button>`)}
+        ${sec('What we send the client', 'Inspiration, a Google update, a page to approve. Goes in the Slack recap.', list('sends', 'Type what we send them', '+ Add something we send'))}
+      </div>
+      ${sec('What to tell the client this week', 'Goes word for word under "This week" in their next report. Leave it empty and Locus writes it from the approved plan.', `<textarea data-client="${esc(b.act_id)}" placeholder="Type it the way the client should read it">${esc(s.client || '')}</textarea>`)}
+      ${sec('Notes for the team', 'Anything else. Goes in the brand\'s internal Slack recap.', `<textarea data-read="${esc(b.act_id)}" placeholder="Type notes here">${esc(s.read || '')}</textarea>`)}`;
+  }
+
   function mondayOpen() {
     STATE.agency = STATE.agency || [];
     if (STATE.theme == null) STATE.theme = D.theme || '';
@@ -736,7 +948,7 @@
   function mainHtml() {
     const s = steps()[POS];
     if (!s) return sec('Nothing to show', '', empty(KIND === 'kickoff' ? 'No briefs waiting. Finish a Monday call or add one on Production.' : 'Nothing to show.'));
-    if (KIND === 'monday') return s.id === 'open' ? mondayOpen() : s.id === 'close' ? mondayClose() : mondayBrand(D.brands.find(b => b.act_id === s.id));
+    if (KIND === 'monday') return s.id === 'open' ? mondayOpen() : s.id === 'close' ? mondayClose() : (layout2() ? mondayBrand2 : mondayBrand)(D.brands.find(b => b.act_id === s.id));
     if (KIND === 'client') return clientStep(s.id);
     if (KIND === 'creator') return creatorStep(s.id);
     loadCard(s.id);
@@ -782,7 +994,7 @@
         <div id="csMain" style="display:flex;flex-direction:column;gap:16px">${mainHtml()}</div>
         <div class="cs-bar"><div class="r"><button type="button" class="btn" id="csPrev" ${POS === 0 ? 'disabled' : ''}>← Back</button><span class="where" id="csWhere">${whereHtml()}</span><span class="cs-saved" id="csSaved"></span><button type="button" class="btn pri" id="csNext" ${last ? 'data-finish' : ''}>${nextLabel()}</button></div><div class="cs-will" id="csWill">${willHtml()}</div></div>`}
     </div>`;
-    acts(`<button type="button" class="btn" id="csPresent">${document.body.classList.contains('cs-present') ? 'Exit (Esc)' : 'Present'}</button>`);
+    acts(`${KIND === 'monday' ? `<button type="button" class="btn" id="csLayout" title="The Nov 9 layout: channels, the Ads page's cards, plan votes, Trybe">${layout2() ? 'Old layout' : 'New layout (preview)'}</button>` : ''}<button type="button" class="btn" id="csPresent">${document.body.classList.contains('cs-present') ? 'Exit (Esc)' : 'Present'}</button>`);
     wire();
     if (!finished) { const s = steps()[POS]; startClock((s ? s.mins : 5) * 60); }
   }
@@ -859,7 +1071,7 @@
     const o = $('#csSteps [data-old]'); if (o) o.onclick = () => { const cur = steps()[POS]; SHOW_OLD = !SHOW_OLD; const i = cur ? steps().findIndex(s => s.id === cur.id) : 0; go(i >= 0 ? i : 0); };
   }
   function listOf(name, act) {
-    if (KIND === 'monday') { if (name === 'agency') return (STATE.agency = STATE.agency || []); const st = brandState(act); st.edited = true; return st[name]; }
+    if (KIND === 'monday') { if (name === 'agency') return (STATE.agency = STATE.agency || []); const st = brandState(act); st.edited = true; return (st[name] = st[name] || []); }
     return (STATE[name] = STATE[name] || []);
   }
   /* Anything that has to leave the call opens in a NEW TAB, so the call stays where it is (Cole, 2026-11-03). */
@@ -868,7 +1080,7 @@
   function wireMain() {
     const root = $('#csMain'); if (!root) return;
     $$('textarea', root).forEach(t => { grow(t); t.addEventListener('input', () => grow(t)); });
-    $$('[data-ad]', root).forEach(b => b.onclick = () => {
+    $$('[data-ad]:not(.g)', root).forEach(b => b.onclick = () => {
       const id = b.dataset.ad, act = b.dataset.act;
       if (window.V2 && window.V2.playAd) window.V2.playAd({ id, name: b.dataset.name, act, note: 'Plays here; the call stays where it is. "See its numbers on Ads" opens a new tab.' }, H, () => openInAds(act, id));
       else openInAds(act, id);
@@ -950,7 +1162,33 @@
         if (th) th.outerHTML = `<video class="vid" src="${esc(r.url)}" controls autoplay playsinline></video>`;
       } catch (e) { delete b.dataset.playing; if (th) th.textContent = 'Did not play'; toast(e.message); }
     });
+    wireLayout2(root);
     $$('[data-finish]', root).forEach(wireFinish);
+  }
+  function wireLayout2(root) {
+    const brandOf = act => (D.brands || []).find(b => b.act_id === act);
+    const repaint = () => { const y = window.scrollY; paintMain(); window.scrollTo(0, y); };
+    $$('[data-adf]', root).forEach(b => b.onclick = () => { bx(b.dataset.act).adf = b.dataset.adf; repaint(); });
+    $$('[data-ch]', root).forEach(b => b.onclick = () => { const X = bx(b.dataset.act); X.ch = X.ch === b.dataset.ch ? '' : b.dataset.ch; X.camp = ''; repaint(); });
+    $$('[data-camp]', root).forEach(tr => tr.onclick = () => { const X = bx(tr.dataset.act); X.camp = X.camp === tr.dataset.camp ? '' : tr.dataset.camp; repaint(); });
+    $$('[data-adrow]', root).forEach(el => el.onclick = () => {
+      const X = bx(el.dataset.act), M = X.ads, row = M && (M.ads || []).find(a => String(a.id) === String(el.dataset.adrow));
+      if (row) M.open(row); else if (window.V2 && V2.playAd) V2.playAd({ id: el.dataset.adrow, act: el.dataset.act, name: el.querySelector('.n') ? el.querySelector('.n').textContent : 'Ad' }, H);
+    });
+    $$('[data-clip2]', root).forEach(b => b.onclick = async () => {
+      const sub = b.dataset.clip2; if (!sub || b.dataset.playing) return; b.dataset.playing = '1'; const th = $('.th', b); if (th) th.textContent = 'Loading';
+      try { const r = await H.apiAH(`/api/calls/clip?act=${encodeURIComponent(b.dataset.act)}&sub=${encodeURIComponent(sub)}`); if (!r || !r.url) throw new Error((r && r.error) || 'No video.'); if (th) th.outerHTML = `<video class="vid" src="${esc(r.url)}" controls autoplay playsinline></video>`; }
+      catch (e) { delete b.dataset.playing; if (th) th.textContent = 'Did not play'; toast(e.message); }
+    });
+    $$('[data-diag]', root).forEach(b => b.onclick = () => { const st = brandState(b.dataset.act); st.diag = st.diag || {}; st.diag.pick = st.diag.pick === b.dataset.diag ? '' : b.dataset.diag; st.edited = true; save(); $$('[data-diag]', b.parentNode).forEach(x => x.classList.toggle('on', x.dataset.diag === st.diag.pick)); });
+    $$('[data-diagtxt]', root).forEach(t => t.oninput = () => { const st = brandState(t.dataset.diagtxt); st.diag = st.diag || {}; st.diag.txt = t.value; st.edited = true; grow(t); save(); });
+    $$('[data-offer]', root).forEach(t => t.oninput = () => { const st = brandState(t.dataset.offer); st.offer = t.value; st.edited = true; save(); });
+    $$('[data-money]', root).forEach(b => b.onclick = () => { const st = brandState(b.dataset.act); st.money = st.money || {}; const o = st.money[b.dataset.money] = st.money[b.dataset.money] || {}; o.m = o.m === b.dataset.m ? '' : b.dataset.m; st.edited = true; save(); $$('[data-money]', b.parentNode).forEach(x => x.classList.toggle('on', x.dataset.m === o.m)); });
+    $$('[data-amt]', root).forEach(t => t.oninput = () => { const st = brandState(t.dataset.act); st.money = st.money || {}; const o = st.money[t.dataset.amt] = st.money[t.dataset.amt] || {}; o.amt = t.value; st.edited = true; save(); });
+    $$('.cs-plan [data-vote]', root).forEach(b => b.onclick = () => { const row = b.closest('.row'), list = row.closest('[data-list]'), arr = listOf('batches', list.dataset.act), x = arr[+row.dataset.i]; if (!x) return; x.vote = x.vote === b.dataset.vote ? '' : b.dataset.vote; save(); $$('[data-vote]', row).forEach(v => { const on = x.vote === v.dataset.vote; v.className = on ? v.dataset.vote : ''; v.setAttribute('aria-pressed', String(on)); }); });
+    $$('[data-creatorcall]', root).forEach(b => b.onclick = () => window.open(`${location.pathname}?open=calls&call=creator&act=${encodeURIComponent(b.dataset.creatorcall)}`, '_blank', 'noopener'));
+    const s = steps()[POS], b = KIND === 'monday' && s ? brandOf(s.id) : null;
+    if (b && bx(b.act_id).ads && bx(b.act_id).ads.wire) bx(b.act_id).ads.wire(root);
   }
   function wireFinish(b) {
     b.onclick = async () => {
@@ -983,6 +1221,7 @@
       } catch (e) { b.disabled = false; toast(e.message); }
     });
     const pres = $('#csPresent'); if (pres) pres.onclick = () => present(!document.body.classList.contains('cs-present'));
+    const lay = $('#csLayout'); if (lay) lay.onclick = () => { try { localStorage.setItem(LAYOUT_KEY, layout2() ? '1' : '2'); } catch {} STATE.layout = layout2() ? 2 : 1; save(); paint(); };
     const n = $('#csNext'); if (n) { if (n.hasAttribute('data-finish')) wireFinish(n); else n.onclick = () => go(POS + 1); }
     const p = $('#csPrev'); if (p) p.onclick = () => go(POS - 1);
     wireSteps(); wireMain();
@@ -1018,6 +1257,8 @@
       ]);
       if (d.error) throw new Error(d.error);
       D = d; STATE = (d.call && d.call.state) || {}; SEV = {};
+      try { const q = new URLSearchParams(location.search).get('layout'); if (q === '2' || q === '1') localStorage.setItem(LAYOUT_KEY, q); } catch {}
+      if (KIND === 'monday' && STATE.layout !== (layout2() ? 2 : 1)) { STATE.layout = layout2() ? 2 : 1; try { await H.apiAH('/api/calls/state', { method: 'PUT', body: JSON.stringify({ id: D.call.id, state: STATE }) }); } catch {} }
       /* A leak sent here from Home > Leaks ("Put it on the call"): one promised line, saved at once, never twice. */
       const add = window.CCALL_ADD; window.CCALL_ADD = null;
       if (add && KIND === 'client' && add.act === a && add.text) {

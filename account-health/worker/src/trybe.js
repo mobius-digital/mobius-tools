@@ -579,10 +579,10 @@ async function winnersOf(env, act, today) {
   const from = addDays(today, -6);
   const ads = (await env.DB.prepare(`SELECT ad_id, name FROM p_trybe_ad WHERE act_id = ?1`).bind(act).all()).results || [];
   const m = await creatorMoney(env, act, ads.map(a => String(a.ad_id)), from);
-  const byVid = new Map();
-  for (const a of ads) { const id = trybeIdOf(a.name); const o = (m.byAd.get(String(a.ad_id)) || {}).orders || 0; if (id && o > 0) byVid.set(id, (byVid.get(id) || 0) + o); }
+  const byVid = new Map(), topAd = new Map();
+  for (const a of ads) { const id = trybeIdOf(a.name); const o = (m.byAd.get(String(a.ad_id)) || {}).orders || 0; if (id && o > 0) { byVid.set(id, (byVid.get(id) || 0) + o); const t = topAd.get(id); if (!t || o > t.o) topAd.set(id, { ad: String(a.ad_id), o }); } }
   const subs = new Map(((await env.DB.prepare(`SELECT sub_id, trybe_id, creator, product FROM p_trybe_sub WHERE act_id = ?1`).bind(act).all()).results || []).map(s => [s.trybe_id, s]));
-  return [...byVid.entries()].map(([id, o]) => { const s = subs.get(id) || {}; return { trybe_id: id, sub_id: s.sub_id || null, creator: s.creator || 'A creator', product: s.product || '', orders: Math.round(o) }; })
+  return [...byVid.entries()].map(([id, o]) => { const s = subs.get(id) || {}; return { trybe_id: id, sub_id: s.sub_id || null, creator: s.creator || 'A creator', product: s.product || '', orders: Math.round(o), ad_id: (topAd.get(id) || {}).ad || null }; })
     .filter(w => w.orders > 0).sort((a, z) => z.orders - a.orders);
 }
 async function postWinnersV2(env, d, act, dc, slug, wins, today, channel) {

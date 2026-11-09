@@ -57,5 +57,18 @@ ok((await handleCalls({ method: 'GET' }, env, url, '/api/other', json, {})) === 
   ok(missing, 'an unknown call = 404');
 }
 
+// 7. Calls v2 (2026-11-09): the plan is voted on, never turned into briefs; the new boxes become recap lines.
+{
+  const { v2Lines } = _test;
+  const v = v2Lines({ batches: [{ text: 'Gifting statics', vote: 'y', owner: 'William' }, { text: 'Cyber Monday 60', vote: 'n' }, { text: 'Christmas video' }, { text: 'gone', on: false }],
+    ideas: [{ text: 'Exploding hybrid head GIF' }, { text: '' }], sends: [{ text: 'Founder inspo to Fela', due: '2026-11-12' }],
+    money: { 'BFCM 2026': { m: 'Raise', amt: '$500' }, 'Old CBO': { m: '' } }, diag: { pick: 'Site', txt: 'CTR fine — no sales' }, offer: 'BOGO to Nov 16' });
+  ok(v.kept.length === 2 && v.kept.every(x => x.vote !== 'n'), 'a thumbs-down line and a removed line are dropped');
+  ok(v.extra[0] === 'Plan (approved): Gifting statics (William)' && v.extra[1] === 'Plan: Christmas video', 'approved and unvoted plan lines become decisions');
+  ok(v.extra.includes('Idea: Exploding hybrid head GIF') && v.extra.includes('We send the client: Founder inspo to Fela by 2026-11-12'), 'ideas and sends');
+  ok(v.extra.includes('Money: Raise BFCM 2026 to $500 a day') && !v.extra.some(x => x.includes('Old CBO')), 'money moves, an unset one left out');
+  ok(v.extra.includes('Ads or site: Site. CTR fine, no sales') && v.extra.includes('Live offer on the site: BOGO to Nov 16'), 'the read and the offer, no em dashes');
+}
+
 console.log(`${n - bad}/${n} passed`);
 process.exit(bad ? 1 : 0);
