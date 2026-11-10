@@ -47,6 +47,8 @@
   /* ---------- a kit section: title, one caption line (where it goes or came from), the body ---------- */
   const sec = (title, cap, body, cls = '') => `<section class="cs-sec ${cls}"><header><h3>${title}</h3>${cap ? `<p class="cap">${cap}</p>` : ''}</header><div class="cs-body">${body}</div></section>`;
   const empty = t => `<p class="cs-empty">${t}</p>`;
+  /* A section with a control on the right of its title (Columns, Attribution), never squeezed against the table edge. */
+  const secA = (title, cap, act, body, cls = '') => `<section class="cs-sec ${cls}"><header class="cs-hd"><div><h3>${title}</h3>${cap ? `<p class="cap">${cap}</p>` : ''}</div><div class="cs-hda">${act}</div></header><div class="cs-body">${body}</div></section>`;
 
   /* ---------- look (tokens only, both themes; phone.css has no .cs rules of its own) ---------- */
   function css() {
@@ -311,6 +313,77 @@
       .cs .cs-rvc .bd p{margin:0;color:var(--ink-2);font-size:12px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
       .cs .cs-rvc .cs-vote{display:grid;grid-template-columns:repeat(3,1fr)}
       .cs .cs-rvc .cs-vote button{padding:0 4px}
+      /* ===== Round 3 look (Cole 2026-11-10: "flat", "that modern SaaS look"). Locus's own palette (navy ink, sky brand)
+         with depth: soft layered shadows instead of hard borders, a faint brand wash behind the page, channel colour as an
+         accent on each part, bigger numbers, quieter labels, real switches and Locus menus instead of browser controls. */
+      .cs{max-width:1200px;--acc:var(--brand);--sh-1:0 1px 2px rgba(16,32,43,.05),0 10px 28px -14px rgba(16,32,43,.16);--sh-2:0 2px 4px rgba(16,32,43,.06),0 18px 40px -18px rgba(16,32,43,.28);gap:18px}
+      .v2.cs{background:radial-gradient(1200px 420px at 15% -80px,color-mix(in srgb,var(--brand) 13%,transparent),transparent 70%),radial-gradient(900px 360px at 100% 0,color-mix(in srgb,var(--c-email,#8b7cf6) 8%,transparent),transparent 70%);border-radius:24px;padding:4px}
+      .cs .cs-sec{border:1px solid color-mix(in srgb,var(--line) 70%,transparent);border-radius:18px;padding:20px 22px;box-shadow:var(--sh-1);gap:16px;position:relative}
+      .cs .cs-sec header h3{font-size:16px;font-weight:650;letter-spacing:-.012em}
+      .cs .cs-sec header .cap{font-size:12.5px;max-width:72ch}
+      .cs header.cs-hd{flex-direction:row;align-items:flex-start;justify-content:space-between;gap:12px}
+      .cs header.cs-hd>div:first-child{display:flex;flex-direction:column;gap:2px;min-width:0}
+      .cs .cs-hda{display:flex;gap:8px;flex:0 0 auto}
+      .cs .cs-chan{display:flex;flex-direction:column;gap:18px}
+      .cs .cs-chan .cs-sec::before{content:'';position:absolute;left:0;top:18px;bottom:18px;width:3px;border-radius:0 3px 3px 0;background:var(--acc);opacity:.85}
+      .cs .cs-part{margin:18px 0 -2px;font-size:12px;letter-spacing:.08em;color:var(--ink)}
+      .cs .cs-part span{width:26px;height:26px;border-radius:9px;background:linear-gradient(135deg,var(--acc),color-mix(in srgb,var(--acc) 55%,var(--ink)));box-shadow:0 4px 12px -4px color-mix(in srgb,var(--acc) 60%,transparent);font-weight:700}
+      .cs .cs-part::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent)}
+      .cs .cs-tile{background:linear-gradient(180deg,var(--surface),color-mix(in srgb,var(--acc) 5%,var(--surface)));border:1px solid color-mix(in srgb,var(--line) 80%,transparent);border-radius:14px;padding:14px 16px 13px;box-shadow:0 1px 2px rgba(16,32,43,.04);position:relative;overflow:hidden}
+      .cs .cs-tile::before{content:'';position:absolute;inset:0 0 auto 0;height:3px;background:linear-gradient(90deg,var(--acc),color-mix(in srgb,var(--acc) 30%,transparent))}
+      .cs .cs-tile .l{font-size:11.5px;font-weight:600;letter-spacing:.02em;color:var(--muted)}
+      .cs .cs-tile .v{font-size:26px;font-weight:650;letter-spacing:-.025em}
+      .cs .cs-d{height:22px;padding:0 8px;font-size:11.5px}
+      .cs table.cs-tbl thead th{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);padding:0 8px 9px;vertical-align:bottom;line-height:1.25}
+      .cs table.cs-camp thead th:not(:first-child){max-width:84px}
+      .cs table.cs-tbl th:last-child,.cs table.cs-tbl td:last-child{padding-right:2px}
+      .cs table.cs-tbl td{padding:9px 7px;border-top:1px solid color-mix(in srgb,var(--line) 75%,transparent)}
+      .cs table.cs-tbl tbody tr{transition:background var(--t-fast,.15s) ease}
+      .cs .cs-tbl th .srt{font:inherit;letter-spacing:inherit;text-transform:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}.cs .cs-tbl th .srt.on{color:var(--ink)}
+      .cs .cs-tbl tr.cmp td:first-child b{font-weight:650}
+      .cs .cs-flash td{animation:csflash 1.6s ease}
+      @keyframes csflash{0%,60%{background:color-mix(in srgb,var(--brand) 22%,transparent)}100%{background:transparent}}
+      /* dropdown buttons (Locus menus) */
+      .cs .cs-dd{display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 10px 0 12px;border-radius:10px;border:1px solid var(--line-strong);background:var(--surface);box-shadow:0 1px 2px rgba(16,32,43,.06);font:inherit;font-size:13px;color:var(--ink);cursor:pointer;white-space:nowrap;transition:border-color .15s ease,box-shadow .15s ease}
+      .cs .cs-dd:hover{border-color:var(--brand);box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 18%,transparent)}
+      .cs .cs-dd .k{color:var(--muted);font-weight:500}.cs .cs-dd .v{font-weight:650}.cs .cs-dd svg{color:var(--muted)}
+      .cs .cs-tools{gap:8px}
+      /* the on / off switch: a real switch, tap = Meta's before and after, then it flips */
+      .cs .cs-sw{border:0;background:none;padding:0;gap:8px;color:var(--muted);font-size:12px;font-weight:600}
+      .cs .cs-sw i{position:relative;width:36px;height:20px;border-radius:999px;background:var(--line-strong);transition:background .2s ease;flex:0 0 36px}
+      .cs .cs-sw i::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .2s ease}
+      .cs .cs-sw.on{color:var(--good)}.cs .cs-sw.on i{background:linear-gradient(135deg,#2bb673,var(--good))}.cs .cs-sw.on i::after{transform:translateX(16px)}
+      .cs .cs-sw:hover i{box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 20%,transparent)}
+      .cs .cs-bud{border:1px solid var(--line);border-radius:8px;background:var(--bg);padding:3px 9px}
+      /* funnel: flow cards + drop-off bars */
+      .cs .cs-flow{display:flex;align-items:stretch;gap:0;overflow-x:auto;padding-bottom:2px}
+      .cs .cs-fc{flex:1 1 0;min-width:120px;display:flex;flex-direction:column;gap:3px;padding:14px 16px;border-radius:14px;background:linear-gradient(160deg,color-mix(in srgb,var(--acc) 9%,var(--surface)),var(--surface));border:1px solid color-mix(in srgb,var(--acc) 22%,var(--line))}
+      .cs .cs-fc .l{font-size:11.5px;font-weight:600;color:var(--muted)}.cs .cs-fc .v{font-size:24px;font-weight:650;letter-spacing:-.02em;font-variant-numeric:tabular-nums}.cs .cs-fc .d{font-size:12px}
+      .cs .cs-fa{flex:0 0 auto;align-self:center;display:inline-flex;align-items:center;gap:4px;margin:0 -6px;z-index:1;padding:4px 9px;border-radius:999px;background:var(--surface);border:1px solid var(--line);box-shadow:0 2px 6px -2px rgba(16,32,43,.18);color:var(--muted);font-size:12px;line-height:1}
+      .cs .cs-fa b{font-size:12px;font-weight:700;color:var(--ink)}
+      .cs .cs-hops{display:flex;flex-direction:column;gap:12px;margin-top:4px}
+      .cs .cs-hlegend{display:flex;gap:16px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);align-items:center}
+      .cs .cs-hlegend i{display:inline-block;width:14px;height:8px;border-radius:3px;margin-right:6px;vertical-align:middle}
+      .cs .cs-hlegend b{display:inline-block;width:2px;height:12px;margin-right:6px;vertical-align:middle}
+      .cs .cs-hop{display:grid;grid-template-columns:minmax(150px,210px) minmax(0,1fr) 116px;gap:14px;align-items:center;cursor:default}
+      .cs .cs-hop .hl{font-size:13px;font-weight:600;color:var(--ink-2)}
+      .cs .cs-hbar{position:relative;height:14px;border-radius:999px;background:color-mix(in srgb,var(--line) 70%,var(--bg))}
+      .cs .cs-hbar i{position:absolute;left:0;top:0;bottom:0;border-radius:999px;background-image:linear-gradient(90deg,rgba(255,255,255,.0),rgba(255,255,255,.28))!important;background-blend-mode:normal}
+      .cs .cs-hbar b,.cs .cs-hlegend b{position:absolute;top:-4px;bottom:-4px;width:2px;border-radius:2px}
+      .cs .cs-hlegend b{position:static}
+      .cs b.usual{background:var(--ink)}.cs b.was{background:repeating-linear-gradient(180deg,var(--muted) 0 3px,transparent 3px 5px)}
+      .cs .cs-hop .hr{display:flex;align-items:baseline;gap:6px;justify-content:flex-end;font-variant-numeric:tabular-nums}.cs .cs-hop .hr b{font-size:16px;font-weight:700}.cs .cs-hop .hr small{color:var(--muted);font-size:11.5px}
+      .cs .cs-hop:hover .cs-hbar{box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 16%,transparent)}
+      /* changes */
+      .cs .cs-sum .cs-chip b{font-weight:750;margin-left:2px}
+      .cs .cs-chg li{grid-template-columns:150px minmax(0,1fr) auto;text-align:left;padding:8px 6px}.cs .cs-chg .tx{text-align:left;display:block;justify-content:flex-start}
+      .cs .cs-chg li.go{cursor:pointer;border-radius:8px}.cs .cs-chg li.go:hover{background:var(--bg)}
+      .cs .cs-chg .chev{color:var(--muted);font-size:16px;margin-left:4px}
+      .cs .cs-chg .tx .cs-plat,.cs .cs-plat{display:inline-block!important;width:8px;height:8px;border-radius:50%;margin-right:8px;vertical-align:middle;background:var(--c-meta)}.cs .cs-plat.google{background:var(--c-google)}.cs .cs-plat.email{background:var(--c-email)}
+      .cs .cs-cal .d{border-radius:10px;background:var(--surface)}.cs .cs-cal .ev{border-radius:6px;background:linear-gradient(135deg,var(--brand),color-mix(in srgb,var(--brand) 60%,var(--ink)))}
+      .cs .cs-steps .cs-pill{height:32px;padding:0 13px;box-shadow:0 1px 2px rgba(16,32,43,.05)}
+      .cs .cs-steps .cs-pill[aria-current="true"]{background:linear-gradient(135deg,var(--ink),color-mix(in srgb,var(--ink) 70%,var(--brand)));box-shadow:0 6px 16px -8px rgba(16,32,43,.6)}
+      @media (max-width:760px){.cs .cs-hop{grid-template-columns:minmax(0,1fr) auto}.cs .cs-hop .cs-hbar{grid-column:1/-1;grid-row:2}.cs .cs-fc{min-width:104px}.cs header.cs-hd{flex-direction:column}}
       @media (max-width:760px){.cs table.cs-fun td.bar{min-width:70px}.cs .cs-cal .d{min-height:50px}.cs .cs-chg li{grid-template-columns:80px minmax(0,1fr)}.cs .cs-chg .o{grid-column:2}}
       .cs-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);max-width:min(560px,calc(100vw - 32px));background:var(--ink);color:var(--surface);padding:10px 16px;border-radius:var(--r-lg);font-size:13px;z-index:9999;box-shadow:0 8px 30px rgba(0,0,0,.25)}
       .cs-pop{position:fixed;z-index:9600;min-width:220px;max-width:320px;max-height:420px;overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:6px;box-shadow:var(--sh-pop,0 12px 32px -10px rgba(15,15,25,.3));font-family:inherit;color:var(--ink);animation:lx-pop var(--t-fast) var(--ease) both}
@@ -628,6 +701,9 @@
   /* Campaign table columns (Cole 2026-11-10: "ability to add to the columns"). Default set, the rest behind Columns. */
   const MCOLS = [['spend', 'Spend', 1], ['purchases', 'Sales', 1], ['roas', 'ROAS', 1], ['cpa', 'Cost per sale', 1, 1], ['aov', 'Order value', 0], ['ctr', 'CTR', 1], ['cpm', 'CPM', 1, 1], ['cpc', 'Cost per click', 0, 1], ['clk', 'Link clicks', 0], ['imp', 'Impressions', 0], ['freq', 'Frequency', 0, 1], ['hook', 'Hook rate', 0], ['hold', 'Hold rate', 0]];
   const LCOLS = [['leads', 'Leads', 1], ['cpl', 'Cost per lead', 1, 1]];
+  const ADSORT = [['spend', 'Spend'], ['purchases', 'Sales'], ['roas', 'ROAS'], ['cpa', 'Cost per sale'], ['ctr', 'CTR'], ['cpm', 'CPM'], ['hook', 'Hook rate'], ['hold', 'Hold rate']];
+  /* A Locus dropdown: a quiet button with its label and the current choice; the menu is Locus's own pop-up (listMenu). */
+  const ddHtml = (k, act, label, val) => `<button type="button" class="cs-dd" data-dd="${k}" data-act="${esc(act)}" aria-haspopup="menu"><span class="k">${esc(label)}</span><span class="v">${esc(val || '')}</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>`;
   const colsOf = (X, lead) => { const on = X.cols || MCOLS.filter(c => c[2]).map(c => c[0]); return [...MCOLS.filter(c => on.includes(c[0])), ...(lead ? LCOLS : [])]; };
   const cellOf = (k, o) => { const v = o[k]; if (k === 'spend' || k === 'aov') return money(v); if (k === 'cpa' || k === 'cpm') return v != null ? money(v) : '–'; if (k === 'cpc' || k === 'cpl') return v != null ? cents(v) : '–'; if (k === 'roas') return x2(v); if (k === 'ctr' || k === 'hook' || k === 'hold') return fx(v, k === 'ctr' ? 2 : 1); if (k === 'freq') return v != null ? (+v).toFixed(2) : '–'; return v != null ? Math.round(v).toLocaleString('en-US') : '–'; };
   /* Rough ranges for an online store, as % of sessions. A reference only: the line a brand is judged on is its own last 4 weeks. */
@@ -648,6 +724,7 @@
       job('ga', H.apiAH(`/api/google/website?act=${act}&from=${from}&to=${to}&pfrom=${addDays(from, -7)}&pto=${addDays(from, -1)}`)),
       job('ga4w', H.apiAH(`/api/google/website?act=${act}&from=${addDays(from, -28)}&to=${addDays(from, -1)}`)),
       job('cust', H.api(`/api/customers?act=${act}&days=90`)),
+      job('paid', H.api(`/api/hub/paid?platform=meta&act=${act}&from=${from}&to=${to}&model=${encodeURIComponent(X.model)}`)),
       job('gads', H.apiAH(`/api/google/ads?act=${act}&from=${from}&to=${to}`)),
       job('klv', Promise.all([H.apiAH(`/api/klaviyo?act=${act}&what=campaigns`).catch(e => ({ error: e.message })), H.apiAH(`/api/klaviyo?act=${act}&what=flows_report`).catch(e => ({ error: e.message }))]).then(([c, f]) => ({ c, f }))),
       job('cal', H.apiAH(`/api/calendar?act=${act}&from=${t}&to=${addDays(t, 21)}&lite=1`)),
@@ -694,23 +771,30 @@
   function funnelHtml(cur, prev, top, hue, avg) {
     if (!cur || !cur.sessions) return empty('No GA4 numbers for this.');
     if (!cur.addToCarts && !cur.checkouts && !cur.ecommercePurchases) return `<p class="cs-empty">${Math.round(cur.sessions).toLocaleString('en-US')} sessions, but GA4 recorded no add to cart, checkout or purchase. The store's GA4 shopping events are not set up, so there is no funnel to read yet.</p>`;
-    const S = cur.sessions, Sp = prev && prev.sessions, Sa = avg && avg.sessions;
-    const lead = (top || []).filter(t => t[1] != null);
-    const leadHtml = lead.length ? `<div class="cs-lead">${lead.map((t, i) => `${i ? `<span class="ar">→</span>` : ''}<span><b>${Math.round(t[1]).toLocaleString('en-US')}</b> ${esc(t[0].toLowerCase())}${i && lead[i - 1][1] ? ` <small class="muted">(${fx(t[1] / lead[i - 1][1], 2)})</small>` : ''}</span>`).join('')}<span class="ar">→</span><span><b>${Math.round(S).toLocaleString('en-US')}</b> sessions${lead.length && lead[lead.length - 1][1] ? ` <small class="muted">(${fx(S / lead[lead.length - 1][1], 0)} of clicks landed)</small>` : ''}</span></div>` : '';
-    const rows = FSTEPS.map(([k, l], i) => {
-      const v = cur[k]; if (v == null) return '';
-      const ofS = S ? v / S : null, before = i ? (cur[FSTEPS[i - 1][0]] ? v / cur[FSTEPS[i - 1][0]] : null) : null;
-      const pS = prev && Sp && prev[k] != null ? prev[k] / Sp : null, aS = avg && Sa && avg[k] != null ? avg[k] / Sa : null;
-      const pts = (a, b) => a == null || b == null ? '' : `<small class="cs-rate ${a >= b ? 'up' : 'down'}">${a >= b ? '▲' : '▼'} ${Math.abs((a - b) * 100).toFixed(2)} pts</small>`;
-      const T = TYPICAL[k];
-      return `<tr><td>${esc(l)}</td><td class="bar"><div class="cs-fbar"><i style="width:${Math.max(2, Math.min(100, (ofS || 0) * 100))}%;background:${hue || 'var(--brand)'}"></i></div></td>
-        <td><b>${Math.round(v).toLocaleString('en-US')}</b> ${prev && prev[k] != null ? delta(v, prev[k]) : ''}</td>
-        <td>${i ? `${fx(ofS, 2)} ${pts(ofS, pS)}` : '100%'}</td>
-        <td>${before != null ? fx(before, 1) : '–'}</td>
-        <td>${i && aS != null ? `<span class="cs-rate ${ofS >= aS ? 'up' : 'down'}">${fx(aS, 2)}</span>` : i ? '–' : avg ? `${Math.round(Sa / 4).toLocaleString('en-US')} a week` : '–'}</td>
-        <td class="muted">${T ? `${T[0]} to ${T[1]}%` : ''}</td></tr>`;
+    return flowHtml([...(top || []).filter(t => t[1] != null).map(t => ({ l: t[0], v: t[1], p: t[2], a: t[3] })),
+      ...FSTEPS.map(([k, l]) => ({ k, l, v: cur[k], p: prev ? prev[k] : null, a: avg ? avg[k] : null }))], hue, !!avg);
+  }
+  /* Round 3 (Cole 2026-11-10: "so hard to see the difference between add to cart, checkout and purchase", "the column
+     names are too long"). Two parts. The FLOW: one card per step with the count and its change on the week before,
+     joined by the share that moved on. The DROP-OFF: one long bar per hop where the whole bar is everyone who reached
+     the step before, so a 37% checkout rate fills 37% of the bar and every hop is readable. A tick marks the brand's
+     own usual (the 4 weeks before, as a weekly average when given as totals); green or red = above or under it.
+     Hover a hop for the numbers, last week and the general online-store range. */
+  const nfmt = v => v == null ? '–' : Math.round(v).toLocaleString('en-US');
+  function flowHtml(steps, hue, hasAvg) {
+    const S = steps.filter(s => s.v != null); if (S.length < 2) return empty('Not enough steps to draw.');
+    const hu = hue || 'var(--brand)';
+    const cards = S.map((s, i) => `${i ? `<span class="cs-fa" aria-hidden="true"><b>${S[i - 1].v ? fx(s.v / S[i - 1].v, s.v / S[i - 1].v < 0.1 ? 1 : 0) : '–'}</b> →</span>` : ''}<div class="cs-fc"><span class="l">${esc(s.l)}</span><span class="v">${nfmt(s.v)}</span><span class="d">${s.p != null && s.p > 0 ? delta(s.v, s.p) : '<span class="muted">no week before</span>'}</span></div>`).join('');
+    const hops = S.slice(1).map((s, i) => {
+      const a = S[i], r = a.v ? s.v / a.v : null, rp = a.p && s.p != null ? s.p / a.p : null, ra = a.a && s.a != null ? s.a / a.a : null;
+      const T = TYPICAL[s.k] && a.k ? (s.k === 'addToCarts' ? 'Online stores in general: 5 to 8% of sessions add to cart' : s.k === 'checkouts' ? 'Online stores in general: about 40 to 55% of carts reach checkout' : 'Online stores in general: about 40 to 50% of checkouts buy') : '';
+      const tone = r == null || ra == null ? '' : r >= ra ? 'up' : 'down';
+      const tip = `${nfmt(s.v)} of ${nfmt(a.v)} ${a.l.toLowerCase()} went on to ${s.l.toLowerCase()} (${fx(r, 1)}).${rp != null ? ` Week before: ${fx(rp, 1)}.` : ''}${ra != null ? ` Usual: ${fx(ra, 1)}.` : ''}${T ? ` ${T}.` : ''}`;
+      return `<div class="cs-hop" title="${esc(tip)}"><span class="hl">${esc(a.l)} <span class="muted">→</span> ${esc(s.l)}</span>
+        <div class="cs-hbar"><i style="width:${Math.max(1.5, Math.min(100, (r || 0) * 100))}%;background:${hu}"></i>${ra != null ? `<b class="usual" style="left:${Math.min(100, ra * 100)}%"></b>` : ''}${rp != null ? `<b class="was" style="left:${Math.min(100, rp * 100)}%"></b>` : ''}</div>
+        <span class="hr"><b class="${tone ? `cs-rate ${tone}` : ''}">${fx(r, r != null && r < 0.1 ? 1 : 0)}</b>${ra != null ? `<small>usual ${fx(ra, ra < 0.1 ? 1 : 0)}</small>` : rp != null ? `<small>was ${fx(rp, rp < 0.1 ? 1 : 0)}</small>` : ''}</span></div>`;
     }).join('');
-    return `${leadHtml}<div class="cs-tw"><table class="cs-tbl cs-fun"><thead><tr><th>Step</th><th></th><th>Count, vs week before</th><th>% of sessions, vs week before</th><th>% of the step before</th><th>Its usual (last 4 weeks)</th><th>Typical store</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    return `<div class="cs-flow">${cards}</div><div class="cs-hops"><div class="cs-hlegend"><span><i style="background:${hu}"></i>moved on</span>${hasAvg ? '<span><b class="usual"></b>their usual (4 weeks before)</span>' : ''}<span><b class="was"></b>the week before</span><span class="muted">Hover a row for the numbers and the general online-store range.</span></div>${hops}</div>`;
   }
   /* GA4 rows for one channel group (Paid Social, Paid Search, Email...), this week + week before, or from the 4-week pull. */
   const gaSum = (src, re) => { const ch = src && !src.error ? (src.channels || []).filter(c => re.test(String(c.group || c.k || ''))) : []; if (!ch.length) return null; const sum = (k, p) => ch.reduce((n, c) => n + (+((p ? c.prev || {} : c)[k]) || 0), 0); const o = p => ({ sessions: sum('sessions', p), addToCarts: sum('addToCarts', p), checkouts: sum('checkouts', p), ecommercePurchases: sum('ecommercePurchases', p) }); return { cur: o(false), prev: ch.some(c => c.prev) ? o(true) : null }; };
@@ -758,8 +842,7 @@
     const nameCell = (o, kind) => kind === 'c' ? `<td><b>${X.open[o.id] ? '▾' : '▸'} ${esc(o.name)}</b>${o.lead ? ' <small class="muted">lead ads</small>' : ''}</td>` : `<td>${X.sopen[o.id] ? '▾' : '▸'} ${esc(o.name)} <small class="muted">${plural(o.ads.length, 'ad')}</small></td>`;
     const N = 3 + cols.length;
     const setRows = c => sortRows(c.sets.map(fin), sk, low).map(s => `<tr class="set" data-mset="${esc(s.id)}" data-act="${esc(b.act_id)}">${nameCell(s, 's')}${statusCell(b, 'adset', s.id, L && L.adsets[s.id] ? L.adsets[s.id] : null)}${budgetCell(b, 'adset', s.id, L && L.adsets[s.id] ? L.adsets[s.id] : null)}${cells(s)}</tr>${X.sopen[s.id] ? `<tr class="adcards"><td colspan="${N}" style="padding:10px 0 14px 22px">${M.cards(sortRows(s.ads, sk, low))}</td></tr>` : ''}`).join('');
-    return `<div class="cs-tools"><span class="cs-sub" style="margin:0">Tap a campaign for its ad sets, an ad set for its ads.</span><span class="gap"></span><button type="button" class="cs-colbtn" data-mcols="${esc(b.act_id)}">Columns ▾</button></div>
-      <div class="cs-tw"><table class="cs-tbl cs-camp"><thead><tr><th>Campaign</th><th>Status</th><th>Budget</th>${cols.map(([k, l]) => thSort(b, sk, k, l, 'msort')).join('')}</tr></thead><tbody>
+    return `<div class="cs-tw"><table class="cs-tbl cs-camp"><thead><tr><th>Campaign</th><th>Status</th><th>Budget</th>${cols.map(([k, l]) => thSort(b, sk, k, l, 'msort')).join('')}</tr></thead><tbody>
       ${list.map(c => `<tr class="cmp" data-mcamp="${esc(c.id)}" data-act="${esc(b.act_id)}">${nameCell(c, 'c')}${statusCell(b, 'campaign', c.id, L && L.campaigns[c.id] ? { ...L.campaigns[c.id] } : null)}${budgetCell(b, 'campaign', c.id, L && L.campaigns[c.id] ? { ...L.campaigns[c.id] } : null)}${cells(c)}</tr>${X.open[c.id] ? setRows(c) : ''}`).join('')}
       </tbody></table></div>${L ? (L.can ? '' : `<p class="warnline">${esc((L.accounts || []).map(a => a.fix).filter(Boolean)[0] || 'Locus cannot change this Meta account.')}</p>`) : '<p class="cs-sub">Status and budgets are loading from Meta.</p>'}
       <p class="cs-sub">Tap a budget to change it, or On / Off to switch it. Every change shows Meta's before and after first, lands in the Change Log, and can be undone for 24 hours. Tap a column name to sort.</p>`;
@@ -822,7 +905,7 @@
     return `${sec(`${esc(b.name)}: last week`, r ? `${short(r.period_start)} to ${short(r.period_end)}. Triple Whale, whole store, every channel, against the week before.` : '', r ? tilesHtml(r) : empty('No weekly report for this brand yet.'))}
       ${sec('The store funnel', 'Every visitor, every source (GA4). Green or red = above or under this brand\'s own last 4 weeks.', X.ga == null ? empty('Loading GA4…') : ga ? funnelHtml(ga.cur, ga.prev, null, null, gaAvg(X)) : `<p class="cs-empty">${esc(X.ga.error === 'not_linked' ? 'GA4 is not connected for this brand.' : X.ga.error)}</p>`)}
       ${custBlock(b)}
-      ${sec('Last week\'s changes', 'What we changed in the accounts, from the Change Log.', mine == null ? (X.acts && X.acts.error ? `<p class="cs-empty">${esc(X.acts.error)}</p>` : empty('Loading…')) : mine.length ? changesHtml(mine) : empty('No changes logged last week.'))}
+      ${sec('Last week\'s changes', 'What we changed in the accounts, from the Change Log.', mine == null ? (X.acts && X.acts.error ? `<p class="cs-empty">${esc(X.acts.error)}</p>` : empty('Loading…')) : mine.length ? (X.chg = mine, changesHtml(mine, b)) : empty('No changes logged last week.'))}
       ${sec('Last week\'s tasks', 'Open tasks for this brand in Locus Tasks, due by today. Tick one when it\'s done.', todoList(b.open || [], t, 'Nothing open for this brand.'))}`;
   }
   /* Last week's changes, skimmable (Cole: "it only gives text, should it give visual cues"): a chip for what kind of
@@ -830,20 +913,36 @@
   function changeKind(a) {
     const s = `${a.category || ''} ${a.event_type || ''} ${a.summary || ''}`;
     const m = String(a.summary || '').match(/\$([\d,.]+)\s*(?:to|→|->)\s*\$([\d,.]+)/i), n = v => +String(v).replace(/,/g, '');
-    if (/budget|cap|min spend|minimum/i.test(s) && m) return n(m[2]) >= n(m[1]) ? ['up', 'Budget up', m] : ['down', 'Budget down', m];
-    if (/budget|cap|min spend|minimum/i.test(s)) return ['', 'Budget', m];
-    if (/pause|paused|turned off|\boff\b|stop/i.test(s)) return ['down', 'Off', m];
-    if (/resum|turned on|activated|relaunch|\bon\b/i.test(s)) return ['up', 'On', m];
-    if (/new_|launch|created|added|new ad|new creative|duplicat/i.test(s)) return ['new', 'New', m];
-    if (/email|klaviyo|sms|flow/i.test(s)) return ['', 'Email', m];
-    return ['', 'Change', m];
+    /* Cole: "budget up, one off, these names are weird". Each label says what was done, in words. */
+    if (/budget|cap|min spend|minimum/i.test(s) && m) return n(m[2]) >= n(m[1]) ? ['up', 'Raised budget', m] : ['down', 'Lowered budget', m];
+    if (/budget|cap|min spend|minimum/i.test(s)) return ['', 'Changed budget', m];
+    if (/pause|paused|turned off|\boff\b|stop/i.test(s)) return ['down', 'Turned off', m];
+    if (/resum|turned on|activated|relaunch|\bon\b/i.test(s)) return ['up', 'Turned back on', m];
+    if (/new_campaign|new campaign/i.test(s)) return ['new', 'New campaign', m];
+    if (/new_adset|new ad set/i.test(s)) return ['new', 'New ad set', m];
+    if (/new_|launch|created|added|new ad|new creative|duplicat/i.test(s)) return ['new', 'New ad', m];
+    if (/bid|targeting|audience/i.test(s)) return ['', 'Changed targeting or bids', m];
+    if (/email|klaviyo|sms|flow/i.test(s)) return ['', 'Email change', m];
+    return ['', 'Other change', m];
   }
-  function changesHtml(list) {
-    const rows = list.map(a => ({ a, k: changeKind(a), plat: /google/i.test(`${a.category} ${a.event_type} ${a.summary}`) ? 'google' : /email|klaviyo|sms/i.test(`${a.category} ${a.event_type}`) ? 'email' : 'meta', day: String(a.event_time || '').slice(0, 10) }));
+  /* What a change points at, so a tap can open it: an ad opens its card (the Ads page sheet), a campaign or ad set
+     opens its row in Meta campaigns. Matched by Meta id, else by the name in the line. */
+  function changeTarget(b, a) {
+    const X = bx(b.act_id), M = X.ads && !X.ads.error ? X.ads : null, ads = M ? M.ads || [] : [];
+    const nm = a.object_name || (String(a.summary || '').match(/"([^"]+)"/) || [])[1] || String(a.summary || '').replace(/^(paused|turned off|turned on|resumed|relaunched|new ad|budget[^:]*:)\s*/i, '').trim();
+    const ad = ads.find(r => String(r.id) === String(a.object_id)) || (nm && ads.find(r => r.name === nm)) || (nm && nm.length > 3 && ads.find(r => r.name && (r.name.startsWith(nm) || nm.startsWith(r.name))));
+    if (ad) return { kind: 'ad', id: ad.id };
+    if (/^AD$|ADGROUP/i.test(a.object_type || '') && a.object_id) return { kind: 'adid', id: a.object_id, name: nm };
+    if (nm) return { kind: 'name', name: nm };
+    return null;
+  }
+  function changesHtml(list, b) {
+    const rows = list.map((a, i) => ({ a, i, k: changeKind(a), t: b ? changeTarget(b, a) : null, plat: /google/i.test(`${a.category} ${a.event_type} ${a.summary}`) ? 'google' : /email|klaviyo|sms/i.test(`${a.category} ${a.event_type}`) ? 'email' : 'meta', day: String(a.event_time || '').slice(0, 10) }));
     const count = {}; rows.forEach(r => { count[r.k[1]] = (count[r.k[1]] || 0) + 1; });
+    const who = a => { const s = String(a.actor || ''); return /claude/i.test(s) ? 'Claude' : /mobius tools/i.test(s) ? 'Locus' : /^meta$/i.test(s) ? 'Meta' : s ? teamName(s) : ''; };
     let last = '';
-    return `<div class="cs-sum">${Object.entries(count).map(([l, n]) => { const tone = (rows.find(r => r.k[1] === l) || { k: [''] }).k[0]; return `<span class="cs-chip ${tone}">${n} ${esc(l.toLowerCase())}</span>`; }).join('')}</div>
-      <ul class="cs-chg">${rows.map(r => { const head = r.day !== last ? `<li class="day">${md(r.day)}</li>` : ''; last = r.day; const txt = esc(r.a.summary).replace(r.k[2] ? esc(r.k[2][0]) : '\u0000', r.k[2] ? `<em>${esc(r.k[2][0])}</em>` : ''); return `${head}<li><span><span class="cs-chip ${r.k[0]}">${esc(r.k[1])}</span></span><span class="tx"><span class="cs-chip ${r.plat}" style="margin-right:6px">${CHAN[r.plat] || 'Meta'}</span>${txt}</span><span class="o">${r.a.actor ? esc(teamName(r.a.actor)) : ''}</span></li>`; }).join('')}</ul>`;
+    return `<div class="cs-sum">${Object.entries(count).sort((p, q) => q[1] - p[1]).map(([l, n]) => { const tone = (rows.find(r => r.k[1] === l) || { k: [''] }).k[0]; return `<span class="cs-chip ${tone}">${esc(l)} <b>${n}</b></span>`; }).join('')}</div>
+      <ul class="cs-chg">${rows.map(r => { const head = r.day !== last ? `<li class="day">${md(r.day)}</li>` : ''; last = r.day; const txt = esc(r.a.summary).replace(r.k[2] ? esc(r.k[2][0]) : '\u0000', r.k[2] ? `<em>${esc(r.k[2][0])}</em>` : ''); const tg = r.t ? ` data-chg="${r.i}" data-act="${esc(b.act_id)}" tabindex="0" role="button" title="Open it"` : ''; return `${head}<li class="${r.t ? 'go' : ''}"${tg}><span><span class="cs-chip ${r.k[0]}">${esc(r.k[1])}</span></span><span class="tx"><span class="cs-plat ${r.plat}"></span>${txt}</span><span class="o">${esc(who(r.a))}${r.t ? ' <span class="chev">›</span>' : ''}</span></li>`; }).join('')}</ul>`;
   }
   /* Customers and products (Cole: "LTV, the customer journey, what's selling"). From Locus's Customers page
      (/api/customers: Triple Whale orders followed from the first order). Shown only when it answers. */
@@ -856,7 +955,7 @@
     const tiles = [
       tile('Cost to get a new customer', h.cac ? money(h.cac) : null, h.new_orders != null ? `${plural(h.new_orders, 'new customer')} last week` : ''),
       tile('Their first order', h.new_aov != null ? money(h.new_aov) : null, h.payback != null ? `pays back ${x2(h.payback)} on order one` : ''),
-      c90 ? tile('Spent in their first 90 days', money(c90.ltv), lc != null ? `${x2(lc)} what they cost` : '') : '',
+      c90 ? tile('Spent in their first 90 days', money(c90.ltv), isFinite(+lc) && lc != null ? `${x2(+lc)} what they cost` : h.cac ? `${x2(c90.ltv / h.cac)} what they cost` : '') : '',
       tile('Returning customers', h.returning_orders != null ? plural(h.returning_orders, 'order') : null, h.returning_aov != null ? `${money(h.returning_aov)} each, ${fx(1 - (h.new_rev_share ?? 1), 0)} of sales` : ''),
       j.repeat_rate_ever != null ? tile('Order again', fx(j.repeat_rate_ever, 0), j.days_to_second != null ? `second order after about ${Math.round(j.days_to_second)} days` : '') : '',
     ].join('');
@@ -872,7 +971,7 @@
     const groas = M && M.g && M.g.roas ? +M.g.roas : null;
     /* ONE attribution choice for the whole Meta section (Cole: "an overarching ability to choose attribution"): tiles,
        campaigns and ads all follow it. Triple Whale last click is the default and matches the weekly report. */
-    const attSel = `<label class="cs-sel">Attribution <select data-model="1" data-act="${esc(b.act_id)}">${MODELS.map(([k, l]) => `<option value="${k}"${X.model === k ? ' selected' : ''}>${l}</option>`).join('')}</select></label>`;
+    const attSel = ddHtml('model', b.act_id, 'Attribution', (MODELS.find(m => m[0] === X.model) || [])[1]);
     const sum = k => (M ? M.ads || [] : []).filter(a => !isLeadRow(M, a)).reduce((n, a) => n + (a[k] || 0), 0);
     const useRep = X.model === 'lastPlatformClick' && ch;
     const sp = ch ? ch.cur.spend : M ? (M.ads || []).reduce((n, a) => n + (a.spend || 0), 0) : null;
@@ -884,20 +983,26 @@
         ${tile('Meta ROAS', `${x2(roas)}${vsGoal(roas, groas)}`, useRep && ch.prev ? `${x2(ch.prev.roas)} the week before` : useRep ? '' : 'sum of the ads under this attribution')}
         ${(() => { const lsp = M ? (M.ads || []).filter(a => isLeadRow(M, a)).reduce((n, a) => n + (a.spend || 0), 0) : 0; return tile('Cost per sale', ord ? money((sp - lsp) / ord) : '–', `${lsp ? 'sales ads only' : ''}${lsp && M && M.g && M.g.cpa ? ', ' : ''}${M && M.g && M.g.cpa ? `goal ${money(+M.g.cpa)}` : ''}`); })()}
         ${M && M.leadGoal ? tile('Lead ads', money((M.ads || []).filter(a => isLeadRow(M, a)).reduce((n, a) => n + a.spend, 0)), `goal ${cents(M.leadGoal)} a lead`) : ''}</div>` : empty('No Meta numbers in the report.');
-    const ADSORT = [['spend', 'Spend'], ['purchases', 'Sales'], ['roas', 'ROAS'], ['cpa', 'Cost per sale'], ['ctr', 'CTR'], ['cpm', 'CPM'], ['hook', 'Hook rate'], ['hold', 'Hold rate']];
     const all = M ? sortRows(M.ads || [], X.adsort, ['cpa', 'cpm'].includes(X.adsort)) : [], N = X.more ? all.length : 12;
-    const ads = !M ? (loading(X, 'ads', 'the ads') || '') : `<div class="cs-tools"><label class="cs-sel">Sort by <select data-adsort="1" data-act="${esc(b.act_id)}">${ADSORT.map(([k, l]) => `<option value="${k}"${X.adsort === k ? ' selected' : ''}>${l}</option>`).join('')}</select></label>${attSel}<span class="gap"></span><span class="cs-sub" style="margin:0">${all.length ? `${Math.min(N, all.length)} of ${all.length}` : ''}</span></div>
+    const ads = !M ? (loading(X, 'ads', 'the ads') || '') : `<div class="cs-tools">${ddHtml('sort', b.act_id, 'Sort by', (ADSORT.find(s => s[0] === X.adsort) || [])[1])}${attSel}<span class="gap"></span><span class="cs-sub" style="margin:0">${all.length ? `${Math.min(N, all.length)} of ${all.length}` : ''}</span></div>
       ${all.length ? M.cards(all.slice(0, N)) : empty('No ads spent this week.')}${all.length > 12 ? `<button type="button" class="cs-link" data-admore="${esc(b.act_id)}">${X.more ? 'Show 12' : `Show all ${all.length}`}</button>` : ''}
       <p class="cs-sub">The Ads page's own cards. Tap one for every number and its ad set; "Turn off" and "Move for the buyer" are at the top of it.</p>`;
     const sales = M ? (M.ads || []).filter(a => !isLeadRow(M, a)) : [];
     const imp = sales.reduce((n, a) => n + (a.impressions || 0), 0), clk = sales.reduce((n, a) => n + (a.clicks || 0), 0);
-    const ga = gaRow(X, /paid social/i);
-    const fun = ga ? funnelHtml(ga.cur, ga.prev, imp ? [['Ad views', imp], ['Link clicks', clk]] : null, 'var(--c-meta)', ga.avg) : M ? `<div class="cs-lead"><span><b>${Math.round(imp).toLocaleString('en-US')}</b> ad views</span><span class="ar">→</span><span><b>${Math.round(clk).toLocaleString('en-US')}</b> link clicks</span><span class="ar">→</span><span><b>${Math.round(sales.reduce((n, a) => n + (a.purchases || 0), 0))}</b> sales</span></div><p class="cs-sub">Connect GA4 to see add to cart and checkout for Meta visitors.</p>` : empty('Loading…');
+    /* Meta funnel (Cole: "why aren't sessions, add to cart, checkout and purchase filled in?"): Meta's own path, which
+       every brand has: ad views and link clicks (Meta), added to cart (Meta's pixel), purchases (Triple Whale, the
+       attribution picked above), each against the week before. GA4's paid-social visitors sit under it when GA4 counts them. */
+    const P = X.paid && !X.paid.error ? ((X.paid.brands || [])[0] || X.paid) : null, pc = P && P.cur, pp = P && P.prev;
+    const ga = gaRow(X, /paid social/i), gaOk = ga && (ga.cur.addToCarts || ga.cur.ecommercePurchases);
+    const fun = pc ? `${flowHtml([{ l: 'Ad views', v: pc.impressions, p: pp && pp.impressions }, { l: 'Link clicks', v: pc.clicks, p: pp && pp.clicks }, { l: 'Added to cart', v: pc.atc, p: pp && pp.atc }, { l: 'Purchases', v: pc.purchases, p: pp && pp.purchases }], 'var(--c-meta)', false)}
+        ${gaOk ? `<p class="cs-sub">On the site, GA4's paid social visitors:</p>${funnelHtml(ga.cur, ga.prev, null, 'var(--c-meta)', ga.avg)}` : ''}`
+      : X.paid == null ? empty('Loading…') : `<p class="cs-empty">${esc(X.paid.error)}</p>`;
+    void imp; void clk;
     const strat = STRAT[b.act_id] || strategistOf(b) || 'The strategist';
-    return `${sec('Meta results', `Spend is Meta. Sales follow the attribution you pick here; it changes the campaigns and ads below too.`, `<div class="cs-tools">${attSel}</div>${tiles}`)}
-      ${sec('Meta campaigns', `${esc(mname)}.`, metaTable(b))}
+    return `${secA('Meta results', `Spend is Meta. Sales follow the attribution picked here, and so do the campaigns and ads below.`, attSel, tiles)}
+      ${secA('Meta campaigns', `${esc(mname)}. Tap a campaign for its ad sets, an ad set for its ads.`, `<button type="button" class="cs-dd" data-mcols="${esc(b.act_id)}"><span class="v">Columns</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>`, metaTable(b))}
       ${sec('Meta ads', `${r ? `${short(r.period_start)} to ${short(r.period_end)}` : ''}, ${esc(mname)}.`, ads)}
-      ${sec('Meta funnel', ga ? 'Ad views and clicks are Meta (sales ads); sessions to purchases are GA4\'s paid social visitors, against the week before and their usual.' : 'Meta sales ads.', fun)}
+      ${sec('Meta funnel', 'Every Meta ad. Views, clicks and add to cart are Meta\'s count; purchases are Triple Whale. Against the week before.', fun)}
       ${sec(`${esc(strat)}'s Meta plan`, `From ${esc(strat)}'s Slack post. Yes, Changes or No on each line; Finish posts it in the recap and tags ${esc(strat)}.`, `${(b.posts || []).some(p => teamName(p.by) !== 'Radhesh') ? `<details class="cs-more"><summary>The post, word for word</summary>${postsHtml((b.posts || []).filter(p => teamName(p.by) !== 'Radhesh'), b.act_id)}</details>` : ''}${planHtml(b, 'batches', strat)}`)}`;
   }
   function googleBlock(b) {
@@ -959,12 +1064,13 @@
     const has = id => !!(r && (r.channels || []).find(c => c.id === id && c.cur && (c.cur.spend || c.cur.revenue)));
     const list = (name, ph, add) => `<div class="rows" data-list="${name}" data-act="${esc(b.act_id)}">${rowsHtml(s[name] = s[name] || [], true).replace(/data-ph="[^"]*"/g, `data-ph="${esc(ph)}"`)}</div><button type="button" class="add" data-add="${name}" data-act="${esc(b.act_id)}">${add}</button>`;
     const strat = STRAT[b.act_id] || 'the strategist';
-    return `${part(1, 'Last week')}${lastWeekBlock(b)}
-      ${has('meta') ? `${part(2, `Meta <span class="cs-who meta">${esc(strat)}</span>`)}${metaBlock(b)}` : ''}
-      ${has('google') ? `${part(3, 'Google <span class="cs-who google">Radhesh</span>')}${googleBlock(b)}` : ''}
-      ${has('email') ? `${part(4, 'Email')}${emailBlock(b)}` : ''}
-      ${b.creators ? `${part(5, `Trybe <span class="cs-who trybe">${esc(strat)}</span>`)}${sec('Trybe', 'Creator videos for this brand.', trybeBlock(b))}` : ''}
-      ${part(6, 'Being made')}${sec(`Production${(b.making || []).length ? `: ${b.making.length}` : ''}`, '', boardPart(b))}${sec('Dates coming up', 'Drops, sales and emails on the calendar, next 3 weeks.', comingPart(b))}
+    const chan = (hue, inner) => `<div class="cs-chan" style="--acc:${hue}">${inner}</div>`;
+    return `${chan('var(--brand)', `${part(1, 'Last week')}${lastWeekBlock(b)}`)}
+      ${has('meta') ? chan('var(--c-meta)', `${part(2, `Meta <span class="cs-who meta">${esc(strat)}</span>`)}${metaBlock(b)}`) : ''}
+      ${has('google') ? chan('var(--c-google)', `${part(3, 'Google <span class="cs-who google">Radhesh</span>')}${googleBlock(b)}`) : ''}
+      ${has('email') ? chan('var(--c-email)', `${part(4, 'Email')}${emailBlock(b)}`) : ''}
+      ${b.creators ? chan('var(--c-tiktok)', `${part(5, `Trybe <span class="cs-who trybe">${esc(strat)}</span>`)}${sec('Trybe', 'Creator videos for this brand.', trybeBlock(b))}`) : ''}
+      ${chan('var(--ink-2)', `${part(6, 'Being made')}${sec(`Production${(b.making || []).length ? `: ${b.making.length}` : ''}`, '', boardPart(b))}${sec('Dates coming up', 'Drops, sales and emails on the calendar, next 3 weeks.', comingPart(b))}`)}
       ${part(7, 'Typed in the meeting')}
       <div class="cs-two">
         ${sec('Tasks', 'Who and when, then Enter. They go to Locus Tasks.', `<div class="rows" data-list="jobs" data-act="${esc(b.act_id)}">${rowsHtml(s.jobs || [])}</div><input type="text" data-quick="jobs" data-act="${esc(b.act_id)}" placeholder="e.g. Noma sends Fela the founder video inspo Friday">`)}
@@ -1492,7 +1598,6 @@
     $$('[data-goto]', root).forEach(tr => tr.onclick = () => { const i = steps().findIndex(s => s.id === tr.dataset.goto); if (i >= 0) go(i); });
     $$('[data-msort]', root).forEach(b => b.onclick = e => { e.stopPropagation(); st(b).sort = b.dataset.msort; repaint(); });
     $$('[data-gsort]', root).forEach(b => b.onclick = e => { e.stopPropagation(); st(b).gsort = b.dataset.gsort; repaint(); });
-    $$('select[data-adsort]', root).forEach(s => s.onchange = () => { st(s).adsort = s.value; repaint(); });
     $$('[data-esort]', root).forEach(b => b.onclick = e => { e.stopPropagation(); st(b).esort = b.dataset.esort; repaint(); });
     $$('[data-admore]', root).forEach(b => b.onclick = () => { const X = bx(b.dataset.admore); X.more = !X.more; repaint(); });
     $$('[data-rvall]', root).forEach(b => b.onclick = () => { const X = bx(b.dataset.rvall); X.rvAll = !X.rvAll; repaint(); });
@@ -1500,7 +1605,24 @@
     $$('[data-mset]', root).forEach(tr => tr.onclick = e => { if (e.target.closest('button,input')) return; const X = st(tr); X.sopen[tr.dataset.mset] = !X.sopen[tr.dataset.mset]; repaint(); });
     $$('[data-gcamp]', root).forEach(tr => tr.onclick = e => { if (e.target.closest('button,input')) return; const X = st(tr), id = tr.dataset.gcamp; X.gopen[id] = !X.gopen[id]; repaint(); const br = brandOf(tr.dataset.act); if (X.gopen[id] && br && !X.gdet) loadGoogleDetail(br).then(repaint); });
     $$('[data-mcols]', root).forEach(b => b.onclick = e => { e.stopPropagation(); const X = bx(b.dataset.mcols), on = X.cols || MCOLS.filter(c => c[2]).map(c => c[0]); listMenu(b, 'Columns', MCOLS.map(([k, l]) => ({ v: k, label: l, on: on.includes(k), small: on.includes(k) ? 'shown' : 'add' })), v => { const cur = new Set(X.cols || MCOLS.filter(c => c[2]).map(c => c[0])); if (cur.has(v)) cur.delete(v); else cur.add(v); X.cols = MCOLS.map(c => c[0]).filter(k => cur.has(k)); repaint(); }); });
-    $$('select[data-model]', root).forEach(s => s.onchange = () => { const X = st(s); if (X.model === s.value) return; X.model = s.value; X.ads = null; repaint(); const br = brandOf(s.dataset.act); if (br) loadBrand2(br, ['ads']); });
+    /* Dropdowns are Locus menus, not the browser's (Cole: "they look like Windows drop downs"). */
+    const setModel = (act, v) => { const X = bx(act); if (X.model === v) return; X.model = v; X.ads = null; X.paid = null; repaint(); const br = brandOf(act); if (br) loadBrand2(br, ['ads', 'paid']); };
+    $$('[data-dd]', root).forEach(b => b.onclick = e => {
+      e.stopPropagation(); const X = bx(b.dataset.act), k = b.dataset.dd;
+      const opts = k === 'model' ? MODELS.map(([v, l]) => ({ v, label: l, on: X.model === v })) : ADSORT.map(([v, l]) => ({ v, label: l, on: X.adsort === v }));
+      listMenu(b, k === 'model' ? 'Attribution' : 'Sort the ads by', opts, v => { if (k === 'model') setModel(b.dataset.act, v); else { X.adsort = v; repaint(); } });
+    });
+    /* A change in Last week's changes opens what it changed: the ad's card, or its campaign / ad set row. */
+    $$('[data-chg]', root).forEach(li => li.onclick = () => {
+      const br = brandOf(li.dataset.act), X = bx(li.dataset.act), a = (X.chg || [])[+li.dataset.chg]; if (!br || !a) return;
+      const t = changeTarget(br, a); if (!t) return;
+      const M = X.ads && !X.ads.error ? X.ads : null;
+      if (t.kind === 'ad' && M) { const row = (M.ads || []).find(r => String(r.id) === String(t.id)); if (row) return M.open(row); }
+      if (t.kind === 'adid' && window.V2 && V2.playAd) return V2.playAd({ id: t.id, act: br.act_id, name: t.name || 'Ad' }, H);
+      const camps = $$('[data-mcamp], [data-mset]', root).find(tr => tr.textContent.includes(t.name || '\u0000'));
+      if (camps) { camps.scrollIntoView({ behavior: 'smooth', block: 'center' }); camps.classList.add('cs-flash'); setTimeout(() => camps.classList.remove('cs-flash'), 1600); return; }
+      toast(`"${t.name}" did not spend last week, so there is no card for it. It is in Ads Manager and the Change Log.`);
+    });
     $$('[data-bud]', root).forEach(b => b.onclick = async e => {
       e.stopPropagation();
       const br = brandOf(b.dataset.act); if (!br) return;
