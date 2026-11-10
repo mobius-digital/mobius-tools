@@ -415,6 +415,30 @@
       .cs .cs-stack i{display:block;height:100%}
       .cs .cs-srcrow .k{grid-column:2;display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
       .cs .cs-srcrow .k i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px}
+      .cs .cs-ltv{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:20px;align-items:center}
+      .cs .cs-ltvsvg{width:100%;height:auto;max-height:240px;font-family:inherit}
+      .cs .cs-ltv .say{display:flex;flex-direction:column;gap:4px}
+      .cs .cs-ltv .say b{font-size:30px;font-weight:700;letter-spacing:-.02em}.cs .cs-ltv .say span{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+      .cs .cs-ltv .say p{margin:6px 0 0;font-size:13px;color:var(--ink-2);line-height:1.5}
+      @media (max-width:760px){.cs .cs-ltv{grid-template-columns:1fr}}
+      .cs td.cs-g{color:var(--good);background:var(--good-bg);font-weight:650}.cs td.cs-r{color:var(--bad);background:var(--bad-bg);font-weight:650}
+      .cs .cs-cnts{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+      .cs .cs-cnts b{color:var(--ink);font-weight:650}.cs .cs-cnts .ar{color:var(--muted)}.cs .cs-cnts small{color:var(--muted)}
+      .cs .cs-cnt.miss{color:var(--muted)}
+      .cs .cs-hps{display:flex;flex-direction:column;gap:14px;margin-top:2px}
+      .cs .cs-hp{display:grid;grid-template-columns:minmax(180px,230px) minmax(0,1fr) 170px;gap:16px;align-items:center}
+      .cs .cs-hp .t{font-size:13px;font-weight:600;color:var(--ink-2)}
+      .cs .cs-hp .bars{display:flex;flex-direction:column;gap:4px}
+      .cs .cs-hp .bars i{display:block;border-radius:999px}
+      .cs .cs-hp .bars i.now{height:12px;background:var(--brand)}
+      .cs .cs-hp .bars i.was{height:7px;background:var(--brand-line,#B9CBF5)}
+      .cs .cs-hp .v{display:flex;align-items:baseline;gap:8px;justify-content:flex-end}
+      .cs .cs-hp .v b{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums}.cs .cs-hp .v b.up{color:var(--good)}.cs .cs-hp .v b.down{color:var(--bad)}
+      .cs .cs-hp.miss .m{grid-column:2/-1;font-size:12.5px;color:var(--muted);font-style:italic}
+      .cs .cs-was{font-size:12px;font-weight:600;white-space:nowrap}.cs .cs-was.up{color:var(--good)}.cs .cs-was.down{color:var(--bad)}
+      .cs .cs-key{margin:2px 0 0;display:flex;gap:6px;align-items:center;font-size:11.5px;color:var(--muted)}
+      .cs .cs-key i{display:inline-block;width:18px;border-radius:999px}.cs .cs-key i.now{height:8px;background:var(--brand)}.cs .cs-key i.was{height:6px;background:var(--brand-line,#B9CBF5);margin-left:10px}
+      @media (max-width:760px){.cs .cs-hp{grid-template-columns:1fr auto}.cs .cs-hp .bars{grid-column:1/-1;grid-row:2}}
       .cs .cs-cr{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;font-size:13px}
       .cs .cs-cr .k{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
       .cs .cs-cr b{font-size:26px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
@@ -864,23 +888,34 @@
      ecommerce funnel table. Headline = conversion rate (last step / first step), then one row per step: people, % of the
      first step, % of the step before, and last week's % of the first step beside it. A step the tracking does not
      record stays in as "not tracked", so the funnel never silently skips a step. */
+  /* Round 9 (Cole picked option A from the audit page; "we absolutely need add to cart to checkout"): a picture, no math.
+     Headline = conversion rate with "was X%". Then one row per hop (sessions to cart, cart to checkout, checkout to
+     purchase): a dark bar for this week and a light bar for last week on the same scale, the rate in words beside them,
+     green when better, red when worse. A step the tracking does not record shows as its own row saying so, and the hop
+     around it still shows (cart straight to purchase). The counts sit in one line above the bars. */
   function flowHtml(steps) {
-    const S = steps.filter(s => s.v != null || s.missing); const first = S[0], last = [...S].reverse().find(s => s.v != null);
-    if (!first || first.v == null || S.filter(s => s.v != null).length < 2) return empty('Not enough steps to show.');
-    const pc = (a, b) => (a == null || !b ? null : a / b);
-    const p2 = x => x == null ? '–' : fx(x, x < 0.1 ? 2 : 1);
-    const cr = pc(last.v, first.v), crp = pc(last.p, first.p);
-    const arrow = (a, b) => a == null || b == null ? '' : `<span class="cs-cmp ${a >= b ? 'up' : 'down'}">${a >= b ? '▲' : '▼'} ${Math.abs((a - b) * 100).toFixed(2)} pts</span>`;
-    let prevV = null;
-    const rows = S.map((s, i) => {
-      if (s.missing) return `<tr class="miss"><td>${esc(s.l)}</td><td colspan="4">not tracked${s.why ? ` (${esc(s.why)})` : ''}</td></tr>`;
-      const ofFirst = pc(s.v, first.v), fromPrev = i && prevV != null ? pc(s.v, prevV) : null, lastWk = pc(s.p, first.p);
-      const row = `<tr><td>${esc(s.l)}${s.src ? `<small class="muted">${esc(s.src)}</small>` : ''}</td><td><b>${nfmt(s.v)}</b></td><td>${i ? p2(ofFirst) : '100%'}</td><td>${fromPrev != null ? p2(fromPrev) : '–'}</td><td>${i ? `${p2(lastWk)} ${arrow(ofFirst, lastWk)}` : s.p ? `${nfmt(s.p)} ${delta(s.v, s.p)}` : '–'}</td></tr>`;
-      prevV = s.v; return row;
-    }).join('');
-    return `<div class="cs-cr"><span class="k">Conversion rate</span><b>${p2(cr)}</b><span class="muted">of ${esc(first.l.toLowerCase())} ${/purchas/i.test(last.l) ? 'ended in a purchase' : `reached ${esc(last.l.toLowerCase())}`}</span>${crp != null ? `<span class="muted">· last week ${p2(crp)}</span> ${arrow(cr, crp)}` : ''}</div>
-      <div class="cs-tw"><table class="cs-tbl cs-ft"><thead><tr><th>Step</th><th>People</th><th>% of ${esc(first.l.toLowerCase())}</th><th>% of the step before</th><th>Last week, % of ${esc(first.l.toLowerCase())}</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    const S = steps.filter(s => s.v != null || s.missing), real = S.filter(s => s.v != null);
+    if (real.length < 2) return empty('Not enough steps to show.');
+    const first = real[0], last = real[real.length - 1];
+    const rate = (a, b) => (a == null || !b ? null : a / b), p2 = x => x == null ? '–' : fx(x, x < 0.1 ? 2 : 1);
+    const cr = rate(last.v, first.v), crp = rate(last.p, first.p);
+    const was = (a, b) => b == null ? '' : `<span class="cs-was ${a >= b ? 'up' : 'down'}">${a >= b ? '▲' : '▼'} was ${p2(b)}</span>`;
+    const counts = S.map(s => `<span class="cs-cnt${s.missing ? ' miss' : ''}"><b>${s.missing ? '–' : nfmt(s.v)}</b> ${esc(s.l.toLowerCase())}${s.src ? ` <small>(${esc(s.src)})</small>` : ''}</span>`).join('<span class="ar">→</span>');
+    const hops = [];
+    for (let i = 1; i < S.length; i++) {
+      if (S[i].missing) { hops.push(`<div class="cs-hp miss"><span class="t">${esc(S[i - 1].missing ? '' : S[i - 1].l)} → ${esc(S[i].l)}</span><span class="m">Not tracked${S[i].why ? `: ${esc(S[i].why)}` : ''}</span></div>`); continue; }
+      let j = i - 1; while (j >= 0 && S[j].missing) j--;
+      if (j < 0) continue;
+      const a = S[j], s = S[i], r = rate(s.v, a.v), rp = rate(s.p, a.p), sc = Math.max(r || 0, rp || 0) / 0.85 || 1;
+      hops.push(`<div class="cs-hp"><span class="t">${esc(a.l)} → ${esc(s.l)}</span>
+        <div class="bars"><i class="now" style="width:${Math.max(1, (r || 0) / sc * 100)}%"></i>${rp != null ? `<i class="was" style="width:${Math.max(1, rp / sc * 100)}%"></i>` : ''}</div>
+        <span class="v"><b class="${rp == null ? '' : r >= rp ? 'up' : 'down'}">${p2(r)}</b>${was(r, rp)}</span></div>`);
+    }
+    return `<div class="cs-cr"><span class="k">Conversion rate</span><b>${p2(cr)}</b>${was(cr, crp)}<span class="muted">${esc(first.l.toLowerCase())} to ${esc(last.l.toLowerCase())}</span></div>
+      <div class="cs-cnts">${counts}</div>
+      <div class="cs-hps">${hops.join('')}<p class="cs-key"><i class="now"></i>this week <i class="was"></i>last week</p></div>`;
   }
+
 
 
   /* GA4 rows for one channel group (Paid Social, Paid Search, Email...), this week + week before, or from the 4-week pull. */
@@ -925,7 +960,10 @@
     const all = [...camps.values()].map(fin), anyLead = all.some(c => c.lead), cols = colsOf(X, anyLead);
     const sk = cols.find(c => c[0] === X.sort) ? X.sort : 'spend', low = (cols.find(c => c[0] === sk) || [])[3];
     const list = sortRows(all, sk, low);
-    const cells = o => cols.map(([k]) => `<td>${(o.lead && ['purchases', 'roas', 'cpa', 'aov'].includes(k)) || (!o.lead && ['leads', 'cpl'].includes(k)) ? '<span class="muted">–</span>' : cellOf(k, o)}</td>`).join('');
+    /* Round 9: ROAS, cost per sale and cost per lead cells green or red against the brand's goals, so the bad campaign
+       shows in one look. No goal = no color. */
+    const G = M.g || {}, tone = (k, o) => { const v = o[k]; if (v == null) return ''; if (k === 'roas' && G.roas && !o.lead) return v >= +G.roas ? 'cs-g' : 'cs-r'; if (k === 'cpa' && G.cpa && !o.lead) return v <= +G.cpa ? 'cs-g' : 'cs-r'; if (k === 'cpl' && M.leadGoal && o.lead) return v <= M.leadGoal ? 'cs-g' : 'cs-r'; return ''; };
+    const cells = o => cols.map(([k]) => `<td class="${tone(k, o)}">${(o.lead && ['purchases', 'roas', 'cpa', 'aov'].includes(k)) || (!o.lead && ['leads', 'cpl'].includes(k)) ? '<span class="muted">–</span>' : cellOf(k, o)}</td>`).join('');
     const nameCell = (o, kind) => kind === 'c' ? `<td><b>${X.open[o.id] ? '▾' : '▸'} ${esc(o.name)}</b>${o.lead ? ' <small class="muted">lead ads</small>' : ''}</td>` : `<td>${X.sopen[o.id] ? '▾' : '▸'} ${esc(o.name)} <small class="muted">${plural(o.ads.length, 'ad')}</small></td>`;
     const N = 3 + cols.length;
     const setRows = c => sortRows(c.sets.map(fin), sk, low).map(s => `<tr class="set" data-mset="${esc(s.id)}" data-act="${esc(b.act_id)}">${nameCell(s, 's')}${statusCell(b, 'adset', s.id, L && L.adsets[s.id] ? L.adsets[s.id] : null)}${budgetCell(b, 'adset', s.id, L && L.adsets[s.id] ? L.adsets[s.id] : null)}${cells(s)}</tr>${X.sopen[s.id] ? `<tr class="adcards"><td colspan="${N}" style="padding:10px 0 14px 22px">${M.cards(sortRows(s.ads, sk, low))}</td></tr>` : ''}`).join('');
@@ -1006,6 +1044,24 @@
      followed for the product path), and three pictures: value over time, first product -> what comes next, and where
      first vs repeat orders come from. Data: profit /api/customers (Triple Whale orders). */
   const SRC = { meta: ['Meta', 'var(--c-meta)'], google: ['Google', 'var(--c-google)'], email: ['Email / SMS', 'var(--c-email)'], tiktok: ['TikTok', 'var(--c-tiktok)'], own: ['Direct / organic', 'var(--line-strong)'] };
+  function ltvChart(curve, cac) {
+    const pts = [[0, 0], ...curve.map(p => [p.days, p.ltv, p.customers])], maxD = Math.max(...pts.map(p => p[0]), 30);
+    const top = Math.max(...pts.map(p => p[1]), cac || 0) * 1.15, W = 520, Hh = 210, L = 44, R = 14, T = 18, B = 26;
+    const X = d => L + d / maxD * (W - L - R), Y = v => T + (1 - v / top) * (Hh - T - B);
+    const thin = p => p[2] != null && p[2] < 200;
+    const solid = pts.filter(p => !thin(p)), weak = pts.filter((p, i) => thin(p) || (i && thin(pts[i + 1] || [])));
+    const line = arr => arr.map((p, i) => `${i ? 'L' : 'M'}${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join(' ');
+    const ticks = [0, 0.25, 0.5, 0.75, 1].map(f => Math.round(top * f / 25) * 25);
+    return `<svg class="cs-ltvsvg" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="Spend per customer over time against CAC">
+      ${ticks.map(v => `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)"/><text x="${L - 6}" y="${Y(v) + 4}" font-size="10" text-anchor="end" fill="var(--muted)">$${v}</text>`).join('')}
+      ${pts.map(p => `<text x="${X(p[0])}" y="${Hh - 8}" font-size="10" text-anchor="middle" fill="var(--muted)">${p[0]}d</text>`).join('')}
+      ${cac ? `<line x1="${L}" x2="${W - R}" y1="${Y(cac)}" y2="${Y(cac)}" stroke="var(--bad)" stroke-width="1.5" stroke-dasharray="5 4"/><text x="${W - R}" y="${Y(cac) + 14}" font-size="11" font-weight="600" text-anchor="end" fill="var(--bad)">CAC ${money(cac)}</text>` : ''}
+      <path d="${line(solid)} L${X(solid[solid.length - 1][0])},${Y(0)} L${X(0)},${Y(0)} Z" fill="var(--brand)" opacity=".08"/>
+      <path d="${line(solid)}" fill="none" stroke="var(--brand)" stroke-width="2.5"/>
+      ${weak.length > 1 ? `<path d="${line(weak)}" fill="none" stroke="var(--brand)" stroke-width="2.5" stroke-dasharray="4 4" opacity=".5"/>` : ''}
+      ${pts.slice(1).map((p, i, a) => `<circle cx="${X(p[0])}" cy="${Y(p[1])}" r="3.5" fill="var(--brand)"${thin(p) ? ' opacity=".5"' : ''}/><text x="${X(p[0])}" y="${Y(p[1]) - 9}" font-size="10.5" font-weight="600" text-anchor="${i === a.length - 1 ? 'end' : 'middle'}" fill="var(--ink)">${money(p[1])}</text>`).join('')}
+    </svg>`;
+  }
   function custBlock7(b, C) {
     const h = C.headline || {}, j = C.journey || {}, P = j.products || {};
     const tile = (l, v, sub) => v == null ? '' : `<div class="cs-tile"><span class="l">${l}</span><span class="v">${v}</span><span class="sub">${sub || ''}</span></div>`;
@@ -1017,9 +1073,10 @@
       tile('Returning customer orders', h.returning_orders != null ? nfmt(h.returning_orders) : null, h.returning_aov != null ? `returning AOV ${money(h.returning_aov)} · ${fx(1 - (h.new_rev_share ?? 1), 0)} of revenue` : ''),
       j.repeat_rate_ever != null ? tile('Repeat rate', fx(j.repeat_rate_ever, 0), j.days_to_second != null ? `2nd order after ${Math.round(j.days_to_second)} days (median)` : 'bought again') : '',
     ].join('');
+    /* Round 9 (Cole: "blank blue bars don't make sense"): one line chart, what a customer has spent since their first
+       order (LTV) against what they cost to get (CAC, red dashed). Above the line = paid back. Thin samples are lighter. */
     const curve = (j.curve || []).filter(p => p.ltv != null);
-    const cmax = Math.max(...curve.map(p => p.ltv), 1);
-    const curveHtml = curve.length > 1 ? `<div class="cs-cv">${curve.map(p => `<div class="c"><span class="v">${money(p.ltv)}</span><i style="height:${Math.max(8, p.ltv / cmax * 100)}%"></i><span class="d">${p.days} days</span><span class="r">${fx(p.repeat_rate, 0)} bought again</span></div>`).join('')}</div>` : '';
+    const curveHtml = curve.length > 1 ? ltvChart(curve, h.cac) : '';
     const first = (P.first || []).slice(0, 6);
     const pathHtml = first.length ? `<table class="cs-tbl cs-path"><thead><tr><th>First product bought</th><th>New customers</th><th>Bought again</th><th>What they bought next</th></tr></thead><tbody>${first.map(p => `<tr><td>${esc(p.name || p.title || p.id)}</td><td>${nfmt(p.customers)} <small class="muted">${fx(p.share, 0)}</small></td><td>${p.repeat_rate != null ? fx(p.repeat_rate, 0) : '–'}</td><td>${(p.then || []).slice(0, 3).map(t => `<span class="cs-chip">${esc(t.name)} <b>${t.customers}</b></span>`).join(' ') || '<span class="muted">–</span>'}</td></tr>`).join('')}</tbody></table>` : '';
     const bar = (list, title) => { const tot = (list || []).reduce((n, s) => n + (s.orders || 0), 0); if (!tot) return ''; return `<div class="cs-srcrow"><span class="t">${title}</span><div class="cs-stack">${list.map(s => `<i style="width:${s.orders / tot * 100}%;background:${(SRC[s.source] || [s.source, 'var(--muted)'])[1]}" title="${esc((SRC[s.source] || [s.source])[0])}: ${fx(s.orders / tot, 0)}"></i>`).join('')}</div><span class="k">${list.filter(s => s.orders / tot >= 0.05).map(s => `<span><i style="background:${(SRC[s.source] || [s.source, 'var(--muted)'])[1]}"></i>${esc((SRC[s.source] || [s.source])[0])} ${fx(s.orders / tot, 0)}</span>`).join('')}</span></div>`; };
@@ -1028,10 +1085,12 @@
     /* Round 8 (Cole: "it was at a decent spot before, now it's cluttered"): one card. The five numbers show; the three
        deeper views fold under "More on customers" for when the conversation goes there. */
     const sub = (t, c, body) => `<div class="cs-subblk"><h4>${t}</h4>${c ? `<p class="cap">${c}</p>` : ''}${body}</div>`;
-    const more = [curveHtml ? sub('Worth over time', 'Average spend per customer since their first order, and the share who bought again.', curveHtml) : '',
+    const c90b = (j.curve || []).find(p => p.days === 90 && p.ltv != null);
+    const chart = curveHtml ? `<div class="cs-ltv">${curveHtml}<div class="say"><b>${c90b && h.cac ? x2(c90b.ltv / h.cac) : '–'}</b><span>LTV:CAC at 90 days</span><p>${c90b && h.cac ? (c90b.ltv >= h.cac ? `A new customer has spent ${money(c90b.ltv)} by day 90 against ${money(h.cac)} to get them: they pay for themselves.` : `A new customer has spent ${money(c90b.ltv)} by day 90 against ${money(h.cac)} to get them: not paid back yet.`) : ''} Revenue, before product cost.</p></div></div>` : '';
+    const more = [
       pathHtml ? sub('What they buy first, and next', `Every customer Locus has followed${P.coverage != null ? ` (${fx(P.coverage, 0)} of orders have products)` : ''}.`, `<div class="cs-tw">${pathHtml}</div>`) : '',
       srcHtml ? sub('Where first and repeat orders come from', 'Last click, Triple Whale.', srcHtml) : ''].join('');
-    return sec('Customers', 'Last 90 days, Triple Whale.', `<div class="cs-tiles">${tiles}</div>${more ? `<details class="cs-fold"><summary>More on customers</summary><div class="in">${more}</div></details>` : ''}`);
+    return sec('Customers', 'Last 90 days, Triple Whale.', `<div class="cs-tiles">${tiles}</div>${chart}${more ? `<details class="cs-fold"><summary>More on customers</summary><div class="in">${more}</div></details>` : ''}`);
   }
   function changeKind(a) {
     const s = `${a.category || ''} ${a.event_type || ''} ${a.summary || ''}`;
@@ -1121,7 +1180,7 @@
     /* Round 6 (Cole: "the point is people who came from the ad, and what they did after"): starts at the click. Ad views
        and click rate are one line above it, not a step (a 1.6% step would dwarf the rest). One funnel only. */
     const fun = pc ? `<p class="cs-lead">${nfmt(pc.impressions)} ad views gave <b>${nfmt(pc.clicks)} link clicks</b> (${fx(pc.impressions ? pc.clicks / pc.impressions : null, 2)} click rate${pp && pp.impressions ? `, ${fx(pp.clicks / pp.impressions, 2)} the week before` : ''}).</p>
-        ${flowHtml([{ l: 'Link clicks', v: pc.clicks, p: pp && pp.clicks }, { l: 'Added to cart', v: pc.atc, p: pp && pp.atc }, { l: 'Purchases', v: pc.purchases, p: pp && pp.purchases }], 'var(--c-meta)', false)}`
+        ${flowHtml([{ l: 'Link clicks', v: pc.clicks, p: pp && pp.clicks }, { l: 'Added to cart', v: pc.atc, p: pp && pp.atc }, pc.checkouts != null ? { l: 'Reached checkout', v: pc.checkouts, p: pp && pp.checkouts } : { l: 'Reached checkout', missing: true, why: 'Meta\'s checkout count fills in after the next Locus sync' }, { l: 'Purchased', v: pc.purchases, p: pp && pp.purchases }], 'var(--c-meta)', false)}`
       : X.paid == null ? empty('Loading…') : `<p class="cs-empty">${esc(X.paid.error)}</p>`;
     void imp; void clk; void gaOk;
     const strat = STRAT[b.act_id] || strategistOf(b) || 'The strategist';
