@@ -269,6 +269,49 @@
       .cs .cs-rv .bd{display:flex;flex-direction:column;gap:6px;min-width:0;font-size:13px}.cs .cs-rv .bd p{margin:0;color:var(--ink-2);font-size:12px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
       .cs .cs-rv .btn{align-self:flex-start}
       @media (max-width:760px){.cs .cs-funnel .fs{grid-template-columns:90px minmax(0,1fr);}.cs .cs-funnel .v{grid-column:1/-1}}
+      /* Round 2 (Cole 2026-11-10): funnel as a table with real bars, dropdowns instead of button rows, change chips, calendar */
+      .cs table.cs-fun td.bar{width:30%;min-width:120px}
+      .cs .cs-fbar{height:16px;border-radius:5px;background:var(--bg);border:1px solid var(--line);position:relative}
+      .cs .cs-fbar i{position:absolute;left:0;top:0;bottom:0;border-radius:4px}
+      .cs .cs-lead{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+      .cs .cs-lead b{color:var(--ink)}.cs .cs-lead .ar{color:var(--muted)}
+      .cs .cs-rate{font-weight:600}.cs .cs-rate.up{color:var(--good)}.cs .cs-rate.down{color:var(--bad)}
+      .cs .cs-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+      .cs .cs-sel{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;color:var(--muted)}
+      .cs .cs-sel select{height:30px;border:1px solid var(--line-strong);border-radius:var(--r-sm);background:var(--surface);color:var(--ink);font:inherit;font-size:13px;font-weight:550;padding:0 8px;cursor:pointer}
+      .cs .cs-colbtn{height:30px;border:1px solid var(--line-strong);border-radius:var(--r-sm);background:var(--surface);color:var(--ink);font:inherit;font-size:13px;font-weight:550;padding:0 10px;cursor:pointer}
+      .cs .cs-tools .gap{flex:1}
+      .cs .cs-tbl tr.set td:first-child{padding-left:22px;font-weight:500}
+      .cs .cs-tbl tr.adr td:first-child{padding-left:44px;font-weight:500}
+      .cs .cs-tbl tr.adr,.cs .cs-tbl tr.set{cursor:pointer}.cs .cs-tbl tr.adr:hover td,.cs .cs-tbl tr.set:hover td,.cs .cs-tbl tr.cmp:hover td{background:var(--bg)}
+      .cs .cs-tbl tr.adr .tn{display:inline-block;width:24px;height:30px;border-radius:4px;background:var(--line) center/cover;vertical-align:middle;margin-right:8px}
+      .cs .cs-chip{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:var(--r-pill);font-size:12px;font-weight:600;white-space:nowrap;background:var(--bg);color:var(--ink-2);border:1px solid var(--line)}
+      .cs .cs-chip.up{background:var(--good-bg);color:var(--good);border-color:transparent}.cs .cs-chip.down{background:var(--bad-bg);color:var(--bad);border-color:transparent}
+      .cs .cs-chip.new{background:var(--brand);color:#fff;border-color:transparent}.cs .cs-chip.meta{color:var(--c-meta)}.cs .cs-chip.google{color:var(--c-google)}.cs .cs-chip.email{color:var(--c-email)}
+      .cs .cs-chg{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+      .cs .cs-chg li{display:grid;grid-template-columns:96px minmax(0,1fr) auto;gap:10px;align-items:center;padding:7px 0;border-top:1px solid var(--line);font-size:13.5px}
+      .cs .cs-chg li.day{display:block;border:0;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);padding:10px 0 2px}
+      .cs .cs-chg .tx{min-width:0;overflow-wrap:anywhere}.cs .cs-chg .tx em{font-style:normal;font-weight:650}
+      .cs .cs-chg .o{font-size:12px;color:var(--muted);white-space:nowrap}
+      .cs .cs-sum{display:flex;gap:6px;flex-wrap:wrap}
+      .cs .cs-cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+      .cs .cs-cal .h{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding:0 4px}
+      .cs .cs-cal .d{min-height:70px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg);padding:4px;display:flex;flex-direction:column;gap:3px;min-width:0}
+      .cs .cs-cal .d.t{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}.cs .cs-cal .d.past{opacity:.45}
+      .cs .cs-cal .d .n{font-size:11px;font-weight:600;color:var(--muted)}
+      .cs .cs-cal .ev{font-size:11px;font-weight:600;line-height:1.25;padding:2px 5px;border-radius:4px;background:var(--brand);color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .cs .cs-cal .ev.un{background:var(--surface);color:var(--ink-2);border:1px dashed var(--line-strong)}
+      .cs .cs-howto{display:flex;gap:6px 16px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin:0}.cs .cs-howto b{color:var(--ink-2)}
+      .cs .cs-rvg{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
+      .cs .cs-rvc{border:1px solid var(--line);border-radius:var(--r-lg);background:var(--bg);overflow:hidden;display:flex;flex-direction:column;min-width:0}
+      .cs .cs-rvc .th{aspect-ratio:9/16;max-height:300px;width:100%;background:var(--line) center/cover no-repeat;position:relative;border:0;padding:0;cursor:pointer;display:grid;place-items:center;color:var(--muted);font:inherit;font-size:12px}
+      .cs .cs-rvc .th .play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:38px;height:38px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;display:grid;place-items:center}
+      .cs .cs-rvc video{width:100%;aspect-ratio:9/16;max-height:300px;background:#000}
+      .cs .cs-rvc .bd{padding:9px 10px 10px;display:flex;flex-direction:column;gap:6px;font-size:13px;min-width:0}
+      .cs .cs-rvc .bd p{margin:0;color:var(--ink-2);font-size:12px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+      .cs .cs-rvc .cs-vote{display:grid;grid-template-columns:repeat(3,1fr)}
+      .cs .cs-rvc .cs-vote button{padding:0 4px}
+      @media (max-width:760px){.cs table.cs-fun td.bar{min-width:70px}.cs .cs-cal .d{min-height:50px}.cs .cs-chg li{grid-template-columns:80px minmax(0,1fr)}.cs .cs-chg .o{grid-column:2}}
       .cs-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);max-width:min(560px,calc(100vw - 32px));background:var(--ink);color:var(--surface);padding:10px 16px;border-radius:var(--r-lg);font-size:13px;z-index:9999;box-shadow:0 8px 30px rgba(0,0,0,.25)}
       .cs-pop{position:fixed;z-index:9600;min-width:220px;max-width:320px;max-height:420px;overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:6px;box-shadow:var(--sh-pop,0 12px 32px -10px rgba(15,15,25,.3));font-family:inherit;color:var(--ink);animation:lx-pop var(--t-fast) var(--ease) both}
       .cs-pop .h{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:7px 9px 5px}
@@ -581,7 +624,14 @@
   const ORDER2 = ['brand_dartee_golf', 'brand_bonk_golf', 'brand_ice_and_gold', 'brand_yak_sports', 'brand_party_patch', 'brand_grunk_dolfer', 'brand_lucky_golf', 'brand_vetripaws', 'brand_speedin'];
   const MODELS = [['lastPlatformClick', 'TW last click'], ['fullFirstClick', 'TW first click'], ['linear', 'TW linear'], ['platform', 'Platform reported']];
   const BX = {};
-  const bx = act => (BX[act] = BX[act] || { model: 'lastPlatformClick', sort: 'spend', adsort: 'spend', open: {}, gsort: 'spend', more: false });
+  const bx = act => (BX[act] = BX[act] || { model: 'lastPlatformClick', sort: 'spend', adsort: 'spend', open: {}, sopen: {}, gopen: {}, gsort: 'spend', more: false, cols: null, esort: 'revenue', rvAll: false });
+  /* Campaign table columns (Cole 2026-11-10: "ability to add to the columns"). Default set, the rest behind Columns. */
+  const MCOLS = [['spend', 'Spend', 1], ['purchases', 'Sales', 1], ['roas', 'ROAS', 1], ['cpa', 'Cost per sale', 1, 1], ['aov', 'Order value', 0], ['ctr', 'CTR', 1], ['cpm', 'CPM', 1, 1], ['cpc', 'Cost per click', 0, 1], ['clk', 'Link clicks', 0], ['imp', 'Impressions', 0], ['freq', 'Frequency', 0, 1], ['hook', 'Hook rate', 0], ['hold', 'Hold rate', 0]];
+  const LCOLS = [['leads', 'Leads', 1], ['cpl', 'Cost per lead', 1, 1]];
+  const colsOf = (X, lead) => { const on = X.cols || MCOLS.filter(c => c[2]).map(c => c[0]); return [...MCOLS.filter(c => on.includes(c[0])), ...(lead ? LCOLS : [])]; };
+  const cellOf = (k, o) => { const v = o[k]; if (k === 'spend' || k === 'aov') return money(v); if (k === 'cpa' || k === 'cpm') return v != null ? money(v) : '–'; if (k === 'cpc' || k === 'cpl') return v != null ? cents(v) : '–'; if (k === 'roas') return x2(v); if (k === 'ctr' || k === 'hook' || k === 'hold') return fx(v, k === 'ctr' ? 2 : 1); if (k === 'freq') return v != null ? (+v).toFixed(2) : '–'; return v != null ? Math.round(v).toLocaleString('en-US') : '–'; };
+  /* Rough ranges for an online store, as % of sessions. A reference only: the line a brand is judged on is its own last 4 weeks. */
+  const TYPICAL = { addToCarts: [5, 8], checkouts: [2.5, 4], ecommercePurchases: [1.4, 3] };
   const fx = (n, d = 1) => n == null || !isFinite(n) ? '–' : (n * 100).toFixed(d) + '%';
   const isLeadRow = (M, a) => M && M.isLead ? M.isLead(a) : a.obj === 'leads';
   const pill = (t, tone) => `<span class="cs-d ${tone || 'flat'}">${t}</span>`;
@@ -595,7 +645,9 @@
       job('ads', V2.adSet(b.act_id, from, to, H, { label, model: X.model, callActs: adActs(b) })),
       job('live', H.apiAH(`/api/meta/live?act=${act}`)),
       job('acts', H.apiAH(`/api/activities?act=${act}&from=${from}&to=${addDays(to, 1)}T05:59:59&limit=200`)),
-      job('ga', H.apiAH(`/api/google/website?act=${act}&from=${from}&to=${to}`)),
+      job('ga', H.apiAH(`/api/google/website?act=${act}&from=${from}&to=${to}&pfrom=${addDays(from, -7)}&pto=${addDays(from, -1)}`)),
+      job('ga4w', H.apiAH(`/api/google/website?act=${act}&from=${addDays(from, -28)}&to=${addDays(from, -1)}`)),
+      job('cust', H.api(`/api/customers?act=${act}&days=90`)),
       job('gads', H.apiAH(`/api/google/ads?act=${act}&from=${from}&to=${to}`)),
       job('klv', Promise.all([H.apiAH(`/api/klaviyo?act=${act}&what=campaigns`).catch(e => ({ error: e.message })), H.apiAH(`/api/klaviyo?act=${act}&what=flows_report`).catch(e => ({ error: e.message }))]).then(([c, f]) => ({ c, f }))),
       job('cal', H.apiAH(`/api/calendar?act=${act}&from=${t}&to=${addDays(t, 21)}&lite=1`)),
@@ -607,11 +659,11 @@
   /* The sheet's call buttons (the Ads page sheet opened from the call): turn the ad off now, or hand a call to the buyer. */
   function adActs(b) {
     return {
-      html: () => `<button type="button" class="ds-btn" data-cxoff="1">Turn off</button><button type="button" class="ds-btn" data-cxcall="1">Call for the buyer</button>`,
+      html: () => `<button type="button" class="ds-btn" data-cxoff="1">Turn off</button><button type="button" class="ds-btn" data-cxcall="1">Move for the buyer</button>`,
       wire: (a, root) => {
         const off = root && root.querySelector('[data-cxoff]'), cl = root && root.querySelector('[data-cxcall]');
         if (off) off.onclick = () => metaChange(b, { kind: 'pause', level: 'ad', object: a.id, name: a.name });
-        if (cl) cl.onclick = () => listMenu(cl, 'A call for the media buyer', ['Cut', 'Trim', 'Scale', 'Refresh'].map(k => ({ v: k, label: k })), v => { const st = brandState(b.act_id); (st.calls = st.calls || []).push({ text: `${v} ${a.name}`, ad: a.id }); st.edited = true; save(); toast(`"${v} ${a.name}" goes to the buyer in the recap.`); paintMain(); });
+        if (cl) cl.onclick = () => listMenu(cl, 'A move for the media buyer', ['Cut', 'Trim', 'Scale', 'Refresh'].map(k => ({ v: k, label: k })), v => { const st = brandState(b.act_id); (st.calls = st.calls || []).push({ text: `${v} ${a.name}`, ad: a.id }); st.edited = true; save(); toast(`"${v} ${a.name}" goes to the buyer in the recap.`); paintMain(); });
       },
     };
   }
@@ -633,13 +685,37 @@
   }
   const loading = (X, k, what) => X[k] == null ? empty(`Loading ${what}…`) : X[k].error ? `<p class="cs-empty">${esc(X[k].error === 'not_linked' ? `Not connected for this brand.` : X[k].error)}</p>` : null;
   /* ---------- the funnel: GA4 sessions to purchases, the week before beside it ---------- */
-  function funnelHtml(cur, prev, top, hue) {
-    if (!cur) return empty('No GA4 numbers for this.');
-    const steps2 = [...(top || []), ['Sessions', cur.sessions, prev && prev.sessions], ['Add to cart', cur.addToCarts, prev && prev.addToCarts], ['Checkout', cur.checkouts, prev && prev.checkouts], ['Purchases', cur.ecommercePurchases, prev && prev.ecommercePurchases]].filter(s => s[1] != null);
-    const max = Math.max(...steps2.map(s => s[1] || 0), 1);
-    return `<div class="cs-funnel">${steps2.map((s, i) => { const rate = i ? (steps2[i - 1][1] ? s[1] / steps2[i - 1][1] : null) : null; return `<div class="fs"><span class="l">${esc(s[0])}</span><div class="tr"><i style="width:${Math.max(1.5, Math.sqrt((s[1] || 0) / max) * 100)}%;background:${hue || 'var(--brand)'}"></i></div><span class="v"><b>${Math.round(s[1] || 0).toLocaleString('en-US')}</b>${rate != null ? ` <small>${fx(rate, rate < 0.1 ? 2 : 1)} of the step before</small>` : ''}${s[2] != null ? ` ${delta(s[1], s[2])}` : ''}</span></div>`; }).join('')}</div>`;
+  /* Round 2 (Cole 2026-11-10: "% of sessions? what is the KPI per step? compare to last week? no bars"): one table.
+     Each step: a bar sized against sessions, the count against the week before, % of sessions, % of the step before,
+     and the line it is judged on = this brand's own last 4 weeks (green above, red under). The typical-store range is a
+     reference only. Ad views and clicks (the platform's) sit on one line above, because they are 10 to 100 times
+     sessions and would flatten every bar. */
+  const FSTEPS = [['sessions', 'Sessions'], ['addToCarts', 'Add to cart'], ['checkouts', 'Checkout'], ['ecommercePurchases', 'Purchases']];
+  function funnelHtml(cur, prev, top, hue, avg) {
+    if (!cur || !cur.sessions) return empty('No GA4 numbers for this.');
+    if (!cur.addToCarts && !cur.checkouts && !cur.ecommercePurchases) return `<p class="cs-empty">${Math.round(cur.sessions).toLocaleString('en-US')} sessions, but GA4 recorded no add to cart, checkout or purchase. The store's GA4 shopping events are not set up, so there is no funnel to read yet.</p>`;
+    const S = cur.sessions, Sp = prev && prev.sessions, Sa = avg && avg.sessions;
+    const lead = (top || []).filter(t => t[1] != null);
+    const leadHtml = lead.length ? `<div class="cs-lead">${lead.map((t, i) => `${i ? `<span class="ar">→</span>` : ''}<span><b>${Math.round(t[1]).toLocaleString('en-US')}</b> ${esc(t[0].toLowerCase())}${i && lead[i - 1][1] ? ` <small class="muted">(${fx(t[1] / lead[i - 1][1], 2)})</small>` : ''}</span>`).join('')}<span class="ar">→</span><span><b>${Math.round(S).toLocaleString('en-US')}</b> sessions${lead.length && lead[lead.length - 1][1] ? ` <small class="muted">(${fx(S / lead[lead.length - 1][1], 0)} of clicks landed)</small>` : ''}</span></div>` : '';
+    const rows = FSTEPS.map(([k, l], i) => {
+      const v = cur[k]; if (v == null) return '';
+      const ofS = S ? v / S : null, before = i ? (cur[FSTEPS[i - 1][0]] ? v / cur[FSTEPS[i - 1][0]] : null) : null;
+      const pS = prev && Sp && prev[k] != null ? prev[k] / Sp : null, aS = avg && Sa && avg[k] != null ? avg[k] / Sa : null;
+      const pts = (a, b) => a == null || b == null ? '' : `<small class="cs-rate ${a >= b ? 'up' : 'down'}">${a >= b ? '▲' : '▼'} ${Math.abs((a - b) * 100).toFixed(2)} pts</small>`;
+      const T = TYPICAL[k];
+      return `<tr><td>${esc(l)}</td><td class="bar"><div class="cs-fbar"><i style="width:${Math.max(2, Math.min(100, (ofS || 0) * 100))}%;background:${hue || 'var(--brand)'}"></i></div></td>
+        <td><b>${Math.round(v).toLocaleString('en-US')}</b> ${prev && prev[k] != null ? delta(v, prev[k]) : ''}</td>
+        <td>${i ? `${fx(ofS, 2)} ${pts(ofS, pS)}` : '100%'}</td>
+        <td>${before != null ? fx(before, 1) : '–'}</td>
+        <td>${i && aS != null ? `<span class="cs-rate ${ofS >= aS ? 'up' : 'down'}">${fx(aS, 2)}</span>` : i ? '–' : avg ? `${Math.round(Sa / 4).toLocaleString('en-US')} a week` : '–'}</td>
+        <td class="muted">${T ? `${T[0]} to ${T[1]}%` : ''}</td></tr>`;
+    }).join('');
+    return `${leadHtml}<div class="cs-tw"><table class="cs-tbl cs-fun"><thead><tr><th>Step</th><th></th><th>Count, vs week before</th><th>% of sessions, vs week before</th><th>% of the step before</th><th>Its usual (last 4 weeks)</th><th>Typical store</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   }
-  const gaRow = (X, re) => { const ch = X.ga && !X.ga.error ? (X.ga.channels || []).filter(c => re.test(String(c.group || c.k || ''))) : []; if (!ch.length) return null; const sum = k => ch.reduce((n, c) => n + (+c[k] || 0), 0); const pv = k => ch.reduce((n, c) => n + (+((c.prev || {})[k]) || 0), 0); return { cur: { sessions: sum('sessions'), addToCarts: sum('addToCarts'), checkouts: sum('checkouts'), ecommercePurchases: sum('ecommercePurchases') }, prev: ch.some(c => c.prev) ? { sessions: pv('sessions'), addToCarts: pv('addToCarts'), checkouts: pv('checkouts'), ecommercePurchases: pv('ecommercePurchases') } : null }; };
+  /* GA4 rows for one channel group (Paid Social, Paid Search, Email...), this week + week before, or from the 4-week pull. */
+  const gaSum = (src, re) => { const ch = src && !src.error ? (src.channels || []).filter(c => re.test(String(c.group || c.k || ''))) : []; if (!ch.length) return null; const sum = (k, p) => ch.reduce((n, c) => n + (+((p ? c.prev || {} : c)[k]) || 0), 0); const o = p => ({ sessions: sum('sessions', p), addToCarts: sum('addToCarts', p), checkouts: sum('checkouts', p), ecommercePurchases: sum('ecommercePurchases', p) }); return { cur: o(false), prev: ch.some(c => c.prev) ? o(true) : null }; };
+  const gaRow = (X, re) => { const r = gaSum(X.ga, re); if (!r) return null; const a = gaSum(X.ga4w, re); return { ...r, avg: a ? a.cur : null }; };
+  const gaAvg = X => X.ga4w && !X.ga4w.error && X.ga4w.cur ? X.ga4w.cur : null;
   /* ---------- the plan: one line per batch, Yes / Changes / No; no owners or dates (the strategist makes the briefs) ---------- */
   function planHtml(b, key, who, hue) {
     const s = brandState(b.act_id), lines = s[key] = s[key] || [];
@@ -647,7 +723,8 @@
         <div style="min-width:0"><div class="t${x.text ? '' : ' empty'}" data-f="text" data-ph="Type a line of the plan">${esc(x.text)}</div>${x.vote === 'c' ? `<input type="text" data-pnote="${i}" data-key="${key}" data-act="${esc(b.act_id)}" value="${esc(x.note || '')}" placeholder="What to change">` : ''}</div>
         <span class="cs-vote">${[['y', 'Yes'], ['c', 'Changes'], ['n', 'No']].map(([k, l]) => `<button type="button" class="${x.vote === k ? k : ''}" data-vote="${k}" aria-pressed="${x.vote === k}">${l}</button>`).join('')}</span>
         <button type="button" class="x" data-f="del" aria-label="Remove" title="Remove">×</button></div>`).join('');
-    return `<div class="rows" data-list="${key}" data-act="${esc(b.act_id)}">${rows}</div>
+    return `<p class="cs-howto"><span><b>Yes:</b> approved, ${esc(who)} makes it</span><span><b>Changes:</b> type what to change, ${esc(who)} gets your note with it</span><span><b>No:</b> dropped</span><span>Finish posts all of it in the brand's internal Slack recap and puts the Yes and Changes lines on the client meeting's This week.</span></p>
+      <div class="rows" data-list="${key}" data-act="${esc(b.act_id)}">${rows}</div>
       ${lines.length ? '' : `<p class="warnline">${esc(who)} has not posted a plan for ${esc(b.name)} yet. Talk it through and type the lines.</p>`}
       <button type="button" class="add" data-add="${key}" data-act="${esc(b.act_id)}">+ Add a line</button>`;
   }
@@ -672,24 +749,46 @@
       S.spend += a.spend || 0; S.revenue += a.revenue || 0; S.purchases += a.purchases || 0; S.leads += a.leads || 0; S.imp += a.impressions || 0; S.clk += a.clicks || 0; S.ads.push(a); sets.set(sid, S);
     }
     for (const S of sets.values()) { const C = camps.get(S.cid) || { id: S.cid, name: (L && L.campaigns[S.cid] && L.campaigns[S.cid].name) || S.ads[0].campaign || 'No campaign', spend: 0, revenue: 0, purchases: 0, leads: 0, imp: 0, clk: 0, lead: S.lead, sets: [] }; for (const k of ['spend', 'revenue', 'purchases', 'leads', 'imp', 'clk']) C[k] += S[k]; C.sets.push(S); camps.set(S.cid, C); }
-    const fin = o => ({ ...o, roas: o.spend ? o.revenue / o.spend : null, cpa: o.purchases ? o.spend / o.purchases : null, cpl: o.leads ? o.spend / o.leads : null, ctr: o.imp ? o.clk / o.imp : null, res: o.lead ? o.leads : o.purchases });
-    const list = sortRows([...camps.values()].map(fin), X.sort, X.sort === 'cpa');
-    const row = (o, kind, live) => `<td>${kind === 'c' ? `<b>${X.open[o.id] ? '▾' : '▸'} ${esc(o.name)}</b>${o.lead ? ' <small class="muted">lead ads</small>' : ''}` : `${esc(o.name)} <small class="muted">${plural(o.ads.length, 'ad')}</small>`}</td>
-      ${statusCell(b, kind === 'c' ? 'campaign' : 'adset', o.id, live)}${budgetCell(b, kind === 'c' ? 'campaign' : 'adset', o.id, live)}
-      <td>${money(o.spend)}</td><td>${o.lead ? `${Math.round(o.leads)} leads` : Math.round(o.purchases)}</td><td>${o.lead ? (o.cpl != null ? cents(o.cpl) + ' CPL' : '–') : x2(o.roas)}</td><td>${o.lead ? '–' : o.cpa != null ? money(o.cpa) : '–'}</td><td>${fx(o.ctr, 2)}</td>`;
-    return `<div class="cs-tw"><table class="cs-tbl cs-camp"><thead><tr><th>Campaign</th><th>Status</th><th>Budget</th>${thSort(b, X.sort, 'spend', 'Spend', 'msort')}${thSort(b, X.sort, 'res', 'Sales / leads', 'msort')}${thSort(b, X.sort, 'roas', 'ROAS / CPL', 'msort')}${thSort(b, X.sort, 'cpa', 'Cost per sale', 'msort')}${thSort(b, X.sort, 'ctr', 'CTR', 'msort')}</tr></thead><tbody>
-      ${list.map(c => `<tr class="cmp" data-mcamp="${esc(c.id)}" data-act="${esc(b.act_id)}">${row(c, 'c', L && L.campaigns[c.id] ? { ...L.campaigns[c.id] } : null)}</tr>${X.open[c.id] ? sortRows(c.sets.map(fin), X.sort, X.sort === 'cpa').map(s => `<tr class="set">${row(s, 's', L && L.adsets[s.id] ? L.adsets[s.id] : null)}</tr>`).join('') : ''}`).join('')}
+    /* Sums of the ads under the chosen attribution. Weighted rates: hook/hold by impressions, frequency by spend. */
+    const fin = o => { const ads = o.ads || (o.sets || []).flatMap(s => s.ads); const imp = o.imp, sp = o.spend; return { ...o, roas: sp ? o.revenue / sp : null, cpa: o.purchases ? sp / o.purchases : null, cpl: o.leads ? sp / o.leads : null, ctr: imp ? o.clk / imp : null, cpm: imp ? sp / imp * 1000 : null, cpc: o.clk ? sp / o.clk : null, aov: o.purchases ? o.revenue / o.purchases : null, hook: imp ? ads.reduce((n, a) => n + (a.hook != null ? a.hook * (a.impressions || 0) : 0), 0) / imp : null, hold: imp ? ads.reduce((n, a) => n + (a.hold != null ? a.hold * (a.impressions || 0) : 0), 0) / imp : null, freq: sp ? ads.reduce((n, a) => n + (a.frequency != null ? a.frequency * (a.spend || 0) : 0), 0) / sp || null : null }; };
+    const all = [...camps.values()].map(fin), anyLead = all.some(c => c.lead), cols = colsOf(X, anyLead);
+    const sk = cols.find(c => c[0] === X.sort) ? X.sort : 'spend', low = (cols.find(c => c[0] === sk) || [])[3];
+    const list = sortRows(all, sk, low);
+    const cells = o => cols.map(([k]) => `<td>${(o.lead && ['purchases', 'roas', 'cpa', 'aov'].includes(k)) || (!o.lead && ['leads', 'cpl'].includes(k)) ? '<span class="muted">–</span>' : cellOf(k, o)}</td>`).join('');
+    const nameCell = (o, kind) => kind === 'c' ? `<td><b>${X.open[o.id] ? '▾' : '▸'} ${esc(o.name)}</b>${o.lead ? ' <small class="muted">lead ads</small>' : ''}</td>` : `<td>${X.sopen[o.id] ? '▾' : '▸'} ${esc(o.name)} <small class="muted">${plural(o.ads.length, 'ad')}</small></td>`;
+    const N = 3 + cols.length;
+    const setRows = c => sortRows(c.sets.map(fin), sk, low).map(s => `<tr class="set" data-mset="${esc(s.id)}" data-act="${esc(b.act_id)}">${nameCell(s, 's')}${statusCell(b, 'adset', s.id, L && L.adsets[s.id] ? L.adsets[s.id] : null)}${budgetCell(b, 'adset', s.id, L && L.adsets[s.id] ? L.adsets[s.id] : null)}${cells(s)}</tr>${X.sopen[s.id] ? `<tr class="adcards"><td colspan="${N}" style="padding:10px 0 14px 22px">${M.cards(sortRows(s.ads, sk, low))}</td></tr>` : ''}`).join('');
+    return `<div class="cs-tools"><span class="cs-sub" style="margin:0">Tap a campaign for its ad sets, an ad set for its ads.</span><span class="gap"></span><button type="button" class="cs-colbtn" data-mcols="${esc(b.act_id)}">Columns ▾</button></div>
+      <div class="cs-tw"><table class="cs-tbl cs-camp"><thead><tr><th>Campaign</th><th>Status</th><th>Budget</th>${cols.map(([k, l]) => thSort(b, sk, k, l, 'msort')).join('')}</tr></thead><tbody>
+      ${list.map(c => `<tr class="cmp" data-mcamp="${esc(c.id)}" data-act="${esc(b.act_id)}">${nameCell(c, 'c')}${statusCell(b, 'campaign', c.id, L && L.campaigns[c.id] ? { ...L.campaigns[c.id] } : null)}${budgetCell(b, 'campaign', c.id, L && L.campaigns[c.id] ? { ...L.campaigns[c.id] } : null)}${cells(c)}</tr>${X.open[c.id] ? setRows(c) : ''}`).join('')}
       </tbody></table></div>${L ? (L.can ? '' : `<p class="warnline">${esc((L.accounts || []).map(a => a.fix).filter(Boolean)[0] || 'Locus cannot change this Meta account.')}</p>`) : '<p class="cs-sub">Status and budgets are loading from Meta.</p>'}
-      <p class="cs-sub">Tap a campaign for its ad sets. Tap a budget to change it, or On / Off to switch it. Every change shows Meta's before and after first, lands in the Change Log, and can be undone for 24 hours.</p>`;
+      <p class="cs-sub">Tap a budget to change it, or On / Off to switch it. Every change shows Meta's before and after first, lands in the Change Log, and can be undone for 24 hours. Tap a column name to sort.</p>`;
   }
   function googleTable(b) {
     const X = bx(b.act_id), w = loading(X, 'gads', 'Google Ads'); if (w) return w;
     const rows = sortRows((X.gads.campaigns || []).filter(c => c.spend > 0 || /ENABLED/.test(c.status || '')).map(c => ({ ...c, ctr: c.impressions ? c.clicks / c.impressions : null, cpc: c.clicks ? c.spend / c.clicks : null })), X.gsort, X.gsort === 'cpc');
     if (!rows.length) return empty('No Google spend this week.');
     const TYPE = { SEARCH: 'Search', SHOPPING: 'Shopping', PERFORMANCE_MAX: 'Performance Max', DEMAND_GEN: 'Demand Gen', VIDEO: 'YouTube', DISPLAY: 'Display' };
-    return `<div class="cs-tw"><table class="cs-tbl cs-camp"><thead><tr><th>Google campaign</th><th>Status</th><th>Budget</th>${thSort(b, X.gsort, 'spend', 'Spend', 'gsort')}${thSort(b, X.gsort, 'clicks', 'Clicks', 'gsort')}${thSort(b, X.gsort, 'ctr', 'CTR', 'gsort')}${thSort(b, X.gsort, 'cpc', 'Cost per click', 'gsort')}</tr></thead><tbody>
-      ${rows.map(c => `<tr><td><b>${esc(c.name)}</b> <small class="muted">${esc(TYPE[c.type] || c.type || '')}</small></td>${statusCell(b, 'campaign', c.id, { status: c.status, name: c.name }, 'google')}${c.budget_shared ? '<td class="muted">shared</td>' : budgetCell(b, 'campaign', c.id, { budget: c.budget, name: c.name }, 'google')}<td>${money(c.spend)}</td><td>${Math.round(c.clicks).toLocaleString('en-US')}</td><td>${fx(c.ctr, 2)}</td><td>${c.cpc != null ? cents(c.cpc) : '–'}</td></tr>`).join('')}
-      </tbody></table></div><p class="cs-sub">Google Ads' own spend and clicks. Sales per Google campaign are not split out here yet: the channel line above is Triple Whale.</p>`;
+    const det = c => {
+      const G = X.gdet; if (!G) return empty('Loading its ad groups, ads and search terms…'); if (G.error) return `<p class="cs-empty">${esc(G.error)}</p>`;
+      const nm = c.name, A = G.ads && !G.ads.error ? G.ads : {}, T = G.terms && !G.terms.error ? G.terms.terms || [] : [];
+      const groups = (A.asset_groups || []).filter(g => g.campaign === nm), ads = (A.ads || []).filter(a => a.campaign === nm), terms = T.filter(t => t.campaign === nm).slice(0, 8);
+      const met = o => `<td>${money(o.spend)}</td><td>${o.clicks != null ? Math.round(o.clicks).toLocaleString('en-US') : '–'}</td><td>${o.impressions ? fx(o.clicks / o.impressions, 2) : '–'}</td><td>${o.clicks ? cents(o.spend / o.clicks) : '–'}</td>`;
+      const tbl = (h, rows) => rows ? `<table class="cs-tbl"><thead><tr><th>${h}</th><th>Spend</th><th>Clicks</th><th>CTR</th><th>Cost per click</th></tr></thead><tbody>${rows}</tbody></table>` : '';
+      const html = [groups.length ? tbl('Asset group', groups.map(g => `<tr><td>${esc(g.name)} ${g.strength ? `<small class="muted">${esc(g.strength)}</small>` : ''}</td>${met(g)}</tr>`).join('')) : '',
+        ads.length ? tbl('Ad', ads.slice(0, 8).map(a => `<tr><td>${esc((a.headlines || [])[0] || a.name || a.type || 'Ad')} <small class="muted">${esc(a.ad_group || '')}${a.strength ? ` · ${esc(a.strength)}` : ''}</small></td>${met(a)}</tr>`).join('')) : '',
+        terms.length ? tbl('Search term', terms.map(t => `<tr><td>${esc(t.term)}</td>${met(t)}</tr>`).join('')) : ''].filter(Boolean).join('');
+      return html || empty('Google sent nothing below this campaign for the week.');
+    };
+    return `<p class="cs-sub" style="margin:0">Tap a campaign for its asset groups, ads and search terms.</p><div class="cs-tw"><table class="cs-tbl cs-camp"><thead><tr><th>Google campaign</th><th>Status</th><th>Budget</th>${thSort(b, X.gsort, 'spend', 'Spend', 'gsort')}${thSort(b, X.gsort, 'clicks', 'Clicks', 'gsort')}${thSort(b, X.gsort, 'ctr', 'CTR', 'gsort')}${thSort(b, X.gsort, 'cpc', 'Cost per click', 'gsort')}${thSort(b, X.gsort, 'impressions', 'Impressions', 'gsort')}</tr></thead><tbody>
+      ${rows.map(c => `<tr class="cmp" data-gcamp="${esc(c.id)}" data-act="${esc(b.act_id)}"><td><b>${X.gopen[c.id] ? '▾' : '▸'} ${esc(c.name)}</b> <small class="muted">${esc(TYPE[c.type] || c.type || '')}</small></td>${statusCell(b, 'campaign', c.id, { status: c.status, name: c.name }, 'google')}${c.budget_shared ? '<td class="muted">shared</td>' : budgetCell(b, 'campaign', c.id, { budget: c.budget, name: c.name }, 'google')}<td>${money(c.spend)}</td><td>${Math.round(c.clicks).toLocaleString('en-US')}</td><td>${fx(c.ctr, 2)}</td><td>${c.cpc != null ? cents(c.cpc) : '–'}</td><td>${Math.round(c.impressions || 0).toLocaleString('en-US')}</td></tr>${X.gopen[c.id] ? `<tr class="adcards"><td colspan="8" style="padding:8px 0 14px 22px">${det(c)}</td></tr>` : ''}`).join('')}
+      </tbody></table></div><p class="cs-sub">Google Ads' own spend and clicks. Sales per Google campaign are not in Locus yet: the sales line above is Triple Whale for the whole channel.</p>`;
+  }
+  async function loadGoogleDetail(b) {
+    const X = bx(b.act_id), r = b.read; if (X.gdet || !r) return;
+    const q = `act=${encodeURIComponent(b.act_id)}&from=${r.period_start}&to=${r.period_end}`;
+    const [ads, terms] = await Promise.all([H.apiAH(`/api/google/ads-ads?${q}`).catch(e => ({ error: e.message })), H.apiAH(`/api/google/ads-terms?${q}`).catch(e => ({ error: e.message }))]);
+    X.gdet = { ads, terms };
   }
   function emailBlock(b) {
     const X = bx(b.act_id), r = b.read, ch = (r && r.channels || []).find(c => c.id === 'email');
@@ -699,14 +798,21 @@
     const rev = x => x.revenue != null ? x.revenue : x.conversion_value;
     const sms = camps.filter(c => /sms/i.test(c.channel || '')), em = camps.filter(c => !/sms/i.test(c.channel || ''));
     const err = (K.c && K.c.error) || (K.f && K.f.error);
-    const ga = gaRow(X, /email/i);
-    return `<div class="cs-tiles"><div class="cs-tile"><span class="l">Email sales (Triple Whale)</span><span class="v">${ch ? money(ch.cur.revenue) : '–'}${ch && ch.prev ? delta(ch.cur.revenue, ch.prev.revenue) : ''}</span><span class="sub">last click, whole week</span></div>
-        <div class="cs-tile"><span class="l">Email campaigns sent</span><span class="v">${em.length}</span><span class="sub">${money(em.reduce((n, c) => n + (rev(c) || 0), 0))} by Klaviyo's count</span></div>
-        <div class="cs-tile"><span class="l">SMS campaigns sent</span><span class="v">${sms.length}</span><span class="sub">${money(sms.reduce((n, c) => n + (rev(c) || 0), 0))} by Klaviyo's count</span></div></div>
-      ${err ? `<p class="cs-empty">${esc(err === 'not_linked' ? 'Klaviyo is not connected for this brand.' : err)}</p>` : ''}
-      ${camps.length ? `<div class="cs-tw"><table class="cs-tbl"><thead><tr><th>Campaign this week</th><th>Sent</th><th>Opened</th><th>Clicked</th><th>Sales (Klaviyo)</th></tr></thead><tbody>${camps.map(c => `<tr><td>${esc(c.name)} <small class="muted">${/sms/i.test(c.channel || '') ? 'SMS' : 'email'} · ${md(String(c.send_at || c.sent_at || '').slice(0, 10))}</small></td><td>${(c.recipients || 0).toLocaleString('en-US')}</td><td>${c.open_rate != null ? fx(c.open_rate) : '–'}</td><td>${c.click_rate != null ? fx(c.click_rate, 2) : '–'}</td><td>${money(rev(c))}</td></tr>`).join('')}</tbody></table></div>` : ''}
-      ${flows.length ? `<div class="cs-tw"><table class="cs-tbl"><thead><tr><th>Top flows</th><th>Sent</th><th>Sales (Klaviyo)</th></tr></thead><tbody>${flows.map(f => `<tr><td>${esc(f.name)}</td><td>${(f.recipients || f.delivered || 0).toLocaleString('en-US')}</td><td>${money(f.revenue)}</td></tr>`).join('')}</tbody></table></div><p class="cs-sub">Flows: Klaviyo's own report window.</p>` : ''}
-      ${ga ? `<p class="cs-sub">Email visitors on the site (GA4)</p>${funnelHtml(ga.cur, ga.prev, null, 'var(--c-email)')}` : ''}`;
+    const ga = gaRow(X, /email|sms/i), t = r && r.totals || {};
+    const tile = (l, v, sub) => `<div class="cs-tile"><span class="l">${l}</span><span class="v">${v}</span><span class="sub">${sub || ''}</span></div>`;
+    const flowRev = flows.reduce((n, f) => n + (f.revenue || 0), 0);
+    /* Same pattern as Meta and Google (Cole: "why is email a different format"): results, campaigns, flows, funnel, plan. */
+    const ek = X.esort || 'revenue', crow = sortRows(camps.map(c => ({ ...c, revenue: rev(c), rpr: c.recipients ? rev(c) / c.recipients : null })), ek === 'sent' ? 'recipients' : ek);
+    return `${sec('Email results', 'Sales are Triple Whale, last click, the whole week. Sends and opens are Klaviyo.', `<div class="cs-tiles">
+        ${tile('Email and SMS sales (Triple Whale)', `${ch ? money(ch.cur.revenue) : '–'}${ch && ch.prev ? delta(ch.cur.revenue, ch.prev.revenue) : ''}`, ch && ch.prev ? `${money(ch.prev.revenue)} the week before` : '')}
+        ${tile('Share of store sales', ch && t.sales ? fx(ch.cur.revenue / t.sales, 0) : '–', 'healthy brands sit near 20 to 30%')}
+        ${tile('Campaigns sent', `${em.length} email · ${sms.length} SMS`, `${money(camps.reduce((n, c) => n + (rev(c) || 0), 0))} by Klaviyo's count`)}
+        ${tile('Flows', money(flowRev), `top ${flows.length} flows, Klaviyo's count`)}</div>
+        ${err ? `<p class="cs-empty">${esc(err === 'not_linked' ? 'Klaviyo is not connected for this brand.' : err)}</p>` : ''}`)}
+      ${sec('Email and SMS campaigns', 'Sent last week.', camps.length ? `<div class="cs-tw"><table class="cs-tbl"><thead><tr><th>Campaign</th>${thSort(b, ek, 'sent', 'Sent', 'esort')}${thSort(b, ek, 'open_rate', 'Opened', 'esort')}${thSort(b, ek, 'click_rate', 'Clicked', 'esort')}${thSort(b, ek, 'revenue', 'Sales (Klaviyo)', 'esort')}${thSort(b, ek, 'rpr', 'Per person sent', 'esort')}</tr></thead><tbody>${crow.map(c => `<tr><td>${esc(c.name)} <small class="muted">${/sms/i.test(c.channel || '') ? 'SMS' : 'email'} · ${md(String(c.send_at || c.sent_at || '').slice(0, 10))}</small></td><td>${(c.recipients || 0).toLocaleString('en-US')}</td><td>${c.open_rate != null ? fx(c.open_rate) : '–'}</td><td>${c.click_rate != null ? fx(c.click_rate, 2) : '–'}</td><td>${money(c.revenue)}</td><td>${c.rpr != null ? cents(c.rpr) : '–'}</td></tr>`).join('')}</tbody></table></div>` : empty('No campaigns sent last week.'))}
+      ${sec('Flows', 'The automations that run on their own. Klaviyo\'s own report window.', flows.length ? `<div class="cs-tw"><table class="cs-tbl"><thead><tr><th>Flow</th><th>Sent</th><th>Sales (Klaviyo)</th><th>Per person sent</th></tr></thead><tbody>${flows.map(f => { const n = f.recipients || f.delivered || 0; return `<tr><td>${esc(f.name)}</td><td>${n.toLocaleString('en-US')}</td><td>${money(f.revenue)}</td><td>${n ? cents(f.revenue / n) : '–'}</td></tr>`; }).join('')}</tbody></table></div>` : empty('No flow sales in Klaviyo\'s report.'))}
+      ${ga ? sec('Email funnel', 'People who came from email and SMS (GA4), against the week before and their usual.', funnelHtml(ga.cur, ga.prev, null, 'var(--c-email)', ga.avg)) : ''}
+      ${sec('Email plan', 'Type what goes out this week. Yes, Changes or No on each line.', planHtml(b, 'eplan', STRAT[b.act_id] || 'the strategist'))}`;
   }
   function lastWeekBlock(b) {
     const X = bx(b.act_id), r = b.read, t = today();
@@ -714,51 +820,111 @@
     const mine = acts ? acts.filter(a => a.summary && (a.manual || /budget|paused|status|new_|creative|ad_/i.test(a.category || a.event_type || ''))).slice(0, 12) : null;
     const ga = X.ga && !X.ga.error ? X.ga : null;
     return `${sec(`${esc(b.name)}: last week`, r ? `${short(r.period_start)} to ${short(r.period_end)}. Triple Whale, whole store, every channel, against the week before.` : '', r ? tilesHtml(r) : empty('No weekly report for this brand yet.'))}
-      ${sec('The store funnel', 'Every visitor, every source (GA4), against the week before.', X.ga == null ? empty('Loading GA4…') : ga ? funnelHtml(ga.cur, ga.prev) : `<p class="cs-empty">${esc(X.ga.error === 'not_linked' ? 'GA4 is not connected for this brand.' : X.ga.error)}</p>`)}
-      <div class="cs-two">
-        ${sec('What we changed', 'From the Change Log.', mine == null ? (X.acts && X.acts.error ? `<p class="cs-empty">${esc(X.acts.error)}</p>` : empty('Loading…')) : mine.length ? `<ul class="chk">${mine.map(a => `<li><span class="tx">${esc(a.summary)}</span><span class="o">${md(String(a.event_time || '').slice(0, 10))}${a.actor ? ` · ${esc(teamName(a.actor))}` : ''}</span></li>`).join('')}</ul>` : empty('No changes logged last week.'))}
-        ${sec('Last week\'s tasks', 'Open tasks for this brand in Locus Tasks, due by today. Tick one when it\'s done.', todoList(b.open || [], t, 'Nothing open for this brand.'))}
-      </div>`;
+      ${sec('The store funnel', 'Every visitor, every source (GA4). Green or red = above or under this brand\'s own last 4 weeks.', X.ga == null ? empty('Loading GA4…') : ga ? funnelHtml(ga.cur, ga.prev, null, null, gaAvg(X)) : `<p class="cs-empty">${esc(X.ga.error === 'not_linked' ? 'GA4 is not connected for this brand.' : X.ga.error)}</p>`)}
+      ${custBlock(b)}
+      ${sec('Last week\'s changes', 'What we changed in the accounts, from the Change Log.', mine == null ? (X.acts && X.acts.error ? `<p class="cs-empty">${esc(X.acts.error)}</p>` : empty('Loading…')) : mine.length ? changesHtml(mine) : empty('No changes logged last week.'))}
+      ${sec('Last week\'s tasks', 'Open tasks for this brand in Locus Tasks, due by today. Tick one when it\'s done.', todoList(b.open || [], t, 'Nothing open for this brand.'))}`;
+  }
+  /* Last week's changes, skimmable (Cole: "it only gives text, should it give visual cues"): a chip for what kind of
+     change it was, the platform, the money move pulled out in bold, grouped by day, a count of each kind on top. */
+  function changeKind(a) {
+    const s = `${a.category || ''} ${a.event_type || ''} ${a.summary || ''}`;
+    const m = String(a.summary || '').match(/\$([\d,.]+)\s*(?:to|→|->)\s*\$([\d,.]+)/i), n = v => +String(v).replace(/,/g, '');
+    if (/budget|cap|min spend|minimum/i.test(s) && m) return n(m[2]) >= n(m[1]) ? ['up', 'Budget up', m] : ['down', 'Budget down', m];
+    if (/budget|cap|min spend|minimum/i.test(s)) return ['', 'Budget', m];
+    if (/pause|paused|turned off|\boff\b|stop/i.test(s)) return ['down', 'Off', m];
+    if (/resum|turned on|activated|relaunch|\bon\b/i.test(s)) return ['up', 'On', m];
+    if (/new_|launch|created|added|new ad|new creative|duplicat/i.test(s)) return ['new', 'New', m];
+    if (/email|klaviyo|sms|flow/i.test(s)) return ['', 'Email', m];
+    return ['', 'Change', m];
+  }
+  function changesHtml(list) {
+    const rows = list.map(a => ({ a, k: changeKind(a), plat: /google/i.test(`${a.category} ${a.event_type} ${a.summary}`) ? 'google' : /email|klaviyo|sms/i.test(`${a.category} ${a.event_type}`) ? 'email' : 'meta', day: String(a.event_time || '').slice(0, 10) }));
+    const count = {}; rows.forEach(r => { count[r.k[1]] = (count[r.k[1]] || 0) + 1; });
+    let last = '';
+    return `<div class="cs-sum">${Object.entries(count).map(([l, n]) => { const tone = (rows.find(r => r.k[1] === l) || { k: [''] }).k[0]; return `<span class="cs-chip ${tone}">${n} ${esc(l.toLowerCase())}</span>`; }).join('')}</div>
+      <ul class="cs-chg">${rows.map(r => { const head = r.day !== last ? `<li class="day">${md(r.day)}</li>` : ''; last = r.day; const txt = esc(r.a.summary).replace(r.k[2] ? esc(r.k[2][0]) : '\u0000', r.k[2] ? `<em>${esc(r.k[2][0])}</em>` : ''); return `${head}<li><span><span class="cs-chip ${r.k[0]}">${esc(r.k[1])}</span></span><span class="tx"><span class="cs-chip ${r.plat}" style="margin-right:6px">${CHAN[r.plat] || 'Meta'}</span>${txt}</span><span class="o">${r.a.actor ? esc(teamName(r.a.actor)) : ''}</span></li>`; }).join('')}</ul>`;
+  }
+  /* Customers and products (Cole: "LTV, the customer journey, what's selling"). From Locus's Customers page
+     (/api/customers: Triple Whale orders followed from the first order). Shown only when it answers. */
+  function custBlock(b) {
+    const X = bx(b.act_id), C = X.cust; if (C == null) return sec('Customers', '', empty('Loading customers…')); if (C.error) return '';
+    /* Shapes from profit worker /api/customers: headline (window), journey (customers followed from their first order). */
+    const h = C.headline || {}, j = C.journey || {}, w = j.window || {};
+    const tile = (l, v, sub) => v == null ? '' : `<div class="cs-tile"><span class="l">${l}</span><span class="v">${v}</span><span class="sub">${sub || ''}</span></div>`;
+    const c90 = (j.curve || []).find(p => p.days === 90 && p.ltv != null), lc = j.ltv_cac;
+    const tiles = [
+      tile('Cost to get a new customer', h.cac ? money(h.cac) : null, h.new_orders != null ? `${plural(h.new_orders, 'new customer')} last week` : ''),
+      tile('Their first order', h.new_aov != null ? money(h.new_aov) : null, h.payback != null ? `pays back ${x2(h.payback)} on order one` : ''),
+      c90 ? tile('Spent in their first 90 days', money(c90.ltv), lc != null ? `${x2(lc)} what they cost` : '') : '',
+      tile('Returning customers', h.returning_orders != null ? plural(h.returning_orders, 'order') : null, h.returning_aov != null ? `${money(h.returning_aov)} each, ${fx(1 - (h.new_rev_share ?? 1), 0)} of sales` : ''),
+      j.repeat_rate_ever != null ? tile('Order again', fx(j.repeat_rate_ever, 0), j.days_to_second != null ? `second order after about ${Math.round(j.days_to_second)} days` : '') : '',
+    ].join('');
+    const P = j.products || {}, first = (P.first || []).slice(0, 6), next = (P.next || []).slice(0, 4);
+    const prodRows = first.length ? `<div class="cs-tw"><table class="cs-tbl"><thead><tr><th>What new customers buy first</th><th>Customers</th><th>Share</th></tr></thead><tbody>${first.map(p => `<tr><td>${esc(p.title || p.name || p.id)}</td><td>${(p.customers ?? p.n ?? 0).toLocaleString('en-US')}</td><td>${p.share != null ? fx(p.share, 0) : ''}</td></tr>`).join('')}</tbody></table></div>` : '';
+    const nextRow = next.length ? `<p class="cs-sub">What they buy next: ${next.map(p => `${esc(p.from || p.first || '')} → ${esc(p.to || p.next || '')}${p.customers || p.n ? ` (${p.customers || p.n})` : ''}`).join(' · ')}</p>` : '';
+    const young = j.history && j.history.complete === false ? `<p class="cs-sub">Locus has followed customers since ${short(j.history.from)}; lifetime value firms up from ${short(j.history.reliable_from)}.</p>` : '';
+    if (!tiles && !prodRows) return '';
+    return sec('Customers', 'Are new customers worth what they cost? From Locus Customers (Triple Whale orders and spend).', `${tiles ? `<div class="cs-tiles">${tiles}</div>` : ''}${prodRows}${nextRow}${young}`);
   }
   function metaBlock(b) {
     const X = bx(b.act_id), r = b.read, ch = (r && r.channels || []).find(c => c.id === 'meta'), M = X.ads && !X.ads.error ? X.ads : null;
     const groas = M && M.g && M.g.roas ? +M.g.roas : null;
-    const att = `<div class="seg" role="group" aria-label="Attribution">${MODELS.map(([k, l]) => `<button type="button" class="${X.model === k ? 'on' : ''}" data-model="${k}" data-act="${esc(b.act_id)}">${l}</button>`).join('')}</div>`;
-    const tiles = ch ? `<div class="cs-tiles"><div class="cs-tile"><span class="l">Meta spend</span><span class="v">${money(ch.cur.spend)}${ch.prev ? delta(ch.cur.spend, ch.prev.spend, true) : ''}</span><span class="sub">${ch.prev ? `${money(ch.prev.spend)} the week before` : ''}</span></div>
-        <div class="cs-tile"><span class="l">Meta sales (Triple Whale)</span><span class="v">${money(ch.cur.revenue)}${ch.prev ? delta(ch.cur.revenue, ch.prev.revenue) : ''}</span><span class="sub">${ch.cur.purchases != null ? plural(Math.round(ch.cur.purchases), 'order') : ''}</span></div>
-        <div class="cs-tile"><span class="l">Meta ROAS</span><span class="v">${x2(ch.cur.roas)}${vsGoal(ch.cur.roas, groas)}</span><span class="sub">${ch.prev ? `${x2(ch.prev.roas)} the week before` : ''}</span></div>
-        ${M && M.leadGoal ? `<div class="cs-tile"><span class="l">Lead ads</span><span class="v">${money((M.ads || []).filter(a => isLeadRow(M, a)).reduce((n, a) => n + a.spend, 0))}</span><span class="sub">goal ${cents(M.leadGoal)} a lead</span></div>` : ''}</div>` : empty('No Meta numbers in the report.');
-    const all = M ? sortRows(M.ads || [], X.adsort, X.adsort === 'cpa') : [], N = X.more ? all.length : 12;
-    const ads = !M ? (loading(X, 'ads', 'the ads') || '') : `<div class="cs-acts" style="align-items:center"><span class="cs-sub" style="margin:0">Sort</span><div class="seg">${[['spend', 'Spend'], ['purchases', 'Sales'], ['roas', 'ROAS'], ['cpa', 'Cost per sale'], ['ctr', 'CTR'], ['hook', 'Hook']].map(([k, l]) => `<button type="button" class="${X.adsort === k ? 'on' : ''}" data-adsort="${k}" data-act="${esc(b.act_id)}">${l}</button>`).join('')}</div></div>
+    /* ONE attribution choice for the whole Meta section (Cole: "an overarching ability to choose attribution"): tiles,
+       campaigns and ads all follow it. Triple Whale last click is the default and matches the weekly report. */
+    const attSel = `<label class="cs-sel">Attribution <select data-model="1" data-act="${esc(b.act_id)}">${MODELS.map(([k, l]) => `<option value="${k}"${X.model === k ? ' selected' : ''}>${l}</option>`).join('')}</select></label>`;
+    const sum = k => (M ? M.ads || [] : []).filter(a => !isLeadRow(M, a)).reduce((n, a) => n + (a[k] || 0), 0);
+    const useRep = X.model === 'lastPlatformClick' && ch;
+    const sp = ch ? ch.cur.spend : M ? (M.ads || []).reduce((n, a) => n + (a.spend || 0), 0) : null;
+    const rev = useRep ? ch.cur.revenue : M ? sum('revenue') : null, ord = useRep ? ch.cur.purchases : M ? sum('purchases') : null;
+    const roas = useRep ? ch.cur.roas : sp ? rev / sp : null, mname = (MODELS.find(m => m[0] === X.model) || [])[1] || '';
+    const tile = (l, v, sub) => `<div class="cs-tile"><span class="l">${l}</span><span class="v">${v}</span><span class="sub">${sub || ''}</span></div>`;
+    const tiles = (ch || M) ? `<div class="cs-tiles">${tile('Meta spend', `${money(sp)}${ch && ch.prev ? delta(ch.cur.spend, ch.prev.spend, true) : ''}`, ch && ch.prev ? `${money(ch.prev.spend)} the week before` : '')}
+        ${tile(`Meta sales (${esc(mname)})`, `${money(rev)}${useRep && ch.prev ? delta(ch.cur.revenue, ch.prev.revenue) : ''}`, ord != null ? plural(Math.round(ord), 'order') : '')}
+        ${tile('Meta ROAS', `${x2(roas)}${vsGoal(roas, groas)}`, useRep && ch.prev ? `${x2(ch.prev.roas)} the week before` : useRep ? '' : 'sum of the ads under this attribution')}
+        ${(() => { const lsp = M ? (M.ads || []).filter(a => isLeadRow(M, a)).reduce((n, a) => n + (a.spend || 0), 0) : 0; return tile('Cost per sale', ord ? money((sp - lsp) / ord) : '–', `${lsp ? 'sales ads only' : ''}${lsp && M && M.g && M.g.cpa ? ', ' : ''}${M && M.g && M.g.cpa ? `goal ${money(+M.g.cpa)}` : ''}`); })()}
+        ${M && M.leadGoal ? tile('Lead ads', money((M.ads || []).filter(a => isLeadRow(M, a)).reduce((n, a) => n + a.spend, 0)), `goal ${cents(M.leadGoal)} a lead`) : ''}</div>` : empty('No Meta numbers in the report.');
+    const ADSORT = [['spend', 'Spend'], ['purchases', 'Sales'], ['roas', 'ROAS'], ['cpa', 'Cost per sale'], ['ctr', 'CTR'], ['cpm', 'CPM'], ['hook', 'Hook rate'], ['hold', 'Hold rate']];
+    const all = M ? sortRows(M.ads || [], X.adsort, ['cpa', 'cpm'].includes(X.adsort)) : [], N = X.more ? all.length : 12;
+    const ads = !M ? (loading(X, 'ads', 'the ads') || '') : `<div class="cs-tools"><label class="cs-sel">Sort by <select data-adsort="1" data-act="${esc(b.act_id)}">${ADSORT.map(([k, l]) => `<option value="${k}"${X.adsort === k ? ' selected' : ''}>${l}</option>`).join('')}</select></label>${attSel}<span class="gap"></span><span class="cs-sub" style="margin:0">${all.length ? `${Math.min(N, all.length)} of ${all.length}` : ''}</span></div>
       ${all.length ? M.cards(all.slice(0, N)) : empty('No ads spent this week.')}${all.length > 12 ? `<button type="button" class="cs-link" data-admore="${esc(b.act_id)}">${X.more ? 'Show 12' : `Show all ${all.length}`}</button>` : ''}
-      <p class="cs-sub">The Ads page's cards and calls. Tap one for every number and its ad set; "Turn off" and "Call for the buyer" are at the top of it.</p>`;
+      <p class="cs-sub">The Ads page's own cards. Tap one for every number and its ad set; "Turn off" and "Move for the buyer" are at the top of it.</p>`;
     const sales = M ? (M.ads || []).filter(a => !isLeadRow(M, a)) : [];
     const imp = sales.reduce((n, a) => n + (a.impressions || 0), 0), clk = sales.reduce((n, a) => n + (a.clicks || 0), 0);
     const ga = gaRow(X, /paid social/i);
-    const fun = ga ? funnelHtml(ga.cur, ga.prev, imp ? [['Ad views', imp, null], ['Link clicks', clk, null]] : null, 'var(--c-meta)') : M ? funnelHtml({ ecommercePurchases: sales.reduce((n, a) => n + (a.purchases || 0), 0) }, null, [['Ad views', imp, null], ['Link clicks', clk, null]], 'var(--c-meta)') : empty('Loading…');
+    const fun = ga ? funnelHtml(ga.cur, ga.prev, imp ? [['Ad views', imp], ['Link clicks', clk]] : null, 'var(--c-meta)', ga.avg) : M ? `<div class="cs-lead"><span><b>${Math.round(imp).toLocaleString('en-US')}</b> ad views</span><span class="ar">→</span><span><b>${Math.round(clk).toLocaleString('en-US')}</b> link clicks</span><span class="ar">→</span><span><b>${Math.round(sales.reduce((n, a) => n + (a.purchases || 0), 0))}</b> sales</span></div><p class="cs-sub">Connect GA4 to see add to cart and checkout for Meta visitors.</p>` : empty('Loading…');
     const strat = STRAT[b.act_id] || strategistOf(b) || 'The strategist';
-    return `${sec('Meta results', 'Spend is Meta; sales and ROAS are Triple Whale, last click.', tiles)}
-      ${sec('Meta campaigns', '', `<div class="cs-acts" style="align-items:center"><span class="cs-sub" style="margin:0">Attribution</span>${att}</div>${metaTable(b)}`)}
-      ${sec('Meta ads', `${r ? `${short(r.period_start)} to ${short(r.period_end)}` : ''}, ${(MODELS.find(m => m[0] === X.model) || [])[1] || ''}.`, ads)}
-      ${sec('Meta funnel', ga ? 'Ad views and clicks are Meta (sales ads); sessions to purchases are GA4\'s paid social visitors.' : 'Meta sales ads. Add GA4 to see add to cart and checkout.', fun)}
+    return `${sec('Meta results', `Spend is Meta. Sales follow the attribution you pick here; it changes the campaigns and ads below too.`, `<div class="cs-tools">${attSel}</div>${tiles}`)}
+      ${sec('Meta campaigns', `${esc(mname)}.`, metaTable(b))}
+      ${sec('Meta ads', `${r ? `${short(r.period_start)} to ${short(r.period_end)}` : ''}, ${esc(mname)}.`, ads)}
+      ${sec('Meta funnel', ga ? 'Ad views and clicks are Meta (sales ads); sessions to purchases are GA4\'s paid social visitors, against the week before and their usual.' : 'Meta sales ads.', fun)}
       ${sec(`${esc(strat)}'s Meta plan`, `From ${esc(strat)}'s Slack post. Yes, Changes or No on each line; Finish posts it in the recap and tags ${esc(strat)}.`, `${(b.posts || []).some(p => teamName(p.by) !== 'Radhesh') ? `<details class="cs-more"><summary>The post, word for word</summary>${postsHtml((b.posts || []).filter(p => teamName(p.by) !== 'Radhesh'), b.act_id)}</details>` : ''}${planHtml(b, 'batches', strat)}`)}`;
   }
   function googleBlock(b) {
     const X = bx(b.act_id), r = b.read, ch = (r && r.channels || []).find(c => c.id === 'google');
     seedGoogle(b);
     const ga = gaRow(X, /paid search|paid shopping|cross-network|paid other/i);
-    const tiles = `<div class="cs-tiles"><div class="cs-tile"><span class="l">Google spend</span><span class="v">${money(ch.cur.spend)}${ch.prev ? delta(ch.cur.spend, ch.prev.spend, true) : ''}</span></div><div class="cs-tile"><span class="l">Google sales (Triple Whale)</span><span class="v">${money(ch.cur.revenue)}${ch.prev ? delta(ch.cur.revenue, ch.prev.revenue) : ''}</span></div><div class="cs-tile"><span class="l">Google ROAS</span><span class="v">${x2(ch.cur.roas)}</span><span class="sub">${ch.prev ? `${x2(ch.prev.roas)} the week before` : ''}</span></div></div>`;
-    return `${sec('Google results', 'Spend is Google Ads; sales and ROAS are Triple Whale, last click.', tiles)}
+    const G = X.gads && !X.gads.error ? X.gads.campaigns || [] : [], gclk = G.reduce((n, c) => n + (c.clicks || 0), 0), gimp = G.reduce((n, c) => n + (c.impressions || 0), 0);
+    const tile = (l, v, sub) => `<div class="cs-tile"><span class="l">${l}</span><span class="v">${v}</span><span class="sub">${sub || ''}</span></div>`;
+    const tiles = `<div class="cs-tiles">${tile('Google spend', `${money(ch.cur.spend)}${ch.prev ? delta(ch.cur.spend, ch.prev.spend, true) : ''}`, ch.prev ? `${money(ch.prev.spend)} the week before` : '')}
+      ${tile('Google sales (Triple Whale)', `${money(ch.cur.revenue)}${ch.prev ? delta(ch.cur.revenue, ch.prev.revenue) : ''}`, ch.cur.purchases != null ? plural(Math.round(ch.cur.purchases), 'order') : ch.prev ? `${money(ch.prev.revenue)} the week before` : '')}
+      ${tile('Google ROAS', x2(ch.cur.roas), ch.prev ? `${x2(ch.prev.roas)} the week before` : '')}
+      ${tile('Cost per sale', ch.cur.purchases ? money(ch.cur.spend / ch.cur.purchases) : '–', gclk ? `${Math.round(gclk).toLocaleString('en-US')} clicks at ${cents(ch.cur.spend / gclk)}` : '')}
+      ${gimp ? tile('Click rate', fx(gclk / gimp, 2), `${Math.round(gimp).toLocaleString('en-US')} impressions`) : ''}</div>`;
+    return `${sec('Google results', 'Spend and clicks are Google Ads. Sales are Triple Whale last click for the whole channel; Locus does not have the other attributions for Google yet.', tiles)}
       ${sec('Google campaigns', '', googleTable(b))}
-      ${ga ? sec('Google funnel', 'GA4\'s paid search and shopping visitors.', funnelHtml(ga.cur, ga.prev, null, 'var(--c-google)')) : ''}
+      ${ga ? sec('Google funnel', 'GA4\'s paid search and shopping visitors, against the week before and their usual.', funnelHtml(ga.cur, ga.prev, gclk ? [['Ad clicks', gclk]] : null, 'var(--c-google)', ga.avg)) : ''}
       ${sec('Radhesh\'s Google plan', 'From Radhesh\'s Slack post. Yes, Changes or No on each line.', planHtml(b, 'gplan', 'Radhesh'))}`;
   }
   /* Trybe videos waiting on a decision, with the buttons (Monday screen and the creator call). */
   function rvList(act, X) {
     const rv = X.rv && !X.rv.error ? X.rv.items || [] : null, s = brandState(act); s.rv = s.rv || {};
     const b = { act_id: act };
-    return rv == null ? (X.rv && X.rv.error ? `<p class="cs-empty">${esc(X.rv.error)}</p>` : empty('Asking Trybe…')) : rv.length ? `<p class="cs-sub">Waiting on a decision. Your choice goes straight to Trybe and the creator sees it.</p><div class="cs-rvs">${rv.slice(0, 12).map(x => { const v = s.rv[x.id] || {}; return `<div class="cs-rv"><div class="th" ${x.thumb ? `style="background-image:url('${esc(x.thumb)}')"` : ''}></div><div class="bd"><b>${esc(x.creator)}</b><small class="muted">${esc(x.product || '')}${x.created_at ? ` · ${md(String(x.created_at).slice(0, 10))}` : ''}</small>${x.line ? `<p>${esc(x.line)}</p>` : ''}
-          ${!x.id ? '' : v.done ? `<p class="cs-d up" style="align-self:flex-start">${esc(v.done)}</p>` : `<div class="cs-vote">${[['approve', 'Run it'], ['changes', 'Changes'], ['reject', 'No']].map(([k, l]) => `<button type="button" class="${v.d === k ? (k === 'approve' ? 'y' : k === 'changes' ? 'c' : 'n') : ''}" data-rvd="${esc(x.id)}" data-v="${k}" data-act="${esc(b.act_id)}">${l}</button>`).join('')}</div>${v.d && v.d !== 'approve' ? `<input type="text" data-rvnote="${esc(x.id)}" data-act="${esc(b.act_id)}" placeholder="${v.d === 'changes' ? 'What to change (the creator sees this)' : 'Why not (the creator sees this)'}" value="${esc(v.note || '')}"><button type="button" class="btn" data-rvsend="${esc(x.id)}" data-act="${esc(b.act_id)}">Send to Trybe</button>` : ''}`}</div></div>`; }).join('')}</div>` : '<p class="cs-empty">Nothing waiting in Trybe.</p>';
+    /* Round 2 (Cole: "will I be able to view all these? what happens if I click Changes?"): bigger 9:16 cards that play
+       in place, the first 8 then Show all, and what each button does written above them. */
+    const XB = bx(act), shown = rv && !XB.rvAll ? rv.slice(0, 8) : rv;
+    return rv == null ? (X.rv && X.rv.error ? `<p class="cs-empty">${esc(X.rv.error)}</p>` : empty('Asking Trybe…')) : rv.length ? `<p class="cs-howto"><span><b>Run it:</b> approved in Trybe, it joins "Approved, not in an ad yet" for the buyer to launch</span><span><b>Changes:</b> type what to change, it goes back to the creator with your note</span><span><b>No:</b> rejected, the creator sees why</span><span>Tap a video to play it here.</span></p><div class="cs-rvg">${shown.map(x => { const v = s.rv[x.id] || {}; return `<div class="cs-rvc"><button type="button" class="th" data-clip2="${esc(x.sub_id || x.id || '')}" data-act="${esc(act)}" ${x.thumb ? `style="background-image:url('${esc(x.thumb)}')"` : ''}>${x.thumb ? '' : 'Video'}<span class="play">▶</span></button><div class="bd"><b>${esc(x.creator)}</b><small class="muted">${esc(x.product || '')}${x.created_at ? ` · ${md(String(x.created_at).slice(0, 10))}` : ''}</small>${x.line ? `<p>${esc(x.line)}</p>` : ''}
+          ${!x.id ? '' : v.done ? `<p class="cs-d up" style="align-self:flex-start">${esc(v.done)}</p>` : `<div class="cs-vote">${[['approve', 'Run it'], ['changes', 'Changes'], ['reject', 'No']].map(([k, l]) => `<button type="button" class="${v.d === k ? (k === 'approve' ? 'y' : k === 'changes' ? 'c' : 'n') : ''}" data-rvd="${esc(x.id)}" data-v="${k}" data-act="${esc(b.act_id)}">${l}</button>`).join('')}</div>${v.d && v.d !== 'approve' ? `<input type="text" data-rvnote="${esc(x.id)}" data-act="${esc(b.act_id)}" placeholder="${v.d === 'changes' ? 'What to change (the creator sees this)' : 'Why not (the creator sees this)'}" value="${esc(v.note || '')}"><button type="button" class="btn" data-rvsend="${esc(x.id)}" data-act="${esc(b.act_id)}">Send to Trybe</button>` : ''}`}</div></div>`; }).join('')}</div>${rv.length > 8 ? `<button type="button" class="cs-link" data-rvall="${esc(act)}">${XB.rvAll ? 'Show 8' : `Show all ${rv.length} waiting`}</button>` : ''}` : '<p class="cs-empty">Nothing waiting in Trybe.</p>';
   }
   function trybeBlock(b) {
     const X = bx(b.act_id), T = b.trybe || {}, ws = b.winners || [], rv = X.rv && !X.rv.error ? X.rv.items || [] : null;
@@ -768,7 +934,7 @@
     return `<div class="cs-tiles">${tile('Waiting on a decision', rv ? rv.length : '…', 'in Trybe now')}${tile('Approved, not in an ad yet', T.queue ?? '–', T.stale ? `${T.stale} waiting over a week` : '')}${tile('Sold last 7 days', ws.length, plural(ws.reduce((n, w) => n + (w.orders || 0), 0), 'sale'))}</div>
       ${ws.length ? `<p class="cs-sub">Creator videos that sold, best first. Tap one for its ad.</p><div class="ads">${ws.map(w => `<button type="button" class="ad" ${w.ad_id ? `data-adrow="${esc(w.ad_id)}"` : `data-clip2="${esc(w.sub_id || '')}"`} data-act="${esc(b.act_id)}"><div class="th" ${w.thumb ? `style="background-image:url('${esc(w.thumb)}')"` : ''}>${w.thumb ? '' : 'Video'}<span class="play">▶</span></div><div class="m"><span>${plural(w.orders, 'sale')}</span><span>${rowOf(w.ad_id) ? money(rowOf(w.ad_id).spend) : ''}</span></div><div class="n">${esc(w.creator)}</div><div class="s">${esc(w.product || w.angle || '')}</div></button>`).join('')}</div>` : ''}
       ${rvList(b.act_id, X)}
-      <div class="cs-acts"><button type="button" class="btn" data-creatorcall="${esc(b.act_id)}">${esc(b.name)}'s creator call (new tab)</button></div>`;
+      <div class="cs-acts"><button type="button" class="btn" data-creatorcall="${esc(b.act_id)}">Open ${esc(b.name)}'s creator meeting</button></div>`;
   }
   function boardPart(b) {
     const t = today(), cards = b.making || [];
@@ -779,7 +945,12 @@
   function comingPart(b) {
     const X = bx(b.act_id); if (X.cal == null) return empty('Loading the calendar…'); if (X.cal.error) return `<p class="cs-empty">${esc(X.cal.error)}</p>`;
     const t = today(), items = (X.cal.items || []).filter(e => e.act === b.act_id && (e.start || '') >= t && (e.start || '') <= addDays(t, 21));
-    return items.length ? `<ul class="chk">${items.slice(0, 8).map(e => `<li><span class="tx"><b>${esc(e.name)}</b>${e.offer ? ` <span class="muted">· ${esc(e.offer)}</span>` : ''}</span><span class="o">${md(e.start)}${e.confirmed ? '' : ' · not confirmed'}</span></li>`).join('')}</ul>` : empty('Nothing on the calendar in the next 3 weeks.');
+    /* Round 2 (Cole: "a list and no calendar view?"): three weeks Monday to Sunday, today outlined, each date a chip on
+       its day (dashed = not confirmed), and the list under it with the offers. */
+    const wd = (dt(t).getUTCDay() + 6) % 7, mon = addDays(t, -wd), days = Array.from({ length: 21 }, (_, i) => addDays(mon, i));
+    const on = d => items.filter(e => e.start === d || (e.start < d && e.end && e.end >= d));
+    const grid = `<div class="cs-cal">${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(h => `<span class="h">${h}</span>`).join('')}${days.map(d => `<div class="d${d === t ? ' t' : d < t ? ' past' : ''}"><span class="n">${short(d)}</span>${on(d).slice(0, 3).map(e => `<span class="ev${e.confirmed ? '' : ' un'}" title="${esc(e.name)}${e.offer ? `: ${esc(e.offer)}` : ''}">${esc(e.name)}</span>`).join('')}</div>`).join('')}</div>`;
+    return items.length ? `${grid}<ul class="chk">${items.slice(0, 8).map(e => `<li><span class="tx"><b>${esc(e.name)}</b>${e.offer ? ` <span class="muted">· ${esc(e.offer)}</span>` : ''}</span><span class="o">${md(e.start)}${e.confirmed ? '' : ' · not confirmed'}</span></li>`).join('')}</ul>` : `${grid}${empty('Nothing on the calendar in the next 3 weeks.')}`;
   }
   function mondayBrand2(b) {
     const s = brandState(b.act_id), X = bx(b.act_id), r = b.read;
@@ -791,15 +962,15 @@
     return `${part(1, 'Last week')}${lastWeekBlock(b)}
       ${has('meta') ? `${part(2, `Meta <span class="cs-who meta">${esc(strat)}</span>`)}${metaBlock(b)}` : ''}
       ${has('google') ? `${part(3, 'Google <span class="cs-who google">Radhesh</span>')}${googleBlock(b)}` : ''}
-      ${has('email') ? `${part(4, 'Email')}${sec('Email and SMS', 'Triple Whale for sales; Klaviyo for what was sent.', emailBlock(b))}` : ''}
+      ${has('email') ? `${part(4, 'Email')}${emailBlock(b)}` : ''}
       ${b.creators ? `${part(5, `Trybe <span class="cs-who trybe">${esc(strat)}</span>`)}${sec('Trybe', 'Creator videos for this brand.', trybeBlock(b))}` : ''}
       ${part(6, 'Being made')}${sec(`Production${(b.making || []).length ? `: ${b.making.length}` : ''}`, '', boardPart(b))}${sec('Dates coming up', 'Drops, sales and emails on the calendar, next 3 weeks.', comingPart(b))}
-      ${part(7, 'Typed on the call')}
+      ${part(7, 'Typed in the meeting')}
       <div class="cs-two">
         ${sec('Tasks', 'Who and when, then Enter. They go to Locus Tasks.', `<div class="rows" data-list="jobs" data-act="${esc(b.act_id)}">${rowsHtml(s.jobs || [])}</div><input type="text" data-quick="jobs" data-act="${esc(b.act_id)}" placeholder="e.g. Noma sends Fela the founder video inspo Friday">`)}
         ${sec('What we need from the client', 'Shows on their Requests page after Finish.', `${(b.asks || []).length ? `<ul class="chk">${b.asks.map(a => `<li><span class="tx">${esc(a.title)}</span><span class="o">asked ${short(a.created_at)}</span></li>`).join('')}</ul>` : ''}<div class="rows" data-list="asks" data-act="${esc(b.act_id)}">${rowsHtml(s.asks || [], true)}</div><button type="button" class="add" data-add="asks" data-act="${esc(b.act_id)}">+ Add something we need</button>`)}
-        ${sec('What we send the client', 'Goes in the recap.', list('sends', 'e.g. Radhesh\'s Google update', '+ Add something we send'))}
-        ${(s.calls || []).length ? sec('Calls for the media buyer', 'From the ad cards. Goes in the recap.', `<ul class="chk">${s.calls.map(c => `<li><span class="tx">${esc(c.text)}</span></li>`).join('')}</ul>`) : ''}
+        ${sec('What we owe the client', 'Things we promised to send them this week. They go in the recap and on their next client meeting.', list('sends', 'e.g. The Black Friday mockups by Thursday', '+ Add something we owe them'))}
+        ${(s.calls || []).length ? sec('Moves for the media buyer', 'From the ad cards. Goes in the recap.', `<ul class="chk">${s.calls.map(c => `<li><span class="tx">${esc(c.text)}</span></li>`).join('')}</ul>`) : ''}
       </div>`;
   }
   /* Start = the scoreboard: every brand, last week, before anyone talks. */
@@ -856,7 +1027,8 @@
     const job = (k, p) => p.then(v => { CX[k] = v; }, e => { CX[k] = { error: e.message }; });
     await Promise.all([
       job('ads', V2.adSet(D.act_id, from, to, H, { client: true, label: `${short(from)} to ${short(to)}` })),
-      job('ga', H.apiAH(`/api/google/website?act=${act}&from=${from}&to=${to}`)),
+      job('ga', H.apiAH(`/api/google/website?act=${act}&from=${from}&to=${to}&pfrom=${addDays(from, -7)}&pto=${addDays(from, -1)}`)),
+      job('ga4w', H.apiAH(`/api/google/website?act=${act}&from=${addDays(from, -28)}&to=${addDays(from, -1)}`)),
       job('acts', H.apiAH(`/api/activities?act=${act}&from=${addDays(to, -13)}&to=${addDays(to, 8)}T05:59:59&limit=300`)),
     ]);
     CX.loading = false; CX.loaded = true; paintMain();
@@ -868,7 +1040,7 @@
       if (!r) return null;
       const ga = CX.ga && !CX.ga.error ? CX.ga : null;
       return `${sec(`How last week went: ${short(r.period_start)} to ${short(r.period_end)}`, 'Your whole store from Triple Whale, every channel, against the week before.', (r.status !== 'sent' ? '<p class="warnline">This report has not been sent to them yet.</p>' : '') + tilesHtml(r) + chanTable(r))}
-        ${ga ? sec('Your store funnel', 'Every visitor to the site (GA4), against the week before.', funnelHtml(ga.cur, ga.prev)) : ''}`;
+        ${ga ? sec('Your store funnel', 'Every visitor to the site (GA4), against the week before and your usual (the 4 weeks before).', funnelHtml(ga.cur, ga.prev, null, null, gaAvg(CX))) : ''}`;
     }
     if (id === 'ads') {
       const M = CX.ads && !CX.ads.error ? CX.ads : null, A = D.ads || { review: [], approved: [], live: [] };
@@ -1068,7 +1240,7 @@
     if (KIND === 'creator') return creatorSteps();
     return kickList().map(c => ({ id: c.id, name: `${c.brand} #${c.num}`, mins: 4, c }));
   }
-  const TITLE = { monday: 'Monday call', client: 'Client call', kickoff: 'Creative kickoff', creator: 'Creator call' };
+  const TITLE = { monday: 'Monday meeting', client: 'Client meeting', kickoff: 'Creative kickoff', creator: 'Creator meeting' };
   const isDone = (s, i) => KIND === 'kickoff' ? !!((STATE.done || {})[s.id] || (s.c && s.c.kickoff_at)) : i < POS;
   /* ONE row: Start, the brands that fit, "+N" for the rest, Finish always last. */
   function stepsHtml() {
@@ -1111,6 +1283,7 @@
   const nextLabel = () => { const n = steps()[POS + 1]; return n ? `Next: ${esc(n.name)} →` : 'Finish'; };
   function willHtml() {
     const list = (parts, tail) => { const p = parts.filter(Boolean); if (!p.length && !tail) return 'Finish will close the call'; if (tail) return `Finish will ${p.length ? 'make ' + p.join(', ') + ' and ' : ''}${tail}`; return 'Finish will make ' + (p.length > 1 ? p.slice(0, -1).join(', ') + ' and ' + p[p.length - 1] : p[0]); };
+    if (KIND === 'monday' && layout2()) { let votes = 0; for (const s of Object.values(STATE.brands || {})) for (const k of ['batches', 'gplan', 'eplan']) votes += (s[k] || []).filter(x => x && x.text && x.vote).length; const c = mondayCounts(); return list([c.jobs ? `<b>${plural(c.jobs, 'task')}</b>` : '', c.asks ? `<b>${plural(c.asks, 'request')}</b>` : ''], `post the recaps${votes ? ` with <b>${plural(votes, 'plan line')}</b> you voted on` : ''}`); }
     if (KIND === 'monday') { const c = mondayCounts(); return list([c.briefs ? `<b>${plural(c.briefs, 'brief')}</b>` : '', c.jobs ? `<b>${plural(c.jobs, 'task')}</b>` : '', c.asks ? `<b>${plural(c.asks, 'request')}</b>` : ''], 'post the recaps'); }
     if (KIND === 'client') { const asks = (STATE.asks || []).filter(x => x.text && x.on !== false).length; return list([asks ? `<b>${plural(asks, 'request')}</b>` : ''], STATE.post_recap && D.has_client_channel ? 'post the recap' : 'tell the team'); }
     if (KIND === 'creator') return STATE.ask && STATE.post && !D.lucky ? 'Finish will post <b>the ask</b> in #this-week and close the call' : 'Finish will close the call';
@@ -1319,10 +1492,15 @@
     $$('[data-goto]', root).forEach(tr => tr.onclick = () => { const i = steps().findIndex(s => s.id === tr.dataset.goto); if (i >= 0) go(i); });
     $$('[data-msort]', root).forEach(b => b.onclick = e => { e.stopPropagation(); st(b).sort = b.dataset.msort; repaint(); });
     $$('[data-gsort]', root).forEach(b => b.onclick = e => { e.stopPropagation(); st(b).gsort = b.dataset.gsort; repaint(); });
-    $$('[data-adsort]', root).forEach(b => b.onclick = () => { st(b).adsort = b.dataset.adsort; repaint(); });
+    $$('select[data-adsort]', root).forEach(s => s.onchange = () => { st(s).adsort = s.value; repaint(); });
+    $$('[data-esort]', root).forEach(b => b.onclick = e => { e.stopPropagation(); st(b).esort = b.dataset.esort; repaint(); });
     $$('[data-admore]', root).forEach(b => b.onclick = () => { const X = bx(b.dataset.admore); X.more = !X.more; repaint(); });
-    $$('[data-mcamp]', root).forEach(tr => tr.onclick = e => { if (e.target.closest('button')) return; const X = st(tr); X.open[tr.dataset.mcamp] = !X.open[tr.dataset.mcamp]; repaint(); });
-    $$('[data-model]', root).forEach(b => b.onclick = () => { const X = st(b); if (X.model === b.dataset.model) return; X.model = b.dataset.model; X.ads = null; repaint(); const br = brandOf(b.dataset.act); if (br) loadBrand2(br, ['ads']); });
+    $$('[data-rvall]', root).forEach(b => b.onclick = () => { const X = bx(b.dataset.rvall); X.rvAll = !X.rvAll; repaint(); });
+    $$('[data-mcamp]', root).forEach(tr => tr.onclick = e => { if (e.target.closest('button,input')) return; const X = st(tr); X.open[tr.dataset.mcamp] = !X.open[tr.dataset.mcamp]; repaint(); });
+    $$('[data-mset]', root).forEach(tr => tr.onclick = e => { if (e.target.closest('button,input')) return; const X = st(tr); X.sopen[tr.dataset.mset] = !X.sopen[tr.dataset.mset]; repaint(); });
+    $$('[data-gcamp]', root).forEach(tr => tr.onclick = e => { if (e.target.closest('button,input')) return; const X = st(tr), id = tr.dataset.gcamp; X.gopen[id] = !X.gopen[id]; repaint(); const br = brandOf(tr.dataset.act); if (X.gopen[id] && br && !X.gdet) loadGoogleDetail(br).then(repaint); });
+    $$('[data-mcols]', root).forEach(b => b.onclick = e => { e.stopPropagation(); const X = bx(b.dataset.mcols), on = X.cols || MCOLS.filter(c => c[2]).map(c => c[0]); listMenu(b, 'Columns', MCOLS.map(([k, l]) => ({ v: k, label: l, on: on.includes(k), small: on.includes(k) ? 'shown' : 'add' })), v => { const cur = new Set(X.cols || MCOLS.filter(c => c[2]).map(c => c[0])); if (cur.has(v)) cur.delete(v); else cur.add(v); X.cols = MCOLS.map(c => c[0]).filter(k => cur.has(k)); repaint(); }); });
+    $$('select[data-model]', root).forEach(s => s.onchange = () => { const X = st(s); if (X.model === s.value) return; X.model = s.value; X.ads = null; repaint(); const br = brandOf(s.dataset.act); if (br) loadBrand2(br, ['ads']); });
     $$('[data-bud]', root).forEach(b => b.onclick = async e => {
       e.stopPropagation();
       const br = brandOf(b.dataset.act); if (!br) return;
@@ -1354,7 +1532,7 @@
     $$('[data-rvd]', root).forEach(b => b.onclick = () => { const v = rvOf(b); v.d = b.dataset.v; save(); if (v.d === 'approve') sendRv(b, v); else repaint(); });
     $$('[data-rvnote]', root).forEach(t => t.oninput = () => { rvOf(t).note = t.value; save(); });
     $$('[data-rvsend]', root).forEach(b => b.onclick = () => { const v = rvOf(b); if (!String(v.note || '').trim()) return toast('Say what to change so the creator knows.'); sendRv(b, v); });
-    $$('[data-creatorcall]', root).forEach(b => b.onclick = () => window.open(`${location.pathname}?open=calls&call=creator&act=${encodeURIComponent(b.dataset.creatorcall)}`, '_blank', 'noopener'));
+    $$('[data-creatorcall]', root).forEach(b => b.onclick = () => open(H, 'creator', b.dataset.creatorcall));
     const s = steps()[POS], b = KIND === 'monday' && s ? brandOf(s.id) : null;
     if (b && bx(b.act_id).ads && bx(b.act_id).ads.wire) bx(b.act_id).ads.wire(root);
     if (KIND === 'client' && CX.ads && CX.ads.wire) CX.ads.wire(root);

@@ -300,7 +300,7 @@ async function clientData(env, d, act, who) {
       const s = mc && mc.state && mc.state.brands && mc.state.brands[act];
       if (!s) return null;
       const ok = arr => (arr || []).filter(x => x && clean(x.text, 300) && x.on !== false && (x.vote === 'y' || x.vote === 'c')).map(x => noDash(clean(x.text, 300)));
-      return { meta: ok(s.batches), google: ok(s.gplan), send: (s.sends || []).filter(x => x && clean(x.text, 300)).map(x => noDash(clean(x.text, 300))) };
+      return { meta: ok(s.batches), google: ok(s.gplan), email: ok(s.eplan), send: (s.sends || []).filter(x => x && clean(x.text, 300)).map(x => noDash(clean(x.text, 300))) };
     })(),
     call, team: ROSTER.map(r => r.name),
   };
@@ -436,11 +436,12 @@ async function trybeCounts(env, act, today) {
 /** Calls v2: one brand's typed state as the plan it kept and the decision lines for its Slack recap. */
 function v2Lines(s, who = {}) {
   const live = arr => (arr || []).filter(x => x && clean(x.text, 300) && x.on !== false && x.vote !== 'n');
-  const kept = live(s.batches), gkept = live(s.gplan);
+  const kept = live(s.batches), gkept = live(s.gplan), ekept = live(s.eplan);
   const planLine = (x, tag) => `${tag}${x.vote === 'y' ? ' approved' : x.vote === 'c' ? ' needs changes' : ''}: ${clean(x.text, 300)}${x.vote === 'c' && clean(x.note, 300) ? `. Change: ${clean(x.note, 300)}` : ''}${x.owner ? ` (${clean(x.owner, 40)})` : ''}`;
   const extra = [
     ...kept.map(x => planLine(x, `Meta plan${who.meta ? ` (${who.meta})` : ''}`)),
     ...gkept.map(x => planLine(x, 'Google plan (Radhesh)')),
+    ...ekept.map(x => planLine(x, 'Email plan')),
     ...(s.calls || []).filter(x => x && clean(x.text, 300)).map(x => `For the media buyer: ${clean(x.text, 300)}`),
     ...(s.changes || []).filter(x => clean(x, 300)).map(x => `Changed on the call: ${clean(x, 300)}`),
     ...(s.ideas || []).filter(x => x && clean(x.text, 300)).map(x => `Idea: ${clean(x.text, 300)}`),
