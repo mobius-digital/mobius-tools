@@ -28,6 +28,7 @@ import { resolveBrandId, metaOf } from './brands.js';
 import { routeAction } from '../../../ask/engine.js';
 import { stockView } from './stock.js';
 import { todaysCard } from './morningcard.js';
+import { laneBlocks } from './lane.js';
 
 export const ALERT_SQL = `CREATE TABLE IF NOT EXISTS p_alert (
   id              TEXT PRIMARY KEY,
@@ -237,14 +238,21 @@ export async function evalAlert(env, d, row, memo = new Map()) {
 
 /** The Slack message for a rule that fired. */
 export function alertBlocks(row, fired, { test = false, brandName } = {}) {
-  const tag = row.mention && /^U[A-Z0-9]{6,}$/.test(row.mention) ? `<@${row.mention}> ` : '';
   const act = fired.length === 1 ? fired[0].act_id : row.act !== 'all' ? row.act : null;
   const url = `${LOCUS}?open=yesterday${act ? `&act=${encodeURIComponent(act)}` : ''}`;
-  const head = `${tag}${test ? '_Test:_ ' : ''}${fired.map(f => f.text).join('\n\n')}`;
+  /* 2026-11-09 (the lane format, lane.js): "*MEDIA BUYING · Brand*", the rule's person (Cole when none) with the ask,
+     the numbers as the why; several brands = one line each under the ask. */
+  const lines = f => String(f.text || '').replace(/\*/g, '').split('\n');
+  const what = f => lines(f)[0].replace(new RegExp(`^${String(f.name || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}: `), '').replace(/\.$/, '');
+  const one = fired.length === 1 ? fired[0] : null;
+  const lane = laneBlocks({ lane: /stock/i.test(String(row.metric || '')) ? 'OPS' : 'MEDIA BUYING', brand: one ? one.name : (row.act !== 'all' ? brandName : '') || 'Agency',
+    who: row.mention && /^U[A-Z0-9]{6,}$/.test(row.mention) ? row.mention : 'Cole',
+    ask: `${test ? 'Test: ' : ''}${one ? `Look into it: ${what(one)}` : `Look into the ${fired.length} brands your alert caught`}`,
+    why: one ? lines(one).slice(1).join(' ') : '', lines: one ? [] : fired.map(f => lines(f)[0]) });
   return {
-    text: noDash(`${test ? 'Test: ' : ''}${fired.map(f => f.text.replace(/\*/g, '').split('\n')[0]).join(' ')}`).slice(0, 300),
+    text: noDash(lane.text).slice(0, 300),
     blocks: [
-      { type: 'section', text: { type: 'mrkdwn', text: head.slice(0, 2900) } },
+      { ...lane.blocks[0], text: { ...lane.blocks[0].text, text: noDash(lane.blocks[0].text.text) } },
       { type: 'context', elements: [{ type: 'mrkdwn', text: noDash(`Your rule: ${ruleText(row, brandName)} It fires at most once a day. Change, pause or delete it in Locus: Reports > Dashboards > Alerts.`).slice(0, 2900) }] },
       { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open in Locus' }, url, action_id: 'noop_open' }] },
     ],

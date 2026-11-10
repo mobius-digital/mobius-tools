@@ -24,6 +24,7 @@ import { slackIdOf, morningHour } from './morningcard.js';
 import { adsOf, decide, decideMany, htmlToText, isCarousel } from './prodwork.js';
 import { teamOf } from './calendar.js';
 import { ROSTER, addAction } from './actions.js';
+import { laneBlocks, laneWho } from './lane.js';
 
 const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 const ORIGIN = 'https://mobius-account-health.mobius-digital.workers.dev';
@@ -434,7 +435,7 @@ export async function serveReviewPic(env, path) {
 const nameOfEmail = e => { const r = ROSTER.find(x => x.email && x.email.toLowerCase() === String(e || '').toLowerCase()); return r ? r.name : clean(String(e || '').split('@')[0], 30) || 'Someone'; };
 const fieldOf = (text, labels) => { for (const l of labels) { const m = text.match(new RegExp(`(?:^|\\n)\\s*${l}\\s*:?\\s*\\n?\\s*([^\\n]{3,})`, 'i')); if (m) return clean(m[1], 160); } return ''; };
 async function cardState(env, id) {
-  const r = await env.DB.prepare(`SELECT b.id, b.act_id, b.num, b.title, b.brief_json, b.brief_text, b.board_stage, a.name AS brand, a.slack_channel, a.brief_channel FROM p_br_batch b LEFT JOIN brand_accounts a ON a.act_id = b.act_id WHERE b.id = ?1`).bind(String(id)).first();
+  const r = await env.DB.prepare(`SELECT b.id, b.act_id, b.num, b.title, b.brief_json, b.brief_text, b.board_stage, b.assignee_name, a.name AS brand, a.slack_channel, a.brief_channel FROM p_br_batch b LEFT JOIN brand_accounts a ON a.act_id = b.act_id WHERE b.id = ?1`).bind(String(id)).first();
   if (!r) return null;
   const files = (await env.DB.prepare(`SELECT id, kind, version, ad, name, mime, created_at FROM p_work_file WHERE batch_id = ?1 AND deleted_at IS NULL`).bind(r.id).all()).results || [];
   const cs = (await env.DB.prepare(`SELECT * FROM p_work_comment WHERE batch_id = ?1 ORDER BY created_at, rowid`).bind(r.id).all()).results || [];
@@ -449,8 +450,9 @@ function reviewHead(st, by) {
   const angle = fieldOf(text, ['Angle']).replace(/[.]$/, ''), testing = fieldOf(text, ["What we're testing", 'What we’re testing', 'Testing']).replace(/[.]$/, '');
   const label = `${shortName(r.brand)} ${r.num ? `batch ${r.num}` : ''}${r.title ? ` · ${clean(r.title, 60)}` : ''}`.trim();
   const line = [angle && `*Angle:* ${angle}`, testing && `*Testing:* ${testing}`, `${ads.length} ad${ads.length === 1 ? '' : 's'}`].filter(Boolean).join('  ·  ');
-  return { label, head: `*${by} sent ${label} for your look*
-${line}` };
+  /* 2026-11-09 (the lane format, lane.js): "*CREATIVE · Brand*", Cole tagged with the ask, who sent it and what it tests. */
+  const lane = laneBlocks({ lane: 'CREATIVE', brand: shortName(r.brand), who: 'Cole', ask: `Review ${label}`, why: `${by} sent it for your look · ${line}` });
+  return { label, head: lane.blocks[0].text.text };
 }
 /* Every picture of the batch (newest version of each ad, every card of a carousel) and the videos, in ad order. */
 function reviewMedia(st) {
@@ -508,7 +510,7 @@ export async function reviewPost(env, d, cardId, whoEmail, opts = {}) {
   const by = nameOfEmail(whoEmail);
   const { label, head } = reviewHead(st, by);
   const { pics, videos } = reviewMedia(st);
-  const text = `<@U06C37MDWD7> ${head}${videos.length ? '\n' + videos.join('\n') : ''}`;
+  const text = `${head}${videos.length ? '\n' + videos.join('\n') : ''}`;   // the head tags Cole (lane format)
   const files = pics.length ? await postAlbum(env, d, channel, text, pics) : [];
   if (!files.length) await d.slackApi(env, 'chat.postMessage', { channel, text, unfurl_links: false });
   /* Slack shares an upload a moment after completeUploadExternal answers: wait for the pictures to land so the
@@ -579,8 +581,12 @@ export async function reviewSubmit(env, ctx, d, p) {
       const rec = safe(await d.getSetting(env, `rvPost:${meta.id}`), null);
       const st = await cardState(env, meta.id);
       const ad = st?.ads.find(x => x.file_id === fid || (x.cards || []).some(c => c.id === fid));
-      if (rec?.ts) await d.slackApi(env, 'chat.postMessage', { channel: rec.channel, thread_ts: rec.ts, text: `Changes asked on ${ad?.ad || 'an ad'}: ${note}`,
-        blocks: [{ type: 'section', text: md(`✏️ *${esc(who)}* asked for changes on *${esc(ad?.ad || 'an ad')}*: ${esc(note)}\n_Sent back to Making; the maker got the note._`) }] }).catch(() => {});
+      /* 2026-11-09 (the lane format, lane.js): an ask to the card's maker, in the review's thread. */
+      if (rec?.ts) {
+        const m = laneBlocks({ lane: 'CREATIVE', brand: shortName(st?.r?.brand || ''), who: await laneWho(env, d, st?.r?.assignee_name || ''),
+          ask: `Change ${esc(ad?.ad || 'the ad')}: ${esc(note)}`, why: `${esc(who)} asked; the card is back in Making` });
+        await d.slackApi(env, 'chat.postMessage', { channel: rec.channel, thread_ts: rec.ts, text: m.text, blocks: m.blocks }).catch(() => {});
+      }
     } catch (e) { console.log('review change: ' + e.message); }
   })());
 }
@@ -598,9 +604,12 @@ export async function checkinTick(env, d) {
     if (day?.ts && hour >= mh + NUDGE_AFTER && !(await d.getSetting(env, `checkinNudged:${date}`))) {
       const people = await peopleOf(env, d);
       const late = Object.entries(people).filter(([uid]) => { const s = day.people?.[uid] || {}; return !s.plan && !s.out; });
-      for (const [uid] of late) await d.slackApi(env, 'chat.postMessage', { channel: uid, text: 'No plan from you yet today.',
-        blocks: [{ type: 'section', text: md(`No plan from you yet today. <https://slack.com/app_redirect?channel=${day.channel}|Open #daily-checkin>`) },
-          { type: 'actions', elements: [{ type: 'button', action_id: 'ci_plan', style: 'primary', text: pt('Post my plan'), value: date }, { type: 'button', action_id: 'ci_out', text: pt("I'm out today"), value: date }] }] }).catch(() => {});
+      for (const [uid] of late) {
+        /* 2026-11-09 (the lane format, lane.js): "*OPS · Agency*", the person, the ask, the same two buttons. */
+        const m = laneBlocks({ lane: 'OPS', brand: 'Agency', who: uid, ask: `Post your plan for today in <https://slack.com/app_redirect?channel=${day.channel}|#daily-checkin>`, why: 'no plan from you yet today',
+          buttons: [{ type: 'button', action_id: 'ci_plan', style: 'primary', text: pt('Post my plan'), value: date }, { type: 'button', action_id: 'ci_out', text: pt("I'm out today"), value: date }] });
+        await d.slackApi(env, 'chat.postMessage', { channel: uid, text: m.text, blocks: m.blocks }).catch(() => {});
+      }
       await d.putSetting(env, `checkinNudged:${date}`, JSON.stringify(late.map(([u]) => u)));
       out.nudged = late.length;
     }

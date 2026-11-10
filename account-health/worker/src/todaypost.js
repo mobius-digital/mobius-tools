@@ -12,6 +12,7 @@
  *   Budget: d.canAfford(40) BEFORE each brand (never mid-brand). Switch: settings `todayPost` ('off' stops it).
  *   2026-10-13: OFF while the morning card is on (settings.morningCard); the card reuses readToday and messageFor. */
 import { SKIP as PAUSED } from './moved.js';
+import { laneBlocks, noDash } from './lane.js';
 const PROFIT_ORIGIN = 'https://mobius-profit.mobius-digital.workers.dev';
 const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 export const TODAY_HOUR = 8, TODAY_LAST_HOUR = 13;
@@ -45,17 +46,28 @@ export function lineFor(r) {
  *  Show more, never a message of many short blocks. So every call is its own section, the why in full, sorted by money
  *  at stake. Slack takes 50 blocks a message: past that the calls carry on in `rest` (more messages, same shape). */
 const PER_MSG = 45;
-export function messageFor(brand, rows) {
+/** One call in the lane format (2026-11-09): the call on its line, "Why:" under it. */
+export function callLine(r) {
+  const what = r.ad ? `the ad "${r.ad}" in "${r.adset || ''}"` : `"${r.adset || ''}"`;
+  const stake = r.stake > 0 ? `, ${money(r.stake, r.currency)} at stake` : '';
+  const why = noDash(String(r.why ?? '').replace(/\s+/g, ' ').trim());
+  return `*${VERB[r.kind] || r.kind}* ${mk(what)}${stake}${why ? `\nWhy: ${mk(why)}` : ''}`;
+}
+/** who (optional) = the media buyer's tag or name; nobody named = Cole (lane.js). */
+export function messageFor(brand, rows, who) {
   const list = (rows || []).filter(r => KINDS.includes(r.kind)).sort((p, q) => (q.stake || 0) - (p.stake || 0));
   if (!list.length) return null;
-  const lines = list.map(lineFor);
-  const head = `Today's ad calls: ${brand.name}`, url = `${LOCUS}?open=today&act=${encodeURIComponent(brand.act_id)}`;
+  const lines = list.map(callLine);
+  const url = `${LOCUS}?open=today&act=${encodeURIComponent(brand.act_id)}`;
+  /* Lane first (lane.js): "*MEDIA BUYING · Brand*", the buyer tagged with the one ask, then one section per call. */
+  const lane = laneBlocks({ lane: 'MEDIA BUYING', brand: brand.name, who, ask: `Make today's ${list.length} ad call${list.length === 1 ? '' : 's'}` });
+  const head = lane.text;
   const sec = l => ({ type: 'section', text: { type: 'mrkdwn', text: l.slice(0, 2900) } });
   const chunks = [];
   for (let i = 0; i < lines.length; i += PER_MSG) chunks.push(lines.slice(i, i + PER_MSG));
   const rest = chunks.slice(1).map((c, i) => ({ text: `${head} (${i + 2} of ${chunks.length})\n${c.join('\n')}`, blocks: c.map(sec) }));
   return { text: `${head}\n${chunks[0].join('\n')}`, rest, blocks: [
-    { type: 'header', text: { type: 'plain_text', text: head.slice(0, 150) } },
+    lane.blocks[0],
     ...chunks[0].map(sec),
     { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open in Locus' }, url }] },
     { type: 'context', elements: [{ type: 'mrkdwn', text: 'Do it on the page writes the change to Meta after you confirm it. Switch this post off in Agency settings (todayPost).' }] },
@@ -87,7 +99,8 @@ export async function todayTick(env, d) {
       if (state.tries[a.act_id] >= 2) state.acts[a.act_id] = `failed: ${e.message}`;
       out.failed.push(`${a.name} (${e.message})`); continue;
     }
-    const msg = messageFor(a, r && r.rows);
+    const buyer = d.teamOf ? (((await d.teamOf(env, [a.act_id]).catch(() => ({}))) || {})[a.act_id] || {}).buyer : null;
+    const msg = messageFor(a, r && r.rows, buyer && d.tagOf ? (await d.tagOf(env, buyer).catch(() => null)) || buyer : buyer);
     if (!msg) { state.acts[a.act_id] = 'nothing to call'; out.quiet.push(a.name); continue; }
     try { await d.slackPost(env, a.slack_channel, msg.text, msg.blocks, { username: 'Locus' }); for (const m of msg.rest || []) await d.slackPost(env, a.slack_channel, m.text, m.blocks, { username: 'Locus' }); state.acts[a.act_id] = 'posted'; out.posted.push(a.name); }
     catch (e) { state.acts[a.act_id] = `failed: ${e.message}`; out.failed.push(`${a.name} (${e.message})`); }

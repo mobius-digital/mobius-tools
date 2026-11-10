@@ -131,10 +131,11 @@ await check('a platform that is not connected is handed to a person in Slack (fi
   const rs = res('p_tt'); assert.equal(rs.tt.handoff, true); assert.ok(rs.ig.posted_at, 'Instagram still went out');
   assert.equal(slack.length, 1);
   const m = slack[0];
-  assert.match(m.text, /Time to post on TikTok for Alpha Golf \(not connected\)/);
+  assert.match(m.text, /^CREATIVE · Alpha Golf: Post this on TikTok by hand \(not connected\)/);
+  assert.match(m.blocks[0].text.text, /^\*CREATIVE · Alpha Golf\*\n\S+  Post this on TikTok by hand\nWhy: not connected$/, 'lane first, the person, the why');
   const btn = m.blocks.find(b => b.type === 'actions').elements.find(e => e.action_id === 'soc_done');
   assert.deepEqual(JSON.parse(btn.value), { id: 'p_tt', plat: 'tt' });
-  assert.ok(m.blocks[0].text.text.includes('New hats are in') && m.blocks[0].text.text.includes('/social-m/u/'), 'caption and the public file link');
+  assert.ok(m.blocks[1].text.text.includes('New hats are in') && m.blocks[1].text.text.includes('/social-m/u/'), 'caption and the public file link');
   const acks = []; const posted = [];
   const ctx = { waitUntil: p => acks.push(p) };
   await S.handleSocialButton(env, ctx, { actions: [{ action_id: 'soc_done', value: btn.value }], user: { name: 'ahsan' }, response_url: 'https://hooks.test/r' }, d, { ACK: () => new Response(''), xfetch: async (u, i) => { posted.push(JSON.parse(i.body)); return new Response(''); } });

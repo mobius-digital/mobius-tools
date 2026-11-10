@@ -31,12 +31,15 @@ await check('the line and the message: call, name, money at stake, why, the Locu
   assert.equal(lineFor(ROWS.brand_alpha[0]), '*Scale* "Broad | Gift", $240 at stake. 9 sales at $31 each, under the $40 goal over 7 days. Raise the budget 20% and watch 3 days.');
   assert.match(lineFor(ROWS.brand_alpha[2]), /^\*Trim\* the ad "312 C \| UGC" in "Broad \| Gift", \$95 at stake\./);
   const m = messageFor({ act_id: 'brand_alpha', name: 'Alpha Golf' }, ROWS.brand_alpha);
-  assert.match(m.text, /^Today's ad calls: Alpha Golf\n\*Scale\*/); assert.ok(!/Meta spent nothing/.test(m.text), 'fix rows stay out');
-  assert.equal(m.blocks.length, 5, 'header, one section per call, button, footer'); assert.equal(m.blocks[3].elements[0].url, 'https://locus.go-mobius-digital.com/profit/?open=today&act=brand_alpha');
+  assert.match(m.text, /^MEDIA BUYING · Alpha Golf: Make today's 2 ad calls\n\*Scale\*/); assert.ok(!/Meta spent nothing/.test(m.text), 'fix rows stay out');
+  assert.equal(m.blocks[0].text.text, "*MEDIA BUYING · Alpha Golf*\n<@U06C37MDWD7>  Make today's 2 ad calls", 'lane first; nobody named = Cole');
+  assert.match(m.blocks[1].text.text, /^\*Scale\* "Broad \| Gift", \$240 at stake\nWhy: 9 sales/, 'the call, then Why:');
+  assert.equal(messageFor({ act_id: 'a', name: 'A' }, ROWS.brand_alpha, '<@U_BUYER>').blocks[0].text.text.split('\n')[1], "<@U_BUYER>  Make today's 2 ad calls", 'the buyer tagged');
+  assert.equal(m.blocks.length, 5, 'lane head, one section per call, button, footer'); assert.equal(m.blocks[3].elements[0].url, 'https://locus.go-mobius-digital.com/profit/?open=today&act=brand_alpha');
   assert.ok(!/—/.test(JSON.stringify(m)), 'no em dash');
   const many = Array.from({ length: 60 }, (_, i) => ({ kind: 'cut', adset: 'Set ' + i, stake: 100 - i, why: 'A full reason that is not cut. '.repeat(4) }));
   const mm = messageFor({ act_id: 'brand_alpha', name: 'Alpha Golf' }, many);
-  assert.equal(mm.blocks.filter(b => b.type === 'section').length, 45, 'one section per call, 45 in the first message');
+  assert.equal(mm.blocks.filter(b => b.type === 'section').length, 46, 'the lane head and one section per call, 45 in the first message');
   assert.equal(mm.rest.length, 1); assert.equal(mm.rest[0].blocks.length, 15, 'the other 15 in a second message');
   assert.ok([mm, ...mm.rest].every(m => m.blocks.length <= 50), 'under the 50-block limit');
   assert.ok(!/more in Locus/.test(JSON.stringify(mm)), 'no more-in-Locus line');

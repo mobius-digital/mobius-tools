@@ -229,7 +229,7 @@ test('the list shows ONE final call per row: the read\'s change replaces the rul
   assert.equal(list.counts.ai, 2); assert.equal(list.ai.n_read, 1);
   assert.deepEqual(list.groups.map(g => g.brand), ['Lucky Golf']);
   const m = buyerMessage(list, '<@U_COLE>').text;
-  assert.match(m, /^\*\d+ changes ready across 1 brand, \$[\d,.K]+ at stake\*/);
+  assert.match(m, /^MEDIA BUYING · Lucky Golf: Go through the Buyer list: \d+ changes ready across 1 brand, \$[\d,.K]+ at stake/, 'lane first; one brand = its name');
   assert.match(m, /\u2022 \*Lucky Golf\*: Pause this ad set, "Black Wedges \| Still"/);
   assert.ok(!/UTM|check|morning read|Owner/i.test(m)); assert.ok(!/[\u2014\u2013]/.test(m));
 });

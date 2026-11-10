@@ -99,20 +99,24 @@ await check('one card per brand to its INTERNAL channel; internal = client chann
   alphaCard = top.find(p => p.channel === 'C_ALPHA');
   const lines = alphaCard.text.split('\n');
   if (process.env.SHOW) (await import('node:fs')).writeFileSync(process.env.SHOW, alphaCard.text + '\n----\n' + top.find(p => p.channel === 'C_BETA').text);
-  assert.equal(lines[0], '*Alpha Golf:* <@U_COLE>: Gifting angles for Trybe creators', 'line 1 = Cole\'s one job, tagged, even when it ranks below the others');
-  assert.equal(lines[1], '_Yesterday $1,438 (plan $1,800) · MER 2.11x_', 'the numbers are a quiet second line; a sent daily is not news');
-  assert.equal(lines[2], '<@U_AHSAN>, media buying: Today\'s ad calls: cut 2 ad sets, scale 1 · $2.4K at stake', 'calls next, one line, buyer tagged');
-  const action = lines.filter(l => /^(<@|\*[A-Z])/.test(l) && !/^\*(Client owes|Alpha)/.test(l));
-  assert.equal(action.length, MAX_LINES, 'Cole\'s line plus the calls line plus the rest, three task lines at most');
-  assert.ok(lines.includes('_and 3 more in Locus_'), 'the rest are counted');
-  assert.ok(lines.some(l => l === '<@U_RAD>: Review the Web Skitters site · 2 days late'), 'no roster email: one users.list match');
-  assert.ok(lines.some(l => /^\*Ravo\*, creative: Finish 312 Hook test \(3 days late\)$/.test(l)), 'late production card says what to do, a bold name when Slack has no id');
-  assert.ok(lines.includes('*Client owes* Fall polo samples · 4 days'));
+  /* 2026-11-09, the lane format (lane.js): the notification line, then one lane header per group, one line per job. */
+  assert.equal(lines[0], 'OPS · Alpha Golf: Gifting angles for Trybe creators (and 4 more)', 'the notification line: lane, brand, Cole\'s job');
+  assert.equal(lines[1], '*OPS · Alpha Golf*', 'Cole\'s job is the first group, lane first');
+  assert.deepEqual(lines.slice(2, 4), ['<@U_COLE>', '• Gifting angles for Trybe creators'], 'Cole tagged once, his one job a bullet under it, even when it ranks below the others');
+  assert.equal(alphaCard.blocks[0].text.text.split('\n')[0], '*OPS · Alpha Golf*', 'the first block starts with the lane header');
+  assert.ok(lines.includes('*MEDIA BUYING · Alpha Golf*') && alphaCard.text.includes('<@U_AHSAN>\n• Today\'s ad calls: cut 2 ad sets, scale 1 · $2.4K at stake'), 'calls under MEDIA BUYING, one bullet, buyer tagged above it');
+  const action = lines.slice(1).filter(l => /^• /.test(l) && !/Chase the client/.test(l));
+  assert.equal(action.length, MAX_LINES + 1, 'Cole\'s line plus the calls line plus the rest, three task lines at most');
+  assert.ok(lines.at(-1) === 'Yesterday $1,438 (plan $1,800) · MER 2.11x · and 3 more in Locus', 'the numbers and the rest counted are one quiet line at the end; a sent daily is not news');
+  assert.equal(alphaCard.blocks.find(b => b.type === 'context').elements[0].text, lines.at(-1), 'that line is a context block');
+  assert.ok(alphaCard.text.includes('<@U_RAD>\n• Review the Web Skitters site · 2 days late'), 'no roster email: one users.list match');
+  assert.ok(lines.includes('*CREATIVE · Alpha Golf*') && alphaCard.text.includes('*Ravo*\n• Finish 312 Hook test (3 days late)'), 'late production card says what to do under CREATIVE, a bold name when Slack has no id');
+  assert.ok(lines.includes('*CLIENT · Alpha Golf*') && alphaCard.text.includes('<@U_AHSAN>\n• Chase the client: Fall polo samples · 4 days'), 'what the client owes is an ask under CLIENT');
   assert.ok(!/Weekly report/.test(alphaCard.text), 'no weekly line on a Tuesday');
   const btns = alphaCard.blocks.filter(b => b.type === 'actions').map(b => b.elements[0]);
   assert.deepEqual(btns.map(b => [b.text.text, b.url, b.action_id]), [['Open Alpha Golf in Locus', 'https://locus.go-mobius-digital.com/profit/?act=brand_alpha', 'noop_open'], ['Make the ad calls', 'https://locus.go-mobius-digital.com/profit/?open=today&act=brand_alpha&doall=1', 'noop_open']]);
   const beta = top.find(p => p.channel === 'C_BETA');
-  assert.equal(beta.text.split('\n')[0], '*Beta Socks:* <@U_COLE>, client update: Approve the client daily, it is waiting on you', 'a daily waiting is Cole\'s job, line 1');
+  assert.deepEqual(beta.text.split('\n').slice(1, 4), ['*CLIENT · Beta Socks*', '<@U_COLE>', '• Approve the client daily, it is waiting on you'], 'a daily waiting is Cole\'s job, the first group, CLIENT');
   assert.equal(beta.blocks.filter(b => b.type === 'actions').length, 1, 'no calls = no Make the calls button');
   assert.ok(!/—/.test(JSON.stringify(posts)), 'no em dash anywhere');
 });
@@ -121,11 +125,12 @@ await check('the thread: the full calls list, then one reminder line per owner w
   const thread = posts.filter(p => p.opts.thread_ts === '101.000' || (p.opts.thread_ts && p.channel === 'C_ALPHA'));
   const ts = JSON.parse(setting('morningCard:brand_alpha:2026-10-13')).ts;
   assert.ok(thread.every(p => p.opts.thread_ts === ts), 'every reply is under the card');
-  assert.match(thread[0].text, /^Today's ad calls: Alpha Golf\n\*Cut\* "Retarget 7d", \$1,400 at stake/);
+  assert.match(thread[0].text, /^MEDIA BUYING · Alpha Golf: Make today's 3 ad calls\n\*Cut\* "Retarget 7d", \$1,400 at stake/);
+  assert.equal(thread[0].blocks[0].text.text, "*MEDIA BUYING · Alpha Golf*\n<@U_AHSAN>  Make today's 3 ad calls", 'the list starts lane first, the buyer tagged');
   assert.ok(!thread[0].blocks.some(b => b.type === 'context' || b.type === 'actions'), 'no buttons or footnote on the list in the thread');
   const rem = thread.slice(1);
   assert.equal(rem.length, 4, 'Ahsan, Radhesh, Cole, Noma');
-  assert.ok(rem.some(p => /^<@U_AHSAN>, Alpha Golf: 1 due today\./.test(p.text)));
+  assert.ok(rem.some(p => /^[A-Z ]+ · Alpha Golf: /.test(p.text) && /^\*[A-Z ]+ · Alpha Golf\*\n<@U_AHSAN>  /.test(p.blocks[0].text.text)), 'each reminder is lane first, the owner tagged');
   assert.ok(rem.every(p => p.blocks.some(b => b.type === 'actions' && b.elements.some(e => /^act_done_/.test(e.action_id)))), 'Done buttons on each line');
   const row = db.prepare(`SELECT reminded_on, slack_channel, slack_ts FROM p_action WHERE id = ?`).get(ids.t2);
   assert.equal(row.reminded_on, '2026-10-13'); assert.equal(row.slack_channel, 'C_ALPHA'); assert.ok(rem.some(p => p.opts && posts.indexOf(p) >= 0) && row.slack_ts);
@@ -149,7 +154,7 @@ await check('Done anywhere updates the card in place: struck through, no new mes
   assert.equal(updates.length, 1); assert.equal(updates[0].channel, 'C_ALPHA');
   assert.ok(!updates[0].text.includes('Review the Web Skitters site') && updates[0].text.includes('✓ 1 done'), 'a done line leaves the card and is counted');
   await markDone(env, ids.t2, false);
-  assert.ok(updates[1].text.includes('<@U_RAD>: Review the Web Skitters site · 2 days late') && !updates[1].text.includes('✓ 1 done'));
+  assert.ok(updates[1].text.includes('<@U_RAD>\n• Review the Web Skitters site · 2 days late') && !updates[1].text.includes('✓ 1 done'));
 });
 
 await check('a ✅ on the card itself marks every task line on it done (one redraw); a ✅ elsewhere is ignored', async () => {
@@ -178,7 +183,7 @@ await check('calls made on the page count on the line; all made = struck; a judg
   assert.ok(!/312 - Hook test/.test(updates[3].text), 'a judged production card leaves the card');
   brief('brand_beta', '2026-10-12', 'sent', 900, 1000, 3, '2026-10-13T12:40:00Z');
   await cardBriefState(env, d, ACCTS[1]);
-  assert.match(updates[4].text, /^\*Beta Socks:\* nothing needs you today, Cole\n_Yesterday \$900 \(plan \$1,000\) · MER 3\.00x_/, 'the daily sent later = Cole\'s line leaves, line 1 says so');
+  assert.ok(!/Approve the client daily/.test(updates[4].text) && /\nYesterday \$900 \(plan \$1,000\) · MER 3\.00x · ✓ 1 done/.test(updates[4].text), 'the daily sent later = Cole\'s line leaves the card and is counted');
 });
 
 await check('later posts go in the card\'s thread with the person tagged (alerts, requests, calendar, meetings use teamPost); no card = top-level', async () => {
@@ -203,10 +208,10 @@ await check('Monday: the weekly line, and the card waits for the weekly report (
   db.prepare(`INSERT INTO reports VALUES ('brand_alpha', 'weekly', '2026-10-05', 'draft')`).run();
   r = await morningCardTick(env, d);
   const a = posts.find(p => p.channel === 'C_ALPHA' && !p.opts.thread_ts);
-  assert.match(a.text, /\nWeekly report drafted · write this week's plan in this thread$/);
+  assert.match(a.text, /\n\*CLIENT · Alpha Golf\*\n<@U_AHSAN>\n• Chase the client: .*\n• Write this week's plan in this thread \(the weekly report is drafted\)\n/);
   hour = 7; r = await morningCardTick(env, d);
   const b = posts.find(p => p.channel === 'C_BETA' && !p.opts.thread_ts);
-  assert.match(b.text, /Weekly report not drafted yet/); assert.match(r.posted.join(' '), /Beta Socks \(the weekly report is not drafted yet\)/);
+  assert.match(b.text, /the weekly report is not drafted yet/); assert.match(r.posted.join(' '), /Beta Socks \(the weekly report is not drafted yet\)/);
   today = '2026-10-13'; hour = 5;
 });
 
@@ -214,7 +219,7 @@ await check('preview: the card as words for one brand, nothing posted; the switc
   posts = [];
   const p = await previewCard(env, d, 'brand_alpha');
   assert.equal(posts.length, 0);
-  assert.match(p.text, /^Alpha Golf: nothing needs you today, Cole\nYesterday /, 'Cole\'s task was ticked done above, so line 1 says nothing needs him'); assert.match(p.text, /@Ahsan, media buying: Today's ad calls/); assert.ok(!/<@/.test(p.text));
+  assert.match(p.text, /^MEDIA BUYING · Alpha Golf\n@Ahsan\n• Today's ad calls/, 'Cole\'s task was ticked done above, so the first group is the calls'); assert.ok(!/<@/.test(p.text));
   assert.ok(p.thread.length >= 1);
   await assert.rejects(previewCard(env, d, 'brand_nope'), /No such active brand/);
   setSetting('morningCard', 'off'); assert.deepEqual(await morningCardTick(env, d), { skipped: 'off' }); setSetting('morningCard', 'on');
@@ -225,7 +230,7 @@ await check('preview: the card as words for one brand, nothing posted; the switc
 await check('a report day: the skipped daily is not news (2026-11-03), numbers still shown', async () => {
   db.prepare(`UPDATE briefs SET status = 'skipped', text = 'No daily today: the weekly report covers Mon, Oct 12.' WHERE act_id = 'brand_beta' AND date = '2026-10-12'`).run();
   const p = await previewCard(env, d, 'brand_beta');
-  assert.match(p.text.split('\n')[1], /^Yesterday \$900 \(plan \$1,000\) · MER 3\.00x$/);
+  assert.match(p.text.split('\n').at(-1), /^Yesterday \$900 \(plan \$1,000\) · MER 3\.00x$/);
 });
 
 await check('callsText: nouns and money', () => {

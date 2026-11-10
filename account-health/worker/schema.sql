@@ -110,6 +110,7 @@ CREATE TABLE IF NOT EXISTS ad_daily (
   video_plays      INTEGER NOT NULL DEFAULT 0,    -- video plays: the denominator for the retention curve
   add_to_cart      REAL    NOT NULL DEFAULT 0,    -- added 2026-09-24 by ALTER
   leads            REAL    NOT NULL DEFAULT 0,    -- Meta leads (lead / lead_grouped / pixel lead), 2026-10-15; ALTER TABLE ad_daily ADD COLUMN leads REAL NOT NULL DEFAULT 0
+  initiate_checkout REAL   NOT NULL DEFAULT 0,    -- Meta checkouts started, 2026-11-10; added by ensureCheckoutColumn (worker.js) on the first ad sync
   PRIMARY KEY (act_id, ad_id, date)
 );
 
@@ -320,3 +321,7 @@ CREATE INDEX IF NOT EXISTS p_buyer_state_quiet ON p_buyer_state (quiet_until);
 -- The team scorecard (2026-11-09, src/agency.js): Cole's weekly 1 to 5 rating per person (profit/worker/migrations/team-001.sql).
 CREATE TABLE IF NOT EXISTS p_team_rating (person TEXT NOT NULL, week TEXT NOT NULL, stars INTEGER NOT NULL, note TEXT,
   by_email TEXT, at TEXT NOT NULL, PRIMARY KEY (person, week));
+-- The FYI roundup (2026-11-09, src/lane.js; profit/worker/migrations/slackfyi-001.sql): what asks nobody to act waits here for the brand's end-of-day post.
+CREATE TABLE IF NOT EXISTS slack_fyi (id INTEGER PRIMARY KEY AUTOINCREMENT, act_id TEXT NOT NULL DEFAULT '', lane TEXT NOT NULL, line TEXT NOT NULL,
+  day TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')), posted_at TEXT, UNIQUE (act_id, day, lane, line));
+CREATE INDEX IF NOT EXISTS slack_fyi_open ON slack_fyi (posted_at, act_id);

@@ -252,7 +252,7 @@ await check('alertTick: fires once at 12pm Central with the number, the normal, 
   const p = slackCalls.find(c => c.method === 'chat.postMessage');
   assert.equal(p.p.channel, 'C_LUCKY_INT');
   const body = JSON.stringify(p.p.blocks);
-  assert.match(body, /<@U06C37MDWD7> \*Lucky Golf: revenue today so far by 12pm Central is at 38% of normal/);
+  assert.match(body, /\*MEDIA BUYING · Lucky Golf\*\\n<@U06C37MDWD7>  Look into it: revenue today so far by 12pm Central is at 38% of normal\\nWhy: \$450 against \$1,200/, 'lane first, the tag, the ask, the numbers as the why');
   assert.match(body, /\$450 against \$1,200/);
   assert.match(body, /open=yesterday&act=brand_lucky/);
   assert.match(body, /Reports > Dashboards > Alerts/);

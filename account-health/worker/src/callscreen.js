@@ -47,11 +47,14 @@ import { listBoard, setField, moveCard } from './production.js';
 import { addComment, ensureWork } from './prodwork.js';
 import { launchedRows } from './buyerlist.js';
 import { resolveBrandId } from './brands.js';
+import { callWinners, callClipUrl, postCallAsk } from './trybe.js';
+import { luckyThisWeek } from './lucky.js';
 
 const HAIKU = 'claude-haiku-5-5';
 const SONNET = 'claude-sonnet-5-5';
 const ATTR = 'lastPlatformClick';
-const KINDS = ['monday', 'client', 'kickoff'];
+const KINDS = ['monday', 'client', 'kickoff', 'creator'];
+const LUCKY = 'brand_lucky_golf';
 
 const safe = (s, d) => { try { return s == null ? d : JSON.parse(s); } catch { return d; } };
 const now = () => new Date().toISOString();
@@ -94,7 +97,7 @@ async function model(env, d, { model: m = HAIKU, system, user, schema, max = 150
 }
 
 /* ---------- the call row ---------- */
-function callId(kind, act, date) { return kind === 'client' ? `client:${act}:${date}` : `${kind}:${date}`; }
+function callId(kind, act, date) { return kind === 'client' || kind === 'creator' ? `${kind}:${act}:${date}` : `${kind}:${date}`; }
 async function loadCall(env, id) {
   const r = await env.DB.prepare(`SELECT * FROM p_call WHERE id = ?1`).bind(id).first();
   return r ? { ...r, state: safe(r.state_json, {}) || {}, result: safe(r.result_json, null), state_json: undefined, result_json: undefined } : null;
@@ -225,7 +228,10 @@ async function mondayData(env, d, who) {
   /* What is already being made per brand (Production: Brief, Making, Review), so a batch is never asked for twice. */
   const prod = {};
   const board = await listBoard(env, d, { act: 'all' }).catch(() => ({ cards: [] }));
-  for (const c of board.cards || []) if (['brief', 'making', 'review'].includes(c.board) && !parked(c, today)) (prod[c.act_id] = prod[c.act_id] || []).push({ num: c.num, title: c.title, board: c.board, owner: c.assignee || '', due: c.due || '' });
+  /* 2026-11-09 (calls v2): Ready too (made, waiting to launch), and the card id so a tap opens it on the call. */
+  for (const c of board.cards || []) if (['brief', 'making', 'review', 'ready'].includes(c.board) && !parked(c, today)) (prod[c.act_id] = prod[c.act_id] || []).push({ id: c.id || null, num: c.num, title: c.title, board: c.board, owner: c.assignee || '', due: c.due || '', asana_url: c.asana_url || null });
+  /* Brands with a creator program (calls v2: the Monday screen's Trybe part), and their winning creator videos this week. */
+  const creatorSet = new Set((await creatorBrands(env).catch(() => [])).map(x => x.act_id));
   const brands = await Promise.all(ms.brands.map(async b => {
     const rep = await latestReport(env, b.act_id, 'weekly');
     const read = await withLeads(env, b.act_id, readOf(rep));
@@ -251,7 +257,10 @@ async function mondayData(env, d, who) {
       act_id: b.act_id, name: b.name, read, open: b.open,
       /* The Slack posts themselves, as written, one per person (Cole: "he posts something every Monday, is that pulled?"). */
       posts: b.thread.map(m => ({ by: m.by, at: m.at, text: m.text })),
-      making: (prod[b.act_id] || []).slice(0, 12),
+      making: (prod[b.act_id] || []).slice(0, 24),
+      creators: creatorSet.has(b.act_id) && b.act_id !== LUCKY,
+      winners: creatorSet.has(b.act_id) && b.act_id !== LUCKY ? await callWinners(env, b.act_id, today).catch(() => []) : [],
+      trybe: creatorSet.has(b.act_id) && b.act_id !== LUCKY ? await trybeCounts(env, b.act_id, today).catch(() => null) : null,
       asks: (asks.items || []).filter(x => x.act_id === b.act_id && x.kind === 'ask' && x.status === 'open').map(x => ({ id: x.id, title: x.title, body: x.body, created_at: x.created_at })),
     };
   }));
@@ -279,13 +288,67 @@ async function clientData(env, d, act, who) {
     kind: 'client', today, act_id: act, name: b.name,
     ads: { review: cards.filter(c => c.board === 'review').map(cardOut), approved: cards.filter(c => c.board === 'ready').map(cardOut),
       live: live.slice(0, 30).map(r => ({ id: r.id, name: r.ad_name || r.adset || 'Ad', day: r.day, card: r.card || '', status: r.eff_status || r.status || '', ads_manager: r.ads_manager })) },
+    /* Calls v2 round 7: the same Production board the Monday meeting showed (Brief, Making, Review, Ready), so the client
+       sees what the team already saw; each card opens in place. Internal owners stay off the client's screen. */
+    making: cards.filter(c => ['brief', 'making', 'review', 'ready'].includes(c.board)).slice(0, 30).map(c => ({ id: c.id || null, num: c.num, title: c.title, board: c.board, due: c.due || '', thumb: c.thumb || null, format: c.format || '' })),
     week: await withLeads(env, act, readOf(wk || wkAny)), month: await withLeads(env, act, readOf(mo)),
     asks: (req.items || []).filter(x => x.kind === 'ask' && x.status === 'open').map(x => ({ id: x.id, title: x.title, body: x.body, created_at: x.created_at })),
     approvals: (req.items || []).filter(x => x.kind === 'approval' && x.status === 'open').map(x => ({ id: x.id, title: x.title, created_at: x.created_at })),
     coming: (cal.items || []).filter(e => e.act === act && (e.start || '') >= today).slice(0, 12).map(e => ({ id: e.id, name: e.name, start: e.start, end: e.end || null, kind: e.kind_label || e.kind, confirmed: !!e.confirmed, offer: e.offer || '' })),
     has_client_channel: !!(await env.DB.prepare(`SELECT brief_channel FROM brand_accounts WHERE act_id = ?1`).bind(act).first().catch(() => null))?.brief_channel,
+    /* Calls v2: what this week's Monday call approved for this brand (plan lines voted Yes or Changes, and what we send
+       them), so the client call shows the plan without retyping it. Internal names and notes are left out. */
+    monday: await (async () => {
+      const mc = await loadCall(env, callId('monday', '', mondayOf(today))).catch(() => null);
+      const s = mc && mc.state && mc.state.brands && mc.state.brands[act];
+      if (!s) return null;
+      const ok = arr => (arr || []).filter(x => x && clean(x.text, 300) && x.on !== false && (x.vote === 'y' || x.vote === 'c')).map(x => noDash(clean(x.text, 300)));
+      return { meta: ok(s.batches), google: ok(s.gplan), email: ok(s.eplan), send: (s.sends || []).filter(x => x && clean(x.text, 300)).map(x => noDash(clean(x.text, 300))) };
+    })(),
     call, team: ROSTER.map(r => r.name),
   };
+}
+
+/* ---------- creator (2026-11-09) ----------
+   The Monday creator call on Discord, one brand at a time (Grunk 4:30, Dartee 5:00, Ice & Gold 5:30, Party Patch 6:00,
+   Lucky on its Stage). Cole: "Here's what you go over. Here's what you do." Everything shown comes from what Locus
+   already has: the brand's week on its creator hub (p_amb_brand.week_json: the deal, the call time, the videos to film,
+   what is selling), this week's winning creator videos (trybe.js callWinners, Triple Whale, last 7 days), and for Lucky
+   the app's own "this week" feed. Typed on the call: the news, what to skip, questions, and the one ask with its date. */
+async function creatorBrands(env) {
+  const rows = ((await env.DB.prepare(`SELECT b.act_id, b.display_name, b.week_json FROM p_amb_brand b WHERE b.act_id IN (SELECT act_id FROM p_br_doc WHERE line_id = '' AND key = 'discord' AND act_id != 'agency')`).all().catch(() => ({ results: [] }))).results) || [];
+  const out = rows.map(r => ({ act_id: r.act_id, name: r.display_name || r.act_id, when: (safe(r.week_json, {}) || {}).call?.when || '' }));
+  if (!out.some(r => r.act_id === LUCKY)) out.push({ act_id: LUCKY, name: 'Lucky Golf', when: 'Mondays on the Lucky Clubhouse Stage' });
+  /* Call order on Monday: the hub's call time when it has one ("Mondays at 4:30 pm"), Lucky last. */
+  const mins = w => { const m = /(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i.exec(w || ''); if (!m) return 9999; let h = +m[1] % 12; if (!m[3] || /pm/i.test(m[3])) h += 12; return h * 60 + (+m[2] || 0); };
+  return out.sort((a, b) => (a.act_id === LUCKY) - (b.act_id === LUCKY) || mins(a.when) - mins(b.when) || a.name.localeCompare(b.name));
+}
+async function creatorData(env, d, act, who) {
+  const today = d.centralDate ? d.centralDate() : centralToday();
+  const brands = await creatorBrands(env);
+  if (!act) return { kind: 'creator', today, pick: brands };
+  const b = brands.find(x => x.act_id === act);
+  if (!b) throw err(400, 'This brand has no creator program in Locus.');
+  const call = await openCall(env, 'creator', act, today, who, `${b.name} creator call ${today}`);
+  const row = await env.DB.prepare(`SELECT slug, display_name, week_json FROM p_amb_brand WHERE act_id = ?1`).bind(act).first().catch(() => null);
+  const week = safe(row?.week_json, null) || {};
+  const out = {
+    kind: 'creator', today, act_id: act, name: b.name, when: b.when, lucky: act === LUCKY,
+    hub: row?.slug ? `https://locus.go-mobius-digital.com/angles/${row.slug}/` : null,
+    week: { title: week.title || '', offer: week.offer || null, call: week.call || null, daily: week.daily || [], selling: week.selling || [], same: week.same || null },
+    winners: [], ideas: [], campaigns: [], warn: [], call, team: ROSTER.map(r => r.name),
+  };
+  if (act === LUCKY) {
+    try {
+      const t = await luckyThisWeek(env);
+      out.ideas = (t.ideas || []).filter(x => x.hot).slice(0, 8).map(x => ({ title: x.title, opener: x.opener || '', format: x.format || '', club: x.club || '', thumb: x.thumbnail || null, link: x.link || null, campaign: x.campaign || '' }));
+      out.campaigns = (t.campaigns || []).map(c => ({ name: c.name, film_by: c.film_by || '' }));
+      out.hub = t.page || 'https://creators.luckygolf.com/shoot';
+    } catch (e) { out.warn.push(`The Lucky app did not answer: ${e.message}`); }
+  } else {
+    out.winners = await callWinners(env, act, today).catch(e => { out.warn.push(`Winners did not load: ${e.message}`); return []; });
+  }
+  return out;
 }
 
 /* ---------- kickoff ---------- */
@@ -367,6 +430,33 @@ async function clientLines(env, d, rows) {
   try { const o = await model(env, d, { model: SONNET, system, user, schema: WEEK_SCHEMA, max: 3000 }); return Object.fromEntries((o.brands || []).map(b => [b.brand_id, (b.this_week || []).map(x => noDash(clean(x, 300))).filter(Boolean).slice(0, 4)])); }
   catch { return {}; }
 }
+/** Calls v2: the Trybe tiles (approved videos not in an ad yet, those waiting over a week, pending). Same rule as trybe.js queueAll. */
+async function trybeCounts(env, act, today) {
+  const NL = `status = 'approved' AND ads_count = 0 AND NOT EXISTS (SELECT 1 FROM p_trybe_ad a WHERE a.act_id = s.act_id AND a.trybe_id = s.trybe_id)`;
+  const r = await env.DB.prepare(`SELECT SUM(${NL}) AS queue, SUM(${NL} AND approved_seen <= ?2) AS stale, SUM(status = 'pending') AS pending FROM p_trybe_sub s WHERE act_id = ?1`).bind(act, addDays(today, -7)).first();
+  return { queue: +(r && r.queue) || 0, stale: +(r && r.stale) || 0, pending: +(r && r.pending) || 0 };
+}
+/** Calls v2: one brand's typed state as the plan it kept and the decision lines for its Slack recap. */
+function v2Lines(s, who = {}) {
+  const live = arr => (arr || []).filter(x => x && clean(x.text, 300) && x.on !== false && x.vote !== 'n');
+  const kept = live(s.batches), gkept = live(s.gplan), ekept = live(s.eplan);
+  const planLine = (x, tag) => `${tag}${x.vote === 'y' ? ' approved' : x.vote === 'c' ? ' needs changes' : ''}: ${clean(x.text, 300)}${x.vote === 'c' && clean(x.note, 300) ? `. Change: ${clean(x.note, 300)}` : ''}${x.owner ? ` (${clean(x.owner, 40)})` : ''}`;
+  const extra = [
+    ...kept.map(x => planLine(x, `Meta plan${who.meta ? ` (${who.meta})` : ''}`)),
+    ...gkept.map(x => planLine(x, 'Google plan (Radhesh)')),
+    ...ekept.map(x => planLine(x, 'Email plan')),
+    ...(s.calls || []).filter(x => x && clean(x.text, 300)).map(x => `For the media buyer: ${clean(x.text, 300)}`),
+    ...(s.changes || []).filter(x => clean(x, 300)).map(x => `Changed on the call: ${clean(x, 300)}`),
+    /* 2026-11-10: the Trybe decisions made in the meeting, counted (each one is also its own Change Log line). */
+    ...(() => { const v = Object.values(s.rv || {}).filter(x => x && x.done); if (!v.length) return []; const n = re => v.filter(x => re.test(x.done)).length; const parts = [[n(/approved/i), 'approved'], [n(/changes/i), 'sent back for changes'], [n(/rejected/i), 'rejected']].filter(p => p[0]); return [`Trybe: ${parts.map(p => `${p[0]} ${p[1]}`).join(', ')}`]; })(),
+    ...(s.ideas || []).filter(x => x && clean(x.text, 300)).map(x => `Idea: ${clean(x.text, 300)}`),
+    ...(s.sends || []).filter(x => x && clean(x.text, 300)).map(x => `We send the client: ${clean(x.text, 300)}${ymdOk(x.due) ? ` by ${x.due}` : ''}`),
+    ...Object.entries(s.money || {}).filter(([, m]) => m && m.m).map(([camp, m]) => `Money: ${m.m} ${clean(camp, 120)}${m.amt ? ` to ${clean(String(m.amt), 20)} a day` : ''}`),
+    ...(s.diag && s.diag.pick ? [`Ads or site: ${s.diag.pick}${s.diag.txt ? `. ${clean(s.diag.txt, 300)}` : ''}`] : []),
+    ...(clean(s.offer, 300) ? [`Live offer on the site: ${clean(s.offer, 300)}`] : []),
+  ].map(x => noDash(x));
+  return { kept, extra };
+}
 const item = (kind, x) => ({ text: clean(x.text, 300), detail: clean(x.detail, 2000), owner: clean(x.owner, 40), due: ymdOk(x.due) ? x.due : '', kind, area: kind === 'brief' ? 'ads' : '' });
 
 export async function finishCall(env, d, body, who) {
@@ -378,6 +468,21 @@ export async function finishCall(env, d, body, who) {
     await env.DB.prepare(`UPDATE p_call SET status = 'finished', finished_by = ?2, finished_at = ?3, result_json = ?4 WHERE id = ?1`).bind(c.id, who, now(), JSON.stringify({ briefs: Object.keys(c.state?.done || {}).length })).run();
     return { ok: true, kind: 'kickoff', briefs: Object.keys(c.state?.done || {}).length };
   }
+  if (c.kind === 'creator') {
+    /* The creator call makes no tasks: it closes with the one ask, posted in the brand's #this-week only when ticked
+       (nothing creator-facing goes out unless the person on the call says so; Lucky posts from its own app). */
+    const st = c.state || {};
+    const ask = noDash(keep(st.ask, 600));
+    const by = ymdOk(st.ask_due) ? st.ask_due : '';
+    const line = ask ? `${ask}${by ? ` By ${new Date(by + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'UTC' })}.` : ''}` : '';
+    let posted = null;
+    if (body.post && line && c.act_id !== LUCKY && !(c.result && c.result.posted && c.result.posted.ok)) {
+      try { await postCallAsk(env, c.act_id, line); posted = { ok: true }; } catch (e) { posted = { ok: false, why: e.message }; }
+    }
+    const result = { ask: line, posted: posted || (c.result && c.result.posted) || null };
+    await env.DB.prepare(`UPDATE p_call SET status = 'finished', finished_by = ?2, finished_at = ?3, result_json = ?4 WHERE id = ?1`).bind(c.id, who, now(), JSON.stringify(result)).run();
+    return { ok: true, kind: 'creator', result };
+  }
   const brands = await d.listBrands(env);
   const nameOf = id => brands.find(b => b.act_id === id)?.name || id;
   const st = c.state || {};
@@ -386,11 +491,17 @@ export async function finishCall(env, d, body, who) {
   if (c.kind === 'monday') {
     for (const [act, s] of Object.entries(st.brands || {})) {
       if (!brands.some(b => b.act_id === act)) continue;
-      const r = { brand_id: act, name: nameOf(act), read: clean(s.read, 2000), client: typedLines(s.client), batches: (s.batches || []).filter(x => x && clean(x.text, 300) && x.on !== false), jobs: (s.jobs || []).filter(x => x && clean(x.text, 300)), asks: (s.asks || []).filter(x => x && clean(x.text, 300) && x.on !== false) };
-      if (r.read || r.client.length || r.batches.length || r.jobs.length || r.asks.length) rows.push(r);
+      /* CALLS V2 (2026-11-09, st.layout 2; Cole: "ads to brief is redundant, the strategists brief themselves"): the plan's
+         lines are voted on, not turned into briefs. A thumbs-up line is a decision ("Plan: ..."), a thumbs-down line is
+         dropped, an unvoted line stays a decision. The new boxes (ideas, what we send the client, money moves, the
+         ads-or-site read, the live offer) go in the brand's Slack recap as decisions. */
+      const v2 = st.layout === 2;
+      const { kept, extra } = v2 ? v2Lines(s, { meta: clean(s.strat, 40) }) : { kept: [], extra: [] };
+      const r = { brand_id: act, name: nameOf(act), read: clean(s.read, 2000), client: typedLines(s.client), batches: v2 ? [] : (s.batches || []).filter(x => x && clean(x.text, 300) && x.on !== false), plan: v2 ? kept : [], extra, jobs: (s.jobs || []).filter(x => x && clean(x.text, 300)), asks: (s.asks || []).filter(x => x && clean(x.text, 300) && x.on !== false) };
+      if (r.read || r.client.length || r.batches.length || r.extra.length || r.jobs.length || r.asks.length) rows.push(r);
     }
-    const lines = await clientLines(env, d, rows);
-    for (const r of rows) notes.brands.push({ brand_id: r.brand_id, decisions: r.read ? [r.read] : [], items: [...r.jobs.map(x => item('team', x)), ...r.batches.map(x => item('brief', x)), ...r.asks.map(x => item('client_owes', x))], this_week: r.client.length ? r.client : (lines[r.brand_id] || []), need_from_client: r.asks.map(x => clean(x.text, 300)) });
+    const lines = await clientLines(env, d, rows.map(r => r.plan.length ? { ...r, batches: r.plan } : r));
+    for (const r of rows) notes.brands.push({ brand_id: r.brand_id, decisions: [...(r.read ? [r.read] : []), ...r.extra], items: [...r.jobs.map(x => item('team', x)), ...r.batches.map(x => item('brief', x)), ...r.asks.map(x => item('client_owes', x))], this_week: r.client.length ? r.client : (lines[r.brand_id] || []), need_from_client: r.asks.map(x => clean(x.text, 300)) });
     const theme = clean(st.theme, 600);
     const agencyJobs = (st.agency || []).filter(x => x && clean(x.text, 300));
     if (theme || agencyJobs.length) notes.brands.unshift({ brand_id: '', decisions: theme ? [theme] : [], items: agencyJobs.map(x => item('team', x)), this_week: [], need_from_client: [] });
@@ -488,7 +599,7 @@ async function appendBriefNote(env, brandId, lines) {
 export async function typedOnCall(env, date) {
   try {
     await ensureCalls(env);
-    const rows = (await env.DB.prepare(`SELECT kind, act_id, meeting_id FROM p_call WHERE date = ?1 AND status = 'finished' AND kind != 'kickoff'`).bind(date).all()).results || [];
+    const rows = (await env.DB.prepare(`SELECT kind, act_id, meeting_id FROM p_call WHERE date = ?1 AND status = 'finished' AND kind IN ('monday', 'client')`).bind(date).all()).results || [];
     const out = [];
     for (const r of rows) {
       const m = await env.DB.prepare(`SELECT notes_json FROM p_meeting WHERE id = ?1`).bind(r.meeting_id).first().catch(() => null);
@@ -530,7 +641,14 @@ export async function handleCalls(request, env, url, path, json, d) {
       const act = url.searchParams.get('act') || '';
       if (kind === 'monday') return json(await mondayData(env, d, who));
       if (kind === 'client') return json(await clientData(env, d, act, who));
+      if (kind === 'creator') return json(await creatorData(env, d, act && act !== 'all' ? act : '', who));
       return json(await kickoffData(env, d, act && act !== 'all' ? act : 'all', who, url.origin));
+    }
+    /* A creator video for the creator call, asked for on click (Trybe's file links are not kept). */
+    if (path === '/api/calls/clip' && request.method === 'GET') {
+      const act = url.searchParams.get('act') || '', sub = url.searchParams.get('sub') || '';
+      if (!act || !sub) return json({ error: 'Need act and sub.' }, 400);
+      return json({ url: await callClipUrl(env, d, act, sub) });
     }
     if (path === '/api/calls/google' && request.method === 'GET') {
       const act = url.searchParams.get('act') || '', from = url.searchParams.get('from'), to = url.searchParams.get('to');
@@ -560,4 +678,4 @@ export async function handleCalls(request, env, url, path, json, d) {
   } catch (e) { return json({ error: e.message }, e.status >= 400 && e.status < 600 ? e.status : 500); }
 }
 
-export const _test = { winnersLosers, readOf, callId, mondayOf, parked, typedLines, itemKey, madeKeys, mergeResults };
+export const _test = { winnersLosers, readOf, callId, mondayOf, parked, typedLines, itemKey, madeKeys, mergeResults, v2Lines };

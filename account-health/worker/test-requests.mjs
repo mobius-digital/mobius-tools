@@ -109,7 +109,8 @@ await check('the client sees its own brand only, with previews and "N waiting"; 
 await check('a client request posts ONE line to the brand\'s INTERNAL channel; a client can never send an approval', async () => {
   const r = await ah(CLIENT, 'POST', '/api/requests', { act: 'brand_alpha', title: 'Pause the hoodie ads', text: 'We sold out of medium.', link: 'https://example.com/hoodie' });
   assert.equal(r.status, 200); ids.req = r.j.id; assert.equal(r.j.notified, true);
-  assert.equal(slack.length, 1); assert.equal(slack[0].channel, 'C_ALPHA_IN'); assert.match(slack[0].text, /Nick asked for something: Pause the hoodie ads/);
+  assert.equal(slack.length, 1); assert.equal(slack[0].channel, 'C_ALPHA_IN'); assert.match(slack[0].text, /^CLIENT · Alpha Golf: Handle Nick's request: Pause the hoodie ads/);
+  assert.match(slack[0].blocks[0].text.text, /^\*CLIENT · Alpha Golf\*\n\S+  Handle Nick's request: Pause the hoodie ads\nWhy: We sold out of medium\.$/, 'lane first, the strategist (or Cole) tagged, the why');
   assert.ok(!slack.some(m => /CLIENT/.test(m.channel)), 'never the client channel');
   assert.equal((await ah(CLIENT, 'POST', '/api/requests', { act: 'brand_alpha', kind: 'approval', what: 'offer', title: 'x', text: 'y' })).status, 403);
   assert.equal((await ah(CLIENT, 'POST', '/api/requests', { act: 'brand_beta', title: 'Sneaky', text: 'x' })).status, 403);
@@ -135,8 +136,10 @@ await check('approving Studio ads marks them approved in Studio; approving a dat
   assert.equal(cal.db.prepare(`SELECT status FROM events WHERE id = 'ev_a'`).get().status, 'confirmed');
   const log = cal.db.prepare(`SELECT * FROM changelog WHERE event_id = 'ev_a'`).get();
   assert.equal(log.changed_by, 'Locus'); assert.match(log.change_summary, /Nick approved it in Requests/);
-  assert.equal(slack.length, before + 2); assert.ok(slack.slice(before).every(m => m.channel === 'C_ALPHA_IN'));
-  assert.match(slack[before + 1].text, /confirmed on the calendar/);
+  /* 2026-11-09: an approval asks nobody for anything, so it waits for the brand's end-of-day roundup (lane.js). */
+  assert.equal(slack.length, before, 'approvals post nothing now');
+  const fy = db.prepare(`SELECT act_id, lane, line FROM slack_fyi WHERE act_id = 'brand_alpha' ORDER BY id`).all();
+  assert.equal(fy.length, 2); assert.ok(fy.every(f => f.lane === 'CLIENT')); assert.match(fy[1].line, /confirmed on the calendar/);
 });
 
 await check('asking for changes needs a note, which lands in the thread and in Slack', async () => {
@@ -146,7 +149,7 @@ await check('asking for changes needs a note, which lands in the thread and in S
   const l = await ah(CLIENT, 'GET', '/api/requests?act=brand_alpha');
   const it = l.j.items.find(i => i.id === ids.offer);
   assert.equal(it.status, 'changes'); assert.equal(it.thread.at(-1).text, 'Changes: Make it 20%, not 25%.');
-  assert.match(slack.at(-1).text, /Nick asked for changes on "Black Friday offer"/);
+  assert.match(slack.at(-1).text, /^CLIENT · Alpha Golf: Make the changes Nick asked for on "Black Friday offer"/);
   assert.equal(l.j.waiting_client, 1, 'only the link is still waiting for the client');
 });
 
@@ -156,7 +159,7 @@ await check('the thread: the team replies (no Slack), the client replies (one li
   assert.equal(slack.length, before);
   assert.equal((await ah(TEAM, 'POST', '/api/requests/done', { act: 'brand_alpha', id: ids.req })).status, 200);
   assert.equal((await ah(CLIENT, 'POST', '/api/requests/reply', { act: 'brand_alpha', id: ids.req, text: 'Stock lands Tuesday.' })).status, 200);
-  assert.equal(slack.length, before + 1); assert.match(slack.at(-1).text, /Nick replied on "Pause the hoodie ads"/);
+  assert.equal(slack.length, before + 1); assert.match(slack.at(-1).text, /Reply to Nick on "Pause the hoodie ads"/);
   const it = (await ah(TEAM, 'GET', '/api/requests?act=brand_alpha')).j.items.find(i => i.id === ids.req);
   assert.equal(it.status, 'open', 'a client reply reopens a done request');
   assert.deepEqual(it.thread.map(m => m.role), ['team', 'client']);

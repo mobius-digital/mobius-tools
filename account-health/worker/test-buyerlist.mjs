@@ -137,7 +137,8 @@ await check('the Slack DM: "N changes ready across B brands, $X at stake", the t
   const L = { n: rows.length, n_brands: 2, stake: rows.reduce((s, r) => s + r.stake, 0), currency: 'USD', owner: 'Cole', rows, launched_yesterday: { n: 4, brands: ['Alpha'] }, ai: { n_read: 2 } };
   const m = buyerMessage(L, '<@U_COLE>');
   const lines = m.text.split('\n');
-  assert.equal(lines[0], '*8 changes ready across 2 brands, $4.9K at stake*');
+  assert.equal(lines[0], 'MEDIA BUYING · Agency: Go through the Buyer list: 8 changes ready across 2 brands, $4.9K at stake');
+  assert.deepEqual(m.blocks[0].text.text.split('\n').slice(0, 3), ['*MEDIA BUYING · Agency*', '<@U_COLE>  Go through the Buyer list: 8 changes ready across 2 brands, $4.9K at stake', '• *Alpha*: Pause this ad set, "Set 0"'], 'lane first, the owner tagged, then the top lines');
   assert.equal(lines[1], '• *Alpha*: Pause this ad set, "Set 0"');
   assert.equal(lines.length, 6, 'the head and 5 one-liners, nothing else');
   assert.ok(!/Owner|Launched yesterday|Morning read|more in Locus/.test(m.text));
@@ -161,7 +162,7 @@ await check('the tick: nothing before the morning hour; ONE post a day to the bu
   hour = 5; posts = [];
   const r = await buyerPostTick(env, d);
   assert.equal(posts.length, 1); assert.equal(posts[0].channel, DEFAULT_BUYER_CHANNEL); assert.equal(r.channel, 'C0C8UA53U3W');
-  assert.match(posts[0].text, /^\*\d+ changes ready across 2 brands/);
+  assert.match(posts[0].text, /^MEDIA BUYING · Agency: Go through the Buyer list: \d+ changes ready across 2 brands/);
   hour = 6; await buyerPostTick(env, d);
   assert.equal(posts.length, 1, 'once a day');
   today = '2026-10-30'; setSetting('buyerPost', 'off');

@@ -28,6 +28,7 @@
  * Preview without posting: GET /api/moved-preview (admin), with each brand's verdict. */
 import { marketLine, metaDay, chatterFor } from './market.js';
 import { liveOn } from './calendar.js';
+import { fyi } from './lane.js';
 const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 export const MOVED_HOUR = 8;
 const MOVED_LAST_HOUR = 13;
@@ -172,7 +173,8 @@ export async function movedTick(env, d) {
   const out = { date: L.date, verdict: L.verdict, hits: L.hits };
   if (L.verdict === 'bad' || L.verdict === 'vbad') {
     const ch = (await d.getSetting(env, 'strategistChannel')) || (await d.getSetting(env, 'slackChannel'));
-    if (ch) { const b = metaDayBlocks(m); try { await d.slackPost(env, ch, b.text, b.blocks, { username: 'Locus' }); out.posted = ch; } catch (e) { out.error = e.message; } }
+    /* 2026-11-09 (the lane format, lane.js): a bad day asks nobody to do anything, so it is a line in the agency's end-of-day roundup. */
+    if (ch) { const b = metaDayBlocks(m); if (await fyi(env, { act: '', lane: 'MEDIA BUYING', line: `${b.text}. Hold big changes on Meta until it settles.` })) out.posted = 'roundup'; }
     else out.error = 'No agency channel set (Agency settings, The Strategist)';
   }
   await d.putSetting(env, 'movedDone', JSON.stringify({ date: today, meta: true, verdict: L.verdict }));

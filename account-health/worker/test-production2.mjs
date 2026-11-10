@@ -174,7 +174,9 @@ await check('comments: @William gets a Slack DM with the card link (never a chan
   const r = await addComment(env, dd, { id: 'c1', body: '@William can the glove be on the left?' }, 'ahsan@go-mobius-digital.com', null);
   assert.deepEqual(r.mentions, [{ name: 'William', sent: true }]);
   const dmMsg = slack.find(s => s.method === 'chat.postMessage');
-  assert.equal(dmMsg.args.channel, 'U_WILLIAM'); assert.match(dmMsg.args.text, /Ahsan mentioned you on #48 "Cold hands v2"/); assert.match(dmMsg.args.text, /open=production&card=c1/);
+  assert.equal(dmMsg.args.channel, 'U_WILLIAM'); assert.match(dmMsg.args.text, /^CREATIVE · Alpha Golf: Answer Ahsan on #48 "Cold hands v2"/);
+  assert.match(dmMsg.args.blocks[0].text.text, /^\*CREATIVE · Alpha Golf\*\n\*William\*  Answer Ahsan on #48 "Cold hands v2"\nWhy: "@William can the glove/, 'lane first, the ask, the comment as the why');
+  assert.match(dmMsg.args.blocks[1].elements[0].url, /open=production&card=c1/);
   assert.equal(posts.length, 0, 'no channel post for a team comment');
   const story = asanaCalls.find(c => c.path === '/tasks/T1/stories');
   assert.equal(story.init.body.text, 'From Locus, Ahsan: @William can the glove be on the left?'); assert.equal(r.asana, true);

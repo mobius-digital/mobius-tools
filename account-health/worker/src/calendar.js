@@ -31,7 +31,8 @@ import { metaOf } from './brands.js';
 import { keyFor, klaviyo } from './klaviyo.js';
 import { supplyFetch } from './stock.js';
 import { clientScope } from './brandguard.js';
-import { teamPost, cardOn, tagOf } from './morningcard.js';
+import { teamPost, cardOn } from './morningcard.js';
+import { laneLines, laneWho, laneOwner, fyi } from './lane.js';
 import { calendarPosts } from './socialpost.js';
 
 let F = (...a) => fetch(...a);
@@ -64,7 +65,7 @@ const STEPS = {
   season: [['offer', 'Offer locked', -30, 'cole'], ['briefs', 'Ads briefed', -23, 'strat'], ['built', 'Ads built', -9, 'strat'], ['loaded', 'Ads loaded', -4, 'buyer']],
 };
 /* What kind of job a step is, said next to the name in Slack so the person knows why it is theirs (Cole, 2026-11-04). */
-export const ROLE_JOB = { strat: 'creative strategy', buyer: 'media buying', email: 'email', cole: 'offer', client: 'client' };
+export const ROLE_JOB = { strat: 'CREATIVE', buyer: 'MEDIA BUYING', email: 'EMAIL', cole: 'CLIENT', client: 'CLIENT' };   // the step's lane (lane.js), 2026-11-09
 const ASANA_STEPS = ['briefs', 'built', 'email', 'loaded'];   // the steps "Make the Asana tasks" makes a task for
 
 let ensured = false;
@@ -470,16 +471,12 @@ export async function calendarTick(env, d) {
      with no card today they post top-level as before (morningcard.js teamPost). */
   /* 2026-11-04 (Cole: "why is Locus mentioning Ahsan every morning?"): a post tags only the people who own a step still
      open in it ("Ahsan + Noma" tags both), never the brand's strategist by default. A client's date change is an FYI. */
-  const tagsFor = async names => {
-    const firsts = [...new Set(names.flatMap(n => String(n || '').split(/\s*(?:\+|&|,|\band\b)\s*/)).map(n => n.trim()).filter(n => /^[A-Z][a-z]+$/.test(n)))];
-    const tags = (await Promise.all(firsts.map(n => tagOf(env, d, n).catch(() => null)))).filter(Boolean);
-    return tags.length ? tags.join(' ') : null;
-  };
+  /* 2026-11-09 (the lane format, lane.js): a client's date change asks nobody to do anything, so it is one line in the
+     brand's end-of-day roundup (lane CLIENT), not a post. */
   for (const l of logs || []) {
     if (team.has(l.changed_by)) continue;
     const ch = chanOf(l.brand_id); if (!ch) continue;
-    const text = `*${l.changed_by} changed a date: ${l.event_name}.* ${l.change_summary}.`;
-    try { await teamPost(env, d, ch, text, [{ type: 'section', text: { type: 'mrkdwn', text } }, { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open in Locus' }, url: `${LOCUS}?open=calendar&act=${idOfSlug(l.brand_id)}${l.event_id ? `&ev=${l.event_id}` : ''}` }] }], { username: 'Locus' }); out.posted.push(`change:${l.event_name}`); } catch {}
+    if (await fyi(env, { act: idOfSlug(l.brand_id), lane: 'CLIENT', line: `${l.changed_by} changed a date: ${l.event_name}. ${l.change_summary}.` })) out.posted.push(`change:${l.event_name}`);
   }
   if (logs?.length) await d.putSetting(env, 'calLogCursor', logs[logs.length - 1].created_at);
   /* 2. Reminders, once a Central day from 8am. */
@@ -492,30 +489,32 @@ export async function calendarTick(env, d) {
   /* Internal: only what needs the team (something still open the day before or a week out; Mondays, a sale with no end).
      "Live tomorrow" rides on the morning card while it is on (2026-10-13), so it is not posted twice. */
   const carded = await cardOn(env).catch(() => false);
+  /* 2026-11-09 (the lane format, lane.js): each open step is an ask under its lane ("*CREATIVE · Dartee*", "@Ahsan  Brief
+     the ads for BFCM", why: goes live Thu Nov 26, was due Oct 17). Only the people who own an open step are tagged
+     (2026-11-04); a step with nobody named tags Cole. */
+  const VERB = { assets: 'Get the photos in', offer: 'Write the offer', briefs: 'Brief the ads', built: 'Build the ads', email: 'Schedule the email and text', loaded: 'Load the ads' };
   for (const b of data.brands) {
     if (!b.channel || b.channel === b.client_channel) continue;
     const mine = data.items.filter(e => e.act === b.id);
-    const lines = [], owners = [];
-    /* 2026-11-04: the open steps are said per person and job ("@Ahsan, creative strategy: ads briefed (was due Oct 17)"),
-       so each line reads as who it is for and why. */
-    const byPerson = open => {
-      const g = new Map();
-      for (const s of open) { const k = `${s.who}|${s.role}`; if (!g.has(k)) g.set(k, { who: s.who, role: s.role, steps: [] }); g.get(k).steps.push(`${s.label.toLowerCase()} (${s.state === 'late' ? `was due ${md(s.due)}` : md(s.due)})`); }
-      /* One step = one bullet under its person, never a run-on line (Cole, 2026-11-04). */
-      return [...g.values()].map(x => [`*${x.who}${x.role ? `, ${x.role}` : ''}*`, ...x.steps.map(s => `• ${s}`)].join('\n')).join('\n');
+    const team = b.team || {};
+    const groups = [];
+    const asks = (e, open, when) => {
+      for (const s of open) {
+        const who = s.key === 'assets' || s.who === 'the client' ? laneOwner('CLIENT', team) : s.who;
+        groups.push({ lane: s.role || 'CREATIVE', brand: b.name, items: [{ who, ask: `${VERB[s.key] || s.label} for ${e.name}`, why: `${when}${s.state === 'late' ? `, was due ${md(s.due)}` : `, due ${md(s.due)}`}` }] });
+      }
     };
     for (const e of mine) {
       const open = (e.steps || []).filter(s => s.state !== 'done');
-      const before = lines.length;
-      const ready = (e.steps || []).filter(s => s.state === 'done').map(s => s.label.toLowerCase());
-      if (e.start === add(today, 1) && open.length && !carded) lines.push(`*Live tomorrow: ${e.name}.* Still to do:\n${byPerson(open)}`);
-      if (e.start === add(today, 7) && open.length) lines.push(`*One week out: ${e.name}*, ${wd(e.start)} ${md(e.start)}.${ready.length ? ` Ready: ${ready.join(', ')}.` : ''} Still to do:\n${byPerson(open)}`);
-      if (lines.length > before) owners.push(...open.map(s => s.who));
-      if (monday && e.src === 'cal' && e.kind === 'sale' && !e.end && e.start <= add(today, -7)) lines.push(`*Still running? ${e.name}* has no end date (${Math.round((Date.parse(today) - Date.parse(e.start)) / 864e5)} days in). Set the end in Locus, or tap "It ended today" on it.`);
+      if (e.start === add(today, 1) && open.length && !carded) asks(e, open, 'goes live tomorrow');
+      if (e.start === add(today, 7) && open.length) asks(e, open, `goes live ${wd(e.start)} ${md(e.start)}`);
+      if (monday && e.src === 'cal' && e.kind === 'sale' && !e.end && e.start <= add(today, -7))
+        groups.push({ lane: 'CLIENT', brand: b.name, items: [{ who: laneOwner('CLIENT', team), ask: `Set the end date for ${e.name}, or tap "It ended today" on it`, why: `no end date, ${Math.round((Date.parse(today) - Date.parse(e.start)) / 864e5)} days in` }] });
     }
-    if (!lines.length) continue;
-    const text = lines.join('\n');
-    try { await teamPost(env, d, b.channel, text, [{ type: 'section', text: { type: 'mrkdwn', text } }, { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open the calendar' }, url: `${LOCUS}?open=calendar&act=${b.id}` }] }], { username: 'Locus', tag: await tagsFor(owners) }); out.posted.push(b.name); } catch (e) { out.error = e.message; }
+    if (!groups.length) continue;
+    for (const g of groups) for (const i of g.items) i.who = await laneWho(env, d, i.who);
+    const m = laneLines(groups, { buttons: [{ label: 'Open the calendar', url: `${LOCUS}?open=calendar&act=${b.id}` }] });
+    try { await teamPost(env, d, b.channel, m.text, m.blocks, { username: 'Locus' }); out.posted.push(b.name); } catch (e) { out.error = e.message; }
   }
   /* The calendar posts NOTHING to a client channel any more (the reporting audit, 2026-10-19): what used to be the
      Monday "This week and next" and "we need from you" posts rides inside the weekly report's This week and From you
