@@ -27,6 +27,7 @@ import { blockActionPlaced, blockActionDone, blockRollTick, setBlockFetch, setBl
 import { minOffTick, handleMinOffButton, minOffOn } from './minoff.js';
 import { checkinTick, checkinAction, submitCheckin, checkinErrors, reviewPost, reviewAction, reviewSubmit, serveReviewPic, ensureDay } from './checkin.js';
 import { callNudgeTick } from './callnudge.js';
+import { handleMyWork, myWorkDmTick } from './mywork.js';
 import { handleProduction, listBoard, moveCard as prodMove, formatOf as prodFormat } from './production.js';
 import { readDoc as prodReadDoc } from './asana-brand.js';
 import { serveFile as prodFile, handleReviewLink, savePhoto } from './prodwork.js';
@@ -7922,6 +7923,8 @@ const AH_APP = {
         ran.checkin = await checkinTick(env, checkinDeps(ctx)).catch(e => ({ error: e.message }));
         /* Monday 7am: brands with no strategist plan yet; from noon: a call of today left open (callnudge.js, 2026-11-09). */
         ran.callNudge = await callNudgeTick(env, { ...checkinDeps(ctx), finish: id => finishCall(env, { ...actionDeps(), waitUntil: p => ctx.waitUntil(p), adsReport }, { id }, 'Locus (finished at noon)') }).catch(e => ({ error: e.message }));
+        /* My work at 5am: each person's list as a Slack DM, weekdays, once a day; settings.myworkDm = 'off' stops it (mywork.js, 2026-11-10). */
+        ran.myworkDm = await myWorkDmTick(env, { ...checkinDeps(ctx), canAfford: n => subCanAfford(n) }).catch(e => ({ error: e.message }));
         /* The Buyer list: ONE post a day in the buyer channel (buyerlist.js, 2026-10-26); the morning cards no longer carry the calls. */
         ran.buyerPost = await buyerPostTick(env, buyerDeps()).catch(e => ({ error: e.message }));
         /* The morning read (buyerai.js): every brand, three side by side, from the hour BEFORE the post hour, so the post
@@ -8247,6 +8250,11 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     /* ---- The call screens: Monday, client, creative kickoff, shared on the call and typed live (callscreen.js, 2026-10-19). Team only. ---- */
     if (path === '/api/calls' || path.startsWith('/api/calls/')) {
       const r = await handleCalls(request, env, url, path, json, { ...actionDeps(), waitUntil: p => ctx.waitUntil(p), adsReport });
+      if (r) return r;
+    }
+    /* ---- My work: one person's list, Brainstorm and Saved (mywork.js, 2026-11-10). Team only; a teammate opens only themself. ---- */
+    if (path === '/api/mywork' || path.startsWith('/api/mywork/')) {
+      const r = await handleMyWork(request, env, url, path, json, { ...actionDeps(), getSetting, putSetting });
       if (r) return r;
     }
     /* ---- Action items: the team's to-do list in Locus, not Asana (actions.js, 2026-10-13). Team only. ---- */
