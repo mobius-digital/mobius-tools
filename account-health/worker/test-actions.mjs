@@ -55,7 +55,10 @@ await check('openItems: grouped per brand, agency-wide first, the shape the Mond
 });
 await check('the reminder message: one line per item, overdue marked, a Done button per item, Open in Locus, no em dash', async () => {
   const m = reminderMessage('Alpha Golf', 'Ahsan', [{ id: 'x', act_id: 'brand_alpha', text: 'Rebuild the hook ad', due: '2026-10-14' }, { id: 'y', act_id: 'brand_alpha', text: 'Old one', due: '2026-10-10' }], '2026-10-14');
-  assert.match(m.text, /^\*Ahsan\*, Alpha Golf: 1 due today, 1 overdue\. Press Done as you go\.\n• Rebuild the hook ad\n• Old one _\(was due Sat, Oct 10\)_$/);
+  assert.match(m.text, /^OPS · Alpha Golf: Finish 2 tasks: 1 due today, 1 overdue\n• Rebuild the hook ad\n• Old one _\(was due Sat, Oct 10\)_$/);
+  assert.equal(m.blocks[0].text.text, '*OPS · Alpha Golf*\n*Ahsan*  Finish 2 tasks: 1 due today, 1 overdue', 'lane first, the owner, the ask');
+  const one = reminderMessage('Alpha Golf', 'Ahsan', [{ id: 'z', act_id: 'brand_alpha', text: 'Write the flow', area: 'email', due: '2026-10-10' }], '2026-10-14', '<@U_AHSAN>');
+  assert.equal(one.blocks[0].text.text, '*EMAIL · Alpha Golf*\n<@U_AHSAN>  Write the flow\nWhy: was due Sat, Oct 10', 'one task = the task is the ask; its area is the lane');
   const btns = m.blocks[1].elements; assert.equal(btns.length, 3); assert.equal(btns[0].action_id, 'act_done_0'); assert.deepEqual(JSON.parse(btns[0].value), { id: 'x' }); assert.equal(btns[2].url, 'https://locus.go-mobius-digital.com/profit/?open=actions&act=brand_alpha');
   assert.ok(!/—/.test(JSON.stringify(m)));
 });
@@ -65,14 +68,14 @@ await check('the tick: nothing before the hour; then one post per owner per bran
   let r = await actionTick(env, d);
   assert.equal(r.posted, 2, JSON.stringify(r)); assert.equal(r.skipped.length, 1, 'the agency item has no Strategist channel yet');
   const alpha = posts.find(p => p.channel === 'C_ALPHA'), beta = posts.find(p => p.channel === 'U_AHSAN');
-  assert.ok(alpha && beta); assert.match(alpha.text, /\*Ahsan\*, Alpha Golf: 1 due today/); assert.match(beta.text, /Ask for the photos/);
+  assert.ok(alpha && beta); assert.match(alpha.text, /^[A-Z ]+ · Alpha Golf: Rebuild the hook ad/); assert.match(beta.text, /Ask for the photos/);
   assert.ok(!posts.some(p => /Send the offer sheet/.test(p.text)), 'the item due Oct 20 is not reminded');
   posts = []; r = await actionTick(env, d); assert.equal(r.posted, 0, 'once a day');
   setSetting('strategistChannel', 'C_STRAT'); r = await actionTick(env, d); assert.equal(r.posted, 1); assert.equal(posts[0].channel, 'C_STRAT');
   const row = db.prepare(`SELECT reminded_on, slack_channel, slack_ts FROM p_action WHERE id = ?`).get(a1.id);
   assert.equal(row.reminded_on, '2026-10-14'); assert.equal(row.slack_channel, 'C_ALPHA'); assert.ok(row.slack_ts);
   /* tomorrow: the still-open item is overdue and gets one line again */
-  posts = []; const d2 = { ...d, centralDate: () => '2026-10-15' }; r = await actionTick(env, d2); assert.equal(r.posted, 3); assert.match(posts.find(p => p.channel === 'C_ALPHA').text, /1 overdue/);
+  posts = []; const d2 = { ...d, centralDate: () => '2026-10-15' }; r = await actionTick(env, d2); assert.equal(r.posted, 3); assert.match(posts.find(p => p.channel === 'C_ALPHA').text, /was due Wed, Oct 14/);
   setSetting('actionRemind', 'off'); assert.equal((await actionTick(env, d2)).skipped, 'off'); setSetting('actionRemind', 'on');
 });
 await check('the Done button: marks the item done by the tapper and redraws the line; the ✅ reaction marks every item behind the message done', async () => {

@@ -35,6 +35,7 @@ import { morningCardTick, previewCard, teamPost, tagOf, cardActionDone, cardCall
 import { handlePrefs, morningPeople } from './prefs.js';
 import { morningTick, handleMorning } from './morning.js';
 import { todayTick } from './todaypost.js';
+import { laneBlocks, laneLines, lanePost, laneWho, laneOwner, fyi, roundupTick } from './lane.js';
 /**
  * Mobius Account Health - data worker (Cloudflare Workers + D1)
  *
@@ -560,10 +561,10 @@ async function autoConnectMeta(env) {
     const still = runs.filter(r => !out.connected.some(c => c.client === r.name));
     for (const f of fresh) {
       if (!still.length) break;
-      const text = `<@${COLE_SLACK}> A new ad account showed up in Meta: *${f.name}*. Is it one of these clients'?`;
-      const blocks = [{ type: 'section', text: { type: 'mrkdwn', text } }, { type: 'actions', elements: still.slice(0, 5).map(r => ({ type: 'button', text: { type: 'plain_text', text: `Yes, it is ${r.name}'s` }, action_id: 'nc_meta_yes', value: JSON.stringify({ id: r.id, act: f.act_id }) })) },
-        { type: 'context', elements: [{ type: 'mrkdwn', text: 'Not theirs? Ignore this. You can also connect it later in Locus > Settings > New client > the client.' }] }];
-      await slackPost(env, NEWBIZ_CH, text, blocks, { username: 'Locus' }).catch(() => {});
+      /* 2026-11-09 (the lane format, lane.js): "*OPS · Agency*", Cole tagged with the ask, the same buttons. */
+      const m = laneBlocks({ lane: 'OPS', brand: 'Agency', who: COLE_SLACK, ask: `Say whose new Meta ad account "${f.name}" is`, why: 'not theirs? Ignore this; you can also connect it later in Locus > Settings > New client',
+        buttons: [{ type: 'actions', elements: still.slice(0, 5).map(r => ({ type: 'button', text: { type: 'plain_text', text: `Yes, it is ${r.name}'s` }, action_id: 'nc_meta_yes', value: JSON.stringify({ id: r.id, act: f.act_id }) })) }] });
+      await slackPost(env, NEWBIZ_CH, m.text, m.blocks, { username: 'Locus' }).catch(() => {});
     }
   }
   return out;
@@ -577,7 +578,8 @@ async function connectMetaFor(env, r, a) {
   try { await meta(env, `${a.act_id}/insights`, { date_preset: 'last_7d', fields: 'spend', limit: 1 }); }
   catch (e) {
     if (!steps.meta_blocked || steps.meta_blocked.act !== a.act_id) {
-      await slackPost(env, r.slack_internal, `<@${COLE_SLACK}> *${r.name}* shared the ad account "${a.name}", but Locus cannot read it yet. In Business Settings > Ad accounts > ${a.name} > Assign people, add the *Mobius Tools* system user. Locus switches it on within the hour after that. (Meta said: ${String(e.message).slice(0, 120)})`, null, { username: 'Locus' }).catch(() => {});
+      await lanePost(env, { slackPost }, r.slack_internal, { lane: 'OPS', brand: r.name, who: COLE_SLACK, ask: `Add the Mobius Tools system user to the ad account "${a.name}" (Business Settings > Ad accounts > ${a.name} > Assign people)`,
+        why: `${r.name} shared it but Locus cannot read it yet; it switches on within the hour after. Meta said: ${String(e.message).slice(0, 120)}` }).catch(() => {});
       steps.meta_blocked = { act: a.act_id, at: new Date().toISOString() }; await save('meta_blocked');
     }
     return { error: 'Locus cannot read that ad account yet: add the Mobius Tools system user to it in Business Settings.' };
@@ -599,7 +601,8 @@ async function connectMetaFor(env, r, a) {
   if (shop && !(await env.DB.prepare(`SELECT 1 FROM connections WHERE brand_id = ?1 AND kind = 'triple_whale'`).bind(brand.id).first())) await setTripleWhale(env, brand.id, shop).catch(() => {});
   await env.DB.prepare(`UPDATE p_newclient SET act_id = ?2, updated_at = datetime('now') WHERE id = ?1`).bind(r.id, brand.id).run();
   steps.meta_connected = { act: a.act_id, account: a.name, at: new Date().toISOString() }; await save('meta_connected');
-  await slackPost(env, r.slack_internal, `<@${COLE_SLACK}> *${r.name} is on Meta.* Locus switched on their ad account "${a.name}": 90 days of history are syncing now, and the daily brief, reports and their Your ads page fill in from it.${shop ? ` Triple Whale is set to ${shop}.` : ' No store address yet, so Triple Whale is not set: Locus sets it when their form has it.'} Still by hand: add the media buyer to the ad account and page in Business Settings. Wrong account? Settings > the brand > Stop tracking.`, null, { username: 'Locus' }).catch(() => {});
+  await lanePost(env, { slackPost }, r.slack_internal, { lane: 'OPS', brand: r.name, who: COLE_SLACK, ask: `Add the media buyer to ${r.name}'s ad account "${a.name}" and page in Business Settings`,
+    why: `Locus switched the account on; 90 days of history are syncing.${shop ? ` Triple Whale is set to ${shop}.` : ' No store address yet, so Triple Whale is not set.'} Wrong account? Settings > the brand > Stop tracking` }).catch(() => {});
   return { ok: true };
 }
 
@@ -1397,7 +1400,18 @@ async function dashboardTick(env) {
     const due = row.schedule === 'daily' || (row.schedule === 'monday' && dow === 1) || (row.schedule === 'first' && dom === 1);
     if (!due || (row.last_posted && centralDate(new Date(row.last_posted)) === today)) { out.skipped++; continue; }
     if (!subCanAfford(12)) { out.deferred = true; break; }
-    try { await postDashboard(env, row); out.posted.push(row.name); }
+    try {
+      /* 2026-11-09 (the lane format, lane.js): a scheduled dashboard asks nobody to do anything, so in a TEAM channel it
+         is one line in the end-of-day roundup (its brand's, else the agency's) with the link. A client channel is left
+         exactly as it was (client posts never change here). "Post now" in Locus still posts the whole dashboard. */
+      const client = await env.DB.prepare(`SELECT 1 AS x FROM brand_accounts WHERE brief_channel = ?1 LIMIT 1`).bind(row.channel).first().catch(() => null);
+      if (client) { await postDashboard(env, row); out.posted.push(row.name); continue; }
+      const act = row.act_id && row.act_id !== 'all' ? row.act_id : '';
+      if (await fyi(env, { act, lane: 'MEDIA BUYING', line: `Dashboard "${row.name}" is updated: <${DASH_URL}${row.id}|open it in Locus>` })) {
+        await env.DB.prepare(`UPDATE p_dashboard SET last_posted = ?2 WHERE id = ?1`).bind(row.id, new Date().toISOString()).run().catch(() => {});
+        (out.roundup = out.roundup || []).push(row.name);
+      }
+    }
     catch (e) { out.errors.push(`${row.name}: ${e.message}`); }
   }
   return out;
@@ -3287,8 +3301,8 @@ async function sendBrief(env, acct, date, { skipIfSent = false, useStored = fals
        and the internal channel hears about the missing thread. */
     if (rest && top?.ts) {
       await slackPost(env, channel, rest, null, { asUser: true, thread_ts: top.ts }).catch(e =>
-        internalChannel(acct) && slackPost(env, acct.slack_channel,
-          `:warning: *${acct.name}*: the client daily went out but its full brief did not post in the thread (${e.message}).`).catch(() => {}));
+        internalChannel(acct) && lanePost(env, { slackPost }, acct.slack_channel, { lane: 'CLIENT', brand: acct.name, who: COLE_SLACK,
+          ask: 'Post the full brief in the thread under today\'s client daily by hand', why: `the daily went out but its thread did not (${String(e.message).slice(0, 160)})` }).catch(() => {}));
     }
     await upsertBrief(env, acct.act_id, date, 'sent', channel, text, r?.data);
     // The review card in the internal channel still shows a live Send button
@@ -3424,8 +3438,9 @@ async function alertBriefFailure(env, acct, date, result) {
   const same = prev && (prev.status === 'error' || prev.status === 'skipped') &&
     String(prev.text || '').slice(0, 40) === String(problem).slice(0, 40);
   if (same) return;
-  await slackPost(env, channel,
-    `:warning: *Daily Brief did not go out for ${acct.name}* (${date})\n${problem}\n_Internal alert - the client was not messaged. Fix it in Locus._`);
+  /* 2026-11-09 (the lane format, lane.js): OPS, Cole tagged with the ask, the fault as the why. */
+  await lanePost(env, { slackPost }, channel, { lane: 'OPS', brand: acct.name, who: COLE_SLACK, ask: `Fix the daily brief for ${prettyDate(date)} in Locus; it did not go out`,
+    why: `${String(problem).slice(0, 300)} (the client was not messaged)`, buttons: [{ label: 'Open in Locus', url: LOCUS_BRIEF(acct.act_id, date) }] });
 }
 
 const BRIEF_TZ = 'America/Chicago';           // Cole's timezone; the send hour is set in it
@@ -3467,11 +3482,10 @@ async function alertScheduleTrouble(env, label, payload) {
   const sig = `${label}|${errors}`;
   if ((await getSetting(env, 'lastTrouble')) === sig) return;
   await putSetting(env, 'lastTrouble', sig).catch(() => {});
-  await slackPost(env, ch,
-    `:construction: *${label}* finished with *${errors}* error${errors > 1 ? 's' : ''}` +
-    `${deferred ? ` (and ${deferred} item${deferred > 1 ? 's' : ''} deferred to the next run, which is normal)` : ''}.\n` +
-    `Used ${subUsed()} of ${SUB_LIMIT} subrequests. _Locus → Settings → “Are the automatic jobs actually running?” has the detail._`,
-  ).catch(() => {});
+  /* 2026-11-09 (the lane format, lane.js): OPS · Agency, Cole tagged with the ask. */
+  await lanePost(env, { slackPost }, ch, { lane: 'OPS', brand: 'Agency', who: COLE_SLACK,
+    ask: `Look at the ${errors} error${errors > 1 ? 's' : ''} in ${label} (Locus > Settings > Are the automatic jobs actually running?)`,
+    why: `${deferred ? `${deferred} item${deferred > 1 ? 's' : ''} also deferred to the next run, which is normal; ` : ''}used ${subUsed()} of ${SUB_LIMIT} subrequests` }).catch(() => {});
 }
 
 /** The hour (0-23, Central) every morning post goes out: the client daily, the weekly and monthly drafts and the
@@ -3940,14 +3954,11 @@ async function alertClaudeFailure(env, context, message) {
   await putSetting(env, 'lastClaudeAlert', JSON.stringify({ at: Date.now(), context, message })).catch(() => {});
   const msg = String(message || '');
   const likelyCredit = /credit|balance|quota|insufficient|billing|payment|402/i.test(msg);
-  await slackPost(env, channel,
-    `:warning: *Claude could not write the ${context}* - the numbers went out, the written summary did not.\n` +
-    '```' + msg.slice(0, 300) + '```\n' +
-    (likelyCredit
-      ? '*This looks like an API credit problem.* Top up at <https://platform.claude.com/settings/billing|Console → Billing>, and turn on auto-reload so it cannot happen again.'
-      : 'Check <https://platform.claude.com/settings/billing|Console → Billing> for credit, and the API key on the account-health worker.') +
-    '\n_One alert per 12 hours, however many brands are affected._',
-    null, { username: 'Locus', icon: ':warning:' }).catch(() => {});
+  /* 2026-11-09 (the lane format, lane.js): OPS · Agency, Cole tagged with the ask, Claude's own words as the why. */
+  await lanePost(env, { slackPost }, channel, { lane: 'OPS', brand: 'Agency', who: COLE_SLACK,
+    ask: likelyCredit ? 'Top up the Claude API credit (Console > Billing) and turn on auto-reload' : 'Check the Claude API credit (Console > Billing) and the API key on the account-health worker',
+    why: `Claude could not write the ${context}; the numbers went out, the written summary did not. Claude said: ${msg.slice(0, 200)}`,
+    buttons: [{ label: 'Open Console > Billing', url: 'https://platform.claude.com/settings/billing' }] }).catch(() => {});
 }
 
 /** A sync that keeps failing must SAY SO. `syncAdDaily` writes its error to
@@ -3981,14 +3992,10 @@ async function alertSyncFailure(env, acct, message) {
   await putSetting(env, 'lastSyncAlert', JSON.stringify({ at: Date.now(), act: acct.act_id, message })).catch(() => {});
   const msg = String(message || '');
   const badField = /is not valid for fields param/i.test(msg);
-  await slackPost(env, channel,
-    `:rotating_light: *Meta ad-level sync is failing* - first seen on ${acct.name}.\n` +
-    '```' + msg.slice(0, 300) + '```\n' +
-    (badField
-      ? '*Meta has retired a field we ask for.* Creative stats (hook, hold, retention) will be stale or empty until the field list in `syncAdSlice` is updated.'
-      : 'Ad-level spend, creative cards and the report ad table will be stale until this clears.') +
-    '\n_One alert per 12 hours, however many brands are affected._',
-    null, { username: 'Locus', icon: ':rotating_light:' }).catch(() => {});
+  /* 2026-11-09 (the lane format, lane.js): OPS · Agency, Cole tagged with the ask, Meta's words as the why. */
+  await lanePost(env, { slackPost }, channel, { lane: 'OPS', brand: 'Agency', who: COLE_SLACK,
+    ask: badField ? 'Update the field list in syncAdSlice: Meta retired a field we ask for' : `Fix the Meta ad-level sync (failing since ${acct.name})`,
+    why: `${badField ? 'hook, hold and retention stay stale until then' : 'ad spend, creative cards and the report ad table stay stale until it clears'}. Meta said: ${msg.slice(0, 200)}` }).catch(() => {});
 }
 
 /** Public, login-free preview links for the ads a report lists.
@@ -6117,7 +6124,10 @@ function briefCard(acct, date, row, banner, preview = null) {
       ? `:heavy_minus_sign: *Not sending - ${acct.name}, ${prettyDate(date)}*  ·  _marked handled; the client was not messaged_`
       : status === 'handled'
         ? `:white_check_mark: *Daily Update - ${acct.name}, ${prettyDate(date)}*  ·  _internal only; this brand has no client channel, so nothing goes out_`
-        : `:memo: *Draft - ${acct.name}, ${prettyDate(date)}*  ·  _what the client gets, word for word; not sent yet_`;
+        : bad
+          /* 2026-11-09 (the lane format, lane.js): a draft is Cole's ask, lane first. */
+          ? laneBlocks({ lane: 'CLIENT', brand: acct.name, who: COLE_SLACK, ask: `Fix the numbers, then send the daily update for ${prettyDate(date)}`, why: 'the numbers are wrong; nothing goes out until they are fixed' }).blocks[0].text.text
+          : laneBlocks({ lane: 'CLIENT', brand: acct.name, who: COLE_SLACK, ask: `Read and send the daily update for ${prettyDate(date)}`, why: 'below is what the client gets, word for word; not sent yet' }).blocks[0].text.text;
 
   /* The data warning goes ABOVE the brief and never inside it. The text is what
      the client receives; this notice is ours. Without it the numbers look
@@ -6183,7 +6193,7 @@ function briefCard(acct, date, row, banner, preview = null) {
   const fallback = status === 'sent' ? `Sent to the client - ${acct.name}, ${prettyDate(date)}`
     : status === 'skipped' ? `Not sending - ${acct.name}, ${prettyDate(date)}`
     : status === 'handled' ? `Daily Update - ${acct.name}, ${prettyDate(date)} (internal only)`
-      : `Draft - ${acct.name}, ${prettyDate(date)} (not sent to the client yet)`;
+      : `CLIENT · ${acct.name}: ${bad ? 'Fix the numbers, then send' : 'Read and send'} the daily update for ${prettyDate(date)}`;
   return { text: fallback, blocks };
 }
 
@@ -6209,7 +6219,8 @@ async function reportCard(env, acct, row, banner) {
     ? `:white_check_mark: *${label} report sent to the client - ${acct.name}* (${range})`
     : handled
       ? `:white_check_mark: *${label} report - ${acct.name}* (${range})  \u00b7  _internal only; no client channel, so nothing goes out_`
-      : `:clipboard: *${label} report drafted - ${acct.name}* (${range})  \u00b7  _nothing sent yet_`;
+      /* 2026-11-09 (the lane format, lane.js): a draft is Cole's ask, lane first. */
+      : laneBlocks({ lane: 'CLIENT', brand: acct.name, who: COLE_SLACK, ask: `Read and send the ${label.toLowerCase()} update (${range})`, why: 'below is what the client gets; nothing sent yet' }).blocks[0].text.text;
   blocks.push({ type: 'section', text: { type: 'mrkdwn', text: head } });
   if (banner) blocks.push({ type: 'section', text: { type: 'mrkdwn', text: banner } });
   /* 2026-10-19: the card carries the client post exactly as Send will post it (clientReportText), so a person reads what
@@ -6255,7 +6266,7 @@ async function reportCard(env, acct, row, banner) {
   els.push(btn('Open in Locus', 'noop_open', v, { url: LOCUS_REPORTS(acct.act_id) }));
   blocks.push({ type: 'actions', elements: els });
 
-  return { text: `${label} report ${row.status === 'sent' ? 'sent' : handled ? 'ready (internal only)' : 'drafted'} - ${acct.name} (${range})`, blocks };
+  return { text: row.status === 'sent' || handled ? `${label} report ${row.status === 'sent' ? 'sent' : 'ready (internal only)'} - ${acct.name} (${range})` : `CLIENT · ${acct.name}: Read and send the ${label.toLowerCase()} update (${range})`, blocks };
 }
 
 /* ---- Keep the card in step with the row, whichever surface moved it ---- */
@@ -6987,18 +6998,21 @@ async function deliveryPass(env) {
     const hour = Math.floor(localHourFrac(a.tz));
     const yesterday = addDays(today, -1);
     const st = state[a.act_id] || (state[a.act_id] = {});
-    const queue = line => {
+    const queue = async line => {
       const ch = internalChannel(a) || def;   // never a brand's client channel (one-channel brands, 2026-10-19)
       if (!ch || !line) return;
+      /* 2026-11-09 (the lane format, lane.js): "no spend data yet" asks nobody to act (the next sync usually fixes it),
+         so it is a line in the brand's end-of-day roundup; a real drop in spend is the buyer's ask. */
+      if (/^🕓/.test(line)) { await fyi(env, { act: a.act_id, lane: 'OPS', line: line.replace(/^🕓\s*/, '').replace(/[*_]/g, '') }); return; }
       if (!byChannel.has(ch)) byChannel.set(ch, []);
-      byChannel.get(ch).push(line);
+      byChannel.get(ch).push({ a, line });
     };
 
     // Same day, mid-afternoon - the one that can still save the day's spend.
     if (hour >= DELIVERY_INTRADAY_HOUR && st.intra !== today) {
       st.intra = today; touched = true;
       const line = await checkToday(env, a).catch(() => null);
-      if (line && st.alerted !== today) { st.alerted = today; queue(line); }
+      if (line && st.alerted !== today) { st.alerted = today; await queue(line); }
     }
     // Next morning, on the completed day. Skipped when the afternoon pass
     // already reported that same day - one problem, one message.
@@ -7006,7 +7020,7 @@ async function deliveryPass(env) {
       st.day = today; touched = true;
       if (st.alerted !== yesterday) {
         const line = await checkCompletedDay(env, a, yesterday).catch(() => null);
-        if (line) { st.alerted = yesterday; queue(line); }
+        if (line) { st.alerted = yesterday; await queue(line); }
       }
     }
   }
@@ -7015,13 +7029,21 @@ async function deliveryPass(env) {
   if (!byChannel.size) return { ok: true, alerts: 0, ...(deferred.length ? { deferred } : {}) };
   let alerts = 0;
   const results = [];
+  const teams = await calendarTeam(env, [...new Set([...byChannel.values()].flat().map(x => x.a.act_id))]).catch(() => ({}));
   for (const [ch, lines] of byChannel) {
     alerts += lines.length;
     try {
-      await slackPost(env, ch, `Delivery check: ${lines.length} account${lines.length > 1 ? 's' : ''} spending well below normal`, [
-        { type: 'section', text: { type: 'mrkdwn', text: lines.join('\n\n') } },
-        { type: 'context', elements: [{ type: 'mrkdwn', text: `<${DASHBOARD_URL}?open=meta|Open Locus → Meta> · compared with this account's own last 7 days, never a fixed target` }] },
-      ]);
+      /* 2026-11-09 (the lane format, lane.js): "*MEDIA BUYING · Brand*", the buyer tagged, the numbers as the why. */
+      const groups = [];
+      for (const { a, line } of lines) {
+        const who = await laneWho(env, { slackApi, centralDate }, laneOwner('MEDIA BUYING', teams[a.act_id] || {}));
+        /* "🚨 *Dartee* spent *nothing* yesterday (...)" -> "spent nothing yesterday (...)": the emoji, the bold and the name go. */
+        let why = line.replace(/^\S+\s+/, '').replace(/\*/g, '');
+        if (why.startsWith(a.name)) why = why.slice(a.name.length).replace(/^[\s-]+/, '');
+        groups.push({ lane: 'MEDIA BUYING', brand: a.name, items: [{ who, ask: `Check why ${a.name} is spending well below normal`, why }] });
+      }
+      const m = laneLines(groups, { foot: ["Compared with each account's own last 7 days, never a fixed target"], buttons: [{ label: 'Open Locus > Meta', url: `${DASHBOARD_URL}?open=meta` }] });
+      await slackPost(env, ch, m.text, m.blocks);
       results.push({ channel: ch, sent: lines.length });
     } catch (e) { results.push({ channel: ch, error: e.message }); }
   }
@@ -7324,7 +7346,7 @@ function actionDeps() {
 }
 /* todaypost.js: the 8am "Today's calls" post per brand, read from the profit worker as the owner. The morning card
    carries it since 2026-10-13, so it only runs when the card is switched off. */
-function todayDeps() { return { getSetting, putSetting, listAccounts, centralHour, centralDate, slackPost, mintSession, canAfford: n => subCanAfford(n), cardOn }; }
+function todayDeps() { return { getSetting, putSetting, listAccounts, centralHour, centralDate, slackPost, mintSession, canAfford: n => subCanAfford(n), cardOn, teamOf: calendarTeam, tagOf: (env, name) => tagOf(env, { getSetting, putSetting, centralDate, slackApi }, name) }; }
 /* morningcard.js: the one morning post per brand, its thread, and keeping it up to date. */
 function cardDeps() {
   const base = { getSetting, putSetting, listAccounts, centralHour, centralDate, slackPost, slackApi, mintSession, canAfford: n => subCanAfford(n),
@@ -7377,7 +7399,7 @@ function minOffDeps() {
    as the owner (todaypost.js readToday), the test minimums from minoff.js state or live, the launches from the board. */
 /* trybe.js: the daily Trybe pull, the stale alert in the brand's internal channel, the Trybe tab. */
 function trybeDeps() {
-  return { xfetch, centralDate, centralHour, slackPost, canAfford: n => subCanAfford(n),
+  return { xfetch, centralDate, centralHour, slackPost, canAfford: n => subCanAfford(n), getSetting, putSetting, slackApi, teamOf: calendarTeam,
     listBrands: async env => (await listAccounts(env, true)).map(a => ({ act_id: a.act_id, name: a.name, slack_channel: a.slack_channel || null, brief_channel: a.brief_channel || null })) };
 }
 function buyerDeps() {
@@ -7948,6 +7970,8 @@ const AH_APP = {
         ran.smoke = await smokeTick(env, smokeDeps()).catch(e => ({ error: e.message }));
         /* The Slack index: catch up and walk back a year, a page budget at a time (slackindex.js). */
         ran.slackIndex = await backfillTick(env, idxDeps()).then(r => ({ pages: r.pages, added: r.channels.reduce((s, c) => s + (c.added || 0), 0), errors: r.channels.filter(c => c.error).length })).catch(e => ({ error: e.message }));
+        /* The FYI roundup (lane.js, 2026-11-09): what nobody has to act on is one end-of-day post per brand, from 4pm Central. */
+        ran.fyiRoundup = await roundupTick(env, { getSetting, putSetting, listAccounts, slackPost, centralHour, centralDate, canAfford: n => subCanAfford(n) }).catch(e => ({ error: e.message }));
         ran.sync = await syncPass(env).catch(e => ({ error: e.message }));
         // Ad-level brands the nightly could not finish because Meta rate-limited it.
         const adRetry = await adRetryPass(env).catch(e => ({ error: e.message }));
@@ -8087,9 +8111,11 @@ const AH_APP = {
        still cannot read for the brand; POST {key, value} or {key, skip} = the client finishes one item on the page. */
     { const cm = /^\/api\/connect\/([a-f0-9]{20})$/.exec(path);
       if (cm) {
-        const connectDeps = { adsInvite: googleAdsInvite, onDone: (key, b) => ctx.waitUntil(connectNow(env, key, b.id).catch(() => {})), tellTeam: async text => {
+        /* 2026-11-09 (the lane format, lane.js): {fyi} = a line in the brand's roundup; {ask, why} = an OPS ask to Cole. */
+        const connectDeps = { adsInvite: googleAdsInvite, onDone: (key, b) => ctx.waitUntil(connectNow(env, key, b.id).catch(() => {})), tellTeam: async msg => {
           const t = (await connectTokenBrand(env, cm[1]).catch(() => null)); if (!t?.slack_channel) return;
-          await teamPost(env, cardDeps(), t.slack_channel, text, null, {}).catch(() => {}); } };
+          if (msg.fyi) { await fyi(env, { act: t.act_id || t.id, lane: 'OPS', line: msg.fyi }); return; }
+          await lanePost(env, cardDeps(), t.slack_channel, { lane: 'OPS', brand: t.name, who: COLE_SLACK, ask: msg.ask, why: msg.why }, { thread: true }).catch(() => {}); } };
         try {
           if (request.method === 'GET') return json(await connectGet(env, cm[1]));
           if (request.method === 'POST') return json(await connectPost(env, cm[1], await request.json().catch(() => ({})), connectDeps));
@@ -8149,7 +8175,9 @@ const AH_APP = {
          Escaped, so a client cannot @channel our workspace or fake a link. */
       const ch = o.slack_internal || o.slack_channel || COLE_SLACK;
       const clean = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      await slackPost(env, ch, `<@${COLE_SLACK}> *${clean(o.acct || o.name)}* sent a message from their onboarding form${b.step ? ` (step: ${clean(String(b.step).slice(0, 60))})` : ''}:\n>${clean(msg).replace(/\n/g, '\n>')}`, null, { username: 'Locus' });
+      /* 2026-11-09 (the lane format, lane.js): a client message is Cole's ask, the message itself as the why. */
+      const m = laneBlocks({ lane: 'CLIENT', brand: clean(o.acct || o.name), who: COLE_SLACK, ask: `Answer the message they sent from their onboarding form${b.step ? ` (step: ${clean(String(b.step).slice(0, 60))})` : ''}`, why: `"${clean(msg).slice(0, 600)}"` });
+      await slackPost(env, ch, m.text, m.blocks, { username: 'Locus' });
       return json({ ok: true });
     }
     if (path === '/api/new-client/connect-meta' && request.method === 'POST') {

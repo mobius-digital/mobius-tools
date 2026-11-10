@@ -44,6 +44,7 @@ import { adsOf, isCarousel } from './prodwork.js';
 import { gall } from './metawrite.js';
 import { trybeBanners } from './trybe.js';
 import { readAI, applyAI, aiPassDone, buyerAIOn, adNumbers, withCovers, metaActsOf, disagree, decide, lessonsFor, buyerAITick, spentToday, trackingCheck, DAY_CAP, POST_WAIT_HOURS, noDash, CARD_KINDS } from './buyerai.js';
+import { laneBlocks } from './lane.js';
 
 export const DEFAULT_BUYER_CHANNEL = 'C0C8UA53U3W';   // #daily-briefs
 export const DEFAULT_OWNER = 'Cole';
@@ -662,15 +663,15 @@ export function headOf(list) {
   if (!list.n) return 'Buyer list: nothing to do today';
   return `${list.n} change${list.n === 1 ? '' : 's'} ready across ${list.n_brands} brand${list.n_brands === 1 ? '' : 's'}${list.stake > 0 ? `, ${moneyK(list.stake, list.currency)} at stake` : ''}`;
 }
-/** The one daily message: the head, the top 5 one-liners, Open in Locus. (ownerTag is kept for callers; not shown.) */
-export function buyerMessage(list, ownerTag) { // eslint-disable-line no-unused-vars
-  const L = [`*${mk(headOf(list))}*`, ...list.rows.filter(r => !r.decided).slice(0, TOP_N).map(lineOf)];
-  const text = L.join('\n');
-  const blocks = [
-    { type: 'section', text: { type: 'mrkdwn', text: text.slice(0, 2900) } },
-    { type: 'actions', elements: [{ type: 'button', action_id: 'noop_open', text: { type: 'plain_text', text: 'Open' }, url: `${LOCUS}?open=buyer&act=all` }] },
-  ];
-  return { text, blocks };
+/** The one daily message (2026-11-09, the lane format, lane.js): "*MEDIA BUYING · Agency*" (or the one brand), the buyer
+ *  owner tagged with the ask and the head, the top 5 one-liners under it, Open. */
+export function buyerMessage(list, ownerTag) {
+  const top = list.rows.filter(r => !r.decided).slice(0, TOP_N).map(lineOf).map(l => l.replace(/^• /, ''));
+  const one = list.n_brands === 1 && (list.groups || [])[0] ? (list.groups[0].brand || list.groups[0].name || '') : '';
+  const m = laneBlocks({ lane: 'MEDIA BUYING', brand: one || 'Agency', who: ownerTag || list.owner || 'Cole',
+    ask: list.n ? `Go through the Buyer list: ${mk(headOf(list))}` : mk(headOf(list)), lines: top,
+    buttons: [{ type: 'button', action_id: 'noop_open', text: { type: 'plain_text', text: 'Open' }, url: `${LOCUS}?open=buyer&act=all` }] });
+  return { text: [m.text, ...top.map(l => `• ${l}`)].join('\n'), blocks: m.blocks };
 }
 /** The plain words of the post, for the preview on the page. */
 export function buyerPlain(list) {

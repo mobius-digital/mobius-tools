@@ -19,6 +19,7 @@
  * - A client reads Live and Creators for its own brand, never the Queue or the Rules.
  * No em dashes in anything this posts. */
 import { noDash } from './buyerai.js';
+import { laneBlocks, laneLines, laneWho, laneOwner, fyi } from './lane.js';
 import { frameApi } from './frame.js';
 import { frameProject } from './stratmake.js';
 import { gall, metaActs as metaAccounts } from './metawrite.js';
@@ -716,19 +717,21 @@ export async function discordWeekly(env, today, { force, preview = false, only =
 }
 
 /* ---------- the daily tick: sync, then the stale alert (and Monday's rebook list) ---------- */
-export function staleMessage(brand, stale, rebook, link) {
-  const lines = [];
+/** The day's creator asks for one brand (2026-11-09, the lane format, lane.js): "*CREATORS · Brand*", one line per ask,
+ *  each tagging its person (launching = the buyer; review, Discord and rebooking = the strategist; nobody named = Cole).
+ *  o = {oldReview, dcWait, buyer, strat} (tags or names). Returns {text, blocks} or null when nothing is asked. */
+export function staleMessage(brand, stale, rebook, link, o = {}) {
+  const items = [];
   if (stale.length) {
-    lines.push(`*Trybe: ${stale.length} approved video${stale.length === 1 ? ' has' : 's have'} not been launched after ${STALE_DAYS} days.* Oldest: ${stale[0].days} days.`);
-    for (const q of stale.slice(0, 5)) lines.push(`• ${q.creator}${q.product ? `, ${clip(q.product, 40)}` : ''}: ${q.days} days`);
-    if (stale.length > 5) lines.push(`• and ${stale.length - 5} more`);
+    const who = stale.slice(0, 3).map(q => `${q.creator}${q.product ? `, ${clip(q.product, 30)}` : ''}`).join('; ');
+    items.push({ who: o.buyer, ask: `Launch ${stale.length} approved Trybe video${stale.length === 1 ? '' : 's'} (not launched after ${STALE_DAYS} days)`, why: `oldest ${stale[0].days} days: ${who}${stale.length > 3 ? ` and ${stale.length - 3} more` : ''}` });
   }
-  if (rebook.length) {
-    lines.push(`*Rebook this week:* ${rebook.slice(0, 8).map(c => `${c.name} (${c.quiet_days} days quiet, $${Math.round(c.cpa)} a sale)`).join(', ')}.`);
-  }
-  if (!lines.length) return null;
-  lines.push(`<${link}|Open Ads > Trybe for ${brand}>`);
-  return noDash(lines.join('\n'));
+  if (o.oldReview) items.push({ who: o.strat, ask: `Review ${o.oldReview} Trybe video${o.oldReview === 1 ? '' : 's'} waiting 2 days or more`, why: 'Ads, Trybe, Review' });
+  if (o.dcWait) items.push({ who: o.strat, ask: `Answer ${o.dcWait} creator${o.dcWait === 1 ? '' : 's'} waiting in Discord`, why: 'Ads, Trybe, Discord' });
+  if (rebook.length) items.push({ who: o.strat, ask: `Rebook this week: ${rebook.slice(0, 8).map(c => `${c.name} (${c.quiet_days} days quiet, $${Math.round(c.cpa)} a sale)`).join(', ')}` });
+  if (!items.length) return null;
+  const m = laneLines([{ lane: 'CREATORS', brand, items: items.map(i => ({ ...i, ask: noDash(i.ask), why: noDash(i.why || '') })) }], { buttons: [{ label: `Open Ads > Trybe for ${brand}`.slice(0, 75), url: link }] });
+  return { text: noDash(m.text), blocks: m.blocks };
 }
 const subs2 = v => v.__subs || [];
 export async function trybeTick(env, d, { force = false } = {}) {
@@ -751,14 +754,14 @@ export async function trybeTick(env, d, { force = false } = {}) {
       v.__subs = ((await env.DB.prepare(`SELECT status, created_at FROM p_trybe_sub WHERE act_id = ?1 AND status = 'pending'`).bind(b.act_id).all()).results || []);
       const seen = new Set(((await env.DB.prepare(`SELECT sub_id FROM p_trybe_sub WHERE act_id = ?1 AND alerted IS NOT NULL`).bind(b.act_id).all()).results || []).map(r => r.sub_id));
       const fresh = v.queue.filter(q => q.state === 'not_launched' && q.days >= STALE_DAYS && !seen.has(q.sub_id));
-      let msg = staleMessage(b.name, fresh, monday ? v.creators.filter(c => c.rebook) : [], `${d.appUrl || 'https://locus.go-mobius-digital.com'}/?open=trybe&act=${b.act_id}`);
       /* Falling behind (2026-11-05): videos waiting for review 2 days or more, and creators waiting on a Discord answer. */
       const oldReview = subs2(v).filter(s => s.status === 'pending' && s.created_at && daysBetween(day(s.created_at), today) >= 2).length;
       const dcWait = await discordWaiting(env, b.act_id);
-      const behind = [oldReview ? `${oldReview} video${oldReview === 1 ? '' : 's'} waiting for review 2 days or more (Ads, Trybe, Review).` : '', dcWait ? `${dcWait} creator${dcWait === 1 ? '' : 's'} waiting on an answer in Discord (Ads, Trybe, Discord).` : ''].filter(Boolean);
-      if (behind.length) msg = noDash([`*Creator program falling behind:*`, ...behind.map(x => `• ${x}`), msg || `<${d.appUrl || 'https://locus.go-mobius-digital.com'}/?open=trybe&act=${b.act_id}|Open Ads > Trybe for ${b.name}>`].join(String.fromCharCode(10)));
+      const team = d.teamOf ? ((await d.teamOf(env, [b.act_id]).catch(() => ({})))[b.act_id] || {}) : {};
+      const msg = staleMessage(b.name, fresh, monday ? v.creators.filter(c => c.rebook) : [], `${d.appUrl || 'https://locus.go-mobius-digital.com'}/?open=trybe&act=${b.act_id}`,
+        { oldReview, dcWait, buyer: await laneWho(env, d, laneOwner('MEDIA BUYING', team)), strat: await laneWho(env, d, laneOwner('CREATORS', team)) });
       if (!msg) continue;
-      await d.slackPost(env, b.slack_channel, msg, null, { username: 'Locus' });
+      await d.slackPost(env, b.slack_channel, msg.text, msg.blocks, { username: 'Locus' });
       out.posted++;
       await runAll(env, fresh.map(q => env.DB.prepare(`UPDATE p_trybe_sub SET alerted = ?3 WHERE act_id = ?1 AND sub_id = ?2`).bind(b.act_id, q.sub_id, today)));
     } catch (e) { out.errors.push(`${b.name}: ${e.message}`); }
@@ -922,8 +925,10 @@ export async function trybeRecutAnnounce(env, d, act, cards) {
   if (!brand?.slack_channel || !d.slackPost || !cards?.length) return { ok: false };
   const tests = [...new Set(cards.map(c => (RECUT_TESTS[c.test] || {}).label).filter(Boolean))];
   const nums = cards.map(c => c.num).filter(Boolean).map(n => `#${n}`).join(', ');
-  const msg = noDash(`<@${RAVO}>, ${cards.length} recut${cards.length === 1 ? '' : 's'} added to the ${brand.name} pipeline${nums ? ` (${nums})` : ''}. These are the creator videos that sold the most in the last 30 days. We recut them because a winner with a better opening or a tighter cut usually sells more than a new video does. Tests this round: ${tests.join(', ')}. Each card has the numbers, the goal, what to change and the original file. Due in 5 days.`);
-  await d.slackPost(env, brand.slack_channel, msg, null, { username: 'Locus' });
+  /* 2026-11-09 (the lane format, lane.js): "*CREATORS · Brand*", Ravo tagged with the ask, one short why. */
+  const m = laneBlocks({ lane: 'CREATORS', brand: brand.name, who: RAVO, ask: `Recut ${cards.length} creator video${cards.length === 1 ? '' : 's'}${nums ? ` (${nums})` : ''}, due in 5 days`,
+    why: `the top sellers of the last 30 days; tests: ${tests.join(', ')}. Each card has the numbers, the goal and the original file` });
+  await d.slackPost(env, brand.slack_channel, noDash(m.text), m.blocks, { username: 'Locus' });
   return { ok: true };
 }
 export async function trybeRecuts(env, act) {
@@ -1115,7 +1120,9 @@ export async function trybeDiscordSync(env, d, act, { dry = true, today } = {}) 
   }
   if (!dry && out.vip_on.length && d.listBrands && d.slackPost) {
     const brand = (await d.listBrands(env)).find(x => x.act_id === act);
-    if (brand && brand.slack_channel) await d.slackPost(env, brand.slack_channel, noDash(`New VIP creators (over $${bar} in sales from their videos in 60 days, 50%+ approved): ${out.vip_on.map(r => `${r.name} ($${r.sales_60d})`).join(', ')}. Discord VIP role is on. The Trybe program move is waiting for Cole's yes in Locus (Ads, Trybe, Jobs for Claude).`), null, { username: 'Locus' }).catch(() => null);
+    /* 2026-11-09 (the lane format, lane.js): the VIP list asks nobody for anything here (the Trybe move waits on Cole's
+       yes in Locus, Jobs for Claude), so it is a line in the brand's end-of-day roundup. */
+    if (brand && brand.slack_channel) await fyi(env, { act, lane: 'CREATORS', line: noDash(`New VIP creators (over $${bar} in sales from their videos in 60 days, 50%+ approved): ${out.vip_on.map(r => `${r.name} ($${r.sales_60d})`).join(', ')}. Discord VIP role is on; the Trybe move waits for Cole's yes in Locus (Ads, Trybe, Jobs for Claude).`) });
   }
   await putSetting(env, `trybeDiscordPlan:${act}`, JSON.stringify(out));
   return out;

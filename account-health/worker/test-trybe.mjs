@@ -108,16 +108,17 @@ assert.equal((await R0('/api/trybe/alerts', 'PUT', { on: true })).o.alerts, true
 /* the tick: once a day; one Slack line per brand for videos not yet alerted; never twice */
 const t1 = await trybeTick(env, d);
 assert.equal(t1.synced, 1); assert.equal(t1.posted, 1);
-assert.equal(posts[0].ch, 'C1'); assert.match(posts[0].text, /Trybe: 1 approved video has not been launched after 3 days/); assert.ok(!/[—–]/.test(posts[0].text));
+assert.equal(posts[0].ch, 'C1'); assert.match(posts[0].text, /^CREATORS · Alpha Golf: Launch 1 approved Trybe video \(not launched after 3 days\)/); assert.ok(!/[—–]/.test(posts[0].text));
+assert.match(posts[0].text, /\n\*CREATORS · Alpha Golf\*\n<@U06C37MDWD7>\n• Launch 1 approved Trybe video/, 'lane first; no buyer named = Cole');
 assert.deepEqual(await trybeTick(env, d), { skipped: 'done today' });
 TODAY = '2026-11-07'; posts = [];
 const t2 = await trybeTick(env, d);
 assert.equal(t2.posted, 0, 'video 2 is not repeated; video 3 is launched (no spend yet), so it is not backlog');
 TODAY = '2026-11-09'; posts = [];
 const t3 = await trybeTick(env, d);
-assert.equal(t3.posted, 1); assert.match(posts[0].text, /Trybe: 2 approved videos have not been launched/, 'videos 4 and 6 turned 3 days old');
+assert.equal(t3.posted, 1); assert.match(posts[0].text, /Launch 2 approved Trybe videos/, 'videos 4 and 6 turned 3 days old');
 /* Monday adds the rebook list */
-assert.match(staleMessage('Alpha', [], [{ name: 'Bo', quiet_days: 66, cpa: 15 }], 'https://x'), /Rebook this week:\* Bo \(66 days quiet, \$15 a sale\)/);
+assert.match(staleMessage('Alpha', [], [{ name: 'Bo', quiet_days: 66, cpa: 15 }], 'https://x', { strat: '<@U_AHSAN>' }).text, /\n<@U_AHSAN>\n• Rebook this week: Bo \(66 days quiet, \$15 a sale\)/);
 assert.equal(staleMessage('Alpha', [], [], 'https://x'), null);
 
 /* routes: a client reads its brand trimmed and may write nothing */

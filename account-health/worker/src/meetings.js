@@ -42,7 +42,8 @@ import { addAction, markDone, openItems as openActionItems, ROSTER, AREAS, AREA_
 import { briefFor, ensureBoard, moveTaskTo, sectionFits } from './asana-brand.js';
 import { nextNumber } from './ideas.js';
 import { numOf } from './asana-brand.js';
-import { teamPost, tagOf, loadCard } from './morningcard.js';
+import { loadCard } from './morningcard.js';
+import { laneBlocks, fyi } from './lane.js';
 import { typedOnCall } from './callscreen.js';
 
 const MODEL = 'claude-sonnet-5-5';
@@ -242,9 +243,11 @@ async function tellReady(env, d, m, notes) {
   if (!ch) return;
   const items = notes.brands.reduce((n, b) => n + b.items.length, 0);
   const names = notes.brands.filter(b => b.brand_id).length;
-  const line = `*Notes from "${sEsc(m.title)}" are ready to confirm.* ${items} item${items === 1 ? '' : 's'} across ${names} brand${names === 1 ? '' : 's'}. Nothing is on the list or with a client until you confirm.`;
-  await d.slackPost(env, ch, line, [{ type: 'section', text: { type: 'mrkdwn', text: line } },
-    { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open in Locus' }, url: `${LOCUS}?open=calls&meeting=${encodeURIComponent(m.id)}` }] }], { username: 'Locus' });
+  /* 2026-11-09 (the lane format, lane.js): "*CLIENT · Agency*", Cole tagged with the ask. */
+  const msg = laneBlocks({ lane: 'CLIENT', brand: 'Agency', who: 'Cole', ask: `Confirm the notes from "${sEsc(m.title)}"`,
+    why: `${items} item${items === 1 ? '' : 's'} across ${names} brand${names === 1 ? '' : 's'}; nothing is on the list or with a client until you confirm`,
+    buttons: [{ type: 'button', text: { type: 'plain_text', text: 'Open in Locus' }, url: `${LOCUS}?open=calls&meeting=${encodeURIComponent(m.id)}` }] });
+  await d.slackPost(env, ch, msg.text, msg.blocks, { username: 'Locus' });
 }
 
 /* ---------- the hourly poll and the webhook ---------- */
@@ -434,21 +437,18 @@ export async function confirm(env, d, body, who) {
          is one click away in Locus. */
       const made = [];
       const okTasks = r.tasks.filter(t => !t.error), okBriefs = r.briefs.filter(t => !t.error), okAsks = r.asks.filter(t => !t.error);
+      /* 2026-11-09 (the lane format, lane.js): this note asks nobody for anything (each task reaches its owner on the
+         morning card the day it is due), so it is ONE line in the brand's end-of-day roundup (agency-wide: the agency's). */
       const owners = [...new Set(okTasks.concat(okBriefs).map(t => t.owner).filter(Boolean))];
-      const tagMap = {};
-      if (act) for (const o of owners) tagMap[o] = await tagOf(env, d, o).catch(() => null);
-      const byOwner = owners.map(o => { const n = okTasks.filter(t => t.owner === o).length + okBriefs.filter(t => t.owner === o).length; return `${tagMap[o] || sEsc(o)} ${n}`; });
+      const byOwner = owners.map(o => `${o} ${okTasks.filter(t => t.owner === o).length + okBriefs.filter(t => t.owner === o).length}`);
       if (okTasks.length) made.push(`${okTasks.length} task${okTasks.length === 1 ? '' : 's'}`);
       if (okBriefs.length) made.push(`${okBriefs.length} brief${okBriefs.length === 1 ? '' : 's'}`);
       if (okAsks.length) made.push(`${okAsks.length} ask${okAsks.length === 1 ? '' : 's'} for the client`);
       if (r.report) made.push('the weekly report updated');
-      const L = [`*From the "${sEsc(m.title)}" call* (${m.date})${act ? '' : ' · agency-wide'}: ${made.length ? made.join(', ') : 'notes filed'}${byOwner.length ? ` (${byOwner.join(', ')})` : ''}.`];
-      if (b.decisions.length) L.push(...b.decisions.slice(0, 3).map(x => `• ${sEsc(x)}`));
-      if (b.decisions.length > 3) L.push(`_and ${b.decisions.length - 3} more decided, in Locus_`);
-      const text = L.join('\n');
-      const tags = Object.values(tagMap).filter(Boolean).join(' ');
-      try { await teamPost(env, d, ch, text, [{ type: 'section', text: { type: 'mrkdwn', text: text.slice(0, 2900) } }, { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open in Locus' }, url: `${LOCUS}?open=calls&meeting=${encodeURIComponent(m.id)}` }] }], { username: 'Locus', tag: tags || null }); r.slack = true; }
-      catch (e) { result.warnings.push(`${r.name}: the Slack note failed (${e.message}).`); }
+      const dec = b.decisions.slice(0, 3).map(x => clean(x, 120));
+      const line = `From the "${sEsc(m.title)}" call (${m.date}): ${made.length ? made.join(', ') : 'notes filed'}${byOwner.length ? ` (${byOwner.join(', ')})` : ''}.${dec.length ? ` Decided: ${sEsc(dec.join('; '))}${b.decisions.length > 3 ? ` and ${b.decisions.length - 3} more` : ''}.` : ''}`;
+      if (await fyi(env, { act: act || '', lane: 'CLIENT', line })) r.slack = 'roundup';
+      else result.warnings.push(`${r.name}: the roundup line failed.`);
     }
     if (act) result.brands.push(r); else result.agency = r;
   }

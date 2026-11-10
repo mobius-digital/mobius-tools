@@ -26,6 +26,7 @@
  * one at a time, measured from zero), and the saved count plus that spend is put back at the end.
  */
 import { supplyFetch } from './stock.js';
+import { laneBlocks, fyi } from './lane.js';
 
 const OWNER = 'cole@go-mobius-digital.com';
 const PROFIT_ORIGIN = 'https://mobius-profit.mobius-digital.workers.dev';
@@ -353,7 +354,8 @@ function summarize(run) {
 export function slackText(s, dayLabel) {
   const n = s.failed.length;
   if (!n) return `Locus check, ${dayLabel}: all ${s.total} checks passed.`;
-  const head = `*Locus check, ${dayLabel}: ${n} of ${s.total} ${s.total === 1 ? 'check' : 'checks'} failed*`;
+  /* 2026-11-09 (the lane format, lane.js): "*OPS · Agency*", Cole tagged with the ask, the count as the why, then the list. */
+  const head = laneBlocks({ lane: 'OPS', brand: 'Agency', who: 'Cole', ask: `Fix the ${n} failed Locus check${n === 1 ? '' : 's'}`, why: `${n} of ${s.total} ${s.total === 1 ? 'check' : 'checks'} failed in the Locus check, ${dayLabel}` }).blocks[0].text.text;
   const e = t => String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   /* D1 refusing for a stretch is ONE problem, not one per page: fold those lines into a single one. */
   const busy = s.failed.filter(f => D1_BUSY.test(f.error || '')), rest = s.failed.filter(f => !D1_BUSY.test(f.error || ''));
@@ -371,7 +373,9 @@ async function finish(env, d, run) {
   s.posted = false;
   const quiet = String((await d.getSetting(env, 'smokeQuiet')) ?? '').toLowerCase() !== 'off';
   const channel = await d.getSetting(env, 'strategistChannel');
-  if (!run.dry && channel && (s.failed.length || !quiet)) {
+  /* 2026-11-09 (lane.js): an all-clear asks nobody for anything, so it is a line in the agency's end-of-day roundup. */
+  if (!run.dry && channel && !s.failed.length && !quiet) { s.posted = await fyi(env, { act: '', lane: 'OPS', line: slackText(s, new Date(`${run.date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })) }) ? 'roundup' : false; }
+  else if (!run.dry && channel && s.failed.length) {
     const label = new Date(`${run.date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
     const r = await d.slackApi(env, 'chat.postMessage', { channel, text: slackText(s, label), unfurl_links: false, unfurl_media: false }).catch(e => ({ ok: false, error: e.message }));
     s.posted = !!r?.ok; if (!r?.ok) s.post_error = clip(r?.error || 'Slack did not answer', 120);

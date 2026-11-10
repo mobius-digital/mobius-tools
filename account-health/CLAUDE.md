@@ -2874,3 +2874,54 @@ Chrome for Locus and Slack (frozen when minimised, blocked on writes); now they 
 - **Adding a tool**: one `t(name, description, properties, required, run)` entry in `tools(d)`; a write calls
   `logWrite`. Deps come from worker.js `mcpDeps()` (mintSession, slackPost, slackApi, listAccounts, getSetting,
   xfetch, idx, ahFetch).
+
+## 2026-11-09: THE SLACK LANE FORMAT (`src/lane.js`). Read before adding or changing ANY Slack message to the team.
+
+Cole: the Locus posts read as noise; he could not tell what a message meant, who it was for, or which part of the work
+it belonged to. Every team message is now one of two things. Tests: `node test-lane.mjs` (`--samples` prints messages).
+- **An ask (someone has to do something) = ONE layout, lane first.** `laneBlocks({lane, brand, who, ask, why, buttons,
+  lines})` returns `{text, blocks}`: line 1 `*MEDIA BUYING · Dartee*` (no brand = `Agency`), line 2 the person's tag, two
+  spaces, the one thing to do (object and numbers in it), line 3 `Why: ...` (optional, one short line), then the buttons
+  the message already had. `text` (the notification) = `MEDIA BUYING · Dartee: <ask>`. Nothing else, no paragraphs
+  (payloads that ARE the job, like a caption to post or a review's notes, go in a second section). `lanePost(env, d,
+  channel, msg, {thread})` resolves the person, builds it and posts (`thread: true` = under today's morning card).
+- **Several asks for different people in one message (the morning card, the calendar, Trybe)**: `laneLines(groups,
+  {foot, buttons})`, groups = `[{lane, brand, items: [{who, ask, why}]}]`: one header per lane + brand (same ones merge),
+  each person tagged ONCE on its own line with their asks as bullets under it (Cole 2026-11-09: never the same tag line after line); `foot` = one quiet context line (the card's numbers). Its `text` is
+  the notification line, then every line of the message.
+- **The lanes, a fixed list (keep it this short)**: MEDIA BUYING, CREATIVE (creative strategy, briefs, production,
+  reviews, social), CREATORS (Trybe, Discord, the creator program, recuts), CLIENT (client requests, comments, client
+  updates to send), EMAIL, OPS (Locus itself: sync failures, job trouble, the smoke check, connections, new clients).
+  `laneName()` maps any spelling (an area, a calendar role, `ROLE_JOB`) onto it; `laneOfArea()` maps a p_action area.
+- **Who is tagged**: `laneOwner(lane, team)` from calendar.js `teamOf` (MEDIA BUYING = the buyer, else Cole; CREATIVE /
+  CREATORS / CLIENT = the strategist; EMAIL = the email owner, else the strategist; OPS = Cole). Nobody named ("the
+  strategist", empty, "Nobody owns these") = Cole, U06C37MDWD7. `laneWho(env, d, name)` turns a name into a real tag
+  (morningcard.js `tagOf`, "Ahsan + Noma" tags both); `whoText()` is the no-lookup version (a name renders bold).
+- **An FYI (nobody has to act) does NOT post.** `fyi(env, {act, lane, line})` stores one line in D1 `slack_fyi` (brand +
+  lane + Central day; the same line twice is stored once; never throws). `roundupTick` (hourly, worker.js, after the
+  Slack index) posts ONE roundup per brand in its INTERNAL channel from 4pm Central (`settings.fyiRoundupHour`), once a
+  Central day, only when something is waiting: `*FYI · Dartee · Mon Nov 9*`, then each lane with one line per item.
+  Agency lines (`act: ''`) go to `settings.slackChannel`. A brand whose internal channel is its client channel gets
+  nothing (the lines are marked 'no channel'). A line queued after the day's post waits for tomorrow's. Switch:
+  `settings.fyiRoundup = 'off'`. State: `fyiRoundupDone`. Rows older than 14 days are deleted.
+- **What went where (2026-11-09)**: asks = the morning card (Social breakouts left it for the roundup), the Buyer list,
+  Today's calls, task reminders, test minimums, calendar steps, review posts / changes asked / the no-plan DM, client
+  comments and changes asked (prodwork.js), @mentions, client requests / replies / changes, Trybe backlog and recuts,
+  Social hand-offs and the plan nudge, meeting notes to confirm, the Monday test plan (when something is to pause or
+  take off), the Monday review, alert rules, the delivery check (a real spend drop), brief failed, job trouble, Claude
+  and Meta sync failures, a failed smoke check, new client asks (newclient.js, worker.js auto-connect), the onboarding
+  form message, connect-link asks, site reviews, Make roots (ideas.js), the daily / weekly / monthly drafts (CLIENT,
+  "Read and send the ... update", Cole). Roundup = client approvals (Requests and Production), a client marking an ask
+  done, a client's date change, the meeting confirm note, VIP creators, contract signed, connect link done, invoice
+  paid with autopay, strategy call cancelled, "no spend data yet", Monday test calls with nothing to do, the smoke
+  all-clear (smokeQuiet off), the bad-day line, scheduled dashboards in a team channel. Pulse's #outages card got the
+  `*OPS · Agency*` header and nothing else.
+- **Left alone on purpose**: anything to a client channel or as Cole to a client (client daily / report sends, Pulse
+  "Send to all clients", the welcome, call recaps), the daily check-in board and its thread, "<name>'s week" copied
+  from #daily-checkin (the Monday screen reads it), Strategist / ask engine replies and scheduled questions, Studio make
+  replies in the Strategist's thread, morning.js opt-in DMs, the new-client summary and #mobius-newbiz announcement (a
+  button press), postBriefToTeam (the client-shaped post for internal-only brands), supply/ and ledger/.
+- **A new message MUST use this.** An ask: `laneBlocks` / `lanePost` / `laneLines`, never a hand-built first line. An
+  FYI: `fyi()`, never a post. No em dashes (`noDash`), no "Locus says", never a number the message did not already
+  have. Callers escape user text for mrkdwn; lane.js only strips dashes and squashes whitespace.
+- teamPost (morningcard.js) no longer puts a tag in front of a message that already carries it (lane messages do).

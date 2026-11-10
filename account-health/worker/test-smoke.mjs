@@ -194,7 +194,9 @@ eq(slack.filter(s => s.method === 'chat.postMessage').length, 0, 'a clean run po
 reset(); delSetting('smokeRun'); putSetting(null, 'smokeQuiet', 'off');
 await smokeTick(env, d);
 const q = slack.filter(s => s.method === 'chat.postMessage');
-ok(q.length === 1 && /^Locus check, Sat, Oct 10: all \d+ checks passed\.$/.test(q[0].p.text), 'smokeQuiet off: one line when everything passed');
+/* 2026-11-09 (lane.js): the all-clear asks nobody for anything, so it is a line in the agency's end-of-day roundup. */
+const fq = db.prepare(`SELECT act_id, lane, line FROM slack_fyi`).all();
+ok(q.length === 0 && fq.length === 1 && fq[0].act_id === '' && fq[0].lane === 'OPS' && /^Locus check, Sat, Oct 10: all \d+ checks passed\.$/.test(fq[0].line), 'smokeQuiet off: one roundup line when everything passed, no post');
 delSetting('smokeQuiet');
 reset(); delSetting('smokeRun'); putSetting(null, 'smokeCheck', 'off');
 eq(await smokeTick(env, d), { off: true }, 'smokeCheck off stops it');
