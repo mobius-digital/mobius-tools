@@ -415,6 +415,22 @@
       .cs .cs-stack i{display:block;height:100%}
       .cs .cs-srcrow .k{grid-column:2;display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
       .cs .cs-srcrow .k i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px}
+      .cs .cs-cr{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;font-size:13px}
+      .cs .cs-cr .k{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+      .cs .cs-cr b{font-size:26px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+      .cs table.cs-ft td:first-child{font-weight:600}.cs table.cs-ft td:first-child small{display:block;font-weight:500;font-size:11.5px}
+      .cs table.cs-ft td b{font-weight:650}
+      .cs table.cs-ft tr.miss td{color:var(--muted);font-style:italic}.cs table.cs-ft tr.miss td:first-child{font-style:normal}
+      .cs table.cs-ft tr.miss td[colspan]{text-align:left;padding-left:24px}
+      .cs .cs-subblk{display:flex;flex-direction:column;gap:8px}
+      .cs .cs-subblk h4{margin:0;font-size:14px;font-weight:650;color:var(--ink)}
+      .cs .cs-subblk .cap{margin:-4px 0 4px;font-size:12px;color:var(--muted)}
+      .cs details.cs-fold{border-top:1px solid var(--line);padding-top:10px}
+      .cs details.cs-fold>summary{cursor:pointer;list-style:none;font-size:13px;font-weight:600;color:var(--brand-ink)}
+      .cs details.cs-fold>summary::-webkit-details-marker{display:none}
+      .cs details.cs-fold>summary::before{content:'+ '}.cs details.cs-fold[open]>summary::before{content:'− '}
+      .cs details.cs-fold[open]>summary{margin-bottom:12px}
+      .cs details.cs-fold>.in{display:flex;flex-direction:column;gap:16px}
       .cs ol.lines{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
       .cs ol.lines li{display:flex;gap:12px;align-items:flex-start;font-size:14.5px;line-height:1.45;color:var(--ink)}
       .cs ol.lines li>i{font-style:normal;flex:0 0 24px;width:24px;height:24px;border-radius:7px;background:var(--brand-soft);color:var(--brand-ink);font-size:12px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
@@ -824,13 +840,15 @@
     if (!cur.addToCarts && !cur.checkouts && !cur.ecommercePurchases) return `<p class="cs-empty">${Math.round(cur.sessions).toLocaleString('en-US')} sessions, but GA4 recorded no add to cart, checkout or purchase. The store's GA4 shopping events are not set up, so there is no funnel to read yet.</p>`;
     /* GA4 that stops counting part way (Dartee: add to cart counted, checkout and purchase never) shows the steps it has
        and says which are missing, instead of a 0% drop that reads as a broken checkout. */
-    let steps = FSTEPS.map(([k, l]) => ({ k, l, v: cur[k], p: prev ? prev[k] : null, a: avg ? avg[k] : null }));
+    const NAMES = { sessions: 'Sessions', addToCarts: 'Added to cart', checkouts: 'Reached checkout', ecommercePurchases: 'Purchased' };
+    let steps = FSTEPS.map(([k]) => ({ k, l: NAMES[k], v: cur[k], p: prev ? prev[k] : null }));
     const cut = steps.findIndex((s, i) => i && !s.v && steps.slice(i).every(x => !x.v));
-    let missing = cut > 0 ? steps.slice(cut).map(s => s.l.toLowerCase()) : [];
-    if (cut > 0) steps = steps.slice(0, cut);
-    /* Purchases GA4 did not record come from Triple Whale's orders (the store's real count), labelled as such. */
-    if (cut > 0 && tw && tw.v != null) { steps.push({ l: 'Purchases', src: 'Triple Whale', v: tw.v, p: tw.p }); missing = missing.filter(m => m !== 'purchases'); }
-    return `${flowHtml([...(top || []).filter(t => t[1] != null).map(t => ({ l: t[0], v: t[1], p: t[2], a: t[3] })), ...steps], hue, !!avg)}${missing.length ? `<p class="cs-sub">GA4 is not recording ${missing.join(' or ')} on this store, so that step is left out${tw && tw.v != null ? ' and purchases are Triple Whale\'s order count' : ''}. Worth fixing the store's GA4 setup.</p>` : ''}`;
+    if (cut > 0) {
+      /* GA4 stopped counting part way (Dartee: checkout and purchase never recorded). The step stays in as "not tracked";
+         purchases come from Triple Whale's order count, the store's real number. */
+      steps = steps.map((s, i) => i < cut ? s : s.k === 'ecommercePurchases' && tw && tw.v != null ? { ...s, v: tw.v, p: tw.p, src: 'Triple Whale orders' } : { ...s, v: null, p: null, missing: true, why: 'GA4 does not record it on this store' });
+    }
+    return flowHtml([...(top || []).filter(t => t[1] != null).map(t => ({ l: t[0], v: t[1], p: t[2] })), ...steps]);
   }
   /* Round 3 (Cole 2026-11-10: "so hard to see the difference between add to cart, checkout and purchase", "the column
      names are too long"). Two parts. The FLOW: one card per step with the count and its change on the week before,
@@ -842,19 +860,28 @@
   /* Round 6 (Cole: "why cards AND bars? what is the hover?"): ONE row. Each step is a card (the count and its change on
      the week before); between two cards, the share that moved on, and under it how that compares with the brand's
      usual (or last week). No bars, no hovers, nothing to explain. */
-  function flowHtml(steps, hue, hasAvg) {
-    const S = steps.filter(s => s.v != null); if (S.length < 2) return empty('Not enough steps to draw.');
-    const dp = x => fx(x, x != null && x < 0.1 ? 1 : 0);
-    const cards = S.map((s, i) => {
-      let mid = '';
-      /* Round 7 (Cole: "what's the difference between usual and last week?"): one comparison only, last week. */
-      if (i) { const a = S[i - 1], r = a.v ? s.v / a.v : null, rp = a.p && s.p != null ? s.p / a.p : null, tone = r == null || rp == null ? '' : r >= rp ? 'up' : 'down';
-        mid = `<div class="cs-fm"><b>${dp(r)}</b><span class="k">moved on</span>${rp != null ? `<span class="cs-cmp ${tone}">${dp(rp)} last week</span>` : ''}</div>`; }
-      return `${mid}<div class="cs-fc"><span class="l">${esc(s.l)}</span><span class="v">${nfmt(s.v)}</span><span class="d">${s.p != null && s.p > 0 ? delta(s.v, s.p) : '<span class="muted">no week before</span>'}</span></div>`;
+  /* Round 8 (Cole: "show sessions, add to cart, checkout, purchase. What's the actual conversion rate?"): the standard
+     ecommerce funnel table. Headline = conversion rate (last step / first step), then one row per step: people, % of the
+     first step, % of the step before, and last week's % of the first step beside it. A step the tracking does not
+     record stays in as "not tracked", so the funnel never silently skips a step. */
+  function flowHtml(steps) {
+    const S = steps.filter(s => s.v != null || s.missing); const first = S[0], last = [...S].reverse().find(s => s.v != null);
+    if (!first || first.v == null || S.filter(s => s.v != null).length < 2) return empty('Not enough steps to show.');
+    const pc = (a, b) => (a == null || !b ? null : a / b);
+    const p2 = x => x == null ? '–' : fx(x, x < 0.1 ? 2 : 1);
+    const cr = pc(last.v, first.v), crp = pc(last.p, first.p);
+    const arrow = (a, b) => a == null || b == null ? '' : `<span class="cs-cmp ${a >= b ? 'up' : 'down'}">${a >= b ? '▲' : '▼'} ${Math.abs((a - b) * 100).toFixed(2)} pts</span>`;
+    let prevV = null;
+    const rows = S.map((s, i) => {
+      if (s.missing) return `<tr class="miss"><td>${esc(s.l)}</td><td colspan="4">not tracked${s.why ? ` (${esc(s.why)})` : ''}</td></tr>`;
+      const ofFirst = pc(s.v, first.v), fromPrev = i && prevV != null ? pc(s.v, prevV) : null, lastWk = pc(s.p, first.p);
+      const row = `<tr><td>${esc(s.l)}${s.src ? `<small class="muted">${esc(s.src)}</small>` : ''}</td><td><b>${nfmt(s.v)}</b></td><td>${i ? p2(ofFirst) : '100%'}</td><td>${fromPrev != null ? p2(fromPrev) : '–'}</td><td>${i ? `${p2(lastWk)} ${arrow(ofFirst, lastWk)}` : s.p ? `${nfmt(s.p)} ${delta(s.v, s.p)}` : '–'}</td></tr>`;
+      prevV = s.v; return row;
     }).join('');
-    void hue; void hasAvg;
-    return `<div class="cs-flow">${cards}</div>`;
+    return `<div class="cs-cr"><span class="k">Conversion rate</span><b>${p2(cr)}</b><span class="muted">of ${esc(first.l.toLowerCase())} ${/purchas/i.test(last.l) ? 'ended in a purchase' : `reached ${esc(last.l.toLowerCase())}`}</span>${crp != null ? `<span class="muted">· last week ${p2(crp)}</span> ${arrow(cr, crp)}` : ''}</div>
+      <div class="cs-tw"><table class="cs-tbl cs-ft"><thead><tr><th>Step</th><th>People</th><th>% of ${esc(first.l.toLowerCase())}</th><th>% of the step before</th><th>Last week, % of ${esc(first.l.toLowerCase())}</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   }
+
 
   /* GA4 rows for one channel group (Paid Social, Paid Search, Email...), this week + week before, or from the 4-week pull. */
   const gaSum = (src, re) => { const ch = src && !src.error ? (src.channels || []).filter(c => re.test(String(c.group || c.k || ''))) : []; if (!ch.length) return null; const sum = (k, p) => ch.reduce((n, c) => n + (+((p ? c.prev || {} : c)[k]) || 0), 0); const o = p => ({ sessions: sum('sessions', p), addToCarts: sum('addToCarts', p), checkouts: sum('checkouts', p), ecommercePurchases: sum('ecommercePurchases', p) }); return { cur: o(false), prev: ch.some(c => c.prev) ? o(true) : null }; };
@@ -951,22 +978,26 @@
         ${tile('Share of store sales', ch && t.sales ? fx(ch.cur.revenue / t.sales, 0) : '–', 'of the whole store\'s sales, Triple Whale')}
         ${tile('Campaigns sent', `${em.length} email · ${sms.length} SMS`, `${money(camps.reduce((n, c) => n + (rev(c) || 0), 0))} by Klaviyo's count`)}
         ${tile('Flows', money(flowRev), `top ${flows.length} flows, Klaviyo's count`)}</div>
-        ${err ? `<p class="cs-empty">${esc(err === 'not_linked' ? 'Klaviyo is not connected for this brand.' : err)}</p>` : ''}`)}
-      ${sec('Email and SMS campaigns', 'Sent last week.', camps.length ? `<div class="cs-tw"><table class="cs-tbl"><thead><tr><th>Campaign</th>${thSort(b, ek, 'sent', 'Sent', 'esort')}${thSort(b, ek, 'open_rate', 'Opened', 'esort')}${thSort(b, ek, 'click_rate', 'Clicked', 'esort')}${thSort(b, ek, 'revenue', 'Sales (Klaviyo)', 'esort')}${thSort(b, ek, 'rpr', 'Per person sent', 'esort')}</tr></thead><tbody>${crow.map(c => `<tr><td>${esc(c.name)} <small class="muted">${/sms/i.test(c.channel || '') ? 'SMS' : 'email'} · ${md(String(c.send_at || c.sent_at || '').slice(0, 10))}</small></td><td>${(c.recipients || 0).toLocaleString('en-US')}</td><td>${c.open_rate != null ? fx(c.open_rate) : '–'}</td><td>${c.click_rate != null ? fx(c.click_rate, 2) : '–'}</td><td>${money(c.revenue)}</td><td>${c.rpr != null ? cents(c.rpr) : '–'}</td></tr>`).join('')}</tbody></table></div>` : empty('No campaigns sent last week.'))}
-      ${sec('Flows', 'The automations that run on their own. Klaviyo\'s own report window.', flows.length ? `<div class="cs-tw"><table class="cs-tbl"><thead><tr><th>Flow</th><th>Sent</th><th>Sales (Klaviyo)</th><th>Per person sent</th></tr></thead><tbody>${flows.map(f => { const n = f.recipients || f.delivered || 0; return `<tr><td>${esc(f.name)}</td><td>${n.toLocaleString('en-US')}</td><td>${money(f.revenue)}</td><td>${n ? cents(f.revenue / n) : '–'}</td></tr>`; }).join('')}</tbody></table></div>` : empty('No flow sales in Klaviyo\'s report.'))}
-      ${ga ? sec('Email funnel', 'People who came from email and SMS (GA4), against last week.', funnelHtml(ga.cur, ga.prev, null, 'var(--c-email)', ga.avg)) : ''}
+        ${err ? `<p class="cs-empty">${esc(err === 'not_linked' ? 'Klaviyo is not connected for this brand.' : err)}</p>` : ''}
+        <details class="cs-fold"><summary>Campaigns, flows and the email funnel</summary><div class="in">
+      ${('<div class="cs-subblk"><h4>Campaigns sent last week</h4>') + (camps.length ? `<div class="cs-tw"><table class="cs-tbl"><thead><tr><th>Campaign</th>${thSort(b, ek, 'sent', 'Sent', 'esort')}${thSort(b, ek, 'open_rate', 'Opened', 'esort')}${thSort(b, ek, 'click_rate', 'Clicked', 'esort')}${thSort(b, ek, 'revenue', 'Sales (Klaviyo)', 'esort')}${thSort(b, ek, 'rpr', 'Per person sent', 'esort')}</tr></thead><tbody>${crow.map(c => `<tr><td>${esc(c.name)} <small class="muted">${/sms/i.test(c.channel || '') ? 'SMS' : 'email'} · ${md(String(c.send_at || c.sent_at || '').slice(0, 10))}</small></td><td>${(c.recipients || 0).toLocaleString('en-US')}</td><td>${c.open_rate != null ? fx(c.open_rate) : '–'}</td><td>${c.click_rate != null ? fx(c.click_rate, 2) : '–'}</td><td>${money(c.revenue)}</td><td>${c.rpr != null ? cents(c.rpr) : '–'}</td></tr>`).join('')}</tbody></table></div>` : empty('No campaigns sent last week.')) + '</div>'}
+      ${'<div class="cs-subblk"><h4>Flows</h4><p class="cap">The automations that run on their own, Klaviyo\'s own report window.</p>' + (flows.length ?`<div class="cs-tw"><table class="cs-tbl"><thead><tr><th>Flow</th><th>Sent</th><th>Sales (Klaviyo)</th><th>Per person sent</th></tr></thead><tbody>${flows.map(f => { const n = f.recipients || f.delivered || 0; return `<tr><td>${esc(f.name)}</td><td>${n.toLocaleString('en-US')}</td><td>${money(f.revenue)}</td><td>${n ? cents(f.revenue / n) : '–'}</td></tr>`; }).join('')}</tbody></table></div>` : empty('No flow sales in Klaviyo\'s report.')) + '</div>'}
+      ${ga ? `<div class="cs-subblk"><h4>Email funnel</h4><p class="cap">People who came from email and SMS (GA4), against last week.</p>${funnelHtml(ga.cur, ga.prev, null, 'var(--c-email)', ga.avg)}</div>` : ''}
+        </div></details>`)}
       ${b.client ? '' : sec('Email plan', 'Type what goes out this week. Yes, Changes or No on each line.', planHtml(b, 'eplan', STRAT[b.act_id] || 'the strategist'))}`;
   }
   function lastWeekBlock(b) {
     const X = bx(b.act_id), r = b.read, t = today();
     const acts = X.acts && !X.acts.error ? (X.acts.activities || X.acts.rows || X.acts.items || []) : null;
-    const mine = acts ? acts.filter(a => a.summary && (a.manual || /budget|paused|status|new_|creative|ad_/i.test(a.category || a.event_type || ''))).slice(0, 12) : null;
+    /* Changes the team made (people, Locus, Claude), not Meta's own housekeeping (billing, "ad delivered"); one line per change. */
+    const seen = new Set();
+    const mine = acts ? acts.filter(a => a.summary && !/^meta$/i.test(String(a.actor || '')) && (a.manual || /budget|paused|status|new_|creative|ad_|relaunch/i.test(a.category || a.event_type || '')) && !seen.has(a.summary) && seen.add(a.summary)).slice(0, 8) : null;
     const ga = X.ga && !X.ga.error ? X.ga : null;
     return `${sec(`${esc(b.name)}: last week`, r ? `${short(r.period_start)} to ${short(r.period_end)}. Triple Whale, whole store, every channel, against the week before.` : '', r ? tilesHtml(r) : empty('No weekly report for this brand yet.'))}
-      ${sec('The store funnel', 'Everyone who visited the site (GA4), and how many moved to the next step. Each step against last week.', X.ga == null ? empty('Loading GA4…') : ga ? funnelHtml(ga.cur, ga.prev, null, null, gaAvg(X), r && r.totals ? { v: r.totals.orders, p: r.prior && r.prior.orders } : null) : `<p class="cs-empty">${esc(X.ga.error === 'not_linked' ? 'GA4 is not connected for this brand.' : X.ga.error)}</p>`)}
+      ${sec('The store funnel', 'Every visitor (GA4), step by step, against last week.', X.ga == null ? empty('Loading GA4…') : ga ? funnelHtml(ga.cur, ga.prev, null, null, gaAvg(X), r && r.totals ? { v: r.totals.orders, p: r.prior && r.prior.orders } : null) : `<p class="cs-empty">${esc(X.ga.error === 'not_linked' ? 'GA4 is not connected for this brand.' : X.ga.error)}</p>`)}
       ${custBlock(b)}
       ${sec('Last week\'s changes', 'What we changed in the accounts, from the Change Log.', mine == null ? (X.acts && X.acts.error ? `<p class="cs-empty">${esc(X.acts.error)}</p>` : empty('Loading…')) : mine.length ? (X.chg = mine, changesHtml(mine, b)) : empty('No changes logged last week.'))}
-      ${sec('Last week\'s tasks', 'Open tasks for this brand in Locus Tasks, due by today. Tick one when it\'s done.', todoList(b.open || [], t, 'Nothing open for this brand.'))}`;
+      ${(b.open || []).length ? sec('Last week\'s tasks', 'Still open in Locus Tasks. Tick one when it\'s done.', todoList(b.open, t, '')) : ''}`;
   }
   /* Last week's changes, skimmable (Cole: "it only gives text, should it give visual cues"): a chip for what kind of
      change it was, the platform, the money move pulled out in bold, grouped by day, a count of each kind on top. */
@@ -994,10 +1025,13 @@
     const bar = (list, title) => { const tot = (list || []).reduce((n, s) => n + (s.orders || 0), 0); if (!tot) return ''; return `<div class="cs-srcrow"><span class="t">${title}</span><div class="cs-stack">${list.map(s => `<i style="width:${s.orders / tot * 100}%;background:${(SRC[s.source] || [s.source, 'var(--muted)'])[1]}" title="${esc((SRC[s.source] || [s.source])[0])}: ${fx(s.orders / tot, 0)}"></i>`).join('')}</div><span class="k">${list.filter(s => s.orders / tot >= 0.05).map(s => `<span><i style="background:${(SRC[s.source] || [s.source, 'var(--muted)'])[1]}"></i>${esc((SRC[s.source] || [s.source])[0])} ${fx(s.orders / tot, 0)}</span>`).join('')}</span></div>`; };
     const srcHtml = j.sources ? `${bar(j.sources.first, 'First orders')}${bar(j.sources.repeat, 'Repeat orders')}` : '';
     if (!tiles && !pathHtml) return '';
-    return `${sec('Customers', 'Last 90 days. Triple Whale orders, followed from each customer\'s first order.', `<div class="cs-tiles">${tiles}</div>`)}
-      ${curveHtml ? sec('What a new customer is worth over time', 'Average spend per customer since their first order (LTV), and the share who bought again.', curveHtml) : ''}
-      ${pathHtml ? sec('What they buy first, and what they buy next', `Every customer Locus has followed${P.coverage != null ? ` (${fx(P.coverage, 0)} of orders have products)` : ''}.`, `<div class="cs-tw">${pathHtml}</div>`) : ''}
-      ${srcHtml ? sec('Where first and repeat orders come from', 'Last click, Triple Whale.', srcHtml) : ''}`;
+    /* Round 8 (Cole: "it was at a decent spot before, now it's cluttered"): one card. The five numbers show; the three
+       deeper views fold under "More on customers" for when the conversation goes there. */
+    const sub = (t, c, body) => `<div class="cs-subblk"><h4>${t}</h4>${c ? `<p class="cap">${c}</p>` : ''}${body}</div>`;
+    const more = [curveHtml ? sub('Worth over time', 'Average spend per customer since their first order, and the share who bought again.', curveHtml) : '',
+      pathHtml ? sub('What they buy first, and next', `Every customer Locus has followed${P.coverage != null ? ` (${fx(P.coverage, 0)} of orders have products)` : ''}.`, `<div class="cs-tw">${pathHtml}</div>`) : '',
+      srcHtml ? sub('Where first and repeat orders come from', 'Last click, Triple Whale.', srcHtml) : ''].join('');
+    return sec('Customers', 'Last 90 days, Triple Whale.', `<div class="cs-tiles">${tiles}</div>${more ? `<details class="cs-fold"><summary>More on customers</summary><div class="in">${more}</div></details>` : ''}`);
   }
   function changeKind(a) {
     const s = `${a.category || ''} ${a.event_type || ''} ${a.summary || ''}`;
@@ -1073,9 +1107,9 @@
         ${tile('Meta ROAS', `${x2(roas)}${vsGoal(roas, groas)}`, useRep && ch.prev ? `${x2(ch.prev.roas)} the week before` : useRep ? '' : 'sum of the ads under this attribution')}
         ${(() => { const lsp = M ? (M.ads || []).filter(a => isLeadRow(M, a)).reduce((n, a) => n + (a.spend || 0), 0) : 0; return tile('Cost per sale', ord ? money((sp - lsp) / ord) : '–', `${lsp ? 'sales ads only' : ''}${lsp && M && M.g && M.g.cpa ? ', ' : ''}${M && M.g && M.g.cpa ? `goal ${money(+M.g.cpa)}` : ''}`); })()}
         ${M && M.leadGoal ? tile('Lead ads', money((M.ads || []).filter(a => isLeadRow(M, a)).reduce((n, a) => n + a.spend, 0)), `goal ${cents(M.leadGoal)} a lead`) : ''}</div>` : empty('No Meta numbers in the report.');
-    const all = M ? sortRows(M.ads || [], X.adsort, ['cpa', 'cpm'].includes(X.adsort)) : [], N = X.more ? all.length : 12;
+    const all = M ? sortRows(M.ads || [], X.adsort, ['cpa', 'cpm'].includes(X.adsort)) : [], N = X.more ? all.length : 10;
     const ads = !M ? (loading(X, 'ads', 'the ads') || '') : `<div class="cs-tools">${ddHtml('sort', b.act_id, 'Sort by', (ADSORT.find(s => s[0] === X.adsort) || [])[1])}${attSel}<span class="gap"></span><span class="cs-sub" style="margin:0">${all.length ? `${Math.min(N, all.length)} of ${all.length}` : ''}</span></div>
-      ${all.length ? M.cards(all.slice(0, N)) : empty('No ads spent this week.')}${all.length > 12 ? `<button type="button" class="cs-link" data-admore="${esc(b.act_id)}">${X.more ? 'Show 12' : `Show all ${all.length}`}</button>` : ''}
+      ${all.length ? M.cards(all.slice(0, N)) : empty('No ads spent this week.')}${all.length > 10 ? `<button type="button" class="cs-link" data-admore="${esc(b.act_id)}">${X.more ? 'Show 10' : `Show all ${all.length}`}</button>` : ''}
       <p class="cs-sub">The Ads page's own cards. Tap one for every number and its ad set; "Turn off" and "Move for the buyer" are at the top of it.</p>`;
     const sales = M ? (M.ads || []).filter(a => !isLeadRow(M, a)) : [];
     const imp = sales.reduce((n, a) => n + (a.impressions || 0), 0), clk = sales.reduce((n, a) => n + (a.clicks || 0), 0);
@@ -1113,9 +1147,8 @@
       ${tile('Cost per sale', ch.cur.purchases ? money(ch.cur.spend / ch.cur.purchases) : '–', gclk ? `${Math.round(gclk).toLocaleString('en-US')} clicks at ${cents(ch.cur.spend / gclk)}` : '')}
       ${gimp ? tile('Click rate', fx(gclk / gimp, 2), `${Math.round(gimp).toLocaleString('en-US')} impressions`) : ''}</div>`;
     if (b.client) return sec('Google results', 'Spend and clicks are Google Ads. Sales are Triple Whale.', tiles);
-    return `${sec('Google results', 'Spend and clicks are Google Ads. Sales are Triple Whale last click for the whole channel; Locus does not have the other attributions for Google yet.', tiles)}
+    return `${sec('Google results', 'Spend and clicks are Google Ads. Sales are Triple Whale, last click.', `${tiles}${ga ? `<details class="cs-fold"><summary>Google funnel</summary><div class="in">${funnelHtml(ga.cur, ga.prev, null, 'var(--c-google)', null, null)}</div></details>` : ''}`)}
       ${sec('Google campaigns', '', googleTable(b))}
-      ${ga ? sec('Google funnel', 'People who came from Google ads (GA4), against last week.', funnelHtml(ga.cur, ga.prev, gclk ? [['Ad clicks', gclk]] : null, 'var(--c-google)', ga.avg)) : ''}
       ${sec('Radhesh\'s Google plan', 'From Radhesh\'s Slack post. Yes, Changes or No on each line.', planHtml(b, 'gplan', 'Radhesh'))}`;
   }
   /* Trybe videos waiting on a decision, with the buttons (Monday screen and the creator call). */
