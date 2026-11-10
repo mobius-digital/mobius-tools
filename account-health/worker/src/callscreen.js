@@ -447,6 +447,8 @@ function v2Lines(s, who = {}) {
     ...ekept.map(x => planLine(x, 'Email plan')),
     ...(s.calls || []).filter(x => x && clean(x.text, 300)).map(x => `For the media buyer: ${clean(x.text, 300)}`),
     ...(s.changes || []).filter(x => clean(x, 300)).map(x => `Changed on the call: ${clean(x, 300)}`),
+    /* 2026-11-10: the Trybe decisions made in the meeting, counted (each one is also its own Change Log line). */
+    ...(() => { const v = Object.values(s.rv || {}).filter(x => x && x.done); if (!v.length) return []; const n = re => v.filter(x => re.test(x.done)).length; const parts = [[n(/approved/i), 'approved'], [n(/changes/i), 'sent back for changes'], [n(/rejected/i), 'rejected']].filter(p => p[0]); return [`Trybe: ${parts.map(p => `${p[0]} ${p[1]}`).join(', ')}`]; })(),
     ...(s.ideas || []).filter(x => x && clean(x.text, 300)).map(x => `Idea: ${clean(x.text, 300)}`),
     ...(s.sends || []).filter(x => x && clean(x.text, 300)).map(x => `We send the client: ${clean(x.text, 300)}${ymdOk(x.due) ? ` by ${x.due}` : ''}`),
     ...Object.entries(s.money || {}).filter(([, m]) => m && m.m).map(([camp, m]) => `Money: ${m.m} ${clean(camp, 120)}${m.amt ? ` to ${clean(String(m.amt), 20)} a day` : ''}`),

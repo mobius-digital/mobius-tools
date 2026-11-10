@@ -8,7 +8,7 @@
  *         Refresh: asks Locus to brief the new version. Mixed has no Do: Done marks it decided.
  *   Skip  quiet until tomorrow, for everyone. Done is quiet 3 days. A change written to Meta in the last 3 days hides
  *         the call too (watch 3 days). The state is on the server (account-health buyerlist.js, p_buyer_state), shared
- *         with Ads > Today's calls; never localStorage.
+ *         with Ads > Today's moves; never localStorage.
  *   Open  the ad set on Campaigns, the ad on Ads, the card on Production.
  * Server: account-health GET /api/buyer-list, POST /api/buyer-list/state, PUT /api/buyer-list/settings,
  * GET /api/buyer-list/preview (the one daily Slack post, settings buyerPost / buyerChannel / buyerOwner).

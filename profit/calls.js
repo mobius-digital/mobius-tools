@@ -308,7 +308,7 @@
     }).join('');
     return `<div class="cl-b${multi && !b.open ? ' shut' : ''}${b.skip ? ' out' : ''}" data-bi="${bi}">
       ${multi ? `<div class="cl-bh"><button class="t" data-toggle aria-expanded="${b.open}">${ICON.chev}<b>${esc(b.brand_id ? brandName(b.brand_id) : 'Agency-wide')}</b><small>${esc(countsOf(live(b), false))}</small></button><button class="cl-link" data-skipbrand>${b.skip ? 'Put this brand back' : 'Leave this brand out'}</button></div>` : ''}
-      <div class="cl-bb">${secs || '<div class="cl-empty">Nothing from this call for this brand.</div>'}<button class="cl-add" data-add>+ Add an item</button></div>
+      <div class="cl-bb">${secs || '<div class="cl-empty">Nothing from this meeting for this brand.</div>'}<button class="cl-add" data-add>+ Add an item</button></div>
     </div>`;
   }
   function cardHtml(card) {
@@ -322,7 +322,7 @@
         <p class="cl-sum" data-sum title="Click to read it all or change it">${esc(card.summary)}</p></div></div>
       <div class="cl-sc"><div class="cl-tr cl-th"><span></span><span>Item</span><span>Goes to</span><span>Who</span><span>Due</span><span></span></div>
         ${card.brands.map((b, bi) => brandBlock(card, b, bi)).join('')}</div>
-      <div class="cl-foot"><button class="cl-btn pri" data-approve${n ? '' : ' disabled'}>Approve ${n}</button><button class="cl-btn" data-skip>Skip this call</button>
+      <div class="cl-foot"><button class="cl-btn pri" data-approve${n ? '' : ' disabled'}>Approve ${n}</button><button class="cl-btn" data-skip>Skip this meeting</button>
         <span class="muted">Click any cell to change it before you approve. Unticked items are dropped.${flag}</span><span class="cl-err" data-err></span></div>
     </section>`;
   }
@@ -444,7 +444,7 @@
     const [l, c] = ST[m.status] || [m.status, '']; return `<span class="${c || 'muted'}">${esc(l)}</span>`;
   }
   function historyHtml(list) {
-    if (!list.length) return '<div class="cl-empty">No other calls in the last 60 days.</div>';
+    if (!list.length) return '<div class="cl-empty">No other meetings in the last 60 days.</div>';
     return `<div class="cl-sc"><div class="cl-hr h"><span>Date</span><span>Brand</span><span>With</span><span>Length</span><span>What it made</span><span>Status</span><span></span></div>
       ${list.map(m => `<div class="cl-hr" data-hid="${esc(m.id)}"><span>${esc(md(m.date))}</span><span class="b">${esc((m.brand_ids || []).map(brandName).join(', ') || 'Agency')}</span><span>${esc((m.with || []).map(firstName).join(', ') || 'Internal')}</span><span class="muted">${m.duration ? Math.round(m.duration) + ' min' : ''}</span><span>${madeOf(m)}</span>${statusOf(m)}<button data-hopen aria-expanded="false">Open</button></div><div class="cl-hd" data-hbody="${esc(m.id)}" hidden></div>`).join('')}</div>`;
   }
@@ -478,11 +478,11 @@
       if (cmd && Array.isArray(cmd.brands)) for (const b of cmd.brands) SEV[b.act_id] = b.paused ? undefined : (b.reasons || []).reduce((w, r) => r.sev === 'bad' ? 'bad' : (w === 'bad' ? w : r.sev === 'warn' ? 'warn' : w), 'good');
     } catch { MON = null; }
   }
-  /* 2026-10-19: the call screens (callscreen.js). The Monday agenda block that sat here is the Monday call screen now. */
+  /* 2026-10-19: the call screens (callscreen.js). The Monday agenda block that sat here is the Monday meeting screen now. */
   function runHtml() {
     const card = (k, title, cap) => `<button type="button" class="cl-run-b" data-run="${k}"><b>${title}</b><span>${cap}</span></button>`;
-    return `<section class="cl-run"><div class="cl-st" style="margin:0 0 8px"><b>Run a call</b></div>
-      <div class="cl-run-g">${card('monday', 'Monday call', 'Every brand, red first')}${card('client', 'Client call', BR !== 'all' ? `${esc(brandName(BR))}, the client watching` : 'One brand, the client watching')}${card('kickoff', 'Creative kickoff', 'Each brief with the design team')}${card('creator', 'Creator call', BR !== 'all' ? `${esc(brandName(BR))}'s creators, on Discord` : 'One brand\'s creators, on Discord')}</div></section>`;
+    return `<section class="cl-run"><div class="cl-st" style="margin:0 0 8px"><b>Run a meeting</b></div>
+      <div class="cl-run-g">${card('monday', 'Monday meeting', 'Every brand, red first')}${card('client', 'Client meeting', BR !== 'all' ? `${esc(brandName(BR))}, the client watching` : 'One brand, the client watching')}${card('kickoff', 'Creative kickoff', 'Each brief with the design team')}${card('creator', 'Creator meeting', BR !== 'all' ? `${esc(brandName(BR))}'s creators, on Discord` : 'One brand\'s creators, on Discord')}</div></section>`;
   }
   const head = () => H.pageHead ? H.pageHead('calls', 'Meetings') : '<div class="ph"><div><div class="ph-t">Meetings</div></div><div class="ph-r"><span class="ph-acts"></span></div></div>';
   const acts = html => { if (typeof window.pageActions === 'function') window.pageActions(html); };

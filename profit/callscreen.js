@@ -780,10 +780,11 @@
      about 10 minutes each, channel by channel: Last week (numbers, the store funnel, what we changed, last week's tasks),
      Meta, Google, Email (each: results against goal, its campaigns with budgets you can change, its funnel, its plan), Trybe,
      Being made, Typed. Agency tasks once at the end. Every ad is the Ads page's own card and sheet (V2.adSet); budgets,
-     pause and resume go through the same Meta / Google write routes as the Meta tab and Today's calls (dry run, then the
+     pause and resume go through the same Meta / Google write routes as the Meta tab and Today's moves (dry run, then the
      write with `expect`, Change Log, Undo on Meta). A preview: ?layout=2 or "New layout (preview)" turns it on. */
   const LAYOUT_KEY = 'cs_layout';
-  const layout2 = () => { try { return localStorage.getItem(LAYOUT_KEY) === '2'; } catch { return false; } };
+  /* 2026-11-10: the new layout is the default (Cole: "build everything and launch it"); "Old layout" stays one click away. */
+  const layout2 = () => { try { return localStorage.getItem(LAYOUT_KEY) !== '1'; } catch { return true; } };
   /* Who runs each brand's Meta (Cole, Nov 9 call). Locus's season call sheet still says Ahsan for Dartee and Yak. */
   const STRAT = { brand_dartee_golf: 'Noma', brand_bonk_golf: 'Noma', brand_ice_and_gold: 'Noma', brand_yak_sports: 'Noma', brand_party_patch: 'Noma', brand_grunk_dolfer: 'Ahsan', brand_lucky_golf: 'Ahsan', brand_vetripaws: 'Ahsan', brand_speedin: 'Ahsan' };
   const ORDER2 = ['brand_dartee_golf', 'brand_bonk_golf', 'brand_ice_and_gold', 'brand_yak_sports', 'brand_party_patch', 'brand_grunk_dolfer', 'brand_lucky_golf', 'brand_vetripaws', 'brand_speedin'];
@@ -1516,7 +1517,7 @@
       + `<div class="cs-acts"><button type="button" class="btn pri" data-finish ${BUSY ? 'disabled' : ''}>Finish</button></div>`);
   }
   function pickCreator(list) {
-    $('#main').innerHTML = `${headHtml('Creator call')}<div class="v2 cs" id="csRoot">${sec('Which brand\'s creators are on the call', 'Mondays, Central time', `<div class="picker">${(list || []).map(b => `<button type="button" data-pick="${esc(b.act_id)}">${esc(b.name)}${b.when ? `<br><small style="color:var(--muted);font-weight:500">${esc(b.when)}</small>` : ''}</button>`).join('') || empty('No creator programs in Locus.')}</div>`)}</div>`;
+    $('#main').innerHTML = `${headHtml('Creator meeting')}<div class="v2 cs" id="csRoot">${sec('Which brand\'s creators are on the call', 'Mondays, Central time', `<div class="picker">${(list || []).map(b => `<button type="button" data-pick="${esc(b.act_id)}">${esc(b.name)}${b.when ? `<br><small style="color:var(--muted);font-weight:500">${esc(b.when)}</small>` : ''}</button>`).join('') || empty('No creator programs in Locus.')}</div>`)}</div>`;
     acts('');
     $$('[data-pick]').forEach(b => b.onclick = () => open(H, 'creator', b.dataset.pick));
   }
@@ -1643,7 +1644,7 @@
         <div id="csMain" style="display:flex;flex-direction:column;gap:16px">${mainHtml()}</div>
         <div class="cs-bar"><div class="r"><button type="button" class="btn" id="csPrev" ${POS === 0 ? 'disabled' : ''}>← Back</button><span class="where" id="csWhere">${whereHtml()}</span><span class="cs-saved" id="csSaved"></span><button type="button" class="btn pri" id="csNext" ${last ? 'data-finish' : ''}>${nextLabel()}</button></div><div class="cs-will" id="csWill">${willHtml()}</div></div>`}
     </div>`;
-    acts(`${KIND !== 'kickoff' ? `<button type="button" class="btn" id="csLayout" title="The Nov 9 layout: channels, the Ads page's cards, plan votes, Trybe">${layout2() ? 'Old layout' : 'New layout (preview)'}</button>` : ''}<button type="button" class="btn" id="csPresent">${document.body.classList.contains('cs-present') ? 'Exit (Esc)' : 'Present'}</button>`);
+    acts(`${KIND !== 'kickoff' ? `<button type="button" class="btn" id="csLayout" title="The Nov 9 layout: channels, the Ads page's cards, plan votes, Trybe">${layout2() ? 'Old layout' : 'New layout'}</button>` : ''}<button type="button" class="btn" id="csPresent">${document.body.classList.contains('cs-present') ? 'Exit (Esc)' : 'Present'}</button>`);
     wire();
     if (!finished) { const s = steps()[POS]; startClock((s ? s.mins : 5) * 60); }
   }
@@ -1931,7 +1932,7 @@
   /* ---------- open ---------- */
   function pickBrand() {
     const brands = (H.S.accounts || H.S.brands || []).filter(a => a.active !== false).map(a => ({ act_id: a.act_id, name: a.name }));
-    $('#main').innerHTML = `${headHtml('Client call')}<div class="v2 cs" id="csRoot">${sec('Which client is on the call', '', `<div class="picker">${brands.map(b => `<button type="button" data-pick="${esc(b.act_id)}">${esc(b.name)}</button>`).join('') || empty('No brands.')}</div>`)}</div>`;
+    $('#main').innerHTML = `${headHtml('Client meeting')}<div class="v2 cs" id="csRoot">${sec('Which client is on the call', '', `<div class="picker">${brands.map(b => `<button type="button" data-pick="${esc(b.act_id)}">${esc(b.name)}</button>`).join('') || empty('No brands.')}</div>`)}</div>`;
     acts('');
     $$('[data-pick]').forEach(b => b.onclick = () => open(H, 'client', b.dataset.pick));
   }

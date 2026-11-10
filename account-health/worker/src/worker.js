@@ -21,7 +21,7 @@ import { handleCalendar, calendarTick, calendarView, liveOn as calendarLiveOn, u
 import { dailyPost, dailyThread, weeklyPost, weekSentence, internalChannel } from './clientpost.js';
 import { handleRequests, createAsk } from './requests.js';
 import { handleMeetings, handleFirefliesHook, meetingsTick } from './meetings.js';
-import { handleCalls } from './callscreen.js';
+import { handleCalls, finishCall } from './callscreen.js';
 import { handleActions, actionTick, handleActionButton, handleReaction, onActionDone, onActionPlaced, slackName, markDone } from './actions.js';
 import { blockActionPlaced, blockActionDone, blockRollTick, setBlockFetch, setBlockDone, handleGcalPush, blockSyncTick, blockMigrate, ensureWatches } from './blocks.js';
 import { minOffTick, handleMinOffButton, minOffOn } from './minoff.js';
@@ -7921,7 +7921,7 @@ const AH_APP = {
         /* The team's daily check-in post in #daily-checkin, the no-plan nudge, and 24-hour review approvals (checkin.js, 2026-10-26). */
         ran.checkin = await checkinTick(env, checkinDeps(ctx)).catch(e => ({ error: e.message }));
         /* Monday 7am: brands with no strategist plan yet; from noon: a call of today left open (callnudge.js, 2026-11-09). */
-        ran.callNudge = await callNudgeTick(env, checkinDeps(ctx)).catch(e => ({ error: e.message }));
+        ran.callNudge = await callNudgeTick(env, { ...checkinDeps(ctx), finish: id => finishCall(env, { ...actionDeps(), waitUntil: p => ctx.waitUntil(p), adsReport }, { id }, 'Locus (finished at noon)') }).catch(e => ({ error: e.message }));
         /* The Buyer list: ONE post a day in the buyer channel (buyerlist.js, 2026-10-26); the morning cards no longer carry the calls. */
         ran.buyerPost = await buyerPostTick(env, buyerDeps()).catch(e => ({ error: e.message }));
         /* The morning read (buyerai.js): every brand, three side by side, from the hour BEFORE the post hour, so the post

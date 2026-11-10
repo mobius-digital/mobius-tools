@@ -11,7 +11,7 @@
  *   does Done / Who / Due / Brand / Drop on all of them.
  *   Keys: ↑ ↓ j k move, Enter opens, Space ticks done, x selects, w who, t date, m menu, Delete drops, Esc clears.
  *   A task opens in the shared SIDE PANEL (window.V2.panel; a bottom sheet on a phone): title, where it came from
- *   (with a way back to the call, Today's ad calls or the leak), Who / Due / Brand / Area as pill menus, Details,
+ *   (with a way back to the call, Today's ad moves or the leak), Who / Due / Brand / Area as pill menus, Details,
  *   Mark done, Drop. Every change saves on its own. Without V2.panel the old modal still works.
  *   Board: empty columns are not drawn (a "Show empty columns" link in the control row brings them back).
  *   Waiting on client: the Requests asks still open, last, with a coral dashed tick (they close in Requests).
@@ -313,7 +313,7 @@
     if (i.source === 'leak') { const t = i.source_title || i.leak_title || i.text; return { text: `From the leak finder · ${esc(t)} · ${short(i.created_at)}`, go: 'Open the leak', page: i.go || i.source_go || 'leaks' }; }
     if (i.source === 'meeting') return { text: `From a call · ${short(i.created_at)}`, go: i.source_id ? 'Open the call' : '', page: 'calls', meeting: i.source_id };
     if (i.source === 'monday') return { text: 'From the Monday call', go: '', page: '' };
-    if (i.source === 'today') return { text: 'From Today’s ad calls', go: 'Open Today', page: 'today' };
+    if (i.source === 'today') return { text: 'From Today’s ad moves', go: 'Open Today', page: 'today' };
     if (i.source === 'strategist') return { text: 'From the Strategist', go: '', page: '' };
     return { text: 'Typed by hand', go: '', page: '' };
   }
