@@ -303,7 +303,7 @@
     const act = H.S.act || 'all';
     return `<article class="ai-card" data-mid="${esc(card.id)}" tabindex="-1">
       <div class="ai-ch"><div style="flex:1;min-width:0"><h3>${esc(card.title || 'Untitled call')}</h3><small>${esc(md(card.date))}${card.duration ? ` · ${Math.round(card.duration)} min` : ''}${who.length ? ` · ${esc(who.slice(0, 6).join(', '))}${who.length > 6 ? ` +${who.length - 6}` : ''}` : ''} · read from Fireflies</small></div>
-        <button class="btn quiet" data-skip>Skip this call</button></div>
+        <button class="btn quiet" data-skip>Skip this meeting</button></div>
       <div class="ai-lbl" style="margin-top:18px">Summary</div>
       <p class="ai-sum" data-sum>${esc(card.summary)}</p>
       <div data-flag></div>
@@ -480,7 +480,7 @@
   function rowHtml(i, showBrand) {
     const done = i.status && i.status !== 'open';
     const m = (D.meetings || []).find(x => x.id === i.source_id);
-    const from = i.source === 'meeting' ? (m ? `From the ${esc(m.title || 'call')}, ${esc(short(m.date))}` : 'From a call') : i.source === 'monday' ? 'Added on the Monday call' : i.source === 'today' ? 'From Today’s calls' : i.source === 'strategist' ? 'From the Strategist' : i.created_by ? `Added by ${esc(firstName(i.created_by))}` : '';
+    const from = i.source === 'meeting' ? (m ? `From the ${esc(m.title || 'call')}, ${esc(short(m.date))}` : 'From a call') : i.source === 'monday' ? 'Added on the Monday call' : i.source === 'today' ? 'From Today’s moves' : i.source === 'strategist' ? 'From the Strategist' : i.created_by ? `Added by ${esc(firstName(i.created_by))}` : '';
     const meta = [showBrand ? esc(brandName(i.act_id)) : '', from, done ? `done${i.done_by ? ` by ${esc(firstName(i.done_by))}` : ''}${i.done_how === 'slack' ? ' in Slack' : ''}${i.done_at ? `, ${esc(short(i.done_at))}` : ''}` : ''].filter(Boolean).join(' · ');
     const kind = i.kind === 'brief' ? (i.asana_url ? `<a class="ai-kind brief" href="${esc(i.asana_url)}" target="_blank" rel="noopener">Brief · Asana ↗</a>` : '<span class="ai-kind brief">Brief</span>') : '';
     return `<div class="ai-lgrid ai-li${done ? ' done' : ''}${window.ACT_OPEN === i.id ? ' hi' : ''}" data-id="${esc(i.id)}">
@@ -599,7 +599,7 @@
     const host = $('#aiPast'); if (!host) return;
     const list = D.meetings.filter(m => m.status !== 'extracted' || !D.pending.some(p => p.id === m.id));
     host.innerHTML = `<p style="font-size:12.5px;color:var(--muted);margin:0 0 8px">${D.connected ? `Locus reads every Fireflies call within the hour. <button class="ai-link" id="aiPoll">Check Fireflies now</button>` : 'Fireflies is not connected (FIREFLIES_API_KEY on the worker).'}</p>
-      ${list.length ? list.map(m => { const [l, c] = ST[m.status] || [m.status, '']; return `<details class="ai-call" data-mid="${esc(m.id)}"><summary><span style="flex:1;min-width:0">${esc(m.title || 'Untitled call')} <small>${esc(md(m.date))}${m.duration ? ` · ${Math.round(m.duration)} min` : ''}</small></span><span class="ai-st ${c}">${esc(l)}</span></summary><div class="body">Loading…</div></details>`; }).join('') : '<p class="ai-empty">No other calls in the last 60 days.</p>'}`;
+      ${list.length ? list.map(m => { const [l, c] = ST[m.status] || [m.status, '']; return `<details class="ai-call" data-mid="${esc(m.id)}"><summary><span style="flex:1;min-width:0">${esc(m.title || 'Untitled call')} <small>${esc(md(m.date))}${m.duration ? ` · ${Math.round(m.duration)} min` : ''}</small></span><span class="ai-st ${c}">${esc(l)}</span></summary><div class="body">Loading…</div></details>`; }).join('') : '<p class="ai-empty">No other meetings in the last 60 days.</p>'}`;
     const poll = $('#aiPoll'); if (poll) poll.onclick = async () => { poll.disabled = true; poll.textContent = 'Checking…'; try { const r = await post('/api/meetings/poll', {}); await load(); paint(); toast(r.read && r.read.length ? `Read ${r.read.length} new call${r.read.length === 1 ? '' : 's'}.` : r.errors && r.errors.length ? `Fireflies: ${r.errors[0].error}` : 'Nothing new on Fireflies.'); } catch (e) { toast(e.message); poll.disabled = false; poll.textContent = 'Check Fireflies now'; } };
     for (const det of $$('details.ai-call', host)) det.ontoggle = async () => {
       if (!det.open || det.dataset.loaded) return; det.dataset.loaded = '1';

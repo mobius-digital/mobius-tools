@@ -47,6 +47,7 @@ const div = (a, b) => (b ? a / b : null);
 export async function handleHub(ctx) {
   const { path, url, env, json } = ctx;
   if (!path.startsWith('/api/hub/')) return null;
+  await checkoutCols(env);
   const model = MODELS.has(url.searchParams.get('model')) ? url.searchParams.get('model') : 'lastPlatformClick';
   const cmp = ['prev', 'yoy', 'none'].includes(url.searchParams.get('cmp')) ? url.searchParams.get('cmp') : 'prev';
   const act = url.searchParams.get('act') || 'all';
@@ -832,13 +833,21 @@ async function adDays(env, a, ids, model) {
 }
 
 /* ---------- Paid > Meta ---------- */
-const META_COLS = `SUM(d.spend) spend, SUM(d.impressions) impr, SUM(d.reach) reach, SUM(d.link_clicks) clicks, SUM(d.clicks_all) clicks_all, SUM(d.add_to_cart) atc,
+const META_BASE = `SUM(d.spend) spend, SUM(d.impressions) impr, SUM(d.reach) reach, SUM(d.link_clicks) clicks, SUM(d.clicks_all) clicks_all, SUM(d.add_to_cart) atc,
   SUM(d.purchases) p_ord, SUM(d.revenue) p_rev, SUM(d.video_3s) v3, SUM(d.video_thruplay) thru, SUM(d.video_plays) plays,
   SUM(d.video_p25) p25, SUM(d.video_p50) p50, SUM(d.video_p75) p75, SUM(d.video_p100) p100, SUM(d.leads) leads`;
+/* 2026-11-10: Meta's checkout count (ad_daily.initiate_checkout, added by the account-health sync). Read only once the
+   column exists, so this worker never breaks before that sync has run; until then checkouts read as null. */
+let META_COLS = `${META_BASE}, NULL ic`, IC_CHECKED = false;
+async function checkoutCols(env) {
+  if (IC_CHECKED) return;
+  const { results } = await env.DB.prepare(`PRAGMA table_info(ad_daily)`).all().catch(() => ({ results: [] }));
+  if ((results || []).some(c => c.name === 'initiate_checkout')) { META_COLS = `${META_BASE}, SUM(d.initiate_checkout) ic`; IC_CHECKED = true; }
+}
 function metaMetrics(r, attr) {
-  const spend = num(r.spend), impr = num(r.impr), clicks = num(r.clicks), atc = num(r.atc);
+  const spend = num(r.spend), impr = num(r.impr), clicks = num(r.clicks), atc = num(r.atc), ic = r.ic == null ? null : num(r.ic);
   const ord = attr ? attr.ord : num(r.p_ord), rev = attr ? attr.rev : num(r.p_rev);
-  return { spend, impressions: impr, reach: num(r.reach), clicks, atc, purchases: ord, revenue: rev, platform_purchases: num(r.p_ord), platform_revenue: num(r.p_rev),
+  return { spend, impressions: impr, reach: num(r.reach), clicks, atc, checkouts: ic, purchases: ord, revenue: rev, platform_purchases: num(r.p_ord), platform_revenue: num(r.p_rev),
     /* Leads (2026-10-28, Cole: lead campaigns had no numbers): Meta's own lead count (instant forms + pixel leads), never TW. */
     leads: num(r.leads), cpl: div(spend, num(r.leads)), lead_rate: div(num(r.leads), clicks),
     roas: div(rev, spend), cpa: div(spend, ord), cpm: div(spend * 1000, impr), ctr: div(clicks, impr), cpc: div(spend, clicks), cost_per_atc: div(spend, atc),

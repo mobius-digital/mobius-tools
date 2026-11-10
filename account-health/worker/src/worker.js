@@ -21,11 +21,12 @@ import { handleCalendar, calendarTick, calendarView, liveOn as calendarLiveOn, u
 import { dailyPost, dailyThread, weeklyPost, weekSentence, internalChannel } from './clientpost.js';
 import { handleRequests, createAsk } from './requests.js';
 import { handleMeetings, handleFirefliesHook, meetingsTick } from './meetings.js';
-import { handleCalls } from './callscreen.js';
+import { handleCalls, finishCall } from './callscreen.js';
 import { handleActions, actionTick, handleActionButton, handleReaction, onActionDone, onActionPlaced, slackName, markDone } from './actions.js';
 import { blockActionPlaced, blockActionDone, blockRollTick, setBlockFetch, setBlockDone, handleGcalPush, blockSyncTick, blockMigrate, ensureWatches } from './blocks.js';
 import { minOffTick, handleMinOffButton, minOffOn } from './minoff.js';
 import { checkinTick, checkinAction, submitCheckin, checkinErrors, reviewPost, reviewAction, reviewSubmit, serveReviewPic, ensureDay } from './checkin.js';
+import { callNudgeTick } from './callnudge.js';
 import { handleProduction, listBoard, moveCard as prodMove, formatOf as prodFormat } from './production.js';
 import { readDoc as prodReadDoc } from './asana-brand.js';
 import { serveFile as prodFile, handleReviewLink, savePhoto } from './prodwork.js';
@@ -109,7 +110,7 @@ const RESYNC_DAYS = 3;          // nightly re-pull window (conversions settle la
 // 3 = video_plays - the correct denominator for the retention curve. Dividing
 //     by 3-second views produced 150%, because a 25% view of a 7-second video
 //     happens BEFORE 3 seconds.
-const ADS_METRICS_VERSION = 4;   // 4 (2026-09-24): add_to_cart per ad, for the Brand tab's test scorecard
+const ADS_METRICS_VERSION = 5;   // 4 (2026-09-24): add_to_cart per ad, for the Brand tab's test scorecard; 5 (2026-11-10): initiate_checkout per ad, the Meta funnel's checkout step
 const ACTIVITY_BACKFILL_DAYS = 90;
 // One platform: the Meta screens are now a tab inside Mobius (was the separate
 // Account Health dashboard, which is kept only as a redirect). This worker is
@@ -406,6 +407,15 @@ async function syncMetaStructure(env, acct, force = false) {
 
 const PURCHASE_TYPES = ['omni_purchase', 'purchase', 'offsite_conversion.fb_pixel_purchase'];
 const ATC_TYPES = ['omni_add_to_cart', 'add_to_cart', 'offsite_conversion.fb_pixel_add_to_cart'];
+/* 2026-11-10 (Cole: "where's add to cart to initiate checkout? we absolutely need that step"): Meta's checkout count per
+   ad, so the Meta funnel has every step on every brand, whatever the store's GA4 records. Column added once, guarded. */
+const IC_TYPES = ['omni_initiated_checkout', 'initiate_checkout', 'offsite_conversion.fb_pixel_initiate_checkout'];
+let IC_COL = false;
+async function ensureCheckoutColumn(env) {
+  if (IC_COL) return;
+  await env.DB.prepare(`ALTER TABLE ad_daily ADD COLUMN initiate_checkout REAL NOT NULL DEFAULT 0`).run().catch(() => {});   // "duplicate column" once added
+  IC_COL = true;
+}
 /* Leads per ad (2026-10-15): the cost-per-lead goal on Today's calls for lead campaigns. Instant forms and pixel leads. */
 const LEAD_TYPES = ['lead', 'onsite_conversion.lead_grouped', 'offsite_conversion.fb_pixel_lead'];
 function pickAction(list, types) {
@@ -904,22 +914,24 @@ async function syncAdSlice(env, acct, since, until) {
     +r.reach || 0, +r.clicks || 0, sumActs(r.outbound_clicks),
     sumActs(r.video_p25_watched_actions), sumActs(r.video_p50_watched_actions), sumActs(r.video_p75_watched_actions),
     // avg watch time is SECONDS per impression-ish, not a count - never summed.
-    sumActs(r.video_avg_time_watched_actions), sumActs(r.video_play_actions), pickAction(r.actions, ATC_TYPES), pickAction(r.actions, LEAD_TYPES)]);
-  const COLS = 21;
+    sumActs(r.video_avg_time_watched_actions), sumActs(r.video_play_actions), pickAction(r.actions, ATC_TYPES), pickAction(r.actions, LEAD_TYPES),
+    pickAction(r.actions, IC_TYPES)]);
+  await ensureCheckoutColumn(env);
+  const COLS = 22;
   const per = Math.floor(100 / COLS);                  // D1 caps a statement at 100 bound params
   const stmts = [];
   for (let i = 0; i < daily.length; i += per) {
     const chunk = daily.slice(i, i + per);
     stmts.push(env.DB.prepare(
       `INSERT INTO ad_daily (act_id, ad_id, date, spend, impressions, purchases, revenue, link_clicks, video_3s,
-         video_thruplay, video_p100, reach, clicks_all, outbound_clicks, video_p25, video_p50, video_p75, video_avg_watch, video_plays, add_to_cart, leads) VALUES ` +
+         video_thruplay, video_p100, reach, clicks_all, outbound_clicks, video_p25, video_p50, video_p75, video_avg_watch, video_plays, add_to_cart, leads, initiate_checkout) VALUES ` +
       chunk.map(() => `(${Array(COLS).fill('?').join(',')})`).join(',') +
       ` ON CONFLICT(act_id, ad_id, date) DO UPDATE SET spend = excluded.spend, impressions = excluded.impressions,
         purchases = excluded.purchases, revenue = excluded.revenue, link_clicks = excluded.link_clicks,
         video_3s = excluded.video_3s, video_thruplay = excluded.video_thruplay, video_p100 = excluded.video_p100,
         reach = excluded.reach, clicks_all = excluded.clicks_all, outbound_clicks = excluded.outbound_clicks,
         video_p25 = excluded.video_p25, video_p50 = excluded.video_p50, video_p75 = excluded.video_p75,
-        video_avg_watch = excluded.video_avg_watch, video_plays = excluded.video_plays, add_to_cart = excluded.add_to_cart, leads = excluded.leads`,
+        video_avg_watch = excluded.video_avg_watch, video_plays = excluded.video_plays, add_to_cart = excluded.add_to_cart, leads = excluded.leads, initiate_checkout = excluded.initiate_checkout`,
     ).bind(...chunk.flat()));
   }
   const ads = new Map();
@@ -7930,6 +7942,8 @@ const AH_APP = {
         ran.minOff = await minOffTick(env, minOffDeps()).catch(e => ({ error: e.message }));
         /* The team's daily check-in post in #daily-checkin, the no-plan nudge, and 24-hour review approvals (checkin.js, 2026-10-26). */
         ran.checkin = await checkinTick(env, checkinDeps(ctx)).catch(e => ({ error: e.message }));
+        /* Monday 7am: brands with no strategist plan yet; from noon: a call of today left open (callnudge.js, 2026-11-09). */
+        ran.callNudge = await callNudgeTick(env, { ...checkinDeps(ctx), finish: id => finishCall(env, { ...actionDeps(), waitUntil: p => ctx.waitUntil(p), adsReport }, { id }, 'Locus (finished at noon)') }).catch(e => ({ error: e.message }));
         /* The Buyer list: ONE post a day in the buyer channel (buyerlist.js, 2026-10-26); the morning cards no longer carry the calls. */
         ran.buyerPost = await buyerPostTick(env, buyerDeps()).catch(e => ({ error: e.message }));
         /* The morning read (buyerai.js): every brand, three side by side, from the hour BEFORE the post hour, so the post
