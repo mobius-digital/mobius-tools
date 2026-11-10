@@ -288,6 +288,9 @@ async function clientData(env, d, act, who) {
     kind: 'client', today, act_id: act, name: b.name,
     ads: { review: cards.filter(c => c.board === 'review').map(cardOut), approved: cards.filter(c => c.board === 'ready').map(cardOut),
       live: live.slice(0, 30).map(r => ({ id: r.id, name: r.ad_name || r.adset || 'Ad', day: r.day, card: r.card || '', status: r.eff_status || r.status || '', ads_manager: r.ads_manager })) },
+    /* Calls v2 round 7: the same Production board the Monday meeting showed (Brief, Making, Review, Ready), so the client
+       sees what the team already saw; each card opens in place. Internal owners stay off the client's screen. */
+    making: cards.filter(c => ['brief', 'making', 'review', 'ready'].includes(c.board)).slice(0, 30).map(c => ({ id: c.id || null, num: c.num, title: c.title, board: c.board, due: c.due || '', thumb: c.thumb || null, format: c.format || '' })),
     week: await withLeads(env, act, readOf(wk || wkAny)), month: await withLeads(env, act, readOf(mo)),
     asks: (req.items || []).filter(x => x.kind === 'ask' && x.status === 'open').map(x => ({ id: x.id, title: x.title, body: x.body, created_at: x.created_at })),
     approvals: (req.items || []).filter(x => x.kind === 'approval' && x.status === 'open').map(x => ({ id: x.id, title: x.title, created_at: x.created_at })),

@@ -328,14 +328,14 @@
       .cs header.cs-hd{flex-direction:row;align-items:flex-start;justify-content:space-between;gap:12px}
       .cs header.cs-hd>div:first-child{display:flex;flex-direction:column;gap:2px;min-width:0}
       .cs .cs-hda{display:flex;gap:8px;flex:0 0 auto}
-      .cs .cs-chan{display:flex;flex-direction:column;gap:18px}
+      .cs .cs-grp{display:flex;flex-direction:column;gap:16px}
       .cs .cs-part{margin:20px 0 0;font-size:12px;font-weight:650;letter-spacing:.06em;color:var(--ink-2)}
       .cs .cs-part>span:first-child{width:22px;height:22px;border-radius:6px;background:color-mix(in srgb,var(--acc) 14%,var(--surface));border:1px solid color-mix(in srgb,var(--acc) 35%,var(--line));color:color-mix(in srgb,var(--acc) 70%,var(--ink));font-size:11.5px;font-weight:700;display:grid;place-items:center}
       .cs .cs-part::after{content:'';flex:1;height:1px;background:var(--line)}
       .cs .cs-tiles{grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:10px}
       .cs .cs-tile{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:13px 15px;box-shadow:none;gap:6px}
       .cs .cs-tile .l{font-size:12px;font-weight:500;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .cs .cs-tile .v{font-size:24px;font-weight:650;letter-spacing:-.02em;flex-wrap:nowrap;justify-content:space-between;gap:8px}
+      .cs .cs-tile .v{font-size:24px;font-weight:650;letter-spacing:-.02em;flex-wrap:nowrap;justify-content:flex-start;align-items:center;gap:8px}
       .cs .cs-tile .sub{line-height:1.4}
       .cs .cs-tile .sub.down{color:var(--bad)}.cs .cs-tile .sub.up{color:var(--good)}
       .cs .cs-d{height:20px;padding:0 7px;font-size:11.5px;flex:0 0 auto}
@@ -401,6 +401,28 @@
       .cs .cs-fm .k{font-size:11px;color:var(--muted);font-weight:500}
       .cs .cs-fc .l small{font-size:10.5px;font-weight:500}
       .cs p.cs-lead{display:block;margin:0;font-size:13px;color:var(--ink-2)}
+      /* Customers pictures */
+      .cs .cs-cv{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px;align-items:end;height:200px}
+      .cs .cs-cv .c{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:5px;height:100%;text-align:center}
+      .cs .cs-cv .c i{display:block;width:56%;border-radius:6px 6px 2px 2px;background:var(--brand);opacity:.85}
+      .cs .cs-cv .v{font-size:15px;font-weight:650;font-variant-numeric:tabular-nums}.cs .cs-cv .d{font-size:12px;font-weight:600;color:var(--ink-2)}.cs .cs-cv .r{font-size:11.5px;color:var(--muted)}
+      .cs table.cs-path td:not(:first-child),.cs table.cs-path th:not(:first-child){text-align:left}
+      .cs table.cs-path td:nth-child(2),.cs table.cs-path td:nth-child(3),.cs table.cs-path th:nth-child(2),.cs table.cs-path th:nth-child(3){text-align:right}
+      .cs table.cs-path td:last-child{padding-left:18px}.cs table.cs-path .cs-chip{margin:2px 4px 2px 0}
+      .cs .cs-srcrow{display:grid;grid-template-columns:120px minmax(0,1fr);gap:6px 14px;align-items:center}
+      .cs .cs-srcrow .t{font-size:13px;font-weight:600;color:var(--ink-2)}
+      .cs .cs-stack{display:flex;height:14px;border-radius:999px;overflow:hidden;background:var(--surface-2)}
+      .cs .cs-stack i{display:block;height:100%}
+      .cs .cs-srcrow .k{grid-column:2;display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+      .cs .cs-srcrow .k i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px}
+      .cs ol.lines{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+      .cs ol.lines li{display:flex;gap:12px;align-items:flex-start;font-size:14.5px;line-height:1.45;color:var(--ink)}
+      .cs ol.lines li>i{font-style:normal;flex:0 0 24px;width:24px;height:24px;border-radius:7px;background:var(--brand-soft);color:var(--brand-ink);font-size:12px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
+      .cs .cs-jump{position:sticky;top:8px;z-index:20;display:flex;gap:4px;flex-wrap:wrap;padding:6px;background:color-mix(in srgb,var(--surface) 92%,transparent);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:12px;box-shadow:var(--sh-1)}
+      .cs .cs-jump button{height:30px;padding:0 12px;border:0;border-radius:8px;background:transparent;font:inherit;font-size:13px;font-weight:550;color:var(--ink-2);cursor:pointer}
+      .cs .cs-jump button:hover{background:var(--surface-2);color:var(--ink)}
+      .cs .cs-grp{scroll-margin-top:64px}
+      .cs .cs-board .mini .tn{display:block;width:100%;aspect-ratio:4/5;max-height:120px;border-radius:6px;background:var(--line) center/cover;margin-bottom:6px}
       .cs .cs-htitle{margin:6px 0 0;font-size:12px;font-weight:600;color:var(--muted)}
       .cs .cs-hop{grid-template-columns:minmax(170px,230px) minmax(0,1fr) 190px}
       .cs .cs-hop .hl{display:flex;align-items:center;justify-content:flex-start;gap:6px}.cs .cs-hop .hl .ar{color:var(--faint,var(--muted))}
@@ -561,7 +583,9 @@
   }
 
   /* ---------- shared pieces ---------- */
-  const delta = (a, b, lowerBetter) => { const v = pct(a, b); if (v == null) return ''; const tone = Math.abs(v) < 1 ? 'flat' : (lowerBetter ? v <= 0 : v >= 0) ? 'up' : 'down'; return `<span class="cs-d ${tone}">${v > 0 ? '+' : ''}${v}%</span>`; };
+  /* lowerBetter: true = a fall is good (cost per sale); 'n' = neither (spend, budgets: Cole, "ad spend going up is never
+     good or bad, it is just up"), shown grey with an arrow. */
+  const delta = (a, b, lowerBetter) => { const v = pct(a, b); if (v == null) return ''; if (lowerBetter === 'n') return `<span class="cs-d flat">${v > 0 ? '↑' : v < 0 ? '↓' : ''} ${Math.abs(v)}%</span>`; const tone = Math.abs(v) < 1 ? 'flat' : (lowerBetter ? v <= 0 : v >= 0) ? 'up' : 'down'; return `<span class="cs-d ${tone}">${v > 0 ? '+' : ''}${v}%</span>`; };
   /* 2026-11-03 rewrite (Cole on the Nov 2 calls: "I don't know what I'm looking at"): every tile says what it counts in
      its own label, and the line under it says what it is compared with. The section caption says where it all comes from.
      Lead ads: MER is shown with AND without the lead ads' spend (Cole did that sum with Siri on the call). */
@@ -576,7 +600,7 @@
     const merSub = f.mer ? `${t.mer >= f.mer ? 'on' : 'under'} the ${x2(f.mer)} goal${noLeads}` : `${was(p.mer, x2)}${noLeads}`;
     return `<div class="cs-tiles">
       ${tile('Sales, whole store', money(sales), delta(sales, p.sales), was(p.sales, money))}
-      ${tile('Ad spend, every channel', money(spend), delta(spend, p.spend, true), was(p.spend, money))}
+      ${tile('Ad spend, every channel', money(spend), delta(spend, p.spend, 'n'), was(p.spend, money))}
       ${tile('MER (sales ÷ ad spend)', x2(t.mer), delta(t.mer, p.mer), merSub, f.mer && t.mer != null ? (t.mer >= f.mer ? 'up' : 'down') : '')}
       ${tile('Orders', t.orders != null ? Math.round(t.orders).toLocaleString('en-US') : '–', delta(t.orders, p.orders), was(p.orders, v => Math.round(v).toLocaleString('en-US')))}
       ${t.ncpa != null ? tile('Cost per new customer', money(t.ncpa), delta(t.ncpa, p.ncpa, true), was(p.ncpa, money)) : ''}
@@ -746,11 +770,10 @@
     const job = (k, p) => { if (only && !only.includes(k)) return Promise.resolve(); X.busy = (X.busy || 0) + 1; return p.then(v => { X[k] = v; }, e => { X[k] = { error: e.message }; }).finally(() => { X.busy--; }); };
     const label = `${short(from)} to ${short(to)}`;
     await Promise.all([
-      job('ads', V2.adSet(b.act_id, from, to, H, { label, model: X.model, callActs: adActs(b) })),
+      job('ads', V2.adSet(b.act_id, from, to, H, b.client ? { client: true, label, model: X.model } : { label, model: X.model, callActs: adActs(b) })),
       job('live', H.apiAH(`/api/meta/live?act=${act}`)),
       job('acts', H.apiAH(`/api/activities?act=${act}&from=${from}&to=${addDays(to, 1)}T05:59:59&limit=200`)),
       job('ga', H.apiAH(`/api/google/website?act=${act}&from=${from}&to=${to}&pfrom=${addDays(from, -7)}&pto=${addDays(from, -1)}`)),
-      job('ga4w', H.apiAH(`/api/google/website?act=${act}&from=${addDays(from, -28)}&to=${addDays(from, -1)}`)),
       job('cust', H.api(`/api/customers?act=${act}&days=90`)),
       job('paid', H.api(`/api/hub/paid?platform=meta&act=${act}&from=${from}&to=${to}&model=${encodeURIComponent(X.model)}`)),
       job('gads', H.apiAH(`/api/google/ads?act=${act}&from=${from}&to=${to}`)),
@@ -759,7 +782,7 @@
       b.creators ? job('rv', H.apiAH(`/api/trybe/review?act=${act}`)) : Promise.resolve(),
     ]);
     X.loaded = true;
-    const s = steps()[POS]; if (KIND === 'monday' && s && s.id === b.act_id) { const y = window.scrollY; paintMain(); window.scrollTo(0, y); }
+    const s = steps()[POS]; if ((KIND === 'monday' && s && s.id === b.act_id) || (KIND === 'client' && b.client)) { const y = window.scrollY; paintMain(); window.scrollTo(0, y); }
   }
   /* The sheet's call buttons (the Ads page sheet opened from the call): turn the ad off now, or hand a call to the buyer. */
   function adActs(b) {
@@ -824,9 +847,10 @@
     const dp = x => fx(x, x != null && x < 0.1 ? 1 : 0);
     const cards = S.map((s, i) => {
       let mid = '';
-      if (i) { const a = S[i - 1], r = a.v ? s.v / a.v : null, ra = a.a && s.a != null ? s.a / a.a : null, rp = a.p && s.p != null ? s.p / a.p : null, base = ra != null ? ra : rp, tone = r == null || base == null ? '' : r >= base ? 'up' : 'down';
-        mid = `<div class="cs-fm"><b>${dp(r)}</b><span class="k">moved on</span>${base != null ? `<span class="cs-cmp ${tone}">${ra != null ? 'usual' : 'last wk'} ${dp(base)}</span>` : ''}</div>`; }
-      return `${mid}<div class="cs-fc"><span class="l">${esc(s.l)}${s.src ? ` <small class="muted">${esc(s.src)}</small>` : ''}</span><span class="v">${nfmt(s.v)}</span><span class="d">${s.p != null && s.p > 0 ? delta(s.v, s.p) : '<span class="muted">no week before</span>'}</span></div>`;
+      /* Round 7 (Cole: "what's the difference between usual and last week?"): one comparison only, last week. */
+      if (i) { const a = S[i - 1], r = a.v ? s.v / a.v : null, rp = a.p && s.p != null ? s.p / a.p : null, tone = r == null || rp == null ? '' : r >= rp ? 'up' : 'down';
+        mid = `<div class="cs-fm"><b>${dp(r)}</b><span class="k">moved on</span>${rp != null ? `<span class="cs-cmp ${tone}">${dp(rp)} last week</span>` : ''}</div>`; }
+      return `${mid}<div class="cs-fc"><span class="l">${esc(s.l)}</span><span class="v">${nfmt(s.v)}</span><span class="d">${s.p != null && s.p > 0 ? delta(s.v, s.p) : '<span class="muted">no week before</span>'}</span></div>`;
     }).join('');
     void hue; void hasAvg;
     return `<div class="cs-flow">${cards}</div>`;
@@ -930,8 +954,8 @@
         ${err ? `<p class="cs-empty">${esc(err === 'not_linked' ? 'Klaviyo is not connected for this brand.' : err)}</p>` : ''}`)}
       ${sec('Email and SMS campaigns', 'Sent last week.', camps.length ? `<div class="cs-tw"><table class="cs-tbl"><thead><tr><th>Campaign</th>${thSort(b, ek, 'sent', 'Sent', 'esort')}${thSort(b, ek, 'open_rate', 'Opened', 'esort')}${thSort(b, ek, 'click_rate', 'Clicked', 'esort')}${thSort(b, ek, 'revenue', 'Sales (Klaviyo)', 'esort')}${thSort(b, ek, 'rpr', 'Per person sent', 'esort')}</tr></thead><tbody>${crow.map(c => `<tr><td>${esc(c.name)} <small class="muted">${/sms/i.test(c.channel || '') ? 'SMS' : 'email'} · ${md(String(c.send_at || c.sent_at || '').slice(0, 10))}</small></td><td>${(c.recipients || 0).toLocaleString('en-US')}</td><td>${c.open_rate != null ? fx(c.open_rate) : '–'}</td><td>${c.click_rate != null ? fx(c.click_rate, 2) : '–'}</td><td>${money(c.revenue)}</td><td>${c.rpr != null ? cents(c.rpr) : '–'}</td></tr>`).join('')}</tbody></table></div>` : empty('No campaigns sent last week.'))}
       ${sec('Flows', 'The automations that run on their own. Klaviyo\'s own report window.', flows.length ? `<div class="cs-tw"><table class="cs-tbl"><thead><tr><th>Flow</th><th>Sent</th><th>Sales (Klaviyo)</th><th>Per person sent</th></tr></thead><tbody>${flows.map(f => { const n = f.recipients || f.delivered || 0; return `<tr><td>${esc(f.name)}</td><td>${n.toLocaleString('en-US')}</td><td>${money(f.revenue)}</td><td>${n ? cents(f.revenue / n) : '–'}</td></tr>`; }).join('')}</tbody></table></div>` : empty('No flow sales in Klaviyo\'s report.'))}
-      ${ga ? sec('Email funnel', 'People who came from email and SMS (GA4), against the week before and their usual.', funnelHtml(ga.cur, ga.prev, null, 'var(--c-email)', ga.avg)) : ''}
-      ${sec('Email plan', 'Type what goes out this week. Yes, Changes or No on each line.', planHtml(b, 'eplan', STRAT[b.act_id] || 'the strategist'))}`;
+      ${ga ? sec('Email funnel', 'People who came from email and SMS (GA4), against last week.', funnelHtml(ga.cur, ga.prev, null, 'var(--c-email)', ga.avg)) : ''}
+      ${b.client ? '' : sec('Email plan', 'Type what goes out this week. Yes, Changes or No on each line.', planHtml(b, 'eplan', STRAT[b.act_id] || 'the strategist'))}`;
   }
   function lastWeekBlock(b) {
     const X = bx(b.act_id), r = b.read, t = today();
@@ -939,13 +963,42 @@
     const mine = acts ? acts.filter(a => a.summary && (a.manual || /budget|paused|status|new_|creative|ad_/i.test(a.category || a.event_type || ''))).slice(0, 12) : null;
     const ga = X.ga && !X.ga.error ? X.ga : null;
     return `${sec(`${esc(b.name)}: last week`, r ? `${short(r.period_start)} to ${short(r.period_end)}. Triple Whale, whole store, every channel, against the week before.` : '', r ? tilesHtml(r) : empty('No weekly report for this brand yet.'))}
-      ${sec('The store funnel', 'Every visitor, every source (GA4). Green or red = above or under this brand\'s own last 4 weeks.', X.ga == null ? empty('Loading GA4…') : ga ? funnelHtml(ga.cur, ga.prev, null, null, gaAvg(X), r && r.totals ? { v: r.totals.orders, p: r.prior && r.prior.orders } : null) : `<p class="cs-empty">${esc(X.ga.error === 'not_linked' ? 'GA4 is not connected for this brand.' : X.ga.error)}</p>`)}
+      ${sec('The store funnel', 'Everyone who visited the site (GA4), and how many moved to the next step. Each step against last week.', X.ga == null ? empty('Loading GA4…') : ga ? funnelHtml(ga.cur, ga.prev, null, null, gaAvg(X), r && r.totals ? { v: r.totals.orders, p: r.prior && r.prior.orders } : null) : `<p class="cs-empty">${esc(X.ga.error === 'not_linked' ? 'GA4 is not connected for this brand.' : X.ga.error)}</p>`)}
       ${custBlock(b)}
       ${sec('Last week\'s changes', 'What we changed in the accounts, from the Change Log.', mine == null ? (X.acts && X.acts.error ? `<p class="cs-empty">${esc(X.acts.error)}</p>` : empty('Loading…')) : mine.length ? (X.chg = mine, changesHtml(mine, b)) : empty('No changes logged last week.'))}
       ${sec('Last week\'s tasks', 'Open tasks for this brand in Locus Tasks, due by today. Tick one when it\'s done.', todoList(b.open || [], t, 'Nothing open for this brand.'))}`;
   }
   /* Last week's changes, skimmable (Cole: "it only gives text, should it give visual cues"): a chip for what kind of
      change it was, the platform, the money move pulled out in bold, grouped by day, a count of each kind on top. */
+  /* Round 7 Customers (Cole: "why not just say CAC, new customer AOV, 90-day LTV? show me what they buy first and what
+     they buy next"). Standard names, one window stated (the last 90 days for the money, every customer Locus has
+     followed for the product path), and three pictures: value over time, first product -> what comes next, and where
+     first vs repeat orders come from. Data: profit /api/customers (Triple Whale orders). */
+  const SRC = { meta: ['Meta', 'var(--c-meta)'], google: ['Google', 'var(--c-google)'], email: ['Email / SMS', 'var(--c-email)'], tiktok: ['TikTok', 'var(--c-tiktok)'], own: ['Direct / organic', 'var(--line-strong)'] };
+  function custBlock7(b, C) {
+    const h = C.headline || {}, j = C.journey || {}, P = j.products || {};
+    const tile = (l, v, sub) => v == null ? '' : `<div class="cs-tile"><span class="l">${l}</span><span class="v">${v}</span><span class="sub">${sub || ''}</span></div>`;
+    const c90 = (j.curve || []).find(p => p.days === 90 && p.ltv != null);
+    const tiles = [
+      tile('CAC', h.cac ? money(h.cac) : null, h.new_orders != null ? `${nfmt(h.new_orders)} new customers` : ''),
+      tile('New customer AOV', h.new_aov != null ? money(h.new_aov) : null, h.payback != null ? `first order pays back ${x2(h.payback)} its CAC` : ''),
+      c90 ? tile('90-day LTV', money(c90.ltv), h.cac ? `${x2(c90.ltv / h.cac)} LTV:CAC` : '') : '',
+      tile('Returning customer orders', h.returning_orders != null ? nfmt(h.returning_orders) : null, h.returning_aov != null ? `returning AOV ${money(h.returning_aov)} · ${fx(1 - (h.new_rev_share ?? 1), 0)} of revenue` : ''),
+      j.repeat_rate_ever != null ? tile('Repeat rate', fx(j.repeat_rate_ever, 0), j.days_to_second != null ? `2nd order after ${Math.round(j.days_to_second)} days (median)` : 'bought again') : '',
+    ].join('');
+    const curve = (j.curve || []).filter(p => p.ltv != null);
+    const cmax = Math.max(...curve.map(p => p.ltv), 1);
+    const curveHtml = curve.length > 1 ? `<div class="cs-cv">${curve.map(p => `<div class="c"><span class="v">${money(p.ltv)}</span><i style="height:${Math.max(8, p.ltv / cmax * 100)}%"></i><span class="d">${p.days} days</span><span class="r">${fx(p.repeat_rate, 0)} bought again</span></div>`).join('')}</div>` : '';
+    const first = (P.first || []).slice(0, 6);
+    const pathHtml = first.length ? `<table class="cs-tbl cs-path"><thead><tr><th>First product bought</th><th>New customers</th><th>Bought again</th><th>What they bought next</th></tr></thead><tbody>${first.map(p => `<tr><td>${esc(p.name || p.title || p.id)}</td><td>${nfmt(p.customers)} <small class="muted">${fx(p.share, 0)}</small></td><td>${p.repeat_rate != null ? fx(p.repeat_rate, 0) : '–'}</td><td>${(p.then || []).slice(0, 3).map(t => `<span class="cs-chip">${esc(t.name)} <b>${t.customers}</b></span>`).join(' ') || '<span class="muted">–</span>'}</td></tr>`).join('')}</tbody></table>` : '';
+    const bar = (list, title) => { const tot = (list || []).reduce((n, s) => n + (s.orders || 0), 0); if (!tot) return ''; return `<div class="cs-srcrow"><span class="t">${title}</span><div class="cs-stack">${list.map(s => `<i style="width:${s.orders / tot * 100}%;background:${(SRC[s.source] || [s.source, 'var(--muted)'])[1]}" title="${esc((SRC[s.source] || [s.source])[0])}: ${fx(s.orders / tot, 0)}"></i>`).join('')}</div><span class="k">${list.filter(s => s.orders / tot >= 0.05).map(s => `<span><i style="background:${(SRC[s.source] || [s.source, 'var(--muted)'])[1]}"></i>${esc((SRC[s.source] || [s.source])[0])} ${fx(s.orders / tot, 0)}</span>`).join('')}</span></div>`; };
+    const srcHtml = j.sources ? `${bar(j.sources.first, 'First orders')}${bar(j.sources.repeat, 'Repeat orders')}` : '';
+    if (!tiles && !pathHtml) return '';
+    return `${sec('Customers', 'Last 90 days. Triple Whale orders, followed from each customer\'s first order.', `<div class="cs-tiles">${tiles}</div>`)}
+      ${curveHtml ? sec('What a new customer is worth over time', 'Average spend per customer since their first order (LTV), and the share who bought again.', curveHtml) : ''}
+      ${pathHtml ? sec('What they buy first, and what they buy next', `Every customer Locus has followed${P.coverage != null ? ` (${fx(P.coverage, 0)} of orders have products)` : ''}.`, `<div class="cs-tw">${pathHtml}</div>`) : ''}
+      ${srcHtml ? sec('Where first and repeat orders come from', 'Last click, Triple Whale.', srcHtml) : ''}`;
+  }
   function changeKind(a) {
     const s = `${a.category || ''} ${a.event_type || ''} ${a.summary || ''}`;
     const m = String(a.summary || '').match(/\$([\d,.]+)\s*(?:to|→|->)\s*\$([\d,.]+)/i), n = v => +String(v).replace(/,/g, '');
@@ -978,12 +1031,13 @@
     const who = a => { const s = String(a.actor || ''); return /claude/i.test(s) ? 'Claude' : /mobius tools/i.test(s) ? 'Locus' : /^meta$/i.test(s) ? 'Meta' : s ? teamName(s) : ''; };
     let last = '';
     return `<div class="cs-sum">${Object.entries(count).sort((p, q) => q[1] - p[1]).map(([l, n]) => { const tone = (rows.find(r => r.k[1] === l) || { k: [''] }).k[0]; return `<span class="cs-chip ${tone}">${esc(l)} <b>${n}</b></span>`; }).join('')}</div>
-      <ul class="cs-chg">${rows.map(r => { const head = r.day !== last ? `<li class="day">${md(r.day)}</li>` : ''; last = r.day; const txt = esc(r.a.summary).replace(r.k[2] ? esc(r.k[2][0]) : '\u0000', r.k[2] ? `<em>${esc(r.k[2][0])}</em>` : ''); const tg = r.t ? ` data-chg="${r.i}" data-act="${esc(b.act_id)}" tabindex="0" role="button" title="Open it"` : ''; return `${head}<li class="${r.t ? 'go' : ''}"${tg}><span><span class="cs-chip ${r.k[0]}">${esc(r.k[1])}</span></span><span class="tx"><span class="cs-plat ${r.plat}"></span>${txt}</span><span class="o">${esc(who(r.a))}${r.t ? ' <span class="chev">›</span>' : ''}</span></li>`; }).join('')}</ul>`;
+      <ul class="cs-chg">${rows.map(r => { const head = r.day !== last ? `<li class="day">${md(r.day)}</li>` : ''; last = r.day; const txt = esc(r.a.display || r.a.summary).replace(r.k[2] ? esc(r.k[2][0]) : '\u0000', r.k[2] ? `<em>${esc(r.k[2][0])}</em>` : ''); const tg = r.t ? ` data-chg="${r.i}" data-act="${esc(b.act_id)}" tabindex="0" role="button" title="Open it"` : ''; return `${head}<li class="${r.t ? 'go' : ''}"${tg}><span><span class="cs-chip ${r.k[0]}">${esc(r.k[1])}</span></span><span class="tx"><span class="cs-plat ${r.plat}"></span>${txt}</span><span class="o">${esc(who(r.a))}${r.t ? ' <span class="chev">›</span>' : ''}</span></li>`; }).join('')}</ul>`;
   }
   /* Customers and products (Cole: "LTV, the customer journey, what's selling"). From Locus's Customers page
      (/api/customers: Triple Whale orders followed from the first order). Shown only when it answers. */
   function custBlock(b) {
     const X = bx(b.act_id), C = X.cust; if (C == null) return sec('Customers', '', empty('Loading customers…')); if (C.error) return '';
+    return custBlock7(b, C);
     /* Shapes from profit worker /api/customers: headline (window), journey (customers followed from their first order). */
     const h = C.headline || {}, j = C.journey || {}, w = j.window || {};
     const tile = (l, v, sub) => v == null ? '' : `<div class="cs-tile"><span class="l">${l}</span><span class="v">${v}</span><span class="sub">${sub || ''}</span></div>`;
@@ -1014,7 +1068,7 @@
     const rev = useRep ? ch.cur.revenue : M ? sum('revenue') : null, ord = useRep ? ch.cur.purchases : M ? sum('purchases') : null;
     const roas = useRep ? ch.cur.roas : sp ? rev / sp : null, mname = (MODELS.find(m => m[0] === X.model) || [])[1] || '';
     const tile = (l, v, sub) => `<div class="cs-tile"><span class="l">${l}</span><span class="v">${v}</span><span class="sub">${sub || ''}</span></div>`;
-    const tiles = (ch || M) ? `<div class="cs-tiles">${tile('Meta spend', `${money(sp)}${ch && ch.prev ? delta(ch.cur.spend, ch.prev.spend, true) : ''}`, ch && ch.prev ? `${money(ch.prev.spend)} the week before` : '')}
+    const tiles = (ch || M) ? `<div class="cs-tiles">${tile('Meta spend', `${money(sp)}${ch && ch.prev ? delta(ch.cur.spend, ch.prev.spend, 'n') : ''}`, ch && ch.prev ? `${money(ch.prev.spend)} the week before` : '')}
         ${tile(`Meta sales (${esc(mname)})`, `${money(rev)}${useRep && ch.prev ? delta(ch.cur.revenue, ch.prev.revenue) : ''}`, ord != null ? plural(Math.round(ord), 'order') : '')}
         ${tile('Meta ROAS', `${x2(roas)}${vsGoal(roas, groas)}`, useRep && ch.prev ? `${x2(ch.prev.roas)} the week before` : useRep ? '' : 'sum of the ads under this attribution')}
         ${(() => { const lsp = M ? (M.ads || []).filter(a => isLeadRow(M, a)).reduce((n, a) => n + (a.spend || 0), 0) : 0; return tile('Cost per sale', ord ? money((sp - lsp) / ord) : '–', `${lsp ? 'sales ads only' : ''}${lsp && M && M.g && M.g.cpa ? ', ' : ''}${M && M.g && M.g.cpa ? `goal ${money(+M.g.cpa)}` : ''}`); })()}
@@ -1037,6 +1091,10 @@
       : X.paid == null ? empty('Loading…') : `<p class="cs-empty">${esc(X.paid.error)}</p>`;
     void imp; void clk; void gaOk;
     const strat = STRAT[b.act_id] || strategistOf(b) || 'The strategist';
+    /* The client meeting shows the same Meta pieces the team saw on Monday, minus the controls and the internal plan. */
+    if (b.client) return `${secA('Meta results', 'Spend is Meta. Sales are Triple Whale.', attSel, tiles)}
+      ${sec('Your ads', `${r ? `${short(r.period_start)} to ${short(r.period_end)}` : ''}. Tap one to see it and all its numbers.`, ads.replace(/<p class="cs-sub">The Ads page's own cards[\s\S]*?<\/p>/, ''))}
+      ${sec('From the click to the sale', 'People who clicked an ad and what they did next, against last week.', fun)}`;
     return `${secA('Meta results', `Spend is Meta. Sales follow the attribution picked here, and so do the campaigns and ads below.`, attSel, tiles)}
       ${secA('Meta campaigns', `${esc(mname)}. Tap a campaign for its ad sets, an ad set for its ads.`, `<button type="button" class="cs-dd" data-mcols="${esc(b.act_id)}"><span class="v">Columns</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>`, metaTable(b))}
       ${sec('Meta ads', `${r ? `${short(r.period_start)} to ${short(r.period_end)}` : ''}, ${esc(mname)}.`, ads)}
@@ -1049,14 +1107,15 @@
     const ga = gaRow(X, /paid search|paid shopping|cross-network|paid other/i);
     const G = X.gads && !X.gads.error ? X.gads.campaigns || [] : [], gclk = G.reduce((n, c) => n + (c.clicks || 0), 0), gimp = G.reduce((n, c) => n + (c.impressions || 0), 0);
     const tile = (l, v, sub) => `<div class="cs-tile"><span class="l">${l}</span><span class="v">${v}</span><span class="sub">${sub || ''}</span></div>`;
-    const tiles = `<div class="cs-tiles">${tile('Google spend', `${money(ch.cur.spend)}${ch.prev ? delta(ch.cur.spend, ch.prev.spend, true) : ''}`, ch.prev ? `${money(ch.prev.spend)} the week before` : '')}
+    const tiles = `<div class="cs-tiles">${tile('Google spend', `${money(ch.cur.spend)}${ch.prev ? delta(ch.cur.spend, ch.prev.spend, 'n') : ''}`, ch.prev ? `${money(ch.prev.spend)} the week before` : '')}
       ${tile('Google sales (Triple Whale)', `${money(ch.cur.revenue)}${ch.prev ? delta(ch.cur.revenue, ch.prev.revenue) : ''}`, ch.cur.purchases != null ? plural(Math.round(ch.cur.purchases), 'order') : ch.prev ? `${money(ch.prev.revenue)} the week before` : '')}
       ${tile('Google ROAS', x2(ch.cur.roas), ch.prev ? `${x2(ch.prev.roas)} the week before` : '')}
       ${tile('Cost per sale', ch.cur.purchases ? money(ch.cur.spend / ch.cur.purchases) : '–', gclk ? `${Math.round(gclk).toLocaleString('en-US')} clicks at ${cents(ch.cur.spend / gclk)}` : '')}
       ${gimp ? tile('Click rate', fx(gclk / gimp, 2), `${Math.round(gimp).toLocaleString('en-US')} impressions`) : ''}</div>`;
+    if (b.client) return sec('Google results', 'Spend and clicks are Google Ads. Sales are Triple Whale.', tiles);
     return `${sec('Google results', 'Spend and clicks are Google Ads. Sales are Triple Whale last click for the whole channel; Locus does not have the other attributions for Google yet.', tiles)}
       ${sec('Google campaigns', '', googleTable(b))}
-      ${ga ? sec('Google funnel', 'GA4\'s paid search and shopping visitors, against the week before and their usual.', funnelHtml(ga.cur, ga.prev, gclk ? [['Ad clicks', gclk]] : null, 'var(--c-google)', ga.avg)) : ''}
+      ${ga ? sec('Google funnel', 'People who came from Google ads (GA4), against last week.', funnelHtml(ga.cur, ga.prev, gclk ? [['Ad clicks', gclk]] : null, 'var(--c-google)', ga.avg)) : ''}
       ${sec('Radhesh\'s Google plan', 'From Radhesh\'s Slack post. Yes, Changes or No on each line.', planHtml(b, 'gplan', 'Radhesh'))}`;
   }
   /* Trybe videos waiting on a decision, with the buttons (Monday screen and the creator call). */
@@ -1082,8 +1141,8 @@
   function boardPart(b) {
     const t = today(), cards = b.making || [];
     const cols = [['brief', 'Brief'], ['making', 'Making'], ['review', 'Review'], ['ready', 'Ready to launch']];
-    return `<div class="cs-board">${cols.map(([k, l]) => { const cs = cards.filter(c => c.board === k); return `<div class="col"><h4>${l}<span>${cs.length}</span></h4>${cs.map(c => `<button type="button" class="mini" data-card="${esc(c.id || '')}" data-asana="${esc(c.asana_url || '')}"><b>#${esc(c.num)}</b><span>${esc(c.title)}</span><small>${esc(c.owner || 'Nobody')}${c.due ? ` · <span class="${c.due < t && k !== 'ready' ? 'late' : ''}">${short(c.due)}</span>` : ''}</small></button>`).join('') || '<p class="cs-empty" style="font-size:12px">None</p>'}</div>`; }).join('')}</div>
-      <p class="cs-sub">Tap a card to open it here. A Ready card has "Launch to Meta" inside it.</p>`;
+    return `<div class="cs-board">${cols.map(([k, l]) => { const cs = cards.filter(c => c.board === k); return `<div class="col"><h4>${l}<span>${cs.length}</span></h4>${cs.map(c => `<button type="button" class="mini" data-card="${esc(c.id || '')}" data-asana="${esc(c.asana_url || '')}">${c.thumb ? `<span class="tn" style="background-image:url('${esc(c.thumb)}')"></span>` : ''}<b>#${esc(c.num)}</b><span>${esc(c.title)}</span><small>${b.client ? '' : esc(c.owner || 'Nobody')}${c.due ? `${b.client ? '' : ' · '}<span class="${c.due < t && k !== 'ready' && !b.client ? 'late' : ''}">${b.client ? 'due ' : ''}${short(c.due)}</span>` : ''}</small></button>`).join('') || '<p class="cs-empty" style="font-size:12px">None</p>'}</div>`; }).join('')}</div>
+      <p class="cs-sub">${b.client ? 'Tap a card to see the ads and the brief.' : 'Tap a card to open it here. A Ready card has "Launch to Meta" inside it.'}</p>`;
   }
   function comingPart(b) {
     const X = bx(b.act_id); if (X.cal == null) return empty('Loading the calendar…'); if (X.cal.error) return `<p class="cs-empty">${esc(X.cal.error)}</p>`;
@@ -1102,7 +1161,7 @@
     const has = id => !!(r && (r.channels || []).find(c => c.id === id && c.cur && (c.cur.spend || c.cur.revenue)));
     const list = (name, ph, add) => `<div class="rows" data-list="${name}" data-act="${esc(b.act_id)}">${rowsHtml(s[name] = s[name] || [], true).replace(/data-ph="[^"]*"/g, `data-ph="${esc(ph)}"`)}</div><button type="button" class="add" data-add="${name}" data-act="${esc(b.act_id)}">${add}</button>`;
     const strat = STRAT[b.act_id] || 'the strategist';
-    const chan = (hue, inner) => `<div class="cs-chan" style="--acc:${hue}">${inner}</div>`;
+    const chan = (hue, inner) => `<div class="cs-grp" style="--acc:${hue}">${inner}</div>`;
     return `${chan('var(--brand)', `${part(1, 'Last week')}${lastWeekBlock(b)}`)}
       ${has('meta') ? chan('var(--c-meta)', `${part(2, `Meta <span class="cs-who meta">${esc(strat)}</span>`)}${metaBlock(b)}`) : ''}
       ${has('google') ? chan('var(--c-google)', `${part(3, 'Google <span class="cs-who google">Radhesh</span>')}${googleBlock(b)}`) : ''}
@@ -1163,7 +1222,39 @@
      changed (the Change Log lines that carry a client sentence, like their Updates page), this week (the plan the Monday
      call approved, no names), requests and what we send them, coming up. */
   const CLIENT2 = [{ id: 'news', name: 'Their news', mins: 3 }, { id: 'read', name: 'Last week', mins: 6 }, { id: 'ads', name: 'Ads', mins: 5 }, { id: 'changed', name: 'What we changed', mins: 3 }, { id: 'week', name: 'This week', mins: 4 }, { id: 'asks', name: 'Requests', mins: 3 }, { id: 'coming', name: 'Coming up', mins: 2 }, { id: 'finish', name: 'Finish', mins: 2 }];
-  const clientSteps = () => layout2() ? CLIENT2 : CLIENT_STEPS;
+  /* Round 7 (Cole: "the client meeting and the Monday meeting need more synergy... if it's the same format, the team has
+     already seen it"): ONE scrolling page built from the same pieces as the Monday brand page, minus every internal
+     control (budgets, switches, plan votes, owners, the buyer's moves). A jump bar at the top moves between sections, so
+     it walks like a presentation without changing screens. Then Finish. */
+  const CLIENT3 = [{ id: 'page', name: 'Meeting', mins: 25 }, { id: 'finish', name: 'Finish', mins: 2 }];
+  let CB = null;
+  const clientBrand = () => (CB && CB.act_id === D.act_id ? CB : (CB = { act_id: D.act_id, name: D.name, read: D.week, making: D.making || [...((D.ads || {}).review || []), ...((D.ads || {}).approved || [])], client: true, posts: [], creators: false }));
+  function clientPage() {
+    const b = clientBrand(), X = bx(b.act_id), r = b.read;
+    if (!X.loaded && !X.loading) { X.loading = true; loadBrand2(b).finally(() => { X.loading = false; }); }
+    STATE.asks = STATE.asks || []; STATE.promised = STATE.promised || [];
+    const has = id => !!(r && (r.channels || []).find(c => c.id === id && c.cur && (c.cur.spend || c.cur.revenue)));
+    const acts = X.acts && !X.acts.error ? (X.acts.activities || X.acts.rows || X.acts.items || []) : null;
+    const said = acts ? acts.filter(a => String(a.client_why || '').trim()).map(a => ({ ...a, display: a.client_why })).slice(0, 12) : null;
+    const m = D.monday || {}, wk = D.week || {};
+    const plan = [...(m.meta || []).map(t => ['Meta', t]), ...(m.google || []).map(t => ['Google', t]), ...(m.email || []).map(t => ['Email', t]), ...(wk.this_week || []).map(t => ['', t])];
+    const J = [['news', 'Your news'], ['week', 'Last week'], ['ads', 'Ads'], ['changed', 'What we changed'], ['plan', 'This week'], ['made', 'Being made'], ['asks', 'Requests'], ['coming', 'Coming up']];
+    const grp = (id, n, title, hue, inner) => `<div class="cs-grp" id="cl-${id}" style="--acc:${hue}">${part(n, title)}${inner}</div>`;
+    return `<nav class="cs-jump" aria-label="Sections">${J.map(([k, l]) => `<button type="button" data-jump="cl-${k}">${l}</button>`).join('')}</nav>
+      ${grp('news', 1, 'Your news', 'var(--brand)', sec('What is new on your side?', 'Launches, stock, what customers are saying. We type it here while you talk.', `<textarea data-news class="big" placeholder="Type their news here">${esc(STATE.news || '')}</textarea>`))}
+      ${grp('week', 2, 'Last week', 'var(--brand)', `${sec(`${esc(D.name)}: last week`, r ? `${short(r.period_start)} to ${short(r.period_end)}. Your whole store from Triple Whale, every channel, against the week before.` : '', r ? tilesHtml(r) : empty('No weekly report yet.'))}
+        ${sec('Your store funnel', 'Everyone who visited your site, and how many moved to the next step, against last week.', X.ga == null ? empty('Loading…') : X.ga.error ? `<p class="cs-empty">${esc(X.ga.error === 'not_linked' ? 'Google Analytics is not connected yet.' : X.ga.error)}</p>` : funnelHtml(X.ga.cur, X.ga.prev, null, null, null, r && r.totals ? { v: r.totals.orders, p: r.prior && r.prior.orders } : null))}
+        ${X.cust && !X.cust.error ? custBlock7(b, X.cust) : ''}`)}
+      ${grp('ads', 3, 'Ads', 'var(--c-meta)', `${has('meta') ? metaBlock(b) : ''}${has('google') ? googleBlock(b) : ''}${has('email') ? emailBlock(b) : ''}`)}
+      ${grp('changed', 4, 'What we changed', 'var(--brand)', sec('What we changed, and why', 'The changes we made in your accounts last week. Tap one to see the ad or campaign.', said == null ? empty('Loading…') : said.length ? changesHtml(said, b) : empty('Nothing changed with a note for you last week.')))}
+      ${grp('plan', 5, 'This week', 'var(--brand)', sec('What we are doing this week', m.meta || m.google ? 'The plan the team approved on Monday.' : 'From your weekly report.', plan.length ? `<ol class="lines">${plan.map(([c, t], i) => `<li><i>${i + 1}</i><span>${c ? `<small class="muted">${c}</small><br>` : ''}${esc(t)}</span></li>`).join('')}</ol>` : empty('Say it on the call; the notes catch it.')))}
+      ${grp('made', 6, 'Being made', 'var(--ink-2)', sec('Ads being made for you', 'The same board the team works from: brief, being made, waiting for your review, ready to launch.', boardPart(b)))}
+      ${grp('asks', 7, 'Requests', 'var(--brand)', `<div class="cs-two">
+        ${sec('What we need from you', 'Shows on your Requests page after the call.', `${(D.asks || []).length ? `<ul class="chk">${D.asks.map(a => `<li><span class="tx">${esc(a.title)}</span><span class="o">asked ${short(a.created_at)}</span></li>`).join('')}</ul>` : ''}<div class="rows" data-list="asks" data-act="">${rowsHtml(STATE.asks, true)}</div><button type="button" class="add" data-add="asks" data-act="">+ Add something we need</button>`)}
+        ${sec('What we are sending you', 'What we promised on this call.', `${(m.send || []).length ? `<ul class="chk">${m.send.map(t => `<li><span class="tx">${esc(t)}</span></li>`).join('')}</ul>` : ''}<div class="rows" data-list="promised" data-act="">${rowsHtml(STATE.promised, true)}</div><button type="button" class="add" data-add="promised" data-act="">+ Add something we send</button>`)}</div>`)}
+      ${grp('coming', 8, 'Coming up', 'var(--brand)', sec('Coming up', 'Sales, drops and emails on the calendar, next 3 weeks.', comingPart(b)))}`;
+  }
+  const clientSteps = () => layout2() ? CLIENT3 : CLIENT_STEPS;
   const CX = {};
   async function loadClient2() {
     const r = D.week; if (!r || CX.loading || CX.loaded) return; CX.loading = true;
@@ -1172,19 +1263,19 @@
     await Promise.all([
       job('ads', V2.adSet(D.act_id, from, to, H, { client: true, label: `${short(from)} to ${short(to)}` })),
       job('ga', H.apiAH(`/api/google/website?act=${act}&from=${from}&to=${to}&pfrom=${addDays(from, -7)}&pto=${addDays(from, -1)}`)),
-      job('ga4w', H.apiAH(`/api/google/website?act=${act}&from=${addDays(from, -28)}&to=${addDays(from, -1)}`)),
       job('acts', H.apiAH(`/api/activities?act=${act}&from=${addDays(to, -13)}&to=${addDays(to, 8)}T05:59:59&limit=300`)),
     ]);
     CX.loading = false; CX.loaded = true; paintMain();
   }
   function clientStep2(id) {
+    if (id === 'page') return clientPage();
     const r = D.week;
     if (!CX.loaded && !CX.loading) loadClient2();
     if (id === 'read') {
       if (!r) return null;
       const ga = CX.ga && !CX.ga.error ? CX.ga : null;
       return `${sec(`How last week went: ${short(r.period_start)} to ${short(r.period_end)}`, 'Your whole store from Triple Whale, every channel, against the week before.', (r.status !== 'sent' ? '<p class="warnline">This report has not been sent to them yet.</p>' : '') + tilesHtml(r) + chanTable(r))}
-        ${ga ? sec('Your store funnel', 'Every visitor to the site (GA4), against the week before and your usual (the 4 weeks before).', funnelHtml(ga.cur, ga.prev, null, null, gaAvg(CX))) : ''}`;
+        ${ga ? sec('Your store funnel', 'Everyone who visited your site, and how many moved to the next step, against last week.', funnelHtml(ga.cur, ga.prev, null, null, gaAvg(CX))) : ''}`;
     }
     if (id === 'ads') {
       const M = CX.ads && !CX.ads.error ? CX.ads : null, A = D.ads || { review: [], approved: [], live: [] };
@@ -1453,7 +1544,9 @@
     const title = KIND === 'client' ? esc(D.name) : KIND === 'creator' ? `${esc(D.name)} creators` : TITLE[KIND];
     const finished = D.call && D.call.status === 'finished';
     const last = POS === steps().length - 1;
-    host.innerHTML = `${headHtml(title)}<div class="v2 cs${KIND === 'client' || KIND === 'creator' ? ' cs-deck' : ''}" id="csRoot">
+    /* Round 7: the client and creator meetings use the Monday page's sizes in layout 2 (Cole: "the spacing and sizing on
+       the client meeting is off"); the big-slide deck stays only for the old layout. */
+    host.innerHTML = `${headHtml(title)}<div class="v2 cs${(KIND === 'client' || KIND === 'creator') && !layout2() ? ' cs-deck' : ''}" id="csRoot">
       ${finished ? finishedHtml() : `<nav class="cs-steps" id="csSteps" aria-label="Steps">${stepsHtml()}</nav>
         <div id="csMain" style="display:flex;flex-direction:column;gap:16px">${mainHtml()}</div>
         <div class="cs-bar"><div class="r"><button type="button" class="btn" id="csPrev" ${POS === 0 ? 'disabled' : ''}>← Back</button><span class="where" id="csWhere">${whereHtml()}</span><span class="cs-saved" id="csSaved"></span><button type="button" class="btn pri" id="csNext" ${last ? 'data-finish' : ''}>${nextLabel()}</button></div><div class="cs-will" id="csWill">${willHtml()}</div></div>`}
@@ -1630,9 +1723,10 @@
     $$('[data-finish]', root).forEach(wireFinish);
   }
   function wireLayout2(root) {
-    const brandOf = act => (D.brands || []).find(b => b.act_id === act);
+    const brandOf = act => (D.brands || []).find(b => b.act_id === act) || (KIND === 'client' && D.act_id === act ? clientBrand() : undefined);
     const repaint = () => { const y = window.scrollY; paintMain(); window.scrollTo(0, y); };
     const st = el => bx(el.dataset.act);
+    $$('[data-jump]', root).forEach(bt => bt.onclick = () => { const el = document.getElementById(bt.dataset.jump); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
     $$('[data-goto]', root).forEach(tr => tr.onclick = () => { const i = steps().findIndex(s => s.id === tr.dataset.goto); if (i >= 0) go(i); });
     $$('[data-msort]', root).forEach(b => b.onclick = e => { e.stopPropagation(); st(b).sort = b.dataset.msort; repaint(); });
     $$('[data-gsort]', root).forEach(b => b.onclick = e => { e.stopPropagation(); st(b).gsort = b.dataset.gsort; repaint(); });
@@ -1693,7 +1787,7 @@
     $$('[data-rvnote]', root).forEach(t => t.oninput = () => { rvOf(t).note = t.value; save(); });
     $$('[data-rvsend]', root).forEach(b => b.onclick = () => { const v = rvOf(b); if (!String(v.note || '').trim()) return toast('Say what to change so the creator knows.'); sendRv(b, v); });
     $$('[data-creatorcall]', root).forEach(b => b.onclick = () => open(H, 'creator', b.dataset.creatorcall));
-    const s = steps()[POS], b = KIND === 'monday' && s ? brandOf(s.id) : null;
+    const s = steps()[POS], b = KIND === 'monday' && s ? brandOf(s.id) : KIND === 'client' && layout2() && s && s.id === 'page' ? clientBrand() : null;
     if (b && bx(b.act_id).ads && bx(b.act_id).ads.wire) bx(b.act_id).ads.wire(root);
     if (KIND === 'client' && CX.ads && CX.ads.wire) CX.ads.wire(root);
   }
