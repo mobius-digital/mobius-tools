@@ -228,7 +228,10 @@ async function mondayData(env, d, who) {
   /* What is already being made per brand (Production: Brief, Making, Review), so a batch is never asked for twice. */
   const prod = {};
   const board = await listBoard(env, d, { act: 'all' }).catch(() => ({ cards: [] }));
-  for (const c of board.cards || []) if (['brief', 'making', 'review'].includes(c.board) && !parked(c, today)) (prod[c.act_id] = prod[c.act_id] || []).push({ num: c.num, title: c.title, board: c.board, owner: c.assignee || '', due: c.due || '' });
+  /* 2026-11-09 (calls v2): Ready too (made, waiting to launch), and the card id so a tap opens it on the call. */
+  for (const c of board.cards || []) if (['brief', 'making', 'review', 'ready'].includes(c.board) && !parked(c, today)) (prod[c.act_id] = prod[c.act_id] || []).push({ id: c.id || null, num: c.num, title: c.title, board: c.board, owner: c.assignee || '', due: c.due || '', asana_url: c.asana_url || null });
+  /* Brands with a creator program (calls v2: the Monday screen's Trybe part), and their winning creator videos this week. */
+  const creatorSet = new Set((await creatorBrands(env).catch(() => [])).map(x => x.act_id));
   const brands = await Promise.all(ms.brands.map(async b => {
     const rep = await latestReport(env, b.act_id, 'weekly');
     const read = await withLeads(env, b.act_id, readOf(rep));
@@ -254,7 +257,10 @@ async function mondayData(env, d, who) {
       act_id: b.act_id, name: b.name, read, open: b.open,
       /* The Slack posts themselves, as written, one per person (Cole: "he posts something every Monday, is that pulled?"). */
       posts: b.thread.map(m => ({ by: m.by, at: m.at, text: m.text })),
-      making: (prod[b.act_id] || []).slice(0, 12),
+      making: (prod[b.act_id] || []).slice(0, 24),
+      creators: creatorSet.has(b.act_id) && b.act_id !== LUCKY,
+      winners: creatorSet.has(b.act_id) && b.act_id !== LUCKY ? await callWinners(env, b.act_id, today).catch(() => []) : [],
+      trybe: creatorSet.has(b.act_id) && b.act_id !== LUCKY ? await trybeCounts(env, b.act_id, today).catch(() => null) : null,
       asks: (asks.items || []).filter(x => x.act_id === b.act_id && x.kind === 'ask' && x.status === 'open').map(x => ({ id: x.id, title: x.title, body: x.body, created_at: x.created_at })),
     };
   }));
@@ -282,11 +288,23 @@ async function clientData(env, d, act, who) {
     kind: 'client', today, act_id: act, name: b.name,
     ads: { review: cards.filter(c => c.board === 'review').map(cardOut), approved: cards.filter(c => c.board === 'ready').map(cardOut),
       live: live.slice(0, 30).map(r => ({ id: r.id, name: r.ad_name || r.adset || 'Ad', day: r.day, card: r.card || '', status: r.eff_status || r.status || '', ads_manager: r.ads_manager })) },
+    /* Calls v2 round 7: the same Production board the Monday meeting showed (Brief, Making, Review, Ready), so the client
+       sees what the team already saw; each card opens in place. Internal owners stay off the client's screen. */
+    making: cards.filter(c => ['brief', 'making', 'review', 'ready'].includes(c.board)).slice(0, 30).map(c => ({ id: c.id || null, num: c.num, title: c.title, board: c.board, due: c.due || '', thumb: c.thumb || null, format: c.format || '' })),
     week: await withLeads(env, act, readOf(wk || wkAny)), month: await withLeads(env, act, readOf(mo)),
     asks: (req.items || []).filter(x => x.kind === 'ask' && x.status === 'open').map(x => ({ id: x.id, title: x.title, body: x.body, created_at: x.created_at })),
     approvals: (req.items || []).filter(x => x.kind === 'approval' && x.status === 'open').map(x => ({ id: x.id, title: x.title, created_at: x.created_at })),
     coming: (cal.items || []).filter(e => e.act === act && (e.start || '') >= today).slice(0, 12).map(e => ({ id: e.id, name: e.name, start: e.start, end: e.end || null, kind: e.kind_label || e.kind, confirmed: !!e.confirmed, offer: e.offer || '' })),
     has_client_channel: !!(await env.DB.prepare(`SELECT brief_channel FROM brand_accounts WHERE act_id = ?1`).bind(act).first().catch(() => null))?.brief_channel,
+    /* Calls v2: what this week's Monday call approved for this brand (plan lines voted Yes or Changes, and what we send
+       them), so the client call shows the plan without retyping it. Internal names and notes are left out. */
+    monday: await (async () => {
+      const mc = await loadCall(env, callId('monday', '', mondayOf(today))).catch(() => null);
+      const s = mc && mc.state && mc.state.brands && mc.state.brands[act];
+      if (!s) return null;
+      const ok = arr => (arr || []).filter(x => x && clean(x.text, 300) && x.on !== false && (x.vote === 'y' || x.vote === 'c')).map(x => noDash(clean(x.text, 300)));
+      return { meta: ok(s.batches), google: ok(s.gplan), email: ok(s.eplan), send: (s.sends || []).filter(x => x && clean(x.text, 300)).map(x => noDash(clean(x.text, 300))) };
+    })(),
     call, team: ROSTER.map(r => r.name),
   };
 }
@@ -412,6 +430,33 @@ async function clientLines(env, d, rows) {
   try { const o = await model(env, d, { model: SONNET, system, user, schema: WEEK_SCHEMA, max: 3000 }); return Object.fromEntries((o.brands || []).map(b => [b.brand_id, (b.this_week || []).map(x => noDash(clean(x, 300))).filter(Boolean).slice(0, 4)])); }
   catch { return {}; }
 }
+/** Calls v2: the Trybe tiles (approved videos not in an ad yet, those waiting over a week, pending). Same rule as trybe.js queueAll. */
+async function trybeCounts(env, act, today) {
+  const NL = `status = 'approved' AND ads_count = 0 AND NOT EXISTS (SELECT 1 FROM p_trybe_ad a WHERE a.act_id = s.act_id AND a.trybe_id = s.trybe_id)`;
+  const r = await env.DB.prepare(`SELECT SUM(${NL}) AS queue, SUM(${NL} AND approved_seen <= ?2) AS stale, SUM(status = 'pending') AS pending FROM p_trybe_sub s WHERE act_id = ?1`).bind(act, addDays(today, -7)).first();
+  return { queue: +(r && r.queue) || 0, stale: +(r && r.stale) || 0, pending: +(r && r.pending) || 0 };
+}
+/** Calls v2: one brand's typed state as the plan it kept and the decision lines for its Slack recap. */
+function v2Lines(s, who = {}) {
+  const live = arr => (arr || []).filter(x => x && clean(x.text, 300) && x.on !== false && x.vote !== 'n');
+  const kept = live(s.batches), gkept = live(s.gplan), ekept = live(s.eplan);
+  const planLine = (x, tag) => `${tag}${x.vote === 'y' ? ' approved' : x.vote === 'c' ? ' needs changes' : ''}: ${clean(x.text, 300)}${x.vote === 'c' && clean(x.note, 300) ? `. Change: ${clean(x.note, 300)}` : ''}${x.owner ? ` (${clean(x.owner, 40)})` : ''}`;
+  const extra = [
+    ...kept.map(x => planLine(x, `Meta plan${who.meta ? ` (${who.meta})` : ''}`)),
+    ...gkept.map(x => planLine(x, 'Google plan (Radhesh)')),
+    ...ekept.map(x => planLine(x, 'Email plan')),
+    ...(s.calls || []).filter(x => x && clean(x.text, 300)).map(x => `For the media buyer: ${clean(x.text, 300)}`),
+    ...(s.changes || []).filter(x => clean(x, 300)).map(x => `Changed on the call: ${clean(x, 300)}`),
+    /* 2026-11-10: the Trybe decisions made in the meeting, counted (each one is also its own Change Log line). */
+    ...(() => { const v = Object.values(s.rv || {}).filter(x => x && x.done); if (!v.length) return []; const n = re => v.filter(x => re.test(x.done)).length; const parts = [[n(/approved/i), 'approved'], [n(/changes/i), 'sent back for changes'], [n(/rejected/i), 'rejected']].filter(p => p[0]); return [`Trybe: ${parts.map(p => `${p[0]} ${p[1]}`).join(', ')}`]; })(),
+    ...(s.ideas || []).filter(x => x && clean(x.text, 300)).map(x => `Idea: ${clean(x.text, 300)}`),
+    ...(s.sends || []).filter(x => x && clean(x.text, 300)).map(x => `We send the client: ${clean(x.text, 300)}${ymdOk(x.due) ? ` by ${x.due}` : ''}`),
+    ...Object.entries(s.money || {}).filter(([, m]) => m && m.m).map(([camp, m]) => `Money: ${m.m} ${clean(camp, 120)}${m.amt ? ` to ${clean(String(m.amt), 20)} a day` : ''}`),
+    ...(s.diag && s.diag.pick ? [`Ads or site: ${s.diag.pick}${s.diag.txt ? `. ${clean(s.diag.txt, 300)}` : ''}`] : []),
+    ...(clean(s.offer, 300) ? [`Live offer on the site: ${clean(s.offer, 300)}`] : []),
+  ].map(x => noDash(x));
+  return { kept, extra };
+}
 const item = (kind, x) => ({ text: clean(x.text, 300), detail: clean(x.detail, 2000), owner: clean(x.owner, 40), due: ymdOk(x.due) ? x.due : '', kind, area: kind === 'brief' ? 'ads' : '' });
 
 export async function finishCall(env, d, body, who) {
@@ -446,11 +491,17 @@ export async function finishCall(env, d, body, who) {
   if (c.kind === 'monday') {
     for (const [act, s] of Object.entries(st.brands || {})) {
       if (!brands.some(b => b.act_id === act)) continue;
-      const r = { brand_id: act, name: nameOf(act), read: clean(s.read, 2000), client: typedLines(s.client), batches: (s.batches || []).filter(x => x && clean(x.text, 300) && x.on !== false), jobs: (s.jobs || []).filter(x => x && clean(x.text, 300)), asks: (s.asks || []).filter(x => x && clean(x.text, 300) && x.on !== false) };
-      if (r.read || r.client.length || r.batches.length || r.jobs.length || r.asks.length) rows.push(r);
+      /* CALLS V2 (2026-11-09, st.layout 2; Cole: "ads to brief is redundant, the strategists brief themselves"): the plan's
+         lines are voted on, not turned into briefs. A thumbs-up line is a decision ("Plan: ..."), a thumbs-down line is
+         dropped, an unvoted line stays a decision. The new boxes (ideas, what we send the client, money moves, the
+         ads-or-site read, the live offer) go in the brand's Slack recap as decisions. */
+      const v2 = st.layout === 2;
+      const { kept, extra } = v2 ? v2Lines(s, { meta: clean(s.strat, 40) }) : { kept: [], extra: [] };
+      const r = { brand_id: act, name: nameOf(act), read: clean(s.read, 2000), client: typedLines(s.client), batches: v2 ? [] : (s.batches || []).filter(x => x && clean(x.text, 300) && x.on !== false), plan: v2 ? kept : [], extra, jobs: (s.jobs || []).filter(x => x && clean(x.text, 300)), asks: (s.asks || []).filter(x => x && clean(x.text, 300) && x.on !== false) };
+      if (r.read || r.client.length || r.batches.length || r.extra.length || r.jobs.length || r.asks.length) rows.push(r);
     }
-    const lines = await clientLines(env, d, rows);
-    for (const r of rows) notes.brands.push({ brand_id: r.brand_id, decisions: r.read ? [r.read] : [], items: [...r.jobs.map(x => item('team', x)), ...r.batches.map(x => item('brief', x)), ...r.asks.map(x => item('client_owes', x))], this_week: r.client.length ? r.client : (lines[r.brand_id] || []), need_from_client: r.asks.map(x => clean(x.text, 300)) });
+    const lines = await clientLines(env, d, rows.map(r => r.plan.length ? { ...r, batches: r.plan } : r));
+    for (const r of rows) notes.brands.push({ brand_id: r.brand_id, decisions: [...(r.read ? [r.read] : []), ...r.extra], items: [...r.jobs.map(x => item('team', x)), ...r.batches.map(x => item('brief', x)), ...r.asks.map(x => item('client_owes', x))], this_week: r.client.length ? r.client : (lines[r.brand_id] || []), need_from_client: r.asks.map(x => clean(x.text, 300)) });
     const theme = clean(st.theme, 600);
     const agencyJobs = (st.agency || []).filter(x => x && clean(x.text, 300));
     if (theme || agencyJobs.length) notes.brands.unshift({ brand_id: '', decisions: theme ? [theme] : [], items: agencyJobs.map(x => item('team', x)), this_week: [], need_from_client: [] });
@@ -627,4 +678,4 @@ export async function handleCalls(request, env, url, path, json, d) {
   } catch (e) { return json({ error: e.message }, e.status >= 400 && e.status < 600 ? e.status : 500); }
 }
 
-export const _test = { winnersLosers, readOf, callId, mondayOf, parked, typedLines, itemKey, madeKeys, mergeResults };
+export const _test = { winnersLosers, readOf, callId, mondayOf, parked, typedLines, itemKey, madeKeys, mergeResults, v2Lines };

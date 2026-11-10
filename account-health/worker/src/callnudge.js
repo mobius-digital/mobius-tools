@@ -68,12 +68,24 @@ export async function callNudgeTick(env, d) {
       const stamped = new Set();
       for (const r of rows) if (await d.getSetting(env, `callNudge:open:${r.id}`)) stamped.add(r.id);
       const due = openCallsToNudge(rows, Date.now(), stamped);
-      if (due.length) {
-        const lines = due.map(c => `• <${callLink(c)}|${esc(c.title || 'A call')}>`).join('\n');
-        const text = `*OPS · Calls not finished*\n<@${COLE}>  Open ${due.length === 1 ? 'this call' : 'these calls'} and press Finish:\n${lines}\nWhy: until Finish, nothing from the call becomes a task, a request or a line in the client's report.`;
+      /* 2026-11-10 (Cole: "build everything", the auto-finish answer was yes): a meeting typed on and left quiet for an
+         hour after noon is FINISHED by Locus, exactly as if someone pressed Finish, and Cole gets one line saying so.
+         A meeting that fails to finish falls back to the old DM asking him to press it. */
+      const done = [], failed = [];
+      if (d.finish) for (const c of due) { try { await d.finish(c.id); done.push(c); } catch (e) { failed.push(c); } }
+      if (done.length) {
+        const text = `*OPS · Meetings finished at noon*\n<@${COLE}>  Nobody pressed Finish, so Locus did:\n${done.map(c => `• <${callLink(c)}|${esc(c.title || 'A meeting')}>`).join('\n')}\nWhy: the tasks, requests and recaps from ${done.length === 1 ? 'it' : 'them'} are out now. Reopen one from its screen to add anything.`;
         await d.slackApi(env, 'chat.postMessage', { channel: COLE, text, blocks: [{ type: 'section', text: md(text) }] });
-        for (const c of due) await d.putSetting(env, `callNudge:open:${c.id}`, new Date().toISOString());
-        out.open = due.map(c => c.id);
+        for (const c of done) await d.putSetting(env, `callNudge:open:${c.id}`, new Date().toISOString());
+        out.finished = done.map(c => c.id);
+      }
+      const ask = d.finish ? failed : due;
+      if (ask.length) {
+        const lines = ask.map(c => `• <${callLink(c)}|${esc(c.title || 'A meeting')}>`).join('\n');
+        const text = `*OPS · Meetings not finished*\n<@${COLE}>  Open ${ask.length === 1 ? 'this meeting' : 'these meetings'} and press Finish:\n${lines}\nWhy: until Finish, nothing from the meeting becomes a task, a request or a line in the client's report.`;
+        await d.slackApi(env, 'chat.postMessage', { channel: COLE, text, blocks: [{ type: 'section', text: md(text) }] });
+        for (const c of ask) await d.putSetting(env, `callNudge:open:${c.id}`, new Date().toISOString());
+        out.open = ask.map(c => c.id);
       }
     } catch (e) { out.openError = e.message; }
   }

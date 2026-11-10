@@ -57,5 +57,20 @@ ok((await handleCalls({ method: 'GET' }, env, url, '/api/other', json, {})) === 
   ok(missing, 'an unknown call = 404');
 }
 
+// 7. Calls v2 (2026-11-09): the plan is voted on, never turned into briefs; the new boxes become recap lines.
+{
+  const { v2Lines } = _test;
+  const v = v2Lines({ batches: [{ text: 'Gifting statics', vote: 'y', owner: 'William' }, { text: 'Cyber Monday 60', vote: 'n' }, { text: 'Christmas video', vote: 'c', note: 'make 20, not 60' }, { text: 'gone', on: false }], gplan: [{ text: 'YouTube test', vote: 'y' }], calls: [{ text: 'Cut 389 - 7' }], changes: ['Budget: BFCM 2026 $400 to $500'],
+    ideas: [{ text: 'Exploding hybrid head GIF' }, { text: '' }], sends: [{ text: 'Founder inspo to Fela', due: '2026-11-12' }],
+    money: { 'BFCM 2026': { m: 'Raise', amt: '$500' }, 'Old CBO': { m: '' } }, diag: { pick: 'Site', txt: 'CTR fine — no sales' }, offer: 'BOGO to Nov 16' });
+  ok(v.kept.length === 2 && v.kept.every(x => x.vote !== 'n'), 'a thumbs-down line and a removed line are dropped');
+  ok(v.extra[0] === 'Meta plan approved: Gifting statics (William)' && v.extra[1] === 'Meta plan needs changes: Christmas video. Change: make 20, not 60', 'approved and changes lines, with the note');
+  ok(v.extra.includes('Google plan (Radhesh) approved: YouTube test') && v.extra.includes('For the media buyer: Cut 389 - 7') && v.extra.includes('Changed on the call: Budget: BFCM 2026 $400 to $500'), 'Google plan, buyer calls, changes made on the call');
+  ok(v2Lines({ batches: [{ text: 'x', vote: 'y' }] }, { meta: 'Noma' }).extra[0] === 'Meta plan (Noma) approved: x', 'the strategist is named');
+  ok(v.extra.includes('Idea: Exploding hybrid head GIF') && v.extra.includes('We send the client: Founder inspo to Fela by 2026-11-12'), 'ideas and sends');
+  ok(v.extra.includes('Money: Raise BFCM 2026 to $500 a day') && !v.extra.some(x => x.includes('Old CBO')), 'money moves, an unset one left out');
+  ok(v.extra.includes('Ads or site: Site. CTR fine, no sales') && v.extra.includes('Live offer on the site: BOGO to Nov 16'), 'the read and the offer, no em dashes');
+}
+
 console.log(`${n - bad}/${n} passed`);
 process.exit(bad ? 1 : 0);

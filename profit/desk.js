@@ -271,7 +271,7 @@
     vh.innerHTML = v && v.headline ? `<div class="v2card dk-verdict ${(MDV[L.verdict] || MDV.normal)[1]}"><p class="v2say" style="margin:0 0 6px"><b>${esc(v.headline)}</b></p>${v.why ? `<p class="v2say" style="margin:0 0 6px">${esc(v.why)}</p>` : ''}${v.todo ? `<p class="v2say" style="margin:0"><b>Today:</b> ${esc(v.todo)}</p>` : ''}</div>` : '';
   }
 
-  /* ADS > TODAY (the old Today's calls page) was removed 2026-11-05: Ads > Calls (buyer.js) is the one calls page, for the team
+  /* ADS > TODAY (the old Today's moves page) was removed 2026-11-05: Ads > Calls (buyer.js) is the one calls page, for the team
      and, read only, for a client login. */
 
   /* =========================================================================================
