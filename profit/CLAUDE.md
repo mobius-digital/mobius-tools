@@ -4821,3 +4821,21 @@ team presses Reopen.
   campaign name, or the ad and its set. Team view has "Copy the client link" (`?open=adupdates&act=`).
 - **Every ad card is the same size** (v2.css, all `.v2gal` grids): the 4:5 frame shows the whole ad uncropped and a
   blurred copy fills the sides of a 9:16 or the top and bottom of a square (`::before` blur, `::after` the ad).
+
+## 2026-11-09: Tools > Team scorecard (`agency.js` `scorecard`, tab id `scorecard`)
+
+- Cole: see what each person works on, how much, and how good it is. **Cole only**, like Agency economics: `OWNER_TABS`
+  (economics, scorecard) in index.html hides both from the Tools tabs and search for anyone else, and `show()` sends a
+  non-owner to Team workload; the server refuses everyone but the owner too. In `AGENCY_TABS`, `AGENCY_ONLY`, both NAVs'
+  Tools, `SHOWABLE`, the `?open=` list, PAGE_BRIEF, TAB_PURPOSE, TAB_TITLE, the renderer map (`AGR('scorecard')`),
+  accent.js and clients.js (hidden for a client). agency.js?v=4, accent.js?v=4, clients.js?v=8.
+- Page: period switch (`.v2jobs`: This week / Last 4 weeks / This month, remembered in `ag_sc_p`), one rule-written
+  sentence, one `.v2tbl` (a card per person on a phone; every cell has `data-l`, value + sub line wrapped in `.v`):
+  Work (cards moved, ads launched, files uploaded, Asana tasks, Locus tasks) and Quality (test win rate with n judged,
+  changes asked with per card, on time, Cole's rating). A row opens a `.modal-wrap` sheet (full width at the bottom on a
+  phone, scrolling as one): the rating (This week / Last week, 1 to 5 stars, a one-line note, Save / Clear) and every
+  item behind every number with links (Locus card, Ads Manager, Asana) and a "Credited by" line on tests and change requests.
+- Backend and the exact counting rules: account-health CLAUDE.md, same date. Never name a class `.grp` (index.html
+  styles it `display:flex`; it broke the table's group header row, hence `.ag-grp`).
+- Checked on a scratch page loading index.html's styles + v2.js + agency.js with the test's JSON stubbed in (deleted):
+  1440 and 375, no sideways scroll, the sheet, a rating saved (the POST body). Not checked signed in on the live site.

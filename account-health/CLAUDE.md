@@ -2875,6 +2875,35 @@ Chrome for Locus and Slack (frozen when minimised, blocked on writes); now they 
   `logWrite`. Deps come from worker.js `mcpDeps()` (mintSession, slackPost, slackApi, listAccounts, getSetting,
   xfetch, idx, ahFetch).
 
+## 2026-11-09: the team scorecard (`src/agency.js` `scorecard`, `saveRating`)
+
+Routes (in `handleAgency`, OWNER ONLY, the team and clients get 403): `GET /api/agency/scorecard?period=week|4w|month&fresh=1`
+and `POST /api/agency/rating {name, week, stars, note}` (stars 1 to 5, null clears; week snaps to its Monday; no future
+weeks). Tests: `node test-scorecard.mjs` (8 offline checks; `--print` shows one person's answer, `--full` the whole JSON).
+- **Window**, Central days: week = Mon to Sun; 4w = the 4 whole weeks ending this Sunday; month = the calendar month.
+  Stored times (SQLite UTC `YYYY-MM-DD HH:MM:SS`, ISO strings) are read with loose bounds, then placed by `dayOf`.
+- **Who is who** (`teamBook` / `whoIs`): ROSTER (actions.js) + checkin people (Slack ids, roles) + settings `slackIds`
+  + `agencyPeople` gids, matched by email, "(Name)" (so "Claude Code (Cole)" is Cole), else first name (Nomaqhawe = Noma).
+  An email off the roster only counts on the Mobius domain. Anything matching nobody is counted in `uncredited`.
+- **Work:** cards = p_br_batch assigned to them (Asana assignee) approved (`approved_at`) or entering Ready / Live
+  (`board_stage` + `board_at`) in the window; launches = `p_launch.by`; versions = `p_work_file` kind version, not
+  deleted, `by_email` / `by_name`; Asana = economics' rule (`workDay`, shared with `doneFor`) over every live brand
+  project, cached `agencyMoved:<brand>:<period>` 30 min; null when the person is not in Asana (no gid, no email, never
+  seen: Radhesh, Hamza); Locus tasks = `p_action` done, the owner first, else who ticked it.
+- **Win rate** = winners / judged: a verdict with `verdict_at` in the window, or an open Locus result call
+  (`asana_result`, dated by `board_at`). Thin calls (no spend, or under the brand's `judge_spend` and not judge_days with
+  a third of it; `batchStats` + `rulesOf` + `getDoc` now exported from asana-brand.js) are left out (`thin_skipped`).
+  Credit: the assignee when a strategist (Ahsan, Noma), else the brand's strategist from `teamOf` (season call sheet),
+  else uncredited. Designers and editors are never credited a test. Each judged item says which was used.
+- **Changes asked** = `p_work_comment` kind `change_request`, credited to who uploaded the file it is on, else the card's
+  assignee; per_card over the cards that got a decision (approval or change request) on their work.
+- **On time** = cards reaching Ready / Live by `due_on` (the earlier of approval and board time) + Locus tasks done by
+  `due`, against those plus cards (Brief / Making / Review) and open tasks that came due in the window before today.
+- **Rating** table `p_team_rating (person, week, stars, note, by_email, at)`, made on first use too; migration
+  `profit/worker/migrations/team-001.sql` (also in schema.sql). Shown: the latest and the average of the last 4 weeks.
+- NOT measured: work outside Locus and Asana (Radhesh's Google, Hamza's Amazon), who really wrote a brief once the Asana
+  assignee moved on (the card shows the assignee at the last sync), files uploaded with no uploader recorded.
+
 ## 2026-11-09: THE SLACK LANE FORMAT (`src/lane.js`). Read before adding or changing ANY Slack message to the team.
 
 Cole: the Locus posts read as noise; he could not tell what a message meant, who it was for, or which part of the work

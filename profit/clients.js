@@ -10,7 +10,7 @@
 (function () {
 'use strict';
 /* What the agency edition adds, in the words the card and the profile use. */
-const AGENCY_ONLY = 'All clients and the command center, the Clients screen and New client, Team and access, Agency settings, Agency economics, Team workload, the assistant’s settings, the brief and report review before anything is sent, Slack channel setup and the team’s internal notes';
+const AGENCY_ONLY = 'All clients and the command center, the Clients screen and New client, Team and access, Agency settings, Agency economics, Team workload, Team scorecard, the assistant’s settings, the brief and report review before anything is sent, Slack channel setup and the team’s internal notes';
 const everythingBlock = brandName => `<div class="cl-all"><p class="cl-all-h"><b>Clients see and use everything about ${esc(brandName || 'their own brand')}.</b> Every page the team has for one brand, with the same numbers and the same buttons: P&amp;L and costs, ads and their changes, email, the store, stock, Studio, the creator link, the calendar, goals, the War Room, dashboards, sent briefs and reports, and Locus to answer questions. Live ad changes show what will happen and wait for a confirm, exactly as for the team.</p>
   <p class="hint" style="margin:8px 0 0">What only the agency sees: ${esc(AGENCY_ONLY)}. Studio and the assistant run on Mobius’s AI accounts, so each client login has a daily limit ($3 of Studio, $2 of questions).</p></div>`;
 const ago = iso => { if (!iso) return 'never'; const d = (Date.now() - Date.parse(iso)) / 864e5; return d < 1 / 24 ? 'just now' : d < 1 ? `${Math.round(d * 24)}h ago` : d < 30 ? `${Math.round(d)}d ago` : String(iso).slice(0, 10); };
@@ -42,7 +42,7 @@ function css() {
      and send, the reports' sending setup, the command center, team-only data repairs. The server refuses them anyway. */
   body.is-client #bfPost, body.is-client #bfEditBtn, body.is-client #bfSave, body.is-client #bfCancel, body.is-client #bfWrite, body.is-client #bfSkip, body.is-client .bf-note,
   body.is-client #rpSend, body.is-client #rpRegen, body.is-client #rpEditTop, body.is-client #rpEditSum, body.is-client #rpGenW, body.is-client #rpGenM, body.is-client .rp-cfg,
-  body.is-client [data-go="command"], body.is-client [data-go="economics"], body.is-client [data-go="workload"], body.is-client [data-agency]{display:none !important}`;
+  body.is-client [data-go="command"], body.is-client [data-go="economics"], body.is-client [data-go="workload"], body.is-client [data-go="scorecard"], body.is-client [data-agency]{display:none !important}`;
   document.head.appendChild(s);
 }
 
