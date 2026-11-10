@@ -1,6 +1,8 @@
 import { frameRetry } from './framesync.js';
 import { mirrorOn, pullStories, pruneFiles, briefFromAsana, briefHash, ensureWork } from './prodwork.js';
 import { metaOf, resolveBrandId, addConnection, connSet } from './brands.js';
+import { laneBlocks, laneWho, laneOwner, fyi } from './lane.js';
+import { teamOf } from './calendar.js';
 /**
  * Asana <-> Locus for the Brand tab (2026-09-24).
  *
@@ -893,7 +895,7 @@ export async function mondayCalls(env, act, opts = {}) {
   } catch {}
   const todo = plan.pause.length + plan.pauseAds.length + plan.clear.length;
   if (todo && !canEdit) L.push('_Locus can only read this ad account, so the changes are yours to make. For a Do it button the Mobius Tools system user needs "Manage campaigns" on it, with a token that includes ads_management._');
-  return { text: [head, ...L].join('\n'), channel: acct.slack_channel, counts: Object.fromEntries(Object.entries(groups).map(([k, v]) => [k, v.length])), on: !!rules.monday_post, plan, canEdit, todo, scopes };
+  return { text: [head, ...L].join('\n'), channel: acct.slack_channel, name: acct.name, counts: Object.fromEntries(Object.entries(groups).map(([k, v]) => [k, v.length])), on: !!rules.monday_post, plan, canEdit, todo, scopes };
 }
 /** Test ad sets whose minimum spend is due off today and still set in Meta (minoff.js's daily check). */
 export const testMinimumsDue = (env, act) => mondayCalls(env, act, { minOnly: true });
@@ -935,13 +937,25 @@ export async function runMondayPlan(env, payload) {
   const result = `${bad.length ? ':warning:' : ':white_check_mark:'} Done by ${who}: ${plural(ok.paused, 'pause')}, ${plural(ok.cleared, 'minimum')} taken off.${bad.length ? `\nDidn't work:\n• ${bad.join('\n• ')}` : ''}`;
   return say({ replace_original: true, text: `${plan.text}\n${result}`, blocks: [...sections(plan.text), { type: 'context', elements: [{ type: 'mrkdwn', text: result }] }] });
 }
-export async function postMonday(env, act) {
+export async function postMonday(env, act, { auto = false } = {}) {
   const m = await mondayCalls(env, act);
   if (m.error) return m;
   if (!m.channel || !env.SLACK_BOT_TOKEN) return { ...m, error: 'This brand has no internal Slack channel (Settings).' };
+  /* 2026-11-09 (the lane format, lane.js): the Monday post asks the buyer for something only when there is something to
+     pause or take off; otherwise the scheduled one is a line in the brand's end-of-day roundup. A post asked for from
+     Locus always posts. */
+  if (auto && !m.todo) {
+    const c = m.counts || {};
+    await fyi(env, { act, lane: 'MEDIA BUYING', line: `Monday test calls: nothing to pause or take off this week (${c.keep || 0} keep, ${c.early || 0} too early to call)` });
+    return { ...m, posted: 'roundup' };
+  }
   const p = centralParts();
   const w = `${p.year}-${p.month}-${p.day}`;
-  const blocks = sections(m.text);
+  const sapi = async (e, method, args) => (await F(`https://slack.com/api/${method}`, { method: 'POST', headers: { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}` }, body: new URLSearchParams(args) })).json();
+  const team = ((await teamOf(env, [act]).catch(() => ({})))[act]) || {};
+  const who = await laneWho(env, { slackApi: sapi, centralDate: () => `${p.year}-${p.month}-${p.day}` }, laneOwner('MEDIA BUYING', team));
+  const lane = laneBlocks({ lane: 'MEDIA BUYING', brand: m.name, who, ask: m.todo ? `Make this week's test calls: ${doLabel(m.plan).replace('Do it: ', '')}` : "Read this week's test calls" });
+  const blocks = [lane.blocks[0], ...sections(m.text)];
   if (m.todo && m.canEdit) {
     await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
       .bind(`mondayPlan:${act}:${w}`, JSON.stringify({ ...m.plan, text: m.text })).run();
@@ -951,7 +965,7 @@ export async function postMonday(env, act) {
         confirm: { type: 'plain_text', text: 'Do it' }, deny: { type: 'plain_text', text: 'Cancel' } } }] });
   }
   const r = await (await F('https://slack.com/api/chat.postMessage', { method: 'POST', headers: { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}`, 'Content-Type': 'application/json; charset=utf-8' },
-    body: JSON.stringify({ channel: m.channel, text: m.text, blocks, unfurl_links: false, unfurl_media: false }) })).json();
+    body: JSON.stringify({ channel: m.channel, text: `${lane.text}\n${m.text}`, blocks, unfurl_links: false, unfurl_media: false }) })).json();
   return { ...m, posted: !!r.ok, error: r.ok ? undefined : r.error };
 }
 /** The account's own cost per sale: last 30 days of Meta spend / Triple Whale
@@ -992,7 +1006,7 @@ export async function mondayTick(env) {
     const key = `mondayCalls:${d.act_id}`;
     const last = await env.DB.prepare(`SELECT value FROM settings WHERE key = ?1`).bind(key).first().catch(() => null);
     if (last?.value === week) continue;
-    const r = await postMonday(env, d.act_id).catch(e => ({ error: e.message }));
+    const r = await postMonday(env, d.act_id, { auto: true }).catch(e => ({ error: e.message }));
     if (r.posted) await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(key, week).run();
     out[d.act_id] = r.posted ? 'posted' : (r.error || 'not posted');
   }
@@ -1628,6 +1642,8 @@ export async function handleBrandAsana(request, env, path, json, isAdmin) {
   }
 }
 export { readDoc, asana };
+/* The team scorecard (agency.js, 2026-11-09) reads a test's spend and the brand's test rules the same way the result calls do. */
+export { batchStats, rulesOf, getDoc };
 
 /* Shared with newclient.js (Locus's New client button). */
 export { asanaAll, googleToken, setDrive, PENDING, BRIEF_READERS };

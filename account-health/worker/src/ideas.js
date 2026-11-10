@@ -67,6 +67,8 @@ import { brandBrain, brainBlock, SPECIFICITY } from './brain.js';
 import { asana, numOf, googleToken, BRIEF_READERS, readDoc } from './asana-brand.js';
 import { atriaAd } from './atria.js';
 import { storagePrefix } from './brands.js';
+import { laneBlocks, laneWho, laneOwner } from './lane.js';
+import { teamOf } from './calendar.js';
 
 /* Outbound HTTP goes through the worker's metered fetch (xfetch). worker.js hands it in. */
 let F = (...a) => fetch(...a);
@@ -1855,7 +1857,7 @@ export async function ideaFromLocus(env, { act, url, image, note, who, label }) 
   if (!acct) throw new Error('That brand is not active in Locus.');
   if (!acct.slack_channel) throw new Error(`${acct.name} has no internal Slack channel, so there is nowhere to write the draft.`);
   const ask = `${note ? `${clip(note, 600)} ` : ''}Make our version of this ${label || 'post'}: ${url}`;
-  const posted = await slack(env, 'chat.postMessage', { channel: acct.slack_channel, text: `*Make ours* (from Locus Social, asked by ${who || 'the team'}): ${clip(note, 600) || 'make our version of this.'}\n${url}`, unfurl_links: true });
+  const posted = await slack(env, 'chat.postMessage', { channel: acct.slack_channel, text: await makeRoot(env, acct, `Check the draft Locus writes in this thread: our version of this ${label || 'post'}`, `${who || 'the team'} asked from Locus Social${note ? `: ${clip(note, 600)}` : ''}`, url), unfurl_links: true });
   if (!posted.ok) throw new Error(`I could not post in ${acct.name}'s channel: ${slackWhy(posted.error || 'error')}.`);
   const seed = { ts: posted.ts, user: 'ULOCUSSOCIAL', name: who || 'the team', text: ask, image: image || null };
   const id = `${acct.slack_channel}:${posted.ts}`;
@@ -1941,6 +1943,16 @@ export async function redrawCard(env, row, acct, reply, who) {
    the thread, writes the draft and stores it; nothing is posted anywhere unless "Also post in Slack" was on, in which
    case the row is a normal Slack-rooted thread (the bot posts the ask as the root, the card lands under it). */
 export const APP = 'app';
+/* 2026-11-09 (the lane format, lane.js): the root of a Make thread is an ask to the brand's strategist (Cole when none
+   is named): "*CREATIVE · Brand*", the tag and the ask, "Why:" who asked and what for, then the link on its own line so
+   Slack still unfurls it (plain text, no blocks, exactly as before). */
+async function makeRoot(env, acct, ask, why, link) {
+  const team = ((await teamOf(env, [acct.act_id]).catch(() => ({})))[acct.act_id]) || {};
+  const who = await laneWho(env, { slackApi: (e, m, b) => slack(e, m, b, /^users\./.test(m)), centralDate: () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }) }, laneOwner('CREATIVE', team));
+  const m = laneBlocks({ lane: 'CREATIVE', brand: acct.name, who, ask, why });
+  return `${m.blocks[0].text.text}${link ? `\n${link}` : ''}`;
+}
+
 const plainErr = (m, status = 400) => Object.assign(new Error(m), { plain: true, status });
 async function appRow(env, { act, url, file, text, image, note, who, exit, source, slack: inSlack }) {
   await ensureIdeaTables(env);
@@ -1954,7 +1966,7 @@ async function appRow(env, { act, url, file, text, image, note, who, exit, sourc
   let channel = APP, root = rid();
   if (inSlack) {
     if (!acct.slack_channel) throw plainErr(`${acct.name} has no internal Slack channel, so there is nowhere to post it.`);
-    const posted = await slack(env, 'chat.postMessage', { channel: acct.slack_channel, text: `*Make* (from Locus, by ${name}): ${clip(body, 600) || 'make our version of this.'}${link ? `\n${link}` : ''}`, unfurl_links: true });
+    const posted = await slack(env, 'chat.postMessage', { channel: acct.slack_channel, text: await makeRoot(env, acct, 'Check the draft Locus writes in this thread', `${name} asked from Locus${body ? `: ${clip(body, 600)}` : ''}`, link), unfurl_links: true });
     if (!posted.ok) throw plainErr(`I could not post in ${acct.name}'s channel: ${slackWhy(posted.error || 'error')}.`);
     channel = acct.slack_channel; root = posted.ts;
   }

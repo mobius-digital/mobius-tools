@@ -18,6 +18,7 @@
  * channel, ts, tag, items[{id, name, min, day, why, done?, already?, err?, write?}]}. Switch: settings.minOffPost
  * ('off' stops it; Locus Agency settings > Slack and sending). */
 import { eligible, morningHour, todaysCard, cardOn } from './morningcard.js';
+import { laneBlocks } from './lane.js';
 
 export const COST_MINOFF_BRAND = 40;   // live Meta read (2 Graph calls per ad account) + the stats reads + the post
 const WAIT_FOR_CARD = 3;               // hours past the morning hour to wait for today's card (the card waits up to 2 for its brief)
@@ -43,16 +44,19 @@ export function minOffLine(it) {
 export function minOffMessage(st) {
   const items = st.items || [];
   const open = items.filter(i => !i.done);
-  const lines = items.map((it, i) => (i === 0 && st.tag ? `${st.tag} ` : '') + minOffLine(it));
-  const blocks = items.map((it, i) => ({
+  /* 2026-11-09 (the lane format, lane.js): "*MEDIA BUYING · Brand*", the buyer tagged with the ask, then a line per set. */
+  const head = laneBlocks({ lane: 'MEDIA BUYING', brand: st.brand, who: st.tag || 'Cole',
+    ask: open.length ? `Take ${open.length} test minimum${open.length === 1 ? '' : 's'} off` : `All ${items.length} test minimum${items.length === 1 ? ' is' : 's are'} off` });
+  const lines = items.map(it => minOffLine(it));
+  const blocks = [head.blocks[0], ...items.map((it, i) => ({
     type: 'section', text: { type: 'mrkdwn', text: lines[i] },
     ...(it.done ? {} : { accessory: { type: 'button', action_id: `minoff_one_${i}`, text: { type: 'plain_text', text: 'Take it off' }, value: JSON.stringify({ a: st.act, d: st.date, s: it.id }) } }),
-  }));
+  }))];
   if (open.length >= 2) blocks.push({ type: 'actions', elements: [{ type: 'button', action_id: 'minoff_all', style: 'primary', text: { type: 'plain_text', text: `Take all ${open.length} off` },
     value: JSON.stringify({ a: st.act, d: st.date }),
     confirm: { title: { type: 'plain_text', text: 'Take these minimums off?' }, text: { type: 'mrkdwn', text: `${open.length} test minimums set to $0 in Meta. Each one can be undone in Locus for 24 hours.` },
       confirm: { type: 'plain_text', text: 'Take them off' }, deny: { type: 'plain_text', text: 'Cancel' } } }] });
-  return { text: lines.join('\n'), blocks };
+  return { text: [head.text, ...lines].join('\n'), blocks };
 }
 
 /** The hourly tick: once per Central day per brand, from the morning hour. Waits (up to WAIT_FOR_CARD hours) for the

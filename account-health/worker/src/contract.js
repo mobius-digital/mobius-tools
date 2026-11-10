@@ -23,6 +23,7 @@
  */
 import { googleToken } from './asana-brand.js';
 import { sendMail } from './mail.js';
+import { fyi } from './lane.js';
 
 let F = (...a) => fetch(...a);
 export function useFetch(f) { F = f; }
@@ -254,13 +255,13 @@ Mobius Digital`);
    so the base comes from the amendment's own record (vars.of), never from stripping the token. */
 const baseToken = c => safeJson(c.vars_json, {}).of || c.token;
 
-/* The internal channel hears when an agreement or amendment is signed. */
+/* The team hears when an agreement or amendment is signed. 2026-11-09 (the lane format, lane.js): that asks nobody to
+   do anything, so it is one line in the end-of-day roundup (the brand's when it has one, else the agency's). */
 async function signedPing(env, c) {
-  const run = await env.DB.prepare(`SELECT slack_internal FROM p_newclient WHERE token = ?1`).bind(baseToken(c)).first().catch(() => null);
-  if (!run?.slack_internal || !env.SLACK_BOT_TOKEN) return;
+  const run = await env.DB.prepare(`SELECT slack_internal, act_id FROM p_newclient WHERE token = ?1`).bind(baseToken(c)).first().catch(() => null);
+  if (!run?.slack_internal) return;
   const v = safeJson(c.vars_json, {});
-  await F('https://slack.com/api/chat.postMessage', { method: 'POST', headers: { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}`, 'Content-Type': 'application/json; charset=utf-8' },
-    body: JSON.stringify({ channel: run.slack_internal, unfurl_links: false, text: `*${c.brand} signed ${v.amendment ? `Amendment No. ${v.amendment}` : 'the services agreement'}* (${c.client_name}). A copy is in their Drive under Agreements.` }) });
+  await fyi(env, { act: run.act_id || '', lane: 'OPS', line: `${c.brand} signed ${v.amendment ? `Amendment No. ${v.amendment}` : 'the services agreement'} (${c.client_name}). A copy is in their Drive under Agreements.` });
 }
 
 /* ---------------- the signed copy, kept in the client's Drive (Agreements) ---------------- */

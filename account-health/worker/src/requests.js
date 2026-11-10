@@ -22,7 +22,7 @@
  */
 import { clientScope } from './brandguard.js';
 import { resolveBrandId } from './brands.js';
-import { teamPost } from './morningcard.js';
+import { lanePost, laneOwner, fyi } from './lane.js';
 
 const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 const WHAT = ['studio', 'link', 'offer', 'date'];
@@ -135,16 +135,18 @@ export async function createAsk(env, deps, act, title, text, who) {
 }
 
 /* ---------- Slack: one line to the brand's internal channel ---------- */
-async function tellTeam(env, deps, act, text) {
+/* 2026-11-09 (the lane format, lane.js): msg = {ask, why} is an ask under CLIENT, the brand's strategist tagged (Cole when
+   none is named), under today's morning card when there is one; msg = {fyi} asks nobody for anything and goes to the
+   brand's end-of-day roundup instead. */
+async function tellTeam(env, deps, act, msg) {
   if (!deps.slackPost) return false;
   const b = await env.DB.prepare(`SELECT name, slack_channel FROM brand_accounts WHERE act_id = ?1`).bind(act).first().catch(() => null);
   if (!b || !b.slack_channel) return false;
-  const line = text;
-  /* 2026-10-13: under today's morning card when there is one, the brand's strategist tagged (morningcard.js teamPost). */
-  const lead = deps.teamOf ? ((await deps.teamOf(env, [act]).catch(() => ({})))[act] || {}).strat : null;
+  if (msg.fyi) return fyi(env, { act, lane: 'CLIENT', line: msg.fyi });
+  const team = deps.teamOf ? ((await deps.teamOf(env, [act]).catch(() => ({})))[act] || {}) : {};
   try {
-    await teamPost(env, deps, b.slack_channel, line, [{ type: 'section', text: { type: 'mrkdwn', text: line } },
-      { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open in Locus' }, url: `${LOCUS}?open=requests&act=${act}` }] }], { username: 'Locus', tagName: lead || null });
+    await lanePost(env, deps, b.slack_channel, { lane: 'CLIENT', brand: b.name, who: laneOwner('CLIENT', team), ask: msg.ask, why: msg.why,
+      buttons: [{ type: 'button', text: { type: 'plain_text', text: 'Open in Locus' }, url: `${LOCUS}?open=requests&act=${act}` }] }, { thread: true });
     return true;
   } catch { return false; }
 }
@@ -201,7 +203,7 @@ export async function handleRequests(request, env, url, path, json, deps) {
       const id = rid();
       await env.DB.prepare(`INSERT INTO p_request (id, act_id, kind, what, ref, title, body, link, status, by_email, by_name, by_role, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'open', ?9, ?10, ?11, ?12, ?12)`)
         .bind(id, act, kind, what, ref, title, text, link || null, email || null, who, role, at).run();
-      const slack = cs ? await tellTeam(env, deps, act, `*${who} asked for something: ${title}.* ${clean(text, 300)}`) : null;
+      const slack = cs ? await tellTeam(env, deps, act, { ask: `Handle ${who}'s request: ${title}`, why: clean(text, 300) }) : null;
       return json({ ok: true, id, notified: !!slack });
     }
 
@@ -217,7 +219,7 @@ export async function handleRequests(request, env, url, path, json, deps) {
       /* A team reply to a done request reopens nothing; a client reply to a done one reopens it (they are still waiting). */
       const reopen = cs && it.kind === 'request' && it.status === 'done';
       await env.DB.prepare(`UPDATE p_request SET updated_at = ?2${reopen ? `, status = 'open'` : ''} WHERE id = ?1`).bind(it.id, at).run();
-      const slack = cs ? await tellTeam(env, deps, act, `*${who} replied on "${it.title}":* ${clean(text, 300)}`) : null;
+      const slack = cs ? await tellTeam(env, deps, act, { ask: `Reply to ${who} on "${it.title}"`, why: clean(text, 300) }) : null;
       return json({ ok: true, notified: !!slack });
     }
 
@@ -250,8 +252,8 @@ export async function handleRequests(request, env, url, path, json, deps) {
       if (note) await env.DB.prepare(`INSERT INTO p_request_msg (id, request_id, by_email, by_name, by_role, text, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`)
         .bind('rm_' + crypto.randomUUID().replace(/-/g, '').slice(0, 16), it.id, email || null, who, role, (decision === 'approved' ? 'Approved: ' : 'Changes: ') + note, at).run();
       const slack = cs ? await tellTeam(env, deps, act, decision === 'approved'
-        ? `*${who} approved "${it.title}".*${effect.date_confirmed ? ' The date is confirmed on the calendar.' : effect.ads_approved ? ` ${effect.ads_approved} ad${effect.ads_approved === 1 ? '' : 's'} marked approved in Studio.` : ''}${note ? ` ${clean(note, 300)}` : ''}`
-        : `*${who} asked for changes on "${it.title}":* ${clean(note, 300)}`) : null;
+        ? { fyi: `${who} approved "${it.title}".${effect.date_confirmed ? ' The date is confirmed on the calendar.' : effect.ads_approved ? ` ${effect.ads_approved} ad${effect.ads_approved === 1 ? '' : 's'} marked approved in Studio.` : ''}${note ? ` ${clean(note, 300)}` : ''}` }
+        : { ask: `Make the changes ${who} asked for on "${it.title}"`, why: clean(note, 300) }) : null;
       return json({ ok: true, status: decision, effect, notified: !!slack });
     }
 
@@ -259,7 +261,7 @@ export async function handleRequests(request, env, url, path, json, deps) {
     if (path === '/api/requests/done') {
       /* A client closes only an ask (what we needed from them); everything else is the team's to close. */
       if (cs && it.kind !== 'ask') return json({ error: 'The team marks items done.' }, 403);
-      if (cs) { const slack = await tellTeam(env, deps, act, `*${who} marked "${it.title}" as done.*`); await env.DB.prepare(`UPDATE p_request SET status = 'done', updated_at = ?2 WHERE id = ?1`).bind(it.id, at).run(); return json({ ok: true, status: 'done', notified: !!slack }); }
+      if (cs) { const slack = await tellTeam(env, deps, act, { fyi: `${who} marked "${it.title}" as done.` }); await env.DB.prepare(`UPDATE p_request SET status = 'done', updated_at = ?2 WHERE id = ?1`).bind(it.id, at).run(); return json({ ok: true, status: 'done', notified: !!slack }); }
       const reopen = body.done === false;
       const status = reopen ? 'open' : 'done';
       await env.DB.prepare(`UPDATE p_request SET status = ?2, updated_at = ?3 WHERE id = ?1`).bind(it.id, status, at).run();

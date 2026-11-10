@@ -32,6 +32,7 @@ import { ROSTER } from './actions.js';
 import { brandBrain, SPECIFICITY } from './brain.js';
 import { slackIdOf } from './morningcard.js';
 import { frameLater } from './framesync.js';
+import { laneBlocks, laneWho, fyi } from './lane.js';
 
 const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 const AI_MODEL = 'claude-sonnet-5-5';
@@ -42,6 +43,7 @@ const safe = (s, d) => { try { return s == null || s === '' ? d : JSON.parse(s);
 const clean = (s, n) => String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
 const keep = (s, n) => String(s ?? '').replace(/\r/g, '').replace(/[ \t]+\n/g, '\n').trim().slice(0, n);   // keeps line breaks
 const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const pEsc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');   // Slack mrkdwn (quotes stay quotes)
 const rid = () => crypto.randomUUID().replace(/-/g, '').slice(0, 16);
 const err = (status, message) => Object.assign(new Error(message), { status });
 const firstName = s => clean(s, 40).split(' ')[0];
@@ -895,10 +897,14 @@ async function notifyComment(env, d, r, { id, text, kind, fileId, at, name, role
   const label = `${r.num ? `#${r.num} ` : ''}"${clean(r.title, 60)}"`;
   /* @Name: a Slack DM to that person, never a channel post. */
   const named = [...new Set([...text.matchAll(/@([A-Za-z][A-Za-z'-]{1,20})/g)].map(m => m[1].toLowerCase()))];
+  let brandRow;
+  const brandOf = async () => (brandRow !== undefined ? brandRow : (brandRow = d.listBrands ? (await d.listBrands(env).catch(() => [])).find(b => b.act_id === r.act_id) || null : null));
   for (const n of named) {
     const p = ROSTER.find(x => x.name.toLowerCase() === n || (x.name.length >= 4 && n.startsWith(x.name.toLowerCase())));
     if (!p) continue;
-    const sent = await dm(env, d, p.name, `${name} mentioned you on ${label}: "${clean(text, 300)}" <${cardUrl(r.id)}|Open the card>`);
+    /* 2026-11-09 (the lane format, lane.js): an ask in the DM, the card one tap away. */
+    const m = laneBlocks({ lane: 'CREATIVE', brand: (await brandOf())?.name || 'Agency', who: p.name, ask: `Answer ${pEsc(name)} on ${pEsc(label)}`, why: `"${pEsc(clean(text, 300))}"`, buttons: [{ label: 'Open the card', url: cardUrl(r.id) }] });
+    const sent = await dm(env, d, p.name, m.text, m.blocks);
     out.mentions.push({ name: p.name, sent });
   }
   if (r.asana_gid && d.asana && role === 'team' && kind !== 'system' && await mirrorOn(env)) {
@@ -910,12 +916,13 @@ async function notifyComment(env, d, r, { id, text, kind, fileId, at, name, role
   }
   /* A client (or someone on the review link) wrote: one line in the brand's INTERNAL channel, tagged to the owner. */
   if (role === 'client' && d.listBrands && (d.teamPost || d.slackPost)) {
-    const brand = (await d.listBrands(env)).find(b => b.act_id === r.act_id);
+    const brand = await brandOf();
     if (brand && brand.slack_channel) {
-      const line = `${name} (client) on ${label}: "${clean(text, 300)}" <${cardUrl(r.id)}|Open the card>`;
+      /* 2026-11-09 (the lane format, lane.js): "*CLIENT · Brand*", the card's owner tagged with the ask. */
+      const m = laneBlocks({ lane: 'CLIENT', brand: brand.name, who: await laneWho(env, d, r.assignee_name || ''), ask: `Answer ${pEsc(name)} (client) on ${pEsc(label)}`, why: `"${pEsc(clean(text, 300))}"`, buttons: [{ label: 'Open the card', url: cardUrl(r.id) }] });
       try {
-        if (d.teamPost) await d.teamPost(env, brand.slack_channel, line, null, { tagName: r.assignee_name || undefined });
-        else await d.slackPost(env, brand.slack_channel, line);
+        if (d.teamPost) await d.teamPost(env, brand.slack_channel, m.text, m.blocks, {});
+        else await d.slackPost(env, brand.slack_channel, m.text, m.blocks);
         out.slack = true;
       } catch { /* the comment is saved */ }
     }
@@ -939,11 +946,11 @@ export function normShape(s) {
 }
 
 /** DM one team member by first name. True when Slack took it. */
-async function dm(env, d, name, text) {
+async function dm(env, d, name, text, blocks) {
   if (!d || !d.slackApi) return false;
   const id = await slackIdOf(env, d, name).catch(() => null);
   if (!id) return false;
-  const r = await d.slackApi(env, 'chat.postMessage', { channel: id, text, unfurl_links: false }).catch(() => null);
+  const r = await d.slackApi(env, 'chat.postMessage', { channel: id, text, ...(blocks ? { blocks } : {}), unfurl_links: false }).catch(() => null);
   return !!(r && r.ok);
 }
 
@@ -1016,8 +1023,11 @@ export async function decide(env, d, body, who, scope, opts = {}) {
   if (client && !reset && d.listBrands && (d.teamPost || d.slackPost)) tell.push((async () => {
     const brand = (await d.listBrands(env)).find(b => b.act_id === r.act_id);
     if (brand && brand.slack_channel) {
-      const msg = `${name} (client) ${ok ? 'approved' : 'asked for changes on'} ${what} of #${r.num} "${clean(r.title, 60)}"${ok ? '' : `: "${clean(text, 300)}"`} <${cardUrl(r.id)}|Open the card>`;
-      if (d.teamPost) await d.teamPost(env, brand.slack_channel, msg, null, { tagName: r.assignee_name || undefined }); else await d.slackPost(env, brand.slack_channel, msg);
+      /* 2026-11-09 (the lane format, lane.js): an approval asks nobody for anything (the card moves on by itself), so it
+         is a line in the brand's end-of-day roundup; changes asked are an ask to the card's owner. */
+      if (ok) { await fyi(env, { act: r.act_id, lane: 'CLIENT', line: `${name} (client) approved ${what} of #${r.num} "${clean(r.title, 60)}"` }); return; }
+      const m = laneBlocks({ lane: 'CLIENT', brand: brand.name, who: await laneWho(env, d, r.assignee_name || ''), ask: `Make the changes ${pEsc(name)} (client) asked for on ${pEsc(what)} of #${r.num} "${pEsc(clean(r.title, 60))}"`, why: `"${pEsc(clean(text, 300))}"`, buttons: [{ label: 'Open the card', url: cardUrl(r.id) }] });
+      if (d.teamPost) await d.teamPost(env, brand.slack_channel, m.text, m.blocks, {}); else await d.slackPost(env, brand.slack_channel, m.text, m.blocks);
     }
   })());
   /* Where the card goes now, from every ad's own call. */
