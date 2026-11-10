@@ -392,6 +392,15 @@
       .cs .cs-fc{align-items:center;text-align:center;padding:16px 12px}
       .cs .cs-fc .d{display:flex;justify-content:center;min-height:20px}
       .cs .cs-board .mini small,.cs .cs-board .mini small span{display:inline;white-space:normal}
+      /* Round 6 funnel: cards joined by a middle column (the share that moved on + how it compares) */
+      .cs .cs-flow{align-items:center;gap:0}
+      .cs .cs-fm{flex:0 0 116px;display:flex;flex-direction:column;align-items:center;gap:3px;text-align:center;padding:0 6px;position:relative}
+      .cs .cs-fm::before{content:'';position:absolute;left:0;right:0;top:50%;height:1px;background:var(--line);z-index:0}
+      .cs .cs-fm>*{position:relative;z-index:1;background:var(--surface);padding:0 6px}
+      .cs .cs-fm b{font-size:17px;font-weight:700;font-variant-numeric:tabular-nums}
+      .cs .cs-fm .k{font-size:11px;color:var(--muted);font-weight:500}
+      .cs .cs-fc .l small{font-size:10.5px;font-weight:500}
+      .cs p.cs-lead{display:block;margin:0;font-size:13px;color:var(--ink-2)}
       .cs .cs-htitle{margin:6px 0 0;font-size:12px;font-weight:600;color:var(--muted)}
       .cs .cs-hop{grid-template-columns:minmax(170px,230px) minmax(0,1fr) 190px}
       .cs .cs-hop .hl{display:flex;align-items:center;justify-content:flex-start;gap:6px}.cs .cs-hop .hl .ar{color:var(--faint,var(--muted))}
@@ -787,16 +796,18 @@
      reference only. Ad views and clicks (the platform's) sit on one line above, because they are 10 to 100 times
      sessions and would flatten every bar. */
   const FSTEPS = [['sessions', 'Sessions'], ['addToCarts', 'Add to cart'], ['checkouts', 'Checkout'], ['ecommercePurchases', 'Purchases']];
-  function funnelHtml(cur, prev, top, hue, avg) {
+  function funnelHtml(cur, prev, top, hue, avg, tw) {
     if (!cur || !cur.sessions) return empty('No GA4 numbers for this.');
     if (!cur.addToCarts && !cur.checkouts && !cur.ecommercePurchases) return `<p class="cs-empty">${Math.round(cur.sessions).toLocaleString('en-US')} sessions, but GA4 recorded no add to cart, checkout or purchase. The store's GA4 shopping events are not set up, so there is no funnel to read yet.</p>`;
     /* GA4 that stops counting part way (Dartee: add to cart counted, checkout and purchase never) shows the steps it has
        and says which are missing, instead of a 0% drop that reads as a broken checkout. */
     let steps = FSTEPS.map(([k, l]) => ({ k, l, v: cur[k], p: prev ? prev[k] : null, a: avg ? avg[k] : null }));
     const cut = steps.findIndex((s, i) => i && !s.v && steps.slice(i).every(x => !x.v));
-    const missing = cut > 0 ? steps.slice(cut).map(s => s.l.toLowerCase()) : [];
+    let missing = cut > 0 ? steps.slice(cut).map(s => s.l.toLowerCase()) : [];
     if (cut > 0) steps = steps.slice(0, cut);
-    return `${flowHtml([...(top || []).filter(t => t[1] != null).map(t => ({ l: t[0], v: t[1], p: t[2], a: t[3] })), ...steps], hue, !!avg)}${missing.length ? `<p class="cs-sub">GA4 records no ${missing.join(' or ')} for this store, so the funnel stops at ${esc(steps[steps.length - 1].l.toLowerCase())}. Purchases are in the numbers above (Triple Whale).</p>` : ''}`;
+    /* Purchases GA4 did not record come from Triple Whale's orders (the store's real count), labelled as such. */
+    if (cut > 0 && tw && tw.v != null) { steps.push({ l: 'Purchases', src: 'Triple Whale', v: tw.v, p: tw.p }); missing = missing.filter(m => m !== 'purchases'); }
+    return `${flowHtml([...(top || []).filter(t => t[1] != null).map(t => ({ l: t[0], v: t[1], p: t[2], a: t[3] })), ...steps], hue, !!avg)}${missing.length ? `<p class="cs-sub">GA4 is not recording ${missing.join(' or ')} on this store, so that step is left out${tw && tw.v != null ? ' and purchases are Triple Whale\'s order count' : ''}. Worth fixing the store's GA4 setup.</p>` : ''}`;
   }
   /* Round 3 (Cole 2026-11-10: "so hard to see the difference between add to cart, checkout and purchase", "the column
      names are too long"). Two parts. The FLOW: one card per step with the count and its change on the week before,
@@ -805,25 +816,22 @@
      own usual (the 4 weeks before, as a weekly average when given as totals); green or red = above or under it.
      Hover a hop for the numbers, last week and the general online-store range. */
   const nfmt = v => v == null ? '–' : Math.round(v).toLocaleString('en-US');
+  /* Round 6 (Cole: "why cards AND bars? what is the hover?"): ONE row. Each step is a card (the count and its change on
+     the week before); between two cards, the share that moved on, and under it how that compares with the brand's
+     usual (or last week). No bars, no hovers, nothing to explain. */
   function flowHtml(steps, hue, hasAvg) {
     const S = steps.filter(s => s.v != null); if (S.length < 2) return empty('Not enough steps to draw.');
-    const hu = hue || 'var(--brand)';
-    const cards = S.map((s, i) => `${i ? `<span class="cs-fa" aria-hidden="true"><b>${S[i - 1].v ? fx(s.v / S[i - 1].v, s.v / S[i - 1].v < 0.1 ? 1 : 0) : '–'}</b> →</span>` : ''}<div class="cs-fc"><span class="l">${esc(s.l)}</span><span class="v">${nfmt(s.v)}</span><span class="d">${s.p != null && s.p > 0 ? delta(s.v, s.p) : '<span class="muted">no week before</span>'}</span></div>`).join('');
-    const hops = S.slice(1).map((s, i) => {
-      const a = S[i], r = a.v ? s.v / a.v : null, rp = a.p && s.p != null ? s.p / a.p : null, ra = a.a && s.a != null ? s.a / a.a : null;
-      const T = TYPICAL[s.k] && a.k ? (s.k === 'addToCarts' ? 'Online stores in general: 5 to 8% of sessions add to cart' : s.k === 'checkouts' ? 'Online stores in general: about 40 to 55% of carts reach checkout' : 'Online stores in general: about 40 to 50% of checkouts buy') : '';
-      /* Round 5 (Cole: "random black bars and dotted lines you had to explain"): no markers. The bar is the rate; the
-         comparison is said in words beside it ("usual 17%"), coloured only by whether this week is above or under. */
-      const base = ra != null ? ra : rp, tone = r == null || base == null ? '' : r >= base ? 'up' : 'down';
-      const tip = `${nfmt(s.v)} of ${nfmt(a.v)} went on to ${s.l.toLowerCase()}.${rp != null ? ` Week before: ${fx(rp, 1)}.` : ''}${ra != null ? ` Usual (4 weeks before): ${fx(ra, 1)}.` : ''}${T ? ` ${T}.` : ''}`;
-      const dp = x => fx(x, x != null && x < 0.1 ? 1 : 0);
-      return `<div class="cs-hop" title="${esc(tip)}"><span class="hl">${esc(a.l)} <span class="ar">→</span> ${esc(s.l)}</span>
-        <div class="cs-hbar"><i style="width:${Math.max(1.5, Math.min(100, (r || 0) * 100))}%;background:${hu}"></i></div>
-        <span class="hr"><b>${dp(r)}</b>${base != null ? `<span class="cs-cmp ${tone}">${tone === 'up' ? '▲' : '▼'} ${ra != null ? 'usual' : 'last week'} ${dp(base)}</span>` : ''}</span></div>`;
+    const dp = x => fx(x, x != null && x < 0.1 ? 1 : 0);
+    const cards = S.map((s, i) => {
+      let mid = '';
+      if (i) { const a = S[i - 1], r = a.v ? s.v / a.v : null, ra = a.a && s.a != null ? s.a / a.a : null, rp = a.p && s.p != null ? s.p / a.p : null, base = ra != null ? ra : rp, tone = r == null || base == null ? '' : r >= base ? 'up' : 'down';
+        mid = `<div class="cs-fm"><b>${dp(r)}</b><span class="k">moved on</span>${base != null ? `<span class="cs-cmp ${tone}">${ra != null ? 'usual' : 'last wk'} ${dp(base)}</span>` : ''}</div>`; }
+      return `${mid}<div class="cs-fc"><span class="l">${esc(s.l)}${s.src ? ` <small class="muted">${esc(s.src)}</small>` : ''}</span><span class="v">${nfmt(s.v)}</span><span class="d">${s.p != null && s.p > 0 ? delta(s.v, s.p) : '<span class="muted">no week before</span>'}</span></div>`;
     }).join('');
-    void hasAvg;
-    return `<div class="cs-flow">${cards}</div><div class="cs-hops"><p class="cs-htitle">Share that moved on to the next step</p>${hops}</div>`;
+    void hue; void hasAvg;
+    return `<div class="cs-flow">${cards}</div>`;
   }
+
   /* GA4 rows for one channel group (Paid Social, Paid Search, Email...), this week + week before, or from the 4-week pull. */
   const gaSum = (src, re) => { const ch = src && !src.error ? (src.channels || []).filter(c => re.test(String(c.group || c.k || ''))) : []; if (!ch.length) return null; const sum = (k, p) => ch.reduce((n, c) => n + (+((p ? c.prev || {} : c)[k]) || 0), 0); const o = p => ({ sessions: sum('sessions', p), addToCarts: sum('addToCarts', p), checkouts: sum('checkouts', p), ecommercePurchases: sum('ecommercePurchases', p) }); return { cur: o(false), prev: ch.some(c => c.prev) ? o(true) : null }; };
   const gaRow = (X, re) => { const r = gaSum(X.ga, re); if (!r) return null; const a = gaSum(X.ga4w, re); return { ...r, avg: a ? a.cur : null }; };
@@ -931,7 +939,7 @@
     const mine = acts ? acts.filter(a => a.summary && (a.manual || /budget|paused|status|new_|creative|ad_/i.test(a.category || a.event_type || ''))).slice(0, 12) : null;
     const ga = X.ga && !X.ga.error ? X.ga : null;
     return `${sec(`${esc(b.name)}: last week`, r ? `${short(r.period_start)} to ${short(r.period_end)}. Triple Whale, whole store, every channel, against the week before.` : '', r ? tilesHtml(r) : empty('No weekly report for this brand yet.'))}
-      ${sec('The store funnel', 'Every visitor, every source (GA4). Green or red = above or under this brand\'s own last 4 weeks.', X.ga == null ? empty('Loading GA4…') : ga ? funnelHtml(ga.cur, ga.prev, null, null, gaAvg(X)) : `<p class="cs-empty">${esc(X.ga.error === 'not_linked' ? 'GA4 is not connected for this brand.' : X.ga.error)}</p>`)}
+      ${sec('The store funnel', 'Every visitor, every source (GA4). Green or red = above or under this brand\'s own last 4 weeks.', X.ga == null ? empty('Loading GA4…') : ga ? funnelHtml(ga.cur, ga.prev, null, null, gaAvg(X), r && r.totals ? { v: r.totals.orders, p: r.prior && r.prior.orders } : null) : `<p class="cs-empty">${esc(X.ga.error === 'not_linked' ? 'GA4 is not connected for this brand.' : X.ga.error)}</p>`)}
       ${custBlock(b)}
       ${sec('Last week\'s changes', 'What we changed in the accounts, from the Change Log.', mine == null ? (X.acts && X.acts.error ? `<p class="cs-empty">${esc(X.acts.error)}</p>` : empty('Loading…')) : mine.length ? (X.chg = mine, changesHtml(mine, b)) : empty('No changes logged last week.'))}
       ${sec('Last week\'s tasks', 'Open tasks for this brand in Locus Tasks, due by today. Tick one when it\'s done.', todoList(b.open || [], t, 'Nothing open for this brand.'))}`;
@@ -1022,15 +1030,17 @@
        attribution picked above), each against the week before. GA4's paid-social visitors sit under it when GA4 counts them. */
     const P = X.paid && !X.paid.error ? ((X.paid.brands || [])[0] || X.paid) : null, pc = P && P.cur, pp = P && P.prev;
     const ga = gaRow(X, /paid social/i), gaOk = ga && (ga.cur.addToCarts || ga.cur.ecommercePurchases);
-    const fun = pc ? `${flowHtml([{ l: 'Ad views', v: pc.impressions, p: pp && pp.impressions }, { l: 'Link clicks', v: pc.clicks, p: pp && pp.clicks }, { l: 'Added to cart', v: pc.atc, p: pp && pp.atc }, { l: 'Purchases', v: pc.purchases, p: pp && pp.purchases }], 'var(--c-meta)', false)}
-        ${gaOk ? `<p class="cs-sub">On the site, GA4's paid social visitors:</p>${funnelHtml(ga.cur, ga.prev, null, 'var(--c-meta)', ga.avg)}` : ''}`
+    /* Round 6 (Cole: "the point is people who came from the ad, and what they did after"): starts at the click. Ad views
+       and click rate are one line above it, not a step (a 1.6% step would dwarf the rest). One funnel only. */
+    const fun = pc ? `<p class="cs-lead">${nfmt(pc.impressions)} ad views gave <b>${nfmt(pc.clicks)} link clicks</b> (${fx(pc.impressions ? pc.clicks / pc.impressions : null, 2)} click rate${pp && pp.impressions ? `, ${fx(pp.clicks / pp.impressions, 2)} the week before` : ''}).</p>
+        ${flowHtml([{ l: 'Link clicks', v: pc.clicks, p: pp && pp.clicks }, { l: 'Added to cart', v: pc.atc, p: pp && pp.atc }, { l: 'Purchases', v: pc.purchases, p: pp && pp.purchases }], 'var(--c-meta)', false)}`
       : X.paid == null ? empty('Loading…') : `<p class="cs-empty">${esc(X.paid.error)}</p>`;
-    void imp; void clk;
+    void imp; void clk; void gaOk;
     const strat = STRAT[b.act_id] || strategistOf(b) || 'The strategist';
     return `${secA('Meta results', `Spend is Meta. Sales follow the attribution picked here, and so do the campaigns and ads below.`, attSel, tiles)}
       ${secA('Meta campaigns', `${esc(mname)}. Tap a campaign for its ad sets, an ad set for its ads.`, `<button type="button" class="cs-dd" data-mcols="${esc(b.act_id)}"><span class="v">Columns</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>`, metaTable(b))}
       ${sec('Meta ads', `${r ? `${short(r.period_start)} to ${short(r.period_end)}` : ''}, ${esc(mname)}.`, ads)}
-      ${sec('Meta funnel', 'Every Meta ad. Views, clicks and add to cart are Meta\'s count; purchases are Triple Whale. Against the week before.', fun)}
+      ${sec('Meta funnel', 'People who clicked a Meta ad, and what they did next. Clicks and add to cart are Meta\'s count, purchases are Triple Whale.', fun)}
       ${sec(`${esc(strat)}'s Meta plan`, `From ${esc(strat)}'s Slack post. Yes, Changes or No on each line; Finish posts it in the recap and tags ${esc(strat)}.`, `${(b.posts || []).some(p => teamName(p.by) !== 'Radhesh') ? `<details class="cs-more"><summary>The post, word for word</summary>${postsHtml((b.posts || []).filter(p => teamName(p.by) !== 'Radhesh'), b.act_id)}</details>` : ''}${planHtml(b, 'batches', strat)}`)}`;
   }
   function googleBlock(b) {
