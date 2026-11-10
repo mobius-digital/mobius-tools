@@ -316,24 +316,29 @@
       /* ===== Round 3 look (Cole 2026-11-10: "flat", "that modern SaaS look"). Locus's own palette (navy ink, sky brand)
          with depth: soft layered shadows instead of hard borders, a faint brand wash behind the page, channel colour as an
          accent on each part, bigger numbers, quieter labels, real switches and Locus menus instead of browser controls. */
-      .cs{max-width:1200px;--acc:var(--brand);--sh-1:0 1px 2px rgba(16,32,43,.05),0 10px 28px -14px rgba(16,32,43,.16);--sh-2:0 2px 4px rgba(16,32,43,.06),0 18px 40px -18px rgba(16,32,43,.28);gap:18px}
-      .v2.cs{background:radial-gradient(1200px 420px at 15% -80px,color-mix(in srgb,var(--brand) 13%,transparent),transparent 70%),radial-gradient(900px 360px at 100% 0,color-mix(in srgb,var(--c-email,#8b7cf6) 8%,transparent),transparent 70%);border-radius:24px;padding:4px}
-      .cs .cs-sec{border:1px solid color-mix(in srgb,var(--line) 70%,transparent);border-radius:18px;padding:20px 22px;box-shadow:var(--sh-1);gap:16px;position:relative}
+      /* Round 4 (Cole: "looks off, is this following proper colors?"). Audit: round 3 brought in colours and shapes the
+         rest of Locus does not use (a lilac wash, 18px corners, gradient bars on every tile, a stripe on every card).
+         Back to Locus v2 itself: neutral greys, ONE blue (--brand), status colours only for good / bad, channel colours
+         only inside charts and on the small part marker, 12px corners, a hairline border plus one soft shadow. The
+         modern feel comes from hierarchy and spacing, not decoration. */
+      .cs{max-width:1200px;--acc:var(--brand);--sh-1:0 1px 2px rgba(21,21,24,.04),0 4px 14px -8px rgba(21,21,24,.10);gap:16px}
+      .cs .cs-sec{border:1px solid var(--line);border-radius:12px;padding:18px 20px;box-shadow:var(--sh-1);gap:14px;position:relative;background:var(--surface)}
       .cs .cs-sec header h3{font-size:16px;font-weight:650;letter-spacing:-.012em}
       .cs .cs-sec header .cap{font-size:12.5px;max-width:72ch}
       .cs header.cs-hd{flex-direction:row;align-items:flex-start;justify-content:space-between;gap:12px}
       .cs header.cs-hd>div:first-child{display:flex;flex-direction:column;gap:2px;min-width:0}
       .cs .cs-hda{display:flex;gap:8px;flex:0 0 auto}
       .cs .cs-chan{display:flex;flex-direction:column;gap:18px}
-      .cs .cs-chan .cs-sec::before{content:'';position:absolute;left:0;top:18px;bottom:18px;width:3px;border-radius:0 3px 3px 0;background:var(--acc);opacity:.85}
-      .cs .cs-part{margin:18px 0 -2px;font-size:12px;letter-spacing:.08em;color:var(--ink)}
-      .cs .cs-part span{width:26px;height:26px;border-radius:9px;background:linear-gradient(135deg,var(--acc),color-mix(in srgb,var(--acc) 55%,var(--ink)));box-shadow:0 4px 12px -4px color-mix(in srgb,var(--acc) 60%,transparent);font-weight:700}
-      .cs .cs-part::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent)}
-      .cs .cs-tile{background:linear-gradient(180deg,var(--surface),color-mix(in srgb,var(--acc) 5%,var(--surface)));border:1px solid color-mix(in srgb,var(--line) 80%,transparent);border-radius:14px;padding:14px 16px 13px;box-shadow:0 1px 2px rgba(16,32,43,.04);position:relative;overflow:hidden}
-      .cs .cs-tile::before{content:'';position:absolute;inset:0 0 auto 0;height:3px;background:linear-gradient(90deg,var(--acc),color-mix(in srgb,var(--acc) 30%,transparent))}
-      .cs .cs-tile .l{font-size:11.5px;font-weight:600;letter-spacing:.02em;color:var(--muted)}
-      .cs .cs-tile .v{font-size:26px;font-weight:650;letter-spacing:-.025em}
-      .cs .cs-d{height:22px;padding:0 8px;font-size:11.5px}
+      .cs .cs-part{margin:20px 0 0;font-size:12px;font-weight:650;letter-spacing:.06em;color:var(--ink-2)}
+      .cs .cs-part>span:first-child{width:22px;height:22px;border-radius:6px;background:color-mix(in srgb,var(--acc) 14%,var(--surface));border:1px solid color-mix(in srgb,var(--acc) 35%,var(--line));color:color-mix(in srgb,var(--acc) 70%,var(--ink));font-size:11.5px;font-weight:700;display:grid;place-items:center}
+      .cs .cs-part::after{content:'';flex:1;height:1px;background:var(--line)}
+      .cs .cs-tiles{grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:10px}
+      .cs .cs-tile{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:13px 15px;box-shadow:none;gap:6px}
+      .cs .cs-tile .l{font-size:12px;font-weight:500;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .cs .cs-tile .v{font-size:24px;font-weight:650;letter-spacing:-.02em;flex-wrap:nowrap;justify-content:space-between;gap:8px}
+      .cs .cs-tile .sub{line-height:1.4}
+      .cs .cs-tile .sub.down{color:var(--bad)}.cs .cs-tile .sub.up{color:var(--good)}
+      .cs .cs-d{height:20px;padding:0 7px;font-size:11.5px;flex:0 0 auto}
       .cs table.cs-tbl thead th{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);padding:0 8px 9px;vertical-align:bottom;line-height:1.25}
       .cs table.cs-camp thead th:not(:first-child){max-width:84px}
       .cs table.cs-tbl th:last-child,.cs table.cs-tbl td:last-child{padding-right:2px}
@@ -357,7 +362,7 @@
       .cs .cs-bud{border:1px solid var(--line);border-radius:8px;background:var(--bg);padding:3px 9px}
       /* funnel: flow cards + drop-off bars */
       .cs .cs-flow{display:flex;align-items:stretch;gap:0;overflow-x:auto;padding-bottom:2px}
-      .cs .cs-fc{flex:1 1 0;min-width:120px;display:flex;flex-direction:column;gap:3px;padding:14px 16px;border-radius:14px;background:linear-gradient(160deg,color-mix(in srgb,var(--acc) 9%,var(--surface)),var(--surface));border:1px solid color-mix(in srgb,var(--acc) 22%,var(--line))}
+      .cs .cs-fc{flex:1 1 0;min-width:120px;display:flex;flex-direction:column;gap:3px;padding:13px 15px;border-radius:10px;background:var(--surface);border:1px solid var(--line)}
       .cs .cs-fc .l{font-size:11.5px;font-weight:600;color:var(--muted)}.cs .cs-fc .v{font-size:24px;font-weight:650;letter-spacing:-.02em;font-variant-numeric:tabular-nums}.cs .cs-fc .d{font-size:12px}
       .cs .cs-fa{flex:0 0 auto;align-self:center;display:inline-flex;align-items:center;gap:4px;margin:0 -6px;z-index:1;padding:4px 9px;border-radius:999px;background:var(--surface);border:1px solid var(--line);box-shadow:0 2px 6px -2px rgba(16,32,43,.18);color:var(--muted);font-size:12px;line-height:1}
       .cs .cs-fa b{font-size:12px;font-weight:700;color:var(--ink)}
@@ -380,9 +385,9 @@
       .cs .cs-chg li.go{cursor:pointer;border-radius:8px}.cs .cs-chg li.go:hover{background:var(--bg)}
       .cs .cs-chg .chev{color:var(--muted);font-size:16px;margin-left:4px}
       .cs .cs-chg .tx .cs-plat,.cs .cs-plat{display:inline-block!important;width:8px;height:8px;border-radius:50%;margin-right:8px;vertical-align:middle;background:var(--c-meta)}.cs .cs-plat.google{background:var(--c-google)}.cs .cs-plat.email{background:var(--c-email)}
-      .cs .cs-cal .d{border-radius:10px;background:var(--surface)}.cs .cs-cal .ev{border-radius:6px;background:linear-gradient(135deg,var(--brand),color-mix(in srgb,var(--brand) 60%,var(--ink)))}
-      .cs .cs-steps .cs-pill{height:32px;padding:0 13px;box-shadow:0 1px 2px rgba(16,32,43,.05)}
-      .cs .cs-steps .cs-pill[aria-current="true"]{background:linear-gradient(135deg,var(--ink),color-mix(in srgb,var(--ink) 70%,var(--brand)));box-shadow:0 6px 16px -8px rgba(16,32,43,.6)}
+      .cs .cs-cal .d{border-radius:8px;background:var(--surface)}.cs .cs-cal .ev{border-radius:5px;background:var(--brand-soft);color:var(--brand-ink);border:1px solid var(--brand-line)}
+      .cs .cs-steps .cs-pill{height:30px;padding:0 12px}
+      .cs .cs-hbar i{background-image:none!important}
       @media (max-width:760px){.cs .cs-hop{grid-template-columns:minmax(0,1fr) auto}.cs .cs-hop .cs-hbar{grid-column:1/-1;grid-row:2}.cs .cs-fc{min-width:104px}.cs header.cs-hd{flex-direction:column}}
       @media (max-width:760px){.cs table.cs-fun td.bar{min-width:70px}.cs .cs-cal .d{min-height:50px}.cs .cs-chg li{grid-template-columns:80px minmax(0,1fr)}.cs .cs-chg .o{grid-column:2}}
       .cs-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);max-width:min(560px,calc(100vw - 32px));background:var(--ink);color:var(--surface);padding:10px 16px;border-radius:var(--r-lg);font-size:13px;z-index:9999;box-shadow:0 8px 30px rgba(0,0,0,.25)}
@@ -540,7 +545,7 @@
   const cents = n => n == null ? '–' : '$' + (+n).toFixed(2);
   function tilesHtml(r) {
     const t = r.totals || {}, p = r.prior || {}, f = r.plan || {}, L = r.leads;
-    const tile = (l, v, d, sub) => `<div class="cs-tile"><span class="l">${l}</span><span class="v">${v}${d}</span><span class="sub">${sub}</span></div>`;
+    const tile = (l, v, d, sub, tone) => `<div class="cs-tile"><span class="l">${l}</span><span class="v">${v}${d}</span><span class="sub${tone ? ` ${tone}` : ''}">${sub}</span></div>`;
     const was = (v, f2) => v != null ? `${f2(v)} the week before` : 'no week before to compare';
     const sales = t.sales, spend = t.spend;
     const merNoLeads = L && sales != null && spend > L.spend ? sales / (spend - L.spend) : null;
@@ -549,10 +554,10 @@
     return `<div class="cs-tiles">
       ${tile('Sales, whole store', money(sales), delta(sales, p.sales), was(p.sales, money))}
       ${tile('Ad spend, every channel', money(spend), delta(spend, p.spend, true), was(p.spend, money))}
-      ${tile('MER (sales ÷ ad spend)', x2(t.mer), f.mer && t.mer != null ? `<span class="cs-d ${t.mer >= f.mer ? 'up' : 'down'}">goal ${x2(f.mer)}</span>` : delta(t.mer, p.mer), merSub)}
+      ${tile('MER (sales ÷ ad spend)', x2(t.mer), delta(t.mer, p.mer), merSub, f.mer && t.mer != null ? (t.mer >= f.mer ? 'up' : 'down') : '')}
       ${tile('Orders', t.orders != null ? Math.round(t.orders).toLocaleString('en-US') : '–', delta(t.orders, p.orders), was(p.orders, v => Math.round(v).toLocaleString('en-US')))}
       ${t.ncpa != null ? tile('Cost per new customer', money(t.ncpa), delta(t.ncpa, p.ncpa, true), was(p.ncpa, money)) : ''}
-      ${L ? tile('Lead ads (inside ad spend)', money(L.spend), '', `${L.leads.toLocaleString('en-US')} leads at ${cents(L.leads ? L.spend / L.leads : null)} each`) : ''}
+      ${L ? tile('Lead ads', money(L.spend), '', `inside ad spend · ${L.leads.toLocaleString('en-US')} leads at ${cents(L.leads ? L.spend / L.leads : null)}`) : ''}
     </div>`;
   }
   function chanTable(r) {
@@ -771,8 +776,13 @@
   function funnelHtml(cur, prev, top, hue, avg) {
     if (!cur || !cur.sessions) return empty('No GA4 numbers for this.');
     if (!cur.addToCarts && !cur.checkouts && !cur.ecommercePurchases) return `<p class="cs-empty">${Math.round(cur.sessions).toLocaleString('en-US')} sessions, but GA4 recorded no add to cart, checkout or purchase. The store's GA4 shopping events are not set up, so there is no funnel to read yet.</p>`;
-    return flowHtml([...(top || []).filter(t => t[1] != null).map(t => ({ l: t[0], v: t[1], p: t[2], a: t[3] })),
-      ...FSTEPS.map(([k, l]) => ({ k, l, v: cur[k], p: prev ? prev[k] : null, a: avg ? avg[k] : null }))], hue, !!avg);
+    /* GA4 that stops counting part way (Dartee: add to cart counted, checkout and purchase never) shows the steps it has
+       and says which are missing, instead of a 0% drop that reads as a broken checkout. */
+    let steps = FSTEPS.map(([k, l]) => ({ k, l, v: cur[k], p: prev ? prev[k] : null, a: avg ? avg[k] : null }));
+    const cut = steps.findIndex((s, i) => i && !s.v && steps.slice(i).every(x => !x.v));
+    const missing = cut > 0 ? steps.slice(cut).map(s => s.l.toLowerCase()) : [];
+    if (cut > 0) steps = steps.slice(0, cut);
+    return `${flowHtml([...(top || []).filter(t => t[1] != null).map(t => ({ l: t[0], v: t[1], p: t[2], a: t[3] })), ...steps], hue, !!avg)}${missing.length ? `<p class="cs-sub">GA4 records no ${missing.join(' or ')} for this store, so the funnel stops at ${esc(steps[steps.length - 1].l.toLowerCase())}. Purchases are in the numbers above (Triple Whale).</p>` : ''}`;
   }
   /* Round 3 (Cole 2026-11-10: "so hard to see the difference between add to cart, checkout and purchase", "the column
      names are too long"). Two parts. The FLOW: one card per step with the count and its change on the week before,
@@ -809,7 +819,7 @@
         <button type="button" class="x" data-f="del" aria-label="Remove" title="Remove">×</button></div>`).join('');
     return `<p class="cs-howto"><span><b>Yes:</b> approved, ${esc(who)} makes it</span><span><b>Changes:</b> type what to change, ${esc(who)} gets your note with it</span><span><b>No:</b> dropped</span><span>Finish posts all of it in the brand's internal Slack recap and puts the Yes and Changes lines on the client meeting's This week.</span></p>
       <div class="rows" data-list="${key}" data-act="${esc(b.act_id)}">${rows}</div>
-      ${lines.length ? '' : `<p class="warnline">${esc(who)} has not posted a plan for ${esc(b.name)} yet. Talk it through and type the lines.</p>`}
+      ${lines.length ? '' : key === 'eplan' ? `<p class="cs-empty">Nothing typed yet. Add this week's email and SMS sends as lines.</p>` : `<p class="warnline">${esc(who)} has not posted a plan for ${esc(b.name)} yet. Talk it through and type the lines.</p>`}
       <button type="button" class="add" data-add="${key}" data-act="${esc(b.act_id)}">+ Add a line</button>`;
   }
   /* Radhesh's Google plan: his own Slack lines (no model), seeded once. */
