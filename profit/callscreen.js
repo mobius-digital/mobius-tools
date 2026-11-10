@@ -388,6 +388,20 @@
       .cs .cs-cal .d{border-radius:8px;background:var(--surface)}.cs .cs-cal .ev{border-radius:5px;background:var(--brand-soft);color:var(--brand-ink);border:1px solid var(--brand-line)}
       .cs .cs-steps .cs-pill{height:30px;padding:0 12px}
       .cs .cs-hbar i{background-image:none!important}
+      /* Round 5: a centered, quiet funnel; the section number badge centered; one comparison style everywhere */
+      .cs .cs-fc{align-items:center;text-align:center;padding:16px 12px}
+      .cs .cs-fc .d{display:flex;justify-content:center;min-height:20px}
+      .cs .cs-board .mini small,.cs .cs-board .mini small span{display:inline;white-space:normal}
+      .cs .cs-htitle{margin:6px 0 0;font-size:12px;font-weight:600;color:var(--muted)}
+      .cs .cs-hop{grid-template-columns:minmax(170px,230px) minmax(0,1fr) 190px}
+      .cs .cs-hop .hl{display:flex;align-items:center;justify-content:flex-start;gap:6px}.cs .cs-hop .hl .ar{color:var(--faint,var(--muted))}
+      .cs .cs-hbar{height:10px;background:var(--surface-2)}
+      .cs .cs-hbar i{border-radius:999px}
+      .cs .cs-hop .hr{justify-content:flex-start;gap:10px;align-items:center}
+      .cs .cs-hop .hr b{font-size:15px;min-width:44px;text-align:right}
+      .cs .cs-cmp{font-size:11.5px;font-weight:600;border-radius:999px;padding:2px 8px;background:var(--surface-2);color:var(--muted);white-space:nowrap}
+      .cs .cs-cmp.up{background:var(--good-bg);color:var(--good)}.cs .cs-cmp.down{background:var(--bad-bg);color:var(--bad)}
+      .cs .cs-part>span:first-child{display:inline-flex!important;align-items:center;justify-content:center;padding:0;letter-spacing:0;line-height:1;text-align:center;flex:0 0 22px}
       @media (max-width:760px){.cs .cs-hop{grid-template-columns:minmax(0,1fr) auto}.cs .cs-hop .cs-hbar{grid-column:1/-1;grid-row:2}.cs .cs-fc{min-width:104px}.cs header.cs-hd{flex-direction:column}}
       @media (max-width:760px){.cs table.cs-fun td.bar{min-width:70px}.cs .cs-cal .d{min-height:50px}.cs .cs-chg li{grid-template-columns:80px minmax(0,1fr)}.cs .cs-chg .o{grid-column:2}}
       .cs-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);max-width:min(560px,calc(100vw - 32px));background:var(--ink);color:var(--surface);padding:10px 16px;border-radius:var(--r-lg);font-size:13px;z-index:9999;box-shadow:0 8px 30px rgba(0,0,0,.25)}
@@ -798,13 +812,17 @@
     const hops = S.slice(1).map((s, i) => {
       const a = S[i], r = a.v ? s.v / a.v : null, rp = a.p && s.p != null ? s.p / a.p : null, ra = a.a && s.a != null ? s.a / a.a : null;
       const T = TYPICAL[s.k] && a.k ? (s.k === 'addToCarts' ? 'Online stores in general: 5 to 8% of sessions add to cart' : s.k === 'checkouts' ? 'Online stores in general: about 40 to 55% of carts reach checkout' : 'Online stores in general: about 40 to 50% of checkouts buy') : '';
-      const tone = r == null || ra == null ? '' : r >= ra ? 'up' : 'down';
-      const tip = `${nfmt(s.v)} of ${nfmt(a.v)} ${a.l.toLowerCase()} went on to ${s.l.toLowerCase()} (${fx(r, 1)}).${rp != null ? ` Week before: ${fx(rp, 1)}.` : ''}${ra != null ? ` Usual: ${fx(ra, 1)}.` : ''}${T ? ` ${T}.` : ''}`;
-      return `<div class="cs-hop" title="${esc(tip)}"><span class="hl">${esc(a.l)} <span class="muted">→</span> ${esc(s.l)}</span>
-        <div class="cs-hbar"><i style="width:${Math.max(1.5, Math.min(100, (r || 0) * 100))}%;background:${hu}"></i>${ra != null ? `<b class="usual" style="left:${Math.min(100, ra * 100)}%"></b>` : ''}${rp != null ? `<b class="was" style="left:${Math.min(100, rp * 100)}%"></b>` : ''}</div>
-        <span class="hr"><b class="${tone ? `cs-rate ${tone}` : ''}">${fx(r, r != null && r < 0.1 ? 1 : 0)}</b>${ra != null ? `<small>usual ${fx(ra, ra < 0.1 ? 1 : 0)}</small>` : rp != null ? `<small>was ${fx(rp, rp < 0.1 ? 1 : 0)}</small>` : ''}</span></div>`;
+      /* Round 5 (Cole: "random black bars and dotted lines you had to explain"): no markers. The bar is the rate; the
+         comparison is said in words beside it ("usual 17%"), coloured only by whether this week is above or under. */
+      const base = ra != null ? ra : rp, tone = r == null || base == null ? '' : r >= base ? 'up' : 'down';
+      const tip = `${nfmt(s.v)} of ${nfmt(a.v)} went on to ${s.l.toLowerCase()}.${rp != null ? ` Week before: ${fx(rp, 1)}.` : ''}${ra != null ? ` Usual (4 weeks before): ${fx(ra, 1)}.` : ''}${T ? ` ${T}.` : ''}`;
+      const dp = x => fx(x, x != null && x < 0.1 ? 1 : 0);
+      return `<div class="cs-hop" title="${esc(tip)}"><span class="hl">${esc(a.l)} <span class="ar">→</span> ${esc(s.l)}</span>
+        <div class="cs-hbar"><i style="width:${Math.max(1.5, Math.min(100, (r || 0) * 100))}%;background:${hu}"></i></div>
+        <span class="hr"><b>${dp(r)}</b>${base != null ? `<span class="cs-cmp ${tone}">${tone === 'up' ? '▲' : '▼'} ${ra != null ? 'usual' : 'last week'} ${dp(base)}</span>` : ''}</span></div>`;
     }).join('');
-    return `<div class="cs-flow">${cards}</div><div class="cs-hops"><div class="cs-hlegend"><span><i style="background:${hu}"></i>moved on</span>${hasAvg ? '<span><b class="usual"></b>their usual (4 weeks before)</span>' : ''}<span><b class="was"></b>the week before</span><span class="muted">Hover a row for the numbers and the general online-store range.</span></div>${hops}</div>`;
+    void hasAvg;
+    return `<div class="cs-flow">${cards}</div><div class="cs-hops"><p class="cs-htitle">Share that moved on to the next step</p>${hops}</div>`;
   }
   /* GA4 rows for one channel group (Paid Social, Paid Search, Email...), this week + week before, or from the 4-week pull. */
   const gaSum = (src, re) => { const ch = src && !src.error ? (src.channels || []).filter(c => re.test(String(c.group || c.k || ''))) : []; if (!ch.length) return null; const sum = (k, p) => ch.reduce((n, c) => n + (+((p ? c.prev || {} : c)[k]) || 0), 0); const o = p => ({ sessions: sum('sessions', p), addToCarts: sum('addToCarts', p), checkouts: sum('checkouts', p), ecommercePurchases: sum('ecommercePurchases', p) }); return { cur: o(false), prev: ch.some(c => c.prev) ? o(true) : null }; };
@@ -898,7 +916,7 @@
     const ek = X.esort || 'revenue', crow = sortRows(camps.map(c => ({ ...c, revenue: rev(c), rpr: c.recipients ? rev(c) / c.recipients : null })), ek === 'sent' ? 'recipients' : ek);
     return `${sec('Email results', 'Sales are Triple Whale, last click, the whole week. Sends and opens are Klaviyo.', `<div class="cs-tiles">
         ${tile('Email and SMS sales (Triple Whale)', `${ch ? money(ch.cur.revenue) : '–'}${ch && ch.prev ? delta(ch.cur.revenue, ch.prev.revenue) : ''}`, ch && ch.prev ? `${money(ch.prev.revenue)} the week before` : '')}
-        ${tile('Share of store sales', ch && t.sales ? fx(ch.cur.revenue / t.sales, 0) : '–', 'healthy brands sit near 20 to 30%')}
+        ${tile('Share of store sales', ch && t.sales ? fx(ch.cur.revenue / t.sales, 0) : '–', 'of the whole store\'s sales, Triple Whale')}
         ${tile('Campaigns sent', `${em.length} email · ${sms.length} SMS`, `${money(camps.reduce((n, c) => n + (rev(c) || 0), 0))} by Klaviyo's count`)}
         ${tile('Flows', money(flowRev), `top ${flows.length} flows, Klaviyo's count`)}</div>
         ${err ? `<p class="cs-empty">${esc(err === 'not_linked' ? 'Klaviyo is not connected for this brand.' : err)}</p>` : ''}`)}
