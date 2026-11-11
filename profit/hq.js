@@ -40,7 +40,7 @@
     html.in-hq .side, html.in-hq #tabbar, html.in-hq #navToggle, html.in-hq #navScrim, html.in-hq .hd-title, html.in-hq #foot,
     html.in-hq #clientPick, html.in-hq #pfPick, html.in-hq #pfMe, html.in-hq #btnOut, html.in-hq #roleSeg, html.in-hq #btnGuide,
     html.in-hq #hdMake, html.in-hq #v2seg, html.in-hq #tbAsk,
-    html.in-hq #byWwd, html.in-hq #byDrops, html.in-hq #bySlack, html.in-hq #byDays { display: none !important; }
+    html.in-hq #byWwd, html.in-hq #byDrops, html.in-hq #bySlack, html.in-hq #byDays, html.in-hq .by-own { display: none !important; }
     html.in-hq .app { grid-template-columns: minmax(0, 1fr) !important; }
     html.in-hq body { padding-bottom: 0 !important; }
     html.in-hq .hq-wait { max-width: 360px; margin: 18vh auto 0; text-align: center; color: var(--muted, #6b7280); font-size: 14px; }
@@ -74,6 +74,10 @@
       /* The team's Launch page is open to this login (the server holds it to Lucky). */
       const _ok = clientTabOk;
       clientTabOk = t => t === 'launch' || _ok(t);
+      /* The search box offers only the pages that open here, and no other brand's tasks or briefs. */
+      const _pages = askPages;
+      askPages = () => _pages().filter(x => SECTION[x.tab]);
+      askObjects = () => [];
       const _show = show;
       show = function (tab, opt) {
         if (!SECTION[tab]) tab = SECTION[S.tab] ? S.tab : 'buyer';
