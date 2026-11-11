@@ -222,12 +222,14 @@ export async function hqSignin(env, token, mintSession) {
   const users = (await getJson(env, 'clientUsers', {})) || {};
   const now = new Date().toISOString(), cur = users[e] && typeof users[e] === 'object' ? users[e] : {};
   const name = String(v.name || '').trim().slice(0, 60) || local;
-  users[e] = { ...cur, brands: [HQ_BRAND], hq: true, name, invited_at: cur.invited_at || now, invited_by: cur.invited_by || 'Lucky HQ', welcomed_at: cur.welcomed_at || now, last_sign_in: now, last_seen: now };
+  /* can: 'read' in the pass = Lucky HQ's People list gave this person Ads to read, not to act. hq_until: the login
+     lasts half an hour, then Locus asks HQ for a new pass (brandguard.js clientOf). */
+  users[e] = { ...cur, brands: [HQ_BRAND], hq: true, readOnly: v.can === 'read', hq_until: Date.now() + 30 * 60e3, name, invited_at: cur.invited_at || now, invited_by: cur.invited_by || 'Lucky HQ', welcomed_at: cur.welcomed_at || now, last_sign_in: now, last_seen: now };
   delete users[e].invite;
   await putJson(env, 'clientUsers', users);
   const c = await clientOf(env, e);
   if (!c || !c.hq || c.brands.length !== 1 || c.brands[0] !== HQ_BRAND) return { error: 'That login is not a Lucky HQ login.', status: 403 };
-  return { ...(await mintSession(env, e)), role: 'client', name, hq: true };
+  return { ...(await mintSession(env, e)), role: 'client', name, hq: true, ...(c.readOnly ? { readOnly: true } : {}) };
 }
 
 export async function meClient(env, email) {
@@ -235,7 +237,7 @@ export async function meClient(env, email) {
   if (!c) return null;
   const names = await brandNames(env, c.brands);
   const users = (await getJson(env, 'clientUsers', {})) || {};
-  return { name: c.name, ...(c.hq ? { hq: true } : {}), welcomed: !!users[c.email]?.welcomed_at, brands: c.brands.map(b => ({ id: b, name: names[b] || b, access: c.access[b] })) };
+  return { name: c.name, ...(c.hq ? { hq: true } : {}), ...(c.readOnly ? { readOnly: true } : {}), welcomed: !!users[c.email]?.welcomed_at, brands: c.brands.map(b => ({ id: b, name: names[b] || b, access: c.access[b] })) };
 }
 
 /* ---------------- routes ---------------- */

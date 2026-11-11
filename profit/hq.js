@@ -98,6 +98,7 @@
             const j = await r.json().catch(() => ({}));
             if (!r.ok || !j.token || j.hq !== true) throw new Error(j.error || 'no session');
             ss.set('locus_hq_tok', j.token); S.tok = j.token; S.tab = SECTION[S.tab] ? S.tab : start;
+            asks = 0;   // a login lasts half an hour, then HQ is asked again: each good sign-in starts the count over
             boot();
           } catch (err) { wait('Locus could not sign in', 'Reload Lucky HQ and open Ads again.'); }
         }

@@ -889,6 +889,17 @@ await check('Lucky HQ (2026-11-11): a pass from HQ opens Lucky Golf only, with t
     assert.ok(passed(await ran('ah', HQ, m, p, body)), `${m} ${p} reaches the handler`);
   const list = await ran('ah', HQ, 'GET', '/api/buyer-list?act=brand_lucky_golf');
   if (list.j && !list.j.error) { assert.equal(list.j.settings, undefined, 'never the team\'s settings'); assert.equal(list.j.owner, undefined); }
+  /* Read only (the pass says can: 'read', from Lucky HQ's People list): may look, may not press or change anything. */
+  const ro = await ah(null, 'POST', '/api/hq-signin', { pass: pass('s3cret', { email: 'reader@luckygolf.com', name: 'Reader', can: 'read' }) });
+  assert.equal(ro.status, 200); assert.equal(ro.j.readOnly, true);
+  assert.equal((await ah(ro.j.token, 'GET', '/api/me')).j.client.readOnly, true);
+  assert.ok(passed(await ran('ah', ro.j.token, 'GET', '/api/buyer-list?act=brand_lucky_golf')), 'a reader reads the calls');
+  for (const [m, p, body] of [['POST', '/api/buyer-list/decision', { act: 'brand_lucky_golf', object: '1', action: 'cut', decision: 'yes' }], ['POST', '/api/meta/write', { act: 'brand_lucky_golf', kind: 'pause', object: '1' }]])
+    assert.equal((await ran('ah', ro.j.token, m, p, body)).status, 403, `a reader cannot ${m} ${p}`);
+  assert.equal((await ah(HQ, 'GET', '/api/me')).j.client.readOnly, undefined, 'the acting login is not read only');
+  /* The login lasts half an hour: past hq_until it is nobody until HQ hands over a new pass. */
+  { const u = getSetting('clientUsers'); u['reader@hq.luckygolf.com'].hq_until = Date.now() - 1000; db.prepare(`UPDATE settings SET value = ? WHERE key = 'clientUsers'`).run(JSON.stringify(u)); }
+  assert.equal((await ran('ah', ro.j.token, 'GET', '/api/buyer-list?act=brand_lucky_golf')).status, 401, 'an expired HQ login is shut');
   /* An ordinary client login does not get the hq rules, even for its own brand. */
   assert.equal((await ran('ah', CLIENT, 'POST', '/api/buyer-list/decision', { act: 'brand_alpha', object: '1', decision: 'yes' })).status, 403, 'a normal client still cannot decide');
   /* An address on the HQ domain that was not minted by a pass is not an hq login. */
