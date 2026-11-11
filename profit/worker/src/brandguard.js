@@ -99,9 +99,13 @@ export async function clientOf(env, email) {
   /* The Lucky HQ login (2026-11-11, POST /api/hq-signin): Locus opened inside hq.luckygolf.com. It is a client login
      that is ALWAYS Lucky Golf and nothing else, whatever the stored row says, and the only one the `hq` rules open to. */
   const hq = c.hq === true && e.endsWith('@' + HQ_DOMAIN);
+  /* Lucky HQ's People list decides who may open Ads and whether they may act (2026-11-11). HQ renews the login with a
+     fresh pass; past hq_until the login is nobody, so a person taken off HQ's list is out of Locus within half an hour.
+     readOnly (the pass said can: 'read') = may look, may not press Yes / No, launch or change an ad. */
+  if (hq && c.hq_until && !(Number(c.hq_until) > Date.now())) return null;
   const brands = hq ? [HQ_BRAND] : (Array.isArray(c.brands) ? c.brands : []).map(String).filter(b => /^brand_[a-z0-9_]+$/.test(b));
   const access = Object.fromEntries(brands.map(b => [b, { ...CLIENT_SWITCHES }]));
-  return { email: e, name: c.name || null, brands, access, ...(hq ? { hq: true } : {}) };
+  return { email: e, name: c.name || null, brands, access, ...(hq ? { hq: true } : {}), ...(hq && c.readOnly === true ? { readOnly: true } : {}) };
 }
 
 /** True when this email may sign in as a client (googleLogin uses it next to emailAllowed). */
@@ -603,6 +607,7 @@ async function guardClient(request, env, client, handle, CORS) {
   let match = null;
   const rule = CLIENT_RULES.find(r => r.m === m && (!r.hq || client.hq === true) && (r.p ? r.p === path : (match = path.match(r.re))));
   if (!rule) return out(403, CLIENT_NO);
+  if (client.readOnly === true && m !== 'GET' && m !== 'HEAD') return out(403, 'You can read Ads here. Pressing calls, launching and changing ads is switched off for you in Lucky HQ (Settings, People).');
   if (rule.p) match = null;
   /* A login with no brand left (Cole removed the last one) opens nothing at all. */
   if (!client.brands.length) return out(401, 'unauthorized');
