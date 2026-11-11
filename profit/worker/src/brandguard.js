@@ -34,6 +34,7 @@
 const OWNER = 'cole@go-mobius-digital.com';
 const DOMAIN = 'go-mobius-digital.com';
 const lower = s => String(s || '').trim().toLowerCase();
+export const HQ_BRAND = 'brand_lucky_golf', HQ_DOMAIN = 'hq.luckygolf.com';
 
 async function settingJson(env, key, dflt) {
   const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = ?1`).bind(key).first().catch(() => null);
@@ -95,9 +96,12 @@ export async function clientOf(env, email) {
   if (!c || typeof c !== 'object') return null;
   const guests = (await settingJson(env, 'allowedEmails', [])) || [];
   if (Array.isArray(guests) && guests.map(lower).includes(e)) return null;
-  const brands = (Array.isArray(c.brands) ? c.brands : []).map(String).filter(b => /^brand_[a-z0-9_]+$/.test(b));
+  /* The Lucky HQ login (2026-11-11, POST /api/hq-signin): Locus opened inside hq.luckygolf.com. It is a client login
+     that is ALWAYS Lucky Golf and nothing else, whatever the stored row says, and the only one the `hq` rules open to. */
+  const hq = c.hq === true && e.endsWith('@' + HQ_DOMAIN);
+  const brands = hq ? [HQ_BRAND] : (Array.isArray(c.brands) ? c.brands : []).map(String).filter(b => /^brand_[a-z0-9_]+$/.test(b));
   const access = Object.fromEntries(brands.map(b => [b, { ...CLIENT_SWITCHES }]));
-  return { email: e, name: c.name || null, brands, access };
+  return { email: e, name: c.name || null, brands, access, ...(hq ? { hq: true } : {}) };
 }
 
 /** True when this email may sign in as a client (googleLogin uses it next to emailAllowed). */
@@ -260,6 +264,16 @@ export const CLIENT_RULES = [
   R('GET', '/api/trybe/video'),   // press play on one of the client's own creator videos (a 20 minute link from Trybe)
   R('GET', '/api/trybe'),   // Ads > Trybe: Live and Creators for the client's own brand; the handler trims the rest (2026-11-05)
   R('POST', '/api/buyer-list/state', 'need', { fields: ['object', 'action', 'status', 'name'] }),
+  /* The Lucky HQ login only (hq: true): the team's Calls page for Lucky. Yes / No, why not, the ads behind a row,
+     what launched. Each handler holds the caller to its brands (buyerlist.js `only`). Settings, the Slack post, the
+     morning read and "What we did" to the client channel stay the team's. */
+  R('POST', '/api/buyer-list/decision', 'need', { hq: true }),
+  R('POST', '/api/buyer-list/decide', 'need', { hq: true }),
+  R('POST', '/api/buyer-list/disagree', 'need', { hq: true }),
+  R('GET', '/api/buyer-list/ads', 'need', { hq: true }),
+  R('GET', '/api/buyer-list/launched', 'need', { hq: true }),
+  R('GET', '/api/buyer-list/ready-check', 'need', { hq: true }),
+  R('GET', '/api/buyer-list/lessons', 'need', { hq: true }),
   R('GET', '/api/hub/drill'),
   R('GET', '/api/hub/orders'),
   R('GET', '/api/hub/customer'),
@@ -587,7 +601,7 @@ async function guardClient(request, env, client, handle, CORS) {
   const m = request.method;
   const out = (status, error) => new Response(JSON.stringify({ error }), { status, headers: { 'Content-Type': 'application/json', ...CORS } });
   let match = null;
-  const rule = CLIENT_RULES.find(r => r.m === m && (r.p ? r.p === path : (match = path.match(r.re))));
+  const rule = CLIENT_RULES.find(r => r.m === m && (!r.hq || client.hq === true) && (r.p ? r.p === path : (match = path.match(r.re))));
   if (!rule) return out(403, CLIENT_NO);
   if (rule.p) match = null;
   /* A login with no brand left (Cole removed the last one) opens nothing at all. */
@@ -668,7 +682,7 @@ async function guardClient(request, env, client, handle, CORS) {
   } else if (urlChanged) {
     req = new Request(u2.toString(), request);
   }
-  CLEARED.set(req, { email: client.email, name: client.name, brands: client.brands, access: client.access, ids: ids.all, brandOf });
+  CLEARED.set(req, { email: client.email, name: client.name, brands: client.brands, access: client.access, ids: ids.all, brandOf, hq: client.hq === true });
   const res = await handle(req);
   if (charge && res.status < 400) await capAdd(env, rule.cap[0], client.email, charge);
   const type = res.headers.get('Content-Type') || '';

@@ -52,7 +52,7 @@
   const LMODE = () => !!(H && H.S && H.S.tab === 'launch');
   /* A CLIENT LOGIN (2026-11-05) reads its own brand's calls here: the same rows, the why and the ads, no Yes / No, no team
      tools. The team makes the changes; a decided row says so. The server leaves launches and the owner out for a client. */
-  const CL = () => !!(H && H.S && H.S.role === 'client');
+  const CL = () => !!(H && H.S && H.S.role === 'client' && !(H.S.client && H.S.client.hq));   // the Lucky HQ login (hq.js) gets the team's page for Lucky
   const HERE = () => !!(H && H.S && (H.S.tab === 'buyer' || H.S.tab === 'launch'));
   let KIND = 'all', SHOWQ = false, DATA = null, BUSY = false, LQ = '', LALL = false, LREAD = '';
   const DAYS = [['mon', 'Monday'], ['tue', 'Tuesday'], ['wed', 'Wednesday'], ['thu', 'Thursday'], ['fri', 'Friday'], ['sat', 'Saturday'], ['sun', 'Sunday']];

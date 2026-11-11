@@ -859,6 +859,43 @@ await check('site reviews: a client answers and sends its own brand only; the to
   assert.equal((await ah(OWNER, 'GET', '/api/site-review/list?act=brand_alpha')).j.reviews[0].answers.length, 0);
 });
 
+await check('Lucky HQ (2026-11-11): a pass from HQ opens Lucky Golf only, with the team\'s Calls buttons; a bad pass, another brand and the agency stay shut', async () => {
+  db.exec(`INSERT OR IGNORE INTO brands (id, slug, name, status, currency, tz, source) VALUES ('brand_lucky_golf', 'lucky-golf', 'Lucky Golf', 'active', 'USD', 'America/Chicago', 'locus')`);
+  const b64 = v => Buffer.from(v).toString('base64url');
+  const pass = (secret, over = {}) => { const body = b64(JSON.stringify({ alg: 'HS256', typ: 'JWT' })) + '.' + b64(JSON.stringify({ aud: 'locus-hq', iss: 'lucky-hq', brand: 'brand_lucky_golf', email: 'Dan@luckygolf.com', name: 'Dan', exp: Math.floor(Date.now() / 1000) + 60, ...over })); return body + '.' + crypto.createHmac('sha256', secret).update(body).digest('base64url'); };
+  assert.equal((await ah(null, 'POST', '/api/hq-signin', { pass: pass('s3cret') })).status, 401, 'no secret set: shut');
+  ahEnv.LOCUS_HQ_SECRET = 's3cret';
+  assert.equal((await ah(null, 'POST', '/api/hq-signin', { pass: pass('wrong') })).status, 401, 'signed with another secret');
+  assert.equal((await ah(null, 'POST', '/api/hq-signin', { pass: pass('s3cret', { exp: Math.floor(Date.now() / 1000) - 5 }) })).status, 401, 'expired');
+  assert.equal((await ah(null, 'POST', '/api/hq-signin', { pass: pass('s3cret', { exp: Math.floor(Date.now() / 1000) + 86400 }) })).status, 401, 'a long-lived pass is refused');
+  assert.equal((await ah(null, 'POST', '/api/hq-signin', { pass: pass('s3cret', { brand: 'brand_alpha' }) })).status, 401, 'a pass for another brand');
+  assert.equal((await ah(null, 'POST', '/api/hq-signin', { pass: pass('s3cret', { aud: 'hq-session' }) })).status, 401, 'HQ\'s own session is not a pass');
+  const s = await ah(null, 'POST', '/api/hq-signin', { pass: pass('s3cret') });
+  assert.equal(s.status, 200, JSON.stringify(s.j)); assert.equal(s.j.role, 'client'); assert.equal(s.j.hq, true); assert.equal(s.j.email, 'dan@hq.luckygolf.com');
+  const HQ = s.j.token;
+  const me = await ah(HQ, 'GET', '/api/me');
+  assert.equal(me.j.role, 'client'); assert.equal(me.j.client.hq, true); assert.deepEqual(me.j.client.brands.map(x => x.id), ['brand_lucky_golf']);
+  /* The stored row cannot widen it: brands typed into the row are ignored for an hq login. */
+  const users = getSetting('clientUsers'); users['dan@hq.luckygolf.com'].brands = ['brand_lucky_golf', 'brand_alpha'];
+  db.prepare(`UPDATE settings SET value = ? WHERE key = 'clientUsers'`).run(JSON.stringify(users));
+  assert.deepEqual((await ah(HQ, 'GET', '/api/me')).j.client.brands.map(x => x.id), ['brand_lucky_golf'], 'still Lucky only');
+  for (const [m, p, body] of [['GET', '/api/buyer-list?act=brand_alpha'], ['GET', '/api/buyer-list?act=all'], ['POST', '/api/buyer-list/decision', { act: 'brand_alpha', object: '1', decision: 'yes' }],
+    ['GET', '/api/buyer-list/launched?act=brand_alpha'], ['GET', '/api/buyer-list/launched'], ['POST', '/api/meta/write', { act: 'brand_alpha', kind: 'pause', object: '1' }], ['GET', '/api/clients'],
+    ['PUT', '/api/buyer-list/settings', { act: 'brand_lucky_golf' }], ['GET', '/api/buyer-list/preview?act=brand_lucky_golf'], ['POST', '/api/buyer-list/what-we-did', { act: 'brand_lucky_golf', post: 1 }]])
+    assert.equal((await ran('ah', HQ, m, p, body)).status, 403, `${m} ${p} is shut`);
+  assert.equal((await ran('pf', HQ, 'GET', '/api/overview?act=brand_alpha&days=7')).status, 403, 'the money side is shut for another brand too');
+  for (const [m, p, body] of [['GET', '/api/buyer-list?act=brand_lucky_golf'], ['POST', '/api/buyer-list/decision', { act: 'brand_lucky_golf', object: '1', action: 'cut', decision: 'no', note: 'test' }],
+    ['GET', '/api/buyer-list/launched?act=brand_lucky_golf'], ['GET', '/api/buyer-list/lessons?act=brand_lucky_golf'], ['POST', '/api/meta/write', { act: 'brand_lucky_golf', kind: 'pause', object: '1' }]])
+    assert.ok(passed(await ran('ah', HQ, m, p, body)), `${m} ${p} reaches the handler`);
+  const list = await ran('ah', HQ, 'GET', '/api/buyer-list?act=brand_lucky_golf');
+  if (list.j && !list.j.error) { assert.equal(list.j.settings, undefined, 'never the team\'s settings'); assert.equal(list.j.owner, undefined); }
+  /* An ordinary client login does not get the hq rules, even for its own brand. */
+  assert.equal((await ran('ah', CLIENT, 'POST', '/api/buyer-list/decision', { act: 'brand_alpha', object: '1', decision: 'yes' })).status, 403, 'a normal client still cannot decide');
+  /* An address on the HQ domain that was not minted by a pass is not an hq login. */
+  users['fake@hq.luckygolf.com'] = { brands: ['brand_alpha'] }; db.prepare(`UPDATE settings SET value = ? WHERE key = 'clientUsers'`).run(JSON.stringify(users));
+  delete ahEnv.LOCUS_HQ_SECRET;
+});
+
 globalThis.fetch = realFetch;
 const pass = results.filter(Boolean).length;
 console.log(`\n${pass}/${results.length} passed`);

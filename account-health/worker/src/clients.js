@@ -19,7 +19,7 @@
  * Nothing here sends anything unless the owner pressed Send on text they saw (the New client rule).
  */
 import { sendMail } from './mail.js';
-import { clientOf, clientScope, brandsFor, CLIENT_SWITCHES, CLIENT_CAPS, capUse, capAdd, capMessage } from './brandguard.js';
+import { clientOf, clientScope, brandsFor, CLIENT_SWITCHES, CLIENT_CAPS, capUse, capAdd, capMessage, HQ_BRAND, HQ_DOMAIN } from './brandguard.js';
 
 const OWNER = 'cole@go-mobius-digital.com';
 const DOMAIN = 'go-mobius-digital.com';
@@ -193,12 +193,49 @@ export async function touchClient(env, email, kind) {
 }
 
 /** What /api/me adds for a client. */
+/* ---------------- Locus inside Lucky HQ (2026-11-11) ----------------
+ * hq.luckygolf.com opens Locus in a frame. Locus sits on another site, so its own sign-in is not there (browsers keep a
+ * framed site's storage apart). HQ, which already knows who is signed in, signs a one-minute pass with the secret both
+ * hold (LOCUS_HQ_SECRET) and hands it to the frame; POST /api/hq-signin swaps it for a session.
+ * The session is never the person's own Locus login. It is a client login "<name>@hq.luckygolf.com", marked hq, which
+ * brandguard.js holds to Lucky Golf whatever this row says. So the pass can only ever open Lucky. */
+const b64uBytes = s => Uint8Array.from(atob(String(s).replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+async function verifyHqPass(env, token) {
+  try {
+    if (!env.LOCUS_HQ_SECRET) return null;
+    const [h, p, sig] = String(token || '').split('.');
+    if (!h || !p || !sig || JSON.parse(new TextDecoder().decode(b64uBytes(h))).alg !== 'HS256') return null;
+    const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(env.LOCUS_HQ_SECRET), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
+    if (!(await crypto.subtle.verify('HMAC', key, b64uBytes(sig), new TextEncoder().encode(h + '.' + p)))) return null;
+    const v = JSON.parse(new TextDecoder().decode(b64uBytes(p)));
+    const now = Date.now() / 1000;
+    if (v.aud !== 'locus-hq' || v.iss !== 'lucky-hq' || v.brand !== HQ_BRAND || !(v.exp > now) || v.exp > now + 120) return null;
+    return v;
+  } catch { return null; }
+}
+export async function hqSignin(env, token, mintSession) {
+  const v = await verifyHqPass(env, token);
+  if (!v) return { error: 'That pass is not valid. Open Lucky HQ again.', status: 401 };
+  const local = lower(String(v.email || '').split('@')[0]).replace(/[^a-z0-9._-]/g, '').slice(0, 40) || 'hq';
+  const e = `${local}@${HQ_DOMAIN}`;
+  if ((await teamGuests(env)).includes(e)) return { error: 'That login is not a Lucky HQ login.', status: 403 };
+  const users = (await getJson(env, 'clientUsers', {})) || {};
+  const now = new Date().toISOString(), cur = users[e] && typeof users[e] === 'object' ? users[e] : {};
+  const name = String(v.name || '').trim().slice(0, 60) || local;
+  users[e] = { ...cur, brands: [HQ_BRAND], hq: true, name, invited_at: cur.invited_at || now, invited_by: cur.invited_by || 'Lucky HQ', welcomed_at: cur.welcomed_at || now, last_sign_in: now, last_seen: now };
+  delete users[e].invite;
+  await putJson(env, 'clientUsers', users);
+  const c = await clientOf(env, e);
+  if (!c || !c.hq || c.brands.length !== 1 || c.brands[0] !== HQ_BRAND) return { error: 'That login is not a Lucky HQ login.', status: 403 };
+  return { ...(await mintSession(env, e)), role: 'client', name, hq: true };
+}
+
 export async function meClient(env, email) {
   const c = await clientOf(env, email).catch(() => null);
   if (!c) return null;
   const names = await brandNames(env, c.brands);
   const users = (await getJson(env, 'clientUsers', {})) || {};
-  return { name: c.name, welcomed: !!users[c.email]?.welcomed_at, brands: c.brands.map(b => ({ id: b, name: names[b] || b, access: c.access[b] })) };
+  return { name: c.name, ...(c.hq ? { hq: true } : {}), welcomed: !!users[c.email]?.welcomed_at, brands: c.brands.map(b => ({ id: b, name: names[b] || b, access: c.access[b] })) };
 }
 
 /* ---------------- routes ---------------- */
