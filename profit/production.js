@@ -30,8 +30,11 @@ const COLS = [
   { k: 'brief', label: 'Brief', hint: 'written, not started', dot: 'var(--muted)' },
   { k: 'making', label: 'Making', hint: 'in the studio', dot: 'var(--brand)' },
   { k: 'review', label: 'Review', hint: 'Cole or client notes', dot: 'var(--warn)' },
-  { k: 'ready', label: 'Ready', hint: 'approved, not launched', dot: 'var(--good)' },
-  { k: 'live', label: 'Live', hint: 'in the account', dot: 'var(--c-email)' },
+  { k: 'ready', label: 'Ready', hint: 'approved, not in Meta', dot: 'var(--good)' },
+  /* 2026-11-11: Meta moves cards after Ready (account-health boardauto.js, every hour) */
+  { k: 'scheduled', label: 'Scheduled', hint: 'in Meta, not delivering yet', dot: 'var(--c-google)' },
+  { k: 'live', label: 'Live', hint: 'spent in the last 3 days', dot: 'var(--c-email)' },
+  { k: 'off', label: 'Off', hint: 'paused 7 days, the library', dot: 'var(--muted)' },
 ];
 const COL_OF = Object.fromEntries(COLS.map(c => [c.k, c]));
 const FMT = { Static: 'var(--brand)', Video: 'var(--c-email)', UGC: 'var(--c-tiktok)', Carousel: 'var(--c-google)' }; /* never good / warn / bad: those mean status */
@@ -56,6 +59,47 @@ const toast = (msg, opts = {}) => {
 const today = () => (D && D.today) || new Date().toISOString().slice(0, 10);
 const initials = name => String(name || '').split(/\s+/).filter(Boolean).map(w => w[0]).join('').slice(0, 3).toUpperCase();
 const av = (n, size = 22) => window.ProdSheet ? window.ProdSheet.av(n, size) : (n ? `<span class="pd-av" title="${esc(n)}">${esc(n[0])}</span>` : '<span class="pd-av pd-none" title="Nobody yet">?</span>');
+/* Off = the previous-ads library (2026-11-11): every card Meta moved off, searchable by words and brand, with Reuse. */
+async function reuseCard(id, from) {
+  const c = cardOf(id) || from || {};
+  try { const r = await post('/api/production/reuse', { id }); if (r.error) throw new Error(r.error); await render(H, false); toast(`#${r.num} is on the board, a new brief from #${c.num || ''}.`); openCard(r.id); }
+  catch (e) { toast(e.message || 'Could not reuse it.'); }
+}
+async function offLibrary() {
+  $$('.pd-lib').forEach(x => x.remove());
+  const brands = D.act === 'all' ? D.brands : [];
+  let act = D.act === 'all' ? BRAND : D.act, words = '', run = 0;
+  const el = document.createElement('div');
+  el.className = 'pd-lib';
+  el.innerHTML = `<div class="pd-lib-bg" data-x></div><div class="pd-lib-p" role="dialog" aria-label="Previous ads"><div class="pd-lib-h"><b>Previous ads</b><span class="sp"></span><button type="button" class="ds-iconbtn" data-x aria-label="Close">×</button></div>
+    <div class="pd-lib-f"><input type="search" placeholder="Search by number, title or words in the brief" aria-label="Search">${brands.length > 1 ? `<select aria-label="Brand"><option value="all">All brands</option>${brands.map(b => `<option value="${esc(b.act_id)}"${b.act_id === act ? ' selected' : ''}>${esc(b.name)}</option>`).join('')}</select>` : ''}</div>
+    <div class="pd-lib-l"><div class="pd-empty">Loading...</div></div></div>`;
+  document.body.appendChild(el);
+  const list = $('.pd-lib-l', el);
+  const money = n => '$' + Math.round(n || 0).toLocaleString('en-US');
+  const load = async () => {
+    const me = ++run;
+    try {
+      const r = await H.apiAH(`/api/production/off?act=${encodeURIComponent(act || 'all')}&q=${encodeURIComponent(words)}`);
+      if (me !== run) return;
+      const cards = (r && r.cards) || [];
+      list.innerHTML = cards.length ? cards.map(c => `<div class="pd-lib-c" data-open="${esc(c.id)}">
+        ${c.thumb ? `<img src="${esc(c.thumb)}" alt="" loading="lazy">` : '<span class="pd-lib-ph"></span>'}
+        <div class="pd-lib-m"><div class="t">#${esc(c.num)} ${esc(c.title || 'Untitled')}</div>
+        <div class="s">${act === 'all' ? `${esc(c.brand)} · ` : ''}${c.live_on ? `Launched ${esc(short(c.live_on))} · ` : ''}${c.paused_on ? `paused ${esc(short(c.paused_on))} · ` : ''}off ${esc(short(c.off_on) || '')}</div>
+        <div class="s">${plural(c.ads, 'ad')} · ${money(c.spend)} spent · ${c.orders ? `${c.orders} sales · ${money(c.spend / c.orders)} a sale` : 'no sales'}${c.files ? ` · ${plural(c.files, 'file')}` : ''}${c.verdict ? ` · <b>${esc(c.verdict)}</b>` : ''}</div></div>
+        <button type="button" class="pd-act" data-reuse="${esc(c.id)}">Reuse</button></div>`).join('') : `<div class="pd-empty">${words ? 'Nothing matches.' : 'No previous ads yet. Cards land here 7 days after their ads stop.'}</div>`;
+      $$('[data-open]', list).forEach(row => { row.onclick = e => { const id = row.dataset.open; if (e.target.closest('[data-reuse]')) { el.remove(); reuseCard(id, cards.find(c => c.id === id)); return; } openCard(id); }; });
+    } catch (e) { if (me === run) list.innerHTML = `<div class="pd-empty">${esc(e.message || 'Could not load the library.')}</div>`; }
+  };
+  let tm = null;
+  $('input', el).oninput = e => { clearTimeout(tm); words = e.target.value.trim(); tm = setTimeout(load, 250); };
+  const sel = $('select', el); if (sel) sel.onchange = () => { act = sel.value; load(); };
+  $$('[data-x]', el).forEach(x => { x.onclick = () => el.remove(); });
+  el.addEventListener('keydown', e => { if (e.key === 'Escape') el.remove(); });
+  $('input', el).focus();
+  load();
+}
 const openCard = (id, tab) => window.ProdSheet && window.ProdSheet.open(H, id, { tab, onChange: () => render(H, false) });
 const ico = (name, size = 14) => window.icon ? window.icon(name, { size }) : '';
 const ago = iso => {
@@ -150,6 +194,20 @@ function css() {
 .pd-live{margin:4px 0 2px;font-size:11.5px;color:var(--ink-2);font-variant-numeric:tabular-nums;line-height:1.35}.pd-live::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--good);margin:0 6px 1px 0}
 .pd-pill.w{background:color-mix(in srgb,var(--warn) 14%,transparent);color:var(--warn);border-color:transparent;font-weight:600}
 .pd-pill.b{background:color-mix(in srgb,var(--bad) 12%,transparent);color:var(--bad);border-color:transparent;font-weight:600}
+.pd-lib{position:fixed;inset:0;z-index:80;display:flex;align-items:center;justify-content:center}
+.pd-lib-bg{position:absolute;inset:0;background:rgba(0,0,0,.35)}
+.pd-lib-p{position:relative;background:var(--card,var(--bg));color:var(--ink);border:1px solid var(--line);border-radius:14px;width:min(720px,calc(100vw - 32px));max-height:min(80vh,760px);display:flex;flex-direction:column;box-shadow:0 18px 50px rgba(0,0,0,.25)}
+.pd-lib-h{display:flex;align-items:center;gap:8px;padding:14px 16px 6px}.pd-lib-h .sp{flex:1}
+.pd-lib-f{display:flex;gap:8px;padding:6px 16px 10px;border-bottom:1px solid var(--line)}
+.pd-lib-f input{flex:1;min-width:0;font:inherit;padding:7px 10px;border:1px solid var(--line-strong);border-radius:8px;background:transparent;color:inherit}
+.pd-lib-f select{font:inherit;padding:6px 8px;border:1px solid var(--line-strong);border-radius:8px;background:transparent;color:inherit}
+.pd-lib-l{overflow:auto;padding:6px 8px 12px}
+.pd-lib-c{display:flex;gap:10px;align-items:center;padding:8px;border-radius:10px;cursor:pointer}
+.pd-lib-c:hover{background:color-mix(in srgb,var(--ink) 5%,transparent)}
+.pd-lib-c img,.pd-lib-ph{width:52px;height:52px;object-fit:cover;border-radius:8px;flex:none;background:color-mix(in srgb,var(--ink) 7%,transparent)}
+.pd-lib-m{flex:1;min-width:0}.pd-lib-m .t{font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pd-lib-m .s{font-size:12px;color:var(--muted);margin-top:2px}
+@media (max-width:600px){.pd-lib{align-items:flex-end}.pd-lib-p{width:100vw;max-height:88vh;border-radius:16px 16px 0 0}}
 .pd-pill.g{background:color-mix(in srgb,var(--good) 14%,transparent);color:var(--good);border-color:transparent;font-weight:600}
 .pd-r3{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:500;color:var(--muted);min-width:0}
 .pd-r3 .sp{flex:1}
@@ -342,7 +400,10 @@ const colIndex = (wrap, k) => Math.max(0, [...wrap.children].findIndex(el => el.
 /* ================================================================================================================ */
 function dueOf(c) {
   const t = today();
-  if (c.board === 'live') return { text: `Live ${short(c.since)}`, cls: '' };
+  if (c.board === 'live' && c.pause) return { text: `Paused ${short(c.pause.paused_on)}`, cls: 'soon' };
+  if (c.board === 'live') return { text: `Live ${short(c.live_on || c.since)}`, cls: '' };
+  if (c.board === 'off') return { text: `Off ${short(c.off_on || c.since)}`, cls: '' };
+  if (c.board === 'scheduled') return { text: c.launch_on && c.launch_on > t ? `Starts ${short(c.launch_on)}` : 'In Meta', cls: '' };
   if (c.board === 'ready') return { text: c.since ? `Approved ${short(c.since)}` : 'Approved', cls: 'soon' };
   if (!c.due) return { text: 'No date', cls: '' };
   if (c.late) return { text: `${short(c.due)}, late`, cls: 'late' };
@@ -374,14 +435,16 @@ async function liveResults(act) {
 }
 function cardHtml(c) {
   const act = c.board === 'review' && c.versions ? `<button type="button" class="pd-act" data-review="${esc(c.id)}">Open review</button>`
-    : c.board === 'ready' ? `<button type="button" class="pd-act" data-launch="${esc(c.id)}">Launch to Meta</button>` : '';
+    : c.board === 'ready' ? `<button type="button" class="pd-act" data-launch="${esc(c.id)}">Launch to Meta</button>`
+    : c.board === 'off' ? `<button type="button" class="pd-act" data-reuse="${esc(c.id)}">Reuse</button>` : '';
   const img = !!c.thumb;   /* v4 (Cole): the picture shows on every stage that has one, not only after review */
   /* ONE status chip per card (2026-10-20): the thing that needs a person first; the upload count is a muted word on the date row */
   const status = c.needs_client ? `<span class="pd-pill w">Waiting on the client${c.needs_client === 'idea' ? ' (the idea)' : ''}</span>`
     : c.open_notes ? `<span class="pd-pill b">${plural(c.open_notes, 'open note')}</span>`
     : c.board === 'ready' && c.approved_by ? `<span class="pd-pill g">Approved</span>`
-    : c.board === 'live' && c.result ? `<span class="pd-pill">${esc(c.result)}</span>` : '';
-  const ups = c.versions && c.board !== 'live' ? `<span class="m">${plural(c.versions, 'upload')}</span>` : '';
+    : c.board === 'live' && c.pause ? `<span class="pd-pill w" title="Every ad on the card stopped spending on ${esc(short(c.pause.paused_on))}. After 7 days it moves to Off.">Paused day ${c.pause.day} of ${c.pause.of}</span>`
+    : (c.board === 'live' || c.board === 'off') && (c.verdict || c.result) ? `<span class="pd-pill">${esc(c.verdict || c.result)}</span>` : '';
+  const ups = c.versions && c.board !== 'live' && c.board !== 'off' ? `<span class="m">${plural(c.versions, 'upload')}</span>` : '';
   const due = dueOf(c);
   return `<div class="pd-card${SEL.has(c.id) ? ' sel' : ''}${img ? ' has-img' : ''}" draggable="${TOUCH() ? 'false' : 'true'}" data-id="${esc(c.id)}" tabindex="0" aria-label="${esc(`#${c.num} ${c.title || 'Untitled brief'}`)}">
     <span class="pd-tick" data-tick="${esc(c.id)}" role="checkbox" aria-checked="${SEL.has(c.id)}" aria-label="Select"></span>
@@ -405,10 +468,10 @@ function colHtml(c) {
   if (c.k === 'live') {
     const total = D.live?.total || list.length;
     if (!ALL_LIVE && total > list.length) more = `<button class="pd-more" id="pdAllLive">Show all ${total}</button>`;
-    else if (ALL_LIVE && total > list.length) more = `<div class="pd-empty">Older live ads are in Asana, Analyze Results.</div>`;
   }
-  const EMPTY = { brief: 'No briefs yet. Add one.', making: 'Nothing being made.', review: 'Nothing to review.', ready: 'Nothing ready to launch.', live: 'Nothing live yet.' };
-  const n = c.k === 'live' && BRAND === 'all' && FORMAT === 'all' ? (D.live?.total ?? list.length) : list.length;
+  if (c.k === 'off') more = `<button class="pd-more" data-offlib>${D.off?.total ? `All ${D.off.total} previous ads` : 'Previous ads'}</button>`;
+  const EMPTY = { brief: 'No briefs yet. Add one.', making: 'Nothing being made.', review: 'Nothing to review.', ready: 'Nothing ready to launch.', scheduled: 'Nothing waiting to start.', live: 'Nothing live yet.', off: 'Nothing off yet.' };
+  const n = c.k === 'live' && BRAND === 'all' && FORMAT === 'all' ? (D.live?.total ?? list.length) : c.k === 'off' && BRAND === 'all' && FORMAT === 'all' ? (D.off?.total ?? list.length) : list.length;
   const cl = COLLAPSED.has(c.k) && !PHONE();
   return `<div class="pd-col${cl ? ' cl' : ''}" data-col="${c.k}">
     <div class="pd-ch" ${cl ? `data-expand="${c.k}" title="Expand ${c.label}"` : ''}><span class="dot" style="background:${c.dot}"></span><b>${c.label}</b><span class="n">${n}</span><span class="sp n2"></span>
@@ -493,6 +556,7 @@ function wire() {
   $$('[data-filters]', root).forEach(b => b.onclick = () => filtersSheet());
   $$('[data-archived]', root).forEach(b => b.onclick = () => archivedBox());
   const all = $('#pdAllLive', root); if (all) all.onclick = () => { ALL_LIVE = true; paint(); };
+  $$('[data-offlib]', root).forEach(b => { b.onclick = () => offLibrary(); });
   $$('[data-collapse]', root).forEach(b => b.onclick = e => { e.stopPropagation(); COLLAPSED.add(b.dataset.collapse); remember('pd_collapsed', JSON.stringify([...COLLAPSED])); paint(); });
   $$('[data-expand]', root).forEach(h => h.onclick = () => { COLLAPSED.delete(h.dataset.expand); remember('pd_collapsed', JSON.stringify([...COLLAPSED])); paint(); });
   $$('[data-colmenu]', root).forEach(b => b.onclick = e => { e.stopPropagation(); colMenu(b.dataset.colmenu, b); });
@@ -559,6 +623,7 @@ function wireCard(el) {
     if (t.closest('[data-pop]')) { e.stopPropagation(); const b = t.closest('[data-pop]'); pick(b.dataset.pop, [id], { anchor: b }); return; }
     if (t.closest('[data-review]')) { e.stopPropagation(); openReview(id); return; }
     if (t.closest('[data-launch]')) { e.stopPropagation(); launchCards([id]); return; }
+    if (t.closest('[data-reuse]')) { e.stopPropagation(); reuseCard(id); return; }
     if (e.ctrlKey || e.metaKey) { toggle(id, false); return; }
     if (e.shiftKey) { toggle(id, true); return; }
     if (SELMODE) { toggle(id, false); return; }

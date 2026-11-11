@@ -19,10 +19,24 @@ import { boardOf, ensureBoard, readDoc, moveTaskTo, sectionFits } from './asana-
 import { makeBrief, asanaUserFor } from './meetings.js';
 import { ROSTER } from './actions.js';
 import { ensureWork, mirrorOn, workRoutes, clientBoard, fileUrl, templateHtml, saveCard, normBrief } from './prodwork.js';
+import { autoRoutes, pauseOf, ensureAuto } from './boardauto.js';
 
-export const COLUMNS = ['brief', 'making', 'review', 'ready', 'live'];
-const STAGE_OF = { brief: 'idea', making: 'production', review: 'production', ready: 'production', live: 'live' };
-const LABEL = { brief: 'Brief', making: 'Making', review: 'Review', ready: 'Ready', live: 'Live' };
+/* 2026-11-11 (the board runs itself, boardauto.js): Scheduled and Off are Meta's columns after Ready. */
+export const COLUMNS = ['brief', 'making', 'review', 'ready', 'scheduled', 'live', 'off'];
+const STAGE_OF = { brief: 'idea', making: 'production', review: 'production', ready: 'production', scheduled: 'production', live: 'live', off: 'done' };
+const LABEL = { brief: 'Brief', making: 'Making', review: 'Review', ready: 'Ready', scheduled: 'Scheduled', live: 'Live', off: 'Off' };
+const OFF_SHOWN = 12;
+/* D1 allows 100 bound values a statement: an IN list over the whole board is read in slices (the board for every brand
+   has 600+ cards, so one IN list failed inside a catch and every card read "0 versions"). */
+async function inChunks(env, sql, ids, n = 90) {
+  const out = [];
+  for (let i = 0; i < ids.length; i += n) {
+    const part = ids.slice(i, i + n);
+    const r = await env.DB.prepare(sql.replace('{IN}', part.map((_, j) => `?${j + 1}`).join(', '))).bind(...part).all().catch(e => { console.log('board read: ' + e.message); return { results: [] }; });
+    out.push(...(r.results || []));
+  }
+  return out;
+}
 const LIVE_SHOWN = 12;
 const safe = (s, d) => { try { return s == null ? d : JSON.parse(s); } catch { return d; } };
 const clean = (s, n) => String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
@@ -51,37 +65,38 @@ export function cardOf(r, brands, today) {
     asana_url: r.asana_url || null, asset_url: r.asset_url || null, brief_url: r.brief_url || null,
     since: String(r.board_at || r.updated_at || r.created_at || '').slice(0, 10), verdict: r.verdict || null, result: r.asana_result || null,
     launch_on: r.launch_on || '', needs_client: r.needs_client || '', approved_by: r.approved_by || null,
+    pause: pauseOf({ board_stage: board, paused_on: r.paused_on }, today), off_on: r.off_on || null, live_on: r.live_on || null,
   };
 }
 
 export async function listBoard(env, d, { act = 'all' } = {}) {
-  await ensureWork(env);
+  await ensureWork(env); await ensureAuto(env);
   const brands = await d.listBrands(env);
   const today = d.centralDate ? d.centralDate() : centralToday();
   const ids = act !== 'all' ? [act] : brands.map(b => b.act_id);
   if (!ids.length) return { cards: [], live: { shown: 0, total: 0 }, brands: [], team: ROSTER.map(r => r.name), synced_at: null };
   const ph = ids.map((_, i) => `?${i + 1}`).join(', ');
-  /* Open cards, and live ones from the last 60 days (the Live column shows the newest few). */
-  const since = new Date(Date.now() - 60 * 864e5).toISOString().slice(0, 10);
-  const rows = (await env.DB.prepare(`SELECT id, act_id, num, title, stage, board_stage, board_at, asana_section, asana_url, asset_url, brief_url, brief_text, brief_json, assignee_name, due_on, verdict, asana_result, launch_on, needs_client, approved_by, created_at, updated_at
-    FROM p_br_batch WHERE act_id IN (${ph}) AND stage != 'done' AND (board_stage IS NULL OR board_stage != 'done') AND (stage != 'live' OR COALESCE(board_at, updated_at) >= ?${ids.length + 1})
-    ORDER BY CAST(num AS INTEGER) DESC LIMIT 600`).bind(...ids, since).all()).results || [];
-  const cards = rows.map(r => cardOf(r, brands, today)).filter(c => COLUMNS.includes(c.board));
+  /* Open cards (Live is Meta's now: a card there spent in 3 days or is on its pause timer), and the newest Off cards. */
+  const COLS_SQL = `id, act_id, num, title, stage, board_stage, board_at, asana_section, asana_url, asset_url, brief_url, brief_text, brief_json, assignee_name, due_on, verdict, asana_result, launch_on, needs_client, approved_by, created_at, updated_at, paused_on, off_on, live_on`;
+  const rows = (await env.DB.prepare(`SELECT ${COLS_SQL}
+    FROM p_br_batch WHERE act_id IN (${ph}) AND (board_stage IS NULL OR board_stage NOT IN ('done', 'off')) AND (stage != 'done' OR board_stage IN ('live', 'scheduled'))
+    ORDER BY CAST(num AS INTEGER) DESC LIMIT 900`).bind(...ids).all()).results || [];
+  const offRows = (await env.DB.prepare(`SELECT ${COLS_SQL} FROM p_br_batch WHERE act_id IN (${ph}) AND board_stage = 'off' ORDER BY COALESCE(off_on, '') DESC LIMIT ${act === 'all' ? OFF_SHOWN * 3 : OFF_SHOWN}`).bind(...ids).all().catch(() => ({ results: [] }))).results || [];
+  const offTotal = (await env.DB.prepare(`SELECT COUNT(*) n FROM p_br_batch WHERE act_id IN (${ph}) AND board_stage = 'off'`).bind(...ids).first().catch(() => null))?.n || 0;
+  const cards = rows.map(r => cardOf(r, brands, today)).filter(c => COLUMNS.includes(c.board) && c.board !== 'off');
   const live = cards.filter(c => c.board === 'live').sort((a, b) => String(b.since).localeCompare(String(a.since)));
-  const out = cards.filter(c => c.board !== 'live').concat(live.slice(0, act === 'all' ? LIVE_SHOWN * 3 : LIVE_SHOWN));
+  const out = cards.filter(c => c.board !== 'live').concat(live.slice(0, act === 'all' ? LIVE_SHOWN * 3 : LIVE_SHOWN), offRows.map(r => cardOf(r, brands, today)));
   /* A Ready card made in Studio carries its newest approved ad, so "Launch to Meta" opens the real Launch window. */
   const ready = out.filter(c => c.board === 'ready');
   if (ready.length) {
-    const rp = ready.map((_, i) => `?${i + 1}`).join(', ');
-    const sa = (await env.DB.prepare(`SELECT b.br_batch_id AS card, a.id FROM p_studio_ad a JOIN p_studio_batch b ON b.id = a.batch_id
-      WHERE a.status = 'approved' AND b.br_batch_id IN (${rp}) ORDER BY a.created_at DESC`).bind(...ready.map(c => c.id)).all().catch(() => ({ results: [] }))).results || [];
+    const sa = await inChunks(env, `SELECT b.br_batch_id AS card, a.id FROM p_studio_ad a JOIN p_studio_batch b ON b.id = a.batch_id
+      WHERE a.status = 'approved' AND b.br_batch_id IN ({IN}) ORDER BY a.created_at DESC`, ready.map(c => c.id));
     for (const c of ready) c.studio_ad = sa.find(x => x.card === c.id)?.id || null;
   }
   /* Production v2: each card's newest version (a picture for the card) and its open notes. */
   if (out.length) {
-    const op = out.map((_, i) => `?${i + 1}`).join(', ');
-    const fl = (await env.DB.prepare(`SELECT id, batch_id, version, mime FROM p_work_file WHERE kind = 'version' AND deleted_at IS NULL AND batch_id IN (${op}) ORDER BY created_at, rowid`).bind(...out.map(c => c.id)).all().catch(() => ({ results: [] }))).results || [];
-    const nt = (await env.DB.prepare(`SELECT batch_id, COUNT(*) AS n FROM p_work_comment WHERE kind IN ('note', 'change_request') AND fixed_at IS NULL AND batch_id IN (${op}) GROUP BY batch_id`).bind(...out.map(c => c.id)).all().catch(() => ({ results: [] }))).results || [];
+    const fl = await inChunks(env, `SELECT id, batch_id, version, mime FROM p_work_file WHERE kind = 'version' AND deleted_at IS NULL AND batch_id IN ({IN}) ORDER BY created_at, rowid`, out.map(c => c.id));
+    const nt = await inChunks(env, `SELECT batch_id, COUNT(*) AS n FROM p_work_comment WHERE kind IN ('note', 'change_request') AND fixed_at IS NULL AND batch_id IN ({IN}) GROUP BY batch_id`, out.map(c => c.id));
     for (const c of out) {
       const mine = fl.filter(f => f.batch_id === c.id);
       const v = mine.filter(f => /^image\//.test(f.mime || '')).pop();   // the newest picture of any ad (versions are per ad)
@@ -93,7 +108,7 @@ export async function listBoard(env, d, { act = 'all' } = {}) {
   const mirror = await mirrorOn(env);
   const docs = (await env.DB.prepare(`SELECT data_json FROM p_br_doc WHERE line_id = '' AND key = 'asana' AND act_id IN (${ph})`).bind(...ids).all().catch(() => ({ results: [] }))).results || [];
   const synced = docs.map(x => safe(x.data_json, {})?.last_sync).filter(Boolean).sort().pop() || null;
-  return { cards: out, live: { shown: Math.min(live.length, LIVE_SHOWN), total: live.length }, brands: brands.map(b => ({ act_id: b.act_id, name: b.name })), team: ROSTER.map(r => r.name), synced_at: synced, today, mirror };
+  return { cards: out, live: { shown: Math.min(live.length, LIVE_SHOWN), total: live.length }, off: { shown: offRows.length, total: offTotal }, brands: brands.map(b => ({ act_id: b.act_id, name: b.name })), team: ROSTER.map(r => r.name), synced_at: synced, today, mirror };
 }
 
 /** A drag: the card's column in Locus, the task's section in Asana. Review has no Asana section: its task sits in
@@ -116,12 +131,16 @@ export async function moveCard(env, d, { id, to }, who) {
     try {
       const doc = safe((await env.DB.prepare(`SELECT data_json FROM p_br_doc WHERE act_id = ?1 AND line_id = '' AND key = 'asana'`).bind(r.act_id).first())?.data_json, null);
       if (!doc?.project_gid) throw new Error('the brand is not connected to Asana');
+      if (from === 'off' && to !== 'off') await d.asana(env, `/tasks/${r.asana_gid}`, { method: 'PUT', body: { completed: false } }).catch(() => {});
       section = await moveTaskTo(env, d.asana, doc.project_gid, r.asana_gid, to);
+      if (to === 'off') await d.asana(env, `/tasks/${r.asana_gid}`, { method: 'PUT', body: { completed: true } });
       asana = { moved: true, section };
     } catch (e) { asana = { moved: false, why: e.message }; }
   }
   /* The Asana section is written only when the move landed there, so a failed move is pushed again by the next sync. */
-  await env.DB.prepare(`UPDATE p_br_batch SET board_stage = ?2, board_at = datetime('now'), stage = ?3, asana_section = ?4, updated_at = datetime('now') WHERE id = ?1`)
+  await ensureAuto(env);
+  await env.DB.prepare(`UPDATE p_br_batch SET board_stage = ?2, board_at = datetime('now'), stage = ?3, asana_section = ?4, updated_at = datetime('now'),
+      off_on = CASE WHEN ?2 = 'off' THEN COALESCE(off_on, date('now')) ELSE NULL END, paused_on = CASE WHEN ?2 IN ('live', 'off') THEN paused_on ELSE NULL END WHERE id = ?1`)
     .bind(r.id, to, STAGE_OF[to], asana.moved ? section : r.asana_section).run();
   /* No Slack line per drag any more (2026-10-13, the morning card): the board is the record. A late card that moves
      on is struck through on today's morning card instead. */
@@ -148,6 +167,8 @@ export async function handleProduction(request, env, url, path, json, d) {
     const work = await workRoutes(request, env, url, path, json, dd, who, scope);
     if (work) return work;
     if (scope) return json({ error: 'The team\'s part of Production.' }, 403);
+    const auto = await autoRoutes(request, env, url, path, json, { ...dd, mirrorOn, fileUrl });
+    if (auto) return auto;
     /* Archived (2026-10-15 polish): the cards deleted from the board in the last 60 days, so a deletion is never final. */
     if (path === '/api/production/archived' && request.method === 'GET') return json(await listArchived(env, dd, { act: url.searchParams.get('act') || 'all' }));
     if (request.method !== 'POST') return json({ error: 'not found' }, 404);
@@ -176,6 +197,7 @@ export async function handleProduction(request, env, url, path, json, d) {
     if (path === '/api/production/card/delete') return json(await archiveCard(env, dd, body, who));
     if (path === '/api/production/card/restore') return json(await restoreCard(env, dd, body, who));
     if (path === '/api/production/duplicate') return json(await duplicateCard(env, dd, body, who));
+    if (path === '/api/production/reuse') return json(await reuseCard(env, dd, body, who));
     /* Stale cards off the board (2026-10-26): {act?, days?, dry?}; each one through archiveCard, so Undo / Put back works. */
     if (path === '/api/production/archive-stale') return json(await archiveStale(env, dd, body, who));
     return json({ error: 'not found' }, 404);
@@ -190,6 +212,13 @@ const rowById = async (env, id) => { const r = await env.DB.prepare(`SELECT * FR
  *  due date (mirror on); the format lives in the brief's page. Answers the card as the board shows it. */
 export async function setField(env, d, body, who) {
   await ensureWork(env);
+  /* {field, value} (the Locus MCP's production_field) is the same change as {owner} / {due} / {launch_on} / {format} / {title}.
+     It used to fall through to "Nothing to change." for every card, because only the second shape was read. */
+  if (body && body.field != null && !(String(body.field) in body)) {
+    const key = { owner: 'owner', assignee: 'owner', due: 'due', due_on: 'due', launch: 'launch_on', launch_on: 'launch_on', format: 'format', title: 'title', name: 'title' }[String(body.field).toLowerCase().trim()];
+    if (!key) throw Object.assign(new Error('Pick a field: owner, due, launch, format or title.'), { status: 400 });
+    body = { id: body.id, [key]: body.value == null ? '' : String(body.value).trim() };
+  }
   const r = await rowById(env, body.id);
   const set = [], vals = [];
   let asana = { written: false, why: '' };
@@ -202,19 +231,21 @@ export async function setField(env, d, body, who) {
     const b = normBrief({ ...(safe(r.brief_json, null) || { v: 2, html: '' }), v: 2, format: body.format });
     set.push('brief_json'); vals.push(JSON.stringify(b));
   }
+  if ('title' in body) { const t = clean(body.title, 300); if (!t) throw Object.assign(new Error('Name the card.'), { status: 400 }); set.push('title'); vals.push(t); put.name = `${r.num} - ${t}`; }
   if (!set.length) throw Object.assign(new Error('Nothing to change.'), { status: 400 });
-  if (('assignee' in put || 'due_on' in put) && r.asana_gid && d.asana) {
+  if (('assignee' in put || 'due_on' in put || 'name' in put) && r.asana_gid && d.asana) {
     if (!(await mirrorOn(env))) asana.why = 'The Asana mirror is off.';
     else {
       try {
         const body2 = {};
         if ('due_on' in put) body2.due_on = put.due_on;
+        if ('name' in put) body2.name = put.name;
         if ('assignee' in put) { const u = put.assignee ? await asanaUserFor(env, d, await asanaDocOf(env, r.act_id), put.assignee) : null; body2.assignee = u ? u.gid : null; if (put.assignee && !u) asana.why = `No "${put.assignee}" in Asana; the task's assignee was cleared.`; }
         await d.asana(env, `/tasks/${r.asana_gid}`, { method: 'PUT', body: body2 });
         asana = { written: true, why: asana.why };
       } catch (e) { asana = { written: false, why: e.message }; }
     }
-  } else if (('assignee' in put || 'due_on' in put) && !r.asana_gid) asana.why = 'This card has no Asana task.';
+  } else if (('assignee' in put || 'due_on' in put || 'name' in put) && !r.asana_gid) asana.why = 'This card has no Asana task.';
   await env.DB.prepare(`UPDATE p_br_batch SET ${set.map((k, i) => `${k} = ?${i + 2}`).join(', ')}, updated_at = datetime('now') WHERE id = ?1`).bind(r.id, ...vals).run();
   const row = await rowById(env, r.id);
   return { ok: true, card: cardOf(row, await d.listBrands(env), d.centralDate ? d.centralDate() : centralToday()), asana, by: nameOfEmail(who) };
@@ -320,6 +351,22 @@ export async function duplicateCard(env, d, body, who) {
   const old = safe(r.brief_json, null) || {};
   const format = old.format || formatOf(r.title, r.brief_text);
   const html = templateHtml('iter', format, made.num).replace(/<span data-ph>the ad it starts from, like [^<]*<\/span>/, `${sEsc(String(r.num || ''))}-1`);
+  await saveCard(env, d, { id: made.id, brief: { v: 2, html, format, sizes: old.sizes || [] } }, who);
+  return { ok: true, id: made.id, num: made.num, title: it.text, from: r.id };
+}
+
+/** "Reuse" on an Off card (the previous-ads library): a new numbered brief whose page is a copy of the old one, with a
+ *  line on top saying where it came from. */
+export async function reuseCard(env, d, body, who) {
+  await ensureWork(env);
+  const r = await rowById(env, body.id);
+  const it = { text: clean(`${r.title || 'Untitled'} (reuse of #${r.num})`, 300), owner: '', due: '' };
+  const by = nameOfEmail(who);
+  const made = (await mirrorOn(env)) && (await hasAsana(env, r.act_id)) ? await makeBrief(env, d, r.act_id, it, null, by) : await localBrief(env, r.act_id, it, by);
+  const old = safe(r.brief_json, null) || {};
+  const format = old.format || formatOf(r.title, r.brief_text);
+  const page = old.v === 2 && old.html ? old.html : templateHtml('new', format, made.num);
+  const html = `<p><em>Reused from #${sEsc(String(r.num || ''))} ${sEsc(r.title || '')}${r.verdict ? ` (${sEsc(r.verdict)})` : ''}.</em></p>${page}`;
   await saveCard(env, d, { id: made.id, brief: { v: 2, html, format, sizes: old.sizes || [] } }, who);
   return { ok: true, id: made.id, num: made.num, title: it.text, from: r.id };
 }

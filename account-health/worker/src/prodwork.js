@@ -33,6 +33,7 @@ import { brandBrain, SPECIFICITY } from './brain.js';
 import { slackIdOf } from './morningcard.js';
 import { frameLater } from './framesync.js';
 import { laneBlocks, laneWho, fyi } from './lane.js';
+import { cardDelivery } from './boardauto.js';
 
 const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 const AI_MODEL = 'claude-sonnet-5-5';
@@ -806,6 +807,9 @@ export async function getCard(env, d, origin, id, scope, me = null) {
     approved_by: r.approved_by ? (client && isTeamEmail(r.approved_by) ? 'Mobius' : nameOfEmail(r.approved_by)) : null, approved_at: r.approved_at || null,
     asana_url: client ? null : r.asana_url || null, brief_url: client ? null : r.brief_url || null, asset_url: client ? null : r.asset_url || null,
     share: !client && r.share_token ? `${LOCUS}review.html?t=${r.share_token}` : null,
+    /* the board runs itself (boardauto.js): pause timer, off date, and the Asana text the page was laid out from */
+    delivery: client ? null : await cardDelivery(env, r.id).catch(() => null),
+    asana_raw: client ? null : r.asana_raw || null, brief_fmt: !!(safe(r.brief_json, {}) || {}).fmt,
   };
   return { card, brief, brief_from: from, files, comments, ads: adsOf(files, comments, { carousel: brief.format === 'Carousel' }), team: client ? [] : ROSTER.map(x => x.name), mirror, client,
     templates: client || !brief.blank ? undefined : { new: templateHtml('new', brief.format, r.num), iter: templateHtml('iter', brief.format, r.num), resize: templateHtml('resize', brief.format, r.num), blank: templateHtml('blank') } };
@@ -1176,6 +1180,7 @@ export async function uploadFinish(env, d, origin, body, who) {
 
 /* A video a browser cannot play (ProRes, some MOVs): Cloudflare Stream makes an MP4 when it is switched on
    (CF_ACCOUNT_ID + CF_STREAM_TOKEN on the worker). Without it the file still downloads. */
+export { convert as convertFile };
 async function convert(env, origin, fid, mime, name) {
   if (!/^video\//.test(mime) || /^video\/(mp4|webm)$/.test(mime) || !env.CF_ACCOUNT_ID || !env.CF_STREAM_TOKEN) return;
   const api = `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/stream`;

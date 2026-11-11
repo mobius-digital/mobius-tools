@@ -59,11 +59,12 @@ await check('cardOf: late only when the due date has passed and the card is not 
   assert.equal(cardOf({ ...base, due_on: 'Friday' }, BRANDS, '2026-10-14').due, '', 'a bad date is dropped');
   assert.equal(cardOf({ ...base, board_stage: 'review' }, BRANDS, '2026-10-14').board, 'review', 'the Locus column wins');
 });
-await check('listBoard: open cards in their columns, done ones gone, old live ones gone, one brand or all', async () => {
+await check('listBoard: open cards in their columns, done ones gone, live ones stay (Meta moves them), one brand or all', async () => {
   const b = await listBoard(env, d, { act: 'all' });
   const by = Object.fromEntries(b.cards.map(c => [c.id, c.board]));
-  assert.deepEqual(by, { c1: 'brief', c2: 'making', c3: 'live', c5: 'ready' });
-  assert.equal(b.live.total, 1); assert.equal(b.synced_at, '2026-10-13T10:00:00Z'); assert.equal(b.today, '2026-10-14');
+  /* 2026-11-11: Live is Meta's (boardauto.js), so an old live card stays until the delivery tick moves it to Off */
+  assert.deepEqual(by, { c1: 'brief', c2: 'making', c3: 'live', c5: 'ready', c6: 'live' });
+  assert.equal(b.live.total, 2); assert.equal(b.synced_at, '2026-10-13T10:00:00Z'); assert.equal(b.today, '2026-10-14');
   assert.ok(b.team.length > 0); assert.deepEqual(b.brands.map(x => x.act_id), ['brand_alpha', 'brand_beta']);
   assert.equal(b.cards.find(c => c.id === 'c2').format, 'UGC');
   const one = await listBoard(env, d, { act: 'brand_beta' });
