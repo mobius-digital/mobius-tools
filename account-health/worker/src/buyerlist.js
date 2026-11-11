@@ -734,6 +734,7 @@ export async function handleBuyer(request, env, url, path, json, h) {
       const out = await buildBuyerList(env, d, { act, only, ads: url.searchParams.get('ads') !== '0' });
       /* A client login (brandguard lets it read its own brand only): the calls, never the launch queue, the owner or the team's settings. */
       if (h.isClient && h.isClient(request)) { out.rows = (out.rows || []).filter(r => r.kind !== 'launch'); out.banners = (out.banners || []).filter(x => x.kind !== 'trybe'); out.launched = []; out.next_launch = null; out.launch_today = false; delete out.owner; delete out.settings; if (out.counts) out.counts.launch = 0; }
+      if (h.isHq && h.isHq(request)) { delete out.owner; delete out.settings; }   // Lucky HQ: the team's page for Lucky, without the team's own settings
       return json(out);
     }
     /* Yes / No on a card row (2026-11-05). Yes after the write (write_id) or on its own; No with his one-line why. */

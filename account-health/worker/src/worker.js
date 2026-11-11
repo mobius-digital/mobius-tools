@@ -3,7 +3,7 @@ import { useFetch as assetsFetch, syncAssets, tagAssets, listAssets, assetsTick,
 import { guardBrands, brandsFor, clientScope, isClientEmail } from './brandguard.js';
 import { handleCommand } from './command.js';
 import { handleAgency } from './agency.js';
-import { handleClients, clientAsk, clientOwnsRun, touchClient, meClient, claimInvite } from './clients.js';
+import { handleClients, clientAsk, clientOwnsRun, touchClient, meClient, claimInvite, hqSignin } from './clients.js';
 import { listBrands, addConnection, createBrand, brandByChannel, connectionNote, KINDS as BRAND_KINDS, metaOf, isBrandId, resolveBrandId, acctOf, metaSyncRows, setTripleWhale, storagePrefix, brandOf, connGet, connSet } from './brands.js';
 import { whoIs, channelInfo, brandForChannel, readAccess, writeAccess } from './slackaccess.js';
 import { movedTick, movedPreview } from './moved.js';
@@ -8415,7 +8415,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     /* ---- The Buyer list (2026-10-26, src/buyerlist.js): every brand's ad calls, test minimums due off and cards ready to
        launch in one list, with shared Done / Skip state (p_buyer_state). Team only. */
     {
-      const r = await handleBuyer(request, env, url, path, json, { isAdmin, sessionEmail, brandsFor, resolveBrandId, isClient: r => !!clientScope(r), deps: buyerDeps() });
+      const r = await handleBuyer(request, env, url, path, json, { isAdmin, sessionEmail, brandsFor, resolveBrandId, isClient: r => { const c = clientScope(r); return !!c && !c.hq; }, isHq: r => !!(clientScope(r) || {}).hq, deps: buyerDeps() });   // the Lucky HQ login gets the team's Calls page for Lucky
       if (r) return r;
     }
     /* ---- The client posts, previewed (2026-10-19): the six-line daily from the brand's latest brief and the weekly in
@@ -9458,6 +9458,13 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     if (path === '/api/google-login' && request.method === 'POST') {
       const { credential, invite } = await request.json().catch(() => ({}));
       const r = await googleLogin(env, credential, invite);
+      return r.error ? json({ error: r.error }, r.status) : json(r);
+    }
+
+    /* Locus inside Lucky HQ: HQ's one-minute pass becomes a Lucky-only session (clients.js hqSignin). */
+    if (path === '/api/hq-signin' && request.method === 'POST') {
+      const { pass } = await request.json().catch(() => ({}));
+      const r = await hqSignin(env, pass, mintSession);
       return r.error ? json({ error: r.error }, r.status) : json(r);
     }
 

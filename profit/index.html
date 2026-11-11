@@ -2446,7 +2446,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="inspo.js?v=1"></script>
 <script src="leaks.js?v=11"></script>
 <script src="desk.js?v=40"></script>
-<script src="buyer.js?v=11"></script>
+<script src="buyer.js?v=12"></script>
 <script src="trybe.js?v=15"></script>
 <script src="agency.js?v=4"></script>
 <script src="calendar.js?v=15"></script>
@@ -2458,6 +2458,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="askextra.js?v=3"></script>
 <script src="share.js?v=6"></script>
 <script src="survey.js?v=1"></script>
+<script src="hq.js?v=1"></script>
 <script src="polish.js?v=3" defer></script>
 <script src="phone.js?v=4" defer></script>
 <script>
@@ -2563,11 +2564,13 @@ function sharedSession() {
   return t && (exp === 0 || exp > Date.now() + 60e3) ? t : null;
 }
 
+const HQF = window.LocusHQ && window.LocusHQ.on ? window.LocusHQ : null;
 const S = {
   url: localStorage.getItem(LS.url) || DEFAULT_WORKER_URL,
-  tok: localStorage.getItem(LS.tok) || sharedSession() || '',
-  act: localStorage.getItem(LS.act) || 'all',
-  tab: localStorage.getItem(LS.tab) || 'overview',
+  /* Inside Lucky HQ (hq.js): only the session HQ handed this frame, Lucky Golf, and the page HQ asked for. */
+  tok: HQF ? HQF.tok() : localStorage.getItem(LS.tok) || sharedSession() || '',
+  act: HQF ? HQF.brand : localStorage.getItem(LS.act) || 'all',
+  tab: HQF ? HQF.start : localStorage.getItem(LS.tab) || 'overview',
   days: +localStorage.getItem(LS.days) || 30,
   range: (() => { try { return JSON.parse(localStorage.getItem(LS.range)) || { preset: '30' }; } catch { return { preset: '30' }; } })(),
   /* The compare period (the hub, 2026-10-07): prev = the same number of days before the
@@ -12957,6 +12960,7 @@ renderSettings = async function(){
   /* The 8am "What moved" post is gone (2026-10-09): a bad day on Meta is one line in the Daily Brief. Scheduled questions are on Reports > Dashboards. */
   try { const d = await apiAH('/api/ask/findings'); const c = document.getElementById('askChan'); if (c) c.value = d.channel || ''; } catch (e) {}
 };
+if (HQF) HQF.wire();   // Locus inside Lucky HQ (hq.js)
 boot();
 </script>
 </body>
