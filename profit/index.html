@@ -2458,7 +2458,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="askextra.js?v=3"></script>
 <script src="share.js?v=6"></script>
 <script src="survey.js?v=1"></script>
-<script src="hq.js?v=1"></script>
+<script src="hq.js?v=2"></script>
 <script src="polish.js?v=3" defer></script>
 <script src="phone.js?v=4" defer></script>
 <script>
@@ -6213,7 +6213,7 @@ function askPaint() {
   if (!t) { items = askList().map(x => ({ kind: 'ask', label: x, q: x })); head = `Ask about ${esc((TAB_TITLE[S.tab] || 'this page').toLowerCase())} · ${esc(askScope())}`; }
   else {
     const pages = askPages().filter(p => `${p.label} ${p.where}`.toLowerCase().includes(t)).slice(0, 6);
-    const brands = [{ act_id: 'all', name: AGENCY_VIEW }, ...S.accounts].filter(a => a.name.toLowerCase().includes(t)).slice(0, 4).map(a => ({ kind: 'brand', id: a.act_id, label: a.name }));
+    const brands = [...(isClient() ? [] : [{ act_id: 'all', name: AGENCY_VIEW }]), ...S.accounts].filter(a => a.name.toLowerCase().includes(t)).slice(0, 4).map(a => ({ kind: 'brand', id: a.act_id, label: a.name }));
     const ask = { kind: 'ask', label: `Ask Locus: “${q}”`, q };
     /* Any Meta campaign or ad by name (hub /api/hub/find), fetched as you type. */
     if (t.length >= 3 && ASKB.q !== t) { ASKB.q = t; clearTimeout(ASKB.timer); ASKB.timer = setTimeout(() => api(`/api/hub/find?act=${encodeURIComponent(S.act)}&q=${encodeURIComponent(q)}`).then(r => { if (ASKB.q === t) { ASKB.found = r.items || []; if (document.activeElement === inp) askPaint(); } }).catch(() => {}), 220); }
