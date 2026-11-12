@@ -166,7 +166,8 @@ footer .col{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
 @media (max-width:639px){
   .top .col{height:56px}
   .top-link span{display:none}
-  .top-link{width:44px;padding:0;justify-content:center}
+  .top-link em{display:inline}
+  .top-link{padding:0 12px}
   .hero{padding:20px 0 14px}
   .hero h1{font-size:25px}
   .lede{font-size:14.5px}
@@ -356,3 +357,11 @@ footer .col{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
   .is-b{overflow:visible;padding:16px 16px calc(16px + var(--safe-b))}
   .is-b .pl-t{font-size:19px;padding-right:0}
 }
+
+/* 2026-11-12 trim: three steps as one line under the headline; rules as a link in the deal box */
+.top-link em{display:none;font-style:normal}
+.flow{list-style:none;display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:14px;padding:0}
+.flow li{display:flex;align-items:center;gap:8px;font-size:14.5px;font-weight:600;color:var(--ink-2)}
+.flow li span{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:rgba(var(--acc-rgb),.14);color:var(--acc);font-size:12px;font-weight:750;flex:none}
+.of-rules{display:inline-flex;align-items:center;gap:6px;min-height:40px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line);width:100%;font-size:14px;font-weight:650;color:var(--acc)}
+@media (max-width:639px){.flow{flex-direction:column;gap:8px}.top-link em{display:inline}.tag-c{display:none}.hero{padding-bottom:4px}}
