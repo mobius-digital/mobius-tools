@@ -167,7 +167,7 @@ export async function handleProduction(request, env, url, path, json, d) {
     const work = await workRoutes(request, env, url, path, json, dd, who, scope);
     if (work) return work;
     if (scope) return json({ error: 'The team\'s part of Production.' }, 403);
-    const auto = await autoRoutes(request, env, url, path, json, { ...dd, mirrorOn, fileUrl });
+    const auto = await autoRoutes(request, env, url, path, json, { ...dd, mirrorOn, fileUrl, who });
     if (auto) return auto;
     /* Archived (2026-10-15 polish): the cards deleted from the board in the last 60 days, so a deletion is never final. */
     if (path === '/api/production/archived' && request.method === 'GET') return json(await listArchived(env, dd, { act: url.searchParams.get('act') || 'all' }));
