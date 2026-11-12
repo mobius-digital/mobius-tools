@@ -94,6 +94,9 @@ export function cleanWeek(w) {
     pay: t(w.pay, 40),
     deals: (Array.isArray(w.deals) ? w.deals : []).map(d => ({
       name: t(d?.name, 80), badge: t(d?.badge, 40), live: !!d?.live, film_by: t(d?.film_by, 60), line: t(d?.line, 300), say: t(d?.say, 160),
+      // 2026-11-12 (Cole: "the hook needs to be way better, tell people to do CTAs"): more openers, and the lines to end on.
+      hooks: (Array.isArray(d?.hooks) ? d.hooks : []).map(x => t(x, 160)).filter(Boolean).slice(0, 4),
+      cta: (Array.isArray(d?.cta) ? d.cta : []).map(x => t(x, 160)).filter(Boolean).slice(0, 4),
       tiers: (Array.isArray(d?.tiers) ? d.tiers : []).map(x => ({ spend: t(x?.spend, 30), save: t(x?.save, 30), extra: t(x?.extra, 40) })).filter(x => x.spend || x.save).slice(0, 4),
       ideas: (Array.isArray(d?.ideas) ? d.ideas : []).map(x => ({ title: t(x?.title, 80), how: t(x?.how, 120), ...(/^[a-f0-9]{16}$/.test(x?.angle_id || '') ? { angle_id: x.angle_id } : {}) })).filter(x => x.title).slice(0, 4),
       note: t(d?.note, 160), dark: !!d?.dark,

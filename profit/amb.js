@@ -771,6 +771,8 @@ function paintWeek(body) {
       <label style="display:flex;gap:14px;margin:0 0 8px;font-size:13px"><span><input type="checkbox" id="dlL${k}" ${d.live ? 'checked' : ''}> Green "live" dot</span><span><input type="checkbox" id="dlD${k}" ${d.dark ? 'checked' : ''}> Dark section (sales)</span></label>
       <textarea class="wk-ta" id="dlLn${k}" style="min-height:60px" placeholder="One or two plain sentences about the deal" maxlength="300">${esc(d.line || '')}</textarea>
       ${inp(`dlS${k}`, d.say, 'The line to say first', 160)}
+      <textarea class="wk-ta" id="dlHk${k}" style="min-height:60px" placeholder="More openers, one per line (up to 4)">${esc((d.hooks || []).join('\n'))}</textarea>
+      <textarea class="wk-ta" id="dlC${k}" style="min-height:60px" placeholder="End with (the call to action), one per line: Tap the link and pick your 4.">${esc((d.cta || []).join('\n'))}</textarea>
       <textarea class="wk-ta" id="dlT${k}" style="min-height:60px" placeholder="Money tiers, one per line: Spend $100 | Save $25 | + free studs">${esc((d.tiers || []).map(x => [x.spend, x.save, x.extra].filter(Boolean).join(' | ')).join('\n'))}</textarea>
       <p style="margin:4px 0 6px"><b>Ideas</b> (pick one so it shows its example video)</p>
       ${[0, 1, 2, 3].map(i => { const x = ids[i] || {}; return `<div style="border-top:1px solid var(--line);padding-top:6px"><select class="wk-pick" data-dpick="${k}-${i}" data-angle="${esc(x.angle_id || '')}"><option value="">${x.angle_id ? 'Keep the linked idea' : 'Pick an idea…'}</option>${ideas.map(a => `<option value="${esc(a.id)}">${esc(a.title)}</option>`).join('')}</select>${inp(`dlI${k}-${i}`, x.title, 'Title on the card', 80)}${inp(`dlH${k}-${i}`, x.how, 'One line: what to do', 120)}</div>`; }).join('')}
@@ -791,6 +793,7 @@ function paintWeek(body) {
       top_rules: v('wkRules').split('\n').map(l => { const [title, ...r] = l.split('|'); return { title: (title || '').trim(), text: r.join('|').trim() }; }).filter(x => x.title),
       deals: [0, 1, 2].map(k => ({ name: v(`dlN${k}`), badge: v(`dlB${k}`), film_by: v(`dlF${k}`), live: $(`#dlL${k}`).checked, dark: $(`#dlD${k}`).checked,
         line: v(`dlLn${k}`), say: v(`dlS${k}`), note: v(`dlNt${k}`),
+        hooks: v(`dlHk${k}`).split('\n').map(s => s.trim()).filter(Boolean), cta: v(`dlC${k}`).split('\n').map(s => s.trim()).filter(Boolean),
         tiers: v(`dlT${k}`).split('\n').map(l => l.split('|').map(s => s.trim())).filter(p => p[0]).map(([spend, save, extra]) => ({ spend, save: save || '', extra: extra || '' })),
         ideas: [0, 1, 2, 3].map(i => ({ title: v(`dlI${k}-${i}`), how: v(`dlH${k}-${i}`), angle_id: body.querySelector(`[data-dpick="${k}-${i}"]`).dataset.angle || '' })).filter(x => x.title) })).filter(d => d.name) };
     try { S.data = await post('/api/amb/brand', { week }, 'PUT'); flashMsg($('#wkMsg'), 'Saved. Creators see it on their next load.'); }
