@@ -197,33 +197,28 @@ function ideaCard(a, o = {}) {
     <span class="ic-b">${o.n ? `<span class="ic-n">Idea ${o.n}</span>` : secName(a.section_id) ? `<span class="ic-n">${esc(secName(a.section_id))}</span>` : ''}
       <b>${esc(o.title || a.title)}</b>
       ${say ? `<span class="ic-say">Say first: “${esc(say)}”</span>` : a.argument ? `<span class="ic-say">${esc(a.argument)}</span>` : ''}
-      <span class="ic-go">${ex ? 'Watch the example, see how to film it' : 'See how to film it'}${ic('arrow-right', 14)}</span></span>
+      <span class="ic-go">${ex ? 'Watch and film it' : 'How to film it'}${ic('arrow-right', 14)}</span></span>
   </button>`;
 }
+/* 2026-11-12 trim (Cole: "too confusing in the beginning"): the four-box How it works card became one line of
+   three steps under the headline, and the ideas to film come straight after the deal. The rules are a link. */
 function stepsStrip() {
-  const S = [
-    ['Pick a video idea', 'Start with one from this week\'s list.'],
-    ['Film it on your phone', 'Your place, your voice. 30 to 45 seconds.'],
-    ['Check the rules', 'The names, the deal, what not to say.'],
-    [`Upload it on ${plat()}`, 'We run the good ones as ads. You earn on every sale.'],
-  ];
-  return `<section class="card steps"><p class="wk-l">How it works</p><div class="st-row">${S.map(([t, d], k) => `<div class="st"><b><span>${k + 1}</span>${esc(t)}</b><p>${esc(d)}</p></div>`).join('')}</div></section>`;
+  const S = ['Pick an idea below', 'Film it on your phone, 30 to 45 seconds', `Upload it on ${plat()}`];
+  return `<ol class="flow">${S.map((t, k) => `<li><span>${k + 1}</span>${esc(t)}</li>`).join('')}</ol>`;
 }
 function offerBox() {
   const w = D.brand.week || {}, br = D.brand.brief || {};
   if (!(w.offer && w.offer.head)) return '';
-  const dont = (br.offer_dont || []);
   return `<div class="wk-offer"><span class="wk-l">The deal. Say it exactly like this</span><b>${esc(w.offer.head)}</b>${w.offer.line ? `<p>${esc(w.offer.line)}</p>` : ''}
-    ${dont.length ? `<ul class="of-dont">${dont.map(x => `<li>${ic('x', 13)}<span>${esc(x)}</span></li>`).join('')}</ul>` : ''}
-    <p class="of-why">If the deal in your video does not match the website, we cannot run it as an ad.</p></div>`;
+    <button class="of-rules" type="button" data-tab="rules">Names, rules and what not to say${ic('arrow-right', 14)}</button></div>`;
 }
 function sellingBox() {
   const w = D.brand.week || {}, L = D.leaders;
-  const lines = w.selling || [];
+  const lines = (w.selling || []).slice(0, 3);
   const vids = TOP.slice(0, 3);
   const same = w.same && w.same.line;
   if (!lines.length && !vids.length && !same) return '';
-  return `${head('What is selling right now', 'From our ad account. Film what already works.')}
+  return `${head('What is selling right now')}
     <div class="sell">
       ${lines.length ? `<ul class="sell-l">${lines.map(x => `<li>${ic('trending-up', 15)}<span>${esc(x)}</span></li>`).join('')}</ul>` : ''}
       ${same ? `<div class="sell-line"><span class="wk-s">An opening line that made sales${w.same.who ? `, first said by ${esc(w.same.who)}` : ''}</span><b>“${esc(w.same.line)}”</b><button class="copy" type="button" data-copy="${esc(w.same.line)}">${ic('copy', 13)}Copy this line</button></div>` : ''}
@@ -235,7 +230,7 @@ function weekIdeas() {
   const w = D.brand.week || {};
   const rows = (w.daily || []).map(x => ({ x, a: ideaOf(x) }));
   if (rows.length) {
-    return `${head(`Film one of these ${rows.length} videos this week`, 'Tap one to watch an example and see exactly how to film it.')}
+    return `${head(`Film one of these ${rows.length} this week`, 'Tap one for an example and how to film it.')}
       <div class="icards">${rows.map(({ x, a }, k) => a ? ideaCard(a, { n: k + 1, title: x.title, opener: x.opener })
         : `<div class="icard flat"><span class="ic-th"><em>${ic('video', 18)}</em></span><span class="ic-b"><span class="ic-n">Idea ${k + 1}</span><b>${esc(x.title)}</b>${x.opener ? `<span class="ic-say">Say first: “${esc(x.opener)}”</span>` : ''}</span></div>`).join('')}</div>
       ${ideas().length > rows.length ? `<button class="more" type="button" data-tab="ideas">See all ${ideas().length} video ideas${ic('arrow-right', 15)}</button>` : ''}`;
@@ -244,7 +239,7 @@ function weekIdeas() {
   const hot = (D.hot ? D.hot.angles : []).slice(0, 5);
   const list = hot.length ? hot : ideas().slice(0, 5);
   if (!list.length) return '';
-  return `${head('Start with one of these videos', 'Tap one to watch an example and see exactly how to film it.')}
+  return `${head('Start with one of these', 'Tap one for an example and how to film it.')}
     <div class="icards">${list.map((a, k) => ideaCard(a, { n: k + 1 })).join('')}</div>
     ${ideas().length > list.length ? `<button class="more" type="button" data-tab="ideas">See all ${ideas().length} video ideas${ic('arrow-right', 15)}</button>` : ''}`;
 }
@@ -261,8 +256,8 @@ function meetBox() {
 const submitBtn = () => (D.brand.submit_url ? `<a class="btn btn-acc st-go" href="${esc(D.brand.submit_url)}" target="_blank" rel="noopener">Upload your video on ${esc(plat())}${ic('arrow-right', 15)}</a>` : '');
 function startTab() {
   const b = D.brand, w = b.week || {};
-  return `<section class="hero">${w.title ? `<p class="wk-date">${esc(w.title)}</p>` : ''}<h1>Film a video for ${esc(b.display_name)}. We run it as an ad. You earn on every sale.</h1></section>
-    ${stepsStrip()}${offerBox()}${sellingBox()}${weekIdeas()}${meetBox()}${submitBtn()}`;
+  return `<section class="hero">${w.title ? `<p class="wk-date">${esc(w.title)}</p>` : ''}<h1>Film a video for ${esc(b.display_name)}. We run it as an ad. You earn on every sale.</h1>${stepsStrip()}</section>
+    ${offerBox()}${weekIdeas()}${sellingBox()}${meetBox()}${submitBtn()}`;
 }
 function buildTop() {
   const L = D.leaders; if (!L) return [];
@@ -318,7 +313,8 @@ function rulesTab() {
   const names = (br.names || []).length ? card('Say and spell the names right', 'A video with the wrong name cannot run.', li(br.names, 'check')) : '';
   const how = R.how.length ? card('How to film it', 'What makes people stop and watch.', `<div class="ck-boxes">${R.how.map(x => `<div class="ck-box">${ic('check', 15)}<div><b>${esc(x.title)}</b>${x.text ? `<span>${esc(x.text)}</span>` : ''}</div></div>`).join('')}</div>`, 'wide') : '';
   const say = R.say.length ? card('If you mention these, say them this way', 'You do not have to say all of these. Only when it comes up.', li(R.say, 'check'), 'good') : '';
-  const skip = R.skip.length ? card('Do not film or say these', 'A video with any of these cannot run as an ad.', li(R.skip, 'x'), 'bad') : '';
+  const skipAll = [...(br.offer_dont || []), ...R.skip];   // the deal's don'ts moved here from Start here (2026-11-12)
+  const skip = skipAll.length ? card('Do not film or say these', 'A video with any of these cannot run as an ad.', li(skipAll, 'x'), 'bad') : '';
   const broll = (br.broll || []).length ? card('Extra clips we always need', 'Film a few of these with no talking, 5 to 10 seconds each. We use them in the edit. Hold the phone at eye level, use light from a window, no other brand logos, no music playing.', li(br.broll, 'video')) : '';
   const label = br.label ? card(`How to label your upload on ${plat()}`, '', `<p class="rc-p">${esc(br.label)}</p>`) : '';
   const fin = (br.final || []).length ? card('Last check before you upload', 'Tick every box.', `<div class="fin">${br.final.map(x => `<label><input type="checkbox"><span>${esc(x)}</span></label>`).join('')}</div>`, 'wide') : '';
@@ -335,7 +331,7 @@ function render() {
   app.innerHTML = `${pv}
   <header class="top"><div class="col">
     <a class="brand" href="#" aria-label="${esc(b.display_name)} creators">${b.logo_url ? `<img src="${esc(LOGO_TRIM[b.logo_url] || b.logo_url)}" alt="${esc(b.display_name)}" crossorigin="anonymous" data-logo="${esc(b.logo_url)}">` : `<span class="nm">${esc(b.display_name)}</span>`}<span class="tag-c">Creator hub</span></a>
-    ${b.submit_url ? `<a class="top-link" href="${esc(b.submit_url)}" target="_blank" rel="noopener"><span>Upload a video</span>${ic('arrow-right', 15)}</a>` : ''}
+    ${b.submit_url ? `<a class="top-link" href="${esc(b.submit_url)}" target="_blank" rel="noopener"><span>Upload a video</span><em>Upload</em>${ic('arrow-right', 15)}</a>` : ''}
   </div></header>
   <nav class="tabs" role="tablist" aria-label="Sections"><div class="col">${tabs.map(([id, l]) => `<button type="button" role="tab" data-tab="${id}" class="${TAB === id ? 'on' : ''}" aria-selected="${TAB === id}">${esc(l)}</button>`).join('')}</div></nav>
   <main class="col" id="panel">${body}</main>
