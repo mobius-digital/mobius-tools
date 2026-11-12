@@ -173,7 +173,7 @@ function tile(t) {
 let TAB = '';
 let TOP = [];
 const head = (title, sub) => `<div class="sec-h"><h2>${esc(title)}</h2>${sub ? `<p>${esc(sub)}</p>` : ''}</div>`;
-const TABS = () => [['start', 'Start here'], [ideas().length ? 'ideas' : '', 'Video ideas'], [D.leaders ? 'sold' : '', 'Videos that sold'], ['rules', 'Product and rules']].filter(x => x[0]);
+const TABS = () => [['start', 'Home'], [ideas().length ? 'ideas' : '', 'All ideas'], [D.leaders ? 'sold' : '', 'Videos that sold'], ['rules', 'Rules']].filter(x => x[0]);
 const OLD_TAB = { week: 'start', top: 'sold', videos: 'ideas', how: 'rules', checklist: 'rules' };
 const goTab = id => { TAB = id; SHOW_ALL = false; try { history.replaceState(null, '', '#' + TAB); } catch {} render(); scrollTo(0, 0); };
 /* The idea behind a weekly line: by its id, else by its title (weeks saved before ids were kept). */
@@ -254,10 +254,93 @@ function meetBox() {
   return call || disc ? `<div class="wk-grid">${call}${disc}</div>` : '';
 }
 const submitBtn = () => (D.brand.submit_url ? `<a class="btn btn-acc st-go" href="${esc(D.brand.submit_url)}" target="_blank" rel="noopener">Upload your video on ${esc(plat())}${ic('arrow-right', 15)}</a>` : '');
-function startTab() {
+/* ---------- Home (2026-11-12, Cole: "the home page should be the overview... promote the Black Friday sale and the
+   4 for $150 as separate sections, then the top performers... get people excited to record, and into the Discord").
+   Order: the hook (what you earn) + proof, one section per live deal (its line to say, its ideas, its own upload
+   button), the videos that sold, the Discord, 4 rules, more ideas. A brand with no deals set falls back to the one
+   offer box + this week's ideas, so every hub keeps working. Edited in Locus: Creators > Creator link > Start here. */
+const upUrl = () => D.brand.submit_url || '';
+function heroHome() {
+  const b = D.brand, w = b.week || {}, L = D.leaders;
+  const pay = w.pay ? `You get ${esc(w.pay)} of every sale.` : 'You earn on every sale.';
+  const deals = (w.deals || []).length;
+  const sub = deals > 1 ? `${deals} deals are live right now. Pick one, film yourself with the product, and upload it on ${esc(plat())}.`
+    : `Pick an idea, film yourself with the product, and upload it on ${esc(plat())}.`;
+  const top = L && (L.videos || [])[0];
+  const proof = [];
+  if (L && (L.creators || []).length) proof.push([String(L.creators.length), `creator${L.creators.length === 1 ? '' : 's'} made sales in the last ${L.days} days`]);
+  if (top && top.sales > 1) proof.push([String(top.sales), `sales from ${esc(String(top.name).split(' ')[0])}'s top video`]);
+  if (w.discord) proof.push(['Fridays', 'we post the new winners']);
+  return `<section class="hm-hero">
+    ${w.title ? `<p class="wk-date">${esc(w.title)}</p>` : ''}
+    <h1>Film it. We run it as an ad. <em>${pay}</em></h1>
+    <p class="hm-sub">${sub}</p>
+    <div class="hm-row"><a class="btn btn-acc" href="#deals" data-jump="deals">Show me what to film</a>${w.discord ? `<a class="btn btn-line" href="#discord" data-jump="discord">Join the Discord</a>` : ''}</div>
+    ${proof.length ? `<div class="hm-proof">${proof.map(([n, t]) => `<div><b>${n}</b><span>${t}</span></div>`).join('')}</div>` : ''}
+  </section>`;
+}
+function dealIdea(x) {
+  const a = x.angle_id ? ideaOf(x) : null;
+  const ex = exampleOf(a);
+  const body = `<b class="hm-it">${esc(x.title)}</b>${x.how ? `<span class="hm-is">${esc(x.how)}</span>` : ''}`;
+  if (!a) return `<div class="hm-idea"><span class="hm-th hm-new"><span>${ic('video', 20)}<small>No example yet. Be the first.</small></span></span>${body}</div>`;
+  return `<button class="hm-idea" type="button" data-idea="${esc(a.id)}"><span class="hm-th" ${coverOf(ex)}>${thumbOf(ex)}${ex ? `<i>${ic('play', 13)}</i>` : `<em>${ic('video', 18)}</em>`}</span>${body}</button>`;
+}
+function dealSection(d, k) {
+  const tiers = d.tiers || [];
+  return `<section class="hm-deal${d.dark ? ' dark' : ''}" ${k === 0 ? 'id="deals"' : ''}>
+    <div class="hm-dt">
+      <div class="hm-row">${d.badge ? `<span class="hm-pill${d.live ? ' live' : ''}">${esc(d.badge)}</span>` : ''}${d.film_by ? `<span class="hm-pill">Film by ${esc(d.film_by)}</span>` : ''}</div>
+      <h2>${esc(d.name)}</h2>
+      ${d.line ? `<p class="hm-lede">${esc(d.line)}</p>` : ''}
+    </div>
+    ${tiers.length ? `<div class="hm-tiers">${tiers.map(t => `<div><small>${esc(t.spend)}</small><b>${esc(t.save)}</b>${t.extra ? `<span>${esc(t.extra)}</span>` : ''}</div>`).join('')}</div>` : ''}
+    ${d.say ? `<div class="hm-say"><small>Say this first</small><b>“${esc(d.say)}”</b><button class="hm-copy" type="button" data-copy="${esc(d.say)}">${ic('copy', 13)}Copy line</button></div>` : ''}
+    ${(d.ideas || []).length ? `<p class="hm-ih">Film one of these</p><div class="hm-ideas n${Math.min(d.ideas.length, 4)}">${d.ideas.map(dealIdea).join('')}</div>` : ''}
+    <div class="hm-foot">${d.note ? `<p>${esc(d.note)}</p>` : '<span></span>'}${upUrl() ? `<a class="btn btn-acc btn-sm" href="${esc(upUrl())}" target="_blank" rel="noopener">Upload your video</a>` : ''}</div>
+  </section>`;
+}
+function winsHome() {
+  const L = D.leaders, vids = TOP.slice(0, 5);
+  if (!vids.length) return '';
+  return `<section class="hm-sec">
+    ${head(`Videos that sold in the last ${L.days} days`, 'Real creators, real sales. Watch one, then make your own.')}
+    <div class="hm-wins">${vids.map(t => { const v = L.videos[t.i] || {}; return `<button class="hm-win" type="button" data-top="${t.i}" aria-label="Play: ${esc(t.top.cap)}"><span class="hm-th" ${coverOf(t)}>${thumbOf(t)}<span class="hm-rank">#${t.top.rank}</span><i>${ic('play', 13)}</i></span><b>${esc(v.name || '')}</b><span class="hm-is">${esc(v.product || 'Creator video')}</span><em>${v.sales} sale${v.sales === 1 ? '' : 's'}</em></button>`; }).join('')}</div>
+    <p class="hm-nudge">Every one of these was filmed on a phone. Yours could be up here next.${L.videos.length > vids.length ? ` <button class="hm-link" type="button" data-tab="sold">See all ${L.videos.length}</button>` : ''}</p>
+  </section>`;
+}
+function discordHome() {
+  const w = D.brand.week || {}, c = w.call || {}, recs = c.recordings || [];
+  if (!w.discord && !c.when && !c.join) return '';
+  return `<section class="hm-disc" id="discord">
+    <h2>${w.discord ? 'Join the creator Discord' : 'Weekly creator call'}</h2>
+    ${w.discord ? `<ul><li>Post your video before you upload and we'll tell you what to fix.</li><li>See the winning videos first, every Friday.</li><li>Ask anything and get an answer the same day.</li></ul>
+    <a class="btn hm-dbtn" href="${esc(w.discord)}" target="_blank" rel="noopener">Join the Discord${ic('arrow-right', 15)}</a>` : ''}
+    ${c.when || c.join ? `<p class="hm-call">${w.discord ? 'Weekly creator call: ' : ''}${esc(c.when || '')}${c.when ? '. ' : ''}What sold last week and what to film next.${c.join ? ` <a href="${esc(c.join)}" target="_blank" rel="noopener">Join the call</a>` : ''}</p>` : ''}
+    ${recs.length ? `<p class="hm-call">Missed one? ${recs.slice(-3).map(r => `<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title)}</a>`).join(' · ')}</p>` : ''}
+  </section>`;
+}
+function rulesHome() {
   const b = D.brand, w = b.week || {};
-  return `<section class="hero">${w.title ? `<p class="wk-date">${esc(w.title)}</p>` : ''}<h1>Film a video for ${esc(b.display_name)}. We run it as an ad. You earn on every sale.</h1>${stepsStrip()}</section>
-    ${offerBox()}${weekIdeas()}${sellingBox()}${meetBox()}${submitBtn()}`;
+  let R = (w.top_rules || []).map(x => [x.title, x.text]);
+  if (!R.length) R = ((b.checklist && b.checklist.do) || []).slice(0, 4).map(x => [x.title, x.text || '']);
+  if (!R.length) return '';
+  return `<section class="hm-sec">
+    ${head(`${R.length} rules so your video can run`, 'Break one and we can’t use it as an ad.')}
+    <div class="hm-rules">${R.map(([t, x], k) => `<div><i>${k + 1}</i><div><b>${esc(t)}</b>${x ? `<span>${esc(x)}</span>` : ''}</div></div>`).join('')}</div>
+    <button class="hm-link" type="button" data-tab="rules">See every rule${ic('arrow-right', 14)}</button>
+  </section>`;
+}
+function moreHome() {
+  const n = ideas().length;
+  if (!n) return '';
+  return `<button class="hm-more" type="button" data-tab="ideas"><span><b>Want to film something else?</b><small>${n} more ideas, each with an example to watch.</small></span><span class="btn btn-line btn-sm">See all ideas</span></button>`;
+}
+function startTab() {
+  const w = D.brand.week || {};
+  const deals = (w.deals || []).map(dealSection).join('');
+  const legacy = deals ? '' : `<div id="deals">${offerBox()}${weekIdeas()}</div>`;
+  return `${heroHome()}${deals}${legacy}${winsHome()}${discordHome()}${rulesHome()}${moreHome()}`;
 }
 function buildTop() {
   const L = D.leaders; if (!L) return [];
@@ -335,7 +418,8 @@ function render() {
   </div></header>
   <nav class="tabs" role="tablist" aria-label="Sections"><div class="col">${tabs.map(([id, l]) => `<button type="button" role="tab" data-tab="${id}" class="${TAB === id ? 'on' : ''}" aria-selected="${TAB === id}">${esc(l)}</button>`).join('')}</div></nav>
   <main class="col" id="panel">${body}</main>
-  <footer><div class="col"><span>Questions? Message ${esc(b.display_name)} on ${esc(plat())}.</span><span>Powered by Mobius Digital</span></div></footer>`;
+  <footer><div class="col"><span>Questions? Message ${esc(b.display_name)} on ${esc(plat())}.</span><span>Powered by Mobius Digital</span></div></footer>
+  ${b.submit_url ? `<div class="hm-dock"><div class="col"><a class="btn btn-acc" href="${esc(b.submit_url)}" target="_blank" rel="noopener">Upload your video on ${esc(plat())}</a></div></div>` : ''}`;
   wire();
 }
 function copyText(s) {
@@ -345,6 +429,7 @@ function copyText(s) {
 }
 function wire() {
   app.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => goTab(b.dataset.tab));
+  app.querySelectorAll('[data-jump]').forEach(b => b.onclick = e => { e.preventDefault(); const el = document.getElementById(b.dataset.jump); if (el) el.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); });
   app.querySelectorAll('[data-idea]').forEach(h => h.onclick = () => { const a = ideas().find(x => x.id === h.dataset.idea); if (a) openIdea(a); });
   app.querySelectorAll('[data-copy]').forEach(c => c.onclick = () => copyText(c.dataset.copy));
   app.querySelectorAll('[data-top]').forEach(el => el.onclick = () => openPlayer(TOP[+el.dataset.top]));

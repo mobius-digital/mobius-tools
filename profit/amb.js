@@ -397,7 +397,7 @@ function paint() {
   // Hub v2 (2026-11-05): the screens are named after the creator hub's own tabs, so it is plain which screen edits what.
   const tab = S.view === 'link' ? 'settings' : S.view;
   const tabs = `<nav class="v2tabs am-sub" aria-label="Creator hub screens">
-    <button data-v="week" class="${tab === 'week' ? 'on' : ''}">Start here</button>
+    <button data-v="week" class="${tab === 'week' ? 'on' : ''}">Home</button>
     <button data-v="angles" class="${tab === 'angles' ? 'on' : ''}">Video ideas</button>
     <button data-v="videos" class="${tab === 'videos' ? 'on' : ''}">Example videos</button>
     <button data-v="checklist" class="${tab === 'checklist' ? 'on' : ''}">Product and rules</button>
@@ -742,7 +742,7 @@ function paintWeek(body) {
   const inp = (id, v, ph, max) => `<input class="wk-in" id="${id}" value="${esc(v || '')}" placeholder="${esc(ph)}" maxlength="${max}">`;
   const recs = (c.recordings || []).map(r => `${r.title} | ${r.url}`).join('\n');
   body.innerHTML = `<style>.wk-in,.wk-ta{width:100%;box-sizing:border-box;padding:9px 11px;border-radius:9px;border:1px solid var(--line);background:transparent;color:inherit;font:inherit;margin:0 0 8px}.wk-ta{min-height:96px;resize:vertical}.wk-dayrow{display:grid;grid-template-columns:44px minmax(0,1fr);gap:8px;align-items:start}.wk-dayrow>b{padding-top:9px}.wk-pick{width:100%;box-sizing:border-box;padding:8px 10px;border-radius:9px;border:1px solid var(--line);background:transparent;color:inherit;font:inherit;margin:0 0 6px}</style>
-    <p class="hint" style="margin:6px 0 14px">This screen fills the creator hub's <b>Start here</b> tab: the deal, what is selling, the videos to film this week, the call and the Discord. Update it every Monday. Anything left empty is not shown.</p>
+    <p class="hint" style="margin:6px 0 14px">This screen fills the creator hub's <b>Home</b>: what creators earn, the deals (each its own section), the call, the Discord and the 4 rules. Update it every Monday. Anything left empty is not shown.</p>
     <div class="avc">
       <section class="avc-card"><h3>${ic('megaphone', 17)}The offer</h3><p>Word for word from the site, so every creator says it the same way.</p>
         ${inp('wkTitle', w.title, 'Week of Nov 9', 60)}${inp('wkHead', o.head, 'Early Black Friday: buy one, get one 50% off.', 120)}${inp('wkLine', o.line, 'What it covers, the code, the end date', 300)}</section>
@@ -757,9 +757,28 @@ function paintWeek(body) {
       <section class="avc-card"><h3>${ic('shuffle', 17)}A first line that sold</h3><p>A winning opening line for other creators to use.</p>
         ${inp('wkSame', sm.line, 'Golf is a drinking sport. This is Chunkman, not Jumpman.', 220)}${inp('wkWho', sm.who, 'Who said it first', 80)}</section>
     </div>
+    <div class="avc" style="margin-top:14px">
+      <section class="avc-card"><h3>${ic('target', 17)}What creators earn</h3><p>Shows in the headline: "Film it. We run it as an ad. You get 15% of every sale." Empty = "You earn on every sale."</p>
+        ${inp('wkPay', w.pay, '15%', 40)}</section>
+      <section class="avc-card"><h3>${ic('shuffle', 17)}The 4 rules on Home</h3><p>One per line: the rule | one short line under it. Empty = the first 4 from the checklist.</p>
+        <textarea class="wk-ta" id="wkRules" placeholder="Wear it in the first 2 seconds | The piece on you, in good light.">${esc((w.top_rules || []).map(x => `${x.title}${x.text ? ' | ' + x.text : ''}`).join('\n'))}</textarea></section>
+    </div>
+    <h3 style="margin:22px 0 4px">Deals on Home</h3>
+    <p class="hint" style="margin:0 0 10px">Each deal is its own section on the creator hub's Home, in this order: its line to say, up to 4 ideas and an upload button. Up to 3. A deal with no name is not shown. With no deals, Home shows the offer and this week's videos instead.</p>
+    <div class="avc">${[0, 1, 2].map(k => { const d = (w.deals || [])[k] || {}; const ids = d.ideas || []; return `<section class="avc-card" data-deal="${k}"><h3>${ic('megaphone', 17)}Deal ${k + 1}</h3>
+      ${inp(`dlN${k}`, d.name, 'Pick any 4 for $150', 80)}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${inp(`dlB${k}`, d.badge, 'Live now', 40)}${inp(`dlF${k}`, d.film_by, 'Film by: Friday, Nov 13', 60)}</div>
+      <label style="display:flex;gap:14px;margin:0 0 8px;font-size:13px"><span><input type="checkbox" id="dlL${k}" ${d.live ? 'checked' : ''}> Green "live" dot</span><span><input type="checkbox" id="dlD${k}" ${d.dark ? 'checked' : ''}> Dark section (sales)</span></label>
+      <textarea class="wk-ta" id="dlLn${k}" style="min-height:60px" placeholder="One or two plain sentences about the deal" maxlength="300">${esc(d.line || '')}</textarea>
+      ${inp(`dlS${k}`, d.say, 'The line to say first', 160)}
+      <textarea class="wk-ta" id="dlT${k}" style="min-height:60px" placeholder="Money tiers, one per line: Spend $100 | Save $25 | + free studs">${esc((d.tiers || []).map(x => [x.spend, x.save, x.extra].filter(Boolean).join(' | ')).join('\n'))}</textarea>
+      <p style="margin:4px 0 6px"><b>Ideas</b> (pick one so it shows its example video)</p>
+      ${[0, 1, 2, 3].map(i => { const x = ids[i] || {}; return `<div style="border-top:1px solid var(--line);padding-top:6px"><select class="wk-pick" data-dpick="${k}-${i}" data-angle="${esc(x.angle_id || '')}"><option value="">${x.angle_id ? 'Keep the linked idea' : 'Pick an idea…'}</option>${ideas.map(a => `<option value="${esc(a.id)}">${esc(a.title)}</option>`).join('')}</select>${inp(`dlI${k}-${i}`, x.title, 'Title on the card', 80)}${inp(`dlH${k}-${i}`, x.how, 'One line: what to do', 120)}</div>`; }).join('')}
+      ${inp(`dlNt${k}`, d.note, 'Small note under the ideas', 160)}</section>`; }).join('')}</div>
     <div class="av-save"><span class="am-msg" id="wkMsg"></span><button class="btn primary" id="wkSave" type="button">Save this week</button></div>
     <section class="avc-card" id="dcCard" style="margin-top:18px"><h3>${ic('users', 17)}Creator Discord</h3><p>Checking what is connected.</p></section>`;
   paintDiscord();
+  body.querySelectorAll('[data-dpick]').forEach(s => s.onchange = () => { const a = ideas.find(x => x.id === s.value); if (!a) return; s.dataset.angle = a.id; const [k, i] = s.dataset.dpick.split('-'); $(`#dlI${k}-${i}`).value = a.title.slice(0, 80); if (!$(`#dlH${k}-${i}`).value) $(`#dlH${k}-${i}`).value = (a.openers || [])[0] ? `Say: ${(a.openers || [])[0]}`.slice(0, 120) : ''; });
   body.querySelectorAll('[data-pick]').forEach(s => s.onchange = () => { const a = ideas.find(x => x.id === s.value); const i = s.dataset.pick; s.dataset.angle = a ? a.id : ''; if (!a) return; $('#wkT' + i).value = `${a.title}${a.format ? ` (${String(a.format).toLowerCase()})` : ''}`.slice(0, 120); $('#wkO' + i).value = (a.openers || [])[0] || ''; });
   $('#wkSave').onclick = async () => {
     const v = id => $('#' + id).value.trim();
@@ -767,7 +786,13 @@ function paintWeek(body) {
       call: { when: v('wkWhen'), join: v('wkJoin'), recordings: v('wkRecs').split('\n').map(l => { const k = l.lastIndexOf('|'); return k < 0 ? null : { title: l.slice(0, k).trim(), url: l.slice(k + 1).trim() }; }).filter(Boolean) },
       daily: DAYS.map((d, i) => ({ day: d, title: v('wkT' + i), opener: v('wkO' + i), angle_id: body.querySelector(`[data-pick="${i}"]`).dataset.angle || (daily[i].title === v('wkT' + i) ? daily[i].angle_id : '') || '' })).filter(x => x.title),
       same: { line: v('wkSame'), who: v('wkWho') },
-      selling: v('wkSell').split('\n').map(l => l.trim()).filter(Boolean), discord: v('wkDiscord') };
+      selling: v('wkSell').split('\n').map(l => l.trim()).filter(Boolean), discord: v('wkDiscord'),
+      pay: v('wkPay'),
+      top_rules: v('wkRules').split('\n').map(l => { const [title, ...r] = l.split('|'); return { title: (title || '').trim(), text: r.join('|').trim() }; }).filter(x => x.title),
+      deals: [0, 1, 2].map(k => ({ name: v(`dlN${k}`), badge: v(`dlB${k}`), film_by: v(`dlF${k}`), live: $(`#dlL${k}`).checked, dark: $(`#dlD${k}`).checked,
+        line: v(`dlLn${k}`), say: v(`dlS${k}`), note: v(`dlNt${k}`),
+        tiers: v(`dlT${k}`).split('\n').map(l => l.split('|').map(s => s.trim())).filter(p => p[0]).map(([spend, save, extra]) => ({ spend, save: save || '', extra: extra || '' })),
+        ideas: [0, 1, 2, 3].map(i => ({ title: v(`dlI${k}-${i}`), how: v(`dlH${k}-${i}`), angle_id: body.querySelector(`[data-dpick="${k}-${i}"]`).dataset.angle || '' })).filter(x => x.title) })).filter(d => d.name) };
     try { S.data = await post('/api/amb/brand', { week }, 'PUT'); flashMsg($('#wkMsg'), 'Saved. Creators see it on their next load.'); }
     catch (e) { flashMsg($('#wkMsg'), e.message, false); }
   };
