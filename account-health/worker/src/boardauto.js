@@ -51,7 +51,6 @@ export async function ensureAuto(env) {
     kind TEXT NOT NULL, on_date TEXT NOT NULL, note TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))`).run();
   await env.DB.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS p_card_event_one ON p_card_event (batch_id, COALESCE(ad_id, ''), kind, on_date)`).run().catch(() => {});
   await env.DB.prepare(`ALTER TABLE p_work_file ADD COLUMN src TEXT`).run().catch(() => {});
-  await env.DB.prepare(`ALTER TABLE p_work_file ADD COLUMN md5 TEXT`).run().catch(() => {});
   tabled = true;
 }
 
@@ -75,8 +74,8 @@ async function q(env, sql, ...b) { return (await env.DB.prepare(sql).bind(...b).
  *                 ("25 | Early Bird | New people", "259 + 295 | Lifestyle Bundle")
  *   3. file       the ad's code (the name before the first "|") is in a version file name on the card ("126-1 EBF-C1.jpg" and
  *                 "VP4-EBF-C1 | Still", "1-1 E01.jpg" and "EBF-E01 | Still", "LG-GW11-T7-feed.png" and "LG-GW11-T7 | Still")
- *   4. media      the ad's image is the card's file (Meta's image hash is the file's MD5; R2 keeps the same MD5 as its etag),
- *                 or the ad's video is a video Locus uploaded from the card
+ *   4. media      the ad's video is a video Locus uploaded from the card (images cannot be matched this way: Meta's image hash
+ *                 never equals the file's MD5, 0 of 760 card files on 2026-11-11)
  * A match is saved as a stored id (p_br_adtag, tagged_by "locus:<how>"), so it sticks and Your ads and the results read it
  * too. An ad two cards would claim is left alone. The team can also link ads by hand on the card ("Link ads"), and taking
  * an ad off a card stores batch_id '-' so no rule puts it back. */
@@ -97,13 +96,6 @@ const fileKey = (name, num) => {
   return n;
 };
 
-async function md5Of(env, f) {
-  if (f.md5 !== undefined && f.md5 !== null) return f.md5 || null;
-  let h = '';
-  try { const o = await env.MEDIA.head(f.r2_key); const e = String(o?.etag || o?.httpEtag || '').replace(/"/g, ''); h = /^[0-9a-f]{32}$/i.test(e) ? e.toLowerCase() : ''; } catch { h = ''; }
-  await env.DB.prepare(`UPDATE p_work_file SET md5 = ?2 WHERE id = ?1`).bind(f.id, h).run().catch(() => {});
-  return h || null;
-}
 
 /** Rules 1 to 4 for the cards still without ads. Returns [{card, ad, how}] (one per ad). */
 async function autoLinks(env, act, { cards, ads, per, claimed, setOf }) {
@@ -114,7 +106,7 @@ async function autoLinks(env, act, { cards, ads, per, claimed, setOf }) {
   const put = (a, c, how) => { const m = cand.get(String(a.ad_id)) || cand.set(String(a.ad_id), new Map()).get(String(a.ad_id)); if (!m.has(c.id)) m.set(c.id, how); };
   const ids = want.map(c => c.id);
   const ph = ids.map((_, i) => `?${i + 1}`).join(',');
-  const files = ids.length ? await q(env, `SELECT id, batch_id, name, r2_key, mime, meta_video_id, md5 FROM p_work_file WHERE deleted_at IS NULL AND batch_id IN (${ph})`, ...ids).catch(() => []) : [];
+  const files = ids.length ? await q(env, `SELECT id, batch_id, name, meta_video_id FROM p_work_file WHERE deleted_at IS NULL AND batch_id IN (${ph})`, ...ids).catch(() => []) : [];
   const notes = ids.length ? await q(env, `SELECT batch_id, body FROM p_work_comment WHERE batch_id IN (${ph})`, ...ids).catch(() => []) : [];
   const launches = await q(env, `SELECT ad_id, num FROM p_launch WHERE act = ?1 AND ad_id IS NOT NULL AND num IS NOT NULL`, act).catch(() => []);
   const adById = new Map(free.map(a => [String(a.ad_id), a]));
@@ -146,12 +138,9 @@ async function autoLinks(env, act, { cards, ads, per, claimed, setOf }) {
       if (!hasCode(code)) continue;
       if (keys.some(k => k === code || ` ${code}`.endsWith(` ${k}`) || (code.length >= 4 && k.startsWith(`${code} `)))) put(a, c, 'file');
     }
-    /* 4. the same media: video ids Locus uploaded, and image MD5 = Meta's image hash */
+    /* 4. the same video: one Locus uploaded to Meta from this card */
     const vids = new Set(fs.map(f => f.meta_video_id).filter(Boolean).map(v => `v:${v}`));
-    const imgs = fs.filter(f => /^image\//.test(f.mime || '') || /\.(png|jpe?g)$/i.test(f.name || '')).slice(0, 40);
-    const hashes = new Set();
-    for (const f of imgs) { const h = await md5Of(env, f); if (h) hashes.add(`i:${h}`); }
-    if (vids.size || hashes.size) for (const a of free) if (a.asset_key && (vids.has(a.asset_key) || hashes.has(String(a.asset_key).toLowerCase()))) put(a, c, 'media');
+    if (vids.size) for (const a of free) if (a.asset_key && vids.has(a.asset_key)) put(a, c, 'media');
   }
   const out = [];
   const byCard = new Map(want.map(c => [c.id, c]));
@@ -186,7 +175,8 @@ async function brandDelivery(env, act, today, { dry = true } = {}) {
   const per = new Map();   // card id -> [{ad, how}]
   const claimed = new Set();
   let ambiguous = 0;
-  const give = (c, a, how) => (per.get(c.id) || per.set(c.id, []).get(c.id)).push({ ...a, how, s: sp.get(String(a.ad_id)) || null, set: setOf.get(String(a.adset_id)) || null });
+  const aliasLinks = [];
+  const give =(c, a, how) => (per.get(c.id) || per.set(c.id, []).get(c.id)).push({ ...a, how, s: sp.get(String(a.ad_id)) || null, set: setOf.get(String(a.adset_id)) || null });
   for (const a of ads) {
     const id = String(a.ad_id);
     let card = null, how = 'id';
@@ -200,10 +190,11 @@ async function brandDelivery(env, act, today, { dry = true } = {}) {
       else if (list && list.length === 1) { card = list[0]; how = 'name'; } else if (list && list.length > 1) ambiguous++;
       if (n && list && list.length) claimed.add(id);
     }
-    if (card) { claimed.add(id); give(card, a, how); }
+    if (card) { claimed.add(id); give(card, a, how); if (how === 'set') aliasLinks.push({ card, ad: a, how }); }
   }
-  const links = await autoLinks(env, act, { cards, ads, per, claimed, setOf });
-  for (const l of links) give(l.card, l.ad, l.how);
+  const found = await autoLinks(env, act, { cards, ads, per, claimed, setOf });
+  for (const l of found) give(l.card, l.ad, l.how);
+  const links = [...aliasLinks, ...found];
   if (!dry && links.length) {
     const st = links.map(l => env.DB.prepare(`INSERT OR IGNORE INTO p_br_adtag (act_id, ad_id, batch_id, tagged_by, tagged_at) VALUES (?1, ?2, ?3, ?4, datetime('now'))`)
       .bind(act, String(l.ad.ad_id), l.card.id, `locus:${l.how}`));
@@ -355,13 +346,14 @@ export async function linkChoices(env, id) {
   const spend = new Map((await q(env, `SELECT ad_id, MAX(date) last, SUM(spend) spend FROM ad_daily WHERE act_id IN ${metaOf(1)} AND spend > 0 AND date >= ?2 GROUP BY ad_id`, r.act_id, since)).map(s => [String(s.ad_id), s]));
   const tags = new Map((await q(env, `SELECT t.ad_id, t.batch_id, b.num FROM p_br_adtag t LEFT JOIN p_br_batch b ON b.id = t.batch_id WHERE t.act_id = ?1`, r.act_id)).map(t => [String(t.ad_id), t]));
   const mine = new Set((await q(env, `SELECT ad_id FROM p_card_ad WHERE batch_id = ?1`, id)).map(x => String(x.ad_id)));
+  const onCard = new Map((await q(env, `SELECT a.ad_id, b.num FROM p_card_ad a JOIN p_br_batch b ON b.id = a.batch_id WHERE a.act_id = ?1 AND a.batch_id != ?2`, r.act_id, id)).map(x => [String(x.ad_id), x.num]));
   const out = [];
   for (const a of ads) {
     const k = String(a.ad_id), s = spend.get(k), t = tags.get(k);
     const on = t ? t.batch_id === id : mine.has(k);
     if (!on && !s && !(a.created_time && a.created_time.slice(0, 10) >= since)) continue;
     out.push({ ad_id: k, name: a.name, adset: a.adset || '', campaign: a.campaign || '', last: s?.last || null, spend: Math.round(s?.spend || 0), on,
-      other: t && t.batch_id !== id && t.batch_id !== UNLINKED ? (t.num ? `#${t.num}` : 'another card') : null });
+      other: t && t.batch_id !== id && t.batch_id !== UNLINKED ? (t.num ? `#${t.num}` : 'another card') : !t && onCard.has(k) ? `#${onCard.get(k)}` : null });
   }
   out.sort((a, b) => (b.on - a.on) || String(b.last || '').localeCompare(String(a.last || '')) || String(b.name).localeCompare(String(a.name)));
   return { id, num: r.num, ads: out.slice(0, 600) };
