@@ -2954,3 +2954,34 @@ it belonged to. Every team message is now one of two things. Tests: `node test-l
   FYI: `fyi()`, never a post. No em dashes (`noDash`), no "Locus says", never a number the message did not already
   have. Callers escape user text for mrkdwn; lane.js only strips dashes and squashes whitespace.
 - teamPost (morningcard.js) no longer puts a tag in front of a message that already carries it (lane messages do).
+
+## 2026-11-11: THE BOARD RUNS ITSELF (`src/boardauto.js`)
+People move a Production card up to Ready; Meta moves it after that. Columns are now Brief, Making, Review, Ready,
+Scheduled, Live, Off (production.js COLUMNS, profit/production.js COLS).
+- **Delivery (hourly tick, after brandAsanaTick):** cards match ads by stored ids (p_br_adtag, p_launch) first, then the
+  card number at the front of the ad name (numOf); an id-tagged ad never matches by name, a number two open cards share is
+  skipped. Live = spent in the last 3 days (ad_daily). All ads stopped = stays Live with `paused_on` (day after the last
+  spend) and "Paused day N of 7"; 7 full days = Off (stage done, board_stage off, `off_on`, Asana completed + Completed).
+  Spend again = back to Live, `resumed` event. Scheduled = mapped ads never delivered with a start or launch day ahead or
+  loaded in 45 days; a Live card with no matched ad and launch_on ahead also goes to Scheduled. A brand whose ad_daily is
+  older than 2 days is skipped. Only cards already in Live / Scheduled / Off run the pause timer.
+- **Tables:** `p_card_ad` (per ad: first/last spend, paused_on, spend), `p_card_event` (launched / paused / resumed /
+  off / scheduled, per card and per ad, dated). p_br_batch gained paused_on, off_on, live_on, last_spend_on, asana_raw,
+  brief_fmt. syncTasks keeps an Off card Off when its task is completed, and stores the task's notes in `asana_raw`.
+- **Asana briefs in the Locus layout** (`formatBriefs`, Haiku 5.5, JSON schema, words verbatim): offer, dates, link, the
+  test, then per ad visual / headline / primary text / description / landing page / inspiration, files, notes. Stored as
+  brief_json with `fmt: 'asana'`; brief_hash = the Asana text's hash so the sync treats it as unchanged; an Asana edit
+  re-lays it out. Nothing is written back to Asana. The card sheet shows "Original Asana text".
+- **Frame files** (`frameFiles`): f.io links resolve by redirect to next.frame.io/share/<id>; V4
+  `/accounts/{A}/shares/{id}/assets` lists them; folders and version stacks are walked. Newest file per name comes in as a
+  version (R2 + p_work_file, `src = frame:<file id>`, by_name Frame); never moves the card, never calls framesync.
+  Cards that pulled nothing are remembered in settings `framePullFail`.
+- **Switch:** settings `boardAuto` = 'on' (POST /api/production/auto/switch {on}). Hourly = delivery + 15 briefs + 4
+  Frame cards; every 5 minutes = 4 briefs + 1 Frame card (`boardBacklogTick`).
+- **Routes:** POST /api/production/auto {act?, dry} (dry default true), /format {act?, ids?, limit?, dry?},
+  /frame-pull {act?, ids?, nums?, limit?, dry?, force?}, /frame-probe {url}, /reuse {id}; GET /api/production/off?act&q
+  (the previous-ads library with spend, TW lastPlatformClick sales, files, verdict). MCP calls time out after ~30s on big
+  brands: the work still lands, re-run (every route is idempotent).
+- **Also fixed:** /api/production/field takes {field, value} (the MCP's shape; it returned "Nothing to change." for
+  everything) and title; listBoard reads IN lists in slices of 90 (D1's 100 bound values made every card read 0 versions
+  for all brands).

@@ -229,13 +229,13 @@ function tools(d) {
         return r;
       }),
     /* ---- Production ---- */
-    t('production_cards', 'The Production board: open cards for one brand (or every brand), with id, number, title, column (brief | making | review | ready | live), format, assignee, due, versions, open notes. Pass archived=true for the cards archived in the last 60 days.',
+    t('production_cards', 'The Production board: open cards for one brand (or every brand), with id, number, title, column (brief | making | review | ready | scheduled | live | off; a live card may carry pause {paused_on, day, of}), format, assignee, due, versions, open notes. Pass archived=true for the cards archived in the last 60 days.',
       { brand: S('Brand name or id; omit for every brand.'), archived: { type: 'boolean' } }, [],
       async (env, input) => {
         const act = await brandArg(env, d, input.brand);
         const r = await callLocus(env, d, { path: withQuery(input.archived ? '/api/production/archived' : '/api/production', { act: act || 'all' }) });
         if (r.error) return r;
-        const slim = c => ({ id: c.id, num: c.num, brand: c.brand, act_id: c.act_id, title: c.title, column: c.board, format: c.format, assignee: c.assignee, due: c.due, late: c.late, launch_on: c.launch_on, versions: c.versions, open_notes: c.open_notes, needs_client: c.needs_client || undefined, verdict: c.verdict || undefined, since: c.since, archived_at: c.archived_at });
+        const slim = c => ({ id: c.id, num: c.num, brand: c.brand, act_id: c.act_id, title: c.title, column: c.board, format: c.format, assignee: c.assignee, due: c.due, late: c.late, launch_on: c.launch_on, versions: c.versions, open_notes: c.open_notes, needs_client: c.needs_client || undefined, verdict: c.verdict || undefined, since: c.since, archived_at: c.archived_at, pause: c.pause || undefined, off_on: c.off_on || undefined });
         return { cards: (r.cards || []).map(slim), live: r.live, today: r.today };
       }),
     t('production_card', 'One Production card in full: the brief, every file (versions, inspiration, with URLs), comments and notes, the client state. By id, or by brand + number.',
@@ -249,8 +249,8 @@ function tools(d) {
         if (!r.error) await logWrite(env, { act, summary: `Production: new card "${clip(input.title, 120)}"`, object: r.id || r.card?.id || null });
         return r;
       }),
-    t('production_move', 'Move a card to a column: brief, making, review, ready or live. Moving to review posts its ads to the brand internal channel for Cole, as a drag in Locus does.',
-      { id: S('Card id (or a number with brand).'), num: { type: 'integer' }, brand: S('Brand, when giving a number.'), to: S('Column', { enum: ['brief', 'making', 'review', 'ready', 'live'] }) }, ['to'],
+    t('production_move', 'Move a card to a column: brief, making, review, ready, scheduled, live or off (Meta moves cards after Ready on its own each hour). Moving to review posts its ads to the brand internal channel for Cole, as a drag in Locus does.',
+      { id: S('Card id (or a number with brand).'), num: { type: 'integer' }, brand: S('Brand, when giving a number.'), to: S('Column', { enum: ['brief', 'making', 'review', 'ready', 'scheduled', 'live', 'off'] }) }, ['to'],
       async (env, input) => {
         const id = await cardId(env, d, input);
         const r = await callLocus(env, d, { method: 'POST', path: '/api/production/move', body: { id, to: input.to } });

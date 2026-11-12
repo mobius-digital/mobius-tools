@@ -76,7 +76,7 @@ const titleOf = name => String(name || '').replace(/^\s*(?:[A-Za-z]{2,4}_)?#?\d{
 const stageOf = section => {
   const s = String(section || '').toLowerCase();
   if (s.includes('brief')) return 'idea';
-  if (s.includes('studio') || s.includes('ready')) return 'production';
+  if (s.includes('studio') || s.includes('ready') || s.includes('schedul')) return 'production';
   if (s.includes('analy')) return 'live';
   if (s.includes('complete')) return 'done';
   return null;
@@ -92,13 +92,14 @@ export function boardOf(section, stage) {
   if (s.includes('studio')) return 'making';
   if (s.includes('review')) return 'review';
   if (s.includes('ready')) return 'ready';
+  if (s.includes('schedul')) return 'scheduled';
   if (s.includes('analy')) return 'live';
   return { idea: 'brief', production: 'making', live: 'live' }[stage] || null;
 }
 /* The section a board column moves an Asana task to. Review has none (Locus only). */
-export const BOARD_SECTION = { brief: /brief/i, making: /studio/i, ready: /ready/i, live: /analy/i, done: /complete/i };
+export const BOARD_SECTION = { brief: /brief/i, making: /studio/i, ready: /ready/i, scheduled: /schedul/i, live: /analy/i, done: /complete/i };
 /* The Asana column a board column lives in: Review has no section, so its task sits in Creative Studio (Making). */
-export const asanaColumn = to => (to === 'review' ? 'making' : to);
+export const asanaColumn = to => (to === 'review' ? 'making' : to === 'off' ? 'done' : to);
 /* True when the stored Asana section already is where a card in board column `to` belongs. */
 export const sectionFits = (section, to) => !!section && boardOf(section, null) === asanaColumn(to);
 /** Moves one Asana task to the section of board column `to` (Review = Creative Studio). `asanaFn` is the worker's asana
@@ -108,14 +109,20 @@ export async function moveTaskTo(env, asanaFn, projectGid, taskGid, to, cache = 
   if (!BOARD_SECTION[key]) throw new Error(`no Asana section for ${to}`);
   if (!cache[projectGid]) cache[projectGid] = (await asanaFn(env, `/projects/${projectGid}/sections?opt_fields=name`)) || [];
   const sec = cache[projectGid].find(s => BOARD_SECTION[key].test(s.name || ''));
-  if (!sec) throw new Error(`no ${{ brief: 'Brief', making: 'Studio', ready: 'Ready', live: 'Analyze Results', done: 'Completed' }[key]} section in the Asana project`);
+  if (!sec && key === 'scheduled') {
+    /* Scheduled (2026-11-11, the board runs itself): made once per project, right after Ready to Launch. */
+    const ready = cache[projectGid].find(s => BOARD_SECTION.ready.test(s.name || ''));
+    const made = await asanaFn(env, `/projects/${projectGid}/sections`, { method: 'POST', body: { name: 'Scheduled', ...(ready ? { insert_after: ready.gid } : {}) } });
+    if (made?.gid) { cache[projectGid].push({ gid: made.gid, name: 'Scheduled' }); return moveTaskTo(env, asanaFn, projectGid, taskGid, to, cache); }
+  }
+  if (!sec) throw new Error(`no ${{ brief: 'Brief', making: 'Studio', ready: 'Ready', scheduled: 'Scheduled', live: 'Analyze Results', done: 'Completed' }[key]} section in the Asana project`);
   await asanaFn(env, `/sections/${sec.gid}/addTask`, { method: 'POST', body: { task: taskGid } });
   return String(sec.name || '').slice(0, 80);
 }
 let boardCols = false;
 export async function ensureBoard(env) {
   if (boardCols) return;
-  for (const c of ['board_stage TEXT', 'assignee_name TEXT', 'due_on TEXT', 'board_at TEXT', 'board_was TEXT']) await env.DB.prepare(`ALTER TABLE p_br_batch ADD COLUMN ${c}`).run().catch(() => {});
+  for (const c of ['board_stage TEXT', 'assignee_name TEXT', 'due_on TEXT', 'board_at TEXT', 'board_was TEXT', 'asana_raw TEXT', 'brief_fmt TEXT', 'paused_on TEXT', 'off_on TEXT', 'live_on TEXT', 'last_spend_on TEXT']) await env.DB.prepare(`ALTER TABLE p_br_batch ADD COLUMN ${c}`).run().catch(() => {});
   boardCols = true;
 }
 
@@ -465,19 +472,19 @@ async function syncTasks(env, act, doc, { full = false } = {}) {
           verdict_by = CASE WHEN ?11 IS NOT NULL AND (?4 = 'done') THEN 'Asana' ELSE verdict_by END,
           verdict_at = CASE WHEN ?11 IS NOT NULL AND (?4 = 'done') AND verdict_at IS NULL THEN datetime('now') ELSE verdict_at END,
           learning = COALESCE(?12, learning), asana_result = ?13, check_again = ?14, keep_reason = ?15, brief_text = COALESCE(?16, brief_text),
-          board_stage = CASE WHEN ?17 = 'done' THEN 'done' WHEN asana_section IS ?7 AND board_stage IS NOT NULL THEN board_stage ELSE ?17 END,
-          board_at = CASE WHEN board_stage IS (CASE WHEN ?17 = 'done' THEN 'done' WHEN asana_section IS ?7 AND board_stage IS NOT NULL THEN board_stage ELSE ?17 END) THEN board_at ELSE datetime('now') END,
-          assignee_name = ?18, due_on = ?19,
+          board_stage = CASE WHEN ?17 = 'done' AND board_stage = 'off' THEN 'off' WHEN ?17 = 'done' THEN 'done' WHEN asana_section IS ?7 AND board_stage IS NOT NULL THEN board_stage ELSE ?17 END,
+          board_at = CASE WHEN board_stage IS (CASE WHEN ?17 = 'done' AND board_stage = 'off' THEN 'off' WHEN ?17 = 'done' THEN 'done' WHEN asana_section IS ?7 AND board_stage IS NOT NULL THEN board_stage ELSE ?17 END) THEN board_at ELSE datetime('now') END,
+          assignee_name = ?18, due_on = ?19, asana_raw = COALESCE(?20, asana_raw),
           updated_at = datetime('now') WHERE id = ?1 AND act_id = ?2`)
         .bind(row.id, act, clip(titleOf(t.name), 300), stage, t.gid, t.permalink_url, clip(section, 80), brief, asset, t.assignee?.gid || null,
-          v, learning, resKey, checkAgain, keepReason, notes, board, clip(t.assignee?.name, 80) || null, t.due_on || null));
+          v, learning, resKey, checkAgain, keepReason, notes, board, clip(t.assignee?.name, 80) || null, t.due_on || null, t.notes != null ? clip(t.notes, 30000) : null));
       updated++;
     } else {
-      st.push(env.DB.prepare(`INSERT INTO p_br_batch (id, act_id, num, title, stage, asana_gid, asana_url, asana_section, brief_url, asset_url, assignee_gid, verdict, verdict_by, learning, asana_result, check_again, keep_reason, brief_text, source, created_at, board_stage, assignee_name, due_on, board_at)
-          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, 'asana', ?19, ?20, ?21, ?22, datetime('now'))`)
+      st.push(env.DB.prepare(`INSERT INTO p_br_batch (id, act_id, num, title, stage, asana_gid, asana_url, asana_section, brief_url, asset_url, assignee_gid, verdict, verdict_by, learning, asana_result, check_again, keep_reason, brief_text, source, created_at, board_stage, assignee_name, due_on, board_at, asana_raw)
+          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, 'asana', ?19, ?20, ?21, ?22, datetime('now'), ?23)`)
         .bind(rid(), act, n, clip(titleOf(t.name), 300), stage, t.gid, t.permalink_url, clip(section, 80), brief, asset, t.assignee?.gid || null,
           stage === 'done' ? v : null, stage === 'done' && v ? 'Asana' : null, learning, resKey, checkAgain, keepReason, notes,
-          (t.created_at || '').replace('T', ' ').slice(0, 19) || null, board, clip(t.assignee?.name, 80) || null, t.due_on || null));
+          (t.created_at || '').replace('T', ' ').slice(0, 19) || null, board, clip(t.assignee?.name, 80) || null, t.due_on || null, t.notes != null ? clip(t.notes, 30000) : null));
       created++;
     }
   }
@@ -498,7 +505,7 @@ export async function pushBoard(env, act, doc, { limit = 25, asanaFn = asana } =
   if (!doc?.project_gid) return { moved: 0, failed: [] };
   await ensureBoard(env);
   const rows = (await env.DB.prepare(`SELECT id, num, board_stage, asana_section, asana_gid FROM p_br_batch WHERE act_id = ?1 AND asana_gid IS NOT NULL
-    AND asana_section IS NOT NULL AND stage != 'done' AND board_stage IN ('brief', 'making', 'review', 'ready', 'live') ORDER BY CAST(num AS INTEGER) DESC`).bind(act).all()).results || [];
+    AND asana_section IS NOT NULL AND stage != 'done' AND board_stage IN ('brief', 'making', 'review', 'ready', 'scheduled', 'live') ORDER BY CAST(num AS INTEGER) DESC`).bind(act).all()).results || [];
   /* A task two rows share is left alone: the rows could disagree and push it back and forth. */
   const seen = new Map(); for (const r of rows) seen.set(r.asana_gid, (seen.get(r.asana_gid) || 0) + 1);
   const off = rows.filter(r => { const at = boardOf(r.asana_section, null); return seen.get(r.asana_gid) === 1 && at && at !== 'done' && !sectionFits(r.asana_section, r.board_stage); });

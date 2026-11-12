@@ -22,7 +22,8 @@ const HUE = { Cole: 'var(--brand)', Ahsan: 'var(--c-tiktok)', Noma: 'var(--c-ema
 const FMT = { Static: 'var(--brand)', Video: 'var(--c-email)', UGC: 'var(--c-tiktok)', Carousel: 'var(--c-google)' }; /* never good / warn / bad: those mean status */
 const FORMATS = ['Static', 'Video', 'UGC', 'Carousel'];
 const SIZES = ['1:1', '4:5', '9:16', '1.91:1', '15s cut', '6s cut'];
-const STAGE = { brief: 'Brief', making: 'Making', review: 'Review', ready: 'Ready', live: 'Live', done: 'Done' };
+const STAGE = { brief: 'Brief', making: 'Making', review: 'Review', ready: 'Ready', scheduled: 'Scheduled', live: 'Live', off: 'Off', done: 'Done' };
+const EVENT = { launched: 'Launched', paused: 'Paused', resumed: 'Back on', off: 'Off', scheduled: 'Scheduled' };
 let PHOTOS = null, PHOTOS_P = null;
 
 function css() {
@@ -93,6 +94,7 @@ function css() {
 .ps-add{height:32px;border:1px dashed var(--line-strong);border-radius:var(--r-sm,6px);background:transparent;color:var(--muted);font:inherit;font-size:11px;cursor:pointer;padding:0 8px}
 .ps-add:hover{color:var(--ink);border-color:var(--ink-2)}
 .ps-hint{font-size:12px;font-weight:500;color:var(--muted)}
+.ps-deliv{margin-top:8px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;font-size:13px}.ps-deliv.w{border-color:color-mix(in srgb,var(--warn) 45%,transparent);background:color-mix(in srgb,var(--warn) 8%,transparent)}.ps-deliv details{margin-top:4px}.ps-deliv summary,.ps-raw summary{cursor:pointer;color:var(--muted);font-size:12px;font-weight:600}.ps-deliv ul{margin:6px 0 0;padding-left:18px;max-height:220px;overflow:auto}.ps-raw{margin-top:12px}.ps-raw pre{white-space:pre-wrap;font-size:12px;line-height:1.5;background:color-mix(in srgb,var(--ink) 4%,transparent);padding:10px;border-radius:8px;max-height:320px;overflow:auto}
 .ps-foot{display:flex;gap:10px;align-items:center;border-top:1px solid var(--line);padding-top:14px;flex-wrap:wrap}
 .ps-foot .ps-hint{flex:1;min-width:220px}
 .ps-c{display:flex;gap:10px}
@@ -434,7 +436,21 @@ async function open(H, id, opts = {}) {
         ${k.asana_url ? `<a class="ps-btn" href="${esc(k.asana_url)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;text-decoration:none">Asana</a>` : ''}</div>
       ${T.client ? `<div style="font-size:18px;font-weight:700">${esc(k.title || 'Untitled brief')}</div>` : `<input class="ps-title" aria-label="Title" value="${esc(k.title || '')}" placeholder="Name this brief">`}
       <div class="ps-meta">${T.client ? metaRo : metaRw}<div class="ps-kv"><span>Client approval</span><b>${esc(appr)}</b></div></div>
+      ${T.client ? '' : deliveryHtml(k)}
       <div class="ps-tabs" role="tablist">${tabs.map(([key, l]) => `<button class="ps-tab${T.tab === key ? ' on' : ''}" role="tab" aria-selected="${T.tab === key}" data-tab="${key}">${esc(l)}</button>`).join('')}</div></div>`;
+  }
+
+  /* ---------- Meta's part (2026-11-11): live since, the pause timer, off, and the dated history per ad ---------- */
+  function deliveryHtml(k) {
+    const d = k.delivery;
+    if (!d || (!d.ads?.length && !d.events?.length)) return '';
+    const line = k.board === 'off' ? `Off since ${short(d.off_on)}${d.paused_on ? `, paused ${short(d.paused_on)}` : ''}`
+      : d.pause ? `Paused day ${d.pause.day} of ${d.pause.of}, since ${short(d.pause.paused_on)}. Moves to Off after 7 days unless an ad comes back on.`
+      : k.board === 'live' ? `Live since ${short(d.live_on)}${d.last_spend_on ? `, last spend ${short(d.last_spend_on)}` : ''}`
+      : k.board === 'scheduled' ? 'In Meta, not delivering yet.' : '';
+    const ev = (d.events || []).slice().reverse().slice(0, 60).map(e => `<li><b>${esc(short(e.on_date))}</b> ${esc(EVENT[e.kind] || e.kind)}${e.ad ? `: ${esc(e.ad)}` : e.ad_id ? '' : ' (the card)'}${e.adset ? ` <span class="ps-hint">in ${esc(e.adset)}</span>` : ''}</li>`).join('');
+    const ads = (d.ads || []).map(a => `<li>${esc(a.name || a.ad_id)} <span class="ps-hint">${a.adset ? `${esc(a.adset)} · ` : ''}${a.first_spend ? `${esc(short(a.first_spend))} to ${esc(short(a.last_spend))}` : 'not delivered'}${a.paused_on ? `, paused ${esc(short(a.paused_on))}` : ''} · $${Math.round(a.spend || 0).toLocaleString('en-US')}</span></li>`).join('');
+    return `<div class="ps-deliv${d.pause ? ' w' : ''}">${line ? `<b>${esc(line)}</b>` : ''}<details><summary>History and ads (${(d.ads || []).length})</summary>${ev ? `<ul>${ev}</ul>` : ''}${ads ? `<p class="ps-lab" style="margin-top:8px">Ads</p><ul>${ads}</ul>` : ''}</details></div>`;
   }
 
   /* ---------- the brief: one written page ---------- */
@@ -457,7 +473,8 @@ async function open(H, id, opts = {}) {
     return `${start}<div>${tb}${doc}</div>
       <div class="ps-2"><div class="ps-f"><span class="ps-lab">Format</span>${pill('format', B.format, 'fit')}</div>
         <div class="ps-f"><span class="ps-lab">Sizes</span><div class="ps-chips">${SIZES.map(sz => `<button type="button" class="ps-chip${(B.sizes || []).includes(sz) ? ' on' : ''}" data-size="${esc(sz)}">${esc(sz)}</button>`).join('')}</div></div></div>
-      <span class="ps-hint" style="margin-top:-8px">Saved to this card${T.data.mirror ? ' and its Asana task' : ''}. Pictures stay on the card; a pasted link stays a link.</span>${foot}`;
+      <span class="ps-hint" style="margin-top:-8px">Saved to this card${T.data.mirror ? ' and its Asana task' : ''}. Pictures stay on the card; a pasted link stays a link.</span>${foot}
+      ${k.asana_raw ? `<details class="ps-raw"><summary>Original Asana text${k.brief_fmt ? ' (the page above was laid out from it)' : ''}</summary><pre>${esc(k.asana_raw)}</pre></details>` : ''}`;
   }
   function briefRo() {
     const B = T.B, k = c();

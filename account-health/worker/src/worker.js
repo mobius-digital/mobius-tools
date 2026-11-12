@@ -30,7 +30,8 @@ import { callNudgeTick } from './callnudge.js';
 import { handleMyWork, myWorkDmTick } from './mywork.js';
 import { handleProduction, listBoard, moveCard as prodMove, formatOf as prodFormat } from './production.js';
 import { readDoc as prodReadDoc } from './asana-brand.js';
-import { serveFile as prodFile, handleReviewLink, savePhoto } from './prodwork.js';
+import { serveFile as prodFile, handleReviewLink, savePhoto, mirrorOn as prodMirrorOn } from './prodwork.js';
+import { boardAutoTick, boardBacklogTick } from './boardauto.js';
 import { connectGet, connectPost, connectOverview, pendingTick as connectPendingTick, onboardAdsTick } from './connect.js';
 import { morningCardTick, previewCard, teamPost, tagOf, cardActionDone, cardCallMade, cardProdDone, cardBriefState, cardReaction, cardOn, morningHour, DEFAULT_MORNING_HOUR } from './morningcard.js';
 import { handlePrefs, morningPeople } from './prefs.js';
@@ -7842,6 +7843,8 @@ const AH_APP = {
       ctx.waitUntil(socialPostTick(env, socialPostDeps()).then(r => recordRun(env, 'lastSocialPost', r)).catch(() => {}));
       /* The Buyer list's morning read (buyerai.js, 2026-10-26): from an hour before the morning hour, three brands a tick. */
       ctx.waitUntil(buyerAITick(env, buyerDeps()).then(r => { if (r && !r.skipped && !r.done) return recordRun(env, 'lastBuyerAI', r); }).catch(() => {}));
+      /* Production backlog (boardauto.js, 2026-11-11): Asana briefs into the Locus layout, Frame files onto cards. */
+      ctx.waitUntil(boardBacklogTick(env, { ...actionDeps(), canAfford: n => subCanAfford(n) }).then(r => { if (r && !r.skipped) console.log('board backlog: ' + JSON.stringify(r).slice(0, 400)); }).catch(e => console.log('board backlog: ' + e.message)));
       return;
     }
     if (event.cron === '0 * * * *') {
@@ -7916,6 +7919,9 @@ const AH_APP = {
         ran.acctAvg = await refreshAccountAvg(env).catch(e => ({ error: e.message }));
         ran.monday = await mondayTick(env).catch(e => ({ error: e.message }));
         ran.brandAsana = await brandAsanaTick(env, subCanAfford).catch(e => ({ error: e.message }));
+        /* The board runs itself (boardauto.js, 2026-11-11): Meta delivery moves cards to Scheduled / Live / Off, Asana briefs
+           get the Locus layout, Frame links become files on the card. After the Asana sync so a fresh task is there. */
+        if (subCanAfford(120)) ran.boardAuto = await boardAutoTick(env, { ...actionDeps(), mirrorOn: prodMirrorOn }, n => subCanAfford(n)).catch(e => ({ error: e.message }));
         ran.assets = await assetsTick(env, () => subCanAfford(60)).catch(e => ({ error: e.message }));
         /* Ad covers in R2, one-creative keys and AI tags for every ad that spent lately (creative.js). */
         ran.creative = await creativeTick(env, ids => adThumbnails(env, ids, LIVE_THUMBS), () => subCanAfford(80), { meta, perBrand: 120, tags: 150 }).catch(e => ({ error: e.message }));
