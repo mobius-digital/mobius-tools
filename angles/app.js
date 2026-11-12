@@ -262,7 +262,7 @@ const submitBtn = () => (D.brand.submit_url ? `<a class="btn btn-acc st-go" href
 const upUrl = () => D.brand.submit_url || '';
 function heroHome() {
   const b = D.brand, w = b.week || {}, L = D.leaders;
-  const pay = w.pay ? `You get ${esc(w.pay)} of every sale.` : 'You earn on every sale.';
+  const pay = w.pay ? (/^\$/.test(w.pay) ? `You get ${esc(w.pay)} for every sale.` : `You get ${esc(w.pay)} of every sale.`) : 'You earn on every sale.';
   const deals = (w.deals || []).length;
   const sub = deals > 1 ? `${deals} deals are live right now. Pick one, film yourself with the product, and upload it on ${esc(plat())}.`
     : `Pick an idea, film yourself with the product, and upload it on ${esc(plat())}.`;
