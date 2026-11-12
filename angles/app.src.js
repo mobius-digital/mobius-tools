@@ -286,6 +286,13 @@ function dealIdea(x) {
   if (!a) return `<div class="hm-idea"><span class="hm-th hm-new"><span>${ic('video', 20)}<small>No example yet. Be the first.</small></span></span>${body}</div>`;
   return `<button class="hm-idea" type="button" data-idea="${esc(a.id)}"><span class="hm-th" ${coverOf(ex)}>${thumbOf(ex)}${ex ? `<i>${ic('play', 13)}</i>` : `<em>${ic('video', 18)}</em>`}</span>${body}</button>`;
 }
+/* The lines a creator says: the openers (first 2 seconds) and the call to action (last line), each copyable. */
+function lines(title, sub, list, cls = '') {
+  const L = list.filter(Boolean);
+  if (!L.length) return '';
+  return `<div class="hm-say ${cls}"><small>${esc(title)}</small><span class="hm-ss">${esc(sub)}</span>
+    <ul>${L.map(x => `<li><b>“${esc(x)}”</b><button class="hm-copy" type="button" data-copy="${esc(x)}" aria-label="Copy this line">${ic('copy', 13)}Copy</button></li>`).join('')}</ul></div>`;
+}
 function dealSection(d, k) {
   const tiers = d.tiers || [];
   return `<section class="hm-deal${d.dark ? ' dark' : ''}" ${k === 0 ? 'id="deals"' : ''}>
@@ -295,7 +302,8 @@ function dealSection(d, k) {
       ${d.line ? `<p class="hm-lede">${esc(d.line)}</p>` : ''}
     </div>
     ${tiers.length ? `<div class="hm-tiers">${tiers.map(t => `<div><small>${esc(t.spend)}</small><b>${esc(t.save)}</b>${t.extra ? `<span>${esc(t.extra)}</span>` : ''}</div>`).join('')}</div>` : ''}
-    ${d.say ? `<div class="hm-say"><small>Say this first</small><b>“${esc(d.say)}”</b><button class="hm-copy" type="button" data-copy="${esc(d.say)}">${ic('copy', 13)}Copy line</button></div>` : ''}
+    ${lines('Open with one of these', 'Say it in your first 2 seconds, word for word.', [d.say, ...(d.hooks || [])])}
+    ${lines('End with one of these', 'Tell them what to do next. Every video ends with one.', d.cta || [], 'end')}
     ${(d.ideas || []).length ? `<p class="hm-ih">Film one of these</p><div class="hm-ideas n${Math.min(d.ideas.length, 4)}">${d.ideas.map(dealIdea).join('')}</div>` : ''}
     <div class="hm-foot">${d.note ? `<p>${esc(d.note)}</p>` : '<span></span>'}${upUrl() ? `<a class="btn btn-acc btn-sm" href="${esc(upUrl())}" target="_blank" rel="noopener">Upload your video</a>` : ''}</div>
   </section>`;
