@@ -351,7 +351,7 @@ async function syncTasks(env, act, doc, { full = false } = {}) {
   const tasks = await asanaAll(env, `/tasks?project=${doc.project_gid}&opt_fields=${TASK_FIELDS}${since}`);
   const fields = (await ensureProjectFields(env, doc).catch(() => null)) || (await getSetting(env, 'brandAsanaFields')) || {};
   await ensureWork(env);
-  const existing = (await env.DB.prepare(`SELECT id, num, verdict, stage, asana_gid, asana_angle, brief_json, brief_hash, created_at FROM p_br_batch WHERE act_id = ?1`).bind(act).all()).results || [];
+  const existing = (await env.DB.prepare(`SELECT id, num, title, verdict, stage, asana_gid, asana_angle, brief_json, brief_hash, created_at FROM p_br_batch WHERE act_id = ?1`).bind(act).all()).results || [];
   /* One row per Asana task (2026-10-26): a task already linked to a row is never inserted again under another number
      (Ice & Gold had #17/#20 and #18/#19 sharing one task). The oldest linked row is the one kept up to date. */
   const byGid = new Map();
@@ -387,6 +387,16 @@ async function syncTasks(env, act, doc, { full = false } = {}) {
     (allByNum.get(n) || allByNum.set(n, []).get(n)).push(t);
     const cur = byNum.get(n);
     if (!cur || (cur.completed && !t.completed) || (cur.completed === t.completed && t.modified_at > cur.modified_at)) byNum.set(n, t);
+  }
+  /* A copy of the same test (same number AND same name, Grunk 338 "I Threw Away my old polos" twice) never takes the card
+     off the task it is linked to: the card would flip back to the copy's column every hour (2026-11-11). A task with the
+     same number and a different name still takes over, as before. */
+  const sameTest = (a, b) => String(a || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() === String(b || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  for (const [n, t] of [...byNum]) {
+    const row = existing.find(b => String(parseInt(b.num, 10)) === n && b.asana_gid);
+    if (!row || row.asana_gid === t.gid || !sameTest(row.title, titleOf(t.name))) continue;
+    const linked = (allByNum.get(n) || []).find(x => x.gid === row.asana_gid);
+    if (linked) byNum.set(n, linked); else byNum.delete(n);
   }
   /* SAFETY: two open tasks with one number would merge two tests. Tell the newer one, once. */
   const warnedDup = new Set(doc.dup_warned || []);

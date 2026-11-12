@@ -66,36 +66,143 @@ export function pauseOf(r, today = centralToday()) {
 /* ================================================================================================================ */
 async function q(env, sql, ...b) { return (await env.DB.prepare(sql).bind(...b).all()).results || []; }
 
-/** What the brand's ads did, mapped to its cards. */
-async function brandDelivery(env, act, today) {
-  const cards = await q(env, `SELECT id, num, title, stage, board_stage, asana_section, asana_gid, launch_on, paused_on, off_on, live_on, last_spend_on FROM p_br_batch
+/* ---------------- finding a card's ads without renaming anything in Meta (2026-11-11, Cole) ----------------
+ * In order, for a card that has no ad by stored id or by its number:
+ *   1. ids        an ad id or ad set id written in the card (Asana text, brief, comments, asset link), or a launch row by number
+ *   2. set        the ad set's name, minus its leading number, is the card's title ("326 | Video - Performer Bundle" is card
+ *                 337 "326 | Video - Performer Bundle (CBO #2 ad set...)"); or the ad set name starts with the card's number
+ *                 ("25 | Early Bird | New people", "259 + 295 | Lifestyle Bundle")
+ *   3. file       the ad's code (the name before the first "|") is in a version file name on the card ("126-1 EBF-C1.jpg" and
+ *                 "VP4-EBF-C1 | Still", "1-1 E01.jpg" and "EBF-E01 | Still", "LG-GW11-T7-feed.png" and "LG-GW11-T7 | Still")
+ *   4. media      the ad's video is a video Locus uploaded from the card (images cannot be matched this way: Meta's image hash
+ *                 never equals the file's MD5, 0 of 760 card files on 2026-11-11)
+ * A match is saved as a stored id (p_br_adtag, tagged_by "locus:<how>"), so it sticks and Your ads and the results read it
+ * too. An ad two cards would claim is left alone. The team can also link ads by hand on the card ("Link ads"), and taking
+ * an ad off a card stores batch_id '-' so no rule puts it back. */
+const UNLINKED = '-';
+const normName = s => String(s || '').toLowerCase().replace(/\.(png|jpe?g|webp|gif|mp4|mov|m4v|psd|heic)$/i, '').replace(/[^a-z0-9]+/g, ' ').trim();
+const codeOf = name => normName(String(name || '').split('|')[0]);
+const hasCode = t => t.length >= 3 && /[a-z]/.test(t) && /\d/.test(t);
+/** a card title as words, minus a leading number ("326 | ") and anything in brackets */
+const titleKey = t => normName(String(t || '').replace(/^\s*#?\d{1,4}\s*[-:|.]\s*/, '').replace(/\([^)]*\)/g, ' ').split(/\s[·:]\s|:\s/)[0]);
+const setKey = n => normName(String(n || '').replace(/^\s*#?\d{1,4}(?:\s*[-+&,/]\s*\d{1,4})*\s*[-:|.]\s*/, ''));
+const setNums = n => { const m = /^\s*#?(\d{1,4}(?:\s*[+&,/]\s*\d{1,4})*)\s*[-:|.]/.exec(String(n || '')); return m ? m[1].split(/\s*[+&,/]\s*/).map(x => String(parseInt(x, 10))) : []; };
+const aliasNum = t => { const m = /^\s*#?(\d{1,4})\s*[-:|.]/.exec(String(t || '')); return m ? String(parseInt(m[1], 10)) : null; };
+/** a version file's words without the card's own "126-1 " / "LG-416-" prefix */
+const fileKey = (name, num) => {
+  let n = normName(name);
+  const k = String(parseInt(num, 10) || '');
+  if (k) n = n.replace(new RegExp(`^(?:[a-z]{2,4} )?${k}(?: \\d{1,3})? `), '');
+  return n;
+};
+
+
+/** Rules 1 to 4 for the cards still without ads. Returns [{card, ad, how}] (one per ad). */
+async function autoLinks(env, act, { cards, ads, per, claimed, setOf }) {
+  const want = cards.filter(c => !(per.get(c.id) || []).length && ['ready', 'scheduled', 'live'].includes(c.board_stage || boardOf(c.asana_section, c.stage)));
+  if (!want.length) return [];
+  const free = ads.filter(a => !claimed.has(String(a.ad_id)));
+  const cand = new Map();   // ad id -> Map(card id -> how)
+  const put = (a, c, how) => { const m = cand.get(String(a.ad_id)) || cand.set(String(a.ad_id), new Map()).get(String(a.ad_id)); if (!m.has(c.id)) m.set(c.id, how); };
+  const ids = want.map(c => c.id);
+  const ph = ids.map((_, i) => `?${i + 1}`).join(',');
+  const files = ids.length ? await q(env, `SELECT id, batch_id, name, meta_video_id FROM p_work_file WHERE deleted_at IS NULL AND batch_id IN (${ph})`, ...ids).catch(() => []) : [];
+  const notes = ids.length ? await q(env, `SELECT batch_id, body FROM p_work_comment WHERE batch_id IN (${ph})`, ...ids).catch(() => []) : [];
+  const launches = await q(env, `SELECT ad_id, num FROM p_launch WHERE act = ?1 AND ad_id IS NOT NULL AND num IS NOT NULL`, act).catch(() => []);
+  const adById = new Map(free.map(a => [String(a.ad_id), a]));
+  const bySet = new Map();
+  for (const a of free) (bySet.get(String(a.adset_id)) || bySet.set(String(a.adset_id), []).get(String(a.adset_id))).push(a);
+  for (const c of want) {
+    const n = String(parseInt(c.num, 10) || '');
+    const born = c.created_at ? addDays(String(c.created_at).slice(0, 10), -60) : '0000';
+    /* 1. ids written on the card */
+    const text = [c.asana_raw, c.brief_text, c.asset_url, ...notes.filter(x => x.batch_id === c.id).map(x => x.body)].join(' ');
+    for (const id of new Set(text.match(/\b\d{15,20}\b/g) || [])) {
+      if (adById.has(id)) put(adById.get(id), c, 'ids');
+      for (const a of bySet.get(id) || []) put(a, c, 'ids');
+    }
+    for (const l of launches) if (n && String(parseInt(l.num, 10)) === n && adById.has(String(l.ad_id))) put(adById.get(String(l.ad_id)), c, 'ids');
+    /* 2. the ad set says which card */
+    const tk = titleKey(c.title);
+    for (const [sid, list] of bySet) {
+      const s = setOf.get(sid);
+      if (!s || !s.name) continue;
+      if ((n && setNums(s.name).includes(n)) || (tk.length >= 8 && setKey(s.name) === tk)) for (const a of list) put(a, c, 'set');
+    }
+    /* 3. file names */
+    const fs = files.filter(f => f.batch_id === c.id);
+    const keys = [...new Set(fs.map(f => fileKey(f.name, c.num)).filter(hasCode))];
+    if (keys.length) for (const a of free) {
+      if (a.created_time && a.created_time.slice(0, 10) < born) continue;
+      const code = codeOf(a.name);
+      if (!hasCode(code)) continue;
+      if (keys.some(k => k === code || ` ${code}`.endsWith(` ${k}`) || (code.length >= 4 && k.startsWith(`${code} `)))) put(a, c, 'file');
+    }
+    /* 4. the same video: one Locus uploaded to Meta from this card */
+    const vids = new Set(fs.map(f => f.meta_video_id).filter(Boolean).map(v => `v:${v}`));
+    if (vids.size) for (const a of free) if (a.asset_key && vids.has(a.asset_key)) put(a, c, 'media');
+  }
+  const out = [];
+  const byCard = new Map(want.map(c => [c.id, c]));
+  for (const [adId, m] of cand) {
+    if (m.size !== 1) continue;   // two cards would claim it: leave it for a person
+    const [[cid, how]] = [...m];
+    out.push({ card: byCard.get(cid), ad: adById.get(adId), how });
+  }
+  return out;
+}
+
+/** What the brand's ads did, mapped to its cards. Not dry: new matches are stored on the card (p_br_adtag). */
+async function brandDelivery(env, act, today, { dry = true } = {}) {
+  const cards = await q(env, `SELECT id, num, title, stage, board_stage, asana_section, asana_gid, launch_on, paused_on, off_on, live_on, last_spend_on, created_at,
+    substr(COALESCE(asana_raw, ''), 1, 6000) asana_raw, substr(COALESCE(brief_text, ''), 1, 6000) brief_text, asset_url FROM p_br_batch
     WHERE act_id = ?1 AND COALESCE(board_stage, '') != 'done'`, act);
-  const ads = await q(env, `SELECT ad_id, name, adset_id, created_time FROM ads WHERE act_id IN ${metaOf(1)}`, act);
+  const ads = await q(env, `SELECT ad_id, name, adset_id, created_time, asset_key FROM ads WHERE act_id IN ${metaOf(1)}`, act);
   const spend = await q(env, `SELECT ad_id, MIN(date) first, MAX(date) last, SUM(spend) spend FROM ad_daily WHERE act_id IN ${metaOf(1)} AND spend > 0 GROUP BY ad_id`, act);
   const fresh = (await env.DB.prepare(`SELECT MAX(date) d FROM ad_daily WHERE act_id IN ${metaOf(1)}`).bind(act).first().catch(() => null))?.d || null;
-  const sets = await q(env, `SELECT adset_id, start_time, end_time, status FROM meta_adsets WHERE act_id IN ${metaOf(1)}`, act).catch(() => []);
+  const sets = await q(env, `SELECT adset_id, name, start_time, end_time, status FROM meta_adsets WHERE act_id IN ${metaOf(1)}`, act).catch(() => []);
   const tagged = new Map();
   for (const t of await q(env, `SELECT ad_id, batch_id FROM p_br_adtag WHERE act_id = ?1`, act).catch(() => [])) tagged.set(String(t.ad_id), t.batch_id);
   for (const t of await q(env, `SELECT ad_id, batch_id FROM p_launch WHERE act = ?1 AND ad_id IS NOT NULL AND batch_id IS NOT NULL`, act).catch(() => [])) if (!tagged.has(String(t.ad_id))) tagged.set(String(t.ad_id), t.batch_id);
   const byId = new Map(cards.map(c => [c.id, c]));
   const byNum = new Map();
   for (const c of cards) { const n = String(parseInt(c.num, 10) || ''); if (n) (byNum.get(n) || byNum.set(n, []).get(n)).push(c); }
+  /* a card whose title starts with another number ("326 | Video - Performer Bundle") owns the ad set of that exact name */
+  const byTitle = new Map();
+  for (const c of cards) { const a = aliasNum(c.title), k = titleKey(c.title); if (a && a !== String(parseInt(c.num, 10)) && k.length >= 8) (byTitle.get(`${a}|${k}`) || byTitle.set(`${a}|${k}`, []).get(`${a}|${k}`)).push(c); }
   const sp = new Map(spend.map(s => [String(s.ad_id), s]));
   const setOf = new Map(sets.map(s => [String(s.adset_id), s]));
   const per = new Map();   // card id -> [{ad, how}]
+  const claimed = new Set();
   let ambiguous = 0;
+  const aliasLinks = [];
+  const give =(c, a, how) => (per.get(c.id) || per.set(c.id, []).get(c.id)).push({ ...a, how, s: sp.get(String(a.ad_id)) || null, set: setOf.get(String(a.adset_id)) || null });
   for (const a of ads) {
     const id = String(a.ad_id);
     let card = null, how = 'id';
-    if (tagged.has(id)) card = byId.get(tagged.get(id)) || null;
+    if (tagged.has(id)) { claimed.add(id); card = byId.get(tagged.get(id)) || null; }
     else {
       const n = numOf(a.name);
+      const s = setOf.get(String(a.adset_id));
+      const alias = n && s ? byTitle.get(`${n}|${setKey(s.name)}`) : null;
       const list = n ? byNum.get(n) : null;
-      if (list && list.length === 1) { card = list[0]; how = 'name'; } else if (list && list.length > 1) ambiguous++;
+      if (alias && alias.length === 1) { card = alias[0]; how = 'set'; }
+      else if (list && list.length === 1) { card = list[0]; how = 'name'; } else if (list && list.length > 1) ambiguous++;
+      if (n && list && list.length) claimed.add(id);
     }
-    if (card) (per.get(card.id) || per.set(card.id, []).get(card.id)).push({ ...a, how, s: sp.get(id) || null, set: setOf.get(String(a.adset_id)) || null });
+    if (card) { claimed.add(id); give(card, a, how); if (how === 'set') aliasLinks.push({ card, ad: a, how }); }
   }
-  return { cards, per, fresh, ambiguous };
+  const found = await autoLinks(env, act, { cards, ads, per, claimed, setOf });
+  for (const l of found) give(l.card, l.ad, l.how);
+  const links = [...aliasLinks, ...found];
+  if (!dry && links.length) {
+    const st = links.map(l => env.DB.prepare(`INSERT OR IGNORE INTO p_br_adtag (act_id, ad_id, batch_id, tagged_by, tagged_at) VALUES (?1, ?2, ?3, ?4, datetime('now'))`)
+      .bind(act, String(l.ad.ad_id), l.card.id, `locus:${l.how}`));
+    for (let i = 0; i < st.length; i += 50) await env.DB.batch(st.slice(i, i + 50));
+  }
+  const linked = {};
+  for (const l of links) (linked[l.card.num] ||= { how: l.how, ads: 0 }).ads++;
+  return { cards, per, fresh, ambiguous, linked };
 }
 
 /** The column Meta says a card belongs in, with its pause date. Null = leave it where people put it. */
@@ -126,7 +233,7 @@ async function event(env, c, act, kind, on, ad = null, set = null, note = null) 
 /** One brand: compute, and (unless dry) write the per-ad rows, the history, the column and the Asana task. */
 export async function deliveryBrand(env, d, act, { dry = false, today = centralToday(), asanaDoc = null, cache = {} } = {}) {
   await ensureAuto(env);
-  const { cards, per, fresh, ambiguous } = await brandDelivery(env, act, today);
+  const { cards, per, fresh, ambiguous, linked } = await brandDelivery(env, act, today, { dry });
   const before = {}, after = {};
   for (const c of cards) { const k = c.board_stage || boardOf(c.asana_section, c.stage) || 'none'; before[k] = (before[k] || 0) + 1; }
   if (!fresh || fresh < addDays(today, -2)) return { act, skipped: `ad_daily is stale (newest ${fresh || 'none'})`, before, after: before };
@@ -198,7 +305,7 @@ export async function deliveryBrand(env, d, act, { dry = false, today = centralT
       } catch (e) { asanaFails.push({ num: c.num, why: e.message }); }
     }
   }
-  return { act, before, after, moved: moves.length, asana_fixed: asanaFixed, moves: moves.slice(0, 400), paused, resumed, live_paused: livePaused, live_no_ads: unmatched.length, live_no_ads_nums: unmatched.slice(0, 80), ambiguous_ads: ambiguous, asana_failed: asanaFails, fresh };
+  return { act, before, after, moved: moves.length, asana_fixed: asanaFixed, moves: moves.slice(0, 400), paused, resumed, live_paused: livePaused, live_no_ads: unmatched.length, live_no_ads_nums: unmatched.slice(0, 80), linked_now: linked, ambiguous_ads: ambiguous, asana_failed: asanaFails, fresh };
 }
 
 /** Every active brand (or one). The hourly tick calls it with dry=false. */
@@ -225,6 +332,55 @@ export async function cardDelivery(env, id) {
   const events = await q(env, `SELECT e.kind, e.on_date, e.ad_id, e.adset_id, a.name AS ad, s.name AS adset FROM p_card_event e LEFT JOIN p_card_ad a ON a.batch_id = e.batch_id AND a.ad_id = e.ad_id
     LEFT JOIN meta_adsets s ON s.adset_id = e.adset_id WHERE e.batch_id = ?1 ORDER BY e.on_date, e.created_at`, id).catch(() => []);
   return { live_on: r.live_on, last_spend_on: r.last_spend_on, paused_on: r.paused_on, off_on: r.off_on, pause: pauseOf(r), ads, events };
+}
+
+/* ---------------- Link ads: the team taps the ads that belong to a card (no renaming in Meta) ---------------- */
+/** The brand's ads a person can pick from: made or spending in the last 120 days, newest spend first. */
+export async function linkChoices(env, id) {
+  await ensureAuto(env);
+  const r = await env.DB.prepare(`SELECT id, act_id, num FROM p_br_batch WHERE id = ?1`).bind(id).first().catch(() => null);
+  if (!r) return { error: 'No such card.' };
+  const since = addDays(centralToday(), -120);
+  const ads = await q(env, `SELECT a.ad_id, a.name, a.adset_id, s.name AS adset, c.name AS campaign, a.created_time FROM ads a
+    LEFT JOIN meta_adsets s ON s.adset_id = a.adset_id LEFT JOIN meta_campaigns c ON c.campaign_id = a.campaign_id WHERE a.act_id IN ${metaOf(1)}`, r.act_id);
+  const spend = new Map((await q(env, `SELECT ad_id, MAX(date) last, SUM(spend) spend FROM ad_daily WHERE act_id IN ${metaOf(1)} AND spend > 0 AND date >= ?2 GROUP BY ad_id`, r.act_id, since)).map(s => [String(s.ad_id), s]));
+  const tags = new Map((await q(env, `SELECT t.ad_id, t.batch_id, b.num FROM p_br_adtag t LEFT JOIN p_br_batch b ON b.id = t.batch_id WHERE t.act_id = ?1`, r.act_id)).map(t => [String(t.ad_id), t]));
+  const mine = new Set((await q(env, `SELECT ad_id FROM p_card_ad WHERE batch_id = ?1`, id)).map(x => String(x.ad_id)));
+  const onCard = new Map((await q(env, `SELECT a.ad_id, b.num FROM p_card_ad a JOIN p_br_batch b ON b.id = a.batch_id WHERE a.act_id = ?1 AND a.batch_id != ?2`, r.act_id, id)).map(x => [String(x.ad_id), x.num]));
+  const out = [];
+  for (const a of ads) {
+    const k = String(a.ad_id), s = spend.get(k), t = tags.get(k);
+    const on = t ? t.batch_id === id : mine.has(k);
+    if (!on && !s && !(a.created_time && a.created_time.slice(0, 10) >= since)) continue;
+    out.push({ ad_id: k, name: a.name, adset: a.adset || '', campaign: a.campaign || '', last: s?.last || null, spend: Math.round(s?.spend || 0), on,
+      other: t && t.batch_id !== id && t.batch_id !== UNLINKED ? (t.num ? `#${t.num}` : 'another card') : !t && onCard.has(k) ? `#${onCard.get(k)}` : null });
+  }
+  out.sort((a, b) => (b.on - a.on) || String(b.last || '').localeCompare(String(a.last || '')) || String(b.name).localeCompare(String(a.name)));
+  return { id, num: r.num, ads: out.slice(0, 600) };
+}
+
+/** {id, add: [ad ids], remove: [ad ids]}: stored on the card (p_br_adtag), then the brand's board is worked out again. */
+export async function linkAds(env, d, body) {
+  await ensureAuto(env);
+  const r = await env.DB.prepare(`SELECT id, act_id, num FROM p_br_batch WHERE id = ?1`).bind(String(body.id || '')).first().catch(() => null);
+  if (!r) return { error: 'No such card.' };
+  const ok = new Set((await q(env, `SELECT ad_id FROM ads WHERE act_id IN ${metaOf(1)}`, r.act_id)).map(a => String(a.ad_id)));
+  const add = [...new Set((body.add || []).map(String))].filter(x => ok.has(x)).slice(0, 300);
+  const remove = [...new Set((body.remove || []).map(String))].filter(x => ok.has(x) && !add.includes(x)).slice(0, 300);
+  const by = clip(d.who || 'the team', 120);
+  const st = [
+    ...add.map(a => env.DB.prepare(`INSERT INTO p_br_adtag (act_id, ad_id, batch_id, tagged_by, tagged_at) VALUES (?1, ?2, ?3, ?4, datetime('now'))
+      ON CONFLICT(act_id, ad_id) DO UPDATE SET batch_id = excluded.batch_id, tagged_by = excluded.tagged_by, tagged_at = excluded.tagged_at`).bind(r.act_id, a, r.id, by)),
+    /* taken off: '-' keeps every rule from putting it back on any card */
+    ...remove.map(a => env.DB.prepare(`INSERT INTO p_br_adtag (act_id, ad_id, batch_id, tagged_by, tagged_at) VALUES (?1, ?2, ?3, ?4, datetime('now'))
+      ON CONFLICT(act_id, ad_id) DO UPDATE SET batch_id = excluded.batch_id, tagged_by = excluded.tagged_by, tagged_at = excluded.tagged_at`).bind(r.act_id, a, UNLINKED, by)),
+    ...[...add, ...remove].map(a => env.DB.prepare(`DELETE FROM p_card_ad WHERE act_id = ?1 AND ad_id = ?2 AND batch_id != ?3`).bind(r.act_id, a, remove.includes(a) ? '' : r.id)),
+  ];
+  for (let i = 0; i < st.length; i += 50) await env.DB.batch(st.slice(i, i + 50));
+  const doc = d.mirrorOn && !(await d.mirrorOn(env)) ? null : safe((await env.DB.prepare(`SELECT data_json FROM p_br_doc WHERE act_id = ?1 AND line_id = '' AND key = 'asana'`).bind(r.act_id).first().catch(() => null))?.data_json, null);
+  const run = await deliveryBrand(env, d, r.act_id, { asanaDoc: doc }).catch(e => ({ error: e.message }));
+  const card = await env.DB.prepare(`SELECT board_stage, paused_on FROM p_br_batch WHERE id = ?1`).bind(r.id).first().catch(() => null);
+  return { ok: true, added: add.length, removed: remove.length, board: card?.board_stage || null, paused_on: card?.paused_on || null, run: run.error ? { error: run.error } : { moved: run.moved } };
 }
 
 /* ================================================================================================================ */
@@ -561,6 +717,8 @@ export async function autoRoutes(request, env, url, path, json, d) {
     await env.DB.prepare(`INSERT INTO settings (key, value) VALUES ('boardAuto', ?1) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(v).run();
     return json({ ok: true, boardAuto: v });
   }
+  if (path === '/api/production/link-ads' && request.method === 'GET') return json(await linkChoices(env, url.searchParams.get('id') || ''));
+  if (path === '/api/production/link-ads' && request.method === 'POST') return json(await linkAds(env, d, body));
   if (path === '/api/production/off' && request.method === 'GET') return json(await offLibrary(env, d, origin, { act: url.searchParams.get('act') || 'all', q: url.searchParams.get('q') || '', limit: url.searchParams.get('limit') }));
   return null;
 }

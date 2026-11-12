@@ -171,6 +171,16 @@ function css() {
 .ps-adb .row{display:flex;gap:8px;align-items:center}
 .ps-adb .row .ps-btn{flex:1 1 auto;justify-content:center;min-width:0;padding:0 10px}
 .ps-adb .row{flex-wrap:wrap}
+.ps-la{position:fixed;inset:0;z-index:9800;background:color-mix(in srgb,#000 38%,transparent);display:flex;align-items:flex-end;justify-content:center}
+.ps-la-s{background:var(--surface);color:var(--ink);width:min(720px,100%);max-height:86vh;display:flex;flex-direction:column;border-radius:14px 14px 0 0;box-shadow:0 -8px 30px rgba(0,0,0,.2);padding:14px 16px 12px;gap:10px;box-sizing:border-box}
+@media (min-width:760px){.ps-la{align-items:center}.ps-la-s{border-radius:14px}}
+.ps-la-s input[type=search]{height:36px;font:inherit;font-size:14px;color:var(--ink);background:var(--bg);border:1px solid var(--line-strong);border-radius:8px;padding:0 10px}
+.ps-la-l{overflow:auto;flex:1;min-height:120px;border:1px solid var(--line);border-radius:10px}
+.ps-la-r{display:flex;gap:10px;align-items:flex-start;padding:9px 10px;border-bottom:1px solid var(--line);cursor:pointer;font-size:13px}
+.ps-la-r:last-child{border-bottom:0}.ps-la-r:hover{background:var(--surface-2)}
+.ps-la-r input{margin-top:2px;width:16px;height:16px;flex:0 0 auto}
+.ps-la-r b{font-weight:600;word-break:break-word}.ps-la-r .ps-hint{display:block;margin-top:2px}
+.ps-la-f{display:flex;gap:8px;align-items:center}
 .ps-adb textarea{font:inherit;font-size:14px;color:var(--ink);background:var(--bg);border:1px solid var(--line-strong);border-radius:var(--r-sm,6px);padding:8px 10px;width:100%;box-sizing:border-box;resize:vertical;line-height:1.45}
 .ps-lnk{font:inherit;font-size:12px;font-weight:600;color:var(--brand);background:none;border:0;padding:0;cursor:pointer;text-align:left}
 .ps-lnk.mute{color:var(--muted);font-weight:500}.ps-lnk.mute:hover{color:var(--bad)}
@@ -443,6 +453,9 @@ async function open(H, id, opts = {}) {
   /* ---------- Meta's part (2026-11-11): live since, the pause timer, off, and the dated history per ad ---------- */
   function deliveryHtml(k) {
     const d = k.delivery;
+    const link = '<button type="button" class="ps-btn" data-link style="height:26px;margin-left:8px">Link ads</button>';
+    if (d && !d.ads?.length && ['live', 'scheduled', 'ready'].includes(k.board))
+      return `<div class="ps-deliv w"><b>Locus found no ads in Meta for this card.</b>${link}<div class="ps-hint" style="margin-top:4px">Tap Link ads and pick them. After that, Meta moves this card on its own.</div></div>`;
     if (!d || (!d.ads?.length && !d.events?.length)) return '';
     const line = k.board === 'off' ? `Off since ${short(d.off_on)}${d.paused_on ? `, paused ${short(d.paused_on)}` : ''}`
       : d.pause ? `Paused day ${d.pause.day} of ${d.pause.of}, since ${short(d.pause.paused_on)}. Moves to Off after 7 days unless an ad comes back on.`
@@ -450,7 +463,7 @@ async function open(H, id, opts = {}) {
       : k.board === 'scheduled' ? 'In Meta, not delivering yet.' : '';
     const ev = (d.events || []).slice().reverse().slice(0, 60).map(e => `<li><b>${esc(short(e.on_date))}</b> ${esc(EVENT[e.kind] || e.kind)}${e.ad ? `: ${esc(e.ad)}` : e.ad_id ? '' : ' (the card)'}${e.adset ? ` <span class="ps-hint">in ${esc(e.adset)}</span>` : ''}</li>`).join('');
     const ads = (d.ads || []).map(a => `<li>${esc(a.name || a.ad_id)} <span class="ps-hint">${a.adset ? `${esc(a.adset)} · ` : ''}${a.first_spend ? `${esc(short(a.first_spend))} to ${esc(short(a.last_spend))}` : 'not delivered'}${a.paused_on ? `, paused ${esc(short(a.paused_on))}` : ''} · $${Math.round(a.spend || 0).toLocaleString('en-US')}</span></li>`).join('');
-    return `<div class="ps-deliv${d.pause ? ' w' : ''}">${line ? `<b>${esc(line)}</b>` : ''}<details><summary>History and ads (${(d.ads || []).length})</summary>${ev ? `<ul>${ev}</ul>` : ''}${ads ? `<p class="ps-lab" style="margin-top:8px">Ads</p><ul>${ads}</ul>` : ''}</details></div>`;
+    return `<div class="ps-deliv${d.pause ? ' w' : ''}">${line ? `<b>${esc(line)}</b>` : ''}${link}<details><summary>History and ads (${(d.ads || []).length})</summary>${ev ? `<ul>${ev}</ul>` : ''}${ads ? `<p class="ps-lab" style="margin-top:8px">Ads</p><ul>${ads}</ul>` : ''}</details></div>`;
   }
 
   /* ---------- the brief: one written page ---------- */
@@ -576,6 +589,52 @@ async function open(H, id, opts = {}) {
       <div style="display:flex;align-items:center;gap:8px"><span class="ps-hint" style="flex:1">${T.client ? 'Goes to the Mobius team.' : 'Goes to this card; @Name also sends a Slack DM.'}</span><button class="ps-btn pri" data-cpost>Post</button></div>`;
   }
 
+  /* ---------- Link ads (2026-11-11): tap the Meta ads that belong to this card; Meta then moves it ---------- */
+  async function linkAds() {
+    const box = document.createElement('div');
+    box.className = 'ps-la';
+    box.innerHTML = '<div class="ps-la-s" role="dialog" aria-modal="true" aria-label="Link ads"><b style="font-size:16px">Link ads to #' + esc(c().num) + '</b><p class="ps-hint" style="margin:0">Loading the ads in Meta...</p></div>';
+    document.body.appendChild(box);
+    const onKey = e => { if (e.key === 'Escape') close(); };
+    const close = () => { box.remove(); document.removeEventListener('keydown', onKey); };
+    document.addEventListener('keydown', onKey);
+    box.addEventListener('click', e => { if (e.target === box) close(); });
+    let res;
+    try { res = await api(H, `/api/production/link-ads?id=${encodeURIComponent(id)}`); if (res.error) throw new Error(res.error); }
+    catch (e) { $('.ps-la-s p', box).textContent = e.message || 'Could not load the ads.'; return; }
+    const was = new Set(res.ads.filter(a => a.on).map(a => a.ad_id));
+    const pick = new Set(was);
+    const money = n => '$' + Math.round(n || 0).toLocaleString('en-US');
+    const row = a => `<label class="ps-la-r" data-ad="${esc(a.ad_id)}"><input type="checkbox"${pick.has(a.ad_id) ? ' checked' : ''}><span><b>${esc(a.name || a.ad_id)}</b>
+      <span class="ps-hint">${esc([a.adset, a.campaign].filter(Boolean).join(' · '))}${a.last ? ` · last spend ${esc(short(a.last))}, ${money(a.spend)}` : ' · no spend yet'}${a.other ? ` · now on ${esc(a.other)}` : ''}</span></span></label>`;
+    const s = $('.ps-la-s', box);
+    s.innerHTML = `<div style="display:flex;align-items:center;gap:8px"><b style="font-size:16px;flex:1">Link ads to #${esc(c().num)}</b><button type="button" class="ps-btn" data-x>Close</button></div>
+      <input type="search" placeholder="Search ad, ad set or campaign" aria-label="Search ads">
+      <div class="ps-la-l"></div>
+      <div class="ps-la-f"><span class="ps-hint" data-n style="flex:1"></span><button type="button" class="ps-btn pri" data-go>Save</button></div>`;
+    const list = $('.ps-la-l', s), find = $('input[type=search]', s), cnt = $('[data-n]', s), go = $('[data-go]', s);
+    const count = () => { const add = [...pick].filter(x => !was.has(x)).length, rem = [...was].filter(x => !pick.has(x)).length; cnt.textContent = `${pick.size} on this card${add ? `, ${add} to add` : ''}${rem ? `, ${rem} to take off` : ''}`; go.disabled = !add && !rem; };
+    const draw = () => {
+      const w = find.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+      const shown = res.ads.filter(a => !w.length || w.every(x => `${a.name} ${a.adset} ${a.campaign}`.toLowerCase().includes(x))).slice(0, 250);
+      list.innerHTML = shown.length ? shown.map(row).join('') : '<p class="ps-hint" style="padding:12px">No ad matches that.</p>';
+      $$('.ps-la-r input', list).forEach(i => i.onchange = () => { const k = i.closest('[data-ad]').dataset.ad; if (i.checked) pick.add(k); else pick.delete(k); count(); });
+    };
+    find.oninput = draw;
+    $('[data-x]', s).onclick = close;
+    go.onclick = async () => {
+      go.disabled = true; go.textContent = 'Saving...';
+      try {
+        const r = await post(H, '/api/production/link-ads', { id, add: [...pick].filter(x => !was.has(x)), remove: [...was].filter(x => !pick.has(x)) });
+        if (r.error) throw new Error(r.error);
+        close();
+        toast(r.board ? `Saved. Meta has this card in ${STAGE[r.board] || r.board}.` : 'Saved.');
+        await reload(); paint(); changed();
+      } catch (e) { go.disabled = false; go.textContent = 'Save'; toast(e.message || 'Could not save.', true); }
+    };
+    draw(); count(); find.focus();
+  }
+
   /* ---------- paint + wire ---------- */
   function paint() {
     const keep = host.scrollTop;
@@ -591,6 +650,7 @@ async function open(H, id, opts = {}) {
     const sv = $('[data-save]', host); if (sv) sv.onclick = () => { T.dirty = true; save(); };
     $$('.ps-title,[data-meta]', host).forEach(i => { i.oninput = touch; i.onchange = touch; });
     wirePills();
+    const lk = $('[data-link]', host); if (lk) lk.onclick = () => linkAds();
     /* the page: the model follows every keystroke, no repaint while typing */
     const doc = $('[data-doc]', host);
     if (doc) {
