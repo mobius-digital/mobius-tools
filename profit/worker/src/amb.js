@@ -89,8 +89,18 @@ export function cleanWeek(w) {
     // 2026-11-05 (hub v2, Phil Kiel's brief): what is selling right now, said with numbers, and the creator Discord.
     selling: (Array.isArray(w.selling) ? w.selling : []).map(x => t(x, 180)).filter(Boolean).slice(0, 5),
     discord: httpsUrl(w.discord),
+    // 2026-11-12 (hub Home, Cole: "sell the deals as separate sections, show the winners, push the Discord"):
+    // what a creator earns, up to 3 deals each with its own ideas, and the 4 rules that matter most.
+    pay: t(w.pay, 40),
+    deals: (Array.isArray(w.deals) ? w.deals : []).map(d => ({
+      name: t(d?.name, 80), badge: t(d?.badge, 40), live: !!d?.live, film_by: t(d?.film_by, 60), line: t(d?.line, 300), say: t(d?.say, 160),
+      tiers: (Array.isArray(d?.tiers) ? d.tiers : []).map(x => ({ spend: t(x?.spend, 30), save: t(x?.save, 30), extra: t(x?.extra, 40) })).filter(x => x.spend || x.save).slice(0, 4),
+      ideas: (Array.isArray(d?.ideas) ? d.ideas : []).map(x => ({ title: t(x?.title, 80), how: t(x?.how, 120), ...(/^[a-f0-9]{16}$/.test(x?.angle_id || '') ? { angle_id: x.angle_id } : {}) })).filter(x => x.title).slice(0, 4),
+      note: t(d?.note, 160), dark: !!d?.dark,
+    })).filter(d => d.name).slice(0, 3),
+    top_rules: (Array.isArray(w.top_rules) ? w.top_rules : []).map(x => ({ title: t(x?.title, 60), text: t(x?.text, 120) })).filter(x => x.title).slice(0, 4),
   };
-  const empty = !out.title && !out.offer.head && !out.call.when && !out.call.join && !out.call.recordings.length && !out.daily.length && !out.same.line && !out.selling.length && !out.discord;
+  const empty = !out.title && !out.offer.head && !out.call.when && !out.call.join && !out.call.recordings.length && !out.daily.length && !out.same.line && !out.selling.length && !out.discord && !out.deals.length && !out.pay && !out.top_rules.length;
   return empty ? null : out;
 }
 
