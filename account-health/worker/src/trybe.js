@@ -678,9 +678,10 @@ export async function trybeFollowups(env, d, act, { today } = {}) {
 }
 
 /* ---------- creator Discord talk (2026-11-13, Cole approved for Grunk, Dartee, Party Patch and Ice & Gold) ----------
-   The servers were quiet, so the mascot starts the talk, in #questions (the one open chat), three ways:
-   1. Welcome by name: when a creator joins through /join/<slug>, the mascot tags them with one easy question.
-      A one-time catch-up (POST /api/trybe/discord-welcome-all) tags everyone who joined before, in one message.
+   The servers were quiet, so the mascot starts the talk three ways:
+   1. Welcome by name, once a day (Cole 2026-11-13: a post per join cluttered #questions): at 5pm Central the mascot
+      posts ONE message in #welcome tagging everyone who joined since the last one (5pm to 5pm; 50 tags a message, so
+      a big day is a few posts, never one per person). POST /api/trybe/discord-welcome-all runs it now for one brand.
    2. Praise by name: the Friday winners post tags the creators whose videos sold (a creator not in the Discord is
       named in plain text). Praise only: nobody is ever named for a missing video.
    3. One easy question Tuesday, Wednesday and Thursday (Monday and Friday already have posts): a Discord poll some
@@ -688,12 +689,9 @@ export async function trybeFollowups(env, d, act, { today } = {}) {
    On or off per brand (the discord doc's `engage`, Ads > Trybe > brand > Discord). Only tagged people get pinged:
    allowed_mentions lists them, parse stays empty, never @everyone. No cash, prizes or pay words. No em dashes. */
 export const TALK_CHANNEL = 'questions';
-const WELCOME_ASK = [
-  "What's the first video you're planning?",
-  "Which idea from this week's list are you trying first?",
-  "Where do you like to film? Home, outside, somewhere else?",
-  "What kind of video do you like making most?",
-];
+export const WELCOME_CHANNEL = 'welcome';
+export const WELCOME_HOUR = 17;   // 5pm Central
+const WELCOME_BATCH = 50;         // tags a message (Discord pings at most 100 users a message, 2,000 characters)
 const poll = (q, ...a) => ({ poll: q, answers: a });
 /* Shared by every brand. {b} = the brand's name. */
 const TALK_SHARED = [
@@ -762,10 +760,10 @@ export function talkMessage(item, seed) {
     poll: { question: { text: noDash(item.poll).slice(0, 300) }, answers: item.answers.slice(0, 10).map(t => ({ poll_media: { text: noDash(t).slice(0, 55) } })), duration: 24, allow_multiselect: false, layout_type: 1 } };
 }
 export function welcomeText(tags, seed, ch) {
-  const ask = pickBy(WELCOME_ASK, seed);
-  const week = ch && ch['this-week'] ? `<#${ch['this-week']}>` : '#this-week';
-  if (tags.length === 1) return noDash(`Welcome ${tags[0]}! 👋 Glad you're here. ${ask} This week's ideas are in ${week}.`);
-  return noDash(`Welcome to everyone who's joined so far 👋\n\n${tags.join(' ')}\n\nGlad you're all here. Easy one to start: ${ask.charAt(0).toLowerCase() + ask.slice(1)} Reply right here. This week's ideas are in ${week}.`);
+  const link = k => ch && ch[k] ? `<#${ch[k]}>` : `#${k}`;
+  const next = `Start with the post pinned above, then pick a video in ${link('this-week')}. Questions go in ${link('questions')}.`;
+  if (tags.length === 1) return noDash(`Welcome ${tags[0]}! 👋 Glad you're here. ${next}`);
+  return noDash(`Welcome to our newest creators 👋\n\n${tags.join(' ')}\n\nGlad you're here. ${next}`);
 }
 const dcOn = d => !!(d && d.engage && d.built_at && d.channels && d.channels[TALK_CHANNEL]);
 /** Winners with their Discord tag, when the brand's talk is on and the creator joined. */
@@ -777,27 +775,37 @@ async function tagWinners(env, act, d, wins) {
   const m = new Map(rows.map(r => [r.creator_id, r.discord_id]));
   return wins.map(w => { const id = m.get(w.creator_id); return id ? { ...w, discord_id: id, tag: `<@${id}>` } : w; });
 }
-/** A new member, welcomed by name. Once per creator (welcomed_at). */
-async function welcomeOne(env, act, d, creatorId, discordId) {
-  if (!dcOn(d)) return { skipped: 'off' };
-  await ensureDcTables(env);
-  const m = await env.DB.prepare(`SELECT welcomed_at FROM p_dc_member WHERE act_id = ?1 AND creator_id = ?2`).bind(act, creatorId).first().catch(() => null);
-  if (m && m.welcomed_at) return { skipped: 'already welcomed' };
-  const id = await dcHookSay(env, act, d, TALK_CHANNEL, welcomeText([`<@${discordId}>`], `${act}:${discordId}`, d.channels), null, null, { users: [discordId] });
-  await env.DB.prepare(`UPDATE p_dc_member SET welcomed_at = ?3 WHERE act_id = ?1 AND creator_id = ?2`).bind(act, creatorId, new Date().toISOString()).run();
-  return { ok: true, id };
-}
-/** Everyone in the server not welcomed yet, in one message (so it does not spam). */
+/** Everyone in the server not welcomed yet, in #welcome, 50 tags a message (so it does not spam). */
 export async function welcomeAll(env, act) {
   await ensureDcTables(env);
   const d = await dcDoc(env, act);
   if (!dcOn(d)) return { act, skipped: 'Discord talk is off for this brand' };
-  const rows = ((await env.DB.prepare(`SELECT creator_id, discord_id FROM p_dc_member WHERE act_id = ?1 AND removed_at IS NULL AND welcomed_at IS NULL AND discord_id IS NOT NULL ORDER BY joined_at`).bind(act).all()).results || []).slice(0, 60);
+  const rows = ((await env.DB.prepare(`SELECT creator_id, discord_id FROM p_dc_member WHERE act_id = ?1 AND removed_at IS NULL AND welcomed_at IS NULL AND discord_id IS NOT NULL ORDER BY joined_at`).bind(act).all()).results || []);
   if (!rows.length) return { act, welcomed: 0 };
-  const id = await dcHookSay(env, act, d, TALK_CHANNEL, welcomeText(rows.map(r => `<@${r.discord_id}>`), `${act}:all`, d.channels), null, null, { users: rows.map(r => r.discord_id) });
-  const at = new Date().toISOString();
-  await runAll(env, rows.map(r => env.DB.prepare(`UPDATE p_dc_member SET welcomed_at = ?3 WHERE act_id = ?1 AND creator_id = ?2`).bind(act, r.creator_id, at)));
-  return { act, welcomed: rows.length, id, link: `https://discord.com/channels/${d.guild_id}/${d.channels[TALK_CHANNEL]}/${id}` };
+  if (!d.channels[WELCOME_CHANNEL]) throw new Error('This server has no #welcome channel.');
+  let id;
+  for (let i = 0; i < rows.length; i += WELCOME_BATCH) {
+    const part = rows.slice(i, i + WELCOME_BATCH), at = new Date().toISOString();
+    id = await dcHookSay(env, act, d, WELCOME_CHANNEL, welcomeText(part.map(r => `<@${r.discord_id}>`), act, d.channels), null, null, { users: part.map(r => r.discord_id) });
+    await runAll(env, part.map(r => env.DB.prepare(`UPDATE p_dc_member SET welcomed_at = ?3 WHERE act_id = ?1 AND creator_id = ?2`).bind(act, r.creator_id, at)));
+  }
+  return { act, welcomed: rows.length, id, link: `https://discord.com/channels/${d.guild_id}/${d.channels[WELCOME_CHANNEL]}/${id}` };
+}
+/** The hourly tick: from 5pm Central, once a Central day per brand with the talk on. Whoever joins after the post is
+ *  welcomed in the next day's. */
+export async function discordWelcomeTick(env, d) {
+  if (d.centralHour() < WELCOME_HOUR) return { skipped: 'before 5pm Central' };
+  const today = d.centralDate();
+  const rows = (await env.DB.prepare(`SELECT act_id FROM p_br_doc WHERE line_id = '' AND key = 'discord' AND act_id != 'agency'`).all().catch(() => ({ results: [] }))).results || [];
+  const out = { welcomed: [], errors: [] };
+  for (const { act_id: act } of rows) {
+    const stamp = `discordWelcome:${act}:${today}`;
+    if (await getSetting(env, stamp)) continue;
+    try { const r = await welcomeAll(env, act); if (r.welcomed) out.welcomed.push(r); }
+    catch (e) { out.errors.push(`${act}: ${e.message}`); }
+    await putSetting(env, stamp, 'done');
+  }
+  return out;
 }
 /** Tuesday, Wednesday, Thursday: one question per brand with talk on. force = any day; preview = the team-only channel. */
 export async function discordDaily(env, today, { force = false, only = null, preview = false } = {}) {
@@ -1204,7 +1212,6 @@ async function claimFinish(env, d, b, state, cid) {
     ON CONFLICT(act_id, creator_id) DO UPDATE SET discord_id = excluded.discord_id, username = excluded.username, name = excluded.name, removed_at = NULL, reason = NULL, warned_at = NULL`)
     .bind(b.act_id, cid, j.discord_id, j.username, c.name || null, new Date().toISOString()).run();
   await env.DB.prepare(`DELETE FROM p_dc_join WHERE state = ?1`).bind(state).run();
-  await welcomeOne(env, b.act_id, dcd, cid, j.discord_id).catch(() => {});
   const open = `https://discord.com/channels/${dcd.guild_id}`;
   return html(pageHtml("You're in", `<h1>You're in, ${hEsc(firstName(c.name))}</h1><p>Start with #welcome. This week's videos are in #this-week.</p><a class="btn dc" href="${open}">Open Discord</a>`, dcd.look || {}));
 }

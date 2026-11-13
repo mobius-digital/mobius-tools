@@ -342,7 +342,7 @@
           <div class="v2card tb-stat ${m.auto ? 'good' : ''}"><span class="l">Daily check</span><b>${m.auto ? 'On' : 'Off'}</b><span class="s">${m.auto ? 'roles and removals run each day' : 'only shows what it would do'}</span></div>
         </div>
         <div class="tb-mem-set">
-          <label class="tb-mem-sw"><input type="checkbox" class="lx-sw" data-mem="engage"${m.engage ? ' checked' : ''}><span>Get creators talking<small>This brand. ${esc(m.mascot || 'The mascot')} welcomes each new creator by name, tags the winners on Friday and asks one easy question Tuesday to Thursday, in #questions.</small></span></label>
+          <label class="tb-mem-sw"><input type="checkbox" class="lx-sw" data-mem="engage"${m.engage ? ' checked' : ''}><span>Get creators talking<small>This brand. ${esc(m.mascot || 'The mascot')} welcomes the day's new creators by name in one post in #welcome at 5pm Central, tags the winners on Friday and asks one easy question in #questions Tuesday to Thursday.</small></span></label>
           ${m.engage && people.length > (m.welcomed || 0) ? `<button type="button" class="v2btn ghost" data-mem="welcome-all">Welcome the ${people.length - (m.welcomed || 0)} already here</button>` : ''}
         </div>
         <div class="tb-mem-set">
