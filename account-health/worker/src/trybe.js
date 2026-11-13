@@ -436,7 +436,7 @@ export async function trybeBanners(env, ids, today) {
 const DC_API = 'https://discord.com/api/v10';
 async function dcDoc(env, act) { const r = await env.DB.prepare(`SELECT data_json FROM p_br_doc WHERE act_id = ?1 AND line_id = '' AND key = 'discord'`).bind(act).first().catch(() => null); return safeJson(r?.data_json, null); }
 async function dcSave(env, act, data) { await env.DB.prepare(`UPDATE p_br_doc SET data_json = ?2, updated_at = datetime('now') WHERE act_id = ?1 AND line_id = '' AND key = 'discord'`).bind(act, JSON.stringify(data)).run(); }
-async function dcHookPost(env, act, d, key, embed) {
+async function dcHookPost(env, act, d, key, embed, users = []) {
   const look = d.look || {}, chan = (d.channels || {})[key];
   if (!chan) throw new Error(`no #${key} channel`);
   d.hooks = d.hooks || {};
@@ -452,7 +452,7 @@ async function dcHookPost(env, act, d, key, embed) {
   const text = noDash(`**${embed.title}**
 
 ${embed.description || ''}`).replace(/(^|\s)(https:\/\/\S+)/g, '$1<$2>').slice(0, 1990);
-  const body = { username: String(look.mascot || 'Creators').slice(0, 80), allowed_mentions: { parse: [] }, content: text };
+  const body = { username: String(look.mascot || 'Creators').slice(0, 80), allowed_mentions: { parse: [], users: users.slice(0, 100) }, content: text };
   if (/^https:\/\//.test(look.avatar || '')) body.avatar_url = look.avatar;
   const r = await fetch(`${DC_API}/webhooks/${h.id}/${h.token}?wait=true`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   if (!r.ok) throw new Error(`Discord answered ${r.status} posting in #${key}`);
@@ -467,7 +467,7 @@ export function mondayPost(name, slug, w) {
 }
 export function fridayPost(wins, slug) {
   /* No counts in the creator Discord (Cole 11-13): the top videos, ranked, never how many sales. */
-  const lines = wins.slice(0, 6).map((x, i) => `**${i + 1}. ${x.creator}**${x.product ? `, ${x.product}` : ''}`).join('\n');
+  const lines = wins.slice(0, 6).map((x, i) => `**${i + 1}.** ${x.tag || `**${x.creator}**`}${x.product ? `, ${x.product}` : ''}`).join('\n');
   return { title: 'This week\'s winners', description: noDash(`This week's top creator videos:\n\n${lines}\n\nWatch what they did, then make your version. This week's ideas: https://locus.go-mobius-digital.com/angles/${slug}/`).slice(0, 4000) };
 }
 /* ---------- Friday winners, v2 (2026-11-05, Cole: "looks plain") ----------
@@ -504,7 +504,8 @@ export function fridayMessages(wins, slug, seed) {
   const hub = `https://locus.go-mobius-digital.com/angles/${slug}/`;
   const list = wins.slice(0, 4);
   const lineOf = pickBy(WIN_LINE, seed + 'l');
-  const items = list.map((w, i) => ({ ...w, text: noDash(`${MEDAL[i]} ${lineOf(firstName(w.creator), shortProduct(w.product), w.orders)}`) }));
+  /* Praise by name (2026-11-13): a creator in the Discord is tagged (w.tag = <@id>), everyone else by first name. */
+  const items = list.map((w, i) => ({ ...w, text: noDash(`${MEDAL[i]} ${lineOf(w.tag || firstName(w.creator), shortProduct(w.product), w.orders)}`) }));
   return {
     open: noDash(pickBy(WIN_OPEN, seed + 'o')(list.length)),
     items,
@@ -528,10 +529,13 @@ async function hookFor(env, act, d, key) {
   return d.hooks[key];
 }
 /** One plain message as the mascot, with an optional file. Discord unfurls an mp4 link in the text into a player. */
-async function dcHookSay(env, act, d, key, content, file, files) {
+async function dcHookSay(env, act, d, key, content, file, files, extra = {}) {
   files = files || (file ? [file] : []);
   const look = d.look || {}, h = await hookFor(env, act, d, key);
-  const payload = { username: String(look.mascot || 'Creators').slice(0, 80), allowed_mentions: { parse: [] }, content: String(content || '').slice(0, 2000) };
+  /* Only the people tagged in this message get pinged (extra.users); parse stays empty, so never @everyone or a role. */
+  const users = [...new Set((extra.users || []).map(String).filter(x => /^\d{15,22}$/.test(x)))].slice(0, 100);
+  const payload = { username: String(look.mascot || 'Creators').slice(0, 80), allowed_mentions: { parse: [], users }, content: String(content || '').slice(0, 2000) };
+  if (extra.poll) payload.poll = extra.poll;
   if (/^https:\/\//.test(look.avatar || '')) payload.avatar_url = look.avatar;
   let init;
   if (files.length) {
@@ -584,8 +588,8 @@ async function winnersOf(env, act, today) {
   const m = await creatorMoney(env, act, ads.map(a => String(a.ad_id)), from);
   const byVid = new Map(), topAd = new Map();
   for (const a of ads) { const id = trybeIdOf(a.name); const o = (m.byAd.get(String(a.ad_id)) || {}).orders || 0; if (id && o > 0) { byVid.set(id, (byVid.get(id) || 0) + o); const t = topAd.get(id); if (!t || o > t.o) topAd.set(id, { ad: String(a.ad_id), o }); } }
-  const subs = new Map(((await env.DB.prepare(`SELECT sub_id, trybe_id, creator, product FROM p_trybe_sub WHERE act_id = ?1`).bind(act).all()).results || []).map(s => [s.trybe_id, s]));
-  return [...byVid.entries()].map(([id, o]) => { const s = subs.get(id) || {}; return { trybe_id: id, sub_id: s.sub_id || null, creator: s.creator || 'A creator', product: s.product || '', orders: Math.round(o), ad_id: (topAd.get(id) || {}).ad || null }; })
+  const subs = new Map(((await env.DB.prepare(`SELECT sub_id, trybe_id, creator_id, creator, product FROM p_trybe_sub WHERE act_id = ?1`).bind(act).all()).results || []).map(s => [s.trybe_id, s]));
+  return [...byVid.entries()].map(([id, o]) => { const s = subs.get(id) || {}; return { trybe_id: id, sub_id: s.sub_id || null, creator_id: s.creator_id || null, creator: s.creator || 'A creator', product: s.product || '', orders: Math.round(o), ad_id: (topAd.get(id) || {}).ad || null }; })
     .filter(w => w.orders > 0).sort((a, z) => z.orders - a.orders);
 }
 async function postWinnersV2(env, d, act, dc, slug, wins, today, channel) {
@@ -593,7 +597,7 @@ async function postWinnersV2(env, d, act, dc, slug, wins, today, channel) {
      which Discord shows side by side as a gallery, 3) a one line closer. A file too big for Discord's 10 MB upload is
      linked on its own line, so Discord shows only the player. */
   const msg = fridayMessages(wins, slug, `${today}:${slug}`);
-  await dcHookSay(env, act, dc, channel, msg.head);
+  await dcHookSay(env, act, dc, channel, msg.head, null, null, { users: msg.items.map(x => x.discord_id).filter(Boolean) });
   const clips = [];
   for (const w of msg.items) clips.push(await winnerClip(env, d, act, w).catch(() => null));
   const files = clips.filter(c => c && c.file).map((c, i) => ({ ...c.file, name: `${i + 1}-${c.file.name}` }));
@@ -673,6 +677,153 @@ export async function trybeFollowups(env, d, act, { today } = {}) {
     rules: { sold_days: REBOOK_DAYS, quiet_days: QUIET_DAYS, snooze_days: FOLLOW_SNOOZE }, note: roster ? null : 'Trybe did not send the creator list, so samples are missing this time.' };
 }
 
+/* ---------- creator Discord talk (2026-11-13, Cole approved for Grunk, Dartee, Party Patch and Ice & Gold) ----------
+   The servers were quiet, so the mascot starts the talk, in #questions (the one open chat), three ways:
+   1. Welcome by name: when a creator joins through /join/<slug>, the mascot tags them with one easy question.
+      A one-time catch-up (POST /api/trybe/discord-welcome-all) tags everyone who joined before, in one message.
+   2. Praise by name: the Friday winners post tags the creators whose videos sold (a creator not in the Discord is
+      named in plain text). Praise only: nobody is ever named for a missing video.
+   3. One easy question Tuesday, Wednesday and Thursday (Monday and Friday already have posts): a Discord poll some
+      days, an open prompt others, from a rotating bank per brand (setting discordQIdx:<act>).
+   On or off per brand (the discord doc's `engage`, Ads > Trybe > brand > Discord). Only tagged people get pinged:
+   allowed_mentions lists them, parse stays empty, never @everyone. No cash, prizes or pay words. No em dashes. */
+export const TALK_CHANNEL = 'questions';
+const WELCOME_ASK = [
+  "What's the first video you're planning?",
+  "Which idea from this week's list are you trying first?",
+  "Where do you like to film: at home, outside, or somewhere else?",
+  "What kind of video do you like making most?",
+];
+const poll = (q, ...a) => ({ poll: q, answers: a });
+/* Shared by every brand. {b} = the brand's name. */
+const TALK_SHARED = [
+  "Drop your best hook from this week. Just the first line you say on camera.",
+  poll('When do you usually film?', 'Morning', 'Afternoon', 'Evening', 'Whenever the light is good'),
+  "What's one thing that makes filming hard right now? Tell us and we'll try to fix it.",
+  poll('Which kind of video is easiest for you to make?', 'Talking to camera', 'Showing it in use', 'Unboxing', 'Before and after'),
+  "Share a video from any brand that stopped your scroll this week. What made it work?",
+  poll('How long does one video take you, start to finish?', 'Under 30 minutes', '30 to 60 minutes', '1 to 2 hours', 'Longer'),
+  "What's a question your followers ask you about {b}? Good ones turn into next week's ideas.",
+];
+const TALK_BRAND = {
+  brand_party_patch: [
+    poll('Which of these should we brief next?', 'Building a hat start to finish', 'Matching hats for a group trip', 'Bachelorette party reveal', 'Gift for a friend'),
+    "Show us your favorite patch combo so far. A photo is perfect.",
+    poll('Who do you make hats for most?', 'Myself', 'Friends', 'My kids', 'A group or event'),
+    "What event is coming up that you'd make a hat for? Birthday, trip, game day, anything.",
+    poll('Which hook would you rather film?', '"I made this in 5 minutes"', '"POV: the group chat sees the hats"', '"Rating my friends\' hat picks"'),
+    "What's the funniest patch you've seen or put on a hat?",
+    poll('Where do your Party Patch videos do best?', 'TikTok', 'Instagram', 'Facebook', 'Not sure yet'),
+    "If you could have any patch made, what would it say?",
+  ],
+  brand_dartee_golf: [
+    poll('Which of these should we brief next?', 'Marking my ball on the green', 'What\'s on my belt this round', 'Golf gift ideas', 'Range day routine'),
+    "Where do you film your Dartee videos most: course, range, or at home?",
+    poll('What do you keep on your belt?', 'Ball marker', 'Divot tool', 'Tees', 'All of it'),
+    "What's the one thing you always forget in your bag? Could be a hook.",
+    poll('Which hook would you rather film?', '"Never digging in my pocket again"', '"My golf buddy asked where I got this"', '"3 things on my belt every round"'),
+    "Who's the golfer in your life that would want one? Tell us why. Gift angles are big right now.",
+    poll('What time do you play?', 'Early morning', 'After work', 'Weekends only', 'Whenever I can'),
+    "Post a photo of your setup: belt, marker, whatever you carry.",
+  ],
+  brand_grunk_dolfer: [
+    poll('Which of these should we brief next?', 'Loudest outfit on the course', 'Fit check before the round', 'Golf gift ideas', 'Group outing in matching fits'),
+    "Show us your best Grunk fit. A mirror photo counts.",
+    poll('What do you reach for first?', 'Polo', 'Hat', 'Full outfit', 'Whatever is clean'),
+    "What do your golf buddies say when you show up in Grunk?",
+    poll('Which hook would you rather film?', '"Rating my golf fits"', '"My buddies roasted this shirt"', '"Outfit for every kind of round"'),
+    "What print or color would you want to see next?",
+    poll('Where do you film most?', 'On the course', 'At the range', 'At home', 'In the parking lot'),
+    "What's your go-to golf joke or one-liner? Funny openers do well for Grunk.",
+  ],
+  brand_ice_and_gold: [
+    poll('Which of these should we brief next?', 'Get ready with me', 'Stacking my pieces', 'Gift for someone', 'Shower and gym test'),
+    "Show us how you're stacking your pieces right now. A photo is perfect.",
+    poll('Which do you wear most?', 'Chain', 'Studs', 'Ring', 'All of it'),
+    "What do people ask you about your jewelry when they see it?",
+    poll('Which hook would you rather film?', '"I wear this every single day"', '"Gift idea they will actually wear"', '"My everyday stack"'),
+    "Who would you buy a piece for this holiday, and which one?",
+    poll('Where do you film most?', 'Mirror', 'In the car', 'Out and about', 'Close-up on a table'),
+    "What's your favorite way to show the shine on camera? Light, angle, anything that works.",
+  ],
+};
+/** The rotating bank for a brand: brand questions and shared ones taken in turn, so polls and open prompts mix. */
+export function talkBank(act, brandName) {
+  const own = TALK_BRAND[act] || [], shared = TALK_SHARED.map(x => typeof x === 'string' ? x.replace(/\{b\}/g, brandName || 'the brand') : x);
+  const out = [];
+  for (let i = 0; i < Math.max(own.length, shared.length); i++) { if (own[i]) out.push(own[i]); if (shared[i]) out.push(shared[i]); }
+  return out;
+}
+const TALK_OPEN = ['Question of the day', 'Quick one for today', 'Today\'s question', 'Easy one today'];
+/** The message for one bank item: { content, poll? }. */
+export function talkMessage(item, seed) {
+  if (typeof item === 'string') return { content: noDash(`**${pickBy(TALK_OPEN, seed)}** 💬\n\n${item}\n\nReply right here 👇`) };
+  return { content: noDash(`**${pickBy(TALK_OPEN, seed)}** 👇 Tap your answer.`),
+    poll: { question: { text: noDash(item.poll).slice(0, 300) }, answers: item.answers.slice(0, 10).map(t => ({ poll_media: { text: noDash(t).slice(0, 55) } })), duration: 24, allow_multiselect: false, layout_type: 1 } };
+}
+export function welcomeText(tags, seed, ch) {
+  const ask = pickBy(WELCOME_ASK, seed);
+  const week = ch && ch['this-week'] ? `<#${ch['this-week']}>` : '#this-week';
+  if (tags.length === 1) return noDash(`Welcome ${tags[0]}! 👋 Glad you're here. ${ask} This week's ideas are in ${week}.`);
+  return noDash(`Welcome to everyone who's joined so far 👋\n\n${tags.join(' ')}\n\nGlad you're all here. Easy one to start: ${ask.charAt(0).toLowerCase() + ask.slice(1)} Reply right here. This week's ideas are in ${week}.`);
+}
+const dcOn = d => !!(d && d.engage && d.built_at && d.channels && d.channels[TALK_CHANNEL]);
+/** Winners with their Discord tag, when the brand's talk is on and the creator joined. */
+async function tagWinners(env, act, d, wins) {
+  if (!dcOn(d) || !wins.length) return wins;
+  const ids = [...new Set(wins.map(w => w.creator_id).filter(Boolean))];
+  if (!ids.length) return wins;
+  const rows = (await env.DB.prepare(`SELECT creator_id, discord_id FROM p_dc_member WHERE act_id = ?1 AND removed_at IS NULL AND creator_id IN (${ids.map((_, i) => `?${i + 2}`).join(', ')})`).bind(act, ...ids).all().catch(() => ({ results: [] }))).results || [];
+  const m = new Map(rows.map(r => [r.creator_id, r.discord_id]));
+  return wins.map(w => { const id = m.get(w.creator_id); return id ? { ...w, discord_id: id, tag: `<@${id}>` } : w; });
+}
+/** A new member, welcomed by name. Once per creator (welcomed_at). */
+async function welcomeOne(env, act, d, creatorId, discordId) {
+  if (!dcOn(d)) return { skipped: 'off' };
+  await ensureDcTables(env);
+  const m = await env.DB.prepare(`SELECT welcomed_at FROM p_dc_member WHERE act_id = ?1 AND creator_id = ?2`).bind(act, creatorId).first().catch(() => null);
+  if (m && m.welcomed_at) return { skipped: 'already welcomed' };
+  const id = await dcHookSay(env, act, d, TALK_CHANNEL, welcomeText([`<@${discordId}>`], `${act}:${discordId}`, d.channels), null, null, { users: [discordId] });
+  await env.DB.prepare(`UPDATE p_dc_member SET welcomed_at = ?3 WHERE act_id = ?1 AND creator_id = ?2`).bind(act, creatorId, new Date().toISOString()).run();
+  return { ok: true, id };
+}
+/** Everyone in the server not welcomed yet, in one message (so it does not spam). */
+export async function welcomeAll(env, act) {
+  await ensureDcTables(env);
+  const d = await dcDoc(env, act);
+  if (!dcOn(d)) return { act, skipped: 'Discord talk is off for this brand' };
+  const rows = ((await env.DB.prepare(`SELECT creator_id, discord_id FROM p_dc_member WHERE act_id = ?1 AND removed_at IS NULL AND welcomed_at IS NULL AND discord_id IS NOT NULL ORDER BY joined_at`).bind(act).all()).results || []).slice(0, 60);
+  if (!rows.length) return { act, welcomed: 0 };
+  const id = await dcHookSay(env, act, d, TALK_CHANNEL, welcomeText(rows.map(r => `<@${r.discord_id}>`), `${act}:all`, d.channels), null, null, { users: rows.map(r => r.discord_id) });
+  const at = new Date().toISOString();
+  await runAll(env, rows.map(r => env.DB.prepare(`UPDATE p_dc_member SET welcomed_at = ?3 WHERE act_id = ?1 AND creator_id = ?2`).bind(act, r.creator_id, at)));
+  return { act, welcomed: rows.length, id, link: `https://discord.com/channels/${d.guild_id}/${d.channels[TALK_CHANNEL]}/${id}` };
+}
+/** Tuesday, Wednesday, Thursday: one question per brand with talk on. force = any day; preview = the team-only channel. */
+export async function discordDaily(env, today, { force = false, only = null, preview = false } = {}) {
+  const dow = new Date(today + 'T12:00:00Z').getUTCDay();
+  if (!force && ![2, 3, 4].includes(dow)) return { skipped: 'Tuesday to Thursday only' };
+  const rows = ((await env.DB.prepare(`SELECT act_id FROM p_br_doc WHERE line_id = '' AND key = 'discord' AND act_id != 'agency'`).all().catch(() => ({ results: [] }))).results || []).filter(r => !only || r.act_id === only);
+  const out = { preview, posted: [], errors: [] };
+  for (const { act_id: act } of rows) {
+    const stamp = `discordQ:${act}:${today}`;
+    try {
+      const d = await dcDoc(env, act);
+      if (!dcOn(d)) continue;
+      if (!preview && await getSetting(env, stamp)) continue;
+      const b = await env.DB.prepare(`SELECT display_name FROM p_amb_brand WHERE act_id = ?1`).bind(act).first().catch(() => null);
+      const bank = talkBank(act, b && b.display_name);
+      const idx = (+(await getSetting(env, `discordQIdx:${act}`)) || 0);
+      const msg = talkMessage(bank[idx % bank.length], `${act}:${today}`);
+      const ch = preview ? await previewChannel(env, act, d) : TALK_CHANNEL;
+      const id = await dcHookSay(env, act, d, ch, msg.content, null, null, { poll: msg.poll });
+      if (!preview) { await putSetting(env, `discordQIdx:${act}`, String(idx + 1)); await putSetting(env, stamp, id); }
+      out.posted.push({ act, channel: ch, id, poll: !!msg.poll, link: `https://discord.com/channels/${d.guild_id}/${d.channels[ch]}/${id}` });
+    } catch (e) { out.errors.push(`${act}: ${e.message}`); }
+  }
+  return out;
+}
+
 export async function discordWeekly(env, today, { force, preview = false, only = null, d: deps = {} } = {}) {
   const dow = new Date(today + 'T12:00:00Z').getUTCDay();
   const kind = force || (dow === 1 ? 'monday' : dow === 5 ? 'friday' : null);
@@ -688,10 +839,10 @@ export async function discordWeekly(env, today, { force, preview = false, only =
       if (!d || !d.built_at || !d.channels) continue;
       const b = await env.DB.prepare(`SELECT slug, display_name, week_json FROM p_amb_brand WHERE act_id = ?1`).bind(act).first();
       if (!b) continue;
-      let embed;
+      let embed, users = [];
       if (kind === 'monday') embed = mondayPost(b.display_name, b.slug, safeJson(b.week_json, {}) || {});
       else if (v2) {
-        const wins = await winnersOf(env, act, today);
+        const wins = await tagWinners(env, act, d, await winnersOf(env, act, today));
         if (!wins.length) { if (!preview) await putSetting(env, stamp, 'none'); continue; }
         const ch = preview ? await previewChannel(env, act, d) : 'winners';
         out.messages[act] = await postWinnersV2(env, deps, act, d, b.slug, wins, today, ch);
@@ -706,11 +857,12 @@ export async function discordWeekly(env, today, { force, preview = false, only =
         const byVid = new Map();
         for (const a of ads) { const id = trybeIdOf(a.name); const o = (m.byAd.get(String(a.ad_id)) || {}).orders || 0; if (id && o > 0) byVid.set(id, (byVid.get(id) || 0) + o); }
         if (!byVid.size) { await putSetting(env, stamp, 'none'); continue; }
-        const subs = new Map(((await env.DB.prepare(`SELECT trybe_id, creator, product FROM p_trybe_sub WHERE act_id = ?1`).bind(act).all()).results || []).map(s => [s.trybe_id, s]));
-        const wins = [...byVid.entries()].map(([id, o]) => ({ creator: String((subs.get(id) || {}).creator || 'A creator').split(' ')[0], product: (subs.get(id) || {}).product || '', orders: Math.round(o) })).sort((a, z) => z.orders - a.orders);
+        const subs = new Map(((await env.DB.prepare(`SELECT trybe_id, creator_id, creator, product FROM p_trybe_sub WHERE act_id = ?1`).bind(act).all()).results || []).map(s => [s.trybe_id, s]));
+        const wins = await tagWinners(env, act, d, [...byVid.entries()].map(([id, o]) => ({ creator_id: (subs.get(id) || {}).creator_id || null, creator: String((subs.get(id) || {}).creator || 'A creator').split(' ')[0], product: (subs.get(id) || {}).product || '', orders: Math.round(o) })).sort((a, z) => z.orders - a.orders));
         embed = fridayPost(wins, b.slug);
+        users = wins.slice(0, 6).map(x => x.discord_id).filter(Boolean);
       }
-      await dcHookPost(env, act, d, kind === 'monday' ? 'this-week' : 'winners', embed);
+      await dcHookPost(env, act, d, kind === 'monday' ? 'this-week' : 'winners', embed, users);
       await putSetting(env, stamp, 'posted');
       out.posted.push(act);
     } catch (e) { out.errors.push(`${act}: ${e.message}`); }
@@ -769,6 +921,7 @@ export async function trybeTick(env, d, { force = false } = {}) {
     } catch (e) { out.errors.push(`${b.name}: ${e.message}`); }
   }
   out.discord = await discordWeekly(env, today, { d }).catch(e => ({ error: e.message }));
+  out.discordDaily = await discordDaily(env, today).catch(e => ({ error: e.message }));
   /* Discord members (2026-11-06): real run only when switched on, else a dry run so Locus can show what would happen. */
   try {
     const auto = (await getSetting(env, 'trybeDiscordAuto')) === 'on';
@@ -958,6 +1111,7 @@ async function ensureDcTables(env) {
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS p_dc_member (act_id TEXT, creator_id TEXT, discord_id TEXT, username TEXT, name TEXT, joined_at TEXT, vip INTEGER DEFAULT 0,
     vip_at TEXT, warned_at TEXT, removed_at TEXT, reason TEXT, PRIMARY KEY (act_id, creator_id))`).run();
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS p_dc_join (state TEXT PRIMARY KEY, act_id TEXT, discord_id TEXT, username TEXT, token TEXT, created_at TEXT)`).run();
+  await env.DB.prepare(`ALTER TABLE p_dc_member ADD COLUMN welcomed_at TEXT`).run().catch(() => {});
 }
 async function brandBySlug(env, slug) {
   return env.DB.prepare(`SELECT act_id, slug, display_name FROM p_amb_brand WHERE slug = ?1`).bind(slug).first().catch(() => null);
@@ -1050,6 +1204,7 @@ async function claimFinish(env, d, b, state, cid) {
     ON CONFLICT(act_id, creator_id) DO UPDATE SET discord_id = excluded.discord_id, username = excluded.username, name = excluded.name, removed_at = NULL, reason = NULL, warned_at = NULL`)
     .bind(b.act_id, cid, j.discord_id, j.username, c.name || null, new Date().toISOString()).run();
   await env.DB.prepare(`DELETE FROM p_dc_join WHERE state = ?1`).bind(state).run();
+  await welcomeOne(env, b.act_id, dcd, cid, j.discord_id).catch(() => {});
   const open = `https://discord.com/channels/${dcd.guild_id}`;
   return html(pageHtml("You're in", `<h1>You're in, ${hEsc(firstName(c.name))}</h1><p>Start with #welcome. This week's videos are in #this-week.</p><a class="btn dc" href="${open}">Open Discord</a>`, dcd.look || {}));
 }
@@ -1138,7 +1293,8 @@ export async function trybeDiscordMembers(env, d, act) {
   return { act, join_link: slug ? `${JOIN_BASE}/join/${slug}` : null, roster: roster ? roster.length : null, joined: members.filter(m => !m.removed_at).length,
     vip: members.filter(m => m.vip && !m.removed_at).length, removed: members.filter(m => m.removed_at).length, members,
     auto: (await getSetting(env, 'trybeDiscordAuto')) === 'on', vip_bar: +(await getSetting(env, `trybeVipBar:${act}`)) || VIP_BAR[act] || 1000,
-    oauth_ready: !!(await oauthCfg(env)).secret, last: safeJson(await getSetting(env, `trybeDiscordPlan:${act}`), null) };
+    oauth_ready: !!(await oauthCfg(env)).secret, last: safeJson(await getSetting(env, `trybeDiscordPlan:${act}`), null),
+    engage: !!(await dcDoc(env, act))?.engage, welcomed: members.filter(m => !m.removed_at && m.welcomed_at).length };
 }
 
 /* ---------- Jobs for Claude (2026-11-06, Cole: "you always say you'll do it in Chrome, but how?") ----------
@@ -1319,6 +1475,14 @@ export async function handleTrybe(request, env, url, path, json, h) {
     /* Discord join + sync (2026-11-06): members, a dry run or a real run, the switch, the VIP bar, the Discord sign-in secret. */
     if (path === '/api/trybe/discord-members' && request.method === 'GET') return json(await trybeDiscordMembers(env, d, act));
     if (path === '/api/trybe/discord-sync') return json(await trybeDiscordSync(env, d, act, { dry: request.method === 'GET' || !!b.dry }));
+    /* Creator Discord talk (2026-11-13): the brand's switch, the one-time welcome for everyone already in, and today's
+       question now (preview = the team-only #winners-preview channel, to check how it looks). */
+    if (path === '/api/trybe/discord-engage' && request.method === 'PUT') {
+      const dcd = await dcDoc(env, act); if (!dcd || !dcd.guild_id) return json({ error: 'This brand has no creator Discord yet.' }, 400);
+      dcd.engage = !!b.on; await dcSave(env, act, dcd); return json({ ok: true, engage: dcd.engage });
+    }
+    if (path === '/api/trybe/discord-welcome-all' && request.method === 'POST') return json(await welcomeAll(env, act));
+    if (path === '/api/trybe/discord-daily' && request.method === 'POST') return json(await discordDaily(env, d.centralDate ? d.centralDate() : new Date().toISOString().slice(0, 10), { force: true, only: act, preview: !!b.preview }));
     if (path === '/api/trybe/discord-auto' && request.method === 'PUT') { await putSetting(env, 'trybeDiscordAuto', b.on ? 'on' : 'off'); return json({ ok: true, auto: !!b.on }); }
     if (path === '/api/trybe/vip-bar' && request.method === 'PUT') { const v = Math.round(+b.sales || 0); if (v < 50) return json({ error: 'Give the sales bar in dollars.' }, 400); await putSetting(env, `trybeVipBar:${act}`, String(v)); return json({ ok: true, vip_bar: v }); }
     if (path === '/api/trybe/recut-announce' && request.method === 'POST') return json(await trybeRecutAnnounce(env, d, act, Array.isArray(b.cards) ? b.cards.slice(0, 20) : []));
