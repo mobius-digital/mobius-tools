@@ -691,7 +691,7 @@ export const TALK_CHANNEL = 'questions';
 const WELCOME_ASK = [
   "What's the first video you're planning?",
   "Which idea from this week's list are you trying first?",
-  "Where do you like to film: at home, outside, or somewhere else?",
+  "Where do you like to film? Home, outside, somewhere else?",
   "What kind of video do you like making most?",
 ];
 const poll = (q, ...a) => ({ poll: q, answers: a });
