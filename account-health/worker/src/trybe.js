@@ -466,8 +466,9 @@ export function mondayPost(name, slug, w) {
   return { title: `${w.title || 'This week'}: the videos to film`, description: noDash(`${ideas || 'This week\'s videos are on the hub.'}${offer}\n\nExamples, the shots and the rules for each one: ${hub}${call}`).slice(0, 4000) };
 }
 export function fridayPost(wins, slug) {
-  const lines = wins.slice(0, 6).map((x, i) => `**${i + 1}. ${x.creator}**${x.product ? `, ${x.product}` : ''}: ${x.orders} sale${x.orders === 1 ? '' : 's'}`).join('\n');
-  return { title: 'This week\'s winners', description: noDash(`These creator videos made sales in the last 7 days:\n\n${lines}\n\nWatch what they did, then make your version. This week's ideas: https://locus.go-mobius-digital.com/angles/${slug}/`).slice(0, 4000) };
+  /* No counts in the creator Discord (Cole 11-13): the top videos, ranked, never how many sales. */
+  const lines = wins.slice(0, 6).map((x, i) => `**${i + 1}. ${x.creator}**${x.product ? `, ${x.product}` : ''}`).join('\n');
+  return { title: 'This week\'s winners', description: noDash(`This week's top creator videos:\n\n${lines}\n\nWatch what they did, then make your version. This week's ideas: https://locus.go-mobius-digital.com/angles/${slug}/`).slice(0, 4000) };
 }
 /* ---------- Friday winners, v2 (2026-11-05, Cole: "looks plain") ----------
    A person's voice, not a report: a short opener, then one message per winning video with the video itself, so it plays
@@ -476,18 +477,19 @@ export function fridayPost(wins, slug) {
    Discord plays inline too (Trybe's own link dies in 20 minutes). Style 'v2' is on only after Cole's yes
    (settings.trybeWinnersStyle); a preview posts into a team-only #winners-preview channel. */
 const pickBy = (arr, seed) => { let h = 0; for (const ch of String(seed)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return arr[h % arr.length]; };
+/* No counts of any kind (Cole 11-13): not how many sales a video made, not how many videos sold. Just the top ones. */
 const WIN_OPEN = [
-  n => `Hey everyone, this week's winners are in! 🏆 ${n === 1 ? 'One video' : `${n} videos`} made sales this week.`,
-  n => `Happy Friday! 🎉 Here's what sold this week. ${n === 1 ? 'One video' : `${n} videos`} brought in orders.`,
-  n => `Hey team 👋 Friday means winners. ${n === 1 ? 'This one' : `These ${n}`} made sales this week.`,
-  n => `Winners time! 🔥 ${n === 1 ? 'One video' : `${n} videos`} sold this week. Have a watch.`,
-  n => `Big week, creators 🙌 ${n === 1 ? 'Here is the video' : `Here are the ${n} videos`} that sold.`,
+  () => `Hey everyone, this week's winners are in! 🏆`,
+  () => `Happy Friday! 🎉 Here are this week's top videos.`,
+  () => `Hey team 👋 Friday means winners. Here are the top videos this week.`,
+  () => `Winners time! 🔥 This week's top videos. Have a watch.`,
+  () => `Big week, creators 🙌 Here are the top videos.`,
 ];
 const MEDAL = ['🥇', '🥈', '🥉', '🔥', '🔥', '🔥'];
 const WIN_LINE = [
-  (c, p, o) => `**${c}**${p ? ` with the ${p}` : ''}: ${o} sale${o === 1 ? '' : 's'}`,
-  (c, p, o) => `${o} sale${o === 1 ? '' : 's'} for **${c}**${p ? ` (${p})` : ''}`,
-  (c, p, o) => `**${c}**'s ${p ? `${p} ` : ''}video sold ${o === 1 ? 'once' : `${o} times`}`,
+  (c, p) => `**${c}**${p ? ` with the ${p}` : ''}`,
+  (c, p) => `**${c}**${p ? ` (${p})` : ''}`,
+  (c, p) => `**${c}**'s ${p ? `${p} ` : ''}video`,
 ];
 const WIN_CLOSE = [
   hub => `Steal what works and make your version 👊 This week's ideas: ${hub}`,
