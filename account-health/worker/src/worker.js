@@ -95,7 +95,7 @@ import { handleLaunch, refreshStatus as launchRefresh } from './launch.js';
 import { handleSiteReview } from './sitereview.js';
 import { handleBuyer, buyerPostTick, buyerSettings } from './buyerlist.js';
 import { buyerAITick } from './buyerai.js';
-import { handleTrybe, trybeTick, handleTrybeJoin } from './trybe.js';
+import { handleTrybe, trybeTick, handleTrybeJoin, discordWelcomeTick } from './trybe.js';
 import { handleLucky } from './lucky.js';
 import { dataTools } from './stratdata.js';
 import { extraTools } from './allwrite.js';
@@ -7898,6 +7898,8 @@ const AH_APP = {
           /* Trybe (trybe.js): once a Central day from 4am, every brand with a key is pulled, then its internal channel
              hears about approved videos that sat 3 days (and Monday's rebook list). */
           if (subCanAfford(80)) ran.trybe = await trybeTick(env, trybeDeps()).catch(e => ({ error: e.message }));
+          /* Creator Discord: one welcome post a day in #welcome, from 5pm Central (trybe.js discordWelcomeTick). */
+          if (subCanAfford(20)) { const w = await discordWelcomeTick(env, trybeDeps()).catch(e => ({ error: e.message })); if (!w?.skipped) ran.discordWelcome = w; }
           /* Cole's calendar blocks: once a Central day, open tasks whose block day passed move to the next one. */
           if ((await getSetting(env, 'blockRollDay').catch(() => null)) !== centralDate() && subCanAfford(60)) {
             ran.blocks = await blockRollTick(env).catch(e => ({ error: e.message }));
