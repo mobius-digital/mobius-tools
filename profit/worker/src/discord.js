@@ -294,6 +294,16 @@ export async function handleDiscord(request, env, url, path, body, json, mustAcc
       if (body.pin) { await dc(token, 'PUT', `/channels/${id}/pins/${m.id}`).catch(() => {}); await dropPinNotices(token, id); }
       return json({ ok: true, id: m.id });
     }
+    /* Edit a message the mascot posted (2026-11-13, Cole: take the sales counts out of the winners posts). Only
+       messages made by this channel's webhook can be edited. */
+    if (path === '/api/amb/discord/edit' && method === 'POST') {
+      const key = String(body.channel || '').replace(/^#/, '');
+      const h = (d.hooks || {})[key], mid = String(body.id || '');
+      const text = noDash(body.text).trim().slice(0, 1990);
+      if (!chan(key) || !h || !/^\d{15,22}$/.test(mid) || !text) return json({ error: 'Give the channel, the message id and the new text.' }, 400);
+      await dc(token, 'PATCH', `/webhooks/${h.id}/${h.token}/messages/${mid}`, { content: text, allowed_mentions: { parse: [] } }, false);
+      return json({ ok: true, id: mid });
+    }
     /* Clear the "pinned a message" lines from every channel of this brand's server. */
     if (path === '/api/amb/discord/tidy' && method === 'POST') return json({ ok: true, removed: await tidy(token, d) });
     /* Revoke every open invite (2026-11-06): creators join through the Locus join link only. */
