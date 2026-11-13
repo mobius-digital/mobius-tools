@@ -5,7 +5,7 @@
  *   node test-trybe.mjs      (from account-health/worker) */
 import { DatabaseSync } from 'node:sqlite';
 import assert from 'node:assert/strict';
-import { storeKey, keyFor, syncBrand, trybeView, trybeAll, trybeBanners, trybeTick, trybeIdOf, staleMessage, handleTrybe, queueState, STALE_DAYS } from './src/trybe.js';
+import { storeKey, keyFor, syncBrand, trybeView, trybeAll, trybeBanners, trybeTick, trybeIdOf, staleMessage, handleTrybe, queueState, STALE_DAYS, talkBank, talkMessage, welcomeText, fridayMessages } from './src/trybe.js';
 
 const db = new DatabaseSync(':memory:');
 const bindSql = sql => sql.replace(/\?(\d+)/g, (_, n) => ':p' + n);
@@ -133,4 +133,17 @@ assert.equal(rr.o.rules, 'Scale hard, always.');
 const cl = await handleTrybe(new Request('https://x/api/trybe/key', { method: 'PUT', body: '{}' }), env, new URL('https://x/api/trybe/key'), '/api/trybe/key', json, H(true));
 assert.equal(cl.s, 403);
 assert.equal(STALE_DAYS, 3);
+/* Creator Discord talk (2026-11-13): 15 questions per brand, polls fit Discord's limits, no dashes or pay words, tags only where given. */
+for (const a of ['brand_party_patch', 'brand_dartee_golf', 'brand_grunk_dolfer', 'brand_ice_and_gold']) {
+  const bank = talkBank(a, 'Brand');
+  assert.equal(bank.length, 15);
+  assert.ok(bank.some(x => typeof x === 'string') && bank.some(x => x.poll));
+  for (const [i, x] of bank.entries()) {
+    const m = talkMessage(x, a + i), all = m.content + JSON.stringify(m.poll || {});
+    assert.ok(!/[—–]|\$|cash|prize|paid|pay|earn/i.test(all), all);
+    if (m.poll) { assert.ok(m.poll.question.text.length <= 300); for (const y of m.poll.answers) assert.ok(y.poll_media.text.length <= 55, y.poll_media.text); }
+  }
+}
+assert.match(welcomeText(['<@111111111111111111>'], 's', {}), /^Welcome <@111111111111111111>!/);
+assert.match(fridayMessages([{ creator: 'Amy Jo', tag: '<@1>', product: 'Hat' }, { creator: 'Bo Ko' }], 'pp', 'x').head, /<@1>[\s\S]*Bo/);
 console.log('trybe: all checks passed');

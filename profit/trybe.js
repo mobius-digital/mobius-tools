@@ -314,10 +314,11 @@
      with a bar, VIP, daily check), the two settings in one row, the last check as a short list, who is in. The Discord
      sign-in secret is agency-wide and lives in Agency settings > Integrations > Discord sign-in; here only a one-line
      notice with a button when it is missing. */
-  async function membersPanel(box, act) {
+  async function membersPanel(box, act, mascot) {
     let m;
     try { m = await H.apiAH('/api/trybe/discord-members?act=' + encodeURIComponent(act)); if (m && m.error) throw new Error(m.error); }
     catch (e) { return; }
+    m.mascot = mascot;
     const el = document.createElement('section');
     el.className = 'v2card tb-mem';
     box.insertAdjacentElement('afterend', el);
@@ -341,6 +342,10 @@
           <div class="v2card tb-stat ${m.auto ? 'good' : ''}"><span class="l">Daily check</span><b>${m.auto ? 'On' : 'Off'}</b><span class="s">${m.auto ? 'roles and removals run each day' : 'only shows what it would do'}</span></div>
         </div>
         <div class="tb-mem-set">
+          <label class="tb-mem-sw"><input type="checkbox" class="lx-sw" data-mem="engage"${m.engage ? ' checked' : ''}><span>Get creators talking<small>This brand. ${esc(m.mascot || 'The mascot')} welcomes each new creator by name, tags the winners on Friday and asks one easy question Tuesday to Thursday, in #questions.</small></span></label>
+          ${m.engage && people.length > (m.welcomed || 0) ? `<button type="button" class="v2btn ghost" data-mem="welcome-all">Welcome the ${people.length - (m.welcomed || 0)} already here</button>` : ''}
+        </div>
+        <div class="tb-mem-set">
           <label class="tb-mem-sw"><input type="checkbox" class="lx-sw" data-mem="auto"${m.auto ? ' checked' : ''}><span>Run the daily check<small>Every brand. Adds VIP roles, warns at 53 days, removes at 60 days with no video.</small></span></label>
           <label class="tb-mem-vip"><span>VIP bar</span><span class="tb-mem-in">$<input type="number" min="50" step="50" value="${m.vip_bar}" data-mem="bar" aria-label="VIP bar in dollars"></span><span class="tb-sub">in 60 days</span><button type="button" class="v2btn ghost" data-mem="bar-save">Save</button></label>
         </div>
@@ -358,6 +363,10 @@
       else if (k === 'bar-save') {
         const v = +el.querySelector('[data-mem="bar"]').value; t.disabled = true;
         try { const x = await H.apiAH('/api/trybe/vip-bar', { method: 'PUT', body: JSON.stringify({ act, sales: v }) }); if (x && x.error) throw new Error(x.error); m.vip_bar = x.vip_bar; toast('VIP bar saved'); paint(); } catch (er) { toast(er.message); t.disabled = false; }
+      } else if (k === 'welcome-all') {
+        t.disabled = true;
+        try { const x = await H.apiAH('/api/trybe/discord-welcome-all', { method: 'POST', body: JSON.stringify({ act }) }); if (x && x.error) throw new Error(x.error); m.welcomed = (m.welcomed || 0) + (x.welcomed || 0); toast(x.welcomed ? `Welcomed ${x.welcomed} in one post` : 'Everyone is welcomed'); paint(); }
+        catch (er) { toast(er.message); t.disabled = false; }
       } else if (k === 'dry') {
         t.disabled = true; t.textContent = 'Checking…';
         try { const x = await H.apiAH('/api/trybe/discord-sync?act=' + encodeURIComponent(act)); if (x && x.error) throw new Error(x.error); m.last = x; el.querySelector('[data-mem="last"]').innerHTML = lastHtml(x); }
@@ -366,6 +375,13 @@
       }
     };
     el.onchange = async e => {
+      const g = e.target.closest('[data-mem="engage"]');
+      if (g) {
+        const on = g.checked;
+        try { const x = await H.apiAH('/api/trybe/discord-engage', { method: 'PUT', body: JSON.stringify({ act, on }) }); if (x && x.error) throw new Error(x.error); m.engage = on; toast(on ? 'Creator talk on' : 'Creator talk off'); paint(); }
+        catch (er) { toast(er.message); g.checked = !on; }
+        return;
+      }
       const t = e.target.closest('[data-mem="auto"]'); if (!t) return;
       const on = t.checked;
       if (on && typeof window.confirmModal === 'function' && !(await window.confirmModal('Turn on the daily check?', 'For every brand: it adds and removes VIP roles, warns creators at 53 days and removes them at 60 days with no video.', 'Turn it on'))) { t.checked = false; return; }
@@ -403,7 +419,7 @@
       catch (e) { toast(e.message); }
       btn.disabled = false;
     };
-    if (!CL()) membersPanel(box, act);
+    if (!CL()) membersPanel(box, act, r.look && r.look.mascot);
   }
 
   /* ---- the bar: search, filter, sort ---- */
