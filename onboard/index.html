@@ -353,10 +353,17 @@ async function upload(f, el) {
   } catch (e) { status(e.message, 'bad'); }
 }
 function paintReview() {
-  const missing = STEPS.map((s, i) => ({ s, i, n: s.fields.filter(f => !f.calc && f.type !== 'check' && (St.answers[f.id] == null || St.answers[f.id] === '')).length }));
+  /* Tick boxes count too (2026-11-13): "Getting started" is all boxes and read "All answered" with none ticked, and the
+     Access step hid every platform not yet shared. Boxes are "not done yet", never "blank". */
+  const missing = STEPS.map((s, i) => {
+    const n = s.fields.filter(f => !f.calc && f.type !== 'check' && (St.answers[f.id] == null || St.answers[f.id] === '')).length;
+    const open = s.fields.filter(f => f.type === 'check' && St.answers[f.id] !== true).length;
+    const why = [n ? `${n} left blank` : '', open ? `${open} ${open === 1 ? 'box' : 'boxes'} not ticked yet` : ''].filter(Boolean).join(', ');
+    return { s, i, n: n + open, why };
+  });
   $('#app').innerHTML = `<header><div class="brand"><img class="l" src="../brand/mobius-logo.webp" alt="Mobius Digital"><img class="d" src="../brand/mobius-logo-white.webp" alt="Mobius Digital"><span>${esc(St.brand)}</span></div><h1>Nearly there.</h1><p class="lede">Anything left blank is fine: we will research it or ask on our kickoff call. You can come back to this link and change answers after sending, too.</p></header>
     ${progress()}
-    <section class="step">${missing.map(m => `<div class="q" style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><b>${esc(m.s.title)}</b><div class="why">${m.n ? `${m.n} left blank` : 'All answered'}</div></div><button class="btn sm" data-go="${m.i}">${m.n ? 'Fill in' : 'Review'}</button></div>`).join('')}</section>
+    <section class="step">${missing.map(m => `<div class="q" style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><b>${esc(m.s.title)}</b><div class="why">${m.n ? m.why : 'All done'}</div></div><button class="btn sm" data-go="${m.i}">${m.n ? 'Fill in' : 'Review'}</button></div>`).join('')}</section>
     <div class="nav"><button class="btn" id="back">Back</button><button class="btn pri" id="send">Send to Mobius</button></div>`;
   document.querySelectorAll('[data-go]').forEach(b => b.onclick = () => go(+b.dataset.go));
   $('#back').onclick = () => go(STEPS.length - 1);

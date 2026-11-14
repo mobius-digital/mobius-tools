@@ -83,7 +83,8 @@ const TOKEN = (new URLSearchParams(location.search).get('c') || '').replace(/[^a
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const LOGO = '<img class="l" src="../brand/mobius-logo.webp" alt="Mobius Digital"><img class="d" src="../brand/mobius-logo-white.webp" alt="Mobius Digital">';
-const PILL = { todo: 'To do', waiting: 'Waiting on you', done: 'Connected', skipped: 'Not used' };
+/* `waiting` = the client tapped Done (or sent an ID) and we are checking: it is on us, not them. */
+const PILL = { todo: 'To do', waiting: 'Checking', done: 'Connected', skipped: 'Not used' };
 let D = null, busy = false, msgs = {}, typed = {};
 
 function fatal(t) { $('#app').innerHTML = `<header><div class="brand">${LOGO}</div></header><div class="center"><h1>Hmm.</h1><p class="lede" style="margin:auto">${esc(t)}</p></div>`; }
@@ -124,6 +125,8 @@ function render() {
   const done = items.filter(i => i.state === 'done' || i.state === 'skipped').length;
   const pct = items.length ? Math.round(done / items.length * 100) : 100;
   document.title = `${D.brand} · Connect your accounts`;
+  /* An empty list is a brand Locus is not set up to check (paused or not switched on), never "all connected". */
+  if (!items.length) { $('#app').innerHTML = `<header><div class="brand">${LOGO}<span>${esc(D.brand)}</span></div><h1>Nothing to connect yet.</h1><p class="lede">We are still setting up your account on our side. Your Mobius contact will send this link again when it is ready.</p></header>`; return; }
   $('#app').innerHTML = `<header><div class="brand">${LOGO}<span>${esc(D.brand)}</span></div>
     <h1>${open.length ? 'Connect your accounts' : 'All connected. Thank you.'}</h1>
     <p class="lede">${open.length ? `${open.length === 1 ? 'One thing' : `${open.length} things`} left so we can see everything in one place. Each one takes a minute or two, and this page ticks them off by itself as they connect. You only invite us; we never ask for a password or a key.` : 'We can see everything we need. You can close this page.'}</p></header>
