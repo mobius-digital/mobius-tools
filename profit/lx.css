@@ -182,6 +182,9 @@
    the old drawer used, so index.html's close-on-pick and Escape handling carry over). lx.js sets html.lx-irail.
    ========================================================================== */
 html.lx-irail[data-ui="v2"] .app{grid-template-columns:56px minmax(0,1fr)}
+/* No rail at all when chrome is off (the sign-in gate, an invite link, client share links): without this the page sat
+   in the 56px icon column on every screen 721 to 1180px wide (found 2026-11-13 walking a client invite on an iPad width). */
+html.lx-irail[data-ui="v2"] body.nochrome .app{grid-template-columns:minmax(0,1fr)}
 html.lx-irail[data-ui="v2"] .nav-toggle{display:none}
 html.lx-irail[data-ui="v2"] .side{position:sticky;top:0;left:auto;bottom:auto;width:56px;height:100vh;transform:none;transition:width var(--t-panel) var(--ease),box-shadow var(--t-panel) var(--ease);padding:10px 8px 10px;z-index:40;overflow:hidden}
 html.lx-irail[data-ui="v2"] body:not(.nav-open) .side-brand{padding:4px 0 10px;justify-content:center}
