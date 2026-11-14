@@ -1112,3 +1112,16 @@ html.lx-irail[data-ui="v2"] body:not(.nav-open) .rail-min{margin:0}
   [data-ui="v2"] #v2panel:not(.sheet),[data-ui="v2"] #ask{transition:none}
   [data-ui="v2"] .cn-drawer,[data-ui="v2"] .lb-drawer,[data-ui="v2"] #amDrawer{animation:none}
 }
+
+/* NO PAGE SITS BLANK (2026-11-13, index.html loadingState / emptyState): the loading line on a first paint and the
+   empty state for a brand with no data or a page with nothing to show. Tokens only. */
+.lx-state{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:8px;margin:24px auto;padding:36px 20px;max-width:560px;background:var(--surface);border:1px solid var(--line);border-radius:12px;color:var(--ink-2)}
+.lx-state.lx-loading{flex-direction:row;gap:10px;background:transparent;border-color:transparent;padding:28px 16px;font-size:13.5px}
+.lx-state .lx-spin{width:16px;height:16px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--brand);animation:lx-spin .8s linear infinite;flex:none}
+@keyframes lx-spin{to{transform:rotate(360deg)}}
+.lx-state-i{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--brand-soft);color:var(--brand)}
+.lx-state-i svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.5}
+.lx-state b{font-size:15px;font-weight:600;color:var(--ink);letter-spacing:-.01em}
+.lx-state p{margin:0;font-size:13.5px;line-height:1.55;max-width:46ch}
+.lx-state-acts{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:8px}
+@media (prefers-reduced-motion:reduce){.lx-state .lx-spin{animation-duration:2.4s}}
