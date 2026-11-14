@@ -2281,7 +2281,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <link rel="stylesheet" href="v2.css?v=48">
 <link rel="stylesheet" href="../logo/kit.css?v=2">
 <link rel="stylesheet" href="supply.css?v=6">
-<link rel="stylesheet" href="lx.css?v=41">
+<link rel="stylesheet" href="lx.css?v=42">
 <link rel="stylesheet" href="phone.css?v=16">
 <script src="/sheet.js?v=1"></script>
 <script src="/ask/ask-ui.js?v=14"></script>
@@ -5444,6 +5444,8 @@ function applyClientMode() {
   document.body.classList.toggle('is-client', on);
   if (!on) return;
   if (!S.accounts.some(a => a.act_id === S.act) && S.accounts[0]) { S.act = S.accounts[0].act_id; try { localStorage.setItem(LS.act, S.act); } catch {} }
+  /* A brand with no account yet (new, or not live): the page is that brand's own, never 'all' (see blankFallback). */
+  else if (!S.accounts.length && S.client && Array.isArray(S.client.brands) && S.client.brands[0]) S.act = S.client.brands[0].id;
   SETMODE.set('brand');
   document.querySelectorAll('#tabs button[data-grp], #tabbar button[data-grp]').forEach(b => { const g = NAV[b.dataset.grp]; b.hidden = !g || !g.tabs.some(t => clientTabOk(t[0])); });
   /* The team role filter is the agency's; Tools and the season item show as they do for the team. */
@@ -5716,6 +5718,71 @@ function openFixedCosts(act) {
 }
 window.openFixedCosts = openFixedCosts;
 
+/* NO PAGE SITS BLANK (2026-11-13). A client login for a brand with no data (the demo brand Harborline: inactive, no Meta,
+   no Triple Whale) opened Today > Morning on nothing but the footer: the renderer found no account and returned without
+   painting. One shared pair for every page: loadingState(text) while a first paint waits, emptyState({title, body,
+   actions}) when there is nothing to show. show() uses both: a first paint starts on the loading line, a brand with no
+   data opens its numbers pages on "Connecting your data", and a page that finishes with #main still empty gets an
+   empty state instead of a blank screen. Copy never names another brand. Exposed as window.LxState for the module files. */
+function loadingState(text) {
+  return `<div class="lx-state lx-loading" data-lx-ph role="status" aria-live="polite"><span class="lx-spin" aria-hidden="true"></span><span>${esc(text || 'Loading your numbers…')}</span></div>`;
+}
+/** body is trusted HTML from the caller (escape names before passing them); actions = [{label, run}] wired by paintState. */
+function emptyState({ title, body, actions } = {}) {
+  return `<div class="lx-state lx-empty"><span class="lx-state-i" aria-hidden="true"><svg class="ic"><use href="#i-plug"/></svg></span><b>${esc(title || 'Nothing here yet')}</b>${body ? `<p>${body}</p>` : ''}${actions && actions.length ? `<div class="lx-state-acts">${actions.map((a, i) => `<button type="button" class="v2btn${i ? ' ghost' : ''}" data-lx-es="${i}">${esc(a.label)}</button>`).join('')}</div>` : ''}</div>`;
+}
+/** Write a whole page (head, opts.top, the empty state) into host and wire its buttons. */
+function paintState(host, tab, opts) {
+  if (!host) return;
+  const t0 = TAB_TITLE[tab] || '', nm = stateBrand();
+  host.innerHTML = `<div class="v2 lx">${pageHead(tab, t0 && nm ? `${t0}: ${esc(nm)}` : t0)}${opts.top || ''}${emptyState(opts)}</div>`;
+  (opts.actions || []).forEach((a, i) => { const b = host.querySelector(`[data-lx-es="${i}"]`); if (b) b.onclick = a.run; });
+}
+/** The brand on screen, by name: its account, else a client's own brand from its session (never another brand). */
+function stateBrand() {
+  const a = S.act !== 'all' ? S.accounts.find(x => x.act_id === S.act) : null;
+  if (a) return a.name;
+  const own = isClient() && S.client && Array.isArray(S.client.brands) ? S.client.brands.find(b => b.id === S.act) || S.client.brands[0] : null;
+  return own ? own.name : '';
+}
+/** A brand with nothing synced yet: no Triple Whale shop and no sales, spend or orders in the window or the month. */
+function brandNoData(a) {
+  if (!a) return true;
+  const w = a.window || {}, m = a.mtd || {};
+  return !a.tw_shop && !w.sales && !w.spend && !w.orders && !m.sales && !m.spend;
+}
+/* The pages whose numbers come from the brand's synced data; a brand with none opens them on "Connecting your data". */
+const NUMBER_TABS = new Set(['morning', 'month', 'overview', 'profit', 'customers', 'store', 'channels', 'yesterday', 'costs', 'brief']);
+/* A client login whose brand has no account yet can still open the guide; every other page (Settings too: its sections
+   are built from the account and offered "Add a brand") shows "Connecting your data". */
+const NO_ACCOUNT_OK = new Set(['guide']);
+function connectingOpts(a) {
+  const nm = stateBrand();
+  const staff = !isClient();
+  const missing = a && a.tw_shop ? 'the Meta ad account' : a ? 'the Triple Whale shop' : 'the Meta ad account and Triple Whale';
+  return staff
+    ? { title: `No data for ${nm || 'this brand'} yet`,
+        body: `Numbers show here once ${missing} ${missing.includes(' and ') ? 'are' : 'is'} connected in Brand settings &gt; Integrations. The first day of data usually lands within 24 hours of connecting.`,
+        actions: S.act !== 'all' && a ? [{ label: 'Open Integrations', run: () => { SETMODE.set('brand'); try { localStorage.setItem('pf_set_bsec', 'conn'); } catch {} show('settings'); } }] : [] }
+    : { title: 'Connecting your data',
+        body: `Your numbers${nm ? ` for <b>${esc(nm)}</b>` : ''} show here once your Meta ad account and Triple Whale are connected. The first day of data usually lands within 24 hours of connecting.` };
+}
+/** The last word on a page that painted nothing: the brand has no data, or this page has nothing for the period.
+    phBlank: the loading line counts as blank (the late check, 1.5s after the renderer settled). */
+function blankFallback(tab, phBlank) {
+  const m = $('#main'); if (!m || S.tab !== tab) return;
+  const kids = [...m.children].filter(el => !el.classList.contains('cl-wel'));
+  const real = phBlank ? kids.filter(el => !el.hasAttribute('data-lx-ph')) : kids;
+  const blank = !real.length || !real.some(el => el.textContent.trim() || el.querySelector('img,svg,canvas,video,iframe,input,textarea,select'));
+  if (!blank) return;
+  const a = S.act !== 'all' ? S.accounts.find(x => x.act_id === S.act) : null;
+  const wel = m.querySelector('.cl-wel');
+  paintState(m, tab, brandNoData(a) || (isClient() && !S.accounts.length) ? connectingOpts(a)
+    : { title: 'Nothing here yet', body: `This page has nothing to show${stateBrand() ? ` for <b>${esc(stateBrand())}</b>` : ''} in ${esc(rangeLabel())}. Try a longer period in the top bar.` });
+  if (wel) m.prepend(wel);
+}
+window.LxState = { loading: loadingState, empty: emptyState, paint: paintState };
+
 window.showTab = tab => show(tab);
 let LAST_VIEW = null;   // was the last page shown in Agency view (show())
 const SHOWABLE = new Set(["mywork", "buyer", "adupdates", "launch", "trybe", "morning", "month", "calls", "ccall", "tasks", "production", "actions", "warplan", "warlive", "monday", "meetings", "requests", "gcampaigns", "gads", "gterms", "gchanges", "calendar", "social", "socialsaved", "socialweek", "socialresults", "yesterday", "leaks", "today", "war", "pulse", "answers", "research", "voice", "stock", "buying", "drops", "overview", "profit", "plan", "costs", "brief", "reports", "meta", "customers", "settings", "health", "amb", "brand", "studio", "tests", "angles", "copy", "season", "calc", "guide", "email", "dash", "store", "website", "inspo", "library", "search", "google", "tiktok", "channels", "campaigns", "adcreative", "changes", "mtoday", "mbrowser", "economics", "workload", "scorecard"]);   // keep in step with the renderer map in show()
@@ -5869,7 +5936,21 @@ function show(tab, opt) {
       <button class="btn primary" id="tabRetry">Try again</button></div>`;
     const rb = $('#tabRetry'); if (rb) rb.onclick = () => show(tab);
   };
-  const after = () => { done(); if (isClient()) { if ((tab === 'overview' || tab === 'morning') && window.ClientsTab) window.ClientsTab.welcome($('#main')); } else offerTour(tab); };
+  /* No data, no blank page (2026-11-13): a brand with nothing synced opens its numbers pages on "Connecting your data";
+     a client login whose brand has no account yet gets it on every page but the guide. */
+  const acct0 = S.act !== 'all' ? S.accounts.find(x => x.act_id === S.act) : null;
+  if ((isClient() && !S.accounts.length && !NO_ACCOUNT_OK.has(tab)) || (S.act !== 'all' && acct0 && NUMBER_TABS.has(tab) && brandNoData(acct0))) {
+    /* The team's onboarding steps (todo.js "You need to do") still show on a new brand's Morning. */
+    const todo = tab === 'morning' && !isClient() && S.act !== 'all';
+    paintState(m, tab, { ...connectingOpts(acct0), top: todo ? '<div id="v4todo"></div>' : '' }); done();
+    if (todo && window.MobiusTodo) window.MobiusTodo.mount($('#v4todo'), S.act);
+    if (isClient() && (tab === 'overview' || tab === 'morning') && window.ClientsTab) window.ClientsTab.welcome(m);
+    if (window.LocusShare) window.LocusShare.sync(tab);
+    return;
+  }
+  /* A first paint starts on the loading line, so a renderer that awaits before its own placeholder never shows a blank #main. */
+  if (first) m.innerHTML = loadingState();
+  const after = () => { done(); blankFallback(tab); setTimeout(() => blankFallback(tab, true), 1500); if (isClient()) { if ((tab === 'overview' || tab === 'morning') && window.ClientsTab) window.ClientsTab.welcome($('#main')); } else offerTour(tab); };
   let r;
   const run = RUN;
   try { r = ({ mywork: f => window.MyWorkTab ? window.MyWorkTab.render({ S, api, apiAH, show, pageHead, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'), morning: f => V4R(f), month: f => V4R(f, 'month'), warplan: f => DR('warplan', f), warlive: f => DR('warlive', f), actions: f => window.ActionsTab ? window.ActionsTab.render({ S, api, apiAH, show, pageHead, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'), calls: f => window.CallsTab ? window.CallsTab.render({ S, api, apiAH, show, pageHead, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'), ccall: f => CCALL(f), tasks: f => window.TasksTab ? window.TasksTab.render({ S, api, apiAH, show, pageHead, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'), production: f => window.ProductionTab ? window.ProductionTab.render({ S, api, apiAH, show, pageHead, AH_URL, confirmModal, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'),  requests: f => window.RequestsTab ? window.RequestsTab.render({ S, api, apiAH, show, pageHead, RUN: () => RUN }, f) : ($('#main').innerHTML = '<div class="card"><span style="color:var(--bad)">This page did not load. Hard-refresh (Ctrl+Shift+R).</span></div>'), calendar: f => CALR(f), social: f => SOCR(f), socialsaved: f => SOCR(f, 'socialsaved'), socialweek: f => SOCR(f, 'socialweek'), socialresults: f => SOCR(f, 'socialresults'), yesterday: f => DR('yesterday', f), leaks: f => V2R('leaks', f), adupdates: f => V2R('adupdates', f), buyer: f => BYR(f), launch: f => BYR(f), trybe: f => TRY(f), today: f => DR('today', f), war: f => DR('war', f), pulse: f => DR('pulse', f), answers: f => renderBrand(f, 'client'), research: f => renderBrand(f, 'research'), voice: f => renderBrand(f, 'voice'), overview: f => V2R('overview', f), profit: renderProfit, plan: async f => { const r = await renderPlan(f); addGoalTargets(); return r; }, costs: renderCosts, brief: renderBrief, reports: renderReports, meta: f => V2R('meta', f), customers: renderCustomers, settings: renderSettings, health: renderHealth, amb: renderAmb, brand: renderBrand, studio: renderStudio, tests: renderTests, angles: renderAngles, copy: renderCopy, season: renderSeason, calc: renderCalc, guide: renderGuide, email: f => V2R('email', f), dash: renderDash, store: f => V2R('store', f), stock: f => SR('stock', f), buying: f => SR('buying', f), drops: f => SR('drops', f), website: f => V2R('website', f), inspo: f => V2R('inspo', f), library: f => V2R('library', f), search: f => V2R('search', f), google: f => V2R('google', f), gcampaigns: f => V2R('gcampaigns', f), gads: f => V2R('gads', f), gterms: f => V2R('gterms', f), gchanges: f => V2R('gchanges', f), economics: f => AGR('economics', f), workload: f => AGR('workload', f), scorecard: f => AGR('scorecard', f), tiktok: f => V2R('tiktok', f), channels: f => V2R('channels', f), campaigns: f => V2R('campaigns', f), adcreative: f => V2R('adcreative', f), changes: f => metaSub('changelog', f), mtoday: f => metaSub('today', f), mbrowser: f => metaSub('creative', f) })[tab](first); }
