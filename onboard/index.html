@@ -170,6 +170,7 @@ function fieldHtml(f) {
     ${f.why ? `<div class="why">Why we ask: ${esc(f.why)}</div>` : ''}${f.help && f.type !== 'check' ? `<div class="help">${esc(f.help)}</div>` : ''}
     ${body}
     ${sug != null ? `<div class="sug"><b>From your website:</b> <span style="white-space:pre-wrap">${esc(sugText)}</span><br><button type="button" class="btn sm" data-use="${f.id}">Use this</button></div>` : ''}
+    ${unsure ? `<div class="sug" style="margin-top:8px">No problem. We will find this ourselves or ask you on the strategy call. Want an answer now? Use "Stuck on a question?" at the bottom of this step.</div>` : ''}
     ${f.calc || f.type === 'check' ? '' : `<div class="foot"><span></span><button type="button" class="unsure ${unsure ? 'on' : ''}" data-unsure="${f.id}">${unsure ? 'Marked "not sure". Tap to undo.' : "I'm not sure"}</button></div>`}
   </div>`;
 }

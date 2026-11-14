@@ -131,7 +131,7 @@
       ], { fmt: K.int }), '', [`Visits and carts are counted by Triple Whale's tracking code on the site (its pixel). Orders are Shopify's, through Triple Whale.`, `Each percentage is the share of the step before that made it to the next one, coloured against a typical online store: about ${Math.round(FUN_BENCH.cart * 100)}% of visits add to cart and about ${Math.round(FUN_BENCH.order * 100)}% of carts become an order.`]) : '';
 
     const qi = queueItems(td, sd);
-    $('#main').innerHTML = shell(`<div id="v4strip"></div>${qi.length === 1 ? `<div class="v4-qstrip">${queueStrip(qi[0])}</div>` : ''}
+    $('#main').innerHTML = shell(`<div id="v4todo"></div><div id="v4strip"></div>${qi.length === 1 ? `<div class="v4-qstrip">${queueStrip(qi[0])}</div>` : ''}
       <div class="v4-top${qi.length >= 2 ? '' : ' v4-two-top'}"><section class="v2card v4-r">${riverCard(b)}</section><section class="v2card v4-m">${monthCard(a, cur)}</section>${qi.length >= 2 ? `<section class="v2card v4-n">${queueCard(qi)}</section>` : ''}</div>
       ${tiles}<div class="v4-stack">${share}${funnel}</div><div id="v4cal"></div>
       ${K.foot(`Revenue, orders, AOV and the compare deltas come from Shopify through Triple Whale for ${K.esc(H.rangeLabel())}. Channel revenue follows the attribution switch. Yesterday is the P&amp;L line: sales less ads, product, shipping and fees.`)}`);
@@ -139,6 +139,7 @@
     root.querySelectorAll('[data-ask]').forEach(bt => bt.onclick = () => { if (window.AskUI && window.AskUI.ask) window.AskUI.ask(bt.dataset.ask); });
     if (window.LeaksCard && (window.LeaksCard.strip || window.LeaksCard.full)) (window.LeaksCard.strip || window.LeaksCard.full)($('#v4strip'), H, 'home');
     if (window.CalendarTab) window.CalendarTab.homeCard($('#v4cal'), H);
+    if (window.MobiusTodo) window.MobiusTodo.mount($('#v4todo'), H.S.act);
   }
   /* ---------- Ads > Calls, phase 2: Google negatives in the queue and the ad set panel ---------- */
   /* One call per Google search-term leak: the leak finder already lists the wasted searches and can write the negatives.
@@ -352,10 +353,11 @@
       const chips = gaps.length ? gaps.map(g => `<span class="v4-gap-c">${K.esc(String(g.text).split(':')[0].replace(' in the same stage', '').replace(/\.$/, '').trim())}</span>`).join('') : '';
       return `<div class="v4-brow">${brandCell(a, r.sev, chips)}<div>${keptCell}</div><div>${pct != null ? ring(pct, `${Math.round(pct * 100)}%`, '', null, 56) : `<button type="button" class="v2link q" data-go="act:${K.esc(a.act_id)}:plan">no plan</button>`}</div><div class="v4-why">${why}</div><div class="v4-wk"><b>${K.kmoney(w.sales, cur)}</b>${p.sales ? K.delta(w.sales, p.sales) : ''}<span class="v4-quiet">MER ${K.x2(w.spend ? w.sales / w.spend : null)}</span></div></div>`;
     };
-    $('#main').innerHTML = shell(`${book}<section class="v2card v4-boardc"><div class="v4-bhead"><span>Brand</span><span>Kept yesterday · vs normal</span><span>Month</span><span>Why it needs you</span><span>${K.esc(H.rangeLabel())}</span></div>${rows.map(rowHtml).join('')}
+    $('#main').innerHTML = shell(`${book}<div id="v4todo"></div><section class="v2card v4-boardc"><div class="v4-bhead"><span>Brand</span><span>Kept yesterday · vs normal</span><span>Month</span><span>Why it needs you</span><span>${K.esc(H.rangeLabel())}</span></div>${rows.map(rowHtml).join('')}
       ${noDataLine(empty)}${paused.length ? `<p class="v4-paused">Paused, not flagged: ${paused.map(a => `<button type="button" class="v2link q" data-go="act:${K.esc(a.act_id)}:morning">${K.esc(a.name)}</button>`).join(', ')}.</p>` : ''}</section>
       ${K.foot(`Kept = yesterday's P&amp;L line (sales less ads, product, shipping and fees); a normal day is the brand's last 28 days. Month = banked against the plan by now. Reasons use fixed windows ending ${K.esc(cmd && cmd.yesterday ? cmd.yesterday : 'yesterday')}. The week is ${K.esc(H.rangeLabel())} on the picker.`)}`);
     K.wireGo($('#main'));
+    if (window.MobiusTodo) window.MobiusTodo.mount($('#v4todo'), 'all');
   }
 
   async function moneyBoard(host, first) {

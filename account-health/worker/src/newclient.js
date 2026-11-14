@@ -1077,23 +1077,36 @@ export async function handleNewClientAction(env, ctx, payload) {
   }
   if (act.action_id === 'nc_shopify_sent') {
     ctx.waitUntil((async () => {
-      await ensureTable(env);
-      const r = await getRun(env, String(v.id || ''));
-      if (!r) return reply('That client is no longer in Locus.');
-      const st = safeJson(r.steps_json, {});
-      const store = st.shopify_ping?.store || 'your store';
-      const note = `We just sent the Shopify collaborator request for ${store}. Please approve it: open the email from Shopify, or in Shopify go to Settings > Users > Collaborators. It takes a few seconds and lets us work in your store without you making us an account.`;
-      let how = '';
-      if (st.slack_welcome && r.slack_client && env.SLACK_USER_TOKEN) {
-        const m = await slack(env.SLACK_USER_TOKEN, 'chat.postMessage', { channel: r.slack_client, text: note, unfurl_links: false });
-        if (m.ok) how = 'in their Slack channel';
-      }
-      if (!how && emailOk(r.contact_email)) { await sendMail(env, r.contact_email, `Please approve our Shopify request for ${store}`, `Hi ${firstName(r.contact_name)},\n\n${note}\n\nThanks,`).then(() => { how = 'by email'; }).catch(() => {}); }
-      await setStep(env, r.id, 'shopify_ping', { ...st.shopify_ping, sent: new Date().toISOString(), told: how || null });
-      await reply(how ? `✓ Collaborator request for *${store}* sent. ${r.name} was asked to approve it ${how}.` : `✓ Marked as sent, but Locus could not reach ${r.name} (not in Slack, email failed). Tell them to approve it in Shopify > Settings > Users.`);
+      const out = await markShopifySent(env, String(v.id || ''));
+      await reply(out.error ? out.error : out.how ? `✓ Collaborator request for *${out.store}* sent. ${out.name} was asked to approve it ${out.how}.` : `✓ Marked as sent, but Locus could not reach ${out.name} (not in Slack, email failed). Tell them to approve it in Shopify > Settings > Users.`);
     })());
   }
   return new Response('', { status: 200 });
+}
+
+/** "I sent the request" (Slack button or Locus's You need to do list): tell the client to approve, once. */
+export async function markShopifySent(env, id) {
+  await ensureTable(env);
+  const r = await getRun(env, id);
+  if (!r) return { error: 'That client is no longer in Locus.' };
+  const st = safeJson(r.steps_json, {});
+  if (st.shopify_ping?.sent) return { ok: true, already: true, store: st.shopify_ping.store, name: r.name, how: st.shopify_ping.told || '' };
+  let store = st.shopify_ping?.store;
+  if (!store && r.token) {
+    const ans = safeJson((await env.DB.prepare(`SELECT answers_json FROM p_br_onboard WHERE token = ?1`).bind(r.token).first().catch(() => null))?.answers_json, {});
+    const m = /([a-z0-9][a-z0-9-]*)\.myshopify\.com/i.exec(String(ans.shopify_url || ''));
+    if (m) store = `${m[1].toLowerCase()}.myshopify.com`;
+  }
+  store = store || 'your store';
+  const note = `We just sent the Shopify collaborator request for ${store}. Please approve it: open the email from Shopify, or in Shopify go to Settings > Users > Collaborators. It takes a few seconds and lets us work in your store without you making us an account.`;
+  let how = '';
+  if (st.slack_welcome && r.slack_client && env.SLACK_USER_TOKEN) {
+    const m = await slack(env.SLACK_USER_TOKEN, 'chat.postMessage', { channel: r.slack_client, text: note, unfurl_links: false });
+    if (m.ok) how = 'in their Slack channel';
+  }
+  if (!how && emailOk(r.contact_email)) { await sendMail(env, r.contact_email, `Please approve our Shopify request for ${store}`, `Hi ${firstName(r.contact_name)},\n\n${note}\n\nThanks,`).then(() => { how = 'by email'; }).catch(() => {}); }
+  await setStep(env, r.id, 'shopify_ping', { at: new Date().toISOString(), ...st.shopify_ping, store, sent: new Date().toISOString(), told: how || null });
+  return { ok: true, store, name: r.name, how };
 }
 
 /* Shopify has no API for a collaborator request: it is made from the Partner dashboard. So within the
