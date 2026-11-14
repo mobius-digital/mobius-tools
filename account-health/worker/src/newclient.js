@@ -1125,7 +1125,7 @@ async function shopifyHeadsUp(env) {
     const j = await laneInternal(env, r, { who: 'Cole', ask: `Send ${r.name} the Shopify collaborator request, then press I sent the request`, why: 'they gave their store; Locus then tells them to approve it',
       extra: [
         { type: 'section', fields: [{ type: 'mrkdwn', text: `*Store*\n\`${store}\`` }, { type: 'mrkdwn', text: `*Request code*\n${code ? `\`${code}\`` : 'none needed'}` }] },
-        { type: 'context', elements: [{ type: 'mrkdwn', text: 'Partner dashboard > *Stores* > *Add store* > *Request access to a store* > paste the store address' + (code ? ' and the code' : '') + ' > pick the permissions > *Request access*.' }] },
+        { type: 'context', elements: [{ type: 'mrkdwn', text: 'Partner dashboard > *Stores* > *Add store* > *Request access to a store* > paste the store address' + (code ? ' and the code' : '') + ' > tick *every* permission (full access) > *Request access*.' }] },
       ],
       buttons: [
         { type: 'button', text: { type: 'plain_text', text: 'Open Shopify Partners' }, url: 'https://partners.shopify.com/organizations', action_id: 'nc_open_partners' },
