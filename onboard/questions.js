@@ -36,7 +36,7 @@ const STEPS = [
   /* Access, word for word from the client's Asana "Client Responsible" tasks and
      the Looms on them (2026-09-25). `steps`, `copy` and `loom` render as a how-to
      under the tick box. We never take a password: the client invites us. */
-  { id: 'access', title: 'Access and content', intro: 'This is the one thing we cannot start without, so it comes first. Invite us from inside each platform, then tick it off. Each one has the exact clicks and a short video. Skip any platform you do not use.',
+  { id: 'access', title: 'Access and content', intro: 'This is the one thing we cannot start without, so it comes first. Invite us from inside each platform, then tick it off. Each one has the exact clicks, one at a time. If you do not use a platform, say so in the last box on this step.',
     fields: [
       { id: 'acc_meta', label: 'Meta (Facebook and Instagram)', type: 'check', loom: LOOM.meta,
         steps: [
@@ -199,6 +199,116 @@ const STEPS = [
       { id: 'subscription', label: 'Could a subscription work?', type: 'text' },
     ] },
 ];
+
+/* SHOW ME HOW (2026-11-13, Cole): "it shouldn't be a video anymore, it should just tell them exactly how", and the
+   "I'm not sure" button should give them the resource. Every field that needs looking up gets `how` (the exact clicks,
+   numbered) and `example` (what the answer looks like); the form shows them in a "Show me how" drop-down. Tick boxes
+   keep their numbered `steps`, rewritten here click by click, and no field links a video any more (`loom` dropped). */
+const HOW = {
+  /* Access */
+  acc_meta: { loom: null, steps: [
+    'Open business.facebook.com/settings on a computer. If you run more than one business, pick yours at the top left.',
+    'In the left menu open Users, then Partners.',
+    'Click the blue Add button, then "Give a partner access to your assets".',
+    'Paste our Business ID (copy it below) and click Next.',
+    'Tick every asset on the list: Pages, ad accounts, pixels and datasets, Instagram accounts and catalogs. For each one, switch on Full control (the top switch).',
+    'Click Save changes. You are done: we add our team on our side, nothing else to do.'] },
+  gads_id: { how: ['Go to ads.google.com and sign in.', 'Look at the top right, next to your name: a 10-digit number in three groups.', 'If you have more than one account, click the account picker and choose the one for this brand.', 'Copy that number here.'], example: '123-456-7890' },
+  acc_gads_link: { steps: [
+    'Add your customer ID above first. We send our request from the Mobius manager account.',
+    'In Google Ads click Admin (the gear icon, left menu).',
+    'Open Access and security, then the Managers tab.',
+    'You see a request from Mobius Digital (manager ID below). Click Accept.'] },
+  acc_ga4: { steps: [
+    'Go to analytics.google.com and pick this website\'s property (top left).',
+    'Click Admin, the gear at the bottom left.',
+    'Under Property, click Property access management.',
+    'Click the blue + at the top right, then Add users.',
+    'Paste our email (copy it below), tick Administrator and click Add.'] },
+  acc_gsc: { steps: [
+    'Go to search.google.com/search-console and pick your website (top left).',
+    'Click Settings at the bottom of the left menu, then Users and permissions.',
+    'Click Add user, paste our email (below), set Permission to Full, and click Add.'] },
+  acc_clarity: { steps: [
+    'No Clarity yet? In Shopify open Apps, search the Shopify App Store for "Microsoft Clarity", install it and follow the two set-up screens.',
+    'Go to clarity.microsoft.com and open this website\'s project.',
+    'Click Settings, then Team, then Add team member.',
+    'Paste our email (below), choose Admin and click Add.'] },
+  shopify_url: { how: [
+    'Open your Shopify admin.',
+    'Click Settings at the bottom left, then Domains.',
+    'Copy the address that ends in .myshopify.com. That is the one we need, not your normal website address.',
+    'Quicker way: look at the browser address bar in your Shopify admin. It shows admin.shopify.com/store/yourstore; your address is yourstore.myshopify.com.'], example: 'yourstore.myshopify.com' },
+  shopify_code: { how: [
+    'Open your Shopify admin and click Settings at the bottom left.',
+    'Click Users (on some stores: Users and permissions).',
+    'Scroll down to Collaborators.',
+    'If it says "Anyone can send a collaborator request", leave this box empty.',
+    'If it says "Only people with a collaborator request code", copy the 4-digit code shown there.'], example: '4821' },
+  acc_shopify: { steps: [
+    'Add your store address above first. We send the request from our Shopify Partner account.',
+    'Shopify emails the store owner: open it and click Review request.',
+    'Or in Shopify go to Settings, then Users, and find the Mobius Digital request under Collaborators.',
+    'Leave the permissions as they are and click Accept access.'] },
+  acc_tw: { steps: [
+    'Go to app.triplewhale.com and pick this store at the top left.',
+    'Click the gear (Settings) at the bottom left, then Users.',
+    'Click Invite, paste each of our emails (below), set the role to Admin and send.'] },
+  acc_klaviyo: { steps: [
+    'Go to klaviyo.com and log in. If you have more than one account, switch to this brand (click your name at the bottom left).',
+    'Click your name at the bottom left, then Settings, then Users.',
+    'Click Add new user, paste our email (below), choose Admin and click Send invite.'] },
+  acc_tiktok: { steps: [
+    'Go to business.tiktok.com and open your Business Center.',
+    'Click Users at the top, then Members, then Invite member.',
+    'Paste our emails (below), choose Admin and send the invite.',
+    'Then open Assets, then Advertiser accounts, pick this brand\'s ad account, click Assign member, choose us and give Admin (or "Manage") access.'] },
+  content_link: { how: [
+    'Google Drive: right-click the folder, click Share, then Copy link. Set General access to "Anyone with the link" if it asks.',
+    'Dropbox: hover the folder, click Share, then Copy link.',
+    'Frame.io or anything else: open the share or link option on the folder and copy the link.',
+    'Paste the link here.'], example: 'https://drive.google.com/drive/folders/1AbC...' },
+  content_shared: { steps: ['Open the same folder\'s Share settings.', 'Add both of our emails (below) with Viewer access (Dropbox: Can view).', 'Click Share or Send.'] },
+  st_drive: { loom: null, steps: [
+    'Open the folder with the button below. It is called From the client.',
+    'Drag in anything we could use in ads: videos, photos, GIFs, past ads, product shots, lifestyle and model shoots, customer videos (UGC).',
+    'Sort it into folders if you can (past ads, product shoots, lifestyle, videos, UGC). It gets your ads live sooner.'] },
+  /* You and your team */
+  company: { example: 'Synergy Labs' },
+  website: { example: 'https://yourbrand.com' },
+  contact_phone: { example: '(555) 123-4567' },
+  socials: { how: ['Open each profile and copy the link from the address bar, or type the handle.'], example: 'Instagram: @yourbrand' },
+  approver: { example: 'Jane, usually the same day' },
+  /* Products */
+  best_sellers: { how: ['In Shopify open Analytics, then Reports, then "Sales by product".', 'Set the dates to the last 90 days.', 'The top 3 to 5 rows are your best sellers. Stock is on each product page under Inventory.'], example: 'Water Additive · $29.99 · 1,200 · 3 weeks · Yes' },
+  product_count: { how: ['In Shopify open Products: the count is at the bottom of the list (active products only).'], example: '36' },
+  /* Numbers */
+  ad_spend: { how: ['Meta: in Ads Manager set the dates to Last 30 days and read "Amount spent" at the bottom of the Campaigns table.', 'Google: in Google Ads, Campaigns, Last 30 days, the Cost total.', 'Add the platforms together.'], example: '8000' },
+  aov: { how: ['In Shopify open Analytics, set the dates to the last 90 days.', 'Read the "Average order value" card. No card? Divide total sales by orders for the same dates.'], example: '42.50' },
+  cogs: { how: ['What you pay your supplier for the products in one average order, delivered to you (landed).', 'Shopify shows it if you filled in "Cost per item" on each product: Analytics, Reports, "Profit by product".'], example: '11.00' },
+  ship_cost: { how: ['What you pay the carrier and the warehouse for one average order. Your 3PL or carrier invoice divided by orders shipped.'], example: '6.50' },
+  target_cpa: { example: '20' },
+  /* Offers */
+  codes: { how: ['In Shopify open Discounts: every active code is listed with its value.'], example: 'WELCOME15: 15% off first order' },
+  free_ship: { how: ['In Shopify open Settings, then Shipping and delivery, then your shipping zone: look for a free rate with a minimum order.'], example: '50' },
+  key_dates: { example: 'Nov 27: Black Friday sale\nFeb 1: new flavour launch' },
+  /* Customers */
+  persona_doc: { how: ['Open the doc, click Share, set General access to "Anyone with the link", then Copy link.'], example: 'https://docs.google.com/document/d/...' },
+  faqs: { how: ['Look at your customer service inbox, product reviews and Instagram comments for the questions that come up again and again.'] },
+  /* Brand */
+  brand_guide: { how: ['A PDF or doc with your logo rules, colours and fonts. No guide? Skip it and add the logo, fonts and colours below.'] },
+  logo: { how: ['A PNG with a transparent background, at least 1200px wide, or the EPS/SVG from your designer.'] },
+  fonts: { how: ['Ask your designer, or open your website, right-click a heading, choose Inspect and look for font-family.'], example: 'Headers: Montserrat Bold' },
+  colors: { how: ['Ask your designer, or use a free colour picker browser extension on your website.'], example: '#13202B' },
+  press: { example: 'https://www.forbes.com/...' },
+  /* Competitors and content */
+  best_posts: { how: ['Instagram: open the post, tap the three dots, then Copy link.', 'TikTok: open the video, tap Share, then Copy link.', 'Paste one link per line.'], example: 'https://www.instagram.com/p/C1a2B3c4D5e/' },
+  worst_posts: { how: ['Same as above: open the post, three dots or Share, Copy link. One per line.'], example: 'https://www.tiktok.com/@yourbrand/video/7301234567890' },
+  best_ads: { how: ['In Meta Ads Manager tick the ad, click Preview (the eye icon), then Share and Copy link.', 'Or find it in the Meta Ad Library (facebook.com/ads/library) and copy that link.', 'One per line.'], example: 'https://fb.me/adspreview/...' },
+  reviews_tool: { how: ['In Shopify open Apps: your reviews app is in the list (Judge.me, Okendo, Yotpo, Loox, Stamped).'], example: 'Judge.me' },
+  strategy_doc: { how: ['Open the doc, click Share, set General access to "Anyone with the link", then Copy link.'] },
+};
+for (const s of STEPS) for (const f of s.fields) if (HOW[f.id]) { Object.assign(f, HOW[f.id]); if (f.loom === null) delete f.loom; }
 
 /* Break-even per order = AOV minus product cost minus shipping you pay. */
 function calc(id, a) {

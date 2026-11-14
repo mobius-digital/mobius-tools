@@ -97,7 +97,7 @@ textarea.in{min-height:90px;resize:vertical}
 </head>
 <body>
 <div class="wrap" id="app"><div class="center"><p class="note">Loading your form…</p></div></div>
-<script src="questions.js?v=12"></script>
+<script src="questions.js?v=13"></script>
 <script>
 'use strict';
 (function () {
@@ -110,7 +110,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const money = n => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(n);
 
-const St = { brand: '', links: {}, answers: {}, prefill: {}, step: 0, status: '', dirty: {}, saving: false, done: false };
+const St = { brand: '', links: {}, answers: {}, prefill: {}, step: 0, status: '', dirty: {}, saving: false, done: false, open: new Set() };
 
 async function boot() {
   if (!TOKEN) return fatal('This link is missing its code. Ask your Mobius contact for your onboarding link.');
@@ -155,15 +155,17 @@ function fieldHtml(f) {
   const sug = (v == null || v === '') && St.prefill[f.id] != null ? St.prefill[f.id] : null;
   let body = '';
   const val = unsure ? '' : v;
+  /* `example` (questions.js HOW) shows inside the empty box, so they see what an answer looks like before they type. */
+  const ph = f.example ? ` placeholder="e.g. ${esc(String(f.example).split(/\n/)[0])}"` : '';
   if (f.calc) body = `<div class="calc" id="calc_${f.id}"></div>`;
-  else if (f.type === 'long') body = `<textarea class="in" id="f_${f.id}" rows="4">${esc(val ?? '')}</textarea>`;
-  else if (f.type === 'money') body = `<div class="money"><span>$</span><input class="in" id="f_${f.id}" inputmode="decimal" value="${esc(val ?? '')}"></div>`;
+  else if (f.type === 'long') body = `<textarea class="in" id="f_${f.id}" rows="4"${ph}>${esc(val ?? '')}</textarea>`;
+  else if (f.type === 'money') body = `<div class="money"><span>$</span><input class="in" id="f_${f.id}" inputmode="decimal" value="${esc(val ?? '')}"${ph}></div>`;
   else if (f.type === 'yesno') body = `<div class="yn" id="f_${f.id}"><button type="button" data-yn="yes" class="${val === 'yes' ? 'on' : ''}">Yes</button><button type="button" data-yn="no" class="${val === 'no' ? 'on' : ''}">No</button></div>`;
   else if (f.type === 'check' && f.auto) body = `<div class="check"><input type="checkbox" id="f_${f.id}" ${val === true ? 'checked' : ''} disabled aria-readonly="true"><span class="help" id="st_${f.id}">${val === true ? '<b style="color:var(--good)">Done.</b>' : esc(f.help || '')}</span></div>${howto(f)}`;
   else if (f.type === 'check') body = `<div class="check"><input type="checkbox" id="f_${f.id}" ${val === true ? 'checked' : ''}><span class="help">${esc(f.help || 'Tick when done.')}</span></div>${howto(f)}`;
   else if (f.type === 'list') body = `<div class="list" id="f_${f.id}"></div><button type="button" class="btn sm" data-add="${f.id}" style="margin-top:8px">+ Add a row</button>`;
   else if (f.type === 'file') body = `<div class="files" id="files_${f.id}"></div><input type="file" id="f_${f.id}" class="in" style="padding:8px">`;
-  else body = `<input class="in" id="f_${f.id}" type="${f.type === 'email' ? 'email' : f.type === 'url' ? 'url' : 'text'}" value="${esc(val ?? '')}" ${f.type === 'number' ? 'inputmode="numeric"' : ''}>`;
+  else body = `<input class="in" id="f_${f.id}" type="${f.type === 'email' ? 'email' : f.type === 'url' ? 'url' : 'text'}" value="${esc(val ?? '')}" ${f.type === 'number' ? 'inputmode="numeric"' : ''}${ph}>`;
   const sugText = sug == null ? '' : Array.isArray(sug) ? sug.map(r => Object.values(r).filter(Boolean).join(' · ')).join('\n') : String(sug);
   return `<div class="q" data-q="${f.id}">
     <label class="l" for="f_${f.id}">${esc(f.label)}</label>
@@ -171,8 +173,20 @@ function fieldHtml(f) {
     ${body}
     ${sug != null ? `<div class="sug"><b>From your website:</b> <span style="white-space:pre-wrap">${esc(sugText)}</span><br><button type="button" class="btn sm" data-use="${f.id}">Use this</button></div>` : ''}
     ${unsure ? `<div class="sug" style="margin-top:8px">No problem. We will find this ourselves or ask you on the strategy call. Want an answer now? Use "Stuck on a question?" at the bottom of this step.</div>` : ''}
-    ${f.calc || f.type === 'check' ? '' : `<div class="foot"><span></span><button type="button" class="unsure ${unsure ? 'on' : ''}" data-unsure="${f.id}">${unsure ? 'Marked "not sure". Tap to undo.' : "I'm not sure"}</button></div>`}
+    ${f.calc || f.type === 'check' ? '' : showHow(f, unsure)}
   </div>`;
+}
+/* "Show me how" (Cole, 2026-11-13): the button under a question opens the exact clicks and what the answer looks
+   like, right there. A question with nothing to look up keeps "I'm not sure". Either way they can still leave it for
+   the call. Open drop-downs stay open across a redraw (St.open). */
+function showHow(f, unsure) {
+  const undo = `<button type="button" class="unsure on" data-unsure="${f.id}">Marked "not sure". Tap to undo.</button>`;
+  if (!f.how && !(f.example && f.type === 'list')) return `<div class="foot"><span></span>${unsure ? undo : `<button type="button" class="unsure" data-unsure="${f.id}">I'm not sure</button>`}</div>`;
+  const open = St.open.has(f.id);
+  const ex = f.example ? `<p class="note" style="margin:8px 0 0">Looks like: <code style="white-space:pre-wrap">${esc(f.example)}</code></p>` : '';
+  return `<div class="foot"><span></span>${unsure ? undo : `<button type="button" class="unsure" data-showhow="${f.id}" aria-expanded="${open}">${open ? 'Hide the steps' : 'Show me how'}</button>`}</div>
+    <div class="howto" id="hw_${f.id}" ${open && !unsure ? '' : 'hidden'}>${f.how ? `<ol>${f.how.map(x => `<li>${esc(x)}</li>`).join('')}</ol>` : ''}${ex}
+      <p class="note" style="margin:10px 0 0">Still not sure? <button type="button" class="unsure" data-unsure="${f.id}" style="display:inline">Leave it, ask me on the call</button></p></div>`;
 }
 /* A tick on an access step is the EVENT that makes Locus look right away (account-health connect.js: Meta assigns our
    team, Google links the property, a Google Ads ID gets the manager request). Only once the brand exists in Locus. */
@@ -187,7 +201,7 @@ function howto(f) {
   if (!f.steps && !f.copy && !f.loom && !f.go && !f.link) return '';
   const link = f.link && St.links[f.link];
   const LABEL = { sign: 'Read and sign the agreement', invoice: 'Open the invoice', drive: 'Open your Google Drive folder', connect: 'Open your connect page' };
-  const go = [...(f.go || []), ...(link ? [[LABEL[f.link] || 'Open', link]] : []), ...(f.loom ? [['Watch the short video', f.loom]] : [])];
+  const go = [...(f.go || []), ...(link ? [[LABEL[f.link] || 'Open', link]] : [])];
   return `<div class="howto">
     ${f.steps ? `<ol>${f.steps.map(x => `<li>${esc(x)}</li>`).join('')}</ol>` : ''}
     ${f.copy ? `<div class="cp">${f.copy.map(([l, v]) => `<button type="button" data-copy="${esc(v)}" title="Copy"><small>${esc(l)}</small><b>${esc(v)}</b><span class="note">Copy</span></button>`).join('')}</div>` : ''}
@@ -271,6 +285,11 @@ function wire(s) {
     setTimeout(() => { t.textContent = 'Copy'; }, 1800);
   });
   document.querySelectorAll('[data-add]').forEach(b => b.onclick = () => document.getElementById('f_' + b.dataset.add)._add());
+  document.querySelectorAll('[data-showhow]').forEach(b => b.onclick = () => {
+    const id = b.dataset.showhow, box = document.getElementById('hw_' + id); if (!box) return;
+    const open = box.hidden; box.hidden = !open; b.setAttribute('aria-expanded', String(open)); b.textContent = open ? 'Hide the steps' : 'Show me how';
+    if (open) St.open.add(id); else St.open.delete(id);
+  });
   document.querySelectorAll('[data-unsure]').forEach(b => b.onclick = () => {
     const id = b.dataset.unsure;
     setAnswer(id, St.answers[id] === '__unsure' ? '' : '__unsure');
