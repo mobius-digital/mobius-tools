@@ -74,7 +74,8 @@ import { handleBrandAsana, handleAsanaHook, brandAsanaTick, unifyGoals, mondayTi
 import { ideaStart, runIdeaJob, handleIdeaAction, adminIdea, useExits, useFetch as ideasFetch } from './ideas.js';
 import { handleAtria, useFetch as atriaFetch } from './atria.js';
 import { handleMcp } from './mcp.js';
-import { handleNewClient, newClientTick, handleStripeWebhook, welcomeOnJoinByChannel, handleNewClientAction, onCallBooked, useFetch as newClientFetch } from './newclient.js';
+import { handleNewClient, newClientTick, handleStripeWebhook, welcomeOnJoinByChannel, handleNewClientAction, onCallBooked, useFetch as newClientFetch, markShopifySent } from './newclient.js';
+import { todoList, todoSkip } from './todo.js';
 import { handleCalendly, useFetch as calendlyFetch } from './calendly.js';
 import { useFetch as mailFetch } from './mail.js';
 import { handleSign, useFetch as contractFetch } from './contract.js';
@@ -8684,6 +8685,10 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       /* Access checks: Meta permissions per ad account, the app in each brand channel; grant Manage to itself (metaaccess.js). */
       /* Connect links for every live brand: what is missing and the link to send (connect.js). */
       if (path === '/api/ask/connect') return json(await connectOverview(env, 'https://tools.go-mobius-digital.com'));
+      /* You need to do (todo.js): every onboarding step on Mobius, per brand, cleared live when done. */
+      if (path === '/api/ask/todo' && request.method === 'GET') return json(await todoList(env, url.searchParams.get('act')));
+      if (path === '/api/ask/todo/shopify-sent' && request.method === 'POST') { const o = await markShopifySent(env, String(body.run || '')); return o.error ? json(o, 404) : json(o); }
+      if (path === '/api/ask/todo/skip' && request.method === 'POST') { try { return json(await todoSkip(env, body.run, String(body.key || ''))); } catch (e) { return json({ error: e.message }, e.status || 500); } }
       /* Check now (Cole's button): every look at once, for one brand or all. */
       if (path === '/api/ask/connect/check') return json(await connectNow(env, 'all', body.act || null));
       if (path === '/api/ask/access' && request.method === 'POST' && (body.sweep || body.dry)) return json(await partnerSweep(env, idxDeps(), { dry: !!body.dry }));

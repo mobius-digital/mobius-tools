@@ -132,7 +132,9 @@ export async function partnerSweep(env, deps, { dry = false, canAfford = () => t
       if (!canAfford()) { out.stopped = 'budget'; return out; }
       const cur = seen.get(a.id) || await graph(deps, env, `${a.id}/assigned_users`, { business: MOBIUS_BM, fields: 'id,name', limit: '200' });
       /* Pages need pages_manage_metadata on the Mobius Tools token; until it has it, say so once, not per Page. */
-      if (cur.error && /pages_manage_metadata/.test(cur.error.message)) { out.errors.push('Pages: the Mobius Tools token needs the pages_manage_metadata permission (Business settings > System users > Mobius Tools > Generate new token, tick it). Until then assign Pages by hand.'); break; }
+      /* 2026-11-13: most Pages DO assign now; only some refuse. Name the Page and keep going (a `break` here skipped
+         every Page after the first refusal, so new clients' Pages never got the team). */
+      if (cur.error && /pages_manage_metadata/.test(cur.error.message)) { out.assets.push({ kind: K.kind, id: a.id, name: a.name, error: 'Meta refused (pages_manage_metadata): assign this Page by hand in Business settings > Pages.' }); continue; }
       if (cur.error) { out.assets.push({ kind: K.kind, id: a.id, name: a.name, error: cur.error.message }); continue; }
       const have = new Set((cur.data || []).map(u => String(u.id)));
       seen.delete(a.id);
