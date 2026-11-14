@@ -14,6 +14,9 @@
  *   GET  /api/amb/discord?act=            what is connected: bot, server, channels, invite, look
  *   PUT  /api/amb/discord/token {token}   store the agency bot token (checked with one real call)
  *   PUT  /api/amb/discord/server {act, guild_id}   which server is this brand's (the bot must be in it)
+ *   POST /api/amb/discord/create {act, name?}      the bot makes the server; answer has an invite for the owner
+ *   PUT  /api/amb/discord/owner {act, user_id | like_act}   hand a bot-made server to a person in it
+ *   POST /api/amb/discord/quiet {act}              only @mentions notify (build does this too)
  *   PUT  /api/amb/discord/look {act, mascot, avatar, emoji, color, icon}   save the look and apply it
  *   POST /api/amb/discord/build {act, core, vip}   make the roles, channels and first posts; safe to run twice
  *   GET  /api/amb/discord/messages?act=&channel=questions&limit=50   recent messages, oldest first
@@ -25,6 +28,7 @@ const safeJson = (s, fb) => { try { return s ? JSON.parse(s) : fb; } catch { ret
 const noDash = s => String(s || '').replace(/\s*[—–]\s*/g, ', ');
 const VIEW = 1024n, SEND = 2048n, CONNECT = 1048576n;
 const HEX = /^#[0-9a-f]{6}$/i;
+const QUIET = 1;   // Discord default_message_notifications: 1 = only @mentions
 const VIP_GOLD = 0xF1C40F;
 
 async function doc(env, act) {
@@ -144,6 +148,11 @@ async function build(env, token, act, d, brand, opt) {
   const look = lookOf(d, brand.row);
   const colorInt = parseInt(look.color.slice(1), 16);
   const notes = [];
+  /* Quiet by default (Cole 2026-11-13): members get a notification only when someone tags them, not for every post. */
+  if (d.notify_set !== QUIET) {
+    try { await dc(token, 'PATCH', `/guilds/${g}`, { default_message_notifications: QUIET }); d.notify_set = QUIET; }
+    catch (e) { notes.push(`Notifications: ${e.message}`); }
+  }
   /* Server picture and the bot's name (and picture) in this server. */
   if (look.icon && d.icon_set !== look.icon) {
     try { await dc(token, 'PATCH', `/guilds/${g}`, { icon: await dataUri(look.icon) }); d.icon_set = look.icon; }
@@ -250,6 +259,36 @@ export async function handleDiscord(request, env, url, path, body, json, mustAcc
     const b = await env.DB.prepare(`SELECT slug, display_name, accent, logo_url, checklist_json FROM p_amb_brand WHERE act_id = ?1`).bind(acct.act_id).first().catch(() => null);
     if (path === '/api/amb/discord' && method === 'GET') return json(pub(d, token, agency?.bot, b));
     if (!token) return json({ error: 'Add the Discord bot token first.' }, 400);
+    /* Make the brand's server from Locus (2026-11-13): the bot creates "<Brand> Creators" and owns it until
+       PUT /api/amb/discord/owner hands it to a person who has joined (the invite in the answer). Then build. */
+    if (path === '/api/amb/discord/create' && method === 'POST') {
+      if (d.guild_id) return json({ error: 'This brand already has a server.' }, 400);
+      const name = noDash(body.name || `${(b && b.display_name) || acct.name} Creators`).slice(0, 100);
+      const g = await dc(token, 'POST', '/guilds', { name, default_message_notifications: QUIET });
+      const chans = await dc(token, 'GET', `/guilds/${g.id}/channels`);
+      const text = (chans || []).find(c => c.type === 0);
+      const iv = text ? await dc(token, 'POST', `/channels/${text.id}/invites`, { max_age: 86400, max_uses: 5, unique: true }) : null;
+      const next = { guild_id: g.id, guild_name: g.name, core: d.core || '', vip: d.vip || '', look: d.look, notify_set: QUIET };
+      await putDoc(env, acct.act_id, next);
+      return json({ ok: true, guild_id: g.id, owner_invite: iv ? `https://discord.gg/${iv.code}` : null, ...pub(next, token, agency?.bot, b) });
+    }
+    /* Hand a bot-made server to a person (they must be in it). user_id omitted = the owner of another brand's server. */
+    if (path === '/api/amb/discord/owner' && method === 'PUT') {
+      if (!d.guild_id) return json({ error: 'Pick this brand\'s Discord server first.' }, 400);
+      let uid = String(body.user_id || '').trim();
+      if (!uid && body.like_act) { const o = await doc(env, String(body.like_act)); if (o && o.guild_id) uid = (await dc(token, 'GET', `/guilds/${o.guild_id}`)).owner_id; }
+      if (!/^\d{15,22}$/.test(uid)) return json({ error: 'Give user_id, or like_act for a brand whose owner should own this one too.' }, 400);
+      await dc(token, 'GET', `/guilds/${d.guild_id}/members/${uid}`);   // 404 when they have not joined yet
+      const g = await dc(token, 'PATCH', `/guilds/${d.guild_id}`, { owner_id: uid });
+      return json({ ok: true, owner_id: g.owner_id });
+    }
+    /* Only @mentions notify, for a server built before that was part of build. */
+    if (path === '/api/amb/discord/quiet' && method === 'POST') {
+      if (!d.guild_id) return json({ error: 'Pick this brand\'s Discord server first.' }, 400);
+      const g = await dc(token, 'PATCH', `/guilds/${d.guild_id}`, { default_message_notifications: QUIET });
+      d.notify_set = QUIET; await putDoc(env, acct.act_id, d);
+      return json({ ok: true, default_message_notifications: g.default_message_notifications });
+    }
     if (path === '/api/amb/discord/server' && method === 'PUT') {
       const gid = String(body.guild_id || '').trim();
       if (!/^\d{15,22}$/.test(gid)) return json({ error: 'A server id is a long number. In Discord: right-click the server, Copy Server ID.' }, 400);
