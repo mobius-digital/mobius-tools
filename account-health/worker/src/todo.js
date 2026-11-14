@@ -41,7 +41,7 @@ async function runItems(env, r) {
   const store = st.shopify_ping?.store || (m ? `${m[1].toLowerCase()}.myshopify.com` : null);
   const code = String(ans.shopify_code || '').trim();
   if (store && !st.shopify_ping?.sent)
-    out.push({ key: 'shopify', kind: 'shopify', run: r.id, url: 'https://partners.shopify.com/organizations', text: `Send the Shopify collaborator request for ${store}`, why: `Partners > Stores > Add store > Request access, paste ${store}${code && code !== '__unsure' ? ` and the code ${code}` : ''}. Then press I sent it: Locus asks them to approve.` });
+    out.push({ key: 'shopify', kind: 'shopify', run: r.id, url: 'https://partners.shopify.com/organizations', text: `Send the Shopify collaborator request for ${store}`, why: `Partners > Stores > Add store > Request access, paste ${store}${code && code !== '__unsure' ? ` and the code ${code}` : ''}, tick every permission (full access). Then press I sent it: Locus asks them to approve.` });
   return out;
 }
 
