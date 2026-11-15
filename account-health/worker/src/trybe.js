@@ -644,6 +644,29 @@ export function followText(kind, first, brand, x, seed) {
   const base = pickBy(FOLLOW_TEXT[kind], seed)(first, brand, x);
   return noDash(x.join ? `${base}\n\n${pickBy(DC_ASK, seed + 'dc')(x.join)}` : base);
 }
+/* Who is not in the Discord yet (Cole 2026-11-15: "we need more people"). Active = a video submitted in the last 60
+   days, or a sample with a video still owed or due in the last 60 days. Dormant sign-ups are counted, not listed. */
+export async function discordGap(env, d, act, { today } = {}) {
+  await ensureTrybe(env); await ensureDcTables(env);
+  today = today || (d.centralDate ? d.centralDate() : new Date().toISOString().slice(0, 10));
+  const k = await keyFor(env, act);
+  if (!k || !k.key) throw new Error('No Trybe key for this brand yet.');
+  const roster = await pages(d, k.key, '/creators', {}, 10);
+  const inDc = new Set(((await env.DB.prepare(`SELECT creator_id FROM p_dc_member WHERE act_id = ?1 AND removed_at IS NULL`).bind(act).all()).results || []).map(r => r.creator_id));
+  const last = new Map();
+  for (const s of (await env.DB.prepare(`SELECT creator_id, created_at FROM p_trybe_sub WHERE act_id = ?1`).bind(act).all()).results || [])
+    if (s.created_at && (!last.has(s.creator_id) || s.created_at > last.get(s.creator_id))) last.set(s.creator_id, s.created_at);
+  const out = { act, today, roster: roster.length, in_discord: 0, active: 0, active_not_in: [], dormant_not_in: 0 };
+  for (const c of roster) {
+    if (inDc.has(c.id)) { out.in_discord++; continue; }
+    const sub = last.get(c.id), ob = c.samples && c.samples.obligation;
+    const isActive = (sub && daysBetween(day(sub), today) <= 60) || (ob && ob.due_at && daysBetween(day(ob.due_at), today) <= 60);
+    if (isActive) out.active_not_in.push({ creator_id: c.id, name: c.name, last_video: sub ? day(sub) : null, sample_due: ob && ob.due_at ? day(ob.due_at) : null });
+    else out.dormant_not_in++;
+  }
+  out.active = out.active_not_in.length + [...inDc].length;
+  return out;
+}
 export async function trybeFollowups(env, d, act, { today } = {}) {
   await ensureTrybe(env);
   today = today || (d.centralDate ? d.centralDate() : new Date().toISOString().slice(0, 10));
@@ -1479,6 +1502,7 @@ export async function handleTrybe(request, env, url, path, json, h) {
         .bind(`manual:${crypto.randomUUID()}`, meta?.meta_act || act, new Date().toISOString(), `Trybe video ${verb === 'approve' ? 'approved' : verb === 'reject' ? 'rejected' : 'sent back for changes'}${comment ? `: ${clip(comment, 120)}` : ''}`, `${who} in Locus`, id).run().catch(() => {});
       return json({ ok: true, id, status: j?.status || null });
     }
+    if (path === '/api/trybe/discord-gap' && request.method === 'GET') return json(await discordGap(env, d, act));
     if (path === '/api/trybe/followups' && request.method === 'GET') return json(await trybeFollowups(env, d, act));
     /* Recuts v2 (2026-11-06): the month's picks, one card's brief, the one Slack line. The page makes the cards
        through /api/production/brief + /api/production/save, so the pipeline (and its Asana mirror) works as always. */
