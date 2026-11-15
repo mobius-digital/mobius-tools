@@ -127,10 +127,13 @@ export async function handleShopifyApp(request, env, url, { F = fetch } = {}) {
     const shop = String(url.searchParams.get('shop') || '').toLowerCase();
     const frame = `frame-ancestors ${SHOP_RE.test(shop) ? `https://${shop} ` : ''}https://admin.shopify.com;`;
     if (!env.SHOPIFY_API_KEY) return new Response('The app is being set up. Please try again shortly.', { status: 200, headers: { 'Content-Type': 'text/plain' } });
-    /* A store opening the app before it has a saved token (a fresh install): straight to the classic install, through
-       App Bridge's top-level open so it leaves the admin frame. */
+    /* A store opening the app before it has a saved token (a fresh install): straight to the classic install. Outside
+       the admin frame (Shopify's install opens the app URL top-level, no `embedded=1`) that is a plain 302, which is
+       what Shopify's "immediately authenticates after install" check wants (2026-11-15: an HTML page that redirects
+       in the browser failed it). Inside the frame it has to be App Bridge's top-level open. */
     if (SHOP_RE.test(shop) && !(await storedToken(env, shop))) {
       const go = `${url.origin}/shopify/install?shop=${encodeURIComponent(shop)}`;
+      if (url.searchParams.get('embedded') !== '1') return Response.redirect(go, 302);
       return new Response(`<!doctype html><html><head><meta charset="utf-8"><meta name="shopify-api-key" content="${env.SHOPIFY_API_KEY}"><script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script></head><body style="font:14px sans-serif;padding:24px">Connecting your store to Mobius Digital...<script>open(${JSON.stringify(go)},'_top');</script></body></html>`,
         { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': frame, 'Cache-Control': 'no-store' } });
     }

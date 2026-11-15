@@ -38,7 +38,11 @@ await ok('session token: good passes, wrong secret / app / shop / expired refuse
 });
 await ok('the page: App Bridge, the key, frame-ancestors for the shop and the admin; no token = install first', async () => {
   rows[SHOP] = null;
-  const pre = await call(`/shopify/app?shop=${SHOP}`);
+  // Top-level (Shopify's install / the automated check): a plain 302 to the install, no HTML.
+  const top = await call(`/shopify/app?shop=${SHOP}&hmac=x&timestamp=1`);
+  assert.equal(top.status, 302); assert.match(top.headers.get('Location'), /shopify\/install\?shop=test-store/);
+  // Inside the admin frame: App Bridge top-level open.
+  const pre = await call(`/shopify/app?shop=${SHOP}&embedded=1`);
   assert.match(await pre.text(), /shopify\/install\?shop=test-store/);
   rows[SHOP] = { access_token: 'tok' };
   const r = await call(`/shopify/app?shop=${SHOP}`);

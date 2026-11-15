@@ -3597,6 +3597,13 @@ tokens, billing, test credentials. Fixes and the resubmission text: `docs/shopif
 - The old public `?store=` report (`/api/store-view`) answers plain sentences instead of raw Shopify errors.
 - The two stores in p_shopify on 2026-10-17 ("Dlwlrma Store", "OFS Signature Looks") were Shopify's REVIEWERS; never link
   them to a brand. Clients can install only after the review passes.
+- **2026-11-15: the Oct 18 TOML was never `shopify app deploy`ed.** The live version (mobius-profit-8) still had
+  embedded false, application_url /shopify/install and 4 scopes while the worker asked for 6, so Shopify's automated
+  install check failed with `oauth_error=application_cant_be_loaded_misconfigured` and the resubmission sat as a Draft
+  for 4 weeks. Released mobius-profit-9 from the TOML. **After any TOML edit, deploy it and read the active version
+  back in the Dev Dashboard (Versions).** Same day: Shopify's "immediately authenticates after install" check opens the
+  app URL top-level (hmac + timestamp, no `embedded=1`) and wants an HTTP redirect to the grant screen, so `/shopify/app`
+  with no saved token now 302s to /shopify/install unless `embedded=1` (then App Bridge's top-level open as before).
 
 ## 2026-10-19: Goal / break-even / real table (`goalsGlance` in index.html)
 
