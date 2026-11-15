@@ -3601,9 +3601,17 @@ tokens, billing, test credentials. Fixes and the resubmission text: `docs/shopif
   embedded false, application_url /shopify/install and 4 scopes while the worker asked for 6, so Shopify's automated
   install check failed with `oauth_error=application_cant_be_loaded_misconfigured` and the resubmission sat as a Draft
   for 4 weeks. Released mobius-profit-9 from the TOML. **After any TOML edit, deploy it and read the active version
-  back in the Dev Dashboard (Versions).** Same day: Shopify's "immediately authenticates after install" check opens the
-  app URL top-level (hmac + timestamp, no `embedded=1`) and wants an HTTP redirect to the grant screen, so `/shopify/app`
-  with no saved token now 302s to /shopify/install unless `embedded=1` (then App Bridge's top-level open as before).
+  back in the Dev Dashboard (Versions).**
+- **2026-11-15: MANAGED INSTALL + TOKEN EXCHANGE (mobius-profit-10). Supersedes "use_legacy_install_flow must be TRUE".**
+  Shopify's "immediately authenticates after install" check expects its own grant screen (`/app/grant`); with the legacy
+  flow its install link died (`failed_grant_with_invalid_scopes`) or landed in the framed app, and no redirect trick from
+  /shopify/app passed. Now `use_legacy_install_flow = false`: Shopify shows the grant from the TOML scopes and opens the
+  embedded app; `/shopify/app/api/report` swaps the session token for an OFFLINE token (`exchangeToken`) when the store
+  has none or its token is dead, and saves it through `saveShopToken` (worker.js; the classic callback uses the same
+  helper, and keeps a manual act_id mapping). `/shopify/app` opened top-level redirects into `admin/apps/<key>`.
+  `app/uninstalled` is in the TOML now (allowed without the legacy flow), so the callback no longer registers it per shop.
+  Verified on our dev store Quickstart (f7ea6f9b): Shopify's install link -> grant -> app opens -> token saved.
+  /shopify/install + /shopify/callback still work for a direct link.
 
 ## 2026-10-19: Goal / break-even / real table (`goalsGlance` in index.html)
 

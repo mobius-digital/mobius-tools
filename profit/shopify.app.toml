@@ -33,6 +33,11 @@ embedded = true
 [webhooks]
 api_version = "2026-07"
 
+  # Allowed here since use_legacy_install_flow = false (2026-11-15); before that it was registered per shop.
+  [[webhooks.subscriptions]]
+  uri = "https://mobius-profit.mobius-digital.workers.dev/shopify/webhooks/app/uninstalled"
+  topics = [ "app/uninstalled" ]
+
   [[webhooks.subscriptions]]
   uri = "https://mobius-profit.mobius-digital.workers.dev/shopify/webhooks/customers/data_request"
   compliance_topics = [ "customers/data_request" ]
@@ -52,9 +57,11 @@ api_version = "2026-07"
 scopes = "read_orders,read_customers,read_products,read_reports,write_products,write_discounts"
 optional_scopes = [ ]
 
-# true = classic OAuth (authorization code grant), which is what the worker does.
-# false turns on Shopify managed installation, which is embedded-app only.
-use_legacy_install_flow = true
+# false = Shopify MANAGED installation (2026-11-15): Shopify shows the grant screen from these scopes, then opens the
+# embedded app, which swaps its session token for an offline token (token exchange, worker/src/shopifyapp.js). The
+# classic grant (true) failed Shopify's "immediately authenticates after install" check. /shopify/install and
+# /shopify/callback still work for a direct link.
+use_legacy_install_flow = false
 
 [auth]
 redirect_urls = [ "https://mobius-profit.mobius-digital.workers.dev/shopify/callback" ]
