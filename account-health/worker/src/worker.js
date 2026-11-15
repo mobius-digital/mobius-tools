@@ -98,7 +98,7 @@ import { handleBuyer, buyerPostTick, buyerSettings } from './buyerlist.js';
 import { buyerAITick } from './buyerai.js';
 import { handleTrybe, trybeTick, handleTrybeJoin, discordWelcomeTick } from './trybe.js';
 import { handleLucky } from './lucky.js';
-import { dataTools } from './stratdata.js';
+import { dataTools, twSql } from './stratdata.js';
 import { extraTools } from './allwrite.js';
 import { runStudioMake, studioMakeTools } from './studiomake.js';
 /* /api/tw-day's 60-second memo (2026-10-26, Locus speed): key = brand | shop | day -> { at, p }. */
@@ -2313,6 +2313,25 @@ function goalsFor(acct, ym) {
 function twDay(piv, date, ids) { for (const id of ids) { const v = piv[id]?.[date]; if (v != null) return v; } return null; }
 
 /** Forecast vs actual for every day of `upTo`'s month (forecast-only rows after upTo). */
+/** Amazon orders that came in through Shopify (or a native Amazon connection), per day, from Triple Whale's order table.
+ *  Sales = product sales after discounts plus shipping charged, i.e. the brief's sales line before tax. Cached 6 hours in
+ *  settings `amzDays:<act>`; a brand with no Amazon at all is remembered as such so it costs one query a day. */
+async function amazonDays(env, acct, from, to) {
+  if (!acct.tw_shop || !env.TW_API_KEY) return null;
+  const key = `amzDays:${acct.act_id}`;
+  const c = safeJson(await getSetting(env, key), null);
+  if (c && c.from <= from && c.to >= to && Date.now() - c.at < (c.none ? 864e5 : 6 * 36e5)) return c.none ? null : c.days;
+  const r = await twSql(env, { xfetch }, { shop: acct.tw_shop, from, to,
+    sql: `SELECT toString(event_date) AS d, uniq(order_id) AS orders, sum(gross_product_sales - discount_amount_for_product + shipping_price) AS sales
+      FROM orders_table WHERE event_date BETWEEN @startDate AND @endDate AND (source_name = 'amazon' OR platform = 'amazon') GROUP BY d` });
+  if (r.error || !Array.isArray(r.rows)) return null;
+  const days = {};
+  for (const x of r.rows) if (+x.orders > 0) days[String(x.d).slice(0, 10)] = { orders: +x.orders, sales: Math.round(+x.sales * 100) / 100 };
+  const none = !Object.keys(days).length;
+  await putSetting(env, key, JSON.stringify({ from, to, at: Date.now(), none, days }));
+  return none ? null : days;
+}
+
 async function briefData(env, acct, upTo) {
   const ym = monthOf(upTo);
   const dim = daysInMonth(upTo);
@@ -2471,6 +2490,11 @@ async function briefData(env, acct, upTo) {
     a.issues = dayIssues(piv, meta, date, sp);
     days.push({ date, f, a });
   }
+  /* Amazon sold THROUGH Shopify (Floyd, 2026-11-15): Bonk's Amazon orders land in Shopify with source_name 'amazon', so
+     they sit inside the day's sales with no split. Read from Triple Whale's order table for the last few days only (the
+     client thread shows one day); goes to Locus's own Shopify app once it is approved. Null = no Amazon that day. */
+  const amz = await amazonDays(env, acct, addDays(upTo, -3), upTo).catch(() => null);
+  if (amz) for (const x of days) if (x.a && amz[x.date]) x.a.amazon = amz[x.date];
 
   const done = days.filter(x => x.date <= upTo && x.a);
   const sum = (list, get) => { let s = 0, any = false; for (const x of list) { const v = get(x); if (v != null) { s += v; any = true; } } return any ? s : null; };
@@ -3380,6 +3404,7 @@ function clientDailyThreadFor(acct, date, data) {
   return dailyThread({
     date, currency: acct.currency, cm_ok: !!q && q !== 'broken' && q !== 'none',
     day: { sales: a.sales, orders: a.orders ?? null, new_orders: a.new_orders ?? null, new_rev: a.new_rev ?? null, ret_rev: a.ret_rev ?? null, cm: a.cm ?? null,
+      amazon: a.amazon ?? null,
       attr: !!a.attr_source,
       channels: [{ name: 'Meta', spend: a.meta_spend, roas: a.meta_roas, purchases: a.meta_purchases }, { name: 'Google', spend: a.google_spend, roas: a.google_roas, purchases: a.google_purchases }] },
   });

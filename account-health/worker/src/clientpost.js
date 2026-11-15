@@ -108,6 +108,8 @@ export function dailyThread({ date, currency = 'USD', day = {}, cm_ok = false })
   const L = [`*More on ${dayLabel(date)}*`];
   if (day.orders != null) L.push(`• Orders: *${whole(day.orders)}*${day.new_orders != null ? ` (${whole(day.new_orders)} from new customers)` : ''}${day.orders > 0 && day.sales != null ? `, average order ${money(day.sales / day.orders, currency)}` : ''}`);
   if (day.new_rev != null && day.ret_rev != null) L.push(`• Sales from new customers: *${money(day.new_rev, currency)}*, returning *${money(day.ret_rev, currency)}*`);
+  /* Amazon orders that come through Shopify are inside the day's sales; split them out (Floyd, 2026-11-15). */
+  if (day.amazon?.orders > 0) L.push(`• Amazon: *${money(day.amazon.sales, currency)}* from ${whole(day.amazon.orders)} order${day.amazon.orders === 1 ? '' : 's'}${day.sales > 0 ? ` (${Math.round(day.amazon.sales / day.sales * 100)}% of the day's sales)` : ''}, already counted in the total`);
   const chans = (day.channels || []).filter(c => c && c.spend > 0).sort((a, b) => b.spend - a.spend);
   for (const c of chans) {
     let tail = '';
