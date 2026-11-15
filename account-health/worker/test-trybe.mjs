@@ -5,7 +5,7 @@
  *   node test-trybe.mjs      (from account-health/worker) */
 import { DatabaseSync } from 'node:sqlite';
 import assert from 'node:assert/strict';
-import { storeKey, keyFor, syncBrand, trybeView, trybeAll, trybeBanners, trybeTick, trybeIdOf, staleMessage, handleTrybe, queueState, STALE_DAYS, talkBank, talkMessage, welcomeText, fridayMessages, discordWelcomeTick } from './src/trybe.js';
+import { storeKey, keyFor, syncBrand, trybeView, trybeAll, trybeBanners, trybeTick, trybeIdOf, staleMessage, handleTrybe, queueState, STALE_DAYS, talkBank, talkMessage, welcomeText, fridayMessages, followText, discordWelcomeTick } from './src/trybe.js';
 
 const db = new DatabaseSync(':memory:');
 const bindSql = sql => sql.replace(/\?(\d+)/g, (_, n) => ':p' + n);
@@ -148,4 +148,6 @@ assert.match(welcomeText(['<@111111111111111111>'], 's', {}), /^Welcome <@111111
 assert.match(fridayMessages([{ creator: 'Amy Jo', tag: '<@1>', product: 'Hat' }, { creator: 'Bo Ko' }], 'pp', 'x').head, /<@1>[\s\S]*Bo/);
 assert.equal((await discordWelcomeTick({}, { centralHour: () => 16, centralDate: () => '2026-11-13' })).skipped, 'before 5pm Central');
 assert.ok(!/[—–]/.test(welcomeText(['<@1>', '<@2>'], 's', {})));
+assert.match(followText('sample','Amy','Grunk',{hub:'h',due:'Sep 9',join:'https://x/join/g'},'s'), /join\/g$/);
+assert.ok(!/discord/i.test(followText('sold','Amy','Grunk',{hub:'h',orders:2,join:''},'s')));
 console.log('trybe: all checks passed');

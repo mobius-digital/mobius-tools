@@ -625,7 +625,7 @@ const FOLLOW_TEXT = {
     (f, b, x) => `Hi ${f}, quick one: your ${b} video made ${x.orders} sale${x.orders === 1 ? '' : 's'} this month 🔥 We'd love another one or two like it. Ideas here: ${x.hub}`,
   ],
   quiet: [
-    (f, b, x) => `Hey ${f}, haven't seen a new ${b} video from you in a bit. How's it going? Anything in the way, or anything we can make easier? The videos selling right now are in #winners${x.invite ? ` on our Discord (${x.invite})` : ' on our Discord'}, and this week's ideas are here: ${x.hub}`,
+    (f, b, x) => `Hey ${f}, haven't seen a new ${b} video from you in a bit. How's it going? Anything in the way, or anything we can make easier? This week's ideas are here: ${x.hub}`,
     (f, b, x) => `Hi ${f}! Checking in from ${b}. Your last video was ${x.days} days ago. What happened, and what would help you make the next one? Here's what is working right now: ${x.hub}`,
   ],
   sample: [
@@ -634,7 +634,16 @@ const FOLLOW_TEXT = {
   ],
 };
 const prettyDay = iso => { const t = Date.parse(String(iso || '').slice(0, 10) + 'T12:00:00Z'); return t ? new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }) : 'a while ago'; };
-export function followText(kind, first, brand, x, seed) { return noDash(pickBy(FOLLOW_TEXT[kind], seed)(first, brand, x)); }
+/* Every follow-up to a creator who is not in the brand's Discord ends with the Locus join link (Cole 2026-11-15: get
+   more creators in). The join link, never the plain discord.gg invite, so Locus can match them to their Trybe profile. */
+const DC_ASK = [
+  j => `Also, come join our creator Discord. It's where we post what to film every Monday and what sold every Friday: ${j}`,
+  j => `And if you're not in our creator Discord yet, jump in here. That's where the weekly ideas and winners go: ${j}`,
+];
+export function followText(kind, first, brand, x, seed) {
+  const base = pickBy(FOLLOW_TEXT[kind], seed)(first, brand, x);
+  return noDash(x.join ? `${base}\n\n${pickBy(DC_ASK, seed + 'dc')(x.join)}` : base);
+}
 export async function trybeFollowups(env, d, act, { today } = {}) {
   await ensureTrybe(env);
   today = today || (d.centralDate ? d.centralDate() : new Date().toISOString().slice(0, 10));
@@ -644,7 +653,9 @@ export async function trybeFollowups(env, d, act, { today } = {}) {
   const amb = await env.DB.prepare(`SELECT slug, display_name FROM p_amb_brand WHERE act_id = ?1`).bind(act).first().catch(() => null);
   const brand = amb?.display_name || (await env.DB.prepare(`SELECT name FROM brands WHERE id = ?1`).bind(act).first().catch(() => null))?.name || 'the brand';
   const hub = amb?.slug ? `https://locus.go-mobius-digital.com/angles/${amb.slug}/` : '';
-  const invite = (await dcDoc(env, act))?.invite || '';
+  const dcd = await dcDoc(env, act);
+  const joinLink = dcd && dcd.built_at && amb?.slug ? `${JOIN_BASE}/join/${amb.slug}` : '';
+  const inDc = new Set(joinLink ? ((await env.DB.prepare(`SELECT creator_id FROM p_dc_member WHERE act_id = ?1 AND removed_at IS NULL`).bind(act).all().catch(() => ({ results: [] }))).results || []).map(r => r.creator_id) : []);
   const sent = new Map(((await env.DB.prepare(`SELECT key, value FROM settings WHERE key LIKE ?1`).bind(`trybeFollow:${act}:%`).all().catch(() => ({ results: [] }))).results || [])
     .map(r => [r.key.split(':').pop(), r.value]));
   const snoozed = id => { const at = sent.get(id); return at && daysBetween(at, today) < FOLLOW_SNOOZE; };
@@ -661,7 +672,7 @@ export async function trybeFollowups(env, d, act, { today } = {}) {
   const roster = await pages(d, k.key, '/creators', {}, 10).catch(() => null);
   const active = roster ? new Map(roster.map(c => [c.id, c])) : null;
   const row = (kind, id, name, x) => ({ kind, creator_id: id, name, first: firstName(name), avatar: (active?.get(id)?.avatar_url) || crs.get(id)?.avatar || null, ...x,
-    message: followText(kind, firstName(name), brand, { ...x, hub, invite }, `${today}:${id}:${kind}`), sent_at: sent.get(id) || null });
+    message: followText(kind, firstName(name), brand, { ...x, hub, join: joinLink && !inDc.has(id) ? joinLink : '' }, `${today}:${id}:${kind}`), sent_at: sent.get(id) || null });
   const sold = v.creators.filter(c => c.orders > 0 && c.quiet_days != null && c.quiet_days >= REBOOK_DAYS && (!active || active.has(c.creator_id)) && !snoozed(c.creator_id))
     .map(c => row('sold', c.creator_id, c.name, { orders: Math.round(c.orders), cpa: c.cpa, days: c.quiet_days, product: (per.get(c.creator_id) || {}).product || '', beats: c.beats }))
     .sort((a, z) => z.orders - a.orders);
