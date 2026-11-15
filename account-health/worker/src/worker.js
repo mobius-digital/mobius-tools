@@ -2318,15 +2318,17 @@ function twDay(piv, date, ids) { for (const id of ids) { const v = piv[id]?.[dat
  *  settings `amzDays:<act>`; a brand with no Amazon at all is remembered as such so it costs one query a day. */
 async function amazonDays(env, acct, from, to) {
   if (!acct.tw_shop || !env.TW_API_KEY) return null;
-  const key = `amzDays:${acct.act_id}`;
+  const key = `amzDays2:${acct.act_id}`;
   const c = safeJson(await getSetting(env, key), null);
   if (c && c.from <= from && c.to >= to && Date.now() - c.at < (c.none ? 864e5 : 6 * 36e5)) return c.none ? null : c.days;
   const r = await twSql(env, { xfetch }, { shop: acct.tw_shop, from, to,
-    sql: `SELECT toString(event_date) AS d, uniq(order_id) AS orders, sum(gross_product_sales - discount_amount_for_product + shipping_price) AS sales
-      FROM orders_table WHERE event_date BETWEEN @startDate AND @endDate AND (source_name = 'amazon' OR platform = 'amazon') GROUP BY d` });
+    sql: `SELECT toString(event_date) AS d, if(platform = 'amazon', 'own', 'shop') AS via, uniq(order_id) AS orders, sum(gross_product_sales - discount_amount_for_product + shipping_price) AS sales
+      FROM orders_table WHERE event_date BETWEEN @startDate AND @endDate AND (source_name = 'amazon' OR platform = 'amazon') GROUP BY d, via` });
   if (r.error || !Array.isArray(r.rows)) return null;
+  /* TWO KINDS, never mixed: `shop` = Amazon orders pushed INTO Shopify (Bonk), already inside the day's sales; `own` =
+     the brand's own Amazon store connected to Triple Whale (Party Patch, Dartee), NOT in the store's sales. */
   const days = {};
-  for (const x of r.rows) if (+x.orders > 0) days[String(x.d).slice(0, 10)] = { orders: +x.orders, sales: Math.round(+x.sales * 100) / 100 };
+  for (const x of r.rows) if (+x.orders > 0) (days[String(x.d).slice(0, 10)] ??= {})[x.via === 'own' ? 'own' : 'shop'] = { orders: +x.orders, sales: Math.round(+x.sales * 100) / 100 };
   const none = !Object.keys(days).length;
   await putSetting(env, key, JSON.stringify({ from, to, at: Date.now(), none, days }));
   return none ? null : days;
