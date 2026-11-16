@@ -503,7 +503,7 @@ export async function mondayScreen(env, d) {
     const weeks = Object.values(weekplans).filter(w => (w.brands || []).some(x => x.a === b.act_id)).map(w => {
       const x = w.brands.find(y => y.a === b.act_id);
       const CH = { meta: 'Meta', google: 'Google', amazon: 'Amazon', tiktok: 'TikTok', email: 'Email', other: 'Other' };
-      const lines = [`${w.name}'s week plan${w.role ? ` (${w.role})` : ''}`, ...(w.theme ? [`Theme across brands: ${w.theme}`] : []), ...(x.focus ? [`Main focus: ${x.focus}`] : []),
+      const lines = [`${w.name}'s week plan${w.role ? ` (${w.role})` : ''}`, ...(w.theme ? [`Theme across brands: ${w.theme}`] : []), ...String(x.focus || '').split('\n').filter(Boolean).map(f => `Main focus: ${f}`),
         ...(x.batches || []).map((y, i) => `Batch ${i + 1} (${CH[y.ch] || 'Meta'}): ${y.text}`),
         ...(w.needs || []).filter(n => n.act === b.act_id || (!n.act && w.brands.length === 1)).map(n => `${n.on === 'client' ? 'Need from the client' : n.on === 'cole' ? 'Need from Cole' : n.on === 'creator' ? 'Need from a creator' : 'Need from the team'}: ${n.text}`)];
       return { by: w.name, text: lines.join('\n'), at: w.at, where: 'week' };
