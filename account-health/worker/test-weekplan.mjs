@@ -1,5 +1,5 @@
 // Post my week (2026-11-16 rebuild) + the Amazon line in the client posts. Run: node test-weekplan.mjs
-import { weekView, weekOf, checkinErrors, WEEK_ONLY_PEOPLE } from './src/checkin.js';
+import { weekView, weekOf, checkinErrors, WEEK_ONLY_PEOPLE, isMaker, weekModal, planModal } from './src/checkin.js';
 import { dailyPost, weeklyPost } from './src/clientpost.js';
 
 let pass = 0, fail = 0;
@@ -21,11 +21,19 @@ t('strategist form: theme, then each own brand with Main focus, Batch 1, its cha
   ok(v.blocks.length <= 100);
 });
 
-t('Google person: no channel pickers (always Google), no walkthrough box', () => {
+t('Google person: theme + one focus per brand, no batches, no add batch, no walkthrough; need + from who', () => {
   const v = weekView(radhesh, { date: '2026-11-16', brands, open: [{ ...brands[2], k: 2 }] });
   const ids = v.blocks.map(b => b.block_id || b.type);
-  ok(!ids.some(i => /^wc_/.test(i)), 'has a channel picker');
+  ok(ids.includes('wf_brand_bonk_golf') && ids.includes('wk_theme'));
+  ok(!ids.some(i => /^(wb_|wc_|wa_)/.test(i)), 'has batch rows');
   ok(!ids.includes('walk'));
+  eq(v.blocks.find(b => b.block_id === 'need').label.text, 'What I need (leave empty if nothing)');
+  eq(v.blocks.find(b => b.block_id === 'who').label.text, 'From who');
+});
+const fakeD = (day = null) => ({ getSetting: async (e, k) => k.startsWith('checkin:') ? JSON.stringify(day) : null, listBrands: async () => [] });
+t('William and Ravo are makers; Noma, Ahsan, Radhesh are not', () => {
+  ok(isMaker({ roles: ['designer'] }) && isMaker({ roles: ['editor'] }));
+  ok(!isMaker({ roles: ['strategist'] }) && !isMaker({ roles: ['strategist', 'buyer'] }) && !isMaker(radhesh));
 });
 
 t('ten brands with ten batches each never pass Slack\'s 100 blocks', () => {
@@ -68,5 +76,21 @@ t('client weekly: Amazon line with last week', () => {
   ok(txt.includes('• Amazon: *$3,610* (79 orders, was $4,805)'), txt);
 });
 
+const ta = async (name, fn) => { try { await fn(); pass++; console.log('PASS  ' + name); } catch (e) { fail++; console.log('FAIL  ' + name + '\n      ' + e.message); } };
+await ta('a maker who taps Post my week gets "no week post for you", no form', async () => {
+  const v = await weekModal({}, fakeD(), 'U08534TEBCZ', 'william', '2026-11-16');
+  ok(!v.submit && /No week post for you/.test(v.blocks[0].text.text));
+});
+await ta("a maker's plan: still finishing (filled from yesterday's unticked lines), main goal, anything else", async () => {
+  const yday = { people: { U08534TEBCZ: { items: ['Dartee: 402 BOGO 2', 'Grunk: 381 giveaway'], wrap: { picked: [0] } } } };
+  const v = await planModal({}, fakeD(yday), 'U08534TEBCZ', 'william', '2026-11-16');
+  const ids = v.blocks.map(b => b.block_id || b.type);
+  ok(['carry', 'goal', 'more', 'need', 'who'].every(i => ids.includes(i)), ids.join());
+  eq(v.blocks.find(b => b.block_id === 'carry').element.initial_value, 'Grunk: 381 giveaway');
+  ok(JSON.parse(v.private_metadata).maker);
+});
+t('an empty maker plan is sent back asking for the main goal', () => {
+  eq(checkinErrors({ view: { callback_id: 'ci_plan_submit', private_metadata: JSON.stringify({ maker: true }), state: { values: {} } } }), { goal: "Write today's main goal." });
+});
 console.log(`\n${pass}/${pass + fail} passed`);
 if (fail) process.exit(1);

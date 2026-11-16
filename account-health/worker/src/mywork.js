@@ -182,13 +182,13 @@ export function forPerson(g, person) {
   }
   if (g.call) {
     const st = safe(g.call.state_json, {}) || {};
-    for (const [act, s] of Object.entries(st.brands || {})) for (const k of ['batches', 'eplan', 'gplan']) (s && s[k] || []).forEach((x, i) => {
+    for (const [act, s] of Object.entries(st.brands || {})) for (const k of ['batches', 'eplan', 'gplan', 'aplan']) (s && s[k] || []).forEach((x, i) => {
       if (!x || x.on === false || !clean(x.text) || !['y', 'c'].includes(x.vote)) return;
-      const owner = clean(x.owner, 40) || (k === 'gplan' ? 'Radhesh' : STRAT[act] || '');
+      const owner = clean(x.owner, 40) || (k === 'gplan' ? 'Radhesh' : k === 'aplan' ? 'Hamza' : STRAT[act] || '');
       if (!isPerson(owner, person.name)) return;
       const key = `plan:${g.call.id}:${act}:${k}:${i}`;
       items.push({ id: key, source: 'call', bucket: 'week', text: noDash(clean(x.text, 200)), brand: bn(act), act_id: act, due: '',
-        from: k === 'eplan' ? 'Email plan' : k === 'gplan' ? 'Google plan' : 'Meta plan',
+        from: k === 'eplan' ? 'Email plan' : k === 'gplan' ? 'Google plan' : k === 'aplan' ? 'Amazon plan' : 'Meta plan',
         detail: x.vote === 'c' ? `Changes asked on the call: ${noDash(clean(x.note, 300)) || 'see the call'}` : `Approved on the Monday call, ${dayLabel(g.call.date)}.`,
         link: `${LOCUS}?open=calls&call=monday`, changes: x.vote === 'c', done: done.has(key) });
     });
