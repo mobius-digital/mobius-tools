@@ -156,16 +156,16 @@ function boardBlocks(date, day, people) {
     if (s.out) return `*${p.name}*  _out today${s.back ? `, back ${s.back}` : ''}_`;
     const plan = s.plan ? `plan ✓ ${clock(s.plan.at)}${s.plan.types?.length ? ` (${s.plan.types.join(', ')})` : ''}` : 'plan: not yet';
     const wrap = s.wrap ? `wrap-up ✓ ${clock(s.wrap.at)}` : 'wrap-up: not yet';
-    const week = weekday(date) === 1 ? (s.week ? ` · week ✓` : ' · week: not yet') : '';
+    const week = weekday(date) === 1 && !isMaker(p) ? (s.week ? ` · week ✓` : ' · week: not yet') : '';
     return `*${p.name}*  ${plan} · ${wrap}${week}`;
   });
-  const need = Object.entries(people).flatMap(([uid, p]) => (day.people?.[uid]?.need || []).map(n => `• ${p.name}, waiting on ${esc(needLine(n))}`));
+  const need = Object.entries(people).flatMap(([uid, p]) => (day.people?.[uid]?.need || []).map(n => `• ${p.name} needs from ${esc(needLine(n))}`));
   const sent = (day.sent || []).map(s => `• ${esc(s.label)} (${esc(s.by)})`);
   const blocks = [
     { type: 'section', text: md(`*☀️ ${dayName(date)} · Daily check-in*\nTap a button below. Everything you post goes in this thread.`) },
     { type: 'section', text: md(rows.join('\n') || '_No one on the check-in list yet._') },
   ];
-  if (need.length) blocks.push({ type: 'section', text: md(`🔴 *Blocked*\n${need.join('\n')}`) });
+  if (need.length) blocks.push({ type: 'section', text: md(`🔴 *Needs*\n${need.join('\n')}`) });
   if (day.missed?.length) blocks.push(ctxLine(`_Last check-in:_ ${day.missed.map(esc).join(' · ')}`));
   if (sent.length) blocks.push({ type: 'section', text: md(`🖼️ *Sent to Cole for review*\n${sent.join('\n')}`) });
   const btns = [
@@ -212,12 +212,16 @@ const rich = (action_id, initial, placeholder) => ({ type: 'rich_text_input', ac
 const plain = (action_id, placeholder, multi = false) => ({ type: 'plain_text_input', action_id, multiline: multi, ...(placeholder ? { placeholder: pt(placeholder) } : {}) });
 const checks = (action_id, opts) => ({ type: 'checkboxes', action_id, options: opts.map(o => ({ text: pt(o.text), value: o.value })) });
 
-/* "Blocked on": what is holding someone back, and who it waits on. Each one becomes an open task in Locus. */
+/* "What I need" + "From who" (2026-11-16, Cole: "blocked on versus what you need, is it the same thing?"): ONE need,
+   and who it is from. Each one becomes an open task in Locus: from Cole = Cole's task; from the client = it also goes in
+   the brand's "What we need from the client" on the Monday call (week posts) and to their Requests on Finish. */
 const BLOCKERS = [['cole', 'Cole'], ['client', 'the client'], ['creator', 'a creator'], ['team', 'someone on the team']];
 const blockedInputs = () => [
-  input('who', 'Blocked on', { type: 'static_select', action_id: 'v', placeholder: pt('Only if something is holding you back'), options: BLOCKERS.map(([v, t]) => ({ text: pt(t.replace(/^./, c => c.toUpperCase())), value: v })) }),
-  input('need', 'What you need', plain('v', 'Dartee: the final Early Bird price, so I can finish batch 16', true)),
+  input('need', 'What I need (leave empty if nothing)', plain('v', 'Dartee: the final Early Bird price, so I can finish batch 16', true)),
+  input('who', 'From who', { type: 'static_select', action_id: 'v', placeholder: pt('Cole, the client, a creator or the team'), options: BLOCKERS.map(([v, t]) => ({ text: pt(t.replace(/^./, c => c.toUpperCase())), value: v })) }),
 ];
+/* Makers (designer / video editor) post no week: their week is their cards on Production, which the call shows. */
+export const isMaker = p => (has(p, 'designer') || has(p, 'editor')) && !has(p, 'strategist') && !has(p, 'buyer') && !p.channel;
 const blockerLabel = v => (BLOCKERS.find(b => b[0] === v) || [null, 'someone'])[1];
 const needLine = n => typeof n === 'string' ? `Cole: ${n}` : `${blockerLabel(n.on)}: ${n.text}`;
 function planHint(p) {
@@ -240,9 +244,33 @@ const brandBoxes = (prefix, list, placeholder) => [
 const planHolder = p => has(p, 'strategist') ? 'Brief batch 15, Game of Belts (8 ads). Why: the giveaway line doubled clicks'
   : has(p, 'buyer') ? 'Launch batch 12 into Early Bird, cut 3 tired ads. Why: frequency over 4'
   : 'Batch 15: 6 statics from Noma\'s brief';
+/* The maker's day (2026-11-16, Cole: "I have stuff from yesterday I still need to complete, here's my main goal to get
+   done today"): what is left from yesterday (filled from yesterday's unticked lines), today's main goal, anything else. */
+async function leftFromYesterday(env, d, uid, date) {
+  const prev = new Date(date + 'T12:00:00Z');
+  do prev.setUTCDate(prev.getUTCDate() - 1); while ([0, 6].includes(prev.getUTCDay()));
+  const s = (await dayOf(env, d, prev.toISOString().slice(0, 10)))?.people?.[uid];
+  if (!s?.items?.length) return [];
+  const done = new Set(s.wrap?.picked || []);
+  return s.wrap?.picked ? s.items.filter((_, i) => !done.has(i)) : s.wrap ? [] : s.items;
+}
+export async function makerPlanModal(env, d, uid, p, date) {
+  const left = (await leftFromYesterday(env, d, uid, date).catch(() => [])).slice(0, 8);
+  const carry = { ...plain('v', 'Grunk 399: last 4 Cyber Monday cuts', true), ...(left.length ? { initial_value: left.join('\n').slice(0, 2900) } : {}) };
+  const blocks = [
+    { type: 'context', elements: [md(left.length ? '*Still finishing* is filled from yesterday\'s plan lines you did not tick. Fix it if it is wrong.' : '*Your day in three lines.*')] },
+    input('carry', 'Still finishing from yesterday', carry),
+    input('goal', "Today's main goal", plain('v', 'Dartee 430: 8 BF weekend statics to Review by 3pm')),
+    input('more', 'Anything else today', plain('v', 'Revisions on Lucky 466 from Noma\'s notes', true)),
+    ...blockedInputs(),
+  ];
+  return { type: 'modal', callback_id: 'ci_plan_submit', private_metadata: JSON.stringify({ date, maker: true }), title: pt('Post my plan'), submit: pt('Post'), close: pt('Cancel'), blocks };
+}
+const lines = t => String(t || '').split(/\n+/).map(x => clean(x, 300)).filter(Boolean);
 export async function planModal(env, d, uid, uname, date) {
   const people = await peopleOf(env, d);
   const p = personOf(people, uid, uname);
+  if (isMaker(p)) return makerPlanModal(env, d, uid, p, date);
   const list = await brandList(env, d, p);
   const blocks = [
     input('type', "What's today?", checks('v', DAY_TYPES.map(t => ({ text: t, value: t })))),
@@ -274,6 +302,7 @@ export function checkinErrors(p) {
   const prefix = cb === 'ci_plan_submit' ? 'pb' : null;
   if (!prefix) return null;
   const meta = safe(p.view?.private_metadata, {}) || {};
+  if (meta.maker) { const v = id => clean(p.view?.state?.values?.[id]?.v?.value, 300); return v('goal') || v('carry') ? null : { goal: "Write today's main goal." }; }
   if (brandParts(p.view, prefix, meta.brands).length) return null;
   const first = meta.brands?.[0] ? `${prefix}_${meta.brands[0].a}` : `${prefix}_other`;
   return { [first]: 'Write something under at least one brand.' };
@@ -310,8 +339,8 @@ async function ownActs(env, d, p, list) {
   const mine = new Set(await brandsFor(env, d, p).catch(() => []));
   return list.filter(b => mine.has(b.n));
 }
-const focusHolder = p => p.channel === 'google' ? 'Shift budget to Pmax Hats, build the BF search ad group'
-  : p.channel === 'amazon' ? 'Lightning deal for BF, clean up the listing photos'
+const focusHolder = p => p.channel === 'google' ? 'Move budget from Pmax Wedges to Pmax Hats. Build the BF search ad group, paused until Nov 26.'
+  : p.channel === 'amazon' ? 'BF lightning deal on the top 3 hats. New photos on the Lefty listing.'
   : 'Black Friday ads loaded and approved by Wed';
 const batchHolder = p => p.channel === 'google' ? 'Branded search BF ad group, 3 RSAs, live Nov 26'
   : p.channel === 'amazon' ? 'New A+ content for the Lefty hat'
@@ -320,12 +349,13 @@ export function weekView(p, meta) {
   const open = meta.open || [];
   const multi = !p.channel;   // strategists pick a channel per batch; Google / Amazon people are one channel
   const blocks = [
-    { type: 'context', elements: [md(`*Your plan for the week.* One line for the theme, then each brand: the main focus and the batches you're making. It shows on the Monday call and is copied to each brand's channel.`)] },
+    { type: 'context', elements: [md(p.channel ? `*Your plan for the week.* The theme across your brands, then the main focus for each one. It shows on the Monday call in the ${chLabel(p.channel)} part.` : `*Your plan for the week.* One line for the theme, then each brand: the main focus and the batches you're making. It shows on the Monday call and is copied to each brand's channel.`)] },
     input('wk_theme', "This week's theme (all your brands)", plain('v', has(p, 'strategist') ? 'Every BF ad loaded by Wed, December gifting briefs by Fri' : focusHolder(p))),
   ];
   for (const b of open) {
     blocks.push({ type: 'header', text: pt(b.n) });
-    blocks.push(input(`wf_${b.a}`, 'Main focus', plain('v', focusHolder(p))));
+    blocks.push(input(`wf_${b.a}`, 'Main focus', plain('v', focusHolder(p), !!p.channel)));
+    if (p.channel) continue;   // Google / Amazon: one focus per brand, no batches (Cole 2026-11-16)
     for (let i = 0; i < b.k; i++) {
       blocks.push(input(`wb_${b.a}_${i}`, `Batch ${i + 1}`, plain('v', batchHolder(p))));
       if (multi) blocks.push(input(`wc_${b.a}_${i}`, `Batch ${i + 1} channel`, { type: 'static_select', action_id: 'v', initial_option: { text: pt('Meta'), value: 'meta' }, options: CHANNELS.map(([v, t]) => ({ text: pt(t), value: v })) }));
@@ -341,6 +371,7 @@ export function weekView(p, meta) {
 export async function weekModal(env, d, uid, uname, date) {
   const people = await peopleOf(env, d);
   const p = personOf(people, uid, uname);
+  if (isMaker(p)) return { type: 'modal', title: pt('Post my week'), close: pt('Close'), blocks: [{ type: 'section', text: md(`No week post for you, ${p.name}. Your week is your cards on Production: the Monday call shows them under *Being made*. Keep posting your plan each morning.`) }] };
   const list = await brandList(env, d, p);
   const own = await ownActs(env, d, p, list);
   return weekView(p, { date, brands: list, open: own.map(b => ({ ...b, k: 1 })) });
@@ -400,9 +431,18 @@ export async function submitCheckin(env, d, p) {
   const now = new Date().toISOString();
   const need = clean(val(p.view, 'need')?.value, 500);
   const on = val(p.view, 'who')?.selected_option?.value || (need ? 'cole' : '');
-  const needCtx = need ? [ctxLine(`🔴 *Blocked on ${blockerLabel(on)}:* ${esc(need)}`)] : [];
+  const needCtx = need ? [ctxLine(`🔴 *Needs from ${blockerLabel(on)}:* ${esc(need)}`)] : [];
 
-  if (cb === 'ci_plan_submit') {
+  if (cb === 'ci_plan_submit' && meta.maker) {
+    const carry = lines(val(p.view, 'carry')?.value), goal = clean(val(p.view, 'goal')?.value, 300), more = lines(val(p.view, 'more')?.value);
+    const blocks = [head(me.name, 'plan'),
+      ...(carry.length ? [{ type: 'section', text: md(`*Still finishing:*\n${carry.map(x => `• ${esc(x)}`).join('\n')}`) }] : []),
+      ...(goal ? [{ type: 'section', text: md(`*Main goal today:* ${esc(goal)}`) }] : []),
+      ...(more.length ? [{ type: 'section', text: md(`*Also:*\n${more.map(x => `• ${esc(x)}`).join('\n')}`) }] : []), ...needCtx];
+    await postInThread(env, d, day, `${me.name}'s plan`, blocks);
+    s.plan = { at: now, types: [] }; s.out = false;
+    s.items = [...carry, ...(goal ? [goal] : []), ...more];
+  } else if (cb === 'ci_plan_submit') {
     const parts = brandParts(p.view, 'pb', meta.brands);
     const types = (val(p.view, 'type')?.selected_options || []).map(o => o.value);
     const walk = clean(val(p.view, 'walk')?.value, 300);
@@ -427,7 +467,7 @@ export async function submitCheckin(env, d, p) {
     if (tomorrow) blocks.push(ctxLine(`*Tomorrow:* ${esc(tomorrow)}`));
     blocks.push(...needCtx);
     await postInThread(env, d, day, `${me.name}'s wrap-up`, blocks);
-    s.wrap = { at: now, done: picked.size, of: items.length };
+    s.wrap = { at: now, done: picked.size, of: items.length, picked: [...picked] };
   } else if (cb === 'ci_week_submit') {
     const w = weekOf(p.view, me);
     const walk = clean(val(p.view, 'walk')?.value, 300);
@@ -453,7 +493,9 @@ export async function submitCheckin(env, d, p) {
        (the call skips bot messages, so a copied week never reached it before 2026-11-16). */
     const key = `weekplan:${date}`;
     const all = safe(await d.getSetting(env, key), {}) || {};
-    all[uid] = { name: me.name, role, at: now, theme: w.theme, brands: w.brands };
+    /* The need, tied to a brand (named in it, else the only brand posted), so the call shows it under that brand. */
+    const nb = need ? (w.brands.find(b => need.toLowerCase().includes(b.n.toLowerCase().split(' ')[0])) || (w.brands.length === 1 ? w.brands[0] : null)) : null;
+    all[uid] = { name: me.name, role, at: now, theme: w.theme, brands: w.brands, needs: need ? [{ on, text: need, act: nb?.a || '' }] : [] };
     await d.putSetting(env, key, JSON.stringify(all));
     if (w.theme) {
       const themes = Object.values(all).filter(x => x.theme).map(x => `${x.name}: ${x.theme}`).join(' · ');

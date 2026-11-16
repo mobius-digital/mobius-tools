@@ -253,7 +253,7 @@
       .cs .row.cs-plan{grid-template-columns:minmax(0,1fr) auto 28px;align-items:start}
       .cs .row.cs-plan input{margin-top:6px}
       .cs .cs-part .cs-who{font-size:11px;letter-spacing:0;text-transform:none;font-weight:600;padding:2px 9px;border-radius:var(--r-pill);color:#fff;background:var(--ink-2);width:auto;height:auto;display:inline-block}
-      .cs .cs-part .cs-who.meta{background:var(--c-meta)}.cs .cs-part .cs-who.google{background:var(--c-google)}.cs .cs-part .cs-who.trybe{background:var(--c-tiktok)}
+      .cs .cs-part .cs-who.meta{background:var(--c-meta)}.cs .cs-part .cs-who.google{background:var(--c-google)}.cs .cs-part .cs-who.amazon{background:var(--c-amazon)}.cs .cs-part .cs-who.trybe{background:var(--c-tiktok)}
       .cs .cs-funnel{display:flex;flex-direction:column;gap:6px}
       .cs .cs-funnel .fs{display:grid;grid-template-columns:120px minmax(0,1fr) minmax(200px,auto);gap:12px;align-items:center;font-size:13px}
       .cs .cs-funnel .l{color:var(--ink-2);font-weight:550}
@@ -935,11 +935,25 @@
       ${lines.length ? '' : key === 'eplan' ? `<p class="cs-empty">Nothing typed yet. Add this week's email and SMS sends as lines.</p>` : `<p class="warnline">${esc(who)} has not posted a plan for ${esc(b.name)} yet. Talk it through and type the lines.</p>`}
       <button type="button" class="add" data-add="${key}" data-act="${esc(b.act_id)}">+ Add a line</button>`;
   }
-  /* Radhesh's Google plan: his own Slack lines (no model), seeded once. */
-  function seedGoogle(b) {
-    const s = brandState(b.act_id); if (s.gplan) return;
-    const p = (b.posts || []).filter(x => teamName(x.by) === 'Radhesh');
-    s.gplan = p.flatMap(x => String(x.text || '').split(/\n+/)).map(l => l.replace(/^[\s*•\-–\d.)]+/, '').replace(/\*/g, '').trim()).filter(l => l.length > 12).slice(0, 8).map(text => ({ text, from: 'slack' }));
+  /* Radhesh's Google plan and Hamza's Amazon plan: their own lines (no model), seeded once. The "<name>'s week plan"
+     header and the theme line of a Post my week post are not plan lines. */
+  const ownLines = (b, who) => (b.posts || []).filter(x => teamName(x.by) === who).flatMap(x => String(x.text || '').split(/\n+/))
+    .map(l => l.replace(/^[\s*•\-–\d.)]+/, '').replace(/\*/g, '').replace(/^(Main focus|Batch \d+ \([^)]*\)):\s*/i, '').trim())
+    .filter(l => l.length > 12 && !/'s week plan\b|^Theme across brands/i.test(l)).slice(0, 8).map(text => ({ text, from: 'slack' }));
+  function seedGoogle(b) { const s = brandState(b.act_id); if (!s.gplan) s.gplan = ownLines(b, 'Radhesh'); }
+  function seedAmazon(b) { const s = brandState(b.act_id); if (!s.aplan) s.aplan = ownLines(b, 'Hamza'); }
+  /* Amazon (2026-11-16): the weekly report's Amazon row (Triple Whale) and Hamza's plan. */
+  function amazonBlock(b) {
+    seedAmazon(b);
+    const r = b.read, ch = (r && r.channels || []).find(c => c.id === 'amazon');
+    const tile = (l, v, sub) => `<div class="cs-tile"><span class="l">${l}</span><span class="v">${v}</span><span class="sub">${sub || ''}</span></div>`;
+    const c = ch && ch.cur, p = ch && ch.prev;
+    const tiles = c ? `<div class="cs-tiles">${tile('Amazon sales', `${money(c.revenue)}${p ? delta(c.revenue, p.revenue) : ''}`, p ? `${money(p.revenue)} the week before` : '')}
+      ${tile('Amazon orders', c.purchases != null ? Math.round(c.purchases).toLocaleString('en-US') : '–', p && p.purchases != null ? `${Math.round(p.purchases)} the week before` : '')}
+      ${tile('Average order', c.purchases ? money(c.revenue / c.purchases) : '–', p && p.purchases ? `${money(p.revenue / p.purchases)} the week before` : '')}</div>` : empty('No Amazon sales in last week\'s report.');
+    if (b.client) return sec('Amazon', 'Amazon orders, from Triple Whale.', tiles);
+    return `${sec('Amazon results', 'Sales and orders on Amazon, from Triple Whale. Amazon ad spend is not in Locus yet.', tiles)}
+      ${sec('Hamza\'s Amazon plan', 'From Hamza\'s Post my week. Yes, Changes or No on each line.', planHtml(b, 'aplan', 'Hamza'))}`;
   }
   /* ---------- tables ---------- */
   function sortRows(list, k, lowFirst) { return [...list].sort((a, z) => { const x = a[k], y = z[k]; if (x == null) return 1; if (y == null) return -1; return lowFirst ? x - y : y - x; }); }
@@ -1193,7 +1207,7 @@
       ${secA('Meta campaigns', `${esc(mname)}. Tap a campaign for its ad sets, an ad set for its ads.`, `<button type="button" class="cs-dd" data-mcols="${esc(b.act_id)}"><span class="v">Columns</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>`, metaTable(b))}
       ${sec('Meta ads', `${r ? `${short(r.period_start)} to ${short(r.period_end)}` : ''}, ${esc(mname)}.`, ads)}
       ${sec('Meta funnel', 'People who clicked a Meta ad, and what they did next. Clicks and add to cart are Meta\'s count, purchases are Triple Whale.', fun)}
-      ${sec(`${esc(strat)}'s Meta plan`, `From ${esc(strat)}'s Slack post. Yes, Changes or No on each line; Finish posts it in the recap and tags ${esc(strat)}.`, `${(b.posts || []).some(p => teamName(p.by) !== 'Radhesh') ? `<details class="cs-more"><summary>The post, word for word</summary>${postsHtml((b.posts || []).filter(p => teamName(p.by) !== 'Radhesh'), b.act_id)}</details>` : ''}${planHtml(b, 'batches', strat)}`)}`;
+      ${sec(`${esc(strat)}'s Meta plan`, `From ${esc(strat)}'s Slack post. Yes, Changes or No on each line; Finish posts it in the recap and tags ${esc(strat)}.`, `${(b.posts || []).some(p => !['Radhesh', 'Hamza'].includes(teamName(p.by))) ? `<details class="cs-more"><summary>The post, word for word</summary>${postsHtml((b.posts || []).filter(p => !['Radhesh', 'Hamza'].includes(teamName(p.by))), b.act_id)}</details>` : ''}${planHtml(b, 'batches', strat)}`)}`;
   }
   function googleBlock(b) {
     const X = bx(b.act_id), r = b.read, ch = (r && r.channels || []).find(c => c.id === 'google');
@@ -1258,10 +1272,11 @@
     return `${chan('var(--brand)', `${part(1, 'Last week')}${lastWeekBlock(b)}`)}
       ${has('meta') ? chan('var(--c-meta)', `${part(2, `Meta <span class="cs-who meta">${esc(strat)}</span>`)}${metaBlock(b)}`) : ''}
       ${has('google') ? chan('var(--c-google)', `${part(3, 'Google <span class="cs-who google">Radhesh</span>')}${googleBlock(b)}`) : ''}
-      ${has('email') ? chan('var(--c-email)', `${part(4, 'Email')}${emailBlock(b)}`) : ''}
-      ${b.creators ? chan('var(--c-tiktok)', `${part(5, `Trybe <span class="cs-who trybe">${esc(strat)}</span>`)}${sec('Trybe', 'Creator videos for this brand.', trybeBlock(b))}`) : ''}
-      ${chan('var(--ink-2)', `${part(6, 'Being made')}${sec(`Production${(b.making || []).length ? `: ${b.making.length}` : ''}`, '', boardPart(b))}${sec('Dates coming up', 'Drops, sales and emails on the calendar, next 3 weeks.', comingPart(b))}`)}
-      ${part(7, 'Typed in the meeting')}
+      ${has('amazon') || (b.posts || []).some(x => teamName(x.by) === 'Hamza') ? chan('var(--c-amazon)', `${part(4, 'Amazon <span class="cs-who amazon">Hamza</span>')}${amazonBlock(b)}`) : ''}
+      ${has('email') ? chan('var(--c-email)', `${part(5, 'Email')}${emailBlock(b)}`) : ''}
+      ${b.creators ? chan('var(--c-tiktok)', `${part(6, `Trybe <span class="cs-who trybe">${esc(strat)}</span>`)}${sec('Trybe', 'Creator videos for this brand.', trybeBlock(b))}`) : ''}
+      ${chan('var(--ink-2)', `${part(7, 'Being made')}${sec(`Production${(b.making || []).length ? `: ${b.making.length}` : ''}`, '', boardPart(b))}${sec('Dates coming up', 'Drops, sales and emails on the calendar, next 3 weeks.', comingPart(b))}`)}
+      ${part(8, 'Typed in the meeting')}
       <div class="cs-two">
         ${sec('Tasks', 'Who and when, then Enter. They go to Locus Tasks.', `<div class="rows" data-list="jobs" data-act="${esc(b.act_id)}">${rowsHtml(s.jobs || [])}</div><input type="text" data-quick="jobs" data-act="${esc(b.act_id)}" placeholder="e.g. Noma sends Fela the founder video inspo Friday">`)}
         ${sec('What we need from the client', 'Shows on their Requests page after Finish.', `${(b.asks || []).length ? `<ul class="chk">${b.asks.map(a => `<li><span class="tx">${esc(a.title)}</span><span class="o">asked ${short(a.created_at)}</span></li>`).join('')}</ul>` : ''}<div class="rows" data-list="asks" data-act="${esc(b.act_id)}">${rowsHtml(s.asks || [], true)}</div><button type="button" class="add" data-add="asks" data-act="${esc(b.act_id)}">+ Add something we need</button>`)}
@@ -1330,7 +1345,7 @@
     const acts = X.acts && !X.acts.error ? (X.acts.activities || X.acts.rows || X.acts.items || []) : null;
     const said = acts ? acts.filter(a => String(a.client_why || '').trim()).map(a => ({ ...a, display: a.client_why })).slice(0, 12) : null;
     const m = D.monday || {}, wk = D.week || {};
-    const plan = [...(m.meta || []).map(t => ['Meta', t]), ...(m.google || []).map(t => ['Google', t]), ...(m.email || []).map(t => ['Email', t]), ...(wk.this_week || []).map(t => ['', t])];
+    const plan = [...(m.meta || []).map(t => ['Meta', t]), ...(m.google || []).map(t => ['Google', t]), ...(m.amazon || []).map(t => ['Amazon', t]), ...(m.email || []).map(t => ['Email', t]), ...(wk.this_week || []).map(t => ['', t])];
     const J = [['news', 'Your news'], ['week', 'Last week'], ['ads', 'Ads'], ['changed', 'What we changed'], ['plan', 'This week'], ['made', 'Being made'], ['asks', 'Requests'], ['coming', 'Coming up']];
     const grp = (id, n, title, hue, inner) => `<div class="cs-grp" id="cl-${id}" style="--acc:${hue}">${part(n, title)}${inner}</div>`;
     return `<nav class="cs-jump" aria-label="Sections">${J.map(([k, l]) => `<button type="button" data-jump="cl-${k}">${l}</button>`).join('')}</nav>
@@ -1384,7 +1399,7 @@
     }
     if (id === 'week') {
       const m = D.monday || {}, wk = D.week || {};
-      const lines = [...(m.meta || []).map(t => ['Meta', t]), ...(m.google || []).map(t => ['Google', t]), ...(wk.this_week || []).map(t => ['', t]), ...(STATE.promised || []).filter(x => x.text && x.on !== false).map(x => ['', x.text])];
+      const lines = [...(m.meta || []).map(t => ['Meta', t]), ...(m.google || []).map(t => ['Google', t]), ...(m.amazon || []).map(t => ['Amazon', t]), ...(wk.this_week || []).map(t => ['', t]), ...(STATE.promised || []).filter(x => x.text && x.on !== false).map(x => ['', x.text])];
       return `${sec('What we are doing this week', m.meta || m.google ? 'The plan the team approved on Monday.' : 'From your weekly report.', lines.length ? `<ol class="lines">${lines.map(([c, t], i) => `<li><i>${i + 1}</i><span>${c ? `<small class="muted">${c}</small><br>` : ''}${esc(t)}</span></li>`).join('')}</ol>` : empty('Say it on the call; the notes catch it.'))}
         ${(m.send || []).length ? sec('What we are sending you', '', `<ul class="chk">${m.send.map(t => `<li><span class="tx">${esc(t)}</span></li>`).join('')}</ul>`) : ''}`;
     }
@@ -1611,7 +1626,7 @@
   const nextLabel = () => { const n = steps()[POS + 1]; return n ? `Next: ${esc(n.name)} →` : 'Finish'; };
   function willHtml() {
     const list = (parts, tail) => { const p = parts.filter(Boolean); if (!p.length && !tail) return 'Finish will close the call'; if (tail) return `Finish will ${p.length ? 'make ' + p.join(', ') + ' and ' : ''}${tail}`; return 'Finish will make ' + (p.length > 1 ? p.slice(0, -1).join(', ') + ' and ' + p[p.length - 1] : p[0]); };
-    if (KIND === 'monday' && layout2()) { let votes = 0; for (const s of Object.values(STATE.brands || {})) for (const k of ['batches', 'gplan', 'eplan']) votes += (s[k] || []).filter(x => x && x.text && x.vote).length; const c = mondayCounts(); return list([c.jobs ? `<b>${plural(c.jobs, 'task')}</b>` : '', c.asks ? `<b>${plural(c.asks, 'request')}</b>` : ''], `post the recaps${votes ? ` with <b>${plural(votes, 'plan line')}</b> you voted on` : ''}`); }
+    if (KIND === 'monday' && layout2()) { let votes = 0; for (const s of Object.values(STATE.brands || {})) for (const k of ['batches', 'gplan', 'aplan', 'eplan']) votes += (s[k] || []).filter(x => x && x.text && x.vote).length; const c = mondayCounts(); return list([c.jobs ? `<b>${plural(c.jobs, 'task')}</b>` : '', c.asks ? `<b>${plural(c.asks, 'request')}</b>` : ''], `post the recaps${votes ? ` with <b>${plural(votes, 'plan line')}</b> you voted on` : ''}`); }
     if (KIND === 'monday') { const c = mondayCounts(); return list([c.briefs ? `<b>${plural(c.briefs, 'brief')}</b>` : '', c.jobs ? `<b>${plural(c.jobs, 'task')}</b>` : '', c.asks ? `<b>${plural(c.asks, 'request')}</b>` : ''], 'post the recaps'); }
     if (KIND === 'client') { const asks = (STATE.asks || []).filter(x => x.text && x.on !== false).length; return list([asks ? `<b>${plural(asks, 'request')}</b>` : ''], STATE.post_recap && D.has_client_channel ? 'post the recap' : 'tell the team'); }
     if (KIND === 'creator') return STATE.ask && STATE.post && !D.lucky ? 'Finish will post <b>the ask</b> in #this-week and close the call' : 'Finish will close the call';
