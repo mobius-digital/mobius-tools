@@ -203,8 +203,13 @@ export async function sendContract(env, r, vars, ip) {
   if (!r.token) throw new Error('Make the onboarding link first: the agreement is signed inside it.');
   const have = await env.DB.prepare(`SELECT status, html, hash, sent_at, vars_json FROM p_contract WHERE token = ?1`).bind(r.token).first();
   if (have?.status === 'signed') throw new Error('This agreement is already signed. It cannot be changed: send an amendment instead.');
-  const v = { ...contractDefaults(r), ...Object.fromEntries(Object.entries(vars || {}).filter(([k, x]) => ['client_name', 'company', 'start_date', 'term', 'payment'].includes(k) && String(x || '').trim()).map(([k, x]) => [k, String(x).trim().slice(0, 2000)])) };
+  const v = { ...contractDefaults(r), ...Object.fromEntries(Object.entries(vars || {}).filter(([k, x]) => ['client_name', 'company', 'start_date', 'term', 'payment', 'sign_email'].includes(k) && String(x || '').trim()).map(([k, x]) => [k, String(x).trim().slice(0, 2000)])) };
   if (!v.client_name) throw new Error('The agreement needs the client\'s full name (the person signing).');
+  /* The signer can be someone other than the day-to-day contact (2026-11-16: an officer signs, the team onboards):
+     `sign_email` gets the agreement, the signed copy and the reminders; empty = the client email on the setup. */
+  v.sign_email = String(v.sign_email || '').trim().toLowerCase();
+  if (v.sign_email && !/^[^@\s,;<>]+@[^@\s,;<>]+\.[^@\s,;<>]+$/.test(v.sign_email)) throw new Error('The signer email does not look right.');
+  const to = v.sign_email || r.contact_email;
   /* A text the AI edited for this client replaces the generated one, as is. */
   const custom = /^<article[\s\S]*<\/article>$/.test(String(vars?.html || '').trim()) ? String(vars.html).trim().replace(/<script[\s\S]*?<\/script>/gi, '') : null;
   if (custom) v.custom = true;
@@ -225,10 +230,10 @@ export async function sendContract(env, r, vars, ip) {
   await env.DB.prepare(`INSERT INTO p_contract (token, act_id, brand, vars_json, html, hash, status, sent_at, provider_name, provider_ip, provider_at, client_email)
     VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'sent', ?7, ?8, ?9, ?7, ?10)
     ON CONFLICT(token) DO UPDATE SET act_id = excluded.act_id, vars_json = excluded.vars_json, html = excluded.html, hash = excluded.hash, status = 'sent', sent_at = excluded.sent_at, provider_name = excluded.provider_name, provider_ip = excluded.provider_ip, provider_at = excluded.provider_at, client_email = excluded.client_email`)
-    .bind(r.token, r.act_id || r.pending_act || null, r.name, JSON.stringify(v), html, hash, now, PROVIDER, ip || null, r.contact_email || null).run();
+    .bind(r.token, r.act_id || r.pending_act || null, r.name, JSON.stringify(v), html, hash, now, PROVIDER, ip || null, to || null).run();
   const link = SIGN_PAGE + r.token;
   const first = (v.client_name || '').split(/\s+/)[0] || 'there';
-  if (resend) await gmail(env, r.contact_email, `Your updated agreement with Mobius Digital: please sign`,
+  if (resend) await gmail(env, to, `Your updated agreement with Mobius Digital: please sign`,
 `Hi ${first},
 
 We have updated our services agreement for ${v.company} with the change we discussed. The earlier version is withdrawn; this is the one to sign:
@@ -238,7 +243,7 @@ Read it, type your name, tick the box, press Sign. You get a copy by email the m
 
 Cole
 Mobius Digital`);
-  else await gmail(env, r.contact_email, `Your agreement with Mobius Digital: please sign`,
+  else await gmail(env, to, `Your agreement with Mobius Digital: please sign`,
 `Hi ${first},
 
 Here is our services agreement for ${v.company}. Read it and sign it here:
