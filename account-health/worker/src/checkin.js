@@ -354,7 +354,8 @@ export function weekView(p, meta) {
   ];
   for (const b of open) {
     blocks.push({ type: 'header', text: pt(b.n) });
-    blocks.push(input(`wf_${b.a}`, 'Main focus', plain('v', focusHolder(p), !!p.channel)));
+    /* One thing per line (Cole 2026-11-16: "bullet points, not a paragraph"): Enter = a new line = its own bullet. */
+    blocks.push(input(`wf_${b.a}`, 'Main focus (one thing per line)', plain('v', focusHolder(p), true), { hint: 'Press Enter after each thing. Each line shows as its own bullet.' }));
     if (p.channel) continue;   // Google / Amazon: one focus per brand, no batches (Cole 2026-11-16)
     for (let i = 0; i < b.k; i++) {
       blocks.push(input(`wb_${b.a}_${i}`, `Batch ${i + 1}`, plain('v', batchHolder(p))));
@@ -394,7 +395,7 @@ export function weekOf(view, p) {
   const v = id => view?.state?.values?.[id]?.v;
   const brands = [];
   for (const b of meta.open || []) {
-    const focus = clean(v(`wf_${b.a}`)?.value, 400);
+    const focus = lines(v(`wf_${b.a}`)?.value).slice(0, 12).join('\n');
     const batches = [];
     for (let i = 0; i < (b.k || 1); i++) {
       const text = clean(v(`wb_${b.a}_${i}`)?.value, 400);
@@ -405,7 +406,7 @@ export function weekOf(view, p) {
   return { theme: clean(v('wk_theme')?.value, 300), brands };
 }
 /* One brand as Slack text: focus, then a line per batch. `withName` = the brand in bold on top (the #daily-checkin post). */
-const weekBrandText = (b, withName = true) => [...(withName ? [`*${esc(b.n)}*`] : []), ...(b.focus ? [`_Main focus:_ ${esc(b.focus)}`] : []), ...b.batches.map((x, i) => `• *Batch ${i + 1}* · ${chLabel(x.ch)}: ${esc(x.text)}`)].join('\n');
+const weekBrandText = (b, withName = true) => [...(withName ? [`*${esc(b.n)}*`] : []), ...(b.focus ? ['_Main focus:_', ...String(b.focus).split('\n').map(x => `• ${esc(x)}`)] : []), ...b.batches.map((x, i) => `• *Batch ${i + 1}* · ${chLabel(x.ch)}: ${esc(x.text)}`)].join('\n');
 
 /* ---------- posting an answer ---------- */
 const val = (view, b) => view?.state?.values?.[b]?.v;
