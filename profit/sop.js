@@ -9,12 +9,14 @@
   const MONDAY = [
     ['5:00am', 'Each brand’s weekly report posts in its internal Slack channel.', 'Locus'],
     ['5:30am', 'Buying: /buy all. The ad moves are made before the team call.', 'Cole'],
-    ['7:00am', 'A reminder in #daily-checkin names any brand with no Monday plan yet.', 'Locus'],
-    ['By 7:30am', 'The Monday plan, as a reply under each brand’s weekly report: three numbers, winners and losers, this week’s batches (product, angle, how many, format, who makes it, due date), what you need from Cole. Fix any “What we’re doing” line in the report that the team did not decide.', 'Ahsan, Noma'],
-    ['By 7:30am', 'The Google and Amazon line in the same thread: spend, results, what is changing.', 'Radhesh, Hamza'],
+    ['5:00am', 'The day’s check-in posts in #daily-checkin with the Post my week button. Hamza gets the button by DM.', 'Locus'],
+    ['7:00am', 'A reminder in #daily-checkin names any brand with no week posted yet.', 'Locus'],
+    ['By 7:30am', 'Post my week: the theme for the week, then each brand’s main focus (one thing per line) and its batches (each with its channel: Meta, Google, Amazon, TikTok, Email). Plus what you need and who from.', 'Ahsan, Noma'],
+    ['By 7:30am', 'Post my week: the theme, then each brand’s main focus, one thing per line. No batches. Plus what you need and who from.', 'Radhesh (Google), Hamza (Amazon)'],
+    ['Every morning', 'Post my plan. Makers: still finishing from yesterday, today’s main goal, anything else. No week post for makers: their week is their Production cards.', 'Everyone'],
     ['8:00am', 'Team call, 60 minutes.', 'Team'],
     ['9:30am to 1:30pm', 'Client calls, 30 minutes each.', 'Cole'],
-    ['From noon', 'A Slack message to Cole for any call left open an hour without Finish.', 'Locus'],
+    ['From noon', 'Any call typed on and left quiet an hour is finished by Locus, and Cole gets one line saying so. Calls from the last 2 days count too.', 'Locus'],
     ['Afternoon', 'Briefs written from the batches the team call approved.', 'Ahsan, Noma'],
     ['4:30 to 7:30pm', 'Creator calls on Discord: Grunk 4:30, Dartee 5:00, Ice & Gold 5:30, Party Patch 6:00, then Lucky on its Stage.', 'Cole'],
   ];
@@ -28,7 +30,7 @@
   /* Each call: where it runs, how long, then [before], [steps: name, minutes, what], [after]. */
   const CALLS = [
     { name: 'Team call', when: 'Monday 8:00am, 60 minutes', where: 'Work > Meetings > Run a call > Monday call',
-      before: ['Each brand’s weekly report is in its Slack channel.', 'Ahsan and Noma have posted the Monday plan for each brand.', 'Radhesh and Hamza have added Google and Amazon.', 'Cole has run /buy, so the ad moves are made.'],
+      before: ['Each brand’s weekly report is in its Slack channel.', 'Ahsan and Noma have posted their week (Post my week in #daily-checkin).', 'Radhesh and Hamza have posted their Google and Amazon week.', 'Cole has run /buy, so the ad moves are made.'],
       steps: [['This week’s one focus', 3, 'One line for every brand, like “Early Black Friday: scale what holds”.'],
         ['Each brand, red ones first', 6, 'a. Last week’s items: tick done or not. b. The read: the strategist says it in their own words; nobody reads the report aloud. c. Being made: what is on the board, what is late. d. New items: one sentence, one owner, one date.'],
         ['Green brands', 2, 'On plan, nothing open: move on.'],
