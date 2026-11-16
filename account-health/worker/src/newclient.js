@@ -630,7 +630,8 @@ async function stepContract(env, r, b) {
     const amounts = [...words.matchAll(/\$\s?([\d,]+(?:\.\d{1,2})?)/g)].map(m => Number(m[1].replace(/,/g, '')));
     if (amounts.length && !amounts.includes(Math.round(r.retainer * 100) / 100)) notes.push(`The agreement mentions ${amounts.map(a => `$${a.toLocaleString('en-US')}`).join(', ')} but the invoice is $${r.retainer.toLocaleString('en-US')} a month. If the price changed, change it in Stripe too.`);
   }
-  return { url: s.url, hash: s.hash, signed: false, notes, text: `Sent to ${r.contact_email} for signature. You signed it on sending.` };
+  const to = String(b.vars?.sign_email || '').trim().toLowerCase() || r.contact_email;
+  return { url: s.url, hash: s.hash, signed: false, notes, sent_to: to, text: `Sent to ${to} for signature. You signed it on sending.` };
 }
 /** A link task under Client Resources in the client's Asana project: found by name, made if missing. */
 async function upsertResource(env, projectGid, name, notes) {
@@ -1049,7 +1050,8 @@ async function sendReminder(env, r, kind) {
     return 'Stripe sent the invoice to them again.';
   }
   if (kind === 'agreement') {
-    await sendMail(env, r.contact_email, `A quick reminder: our agreement is ready to sign`, `${hi}\n\nJust a reminder that our services agreement for ${r.name} is waiting for your signature. It takes a minute:\nhttps://tools.go-mobius-digital.com/onboard/sign.html?t=${r.token}\n\nThanks,`);
+    const signTo = (await env.DB.prepare(`SELECT client_email FROM p_contract WHERE token = ?1`).bind(r.token).first().catch(() => null))?.client_email || r.contact_email;
+    await sendMail(env, signTo, `A quick reminder: our agreement is ready to sign`, `${hi}\n\nJust a reminder that our services agreement for ${r.name} is waiting for your signature. It takes a minute:\nhttps://tools.go-mobius-digital.com/onboard/sign.html?t=${r.token}\n\nThanks,`);
     return 'The signing link went to them again from your Gmail.';
   }
   if (kind === 'form') {
