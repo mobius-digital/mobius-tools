@@ -53,7 +53,7 @@ export async function callNudgeTick(env, d) {
         const people = safe(await d.getSetting(env, 'checkinPeople'), null) || DEFAULT_PEOPLE;
         const strat = Object.entries(people).filter(([, p]) => (p.roles || []).includes('strategist')).map(([uid]) => `<@${uid}>`);
         const channel = (await d.getSetting(env, 'checkinChannel')) || DEFAULT_CHANNEL;
-        const text = `*CREATIVE · Monday plans*\n${strat.join(' ')}  Post the Monday plan for ${esc(list(missing))} before the 8:00 team call, as a reply under each brand's weekly report.\nWhy: the team call screen shows your plan for each brand. With no plan, that brand has nothing to approve on the call.`;
+        const text = `*CREATIVE · Monday plans*\n${strat.join(' ')}  Post your week for ${esc(list(missing))} before the 8:00 team call: *Post my week* on today's check-in post.\nWhy: the team call screen shows your plan for each brand. With no plan, that brand has nothing to approve on the call.`;
         await d.slackApi(env, 'chat.postMessage', { channel, text, blocks: [{ type: 'section', text: md(text) }] });
         out.plans = missing;
       } else out.plans = 'all in';
@@ -64,7 +64,11 @@ export async function callNudgeTick(env, d) {
   /* 2. Weekdays from noon: a call left open. */
   if (wd >= 1 && wd <= 5 && hour >= 12 && hour < 21) {
     try {
-      const rows = (await env.DB.prepare(`SELECT id, kind, act_id, title, status, state_json, started_at, updated_at FROM p_call WHERE date = ?1 AND kind IN ('monday', 'client', 'creator')`).bind(date).all().catch(() => ({ results: [] }))).results || [];
+      /* 2026-11-16: the last 2 days too, not only today. A call still open at 9pm was never looked at again, so the Nov 9
+         Monday call (typed on, never finished) carried nothing into Nov 16. Two days, not more: an older call's recap
+         would post week-old decisions. */
+      const from = new Date(Date.parse(date + 'T12:00:00Z') - 2 * 864e5).toISOString().slice(0, 10);
+      const rows = (await env.DB.prepare(`SELECT id, kind, act_id, title, status, state_json, started_at, updated_at FROM p_call WHERE date >= ?1 AND date <= ?2 AND kind IN ('monday', 'client', 'creator')`).bind(from, date).all().catch(() => ({ results: [] }))).results || [];
       const stamped = new Set();
       for (const r of rows) if (await d.getSetting(env, `callNudge:open:${r.id}`)) stamped.add(r.id);
       const due = openCallsToNudge(rows, Date.now(), stamped);
