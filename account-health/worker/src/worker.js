@@ -98,7 +98,7 @@ import { handleBuyer, buyerPostTick, buyerSettings } from './buyerlist.js';
 import { buyerAITick } from './buyerai.js';
 import { handleTrybe, trybeTick, handleTrybeJoin, discordWelcomeTick } from './trybe.js';
 import { handleLucky } from './lucky.js';
-import { dataTools } from './stratdata.js';
+import { dataTools, twSql } from './stratdata.js';
 import { extraTools } from './allwrite.js';
 import { runStudioMake, studioMakeTools } from './studiomake.js';
 /* /api/tw-day's 60-second memo (2026-10-26, Locus speed): key = brand | shop | day -> { at, p }. */
@@ -3387,12 +3387,37 @@ function clientDailyThreadFor(acct, date, data) {
 
 /** The client daily for one date (clientpost.js dailyPost) from the brief data: numbers only, no headline.
  *  `next` = the human Next line: for phase 1 the buyer's note box (settings briefNote:<act>, kept 2 days). */
+/* AMAZON FROM THE ORDERS (2026-11-16, Cole: "Floyd wants Amazon in the daily reports... anything we can do until the
+   Shopify app is approved?"). Bonk's Amazon orders reach Shopify through a sync app, so Triple Whale's Amazon summary
+   metric (totalAmazonSales) is empty for it while about a third of its orders are Amazon's. Triple Whale's own orders
+   table carries them (source_name 'amazon'; a directly connected Amazon store is platform 'amazon'), so read them there:
+   one query per window, {date: {sales, orders}}. Sales = gross product sales minus product discounts, cancelled orders
+   out. null when the brand has no Triple Whale shop or the query fails; {} when it sold nothing on Amazon. */
+async function amazonOrdersByDay(env, acct, from, to) {
+  if (!acct?.tw_shop || !env.TW_API_KEY) return null;
+  const sql = `SELECT toString(event_date) AS d, uniq(order_id) AS orders, SUM(gross_product_sales) - SUM(discount_amount_for_product) AS sales
+    FROM orders_table WHERE event_date BETWEEN @startDate AND @endDate AND (platform = 'amazon' OR lower(source_name) = 'amazon') AND cancelled_at IS NULL GROUP BY d ORDER BY d`;
+  const r = await twSql(env, { xfetch }, { shop: acct.tw_shop, sql, from, to }).catch(e => ({ error: e.message }));
+  if (!r || r.error || !Array.isArray(r.rows)) { if (r?.error) console.log(`amazon orders ${acct.name}: ${r.error}`); return null; }
+  const out = {};
+  for (const row of r.rows) { const d = String(row.d || '').slice(0, 10); if (d) out[d] = { sales: Number(row.sales) || 0, orders: Number(row.orders) || 0 }; }
+  return out;
+}
+function amazonSum(byDay, from, to) {
+  if (!byDay) return null;
+  let sales = 0, orders = 0;
+  for (const [d, v] of Object.entries(byDay)) if (d >= from && d <= to) { sales += v.sales; orders += v.orders; }
+  return { sales, orders };
+}
 async function clientDailyFor(env, acct, date, text, data, { next = true } = {}) {
   const days = (data?.days || []).filter(x => x.a?.sales != null && x.date <= date);
   const day = days.find(x => x.date === date) || null;
   const mtd = days.reduce((n, x) => n + (x.a.sales || 0), 0);
   const nextLine = next ? await briefNoteFor(env, acct.act_id, date).catch(() => null) : null;
+  const amz = await amazonOrdersByDay(env, acct, date.slice(0, 8) + '01', date).catch(() => null);
+  const amzDay = amazonSum(amz, date, date), amzMonth = amazonSum(amz, date.slice(0, 8) + '01', date);
   return dailyPost({
+    amazon: amzMonth && amzMonth.orders > 0 ? { day: amzDay, month: amzMonth } : null,
     brand: acct.name, date, currency: acct.currency,
     day: { sales: day?.a?.sales ?? null, spend: day?.a?.spend ?? null, mer: day?.a?.mer ?? null, amer: day?.a?.amer ?? null, plan: day?.f?.sales ?? null },
     /* "of $27K planned" = the plan TO DATE (the forecast days so far), not the whole month's goal. */
@@ -3419,6 +3444,7 @@ async function clientReportText(env, acct, row, data) {
   return weeklyPost({
     brand: acct.name, period, start, end: row.period_end, currency: data?.account?.currency || acct.currency, totals: data?.totals, previous: data?.previous,
     sentence: weekSentence(data?.totals, data?.previous, period === 'monthly' ? 'month' : 'week'),
+    amazon: (() => { const c = (data?.channels || []).find(x => x.id === 'amazon'); return c ? { cur: c.cur ? { sales: c.cur.sales, orders: c.cur.orders } : null, prev: c.prev ? { sales: c.prev.sales, orders: c.prev.orders } : null } : null; })(),
     this_week: [...(Array.isArray(data?.this_week) ? data.this_week : []), ...(cal?.going_live || [])],
     from_you: [...(Array.isArray(data?.need_from_you) ? data.need_from_you : []), ...(cal?.need || []), ...asks.map(askOf)],
     url,
@@ -4612,6 +4638,16 @@ async function reportData(env, acct, period, start, end) {
     twPrev = (await twWindow(env, acct.tw_shop, prevStart, prevEnd).catch(() => null))?.map ?? null;
   }
   const channels = channelSections(piv, metaBy, { cur: curDates, prev: prevDates }, Array.isArray(cfg.hide) ? cfg.hide : [], twCur, twPrev);
+  /* Amazon from Triple Whale's orders when its Amazon summary metric is empty (Bonk: orders synced into Shopify). */
+  if (!channels.some(c => c.id === 'amazon') && !(Array.isArray(cfg.hide) && cfg.hide.includes('amazon'))) {
+    const amz = await amazonOrdersByDay(env, acct, prevStart, end).catch(() => null);
+    const c = amazonSum(amz, start, end), p = amazonSum(amz, prevStart, prevEnd);
+    if (c && (c.orders > 0 || (p && p.orders > 0))) {
+      const sec = v => v && v.orders > 0 ? { sales: v.sales, orders: v.orders, net_sales: null, refunds: null, source: 'Triple Whale orders' } : null;
+      const at = channels.findIndex(x => x.id === 'email');
+      channels.splice(at < 0 ? channels.length : at, 0, { id: 'amazon', label: 'Amazon', cur: sec(c), prev: sec(p) });
+    }
+  }
   // The nightly attribution sync stops a day short of the window's last day
   // (it runs the evening before in the brands' zones), so top it up first.
   if (acct.tw_shop && env.TW_API_KEY && end >= addDays(localDate(acct.tz), -7)) {

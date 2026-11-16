@@ -35,6 +35,16 @@ export const DEFAULT_PEOPLE = {
   U08534TEBCZ: { name: 'William', roles: ['designer'] },
   U07N0RRSP4J: { name: 'Ravo', roles: ['editor'] },
 };
+/* 2026-11-16 (Cole: "is there anything for Google?... Meta, Google, Amazon, TikTok"): the Google and Amazon people post
+   ONLY the week (no daily plan, never counted as missing a check-in). `brands` = the act ids they run. `dm`: not in
+   #daily-checkin (Hamza is a Slack Connect guest), so the Monday button reaches them by DM. Added on top of
+   settings.checkinPeople, so an older saved list still gets them. */
+export const WEEK_ONLY_PEOPLE = {
+  U09A6NTSUQJ: { name: 'Radhesh', roles: ['google'], weekOnly: true, channel: 'google', brands: ['brand_lucky_golf', 'brand_grunk_dolfer', 'brand_bonk_golf', 'brand_dartee_golf'] },
+  U0AKT1XHNNQ: { name: 'Hamza', roles: ['amazon'], weekOnly: true, channel: 'amazon', dm: true, brands: ['brand_bonk_golf'] },
+};
+const CHANNELS = [['meta', 'Meta'], ['google', 'Google'], ['amazon', 'Amazon'], ['tiktok', 'TikTok'], ['email', 'Email'], ['other', 'Other']];
+const chLabel = v => (CHANNELS.find(c => c[0] === v) || [null, 'Meta'])[1];
 const DAY_TYPES = ['Briefs', 'Research', 'Making', 'Revisions', 'Launches', 'Meetings'];
 const NUDGE_AFTER = 4;           // hours past the morning hour
 const AUTO_APPROVE_HOURS = 24;
@@ -54,7 +64,8 @@ const weekday = ymd => new Date(ymd + 'T12:00:00Z').getUTCDay();   // 0 Sun .. 6
 async function channelOf(env, d) { return (await d.getSetting(env, 'checkinChannel')) || DEFAULT_CHANNEL; }
 async function peopleOf(env, d) {
   const set = safe(await d.getSetting(env, 'checkinPeople'), null);
-  return set && typeof set === 'object' && Object.keys(set).length ? set : DEFAULT_PEOPLE;
+  const base = set && typeof set === 'object' && Object.keys(set).length ? set : DEFAULT_PEOPLE;
+  return { ...WEEK_ONLY_PEOPLE, ...base };
 }
 async function dayOf(env, d, date) { return safe(await d.getSetting(env, `checkin:${date}`), null); }
 async function saveDay(env, d, date, day) { await d.putSetting(env, `checkin:${date}`, JSON.stringify(day)); }
@@ -138,8 +149,10 @@ export const shortLine = (t, n = 74) => { const x = clean(String(t).split(/\s+wh
 
 /* ---------- the day post (the board) ---------- */
 function boardBlocks(date, day, people) {
-  const rows = Object.entries(people).map(([uid, p]) => {
+  const monday = weekday(date) === 1;
+  const rows = Object.entries(people).filter(([, p]) => !p.weekOnly || monday).map(([uid, p]) => {
     const s = day.people?.[uid] || {};
+    if (p.weekOnly) return `*${p.name}*  ${s.week ? `week ✓ ${clock(s.week.at)}` : 'week: not yet'}`;
     if (s.out) return `*${p.name}*  _out today${s.back ? `, back ${s.back}` : ''}_`;
     const plan = s.plan ? `plan ✓ ${clock(s.plan.at)}${s.plan.types?.length ? ` (${s.plan.types.join(', ')})` : ''}` : 'plan: not yet';
     const wrap = s.wrap ? `wrap-up ✓ ${clock(s.wrap.at)}` : 'wrap-up: not yet';
@@ -182,7 +195,7 @@ export async function ensureDay(env, d, { force = false, date = d.centralDate() 
   const last = await dayOf(env, d, prev.toISOString().slice(0, 10));
   if (last?.ts) {
     const ppl = await peopleOf(env, d);
-    day.missed = Object.entries(ppl).flatMap(([uid, p]) => { const s = last.people?.[uid] || {}; if (s.out) return []; if (!s.plan) return [`${p.name} no plan`]; if (!s.wrap) return [`${p.name} no wrap-up`]; return []; });
+    day.missed = Object.entries(ppl).filter(([, p]) => !p.weekOnly).flatMap(([uid, p]) => { const s = last.people?.[uid] || {}; if (s.out) return []; if (!s.plan) return [`${p.name} no plan`]; if (!s.wrap) return [`${p.name} no wrap-up`]; return []; });
     if (!day.missed.length) day.missed = ['everyone posted'];
   }
   const people = await peopleOf(env, d);
@@ -252,7 +265,13 @@ function brandParts(view, prefix, list) {
 /** Run inside Slack's three seconds: a plan or week with no brand filled in is sent back with a note on the first box. */
 export function checkinErrors(p) {
   const cb = p.view?.callback_id || '';
-  const prefix = cb === 'ci_plan_submit' ? 'pb' : cb === 'ci_week_submit' ? 'wb' : null;
+  if (cb === 'ci_week_submit') {
+    const w = weekOf(p.view, null);
+    if (w.brands.length || w.theme) return null;
+    const first = (safe(p.view?.private_metadata, {}) || {}).open?.[0];
+    return { [first ? `wf_${first.a}` : 'wk_theme']: 'Write a focus or a batch for at least one brand.' };
+  }
+  const prefix = cb === 'ci_plan_submit' ? 'pb' : null;
   if (!prefix) return null;
   const meta = safe(p.view?.private_metadata, {}) || {};
   if (brandParts(p.view, prefix, meta.brands).length) return null;
@@ -277,18 +296,85 @@ export async function wrapModal(env, d, uid, uname, date) {
   ];
   return { type: 'modal', callback_id: 'ci_wrap_submit', private_metadata: JSON.stringify({ date }), title: pt('Post what I did'), submit: pt('Post'), close: pt('Cancel'), blocks };
 }
+/* ---------- Post my week (2026-11-16 rebuild, Cole's layout) ----------
+ * "Here's your overall plan for the week... then the individual plan for Ice & Gold: what's the main focus, give me a
+ * description, then what ads are you making this week: batch one, batch two, batch three, and a button that goes Add
+ * batch." So: one theme line across the person's brands, then per brand a Main focus line and its batches, each with
+ * its channel (Meta, Google, Amazon, TikTok, Email). Only the person's own brands open; "Add a brand" opens another,
+ * "Add batch" adds a row (views.update keeps what was typed: same block and action ids). Block ids: wk_theme,
+ * wf_<act> (focus), wb_<act>_<n> (batch), wc_<act>_<n> (its channel). The open brands and batch counts ride in
+ * private_metadata.open = [{a, n, k}]. */
+const MAX_BATCHES = 10;
+async function ownActs(env, d, p, list) {
+  if (Array.isArray(p.brands) && p.brands.length) return list.filter(b => p.brands.includes(b.a));
+  const mine = new Set(await brandsFor(env, d, p).catch(() => []));
+  return list.filter(b => mine.has(b.n));
+}
+const focusHolder = p => p.channel === 'google' ? 'Shift budget to Pmax Hats, build the BF search ad group'
+  : p.channel === 'amazon' ? 'Lightning deal for BF, clean up the listing photos'
+  : 'Black Friday ads loaded and approved by Wed';
+const batchHolder = p => p.channel === 'google' ? 'Branded search BF ad group, 3 RSAs, live Nov 26'
+  : p.channel === 'amazon' ? 'New A+ content for the Lefty hat'
+  : 'Batch 15 · Game of Belts · 8 statics · due Wed';
+export function weekView(p, meta) {
+  const open = meta.open || [];
+  const multi = !p.channel;   // strategists pick a channel per batch; Google / Amazon people are one channel
+  const blocks = [
+    { type: 'context', elements: [md(`*Your plan for the week.* One line for the theme, then each brand: the main focus and the batches you're making. It shows on the Monday call and is copied to each brand's channel.`)] },
+    input('wk_theme', "This week's theme (all your brands)", plain('v', has(p, 'strategist') ? 'Every BF ad loaded by Wed, December gifting briefs by Fri' : focusHolder(p))),
+  ];
+  for (const b of open) {
+    blocks.push({ type: 'header', text: pt(b.n) });
+    blocks.push(input(`wf_${b.a}`, 'Main focus', plain('v', focusHolder(p))));
+    for (let i = 0; i < b.k; i++) {
+      blocks.push(input(`wb_${b.a}_${i}`, `Batch ${i + 1}`, plain('v', batchHolder(p))));
+      if (multi) blocks.push(input(`wc_${b.a}_${i}`, `Batch ${i + 1} channel`, { type: 'static_select', action_id: 'v', initial_option: { text: pt('Meta'), value: 'meta' }, options: CHANNELS.map(([v, t]) => ({ text: pt(t), value: v })) }));
+    }
+    if (b.k < MAX_BATCHES) blocks.push({ type: 'actions', block_id: `wa_${b.a}`, elements: [{ type: 'button', action_id: 'ci_wk_batch', text: pt('+ Add batch'), value: b.a }] });
+  }
+  const rest = (meta.brands || []).filter(b => !open.some(o => o.a === b.a));
+  if (rest.length && blocks.length < 80) blocks.push({ type: 'divider' }, { type: 'actions', block_id: 'wk_more', elements: [{ type: 'static_select', action_id: 'ci_wk_brand', placeholder: pt('+ Add a brand'), options: rest.slice(0, 100).map(b => ({ text: pt(b.n), value: b.a })) }] });
+  if (has(p, 'strategist')) blocks.push(input('walk', 'Walkthroughs this week', plain('v', 'Tue 10am with Ravo and William (Dartee 15, Lucky 14)')));
+  blocks.push(...blockedInputs());
+  return { type: 'modal', callback_id: 'ci_week_submit', private_metadata: JSON.stringify(meta), title: pt('Post my week'), submit: pt('Post'), close: pt('Cancel'), blocks: blocks.slice(0, 100) };
+}
 export async function weekModal(env, d, uid, uname, date) {
   const people = await peopleOf(env, d);
   const p = personOf(people, uid, uname);
   const list = await brandList(env, d, p);
-  const blocks = [
-    { type: 'context', elements: [md(`*Fill only the brands you're on this week.* ${weekHint(p)}`)] },
-    ...brandBoxes('wb', list, has(p, 'strategist') ? 'Batch 15 · Game of Belts · 8 ads · due Wed. Angle: ... Testing: ... Why: ...' : has(p, 'buyer') ? 'Hold $220/day until batch 14 is live Wed. Need 6 new ads by Thu' : 'Batch 15 statics by Wed, batch 16 by Fri'),
-    ...(has(p, 'strategist') ? [input('walk', 'Walkthroughs this week', plain('v', 'Tue 10am with Ravo and William (Dartee 15, Lucky 14)'))] : []),
-    ...blockedInputs(),
-  ];
-  return { type: 'modal', callback_id: 'ci_week_submit', private_metadata: JSON.stringify({ date, brands: list }), title: pt('Post my week'), submit: pt('Post'), close: pt('Cancel'), blocks };
+  const own = await ownActs(env, d, p, list);
+  return weekView(p, { date, brands: list, open: own.map(b => ({ ...b, k: 1 })) });
 }
+/** "+ Add batch" / "+ Add a brand" inside the open form: redraw it with one more row. */
+async function weekGrow(env, d, p0) {
+  const a = p0.actions?.[0] || {};
+  const meta = safe(p0.view?.private_metadata, {}) || {};
+  meta.open = meta.open || [];
+  if (a.action_id === 'ci_wk_batch') { const o = meta.open.find(x => x.a === a.value); if (o) o.k = Math.min(MAX_BATCHES, (o.k || 1) + 1); }
+  else if (a.action_id === 'ci_wk_brand') { const v = a.selected_option?.value; const b = (meta.brands || []).find(x => x.a === v); if (b && !meta.open.some(x => x.a === v)) meta.open.push({ ...b, k: 1 }); }
+  const people = await peopleOf(env, d);
+  const p = personOf(people, p0.user?.id, p0.user?.name);
+  const r = await d.slackApi(env, 'views.update', { view_id: p0.view?.id, hash: p0.view?.hash, view: weekView(p, meta) });
+  if (!r?.ok) console.log('week views.update: ' + JSON.stringify(r?.error || r?.response_metadata));
+}
+/** What the week form holds: {theme, brands: [{a, n, focus, batches: [{text, ch}]}]} (brands with nothing typed left out). */
+export function weekOf(view, p) {
+  const meta = safe(view?.private_metadata, {}) || {};
+  const v = id => view?.state?.values?.[id]?.v;
+  const brands = [];
+  for (const b of meta.open || []) {
+    const focus = clean(v(`wf_${b.a}`)?.value, 400);
+    const batches = [];
+    for (let i = 0; i < (b.k || 1); i++) {
+      const text = clean(v(`wb_${b.a}_${i}`)?.value, 400);
+      if (text) batches.push({ text, ch: p?.channel || v(`wc_${b.a}_${i}`)?.selected_option?.value || 'meta' });
+    }
+    if (focus || batches.length) brands.push({ a: b.a, n: b.n, focus, batches });
+  }
+  return { theme: clean(v('wk_theme')?.value, 300), brands };
+}
+/* One brand as Slack text: focus, then a line per batch. `withName` = the brand in bold on top (the #daily-checkin post). */
+const weekBrandText = (b, withName = true) => [...(withName ? [`*${esc(b.n)}*`] : []), ...(b.focus ? [`_Main focus:_ ${esc(b.focus)}`] : []), ...b.batches.map((x, i) => `• *Batch ${i + 1}* · ${chLabel(x.ch)}: ${esc(x.text)}`)].join('\n');
 
 /* ---------- posting an answer ---------- */
 const val = (view, b) => view?.state?.values?.[b]?.v;
@@ -343,23 +429,36 @@ export async function submitCheckin(env, d, p) {
     await postInThread(env, d, day, `${me.name}'s wrap-up`, blocks);
     s.wrap = { at: now, done: picked.size, of: items.length };
   } else if (cb === 'ci_week_submit') {
-    const parts = brandParts(p.view, 'wb', meta.brands);
+    const w = weekOf(p.view, me);
     const walk = clean(val(p.view, 'walk')?.value, 300);
-    const blocks = [head(me.name, 'week', `${dayName(date)} to Fri`), ...partBlocks(parts), ...(walk ? [ctxLine(`📅 *Walkthroughs:* ${esc(walk)}`)] : []), ...needCtx];
+    const role = me.channel ? chLabel(me.channel) : '';
+    const blocks = [head(me.name, 'week', `${dayName(date)} to Fri${role ? ` · ${role}` : ''}`),
+      ...(w.theme ? [{ type: 'section', text: md(`*This week:* ${esc(w.theme)}`) }] : []),
+      ...w.brands.map(b => ({ type: 'section', text: md(weekBrandText(b)) })),
+      ...(walk ? [ctxLine(`📅 *Walkthroughs:* ${esc(walk)}`)] : []), ...needCtx];
     const brands = await d.listBrands(env);
     const copied = [];
-    for (const part of parts) {
+    for (const part of w.brands) {
       const b = brands.find(x => x.act_id === part.a);
       if (!b?.slack_channel || b.slack_channel === b.brief_channel) continue;
-      /* Under the brand's morning card (its Monday thread), where the Monday call screen reads the plan from; top-level when the brand has no card today. */
-      const blocks = [{ type: 'section', text: md(`*${me.name}'s week · ${part.n}* (from #daily-checkin)`) }, part.rt];
-      const ok = d.teamPost ? await d.teamPost(env, b.slack_channel, `${me.name}'s week for ${part.n}`, blocks, {}).then(() => true).catch(() => false)
-        : (await d.slackApi(env, 'chat.postMessage', { channel: b.slack_channel, text: `${me.name}'s week for ${part.n}`, unfurl_links: false, blocks }).catch(() => null))?.ok;
+      const pb = [{ type: 'section', text: md(`*${me.name}'s week · ${esc(part.n)}*${role ? ` (${role})` : ''}${w.theme ? `\n_This week:_ ${esc(w.theme)}` : ''}\n${weekBrandText(part, false)}`) }];
+      const ok = d.teamPost ? await d.teamPost(env, b.slack_channel, `${me.name}'s week for ${part.n}`, pb, {}).then(() => true).catch(() => false)
+        : (await d.slackApi(env, 'chat.postMessage', { channel: b.slack_channel, text: `${me.name}'s week for ${part.n}`, unfurl_links: false, blocks: pb }).catch(() => null))?.ok;
       if (ok) copied.push(part.n);
     }
     if (copied.length) blocks.push(ctxLine(`Copied to ${copied.map(n => `#${n.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-internal`).join(', ')}`));
     await postInThread(env, d, day, `${me.name}'s week`, blocks);
     s.week = { at: now, brands: copied };
+    /* The Monday call reads the week from here (meetings.js mondayScreen), not from the bot's copies in Slack
+       (the call skips bot messages, so a copied week never reached it before 2026-11-16). */
+    const key = `weekplan:${date}`;
+    const all = safe(await d.getSetting(env, key), {}) || {};
+    all[uid] = { name: me.name, role, at: now, theme: w.theme, brands: w.brands };
+    await d.putSetting(env, key, JSON.stringify(all));
+    if (w.theme) {
+      const themes = Object.values(all).filter(x => x.theme).map(x => `${x.name}: ${x.theme}`).join(' · ');
+      await d.putSetting(env, 'mondayTheme', JSON.stringify({ date, text: themes.slice(0, 600) }));
+    }
   } else return;
   if (need && !(s.need || []).some(n => (n.text || n) === need)) {
     s.need = [...(s.need || []), { on, text: need }].slice(-3);
@@ -397,6 +496,7 @@ export async function checkinAction(env, ctx, d, p) {
     })());
     return;
   }
+  if (a.action_id === 'ci_wk_batch' || a.action_id === 'ci_wk_brand') { ctx.waitUntil(weekGrow(env, d, p).catch(e => console.log('week grow: ' + e.message))); return; }
   const make = a.action_id === 'ci_plan' ? planModal : a.action_id === 'ci_wrap' ? wrapModal : a.action_id === 'ci_week' ? weekModal : null;
   if (!make) return;
   const view = await make(env, d, uid, uname, date);
@@ -603,7 +703,7 @@ export async function checkinTick(env, d) {
     /* one DM for anyone with no plan four hours in */
     if (day?.ts && hour >= mh + NUDGE_AFTER && !(await d.getSetting(env, `checkinNudged:${date}`))) {
       const people = await peopleOf(env, d);
-      const late = Object.entries(people).filter(([uid]) => { const s = day.people?.[uid] || {}; return !s.plan && !s.out; });
+      const late = Object.entries(people).filter(([uid, p]) => { const s = day.people?.[uid] || {}; return !p.weekOnly && !s.plan && !s.out; });
       for (const [uid] of late) {
         /* 2026-11-09 (the lane format, lane.js): "*OPS · Agency*", the person, the ask, the same two buttons. */
         const m = laneBlocks({ lane: 'OPS', brand: 'Agency', who: uid, ask: `Post your plan for today in <https://slack.com/app_redirect?channel=${day.channel}|#daily-checkin>`, why: 'no plan from you yet today',
@@ -613,6 +713,19 @@ export async function checkinTick(env, d) {
       await d.putSetting(env, `checkinNudged:${date}`, JSON.stringify(late.map(([u]) => u)));
       out.nudged = late.length;
     }
+  }
+  /* Monday: the week button by DM to anyone who is not in #daily-checkin (Hamza, a Slack Connect guest), once. */
+  if (weekday(date) === 1 && hour >= mh && hour < 20 && !(await d.getSetting(env, `checkinWeekDm:${date}`))) {
+    const people = await peopleOf(env, d);
+    const sent = [];
+    for (const [uid, p] of Object.entries(people).filter(([, p]) => p.dm)) {
+      const r = await d.slackApi(env, 'chat.postMessage', { channel: uid, text: 'Post your week for the Monday call',
+        blocks: [{ type: 'section', text: md(`Morning ${p.name}. Post your week for today's Monday call: the main focus and what you're working on, per brand.`) },
+          { type: 'actions', elements: [{ type: 'button', action_id: 'ci_week', style: 'primary', text: pt('Post my week'), value: date }] }] }).catch(e => ({ error: e.message }));
+      sent.push(`${p.name}: ${r?.ok ? 'sent' : r?.error || 'failed'}`);
+    }
+    await d.putSetting(env, `checkinWeekDm:${date}`, JSON.stringify(sent));
+    out.weekDm = sent;
   }
   /* no notes in 24 hours = approved */
   const open = safe(await d.getSetting(env, 'rvOpen'), []);

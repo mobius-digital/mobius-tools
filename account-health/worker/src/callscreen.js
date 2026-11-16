@@ -209,7 +209,8 @@ WHO POSTS: Ahsan and Noma are the strategists (Meta ads and creative). Radhesh r
 read = the STRATEGIST's takeaways on last week's Meta ads and creative in 1 to 4 sentences (numbers, winners, losers), as they wrote them. Never put a Google or Amazon update here; if only Radhesh or Hamza posted, read = ''.
 batches = from Ahsan's, Noma's or Cole's posts only (never Radhesh's or Hamza's): each batch of ads planned for this week (never Google or Amazon work), one line each saying what to make ("3 new hooks on the Burgundy couch video, static 4:5"), owner = the designer or editor named (first name from: ${ROSTER.map(r => r.name).join(', ')}) else '', due = YYYY-MM-DD when a day is given (the Monday is ${monday}) else ''.
 google = what Radhesh's Google update says (budgets, bids, feeds, what he is watching), in one or two sentences, else ''. amazon = the same for Hamza's Amazon update, else ''.
-asks = what they need from the client, one line each, with a due date when given.`;
+asks = what they need from the client, one line each, with a due date when given.
+A post headed "<name>'s week plan" comes from the Post my week form: "Main focus: ..." then "Batch N (Channel): ..." lines. Meta, TikTok, Email and Other batches go in batches (one each, the batch as written); Google batches and Google focus go in google; Amazon ones in amazon.`;
   return model(env, d, { system, user: `BRAND: ${brand}\n\nTHE PLAN THREAD:\n${text}`, schema: PLAN_SCHEMA, max: 2000 });
 }
 
@@ -238,7 +239,7 @@ async function mondayData(env, d, who) {
     /* The plan thread, split once per version of the thread (a new reply re-splits it). */
     let plan = null;
     if (b.thread.length) {
-      const h = 'v4:' + hash(b.thread.map(m => m.text).join('|'));
+      const h = 'v5:' + hash(b.thread.map(m => m.text).join('|'));
       const cached = state.parsed[b.act_id];
       if (cached && cached.h === h) plan = cached.plan;
       else {

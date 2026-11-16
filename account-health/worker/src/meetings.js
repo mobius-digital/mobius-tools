@@ -472,6 +472,7 @@ export async function mondayScreen(env, d) {
   const monday = mondayOf(today);
   const open = await openItems(env, d).catch(() => []);
   const theme = safe(await getSetting(env, 'mondayTheme'), null);
+  const weekplans = safe(await getSetting(env, `weekplan:${monday}`), {}) || {};
   /* Every brand at once (2026-10-19: the call screen loads it; one brand at a time took ~7s). Order is kept. */
   const out = await Promise.all(brands.map(async b => {
     const rep = await env.DB.prepare(`SELECT period, period_start, period_end, status, summary, data_json, slack_ts, slack_channel, sent_at FROM reports WHERE act_id = ?1 AND period = 'weekly' ORDER BY period_start DESC LIMIT 1`).bind(b.act_id).first().catch(() => null);
@@ -497,6 +498,16 @@ export async function mondayScreen(env, d) {
         thread = rows.map(r => ({ by: r.name || r.user || 'someone', text: String(r.text).slice(0, 4000), at: new Date(+String(r.ts).split('.')[0] * 1000).toISOString(), where: 'channel' }));
       }
     }
+    /* The weeks posted with "Post my week" in #daily-checkin (checkin.js, settings weekplan:<monday>), first: the
+       strategists' batches and the Google / Amazon people's plans, each as one post by its person. */
+    const weeks = Object.values(weekplans).filter(w => (w.brands || []).some(x => x.a === b.act_id)).map(w => {
+      const x = w.brands.find(y => y.a === b.act_id);
+      const CH = { meta: 'Meta', google: 'Google', amazon: 'Amazon', tiktok: 'TikTok', email: 'Email', other: 'Other' };
+      const lines = [`${w.name}'s week plan${w.role ? ` (${w.role})` : ''}`, ...(w.theme ? [`Theme across brands: ${w.theme}`] : []), ...(x.focus ? [`Main focus: ${x.focus}`] : []),
+        ...(x.batches || []).map((y, i) => `Batch ${i + 1} (${CH[y.ch] || 'Meta'}): ${y.text}`)];
+      return { by: w.name, text: lines.join('\n'), at: w.at, where: 'week' };
+    });
+    thread = [...weeks, ...thread];
     return { act_id: b.act_id, name: b.name, report, thread, open: (open.find(o => o.brand_id === b.act_id) || {}).items || [] };
   }));
   return { monday, theme: theme && theme.date === monday ? theme.text : '', brands: out, agency_open: (open.find(o => o.brand_id === '') || {}).items || [] };

@@ -75,7 +75,7 @@ export function dailyVerdict({ sales, plan, others = [] }) {
 
 /** The client daily. `day` = {sales, spend, mer, amer, plan}; `month` = {ym, sales, plan, spend, day_of_month,
  *  days_in_month}; `others` = the month's other finished days' sales (for "best day"); `next` = the human line. */
-export function dailyPost({ brand, date, currency = 'USD', day = {}, month = {}, others = [], next = null }) {
+export function dailyPost({ brand, date, currency = 'USD', day = {}, month = {}, others = [], next = null, amazon = null }) {
   const L = [`*${noDash(brand)} · Daily update*`];
   const verdict = dailyVerdict({ sales: day.sales, plan: day.plan, others });
   const plan = day.plan > 0 ? `plan ${money(day.plan, currency)}` : '';
@@ -83,6 +83,8 @@ export function dailyPost({ brand, date, currency = 'USD', day = {}, month = {},
   L.push(`*Yesterday, ${dayLabel(date)}*`, `• Sales: *${money(day.sales, currency)}*${note ? ` (${note})` : ''}`, `• Ad spend: *${money(day.spend, currency)}*`);
   if (x(day.mer)) L.push(`• MER: *${x(day.mer)}*`);
   if (x(day.amer)) L.push(`• aMER (new customers): *${x(day.amer)}*`);
+  /* Amazon (2026-11-16, Floyd at Bonk): its sales are inside the sales line above; this says how much of it was Amazon. */
+  if (amazon?.day) L.push(`• Amazon: *${money(amazon.day.sales, currency)}* (${amazon.day.orders} order${amazon.day.orders === 1 ? '' : 's'})`);
   if (month.sales != null) {
     const mName = month.ym ? MONTHS[+String(month.ym).slice(5, 7) - 1] : MONTHS[at(date).getUTCMonth()];
     const dom = month.day_of_month || +date.slice(8, 10);
@@ -90,6 +92,7 @@ export function dailyPost({ brand, date, currency = 'USD', day = {}, month = {},
       `• Sales: *${shortMoney(month.sales, currency)}*${month.plan > 0 ? ` of ${shortMoney(month.plan, currency)} planned` : ''}`);
     if (month.spend != null) L.push(`• Ad spend: *${shortMoney(month.spend, currency)}*`);
     if (month.spend > 0) L.push(`• MER: *${x(month.sales / month.spend)}*`);
+    if (amazon?.month?.orders > 0) L.push(`• Amazon: *${shortMoney(amazon.month.sales, currency)}* (${amazon.month.orders} orders)`);
   }
   const n = noDash(next);
   if (n) L.push('', `*Next:* ${n.replace(/^next:\s*/i, '').slice(0, 240)}`);
@@ -163,7 +166,7 @@ function askLine(a) {
 }
 
 /** The weekly or monthly client post: labelled bullets, one comparison each vs the period before. */
-export function weeklyPost({ brand, period = 'weekly', start, end = null, currency = 'USD', totals = {}, previous = {}, sentence, this_week = [], from_you = [], url = null }) {
+export function weeklyPost({ brand, period = 'weekly', start, end = null, currency = 'USD', totals = {}, previous = {}, sentence, this_week = [], from_you = [], url = null, amazon = null }) {
   const monthly = period === 'monthly';
   const endTxt = end ? (end.slice(5, 7) === start.slice(5, 7) ? String(+end.slice(8, 10)) : monDay(end)) : '';
   const span = monthly ? `${MONTHS[at(start).getUTCMonth()]} report` : `Weekly report, ${monDay(start)}${endTxt ? ` to ${endTxt}` : ''}`;
@@ -178,6 +181,7 @@ export function weeklyPost({ brand, period = 'weekly', start, end = null, curren
     `• Ad spend: *${money(t.spend, currency)}*${pct(t.spend, p.spend)}`);
   if (x(t.mer)) L.push(`• MER: *${x(t.mer)}*${x(p.mer) ? ` (was ${x(p.mer)})` : ''}`);
   if (x(t.amer)) L.push(`• aMER (new customers): *${x(t.amer)}*${x(p.amer) ? ` (was ${x(p.amer)})` : ''}`);
+  if (amazon?.cur?.orders > 0) L.push(`• Amazon: *${money(amazon.cur.sales, currency)}* (${amazon.cur.orders} orders${amazon.prev?.orders > 0 ? `, was ${money(amazon.prev.sales, currency)}` : ''})`);
   if (t.cm != null) L.push(`• Contribution margin: *${money(t.cm, currency)}*${p.cm != null ? ` (was ${money(p.cm, currency)})` : ''}`, `_${CM_WORDS}_`);
   const clip = s => s.length <= 160 ? s : s.slice(0, 157).replace(/\s+\S*$/, '') + '...';
   const clean = list => [...new Set((Array.isArray(list) ? list : []).map(s => clip(noDash(askLine(s)).replace(/^[•\-\s]+/, ''))).filter(Boolean))];
