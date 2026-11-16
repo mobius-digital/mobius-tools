@@ -20,7 +20,8 @@
  *   PUT  /api/amb/discord/look {act, mascot, avatar, emoji, color, icon}   save the look and apply it
  *   POST /api/amb/discord/build {act, core, vip}   make the roles, channels and first posts; safe to run twice
  *   GET  /api/amb/discord/messages?act=&channel=questions&limit=50   recent messages, oldest first
- *   POST /api/amb/discord/post {act, channel, text, pin}             post as the mascot
+ *   POST /api/amb/discord/post {act, channel, text, pin, ping}       post as the mascot (ping = @everyone, announcements + this-week only)
+ *   POST /api/amb/discord/delete {act, channel, id}                  delete a mascot post
  *   POST /api/amb/discord/vip {act, user_id, on}                     give or take the VIP role
  * No em dashes in anything this posts. */
 const API = 'https://discord.com/api/v10';
@@ -29,6 +30,7 @@ const noDash = s => String(s || '').replace(/\s*[—–]\s*/g, ', ');
 const VIEW = 1024n, SEND = 2048n, CONNECT = 1048576n;
 const HEX = /^#[0-9a-f]{6}$/i;
 const QUIET = 1;   // Discord default_message_notifications: 1 = only @mentions
+const PING_CHANNELS = ['announcements', 'this-week'];   // the only channels a post may @everyone in
 const VIP_GOLD = 0xF1C40F;
 
 async function doc(env, act) {
@@ -328,7 +330,14 @@ export async function handleDiscord(request, env, url, path, body, json, mustAcc
       const id = chan(key);
       const text = noDash(body.text).trim().slice(0, 1990);
       if (!id || !text) return json({ error: 'Give a channel and the text.' }, 400);
-      const m = await hookPost(token, d, key, id, lookOf(d, b), { content: text, flags: 4 });
+      /* @everyone (2026-11-16, Cole: the call post must notify people). The servers are "only @mentions", so a post
+         pings only when it mentions everyone. Allowed in the channels that carry things to act on; every other channel
+         stays quiet. Without `ping` nothing is ever mentioned. */
+      if (body.ping && !PING_CHANNELS.includes(key)) return json({ error: `@everyone is only for #${PING_CHANNELS.join(', #')}.` }, 400);
+      const msg = body.ping
+        ? { content: /@everyone/.test(text) ? text : `@everyone ${text}`, flags: 4, allowed_mentions: { parse: ['everyone'] } }
+        : { content: text, flags: 4 };
+      const m = await hookPost(token, d, key, id, lookOf(d, b), msg);
       await putDoc(env, acct.act_id, d);   // keeps a webhook made just now
       if (body.pin) { await dc(token, 'PUT', `/channels/${id}/pins/${m.id}`).catch(() => {}); await dropPinNotices(token, id); }
       return json({ ok: true, id: m.id });
@@ -341,6 +350,14 @@ export async function handleDiscord(request, env, url, path, body, json, mustAcc
       const text = noDash(body.text).trim().slice(0, 1990);
       if (!chan(key) || !h || !/^\d{15,22}$/.test(mid) || !text) return json({ error: 'Give the channel, the message id and the new text.' }, 400);
       await dc(token, 'PATCH', `/webhooks/${h.id}/${h.token}/messages/${mid}`, { content: text, allowed_mentions: { parse: [] } }, false);
+      return json({ ok: true, id: mid });
+    }
+    /* Delete a message the mascot posted (2026-11-16: replace a silent post with one that pings). */
+    if (path === '/api/amb/discord/delete' && method === 'POST') {
+      const key = String(body.channel || '').replace(/^#/, '');
+      const h = (d.hooks || {})[key], mid = String(body.id || '');
+      if (!chan(key) || !h || !/^\d{15,22}$/.test(mid)) return json({ error: 'Give the channel and the message id.' }, 400);
+      await dc(token, 'DELETE', `/webhooks/${h.id}/${h.token}/messages/${mid}`, null, false);
       return json({ ok: true, id: mid });
     }
     /* Clear the "pinned a message" lines from every channel of this brand's server. */
