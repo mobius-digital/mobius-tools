@@ -80,19 +80,34 @@ export function dailyPost({ brand, date, currency = 'USD', day = {}, month = {},
   const verdict = dailyVerdict({ sales: day.sales, plan: day.plan, others });
   const plan = day.plan > 0 ? `plan ${money(day.plan, currency)}` : '';
   const note = [plan, verdict].filter(Boolean).join(', ');
-  L.push(`*Yesterday, ${dayLabel(date)}*`, `• Sales: *${money(day.sales, currency)}*${note ? ` (${note})` : ''}`, `• Ad spend: *${money(day.spend, currency)}*`);
-  if (x(day.mer)) L.push(`• MER: *${x(day.mer)}*`);
-  if (x(day.amer)) L.push(`• aMER (new customers): *${x(day.amer)}*`);
-  /* Amazon (2026-11-16, Floyd at Bonk): its sales are inside the sales line above; this says how much of it was Amazon. */
-  if (amazon?.day) L.push(`• Amazon: *${money(amazon.day.sales, currency)}* (${amazon.day.orders} order${amazon.day.orders === 1 ? '' : 's'})`);
+  /* AMAZON (2026-11-17, Cole: "break total sales down by Shopify vs Amazon, and ad spend by Meta, Google, Amazon").
+     `shop` Amazon (Bonk: Amazon orders synced into Shopify) is INSIDE the sales line, so it is split out under it and its
+     Amazon Ads spend joins the ad spend and the MER. `own` Amazon (a separate Amazon store) is never added to anything. */
+  const az = amazon?.day || null, inside = (amazon?.month?.shop_orders || 0) > 0;
+  const azAds = inside ? (az?.ads || 0) : 0;
+  const spend = day.spend != null ? day.spend + azAds : null;
+  const sub = s => `      ◦ ${s}`;
+  const ords = n => `${whole(n)} order${n === 1 ? '' : 's'}`;
+  L.push(`*Yesterday, ${dayLabel(date)}*`, `• Sales: *${money(day.sales, currency)}*${note ? ` (${note})` : ''}`);
+  if (inside && day.sales != null) L.push(sub(`Website: ${money(day.sales - (az?.shop_sales || 0), currency)}`), sub(`Amazon: ${money(az?.shop_sales || 0, currency)} (${ords(az?.shop_orders || 0)})`));
+  L.push(`• Ad spend: *${money(spend, currency)}*`);
+  const parts = [['Meta', day.meta_spend], ['Google', day.google_spend], ['Amazon', azAds]].filter(([, v]) => v > 0);
+  if (inside && parts.length > 1) for (const [k, v] of parts) L.push(sub(`${k}: ${money(v, currency)}`));
+  const mer = azAds > 0 && spend > 0 && day.sales != null ? day.sales / spend : day.mer;
+  if (x(mer)) L.push(`• MER: *${x(mer)}*`);
+  const amer = azAds > 0 && day.amer != null && day.spend > 0 ? day.amer * day.spend / spend : day.amer;
+  if (x(amer)) L.push(`• aMER (new customers): *${x(amer)}*`);
+  if (!inside && az?.own_orders > 0 && az.own_sales >= 1) L.push(`• Amazon store: *${money(az.own_sales, currency)}* (${ords(az.own_orders)}${az.ads > 0 ? `, ${money(az.ads, currency)} Amazon ads` : ''}), separate from the sales above`);
   if (month.sales != null) {
     const mName = month.ym ? MONTHS[+String(month.ym).slice(5, 7) - 1] : MONTHS[at(date).getUTCMonth()];
     const dom = month.day_of_month || +date.slice(8, 10);
     L.push('', `*${mName} so far* (${dom}${month.days_in_month ? ` of ${month.days_in_month}` : ''} days)`,
       `• Sales: *${shortMoney(month.sales, currency)}*${month.plan > 0 ? ` of ${shortMoney(month.plan, currency)} planned` : ''}`);
-    if (month.spend != null) L.push(`• Ad spend: *${shortMoney(month.spend, currency)}*`);
-    if (month.spend > 0) L.push(`• MER: *${x(month.sales / month.spend)}*`);
-    if (amazon?.month?.orders > 0) L.push(`• Amazon: *${shortMoney(amazon.month.sales, currency)}* (${amazon.month.orders} orders)`);
+    const am = amazon?.month || null, mAds = inside ? (am?.ads || 0) : 0, mSpend = month.spend != null ? month.spend + mAds : null;
+    if (inside) L.push(sub(`Website: ${shortMoney(month.sales - am.shop_sales, currency)}`), sub(`Amazon: ${shortMoney(am.shop_sales, currency)} (${ords(am.shop_orders)})`));
+    if (mSpend != null) L.push(`• Ad spend: *${shortMoney(mSpend, currency)}*${mAds > 0 ? ` (Amazon ads ${shortMoney(mAds, currency)})` : ''}`);
+    if (mSpend > 0) L.push(`• MER: *${x(month.sales / mSpend)}*`);
+    if (!inside && am?.own_orders > 0 && am.own_sales >= 1) L.push(`• Amazon store: *${shortMoney(am.own_sales, currency)}* (${ords(am.own_orders)}), separate from the sales above`);
   }
   const n = noDash(next);
   if (n) L.push('', `*Next:* ${n.replace(/^next:\s*/i, '').slice(0, 240)}`);
@@ -181,7 +196,8 @@ export function weeklyPost({ brand, period = 'weekly', start, end = null, curren
     `• Ad spend: *${money(t.spend, currency)}*${pct(t.spend, p.spend)}`);
   if (x(t.mer)) L.push(`• MER: *${x(t.mer)}*${x(p.mer) ? ` (was ${x(p.mer)})` : ''}`);
   if (x(t.amer)) L.push(`• aMER (new customers): *${x(t.amer)}*${x(p.amer) ? ` (was ${x(p.amer)})` : ''}`);
-  if (amazon?.cur?.orders > 0) L.push(`• Amazon: *${money(amazon.cur.sales, currency)}* (${amazon.cur.orders} orders${amazon.prev?.orders > 0 ? `, was ${money(amazon.prev.sales, currency)}` : ''})`);
+  /* 2026-11-17: say whether Amazon is inside the sales above (orders synced into Shopify) or a separate Amazon store. */
+  if (amazon?.cur?.orders > 0) L.push(`• ${amazon.cur.inside ? 'Of that, Amazon' : 'Amazon store'}: *${money(amazon.cur.sales, currency)}* (${amazon.cur.orders} orders${amazon.prev?.orders > 0 ? `, was ${money(amazon.prev.sales, currency)}` : ''}${amazon.cur.ads > 0 ? `; ${money(amazon.cur.ads, currency)} Amazon ads` : ''})${amazon.cur.inside ? '' : ', separate from the sales above'}`);
   if (t.cm != null) L.push(`• Contribution margin: *${money(t.cm, currency)}*${p.cm != null ? ` (was ${money(p.cm, currency)})` : ''}`, `_${CM_WORDS}_`);
   const clip = s => s.length <= 160 ? s : s.slice(0, 157).replace(/\s+\S*$/, '') + '...';
   const clean = list => [...new Set((Array.isArray(list) ? list : []).map(s => clip(noDash(askLine(s)).replace(/^[•\-\s]+/, ''))).filter(Boolean))];

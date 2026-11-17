@@ -9758,8 +9758,11 @@ function reportBodyHTML(d, summary, opts = {}) {
     } else if (c.id === 'amazon') {
       rows = chRow('Sales', A.sales, P.sales, money)
         + chRow('Orders', A.orders, P.orders, fmtInt)
-        + chRow('Refunds', A.refunds, P.refunds, money, true);
-      note = 'Amazon storefront sales - a separate channel, not included in the store revenue above.'
+        + chRow('Refunds', A.refunds, P.refunds, money, true)
+        + (A.ads != null || P.ads != null ? chRow('Amazon ad spend', A.ads, P.ads, money, true) : '');
+      /* 2026-11-17: Bonk's Amazon orders are synced into Shopify (`inside`), so they ARE in the store revenue. */
+      note = (A.inside ? 'Amazon orders that come into the store through Shopify. They are already inside the store revenue above.'
+        : 'Amazon storefront sales, a separate channel, not included in the store revenue above.')
         + (A.data_through && A.data_through < d.end ? ` Amazon reports with a delay: data runs through ${shortD(A.data_through)}.` : '');
     } else if (c.id === 'email') {
       rows = chRow('Email-attributed revenue', A.revenue, P.revenue, money)
