@@ -668,15 +668,33 @@ Return one entry per test, keyed by its number. ${VOICE}`,
    recent ads (never fixed benchmarks): CTR, hook rate, cost per add to cart, CPM.
    Locus only suggests. The media buyer sets Result in Asana. */
 async function batchStats(env, act, rows) {
-  const ads = (await env.DB.prepare(`SELECT ad_id, name FROM ads WHERE act_id IN ${metaOf(1)}`).bind(act).all()).results || [];
+  const ads = (await env.DB.prepare(`SELECT ad_id, name, adset_id FROM ads WHERE act_id IN ${metaOf(1)}`).bind(act).all()).results || [];
   const tags = Object.fromEntries(((await env.DB.prepare(`SELECT ad_id, batch_id FROM p_br_adtag WHERE act_id = ?1`).bind(act).all()).results || []).map(t => [t.ad_id, t.batch_id]));
   const want = new Map(rows.map(x => [String(parseInt(x.num, 10)), x.id]));
   const ids = new Set(rows.map(x => x.id));
-  const byBatch = {};
+  const byBatch = {}, byNum = {}, info = {};
   for (const a of ads) {
     const n = numOf(a.name);
-    const bid = tags[a.ad_id] || (n && want.get(n));
-    if (bid && ids.has(bid)) (byBatch[bid] ||= []).push(a.ad_id);
+    const tagged = tags[a.ad_id];
+    const bid = tagged || (n && want.get(n));
+    if (!bid || !ids.has(bid)) continue;
+    (byBatch[bid] ||= []).push(a.ad_id);
+    if (!tagged) (byNum[bid] ||= []).push(a.ad_id);
+    info[a.ad_id] = a;
+  }
+  /* NUMBERS REPEAT (2026-11-16): Lucky's Carver UGC ad sets 448/450/451/452 (spending since Oct 27) carry the same
+     numbers as the Black Friday, Cyber Monday and Gifting cards that launch Nov 26 to Dec 1, and the Monday post
+     called the old Carver spend "Black Friday ads". An ad matched by its number alone (no tag) that spent more than
+     2 days before its card's launch date belongs to something else: leave it out. */
+  const launch = Object.fromEntries(((await env.DB.prepare(`SELECT id, launch_on FROM p_br_batch WHERE act_id = ?1 AND launch_on IS NOT NULL`).bind(act).all().catch(() => ({ results: [] }))).results || []).map(x => [x.id, x.launch_on]));
+  for (const [bid, list] of Object.entries(byNum)) {
+    if (!launch[bid]) continue;
+    const q = list.map((_, i) => `?${i + 3}`).join(',');
+    const early = new Set(((await env.DB.prepare(`SELECT ad_id FROM ad_daily WHERE act_id IN ${metaOf(1)} AND date < ?2 AND spend > 0 AND ad_id IN (${q}) GROUP BY ad_id`)
+      .bind(act, addDays(String(launch[bid]).slice(0, 10), -2), ...list).all()).results || []).map(x => x.ad_id));
+    if (!early.size) continue;
+    byBatch[bid] = byBatch[bid].filter(id => !early.has(id));
+    if (!byBatch[bid].length) delete byBatch[bid];
   }
   const out = {};
   for (const [bid, list] of Object.entries(byBatch)) {
@@ -684,7 +702,7 @@ async function batchStats(env, act, rows) {
     const s = await env.DB.prepare(`SELECT SUM(spend) spend, SUM(impressions) impr, SUM(link_clicks) clicks, SUM(video_3s) v3, SUM(video_thruplay) thru,
         SUM(add_to_cart) atc, MIN(CASE WHEN spend > 0 THEN date END) first FROM ad_daily WHERE act_id IN ${metaOf(1)} AND ad_id IN (${q})`).bind(act, ...list).first();
     const t = await env.DB.prepare(`SELECT SUM(revenue) rev, SUM(orders) orders FROM tw_ad_attr WHERE act_id = ?1 AND model = 'lastPlatformClick' AND ad_id IN (${q})`).bind(act, ...list).first();
-    out[bid] = { ads: list.length, ad_ids: list, spend: s?.spend || 0, impr: s?.impr || 0, clicks: s?.clicks || 0, v3: s?.v3 || 0, thru: s?.thru || 0, atc: s?.atc || 0, first: s?.first, rev: t?.rev || 0, orders: t?.orders || 0 };
+    out[bid] = { ads: list.length, ad_ids: list, adset_of: Object.fromEntries(list.map(id => [id, info[id]?.adset_id || null])), ad_name: info[list[0]]?.name || null, spend: s?.spend || 0, impr: s?.impr || 0, clicks: s?.clicks || 0, v3: s?.v3 || 0, thru: s?.thru || 0, atc: s?.atc || 0, first: s?.first, rev: t?.rev || 0, orders: t?.orders || 0 };
   }
   return out;
 }
@@ -777,12 +795,14 @@ async function testMinimums(env, act) {
   const metas = await metaActsOf(env, act);
   if (!metas.length) return { campaigns: [], adsets: [], error: 'No Meta ad account connected.' };
   const live = [{ field: 'effective_status', operator: 'IN', value: ['ACTIVE'] }];
-  const out = { campaigns: [], adsets: [] };
+  const out = { campaigns: [], adsets: [], ads: [] };
   for (const m of metas) {
-    const [sets, camps] = await Promise.all([
+    const [sets, camps, ads] = await Promise.all([
       graphAll(env, `${m}/adsets`, { fields: 'name,campaign_id,daily_min_spend_target,created_time', filtering: live }),
       graphAll(env, `${m}/campaigns`, { fields: 'name,daily_budget', filtering: live }),
+      graphAll(env, `${m}/ads`, { fields: 'adset_id', filtering: live }),   // running ads: the Monday post skips tests already off
     ]);
+    out.ads.push(...ads.map(a => ({ id: a.id, adset_id: a.adset_id })));
     out.campaigns.push(...camps.filter(c => +c.daily_budget > 0).map(c => ({ id: c.id, name: c.name, budget: +c.daily_budget / 100, act: m })));
     out.adsets.push(...sets.map(a => ({ id: a.id, name: a.name, campaign_id: a.campaign_id, num: numOf(a.name), min: +(a.daily_min_spend_target || 0) / 100, created: a.created_time, act: m })));
   }
@@ -831,7 +851,10 @@ export async function mondayCalls(env, act, opts = {}) {
   const open = new Set(), openAds = new Set();
   const plan = { pause: [], pauseAds: [], clear: [] };
   const due = [];   // the daily check (minoff.js): every ad set whose minimum is due off and still set in Meta
-  let old = 0;
+  let old = 0, off = 0, tests = 0;
+  /* What is running in Meta right now (2026-11-16). Without it the post told the buyer to pause ad sets that were
+     already paused. Unknown when Meta could not be read: then nothing is skipped. */
+  const running = meta.error ? null : new Set((meta.ads || []).map(a => a.id));
   for (const r of rows) {
     const st = stats[r.id];
     if (!st || !(st.spend > 0)) continue;                            // not spending: not live in Meta
@@ -840,9 +863,18 @@ export async function mondayCalls(env, act, opts = {}) {
        pause ad sets that are still selling (seen on Lucky, 2026-10-04). */
     if (st.first && Math.round((Date.parse(`${td}T12:00:00Z`) - Date.parse(`${st.first}T12:00:00Z`)) / 864e5) + 1 > rules.judge_days + 14) { old++; continue; }
     const n = String(parseInt(r.num, 10));
-    const sets = (meta.adsets || []).filter(a => a.num === n);
+    const on = running ? (st.ad_ids || []).filter(id => running.has(id)) : (st.ad_ids || []);
+    if (running && !on.length) { off++; continue; }                  // already off in Meta: nothing to call
+    /* The test's ad sets are the running sets that hold its ads, never "any set whose name starts with the number".
+       A set it shares with other ads (a BFCM audience set) is never paused or stripped of its minimum for one test:
+       only that test's ads come off. */
+    const setIds = new Set(on.map(id => st.adset_of?.[id]).filter(Boolean));
+    const sets = (meta.adsets || []).filter(a => setIds.has(a.id));
+    const whole = running ? sets.filter(a => (meta.ads || []).filter(x => x.adset_id === a.id).every(x => on.includes(x.id))) : sets;
+    const wholeIds = new Set(whole.map(a => a.id));
+    const looseAds = on.filter(id => !wholeIds.has(st.adset_of?.[id]));
     const day = st.first ? Math.round((Date.parse(`${td}T12:00:00Z`) - Date.parse(`${st.first}T12:00:00Z`)) / 864e5) + 1 : null;
-    const min = sets.reduce((t, a) => t + (a.min || 0), 0);
+    const min = whole.reduce((t, a) => t + (a.min || 0), 0);
     const sc = scorecard(st, rules, bm);
     const j = judge(st, rules, sc);
     /* Past its days and still too little spend to judge: Meta would not spend on it.
@@ -854,16 +886,18 @@ export async function mondayCalls(env, act, opts = {}) {
     const nudge = min > 0 && day && day > rules.min_days && st.spend < rules.judge_spend ? nudgeCall(st, min, day, rules) : null;
     const call = nudge ? nudge.call : j ? (j.call === 'keep' && j.reason === 'avg' ? 'avg' : j.call) : starved ? 'loser' : 'early';
     const minOff = min > 0 && (nudge ? true : call !== 'loser' && (call !== 'early' || (day && day > rules.min_days)));   // a paused test needs no minimum change, unless the nudge pauses it
-    const name = sets[0]?.name || `${n} | ${r.title}`;
+    /* The name Meta shows (its own set, else its first ad), so a wrong card match can never read as another campaign. */
+    const name = whole[0]?.name || st.ad_name || `${n} | ${r.title}`;
+    tests++;
     const nums = `${money(st.spend)} spent, ${st.orders || 0} sale${st.orders === 1 ? '' : 's'}${st.orders ? ` (${money(st.spend / st.orders)} each)` : ''}`;
     const line = nudge ? `• ${name}: ${nudge.line}`
       : call === 'early' ? `• ${name}: day ${day || '?'} of ${rules.judge_days}, ${money(st.spend)} spent`
       : starved ? `• ${name}: Meta wouldn't spend on it (${money(st.spend)} in ${day} days)` : `• ${name}: ${nums}`;
     groups[call].push(line + (minOff ? ` · *take the ${money(min)} minimum off*` : ''));
-    if (call === 'loser' || minOff) { sets.forEach(a => open.add(`${a.act}|${a.id}`)); if (!sets.length) (st.ad_ids || []).forEach(id => openAds.add(id)); }
-    if (call === 'loser') { if (sets.length) plan.pause.push(...sets.map(a => a.id)); else plan.pauseAds.push(...(st.ad_ids || [])); }
-    else if (minOff) plan.clear.push(...sets.filter(a => a.min > 0).map(a => a.id));
-    if (minOff) for (const a of sets) if (a.min > 0) due.push({ id: a.id, name: a.name, act: a.act, min: a.min, day,
+    if (call === 'loser' || minOff) { whole.forEach(a => open.add(`${a.act}|${a.id}`)); if (call === 'loser') looseAds.forEach(id => openAds.add(id)); }
+    if (call === 'loser') { plan.pause.push(...whole.map(a => a.id)); plan.pauseAds.push(...looseAds); plan.tests = (plan.tests || 0) + 1; }
+    else if (minOff) plan.clear.push(...whole.filter(a => a.min > 0).map(a => a.id));
+    if (minOff) for (const a of whole) if (a.min > 0) due.push({ id: a.id, name: a.name, act: a.act, min: a.min, day,
       why: nudge ? nudge.why : call === 'early' ? `past ${rules.min_days} days` : 'judged',
       ...(nudge ? { nudge: nudge.kind, spend: Math.round(st.spend * 100) / 100, orders: st.orders || 0, ...(nudge.kind === 'not_picked' ? { then: 'pause' } : {}) } : {}) });
   }
@@ -878,6 +912,7 @@ export async function mondayCalls(env, act, opts = {}) {
   if (groups.keep.length) L.push(':large_yellow_circle: *Another week* (strong clicks and add to carts)', ...groups.keep);
   if (groups.early.length) L.push(':white_circle: *Not ready yet*', ...groups.early);
   if (!L.length) L.push('No tests from the last 3 weeks are running.');
+  if (off) L.push(`_${plural(off, 'test')} already off in Meta, left out._`);
   if (old) L.push(`_${old} older test${old === 1 ? ' is' : 's are'} still open in Asana. Mark ${old === 1 ? 'it' : 'them'} done there to tidy up; this list leaves ${old === 1 ? 'it' : 'them'} alone._`);
   if (rules.min_track) for (const c of meta.campaigns || []) {
     const total = (meta.adsets || []).filter(a => a.campaign_id === c.id).reduce((t, a) => t + (a.min || 0), 0);
@@ -890,7 +925,7 @@ export async function mondayCalls(env, act, opts = {}) {
   for (const k of open) { const [m, id] = k.split('|'); (byAct.get(m) || byAct.set(m, []).get(m)).push(id); }
   const linkWord = n => n > 1 ? ' (one link per ad account)' : '';
   if (byAct.size) for (const [m, ids] of byAct) L.push(`<https://adsmanager.facebook.com/adsmanager/manage/adsets?act=${amId(m)}&selected_adset_ids=${ids.slice(0, 50).join(',')}|Open the ones to change in Ads Manager${linkWord(byAct.size)}>`);
-  else if (openAds.size) {
+  if (openAds.size) {
     const list = [...openAds].slice(0, 50);
     const where = ((await env.DB.prepare(`SELECT ad_id, act_id FROM ads WHERE ad_id IN (${list.map((_, i) => `?${i + 1}`).join(',')})`).bind(...list).all().catch(() => ({ results: [] }))).results || []);
     const adAct = new Map();
@@ -917,9 +952,13 @@ export async function mondayCalls(env, act, opts = {}) {
 /** Test ad sets whose minimum spend is due off today and still set in Meta (minoff.js's daily check). */
 export const testMinimumsDue = (env, act) => mondayCalls(env, act, { minOnly: true });
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+/* Counted the way the message lists them (2026-11-16: "pause 34 ads" over a list of 7 tests read as 34 things to check). */
 function doLabel(plan) {
-  const p = plan.pause.length + plan.pauseAds.length, c = plan.clear.length;
-  return ['Do it:', p ? `pause ${plural(p, plan.pause.length ? 'ad set' : 'ad')}` : '', p && c ? '+' : '', c ? `take ${plural(c, 'minimum')} off` : ''].filter(Boolean).join(' ');
+  const sets = plan.pause.length, ads = plan.pauseAds.length, c = plan.clear.length;
+  const p = sets + ads;
+  const what = sets && ads ? `${plural(sets, 'ad set')} + ${plural(ads, 'ad')}` : sets ? plural(sets, 'ad set') : plural(ads, 'ad');
+  const pause = p ? (plan.tests ? `pause ${plural(plan.tests, 'test')} (${what})` : `pause ${what}`) : '';
+  return ['Do it:', pause, p && c ? '+' : '', c ? `take ${plural(c, 'minimum')} off` : ''].filter(Boolean).join(' ');
 }
 /* Slack section text tops out at 3000 characters: split on lines. */
 function sections(text) {
