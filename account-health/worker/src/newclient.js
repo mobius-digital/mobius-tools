@@ -402,9 +402,14 @@ Welcome aboard. We are excited to get started on ${r.name}.
 Here is everything in one place:
 ${links}
 
-The onboarding link walks you through the quick admin, giving us access to each platform (click by click, with a short video for each), and a few questions about your products and customers. We filled in what we could from your website, so most of it is checking rather than typing. It saves as you go.
+The onboarding link walks you through the quick admin, giving us access to each platform (every click spelled out), and a few questions about your products and customers. We filled in what we could from your website, so most of it is checking rather than typing. It saves as you go.
 
-Over the next few minutes you will also get invites from Asana and Slack, plus ${r.retainer > 0 ? 'the first invoice (from Stripe) and ' : ''}our agreement to sign. All of them are linked inside your onboarding too, so nothing gets lost.
+${(() => { /* 2026-11-16: a second brand billed and signed under another brand's setup (skip_stripe / skip_contract, or no
+     retainer) must not promise an invoice or an agreement. */
+  const st = safeJson(r.steps_json, {});
+  const extras = [r.retainer > 0 && !st.skip_stripe ? 'the first invoice (from Stripe)' : null, !st.skip_contract ? 'our agreement to sign' : null].filter(Boolean);
+  return `Over the next few minutes you will also get invites from Asana and Slack${extras.length ? `, plus ${extras.join(' and ')}` : ''}. ${extras.length ? 'All of them are' : 'Both are'} linked inside your onboarding too, so nothing gets lost.`;
+})()}
 
 Talk soon,`,
   };
