@@ -8828,6 +8828,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (!metaAct) return json({ error: 'No Meta account' }, 404);
       const ids = (url.searchParams.get('c') || '').split(',').filter(x => /^\d{6,25}$/.test(x)).slice(0, 8);
       const cents = v => v == null ? null : Math.round(+v) / 100;
+      const snapKey = `seasonMeta:${smm[1]}:${ids.join(',')}`.slice(0, 200);
       const out = [];
       try {
         for (const cid of ids) {
@@ -8839,7 +8840,12 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
             sets: sets.map(x => ({ id: x.id, name: x.name, status: x.effective_status, budget: cents(x.daily_budget), start: x.start_time || null, end: x.end_time || null })),
             ads: ads.map(a => ({ id: a.id, name: a.name, status: a.effective_status, set: a.adset_id })) });
         }
-      } catch (e) { return json({ error: 'Meta did not answer. Try again in a minute.', detail: String(e.message || e).slice(0, 200) }, 502); }
+      } catch (e) {
+        /* Meta refused (rate limit, outage): serve the last good copy rather than a blank client page. */
+        const last = await getSetting(env, snapKey).catch(() => null);
+        if (last) return new Response(last.replace(/^\{/, '{"stale":true,'), { headers: { ...CORS, 'Content-Type': 'application/json' } });
+        return json({ error: 'Meta is busy right now. Refresh in a few minutes.', detail: String(e.message || e).slice(0, 200) }, 502);
+      }
       const allAds = out.flatMap(c => c.ads.map(a => a.id));
       const thumbs = {};
       for (let i = 0; i < allAds.length; i += 90) {
@@ -8850,6 +8856,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       for (const c of out) for (const a of c.ads) { a.thumb = thumbs[a.id]?.t || null; a.video = thumbs[a.id] ? thumbs[a.id].v : /video|ugc|trybe|reel/i.test(a.name || ''); }
       const body = JSON.stringify({ at: new Date().toISOString(), campaigns: out });
       await caches.default.put(cacheKey, new Response(body, { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' } })).catch(() => {});
+      await putSetting(env, snapKey, body).catch(() => {});
       return new Response(body, { headers: { ...CORS, 'Content-Type': 'application/json' } });
     }
     let yam;
