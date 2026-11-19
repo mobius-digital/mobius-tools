@@ -115,6 +115,19 @@ function css() {
   .bfp-grp h4{margin:4px 0 0;font-size:13px;font-weight:700}
   .bfp-grp details summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--ink-2);padding:4px 0}
   .bfp-ad .by{position:absolute;z-index:2;left:6px;top:6px;font-size:10px;font-weight:700;border-radius:4px;padding:1px 5px;background:rgba(0,0,0,.6);color:#fff;max-width:calc(100% - 40px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bfp-mom{list-style:none;margin:0;padding:0;display:grid;gap:0;background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .bfp-mom li{display:grid;grid-template-columns:118px minmax(0,1fr);gap:10px;padding:11px 14px;border-bottom:1px solid var(--line);font-size:14.5px}
+  .bfp-mom li:last-child{border-bottom:0}
+  .bfp-mom li b{font-size:13.5px}
+  .bfp-mom li.hot{background:var(--brand-soft)}
+  .bfp-goal{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px}
+  .bfp-goal .big{font-size:30px;font-weight:700;line-height:1.1}
+  .bfp-goal p{margin:6px 0 0;font-size:15px}
+  .bfp-lad{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+  .bfp-lad li{display:grid;grid-template-columns:110px minmax(0,1fr);gap:10px;align-items:center;border-radius:12px;padding:10px 12px;font-size:14.5px}
+  .bfp-lad li b{font-size:15px}
+  .bfp-lad li.up2{background:var(--g);color:var(--surface)} .bfp-lad li.up{background:var(--g-soft)} .bfp-lad li.hold{background:var(--a-soft)}
+  .bfp-lad li.down{background:var(--r-soft)} .bfp-lad li.down2{background:var(--r);color:var(--surface)}
   .bfp-load{padding:20px;text-align:center;color:var(--muted);font-size:14px}
   `;
   document.head.appendChild(st);
@@ -125,12 +138,12 @@ const tabsOf = () => [...new Set((P.groups || []).map(g => g.tab || 'Ads'))];
 
 function top() {
   return `<div class="bfp-top"><h1>${esc(P.title || 'Black Friday: the plan and the ads')}</h1>${P.lede ? `<p>${esc(P.lede)}</p>` : ''}</div>
-    <nav class="bfp-jump">${P.asks?.length ? '<button type="button" data-jump="#bfpAsk">What we need</button>' : ''}${P.meta ? (P.meta.sections || []).map((x, i) => `<button type="button" data-jump="#bfpS${i}">${esc(x.nav || x.title)}</button>`).join('') + '<button type="button" data-jump="#bfpKpi">Budget + MER</button>' : `<button type="button" data-jump="#bfpCal">Calendar</button><button type="button" data-jump="#bfpCamp">Campaigns</button><button type="button" data-jump="#bfpKpi">Budget + MER</button><button type="button" data-jump="#bfpAds">The ads</button>`}</nav>`;
+    <nav class="bfp-jump">${P.asks?.length && !P.meta ? '<button type="button" data-jump="#bfpAsk">What we need</button>' : ''}${P.meta ? '<button type="button" data-jump="#bfpCal">Calendar</button><button type="button" data-jump="#bfpSetup">The ads</button><button type="button" data-jump="#bfpGoal">Goal</button><button type="button" data-jump="#bfpKpi">Budget rules</button><button type="button" data-jump="#bfpAsk">Questions</button>' : `<button type="button" data-jump="#bfpCal">Calendar</button><button type="button" data-jump="#bfpCamp">Campaigns</button><button type="button" data-jump="#bfpKpi">Budget + MER</button><button type="button" data-jump="#bfpAds">The ads</button>`}</nav>`;
 }
 
 function asks() {
   if (!P.asks?.length) return '';
-  return `<section id="bfpAsk"><h2>What we need from you</h2>${P.asks.map(a => `<div class="bfp-ask"><p class="q">${esc(a.q)}</p>
+  return `<section id="bfpAsk" style="display:grid;gap:10px"><h2>${esc(P.asks_title || 'What we need from you')}</h2>${P.asks.map(a => `<div class="bfp-ask"><p class="q">${esc(a.q)}</p>
     ${a.options?.length ? `<div class="bfp-opts">${a.options.map(o => `<div><b>${esc(o.label)}</b>${esc(o.note || '')}</div>`).join('')}</div>` : ''}</div>`).join('')}
     ${P.asks_note ? `<p class="sm" style="margin-top:8px">${esc(P.asks_note)}</p>` : ''}</section>`;
 }
@@ -170,6 +183,23 @@ function ads() {
     ${g?.sub ? `<p>${esc(g.sub)}</p>` : ''}
     <div class="bfp-grid">${flat.map((a, k) => `<button class="bfp-ad" data-ad="${k}" aria-label="Open ${esc(a.label || 'ad')}"><span class="none">${a.kind === 'video' ? 'Video' : 'Photo'}</span>
       <img loading="lazy" alt="" src="${esc(thumbOf(a))}">${a.kind === 'video' ? '<span class="pl"></span>' : ''}${a.label ? `<span class="lab">${esc(a.label)}</span>` : ''}</button>`).join('')}</div></div></section>`;
+}
+
+/* ---- v4 (2026-11-19): calendar as one line per moment, the goal, the ladder as a when/then list ---- */
+function moments() {
+  if (!P.moments?.length) return '';
+  return `<section id="bfpCal"><h2>Calendar</h2>${P.moments_note ? `<p class="sm">${esc(P.moments_note)}</p>` : ''}
+    <ol class="bfp-mom">${P.moments.map(m => `<li class="${m.hot ? 'hot' : ''}"><b>${esc(m.when)}</b><span>${esc(m.what)}</span></li>`).join('')}</ol></section>`;
+}
+function goalBox() {
+  if (!P.goal) return '';
+  return `<section id="bfpGoal"><h2>The goal</h2><div class="bfp-goal"><div class="big">${esc(P.goal.big)}</div><p>${esc(P.goal.line)}</p></div></section>`;
+}
+function ladderList() {
+  const L = P.ladder || {};
+  return `<section id="bfpKpi"><h2>${esc(L.title || 'When we raise or lower the budget')}</h2>${L.intro ? `<p class="sm">${esc(L.intro)}</p>` : ''}
+    <ul class="bfp-lad">${(L.rungs || []).map(r => `<li class="${esc(r.tone)}"><b>${esc(r.line)}</b><span>${esc(r.action)}</span></li>`).join('')}</ul>
+    ${L.note ? `<p style="margin:10px 0 0;font-size:14.5px">${esc(L.note)}</p>` : ''}</section>`;
 }
 
 /* ---- the live Meta view (v3, 2026-11-19): campaigns, their ad sets as boxes, every ad, read live ---- */
@@ -212,7 +242,7 @@ function setBox(c, set, conf, mode) {
       <span>${setOn ? `${on.length} ${on.length === 1 ? 'ad' : 'ads'} on` : `Box is off. ${on.length} ${on.length === 1 ? 'ad' : 'ads'} ready inside`}${cmAds.length && setOn ? `, ${after} from Nov 30` : ''} · Meta allows ${cap} per box${setOn && after > cap ? ` · <span class="over">${after - cap} over on Nov 30</span>` : ''}</span></div>` : ''}
     ${on.length ? `<div class="bfp-grp">${setOn ? `<h4>On (${on.length})</h4>${adTiles(on, 'on' + set.id)}` : `<details><summary>Ready, box is off (${on.length})</summary>${adTiles(on, 'on' + set.id)}</details>`}</div>` : ''}
     ${cmAds.length ? `<div class="bfp-grp"><details><summary>Paused: switches on Nov 30 for Cyber Monday (${cmAds.length})</summary>${adTiles(cmAds, 'w' + set.id)}</details></div>` : ''}
-    ${unused.length ? `<div class="bfp-grp"><details><summary>Paused: not used (${unused.length})</summary>${adTiles(unused, 'u' + set.id)}</details></div>` : ''}</div>`;
+    ${unused.length && !P.meta.hide_unused ? `<div class="bfp-grp"><details><summary>Paused: not used (${unused.length})</summary>${adTiles(unused, 'u' + set.id)}</details></div>` : ''}</div>`;
 }
 function campBox(c, sec) {
   const confs = sec.sets || [];
@@ -332,7 +362,7 @@ function bind(root) {
 function html(plan) {
   if (!plan) return '';
   P = plan; css();
-  if (P.meta) return `<div class="bfp" id="bfp">${top()}${asks()}<div id="bfpMeta" style="display:grid;gap:12px">${metaHtml()}</div>${kpi()}</div>`;
+  if (P.meta) return `<div class="bfp" id="bfp">${top()}${moments()}<section id="bfpSetup" style="display:grid;gap:12px"><h2>How the ads are set up</h2><div id="bfpMeta" style="display:grid;gap:12px">${metaHtml()}</div></section>${goalBox()}${ladderList()}${asks()}</div>`;
   return `<div class="bfp" id="bfp">${top()}${asks()}${calendar()}${campaigns()}${kpi()}${ads()}</div>`;
 }
 function mount() { const r = document.getElementById('bfp'); if (!r) return; bind(r); if (P.meta) loadMeta(r); }
