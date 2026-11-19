@@ -530,7 +530,9 @@ export async function handleSeason({ path, request, env, accountsFor, email, ser
   if (path === '/api/season/answer' && m === 'PUT') {
     if (!b.act || !b.key || !(await actOf(b.act))) return json({ error: 'unknown account' }, 404);
     const key = String(b.key).toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 40);
-    const value = key === 'goals' && b.value && typeof b.value === 'object' ? JSON.stringify(b.value) : clean(b.value);
+    /* bf_plan = the client's Black Friday ads block (calendar, ladder, boxes, ad groups): JSON, up to 120KB. */
+    const value = (key === 'goals' || key === 'bf_plan') && b.value && typeof b.value === 'object' ? JSON.stringify(b.value).slice(0, 120000)
+      : key === 'bf_plan' ? clean(b.value, 120000) : clean(b.value);
     await env.DB.prepare(
       `INSERT INTO p_season_answer (act_id, season, key, value, updated_at) VALUES (?1,?2,?3,?4,datetime('now'))
        ON CONFLICT(act_id, season, key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`,
@@ -595,5 +597,35 @@ export async function seasonPublic(env, token, series) {
     dates: Object.fromEntries(pick.filter(k => a.answers[k]).map(k => [k, a.answers[k]])),
     asks: a.tasks.filter(t => /client|^you\b/i.test(t.owner || '') && !t.done).map(t => ({ name: t.name, due: t.due, phase: t.phase })),
     checkins: a.checkins.filter(c => c.action).map(c => ({ date: c.date, slot: c.slot, action: c.action, by: c.by })),
+    bfplan: await bfPlanPublic(env, a),
   });
+}
+
+/* THE BLACK FRIDAY ADS BLOCK (2026-11-19, Ice & Gold first). The plan is DATA, one answer per brand
+   (`bf_plan`, JSON): days (date, phase, budgets, switches), phases, ladder, structure boxes with a one-line
+   why, and ad groups listing ad ids with a client label. Nothing internal is stored there on purpose.
+   Here each ad gets its cover from the creative cache (ad_creative, the same rows the Creative tab uses),
+   and the page gets the brand's Your ads token so videos play through account-health /api/ad-video
+   (?yours=, which only plays that brand's own ads). */
+async function bfPlanPublic(env, a) {
+  const plan = safeJson(a.answers.bf_plan, null);
+  if (!plan || typeof plan !== 'object' || plan.hidden) return null;
+  const ids = [...new Set((plan.groups || []).flatMap(g => (g.ads || []).map(x => String(x.id))))].filter(id => /^\d{6,25}$/.test(id));
+  const cache = {};
+  for (let i = 0; i < ids.length; i += 90) {
+    const part = ids.slice(i, i + 90);
+    const { results } = await env.DB.prepare(`SELECT ad_id, json FROM ad_creative WHERE ad_id IN (${part.map((_, k) => `?${k + 1}`).join(',')})`)
+      .bind(...part).all().catch(() => ({ results: [] }));
+    for (const r of results || []) {
+      const v = safeJson(r.json, {}) || {};
+      cache[r.ad_id] = { thumb: /^https:\/\//.test(v.thumb || '') ? v.thumb : null, video: !!v.video || v.media_type === 'video' };
+    }
+  }
+  const tokens = safeJson((await env.DB.prepare(`SELECT value FROM settings WHERE key = 'reportTokens'`).first().catch(() => null))?.value, {}) || {};
+  const yours = Object.keys(tokens).find(k => tokens[k]?.act_id === a.act_id) || null;
+  return {
+    ...plan, yours,
+    groups: (plan.groups || []).map(g => ({ ...g, ads: (g.ads || []).filter(x => /^\d{6,25}$/.test(String(x.id))).map(x => ({
+      id: String(x.id), label: x.label || '', kind: x.kind || (cache[x.id]?.video ? 'video' : 'still'), thumb: cache[x.id]?.thumb || null })) })),
+  };
 }

@@ -867,6 +867,7 @@ async function renderShare(token, url) {
   main.innerHTML = `<div class="se v2 se-share">
     <div class="ph"><div><div class="ph-t">${esc(d.account.name)}: the season, start to finish</div><p class="ph-sub">What runs when, who gets it, and what the deal is. Anything marked proposal is still being decided together. Once a phase is live, its revenue so far shows on the card.</p></div></div>
     <p class="v2say lead"><b>${days > 0 ? `${days} days to Black Friday (Fri Nov 27).` : 'The season is under way.'}</b> ${okN} part${okN === 1 ? '' : 's'} of the plan ${okN === 1 ? 'is' : 'are'} agreed${propN ? `, ${propN} still being decided` : ''}.</p>
+    ${d.bfplan && window.BfPlan ? window.BfPlan.html(d.bfplan, d.today) : ''}
     ${sCard('The plan in one read', '', `<div class="se-plan" style="grid-template-columns:1fr"><ol>${lines.map((l, i) => `<li class="${l.p.key === 'bf' ? 'bf' : ''}"><i>${i + 1}</i><div><div class="d">${esc(l.when)}</div><div>${l.text}</div></div></li>`).join('')}</ol></div>`)}
     ${sCard('The season', 'Hover a bar for the deal.', `${ganttLegend(d.phases)}${gantt(d.phases, d.today)}`)}
     <div class="se-deals">${d.phases.map((p, i) => `<div class="se-deal ${p.key === 'bf' ? 'key' : ''}" style="--c:${GRP[p.grp]?.[1] || 'var(--se-bf)'};grid-template-columns:230px minmax(0,1fr)">
@@ -878,6 +879,7 @@ async function renderShare(token, url) {
     ${d.asks?.length ? sCard('What we need from you', '', d.asks.map(x => `<div class="se-task"><span></span><div class="n">${esc(x.name)}<small>${esc(x.phase || '')}</small></div><div class="r"><b>${esc(x.due ? fmtDow(x.due) : '')}</b></div></div>`).join('')) : ''}
     <p class="v2foot">Prepared by Mobius Digital. This page updates as the plan does.</p>
   </div>`;
+  if (d.bfplan && window.BfPlan) window.BfPlan.mount();
 }
 
 /* ---------- entry ---------- */
