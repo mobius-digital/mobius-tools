@@ -8812,6 +8812,46 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
        locus.go-mobius-digital.com/yourads/?t=<the brand's report token> (the same stable token as their
        report archive). Public by token, like the archive; only that brand's ads, newest first, no money.
        /thumb serves one ad's image (cached creative), ?dl=1 as a download. ---- */
+    /* ---- SEASON META (2026-11-19): the live Meta structure for a client's Black Friday page.
+       GET /api/season-meta/<Your ads token>?c=<campaign ids>. Public by the same token as Your ads, and only
+       campaigns that belong to THAT brand's Meta account (checked on every campaign). Campaign, ad sets
+       (status, budget, dates), every ad (status, set, cover from the creative cache). Cached 5 minutes. ---- */
+    let smm;
+    if ((smm = path.match(/^\/api\/season-meta\/([a-f0-9]{16,})$/)) && request.method === 'GET') {
+      const cacheKey = new Request(url.toString(), { method: 'GET' });
+      const hit = await caches.default.match(cacheKey).catch(() => null);
+      if (hit) return new Response(hit.body, { headers: { ...CORS, 'Content-Type': 'application/json', 'X-Cache': 'hit' } });
+      const actId = await resolveBrandId(env, safeJson(await getSetting(env, 'reportTokens'), {})?.[smm[1]]?.act_id);
+      if (!actId) return json({ error: 'This link is not valid.' }, 404);
+      const brand = await env.DB.prepare(`SELECT meta_act FROM brand_accounts WHERE act_id = ?1`).bind(actId).first();
+      const metaAct = String(brand?.meta_act || '').replace(/^act_/, '');
+      if (!metaAct) return json({ error: 'No Meta account' }, 404);
+      const ids = (url.searchParams.get('c') || '').split(',').filter(x => /^\d{6,25}$/.test(x)).slice(0, 8);
+      const cents = v => v == null ? null : Math.round(+v) / 100;
+      const out = [];
+      try {
+        for (const cid of ids) {
+          const c = await meta(env, cid, { fields: 'name,account_id,daily_budget,lifetime_budget,start_time,stop_time,effective_status' });
+          if (String(c.account_id) !== metaAct) continue;   // not this brand's campaign: never shown
+          const sets = await metaAll(env, `${cid}/adsets`, { fields: 'id,name,effective_status,daily_budget,start_time,end_time', limit: 100 }, 3);
+          const ads = await metaAll(env, `${cid}/ads`, { fields: 'id,name,effective_status,adset_id', limit: 500 }, 4);
+          out.push({ id: cid, name: c.name, status: c.effective_status, budget: cents(c.daily_budget), lifetime: cents(c.lifetime_budget), start: c.start_time || null, end: c.stop_time || null,
+            sets: sets.map(x => ({ id: x.id, name: x.name, status: x.effective_status, budget: cents(x.daily_budget), start: x.start_time || null, end: x.end_time || null })),
+            ads: ads.map(a => ({ id: a.id, name: a.name, status: a.effective_status, set: a.adset_id })) });
+        }
+      } catch (e) { return json({ error: 'Meta did not answer. Try again in a minute.', detail: String(e.message || e).slice(0, 200) }, 502); }
+      const allAds = out.flatMap(c => c.ads.map(a => a.id));
+      const thumbs = {};
+      for (let i = 0; i < allAds.length; i += 90) {
+        const part = allAds.slice(i, i + 90);
+        const { results } = await env.DB.prepare(`SELECT ad_id, json FROM ad_creative WHERE ad_id IN (${part.map((_, k) => `?${k + 1}`).join(',')})`).bind(...part).all().catch(() => ({ results: [] }));
+        for (const r of results || []) { const v = safeJson(r.json, {}) || {}; thumbs[r.ad_id] = { t: /^https:\/\//.test(v.thumb || '') ? v.thumb : null, v: !!v.video || v.media_type === 'video' }; }
+      }
+      for (const c of out) for (const a of c.ads) { a.thumb = thumbs[a.id]?.t || null; a.video = thumbs[a.id] ? thumbs[a.id].v : /video|ugc|trybe|reel/i.test(a.name || ''); }
+      const body = JSON.stringify({ at: new Date().toISOString(), campaigns: out });
+      await caches.default.put(cacheKey, new Response(body, { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' } })).catch(() => {});
+      return new Response(body, { headers: { ...CORS, 'Content-Type': 'application/json' } });
+    }
     let yam;
     if ((yam = path.match(/^\/api\/your-ads\/([a-f0-9]{16,})(\/thumb)?$/)) && request.method === 'GET') {
       const actId = await resolveBrandId(env, safeJson(await getSetting(env, 'reportTokens'), {})?.[yam[1]]?.act_id);
