@@ -30,6 +30,7 @@ import { handleScenario } from './scenario.js';
 import { handleDashboard } from './dashboard.js';
 import { handleInspo } from './inspo.js';
 import { snapshotPublic, handleSnapshot } from './snapshot.js';
+import { clientPagePublic, handleClientPage } from './clientpage.js';
 import { handleHub } from './hub.js';
 import { handleExpenses, loadExpenses, spread, applyAdSpend } from './expenses.js';
 // The account-health worker is the Mobius auth server (it mints the Google sessions).
@@ -2036,6 +2037,11 @@ export default {
       const r = await snapshotPublic(request, env, path);
       if (r) return r;
     }
+    /* Client report pages (2026-11-19, clientpage.js): a hand-built page on a public link, the token is the auth. */
+    {
+      const r = await clientPagePublic(request, env, path);
+      if (r) return r;
+    }
 
     /* The client's read-only SEASON page (?season=<token>): offers and dates for one
        brand, nothing internal. The token is the auth, like the plan link. */
@@ -2812,6 +2818,11 @@ export default {
       if (path === '/api/dashboards' || path === '/api/dashboard') {
         const dr = await handleDashboard({ path, request, env, email: await sessionEmail(env, request) });
         if (dr) return dr;
+      }
+      /* Client report pages: push, list, revoke (clientpage.js). Admin only, never a client login. */
+      if (path === '/api/client-page' || path === '/api/client-pages' || path === '/api/client-page/revoke') {
+        const r = await handleClientPage({ path, request, env, admin: await isAdmin(request, env), email: await sessionEmail(env, request) });
+        if (r) return r;
       }
       /* Public snapshot links: create, list, revoke (snapshot.js). */
       if (path === '/api/snapshot' || path === '/api/snapshots' || path === '/api/snapshot/revoke') {
