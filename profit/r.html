@@ -56,8 +56,9 @@
 
   /* A page written for the artifact frame is a fragment (no doctype, html or body). Give it a standards-mode
      document so it lays out exactly as it did there. Links that leave the page open in a new tab (the sandbox would
-     block them in place); in-page jump links (#today) stay in the frame. */
-  const LINKS = '<script>document.addEventListener("click",e=>{const a=e.target.closest&&e.target.closest("a[href]");if(a&&!a.getAttribute("href").startsWith("#"))a.target="_blank"},true)<\/script>';
+     block them in place). In-page jump links (#today) are scrolled by hand: a srcdoc document resolves "#x" against
+     THIS page's URL, so left alone the click navigates the frame away and it goes blank. */
+  const LINKS = '<script>document.addEventListener("click",e=>{const a=e.target.closest&&e.target.closest("a[href]");if(!a)return;const h=a.getAttribute("href");if(h.startsWith("#")){e.preventDefault();const t=h.length>1&&document.getElementById(decodeURIComponent(h.slice(1)));if(t)t.scrollIntoView();}else a.target="_blank"},true)<\/script>';
   const docOf = html => /^\s*<!doctype/i.test(html) ? html.replace(/<head[^>]*>/i, m => m + LINKS)
     : '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">' + LINKS + html;
 
