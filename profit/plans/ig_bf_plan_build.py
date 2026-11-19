@@ -39,61 +39,45 @@ groups = [
 ]
 assert [len(g["ads"]) for g in groups] == [11,5,2,12,31,20,15,6], [len(g["ads"]) for g in groups]
 allids = [a["id"] for g in groups for a in g["ads"]]; assert len(set(allids)) == len(allids)
-def B(bf, ev, f4, extra=None):
-    out = []
-    if bf: out.append({"name":"Black Friday campaign","amount":bf})
-    out += [{"name":"Everyday ads","amount":ev},{"name":"4 for $150","amount":f4}]
-    if extra: out.append(extra)
-    return out
-days = []
-d0 = datetime.date(2026,11,19)
-for i in range(16):
-    d = d0 + datetime.timedelta(i); iso = d.isoformat(); sw = []; note = None
-    if d.month == 11 and d.day <= 25: ph, bud = "eb", B(150,150,100)
-    elif iso == "2026-11-26": ph, bud = "bf", B(300,50,50)
-    elif iso == "2026-11-27": ph, bud = "bf", B(500,50,50)
-    elif iso in ("2026-11-28","2026-11-29"): ph, bud = "bf", B(400,50,50)
-    elif iso == "2026-11-30": ph, bud = "cm", B(500,50,50)
-    elif iso in ("2026-12-01","2026-12-02","2026-12-03"): ph, bud = "norm", B(0,100,100)
-    else: ph, bud = "gift", B(0,100,100,{"name":"Holiday gifting","amount":50})
-    if ph in ("bf","cm"): note = "Starting budget. The scaling ladder can raise it during the day, up to $800."
-    if iso == "2026-11-25": sw = [{"t":"11:59pm","text":"Early Bird ads switch off."}]
-    if iso == "2026-11-26": sw = [{"t":"12:00am","text":"Black Friday ads switch on: 30 in Everyone, 31 in the model photo test."},{"t":"12:00am","text":"Everyday ads and 4 for $150 drop to $50 a day so the sale gets the money."}]
-    if iso == "2026-11-27": sw = [{"t":"All day","text":"Black Friday. The biggest budget of the season."}]
-    if iso == "2026-11-28": sw = [{"t":"Morning","text":"Model photo test checked. If it has no sales, it comes off."}]
-    if iso == "2026-11-30": sw = [{"t":"12:00am","text":"Cyber Monday ads switch on next to the Black Friday ones."}]
-    if iso == "2026-12-01": sw = [{"t":"12:00am","text":"The Black Friday box ends by itself."},{"t":"12:00am","text":"Everyday ads and 4 for $150 go back to $100 a day."}]
-    if iso == "2026-12-04": sw = [{"t":"12:00am","text":"Holiday gifting ads switch on. Order by Dec 18."}]
-    day = {"d":iso,"phase":ph,"budgets":bud,"switches":sw}
-    if note: day["note"] = note
-    days.append(day)
+groups[0]["title"]="Past winners"; groups[0]["sub"]="Videos that already sold for you, recut with the Black Friday deal."
+groups[4]["sub"]="New people only. Comes off Sat Nov 28 if it has no sales."
+groups[5]["sub"]="Ready now. They switch on Mon Nov 30 at 12:00am."
+for g in groups: g.pop("waiting", None)
 plan = {
- "title":"Black Friday ads","start":"2026-11-26",
- "lede":"Everything from now to December: the dates, the daily budgets, how we scale, and every ad. Tap anything to look closer. 4 for $150 runs all season and does not stack with the sale.",
- "stats":[{"v":"Nov 26","l":"Black Friday ads start"},{"v":"$600","l":"biggest day, Nov 27"},{"v":str(len(allids)),"l":"ads ready"}],
- "phases":[
-  {"key":"eb","name":"Early Bird","when":"now to Nov 25","color":"var(--p-eb)","offer":"Free studs on orders over $125."},
-  {"key":"bf","name":"Black Friday","when":"Nov 26 to 29","color":"var(--p-bf)","offer":"Spend $100, save $25. Spend $200, save $60 + free studs. Spend $300, save $100 + free studs."},
-  {"key":"cm","name":"Cyber Monday","when":"Nov 30","color":"var(--p-cm)","offer":"Same deal, last day. Fresh Cyber Monday ads join in."},
-  {"key":"norm","name":"Back to everyday","when":"Dec 1 to 3","color":"var(--p-norm)","offer":"Sale over. Everyday ads and 4 for $150 keep running."},
-  {"key":"gift","name":"Gifting","when":"from Dec 4","color":"var(--p-gift)","offer":"Gift ads. Order by Dec 18 to get it in time."}],
- "days":days,
- "ladder":{"title":"When we scale, when we pull back",
-  "sub":"We read the whole store: every sale divided by every ad dollar. When it is strong we add money, when it slips we pull back.",
-  "rungs":[{"line":"2.5x or better","tone":"up","action":"Raise the budget 25%","note":"Up to $800 a day"},
-   {"line":"1.5x to 2.5x","tone":"hold","action":"Hold steady","note":"Let it keep selling"},
-   {"line":"Under 1.5x at 1pm","tone":"down","action":"Back to $300 a day","note":"Then build back up"}],
-  "checks":["9am check","1pm check","5pm check"],
-  "goal":"The goal: $57 per sale, which is $2.50 back for every $1 on ads."},
- "structure":{"title":"How it is built","sub":"One Black Friday campaign. Two boxes decide who sees which ads.",
-  "campaign":"Black Friday 2026","campaign_note":"One budget. Meta moves the money to whichever ads sell, hour by hour.",
-  "boxes":[{"name":"Everyone","when":"Nov 26 to Dec 1","who":"Everyone, past buyers included","counts":[{"text":"30 ads on"},{"text":"35 Cyber Monday ads waiting","wait":True}],"why":"One box for everyone, because the separate small boxes never spent."},
-   {"name":"Model photo test","when":"Nov 26 to Dec 1","who":"New people only","counts":[{"text":"31 photos on"},{"text":"6 Cyber Monday photos waiting","wait":True}],"why":"To find new faces cheaply. Comes off Nov 28 if it has no sales."}],
-  "also":[{"name":"Early Bird ads","note":"Running now, end Nov 25"},{"name":"Everyday ads","note":"Keep running, $50 a day over the sale"},{"name":"4 for $150","note":"All season, $50 a day over the sale"},{"name":"Holiday gifting","note":"From Dec 4, $50 a day"}]},
- "why":[{"what":"One box for everyone. ","why":"The separate small boxes never spent."},
-  {"what":"Past winners, recut with the deal. ","why":"They already sold."},
-  {"what":"Creators. ","why":"Your buyers trust real people."},
-  {"what":"Model photo test. ","why":"To find new faces cheaply."}],
- "groups":groups}
-open("ig_bf_plan.json","w").write(json.dumps(plan))
+ "title": "Black Friday 2026: the plan and the ads",
+ "lede": "Tap a phase or a campaign to jump to it. Tap any ad to see it full size.",
+ "asks": [{"q": "Do we want to start Black Friday on Monday (Nov 23)? We 100% can if you want to. It's not a problem either way, it's just whether you want to.",
+   "options": [{"label": "Start Mon Nov 23", "note": "The deal and the ads go live Monday."}, {"label": "Keep Thu Nov 26", "note": "The plan below, as it is."}]}],
+ "asks_note": "Just tell us in our chat.",
+ "timeline": [
+  {"name": "Early Bird", "when": "Now to Nov 25", "note": "Free studs over $125", "color": "var(--p-eb)", "camp": "eb"},
+  {"name": "Black Friday", "when": "Nov 26 to 30", "note": "Save up to $100 + free studs", "color": "var(--p-bf)", "camp": "bf"},
+  {"name": "Cyber Monday", "when": "Nov 30", "note": "Same deal, new ads", "color": "var(--p-cm)", "camp": "cm"},
+  {"name": "Gifting", "when": "From Dec 4", "note": "Order by Dec 18", "color": "var(--p-gift)", "camp": "gift"}],
+ "campaigns": [
+  {"key": "eb", "name": "Early Bird", "sets": "Free studs over $125", "when": "Now to Nov 25", "starts": "$150/day", "ads": "live"},
+  {"key": "bf", "name": "Black Friday", "sets": "One budget, 2 groups: Everyone, and a model photo test for new people", "when": "Thu Nov 26 to Mon Nov 30", "starts": "$300 Thu, $500 Fri", "ads": "61", "tab": "Black Friday"},
+  {"key": "cm", "name": "Cyber Monday", "sets": "Added to the Black Friday groups", "when": "Mon Nov 30", "starts": "$500 Mon", "ads": "+41", "tab": "Cyber Monday"},
+  {"key": "f4", "name": "4 for $150", "sets": "All season. Does not stack with the sale", "when": "All season", "starts": "$50 in the sale, $100 after", "ads": "live"},
+  {"key": "ev", "name": "Everyday ads", "sets": "Your best sellers, all year", "when": "All season", "starts": "$50 in the sale, $100 after", "ads": "live"},
+  {"key": "gift", "name": "Holiday gifting", "sets": "Order by Dec 18", "when": "From Fri Dec 4", "starts": "$50/day", "ads": ""}],
+ "ladder": {
+  "intro": "Every move is judged on MER: all store sales divided by all ad spend, over the last 3 hours. The target is 2.5.",
+  "rungs": [{"line": "MER 3.5+", "tone": "up2", "action": "Raise budget 100%"},
+   {"line": "MER 3.0 to 3.49", "tone": "up", "action": "Raise budget 50%"},
+   {"line": "MER 2.5 to 2.99", "tone": "up", "action": "Raise budget 25%"},
+   {"line": "MER 2.2 to 2.49", "tone": "hold", "action": "Hold"},
+   {"line": "MER 1.5 to 2.19", "tone": "down", "action": "Pull back 25%. Turn off ads that spent 2x the goal with no sale"},
+   {"line": "Under 1.5", "tone": "down2", "action": "Back to the starting budget, check the site and checkout"}],
+  "checks": [
+   {"when": "Thu Nov 26, 12am", "budget": "$300", "what": "Black Friday ads go live. 4 for $150 and Everyday ads drop to $50"},
+   {"when": "Thu 9am, 1pm, 5pm, 9pm", "budget": "by the ladder", "what": "First reads of the sale"},
+   {"when": "Fri Nov 27, 12am", "budget": "$500", "what": "Black Friday starts higher"},
+   {"when": "Fri to Sun, 9am, 1pm, 5pm, 9pm", "budget": "by the ladder", "what": "Same rules. Model photo test checked Sat: off if no sales"},
+   {"when": "Mon Nov 30, 12am", "budget": "$500", "what": "Cyber Monday ads switch on. Back to a $500 start"},
+   {"when": "Mon 9am, 1pm, 5pm, 9pm", "budget": "by the ladder", "what": "Last day of the sale"},
+   {"when": "Tue Dec 1, 12am", "budget": "$100 each", "what": "Sale ends. 4 for $150 and Everyday ads back to $100"},
+   {"when": "Fri Dec 4", "budget": "$50", "what": "Holiday gifting starts"}]},
+ "groups": groups}
+open("ig_bf_plan.json", "w").write(json.dumps(plan))
 print(len(json.dumps(plan)), len(allids))
