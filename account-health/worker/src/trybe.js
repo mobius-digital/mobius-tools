@@ -963,7 +963,9 @@ export async function trybeTick(env, d, { force = false } = {}) {
     } catch (e) { out.errors.push(`${b.name}: ${e.message}`); }
   }
   out.discord = await discordWeekly(env, today, { d }).catch(e => ({ error: e.message }));
-  out.discordDaily = await discordDaily(env, today).catch(e => ({ error: e.message }));
+  /* The Tue/Wed/Thu "Question of the day" is OFF (Cole 2026-11-19: the bot asking questions every day felt weird).
+     It no longer runs on the tick; POST /api/trybe/discord-daily still posts one by hand. The 5pm welcome and the
+     Monday / Friday posts are unchanged. Talk in the servers comes from the team, in their own words. */
   /* Discord members (2026-11-06): real run only when switched on, else a dry run so Locus can show what would happen. */
   try {
     const auto = (await getSetting(env, 'trybeDiscordAuto')) === 'on';
@@ -1525,6 +1527,33 @@ export async function handleTrybe(request, env, url, path, json, h) {
     }
     if (path === '/api/trybe/discord-welcome-all' && request.method === 'POST') return json(await welcomeAll(env, act));
     if (path === '/api/trybe/discord-daily' && request.method === 'POST') return json(await discordDaily(env, d.centralDate ? d.centralDate() : new Date().toISOString().slice(0, 10), { force: true, only: act, preview: !!b.preview }));
+    /* Read a server (2026-11-19): the last messages in every text channel (or one), newest last, with who wrote them. */
+    if (path === '/api/trybe/discord-recent' && request.method === 'GET') {
+      const dcd = await dcDoc(env, act); if (!dcd || !dcd.channels) return json({ error: 'This brand has no creator Discord yet.' }, 400);
+      const tok = (await dcDoc(env, 'agency') || {}).token; if (!tok) return json({ error: 'No Discord bot token.' }, 400);
+      const want = url.searchParams.get('channel'), lim = Math.min(100, +url.searchParams.get('limit') || 30);
+      const out = {};
+      for (const [k, id] of Object.entries(dcd.channels)) {
+        if (want && k !== want) continue;
+        const r = await fetch(`${DC_API}/channels/${id}/messages?limit=${lim}`, { headers: { Authorization: `Bot ${tok}` } });
+        if (!r.ok) { out[k] = { error: `Discord answered ${r.status}` }; continue; }
+        out[k] = (await r.json()).reverse().map(m => ({ at: m.timestamp, by: m.author?.global_name || m.author?.username, bot: !!(m.author?.bot || m.webhook_id), text: clip(m.content, 400), poll: m.poll?.question?.text || undefined, embeds: (m.embeds || []).length || undefined }));
+      }
+      return json({ act, guild: dcd.guild_id, channels: out });
+    }
+    /* Say something as the brand team (2026-11-19): one plain message in a channel, team name on it, no pings. */
+    if (path === '/api/trybe/discord-say' && request.method === 'POST') {
+      const dcd = await dcDoc(env, act); if (!dcd || !dcd.channels) return json({ error: 'This brand has no creator Discord yet.' }, 400);
+      const key = String(b.channel || ''); if (!dcd.channels[key]) return json({ error: `No #${key} channel. Channels: ${Object.keys(dcd.channels).join(', ')}` }, 400);
+      const text = noDash(String(b.text || '')).trim(); if (!text) return json({ error: 'Give the text.' }, 400);
+      const h = await hookFor(env, act, dcd, key), look = dcd.look || {};
+      const payload = { username: String(b.as || look.mascot || 'Creators').slice(0, 80), allowed_mentions: { parse: [] }, content: text.slice(0, 2000) };
+      if (/^https:\/\//.test(look.avatar || '')) payload.avatar_url = look.avatar;
+      const r = await fetch(`${DC_API}/webhooks/${h.id}/${h.token}?wait=true`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      if (!r.ok) return json({ error: `Discord answered ${r.status}` }, 400);
+      const id = (await r.json()).id;
+      return json({ ok: true, id, link: `https://discord.com/channels/${dcd.guild_id}/${dcd.channels[key]}/${id}` });
+    }
     if (path === '/api/trybe/discord-auto' && request.method === 'PUT') { await putSetting(env, 'trybeDiscordAuto', b.on ? 'on' : 'off'); return json({ ok: true, auto: !!b.on }); }
     if (path === '/api/trybe/vip-bar' && request.method === 'PUT') { const v = Math.round(+b.sales || 0); if (v < 50) return json({ error: 'Give the sales bar in dollars.' }, 400); await putSetting(env, `trybeVipBar:${act}`, String(v)); return json({ ok: true, vip_bar: v }); }
     if (path === '/api/trybe/recut-announce' && request.method === 'POST') return json(await trybeRecutAnnounce(env, d, act, Array.isArray(b.cards) ? b.cards.slice(0, 20) : []));
