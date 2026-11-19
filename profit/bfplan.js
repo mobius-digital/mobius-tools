@@ -30,7 +30,7 @@ function css() {
   .bfp-top h1{font-family:var(--serif);font-weight:400;font-size:clamp(28px,7vw,38px);line-height:1.08;margin:0 0 6px}
   .bfp-top p{margin:0;color:var(--ink-2);font-size:15px}
   .bfp-jump{display:flex;gap:6px;overflow-x:auto;position:sticky;top:0;z-index:5;background:var(--bg);padding:8px 0;margin:-8px 0;scrollbar-width:none}
-  .bfp-jump a{flex:none;font-size:13px;font-weight:600;color:var(--ink);text-decoration:none;border:1px solid var(--line-strong);background:var(--surface);border-radius:999px;padding:6px 12px}
+  .bfp-jump button{font-family:inherit;cursor:pointer;flex:none;font-size:13px;font-weight:600;color:var(--ink);text-decoration:none;border:1px solid var(--line-strong);background:var(--surface);border-radius:999px;padding:6px 12px}
   .bfp section{scroll-margin-top:56px}
   .bfp-ask{background:var(--brand-soft);border-radius:14px;padding:16px}
   .bfp-ask .q{font-size:15.5px;font-weight:600;margin:0 0 12px}
@@ -52,8 +52,8 @@ function css() {
   .bfp td.n{white-space:nowrap}
   .bfp td .m{display:none}
   @media (max-width:640px){.bfp .w{display:none}.bfp td .m{display:block;color:var(--ink-2)}.bfp td.t{min-width:0}.bfp td.n{white-space:normal}.bfp .bfp-tbl{overflow-x:visible}.bfp table{table-layout:fixed}.bfp th.c0{width:28px}.bfp th.c3,.bfp th.c4{width:30%}.bfp th.c5{width:56px}.bfp td,.bfp td small{white-space:normal;overflow-wrap:break-word}}
-  .bfp tr[data-go]{cursor:pointer}
-  .bfp tr[data-go] td.t{color:var(--brand-ink)}
+  .bfp tr[data-bfgo]{cursor:pointer}
+  .bfp tr[data-bfgo] td.t{color:var(--brand-ink)}
   .bfp tr.hl td{background:var(--brand-soft)}
   .bfp-rules{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0}
   @media (min-width:640px){.bfp-rules{grid-template-columns:repeat(3,minmax(0,1fr))}}
@@ -98,7 +98,7 @@ const tabsOf = () => [...new Set((P.groups || []).map(g => g.tab || 'Ads'))];
 
 function top() {
   return `<div class="bfp-top"><h1>${esc(P.title || 'Black Friday: the plan and the ads')}</h1>${P.lede ? `<p>${esc(P.lede)}</p>` : ''}</div>
-    <nav class="bfp-jump">${P.asks?.length ? '<a href="#bfpAsk">What we need</a>' : ''}<a href="#bfpCal">Calendar</a><a href="#bfpCamp">Campaigns</a><a href="#bfpKpi">Budget + MER</a><a href="#bfpAds">The ads</a></nav>`;
+    <nav class="bfp-jump">${P.asks?.length ? '<button type="button" data-jump="#bfpAsk">What we need</button>' : ''}<button type="button" data-jump="#bfpCal">Calendar</button><button type="button" data-jump="#bfpCamp">Campaigns</button><button type="button" data-jump="#bfpKpi">Budget + MER</button><button type="button" data-jump="#bfpAds">The ads</button></nav>`;
 }
 
 function asks() {
@@ -116,7 +116,7 @@ function calendar() {
 function campaigns() {
   return `<section id="bfpCamp"><h2>Campaigns, in order</h2><p class="sm">Tap a row to see its ads.</p>
     <div class="bfp-tbl"><table><tr><th class="c0">#</th><th>Campaign</th><th class="w">When</th><th class="w">Goal</th><th class="c3">Starts at</th><th class="c5">Ads</th></tr>
-    ${(P.campaigns || []).map((c, i) => `<tr id="bfpC-${esc(c.key)}" ${c.tab ? `data-go="${esc(c.tab)}"` : ''}><td>${i + 1}</td><td class="t">${esc(c.name)}${c.sets ? `<small>${esc(c.sets)}</small>` : ''}<small class="m">${esc(c.when)}</small></td><td class="w">${esc(c.when)}</td><td class="w">${esc(c.goal || 'Sales')}</td><td>${esc(c.starts)}</td><td class="n">${esc(c.ads || '')}</td></tr>`).join('')}
+    ${(P.campaigns || []).map((c, i) => `<tr id="bfpC-${esc(c.key)}" ${c.tab ? `data-bfgo="${esc(c.tab)}"` : ''}><td>${i + 1}</td><td class="t">${esc(c.name)}${c.sets ? `<small>${esc(c.sets)}</small>` : ''}<small class="m">${esc(c.when)}</small></td><td class="w">${esc(c.when)}</td><td class="w">${esc(c.goal || 'Sales')}</td><td>${esc(c.starts)}</td><td class="n">${esc(c.ads || '')}</td></tr>`).join('')}
     </table></div>${P.campaigns_note ? `<p class="sm" style="margin-top:8px">${esc(P.campaigns_note)}</p>` : ''}</section>`;
 }
 
@@ -208,8 +208,8 @@ function goAds(root, t) {
   root.querySelector('#bfpAds').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 function bind(root) {
-  root.querySelectorAll('.bfp-jump a').forEach(a => a.onclick = e => { e.preventDefault(); root.querySelector(a.getAttribute('href')).scrollIntoView({ behavior: 'smooth', block: 'start' }); });
-  root.querySelectorAll('tr[data-go]').forEach(r => r.onclick = () => goAds(root, r.dataset.go));
+  root.querySelectorAll('[data-jump]').forEach(b => b.onclick = () => root.querySelector(b.dataset.jump).scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  root.querySelectorAll('tr[data-bfgo]').forEach(r => r.onclick = () => goAds(root, r.dataset.bfgo));
   root.querySelectorAll('[data-camp]').forEach(b => b.onclick = () => {
     const r = b.dataset.camp && root.querySelector('#bfpC-' + b.dataset.camp);
     if (!r) return;
