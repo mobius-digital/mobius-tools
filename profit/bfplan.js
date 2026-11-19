@@ -51,7 +51,7 @@ function css() {
   .bfp td.t small{display:block;font-weight:500;color:var(--muted);font-size:12.5px;margin-top:2px}
   .bfp td.n{white-space:nowrap}
   .bfp td .m{display:none}
-  @media (max-width:640px){.bfp .w{display:none}.bfp td .m{display:block;color:var(--ink-2)}.bfp td.t{min-width:0}.bfp td.n{white-space:normal}.bfp .bfp-tbl{overflow-x:visible}}
+  @media (max-width:640px){.bfp .w{display:none}.bfp td .m{display:block;color:var(--ink-2)}.bfp td.t{min-width:0}.bfp td.n{white-space:normal}.bfp .bfp-tbl{overflow-x:visible}.bfp table{table-layout:fixed}.bfp th.c0{width:28px}.bfp th.c3,.bfp th.c4{width:30%}.bfp th.c5{width:56px}.bfp td,.bfp td small{white-space:normal;overflow-wrap:break-word}}
   .bfp tr[data-go]{cursor:pointer}
   .bfp tr[data-go] td.t{color:var(--brand-ink)}
   .bfp tr.hl td{background:var(--brand-soft)}
@@ -115,7 +115,7 @@ function calendar() {
 
 function campaigns() {
   return `<section id="bfpCamp"><h2>Campaigns, in order</h2><p class="sm">Tap a row to see its ads.</p>
-    <div class="bfp-tbl"><table><tr><th>#</th><th>Campaign</th><th class="w">When</th><th class="w">Goal</th><th>Starts at</th><th>Ads</th></tr>
+    <div class="bfp-tbl"><table><tr><th class="c0">#</th><th>Campaign</th><th class="w">When</th><th class="w">Goal</th><th class="c3">Starts at</th><th class="c5">Ads</th></tr>
     ${(P.campaigns || []).map((c, i) => `<tr id="bfpC-${esc(c.key)}" ${c.tab ? `data-go="${esc(c.tab)}"` : ''}><td>${i + 1}</td><td class="t">${esc(c.name)}${c.sets ? `<small>${esc(c.sets)}</small>` : ''}<small class="m">${esc(c.when)}</small></td><td class="w">${esc(c.when)}</td><td class="w">${esc(c.goal || 'Sales')}</td><td>${esc(c.starts)}</td><td class="n">${esc(c.ads || '')}</td></tr>`).join('')}
     </table></div>${P.campaigns_note ? `<p class="sm" style="margin-top:8px">${esc(P.campaigns_note)}</p>` : ''}</section>`;
 }
@@ -125,7 +125,7 @@ function kpi() {
   return `<section id="bfpKpi"><h2>Budget and when we check</h2>${L.intro ? `<p style="margin:0;font-size:14.5px">${esc(L.intro)}</p>` : ''}
     <div class="bfp-rules">${(L.rungs || []).map(r => `<div class="bfp-rule ${esc(r.tone)}"><b>${esc(r.line)}</b><span>${esc(r.action)}</span></div>`).join('')}</div>
     ${L.note ? `<p class="sm">${esc(L.note)}</p>` : ''}
-    ${L.checks?.length ? `<div class="bfp-tbl"><table><tr><th>When</th><th>Budget</th><th class="w">What happens</th></tr>${L.checks.map(c => `<tr><td class="t">${esc(c.when)}<small class="m">${esc(c.what)}</small></td><td class="n">${esc(c.budget)}</td><td class="w">${esc(c.what)}</td></tr>`).join('')}</table></div>` : ''}</section>`;
+    ${L.checks?.length ? `<div class="bfp-tbl"><table><tr><th>When</th><th class="c4">Budget</th><th class="w">What happens</th></tr>${L.checks.map(c => `<tr><td class="t">${esc(c.when)}<small class="m">${esc(c.what)}</small></td><td class="n">${esc(c.budget)}</td><td class="w">${esc(c.what)}</td></tr>`).join('')}</table></div>` : ''}</section>`;
 }
 
 function ads() {
