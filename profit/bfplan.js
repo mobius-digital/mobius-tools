@@ -249,11 +249,12 @@ function campBox(c, sec) {
   const byId = Object.fromEntries(confs.map(x => [x.id, x]));
   let sets = confs.length ? confs.map(x => c.sets.find(s => s.id === x.id)).filter(Boolean) : c.sets.slice();
   if (sec.active_only) sets = sets.filter(s => isOn(s.status));
-  if (P.meta.hide_unused && mode === 'plain') sets = sets.filter(s => c.ads.some(a => a.set === s.id && adOn(a)));
   const hidden = sec.active_only ? c.sets.length - sets.length : 0;
   const mode = sec.mode || 'full';
+  if (P.meta.hide_unused && mode === 'plain') sets = sets.filter(s => c.ads.some(a => a.set === s.id && adOn(a)));
   const boxes = sets.map(s => setBox(c, s, byId[s.id] || { label: (sec.labels || {})[s.id] || cleanName(s.name), who: (sec.who || {})[s.id] }, mode)).join('');
   if (mode === 'cm') return boxes;
+  if (!sets.length && P.meta.hide_unused) return '';
   const nm = (sec.camp_labels || {})[c.id] || c.name;
   return `<div class="bfp-camp"><h3>${esc(nm)}</h3>
     <div class="meta"><span>${isOn(c.status) ? 'On' : 'Off'}</span>${c.budget ? `<span>${money0(c.budget)}/day now</span>` : ''}${(sec.notes || {})[c.id] ? `<span>${esc(sec.notes[c.id])}</span>` : ''}</div>
