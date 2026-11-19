@@ -56,8 +56,8 @@ plan = {
     },
     "asks_title": "What we need from you, Fela",
     "asks": [
-        {"q": "On the site, Black Friday is for subscribers only on Thu Nov 26 and for everyone on Fri Nov 27. Our ads start Nov 26 and our videos say \"Nov 26 to 30, no code needed\". Which do you want?",
-         "options": [{"label": "Open it to everyone Nov 26", "note": "Ads start Thursday as planned."}, {"label": "Start the ads Nov 27", "note": "We hold the ads one day."}]},
+        {"q": "When do you want the Black Friday ads to start? Either is fine with us.",
+         "options": [{"label": "Thu Nov 26 (as planned)", "note": ""}, {"label": "Mon Nov 23 (start early)", "note": ""}]},
         {"q": "Christmas order-by date: our holiday ads say Dec 18, the plan says Dec 17. Which is right?",
          "options": [{"label": "Dec 18", "note": ""}, {"label": "Dec 17", "note": "We change the ads."}]},
         {"q": "Free studs: what are they worth, $39 or $59?",

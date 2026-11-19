@@ -8847,6 +8847,14 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         return json({ error: 'Meta is busy right now. Refresh in a few minutes.', detail: String(e.message || e).slice(0, 200) }, 502);
       }
       const allAds = out.flatMap(c => c.ads.map(a => a.id));
+      /* Ads loaded since the last nightly sync are not in `ads` yet, so the cover and video routes (which check that table)
+         would refuse them. Every ad here came from this brand's own campaigns, so record them the way the sync does. */
+      const rows = out.flatMap(c => c.ads.map(a => [brand.meta_act, a.id, a.name || null, a.set || null, c.id]));
+      for (let i = 0; i < rows.length; i += 20) {
+        const chunk = rows.slice(i, i + 20);
+        await env.DB.prepare(`INSERT INTO ads (act_id, ad_id, name, adset_id, campaign_id) VALUES ${chunk.map(() => '(?,?,?,?,?)').join(',')} ON CONFLICT(act_id, ad_id) DO NOTHING`)
+          .bind(...chunk.flat()).run().catch(() => {});
+      }
       const thumbs = {};
       for (let i = 0; i < allAds.length; i += 90) {
         const part = allAds.slice(i, i + 90);
