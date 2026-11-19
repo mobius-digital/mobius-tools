@@ -8821,6 +8821,14 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         const own = /^\d+$/.test(adId) && await env.DB.prepare(`SELECT 1 FROM ads WHERE act_id IN ${metaOf(1)} AND ad_id = ?2`).bind(actId, adId).first().catch(() => null);
         if (!own) return new Response('not found', { status: 404, headers: CORS });
         const c = (await adThumbnails(env, [adId], LIVE_THUMBS).catch(() => ({})))[adId];
+        /* Covers moved to R2 on 2026-10-09, so `thumb` is now a public https link, not base64:
+           this route answered "no image" for every ad until 2026-11-19. Send the browser there. */
+        if (/^https:\/\//.test(c?.thumb || '')) {
+          if (!url.searchParams.get('dl')) return new Response(null, { status: 302, headers: { ...CORS, Location: c.thumb, 'Cache-Control': 'public, max-age=3600' } });
+          const r = await fetch(c.thumb);
+          if (r.ok) return new Response(r.body, { headers: { ...CORS, 'Content-Type': r.headers.get('content-type') || 'image/webp',
+            'Content-Disposition': `attachment; filename="ad-${adId}.webp"` } });
+        }
         const mm = /^data:([^;]+);base64,(.+)$/.exec(c?.thumb || '');
         if (!mm) return new Response('no image', { status: 404, headers: CORS });
         const bytes = Uint8Array.from(atob(mm[2]), ch => ch.charCodeAt(0));
