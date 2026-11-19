@@ -1,216 +1,151 @@
-/* Locus - the Black Friday ads block on the client's season link (?season=<token>).
- * 2026-11-19, Ice & Gold first. Cole: "she can see the Black Friday ads and the structure... a calendar
- * view... the budgets, the scaling procedure... the campaign, the ad sets, why... very visual, not text
- * heavy... and all the ads, where she can actually view the videos and statics close up."
- *
- * Four parts, phone first: the calendar strip (tap a day, a sheet rises from the bottom), the scaling
- * ladder, the structure (one campaign, its boxes, one-line why), and the ad gallery by phase (tap an ad,
- * it opens full size; videos play). The plan is DATA (answer `bf_plan`, served by seasonPublic with each
- * ad's cover and the brand's Your ads token); this file only draws it. Client words only: boxes, not ad
- * sets; no internal names. Videos play through account-health /api/ad-video?yours=<token>, the same
- * route and rule as the client's Your ads page.
+/* Locus - the Black Friday plan on the client's season link (?season=<token>).
+ * 2026-11-19, Ice & Gold first. v2 the same day: Cole found v1 "too much going on" and wants it shaped
+ * like Dartee's plan page. Order, and nothing else:
+ *   jump nav · What we need from you · Calendar (phases only, no budgets; tap one = jump to its campaign)
+ *   · Campaigns, in order (#, campaign + its groups, when, goal, starts at, ads; tap = its ads)
+ *   · Budget and when we check (MER ladder + check-time table) · The ads (tabs, sub-tabs, full-size viewer).
+ * Budgets live ONLY in the campaigns table and the check-time table.
+ * The plan is DATA (season answer `bf_plan`, served by seasonPublic with each ad's cover and the brand's
+ * Your ads token); this file only draws it. Videos play through account-health /api/ad-video?yours=, one
+ * at a time, in a sheet that rises from the bottom. Client words only: no internal names.
  */
 (function () {
 'use strict';
 const AH = 'https://mobius-account-health.mobius-digital.workers.dev';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const money = n => n == null ? '' : '$' + Math.round(n).toLocaleString('en-US');
-const dt = iso => new Date(iso + 'T12:00:00Z');
-const dow = iso => dt(iso).toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' });
-const md = iso => dt(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
-const long = iso => dt(iso).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' });
-let P = null, TODAY = '', flat = [], cur = -1;
+let P = null, flat = [], cur = -1, tab = null, sub = null;
 
 function css() {
   if (document.getElementById('bfpCss')) return;
   const st = document.createElement('style');
   st.id = 'bfpCss';
   st.textContent = `
-  .bfp,.bfp-scrim{--p-eb:#B7791F;--p-bf:#1F2937;--p-cm:#2563EB;--p-norm:#64748B;--p-gift:#B4232C}
-  .bfp{display:flex;flex-direction:column;gap:16px;margin:4px 0 8px}
-  @media (prefers-color-scheme:dark){.bfp,.bfp-scrim{--p-eb:#E0A43A;--p-bf:#E5E7EB;--p-cm:#6EA8FF;--p-norm:#94A3B8;--p-gift:#F07A82}}
+  .bfp,.bfp-scrim{--p-eb:#B7791F;--p-bf:#1F2937;--p-cm:#2563EB;--p-norm:#64748B;--p-gift:#B4232C;--g:#1C7A46;--g-soft:#E4F2E9;--a:#8F6412;--a-soft:#F8EED6;--r:#9C3A2E;--r-soft:#F7E7E4}
+  @media (prefers-color-scheme:dark){.bfp,.bfp-scrim{--p-eb:#E0A43A;--p-bf:#E5E7EB;--p-cm:#6EA8FF;--p-norm:#94A3B8;--p-gift:#F07A82;--g:#5FD292;--g-soft:#15301F;--a:#EBBF63;--a-soft:#3A2E12;--r:#F09182;--r-soft:#3A1C18}}
+  .bfp{display:flex;flex-direction:column;gap:22px;margin:4px 0 8px}
   .bfp *{box-sizing:border-box}
-  .bfp-hero{background:#0F1A22;color:#EEF3F6;border-radius:16px;padding:20px 18px}
-  .bfp-hero h2{font-family:var(--serif);font-weight:400;font-size:clamp(28px,7vw,38px);line-height:1.05;margin:0 0 6px}
-  .bfp-hero p{margin:0;color:#9AACB8;font-size:14.5px;max-width:60ch}
-  .bfp-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:16px}
-  .bfp-stats div{background:rgba(255,255,255,.07);border-radius:12px;padding:10px 10px 9px}
-  .bfp-stats b{display:block;font-size:20px;line-height:1.15;color:#fff}
-  .bfp-stats span{font-size:12px;color:#9AACB8}
-  .bfp-card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px}
-  .bfp-card h3{font-size:17px;margin:0 0 2px}
-  .bfp-card .sub{color:var(--muted);font-size:13.5px;margin:0 0 12px}
-  .bfp-legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--ink-2);margin:0 0 10px}
-  .bfp-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
-  .bfp-cal{display:flex;gap:6px;overflow-x:auto;scroll-snap-type:x proximity;padding:2px 2px 10px;margin:0 -2px;-webkit-overflow-scrolling:touch}
-  .bfp-day{flex:0 0 64px;scroll-snap-align:start;border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:8px 6px 7px;display:flex;flex-direction:column;align-items:center;gap:4px;font:inherit;color:inherit;cursor:pointer;position:relative}
-  .bfp-day.today{outline:2px solid var(--brand);outline-offset:1px}
-  .bfp-day .w{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
-  .bfp-day .n{font-size:17px;font-weight:700;line-height:1}
-  .bfp-day .bar{width:26px;height:74px;border-radius:6px;background:var(--line);display:flex;align-items:flex-end;overflow:hidden}
-  .bfp-day .bar i{display:block;width:100%;border-radius:6px 6px 0 0}
-  .bfp-day .amt{font-size:12px;font-weight:700}
-  .bfp-day .band{position:absolute;left:0;right:0;top:0;height:4px;border-radius:12px 12px 0 0}
-  .bfp-day .sw{width:7px;height:7px;border-radius:50%;background:var(--brand-ink,#14608C)}
-  .bfp-day .sw.none{background:transparent}
-  .bfp-phases{display:grid;gap:8px;margin-top:6px}
-  .bfp-ph{display:grid;grid-template-columns:6px minmax(0,1fr);gap:10px;align-items:stretch}
-  .bfp-ph>i{border-radius:3px}
-  .bfp-ph .t{font-weight:700;font-size:14px}
-  .bfp-ph .t small{font-weight:500;color:var(--muted);margin-left:6px;font-size:12.5px}
-  .bfp-ph .o{font-size:13.5px;color:var(--ink-2)}
-  .bfp-ladder{display:grid;gap:8px}
-  .bfp-rung{display:grid;grid-template-columns:86px minmax(0,1fr);border-radius:12px;overflow:hidden;border:1px solid var(--line)}
-  .bfp-rung .k{display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;padding:12px 6px;text-align:center;line-height:1.15}
-  .bfp-rung .v{padding:10px 12px;font-size:14px;display:flex;flex-direction:column;justify-content:center}
-  .bfp-rung .v b{font-size:15px}
-  .bfp-rung.up .k{background:var(--good-bg);color:var(--good)}
-  .bfp-rung.hold .k{background:var(--unk-bg,#EDF1F4);color:var(--ink-2)}
-  .bfp-rung.down .k{background:var(--bad-bg);color:var(--bad)}
-  .bfp-checks{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
-  .bfp-checks span{font-size:12.5px;font-weight:600;border:1px solid var(--line-strong);border-radius:999px;padding:4px 10px}
-  .bfp-goal{margin-top:10px;font-size:13.5px;color:var(--ink-2)}
-  .bfp-tree{display:flex;flex-direction:column;align-items:stretch}
-  .bfp-camp{background:#0F1A22;color:#fff;border-radius:14px;padding:14px;text-align:center}
-  .bfp-camp b{font-size:16px;display:block}
-  .bfp-camp span{font-size:13px;color:#9AACB8}
-  .bfp-stem{width:2px;height:16px;background:var(--line-strong);margin:0 auto}
-  .bfp-boxes{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;position:relative}
-  .bfp-box{border:1.5px solid var(--line-strong);border-radius:14px;padding:12px 14px;background:var(--surface)}
-  .bfp-box .h{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
-  .bfp-box .h b{font-size:15px}
-  .bfp-box .h span{font-size:12px;color:var(--muted);white-space:nowrap}
-  .bfp-box .who{font-size:13px;color:var(--ink-2);margin:2px 0 8px}
-  .bfp-box .cnt{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
-  .bfp-box .cnt span{font-size:12px;font-weight:700;border-radius:999px;padding:3px 9px;background:var(--good-bg);color:var(--good)}
-  .bfp-box .cnt span.wait{background:var(--brand-soft);color:var(--brand-ink)}
-  .bfp-box .why{font-size:13.5px;border-top:1px dashed var(--line);padding-top:8px}
-  .bfp-box .why::before{content:"Why: ";font-weight:700}
-  .bfp-also{margin-top:12px;display:grid;gap:6px}
-  .bfp-also div{display:grid;grid-template-columns:minmax(0,1fr);gap:1px;font-size:14px;border:1px solid var(--line);border-radius:10px;padding:8px 12px}
-  .bfp-also span{color:var(--muted);font-size:12.5px}
-  .bfp-also h5{font-size:13px;margin:0;color:var(--muted);font-weight:600}
-  .bfp-why{display:grid;gap:8px;margin:0;padding:0;list-style:none}
-  .bfp-why li{display:grid;grid-template-columns:28px minmax(0,1fr);gap:8px;align-items:start;font-size:14px}
-  .bfp-why li i{width:28px;height:28px;border-radius:50%;background:var(--brand-soft);color:var(--brand-ink);font-style:normal;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:13px}
-  .bfp-why li b{display:block}
-  .bfp-tabs{display:flex;gap:6px;overflow-x:auto;margin:0 0 12px;padding-bottom:2px}
-  .bfp-tabs button{flex:0 0 auto;font:inherit;font-size:13.5px;font-weight:600;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);border-radius:999px;padding:7px 14px;cursor:pointer}
-  .bfp-tabs button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
-  .bfp-grp{margin:0 0 18px}
-  .bfp-grp h4{font-size:14.5px;margin:0 0 2px}
-  .bfp-grp p{font-size:13px;color:var(--muted);margin:0 0 8px}
+  .bfp,.bfp>*,.bfp section{min-width:0;max-width:100%}
+  .bfp h2{font-size:20px;margin:0 0 4px}
+  .bfp .sm{font-size:13.5px;color:var(--muted);margin:0 0 10px}
+  .bfp-top h1{font-family:var(--serif);font-weight:400;font-size:clamp(28px,7vw,38px);line-height:1.08;margin:0 0 6px}
+  .bfp-top p{margin:0;color:var(--ink-2);font-size:15px}
+  .bfp-jump{display:flex;gap:6px;overflow-x:auto;position:sticky;top:0;z-index:5;background:var(--bg);padding:8px 0;margin:-8px 0;scrollbar-width:none}
+  .bfp-jump a{flex:none;font-size:13px;font-weight:600;color:var(--ink);text-decoration:none;border:1px solid var(--line-strong);background:var(--surface);border-radius:999px;padding:6px 12px}
+  .bfp section{scroll-margin-top:56px}
+  .bfp-ask{background:var(--brand-soft);border-radius:14px;padding:16px}
+  .bfp-ask .q{font-size:15.5px;font-weight:600;margin:0 0 12px}
+  .bfp-opts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .bfp-opts div{background:var(--surface);border:1px solid var(--line-strong);border-radius:12px;padding:10px 12px;font-size:14px}
+  .bfp-opts b{display:block;font-size:15px}
+  .bfp-tl{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x proximity;padding-bottom:6px;scrollbar-width:thin}
+  .bfp-ph{flex:0 0 auto;min-width:150px;scroll-snap-align:start;text-align:left;font:inherit;color:inherit;cursor:pointer;background:var(--surface);border:1px solid var(--line);border-top:5px solid var(--c);border-radius:12px;padding:10px 12px;display:grid;gap:2px}
+  .bfp-ph b{font-size:15px}
+  .bfp-ph span{font-size:13px;color:var(--ink-2)}
+  .bfp-ph small{font-size:12px;color:var(--muted)}
+  .bfp-tbl{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+  .bfp table{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums}
+  .bfp th,.bfp td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  .bfp th{font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:600;white-space:nowrap}
+  .bfp tr:last-child td{border-bottom:none}
+  .bfp td.t{font-weight:600;min-width:130px}
+  .bfp td.t small{display:block;font-weight:500;color:var(--muted);font-size:12.5px;margin-top:2px}
+  .bfp td.n{white-space:nowrap}
+  .bfp td .m{display:none}
+  @media (max-width:640px){.bfp .w{display:none}.bfp td .m{display:block;color:var(--ink-2)}.bfp td.t{min-width:0}.bfp td.n{white-space:normal}.bfp .bfp-tbl{overflow-x:visible}}
+  .bfp tr[data-go]{cursor:pointer}
+  .bfp tr[data-go] td.t{color:var(--brand-ink)}
+  .bfp tr.hl td{background:var(--brand-soft)}
+  .bfp-rules{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0}
+  @media (min-width:640px){.bfp-rules{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  .bfp-rule{border-radius:10px;padding:11px 12px;display:grid;gap:2px;font-size:13.5px}
+  .bfp-rule b{font-size:16px}
+  .bfp-rule.up2{background:var(--g);color:var(--surface)} .bfp-rule.up{background:var(--g-soft)} .bfp-rule.hold{background:var(--a-soft)}
+  .bfp-rule.down{background:var(--r-soft)} .bfp-rule.down2{background:var(--r);color:var(--surface)}
+  .bfp-tabs,.bfp-subs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin-bottom:10px}
+  .bfp-tabs button,.bfp-subs button{flex:none;font:inherit;font-size:13.5px;font-weight:600;color:var(--ink);background:var(--surface);border:1px solid var(--line-strong);border-radius:999px;padding:7px 14px;cursor:pointer}
+  .bfp-tabs button[aria-selected="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+  .bfp-subs button{font-size:12.5px;padding:5px 11px}
+  .bfp-subs button[aria-selected="true"]{background:var(--g);color:var(--surface);border-color:var(--g)}
+  .bfp-panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px}
+  .bfp-panel p{font-size:13.5px;color:var(--muted);margin:0 0 10px}
   .bfp-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
-  @media (min-width:640px){.bfp-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}}
-  .bfp-ad{position:relative;aspect-ratio:4/5;border:0;padding:0;border-radius:10px;overflow:hidden;background:var(--brand-soft);cursor:pointer;display:block;width:100%}
+  @media (min-width:640px){.bfp-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}}
+  .bfp-ad{position:relative;aspect-ratio:4/5;border:0;padding:0;border-radius:8px;overflow:hidden;background:var(--brand-soft);cursor:pointer;display:block;width:100%}
   .bfp-ad img{width:100%;height:100%;object-fit:cover;display:block;position:relative;z-index:1}
-  .bfp-ad .lab,.bfp-ad .pl,.bfp-ad .wait{z-index:2}
-  .bfp-ad .lab{position:absolute;left:0;right:0;bottom:0;padding:16px 6px 5px;font-size:11px;line-height:1.2;color:#fff;text-align:left;background:linear-gradient(transparent,rgba(0,0,0,.72));font-weight:600}
-  .bfp-ad .pl{position:absolute;right:6px;top:6px;width:26px;height:26px;border-radius:50%;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center}
+  .bfp-ad .lab{position:absolute;z-index:2;left:0;right:0;bottom:0;padding:16px 6px 5px;font-size:11px;line-height:1.2;color:#fff;text-align:left;background:linear-gradient(transparent,rgba(0,0,0,.72));font-weight:600}
+  .bfp-ad .pl{position:absolute;z-index:2;right:6px;top:6px;width:26px;height:26px;border-radius:50%;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center}
   .bfp-ad .pl::after{content:"";border-left:9px solid #fff;border-top:6px solid transparent;border-bottom:6px solid transparent;margin-left:2px}
-  .bfp-ad .wait{position:absolute;left:6px;top:6px;font-size:10.5px;font-weight:700;border-radius:999px;padding:2px 7px;background:rgba(0,0,0,.6);color:#fff}
-  .bfp-ad .none{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--muted);padding:6px;text-align:center}
+  .bfp-ad .none{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--muted)}
   .bfp-scrim{position:fixed;inset:0;background:rgba(8,12,16,.86);z-index:200;display:flex;align-items:flex-end;justify-content:center}
   .bfp-scrim[hidden]{display:none}
-  .bfp-sheet{background:var(--surface);color:var(--ink);width:100%;max-width:560px;max-height:94vh;border-radius:18px 18px 0 0;display:flex;flex-direction:column;overflow:hidden;animation:bfpUp .22s ease-out;padding-bottom:env(safe-area-inset-bottom,0px)}
+  .bfp-sheet{background:var(--surface);color:var(--ink);width:100%;max-width:560px;max-height:94vh;border-radius:18px 18px 0 0;display:flex;flex-direction:column;overflow:hidden;animation:bfpUp .2s ease-out;padding-bottom:env(safe-area-inset-bottom,0px)}
   @media (min-width:700px){.bfp-scrim{align-items:center}.bfp-sheet{border-radius:18px}}
-  @keyframes bfpUp{from{transform:translateY(40px);opacity:.4}to{transform:none;opacity:1}}
-  .bfp-sheet .grab{width:40px;height:4px;border-radius:2px;background:var(--line-strong);margin:8px auto 0;flex:0 0 auto}
-  .bfp-media{background:#000;display:flex;align-items:center;justify-content:center;min-height:200px;flex:1 1 auto;overflow:hidden}
-  .bfp-media video,.bfp-media img{display:block;max-width:100%;max-height:72vh;width:100%;object-fit:contain}
-  .bfp-media iframe{width:100%;height:72vh;border:0;background:#fff}
+  @keyframes bfpUp{from{transform:translateY(40px)}to{transform:none}}
+  .bfp-media{background:#000;display:flex;align-items:center;justify-content:center;min-height:200px;flex:1 1 auto;overflow:hidden;position:relative}
+  .bfp-media video,.bfp-media img{display:block;max-width:100%;max-height:74vh;width:100%;object-fit:contain}
+  .bfp-media iframe{width:100%;height:74vh;border:0;background:#fff}
   .bfp-media .msg{color:#cbd5e1;font-size:13.5px;padding:30px 16px;text-align:center}
   .bfp-row{display:flex;gap:8px;align-items:center;padding:10px 12px}
   .bfp-row .nm{flex:1;min-width:0;font-weight:600;font-size:14px}
   .bfp-row .nm small{display:block;color:var(--muted);font-weight:500;font-size:12px}
   .bfp-btn{font:inherit;font-size:13.5px;font-weight:600;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);border-radius:10px;padding:8px 12px;cursor:pointer;min-width:42px}
-  .bfp-dsheet{padding:6px 18px 18px;overflow:auto}
-  .bfp-dsheet h4{font-size:19px;margin:6px 0 2px}
-  .bfp-dsheet .bfp-pill{display:inline-block;font-size:12px;font-weight:700;border-radius:999px;padding:3px 10px;color:var(--surface);margin:4px 0 10px}
-  .bfp-dsheet .off{font-size:15px;font-weight:600;margin:0 0 12px}
-  .bfp-dsheet .bud{display:grid;gap:6px;margin:0 0 12px}
-  .bfp-dsheet .bud div{display:flex;justify-content:space-between;font-size:14px;border-bottom:1px solid var(--line);padding:5px 0}
-  .bfp-dsheet .bud div.tot{font-weight:800;border-bottom:0}
-  .bfp-dsheet .swl{display:grid;gap:6px;margin:0;padding:0;list-style:none}
-  .bfp-dsheet .swl li{font-size:14px;display:grid;grid-template-columns:70px minmax(0,1fr);gap:8px}
-  .bfp-dsheet .swl li b{font-size:12.5px;color:var(--brand-ink)}
   `;
   document.head.appendChild(st);
 }
 
-const phaseOf = k => (P.phases || []).find(p => p.key === k) || { name: '', color: 'var(--p-norm)' };
-const colorOf = k => phaseOf(k).color || 'var(--p-norm)';
-const dayTotal = d => (d.budgets || []).reduce((s, b) => s + (+b.amount || 0), 0);
+const thumbOf = a => a.thumb || (P.yours ? `${AH}/api/your-ads/${P.yours}/thumb?ad=${a.id}` : '');
+const tabsOf = () => [...new Set((P.groups || []).map(g => g.tab || 'Ads'))];
 
-function hero() {
-  const days = P.days || [];
-  const top = Math.max(0, ...days.map(dayTotal));
-  const nAds = (P.groups || []).reduce((s, g) => s + g.ads.length, 0);
-  const st = P.stats || [];
-  return `<div class="bfp-hero"><h2>${esc(P.title || 'Black Friday ads')}</h2>${P.lede ? `<p>${esc(P.lede)}</p>` : ''}
-    <div class="bfp-stats">${(st.length ? st : [{ v: md(P.start || days[0]?.d), l: 'ads start' }, { v: money(top), l: 'biggest day' }, { v: String(nAds), l: 'ads ready' }])
-      .map(s => `<div><b>${esc(s.v)}</b><span>${esc(s.l)}</span></div>`).join('')}</div></div>`;
+function top() {
+  return `<div class="bfp-top"><h1>${esc(P.title || 'Black Friday: the plan and the ads')}</h1>${P.lede ? `<p>${esc(P.lede)}</p>` : ''}</div>
+    <nav class="bfp-jump">${P.asks?.length ? '<a href="#bfpAsk">What we need</a>' : ''}<a href="#bfpCal">Calendar</a><a href="#bfpCamp">Campaigns</a><a href="#bfpKpi">Budget + MER</a><a href="#bfpAds">The ads</a></nav>`;
+}
+
+function asks() {
+  if (!P.asks?.length) return '';
+  return `<section id="bfpAsk"><h2>What we need from you</h2>${P.asks.map(a => `<div class="bfp-ask"><p class="q">${esc(a.q)}</p>
+    ${a.options?.length ? `<div class="bfp-opts">${a.options.map(o => `<div><b>${esc(o.label)}</b>${esc(o.note || '')}</div>`).join('')}</div>` : ''}</div>`).join('')}
+    ${P.asks_note ? `<p class="sm" style="margin-top:8px">${esc(P.asks_note)}</p>` : ''}</section>`;
 }
 
 function calendar() {
-  const days = P.days || [];
-  const top = Math.max(1, ...days.map(dayTotal));
-  return `<section class="bfp-card"><h3>The calendar</h3><p class="sub">Daily ad budget, start to finish. Tap a day for what switches on or off.</p>
-    <div class="bfp-legend">${(P.phases || []).map(p => `<span><i style="background:${p.color}"></i>${esc(p.name)}</span>`).join('')}<span><i style="background:var(--brand-ink,#14608C);border-radius:50%"></i>Something switches</span></div>
-    <div class="bfp-cal" id="bfpCal">${days.map((d, i) => {
-      const t = dayTotal(d);
-      return `<button class="bfp-day${d.d === TODAY ? ' today' : ''}" data-day="${i}" aria-label="${esc(long(d.d))}, ${money(t)} a day">
-        <span class="band" style="background:${colorOf(d.phase)}"></span>
-        <span class="w">${esc(dow(d.d))}</span><span class="n">${dt(d.d).getUTCDate()}</span>
-        <span class="bar"><i style="height:${Math.round(t / top * 100)}%;background:${colorOf(d.phase)}"></i></span>
-        <span class="amt">${money(t)}</span><span class="sw${(d.switches || []).length ? '' : ' none'}"></span></button>`;
-    }).join('')}</div>
-    <div class="bfp-phases">${(P.phases || []).map(p => `<div class="bfp-ph"><i style="background:${p.color}"></i><div><div class="t">${esc(p.name)}<small>${esc(p.when || '')}</small></div>${p.offer ? `<div class="o">${esc(p.offer)}</div>` : ''}</div></div>`).join('')}</div>
-  </section>`;
+  return `<section id="bfpCal"><h2>Calendar</h2><p class="sm">Tap a phase to see its campaign.</p>
+    <div class="bfp-tl">${(P.timeline || []).map(t => `<button class="bfp-ph" style="--c:${t.color}" data-camp="${esc(t.camp || '')}"><b>${esc(t.name)}</b><span>${esc(t.when)}</span>${t.note ? `<small>${esc(t.note)}</small>` : ''}</button>`).join('')}</div></section>`;
 }
 
-function ladder() {
-  const L = P.ladder;
-  if (!L) return '';
-  return `<section class="bfp-card"><h3>${esc(L.title || 'When we scale, when we pull back')}</h3><p class="sub">${esc(L.sub || '')}</p>
-    <div class="bfp-ladder">${(L.rungs || []).map(r => `<div class="bfp-rung ${esc(r.tone || 'hold')}"><div class="k">${esc(r.line)}</div><div class="v"><b>${esc(r.action)}</b>${r.note ? `<span>${esc(r.note)}</span>` : ''}</div></div>`).join('')}</div>
-    ${L.checks?.length ? `<div class="bfp-checks">${L.checks.map(c => `<span>${esc(c)}</span>`).join('')}</div>` : ''}
-    ${L.goal ? `<div class="bfp-goal">${esc(L.goal)}</div>` : ''}</section>`;
+function campaigns() {
+  return `<section id="bfpCamp"><h2>Campaigns, in order</h2><p class="sm">Tap a row to see its ads.</p>
+    <div class="bfp-tbl"><table><tr><th>#</th><th>Campaign</th><th class="w">When</th><th class="w">Goal</th><th>Starts at</th><th>Ads</th></tr>
+    ${(P.campaigns || []).map((c, i) => `<tr id="bfpC-${esc(c.key)}" ${c.tab ? `data-go="${esc(c.tab)}"` : ''}><td>${i + 1}</td><td class="t">${esc(c.name)}${c.sets ? `<small>${esc(c.sets)}</small>` : ''}<small class="m">${esc(c.when)}</small></td><td class="w">${esc(c.when)}</td><td class="w">${esc(c.goal || 'Sales')}</td><td>${esc(c.starts)}</td><td class="n">${esc(c.ads || '')}</td></tr>`).join('')}
+    </table></div>${P.campaigns_note ? `<p class="sm" style="margin-top:8px">${esc(P.campaigns_note)}</p>` : ''}</section>`;
 }
 
-function structure() {
-  const S = P.structure;
-  if (!S) return '';
-  return `<section class="bfp-card"><h3>${esc(S.title || 'How it is built')}</h3><p class="sub">${esc(S.sub || '')}</p>
-    <div class="bfp-tree"><div class="bfp-camp"><b>${esc(S.campaign)}</b><span>${esc(S.campaign_note || '')}</span></div><div class="bfp-stem"></div>
-    <div class="bfp-boxes">${(S.boxes || []).map(b => `<div class="bfp-box"><div class="h"><b>${esc(b.name)}</b><span>${esc(b.when || '')}</span></div>
-      <div class="who">${esc(b.who || '')}</div><div class="cnt">${(b.counts || []).map(c => `<span class="${c.wait ? 'wait' : ''}">${esc(c.text)}</span>`).join('')}</div>
-      ${b.why ? `<div class="why">${esc(b.why)}</div>` : ''}</div>`).join('')}</div></div>
-    ${S.also?.length ? `<div class="bfp-also"><h5>Also running</h5>${S.also.map(a => `<div><b>${esc(a.name)}</b><span>${esc(a.note)}</span></div>`).join('')}</div>` : ''}
-  </section>
-  ${P.why?.length ? `<section class="bfp-card"><h3>Why we built it this way</h3><ul class="bfp-why" style="margin-top:10px">${P.why.map((w, i) => `<li><i>${i + 1}</i><div><b>${esc(w.what)}</b>${esc(w.why)}</div></li>`).join('')}</ul></section>` : ''}`;
+function kpi() {
+  const L = P.ladder || {};
+  return `<section id="bfpKpi"><h2>Budget and when we check</h2>${L.intro ? `<p style="margin:0;font-size:14.5px">${esc(L.intro)}</p>` : ''}
+    <div class="bfp-rules">${(L.rungs || []).map(r => `<div class="bfp-rule ${esc(r.tone)}"><b>${esc(r.line)}</b><span>${esc(r.action)}</span></div>`).join('')}</div>
+    ${L.note ? `<p class="sm">${esc(L.note)}</p>` : ''}
+    ${L.checks?.length ? `<div class="bfp-tbl"><table><tr><th>When</th><th>Budget</th><th class="w">What happens</th></tr>${L.checks.map(c => `<tr><td class="t">${esc(c.when)}<small class="m">${esc(c.what)}</small></td><td class="n">${esc(c.budget)}</td><td class="w">${esc(c.what)}</td></tr>`).join('')}</table></div>` : ''}</section>`;
 }
 
-let tab = null;
-function gallery() {
-  const G = P.groups || [];
-  if (!G.length) return '';
-  const tabs = [...new Set(G.map(g => g.tab || 'Ads'))];
+function ads() {
+  const tabs = tabsOf();
+  if (!tabs.length) return '';
   if (!tabs.includes(tab)) tab = tabs[0];
-  flat = G.filter(g => (g.tab || 'Ads') === tab).flatMap(g => g.ads.map(a => ({ ...a, grp: g })));
-  let k = 0;
-  return `<section class="bfp-card" id="bfpGal"><h3>Every ad</h3><p class="sub">Tap any ad to see it full size. Videos play with sound.</p>
-    <div class="bfp-tabs">${tabs.map(t => `<button data-tab="${esc(t)}" aria-pressed="${t === tab}">${esc(t)} (${G.filter(g => (g.tab || 'Ads') === t).reduce((s, g) => s + g.ads.length, 0)})</button>`).join('')}</div>
-    ${G.filter(g => (g.tab || 'Ads') === tab).map(g => `<div class="bfp-grp"><h4>${esc(g.title)} <span style="color:var(--muted);font-weight:500">(${g.ads.length})</span></h4>${g.sub ? `<p>${esc(g.sub)}</p>` : ''}
-      <div class="bfp-grid">${g.ads.map(a => `<button class="bfp-ad" data-ad="${k++}" aria-label="Open ${esc(a.label || 'ad')}">
-        <span class="none">${a.kind === 'video' ? 'Video' : 'Photo'}</span>
-        <img loading="lazy" alt="" src="${esc(a.thumb || (P.yours ? `${AH}/api/your-ads/${P.yours}/thumb?ad=${a.id}` : ''))}">
-        ${a.kind === 'video' ? '<span class="pl"></span>' : ''}${g.waiting ? `<span class="wait">${esc(g.waiting)}</span>` : ''}
-        ${a.label ? `<span class="lab">${esc(a.label)}</span>` : ''}</button>`).join('')}</div></div>`).join('')}
-  </section>`;
+  const gs = (P.groups || []).filter(g => (g.tab || 'Ads') === tab);
+  if (!gs.some(g => g.title === sub)) sub = gs[0]?.title;
+  const g = gs.find(x => x.title === sub) || gs[0];
+  flat = (g?.ads || []).map(a => ({ ...a, grp: g }));
+  const n = t => (P.groups || []).filter(x => (x.tab || 'Ads') === t).reduce((s, x) => s + x.ads.length, 0);
+  return `<section id="bfpAds"><h2>The ads</h2><p class="sm">Tap any ad to see it full size. Videos play with sound.</p>
+    <div class="bfp-tabs" role="tablist">${tabs.map(t => `<button data-tab="${esc(t)}" aria-selected="${t === tab}">${esc(t)} (${n(t)})</button>`).join('')}</div>
+    <div class="bfp-panel">${gs.length > 1 ? `<div class="bfp-subs">${gs.map(x => `<button data-sub="${esc(x.title)}" aria-selected="${x.title === sub}">${esc(x.title)} ${x.ads.length}</button>`).join('')}</div>` : ''}
+    ${g?.sub ? `<p>${esc(g.sub)}</p>` : ''}
+    <div class="bfp-grid">${flat.map((a, k) => `<button class="bfp-ad" data-ad="${k}" aria-label="Open ${esc(a.label || 'ad')}"><span class="none">${a.kind === 'video' ? 'Video' : 'Photo'}</span>
+      <img loading="lazy" alt="" src="${esc(thumbOf(a))}">${a.kind === 'video' ? '<span class="pl"></span>' : ''}${a.label ? `<span class="lab">${esc(a.label)}</span>` : ''}</button>`).join('')}</div></div></section>`;
 }
 
-/* ---- sheets: one scrim, a sheet that rises from the bottom (centred on desktop) ---- */
+/* ---- the full-size viewer: one scrim, a sheet from the bottom, one video at a time ---- */
 function scrim() {
   let s = document.getElementById('bfpScrim');
   if (!s) {
@@ -221,52 +156,30 @@ function scrim() {
     document.addEventListener('keydown', e => {
       if (s.hidden) return;
       if (e.key === 'Escape') close();
-      if (cur >= 0 && e.key === 'ArrowRight') openAd(cur + 1);
-      if (cur >= 0 && e.key === 'ArrowLeft') openAd(cur - 1);
+      if (e.key === 'ArrowRight') openAd(cur + 1);
+      if (e.key === 'ArrowLeft') openAd(cur - 1);
     });
   }
   return s;
 }
-function close() {
-  const s = scrim(); s.hidden = true; s.firstElementChild.innerHTML = ''; cur = -1; document.body.style.overflow = '';
-}
-function show(html) {
-  const s = scrim(); s.firstElementChild.innerHTML = '<div class="grab"></div>' + html; s.hidden = false; document.body.style.overflow = 'hidden';
-  return s.firstElementChild;
-}
-
-function openDay(i) {
-  const d = P.days[i]; if (!d) return;
-  const ph = phaseOf(d.phase);
-  const sh = show(`<div class="bfp-dsheet"><h4>${esc(long(d.d))}</h4><span class="bfp-pill" style="background:${ph.color}">${esc(ph.name)}</span>
-    ${d.offer || ph.offer ? `<p class="off">${esc(d.offer || ph.offer)}</p>` : ''}
-    <div class="bud">${(d.budgets || []).map(b => `<div><span>${esc(b.name)}</span><span>${money(b.amount)} a day</span></div>`).join('')}<div class="tot"><span>Total</span><span>${money(dayTotal(d))} a day</span></div></div>
-    ${d.note ? `<p style="font-size:13.5px;color:var(--ink-2);margin:0 0 10px">${esc(d.note)}</p>` : ''}
-    ${(d.switches || []).length ? `<ul class="swl">${d.switches.map(w => `<li><b>${esc(w.t || '')}</b><span>${esc(w.text)}</span></li>`).join('')}</ul>` : ''}
-    <div style="display:flex;justify-content:space-between;margin-top:16px;gap:8px"><button class="bfp-btn" data-dn="${i - 1}" ${i ? '' : 'disabled'}>Earlier</button><button class="bfp-btn" data-x>Close</button><button class="bfp-btn" data-dn="${i + 1}" ${i < P.days.length - 1 ? '' : 'disabled'}>Later</button></div></div>`);
-  sh.querySelectorAll('[data-dn]').forEach(b => b.onclick = () => openDay(+b.dataset.dn));
-  sh.querySelector('[data-x]').onclick = close;
-}
+function close() { const s = scrim(); s.hidden = true; s.firstElementChild.innerHTML = ''; cur = -1; document.body.style.overflow = ''; }
+function show(html) { const s = scrim(); s.firstElementChild.innerHTML = html; s.hidden = false; document.body.style.overflow = 'hidden'; return s.firstElementChild; }
 
 async function openAd(i) {
   if (i < 0 || i >= flat.length) return;
   cur = i;
-  const a = flat[i];
-  const thumb = a.thumb || (P.yours ? `${AH}/api/your-ads/${P.yours}/thumb?ad=${a.id}` : '');
+  const a = flat[i], thumb = thumbOf(a);
   const row = `<div class="bfp-row"><button class="bfp-btn" data-mv="-1" ${i ? '' : 'disabled'} aria-label="Previous ad">&#8249;</button>
-    <div class="nm">${esc(a.label || (a.kind === 'video' ? 'Video' : 'Photo'))}<small>${esc(a.grp.title)}${a.grp.waiting ? ' · ' + esc(a.grp.waiting) : ''} · ${i + 1} of ${flat.length}</small></div>
+    <div class="nm">${esc(a.label || (a.kind === 'video' ? 'Video' : 'Photo'))}<small>${esc(a.grp.title)} · ${i + 1} of ${flat.length}</small></div>
     <button class="bfp-btn" data-mv="1" ${i < flat.length - 1 ? '' : 'disabled'} aria-label="Next ad">&#8250;</button><button class="bfp-btn" data-x>Close</button></div>`;
   const wire = sh => {
     sh.querySelectorAll('[data-mv]').forEach(b => b.onclick = () => openAd(cur + +b.dataset.mv));
     sh.querySelector('[data-x]').onclick = close;
     let x0 = null; const m = sh.querySelector('.bfp-media');
-    if (m) { m.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; }, { passive: true });
-      m.addEventListener('touchend', e => { if (x0 == null) return; const dx = e.changedTouches[0].clientX - x0; if (Math.abs(dx) > 60) openAd(cur + (dx < 0 ? 1 : -1)); x0 = null; }); }
+    m.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; }, { passive: true });
+    m.addEventListener('touchend', e => { if (x0 == null) return; const dx = e.changedTouches[0].clientX - x0; if (Math.abs(dx) > 60) openAd(cur + (dx < 0 ? 1 : -1)); x0 = null; });
   };
-  if (a.kind !== 'video') {
-    wire(show(`<div class="bfp-media">${thumb ? `<img src="${esc(thumb)}" alt="">` : '<div class="msg">No picture yet.</div>'}</div>${row}`));
-    return;
-  }
+  if (a.kind !== 'video') { wire(show(`<div class="bfp-media">${thumb ? `<img src="${esc(thumb)}" alt="">` : '<div class="msg">No picture yet.</div>'}</div>${row}`)); return; }
   wire(show(`<div class="bfp-media">${thumb ? `<img src="${esc(thumb)}" alt="" style="opacity:.45">` : ''}<div class="msg" style="position:absolute">Loading the video…</div></div>${row}`));
   let html;
   try {
@@ -276,28 +189,42 @@ async function openAd(i) {
     else if (j.preview) html = `<iframe src="${esc(j.preview)}" title="Ad preview" allow="autoplay; encrypted-media"></iframe>`;
     else html = `${thumb ? `<img src="${esc(thumb)}" alt="">` : ''}<div class="msg">This one cannot play here yet. Ask us and we will send the file.</div>`;
   } catch { html = `<div class="msg">Could not load this video. Check your connection and tap it again.</div>`; }
-  if (cur !== i) return;   // they moved on while it loaded
+  if (cur !== i) return;
   wire(show(`<div class="bfp-media">${html}</div>${row}`));
 }
 
+function redrawAds(root) {
+  const s = root.querySelector('#bfpAds'); s.outerHTML = ads(); bindAds(root);
+}
+function bindAds(root) {
+  const s = root.querySelector('#bfpAds'); if (!s) return;
+  s.querySelectorAll('.bfp-ad img').forEach(im => { im.onerror = () => im.remove(); });
+  s.querySelectorAll('[data-ad]').forEach(b => b.onclick = () => openAd(+b.dataset.ad));
+  s.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { tab = b.dataset.tab; sub = null; redrawAds(root); });
+  s.querySelectorAll('[data-sub]').forEach(b => b.onclick = () => { sub = b.dataset.sub; redrawAds(root); });
+}
+function goAds(root, t) {
+  if (t) { tab = t; sub = null; redrawAds(root); }
+  root.querySelector('#bfpAds').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 function bind(root) {
-  root.querySelectorAll('[data-day]').forEach(b => b.onclick = () => openDay(+b.dataset.day));
-  root.querySelectorAll('.bfp-ad img').forEach(im => { im.onerror = () => im.remove(); });
-  root.querySelectorAll('[data-ad]').forEach(b => b.onclick = () => openAd(+b.dataset.ad));
-  root.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => {
-    tab = b.dataset.tab;
-    const g = root.querySelector('#bfpGal'); g.outerHTML = gallery(); bind(root.querySelector('#bfpGal').parentElement);
+  root.querySelectorAll('.bfp-jump a').forEach(a => a.onclick = e => { e.preventDefault(); root.querySelector(a.getAttribute('href')).scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+  root.querySelectorAll('tr[data-go]').forEach(r => r.onclick = () => goAds(root, r.dataset.go));
+  root.querySelectorAll('[data-camp]').forEach(b => b.onclick = () => {
+    const r = b.dataset.camp && root.querySelector('#bfpC-' + b.dataset.camp);
+    if (!r) return;
+    root.querySelectorAll('tr.hl').forEach(x => x.classList.remove('hl'));
+    r.classList.add('hl');
+    r.scrollIntoView({ behavior: 'smooth', block: 'center' });
   });
-  const cal = root.querySelector('#bfpCal'), t = cal && cal.querySelector('.today');
-  if (t && !cal.dataset.scrolled) { cal.dataset.scrolled = 1; cal.scrollLeft = Math.max(0, t.offsetLeft - 8); }
+  bindAds(root);
 }
 
 /** The block's HTML; call mount() after it is in the page. */
-function html(plan, today) {
+function html(plan) {
   if (!plan) return '';
-  P = plan; TODAY = today || '';
-  css();
-  return `<div class="bfp" id="bfp">${hero()}${calendar()}${ladder()}${structure()}${gallery()}</div>`;
+  P = plan; css();
+  return `<div class="bfp" id="bfp">${top()}${asks()}${calendar()}${campaigns()}${kpi()}${ads()}</div>`;
 }
 function mount() { const r = document.getElementById('bfp'); if (r) bind(r); }
 window.BfPlan = { html, mount };
