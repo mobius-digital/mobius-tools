@@ -26,16 +26,17 @@ function css() {
   const st = document.createElement('style');
   st.id = 'bfpCss';
   st.textContent = `
-  .bfp{--p-eb:#B7791F;--p-bf:#1F2937;--p-cm:#2563EB;--p-norm:#64748B;--p-gift:#B4232C;display:flex;flex-direction:column;gap:16px;margin:4px 0 8px}
-  @media (prefers-color-scheme:dark){.bfp{--p-eb:#E0A43A;--p-bf:#E5E7EB;--p-cm:#6EA8FF;--p-norm:#94A3B8;--p-gift:#F07A82}}
+  .bfp,.bfp-scrim{--p-eb:#B7791F;--p-bf:#1F2937;--p-cm:#2563EB;--p-norm:#64748B;--p-gift:#B4232C}
+  .bfp{display:flex;flex-direction:column;gap:16px;margin:4px 0 8px}
+  @media (prefers-color-scheme:dark){.bfp,.bfp-scrim{--p-eb:#E0A43A;--p-bf:#E5E7EB;--p-cm:#6EA8FF;--p-norm:#94A3B8;--p-gift:#F07A82}}
   .bfp *{box-sizing:border-box}
-  .bfp-hero{background:var(--ink-panel,#0C161D);color:var(--on-ink,#EAF2F7);border-radius:16px;padding:20px 18px}
+  .bfp-hero{background:#0F1A22;color:#EEF3F6;border-radius:16px;padding:20px 18px}
   .bfp-hero h2{font-family:var(--serif);font-weight:400;font-size:clamp(28px,7vw,38px);line-height:1.05;margin:0 0 6px}
-  .bfp-hero p{margin:0;color:var(--on-ink-2,#8195A2);font-size:14.5px;max-width:60ch}
+  .bfp-hero p{margin:0;color:#9AACB8;font-size:14.5px;max-width:60ch}
   .bfp-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:16px}
   .bfp-stats div{background:rgba(255,255,255,.07);border-radius:12px;padding:10px 10px 9px}
-  .bfp-stats b{display:block;font-size:20px;line-height:1.15;color:var(--on-ink,#fff)}
-  .bfp-stats span{font-size:12px;color:var(--on-ink-2,#8195A2)}
+  .bfp-stats b{display:block;font-size:20px;line-height:1.15;color:#fff}
+  .bfp-stats span{font-size:12px;color:#9AACB8}
   .bfp-card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px}
   .bfp-card h3{font-size:17px;margin:0 0 2px}
   .bfp-card .sub{color:var(--muted);font-size:13.5px;margin:0 0 12px}
@@ -70,9 +71,9 @@ function css() {
   .bfp-checks span{font-size:12.5px;font-weight:600;border:1px solid var(--line-strong);border-radius:999px;padding:4px 10px}
   .bfp-goal{margin-top:10px;font-size:13.5px;color:var(--ink-2)}
   .bfp-tree{display:flex;flex-direction:column;align-items:stretch}
-  .bfp-camp{background:var(--ink-panel,#0C161D);color:var(--on-ink,#fff);border-radius:14px;padding:14px;text-align:center}
+  .bfp-camp{background:#0F1A22;color:#fff;border-radius:14px;padding:14px;text-align:center}
   .bfp-camp b{font-size:16px;display:block}
-  .bfp-camp span{font-size:13px;color:var(--on-ink-2,#8195A2)}
+  .bfp-camp span{font-size:13px;color:#9AACB8}
   .bfp-stem{width:2px;height:16px;background:var(--line-strong);margin:0 auto}
   .bfp-boxes{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;position:relative}
   .bfp-box{border:1.5px solid var(--line-strong);border-radius:14px;padding:12px 14px;background:var(--surface)}
@@ -86,8 +87,9 @@ function css() {
   .bfp-box .why{font-size:13.5px;border-top:1px dashed var(--line);padding-top:8px}
   .bfp-box .why::before{content:"Why: ";font-weight:700}
   .bfp-also{margin-top:12px;display:grid;gap:6px}
-  .bfp-also div{display:flex;justify-content:space-between;gap:10px;font-size:13.5px;border:1px solid var(--line);border-radius:10px;padding:8px 12px}
-  .bfp-also span{color:var(--muted);font-size:12.5px;text-align:right}
+  .bfp-also div{display:grid;grid-template-columns:minmax(0,1fr);gap:1px;font-size:14px;border:1px solid var(--line);border-radius:10px;padding:8px 12px}
+  .bfp-also span{color:var(--muted);font-size:12.5px}
+  .bfp-also h5{font-size:13px;margin:0;color:var(--muted);font-weight:600}
   .bfp-why{display:grid;gap:8px;margin:0;padding:0;list-style:none}
   .bfp-why li{display:grid;grid-template-columns:28px minmax(0,1fr);gap:8px;align-items:start;font-size:14px}
   .bfp-why li i{width:28px;height:28px;border-radius:50%;background:var(--brand-soft);color:var(--brand-ink);font-style:normal;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:13px}
@@ -101,7 +103,8 @@ function css() {
   .bfp-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
   @media (min-width:640px){.bfp-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}}
   .bfp-ad{position:relative;aspect-ratio:4/5;border:0;padding:0;border-radius:10px;overflow:hidden;background:var(--brand-soft);cursor:pointer;display:block;width:100%}
-  .bfp-ad img{width:100%;height:100%;object-fit:cover;display:block}
+  .bfp-ad img{width:100%;height:100%;object-fit:cover;display:block;position:relative;z-index:1}
+  .bfp-ad .lab,.bfp-ad .pl,.bfp-ad .wait{z-index:2}
   .bfp-ad .lab{position:absolute;left:0;right:0;bottom:0;padding:16px 6px 5px;font-size:11px;line-height:1.2;color:#fff;text-align:left;background:linear-gradient(transparent,rgba(0,0,0,.72));font-weight:600}
   .bfp-ad .pl{position:absolute;right:6px;top:6px;width:26px;height:26px;border-radius:50%;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center}
   .bfp-ad .pl::after{content:"";border-left:9px solid #fff;border-top:6px solid transparent;border-bottom:6px solid transparent;margin-left:2px}
@@ -123,7 +126,7 @@ function css() {
   .bfp-btn{font:inherit;font-size:13.5px;font-weight:600;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);border-radius:10px;padding:8px 12px;cursor:pointer;min-width:42px}
   .bfp-dsheet{padding:6px 18px 18px;overflow:auto}
   .bfp-dsheet h4{font-size:19px;margin:6px 0 2px}
-  .bfp-dsheet .ph{display:inline-block;font-size:12px;font-weight:700;border-radius:999px;padding:3px 10px;color:#fff;margin:4px 0 10px}
+  .bfp-dsheet .bfp-pill{display:inline-block;font-size:12px;font-weight:700;border-radius:999px;padding:3px 10px;color:var(--surface);margin:4px 0 10px}
   .bfp-dsheet .off{font-size:15px;font-weight:600;margin:0 0 12px}
   .bfp-dsheet .bud{display:grid;gap:6px;margin:0 0 12px}
   .bfp-dsheet .bud div{display:flex;justify-content:space-between;font-size:14px;border-bottom:1px solid var(--line);padding:5px 0}
@@ -183,7 +186,7 @@ function structure() {
     <div class="bfp-boxes">${(S.boxes || []).map(b => `<div class="bfp-box"><div class="h"><b>${esc(b.name)}</b><span>${esc(b.when || '')}</span></div>
       <div class="who">${esc(b.who || '')}</div><div class="cnt">${(b.counts || []).map(c => `<span class="${c.wait ? 'wait' : ''}">${esc(c.text)}</span>`).join('')}</div>
       ${b.why ? `<div class="why">${esc(b.why)}</div>` : ''}</div>`).join('')}</div></div>
-    ${S.also?.length ? `<div class="bfp-also">${S.also.map(a => `<div><b>${esc(a.name)}</b><span>${esc(a.note)}</span></div>`).join('')}</div>` : ''}
+    ${S.also?.length ? `<div class="bfp-also"><h5>Also running</h5>${S.also.map(a => `<div><b>${esc(a.name)}</b><span>${esc(a.note)}</span></div>`).join('')}</div>` : ''}
   </section>
   ${P.why?.length ? `<section class="bfp-card"><h3>Why we built it this way</h3><ul class="bfp-why" style="margin-top:10px">${P.why.map((w, i) => `<li><i>${i + 1}</i><div><b>${esc(w.what)}</b>${esc(w.why)}</div></li>`).join('')}</ul></section>` : ''}`;
 }
@@ -235,7 +238,7 @@ function show(html) {
 function openDay(i) {
   const d = P.days[i]; if (!d) return;
   const ph = phaseOf(d.phase);
-  const sh = show(`<div class="bfp-dsheet"><h4>${esc(long(d.d))}</h4><span class="ph" style="background:${ph.color}">${esc(ph.name)}</span>
+  const sh = show(`<div class="bfp-dsheet"><h4>${esc(long(d.d))}</h4><span class="bfp-pill" style="background:${ph.color}">${esc(ph.name)}</span>
     ${d.offer || ph.offer ? `<p class="off">${esc(d.offer || ph.offer)}</p>` : ''}
     <div class="bud">${(d.budgets || []).map(b => `<div><span>${esc(b.name)}</span><span>${money(b.amount)} a day</span></div>`).join('')}<div class="tot"><span>Total</span><span>${money(dayTotal(d))} a day</span></div></div>
     ${d.note ? `<p style="font-size:13.5px;color:var(--ink-2);margin:0 0 10px">${esc(d.note)}</p>` : ''}
