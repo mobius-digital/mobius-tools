@@ -160,6 +160,16 @@ function css() {
   .bfp-counts{font-size:14px;margin:0 0 10px;display:grid;gap:2px}
   .bfp-ad .st{position:absolute;z-index:2;right:6px;bottom:24px;font-size:10px;font-weight:700;border-radius:4px;padding:1px 5px}
   .bfp-ad .st.on{background:var(--g);color:#fff} .bfp-ad .st.wait{background:#fff;color:#111}
+  .bfp-planbox{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+  .bfp-planbox ol{margin:0;padding:0;list-style:none;display:grid;gap:10px;counter-reset:pb}
+  .bfp-planbox li{display:grid;grid-template-columns:26px minmax(0,1fr);gap:8px;font-size:14.5px;counter-increment:pb}
+  .bfp-planbox li::before{content:counter(pb);width:24px;height:24px;border-radius:50%;background:var(--ink);color:var(--bg);font-weight:700;font-size:12.5px;display:flex;align-items:center;justify-content:center}
+  .bfp-planbox li b{display:block}
+  .bfp-grpbox{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px;display:grid;gap:8px}
+  .bfp-grpbox h3{margin:0;font-size:17px}
+  .bfp-grpbox .ct{font-size:13px;color:var(--ink-2);margin:0}
+  .bfp-grpbox details{border-top:1px solid var(--line);padding-top:8px}
+  .bfp-grpbox summary{cursor:pointer;font-size:14px;font-weight:700;padding:2px 0 8px}
   .bfp-load{padding:20px;text-align:center;color:var(--muted);font-size:14px}
   `;
   document.head.appendChild(st);
@@ -170,7 +180,7 @@ const tabsOf = () => [...new Set((P.groups || []).map(g => g.tab || 'Ads'))];
 
 function top() {
   return `<div class="bfp-top"><h1>${esc(P.title || 'Black Friday: the plan and the ads')}</h1>${P.lede ? `<p>${esc(P.lede)}</p>` : ''}</div>
-    <nav class="bfp-jump">${P.asks?.length && !P.meta ? '<button type="button" data-jump="#bfpAsk">What we need</button>' : ''}${P.layout === 'v5' ? '<button type="button" data-jump="#bfpCal">Calendar</button><button type="button" data-jump="#bfpStructS">Setup</button><button type="button" data-jump="#bfpAdsS">Ads</button><button type="button" data-jump="#bfpGoal">Goal</button><button type="button" data-jump="#bfpAsk">Questions</button>' : P.meta ? '<button type="button" data-jump="#bfpCal">Calendar</button><button type="button" data-jump="#bfpSetup">The ads</button><button type="button" data-jump="#bfpGoal">Goal</button><button type="button" data-jump="#bfpKpi">Budget rules</button><button type="button" data-jump="#bfpAsk">Questions</button>' : `<button type="button" data-jump="#bfpCal">Calendar</button><button type="button" data-jump="#bfpCamp">Campaigns</button><button type="button" data-jump="#bfpKpi">Budget + MER</button><button type="button" data-jump="#bfpAds">The ads</button>`}</nav>`;
+    <nav class="bfp-jump">${P.asks?.length && !P.meta ? '<button type="button" data-jump="#bfpAsk">What we need</button>' : ''}${P.layout === 'v5' ? (P.planbox ? '<button type="button" data-jump="#bfpPlan">Plan</button>' : '') + '<button type="button" data-jump="#bfpCal">Calendar</button><button type="button" data-jump="#bfpStructS">Setup</button><button type="button" data-jump="#bfpAdsS">Ads</button><button type="button" data-jump="#bfpGoal">Goal</button><button type="button" data-jump="#bfpAsk">Questions</button>' : P.meta ? '<button type="button" data-jump="#bfpCal">Calendar</button><button type="button" data-jump="#bfpSetup">The ads</button><button type="button" data-jump="#bfpGoal">Goal</button><button type="button" data-jump="#bfpKpi">Budget rules</button><button type="button" data-jump="#bfpAsk">Questions</button>' : `<button type="button" data-jump="#bfpCal">Calendar</button><button type="button" data-jump="#bfpCamp">Campaigns</button><button type="button" data-jump="#bfpKpi">Budget + MER</button><button type="button" data-jump="#bfpAds">The ads</button>`}</nav>`;
 }
 
 function asks() {
@@ -275,7 +285,7 @@ function structV5() {
   const set = id => c.sets.find(x => x.id === id) || {};
   return `<div class="bfp-camp2"><h3>${esc(S.label || c.name)}</h3><div class="meta">${(S.lines || []).map(l => `<span>${esc(l)}</span>`).join('')}<span>Budget now: ${money0(c.budget)} a day</span></div>
     ${(S.sets || []).map(x => { const m = set(x.id); return `<div class="bfp-set2"><b>${esc(x.label)}</b><p>${esc(x.who)}</p>
-      <div class="dt">${isOn(m.status) ? 'On' : 'Off'} · starts ${esc(dshort(m.start))}${m.end ? `, ends ${esc(dshort(m.end))}` : ''} · ${esc(x.budget || 'shares the campaign budget')}</div></div>`; }).join('')}</div>`;
+      <div class="dt">${!m.id ? 'Being set up in Meta now.' : `${c.ads.filter(a => a.set === x.id && adOn(a)).length} ads on · starts ${esc(dshort(m.start))}${m.end ? `, ends ${esc(dshort(m.end))}` : ''}`}${x.note ? ` · ${esc(x.note)}` : ''}</div></div>`; }).join('')}</div>`;
 }
 function collectAds() {
   const A = P.ads || {}, cm = new RegExp(P.meta.cm || '^$', 'i'), out = [];
@@ -310,13 +320,36 @@ function adsV5() {
       <img loading="lazy" alt="" src="${esc(thumbOf(a))}"><span class="by">${esc(a.maker)}</span>${a.video ? '<span class="pl"></span>' : ''}
       <span class="st ${a.wait ? 'wait' : 'on'}">${esc(a.wait || 'On')}</span><span class="lab">${esc(cleanName(a.name))}</span></button>`).join('')}</div>`;
 }
+/* ---- v6 (2026-11-20, Cole's approved setup): plan box on top; ads grouped by ad group in three rows
+   (On Nov 26 / Backups / Cyber Monday), read live; only the listed ad groups, no Christmas ---- */
+function planBox() {
+  if (!P.planbox?.length) return '';
+  return `<section id="bfpPlan"><h2>${esc(P.planbox_title || 'The plan')}</h2><div class="bfp-planbox"><ol>${P.planbox.map(x => `<li><span><b>${esc(x.when)}</b>${esc(x.text)}</span></li>`).join('')}</ol></div></section>`;
+}
+function adsBySet() {
+  if (!M) return '<div class="bfp-load">Loading the ads from Meta…</div>';
+  if (M.error) return `<div class="bfp-load">${esc(M.error)}</div>`;
+  const A = P.ads, cm = new RegExp(P.meta.cm || '^$', 'i');
+  const c = M.campaigns.find(x => x.id === A.campaign); if (!c) return '';
+  groups = {};
+  const tile = (list, key) => { groups[key] = list; return `<div class="bfp-grid">${list.map((a, k) => `<button class="bfp-ad" data-g="${esc(key)}" data-k="${k}" aria-label="Open ${esc(cleanName(a.name))}"><span class="none">${a.video ? 'Video' : 'Photo'}</span>
+      <img loading="lazy" alt="" src="${esc(thumbOf(a))}"><span class="by">${esc(makerOf(a.name))}</span>${a.video ? '<span class="pl"></span>' : ''}<span class="lab">${esc(cleanName(a.name))}</span></button>`).join('')}</div>`; };
+  return (A.sets || []).map(x => {
+    const ads = c.ads.filter(a => a.set === x.id);
+    const on = ads.filter(adOn), off = ads.filter(a => !adOn(a));
+    const cms = off.filter(a => cm.test(a.name || '')), backups = off.filter(a => !cm.test(a.name || ''));
+    const rows = [['On Nov 26', on, 'on', true], [A.backup_label || 'Backups (paused, one goes on when an ad is turned off)', backups, 'bk', false], [A.cm_label || 'Cyber Monday (goes on Nov 30 at 12am)', cms, 'cm', false]];
+    return `<div class="bfp-grpbox"><h3>${esc(x.label)}</h3><p class="ct">${ads.length ? `${on.length} on · ${backups.length} backups · ${cms.length} Cyber Monday` : 'Being set up in Meta now.'}</p>
+      ${rows.map(([lab, list, k, open]) => list.length ? `<details ${open ? 'open' : ''}><summary>${esc(lab)} (${list.length})</summary>${tile(list, k + x.id)}</details>` : '').join('')}</div>`;
+  }).join('') + (A.footnote ? `<p class="sm" style="margin:0">${esc(A.footnote)}</p>` : '');
+}
 function wireV5(root) {
   const st = root.querySelector('#bfpStruct'); if (st) st.innerHTML = structV5();
   const ad = root.querySelector('#bfpAdsV5'); if (!ad) return;
-  ad.innerHTML = adsV5();
+  ad.innerHTML = P.ads?.mode === 'by_set' ? adsBySet() : adsV5();
   ad.querySelectorAll('.bfp-ad img').forEach(im => { im.onerror = () => im.remove(); });
   ad.querySelectorAll('[data-chip]').forEach(b => b.onclick = () => { chip = b.dataset.chip; wireV5(root); });
-  ad.querySelectorAll('[data-g]').forEach(b => b.onclick = () => { flat = (groups.v5 || []).map(a => ({ id: a.id, label: cleanName(a.name), kind: a.video ? 'video' : 'still', thumb: a.thumb, grp: { title: `${a.maker}${a.wait ? ' · ' + a.wait : ' · On'}` } })); openAd(+b.dataset.k); });
+  ad.querySelectorAll('[data-g]').forEach(b => b.onclick = () => { flat = (groups[b.dataset.g] || []).map(a => ({ id: a.id, label: cleanName(a.name), kind: a.video ? 'video' : 'still', thumb: a.thumb, grp: { title: `${a.maker}${a.wait ? ' · ' + a.wait : ' · On'}` } })); openAd(+b.dataset.k); });
 }
 
 /* ---- the live Meta view (v3, 2026-11-19): campaigns, their ad sets as boxes, every ad, read live ---- */
@@ -483,7 +516,7 @@ function bind(root) {
 function html(plan) {
   if (!plan) return '';
   P = plan; css();
-  if (P.layout === 'v5') return `<div class="bfp" id="bfp">${top()}${calGrid()}<section id="bfpStructS"><h2>2. How it is set up</h2>${P.structure?.sub ? `<p class="sm">${esc(P.structure.sub)}</p>` : ''}<div id="bfpStruct">${structV5()}</div></section><section id="bfpAdsS"><h2>3. The ads</h2><p class="sm">Read live from Meta. Tap any ad to see it full size; videos play.</p><div id="bfpAdsV5">${adsV5()}</div></section>${goalBox()}${ladderList()}${asks()}</div>`;
+  if (P.layout === 'v5') return `<div class="bfp" id="bfp">${top()}${planBox()}${calGrid()}<section id="bfpStructS"><h2>2. How it is set up</h2>${P.structure?.sub ? `<p class="sm">${esc(P.structure.sub)}</p>` : ''}<div id="bfpStruct">${structV5()}</div></section><section id="bfpAdsS"><h2>3. The ads</h2><p class="sm">${esc(P.ads?.intro || 'Read live from Meta. Tap any ad to see it full size; videos play.')}</p><div id="bfpAdsV5" style="display:grid;gap:12px">${P.ads?.mode === 'by_set' ? adsBySet() : adsV5()}</div></section>${goalBox()}${ladderList()}${asks()}</div>`;
   if (P.meta) return `<div class="bfp" id="bfp">${top()}${moments()}<section id="bfpSetup" style="display:grid;gap:12px"><h2>How the ads are set up</h2><div id="bfpMeta" style="display:grid;gap:12px">${metaHtml()}</div></section>${goalBox()}${ladderList()}${asks()}</div>`;
   return `<div class="bfp" id="bfp">${top()}${asks()}${calendar()}${campaigns()}${kpi()}${ads()}</div>`;
 }
