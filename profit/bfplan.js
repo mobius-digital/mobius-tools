@@ -343,7 +343,28 @@ function adsBySet() {
       ${rows.map(([lab, list, k, open]) => list.length ? `<details ${open ? 'open' : ''}><summary>${esc(lab)} (${list.length})</summary>${tile(list, k + x.id)}</details>` : '').join('')}</div>`;
   }).join('') + (A.footnote ? `<p class="sm" style="margin:0">${esc(A.footnote)}</p>` : '');
 }
+/* ---- v7 (2026-11-20): a PROPOSAL, not the live account. Setup and ads come from the plan as written
+   (P.ads.mode = 'fixed'); Meta is used only for each ad's picture and video. ---- */
+function structFixed() {
+  const S = P.structure || {};
+  return `<div class="bfp-camp2"><h3>${esc(S.label)}</h3><div class="meta">${(S.lines || []).map(l => `<span>${esc(l)}</span>`).join('')}</div>
+    ${(S.sets || []).map(x => `<div class="bfp-set2"><b>${esc(x.label)}</b><p>${esc(x.who)}</p>${x.dt ? `<div class="dt">${esc(x.dt)}</div>` : ''}</div>`).join('')}</div>`;
+}
+function adsFixed() {
+  const A = P.ads; groups = {};
+  const tile = (list, key, video) => { groups[key] = list.map(a => ({ ...a, video })); return `<div class="bfp-grid">${list.map((a, k) => `<button class="bfp-ad" data-g="${esc(key)}" data-k="${k}" aria-label="Open ${esc(a.label)}"><span class="none">${video ? 'Video' : 'Photo'}</span>
+      <img loading="lazy" alt="" src="${esc(thumbOf(a))}">${a.by ? `<span class="by">${esc(a.by)}</span>` : ''}${video ? '<span class="pl"></span>' : ''}<span class="lab">${esc(a.label)}</span></button>`).join('')}</div>`; };
+  return (A.groups || []).map((g, gi) => `<div class="bfp-grpbox"><h3>${esc(g.label)}</h3><p class="ct">${g.rows.map(r => `${r.ads.length} ${esc(r.count_word || r.label)}`).join(' · ')}</p>
+    ${g.rows.map((r, ri) => r.ads.length ? `<details ${ri === 0 ? 'open' : ''}><summary>${esc(r.label)} (${r.ads.length})</summary>${tile(r.ads, `f${gi}_${ri}`, !!g.video)}</details>` : '').join('')}</div>`).join('')
+    + (A.footnote ? `<p class="sm" style="margin:0">${esc(A.footnote)}</p>` : '');
+}
 function wireV5(root) {
+  if (P.ads?.mode === 'fixed') {
+    const ad0 = root.querySelector('#bfpAdsV5');
+    ad0.querySelectorAll('.bfp-ad img').forEach(im => { im.onerror = () => im.remove(); });
+    ad0.querySelectorAll('[data-g]').forEach(b => b.onclick = () => { flat = (groups[b.dataset.g] || []).map(a => ({ id: a.id, label: a.label, kind: a.video ? 'video' : 'still', thumb: null, grp: { title: a.by || '' } })); openAd(+b.dataset.k); });
+    return;
+  }
   const st = root.querySelector('#bfpStruct'); if (st) st.innerHTML = structV5();
   const ad = root.querySelector('#bfpAdsV5'); if (!ad) return;
   ad.innerHTML = P.ads?.mode === 'by_set' ? adsBySet() : adsV5();
@@ -516,10 +537,10 @@ function bind(root) {
 function html(plan) {
   if (!plan) return '';
   P = plan; css();
-  if (P.layout === 'v5') return `<div class="bfp" id="bfp">${top()}${planBox()}${calGrid()}<section id="bfpStructS"><h2>2. How it is set up</h2>${P.structure?.sub ? `<p class="sm">${esc(P.structure.sub)}</p>` : ''}<div id="bfpStruct">${structV5()}</div></section><section id="bfpAdsS"><h2>3. The ads</h2><p class="sm">${esc(P.ads?.intro || 'Read live from Meta. Tap any ad to see it full size; videos play.')}</p><div id="bfpAdsV5" style="display:grid;gap:12px">${P.ads?.mode === 'by_set' ? adsBySet() : adsV5()}</div></section>${goalBox()}${ladderList()}${asks()}</div>`;
+  if (P.layout === 'v5') return `<div class="bfp" id="bfp">${top()}${planBox()}${calGrid()}<section id="bfpStructS"><h2>2. How it is set up</h2>${P.structure?.sub ? `<p class="sm">${esc(P.structure.sub)}</p>` : ''}<div id="bfpStruct">${P.ads?.mode === 'fixed' ? structFixed() : structV5()}</div></section><section id="bfpAdsS"><h2>3. The ads</h2><p class="sm">${esc(P.ads?.intro || 'Read live from Meta. Tap any ad to see it full size; videos play.')}</p><div id="bfpAdsV5" style="display:grid;gap:12px">${P.ads?.mode === 'fixed' ? adsFixed() : P.ads?.mode === 'by_set' ? adsBySet() : adsV5()}</div></section>${goalBox()}${ladderList()}${asks()}</div>`;
   if (P.meta) return `<div class="bfp" id="bfp">${top()}${moments()}<section id="bfpSetup" style="display:grid;gap:12px"><h2>How the ads are set up</h2><div id="bfpMeta" style="display:grid;gap:12px">${metaHtml()}</div></section>${goalBox()}${ladderList()}${asks()}</div>`;
   return `<div class="bfp" id="bfp">${top()}${asks()}${calendar()}${campaigns()}${kpi()}${ads()}</div>`;
 }
-function mount() { const r = document.getElementById('bfp'); if (!r) return; bind(r); if (P.meta) loadMeta(r); }
+function mount() { const r = document.getElementById('bfp'); if (!r) return; bind(r); if (P.ads?.mode === 'fixed') return wireV5(r); if (P.meta) loadMeta(r); }
 window.BfPlan = { html, mount };
 })();
