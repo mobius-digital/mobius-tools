@@ -171,17 +171,17 @@ function css() {
   .bfp-grpbox details{border-top:1px solid var(--line);padding-top:8px}
   .bfp-grpbox summary{cursor:pointer;font-size:14px;font-weight:700;padding:2px 0 8px}
   .bfp-su{display:grid;gap:10px}
-  .bfp-su .camp{background:var(--ink);color:var(--bg);border-radius:14px;padding:14px 16px;display:grid;gap:4px;font-size:14.5px}
-  .bfp-su .camp b{font-size:18px}
-  .bfp-su .grp{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:grid;gap:8px}
-  .bfp-su .grp h3{margin:0;font-size:17px}
-  .bfp-su .grp .who{margin:-4px 0 0;font-size:14px;color:var(--ink-2)}
-  .bfp-su .ln{display:grid;grid-template-columns:62px 64px minmax(0,1fr);gap:8px;align-items:baseline}
-  .bfp-su .ln .w{font-size:13px;font-weight:700;color:var(--muted)}
-  .bfp-su .ln .n{font-size:26px;font-weight:800;line-height:1}
-  .bfp-su .ln .t{font-size:14px}
-  .bfp-su .note{font-size:13.5px;color:var(--ink-2);margin:0}
-  .bfp-su .rule{border:2px solid var(--r);border-radius:14px;padding:12px 16px;font-size:15px}
+  .bfp-su-camp{background:var(--ink);color:var(--bg);border-radius:14px;padding:14px 16px;display:grid;gap:4px;font-size:14.5px}
+  .bfp-su-camp b{font-size:18px}
+  .bfp-su-grp{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:grid;gap:8px}
+  .bfp-su-grp h3{margin:0;font-size:17px;text-transform:none;letter-spacing:0;color:var(--ink)}
+  .bfp-su-who{margin:-4px 0 0;font-size:14px;color:var(--ink-2);text-transform:none;letter-spacing:0}
+  .bfp-su-ln{display:grid;grid-template-columns:58px 60px minmax(0,1fr);gap:8px;align-items:baseline;position:static}
+  .bfp-su-when{font-size:13px;font-weight:700;color:var(--muted)}
+  .bfp-su-big{font-size:26px;font-weight:800;line-height:1}
+  .bfp-su-txt{font-size:14px}
+  .bfp-su-note{font-size:13.5px;color:var(--ink-2);margin:0;text-transform:none;letter-spacing:0}
+  .bfp-su-rule{border:2px solid var(--r);border-radius:14px;padding:12px 16px;font-size:15px}
   .bfp-load{padding:20px;text-align:center;color:var(--muted);font-size:14px}
   `;
   document.head.appendChild(st);
@@ -359,11 +359,11 @@ function adsBySet() {
    (P.ads.mode = 'fixed'); Meta is used only for each ad's picture and video. ---- */
 function structFixed() {
   const S = P.structure || {};
-  if (S.groups) return `<div class="bfp-su"><div class="camp"><b>${esc(S.campaign_title || 'Campaign')}</b>${(S.campaign_lines || []).map(l => `<span>${esc(l)}</span>`).join('')}</div>
-    ${S.groups.map(g => `<div class="grp"><h3>${esc(g.title)}</h3>${g.who ? `<p class="who">${esc(g.who)}</p>` : ''}
-      ${(g.lines || []).map(l => `<div class="ln"><span class="w">${esc(l.when)}</span><span class="n">${esc(l.big)}</span><span class="t">${esc(l.text)}</span></div>`).join('')}
-      ${g.note ? `<p class="note">${esc(g.note)}</p>` : ''}</div>`).join('')}
-    ${S.rule ? `<div class="rule"><b>Rule:</b> ${esc(S.rule)}</div>` : ''}</div>`;
+  if (S.groups) return `<div class="bfp-su"><div class="bfp-su-camp"><b>${esc(S.campaign_title || 'Campaign')}</b>${(S.campaign_lines || []).map(l => `<span>${esc(l)}</span>`).join('')}</div>
+    ${S.groups.map(g => `<div class="bfp-su-grp"><h3>${esc(g.title)}</h3>${g.who ? `<p class="bfp-su-who">${esc(g.who)}</p>` : ''}
+      ${(g.lines || []).map(l => `<div class="bfp-su-ln"><span class="bfp-su-when">${esc(l.when)}</span><span class="bfp-su-big">${esc(l.big)}</span><span class="bfp-su-txt">${esc(l.text)}</span></div>`).join('')}
+      ${g.note ? `<p class="bfp-su-note">${esc(g.note)}</p>` : ''}</div>`).join('')}
+    ${S.rule ? `<div class="bfp-su-rule"><b>Rule:</b> ${esc(S.rule)}</div>` : ''}</div>`;
   return `<div class="bfp-camp2"><h3>${esc(S.label)}</h3><div class="meta">${(S.lines || []).map(l => `<span>${esc(l)}</span>`).join('')}</div>
     ${(S.sets || []).map(x => `<div class="bfp-set2"><b>${esc(x.label)}</b><p>${esc(x.who)}</p>${x.dt ? `<div class="dt">${esc(x.dt)}</div>` : ''}</div>`).join('')}</div>`;
 }
