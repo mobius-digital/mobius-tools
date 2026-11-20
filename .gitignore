@@ -17,3 +17,6 @@ account-health/worker/.env
 account-health/worker/node_modules/
 node_modules/
 **/node_modules/
+
+# Client report page sources hold client numbers and this repo is public: they live in D1 (p_client_page) and locally only.
+profit/client-reports/
