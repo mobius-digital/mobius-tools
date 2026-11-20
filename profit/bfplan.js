@@ -354,7 +354,7 @@ function adsFixed() {
   const A = P.ads; groups = {};
   const tile = (list, key, video) => { groups[key] = list.map(a => ({ ...a, video })); return `<div class="bfp-grid">${list.map((a, k) => `<button class="bfp-ad" data-g="${esc(key)}" data-k="${k}" aria-label="Open ${esc(a.label)}"><span class="none">${video ? 'Video' : 'Photo'}</span>
       <img loading="lazy" alt="" src="${esc(thumbOf(a))}">${a.by ? `<span class="by">${esc(a.by)}</span>` : ''}${video ? '<span class="pl"></span>' : ''}<span class="lab">${esc(a.label)}</span></button>`).join('')}</div>`; };
-  return (A.groups || []).map((g, gi) => `<div class="bfp-grpbox"><h3>${esc(g.label)}</h3><p class="ct">${g.rows.map(r => `${r.ads.length} ${esc(r.count_word || r.label)}`).join(' · ')}</p>
+  return (A.summary ? `<p class="bfp-counts" style="margin:0">${esc(A.summary)}</p>` : '') + (A.groups || []).map((g, gi) => `<div class="bfp-grpbox"><h3>${esc(g.label)}</h3><p class="ct">${g.rows.map(r => `${r.ads.length} ${esc(r.count_word || r.label)}`).join(' · ')}</p>
     ${g.rows.map((r, ri) => r.ads.length ? `<details ${ri === 0 ? 'open' : ''}><summary>${esc(r.label)} (${r.ads.length})</summary>${tile(r.ads, `f${gi}_${ri}`, !!g.video)}</details>` : '').join('')}</div>`).join('')
     + (A.footnote ? `<p class="sm" style="margin:0">${esc(A.footnote)}</p>` : '');
 }
