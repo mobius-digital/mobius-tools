@@ -9,7 +9,7 @@ def ev(d, t, short, kind, text): return {"d": d, "t": t, "short": short, "kind":
 def chk(d): return dict(CHECK, d=d)
 events = [
     ev("2026-11-23", "", "Early start?", "ask", "If you want an early start, Black Friday ads go live today instead of Thu Nov 26. See the questions at the bottom."),
-    ev("2026-11-25", "11:59pm", "Studs end 11:59pm", "end", "Free studs offer ends. Those ads come off."),
+    ev("2026-11-25", "11:59pm", "Studs end", "end", "Free studs offer ends. Those ads come off."),
     ev("2026-11-26", "12am", "BF ads on 12am", "bf", "Black Friday ads go live."),
     ev("2026-11-26", "12am", "$300", "budget", "Sale budget $300 a day. 4 for $150 and everyday ads go down to $50 a day each."),
     ev("2026-11-27", "12am", "$500", "budget", "Sale budget goes to $500 a day."), chk("2026-11-27"),
@@ -19,7 +19,7 @@ events = [
     ev("2026-11-30", "12am", "$500", "budget", "Sale budget $500 a day, then the rules below."), chk("2026-11-30"),
     ev("2026-12-01", "12am", "Sale ends 12am", "end", "Black Friday and Cyber Monday ads end by themselves. 4 for $150 and everyday ads go back to $100 a day."),
     ev("2026-12-04", "12am", "Xmas ads on 12am", "xmas", "Christmas gifting ads go live, $50 a day."),
-    ev("2026-12-17", "11:59pm", "Xmas ends 11:59pm", "end", "Christmas ads end. Last order-by date is Dec 17 or Dec 18 (see the questions at the bottom)."),
+    ev("2026-12-17", "11:59pm", "Xmas ends", "end", "Christmas ads end. Last order-by date is Dec 17 or Dec 18 (see the questions at the bottom)."),
 ]
 plan = {
     "layout": "v5",
