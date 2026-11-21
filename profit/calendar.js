@@ -51,7 +51,7 @@
   /* CHANNELS (2026-11-21, Cole yes on the send calendar plan, Well Copy's Airtable view): every chip belongs to one
      channel and the pills above the calendar switch each on or off (saved per viewer in cal_ch). Ads = ad pushes plus
      each date's "Ads loaded" step on its due day; Organic = social posts; Tasks = the team's (never for a client). */
-  const CHS = [['dates', 'Sales and drops', '#f29b1d'], ['email', 'Email', '#2d9d4b'], ['sms', 'SMS', '#8f5fd6'], ['ads', 'Ads', '#3b6fe0'], ['organic', 'Organic', '#e0629b'], ['tasks', 'Tasks', 'var(--muted)']];
+  const CHS = [['dates', 'Sales and drops', '#2f3540'], ['email', 'Email', '#2d9d4b'], ['sms', 'SMS', '#8f5fd6'], ['ads', 'Ads', '#3b6fe0'], ['organic', 'Organic', '#e0629b'], ['tasks', 'Tasks', 'var(--muted)']];
   const CHOFF = (() => { try { return JSON.parse(store('cal_ch') || '{}') || {}; } catch { return {}; } })();
   const chOn = k => (k === 'tasks' && CLI() ? false : CHOFF[k] !== true);
   const chOf = x => (x.kind === 'mail' ? (x.mail.channel === 'sms' ? 'sms' : 'email') : x.kind === 'post' ? 'organic' : x.kind === 'task' ? 'tasks' : x.kind === 'ad' || x.kind === 'adpush' ? 'ads' : 'dates');
@@ -229,7 +229,19 @@
       .cal-at .cal-chip.miss{background:transparent;border:1.5px dashed var(--warn);color:var(--warn)}
       .cal-at .cal-chip.more{background:transparent;color:var(--ink-2)}
       .cal-at .cal-mo .dots i.mail{--c:var(--at-green)} .cal-at .cal-mo .dots i.sms{--c:var(--at-sms)} .cal-at .cal-mo .dots i.sale{--c:var(--at-orange)} .cal-at .cal-mo .dots i.drop{--c:var(--at-teal)} .cal-at .cal-mo .dots i.ad{--c:var(--at-blue)} .cal-at .cal-mo .dots i.post{--c:var(--at-pink)}
-      .cal-at .cal-lg{display:none} .calh .cal-mini .late{color:var(--warn);font-weight:600} .calh h4{margin:12px 0 4px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}`;
+      .cal-at .cal-lg{display:none}
+      .cal-at{--at-red:#e0483e;--at-char:#2f3540;--at-content:#f29b1d}
+      .cal-at .cal-chip.mail.em.p-sale{--c:var(--at-green)} .cal-at .cal-chip.mail.em.p-last{--c:var(--at-red)} .cal-at .cal-chip.mail.em.p-content{--c:var(--at-content)}
+      .cal-at .cal-chip.sale{--c:var(--at-char)} .cal-at .cal-chip.drop{--c:var(--at-teal)} .cal-at .cal-chip.other{--c:var(--at-grey)}
+      .cal-at .cal-chip.task{background:var(--surface);color:var(--ink-2);box-shadow:inset 0 0 0 1px var(--at-line)}
+      .cal-at .at-key{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:11.5px;color:var(--ink-2);margin:0 0 8px}
+      .cal-at .at-key span{display:inline-flex;align-items:center;gap:5px} .cal-at .at-key .sep{margin-left:6px;padding-left:12px;border-left:1px solid var(--at-line)}
+      .cal-at .at-key i{width:16px;height:10px;border-radius:3px;display:inline-block}
+      .cal-at .k-sale{background:var(--at-green)} .cal-at .k-last{background:var(--at-red)} .cal-at .k-content{background:var(--at-content)} .cal-at .k-sms{background:var(--at-sms)}
+      .cal-at .k-date{background:var(--at-char)} .cal-at .k-drop{background:var(--at-teal)} .cal-at .k-ad{background:var(--at-blue)} .cal-at .k-post{background:var(--at-pink)}
+      .cal-at .k-task{background:var(--surface);box-shadow:inset 0 0 0 1px var(--at-line)} .cal-at .k-solid{background:var(--at-green)} .cal-at .k-pale{background:color-mix(in srgb,var(--at-green) 22%,var(--surface))}
+      .cal-at .k-miss{border:1.5px dashed var(--warn)}
+      .cal-at .cal-mo .dots i.mail{--c:var(--at-green)} .calh .cal-mini .late{color:var(--warn);font-weight:600} .calh h4{margin:12px 0 4px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}`;
     document.head.appendChild(st);
   }
 
@@ -368,6 +380,14 @@
     return items.filter(x => chOn(chOf(x))).sort((a, b) => a.start.localeCompare(b.start) || RANK(a) - RANK(b));
   }
   const MAILS = new Map();
+  /* COLOR SYSTEM (2026-11-21, Cole: "like Well Copy, different colors for what is happening"). Color = what it is,
+     shade = where it stands (solid = sent / live / done, pale = planned or scheduled, dashed red = missing).
+     An email's color is its PURPOSE: sale push (green), last chance (red), content with no hard sell (orange). A planned
+     send carries its purpose; a Klaviyo send is read from its name. */
+  const PURP = new Set(['sale', 'last', 'content']);
+  const purposeOf = m => (PURP.has(m.purpose) ? m.purpose
+    : /\b(last (call|chance|day)|ends? (tonight|today|tomorrow|at midnight)|final|hours left|days? left|still thinking)\b/i.test(m.name || '') ? 'last'
+    : /\b(note|letter|voice|guide|why|how|story|tier list|breakup|phone note)\b/i.test(m.name || '') ? 'content' : 'sale');
   const PLAN_ST = { approved: ['good', 'Approved, waiting to load'], needs: ['warn', 'Needs your OK'], change: ['warn', 'Change asked'], build: ['info', 'Not made yet'], wrote: ['info', 'Written, not approved'], partner: ['info', 'The email team sends it'] };
   const CHC = { email: '--good', sms: '--c-sms', ads: '--c-meta', organic: '--c-tiktok' };
   /* One row for a thing on a day: the day panel, the Day view and the List view all use it. */
@@ -447,7 +467,7 @@
         }
         if (x.kind === 'mail') {
           const sms = x.mail.channel === 'sms';
-          bars += `<button type="button" class="cal-chip mail ${sms ? 'sms' : 'em'}${x.status === 'pen' ? ' pen' : ''}" style="left:${c0 / 7 * 100}%;width:calc(${100 / 7}% - 6px);top:${r * 22}px" data-mail="${esc(x.id)}"${tip(`<b>${esc(x.name)}</b><br>${md(x.start)}, ${x.mail.plan ? 'planned: ' + esc((PLAN_ST[x.mail.status] || ['', ''])[1]) : esc(x.mail.status) + ', from Klaviyo'}. Click for details.`)}>${esc(x.label)}</button>`;
+          bars += `<button type="button" class="cal-chip mail ${sms ? 'sms' : `em p-${purposeOf(x.mail)}`}${x.status === 'pen' ? ' pen' : ''}" style="left:${c0 / 7 * 100}%;width:calc(${100 / 7}% - 6px);top:${r * 22}px" data-mail="${esc(x.id)}"${tip(`<b>${esc(x.name)}</b><br>${md(x.start)}, ${x.mail.plan ? 'planned: ' + esc((PLAN_ST[x.mail.status] || ['', ''])[1]) : esc(x.mail.status) + ', from Klaviyo'}. Click for details.`)}>${esc(x.label)}</button>`;
           continue;
         }
         const cls = `cal-chip ${CLS(x.kind)} ${x.status === 'pen' ? 'pen' : ''} ${x.status === 'miss' ? 'miss' : ''} ${x.start < a ? 'cont' : ''}`;
@@ -491,6 +511,7 @@
     return `<div class="cal-card cal-mw cal-at"><div class="at-top"><h3>${all ? 'Every client' : 'Marketing calendar'}</h3><button type="button" class="at-new" data-add="1">+ New date</button></div>
       <div class="cal-fl cal-ch2 at-tools">${fl}</div>
       <div class="at-nav"><button type="button" class="at-btn" data-m="0">Today</button><div class="at-mid"><button type="button" class="at-ar" data-m="-1" aria-label="Back">&#8249;</button><h4 id="calMonT"></h4><button type="button" class="at-ar" data-m="1" aria-label="Forward">&#8250;</button></div><span class="cal-seg at-seg" role="tablist">${seg}</span></div>
+      <div class="at-key"><span><i class="k-sale"></i>Email: sale</span><span><i class="k-last"></i>Email: last chance</span><span><i class="k-content"></i>Email: content, no hard sell</span><span><i class="k-sms"></i>Text</span><span><i class="k-date"></i>Sale or offer on the site</span><span><i class="k-drop"></i>Drop or launch</span><span><i class="k-ad"></i>Ads go in</span><span><i class="k-post"></i>Social post</span>${cli ? '' : '<span><i class="k-task"></i>Team task</span>'}<span class="sep"><i class="k-solid"></i>Solid = sent, live or done</span><span><i class="k-pale"></i>Pale = planned, not out yet</span><span><i class="k-miss"></i>Dashed = missing something</span></div>
       <p class="at-how">${how}</p>${!cli && chOn('tasks') && !d0tasks ? '<p class="v2hint" style="margin:0 0 8px;color:var(--warn)">The tasks did not load; showing marketing only.</p>' : ''}
       <div class="cal-mo" id="calMonth"></div>${lg}</div>`;
   }
