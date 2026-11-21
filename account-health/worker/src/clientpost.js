@@ -177,7 +177,7 @@ export function emailLines(e, currency = 'USD', sales = null) {
   const r = { open: del ? e.opened / del : null, click: del ? e.clicked / del : null, bounce: e.received ? e.bounced / e.received : null, unsub: del ? e.unsub / del : null, spam: del ? e.spam / del : null };
   const share = sales > 0 && e.revenue != null ? e.revenue / sales : null;
   const w = changeWords(e.revenue, p.revenue);
-  L.push(`• Email and text sales: *${money(e.revenue, currency)}*${w ? ` (${w})` : ''}${share != null ? `, ${pc(share, 0)} of store sales` : ''}`);
+  L.push(`• ${e.sms_received > 0 || e.sms_revenue > 0 ? 'Email and text sales' : 'Email sales'}: *${money(e.revenue, currency)}*${w ? ` (${w})` : ''}${share != null ? `, ${pc(share, 0)} of store sales` : ''}`);
   if (e.received > 0) L.push(`• Emails delivered: *${Math.round(del).toLocaleString('en-US')}* · opened ${pc(r.open, 0) || 'n/a'} · clicked ${pc(r.click, 1) || 'n/a'}`);
   if (e.sms_received > 0) L.push(`• Texts delivered: *${Math.round(e.sms_received).toLocaleString('en-US')}*${e.sms_revenue > 0 ? ` · ${money(e.sms_revenue, currency)} in sales` : ''}`);
   const miss = [];
