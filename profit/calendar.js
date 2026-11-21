@@ -47,7 +47,8 @@
   const VIEW = { v: store('cal_view') || '', f: store('cal_f') || 'all' };
   const CLI = () => !!(H && H.S && (H.S.role === 'client' || H.S.client)) || document.body.classList.contains('is-client');
   const FLT = () => (CLI() ? 'mkt' : VIEW.f);
-  const viewOf = act => (['week', 'day', 'list'].includes(VIEW.v) ? VIEW.v : VIEW.v === 'month' || (act && act !== 'all') ? 'month' : 'lanes');
+  const PHONE = () => { try { return window.matchMedia('(max-width: 600px)').matches; } catch { return false; } };
+  const viewOf = act => (!VIEW.v && PHONE() ? 'list' : ['week', 'day', 'list'].includes(VIEW.v) ? VIEW.v : VIEW.v === 'month' || (act && act !== 'all') ? 'month' : 'lanes');
   /* CHANNELS (2026-11-21, Cole yes on the send calendar plan, Well Copy's Airtable view): every chip belongs to one
      channel and the pills above the calendar switch each on or off (saved per viewer in cal_ch). Ads = ad pushes plus
      each date's "Ads loaded" step on its due day; Organic = social posts; Tasks = the team's (never for a client). */
@@ -230,6 +231,8 @@
       .cal-at .cal-chip.more{background:transparent;color:var(--ink-2)}
       .cal-at .cal-mo .dots i.mail{--c:var(--at-green)} .cal-at .cal-mo .dots i.sms{--c:var(--at-sms)} .cal-at .cal-mo .dots i.sale{--c:var(--at-orange)} .cal-at .cal-mo .dots i.drop{--c:var(--at-teal)} .cal-at .cal-mo .dots i.ad{--c:var(--at-blue)} .cal-at .cal-mo .dots i.post{--c:var(--at-pink)}
       .cal-at .cal-lg{display:none}
+      @container calmo (max-width:560px){.cal-at .cal-mo .dots{gap:2px;justify-content:center;padding:0 2px}.cal-at .cal-mo .dots i{width:100%;max-width:26px;height:5px;border-radius:3px}.cal-at .cal-mo .c .n{text-align:center}}
+      .cal-at .cal-mo .dots i.task{--c:var(--at-grey)} .cal-at .cal-mo .dots i.other{--c:var(--at-grey)}
       .cal-at .cal-ag{border:1px solid var(--at-line);border-radius:6px;overflow:hidden}
       .cal-at .cal-agd{grid-template-columns:96px minmax(0,1fr);gap:0;padding:0;border-top:1px solid var(--at-line)}
       .cal-at .cal-agd .d{padding:9px 12px;font-size:12px;background:var(--surface-2);border-right:1px solid var(--at-line)} .cal-at .cal-agd.td .d{color:var(--at-green)}
@@ -415,8 +418,8 @@
      send carries its purpose; a Klaviyo send is read from its name. */
   const PURP = new Set(['sale', 'last', 'content']);
   const purposeOf = m => (PURP.has(m.purpose) ? m.purpose
-    : /\b(last (call|chance|day)|ends? (tonight|today|tomorrow|at midnight)|final|hours left|days? left|still thinking)\b/i.test(m.name || '') ? 'last'
-    : /\b(note|letter|voice|guide|why|how|story|tier list|breakup|phone note)\b/i.test(m.name || '') ? 'content' : 'sale');
+    : /\b(last (call|chance|day)|ends? (tonight|today|tomorrow|at midnight)|final|hours left|days? left|still thinking|a few hours|ends in|ending)\b/i.test(m.name || '') ? 'last'
+    : /\b(note|letter|voice|guide|why|how|story|tier list|breakup|phone note|plain[- ]text)\b/i.test(m.name || '') ? 'content' : 'sale');
   const PLAN_ST = { approved: ['good', 'Approved, waiting to load'], needs: ['warn', 'Needs your OK'], change: ['warn', 'Change asked'], build: ['info', 'Not made yet'], wrote: ['info', 'Written, not approved'], partner: ['info', 'The email team sends it'] };
   const CHC = { email: '--at-green, var(--good)', sms: '--at-sms, var(--c-sms)', ads: '--at-blue, var(--c-meta)', organic: '--at-pink, var(--c-tiktok)' };
   const PCC = { sale: '--at-green, var(--good)', last: '--at-red, var(--warn)', content: '--at-content, var(--warn)' };
