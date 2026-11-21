@@ -851,12 +851,16 @@ async function runChecks(env, h, d) {
     /* 4. Blended ROAS under the client's line three days running (Triple Whale, store-level). */
     if (a.target_roas) {
       const rows = await all(`SELECT date, SUM(CASE WHEN metric = 'netSales' THEN value END) AS sales, SUM(CASE WHEN metric = 'blendedAds' THEN value END) AS ads
-        FROM tw_daily WHERE act_id = ?1 AND date >= ?2 AND date < ?3 GROUP BY date ORDER BY date DESC LIMIT 3`, a.act_id, d.addDays(today, -4), today);
-      const mers = rows.filter(r => r.ads > 50).map(r => r.sales / r.ads);
-      if (mers.length === 3 && mers.every(m => m < a.target_roas))
+        FROM tw_daily WHERE act_id = ?1 AND date >= ?2 AND date < ?3 GROUP BY date ORDER BY date DESC LIMIT 4`, a.act_id, d.addDays(today, -5), today);
+      const all4 = rows.filter(r => r.ads > 50).map(r => r.sales / r.ads);
+      const mers = all4.slice(0, 3);
+      /* 2026-11-20 (Cole: "so much noise"): Dartee and Grunk got this every night for a week, the same news each time.
+         It now fires once, on the night a streak starts (the day before the three was at or over the line). */
+      const streakStarts = all4.length < 4 || all4[3] >= a.target_roas;
+      if (mers.length === 3 && mers.every(m => m < a.target_roas) && streakStarts)
         out.push({ key: `roas:${a.act_id}:${rows[0].date}`, kind: 'roas', severity: 'high', amount: null, month: ym,
           title: `${a.name}: blended ROAS under ${a.target_roas}x three days running (${mers.map(m => m.toFixed(2)).join(', ')})`,
-          detail: 'Triple Whale store-level MER, netSales over all ad spend. Look at what changed on the account this week and at the creatives.', evidence: { days: rows.map(r => r.date) } });
+          detail: 'Triple Whale store-level MER, netSales over all ad spend. Look at what changed on the account this week and at the creatives.', evidence: { days: rows.slice(0, 3).map(r => r.date) } });
     }
 
     /* 5. A creative tiring: link CTR over the last 3 days well under its prior 14. */

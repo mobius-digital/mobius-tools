@@ -48,6 +48,10 @@ const CALL_KINDS = ['scale', 'cut', 'trim', 'refresh', 'mixed'];
 const VERB = { scale: 'scale', cut: 'cut', trim: 'trim', refresh: 'refresh', mixed: 'decide on' };
 /* A late Production card says what to DO with it (2026-11-03: "380 - ... · Making · 10 days late" read as status). */
 const PROD_VERB = { brief: 'Write the brief for', making: 'Finish', review: 'Review', ready: 'Launch', live: 'Judge' };
+/* 2026-11-20 (Cole: "so much noise"): "Move on 372 (25 days late)" ran every morning for weeks and nobody acted on it.
+   A late task or card is said on its due day, the day after, at 3 days and at 7 days, then left to Locus. */
+const NAG_DAYS = new Set([0, 1, 3, 7]);
+export const nagDay = late => NAG_DAYS.has(late);
 const LEAD_CPL_MAX = 0.75;   // dollars a lead, every brand (memory lead-cpl-kpi): at or under it a lead campaign is fine
 const isColeName = w => /^cole\b/i.test(clean(w, 40));
 
@@ -238,13 +242,14 @@ export async function buildCard(env, d, a, today, shared = {}) {
       }
     } catch (e) { notes.push(`leads: ${e.message}`); }
   }
-  /* The client daily waiting for an OK is a job (Cole's), so it is a line of its own, first. */
-  if (brief && brief.status === 'draft' && a.brief_enabled) items.push({ key: 'daily', kind: 'daily', text: 'Approve the client daily, it is waiting on you', who: 'Cole', lane: 'CLIENT', rank: 2e12 });
+  /* 2026-11-20 (Cole: "I already send it"): the client daily waiting for an OK is no longer a card line. Cole sends it;
+     only a daily still unsent at noon reaches Slack (worker.js unsentAtNoonPass). */
   /* Tasks due today or overdue. */
   await ensureActions(env);
   const tasks = (await env.DB.prepare(`SELECT * FROM p_action WHERE status = 'open' AND act_id = ?1 AND due != '' AND due <= ?2 ORDER BY due, created_at`).bind(a.act_id, today).all().catch(() => ({ results: [] }))).results || [];
   for (const t of tasks) {
     const late = daysBetween(t.due, today);
+    if (!nagDay(late)) continue;
     /* The title only (short since 2026-10-20; the details are one click away), "late" only when it is: everything on the card is today's. */
     items.push({ key: `task:${t.id}`, kind: 'task', text: `${t.kind === 'brief' ? 'Brief: ' : ''}${words(t.text, 90)}${late > 0 ? ` · ${late} day${late === 1 ? '' : 's'} late` : ''}`, who: t.owner || '', lane: laneOfArea(t.area, t.kind) || (t.owner && t.owner === team.buyer ? 'MEDIA BUYING' : 'OPS'), ids: [t.id], rank: late > 0 ? late * 1000 : 1 });
   }
@@ -258,7 +263,7 @@ export async function buildCard(env, d, a, today, shared = {}) {
      nobody closed is not today's job, and it would push real work off the five lines). */
   for (const c of ((shared.board && shared.board.cards) || []).filter(x => x.act_id === a.act_id && x.late)) {
     const late = daysBetween(c.due, today);
-    if (late > 30) continue;
+    if (!nagDay(late)) continue;
     items.push({ key: `prod:${c.id}`, kind: 'prod', id: c.id, text: `${PROD_VERB[c.board] || 'Move on'} ${c.num ? `${c.num} ` : ''}${words(c.title, 70)} (${late} day${late === 1 ? '' : 's'} late)`, who: c.assignee || team.strat || '', lane: 'CREATIVE', rank: late * 1000 });
   }
   /* The leak finder (2026-10-13, leaks.js): ONE line when a NEW leak over LEAK_FLOOR a month appeared since yesterday's
@@ -317,7 +322,7 @@ export async function buildCard(env, d, a, today, shared = {}) {
     nums: [numbersLine(a, brief, keptOf(shared.kept, a.act_id)), ...leadsInfo].join(' · '), daily: dailyState(a, brief), items: shown, more: items.length - shown.length,
     owes, weekly, owes_tag: owes || weekly ? await tagOf(env, d, laneOwner('CLIENT', team)).catch(() => null) : null, owes_who: laneOwner('CLIENT', team), calls: calls.length > 0, notes, leaks: leakIds, social_at: socialAt,
     /* For the thread only; never stored. */
-    _rows: rows || [], _tasks: tasks, _fyis: fyis,
+    _rows: rows || [], _tasks: tasks.filter(t => nagDay(daysBetween(t.due, today))), _fyis: fyis,
   };
 }
 
