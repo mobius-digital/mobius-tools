@@ -163,6 +163,26 @@ async function klaviyoSends(env, act) {
   await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(ck, JSON.stringify({ at: new Date().toISOString(), sends })).run().catch(() => {});
   return sends;
 }
+/* PLANNED SENDS (2026-11-21, Cole yes on the send calendar plan, step 3): the emails and texts we mean to send,
+   before they exist in Klaviyo. One list per brand in settings `calplan:<act>`, replaced whole by
+   POST /api/calendar/plan {act, source, sends:[{date, time, channel, name, audience, status}]} (team only; the BF
+   email board pushes its plan here). The page draws them as outlined pills next to the real Klaviyo sends. */
+const PLAN_ST = new Set(['approved', 'needs', 'change', 'build', 'wrote', 'partner']);
+async function plannedSends(env, act) {
+  const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = ?1`).bind(`calplan:${act}`).first().catch(() => null);
+  const p = safe(row?.value, null); if (!p || !Array.isArray(p.sends)) return [];
+  return p.sends.map(s => ({ ...s, source: p.source || null, pushed: p.at || null }));
+}
+async function savePlan(env, body) {
+  const act = String(body.act || ''); if (!/^brand_[a-z0-9_]+$/.test(act)) return { error: 'Which brand? Send act, e.g. brand_lucky_golf.' };
+  const sends = (Array.isArray(body.sends) ? body.sends : []).slice(0, 300).map(s => ({
+    date: String(s.date || '').slice(0, 10), time: String(s.time || '').slice(0, 12), channel: s.channel === 'sms' ? 'sms' : 'email',
+    name: String(s.name || '').slice(0, 160), audience: String(s.audience || '').slice(0, 120), status: PLAN_ST.has(s.status) ? s.status : 'build',
+  })).filter(s => /^\d{4}-\d{2}-\d{2}$/.test(s.date) && s.name);
+  const source = /^https:\/\//.test(body.source || '') ? String(body.source).slice(0, 300) : null;
+  await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(`calplan:${act}`, JSON.stringify({ at: new Date().toISOString(), source, sends })).run();
+  return { ok: true, act, saved: sends.length };
+}
 /** The brand's Meta ads created per day (for the "ads loaded" tick). */
 async function newAdsByDay(env, act, from, to) {
   const { results } = await env.DB.prepare(`SELECT substr(created_time, 1, 10) d, COUNT(*) n FROM ads WHERE act_id IN ${metaOf(1)} AND substr(created_time, 1, 10) BETWEEN ?2 AND ?3 GROUP BY d`).bind(act, from, to).all().catch(() => ({ results: [] }));
@@ -220,9 +240,10 @@ export async function calendarData(env, { act = 'all', from, to, today, lite = f
   const items = [...typed, ...season, ...drops];
   /* lite: the dates only (chart bands), no Klaviyo, Meta or Asana reads and no countdown. */
   if (lite) { items.sort((a, b) => a.start.localeCompare(b.start)); return { today, from, to, brands: brands.map(b => ({ id: b.act_id, name: b.name })), items: items.map(e => ({ ...e, steps: [], kind_label: KIND_LABEL[e.kind] })), emails: [], social }; }
-  const emails = [];
+  const emails = [], planned = [];
   const sig = {};
   await Promise.all(brands.map(async b => {
+    for (const s of await plannedSends(env, b.act_id).catch(() => [])) if (s.date >= from && s.date <= to) planned.push({ act: b.act_id, ...s });
     const has = items.some(e => e.act === b.act_id);
     const klv = await env.DB.prepare(`SELECT 1 FROM p_br_doc WHERE act_id = ?1 AND line_id = '' AND key = 'klaviyo'`).bind(b.act_id).first().catch(() => null);
     const sends = klv ? await klaviyoSends(env, b.act_id).catch(() => []) : [];
@@ -233,7 +254,7 @@ export async function calendarData(env, { act = 'all', from, to, today, lite = f
   /* The countdown is for what is still coming: once a date has gone live it has none (it happened). */
   for (const e of items) { e.steps = e.start <= today ? [] : stepsFor(e, team, today, sig[e.act] || {}); e.kind_label = KIND_LABEL[e.kind]; }
   items.sort((a, b) => a.start.localeCompare(b.start));
-  return { today, from, to, brands: brands.map(b => ({ id: b.act_id, name: b.name, channel: b.slack_channel || null, client_channel: b.brief_channel || null, team: team[b.act_id] })), items, emails, social };
+  return { today, from, to, brands: brands.map(b => ({ id: b.act_id, name: b.name, channel: b.slack_channel || null, client_channel: b.brief_channel || null, team: team[b.act_id] })), items, emails, planned, social };
 }
 
 /* ---------- writes ---------- */
@@ -337,6 +358,11 @@ export async function handleCalendar(request, env, url, path, json, isAdmin, ses
   try {
     if (path === '/api/calendar' && request.method === 'GET') {
       return json(await calendarData(env, { act: url.searchParams.get('act') || 'all', from: url.searchParams.get('from') || undefined, to: url.searchParams.get('to') || undefined, lite: url.searchParams.get('lite') === '1' }));
+    }
+    if (path === '/api/calendar/plan' && request.method === 'POST') {
+      if (cs) return json({ error: 'Only the team can change the send plan.' }, 403);
+      const r = await savePlan(env, await request.json().catch(() => ({})));
+      return json(r, r.error ? 400 : 200);
     }
     if (path === '/api/calendar/client-preview' && request.method === 'GET') {
       const today = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get('date') || '') ? url.searchParams.get('date') : centralToday();
