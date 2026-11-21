@@ -3437,17 +3437,6 @@ async function clientDailyFor(env, acct, date, text, data, { next = true } = {})
  *  + the calendar's confirmed dates in the next 7 days, We need from you = the call's asks + the calendar's asks + open
  *  Requests asks (each with when it was asked and when it is needed), then the archive link. The draft card shows the
  *  same text. No model writes any of it. */
-/** The week's email and text numbers from Klaviyo (the cached day-by-day read), with the week before. Null when the
- *  brand has no Klaviyo or the read fails: the report then simply has no email block. */
-async function emailWeek(env, act, start, end) {
-  const d = await klaviyoView(env, act, 'daily').catch(() => null);
-  if (!d || d.error || !Array.isArray(d.days)) return null;
-  const sum = (a, z) => { const o = { revenue: 0, sms_revenue: 0, received: 0, opened: 0, clicked: 0, bounced: 0, unsub: 0, spam: 0, sms_received: 0 };
-    for (const r of d.days) if (r.date >= a && r.date <= z) { o.revenue += (r.rev_email || 0) + (r.rev_sms || 0); o.sms_revenue += r.rev_sms || 0; for (const k of ['received', 'opened', 'clicked', 'bounced', 'unsub', 'spam', 'sms_received']) o[k] += r[k] || 0; }
-    return o; };
-  if (!d.days.some(r => r.date >= end)) return null;   // the read stops before the week ends: say nothing rather than a part week
-  return { ...sum(start, end), prev: sum(addDays(start, -7), addDays(start, -1)) };
-}
 async function clientReportText(env, acct, row, data) {
   const period = row.period, start = row.period_start;
   const url = `${DASHBOARD_URL}?reports=${await reportToken(env, acct.act_id)}`;
@@ -3459,7 +3448,6 @@ async function clientReportText(env, acct, row, data) {
     brand: acct.name, period, start, end: row.period_end, currency: data?.account?.currency || acct.currency, totals: data?.totals, previous: data?.previous,
     sentence: weekSentence(data?.totals, data?.previous, period === 'monthly' ? 'month' : 'week'),
     amazon: (() => { const c = (data?.channels || []).find(x => x.id === 'amazon'); return c ? { cur: c.cur ? { sales: c.cur.sales, orders: c.cur.orders } : null, prev: c.prev ? { sales: c.prev.sales, orders: c.prev.orders } : null } : null; })(),
-    email: period === 'weekly' ? await emailWeek(env, acct.act_id, start, row.period_end || addDays(start, 6)).catch(() => null) : null,
     this_week: [...(Array.isArray(data?.this_week) ? data.this_week : []), ...(cal?.going_live || [])],
     from_you: [...(Array.isArray(data?.need_from_you) ? data.need_from_you : []), ...(cal?.need || []), ...asks.map(askOf)],
     url,
