@@ -316,6 +316,13 @@
     for (const x of mine) for (const s of x.steps || []) if (s.key === 'loaded' && s.due) items.push({ id: `ad:${x.id}`, of: x.id, kind: 'ad', name: `Ads in: ${x.name}`, label: pre(x.act) + `Ads in: ${x.name}`, start: s.due, end: s.due, status: s.state === 'done' ? 'conf' : 'pen', step: s, act: x.act });
     MAILS.clear();
     for (const e of d.emails.filter(e => all || e.act === act)) { const name = `${e.channel === 'sms' ? 'Text' : 'Email'}: ${mailName(e.name)}`, id = `mail:${e.act}:${e.date}:${e.name}`; MAILS.set(id, e); items.push({ id, src: 'email', name, label: pre(e.act) + name, kind: 'mail', start: e.date, end: e.date, status: e.status === 'scheduled' ? 'pen' : 'conf', mail: e }); }
+    /* planned sends (step 3): outlined until Klaviyo has them; one already in Klaviyo that day on that channel wins */
+    for (const e of d.planned || []) {
+      if (!all && e.act !== act) continue;
+      if (d.emails.some(m => m.act === e.act && m.date === e.date && m.channel === e.channel && mailName(m.name).toLowerCase() === String(e.name).toLowerCase())) continue;
+      const name = `${e.channel === 'sms' ? 'Text' : 'Email'}: ${e.name}`, id = `plan:${e.act}:${e.date}:${e.time}:${e.audience}:${e.name}`;
+      MAILS.set(id, { ...e, plan: true }); items.push({ id, src: 'plan', name, label: pre(e.act) + name, kind: 'mail', start: e.date, end: e.date, status: 'pen', mail: { ...e, plan: true } });
+    }
     for (const p of d.social || []) {
       if (!all && p.act !== act) continue;
       const name = `Post: ${postName(p)}`;
@@ -329,11 +336,12 @@
     return items.filter(x => chOn(chOf(x))).sort((a, b) => a.start.localeCompare(b.start) || RANK(a) - RANK(b));
   }
   const MAILS = new Map();
+  const PLAN_ST = { approved: ['good', 'Approved, waiting to load'], needs: ['warn', 'Needs your OK'], change: ['warn', 'Change asked'], build: ['info', 'Not made yet'], wrote: ['info', 'Written, not approved'], partner: ['info', 'The email team sends it'] };
   const CHC = { email: '--good', sms: '--c-sms', ads: '--c-meta', organic: '--c-tiktok' };
   /* One row for a thing on a day: the day panel, the Day view and the List view all use it. */
   function rowHtml(d, x) {
     return x.kind === 'mail'
-      ? `<button type="button" class="cal-ev" data-mail="${esc(x.id)}"><b>${esc(x.label)}</b><span class="ty" style="--c:var(${CHC[chOf(x)]})"><i></i>${x.mail.channel === 'sms' ? 'Text' : 'Email'} &middot; ${esc(x.mail.status)}, from Klaviyo</span></button>`
+      ? `<button type="button" class="cal-ev" data-mail="${esc(x.id)}"><b>${esc(x.label)}</b><span class="ty" style="--c:var(${CHC[chOf(x)]})"><i></i>${x.mail.channel === 'sms' ? 'Text' : 'Email'} &middot; ${x.mail.plan ? `planned${x.mail.time ? ' ' + esc(x.mail.time) : ''}${x.mail.audience ? ', ' + esc(x.mail.audience) : ''} &middot; ${esc((PLAN_ST[x.mail.status] || ['', 'Planned'])[1])}` : `${esc(x.mail.status)}, from Klaviyo`}</span></button>`
       : x.kind === 'ad'
       ? `<button type="button" class="cal-ev" data-ev="${esc(x.of)}"><b>${esc(x.label)}</b><span class="ty" style="--c:var(--c-meta,#5b8def)"><i></i>Ads &middot; ${esc(x.step.who || '')} &middot; ${esc(x.step.note || (x.status === 'conf' ? 'done' : 'not yet'))}</span></button>`
       : x.kind === 'post'
@@ -345,7 +353,16 @@
   /* An email or text: what it is, when, its state. Klaviyo's own page has the preview and the results. */
   function mailPanel(d, id) {
     const e = MAILS.get(id); if (!e) return;
-    const sms = e.channel === 'sms', st = e.status === 'sent' ? ['good', 'Sent'] : e.status === 'scheduled' ? ['info', 'Scheduled'] : ['info', e.status || 'Draft'];
+    const sms = e.channel === 'sms';
+    if (e.plan) {
+      const ps = PLAN_ST[e.status] || ['info', 'Planned'];
+      U().panel(sms ? 'Planned text' : 'Planned email', `<div class="cal-pn">
+      <div class="cvd ${ps[0]}"><b>${esc(e.name)}</b><span>${esc(ps[1])} &middot; ${wd(e.date)} ${md(e.date)}${e.time ? ' ' + esc(e.time) : ''} &middot; ${esc(brandName(d, e.act))}</span></div>
+      <div class="kv"><div><span>Channel</span><b>${sms ? 'SMS' : 'Email'}</b></div><div><span>Time</span><b>${esc(e.time || 'Not set')}</b></div><div><span>Who gets it</span><b>${esc(e.audience || 'Everyone')}</b></div></div>
+      <p class="v2hint" style="margin:0">Planned, not in Klaviyo yet. It turns solid once Klaviyo has it scheduled.${e.source ? ` <a href="${esc(e.source)}" target="_blank" rel="noopener">Open the plan</a>` : ''}</p></div>`);
+      return;
+    }
+    const st = e.status === 'sent' ? ['good', 'Sent'] : e.status === 'scheduled' ? ['info', 'Scheduled'] : ['info', e.status || 'Draft'];
     U().panel(sms ? 'Text' : 'Email', `<div class="cal-pn">
       <div class="cvd ${st[0]}"><b>${esc(mailName(e.name))}</b><span>${esc(st[1])} &middot; ${wd(e.date)} ${md(e.date)} &middot; ${esc(brandName(d, e.act))}</span></div>
       <div class="kv"><div><span>Channel</span><b>${sms ? 'SMS' : 'Email'}</b></div><div><span>Date</span><b>${md(e.date)}</b></div><div><span>State</span><b>${esc(st[1])}</b></div></div>
@@ -396,7 +413,7 @@
         }
         if (x.kind === 'mail') {
           const sms = x.mail.channel === 'sms';
-          bars += `<button type="button" class="cal-chip mail ${sms ? 'sms' : 'em'}${x.status === 'pen' ? ' pen' : ''}" style="left:${c0 / 7 * 100}%;width:calc(${100 / 7}% - 6px);top:${r * 22}px" data-mail="${esc(x.id)}"${tip(`<b>${esc(x.name)}</b><br>${md(x.start)}, ${esc(x.mail.status)}, from Klaviyo. Click for details.`)}>${esc(x.label)}</button>`;
+          bars += `<button type="button" class="cal-chip mail ${sms ? 'sms' : 'em'}${x.status === 'pen' ? ' pen' : ''}" style="left:${c0 / 7 * 100}%;width:calc(${100 / 7}% - 6px);top:${r * 22}px" data-mail="${esc(x.id)}"${tip(`<b>${esc(x.name)}</b><br>${md(x.start)}, ${x.mail.plan ? 'planned: ' + esc((PLAN_ST[x.mail.status] || ['', ''])[1]) : esc(x.mail.status) + ', from Klaviyo'}. Click for details.`)}>${esc(x.label)}</button>`;
           continue;
         }
         const cls = `cal-chip ${CLS(x.kind)} ${x.status === 'pen' ? 'pen' : ''} ${x.status === 'miss' ? 'miss' : ''} ${x.start < a ? 'cont' : ''}`;
@@ -434,7 +451,7 @@
     const fl = CHS.filter(([k]) => !(cli && k === 'tasks')).map(([k, l, c]) => `<button type="button" class="cal-layer ${chOn(k) ? 'on' : 'off'}" data-ch="${k}" aria-pressed="${chOn(k)}"><i style="background:${c}"></i>${l}</button>`).join('');
     const how = cli ? 'Tap a channel to show or hide it. Tap anything to see the details.'
       : 'Tap a channel to show or hide it. Tap anything for details; click an empty day to add a date; drag a date to move it.';
-    const lg = `<div class="cal-lg"><span>Solid = sent, live or done</span><span>Dashed or striped = scheduled, pencilled or not done yet</span><span>Ads = the day a date's ads go in</span></div>`;
+    const lg = `<div class="cal-lg"><span>Solid = sent, live or done</span><span>Dashed or striped = planned, scheduled, pencilled or not done yet</span><span>Ads = the day a date's ads go in</span></div>`;
     return `<div class="cal-card cal-mw"><div class="cal-ch"><h3 id="calMonT"></h3><div class="r"><span class="cal-seg" role="tablist">${seg}</span><button type="button" class="cal-btn" data-m="-1" aria-label="Back">&#8249;</button><button type="button" class="cal-btn" data-m="0">Today</button><button type="button" class="cal-btn" data-m="1" aria-label="Forward">&#8250;</button><button type="button" class="cal-btn pri" data-add="1">+ Add a date</button></div></div>
       <div class="cal-fl cal-ch2">${fl}<span class="cap">${how}</span></div>${!cli && chOn('tasks') && !d0tasks ? '<p class="v2hint" style="margin:0 0 8px;color:var(--warn)">The tasks did not load; showing marketing only.</p>' : ''}
       <div class="cal-mo" id="calMonth"></div>${lg}</div>`;
