@@ -21,6 +21,7 @@
   const md = s => D(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
   const wd = s => D(s).toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' });
   const monday = s => add(s, -((D(s).getUTCDay() + 6) % 7));
+  const sunday = s => add(s, -D(s).getUTCDay());   // month and week grids start on Sunday (2026-11-21, Airtable look)
   const tip = h => (U() ? U().tipAttr(h) : '');
   const KL = { drop: 'Drop or launch', sale: 'Sale or offer', adpush: 'Ad push', site: 'Site change', other: 'Teaser, list, other' };
   const CLS = k => (k === 'drop' ? 'drop' : k === 'sale' ? 'sale' : 'other');
@@ -50,7 +51,7 @@
   /* CHANNELS (2026-11-21, Cole yes on the send calendar plan, Well Copy's Airtable view): every chip belongs to one
      channel and the pills above the calendar switch each on or off (saved per viewer in cal_ch). Ads = ad pushes plus
      each date's "Ads loaded" step on its due day; Organic = social posts; Tasks = the team's (never for a client). */
-  const CHS = [['dates', 'Sales and drops', 'var(--c-email,#9b7bd8)'], ['email', 'Email', 'var(--good)'], ['sms', 'SMS', 'var(--c-sms,#d99a2b)'], ['ads', 'Ads', 'var(--c-meta,#5b8def)'], ['organic', 'Organic', 'var(--c-tiktok,#ff3b5c)'], ['tasks', 'Tasks', 'var(--muted)']];
+  const CHS = [['dates', 'Sales and drops', '#f29b1d'], ['email', 'Email', '#2d9d4b'], ['sms', 'SMS', '#8f5fd6'], ['ads', 'Ads', '#3b6fe0'], ['organic', 'Organic', '#e0629b'], ['tasks', 'Tasks', 'var(--muted)']];
   const CHOFF = (() => { try { return JSON.parse(store('cal_ch') || '{}') || {}; } catch { return {}; } })();
   const chOn = k => (k === 'tasks' && CLI() ? false : CHOFF[k] !== true);
   const chOf = x => (x.kind === 'mail' ? (x.mail.channel === 'sms' ? 'sms' : 'email') : x.kind === 'post' ? 'organic' : x.kind === 'task' ? 'tasks' : x.kind === 'ad' || x.kind === 'adpush' ? 'ads' : 'dates');
@@ -197,7 +198,38 @@
       .cal .cal-ag .ty i,.cal-day .ty i{width:8px;height:8px;border-radius:2px;background:var(--c)}
       @media (max-width:560px){.cal .cal-agd{grid-template-columns:1fr;gap:6px}}
       .cal .cal-mo:has(.cal-ag){border:0}
-      .calh .cal-mini span{color:var(--muted);white-space:nowrap} .calh .cal-mini .late{color:var(--warn);font-weight:600} .calh h4{margin:12px 0 4px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}`;
+      .calh .cal-mini span{color:var(--muted);white-space:nowrap}
+      /* ---- Airtable look ---- */
+      .cal-at{--at-line:color-mix(in srgb,var(--ink) 11%,var(--surface));--at-green:#2d9d4b;--at-sms:#8f5fd6;--at-orange:#f29b1d;--at-teal:#1d9a8c;--at-blue:#3b6fe0;--at-pink:#e0629b;--at-grey:#7b8794;padding:16px 18px}
+      .cal-at .at-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 10px} .cal-at .at-top h3{margin:0;font-size:14px;font-weight:650}
+      .cal-at .at-new{background:var(--at-green);color:#fff;border:0;border-radius:6px;padding:6px 12px;font:inherit;font-size:12.5px;font-weight:650;cursor:pointer}
+      .cal-at .at-tools{margin:0 0 10px;padding:0 0 10px;border-bottom:1px solid var(--at-line)} .cal-at .at-tools .cal-layer{border-radius:6px;border:0;background:transparent;font-weight:500;color:var(--ink-2)}
+      .cal-at .at-tools .cal-layer.on{background:color-mix(in srgb,var(--at-green) 14%,var(--surface));color:var(--ink)} .cal-at .at-tools .cal-layer.off{opacity:.5;border:0;text-decoration:line-through}
+      .cal-at .at-nav{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;margin:0 0 10px}
+      .cal-at .at-btn{justify-self:start;border:1px solid var(--at-line);background:var(--surface);color:var(--ink);border-radius:6px;padding:4px 10px;font:inherit;font-size:12px;cursor:pointer}
+      .cal-at .at-mid{display:flex;align-items:center;gap:10px} .cal-at .at-mid h4{margin:0;font-size:17px;font-weight:650;min-width:120px;text-align:center}
+      .cal-at .at-ar{border:0;background:none;color:var(--muted);font-size:20px;line-height:1;cursor:pointer;padding:0 4px}
+      .cal-at .at-seg{justify-self:end;border:1px solid var(--at-line);border-radius:6px;padding:0;gap:0;overflow:hidden} .cal-at .at-seg button{border-radius:0;padding:4px 11px;border-left:1px solid var(--at-line);font-weight:500}
+      .cal-at .at-seg button:first-child{border-left:0} .cal-at .at-seg button.on{background:var(--surface-2);color:var(--ink);font-weight:650}
+      .cal-at .at-how{margin:0 0 8px;font-size:11.5px;color:var(--muted)}
+      @media (max-width:640px){.cal-at .at-nav{grid-template-columns:1fr auto}.cal-at .at-seg{grid-column:1/-1;justify-self:stretch;display:flex}.cal-at .at-seg button{flex:1}}
+      .cal-at .cal-mo{border:1px solid var(--at-line);border-radius:6px;overflow:hidden}
+      .cal-at .cal-mo .dh{text-align:center;font-size:11.5px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted);border-color:var(--at-line);background:var(--surface-2);padding:7px 4px}
+      .cal-at .cal-mo .c{border-color:var(--at-line);background:var(--surface)} .cal-at .cal-mo .c.x{background:var(--surface)} .cal-at .cal-mo .c.x .n{opacity:.4}
+      .cal-at .cal-mo .c .n{display:block;text-align:right;font-size:11.5px;font-weight:600;color:var(--ink-2);position:relative}
+      .cal-at .cal-mo .c.td{box-shadow:none} .cal-at .cal-mo .c.td .n{color:transparent}
+      .cal-at .cal-mo .c.td .n::after{content:attr(data-n);position:absolute;right:-4px;top:-3px;width:20px;height:20px;border-radius:50%;background:var(--at-green);color:#fff;display:grid;place-items:center;font-size:11px}
+      .cal-at .cal-chip{border:0;border-radius:5px;height:18px;line-height:18px;font-size:11px;font-weight:600;color:#fff;background:var(--c);padding:0 7px;margin:0 4px}
+      .cal-at .cal-chip::before{display:none!important}
+      .cal-at .cal-chip.sale{--c:var(--at-orange)} .cal-at .cal-chip.drop{--c:var(--at-teal)} .cal-at .cal-chip.other{--c:var(--at-grey)}
+      .cal-at .cal-chip.mail.em{--c:var(--at-green)} .cal-at .cal-chip.mail.sms{--c:var(--at-sms)} .cal-at .cal-chip.ad{--c:var(--at-blue)} .cal-at .cal-chip.mail.em,.cal-at .cal-chip.mail.sms{background:var(--c);color:#fff;font-weight:600}
+      .cal-at .cal-chip.post{--c:var(--at-pink);padding-left:7px} .cal-at .cal-chip.task{--c:color-mix(in srgb,var(--ink) 14%,var(--surface));color:var(--ink);padding-left:7px}
+      .cal-at .cal-chip.pen,.cal-at .cal-chip.mail.em.pen,.cal-at .cal-chip.mail.sms.pen,.cal-at .cal-chip.ad,.cal-at .cal-chip.post.pen{background:color-mix(in srgb,var(--c) 22%,var(--surface));color:var(--ink);border:0}
+      .cal-at .cal-chip.ad.done{background:var(--c);color:#fff}
+      .cal-at .cal-chip.miss{background:transparent;border:1.5px dashed var(--warn);color:var(--warn)}
+      .cal-at .cal-chip.more{background:transparent;color:var(--ink-2)}
+      .cal-at .cal-mo .dots i.mail{--c:var(--at-green)} .cal-at .cal-mo .dots i.sms{--c:var(--at-sms)} .cal-at .cal-mo .dots i.sale{--c:var(--at-orange)} .cal-at .cal-mo .dots i.drop{--c:var(--at-teal)} .cal-at .cal-mo .dots i.ad{--c:var(--at-blue)} .cal-at .cal-mo .dots i.post{--c:var(--at-pink)}
+      .cal-at .cal-lg{display:none} .calh .cal-mini .late{color:var(--warn);font-weight:600} .calh h4{margin:12px 0 4px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}`;
     document.head.appendChild(st);
   }
 
@@ -306,7 +338,7 @@
   }
 
   /* ---------- One brand: the month ---------- */
-  const LANES = 4;
+  const LANES = 5;
   const RANK = x => (x.kind === 'task' ? 2 : x.kind === 'mail' ? 1 : 0);
   function monthItems(d, act) {
     const all = !act || act === 'all', items = [], pre = id => (all && id ? `${brandName(d, id)}: ` : '');
@@ -382,18 +414,20 @@
   function month(el, d, act) {
     const week = viewOf(act) === 'week', mon = ST.mon || d.today.slice(0, 7), cap = week ? 99 : LANES;
     const [y, m] = mon.split('-').map(Number);
-    const first = `${mon}-01`, dow = (D(first).getUTCDay() + 6) % 7;
+    const first = `${mon}-01`, dow = D(first).getUTCDay();
     const n = new Date(Date.UTC(y, m, 0)).getUTCDate();
-    const start = week ? monday(ST.wk || d.today) : add(first, -dow), weeks = week ? 1 : Math.ceil((dow + n) / 7);
+    const start = week ? sunday(ST.wk || d.today) : add(first, -dow), weeks = week ? 1 : Math.ceil((dow + n) / 7);
     const items = monthItems(d, act);
-    let h = '<div class="dhr">' + ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(x => `<div class="dh">${x}</div>`).join('') + '</div>';
+    let h = '<div class="dhr">' + ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(x => `<div class="dh">${x}</div>`).join('') + '</div>';
     for (let w = 0; w < weeks; w++) {
       const ds = Array.from({ length: 7 }, (_, i) => add(start, w * 7 + i)), a = ds[0], z = ds[6];
       const used = [], cover = {}; let bars = '', hidden = {};
       for (const x of items) {
-        const e = x.end || '2099-12-31';
-        if (e < a || x.start > z) continue;
-        const c0 = Math.max(0, days(a, x.start)), c1 = Math.min(6, days(a, e));
+        const e0 = x.end || '2099-12-31';
+        if (e0 < start || x.start > add(start, weeks * 7 - 1)) continue;
+        const on1 = x.start < start ? start : x.start;   // AIRTABLE: one pill, on its first day on screen
+        if (on1 < a || on1 > z) continue;
+        const e = on1, c0 = days(a, on1), c1 = c0;
         for (let c = c0; c <= c1; c++) (cover[c] = cover[c] || []).push(dotOf(x));
         let r = used.findIndex(q => q < c0); if (r < 0) { r = used.length; used.push(-1); }
         if (r >= cap) { for (let c = c0; c <= c1; c++) hidden[c] = (hidden[c] || 0) + 1; continue; }
@@ -418,14 +452,14 @@
         }
         const cls = `cal-chip ${CLS(x.kind)} ${x.status === 'pen' ? 'pen' : ''} ${x.status === 'miss' ? 'miss' : ''} ${x.start < a ? 'cont' : ''}`;
         const tt = x.kind === 'mail' ? tip(`<b>${esc(x.name)}</b><br>${md(x.start)}, ${x.mail.status}, from Klaviyo`) : tip(tipOf(d, x));
-        bars += `<button type="button" class="${cls}" style="left:${c0 / 7 * 100}%;width:calc(${(c1 - c0 + 1) / 7 * 100}% - 6px);top:${r * 22}px" ${x.kind === 'mail' ? '' : `data-ev="${esc(x.id)}"`}${x.editable && !x.teaserOf ? ` draggable="true" data-drag="${esc(x.id)}"` : ''}${tt}>${x.start < a ? '&#8592; ' : ''}${esc(x.label || x.name)}${isOpen(x) && e > z ? ' (no end date)' : ''}</button>`;
+        bars += `<button type="button" class="${cls}" style="left:${c0 / 7 * 100}%;width:calc(${(c1 - c0 + 1) / 7 * 100}% - 6px);top:${r * 22}px" ${x.kind === 'mail' ? '' : `data-ev="${esc(x.id)}"`}${x.editable && !x.teaserOf ? ` draggable="true" data-drag="${esc(x.id)}"` : ''}${tt}>${x.start < on1 ? '&#8592; ' : ''}${esc(x.label || x.name)}${x.end && x.end !== x.start ? ` (to ${md(x.end)})` : isOpen(x) ? ' (no end date)' : ''}</button>`;
       }
       /* Busy days (2026-10-15, Cole: "squished"): the row grows to the lanes it uses (up to LANES), and anything past
          that is "+N more" on its own line, a button that opens the whole day. */
       const lanes = Math.min(used.length, cap), more = Object.keys(hidden).length > 0;
       for (const [c, k] of Object.entries(hidden)) bars += `<button type="button" class="cal-chip more" data-dayall="${ds[c]}" style="left:${c / 7 * 100}%;width:calc(${100 / 7}% - 6px);top:${lanes * 22}px">+${k} more</button>`;
       const rh = Math.max(week ? 220 : 96, 25 + lanes * 22 + (more ? 22 : 0) + 8);
-      h += `<div class="wr" style="--rh:${rh}px">${ds.map((x, i) => `<div class="c ${week || x.slice(0, 7) === mon ? '' : 'x'} ${x === d.today ? 'td' : ''}" data-day="${x}"><span class="n">${+x.slice(8)}</span>${cover[i] ? `<span class="dots">${cover[i].slice(0, 6).map(k => `<i class="${k}"></i>`).join('')}</span>` : ''}</div>`).join('')}<div class="bars">${bars}</div></div>`;
+      h += `<div class="wr" style="--rh:${rh}px">${ds.map((x, i) => `<div class="c ${week || x.slice(0, 7) === mon ? '' : 'x'} ${x === d.today ? 'td' : ''}" data-day="${x}"><span class="n" data-n="${+x.slice(8)}">${+x.slice(8)}</span>${cover[i] ? `<span class="dots">${cover[i].slice(0, 6).map(k => `<i class="${k}"></i>`).join('')}</span>` : ''}</div>`).join('')}<div class="bars">${bars}</div></div>`;
     }
     el.innerHTML = h;
     if (week) return `${md(start)} to ${md(add(start, 6))}`;
@@ -452,8 +486,12 @@
     const how = cli ? 'Tap a channel to show or hide it. Tap anything to see the details.'
       : 'Tap a channel to show or hide it. Tap anything for details; click an empty day to add a date; drag a date to move it.';
     const lg = `<div class="cal-lg"><span>Solid = sent, live or done</span><span>Dashed or striped = planned, scheduled, pencilled or not done yet</span><span>Ads = the day a date's ads go in</span></div>`;
-    return `<div class="cal-card cal-mw"><div class="cal-ch"><h3 id="calMonT"></h3><div class="r"><span class="cal-seg" role="tablist">${seg}</span><button type="button" class="cal-btn" data-m="-1" aria-label="Back">&#8249;</button><button type="button" class="cal-btn" data-m="0">Today</button><button type="button" class="cal-btn" data-m="1" aria-label="Forward">&#8250;</button><button type="button" class="cal-btn pri" data-add="1">+ Add a date</button></div></div>
-      <div class="cal-fl cal-ch2">${fl}<span class="cap">${how}</span></div>${!cli && chOn('tasks') && !d0tasks ? '<p class="v2hint" style="margin:0 0 8px;color:var(--warn)">The tasks did not load; showing marketing only.</p>' : ''}
+    /* AIRTABLE LOOK (2026-11-21, Cole: match Well Copy's Airtable calendar view): name + green "+ New date" on top,
+       the channel chips as the toolbar, then Today on the left, "< Month >" in the middle, the view switch on the right. */
+    return `<div class="cal-card cal-mw cal-at"><div class="at-top"><h3>${all ? 'Every client' : 'Marketing calendar'}</h3><button type="button" class="at-new" data-add="1">+ New date</button></div>
+      <div class="cal-fl cal-ch2 at-tools">${fl}</div>
+      <div class="at-nav"><button type="button" class="at-btn" data-m="0">Today</button><div class="at-mid"><button type="button" class="at-ar" data-m="-1" aria-label="Back">&#8249;</button><h4 id="calMonT"></h4><button type="button" class="at-ar" data-m="1" aria-label="Forward">&#8250;</button></div><span class="cal-seg at-seg" role="tablist">${seg}</span></div>
+      <p class="at-how">${how}</p>${!cli && chOn('tasks') && !d0tasks ? '<p class="v2hint" style="margin:0 0 8px;color:var(--warn)">The tasks did not load; showing marketing only.</p>' : ''}
       <div class="cal-mo" id="calMonth"></div>${lg}</div>`;
   }
   let d0tasks = true;
@@ -562,7 +600,7 @@
       const vv = viewOf(act);
       if (vv === 'day') ST.day = n ? add(ST.day || d.today, n) : null;
       else if (vv === 'list') ST.lst = n ? add(ST.lst || d.today, n * 28) : null;
-      else if (vv === 'week') ST.wk = n ? add(monday(ST.wk || d.today), n * 7) : null;
+      else if (vv === 'week') ST.wk = n ? add(sunday(ST.wk || d.today), n * 7) : null;
       else { const cur = ST.mon || d.today.slice(0, 7); const [y, m] = cur.split('-').map(Number); ST.mon = n ? new Date(Date.UTC(y, m - 1 + n, 1)).toISOString().slice(0, 7) : null; }
       again();
     });
