@@ -166,31 +166,7 @@ function askLine(a) {
 }
 
 /** The weekly or monthly client post: labelled bullets, one comparison each vs the period before. */
-/* EMAIL AND TEXTS (2026-11-21, Cole yes on the send calendar plan step 4, Well Copy's Monday report): Klaviyo's own
-   week, read by worker.js emailWeek. Revenue is what Klaviyo credits to email and SMS; share = that over the store's
-   sales. Rates are against what was delivered. The goals are Well Copy's published targets; only a miss is said. */
-export const EMAIL_GOALS = { open: 0.5, click: 0.005, bounce: 0.01, unsub: 0.003, spam: 0.0001 };
-const pc = (v, d = 1) => (v == null || !isFinite(v) ? null : `${(v * 100).toFixed(d).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')}%`);
-export function emailLines(e, currency = 'USD', sales = null) {
-  if (!e || !(e.received > 0 || e.revenue > 0 || e.sms_received > 0)) return [];
-  const L = [], p = e.prev || {}, del = Math.max(0, (e.received || 0) - (e.bounced || 0));
-  const r = { open: del ? e.opened / del : null, click: del ? e.clicked / del : null, bounce: e.received ? e.bounced / e.received : null, unsub: del ? e.unsub / del : null, spam: del ? e.spam / del : null };
-  const share = sales > 0 && e.revenue != null ? e.revenue / sales : null;
-  const w = changeWords(e.revenue, p.revenue);
-  L.push(`• ${e.sms_received > 0 || e.sms_revenue > 0 ? 'Email and text sales' : 'Email sales'}: *${money(e.revenue, currency)}*${w ? ` (${w})` : ''}${share != null ? `, ${pc(share, 0)} of store sales` : ''}`);
-  if (e.received > 0) L.push(`• Emails delivered: *${Math.round(del).toLocaleString('en-US')}* · opened ${pc(r.open, 0) || 'n/a'} · clicked ${pc(r.click, 1) || 'n/a'}`);
-  if (e.sms_received > 0) L.push(`• Texts delivered: *${Math.round(e.sms_received).toLocaleString('en-US')}*${e.sms_revenue > 0 ? ` · ${money(e.sms_revenue, currency)} in sales` : ''}`);
-  const miss = [];
-  if (r.open != null && r.open < EMAIL_GOALS.open) miss.push(`opens ${pc(r.open, 0)} (goal 50%+)`);
-  if (r.click != null && r.click < EMAIL_GOALS.click) miss.push(`clicks ${pc(r.click, 2)} (goal 0.5%+)`);
-  if (r.bounce != null && r.bounce > EMAIL_GOALS.bounce) miss.push(`bounces ${pc(r.bounce, 1)} (goal under 1%)`);
-  if (r.unsub != null && r.unsub > EMAIL_GOALS.unsub) miss.push(`unsubscribes ${pc(r.unsub, 2)} (goal under 0.3%)`);
-  if (r.spam != null && r.spam > EMAIL_GOALS.spam) miss.push(`spam reports ${pc(r.spam, 3)} (goal under 0.01%)`);
-  L.push(miss.length ? `• Under goal: ${miss.join(', ')}` : '• Opens, clicks, bounces, unsubscribes and spam all at goal');
-  return L;
-}
-
-export function weeklyPost({ brand, period = 'weekly', start, end = null, currency = 'USD', totals = {}, previous = {}, sentence, this_week = [], from_you = [], url = null, amazon = null, email = null }) {
+export function weeklyPost({ brand, period = 'weekly', start, end = null, currency = 'USD', totals = {}, previous = {}, sentence, this_week = [], from_you = [], url = null, amazon = null }) {
   const monthly = period === 'monthly';
   const endTxt = end ? (end.slice(5, 7) === start.slice(5, 7) ? String(+end.slice(8, 10)) : monDay(end)) : '';
   const span = monthly ? `${MONTHS[at(start).getUTCMonth()]} report` : `Weekly report, ${monDay(start)}${endTxt ? ` to ${endTxt}` : ''}`;
@@ -207,8 +183,6 @@ export function weeklyPost({ brand, period = 'weekly', start, end = null, curren
   if (x(t.amer)) L.push(`• aMER (new customers): *${x(t.amer)}*${x(p.amer) ? ` (was ${x(p.amer)})` : ''}`);
   if (amazon?.cur?.orders > 0) L.push(`• Amazon: *${money(amazon.cur.sales, currency)}* (${amazon.cur.orders} orders${amazon.prev?.orders > 0 ? `, was ${money(amazon.prev.sales, currency)}` : ''})`);
   if (t.cm != null) L.push(`• Contribution margin: *${money(t.cm, currency)}*${p.cm != null ? ` (was ${money(p.cm, currency)})` : ''}`, `_${CM_WORDS}_`);
-  const em = emailLines(email, currency, t.sales);
-  if (em.length) L.push('', '*Email and texts*', ...em);
   const clip = s => s.length <= 160 ? s : s.slice(0, 157).replace(/\s+\S*$/, '') + '...';
   const clean = list => [...new Set((Array.isArray(list) ? list : []).map(s => clip(noDash(askLine(s)).replace(/^[•\-\s]+/, ''))).filter(Boolean))];
   const tw = clean(this_week), fy = clean(from_you);

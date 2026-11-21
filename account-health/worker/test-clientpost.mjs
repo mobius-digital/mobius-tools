@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
-import { emailLines, dailyPost, dailyThread, weeklyPost, weekSentence, dailyVerdict, pctChange, shortMoney, oneChannel, internalChannel, CM_WORDS } from './src/clientpost.js';
+import { dailyPost, dailyThread, weeklyPost, weekSentence, dailyVerdict, pctChange, shortMoney, oneChannel, internalChannel, CM_WORDS } from './src/clientpost.js';
 import { clientBits, clientMessages } from './src/calendar.js';
 import { confirm, ensureMeetings } from './src/meetings.js';
 import { allowedChannels } from './src/askschedule.js';
@@ -225,21 +225,6 @@ await check('a brand whose internal channel is its client channel has no interna
     ['asana-brand.js', 'acct.slack_channel === acct.brief_channel) acct.slack_channel = null'], ['calendar.js', 'b.channel === b.client_channel) continue'], ['worker.js', 'internalChannel(a) || def']]) {
     assert.ok(fs.readFileSync(path.join(here, 'src', f), 'utf8').includes(needle), `${f} guards the one-channel brand`);
   }
-});
-
-/* ---------------- the weekly email and texts block ---------------- */
-await check('weekly report: email block with share of sales and only the misses', async () => {
-  const e = { revenue: 3000, sms_revenue: 500, received: 10000, opened: 4000, clicked: 30, bounced: 50, unsub: 20, spam: 0, sms_received: 2000, prev: { revenue: 2000 } };
-  const L = emailLines(e, 'USD', 10000);
-  assert.ok(L[0].includes('$3,000') && L[0].includes('30% of store sales'), L[0]);
-  assert.ok(L.some(l => l.includes('Texts delivered: *2,000*')));
-  const miss = L.find(l => l.startsWith('• Under goal'));
-  assert.ok(miss && miss.includes('opens 40%') && miss.includes('clicks 0.3%') && !miss.includes('bounces') && !miss.includes('unsub'), miss);
-  assert.deepEqual(emailLines(null), []); assert.deepEqual(emailLines({ received: 0, revenue: 0 }), []);
-  const t = weeklyPost({ brand: 'Lucky', start: '2026-11-16', end: '2026-11-22', totals: { sales: 10000, spend: 4000, mer: 2.5 }, previous: { sales: 9000, spend: 4000, mer: 2.25 }, email: e });
-  assert.ok(t.includes('*Email and texts*'), t);
-  assert.ok(!weeklyPost({ brand: 'Lucky', start: '2026-11-16', totals: { sales: 1 }, previous: {} }).includes('Email and texts'));
-  assert.ok(!t.includes('—'));
 });
 
 console.log(`\n${results.filter(Boolean).length}/${results.length} passed`);
