@@ -1000,6 +1000,10 @@ export async function postMonday(env, act, { auto = false } = {}) {
   /* 2026-11-09 (the lane format, lane.js): the Monday post asks the buyer for something only when there is something to
      pause or take off; otherwise the scheduled one is a line in the brand's end-of-day roundup. A post asked for from
      Locus always posts. */
+  /* 2026-11-20 (Cole: "don't I just do this through you anyway with media buying?"): the scheduled Monday post is off.
+     The test calls are made in the media buying call (/buy); a post asked for from Locus still posts. Setting
+     mondayTestPost = 'on' brings the scheduled one back (e.g. when a media buyer joins). */
+  if (auto && (await env.DB.prepare(`SELECT value FROM settings WHERE key = 'mondayTestPost'`).first().catch(() => null))?.value !== 'on') return { ...m, posted: 'off' };
   if (auto && !m.todo) {
     const c = m.counts || {};
     await fyi(env, { act, lane: 'MEDIA BUYING', line: `Monday test calls: nothing to pause or take off this week (${c.keep || 0} keep, ${c.early || 0} too early to call)` });

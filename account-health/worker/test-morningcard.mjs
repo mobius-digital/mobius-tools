@@ -68,7 +68,7 @@ const check = async (name, fn) => { try { await fn(); n++; console.log('PASS ', 
 const ids = {};
 await check('setup: tasks due today and overdue for Alpha (more than five lines in all), one for Beta', async () => {
   ids.t1 = (await addAction(env, { act: 'brand_alpha', text: 'Finish the Meta account consolidation', owner: 'Ahsan', due: '2026-10-13' })).id;
-  ids.t2 = (await addAction(env, { act: 'brand_alpha', text: 'Review the Web Skitters site', owner: 'Radhesh', due: '2026-10-11' })).id;
+  ids.t2 = (await addAction(env, { act: 'brand_alpha', text: 'Review the Web Skitters site', owner: 'Radhesh', due: '2026-10-12' })).id;
   ids.t3 = (await addAction(env, { act: 'brand_alpha', text: 'Gifting angles for Trybe creators', owner: 'Cole', due: '2026-10-13' })).id;
   ids.t4 = (await addAction(env, { act: 'brand_alpha', text: 'Send the size chart', owner: 'Noma', due: '2026-10-13' })).id;
   ids.t5 = (await addAction(env, { act: 'brand_alpha', text: 'Not due yet', owner: 'Ahsan', due: '2026-10-20' })).id;
@@ -109,14 +109,14 @@ await check('one card per brand to its INTERNAL channel; internal = client chann
   assert.equal(action.length, MAX_LINES + 1, 'Cole\'s line plus the calls line plus the rest, three task lines at most');
   assert.ok(lines.at(-1) === 'Yesterday $1,438 (plan $1,800) · MER 2.11x · and 3 more in Locus', 'the numbers and the rest counted are one quiet line at the end; a sent daily is not news');
   assert.equal(alphaCard.blocks.find(b => b.type === 'context').elements[0].text, lines.at(-1), 'that line is a context block');
-  assert.ok(alphaCard.text.includes('<@U_RAD>\n• Review the Web Skitters site · 2 days late'), 'no roster email: one users.list match');
+  assert.ok(alphaCard.text.includes('<@U_RAD>\n• Review the Web Skitters site · 1 day late'), 'no roster email: one users.list match');
   assert.ok(lines.includes('*CREATIVE · Alpha Golf*') && alphaCard.text.includes('*Ravo*\n• Finish 312 Hook test (3 days late)'), 'late production card says what to do under CREATIVE, a bold name when Slack has no id');
   assert.ok(lines.includes('*CLIENT · Alpha Golf*') && alphaCard.text.includes('<@U_AHSAN>\n• Chase the client: Fall polo samples · 4 days'), 'what the client owes is an ask under CLIENT');
   assert.ok(!/Weekly report/.test(alphaCard.text), 'no weekly line on a Tuesday');
   const btns = alphaCard.blocks.filter(b => b.type === 'actions').map(b => b.elements[0]);
   assert.deepEqual(btns.map(b => [b.text.text, b.url, b.action_id]), [['Open Alpha Golf in Locus', 'https://locus.go-mobius-digital.com/profit/?act=brand_alpha', 'noop_open'], ['Make the ad calls', 'https://locus.go-mobius-digital.com/profit/?open=today&act=brand_alpha&doall=1', 'noop_open']]);
   const beta = top.find(p => p.channel === 'C_BETA');
-  assert.deepEqual(beta.text.split('\n').slice(1, 4), ['*CLIENT · Beta Socks*', '<@U_COLE>', '• Approve the client daily, it is waiting on you'], 'a daily waiting is Cole\'s job, the first group, CLIENT');
+  assert.ok(!/Approve the client daily/.test(beta.text), 'a daily waiting is not a card line (2026-11-20: worker.js unsentAtNoonPass asks at noon)');
   assert.equal(beta.blocks.filter(b => b.type === 'actions').length, 1, 'no calls = no Make the calls button');
   assert.ok(!/—/.test(JSON.stringify(posts)), 'no em dash anywhere');
 });
@@ -154,7 +154,7 @@ await check('Done anywhere updates the card in place: struck through, no new mes
   assert.equal(updates.length, 1); assert.equal(updates[0].channel, 'C_ALPHA');
   assert.ok(!updates[0].text.includes('Review the Web Skitters site') && updates[0].text.includes('✓ 1 done'), 'a done line leaves the card and is counted');
   await markDone(env, ids.t2, false);
-  assert.ok(updates[1].text.includes('<@U_RAD>\n• Review the Web Skitters site · 2 days late') && !updates[1].text.includes('✓ 1 done'));
+  assert.ok(updates[1].text.includes('<@U_RAD>\n• Review the Web Skitters site · 1 day late') && !updates[1].text.includes('✓ 1 done'));
 });
 
 await check('a ✅ on the card itself marks every task line on it done (one redraw); a ✅ elsewhere is ignored', async () => {
@@ -183,7 +183,7 @@ await check('calls made on the page count on the line; all made = struck; a judg
   assert.ok(!/312 - Hook test/.test(updates[3].text), 'a judged production card leaves the card');
   brief('brand_beta', '2026-10-12', 'sent', 900, 1000, 3, '2026-10-13T12:40:00Z');
   await cardBriefState(env, d, ACCTS[1]);
-  assert.ok(!/Approve the client daily/.test(updates[4].text) && /\nYesterday \$900 \(plan \$1,000\) · MER 3\.00x · ✓ 1 done/.test(updates[4].text), 'the daily sent later = Cole\'s line leaves the card and is counted');
+  assert.ok(!updates[4] || !/Approve the client daily/.test(updates[4].text), 'the daily is never a card line (2026-11-20)');
 });
 
 await check('later posts go in the card\'s thread with the person tagged (alerts, requests, calendar, meetings use teamPost); no card = top-level', async () => {

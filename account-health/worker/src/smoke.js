@@ -330,6 +330,8 @@ async function runChecks(env, d, plan, next, { cap, maxChecks, maxMs }) {
 }
 
 /* ---------------- phase C: the summary, the post ---------------- */
+/* Locus's own trouble talking to Google (rate limits, quota, slow answers): not something the team can fix. */
+const OURS = /\b429\b|Resource has been exhausted|took longer than \d+ seconds/i;
 function summarize(run) {
   const byId = new Map(run.plan.map(c => [c.id, c]));
   const failed = [];
@@ -376,9 +378,24 @@ async function finish(env, d, run) {
   /* 2026-11-09 (lane.js): an all-clear asks nobody for anything, so it is a line in the agency's end-of-day roundup. */
   if (!run.dry && channel && !s.failed.length && !quiet) { s.posted = await fyi(env, { act: '', lane: 'OPS', line: slackText(s, new Date(`${run.date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })) }) ? 'roundup' : false; }
   else if (!run.dry && channel && s.failed.length) {
-    const label = new Date(`${run.date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
-    const r = await d.slackApi(env, 'chat.postMessage', { channel, text: slackText(s, label), unfurl_links: false, unfurl_media: false }).catch(e => ({ ok: false, error: e.message }));
-    s.posted = !!r?.ok; if (!r?.ok) s.post_error = clip(r?.error || 'Slack did not answer', 120);
+    /* 2026-11-20 (Cole: "so much noise"): the 8am post was mostly Locus's own Google quota and timeout errors (HTTP 429,
+       "Resource has been exhausted", "took longer than 25 seconds"), which nobody on the team can fix, and the same
+       failures again every morning. Slack now gets only failures a person can act on, and each one once a week at
+       most. Everything still shows in Tools > Platform status. */
+    const posted = safeJson(await d.getSetting(env, 'smokePosted'), {}) || {};
+    const keyOf = f => `${f.brand}|${f.page}|${String(f.error || '').slice(0, 60)}`;
+    const fresh = s.failed.filter(f => !OURS.test(f.error || '') && !D1_BUSY.test(f.error || ''))
+      .filter(f => !posted[keyOf(f)] || d.addDays(posted[keyOf(f)], 7) <= run.date);
+    if (fresh.length) {
+      const label = new Date(`${run.date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
+      const r = await d.slackApi(env, 'chat.postMessage', { channel, text: slackText({ ...s, failed: fresh, not_checked: 0 }, label), unfurl_links: false, unfurl_media: false }).catch(e => ({ ok: false, error: e.message }));
+      s.posted = !!r?.ok; if (!r?.ok) s.post_error = clip(r?.error || 'Slack did not answer', 120);
+      if (r?.ok) {
+        for (const f of fresh) posted[keyOf(f)] = run.date;
+        for (const k of Object.keys(posted)) if (d.addDays(posted[k], 30) < run.date) delete posted[k];
+        await d.putSetting(env, 'smokePosted', JSON.stringify(posted));
+      }
+    } else s.posted = 'nothing new a person can fix';
   } else if (!channel && !run.dry) s.post_error = 'No Strategist channel is set (Agency settings > The Strategist), so nothing was posted.';
   await d.putSetting(env, 'smokeLast', JSON.stringify(s).slice(0, 200000));
   return s;

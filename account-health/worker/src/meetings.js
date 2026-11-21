@@ -239,6 +239,9 @@ export async function ingest(env, d, id, { force = false } = {}) {
 }
 
 async function tellReady(env, d, m, notes) {
+  /* 2026-11-20 (Cole: "so much noise"): one post per call (13 a week) is gone. Calls with notes to confirm are counted
+     in the one noon "waiting on you" line (worker.js unsentAtNoonPass); setting meetingPings = 'on' brings these back. */
+  if ((await getSetting(env, 'meetingPings')) !== 'on') return;
   const ch = await getSetting(env, 'strategistChannel');
   if (!ch) return;
   const items = notes.brands.reduce((n, b) => n + b.items.length, 0);

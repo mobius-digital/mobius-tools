@@ -312,7 +312,10 @@ export async function actionTick(env, d) {
   await ensureActions(env);
   const today = d.centralDate ? d.centralDate() : centralToday();
   const { results } = await env.DB.prepare(`SELECT * FROM p_action WHERE status = 'open' AND due != '' AND due <= ?1 AND (reminded_on IS NULL OR reminded_on != ?1) ORDER BY act_id, owner, due`).bind(today).all();
-  const rows = results || [];
+  /* 2026-11-20 (Cole: "so much noise"): an overdue task is reminded on its due day, the day after, at 3 and at 7 days
+     late, then never again (it stays open in Locus). "Plan Mobius content system" had come every morning since it slipped. */
+  const lateBy = due => Math.round((Date.parse(today + 'T12:00:00Z') - Date.parse(due + 'T12:00:00Z')) / 864e5);
+  const rows = (results || []).filter(r => [0, 1, 3, 7].includes(lateBy(r.due)));
   if (!rows.length) return { posted: 0 };
   const brands = await d.listBrands(env);
   const strat = await getSetting(env, 'strategistChannel');

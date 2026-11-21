@@ -196,7 +196,20 @@ export function funnelLeaks(f, days, money, cur) {
       const down = k === 'atc' ? (c.atc ? (c.purchase || 0) / c.atc : 0) : k === 'checkout' ? (c.checkout ? (c.purchase || 0) / c.checkout : 0) : 1;
       const orders = n * (bench - rate) * down;
       if (!aov || !(orders > 0)) continue;
-      const cost = orders * aov * scale;
+      /* 2026-11-20 (Cole: "false stuff"): Lucky's "add to cart on desktop 0.7%, $113.6K a month" was more than the store
+         sells. A step under a quarter of the benchmark is almost always the GA4 event not firing, not shoppers: it is
+         listed as a tracking check with no dollar figure (so it never reaches Slack). Any other step is capped at what
+         that device already sells a month: fixing one step cannot be worth more than doubling it. */
+      if (rate < bench * 0.25) {
+        out.push({ id: `funnel:${dev}:${k}`, area: 'funnel', verdict: 'measurement',
+          title: `Check tracking: ${BENCH[k].label.toLowerCase()} on ${DEV_LABEL[dev]} reads ${pc(rate)}, the benchmark is ${pc(bench)}`,
+          number: `${pc(rate)} of ${n.toLocaleString('en-US')} ${den === 'sessions' ? 'sessions' : den === 'atc' ? 'carts' : 'checkouts'} (GA4, last ${days} days)`,
+          benchmark: `${pc(bench)} on ${DEV_LABEL[dev]} (${BENCH[k].src})`, cost: null, cost_how: 'not priced: a gap this big is usually the GA4 event, not the shoppers',
+          fix: `Check that GA4 records ${k === 'atc' ? 'add_to_cart' : k === 'checkout' ? 'begin_checkout' : 'purchase'} on ${DEV_LABEL[dev]} (Shopify's Google channel or the theme), before changing the site.`,
+          rate, base, bench, device: dev, step: k });
+        continue;
+      }
+      const cost = Math.min(orders * aov * scale, (c.revenue || 0) * scale || Infinity);
       out.push({ id: `funnel:${dev}:${k}`, area: 'funnel',
         title: `${BENCH[k].label} on ${DEV_LABEL[dev]}: ${pc(rate)}, the benchmark is ${pc(bench)}`,
         number: `${pc(rate)} of ${n.toLocaleString('en-US')} ${den === 'sessions' ? 'sessions' : den === 'atc' ? 'carts' : 'checkouts'} (GA4, last ${days} days); your own 90 days before: ${pc(base)}`,

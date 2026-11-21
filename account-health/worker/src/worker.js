@@ -3187,7 +3187,10 @@ async function draftBrief(env, acct, date, { skipIfExists = false, steer } = {})
      or a post there failing (the bot not in it yet), falls back to the brand's own internal channel. */
   const agencyCh = await getSetting(env, 'dailyBriefsChannel').catch(() => null);
   const ch = agencyCh || acct.slack_channel;
-  if (ch) {
+  /* 2026-11-20 (Cole: "that doesn't need to be sent to me, I already send it"): no card at draft time. A daily that
+     goes out on its own never posts anything; one still unsent at noon gets its card then (unsentAtNoonPass), with
+     the Send button, and that is the only time it reaches Slack. A redraft of a card that is already up still updates. */
+  if (ch && (await getSetting(env, 'briefCardsAtDraft')) === 'on') {
     // The whole brief goes IN the message (Cole, 2026-08-28). It was a link for a
     // while, on the reasoning that review means opening it properly - but that was
     // decided while four bots were posting into these channels and length was the
@@ -3505,6 +3508,10 @@ async function alertScheduleTrouble(env, label, payload) {
      something else has already earned the message, and are always visible in
      Settings. */
   if (!errors) { await putSetting(env, 'lastTrouble', '').catch(() => {}); return; }
+  /* 2026-11-20 (Cole: "so much noise"): "Look at the N errors in nightly sync" named nothing he could act on and came
+     most nights. Job errors stay in Locus > Settings > Are the automatic jobs actually running?; a sync that actually
+     breaks a brand still reaches Slack as that brand's connection finding (strategist.js runChecks). */
+  if ((await getSetting(env, 'jobErrorsToSlack')) !== 'on') return;
   const ch = await getSetting(env, 'slackChannel');
   if (!ch || !env.SLACK_BOT_TOKEN) return;
   // One message per distinct fault, not one per hour it persists.
@@ -5135,6 +5142,8 @@ async function postReportDraft(env, acct, r) {
   const agency = (await cardOn(env)) ? await getSetting(env, 'dailyBriefsChannel').catch(() => null) : null;
   const channel = agency || acct.slack_channel || await getSetting(env, 'reportChannel');
   if (!channel) return { skipped: 'no internal reports channel configured for this brand' };
+  /* 2026-11-20: same rule as the daily (draftBrief): nothing at draft time, a card at noon only if still unsent. */
+  if ((await getSetting(env, 'briefCardsAtDraft')) !== 'on') return { ok: true, waiting: 'posts at noon if still unsent' };
   /* The card carries the summary and the buttons that act on it. It used to be
      a headline and a link, which meant reviewing a report always cost a tab. */
   const row = {
@@ -6944,6 +6953,57 @@ async function ensureSlackColumns(env) {
 
 
 /* ------------------------------------------------------------------ */
+/*  Unsent at noon (2026-11-20)                                         */
+/* ------------------------------------------------------------------ */
+/* Cole sends the client dailies and reports himself, so a card at 5am asking him to was noise ("that should only be
+ * sent if it wasn't sent by 12 o'clock"). At noon Central, once a day: every client daily for yesterday and every
+ * weekly/monthly report still in draft gets its card (Send / Edit / Don't send) in the drafts channel, under one
+ * line tagging Cole. Nothing unsent = nothing posted. */
+const UNSENT_HOUR = 12;
+async function unsentAtNoonPass(env) {
+  if (centralHour() < UNSENT_HOUR) return { skipped: 'before noon' };
+  const today = localDate(BRIEF_TZ), date = addDays(today, -1);
+  if ((await getSetting(env, 'unsentNoonDone')) === today) return { skipped: 'done today' };
+  if (!env.SLACK_BOT_TOKEN) return { skipped: 'no SLACK_BOT_TOKEN secret' };
+  await putSetting(env, 'unsentNoonDone', today);
+  const agencyCh = await getSetting(env, 'dailyBriefsChannel').catch(() => null);
+  const accts = await listAccounts(env, true);
+  const byId = new Map(accts.map(a => [a.act_id, a]));
+  const { results: briefs } = await env.DB.prepare(`SELECT * FROM briefs WHERE date = ?1 AND status = 'draft' AND slack_ts IS NULL`).bind(date).all();
+  const { results: reps } = await env.DB.prepare(`SELECT * FROM reports WHERE status = 'draft' AND slack_ts IS NULL AND period_end >= ?1`).bind(addDays(today, -8)).all();
+  const items = [
+    ...briefs.filter(b => byId.has(b.act_id) && !internalOnly(byId.get(b.act_id))).map(b => ({ kind: 'brief', a: byId.get(b.act_id), row: b })),
+    ...reps.filter(r => byId.has(r.act_id) && !internalOnly(byId.get(r.act_id))).map(r => ({ kind: 'report', a: byId.get(r.act_id), row: r })),
+  ];
+  /* Calls whose notes wait for a confirm (meetings.js no longer posts one message per call): counted here, once a day. */
+  const calls = await env.DB.prepare(`SELECT title FROM p_meeting WHERE status = 'extracted' AND date >= ?1 ORDER BY date DESC`).bind(addDays(today, -7)).all().then(r => r.results || []).catch(() => []);
+  const label = i => i.kind === 'brief' ? `${i.a.name} daily` : `${i.a.name} ${i.row.period}`;
+  const callLine = calls.length ? `${calls.length} call${calls.length === 1 ? '' : 's'} with notes to confirm (${calls.slice(0, 4).map(c => c.title).join(', ')}${calls.length > 4 ? ', ...' : ''}): <${DASHBOARD_URL}?open=calls|open Calls>` : '';
+  if (!items.length && !calls.length) return { ok: true, unsent: 0 };
+  const out = [];
+  const lines = [items.length ? `Not sent to the client yet: ${items.map(label).join(', ')}. Send or skip each one in the thread.` : '', callLine].filter(Boolean);
+  const head = await slackPost(env, agencyCh || (items[0] && items[0].a.slack_channel) || await getSetting(env, 'strategistChannel'),
+    `<@${COLE_SLACK}> ${lines.join(' ')}`, null, { username: 'Locus' }).catch(() => null);
+  for (const i of items) {
+    const ch = agencyCh || i.a.slack_channel;
+    if (!ch) continue;
+    try {
+      const card = i.kind === 'brief'
+        ? briefCard(i.a, i.row.date, i.row, undefined, await clientPreviewFor(env, i.a, i.row.date).catch(() => null))
+        : await reportCard(env, i.a, i.row);
+      const opts = { username: 'Locus', icon: i.kind === 'brief' ? ':memo:' : ':clipboard:', ...(head?.ts && ch === (head.channel || ch) ? { thread_ts: head.ts } : {}) };
+      const posted = await slackPost(env, ch, card.text, card.blocks, opts);
+      if (posted?.ts) {
+        if (i.kind === 'brief') await env.DB.prepare(`UPDATE briefs SET slack_ts = ?3, slack_channel = ?4 WHERE act_id = ?1 AND date = ?2`).bind(i.a.act_id, i.row.date, posted.ts, posted.channel || ch).run();
+        else await env.DB.prepare(`UPDATE reports SET slack_ts = ?4, slack_channel = ?5 WHERE act_id = ?1 AND period = ?2 AND period_start = ?3`).bind(i.a.act_id, i.row.period, i.row.period_start, posted.ts, posted.channel || ch).run();
+      }
+      out.push({ item: label(i), ok: !!posted?.ts });
+    } catch (e) { out.push({ item: label(i), error: e.message }); }
+  }
+  return { ok: true, unsent: items.length, calls: calls.length, out };
+}
+
+/* ------------------------------------------------------------------ */
 /*  Delivery alerts - the only scheduled Slack alert left.               */
 /*                                                                      */
 /*  An ad account can stop spending silently: a declined card, a         */
@@ -6975,6 +7035,23 @@ async function deliveryState(env) {
   return safeJson(await getSetting(env, 'deliveryState'), {});
 }
 
+/** What the account is set to spend a day RIGHT NOW: active campaign budgets (CBO) plus active ad set budgets in
+ *  active campaigns without one. 2026-11-20 (Cole: "so much noise"): the alert compared against last week, so every
+ *  budget we cut on purpose (giveaways ending, BFCM trimmed) paged "spending well below normal" four days running.
+ *  meta_write updates these rows the moment a budget changes, so a cut is seen at once. null = unknown (no rows). */
+async function liveDailyBudget(env, a) {
+  const now = new Date().toISOString();
+  const r = await env.DB.prepare(
+    `SELECT
+       (SELECT COALESCE(SUM(c.daily_budget), 0) FROM meta_campaigns c WHERE c.act_id IN ${metaOf(1)} AND c.status = 'ACTIVE' AND c.daily_budget > 0) +
+       (SELECT COALESCE(SUM(s.daily_budget), 0) FROM meta_adsets s JOIN meta_campaigns c ON c.campaign_id = s.campaign_id
+          WHERE s.act_id IN ${metaOf(1)} AND s.status = 'ACTIVE' AND c.status = 'ACTIVE' AND (c.daily_budget IS NULL OR c.daily_budget = 0) AND s.daily_budget > 0
+            AND (s.start_time IS NULL OR s.start_time <= ?2) AND (s.end_time IS NULL OR s.end_time > ?2)) AS b,
+       (SELECT COUNT(*) FROM meta_campaigns c WHERE c.act_id IN ${metaOf(1)}) AS n`,
+  ).bind(a.act_id, now).first().catch(() => null);
+  return r && r.n > 0 && r.b > 0 ? r.b : null;
+}
+
 /** Yesterday against this account's own 7-day median. Pure D1, no Meta call. */
 async function checkCompletedDay(env, a, day) {
   const { results } = await env.DB.prepare(
@@ -6983,7 +7060,10 @@ async function checkCompletedDay(env, a, day) {
   const dayRow = results.find(r => r.date === day);
   const prior = results.filter(r => r.date !== day).map(r => r.spend).sort((x, z) => x - z);
   if (prior.length < 4) return null;                       // not enough history to judge
-  const med = prior[Math.floor(prior.length / 2)];
+  let med = prior[Math.floor(prior.length / 2)];
+  /* A normal day is never more than the budgets set today: a budget cut on purpose is not a delivery problem. */
+  const budget = await liveDailyBudget(env, a);
+  if (budget != null) med = Math.min(med, budget);
   if (med < DELIVERY_MIN_SPEND) return null;               // tiny spender: too noisy
 
   /* NO ROW IS NOT ZERO SPEND. Meta has not told us about this day yet, or the
@@ -7009,6 +7089,10 @@ async function checkToday(env, a) {
   let p;
   try { p = await hourlyPacing(env, a); } catch { return null; }
   if (!p || !(p.l7_by_now >= DELIVERY_MIN_SPEND / 2)) return null;   // too early / too small to judge
+  /* Scale "normal by now" down to today's budgets (liveDailyBudget): last week's giveaway spend is not today's normal. */
+  const budget = await liveDailyBudget(env, a);
+  if (budget != null && p.l7_daily_avg > 0 && budget < p.l7_daily_avg) p.l7_by_now = p.l7_by_now * budget / p.l7_daily_avg;
+  if (!(p.l7_by_now >= DELIVERY_MIN_SPEND / 2)) return null;
   if (p.spent > p.l7_by_now * DELIVERY_FLOOR) return null;
   return p.spent === 0
     ? `🚨 *${a.name}* has spent *nothing* so far today (normally about ${money(p.l7_by_now, a.currency)} by this hour). Check billing, campaign status and policy.`
@@ -7081,7 +7165,7 @@ async function deliveryPass(env) {
         if (why.startsWith(a.name)) why = why.slice(a.name.length).replace(/^[\s-]+/, '');
         groups.push({ lane: 'MEDIA BUYING', brand: a.name, items: [{ who, ask: `Check why ${a.name} is spending well below normal`, why }] });
       }
-      const m = laneLines(groups, { foot: ["Compared with each account's own last 7 days, never a fixed target"], buttons: [{ label: 'Open Locus > Meta', url: `${DASHBOARD_URL}?open=meta` }] });
+      const m = laneLines(groups, { foot: ["Compared with each account's own last 7 days, capped at today's budgets"], buttons: [{ label: 'Open Locus > Meta', url: `${DASHBOARD_URL}?open=meta` }] });
       await slackPost(env, ch, m.text, m.blocks);
       results.push({ channel: ch, sent: lines.length });
     } catch (e) { results.push({ channel: ch, error: e.message }); }
@@ -7915,6 +7999,7 @@ const AH_APP = {
         const clientCards = await clientCardsOnce(env).catch(e => ({ error: e.message }));
         if (clientCards) ran.clientCardsUpgrade = clientCards;
         ran.delivery = await deliveryPass(env).catch(e => ({ error: e.message }));
+        ran.unsentNoon = await unsentAtNoonPass(env).catch(e => ({ error: e.message }));
         if (hour >= bh) {
           ran.briefs = await dailyBriefs(env).catch(e => ({ error: e.message }));
           // Reports wait TWO hours behind the brief. They could share a tick now
