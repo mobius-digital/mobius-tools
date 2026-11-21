@@ -165,6 +165,19 @@ async function brandRow(env, act) {
   R.goal = +dj.target_cpa > 0 ? +dj.target_cpa : +a.target_cpa > 0 ? +a.target_cpa : null;
   /* A goal per platform (rules goal_google / goal_tiktok, in the brand's own metric) wins on that platform's campaigns. */
   R.goal_by = { google: +dj.goal_google > 0 ? +dj.goal_google : null, tiktok: +dj.goal_tiktok > 0 ? +dj.goal_tiktok : null, meta: +dj.goal_meta > 0 ? +dj.goal_meta : null };
+  /* 2026-11-20: platform goals are in the brand's own metric. For a ROAS brand (Lucky, Dartee, Bonk) goal_google 3 means
+     3.0x, and it was read as $3 a sale, so every Google campaign showed 20 to 60x over goal. A ROAS goal becomes a cost
+     per sale through the store's own order value over the last 30 days (the same idea as hub.js unitOf). */
+  if (dj.goal_metric === 'roas') {
+    const to = new Date().toISOString().slice(0, 10), from = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
+    const t = await env.DB.prepare(`SELECT SUM(CASE WHEN metric = 'totalSales' THEN value END) sales, SUM(CASE WHEN metric = 'totalOrders' THEN value END) orders FROM tw_daily WHERE act_id = ?1 AND date BETWEEN ?2 AND ?3`).bind(act, from, to).first().catch(() => null);
+    const aov = t && t.orders > 0 ? t.sales / t.orders : null;
+    R.goal_roas = {};
+    for (const k of Object.keys(R.goal_by)) {
+      const x = R.goal_by[k];
+      if (x) { R.goal_roas[k] = x; R.goal_by[k] = aov ? aov / x : null; }
+    }
+  }
   return { ...a, R };
 }
 /** Over the cut line: no sale after cut_zero_x goals, or cut_cpa_x the goal after cut_spend_x goals. Cost = what was
@@ -310,7 +323,7 @@ export async function leaksFor(env, d, act, { days = 30, fresh = false, ai = fal
       const v = (g.video || []).find(x => x.id === c.id);
       leaks.push({ id: `${area}:camp:${c.id}`, area, title: `"${c.name}" costs ${over.why === 'no_sale' ? 'money with no sale' : `${(over.cpa / R.goal).toFixed(1)}x the goal per sale`}`,
         number: `${money(c.spend)} spent, ${c.conversions.toFixed(1)} conversions${over.cpa ? `, ${money(over.cpa)} each` : ''} (Google Ads, its own count, last ${days} days)${v && v.views ? `; ${v.views.toLocaleString('en-US')} views, ${pc(v.view_rate)} view rate, ${sym(cur)}${(v.cpv || 0).toFixed(2)} per view` : ''}`,
-        benchmark: `${a.name}'s goal: ${money(R.goal)} per sale. Cut line: ${over.why === 'no_sale' ? `${R.cr_cut_zero_x}x the goal spent with no sale` : `${R.cr_cut_cpa_x}x the goal per sale after ${R.cr_cut_spend_x}x the goal spent`} (Brand settings > Ads rules, the same line Meta's calls use)`,
+        benchmark: `${a.name}'s goal: ${money(R.goal)} per sale${R.goal_roas?.google && R === Rg ? ` (${R.goal_roas.google}x ROAS at the store's 30-day order value)` : ''}. Cut line: ${over.why === 'no_sale' ? `${R.cr_cut_zero_x}x the goal spent with no sale` : `${R.cr_cut_cpa_x}x the goal per sale after ${R.cr_cut_spend_x}x the goal spent`} (Brand settings > Ads rules, the same line Meta's calls use)`,
         cost: over.excess * scale, cost_how: over.why === 'no_sale' ? 'everything it spent, as a month' : `spend beyond ${money(R.goal)} x its conversions, as a month`,
         fix: area === 'google_video' ? 'Worth considering a smaller budget, or moving it to what converts. Video often opens journeys others close, so it is worth checking its Triple Whale first-click credit first.'
           : area === 'google_pmax' ? 'Worth considering a 20 to 30% lower daily budget, and a look at the product feed and asset groups; if the brand’s Shopping searches convert, they could be split out.' : 'Worth considering lower bids or budget, and a read of its search terms.',
