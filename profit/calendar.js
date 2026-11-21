@@ -51,7 +51,7 @@
   /* CHANNELS (2026-11-21, Cole yes on the send calendar plan, Well Copy's Airtable view): every chip belongs to one
      channel and the pills above the calendar switch each on or off (saved per viewer in cal_ch). Ads = ad pushes plus
      each date's "Ads loaded" step on its due day; Organic = social posts; Tasks = the team's (never for a client). */
-  const CHS = [['dates', 'Sales and drops', '#2f3540'], ['email', 'Email', '#2d9d4b'], ['sms', 'SMS', '#8f5fd6'], ['ads', 'Ads', '#3b6fe0'], ['organic', 'Organic', '#e0629b'], ['tasks', 'Tasks', 'var(--muted)']];
+  const CHS = [['dates', 'Sales and drops', '#5b7c99'], ['email', 'Email', '#2f9e44'], ['sms', 'SMS', '#c7b0f2'], ['ads', 'Ads', '#2d7ff9'], ['organic', 'Organic', '#9fe0f3'], ['tasks', 'Tasks', 'var(--muted)']];
   const CHOFF = (() => { try { return JSON.parse(store('cal_ch') || '{}') || {}; } catch { return {}; } })();
   const chOn = k => (k === 'tasks' && CLI() ? false : CHOFF[k] !== true);
   const chOf = x => (x.kind === 'mail' ? (x.mail.channel === 'sms' ? 'sms' : 'email') : x.kind === 'post' ? 'organic' : x.kind === 'task' ? 'tasks' : x.kind === 'ad' || x.kind === 'adpush' ? 'ads' : 'dates');
@@ -115,7 +115,7 @@
       .cal .cal-tw{container:caltw/inline-size}
       .cal .cal-two{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;align-items:start}
       .cal .cal-cu{display:grid;gap:9px;grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
-      @container caltw (min-width:1180px){.cal .cal-two{grid-template-columns:minmax(0,1fr) 320px}.cal .cal-cu{grid-template-columns:1fr}}
+      @container caltw (min-width:1180px){.cal .cal-cu{grid-template-columns:repeat(3,minmax(0,1fr))}}
       .cal .cal-mw{container:calmo/inline-size}
       .cal .cal-mo{border-top:1px solid var(--line);border-left:1px solid var(--line)}
       .cal .cal-mo .dhr,.cal .cal-mo .wr{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:0;position:relative}
@@ -203,8 +203,8 @@
       .cal-at{--at-line:color-mix(in srgb,var(--ink) 11%,var(--surface));--at-green:#2d9d4b;--at-sms:#8f5fd6;--at-orange:#f29b1d;--at-teal:#1d9a8c;--at-blue:#3b6fe0;--at-pink:#e0629b;--at-grey:#7b8794;padding:16px 18px}
       .cal-at .at-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 10px} .cal-at .at-top h3{margin:0;font-size:14px;font-weight:650}
       .cal-at .at-new{background:var(--at-green);color:#fff;border:0;border-radius:6px;padding:6px 12px;font:inherit;font-size:12.5px;font-weight:650;cursor:pointer}
-      .cal-at .at-tools{margin:0 0 10px;padding:0 0 10px;border-bottom:1px solid var(--at-line)} .cal-at .at-tools .cal-layer{border-radius:6px;border:0;background:transparent;font-weight:500;color:var(--ink-2)}
-      .cal-at .at-tools .cal-layer.on{background:color-mix(in srgb,var(--at-green) 14%,var(--surface));color:var(--ink)} .cal-at .at-tools .cal-layer.off{opacity:.5;border:0;text-decoration:line-through}
+      
+      
       .cal-at .at-nav{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;margin:0 0 10px}
       .cal-at .at-btn{border:1px solid var(--at-line);background:var(--surface);color:var(--ink);border-radius:6px;padding:4px 10px;font:inherit;font-size:12px;cursor:pointer}
       .cal-at .at-mid{display:flex;align-items:center;gap:10px} .cal-at .at-mid h4{margin:0;font-size:17px;font-weight:650;min-width:120px;text-align:center}
@@ -230,7 +230,21 @@
       .cal-at .cal-chip.more{background:transparent;color:var(--ink-2)}
       .cal-at .cal-mo .dots i.mail{--c:var(--at-green)} .cal-at .cal-mo .dots i.sms{--c:var(--at-sms)} .cal-at .cal-mo .dots i.sale{--c:var(--at-orange)} .cal-at .cal-mo .dots i.drop{--c:var(--at-teal)} .cal-at .cal-mo .dots i.ad{--c:var(--at-blue)} .cal-at .cal-mo .dots i.post{--c:var(--at-pink)}
       .cal-at .cal-lg{display:none}
-      .cal-at{--at-red:#e0483e;--at-char:#2f3540;--at-content:#f29b1d}
+      .cal-at{--at-green:#2f9e44;--at-red:#f4a9c6;--at-char:#5b7c99;--at-content:#f5a524;--at-sms:#c7b0f2;--at-teal:#20a39e;--at-blue:#2d7ff9;--at-pink:#9fe0f3;--at-grey:#c9ced6}
+      .cal-at .cal-chip{font-size:10.5px;font-weight:500;letter-spacing:-.005em;padding:0 6px;margin:0 3px;height:18px;line-height:18px}
+      .cal-at .cal-chip.mail.em.p-last,.cal-at .cal-chip.mail.sms,.cal-at .cal-chip.post,.cal-at .cal-chip.other{color:#1f2329}
+      .cal-at .cal-chip.pen,.cal-at .cal-chip.mail.em.pen,.cal-at .cal-chip.mail.sms.pen,.cal-at .cal-chip.post.pen,.cal-at .cal-chip.ad:not(.done){background:var(--surface)!important;color:var(--ink)!important;box-shadow:inset 0 0 0 1.5px var(--c)}
+      .cal-at .at-tools{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin:0 0 12px;padding:0 0 10px;border-bottom:1px solid var(--at-line)}
+      .cal-at .at-tb{display:inline-flex;align-items:center;gap:5px;padding:4px 8px;border-radius:6px;font-size:12px;color:var(--ink-2);cursor:pointer;list-style:none;user-select:none}
+      .cal-at .at-tb:hover{background:var(--surface-2)} .cal-at .at-tb.by{background:color-mix(in srgb,var(--at-green) 12%,var(--surface));color:var(--ink);cursor:default}
+      .cal-at .at-tb summary::-webkit-details-marker,.cal-at summary.at-tb::-webkit-details-marker{display:none}
+      .cal-at .at-n{background:var(--at-green);color:#fff;border-radius:99px;font-size:10px;padding:0 6px;line-height:15px}
+      .cal-at .at-dd{position:relative} .cal-at .at-menu{position:absolute;left:0;top:calc(100% + 6px);z-index:30;min-width:220px;background:var(--surface);border:1px solid var(--at-line);border-radius:8px;padding:10px;box-shadow:0 14px 30px -14px rgba(0,0,0,.35)}
+      .cal-at .at-menu p{margin:0 0 6px;font-size:11px;color:var(--muted)} .cal-at .at-menu .cal-layer{display:flex;width:100%;border:0;background:none;padding:5px 4px;border-radius:5px}
+      .cal-at .at-menu .cal-layer.off{opacity:.45;text-decoration:none} .cal-at .at-menu .cal-layer:hover{background:var(--surface-2)}
+      .cal-at .at-key.at-menu{width:min(440px,86vw)}
+      .cal-at .at-find input{border:0;background:none;outline:none;font:inherit;font-size:12px;color:var(--ink);width:110px}
+      .cal-at .at-find:focus-within{box-shadow:inset 0 0 0 1px var(--at-line)}
       .cal-at .cal-chip.mail.em.p-sale{--c:var(--at-green)} .cal-at .cal-chip.mail.em.p-last{--c:var(--at-red)} .cal-at .cal-chip.mail.em.p-content{--c:var(--at-content)}
       .cal-at .cal-chip.sale{--c:var(--at-char)} .cal-at .cal-chip.drop{--c:var(--at-teal)} .cal-at .cal-chip.other{--c:var(--at-grey)}
       .cal-at .cal-chip.task{background:var(--surface);color:var(--ink-2);box-shadow:inset 0 0 0 1px var(--at-line)}
@@ -242,7 +256,7 @@
       .cal-at .at-key i{width:16px;height:10px;border-radius:3px;display:inline-block}
       .cal-at .k-sale{background:var(--at-green)} .cal-at .k-last{background:var(--at-red)} .cal-at .k-content{background:var(--at-content)} .cal-at .k-sms{background:var(--at-sms)}
       .cal-at .k-date{background:var(--at-char)} .cal-at .k-drop{background:var(--at-teal)} .cal-at .k-ad{background:var(--at-blue)} .cal-at .k-post{background:var(--at-pink)}
-      .cal-at .k-task{background:var(--surface);box-shadow:inset 0 0 0 1px var(--at-line)} .cal-at .k-solid{background:var(--at-green)} .cal-at .k-pale{background:color-mix(in srgb,var(--at-green) 22%,var(--surface))}
+      .cal-at .k-task{background:var(--surface);box-shadow:inset 0 0 0 1px var(--at-line)} .cal-at .k-solid{background:var(--at-green)} .cal-at .k-pale{background:var(--surface);box-shadow:inset 0 0 0 1.5px var(--at-green)}
       .cal-at .k-miss{border:1.5px dashed var(--warn)}
       .cal-at .cal-mo .dots i.mail{--c:var(--at-green)} .calh .cal-mini .late{color:var(--warn);font-weight:600} .calh h4{margin:12px 0 4px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}`;
     document.head.appendChild(st);
@@ -380,7 +394,8 @@
       const due = String(t.due).slice(0, 10);
       items.push({ id: `task:${t.id}`, kind: 'task', name: t.text, label: pre(t.act_id) + t.text, start: due, end: due, status: 'conf', task: t });
     }
-    return items.filter(x => chOn(chOf(x))).sort((a, b) => a.start.localeCompare(b.start) || RANK(a) - RANK(b));
+    const q = (ST.q || '').trim().toLowerCase();
+    return items.filter(x => chOn(chOf(x)) && (!q || String(x.label || x.name || '').toLowerCase().includes(q))).sort((a, b) => a.start.localeCompare(b.start) || RANK(a) - RANK(b));
   }
   const MAILS = new Map();
   const chipTxt = x => String(x.label || x.name || '').replace(/(^|: )(Email|Text|Post|Ads in): /, '$1');
@@ -513,8 +528,11 @@
     /* AIRTABLE LOOK (2026-11-21, Cole: match Well Copy's Airtable calendar view): name + green "+ New date" on top,
        the channel chips as the toolbar, then Today on the left, "< Month >" in the middle, the view switch on the right. */
     return `<div class="cal-card cal-mw cal-at"><div class="at-top"><h3>${all ? 'Every client' : 'Marketing calendar'}</h3><button type="button" class="at-new" data-add="1">+ New date</button></div>
-      <div class="cal-fl cal-ch2 at-tools">${fl}</div>
-      <div class="at-nav"><div class="at-left"><button type="button" class="at-btn" data-m="0">Today</button><details class="at-colors"><summary class="at-btn">Colors</summary><div class="at-key"><span><i class="k-sale"></i>Email: sale</span><span><i class="k-last"></i>Email: last chance</span><span><i class="k-content"></i>Email: content, no hard sell</span><span><i class="k-sms"></i>Text</span><span><i class="k-date"></i>Sale or offer on the site</span><span><i class="k-drop"></i>Drop or launch</span><span><i class="k-ad"></i>Ads go in</span><span><i class="k-post"></i>Social post</span>${cli ? '' : '<span><i class="k-task"></i>Team task</span>'}<span class="sep"><i class="k-solid"></i>Solid = sent, live or done</span><span><i class="k-pale"></i>Pale = planned, not out yet</span><span><i class="k-miss"></i>Dashed = missing something</span></div></details></div><div class="at-mid"><button type="button" class="at-ar" data-m="-1" aria-label="Back">&#8249;</button><h4 id="calMonT"></h4><button type="button" class="at-ar" data-m="1" aria-label="Forward">&#8250;</button></div><span class="cal-seg at-seg" role="tablist">${seg}</span></div>
+      <div class="at-tools"><span class="at-tb by"><svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><rect x="2" y="3" width="12" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3" stroke="currentColor" stroke-width="1.4" fill="none"/></svg>By: Date</span>
+        <details class="at-dd"><summary class="at-tb"><svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M2 3h12l-4.6 5.4V13l-2.8-1.4V8.4z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>Filter${CHS.filter(([k]) => !chOn(k) && !(cli && k === 'tasks')).length ? `<b class="at-n">${CHS.filter(([k]) => !chOn(k) && !(cli && k === 'tasks')).length}</b>` : ''}</summary><div class="at-menu cal-ch2"><p>Show on the calendar</p>${fl}</div></details>
+        <details class="at-dd at-colors"><summary class="at-tb"><svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><circle cx="5" cy="6" r="2.2" fill="#2f9e44"/><circle cx="10.5" cy="5" r="2.2" fill="#f5a524"/><circle cx="8" cy="10.5" r="2.2" fill="#b38ae8"/></svg>Colors</summary><div class="at-key at-menu"><span><i class="k-sale"></i>Email: sale</span><span><i class="k-last"></i>Email: last chance</span><span><i class="k-content"></i>Email: content, no hard sell</span><span><i class="k-sms"></i>Text</span><span><i class="k-date"></i>Sale or offer on the site</span><span><i class="k-drop"></i>Drop or launch</span><span><i class="k-ad"></i>Ads go in</span><span><i class="k-post"></i>Social post</span>${cli ? '' : '<span><i class="k-task"></i>Team task</span>'}<span class="sep"><i class="k-solid"></i>Solid = sent, live or done</span><span><i class="k-pale"></i>Outlined = planned, not out yet</span><span><i class="k-miss"></i>Dashed = missing something</span></div></details>
+        <label class="at-tb at-find"><svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><circle cx="7" cy="7" r="4.3" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M10.2 10.2L14 14" stroke="currentColor" stroke-width="1.4"/></svg><input type="search" id="calFind" placeholder="Find" value="${esc(ST.q || '')}" autocomplete="off"></label></div>
+      <div class="at-nav"><div class="at-left"><button type="button" class="at-btn" data-m="0">Today</button></div><div class="at-mid"><button type="button" class="at-ar" data-m="-1" aria-label="Back">&#8249;</button><h4 id="calMonT"></h4><button type="button" class="at-ar" data-m="1" aria-label="Forward">&#8250;</button></div><span class="cal-seg at-seg" role="tablist">${seg}</span></div>
 ${!cli && chOn('tasks') && !d0tasks ? '<p class="v2hint" style="margin:0 0 8px;color:var(--warn)">The tasks did not load; showing marketing only.</p>' : ''}
       <div class="cal-mo" id="calMonth"></div>${lg}</div>`;
   }
@@ -629,6 +647,8 @@ ${!cli && chOn('tasks') && !d0tasks ? '<p class="v2hint" style="margin:0 0 8px;c
       again();
     });
     root.querySelectorAll('[data-view]').forEach(b => b.onclick = () => { VIEW.v = b.dataset.view; store('cal_view', VIEW.v); if (VIEW.v === 'week' && ST.mon) ST.wk = ST.mon === d.today.slice(0, 7) ? null : `${ST.mon}-01`; again(); });
+    const fd = root.querySelector('#calFind');
+    if (fd) fd.oninput = () => { ST.q = fd.value; const el = document.getElementById('calMonth'); if (el) { drawCal(el, d, act); wire(el, d, act); } };
     root.querySelectorAll('[data-ch]').forEach(b => b.onclick = () => { const k = b.dataset.ch; if (chOn(k)) CHOFF[k] = true; else delete CHOFF[k]; store('cal_ch', JSON.stringify(CHOFF)); again(); });
     root.querySelectorAll('[data-mail]').forEach(b => b.onclick = e => { e.stopPropagation(); mailPanel(d, b.dataset.mail); });
     root.querySelectorAll('[data-flt]').forEach(b => b.onclick = () => { VIEW.f = b.dataset.flt; store('cal_f', VIEW.f); again(); });
