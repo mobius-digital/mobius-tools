@@ -166,7 +166,18 @@ function askLine(a) {
 }
 
 /** The weekly or monthly client post: labelled bullets, one comparison each vs the period before. */
-export function weeklyPost({ brand, period = 'weekly', start, end = null, currency = 'USD', totals = {}, previous = {}, sentence, this_week = [], from_you = [], url = null, amazon = null }) {
+/* OUR WORK (2026-11-21, Cole: learn from Well Copy's weekly report, for an ADS agency): every weekly report shows the
+   client the work, the way Well Copy shows "16 to 24 emails a month": new ads launched (Meta, by created time) and the
+   changes we made that the client can read about (Ads > Updates rows with a client why), with the link to those. */
+export function workLines(w) {
+  if (!w || !(w.ads > 0 || w.changes > 0)) return [];
+  const L = [];
+  if (w.ads > 0) L.push(`• New ads launched: *${w.ads}*${w.ads_prev != null ? ` (${w.ads_prev} the week before)` : ''}`);
+  if (w.changes > 0) L.push(`• Changes we made to your ads: *${w.changes}*${w.updates_url ? ` (<${w.updates_url}|see each one and why>)` : ''}`);
+  return L;
+}
+
+export function weeklyPost({ brand, period = 'weekly', start, end = null, currency = 'USD', totals = {}, previous = {}, sentence, this_week = [], from_you = [], url = null, amazon = null, work = null }) {
   const monthly = period === 'monthly';
   const endTxt = end ? (end.slice(5, 7) === start.slice(5, 7) ? String(+end.slice(8, 10)) : monDay(end)) : '';
   const span = monthly ? `${MONTHS[at(start).getUTCMonth()]} report` : `Weekly report, ${monDay(start)}${endTxt ? ` to ${endTxt}` : ''}`;
@@ -185,6 +196,8 @@ export function weeklyPost({ brand, period = 'weekly', start, end = null, curren
   if (t.cm != null) L.push(`• Contribution margin: *${money(t.cm, currency)}*${p.cm != null ? ` (was ${money(p.cm, currency)})` : ''}`, `_${CM_WORDS}_`);
   const clip = s => s.length <= 160 ? s : s.slice(0, 157).replace(/\s+\S*$/, '') + '...';
   const clean = list => [...new Set((Array.isArray(list) ? list : []).map(s => clip(noDash(askLine(s)).replace(/^[•\-\s]+/, ''))).filter(Boolean))];
+  const wl = workLines(work);
+  if (wl.length) L.push('', `*Our work this ${unit}*`, ...wl);
   const tw = clean(this_week), fy = clean(from_you);
   if (tw.length) L.push('', `*This ${unit}*`, ...tw.slice(0, 5).map(s => `• ${s}`));
   if (fy.length) L.push('', '*We need from you*', ...fy.slice(0, 3).map(s => `• ${s}`));

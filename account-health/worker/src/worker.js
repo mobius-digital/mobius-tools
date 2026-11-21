@@ -3437,6 +3437,14 @@ async function clientDailyFor(env, acct, date, text, data, { next = true } = {})
  *  + the calendar's confirmed dates in the next 7 days, We need from you = the call's asks + the calendar's asks + open
  *  Requests asks (each with when it was asked and when it is needed), then the archive link. The draft card shows the
  *  same text. No model writes any of it. */
+/** The week's ads work for the client report: new Meta ads created and the client-readable changes (Ads > Updates). */
+async function adsWork(env, act, start, end) {
+  const n = async (a, z) => (await env.DB.prepare(`SELECT COUNT(*) n FROM ads WHERE act_id IN (SELECT external_id FROM connections WHERE brand_id = ?1 AND kind = 'meta') AND substr(created_time, 1, 10) BETWEEN ?2 AND ?3`).bind(act, a, z).first().catch(() => null))?.n || 0;
+  const ch = (await env.DB.prepare(`SELECT COUNT(*) n FROM activities a JOIN connections c ON c.kind = 'meta' AND c.external_id = a.act_id
+      WHERE c.brand_id = ?1 AND substr(a.event_time, 1, 10) BETWEEN ?2 AND ?3 AND a.confirmed <> -1 AND TRIM(COALESCE(a.client_why, '')) <> ''`).bind(act, start, end).first().catch(() => null))?.n || 0;
+  return { ads: await n(start, end), ads_prev: await n(addDays(start, -7), addDays(start, -1)), changes: ch,
+    updates_url: `https://locus.go-mobius-digital.com/profit/?open=adupdates&act=${encodeURIComponent(act)}` };
+}
 async function clientReportText(env, acct, row, data) {
   const period = row.period, start = row.period_start;
   const url = `${DASHBOARD_URL}?reports=${await reportToken(env, acct.act_id)}`;
@@ -3448,6 +3456,7 @@ async function clientReportText(env, acct, row, data) {
     brand: acct.name, period, start, end: row.period_end, currency: data?.account?.currency || acct.currency, totals: data?.totals, previous: data?.previous,
     sentence: weekSentence(data?.totals, data?.previous, period === 'monthly' ? 'month' : 'week'),
     amazon: (() => { const c = (data?.channels || []).find(x => x.id === 'amazon'); return c ? { cur: c.cur ? { sales: c.cur.sales, orders: c.cur.orders } : null, prev: c.prev ? { sales: c.prev.sales, orders: c.prev.orders } : null } : null; })(),
+    work: period === 'weekly' ? await adsWork(env, acct.act_id, start, row.period_end || addDays(start, 6)).catch(() => null) : null,
     this_week: [...(Array.isArray(data?.this_week) ? data.this_week : []), ...(cal?.going_live || [])],
     from_you: [...(Array.isArray(data?.need_from_you) ? data.need_from_you : []), ...(cal?.need || []), ...asks.map(askOf)],
     url,

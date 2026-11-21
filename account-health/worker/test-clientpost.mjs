@@ -227,5 +227,18 @@ await check('a brand whose internal channel is its client channel has no interna
   }
 });
 
+/* ---------------- the weekly "Our work" block ---------------- */
+await check('weekly report: Our work this week shows new ads and client-readable changes', async () => {
+  const { workLines } = await import('./src/clientpost.js');
+  const w = { ads: 12, ads_prev: 8, changes: 5, updates_url: 'https://locus.go-mobius-digital.com/profit/?open=adupdates&act=brand_x' };
+  const L = workLines(w);
+  assert.ok(L[0].includes('New ads launched: *12*') && L[0].includes('8 the week before'), L[0]);
+  assert.ok(L[1].includes('Changes we made to your ads: *5*') && L[1].includes('open=adupdates'), L[1]);
+  assert.deepEqual(workLines({ ads: 0, changes: 0 }), []); assert.deepEqual(workLines(null), []);
+  const t = weeklyPost({ brand: 'Dartee', start: '2026-11-16', end: '2026-11-22', totals: { sales: 10000, spend: 4000, mer: 2.5 }, previous: { sales: 9000, spend: 4000, mer: 2.25 }, work: w });
+  assert.ok(t.includes('*Our work this week*'), t);
+  assert.ok(!t.includes('Email'));
+});
+
 console.log(`\n${results.filter(Boolean).length}/${results.length} passed`);
 process.exit(results.every(Boolean) ? 0 : 1);
