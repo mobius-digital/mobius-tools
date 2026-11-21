@@ -206,7 +206,7 @@
       .cal-at .at-tools{margin:0 0 10px;padding:0 0 10px;border-bottom:1px solid var(--at-line)} .cal-at .at-tools .cal-layer{border-radius:6px;border:0;background:transparent;font-weight:500;color:var(--ink-2)}
       .cal-at .at-tools .cal-layer.on{background:color-mix(in srgb,var(--at-green) 14%,var(--surface));color:var(--ink)} .cal-at .at-tools .cal-layer.off{opacity:.5;border:0;text-decoration:line-through}
       .cal-at .at-nav{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;margin:0 0 10px}
-      .cal-at .at-btn{justify-self:start;border:1px solid var(--at-line);background:var(--surface);color:var(--ink);border-radius:6px;padding:4px 10px;font:inherit;font-size:12px;cursor:pointer}
+      .cal-at .at-btn{border:1px solid var(--at-line);background:var(--surface);color:var(--ink);border-radius:6px;padding:4px 10px;font:inherit;font-size:12px;cursor:pointer}
       .cal-at .at-mid{display:flex;align-items:center;gap:10px} .cal-at .at-mid h4{margin:0;font-size:17px;font-weight:650;min-width:120px;text-align:center}
       .cal-at .at-ar{border:0;background:none;color:var(--muted);font-size:20px;line-height:1;cursor:pointer;padding:0 4px}
       .cal-at .at-seg{justify-self:end;border:1px solid var(--at-line);border-radius:6px;padding:0;gap:0;overflow:hidden} .cal-at .at-seg button{border-radius:0;padding:4px 11px;border-left:1px solid var(--at-line);font-weight:500}
@@ -224,7 +224,7 @@
       .cal-at .cal-chip.sale{--c:var(--at-orange)} .cal-at .cal-chip.drop{--c:var(--at-teal)} .cal-at .cal-chip.other{--c:var(--at-grey)}
       .cal-at .cal-chip.mail.em{--c:var(--at-green)} .cal-at .cal-chip.mail.sms{--c:var(--at-sms)} .cal-at .cal-chip.ad{--c:var(--at-blue)} .cal-at .cal-chip.mail.em,.cal-at .cal-chip.mail.sms{background:var(--c);color:#fff;font-weight:600}
       .cal-at .cal-chip.post{--c:var(--at-pink);padding-left:7px} .cal-at .cal-chip.task{--c:color-mix(in srgb,var(--ink) 14%,var(--surface));color:var(--ink);padding-left:7px}
-      .cal-at .cal-chip.pen,.cal-at .cal-chip.mail.em.pen,.cal-at .cal-chip.mail.sms.pen,.cal-at .cal-chip.ad,.cal-at .cal-chip.post.pen{background:color-mix(in srgb,var(--c) 22%,var(--surface));color:var(--ink);border:0}
+      .cal-at .cal-chip.pen,.cal-at .cal-chip.mail.em.pen,.cal-at .cal-chip.mail.sms.pen,.cal-at .cal-chip.ad,.cal-at .cal-chip.post.pen{background:color-mix(in srgb,var(--c) 16%,var(--surface));color:color-mix(in srgb,var(--c) 62%,var(--ink));border:0}
       .cal-at .cal-chip.ad.done{background:var(--c);color:#fff}
       .cal-at .cal-chip.miss{background:transparent;border:1.5px dashed var(--warn);color:var(--warn)}
       .cal-at .cal-chip.more{background:transparent;color:var(--ink-2)}
@@ -234,7 +234,10 @@
       .cal-at .cal-chip.mail.em.p-sale{--c:var(--at-green)} .cal-at .cal-chip.mail.em.p-last{--c:var(--at-red)} .cal-at .cal-chip.mail.em.p-content{--c:var(--at-content)}
       .cal-at .cal-chip.sale{--c:var(--at-char)} .cal-at .cal-chip.drop{--c:var(--at-teal)} .cal-at .cal-chip.other{--c:var(--at-grey)}
       .cal-at .cal-chip.task{background:var(--surface);color:var(--ink-2);box-shadow:inset 0 0 0 1px var(--at-line)}
-      .cal-at .at-key{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:11.5px;color:var(--ink-2);margin:0 0 8px}
+      .cal-at .at-left{justify-self:start;display:flex;gap:6px;align-items:center;position:relative}
+      .cal-at .at-colors summary{list-style:none} .cal-at .at-colors summary::-webkit-details-marker{display:none}
+      .cal-at .at-colors[open] .at-key{position:absolute;left:0;top:calc(100% + 6px);z-index:20;width:min(460px,86vw);background:var(--surface);border:1px solid var(--at-line);border-radius:8px;padding:12px;box-shadow:0 12px 30px -14px rgba(0,0,0,.35)}
+      .cal-at .at-key{display:flex;flex-wrap:wrap;gap:8px 14px;font-size:12px;color:var(--ink-2);margin:0}
       .cal-at .at-key span{display:inline-flex;align-items:center;gap:5px} .cal-at .at-key .sep{margin-left:6px;padding-left:12px;border-left:1px solid var(--at-line)}
       .cal-at .at-key i{width:16px;height:10px;border-radius:3px;display:inline-block}
       .cal-at .k-sale{background:var(--at-green)} .cal-at .k-last{background:var(--at-red)} .cal-at .k-content{background:var(--at-content)} .cal-at .k-sms{background:var(--at-sms)}
@@ -350,7 +353,7 @@
   }
 
   /* ---------- One brand: the month ---------- */
-  const LANES = 5;
+  const LANES = 4;
   const RANK = x => (x.kind === 'task' ? 2 : x.kind === 'mail' ? 1 : 0);
   function monthItems(d, act) {
     const all = !act || act === 'all', items = [], pre = id => (all && id ? `${brandName(d, id)}: ` : '');
@@ -380,6 +383,7 @@
     return items.filter(x => chOn(chOf(x))).sort((a, b) => a.start.localeCompare(b.start) || RANK(a) - RANK(b));
   }
   const MAILS = new Map();
+  const chipTxt = x => String(x.label || x.name || '').replace(/(^|: )(Email|Text|Post|Ads in): /, '$1');
   /* COLOR SYSTEM (2026-11-21, Cole: "like Well Copy, different colors for what is happening"). Color = what it is,
      shade = where it stands (solid = sent / live / done, pale = planned or scheduled, dashed red = missing).
      An email's color is its PURPOSE: sale push (green), last chance (red), content with no hard sell (orange). A planned
@@ -453,21 +457,21 @@
         if (r >= cap) { for (let c = c0; c <= c1; c++) hidden[c] = (hidden[c] || 0) + 1; continue; }
         used[r] = c1;
         if (x.kind === 'post') {
-          bars += `<button type="button" class="cal-chip post${x.status === 'pen' ? ' pen' : ''}" style="left:${c0 / 7 * 100}%;width:calc(${100 / 7}% - 6px);top:${r * 22}px" data-post="${esc(x.post.id)}" data-pact="${esc(x.post.act)}"${tip(`<b>${esc(x.name)}</b><br>${postLine(x.post)}`)}>${esc(x.label)}</button>`;
+          bars += `<button type="button" class="cal-chip post${x.status === 'pen' ? ' pen' : ''}" style="left:${c0 / 7 * 100}%;width:calc(${100 / 7}% - 6px);top:${r * 22}px" data-post="${esc(x.post.id)}" data-pact="${esc(x.post.act)}"${tip(`<b>${esc(x.name)}</b><br>${postLine(x.post)}`)}>${esc(chipTxt(x))}</button>`;
           continue;
         }
         if (x.kind === 'task') {
           const t = x.task, late = x.start < d.today;
-          bars += `<button type="button" class="cal-chip task${late ? ' late' : ''}" style="left:${c0 / 7 * 100}%;width:calc(${100 / 7}% - 6px);top:${r * 22}px" data-task="${esc(t.id)}" draggable="true" data-drag="task:${esc(t.id)}"${tip(`<b>Task: ${esc(t.text)}</b><br>${esc(t.act_id ? brandName(d, t.act_id) : 'Agency-wide')} &middot; ${esc(t.owner || 'nobody yet')} &middot; due ${md(x.start)}${late ? ', late' : ''}`)}>${esc(x.label)}</button>`;
+          bars += `<button type="button" class="cal-chip task${late ? ' late' : ''}" style="left:${c0 / 7 * 100}%;width:calc(${100 / 7}% - 6px);top:${r * 22}px" data-task="${esc(t.id)}" draggable="true" data-drag="task:${esc(t.id)}"${tip(`<b>Task: ${esc(t.text)}</b><br>${esc(t.act_id ? brandName(d, t.act_id) : 'Agency-wide')} &middot; ${esc(t.owner || 'nobody yet')} &middot; due ${md(x.start)}${late ? ', late' : ''}`)}>${esc(chipTxt(x))}</button>`;
           continue;
         }
         if (x.kind === 'ad') {
-          bars += `<button type="button" class="cal-chip ad${x.status === 'conf' ? ' done' : ''}" style="left:${c0 / 7 * 100}%;width:calc(${100 / 7}% - 6px);top:${r * 22}px" data-ev="${esc(x.of)}"${tip(`<b>${esc(x.name)}</b><br>${esc(x.step.who || '')} &middot; ${esc(x.step.note || '')}`)}>${esc(x.label)}</button>`;
+          bars += `<button type="button" class="cal-chip ad${x.status === 'conf' ? ' done' : ''}" style="left:${c0 / 7 * 100}%;width:calc(${100 / 7}% - 6px);top:${r * 22}px" data-ev="${esc(x.of)}"${tip(`<b>${esc(x.name)}</b><br>${esc(x.step.who || '')} &middot; ${esc(x.step.note || '')}`)}>${esc(chipTxt(x))}</button>`;
           continue;
         }
         if (x.kind === 'mail') {
           const sms = x.mail.channel === 'sms';
-          bars += `<button type="button" class="cal-chip mail ${sms ? 'sms' : `em p-${purposeOf(x.mail)}`}${x.status === 'pen' ? ' pen' : ''}" style="left:${c0 / 7 * 100}%;width:calc(${100 / 7}% - 6px);top:${r * 22}px" data-mail="${esc(x.id)}"${tip(`<b>${esc(x.name)}</b><br>${md(x.start)}, ${x.mail.plan ? 'planned: ' + esc((PLAN_ST[x.mail.status] || ['', ''])[1]) : esc(x.mail.status) + ', from Klaviyo'}. Click for details.`)}>${esc(x.label)}</button>`;
+          bars += `<button type="button" class="cal-chip mail ${sms ? 'sms' : `em p-${purposeOf(x.mail)}`}${x.status === 'pen' ? ' pen' : ''}" style="left:${c0 / 7 * 100}%;width:calc(${100 / 7}% - 6px);top:${r * 22}px" data-mail="${esc(x.id)}"${tip(`<b>${esc(x.name)}</b><br>${md(x.start)}, ${x.mail.plan ? 'planned: ' + esc((PLAN_ST[x.mail.status] || ['', ''])[1]) : esc(x.mail.status) + ', from Klaviyo'}. Click for details.`)}>${esc(chipTxt(x))}</button>`;
           continue;
         }
         const cls = `cal-chip ${CLS(x.kind)} ${x.status === 'pen' ? 'pen' : ''} ${x.status === 'miss' ? 'miss' : ''} ${x.start < a ? 'cont' : ''}`;
@@ -478,7 +482,7 @@
          that is "+N more" on its own line, a button that opens the whole day. */
       const lanes = Math.min(used.length, cap), more = Object.keys(hidden).length > 0;
       for (const [c, k] of Object.entries(hidden)) bars += `<button type="button" class="cal-chip more" data-dayall="${ds[c]}" style="left:${c / 7 * 100}%;width:calc(${100 / 7}% - 6px);top:${lanes * 22}px">+${k} more</button>`;
-      const rh = Math.max(week ? 220 : 96, 25 + lanes * 22 + (more ? 22 : 0) + 8);
+      const rh = week ? Math.max(220, 25 + lanes * 22 + (more ? 22 : 0) + 8) : 25 + LANES * 22 + 22 + 6;   // Month: every day the same height
       h += `<div class="wr" style="--rh:${rh}px">${ds.map((x, i) => `<div class="c ${week || x.slice(0, 7) === mon ? '' : 'x'} ${x === d.today ? 'td' : ''}" data-day="${x}"><span class="n" data-n="${+x.slice(8)}">${+x.slice(8)}</span>${cover[i] ? `<span class="dots">${cover[i].slice(0, 6).map(k => `<i class="${k}"></i>`).join('')}</span>` : ''}</div>`).join('')}<div class="bars">${bars}</div></div>`;
     }
     el.innerHTML = h;
@@ -510,9 +514,8 @@
        the channel chips as the toolbar, then Today on the left, "< Month >" in the middle, the view switch on the right. */
     return `<div class="cal-card cal-mw cal-at"><div class="at-top"><h3>${all ? 'Every client' : 'Marketing calendar'}</h3><button type="button" class="at-new" data-add="1">+ New date</button></div>
       <div class="cal-fl cal-ch2 at-tools">${fl}</div>
-      <div class="at-nav"><button type="button" class="at-btn" data-m="0">Today</button><div class="at-mid"><button type="button" class="at-ar" data-m="-1" aria-label="Back">&#8249;</button><h4 id="calMonT"></h4><button type="button" class="at-ar" data-m="1" aria-label="Forward">&#8250;</button></div><span class="cal-seg at-seg" role="tablist">${seg}</span></div>
-      <div class="at-key"><span><i class="k-sale"></i>Email: sale</span><span><i class="k-last"></i>Email: last chance</span><span><i class="k-content"></i>Email: content, no hard sell</span><span><i class="k-sms"></i>Text</span><span><i class="k-date"></i>Sale or offer on the site</span><span><i class="k-drop"></i>Drop or launch</span><span><i class="k-ad"></i>Ads go in</span><span><i class="k-post"></i>Social post</span>${cli ? '' : '<span><i class="k-task"></i>Team task</span>'}<span class="sep"><i class="k-solid"></i>Solid = sent, live or done</span><span><i class="k-pale"></i>Pale = planned, not out yet</span><span><i class="k-miss"></i>Dashed = missing something</span></div>
-      <p class="at-how">${how}</p>${!cli && chOn('tasks') && !d0tasks ? '<p class="v2hint" style="margin:0 0 8px;color:var(--warn)">The tasks did not load; showing marketing only.</p>' : ''}
+      <div class="at-nav"><div class="at-left"><button type="button" class="at-btn" data-m="0">Today</button><details class="at-colors"><summary class="at-btn">Colors</summary><div class="at-key"><span><i class="k-sale"></i>Email: sale</span><span><i class="k-last"></i>Email: last chance</span><span><i class="k-content"></i>Email: content, no hard sell</span><span><i class="k-sms"></i>Text</span><span><i class="k-date"></i>Sale or offer on the site</span><span><i class="k-drop"></i>Drop or launch</span><span><i class="k-ad"></i>Ads go in</span><span><i class="k-post"></i>Social post</span>${cli ? '' : '<span><i class="k-task"></i>Team task</span>'}<span class="sep"><i class="k-solid"></i>Solid = sent, live or done</span><span><i class="k-pale"></i>Pale = planned, not out yet</span><span><i class="k-miss"></i>Dashed = missing something</span></div></details></div><div class="at-mid"><button type="button" class="at-ar" data-m="-1" aria-label="Back">&#8249;</button><h4 id="calMonT"></h4><button type="button" class="at-ar" data-m="1" aria-label="Forward">&#8250;</button></div><span class="cal-seg at-seg" role="tablist">${seg}</span></div>
+${!cli && chOn('tasks') && !d0tasks ? '<p class="v2hint" style="margin:0 0 8px;color:var(--warn)">The tasks did not load; showing marketing only.</p>' : ''}
       <div class="cal-mo" id="calMonth"></div>${lg}</div>`;
   }
   let d0tasks = true;
