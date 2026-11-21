@@ -3398,19 +3398,30 @@ function clientDailyThreadFor(acct, date, data) {
    out. null when the brand has no Triple Whale shop or the query fails; {} when it sold nothing on Amazon. */
 async function amazonOrdersByDay(env, acct, from, to) {
   if (!acct?.tw_shop || !env.TW_API_KEY) return null;
-  const sql = `SELECT toString(event_date) AS d, uniq(order_id) AS orders, SUM(gross_product_sales) - SUM(discount_amount_for_product) AS sales
-    FROM orders_table WHERE event_date BETWEEN @startDate AND @endDate AND (platform = 'amazon' OR lower(source_name) = 'amazon') AND cancelled_at IS NULL GROUP BY d ORDER BY d`;
+  /* TWO KINDS, never mixed (2026-11-17): `shop` = Amazon orders synced INTO Shopify (Bonk), already inside the store's
+     sales; `own` = the brand's own Amazon store connected to Triple Whale (Party Patch, Dartee), NOT in the store's sales.
+     `ads` = Amazon Ads spend from Triple Whale's ads table (Triple Whale's blended spend leaves it out). */
+  const sql = `SELECT toString(event_date) AS d, if(platform = 'amazon', 'own', 'shop') AS via, uniq(order_id) AS orders, SUM(gross_product_sales) - SUM(discount_amount_for_product) AS sales
+    FROM orders_table WHERE event_date BETWEEN @startDate AND @endDate AND (platform = 'amazon' OR lower(source_name) = 'amazon') AND cancelled_at IS NULL GROUP BY d, via ORDER BY d`;
   const r = await twSql(env, { xfetch }, { shop: acct.tw_shop, sql, from, to }).catch(e => ({ error: e.message }));
   if (!r || r.error || !Array.isArray(r.rows)) { if (r?.error) console.log(`amazon orders ${acct.name}: ${r.error}`); return null; }
   const out = {};
-  for (const row of r.rows) { const d = String(row.d || '').slice(0, 10); if (d) out[d] = { sales: Number(row.sales) || 0, orders: Number(row.orders) || 0 }; }
+  const day = d => (out[d] ??= { sales: 0, orders: 0, shop_sales: 0, shop_orders: 0, own_sales: 0, own_orders: 0, ads: 0 });
+  for (const row of r.rows) {
+    const d = String(row.d || '').slice(0, 10); if (!d) continue;
+    const o = day(d), s = Number(row.sales) || 0, n = Number(row.orders) || 0, k = row.via === 'own' ? 'own' : 'shop';
+    o.sales += s; o.orders += n; o[`${k}_sales`] += s; o[`${k}_orders`] += n;
+  }
+  const a = await twSql(env, { xfetch }, { shop: acct.tw_shop, from, to,
+    sql: `SELECT toString(event_date) AS d, SUM(spend) AS spend FROM ads_table WHERE event_date BETWEEN @startDate AND @endDate AND channel = 'amazon' GROUP BY d` }).catch(() => null);
+  if (a && !a.error && Array.isArray(a.rows)) for (const row of a.rows) { const d = String(row.d || '').slice(0, 10); if (d && Number(row.spend) > 0) day(d).ads = Number(row.spend); }
   return out;
 }
 function amazonSum(byDay, from, to) {
   if (!byDay) return null;
-  let sales = 0, orders = 0;
-  for (const [d, v] of Object.entries(byDay)) if (d >= from && d <= to) { sales += v.sales; orders += v.orders; }
-  return { sales, orders };
+  const t = { sales: 0, orders: 0, shop_sales: 0, shop_orders: 0, own_sales: 0, own_orders: 0, ads: 0 };
+  for (const [d, v] of Object.entries(byDay)) if (d >= from && d <= to) for (const k of Object.keys(t)) t[k] += v[k] || 0;
+  return t;
 }
 async function clientDailyFor(env, acct, date, text, data, { next = true } = {}) {
   const days = (data?.days || []).filter(x => x.a?.sales != null && x.date <= date);
@@ -3420,9 +3431,10 @@ async function clientDailyFor(env, acct, date, text, data, { next = true } = {})
   const amz = await amazonOrdersByDay(env, acct, date.slice(0, 8) + '01', date).catch(() => null);
   const amzDay = amazonSum(amz, date, date), amzMonth = amazonSum(amz, date.slice(0, 8) + '01', date);
   return dailyPost({
-    amazon: amzMonth && amzMonth.orders > 0 ? { day: amzDay, month: amzMonth } : null,
+    amazon: amzMonth && (amzMonth.orders > 0 || amzMonth.ads > 0) ? { day: amzDay, month: amzMonth } : null,
     brand: acct.name, date, currency: acct.currency,
-    day: { sales: day?.a?.sales ?? null, spend: day?.a?.spend ?? null, mer: day?.a?.mer ?? null, amer: day?.a?.amer ?? null, plan: day?.f?.sales ?? null },
+    day: { sales: day?.a?.sales ?? null, spend: day?.a?.spend ?? null, mer: day?.a?.mer ?? null, amer: day?.a?.amer ?? null, plan: day?.f?.sales ?? null,
+      meta_spend: day?.a?.meta_spend ?? null, google_spend: day?.a?.google_spend ?? null },
     /* "of $27K planned" = the plan TO DATE (the forecast days so far), not the whole month's goal. */
     month: { ym: monthOf(date), sales: days.length ? mtd : (data?.mtd?.sales ?? null),
       plan: days.some(x => x.f?.sales != null) ? days.reduce((n, x) => n + (x.f?.sales || 0), 0) : (data?.mtd?.sales_f ?? null),
@@ -3447,7 +3459,7 @@ async function clientReportText(env, acct, row, data) {
   return weeklyPost({
     brand: acct.name, period, start, end: row.period_end, currency: data?.account?.currency || acct.currency, totals: data?.totals, previous: data?.previous,
     sentence: weekSentence(data?.totals, data?.previous, period === 'monthly' ? 'month' : 'week'),
-    amazon: (() => { const c = (data?.channels || []).find(x => x.id === 'amazon'); return c ? { cur: c.cur ? { sales: c.cur.sales, orders: c.cur.orders } : null, prev: c.prev ? { sales: c.prev.sales, orders: c.prev.orders } : null } : null; })(),
+    amazon: (() => { const c = (data?.channels || []).find(x => x.id === 'amazon'); return c ? { cur: c.cur ? { sales: c.cur.sales, orders: c.cur.orders, inside: !!c.cur.inside, ads: c.cur.ads ?? null } : null, prev: c.prev ? { sales: c.prev.sales, orders: c.prev.orders } : null } : null; })(),
     this_week: [...(Array.isArray(data?.this_week) ? data.this_week : []), ...(cal?.going_live || [])],
     from_you: [...(Array.isArray(data?.need_from_you) ? data.need_from_you : []), ...(cal?.need || []), ...asks.map(askOf)],
     url,
@@ -4650,7 +4662,9 @@ async function reportData(env, acct, period, start, end) {
     const amz = await amazonOrdersByDay(env, acct, prevStart, end).catch(() => null);
     const c = amazonSum(amz, start, end), p = amazonSum(amz, prevStart, prevEnd);
     if (c && (c.orders > 0 || (p && p.orders > 0))) {
-      const sec = v => v && v.orders > 0 ? { sales: v.sales, orders: v.orders, net_sales: null, refunds: null, source: 'Triple Whale orders' } : null;
+      /* `inside` = these orders are already in the store's sales (synced into Shopify); `ads` = Amazon Ads spend. */
+      const sec = v => v && v.orders > 0 ? { sales: v.sales, orders: v.orders, net_sales: null, refunds: null, source: 'Triple Whale orders',
+        inside: v.shop_orders > 0 && !(v.own_orders > 0), ads: v.ads > 0 ? v.ads : null } : null;
       const at = channels.findIndex(x => x.id === 'email');
       channels.splice(at < 0 ? channels.length : at, 0, { id: 'amazon', label: 'Amazon', cur: sec(c), prev: sec(p) });
     }
