@@ -230,6 +230,16 @@
       .cal-at .cal-chip.more{background:transparent;color:var(--ink-2)}
       .cal-at .cal-mo .dots i.mail{--c:var(--at-green)} .cal-at .cal-mo .dots i.sms{--c:var(--at-sms)} .cal-at .cal-mo .dots i.sale{--c:var(--at-orange)} .cal-at .cal-mo .dots i.drop{--c:var(--at-teal)} .cal-at .cal-mo .dots i.ad{--c:var(--at-blue)} .cal-at .cal-mo .dots i.post{--c:var(--at-pink)}
       .cal-at .cal-lg{display:none}
+      .cal-at .cal-ag{border:1px solid var(--at-line);border-radius:6px;overflow:hidden}
+      .cal-at .cal-agd{grid-template-columns:96px minmax(0,1fr);gap:0;padding:0;border-top:1px solid var(--at-line)}
+      .cal-at .cal-agd .d{padding:9px 12px;font-size:12px;background:var(--surface-2);border-right:1px solid var(--at-line)} .cal-at .cal-agd.td .d{color:var(--at-green)}
+      .cal-at .cal-agd .l{gap:0}
+      .cal-at .cal-agd .cal-ev{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,auto);align-items:center;gap:12px;border:0;border-top:1px solid var(--at-line);border-radius:0;padding:7px 12px;background:var(--surface)}
+      .cal-at .cal-agd .cal-ev:first-child{border-top:0} .cal-at .cal-agd .cal-ev:hover{background:var(--surface-2)}
+      .cal-at .cal-agd .cal-ev b{font-size:12.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .cal-at .cal-agd .cal-ev .ty{font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;justify-content:flex-end}
+      .cal-at .cal-agd .cal-ev .ty i{width:10px;height:10px;border-radius:3px;flex:none}
+      @media (max-width:640px){.cal-at .cal-agd{grid-template-columns:1fr}.cal-at .cal-agd .d{border-right:0}.cal-at .cal-agd .cal-ev{grid-template-columns:1fr;gap:2px}.cal-at .cal-agd .cal-ev .ty{justify-content:flex-start}}
       .cal-at{--at-green:#2f9e44;--at-red:#f4a9c6;--at-char:#5b7c99;--at-content:#f5a524;--at-sms:#c7b0f2;--at-teal:#20a39e;--at-blue:#2d7ff9;--at-pink:#9fe0f3;--at-grey:#c9ced6}
       .cal-at .cal-chip{font-size:10.5px;font-weight:500;letter-spacing:-.005em;padding:0 6px;margin:0 3px;height:18px;line-height:18px}
       .cal-at .cal-chip.mail.em.p-last,.cal-at .cal-chip.mail.sms,.cal-at .cal-chip.post,.cal-at .cal-chip.other{color:#1f2329}
@@ -408,18 +418,19 @@
     : /\b(last (call|chance|day)|ends? (tonight|today|tomorrow|at midnight)|final|hours left|days? left|still thinking)\b/i.test(m.name || '') ? 'last'
     : /\b(note|letter|voice|guide|why|how|story|tier list|breakup|phone note)\b/i.test(m.name || '') ? 'content' : 'sale');
   const PLAN_ST = { approved: ['good', 'Approved, waiting to load'], needs: ['warn', 'Needs your OK'], change: ['warn', 'Change asked'], build: ['info', 'Not made yet'], wrote: ['info', 'Written, not approved'], partner: ['info', 'The email team sends it'] };
-  const CHC = { email: '--good', sms: '--c-sms', ads: '--c-meta', organic: '--c-tiktok' };
+  const CHC = { email: '--at-green, var(--good)', sms: '--at-sms, var(--c-sms)', ads: '--at-blue, var(--c-meta)', organic: '--at-pink, var(--c-tiktok)' };
+  const PCC = { sale: '--at-green, var(--good)', last: '--at-red, var(--warn)', content: '--at-content, var(--warn)' };
   /* One row for a thing on a day: the day panel, the Day view and the List view all use it. */
   function rowHtml(d, x) {
     return x.kind === 'mail'
-      ? `<button type="button" class="cal-ev" data-mail="${esc(x.id)}"><b>${esc(x.label)}</b><span class="ty" style="--c:var(${CHC[chOf(x)]})"><i></i>${x.mail.channel === 'sms' ? 'Text' : 'Email'} &middot; ${x.mail.plan ? `planned${x.mail.time ? ' ' + esc(x.mail.time) : ''}${x.mail.audience ? ', ' + esc(x.mail.audience) : ''} &middot; ${esc((PLAN_ST[x.mail.status] || ['', 'Planned'])[1])}` : `${esc(x.mail.status)}, from Klaviyo`}</span></button>`
+      ? `<button type="button" class="cal-ev" data-mail="${esc(x.id)}"><b>${esc(x.label)}</b><span class="ty" style="--c:var(${x.mail.channel === 'sms' ? CHC.sms : PCC[purposeOf(x.mail)]})"><i></i>${x.mail.channel === 'sms' ? 'Text' : 'Email'} &middot; ${x.mail.plan ? `planned${x.mail.time ? ' ' + esc(x.mail.time) : ''}${x.mail.audience ? ', ' + esc(x.mail.audience) : ''} &middot; ${esc((PLAN_ST[x.mail.status] || ['', 'Planned'])[1])}` : `${esc(x.mail.status)}, from Klaviyo`}</span></button>`
       : x.kind === 'ad'
-      ? `<button type="button" class="cal-ev" data-ev="${esc(x.of)}"><b>${esc(x.label)}</b><span class="ty" style="--c:var(--c-meta,#5b8def)"><i></i>Ads &middot; ${esc(x.step.who || '')} &middot; ${esc(x.step.note || (x.status === 'conf' ? 'done' : 'not yet'))}</span></button>`
+      ? `<button type="button" class="cal-ev" data-ev="${esc(x.of)}"><b>${esc(x.label)}</b><span class="ty" style="--c:var(--at-blue, var(--c-meta))"><i></i>Ads &middot; ${esc(x.step.who || '')} &middot; ${esc(x.step.note || (x.status === 'conf' ? 'done' : 'not yet'))}</span></button>`
       : x.kind === 'post'
-      ? `<button type="button" class="cal-ev" data-post="${esc(x.post.id)}" data-pact="${esc(x.post.act)}"><b>${esc(x.label)}</b><span class="ty" style="--c:var(--c-tiktok,#ff3b5c)"><i></i>${postLine(x.post)}</span></button>`
+      ? `<button type="button" class="cal-ev" data-post="${esc(x.post.id)}" data-pact="${esc(x.post.act)}"><b>${esc(x.label)}</b><span class="ty" style="--c:var(--at-pink, var(--c-tiktok))"><i></i>${postLine(x.post)}</span></button>`
       : x.kind === 'task'
       ? `<button type="button" class="cal-ev" data-task="${esc(x.task.id)}"><b>${esc(x.label)}</b><span class="ty" style="--c:var(${x.start < d.today ? '--warn' : '--ink-2'})"><i></i>Task &middot; ${esc(x.task.owner || 'nobody yet')}${x.start < d.today ? ' &middot; late' : ''}</span></button>`
-      : `<button type="button" class="cal-ev" data-ev="${esc(x.id)}"><b>${esc(x.label)}</b><span class="ty" style="--c:var(${x.kind === 'drop' ? '--c-meta' : x.kind === 'sale' ? '--c-email' : '--muted'})"><i></i>${esc(KL[x.kind] || '')} &middot; ${md(x.start)}${x.end && x.end !== x.start ? ` to ${md(x.end)}` : isOpen(x) ? ', no end date' : ''}</span></button>`;
+      : `<button type="button" class="cal-ev" data-ev="${esc(x.id)}"><b>${esc(x.label)}</b><span class="ty" style="--c:var(${x.kind === 'drop' ? '--at-teal, var(--c-meta)' : x.kind === 'sale' ? '--at-char, var(--c-email)' : '--at-grey, var(--muted)'})"><i></i>${esc(KL[x.kind] || '')} &middot; ${md(x.start)}${x.end && x.end !== x.start ? ` to ${md(x.end)}` : isOpen(x) ? ', no end date' : ''}</span></button>`;
   }
   /* An email or text: what it is, when, its state. Klaviyo's own page has the preview and the results. */
   function mailPanel(d, id) {

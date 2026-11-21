@@ -14,8 +14,8 @@
   const ORIGINS = ['https://hq.luckygolf.com', 'http://localhost:8787', 'http://127.0.0.1:8787'];
   const BRAND = 'brand_lucky_golf';
   /* HQ's tab -> the Locus page, and every Locus page that may open here -> the HQ tab it belongs to. */
-  const PAGE = { calls: 'buyer', launch: 'launch', campaigns: 'campaigns', ads: 'adcreative', changes: 'changes', updates: 'adupdates' };
-  const SECTION = { buyer: 'calls', today: 'calls', launch: 'launch', meta: 'campaigns', mtoday: 'campaigns', campaigns: 'campaigns', adcreative: 'ads', mbrowser: 'ads', changes: 'changes', adupdates: 'updates' };
+  const PAGE = { calendar: 'calendar', calls: 'buyer', launch: 'launch', campaigns: 'campaigns', ads: 'adcreative', changes: 'changes', updates: 'adupdates' };
+  const SECTION = { calendar: 'calendar', buyer: 'calls', today: 'calls', launch: 'launch', meta: 'campaigns', mtoday: 'campaigns', campaigns: 'campaigns', adcreative: 'ads', mbrowser: 'ads', changes: 'changes', adupdates: 'updates' };
   const ss = { get: k => { try { return sessionStorage.getItem(k); } catch (e) { return null; } }, set: (k, v) => { try { sessionStorage.setItem(k, v); } catch (e) {} }, del: k => { try { sessionStorage.removeItem(k); } catch (e) {} } };
 
   const Q = new URLSearchParams(location.search);
