@@ -178,6 +178,7 @@ async function savePlan(env, body) {
   const sends = (Array.isArray(body.sends) ? body.sends : []).slice(0, 300).map(s => ({
     date: String(s.date || '').slice(0, 10), time: String(s.time || '').slice(0, 12), channel: s.channel === 'sms' ? 'sms' : 'email',
     name: String(s.name || '').slice(0, 160), audience: String(s.audience || '').slice(0, 120), status: PLAN_ST.has(s.status) ? s.status : 'build',
+    ...(['sale', 'last', 'content'].includes(s.purpose) ? { purpose: s.purpose } : {}),
   })).filter(s => /^\d{4}-\d{2}-\d{2}$/.test(s.date) && s.name);
   const source = /^https:\/\//.test(body.source || '') ? String(body.source).slice(0, 300) : null;
   await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(`calplan:${act}`, JSON.stringify({ at: new Date().toISOString(), source, sends })).run();
