@@ -17,9 +17,11 @@ let rows = {};
 const DB = { prepare(sql) { let a = []; return { bind(...x) { a = x; return this; }, async first() { return /SELECT access_token/.test(sql) ? rows[a[0]] || null : null; }, async run() { if (/UPDATE p_shopify SET access_token = ''/.test(sql)) rows[a[0]] = { access_token: '' }; return {}; } }; } };
 const env = { DB, SHOPIFY_API_KEY: KEY, SHOPIFY_API_SECRET: SECRET };
 let ordersMode = 'ok';
+let exchanged = 0;
 const F = async (url, init) => {
+  if (/oauth\/access_token/.test(url)) { const b = JSON.parse(init.body); assert.match(b.grant_type, /token-exchange/); exchanged++; return Response.json({ access_token: 'fresh', scope: 'read_orders' }); }
   const q = JSON.parse(init.body).query;
-  if (ordersMode === '401') return new Response('{}', { status: 401 });
+  if (ordersMode === '401' && init.headers['X-Shopify-Access-Token'] !== 'fresh') return new Response('{}', { status: 401 });
   if (/shop \{/.test(q)) return Response.json({ data: { shop: { name: 'Test Store', currencyCode: 'USD', primaryDomain: { url: 'https://t.com' } }, productsCount: { count: 3 } } });
   if (/products\(/.test(q)) return Response.json({ data: { products: { nodes: [{ title: 'Wedge', status: 'ACTIVE', totalInventory: 5, priceRangeV2: { minVariantPrice: { amount: '149.0' } } }] } } });
   if (/orders\(/.test(q)) return ordersMode === 'denied' ? Response.json({ errors: [{ message: 'Access denied for orders field. This app is not approved to access the Order object.' }] }) : Response.json({ data: { orders: { pageInfo: { hasNextPage: false }, nodes: [{ createdAt: new Date().toISOString(), currentTotalPriceSet: { shopMoney: { amount: '100' } }, lineItems: { nodes: [{ title: 'Wedge', quantity: 1 }] } }] } } });
@@ -38,10 +40,11 @@ await ok('session token: good passes, wrong secret / app / shop / expired refuse
 });
 await ok('the page: App Bridge, the key, frame-ancestors for the shop and the admin; no token = install first', async () => {
   rows[SHOP] = null;
-  const pre = await call(`/shopify/app?shop=${SHOP}`);
-  assert.match(await pre.text(), /shopify\/install\?shop=test-store/);
-  rows[SHOP] = { access_token: 'tok' };
-  const r = await call(`/shopify/app?shop=${SHOP}`);
+  // Outside the admin: into the admin, where Shopify's managed install runs.
+  const top = await call(`/shopify/app?shop=${SHOP}&hmac=x&timestamp=1`);
+  assert.equal(top.status, 302); assert.equal(top.headers.get('Location'), `https://${SHOP}/admin/apps/${KEY}`);
+  // Inside the frame with no token yet: the page itself (it connects through token exchange).
+  const r = await call(`/shopify/app?shop=${SHOP}&embedded=1`);
   const html = await r.text();
   assert.match(html, /app-bridge\.js/); assert.match(html, new RegExp(KEY)); assert.match(html, /shopify\.idToken\(\)/);
   assert.match(r.headers.get('Content-Security-Policy'), /frame-ancestors https:\/\/test-store\.myshopify\.com https:\/\/admin\.shopify\.com/);
@@ -55,9 +58,15 @@ await ok('report: orders and products; a refused orders read is a note, never an
   const b = await (await call('/shopify/app/api/report', good())).json();
   assert.equal(b.orders, null); assert.match(b.notes[0], /approves this app's access to order data/); assert.equal(b.products.length, 1); assert.ok(!b.error);
 });
-await ok('a dead token is forgotten and the store is sent to the install', async () => {
-  ordersMode = '401';
+await ok('a dead token is swapped for a fresh one by token exchange, once', async () => {
+  ordersMode = '401'; rows[SHOP] = { access_token: 'tok' }; exchanged = 0;
   const c = await (await call('/shopify/app/api/report', good())).json();
-  assert.match(c.install, /shopify\/install\?shop=test-store/); assert.equal(rows[SHOP].access_token, '');
+  assert.equal(exchanged, 1); assert.equal(c.shop.name, 'Test Store'); assert.ok(!c.error);
 });
-console.log(`\n${n}/4 passed`);
+await ok('no token yet (fresh managed install): exchanged and saved, then the report', async () => {
+  ordersMode = 'ok'; rows[SHOP] = null; exchanged = 0; const saved = [];
+  const r = await handleShopifyApp(new Request('https://w.dev/shopify/app/api/report', { headers: { Authorization: `Bearer ${good()}` } }), env, new URL('https://w.dev/shopify/app/api/report'), { F, saveToken: async (...a) => saved.push(a) });
+  const d = await r.json();
+  assert.equal(exchanged, 1); assert.deepEqual(saved[0].slice(0, 2), [SHOP, 'fresh']); assert.equal(d.orders.count, 1);
+});
+console.log(`\n${n}/5 passed`);

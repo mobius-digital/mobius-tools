@@ -3597,6 +3597,21 @@ tokens, billing, test credentials. Fixes and the resubmission text: `docs/shopif
 - The old public `?store=` report (`/api/store-view`) answers plain sentences instead of raw Shopify errors.
 - The two stores in p_shopify on 2026-10-17 ("Dlwlrma Store", "OFS Signature Looks") were Shopify's REVIEWERS; never link
   them to a brand. Clients can install only after the review passes.
+- **2026-11-15: the Oct 18 TOML was never `shopify app deploy`ed.** The live version (mobius-profit-8) still had
+  embedded false, application_url /shopify/install and 4 scopes while the worker asked for 6, so Shopify's automated
+  install check failed with `oauth_error=application_cant_be_loaded_misconfigured` and the resubmission sat as a Draft
+  for 4 weeks. Released mobius-profit-9 from the TOML. **After any TOML edit, deploy it and read the active version
+  back in the Dev Dashboard (Versions).**
+- **2026-11-15: MANAGED INSTALL + TOKEN EXCHANGE (mobius-profit-10). Supersedes "use_legacy_install_flow must be TRUE".**
+  Shopify's "immediately authenticates after install" check expects its own grant screen (`/app/grant`); with the legacy
+  flow its install link died (`failed_grant_with_invalid_scopes`) or landed in the framed app, and no redirect trick from
+  /shopify/app passed. Now `use_legacy_install_flow = false`: Shopify shows the grant from the TOML scopes and opens the
+  embedded app; `/shopify/app/api/report` swaps the session token for an OFFLINE token (`exchangeToken`) when the store
+  has none or its token is dead, and saves it through `saveShopToken` (worker.js; the classic callback uses the same
+  helper, and keeps a manual act_id mapping). `/shopify/app` opened top-level redirects into `admin/apps/<key>`.
+  `app/uninstalled` is in the TOML now (allowed without the legacy flow), so the callback no longer registers it per shop.
+  Verified on our dev store Quickstart (f7ea6f9b): Shopify's install link -> grant -> app opens -> token saved.
+  /shopify/install + /shopify/callback still work for a direct link.
 
 ## 2026-10-19: Goal / break-even / real table (`goalsGlance` in index.html)
 

@@ -121,19 +121,33 @@ load();
 </script></body></html>`;
 }
 
-/** Routes; returns null when the path is not ours. */
-export async function handleShopifyApp(request, env, url, { F = fetch } = {}) {
+/** Token exchange (2026-11-15): with Shopify managed installation, Shopify shows the grant screen itself and then opens
+ *  the embedded app; the app swaps the App Bridge session token for the store's OFFLINE token here. No redirects. */
+export async function exchangeToken(env, shop, sessionToken, F = fetch) {
+  const res = await F(`https://${shop}/admin/oauth/access_token`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({
+      client_id: env.SHOPIFY_API_KEY, client_secret: env.SHOPIFY_API_SECRET,
+      grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
+      subject_token: sessionToken, subject_token_type: 'urn:ietf:params:oauth:token-type:id_token',
+      requested_token_type: 'urn:shopify:params:oauth:token-type:offline-access-token',
+    }),
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok || !j.access_token) throw Object.assign(new Error(`token exchange ${res.status}`), { status: res.status });
+  return { token: j.access_token, scope: j.scope || null };
+}
+
+/** Routes; returns null when the path is not ours. `saveToken(shop, token, scope)` stores a newly exchanged token the
+ *  same way the classic callback does (worker.js), so a store connected either way looks the same to Locus. */
+export async function handleShopifyApp(request, env, url, { F = fetch, saveToken } = {}) {
   if (url.pathname === '/shopify/app') {
     const shop = String(url.searchParams.get('shop') || '').toLowerCase();
     const frame = `frame-ancestors ${SHOP_RE.test(shop) ? `https://${shop} ` : ''}https://admin.shopify.com;`;
     if (!env.SHOPIFY_API_KEY) return new Response('The app is being set up. Please try again shortly.', { status: 200, headers: { 'Content-Type': 'text/plain' } });
-    /* A store opening the app before it has a saved token (a fresh install): straight to the classic install, through
-       App Bridge's top-level open so it leaves the admin frame. */
-    if (SHOP_RE.test(shop) && !(await storedToken(env, shop))) {
-      const go = `${url.origin}/shopify/install?shop=${encodeURIComponent(shop)}`;
-      return new Response(`<!doctype html><html><head><meta charset="utf-8"><meta name="shopify-api-key" content="${env.SHOPIFY_API_KEY}"><script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script></head><body style="font:14px sans-serif;padding:24px">Connecting your store to Mobius Digital...<script>open(${JSON.stringify(go)},'_top');</script></body></html>`,
-        { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': frame, 'Cache-Control': 'no-store' } });
-    }
+    /* Opened outside the admin (no `embedded=1`): send it into the admin, where Shopify handles the install and grant
+       (managed installation) and then frames this page. Inside the frame the page itself connects the store. */
+    if (SHOP_RE.test(shop) && url.searchParams.get('embedded') !== '1') return Response.redirect(`https://${shop}/admin/apps/${env.SHOPIFY_API_KEY}`, 302);
     return new Response(page(env.SHOPIFY_API_KEY), { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': frame, 'Cache-Control': 'no-store' } });
   }
   if (url.pathname === '/shopify/app/api/report') {
@@ -141,15 +155,24 @@ export async function handleShopifyApp(request, env, url, { F = fetch } = {}) {
     const tok = String(request.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '');
     const v = await verifySessionToken(env, tok);
     if (v.error) return json({ error: 'Please open the app from Apps in your Shopify admin.' }, 401);
-    const access = await storedToken(env, v.shop);
-    if (!access) return json({ install: `${url.origin}/shopify/install?shop=${encodeURIComponent(v.shop)}` });
-    try { return json(await appReport(env, v.shop, access, url.searchParams.get('days'), F)); }
-    catch (e) {
-      if (e.status === 401) {   /* the store took the app's access back: forget the token, install again */
+    const connect = async () => {
+      const x = await exchangeToken(env, v.shop, tok, F);
+      if (saveToken) await saveToken(v.shop, x.token, x.scope);
+      else await env.DB.prepare(`UPDATE p_shopify SET access_token = ?2, uninstalled_at = NULL WHERE shop = ?1`).bind(v.shop, x.token).run().catch(() => {});
+      return x.token;
+    };
+    let access = await storedToken(env, v.shop);
+    try {
+      if (!access) access = await connect();
+      try { return json(await appReport(env, v.shop, access, url.searchParams.get('days'), F)); }
+      catch (e) {
+        if (e.status !== 401) throw e;
+        /* the stored token is dead (reinstalled, or access taken back): forget it and exchange a fresh one once */
         await env.DB.prepare(`UPDATE p_shopify SET access_token = '' WHERE shop = ?1`).bind(v.shop).run().catch(() => {});
-        return json({ install: `${url.origin}/shopify/install?shop=${encodeURIComponent(v.shop)}` });
+        return json(await appReport(env, v.shop, await connect(), url.searchParams.get('days'), F));
       }
-      return json({ error: 'Shopify did not answer just now. Try Refresh.' });
+    } catch (e) {
+      return json({ error: e.message?.startsWith('token exchange') ? 'Could not connect your store just now. Close and reopen the app.' : 'Shopify did not answer just now. Try Refresh.' });
     }
   }
   return null;
