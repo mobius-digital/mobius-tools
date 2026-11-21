@@ -46,7 +46,15 @@
   const VIEW = { v: store('cal_view') || '', f: store('cal_f') || 'all' };
   const CLI = () => !!(H && H.S && (H.S.role === 'client' || H.S.client)) || document.body.classList.contains('is-client');
   const FLT = () => (CLI() ? 'mkt' : VIEW.f);
-  const viewOf = act => (VIEW.v === 'week' ? 'week' : VIEW.v === 'month' || (act && act !== 'all') ? 'month' : 'lanes');
+  const viewOf = act => (['week', 'day', 'list'].includes(VIEW.v) ? VIEW.v : VIEW.v === 'month' || (act && act !== 'all') ? 'month' : 'lanes');
+  /* CHANNELS (2026-11-21, Cole yes on the send calendar plan, Well Copy's Airtable view): every chip belongs to one
+     channel and the pills above the calendar switch each on or off (saved per viewer in cal_ch). Ads = ad pushes plus
+     each date's "Ads loaded" step on its due day; Organic = social posts; Tasks = the team's (never for a client). */
+  const CHS = [['dates', 'Sales and drops', 'var(--c-email,#9b7bd8)'], ['email', 'Email', 'var(--good)'], ['sms', 'SMS', 'var(--c-sms,#d99a2b)'], ['ads', 'Ads', 'var(--c-meta,#5b8def)'], ['organic', 'Organic', 'var(--c-tiktok,#ff3b5c)'], ['tasks', 'Tasks', 'var(--muted)']];
+  const CHOFF = (() => { try { return JSON.parse(store('cal_ch') || '{}') || {}; } catch { return {}; } })();
+  const chOn = k => (k === 'tasks' && CLI() ? false : CHOFF[k] !== true);
+  const chOf = x => (x.kind === 'mail' ? (x.mail.channel === 'sms' ? 'sms' : 'email') : x.kind === 'post' ? 'organic' : x.kind === 'task' ? 'tasks' : x.kind === 'ad' || x.kind === 'adpush' ? 'ads' : 'dates');
+  const dotOf = x => (x.kind === 'mail' ? (x.mail.channel === 'sms' ? 'sms' : 'mail') : x.kind === 'mail' || x.kind === 'task' || x.kind === 'post' || x.kind === 'ad' ? x.kind : CLS(x.kind));
 
   function css() {
     if (document.getElementById('calcss')) return;
@@ -176,6 +184,19 @@
       .cal-m .mini>div{display:flex;justify-content:space-between;gap:8px;padding:6px 2px;border-bottom:1px solid var(--line);font-size:12.5px} .cal-m .mini span{color:var(--muted)} .cal-m .mini .late{color:var(--warn);font-weight:600}
       .cal-m .err{color:var(--bad);font-size:12.5px;min-height:1em} .cal-m .foot{display:flex;gap:8px;justify-content:flex-end}
       .calh .cal-mini>div{display:flex;justify-content:space-between;gap:10px;padding:7px 4px;border-top:1px solid var(--line);font-size:12.5px;cursor:pointer;border-radius:6px} .calh .cal-mini>div:hover{background:var(--surface-2)}
+      .cal-chip.mail.em,.cal-chip.mail.sms{background:color-mix(in srgb,var(--c) 16%,var(--surface));border-color:var(--c);color:var(--ink);font-weight:600;padding-left:6px}
+      .cal-chip.mail.em::before,.cal-chip.mail.sms::before{display:none} .cal-chip.mail.sms{--c:var(--c-sms,#d99a2b)}
+      .cal-chip.mail.em.pen,.cal-chip.mail.sms.pen{background:transparent;border-style:dashed}
+      .cal-chip.ad{--c:var(--c-meta,#5b8def);background:transparent;border-style:dashed;color:var(--ink-2);font-weight:500} .cal-chip.ad.done{border-style:solid;background:color-mix(in srgb,var(--c) 12%,var(--surface))}
+      .cal .cal-mo .dots i.sms{--c:var(--c-sms,#d99a2b)} .cal .cal-mo .dots i.ad{--c:var(--c-meta,#5b8def);border-radius:2px}
+      .cal .cal-ch2 .cal-layer.off{opacity:.45;border-style:dashed}
+      .cal .cal-ag{display:grid;gap:0} .cal .cal-agd{display:grid;grid-template-columns:86px minmax(0,1fr);gap:12px;padding:10px 4px;border-top:1px solid var(--line)}
+      .cal .cal-agd:first-child{border-top:0} .cal .cal-agd .d{font-weight:650;font-size:13px} .cal .cal-agd .d span{display:block;font-size:11.5px;color:var(--muted);font-weight:500}
+      .cal .cal-agd.td .d{color:var(--brand)} .cal .cal-agd .l{display:grid;gap:6px;min-width:0}
+      .cal .cal-agd .cal-ev{padding:8px 11px;gap:2px} .cal .cal-agd .cal-ev b{font-size:13px;font-weight:600;overflow-wrap:anywhere}
+      .cal .cal-ag .ty i,.cal-day .ty i{width:8px;height:8px;border-radius:2px;background:var(--c)}
+      @media (max-width:560px){.cal .cal-agd{grid-template-columns:1fr;gap:6px}}
+      .cal .cal-mo:has(.cal-ag){border:0}
       .calh .cal-mini span{color:var(--muted);white-space:nowrap} .calh .cal-mini .late{color:var(--warn);font-weight:600} .calh h4{margin:12px 0 4px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}`;
     document.head.appendChild(st);
   }
@@ -288,34 +309,54 @@
   const LANES = 4;
   const RANK = x => (x.kind === 'task' ? 2 : x.kind === 'mail' ? 1 : 0);
   function monthItems(d, act) {
-    const all = !act || act === 'all', f = FLT(), items = [], pre = id => (all && id ? `${brandName(d, id)}: ` : '');
-    if (f !== 'tasks') {
-      for (const x of withTeasers(d.items.filter(x => all || x.act === act))) items.push({ ...x, label: pre(x.act) + x.name });
-      for (const e of d.emails.filter(e => all || e.act === act)) { const name = `${e.channel === 'sms' ? 'Text' : 'Email'}: ${mailName(e.name)}`; items.push({ id: `mail:${e.date}:${e.name}`, src: 'email', name, label: pre(e.act) + name, kind: 'mail', start: e.date, end: e.date, status: e.status === 'scheduled' ? 'pen' : 'conf', mail: e }); }
-    }
-    if (f !== 'tasks' && on('post')) for (const p of d.social || []) {
+    const all = !act || act === 'all', items = [], pre = id => (all && id ? `${brandName(d, id)}: ` : '');
+    const mine = withTeasers(d.items.filter(x => all || x.act === act));
+    for (const x of mine) items.push({ ...x, label: pre(x.act) + x.name });
+    /* the day the ads for a date go in (its "Ads loaded" step), so Ads has something on the calendar */
+    for (const x of mine) for (const s of x.steps || []) if (s.key === 'loaded' && s.due) items.push({ id: `ad:${x.id}`, of: x.id, kind: 'ad', name: `Ads in: ${x.name}`, label: pre(x.act) + `Ads in: ${x.name}`, start: s.due, end: s.due, status: s.state === 'done' ? 'conf' : 'pen', step: s, act: x.act });
+    MAILS.clear();
+    for (const e of d.emails.filter(e => all || e.act === act)) { const name = `${e.channel === 'sms' ? 'Text' : 'Email'}: ${mailName(e.name)}`, id = `mail:${e.act}:${e.date}:${e.name}`; MAILS.set(id, e); items.push({ id, src: 'email', name, label: pre(e.act) + name, kind: 'mail', start: e.date, end: e.date, status: e.status === 'scheduled' ? 'pen' : 'conf', mail: e }); }
+    for (const p of d.social || []) {
       if (!all && p.act !== act) continue;
       const name = `Post: ${postName(p)}`;
       items.push({ id: `post:${p.id}`, kind: 'post', name, label: pre(p.act) + name, start: p.day, end: p.day, status: p.status === 'scheduled' || p.status === 'posted' ? 'conf' : 'pen', post: p });
     }
-    if (f !== 'mkt') for (const t of d.tasks || []) {
+    for (const t of d.tasks || []) {
       if (!all && t.act_id !== act) continue;
       const due = String(t.due).slice(0, 10);
       items.push({ id: `task:${t.id}`, kind: 'task', name: t.text, label: pre(t.act_id) + t.text, start: due, end: due, status: 'conf', task: t });
     }
-    return items.sort((a, b) => a.start.localeCompare(b.start) || RANK(a) - RANK(b));
+    return items.filter(x => chOn(chOf(x))).sort((a, b) => a.start.localeCompare(b.start) || RANK(a) - RANK(b));
   }
-  /* Everything on one day in the side panel (a sheet from the bottom on a phone): "+N more", or any tap on a phone. */
-  function dayPanel(d, act, day) {
-    const list = monthItems(d, act).filter(x => x.start <= day && (x.end || '2099-12-31') >= day);
-    const row = x => x.kind === 'mail'
-      ? `<div class="cal-ev mail"><b>${esc(x.label)}</b><span class="ty" style="--c:var(--good)"><i></i>${esc(x.mail.status)}, from Klaviyo</span></div>`
+  const MAILS = new Map();
+  const CHC = { email: '--good', sms: '--c-sms', ads: '--c-meta', organic: '--c-tiktok' };
+  /* One row for a thing on a day: the day panel, the Day view and the List view all use it. */
+  function rowHtml(d, x) {
+    return x.kind === 'mail'
+      ? `<button type="button" class="cal-ev" data-mail="${esc(x.id)}"><b>${esc(x.label)}</b><span class="ty" style="--c:var(${CHC[chOf(x)]})"><i></i>${x.mail.channel === 'sms' ? 'Text' : 'Email'} &middot; ${esc(x.mail.status)}, from Klaviyo</span></button>`
+      : x.kind === 'ad'
+      ? `<button type="button" class="cal-ev" data-ev="${esc(x.of)}"><b>${esc(x.label)}</b><span class="ty" style="--c:var(--c-meta,#5b8def)"><i></i>Ads &middot; ${esc(x.step.who || '')} &middot; ${esc(x.step.note || (x.status === 'conf' ? 'done' : 'not yet'))}</span></button>`
       : x.kind === 'post'
       ? `<button type="button" class="cal-ev" data-post="${esc(x.post.id)}" data-pact="${esc(x.post.act)}"><b>${esc(x.label)}</b><span class="ty" style="--c:var(--c-tiktok,#ff3b5c)"><i></i>${postLine(x.post)}</span></button>`
       : x.kind === 'task'
       ? `<button type="button" class="cal-ev" data-task="${esc(x.task.id)}"><b>${esc(x.label)}</b><span class="ty" style="--c:var(${x.start < d.today ? '--warn' : '--ink-2'})"><i></i>Task &middot; ${esc(x.task.owner || 'nobody yet')}${x.start < d.today ? ' &middot; late' : ''}</span></button>`
       : `<button type="button" class="cal-ev" data-ev="${esc(x.id)}"><b>${esc(x.label)}</b><span class="ty" style="--c:var(${x.kind === 'drop' ? '--c-meta' : x.kind === 'sale' ? '--c-email' : '--muted'})"><i></i>${esc(KL[x.kind] || '')} &middot; ${md(x.start)}${x.end && x.end !== x.start ? ` to ${md(x.end)}` : isOpen(x) ? ', no end date' : ''}</span></button>`;
-    const body = U().panel(`${wd(day)} ${md(day)}`, `<div class="cal-pn cal-day">${list.length ? list.map(row).join('') : '<p class="v2hint" style="margin:0">Nothing on this day.</p>'}${day >= d.today ? '<div style="margin-top:6px"><button type="button" class="cal-btn pri" data-addday="1">+ Add a date on this day</button></div>' : ''}</div>`);
+  }
+  /* An email or text: what it is, when, its state. Klaviyo's own page has the preview and the results. */
+  function mailPanel(d, id) {
+    const e = MAILS.get(id); if (!e) return;
+    const sms = e.channel === 'sms', st = e.status === 'sent' ? ['good', 'Sent'] : e.status === 'scheduled' ? ['info', 'Scheduled'] : ['info', e.status || 'Draft'];
+    U().panel(sms ? 'Text' : 'Email', `<div class="cal-pn">
+      <div class="cvd ${st[0]}"><b>${esc(mailName(e.name))}</b><span>${esc(st[1])} &middot; ${wd(e.date)} ${md(e.date)} &middot; ${esc(brandName(d, e.act))}</span></div>
+      <div class="kv"><div><span>Channel</span><b>${sms ? 'SMS' : 'Email'}</b></div><div><span>Date</span><b>${md(e.date)}</b></div><div><span>State</span><b>${esc(st[1])}</b></div></div>
+      <div><h4>Name in Klaviyo</h4><p style="overflow-wrap:anywhere">${esc(e.name)}</p></div>
+      <p class="v2hint" style="margin:0">From Klaviyo. The preview, segment and results are on the campaign in Klaviyo.</p></div>`);
+  }
+  /* Everything on one day in the side panel (a sheet from the bottom on a phone): "+N more", or any tap on a phone. */
+  function dayPanel(d, act, day) {
+    const list = monthItems(d, act).filter(x => x.start <= day && (x.end || '2099-12-31') >= day);
+    const body = U().panel(`${wd(day)} ${md(day)}`, `<div class="cal-pn cal-day">${list.length ? list.map(x => rowHtml(d, x)).join('') : '<p class="v2hint" style="margin:0">Nothing on this day.</p>'}${day >= d.today ? '<div style="margin-top:6px"><button type="button" class="cal-btn pri" data-addday="1">+ Add a date on this day</button></div>' : ''}</div>`);
+    body.querySelectorAll('[data-mail]').forEach(b => b.onclick = () => mailPanel(d, b.dataset.mail));
     body.querySelectorAll('[data-ev]').forEach(b => b.onclick = () => openEv(d, b.dataset.ev));
     body.querySelectorAll('[data-task]').forEach(b => b.onclick = () => taskPanel(d, b.dataset.task));
     body.querySelectorAll('[data-post]').forEach(b => b.onclick = () => { document.querySelector('#v2panel .pclose')?.click(); openPost(b.dataset.post, b.dataset.pact); });
@@ -336,7 +377,7 @@
         const e = x.end || '2099-12-31';
         if (e < a || x.start > z) continue;
         const c0 = Math.max(0, days(a, x.start)), c1 = Math.min(6, days(a, e));
-        for (let c = c0; c <= c1; c++) (cover[c] = cover[c] || []).push(x.kind === 'mail' || x.kind === 'task' || x.kind === 'post' ? x.kind : CLS(x.kind));
+        for (let c = c0; c <= c1; c++) (cover[c] = cover[c] || []).push(dotOf(x));
         let r = used.findIndex(q => q < c0); if (r < 0) { r = used.length; used.push(-1); }
         if (r >= cap) { for (let c = c0; c <= c1; c++) hidden[c] = (hidden[c] || 0) + 1; continue; }
         used[r] = c1;
@@ -349,7 +390,16 @@
           bars += `<button type="button" class="cal-chip task${late ? ' late' : ''}" style="left:${c0 / 7 * 100}%;width:calc(${100 / 7}% - 6px);top:${r * 22}px" data-task="${esc(t.id)}" draggable="true" data-drag="task:${esc(t.id)}"${tip(`<b>Task: ${esc(t.text)}</b><br>${esc(t.act_id ? brandName(d, t.act_id) : 'Agency-wide')} &middot; ${esc(t.owner || 'nobody yet')} &middot; due ${md(x.start)}${late ? ', late' : ''}`)}>${esc(x.label)}</button>`;
           continue;
         }
-        const cls = `cal-chip ${x.kind === 'mail' ? 'mail' : CLS(x.kind)} ${x.status === 'pen' ? 'pen' : ''} ${x.status === 'miss' ? 'miss' : ''} ${x.start < a ? 'cont' : ''}`;
+        if (x.kind === 'ad') {
+          bars += `<button type="button" class="cal-chip ad${x.status === 'conf' ? ' done' : ''}" style="left:${c0 / 7 * 100}%;width:calc(${100 / 7}% - 6px);top:${r * 22}px" data-ev="${esc(x.of)}"${tip(`<b>${esc(x.name)}</b><br>${esc(x.step.who || '')} &middot; ${esc(x.step.note || '')}`)}>${esc(x.label)}</button>`;
+          continue;
+        }
+        if (x.kind === 'mail') {
+          const sms = x.mail.channel === 'sms';
+          bars += `<button type="button" class="cal-chip mail ${sms ? 'sms' : 'em'}${x.status === 'pen' ? ' pen' : ''}" style="left:${c0 / 7 * 100}%;width:calc(${100 / 7}% - 6px);top:${r * 22}px" data-mail="${esc(x.id)}"${tip(`<b>${esc(x.name)}</b><br>${md(x.start)}, ${esc(x.mail.status)}, from Klaviyo. Click for details.`)}>${esc(x.label)}</button>`;
+          continue;
+        }
+        const cls = `cal-chip ${CLS(x.kind)} ${x.status === 'pen' ? 'pen' : ''} ${x.status === 'miss' ? 'miss' : ''} ${x.start < a ? 'cont' : ''}`;
         const tt = x.kind === 'mail' ? tip(`<b>${esc(x.name)}</b><br>${md(x.start)}, ${x.mail.status}, from Klaviyo`) : tip(tipOf(d, x));
         bars += `<button type="button" class="${cls}" style="left:${c0 / 7 * 100}%;width:calc(${(c1 - c0 + 1) / 7 * 100}% - 6px);top:${r * 22}px" ${x.kind === 'mail' ? '' : `data-ev="${esc(x.id)}"`}${x.editable && !x.teaserOf ? ` draggable="true" data-drag="${esc(x.id)}"` : ''}${tt}>${x.start < a ? '&#8592; ' : ''}${esc(x.label || x.name)}${isOpen(x) && e > z ? ' (no end date)' : ''}</button>`;
       }
@@ -365,16 +415,28 @@
     return D(first).toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
   }
 
+  /* Day = one day in full; List = 4 weeks from the anchor, one row per day that has something (Airtable's list). */
+  function agenda(el, d, act) {
+    const dayV = viewOf(act) === 'day', a = dayV ? (ST.day || d.today) : (ST.lst || d.today), z = dayV ? a : add(a, 27);
+    const items = monthItems(d, act).filter(x => x.start <= z && (x.end || '2099-12-31') >= a);
+    const by = {};
+    for (const x of items) { const s = x.start < a ? a : x.start; (by[s] = by[s] || []).push(x); }
+    const ks = dayV ? [a] : Object.keys(by).sort();
+    el.innerHTML = `<div class="cal-ag">${ks.length ? ks.map(k => `<div class="cal-agd ${k === d.today ? 'td' : ''}"><div class="d">${k === d.today ? 'Today' : wd(k)}<span>${md(k)}</span></div><div class="l">${(by[k] || []).map(x => rowHtml(d, x)).join('') || '<p class="v2hint" style="margin:0">Nothing on this day.</p>'}</div></div>`).join('') : '<p class="v2hint" style="margin:0;padding:10px 4px">Nothing in these 4 weeks with the channels picked.</p>'}</div>`;
+    return dayV ? `${wd(a)} ${md(a)}` : `${md(a)} to ${md(z)}`;
+  }
+  const drawCal = (el, d, act) => (['day', 'list'].includes(viewOf(act)) ? agenda(el, d, act) : month(el, d, act));
+
   /* The month / week card, the same on both pages. */
   function monthCard(act) {
     const all = !act || act === 'all', v = viewOf(act), f = FLT(), cli = CLI();
-    const seg = [...(all ? [['lanes', '13 weeks']] : []), ['month', 'Month'], ['week', 'Week']].map(([k, l]) => `<button type="button" class="${v === k ? 'on' : ''}" data-view="${k}">${l}</button>`).join('');
-    const fl = cli ? '' : [['all', 'All', 'var(--ink-2)'], ['mkt', 'Marketing', 'var(--c-email,#9b7bd8)'], ['tasks', 'Tasks', 'var(--muted)']].map(([k, l, c]) => `<button type="button" class="cal-layer ${f === k ? 'on' : ''}" data-flt="${k}"><i style="background:${c}"></i>${l}</button>`).join('');
-    const how = cli ? 'What your customers see and when: drops, sales, the Black Friday plan, emails and texts. Click a day to see everything on it.'
-      : '<b>Marketing</b> is what customers see: drops, sales, the Black Friday plan, emails and texts. <b>Tasks</b> are what the team owes, on the day they are due (from Clients &gt; Tasks). Click an empty day to add a date; drag anything to move it.';
-    const lg = `<div class="cal-lg">${f !== 'tasks' ? '<span><i style="border:1px solid var(--c-meta,#5b8def);background:color-mix(in srgb,var(--c-meta,#5b8def) 22%,var(--surface))"></i>Drop</span><span><i style="border:1px solid var(--c-email,#9b7bd8);background:color-mix(in srgb,var(--c-email,#9b7bd8) 22%,var(--surface))"></i>Sale or offer</span><span><i style="border:1px solid var(--muted);background:var(--surface-2)"></i>Teaser, list, other</span><span><i style="border:1px solid var(--good)"></i>Email or text</span>' : ''}${f !== 'mkt' ? '<span><i style="border:1px solid var(--muted);background:var(--surface)"></i>Task</span><span><i style="border:1px solid var(--warn)"></i>Late task</span>' : ''}${f !== 'tasks' ? '<span>Striped = pencilled &middot; dashed = no offer yet</span>' : ''}</div>`;
+    const seg = [...(all ? [['lanes', '13 weeks']] : []), ['day', 'Day'], ['week', 'Week'], ['month', 'Month'], ['list', 'List']].map(([k, l]) => `<button type="button" class="${v === k ? 'on' : ''}" data-view="${k}">${l}</button>`).join('');
+    const fl = CHS.filter(([k]) => !(cli && k === 'tasks')).map(([k, l, c]) => `<button type="button" class="cal-layer ${chOn(k) ? 'on' : 'off'}" data-ch="${k}" aria-pressed="${chOn(k)}"><i style="background:${c}"></i>${l}</button>`).join('');
+    const how = cli ? 'Tap a channel to show or hide it. Tap anything to see the details.'
+      : 'Tap a channel to show or hide it. Tap anything for details; click an empty day to add a date; drag a date to move it.';
+    const lg = `<div class="cal-lg"><span>Solid = sent, live or done</span><span>Dashed or striped = scheduled, pencilled or not done yet</span><span>Ads = the day a date's ads go in</span></div>`;
     return `<div class="cal-card cal-mw"><div class="cal-ch"><h3 id="calMonT"></h3><div class="r"><span class="cal-seg" role="tablist">${seg}</span><button type="button" class="cal-btn" data-m="-1" aria-label="Back">&#8249;</button><button type="button" class="cal-btn" data-m="0">Today</button><button type="button" class="cal-btn" data-m="1" aria-label="Forward">&#8250;</button><button type="button" class="cal-btn pri" data-add="1">+ Add a date</button></div></div>
-      <div class="cal-fl">${fl}<span class="cap">${how}</span></div>${!cli && f !== 'mkt' && !d0tasks ? '<p class="v2hint" style="margin:0 0 8px;color:var(--warn)">The tasks did not load; showing marketing only.</p>' : ''}
+      <div class="cal-fl cal-ch2">${fl}<span class="cap">${how}</span></div>${!cli && chOn('tasks') && !d0tasks ? '<p class="v2hint" style="margin:0 0 8px;color:var(--warn)">The tasks did not load; showing marketing only.</p>' : ''}
       <div class="cal-mo" id="calMonth"></div>${lg}</div>`;
   }
   let d0tasks = true;
@@ -418,7 +480,7 @@
     $('#main').innerHTML = `<div class="v2 cal">${H.pageHead('calendar', 'Calendar')}
       <p class="cal-lead" style="margin:-4px 0 14px;font-size:15px;font-weight:600;max-width:80ch">${esc(headLine(d, d.items))}</p>
       ${tiles}
-      ${viewOf('all') !== 'lanes' ? monthCard('all') : `<div class="cal-card"><div class="cal-ch"><h3>What customers see, every client</h3><span class="cal-seg" role="tablist"><button type="button" class="on" data-view="lanes">13 weeks</button><button type="button" data-view="month">Month</button><button type="button" data-view="week">Week</button></span><span class="cap">13 weeks. Click anything to open it; click a client to see their month.</span>
+      ${viewOf('all') !== 'lanes' ? monthCard('all') : `<div class="cal-card"><div class="cal-ch"><h3>What customers see, every client</h3><span class="cal-seg" role="tablist"><button type="button" class="on" data-view="lanes">13 weeks</button><button type="button" data-view="day">Day</button><button type="button" data-view="week">Week</button><button type="button" data-view="month">Month</button><button type="button" data-view="list">List</button></span><span class="cap">13 weeks. Click anything to open it; click a client to see their month.</span>
         <div class="r">${lay('drop', 'var(--c-meta,#5b8def)', 'Drops')}${lay('sale', 'var(--c-email,#9b7bd8)', 'Sales and offers')}${lay('other', 'var(--muted)', 'Other')}${lay('mail', 'var(--good)', 'Emails')}${lay('post', 'var(--c-tiktok,#ff3b5c)', 'Posts')}
           <button type="button" class="cal-btn" data-nav="-4">&#8249;</button><button type="button" class="cal-btn" data-nav="0">Today</button><button type="button" class="cal-btn" data-nav="4">&#8250;</button>
           <button type="button" class="cal-btn pri" data-add="1">+ Add a date</button></div></div>
@@ -427,7 +489,7 @@
       </div>`}
       <div class="cal-card" id="calWork"><div class="cal-ch"><h3>Work due this week</h3><span class="cap">Every date's countdown, ${md(today)} to ${md(wk)}, plus anything late. Ticks come from Asana, Klaviyo and Meta.</span></div>${workHtml(d)}</div>
     </div>`;
-    if (viewOf('all') !== 'lanes') { document.getElementById('calMonT').textContent = month(document.getElementById('calMonth'), d, 'all'); wire($('#main'), d); return; }
+    if (viewOf('all') !== 'lanes') { document.getElementById('calMonT').textContent = drawCal(document.getElementById('calMonth'), d, 'all'); wire($('#main'), d); return; }
     const draw = () => { const el = document.getElementById('calLanes'); if (el) lanes(el, d); };
     requestAnimationFrame(draw);
     wire($('#main'), d);
@@ -464,7 +526,7 @@
       <div class="cal-tw"><div class="cal-two">${monthCard(act)}
         <div>${warns.map(([h1, s, a]) => `<div class="cal-warn" style="margin-bottom:10px"><b>${esc(h1)}</b><span>${esc(s)}</span>${a ? `<div class="a">${a}</div>` : ''}</div>`).join('')}
           <div class="cal-card"><div class="cal-ch"><h3>Coming up</h3><span class="cap">6 weeks</span></div><div class="cal-cu">${cu}</div></div></div></div></div></div>`;
-    const t = month(document.getElementById('calMonth'), d, act); document.getElementById('calMonT').textContent = t;
+    const t = drawCal(document.getElementById('calMonth'), d, act); document.getElementById('calMonT').textContent = t;
     wire($('#main'), d, act);
   }
 
@@ -480,11 +542,16 @@
     const again = () => (act ? brandPage(d, act) : allPage(d));
     root.querySelectorAll('[data-m]').forEach(b => b.onclick = () => {
       const n = +b.dataset.m;
-      if (viewOf(act) === 'week') ST.wk = n ? add(monday(ST.wk || d.today), n * 7) : null;
+      const vv = viewOf(act);
+      if (vv === 'day') ST.day = n ? add(ST.day || d.today, n) : null;
+      else if (vv === 'list') ST.lst = n ? add(ST.lst || d.today, n * 28) : null;
+      else if (vv === 'week') ST.wk = n ? add(monday(ST.wk || d.today), n * 7) : null;
       else { const cur = ST.mon || d.today.slice(0, 7); const [y, m] = cur.split('-').map(Number); ST.mon = n ? new Date(Date.UTC(y, m - 1 + n, 1)).toISOString().slice(0, 7) : null; }
       again();
     });
     root.querySelectorAll('[data-view]').forEach(b => b.onclick = () => { VIEW.v = b.dataset.view; store('cal_view', VIEW.v); if (VIEW.v === 'week' && ST.mon) ST.wk = ST.mon === d.today.slice(0, 7) ? null : `${ST.mon}-01`; again(); });
+    root.querySelectorAll('[data-ch]').forEach(b => b.onclick = () => { const k = b.dataset.ch; if (chOn(k)) CHOFF[k] = true; else delete CHOFF[k]; store('cal_ch', JSON.stringify(CHOFF)); again(); });
+    root.querySelectorAll('[data-mail]').forEach(b => b.onclick = e => { e.stopPropagation(); mailPanel(d, b.dataset.mail); });
     root.querySelectorAll('[data-flt]').forEach(b => b.onclick = () => { VIEW.f = b.dataset.flt; store('cal_f', VIEW.f); again(); });
     root.querySelectorAll('.cal-mo [data-task]').forEach(b => b.onclick = e => { e.stopPropagation(); taskPanel(d, b.dataset.task); });
     root.querySelectorAll('[data-tile]').forEach(b => b.onclick = () => { const v = b.dataset.tile; if (v === 'work') document.getElementById('calWork')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); else if (v.startsWith('ev:')) openEv(d, v.slice(3)); else if (v.startsWith('brand:')) pickAct(v.slice(6)); });
@@ -702,7 +769,11 @@
 
   window.CalendarTab = {
     /** Work > Tasks "Calendar": open this page on the month with only the tasks showing. */
-    focus(f, v) { VIEW.f = f || 'all'; VIEW.v = v || 'month'; store('cal_f', VIEW.f); store('cal_view', VIEW.v); },
+    focus(f, v) {
+      VIEW.f = f || 'all'; VIEW.v = v || 'month'; store('cal_f', VIEW.f); store('cal_view', VIEW.v);
+      for (const [k] of CHS) { if (f === 'tasks' && k !== 'tasks') CHOFF[k] = true; else delete CHOFF[k]; }
+      store('cal_ch', JSON.stringify(CHOFF));
+    },
     render(tab, host, first) { H = host; return render(first); },
     homeCard(el, host) { H = host; return homeCard(el); },
     bandsFor(act, from, to, host) { if (host) H = host; return bandsFor(act, from, to); },
