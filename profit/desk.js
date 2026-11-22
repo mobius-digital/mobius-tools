@@ -1131,7 +1131,7 @@
         <div class="ws-n"><b>${esc(b.name)}</b>${lchip(T[g.call] || '', W[g.call] || 'Hold')}</div>
         <div class="ws-g"><span>${b.no_sales ? `Spend ${U().kmoney(s.spend)} (no Triple Whale store)` : `<b>${U().kmoney(s.sales)}</b> of ${U().kmoney(b.goal)} · ${Math.round((s.pct_goal || 0) * 100)}%`}</span><i><em style="width:${(pct * 100).toFixed(0)}%"></em></i></div>
         <div class="ws-k"><span class="${merT(s.mer)}">MER ${U().x2(s.mer)} so far</span><span class="${merT(l6.mer)}">${U().x2(l6.mer)} last ${l6.hours || 6}h</span><small>KPI ${U().x2(b.kpi)}</small></div>
-        <div class="ws-k"><span>${m.error ? esc(m.error) : m.camp ? `${m.camp.daily ? `${U().money(m.camp.daily)}/day` : 'ad set budgets'}` : 'No sale campaign'}</span><small>${m.limit ? `Meta limit ${U().money(m.limit)} · ${U().money(m.headroom)} room` : ''}</small></div>
+        <div class="ws-k"><span>${m.error ? esc(m.error) : m.camp ? `${m.camp.daily ? `${U().money(m.camp.daily)}/day` : 'ad set budgets'}` : 'No sale campaign'}</span><small>${m.limit ? `Meta limit ${U().money(m.limit)}${m.limit_src === 'known' ? ' (Nov 22 figure)' : ''} · ${U().money(m.headroom)} room` : ''}</small></div>
         <div class="ws-a"><small>${esc(g.why || '')}${g.note ? ` ${esc(g.note)}` : ''}</small>${act}</div></div>`;
     };
     el.innerHTML = `<section class="v2card ws">${head}

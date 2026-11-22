@@ -23,7 +23,8 @@ const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 export const STAND_DAYS = { from: '2026-11-26', to: '2026-11-30' };
 /* Central hours. 9am to 9pm every 3 hours, and 11pm to close the day (a midnight read would be an empty new day). */
 export const STAND_HOURS = [9, 12, 15, 18, 21, 23];
-const SALE_RE = /bfcm|black friday|cyber|holiday 20\d\d/i;
+const KNOWN_LIMITS = { brand_lucky_golf: 6637, brand_dartee_golf: 13806, brand_bonk_golf: 5000, brand_grunk_dolfer: 2583, brand_yak_sports: 841, brand_vetripaws: 3428 };
+const SALE_RE =/bfcm|black friday|cyber|holiday 20\d\d/i;
 
 const central = (d = new Date()) => {
   const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' }).formatToParts(d).map(x => [x.type, x.value]));
@@ -83,13 +84,15 @@ async function metaSide(env, md, act, today) {
   const ml = await metaLive(env, md, act, { season: true });
   if (ml.error) return { error: ml.error };
   const camp = pickSaleCamp(ml, today), on = budgetsOn(ml);
-  let limit = null;
+  let limit = null, limitErr = null, src = 'meta';
   for (const m of await metaActs(env, act)) {
-    const a = await gget(md, env, m.act, { fields: 'adtrust_dsl' }).catch(() => null);
+    const a = await gget(md, env, m.act, { fields: 'adtrust_dsl' }).catch(e => { limitErr = e.message; return null; });
     const v = a && +a.adtrust_dsl;
     if (v > 0) limit = (limit || 0) + v;   // -1 = no limit
   }
-  return { camp: camp ? { id: camp.id, name: camp.name, daily: camp.daily || null } : null, on, limit, headroom: limit ? limit - on : null };
+  /* Meta would not say: the limits Cole listed on 2026-11-22 (raise requests pending), labelled as such. */
+  if (limit == null && KNOWN_LIMITS[act]) { limit = KNOWN_LIMITS[act]; src = 'known'; }
+  return { camp: camp ? { id: camp.id, name: camp.name, daily: camp.daily || null } : null, on, limit, limit_src: limit ? src : null, limit_error: limitErr, headroom: limit ? limit - on : null };
 }
 
 /** Build one check-in (reads only). */
@@ -119,7 +122,7 @@ export function standingMessage(rec) {
   const lines = rec.brands.map(b => {
     const s = b.so_far || {}, l6 = b.last6 || {}, m = b.meta || {}, g = b.suggest || {};
     const rev = b.no_sales ? `spend ${kmoney(s.spend)} (no Triple Whale store)` : `${kmoney(s.sales)} of ${kmoney(b.goal)} (${s.pct_goal != null ? Math.round(s.pct_goal * 100) : 0}%), MER ${xx(s.mer)} so far, ${xx(l6.mer)} last 6h (KPI ${xx(b.kpi)})`;
-    const bud = m.error ? `Meta: ${m.error}` : `${m.camp ? `${m.camp.daily ? money(m.camp.daily) + '/day' : 'ad set budgets'}` : 'No sale campaign'}${m.limit ? `, limit ${money(m.limit)}, ${money(m.headroom)} room` : ''}`;
+    const bud = m.error ? `Meta: ${m.error}` : `${m.camp ? `${m.camp.daily ? money(m.camp.daily) + '/day' : 'ad set budgets'}` : 'No sale campaign'}${m.limit ? `, limit ${money(m.limit)}${m.limit_src === 'known' ? ' (Nov 22 figure)' : ''}, ${money(m.headroom)} room` : ''}`;
     const act = g.to ? `*${W[g.call]} to ${money(g.to)}* <${link(b.act_id)}|Approve>` : `*${W[g.call] || 'Hold'}*`;
     return `*${b.name}*: ${rev}. ${bud}. ${act}${g.note ? ` (${g.note})` : ''}`;
   });
