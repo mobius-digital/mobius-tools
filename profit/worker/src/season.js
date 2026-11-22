@@ -241,7 +241,7 @@ export function callOf(g, today, acct) {
   const goal = g.target ?? num(acct && acct.target_roas) ?? 2.5;
   const has = g.be != null && g.target != null;
   const L = { be: g.be ?? null, hold: g.hold ?? null, target: goal, s50: g.s50 ?? null, s100: g.s100 ?? null, start: g.start ?? null, own: has ? 1 : 0 };
-  const floor = Math.max(75, (g.start || 0) * 0.08);
+  const floor = 150;   // a day under $150 of ads is too thin to grade (one order swings it)
   if (mer == null || spend < floor) return { call: 'wait', pct: 0, mer, ladder: L, why: `Too early to call: $${Math.round(spend)} spent so far today.` };
   const x = v => `${(Math.round(v * 100) / 100).toFixed(2)}x`;
   if (L.s100 != null && mer >= L.s100) return { call: 'raise', pct: 1, mer, ladder: L, why: `${x(mer)} today, at or over ${x(L.s100)}: double it.` };
@@ -250,7 +250,7 @@ export function callOf(g, today, acct) {
   const hold = L.hold ?? L.be;
   if (hold != null && mer >= hold) return { call: 'hold', pct: 0, mer, ladder: L, why: `${x(mer)} today, under the ${x(goal)} goal but over ${x(hold)}: hold.` };
   if (L.hold != null && L.be != null && mer >= L.be) return { call: 'cut', pct: -0.25, mer, ladder: L, why: `${x(mer)} today, under the ${x(L.hold)} hold line: cut 25%.` };
-  if (L.be != null && L.start) return { call: 'reset', pct: null, to: L.start, mer, ladder: L, why: `${x(mer)} today, under breakeven ${x(L.be)}: back to the starting budget.` };
+  if (L.be != null && L.start) return { call: 'reset', pct: null, to: L.start, mer, ladder: L, why: `${x(mer)} today, under breakeven ${x(L.be)}: back to the $${Math.round(L.start).toLocaleString('en-US')} start (cut 25% if already under it).` };
   return { call: 'cut', pct: -0.25, mer, ladder: L, why: `${x(mer)} today, under ${x(hold ?? goal)}: cut 25%.` };
 }
 export const WAR_METRICS = { revenue: 'Revenue', orders: 'Orders', aov: 'AOV', mer: 'MER', new_customers: 'New customers', spend: 'Ad spend' };
