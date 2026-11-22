@@ -8278,6 +8278,12 @@ const AH_APP = {
       const r = await handleReviewLink(request, env, url, path, json, { ...actionDeps(), waitUntil: p => ctx.waitUntil(p), moveCard: prodMove, formatOf: prodFormat, readDoc: brandReadDoc });
       if (r) return r;
     }
+    /* War Room scoreboard images for the check-in DM (standing.js): public by an unguessable id, so Slack can fetch them. */
+    if (path.startsWith('/standing-card/') && request.method === 'GET') {
+      const m = path.match(/^\/standing-card\/([a-f0-9]{24})\.png$/);
+      const o = m && env.MEDIA ? await env.MEDIA.get(`standing/${m[1]}.png`) : null;
+      return o ? new Response(o.body, { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=31536000, immutable' } }) : new Response('Not found', { status: 404 });
+    }
     /* Ad covers (creative.js): public by a signed ad id, cached by the browser for a year. */
     if (path.startsWith('/cover/') && request.method === 'GET') return serveCover(env, path);
     /* A Production picture for the review post in Slack (checkin.js, 2026-10-26): public, signed, no expiry. */

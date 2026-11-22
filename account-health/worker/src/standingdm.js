@@ -101,9 +101,87 @@ function boardBlocks(rec, prev, link) {
   return { blocks, attachments };
 }
 
-/** The DM in a Block Kit style ('wc' or 'board'), plus the plain `text` Slack shows in the notification. */
-export function standingCard(rec, prev, style, link) {
+/* ---------- Take 4 (Cole, 2026-11-22: "real lines, big header lines, each number its own mini block") ----------
+ * Shared pieces: a header block per section (Slack's big bold line), divider blocks between sections (a real line),
+ * and every number its own small block: section `fields` (label over value, two columns) or one rich-text quote per
+ * metric (each with its own grey bar, Well Copy's look). */
+const H = t => ({ type: 'header', text: { type: 'plain_text', text: t, emoji: true } });
+const DIV = { type: 'divider' };
+const CTX = t => ({ type: 'context', elements: [{ type: 'mrkdwn', text: t }] });
+const F = (label, value) => ({ type: 'mrkdwn', text: `*${label}*\n${value}` });
+const callDot = (b, ap) => ap ? '✅' : DOT((b.suggest || {}).call === 'scale' ? 'good' : (b.suggest || {}).call === 'cut' ? 'bad' : 'warn');
+const callText = (b, ap) => ap ? `Approved, ${money(ap.to)}/day` : `${W[(b.suggest || {}).call] || 'Hold'}${(b.suggest || {}).to ? ` to ${money(b.suggest.to)}/day` : ''}`;
+function topBlocks(rec, prev) {
+  const T = totals(rec), d = since(rec, prev), N = needs(rec);
+  return [H(`📊 Where we stand · ${hourOf(rec.slot)}`),
+    CTX(`${rec.label.replace(/,? \d+(am|pm) CT$/, '')} · Black Friday weekend${rec.dry ? ' · dry run, the weekend starts Thu Nov 26' : ''}${rec.next ? ` · next check-in ${rec.next}` : ''}`),
+    DIV, H('Weekend so far'),
+    { type: 'section', fields: [F('Sales', `${k(T.s)}${d ? `  _+${k(d.sales)} since ${d.label}_` : ''}`), F('Of the goal', `${pct(T.s, T.g)}% of ${k(T.g)}`),
+      F('MER', `${DOT(tone(T.mer, 2.5))} ${x(T.mer)}  _KPI 2.50x_`), F('Ad spend', `${k(T.p)}${d ? `  _+${k(d.spend)}_` : ''}`)] },
+    { type: 'section', fields: [F('Needs your yes', N.length ? `${N.length} brand${N.length === 1 ? '' : 's'}` : 'Nothing'), F('On hold', `${rec.brands.length - N.length} brand${rec.brands.length - N.length === 1 ? '' : 's'}`)] }];
+}
+function needBlocks(rec, link) {
+  const N = needs(rec);
+  if (!N.length) return [DIV, H('Needs your yes'), CTX('Nothing to approve. Every brand is on Hold.')];
+  return [DIV, H(`Needs your yes (${N.length})`), ...N.flatMap(b => [
+    { type: 'section', text: { type: 'mrkdwn', text: `${callDot(b)} *${b.name}*\n${W[b.suggest.call]}: ${money(b.meta.camp.daily)} to *${money(b.suggest.to)}*/day` },
+      accessory: btn('Approve', link(b.act_id), b.suggest.call === 'scale' ? 'primary' : 'danger') },
+    ...(b.suggest.why ? [CTX(b.suggest.why)] : [])])];
+}
+const foot = (rec, link) => [DIV, CTX(`Sales and MER: Triple Whale · Budgets: Meta · Nothing changes until you tap Approve · <${link()}|Open the War Room>`)];
+
+/* A: Well Copy, line for line: each brand's name in orange code, then one quote line (own grey bar) per number. */
+function aBlocks(rec, prev, link) {
+  const d = since(rec, prev), B = sorted(rec);
+  const brand = b => {
+    const s = b.so_far || {}, l6 = b.last6 || {}, m = b.meta || {}, ap = (rec.approved || {})[b.act_id], dd = d && d.per[b.act_id];
+    const q = (label, value, note) => ({ type: 'rich_text_quote', elements: [{ type: 'text', text: `${label}: `, style: { bold: true } }, { type: 'text', text: value }, ...(note ? [{ type: 'text', text: `,  ${note}`, style: { italic: true } }] : [])] });
+    const lines = b.no_sales ? [q('Spend', k(s.spend), 'no Triple Whale store')]
+      : [q('Sales', `${k(s.sales)} of ${k(b.goal)}`, dd ? `+${k(dd.sales)} since ${d.label}` : `${pct(s.sales, b.goal)}%`), q('MER', x(s.mer), `${x(l6.mer)} last 6h · KPI ${x(b.kpi)}`)];
+    lines.push(q('Budget', m.camp && m.camp.daily ? `${money(m.camp.daily)}/day` : 'n/a', m.headroom != null ? `${k(m.headroom)} room` : null));
+    return { type: 'rich_text', elements: [{ type: 'rich_text_section', elements: [{ type: 'text', text: b.name, style: { code: true } }, { type: 'text', text: `  ${callDot(b, ap)} ${callText(b, ap)}` }] }, ...lines] };
+  };
+  return { blocks: [...topBlocks(rec, prev), ...needBlocks(rec, link), DIV, H('Brands'), ...B.map(brand), ...foot(rec, link)] };
+}
+/* B: a grid: each brand gets a bold line with its call, then six small blocks in two columns, then a grey why. */
+function bBlocks(rec, prev, link) {
+  const d = since(rec, prev), B = sorted(rec);
+  const brand = b => {
+    const s = b.so_far || {}, l6 = b.last6 || {}, m = b.meta || {}, g = b.suggest || {}, ap = (rec.approved || {})[b.act_id], dd = d && d.per[b.act_id];
+    const fields = b.no_sales ? [F('Spend', k(s.spend)), F('Sales', '_No Triple Whale store_')]
+      : [F('Sales', `${k(s.sales)}${dd ? `  _+${k(dd.sales)}_` : ''}`), F('Of the goal', `${pct(s.sales, b.goal)}% of ${k(b.goal)}`),
+        F('MER so far', `${DOT(tone(s.mer, b.kpi))} ${x(s.mer)}`), F('Last 6 hours', `${DOT(tone(l6.mer, b.kpi))} ${x(l6.mer)}  _KPI ${x(b.kpi)}_`)];
+    fields.push(F('Budget', m.camp && m.camp.daily ? `${money(m.camp.daily)}/day` : 'n/a'), F('Room under limit', m.headroom != null ? money(m.headroom) : 'n/a'));
+    return [DIV, { type: 'section', text: { type: 'mrkdwn', text: `${callDot(b, ap)} *${b.name}* · ${callText(b, ap)}` } }, { type: 'section', fields }, ...(g.why ? [CTX(g.why)] : [])];
+  };
+  return { blocks: [...topBlocks(rec, prev), ...needBlocks(rec, link), DIV, H('Brands'), ...B.flatMap(brand).slice(1), ...foot(rec, link)] };
+}
+/* C: color cards: the summary in the message, then one attachment per brand with a color bar and its small blocks. */
+function cBlocks(rec, prev, link) {
+  const d = since(rec, prev), B = sorted(rec);
+  const attachments = B.map(b => {
+    const s = b.so_far || {}, l6 = b.last6 || {}, m = b.meta || {}, g = b.suggest || {}, ap = (rec.approved || {})[b.act_id], dd = d && d.per[b.act_id];
+    const fields = b.no_sales ? [F('Spend', k(s.spend)), F('Sales', '_No Triple Whale store_')]
+      : [F('Sales', `${k(s.sales)} of ${k(b.goal)}${dd ? `\n_+${k(dd.sales)} since ${d.label}_` : ''}`), F('MER', `${x(s.mer)} so far\n_${x(l6.mer)} last 6h · KPI ${x(b.kpi)}_`)];
+    fields.push(F('Budget', m.camp && m.camp.daily ? `${money(m.camp.daily)}/day` : 'n/a'), F('Room under limit', m.headroom != null ? money(m.headroom) : 'n/a'));
+    const sec = { type: 'section', text: { type: 'mrkdwn', text: `*${b.name}*\n${callText(b, ap)}` } };
+    if (g.to && !ap) sec.accessory = btn('Approve', link(b.act_id), g.call === 'scale' ? 'primary' : 'danger');
+    return { color: ap ? COLOR.done : COLOR[g.call] || COLOR.hold, blocks: [sec, { type: 'section', fields }, ...(g.why ? [CTX(g.why)] : [])] };
+  });
+  return { blocks: [...topBlocks(rec, prev), DIV, H('Brands'), CTX('Green = scale, yellow = hold, red = cut. Approve opens the brand on the War Room.')], attachments: [...attachments, { color: '#4C7AE6', blocks: foot(rec, link).slice(1) }] };
+}
+/* D: one designed image (a PNG scoreboard Locus draws: real type and color), then only what needs a yes, as buttons. */
+function dBlocks(rec, prev, link, img) {
+  const blocks = [H(`📊 Where we stand · ${hourOf(rec.slot)}`), CTX(`${rec.label.replace(/,? \d+(am|pm) CT$/, '')} · Black Friday weekend${rec.next ? ` · next check-in ${rec.next}` : ''}`)];
+  if (img) blocks.push({ type: 'image', image_url: img, alt_text: 'Black Friday weekend scoreboard: every brand, sales against goal, MER against KPI, the call' });
+  else blocks.push(CTX('_The scoreboard image is not drawn yet._'));
+  return { blocks: [...blocks, ...needBlocks(rec, link), ...foot(rec, link)] };
+}
+
+/** The DM in a Block Kit style ('wc', 'board', 'a', 'b', 'c', 'd'), plus the plain `text` Slack shows in the notification. */
+export function standingCard(rec, prev, style, link, opt = {}) {
   const T = totals(rec), N = needs(rec);
   const text = `Where we stand, ${rec.label}: ${k(T.s)} of ${k(T.g)} (${pct(T.s, T.g)}%), MER ${x(T.mer)}.${N.length ? ` ${N.length} to approve: ${N.map(b => `${b.name} ${W[b.suggest.call].toLowerCase()}`).join(', ')}.` : ' Nothing to approve.'}`;
-  return { text, ...(style === 'wc' ? wcBlocks(rec, prev, link) : boardBlocks(rec, prev, link)) };
+  const f = { wc: wcBlocks, board: boardBlocks, a: aBlocks, b: bBlocks, c: cBlocks, d: (r, p, l) => dBlocks(r, p, l, opt.img) }[style] || boardBlocks;
+  return { text, ...f(rec, prev, link) };
 }
