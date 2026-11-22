@@ -293,7 +293,7 @@
   const ANCHOR = { baseline: 'wrBase', goals: 'wrGoals', ladder: 'wrGoals', budget: 'wrBudget', offers: 'wrOffers', alerts: 'wrAlerts', stock: 'wrStock' };
   const isCl = () => H.S.role === 'client';
   const seasonLabel = () => (window.SEASON_TAB && window.SEASON_TAB().label) || 'Black Friday';
-  const warTitle = m => `${esc(seasonLabel())}: ${m === 'live' ? 'Live' : 'The Plan'}`;
+  const warTitle = m => `${esc(seasonLabel())}: ${m === 'live' ? 'War Room' : 'The Plan'}`;
   /* The host's page ids (2026-10-13): `warplan` and `warlive` are the rail tabs; `war` still renders for old links and
      Slack buttons. index.html sets window.WAR_MODE ('plan' | 'live' | null) from the page id before render; when it is
      undefined the host is older than this file, and the Plan / Live switch re-renders in place instead of show(). */
@@ -328,11 +328,13 @@
     if (mer == null) return { text: 'No spend yet', cls: '' };
     const floor = Math.max(100, ((g.start) || 0) * 3 / 24 * 0.5);
     if (spent != null && spent < floor) return { text: `Too early to grade: ${Mo(spent)} spent in 3 hours`, cls: '' };
-    if (g.s100 != null && mer >= g.s100) return { text: 'Scale by 100%', cls: 'good', ok: 1 };
-    if (g.s50 != null && mer >= g.s50) return { text: 'Scale by 50%', cls: 'good', ok: 1 };
-    if (mer >= g.target) return { text: 'Hold', cls: '', ok: 1 };
-    if (mer >= g.be) return { text: 'Pull back', cls: 'warn', ok: 1 };
-    return { text: 'Rework the offer, consider turning ads off', cls: 'bad', ok: 1 };
+    if (g.s100 != null && mer >= g.s100) return { text: 'Double the budget', cls: 'good', ok: 1 };
+    if (g.s50 != null && mer >= g.s50) return { text: 'Raise 50%', cls: 'good', ok: 1 };
+    if (mer >= g.target) return { text: 'Raise 25%', cls: 'good', ok: 1 };
+    const hold = g.hold != null ? g.hold : g.be;
+    if (mer >= hold) return { text: 'Hold', cls: '', ok: 1 };
+    if (mer >= g.be) return { text: 'Cut 25%', cls: 'warn', ok: 1 };
+    return { text: g.start ? 'Back to the starting budget' : 'Cut 25%', cls: 'bad', ok: 1 };
   }
   const kpi = (label, value, sub, tone, tip) => `<div class="wr-k${tone ? ' ' + tone : ''}"${tip ? U().tipAttr(tip) : ''}><span class="l">${label}</span><b>${value}</b>${sub ? `<span class="s">${sub}</span>` : ''}</div>`;
   /* PHASE 7 (2026-10-20): the first sentence of a step's note is its one caption under the title; the rest waits in the
@@ -387,7 +389,7 @@
     const when = d.mode === 'live' ? '<b class="wr-dot">Live now</b>' : d.mode === 'after' ? 'The sale is over' : days === 1 ? 'Starts tomorrow' : `<b>${days}</b> days to go`;
     const nxt = d.psteps.find(s => !s.done);
     return `<div class="wr-strip">
-      <div class="wr-seg" role="tablist" aria-label="The Plan or Live"><button type="button" role="tab" data-wrm="plan" class="${m === 'plan' ? 'on' : ''}" aria-selected="${m === 'plan'}">The Plan</button><button type="button" role="tab" data-wrm="live" class="${m === 'live' ? 'on' : ''}" aria-selected="${m === 'live'}">Live</button></div>
+      <div class="wr-seg" role="tablist" aria-label="The Plan or Live"><button type="button" role="tab" data-wrm="plan" class="${m === 'plan' ? 'on' : ''}" aria-selected="${m === 'plan'}">The Plan</button><button type="button" role="tab" data-wrm="live" class="${m === 'live' ? 'on' : ''}" aria-selected="${m === 'live'}">War Room</button></div>
       <div class="wr-prog"${U().tipAttr(nxt ? `Next: ${esc(nxt.label)}. ${esc(nxt.why || '')}` : 'Every step is done.')}><span><b>${done} of ${N}</b> steps</span><i><em style="width:${(done / N * 100).toFixed(0)}%"></em></i></div>
       <div class="wr-when"><b>${esc(d.name)}</b><span>${when} · sale ${wd(d.sale.start)} ${md(d.sale.start)} to ${wd(d.sale.end)} ${md(d.sale.end)}</span></div>
       <div class="wr-acts">${m === 'live' ? `<span class="faint" id="wrAsOf">${d.live && d.live.as_of ? `as of ${new Date(d.live.as_of).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' })} Central` : ''}</span><button type="button" class="v2btn ghost" id="wrRefresh">Refresh</button><button type="button" class="v2btn ghost" id="wrTv">${WR.tv ? 'Leave TV mode' : 'TV mode'}</button>` : ''}${!isCl() && !WR.tv ? '<button type="button" class="v2btn ghost" id="dkSeasonCfg">Name and when it shows</button>' : ''}</div>
@@ -398,7 +400,7 @@
   function planBody(d, done) {
     const nxt = d.psteps.find(s => !s.done);
     return `<div class="wr-plan1"><p class="v2hint wr-next">${!nxt ? 'Every step is done. Live takes over on the first sale day.' : `<button type="button" class="v2link" data-wropen="${ANCHOR[nxt.key] || ''}"${nxt.why ? ` title="${esc(nxt.why)}"` : ''}>Next: ${esc(nxt.label)} ›</button>`}</p>
-      ${baseLine(d)}${goalsLine(d)}${budgetLine(d)}${offersLine(d)}${alertsLine(d)}${stockLine(d)}</div>`;
+      ${goalsLine(d)}${offersLine(d)}</div>`;
   }
   /* ---- The Plan, one line per step (review pass B). A line = number, title, one short value, a status chip; a click
      opens the step's full section in the side panel. ---- */
@@ -492,8 +494,8 @@
         ${ro ? '' : `<button type="button" class="v2link" data-gx="${i}">Remove</button>`}</div>`; }).join('');
     const L = d.ladder || {};
     const box = (k, l, s, ph, fmt) => `<label>${l}${ro ? `<b class="v">${L[k] != null ? fmt(L[k]) : '–'}</b>` : `<input type="text" inputmode="decimal" data-lad="${k}" value="${L[k] ?? ''}" placeholder="${ph}">`}${s ? `<small>${s}</small>` : ''}</label>`;
-    const lad = `<div class="wr-lad"><h4>The scaling ladder</h4><p class="v2hint">The desk on Live grades the last 3 hours of blended MER against these lines at 8am, 4pm and midnight.</p>
-      <div class="wr-lrow">${[['be', 'Breakeven', 'Under it: rework the offer'], ['target', 'Target', 'Between: hold'], ['s50', 'Scale 50% at', ''], ['s100', 'Scale 100% at', '']].map(([k, l, s]) => box(k, l, s, 'MER, e.g. 2.0', Xo)).join('')}</div>
+    const lad = `<div class="wr-lad"><h4>The scaling ladder</h4><p class="v2hint">The War Room grades today's store MER against these lines and offers the budget change in one tap.</p>
+      <div class="wr-lrow">${[['be', 'Breakeven', 'Under it: back to the starting budget'], ['hold', 'Hold from', 'Under it: cut 25% (blank = breakeven)'], ['target', 'Goal', 'At it: raise 25%'], ['s50', 'Raise 50% at', ''], ['s100', 'Double at', '']].map(([k, l, s]) => box(k, l, s, 'MER, e.g. 2.0', Xo)).join('')}</div>
       <div class="wr-lrow wr-mt2">${[['start', 'Starting daily budget', 'The first sale day, all channels'], ['cap', 'Meta daily limit', 'What Meta lets the account spend']].map(([k, l, s]) => box(k, l, s, '$', Ko)).join('')}</div></div>
       <div class="wr-parts"><h4>Goals by part of the season</h4><p class="v2hint">What each phase on Offers and dates is graded against. The sale weekend's own goal is the revenue line above.</p>
       <div class="wr-lrow">${[['early', 'November', ''], ['dec', 'December', ''], ['total', 'Whole season', 'November and December together']].map(([k, l, s]) => box(k, l, s, '$', Ko)).join('')}</div></div>`;
@@ -825,11 +827,11 @@
     </div>`;
     const sale = SS && saleGoal ? `<div class="wr-sale"${U().tipAttr('Finished sale days from the P&amp;L line, plus today so far.')}><span><b>The sale so far</b> ${Ko(SS.sales)} of ${Ko(saleGoal)} · ${In(SS.orders)} orders · MER ${Xo(SS.spend ? SS.sales / SS.spend : null)}</span><i><em style="width:${Math.min(100, SS.sales / saleGoal * 100).toFixed(1)}%"></em></i></div>` : '';
     const stock = `<div class="wr-stockline" id="wrStock2">${isCl() ? '<span class="l">Stock</span><span class="faint">The Mobius team watches stock on the heroes during the sale.</span>' : '<span class="l">Stock</span><span class="faint">Reading stock on the heroes&hellip;</span>'}</div>`;
-    return `${dry}${hero}${sale}${stock}
+    void stock;
+    return `${callCard(d)}${dry}${hero}${sale}
       <div class="wr-lg"><section class="v2card wr-pace"><div class="v2h"><h3>Today, hour by hour</h3><span class="find">Revenue so far against the plan for today. Bars are each hour's revenue. Times are ${esc(d.tz || 'the store\'s')}.</span></div>${paceChart(L)}</section>
         <section class="v2card" id="wrDesk">${deskBox(d)}</section></div>
-      <div class="wr-l2"><section class="v2card"><div class="v2h"><h3>Spend by channel</h3><span class="find">Against the day's budget for each channel, and where it should be by now.</span></div>${chanBox(L)}</section>
-        <section class="v2card"><div class="v2h"><h3>Alerts today</h3><span class="find">What fired in Slack today. The thresholds are set on The Plan, step ${stepNo(d, 'alerts')}.</span></div><div id="wrFired">${isCl() ? '<p class="v2hint">The Mobius team gets these in Slack.</p>' : '<p class="v2hint">Reading&hellip;</p>'}</div></section></div>
+      <div class="wr-l2"><section class="v2card"><div class="v2h"><h3>Spend by channel</h3><span class="find">Today so far, Triple Whale.</span></div>${chanBox(L)}</section></div>
       ${isCl() ? '' : '<div class="wr-l2"><div id="wrRead"></div><div id="dkNow"></div></div>'}`;
   }
   function paceChart(L) {
@@ -857,7 +859,7 @@
     const L = d.live || {}, date = L.date || d.today, g = d.ladder || {};
     const lad = ladderOf(g, L.last3 && L.last3.mer, L.last3 && L.last3.spend);
     const ch = centralHour(), now = ch < 12 ? '8am' : ch < 20 ? '4pm' : '12am';
-    const lines = g.be != null ? `Breakeven ${Xo(g.be)} · target ${Xo(g.target)} · scale 50% at ${Xo(g.s50)} · scale 100% at ${Xo(g.s100)}` : 'No ladder set on The Plan.';
+    const lines = g.be != null ? `Breakeven ${Xo(g.be)}${g.hold != null ? ` · hold from ${Xo(g.hold)}` : ''} · goal ${Xo(g.target)} · raise 50% at ${Xo(g.s50)} · double at ${Xo(g.s100)}` : 'No ladder set on The Plan.';
     const slots = SLOTS.map(([k, l]) => { const c = (d.checkins || []).find(x => x.date === date && x.slot === k);
       return `<div class="wr-slot${k === now ? ' now' : ''}" data-slot="${k}"><span class="s">${l}${k === now ? ' <em>now</em>' : ''}</span>${c && c.action ? `<div class="did">${esc(c.action)}<small>${c.verdict ? `ladder said ${esc(c.verdict)} · ` : ''}${esc(c.by || '')}</small></div>${isCl() ? '' : '<button type="button" class="v2link" data-redo="1">Change</button>'}`
         : isCl() ? '<span class="faint">No check-in yet</span>' : '<input type="text" placeholder="What you did, one line" aria-label="What you did"><button type="button" class="v2btn dk-p" data-save="1">Save</button>'}</div>`; }).join('');
@@ -935,7 +937,8 @@
     wireDesk(t, d);
     $('#wrRoot').querySelectorAll('[data-go]').forEach(b => b.onclick = () => H.show(b.dataset.go));
     if (isCl()) return;
-    fillStockLive(t, d).then(() => fillFired(t, d));
+    fillRoom(t, [{ act_id: d.act_id, currency: d.currency, call: d.call, ro: d.ro, live: d.live }], d.today);
+    if (!WR.tv) autoRefresh();
     fillNow(t);
   }
   function tvMode(on, quiet) {
@@ -948,15 +951,158 @@
   }
   if (!window.__wrFs) { window.__wrFs = 1; document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && WR.tv) tvMode(false); }); }
 
+  /* ---------------- TODAY'S CALL (2026-11-21) ----------------
+   * Cole: "I want to live in that war room and make decisions there... see all the data live." One call per brand per
+   * day: today's store MER (Triple Whale) against the brand's own ladder (server callOf in season.js), the sale
+   * campaign's live budget from Meta, and one tap (tap twice to confirm) that writes the new budget through
+   * /api/meta/write (Change Log, Undo for 24 hours). What runs now and next comes from the Meta ad sets' own start and
+   * end times (account-health /api/meta/live?season=1), not typed dates. A brand whose client buys its own media
+   * (season answer buying = client: I&G) shows numbers only. */
+  const MS = {};
+  function metaSeason(act, fresh) {
+    const hit = MS[act]; if (!fresh && hit && Date.now() - hit.at < 3 * 60e3) return hit.p;
+    const p = H.apiAH(`/api/meta/live?act=${encodeURIComponent(act)}&season=1`).then(r => { if (r && r.error) throw new Error(r.error); return r; });
+    MS[act] = { at: Date.now(), p }; p.catch(() => { delete MS[act]; }); return p;
+  }
+  const SALE_RE = /bfcm|black friday|cyber|holiday 20\d\d/i;
+  /** The live sale campaigns, the one the call acts on first: Black Friday until Nov 30, Holiday from Dec 1. */
+  function saleCamps(ml, today) {
+    const dec = today >= '2026-12-01';
+    const cs = Object.entries((ml && ml.campaigns) || {}).map(([id, c]) => ({ id, ...c })).filter(c => c.status === 'ACTIVE' && SALE_RE.test(c.name || ''));
+    const score = c => (c.daily ? 0 : 10) + (/holiday/i.test(c.name) ? (dec ? 0 : 5) : (dec ? 5 : 0));
+    return cs.sort((a, b) => score(a) - score(b) || (b.daily || 0) - (a.daily || 0));
+  }
+  /** Phases = the ad sets of the sale campaigns grouped by the name before " | ", with their real start and end. */
+  function metaPhases(ml, camps) {
+    const ids = new Set(camps.map(c => c.id)), by = {};
+    for (const s of Object.values((ml && ml.adsets) || {})) {
+      if (!ids.has(s.campaign) || s.status !== 'ACTIVE' || !s.start) continue;
+      const k = String(s.name || '').split('|')[0].trim() || 'Ad set';
+      const g = (by[k] ??= { name: k, starts: [], ends: [] }); g.starts.push(Date.parse(s.start)); g.ends.push(s.end ? Date.parse(s.end) : null);
+    }
+    const now = Date.now();
+    const all = Object.values(by).map(g => ({ name: g.name, start: Math.min(...g.starts), end: g.ends.includes(null) ? null : Math.max(...g.ends) })).filter(g => !g.end || g.end > now);
+    return { now: all.filter(g => g.start <= now).sort((a, b) => a.start - b.start), next: all.filter(g => g.start > now).sort((a, b) => a.start - b.start) };
+  }
+  const whenCT = ms => new Date(ms).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' }).replace(':00', '') + ' CT';
+  function phaseText(P) {
+    const now = P.now.map(g => `<b>${esc(g.name)}</b>${g.end ? ` to ${esc(whenCT(g.end))}` : ''}`).join(', ');
+    const nx = P.next[0];
+    return `${now ? `Now: ${now}` : 'Nothing dated running'}${nx ? ` · Next: <b>${esc(nx.name)}</b> ${esc(whenCT(nx.start))}` : ''}`;
+  }
+  /** Before Meta answers (or for a client): the phase from the calendar. */
+  function phaseFallback(b, today) {
+    const ps = b.phases || [], cur = ps.filter(p => p.start <= today && (!p.end || p.end >= today)), nx = ps.filter(p => p.start > today).sort((x, y) => x.start.localeCompare(y.start))[0];
+    return `${cur.length ? `Now: ${cur.map(p => esc(p.name)).join(', ')}` : ''}${nx ? `${cur.length ? ' · ' : ''}Next: ${esc(nx.name)} ${md(nx.start)}` : ''}`;
+  }
+  function newBudget(call, from) {
+    if (!call || !from) return null;
+    if (call.call === 'reset') return call.to && call.to < from ? Math.round(call.to) : Math.max(1, Math.round(from * 0.75 / 5) * 5);
+    if (call.call === 'raise' || call.call === 'cut') return Math.max(1, Math.round(from * (1 + call.pct) / 5) * 5);
+    return null;
+  }
+  const CALLW = { raise: 'Raise', cut: 'Cut', reset: 'Cut back', hold: 'Hold', wait: 'Wait' };
+  const CALLT = { raise: 'good', cut: 'bad', reset: 'bad', hold: '', wait: 'quiet' };
+  function actionHtml(b, camp) {
+    if (!camp) return '<span class="faint">No live sale campaign in Meta</span>';
+    const cur = b.currency, from = camp.daily, to = newBudget(b.call, from);
+    const nm = `<small class="faint" title="${esc(camp.name)}">${esc(camp.name)} · ${from ? `${U().money(from, cur)}/day` : 'no daily budget'}</small>`;
+    if (!from || !to || to === from) return nm;
+    return `<button type="button" class="v2btn${to > from ? ' dk-p' : ''}" data-do="${to}">${to > from ? 'Raise' : 'Cut'} to ${U().money(to, cur)}</button>${nm}`;
+  }
+  async function budgetWrite(b, camp, amount) {
+    const c = b.call || {}, up = amount > (camp.daily || 0);
+    const body = { act: b.act_id, kind: 'budget', level: 'campaign', object: camp.id, amount, reason: `From the War Room: ${c.why || ''}`,
+      client_why: up ? 'Sales are running ahead of the goal today, so we gave the sale ads more budget.' : 'Sales are running under the goal today, so we pulled the sale budget back to protect the return.' };
+    let d; try { d = await H.apiAH('/api/meta/write', { method: 'POST', body: JSON.stringify({ ...body, dry: true }) }); } catch (e) { d = { error: e.message }; }
+    if (!d || d.error) return { ok: false, error: (d && d.error) || 'Meta did not answer.' };
+    const k = d.before && d.before.daily_budget != null ? 'daily_budget' : null;
+    let r; try { r = await H.apiAH('/api/meta/write', { method: 'POST', body: JSON.stringify({ ...body, expect: k ? { [k]: d.before[k] } : undefined }) }); } catch (e) { r = { error: e.message }; }
+    if (!r || r.error) return { ok: false, error: (r && r.error) || 'Meta did not answer.' };
+    return { ok: true, write: r, summary: String(r.summary || '').replace(/^[^:]+:\s*/, '') };
+  }
+  function wireAction(slot, b, camp) {
+    const btn = slot.querySelector('[data-do]'); if (!btn) return;
+    const label = btn.textContent;
+    btn.onclick = async () => {
+      if (!btn.dataset.arm) { btn.dataset.arm = '1'; btn.textContent = 'Tap again to change Meta'; setTimeout(() => { if (btn.isConnected && btn.dataset.arm && !btn.disabled) { delete btn.dataset.arm; btn.textContent = label; } }, 5000); return; }
+      btn.disabled = true; btn.textContent = 'Writing to Meta…';
+      const amount = +btn.dataset.do, r = await budgetWrite(b, camp, amount);
+      if (!r.ok) { btn.disabled = false; delete btn.dataset.arm; btn.textContent = label; toast(r.error, true); return; }
+      delete MS[b.act_id];
+      slot.innerHTML = `<span class="wr-done">Done: ${esc(r.summary || `${U().money(amount, b.currency)}/day`)}</span><small class="faint">${esc(camp.name)} · in the Change Log</small>`;
+      const LX = window.LxMetaWrite;
+      if (LX && LX.toast && r.write && r.write.write) LX.toast(r.summary || 'Budget changed.', false, () => LX.undo({ apiAH: H.apiAH }, [r.write], { act_id: b.act_id }, () => { delete MS[b.act_id]; war(false, WR.page); }));
+      else toast(r.summary || 'Budget changed.');
+    };
+  }
+  function roomRow(b, today) {
+    const L = b.live || {}, T = L.today || {}, c = b.call, cur = b.currency, lad = (c && c.ladder) || {};
+    const tgt = lad.target, merTone = T.mer == null || !tgt ? '' : T.mer >= tgt ? 'good' : lad.be != null && T.mer < lad.be ? 'bad' : 'warn';
+    const chip = b.ro ? lchip('quiet', 'Client runs ads') : L.error ? lchip('warn', 'No live numbers') : c ? lchip(CALLT[c.call] || '', CALLW[c.call]) : '';
+    const why = L.error ? L.error : b.ro ? 'Numbers only: the client buys its own media.' : c ? c.why : '';
+    return `<div class="wr-rm" data-rm="${esc(b.act_id)}">
+      <button type="button" class="wr-rm-n" data-open="${esc(b.act_id)}" title="Open ${esc(b.name)}"><b>${esc(b.name)}</b><span data-ph>${phaseFallback(b, today)}</span></button>
+      <div class="wr-rm-k"><span>Sales today</span><b>${U().kmoney(T.sales, cur)}</b><small>${T.orders != null ? `${U().int(T.orders)} orders` : ''}</small></div>
+      <div class="wr-rm-k"><span>Ad spend</span><b>${U().kmoney(T.spend, cur)}</b><small>${T.meta_spend != null ? `Meta ${U().kmoney(T.meta_spend, cur)}` : ''}</small></div>
+      <div class="wr-rm-k ${merTone}"><span>MER</span><b>${U().x2(T.mer)}</b><small>${tgt ? `goal ${U().x2(tgt)}${lad.own ? '' : ' (no ladder)'}` : ''}</small></div>
+      <div class="wr-rm-c">${chip}<small>${esc(why || '')}</small></div>
+      <div class="wr-rm-a" data-slot>${b.ro || !c || isCl() || L.error ? '' : '<span class="faint">Reading Meta&hellip;</span>'}</div>
+    </div>`;
+  }
+  /** Fill each row (or the brand card) from Meta: the phase line, the campaigns and the action button. */
+  async function fillRoom(t, rows, today) {
+    if (isCl()) return;
+    await Promise.all(rows.map(async b => {
+      const el = document.querySelector(`[data-rm="${CSS.escape(b.act_id)}"]`); if (!el) return;
+      const slot = el.querySelector('[data-slot]'), ph = el.querySelector('[data-ph]'), list = document.querySelector(`[data-camps-for="${CSS.escape(b.act_id)}"] [data-camps]`);
+      let ml; try { ml = await metaSeason(b.act_id); } catch (e) { if (slot && !b.ro && b.call) slot.innerHTML = `<span class="faint">Meta: ${esc(e.message)}</span>`; if (list) list.innerHTML = `<p class="v2bad">${esc(e.message)}</p>`; return; }
+      if (t !== H.RUN()) return;
+      const camps = saleCamps(ml, today), P = metaPhases(ml, camps);
+      if (ph && (P.now.length || P.next.length)) ph.innerHTML = phaseText(P);
+      if (list) list.innerHTML = camps.length ? camps.map(c => `<div class="wr-cp"><span>${esc(c.name)}</span><b>${c.daily ? `${U().money(c.daily, b.currency)}/day` : c.lifetime ? `${U().money(c.lifetime, b.currency)} total` : 'ad set budgets'}</b><small class="faint">${esc(String(c.eff || '').replace(/_/g, ' ').toLowerCase())}</small></div>`).join('') : '<p class="v2hint">No live Black Friday, Cyber Monday or Holiday campaign in Meta.</p>';
+      if (!slot || b.ro || !b.call || (b.live && b.live.error)) return;
+      slot.innerHTML = actionHtml(b, camps[0]);
+      wireAction(slot, b, camps[0]);
+    }));
+  }
+  /** The brand's own page: the call card on top. */
+  function callCard(d) {
+    const b = { act_id: d.act_id, name: d.name, currency: d.currency, call: d.call, ro: d.ro, live: d.live, phases: d.phases };
+    return `<section class="v2card wr-today"><div class="v2h"><h3>Today's call</h3><span class="find">Today's store MER (Triple Whale) against the ladder on The Plan. The button changes the sale campaign's daily budget in Meta: tap it twice. Undo for 24 hours.</span></div>
+      ${roomRow(b, d.today).replace('class="wr-rm"', 'class="wr-rm one"')}
+      ${isCl() ? '' : `<div class="wr-camps" data-camps-for="${esc(d.act_id)}"><h4>Sale campaigns in Meta</h4><div data-camps><p class="v2hint">Reading Meta&hellip;</p></div></div>`}</section>`;
+  }
+  /** All brands: one row each, the calls to make first. */
+  function roomBoard(t, d, m) {
+    const B = d.brands || [], run = B.filter(b => !b.ro && b.live && !b.live.error), sum = k => run.reduce((s, b) => s + ((b.live.today || {})[k] || 0), 0);
+    const sales = sum('sales'), spend = sum('spend'), todo = B.filter(b => !b.ro && b.call && ['raise', 'cut', 'reset'].includes(b.call.call)).length;
+    const asOf = B.map(b => b.live && b.live.as_of).filter(Boolean).sort().pop();
+    $('#main').innerHTML = shell(WR.page, warTitle('live'), `<div class="wr" id="wrRoot">
+      <div class="wr-strip"><div class="wr-seg" role="tablist" aria-label="War Room or The Plan"><button type="button" role="tab" data-wrm="live" class="${m === 'live' ? 'on' : ''}" aria-selected="${m === 'live'}">War Room</button><button type="button" role="tab" data-wrm="plan" class="${m === 'plan' ? 'on' : ''}" aria-selected="${m === 'plan'}">The Plan</button></div>
+        <div class="wr-when"><b>${todo ? `${todo} call${todo === 1 ? '' : 's'} to make` : 'No calls to make right now'}</b><span>${U().kmoney(sales)} sales on ${U().kmoney(spend)} ads today · MER ${U().x2(spend ? sales / spend : null)} across the ${run.length} brands we run</span></div>
+        <div class="wr-acts"><span class="faint">${asOf ? `as of ${new Date(asOf).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' })} CT` : ''}</span><button type="button" class="v2btn ghost" id="wrRefresh">Refresh</button></div></div>
+      <div class="wr-room">${B.length ? B.map(b => roomRow(b, d.today)).join('') : '<p class="v2hint">No brand is in the season.</p>'}</div>
+      ${U().foot('Sales, spend and MER are today so far from Triple Whale (store revenue over all ad spend). The call grades today\'s MER on each brand\'s ladder (The Plan). Phases are read from the Meta ad sets\' start and end times. Refreshes every 5 minutes.')}</div>`);
+    const root = $('#wrRoot');
+    root.querySelectorAll('[data-open]').forEach(el => el.onclick = () => pickAct(el.dataset.open, 'warlive'));
+    root.querySelectorAll('[data-wrm]').forEach(b => b.onclick = () => goMode('all', b.dataset.wrm));
+    root.querySelector('#wrRefresh').onclick = () => { Object.keys(MS).forEach(k => delete MS[k]); war(false, WR.page); };
+    autoRefresh();
+    fillRoom(t, B, d.today);
+  }
+  function autoRefresh() { if (WR.timer) clearInterval(WR.timer); WR.timer = setInterval(() => { if (!isWarTab(H.S.tab)) { clearInterval(WR.timer); WR.timer = null; return; } war(false, WR.page); }, 5 * 60e3); }
+
   /* ---------------- ALL CLIENTS ---------------- */
   /** Every brand in the season (riskiest first, the server's order). The Plan page shows each brand's step progress;
       Live shows today against the plan for the brands in their sale, and the countdown for the rest. */
   async function warGrid(t, mode) {
-    const m = mode || 'plan';
+    const m = mode || 'live';
     let d; try { d = await H.api('/api/season/war?act=all'); }
     catch (e) { if (t === H.RUN()) $('#main').innerHTML = shell(WR.page, warTitle(m), U().card('Could not load the season', '', `<p class="v2bad">${esc(e.message)}</p>`)); return; }
     if (t !== H.RUN()) return;
     WR.data = { act_id: 'all' };
+    if (m === 'live') return roomBoard(t, d, m);
     const B = (d.brands || []).map(b => { const ps = planSteps(b.steps); return { ...b, psteps: ps, pdone: ps.filter(s => s.done).length, N: ps.length }; });
     const live = B.filter(b => b.mode === 'live'), steps = B.reduce((s, b) => s + b.pdone, 0), stepsN = B.reduce((s, b) => s + b.N, 0);
     const bfIn = Math.max(0, dBetween(d.today, d.bf));
@@ -976,7 +1122,7 @@
     const line = m === 'live' ? `${live.length ? `<b class="wr-dot">${live.length} live now</b>` : 'No brand is in its sale yet'} · ${bfIn ? `${bfIn} days to Black Friday` : 'Black Friday is today'} · riskiest first`
       : `${steps} of ${stepsN} plan steps done · ${bfIn ? `${bfIn} days to Black Friday` : 'Black Friday is today'} · least ready first`;
     $('#main').innerHTML = shell(WR.page, warTitle(m), `<div class="wr" id="wrRoot">
-      <div class="wr-strip"><div class="wr-seg" role="tablist" aria-label="The Plan or Live"><button type="button" role="tab" data-wrm="plan" class="${m === 'plan' ? 'on' : ''}" aria-selected="${m === 'plan'}">The Plan</button><button type="button" role="tab" data-wrm="live" class="${m === 'live' ? 'on' : ''}" aria-selected="${m === 'live'}">Live</button></div>
+      <div class="wr-strip"><div class="wr-seg" role="tablist" aria-label="The Plan or Live"><button type="button" role="tab" data-wrm="plan" class="${m === 'plan' ? 'on' : ''}" aria-selected="${m === 'plan'}">The Plan</button><button type="button" role="tab" data-wrm="live" class="${m === 'live' ? 'on' : ''}" aria-selected="${m === 'live'}">War Room</button></div>
         <div class="wr-when"><b>Every brand in the season</b><span>${line}</span></div>
         <div class="wr-acts"><button type="button" class="v2btn ghost" id="dkSeasonCfg">Name and when it shows</button></div></div>
       ${B.length ? `<div class="wr-grid">${B.map(card).join('')}</div>` : U().card('No brand is in the season', '', '<p class="v2hint">Start one on Offers and dates.</p>')}

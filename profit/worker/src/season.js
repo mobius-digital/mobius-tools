@@ -109,6 +109,9 @@ export function tasksFor(phases, answers, stored, today, goals) {
     if (p.status === 'skip' || !p.start) continue;
     const kinds = (KINDS[p.key] || STD).concat(EXTRA[p.key] || []);
     for (const [kind, label, off, role] of kinds) {
+      /* 2026-11-21 (War Room rebuild): "briefs due", "ads built" and "ads loaded" are gone. Nobody ticks them (the work
+         lives in Production and Launch), so every brand showed them late: noise, not a signal. */
+      if (kind === 'briefs' || kind === 'built' || kind === 'loaded') continue;
       const id = `${p.key}:${kind}`;
       const s = byId[id];
       const due = s?.due || addDays(p.start, off);
@@ -144,7 +147,7 @@ const num = v => { const n = parseFloat(String(v ?? '').replace(/[$,%\s]/g, ''))
 export function goalsOf(answers, acct) {
   const g = safeJson(answers.goals, {}) || {};
   const out = {};
-  for (const k of ['early', 'bf', 'dec', 'total', 'be', 'target', 's50', 's100', 'start', 'cap']) out[k] = num(g[k]);
+  for (const k of ['early', 'bf', 'dec', 'total', 'be', 'hold', 'target', 's50', 's100', 'start', 'cap']) out[k] = num(g[k]);
   if (out.target == null && acct?.target_roas) out.target = num(acct.target_roas);
   out.note = g.note || '';
   return out;
@@ -223,10 +226,33 @@ export function liveFrom(hours, asOf) {
  * (JSON); the ladder stays in key `goals` (one place). Everything here is grouped reads on tables we already sync. */
 export const LY_BF = '2025-11-28';   // last year's Black Friday
 const between = (a, b) => Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 864e5);
-export const WAR_STEPS = [
-  ['baseline', 'Review last year'], ['goals', 'Set the goals'], ['ladder', 'Set the scaling ladder'], ['budget', 'Split the paid budget'],
-  ['offers', 'Lock the offers and dates'], ['alerts', 'Turn on the Slack alerts'], ['stock', 'Check stock on the heroes'],
-];
+/* 2026-11-21 (Cole: "I want to live in that war room and make decisions there"): three steps, not seven. The paid
+   budget split by channel (Cole: it does not make sense; budgets are set in Meta by the ladder), "review last year",
+   the Slack alert setup and the stock tick were done on no brand and only made every card look unfinished. */
+export const WAR_STEPS = [['goals', 'Set the goals'], ['ladder', 'Set the scaling ladder'], ['offers', 'Lock the offers and dates']];
+
+/** TODAY'S CALL (2026-11-21): today's blended store MER (Triple Whale) against the brand's own ladder. Cole's Bonk
+ *  ladder (2026-11-20) is the shape: s100+ double, s50+ +50%, target+ +25%, hold line to target hold, breakeven to hold
+ *  cut 25%, under breakeven back to the starting budget. Without a hold line, breakeven to target holds and under
+ *  breakeven cuts 25%. No ladder = the goal ROAS (target_roas, else 2.5) as the one line. Too little spend = wait. */
+export function callOf(g, today, acct) {
+  g = g || {};
+  const mer = today && today.mer != null ? +today.mer : null, spend = today ? +today.spend || 0 : 0;
+  const goal = g.target ?? num(acct && acct.target_roas) ?? 2.5;
+  const has = g.be != null && g.target != null;
+  const L = { be: g.be ?? null, hold: g.hold ?? null, target: goal, s50: g.s50 ?? null, s100: g.s100 ?? null, start: g.start ?? null, own: has ? 1 : 0 };
+  const floor = Math.max(75, (g.start || 0) * 0.08);
+  if (mer == null || spend < floor) return { call: 'wait', pct: 0, mer, ladder: L, why: `Too early to call: $${Math.round(spend)} spent so far today.` };
+  const x = v => `${(Math.round(v * 100) / 100).toFixed(2)}x`;
+  if (L.s100 != null && mer >= L.s100) return { call: 'raise', pct: 1, mer, ladder: L, why: `${x(mer)} today, at or over ${x(L.s100)}: double it.` };
+  if (L.s50 != null && mer >= L.s50) return { call: 'raise', pct: 0.5, mer, ladder: L, why: `${x(mer)} today, at or over ${x(L.s50)}: raise 50%.` };
+  if (mer >= goal) return { call: 'raise', pct: 0.25, mer, ladder: L, why: `${x(mer)} today, at or over the ${x(goal)} goal: raise 25%.` };
+  const hold = L.hold ?? L.be;
+  if (hold != null && mer >= hold) return { call: 'hold', pct: 0, mer, ladder: L, why: `${x(mer)} today, under the ${x(goal)} goal but over ${x(hold)}: hold.` };
+  if (L.hold != null && L.be != null && mer >= L.be) return { call: 'cut', pct: -0.25, mer, ladder: L, why: `${x(mer)} today, under the ${x(L.hold)} hold line: cut 25%.` };
+  if (L.be != null && L.start) return { call: 'reset', pct: null, to: L.start, mer, ladder: L, why: `${x(mer)} today, under breakeven ${x(L.be)}: back to the starting budget.` };
+  return { call: 'cut', pct: -0.25, mer, ladder: L, why: `${x(mer)} today, under ${x(hold ?? goal)}: cut 25%.` };
+}
 export const WAR_METRICS = { revenue: 'Revenue', orders: 'Orders', aov: 'AOV', mer: 'MER', new_customers: 'New customers', spend: 'Ad spend' };
 export const WAR_CHANNELS = { meta: 'Meta', google: 'Google', tiktok: 'TikTok', other: 'Other paid' };
 const SALE_KEYS = ['access', 'bf', 'planb', 'cm'];
@@ -267,14 +293,11 @@ export function warSteps(a, war) {
   const g = a.goals || {}, bud = budgetOf(war), goals = warGoals(war, g);
   const bfp = (a.phases || []).find(p => p.key === 'bf');
   const done = {
-    baseline: !!war.baseline_ok,
     goals: goals.list.some(x => x.target > 0),
     ladder: g.be != null && g.target != null && g.s50 != null && g.s100 != null,
-    budget: bud.total > 0 && bud.channels.length > 0 && Math.abs(bud.unallocated) < 1,
     offers: !!bfp && bfp.status === 'locked',
-    alerts: Array.isArray(war.alerts) && war.alerts.length > 0,
-    stock: !!war.stock_ok,
   };
+  void bud;
   const why = {
     baseline: 'Look over last year\'s numbers and press "Use this baseline".',
     goals: 'Give at least one goal a target.',
@@ -398,7 +421,11 @@ async function warBrand(env, a, today, deps, { withLive, client }) {
     checkins: a.checkins || [],
     metrics: WAR_METRICS, channel_names: WAR_CHANNELS,
   };
-  if (withLive && deps.live) out.live = await warLive(env, a, deps, plan, today, sale, bud).catch(e => ({ error: e.message }));
+  out.ro = (a.answers && a.answers.buying) === 'client' ? 1 : 0;   // the client buys its own media (I&G since 2026-11-20): numbers only
+  if (withLive && deps.live) {
+    out.live = await warLive(env, a, deps, plan, today, sale, bud).catch(e => ({ error: e.message }));
+    if (out.live && !out.live.error) out.call = callOf(a.goals, out.live.today, a);
+  }
   return out;
 }
 /** Every brand in the season: plan progress before the sale, pacing during it, riskiest first. */
@@ -409,17 +436,23 @@ async function warAll(env, accounts, today, deps) {
     const war = warOf(a.answers), sale = saleOf(a.phases, war), steps = warSteps(a, war);
     const goals = warGoals(war, a.goals || {}), revGoal = goals.list.find(x => x.metric === 'revenue')?.target || a.goals?.bf || null;
     const mode = today >= sale.start && today <= sale.end ? 'live' : today > sale.end ? 'after' : 'plan';
-    const r = { act_id: a.act_id, name: a.name, currency: acct.currency || 'USD', mode, sale, days_to: between(today, sale.start), steps, done: steps.filter(s => s.done).length, goal: revGoal,
-      bf_offer: (a.phases.find(p => p.key === 'bf') || {}).offer || '' };
-    if (mode === 'live' && deps.live) {
-      const win = baselineWindow(sale, war);
-      const base = await warBaseline(env, acct, win, { series: deps.series }).catch(() => ({ days: [] }));
-      const plan = dayPlan(sale, revGoal, budgetOf(war).total, base.days);
-      r.live = await warLive(env, { ...acct, ...a }, deps, plan, today, sale, budgetOf(war)).catch(e => ({ error: e.message }));
+    const r = { act_id: a.act_id, name: a.name, currency: acct.currency || 'USD', tz: acct.tz || a.tz || null, mode, sale, days_to: between(today, sale.start), steps, done: steps.filter(s => s.done).length, goal: revGoal,
+      bf_offer: (a.phases.find(p => p.key === 'bf') || {}).offer || '', ro: a.answers.buying === 'client' ? 1 : 0, ladder: a.goals,
+      /* The offers on the calendar, for the phase line when Meta has no dated ad sets. */
+      phases: a.phases.filter(p => p.status !== 'skip' && p.start).map(p => ({ key: p.key, name: p.name, start: p.start, end: p.end, offer: p.offer })) };
+    /* 2026-11-21: every brand reads TODAY live (Triple Whale), sale or not, because the decision is made every day. */
+    if (deps.live) {
+      try {
+        const d = await deps.live({ ...acct, ...a });
+        const lf = liveFrom(d.hours, d.as_of), row = d.row || {};
+        const orders = row.orders ?? (d.hours || []).reduce((t, h) => t + (+h.orders || 0), 0);
+        r.live = { date: d.date, as_of: d.as_of, today: { ...lf.today, orders, aov: orders > 0 ? lf.today.sales / orders : null, meta_spend: row.meta_spend ?? null, google_spend: row.google_spend ?? null }, last3: lf.last3 };
+        r.call = callOf(a.goals, r.live.today, acct);
+      } catch (e) { r.live = { error: e.message || 'Triple Whale did not answer' }; }
     }
-    /* Risk: live = how far behind the plan right now; before = steps missing, weighted by how close the sale is. */
-    const pace = r.live?.day?.pace;
-    r.risk = mode === 'live' ? (pace == null ? 50 : Math.round((1 - Math.min(pace, 1.5)) * 100)) : mode === 'after' ? -100 : Math.round((7 - r.done) * (r.days_to <= 14 ? 3 : r.days_to <= 30 ? 2 : 1) * 10) / 10;
+    /* Order: a call to make first (cut, then raise), then hold, then wait; the client-run brands last. */
+    const rank = { reset: 0, cut: 1, raise: 2, hold: 3, wait: 4 };
+    r.risk = r.ro ? -50 : r.call ? 10 - (rank[r.call.call] ?? 5) : 0;
     return r;
   }));
   rows.sort((x, y) => y.risk - x.risk || x.name.localeCompare(y.name));
