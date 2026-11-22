@@ -242,6 +242,8 @@ export function callOf(g, today, acct) {
   const has = g.be != null && g.target != null;
   const L = { be: g.be ?? null, hold: g.hold ?? null, target: goal, s50: g.s50 ?? null, s100: g.s100 ?? null, start: g.start ?? null, own: has ? 1 : 0 };
   const floor = 150;   // a day under $150 of ads is too thin to grade (one order swings it)
+  /* No Triple Whale store (VetriPaws): Locus sees Meta spend only, so there is no MER to grade. Never call it a $0 day. */
+  if (today && today.no_sales) return { call: 'wait', pct: 0, mer: null, ladder: L, why: 'No Triple Whale store for this brand, so Locus sees ad spend only and cannot grade the day.' };
   if (mer == null || spend < floor) return { call: 'wait', pct: 0, mer, ladder: L, why: `Too early to call: $${Math.round(spend)} spent so far today.` };
   const x = v => `${(Math.round(v * 100) / 100).toFixed(2)}x`;
   if (L.s100 != null && mer >= L.s100) return { call: 'raise', pct: 1, mer, ladder: L, why: `${x(mer)} today, at or over ${x(L.s100)}: double it.` };
@@ -252,6 +254,12 @@ export function callOf(g, today, acct) {
   if (L.hold != null && L.be != null && mer >= L.be) return { call: 'cut', pct: -0.25, mer, ladder: L, why: `${x(mer)} today, under the ${x(L.hold)} hold line: cut 25%.` };
   if (L.be != null && L.start) return { call: 'reset', pct: null, to: L.start, mer, ladder: L, why: `${x(mer)} today, under breakeven ${x(L.be)}: back to the $${Math.round(L.start).toLocaleString('en-US')} start (cut 25% if already under it).` };
   return { call: 'cut', pct: -0.25, mer, ladder: L, why: `${x(mer)} today, under ${x(hold ?? goal)}: cut 25%.` };
+}
+/** What a scheduled task will still change on this brand (answer key `scheduled`), next first. Past items drop off an
+ *  hour after they ran, so the list never needs cleaning. Locus does not run them: the tasks live on Cole's machine. */
+export function scheduledOf(answers, now = Date.now()) {
+  const list = safeJson(answers && answers.scheduled, []);
+  return (Array.isArray(list) ? list : []).filter(x => x && Date.parse(x.at) > now - 3600e3).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
 }
 export const WAR_METRICS = { revenue: 'Revenue', orders: 'Orders', aov: 'AOV', mer: 'MER', new_customers: 'New customers', spend: 'Ad spend' };
 export const WAR_CHANNELS = { meta: 'Meta', google: 'Google', tiktok: 'TikTok', other: 'Other paid' };
@@ -383,7 +391,9 @@ async function warLive(env, a, { live, series }, plan, today, sale, bud) {
   const planNow = dayGoal && last >= 0 ? dayGoal * cumAt(last) : null;
   out.date = d.date; out.as_of = d.as_of; out.curve = curve.src; out.plan_src = src; out.in_sale = inSale;
   out.day = { goal: dayGoal, spend_budget: daySpend, plan_now: planNow, pace: planNow ? sales / planNow : null, projected: dayGoal && planNow ? sales / planNow * dayGoal : null };
-  out.today = { sales, orders, aov: orders > 0 ? sales / orders : null, spend, mer: lf.today.mer, new_orders: row.new_orders ?? null, email_rev: row.email_rev ?? null };
+  out.today = d.no_sales ? { sales: null, orders: null, aov: null, spend, mer: null, new_orders: null, email_rev: null, no_sales: 1, spend_src: d.spend_src || null }
+    : { sales, orders, aov: orders > 0 ? sales / orders : null, spend, mer: lf.today.mer, new_orders: row.new_orders ?? null, email_rev: row.email_rev ?? null, spend_src: d.spend_src || null };
+  if (d.no_sales) out.last3 = { ...lf.last3, sales: null, mer: null };
   out.last3 = lf.last3;
   /* Spend by channel today against the day's share of each channel's budget. */
   const meta = row.meta_spend ?? hours.reduce((t, h) => t + (+h.meta || 0), 0), google = row.google_spend ?? hours.reduce((t, h) => t + (+h.google || 0), 0);
@@ -421,7 +431,8 @@ async function warBrand(env, a, today, deps, { withLive, client }) {
     checkins: a.checkins || [],
     metrics: WAR_METRICS, channel_names: WAR_CHANNELS,
   };
-  out.ro = (a.answers && a.answers.buying) === 'client' ? 1 : 0;   // the client buys its own media (I&G since 2026-11-20): numbers only
+  out.ro = (a.answers && a.answers.buying) === 'client' ? 1 : 0;
+  if (!client) out.scheduled = scheduledOf(a.answers);   // the client buys its own media (I&G since 2026-11-20): numbers only
   if (withLive && deps.live) {
     out.live = await warLive(env, a, deps, plan, today, sale, bud).catch(e => ({ error: e.message }));
     if (out.live && !out.live.error) out.call = callOf(a.goals, out.live.today, a);
@@ -437,7 +448,7 @@ async function warAll(env, accounts, today, deps) {
     const goals = warGoals(war, a.goals || {}), revGoal = goals.list.find(x => x.metric === 'revenue')?.target || a.goals?.bf || null;
     const mode = today >= sale.start && today <= sale.end ? 'live' : today > sale.end ? 'after' : 'plan';
     const r = { act_id: a.act_id, name: a.name, currency: acct.currency || 'USD', tz: acct.tz || a.tz || null, mode, sale, days_to: between(today, sale.start), steps, done: steps.filter(s => s.done).length, goal: revGoal,
-      bf_offer: (a.phases.find(p => p.key === 'bf') || {}).offer || '', ro: a.answers.buying === 'client' ? 1 : 0, ladder: a.goals,
+      bf_offer: (a.phases.find(p => p.key === 'bf') || {}).offer || '', ro: a.answers.buying === 'client' ? 1 : 0, ladder: a.goals, scheduled: scheduledOf(a.answers),
       /* The offers on the calendar, for the phase line when Meta has no dated ad sets. */
       phases: a.phases.filter(p => p.status !== 'skip' && p.start).map(p => ({ key: p.key, name: p.name, start: p.start, end: p.end, offer: p.offer })) };
     /* 2026-11-21: every brand reads TODAY live (Triple Whale), sale or not, because the decision is made every day. */
@@ -446,7 +457,11 @@ async function warAll(env, accounts, today, deps) {
         const d = await deps.live({ ...acct, ...a });
         const lf = liveFrom(d.hours, d.as_of), row = d.row || {};
         const orders = row.orders ?? (d.hours || []).reduce((t, h) => t + (+h.orders || 0), 0);
-        r.live = { date: d.date, as_of: d.as_of, today: { ...lf.today, orders, aov: orders > 0 ? lf.today.sales / orders : null, meta_spend: row.meta_spend ?? null, google_spend: row.google_spend ?? null }, last3: lf.last3 };
+        const today = d.no_sales
+          /* No TW shop: spend from Meta, sales unknown (null, never 0). */
+          ? { sales: null, spend: lf.today.spend, mer: null, orders: null, aov: null, meta_spend: row.meta_spend ?? lf.today.spend, google_spend: null, no_sales: 1, spend_src: 'meta' }
+          : { ...lf.today, orders, aov: orders > 0 ? lf.today.sales / orders : null, meta_spend: row.meta_spend ?? null, google_spend: row.google_spend ?? null, spend_src: d.spend_src || null };
+        r.live = { date: d.date, as_of: d.as_of, today, last3: d.no_sales ? { ...lf.last3, sales: null, mer: null } : lf.last3 };
         r.call = callOf(a.goals, r.live.today, acct);
       } catch (e) { r.live = { error: e.message || 'Triple Whale did not answer' }; }
     }
@@ -487,7 +502,10 @@ export async function handleSeason({ path, request, env, accountsFor, email, ser
     if (!live) return json({ error: 'live numbers are not wired' }, 500);
     try {
       const d = await live(acct);
-      return json({ ok: true, act: acct.act_id, date: d.date, ...liveFrom(d.hours, d.as_of) });
+      const lf = liveFrom(d.hours, d.as_of);
+      /* No TW shop: sales unknown, so no MER (a $0 sales day must never grade as a cut). */
+      if (d.no_sales) { lf.today = { ...lf.today, sales: null, mer: null }; lf.last3 = { ...lf.last3, sales: null, mer: null }; lf.no_sales = 1; }
+      return json({ ok: true, act: acct.act_id, date: d.date, spend_src: d.spend_src || null, ...lf });
     } catch (e) { return json({ error: e.message || 'Triple Whale did not answer' }, 502); }
   }
   /* The War Room (2026-10-09). act=all = the grid; act=<brand> = plan + baseline (+ live when the sale is on or ?live=1). */
@@ -564,7 +582,10 @@ export async function handleSeason({ path, request, env, accountsFor, email, ser
     if (!b.act || !b.key || !(await actOf(b.act))) return json({ error: 'unknown account' }, 404);
     const key = String(b.key).toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 40);
     /* bf_plan = the client's Black Friday ads block (calendar, ladder, boxes, ad groups): JSON, up to 120KB. */
-    const value = (key === 'goals' || key === 'bf_plan') && b.value && typeof b.value === 'object' ? JSON.stringify(b.value).slice(0, 120000)
+    /* scheduled (2026-11-22) = what a scheduled task will change on this brand, for the War Room: [{at ISO, what, task}]. */
+    if (key === 'scheduled' && b.value != null && !Array.isArray(b.value)) return json({ error: 'scheduled is a list of {at, what}' }, 400);
+    const value = key === 'scheduled' ? JSON.stringify(b.value.filter(x => x && !isNaN(Date.parse(x.at)) && x.what).slice(0, 30).map(x => ({ at: new Date(x.at).toISOString(), what: clean(x.what, 200), task: clean(x.task, 80) })))
+      : (key === 'goals' || key === 'bf_plan') && b.value && typeof b.value === 'object' ? JSON.stringify(b.value).slice(0, 120000)
       : key === 'bf_plan' ? clean(b.value, 120000) : clean(b.value);
     await env.DB.prepare(
       `INSERT INTO p_season_answer (act_id, season, key, value, updated_at) VALUES (?1,?2,?3,?4,datetime('now'))
