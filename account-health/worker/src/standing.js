@@ -19,6 +19,7 @@ import { metaLive, locusWrite, gget, metaActs } from './metawrite.js';
 import { dmPerson } from './morning.js';
 import { adNumbers, metaActsOf, sumAds } from './buyerai.js';
 import { buildBuyerList } from './buyerlist.js';
+import { standingCard } from './standingdm.js';
 
 const PROFIT_ORIGIN = 'https://mobius-profit.mobius-digital.workers.dev';
 const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
@@ -181,8 +182,12 @@ async function load(env, deps, slot) {
   const v = await deps.getSetting(env, `standing:${s}`);
   try { return v ? JSON.parse(v) : null; } catch { return null; }
 }
-async function sendDm(env, deps, rec) {
-  const msg = standingMessage(rec);
+export const DM_STYLES = ['list', 'wc', 'board'];
+const linkOf = rec => act => `${LOCUS}?open=warlive&act=all&standing=${encodeURIComponent(rec.slot)}${act ? `&brand=${encodeURIComponent(act)}` : ''}`;
+/** The DM in the style Cole picked (settings `standingDmStyle`; 'list' = the rich-text list until he picks), or `style` for a test. */
+async function sendDm(env, deps, rec, { style, prev } = {}) {
+  const st = DM_STYLES.includes(style) ? style : DM_STYLES.includes(await deps.getSetting(env, 'standingDmStyle')) ? await deps.getSetting(env, 'standingDmStyle') : 'list';
+  const msg = st === 'list' ? standingMessage(rec) : standingCard(rec, prev, st, linkOf(rec));
   const r = await dmPerson(env, deps, env.OWNER_EMAIL || 'cole@go-mobius-digital.com', msg);
   rec.sent = r.ok ? { at: new Date().toISOString(), ts: r.ts } : { error: r.error };
   return r;
@@ -196,8 +201,9 @@ export async function standingTick(env, deps, now = new Date()) {
   const slot = slotOf(now);
   /* Its own flag: a "Check now" on the page in the same hour writes standingLatest too and must not swallow the DM. */
   if (await deps.getSetting(env, `standingSent:${slot}`)) return { skipped: 'already sent' };
+  const prev = await load(env, deps).catch(() => null);
   const rec = await buildStanding(env, deps, slot);
-  await sendDm(env, deps, rec);
+  await sendDm(env, deps, rec, { prev });
   await save(env, deps, rec);
   if (rec.sent && !rec.sent.error) await deps.putSetting(env, `standingSent:${slot}`, rec.sent.at);
   return { slot, brands: rec.brands.length, sent: rec.sent };
@@ -306,6 +312,18 @@ export async function handleStanding(request, env, url, path, json, deps) {
       const rec = await load(env, deps, url.searchParams.get('slot'));
       return json(rec ? { ok: true, standing: rec } : { ok: true, standing: null });
     }
+    /* Which layout the 3-hourly DM uses (Cole picks on the options page). */
+    if (path === '/api/standing/style' && request.method === 'PUT') {
+      if (!DM_STYLES.includes(body.style)) return json({ error: `Style is one of ${DM_STYLES.join(', ')}.` }, 400);
+      await deps.putSetting(env, 'standingDmStyle', body.style);
+      return json({ ok: true, style: body.style });
+    }
+    /* The DM as it would go out now, in a style, as JSON (nothing sent): for the options page and Block Kit checks. */
+    if (path === '/api/standing/preview' && request.method === 'GET') {
+      const rec = await load(env, deps, url.searchParams.get('slot')), st = url.searchParams.get('style') || 'board';
+      if (!rec) return json({ error: 'No check-in yet.' }, 404);
+      return json(st === 'list' ? standingMessage(rec) : standingCard(rec, null, st, linkOf(rec)));
+    }
     if (path === '/api/standing/brand' && request.method === 'GET') {
       const act = String(url.searchParams.get('act') || '');
       if (!/^brand_[a-z0-9_]+$/.test(act)) return json({ error: 'Which brand?' }, 400);
@@ -315,8 +333,9 @@ export async function handleStanding(request, env, url, path, json, deps) {
       return json(r, r.error ? 502 : 200);
     }
     if (path === '/api/standing/run' && request.method === 'POST') {
+      const prev = await load(env, deps).catch(() => null);
       const rec = await buildStanding(env, deps, slotOf());
-      if (body.send) await sendDm(env, deps, rec);
+      if (body.send) await sendDm(env, deps, rec, { style: body.style, prev });
       await save(env, deps, rec);
       return json({ ok: true, standing: rec, message: standingMessage(rec).text });
     }

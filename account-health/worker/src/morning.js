@@ -42,9 +42,9 @@ export async function dmPerson(env, deps, email, msg) {
   const u = await deps.slackApi(env, 'users.lookupByEmail', { email });
   if (!u || !u.ok || !u.user || !u.user.id) return { ok: false, error: (u && u.error) || 'no slack user' };
   if (u.user.is_bot || u.user.deleted) return { ok: false, error: 'not a person' };
-  const r = await deps.slackApi(env, 'chat.postMessage', { channel: u.user.id, text: msg.text, blocks: msg.blocks, unfurl_links: false, username: 'Locus', icon_url: 'https://tools.go-mobius-digital.com/favicon.png' });
+  const r = await deps.slackApi(env, 'chat.postMessage', { channel: u.user.id, text: msg.text, blocks: msg.blocks, attachments: msg.attachments, unfurl_links: false, username: 'Locus', icon_url: 'https://tools.go-mobius-digital.com/favicon.png' });
   if (r && r.ok === false && /missing_scope|invalid_arg|not_allowed/.test(String(r.error || ''))) {
-    const r2 = await deps.slackApi(env, 'chat.postMessage', { channel: u.user.id, text: msg.text, blocks: msg.blocks, unfurl_links: false });
+    const r2 = await deps.slackApi(env, 'chat.postMessage', { channel: u.user.id, text: msg.text, blocks: msg.blocks, attachments: msg.attachments, unfurl_links: false });
     return r2 && r2.ok ? { ok: true, ts: r2.ts } : { ok: false, error: (r2 && r2.error) || 'slack' };
   }
   return r && r.ok ? { ok: true, ts: r.ts } : { ok: false, error: (r && r.error) || 'slack' };
