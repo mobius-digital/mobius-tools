@@ -1287,11 +1287,12 @@ export async function metaLive(env, d, brandId, opt = {}) {
     out.accounts.push({ act: m.act, name: m.name, can: can.can, fix: can.can ? null : can.fix });
     const [cs, ss, as] = await Promise.all([
       gall(d, env, `${m.act}/campaigns`, { fields: 'id,name,status,effective_status,daily_budget,lifetime_budget', limit: '200' }, 3).catch(() => []),
-      gall(d, env, `${m.act}/adsets`, { fields: 'id,name,status,effective_status,campaign_id,daily_budget,lifetime_budget,daily_min_spend_target,daily_spend_cap', limit: '300' }, 3).catch(() => []),
-      gall(d, env, `${m.act}/ads`, { fields: 'id,name,status,effective_status,adset_id,campaign_id', limit: '500' }, 4).catch(() => []),
+      gall(d, env, `${m.act}/adsets`, { fields: `id,name,status,effective_status,campaign_id,daily_budget,lifetime_budget,daily_min_spend_target,daily_spend_cap${opt.season ? ',start_time,end_time' : ''}`, limit: '300' }, 3).catch(() => []),
+      /* opt.season (the War Room, 2026-11-21): ad set start and end times, no ads, so all brands read in one go. */
+      opt.season ? Promise.resolve([]) : gall(d, env, `${m.act}/ads`, { fields: 'id,name,status,effective_status,adset_id,campaign_id', limit: '500' }, 4).catch(() => []),
     ]);
     for (const c of cs) out.campaigns[c.id] = { act: m.act, name: c.name, status: c.status, eff: c.effective_status, daily: c2(c.daily_budget), lifetime: c2(c.lifetime_budget) };
-    for (const s of ss) out.adsets[s.id] = { act: m.act, name: s.name, status: s.status, eff: s.effective_status, campaign: s.campaign_id, daily: c2(s.daily_budget), lifetime: c2(s.lifetime_budget), min: c2(s.daily_min_spend_target), cap: c2(s.daily_spend_cap) };
+    for (const s of ss) out.adsets[s.id] = { act: m.act, name: s.name, status: s.status, eff: s.effective_status, campaign: s.campaign_id, daily: c2(s.daily_budget), lifetime: c2(s.lifetime_budget), min: c2(s.daily_min_spend_target), cap: c2(s.daily_spend_cap), ...(opt.season ? { start: s.start_time || null, end: s.end_time || null } : {}) };
     for (const a of as) out.ads[a.id] = { act: m.act, name: a.name, status: a.status, eff: a.effective_status, adset: a.adset_id, campaign: a.campaign_id };
   }
   /* 2026-11-02: one campaign only (its ad sets and ads), so a big account's answer fits a tool call. */
