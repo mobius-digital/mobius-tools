@@ -243,8 +243,10 @@ export async function brandDetail(env, deps, act) {
     .sort((a, b) => ((/holiday/i.test(a.name) ? (dec ? 0 : 5) : (dec ? 5 : 0)) - (/holiday/i.test(b.name) ? (dec ? 0 : 5) : (dec ? 5 : 0))) || (b.daily || 0) - (a.daily || 0));
   /* The campaign the call acts on, and only its sets that run now or start within 2 days (not December's sets in November). */
   const cids = new Set(camps.slice(0, 1).map(c => c.id)), now = Date.now();
-  const sets = Object.entries(ml.adsets || {}).map(([id, s]) => ({ id, ...s })).filter(s => cids.has(String(s.campaign)) && s.status === 'ACTIVE'
-    && !(s.end && Date.parse(s.end) < now) && !(s.start && Date.parse(s.start) > now + 2 * 864e5));
+  const inCamp = Object.entries(ml.adsets || {}).map(([id, s]) => ({ id, ...s })).filter(s => cids.has(String(s.campaign)) && s.status === 'ACTIVE' && !(s.end && Date.parse(s.end) < now));
+  let sets = inCamp.filter(s => !(s.start && Date.parse(s.start) > now + 2 * 864e5));
+  /* Nothing live yet (the days before Black Friday): show the sets that start next, so the page says what is loaded. */
+  if (!sets.length && inCamp.length) { const first = Math.min(...inCamp.map(s => Date.parse(s.start) || Infinity)); sets = inCamp.filter(s => Math.abs((Date.parse(s.start) || 0) - first) < 3600e3); }
   const acct = ((await deps.listAccounts(env, true)) || []).find(a => a.act_id === act) || {};
   const goalCpa = +acct.target_cpa || null, goalRoas = +acct.target_roas || null;
   let nums = { from: null, to: null, ads: [] }, calls = [], callErr = null;
@@ -289,7 +291,7 @@ export async function brandDetail(env, deps, act) {
   const main = camps[0] || null;
   return { act, today, from: nums.from, to: nums.to, goal_cpa: goalCpa, goal_roas: goalRoas, calls_error: callErr,
     campaigns: camps.map(c => ({ id: c.id, name: c.name, daily: c.daily || null, cbo: !!c.daily, meta_act: c.act })),
-    structure: main ? `${main.daily ? `CBO, $${Math.round(main.daily).toLocaleString('en-US')}/day` : 'ABO (each ad set has its own budget)'} · ${sets.length} live ad set${sets.length === 1 ? '' : 's'}${outSets.filter(s => s.b_copy).length ? `, ${outSets.filter(s => s.b_copy).length} of them B copies` : ''}` : 'No live sale campaign in Meta.',
+    structure: main ? `${main.name}: ${main.daily ? `CBO, $${Math.round(main.daily).toLocaleString('en-US')}/day` : 'ABO (each ad set has its own budget)'} · ${sets.filter(x => !(x.start && Date.parse(x.start) > now)).length} live ad sets${sets.some(x => x.start && Date.parse(x.start) > now) ? `, ${sets.filter(x => x.start && Date.parse(x.start) > now).length} starting soon` : ''}${outSets.filter(s => s.b_copy).length ? `, ${outSets.filter(s => s.b_copy).length} of them B copies` : ''}` : 'No live sale campaign in Meta.',
     sets: outSets, ads_manager: main ? `https://adsmanager.facebook.com/adsmanager/manage/adsets?act=${String(main.act || '').replace(/^act_/, '')}&selected_campaign_ids=${main.id}` : null };
 }
 

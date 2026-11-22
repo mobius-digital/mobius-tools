@@ -1168,7 +1168,7 @@
       <div class="sb-sales">${b.no_sales ? '<b>n/a</b>' : `<b>${U().kmoney(s.sales)}</b>`} <span>of ${U().kmoney(b.goal)}${b.no_sales ? '' : ` · ${pctS(s.sales, b.goal)}%`}</span></div>
       <div class="sb-bar sm"${tipOf(`Weekend sales against the ${U().kmoney(b.goal)} goal.`)}><i style="width:${s.sales ? Math.max(0.6, Math.min(100, s.sales / b.goal * 100)).toFixed(1) : 0}%;background:${SCOL[i % SCOL.length]}"></i></div>
       ${sbGauge(b)}
-      <p class="sb-why">${esc(g.why || '')}</p>
+      ${b.no_sales ? '' : `<p class="sb-why">${esc(g.why || '')}</p>`}
       <div class="sb-foot"><span${tipOf("The sale campaign's daily budget in Meta.")}>${m.error ? 'Meta did not answer' : !m.camp ? 'No sale campaign' : m.camp.daily ? `${U().money(m.camp.daily)}/day` : 'Ad set budgets'}</span>
         ${m.limit ? `<span class="sb-room"${tipOf(`How much more this account can spend today before Meta's daily limit of ${U().money(m.limit)}${m.limit_src === 'known' ? ' (the Nov 22 figure)' : ''}. All live budgets together count.`)}>${U().money(m.headroom)} room<i><em style="width:${room.toFixed(0)}%"></em></i></span>` : ''}</div></button>`;
   }
@@ -1224,7 +1224,7 @@
         <span class="sb-nums">${M(a.spend)} · ${U().int(a.sales || 0)} sales · ${X(a.roas)}</span>${lchip(tone, lab)}
         ${a.note ? `<small>${esc(a.note)}</small>` : ''}</div>`; };
     const setRow = s => `<div class="sb-set"><div class="h"><b>${esc(s.name)}</b>${s.b_copy ? '<span class="sb-tag">B copy</span>' : ''}
-        <span class="sb-nums"${tipOf('Share of the sale campaign spend over the 3 days, then spend, Triple Whale last-click sales, ROAS and first-click sales.')}>${s.share != null ? `${s.share}% of spend · ` : ''}${M(s.spend)} · ${U().int(s.sales || 0)} sales · ${X(s.roas)} · ${U().int(s.fc_sales || 0)} first click</span></div>
+        ${s.later ? '' : `<span class="sb-nums"${tipOf('Share of the sale campaign spend over the 3 days, then spend, Triple Whale last-click sales, ROAS and first-click sales.')}>${s.share != null ? `${s.share}% of spend · ` : ''}${M(s.spend)} · ${U().int(s.sales || 0)} sales · ${X(s.roas)} · ${U().int(s.fc_sales || 0)} first click</span>`}</div>
         ${[s.daily ? `Own budget ${M(s.daily)}/day` : '', s.min ? `min ${M(s.min)}` : '', s.cap ? `cap ${M(s.cap)}` : ''].filter(Boolean).length ? `<small class="sb-sub">${[s.daily ? `Own budget ${M(s.daily)}/day` : '', s.min ? `min ${M(s.min)}` : '', s.cap ? `cap ${M(s.cap)}` : ''].filter(Boolean).join(' · ')}</small>` : ''}
         ${s.call ? `<p class="sb-setcall">${lchip(s.call.kind === 'cut' ? 'bad' : s.call.kind === 'scale' ? 'good' : 'warn', s.call.action)} ${esc(s.call.why || '')}</p>` : ''}
         ${s.later ? `<small class="sb-sub">Starts ${esc(whenCT(Date.parse(s.start)))}.</small>` : sbAds(s.ads)}</div>`;
