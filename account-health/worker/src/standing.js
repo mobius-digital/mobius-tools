@@ -241,8 +241,10 @@ export async function brandDetail(env, deps, act) {
   const dec = today >= '2026-12-01';
   const camps = Object.entries(ml.campaigns || {}).map(([id, c]) => ({ id, ...c })).filter(c => c.status === 'ACTIVE' && SALE_RE.test(c.name || ''))
     .sort((a, b) => ((/holiday/i.test(a.name) ? (dec ? 0 : 5) : (dec ? 5 : 0)) - (/holiday/i.test(b.name) ? (dec ? 0 : 5) : (dec ? 5 : 0))) || (b.daily || 0) - (a.daily || 0));
-  const cids = new Set(camps.map(c => c.id));
-  const sets = Object.entries(ml.adsets || {}).map(([id, s]) => ({ id, ...s })).filter(s => cids.has(String(s.campaign)) && s.status === 'ACTIVE');
+  /* The campaign the call acts on, and only its sets that run now or start within 2 days (not December's sets in November). */
+  const cids = new Set(camps.slice(0, 1).map(c => c.id)), now = Date.now();
+  const sets = Object.entries(ml.adsets || {}).map(([id, s]) => ({ id, ...s })).filter(s => cids.has(String(s.campaign)) && s.status === 'ACTIVE'
+    && !(s.end && Date.parse(s.end) < now) && !(s.start && Date.parse(s.start) > now + 2 * 864e5));
   const acct = ((await deps.listAccounts(env, true)) || []).find(a => a.act_id === act) || {};
   const goalCpa = +acct.target_cpa || null, goalRoas = +acct.target_roas || null;
   let nums = { from: null, to: null, ads: [] }, calls = [], callErr = null;
@@ -280,7 +282,7 @@ export async function brandDetail(env, deps, act) {
     });
     const t = sumAds(ads.map(a => ({ ...a, ctr: null, cpm: null, freq: null })));
     const setCall = calls.find(c => c.level === 'adset' && c.adset_id === s.id);
-    return { id: s.id, name: s.name, daily: s.daily || null, min: s.min || null, cap: s.cap || null, start: s.start || null, end: s.end || null,
+    return { id: s.id, name: s.name, daily: s.daily || null, min: s.min || null, cap: s.cap || null, start: s.start || null, end: s.end || null, later: !!(s.start && Date.parse(s.start) > now),
       b_copy: /\|\s*[B-D]\b|\b[B-D] copy\b|\s[B-D]$/i.test(s.name || ''), share: total ? Math.round((t.spend || 0) / total * 100) : null, ...t, call: setCall ? { action: setCall.action, why: setCall.why, kind: setCall.kind } : null,
       ads: ads.sort((p, q) => ({ cut: 0, wait: 2, keep: 1 }[p.label] - { cut: 0, wait: 2, keep: 1 }[q.label]) || (q.spend || 0) - (p.spend || 0)) };
   }).sort((a, b) => (b.spend || 0) - (a.spend || 0));

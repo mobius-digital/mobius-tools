@@ -1227,7 +1227,14 @@
         <span class="sb-nums"${tipOf('Share of the sale campaign spend over the 3 days, then spend, Triple Whale last-click sales, ROAS and first-click sales.')}>${s.share != null ? `${s.share}% of spend · ` : ''}${M(s.spend)} · ${U().int(s.sales || 0)} sales · ${X(s.roas)} · ${U().int(s.fc_sales || 0)} first click</span></div>
         ${[s.daily ? `Own budget ${M(s.daily)}/day` : '', s.min ? `min ${M(s.min)}` : '', s.cap ? `cap ${M(s.cap)}` : ''].filter(Boolean).length ? `<small class="sb-sub">${[s.daily ? `Own budget ${M(s.daily)}/day` : '', s.min ? `min ${M(s.min)}` : '', s.cap ? `cap ${M(s.cap)}` : ''].filter(Boolean).join(' · ')}</small>` : ''}
         ${s.call ? `<p class="sb-setcall">${lchip(s.call.kind === 'cut' ? 'bad' : s.call.kind === 'scale' ? 'good' : 'warn', s.call.action)} ${esc(s.call.why || '')}</p>` : ''}
-        ${s.ads.length ? s.ads.map(adRow).join('') : '<small class="sb-sub">No ad spent in these 3 days.</small>'}</div>`;
+        ${s.later ? `<small class="sb-sub">Starts ${esc(whenCT(Date.parse(s.start)))}.</small>` : sbAds(s.ads)}</div>`;
+    /* The ads that matter: every cut, then any with sales or 2%+ of the set's spend. The tail Meta barely spends on folds into one line. */
+    function sbAds(ads) {
+      if (!ads.length) return '<small class="sb-sub">No ad spent in these 3 days.</small>';
+      const tot = ads.reduce((n, a) => n + (a.spend || 0), 0), big = a => a.label === 'cut' || (a.sales || 0) > 0 || (tot && (a.spend || 0) / tot >= 0.02);
+      const show = ads.filter(big), rest = ads.filter(a => !big(a)), restSpend = rest.reduce((n, a) => n + (a.spend || 0), 0);
+      return show.map(adRow).join('') + (rest.length ? `<small class="sb-sub sb-tail"${tipOf(rest.map(a => a.name).join(', '))}>+ ${rest.length} more ad${rest.length === 1 ? '' : 's'} Meta barely spent on (${M(restSpend)} together, no sales). ${rest.filter(a => a.label === 'wait').length ? 'Still in their wait window.' : 'Left to run.'}</small>` : '');
+    }
     const nCut = D.sets.reduce((n, s) => n + s.ads.filter(a => a.label === 'cut').length, 0);
     hint.outerHTML = `<div class="sb-struct"><b>${esc(D.structure)}</b>${D.from ? `<span>${md(D.from)} to ${md(D.to)}</span>` : ''}${D.ads_manager ? `<a class="v2btn ghost" href="${esc(D.ads_manager)}" target="_blank" rel="noopener">Open in Ads Manager</a>` : ''}</div>
       <p class="sb-cutline">${nCut ? `<b>${nCut} ad${nCut === 1 ? '' : 's'} to cut</b>, called by Locus's ad rules (judged inside its ad set, never while it beats the goal ROAS). Make them on Today's calls.` : 'No ad to cut right now.'} Waiting = still inside the wait window (2x the goal CPA spent and 3 days live). Opener, closer and % new buyers are context only: the weekend call is on MER.${D.calls_error ? ` <span class="v2bad">Ad calls did not load: ${esc(D.calls_error)}</span>` : ''}</p>
