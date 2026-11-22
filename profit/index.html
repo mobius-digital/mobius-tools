@@ -2278,7 +2278,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
      NOT deferred: the app's own script is inline at the end of <body> and so
      runs before any deferred file would. -->
 <link rel="stylesheet" href="/sheet.css?v=1">
-<link rel="stylesheet" href="v2.css?v=50">
+<link rel="stylesheet" href="v2.css?v=51">
 <link rel="stylesheet" href="../logo/kit.css?v=2">
 <link rel="stylesheet" href="supply.css?v=6">
 <link rel="stylesheet" href="lx.css?v=42">
@@ -2446,7 +2446,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="v2.js?v=88"></script>
 <script src="inspo.js?v=1"></script>
 <script src="leaks.js?v=11"></script>
-<script src="desk.js?v=42"></script>
+<script src="desk.js?v=43"></script>
 <script src="buyer.js?v=12"></script>
 <script src="trybe.js?v=17"></script>
 <script src="agency.js?v=4"></script>
@@ -2690,6 +2690,8 @@ async function boot() {
     if (open === 'studio' && /^[A-Za-z0-9_-]{4,40}$/.test(qs.get('batch') || '')) window.STUDIO_BATCH = qs.get('batch');   // the Make panel's Studio exit
     /* The morning card's "Make the calls" (?open=today&act=<brand>&doall=1) opens the Do all sheet, ticked, not run. */
     if (open === 'today' && qs.get('doall') === '1') window.TODAY_DOALL = 1;
+    /* The BFCM check-in DM (?open=warlive&act=all&standing=<slot>&brand=<act>) opens that check-in on the War Room. */
+    if (open === 'warlive' && /^\d{4}-\d{2}-\d{2}T\d{2}$/.test(qs.get('standing') || '')) { window.WAR_STANDING = qs.get('standing'); window.WAR_STANDING_BRAND = qs.get('brand') || ''; }
     /* A Slack note or reminder opens one task (?open=actions|tasks&item=<id>); the old call page ids open Calls. */
     if ((open === 'actions' || open === 'tasks') && qs.get('item')) window.ACT_OPEN = qs.get('item');
     if (qs.get('meeting')) window.ACT_MEETING = qs.get('meeting');   // a call from Slack (?open=actions|calls&meeting=<id>)

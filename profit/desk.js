@@ -1093,6 +1093,7 @@
       <div class="wr-strip"><div class="wr-seg" role="tablist" aria-label="War Room or The Plan"><button type="button" role="tab" data-wrm="live" class="${m === 'live' ? 'on' : ''}" aria-selected="${m === 'live'}">War Room</button><button type="button" role="tab" data-wrm="plan" class="${m === 'plan' ? 'on' : ''}" aria-selected="${m === 'plan'}">The Plan</button></div>
         <div class="wr-when"><b>${todo ? `${todo} call${todo === 1 ? '' : 's'} to make` : 'No calls to make right now'}</b><span>${U().kmoney(sales)} sales on ${U().kmoney(spend)} ads today · MER ${U().x2(spend ? sales / spend : null)} across the ${run.length} brands we run</span></div>
         <div class="wr-acts"><span class="faint">${asOf ? `as of ${new Date(asOf).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' })} CT` : ''}</span><button type="button" class="v2btn ghost" id="wrRefresh">Refresh</button></div></div>
+      <div id="wrStand"></div>
       <div class="wr-room">${B.length ? B.map(b => roomRow(b, d.today)).join('') : '<p class="v2hint">No brand is in the season.</p>'}</div>
       ${U().foot('Sales, spend and MER are today so far from Triple Whale (store revenue over all ad spend). Where Triple Whale has no ad spend for a brand, spend comes from Meta, synced hourly. The call grades today\'s MER on each brand\'s ladder (The Plan). Phases are read from the Meta ad sets\' start and end times. Refreshes every 5 minutes.')}</div>`);
     const root = $('#wrRoot');
@@ -1101,6 +1102,63 @@
     root.querySelector('#wrRefresh').onclick = () => { Object.keys(MS).forEach(k => delete MS[k]); war(false, WR.page); };
     autoRefresh();
     fillRoom(t, B, d.today);
+    standing(t);
+  }
+  /* ---------------- WHERE WE STAND (2026-11-22) ----------------
+   * Cole: "I just want it to check it... it tells me, and then we can talk about it and I can approve it or not."
+   * The 3-hourly BFCM check-in (account-health standing.js, Thu Nov 26 to Mon Nov 30, also DMed to Cole): per brand the
+   * weekend's Triple Whale revenue against its goal, MER so far and over the last 6 hours against the KPI, the sale
+   * campaign's budget and the Meta daily limit. Approve (tap twice) is the only thing that changes a budget. A Slack
+   * link (?open=warlive&standing=<slot>&brand=<act>) opens that check-in. Team only. */
+  async function standing(t) {
+    const el = document.getElementById('wrStand'); if (!el || isCl()) return;
+    const slot = window.WAR_STANDING || '', focus = window.WAR_STANDING_BRAND || '';
+    let r; try { r = await H.apiAH(`/api/standing${slot ? `?slot=${encodeURIComponent(slot)}` : ''}`); } catch (e) { r = { error: e.message }; }
+    if (t !== H.RUN() || !el.isConnected) return;
+    drawStanding(el, r && r.standing, r && r.error, focus);
+  }
+  function drawStanding(el, S, err, focus) {
+    const W = { scale: 'Scale +50%', hold: 'Hold', cut: 'Cut 25%' }, T = { scale: 'good', hold: '', cut: 'bad' };
+    const head = `<div class="v2h"><h3>Where we stand${S ? `, ${esc(S.label)}` : ''}</h3><span class="find">Every 3 hours Thu Nov 26 to Mon Nov 30, also sent to Cole in Slack. Weekend revenue and MER from Triple Whale; budgets from Meta. Nothing changes until you tap Approve.</span><button type="button" class="v2btn ghost" id="wsRun">Check now</button></div>`;
+    if (err || !S) { el.innerHTML = `<section class="v2card ws">${head}<p class="v2hint">${esc(err || 'No check-in yet. The first one runs Thursday 9am CT; Check now reads one today.')}</p></section>`; wireRun(el); return; }
+    const ok = S.brands.filter(b => !b.no_sales && b.so_far && b.so_far.sales != null), sum = k => ok.reduce((t, b) => t + (b.so_far[k] || 0), 0), G = ok.reduce((t, b) => t + (b.goal || 0), 0);
+    const row = b => {
+      const s = b.so_far || {}, l6 = b.last6 || {}, m = b.meta || {}, g = b.suggest || {}, ap = (S.approved || {})[b.act_id], pct = s.pct_goal != null ? Math.min(1, s.pct_goal) : 0;
+      const merT = v => v == null ? '' : v >= b.kpi ? 'good' : 'warn';
+      const act = ap ? `<span class="wr-done">Approved by ${esc(ap.by)}: ${U().money(ap.from)} to ${U().money(ap.to)}/day</span>`
+        : g.to ? `<button type="button" class="v2btn${g.to > ((m.camp || {}).daily || 0) ? ' dk-p' : ''}" data-ws="${esc(b.act_id)}" data-label="Approve: ${esc(W[g.call])} to ${U().money(g.to)}">Approve: ${esc(W[g.call])} to ${U().money(g.to)}</button>` : '';
+      return `<div class="ws-r${focus === b.act_id ? ' on' : ''}" data-wsr="${esc(b.act_id)}">
+        <div class="ws-n"><b>${esc(b.name)}</b>${lchip(T[g.call] || '', W[g.call] || 'Hold')}</div>
+        <div class="ws-g"><span>${b.no_sales ? `Spend ${U().kmoney(s.spend)} (no Triple Whale store)` : `<b>${U().kmoney(s.sales)}</b> of ${U().kmoney(b.goal)} · ${Math.round((s.pct_goal || 0) * 100)}%`}</span><i><em style="width:${(pct * 100).toFixed(0)}%"></em></i></div>
+        <div class="ws-k"><span class="${merT(s.mer)}">MER ${U().x2(s.mer)} so far</span><span class="${merT(l6.mer)}">${U().x2(l6.mer)} last ${l6.hours || 6}h</span><small>KPI ${U().x2(b.kpi)}</small></div>
+        <div class="ws-k"><span>${m.error ? esc(m.error) : m.camp ? `${m.camp.daily ? `${U().money(m.camp.daily)}/day` : 'ad set budgets'}` : 'No sale campaign'}</span><small>${m.limit ? `Meta limit ${U().money(m.limit)} · ${U().money(m.headroom)} room` : ''}</small></div>
+        <div class="ws-a"><small>${esc(g.why || '')}${g.note ? ` ${esc(g.note)}` : ''}</small>${act}</div></div>`;
+    };
+    el.innerHTML = `<section class="v2card ws">${head}
+      <p class="ws-top"><b>${U().kmoney(sum('sales'))}</b> of ${U().kmoney(G)} weekend goal on ${U().kmoney(sum('spend'))} ads · MER ${U().x2(sum('spend') ? sum('sales') / sum('spend') : null)}${S.dry ? ' · dry run on today (the weekend starts Thu Nov 26)' : ''}</p>
+      ${S.brands.map(row).join('')}</section>`;
+    wireRun(el);
+    el.querySelectorAll('[data-ws]').forEach(btn => btn.onclick = async () => {
+      if (!btn.dataset.arm) { btn.dataset.arm = '1'; btn.textContent = 'Tap again to change Meta'; setTimeout(() => { if (btn.isConnected && btn.dataset.arm && !btn.disabled) { delete btn.dataset.arm; btn.textContent = btn.dataset.label; } }, 5000); return; }
+      btn.disabled = true; btn.textContent = 'Writing to Meta…';
+      let r; try { r = await H.apiAH('/api/standing/approve', { method: 'POST', body: JSON.stringify({ slot: S.slot, act: btn.dataset.ws }) }); } catch (e) { r = { error: e.message }; }
+      if (!r || r.error) { btn.disabled = false; delete btn.dataset.arm; btn.textContent = btn.dataset.label; toast((r && r.error) || 'Meta did not answer.', true); return; }
+      S.approved = S.approved || {}; S.approved[btn.dataset.ws] = r; delete MS[btn.dataset.ws];
+      drawStanding(el, S, null, focus);
+      const LX = window.LxMetaWrite;
+      if (LX && LX.toast && r.write) LX.toast(`Budget ${U().money(r.from)} to ${U().money(r.to)}/day`, false, () => LX.undo({ apiAH: H.apiAH }, [{ write: r.write }], { act_id: btn.dataset.ws }, () => war(false, WR.page)));
+      else toast(`Budget ${U().money(r.from)} to ${U().money(r.to)}/day. In the Change Log.`);
+    });
+    const f = focus && el.querySelector(`[data-wsr="${CSS.escape(focus)}"]`); if (f) f.scrollIntoView({ block: 'center' });
+  }
+  function wireRun(el) {
+    const b = el.querySelector('#wsRun'); if (!b) return;
+    b.onclick = async () => {
+      b.disabled = true; b.textContent = 'Reading Triple Whale and Meta…';
+      let r; try { r = await H.apiAH('/api/standing/run', { method: 'POST', body: '{}' }); } catch (e) { r = { error: e.message }; }
+      window.WAR_STANDING = ''; window.WAR_STANDING_BRAND = '';
+      drawStanding(el, r && r.standing, r && r.error, '');
+    };
   }
   function autoRefresh() { if (WR.timer) clearInterval(WR.timer); WR.timer = setInterval(() => { if (!isWarTab(H.S.tab)) { clearInterval(WR.timer); WR.timer = null; return; } war(false, WR.page); }, 5 * 60e3); }
 
