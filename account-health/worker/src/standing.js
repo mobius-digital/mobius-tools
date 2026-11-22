@@ -312,17 +312,6 @@ export async function handleStanding(request, env, url, path, json, deps) {
       const rec = await load(env, deps, url.searchParams.get('slot'));
       return json(rec ? { ok: true, standing: rec } : { ok: true, standing: null });
     }
-    /* A scoreboard image for layout 'd' (PNG, base64, under 1.5MB): stored in R2, served publicly at an unguessable path so Slack can fetch it. */
-    if (path === '/api/standing/card' && request.method === 'PUT') {
-      if (!env.MEDIA) return json({ error: 'No MEDIA bucket on this worker.' }, 500);
-      const b64 = String(body.png || '').replace(/^data:image\/png;base64,/, '');
-      if (!b64 || b64.length > 2e6) return json({ error: 'Send png as base64, under 1.5MB.' }, 400);
-      const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-      if (bytes[0] !== 0x89 || bytes[1] !== 0x50) return json({ error: 'That is not a PNG.' }, 400);
-      const id = [...crypto.getRandomValues(new Uint8Array(12))].map(v => v.toString(16).padStart(2, '0')).join('');
-      await env.MEDIA.put(`standing/${id}.png`, bytes, { httpMetadata: { contentType: 'image/png' } });
-      return json({ ok: true, url: `${new URL(request.url).origin}/standing-card/${id}.png` });
-    }
     /* Which layout the 3-hourly DM uses (Cole picks on the options page). */
     if (path === '/api/standing/style' && request.method === 'PUT') {
       if (!DM_STYLES.includes(body.style)) return json({ error: `Style is one of ${DM_STYLES.join(', ')}.` }, 400);
