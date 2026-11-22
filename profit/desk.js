@@ -938,6 +938,7 @@
     $('#wrRoot').querySelectorAll('[data-go]').forEach(b => b.onclick = () => H.show(b.dataset.go));
     if (isCl()) return;
     fillRoom(t, [{ act_id: d.act_id, currency: d.currency, call: d.call, ro: d.ro, live: d.live }], d.today);
+    if (!d.ro && !isCl()) standing(t, d.act_id);
     if (!WR.tv) autoRefresh();
     fillNow(t);
   }
@@ -1078,86 +1079,174 @@
   }
   /** The brand's own page: the call card on top. */
   function callCard(d) {
+    /* A brand we run (team view): its Scoreboard tile and the sale campaign opened underneath (standing(t, act) fills it). */
+    if (!d.ro && !isCl()) return `<div id="wrStand" class="sb-one"><p class="v2hint">Reading the latest check-in&hellip;</p></div>`;
     const b = { act_id: d.act_id, name: d.name, currency: d.currency, call: d.call, ro: d.ro, live: d.live, phases: d.phases, scheduled: d.scheduled };
     return `<section class="v2card wr-today"><div class="v2h"><h3>Today's call</h3><span class="find">Today's store MER (Triple Whale) against the ladder on The Plan. The button changes the sale campaign's daily budget in Meta: tap it twice. Undo for 24 hours.</span></div>
       ${roomRow(b, d.today).replace('class="wr-rm"', 'class="wr-rm one"')}
       ${isCl() ? '' : `<div class="wr-camps" data-camps-for="${esc(d.act_id)}"><h4>Sale campaigns in Meta</h4><div data-camps><p class="v2hint">Reading Meta&hellip;</p></div></div>`}</section>`;
   }
-  /** All brands: one row each, the calls to make first. */
+  /* ---------------- THE SCOREBOARD (2026-11-22, Cole picked it on https://claude.ai/artifact/Sq6oGmX1JZtYn7Jw4PAB45) ----------------
+   * Cole: "beautiful and instantly clear, like a symphony: what I care about first is first". Top to bottom: are we on
+   * track for the weekend (one total against the goal), what needs my yes (Approve, tap twice), then one tile per brand.
+   * ONE call per brand: the 3-hourly check-in's (account-health standing.js), the same call Approve applies. The old
+   * per-day ladder grade ("Today's call") now lives inside the brand's detail as context. Every dot, ring, line and bar
+   * explains itself on hover (data-tip), and a key sits above the tiles. A tile opens the sale campaign: ad sets, their
+   * ads, and which ads to cut or wait on (GET /api/standing/brand: Locus's own ad calls, Triple Whale last click). */
+  const SW = { scale: 'Scale +50%', hold: 'Hold', cut: 'Cut 25%' }, SORD = { cut: 0, scale: 1, hold: 2 };
+  const SCOL = ['#4C7AE6', '#1C9A5A', '#C98A1B', '#8B5CF6', '#0E9FB5', '#94A3B8'];
+  const tipOf = s => U().tipAttr ? U().tipAttr(esc(s)) : ` title="${esc(s)}"`;
+  const merT = (v, kpi) => v == null || !kpi ? '' : v >= kpi ? 'good' : v >= kpi * 0.8 ? 'warn' : 'bad';
+  const pctS = (a, b) => b ? Math.round(a / b * 100) : 0;
+  const DET = {};
+  function detailOf(act, fresh) {
+    const hit = DET[act]; if (!fresh && hit && Date.now() - hit.at < 3 * 60e3) return hit.p;
+    const p = H.apiAH(`/api/standing/brand?act=${encodeURIComponent(act)}`).then(r => { if (r && r.error) throw new Error(r.error); return r; });
+    DET[act] = { at: Date.now(), p }; p.catch(() => { delete DET[act]; }); return p;
+  }
   function roomBoard(t, d, m) {
-    /* The blended line counts only brands whose sales Locus can see (a brand with no TW store would drag MER down). */
-    const B = d.brands || [], run = B.filter(b => !b.ro && b.live && !b.live.error && !(b.live.today || {}).no_sales), sum = k => run.reduce((s, b) => s + ((b.live.today || {})[k] || 0), 0);
-    const sales = sum('sales'), spend = sum('spend'), todo = B.filter(b => !b.ro && b.call && ['raise', 'cut', 'reset'].includes(b.call.call)).length;
-    const asOf = B.map(b => b.live && b.live.as_of).filter(Boolean).sort().pop();
+    WR.war = d;
     $('#main').innerHTML = shell(WR.page, warTitle('live'), `<div class="wr" id="wrRoot">
       <div class="wr-strip"><div class="wr-seg" role="tablist" aria-label="War Room or The Plan"><button type="button" role="tab" data-wrm="live" class="${m === 'live' ? 'on' : ''}" aria-selected="${m === 'live'}">War Room</button><button type="button" role="tab" data-wrm="plan" class="${m === 'plan' ? 'on' : ''}" aria-selected="${m === 'plan'}">The Plan</button></div>
-        <div class="wr-when"><b>${todo ? `${todo} call${todo === 1 ? '' : 's'} to make` : 'No calls to make right now'}</b><span>${U().kmoney(sales)} sales on ${U().kmoney(spend)} ads today · MER ${U().x2(spend ? sales / spend : null)} across the ${run.length} brands we run</span></div>
-        <div class="wr-acts"><span class="faint">${asOf ? `as of ${new Date(asOf).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' })} CT` : ''}</span><button type="button" class="v2btn ghost" id="wrRefresh">Refresh</button></div></div>
-      <div id="wrStand"></div>
-      <div class="wr-room">${B.length ? B.map(b => roomRow(b, d.today)).join('') : '<p class="v2hint">No brand is in the season.</p>'}</div>
-      ${U().foot('Sales, spend and MER are today so far from Triple Whale (store revenue over all ad spend). Where Triple Whale has no ad spend for a brand, spend comes from Meta, synced hourly. The call grades today\'s MER on each brand\'s ladder (The Plan). Phases are read from the Meta ad sets\' start and end times. Refreshes every 5 minutes.')}</div>`);
+        <div class="wr-acts"><button type="button" class="v2btn ghost" id="wrRefresh">Refresh</button></div></div>
+      <div id="wrStand"><p class="v2hint">Reading the latest check-in&hellip;</p></div>
+      ${roNote(d)}
+      ${U().foot('Weekend sales and MER are Triple Whale (store revenue over all ad spend), Thu Nov 26 to Mon Nov 30; before Thursday the check-in is a dry run on today. Budgets and the Meta limit are read from Meta. A check-in runs every 3 hours (9am to 9pm and 11pm CT) and is sent to Cole in Slack. Nothing changes in Meta until someone taps Approve twice.')}</div>`);
     const root = $('#wrRoot');
-    root.querySelectorAll('[data-open]').forEach(el => el.onclick = () => pickAct(el.dataset.open, 'warlive'));
     root.querySelectorAll('[data-wrm]').forEach(b => b.onclick = () => goMode('all', b.dataset.wrm));
-    root.querySelector('#wrRefresh').onclick = () => { Object.keys(MS).forEach(k => delete MS[k]); war(false, WR.page); };
+    root.querySelector('#wrRefresh').onclick = () => { Object.keys(MS).forEach(k => delete MS[k]); Object.keys(DET).forEach(k => delete DET[k]); war(false, WR.page); };
     autoRefresh();
-    fillRoom(t, B, d.today);
     standing(t);
   }
-  /* ---------------- WHERE WE STAND (2026-11-22) ----------------
-   * Cole: "I just want it to check it... it tells me, and then we can talk about it and I can approve it or not."
-   * The 3-hourly BFCM check-in (account-health standing.js, Thu Nov 26 to Mon Nov 30, also DMed to Cole): per brand the
-   * weekend's Triple Whale revenue against its goal, MER so far and over the last 6 hours against the KPI, the sale
-   * campaign's budget and the Meta daily limit. Approve (tap twice) is the only thing that changes a budget. A Slack
-   * link (?open=warlive&standing=<slot>&brand=<act>) opens that check-in. Team only. */
-  async function standing(t) {
+  /** Brands whose client runs the media (I&G): one quiet line, numbers only. */
+  function roNote(d) {
+    const ro = (d.brands || []).filter(b => b.ro && b.live && !b.live.error);
+    return ro.length ? `<p class="sb-ro">${ro.map(b => { const T = b.live.today || {}; return `<b>${esc(b.name)}</b> is run by the client: ${U().kmoney(T.sales, b.currency)} today on ${U().kmoney(T.spend, b.currency)} of ads, MER ${U().x2(T.mer)}.`; }).join(' ')}</p>` : '';
+  }
+  async function standing(t, one) {
     const el = document.getElementById('wrStand'); if (!el || isCl()) return;
-    const slot = window.WAR_STANDING || '', focus = window.WAR_STANDING_BRAND || '';
+    const slot = window.WAR_STANDING || '', focus = one || window.WAR_STANDING_BRAND || '';
     let r; try { r = await H.apiAH(`/api/standing${slot ? `?slot=${encodeURIComponent(slot)}` : ''}`); } catch (e) { r = { error: e.message }; }
     if (t !== H.RUN() || !el.isConnected) return;
-    drawStanding(el, r && r.standing, r && r.error, focus);
+    drawStanding(el, r && r.standing, r && r.error, focus, one);
   }
-  function drawStanding(el, S, err, focus) {
-    const W = { scale: 'Scale +50%', hold: 'Hold', cut: 'Cut 25%' }, T = { scale: 'good', hold: '', cut: 'bad' };
-    const head = `<div class="v2h"><h3>Where we stand${S ? `, ${esc(S.label)}` : ''}</h3><span class="find">Every 3 hours Thu Nov 26 to Mon Nov 30, also sent to Cole in Slack. Weekend revenue and MER from Triple Whale; budgets from Meta. Nothing changes until you tap Approve.</span><button type="button" class="v2btn ghost" id="wsRun">Check now</button></div>`;
-    if (err || !S) { el.innerHTML = `<section class="v2card ws">${head}<p class="v2hint">${esc(err || 'No check-in yet. The first one runs Thursday 9am CT; Check now reads one today.')}</p></section>`; wireRun(el); return; }
-    const ok = S.brands.filter(b => !b.no_sales && b.so_far && b.so_far.sales != null), sum = k => ok.reduce((t, b) => t + (b.so_far[k] || 0), 0), G = ok.reduce((t, b) => t + (b.goal || 0), 0);
-    const row = b => {
-      const s = b.so_far || {}, l6 = b.last6 || {}, m = b.meta || {}, g = b.suggest || {}, ap = (S.approved || {})[b.act_id], pct = s.pct_goal != null ? Math.min(1, s.pct_goal) : 0;
-      const merT = v => v == null ? '' : v >= b.kpi ? 'good' : 'warn';
-      const act = ap ? `<span class="wr-done">Approved by ${esc(ap.by)}: ${U().money(ap.from)} to ${U().money(ap.to)}/day</span>`
-        : g.to ? `<button type="button" class="v2btn${g.to > ((m.camp || {}).daily || 0) ? ' dk-p' : ''}" data-ws="${esc(b.act_id)}" data-label="Approve: ${esc(W[g.call])} to ${U().money(g.to)}">Approve: ${esc(W[g.call])} to ${U().money(g.to)}</button>` : '';
-      return `<div class="ws-r${focus === b.act_id ? ' on' : ''}" data-wsr="${esc(b.act_id)}">
-        <div class="ws-n"><b>${esc(b.name)}</b>${lchip(T[g.call] || '', W[g.call] || 'Hold')}</div>
-        <div class="ws-g"><span>${b.no_sales ? `Spend ${U().kmoney(s.spend)} (no Triple Whale store)` : `<b>${U().kmoney(s.sales)}</b> of ${U().kmoney(b.goal)} · ${Math.round((s.pct_goal || 0) * 100)}%`}</span><i><em style="width:${(pct * 100).toFixed(0)}%"></em></i></div>
-        <div class="ws-k"><span class="${merT(s.mer)}">MER ${U().x2(s.mer)} so far</span><span class="${merT(l6.mer)}">${U().x2(l6.mer)} last ${l6.hours || 6}h</span><small>KPI ${U().x2(b.kpi)}</small></div>
-        <div class="ws-k"><span>${m.error ? esc(m.error) : m.camp ? `${m.camp.daily ? `${U().money(m.camp.daily)}/day` : 'ad set budgets'}` : 'No sale campaign'}</span><small>${m.limit ? `Meta limit ${U().money(m.limit)}${m.limit_src === 'known' ? ' (Nov 22 figure)' : ''} · ${U().money(m.headroom)} room` : ''}</small></div>
-        <div class="ws-a"><small>${esc(g.why || '')}${g.note ? ` ${esc(g.note)}` : ''}</small>${act}</div></div>`;
-    };
-    el.innerHTML = `<section class="v2card ws">${head}
-      <p class="ws-top"><b>${U().kmoney(sum('sales'))}</b> of ${U().kmoney(G)} weekend goal on ${U().kmoney(sum('spend'))} ads · MER ${U().x2(sum('spend') ? sum('sales') / sum('spend') : null)}${S.dry ? ' · dry run on today (the weekend starts Thu Nov 26)' : ''}</p>
-      ${S.brands.map(row).join('')}</section>`;
-    wireRun(el);
+  function sbHero(S) {
+    const ok = S.brands.filter(b => !b.no_sales && b.so_far && b.so_far.sales != null);
+    const s = ok.reduce((a, b) => a + b.so_far.sales, 0), p = ok.reduce((a, b) => a + b.so_far.spend, 0), g = ok.reduce((a, b) => a + (b.goal || 0), 0), mer = p ? s / p : null;
+    const segs = S.brands.map((b, i) => b.so_far && b.so_far.sales ? `<i style="width:${Math.max(0.4, b.so_far.sales / (g || 1) * 100).toFixed(2)}%;background:${SCOL[i % SCOL.length]}"${tipOf(`${b.name}: ${U().kmoney(b.so_far.sales)} of its ${U().kmoney(b.goal)} goal`)}></i>` : '').join('');
+    return `<section class="sb-hero"><div class="sb-eb">Where we stand · ${esc(S.label)}${S.dry ? ' · dry run on today, the weekend starts Thu Nov 26' : ''}</div>
+      <div class="sb-big"><b>${U().kmoney(s)}</b> <span>of ${U().kmoney(g)} weekend goal · ${pctS(s, g)}%</span></div>
+      <div class="sb-bar"${tipOf('Weekend sales against the combined weekend goal. Each color is one brand; hover a piece for the brand.')}>${segs}</div>
+      <div class="sb-stats"><span${tipOf('Weekend sales over all ad spend (Triple Whale). Green at or over the 2.50x KPI, yellow up to 20% under, red further under.')}>MER <b class="${merT(mer, 2.5)}">${U().x2(mer)}</b> vs 2.50x KPI</span><span>Ads <b>${U().kmoney(p)}</b></span>${S.next ? `<span>Next check-in <b>${esc(S.next)}</b></span>` : ''}<button type="button" class="v2btn ghost" id="wsRun"${tipOf('Read Triple Whale and Meta now and make a fresh check-in. It does not send a Slack DM.')}>Check now</button></div></section>`;
+  }
+  function sbNeeds(S, B) {
+    const N = B.filter(b => (b.suggest || {}).to && !(S.approved || {})[b.act_id]);
+    const done = B.filter(b => (S.approved || {})[b.act_id]);
+    const card = b => { const g = b.suggest, from = ((b.meta || {}).camp || {}).daily || 0;
+      return `<div class="sb-need ${g.call}"><div class="t"><b>${esc(b.name)}</b> ${lchip(g.call === 'scale' ? 'good' : 'bad', SW[g.call])}<small>${esc(g.why || '')}${g.note ? ` ${esc(g.note)}` : ''}</small></div>
+        <span class="sb-move">${U().money(from)} to <b>${U().money(g.to)}</b>/day</span>
+        <button type="button" class="v2btn ${g.call === 'scale' ? 'dk-p' : 'sb-cutbtn'}" data-ws="${esc(b.act_id)}" data-label="Approve">Approve</button></div>`; };
+    return `<section class="sb-needs"><div class="sb-eb">Needs your yes (${N.length})</div>
+      ${N.length ? N.map(card).join('') : '<div class="sb-empty">Nothing to approve. Every brand is on Hold.</div>'}
+      ${done.map(b => { const ap = S.approved[b.act_id]; return `<div class="sb-empty"><span class="wr-done">${esc(b.name)}: approved by ${esc(ap.by)}, ${U().money(ap.from)} to ${U().money(ap.to)}/day</span></div>`; }).join('')}</section>`;
+  }
+  const SLEGEND = `<div class="sb-legend"><span><i class="lg-dot"></i>MER weekend so far</span><span><i class="lg-ring"></i>MER last 6 hours</span><span><i class="lg-line"></i>KPI</span><span><i class="lg-c good"></i>at or over KPI</span><span><i class="lg-c warn"></i>up to 20% under</span><span><i class="lg-c bad"></i>more than 20% under</span><span><i class="lg-room"></i>room under Meta's limit</span></div>`;
+  function sbGauge(b) {
+    const s = b.so_far || {}, l6 = b.last6 || {};
+    if (b.no_sales) return `<p class="sb-note">No Triple Whale store, so Locus sees spend only: ${U().kmoney(s.spend)} so far.</p>`;
+    const max = b.kpi * 1.6, pos = v => Math.max(0, Math.min(100, (v || 0) / max * 100)).toFixed(1), t6 = merT(l6.mer, b.kpi);
+    return `<div class="sb-mer"><b class="${merT(s.mer, b.kpi)}"${tipOf(`MER for the weekend so far: ${U().x2(s.mer)}. Sales over all ad spend, Triple Whale.`)}>${U().x2(s.mer)}</b>
+        <span>so far · <span class="${t6}"${tipOf(`MER over the last ${l6.hours || 6} hours with data: ${U().x2(l6.mer)}. Read only once there is $50+ of spend in them.`)}>${U().x2(l6.mer)} last ${l6.hours || 6}h</span> · KPI ${U().x2(b.kpi)}</span></div>
+      <div class="sb-gauge"${tipOf('Red: more than 20% under the KPI. Yellow: up to 20% under. Green: at or over the KPI.')}><span class="k" style="left:${pos(b.kpi)}%"${tipOf(`The KPI, ${U().x2(b.kpi)}: the MER this brand has to clear.`)}></span>${l6.mer != null ? `<span class="r" style="left:${pos(l6.mer)}%"${tipOf(`Ring: MER over the last 6 hours, ${U().x2(l6.mer)}.`)}></span>` : ''}<span class="m ${merT(s.mer, b.kpi)}" style="left:${pos(s.mer)}%"${tipOf(`Dot: MER for the weekend so far, ${U().x2(s.mer)}.`)}></span></div>`;
+  }
+  function sbTile(S, b, i, on) {
+    const s = b.so_far || {}, m = b.meta || {}, g = b.suggest || {}, ap = (S.approved || {})[b.act_id];
+    const call = ap ? lchip('good', 'Approved') : lchip(g.call === 'scale' ? 'good' : g.call === 'cut' ? 'bad' : '', SW[g.call] || 'Hold');
+    const room = m.limit ? Math.max(0, Math.min(100, (m.headroom || 0) / m.limit * 100)) : 0;
+    return `<button type="button" class="sb-tile${on ? ' on' : ''}" data-sbt="${esc(b.act_id)}" aria-expanded="${on ? 'true' : 'false'}">
+      <div class="h"><b>${esc(b.name)}</b>${call}</div>
+      <div class="sb-sales">${b.no_sales ? '<b>n/a</b>' : `<b>${U().kmoney(s.sales)}</b>`} <span>of ${U().kmoney(b.goal)}${b.no_sales ? '' : ` · ${pctS(s.sales, b.goal)}%`}</span></div>
+      <div class="sb-bar sm"${tipOf(`Weekend sales against the ${U().kmoney(b.goal)} goal.`)}><i style="width:${s.sales ? Math.max(0.6, Math.min(100, s.sales / b.goal * 100)).toFixed(1) : 0}%;background:${SCOL[i % SCOL.length]}"></i></div>
+      ${sbGauge(b)}
+      <p class="sb-why">${esc(g.why || '')}</p>
+      <div class="sb-foot"><span${tipOf("The sale campaign's daily budget in Meta.")}>${m.error ? 'Meta did not answer' : !m.camp ? 'No sale campaign' : m.camp.daily ? `${U().money(m.camp.daily)}/day` : 'Ad set budgets'}</span>
+        ${m.limit ? `<span class="sb-room"${tipOf(`How much more this account can spend today before Meta's daily limit of ${U().money(m.limit)}${m.limit_src === 'known' ? ' (the Nov 22 figure)' : ''}. All live budgets together count.`)}>${U().money(m.headroom)} room<i><em style="width:${room.toFixed(0)}%"></em></i></span>` : ''}</div></button>`;
+  }
+  function drawStanding(el, S, err, focus, one) {
+    if (err || !S) { el.innerHTML = `<section class="v2card sb-empty">${esc(err || 'No check-in yet. The first one runs Thursday 9am CT.')} <button type="button" class="v2btn ghost" id="wsRun">Check now</button></section>`; wireRun(el, one); return; }
+    const all = [...S.brands].sort((a, b) => (SORD[(a.suggest || {}).call] ?? 2) - (SORD[(b.suggest || {}).call] ?? 2));
+    const B = one ? all.filter(b => b.act_id === one) : all;
+    if (one && !B.length) { el.innerHTML = ''; return; }
+    const idx = b => S.brands.indexOf(b);
+    const open = one || (WR.sbOpen && B.some(b => b.act_id === WR.sbOpen) ? WR.sbOpen : '') || (focus && B.some(b => b.act_id === focus) ? focus : '');
+    el.innerHTML = `${one ? '' : sbHero(S)}${sbNeeds(S, B)}
+      <section class="sb-brands">${one ? '' : `<div class="sb-bh"><div class="sb-eb">Every brand</div>${SLEGEND}</div>`}
+        <div class="sb-tiles${one ? ' one' : ''}">${B.map(b => sbTile(S, b, idx(b), b.act_id === open)).join('')}</div>
+        ${one ? SLEGEND : ''}<div id="sbDetail"></div></section>`;
+    wireRun(el, one);
+    el.querySelectorAll('[data-sbt]').forEach(tb => tb.onclick = () => {
+      if (one) return;
+      WR.sbOpen = WR.sbOpen === tb.dataset.sbt ? '' : tb.dataset.sbt;
+      el.querySelectorAll('[data-sbt]').forEach(x => { x.classList.toggle('on', x.dataset.sbt === WR.sbOpen); x.setAttribute('aria-expanded', x.dataset.sbt === WR.sbOpen ? 'true' : 'false'); });
+      sbDetail(el, S, WR.sbOpen);
+    });
     el.querySelectorAll('[data-ws]').forEach(btn => btn.onclick = async () => {
       if (!btn.dataset.arm) { btn.dataset.arm = '1'; btn.textContent = 'Tap again to change Meta'; setTimeout(() => { if (btn.isConnected && btn.dataset.arm && !btn.disabled) { delete btn.dataset.arm; btn.textContent = btn.dataset.label; } }, 5000); return; }
       btn.disabled = true; btn.textContent = 'Writing to Meta…';
       let r; try { r = await H.apiAH('/api/standing/approve', { method: 'POST', body: JSON.stringify({ slot: S.slot, act: btn.dataset.ws }) }); } catch (e) { r = { error: e.message }; }
       if (!r || r.error) { btn.disabled = false; delete btn.dataset.arm; btn.textContent = btn.dataset.label; toast((r && r.error) || 'Meta did not answer.', true); return; }
-      S.approved = S.approved || {}; S.approved[btn.dataset.ws] = r; delete MS[btn.dataset.ws];
-      drawStanding(el, S, null, focus);
+      S.approved = S.approved || {}; S.approved[btn.dataset.ws] = r; delete MS[btn.dataset.ws]; delete DET[btn.dataset.ws];
+      drawStanding(el, S, null, focus, one);
       const LX = window.LxMetaWrite;
       if (LX && LX.toast && r.write) LX.toast(`Budget ${U().money(r.from)} to ${U().money(r.to)}/day`, false, () => LX.undo({ apiAH: H.apiAH }, [{ write: r.write }], { act_id: btn.dataset.ws }, () => war(false, WR.page)));
       else toast(`Budget ${U().money(r.from)} to ${U().money(r.to)}/day. In the Change Log.`);
     });
-    const f = focus && el.querySelector(`[data-wsr="${CSS.escape(focus)}"]`); if (f) f.scrollIntoView({ block: 'center' });
+    if (open) sbDetail(el, S, open);
+    const f = !one && focus && el.querySelector(`[data-sbt="${CSS.escape(focus)}"]`); if (f) f.scrollIntoView({ block: 'center' });
   }
-  function wireRun(el) {
+  /** The brand opened: the sale campaign's ad sets and ads, which to cut and which are still waiting. */
+  async function sbDetail(el, S, act) {
+    const box = el.querySelector('#sbDetail'); if (!box) return;
+    if (!act) { box.innerHTML = ''; return; }
+    const b = S.brands.find(x => x.act_id === act) || {}, wb = ((WR.war && WR.war.brands) || []).find(x => x.act_id === act) || (WR.data && WR.data.act_id === act ? WR.data : null);
+    const ctx = wb ? sbContext(wb) : '';
+    box.innerHTML = `<section class="v2card sb-det"><div class="v2h"><h3>${esc(b.name || '')}: what is running</h3><span class="find">The sale campaign in Meta, its ad sets and their ads. Numbers are the last 3 synced days, Triple Whale last click.</span></div>${ctx}<p class="v2hint">Reading Meta and the ad calls&hellip;</p></section>`;
+    let D; try { D = await detailOf(act); } catch (e) { D = { error: e.message }; }
+    if (!box.isConnected || WR.sbOpen !== act && !el.querySelector('.sb-tiles.one')) return;
+    const sec = box.querySelector('.sb-det'); if (!sec) return;
+    const hint = sec.querySelector('.v2hint');
+    if (D.error) { hint.outerHTML = `<p class="v2bad">${esc(D.error)}</p>`; return; }
+    const cur = (wb && wb.currency) || 'USD', M = v => U().money(v, cur), X = v => U().x2(v);
+    const LAB = { cut: ['bad', 'Cut'], wait: ['warn', 'Waiting'], keep: ['good', 'Keep'] };
+    const roleTip = { opener: 'Opener: earns more first-click credit than last-click. It starts journeys that other ads close. Context only.', closer: 'Closer: earns more last-click credit. It closes buyers other ads brought in. Context only.', both: 'Shares first and last click about evenly. Context only.' };
+    const adRow = a => { const [tone, lab] = LAB[a.label] || LAB.keep;
+      return `<div class="sb-ad"><div class="n"><b>${esc(a.name)}</b>${a.role ? `<span class="sb-tag"${tipOf(roleTip[a.role] || '')}>${esc(a.role)}${a.new_share != null ? ` · ${Math.round(a.new_share)}% new` : ''}</span>` : ''}</div>
+        <span class="sb-nums">${M(a.spend)} · ${U().int(a.sales || 0)} sales · ${X(a.roas)}</span>${lchip(tone, lab)}
+        ${a.note ? `<small>${esc(a.note)}</small>` : ''}</div>`; };
+    const setRow = s => `<div class="sb-set"><div class="h"><b>${esc(s.name)}</b>${s.b_copy ? '<span class="sb-tag">B copy</span>' : ''}
+        <span class="sb-nums"${tipOf('Share of the sale campaign spend over the 3 days, then spend, Triple Whale last-click sales, ROAS and first-click sales.')}>${s.share != null ? `${s.share}% of spend · ` : ''}${M(s.spend)} · ${U().int(s.sales || 0)} sales · ${X(s.roas)} · ${U().int(s.fc_sales || 0)} first click</span></div>
+        ${[s.daily ? `Own budget ${M(s.daily)}/day` : '', s.min ? `min ${M(s.min)}` : '', s.cap ? `cap ${M(s.cap)}` : ''].filter(Boolean).length ? `<small class="sb-sub">${[s.daily ? `Own budget ${M(s.daily)}/day` : '', s.min ? `min ${M(s.min)}` : '', s.cap ? `cap ${M(s.cap)}` : ''].filter(Boolean).join(' · ')}</small>` : ''}
+        ${s.call ? `<p class="sb-setcall">${lchip(s.call.kind === 'cut' ? 'bad' : s.call.kind === 'scale' ? 'good' : 'warn', s.call.action)} ${esc(s.call.why || '')}</p>` : ''}
+        ${s.ads.length ? s.ads.map(adRow).join('') : '<small class="sb-sub">No ad spent in these 3 days.</small>'}</div>`;
+    const nCut = D.sets.reduce((n, s) => n + s.ads.filter(a => a.label === 'cut').length, 0);
+    hint.outerHTML = `<div class="sb-struct"><b>${esc(D.structure)}</b>${D.from ? `<span>${md(D.from)} to ${md(D.to)}</span>` : ''}${D.ads_manager ? `<a class="v2btn ghost" href="${esc(D.ads_manager)}" target="_blank" rel="noopener">Open in Ads Manager</a>` : ''}</div>
+      <p class="sb-cutline">${nCut ? `<b>${nCut} ad${nCut === 1 ? '' : 's'} to cut</b>, called by Locus's ad rules (judged inside its ad set, never while it beats the goal ROAS). Make them on Today's calls.` : 'No ad to cut right now.'} Waiting = still inside the wait window (2x the goal CPA spent and 3 days live). Opener, closer and % new buyers are context only: the weekend call is on MER.${D.calls_error ? ` <span class="v2bad">Ad calls did not load: ${esc(D.calls_error)}</span>` : ''}</p>
+      ${D.sets.length ? D.sets.map(setRow).join('') : '<p class="v2hint">No live ad set in the sale campaign.</p>'}`;
+  }
+  /** The calendar side of the brand: what runs now and next, the scheduled switches, and today alone on the ladder. */
+  function sbContext(wb) {
+    const c = wb.call, L = wb.live || {}, T = L.today || {};
+    const today = c && !wb.ro ? `<span${tipOf("Today alone, graded on the brand's scaling ladder from The Plan. The weekend call above is the one Approve uses.")}><b>Today alone:</b> ${U().kmoney(T.sales, wb.currency)} on ${U().kmoney(T.spend, wb.currency)}, MER ${U().x2(T.mer)}. ${esc(c.why || '')}</span>` : '';
+    const S = (wb.scheduled || []).slice(0, 3);
+    return `<div class="sb-ctx"><span>${phaseFallback(wb, (WR.war && WR.war.today) || wb.today || '')}</span>${S.length ? `<span><b>Scheduled:</b> ${S.map(x => `${esc(whenCT(Date.parse(x.at)))} ${esc(x.what)}`).join(' · ')}</span>` : ''}${today}</div>`;
+  }
+  function wireRun(el, one) {
     const b = el.querySelector('#wsRun'); if (!b) return;
     b.onclick = async () => {
       b.disabled = true; b.textContent = 'Reading Triple Whale and Meta…';
       let r; try { r = await H.apiAH('/api/standing/run', { method: 'POST', body: '{}' }); } catch (e) { r = { error: e.message }; }
       window.WAR_STANDING = ''; window.WAR_STANDING_BRAND = '';
-      drawStanding(el, r && r.standing, r && r.error, '');
+      drawStanding(el, r && r.standing, r && r.error, '', one);
     };
   }
   function autoRefresh() { if (WR.timer) clearInterval(WR.timer); WR.timer = setInterval(() => { if (!isWarTab(H.S.tab)) { clearInterval(WR.timer); WR.timer = null; return; } war(false, WR.page); }, 5 * 60e3); }

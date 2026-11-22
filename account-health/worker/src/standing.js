@@ -17,6 +17,8 @@
  *   POST /api/standing/approve {slot, act}   apply that brand's suggested budget */
 import { metaLive, locusWrite, gget, metaActs } from './metawrite.js';
 import { dmPerson } from './morning.js';
+import { adNumbers, metaActsOf, sumAds } from './buyerai.js';
+import { buildBuyerList } from './buyerlist.js';
 
 const PROFIT_ORIGIN = 'https://mobius-profit.mobius-digital.workers.dev';
 const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
@@ -108,33 +110,68 @@ export async function buildStanding(env, deps, slot = slotOf()) {
     else if (!m.error) { const bf = budgetFor(sug, from, m.limit, m.on); sug.to = bf.to; if (bf.note) sug.note = bf.note; }
     brands.push({ ...b, meta: m, suggest: sug });
   }
-  return { slot, at: new Date().toISOString(), label: slotLabel(slot), today: tw.today, dry: tw.dry, brands, approved: {} };
+  return { slot, at: new Date().toISOString(), label: slotLabel(slot), next: nextLabel(slot), today: tw.today, dry: tw.dry, brands, approved: {} };
 }
 
-/** The Slack DM: one line per brand, an Approve link where there is a budget to change. */
+/** The next check-in after this slot, in words ("6pm", "9am Fri"), or null after the last one. */
+export function nextLabel(slot) {
+  const [d, h] = slot.split('T'), hr = +h, i = STAND_HOURS.findIndex(x => x > hr);
+  const fmt = x => x === 12 ? '12pm' : x < 12 ? `${x}am` : `${x - 12}pm`;
+  if (i >= 0) return fmt(STAND_HOURS[i]);
+  const nd = new Date(d + 'T12:00:00Z'); nd.setUTCDate(nd.getUTCDate() + 1);
+  const ymd = nd.toISOString().slice(0, 10);
+  if (ymd > STAND_DAYS.to) return null;
+  return `${fmt(STAND_HOURS[0])} ${nd.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' })}`;
+}
+const W = { scale: 'Scale +50%', hold: 'Hold', cut: 'Cut 25%' };
+const ORDER = { cut: 0, scale: 1, hold: 2 };
+/** The Slack DM, laid out like Well Copy's weekly update (Cole, 2026-11-22): a greeting, one intro line, plain section
+ *  labels ending in a colon, bullets, and each brand's numbers as sub-bullets. What needs him comes before the brands.
+ *  Rich text blocks so Slack draws real nested bullets; `text` is the plain fallback for notifications. */
 export function standingMessage(rec) {
   const link = act => `${LOCUS}?open=warlive&act=all&standing=${encodeURIComponent(rec.slot)}${act ? `&brand=${encodeURIComponent(act)}` : ''}`;
   const ok = rec.brands.filter(b => !b.no_sales && b.so_far && b.so_far.sales != null);
   const S = ok.reduce((t, b) => t + b.so_far.sales, 0), P = ok.reduce((t, b) => t + b.so_far.spend, 0), G = ok.reduce((t, b) => t + (b.goal || 0), 0);
-  const head = `Where we stand, ${rec.label}${rec.dry ? ' (dry run on today, the weekend starts Thu Nov 26)' : ''}`;
-  const top = `${kmoney(S)} of ${kmoney(G)} weekend goal (${G ? Math.round(S / G * 100) : 0}%) on ${kmoney(P)} ads, MER ${xx(P ? S / P : null)}`;
-  const W = { scale: 'Scale +50%', hold: 'Hold', cut: 'Cut 25%' };
-  const lines = rec.brands.map(b => {
-    const s = b.so_far || {}, l6 = b.last6 || {}, m = b.meta || {}, g = b.suggest || {};
-    const rev = b.no_sales ? `spend ${kmoney(s.spend)} (no Triple Whale store)` : `${kmoney(s.sales)} of ${kmoney(b.goal)} (${s.pct_goal != null ? Math.round(s.pct_goal * 100) : 0}%), MER ${xx(s.mer)} so far, ${xx(l6.mer)} last 6h (KPI ${xx(b.kpi)})`;
-    const bud = m.error ? `Meta: ${m.error}` : `${m.camp ? `${m.camp.daily ? money(m.camp.daily) + '/day' : 'ad set budgets'}` : 'No sale campaign'}${m.limit ? `, limit ${money(m.limit)}${m.limit_src === 'known' ? ' (Nov 22 figure)' : ''}, ${money(m.headroom)} room` : ''}`;
-    const act = g.to ? `*${W[g.call]} to ${money(g.to)}* <${link(b.act_id)}|Approve>` : `*${W[g.call] || 'Hold'}*`;
-    return `*${b.name}*: ${rev}. ${bud}. ${act}${g.note ? ` (${g.note})` : ''}`;
-  });
-  const text = `${head}\n${top}\n${lines.join('\n')}\n<${link()}|Open the War Room>`;
-  return { text, blocks: [
-    { type: 'section', text: { type: 'mrkdwn', text: `*${head}*\n${top}` } },
-    { type: 'section', text: { type: 'mrkdwn', text: lines.join('\n').slice(0, 2900) } },
-    { type: 'context', elements: [{ type: 'mrkdwn', text: `Nothing changes until you tap Approve. <${link()}|Open the War Room>` }] },
-  ] };
+  const hr = +rec.slot.split('T')[1], greet = hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening';
+  const nx = nextLabel(rec.slot), pctOf = (a, b) => b ? Math.round(a / b * 100) : 0;
+  const brands = [...rec.brands].sort((a, b) => (ORDER[(a.suggest || {}).call] ?? 2) - (ORDER[(b.suggest || {}).call] ?? 2));
+  const need = brands.filter(b => (b.suggest || {}).to && !(rec.approved || {})[b.act_id]);
+  const T = s => ({ type: 'text', text: s }), L = (url, s) => ({ type: 'link', url, text: s });
+  const sec = (...els) => ({ type: 'rich_text_section', elements: els });
+  const list = (items, indent = 0) => ({ type: 'rich_text_list', style: 'bullet', indent, elements: items.map(x => Array.isArray(x) ? sec(...x) : sec(T(x))) });
+  const intro = `Here's where we stand on Black Friday weekend as of ${rec.label.replace(' CT', '')}${rec.dry ? ' (a dry run on today, the weekend starts Thu Nov 26)' : ''}, and what needs you.`;
+  const els = [sec(T(`${greet} Cole!\n\n${intro}\n\nWeekend so far:\n`)),
+    list([`${kmoney(S)} of the ${kmoney(G)} goal (${pctOf(S, G)}%) on ${kmoney(P)} of ads`, `MER: ${xx(P ? S / P : null)} (KPI 2.50x)`]),
+    sec(T('\nNeeds your attention:\n')),
+    list(need.length ? need.map(b => [T(`${b.name}: ${W[b.suggest.call].toLowerCase()}, ${money(b.meta.camp.daily)} to ${money(b.suggest.to)}/day. `), L(link(b.act_id), 'Approve here')])
+      : ['Nothing to approve. Every brand is on Hold.']),
+    sec(T('\nBrand by brand:\n'))];
+  const plain = [`${greet} Cole!`, intro, 'Weekend so far:', `- ${kmoney(S)} of the ${kmoney(G)} goal (${pctOf(S, G)}%) on ${kmoney(P)} of ads, MER ${xx(P ? S / P : null)}`, 'Needs your attention:',
+    ...(need.length ? need.map(b => `- ${b.name}: ${W[b.suggest.call].toLowerCase()}, ${money(b.meta.camp.daily)} to ${money(b.suggest.to)}/day`) : ['- Nothing to approve.']), 'Brand by brand:'];
+  for (const b of brands) {
+    const s = b.so_far || {}, l6 = b.last6 || {}, m = b.meta || {}, g = b.suggest || {}, ap = (rec.approved || {})[b.act_id];
+    const head = `${b.name}: ${ap ? `approved, ${money(ap.from)} to ${money(ap.to)}/day` : `${W[g.call] || 'Hold'}${g.to ? ` to ${money(g.to)}/day` : ''}`}${g.call === 'scale' && !ap ? ' 🎉' : ''}`;
+    const sub = [b.no_sales ? `Spend: ${kmoney(s.spend)} (no Triple Whale store, so no sales or MER)` : `Sales: ${kmoney(s.sales)} of ${kmoney(b.goal)} (${pctOf(s.sales, b.goal)}%)`];
+    if (!b.no_sales) sub.push(`MER: ${xx(s.mer)} so far, ${xx(l6.mer)} last 6 hours (KPI ${xx(b.kpi)})`);
+    sub.push(m.error ? `Budget: Meta did not answer (${m.error})` : !m.camp ? 'Budget: no live sale campaign in Meta'
+      : `Budget: ${m.camp.daily ? `${money(m.camp.daily)}/day` : 'ad set budgets'}${m.limit ? `, ${money(m.headroom)} room under Meta's limit` : ''}`);
+    if (g.note) sub.push(`Note: ${g.note}`);
+    els.push(list([head]), list(sub, 1));
+    plain.push(`- ${head}`, ...sub.map(x => `   - ${x}`));
+  }
+  const close = `\n${nx ? `Next check-in at ${nx}. ` : ''}As always, nothing changes until you tap Approve. `;
+  els.push(sec(T(close), L(link(), 'Open the War Room'), T('\n\nThanks!')));
+  plain.push(close.trim(), 'Thanks!');
+  return { text: plain.join('\n').slice(0, 3500), blocks: [{ type: 'rich_text', elements: els }] };
 }
 
+/** A rebuild inside the same slot keeps what that slot already holds: the approvals tapped and the DM that went out. */
 async function save(env, deps, rec) {
+  const old = await load(env, deps, rec.slot);
+  if (old && old.slot === rec.slot) {
+    rec.approved = { ...(old.approved || {}), ...(rec.approved || {}) };
+    if (!rec.sent && old.sent) rec.sent = old.sent;
+  }
   await deps.putSetting(env, `standing:${rec.slot}`, JSON.stringify(rec));
   await deps.putSetting(env, 'standingLatest', rec.slot);
 }
@@ -157,10 +194,12 @@ export async function standingTick(env, deps, now = new Date()) {
   if (c.date < STAND_DAYS.from || c.date > STAND_DAYS.to) return { skipped: 'outside Nov 26 to 30' };
   if (!STAND_HOURS.includes(c.hour)) return { skipped: 'not a check-in hour' };
   const slot = slotOf(now);
-  if ((await deps.getSetting(env, 'standingLatest')) === slot) return { skipped: 'already sent' };
+  /* Its own flag: a "Check now" on the page in the same hour writes standingLatest too and must not swallow the DM. */
+  if (await deps.getSetting(env, `standingSent:${slot}`)) return { skipped: 'already sent' };
   const rec = await buildStanding(env, deps, slot);
   await sendDm(env, deps, rec);
   await save(env, deps, rec);
+  if (rec.sent && !rec.sent.error) await deps.putSetting(env, `standingSent:${slot}`, rec.sent.at);
   return { slot, brands: rec.brands.length, sent: rec.sent };
 }
 
@@ -189,6 +228,69 @@ async function approve(env, deps, rec, act, who) {
   return { ok: true, ...rec.approved[act] };
 }
 
+/** One brand's sale campaign, opened from its War Room tile (Cole, 2026-11-22: "real analysis: the ad sets, which ads to
+ *  cut and when"). Structure live from Meta (CBO or ABO, each live set with its budget, min and cap, B copies), each set's
+ *  and ad's last 3 synced days from the Buyer list's numbers (Meta delivery, Triple Whale last click, first click, share
+ *  of first-click buyers who were new), and per ad one label: cut (a Locus call from today's Buyer list, with its reason),
+ *  waiting (inside the wait window: under 2x the goal CPA spent or under 3 days live), or keep. Reads only. */
+export async function brandDetail(env, deps, act) {
+  const today = central().date;
+  const md = { xfetch: deps.xfetch, listAccounts: deps.listAccounts, getSetting: deps.getSetting, putSetting: deps.putSetting };
+  const ml = await metaLive(env, md, act, { season: true });
+  if (ml.error) return { error: ml.error };
+  const dec = today >= '2026-12-01';
+  const camps = Object.entries(ml.campaigns || {}).map(([id, c]) => ({ id, ...c })).filter(c => c.status === 'ACTIVE' && SALE_RE.test(c.name || ''))
+    .sort((a, b) => ((/holiday/i.test(a.name) ? (dec ? 0 : 5) : (dec ? 5 : 0)) - (/holiday/i.test(b.name) ? (dec ? 0 : 5) : (dec ? 5 : 0))) || (b.daily || 0) - (a.daily || 0));
+  const cids = new Set(camps.map(c => c.id));
+  const sets = Object.entries(ml.adsets || {}).map(([id, s]) => ({ id, ...s })).filter(s => cids.has(String(s.campaign)) && s.status === 'ACTIVE');
+  const acct = ((await deps.listAccounts(env, true)) || []).find(a => a.act_id === act) || {};
+  const goalCpa = +acct.target_cpa || null, goalRoas = +acct.target_roas || null;
+  let nums = { from: null, to: null, ads: [] }, calls = [], callErr = null;
+  if (sets.length) {
+    const metaActs = await metaActsOf(env, act);
+    nums = await adNumbers(env, { act, metaActs, adsetIds: sets.map(s => s.id), days: 3 });
+    /* The wait window counts everything an ad has spent, not just the 3 days shown. */
+    const ids = nums.ads.map(a => a.ad_id).slice(0, 90);
+    if (ids.length) {
+      const rows = ((await env.DB.prepare(`SELECT ad_id, SUM(spend) s FROM ad_daily WHERE ad_id IN (${ids.map((_, i) => `?${i + 1}`).join(', ')}) GROUP BY ad_id`).bind(...ids).all().catch(() => ({ results: [] }))).results) || [];
+      for (const a of nums.ads) a.life = +((rows.find(r => String(r.ad_id) === a.ad_id) || {}).s) || a.spend || 0;
+    }
+  }
+  if (deps.buyer) {
+    try {
+      const bl = await buildBuyerList(env, deps.buyer, { act, ads: false });
+      calls = (bl.rows || []).filter(r => ['cut', 'trim', 'scale', 'refresh', 'mixed'].includes(r.kind) && (cids.has(String(r.campaign_id)) || sets.some(s => s.id === String(r.adset_id))))
+        .map(r => ({ kind: r.kind, level: r.level, adset_id: r.adset_id ? String(r.adset_id) : null, ad_id: r.ad_id ? String(r.ad_id) : null, name: r.name, action: r.action, why: r.why_full || r.why }));
+    } catch (e) { callErr = e.message; }
+  }
+  const daysLive = d => d ? Math.max(1, Math.round((Date.parse(today + 'T12:00:00Z') - Date.parse(d + 'T12:00:00Z')) / 864e5) + 1) : null;
+  const total = nums.ads.reduce((t, a) => t + (a.spend || 0), 0);
+  const outSets = sets.map(s => {
+    const ads = nums.ads.filter(a => a.adset_id === s.id).map(a => {
+      const call = calls.find(c => c.ad_id === a.ad_id && c.level === 'ad');
+      const live = daysLive(a.first_spend), need = goalCpa ? goalCpa * 2 : null;
+      let label = 'keep', note = '';
+      if (call && ['cut', 'trim'].includes(call.kind)) { label = 'cut'; note = call.why; }
+      else if ((live != null && live < 3) || (need && (a.life || 0) < need)) {
+        label = 'wait';
+        const more = need ? Math.max(0, Math.round(need - (a.life || 0))) : 0, dLeft = live != null ? Math.max(0, 3 - live) : 0;
+        note = `In its wait window: ${[more ? `$${more} more spend` : '', dLeft ? `${dLeft} more day${dLeft === 1 ? '' : 's'}` : ''].filter(Boolean).join(' and ') || 'almost there'} before it can be judged.`;
+      }
+      return { ad_id: a.ad_id, name: a.name, spend: a.spend, sales: a.sales, revenue: a.revenue, roas: a.roas, cpa: a.cpa, fc_sales: a.fc_sales, new_share: a.new_share, role: a.role, days_live: live, label, note, call: call ? call.action : null };
+    });
+    const t = sumAds(ads.map(a => ({ ...a, ctr: null, cpm: null, freq: null })));
+    const setCall = calls.find(c => c.level === 'adset' && c.adset_id === s.id);
+    return { id: s.id, name: s.name, daily: s.daily || null, min: s.min || null, cap: s.cap || null, start: s.start || null, end: s.end || null,
+      b_copy: /\|\s*[B-D]\b|\b[B-D] copy\b|\s[B-D]$/i.test(s.name || ''), share: total ? Math.round((t.spend || 0) / total * 100) : null, ...t, call: setCall ? { action: setCall.action, why: setCall.why, kind: setCall.kind } : null,
+      ads: ads.sort((p, q) => ({ cut: 0, wait: 2, keep: 1 }[p.label] - { cut: 0, wait: 2, keep: 1 }[q.label]) || (q.spend || 0) - (p.spend || 0)) };
+  }).sort((a, b) => (b.spend || 0) - (a.spend || 0));
+  const main = camps[0] || null;
+  return { act, today, from: nums.from, to: nums.to, goal_cpa: goalCpa, goal_roas: goalRoas, calls_error: callErr,
+    campaigns: camps.map(c => ({ id: c.id, name: c.name, daily: c.daily || null, cbo: !!c.daily, meta_act: c.act })),
+    structure: main ? `${main.daily ? `CBO, $${Math.round(main.daily).toLocaleString('en-US')}/day` : 'ABO (each ad set has its own budget)'} · ${sets.length} live ad set${sets.length === 1 ? '' : 's'}${outSets.filter(s => s.b_copy).length ? `, ${outSets.filter(s => s.b_copy).length} of them B copies` : ''}` : 'No live sale campaign in Meta.',
+    sets: outSets, ads_manager: main ? `https://adsmanager.facebook.com/adsmanager/manage/adsets?act=${String(main.act || '').replace(/^act_/, '')}&selected_campaign_ids=${main.id}` : null };
+}
+
 /** Routes. Team only (isAdmin), brandsFor limits what a person may approve. */
 export async function handleStanding(request, env, url, path, json, deps) {
   if (!path.startsWith('/api/standing')) return null;
@@ -199,6 +301,14 @@ export async function handleStanding(request, env, url, path, json, deps) {
     if (path === '/api/standing' && request.method === 'GET') {
       const rec = await load(env, deps, url.searchParams.get('slot'));
       return json(rec ? { ok: true, standing: rec } : { ok: true, standing: null });
+    }
+    if (path === '/api/standing/brand' && request.method === 'GET') {
+      const act = String(url.searchParams.get('act') || '');
+      if (!/^brand_[a-z0-9_]+$/.test(act)) return json({ error: 'Which brand?' }, 400);
+      const only = await deps.brandsFor(env, email).catch(() => null);
+      if (only && !only.has(act)) return json({ error: 'You do not have access to this brand.' }, 403);
+      const r = await brandDetail(env, deps, act);
+      return json(r, r.error ? 502 : 200);
     }
     if (path === '/api/standing/run' && request.method === 'POST') {
       const rec = await buildStanding(env, deps, slotOf());

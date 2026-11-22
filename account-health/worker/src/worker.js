@@ -7554,7 +7554,7 @@ onActionDone((env, row) => blockActionDone(env, row));
 setBlockDone((env, id, o) => markDone(env, id, true, o));
 const blockDeps = () => ({ getSetting, putSetting });
 /* standing.js: Triple Whale as the owner over the PROFIT binding, Meta through metawrite, the DM through slackApi. */
-function standingDeps() { return { mintSession, slackApi, xfetch, listAccounts, getSetting, putSetting, isAdmin, sessionEmail, brandsFor }; }
+function standingDeps() { return { mintSession, slackApi, xfetch, listAccounts, getSetting, putSetting, isAdmin, sessionEmail, brandsFor, get buyer() { return buyerDeps(); } }; }
 function hubDeps() {
   return { getSetting, putSetting, listAccounts, localDate, addDays, centralHour, centralDate, slackPost, slackApi,
     subCanAfford, strategist, isAdmin, sessionEmail, postDashboard, auto: autoDeps() };
