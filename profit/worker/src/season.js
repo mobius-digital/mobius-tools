@@ -474,6 +474,62 @@ async function warAll(env, accounts, today, deps) {
   return { today, bf: BF, brands: rows, steps: WAR_STEPS.map(([key, label]) => ({ key, label })) };
 }
 
+/* ---------- WHERE WE STAND (2026-11-22) ----------
+ * Cole: "I don't want it to automatically raise the scaling thing. I just want it to check it... it tells me, and then
+ * we can talk about it and I can approve it or not. Real-time updates, especially during Black Friday Cyber Monday
+ * weekend: here's where we stand so far." Every 3 hours Thu Nov 26 to Mon Nov 30 (account-health standing.js runs it,
+ * DMs Cole, and applies a budget change only when he taps Approve). This is the Triple Whale half: weekend revenue
+ * against the weekend goal, MER to date and over the last 6 hours against the KPI, and the suggestion.
+ * I&G is left out (Fela runs its media). Goals and KPIs are Cole's numbers from 2026-11-22. */
+export const STAND = { from: '2026-11-26', to: '2026-11-30' };
+export const STAND_BRANDS = {
+  brand_lucky_golf: { goal: 150000, kpi: 2.5 }, brand_dartee_golf: { goal: 78000, kpi: 2.5 }, brand_bonk_golf: { goal: 130000, kpi: 2.5 },
+  brand_grunk_dolfer: { goal: 51000, kpi: 3.0 }, brand_yak_sports: { goal: 25000, kpi: 2.5 }, brand_vetripaws: { goal: 4500, kpi: 2.5 },
+};
+/** Scale +50% when the weekend so far AND the last 6 hours are at or over the KPI; cut 25% when both are under the
+ *  brand's hold line (its ladder's hold, else breakeven, else 80% of the KPI); hold otherwise. Thin spend = hold. */
+export function standCall({ soFar, last6, kpi, hold, noSales }) {
+  const x = v => `${(Math.round(v * 100) / 100).toFixed(2)}x`;
+  if (noSales) return { call: 'hold', pct: 0, why: 'No Triple Whale store, so Locus sees spend only. Hold.' };
+  if (!soFar || !(soFar.spend >= 150) || soFar.mer == null) return { call: 'hold', pct: 0, why: `Too early: $${Math.round(soFar ? soFar.spend : 0)} of ads so far.` };
+  const l6 = last6 && last6.spend >= 50 && last6.mer != null ? last6.mer : null, line = hold ?? kpi * 0.8;
+  const both = l6 == null ? `${x(soFar.mer)} so far (last 6 hours too thin to read)` : `${x(soFar.mer)} so far, ${x(l6)} last 6 hours`;
+  if (soFar.mer >= kpi && (l6 == null || l6 >= kpi)) return { call: 'scale', pct: 0.5, why: `${both}, at or over the ${x(kpi)} KPI. Scale +50%.` };
+  if (soFar.mer < line && (l6 == null || l6 < line)) return { call: 'cut', pct: -0.25, why: `${both}, under the ${x(line)} hold line. Cut 25%.` };
+  return { call: 'hold', pct: 0, why: `${both}, against the ${x(kpi)} KPI. Hold.` };
+}
+async function standingAll(env, accounts, today, deps) {
+  const d = await seasonData(env, accounts, {});
+  const inWin = today >= STAND.from && today <= STAND.to, dry = today < STAND.from;
+  const rows = await Promise.all(d.accounts.filter(a => STAND_BRANDS[a.act_id]).map(async a => {
+    const acct = accounts.find(x => x.act_id === a.act_id) || a, cfg = STAND_BRANDS[a.act_id], g = a.goals || {};
+    const r = { act_id: a.act_id, name: a.name, currency: acct.currency || 'USD', goal: cfg.goal, kpi: cfg.kpi, hold: g.hold ?? g.be ?? null };
+    let lv = null;
+    try { lv = await deps.live({ ...acct, ...a }); } catch (e) { r.error = e.message || 'Triple Whale did not answer'; }
+    const noSales = !!(lv && lv.no_sales);
+    const hours = ((lv && lv.hours) || []).map(h => ({ sales: +h.sales || 0, spend: +h.spend || 0 }));
+    const lf = liveFrom(hours, lv && lv.as_of), last = lf.hours_with_data - 1;
+    const six = last >= 0 ? hours.slice(Math.max(0, last - 5), last + 1) : [];
+    const sum = (arr, k) => arr.reduce((t, h) => t + (+h[k] || 0), 0);
+    r.today = { sales: noSales ? null : lf.today.sales, spend: lf.today.spend, mer: noSales ? null : lf.today.mer };
+    r.last6 = { hours: six.length, sales: noSales ? null : sum(six, 'sales'), spend: sum(six, 'spend') };
+    r.last6.mer = !noSales && r.last6.spend > 0 ? r.last6.sales / r.last6.spend : null;
+    /* The weekend so far: finished days from the P&L line (Triple Whale), plus today live. Before Thursday it is a dry run on today. */
+    let prev = { sales: 0, spend: 0, days: 0 };
+    if (inWin && today > STAND.from && deps.series) {
+      try { const s = await deps.series({ ...acct, ...a }, STAND.from, addDays(today, -1)); const rr = s.rows || [];
+        prev = { sales: rr.reduce((t, x) => t + (+x.sales || 0), 0), spend: rr.reduce((t, x) => t + (+x.spend || 0), 0), days: rr.length }; } catch (e) { r.series_error = e.message; }
+    }
+    const sales = noSales ? null : prev.sales + (r.today.sales || 0), spend = prev.spend + (r.today.spend || 0);
+    r.so_far = { from: dry ? today : STAND.from, days: prev.days + 1, sales, spend, mer: sales != null && spend > 0 ? sales / spend : null, pct_goal: sales != null && cfg.goal ? sales / cfg.goal : null };
+    r.no_sales = noSales ? 1 : 0; r.as_of = (lv && lv.as_of) || null;
+    r.suggest = r.error ? { call: 'hold', pct: 0, why: `No live numbers: ${r.error}` } : standCall({ soFar: r.so_far, last6: r.last6, kpi: cfg.kpi, hold: r.hold, noSales });
+    return r;
+  }));
+  rows.sort((p, q) => (q.goal || 0) - (p.goal || 0));
+  return { today, dry: dry ? 1 : 0, window: STAND, brands: rows };
+}
+
 /* ---------- Routes ---------- */
 const clean = (v, n = 4000) => v == null ? null : String(v).slice(0, n);
 const isoOk = v => v == null || v === '' || /^\d{4}-\d{2}-\d{2}$/.test(v);
@@ -524,6 +580,12 @@ export async function handleSeason({ path, request, env, accountsFor, email, ser
     const sale = saleOf(a.phases, warOf(a.answers));
     const withLive = url.searchParams.get('live') === '1' || (today >= sale.start && today <= sale.end);
     return json(await warBrand(env, { ...acct, ...a, currency: acct.currency }, today, deps, { withLive, client: !!client }));
+  }
+  /* Where we stand (2026-11-22): the 3-hourly BFCM check-in, Triple Whale half. Team only. */
+  if (path === '/api/season/standing' && m === 'GET') {
+    if (client) return json({ error: 'Team only.' }, 403);
+    if (!live) return json({ error: 'live numbers are not wired' }, 500);
+    return json(await standingAll(env, await accountsFor(), todayCentral(), { series, live }));
   }
   /* Save part of the plan: the patch is merged into p_season_answer key `war`, so two people editing two steps never
      overwrite each other. Only known keys are kept. */

@@ -36,6 +36,7 @@ import { connectGet, connectPost, connectOverview, pendingTick as connectPending
 import { morningCardTick, previewCard, teamPost, tagOf, cardActionDone, cardCallMade, cardProdDone, cardBriefState, cardReaction, cardOn, morningHour, DEFAULT_MORNING_HOUR } from './morningcard.js';
 import { handlePrefs, morningPeople } from './prefs.js';
 import { morningTick, handleMorning } from './morning.js';
+import { standingTick, handleStanding } from './standing.js';
 import { todayTick } from './todaypost.js';
 import { laneBlocks, laneLines, lanePost, laneWho, laneOwner, fyi, roundupTick } from './lane.js';
 /**
@@ -7552,6 +7553,8 @@ onActionDone((env, row) => blockActionDone(env, row));
 /* Cole deleted a task's event on his calendar = done (blocks.js syncCalendar). */
 setBlockDone((env, id, o) => markDone(env, id, true, o));
 const blockDeps = () => ({ getSetting, putSetting });
+/* standing.js: Triple Whale as the owner over the PROFIT binding, Meta through metawrite, the DM through slackApi. */
+function standingDeps() { return { mintSession, slackApi, xfetch, listAccounts, getSetting, putSetting, isAdmin, sessionEmail, brandsFor }; }
 function hubDeps() {
   return { getSetting, putSetting, listAccounts, localDate, addDays, centralHour, centralDate, slackPost, slackApi,
     subCanAfford, strategist, isAdmin, sessionEmail, postDashboard, auto: autoDeps() };
@@ -8009,6 +8012,8 @@ const AH_APP = {
         if (clientCards) ran.clientCardsUpgrade = clientCards;
         ran.delivery = await deliveryPass(env).catch(e => ({ error: e.message }));
         ran.unsentNoon = await unsentAtNoonPass(env).catch(e => ({ error: e.message }));
+        /* Where we stand (standing.js, 2026-11-22): BFCM check-in DM to Cole every 3 hours Nov 26-30. Reads only. */
+        { const st = await standingTick(env, standingDeps()).catch(e => ({ error: e.message })); if (!st?.skipped) ran.standing = st; }
         if (hour >= bh) {
           ran.briefs = await dailyBriefs(env).catch(e => ({ error: e.message }));
           // Reports wait TWO hours behind the brief. They could share a tick now
@@ -8525,6 +8530,11 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
           await env.DB.prepare(`UPDATE ${t} SET ${m[0]} = ?2 WHERE ${k} = ?1`).bind(String(id), m[1](v)).run().catch(() => {});
         }
       }
+    }
+    /* ---- Where we stand (2026-11-22, src/standing.js): the BFCM 3-hour check-in and its Approve. Team only. */
+    {
+      const r = await handleStanding(request, env, url, path, json, standingDeps());
+      if (r) return r;
     }
     /* ---- Drops and sales (2026-10-31, src/drops.js): when one ends or sells out, every Meta ad set and ad carrying its tag
        is paused and locked, so nothing suggests turning it back on. Team only, brandsFor limits. */
