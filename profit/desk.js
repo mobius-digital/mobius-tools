@@ -1036,15 +1036,25 @@
       else toast(r.summary || 'Budget changed.');
     };
   }
+  /** What a scheduled task will still change on the brand (2026-11-22): the next three, in Central time. The tasks run on
+   *  Cole's machine; Locus only shows them so the room knows what is already queued. Team only. */
+  function schedLine(b) {
+    const S = (b.scheduled || []).slice(0, 3); if (!S.length || isCl()) return '';
+    const more = (b.scheduled || []).length - S.length;
+    return `<small class="wr-sched" title="Scheduled tasks on Cole's computer. They run on their own at these times.">Scheduled: ${S.map(x => `<b>${esc(whenCT(Date.parse(x.at)))}</b> ${esc(x.what)}`).join(' · ')}${more > 0 ? ` · +${more} more` : ''}</small>`;
+  }
   function roomRow(b, today) {
     const L = b.live || {}, T = L.today || {}, c = b.call, cur = b.currency, lad = (c && c.ladder) || {};
+    /* No Triple Whale store (VetriPaws): spend only. TW with no ad spend (Yak): spend is Meta's own. */
+    const salesK = T.no_sales ? `<b>n/a</b><small>No Triple Whale store</small>` : `<b>${U().kmoney(T.sales, cur)}</b><small>${T.orders != null ? `${U().int(T.orders)} orders` : ''}</small>`;
+    const spendNote = T.spend_src === 'meta' ? (T.no_sales ? 'From Meta' : 'From Meta (Triple Whale shows none)') : T.meta_spend != null ? `Meta ${U().kmoney(T.meta_spend, cur)}` : '';
     const tgt = lad.target, merTone = T.mer == null || !tgt ? '' : T.mer >= tgt ? 'good' : lad.be != null && T.mer < lad.be ? 'bad' : 'warn';
     const chip = b.ro ? lchip('quiet', 'Client runs ads') : L.error ? lchip('warn', 'No live numbers') : c ? lchip(CALLT[c.call] || '', CALLW[c.call]) : '';
     const why = L.error ? L.error : b.ro ? 'Numbers only: the client buys its own media.' : c ? c.why : '';
     return `<div class="wr-rm" data-rm="${esc(b.act_id)}">
-      <button type="button" class="wr-rm-n" data-open="${esc(b.act_id)}" title="Open ${esc(b.name)}"><b>${esc(b.name)}</b><span data-ph>${phaseFallback(b, today)}</span></button>
-      <div class="wr-rm-k"><span>Sales today</span><b>${U().kmoney(T.sales, cur)}</b><small>${T.orders != null ? `${U().int(T.orders)} orders` : ''}</small></div>
-      <div class="wr-rm-k"><span>Ad spend</span><b>${U().kmoney(T.spend, cur)}</b><small>${T.meta_spend != null ? `Meta ${U().kmoney(T.meta_spend, cur)}` : ''}</small></div>
+      <button type="button" class="wr-rm-n" data-open="${esc(b.act_id)}" title="Open ${esc(b.name)}"><b>${esc(b.name)}</b><span data-ph>${phaseFallback(b, today)}</span>${schedLine(b)}</button>
+      <div class="wr-rm-k"><span>Sales today</span>${salesK}</div>
+      <div class="wr-rm-k"><span>Ad spend</span><b>${U().kmoney(T.spend, cur)}</b><small>${esc(spendNote)}</small></div>
       <div class="wr-rm-k ${merTone}"><span>MER</span><b>${U().x2(T.mer)}</b><small>${tgt ? `goal ${U().x2(tgt)}${lad.own ? '' : ' (no ladder)'}` : ''}</small></div>
       <div class="wr-rm-c">${chip}<small>${esc(why || '')}</small></div>
       <div class="wr-rm-a" data-slot>${b.ro || !c || isCl() || L.error ? '' : '<span class="faint">Reading Meta&hellip;</span>'}</div>
@@ -1068,14 +1078,15 @@
   }
   /** The brand's own page: the call card on top. */
   function callCard(d) {
-    const b = { act_id: d.act_id, name: d.name, currency: d.currency, call: d.call, ro: d.ro, live: d.live, phases: d.phases };
+    const b = { act_id: d.act_id, name: d.name, currency: d.currency, call: d.call, ro: d.ro, live: d.live, phases: d.phases, scheduled: d.scheduled };
     return `<section class="v2card wr-today"><div class="v2h"><h3>Today's call</h3><span class="find">Today's store MER (Triple Whale) against the ladder on The Plan. The button changes the sale campaign's daily budget in Meta: tap it twice. Undo for 24 hours.</span></div>
       ${roomRow(b, d.today).replace('class="wr-rm"', 'class="wr-rm one"')}
       ${isCl() ? '' : `<div class="wr-camps" data-camps-for="${esc(d.act_id)}"><h4>Sale campaigns in Meta</h4><div data-camps><p class="v2hint">Reading Meta&hellip;</p></div></div>`}</section>`;
   }
   /** All brands: one row each, the calls to make first. */
   function roomBoard(t, d, m) {
-    const B = d.brands || [], run = B.filter(b => !b.ro && b.live && !b.live.error), sum = k => run.reduce((s, b) => s + ((b.live.today || {})[k] || 0), 0);
+    /* The blended line counts only brands whose sales Locus can see (a brand with no TW store would drag MER down). */
+    const B = d.brands || [], run = B.filter(b => !b.ro && b.live && !b.live.error && !(b.live.today || {}).no_sales), sum = k => run.reduce((s, b) => s + ((b.live.today || {})[k] || 0), 0);
     const sales = sum('sales'), spend = sum('spend'), todo = B.filter(b => !b.ro && b.call && ['raise', 'cut', 'reset'].includes(b.call.call)).length;
     const asOf = B.map(b => b.live && b.live.as_of).filter(Boolean).sort().pop();
     $('#main').innerHTML = shell(WR.page, warTitle('live'), `<div class="wr" id="wrRoot">
@@ -1083,7 +1094,7 @@
         <div class="wr-when"><b>${todo ? `${todo} call${todo === 1 ? '' : 's'} to make` : 'No calls to make right now'}</b><span>${U().kmoney(sales)} sales on ${U().kmoney(spend)} ads today · MER ${U().x2(spend ? sales / spend : null)} across the ${run.length} brands we run</span></div>
         <div class="wr-acts"><span class="faint">${asOf ? `as of ${new Date(asOf).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' })} CT` : ''}</span><button type="button" class="v2btn ghost" id="wrRefresh">Refresh</button></div></div>
       <div class="wr-room">${B.length ? B.map(b => roomRow(b, d.today)).join('') : '<p class="v2hint">No brand is in the season.</p>'}</div>
-      ${U().foot('Sales, spend and MER are today so far from Triple Whale (store revenue over all ad spend). The call grades today\'s MER on each brand\'s ladder (The Plan). Phases are read from the Meta ad sets\' start and end times. Refreshes every 5 minutes.')}</div>`);
+      ${U().foot('Sales, spend and MER are today so far from Triple Whale (store revenue over all ad spend). Where Triple Whale has no ad spend for a brand, spend comes from Meta, synced hourly. The call grades today\'s MER on each brand\'s ladder (The Plan). Phases are read from the Meta ad sets\' start and end times. Refreshes every 5 minutes.')}</div>`);
     const root = $('#wrRoot');
     root.querySelectorAll('[data-open]').forEach(el => el.onclick = () => pickAct(el.dataset.open, 'warlive'));
     root.querySelectorAll('[data-wrm]').forEach(b => b.onclick = () => goMode('all', b.dataset.wrm));

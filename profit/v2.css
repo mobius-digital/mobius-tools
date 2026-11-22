@@ -1986,6 +1986,7 @@ body.lx-gate-on .topbar{display:none}
 .wr-rm-n{all:unset;cursor:pointer;display:flex;flex-direction:column;gap:3px;min-width:0}
 .wr-rm-n b{font-size:15px}.wr-rm-n:hover b{text-decoration:underline}
 .wr-rm-n span{font-size:12px;color:var(--muted);line-height:1.35}.wr-rm-n span b{font-size:12px;color:inherit;font-weight:600}
+.wr-rm-n .wr-sched{font-size:11.5px;color:var(--muted);line-height:1.35}.wr-rm-n .wr-sched b,.wr-rm-n:hover .wr-sched b{font-size:11.5px;color:var(--ink);font-weight:600;text-decoration:none}
 .wr-rm-k{display:flex;flex-direction:column;gap:1px}.wr-rm-k span{font-size:11px;color:var(--muted)}.wr-rm-k b{font-size:17px;font-variant-numeric:tabular-nums}.wr-rm-k small{font-size:11px;color:var(--muted)}
 .wr-rm-k.good b{color:var(--good)}.wr-rm-k.warn b{color:var(--warn)}.wr-rm-k.bad b{color:var(--bad)}
 .wr-rm-c{display:flex;flex-direction:column;gap:4px;align-items:flex-start}.wr-rm-c small{font-size:12px;color:var(--muted);line-height:1.35}

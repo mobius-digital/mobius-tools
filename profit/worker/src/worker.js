@@ -573,6 +573,45 @@ async function twDay(env, request, acct, date) {
   if (!r.ok) throw new Error(`tw-day: HTTP ${r.status}`);
   return r.json();
 }
+/** The War Room's live day (2026-11-22). Triple Whale is the store side, always. Two gaps it cannot cover:
+ *  - TW has the store but NO ad spend for the day (Yak: TW was never connected to its Meta account, so TW reads
+ *    $0 spend while Meta spends ~$100 a day). Spend is platform-sourced anyway (tw-attribution-always), so Meta's
+ *    own spend by the hour (hourly_insights, synced hourly) fills it and `spend_src` says so.
+ *  - The brand has NO TW shop at all (VetriPaws). Spend comes from Meta, and sales are NOT KNOWN: `no_sales` is set
+ *    and sales stay null, never 0, so the ladder can never read a $0 day as a cut. */
+async function liveDay(env, request, acct) {
+  const date = localDate(acct.tz);
+  const metaHours = async () => {
+    const { results } = await env.DB.prepare(
+      `SELECT hour, SUM(spend) AS spend FROM hourly_insights WHERE act_id IN ${metaOf(1)} AND date = ?2 GROUP BY hour`,
+    ).bind(acct.act_id, date).all();
+    const arr = Array(24).fill(0); let n = 0;
+    for (const r of results || []) if (r.hour >= 0 && r.hour <= 23) { arr[r.hour] = +r.spend || 0; n++; }
+    return n ? arr : null;
+  };
+  if (!acct.tw_shop) {
+    const m = await metaHours();
+    const last = m ? m.reduce((l, v, i) => v > 0 ? i : l, -1) : -1;
+    const hrs = Array.from({ length: Math.max(1, last + 1) }, (_, i) => ({ hour: i, sales: 0, spend: m ? m[i] : 0, orders: 0, meta: m ? m[i] : 0, google: 0 }));
+    const spend = hrs.reduce((t, h) => t + h.spend, 0);
+    return { date, hours: hrs, as_of: new Date().toISOString(), no_sales: 1, spend_src: 'meta',
+      row: { date, sales: null, spend, orders: null, meta_spend: spend, google_spend: null, mer: null } };
+  }
+  const day = await twDay(env, request, acct, date);
+  const h = day.hours || {}, hrs = hoursOf(day).map((x, i) => ({ ...x, orders: (h.orders || [])[i] || 0, meta: (h.fb_ads_spend || [])[i] || 0, google: (h.ga_adCost || [])[i] || 0 }));
+  const row = liveRow(acct, day);
+  const twSpend = +(day.map && day.map.blendedAds) || 0;
+  if (twSpend > 0) return { date, hours: hrs, as_of: day.as_of, row };
+  const m = await metaHours().catch(() => null);
+  if (!m) return { date, hours: hrs, as_of: day.as_of, row };
+  /* TW saw no ad spend today: Meta's hours go in, the hour list grows to the last hour Meta spent in. */
+  const last = m.reduce((l, v, i) => v > 0 ? i : l, -1);
+  while (hrs.length < last + 1) hrs.push({ hour: hrs.length, sales: 0, spend: 0, orders: 0, meta: 0, google: 0 });
+  hrs.forEach((x, i) => { x.meta = m[i] || 0; x.spend = (x.google || 0) + x.meta; });
+  const spend = hrs.reduce((t, x) => t + x.spend, 0);
+  const out = row ? { ...row, spend, meta_spend: spend - (row.google_spend || 0), mer: spend > 0 && row.sales != null ? row.sales / spend : null } : row;
+  return { date, hours: hrs, as_of: day.as_of, row: out, spend_src: 'meta' };
+}
 /** Today so far as ONE synthetic row, through the same dayEconomics as every
  *  stored day, so revenue means exactly what it means everywhere else. */
 function liveRow(acct, day) {
@@ -2835,10 +2874,9 @@ export default {
           path, request, env, accountsFor, email: await sessionEmail(env, request),
           series: (acct, from, to) => seriesFor(env, acct, from, to),
           /* Today's hourly shape from Triple Whale, the same call the Profit Today preset makes. */
-          live: async (acct) => { const date = localDate(acct.tz); const day = await twDay(env, request, acct, date);
-            /* The War Room (2026-10-09) also reads orders and Meta / Google spend by the hour, and the day as one row. */
-            const h = day.hours || {}, hrs = hoursOf(day).map((x, i) => ({ ...x, orders: (h.orders || [])[i] || 0, meta: (h.fb_ads_spend || [])[i] || 0, google: (h.ga_adCost || [])[i] || 0 }));
-            return { date, hours: hrs, as_of: day.as_of, row: liveRow(acct, day) }; },
+          /* The War Room (2026-10-09) also reads orders and Meta / Google spend by the hour, and the day as one row.
+             liveDay (2026-11-22) fills spend from Meta when TW has none, and flags a brand with no TW shop. */
+          live: (acct) => liveDay(env, request, acct),
           channels: (acct, rows, piv, from, to) => channelsFor(env, acct, rows, piv, from, to),
           titles: (acct, ids) => productTitles(env, acct, ids),
           client: clientScope(request),
