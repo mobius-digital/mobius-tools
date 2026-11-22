@@ -182,12 +182,12 @@ async function load(env, deps, slot) {
   const v = await deps.getSetting(env, `standing:${s}`);
   try { return v ? JSON.parse(v) : null; } catch { return null; }
 }
-export const DM_STYLES = ['list', 'wc', 'board'];
+export const DM_STYLES = ['list', 'wc', 'board', 'a', 'b', 'c', 'd'];
 const linkOf = rec => act => `${LOCUS}?open=warlive&act=all&standing=${encodeURIComponent(rec.slot)}${act ? `&brand=${encodeURIComponent(act)}` : ''}`;
 /** The DM in the style Cole picked (settings `standingDmStyle`; 'list' = the rich-text list until he picks), or `style` for a test. */
-async function sendDm(env, deps, rec, { style, prev } = {}) {
+async function sendDm(env, deps, rec, { style, prev, img } = {}) {
   const st = DM_STYLES.includes(style) ? style : DM_STYLES.includes(await deps.getSetting(env, 'standingDmStyle')) ? await deps.getSetting(env, 'standingDmStyle') : 'list';
-  const msg = st === 'list' ? standingMessage(rec) : standingCard(rec, prev, st, linkOf(rec));
+  const msg = st === 'list' ? standingMessage(rec) : standingCard(rec, prev, st, linkOf(rec), { img });
   const r = await dmPerson(env, deps, env.OWNER_EMAIL || 'cole@go-mobius-digital.com', msg);
   rec.sent = r.ok ? { at: new Date().toISOString(), ts: r.ts } : { error: r.error };
   return r;
@@ -335,7 +335,7 @@ export async function handleStanding(request, env, url, path, json, deps) {
     if (path === '/api/standing/run' && request.method === 'POST') {
       const prev = await load(env, deps).catch(() => null);
       const rec = await buildStanding(env, deps, slotOf());
-      if (body.send) await sendDm(env, deps, rec, { style: body.style, prev });
+      if (body.send) await sendDm(env, deps, rec, { style: body.style, prev, img: /^https:\/\/[^\s]+$/.test(body.img || '') ? body.img : null });
       await save(env, deps, rec);
       return json({ ok: true, standing: rec, message: standingMessage(rec).text });
     }
