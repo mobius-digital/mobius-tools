@@ -8,6 +8,7 @@
  * Both say what changed since the previous check-in when there is one, and put what needs Cole first.
  * Buttons are link buttons with action_id `noop_open` (the only link id the Slack router acks): they open that brand on
  * the War Room, where Approve is the two-tap write. Nothing in Slack writes to Meta. */
+import { counted } from './standingimg.js';
 const money = v => v == null ? 'n/a' : `$${Math.round(v).toLocaleString('en-US')}`;
 const k = v => v == null ? 'n/a' : Math.abs(v) >= 1000 ? `$${(v / 1000).toFixed(Math.abs(v) >= 10000 ? 0 : 1)}k` : `$${Math.round(v)}`;
 const x = v => v == null ? 'n/a' : `${(Math.round(v * 100) / 100).toFixed(2)}x`;
@@ -21,8 +22,8 @@ const hourOf = slot => { const h = +String(slot || '').split('T')[1]; return isN
 const dayName = slot => new Date(String(slot).split('T')[0] + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
 
 function totals(rec) {
-  const ok = rec.brands.filter(b => !b.no_sales && b.so_far && b.so_far.sales != null);
-  const s = ok.reduce((t, b) => t + b.so_far.sales, 0), p = ok.reduce((t, b) => t + b.so_far.spend, 0), g = ok.reduce((t, b) => t + (b.goal || 0), 0);
+  const ok = rec.brands.filter(b => !b.no_sales && b.so_far && b.so_far.sales != null), live = ok.filter(b => counted(rec, b));
+  const s = live.reduce((t, b) => t + b.so_far.sales, 0), p = live.reduce((t, b) => t + b.so_far.spend, 0), g = ok.reduce((t, b) => t + (b.goal || 0), 0);
   return { s, p, g, mer: p ? s / p : null };
 }
 /** What moved since the previous check-in of the same run (live or dry). */
@@ -74,7 +75,7 @@ function boardBlocks(rec, prev, link) {
   const bar = p => { const n = Math.max(0, Math.min(20, Math.round(p / 5))); return '▰'.repeat(n) + '▱'.repeat(20 - n); };
   const blocks = [
     { type: 'header', text: { type: 'plain_text', text: `Where we stand · ${hourOf(rec.slot)}`, emoji: true } },
-    { type: 'context', elements: [{ type: 'mrkdwn', text: `${rec.label.replace(/,? \d+(am|pm) CT$/, '')} · Black Friday weekend${rec.dry ? ' · dry run, the weekend starts Thu Nov 26' : ''}${rec.next ? ` · next check-in ${rec.next}` : ''}` }] },
+    { type: 'context', elements: [{ type: 'mrkdwn', text: `${rec.label.replace(/,? \d+(am|pm) CT$/, '')} · Black Friday weekend${rec.dry ? ' · dry run on today, each brand counts from its own sale start' : ''}${rec.next ? ` · next check-in ${rec.next}` : ''}` }] },
     { type: 'section', text: { type: 'mrkdwn', text: `*${k(T.s)}* of ${k(T.g)} weekend goal\n\`${bar(pct(T.s, T.g))}\`  *${pct(T.s, T.g)}%*` } },
     { type: 'section', fields: [
       { type: 'mrkdwn', text: `*MER*\n${DOT(tone(T.mer, 2.5))} ${x(T.mer)} _vs 2.50x_` },
@@ -114,7 +115,7 @@ const callText = (b, ap) => ap ? `Approved, ${money(ap.to)}/day` : `${W[(b.sugge
 function topBlocks(rec, prev) {
   const T = totals(rec), d = since(rec, prev), N = needs(rec);
   return [H(`📊 Where we stand · ${hourOf(rec.slot)}`),
-    CTX(`${rec.label.replace(/,? \d+(am|pm) CT$/, '')} · Black Friday weekend${rec.dry ? ' · dry run, the weekend starts Thu Nov 26' : ''}${rec.next ? ` · next check-in ${rec.next}` : ''}`),
+    CTX(`${rec.label.replace(/,? \d+(am|pm) CT$/, '')} · Black Friday weekend${rec.dry ? ' · dry run on today, each brand counts from its own sale start' : ''}${rec.next ? ` · next check-in ${rec.next}` : ''}`),
     DIV, H('Weekend so far'),
     { type: 'section', fields: [F('Sales', `${k(T.s)}${d ? `  _+${k(d.sales)} since ${d.label}_` : ''}`), F('Of the goal', `${pct(T.s, T.g)}% of ${k(T.g)}`),
       F('MER', `${DOT(tone(T.mer, 2.5))} ${x(T.mer)}  _KPI 2.50x_`), F('Ad spend', `${k(T.p)}${d ? `  _+${k(d.spend)}_` : ''}`)] },
@@ -178,12 +179,14 @@ export function todoLine(rec) {
   if (!N.length) return '*To do:* nothing. Every brand holds until the next check-in.';
   return `*To do:* ${N.map(b => `${b.suggest.call === 'scale' ? 'raise' : 'cut'} ${b.name} ${money(b.meta.camp.daily)} to ${money(b.suggest.to)}/day`).join(', ')}. Tap Approve to do it.`;
 }
+/* The final format (Cole, 2026-11-22: "whatever you think, I agree"): the picture, then the one line in a color bar
+ * (C's colors: red when a cut waits, green when a raise waits, yellow when everything holds), Raise/Cut buttons, link. */
 function dBlocks(rec, prev, link, img) {
-  const N = needs(rec);
-  const blocks = [imgBlock(img, 'Black Friday weekend scoreboard: every brand, sales against goal, MER against KPI, the call'),
-    { type: 'section', text: { type: 'mrkdwn', text: todoLine(rec) } }];
-  if (N.length) blocks.push({ type: 'actions', elements: N.slice(0, 5).map(b => btn(`${b.suggest.call === 'scale' ? 'Raise' : 'Cut'} ${b.name}`, link(b.act_id), b.suggest.call === 'scale' ? 'primary' : 'danger')) });
-  return { blocks: [...blocks, CTX(`<${link()}|Open the War Room>${rec.next ? ` · next check-in ${rec.next}` : ''}`)] };
+  const N = needs(rec), color = N.some(b => b.suggest.call === 'cut') ? COLOR.cut : N.length ? COLOR.scale : COLOR.hold;
+  const bar = [{ type: 'section', text: { type: 'mrkdwn', text: todoLine(rec) } }];
+  if (N.length) bar.push({ type: 'actions', elements: N.slice(0, 5).map(b => btn(`${b.suggest.call === 'scale' ? 'Raise' : 'Cut'} ${b.name}`, link(b.act_id), b.suggest.call === 'scale' ? 'primary' : 'danger')) });
+  bar.push(CTX(`<${link()}|Open the War Room>${rec.next ? ` · next check-in ${rec.next}` : ''}`));
+  return { blocks: [imgBlock(img, 'Black Friday sale scoreboard: every brand, sales against goal, MER against KPI, the call')], attachments: [{ color, blocks: bar }] };
 }
 
 /* ---------- CLIENT, one brand, hourly (2026-11-22 samples for Cole; not sent to any client yet) ----------
@@ -191,6 +194,7 @@ function dBlocks(rec, prev, link, img) {
  * one plain line on what we are doing. Nothing internal: no Approve, no Meta limit, no hold line. */
 export function planLine(b) {
   const g = b.suggest || {}, d = b.meta && b.meta.camp ? b.meta.camp.daily : null;
+  if (b.mode === 'plan' && b.sale) return `*What we are doing:* the Black Friday ads are loaded and ready. The sale starts ${new Date(b.sale.start + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'UTC' })}.`;
   if (b.no_sales) return `*What we are doing:* running the Black Friday ads at ${money(d)}/day. Sales numbers are not connected yet.`;
   if (g.call === 'scale') return `*What we are doing:* sales are beating the goal, so we are raising the Black Friday budget from ${money(d)} to ${money(g.to)} a day.`;
   if (g.call === 'cut') return `*What we are doing:* returns are under goal right now, so we are pulling the budget back from ${money(d)} to ${money(g.to)} a day and moving it to the ads that sell.`;
@@ -227,7 +231,9 @@ export function clientCard(rec, act, style, prev, opt = {}) {
         { type: 'section', fields: [F('MER', `${x(s.mer)}  _goal ${x(b.kpi)}_`), F('Ad spend', k(s.spend)), F('Last 6 hours', x(l6.mer)), F('Since last update', dS != null ? `+${k(dS)}` : '_first update_')] }] },
       { color: '#4C7AE6', blocks: [plan, src] }] };
   }
-  return { text, blocks: [imgBlock(opt.img, `${b.name} Black Friday weekend: sales against goal, ad spend, MER`), plan] };
+  /* Final client format: the picture, then the one plain line in a color bar by MER against goal (C's colors). No buttons. */
+  const col = !counted(rec, b) ? COLOR.done : tone(s.mer, b.kpi) === 'good' ? COLOR.scale : tone(s.mer, b.kpi) === 'bad' ? COLOR.cut : COLOR.hold;
+  return { text, blocks: [imgBlock(opt.img, `${b.name} Black Friday sale: sales against goal, ad spend, MER`)], attachments: [{ color: col, blocks: [plan] }] };
 }
 
 /** The DM in a Block Kit style ('wc', 'board', 'a', 'b', 'c', 'd'), plus the plain `text` Slack shows in the notification. */

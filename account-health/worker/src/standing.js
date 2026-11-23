@@ -1,4 +1,4 @@
-/* WHERE WE STAND (2026-11-22): the Black Friday check-in every 3 hours, Thu Nov 26 to Mon Nov 30.
+/* WHERE WE STAND (2026-11-22): the Black Friday check-in every 3 hours while any brand's sale is live (Nov 23 to Dec 4).
  * Cole: "I don't want it to automatically raise the scaling thing. I just want it to check it... it should be in Locus,
  * the Black Friday war room... it tells me, and then we can talk about it and I can approve it or not. Real-time
  * updates, especially during Black Friday Cyber Monday weekend: here's where we stand so far. Maybe every 3 hours."
@@ -24,7 +24,9 @@ import { boardSvg, brandSvg, toPng } from './standingimg.js';
 
 const PROFIT_ORIGIN = 'https://mobius-profit.mobius-digital.workers.dev';
 const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
-export const STAND_DAYS = { from: '2026-11-26', to: '2026-11-30' };
+/* The days the 3-hour DM may run: the earliest brand sale start to the latest end (Grunk's BOGO Mon Nov 23 to Dartee's
+ * Dec 4). It only sends once at least one brand's own sale is live; each brand counts from its own start. */
+export const STAND_DAYS = { from: '2026-11-23', to: '2026-12-04' };
 /* Central hours. 9am to 9pm every 3 hours, and 11pm to close the day (a midnight read would be an empty new day). */
 export const STAND_HOURS = [9, 12, 15, 18, 21, 23];
 const KNOWN_LIMITS = { brand_lucky_golf: 6637, brand_dartee_golf: 13806, brand_bonk_golf: 5000, brand_grunk_dolfer: 2583, brand_yak_sports: 841, brand_vetripaws: 3428 };
@@ -107,12 +109,14 @@ export async function buildStanding(env, deps, slot = slotOf()) {
   for (const b of tw.brands || []) {
     let m; try { m = await metaSide(env, md, b.act_id, tw.today); } catch (e) { m = { error: e.message }; }
     const sug = { ...b.suggest }, from = m.camp && m.camp.daily;
+    /* Once any sale is live, a brand whose own sale has not started (or has ended) gets no call: its today numbers are not the weekend. */
+    if (!tw.dry && b.mode && b.mode !== 'live') { brands.push({ ...b, meta: m, suggest: { call: 'hold', pct: 0, why: b.mode === 'plan' ? `Sale starts ${dayShort(b.sale.start)}. Counting from then.` : `Sale ended ${dayShort(b.sale.end)}.` } }); continue; }
     if (!m.error && !m.camp) sug.note = 'No live sale campaign in Meta.';
     else if (!m.error && sug.pct && !from) sug.note = `${m.camp.name} has no campaign daily budget (ad set budgets).`;
     else if (!m.error) { const bf = budgetFor(sug, from, m.limit, m.on); sug.to = bf.to; if (bf.note) sug.note = bf.note; }
     brands.push({ ...b, meta: m, suggest: sug });
   }
-  return { slot, at: new Date().toISOString(), label: slotLabel(slot), next: nextLabel(slot), today: tw.today, dry: tw.dry, brands, approved: {} };
+  return { slot, at: new Date().toISOString(), label: slotLabel(slot), next: nextLabel(slot), today: tw.today, dry: tw.dry, window: tw.window || null, brands, approved: {} };
 }
 
 /** The next check-in after this slot, in words ("6pm", "9am Fri"), or null after the last one. */
@@ -125,6 +129,7 @@ export function nextLabel(slot) {
   if (ymd > STAND_DAYS.to) return null;
   return `${fmt(STAND_HOURS[0])} ${nd.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' })}`;
 }
+export const dayShort = ymd => ymd ? new Date(ymd + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }) : '';
 const W = { scale: 'Scale +50%', hold: 'Hold', cut: 'Cut 25%' };
 const ORDER = { cut: 0, scale: 1, hold: 2 };
 /** The Slack DM, laid out like Well Copy's weekly update (Cole, 2026-11-22): a greeting, one intro line, plain section
@@ -141,7 +146,7 @@ export function standingMessage(rec) {
   const T = s => ({ type: 'text', text: s }), L = (url, s) => ({ type: 'link', url, text: s });
   const sec = (...els) => ({ type: 'rich_text_section', elements: els });
   const list = (items, indent = 0) => ({ type: 'rich_text_list', style: 'bullet', indent, elements: items.map(x => Array.isArray(x) ? sec(...x) : sec(T(x))) });
-  const intro = `Here's where we stand on Black Friday weekend as of ${rec.label.replace(' CT', '')}${rec.dry ? ' (a dry run on today, the weekend starts Thu Nov 26)' : ''}, and what needs you.`;
+  const intro = `Here's where we stand on Black Friday weekend as of ${rec.label.replace(' CT', '')}${rec.dry ? ' (a dry run on today; each brand counts from its own sale start)' : ''}, and what needs you.`;
   const els = [sec(T(`${greet} Cole!\n\n${intro}\n\nWeekend so far:\n`)),
     list([`${kmoney(S)} of the ${kmoney(G)} goal (${pctOf(S, G)}%) on ${kmoney(P)} of ads`, `MER: ${xx(P ? S / P : null)} (KPI 2.50x)`]),
     sec(T('\nNeeds your attention:\n')),
@@ -188,9 +193,25 @@ const linkOf = rec => act => `${LOCUS}?open=warlive&act=all&standing=${encodeURI
 /** The DM in the style Cole picked (settings `standingDmStyle`; 'list' = the rich-text list until he picks), or `style` for a test. */
 async function sendDm(env, deps, rec, { style, prev, img } = {}) {
   const st = DM_STYLES.includes(style) ? style : DM_STYLES.includes(await deps.getSetting(env, 'standingDmStyle')) ? await deps.getSetting(env, 'standingDmStyle') : 'list';
+  /* Style d (Cole's pick, 2026-11-22): draw the scoreboard, upload it to Slack, show it by file id. If the picture
+     fails the DM still goes, with a note where the picture would be. */
+  if (st === 'd' && !img) {
+    try { const up = await slackPng(env, deps, await toPng(boardSvg(rec), deps.xfetch), `where-we-stand-${rec.slot}.png`); if (up.id) img = up.id; else rec.img_error = up.error; }
+    catch (e) { rec.img_error = e.message; }
+  }
   const msg = st === 'list' ? standingMessage(rec) : standingCard(rec, prev, st, linkOf(rec), { img });
-  const r = await dmPerson(env, deps, env.OWNER_EMAIL || 'cole@go-mobius-digital.com', msg);
-  rec.sent = r.ok ? { at: new Date().toISOString(), ts: r.ts } : { error: r.error };
+  const r = await postRetry(env, deps, msg, img);
+  rec.sent = r.ok ? { at: new Date().toISOString(), ts: r.ts, style: st, img: img || null } : { error: r.error };
+  return r;
+}
+/* Slack can take a moment to process a fresh upload before a block may show it: retry a few times. */
+async function postRetry(env, deps, msg, img) {
+  let r = null;
+  for (let i = 0; i < 6; i++) {
+    r = await dmPerson(env, deps, env.OWNER_EMAIL || 'cole@go-mobius-digital.com', msg);
+    if (r.ok || !img || !/invalid_blocks/.test(String(r.error || ''))) break;
+    await new Promise(z => setTimeout(z, 1500));
+  }
   return r;
 }
 
@@ -215,25 +236,22 @@ async function sendSample(env, deps, rec, prev, { style, act, label }) {
   const msg = act ? clientCard(rec, act, style, prev, { img }) : standingCard(rec, prev, style, linkOf(rec), { img });
   if (label) { msg.blocks = [{ type: 'section', text: { type: 'mrkdwn', text: `*${label}*` } }, ...(msg.blocks || [])]; msg.text = `${label}: ${msg.text}`; }
   /* Slack can take a moment to process a fresh upload before a block may show it: retry a few times. */
-  let r = null;
-  for (let i = 0; i < 6; i++) {
-    r = await dmPerson(env, deps, env.OWNER_EMAIL || 'cole@go-mobius-digital.com', msg);
-    if (r.ok || !img || !/invalid_blocks/.test(String(r.error || ''))) break;
-    await new Promise(z => setTimeout(z, 1500));
-  }
+  const r = await postRetry(env, deps, msg, img);
   return { ok: !!r.ok, ts: r.ts, error: r.error, img, imgErr, slot: rec.slot };
 }
 
 /** The hourly cron's step: in the window, on a 3-hour slot, once per slot. */
 export async function standingTick(env, deps, now = new Date()) {
   const c = central(now);
-  if (c.date < STAND_DAYS.from || c.date > STAND_DAYS.to) return { skipped: 'outside Nov 26 to 30' };
+  if (c.date < STAND_DAYS.from || c.date > STAND_DAYS.to) return { skipped: 'outside Nov 23 to Dec 4' };
   if (!STAND_HOURS.includes(c.hour)) return { skipped: 'not a check-in hour' };
   const slot = slotOf(now);
   /* Its own flag: a "Check now" on the page in the same hour writes standingLatest too and must not swallow the DM. */
   if (await deps.getSetting(env, `standingSent:${slot}`)) return { skipped: 'already sent' };
   const prev = await load(env, deps).catch(() => null);
   const rec = await buildStanding(env, deps, slot);
+  /* Only once a brand's own sale is live; a pre-sale day is not a check-in. */
+  if (!rec.brands.some(b => b.mode === 'live')) return { skipped: 'no brand sale is live' };
   await sendDm(env, deps, rec, { prev });
   await save(env, deps, rec);
   if (rec.sent && !rec.sent.error) await deps.putSetting(env, `standingSent:${slot}`, rec.sent.at);
