@@ -32,14 +32,14 @@ const x = v => v == null ? 'n/a' : v >= 10 ? `${v.toFixed(1)}x` : `${v.toFixed(2
 const T = (px, py, s, o = {}) => `<text x="${px}" y="${py}" font-family="Inter" font-size="${o.size || 16}" font-weight="${o.bold ? 700 : 400}" fill="${o.fill || C.text}"${o.anchor ? ` text-anchor="${o.anchor}"` : ''}${o.ls ? ` letter-spacing="${o.ls}"` : ''}>${esc(s)}</text>`;
 const R = (px, py, w, h, fill, r = 0) => `<rect x="${px}" y="${py}" width="${Math.max(0, w)}" height="${h}" rx="${r}" fill="${fill}"/>`;
 const tone = (v, kpi) => v == null || !kpi ? C.dim : v >= kpi ? C.green : v >= kpi * 0.8 ? C.yellow : C.red;
-const CALL = { scale: ['SCALE +50%', C.green], hold: ['HOLD', C.yellow], cut: ['CUT 25%', C.red] };
+const CALL = { scale: ['RAISE 50%', C.green], raise: ['RAISE 25%', C.green], hold: ['HOLD', C.yellow], cut: ['CUT 25%', C.red] };
 const hourOf = slot => { const h = +String(slot || '').split('T')[1]; return isNaN(h) ? '' : h === 12 ? '12pm' : h === 0 ? '12am' : h < 12 ? `${h}am` : `${h - 12}pm`; };
 const dayOf = slot => new Date(String(slot).split('T')[0] + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
 const bar = (px, py, w, h, p, fill) => R(px, py, w, h, C.track, h / 2) + R(px, py, Math.max(h, w * Math.min(1, Math.max(0, p))), h, fill, h / 2);
 /* Each brand counts from its own sale start; before it starts (once any sale is live) it is shown, not counted. */
 export const counted = (rec, b) => !!rec.dry || !b.mode || b.mode !== 'plan';
 const dayShort = ymd => ymd ? new Date(ymd + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }) : '';
-const CALLCOL = { scale: C.green, hold: C.yellow, cut: C.red };
+const CALLCOL = { scale: C.green, raise: C.green, hold: C.yellow, cut: C.red };
 const svgWrap = (W, H, body) => `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${R(0, 0, W, H, C.bg)}${body}</svg>`;
 
 function sums(rec) {
@@ -51,7 +51,7 @@ function sums(rec) {
 
 /** Every brand: totals on top, then one row per brand (sales vs goal bar, MER so far, last 6h, budget, the call). */
 export function boardSvg(rec) {
-  const W = 1200, pad = 40, rowH = 66, B = [...rec.brands].sort((a, b) => ({ cut: 0, scale: 1, hold: 2 }[(a.suggest || {}).call] ?? 2) - ({ cut: 0, scale: 1, hold: 2 }[(b.suggest || {}).call] ?? 2));
+  const W = 1200, pad = 40, rowH = 66, B = [...rec.brands].sort((a, b) => ({ cut: 0, scale: 1, raise: 1, hold: 2 }[(a.suggest || {}).call] ?? 2) - ({ cut: 0, scale: 1, raise: 1, hold: 2 }[(b.suggest || {}).call] ?? 2));
   const S = sums(rec), top = 210, H = top + 50 + B.length * rowH + 60;
   let o = T(pad, 58, 'WHERE WE STAND', { size: 15, bold: true, fill: C.dim, ls: 2 })
     + T(W - pad, 58, `${dayOf(rec.slot)} · ${hourOf(rec.slot)} CT${rec.dry ? ' · dry run' : ''}`, { size: 15, fill: C.dim, anchor: 'end' })

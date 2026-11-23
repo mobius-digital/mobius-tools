@@ -13,7 +13,7 @@ const money = v => v == null ? 'n/a' : `$${Math.round(v).toLocaleString('en-US')
 const k = v => v == null ? 'n/a' : Math.abs(v) >= 1000 ? `$${(v / 1000).toFixed(Math.abs(v) >= 10000 ? 0 : 1)}k` : `$${Math.round(v)}`;
 const x = v => v == null ? 'n/a' : `${(Math.round(v * 100) / 100).toFixed(2)}x`;
 const pct = (a, b) => b ? Math.round(a / b * 100) : 0;
-const W = { scale: 'Scale +50%', hold: 'Hold', cut: 'Cut 25%' };
+const W = { scale: 'Raise 50%', raise: 'Raise 25%', hold: 'Hold', cut: 'Cut 25%' };
 const ORDER = { cut: 0, scale: 1, hold: 2 };
 const DOT = v => v === 'good' ? '🟢' : v === 'warn' ? '🟡' : v === 'bad' ? '🔴' : '⚪';
 const COLOR = { scale: '#2EB67D', hold: '#ECB22E', cut: '#E01E5A', done: '#868686' };
@@ -53,12 +53,12 @@ function wcBlocks(rec, prev, link) {
   blocks.push({ type: 'divider' }, md(`*Needs Your Yes* ✅`));
   if (!N.length) blocks.push(md('_Nothing to approve. Every brand is on Hold._'));
   for (const b of N) blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `\`${b.name}\`\n> *${W[b.suggest.call]}:* ${money(b.meta.camp.daily)} to ${money(b.suggest.to)}/day\n> _${b.suggest.why || ''}_` },
-    accessory: btn('Approve', link(b.act_id), b.suggest.call === 'scale' ? 'primary' : 'danger') });
+    accessory: btn('Approve', link(b.act_id), (b.suggest.call === 'scale' || b.suggest.call === 'raise') ? 'primary' : 'danger') });
   blocks.push({ type: 'divider' }, md('*Brands* 📊'));
   const field = b => {
     const s = b.so_far || {}, l6 = b.last6 || {}, m = b.meta || {}, g = b.suggest || {}, ap = (rec.approved || {})[b.act_id], dd = d && d.per[b.act_id];
     const call = ap ? `approved ${money(ap.to)}/day` : `${W[g.call] || 'Hold'}`;
-    const lines = [`\`${b.name}\` ${DOT(ap ? 'good' : g.call === 'scale' ? 'good' : g.call === 'cut' ? 'bad' : 'warn')} ${call}`];
+    const lines = [`\`${b.name}\` ${DOT(ap ? 'good' : (g.call === 'scale' || g.call === 'raise') ? 'good' : g.call === 'cut' ? 'bad' : 'warn')} ${call}`];
     if (b.no_sales) lines.push(`> *Spend:* ${k(s.spend)}`, '> _No Triple Whale store_');
     else lines.push(`> *Sales:* ${k(s.sales)} of ${k(b.goal)}${dd ? `, _+${k(dd.sales)}_` : ''}`, `> *MER:* ${x(s.mer)}, _${x(l6.mer)} last 6h_`);
     lines.push(`> *Budget:* ${m.camp && m.camp.daily ? `${money(m.camp.daily)}/day` : 'n/a'}${m.headroom != null ? `, _${k(m.headroom)} room_` : ''}`);
@@ -93,7 +93,7 @@ function boardBlocks(rec, prev, link) {
     fields.push({ type: 'mrkdwn', text: `*Budget*\n${m.camp && m.camp.daily ? `${money(m.camp.daily)}/day` : m.error ? 'Meta did not answer' : 'n/a'}` },
       { type: 'mrkdwn', text: `*Room under Meta's limit*\n${m.headroom != null ? money(m.headroom) : 'n/a'}` });
     const sec = { type: 'section', text: { type: 'mrkdwn', text: head } };
-    if (g.to && !ap) sec.accessory = btn('Approve', link(b.act_id), g.call === 'scale' ? 'primary' : 'danger');
+    if (g.to && !ap) sec.accessory = btn('Approve', link(b.act_id), (g.call === 'scale' || g.call === 'raise') ? 'primary' : 'danger');
     const why = `${g.why || ''}${g.note ? ` ${g.note}` : ''}`.trim();
     return { color: ap ? COLOR.done : COLOR[g.call] || COLOR.hold, blocks: [sec, { type: 'section', fields }, ...(why ? [{ type: 'context', elements: [{ type: 'mrkdwn', text: why }] }] : [])] };
   });
@@ -110,7 +110,7 @@ const H = t => ({ type: 'header', text: { type: 'plain_text', text: t, emoji: tr
 const DIV = { type: 'divider' };
 const CTX = t => ({ type: 'context', elements: [{ type: 'mrkdwn', text: t }] });
 const F = (label, value) => ({ type: 'mrkdwn', text: `*${label}*\n${value}` });
-const callDot = (b, ap) => ap ? '✅' : DOT((b.suggest || {}).call === 'scale' ? 'good' : (b.suggest || {}).call === 'cut' ? 'bad' : 'warn');
+const callDot = (b, ap) => ap ? '✅' : DOT(['scale','raise'].includes((b.suggest || {}).call) ? 'good' : (b.suggest || {}).call === 'cut' ? 'bad' : 'warn');
 const callText = (b, ap) => ap ? `Approved, ${money(ap.to)}/day` : `${W[(b.suggest || {}).call] || 'Hold'}${(b.suggest || {}).to ? ` to ${money(b.suggest.to)}/day` : ''}`;
 function topBlocks(rec, prev) {
   const T = totals(rec), d = since(rec, prev), N = needs(rec);
@@ -126,7 +126,7 @@ function needBlocks(rec, link) {
   if (!N.length) return [DIV, H('Needs your yes'), CTX('Nothing to approve. Every brand is on Hold.')];
   return [DIV, H(`Needs your yes (${N.length})`), ...N.flatMap(b => [
     { type: 'section', text: { type: 'mrkdwn', text: `${callDot(b)} *${b.name}*\n${W[b.suggest.call]}: ${money(b.meta.camp.daily)} to *${money(b.suggest.to)}*/day` },
-      accessory: btn('Approve', link(b.act_id), b.suggest.call === 'scale' ? 'primary' : 'danger') },
+      accessory: btn('Approve', link(b.act_id), (b.suggest.call === 'scale' || b.suggest.call === 'raise') ? 'primary' : 'danger') },
     ...(b.suggest.why ? [CTX(b.suggest.why)] : [])])];
 }
 const foot = (rec, link) => [DIV, CTX(`Sales and MER: Triple Whale · Budgets: Meta · Nothing changes until you tap Approve · <${link()}|Open the War Room>`)];
@@ -166,7 +166,7 @@ function cBlocks(rec, prev, link) {
       : [F('Sales', `${k(s.sales)} of ${k(b.goal)}${dd ? `\n_+${k(dd.sales)} since ${d.label}_` : ''}`), F('MER', `${x(s.mer)} so far\n_${x(l6.mer)} last 6h · KPI ${x(b.kpi)}_`)];
     fields.push(F('Budget', m.camp && m.camp.daily ? `${money(m.camp.daily)}/day` : 'n/a'), F('Room under limit', m.headroom != null ? money(m.headroom) : 'n/a'));
     const sec = { type: 'section', text: { type: 'mrkdwn', text: `*${b.name}*\n${callText(b, ap)}` } };
-    if (g.to && !ap) sec.accessory = btn('Approve', link(b.act_id), g.call === 'scale' ? 'primary' : 'danger');
+    if (g.to && !ap) sec.accessory = btn('Approve', link(b.act_id), (g.call === 'scale' || g.call === 'raise') ? 'primary' : 'danger');
     return { color: ap ? COLOR.done : COLOR[g.call] || COLOR.hold, blocks: [sec, { type: 'section', fields }, ...(g.why ? [CTX(g.why)] : [])] };
   });
   return { blocks: [...topBlocks(rec, prev), DIV, H('Brands'), CTX('Green = scale, yellow = hold, red = cut. Approve opens the brand on the War Room.')], attachments: [...attachments, { color: '#4C7AE6', blocks: foot(rec, link).slice(1) }] };
@@ -177,14 +177,14 @@ const imgBlock = (img, alt) => img ? { type: 'image', ...(/^https:/.test(img) ? 
 export function todoLine(rec) {
   const N = needs(rec);
   if (!N.length) return '*To do:* nothing. Every brand holds until the next check-in.';
-  return `*To do:* ${N.map(b => `${b.suggest.call === 'scale' ? 'raise' : 'cut'} ${b.name} ${money(b.meta.camp.daily)} to ${money(b.suggest.to)}/day`).join(', ')}. Tap Approve to do it.`;
+  return `*To do:* ${N.map(b => `${b.suggest.call === 'cut' ? 'cut' : 'raise'} ${b.name} ${money(b.meta.camp.daily)} to ${money(b.suggest.to)}/day`).join(', ')}. Tap Approve to do it.`;
 }
 /* The final format (Cole, 2026-11-22: "whatever you think, I agree"): the picture, then the one line in a color bar
  * (C's colors: red when a cut waits, green when a raise waits, yellow when everything holds), Raise/Cut buttons, link. */
 function dBlocks(rec, prev, link, img) {
   const N = needs(rec), color = N.some(b => b.suggest.call === 'cut') ? COLOR.cut : N.length ? COLOR.scale : COLOR.hold;
   const bar = [{ type: 'section', text: { type: 'mrkdwn', text: todoLine(rec) } }];
-  if (N.length) bar.push({ type: 'actions', elements: N.slice(0, 5).map(b => btn(`${b.suggest.call === 'scale' ? 'Raise' : 'Cut'} ${b.name}`, link(b.act_id), b.suggest.call === 'scale' ? 'primary' : 'danger')) });
+  if (N.length) bar.push({ type: 'actions', elements: N.slice(0, 5).map(b => btn(`${b.suggest.call === 'cut' ? 'Cut' : 'Raise'} ${b.name}`, link(b.act_id), b.suggest.call === 'cut' ? 'danger' : 'primary')) });
   bar.push(CTX(`<${link()}|Open the War Room>${rec.next ? ` · next check-in ${rec.next}` : ''}`));
   return { blocks: [imgBlock(img, 'Black Friday sale scoreboard: every brand, sales against goal, MER against KPI, the call')], attachments: [{ color, blocks: bar }] };
 }
@@ -196,7 +196,7 @@ export function planLine(b) {
   const g = b.suggest || {}, d = b.meta && b.meta.camp ? b.meta.camp.daily : null;
   if (b.mode === 'plan' && b.sale) return `*What we are doing:* the Black Friday ads are loaded and ready. The sale starts ${new Date(b.sale.start + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'UTC' })}.`;
   if (b.no_sales) return `*What we are doing:* running the Black Friday ads at ${money(d)}/day. Sales numbers are not connected yet.`;
-  if (g.call === 'scale') return `*What we are doing:* sales are beating the goal, so we are raising the Black Friday budget from ${money(d)} to ${money(g.to)} a day.`;
+  if (g.call === 'scale' || g.call === 'raise') return `*What we are doing:* sales are beating the goal, so we are raising the Black Friday budget from ${money(d)} to ${money(g.to)} a day.`;
   if (g.call === 'cut') return `*What we are doing:* returns are under goal right now, so we are pulling the budget back from ${money(d)} to ${money(g.to)} a day and moving it to the ads that sell.`;
   return `*What we are doing:* holding the budget at ${money(d)} a day and checking again next hour.`;
 }

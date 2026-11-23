@@ -98,6 +98,7 @@ import { handleSiteReview } from './sitereview.js';
 import { handleBuyer, buyerPostTick, buyerSettings } from './buyerlist.js';
 import { buyerAITick } from './buyerai.js';
 import { handleTrybe, trybeTick, handleTrybeJoin, discordWelcomeTick } from './trybe.js';
+import { handleCreatorEngine, creatorEngineTick } from './creatorengine.js';
 import { handleLucky } from './lucky.js';
 import { dataTools, twSql } from './stratdata.js';
 import { extraTools } from './allwrite.js';
@@ -7535,6 +7536,8 @@ function trybeDeps() {
   return { xfetch, centralDate, centralHour, slackPost, canAfford: n => subCanAfford(n), getSetting, putSetting, slackApi, teamOf: calendarTeam,
     listBrands: async env => (await listAccounts(env, true)).map(a => ({ act_id: a.act_id, name: a.name, slack_channel: a.slack_channel || null, brief_channel: a.brief_channel || null })) };
 }
+/* creatorengine.js: the creator graduate engine needs the Trybe deps plus what metawrite's locusWrite reads. */
+function creatorDeps() { return { ...trybeDeps(), listAccounts }; }
 function buyerDeps() {
   const base = { getSetting, putSetting, centralHour, centralDate, slackPost, slackApi };
   return { ...base, listAccounts, mintSession, xfetch, canAfford: n => subCanAfford(n), tagOf: (env, name) => tagOf(env, base, name),
@@ -8034,6 +8037,10 @@ const AH_APP = {
           /* Trybe (trybe.js): once a Central day from 4am, every brand with a key is pulled, then its internal channel
              hears about approved videos that sat 3 days (and Monday's rebook list). */
           if (subCanAfford(80)) ran.trybe = await trybeTick(env, trybeDeps()).catch(e => ({ error: e.message }));
+          /* Creator graduate engine (creatorengine.js, 2026-11-22): once a Central day from 6am, every brand on suggest gets
+             today's plan (graduate / keep / demote / pause / load / replace / raise) stored for GET /api/trybe/creator-moves.
+             SUGGEST ONLY: it never writes to Meta and never posts; Cole approves the moves in the /trybe and /buy reviews. */
+          if (subCanAfford(150)) { const c = await creatorEngineTick(env, creatorDeps()).catch(e => ({ error: e.message })); if (!c?.skipped) ran.creatorEngine = c; }
           /* Creator Discord: one welcome post a day in #welcome, from 5pm Central (trybe.js discordWelcomeTick). */
           if (subCanAfford(20)) { const w = await discordWelcomeTick(env, trybeDeps()).catch(e => ({ error: e.message })); if (!w?.skipped) ran.discordWelcome = w; }
           /* Cole's calendar blocks: once a Central day, open tasks whose block day passed move to the next one. */
@@ -8548,6 +8555,12 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       const r = await handleLaunch(request, env, url, path, json, { isAdmin, sessionEmail, brandsFor, resolveBrandId, md: { xfetch, listAccounts, getSetting, putSetting,
         /* a batch on Meta moves its Production card to Live (and the Asana task with it) */
         moveCard: (e, id, who) => prodMove(e, actionDeps(), { id, to: 'live' }, who) } });
+      if (r) return r;
+    }
+    /* ---- Creator graduate engine (creatorengine.js): per-brand settings, the suggestions (GET /api/trybe/creator-moves, read by
+       the /trybe and /buy reviews), Plan now. Suggest only: nothing here writes to Meta. Mounted BEFORE handleTrybe. ---- */
+    {
+      const r = await handleCreatorEngine(request, env, url, path, json, { isAdmin, sessionEmail, brandsFor, resolveBrandId, isClient: r => !!clientScope(r), deps: creatorDeps() });
       if (r) return r;
     }
     /* ---- Ads > Trybe (2026-11-05, src/trybe.js): approved creator videos that never ran, the live ones on Triple Whale

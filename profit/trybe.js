@@ -21,7 +21,7 @@
   const n1 = n => String(Math.round((+n || 0) * 10) / 10);
   const ago = iso => { if (!iso) return 'never'; const h = (Date.now() - Date.parse(iso)) / 36e5; return h < 1 ? 'just now' : h < 24 ? `${Math.round(h)}h ago` : `${Math.round(h / 24)}d ago`; };
   /* Briefs = the creator link page (page id amb), opened as its own page; the shell draws this same switch above it. */
-  const VIEWS = () => (CL() ? [['live', 'Live'], ['creators', 'Creators'], ['briefs', 'Briefs']] : [['review', 'Review'], ['queue', 'Queue'], ['live', 'Live'], ['creators', 'Creators'], ['follow', 'Follow up'], ['recuts', 'Recuts'], ['discord', 'Discord'], ['briefs', 'Briefs'], ['rules', 'Rules']]);
+  const VIEWS = () => (CL() ? [['live', 'Live'], ['creators', 'Creators'], ['briefs', 'Briefs']] : [['review', 'Review'], ['queue', 'Queue'], ['live', 'Live'], ['creators', 'Creators'], ['follow', 'Follow up'], ['recuts', 'Recuts'], ['sets', 'Creator sets'], ['discord', 'Discord'], ['briefs', 'Briefs'], ['rules', 'Rules']]);
   const STATE = { not_launched: ['Not launched', 'bad'], no_spend: ['Launched, no spend yet', 'warn'], scheduled: ['Scheduled', ''], review: ['In Meta review', ''], rejected: ['Rejected by Meta', 'bad'], off: ['In Meta, turned off', ''] };
 
   function css() {
@@ -172,7 +172,7 @@
     const c = d.counts;
     const badge = { review: c.pending, queue: c.not_launched, live: c.live, creators: c.creators };
     const seg = `<div class="v2jobs tb-seg" role="tablist">${VIEWS().map(([id, label]) => `<button type="button" role="tab" data-tbv="${id}" class="${VIEW === id ? 'on' : ''}" aria-selected="${VIEW === id}">${label}${badge[id] != null ? ` (${badge[id]})` : ''}</button>`).join('')}</div>`;
-    const body = VIEW === 'queue' ? queue() : VIEW === 'live' ? live() : VIEW === 'creators' ? creators() : VIEW === 'discord' ? '<section class="v2card" id="tbDc"><p class="v2hint">Reading the Discord…</p></section>' : VIEW === 'review' ? '<section class="v2card" id="tbRv"><p class="v2hint">Getting the videos waiting in Trybe…</p></section>' : VIEW === 'follow' ? '<section class="v2card" id="tbFu"><p class="v2hint">Reading creators and samples from Trybe…</p></section>' : VIEW === 'recuts' ? '<section class="v2card" id="tbRc"><p class="v2hint">Reading last month&rsquo;s best sellers…</p></section>' : rules();
+    const body = VIEW === 'queue' ? queue() : VIEW === 'live' ? live() : VIEW === 'creators' ? creators() : VIEW === 'discord' ? '<section class="v2card" id="tbDc"><p class="v2hint">Reading the Discord…</p></section>' : VIEW === 'review' ? '<section class="v2card" id="tbRv"><p class="v2hint">Getting the videos waiting in Trybe…</p></section>' : VIEW === 'follow' ? '<section class="v2card" id="tbFu"><p class="v2hint">Reading creators and samples from Trybe…</p></section>' : VIEW === 'recuts' ? '<section class="v2card" id="tbRc"><p class="v2hint">Reading last month&rsquo;s best sellers…</p></section>' : VIEW === 'sets' ? '<section class="v2card" id="tbCe"><p class="v2hint">Reading the creator sets…</p></section>' : rules();
     const meta = `<p class="tb-meta">Updated ${esc(ago(d.synced_at))}. ${CL() ? '' : 'Locus reads Trybe and Meta once a day; press Update for now. '}Sales and revenue are Triple Whale, spend is Meta, last ${d.account.days} days.</p>`;
     $('#main').innerHTML = shell(`${meta}${top()}${seg}${body}`);
     if (H.pageActions) H.pageActions(CL() ? '' : `<button type="button" class="btn" id="tbSync">Update</button>${d.portal ? `<a class="btn primary" id="tbOpen" href="${esc(d.portal)}" target="_blank" rel="noopener">Launch in Trybe</a>` : ''}`);
@@ -181,6 +181,7 @@
     if (VIEW === 'review') reviewView();
     if (VIEW === 'follow') followView();
     if (VIEW === 'recuts') recutView();
+    if (VIEW === 'sets') engineView(document.getElementById('tbCe'));
     if (keepFocus) { const el = document.getElementById(keepFocus); if (el) { el.focus(); try { el.setSelectionRange(el.value.length, el.value.length); } catch {} } }
   }
 
@@ -250,7 +251,59 @@
   /* ---- Lucky (2026-11-05): Lucky's creators live in its own app. This view reads the app live and acts through it
      (account-health /api/lucky/*, src/lucky.js): review videos, this week's board, creators, the Clubhouse and announcements. */
   let LV = 'review';
-  const LVIEWS = [['review', 'Review'], ['week', 'This week'], ['lcreators', 'Creators'], ['clubhouse', 'Discord']];
+  const LVIEWS = [['review', 'Review'], ['week', 'This week'], ['lcreators', 'Creators'], ['sets', 'Creator sets'], ['clubhouse', 'Discord']];
+
+  /* ---------- Creator sets (2026-11-22): the creator graduate engine (account-health creatorengine.js) ----------
+     SUGGEST ONLY (Cole, 2026-11-22): Locus reads the creator campaign every morning and lists the moves the SOP calls for.
+     It changes nothing in Meta. Cole approves each one in the /trybe or /buy review with Claude, which reads the same list
+     at /api/trybe/creator-moves. This screen: the brand's campaign, pool and limits, Off / Suggest, today's suggestions. */
+  const CE_KIND = { graduate: 'Graduate', keep: 'Keep', demote: 'Demote', pause: 'Pause set', load: 'Load', replace: 'Replace', raise: 'Raise' };
+  function ceRow(x) {
+    const ads = (x.ads || []).map(a => a.name || a.id).filter(Boolean);
+    const what = x.kind === 'graduate' ? `${esc(x.creator)}: new set "${esc(x.set_name)}"${x.budget ? ` at ${money(x.budget)}/day` : ''}, ${ads.length} ad${ads.length === 1 ? '' : 's'} in`
+      : x.kind === 'demote' ? `${esc(x.creator)}: "${esc(x.set_name)}" back to "${esc(x.to_set_name || 'the pool')}"`
+      : x.kind === 'raise' ? `"${esc(x.set_name)}" ${money(x.budget_from)} to ${money(x.budget_to)} a day`
+      : x.kind === 'replace' ? `${esc(x.creator)}: "${esc(ads[0] || '')}" into "${esc(x.set_name)}", in place of "${esc(x.pause_ad_name || '')}"`
+      : x.kind === 'load' ? `${esc(x.creator)}: "${esc(ads[0] || '')}" into "${esc(x.set_name)}"`
+      : `"${esc(x.set_name)}"`;
+    return `<tr><td><span class="v2pill">${CE_KIND[x.kind] || esc(x.kind)}</span></td><td>${what}<div class="tb-sub">${esc(x.reason || '')}</div></td></tr>`;
+  }
+  async function engineView(box) {
+    if (!box) return;
+    const act = H.S.act;
+    let d;
+    try { d = await H.apiAH(`/api/creator-engine?act=${encodeURIComponent(act)}`); if (d && d.error) throw new Error(d.error); }
+    catch (e) { box.innerHTML = `<p class="v2bad">${esc(e.message)}</p>`; return; }
+    const c = d.cfg || {}, r = d.run, list = (r && r.suggestions) || [];
+    const modeBtn = (m, l) => `<button type="button" class="${c.mode === m ? 'on' : ''}" data-cem="${m}">${l}</button>`;
+    const sets = r && r.sets ? r.sets.map(x => `<tr><td>${esc(x.name)}</td><td class="num">${x.live}</td><td class="num">${money(x.s7)}</td><td class="num">${n1(x.o7)}</td><td class="num">${x.cpa == null ? 'none' : money(x.cpa)}</td><td>${x.beats ? '<span class="v2good">Beats goal</span> ' : ''}${esc(x.verdict)}</td></tr>`).join('') : '';
+    const drafts = r && r.drafts && r.drafts.length ? r.drafts.map((x, i) => `<div class="tb-mini"><div></div><div><b>${esc(x.kind === 'discord' ? 'Discord shout-out' : x.kind === 'demote_dm' ? 'DM: back to the pool' : 'DM: graduation')}</b>, ${esc(x.creator)}<div class="tb-sub" data-ced="${i}">${esc(x.text)}</div></div><div><button type="button" class="v2btn ghost" data-cecopy="${i}">Copy</button></div></div>`).join('') : '';
+    box.innerHTML = `<div class="v2h"><h3>Creator set suggestions</h3><span class="cap">${c.mode === 'suggest' ? 'Suggest: Locus plans every morning, changes nothing' : 'Off'}</span></div>
+      <p class="v2hint">Locus suggests, Cole approves. Every morning Locus reads the creator campaign and lists what the creator rules call for: 3 approved videos live at once = the creator's own set. A set beating the goal cost per sale (Triple Whale, 7 days) stays at any count. Under 3 for ${esc(c.grace_days)} days and not beating goal = back to the pool. An empty set pauses. A full set (${esc(c.max_live)}) swaps its weakest ad past the wait window for a new video. Locus never makes these moves itself: Cole says yes or no to each one in the Trybe and media buying reviews with Claude, and only a yes is applied.</p>
+      <div class="v2jobs tb-seg" role="tablist">${modeBtn('off', 'Off')}${modeBtn('suggest', 'Suggest')}</div>
+      <div class="tb-key" style="flex-wrap:wrap;gap:8px;margin-top:10px">
+        <label>Creator campaign id <input id="ceCamp" value="${esc(c.campaign || '')}" inputmode="numeric"></label>
+        <label>Pool ad set id <input id="cePool" value="${esc(c.pool || '')}" inputmode="numeric" placeholder="none"></label>
+        <label>Start budget $ <input id="ceBud" value="${esc(c.start_budget)}" inputmode="decimal" style="width:70px"></label>
+        <label>Max live per set <input id="ceMax" value="${esc(c.max_live)}" inputmode="numeric" style="width:60px"></label>
+        <label>Demote after days <input id="ceGrace" value="${esc(c.grace_days)}" inputmode="numeric" style="width:60px"></label>
+      </div>
+      <div class="tb-foot"><button type="button" class="v2btn" id="ceSave">Save</button><button type="button" class="v2btn ghost" id="cePlan">Plan now</button><span class="v2hint">${r ? `Last plan ${esc(ago(r.at))}.` : 'Not planned yet.'}</span></div>
+      ${r && r.error ? `<p class="v2bad">${esc(r.error)}</p>` : ''}
+      ${r && !r.error ? `<h4>Suggested (${list.length}), waiting for Cole's yes in the review</h4>${list.length ? `<div class="v2tbl"><table><tbody>${list.map(ceRow).join('')}</tbody></table></div>` : '<p class="v2hint">Nothing to suggest today.</p>'}
+        ${(r.builds || []).length ? `<h4>Approved, no Meta ad yet: build in Trybe (${r.builds.length})</h4><ul class="tb-rules">${[...new Map(r.builds.map(b => [b.creator, r.builds.filter(x => x.creator === b.creator)])).entries()].map(([n, xs]) => `<li>${esc(n)}: ${xs.length} video${xs.length === 1 ? '' : 's'}, approved ${xs[0].days} days ago${xs.some(x => x.late) ? ' <span class="v2bad">late</span>' : ''}</li>`).join('')}</ul>` : ''}
+        ${drafts ? `<h4>Drafts to send yourself</h4>${drafts}` : ''}
+        ${(r.notes || []).length ? `<h4>Notes</h4><ul class="tb-rules">${r.notes.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
+        ${sets ? `<h4>Creator sets now</h4><div class="v2tbl"><table><thead><tr><th>Set</th><th class="num">Live</th><th class="num">Spend 7d</th><th class="num">Sales 7d</th><th class="num">CPA</th><th>Call</th></tr></thead><tbody>${sets}</tbody></table></div>` : ''}` : ''}`;
+    const val = id => document.getElementById(id).value.trim();
+    const body = mode => ({ act, mode, campaign: val('ceCamp'), pool: val('cePool'), start_budget: val('ceBud'), max_live: val('ceMax'), grace_days: val('ceGrace') });
+    const save = async mode => { try { const x = await ah('/api/creator-engine', body(mode), 'PUT'); if (x && x.error) throw new Error(x.error); toast('Saved'); engineView(box); } catch (e) { toast(e.message); } };
+    box.querySelectorAll('[data-cem]').forEach(b => { b.onclick = () => save(b.dataset.cem); });
+    const sv = box.querySelector('#ceSave'); if (sv) sv.onclick = () => save(c.mode);
+    const pl = box.querySelector('#cePlan'); if (pl) pl.onclick = async () => { pl.disabled = true; pl.textContent = 'Planning…'; try { const x = await ah('/api/creator-engine/run', { act }); if (x && x.error && !x.suggestions) throw new Error(x.error); engineView(box); } catch (e) { toast(e.message); pl.disabled = false; pl.textContent = 'Plan now'; } };
+    box.querySelectorAll('[data-cecopy]').forEach(b => { b.onclick = async () => { const t = box.querySelector(`[data-ced="${b.dataset.cecopy}"]`).textContent; try { await navigator.clipboard.writeText(t); toast('Copied'); } catch { toast('Copy did not work; select the text'); } }; });
+  }
+
   async function paintLucky() {
     const seg = `<div class="v2jobs tb-seg" role="tablist">${LVIEWS.map(([id, l]) => `<button type="button" role="tab" data-lv="${id}" class="${LV === id ? 'on' : ''}">${l}</button>`).join('')}</div>`;
     $('#main').innerHTML = shell(`<p class="tb-meta">Lucky runs its own creator app, not Trybe. Everything here is read live from the app, and every button runs inside the app. Money and creator pay stay in the app.</p>${seg}<section class="v2card" id="tbLucky"><p class="v2hint">Reading the Lucky app…</p></section>`);
@@ -259,6 +312,7 @@
     const box = document.getElementById('tbLucky');
     const get = p => H.apiAH('/api/lucky/' + p);
     try {
+      if (LV === 'sets') return engineView(box);
       if (LV === 'review') {
         const r = await get('review-queue');
         const items = r.items || r.queue || r.videos || [];

@@ -434,6 +434,33 @@ const duplicateAction = d => ({
   },
 });
 
+/* Copy one ad into another ad set (2026-11-22, the creator graduate engine). Meta cannot move an ad between ad sets,
+   so a "move" is a copy that keeps the same creative (same post, so likes and comments carry over, and the creative's
+   url_tags keep the Trybe tag) plus a pause of the original, which the caller sends as its own write. The copy keeps
+   the original's name (NO_RENAME) and goes live at once unless `paused`. Undo archives the copy. */
+const copyAdAction = d => ({
+  name: 'meta_copy_ad',
+  description: 'Copy one ad (same creative, same post, so its likes and comments carry over) into another ad set in the same ad account, live unless paused is true. Meta cannot move an ad, so to move one: copy it here, then meta_pause the original.',
+  input_schema: base({ adset: { type: 'string', description: 'The ad set to copy into: id or exact name.' }, paused: { type: 'boolean' } }, ['adset']),
+  propose: async (env, input, h, ctx) => {
+    const r = await prep(env, d, { ...input, level: 'ad' }, ctx, 'ad'); if (r.error) return r;
+    const f = await findObject(env, d, r.brand, input.adset, 'adset'); if (f.error) return f;
+    if (f.act !== r.act) return { error: `"${f.obj.name}" is in another ad account than the ad. Meta copies ads only inside one account.` };
+    if (String(f.obj.id) === String(r.obj.adset_id)) return { error: `"${r.obj.name}" is already in "${f.obj.name}".` };
+    const line = `Copy ad "${r.obj.name}" into "${f.obj.name}"${input.paused ? ' (PAUSED)' : ''}`;
+    return { summary: `${r.brand.name}: ${line}`, detail: `From ad set "${r.obj.adset?.name || r.obj.adset_id}". Same creative and post. The original is not touched by this step.
+Why: ${clip(input.reason, 300)}`,
+      patch: { ...common(r, 'meta_copy_ad', input, ctx), to_adset: String(f.obj.id), to_name: f.obj.name, paused: !!input.paused, logLine: line } };
+  },
+  apply: async (env, p, h, ctx) => {
+    const c = await gpost(d, env, `${p.id}/copies`, { adset_id: p.to_adset, status_option: p.paused ? 'PAUSED' : 'ACTIVE', rename_options: JSON.stringify({ rename_strategy: 'NO_RENAME' }) });
+    const nid = c.copied_ad_id || c.ad_object_ids?.[0]?.copied_id || c.id;
+    if (!nid) return { error: 'Meta did not return the copy id.' };
+    const wid = await record(env, { ...p, level: 'ad' }, ctx, { before: null, after: { created: String(nid), from: p.id, adset: p.to_adset }, object: String(nid), summary: `${p.logLine}: new ad ${nid}`, category: 'new_creative' });
+    return { ok: true, write: wid, created: String(nid), note: `Copied into "${p.to_name}" as ${nid}. Logged (undo: ${wid}).` };
+  },
+});
+
 const CTAS = ['SHOP_NOW', 'LEARN_MORE', 'ORDER_NOW', 'BUY_NOW', 'GET_OFFER', 'SIGN_UP', 'SUBSCRIBE', 'DOWNLOAD', 'CONTACT_US', 'SEE_MORE', 'NO_BUTTON'];
 /* Triple Whale + UTM tags on every new ad (2026-10-27; the 2026-10-20 tag pass): without tw_adid Triple Whale cannot
    credit the ad, and a partnership ad cannot be edited afterwards, so the tags go on at launch. */
@@ -1211,7 +1238,7 @@ registerUndo('drive', async (env, d, row, u) => {
 
 /* ---------------- assembly ---------------- */
 export function metaActions(d) {
-  return [statusAction(d, 'meta_pause', 'PAUSED'), statusAction(d, 'meta_resume', 'ACTIVE'), budgetAction(d), minSpendAction(d), renameAction(d), duplicateAction(d), createAdAction(d), undoAction(d),
+  return [statusAction(d, 'meta_pause', 'PAUSED'), statusAction(d, 'meta_resume', 'ACTIVE'), budgetAction(d), minSpendAction(d), renameAction(d), duplicateAction(d), copyAdAction(d), createAdAction(d), undoAction(d),
     bidAction(d), targetingAction(d), scheduleAction(d), createCampaignAction(d), createAdsetAction(d), adCopyAction(d)];
 }
 /** Everything here for strategist.js: `tools` (reads) and `actions` (Apply cards). */
@@ -1224,7 +1251,7 @@ export function writeActions(d) { return [...metaActions(d), ...asanaActions(d),
    are one code path. Two calls: dry (the confirm modal shows the summary and detail), then the write itself, which
    proposes again from a fresh read and refuses when the before-state is not what the modal showed (`expect`). The
    person typed the exact budget, so a step over 50% is allowed (big) and the modal says so. */
-const KIND = { pause: 'meta_pause', resume: 'meta_resume', budget: 'meta_budget', min_spend: 'meta_min_spend', rename: 'meta_rename', duplicate: 'meta_duplicate_adset', create_adset: 'meta_create_adset', schedule: 'meta_schedule', ad_copy: 'meta_ad_copy' };
+const KIND = { pause: 'meta_pause', resume: 'meta_resume', budget: 'meta_budget', min_spend: 'meta_min_spend', rename: 'meta_rename', duplicate: 'meta_duplicate_adset', create_adset: 'meta_create_adset', schedule: 'meta_schedule', ad_copy: 'meta_ad_copy', copy_ad: 'meta_copy_ad' };
 export const LOCUS_KINDS = Object.keys(KIND);
 function locusInput(b) {
   const lv = ['campaign', 'adset', 'ad'].includes(b.level) ? b.level : undefined;
@@ -1234,11 +1261,12 @@ function locusInput(b) {
   if (b.kind === 'min_spend') return { ...base, ...(b.min != null && b.min !== '' ? { min: +b.min } : {}), ...(b.cap != null && b.cap !== '' ? { cap: +b.cap } : {}) };
   if (b.kind === 'rename') return { ...base, new_name: b.name };
   /* 2026-10-27: a new empty ad set (a creator test) in a campaign; targeting, pixel and event from `like` (else a sibling). */
-  if (b.kind === 'create_adset') return { ...base, campaign: String(b.object || ''), name: String(b.name || ''), ...(b.like ? { like: String(b.like) } : {}), ...(b.start ? { start: String(b.start) } : {}) };
+  if (b.kind === 'create_adset') return { ...base, campaign: String(b.object || ''), name: String(b.name || ''), ...(b.like ? { like: String(b.like) } : {}), ...(b.start ? { start: String(b.start) } : {}), ...(b.daily_budget > 0 ? { daily_budget: +b.daily_budget } : {}) };
   /* 2026-10-27: start later (a scheduled launch day) and/or stop at a time. */
   if (b.kind === 'schedule') return { ...base, ...(b.start ? { start: String(b.start) } : {}), ...(b.end ? { end: String(b.end) } : {}) };
   /* 2026-11-02: new words or a new landing page on one ad (a copy of its creative; Meta reviews it again). */
   if (b.kind === 'ad_copy') return { ...base, ...Object.fromEntries(['primary_text', 'headline', 'description', 'link', 'cta'].filter(k => b[k] != null && b[k] !== '').map(k => [k, String(b[k])])) };
+  if (b.kind === 'copy_ad') return { ...base, adset: String(b.adset || ''), ...(b.paused ? { paused: true } : {}) };
   if (b.kind === 'duplicate') return { ...base, new_name: b.name, ...(b.daily_budget != null && b.daily_budget !== '' ? { daily_budget: +b.daily_budget } : {}) };
   return base;
 }
@@ -1259,7 +1287,31 @@ export async function locusWrite(env, d, b, ctx) {
   }
   const r = await act.apply(env, p.patch, null, c);
   if (r.error) return { error: r.error };
-  return { ok: true, summary: p.summary, note: r.note, write: r.write || null, created: r.created || null, level: p.patch.level, object: p.patch.id, name: p.patch.name, after: p.patch.after || null, act: p.patch.act };
+  let caps = null;
+  if (b.kind === 'budget' && p.patch.level === 'campaign' && +b.amount > 0)
+    caps = await followBuyerCaps(env, d, b.act, p.patch.id, +b.amount, ctx).catch(e => ({ error: e.message }));
+  return { ok: true, summary: p.summary, note: r.note, write: r.write || null, created: r.created || null, level: p.patch.level, object: p.patch.id, name: p.patch.name, after: p.patch.after || null, act: p.patch.act, ...(caps ? { caps } : {}) };
+}
+/* PAST BUYERS = 10% OF THE BUDGET (Cole, 2026-11-22). Meta refuses a % spending limit on these campaigns (#3858462),
+   so the cap is dollars and Locus keeps it at 10% of the campaign's daily budget: after every campaign budget write
+   through Locus (War Room approve, Meta tab, Claude's meta_write), each ACTIVE ad set named "Past buyers" in that
+   campaign gets cap = budget x 10% / number of such sets. Logged like any write (Change Log, undo). */
+export const BUYER_SHARE = 0.10;
+export async function followBuyerCaps(env, d, brand, campaignId, budget, ctx) {
+  const sets = (await gall(d, env, `${campaignId}/adsets`, { fields: 'id,name,status,daily_spend_cap', limit: '200' }, 2))
+    .filter(s => s.status === 'ACTIVE' && /past buyers/i.test(s.name || ''));
+  if (!sets.length) return null;
+  const cap = Math.max(1, Math.round(budget * BUYER_SHARE / sets.length));
+  const out = [];
+  for (const s of sets) {
+    const now = s.daily_spend_cap ? +s.daily_spend_cap / 100 : null;
+    if (now != null && Math.abs(now - cap) < 1) { out.push({ id: s.id, name: s.name, cap, same: true }); continue; }
+    const r = await locusWrite(env, d, { act: brand, kind: 'min_spend', level: 'adset', object: s.id, cap,
+      reason: `Past buyers kept at 10% of the $${Math.round(budget)} campaign budget`,
+      client_why: 'Past buyers stay at about 10% of the sale budget; email and texts reach them too.' }, ctx);
+    out.push({ id: s.id, name: s.name, cap, ...(r.error ? { error: r.error } : { write: r.write }) });
+  }
+  return out;
 }
 /** Undo from the toast: the write must be this brand's and under 24 hours old (meta_undo's own checks). */
 export async function locusUndo(env, d, b, ctx) {

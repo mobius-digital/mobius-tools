@@ -2985,3 +2985,30 @@ Scheduled, Live, Off (production.js COLUMNS, profit/production.js COLS).
 - **Also fixed:** /api/production/field takes {field, value} (the MCP's shape; it returned "Nothing to change." for
   everything) and title; listBoard reads IN lists in slices of 90 (D1's 100 bound values made every card read 0 versions
   for all brands).
+
+## 2026-11-22: the creator graduate engine (`src/creatorengine.js`): SUGGEST ONLY
+
+Cole, the same night PR #315 shipped: "Locus doesn't need to do that automatically... whenever I go with you to go through
+Trybe and approve stuff, you should just suggest it to me." So the engine NEVER writes to Meta (no locusWrite, no
+copy_ad, no pause, no create_adset), never posts to Slack and adds no Buyer list rows. Do not add a write path back.
+Per brand: `settings creatorEngine:<act>` = {mode off|suggest (old dry/live values read as suggest), campaign, pool,
+start_budget 15, max_live 8, grace_days 7}; state `creatorEngineState:<act>` (under-3 clocks per set); last plan
+`creatorEngineRun:<act>` (with `suggestions`). Daily from 6am Central (hourly tick, `creatorEngineTick`, once a Central
+day, `settings.creatorEngineDay`) for brands on suggest. Screen: Ads > Trybe > Creator sets (profit/trybe.js
+`engineView`, Lucky too): Off / Suggest, Plan now, today's suggestions.
+- Reads the campaign live (campaign, its ad sets, its ads with creative url_tags + spec). An ad's creator = the Trybe tag
+  (name `trybe=`, url_tags `trybe_adid`, link `&trybe=`) -> p_trybe_sub.creator; else the name ("JoshRutherford | ...",
+  "robertwilliams-fry_Carver02_111326_META"); else its set ("Creator | X", "Ace | X", "Trybe | X"; dated "Trybe | 11/04"
+  is not a creator). Numbers: ad_daily spend, tw_ad_attr lastPlatformClick sales, 7 and 60 days; goal = brands.target_cpa.
+- Suggestions (`suggestionsOf`, one flat row each: id, kind, creator, reason, set_id, set_name, ad_ids, ads, client_why):
+  graduate (3+ live in the pool, or pool + newly approved together, or 3+ approved on a brand with no pool), keep (under 3
+  but beating goal), demote (under 3 for grace_days and not beating: ads to the pool, set paused), pause (an empty set,
+  not one made in the last 2 days), load (approved videos in 14 days that already have a Meta ad elsewhere, or a pool ad
+  of a creator who has their own set), replace (load into a full set in place of its weakest past-wait ad, `pause_ad_id`),
+  raise (+20%, 3+ sales at or under goal in 7 days, ABO only). An ad paused by anyone in the last 14 days (metawrite
+  lastPause) or already in the campaign and off is never suggested back. Videos with no Meta ad are listed as builds.
+- Routes (team only): GET /api/trybe/creator-moves?act=&fresh=1 (the /trybe and /buy reviews read this; plans on the spot
+  when today's plan is missing; mounted before handleTrybe), GET/PUT /api/creator-engine?act=, POST /api/creator-engine/run
+  {act} (plan now, read only), GET /api/creator-engine/all. Strategist: view creator_sets, knowledge topic creator-graduate.
+- A yes in the review is applied by Claude through Locus meta_write (a move = copy_ad + pause), with the row's client_why.
+- Tests: `node test-creatorengine.mjs` (Graph mocked; checks no write call ever leaves the engine).

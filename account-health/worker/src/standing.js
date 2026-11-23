@@ -130,8 +130,8 @@ export function nextLabel(slot) {
   return `${fmt(STAND_HOURS[0])} ${nd.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' })}`;
 }
 export const dayShort = ymd => ymd ? new Date(ymd + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }) : '';
-const W = { scale: 'Scale +50%', hold: 'Hold', cut: 'Cut 25%' };
-const ORDER = { cut: 0, scale: 1, hold: 2 };
+const W = { scale: 'Raise 50%', raise: 'Raise 25%', hold: 'Hold', cut: 'Cut 25%' };
+const ORDER = { cut: 0, scale: 1, raise: 1, hold: 2 };
 /** The Slack DM, laid out like Well Copy's weekly update (Cole, 2026-11-22): a greeting, one intro line, plain section
  *  labels ending in a colon, bullets, and each brand's numbers as sub-bullets. What needs him comes before the brands.
  *  Rich text blocks so Slack draws real nested bullets; `text` is the plain fallback for notifications. */
@@ -157,9 +157,10 @@ export function standingMessage(rec) {
     ...(need.length ? need.map(b => `- ${b.name}: ${W[b.suggest.call].toLowerCase()}, ${money(b.meta.camp.daily)} to ${money(b.suggest.to)}/day`) : ['- Nothing to approve.']), 'Brand by brand:'];
   for (const b of brands) {
     const s = b.so_far || {}, l6 = b.last6 || {}, m = b.meta || {}, g = b.suggest || {}, ap = (rec.approved || {})[b.act_id];
-    const head = `${b.name}: ${ap ? `approved, ${money(ap.from)} to ${money(ap.to)}/day` : `${W[g.call] || 'Hold'}${g.to ? ` to ${money(g.to)}/day` : ''}`}${g.call === 'scale' && !ap ? ' 🎉' : ''}`;
+    const head = `${b.name}: ${ap ? `approved, ${money(ap.from)} to ${money(ap.to)}/day` : `${W[g.call] || 'Hold'}${g.to ? ` to ${money(g.to)}/day` : ''}`}${(g.call === 'scale' || g.call === 'raise') && !ap ? ' 🎉' : ''}`;
     const sub = [b.no_sales ? `Spend: ${kmoney(s.spend)} (no Triple Whale store, so no sales or MER)` : `Sales: ${kmoney(s.sales)} of ${kmoney(b.goal)} (${pctOf(s.sales, b.goal)}%)`];
-    if (!b.no_sales) sub.push(`MER: ${xx(s.mer)} so far, ${xx(l6.mer)} last 6 hours (KPI ${xx(b.kpi)})`);
+    if (!b.no_sales && s.new_mer != null) sub.push(`New customers: ${kmoney(s.new_rev)} from ${s.new_orders ?? 'n/a'} first orders${s.email_share_new != null ? ` (${Math.round(s.email_share_new * 100)}% from email left out)` : ''}, new-customer MER ${xx(s.new_mer)} (break-even ${xx(b.be_new)})`);
+    if (!b.no_sales) sub.push(`Store MER: ${xx(s.mer)} so far, ${xx(l6.mer)} last 6 hours (KPI ${xx(b.kpi)})`);
     sub.push(m.error ? `Budget: Meta did not answer (${m.error})` : !m.camp ? 'Budget: no live sale campaign in Meta'
       : `Budget: ${m.camp.daily ? `${money(m.camp.daily)}/day` : 'ad set budgets'}${m.limit ? `, ${money(m.headroom)} room under Meta's limit` : ''}`);
     if (g.note) sub.push(`Note: ${g.note}`);
