@@ -1259,7 +1259,31 @@ export async function locusWrite(env, d, b, ctx) {
   }
   const r = await act.apply(env, p.patch, null, c);
   if (r.error) return { error: r.error };
-  return { ok: true, summary: p.summary, note: r.note, write: r.write || null, created: r.created || null, level: p.patch.level, object: p.patch.id, name: p.patch.name, after: p.patch.after || null, act: p.patch.act };
+  let caps = null;
+  if (b.kind === 'budget' && p.patch.level === 'campaign' && +b.amount > 0)
+    caps = await followBuyerCaps(env, d, b.act, p.patch.id, +b.amount, ctx).catch(e => ({ error: e.message }));
+  return { ok: true, summary: p.summary, note: r.note, write: r.write || null, created: r.created || null, level: p.patch.level, object: p.patch.id, name: p.patch.name, after: p.patch.after || null, act: p.patch.act, ...(caps ? { caps } : {}) };
+}
+/* PAST BUYERS = 10% OF THE BUDGET (Cole, 2026-11-22). Meta refuses a % spending limit on these campaigns (#3858462),
+   so the cap is dollars and Locus keeps it at 10% of the campaign's daily budget: after every campaign budget write
+   through Locus (War Room approve, Meta tab, Claude's meta_write), each ACTIVE ad set named "Past buyers" in that
+   campaign gets cap = budget x 10% / number of such sets. Logged like any write (Change Log, undo). */
+export const BUYER_SHARE = 0.10;
+export async function followBuyerCaps(env, d, brand, campaignId, budget, ctx) {
+  const sets = (await gall(d, env, `${campaignId}/adsets`, { fields: 'id,name,status,daily_spend_cap', limit: '200' }, 2))
+    .filter(s => s.status === 'ACTIVE' && /past buyers/i.test(s.name || ''));
+  if (!sets.length) return null;
+  const cap = Math.max(1, Math.round(budget * BUYER_SHARE / sets.length));
+  const out = [];
+  for (const s of sets) {
+    const now = s.daily_spend_cap ? +s.daily_spend_cap / 100 : null;
+    if (now != null && Math.abs(now - cap) < 1) { out.push({ id: s.id, name: s.name, cap, same: true }); continue; }
+    const r = await locusWrite(env, d, { act: brand, kind: 'min_spend', level: 'adset', object: s.id, cap,
+      reason: `Past buyers kept at 10% of the $${Math.round(budget)} campaign budget`,
+      client_why: 'Past buyers stay at about 10% of the sale budget; email and texts reach them too.' }, ctx);
+    out.push({ id: s.id, name: s.name, cap, ...(r.error ? { error: r.error } : { write: r.write }) });
+  }
+  return out;
 }
 /** Undo from the toast: the write must be this brand's and under 24 hours old (meta_undo's own checks). */
 export async function locusUndo(env, d, b, ctx) {

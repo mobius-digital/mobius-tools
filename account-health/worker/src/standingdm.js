@@ -12,7 +12,7 @@ const money = v => v == null ? 'n/a' : `$${Math.round(v).toLocaleString('en-US')
 const k = v => v == null ? 'n/a' : Math.abs(v) >= 1000 ? `$${(v / 1000).toFixed(Math.abs(v) >= 10000 ? 0 : 1)}k` : `$${Math.round(v)}`;
 const x = v => v == null ? 'n/a' : `${(Math.round(v * 100) / 100).toFixed(2)}x`;
 const pct = (a, b) => b ? Math.round(a / b * 100) : 0;
-const W = { scale: 'Scale +50%', hold: 'Hold', cut: 'Cut 25%' };
+const W = { scale: 'Raise 50%', raise: 'Raise 25%', hold: 'Hold', cut: 'Cut 25%' };
 const ORDER = { cut: 0, scale: 1, hold: 2 };
 const DOT = v => v === 'good' ? '🟢' : v === 'warn' ? '🟡' : v === 'bad' ? '🔴' : '⚪';
 const COLOR = { scale: '#2EB67D', hold: '#ECB22E', cut: '#E01E5A', done: '#868686' };
@@ -52,12 +52,12 @@ function wcBlocks(rec, prev, link) {
   blocks.push({ type: 'divider' }, md(`*Needs Your Yes* ✅`));
   if (!N.length) blocks.push(md('_Nothing to approve. Every brand is on Hold._'));
   for (const b of N) blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `\`${b.name}\`\n> *${W[b.suggest.call]}:* ${money(b.meta.camp.daily)} to ${money(b.suggest.to)}/day\n> _${b.suggest.why || ''}_` },
-    accessory: btn('Approve', link(b.act_id), b.suggest.call === 'scale' ? 'primary' : 'danger') });
+    accessory: btn('Approve', link(b.act_id), (b.suggest.call === 'scale' || b.suggest.call === 'raise') ? 'primary' : 'danger') });
   blocks.push({ type: 'divider' }, md('*Brands* 📊'));
   const field = b => {
     const s = b.so_far || {}, l6 = b.last6 || {}, m = b.meta || {}, g = b.suggest || {}, ap = (rec.approved || {})[b.act_id], dd = d && d.per[b.act_id];
     const call = ap ? `approved ${money(ap.to)}/day` : `${W[g.call] || 'Hold'}`;
-    const lines = [`\`${b.name}\` ${DOT(ap ? 'good' : g.call === 'scale' ? 'good' : g.call === 'cut' ? 'bad' : 'warn')} ${call}`];
+    const lines = [`\`${b.name}\` ${DOT(ap ? 'good' : (g.call === 'scale' || g.call === 'raise') ? 'good' : g.call === 'cut' ? 'bad' : 'warn')} ${call}`];
     if (b.no_sales) lines.push(`> *Spend:* ${k(s.spend)}`, '> _No Triple Whale store_');
     else lines.push(`> *Sales:* ${k(s.sales)} of ${k(b.goal)}${dd ? `, _+${k(dd.sales)}_` : ''}`, `> *MER:* ${x(s.mer)}, _${x(l6.mer)} last 6h_`);
     lines.push(`> *Budget:* ${m.camp && m.camp.daily ? `${money(m.camp.daily)}/day` : 'n/a'}${m.headroom != null ? `, _${k(m.headroom)} room_` : ''}`);
@@ -92,7 +92,7 @@ function boardBlocks(rec, prev, link) {
     fields.push({ type: 'mrkdwn', text: `*Budget*\n${m.camp && m.camp.daily ? `${money(m.camp.daily)}/day` : m.error ? 'Meta did not answer' : 'n/a'}` },
       { type: 'mrkdwn', text: `*Room under Meta's limit*\n${m.headroom != null ? money(m.headroom) : 'n/a'}` });
     const sec = { type: 'section', text: { type: 'mrkdwn', text: head } };
-    if (g.to && !ap) sec.accessory = btn('Approve', link(b.act_id), g.call === 'scale' ? 'primary' : 'danger');
+    if (g.to && !ap) sec.accessory = btn('Approve', link(b.act_id), (g.call === 'scale' || g.call === 'raise') ? 'primary' : 'danger');
     const why = `${g.why || ''}${g.note ? ` ${g.note}` : ''}`.trim();
     return { color: ap ? COLOR.done : COLOR[g.call] || COLOR.hold, blocks: [sec, { type: 'section', fields }, ...(why ? [{ type: 'context', elements: [{ type: 'mrkdwn', text: why }] }] : [])] };
   });
@@ -109,7 +109,7 @@ const H = t => ({ type: 'header', text: { type: 'plain_text', text: t, emoji: tr
 const DIV = { type: 'divider' };
 const CTX = t => ({ type: 'context', elements: [{ type: 'mrkdwn', text: t }] });
 const F = (label, value) => ({ type: 'mrkdwn', text: `*${label}*\n${value}` });
-const callDot = (b, ap) => ap ? '✅' : DOT((b.suggest || {}).call === 'scale' ? 'good' : (b.suggest || {}).call === 'cut' ? 'bad' : 'warn');
+const callDot = (b, ap) => ap ? '✅' : DOT(['scale','raise'].includes((b.suggest || {}).call) ? 'good' : (b.suggest || {}).call === 'cut' ? 'bad' : 'warn');
 const callText = (b, ap) => ap ? `Approved, ${money(ap.to)}/day` : `${W[(b.suggest || {}).call] || 'Hold'}${(b.suggest || {}).to ? ` to ${money(b.suggest.to)}/day` : ''}`;
 function topBlocks(rec, prev) {
   const T = totals(rec), d = since(rec, prev), N = needs(rec);
@@ -125,7 +125,7 @@ function needBlocks(rec, link) {
   if (!N.length) return [DIV, H('Needs your yes'), CTX('Nothing to approve. Every brand is on Hold.')];
   return [DIV, H(`Needs your yes (${N.length})`), ...N.flatMap(b => [
     { type: 'section', text: { type: 'mrkdwn', text: `${callDot(b)} *${b.name}*\n${W[b.suggest.call]}: ${money(b.meta.camp.daily)} to *${money(b.suggest.to)}*/day` },
-      accessory: btn('Approve', link(b.act_id), b.suggest.call === 'scale' ? 'primary' : 'danger') },
+      accessory: btn('Approve', link(b.act_id), (b.suggest.call === 'scale' || b.suggest.call === 'raise') ? 'primary' : 'danger') },
     ...(b.suggest.why ? [CTX(b.suggest.why)] : [])])];
 }
 const foot = (rec, link) => [DIV, CTX(`Sales and MER: Triple Whale · Budgets: Meta · Nothing changes until you tap Approve · <${link()}|Open the War Room>`)];
@@ -165,7 +165,7 @@ function cBlocks(rec, prev, link) {
       : [F('Sales', `${k(s.sales)} of ${k(b.goal)}${dd ? `\n_+${k(dd.sales)} since ${d.label}_` : ''}`), F('MER', `${x(s.mer)} so far\n_${x(l6.mer)} last 6h · KPI ${x(b.kpi)}_`)];
     fields.push(F('Budget', m.camp && m.camp.daily ? `${money(m.camp.daily)}/day` : 'n/a'), F('Room under limit', m.headroom != null ? money(m.headroom) : 'n/a'));
     const sec = { type: 'section', text: { type: 'mrkdwn', text: `*${b.name}*\n${callText(b, ap)}` } };
-    if (g.to && !ap) sec.accessory = btn('Approve', link(b.act_id), g.call === 'scale' ? 'primary' : 'danger');
+    if (g.to && !ap) sec.accessory = btn('Approve', link(b.act_id), (g.call === 'scale' || g.call === 'raise') ? 'primary' : 'danger');
     return { color: ap ? COLOR.done : COLOR[g.call] || COLOR.hold, blocks: [sec, { type: 'section', fields }, ...(g.why ? [CTX(g.why)] : [])] };
   });
   return { blocks: [...topBlocks(rec, prev), DIV, H('Brands'), CTX('Green = scale, yellow = hold, red = cut. Approve opens the brand on the War Room.')], attachments: [...attachments, { color: '#4C7AE6', blocks: foot(rec, link).slice(1) }] };
