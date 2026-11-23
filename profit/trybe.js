@@ -254,16 +254,19 @@
   const LVIEWS = [['review', 'Review'], ['week', 'This week'], ['lcreators', 'Creators'], ['sets', 'Creator sets'], ['clubhouse', 'Discord']];
 
   /* ---------- Creator sets (2026-11-22): the creator graduate engine (account-health creatorengine.js) ----------
-     The brand's creator campaign, pool and limits; off / dry run / live; the last run's plan, what moved, the raises it
-     proposes (they go to the Buyer list, never applied here) and the drafts (DM + Discord, copy them, never posted). */
-  const CE_KIND = { graduate: 'Graduate', move: 'Move', pause_set: 'Pause set', load: 'Load' };
-  function ceMove(m) {
-    const res = m.result ? (m.result.error ? `<span class="v2bad">${esc(m.result.error)}</span>` : `<span class="v2good">Done${m.result.warn ? `, ${esc(m.result.warn)}` : ''}</span>`) : '';
-    const what = m.kind === 'graduate' ? `${esc(m.creator)}: new set "${esc(m.set_name)}"${m.budget ? ` at ${money(m.budget)}/day` : ''}, ${m.ads.length} ad${m.ads.length === 1 ? '' : 's'} in`
-      : m.kind === 'pause_set' ? `"${esc(m.set_name)}"`
-      : m.kind === 'load' ? `${esc(m.creator)}: "${esc(m.ad_name)}" into "${esc(m.to_name)}"${m.replace ? `, replacing "${esc(m.replace.name)}"` : ''}`
-      : `${esc(m.creator)}: "${esc(m.ad_name)}" into "${esc(m.to_name)}"`;
-    return `<tr><td><span class="v2pill">${CE_KIND[m.kind] || esc(m.kind)}</span></td><td>${what}<div class="tb-sub">${esc(m.why || '')}</div></td><td>${res}</td></tr>`;
+     SUGGEST ONLY (Cole, 2026-11-22): Locus reads the creator campaign every morning and lists the moves the SOP calls for.
+     It changes nothing in Meta. Cole approves each one in the /trybe or /buy review with Claude, which reads the same list
+     at /api/trybe/creator-moves. This screen: the brand's campaign, pool and limits, Off / Suggest, today's suggestions. */
+  const CE_KIND = { graduate: 'Graduate', keep: 'Keep', demote: 'Demote', pause: 'Pause set', load: 'Load', replace: 'Replace', raise: 'Raise' };
+  function ceRow(x) {
+    const ads = (x.ads || []).map(a => a.name || a.id).filter(Boolean);
+    const what = x.kind === 'graduate' ? `${esc(x.creator)}: new set "${esc(x.set_name)}"${x.budget ? ` at ${money(x.budget)}/day` : ''}, ${ads.length} ad${ads.length === 1 ? '' : 's'} in`
+      : x.kind === 'demote' ? `${esc(x.creator)}: "${esc(x.set_name)}" back to "${esc(x.to_set_name || 'the pool')}"`
+      : x.kind === 'raise' ? `"${esc(x.set_name)}" ${money(x.budget_from)} to ${money(x.budget_to)} a day`
+      : x.kind === 'replace' ? `${esc(x.creator)}: "${esc(ads[0] || '')}" into "${esc(x.set_name)}", in place of "${esc(x.pause_ad_name || '')}"`
+      : x.kind === 'load' ? `${esc(x.creator)}: "${esc(ads[0] || '')}" into "${esc(x.set_name)}"`
+      : `"${esc(x.set_name)}"`;
+    return `<tr><td><span class="v2pill">${CE_KIND[x.kind] || esc(x.kind)}</span></td><td>${what}<div class="tb-sub">${esc(x.reason || '')}</div></td></tr>`;
   }
   async function engineView(box) {
     if (!box) return;
@@ -271,13 +274,13 @@
     let d;
     try { d = await H.apiAH(`/api/creator-engine?act=${encodeURIComponent(act)}`); if (d && d.error) throw new Error(d.error); }
     catch (e) { box.innerHTML = `<p class="v2bad">${esc(e.message)}</p>`; return; }
-    const c = d.cfg || {}, r = d.run;
+    const c = d.cfg || {}, r = d.run, list = (r && r.suggestions) || [];
     const modeBtn = (m, l) => `<button type="button" class="${c.mode === m ? 'on' : ''}" data-cem="${m}">${l}</button>`;
     const sets = r && r.sets ? r.sets.map(x => `<tr><td>${esc(x.name)}</td><td class="num">${x.live}</td><td class="num">${money(x.s7)}</td><td class="num">${n1(x.o7)}</td><td class="num">${x.cpa == null ? 'none' : money(x.cpa)}</td><td>${x.beats ? '<span class="v2good">Beats goal</span> ' : ''}${esc(x.verdict)}</td></tr>`).join('') : '';
     const drafts = r && r.drafts && r.drafts.length ? r.drafts.map((x, i) => `<div class="tb-mini"><div></div><div><b>${esc(x.kind === 'discord' ? 'Discord shout-out' : x.kind === 'demote_dm' ? 'DM: back to the pool' : 'DM: graduation')}</b>, ${esc(x.creator)}<div class="tb-sub" data-ced="${i}">${esc(x.text)}</div></div><div><button type="button" class="v2btn ghost" data-cecopy="${i}">Copy</button></div></div>`).join('') : '';
-    box.innerHTML = `<div class="v2h"><h3>Creator sets run themselves</h3><span class="cap">${c.mode === 'live' ? 'Live: Locus makes the moves' : c.mode === 'dry' ? 'Dry run: Locus plans, changes nothing' : 'Off'}</span></div>
-      <p class="v2hint">Every morning Locus reads the creator campaign. 3 approved videos live at once = the creator gets their own set. A set beating the goal cost per sale (Triple Whale, 7 days) stays at any count. Under 3 for ${esc(c.grace_days)} days and not beating goal = back to the pool. An empty set pauses. A full set (${esc(c.max_live)}) swaps its weakest ad past the wait window for a new video. Budget raises are only proposed on the Buyer list. Every move is in the Change Log with undo.</p>
-      <div class="v2jobs tb-seg" role="tablist">${modeBtn('off', 'Off')}${modeBtn('dry', 'Dry run')}${modeBtn('live', 'Live')}</div>
+    box.innerHTML = `<div class="v2h"><h3>Creator set suggestions</h3><span class="cap">${c.mode === 'suggest' ? 'Suggest: Locus plans every morning, changes nothing' : 'Off'}</span></div>
+      <p class="v2hint">Locus suggests, Cole approves. Every morning Locus reads the creator campaign and lists what the creator rules call for: 3 approved videos live at once = the creator's own set. A set beating the goal cost per sale (Triple Whale, 7 days) stays at any count. Under 3 for ${esc(c.grace_days)} days and not beating goal = back to the pool. An empty set pauses. A full set (${esc(c.max_live)}) swaps its weakest ad past the wait window for a new video. Locus never makes these moves itself: Cole says yes or no to each one in the Trybe and media buying reviews with Claude, and only a yes is applied.</p>
+      <div class="v2jobs tb-seg" role="tablist">${modeBtn('off', 'Off')}${modeBtn('suggest', 'Suggest')}</div>
       <div class="tb-key" style="flex-wrap:wrap;gap:8px;margin-top:10px">
         <label>Creator campaign id <input id="ceCamp" value="${esc(c.campaign || '')}" inputmode="numeric"></label>
         <label>Pool ad set id <input id="cePool" value="${esc(c.pool || '')}" inputmode="numeric" placeholder="none"></label>
@@ -285,11 +288,9 @@
         <label>Max live per set <input id="ceMax" value="${esc(c.max_live)}" inputmode="numeric" style="width:60px"></label>
         <label>Demote after days <input id="ceGrace" value="${esc(c.grace_days)}" inputmode="numeric" style="width:60px"></label>
       </div>
-      <div class="tb-foot"><button type="button" class="v2btn" id="ceSave">Save</button><button type="button" class="v2btn ghost" id="ceDry">Run a dry run now</button>${c.mode === 'live' ? '<button type="button" class="v2btn ghost" id="ceLive">Run it for real now</button>' : ''}<span class="v2hint">${r ? `Last run ${esc(ago(r.at))}${r.dry ? ' (dry)' : `, ${r.applied || 0} done${r.failed ? `, ${r.failed} failed` : ''}`}.` : 'Not run yet.'}</span></div>
+      <div class="tb-foot"><button type="button" class="v2btn" id="ceSave">Save</button><button type="button" class="v2btn ghost" id="cePlan">Plan now</button><span class="v2hint">${r ? `Last plan ${esc(ago(r.at))}.` : 'Not planned yet.'}</span></div>
       ${r && r.error ? `<p class="v2bad">${esc(r.error)}</p>` : ''}
-      ${r && !r.error ? `<h4>${r.dry ? 'What it would do' : 'What it did'} (${(r.moves || []).length})</h4>${(r.moves || []).length ? `<div class="v2tbl"><table><tbody>${r.moves.map(ceMove).join('')}</tbody></table></div>` : '<p class="v2hint">Nothing to move today.</p>'}
-        ${(r.keeps || []).length ? `<h4>Kept under 3 (beating goal)</h4><ul class="tb-rules">${r.keeps.map(k => `<li>${esc(k.why)}</li>`).join('')}</ul>` : ''}
-        ${(r.proposals || []).length ? `<h4>Raises waiting for a yes (Buyer list)</h4><ul class="tb-rules">${r.proposals.map(k => `<li><b>${esc(k.set_name)}</b>: ${esc(k.why)}</li>`).join('')}</ul>` : ''}
+      ${r && !r.error ? `<h4>Suggested (${list.length}), waiting for Cole's yes in the review</h4>${list.length ? `<div class="v2tbl"><table><tbody>${list.map(ceRow).join('')}</tbody></table></div>` : '<p class="v2hint">Nothing to suggest today.</p>'}
         ${(r.builds || []).length ? `<h4>Approved, no Meta ad yet: build in Trybe (${r.builds.length})</h4><ul class="tb-rules">${[...new Map(r.builds.map(b => [b.creator, r.builds.filter(x => x.creator === b.creator)])).entries()].map(([n, xs]) => `<li>${esc(n)}: ${xs.length} video${xs.length === 1 ? '' : 's'}, approved ${xs[0].days} days ago${xs.some(x => x.late) ? ' <span class="v2bad">late</span>' : ''}</li>`).join('')}</ul>` : ''}
         ${drafts ? `<h4>Drafts to send yourself</h4>${drafts}` : ''}
         ${(r.notes || []).length ? `<h4>Notes</h4><ul class="tb-rules">${r.notes.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
@@ -297,16 +298,11 @@
     const val = id => document.getElementById(id).value.trim();
     const body = mode => ({ act, mode, campaign: val('ceCamp'), pool: val('cePool'), start_budget: val('ceBud'), max_live: val('ceMax'), grace_days: val('ceGrace') });
     const save = async mode => { try { const x = await ah('/api/creator-engine', body(mode), 'PUT'); if (x && x.error) throw new Error(x.error); toast('Saved'); engineView(box); } catch (e) { toast(e.message); } };
-    box.querySelectorAll('[data-cem]').forEach(b => { b.onclick = () => { if (b.dataset.cem === 'live' && !confirmLive()) return; save(b.dataset.cem); }; });
+    box.querySelectorAll('[data-cem]').forEach(b => { b.onclick = () => save(b.dataset.cem); });
     const sv = box.querySelector('#ceSave'); if (sv) sv.onclick = () => save(c.mode);
-    const run = async (live, btn) => { btn.disabled = true; btn.textContent = live ? 'Running…' : 'Planning…'; try { const x = await ah('/api/creator-engine/run', { act, live }); if (x && x.error && !x.moves) throw new Error(x.error); engineView(box); } catch (e) { toast(e.message); btn.disabled = false; } };
-    const dr = box.querySelector('#ceDry'); if (dr) dr.onclick = () => run(false, dr);
-    const lv = box.querySelector('#ceLive'); if (lv) lv.onclick = () => run(true, lv);
+    const pl = box.querySelector('#cePlan'); if (pl) pl.onclick = async () => { pl.disabled = true; pl.textContent = 'Planning…'; try { const x = await ah('/api/creator-engine/run', { act }); if (x && x.error && !x.suggestions) throw new Error(x.error); engineView(box); } catch (e) { toast(e.message); pl.disabled = false; pl.textContent = 'Plan now'; } };
     box.querySelectorAll('[data-cecopy]').forEach(b => { b.onclick = async () => { const t = box.querySelector(`[data-ced="${b.dataset.cecopy}"]`).textContent; try { await navigator.clipboard.writeText(t); toast('Copied'); } catch { toast('Copy did not work; select the text'); } }; });
   }
-  /* Going live makes real Meta changes every morning, so the switch asks once, in the page. */
-  let ceSure = false;
-  function confirmLive() { if (ceSure) return true; ceSure = true; toast('Tap Live again to let Locus make the moves for real'); return false; }
 
   async function paintLucky() {
     const seg = `<div class="v2jobs tb-seg" role="tablist">${LVIEWS.map(([id, l]) => `<button type="button" role="tab" data-lv="${id}" class="${LV === id ? 'on' : ''}">${l}</button>`).join('')}</div>`;

@@ -8037,9 +8037,9 @@ const AH_APP = {
           /* Trybe (trybe.js): once a Central day from 4am, every brand with a key is pulled, then its internal channel
              hears about approved videos that sat 3 days (and Monday's rebook list). */
           if (subCanAfford(80)) ran.trybe = await trybeTick(env, trybeDeps()).catch(e => ({ error: e.message }));
-          /* Creator graduate engine (creatorengine.js, 2026-11-22): once a Central day from 6am, every brand switched to
-             dry or live: graduate / keep / demote / pause / load / replace in its creator campaign; one Slack post per
-             brand only when something moved (live). Budget raises are only proposed (Buyer list). */
+          /* Creator graduate engine (creatorengine.js, 2026-11-22): once a Central day from 6am, every brand on suggest gets
+             today's plan (graduate / keep / demote / pause / load / replace / raise) stored for GET /api/trybe/creator-moves.
+             SUGGEST ONLY: it never writes to Meta and never posts; Cole approves the moves in the /trybe and /buy reviews. */
           if (subCanAfford(150)) { const c = await creatorEngineTick(env, creatorDeps()).catch(e => ({ error: e.message })); if (!c?.skipped) ran.creatorEngine = c; }
           /* Creator Discord: one welcome post a day in #welcome, from 5pm Central (trybe.js discordWelcomeTick). */
           if (subCanAfford(20)) { const w = await discordWelcomeTick(env, trybeDeps()).catch(e => ({ error: e.message })); if (!w?.skipped) ran.discordWelcome = w; }
@@ -8557,7 +8557,8 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         moveCard: (e, id, who) => prodMove(e, actionDeps(), { id, to: 'live' }, who) } });
       if (r) return r;
     }
-    /* ---- Creator graduate engine (creatorengine.js): per-brand settings, the last run, Run now (dry unless live). ---- */
+    /* ---- Creator graduate engine (creatorengine.js): per-brand settings, the suggestions (GET /api/trybe/creator-moves, read by
+       the /trybe and /buy reviews), Plan now. Suggest only: nothing here writes to Meta. Mounted BEFORE handleTrybe. ---- */
     {
       const r = await handleCreatorEngine(request, env, url, path, json, { isAdmin, sessionEmail, brandsFor, resolveBrandId, isClient: r => !!clientScope(r), deps: creatorDeps() });
       if (r) return r;
