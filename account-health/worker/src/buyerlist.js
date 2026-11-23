@@ -45,7 +45,6 @@ import { gall } from './metawrite.js';
 import { trybeBanners } from './trybe.js';
 import { readAI, applyAI, aiPassDone, buyerAIOn, adNumbers, withCovers, metaActsOf, disagree, decide, lessonsFor, buyerAITick, spentToday, trackingCheck, DAY_CAP, POST_WAIT_HOURS, noDash, CARD_KINDS } from './buyerai.js';
 import { laneBlocks } from './lane.js';
-import { creatorRaiseRows } from './creatorengine.js';
 
 export const DEFAULT_BUYER_CHANNEL = 'C0C8UA53U3W';   // #daily-briefs
 export const DEFAULT_OWNER = 'Cole';
@@ -605,9 +604,7 @@ export async function buildBuyerList(env, d, { act = 'all', only = null, live = 
   /* The morning read (buyerai.js): a verdict on each rule row, and the calls the rules missed as rows of kind 'ai'. */
   /* a set already on the list (a call or its minimum) keeps that row, not a second one */
   const onList = new Set([...calls, ...mins.rows].map(r => String(r.adset_id || '')).filter(Boolean));
-  /* Creator graduate engine (creatorengine.js): +20% on a creator set beating goal, proposed only; a yes applies it. */
-  const creator = await creatorRaiseRows(env, accts).catch(e => { notes.push(`Creator sets: ${e.message}`); return []; });
-  let all = [...calls, ...mins.rows, ...stall.filter(r => !onList.has(r.adset_id)), ...launch.rows, ...creator.filter(r => !onList.has(r.adset_id))], ai = new Map();
+  let all = [...calls, ...mins.rows, ...stall.filter(r => !onList.has(r.adset_id)), ...launch.rows], ai = new Map();
   if (!noAI) { try { ai = await readAI(env, ids, today); all = applyAI(all, ai, accts); } catch (e) { notes.push(`Morning read: ${e.message}`); } }
   /* Locus checks before it asks (2026-10-27): a call held for a tracking gap is checked here (Meta's own count vs Triple
      Whale on that set, the tags when they disagree) and says what it found instead of "fix tracking". */

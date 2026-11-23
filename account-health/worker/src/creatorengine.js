@@ -1,38 +1,38 @@
-/* THE CREATOR GRADUATE ENGINE (2026-11-22, Cole: "how do we do this to where it's automatic, and does Locus understand it?")
+/* THE CREATOR GRADUATE ENGINE: SUGGEST ONLY (built 2026-11-22, PR #315; made suggest-only the same night).
  *
- * The SOP (memory creator-graduate-sop): one creator campaign per brand. A creator with 3+ approved ads LIVE at once gets
- * their own ad set "Creator | <Name>" at a small start budget; everyone else shares the pool set. Once a day, per brand
- * that is switched on, this file reads the campaign live from Meta and:
+ * Cole: "Locus doesn't need to do that automatically... whenever I go with you to go through Trybe and approve stuff,
+ * you should just suggest it to me." So this file NEVER writes to Meta (no locusWrite, no copy_ad, no pause), never
+ * posts to Slack and never adds Buyer list rows. It reads the creator campaign and stores what the SOP (memory
+ * creator-graduate-sop) says to do; the /trybe and /buy reviews read GET /api/trybe/creator-moves and show each one as
+ * a Yes/No row; a yes is applied by Claude through Locus meta_write in that review, like every other move.
+ *
+ * The SOP: one creator campaign per brand. A creator with 3+ approved ads LIVE at once gets their own ad set
+ * "Creator | <Name>" at a small start budget; everyone else shares the pool set. The suggestions:
  *   graduate  a creator with 3+ live ads in the pool and no set of their own: make "Creator | <Name>" (start budget, ABO;
- *             no budget on a CBO campaign), turn it on, copy their live pool ads in, pause the pool originals.
- *   keep      a creator set beating goal CPA (Triple Whale lastPlatformClick, 7 days) stays at any count.
+ *             no budget on a CBO campaign), copy their live pool ads in, pause the pool originals.
+ *   keep      a creator set under 3 live but beating goal CPA (Triple Whale lastPlatformClick, 7 days): leave it.
  *   demote    a creator set under 3 live ads for `grace_days` straight days and NOT beating goal: copy its live ads into
  *             the pool, pause the originals and the set.
  *   pause     a creator set with 0 live ads: pause the set.
- *   load      an approved Trybe video (approved in the last 14 days) with no live ad in the campaign: when Meta already
- *             holds an ad for it anywhere in the account, copy that ad into the creator's set (or the pool). A video with
- *             no ad at all cannot be built here (copy, landing page, partnership): it is listed as "build in Trybe".
- *   replace   a full set (`max_live`) gets a new video only by pausing its weakest ad that is past the wait window
+ *   load      an approved Trybe video (approved in the last 14 days) with no live ad in the campaign, when Meta already
+ *             holds an ad for it anywhere in the account: copy it into the creator's set (or the pool). Also a pool ad of
+ *             a creator who already has their own set. A video with no ad at all is listed as "build in Trybe".
+ *   replace   a full set (`max_live`) takes a new video only in place of its weakest ad that is past the wait window
  *             (2x goal spent and 3+ days old) and not beating goal.
- *   propose   a creator set at or under goal CPA with 3+ sales in 7 days: +20% budget, as a Buyer list row. NEVER applied.
+ *   raise     a creator set at or under goal CPA with 3+ sales in 7 days: +20% budget.
  * Matching an ad to a creator: the Trybe tag (trybe= in the ad name, `trybe_adid` / `&trybe=` in the creative's url tags
  * or link) -> p_trybe_sub.creator; else the creator's name at the front of the ad name ("JoshRutherford | ...") or in a
  * creator file name ("robertwilliams-fry_Carver02_111326_META"), which is how Lucky's own app names them; else the set.
  *
- * Meta cannot move an ad between ad sets, so a move = meta_copy_ad (same creative and post, Trybe tags ride on the
- * creative) then meta_pause on the original. Every write goes through metawrite.js locusWrite: the same path as
- * Locus's own screens and meta_write, so each lands in the Change Log with a client_why and undo (24h).
- *
- * Modes per brand (settings `creatorEngine:<act>`): off | dry (plans and stores the plan, writes nothing, posts nothing)
- * | live. The daily tick runs from 6am Central. Slack: ONE post per brand per day in its internal channel, only when
- * something moved (live mode). Graduation DMs and Discord shout-outs are DRAFTS in the run, never posted.
+ * Modes per brand (settings `creatorEngine:<act>`): off | suggest. The daily tick (from 6am Central) plans every brand on
+ * suggest; the route also plans on demand when today's plan is missing. Graduation DMs and Discord shout-outs are drafts.
  * No em dashes in anything this writes. */
-import { gall, gget, metaActs, locusWrite, lastPause } from './metawrite.js';
+import { gall, gget, metaActs, lastPause } from './metawrite.js';   // reads only: no write helper is imported here
 import { ensureTrybe, trybeIdOf } from './trybe.js';
 
 const ATTR = 'lastPlatformClick';
-const WHO = 'Locus (creator engine)';
 export const CE_DEFAULTS = { mode: 'off', campaign: '', pool: '', start_budget: 15, max_live: 8, grace_days: 7 };
+export const MODES = ['off', 'suggest'];
 export const GRADUATE_AT = 3, WAIT_DAYS = 3, LOAD_WINDOW = 14, RAISE_PCT = 0.2, RAISE_MIN_SALES = 3;
 /* "Live" = switched on and delivering or about to (in Meta's review); a set made in the last NEW_SET_DAYS is never paused for being empty. */
 const LIVEISH = new Set(['ACTIVE', 'PENDING_REVIEW', 'IN_PROCESS', 'PREAPPROVED']);
@@ -81,12 +81,14 @@ export function creatorOfSet(name) {
 }
 
 /* ---------- settings ---------- */
-export async function readCfg(env, act) { return { ...CE_DEFAULTS, ...(safeJson(await getSetting(env, `creatorEngine:${act}`), {}) || {}) }; }
+/** Old 'dry' / 'live' values (PR #315) read as 'suggest': nothing here can act any more. */
+const modeOf = m => (m === 'off' || !m ? 'off' : 'suggest');
+export async function readCfg(env, act) { const c = { ...CE_DEFAULTS, ...(safeJson(await getSetting(env, `creatorEngine:${act}`), {}) || {}) }; c.mode = modeOf(c.mode); return c; }
 export async function saveCfg(env, act, b) {
   const cur = await readCfg(env, act);
   const num = (v, lo, hi, fb) => { const n = +v; return Number.isFinite(n) && n >= lo && n <= hi ? n : fb; };
   const next = {
-    mode: ['off', 'dry', 'live'].includes(b.mode) ? b.mode : cur.mode,
+    mode: MODES.includes(b.mode) ? b.mode : cur.mode,
     campaign: b.campaign != null ? String(b.campaign).replace(/\D/g, '') : cur.campaign,
     pool: b.pool != null ? String(b.pool).replace(/\D/g, '') : cur.pool,
     start_budget: num(b.start_budget ?? cur.start_budget, 5, 500, 15),
@@ -289,132 +291,66 @@ export async function planBrand(env, d, act, { today, cfg } = {}) {
     sets: setView, moves, keeps, proposals, drafts, builds, notes, nextState };
 }
 
-/* ---------- doing ---------- */
-async function write(env, d, act, b) {
-  return locusWrite(env, d, { act, by: WHO, reason: noDash(b.reason || 'Creator engine'), client_why: noDash(b.client_why || ''), ...b }, { who: WHO });
-}
-/** Apply a plan (live) or return it as is (dry). Each step's result is kept on the move. */
-export async function runBrand(env, d, act, { dry = true, today, cfg } = {}) {
-  const plan = await planBrand(env, d, act, { today, cfg });
-  if (plan.error) { await putSetting(env, runKey(act), JSON.stringify({ ...plan, at: new Date().toISOString(), dry })); return plan; }
-  const done = [];
-  if (!dry) {
-    for (const m of plan.moves) {
-      if (d.canAfford && !d.canAfford(25)) { m.result = { error: 'Out of calls this run; it goes tomorrow.' }; continue; }
-      try { m.result = await doMove(env, d, act, plan, m); } catch (e) { m.result = { error: e.message }; }
-      if (m.result && !m.result.error) done.push(m);
-    }
+/* ---------- suggestions: the plan as one flat list the reviews read ---------- */
+/** One row per suggestion: {id, kind, creator, reason, set_id, set_name, ad_ids, ...}. Kinds: graduate, keep, demote,
+ *  pause, load, replace, raise. `client_why` is the plain line to send with the meta_write when Cole says yes. */
+export function suggestionsOf(plan) {
+  const out = [], moves = plan.moves || [];
+  const sid = (k, ...p) => `${k}:${p.filter(Boolean).join(':')}`;
+  const demoted = new Set(moves.filter(m => m.kind === 'pause_set' && m.after_moves).map(m => m.set));
+  for (const m of moves) {
+    if (m.kind === 'graduate') out.push({ id: sid('graduate', keyOf(m.creator)), kind: 'graduate', creator: m.creator, reason: m.why,
+      set_id: m.reuse || null, set_name: m.set_name, from_set_id: plan.pool?.id || null, budget: m.budget,
+      ad_ids: m.ads.map(a => a.id), ads: m.ads, client_why: m.client_why });
+    else if (m.kind === 'pause_set' && m.after_moves) {
+      const ads = moves.filter(x => x.kind === 'move' && x.from === m.set);
+      out.push({ id: sid('demote', m.set), kind: 'demote', creator: m.creator, reason: m.why, set_id: m.set, set_name: m.set_name,
+        to_set_id: ads[0]?.to || plan.pool?.id || null, to_set_name: ads[0]?.to_name || plan.pool?.name || null,
+        ad_ids: ads.map(x => x.ad), ads: ads.map(x => ({ id: x.ad, name: x.ad_name })), client_why: m.client_why });
+    } else if (m.kind === 'pause_set') out.push({ id: sid('pause', m.set), kind: 'pause', creator: m.creator, reason: m.why, set_id: m.set, set_name: m.set_name, ad_ids: [], client_why: m.client_why });
+    else if (m.kind === 'move' && !demoted.has(m.from)) out.push({ id: sid('load', m.ad, m.to), kind: 'load', creator: m.creator, reason: m.why,
+      set_id: m.to, set_name: m.to_name, from_set_id: m.from, ad_ids: [m.ad], ads: [{ id: m.ad, name: m.ad_name }], client_why: m.client_why });
+    else if (m.kind === 'load') out.push({ id: sid(m.replace ? 'replace' : 'load', m.ad, m.to), kind: m.replace ? 'replace' : 'load', creator: m.creator, reason: m.why,
+      set_id: m.to, set_name: m.to_name, ad_ids: [m.ad], ads: [{ id: m.ad, name: m.ad_name }], ...(m.replace ? { pause_ad_id: m.replace.id, pause_ad_name: m.replace.name } : {}), client_why: m.client_why });
   }
+  for (const k of plan.keeps || []) out.push({ id: sid('keep', k.set), kind: 'keep', creator: k.creator, reason: k.why, set_id: k.set, set_name: k.set_name, ad_ids: [] });
+  for (const p of plan.proposals || []) out.push({ id: sid('raise', p.set), kind: 'raise', creator: p.creator, reason: p.why, set_id: p.set, set_name: p.set_name, ad_ids: [],
+    budget_from: p.from, budget_to: p.to, client_why: `${p.creator}'s ad set is selling at or under goal, so it gets a bit more budget.` });
+  return out.map(x => ({ ...x, reason: noDash(x.reason), ...(x.client_why ? { client_why: noDash(x.client_why) } : {}) }));
+}
+
+/** Plan one brand and store it. Writes only Locus settings (the plan and the under-3 clock), never Meta or Slack. */
+export async function runBrand(env, d, act, { today, cfg } = {}) {
+  const plan = await planBrand(env, d, act, { today, cfg });
+  const at = new Date().toISOString();
+  if (plan.error) { const out = { ...plan, today, at, suggestions: [] }; await putSetting(env, runKey(act), JSON.stringify(out)); return out; }
   await putSetting(env, stateKey(act), JSON.stringify(plan.nextState));
-  const out = { ...plan, nextState: undefined, at: new Date().toISOString(), dry, applied: done.length, failed: plan.moves.filter(m => m.result?.error).length };
+  const out = { ...plan, nextState: undefined, at, suggestions: suggestionsOf(plan) };
   await putSetting(env, runKey(act), JSON.stringify(out));
   return out;
 }
-async function move(env, d, act, ad, to, reason, client_why) {
-  const c = await write(env, d, act, { kind: 'copy_ad', object: ad, adset: to, level: 'ad', reason, client_why });
-  if (c.error) return { error: `Copy: ${c.error}` };
-  const p = await write(env, d, act, { kind: 'pause', object: ad, level: 'ad', reason: `${reason} (the copy is ${c.created})`, client_why });
-  const fine = p.error && /already PAUSED/i.test(p.error);
-  return { copy: c.created, writes: [c.write, p.write].filter(Boolean), ...(p.error && !fine ? { warn: `Copied, but the original did not pause: ${p.error}` } : {}) };
-}
-async function doMove(env, d, act, plan, m) {
-  if (m.kind === 'pause_set') {
-    if (m.after_moves && plan.moves.some(x => x.from === m.set && x.result?.error)) return { error: 'Left on: an ad did not move out of it.' };
-    return write(env, d, act, { kind: 'pause', object: m.set, level: 'adset', reason: m.why, client_why: m.client_why });
-  }
-  if (m.kind === 'move') return move(env, d, act, m.ad, m.to, m.why, m.client_why);
-  if (m.kind === 'load') {
-    if (m.replace) { const p = await write(env, d, act, { kind: 'pause', object: m.replace.id, level: 'ad', reason: `Replaced by a newly approved video: ${m.why}`, client_why: m.client_why }); if (p.error) return { error: `Pause the weakest: ${p.error}` }; }
-    const c = await write(env, d, act, { kind: 'copy_ad', object: m.ad, adset: m.to, level: 'ad', reason: m.why, client_why: m.client_why });
-    return c.error ? { error: c.error } : { copy: c.created, write: c.write };
-  }
-  if (m.kind === 'graduate') {
-    let sid = m.reuse;
-    if (sid) { const r = await write(env, d, act, { kind: 'resume', object: sid, level: 'adset', reason: m.why, client_why: m.client_why, over_pause: 'The creator has 3+ videos live again (creator graduate rule).' }); if (r.error) return { error: `Turn the set back on: ${r.error}` }; }
-    else {
-      const c = await write(env, d, act, { kind: 'create_adset', object: plan.campaign.id, name: m.set_name, like: plan.pool?.id, ...(m.budget ? { daily_budget: m.budget } : {}), reason: m.why, client_why: m.client_why });
-      if (c.error) return { error: `Make the set: ${c.error}` };
-      sid = c.created;
-      const on = await write(env, d, act, { kind: 'resume', object: sid, level: 'adset', reason: m.why, client_why: m.client_why });
-      if (on.error) return { error: `Made ${sid} but could not turn it on: ${on.error}` };
-    }
-    const moved = [];
-    /* Pool ads move (copy + pause the pool original). Newly approved videos are only copied in: their old ad in another
-       campaign is left to the "old creator campaigns pause after 3 days" step (SOP rule 9), never paused from here. */
-    for (const a of m.ads) {
-      if (a.src === 'pool') { const r = await move(env, d, act, a.id, sid, m.why, m.client_why); moved.push({ ad: a.id, ...r }); continue; }
-      const c = await write(env, d, act, { kind: 'copy_ad', object: a.id, adset: sid, level: 'ad', reason: m.why, client_why: m.client_why });
-      moved.push({ ad: a.id, ...(c.error ? { error: c.error } : { copy: c.created }) });
-    }
-    const bad = moved.filter(x => x.error);
-    return { set: sid, moved: moved.length - bad.length, ...(bad.length ? { warn: `${bad.length} ad${bad.length === 1 ? '' : 's'} did not move: ${bad[0].error}` } : {}) };
-  }
-  return { error: `Unknown move ${m.kind}` };
-}
 
-/* ---------- Slack: one post per brand per day, only when something moved ---------- */
-export function slackLines(run) {
-  const ok = (run.moves || []).filter(m => m.result && !m.result.error);
-  if (!ok.length) return null;
-  const L = [];
-  for (const m of ok) {
-    if (m.kind === 'graduate') L.push(`Graduated: *${m.creator}* got their own set "${m.set_name}"${m.budget ? ` at $${m.budget}/day` : ''}, ${m.result.moved} ads moved in.`);
-    else if (m.kind === 'pause_set') L.push(`Paused set "${m.set_name}": ${m.why}`);
-    else if (m.kind === 'load') L.push(`Loaded ${m.creator}'s new video into "${m.to_name}"${m.replace ? `, replacing "${m.replace.name}"` : ''}.`);
-  }
-  const moved = ok.filter(m => m.kind === 'move');
-  if (moved.length) { const by = new Map(); for (const m of moved) by.set(`${m.creator}|${m.to_name}`, (by.get(`${m.creator}|${m.to_name}`) || 0) + 1); for (const [k, n] of by) { const [c, t] = k.split('|'); L.push(`Moved ${n} of ${c}'s ads into "${t}".`); } }
-  const fails = (run.moves || []).filter(m => m.result?.error);
-  if (fails.length) L.push(`${fails.length} move${fails.length === 1 ? '' : 's'} failed; see Ads > Trybe > Creator sets.`);
-  if ((run.drafts || []).some(x => x.kind === 'graduate_dm' || x.kind === 'discord')) L.push('Graduation DM and Discord shout-out are drafted in Locus, not sent.');
-  if ((run.proposals || []).length) L.push(`${run.proposals.length} budget raise${run.proposals.length === 1 ? '' : 's'} waiting for a yes on the Buyer list.`);
-  return L.map(noDash);
-}
-
-/* ---------- the daily tick ---------- */
+/* ---------- the daily tick: plan every brand on suggest, nothing else ---------- */
 export async function creatorEngineTick(env, d, { force = false } = {}) {
   const today = d.centralDate();
   if (!force && (await getSetting(env, 'creatorEngineDay')) === today) return { skipped: 'done today' };
   if (!force && d.centralHour && d.centralHour() < 6) return { skipped: 'before 6am' };
   const rows = ((await env.DB.prepare(`SELECT key, value FROM settings WHERE key LIKE 'creatorEngine:%'`).all().catch(() => ({ results: [] }))).results || [])
-    .map(r => ({ act: r.key.slice('creatorEngine:'.length), cfg: { ...CE_DEFAULTS, ...(safeJson(r.value, {}) || {}) } })).filter(x => x.cfg.mode !== 'off' && x.cfg.campaign);
-  const brands = new Map(((await d.listBrands(env)) || []).map(b => [b.act_id, b]));
+    .map(r => { const cfg = { ...CE_DEFAULTS, ...(safeJson(r.value, {}) || {}) }; return { act: r.key.slice('creatorEngine:'.length), cfg: { ...cfg, mode: modeOf(cfg.mode) } }; })
+    .filter(x => x.cfg.mode === 'suggest' && x.cfg.campaign);
   const out = { ran: [], errors: [] };
   for (const { act, cfg } of rows) {
-    if (d.canAfford && !d.canAfford(120)) { out.errors.push('out of calls for this run'); break; }
-    try {
-      const r = await runBrand(env, d, act, { dry: cfg.mode !== 'live', today, cfg });
-      out.ran.push({ act, mode: cfg.mode, moves: (r.moves || []).length, applied: r.applied || 0, error: r.error || null });
-      const b = brands.get(act);
-      const lines = cfg.mode === 'live' && !r.error ? slackLines(r) : null;
-      if (lines && b && b.slack_channel && b.slack_channel !== b.brief_channel && d.slackPost) {
-        const link = `${d.appUrl || 'https://locus.go-mobius-digital.com'}/?open=trybe&act=${act}`;
-        const text = `*Creator sets, ${b.name}*\n${lines.map(l => `• ${l}`).join('\n')}`;
-        await d.slackPost(env, b.slack_channel, text, [{ type: 'section', text: { type: 'mrkdwn', text } }, { type: 'actions', elements: [{ type: 'button', action_id: 'noop_open', text: { type: 'plain_text', text: 'Open in Locus' }, url: link }] }], { username: 'Locus' });
-      }
-    } catch (e) { out.errors.push(`${act}: ${e.message}`); }
+    if (d.canAfford && !d.canAfford(60)) { out.errors.push('out of calls for this run'); break; }
+    try { const r = await runBrand(env, d, act, { today, cfg }); out.ran.push({ act, suggestions: (r.suggestions || []).length, error: r.error || null }); }
+    catch (e) { out.errors.push(`${act}: ${e.message}`); }
   }
   await putSetting(env, 'creatorEngineDay', today);
   return out;
 }
 
-/** Budget raises waiting for a yes, as Buyer list rows (buyerlist.js). Read from each brand's last run. */
-export async function creatorRaiseRows(env, accts) {
-  const rows = [];
-  for (const a of accts) {
-    const run = safeJson(await getSetting(env, runKey(a.act_id)), null);
-    if (!run || !run.proposals || day(run.at) < addDays(new Date().toISOString().slice(0, 10), -2)) continue;
-    for (const p of run.proposals) rows.push({ key: `${a.act_id}|${p.set}|creator`, kind: 'creator', act_id: a.act_id, brand: a.name, currency: a.currency || 'USD', object: String(p.set), level: 'adset',
-      name: p.set_name, set: null, action: `Raise to $${p.to}/day`, why: noDash(`Creator set beating goal: ${p.why}`), why_full: noDash(`${p.why} Creator graduate rule: +20% when 7-day cost per sale is at or under goal with 3+ sales. Locus proposes, a person says yes.`),
-      stake: r2(p.spend), do: 'budget', adset_id: String(p.set), adset: p.set_name, suggested_budget: p.to, budget: p.from, spend: p.spend, results: p.sales, cpa: p.cpa, goal: p.goal, days: 7,
-      card: { kind: 'raise', level: 'adset', decide: true } });
-  }
-  return rows;
-}
-
 /* ---------- routes ---------- */
 export async function handleCreatorEngine(request, env, url, path, json, h) {
-  if (!/^\/api\/creator-engine(\/|$)/.test(path)) return null;
+  if (!/^\/api\/creator-engine(\/|$)/.test(path) && path !== '/api/trybe/creator-moves') return null;
   if (!(await h.isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
   if (h.isClient && h.isClient(request)) return json({ error: 'That part is the Mobius team\'s.' }, 403);
   const email = await h.sessionEmail(env, request).catch(() => null);
@@ -424,19 +360,34 @@ export async function handleCreatorEngine(request, env, url, path, json, h) {
   if (path === '/api/creator-engine/all' && request.method === 'GET') {
     const rows = ((await env.DB.prepare(`SELECT key, value FROM settings WHERE key LIKE 'creatorEngine:%'`).all().catch(() => ({ results: [] }))).results || []);
     const out = [];
-    for (const r of rows) { const a = r.key.slice('creatorEngine:'.length); if (only && !only.has(a)) continue; const run = safeJson(await getSetting(env, runKey(a)), null); out.push({ act: a, cfg: safeJson(r.value, {}), run: run ? { at: run.at, dry: run.dry, moves: (run.moves || []).length, applied: run.applied || 0, error: run.error || null } : null }); }
+    for (const r of rows) {
+      const a = r.key.slice('creatorEngine:'.length); if (only && !only.has(a)) continue;
+      const run = safeJson(await getSetting(env, runKey(a)), null), cfg = safeJson(r.value, {}) || {};
+      out.push({ act: a, cfg: { ...cfg, mode: modeOf(cfg.mode) }, run: run ? { at: run.at, suggestions: (run.suggestions || []).length, error: run.error || null } : null });
+    }
     return json({ brands: out });
   }
   if (!act) return json({ error: 'Pick a brand.' }, 400);
   if (only && !only.has(act)) return json({ error: 'You do not have access to this brand.' }, 403);
   try {
+    /* The reviews' read (/trybe, /buy): today's suggestions for one brand. Plans now (read only) when today's plan is
+       missing or `fresh=1`; a brand with no creator campaign id answers with that and no rows. */
+    if (path === '/api/trybe/creator-moves' && request.method === 'GET') {
+      const cfg = await readCfg(env, act);
+      if (!cfg.campaign) return json({ act, mode: cfg.mode, suggestions: [], note: 'No creator campaign id set for this brand (Ads > Trybe > Creator sets).' });
+      const today = h.deps.centralDate ? h.deps.centralDate() : new Date().toISOString().slice(0, 10);
+      let run = safeJson(await getSetting(env, runKey(act)), null);
+      if (url.searchParams.get('fresh') === '1' || !run || run.today !== today || !Array.isArray(run.suggestions)) run = await runBrand(env, h.deps, act, { today, cfg });
+      return json({ act, mode: cfg.mode, at: run.at, today: run.today || today, goal: run.goal ?? null, error: run.error || null,
+        campaign: run.campaign || null, pool: run.pool || null, suggestions: run.suggestions || [], builds: run.builds || [], drafts: run.drafts || [], notes: run.notes || [],
+        how: 'Suggestions only: Locus changed nothing. Show each as a Yes/No row; on a yes apply it with Locus meta_write (a move = copy the ad, then pause the original) with client_why.' });
+    }
     if (path === '/api/creator-engine' && request.method === 'GET') return json({ act, cfg: await readCfg(env, act), run: safeJson(await getSetting(env, runKey(act)), null), rules: { graduate_at: GRADUATE_AT, wait_days: WAIT_DAYS, load_window: LOAD_WINDOW, raise_pct: RAISE_PCT } });
     if (path === '/api/creator-engine' && request.method === 'PUT') return json({ ok: true, cfg: await saveCfg(env, act, b) });
-    /* Run now: dry unless {live: true} AND the brand is switched to live. */
+    /* Plan now: read only, always. */
     if (path === '/api/creator-engine/run' && request.method === 'POST') {
       const cfg = await readCfg(env, act);
-      const live = !!b.live && cfg.mode === 'live';
-      return json(await runBrand(env, h.deps, act, { dry: !live, cfg: { ...cfg, ...(b.campaign ? { campaign: String(b.campaign) } : {}), ...(b.pool ? { pool: String(b.pool) } : {}) } }));
+      return json(await runBrand(env, h.deps, act, { today: h.deps.centralDate ? h.deps.centralDate() : undefined, cfg: { ...cfg, ...(b.campaign ? { campaign: String(b.campaign) } : {}), ...(b.pool ? { pool: String(b.pool) } : {}) } }));
     }
     return json({ error: 'not found' }, 404);
   } catch (e) { return json({ error: e.message }, 400); }

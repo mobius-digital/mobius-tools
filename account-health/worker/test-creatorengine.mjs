@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
-import { keyOf, nameOf, creatorFromName, creatorOfSet, trybeTags, planBrand, saveCfg, slackLines } from './src/creatorengine.js';
+import { keyOf, nameOf, creatorFromName, creatorOfSet, trybeTags, planBrand, saveCfg, runBrand, readCfg, creatorEngineTick } from './src/creatorengine.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const db = new DatabaseSync(':memory:');
@@ -71,14 +71,15 @@ db.exec(`INSERT INTO p_trybe_ad (act_id, ad_id, trybe_id, name, status, adset_id
 db.exec(`INSERT INTO settings (key, value) VALUES ('creatorEngineState:${ACT}', '{"sets":{"302":{"under3_since":"2026-11-13"}}}')`);
 
 const J = o => new Response(JSON.stringify(o), { status: 200, headers: { 'Content-Type': 'application/json' } });
-const d = { xfetch: async u => { const p = new URL(u).pathname.replace(/^\/v[\d.]+\//, '');
+const calls = [];
+const d = { xfetch: async (u, o = {}) => { calls.push((o.method || 'GET') + ' ' + u); const p = new URL(u).pathname.replace(/^\/v[\d.]+\//, '');
   if (p === CAMP) return J({ id: CAMP, name: '[MD] ABO | Creator Campaign', effective_status: 'ACTIVE', account_id: '9' });
   if (p === `${CAMP}/adsets`) return J({ data: sets });
   if (p === `${CAMP}/ads`) return J({ data: ads });
   return J({ error: { message: 'unexpected ' + p } }); }, centralDate: () => '2026-11-22' };
 
 await ok('plan: graduate, keep, demote, pause, replace, propose', async () => {
-  await saveCfg(env, ACT, { mode: 'dry', campaign: CAMP, pool: POOL });
+  await saveCfg(env, ACT, { mode: 'suggest', campaign: CAMP, pool: POOL });
   const p = await planBrand(env, d, ACT, { today: '2026-11-22' });
   assert.equal(p.error, undefined, p.error);
   const g = p.moves.find(m => m.kind === 'graduate');
@@ -96,11 +97,26 @@ await ok('plan: graduate, keep, demote, pause, replace, propose', async () => {
   assert.equal(p.nextState.sets['302'].under3_since, '2026-11-13', 'under-3 clock kept');
 });
 
-await ok('slack: one line per thing that moved, nothing when nothing moved', () => {
-  assert.equal(slackLines({ moves: [] }), null);
-  const L = slackLines({ moves: [{ kind: 'graduate', creator: 'Ann Ray', set_name: 'Creator | Ann Ray', budget: 15, result: { moved: 3 } }, { kind: 'pause_set', set_name: 'Creator | Ed Fox', why: 'no live ads', result: { ok: true } }], drafts: [{ kind: 'discord' }], proposals: [] });
-  assert.equal(L.length, 3);
-  assert.match(L[0], /Graduated: \*Ann Ray\*/);
+await ok('suggest only: flat suggestions with reasons and ids, nothing written to Meta, live mode refused', async () => {
+  calls.length = 0;
+  const r = await runBrand(env, d, ACT, { today: '2026-11-22' });
+  const k = new Set(r.suggestions.map(s => s.kind));
+  for (const want of ['graduate', 'keep', 'demote', 'pause', 'replace']) assert.ok(k.has(want), 'has ' + want);
+  for (const s of r.suggestions) { assert.ok(s.id && s.reason && Array.isArray(s.ad_ids), 'row shape ' + s.kind); assert.ok(!/[—–]/.test(s.reason)); }
+  const dem = r.suggestions.find(s => s.kind === 'demote');
+  assert.deepEqual(dem.ad_ids.sort(), ['21', '22']); assert.equal(dem.to_set_id, POOL);
+  assert.equal(r.suggestions.find(s => s.kind === 'replace').pause_ad_id, '41');
+  assert.ok(calls.length && calls.every(c => c.startsWith('GET ')), 'only Graph reads: ' + calls.filter(c => !c.startsWith('GET ')).join(', '));
+  await saveCfg(env, ACT, { mode: 'live' });
+  assert.equal((await readCfg(env, ACT)).mode, 'suggest', 'live is not a mode any more');
+  db.exec(`UPDATE settings SET value = json_set(value, '$.mode', 'live') WHERE key = 'creatorEngine:${ACT}'`);
+  assert.equal((await readCfg(env, ACT)).mode, 'suggest', 'an old stored live reads as suggest');
+  calls.length = 0;
+  const t = await creatorEngineTick(env, { ...d, centralHour: () => 7, listBrands: async () => [], slackPost: async () => { throw new Error('posted to Slack'); } }, { force: true });
+  assert.equal(t.ran.length, 1); assert.ok(calls.every(c => c.startsWith('GET ')));
+  const src = fs.readFileSync(path.join(here, 'src/creatorengine.js'), 'utf8');
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  assert.ok(!/locusWrite|copy_ad|slackPost|creatorRaiseRows/.test(code), 'no write helpers in the engine code');
 });
 
 console.log(`\n${pass}/3 passed`);
