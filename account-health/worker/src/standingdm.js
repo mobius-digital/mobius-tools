@@ -183,10 +183,11 @@ export function todoLine(rec) {
  * (C's colors: red when a cut waits, green when a raise waits, yellow when everything holds), Raise/Cut buttons, link. */
 function dBlocks(rec, prev, link, img) {
   const N = needs(rec), color = N.some(b => b.suggest.call === 'cut') ? COLOR.cut : N.length ? COLOR.scale : COLOR.hold;
-  const bar = [{ type: 'section', text: { type: 'mrkdwn', text: todoLine(rec) } }];
-  if (N.length) bar.push({ type: 'actions', elements: N.slice(0, 5).map(b => btn(`${b.suggest.call === 'cut' ? 'Cut' : 'Raise'} ${b.name}`, link(b.act_id), b.suggest.call === 'cut' ? 'danger' : 'primary')) });
-  bar.push(CTX(`<${link()}|Open the War Room>${rec.next ? ` · next check-in ${rec.next}` : ''}`));
-  return { blocks: [imgBlock(img, 'Black Friday sale scoreboard: every brand, sales against goal, MER against KPI, the call')], attachments: [{ color, blocks: bar }] };
+  const bar = [{ type: 'section', text: { type: 'mrkdwn', text: todoLine(rec) } }, CTX(`<${link()}|Open the War Room>${rec.next ? ` · next check-in ${rec.next}` : ''}`)];
+  const blocks = [imgBlock(img, 'Black Friday sale scoreboard: every brand, sales against goal, MER against KPI, the call')];
+  /* Ids must differ inside one row: noop_open_<n> (the Slack router acks any noop_open_*). */
+  if (N.length) blocks.push({ type: 'actions', elements: N.slice(0, 5).map((b, i) => ({ ...btn(`${b.suggest.call === 'cut' ? 'Cut' : 'Raise'} ${b.name}`, link(b.act_id), b.suggest.call === 'cut' ? 'danger' : 'primary'), action_id: `noop_open_${i}` })) });
+  return { blocks, attachments: [{ color, fallback: todoLine(rec).replace(/\*/g, ''), blocks: bar }] };
 }
 
 /* ---------- CLIENT, one brand, hourly (2026-11-22 samples for Cole; not sent to any client yet) ----------
