@@ -45,6 +45,7 @@ import { gall } from './metawrite.js';
 import { trybeBanners } from './trybe.js';
 import { readAI, applyAI, aiPassDone, buyerAIOn, adNumbers, withCovers, metaActsOf, disagree, decide, lessonsFor, buyerAITick, spentToday, trackingCheck, DAY_CAP, POST_WAIT_HOURS, noDash, CARD_KINDS } from './buyerai.js';
 import { laneBlocks } from './lane.js';
+import { creatorRaiseRows } from './creatorengine.js';
 
 export const DEFAULT_BUYER_CHANNEL = 'C0C8UA53U3W';   // #daily-briefs
 export const DEFAULT_OWNER = 'Cole';
@@ -58,7 +59,7 @@ const LAST_HOUR = 12;
 const MIN_CACHE_MS = 6 * 3600e3;
 const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 const CALL_KINDS = ['scale', 'cut', 'trim', 'refresh', 'mixed'];
-export const KINDS = [...CALL_KINDS, 'minoff', 'stalled', 'launch', 'ai'];
+export const KINDS = [...CALL_KINDS, 'minoff', 'stalled', 'launch', 'ai', 'creator'];
 
 const safe = (s, d) => { try { return s == null ? d : JSON.parse(s); } catch { return d; } };
 const clean = (s, n = 300) => String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
@@ -451,7 +452,7 @@ export const canDo = r => DO_KINDS.includes(r.do);
    (buyerai.js PASS_SCHEMA); where the read has not run, or left a field out, the rule row fills it in from its own numbers.
    Rows are drawn per brand in CARD_ORDER. `decide` rows get Yes / No; the rest a label. */
 export const CARD_ORDER = ['raise', 'cut', 'trim', 'refresh', 'keep', 'note', 'launch', 'tidy'];
-const KIND_CARD = { scale: 'raise', cut: 'cut', trim: 'trim', refresh: 'refresh', mixed: 'keep', minoff: 'trim', stalled: 'tidy', launch: 'launch' };
+const KIND_CARD = { scale: 'raise', cut: 'cut', trim: 'trim', refresh: 'refresh', mixed: 'keep', minoff: 'trim', stalled: 'tidy', launch: 'launch', creator: 'raise' };
 const AI_CARD = { budget: 'raise', scale: 'raise', relaunch: 'note', leads: 'raise', tracking: 'note', cut: 'cut', other: 'note' };
 const fact = (l, v, good, bad) => (v == null || v === '' ? null : { l, v: String(v), good: !!good, bad: !!bad && !good });
 /** The card for one list row: the read's card where it exists, the rule's numbers for anything missing. */
@@ -604,7 +605,9 @@ export async function buildBuyerList(env, d, { act = 'all', only = null, live = 
   /* The morning read (buyerai.js): a verdict on each rule row, and the calls the rules missed as rows of kind 'ai'. */
   /* a set already on the list (a call or its minimum) keeps that row, not a second one */
   const onList = new Set([...calls, ...mins.rows].map(r => String(r.adset_id || '')).filter(Boolean));
-  let all = [...calls, ...mins.rows, ...stall.filter(r => !onList.has(r.adset_id)), ...launch.rows], ai = new Map();
+  /* Creator graduate engine (creatorengine.js): +20% on a creator set beating goal, proposed only; a yes applies it. */
+  const creator = await creatorRaiseRows(env, accts).catch(e => { notes.push(`Creator sets: ${e.message}`); return []; });
+  let all = [...calls, ...mins.rows, ...stall.filter(r => !onList.has(r.adset_id)), ...launch.rows, ...creator.filter(r => !onList.has(r.adset_id))], ai = new Map();
   if (!noAI) { try { ai = await readAI(env, ids, today); all = applyAI(all, ai, accts); } catch (e) { notes.push(`Morning read: ${e.message}`); } }
   /* Locus checks before it asks (2026-10-27): a call held for a tracking gap is checked here (Meta's own count vs Triple
      Whale on that set, the tags when they disagree) and says what it found instead of "fix tracking". */
