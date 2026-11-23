@@ -170,12 +170,64 @@ function cBlocks(rec, prev, link) {
   });
   return { blocks: [...topBlocks(rec, prev), DIV, H('Brands'), CTX('Green = scale, yellow = hold, red = cut. Approve opens the brand on the War Room.')], attachments: [...attachments, { color: '#4C7AE6', blocks: foot(rec, link).slice(1) }] };
 }
-/* D: one designed image (a PNG scoreboard Locus draws: real type and color), then only what needs a yes, as buttons. */
+/* D: one designed image (a PNG scoreboard Locus draws: standingimg.js), then one short "what to do" line and the
+ * Approve buttons. `img` is a Slack file id the DM uploaded (no public link), or an https URL. */
+const imgBlock = (img, alt) => img ? { type: 'image', ...(/^https:/.test(img) ? { image_url: img } : { slack_file: { id: img } }), alt_text: alt } : CTX('_The scoreboard image is not drawn yet._');
+export function todoLine(rec) {
+  const N = needs(rec);
+  if (!N.length) return '*To do:* nothing. Every brand holds until the next check-in.';
+  return `*To do:* ${N.map(b => `${b.suggest.call === 'scale' ? 'raise' : 'cut'} ${b.name} ${money(b.meta.camp.daily)} to ${money(b.suggest.to)}/day`).join(', ')}. Tap Approve to do it.`;
+}
 function dBlocks(rec, prev, link, img) {
-  const blocks = [H(`📊 Where we stand · ${hourOf(rec.slot)}`), CTX(`${rec.label.replace(/,? \d+(am|pm) CT$/, '')} · Black Friday weekend${rec.next ? ` · next check-in ${rec.next}` : ''}`)];
-  if (img) blocks.push({ type: 'image', image_url: img, alt_text: 'Black Friday weekend scoreboard: every brand, sales against goal, MER against KPI, the call' });
-  else blocks.push(CTX('_The scoreboard image is not drawn yet._'));
-  return { blocks: [...blocks, ...needBlocks(rec, link), ...foot(rec, link)] };
+  const N = needs(rec);
+  const blocks = [imgBlock(img, 'Black Friday weekend scoreboard: every brand, sales against goal, MER against KPI, the call'),
+    { type: 'section', text: { type: 'mrkdwn', text: todoLine(rec) } }];
+  if (N.length) blocks.push({ type: 'actions', elements: N.slice(0, 5).map(b => btn(`${b.suggest.call === 'scale' ? 'Raise' : 'Cut'} ${b.name}`, link(b.act_id), b.suggest.call === 'scale' ? 'primary' : 'danger')) });
+  return { blocks: [...blocks, CTX(`<${link()}|Open the War Room>${rec.next ? ` · next check-in ${rec.next}` : ''}`)] };
+}
+
+/* ---------- CLIENT, one brand, hourly (2026-11-22 samples for Cole; not sent to any client yet) ----------
+ * The same four looks for one brand's own channel: sales vs the weekend goal, ad spend, MER, the last 6 hours, and
+ * one plain line on what we are doing. Nothing internal: no Approve, no Meta limit, no hold line. */
+export function planLine(b) {
+  const g = b.suggest || {}, d = b.meta && b.meta.camp ? b.meta.camp.daily : null;
+  if (b.no_sales) return `*What we are doing:* running the Black Friday ads at ${money(d)}/day. Sales numbers are not connected yet.`;
+  if (g.call === 'scale') return `*What we are doing:* sales are beating the goal, so we are raising the Black Friday budget from ${money(d)} to ${money(g.to)} a day.`;
+  if (g.call === 'cut') return `*What we are doing:* returns are under goal right now, so we are pulling the budget back from ${money(d)} to ${money(g.to)} a day and moving it to the ads that sell.`;
+  return `*What we are doing:* holding the budget at ${money(d)} a day and checking again next hour.`;
+}
+export function clientCard(rec, act, style, prev, opt = {}) {
+  const b = rec.brands.find(z => z.act_id === act); if (!b) return null;
+  const s = b.so_far || {}, l6 = b.last6 || {}, o = prev && prev.brands ? prev.brands.find(z => z.act_id === act) : null;
+  const dS = o && o.so_far && s.sales != null ? s.sales - (o.so_far.sales || 0) : null;
+  const when = `${rec.label.replace(/,? \d+(am|pm) CT$/, '')} · ${hourOf(rec.slot)} CT${rec.dry ? " · dry run on today's numbers" : ''}`;
+  const text = `${b.name}, ${hourOf(rec.slot)}: ${k(s.sales)} in sales (${pct(s.sales || 0, b.goal)}% of the weekend goal), MER ${x(s.mer)}.`;
+  const head = [H(`${b.name} · Black Friday weekend`), CTX(when)];
+  const plan = { type: 'section', text: { type: 'mrkdwn', text: planLine(b) } };
+  const src = CTX('Sales from Triple Whale · ad spend from Meta · MER = store sales ÷ ad spend');
+  if (style === 'a') {
+    const q = (label, value, note) => ({ type: 'rich_text_quote', elements: [{ type: 'text', text: `${label}: `, style: { bold: true } }, { type: 'text', text: value }, ...(note ? [{ type: 'text', text: `,  ${note}`, style: { italic: true } }] : [])] });
+    return { text, blocks: [...head, DIV, { type: 'rich_text', elements: [
+      { type: 'rich_text_section', elements: [{ type: 'text', text: 'Weekend so far', style: { bold: true } }] },
+      q('Sales', `${k(s.sales)} of ${k(b.goal)}`, dS != null ? `+${k(dS)} since the last update` : `${pct(s.sales || 0, b.goal)}% of the goal`),
+      q('Ad spend', k(s.spend)), q('MER', x(s.mer), `goal ${x(b.kpi)}`), q('Last 6 hours', x(l6.mer), `${k(l6.sales)} on ${k(l6.spend)}`)] },
+      DIV, plan, src] };
+  }
+  if (style === 'b') {
+    return { text, blocks: [...head, DIV,
+      { type: 'section', fields: [F('Sales', `${k(s.sales)}${dS != null ? `  _+${k(dS)}_` : ''}`), F('Of the goal', `${pct(s.sales || 0, b.goal)}% of ${k(b.goal)}`),
+        F('MER', `${DOT(tone(s.mer, b.kpi))} ${x(s.mer)}  _goal ${x(b.kpi)}_`), F('Ad spend', k(s.spend)),
+        F('Last 6 hours', `${DOT(tone(l6.mer, b.kpi))} ${x(l6.mer)}`), F('Since last update', dS != null ? `+${k(dS)}` : '_first update_')] },
+      DIV, plan, src] };
+  }
+  if (style === 'c') {
+    const col = tone(s.mer, b.kpi) === 'good' ? COLOR.scale : tone(s.mer, b.kpi) === 'warn' ? COLOR.hold : COLOR.cut;
+    return { text, blocks: head, attachments: [
+      { color: col, blocks: [{ type: 'section', text: { type: 'mrkdwn', text: `*${k(s.sales)}* in sales · ${pct(s.sales || 0, b.goal)}% of the ${k(b.goal)} weekend goal` } },
+        { type: 'section', fields: [F('MER', `${x(s.mer)}  _goal ${x(b.kpi)}_`), F('Ad spend', k(s.spend)), F('Last 6 hours', x(l6.mer)), F('Since last update', dS != null ? `+${k(dS)}` : '_first update_')] }] },
+      { color: '#4C7AE6', blocks: [plan, src] }] };
+  }
+  return { text, blocks: [imgBlock(opt.img, `${b.name} Black Friday weekend: sales against goal, ad spend, MER`), plan] };
 }
 
 /** The DM in a Block Kit style ('wc', 'board', 'a', 'b', 'c', 'd'), plus the plain `text` Slack shows in the notification. */

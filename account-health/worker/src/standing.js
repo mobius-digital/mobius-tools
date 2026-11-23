@@ -19,7 +19,8 @@ import { metaLive, locusWrite, gget, metaActs } from './metawrite.js';
 import { dmPerson } from './morning.js';
 import { adNumbers, metaActsOf, sumAds } from './buyerai.js';
 import { buildBuyerList } from './buyerlist.js';
-import { standingCard } from './standingdm.js';
+import { standingCard, clientCard } from './standingdm.js';
+import { boardSvg, brandSvg, toPng } from './standingimg.js';
 
 const PROFIT_ORIGIN = 'https://mobius-profit.mobius-digital.workers.dev';
 const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
@@ -193,6 +194,36 @@ async function sendDm(env, deps, rec, { style, prev, img } = {}) {
   return r;
 }
 
+/** Upload a PNG to Slack as the Locus bot, shared nowhere; the DM shows it by file id. */
+async function slackPng(env, deps, bytes, name) {
+  const a = await deps.slackApi(env, 'files.getUploadURLExternal', { filename: name, length: bytes.length });
+  if (!a || !a.ok) return { error: (a && a.error) || 'upload url' };
+  const up = await (deps.xfetch || fetch)(a.upload_url, { method: 'POST', body: bytes });
+  if (!up.ok) return { error: `upload ${up.status}` };
+  const c = await deps.slackApi(env, 'files.completeUploadExternal', { files: [{ id: a.file_id, title: name }] });
+  return c && c.ok ? { id: a.file_id } : { error: (c && c.error) || 'complete upload' };
+}
+async function sendSample(env, deps, rec, prev, { style, act, label }) {
+  let img = null, imgErr = null;
+  if (style === 'd') {
+    try {
+      const svg = act ? brandSvg(rec, act, prev) : boardSvg(rec);
+      const up = await slackPng(env, deps, await toPng(svg, deps.xfetch), `where-we-stand-${act ? act.replace('brand_', '') : 'all'}-${rec.slot}.png`);
+      if (up.error) imgErr = up.error; else img = up.id;
+    } catch (e) { imgErr = e.message; }
+  }
+  const msg = act ? clientCard(rec, act, style, prev, { img }) : standingCard(rec, prev, style, linkOf(rec), { img });
+  if (label) { msg.blocks = [{ type: 'section', text: { type: 'mrkdwn', text: `*${label}*` } }, ...(msg.blocks || [])]; msg.text = `${label}: ${msg.text}`; }
+  /* Slack can take a moment to process a fresh upload before a block may show it: retry a few times. */
+  let r = null;
+  for (let i = 0; i < 6; i++) {
+    r = await dmPerson(env, deps, env.OWNER_EMAIL || 'cole@go-mobius-digital.com', msg);
+    if (r.ok || !img || !/invalid_blocks/.test(String(r.error || ''))) break;
+    await new Promise(z => setTimeout(z, 1500));
+  }
+  return { ok: !!r.ok, ts: r.ts, error: r.error, img, imgErr, slot: rec.slot };
+}
+
 /** The hourly cron's step: in the window, on a 3-hour slot, once per slot. */
 export async function standingTick(env, deps, now = new Date()) {
   const c = central(now);
@@ -338,6 +369,18 @@ export async function handleStanding(request, env, url, path, json, deps) {
       if (body.send) await sendDm(env, deps, rec, { style: body.style, prev, img: /^https:\/\/[^\s]+$/.test(body.img || '') ? body.img : null });
       await save(env, deps, rec);
       return json({ ok: true, standing: rec, message: standingMessage(rec).text });
+    }
+    /* A labelled sample DM to Cole (2026-11-22: "show me real ones"): agency (every brand) or one brand's client
+       version (act), in a style; style d draws the scoreboard PNG and uploads it to Slack (no public link). */
+    if (path === '/api/standing/sample' && request.method === 'POST') {
+      const st = ['a', 'b', 'c', 'd'].includes(body.style) ? body.style : 'd', act = body.act ? String(body.act) : null;
+      const prev = await load(env, deps).catch(() => null);
+      const rec = body.fresh ? await buildStanding(env, deps, slotOf()) : prev;
+      if (!rec) return json({ error: 'No check-in yet.' }, 404);
+      if (body.fresh) await save(env, deps, rec);
+      if (act && !rec.brands.find(b => b.act_id === act)) return json({ error: 'That brand is not on the board.' }, 400);
+      const r = await sendSample(env, deps, rec, body.fresh ? prev : null, { style: st, act, label: String(body.label || '').slice(0, 80) });
+      return json(r, r.ok ? 200 : 502);
     }
     if (path === '/api/standing/approve' && request.method === 'POST') {
       const who = email || String(body.by || '').trim().slice(0, 80);
