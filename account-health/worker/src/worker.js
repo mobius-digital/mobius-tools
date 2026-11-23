@@ -6630,7 +6630,7 @@ const acctById = (env, id) => acctOf(env, id);
 async function slackBlockAction(env, ctx, p) {
   const a = p.actions?.[0] || {};
   const id = a.action_id || '';
-  if (id === 'noop_open') return ACK();                 // a link button; Slack still asks
+  if (id === 'noop_open' || id.startsWith('noop_open_')) return ACK();   // a link button; Slack still asks (noop_open_<n>: several in one row)
   const meta = safeJson(a.value, {}) || {};
   const chan = p.container?.channel_id || p.channel?.id || null;
   const mts = p.container?.message_ts || null;

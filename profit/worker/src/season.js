@@ -481,6 +481,7 @@ async function warAll(env, accounts, today, deps) {
  * DMs Cole, and applies a budget change only when he taps Approve). This is the Triple Whale half: weekend revenue
  * against the weekend goal, MER to date and over the last 6 hours against the KPI, and the suggestion.
  * I&G is left out (Fela runs its media). Goals and KPIs are Cole's numbers from 2026-11-22. */
+/* Fallback only: each brand's window is its own sale (saleOf), see standingAll. */
 export const STAND = { from: '2026-11-26', to: '2026-11-30' };
 /* be_new = break-even NEW-CUSTOMER MER: the first order pays back what it cost to get the customer, after product
    costs (1 / first-order margin). From the break-even CACs and goal CPAs set 2026-10-15 (break-even CAC / new AOV):
@@ -535,10 +536,13 @@ async function emailShareNew(env, actId, from, to) {
 }
 async function standingAll(env, accounts, today, deps) {
   const d = await seasonData(env, accounts, {});
-  const inWin = today >= STAND.from && today <= STAND.to, dry = today < STAND.from;
+  /* Each brand counts from its OWN sale start (Cole, 2026-11-22: Lucky from the VIP Tuesday, Grunk's BOGO from Monday,
+   * Bonk Thursday), not one Thursday for all: the window is saleOf() (the War Room plan, else its sale phases).
+   * Before a brand's sale starts it is a dry run on today; after it ends the total stops at its last day. */
   const rows = await Promise.all(d.accounts.filter(a => STAND_BRANDS[a.act_id]).map(async a => {
     const acct = accounts.find(x => x.act_id === a.act_id) || a, cfg = STAND_BRANDS[a.act_id], g = a.goals || {};
-    const r = { act_id: a.act_id, name: a.name, currency: acct.currency || 'USD', goal: cfg.goal, kpi: cfg.kpi, hold: g.hold ?? g.be ?? null };
+    const sale = saleOf(a.phases, warOf(a.answers)), mode = today < sale.start ? 'plan' : today > sale.end ? 'after' : 'live';
+    const r = { act_id: a.act_id, name: a.name, currency: acct.currency || 'USD', goal: cfg.goal, kpi: cfg.kpi, hold: g.hold ?? g.be ?? null, sale: { start: sale.start, end: sale.end }, mode };
     let lv = null;
     try { lv = await deps.live({ ...acct, ...a }); } catch (e) { r.error = e.message || 'Triple Whale did not answer'; }
     const noSales = !!(lv && lv.no_sales);
@@ -549,25 +553,28 @@ async function standingAll(env, accounts, today, deps) {
     r.today = { sales: noSales ? null : lf.today.sales, spend: lf.today.spend, mer: noSales ? null : lf.today.mer };
     r.last6 = { hours: six.length, sales: noSales ? null : sum(six, 'sales'), spend: sum(six, 'spend') };
     r.last6.mer = !noSales && r.last6.spend > 0 ? r.last6.sales / r.last6.spend : null;
-    /* The weekend so far: finished days from the P&L line (Triple Whale), plus today live. Before Thursday it is a dry run on today. */
+    /* The sale so far: finished sale days from the P&L line (Triple Whale), plus today live while the sale runs. */
     let prev = { sales: 0, spend: 0, days: 0, new_rev: 0, new_orders: 0, new_ok: true };
-    if (inWin && today > STAND.from && deps.series) {
-      try { const s = await deps.series({ ...acct, ...a }, STAND.from, addDays(today, -1)); const rr = s.rows || [];
+    const to = mode === 'after' ? sale.end : addDays(today, -1);
+    if (mode !== 'plan' && to >= sale.start && deps.series) {
+      try { const s = await deps.series({ ...acct, ...a }, sale.start, to); const rr = s.rows || [];
         prev = { sales: rr.reduce((t, x) => t + (+x.sales || 0), 0), spend: rr.reduce((t, x) => t + (+x.spend || 0), 0), days: rr.length,
           new_rev: rr.reduce((t, x) => t + (+x.new_rev || 0), 0), new_orders: rr.reduce((t, x) => t + (+x.new_orders || 0), 0), new_ok: rr.every(x => x.new_rev != null) }; } catch (e) { r.series_error = e.message; }
     }
-    const sales = noSales ? null : prev.sales + (r.today.sales || 0), spend = prev.spend + (r.today.spend || 0);
+    const withToday = mode !== 'after', tS = withToday ? (r.today.sales || 0) : 0, tP = withToday ? (r.today.spend || 0) : 0;
+    const sales = noSales ? null : prev.sales + tS, spend = prev.spend + tP;
     /* New customers: Triple Whale's new-customer revenue (paid orders), less the share whose first order came from email
-       or SMS (finished weekend days, else the last 14 days, from tw_orders). */
-    const lr = (lv && lv.row) || {};
+       or SMS (finished sale days, else the last 14 days, from tw_orders). */
+    const lr = withToday ? (lv && lv.row) || {} : { new_rev: 0, new_orders: 0 };
     let newRev = !noSales && prev.new_ok && lr.new_rev != null ? prev.new_rev + +lr.new_rev : null;
     const newOrders = newRev != null && lr.new_orders != null ? prev.new_orders + +lr.new_orders : null;
     let es = null;
     if (newRev != null) {
-      try { es = await emailShareNew(env, a.act_id, inWin && today > STAND.from ? STAND.from : addDays(today, -14), addDays(today, -1)); } catch (e) { r.email_error = e.message; }
+      const started = mode !== 'plan' && to >= sale.start;
+      try { es = await emailShareNew(env, a.act_id, started ? sale.start : addDays(today, -14), started ? to : addDays(today, -1)); } catch (e) { r.email_error = e.message; }
     }
     const adj = newRev != null ? newRev * (1 - (es ? es.share : 0)) : null;
-    r.so_far = { from: dry ? today : STAND.from, days: prev.days + 1, sales, spend, mer: sales != null && spend > 0 ? sales / spend : null, pct_goal: sales != null && cfg.goal ? sales / cfg.goal : null,
+    r.so_far = { from: mode === 'plan' ? today : sale.start, days: prev.days + (withToday ? 1 : 0), sales, spend, mer: sales != null && spend > 0 ? sales / spend : null, pct_goal: sales != null && cfg.goal ? sales / cfg.goal : null,
       new_rev_all: newRev, new_rev: adj, new_orders: newOrders, email_share_new: es ? es.share : null, new_mer: adj != null && spend > 0 ? adj / spend : null };
     r.be_new = cfg.be_new || null;
     r.no_sales = noSales ? 1 : 0; r.as_of = (lv && lv.as_of) || null;
@@ -575,7 +582,10 @@ async function standingAll(env, accounts, today, deps) {
     return r;
   }));
   rows.sort((p, q) => (q.goal || 0) - (p.goal || 0));
-  return { today, dry: dry ? 1 : 0, window: STAND, brands: rows };
+  const starts = rows.map(r => r.sale.start).sort(), ends = rows.map(r => r.sale.end).sort();
+  const window = rows.length ? { from: starts[0], to: ends[ends.length - 1] } : STAND;
+  /* A dry run only while no brand's sale has started: then every row is today's numbers. */
+  return { today, dry: rows.every(r => r.mode === 'plan') ? 1 : 0, window, brands: rows };
 }
 
 /* ---------- Routes ---------- */

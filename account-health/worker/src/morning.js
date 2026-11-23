@@ -47,7 +47,8 @@ export async function dmPerson(env, deps, email, msg) {
     const r2 = await deps.slackApi(env, 'chat.postMessage', { channel: u.user.id, text: msg.text, blocks: msg.blocks, attachments: msg.attachments, unfurl_links: false });
     return r2 && r2.ok ? { ok: true, ts: r2.ts } : { ok: false, error: (r2 && r2.error) || 'slack' };
   }
-  return r && r.ok ? { ok: true, ts: r.ts } : { ok: false, error: (r && r.error) || 'slack' };
+  /* Slack's own reason (response_metadata.messages) rides along, so a bad block says which one. */
+  return r && r.ok ? { ok: true, ts: r.ts } : { ok: false, error: `${(r && r.error) || 'slack'}${r && r.response_metadata && r.response_metadata.messages ? `: ${r.response_metadata.messages.join(' | ').slice(0, 400)}` : ''}` };
 }
 /** The message one person would get right now (the "Send me today's line" button and the preview). */
 export async function morningFor(env, deps, email) {
