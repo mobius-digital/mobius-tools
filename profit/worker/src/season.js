@@ -482,21 +482,56 @@ async function warAll(env, accounts, today, deps) {
  * against the weekend goal, MER to date and over the last 6 hours against the KPI, and the suggestion.
  * I&G is left out (Fela runs its media). Goals and KPIs are Cole's numbers from 2026-11-22. */
 export const STAND = { from: '2026-11-26', to: '2026-11-30' };
+/* be_new = break-even NEW-CUSTOMER MER: the first order pays back what it cost to get the customer, after product
+   costs (1 / first-order margin). From the break-even CACs and goal CPAs set 2026-10-15 (break-even CAC / new AOV):
+   Lucky 100/154, Dartee 80/118, Bonk 35/63; Grunk from its real break-even MER (~2.05, COGS 35% + postage + fees);
+   Yak assumed 60% margin (no cost data yet). Cole set the rule 2026-11-22; change a number here, nowhere else. */
 export const STAND_BRANDS = {
-  brand_lucky_golf: { goal: 150000, kpi: 2.5 }, brand_dartee_golf: { goal: 78000, kpi: 2.5 }, brand_bonk_golf: { goal: 130000, kpi: 2.5 },
-  brand_grunk_dolfer: { goal: 51000, kpi: 3.0 }, brand_yak_sports: { goal: 25000, kpi: 2.5 }, brand_vetripaws: { goal: 4500, kpi: 2.5 },
+  brand_lucky_golf: { goal: 150000, kpi: 2.5, be_new: 1.55 }, brand_dartee_golf: { goal: 78000, kpi: 2.5, be_new: 1.5 }, brand_bonk_golf: { goal: 130000, kpi: 2.5, be_new: 1.8 },
+  brand_grunk_dolfer: { goal: 51000, kpi: 3.0, be_new: 2.0 }, brand_yak_sports: { goal: 25000, kpi: 2.5, be_new: 1.65 }, brand_vetripaws: { goal: 4500, kpi: 2.5, be_new: 1.65 },
 };
-/** Scale +50% when the weekend so far AND the last 6 hours are at or over the KPI; cut 25% when both are under the
- *  brand's hold line (its ladder's hold, else breakeven, else 80% of the KPI); hold otherwise. Thin spend = hold. */
-export function standCall({ soFar, last6, kpi, hold, noSales }) {
+/* Any first order whose last click was email or SMS is left out of new-customer revenue: giveaway entrants and list
+   sign-ups buying from the sale emails are not what the ads bought. Same grouping as Customers (srcGroup). */
+export const EMAIL_SRC = /klaviyo|attentive|postscript|sms|email|notify|mailchimp|omnisend|yotpo/i;
+/** THE LADDER (Cole, 2026-11-22). Decides on NEW-CUSTOMER MER (store new-customer revenue, email-sourced first orders
+ *  left out, divided by all ad spend), against the brand's break-even new MER (be_new):
+ *    1.4x break-even or more -> raise 50%; 1.2x -> raise 25%; at break-even -> hold; under -> cut 25%.
+ *  Floor: store MER (all revenue / spend) under the hold line (ladder hold, else breakeven, else 80% of the KPI) never
+ *  raises. No new-customer numbers = the old store-MER rule. Weekend so far; the last 6 hours can only hold a raise back. */
+export function standCall({ soFar, last6, kpi, hold, noSales, beNew }) {
   const x = v => `${(Math.round(v * 100) / 100).toFixed(2)}x`;
   if (noSales) return { call: 'hold', pct: 0, why: 'No Triple Whale store, so Locus sees spend only. Hold.' };
   if (!soFar || !(soFar.spend >= 150) || soFar.mer == null) return { call: 'hold', pct: 0, why: `Too early: $${Math.round(soFar ? soFar.spend : 0)} of ads so far.` };
   const l6 = last6 && last6.spend >= 50 && last6.mer != null ? last6.mer : null, line = hold ?? kpi * 0.8;
-  const both = l6 == null ? `${x(soFar.mer)} so far (last 6 hours too thin to read)` : `${x(soFar.mer)} so far, ${x(l6)} last 6 hours`;
-  if (soFar.mer >= kpi && (l6 == null || l6 >= kpi)) return { call: 'scale', pct: 0.5, why: `${both}, at or over the ${x(kpi)} KPI. Scale +50%.` };
-  if (soFar.mer < line && (l6 == null || l6 < line)) return { call: 'cut', pct: -0.25, why: `${both}, under the ${x(line)} hold line. Cut 25%.` };
-  return { call: 'hold', pct: 0, why: `${both}, against the ${x(kpi)} KPI. Hold.` };
+  const nm = soFar.new_mer, nOk = beNew && nm != null && (soFar.new_orders == null || soFar.new_orders >= 3);
+  if (!nOk) {
+    const both = l6 == null ? `${x(soFar.mer)} so far (last 6 hours too thin to read)` : `${x(soFar.mer)} so far, ${x(l6)} last 6 hours`;
+    const lead = beNew && nm == null ? 'No new-customer numbers yet, so store MER decides. ' : beNew ? `Under 3 new customers so far, so store MER decides. ` : '';
+    if (soFar.mer >= kpi && (l6 == null || l6 >= kpi)) return { call: 'scale', pct: 0.5, why: `${lead}${both}, at or over the ${x(kpi)} KPI. Raise 50%.` };
+    if (soFar.mer < line && (l6 == null || l6 < line)) return { call: 'cut', pct: -0.25, why: `${lead}${both}, under the ${x(line)} hold line. Cut 25%.` };
+    return { call: 'hold', pct: 0, why: `${lead}${both}, against the ${x(kpi)} KPI. Hold.` };
+  }
+  const r = nm / beNew;
+  const head = `New-customer MER ${x(nm)} (break-even ${x(beNew)}), store MER ${x(soFar.mer)} (floor ${x(line)})`;
+  const floorOk = soFar.mer >= line, l6Ok = l6 == null || l6 >= line;
+  if (r >= 1.2 && !floorOk) return { call: 'hold', pct: 0, why: `${head}. New customers pay, but store MER is under the floor. Hold.` };
+  if (r >= 1.2 && !l6Ok) return { call: 'hold', pct: 0, why: `${head}, last 6 hours ${x(l6)} under the floor. Hold for now.` };
+  if (r >= 1.4) return { call: 'scale', pct: 0.5, why: `${head}. Raise 50%.` };
+  if (r >= 1.2) return { call: 'raise', pct: 0.25, why: `${head}. Raise 25%.` };
+  if (r >= 1) return { call: 'hold', pct: 0, why: `${head}. Hold.` };
+  return { call: 'cut', pct: -0.25, why: `${head}. New customers cost more than their first order pays. Cut 25%.` };
+}
+/** Share of new-customer revenue whose first order came from email or SMS, from tw_orders (synced nightly), over
+ *  finished days. A customer's first order = their earliest order in tw_orders (400 days of history). */
+async function emailShareNew(env, actId, from, to) {
+  if (!env.DB || from > to) return null;
+  const { results } = await env.DB.prepare(
+    `WITH f AS (SELECT customer_id, MIN(date) d FROM tw_orders WHERE act_id = ?1 AND customer_id IS NOT NULL AND customer_id != '' GROUP BY customer_id HAVING MIN(date) BETWEEN ?2 AND ?3)
+     SELECT o.source AS source, SUM(o.total) AS rev, COUNT(*) AS n FROM tw_orders o JOIN f ON f.customer_id = o.customer_id AND o.date = f.d
+     WHERE o.act_id = ?1 AND o.total > 0 GROUP BY o.source`).bind(actId, from, to).all();
+  let all = 0, em = 0, n = 0;
+  for (const r of results || []) { all += +r.rev || 0; n += +r.n || 0; if (EMAIL_SRC.test(String(r.source || ''))) em += +r.rev || 0; }
+  return n >= 10 && all > 0 ? { share: em / all, orders: n, from, to } : null;
 }
 async function standingAll(env, accounts, today, deps) {
   const d = await seasonData(env, accounts, {});
@@ -515,15 +550,28 @@ async function standingAll(env, accounts, today, deps) {
     r.last6 = { hours: six.length, sales: noSales ? null : sum(six, 'sales'), spend: sum(six, 'spend') };
     r.last6.mer = !noSales && r.last6.spend > 0 ? r.last6.sales / r.last6.spend : null;
     /* The weekend so far: finished days from the P&L line (Triple Whale), plus today live. Before Thursday it is a dry run on today. */
-    let prev = { sales: 0, spend: 0, days: 0 };
+    let prev = { sales: 0, spend: 0, days: 0, new_rev: 0, new_orders: 0, new_ok: true };
     if (inWin && today > STAND.from && deps.series) {
       try { const s = await deps.series({ ...acct, ...a }, STAND.from, addDays(today, -1)); const rr = s.rows || [];
-        prev = { sales: rr.reduce((t, x) => t + (+x.sales || 0), 0), spend: rr.reduce((t, x) => t + (+x.spend || 0), 0), days: rr.length }; } catch (e) { r.series_error = e.message; }
+        prev = { sales: rr.reduce((t, x) => t + (+x.sales || 0), 0), spend: rr.reduce((t, x) => t + (+x.spend || 0), 0), days: rr.length,
+          new_rev: rr.reduce((t, x) => t + (+x.new_rev || 0), 0), new_orders: rr.reduce((t, x) => t + (+x.new_orders || 0), 0), new_ok: rr.every(x => x.new_rev != null) }; } catch (e) { r.series_error = e.message; }
     }
     const sales = noSales ? null : prev.sales + (r.today.sales || 0), spend = prev.spend + (r.today.spend || 0);
-    r.so_far = { from: dry ? today : STAND.from, days: prev.days + 1, sales, spend, mer: sales != null && spend > 0 ? sales / spend : null, pct_goal: sales != null && cfg.goal ? sales / cfg.goal : null };
+    /* New customers: Triple Whale's new-customer revenue (paid orders), less the share whose first order came from email
+       or SMS (finished weekend days, else the last 14 days, from tw_orders). */
+    const lr = (lv && lv.row) || {};
+    let newRev = !noSales && prev.new_ok && lr.new_rev != null ? prev.new_rev + +lr.new_rev : null;
+    const newOrders = newRev != null && lr.new_orders != null ? prev.new_orders + +lr.new_orders : null;
+    let es = null;
+    if (newRev != null) {
+      try { es = await emailShareNew(env, a.act_id, inWin && today > STAND.from ? STAND.from : addDays(today, -14), addDays(today, -1)); } catch (e) { r.email_error = e.message; }
+    }
+    const adj = newRev != null ? newRev * (1 - (es ? es.share : 0)) : null;
+    r.so_far = { from: dry ? today : STAND.from, days: prev.days + 1, sales, spend, mer: sales != null && spend > 0 ? sales / spend : null, pct_goal: sales != null && cfg.goal ? sales / cfg.goal : null,
+      new_rev_all: newRev, new_rev: adj, new_orders: newOrders, email_share_new: es ? es.share : null, new_mer: adj != null && spend > 0 ? adj / spend : null };
+    r.be_new = cfg.be_new || null;
     r.no_sales = noSales ? 1 : 0; r.as_of = (lv && lv.as_of) || null;
-    r.suggest = r.error ? { call: 'hold', pct: 0, why: `No live numbers: ${r.error}` } : standCall({ soFar: r.so_far, last6: r.last6, kpi: cfg.kpi, hold: r.hold, noSales });
+    r.suggest = r.error ? { call: 'hold', pct: 0, why: `No live numbers: ${r.error}` } : standCall({ soFar: r.so_far, last6: r.last6, kpi: cfg.kpi, hold: r.hold, noSales, beNew: cfg.be_new });
     return r;
   }));
   rows.sort((p, q) => (q.goal || 0) - (p.goal || 0));

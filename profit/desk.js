@@ -1093,7 +1093,7 @@
    * per-day ladder grade ("Today's call") now lives inside the brand's detail as context. Every dot, ring, line and bar
    * explains itself on hover (data-tip), and a key sits above the tiles. A tile opens the sale campaign: ad sets, their
    * ads, and which ads to cut or wait on (GET /api/standing/brand: Locus's own ad calls, Triple Whale last click). */
-  const SW = { scale: 'Scale +50%', hold: 'Hold', cut: 'Cut 25%' }, SORD = { cut: 0, scale: 1, hold: 2 };
+  const SW = { scale: 'Raise 50%', raise: 'Raise 25%', hold: 'Hold', cut: 'Cut 25%' }, SORD = { cut: 0, scale: 1, raise: 1, hold: 2 };
   const SCOL = ['#4C7AE6', '#1C9A5A', '#C98A1B', '#8B5CF6', '#0E9FB5', '#94A3B8'];
   const tipOf = s => U().tipAttr ? U().tipAttr(esc(s)) : ` title="${esc(s)}"`;
   const merT = (v, kpi) => v == null || !kpi ? '' : v >= kpi ? 'good' : v >= kpi * 0.8 ? 'warn' : 'bad';
@@ -1143,9 +1143,9 @@
     const N = B.filter(b => (b.suggest || {}).to && !(S.approved || {})[b.act_id]);
     const done = B.filter(b => (S.approved || {})[b.act_id]);
     const card = b => { const g = b.suggest, from = ((b.meta || {}).camp || {}).daily || 0;
-      return `<div class="sb-need ${g.call}"><div class="t"><b>${esc(b.name)}</b> ${lchip(g.call === 'scale' ? 'good' : 'bad', SW[g.call])}<small>${esc(g.why || '')}${g.note ? ` ${esc(g.note)}` : ''}</small></div>
+      return `<div class="sb-need ${g.call}"><div class="t"><b>${esc(b.name)}</b> ${lchip((g.call === 'scale' || g.call === 'raise') ? 'good' : 'bad', SW[g.call])}<small>${esc(g.why || '')}${g.note ? ` ${esc(g.note)}` : ''}</small></div>
         <span class="sb-move">${U().money(from)} to <b>${U().money(g.to)}</b>/day</span>
-        <button type="button" class="v2btn ${g.call === 'scale' ? 'dk-p' : 'sb-cutbtn'}" data-ws="${esc(b.act_id)}" data-label="Approve">Approve</button></div>`; };
+        <button type="button" class="v2btn ${(g.call === 'scale' || g.call === 'raise') ? 'dk-p' : 'sb-cutbtn'}" data-ws="${esc(b.act_id)}" data-label="Approve">Approve</button></div>`; };
     return `<section class="sb-needs"><div class="sb-eb">Needs your yes (${N.length})</div>
       ${N.length ? N.map(card).join('') : '<div class="sb-empty">Nothing to approve. Every brand is on Hold.</div>'}
       ${done.map(b => { const ap = S.approved[b.act_id]; return `<div class="sb-empty"><span class="wr-done">${esc(b.name)}: approved by ${esc(ap.by)}, ${U().money(ap.from)} to ${U().money(ap.to)}/day</span></div>`; }).join('')}</section>`;
@@ -1157,11 +1157,12 @@
     const max = b.kpi * 1.6, pos = v => Math.max(0, Math.min(100, (v || 0) / max * 100)).toFixed(1), t6 = merT(l6.mer, b.kpi);
     return `<div class="sb-mer"><b class="${merT(s.mer, b.kpi)}"${tipOf(`MER for the weekend so far: ${U().x2(s.mer)}. Sales over all ad spend, Triple Whale.`)}>${U().x2(s.mer)}</b>
         <span>so far · <span class="${t6}"${tipOf(`MER over the last ${l6.hours || 6} hours with data: ${U().x2(l6.mer)}. Read only once there is $50+ of spend in them.`)}>${U().x2(l6.mer)} last ${l6.hours || 6}h</span> · KPI ${U().x2(b.kpi)}</span></div>
-      <div class="sb-gauge"${tipOf('Red: more than 20% under the KPI. Yellow: up to 20% under. Green: at or over the KPI.')}><span class="k" style="left:${pos(b.kpi)}%"${tipOf(`The KPI, ${U().x2(b.kpi)}: the MER this brand has to clear.`)}></span>${l6.mer != null ? `<span class="r" style="left:${pos(l6.mer)}%"${tipOf(`Ring: MER over the last 6 hours, ${U().x2(l6.mer)}.`)}></span>` : ''}<span class="m ${merT(s.mer, b.kpi)}" style="left:${pos(s.mer)}%"${tipOf(`Dot: MER for the weekend so far, ${U().x2(s.mer)}.`)}></span></div>`;
+      <div class="sb-gauge"${tipOf('Red: more than 20% under the KPI. Yellow: up to 20% under. Green: at or over the KPI.')}><span class="k" style="left:${pos(b.kpi)}%"${tipOf(`The KPI, ${U().x2(b.kpi)}: the MER this brand has to clear.`)}></span>${l6.mer != null ? `<span class="r" style="left:${pos(l6.mer)}%"${tipOf(`Ring: MER over the last 6 hours, ${U().x2(l6.mer)}.`)}></span>` : ''}<span class="m ${merT(s.mer, b.kpi)}" style="left:${pos(s.mer)}%"${tipOf(`Dot: MER for the weekend so far, ${U().x2(s.mer)}.`)}></span></div>
+      ${s.new_mer != null ? `<p class="sb-note"${tipOf('What decides the call. New-customer revenue (Triple Whale, paid orders) with first orders that came from email or SMS left out, divided by all ad spend. Break-even = the first order pays back what the customer cost.')}>New customers: ${U().kmoney(s.new_rev)}${s.email_share_new != null ? ` (${Math.round(s.email_share_new * 100)}% email left out)` : ''} · new-customer MER <b>${U().x2(s.new_mer)}</b> · break-even ${U().x2(b.be_new)}</p>` : ''}`;
   }
   function sbTile(S, b, i, on) {
     const s = b.so_far || {}, m = b.meta || {}, g = b.suggest || {}, ap = (S.approved || {})[b.act_id];
-    const call = ap ? lchip('good', 'Approved') : lchip(g.call === 'scale' ? 'good' : g.call === 'cut' ? 'bad' : '', SW[g.call] || 'Hold');
+    const call = ap ? lchip('good', 'Approved') : lchip((g.call === 'scale' || g.call === 'raise') ? 'good' : g.call === 'cut' ? 'bad' : '', SW[g.call] || 'Hold');
     const room = m.limit ? Math.max(0, Math.min(100, (m.headroom || 0) / m.limit * 100)) : 0;
     return `<button type="button" class="sb-tile${on ? ' on' : ''}" data-sbt="${esc(b.act_id)}" aria-expanded="${on ? 'true' : 'false'}">
       <div class="h"><b>${esc(b.name)}</b>${call}</div>
