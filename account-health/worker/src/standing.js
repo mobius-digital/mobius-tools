@@ -356,7 +356,7 @@ export async function handleStanding(request, env, url, path, json, deps) {
   if (!path.startsWith('/api/standing')) return null;
   if (!(await deps.isAdmin(request, env))) return json({ error: 'unauthorized' }, 401);
   const email = await deps.sessionEmail(env, request).catch(() => null);
-  const body = request.method === 'POST' ? await request.json().catch(() => ({})) : {};
+  const body = request.method === 'POST' || request.method === 'PUT' ? await request.json().catch(() => ({})) : {};
   try {
     if (path === '/api/standing' && request.method === 'GET') {
       const rec = await load(env, deps, url.searchParams.get('slot'));
