@@ -361,21 +361,20 @@ export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name
   const did = await didSince(env, deps, act), line = b.hold ?? (b.kpi ? b.kpi * 0.8 : null), t = hourOfSlot(rec.slot);
   /* Matched to Well Copy's app message (Cole's screenshot, 2026-11-24): a greeting and the window, a divider, then each
      section as a header with an emoji, and each stat as its own "*Label:* value" line with a blank line between. */
-  const H = s => ({ type: 'header', text: { type: 'plain_text', text: s, emoji: true } });
-  const md = s => ({ type: 'section', text: { type: 'mrkdwn', text: s } });
+  /* Slack's MARKDOWN block (Cole 2026-11-24, his Well Copy screenshot): "## Title" draws a real heading, clearly
+     bigger than the header block, which reads barely larger than body text. Standard markdown: **bold**, "- " lists. */
+  const MD = s => ({ type: 'markdown', text: s });
   const period = (label, p) => {
-    if (!p || p.sales == null) return [];
+    if (!p || p.sales == null) return '';
     const dot = style === 'dots' ? `${DOTS[toneOf(p.mer, b.kpi, line)]} ` : '';
-    return [H(label), md(`*Sales:* ${usd(p.sales)}\n\n*Ad spend:* ${usd(p.spend)}\n\n*MER:* ${dot}${nx(p.mer)}`)];
+    return `## ${label}\n\n**Sales:** ${usd(p.sales)}\n\n**Ad spend:** ${usd(p.spend)}\n\n**MER:** ${dot}${nx(p.mer)}`;
   };
   const day = t.day.split(',')[0];
   const blocks = [
-    md(`Happy ${day}! 👋\nHere's where ${name || b.name}'s Black Friday stands as of ${t.hour} CT. Our goal is *${nx(b.kpi)} MER*.`),
+    MD(`Happy ${day}! 👋\n\nHere's where ${name || b.name}'s Black Friday stands as of ${t.hour} CT. Our goal is **${nx(b.kpi)} MER**.`),
     { type: 'divider' },
-    ...period('Last 6 hours ⏱️', b.last6), ...period('Today 📅', b.today), ...period('This week 📊', b.week),
-    H('Updates 🛠️'),
-    { type: 'rich_text', elements: [{ type: 'rich_text_list', style: 'bullet', elements: (did.length ? did : ['No changes since the last update'])
-      .map(d => ({ type: 'rich_text_section', elements: [{ type: 'text', text: d }] })) }] },
+    ...[period('Last 6 hours ⏱️', b.last6), period('Today 📅', b.today), period('This week 📊', b.week)].filter(Boolean).map(MD),
+    MD(`## Updates 🛠️\n\n${(did.length ? did : ['No changes since the last update']).map(d => `- ${d}`).join('\n')}`),
     { type: 'context', elements: [{ type: 'mrkdwn', text: rec.next ? `Next update at ${rec.next} CT` : 'Last update of the day' }] }];
   return { text: `${name || b.name} Black Friday update, ${t.day} ${t.hour}`, blocks };
 }
