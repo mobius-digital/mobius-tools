@@ -406,7 +406,7 @@ export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name
     const tr = tierOf(p.mer, b.kpi, line);
     return { color: tr.color, blocks: [H(label), md(`*Sales:*  ${usd(p.sales)}\n*Ad spend:*  ${usd(p.spend)}\n*MER:*  ${nx(p.mer)}`)] };
   };
-  const NEW = ['rowbars', 'rowbullets', 'winbars'].includes(layout), MDH = s => ({ type: 'markdown', text: `# ${s}` });
+  const NEW = ['rowbars', 'rowbullets', 'winbars', 'wincompact'].includes(layout), MDH = s => ({ type: 'markdown', text: `# ${s}` });
   /* Cole 2026-11-24: the markdown '#' heading draws biggest. Section titles inside a colored bar use it too when Slack
      takes a markdown block there (mdIn), else the header block. */
   const T1 = layout === 'spaced' || (NEW && mdIn) ? MDH : H;
@@ -434,7 +434,7 @@ export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name
     if (row1.length) blocks.push({ type: 'section', fields: row1.map(([l, p]) => f(l, p)) });
     if (wk) blocks.push({ type: 'divider' }, { type: 'section', fields: [f(wk[0], wk[1])] });
     attachments = [];
-  } else if (layout === 'rowbars' || layout === 'rowbullets' || layout === 'winbars') {
+  } else if (layout === 'rowbars' || layout === 'rowbullets' || layout === 'winbars' || layout === 'wincompact') {
     /* Round 4 (Cole 2026-11-24): a big colored bar beside the numbers, the small lines (or plain bullets) inside it.
        rowbars / rowbullets = one bar per row (the day row takes Today's color, the week row This week's), two columns;
        winbars = one bar per window, stacked, so each window has its own color. */
@@ -444,7 +444,11 @@ export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name
       : `\n> *Sales:* ${usd(p.sales)}\n\n> *Ad spend:* ${usd(p.spend)}\n\n> *MER:* ${nx(p.mer)}`}`;
     const get = k => wins.find(([l]) => l === k), col = p => tierOf(p && p.mer, b.kpi, line).color;
     attachments = [];
-    if (layout === 'winbars') {
+    if (layout === 'wincompact') {
+      /* H, condensed (Cole 2026-11-24: "boom boom boom, without it being so long"): each window its own colored bar,
+         its three numbers on one line, so the whole stats part is three short bars. */
+      for (const [l, p] of wins) attachments.push({ color: col(p), blocks: [md(`*${l.toUpperCase()}*\n*Sales* ${usd(p.sales)}   ·   *Ad spend* ${usd(p.spend)}   ·   *MER* ${nx(p.mer)}`)] });
+    } else if (layout === 'winbars') {
       for (const [l, p] of wins) attachments.push({ color: col(p), blocks: [md(txt(l, p))] });
     } else {
       const row1 = [get('Last 6 hours'), get('Today')].filter(Boolean), wk = get('This week');
@@ -528,7 +532,7 @@ export async function offerClientUpdate(env, deps, { act, rec = null, style = nu
   /* Layouts in order of preference; Slack refusing one (a table inside a colored bar, a table at all, an ad picture)
      falls to the next. Whatever reached Cole is what Send posts. */
   /* Cole 2026-11-24: the separate colored bars, stacked (Slack cannot put colored bars side by side). */
-  const pick = ['clean', 'blue', 'bars', 'wc', 'spaced', 'lines', 'rowbars', 'rowbullets', 'winbars'].includes(style) ? style : (['clean', 'blue', 'bars', 'spaced', 'lines'].includes(await deps.getSetting(env, 'clientUpdateLayout')) ? await deps.getSetting(env, 'clientUpdateLayout') : 'spaced');
+  const pick = ['clean', 'blue', 'bars', 'wc', 'spaced', 'lines', 'rowbars', 'rowbullets', 'winbars', 'wincompact'].includes(style) ? style : (['clean', 'blue', 'bars', 'spaced', 'lines', 'rowbars', 'winbars', 'wincompact'].includes(await deps.getSetting(env, 'clientUpdateLayout')) ? await deps.getSetting(env, 'clientUpdateLayout') : 'wincompact');
   const tries = [[pick, true, true], [pick, true, false], [pick, false, false], ['bars', false, false]];
   let r = { ok: false, error: 'nothing tried' }, used = null;
   for (const [layout, images, mdIn] of tries) {
