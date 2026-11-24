@@ -36,7 +36,7 @@ import { connectGet, connectPost, connectOverview, pendingTick as connectPending
 import { morningCardTick, previewCard, teamPost, tagOf, cardActionDone, cardCallMade, cardProdDone, cardBriefState, cardReaction, cardOn, morningHour, DEFAULT_MORNING_HOUR } from './morningcard.js';
 import { handlePrefs, morningPeople } from './prefs.js';
 import { morningTick, handleMorning } from './morning.js';
-import { standingTick, handleStanding } from './standing.js';
+import { standingTick, handleStanding, handleClientUpdateButton } from './standing.js';
 import { todayTick } from './todaypost.js';
 import { laneBlocks, laneLines, lanePost, laneWho, laneOwner, fyi, roundupTick } from './lane.js';
 /**
@@ -6561,6 +6561,9 @@ async function handleSlackInteract(request, env, ctx) {
     /* The daily check-in's buttons and forms, and the review post's Approve all / Ask for changes (checkin.js, 2026-10-26). */
     if (payload.type === 'block_actions' && (payload.actions || []).some(a => /^ci_/.test(a.action_id || ''))) { await checkinAction(env, ctx, checkinDeps(ctx), payload); return ACK(); }
     if (payload.type === 'block_actions' && (payload.actions || []).some(a => /^rv_/.test(a.action_id || ''))) { await reviewAction(env, ctx, checkinDeps(ctx), payload); return ACK(); }
+    /* Send to client / Don't send on a budget change's client update (standing.js, 2026-11-24). */
+    if (payload.type === 'block_actions' && (payload.actions || []).some(a => /^ws_/.test(a.action_id || '')))
+      return await handleClientUpdateButton(env, ctx, payload, standingDeps(), { ACK, xfetch });
     if (payload.type === 'view_submission' && /^ci_/.test(payload.view?.callback_id || '')) {
       const errors = checkinErrors(payload);
       if (errors) return new Response(JSON.stringify({ response_action: 'errors', errors }), { headers: { 'content-type': 'application/json' } });
@@ -8527,6 +8530,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         if (r.ok && !r.dry && r.after && (r.level === 'campaign' || r.level === 'adset')) await syncedRow(r.level, r.object, r.after);
         /* A Today's call made on the page counts on the morning card's calls line (all made = struck through). */
         if (r.ok && !r.dry && r.object) await cardCallMade(env, cardDeps(), act, r.object).catch(() => {});
+        /* Changes made here reach the client in the next 6-hour update's "What we did" (standing.js, client_why). */
         return json(r);
       } catch (e) { return json({ error: e.message }, 502); }
       async function syncedRow(level, id, vals) {

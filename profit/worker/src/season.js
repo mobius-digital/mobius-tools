@@ -489,38 +489,33 @@ export const STAND = { from: '2026-11-26', to: '2026-11-30' };
    Yak assumed 60% margin (no cost data yet). Cole set the rule 2026-11-22; change a number here, nowhere else. */
 export const STAND_BRANDS = {
   brand_lucky_golf: { goal: 150000, kpi: 2.5, be_new: 1.55 }, brand_dartee_golf: { goal: 78000, kpi: 2.5, be_new: 1.5 }, brand_bonk_golf: { goal: 130000, kpi: 2.5, be_new: 1.8 },
-  brand_grunk_dolfer: { goal: 51000, kpi: 3.0, be_new: 2.0 }, brand_yak_sports: { goal: 25000, kpi: 2.5, be_new: 1.65 }, brand_vetripaws: { goal: 4500, kpi: 2.5, be_new: 1.65 },
+  brand_grunk_dolfer: { goal: 51000, kpi: 3.0, be_new: 2.0 },
+  /* Cole 2026-11-24: Yak and VetriPaws Black Friday started Mon Nov 23 (Meta sets), not the plan's Thursday. */
+  brand_yak_sports: { goal: 25000, kpi: 2.5, be_new: 1.65, start: '2026-11-23' }, brand_vetripaws: { goal: 4500, kpi: 2.5, be_new: 1.65, start: '2026-11-23' },
+  /* Ice & Gold: Fela runs the budgets, so updates only (no raise or cut call); its sale is live this week. */
+  brand_ice_and_gold: { goal: null, kpi: 2.5, be_new: null, start: '2026-11-23', watch: 'Fela runs Ice & Gold budgets, so this is updates only.' },
 };
 /* Any first order whose last click was email or SMS is left out of new-customer revenue: giveaway entrants and list
    sign-ups buying from the sale emails are not what the ads bought. Same grouping as Customers (srcGroup). */
 export const EMAIL_SRC = /klaviyo|attentive|postscript|sms|email|notify|mailchimp|omnisend|yotpo/i;
-/** THE LADDER (Cole, 2026-11-22). Decides on NEW-CUSTOMER MER (store new-customer revenue, email-sourced first orders
- *  left out, divided by all ad spend), against the brand's break-even new MER (be_new):
- *    1.4x break-even or more -> raise 50%; 1.2x -> raise 25%; at break-even -> hold; under -> cut 25%.
- *  Floor: store MER (all revenue / spend) under the hold line (ladder hold, else breakeven, else 80% of the KPI) never
- *  raises. No new-customer numbers = the old store-MER rule. Weekend so far; the last 6 hours can only hold a raise back. */
+/** THE LADDER: see the rule inside standCall (whole-store return vs goal and break-even, Cole 2026-11-24). */
 export function standCall({ soFar, last6, kpi, hold, noSales, beNew }) {
   const x = v => `${(Math.round(v * 100) / 100).toFixed(2)}x`;
   if (noSales) return { call: 'hold', pct: 0, why: 'No Triple Whale store, so Locus sees spend only. Hold.' };
   if (!soFar || !(soFar.spend >= 150) || soFar.mer == null) return { call: 'hold', pct: 0, why: `Too early: $${Math.round(soFar ? soFar.spend : 0)} of ads so far.` };
   const l6 = last6 && last6.spend >= 50 && last6.mer != null ? last6.mer : null, line = hold ?? kpi * 0.8;
-  const nm = soFar.new_mer, nOk = beNew && nm != null && (soFar.new_orders == null || soFar.new_orders >= 3);
-  if (!nOk) {
-    const both = l6 == null ? `${x(soFar.mer)} so far (last 6 hours too thin to read)` : `${x(soFar.mer)} so far, ${x(l6)} last 6 hours`;
-    const lead = beNew && nm == null ? 'No new-customer numbers yet, so store MER decides. ' : beNew ? `Under 3 new customers so far, so store MER decides. ` : '';
-    if (soFar.mer >= kpi && (l6 == null || l6 >= kpi)) return { call: 'scale', pct: 0.5, why: `${lead}${both}, at or over the ${x(kpi)} KPI. Raise 50%.` };
-    if (soFar.mer < line && (l6 == null || l6 < line)) return { call: 'cut', pct: -0.25, why: `${lead}${both}, under the ${x(line)} hold line. Cut 25%.` };
-    return { call: 'hold', pct: 0, why: `${lead}${both}, against the ${x(kpi)} KPI. Hold.` };
-  }
-  const r = nm / beNew;
-  const head = `New-customer MER ${x(nm)} (break-even ${x(beNew)}), store MER ${x(soFar.mer)} (floor ${x(line)})`;
-  const floorOk = soFar.mer >= line, l6Ok = l6 == null || l6 >= line;
-  if (r >= 1.2 && !floorOk) return { call: 'hold', pct: 0, why: `${head}. New customers pay, but store MER is under the floor. Hold.` };
-  if (r >= 1.2 && !l6Ok) return { call: 'hold', pct: 0, why: `${head}, last 6 hours ${x(l6)} under the floor. Hold for now.` };
-  if (r >= 1.4) return { call: 'scale', pct: 0.5, why: `${head}. Raise 50%.` };
-  if (r >= 1.2) return { call: 'raise', pct: 0.25, why: `${head}. Raise 25%.` };
-  if (r >= 1) return { call: 'hold', pct: 0, why: `${head}. Hold.` };
-  return { call: 'cut', pct: -0.25, why: `${head}. New customers cost more than their first order pays. Cut 25%.` };
+  /* THE RULE since Cole 2026-11-24 ("the 2.5 overall is the one thing"): whole-store return = store sales / all ad
+     spend, against the brand's goal (kpi) and break-even (the hold line). 1.5x the goal raise 50%, the goal raise 25%,
+     between the lines hold, under break-even cut 25%. The last 6 hours under break-even hold a raise back. New-customer
+     return is shown, never decides. Whether a raise would get spent is checked on the Meta side (standing.js). */
+    const nm = soFar.new_mer, info = beNew && nm != null ? ` New customers ${x(nm)} (break-even ${x(beNew)}).` : '';
+    const head = `Store return ${x(soFar.mer)} so far${l6 == null ? '' : `, ${x(l6)} last 6 hours`}. Goal ${x(kpi)}, break-even ${x(line)}.`;
+    const l6Ok = l6 == null || l6 >= line;
+    if (soFar.mer >= kpi * 1.5 && l6Ok) return { call: 'scale', pct: 0.5, why: `${head} Well over the goal. Raise 50%.${info}` };
+    if (soFar.mer >= kpi && l6Ok) return { call: 'raise', pct: 0.25, why: `${head} Over the goal. Raise 25%.${info}` };
+    if (soFar.mer >= kpi) return { call: 'hold', pct: 0, why: `${head} Over the goal, but the last 6 hours fell under break-even. Hold for now.${info}` };
+    if (soFar.mer < line && (l6 == null || l6 < line)) return { call: 'cut', pct: -0.25, why: `${head} Under break-even. Cut 25%.${info}` };
+    return { call: 'hold', pct: 0, why: `${head} Between break-even and the goal. Hold.${info}` };
 }
 /** Share of new-customer revenue whose first order came from email or SMS, from tw_orders (synced nightly), over
  *  finished days. A customer's first order = their earliest order in tw_orders (400 days of history). */
@@ -541,7 +536,9 @@ async function standingAll(env, accounts, today, deps) {
    * Before a brand's sale starts it is a dry run on today; after it ends the total stops at its last day. */
   const rows = await Promise.all(d.accounts.filter(a => STAND_BRANDS[a.act_id]).map(async a => {
     const acct = accounts.find(x => x.act_id === a.act_id) || a, cfg = STAND_BRANDS[a.act_id], g = a.goals || {};
-    const sale = saleOf(a.phases, warOf(a.answers)), mode = today < sale.start ? 'plan' : today > sale.end ? 'after' : 'live';
+    const sale = saleOf(a.phases, warOf(a.answers));
+    if (cfg.start && cfg.start < sale.start) sale.start = cfg.start;
+    const mode = today < sale.start ? 'plan' : today > sale.end ? 'after' : 'live';
     const r = { act_id: a.act_id, name: a.name, currency: acct.currency || 'USD', goal: cfg.goal, kpi: cfg.kpi, hold: g.hold ?? g.be ?? null, sale: { start: sale.start, end: sale.end }, mode };
     let lv = null;
     try { lv = await deps.live({ ...acct, ...a }); } catch (e) { r.error = e.message || 'Triple Whale did not answer'; }
@@ -576,9 +573,18 @@ async function standingAll(env, accounts, today, deps) {
     const adj = newRev != null ? newRev * (1 - (es ? es.share : 0)) : null;
     r.so_far = { from: mode === 'plan' ? today : sale.start, days: prev.days + (withToday ? 1 : 0), sales, spend, mer: sales != null && spend > 0 ? sales / spend : null, pct_goal: sales != null && cfg.goal ? sales / cfg.goal : null,
       new_rev_all: newRev, new_rev: adj, new_orders: newOrders, email_share_new: es ? es.share : null, new_mer: adj != null && spend > 0 ? adj / spend : null };
+    /* Week so far (Monday to now) for the client update (Cole 2026-11-24: "week so far, day so far, last 6 hours"). */
+    if (!noSales && deps.series) {
+      const dow = new Date(today + 'T12:00:00Z').getUTCDay(), mon = addDays(today, -((dow + 6) % 7));
+      let ws = 0, wp = 0;
+      if (mon < today) { try { const s = await deps.series({ ...acct, ...a }, mon, addDays(today, -1)); for (const x of s.rows || []) { ws += +x.sales || 0; wp += +x.spend || 0; } } catch (e) { r.week_error = e.message; } }
+      ws += r.today.sales || 0; wp += r.today.spend || 0;
+      r.week = { from: mon, sales: ws, spend: wp, mer: wp > 0 ? ws / wp : null };
+    }
     r.be_new = cfg.be_new || null;
     r.no_sales = noSales ? 1 : 0; r.as_of = (lv && lv.as_of) || null;
     r.suggest = r.error ? { call: 'hold', pct: 0, why: `No live numbers: ${r.error}` } : standCall({ soFar: r.so_far, last6: r.last6, kpi: cfg.kpi, hold: r.hold, noSales, beNew: cfg.be_new });
+    if (cfg.watch) { r.watch = 1; r.suggest = { call: 'hold', pct: 0, why: cfg.watch }; }
     return r;
   }));
   rows.sort((p, q) => (q.goal || 0) - (p.goal || 0));
