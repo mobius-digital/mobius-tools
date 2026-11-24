@@ -406,7 +406,8 @@ export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name
     const tr = tierOf(p.mer, b.kpi, line);
     return { color: tr.color, blocks: [H(label), md(`*Sales:*  ${usd(p.sales)}\n*Ad spend:*  ${usd(p.spend)}\n*MER:*  ${nx(p.mer)}`)] };
   };
-  const blocks = [H(`${name || b.name} · ${m}`), ctx(`${t.day}  ·  ${t.hour} CT   |   Goal: *${nx(b.kpi)} MER*`), { type: 'divider' }];
+  const T1 = layout === 'spaced' ? (s => ({ type: 'markdown', text: `# ${s}` })) : H;   // Cole 2026-11-24: the markdown '#' heading draws biggest
+  const blocks = [T1(`${name || b.name} · ${m}`), ctx(`${t.day}  ·  ${t.hour} CT   |   Goal: *${nx(b.kpi)} MER*`), { type: 'divider' }];
   const wins = (m === 'End of Day' ? [['Today', b.today], ['This week', b.week]] : [['Last 6 hours', b.last6], ['Today', b.today], ['This week', b.week]]).filter(([, p]) => p && p.sales != null);
   let attachments;
   /* Cole 2026-11-24: the grid without the code-block names. 'clean' = no colored bars at all (bold names, grey lines,
@@ -417,11 +418,15 @@ export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name
     /* Well Copy's spacing (Cole 2026-11-24): each number on its own grey line with a blank line between, two columns. */
     /* Round 2 (Cole's screenshot): no "Sales and ad spend" title; Today and This week side by side on the first row,
        Last 6 hours on its own row under a divider; window names in caps so they don't blend into the numbers. */
-    const f = (l, p) => ({ type: 'mrkdwn', text: `*${l.toUpperCase()}*\n\n> *Sales:* ${usd(p.sales)}\n\n> *Ad spend:* ${usd(p.spend)}\n\n> *MER:* ${nx(p.mer)}` });
+    /* Round 3 (Cole): Last 6 hours | Today on the top row (the day), This week alone below (the week); a colored square
+       before each window's name shows it against the goal: green at or over, gray just under, yellow under goal, red
+       under break-even. The square is the only way to color one window inside a two-column row. */
+    const SQ = { great: '🟩', good: '🟩', near: '⬜', under: '🟨', bad: '🟥' };
+    const f = (l, p) => ({ type: 'mrkdwn', text: `${SQ[tierOf(p.mer, b.kpi, line).key]}  *${l.toUpperCase()}*\n\n> *Sales:* ${usd(p.sales)}\n\n> *Ad spend:* ${usd(p.spend)}\n\n> *MER:* ${nx(p.mer)}` });
     const get = k => wins.find(([l]) => l === k);
-    const row1 = [get('Today'), get('This week')].filter(Boolean), l6 = get('Last 6 hours');
+    const row1 = [get('Last 6 hours'), get('Today')].filter(Boolean), wk = get('This week');
     if (row1.length) blocks.push({ type: 'section', fields: row1.map(([l, p]) => f(l, p)) });
-    if (l6) blocks.push({ type: 'divider' }, { type: 'section', fields: [f(l6[0], l6[1])] });
+    if (wk) blocks.push({ type: 'divider' }, { type: 'section', fields: [f(wk[0], wk[1])] });
     attachments = [];
   } else if (layout === 'lines') {
     /* Small colored bars (Cole: "make the smaller bars different colors"): the grey quote line has no color setting in
@@ -458,7 +463,7 @@ export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name
   if (m === 'Morning Update') {
     const ads = await topAds(env, act, prevDay(t.date), b.kpi, line).catch(() => []);
     if (ads.length) {
-      const ab = [H('Top ads yesterday'), ctx('Still running, most sales at or over the goal')];
+      const ab = [T1('Top ads yesterday'), ctx('Still running, most sales at or over the goal')];
       ads.forEach((a, i) => {
         if (GRID) {   // the same name + grey-line look, the ad's picture beside it
           ab.push({ type: 'section', text: { type: 'mrkdwn', text: `${nm(`${i + 1}. ${cleanName(a.name)}`)}\n> *Sales:* ${a.sales}\n> *Spent:* ${usd(a.spend)}\n> *Return:* ${nx(a.roas)}` },
@@ -471,7 +476,7 @@ export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name
       if (layout === 'clean' || layout === 'spaced') blocks.push({ type: 'divider' }, ...ab); else attachments.push({ color: BLUE, blocks: ab });
     }
   }
-  const upd = [H('Updates'), md((did.length ? did : ['No changes since the last update']).map(d => `•  ${d}`).join('\n')),
+  const upd = [T1('Updates'), md((did.length ? did : ['No changes since the last update']).map(d => `•  ${d}`).join('\n')),
     ctx(rec.next ? `Next update at ${rec.next} CT` : 'Next update tomorrow at 9am CT')];
   if (layout === 'clean' || layout === 'spaced') blocks.push({ type: 'divider' }, ...upd); else attachments.push({ color: BLUE, blocks: upd });
   return { text: `${name || b.name} ${m}, ${t.day} ${t.hour}`, blocks, attachments };
@@ -497,7 +502,7 @@ export async function offerClientUpdate(env, deps, { act, rec = null, style = nu
   /* Layouts in order of preference; Slack refusing one (a table inside a colored bar, a table at all, an ad picture)
      falls to the next. Whatever reached Cole is what Send posts. */
   /* Cole 2026-11-24: the separate colored bars, stacked (Slack cannot put colored bars side by side). */
-  const pick = ['clean', 'blue', 'bars', 'wc', 'spaced', 'lines'].includes(style) ? style : (['clean', 'blue', 'bars', 'spaced', 'lines'].includes(await deps.getSetting(env, 'clientUpdateLayout')) ? await deps.getSetting(env, 'clientUpdateLayout') : 'clean');
+  const pick = ['clean', 'blue', 'bars', 'wc', 'spaced', 'lines'].includes(style) ? style : (['clean', 'blue', 'bars', 'spaced', 'lines'].includes(await deps.getSetting(env, 'clientUpdateLayout')) ? await deps.getSetting(env, 'clientUpdateLayout') : 'spaced');
   const tries = [[pick, true], [pick, false], ['bars', false]];
   let r = { ok: false, error: 'nothing tried' }, used = null;
   for (const [layout, images] of tries) {
