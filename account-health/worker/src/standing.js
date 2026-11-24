@@ -17,7 +17,7 @@
  *   POST /api/standing/approve {slot, act}   apply that brand's suggested budget */
 import { metaLive, locusWrite, gget, metaActs } from './metawrite.js';
 import { dmPerson } from './morning.js';
-import { adNumbers, metaActsOf, sumAds } from './buyerai.js';
+import { adNumbers, metaActsOf, sumAds, withCovers } from './buyerai.js';
 import { buildBuyerList } from './buyerlist.js';
 import { standingCard, clientCard } from './standingdm.js';
 import { boardSvg, brandSvg, toPng } from './standingimg.js';
@@ -28,9 +28,10 @@ const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
  * Dec 4). It only sends once at least one brand's own sale is live; each brand counts from its own start. */
 export const STAND_DAYS = { from: '2026-11-23', to: '2026-12-04' };
 /* Central hours. 9am to 9pm every 3 hours, and 11pm to close the day (a midnight read would be an empty new day). */
-export const STAND_HOURS = [9, 12, 15, 18, 21, 23];
+/* Every 6 hours since Cole 2026-11-24 ("can Meta even optimize after every 3 hours?"): 9am, 3pm, 9pm Central. */
+export const STAND_HOURS = [9, 15, 21];
 const KNOWN_LIMITS = { brand_lucky_golf: 6637, brand_dartee_golf: 13806, brand_bonk_golf: 5000, brand_grunk_dolfer: 2583, brand_yak_sports: 841, brand_vetripaws: 3428 };
-const SALE_RE =/bfcm|black friday|cyber|holiday 20\d\d/i;
+const SALE_RE =/bfcm|black friday|\bbf\b|cyber|holiday 20\d\d/i;
 
 const central = (d = new Date()) => {
   const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' }).formatToParts(d).map(x => [x.type, x.value]));
@@ -48,11 +49,22 @@ const slotLabel = slot => {
 
 /** The sale campaign the budget call acts on (same pick as the War Room page): ACTIVE, named BFCM / Black Friday /
  *  Cyber / Holiday 20xx, a daily budget first, Black Friday before Dec 1 and Holiday after. */
-export function pickSaleCamp(ml, today) {
+export function pickSaleCamp(ml, today, spent = {}) {
   const dec = today >= '2026-12-01';
   const cs = Object.entries((ml && ml.campaigns) || {}).map(([id, c]) => ({ id, ...c })).filter(c => c.status === 'ACTIVE' && SALE_RE.test(c.name || ''));
+  /* Cole 2026-11-24: the Dartee raise landed on BFCM 2026 ($0 today, its sets start Thursday) while Early access did the
+     selling. A campaign that is spending today comes first, the most spend first; the old order only breaks ties. */
   const score = c => (c.daily ? 0 : 10) + (/holiday/i.test(c.name) ? (dec ? 0 : 5) : (dec ? 5 : 0));
-  return cs.sort((a, b) => score(a) - score(b) || (b.daily || 0) - (a.daily || 0))[0] || null;
+  return cs.sort((a, b) => ((spent[b.id] || 0) > 0) - ((spent[a.id] || 0) > 0) || (spent[b.id] || 0) - (spent[a.id] || 0) || score(a) - score(b) || (b.daily || 0) - (a.daily || 0))[0] || null;
+}
+/** Spend today per campaign, live from Meta (one insights call per ad account). */
+async function spendToday(env, md, act) {
+  const out = {};
+  for (const m of await metaActs(env, act)) {
+    const r = await gget(md, env, `${m.act}/insights`, { level: 'campaign', date_preset: 'today', fields: 'campaign_id,spend', limit: 200 }).catch(() => null);
+    for (const x of (r && r.data) || []) out[x.campaign_id] = (out[x.campaign_id] || 0) + (+x.spend || 0);
+  }
+  return out;
 }
 /** Everything that can spend today: ACTIVE campaigns' daily budgets, plus ACTIVE ad sets' own budgets in ACTIVE campaigns without one. */
 export function budgetsOn(ml) {
@@ -89,7 +101,8 @@ async function readProfit(env, deps, path) {
 async function metaSide(env, md, act, today) {
   const ml = await metaLive(env, md, act, { season: true });
   if (ml.error) return { error: ml.error };
-  const camp = pickSaleCamp(ml, today), on = budgetsOn(ml);
+  const spent = await spendToday(env, md, act).catch(() => null);
+  const camp = pickSaleCamp(ml, today, spent || {}), on = budgetsOn(ml);
   let limit = null, limitErr = null, src = 'meta';
   for (const m of await metaActs(env, act)) {
     const a = await gget(md, env, m.act, { fields: 'adtrust_dsl' }).catch(e => { limitErr = e.message; return null; });
@@ -98,7 +111,7 @@ async function metaSide(env, md, act, today) {
   }
   /* Meta would not say: the limits Cole listed on 2026-11-22 (raise requests pending), labelled as such. */
   if (limit == null && KNOWN_LIMITS[act]) { limit = KNOWN_LIMITS[act]; src = 'known'; }
-  return { camp: camp ? { id: camp.id, name: camp.name, daily: camp.daily || null } : null, on, limit, limit_src: limit ? src : null, limit_error: limitErr, headroom: limit ? limit - on : null };
+  return { camp: camp ? { id: camp.id, name: camp.name, daily: camp.daily || null, spent: spent ? (spent[camp.id] || 0) : null } : null, on, limit, limit_src: limit ? src : null, limit_error: limitErr, headroom: limit ? limit - on : null };
 }
 
 /** Build one check-in (reads only). */
@@ -109,8 +122,18 @@ export async function buildStanding(env, deps, slot = slotOf()) {
   for (const b of tw.brands || []) {
     let m; try { m = await metaSide(env, md, b.act_id, tw.today); } catch (e) { m = { error: e.message }; }
     const sug = { ...b.suggest }, from = m.camp && m.camp.daily;
-    /* Once any sale is live, a brand whose own sale has not started (or has ended) gets no call: its today numbers are not the weekend. */
-    if (!tw.dry && b.mode && b.mode !== 'live') { brands.push({ ...b, meta: m, suggest: { call: 'hold', pct: 0, why: b.mode === 'plan' ? `Sale starts ${dayShort(b.sale.start)}. Counting from then.` : `Sale ended ${dayShort(b.sale.end)}.` } }); continue; }
+    /* A brand whose sale has ended gets no call. Before its BF sale starts it still gets the ladder on today's numbers
+       (Cole 2026-11-24: Bonk's regular sale was running at 6x and read "hold"). */
+    if (!tw.dry && b.mode === 'after') { brands.push({ ...b, meta: m, suggest: { call: 'hold', pct: 0, why: `Sale ended ${dayShort(b.sale.end)}.` } }); continue; }
+    if (!tw.dry && b.mode === 'plan') sug.why = `Black Friday starts ${dayShort(b.sale.start)}; today's numbers until then. ${sug.why}`;
+    /* A raise on a campaign that is not using the budget it has changes nothing (Bonk BFCM 2026, $500 budget, $220 to
+       $300 spent a day). Pace = today's spend against the budget times the share of the Central day gone; under 70%
+       of pace from 9am on, the raise becomes a hold that says why. */
+    const hr = central().hour, c0 = m.camp;
+    if (!m.error && sug.pct > 0 && c0 && c0.daily && c0.spent != null && hr >= 9) {
+      const pace = c0.spent / (c0.daily * Math.max(hr, 1) / 24);
+      if (pace < 0.7) { sug.call = 'hold'; sug.pct = 0; sug.why = `${sug.why} But ${c0.name} has spent only ${money(c0.spent)} of its ${money(c0.daily)} today, so a bigger budget would not get spent. Hold instead.`; }
+    }
     if (!m.error && !m.camp) sug.note = 'No live sale campaign in Meta.';
     else if (!m.error && sug.pct && !from) sug.note = `${m.camp.name} has no campaign daily budget (ad set budgets).`;
     else if (!m.error) { const bf = budgetFor(sug, from, m.limit, m.on); sug.to = bf.to; if (bf.note) sug.note = bf.note; }
@@ -256,6 +279,12 @@ export async function standingTick(env, deps, now = new Date()) {
   await sendDm(env, deps, rec, { prev });
   await save(env, deps, rec);
   if (rec.sent && !rec.sent.error) await deps.putSetting(env, `standingSent:${slot}`, rec.sent.at);
+  /* Each client's update, drafted to Cole now. A brand with a raise or cut waiting for his yes gets it right after the
+     Approve instead, so "What we did" includes the change. */
+  for (const b of rec.brands) {
+    if (b.no_sales || (b.suggest && b.suggest.to)) continue;
+    await offerClientUpdate(env, deps, { act: b.act_id, rec }).catch(() => {});
+  }
   return { slot, brands: rec.brands.length, sent: rec.sent };
 }
 
@@ -281,7 +310,227 @@ async function approve(env, deps, rec, act, who) {
   rec.approved = rec.approved || {};
   rec.approved[act] = { by: who, at: new Date().toISOString(), from: camp.daily, to: g.to, write: r.write || null, summary: r.summary || '' };
   await deps.putSetting(env, `standing:${rec.slot}`, JSON.stringify(rec));
+  await offerClientUpdate(env, deps, { act }).catch(() => {});
   return { ok: true, ...rec.approved[act] };
+}
+
+/* SEND TO CLIENT (Cole 2026-11-24: "we want to be able to send stuff whenever we make updates"). After a campaign budget
+   change made through Locus (a War Room Approve, the Meta tab, Claude), Cole gets a DM with the client message already
+   written in the ladder's words and two buttons. Nothing reaches a client without his tap; Send posts it AS COLE in the
+   brand's client channel (brief_channel, never the internal one). No client channel = no DM. */
+const OWNER_SLACK = 'U06C37MDWD7';
+/* THE CLIENT UPDATE, laid out (Cole 2026-11-24: "big headlines, real line breaks, clean, colors by KPI"). Slack Block
+   Kit, posted AS COLE: a header (large type), the time and goal, then Week so far / Today so far / Last 6 hours as a
+   two-column grid (Sales, Ad spend, MER, Goal) with dividers, then What we did as a real bulleted list. Three looks,
+   picked with settings clientUpdateStyle: plain | dots (MER gets a colored dot) | bars (each block gets a color stripe).
+   Colors: over the goal green, between break-even and goal gray, under break-even yellow. */
+const usd = v => v == null ? 'n/a' : `$${Math.round(v).toLocaleString('en-US')}`;
+const nx = v => v == null ? 'n/a' : `${(Math.round(v * 100) / 100).toFixed(2)}x`;
+const toneOf = (mer, kpi, line) => mer == null || !kpi ? 'gray' : mer >= kpi ? 'green' : mer >= (line ?? kpi * 0.8) ? 'gray' : 'yellow';
+const DOTS = { green: '🟢', gray: '⚪', yellow: '🟡' }, BARS = { green: '#2EB67D', gray: '#A3ADBF', yellow: '#ECB22E', blue: '#2A9FD8' };
+/* Round 3 (Cole 2026-11-24): every section title is a Slack HEADER block (the largest type Slack draws), newest first
+   (Last 6 hours, Today, This week), each number on its own line as "Sales: $1,026" with Well Copy's grey quote bar,
+   no Goal line (the goal sits once under the title), and "Updates" = the plain list of what changed in the account
+   ("Raised the BFCM 2026 budget from $250 to $315 a day"), never an explanation. Plain by default; 'dots' colors MER. */
+const STYLES = ['plain', 'dots'];
+const firstUp = s => s.charAt(0).toUpperCase() + s.slice(1);
+/** One plain line per change, from the Change Log row (only rows with a client line: changes we chose to show). */
+function changeLine(r) {
+  const sum = String(r.summary || ''), name = r.object_name || (/"([^"]+)"/.exec(sum) || [])[1] || '';
+  const m = /\$([\d,.]+)\/day\s*→\s*\$([\d,.]+)\/day/.exec(sum);
+  if (m) { const a = +m[1].replace(/,/g, ''), b = +m[2].replace(/,/g, ''); return `${b > a ? 'Raised' : 'Lowered'} the ${name || 'campaign'} budget from ${usd(a)} to ${usd(b)} a day`; }
+  const kind = /ad set|adset/i.test(r.object_type || sum) ? 'ad group' : /campaign/i.test(r.object_type || sum) ? 'campaign' : 'ad';
+  if (/paus|turned off|off\b/i.test(sum + ' ' + (r.category || ''))) return `Turned off the ${name || ''} ${kind}`.replace(/\s+/g, ' ');
+  if (/resum|turned on|activ/i.test(sum + ' ' + (r.category || ''))) return `Turned on the ${name || ''} ${kind}`.replace(/\s+/g, ' ');
+  return firstUp(String(r.client_why || sum).trim().replace(/\.$/, ''));
+}
+async function didSince(env, deps, act) {
+  const last = await deps.getSetting(env, `wsLastSent:${act}`);
+  const since = last || `${central().date}T06:00:00Z`;   // never sent: since midnight Central
+  const acts = (await metaActs(env, act)).map(m => m.act);
+  if (!acts.length) return [];
+  const rows = ((await env.DB.prepare(`SELECT summary, category, object_type, object_name, client_why, event_time FROM activities WHERE act_id IN (${acts.map((_, i) => `?${i + 2}`).join(', ')})
+    AND client_why IS NOT NULL AND client_why != '' AND event_time >= ?1 ORDER BY event_time`).bind(since, ...acts).all().catch(() => ({ results: [] }))).results) || [];
+  return [...new Set(rows.map(changeLine).filter(Boolean))].slice(0, 10);
+}
+const hourOfSlot = slot => { const [d, h] = String(slot).split('T'), hr = +h; const day = new Date(d + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'UTC' }); return { day, hour: hr === 12 ? '12pm' : hr === 0 ? '12am' : hr < 12 ? `${hr}am` : `${hr - 12}pm` }; };
+/* THE CLIENT UPDATE (Cole 2026-11-24, final brief). One shape, three moments: 9am Morning Update (adds the top 3 ads from
+   yesterday with their pictures), 3pm Midday Update, 9pm End of Day. Title = header block (Slack's largest type), a
+   small line under it (day · time | goal), then each window in a colored bar with a large title, three lines and a small
+   status line, then Updates in Mobius blue. FIVE COLORS against the goal MER: well above (1.25x the goal or more) dark
+   green, above (at goal) green, right around goal (90 to 100%) gray, a little under (down to break-even) yellow, under
+   break-even red. No emojis. */
+const TIER = [
+  /* Cole: the dark green looked different from the first bars; well above = that bright green, above = a lighter one. */
+  { key: 'great', color: '#2EB67D', label: 'Well above goal' },
+  { key: 'good', color: '#2EB67D', label: 'Above goal' },   // Cole: one green, the first one (#2EB67D)
+  { key: 'near', color: '#A3ADBF', label: 'Right around goal' },
+  { key: 'under', color: '#ECB22E', label: 'A little under goal' },
+  { key: 'bad', color: '#E01E5A', label: 'Under break-even' }];
+const BLUE = '#62BDEA';   // Mobius brand blue (Locus --brand). Slack bar colors are one hex: no gradients.
+function tierOf(mer, kpi, line) {
+  if (mer == null || !kpi) return TIER[2];
+  const r = mer / kpi;
+  return r >= 1.25 ? TIER[0] : r >= 1 ? TIER[1] : r >= 0.9 ? TIER[2] : mer >= (line ?? kpi * 0.8) ? TIER[3] : TIER[4];
+}
+const moment = slot => { const h = +String(slot).split('T')[1]; return h < 12 ? 'Morning Update' : h >= 20 ? 'End of Day' : 'Midday Update'; };
+const longDay = slot => { const [d, h] = String(slot).split('T'), hr = +h; return { day: new Date(d + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' }), hour: hr === 12 ? '12pm' : hr === 0 ? '12am' : hr < 12 ? `${hr}am` : `${hr - 12}pm`, date: d }; };
+const prevDay = ymd => { const d = new Date(ymd + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - 1); return d.toISOString().slice(0, 10); };
+/** Top ads from yesterday for the morning update: still on, 2+ sales (Triple Whale), return at or over the goal
+ *  (else at or over break-even when nothing clears the goal), most sales first, then return. Max 3. */
+async function topAds(env, act, day, kpi, line) {
+  const acts = await metaActsOf(env, act);
+  if (!acts.length) return [];
+  const rows = ((await env.DB.prepare(`SELECT ad_id, SUM(spend) s FROM ad_daily WHERE act_id IN (${acts.map((_, i) => `?${i + 2}`).join(', ')}) AND date = ?1 AND spend > 0 GROUP BY ad_id ORDER BY s DESC LIMIT 40`)
+    .bind(day, ...acts).all().catch(() => ({ results: [] }))).results) || [];
+  if (!rows.length) return [];
+  const n = await adNumbers(env, { act, metaActs: acts, adIds: rows.map(r => String(r.ad_id)), days: 1, to: day });
+  const live = n.ads.filter(a => String(a.status || '').toUpperCase() === 'ACTIVE' && (a.sales || 0) >= 2 && a.roas != null);
+  let pick = live.filter(a => kpi && a.roas >= kpi);
+  if (!pick.length) pick = live.filter(a => a.roas >= (line ?? 0));
+  pick = pick.sort((p, q) => (q.sales - p.sales) || (q.roas - p.roas)).slice(0, 3);
+  return withCovers(env, pick);
+}
+const cleanName = s => String(s || '').replace(/\s*\|\s*(Still|UGC|Video|Static|Carousel)\s*$/i, '').trim();
+/** The client message: {text, blocks, attachments}. images=false leaves the ad pictures out (a retry when Slack
+ *  refuses an image). */
+export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name = null, { images = true, layout = 'table' } = {}) {
+  const b = (rec.brands || []).find(x => x.act_id === act);
+  if (!b || b.no_sales) return null;
+  const did = await didSince(env, deps, act), line = b.hold ?? (b.kpi ? b.kpi * 0.8 : null), t = longDay(rec.slot), m = moment(rec.slot);
+  const H = s => ({ type: 'header', text: { type: 'plain_text', text: s } });
+  const md = s => ({ type: 'section', text: { type: 'mrkdwn', text: s } });
+  const ctx = s => ({ type: 'context', elements: [{ type: 'mrkdwn', text: s }] });
+  const bar = (label, p) => {
+    if (!p || p.sales == null) return null;
+    const tr = tierOf(p.mer, b.kpi, line);
+    return { color: tr.color, blocks: [H(label), md(`*Sales:*  ${usd(p.sales)}\n*Ad spend:*  ${usd(p.spend)}\n*MER:*  ${nx(p.mer)}`)] };
+  };
+  const blocks = [H(`${name || b.name} · ${m}`), ctx(`${t.day}  ·  ${t.hour} CT   |   Goal: *${nx(b.kpi)} MER*`), { type: 'divider' }];
+  const wins = (m === 'End of Day' ? [['Today', b.today], ['This week', b.week]] : [['Last 6 hours', b.last6], ['Today', b.today], ['This week', b.week]]).filter(([, p]) => p && p.sales != null);
+  let attachments;
+  /* Cole 2026-11-24: the grid without the code-block names. 'clean' = no colored bars at all (bold names, grey lines,
+     dividers); 'blue' = the same grid in one Mobius-blue bar (brand color, not a score). Slack's grey quote lines
+     cannot take a color, so a per-window status color needs the stacked 'bars' layout. */
+  const GRID = ['wc', 'clean', 'blue', 'spaced'].includes(layout), nm = l => layout === 'wc' ? `\`${l}\`` : `*${l}*`;
+  if (layout === 'spaced') {
+    /* Well Copy's spacing (Cole 2026-11-24): each number on its own grey line with a blank line between, two columns. */
+    const f = (l, p) => ({ type: 'mrkdwn', text: `*${l}*\n\n> *Sales:* ${usd(p.sales)}\n\n> *Ad spend:* ${usd(p.spend)}\n\n> *MER:* ${nx(p.mer)}` });
+    blocks.push(H('Sales and ad spend'), { type: 'section', fields: wins.map(([l, p]) => f(l, p)) });
+    attachments = [];
+  } else if (layout === 'lines') {
+    /* Small colored bars (Cole: "make the smaller bars different colors"): the grey quote line has no color setting in
+       Slack, so each number becomes its own one-line colored bar. MER takes the goal color; Sales and Ad spend carry
+       Mobius blue. Bars stack, so the windows run top to bottom. */
+    attachments = [];
+    for (const [l, p] of wins) {
+      attachments.push({ color: BLUE, blocks: [md(`*${l}*\n*Sales:* ${usd(p.sales)}`)] },
+        { color: BLUE, blocks: [md(`*Ad spend:* ${usd(p.spend)}`)] },
+        { color: tierOf(p.mer, b.kpi, line).color, blocks: [md(`*MER:* ${nx(p.mer)}`)] });
+    }
+  } else if (layout === 'clean' || layout === 'blue') {
+    const f = (l, p) => ({ type: 'mrkdwn', text: `${nm(l)}\n> *Sales:* ${usd(p.sales)}\n> *Ad spend:* ${usd(p.spend)}\n> *MER:* ${nx(p.mer)}` });
+    const grid = [H('Sales and ad spend'), { type: 'section', fields: wins.map(([l, p]) => f(l, p)) }];
+    if (layout === 'clean') { blocks.push(...grid); attachments = []; }
+    else attachments = [{ color: BLUE, blocks: grid }];
+  } else if (layout === 'wc') {
+    /* Well Copy's grid (Cole's screenshot 2026-11-24): a section with two `fields` per row, each window's name in
+       inline code (Slack draws it orange), each number its own quote line (grey bar). The grid sits in one bar colored
+       by Today. Slack fields are two columns at most: Last 6 hours | Today, then This week. */
+    const f = (l, p) => ({ type: 'mrkdwn', text: `\`${l}\`\n> *Sales:* ${usd(p.sales)}\n> *Ad spend:* ${usd(p.spend)}\n> *MER:* ${nx(p.mer)}` });
+    const today = (wins.find(([l]) => l === 'Today') || wins[0] || [])[1];
+    attachments = [{ color: tierOf(today && today.mer, b.kpi, line).color, blocks: [H('Sales and ad spend'), { type: 'section', fields: wins.map(([l, p]) => f(l, p)) }] }];
+  } else if (layout === 'table' || layout === 'tabletop') {
+    /* All windows side by side in one Slack table (Cole: "a shorter message"); its bar takes Today's color. */
+    const cell = (s, bold) => ({ type: 'rich_text', elements: [{ type: 'rich_text_section', elements: [{ type: 'text', text: s || ' ', ...(bold ? { style: { bold: true } } : {}) }] }] });
+    const row = (label, f) => [cell(label, true), ...wins.map(([, p]) => cell(f(p)))];
+    const table = { type: 'table', column_settings: [{ align: 'left' }, ...wins.map(() => ({ align: 'right' }))],
+      rows: [[cell(' '), ...wins.map(([l]) => cell(l, true))], row('Sales', p => usd(p.sales)), row('Ad spend', p => usd(p.spend)), row('MER', p => nx(p.mer))] };
+    const today = (wins.find(([l]) => l === 'Today') || wins[0] || [])[1];
+    if (layout === 'table') attachments = [{ color: tierOf(today && today.mer, b.kpi, line).color, blocks: [table] }];
+    else { blocks.push(table); attachments = []; }
+  } else attachments = wins.map(([l, p]) => bar(l, p)).filter(Boolean);
+  if (m === 'Morning Update') {
+    const ads = await topAds(env, act, prevDay(t.date), b.kpi, line).catch(() => []);
+    if (ads.length) {
+      const ab = [H('Top ads yesterday'), ctx('Still running, most sales at or over the goal')];
+      ads.forEach((a, i) => {
+        if (GRID) {   // the same name + grey-line look, the ad's picture beside it
+          ab.push({ type: 'section', text: { type: 'mrkdwn', text: `${nm(`${i + 1}. ${cleanName(a.name)}`)}\n> *Sales:* ${a.sales}\n> *Spent:* ${usd(a.spend)}\n> *Return:* ${nx(a.roas)}` },
+            ...(images && a.cover ? { accessory: { type: 'image', image_url: a.cover, alt_text: cleanName(a.name) } } : {}) });
+          return;
+        }
+        ab.push({ type: 'divider' }, md(`*${i + 1}. ${cleanName(a.name)}*\n${a.sales} sales  ·  ${usd(a.spend)} spent  ·  ${nx(a.roas)} return`));
+        if (images && a.cover) ab.push({ type: 'image', image_url: a.cover, alt_text: cleanName(a.name) });
+      });
+      if (layout === 'clean' || layout === 'spaced') blocks.push({ type: 'divider' }, ...ab); else attachments.push({ color: BLUE, blocks: ab });
+    }
+  }
+  const upd = [H('Updates'), md((did.length ? did : ['No changes since the last update']).map(d => `•  ${d}`).join('\n')),
+    ctx(rec.next ? `Next update at ${rec.next} CT` : 'Next update tomorrow at 9am CT')];
+  if (layout === 'clean' || layout === 'spaced') blocks.push({ type: 'divider' }, ...upd); else attachments.push({ color: BLUE, blocks: upd });
+  return { text: `${name || b.name} ${m}, ${t.day} ${t.hour}`, blocks, attachments };
+}
+/** DM Cole one brand's client update (exactly as the client will see it) with Send / Don't send. */
+export async function offerClientUpdate(env, deps, { act, rec = null, style = null, label = null, at = null }) {
+  const b = await env.DB.prepare(`SELECT name, brief_channel, slack_channel FROM brand_accounts WHERE act_id = ?1`).bind(act).first().catch(() => null);
+  if (!b) return null;
+  /* No client channel (Lucky): Cole still gets the update, for himself, with no Send button. */
+  const forCole = !b.brief_channel || b.brief_channel === b.slack_channel;
+  if (forCole) label = label || `${b.name} · for you (no client channel)`;
+  rec = rec || await load(env, deps).catch(() => null);
+  if (!rec) return { ok: false, error: 'No check-in yet.' };
+  /* A preview of another moment (sample route): the same numbers drawn as the 9am or 9pm version. */
+  if (at === 'morning' || at === 'evening') rec = { ...rec, slot: `${String(rec.slot).split('T')[0]}T${at === 'morning' ? '09' : '21'}`, next: at === 'morning' ? '3pm' : null };
+  const saved = await deps.getSetting(env, 'clientUpdateStyle');
+  const st = STYLES.includes(style) ? style : STYLES.includes(saved) ? saved : 'plain';
+  const id = Math.random().toString(16).slice(2, 12);
+  const btns = { type: 'actions', elements: [
+    { type: 'button', action_id: 'ws_send', style: 'primary', text: { type: 'plain_text', text: `Send to ${b.name}` }, value: id },
+    { type: 'button', action_id: 'ws_skip', text: { type: 'plain_text', text: "Don't send" }, value: id }] };
+  const top = { type: 'context', elements: [{ type: 'mrkdwn', text: `*${label || `Ready to send to ${b.name}`}*  ·  exactly what they will see` }] };
+  /* Layouts in order of preference; Slack refusing one (a table inside a colored bar, a table at all, an ad picture)
+     falls to the next. Whatever reached Cole is what Send posts. */
+  /* Cole 2026-11-24: the separate colored bars, stacked (Slack cannot put colored bars side by side). */
+  const pick = ['clean', 'blue', 'bars', 'wc', 'spaced', 'lines'].includes(style) ? style : (['clean', 'blue', 'bars', 'spaced', 'lines'].includes(await deps.getSetting(env, 'clientUpdateLayout')) ? await deps.getSetting(env, 'clientUpdateLayout') : 'clean');
+  const tries = [[pick, true], [pick, false], ['bars', false]];
+  let r = { ok: false, error: 'nothing tried' }, used = null;
+  for (const [layout, images] of tries) {
+    const m = await clientUpdateMsg(env, deps, rec, act, st, b.name, { layout, images });
+    if (!m) return { ok: false, error: 'No sales numbers for this brand.' };
+    const tail = forCole ? [] : [btns];
+    const msg = m.attachments && m.attachments.length ? { text: m.text, blocks: [top, ...m.blocks], attachments: [...m.attachments, ...(tail.length ? [{ blocks: tail }] : [])] }
+      : { text: m.text, blocks: [top, ...m.blocks, ...tail] };
+    r = await dmPerson(env, deps, env.OWNER_EMAIL || 'cole@go-mobius-digital.com', msg);
+    if (r.ok) { used = layout + (images ? '' : ' (no pictures)'); await deps.putSetting(env, `wsDraft:${id}`, JSON.stringify({ v: 3, act, ch: b.brief_channel, msg: m, name: b.name, at: new Date().toISOString() })); break; }
+    if (!/invalid_blocks|invalid_attachments|image|table/i.test(String(r.error || ''))) break;
+    r.tried = `${r.tried || ''}${layout}: ${String(r.error).slice(0, 120)}; `;
+  }
+  r.layout = used;
+  return r;
+}
+/** The two buttons on that DM. Cole only. Send posts the same layout as Cole in the client channel. */
+export async function handleClientUpdateButton(env, ctx, payload, deps, { ACK, xfetch }) {
+  const a = (payload.actions || []).find(x => /^ws_/.test(x.action_id || ''));
+  const reply = t => payload.response_url && xfetch(payload.response_url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ replace_original: true, text: t }) }).catch(() => {});
+  ctx.waitUntil((async () => {
+    if (payload.user?.id !== OWNER_SLACK) return reply('Only Cole can send client updates.');
+    const raw = await deps.getSetting(env, `wsDraft:${a.value}`);
+    const dr = raw ? JSON.parse(raw) : null;
+    if (!dr) return reply('That update is gone.');
+    if (dr.done) return reply(`Already handled: ${dr.done}.`);
+    if (a.action_id === 'ws_skip') { dr.done = 'not sent'; await deps.putSetting(env, `wsDraft:${a.value}`, JSON.stringify(dr)); return reply(`Not sent to ${dr.name}.`); }
+    if (dr.v !== 3 || !dr.msg) return reply('That is an older draft. Nothing was sent.');
+    if (!env.SLACK_USER_TOKEN) return reply('No Slack user token on Locus, so it cannot post as you.');
+    const res = await xfetch('https://slack.com/api/chat.postMessage', { method: 'POST', headers: { Authorization: `Bearer ${env.SLACK_USER_TOKEN}`, 'Content-Type': 'application/json; charset=utf-8' },
+      body: JSON.stringify({ channel: dr.ch, ...dr.msg, unfurl_links: false }) }).then(r => r.json()).catch(e => ({ ok: false, error: e.message }));
+    if (!res.ok) return reply(`Slack refused it (${res.error}). Nothing was sent.`);
+    const now = new Date().toISOString();
+    dr.done = `sent ${now}`; await deps.putSetting(env, `wsDraft:${a.value}`, JSON.stringify(dr));
+    await deps.putSetting(env, `wsLastSent:${dr.act}`, now);
+    return reply(`✓ Sent to ${dr.name}.`);
+  })());
+  return ACK();
 }
 
 /** One brand's sale campaign, opened from its War Room tile (Cole, 2026-11-22: "real analysis: the ad sets, which ads to
@@ -381,6 +630,14 @@ export async function handleStanding(request, env, url, path, json, deps) {
       if (only && !only.has(act)) return json({ error: 'You do not have access to this brand.' }, 403);
       const r = await brandDetail(env, deps, act);
       return json(r, r.error ? 502 : 200);
+    }
+    /* The Send to client DM for a change made another way (by hand in Ads Manager, before this existed). Cole only gets a DM. */
+    /* Also reachable as POST /api/standing/sample {client_update: true, ...} (that path is in the route list tools read). */
+    if ((path === '/api/standing/client-update' || (path === '/api/standing/sample' && body.client_update)) && request.method === 'POST') {
+      const act = String(body.act || '');
+      if (!/^brand_[a-z0-9_]+$/.test(act)) return json({ error: 'Which brand?' }, 400);
+      const r = await offerClientUpdate(env, deps, { act, style: body.style || null, label: body.label || null, at: body.at || null });
+      return json(r ? { ok: !!r.ok, error: r.error || null, layout: r.layout || null, tried: r.tried || null } : { ok: false, error: 'No client channel for this brand, or the budget did not change.' });
     }
     if (path === '/api/standing/run' && request.method === 'POST') {
       const prev = await load(env, deps).catch(() => null);
