@@ -328,46 +328,53 @@ const usd = v => v == null ? 'n/a' : `$${Math.round(v).toLocaleString('en-US')}`
 const nx = v => v == null ? 'n/a' : `${(Math.round(v * 100) / 100).toFixed(2)}x`;
 const toneOf = (mer, kpi, line) => mer == null || !kpi ? 'gray' : mer >= kpi ? 'green' : mer >= (line ?? kpi * 0.8) ? 'gray' : 'yellow';
 const DOTS = { green: '🟢', gray: '⚪', yellow: '🟡' }, BARS = { green: '#2EB67D', gray: '#A3ADBF', yellow: '#ECB22E', blue: '#2A9FD8' };
-const STYLES = ['plain', 'dots', 'bars'];
+/* Round 3 (Cole 2026-11-24): every section title is a Slack HEADER block (the largest type Slack draws), newest first
+   (Last 6 hours, Today, This week), each number on its own line as "Sales: $1,026" with Well Copy's grey quote bar,
+   no Goal line (the goal sits once under the title), and "Updates" = the plain list of what changed in the account
+   ("Raised the BFCM 2026 budget from $250 to $315 a day"), never an explanation. Plain by default; 'dots' colors MER. */
+const STYLES = ['plain', 'dots'];
+const firstUp = s => s.charAt(0).toUpperCase() + s.slice(1);
+/** One plain line per change, from the Change Log row (only rows with a client line: changes we chose to show). */
+function changeLine(r) {
+  const sum = String(r.summary || ''), name = r.object_name || (/"([^"]+)"/.exec(sum) || [])[1] || '';
+  const m = /\$([\d,.]+)\/day\s*→\s*\$([\d,.]+)\/day/.exec(sum);
+  if (m) { const a = +m[1].replace(/,/g, ''), b = +m[2].replace(/,/g, ''); return `${b > a ? 'Raised' : 'Lowered'} the ${name || 'campaign'} budget from ${usd(a)} to ${usd(b)} a day`; }
+  const kind = /ad set|adset/i.test(r.object_type || sum) ? 'ad group' : /campaign/i.test(r.object_type || sum) ? 'campaign' : 'ad';
+  if (/paus|turned off|off\b/i.test(sum + ' ' + (r.category || ''))) return `Turned off the ${name || ''} ${kind}`.replace(/\s+/g, ' ');
+  if (/resum|turned on|activ/i.test(sum + ' ' + (r.category || ''))) return `Turned on the ${name || ''} ${kind}`.replace(/\s+/g, ' ');
+  return firstUp(String(r.client_why || sum).trim().replace(/\.$/, ''));
+}
 async function didSince(env, deps, act) {
   const last = await deps.getSetting(env, `wsLastSent:${act}`);
   const since = last || `${central().date}T06:00:00Z`;   // never sent: since midnight Central
   const acts = (await metaActs(env, act)).map(m => m.act);
   if (!acts.length) return [];
-  const rows = ((await env.DB.prepare(`SELECT client_why, event_time FROM activities WHERE act_id IN (${acts.map((_, i) => `?${i + 2}`).join(', ')})
+  const rows = ((await env.DB.prepare(`SELECT summary, category, object_type, object_name, client_why, event_time FROM activities WHERE act_id IN (${acts.map((_, i) => `?${i + 2}`).join(', ')})
     AND client_why IS NOT NULL AND client_why != '' AND event_time >= ?1 ORDER BY event_time`).bind(since, ...acts).all().catch(() => ({ results: [] }))).results) || [];
-  return [...new Set(rows.map(r => String(r.client_why).trim()).filter(Boolean))].slice(0, 8);
+  return [...new Set(rows.map(changeLine).filter(Boolean))].slice(0, 10);
 }
-const hourOfSlot = slot => { const [d, h] = String(slot).split('T'), hr = +h; const day = new Date(d + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }); return { day, hour: hr === 12 ? '12pm' : hr === 0 ? '12am' : hr < 12 ? `${hr}am` : `${hr - 12}pm` }; };
-/** The client message: {text, blocks, attachments}. */
-export async function clientUpdateMsg(env, deps, rec, act, style = 'dots', name = null) {
+const hourOfSlot = slot => { const [d, h] = String(slot).split('T'), hr = +h; const day = new Date(d + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'UTC' }); return { day, hour: hr === 12 ? '12pm' : hr === 0 ? '12am' : hr < 12 ? `${hr}am` : `${hr - 12}pm` }; };
+/** The client message: {text, blocks}. */
+export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name = null) {
   const b = (rec.brands || []).find(x => x.act_id === act);
   if (!b || b.no_sales) return null;
   const did = await didSince(env, deps, act), line = b.hold ?? (b.kpi ? b.kpi * 0.8 : null), t = hourOfSlot(rec.slot);
-  const head = [
-    { type: 'header', text: { type: 'plain_text', text: `${name || b.name} · Black Friday update`, emoji: true } },
-    { type: 'context', elements: [{ type: 'mrkdwn', text: `${t.day} · ${t.hour} CT   |   Goal: *${nx(b.kpi)}* MER` }] }];
+  const H = s => ({ type: 'header', text: { type: 'plain_text', text: s, emoji: true } });
+  const q = (label, value) => ({ type: 'rich_text_quote', elements: [{ type: 'text', text: `${label}: `, style: { bold: true } }, { type: 'text', text: value }] });
   const period = (label, p) => {
-    if (!p || p.sales == null) return null;
-    const tn = toneOf(p.mer, b.kpi, line);
-    return { tn, block: { type: 'section', text: { type: 'mrkdwn', text: `*${label}*` }, fields: [
-      { type: 'mrkdwn', text: `*Sales*\n${usd(p.sales)}` }, { type: 'mrkdwn', text: `*Ad spend*\n${usd(p.spend)}` },
-      { type: 'mrkdwn', text: `*MER*\n${style === 'dots' ? DOTS[tn] + ' ' : ''}${nx(p.mer)}` }, { type: 'mrkdwn', text: `*Goal*\n${nx(b.kpi)}` }] } };
+    if (!p || p.sales == null) return [];
+    const dot = style === 'dots' ? `${DOTS[toneOf(p.mer, b.kpi, line)]} ` : '';
+    return [{ type: 'divider' }, H(label), { type: 'rich_text', elements: [q('Sales', usd(p.sales)), q('Ad spend', usd(p.spend)), q('MER', `${dot}${nx(p.mer)}`)] }];
   };
-  const ps = [period('Week so far', b.week), period('Today so far', b.today), period('Last 6 hours', b.last6)].filter(Boolean);
-  const didBlocks = [{ type: 'section', text: { type: 'mrkdwn', text: '*What we did*' } },
-    { type: 'rich_text', elements: [{ type: 'rich_text_list', style: 'bullet', elements: (did.length ? did : ['No changes since the last update. Everything is running as planned.'])
-      .map(d => ({ type: 'rich_text_section', elements: [{ type: 'text', text: d }] })) }] }];
-  const foot = { type: 'context', elements: [{ type: 'mrkdwn', text: `${rec.next ? `Next update at ${rec.next} CT` : 'Last update of the day'}${style !== 'plain' ? '   |   🟢 over goal  ⚪ between break-even and goal  🟡 under break-even' : ''}` }] };
-  const text = `${name || b.name} Black Friday update, ${t.day} ${t.hour}`;
-  if (style === 'bars') {
-    return { text, blocks: head, attachments: [
-      ...ps.map(p => ({ color: BARS[p.tn], blocks: [p.block] })),
-      { color: BARS.blue, blocks: [...didBlocks, foot] }] };
-  }
-  const body = [];
-  for (const p of ps) body.push({ type: 'divider' }, p.block);
-  return { text, blocks: [...head, ...body, { type: 'divider' }, ...didBlocks, foot] };
+  const blocks = [
+    H(`${name || b.name} · Black Friday`),
+    { type: 'context', elements: [{ type: 'mrkdwn', text: `${t.day} · ${t.hour} CT   ·   Goal: *${nx(b.kpi)} MER*` }] },
+    ...period('Last 6 hours', b.last6), ...period('Today', b.today), ...period('This week', b.week),
+    { type: 'divider' }, H('Updates'),
+    { type: 'rich_text', elements: [{ type: 'rich_text_list', style: 'bullet', elements: (did.length ? did : ['No changes since the last update'])
+      .map(d => ({ type: 'rich_text_section', elements: [{ type: 'text', text: d }] })) }] },
+    { type: 'context', elements: [{ type: 'mrkdwn', text: rec.next ? `Next update at ${rec.next} CT` : 'Last update of the day' }] }];
+  return { text: `${name || b.name} Black Friday update, ${t.day} ${t.hour}`, blocks };
 }
 /** DM Cole one brand's client update (exactly as the client will see it) with Send / Don't send. */
 export async function offerClientUpdate(env, deps, { act, rec = null, style = null, label = null }) {
@@ -376,7 +383,7 @@ export async function offerClientUpdate(env, deps, { act, rec = null, style = nu
   rec = rec || await load(env, deps).catch(() => null);
   if (!rec) return { ok: false, error: 'No check-in yet.' };
   const saved = await deps.getSetting(env, 'clientUpdateStyle');
-  const st = STYLES.includes(style) ? style : STYLES.includes(saved) ? saved : 'dots';
+  const st = STYLES.includes(style) ? style : STYLES.includes(saved) ? saved : 'plain';
   const m = await clientUpdateMsg(env, deps, rec, act, st, b.name);
   if (!m) return { ok: false, error: 'No sales numbers for this brand.' };
   const id = Math.random().toString(16).slice(2, 12);
@@ -385,9 +392,7 @@ export async function offerClientUpdate(env, deps, { act, rec = null, style = nu
     { type: 'button', action_id: 'ws_send', style: 'primary', text: { type: 'plain_text', text: `Send to ${b.name}` }, value: id },
     { type: 'button', action_id: 'ws_skip', text: { type: 'plain_text', text: "Don't send" }, value: id }] };
   const top = { type: 'context', elements: [{ type: 'mrkdwn', text: `*${label || `Ready to send to ${b.name}`}*  ·  exactly what they will see` }] };
-  const msg = m.attachments
-    ? { text: m.text, blocks: [top, ...m.blocks], attachments: [...m.attachments, { blocks: [btns] }] }
-    : { text: m.text, blocks: [top, ...m.blocks, { type: 'divider' }, btns] };
+  const msg = { text: m.text, blocks: [top, ...m.blocks, { type: 'divider' }, btns] };
   return dmPerson(env, deps, env.OWNER_EMAIL || 'cole@go-mobius-digital.com', msg);
 }
 /** The two buttons on that DM. Cole only. Send posts the same layout as Cole in the client channel. */
