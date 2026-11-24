@@ -77,16 +77,30 @@ CREATE TABLE IF NOT EXISTS p_shopify (
   scopes         TEXT,
   installed_at   TEXT NOT NULL DEFAULT (datetime('now')),
   uninstalled_at TEXT,                      -- set by the app/uninstalled webhook
-  last_sync_at   TEXT
+  last_sync_at   TEXT,
+  -- Expiring offline tokens (2026-11-24, App Store requirement 3.1.2; migrations/shopify-001-expiring-tokens.sql).
+  -- access_token lasts about an hour. NEVER read it directly: call shopToken() in src/shoptoken.js, which refreshes.
+  refresh_token      TEXT,                  -- replaced on every refresh; good for 90 days
+  expires_at         INTEGER,               -- unix seconds; NULL = an old never-expiring token, migrated on next use
+  refresh_expires_at INTEGER                -- unix seconds
 );
 CREATE INDEX IF NOT EXISTS p_shopify_act_idx ON p_shopify (act_id);
 
 -- Short-lived OAuth nonces. The callback must reject any `state` it did not issue,
 -- or the install can be forged.
+-- A code is good for 10 minutes: older rows are rejected by the callback and swept on the next install.
 CREATE TABLE IF NOT EXISTS p_oauth_state (
   state      TEXT PRIMARY KEY,
   shop       TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- A brand's store address, typed by the team (POST /api/connections/address). For brands with no Triple Whale shop
+-- to read it from: gives the brand an install link and lets the install match itself to the brand.
+CREATE TABLE IF NOT EXISTS p_shop_address (
+  act_id     TEXT PRIMARY KEY,
+  shop       TEXT NOT NULL,                 -- brand.myshopify.com
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- Real cohorts: customers grouped by the month of their FIRST order, followed

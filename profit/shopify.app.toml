@@ -17,21 +17,29 @@ name = "Mobius Digital"
 handle = "mobius-profit"
 
 # Where a merchant lands when they open the app: the EMBEDDED store screen inside the Shopify admin
-# (worker/src/shopifyapp.js: App Bridge + session tokens, no cookies). A store with no saved token is sent through
-# /shopify/install (the classic authorization-code grant below) once, then lands back inside the admin.
+# (worker/src/shopifyapp.js: App Bridge + session tokens, no cookies). A store with no saved token gets one right
+# there by token exchange (an EXPIRING offline token, worker/src/shoptoken.js). No redirect out of the admin.
 application_url = "https://mobius-profit.mobius-digital.workers.dev/shopify/app"
 
-# true since 2026-10-18 (review 131577 asked for an in-admin UI on session tokens). The install stays the classic
-# grant (use_legacy_install_flow = true); session tokens only authenticate the embedded page's own API calls.
+# true since 2026-10-18 (review 131577 asked for an in-admin UI on session tokens). The install is Shopify's own
+# (managed installation, use_legacy_install_flow = false below, since 2026-11-15).
 embedded = true
 
-# Only the three MANDATORY compliance webhooks live here. app/uninstalled cannot:
-# app-specific subscriptions (anything with `topics =`) are rejected outright when
-# use_legacy_install_flow is true, which it must be. The worker registers
-# app/uninstalled per shop in the OAuth callback instead - a shop-specific webhook,
-# which is exactly what Shopify's own error message points you at.
+# The three MANDATORY compliance webhooks, plus app/uninstalled and app/scopes_update. App-specific subscriptions
+# (anything with `topics =`) are only accepted because use_legacy_install_flow is false. Every one is answered by
+# /shopify/webhooks/* in worker/src/worker.js, which checks the signature on the raw body first (bad = 401).
 [webhooks]
 api_version = "2026-07"
+
+  # Allowed here since use_legacy_install_flow = false (2026-11-15); before that it was registered per shop.
+  [[webhooks.subscriptions]]
+  uri = "https://mobius-profit.mobius-digital.workers.dev/shopify/webhooks/app/uninstalled"
+  topics = [ "app/uninstalled" ]
+
+  # A store allowed or removed the optional access (see optional_scopes): keep p_shopify.scopes in step.
+  [[webhooks.subscriptions]]
+  uri = "https://mobius-profit.mobius-digital.workers.dev/shopify/webhooks/app/scopes_update"
+  topics = [ "app/scopes_update" ]
 
   [[webhooks.subscriptions]]
   uri = "https://mobius-profit.mobius-digital.workers.dev/shopify/webhooks/customers/data_request"
@@ -46,15 +54,32 @@ api_version = "2026-07"
   compliance_topics = [ "shop/redact" ]
 
 [access_scopes]
-# Must match SHOPIFY_SCOPES in worker/src/worker.js exactly — Shopify compares the
-# two at install and re-prompts on a mismatch. read_reports is what grants
-# shopifyqlQuery, which is the only way to get customers by first-order month.
-scopes = "read_orders,read_customers,read_products,read_reports,write_products,write_discounts"
-optional_scopes = [ ]
+# `scopes` must match SHOPIFY_SCOPES in worker/src/worker.js exactly: Shopify compares the two and re-prompts on a
+# mismatch. One line of why for each (App Store requirement 3.2: only what the app needs):
+#   read_orders     sales, orders and average order on the app's screen; the store report
+#   read_customers  new vs returning customers by first-order month (counts only, no names or contact details)
+#   read_products   the product list, status and price on the app's screen
+#   read_reports    grants shopifyqlQuery, the only way to get customers grouped by first-order month
+#   read_inventory  stock per product and cost per item (2026-11-24)
+#   read_returns    refund and return detail, so sales are shown net of returns (2026-11-24)
+# "Read all orders" (orders older than 60 days) is NOT a scope line: it is a separate request in the Dev Dashboard
+# (Settings > Access requests). Add read_all_orders here only after Shopify grants it.
+scopes = "read_orders,read_customers,read_products,read_reports,read_inventory,read_returns"
+# OPTIONAL since 2026-11-24: nothing is written to a store unless its owner presses "Allow product and discount
+# updates" inside the app (worker/src/shopifyapp.js OPTIONAL_SCOPES, App Bridge shopify.scopes.request).
+#   write_products   change a product's status, title, tags, price
+#   write_discounts  create a discount code, or switch one off / on
+# Do NOT add write_pixels or read_customer_events until the app ships a pixel: access with nothing to show for it
+# is what gets an app sent back.
+optional_scopes = [ "write_products", "write_discounts" ]
 
-# true = classic OAuth (authorization code grant), which is what the worker does.
-# false turns on Shopify managed installation, which is embedded-app only.
-use_legacy_install_flow = true
+# false = Shopify MANAGED installation (2026-11-15): Shopify shows the grant screen from these scopes, then opens the
+# embedded app, which swaps its session token for an offline token (token exchange, worker/src/shopifyapp.js). The
+# classic grant (true) failed Shopify's "immediately authenticates after install" check. /shopify/install and
+# /shopify/callback still work for a direct link.
+# NEVER run `shopify app deploy` from a branch where this is true: it pushes the old install style back up to
+# Shopify and the install check fails again (this happened between 2026-11-15 and 2026-11-24).
+use_legacy_install_flow = false
 
 [auth]
 redirect_urls = [ "https://mobius-profit.mobius-digital.workers.dev/shopify/callback" ]
