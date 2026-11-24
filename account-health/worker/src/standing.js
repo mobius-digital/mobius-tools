@@ -409,7 +409,16 @@ export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name
   const blocks = [H(`${name || b.name} · ${m}`), ctx(`${t.day}  ·  ${t.hour} CT   |   Goal: *${nx(b.kpi)} MER*`), { type: 'divider' }];
   const wins = (m === 'End of Day' ? [['Today', b.today], ['This week', b.week]] : [['Last 6 hours', b.last6], ['Today', b.today], ['This week', b.week]]).filter(([, p]) => p && p.sales != null);
   let attachments;
-  if (layout === 'wc') {
+  /* Cole 2026-11-24: the grid without the code-block names. 'clean' = no colored bars at all (bold names, grey lines,
+     dividers); 'blue' = the same grid in one Mobius-blue bar (brand color, not a score). Slack's grey quote lines
+     cannot take a color, so a per-window status color needs the stacked 'bars' layout. */
+  const GRID = ['wc', 'clean', 'blue'].includes(layout), nm = l => layout === 'wc' ? `\`${l}\`` : `*${l}*`;
+  if (layout === 'clean' || layout === 'blue') {
+    const f = (l, p) => ({ type: 'mrkdwn', text: `${nm(l)}\n> *Sales:* ${usd(p.sales)}\n> *Ad spend:* ${usd(p.spend)}\n> *MER:* ${nx(p.mer)}` });
+    const grid = [H('Sales and ad spend'), { type: 'section', fields: wins.map(([l, p]) => f(l, p)) }];
+    if (layout === 'clean') { blocks.push(...grid); attachments = []; }
+    else attachments = [{ color: BLUE, blocks: grid }];
+  } else if (layout === 'wc') {
     /* Well Copy's grid (Cole's screenshot 2026-11-24): a section with two `fields` per row, each window's name in
        inline code (Slack draws it orange), each number its own quote line (grey bar). The grid sits in one bar colored
        by Today. Slack fields are two columns at most: Last 6 hours | Today, then This week. */
@@ -431,19 +440,20 @@ export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name
     if (ads.length) {
       const ab = [H('Top ads yesterday'), ctx('Still running, most sales at or over the goal')];
       ads.forEach((a, i) => {
-        if (layout === 'wc') {   // the same orange-name + grey-line look, the ad's picture beside it
-          ab.push({ type: 'section', text: { type: 'mrkdwn', text: `\`${i + 1}. ${cleanName(a.name)}\`\n> *Sales:* ${a.sales}\n> *Spent:* ${usd(a.spend)}\n> *Return:* ${nx(a.roas)}` },
+        if (GRID) {   // the same name + grey-line look, the ad's picture beside it
+          ab.push({ type: 'section', text: { type: 'mrkdwn', text: `${nm(`${i + 1}. ${cleanName(a.name)}`)}\n> *Sales:* ${a.sales}\n> *Spent:* ${usd(a.spend)}\n> *Return:* ${nx(a.roas)}` },
             ...(images && a.cover ? { accessory: { type: 'image', image_url: a.cover, alt_text: cleanName(a.name) } } : {}) });
           return;
         }
         ab.push({ type: 'divider' }, md(`*${i + 1}. ${cleanName(a.name)}*\n${a.sales} sales  ·  ${usd(a.spend)} spent  ·  ${nx(a.roas)} return`));
         if (images && a.cover) ab.push({ type: 'image', image_url: a.cover, alt_text: cleanName(a.name) });
       });
-      attachments.push({ color: BLUE, blocks: ab });
+      if (layout === 'clean') blocks.push({ type: 'divider' }, ...ab); else attachments.push({ color: BLUE, blocks: ab });
     }
   }
-  attachments.push({ color: BLUE, blocks: [H('Updates'), md((did.length ? did : ['No changes since the last update']).map(d => `•  ${d}`).join('\n')),
-    ctx(rec.next ? `Next update at ${rec.next} CT` : 'Next update tomorrow at 9am CT')] });
+  const upd = [H('Updates'), md((did.length ? did : ['No changes since the last update']).map(d => `•  ${d}`).join('\n')),
+    ctx(rec.next ? `Next update at ${rec.next} CT` : 'Next update tomorrow at 9am CT')];
+  if (layout === 'clean') blocks.push({ type: 'divider' }, ...upd); else attachments.push({ color: BLUE, blocks: upd });
   return { text: `${name || b.name} ${m}, ${t.day} ${t.hour}`, blocks, attachments };
 }
 /** DM Cole one brand's client update (exactly as the client will see it) with Send / Don't send. */
@@ -467,7 +477,8 @@ export async function offerClientUpdate(env, deps, { act, rec = null, style = nu
   /* Layouts in order of preference; Slack refusing one (a table inside a colored bar, a table at all, an ad picture)
      falls to the next. Whatever reached Cole is what Send posts. */
   /* Cole 2026-11-24: the separate colored bars, stacked (Slack cannot put colored bars side by side). */
-  const tries = [['wc', true], ['wc', false], ['bars', true], ['bars', false]];
+  const pick = ['clean', 'blue', 'bars', 'wc'].includes(style) ? style : (['clean', 'blue', 'bars'].includes(await deps.getSetting(env, 'clientUpdateLayout')) ? await deps.getSetting(env, 'clientUpdateLayout') : 'clean');
+  const tries = [[pick, true], [pick, false], ['bars', false]];
   let r = { ok: false, error: 'nothing tried' }, used = null;
   for (const [layout, images] of tries) {
     const m = await clientUpdateMsg(env, deps, rec, act, st, b.name, { layout, images });
