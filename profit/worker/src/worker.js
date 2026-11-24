@@ -251,6 +251,19 @@ const SHOPIFY_API_VERSION = '2026-07';
  *  install fail because a webhook did not take. Worst case we learn about an
  *  uninstall on the next sync's 401 instead of instantly.
  */
+/** Store a shop's offline token, from either the classic callback or the embedded app's token exchange (managed
+ *  installation, 2026-11-15). app/uninstalled is declared in shopify.app.toml since then, so no per-shop webhook. */
+async function saveShopToken(env, shop, token, scope) {
+  const actId = await matchAccount(env, shop);
+  await env.DB.prepare(
+    `INSERT INTO p_shopify (shop, act_id, access_token, scopes, installed_at, uninstalled_at)
+     VALUES (?1,?2,?3,?4,datetime('now'),NULL)
+     ON CONFLICT(shop) DO UPDATE SET act_id = COALESCE(excluded.act_id, p_shopify.act_id), access_token = excluded.access_token,
+       scopes = excluded.scopes, installed_at = excluded.installed_at, uninstalled_at = NULL`,
+  ).bind(shop, actId, token, scope ?? SHOPIFY_SCOPES).run();
+  if (actId) await profitShareToken(env, actId).catch(() => {});
+}
+
 async function registerUninstallWebhook(env, shop, token, origin) {
   const q = `mutation($sub: WebhookSubscriptionInput!) {
     webhookSubscriptionCreate(topic: APP_UNINSTALLED, webhookSubscription: $sub) {
@@ -1927,7 +1940,7 @@ export default {
        so they sit above the dashboard auth gate and authenticate themselves by HMAC. */
     /* The embedded app inside the Shopify admin (2026-10-18, review 131577): its page and its session-token API. */
     if (path === '/shopify/app' || path === '/shopify/app/api/report') {
-      const r = await handleShopifyApp(request, env, url);
+      const r = await handleShopifyApp(request, env, url, { saveToken: (shop, token, scope) => saveShopToken(env, shop, token, scope) });
       if (r) return r;
     }
     if (path === '/shopify/install') {
@@ -1965,20 +1978,11 @@ export default {
       const tok = await res.json().catch(() => ({}));
       if (!tok.access_token) return new Response('No access token returned.', { status: 502 });
 
-      const actId = await matchAccount(env, shop);
-      await env.DB.prepare(
-        `INSERT INTO p_shopify (shop, act_id, access_token, scopes, installed_at, uninstalled_at)
-         VALUES (?1,?2,?3,?4,datetime('now'),NULL)
-         ON CONFLICT(shop) DO UPDATE SET act_id = excluded.act_id, access_token = excluded.access_token,
-           scopes = excluded.scopes, installed_at = excluded.installed_at, uninstalled_at = NULL`,
-      ).bind(shop, actId, tok.access_token, tok.scope ?? SHOPIFY_SCOPES).run();
-
-      await registerUninstallWebhook(env, shop, tok.access_token, url.origin);
+      await saveShopToken(env, shop, tok.access_token, tok.scope);
 
       // Land the merchant back INSIDE the Shopify admin, on the embedded app (shopifyapp.js): every store, client or not,
       // gets the same live store screen there. Review 131577 (2026-10-17) paused the app because the old landing page
       // outside Shopify showed "Shopify could not be read: Shopify returned 403" to a reviewer's test store.
-      if (actId) await profitShareToken(env, actId).catch(() => {});
       return Response.redirect(`https://${shop}/admin/apps/${env.SHOPIFY_API_KEY}`, 302);
     }
 
