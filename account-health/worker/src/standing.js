@@ -410,7 +410,9 @@ export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name
   /* Cole 2026-11-24: the markdown '#' heading draws biggest. Section titles inside a colored bar use it too when Slack
      takes a markdown block there (mdIn), else the header block. */
   const T1 = layout === 'spaced' || (NEW && mdIn) ? MDH : H;
-  const title = NEW ? `🛍️ ${name || b.name} · BFCM Week · ${m}` : `${name || b.name} · ${m}`;
+  /* Title emoji about results (Cole): a rising chart when today is at or over the goal, else a plain chart. */
+  const tEm = b.today && b.kpi && b.today.mer >= b.kpi ? '📈' : '📊';
+  const title = NEW ? `${tEm} ${name || b.name} · BFCM Week · ${m}` : `${name || b.name} · ${m}`;
   const blocks = [(layout === 'spaced' || NEW ? MDH : H)(title), ctx(`${t.day}  ·  ${t.hour} CT   |   Goal: *${nx(b.kpi)} MER*`), { type: 'divider' }];
   const wins = (m === 'End of Day' ? [['Today', b.today], ['This week', b.week]] : [['Last 6 hours', b.last6], ['Today', b.today], ['This week', b.week]]).filter(([, p]) => p && p.sales != null);
   let attachments;
@@ -446,8 +448,10 @@ export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name
       for (const [l, p] of wins) attachments.push({ color: col(p), blocks: [md(txt(l, p))] });
     } else {
       const row1 = [get('Last 6 hours'), get('Today')].filter(Boolean), wk = get('This week');
-      const today = (get('Today') || row1[0] || [])[1];
-      if (row1.length) attachments.push({ color: col(today), blocks: [{ type: 'section', fields: row1.map(([l, p]) => ({ type: 'mrkdwn', text: txt(l, p) })) }] });
+      /* One bar per row is all Slack allows (Cole asked for a bar per window): the day row takes the WORSE of Last 6
+         hours and Today, so a bad stretch never hides behind a good one. */
+      const worst = row1.map(([, p]) => tierOf(p && p.mer, b.kpi, line)).sort((x, y) => TIER.indexOf(y) - TIER.indexOf(x))[0];
+      if (row1.length) attachments.push({ color: worst ? worst.color : col(null), blocks: [{ type: 'section', fields: row1.map(([l, p]) => ({ type: 'mrkdwn', text: txt(l, p) })) }] });
       if (wk) attachments.push({ color: col(wk[1]), blocks: [{ type: 'section', fields: [{ type: 'mrkdwn', text: txt(wk[0], wk[1]) }] }] });
     }
   } else if (layout === 'lines') {
