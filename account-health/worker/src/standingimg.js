@@ -88,9 +88,10 @@ export function boardSvg(rec) {
 }
 
 /** One brand, for its client: sales vs the weekend goal, ad spend, MER, the last hour. Nothing internal. */
-export function brandSvg(rec, act, prev) {
+/* did = {text, up}: the change we just made, drawn as a "What we did" band under the tiles (the client update, Cole 2026-11-24). */
+export function brandSvg(rec, act, prev, did = null) {
   const b = rec.brands.find(z => z.act_id === act); if (!b) return null;
-  const W = 1200, H = 470, pad = 40, s = b.so_far || {}, l6 = b.last6 || {};
+  const W = 1200, H = did ? 560 : 470, pad = 40, s = b.so_far || {}, l6 = b.last6 || {};
   const o0 = prev && prev.brands ? prev.brands.find(z => z.act_id === act) : null, pre = !counted(rec, b), start = b.sale && b.sale.start;
   const col = pre ? C.dim : tone(s.mer, b.kpi) === C.dim ? C.yellow : tone(s.mer, b.kpi);
   const dS = o0 && o0.so_far && s.sales != null ? s.sales - (o0.so_far.sales || 0) : null;
@@ -106,6 +107,12 @@ export function brandSvg(rec, act, prev) {
     + tile(1, 'MER', x(s.mer), `sale so far · goal ${x(b.kpi)}`, tone(s.mer, b.kpi))
     + tile(2, 'LAST 6 HOURS', x(l6.mer), `MER · ${k(l6.sales)} on ${k(l6.spend)}`, tone(l6.mer, b.kpi))
     + tile(3, 'SINCE LAST UPDATE', dS == null ? 'first' : `+${k(dS)}`, dS == null ? 'update today' : 'in sales');
+  if (did) {
+    const dc = did.up ? C.green : did.up === false ? C.red : C.yellow;
+    o += R(pad, 430, W - 2 * pad, 80, C.card, 14) + R(pad, 430, 8, 80, dc, 4)
+      + T(pad + 28, 462, 'WHAT WE DID', { size: 13, bold: true, fill: C.dim, ls: 1.5 })
+      + T(pad + 28, 494, did.text, { size: 24, bold: true });
+  }
   o += T(pad, H - 22, 'Sales from Triple Whale · MER = store sales ÷ ad spend', { size: 13, fill: C.dim });
   return svgWrap(W, H, o);
 }

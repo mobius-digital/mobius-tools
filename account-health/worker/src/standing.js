@@ -313,29 +313,42 @@ async function approve(env, deps, rec, act, who) {
    written in the ladder's words and two buttons. Nothing reaches a client without his tap; Send posts it AS COLE in the
    brand's client channel (brief_channel, never the internal one). No client channel = no DM. */
 const OWNER_SLACK = 'U06C37MDWD7';
-const xs = v => `${(Math.round(v * 10) / 10).toFixed(1)}x`;
+/* The client sees the brand's scoreboard image with a "What we did" band, and one plain line. */
+function didOf(from, to, mer, kpi) {
+  const up = to > from, move = `${up ? 'Raised' : 'Lowered'} the Black Friday budget ${money(from)} → ${money(to)} a day`;
+  const why = mer == null || !kpi ? '' : up ? (mer >= kpi ? ', sales are ahead of the goal' : '') : (mer < kpi ? ', to protect the return' : '');
+  return { text: move, up, line: `${move.replace('Raised', 'We raised').replace('Lowered', 'We lowered')}${why}. Next update in 6 hours.` };
+}
+async function brandPng(env, deps, rec, act, did) { return toPng(brandSvg(rec, act, null, did), deps.xfetch); }
 export async function offerClientUpdate(env, deps, { act, campaign, from, to, rec = null }) {
   if (!from || !to || Math.round(from) === Math.round(to)) return null;
   const b = await env.DB.prepare(`SELECT name, brief_channel, slack_channel FROM brand_accounts WHERE act_id = ?1`).bind(act).first().catch(() => null);
   if (!b || !b.brief_channel || b.brief_channel === b.slack_channel) return null;
   rec = rec || await load(env, deps).catch(() => null);
   const s = rec && (rec.brands || []).find(x => x.act_id === act);
-  const mer = s && s.so_far && s.so_far.mer, kpi = s && s.kpi, line = s && (s.hold ?? (s.kpi ? s.kpi * 0.8 : null));
-  const up = to > from, move = `${campaign} from ${money(from)} to ${money(to)} a day`;
-  let text;
-  if (up && mer != null && kpi && mer >= kpi) text = `Quick update on the sale: for every $1 we've put into ads, the store has made $${mer.toFixed(2)} so far, over your ${xs(kpi)} goal. So we raised ${move}. We check every 6 hours and keep raising while it stays over ${xs(kpi)}.`;
-  else if (!up && mer != null && line && mer < line) text = `Quick update on the sale: for every $1 we've put into ads, the store has made $${mer.toFixed(2)} so far, under the ${xs(line)} break-even. So we pulled ${move} to protect the return. We check every 6 hours and raise again once it's back over ${xs(kpi)}.`;
-  else text = `Quick update on the sale: we ${up ? 'raised' : 'lowered'} ${move}.${mer != null && kpi ? ` The store is at ${xs(mer)} return on ad spend so far against your ${xs(kpi)} goal.` : ''} We check every 6 hours and adjust from there.`;
+  if (!s) return { ok: false, error: 'No check-in for this brand yet, so there is no picture to send.' };
+  const did = didOf(from, to, s.so_far && s.so_far.mer, s.kpi);
+  let img = null, imgErr = null;
+  try { const up = await slackPng(env, deps, await brandPng(env, deps, rec, act, did), `${act.replace('brand_', '')}-update.png`); if (up.id) img = up.id; else imgErr = up.error; } catch (e) { imgErr = e.message; }
   const id = Math.random().toString(16).slice(2, 12);
-  await deps.putSetting(env, `wsDraft:${id}`, JSON.stringify({ act, ch: b.brief_channel, text, name: b.name, at: new Date().toISOString() }));
-  const msg = { text: `Client update for ${b.name}, ready to send`, blocks: [
-    { type: 'section', text: { type: 'mrkdwn', text: `*Client update for ${b.name}* (you changed ${move})` } },
-    { type: 'section', text: { type: 'mrkdwn', text: text.split('\n').map(l => `> ${l}`).join('\n') } },
+  await deps.putSetting(env, `wsDraft:${id}`, JSON.stringify({ act, ch: b.brief_channel, text: did.line, did, slot: rec.slot, name: b.name, campaign, at: new Date().toISOString() }));
+  const msg = { text: `Ready to send to ${b.name}: ${did.line}`, blocks: [
+    { type: 'section', text: { type: 'mrkdwn', text: `*Ready to send to ${b.name}*` } },
+    ...(img ? [{ type: 'image', slack_file: { id: img }, alt_text: `${b.name} Black Friday update` }] : [{ type: 'context', elements: [{ type: 'mrkdwn', text: `_Picture failed (${imgErr}); Send still posts it fresh._` }] }]),
+    { type: 'section', text: { type: 'mrkdwn', text: did.line } },
     { type: 'actions', elements: [
       { type: 'button', action_id: 'ws_send', style: 'primary', text: { type: 'plain_text', text: `Send to ${b.name}` }, value: id },
-      { type: 'button', action_id: 'ws_skip', text: { type: 'plain_text', text: "Don't send" }, value: id }] },
-    { type: 'context', elements: [{ type: 'mrkdwn', text: 'Posts as you in their client channel. Want different words? Don\'t send, then post your own.' }] }] };
-  return dmPerson(env, deps, env.OWNER_EMAIL || 'cole@go-mobius-digital.com', msg);
+      { type: 'button', action_id: 'ws_skip', text: { type: 'plain_text', text: "Don't send" }, value: id }] }] };
+  return postRetry(env, deps, msg, img);
+}
+/* Upload a PNG AS COLE into a channel with a comment (his user token: the post reads as him, like every client message). */
+async function postPngAsCole(env, xfetch, ch, bytes, name, comment) {
+  const call = (m, p) => xfetch(`https://slack.com/api/${m}`, { method: 'POST', headers: { Authorization: `Bearer ${env.SLACK_USER_TOKEN}`, 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(p).toString() }).then(r => r.json());
+  const a = await call('files.getUploadURLExternal', { filename: name, length: String(bytes.length) });
+  if (!a.ok) return { ok: false, error: a.error };
+  const up = await xfetch(a.upload_url, { method: 'POST', body: bytes });
+  if (!up.ok) return { ok: false, error: `upload ${up.status}` };
+  return call('files.completeUploadExternal', { files: JSON.stringify([{ id: a.file_id, title: name }]), channel_id: ch, initial_comment: comment });
 }
 /** The two buttons on that DM. Cole only. */
 export async function handleClientUpdateButton(env, ctx, payload, deps, { ACK, xfetch }) {
@@ -349,11 +362,15 @@ export async function handleClientUpdateButton(env, ctx, payload, deps, { ACK, x
     if (dr.done) return reply(`Already handled: ${dr.done}.`);
     if (a.action_id === 'ws_skip') { dr.done = 'not sent'; await deps.putSetting(env, `wsDraft:${a.value}`, JSON.stringify(dr)); return reply(`Not sent to ${dr.name}.`); }
     if (!env.SLACK_USER_TOKEN) return reply('No Slack user token on Locus, so it cannot post as you.');
-    const res = await xfetch('https://slack.com/api/chat.postMessage', { method: 'POST', headers: { Authorization: `Bearer ${env.SLACK_USER_TOKEN}`, 'Content-Type': 'application/json; charset=utf-8' },
-      body: JSON.stringify({ channel: dr.ch, text: dr.text, unfurl_links: false }) }).then(r => r.json()).catch(e => ({ ok: false, error: e.message }));
-    if (!res.ok) return reply(`Slack refused it (${res.error}). Nothing was sent.`);
+    let res;
+    try {
+      const rec = await load(env, deps, dr.slot);
+      if (!rec || !dr.did) throw new Error('the check-in it was drawn from is gone');
+      res = await postPngAsCole(env, xfetch, dr.ch, await brandPng(env, deps, rec, dr.act, dr.did), `${dr.name} Black Friday update.png`, dr.text);
+    } catch (e) { res = { ok: false, error: e.message }; }
+    if (!res || !res.ok) return reply(`Not sent: ${(res && res.error) || 'Slack did not answer'}.`);
     dr.done = `sent ${new Date().toISOString()}`; await deps.putSetting(env, `wsDraft:${a.value}`, JSON.stringify(dr));
-    return reply(`✓ Sent to ${dr.name}:\n> ${dr.text}`);
+    return reply(`✓ Sent to ${dr.name} with the picture: ${dr.text}`);
   })());
   return ACK();
 }
