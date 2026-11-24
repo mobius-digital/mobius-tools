@@ -359,18 +359,21 @@ export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name
   const b = (rec.brands || []).find(x => x.act_id === act);
   if (!b || b.no_sales) return null;
   const did = await didSince(env, deps, act), line = b.hold ?? (b.kpi ? b.kpi * 0.8 : null), t = hourOfSlot(rec.slot);
+  /* Matched to Well Copy's app message (Cole's screenshot, 2026-11-24): a greeting and the window, a divider, then each
+     section as a header with an emoji, and each stat as its own "*Label:* value" line with a blank line between. */
   const H = s => ({ type: 'header', text: { type: 'plain_text', text: s, emoji: true } });
-  const q = (label, value) => ({ type: 'rich_text_quote', elements: [{ type: 'text', text: `${label}: `, style: { bold: true } }, { type: 'text', text: value }] });
+  const md = s => ({ type: 'section', text: { type: 'mrkdwn', text: s } });
   const period = (label, p) => {
     if (!p || p.sales == null) return [];
     const dot = style === 'dots' ? `${DOTS[toneOf(p.mer, b.kpi, line)]} ` : '';
-    return [{ type: 'divider' }, H(label), { type: 'rich_text', elements: [q('Sales', usd(p.sales)), q('Ad spend', usd(p.spend)), q('MER', `${dot}${nx(p.mer)}`)] }];
+    return [H(label), md(`*Sales:* ${usd(p.sales)}\n\n*Ad spend:* ${usd(p.spend)}\n\n*MER:* ${dot}${nx(p.mer)}`)];
   };
+  const day = t.day.split(',')[0];
   const blocks = [
-    H(`${name || b.name} · Black Friday`),
-    { type: 'context', elements: [{ type: 'mrkdwn', text: `${t.day} · ${t.hour} CT   ·   Goal: *${nx(b.kpi)} MER*` }] },
-    ...period('Last 6 hours', b.last6), ...period('Today', b.today), ...period('This week', b.week),
-    { type: 'divider' }, H('Updates'),
+    md(`Happy ${day}! 👋\nHere's where ${name || b.name}'s Black Friday stands as of ${t.hour} CT. Our goal is *${nx(b.kpi)} MER*.`),
+    { type: 'divider' },
+    ...period('Last 6 hours ⏱️', b.last6), ...period('Today 📅', b.today), ...period('This week 📊', b.week),
+    H('Updates 🛠️'),
     { type: 'rich_text', elements: [{ type: 'rich_text_list', style: 'bullet', elements: (did.length ? did : ['No changes since the last update'])
       .map(d => ({ type: 'rich_text_section', elements: [{ type: 'text', text: d }] })) }] },
     { type: 'context', elements: [{ type: 'mrkdwn', text: rec.next ? `Next update at ${rec.next} CT` : 'Last update of the day' }] }];
