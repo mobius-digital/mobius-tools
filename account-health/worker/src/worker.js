@@ -36,7 +36,7 @@ import { connectGet, connectPost, connectOverview, pendingTick as connectPending
 import { morningCardTick, previewCard, teamPost, tagOf, cardActionDone, cardCallMade, cardProdDone, cardBriefState, cardReaction, cardOn, morningHour, DEFAULT_MORNING_HOUR } from './morningcard.js';
 import { handlePrefs, morningPeople } from './prefs.js';
 import { morningTick, handleMorning } from './morning.js';
-import { standingTick, handleStanding, offerClientUpdate, handleClientUpdateButton } from './standing.js';
+import { standingTick, handleStanding, handleClientUpdateButton } from './standing.js';
 import { todayTick } from './todaypost.js';
 import { laneBlocks, laneLines, lanePost, laneWho, laneOwner, fyi, roundupTick } from './lane.js';
 /**
@@ -8530,9 +8530,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         if (r.ok && !r.dry && r.after && (r.level === 'campaign' || r.level === 'adset')) await syncedRow(r.level, r.object, r.after);
         /* A Today's call made on the page counts on the morning card's calls line (all made = struck through). */
         if (r.ok && !r.dry && r.object) await cardCallMade(env, cardDeps(), act, r.object).catch(() => {});
-        /* A campaign budget change: Cole gets the client message ready to send (standing.js offerClientUpdate). */
-        const bm = r.ok && !r.dry && body.kind === 'budget' && r.level === 'campaign' && /\$([\d,.]+)\/day → \$([\d,.]+)\/day/.exec(r.summary || '');
-        if (bm) await offerClientUpdate(env, standingDeps(), { act, campaign: r.name, from: +bm[1].replace(/,/g, ''), to: +bm[2].replace(/,/g, '') }).catch(e => console.log('client update: ' + e.message));
+        /* Changes made here reach the client in the next 6-hour update's "What we did" (standing.js, client_why). */
         return json(r);
       } catch (e) { return json({ error: e.message }, 502); }
       async function syncedRow(level, id, vals) {

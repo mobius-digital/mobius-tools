@@ -279,6 +279,12 @@ export async function standingTick(env, deps, now = new Date()) {
   await sendDm(env, deps, rec, { prev });
   await save(env, deps, rec);
   if (rec.sent && !rec.sent.error) await deps.putSetting(env, `standingSent:${slot}`, rec.sent.at);
+  /* Each client's update, drafted to Cole now. A brand with a raise or cut waiting for his yes gets it right after the
+     Approve instead, so "What we did" includes the change. */
+  for (const b of rec.brands) {
+    if (b.no_sales || (b.suggest && b.suggest.to)) continue;
+    await offerClientUpdate(env, deps, { act: b.act_id, rec }).catch(() => {});
+  }
   return { slot, brands: rec.brands.length, sent: rec.sent };
 }
 
@@ -304,7 +310,7 @@ async function approve(env, deps, rec, act, who) {
   rec.approved = rec.approved || {};
   rec.approved[act] = { by: who, at: new Date().toISOString(), from: camp.daily, to: g.to, write: r.write || null, summary: r.summary || '' };
   await deps.putSetting(env, `standing:${rec.slot}`, JSON.stringify(rec));
-  await offerClientUpdate(env, deps, { act, campaign: camp.name, from: camp.daily, to: g.to, rec }).catch(() => {});
+  await offerClientUpdate(env, deps, { act }).catch(() => {});
   return { ok: true, ...rec.approved[act] };
 }
 
@@ -313,44 +319,54 @@ async function approve(env, deps, rec, act, who) {
    written in the ladder's words and two buttons. Nothing reaches a client without his tap; Send posts it AS COLE in the
    brand's client channel (brief_channel, never the internal one). No client channel = no DM. */
 const OWNER_SLACK = 'U06C37MDWD7';
-/* The client sees the brand's scoreboard image with a "What we did" band, and one plain line. */
-function didOf(from, to, mer, kpi) {
-  const up = to > from, move = `${up ? 'Raised' : 'Lowered'} the Black Friday budget ${money(from)} → ${money(to)} a day`;
-  const why = mer == null || !kpi ? '' : up ? (mer >= kpi ? ', sales are ahead of the goal' : '') : (mer < kpi ? ', to protect the return' : '');
-  return { text: move, up, line: `${move.replace('Raised', 'We raised').replace('Lowered', 'We lowered')}${why}. Next update in 6 hours.` };
+/* THE CLIENT UPDATE (Cole 2026-11-24, after the image read as "AI sloppy"): plain text in the Well Copy weekly-update
+   shape, posted as Cole. Week so far, today so far, last 6 hours (sales, ad spend, MER vs goal), then "What we did" =
+   every Locus change with a client line (client_why: budgets, ads off) since the last update this brand was sent.
+   Drafted to Cole at each check-in (and right after a War Room Approve); nothing reaches a client without his Send. */
+const nx = v => v == null ? 'n/a' : `${(Math.round(v * 10) / 10).toFixed(1)}x`;
+function block(label, p, kpi) {
+  if (!p || p.sales == null) return '';
+  return `*${label}*\n• Sales: ${kmoney(p.sales)}\n• Ad spend: ${kmoney(p.spend)}\n• MER: ${nx(p.mer)}${kpi ? ` (goal ${nx(kpi)})` : ''}`;
 }
-async function brandPng(env, deps, rec, act, did) { return toPng(brandSvg(rec, act, null, did), deps.xfetch); }
-export async function offerClientUpdate(env, deps, { act, campaign, from, to, rec = null }) {
-  if (!from || !to || Math.round(from) === Math.round(to)) return null;
+async function didSince(env, deps, act) {
+  const last = await deps.getSetting(env, `wsLastSent:${act}`);
+  const since = last || `${central().date}T06:00:00Z`;   // never sent: since midnight Central
+  const acts = (await metaActs(env, act)).map(m => m.act);
+  if (!acts.length) return [];
+  const rows = ((await env.DB.prepare(`SELECT client_why, event_time FROM activities WHERE act_id IN (${acts.map((_, i) => `?${i + 2}`).join(', ')})
+    AND client_why IS NOT NULL AND client_why != '' AND event_time >= ?1 ORDER BY event_time`).bind(since, ...acts).all().catch(() => ({ results: [] }))).results) || [];
+  return [...new Set(rows.map(r => String(r.client_why).trim()).filter(Boolean))].slice(0, 8);
+}
+export async function clientUpdateText(env, deps, rec, act) {
+  const b = (rec.brands || []).find(x => x.act_id === act);
+  if (!b || b.no_sales) return null;
+  const did = await didSince(env, deps, act);
+  const parts = [`*Black Friday update, ${hourOfSlot(rec.slot)}*`,
+    block('Week so far', b.week, b.kpi), block('Today so far', b.today, b.kpi), block('Last 6 hours', b.last6, b.kpi),
+    `*What we did*\n${did.length ? did.map(d => `• ${d}`).join('\n') : '• No changes since the last update. Everything is running as planned.'}`,
+    rec.next ? `Next update at ${rec.next}.` : ''];
+  return parts.filter(Boolean).join('\n\n');
+}
+const hourOfSlot = slot => { const [d, h] = String(slot).split('T'), hr = +h; const day = new Date(d + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' }); return `${day} ${hr === 12 ? '12pm' : hr === 0 ? '12am' : hr < 12 ? `${hr}am` : `${hr - 12}pm`}`; };
+/** DM Cole one brand's client update with Send / Don't send. */
+export async function offerClientUpdate(env, deps, { act, rec = null }) {
   const b = await env.DB.prepare(`SELECT name, brief_channel, slack_channel FROM brand_accounts WHERE act_id = ?1`).bind(act).first().catch(() => null);
   if (!b || !b.brief_channel || b.brief_channel === b.slack_channel) return null;
   rec = rec || await load(env, deps).catch(() => null);
-  const s = rec && (rec.brands || []).find(x => x.act_id === act);
-  if (!s) return { ok: false, error: 'No check-in for this brand yet, so there is no picture to send.' };
-  const did = didOf(from, to, s.so_far && s.so_far.mer, s.kpi);
-  let img = null, imgErr = null;
-  try { const up = await slackPng(env, deps, await brandPng(env, deps, rec, act, did), `${act.replace('brand_', '')}-update.png`); if (up.id) img = up.id; else imgErr = up.error; } catch (e) { imgErr = e.message; }
+  if (!rec) return { ok: false, error: 'No check-in yet.' };
+  const text = await clientUpdateText(env, deps, rec, act);
+  if (!text) return { ok: false, error: 'No sales numbers for this brand.' };
   const id = Math.random().toString(16).slice(2, 12);
-  await deps.putSetting(env, `wsDraft:${id}`, JSON.stringify({ act, ch: b.brief_channel, text: did.line, did, slot: rec.slot, name: b.name, campaign, at: new Date().toISOString() }));
-  const msg = { text: `Ready to send to ${b.name}: ${did.line}`, blocks: [
+  await deps.putSetting(env, `wsDraft:${id}`, JSON.stringify({ act, ch: b.brief_channel, text, name: b.name, at: new Date().toISOString() }));
+  const msg = { text: `Ready to send to ${b.name}`, blocks: [
     { type: 'section', text: { type: 'mrkdwn', text: `*Ready to send to ${b.name}*` } },
-    ...(img ? [{ type: 'image', slack_file: { id: img }, alt_text: `${b.name} Black Friday update` }] : [{ type: 'context', elements: [{ type: 'mrkdwn', text: `_Picture failed (${imgErr}); Send still posts it fresh._` }] }]),
-    { type: 'section', text: { type: 'mrkdwn', text: did.line } },
+    { type: 'section', text: { type: 'mrkdwn', text: text.split('\n').map(l => `>${l ? ' ' + l : ''}`).join('\n').slice(0, 2900) } },
     { type: 'actions', elements: [
       { type: 'button', action_id: 'ws_send', style: 'primary', text: { type: 'plain_text', text: `Send to ${b.name}` }, value: id },
       { type: 'button', action_id: 'ws_skip', text: { type: 'plain_text', text: "Don't send" }, value: id }] }] };
-  return postRetry(env, deps, msg, img);
+  return dmPerson(env, deps, env.OWNER_EMAIL || 'cole@go-mobius-digital.com', msg);
 }
-/* Upload a PNG AS COLE into a channel with a comment (his user token: the post reads as him, like every client message). */
-async function postPngAsCole(env, xfetch, ch, bytes, name, comment) {
-  const call = (m, p) => xfetch(`https://slack.com/api/${m}`, { method: 'POST', headers: { Authorization: `Bearer ${env.SLACK_USER_TOKEN}`, 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(p).toString() }).then(r => r.json());
-  const a = await call('files.getUploadURLExternal', { filename: name, length: String(bytes.length) });
-  if (!a.ok) return { ok: false, error: a.error };
-  const up = await xfetch(a.upload_url, { method: 'POST', body: bytes });
-  if (!up.ok) return { ok: false, error: `upload ${up.status}` };
-  return call('files.completeUploadExternal', { files: JSON.stringify([{ id: a.file_id, title: name }]), channel_id: ch, initial_comment: comment });
-}
-/** The two buttons on that DM. Cole only. */
+/** The two buttons on that DM. Cole only. Send posts the text as Cole in the client channel. */
 export async function handleClientUpdateButton(env, ctx, payload, deps, { ACK, xfetch }) {
   const a = (payload.actions || []).find(x => /^ws_/.test(x.action_id || ''));
   const reply = t => payload.response_url && xfetch(payload.response_url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ replace_original: true, text: t }) }).catch(() => {});
@@ -358,19 +374,18 @@ export async function handleClientUpdateButton(env, ctx, payload, deps, { ACK, x
     if (payload.user?.id !== OWNER_SLACK) return reply('Only Cole can send client updates.');
     const raw = await deps.getSetting(env, `wsDraft:${a.value}`);
     const dr = raw ? JSON.parse(raw) : null;
-    if (!dr) return reply('That update is gone.');
+    if (!dr || !dr.text) return reply('That update is gone.');
     if (dr.done) return reply(`Already handled: ${dr.done}.`);
     if (a.action_id === 'ws_skip') { dr.done = 'not sent'; await deps.putSetting(env, `wsDraft:${a.value}`, JSON.stringify(dr)); return reply(`Not sent to ${dr.name}.`); }
     if (!env.SLACK_USER_TOKEN) return reply('No Slack user token on Locus, so it cannot post as you.');
-    let res;
-    try {
-      const rec = await load(env, deps, dr.slot);
-      if (!rec || !dr.did) throw new Error('the check-in it was drawn from is gone');
-      res = await postPngAsCole(env, xfetch, dr.ch, await brandPng(env, deps, rec, dr.act, dr.did), `${dr.name} Black Friday update.png`, dr.text);
-    } catch (e) { res = { ok: false, error: e.message }; }
-    if (!res || !res.ok) return reply(`Not sent: ${(res && res.error) || 'Slack did not answer'}.`);
-    dr.done = `sent ${new Date().toISOString()}`; await deps.putSetting(env, `wsDraft:${a.value}`, JSON.stringify(dr));
-    return reply(`✓ Sent to ${dr.name} with the picture: ${dr.text}`);
+    if (/^\s*\*?Black Friday update/.test(dr.text) === false) return reply('That is an older draft. Nothing was sent.');
+    const res = await xfetch('https://slack.com/api/chat.postMessage', { method: 'POST', headers: { Authorization: `Bearer ${env.SLACK_USER_TOKEN}`, 'Content-Type': 'application/json; charset=utf-8' },
+      body: JSON.stringify({ channel: dr.ch, text: dr.text, unfurl_links: false }) }).then(r => r.json()).catch(e => ({ ok: false, error: e.message }));
+    if (!res.ok) return reply(`Slack refused it (${res.error}). Nothing was sent.`);
+    const now = new Date().toISOString();
+    dr.done = `sent ${now}`; await deps.putSetting(env, `wsDraft:${a.value}`, JSON.stringify(dr));
+    await deps.putSetting(env, `wsLastSent:${dr.act}`, now);
+    return reply(`✓ Sent to ${dr.name}.`);
   })());
   return ACK();
 }
@@ -478,7 +493,7 @@ export async function handleStanding(request, env, url, path, json, deps) {
     if ((path === '/api/standing/client-update' || (path === '/api/standing/sample' && body.client_update)) && request.method === 'POST') {
       const act = String(body.act || '');
       if (!/^brand_[a-z0-9_]+$/.test(act)) return json({ error: 'Which brand?' }, 400);
-      const r = await offerClientUpdate(env, deps, { act, campaign: String(body.campaign || 'the sale campaign').slice(0, 80), from: +body.from, to: +body.to });
+      const r = await offerClientUpdate(env, deps, { act });
       return json(r ? { ok: !!r.ok, error: r.error || null } : { ok: false, error: 'No client channel for this brand, or the budget did not change.' });
     }
     if (path === '/api/standing/run' && request.method === 'POST') {

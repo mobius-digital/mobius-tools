@@ -19,18 +19,19 @@ async function boot(fetcher = fetch) {
 }
 export async function toPng(svg, fetcher) {
   const fontBuffers = await boot(fetcher);
-  const r = new Resvg(svg, { font: { fontBuffers, defaultFontFamily: 'Inter', loadSystemFonts: false }, fitTo: { mode: 'width', value: 1600 } });
+  const r = new Resvg(svg, { font: { fontBuffers, defaultFontFamily: 'Inter', loadSystemFonts: false }, fitTo: { mode: 'width', value: 3200 } });
   return r.render().asPng();
 }
 
 /* ---------- drawing ---------- */
-const C = { bg: '#0F1424', card: '#182036', line: '#26304B', text: '#F4F6FB', dim: '#8C96B2', green: '#2EB67D', yellow: '#ECB22E', red: '#E01E5A', blue: '#5B8DEF', track: '#2A3352' };
+/* Light Mobius look (Cole 2026-11-24: not the dark one): white cards on a soft grey page, Mobius blue accents. */
+const C = { bg: '#F5F7FB', card: '#FFFFFF', line: '#E3E8F0', text: '#0E1B2E', dim: '#66748C', green: '#0F9D63', yellow: '#C98A00', red: '#D33A50', blue: '#2A9FD8', track: '#E8EDF4' };
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const k = v => v == null ? 'n/a' : Math.abs(v) >= 1000 ? `$${(v / 1000).toFixed(Math.abs(v) >= 10000 ? 0 : 1)}k` : `$${Math.round(v)}`;
 const money = v => v == null ? 'n/a' : `$${Math.round(v).toLocaleString('en-US')}`;
 const x = v => v == null ? 'n/a' : v >= 10 ? `${v.toFixed(1)}x` : `${v.toFixed(2)}x`;
 const T = (px, py, s, o = {}) => `<text x="${px}" y="${py}" font-family="Inter" font-size="${o.size || 16}" font-weight="${o.bold ? 700 : 400}" fill="${o.fill || C.text}"${o.anchor ? ` text-anchor="${o.anchor}"` : ''}${o.ls ? ` letter-spacing="${o.ls}"` : ''}>${esc(s)}</text>`;
-const R = (px, py, w, h, fill, r = 0) => `<rect x="${px}" y="${py}" width="${Math.max(0, w)}" height="${h}" rx="${r}" fill="${fill}"/>`;
+const R = (px, py, w, h, fill, r = 0) => `<rect x="${px}" y="${py}" width="${Math.max(0, w)}" height="${h}" rx="${r}" fill="${fill}"${fill === C.card ? ` stroke="${C.line}" stroke-width="1.5"` : ''}/>`;
 const tone = (v, kpi) => v == null || !kpi ? C.dim : v >= kpi ? C.green : v >= kpi * 0.8 ? C.yellow : C.red;
 const CALL = { scale: ['RAISE 50%', C.green], raise: ['RAISE 25%', C.green], hold: ['HOLD', C.yellow], cut: ['CUT 25%', C.red] };
 const hourOf = slot => { const h = +String(slot || '').split('T')[1]; return isNaN(h) ? '' : h === 12 ? '12pm' : h === 0 ? '12am' : h < 12 ? `${h}am` : `${h - 12}pm`; };

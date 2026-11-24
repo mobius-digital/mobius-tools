@@ -567,6 +567,14 @@ async function standingAll(env, accounts, today, deps) {
     const adj = newRev != null ? newRev * (1 - (es ? es.share : 0)) : null;
     r.so_far = { from: mode === 'plan' ? today : sale.start, days: prev.days + (withToday ? 1 : 0), sales, spend, mer: sales != null && spend > 0 ? sales / spend : null, pct_goal: sales != null && cfg.goal ? sales / cfg.goal : null,
       new_rev_all: newRev, new_rev: adj, new_orders: newOrders, email_share_new: es ? es.share : null, new_mer: adj != null && spend > 0 ? adj / spend : null };
+    /* Week so far (Monday to now) for the client update (Cole 2026-11-24: "week so far, day so far, last 6 hours"). */
+    if (!noSales && deps.series) {
+      const dow = new Date(today + 'T12:00:00Z').getUTCDay(), mon = addDays(today, -((dow + 6) % 7));
+      let ws = 0, wp = 0;
+      if (mon < today) { try { const s = await deps.series({ ...acct, ...a }, mon, addDays(today, -1)); for (const x of s.rows || []) { ws += +x.sales || 0; wp += +x.spend || 0; } } catch (e) { r.week_error = e.message; } }
+      ws += r.today.sales || 0; wp += r.today.spend || 0;
+      r.week = { from: mon, sales: ws, spend: wp, mer: wp > 0 ? ws / wp : null };
+    }
     r.be_new = cfg.be_new || null;
     r.no_sales = noSales ? 1 : 0; r.as_of = (lv && lv.as_of) || null;
     r.suggest = r.error ? { call: 'hold', pct: 0, why: `No live numbers: ${r.error}` } : standCall({ soFar: r.so_far, last6: r.last6, kpi: cfg.kpi, hold: r.hold, noSales, beNew: cfg.be_new });
