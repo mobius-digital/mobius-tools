@@ -281,10 +281,7 @@ export async function standingTick(env, deps, now = new Date()) {
   if (rec.sent && !rec.sent.error) await deps.putSetting(env, `standingSent:${slot}`, rec.sent.at);
   /* Each client's update, drafted to Cole now. A brand with a raise or cut waiting for his yes gets it right after the
      Approve instead, so "What we did" includes the change. */
-  for (const b of rec.brands) {
-    if (b.no_sales || (b.suggest && b.suggest.to)) continue;
-    await offerClientUpdate(env, deps, { act: b.act_id, rec }).catch(() => {});
-  }
+  await postBatch(env, deps, rec).catch(e => console.log('client batch: ' + e.message));
   return { slot, brands: rec.brands.length, sent: rec.sent };
 }
 
@@ -310,7 +307,7 @@ async function approve(env, deps, rec, act, who) {
   rec.approved = rec.approved || {};
   rec.approved[act] = { by: who, at: new Date().toISOString(), from: camp.daily, to: g.to, write: r.write || null, summary: r.summary || '' };
   await deps.putSetting(env, `standing:${rec.slot}`, JSON.stringify(rec));
-  await offerClientUpdate(env, deps, { act }).catch(() => {});
+  await batchApproved(env, deps, rec, act).catch(() => {});
   return { ok: true, ...rec.approved[act] };
 }
 
@@ -549,25 +546,132 @@ export async function offerClientUpdate(env, deps, { act, rec = null, style = nu
   r.layout = used;
   return r;
 }
-/** The two buttons on that DM. Cole only. Send posts the same layout as Cole in the client channel. */
+/* ONE MESSAGE PER CHECK-IN (Cole 2026-11-24: "one message, not back to back"). After the scoreboard, Cole gets one
+   "Client updates" message: a line per brand with its own Send button (and Send all), and every full preview in that
+   message's thread. A brand with a raise or cut waiting shows "Waiting on your Approve"; Approve fills its line in.
+   State: settings wsBatch:<slot> = {slot, channel, ts, items: [{act, name, id, status}]}; status ready | forme |
+   waiting | sent | skipped. */
+const OWNER = env => env.OWNER_EMAIL || 'cole@go-mobius-digital.com';
+async function draftFor(env, deps, rec, act, batchSlot = null) {
+  const b = await env.DB.prepare(`SELECT name, brief_channel, slack_channel FROM brand_accounts WHERE act_id = ?1`).bind(act).first().catch(() => null);
+  if (!b) return null;
+  const forCole = !b.brief_channel || b.brief_channel === b.slack_channel;
+  const saved = await deps.getSetting(env, 'clientUpdateLayout');
+  const layout = ['clean', 'blue', 'bars', 'spaced', 'rowbars', 'winbars', 'wincompact'].includes(saved) ? saved : 'wincompact';
+  const m = await clientUpdateMsg(env, deps, rec, act, 'plain', b.name, { layout, images: true, mdIn: true });
+  if (!m) return null;
+  const id = Math.random().toString(16).slice(2, 12);
+  await deps.putSetting(env, `wsDraft:${id}`, JSON.stringify({ v: 3, act, ch: forCole ? null : b.brief_channel, msg: m, name: b.name, forCole, batch: batchSlot, at: new Date().toISOString() }));
+  return { id, name: b.name, forCole, m };
+}
+const STATUS = { ready: 'Ready to send', forme: 'For you (no client channel)', waiting: 'Waiting on your Approve above', sent: 'Sent ✓', skipped: 'Not sent' };
+function batchBlocks(rec, bt) {
+  const hr = +String(rec.slot).split('T')[1], when = hr === 12 ? '12pm' : hr < 12 ? `${hr}am` : `${hr - 12}pm`;
+  const blocks = [{ type: 'markdown', text: `# Client updates · ${when}` },
+    { type: 'context', elements: [{ type: 'mrkdwn', text: 'Each full update is in the thread below. Send posts it as you in that client\'s channel.' }] }, { type: 'divider' }];
+  for (const it of bt.items) {
+    const sec = { type: 'section', text: { type: 'mrkdwn', text: `*${it.name}*\n${STATUS[it.status] || it.status}` } };
+    if (it.status === 'ready' && it.id) sec.accessory = { type: 'button', action_id: 'ws_send', style: 'primary', text: { type: 'plain_text', text: 'Send' }, value: it.id };
+    blocks.push(sec);
+  }
+  if (bt.items.filter(i => i.status === 'ready').length > 1) blocks.push({ type: 'actions', elements: [{ type: 'button', action_id: 'ws_sendall', style: 'primary', text: { type: 'plain_text', text: 'Send all ready' }, value: rec.slot }] });
+  return blocks;
+}
+async function threadPreview(env, deps, bt, d) {
+  await deps.slackApi(env, 'chat.postMessage', { channel: bt.channel, thread_ts: bt.ts, text: d.m.text, blocks: d.m.blocks, attachments: d.m.attachments, unfurl_links: false }).catch(() => null);
+}
+async function saveBatch(env, deps, rec, bt, update = true) {
+  await deps.putSetting(env, `wsBatch:${bt.slot}`, JSON.stringify(bt));
+  if (update && bt.ts) await deps.slackApi(env, 'chat.update', { channel: bt.channel, ts: bt.ts, text: 'Client updates', blocks: batchBlocks(rec, bt) }).catch(() => null);
+}
+/** The one message for a check-in. */
+export async function postBatch(env, deps, rec) {
+  const u = await deps.slackApi(env, 'users.lookupByEmail', { email: OWNER(env) });
+  const uid = u && u.user && u.user.id;
+  if (!uid) return { ok: false, error: 'no slack user' };
+  const bt = { slot: rec.slot, channel: null, ts: null, items: [] }, drafts = [];
+  for (const b of rec.brands) {
+    if (b.no_sales) continue;
+    const waiting = b.suggest && b.suggest.to && !(rec.approved || {})[b.act_id];
+    if (waiting) { bt.items.push({ act: b.act_id, name: b.name, id: null, status: 'waiting' }); continue; }
+    const d = await draftFor(env, deps, rec, b.act_id, rec.slot).catch(() => null);
+    if (!d) continue;
+    bt.items.push({ act: b.act_id, name: d.name, id: d.id, status: d.forCole ? 'forme' : 'ready' });
+    drafts.push(d);
+  }
+  if (!bt.items.length) return { ok: true, empty: true };
+  const r = await deps.slackApi(env, 'chat.postMessage', { channel: uid, text: 'Client updates', blocks: batchBlocks(rec, bt), unfurl_links: false });
+  if (!r || !r.ok) return { ok: false, error: (r && r.error) || 'slack' };
+  bt.channel = r.channel; bt.ts = r.ts;
+  await saveBatch(env, deps, rec, bt, false);
+  for (const d of drafts) await threadPreview(env, deps, bt, d);
+  return { ok: true, items: bt.items.length };
+}
+/** After an Approve: that brand's update joins the check-in's message (or comes alone when there is none). */
+export async function batchApproved(env, deps, rec, act) {
+  const raw = await deps.getSetting(env, `wsBatch:${rec.slot}`), bt = raw ? JSON.parse(raw) : null;
+  const it = bt && bt.items.find(i => i.act === act);
+  if (!bt || !it) return offerClientUpdate(env, deps, { act, rec });
+  const d = await draftFor(env, deps, rec, act, rec.slot);
+  if (!d) return null;
+  it.id = d.id; it.status = d.forCole ? 'forme' : 'ready';
+  await threadPreview(env, deps, bt, d);
+  await saveBatch(env, deps, rec, bt);
+  return { ok: true };
+}
+async function sendDraft(env, xfetch, dr) {
+  if (!env.SLACK_USER_TOKEN) return { ok: false, error: 'no Slack user token on Locus' };
+  if (!dr.ch) return { ok: false, error: 'no client channel' };
+  return xfetch('https://slack.com/api/chat.postMessage', { method: 'POST', headers: { Authorization: `Bearer ${env.SLACK_USER_TOKEN}`, 'Content-Type': 'application/json; charset=utf-8' },
+    body: JSON.stringify({ channel: dr.ch, ...dr.msg, unfurl_links: false }) }).then(r => r.json()).catch(e => ({ ok: false, error: e.message }));
+}
+/** The buttons: Approve on the scoreboard, Send / Send all on the batch, Send / Don't send on a single update. Cole only. */
 export async function handleClientUpdateButton(env, ctx, payload, deps, { ACK, xfetch }) {
   const a = (payload.actions || []).find(x => /^ws_/.test(x.action_id || ''));
   const reply = t => payload.response_url && xfetch(payload.response_url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ replace_original: true, text: t }) }).catch(() => {});
+  const inThread = t => deps.slackApi(env, 'chat.postMessage', { channel: payload.channel && payload.channel.id, thread_ts: payload.message && payload.message.ts, text: t }).catch(() => {});
   ctx.waitUntil((async () => {
-    if (payload.user?.id !== OWNER_SLACK) return reply('Only Cole can send client updates.');
+    if (payload.user?.id !== OWNER_SLACK) return inThread('Only Cole can do that.');
+    if (a.action_id === 'ws_approve') {
+      const [slot, act] = String(a.value || '').split('|');
+      const rec = await load(env, deps, slot).catch(() => null);
+      if (!rec) return inThread('That check-in is gone.');
+      const r = await approve(env, deps, rec, act, `${payload.user.name || 'Cole'} (Slack)`).catch(e => ({ error: e.message }));
+      const b = rec.brands.find(x => x.act_id === act) || {};
+      return inThread(r && r.ok ? `✓ ${b.name}: ${money(r.from)} → ${money(r.to)} a day. Its client update is now ready in Client updates.` : `${b.name || act}: not changed. ${(r && r.error) || ''}`);
+    }
+    const batchOf = async slot => { const raw = slot ? await deps.getSetting(env, `wsBatch:${slot}`) : null; return raw ? JSON.parse(raw) : null; };
+    if (a.action_id === 'ws_sendall') {
+      const bt = await batchOf(a.value), rec = await load(env, deps, a.value).catch(() => null);
+      if (!bt || !rec) return inThread('That batch is gone.');
+      const done = [], failed = [];
+      for (const it of bt.items.filter(i => i.status === 'ready')) {
+        const dr = JSON.parse((await deps.getSetting(env, `wsDraft:${it.id}`)) || 'null');
+        const res = dr ? await sendDraft(env, xfetch, dr) : { ok: false, error: 'gone' };
+        if (res.ok) { it.status = 'sent'; dr.done = `sent ${new Date().toISOString()}`; await deps.putSetting(env, `wsDraft:${it.id}`, JSON.stringify(dr)); await deps.putSetting(env, `wsLastSent:${it.act}`, new Date().toISOString()); done.push(it.name); }
+        else failed.push(`${it.name} (${res.error})`);
+      }
+      await saveBatch(env, deps, rec, bt);
+      return failed.length ? inThread(`Not sent: ${failed.join(', ')}`) : null;
+    }
     const raw = await deps.getSetting(env, `wsDraft:${a.value}`);
     const dr = raw ? JSON.parse(raw) : null;
-    if (!dr) return reply('That update is gone.');
-    if (dr.done) return reply(`Already handled: ${dr.done}.`);
-    if (a.action_id === 'ws_skip') { dr.done = 'not sent'; await deps.putSetting(env, `wsDraft:${a.value}`, JSON.stringify(dr)); return reply(`Not sent to ${dr.name}.`); }
-    if (dr.v !== 3 || !dr.msg) return reply('That is an older draft. Nothing was sent.');
-    if (!env.SLACK_USER_TOKEN) return reply('No Slack user token on Locus, so it cannot post as you.');
-    const res = await xfetch('https://slack.com/api/chat.postMessage', { method: 'POST', headers: { Authorization: `Bearer ${env.SLACK_USER_TOKEN}`, 'Content-Type': 'application/json; charset=utf-8' },
-      body: JSON.stringify({ channel: dr.ch, ...dr.msg, unfurl_links: false }) }).then(r => r.json()).catch(e => ({ ok: false, error: e.message }));
-    if (!res.ok) return reply(`Slack refused it (${res.error}). Nothing was sent.`);
+    if (!dr) return inThread('That update is gone.');
+    if (dr.done) return inThread(`${dr.name}: already ${dr.done}.`);
+    const bt = await batchOf(dr.batch), rec = bt ? await load(env, deps, dr.batch).catch(() => null) : null;
+    const it = bt && bt.items.find(i => i.id === a.value);
+    if (a.action_id === 'ws_skip') {
+      dr.done = 'not sent'; await deps.putSetting(env, `wsDraft:${a.value}`, JSON.stringify(dr));
+      if (it && rec) { it.status = 'skipped'; await saveBatch(env, deps, rec, bt); return null; }
+      return reply(`Not sent to ${dr.name}.`);
+    }
+    if (dr.v !== 3 || !dr.msg) return inThread('That is an older draft. Nothing was sent.');
+    const res = await sendDraft(env, xfetch, dr);
+    if (!res.ok) return inThread(`${dr.name}: Slack refused it (${res.error}). Nothing was sent.`);
     const now = new Date().toISOString();
     dr.done = `sent ${now}`; await deps.putSetting(env, `wsDraft:${a.value}`, JSON.stringify(dr));
     await deps.putSetting(env, `wsLastSent:${dr.act}`, now);
+    if (it && rec) { it.status = 'sent'; await saveBatch(env, deps, rec, bt); return null; }
     return reply(`✓ Sent to ${dr.name}.`);
   })());
   return ACK();
@@ -690,6 +794,15 @@ export async function handleStanding(request, env, url, path, json, deps) {
        version (act), in a style; style d draws the scoreboard PNG and uploads it to Slack (no public link). */
     /* Title-size test (Cole 2026-11-24: "their headings are bigger than ours"): one DM with each kind of Slack title
        Locus can send, labeled, so he can see which one Slack draws biggest. */
+    /* The check-in's two messages now, on the latest check-in: the scoreboard (with Slack Approve buttons) and the one
+       Client updates message. What the 9am / 3pm / 9pm tick sends, on demand. */
+    if (path === '/api/standing/sample' && request.method === 'POST' && body.batch) {
+      const rec = await load(env, deps).catch(() => null);
+      if (!rec) return json({ error: 'No check-in yet.' }, 404);
+      const prev = null, d1 = await sendDm(env, deps, rec, { prev }).catch(e => ({ ok: false, error: e.message }));
+      const d2 = await postBatch(env, deps, rec).catch(e => ({ ok: false, error: e.message }));
+      return json({ scoreboard: { ok: !!(d1 && d1.ok), error: (d1 && d1.error) || null }, batch: d2 });
+    }
     if (path === '/api/standing/sample' && request.method === 'POST' && body.title_test) {
       const lbl = s => ({ type: 'context', elements: [{ type: 'mrkdwn', text: s }] });
       const body1 = { type: 'section', text: { type: 'mrkdwn', text: '*Sales:* $6,118   (normal text, for comparison)' } };
