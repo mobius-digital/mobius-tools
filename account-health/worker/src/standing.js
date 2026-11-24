@@ -409,7 +409,14 @@ export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name
   const blocks = [H(`${name || b.name} · ${m}`), ctx(`${t.day}  ·  ${t.hour} CT   |   Goal: *${nx(b.kpi)} MER*`), { type: 'divider' }];
   const wins = (m === 'End of Day' ? [['Today', b.today], ['This week', b.week]] : [['Last 6 hours', b.last6], ['Today', b.today], ['This week', b.week]]).filter(([, p]) => p && p.sales != null);
   let attachments;
-  if (layout === 'table' || layout === 'tabletop') {
+  if (layout === 'wc') {
+    /* Well Copy's grid (Cole's screenshot 2026-11-24): a section with two `fields` per row, each window's name in
+       inline code (Slack draws it orange), each number its own quote line (grey bar). The grid sits in one bar colored
+       by Today. Slack fields are two columns at most: Last 6 hours | Today, then This week. */
+    const f = (l, p) => ({ type: 'mrkdwn', text: `\`${l}\`\n> *Sales:* ${usd(p.sales)}\n> *Ad spend:* ${usd(p.spend)}\n> *MER:* ${nx(p.mer)}` });
+    const today = (wins.find(([l]) => l === 'Today') || wins[0] || [])[1];
+    attachments = [{ color: tierOf(today && today.mer, b.kpi, line).color, blocks: [H('Sales and ad spend'), { type: 'section', fields: wins.map(([l, p]) => f(l, p)) }] }];
+  } else if (layout === 'table' || layout === 'tabletop') {
     /* All windows side by side in one Slack table (Cole: "a shorter message"); its bar takes Today's color. */
     const cell = (s, bold) => ({ type: 'rich_text', elements: [{ type: 'rich_text_section', elements: [{ type: 'text', text: s || ' ', ...(bold ? { style: { bold: true } } : {}) }] }] });
     const row = (label, f) => [cell(label, true), ...wins.map(([, p]) => cell(f(p)))];
@@ -424,6 +431,11 @@ export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name
     if (ads.length) {
       const ab = [H('Top ads yesterday'), ctx('Still running, most sales at or over the goal')];
       ads.forEach((a, i) => {
+        if (layout === 'wc') {   // the same orange-name + grey-line look, the ad's picture beside it
+          ab.push({ type: 'section', text: { type: 'mrkdwn', text: `\`${i + 1}. ${cleanName(a.name)}\`\n> *Sales:* ${a.sales}\n> *Spent:* ${usd(a.spend)}\n> *Return:* ${nx(a.roas)}` },
+            ...(images && a.cover ? { accessory: { type: 'image', image_url: a.cover, alt_text: cleanName(a.name) } } : {}) });
+          return;
+        }
         ab.push({ type: 'divider' }, md(`*${i + 1}. ${cleanName(a.name)}*\n${a.sales} sales  ·  ${usd(a.spend)} spent  ·  ${nx(a.roas)} return`));
         if (images && a.cover) ab.push({ type: 'image', image_url: a.cover, alt_text: cleanName(a.name) });
       });
@@ -455,7 +467,7 @@ export async function offerClientUpdate(env, deps, { act, rec = null, style = nu
   /* Layouts in order of preference; Slack refusing one (a table inside a colored bar, a table at all, an ad picture)
      falls to the next. Whatever reached Cole is what Send posts. */
   /* Cole 2026-11-24: the separate colored bars, stacked (Slack cannot put colored bars side by side). */
-  const tries = [['bars', true], ['bars', false]];
+  const tries = [['wc', true], ['wc', false], ['bars', true], ['bars', false]];
   let r = { ok: false, error: 'nothing tried' }, used = null;
   for (const [layout, images] of tries) {
     const m = await clientUpdateMsg(env, deps, rec, act, st, b.name, { layout, images });
