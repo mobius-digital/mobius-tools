@@ -520,6 +520,9 @@ export function standCall({ soFar, last6, kpi, hold, noSales, beNew }) {
   if (r >= 1.4) return { call: 'scale', pct: 0.5, why: `${head}. Raise 50%.` };
   if (r >= 1.2) return { call: 'raise', pct: 0.25, why: `${head}. Raise 25%.` };
   if (r >= 1) return { call: 'hold', pct: 0, why: `${head}. Hold.` };
+  /* Cole 2026-11-24 (Grunk at 3.8x store MER read "cut 25%"): repeat buyers the ads bring back are real money. While the
+     whole store beats the KPI, thin new-customer math holds the budget; it never cuts it. */
+  if (soFar.mer >= kpi) return { call: 'hold', pct: 0, why: `${head}. New customers run a little under break-even, but the whole store is over the ${x(kpi)} KPI, so the ads pay. Hold, don't cut.` };
   return { call: 'cut', pct: -0.25, why: `${head}. New customers cost more than their first order pays. Cut 25%.` };
 }
 /** Share of new-customer revenue whose first order came from email or SMS, from tw_orders (synced nightly), over

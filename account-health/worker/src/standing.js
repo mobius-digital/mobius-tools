@@ -109,8 +109,10 @@ export async function buildStanding(env, deps, slot = slotOf()) {
   for (const b of tw.brands || []) {
     let m; try { m = await metaSide(env, md, b.act_id, tw.today); } catch (e) { m = { error: e.message }; }
     const sug = { ...b.suggest }, from = m.camp && m.camp.daily;
-    /* Once any sale is live, a brand whose own sale has not started (or has ended) gets no call: its today numbers are not the weekend. */
-    if (!tw.dry && b.mode && b.mode !== 'live') { brands.push({ ...b, meta: m, suggest: { call: 'hold', pct: 0, why: b.mode === 'plan' ? `Sale starts ${dayShort(b.sale.start)}. Counting from then.` : `Sale ended ${dayShort(b.sale.end)}.` } }); continue; }
+    /* A brand whose sale has ended gets no call. Before its BF sale starts it still gets the ladder on today's numbers
+       (Cole 2026-11-24: Bonk's regular sale was running at 6x and read "hold"). */
+    if (!tw.dry && b.mode === 'after') { brands.push({ ...b, meta: m, suggest: { call: 'hold', pct: 0, why: `Sale ended ${dayShort(b.sale.end)}.` } }); continue; }
+    if (!tw.dry && b.mode === 'plan') sug.why = `Black Friday starts ${dayShort(b.sale.start)}; today's numbers until then. ${sug.why}`;
     if (!m.error && !m.camp) sug.note = 'No live sale campaign in Meta.';
     else if (!m.error && sug.pct && !from) sug.note = `${m.camp.name} has no campaign daily budget (ad set budgets).`;
     else if (!m.error) { const bf = budgetFor(sug, from, m.limit, m.on); sug.to = bf.to; if (bf.note) sug.note = bf.note; }
