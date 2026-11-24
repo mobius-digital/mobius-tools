@@ -6971,10 +6971,13 @@ async function ensureSlackColumns(env) {
  * weekly/monthly report still in draft gets its card (Send / Edit / Don't send) in the drafts channel, under one
  * line tagging Cole. Nothing unsent = nothing posted. */
 const UNSENT_HOUR = 12;
-async function unsentAtNoonPass(env) {
-  if (centralHour() < UNSENT_HOUR) return { skipped: 'before noon' };
+async function unsentAtNoonPass(env, { force = false } = {}) {
+  /* force (2026-11-24, Cole: "send them in the daily brief channel now for me to approve and send"): the same line and
+     cards, asked for by hand before noon (POST /api/brief-card {kind:'unsent'}). Rows that get a card here carry a
+     slack_ts, so the noon run finds nothing left and stays quiet. */
+  if (!force && centralHour() < UNSENT_HOUR) return { skipped: 'before noon' };
   const today = localDate(BRIEF_TZ), date = addDays(today, -1);
-  if ((await getSetting(env, 'unsentNoonDone')) === today) return { skipped: 'done today' };
+  if (!force && (await getSetting(env, 'unsentNoonDone')) === today) return { skipped: 'done today' };
   if (!env.SLACK_BOT_TOKEN) return { skipped: 'no SLACK_BOT_TOKEN secret' };
   await putSetting(env, 'unsentNoonDone', today);
   const agencyCh = await getSetting(env, 'dailyBriefsChannel').catch(() => null);
@@ -9174,6 +9177,8 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         return json({ error: 'unauthorized' }, 401);
       }
       const b = await request.json().catch(() => ({}));
+      /* `kind:'unsent'`: post the "not sent yet" line and its cards in the drafts channel NOW, not at noon. */
+      if (b.kind === 'unsent') return json(await unsentAtNoonPass(env, { force: true }));
       /* `kind:'report'` redraws the weekly/monthly notices instead of the daily
          briefs. Same rule: rendered from the stored row, so nothing is written
          again and no number moves - only the message in Slack. */
