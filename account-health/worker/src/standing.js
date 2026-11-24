@@ -30,7 +30,7 @@ export const STAND_DAYS = { from: '2026-11-23', to: '2026-12-04' };
 /* Central hours. 9am to 9pm every 3 hours, and 11pm to close the day (a midnight read would be an empty new day). */
 export const STAND_HOURS = [9, 12, 15, 18, 21, 23];
 const KNOWN_LIMITS = { brand_lucky_golf: 6637, brand_dartee_golf: 13806, brand_bonk_golf: 5000, brand_grunk_dolfer: 2583, brand_yak_sports: 841, brand_vetripaws: 3428 };
-const SALE_RE =/bfcm|black friday|cyber|holiday 20\d\d/i;
+const SALE_RE =/bfcm|black friday|\bbf\b|cyber|holiday 20\d\d/i;
 
 const central = (d = new Date()) => {
   const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' }).formatToParts(d).map(x => [x.type, x.value]));
@@ -48,11 +48,22 @@ const slotLabel = slot => {
 
 /** The sale campaign the budget call acts on (same pick as the War Room page): ACTIVE, named BFCM / Black Friday /
  *  Cyber / Holiday 20xx, a daily budget first, Black Friday before Dec 1 and Holiday after. */
-export function pickSaleCamp(ml, today) {
+export function pickSaleCamp(ml, today, spent = {}) {
   const dec = today >= '2026-12-01';
   const cs = Object.entries((ml && ml.campaigns) || {}).map(([id, c]) => ({ id, ...c })).filter(c => c.status === 'ACTIVE' && SALE_RE.test(c.name || ''));
+  /* Cole 2026-11-24: the Dartee raise landed on BFCM 2026 ($0 today, its sets start Thursday) while Early access did the
+     selling. A campaign that is spending today comes first, the most spend first; the old order only breaks ties. */
   const score = c => (c.daily ? 0 : 10) + (/holiday/i.test(c.name) ? (dec ? 0 : 5) : (dec ? 5 : 0));
-  return cs.sort((a, b) => score(a) - score(b) || (b.daily || 0) - (a.daily || 0))[0] || null;
+  return cs.sort((a, b) => ((spent[b.id] || 0) > 0) - ((spent[a.id] || 0) > 0) || (spent[b.id] || 0) - (spent[a.id] || 0) || score(a) - score(b) || (b.daily || 0) - (a.daily || 0))[0] || null;
+}
+/** Spend today per campaign, live from Meta (one insights call per ad account). */
+async function spendToday(env, md, act) {
+  const out = {};
+  for (const m of await metaActs(env, act)) {
+    const r = await gget(md, env, `${m.act}/insights`, { level: 'campaign', date_preset: 'today', fields: 'campaign_id,spend', limit: 200 }).catch(() => null);
+    for (const x of (r && r.data) || []) out[x.campaign_id] = (out[x.campaign_id] || 0) + (+x.spend || 0);
+  }
+  return out;
 }
 /** Everything that can spend today: ACTIVE campaigns' daily budgets, plus ACTIVE ad sets' own budgets in ACTIVE campaigns without one. */
 export function budgetsOn(ml) {
@@ -89,7 +100,8 @@ async function readProfit(env, deps, path) {
 async function metaSide(env, md, act, today) {
   const ml = await metaLive(env, md, act, { season: true });
   if (ml.error) return { error: ml.error };
-  const camp = pickSaleCamp(ml, today), on = budgetsOn(ml);
+  const spent = await spendToday(env, md, act).catch(() => null);
+  const camp = pickSaleCamp(ml, today, spent || {}), on = budgetsOn(ml);
   let limit = null, limitErr = null, src = 'meta';
   for (const m of await metaActs(env, act)) {
     const a = await gget(md, env, m.act, { fields: 'adtrust_dsl' }).catch(e => { limitErr = e.message; return null; });
@@ -98,7 +110,7 @@ async function metaSide(env, md, act, today) {
   }
   /* Meta would not say: the limits Cole listed on 2026-11-22 (raise requests pending), labelled as such. */
   if (limit == null && KNOWN_LIMITS[act]) { limit = KNOWN_LIMITS[act]; src = 'known'; }
-  return { camp: camp ? { id: camp.id, name: camp.name, daily: camp.daily || null } : null, on, limit, limit_src: limit ? src : null, limit_error: limitErr, headroom: limit ? limit - on : null };
+  return { camp: camp ? { id: camp.id, name: camp.name, daily: camp.daily || null, spent: spent ? (spent[camp.id] || 0) : null } : null, on, limit, limit_src: limit ? src : null, limit_error: limitErr, headroom: limit ? limit - on : null };
 }
 
 /** Build one check-in (reads only). */
@@ -113,6 +125,14 @@ export async function buildStanding(env, deps, slot = slotOf()) {
        (Cole 2026-11-24: Bonk's regular sale was running at 6x and read "hold"). */
     if (!tw.dry && b.mode === 'after') { brands.push({ ...b, meta: m, suggest: { call: 'hold', pct: 0, why: `Sale ended ${dayShort(b.sale.end)}.` } }); continue; }
     if (!tw.dry && b.mode === 'plan') sug.why = `Black Friday starts ${dayShort(b.sale.start)}; today's numbers until then. ${sug.why}`;
+    /* A raise on a campaign that is not using the budget it has changes nothing (Bonk BFCM 2026, $500 budget, $220 to
+       $300 spent a day). Pace = today's spend against the budget times the share of the Central day gone; under 70%
+       of pace from 9am on, the raise becomes a hold that says why. */
+    const hr = central().hour, c0 = m.camp;
+    if (!m.error && sug.pct > 0 && c0 && c0.daily && c0.spent != null && hr >= 9) {
+      const pace = c0.spent / (c0.daily * Math.max(hr, 1) / 24);
+      if (pace < 0.7) { sug.call = 'hold'; sug.pct = 0; sug.why = `${sug.why} But ${c0.name} has spent only ${money(c0.spent)} of its ${money(c0.daily)} today, so a bigger budget would not get spent. Hold instead.`; }
+    }
     if (!m.error && !m.camp) sug.note = 'No live sale campaign in Meta.';
     else if (!m.error && sug.pct && !from) sug.note = `${m.camp.name} has no campaign daily budget (ad set budgets).`;
     else if (!m.error) { const bf = budgetFor(sug, from, m.limit, m.on); sug.to = bf.to; if (bf.note) sug.note = bf.note; }

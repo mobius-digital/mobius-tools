@@ -494,36 +494,24 @@ export const STAND_BRANDS = {
 /* Any first order whose last click was email or SMS is left out of new-customer revenue: giveaway entrants and list
    sign-ups buying from the sale emails are not what the ads bought. Same grouping as Customers (srcGroup). */
 export const EMAIL_SRC = /klaviyo|attentive|postscript|sms|email|notify|mailchimp|omnisend|yotpo/i;
-/** THE LADDER (Cole, 2026-11-22). Decides on NEW-CUSTOMER MER (store new-customer revenue, email-sourced first orders
- *  left out, divided by all ad spend), against the brand's break-even new MER (be_new):
- *    1.4x break-even or more -> raise 50%; 1.2x -> raise 25%; at break-even -> hold; under -> cut 25%.
- *  Floor: store MER (all revenue / spend) under the hold line (ladder hold, else breakeven, else 80% of the KPI) never
- *  raises. No new-customer numbers = the old store-MER rule. Weekend so far; the last 6 hours can only hold a raise back. */
+/** THE LADDER: see the rule inside standCall (whole-store return vs goal and break-even, Cole 2026-11-24). */
 export function standCall({ soFar, last6, kpi, hold, noSales, beNew }) {
   const x = v => `${(Math.round(v * 100) / 100).toFixed(2)}x`;
   if (noSales) return { call: 'hold', pct: 0, why: 'No Triple Whale store, so Locus sees spend only. Hold.' };
   if (!soFar || !(soFar.spend >= 150) || soFar.mer == null) return { call: 'hold', pct: 0, why: `Too early: $${Math.round(soFar ? soFar.spend : 0)} of ads so far.` };
   const l6 = last6 && last6.spend >= 50 && last6.mer != null ? last6.mer : null, line = hold ?? kpi * 0.8;
-  const nm = soFar.new_mer, nOk = beNew && nm != null && (soFar.new_orders == null || soFar.new_orders >= 3);
-  if (!nOk) {
-    const both = l6 == null ? `${x(soFar.mer)} so far (last 6 hours too thin to read)` : `${x(soFar.mer)} so far, ${x(l6)} last 6 hours`;
-    const lead = beNew && nm == null ? 'No new-customer numbers yet, so store MER decides. ' : beNew ? `Under 3 new customers so far, so store MER decides. ` : '';
-    if (soFar.mer >= kpi && (l6 == null || l6 >= kpi)) return { call: 'scale', pct: 0.5, why: `${lead}${both}, at or over the ${x(kpi)} KPI. Raise 50%.` };
-    if (soFar.mer < line && (l6 == null || l6 < line)) return { call: 'cut', pct: -0.25, why: `${lead}${both}, under the ${x(line)} hold line. Cut 25%.` };
-    return { call: 'hold', pct: 0, why: `${lead}${both}, against the ${x(kpi)} KPI. Hold.` };
-  }
-  const r = nm / beNew;
-  const head = `New-customer MER ${x(nm)} (break-even ${x(beNew)}), store MER ${x(soFar.mer)} (floor ${x(line)})`;
-  const floorOk = soFar.mer >= line, l6Ok = l6 == null || l6 >= line;
-  if (r >= 1.2 && !floorOk) return { call: 'hold', pct: 0, why: `${head}. New customers pay, but store MER is under the floor. Hold.` };
-  if (r >= 1.2 && !l6Ok) return { call: 'hold', pct: 0, why: `${head}, last 6 hours ${x(l6)} under the floor. Hold for now.` };
-  if (r >= 1.4) return { call: 'scale', pct: 0.5, why: `${head}. Raise 50%.` };
-  if (r >= 1.2) return { call: 'raise', pct: 0.25, why: `${head}. Raise 25%.` };
-  if (r >= 1) return { call: 'hold', pct: 0, why: `${head}. Hold.` };
-  /* Cole 2026-11-24 (Grunk at 3.8x store MER read "cut 25%"): repeat buyers the ads bring back are real money. While the
-     whole store beats the KPI, thin new-customer math holds the budget; it never cuts it. */
-  if (soFar.mer >= kpi) return { call: 'hold', pct: 0, why: `${head}. New customers run a little under break-even, but the whole store is over the ${x(kpi)} KPI, so the ads pay. Hold, don't cut.` };
-  return { call: 'cut', pct: -0.25, why: `${head}. New customers cost more than their first order pays. Cut 25%.` };
+  /* THE RULE since Cole 2026-11-24 ("the 2.5 overall is the one thing"): whole-store return = store sales / all ad
+     spend, against the brand's goal (kpi) and break-even (the hold line). 1.5x the goal raise 50%, the goal raise 25%,
+     between the lines hold, under break-even cut 25%. The last 6 hours under break-even hold a raise back. New-customer
+     return is shown, never decides. Whether a raise would get spent is checked on the Meta side (standing.js). */
+    const nm = soFar.new_mer, info = beNew && nm != null ? ` New customers ${x(nm)} (break-even ${x(beNew)}).` : '';
+    const head = `Store return ${x(soFar.mer)} so far${l6 == null ? '' : `, ${x(l6)} last 6 hours`}. Goal ${x(kpi)}, break-even ${x(line)}.`;
+    const l6Ok = l6 == null || l6 >= line;
+    if (soFar.mer >= kpi * 1.5 && l6Ok) return { call: 'scale', pct: 0.5, why: `${head} Well over the goal. Raise 50%.${info}` };
+    if (soFar.mer >= kpi && l6Ok) return { call: 'raise', pct: 0.25, why: `${head} Over the goal. Raise 25%.${info}` };
+    if (soFar.mer >= kpi) return { call: 'hold', pct: 0, why: `${head} Over the goal, but the last 6 hours fell under break-even. Hold for now.${info}` };
+    if (soFar.mer < line && (l6 == null || l6 < line)) return { call: 'cut', pct: -0.25, why: `${head} Under break-even. Cut 25%.${info}` };
+    return { call: 'hold', pct: 0, why: `${head} Between break-even and the goal. Hold.${info}` };
 }
 /** Share of new-customer revenue whose first order came from email or SMS, from tw_orders (synced nightly), over
  *  finished days. A customer's first order = their earliest order in tw_orders (400 days of history). */
