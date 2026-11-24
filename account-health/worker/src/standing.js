@@ -412,8 +412,23 @@ export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name
   /* Cole 2026-11-24: the grid without the code-block names. 'clean' = no colored bars at all (bold names, grey lines,
      dividers); 'blue' = the same grid in one Mobius-blue bar (brand color, not a score). Slack's grey quote lines
      cannot take a color, so a per-window status color needs the stacked 'bars' layout. */
-  const GRID = ['wc', 'clean', 'blue'].includes(layout), nm = l => layout === 'wc' ? `\`${l}\`` : `*${l}*`;
-  if (layout === 'clean' || layout === 'blue') {
+  const GRID = ['wc', 'clean', 'blue', 'spaced'].includes(layout), nm = l => layout === 'wc' ? `\`${l}\`` : `*${l}*`;
+  if (layout === 'spaced') {
+    /* Well Copy's spacing (Cole 2026-11-24): each number on its own grey line with a blank line between, two columns. */
+    const f = (l, p) => ({ type: 'mrkdwn', text: `*${l}*\n\n> *Sales:* ${usd(p.sales)}\n\n> *Ad spend:* ${usd(p.spend)}\n\n> *MER:* ${nx(p.mer)}` });
+    blocks.push(H('Sales and ad spend'), { type: 'section', fields: wins.map(([l, p]) => f(l, p)) });
+    attachments = [];
+  } else if (layout === 'lines') {
+    /* Small colored bars (Cole: "make the smaller bars different colors"): the grey quote line has no color setting in
+       Slack, so each number becomes its own one-line colored bar. MER takes the goal color; Sales and Ad spend carry
+       Mobius blue. Bars stack, so the windows run top to bottom. */
+    attachments = [];
+    for (const [l, p] of wins) {
+      attachments.push({ color: BLUE, blocks: [md(`*${l}*\n*Sales:* ${usd(p.sales)}`)] },
+        { color: BLUE, blocks: [md(`*Ad spend:* ${usd(p.spend)}`)] },
+        { color: tierOf(p.mer, b.kpi, line).color, blocks: [md(`*MER:* ${nx(p.mer)}`)] });
+    }
+  } else if (layout === 'clean' || layout === 'blue') {
     const f = (l, p) => ({ type: 'mrkdwn', text: `${nm(l)}\n> *Sales:* ${usd(p.sales)}\n> *Ad spend:* ${usd(p.spend)}\n> *MER:* ${nx(p.mer)}` });
     const grid = [H('Sales and ad spend'), { type: 'section', fields: wins.map(([l, p]) => f(l, p)) }];
     if (layout === 'clean') { blocks.push(...grid); attachments = []; }
@@ -448,12 +463,12 @@ export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name
         ab.push({ type: 'divider' }, md(`*${i + 1}. ${cleanName(a.name)}*\n${a.sales} sales  ·  ${usd(a.spend)} spent  ·  ${nx(a.roas)} return`));
         if (images && a.cover) ab.push({ type: 'image', image_url: a.cover, alt_text: cleanName(a.name) });
       });
-      if (layout === 'clean') blocks.push({ type: 'divider' }, ...ab); else attachments.push({ color: BLUE, blocks: ab });
+      if (layout === 'clean' || layout === 'spaced') blocks.push({ type: 'divider' }, ...ab); else attachments.push({ color: BLUE, blocks: ab });
     }
   }
   const upd = [H('Updates'), md((did.length ? did : ['No changes since the last update']).map(d => `•  ${d}`).join('\n')),
     ctx(rec.next ? `Next update at ${rec.next} CT` : 'Next update tomorrow at 9am CT')];
-  if (layout === 'clean') blocks.push({ type: 'divider' }, ...upd); else attachments.push({ color: BLUE, blocks: upd });
+  if (layout === 'clean' || layout === 'spaced') blocks.push({ type: 'divider' }, ...upd); else attachments.push({ color: BLUE, blocks: upd });
   return { text: `${name || b.name} ${m}, ${t.day} ${t.hour}`, blocks, attachments };
 }
 /** DM Cole one brand's client update (exactly as the client will see it) with Send / Don't send. */
@@ -477,7 +492,7 @@ export async function offerClientUpdate(env, deps, { act, rec = null, style = nu
   /* Layouts in order of preference; Slack refusing one (a table inside a colored bar, a table at all, an ad picture)
      falls to the next. Whatever reached Cole is what Send posts. */
   /* Cole 2026-11-24: the separate colored bars, stacked (Slack cannot put colored bars side by side). */
-  const pick = ['clean', 'blue', 'bars', 'wc'].includes(style) ? style : (['clean', 'blue', 'bars'].includes(await deps.getSetting(env, 'clientUpdateLayout')) ? await deps.getSetting(env, 'clientUpdateLayout') : 'clean');
+  const pick = ['clean', 'blue', 'bars', 'wc', 'spaced', 'lines'].includes(style) ? style : (['clean', 'blue', 'bars', 'spaced', 'lines'].includes(await deps.getSetting(env, 'clientUpdateLayout')) ? await deps.getSetting(env, 'clientUpdateLayout') : 'clean');
   const tries = [[pick, true], [pick, false], ['bars', false]];
   let r = { ok: false, error: 'nothing tried' }, used = null;
   for (const [layout, images] of tries) {
