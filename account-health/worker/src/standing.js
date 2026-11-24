@@ -415,8 +415,13 @@ export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name
   const GRID = ['wc', 'clean', 'blue', 'spaced'].includes(layout), nm = l => layout === 'wc' ? `\`${l}\`` : `*${l}*`;
   if (layout === 'spaced') {
     /* Well Copy's spacing (Cole 2026-11-24): each number on its own grey line with a blank line between, two columns. */
-    const f = (l, p) => ({ type: 'mrkdwn', text: `*${l}*\n\n> *Sales:* ${usd(p.sales)}\n\n> *Ad spend:* ${usd(p.spend)}\n\n> *MER:* ${nx(p.mer)}` });
-    blocks.push(H('Sales and ad spend'), { type: 'section', fields: wins.map(([l, p]) => f(l, p)) });
+    /* Round 2 (Cole's screenshot): no "Sales and ad spend" title; Today and This week side by side on the first row,
+       Last 6 hours on its own row under a divider; window names in caps so they don't blend into the numbers. */
+    const f = (l, p) => ({ type: 'mrkdwn', text: `*${l.toUpperCase()}*\n\n> *Sales:* ${usd(p.sales)}\n\n> *Ad spend:* ${usd(p.spend)}\n\n> *MER:* ${nx(p.mer)}` });
+    const get = k => wins.find(([l]) => l === k);
+    const row1 = [get('Today'), get('This week')].filter(Boolean), l6 = get('Last 6 hours');
+    if (row1.length) blocks.push({ type: 'section', fields: row1.map(([l, p]) => f(l, p)) });
+    if (l6) blocks.push({ type: 'divider' }, { type: 'section', fields: [f(l6[0], l6[1])] });
     attachments = [];
   } else if (layout === 'lines') {
     /* Small colored bars (Cole: "make the smaller bars different colors"): the grey quote line has no color setting in
@@ -648,6 +653,19 @@ export async function handleStanding(request, env, url, path, json, deps) {
     }
     /* A labelled sample DM to Cole (2026-11-22: "show me real ones"): agency (every brand) or one brand's client
        version (act), in a style; style d draws the scoreboard PNG and uploads it to Slack (no public link). */
+    /* Title-size test (Cole 2026-11-24: "their headings are bigger than ours"): one DM with each kind of Slack title
+       Locus can send, labeled, so he can see which one Slack draws biggest. */
+    if (path === '/api/standing/sample' && request.method === 'POST' && body.title_test) {
+      const lbl = s => ({ type: 'context', elements: [{ type: 'mrkdwn', text: s }] });
+      const body1 = { type: 'section', text: { type: 'mrkdwn', text: '*Sales:* $6,118   (normal text, for comparison)' } };
+      const msg = { text: 'Title size test', blocks: [
+        lbl('1. Header block'), { type: 'header', text: { type: 'plain_text', text: 'Black Friday Update' } }, body1, { type: 'divider' },
+        lbl('2. Markdown block, "#" heading'), { type: 'markdown', text: '# Black Friday Update' }, body1, { type: 'divider' },
+        lbl('3. Markdown block, "##" heading'), { type: 'markdown', text: '## Black Friday Update' }, body1, { type: 'divider' },
+        lbl('4. Bold text'), { type: 'section', text: { type: 'mrkdwn', text: '*Black Friday Update*' } }, body1] };
+      const r = await dmPerson(env, deps, env.OWNER_EMAIL || 'cole@go-mobius-digital.com', msg);
+      return json({ ok: !!r.ok, error: r.error || null });
+    }
     if (path === '/api/standing/sample' && request.method === 'POST') {
       const st = ['a', 'b', 'c', 'd'].includes(body.style) ? body.style : 'd', act = body.act ? String(body.act) : null;
       const prev = await load(env, deps).catch(() => null);
