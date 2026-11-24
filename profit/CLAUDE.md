@@ -361,8 +361,8 @@ profit/
 - **Shopify webhooks are configured in `profit/shopify.app.toml`, not in a dashboard
   form.** Cole went looking for the form and there isn't one any more; `shopify app
   deploy` pushes the scopes and webhook subscriptions from that file. `embedded` is TRUE
-  since 2026-10-18 (see the section at the end): the install is still the classic
-  authorization-code grant; App Bridge session tokens only authenticate the embedded page.
+  since 2026-10-18 and the install is Shopify's MANAGED install since 2026-11-15
+  (`use_legacy_install_flow = false`; see the 2026-10-18 section and its 2026-11-24 update).
 - **`shopify app config link` OVERWRITES the local TOML with whatever is on the
   remote app.** It is a pull, not a link. Run once against a freshly-created blank
   app and it silently reset `name` to the org name, `application_url` to
@@ -407,9 +407,10 @@ profit/
   the API secret would have failed every HMAC while looking correctly configured. Use
   Bash `printf '%s' 'value' | npx.cmd wrangler secret put NAME`, then verify by reading
   the value back through something that renders it - the install redirect, in this case.
-- **`SHOPIFY_SCOPES` in the worker must match `profit/shopify.app.toml`.** Shopify
+- **`SHOPIFY_SCOPES` in the worker must match `scopes` in `profit/shopify.app.toml`.** Shopify
   compares the two at install and re-prompts on a mismatch. Updating one without the
-  other is easy to miss because nothing fails until a merchant installs.
+  other is easy to miss because nothing fails until a merchant installs. The two write
+  scopes are `optional_scopes` (2026-11-24) and are NOT in `SHOPIFY_SCOPES`.
 - **Trailing aMER is a YARDSTICK, never an input.** Any plan implies a rate of buying
   new customers: `(revenue - expected returning) / spend`. Compare that with the
   trailing 28-day aMER and say plainly whether the plan is achievable (<=1.05x),
@@ -3586,8 +3587,9 @@ vision score). Files: C:\Users\wetzl\Lucky Golf\Creatives\Giveaway\fidelity-benc
 Shopify paused the app: no usable UI ("Shopify could not be read: Shopify returned 403" on the reviewer's store), session
 tokens, billing, test credentials. Fixes and the resubmission text: `docs/shopify-app-review-2026-10-18.md`.
 - `shopify.app.toml`: `embedded = true`, `application_url = .../shopify/app`, scopes now add write_products and
-  write_discounts (Locus's shopify_product / shopify_discount). `use_legacy_install_flow` STAYS TRUE: the install is the
-  same classic grant; the callback now lands every store back inside the admin (`https://<shop>/admin/apps/<api key>`).
+  write_discounts (Locus's shopify_product / shopify_discount). ~~`use_legacy_install_flow` STAYS TRUE~~ OUT OF DATE:
+  it is FALSE since 2026-11-15 (managed install, below). The callback lands every store back inside the admin
+  (`https://<shop>/admin/apps/<api key>`).
 - `src/shopifyapp.js`: `GET /shopify/app` = the page (App Bridge from Shopify's CDN, the client id in a meta tag,
   CSP frame-ancestors for that shop + admin.shopify.com, no cookies or storage; a shop with no saved token is sent to
   /shopify/install through App Bridge's top-level open). `GET /shopify/app/api/report` = the numbers, authorised only by
@@ -3612,6 +3614,42 @@ tokens, billing, test credentials. Fixes and the resubmission text: `docs/shopif
   `app/uninstalled` is in the TOML now (allowed without the legacy flow), so the callback no longer registers it per shop.
   Verified on our dev store Quickstart (f7ea6f9b): Shopify's install link -> grant -> app opens -> token saved.
   /shopify/install + /shopify/callback still work for a direct link.
+- **2026-11-24: REVIEW FIXES (PR "Shopify app: review fixes"). Shopify sent the Nov 15 submission back on Nov 16
+  ("Fix requirement issues 0/2") and nobody saw the mail for 8 days.** What was wrong and what the code does now:
+  - **The live worker had gone back to the old install.** PR #260 (managed install) was verified on Nov 15 but never
+    merged, so the next deploy from `main` put the old code back while Shopify kept version 10. **Rule: a Shopify
+    change is not done until its PR is merged. Never `shopify app deploy` from a branch whose TOML says
+    `use_legacy_install_flow = true`, and after any worker deploy run the probe:**
+    `curl -s -o /dev/null -w "%{http_code}" "https://mobius-profit.mobius-digital.workers.dev/shopify/app?shop=zz-probe.myshopify.com"`
+    **must print 302** (200 = the old install code is live again).
+  - **Tokens expire (requirement 3.1.2).** `src/shoptoken.js`: `shopToken(env, shop)` is the ONLY way to get a store's
+    token. It returns the stored one while it has 5+ minutes left, refreshes it otherwise (the refresh token is
+    REPLACED on every refresh, so the write is a compare-and-swap), swaps an old never-expiring token for an expiring
+    one on first use (no reinstall), and returns null when the store has to open the app again (refresh token spent
+    or 90 days old). New columns on `p_shopify`: `refresh_token`, `expires_at`, `refresh_expires_at` (unix seconds;
+    `migrations/shopify-001-expiring-tokens.sql`, and the worker adds them itself if the file was not run).
+    **Never read `p_shopify.access_token` and use it.** Readers: `shopifyapp.js` (the embedded report), `storeReport`
+    and `syncCohorts` in worker.js, and `storeOf` in account-health's `shopifywrite.js`. Account-health has no app
+    secret, so it asks this worker: `POST /api/shopify/token-refresh?shop=` (owner session over the PROFIT binding;
+    the answer never carries the token, the caller reads the shared table).
+  - **No agency wording (requirement 1.1.14).** The embedded screen says what the app does for the store. No
+    "agency" sentence, no "Talk to Mobius Digital" button, no mailto. `test-shopifyapp.mjs` fails if they come back.
+  - **Scopes (requirement 3.2).** Required: read_orders, read_customers, read_products, read_reports, read_inventory,
+    read_returns. OPTIONAL: write_products, write_discounts, granted by the store from the "Optional access" card in
+    the app (`shopify.scopes.request`), read back through `POST /shopify/app/api/scopes` and the `app/scopes_update`
+    webhook into `p_shopify.scopes`. Do NOT add write_pixels or read_customer_events until a pixel ships.
+    "Read all orders" is a separate request in the Dev Dashboard, not a TOML line.
+  - Small ones: a session token with no `exp` is refused; `shop/redact` removes every row about the shop
+    (`redactShop`); an install code is good for 10 minutes and old ones are swept; `/shopify/app` with no shop shows
+    one plain line; the client install link is Shopify's own (`shopifyInstallLink`: `SHOPIFY_LISTING_URL` if that var
+    is set, else `admin.shopify.com/store/<handle>/oauth/install?client_id=`), never our `/shopify/install`; a brand
+    with no Triple Whale shop gets its store address from `p_shop_address` (`POST /api/connections/address
+    {act, shop}`; no settings field for it yet).
+  - Tests: `node test-shoptoken.mjs` (13), `node test-shopifyapp.mjs` (8), `node test-shopify-webhooks.mjs` (9), and
+    `node test-shopifytoken.mjs` (4) in account-health/worker.
+  - **NOT code, Cole in the Dev Dashboard:** the IP allowlist (Settings > IP allowlist > Networks: Cloudflare's ASN
+    13335 + the countries, Run test, then Enforce). Workers have no fixed outbound address, so it is an ASN entry,
+    not IP addresses. Required for every public app since 2026-11-20.
 
 ## 2026-10-19: Goal / break-even / real table (`goalsGlance` in index.html)
 
