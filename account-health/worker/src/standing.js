@@ -363,20 +363,20 @@ export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name
      section as a header with an emoji, and each stat as its own "*Label:* value" line with a blank line between. */
   /* Slack's MARKDOWN block (Cole 2026-11-24, his Well Copy screenshot): "## Title" draws a real heading, clearly
      bigger than the header block, which reads barely larger than body text. Standard markdown: **bold**, "- " lists. */
-  const MD = s => ({ type: 'markdown', text: s });
-  const period = (label, p) => {
-    if (!p || p.sales == null) return '';
-    const dot = style === 'dots' ? `${DOTS[toneOf(p.mer, b.kpi, line)]} ` : '';
-    return `## ${label}\n\n**Sales:** ${usd(p.sales)}\n\n**Ad spend:** ${usd(p.spend)}\n\n**MER:** ${dot}${nx(p.mer)}`;
-  };
-  const day = t.day.split(',')[0];
-  const blocks = [
-    MD(`Happy ${day}! 👋\n\nHere's where ${name || b.name}'s Black Friday stands as of ${t.hour} CT. Our goal is **${nx(b.kpi)} MER**.`),
-    { type: 'divider' },
-    ...[period('Last 6 hours ⏱️', b.last6), period('Today 📅', b.today), period('This week 📊', b.week)].filter(Boolean).map(MD),
-    MD(`## Updates 🛠️\n\n${(did.length ? did : ['No changes since the last update']).map(d => `- ${d}`).join('\n')}`),
-    { type: 'context', elements: [{ type: 'mrkdwn', text: rec.next ? `Next update at ${rec.next} CT` : 'Last update of the day' }] }];
-  return { text: `${name || b.name} Black Friday update, ${t.day} ${t.hour}`, blocks };
+  /* FINAL LOOK (Cole 2026-11-24, after research): the header block is the largest type Slack draws (a markdown
+     block's "## " is smaller), so every title is a header block. Each section sits in a colored bar (attachment
+     color): MER over the goal green, between break-even and goal gray, under break-even yellow; Updates in Mobius
+     blue. No emojis. */
+  const H = s => ({ type: 'header', text: { type: 'plain_text', text: s } });
+  const md = s => ({ type: 'section', text: { type: 'mrkdwn', text: s } });
+  const bar = (label, p) => (!p || p.sales == null) ? null : { color: BARS[toneOf(p.mer, b.kpi, line)], blocks: [H(label),
+    md(`*Sales:*  ${usd(p.sales)}\n*Ad spend:*  ${usd(p.spend)}\n*MER:*  ${nx(p.mer)}`)] };
+  const blocks = [H(`${name || b.name} · Black Friday Update`),
+    md(`Here's where we stand as of ${t.hour} CT, ${t.day}. Goal: *${nx(b.kpi)} MER*.`)];
+  const attachments = [bar('Last 6 hours', b.last6), bar('Today', b.today), bar('This week', b.week)].filter(Boolean);
+  attachments.push({ color: BARS.blue, blocks: [H('Updates'), md((did.length ? did : ['No changes since the last update']).map(d => `•  ${d}`).join('\n')),
+    { type: 'context', elements: [{ type: 'mrkdwn', text: rec.next ? `Next update at ${rec.next} CT` : 'Last update of the day' }] }] });
+  return { text: `${name || b.name} Black Friday update, ${t.day} ${t.hour}`, blocks, attachments };
 }
 /** DM Cole one brand's client update (exactly as the client will see it) with Send / Don't send. */
 export async function offerClientUpdate(env, deps, { act, rec = null, style = null, label = null }) {
@@ -394,7 +394,8 @@ export async function offerClientUpdate(env, deps, { act, rec = null, style = nu
     { type: 'button', action_id: 'ws_send', style: 'primary', text: { type: 'plain_text', text: `Send to ${b.name}` }, value: id },
     { type: 'button', action_id: 'ws_skip', text: { type: 'plain_text', text: "Don't send" }, value: id }] };
   const top = { type: 'context', elements: [{ type: 'mrkdwn', text: `*${label || `Ready to send to ${b.name}`}*  ·  exactly what they will see` }] };
-  const msg = { text: m.text, blocks: [top, ...m.blocks, { type: 'divider' }, btns] };
+  const msg = m.attachments ? { text: m.text, blocks: [top, ...m.blocks], attachments: [...m.attachments, { blocks: [btns] }] }
+    : { text: m.text, blocks: [top, ...m.blocks, { type: 'divider' }, btns] };
   return dmPerson(env, deps, env.OWNER_EMAIL || 'cole@go-mobius-digital.com', msg);
 }
 /** The two buttons on that DM. Cole only. Send posts the same layout as Cole in the client channel. */
