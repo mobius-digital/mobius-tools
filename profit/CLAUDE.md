@@ -3645,7 +3645,21 @@ tokens, billing, test credentials. Fixes and the resubmission text: `docs/shopif
     is set, else `admin.shopify.com/store/<handle>/oauth/install?client_id=`), never our `/shopify/install`; a brand
     with no Triple Whale shop gets its store address from `p_shop_address` (`POST /api/connections/address
     {act, shop}`; no settings field for it yet).
-  - Tests: `node test-shoptoken.mjs` (13), `node test-shopifyapp.mjs` (8), `node test-shopify-webhooks.mjs` (9), and
+  - **What the reviewer's 2 issues actually said (read Nov 24, both the same screen):** 2.1.4 "Synchronize data
+    accurately" and 2.1.1 "no critical errors". On the reviewer's store the Sales by day, Best sellers and Products
+    panels stayed empty with "Shopify did not answer just now. Try Refresh.", also after Refresh and a reinstall,
+    while the store had 3 to 4 orders. That line is the catch-all in `handleShopifyApp`: the FIRST read (shop +
+    productsCount in one query) threw something that was not a 401 and took the whole report with it. Which error
+    Shopify gave is not known (nothing was logged). What the code does now (`appReport` in shopifyapp.js):
+    the store, the products, the product count and the orders are each read on their own, so a refused part is one
+    plain line and the other panels still fill; a report with NOTHING in it is tried once more with a freshly
+    exchanged token (the session token buys one), and only then shows the line; both failures are `console.error`ed
+    with the shop and Shopify's status, so `wrangler tail` shows the reason next time. Also found: the orders query
+    asked for `orders(first: 250)` with 10 line items each, about 3,750 points against Shopify's 1,000 point limit
+    for one query, so orders could never have loaded. Now 50 a page (about 750), newest first, up to 10 pages; same
+    fix in `storeReport` (worker.js). **Proof for the reviewer = a screenshot of the same screen with the three
+    panels filled, on a store with orders, linked in "Proof of resolution" on each issue.**
+  - Tests: `node test-shoptoken.mjs` (13), `node test-shopifyapp.mjs` (12), `node test-shopify-webhooks.mjs` (9), and
     `node test-shopifytoken.mjs` (4) in account-health/worker.
   - **NOT code, Cole in the Dev Dashboard:** the IP allowlist (Settings > IP allowlist > Networks: Cloudflare's ASN
     13335 + the countries, Run test, then Enforce). Workers have no fixed outbound address, so it is an ASN entry,

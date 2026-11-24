@@ -297,12 +297,14 @@ async function storeReport(env, viewToken) {
   if (!row.access_token) return { error: 'This store needs to open the Mobius Digital app in its Shopify admin once to reconnect. Nothing can be read until then.', status: 410, shop: row.shop };
   const since = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
   const shopQ = `{ shop { name myshopifyDomain currencyCode primaryDomain { url } } }`;
-  const ordersQ = `query($q: String!, $after: String) { orders(first: 250, query: $q, after: $after, sortKey: CREATED_AT) { pageInfo { hasNextPage endCursor }
+  /* 50 a page, not 250: Shopify refuses a single query over 1,000 points and an order with ten line items costs
+     about 16, so 250 asked for about 4,000 and was refused (2026-11-24). 20 pages keeps the same 1,000 order reach. */
+  const ordersQ = `query($q: String!, $after: String) { orders(first: 50, query: $q, after: $after, sortKey: CREATED_AT) { pageInfo { hasNextPage endCursor }
     nodes { id createdAt currentTotalPriceSet { shopMoney { amount } } customer { numberOfOrders } lineItems(first: 10) { nodes { title quantity } } } } }`;
   const shop = (await shopifyGraph(row.shop, row.access_token, shopQ)).shop || {};
   const orders = [];
   let after = null;
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 20; i++) {
     const d = await shopifyGraph(row.shop, row.access_token, ordersQ, { q: `created_at:>=${since} AND financial_status:paid`, after });
     orders.push(...(d.orders?.nodes || []));
     if (!d.orders?.pageInfo?.hasNextPage) break;

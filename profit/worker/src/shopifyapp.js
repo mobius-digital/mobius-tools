@@ -10,9 +10,10 @@
  * The session token (a JWT signed with the app secret) is verified here and names the shop. Shopify runs the install
  * and the permission screen itself (managed installation, 2026-11-15); a shop with no live token gets one here by
  * token exchange, with no redirect. Tokens are the EXPIRING kind and are only ever read through shopToken()
- * (shoptoken.js, 2026-11-24, requirement 3.1.2). Every read degrades instead of failing: a refused orders read shows
- * the products report plus one plain line saying order numbers need Shopify's approval. No cookies, no storage,
- * nothing outside the page.
+ * (shoptoken.js, 2026-11-24, requirement 3.1.2). Every read degrades instead of failing: the store, its
+ * products and its orders are read one by one, a refused part shows one plain line while the other panels still fill,
+ * and a report with nothing in it is tried once more with a freshly exchanged token (review feedback 2.1.1 + 2.1.4,
+ * 2026-11-24). No cookies, no storage, nothing outside the page.
  *
  * WORDING (requirement 1.1.14, 2026-11-24): the screen says what the app does for the store and nothing else. No
  * sentence about an agency, no button that contacts one. Support contact lives in the App Store listing.
@@ -53,33 +54,58 @@ async function gql(F, shop, token, query, variables = {}) {
   return j.data || {};
 }
 
-/** The report: shop, products always; orders when Shopify allows them. Never throws for a refused part. */
+/** Orders per page. Shopify refuses any single query that costs over 1,000 points, and an order with its money and
+ *  ten line items costs about 15, so 250 a page (the old number) asked for about 3,750. 50 a page asks for about 750. */
+const ORDERS_PAGE = 50, ORDERS_PAGES = 10;
+const ORDERS_Q = `query($q: String!, $after: String) { orders(first: ${ORDERS_PAGE}, query: $q, after: $after, sortKey: CREATED_AT, reverse: true) { pageInfo { hasNextPage endCursor } nodes { createdAt currentTotalPriceSet { shopMoney { amount } } lineItems(first: 10) { nodes { title quantity } } } } }`;
+
+/** The report: the store, its products and its orders, each read on its own so one refused read never blanks the
+ *  other panels (review feedback 2.1.1 / 2.1.4, 2026-11-24: the reviewer saw three empty panels because the first
+ *  read threw and took the whole report with it). Throws only when the token is dead (401, the caller swaps it) or
+ *  when NOTHING could be read (the caller tries once more with a fresh token). */
 export async function appReport(env, shop, token, days, F) {
   const n = [7, 30, 90].includes(+days) ? +days : 30;
   const since = new Date(Date.now() - n * 864e5).toISOString().slice(0, 10);
   const out = { days: n, since, notes: [] };
-  const s = await gql(F, shop, token, `{ shop { name myshopifyDomain currencyCode primaryDomain { url } } productsCount { count } }`);
-  out.shop = { name: s.shop?.name || shop, domain: shop, url: s.shop?.primaryDomain?.url || null, currency: s.shop?.currencyCode || 'USD', products: s.productsCount?.count ?? null };
+  let failed = 0, firstErr = null;
+  const part = async fn => { try { return await fn(); } catch (e) { if (e.status === 401) throw e; failed++; firstErr ||= e; return null; } };
+
+  const s = await part(() => gql(F, shop, token, `{ shop { name myshopifyDomain currencyCode primaryDomain { url } } }`));
+  out.shop = { name: s?.shop?.name || shop.replace(/\.myshopify\.com$/, ''), domain: shop, url: s?.shop?.primaryDomain?.url || null, currency: s?.shop?.currencyCode || 'USD', products: null };
+
+  const p = await part(() => gql(F, shop, token, `{ products(first: 25, sortKey: UPDATED_AT, reverse: true) { nodes { title status totalInventory priceRangeV2 { minVariantPrice { amount } } } } }`));
+  out.products = (p?.products?.nodes || []).map(x => ({ title: x.title, status: String(x.status || '').toLowerCase(), stock: x.totalInventory, price: +x.priceRangeV2?.minVariantPrice?.amount || 0 }));
+  if (!p) out.notes.push('Products could not be listed right now. Try Refresh.');
+  /* The count is its own small read: if Shopify refuses it, the card shows how many are listed instead. */
+  const c = p ? await gql(F, shop, token, `{ productsCount { count } }`).catch(e => { if (e.status === 401) throw e; return null; }) : null;
+  out.shop.products = c?.productsCount?.count ?? (p ? out.products.length : null);
+
   try {
-    const p = await gql(F, shop, token, `{ products(first: 25, sortKey: UPDATED_AT, reverse: true) { nodes { title status totalInventory priceRangeV2 { minVariantPrice { amount } } } } }`);
-    out.products = (p.products?.nodes || []).map(x => ({ title: x.title, status: String(x.status || '').toLowerCase(), stock: x.totalInventory, price: +x.priceRangeV2?.minVariantPrice?.amount || 0 }));
-  } catch (e) { out.products = []; out.notes.push('Products could not be listed right now.'); }
-  try {
-    const orders = []; let after = null;
-    for (let i = 0; i < 4; i++) {
-      const d = await gql(F, shop, token, `query($q: String!, $after: String) { orders(first: 250, query: $q, after: $after, sortKey: CREATED_AT) { pageInfo { hasNextPage endCursor } nodes { createdAt currentTotalPriceSet { shopMoney { amount } } lineItems(first: 10) { nodes { title quantity } } } } }`, { q: `created_at:>=${since}`, after });
+    const orders = []; let after = null, truncated = false, readAny = false;
+    for (let i = 0; i < ORDERS_PAGES; i++) {
+      let d;
+      try { d = await gql(F, shop, token, ORDERS_Q, { q: `created_at:>=${since}`, after }); }
+      catch (e) { if (!readAny || e.status === 401) throw e; truncated = true; break; }   // a later page was refused (rate limit): show what was read
+      readAny = true;
       orders.push(...(d.orders?.nodes || []));
-      if (!d.orders?.pageInfo?.hasNextPage) break; after = d.orders.pageInfo.endCursor;
+      if (!d.orders?.pageInfo?.hasNextPage) break;
+      after = d.orders.pageInfo.endCursor;
+      if (i === ORDERS_PAGES - 1) truncated = true;
     }
     const byDay = {}, top = {}; let revenue = 0;
     for (const o of orders) { const a = +o.currentTotalPriceSet?.shopMoney?.amount || 0; revenue += a; const k = String(o.createdAt).slice(0, 10); (byDay[k] ||= { orders: 0, revenue: 0 }); byDay[k].orders++; byDay[k].revenue += a; for (const li of o.lineItems?.nodes || []) top[li.title] = (top[li.title] || 0) + (+li.quantity || 0); }
-    out.orders = { count: orders.length, revenue: Math.round(revenue * 100) / 100, aov: orders.length ? Math.round(revenue / orders.length * 100) / 100 : 0,
+    out.orders = { count: orders.length, revenue: Math.round(revenue * 100) / 100, aov: orders.length ? Math.round(revenue / orders.length * 100) / 100 : 0, truncated,
       days: Array.from({ length: n }, (_, i) => { const k = new Date(Date.now() - (n - 1 - i) * 864e5).toISOString().slice(0, 10); return { date: k, orders: byDay[k]?.orders || 0, revenue: Math.round((byDay[k]?.revenue || 0) * 100) / 100 }; }),
       top: Object.entries(top).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([title, qty]) => ({ title, qty })) };
+    if (truncated) out.notes.push(`Showing the newest ${orders.length} orders in this period.`);
   } catch (e) {
+    if (e.status === 401) throw e;
+    failed++; firstErr ||= e;
     out.orders = null;
-    out.notes.push(e.status === 403 ? 'Order numbers appear once Shopify approves this app\'s access to order data. Products are shown meanwhile.' : 'Orders could not be read right now; try Refresh.');
+    out.notes.push(e.status === 403 ? 'Order numbers appear once Shopify approves this app\'s access to order data. Products are shown meanwhile.' : 'Orders could not be read right now. Try Refresh.');
   }
+  /* Nothing at all came back: that is not a report. The caller tries once more with a fresh token. */
+  if (failed >= 3) throw Object.assign(new Error(firstErr?.message || 'Shopify could not be read'), { status: firstErr?.status });
   return out;
 }
 
@@ -168,8 +194,10 @@ export async function handleShopifyApp(request, env, url, { F = fetch, saveToken
     const tok = String(request.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '');
     const v = await verifySessionToken(env, tok);
     if (v.error) return json({ error: 'Please open the app from Apps in your Shopify admin.' }, 401);
+    let fresh = false;   // true once a token was exchanged in this request
     const connect = async () => {
       const x = await exchangeToken(env, v.shop, tok, F);
+      fresh = true;
       if (saveToken) await saveToken(v.shop, x);
       else await env.DB.prepare(`UPDATE p_shopify SET access_token = ?2, refresh_token = ?3, expires_at = ?4, refresh_expires_at = ?5, uninstalled_at = NULL WHERE shop = ?1`).bind(v.shop, x.token, x.refresh_token, x.expires_at, x.refresh_expires_at).run().catch(() => {});
       return x.token;
@@ -191,12 +219,17 @@ export async function handleShopifyApp(request, env, url, { F = fetch, saveToken
       }
       try { return json(await appReport(env, v.shop, access, url.searchParams.get('days'), F)); }
       catch (e) {
-        if (e.status !== 401) throw e;
-        /* the stored token is dead (reinstalled, or access taken back): forget it and exchange a fresh one once */
-        await forget();
+        /* 401: the stored token is dead (reinstalled, or access taken back). Anything else that left the report with
+           nothing to show: the stored token may be one Shopify no longer reads with (a reinstall whose uninstall
+           notice never reached us, an old never-expiring token). Either way the session token in hand buys a fresh
+           one, once. A token exchanged in THIS request is already fresh, so that case is not repeated. */
+        console.error('shopify app report failed', v.shop, e.status || '', e.message || '');
+        if (fresh) throw e;
+        if (e.status === 401) await forget();   // otherwise keep the old pair until the new one is saved over it
         return json(await appReport(env, v.shop, await connect(), url.searchParams.get('days'), F));
       }
     } catch (e) {
+      console.error('shopify app gave up', v.shop, e.status || '', e.message || '');
       return json({ error: e.message?.startsWith('token exchange') ? 'Could not connect your store just now. Close and reopen the app.' : 'Shopify did not answer just now. Try Refresh.' });
     }
   }

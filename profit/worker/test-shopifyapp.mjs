@@ -110,5 +110,39 @@ await ok('optional access: asked for in the app, not at install; the store\'s an
   granted = ['read_orders', 'read_products'];
   await call('/shopify/app/api/scopes', good(), 'POST'); assert.equal(row().scopes, 'read_orders,read_products', 'removing it is stored too');
 });
-console.log(`\n${n}/8 passed`);
-if (n !== 8) process.exit(1);
+/* Review feedback 2026-11-16 (2.1.1 + 2.1.4): the reviewer's screen showed three empty panels and "Shopify did not
+   answer just now. Try Refresh." A failed read must never blank the panels that can be filled. */
+await ok('review 2.1.1 / 2.1.4: the store read failing does not blank the panels; products and orders still show', async () => {
+  ordersMode = 'ok'; setRow({ access_token: 'tok' }); exchanged = 0;
+  const G = async (url, init) => { const q = init.body && !/oauth/.test(url) ? JSON.parse(init.body).query : ''; return /shop \{/.test(q) ? Response.json({ errors: [{ message: 'Internal error' }] }) : F(url, init); };
+  const d = await (await handleShopifyApp(new Request('https://w.dev/shopify/app/api/report', { headers: { Authorization: `Bearer ${good()}` } }), env, new URL('https://w.dev/shopify/app/api/report'), { F: G })).json();
+  assert.ok(!d.error); assert.equal(d.shop.name, 'test-store'); assert.equal(d.products.length, 1); assert.equal(d.orders.count, 1); assert.equal(d.shop.products, 1);
+  assert.equal(exchanged, 0, 'a partial report is shown as it is, no token swap');
+});
+await ok('review 2.1.1 / 2.1.4: a stored token Shopify will not read with (not a 401) is swapped once, then the panels fill', async () => {
+  ordersMode = 'ok'; setRow({ access_token: 'stale' }); exchanged = 0;
+  const G = async (url, init) => (!/oauth/.test(url) && init.headers['X-Shopify-Access-Token'] === 'stale') ? new Response('{}', { status: 403 }) : F(url, init);
+  const d = await (await handleShopifyApp(new Request('https://w.dev/shopify/app/api/report', { headers: { Authorization: `Bearer ${good()}` } }), env, new URL('https://w.dev/shopify/app/api/report'), { F: G })).json();
+  assert.equal(exchanged, 1); assert.ok(!d.error); assert.equal(d.shop.name, 'Test Store'); assert.equal(d.orders.count, 1); assert.equal(row().access_token, 'fresh');
+});
+await ok('Shopify refusing every read even with a fresh token: one plain line, one exchange, the stored pair kept', async () => {
+  setRow({ access_token: 'tok' }); exchanged = 0;
+  const G = async (url, init) => /oauth/.test(url) ? F(url, init) : new Response('{}', { status: 503 });
+  const d = await (await handleShopifyApp(new Request('https://w.dev/shopify/app/api/report', { headers: { Authorization: `Bearer ${good()}` } }), env, new URL('https://w.dev/shopify/app/api/report'), { F: G })).json();
+  assert.equal(d.error, 'Shopify did not answer just now. Try Refresh.'); assert.equal(exchanged, 1); assert.ok(row().access_token);
+});
+await ok('orders are asked for inside Shopify\'s 1,000 point query limit, newest first, and more than one page adds up', async () => {
+  setRow({ access_token: 'tok' }); let pages = 0, first = null;
+  const node = { createdAt: new Date().toISOString(), currentTotalPriceSet: { shopMoney: { amount: '10' } }, lineItems: { nodes: [{ title: 'Wedge', quantity: 2 }] } };
+  const G = async (url, init) => {
+    const b = /oauth/.test(url) ? null : JSON.parse(init.body);
+    if (!b || !/orders\(/.test(b.query)) return F(url, init);
+    first ??= +b.query.match(/orders\(first: (\d+)/)[1]; pages++;
+    return Response.json({ data: { orders: { pageInfo: { hasNextPage: pages < 3, endCursor: 'c' + pages }, nodes: [node, node] } } });
+  };
+  const d = await (await handleShopifyApp(new Request('https://w.dev/shopify/app/api/report', { headers: { Authorization: `Bearer ${good()}` } }), env, new URL('https://w.dev/shopify/app/api/report'), { F: G })).json();
+  assert.ok(first * 15 + 2 <= 1000, `orders(first: ${first}) with 10 line items stays under 1,000 points`);
+  assert.equal(pages, 3); assert.equal(d.orders.count, 6); assert.equal(d.orders.revenue, 60); assert.equal(d.orders.top[0].qty, 12); assert.equal(d.orders.truncated, false);
+});
+console.log(`\n${n}/12 passed`);
+if (n !== 12) process.exit(1);
