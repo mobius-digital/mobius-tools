@@ -394,7 +394,7 @@ async function topAds(env, act, day, kpi, line) {
 const cleanName = s => String(s || '').replace(/\s*\|\s*(Still|UGC|Video|Static|Carousel)\s*$/i, '').trim();
 /** The client message: {text, blocks, attachments}. images=false leaves the ad pictures out (a retry when Slack
  *  refuses an image). */
-export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name = null, { images = true, layout = 'table' } = {}) {
+export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name = null, { images = true, layout = 'table', mdIn = true } = {}) {
   const b = (rec.brands || []).find(x => x.act_id === act);
   if (!b || b.no_sales) return null;
   const did = await didSince(env, deps, act), line = b.hold ?? (b.kpi ? b.kpi * 0.8 : null), t = longDay(rec.slot), m = moment(rec.slot);
@@ -406,8 +406,12 @@ export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name
     const tr = tierOf(p.mer, b.kpi, line);
     return { color: tr.color, blocks: [H(label), md(`*Sales:*  ${usd(p.sales)}\n*Ad spend:*  ${usd(p.spend)}\n*MER:*  ${nx(p.mer)}`)] };
   };
-  const T1 = layout === 'spaced' ? (s => ({ type: 'markdown', text: `# ${s}` })) : H;   // Cole 2026-11-24: the markdown '#' heading draws biggest
-  const blocks = [T1(`${name || b.name} · ${m}`), ctx(`${t.day}  ·  ${t.hour} CT   |   Goal: *${nx(b.kpi)} MER*`), { type: 'divider' }];
+  const NEW = ['rowbars', 'rowbullets', 'winbars'].includes(layout), MDH = s => ({ type: 'markdown', text: `# ${s}` });
+  /* Cole 2026-11-24: the markdown '#' heading draws biggest. Section titles inside a colored bar use it too when Slack
+     takes a markdown block there (mdIn), else the header block. */
+  const T1 = layout === 'spaced' || (NEW && mdIn) ? MDH : H;
+  const title = NEW ? `🛍️ ${name || b.name} · BFCM Week · ${m}` : `${name || b.name} · ${m}`;
+  const blocks = [(layout === 'spaced' || NEW ? MDH : H)(title), ctx(`${t.day}  ·  ${t.hour} CT   |   Goal: *${nx(b.kpi)} MER*`), { type: 'divider' }];
   const wins = (m === 'End of Day' ? [['Today', b.today], ['This week', b.week]] : [['Last 6 hours', b.last6], ['Today', b.today], ['This week', b.week]]).filter(([, p]) => p && p.sales != null);
   let attachments;
   /* Cole 2026-11-24: the grid without the code-block names. 'clean' = no colored bars at all (bold names, grey lines,
@@ -428,6 +432,24 @@ export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name
     if (row1.length) blocks.push({ type: 'section', fields: row1.map(([l, p]) => f(l, p)) });
     if (wk) blocks.push({ type: 'divider' }, { type: 'section', fields: [f(wk[0], wk[1])] });
     attachments = [];
+  } else if (layout === 'rowbars' || layout === 'rowbullets' || layout === 'winbars') {
+    /* Round 4 (Cole 2026-11-24): a big colored bar beside the numbers, the small lines (or plain bullets) inside it.
+       rowbars / rowbullets = one bar per row (the day row takes Today's color, the week row This week's), two columns;
+       winbars = one bar per window, stacked, so each window has its own color. */
+    const bullets = layout === 'rowbullets';
+    const txt = (l, p) => `*${l.toUpperCase()}*\n${bullets
+      ? `•  *Sales:* ${usd(p.sales)}\n•  *Ad spend:* ${usd(p.spend)}\n•  *MER:* ${nx(p.mer)}`
+      : `\n> *Sales:* ${usd(p.sales)}\n\n> *Ad spend:* ${usd(p.spend)}\n\n> *MER:* ${nx(p.mer)}`}`;
+    const get = k => wins.find(([l]) => l === k), col = p => tierOf(p && p.mer, b.kpi, line).color;
+    attachments = [];
+    if (layout === 'winbars') {
+      for (const [l, p] of wins) attachments.push({ color: col(p), blocks: [md(txt(l, p))] });
+    } else {
+      const row1 = [get('Last 6 hours'), get('Today')].filter(Boolean), wk = get('This week');
+      const today = (get('Today') || row1[0] || [])[1];
+      if (row1.length) attachments.push({ color: col(today), blocks: [{ type: 'section', fields: row1.map(([l, p]) => ({ type: 'mrkdwn', text: txt(l, p) })) }] });
+      if (wk) attachments.push({ color: col(wk[1]), blocks: [{ type: 'section', fields: [{ type: 'mrkdwn', text: txt(wk[0], wk[1]) }] }] });
+    }
   } else if (layout === 'lines') {
     /* Small colored bars (Cole: "make the smaller bars different colors"): the grey quote line has no color setting in
        Slack, so each number becomes its own one-line colored bar. MER takes the goal color; Sales and Ad spend carry
@@ -502,17 +524,17 @@ export async function offerClientUpdate(env, deps, { act, rec = null, style = nu
   /* Layouts in order of preference; Slack refusing one (a table inside a colored bar, a table at all, an ad picture)
      falls to the next. Whatever reached Cole is what Send posts. */
   /* Cole 2026-11-24: the separate colored bars, stacked (Slack cannot put colored bars side by side). */
-  const pick = ['clean', 'blue', 'bars', 'wc', 'spaced', 'lines'].includes(style) ? style : (['clean', 'blue', 'bars', 'spaced', 'lines'].includes(await deps.getSetting(env, 'clientUpdateLayout')) ? await deps.getSetting(env, 'clientUpdateLayout') : 'spaced');
-  const tries = [[pick, true], [pick, false], ['bars', false]];
+  const pick = ['clean', 'blue', 'bars', 'wc', 'spaced', 'lines', 'rowbars', 'rowbullets', 'winbars'].includes(style) ? style : (['clean', 'blue', 'bars', 'spaced', 'lines'].includes(await deps.getSetting(env, 'clientUpdateLayout')) ? await deps.getSetting(env, 'clientUpdateLayout') : 'spaced');
+  const tries = [[pick, true, true], [pick, true, false], [pick, false, false], ['bars', false, false]];
   let r = { ok: false, error: 'nothing tried' }, used = null;
-  for (const [layout, images] of tries) {
-    const m = await clientUpdateMsg(env, deps, rec, act, st, b.name, { layout, images });
+  for (const [layout, images, mdIn] of tries) {
+    const m = await clientUpdateMsg(env, deps, rec, act, st, b.name, { layout, images, mdIn });
     if (!m) return { ok: false, error: 'No sales numbers for this brand.' };
     const tail = forCole ? [] : [btns];
     const msg = m.attachments && m.attachments.length ? { text: m.text, blocks: [top, ...m.blocks], attachments: [...m.attachments, ...(tail.length ? [{ blocks: tail }] : [])] }
       : { text: m.text, blocks: [top, ...m.blocks, ...tail] };
     r = await dmPerson(env, deps, env.OWNER_EMAIL || 'cole@go-mobius-digital.com', msg);
-    if (r.ok) { used = layout + (images ? '' : ' (no pictures)'); await deps.putSetting(env, `wsDraft:${id}`, JSON.stringify({ v: 3, act, ch: b.brief_channel, msg: m, name: b.name, at: new Date().toISOString() })); break; }
+    if (r.ok) { used = layout + (images ? '' : ' (no pictures)') + (mdIn ? '' : ' (header titles in bars)'); await deps.putSetting(env, `wsDraft:${id}`, JSON.stringify({ v: 3, act, ch: b.brief_channel, msg: m, name: b.name, at: new Date().toISOString() })); break; }
     if (!/invalid_blocks|invalid_attachments|image|table/i.test(String(r.error || ''))) break;
     r.tried = `${r.tried || ''}${layout}: ${String(r.error).slice(0, 120)}; `;
   }
