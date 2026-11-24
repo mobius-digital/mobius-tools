@@ -28,7 +28,8 @@ const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
  * Dec 4). It only sends once at least one brand's own sale is live; each brand counts from its own start. */
 export const STAND_DAYS = { from: '2026-11-23', to: '2026-12-04' };
 /* Central hours. 9am to 9pm every 3 hours, and 11pm to close the day (a midnight read would be an empty new day). */
-export const STAND_HOURS = [9, 12, 15, 18, 21, 23];
+/* Every 6 hours since Cole 2026-11-24 ("can Meta even optimize after every 3 hours?"): 9am, 3pm, 9pm Central. */
+export const STAND_HOURS = [9, 15, 21];
 const KNOWN_LIMITS = { brand_lucky_golf: 6637, brand_dartee_golf: 13806, brand_bonk_golf: 5000, brand_grunk_dolfer: 2583, brand_yak_sports: 841, brand_vetripaws: 3428 };
 const SALE_RE =/bfcm|black friday|\bbf\b|cyber|holiday 20\d\d/i;
 
@@ -303,7 +304,58 @@ async function approve(env, deps, rec, act, who) {
   rec.approved = rec.approved || {};
   rec.approved[act] = { by: who, at: new Date().toISOString(), from: camp.daily, to: g.to, write: r.write || null, summary: r.summary || '' };
   await deps.putSetting(env, `standing:${rec.slot}`, JSON.stringify(rec));
+  await offerClientUpdate(env, deps, { act, campaign: camp.name, from: camp.daily, to: g.to, rec }).catch(() => {});
   return { ok: true, ...rec.approved[act] };
+}
+
+/* SEND TO CLIENT (Cole 2026-11-24: "we want to be able to send stuff whenever we make updates"). After a campaign budget
+   change made through Locus (a War Room Approve, the Meta tab, Claude), Cole gets a DM with the client message already
+   written in the ladder's words and two buttons. Nothing reaches a client without his tap; Send posts it AS COLE in the
+   brand's client channel (brief_channel, never the internal one). No client channel = no DM. */
+const OWNER_SLACK = 'U06C37MDWD7';
+const xs = v => `${(Math.round(v * 10) / 10).toFixed(1)}x`;
+export async function offerClientUpdate(env, deps, { act, campaign, from, to, rec = null }) {
+  if (!from || !to || Math.round(from) === Math.round(to)) return null;
+  const b = await env.DB.prepare(`SELECT name, brief_channel, slack_channel FROM brand_accounts WHERE act_id = ?1`).bind(act).first().catch(() => null);
+  if (!b || !b.brief_channel || b.brief_channel === b.slack_channel) return null;
+  rec = rec || await load(env, deps).catch(() => null);
+  const s = rec && (rec.brands || []).find(x => x.act_id === act);
+  const mer = s && s.so_far && s.so_far.mer, kpi = s && s.kpi, line = s && (s.hold ?? (s.kpi ? s.kpi * 0.8 : null));
+  const up = to > from, move = `${campaign} from ${money(from)} to ${money(to)} a day`;
+  let text;
+  if (up && mer != null && kpi && mer >= kpi) text = `Quick update on the sale: for every $1 we've put into ads, the store has made $${mer.toFixed(2)} so far, over your ${xs(kpi)} goal. So we raised ${move}. We check every 6 hours and keep raising while it stays over ${xs(kpi)}.`;
+  else if (!up && mer != null && line && mer < line) text = `Quick update on the sale: for every $1 we've put into ads, the store has made $${mer.toFixed(2)} so far, under the ${xs(line)} break-even. So we pulled ${move} to protect the return. We check every 6 hours and raise again once it's back over ${xs(kpi)}.`;
+  else text = `Quick update on the sale: we ${up ? 'raised' : 'lowered'} ${move}.${mer != null && kpi ? ` The store is at ${xs(mer)} return on ad spend so far against your ${xs(kpi)} goal.` : ''} We check every 6 hours and adjust from there.`;
+  const id = Math.random().toString(16).slice(2, 12);
+  await deps.putSetting(env, `wsDraft:${id}`, JSON.stringify({ act, ch: b.brief_channel, text, name: b.name, at: new Date().toISOString() }));
+  const msg = { text: `Client update for ${b.name}, ready to send`, blocks: [
+    { type: 'section', text: { type: 'mrkdwn', text: `*Client update for ${b.name}* (you changed ${move})` } },
+    { type: 'section', text: { type: 'mrkdwn', text: text.split('\n').map(l => `> ${l}`).join('\n') } },
+    { type: 'actions', elements: [
+      { type: 'button', action_id: 'ws_send', style: 'primary', text: { type: 'plain_text', text: `Send to ${b.name}` }, value: id },
+      { type: 'button', action_id: 'ws_skip', text: { type: 'plain_text', text: "Don't send" }, value: id }] },
+    { type: 'context', elements: [{ type: 'mrkdwn', text: 'Posts as you in their client channel. Want different words? Don\'t send, then post your own.' }] }] };
+  return dmPerson(env, deps, env.OWNER_EMAIL || 'cole@go-mobius-digital.com', msg);
+}
+/** The two buttons on that DM. Cole only. */
+export async function handleClientUpdateButton(env, ctx, payload, deps, { ACK, xfetch }) {
+  const a = (payload.actions || []).find(x => /^ws_/.test(x.action_id || ''));
+  const reply = t => payload.response_url && xfetch(payload.response_url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ replace_original: true, text: t }) }).catch(() => {});
+  ctx.waitUntil((async () => {
+    if (payload.user?.id !== OWNER_SLACK) return reply('Only Cole can send client updates.');
+    const raw = await deps.getSetting(env, `wsDraft:${a.value}`);
+    const dr = raw ? JSON.parse(raw) : null;
+    if (!dr) return reply('That update is gone.');
+    if (dr.done) return reply(`Already handled: ${dr.done}.`);
+    if (a.action_id === 'ws_skip') { dr.done = 'not sent'; await deps.putSetting(env, `wsDraft:${a.value}`, JSON.stringify(dr)); return reply(`Not sent to ${dr.name}.`); }
+    if (!env.SLACK_USER_TOKEN) return reply('No Slack user token on Locus, so it cannot post as you.');
+    const res = await xfetch('https://slack.com/api/chat.postMessage', { method: 'POST', headers: { Authorization: `Bearer ${env.SLACK_USER_TOKEN}`, 'Content-Type': 'application/json; charset=utf-8' },
+      body: JSON.stringify({ channel: dr.ch, text: dr.text, unfurl_links: false }) }).then(r => r.json()).catch(e => ({ ok: false, error: e.message }));
+    if (!res.ok) return reply(`Slack refused it (${res.error}). Nothing was sent.`);
+    dr.done = `sent ${new Date().toISOString()}`; await deps.putSetting(env, `wsDraft:${a.value}`, JSON.stringify(dr));
+    return reply(`✓ Sent to ${dr.name}:\n> ${dr.text}`);
+  })());
+  return ACK();
 }
 
 /** One brand's sale campaign, opened from its War Room tile (Cole, 2026-11-22: "real analysis: the ad sets, which ads to
@@ -403,6 +455,14 @@ export async function handleStanding(request, env, url, path, json, deps) {
       if (only && !only.has(act)) return json({ error: 'You do not have access to this brand.' }, 403);
       const r = await brandDetail(env, deps, act);
       return json(r, r.error ? 502 : 200);
+    }
+    /* The Send to client DM for a change made another way (by hand in Ads Manager, before this existed). Cole only gets a DM. */
+    /* Also reachable as POST /api/standing/sample {client_update: true, ...} (that path is in the route list tools read). */
+    if ((path === '/api/standing/client-update' || (path === '/api/standing/sample' && body.client_update)) && request.method === 'POST') {
+      const act = String(body.act || '');
+      if (!/^brand_[a-z0-9_]+$/.test(act)) return json({ error: 'Which brand?' }, 400);
+      const r = await offerClientUpdate(env, deps, { act, campaign: String(body.campaign || 'the sale campaign').slice(0, 80), from: +body.from, to: +body.to });
+      return json(r ? { ok: !!r.ok, error: r.error || null } : { ok: false, error: 'No client channel for this brand, or the budget did not change.' });
     }
     if (path === '/api/standing/run' && request.method === 'POST') {
       const prev = await load(env, deps).catch(() => null);
