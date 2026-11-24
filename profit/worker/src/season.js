@@ -489,7 +489,11 @@ export const STAND = { from: '2026-11-26', to: '2026-11-30' };
    Yak assumed 60% margin (no cost data yet). Cole set the rule 2026-11-22; change a number here, nowhere else. */
 export const STAND_BRANDS = {
   brand_lucky_golf: { goal: 150000, kpi: 2.5, be_new: 1.55 }, brand_dartee_golf: { goal: 78000, kpi: 2.5, be_new: 1.5 }, brand_bonk_golf: { goal: 130000, kpi: 2.5, be_new: 1.8 },
-  brand_grunk_dolfer: { goal: 51000, kpi: 3.0, be_new: 2.0 }, brand_yak_sports: { goal: 25000, kpi: 2.5, be_new: 1.65 }, brand_vetripaws: { goal: 4500, kpi: 2.5, be_new: 1.65 },
+  brand_grunk_dolfer: { goal: 51000, kpi: 3.0, be_new: 2.0 },
+  /* Cole 2026-11-24: Yak and VetriPaws Black Friday started Mon Nov 23 (Meta sets), not the plan's Thursday. */
+  brand_yak_sports: { goal: 25000, kpi: 2.5, be_new: 1.65, start: '2026-11-23' }, brand_vetripaws: { goal: 4500, kpi: 2.5, be_new: 1.65, start: '2026-11-23' },
+  /* Ice & Gold: Fela runs the budgets, so updates only (no raise or cut call); its sale is live this week. */
+  brand_ice_and_gold: { goal: null, kpi: 2.5, be_new: null, start: '2026-11-23', watch: 'Fela runs Ice & Gold budgets, so this is updates only.' },
 };
 /* Any first order whose last click was email or SMS is left out of new-customer revenue: giveaway entrants and list
    sign-ups buying from the sale emails are not what the ads bought. Same grouping as Customers (srcGroup). */
@@ -532,7 +536,9 @@ async function standingAll(env, accounts, today, deps) {
    * Before a brand's sale starts it is a dry run on today; after it ends the total stops at its last day. */
   const rows = await Promise.all(d.accounts.filter(a => STAND_BRANDS[a.act_id]).map(async a => {
     const acct = accounts.find(x => x.act_id === a.act_id) || a, cfg = STAND_BRANDS[a.act_id], g = a.goals || {};
-    const sale = saleOf(a.phases, warOf(a.answers)), mode = today < sale.start ? 'plan' : today > sale.end ? 'after' : 'live';
+    const sale = saleOf(a.phases, warOf(a.answers));
+    if (cfg.start && cfg.start < sale.start) sale.start = cfg.start;
+    const mode = today < sale.start ? 'plan' : today > sale.end ? 'after' : 'live';
     const r = { act_id: a.act_id, name: a.name, currency: acct.currency || 'USD', goal: cfg.goal, kpi: cfg.kpi, hold: g.hold ?? g.be ?? null, sale: { start: sale.start, end: sale.end }, mode };
     let lv = null;
     try { lv = await deps.live({ ...acct, ...a }); } catch (e) { r.error = e.message || 'Triple Whale did not answer'; }
@@ -578,6 +584,7 @@ async function standingAll(env, accounts, today, deps) {
     r.be_new = cfg.be_new || null;
     r.no_sales = noSales ? 1 : 0; r.as_of = (lv && lv.as_of) || null;
     r.suggest = r.error ? { call: 'hold', pct: 0, why: `No live numbers: ${r.error}` } : standCall({ soFar: r.so_far, last6: r.last6, kpi: cfg.kpi, hold: r.hold, noSales, beNew: cfg.be_new });
+    if (cfg.watch) { r.watch = 1; r.suggest = { call: 'hold', pct: 0, why: cfg.watch }; }
     return r;
   }));
   rows.sort((p, q) => (q.goal || 0) - (p.goal || 0));

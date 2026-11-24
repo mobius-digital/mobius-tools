@@ -363,11 +363,11 @@ const hourOfSlot = slot => { const [d, h] = String(slot).split('T'), hr = +h; co
 const TIER = [
   /* Cole: the dark green looked different from the first bars; well above = that bright green, above = a lighter one. */
   { key: 'great', color: '#2EB67D', label: 'Well above goal' },
-  { key: 'good', color: '#86D4AE', label: 'Above goal' },
+  { key: 'good', color: '#2EB67D', label: 'Above goal' },   // Cole: one green, the first one (#2EB67D)
   { key: 'near', color: '#A3ADBF', label: 'Right around goal' },
   { key: 'under', color: '#ECB22E', label: 'A little under goal' },
   { key: 'bad', color: '#E01E5A', label: 'Under break-even' }];
-const BLUE = '#2A9FD8';
+const BLUE = '#62BDEA';   // Mobius brand blue (Locus --brand). Slack bar colors are one hex: no gradients.
 function tierOf(mer, kpi, line) {
   if (mer == null || !kpi) return TIER[2];
   const r = mer / kpi;
@@ -437,7 +437,10 @@ export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name
 /** DM Cole one brand's client update (exactly as the client will see it) with Send / Don't send. */
 export async function offerClientUpdate(env, deps, { act, rec = null, style = null, label = null, at = null }) {
   const b = await env.DB.prepare(`SELECT name, brief_channel, slack_channel FROM brand_accounts WHERE act_id = ?1`).bind(act).first().catch(() => null);
-  if (!b || !b.brief_channel || b.brief_channel === b.slack_channel) return null;
+  if (!b) return null;
+  /* No client channel (Lucky): Cole still gets the update, for himself, with no Send button. */
+  const forCole = !b.brief_channel || b.brief_channel === b.slack_channel;
+  if (forCole) label = label || `${b.name} · for you (no client channel)`;
   rec = rec || await load(env, deps).catch(() => null);
   if (!rec) return { ok: false, error: 'No check-in yet.' };
   /* A preview of another moment (sample route): the same numbers drawn as the 9am or 9pm version. */
@@ -451,13 +454,15 @@ export async function offerClientUpdate(env, deps, { act, rec = null, style = nu
   const top = { type: 'context', elements: [{ type: 'mrkdwn', text: `*${label || `Ready to send to ${b.name}`}*  ·  exactly what they will see` }] };
   /* Layouts in order of preference; Slack refusing one (a table inside a colored bar, a table at all, an ad picture)
      falls to the next. Whatever reached Cole is what Send posts. */
-  const tries = [['table', true], ['tabletop', true], ['bars', true], ['bars', false]];
+  /* Cole 2026-11-24: the separate colored bars, stacked (Slack cannot put colored bars side by side). */
+  const tries = [['bars', true], ['bars', false]];
   let r = { ok: false, error: 'nothing tried' }, used = null;
   for (const [layout, images] of tries) {
     const m = await clientUpdateMsg(env, deps, rec, act, st, b.name, { layout, images });
     if (!m) return { ok: false, error: 'No sales numbers for this brand.' };
-    const msg = m.attachments && m.attachments.length ? { text: m.text, blocks: [top, ...m.blocks], attachments: [...m.attachments, { blocks: [btns] }] }
-      : { text: m.text, blocks: [top, ...m.blocks, { type: 'divider' }, btns] };
+    const tail = forCole ? [] : [btns];
+    const msg = m.attachments && m.attachments.length ? { text: m.text, blocks: [top, ...m.blocks], attachments: [...m.attachments, ...(tail.length ? [{ blocks: tail }] : [])] }
+      : { text: m.text, blocks: [top, ...m.blocks, ...tail] };
     r = await dmPerson(env, deps, env.OWNER_EMAIL || 'cole@go-mobius-digital.com', msg);
     if (r.ok) { used = layout + (images ? '' : ' (no pictures)'); await deps.putSetting(env, `wsDraft:${id}`, JSON.stringify({ v: 3, act, ch: b.brief_channel, msg: m, name: b.name, at: new Date().toISOString() })); break; }
     if (!/invalid_blocks|invalid_attachments|image|table/i.test(String(r.error || ''))) break;
