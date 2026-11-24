@@ -361,8 +361,9 @@ const hourOfSlot = slot => { const [d, h] = String(slot).split('T'), hr = +h; co
    green, above (at goal) green, right around goal (90 to 100%) gray, a little under (down to break-even) yellow, under
    break-even red. No emojis. */
 const TIER = [
-  { key: 'great', color: '#1A7F4B', label: 'Well above goal' },
-  { key: 'good', color: '#2EB67D', label: 'Above goal' },
+  /* Cole: the dark green looked different from the first bars; well above = that bright green, above = a lighter one. */
+  { key: 'great', color: '#2EB67D', label: 'Well above goal' },
+  { key: 'good', color: '#86D4AE', label: 'Above goal' },
   { key: 'near', color: '#A3ADBF', label: 'Right around goal' },
   { key: 'under', color: '#ECB22E', label: 'A little under goal' },
   { key: 'bad', color: '#E01E5A', label: 'Under break-even' }];
@@ -393,7 +394,7 @@ async function topAds(env, act, day, kpi, line) {
 const cleanName = s => String(s || '').replace(/\s*\|\s*(Still|UGC|Video|Static|Carousel)\s*$/i, '').trim();
 /** The client message: {text, blocks, attachments}. images=false leaves the ad pictures out (a retry when Slack
  *  refuses an image). */
-export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name = null, { images = true } = {}) {
+export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name = null, { images = true, layout = 'table' } = {}) {
   const b = (rec.brands || []).find(x => x.act_id === act);
   if (!b || b.no_sales) return null;
   const did = await didSince(env, deps, act), line = b.hold ?? (b.kpi ? b.kpi * 0.8 : null), t = longDay(rec.slot), m = moment(rec.slot);
@@ -403,10 +404,21 @@ export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name
   const bar = (label, p) => {
     if (!p || p.sales == null) return null;
     const tr = tierOf(p.mer, b.kpi, line);
-    return { color: tr.color, blocks: [H(label), md(`*Sales:*  ${usd(p.sales)}\n*Ad spend:*  ${usd(p.spend)}\n*MER:*  ${nx(p.mer)}`), ctx(tr.label)] };
+    return { color: tr.color, blocks: [H(label), md(`*Sales:*  ${usd(p.sales)}\n*Ad spend:*  ${usd(p.spend)}\n*MER:*  ${nx(p.mer)}`)] };
   };
   const blocks = [H(`${name || b.name} · ${m}`), ctx(`${t.day}  ·  ${t.hour} CT   |   Goal: *${nx(b.kpi)} MER*`), { type: 'divider' }];
-  const attachments = (m === 'End of Day' ? [bar('Today', b.today), bar('This week', b.week)] : [bar('Last 6 hours', b.last6), bar('Today', b.today), bar('This week', b.week)]).filter(Boolean);
+  const wins = (m === 'End of Day' ? [['Today', b.today], ['This week', b.week]] : [['Last 6 hours', b.last6], ['Today', b.today], ['This week', b.week]]).filter(([, p]) => p && p.sales != null);
+  let attachments;
+  if (layout === 'table' || layout === 'tabletop') {
+    /* All windows side by side in one Slack table (Cole: "a shorter message"); its bar takes Today's color. */
+    const cell = (s, bold) => ({ type: 'rich_text', elements: [{ type: 'rich_text_section', elements: [{ type: 'text', text: s || ' ', ...(bold ? { style: { bold: true } } : {}) }] }] });
+    const row = (label, f) => [cell(label, true), ...wins.map(([, p]) => cell(f(p)))];
+    const table = { type: 'table', column_settings: [{ align: 'left' }, ...wins.map(() => ({ align: 'right' }))],
+      rows: [[cell(' '), ...wins.map(([l]) => cell(l, true))], row('Sales', p => usd(p.sales)), row('Ad spend', p => usd(p.spend)), row('MER', p => nx(p.mer))] };
+    const today = (wins.find(([l]) => l === 'Today') || wins[0] || [])[1];
+    if (layout === 'table') attachments = [{ color: tierOf(today && today.mer, b.kpi, line).color, blocks: [table] }];
+    else { blocks.push(table); attachments = []; }
+  } else attachments = wins.map(([l, p]) => bar(l, p)).filter(Boolean);
   if (m === 'Morning Update') {
     const ads = await topAds(env, act, prevDay(t.date), b.kpi, line).catch(() => []);
     if (ads.length) {
@@ -432,24 +444,26 @@ export async function offerClientUpdate(env, deps, { act, rec = null, style = nu
   if (at === 'morning' || at === 'evening') rec = { ...rec, slot: `${String(rec.slot).split('T')[0]}T${at === 'morning' ? '09' : '21'}`, next: at === 'morning' ? '3pm' : null };
   const saved = await deps.getSetting(env, 'clientUpdateStyle');
   const st = STYLES.includes(style) ? style : STYLES.includes(saved) ? saved : 'plain';
-  const m = await clientUpdateMsg(env, deps, rec, act, st, b.name);
-  if (!m) return { ok: false, error: 'No sales numbers for this brand.' };
   const id = Math.random().toString(16).slice(2, 12);
-  await deps.putSetting(env, `wsDraft:${id}`, JSON.stringify({ v: 3, act, ch: b.brief_channel, msg: m, name: b.name, at: new Date().toISOString() }));
   const btns = { type: 'actions', elements: [
     { type: 'button', action_id: 'ws_send', style: 'primary', text: { type: 'plain_text', text: `Send to ${b.name}` }, value: id },
     { type: 'button', action_id: 'ws_skip', text: { type: 'plain_text', text: "Don't send" }, value: id }] };
   const top = { type: 'context', elements: [{ type: 'mrkdwn', text: `*${label || `Ready to send to ${b.name}`}*  ·  exactly what they will see` }] };
-  const msg = m.attachments ? { text: m.text, blocks: [top, ...m.blocks], attachments: [...m.attachments, { blocks: [btns] }] }
-    : { text: m.text, blocks: [top, ...m.blocks, { type: 'divider' }, btns] };
-  let r = await dmPerson(env, deps, env.OWNER_EMAIL || 'cole@go-mobius-digital.com', msg);
-  /* Slack refused an ad picture: the same update without pictures (the draft too, so Send matches). */
-  if (!r.ok && /invalid_blocks|image/i.test(String(r.error || ''))) {
-    const m2 = await clientUpdateMsg(env, deps, rec, act, st, b.name, { images: false });
-    await deps.putSetting(env, `wsDraft:${id}`, JSON.stringify({ v: 3, act, ch: b.brief_channel, msg: m2, name: b.name, at: new Date().toISOString() }));
-    r = await dmPerson(env, deps, env.OWNER_EMAIL || 'cole@go-mobius-digital.com', { text: m2.text, blocks: [top, ...m2.blocks], attachments: [...m2.attachments, { blocks: [btns] }] });
-    r.images = 'dropped: ' + String(msg && r.error || 'slack refused the picture');
+  /* Layouts in order of preference; Slack refusing one (a table inside a colored bar, a table at all, an ad picture)
+     falls to the next. Whatever reached Cole is what Send posts. */
+  const tries = [['table', true], ['tabletop', true], ['bars', true], ['bars', false]];
+  let r = { ok: false, error: 'nothing tried' }, used = null;
+  for (const [layout, images] of tries) {
+    const m = await clientUpdateMsg(env, deps, rec, act, st, b.name, { layout, images });
+    if (!m) return { ok: false, error: 'No sales numbers for this brand.' };
+    const msg = m.attachments && m.attachments.length ? { text: m.text, blocks: [top, ...m.blocks], attachments: [...m.attachments, { blocks: [btns] }] }
+      : { text: m.text, blocks: [top, ...m.blocks, { type: 'divider' }, btns] };
+    r = await dmPerson(env, deps, env.OWNER_EMAIL || 'cole@go-mobius-digital.com', msg);
+    if (r.ok) { used = layout + (images ? '' : ' (no pictures)'); await deps.putSetting(env, `wsDraft:${id}`, JSON.stringify({ v: 3, act, ch: b.brief_channel, msg: m, name: b.name, at: new Date().toISOString() })); break; }
+    if (!/invalid_blocks|invalid_attachments|image|table/i.test(String(r.error || ''))) break;
+    r.tried = `${r.tried || ''}${layout}: ${String(r.error).slice(0, 120)}; `;
   }
+  r.layout = used;
   return r;
 }
 /** The two buttons on that DM. Cole only. Send posts the same layout as Cole in the client channel. */
@@ -580,7 +594,7 @@ export async function handleStanding(request, env, url, path, json, deps) {
       const act = String(body.act || '');
       if (!/^brand_[a-z0-9_]+$/.test(act)) return json({ error: 'Which brand?' }, 400);
       const r = await offerClientUpdate(env, deps, { act, style: body.style || null, label: body.label || null, at: body.at || null });
-      return json(r ? { ok: !!r.ok, error: r.error || null, images: r.images || null } : { ok: false, error: 'No client channel for this brand, or the budget did not change.' });
+      return json(r ? { ok: !!r.ok, error: r.error || null, layout: r.layout || null, tried: r.tried || null } : { ok: false, error: 'No client channel for this brand, or the budget did not change.' });
     }
     if (path === '/api/standing/run' && request.method === 'POST') {
       const prev = await load(env, deps).catch(() => null);
