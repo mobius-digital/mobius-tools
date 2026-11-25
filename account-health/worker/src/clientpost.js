@@ -101,7 +101,12 @@ export function dailyPost({ brand, date, currency = 'USD', day = {}, month = {},
 }
 
 export const CM_WORDS = 'Contribution margin = sales minus product cost, shipping, fees and ad spend.';
-export const NET_WORDS = 'Net profit = contribution margin minus the fixed costs you entered, with monthly costs spread evenly over the days.';
+export const NET_WORDS = 'Net profit = contribution margin minus the fixed costs you entered, each spread evenly over the days it covers.';
+export const NET_WORDS_AD = 'Net profit = contribution margin minus the fixed costs you entered, each spread evenly over the days it covers, and minus the extra ad costs: costs you marked as ad spend that no ad platform reports.';
+/** The bullet lines under Contribution margin, so the sum is on the page: fixed costs, the extra ad costs when there
+ *  are any (this contribution margin does not hold them), then net profit. cm minus the lines above net = net. */
+const netLines = (x, currency, was = '') => [`• Fixed costs: *${money(x.fixed ?? 0, currency)}*`,
+  ...(x.ad_expense > 0 ? [`• Extra ad costs: *${money(x.ad_expense, currency)}*`] : []), `• Net profit: *${money(x.net, currency)}*${was}`];
 
 /** The thread reply under the daily: more numbers for the same day, nothing written by a model.
  *  `day` = {orders, new_orders, new_rev, ret_rev, cm, attr (true when Triple Whale attribution is synced for the day),
@@ -121,12 +126,12 @@ export function dailyThread({ date, currency = 'USD', day = {}, cm_ok = false })
     L.push(`• ${c.name}: *${money(c.spend, currency)}* spent${tail}`);
   }
   if (cm_ok && day.cm != null) L.push(`• Contribution margin: *${money(day.cm, currency)}*`);
-  if (cm_ok && day.cm != null && day.net != null) L.push(`• Net profit after fixed costs: *${money(day.net, currency)}*`);
+  if (cm_ok && day.cm != null && day.net != null) L.push(...netLines(day, currency));
   if (L.length === 1) return '';
   const notes = [];
   if (chans.length && day.attr !== false) notes.push('Sales tracked to a channel are Triple Whale’s count, so the channels can add up to more than the day.');
   if (cm_ok && day.cm != null) notes.push(CM_WORDS);
-  if (cm_ok && day.cm != null && day.net != null) notes.push(NET_WORDS);
+  if (cm_ok && day.cm != null && day.net != null) notes.push(day.ad_expense > 0 ? NET_WORDS_AD : NET_WORDS);
   if (notes.length) L.push('', `_${notes.join(' ')}_`);
   return L.join('\n');
 }
@@ -197,7 +202,7 @@ export function weeklyPost({ brand, period = 'weekly', start, end = null, curren
   if (x(t.amer)) L.push(`• aMER (new customers): *${x(t.amer)}*${x(p.amer) ? ` (was ${x(p.amer)})` : ''}`);
   if (amazon?.cur?.orders > 0) L.push(`• Amazon: *${money(amazon.cur.sales, currency)}* (${amazon.cur.orders} orders${amazon.prev?.orders > 0 ? `, was ${money(amazon.prev.sales, currency)}` : ''})`);
   if (t.cm != null) L.push(`• Contribution margin: *${money(t.cm, currency)}*${p.cm != null ? ` (was ${money(p.cm, currency)})` : ''}`, `_${CM_WORDS}_`);
-  if (t.cm != null && t.net != null) L.push(`• Net profit after fixed costs: *${money(t.net, currency)}*${p.net != null ? ` (was ${money(p.net, currency)})` : ''}`, `_${NET_WORDS}_`);
+  if (t.cm != null && t.net != null) L.push(...netLines(t, currency, p.net != null ? ` (was ${money(p.net, currency)})` : ''), `_${t.ad_expense > 0 ? NET_WORDS_AD : NET_WORDS}_`);
   const clip = s => s.length <= 160 ? s : s.slice(0, 157).replace(/\s+\S*$/, '') + '...';
   const clean = list => [...new Set((Array.isArray(list) ? list : []).map(s => clip(noDash(askLine(s)).replace(/^[•\-\s]+/, ''))).filter(Boolean))];
   const wl = workLines(work);

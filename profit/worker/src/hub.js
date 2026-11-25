@@ -113,11 +113,13 @@ export async function handleHub(ctx) {
     /* Live "today so far" (the top-bar chip). It was /api/hub/today until 2026-10-09, when that path
        became the media buyer's list; /api/hub/today?live=1 still answers the old shape. */
     if (path === '/api/hub/live' || path === '/api/hub/today') {
+      /* The brand's own cost rules ride along, as on every other caller of liveRow (costs.js). None: unchanged. */
+      const liveRules = ctx.loadCostRules ? await ctx.loadCostRules(env, accts.map(a => a.act_id)).catch(() => ({})) : {};
       const rows = await Promise.all(accts.map(async a => {
         const t = ctx.localDate(a.tz);
         const d = await ctx.twDay(a, t).catch(() => null);
         if (!d) return { act_id: a.act_id, name: a.name, currency: a.currency };
-        const row = ctx.liveRow(a, d) || {};
+        const row = ctx.liveRow(a, d, liveRules[a.act_id]) || {};
         return { act_id: a.act_id, name: a.name, currency: a.currency, sales: row.sales ?? null, spend: row.spend ?? null, orders: row.orders ?? null, as_of: d.as_of || null };
       }));
       return json({ brands: rows });

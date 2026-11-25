@@ -208,31 +208,30 @@ await check('a rule on this brand moves its brief and report from the start date
 });
 
 /* ---------------- net profit after fixed costs ---------------- */
-await check('a fixed cost adds net profit to the brief and report payloads; the Slack text prints it only when costsNetInPosts is on', async () => {
+await check('a fixed cost adds net profit to the brief payload; a report and every Slack text carry it only when costsNetInPosts is on, and the rows add up', async () => {
   db.exec(`DELETE FROM settings WHERE key = 'costsNetInPosts'`);
   db.exec(`INSERT INTO p_expense (act_id, name, category, kind, amount, start_date, is_ad_spend, notes) VALUES
     ('brand_alpha', 'Warehouse', 'rent', 'monthly', 3100, '2026-09-01', 0, 'private note'),
-    ('brand_alpha', 'Retainer', 'agency', 'monthly', 6200, '2026-10-01', 0, NULL),
+    ('brand_alpha', 'Outside help', 'Contractors', 'monthly', 6200, '2026-10-01', 0, NULL),
     ('brand_alpha', 'Podcast read', 'marketing', 'once', 500, '2026-10-07', 1, NULL)`);
   const c = await capture();
   const b = c._brief, a = b.days.find(x => x.date === UP).a, a0 = first._brief.days.find(x => x.date === UP).a;
-  near(a.fixed, 300, 'rent 100 + retainer 200 a day'); assert.equal(a.ad_expense, 0); near(a.net, a.cm - 300, 'day net');
+  near(a.fixed, 300, 'rent 100 + outside help 200 a day'); assert.equal(a.ad_expense, 0); near(a.net, a.cm - 300, 'day net');
   assert.equal(a.cm, a0.cm, 'contribution margin itself is unchanged');
   const fm = b.fixed.mtd;
   near(fm.fixed, 19 * 300, 'month to date'); near(fm.ad_expense, 500, 'the "counts as ad spend" row'); near(fm.net, b.mtd.cm - 5700 - 500, 'brief CM has no ad expenses in it, so they come off here');
   assert.equal(b.mtd.cm, first._brief.mtd.cm);
   /* The narrative prompts hand the whole mtd object to the model, so net profit must never sit on it. */
   assert.deepEqual(b.mtd, first._brief.mtd, 'mtd is exactly what the model was given before: no fixed, no ad_expense, no net');
-  assert.deepEqual(b.fixed, { by_category: [{ category: 'agency', label: 'Agency fees', amount: 3800 }, { category: 'rent', label: 'Rent and premises', amount: 1900 }], in_posts: false,
+  /* the brief payload is the team's: categories by the brand's own names stay here */
+  assert.deepEqual(b.fixed, { by_category: [{ category: 'Contractors', label: 'Contractors', amount: 3800 }, { category: 'rent', label: 'Rent and premises', amount: 1900 }], in_posts: false,
     mtd: { fixed: fm.fixed, ad_expense: fm.ad_expense, net: fm.net } });
-  assert.ok(!/Warehouse|Retainer|Podcast|private note/.test(c.brief + c.report), 'only category totals leave, never a row\'s name or note');
+  assert.ok(!/Warehouse|Outside help|Podcast|private note/.test(c.brief + c.report), 'never a row\'s name or note');
   assert.equal(c.text1, first.text1, 'the posts switch is off: the v1 text is exactly as before');
   assert.equal(c.text2, first.text2, 'and the v2 text');
-  const t = c._report.totals, p = c._report.previous;
-  near(t.fixed, 7 * 300, 'report week'); near(t.ad_expense, 500, 'the podcast read fell in this week'); near(t.net, t.cm - 2100 - 500, 'report net');
-  near(p.fixed, 3 * 3100 / 30 + 4 * 300, 'the week before (Sep 28 to Oct 4): rent only in September, the retainer from Oct 1'); near(p.net, p.cm - 1510, 'previous net');
-  assert.deepEqual(c._report.fixed, { by_category: [{ category: 'agency', label: 'Agency fees', amount: 1400 }, { category: 'rent', label: 'Rent and premises', amount: 700 }], in_posts: false });
-  assert.equal(t.cm, first._report.totals.cm);
+  /* THE SWITCH IS OFF: a newly generated report is a client page and carries NO fixed or net field at all */
+  assert.equal(c.report, first.report, 'switch off: the report is byte for byte the report of a brand with no fixed cost');
+  assert.ok(!('fixed' in c._report) && !('net' in c._report.totals) && !('fixed' in c._report.totals) && !('ad_expense' in c._report.totals) && !('net' in c._report.previous), 'no field a client page would render');
   assert.equal(c.headline, first.headline, 'the posts switch is off: the report headline is exactly as before');
   /* The client post a report sends (clientReportText, which reportFallbackPass sends with no person pressing Send). */
   const row = { period: 'weekly', period_start: WK[0], period_end: WK[1] };
@@ -243,16 +242,40 @@ await check('a fixed cost adds net profit to the brief and report payloads; the 
 
   db.exec(`INSERT INTO settings (key, value) VALUES ('costsNetInPosts', '1')`);
   const on = await capture();
-  assert.equal(on._brief.fixed.in_posts, true); assert.equal(on._report.fixed.in_posts, true);
-  assert.ok(on.headline.startsWith(first.headline + '\n• *Net profit after fixed costs* '), on.headline);
-  const postOn = await AH.clientReportText(env, ACCT('brand_alpha'), row, on._report);
-  assert.equal(postOn.split('Net profit after fixed costs').length - 1, 1, 'switch on: the weekly client post prints it once');
-  assert.deepEqual(on._brief.mtd, first._brief.mtd, 'and mtd still carries no net profit for the model');
+  assert.equal(on._brief.fixed.in_posts, true);
+  /* a report generated with the switch on: one fixed costs total, the extra ad costs, net profit. No categories. */
+  const t = on._report.totals, p = on._report.previous;
+  assert.deepEqual(on._report.fixed, { in_posts: true }, 'the choice is frozen into the report, and no category rides along');
+  assert.ok(!/by_category|Contractors|Rent and premises/.test(on.report), 'no per-category rows on a client page');
+  near(t.fixed, 7 * 300, 'report week'); near(t.ad_expense, 500, 'the podcast read fell in this week'); near(t.net, t.cm - 2100 - 500, 'report net');
+  near(p.fixed, 3 * 3100 / 30 + 4 * 300, 'the week before (Sep 28 to Oct 4): rent only in September, outside help from Oct 1'); near(p.net, p.cm - 1510, 'previous net');
+  assert.equal(t.cm, first._report.totals.cm, 'contribution margin does not depend on the switch');
+  /* THE SCREEN ADDS UP with both kinds of row (a fixed cost and a "counts as ad spend" cost): cm - fixed - extra ad = net */
+  assert.equal(Math.round((t.cm - t.fixed - t.ad_expense) * 100), Math.round(t.net * 100), 'report: contribution margin minus the two lines shown is net profit, exactly');
+  assert.equal(Math.round((b.mtd.cm - fm.fixed - fm.ad_expense) * 100), Math.round(fm.net * 100), 'brief month: the same');
   const money = n => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
-  assert.ok(on.text1.includes(`Net profit after fixed costs: *${money(a.net)}*`), on.text1);
-  assert.equal(on.text1.split('Net profit after fixed costs').length - 1, 1, 'v1: once, for the day');
-  assert.ok(on.text2.includes(`Net profit after fixed costs: *${money(a.net)}*`) && on.text2.includes(`Net profit after fixed costs: *${money(fm.net)}*`), on.text2);
-  assert.equal(on.text2.split('Net profit after fixed costs').length - 1, 2, 'v2: the day and the month so far');
+  assert.ok(on.headline.startsWith(first.headline + `\n• *Fixed costs* ${money(t.fixed)}\n• *Extra ad costs* ${money(500)}\n• *Net profit* ${money(t.net)}`), on.headline);
+  const postOn = await AH.clientReportText(env, ACCT('brand_alpha'), row, on._report);
+  assert.ok(postOn.includes(`• Fixed costs: *${money(t.fixed)}*\n• Extra ad costs: *$500*\n• Net profit: *${money(t.net)}* (was ${money(p.net)})`), postOn);
+  assert.equal(postOn.split('• Net profit').length - 1, 1, 'switch on: the weekly client post prints it once');
+  /* FROZEN AT GENERATION: the headline and the client post read the report's own value and cannot disagree, whatever
+     the switch says when the text is built. */
+  db.exec(`DELETE FROM settings WHERE key = 'costsNetInPosts'`);
+  assert.equal(await AH.clientReportText(env, ACCT('brand_alpha'), row, on._report), postOn, 'a report generated ON still prints net after the switch goes off');
+  assert.equal(AH.reportHeadline(on._report), on.headline, 'and so does its headline');
+  db.exec(`INSERT INTO settings (key, value) VALUES ('costsNetInPosts', '1')`);
+  assert.equal(await AH.clientReportText(env, ACCT('brand_alpha'), row, c._report), post0, 'a report generated OFF prints none after the switch goes on');
+  assert.equal(AH.reportHeadline(c._report), first.headline, 'and neither does its headline');
+  /* even a report whose totals somehow hold net but whose frozen value is not on: both stay silent together */
+  const odd = { ...on._report, fixed: undefined };
+  assert.ok(!AH.reportHeadline(odd).includes('Net profit') && !(await AH.clientReportText(env, ACCT('brand_alpha'), row, odd)).includes('Net profit'), 'no frozen yes, no net anywhere');
+  assert.deepEqual(on._brief.mtd, first._brief.mtd, 'and mtd still carries no net profit for the model');
+  assert.ok(on.text1.includes(`Contribution Margin: *${money(a.cm)}*`) && on.text1.includes(`Fixed costs: *${money(a.fixed)}*\nNet profit: *${money(a.net)}*`), on.text1);
+  assert.equal(on.text1.split('Net profit').length - 1, 1, 'v1: once, for the day');
+  assert.ok(on.text2.includes(`Fixed costs: *${money(a.fixed)}*\nNet profit: *${money(a.net)}*`), on.text2);
+  assert.ok(on.text2.includes(`Fixed costs: *${money(fm.fixed)}*\nExtra ad costs: *$500*\nNet profit: *${money(fm.net)}*`), 'v2 month: the extra ad costs row sits between, so the three add up\n' + on.text2);
+  assert.equal(on.text2.split('Net profit').length - 1, 2, 'v2: the day and the month so far');
+  assert.ok(!/after fixed costs|agency/i.test(on.text1 + on.text2 + on.headline + postOn + on.report + on.brief), 'no "agency" wording and one label, "Net profit"');
   /* the cost check not trusted: the builders print neither CM nor net */
   const broken = { ...on._brief, cogs_quality: { verdict: 'broken' } };
   assert.ok(!AH.buildBriefText(broken, [UP], '').includes('Net profit') && !AH.buildBriefTextV2(broken, [UP], '').includes('Net profit'));

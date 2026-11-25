@@ -21,7 +21,7 @@ import { handleCalendar, calendarTick, calendarView, liveOn as calendarLiveOn, u
 import { dailyPost, dailyThread, weeklyPost, weekSentence, internalChannel } from './clientpost.js';
 /* Brand costs and net profit after fixed costs (2026-11-25): the same pure functions the profit worker prices with. */
 import { ruleCosts, shippingRuled, partlyCosted } from '../../../profit/worker/src/costs.js';
-import { netAfter } from '../../../profit/worker/src/expenses.js';
+import { netAfter, netInPosts } from '../../../profit/worker/src/expenses.js';
 import { handleRequests, createAsk } from './requests.js';
 import { handleMeetings, handleFirefliesHook, meetingsTick } from './meetings.js';
 import { handleCalls, finishCall } from './callscreen.js';
@@ -2498,8 +2498,9 @@ async function briefData(env, acct, upTo) {
   };
   /* NET PROFIT AFTER FIXED COSTS (2026-11-25). Only for a brand that entered a fixed cost (profit worker, p_expense)
      and only where contribution margin exists; nothing is added otherwise. Brief CM does not hold the "counts as ad
-     spend" expenses, so net subtracts those too. `in_posts` (settings costsNetInPosts = 1, default off) decides only
-     whether the automatic Slack text prints the line: the payload and the pages carry it from the first deploy. */
+     spend" expenses, so net subtracts those too (the text prints them as their own row, so the sum shows).
+     `in_posts` (settings costsNetInPosts = 1, default off) decides whether the Slack text prints the rows. This payload
+     is the team's (by_category stays here); a report and the client profit link carry nothing while the switch is off. */
   let fixedBlock = null;
   if (fixedCosts.length) {
     const dayRow = x => ({ date: x.date, sales: x.a.sales, spend: x.a.spend, orders: x.a.orders });
@@ -2641,7 +2642,7 @@ function buildBriefText(data, dates, narrative) {
     rowFor('MER', a.mer, f.mer, fx);
     rowFor('aMER', a.amer, f.amer, fx);
     if (cmOk) rowFor('Contribution Margin', a.cm, f.cm, fm);
-    if (cmOk && data.fixed?.in_posts && a.net != null) rowFor('Net profit after fixed costs', a.net, null, fm);
+    if (cmOk && data.fixed?.in_posts) for (const [label, v] of netRows(a)) rowFor(label, v, null, fm);
   }
 
   /* NO "WEEK IN REVIEW" BLOCK. It used to print here on the Monday brief, and
@@ -2917,7 +2918,7 @@ function buildBriefTextV2(data, dates, narrative) {
     rowFor('MER', a.mer, f.mer, fx);
     rowFor('aMER', a.amer, f.amer, fx);
     if (cmOk) rowFor('Contribution Margin', a.cm, f.cm, fm);
-    if (cmOk && data.fixed?.in_posts && a.net != null) rowFor('Net profit after fixed costs', a.net, null, fm);
+    if (cmOk && data.fixed?.in_posts) for (const [label, v] of netRows(a)) rowFor(label, v, null, fm);
   }
 
   // MONTH SO FAR: the same rows, summed. Deterministic, never left to the model.
@@ -2929,7 +2930,7 @@ function buildBriefTextV2(data, dates, narrative) {
     rowFor('Net Sales', mt.sales, mt.sales_f, fm);
     rowFor('Ad Spend', mt.spend, mt.spend_f, fm);
     if (cmOk) rowFor('Contribution Margin', mt.cm, mt.cm_f, fm);
-    if (cmOk && data.fixed?.in_posts && data.fixed.mtd?.net != null) rowFor('Net profit after fixed costs', data.fixed.mtd.net, null, fm);
+    if (cmOk && data.fixed?.in_posts) for (const [label, v] of netRows(data.fixed.mtd)) rowFor(label, v, null, fm);
   }
 
   const th = data.to_hit;
@@ -3422,7 +3423,7 @@ function clientDailyThreadFor(acct, date, data) {
   return dailyThread({
     date, currency: acct.currency, cm_ok: !!q && q !== 'broken' && q !== 'none',
     day: { sales: a.sales, orders: a.orders ?? null, new_orders: a.new_orders ?? null, new_rev: a.new_rev ?? null, ret_rev: a.ret_rev ?? null, cm: a.cm ?? null,
-      net: data?.fixed?.in_posts ? (a.net ?? null) : null,
+      ...(data?.fixed?.in_posts && a.net != null ? { net: a.net, fixed: a.fixed ?? 0, ad_expense: a.ad_expense ?? 0 } : { net: null }),
       attr: !!a.attr_source,
       channels: [{ name: 'Meta', spend: a.meta_spend, roas: a.meta_roas, purchases: a.meta_purchases }, { name: 'Google', spend: a.google_spend, roas: a.google_roas, purchases: a.google_purchases }] },
   });
@@ -3487,11 +3488,11 @@ async function adsWork(env, act, start, end) {
 }
 async function clientReportText(env, acct, row, data) {
   const period = row.period, start = row.period_start;
-  /* Net profit after fixed costs prints only with settings costsNetInPosts on, the same switch as the Daily Brief: a
-     report of a brand with review_first off is sent at 11am Central (reportFallbackPass) with no person pressing Send.
-     Read here, at the moment the text is built, so the draft card and the sent post always agree. */
-  const noNet = t => { if (!t || t.net == null) return t; const { net, ...rest } = t; return rest; };
-  const showNet = await netInPosts(env);
+  /* Fixed costs and net profit print only when the REPORT says so: data.fixed.in_posts, frozen from settings
+     costsNetInPosts when the report was generated (reportData). reportHeadline and the report page read the same
+     frozen value, so the draft card, the sent post and the page can never disagree, whatever the switch says later. */
+  const noNet = t => { if (!t || (t.net == null && t.fixed == null && t.ad_expense == null)) return t; const { net, fixed, ad_expense, ...rest } = t; return rest; };
+  const showNet = data?.fixed?.in_posts === true;
   const totals = showNet ? data?.totals : noNet(data?.totals), previous = showNet ? data?.previous : noNet(data?.previous);
   const url = `${DASHBOARD_URL}?reports=${await reportToken(env, acct.act_id)}`;
   const cal = period === 'weekly' ? await clientCalendarFor(env, acct.act_id, localDate(BRIEF_TZ), { days: 6 }).catch(() => null) : null;
@@ -3795,11 +3796,14 @@ function econDay(piv, metaBy, date, cmPct, rules) {
   };
 }
 
-/** settings costsNetInPosts (default off): may an automatic client post print "Net profit after fixed costs"?
- *  One switch for the Daily Brief, its thread, and the weekly and monthly client post. */
-async function netInPosts(env) {
-  const flag = await getSetting(env, 'costsNetInPosts').catch(() => null);
-  return ['1', 'true', '"1"'].includes(String(flag));
+/* settings costsNetInPosts (default off) is read by netInPosts() in the profit worker's expenses.js: ONE switch for the
+   Daily Brief text, its thread, the weekly and monthly client post, a report (frozen into it when it is generated) and
+   the public client profit link. */
+/** The rows a post prints under Contribution Margin so the sum is on the page: fixed costs, then the "counts as ad
+ *  spend" costs when there are any (brief and report CM do not hold them), then net profit. cm minus the rows = net. */
+function netRows(x) {
+  if (!x || x.net == null) return [];
+  return [['Fixed costs', x.fixed ?? 0], ...(x.ad_expense > 0 ? [['Extra ad costs', x.ad_expense]] : []), ['Net profit', x.net]];
 }
 
 /** Aggregate a run of econDay rows. Ratios are ratio-of-sums, never averages. */
@@ -3839,7 +3843,7 @@ async function storePeriod(env, acct, from, to) {
   const rows = [];
   for (let d = from; d <= to; d = addDays(d, 1)) { const r = econDay(piv, metaBy, d, cmPct, costRules); if (r) rows.push(r); }
   const t = periodTotals(rows);
-  if (partlyCosted(costRules, rows, 'gp')) { t.cm = null; t.gp = null; t.margin = null; }   // as reportData: one window or no margin
+  if (partlyCosted(costRules, rows, 'gp', from, to)) { t.cm = null; t.gp = null; t.margin = null; }   // as reportData: one window or no margin
   const sumM = k => { let s = 0, any = false; for (const d in (piv[k] || {})) if (d >= from && d <= to && piv[k][d] != null) { s += piv[k][d]; any = true; } return any ? s : null; };
   const email = sumM('klaviyoPlacedOrderSales');
   const retOrders = t.orders != null && t.new_orders != null ? t.orders - t.new_orders : null;
@@ -4618,10 +4622,14 @@ async function reportData(env, acct, period, start, end) {
   /* ONE WINDOW (costs.js partlyCosted): a product cost rule that starts inside a window leaves the days before it with
      no gross profit, and periodTotals would then set the gross profit of some days against the ad spend of all of
      them. That window's margin is withheld. A brand with no product rule is never affected. */
-  for (const [t, list] of [[cur, days], [prev, prevDays]]) if (partlyCosted(costRules, list, 'gp')) { t.cm = null; t.gp = null; t.margin = null; }
-  /* Net profit after fixed costs: only when CM is shown (cur.cm is null otherwise), a fixed cost is in force and every
-     day of the window has a gross profit (fixed costs are spread over all of them). */
-  const netCur = netAfter(fixedCosts, start, end, days, cur.cm, { gpKey: 'gp' }), netPrev = netAfter(fixedCosts, prevStart, prevEnd, prevDays, prev.cm, { gpKey: 'gp' });
+  for (const [t, list, lo, hi] of [[cur, days, start, end], [prev, prevDays, prevStart, prevEnd]]) if (partlyCosted(costRules, list, 'gp', lo, hi)) { t.cm = null; t.gp = null; t.margin = null; }
+  /* Fixed costs and net profit: only when CM is shown (cur.cm is null otherwise), a fixed cost is in force and every
+     day of the window has a gross profit. A report is a CLIENT page, so it obeys settings costsNetInPosts (default
+     off), read ONCE here and frozen into the report: with the switch off a new report carries no fixed, ad_expense or
+     net field at all. Totals only, never a category. Report CM does not hold the "counts as ad spend" costs, so they
+     ride along as ad_expense and the page shows them: cm - fixed - ad_expense = net. */
+  const showNet = fixedCosts.length ? await netInPosts(env) : false;
+  const netCur = showNet ? netAfter(fixedCosts, start, end, days, cur.cm, { gpKey: 'gp' }) : null, netPrev = showNet ? netAfter(fixedCosts, prevStart, prevEnd, prevDays, prev.cm, { gpKey: 'gp' }) : null;
   if (netCur) { cur.fixed = netCur.fixed; cur.ad_expense = netCur.ad; cur.net = netCur.net; }
   if (netPrev) { prev.fixed = netPrev.fixed; prev.ad_expense = netPrev.ad; prev.net = netPrev.net; }
 
@@ -5065,7 +5073,7 @@ async function reportData(env, acct, period, start, end) {
     chart: days.map(r => ({ date: r.date, sales: r.sales, spend: r.spend })),
     cm_ok: cmOk, cogs_quality: cogsQuality, margin_28d: margin28, cm_pct: cmPct,
     generated_at: new Date().toISOString(),
-    ...(netCur ? { fixed: { by_category: netCur.by_category, in_posts: await netInPosts(env) } } : {}),
+    ...(netCur ? { fixed: { in_posts: true } } : {}),
   };
 }
 
@@ -5166,7 +5174,8 @@ function reportHeadline(data) {
     `• *MER* ${x(t.mer)}${vs(t.mer, f.mer, p.mer)}`,
   ];
   if (t.cm != null) L.push(`• *Contribution margin* ${money(t.cm)}${vs(t.cm, f.cm, p.cm)}`);
-  if (t.net != null && data.fixed?.in_posts) L.push(`• *Net profit after fixed costs* ${money(t.net)}${vs(t.net, null, p.net)}`);
+  /* The same frozen switch as clientReportText and the report page. The rows add up: cm minus them = net. */
+  if (t.cm != null && data.fixed?.in_posts === true) for (const [label, v] of netRows(t)) L.push(`• *${label}* ${money(v)}${label === 'Net profit' ? vs(t.net, null, p.net) : ''}`);
   return L.join('\n');
 }
 

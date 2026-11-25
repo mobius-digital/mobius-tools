@@ -33,7 +33,7 @@ import { handleInspo } from './inspo.js';
 import { snapshotPublic, handleSnapshot } from './snapshot.js';
 import { clientPagePublic, handleClientPage } from './clientpage.js';
 import { handleHub } from './hub.js';
-import { handleExpenses, loadExpenses, spread, applyAdSpend, netAfter } from './expenses.js';
+import { handleExpenses, loadExpenses, spread, applyAdSpend, netAfter, netInPosts } from './expenses.js';
 import { handleCosts, costsPage, loadCostRules, ruleCosts, shippingRuled, partlyCosted } from './costs.js';
 // The account-health worker is the Mobius auth server (it mints the Google sessions).
 const AUTH_WORKER = 'https://mobius-account-health.mobius-digital.workers.dev';
@@ -1878,12 +1878,13 @@ export default {
         /* ONE WINDOW (costs.js partlyCosted): a product cost rule that starts inside this window leaves the days before
            it with no gross profit, and the sums below would then be the gross profit of some days minus the ad spend of
            all of them. Profit is withheld for such a window. A brand with no product rule is never affected. */
-        const cmOk = (margin_pct != null || !(snap?.verdict === 'broken' || snap?.verdict === 'none')) && !partlyCosted(rules, rows, 'gross_profit');
-        /* Net profit after fixed costs (2026-11-25): only when CM is shown AND the brand entered a fixed cost in force in
-           this window AND every day of the window has a gross profit (fixed costs are spread over all of them). Absent
-           otherwise (not null), so a brand with none gets the same bytes as before. Category totals only: never a row's
-           name, notes or who added it. This route's CM already holds the "counts as ad spend" rows. */
-        const nf = cmOk ? netAfter(exp, from, to, rows, t.cm, { cmHasAd: true, gpKey: 'gross_profit' }) : null;
+        const cmOk = (margin_pct != null || !(snap?.verdict === 'broken' || snap?.verdict === 'none')) && !partlyCosted(rules, rows, 'gross_profit', from, to);
+        /* Fixed costs and net profit (2026-11-25): only with settings costsNetInPosts on (the same switch as the Slack
+           text; off by default), when CM is shown AND the brand entered a fixed cost in force in this window AND every
+           day of the window has a gross profit. Absent otherwise (not null), so a brand with none, and every brand
+           while the switch is off, gets the same bytes as before. ONE total: never a category, a row's name, notes or
+           who added it. This route's CM already holds the "counts as ad spend" rows, so cm - fixed = net on the page. */
+        const nf = cmOk && exp.length && await netInPosts(env) ? netAfter(exp, from, to, rows, t.cm, { cmHasAd: true, gpKey: 'gross_profit' }) : null;
         const history = (await monthHistory(env, acct, ym, 6))
           .filter(h => !h.empty)
           .map(h => ({ month: h.month, sales: h.sales, spend: h.spend, mer: h.mer, partial: !!h.partial }));
@@ -1907,7 +1908,7 @@ export default {
             sales: t.sales, cogs: t.cogs, ship_cost: t.ship_cost, handling: t.handling,
             fees: t.fees, gross_profit: t.gross_profit, spend: t.spend, cm: t.cm,
           } : null,
-          ...(nf ? { fixed: { total: nf.fixed, by_category: nf.by_category }, net: nf.net } : {}),
+          ...(nf ? { fixed: { total: nf.fixed }, net: nf.net } : {}),
           // Daily shape, for the chart. Money only - no cost diagnostics per day.
           rows: rows.map(r => ({ date: r.date, sales: r.sales, spend: r.spend })),
           rhythm: rhythm && rhythm.enough ? rhythm : null,

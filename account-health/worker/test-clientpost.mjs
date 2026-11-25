@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
-import { dailyPost, dailyThread, weeklyPost, weekSentence, dailyVerdict, pctChange, shortMoney, oneChannel, internalChannel, CM_WORDS, NET_WORDS } from './src/clientpost.js';
+import { dailyPost, dailyThread, weeklyPost, weekSentence, dailyVerdict, pctChange, shortMoney, oneChannel, internalChannel, CM_WORDS, NET_WORDS, NET_WORDS_AD } from './src/clientpost.js';
 import { clientBits, clientMessages } from './src/calendar.js';
 import { confirm, ensureMeetings } from './src/meetings.js';
 import { allowedChannels } from './src/askschedule.js';
@@ -246,9 +246,14 @@ await check('net profit: the thread and the weekly print it only when it is set 
   const OLD_THREAD = '*More on Thursday Oct 15*\n• Orders: *60* (30 from new customers), average order $70\n• Sales from new customers: *$2,400*, returning *$1,800*\n• Meta: *$800* spent, *$2,000* in sales tracked to it (2.50x)\n• Contribution margin: *$900*\n\n_Sales tracked to a channel are Triple Whale’s count, so the channels can add up to more than the day. Contribution margin = sales minus product cost, shipping, fees and ad spend._';
   assert.equal(dailyThread({ date: '2026-10-15', day, cm_ok: true }), OLD_THREAD);
   assert.equal(dailyThread({ date: '2026-10-15', day: { ...day, net: null }, cm_ok: true }), OLD_THREAD, 'net null = not printed');
-  const withNet = dailyThread({ date: '2026-10-15', day: { ...day, net: 650 }, cm_ok: true });
-  assert.ok(withNet.includes('• Contribution margin: *$900*\n• Net profit after fixed costs: *$650*'), withNet);
+  const withNet = dailyThread({ date: '2026-10-15', day: { ...day, fixed: 250, ad_expense: 0, net: 650 }, cm_ok: true });
+  assert.ok(withNet.includes('• Contribution margin: *$900*\n• Fixed costs: *$250*\n• Net profit: *$650*'), withNet);
   assert.ok(withNet.endsWith(`${CM_WORDS} ${NET_WORDS}_`), withNet);
+  /* a cost marked "counts as ad spend" is not inside this contribution margin, so it gets its own line: 900 - 250 - 120 = 530 */
+  const withAd = dailyThread({ date: '2026-10-15', day: { ...day, fixed: 250, ad_expense: 120, net: 530 }, cm_ok: true });
+  assert.ok(withAd.includes('• Contribution margin: *$900*\n• Fixed costs: *$250*\n• Extra ad costs: *$120*\n• Net profit: *$530*'), withAd);
+  assert.ok(withAd.endsWith(`${CM_WORDS} ${NET_WORDS_AD}_`), withAd);
+  assert.ok(!withNet.includes('Extra ad costs'), 'no extra ad costs line when there are none');
   assert.ok(!dailyThread({ date: '2026-10-15', day: { ...day, net: 650 }, cm_ok: false }).includes('Net profit'), 'cost data not trusted: no net profit');
   assert.ok(!dailyThread({ date: '2026-10-15', day: { ...day, cm: null, net: 650 }, cm_ok: true }).includes('Net profit'), 'no CM: no net profit');
 
@@ -256,11 +261,14 @@ await check('net profit: the thread and the weekly print it only when it is set 
   const OLD_WEEKLY = '*Alpha Golf · Weekly report, Oct 5 to 11*\n_Sales up 11% on the same ad spend._\n\n*The week* (compared with the week before)\n• Sales: *$10,000* (up 11%)\n• Ad spend: *$4,000* (flat)\n• MER: *2.50x* (was 2.25x)\n• Contribution margin: *$1,500* (was $1,200)\n_Contribution margin = sales minus product cost, shipping, fees and ad spend._';
   assert.equal(weeklyPost(base), OLD_WEEKLY);
   assert.equal(weeklyPost({ ...base, previous: { ...base.previous, net: 700 } }), OLD_WEEKLY, 'only last week has it: not printed');
-  const w = weeklyPost({ ...base, totals: { ...base.totals, net: 900 }, previous: { ...base.previous, net: 700 } });
-  assert.ok(w.includes(`• Net profit after fixed costs: *$900* (was $700)\n_${NET_WORDS}_`), w);
-  assert.ok(weeklyPost({ ...base, totals: { ...base.totals, net: 900 } }).includes('• Net profit after fixed costs: *$900*\n'), 'no "(was ...)" without last week');
-  assert.ok(!weeklyPost({ ...base, totals: { ...base.totals, cm: null, net: 900 } }).includes('Net profit'), 'no CM: no net profit');
-  assert.ok(!NET_WORDS.includes(String.fromCharCode(0x2014)));
+  const w = weeklyPost({ ...base, totals: { ...base.totals, fixed: 600, net: 900 }, previous: { ...base.previous, net: 700 } });
+  assert.ok(w.includes(`• Contribution margin: *$1,500* (was $1,200)\n_${CM_WORDS}_\n• Fixed costs: *$600*\n• Net profit: *$900* (was $700)\n_${NET_WORDS}_`), w);
+  const wa = weeklyPost({ ...base, totals: { ...base.totals, fixed: 400, ad_expense: 200, net: 900 }, previous: { ...base.previous, net: 700 } });
+  assert.ok(wa.includes(`• Fixed costs: *$400*\n• Extra ad costs: *$200*\n• Net profit: *$900* (was $700)\n_${NET_WORDS_AD}_`), wa);
+  assert.ok(weeklyPost({ ...base, totals: { ...base.totals, fixed: 600, net: 900 } }).includes('• Net profit: *$900*\n'), 'no "(was ...)" without last week');
+  assert.ok(!weeklyPost({ ...base, totals: { ...base.totals, cm: null, fixed: 600, net: 900 } }).includes('Net profit'), 'no CM: no net profit');
+  assert.ok(!(NET_WORDS + NET_WORDS_AD).includes(String.fromCharCode(0x2014)));
+  assert.ok(!/after fixed costs|agency/i.test(w + wa + withNet + withAd), 'the label is "Net profit", and no fee is named');
 });
 
 console.log(`\n${results.filter(Boolean).length}/${results.length} passed`);

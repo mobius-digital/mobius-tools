@@ -2430,7 +2430,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="prodsheet.js?v=15"></script>
 <script src="production.js?v=17"></script>
 <script src="sop.js?v=8"></script>
-<script src="expenses.js?v=1"></script>
+<script src="expenses.js?v=2"></script>
 <script src="realfit.js?v=1"></script>
 <script src="studio.js?v=43"></script>
 <script src="launch.js?v=8"></script>
@@ -2443,7 +2443,7 @@ function syncThemeColor(){var m=document.getElementById("themeColor");if(m)m.set
 <script src="hero.js?v=1"></script>
 <script src="nudge.js?v=5"></script>
 <script src="lx.js?v=14"></script>
-<script src="v2.js?v=88"></script>
+<script src="v2.js?v=89"></script>
 <script src="inspo.js?v=1"></script>
 <script src="leaks.js?v=11"></script>
 <script src="desk.js?v=45"></script>
@@ -2959,7 +2959,7 @@ async function renderPerfShare(token) {
         <tr style="border-top:2px solid var(--line-strong)"><td><b>Gross profit</b></td><td class="num"><b>${fmtMoney(w.gross_profit, cur)}</b></td><td class="tiny">${fmtPct(w.sales ? w.gross_profit / w.sales : null)} of revenue, before any advertising</td></tr>
         ${wRow('Advertising', w.spend, 'every platform combined', true)}
         <tr style="border-top:2px solid var(--line-strong)"><td><b>Contribution margin</b></td><td class="num"><b style="color:${w.cm >= 0 ? 'var(--good)' : 'var(--bad)'}">${fmtMoney(w.cm, cur)}</b></td><td class="tiny">${fmtPct(w.sales ? w.cm / w.sales : null)} of revenue</td></tr>
-        ${d.fixed ? (d.fixed.by_category || []).map(c => wRow(esc(c.label), c.amount, '', true)).join('') + `<tr style="border-top:2px solid var(--line-strong)"><td><b>Net profit</b></td><td class="num"><b style="color:${d.net >= 0 ? 'var(--good)' : 'var(--bad)'}">${fmtMoney(d.net, cur)}</b></td><td class="tiny">${fmtPct(w.sales ? d.net / w.sales : null)} of revenue</td></tr>` : ''}
+        ${d.fixed ? wRow('Fixed costs', d.fixed.total, 'every fixed cost entered for this business', true) + `<tr style="border-top:2px solid var(--line-strong)"><td><b>Net profit</b></td><td class="num"><b style="color:${d.net >= 0 ? 'var(--good)' : 'var(--bad)'}">${fmtMoney(d.net, cur)}</b></td><td class="tiny">${fmtPct(w.sales ? d.net / w.sales : null)} of revenue</td></tr>` : ''}
       </tbody></table></div>
       ${d.fixed ? `<p class="tiny" style="margin-top:8px">Net profit is contribution margin minus the fixed costs entered for this business.</p>` : `<p class="tiny" style="margin-top:8px">This is what the month has produced after every <b>variable</b> cost. It deliberately excludes fixed costs - rent, salaries, software - so it answers "is the marketing making money on the margin", not "what is the net profit of the business".</p>`}</div>` : ''}
 
@@ -4863,7 +4863,7 @@ const GLOSSARY = [
   { k: 'Contribution margin', tag: 'CM',
     one: 'What was left after every cost that moves with sales - including the ads.',
     f: 'Revenue − product costs − fulfilment − handling − payment fees − <b>all ad spend</b>.',
-    good: 'Positive and growing. It deliberately ignores rent, salaries, software and our retainer, so it is <b>not</b> net profit - it answers "did the marketing make money on the margin?"',
+    good: 'Positive and growing. It deliberately ignores rent, salaries and software, so it is <b>not</b> net profit - it answers "did the marketing make money on the margin?"',
     moves: 'Down while revenue is up means you bought revenue that did not pay for itself. The <b>Plan</b> page warns when a growth target does this.' },
   { k: 'Gross profit', tag: '',
     one: 'What was left after making and shipping the product, before any advertising.',
@@ -5120,7 +5120,7 @@ const PAGE_HELP = {
     <p><b>What this page is:</b> where one client's money actually goes, from revenue down to what's left.</p>
     <p><b>What "Revenue" means, on every tab:</b> Shopify <b>Total Sales minus sales tax</b> - gross sales, less discounts, less returns, plus shipping charged to customers, less tax. That is the line CTC report as "Net Sales + Shipping", and it reconciles to Shopify's own sales report. It is <i>not</i> Shopify's "Net Sales" figure, which leaves shipping out. Triple Whale supplies it as <code>netSales</code>, a field their own catalog titles "Total Sales" - shipping and tax are already inside it, so it is never added a second time.</p>
     <p><b>The waterfall:</b> Net Sales + shipping charged to customers → minus product costs (COGS) → minus fulfilment and handling → minus payment fees → that's your <b>gross profit</b> → minus all ad spend → <b>contribution margin</b>. Every step in the client's own currency.</p>
-    <p><b>This is CTC's exact definition:</b> revenue minus <i>all variable costs</i>. <b>Contribution margin is not net profit</b> - it deliberately ignores fixed costs: rent, salaries, software, and our own retainer. Those don't change when you spend another dollar on ads, so they'd only blur the question it exists to answer: did the marketing make money on the margin?</p>
+    <p><b>This is CTC's exact definition:</b> revenue minus <i>all variable costs</i>. <b>Contribution margin is not net profit</b> - it deliberately ignores fixed costs: rent, salaries and software. Those don't change when you spend another dollar on ads, so they'd only blur the question it exists to answer: did the marketing make money on the margin?</p>
     <p><b>Efficiency is not the same as value.</b> MER tells you how hard each ad dollar worked on that weekday; <b>CM per day</b> tells you how much money the day actually made. They often disagree - for one client the most efficient day is Thursday while Tuesday contributes more margin - and when they do, the money is what matters. A day with a lower MER is not a bad day, and nothing here should be read as a reason to cut it.</p>
     <p><b>How a week actually runs</b> is history, not a plan. It shows each weekday's share of revenue over the last complete months, and the range that weekday scored against an average day. A weekday is only called consistent when every month agreed - four Mondays a month is a small sample, and most brands will show some pattern by chance. When a client has no reliable rhythm the card says so outright, because presenting noise as insight on a client call is worse than saying nothing. The monthly plan is still split evenly across the days: a day-of-week curve was measured against six clients and predicted <i>worse</i> than an even split.</p>
     <p><b>Delivery has two ways of going missing, and one of them is silent.</b> If a client bills shipping and records no fulfilment cost, that shipping income is already inside revenue and cannot be netted back out - so contribution margin really is overstated by roughly what delivery costs. The quieter failure is worse: where no delivery rate is configured, Triple Whale writes the shipping <i>charge</i> into the cost field, the two cancel exactly, and fulfilment disappears from the margin with nothing on screen to say so. The <b>Costs</b> tab tells the two apart and sizes what it is worth. Neither is adjusted for automatically - a silent correction would be indistinguishable from a measurement.</p>
@@ -8234,7 +8234,7 @@ async function renderProfit(first) {
   const U = window.V2UI;
   if (U.setHost) U.setHost(v2Host());   // the tile drill-downs (v2.js) need the host even when P&L is the first page opened
   const cur = d.account.currency, t = d.totals, rows = d.rows || [];
-  /* Custom expenses (expenses.js, 2026-10-10): `fx` comes off CM for Net profit; `adx` is already inside ad spend. */
+  /* Fixed costs (expenses.js, 2026-10-10): `fx` comes off CM for Net profit; `adx` is already inside ad spend. */
   const fx = d.fixed?.total || 0, net = t.cm != null ? t.cm - fx : null, adx = t.ad_expense || 0, adItems = d.fixed?.ad_items || [];
   const acct = S.accounts.find(a => a.act_id === S.act);
   const h = acct?.cost_health;
@@ -8274,7 +8274,7 @@ async function renderProfit(first) {
     LX.tile({ label: 'Revenue', value: M(t.sales), spark: sp('sales', M), info: 'Net Sales + Shipping: Shopify Total Sales minus sales tax. Gross sales, less discounts and returns, plus shipping customers paid, less tax. Every channel, never a platform’s attributed revenue.',
       bullet: pmtd?.sales != null && pm?.sales ? U.bullet(pmtd.sales, pm.sales, false, 'plan by now') : '',
       sub: `${asOf ? `so far today · as of ${asOf}` : `${t.days} days`}${planLine(pmtd?.sales, pm?.sales, K) ? `<br>${planLine(pmtd?.sales, pm?.sales, K)} ${mtdPill(pmtd?.sales, pm?.sales, 'sales')}` : ''}` }),
-    LX.tile({ label: 'Ad spend', value: M(t.spend), spark: sp('spend', M), info: 'Every ad platform combined, from Triple Whale, plus any custom expense marked “counts as ad spend” on Costs. Falls back to Meta + Google spend if the blended figure is unavailable. Spend is a decision, so it carries no good or bad colour.',
+    LX.tile({ label: 'Ad spend', value: M(t.spend), spark: sp('spend', M), info: 'Every ad platform combined, from Triple Whale, plus any fixed cost marked “counts as ad spend” on Costs. Falls back to Meta + Google spend if the blended figure is unavailable. Spend is a decision, so it carries no good or bad colour.',
       sub: `${[t.meta_spend != null ? `Meta ${K(t.meta_spend)}` : '', t.google_spend != null ? `Google ${K(t.google_spend)}` : '', adx ? `${K(adx)} other marketing` : ''].filter(Boolean).join(' · ')}${planLine(pmtd?.spend, pm?.spend, K) ? `<br>${planLine(pmtd?.spend, pm?.spend, K)} ${mtdPill(pmtd?.spend, pm?.spend, 'spend')}` : ''}` }),
     LX.tile({ label: 'MER', value: fmtX(t.mer), spark: sp('mer', fmtX), info: 'Marketing Efficiency Ratio: all store revenue divided by all ad spend. Blended on both sides, so no platform can double-count.',
       bullet: mtdMer != null && planMer != null ? U.bullet(mtdMer, planMer, false, 'planned MER') : '',
@@ -8291,8 +8291,8 @@ async function renderProfit(first) {
     /* NET PROFIT (2026-10-09): contribution margin minus the brand's fixed expenses (Brand settings > Data and costs).
        A separate line on purpose: CM keeps its definition everywhere else (briefs, reports, Locus). */
     trusted && t.cm != null
-      ? LX.tile({ label: 'Net profit', value: fx ? `<span class="${net >= 0 ? 'good' : 'bad'}">${M(net)}</span>` : M(t.cm), info: 'Contribution margin minus the custom expenses on Costs (the team, software, rent, agency fees...): monthly ones spread over each month’s days, one-time ones on their date, % and per-order ones from each day’s numbers.',
-          sub: fx ? `after ${M(fx)} of custom expenses` : 'no custom expenses set yet' })
+      ? LX.tile({ label: 'Net profit', value: fx ? `<span class="${net >= 0 ? 'good' : 'bad'}">${M(net)}</span>` : M(t.cm), info: 'Contribution margin minus the fixed costs on Costs (the team, software, rent, anything you add): each one spread evenly over the days it covers, one-time ones on their date, % and per-order ones from each day’s numbers.',
+          sub: fx ? `after ${M(fx)} of fixed costs` : 'no fixed costs set yet' })
       : LX.tile({ label: 'Net profit', value: '<span style="color:var(--muted)">Hidden</span>', go: 'costs', info: 'Needs contribution margin, which is switched off until the cost data passes.', sub: 'needs trusted cost data' }),
     LX.tile({ label: 'Cost data', value: `<span class="${costWord[1]}">${costWord[0]}</span>`, go: 'costs', info: costWord[2], sub: esc(costWord[2]).slice(0, 110) + (costWord[2].length > 110 ? '…' : '') }),
   ].join('');
@@ -8322,16 +8322,16 @@ async function renderProfit(first) {
         ${t.tax ? `<div class="r note"${U.tipAttr('Sales tax is held for the state, never revenue.' + (t.total_sales ? ` Shopify Total Sales was ${M(t.total_sales)}.` : ''))}><span class="l">Sales tax collected, excluded</span><span></span><span class="n">${M(t.tax)}</span></div>` : ''}
         ${out.join('')}
         ${tot('Gross profit', 'Revenue less every variable cost, before any marketing.', t.gross_profit, 'in', `${fmtPct(t.margin)} of revenue`)}
-        ${t.spend ? line('Ad spend', adx ? `Every ad platform combined, plus ${M(adx)} of custom expenses that count as ad spend.` : 'Every ad platform combined.', (t.gross_profit || 0) - t.spend, t.gross_profit || 0, 'out', t.spend, true, ofRev(t.spend)) : ''}
-        ${adx ? `<div class="r note"><span class="l">&nbsp;&nbsp;Ad platforms</span><span></span><span class="n">−${M(t.spend - adx)}</span></div>${adItems.map(it => `<div class="r note"${U.tipAttr('A custom expense that counts as ad spend (Costs).')}><span class="l">&nbsp;&nbsp;${esc(it.name)}</span><span></span><span class="n">−${M(it.amount)}</span></div>`).join('')}` : ''}
-        ${tot('Contribution margin', 'What the marketing made on the margin. Fixed costs (rent, salaries, software, our retainer) are not in it.', t.cm, t.cm >= 0 ? 'keep' : 'lose', ofRev(t.cm))}
-        ${fx && t.cm != null ? `${line('Custom expenses', 'Set on Costs: the team, software, rent, agency fees and the rest.', Math.min(t.cm, net), Math.max(t.cm, net), 'out', fx, true, ofRev(fx))}
+        ${t.spend ? line('Ad spend', adx ? `Every ad platform combined, plus ${M(adx)} of fixed costs that count as ad spend.` : 'Every ad platform combined.', (t.gross_profit || 0) - t.spend, t.gross_profit || 0, 'out', t.spend, true, ofRev(t.spend)) : ''}
+        ${adx ? `<div class="r note"><span class="l">&nbsp;&nbsp;Ad platforms</span><span></span><span class="n">−${M(t.spend - adx)}</span></div>${adItems.map(it => `<div class="r note"${U.tipAttr('A fixed cost that counts as ad spend (Costs).')}><span class="l">&nbsp;&nbsp;${esc(it.name)}</span><span></span><span class="n">−${M(it.amount)}</span></div>`).join('')}` : ''}
+        ${tot('Contribution margin', 'What the marketing made on the margin. Fixed costs (rent, salaries, software) are not in it.', t.cm, t.cm >= 0 ? 'keep' : 'lose', ofRev(t.cm))}
+        ${fx && t.cm != null ? `${line('Fixed costs', 'Set on Costs: the team, software, rent and anything else you add.', Math.min(t.cm, net), Math.max(t.cm, net), 'out', fx, true, ofRev(fx))}
           ${(d.fixed.items || []).map(it => `<div class="r note"><span class="l">&nbsp;&nbsp;${esc(it.name)}</span><span></span><span class="n">−${M(it.amount)}</span></div>`).join('')}
-          ${tot('Net profit', 'Contribution margin minus custom expenses.', net, net >= 0 ? 'keep' : 'lose', ofRev(net))}`
-          : `<div class="r note"><span class="l">No custom expenses set, so no net profit</span><span></span><span class="n"><button type="button" class="v2link" id="pfFixed">Add them ›</button></span></div>`}
+          ${tot('Net profit', 'Contribution margin minus fixed costs.', net, net >= 0 ? 'keep' : 'lose', ofRev(net))}`
+          : `<div class="r note"><span class="l">No fixed costs set, so no net profit</span><span></span><span class="n"><button type="button" class="v2link" id="pfFixed">Add them ›</button></span></div>`}
       </div>
       <details class="footnote" style="margin-top:12px"><summary>What contribution margin counts, and what it leaves out</summary>
-        <div class="fn-body">This is CTC's definition: revenue minus <b>every variable cost</b> (product, fulfilment, handling, payment fees and ad spend). Fixed costs are deliberately excluded: rent, salaries, software and <b>our own retainer</b>. So it answers "did the marketing make money on the margin?", not "is the business profitable?" <b>Net profit</b> under it takes off the custom expenses on Costs. A custom expense marked “counts as ad spend” is inside ad spend instead, so it is in contribution margin, MER and cost per new customer. Briefs and reports do not read custom expenses.${d.shipping && d.shipping.note ? ` <br><b>Shipping:</b> ${esc(d.shipping.note)}.` : ''}</div></details></section>`;
+        <div class="fn-body">This is CTC's definition: revenue minus <b>every variable cost</b> (product, fulfilment, handling, payment fees and ad spend). Fixed costs are deliberately excluded: rent, salaries and software. So it answers "did the marketing make money on the margin?", not "is the business profitable?" <b>Net profit</b> under it takes off the fixed costs on Costs. A fixed cost marked “counts as ad spend” is inside ad spend instead, so it is in contribution margin, MER and cost per new customer. Briefs, reports and the client profit link show fixed costs and net profit only when that is switched on for client posts.${d.shipping && d.shipping.note ? ` <br><b>Shipping:</b> ${esc(d.shipping.note)}.` : ''}</div></details></section>`;
   })();
 
   /* By day (or by hour on a single day), with the reading under the pointer. */
@@ -8363,7 +8363,7 @@ async function renderProfit(first) {
     ${U.foot(`Revenue is Shopify total sales minus tax, through Triple Whale. ${esc(rangeLabel())}.`)}`);
 
   /* after the paint: the kit's pageHead draws the .ph-acts slot these go in (2026-10-21: they were written before it and lost) */
-  pageActions(isClient() ? costChip(h, d.margin_pct) : `${costChip(h, d.margin_pct)}<button class="btn" id="pfCosts" title="Where each cost comes from, and the brand’s custom expenses">Costs</button><button class="btn" id="pfShare">↗ Client link</button>`);
+  pageActions(isClient() ? costChip(h, d.margin_pct) : `${costChip(h, d.margin_pct)}<button class="btn" id="pfCosts" title="Where each cost comes from, and the brand’s fixed costs">Costs</button><button class="btn" id="pfShare">↗ Client link</button>`);
   // [data-go] (tiles, links) is handled by the one document-level listener near applyRole().
   if (single) LX.wireChart('pfHours');
   else if (rows.length > 1) LX.wireDual('pfSvg', rows, r => `<b>${U.day(r.date)}</b> · revenue ${M(r.sales)} · spend ${M(r.spend)}<br>MER ${fmtX(r.mer)} · aMER ${fmtX(r.amer)}${r.cm != null && trusted ? ` · CM <span class="${r.cm >= 0 ? '' : 'faint'}">${M(r.cm)}</span>` : ''}`);
@@ -9464,7 +9464,12 @@ function reportBodyHTML(d, summary, opts = {}) {
     kpi('MER', t.mer, fmtX, f.mer, p.mer, false, 'All store revenue ÷ all ad spend, blended on both sides. The honest “are the ads paying for themselves” number - the same thing as blended ROAS.'),
     kpi('aMER', t.amer, fmtX, f.amer, p.amer, false, 'New-customer revenue ÷ that same total ad spend. Repeat buyers and email can’t flatter it - this is what the ads actually bought.'),
     t.cm != null ? kpi('Contribution margin', t.cm, money, f.cm, p.cm, false, 'Revenue minus every variable cost - product, fulfilment, handling, payment fees and ad spend. Excludes fixed costs like rent, salaries and software.') : '',
-    t.net != null ? kpi('Net profit after fixed costs', t.net, money, null, p.net, false, 'Contribution margin minus the fixed costs entered for this brand (rent, team, software, any fee). Monthly costs are spread evenly over the days.') : '',
+    /* Fixed costs and net profit (2026-11-25): one total, never a category. Shown only when the report froze the switch
+       on at generation (d.fixed.in_posts), the same value its headline and client post read. Report contribution margin
+       does not hold the costs marked "counts as ad spend", so they get their own tile: the three add up to net. */
+    t.cm != null && t.net != null && d.fixed?.in_posts === true ? kpi('Fixed costs', t.fixed ?? 0, money, null, p.net != null ? p.fixed : null, 'neutral', 'Every fixed cost entered for this brand, each spread evenly over the days it covers.') : '',
+    t.cm != null && t.net != null && d.fixed?.in_posts === true && t.ad_expense > 0 ? kpi('Extra ad costs', t.ad_expense, money, null, p.net != null ? p.ad_expense : null, 'neutral', 'Costs marked as ad spend that no ad platform reports, such as a sponsorship. They are not inside the contribution margin above, so they come off here.') : '',
+    t.cm != null && t.net != null && d.fixed?.in_posts === true ? kpi('Net profit', t.net, money, null, p.net, false, t.ad_expense > 0 ? 'Contribution margin minus fixed costs and extra ad costs.' : 'Contribution margin minus fixed costs.') : '',
     kpi('New-customer CPA', t.ncpa, money, null, p.ncpa, true, 'Total ad spend ÷ new customers acquired. Blended - not any platform’s self-reported CPA.'),
     kpi('Orders', t.orders, fmtInt, null, p.orders, false, 'Total store orders in the period.'),
     kpi('Average order value', t.aov, money, null, p.aov, false, 'Revenue ÷ orders.'),
@@ -12096,7 +12101,7 @@ async function renderSettings() {
           ${field('Margin override', 'One flat margin instead of per-product costs. Leave blank to use the real Triple Whale costs.',
             `<div class="unit-in" style="width:92px"><input type="text" inputmode="decimal" data-k="margin" value="${a.margin_pct != null ? Math.round(a.margin_pct * 100) : ''}" placeholder="auto"><span>%</span></div>`)}
           <button type="button" class="btn btn-s" data-gopage="costs">Open the cost check</button></div>
-        <div class="dc-block" id="fx-${esc(a.act_id)}"><h4>Costs</h4><p class="tiny" style="margin:0 0 12px">Everything this brand pays, the way Triple Whale lays it out: where each per-order cost comes from, and the custom expenses Triple Whale does not know about. The brand can add its own from P&amp;L when its login has P&amp;L on.</p>
+        <div class="dc-block" id="fx-${esc(a.act_id)}"><h4>Costs</h4><p class="tiny" style="margin:0 0 12px">Everything this brand pays, the way Triple Whale lays it out: where each per-order cost comes from, and the fixed costs Triple Whale does not know about. The brand can add its own from P&amp;L when its login has P&amp;L on.</p>
           <div class="fx-box" data-fixed="${esc(a.act_id)}"><span class="tiny">Loading…</span></div></div>
         ${CL ? '' : `<div class="dc-block"><h4>Fix it</h4><p class="tiny" style="margin:0 0 8px">Only when a check above says so. One brand at a time.</p>
           ${metaActOf(a, m) ? field('Meta', 'Pull this brand’s Meta numbers now instead of waiting for the hourly sync.', `<div class="brow-static"><button class="btn btn-s" data-k="sync">Sync now</button> <span class="tiny" data-k="syncmsg"></span></div>`) : ''}
@@ -12109,7 +12114,7 @@ async function renderSettings() {
   /* Goals box (2026-10-04, ONE PLACE FOR GOALS): goal CPA and ROAS are saved on the
      account (client-settings / Meta accounts), the test settings in the brand's rules
      doc. One Save writes all three. */
-  /* COSTS (2026-10-10, expenses.js): where each per-order cost comes from + custom expenses. Was the fixed
+  /* COSTS (2026-10-10, expenses.js): where each per-order cost comes from + fixed costs. Was the fixed
      expenses editor (2026-10-09); its rows were copied across as monthly fixed costs. */
   function loadFixed(box, a) {
     if (!window.CostsUI) { box.innerHTML = '<span class="tiny" style="color:var(--bad)">Costs did not load. Hard-refresh (Ctrl+Shift+R).</span>'; return; }

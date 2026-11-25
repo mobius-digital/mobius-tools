@@ -80,8 +80,131 @@ await check('bad input is refused with a plain sentence', () => {
   assert.match(X.clean({ name: 'a', amount: 1, start_date: '' })[0], /pick the date/);
   assert.match(X.clean({ name: 'a', amount: 1, start_date: '2026-10-05', end_date: '2026-10-01' })[0], /before the start/);
   const [err, c] = X.clean({ name: 'Shoot', kind: 'once', amount: '$1,500', start_date: '2026-10-02', end_date: '2026-12-01', category: 'nope', is_ad_spend: 'yes' });
-  assert.equal(err, null); assert.equal(c.amount, 1500); assert.equal(c.end_date, null, 'a one-time cost has no end'); assert.equal(c.category, 'other'); assert.equal(c.is_ad_spend, 1);
+  assert.equal(err, null); assert.equal(c.amount, 1500); assert.equal(c.end_date, null, 'a one-time cost has no end'); assert.equal(c.category, 'nope', 'a category is the brand\'s own words'); assert.equal(c.is_ad_spend, 1);
   assert.ok(!/—/.test(JSON.stringify([X.CATEGORIES, X.KINDS])), 'no em dashes in the choices');
+});
+
+/* ---------- 2026-11-25: free-text categories and the new time kinds ---------- */
+const sumOf = (e, from, to) => X.spread([e], from, to, []).total;
+await check('a category is free text the brand names: kept as typed up to 40 characters, a suggestion by name is its id, old ids still read', () => {
+  const cat = v => { const [err, c] = X.clean({ name: 'a', amount: 1, start_date: '2026-10-01', category: v }); return err || c.category; };
+  assert.equal(cat('  Photo   shoots '), 'Photo shoots', 'trimmed, inner spaces squeezed, kept as typed');
+  assert.equal(cat('Software'), 'software'); assert.equal(cat('RENT AND PREMISES'), 'rent', 'a suggestion typed by its label is the old id');
+  assert.equal(cat('contractors'), 'contractors'); assert.equal(cat(''), 'other'); assert.equal(cat(undefined), 'other');
+  for (const old of ['team', 'software', 'rent', 'agency', 'marketing', 'other']) assert.equal(cat(old), old, `an old row's "${old}" is kept`);
+  assert.equal(cat('x'.repeat(40)), 'x'.repeat(40)); assert.match(cat('x'.repeat(41)), /up to 40 characters/);
+  assert.equal(X.categoryLabel('software'), 'Software'); assert.equal(X.categoryLabel('Photo shoots'), 'Photo shoots'); assert.equal(X.categoryLabel('freight'), 'Freight'); assert.equal(X.categoryLabel(null), 'Other');
+  /* no special wording or handling for any one kind of fee: it is a row a person names */
+  assert.ok(!/agency/i.test(JSON.stringify([X.CATEGORIES, X.KINDS])), 'the suggestions and the kinds never say "agency"');
+  assert.deepEqual(X.brandCategories([{ category: 'software' }, { category: 'Photo shoots' }, { category: 'photo SHOOTS' }, { category: null }, { category: 'Software' }]),
+    [{ id: 'other', label: 'Other' }, { id: 'Photo shoots', label: 'Photo shoots' }, { id: 'software', label: 'Software' }], 'distinct by name, whatever the capitals');
+});
+await check('daily, weekly, quarterly, yearly and custom spread the way the page says', () => {
+  near(sumOf({ name: 'd', kind: 'daily', amount: 12.5, start_date: '2026-10-02' }, '2026-10-01', '2026-10-05'), 50, 'daily: 4 days from its start');
+  const wk = { name: 'w', kind: 'weekly', amount: 70, start_date: '2026-10-07' };   // a Wednesday
+  near(sumOf(wk, '2026-10-07', '2026-10-13'), 70, 'weekly: its first 7 days, from the start date\'s weekday, add to the amount');
+  near(sumOf(wk, '2026-10-14', '2026-10-20'), 70, 'and so does every week after'); near(sumOf(wk, '2026-10-01', '2026-10-08'), 20, 'two days in: two sevenths');
+  const by = X.spread([wk], '2026-10-07', '2026-10-13', []).byDate; assert.equal(Object.keys(by).length, 7); for (const v of Object.values(by)) near(v, 10, 'evenly, a seventh a day');
+  const q = { name: 'q', kind: 'quarterly', amount: 9200, start_date: '2026-01-01' };
+  near(sumOf(q, '2026-10-01', '2026-12-31'), 9200, 'quarterly: Q4 has 92 days and they add to the amount'); near(sumOf(q, '2026-10-01', '2026-10-01'), 100, '9,200 / 92');
+  near(sumOf(q, '2026-01-01', '2026-03-31'), 9200, 'Q1 2026 has 90 days'); near(sumOf(q, '2028-01-01', '2028-03-31'), 9200, 'Q1 of a leap year has 91');
+  near(sumOf(q, '2028-02-29', '2028-02-29'), 9200 / 91, 'a leap day');
+  const y = { name: 'y', kind: 'yearly', amount: 36500, start_date: '2026-01-01' };
+  near(sumOf(y, '2026-01-01', '2026-12-31'), 36500, 'yearly: 365 days add to the amount'); near(sumOf(y, '2026-07-04', '2026-07-04'), 100, 'a day');
+  near(sumOf(y, '2028-01-01', '2028-12-31'), 36500, 'a leap year too'); near(sumOf(y, '2028-07-04', '2028-07-04'), 36500 / 366, 'over 366 days');
+  const c = { name: 'c', kind: 'custom', amount: 4500, start_date: '2026-10-20', end_date: '2026-11-18' };   // 30 days
+  near(sumOf(c, '2026-10-01', '2026-12-31'), 4500, 'custom: the whole amount between its two dates'); near(sumOf(c, '2026-11-01', '2026-11-30'), 18 * 150, 'clipped to the window');
+  near(sumOf(c, '2026-11-19', '2026-12-31'), 0, 'nothing after its end'); near(sumOf(c, '2026-10-01', '2026-10-19'), 0, 'nothing before its start');
+  near(sumOf({ ...c, end_date: null }, '2026-10-01', '2026-12-31'), 0, 'custom with no end date has nothing to spread over');
+  assert.match(X.clean({ name: 'c', kind: 'custom', amount: 10, start_date: '2026-10-01' })[0], /pick the date it ends/);
+  for (const k of ['daily', 'weekly', 'quarterly', 'yearly', 'custom']) assert.equal(X.clean({ name: 'a', kind: k, amount: 5, start_date: '2026-10-01', end_date: '2026-10-31' })[1].kind, k, k);
+  assert.deepEqual(X.KINDS.map(k => k.id), ['monthly', 'once', 'pct_revenue', 'pct_spend', 'per_order', 'daily', 'weekly', 'quarterly', 'yearly', 'custom']);
+  /* an end date stops any of them */
+  near(sumOf({ name: 'd', kind: 'daily', amount: 10, start_date: '2026-10-01', end_date: '2026-10-03' }, '2026-10-01', '2026-10-31'), 30, 'ended');
+});
+await check('the kinds that existed before compute exactly as before: 600 random lists against the old code, byte for byte', () => {
+  /* The functions as they stood before the new kinds, copied verbatim (commit 9c6ce246). */
+  const dimO = ym => new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7), 0)).getUTCDate();
+  const nextO = d => { const t = new Date(d + 'T12:00:00Z'); t.setUTCDate(t.getUTCDate() + 1); return t.toISOString().slice(0, 10); };
+  const r2O = x => Math.round(x * 100) / 100, YMDO = /^\d{4}-\d{2}-\d{2}$/;
+  function dayValueO(e, d, row) {
+    const a = +e.amount || 0;
+    if (e.kind === 'monthly') return a / dimO(d.slice(0, 7));
+    if (e.kind === 'once') return d === e.start_date ? a : 0;
+    if (!row) return 0;
+    if (e.kind === 'pct_revenue') return Math.max(0, +row.sales || 0) * a / 100;
+    if (e.kind === 'pct_spend') return Math.max(0, +(row.base_spend ?? row.spend) || 0) * a / 100;
+    if (e.kind === 'per_order') return Math.max(0, +row.orders || 0) * a;
+    return 0;
+  }
+  function spreadO(list, from, to, rows) {
+    const out = { total: 0, ad_total: 0, items: [], ad_items: [], byDate: {}, adByDate: {} };
+    if (!from || !to || from > to) return out;
+    const R = {}; for (const r of rows || []) if (r && r.date) R[r.date] = r;
+    for (const e of list || []) {
+      if (!e || !YMDO.test(e.start_date || '')) continue;
+      if (e.kind === 'once' && e.start_date > to) continue;
+      const lo = e.start_date > from ? e.start_date : from;
+      const end = e.kind === 'once' ? e.start_date : e.end_date && e.end_date < to ? e.end_date : to;
+      const ad = !!+e.is_ad_spend, by = ad ? out.adByDate : out.byDate;
+      let amt = 0;
+      for (let d = lo; d <= end; d = nextO(d)) { const v = dayValueO(e, d, R[d]); if (v) { amt += v; by[d] = (by[d] || 0) + v; } }
+      if (!(amt > 0)) continue;
+      const it = { id: e.id ?? null, name: e.name, category: e.category || 'other', kind: e.kind, rate: +e.amount || 0, amount: r2O(amt) };
+      if (ad) { out.ad_items.push(it); out.ad_total += amt; } else { out.items.push(it); out.total += amt; }
+    }
+    out.items.sort((a, b) => b.amount - a.amount); out.ad_items.sort((a, b) => b.amount - a.amount);
+    out.total = r2O(out.total); out.ad_total = r2O(out.ad_total);
+    return out;
+  }
+  let seed = 11; const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+  const day = n => { const t = new Date(Date.UTC(2026, 7, 1)); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); };
+  const OLD = ['monthly', 'once', 'pct_revenue', 'pct_spend', 'per_order'];
+  let n = 0, values = 0;
+  for (let i = 0; i < 600; i++) {
+    const a = Math.floor(rnd() * 150), from = day(a), to = day(a + Math.floor(rnd() * 70));
+    const rows = []; for (let d = from; d <= to; d = nextO(d)) if (rnd() > 0.1) rows.push({ date: d, sales: Math.round(rnd() * 500000) / 100, spend: Math.round(rnd() * 90000) / 100, orders: Math.floor(rnd() * 80), ...(rnd() > 0.7 ? { base_spend: Math.round(rnd() * 80000) / 100 } : {}) });
+    const list = Array.from({ length: 1 + Math.floor(rnd() * 6) }, (_, j) => { const st = Math.floor(rnd() * 240) - 20, kind = OLD[Math.floor(rnd() * OLD.length)];
+      return { id: j + 1, name: 'Row ' + j, category: ['software', 'rent', 'agency', 'team', null][Math.floor(rnd() * 5)], kind, amount: kind.startsWith('pct') ? Math.round(rnd() * 3000) / 100 : Math.round(rnd() * 900000) / 100,
+        start_date: day(st), end_date: rnd() > 0.6 ? day(st + Math.floor(rnd() * 120)) : null, is_ad_spend: rnd() > 0.8 ? 1 : 0 }; });
+    assert.equal(JSON.stringify(X.spread(list, from, to, rows)), JSON.stringify(spreadO(list, from, to, rows)), `case ${i}`); n++;
+    for (const e of list) for (const r of rows.slice(0, 5)) { assert.equal(X.dayValue(e, r.date, r), dayValueO(e, r.date, r)); assert.equal(X.dayValue(e, r.date, undefined), dayValueO(e, r.date, undefined)); values += 2; }
+  }
+  assert.equal(n, 600); assert.ok(values > 5000, 'and each day value on its own');
+});
+await check('net profit reconciles on one screen with both kinds of row, and a day with no row is charged nothing', () => {
+  /* Both kinds of row: plain fixed costs (monthly, weekly, custom, one time) and two that "count as ad spend". */
+  const list = [
+    { name: 'Rent', category: 'rent', kind: 'monthly', amount: 3100, start_date: '2026-09-01' },
+    { name: 'Cleaner', category: 'Premises help', kind: 'weekly', amount: 70, start_date: '2026-09-02' },
+    { name: 'Fit out', category: 'Premises help', kind: 'custom', amount: 310.31, start_date: '2026-10-01', end_date: '2026-10-31' },
+    { name: 'Shoot', category: 'Photo shoots', kind: 'once', amount: 412.4, start_date: '2026-10-02' },
+    { name: 'Podcast', category: 'marketing', kind: 'once', amount: 250.55, start_date: '2026-10-02', is_ad_spend: 1 },
+    { name: 'Sponsor', category: 'marketing', kind: 'daily', amount: 33.33, start_date: '2026-10-01', is_ad_spend: 1 },
+  ];
+  const rows = ROWS(), cm = 1099.87;
+  /* a brief or a report: this contribution margin does NOT hold the "counts as ad spend" rows, so the screen shows
+     three lines under it (fixed costs, extra ad costs, net profit) and they add up to the cent */
+  const a = X.netAfter(list, '2026-10-01', '2026-10-03', rows, cm);
+  assert.ok(a.fixed > 0 && a.ad > 0, 'both kinds are present');
+  near(a.fixed, 300 + 30 + 30.03 + 412.4, 'rent, cleaner, fit out, shoot'); near(a.ad, 250.55 + 99.99, 'podcast and three days of sponsor');
+  assert.equal(Math.round((cm - a.fixed - a.ad) * 100), Math.round(a.net * 100), 'contribution margin - fixed costs - extra ad costs = net profit, exactly');
+  /* the profit worker (P&L, the client profit link): contribution margin already holds them, so two lines are enough */
+  const b = X.netAfter(list, '2026-10-01', '2026-10-03', rows, cm - a.ad, { cmHasAd: true });
+  assert.equal(Math.round((cm - a.ad - b.fixed) * 100), Math.round(b.net * 100), 'contribution margin - fixed costs = net profit, exactly');
+  assert.equal(Math.round(a.net * 100), Math.round(b.net * 100), 'and both screens land on the same net profit');
+  assert.equal(Math.round(a.by_category.reduce((s, c) => s + c.amount, 0) * 100), Math.round(a.fixed * 100), 'the team\'s categories add up to the one total');
+  assert.deepEqual(a.by_category.map(c => c.label), ['Photo shoots', 'Rent and premises', 'Premises help'], 'categories by the brand\'s own names');
+  /* A calendar day with NO row (Oct 2 missing): contribution margin has nothing for it, so no rent is charged to it. */
+  const gap = [rows[0], rows[2]], rent = [list[0]];
+  near(X.netAfter(rent, '2026-10-01', '2026-10-03', gap, 300).fixed, 200, 'two covered days of rent, not three');
+  near(X.netAfter(rent, '2026-10-01', '2026-10-03', gap, 300, { gpKey: 'gross_profit' }).net, 100, 'the same with the gross profit guard on');
+  /* but a one-time cost on that missing day was still paid this month: it counts, once */
+  const once = X.netAfter([list[0], list[3], list[4]], '2026-10-01', '2026-10-03', gap, 300);
+  near(once.fixed, 200 + 412.4, 'the shoot on the day with no row counts once'); near(once.ad, 250.55, 'and so does the one-time ad cost');
+  const viaDates = X.netAfter([list[0], list[3], list[4]], '2026-10-01', '2026-10-03', rows, 300, { dates: ['2026-10-01', '2026-10-03'] });
+  assert.deepEqual(viaDates, once, 'the Daily Brief\'s list of days gives the same answer');
+  near(X.netAfter([list[3]], '2026-10-03', '2026-10-03', [rows[2]], 300)?.fixed ?? 0, 0, 'never in a window that does not hold its date');
 });
 
 /* Net profit after fixed costs (2026-11-25): the two pure helpers briefs, reports and the client profit link share. */
@@ -113,7 +236,7 @@ await check('netAfter: null without an active fixed cost or without a CM; a per 
     { name: 'More tools', category: 'software', kind: 'once', amount: 400, start_date: '2026-10-02' }, { name: 'Retainer', category: 'agency', kind: 'pct_spend', amount: 10, start_date: '2026-09-01' },
     { name: 'Podcast', category: 'marketing', kind: 'once', amount: 250, start_date: '2026-10-02', is_ad_spend: 1 }, { name: 'Odd', category: 'nope', kind: 'once', amount: 5, start_date: '2026-10-01' }];
   const a = X.netAfter(list, '2026-10-01', '2026-10-03', rows, 1100), b = X.netAfter(list, '2026-10-01', '2026-10-03', rows, 1100, { cmHasAd: true });
-  assert.deepEqual(a.by_category, [{ category: 'software', label: 'Software', amount: 550 }, { category: 'rent', label: 'Rent and premises', amount: 300 }, { category: 'agency', label: 'Agency fees', amount: 70 }, { category: 'nope', label: 'Other', amount: 5 }]);
+  assert.deepEqual(a.by_category, [{ category: 'software', label: 'Software', amount: 550 }, { category: 'rent', label: 'Rent and premises', amount: 300 }, { category: 'agency', label: 'Agency', amount: 70 }, { category: 'nope', label: 'Nope', amount: 5 }]);
   near(a.fixed, 925, 'fixed'); near(a.ad, 250, 'ad pile'); near(a.net, 1100 - 925 - 250, 'brief and report CM has no ad expenses in it, so they come off here');
   near(b.net, 1100 - 925, 'the profit worker\'s CM already holds them'); near(b.net - a.net, a.ad, 'the two differ by exactly the ad pile');
   assert.ok(!/Rent"|Podcast|Tools/.test(JSON.stringify(a).replace(/"label":"[^"]*"/g, '')), 'no row name leaves, only category totals');
@@ -133,7 +256,7 @@ await check('one window: a one-time cost dated after the window is not counted; 
   near(X.netAfter(rent, '2026-10-01', '2026-10-03', gp, 800).net, 800 - 300 - 50, 'without gpKey it reads as before');
   /* dates: the caller summed cm over these days only, so fixed costs are counted on exactly those days */
   const d = X.netAfter(rent, '2026-10-01', '2026-10-03', rows, 800, { dates: ['2026-10-02', '2026-10-03', '2026-11-09'] });
-  near(d.fixed, 200, 'two days of rent, and a date outside the window is ignored'); assert.equal(d.ad, 0, 'the Oct 1 sponsor fee is not on a counted day'); near(d.net, 600, 'net');
+  near(d.fixed, 200, 'two days of rent, and a date outside the window is ignored'); assert.equal(d.ad, 50, 'the one-time Oct 1 sponsor fee was paid in the window: it counts once'); near(d.net, 550, 'net');
   assert.deepEqual(d.by_category, [{ category: 'rent', label: 'Rent and premises', amount: 200 }]);
   const all = X.netAfter(rent, '2026-10-01', '2026-10-03', rows, 800, { dates: ['2026-10-01', '2026-10-02', '2026-10-03'] }), plain = X.netAfter(rent, '2026-10-01', '2026-10-03', rows, 800);
   assert.deepEqual(all, plain, 'every day counted = the whole-window answer');

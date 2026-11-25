@@ -432,23 +432,30 @@ await check('11b. GET /api/costs: the new keys, and each "missing" line under it
 });
 
 /* ---------------- 12. the client profit link ---------------- */
-await check('12. /api/profit/:token: net profit only with a fixed cost AND a trusted cost check; an agency line only when one was entered', async () => {
+/* settings costsNetInPosts: the one switch for everything a client reads (default off). */
+const netSwitch = on => { db.exec(`DELETE FROM settings WHERE key = 'costsNetInPosts'`); if (on) db.exec(`INSERT INTO settings (key, value) VALUES ('costsNetInPosts', '1')`); };
+await check('12. /api/profit/:token: ONE fixed costs total and net profit, never a category, and only with the client switch on and a trusted cost check', async () => {
   const P = `/api/profit/${TOKEN}?${W}`;
+  netSwitch(false);
   const none = (await call('GET', P)).j;
   assert.ok(!('fixed' in none) && !('net' in none), 'no fixed cost, no keys at all');
   await call('PUT', '/api/expenses', { act: 'brand_alpha', items: [{ name: 'Klaviyo plan', category: 'software', kind: 'monthly', amount: 3100, start_date: '2026-09-01', notes: 'secret note' }] });
+  /* the switch is off (the default): a brand WITH fixed costs gets the same bytes as a brand with none */
+  assert.equal(norm((await raw('GET', P)).text), first.profit, 'switch off: the client link is byte for byte what it was, no fixed and no net');
+  netSwitch(true);
   const one = (await call('GET', P)).j;
-  assert.deepEqual(one.fixed.by_category, [{ category: 'software', label: 'Software', amount: 1500 }]);
-  near(one.fixed.total, 1500, '15 days at 100'); near(one.net, one.mtd.cm - 1500, 'net = cm - fixed');
-  assert.ok(!/Klaviyo|secret|added_by/.test(JSON.stringify(one)), 'never a row name, a note or who added it');
-  assert.ok(!one.fixed.by_category.some(c => c.category === 'agency'), 'no agency line unless one was entered');
+  assert.deepEqual(one.fixed, { total: 1500 }, 'one total (15 days at 100) and nothing else: no category rows on a client page');
+  near(one.net, one.mtd.cm - 1500, 'net = cm - fixed');
+  assert.ok(!/Klaviyo|secret|added_by|by_category|Software|software/.test(JSON.stringify(one)), 'never a row name, a note, who added it or a category');
   const items = (await call('GET', '/api/expenses?act=brand_alpha')).j.items;
-  await call('PUT', '/api/expenses', { act: 'brand_alpha', items: [...items, { name: 'Retainer', category: 'agency', kind: 'monthly', amount: 6200, start_date: '2026-10-01' },
+  await call('PUT', '/api/expenses', { act: 'brand_alpha', items: [...items, { name: 'Outside help', category: 'Contractors and freelancers', kind: 'monthly', amount: 6200, start_date: '2026-10-01' },
     { name: 'Podcast read', category: 'marketing', kind: 'once', amount: 500, start_date: '2026-10-05', is_ad_spend: true }] });
   const two = (await call('GET', P)).j;
-  assert.deepEqual(two.fixed.by_category, [{ category: 'agency', label: 'Agency fees', amount: 3000 }, { category: 'software', label: 'Software', amount: 1500 }]);
+  assert.deepEqual(two.fixed, { total: 4500 }, 'still one total: 1,500 + 3,000');
+  assert.ok(!/Contractors|Outside help|Podcast/.test(JSON.stringify(two)), 'the brand\'s own category names stay off the client page');
   near(two.mtd.cm, one.mtd.cm - 500, 'the "counts as ad spend" row is already inside CM here');
-  near(two.net, two.mtd.cm - two.fixed.total, 'so net = cm - fixed.total, never taken off twice');
+  /* THE SCREEN ADDS UP: the page shows contribution margin, one fixed costs line and net profit, with both kinds of row entered */
+  assert.equal(Math.round((two.waterfall.cm - two.fixed.total) * 100), Math.round(two.net * 100), 'contribution margin - fixed costs = net profit, exactly, never the ad cost twice');
   db.exec(`UPDATE p_cost_health SET verdict = 'broken' WHERE act_id = 'brand_alpha'`);
   const broken = (await call('GET', P)).j;
   assert.equal(broken.cm_ok, false); assert.ok(!('fixed' in broken) && !('net' in broken), 'a broken cost check shows no net profit');
@@ -456,8 +463,47 @@ await check('12. /api/profit/:token: net profit only with a fixed cost AND a tru
   /* a window before any fixed cost started */
   const early = (await call('GET', `/api/profit/${TOKEN}?from=2026-08-01&to=2026-08-20`)).j;
   assert.ok(!('fixed' in early) && !('net' in early));
+  /* switched off again with the rows still there: gone from the payload */
+  netSwitch(false);
+  const off = (await call('GET', P)).j;
+  assert.ok(!('fixed' in off) && !('net' in off), 'switch off: no fixed or net field a client page would render');
+  near(off.mtd.cm, two.mtd.cm, 'contribution margin itself does not depend on the switch');
+  netSwitch(true);
   await call('PUT', '/api/expenses', { act: 'brand_alpha', items: [] });
-  assert.equal(norm((await raw('GET', P)).text), first.profit, 'and with the fixed costs removed, the same bytes as at the start');
+  assert.equal(norm((await raw('GET', P)).text), first.profit, 'and with the fixed costs removed, the same bytes as at the start, switch on or off');
+  netSwitch(false);
+});
+await check('12b. categories are the brand\'s own: any name is saved, GET /api/expenses and GET /api/costs list the brand\'s distinct ones, the built-in list is only suggestions', async () => {
+  const items = [
+    { name: 'Klaviyo plan', category: 'software', kind: 'monthly', amount: 310, start_date: '2026-09-01' },          // an old id
+    { name: 'Shopify plan', category: 'Software', kind: 'monthly', amount: 93, start_date: '2026-09-01' },            // the same group by its label
+    { name: 'Video editor', category: '  Contractors: video ', kind: 'weekly', amount: 350, start_date: '2026-09-07' },
+    { name: 'Insurance', category: 'Insurance', kind: 'yearly', amount: 3650, start_date: '2026-01-01' },
+    { name: 'Trade stand', category: 'Events', kind: 'custom', amount: 900, start_date: '2026-10-01', end_date: '2026-10-30' },
+    { name: 'Coffee', category: '', kind: 'daily', amount: 4, start_date: '2026-10-01' },
+    { name: 'Audit', category: 'Insurance', kind: 'quarterly', amount: 920, start_date: '2026-10-01' },
+  ];
+  const put = await call('PUT', '/api/expenses', { act: 'brand_alpha', items });
+  assert.equal(put.status, 200, JSON.stringify(put.j));
+  const g = (await call('GET', '/api/expenses?act=brand_alpha')).j;
+  const by = Object.fromEntries(g.items.map(x => [x.name, x]));
+  assert.deepEqual([by['Shopify plan'].category, by['Video editor'].category, by['Video editor'].category_label, by.Coffee.category, by.Insurance.kind, by['Trade stand'].end_date],
+    ['software', 'Contractors: video', 'Contractors: video', 'other', 'yearly', '2026-10-30']);
+  const mine = [{ id: 'Contractors: video', label: 'Contractors: video' }, { id: 'Events', label: 'Events' }, { id: 'Insurance', label: 'Insurance' }, { id: 'other', label: 'Other' }, { id: 'software', label: 'Software' }];
+  assert.deepEqual(g.brand_categories, mine, 'the brand\'s distinct categories'); assert.deepEqual(put.j.brand_categories, mine, 'and on the save answer');
+  assert.ok(g.categories.every(c => c.id && c.label) && g.kinds.some(k => k.id === 'weekly') && g.kinds.some(k => k.id === 'custom'), 'suggestions and every kind ride along');
+  const c = (await call('GET', '/api/costs?act=brand_alpha')).j;
+  assert.deepEqual(c.fixed.brand_categories, mine, 'GET /api/costs lists them too'); assert.equal(c.fixed.items.length, 7);
+  assert.ok(!/agency/i.test(JSON.stringify([g.categories, g.kinds, c.fixed.categories, c.fixed.kinds, c.missing])), 'no "agency" wording anywhere in the choices');
+  /* P&L (the team and the brand's own data) spreads each kind over Oct 1 to 15 */
+  const pl = (await call('GET', `/api/client?act=brand_alpha&${W}`)).j, amt = Object.fromEntries(pl.fixed.items.map(i => [i.name, i.amount]));
+  near(amt['Klaviyo plan'], 150, 'monthly'); near(amt['Video editor'], 15 * 50, 'weekly: 50 a day'); near(amt.Insurance, 15 * 10, 'yearly: 10 a day');
+  near(amt['Trade stand'], 15 * 30, 'custom: 900 over 30 days'); near(amt.Coffee, 60, 'daily'); near(amt.Audit, 15 * 10, 'quarterly: 920 over the 92 days of Q4');
+  assert.match((await call('PUT', '/api/expenses', { act: 'brand_alpha', items: [{ ...items[0], category: 'y'.repeat(41) }] })).j.error, /up to 40 characters/);
+  assert.match((await call('PUT', '/api/expenses', { act: 'brand_alpha', items: [{ name: 'Stand', kind: 'custom', amount: 9, start_date: '2026-10-01' }] })).j.error, /pick the date it ends/);
+  assert.equal((await call('GET', '/api/expenses?act=brand_alpha')).j.items.length, 7, 'a refused save changes nothing');
+  await call('PUT', '/api/expenses', { act: 'brand_alpha', items: [] });
+  assert.deepEqual((await call('GET', '/api/expenses?act=brand_alpha')).j.brand_categories, []);
 });
 
 /* ---------------- 13 to 17. review fixes (2026-11-25) ---------------- */
@@ -501,6 +547,7 @@ await check('14. a decimal comma is refused, never read 10 or 100 times too larg
   assert.equal(C.plainNumber('12,50'), NaN); assert.equal(C.plainNumber('-2', { sign: true }), -2); assert.equal(C.plainNumber('-2'), NaN);
 });
 await check('15. a one-time cost dated after the window is out of P&L, the Costs page and the client link alike', async () => {
+  netSwitch(true);
   await call('PUT', '/api/expenses', { act: 'brand_alpha', items: [{ name: 'Rent', category: 'rent', kind: 'monthly', amount: 3100, start_date: '2026-09-01' }, { name: 'Trade show', category: 'marketing', kind: 'once', amount: 5000, start_date: '2026-11-15' }] });
   const pl = (await call('GET', `/api/client?act=brand_alpha&${W}`)).j;
   near(pl.fixed.total, 1500, 'P&L: 15 days of rent, not the trade show that has not happened');
@@ -511,12 +558,13 @@ await check('15. a one-time cost dated after the window is out of P&L, the Costs
   const dr = (await call('GET', `/api/hub/drill?act=brand_alpha&${W}&cmp=none`)).text;
   assert.ok(!dr.includes('Trade show'), 'and the tile drill-down');
   await call('PUT', '/api/expenses', { act: 'brand_alpha', items: [] });
+  netSwitch(false);
 });
 await check('16. the client link: a product rule that starts inside the window withholds profit; from the first day it shows', async () => {
   /* Beta has no Triple Whale product cost, a 35% product rule, a per order shipping rule and a monthly rent of 3,100. */
   const P = `/api/profit/${BETA_TOKEN}?${W}`;
   const setStart = d => { db.prepare(`UPDATE p_cost_rule SET start_date = ?, status = 'on' WHERE act_id = 'brand_beta' AND cost = 'product' AND rule = 'pct_revenue'`).run(d); db.exec(`UPDATE p_cost_health SET verdict = 'good' WHERE act_id = 'brand_beta'`); };
-  setStart('2026-10-11');
+  setStart('2026-10-11'); netSwitch(true);
   const rows = (await call('GET', `/api/client?act=brand_beta&${W}`)).j.rows;
   assert.equal(rows.filter(r => r.gross_profit != null).length, 5, 'five costed days out of fifteen');
   const part = (await call('GET', P)).j;
@@ -528,7 +576,22 @@ await check('16. the client link: a product rule that starts inside the window w
   assert.equal(whole.cm_ok, true); assert.ok(whole.mtd.cm != null);
   near(whole.net, whole.mtd.cm - 1500, 'fifteen days of margin against fifteen days of rent');
   near(whole.waterfall.sales - whole.waterfall.cogs - whole.waterfall.ship_cost - whole.waterfall.handling - whole.waterfall.fees, whole.waterfall.gross_profit, 'and the waterfall adds up');
-  setStart('2026-07-01');
+  setStart('2026-07-01'); netSwitch(false);
+});
+await check('16b. partlyCosted withholds only when the product rule is in force inside the window', () => {
+  const rows = [{ date: '2026-10-01', gross_profit: null }, { date: '2026-10-02', gross_profit: 40 }, { date: '2026-10-03', gross_profit: 55 }];
+  const rule = (start, end = null, extra = {}) => [{ id: 1, cost: 'product', rule: 'pct_revenue', amount: 30, start_date: start, end_date: end, status: 'on', ...extra }];
+  assert.equal(C.partlyCosted(rule('2026-10-02'), rows), true, 'starts inside the window: withheld');
+  assert.equal(C.partlyCosted(rule('2026-09-01', '2026-10-02'), rows), true, 'ends inside the window: still in force on some of its days');
+  assert.equal(C.partlyCosted(rule('2025-01-01', '2025-12-31'), rows), false, 'ended before the window: the gaps are Triple Whale\'s own and read as they always did');
+  assert.equal(C.partlyCosted(rule('2026-11-01'), rows), false, 'starts after the window: no say over it');
+  assert.equal(C.partlyCosted(rule('2025-01-01', '2025-12-31'), rows, 'gross_profit', '2026-10-01', '2026-10-03'), false, 'the same with the window passed in');
+  assert.equal(C.partlyCosted(rule('2026-10-04'), rows, 'gross_profit', '2026-10-01', '2026-10-05'), true, 'the window passed in decides, not only the days that have a row');
+  assert.equal(C.partlyCosted(rule('2026-10-02', null, { status: 'off' }), rows), false, 'switched off');
+  assert.equal(C.partlyCosted(rule('2026-10-02', null, { rule: 'per_item' }), rows), false, 'a saved-only rule');
+  assert.equal(C.partlyCosted(rule('2026-10-02', null, { cost: 'shipping' }), rows), false, 'a shipping rule');
+  assert.equal(C.partlyCosted(rule('2026-09-01'), rows.slice(1)), false, 'every day costed'); assert.equal(C.partlyCosted(rule('2026-09-01'), [rows[0]]), false, 'no day costed');
+  assert.equal(C.partlyCosted([], rows), false); assert.equal(C.partlyCosted(null, rows), false, 'no rule at all: never touched');
 });
 await check('17. a teammate limited to one brand cannot write another brand\'s costs or expenses, whatever the Content-Type', async () => {
   const X = await import('./src/expenses.js');

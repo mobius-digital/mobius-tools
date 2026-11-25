@@ -24,7 +24,7 @@
  * Clients reach all four on their own brand (brandguard CLIENT_RULES); the team reaches any brand.
  *
  * ruleCosts / activeRule / APPLIED are pure and are imported by the account-health worker too (brief and reports). */
-import { CATEGORIES, KINDS, spread, activeIn, view as expenseView, nameOf } from './expenses.js';
+import { CATEGORIES, KINDS, spread, activeIn, view as expenseView, nameOf, brandCategories } from './expenses.js';
 
 let ready = false;
 export async function ensure(env) {
@@ -115,12 +115,21 @@ export function shippingRuled(rules, from, to) {
 /** true when a product rule Locus applies is on AND the rows hold both a day with a gross profit and a day without
  *  (the rule starts inside the window, or a per order rule met a day with no order count). Summed, such a window
  *  gives the gross profit of some days minus the ad spend of all of them, so its contribution margin is withheld.
- *  A brand with no product rule is never touched: this is false and its numbers read as they always did. */
-export function partlyCosted(rules, rows, gpKey = 'gross_profit') {
-  if (!(rules || []).some(r => r && r.cost === 'product' && (r.status || 'on') === 'on' && APPLIED.has(r.rule))) return false;
-  let has = false, lacks = false;
-  for (const r of rows || []) { if (!r) continue; if (r[gpKey] == null) lacks = true; else has = true; }
-  return has && lacks;
+ *  A brand with no product rule is never touched: this is false and its numbers read as they always did.
+ *  The rule must be IN FORCE INSIDE THE WINDOW (started by its last day, not ended before its first): a rule that ended
+ *  last year, or starts next month, has no say over this window, whose gaps are then Triple Whale's own and read as
+ *  they always did. The window is [from, to] when given, else the first and last day of `rows`. */
+export function partlyCosted(rules, rows, gpKey = 'gross_profit', from = null, to = null) {
+  let has = false, lacks = false, lo = from, hi = to;
+  for (const r of rows || []) {
+    if (!r) continue;
+    if (r[gpKey] == null) lacks = true; else has = true;
+    if (!from && r.date && (!lo || r.date < lo)) lo = r.date;
+    if (!to && r.date && (!hi || r.date > hi)) hi = r.date;
+  }
+  if (!(has && lacks)) return false;
+  return (rules || []).some(r => r && r.cost === 'product' && (r.status || 'on') === 'on' && APPLIED.has(r.rule)
+    && YMD.test(r.start_date || '') && (!hi || r.start_date <= hi) && (!r.end_date || !lo || r.end_date >= lo));
 }
 
 /* ---------------- input checks ---------------- */
@@ -314,7 +323,8 @@ export async function costsPage(env, acct, { sources, rows = [] } = {}) {
 
   return {
     currency,
-    fixed: { items: exp.map(expenseView), active: fixedOn.length, month_total: spread(exp, monthStart, to, mtdRows).total, categories: CATEGORIES, kinds: KINDS },
+    fixed: { items: exp.map(expenseView), active: fixedOn.length, month_total: spread(exp, monthStart, to, mtdRows).total, categories: CATEGORIES,
+      brand_categories: brandCategories(exp), kinds: KINDS },
     shipping_rules: { rules: ruleRows.filter(r => r.cost === 'shipping').map(ruleView), in_use: shipUse,
       last30: { from, to, tw: twShip != null ? r2(twShip) : null, used: src.ship_cost != null ? r2(src.ship_cost) : null, charged: src.ship_rev != null ? r2(src.ship_rev) : null, orders: src.orders ?? null } },
     product_cost: { rules: ruleRows.filter(r => r.cost === 'product').map(ruleView), in_use: prodUse,
