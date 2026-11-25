@@ -66,7 +66,8 @@ import { laneBlocks, laneLines, lanePost, laneWho, laneOwner, fyi, roundupTick }
  */
 
 import { buildStrategist } from './strategist.js';
-import { indexEvent, backfillTick, indexStatus, forgetChannelCache } from './slackindex.js';
+import { indexEvent, backfillTick, indexStatus, forgetChannelCache, indexedChannels } from './slackindex.js';
+import { clientSide, silentThere, readSwitches, writeSwitches, ASK_CLIENT_KEY } from './clientchan.js';
 import { consolidate, factsList, remember as stratRemember, forget as stratForget, editFact, skillsList, saveSkill, deleteSkill, usageSummary } from './stratmem.js';
 import { PRESETS as STRAT_PRESETS } from './strattools.js';
 import { accessReport, grantSelf, partnerSweep } from './metaaccess.js';
@@ -7727,6 +7728,11 @@ async function handleSlackEvent(request, env, ctx) {
   const botId = body?.authorizations?.[0]?.user_id || null;
   const mentioned = ev.type === 'app_mention' || (!!botId && String(ev.text || '').includes(`<@${botId}>`));
   const inThread = !!ev.thread_ts && ev.thread_ts !== ev.ts;
+  /* settings.askInClientChannels = '0' (clientchan.js): in a client-side channel Locus does not answer and says nothing,
+     not even the private "you do not have access" note. Read before anything else looks at the message. With the key
+     absent this is one settings read and the handler carries on as it always did. */
+  if (!dm && !group && (mentioned || inThread) && (await getSetting(env, ASK_CLIENT_KEY).catch(() => null)) === '0'
+    && await clientSideChannel(env, ev.channel).catch(() => false)) return ACK();
   if (!dm && !mentioned) {
     /* A plain reply in a thread. Cole (2026-10-05): "if I reply in a thread to the Strategist I
        shouldn't have to mention it again." It answers when the thread is OPEN: the Strategist
@@ -7776,6 +7782,11 @@ async function handleSlackEvent(request, env, ctx) {
       const info = await channelInfo(env, accessDeps(), ev.channel).catch(() => ({ name: '', shared: false }));
       const { results: brands } = await env.DB.prepare(`SELECT id, name FROM brands WHERE status IN ('active', 'demo')`).all().catch(() => ({ results: [] }));
       other = { name: info.name, shared: info.shared, brand: await brandForChannel(env, gate.access, ev.channel, info.name, brands || []) };
+      /* THE SAFETY RULE (no setting): where the client or a partner reads along (the index marks the channel side
+         'client', or it is a Slack Connect shared channel) nothing is applied straight from the words. Every change
+         becomes a card someone taps. */
+      const side = (await indexedChannels(env, getSetting).catch(() => new Map())).get(ev.channel)?.side || null;
+      other.client = clientSide({ side, shared: info.shared });
     }
   }
   /* A person limited to some brands (a teammate in userBrands, or a guest) never gets another brand's channel. */
@@ -7803,6 +7814,7 @@ async function handleSlackEvent(request, env, ctx) {
       note: `This is #${other.name || ev.channel}, a Slack channel that is not a brand's internal team channel.${other.brand ? ` It is about ${other.brand.name} (act_id ${other.brand.id}): every question here is about ${other.brand.name} unless it names another brand. Never ask which brand.` : ' Work out the brand from the channel name and the words; when it matters and is unclear, ask which brand in one line.'}${outsiders} ${asker}${rule}` }
     : dmScreen;
   if (screen) screen.guest = gate.role === 'guest';
+  if (screen && other?.client) screen.tapOnly = true;
   /* /slack/owns says yes for this channel from now on, so plain replies in Locus's threads here reach it too. */
   if (other) ctx.waitUntil(putSetting(env, `locusChan:${ev.channel}`, '1').catch(() => {}));
   ctx.waitUntil((async () => {
@@ -7827,6 +7839,19 @@ async function handleSlackEvent(request, env, ctx) {
   return ACK();
 }
 
+/* Is this a channel the client (or anyone outside the workspace) reads? Only asked when settings.askInClientChannels
+   is '0'. A brand's own internal channel and the agency channel are never client-side; any other channel is when the
+   index marks it side 'client' or Slack says it is shared with another workspace. */
+async function clientSideChannel(env, ch) {
+  const side = (await indexedChannels(env, getSetting).catch(() => new Map())).get(ch)?.side || null;
+  if (side === 'client') return true;
+  if (side === 'internal') return false;
+  if (await brandByChannel(env, ch).catch(() => null)) return false;
+  if (await env.DB.prepare(`SELECT act_id FROM brand_accounts WHERE slack_channel = ?1 LIMIT 1`).bind(ch).first().catch(() => null)) return false;
+  if (ch === await getSetting(env, 'strategistChannel').catch(() => null)) return false;
+  const info = await channelInfo(env, accessDeps(), ch).catch(() => ({ shared: false }));
+  return silentThere({ side, shared: info.shared }, '0');
+}
 /* Who may use Locus in Slack lives in slackaccess.js (the access list + the team rule); these are its deps. */
 function accessDeps() {
   return { slack: slackApi, getSetting, putSetting, emailAllowed, userBrands: async e => safeJson(await getSetting(e, 'userBrands'), {}) || {} };
@@ -7863,7 +7888,7 @@ async function strategistSlackAnswer(env, ev, screen) {
   const u = ev.user ? await slackApi(env, 'users.info', { user: ev.user }).catch(() => null) : null;
   const who = u?.user?.real_name || u?.user?.profile?.real_name || u?.user?.name || (ev.user ? `<@${ev.user}>` : null);
   /* A guest (an outside person on the Slack access list) reads only: no call, so nothing applies straight from a message. */
-  return engine.answerSlack(env, ev, h(), { findings: findings.slice(0, 6), ...(screen ? { screen } : {}), who, call: screen?.guest ? null : askCaller(env, 'Bearer ' + (env.ADMIN_TOKEN || ''), null).call });
+  return engine.answerSlack(env, ev, h(), { findings: findings.slice(0, 6), ...(screen ? { screen } : {}), who, call: screen?.guest || screen?.tapOnly ? null : askCaller(env, 'Bearer ' + (env.ADMIN_TOKEN || ''), null).call });
 }
 
 /* A thread is "open" (plain replies in it go to the reply gate) only once the Strategist was TAGGED there. The mark
@@ -10474,6 +10499,9 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
           dailyBriefsError: safeJson(await getSetting(env, 'dailyBriefsError'), null),
           hasSlackToken: !!env.SLACK_BOT_TOKEN,
           hasTwKey: !!env.TW_API_KEY,
+          /* The three safety switches (clientchan.js): each is true until someone turns it off.
+             checkinAutoApprove, askInClientChannels, slackIndexClient. */
+          ...(await readSwitches(env, getSetting)),
         });
       }
       if (path === '/api/settings' && request.method === 'PUT') {
@@ -10494,6 +10522,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         if ('buyerOwner' in b && String(b.buyerOwner || '').trim()) await putSetting(env, 'buyerOwner', String(b.buyerOwner).trim().slice(0, 40));
         if ('buyerChannel' in b) await putSetting(env, 'buyerChannel', /^[CG][A-Z0-9]{6,}$/.test(String(b.buyerChannel || '')) ? String(b.buyerChannel) : '');
         if ('morningCard' in b) await putSetting(env, 'morningCard', b.morningCard ? 'on' : 'off');
+        await writeSwitches(env, putSetting, b);
         if ('morningHour' in b) {
           const h = +b.morningHour;
           if (!Number.isInteger(h) || h < 0 || h > 23) return json({ error: 'The hour is a whole number from 0 to 23.' }, 400);

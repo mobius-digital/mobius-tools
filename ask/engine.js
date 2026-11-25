@@ -526,6 +526,24 @@ export function splitDraft(text) {
 /*  the assistant                                                      */
 /* ------------------------------------------------------------------ */
 
+/* Dollars per million tokens: [input, output, cache read]. A cache WRITE costs more than plain input and the price
+   depends on how long the entry lives: 1.25x input for 5 minutes, 2x for 1 hour (the stable prefix is written at 1 hour).
+   The API splits the write by life in usage.cache_creation; an older reply that carries only the one total is priced
+   at 1.25x as before. Sonnet 5.5 reads its cache at $0.10 (it was listed at $0.20 here until 2026-11-25). */
+export const PRICE = { 'claude-opus-5-5': [4, 20, 0.2], 'claude-sonnet-5-5': [2, 10, 0.1], 'claude-sonnet-5': [2, 10, 0.2], 'claude-opus-5': [5, 25, 0.5],
+  'claude-fable-5-1': [10, 50, 0.25], 'claude-haiku-4-5-20251001': [1, 5, 0.1], 'claude-haiku-4-5': [1, 5, 0.1], 'claude-haiku-5-5': [0.1, 0.5, 0.01] };
+export const CACHE_WRITE_5M = 1.25, CACHE_WRITE_1H = 2;
+export function costOf(model, u = {}) {
+  const p = PRICE[model] || [4, 20, 0.4];
+  const total = u.cache_creation_input_tokens || 0, split = u.cache_creation;
+  const has = split && (split.ephemeral_1h_input_tokens != null || split.ephemeral_5m_input_tokens != null);
+  const h1 = has ? split.ephemeral_1h_input_tokens || 0 : 0;
+  /* whatever the split does not account for (or all of it, with no split) is a 5 minute write */
+  const m5 = has ? Math.max(split.ephemeral_5m_input_tokens || 0, total - h1) : total;
+  return ((u.input_tokens || 0) * p[0] + m5 * p[0] * CACHE_WRITE_5M + h1 * p[0] * CACHE_WRITE_1H
+    + (u.cache_read_input_tokens || 0) * p[2] + (u.output_tokens || 0) * p[1]) / 1e6;
+}
+
 export function createAssistant(config) {
   const C = { ...DEFAULTS, ...config };
   if (!C.name) throw new Error('createAssistant: config.name is required');
@@ -1193,11 +1211,7 @@ Plain English, no em dashes, lead with the answer.` }];
 
   /* ---------------- the loop ---------------- */
 
-  /* Dollars per million tokens: [input, output]. Cache reads are a tenth of input (Opus/Sonnet 5.5: $0.20),
-     cache writes 1.25x. Used for the cost line under every answer and the usage log. */
-  const PRICE = { 'claude-opus-5-5': [4, 20, 0.2], 'claude-sonnet-5-5': [2, 10, 0.2], 'claude-sonnet-5': [2, 10, 0.2], 'claude-opus-5': [5, 25, 0.5],
-    'claude-fable-5-1': [10, 50, 0.25], 'claude-haiku-4-5-20251001': [1, 5, 0.1], 'claude-haiku-4-5': [1, 5, 0.1], 'claude-haiku-5-5': [0.1, 0.5, 0.01] };
-  const costOf = (model, u) => { const p = PRICE[model] || [4, 20, 0.4]; return ((u.input_tokens || 0) * p[0] + (u.cache_creation_input_tokens || 0) * p[0] * 1.25 + (u.cache_read_input_tokens || 0) * p[2] + (u.output_tokens || 0) * p[1]) / 1e6; };
+  /* Dollars for one reply: costOf at the top of this file. Used for the cost line under every answer and the usage log. */
   /* What a step looks like to the person watching ("Searching Slack for 'folder'"). An app can name its own. */
   const stepLabel = (name, input) => {
     const own = C.stepLabel && C.stepLabel(name, input || {});
