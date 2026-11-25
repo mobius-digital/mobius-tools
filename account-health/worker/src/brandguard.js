@@ -225,6 +225,12 @@ export const CLIENT_RULES = [
   R('PUT', '/api/me/prefs', 'none', { fields: ['morning_dm', 'nudge'] }),
   R('GET', '/api/me/morning', 'none'),
   R('POST', '/api/me/morning', 'none'),
+  /* Automations (automations.js, 2026-11-25): a client's own bell and its own delivery choices. The handler holds a
+     client to its own rows on its own brands; setting up an automation stays the team's. */
+  R('GET', '/api/notices', 'none'),
+  R('POST', '/api/notices/done', 'none', { fields: ['id', 'done', 'answer'] }),
+  R('GET', '/api/me/delivery', 'none'),
+  R('PUT', '/api/me/delivery', 'none', { fields: ['delivery', 'per'] }),
 
   /* ---- HOME: Overview, Day check, P&L, Goals, Requests ---- */
   R('GET', '/api/overview', 'opt'),
