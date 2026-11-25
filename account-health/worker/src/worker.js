@@ -9182,6 +9182,22 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       const b = await request.json().catch(() => ({}));
       /* `kind:'unsent'`: post the "not sent yet" line and its cards in the drafts channel NOW, not at noon. */
       if (b.kind === 'unsent') return json(await unsentAtNoonPass(env, { force: true }));
+      /* `kind:'unpost'`: take a day's DRAFT cards back out of Slack (chat.delete) and clear their slack_ts, so the
+         noon / 'unsent' pass can post them again where they belong. Sent briefs are never touched. */
+      if (b.kind === 'unpost') {
+        const date = b.date || addDays(localDate(BRIEF_TZ), -1);
+        const { results } = await env.DB.prepare(`SELECT act_id, slack_ts, slack_channel FROM briefs WHERE date = ?1 AND status IN ('draft', 'handled') AND slack_ts IS NOT NULL`).bind(date).all();
+        const out = [];
+        for (const r of results || []) {
+          if (b.notChannel && r.slack_channel === b.notChannel) continue;
+          const d = await slackApi(env, 'chat.delete', { channel: r.slack_channel, ts: r.slack_ts }).catch(e => ({ ok: false, error: e.message }));
+          if (d.ok || d.error === 'message_not_found') {
+            await env.DB.prepare(`UPDATE briefs SET slack_ts = NULL, slack_channel = NULL WHERE act_id = ?1 AND date = ?2`).bind(r.act_id, date).run();
+          }
+          out.push({ act: r.act_id, channel: r.slack_channel, deleted: !!d.ok, error: d.ok ? undefined : d.error });
+        }
+        return json({ ok: true, date, out });
+      }
       /* `kind:'report'` redraws the weekly/monthly notices instead of the daily
          briefs. Same rule: rendered from the stored row, so nothing is written
          again and no number moves - only the message in Slack. */
