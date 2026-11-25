@@ -1,0 +1,10 @@
+{
+ "sample": true,
+ "pages": [
+  { "token": "sample-0-a", "title": "Black Friday plan: goals, budget and the offer", "acts": ["brand_northlake_golf"], "created_at": "2026-11-04 15:00:00", "updated_at": "2026-11-19 21:10:00", "revoked": false, "views": 14, "last_view": "2026-11-24 13:42:00", "url": "https://example.com/r/black-friday-plan" },
+  { "token": "sample-0-b", "title": "Why new customers cost more in October", "acts": ["brand_northlake_golf"], "created_at": "2026-10-28 18:00:00", "updated_at": "2026-10-28 18:00:00", "revoked": false, "views": 6, "last_view": "2026-11-02 09:15:00", "url": "https://example.com/r/october-customers" },
+  { "token": "sample-0-c", "title": "2027 growth plan, first draft", "acts": ["brand_northlake_golf", "brand_fairway_supply"], "created_at": "2026-11-21 20:00:00", "updated_at": "2026-11-22 16:30:00", "revoked": false, "views": 0, "last_view": null, "url": "https://example.com/r/growth-2027" },
+  { "token": "sample-0-d", "title": "Summer sale recap", "acts": ["brand_northlake_golf"], "created_at": "2026-08-30 14:00:00", "updated_at": "2026-08-30 14:00:00", "revoked": true, "views": 9, "last_view": "2026-09-04 11:00:00", "url": "https://example.com/r/summer-recap" },
+  { "token": "sample-0-e", "title": "Gift guide walk-through", "acts": ["brand_harbor_and_pine"], "created_at": "2026-11-12 15:00:00", "updated_at": "2026-11-12 15:00:00", "revoked": false, "views": 3, "last_view": "2026-11-20 18:00:00", "url": "https://example.com/r/gift-guide" }
+ ]
+}

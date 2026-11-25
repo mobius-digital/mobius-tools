@@ -1,0 +1,22 @@
+{
+ "state": "ok",
+ "source": "sample",
+ "goal_cpa": 40,
+ "judge_days": 7,
+ "open": [
+  { "num": "421", "title": "Question opener against claim opener", "angle": "The click you can hear", "spend": 186, "need": 120, "orders": 3, "first": "2026-11-19", "call": true },
+  { "num": "422", "title": "Gift guide with the price on the image", "angle": "The golfer gift", "spend": 74, "need": 120, "orders": 1, "first": "2026-11-21", "call": false },
+  { "num": "423", "title": "Creator range day, three hooks", "angle": "No holes, no notches", "spend": 38, "need": 120, "orders": 0, "first": "2026-11-22", "call": false }
+ ],
+ "lessons": [
+  { "text": "Naming the belt next to the offer beats the plain offer line.", "how": "test", "strength": "proven", "num": "418", "angle": "Black Friday offer", "by": { "name": "Sam Rivera" }, "date": "2026-11-20", "spend": 1480, "orders": 38, "cpa": 38.95, "proof": ["ad_101", "ad_102"], "led": "2 briefs made, 1 live" },
+  { "text": "Openers that start on the buckle clicking shut stop more people than a face to camera.", "how": "pattern", "strength": "likely", "angle": "The click you can hear", "by": { "name": "Jordan Lee" }, "date": "2026-11-18", "proof": ["ad_103", "ad_104", "ad_112"], "note": "Hook rate 33% against a normal of 22%, across 3 videos." },
+  { "text": "Gift stills work for past buyers and lose money for new people.", "how": "test", "strength": "proven", "num": "412", "angle": "The golfer gift", "by": { "name": "Sam Rivera" }, "date": "2026-11-12", "spend": 960, "orders": 21, "cpa": 45.71, "proof": ["ad_105", "ad_111"] },
+  { "text": "Creator videos start journeys but rarely close them. Judge them on first click sales.", "how": "pattern", "strength": "likely", "angle": "No holes, no notches", "by": { "name": "Jordan Lee" }, "date": "2026-11-08", "proof": ["ad_106", "ad_108", "ad_113"], "note": "First click sales 2.6 times last click on the three creator videos." },
+  { "text": "Real people only. No made-up faces in our ads, ever.", "how": "rule", "strength": "proven", "by": { "name": "Alex Morgan" }, "date": "2026-10-30" },
+  { "text": "Unboxing openers are the weakest way into a video for this brand.", "how": "pattern", "strength": "hunch", "angle": "No holes, no notches", "by": { "name": "Riley Chen" }, "date": "2026-10-27", "proof": ["ad_113", "ad_114"], "note": "Only 2 videos. Too early to say." },
+  { "text": "A ball marker in the buckle is a feature people click on, not one they buy on.", "how": "test", "strength": "likely", "num": "404", "angle": "Ball marker in the buckle", "by": { "name": "Sam Rivera" }, "date": "2026-10-21", "spend": 640, "orders": 4, "cpa": 160, "proof": ["ad_110"], "overturned": null },
+  { "text": "Fairway Supply runs every sale for two weeks with one hero still. Their longest ad is 94 days old.", "how": "competitor", "strength": "hunch", "by": { "name": "Sam Rivera" }, "date": "2026-10-15" },
+  { "text": "Black belts sell better than brown in winter.", "how": "pattern", "strength": "hunch", "by": { "name": "Jordan Lee" }, "date": "2026-09-30", "overturned": "2026-11-10" }
+ ]
+}

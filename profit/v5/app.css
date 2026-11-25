@@ -1,0 +1,701 @@
+/* ==========================================================================
+   The design system: Look E, "Paper and Ember". Distilled from the approved mock theme.
+   White, open, ink numbers. ONE ember gradient, used sparingly:
+     the mark, the assistant button and gem, the primary button, the active menu marker,
+     the lead chart line, the hero number underline. Nowhere else.
+   Status has its own colours (green, yellow, crimson). Platforms are an ink glyph plus a name.
+   Every class starts with lx-. No em dashes. One endless animation (the loader mark).
+   ========================================================================== */
+
+@font-face{font-family:'Inter';src:url('fonts/inter.woff2') format('woff2');font-weight:100 900;font-style:normal;font-display:swap}
+@font-face{font-family:'Instrument Serif';src:url('fonts/instrument-serif-italic.woff2') format('woff2');font-weight:400;font-style:italic;font-display:swap}
+
+/* ---------- 1. tokens ---------- */
+:root{
+  color-scheme:light;
+  --bg:#FFFFFF; --bg-sunk:#F2F1EE; --surface:#FFFFFF; --surface-2:#F8F7F5; --rail:#FBFAF8; --band:#F7F6F3;
+  --ink:#16130F; --ink-2:#3F3A34; --muted:#6F6A63; --faint:#757068; --icon:#A8A29A;
+  --line:rgba(28,20,10,.07); --line-strong:rgba(28,20,10,.13); --grid:rgba(28,20,10,.08);
+  /* the one brand gradient */
+  --e1:#FFA62B; --e2:#FF7A1A; --e3:#FF5226;
+  --grad:linear-gradient(135deg,var(--e1) 0%,var(--e2) 45%,var(--e3) 100%);
+  --grad-btn:linear-gradient(160deg,#F47216 0%,#E8501A 48%,#D63C10 100%);
+  --grad-text:linear-gradient(100deg,#F26A0F 0%,#F2481C 100%);
+  --brand:#FF6A1F; --brand-ink:#B8400A; --btn-edge:rgba(196,60,10,.55);
+  /* neutral data colour */
+  --slate:#5B6B8C; --slate-soft:#EEF1F6;
+  /* status: its own set, far from ember */
+  --good:#0B7D55; --good-bg:#E4F5ED; --watch:#E8B500; --warn:#7A5A00; --warn-bg:#FBF3CC; --bad:#C9184A; --bad-bg:#FCE7ED;
+  /* platforms: a 6px dot at most */
+  --c-meta:#2F6FED; --c-google:#0F9D94; --c-youtube:#9A3A78; --c-tiktok:#16130F; --c-amazon:#232F3E; --c-email:#7C5CE0;
+  --sh-1:0 0 0 1px rgba(28,20,10,.045),0 1px 2px rgba(28,20,10,.04),0 10px 28px -12px rgba(28,20,10,.12);
+  --sh-2:0 0 0 1px rgba(28,20,10,.05),0 2px 4px rgba(28,20,10,.04),0 18px 44px -14px rgba(28,20,10,.18);
+  --sh-3:0 0 0 1px rgba(28,20,10,.06),0 4px 8px rgba(28,20,10,.05),0 28px 64px -16px rgba(28,20,10,.26);
+  --sh-ember:0 1px 2px rgba(190,70,10,.20),0 8px 20px -8px rgba(255,100,30,.60);
+  --wash:radial-gradient(70% 130% at 100% 0%,rgba(255,138,31,.13),rgba(255,122,26,.04) 48%,rgba(255,122,26,0) 72%);
+  --r-xs:4px; --r-sm:8px; --r-md:10px; --r-lg:18px; --r-xl:26px; --r-pill:999px;
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:20px; --sp-6:24px; --sp-8:32px; --sp-10:40px; --sp-12:48px;
+  --fs-micro:11px; --fs-meta:12px; --fs-cell:13px; --fs-body:14px; --fs-h3:16px;
+  /* big type and the main gaps follow the screen width between a phone and a desktop: no jumps */
+  --fs-title:clamp(28px,26px + .26vw,30px); --fs-kpi:clamp(26px,23.6px + .5vw,30px); --fs-hero:max(clamp(30px,14px + 5vw,34px),min(44px,16.7px + 2.28vw));
+  --pad-page:clamp(14px,6px + 1.7vw,24px); --pad-card:clamp(18px,10px + 1.7vw,28px); --gap-page:clamp(20px,12px + 1.7vw,32px); --gap-kpi:clamp(20px,8px + 2.2vw,32px);
+  --sans:'Geist','Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --serif:'Instrument Serif','Iowan Old Style',Georgia,serif;
+  --ctl-h:34px; --top-h:60px; --rail-w:248px; --tabbar-h:58px;
+  --t-fast:120ms; --t:160ms; --t-slow:240ms; --ease:cubic-bezier(.2,.7,.2,1);
+}
+
+/* ---------- 2. base ---------- */
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:var(--fs-body);line-height:1.5;
+  font-feature-settings:"tnum" 1,"cv11" 1,"ss01" 1;letter-spacing:-.006em;-webkit-font-smoothing:antialiased}
+a{color:var(--ink)}
+button{font:inherit;color:inherit}
+h1,h2,h3,p{margin:0}
+:focus-visible{outline:2px solid var(--e2);outline-offset:2px}
+[hidden]{display:none!important}
+.lx-sp{flex:1 1 auto}
+.lx-row{display:flex;gap:var(--sp-2);align-items:center;flex-wrap:wrap}
+.lx-num{font-variant-numeric:tabular-nums;letter-spacing:-.03em}
+.lx-ic{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.lx-ic .f{fill:currentColor;stroke-width:1}
+.lx-mark{flex:none;overflow:visible}
+
+/* ---------- 3. shell ---------- */
+.lx-shell{display:grid;grid-template-columns:var(--rail-w) minmax(0,1fr);min-height:100vh;background:var(--bg)}
+.lx-main{min-width:0;display:flex;flex-direction:column}
+
+/* rail: light, open, a slim ember marker on the active item */
+.lx-rail{position:sticky;top:0;height:100vh;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-width:thin;
+  display:flex;flex-direction:column;gap:2px;padding:var(--sp-4) var(--sp-3);background:var(--rail);border-right:1px solid var(--line)}
+.lx-logo{display:flex;align-items:center;gap:9px;padding:4px 10px 16px;color:var(--ink);text-decoration:none;flex:none}
+.lx-logo b{font-size:21px;font-weight:600;letter-spacing:-.045em;line-height:1}
+.lx-grp{margin:16px 0 var(--sp-1);padding:0 10px;font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);flex:none}
+.lx-nav{position:relative;display:flex;align-items:center;gap:10px;flex:none;width:100%;min-height:34px;padding:0 10px;border:0;border-radius:var(--r-md);
+  background:transparent;color:var(--ink-2);font-size:13.5px;font-weight:500;text-align:left;text-decoration:none;cursor:pointer;
+  transition:background var(--t-fast) var(--ease),color var(--t-fast) var(--ease)}
+.lx-nav .lx-ic{color:var(--icon);stroke-width:1.5}
+.lx-nav.plat .lx-ic{color:var(--ink-2)}
+.lx-nav:hover{background:rgba(28,20,10,.045);color:var(--ink)}
+.lx-nav .n{margin-left:auto;min-width:20px;text-align:center;padding:1px 6px;border-radius:999px;background:rgba(28,20,10,.06);color:var(--ink-2);font-size:var(--fs-micro);font-weight:600;font-variant-numeric:tabular-nums}
+.lx-nav .note{font-size:11px;font-weight:400;color:var(--faint)}
+.lx-nav.on{background:#fff;color:var(--ink);font-weight:600;box-shadow:var(--sh-1)}
+.lx-nav.on::before{content:"";position:absolute;left:-12px;top:7px;bottom:7px;width:3px;border-radius:0 3px 3px 0;background:linear-gradient(180deg,var(--e1),var(--e3))}
+.lx-nav.on .lx-ic{color:var(--ink)}
+.lx-nav.gap{margin-top:10px}
+.lx-rail .lx-sp{min-height:var(--sp-4)}
+
+/* top bar */
+.lx-top{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:var(--sp-3);height:var(--top-h);min-width:0;padding:0 var(--pad-page);background:rgba(255,255,255,.96);flex:none}
+.lx-top .lx-mark{display:none}
+.lx-swatch{display:inline-block;width:16px;height:16px;border-radius:5px;background:var(--dot,var(--muted));flex:none}
+/* the brand marker in the switcher and the brand list: a small grey circle with the first letter, tokens only so it follows the theme */
+.lx-bmark{display:inline-grid;place-items:center;flex:none;width:20px;height:20px;border-radius:50%;background:var(--bg-sunk);box-shadow:inset 0 0 0 1px var(--line);color:var(--muted);font-size:11px;font-weight:650;line-height:1;letter-spacing:0}
+.lx-bmark .lx-ic,.lx-item .lx-bmark .lx-ic,.lx-switch .lx-bmark .lx-ic{width:11px;height:11px;color:var(--muted)}
+.lx-item.on .lx-bmark{background:var(--surface);color:var(--ink-2)}
+.lx-chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;background:var(--bg-sunk);color:var(--muted);font-size:12px;font-weight:550;white-space:nowrap}
+/* the assistant button: the one jewel. White pill, ember gem, a soft ember glow. */
+.lx-ask{display:inline-flex;align-items:center;gap:10px;height:38px;min-width:232px;padding:0 9px 0 6px;border-radius:999px;border:1.5px solid transparent;cursor:pointer;text-decoration:none;
+  font-size:13px;font-weight:500;color:var(--ink-2);
+  background:linear-gradient(#fff,#fff) padding-box,linear-gradient(120deg,var(--e1),var(--e3) 55%,rgba(255,122,26,.25)) border-box;
+  box-shadow:0 1px 2px rgba(190,70,10,.08),0 8px 22px -10px rgba(255,110,30,.55);transition:box-shadow var(--t) var(--ease),color var(--t) var(--ease)}
+.lx-ask:hover{color:var(--ink);box-shadow:0 1px 2px rgba(190,70,10,.10),0 10px 26px -10px rgba(255,110,30,.75)}
+.lx-ask .lx-ic{width:26px;height:26px;padding:6px;border-radius:50%;background:var(--grad);stroke:#fff;fill:#fff;stroke-width:1.2;box-shadow:inset 0 1px 0 rgba(255,255,255,.45)}
+.lx-ask kbd{margin-left:auto;font:inherit;font-size:var(--fs-micro);background:var(--bg-sunk);color:var(--muted);padding:2px 7px;border-radius:999px}
+.lx-gem{display:inline-flex;align-items:center;justify-content:center;flex:none;width:30px;height:30px;border-radius:50%;background:var(--grad);box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 6px 14px -6px rgba(255,100,30,.75)}
+.lx-gem .lx-ic{width:15px;height:15px;fill:#fff;stroke:#fff;stroke-width:1.2}
+.lx-gem.sm{width:22px;height:22px}.lx-gem.sm .lx-ic{width:11px;height:11px}
+.lx-avatar{display:inline-flex;align-items:center;justify-content:center;flex:none;width:34px;height:34px;border-radius:999px;background:var(--ink);color:#fff;font-weight:650;font-size:13px;overflow:hidden;border:0;padding:0;cursor:default}
+button.lx-avatar{cursor:pointer}
+.lx-avatar img{width:100%;height:100%;object-fit:cover;display:block}
+.lx-bell{position:relative;width:34px;padding:0}
+.lx-bell .lx-count{position:absolute;top:-6px;right:-7px;height:18px;min-width:18px;padding:0 5px;font-size:11px;box-shadow:0 0 0 2px #fff}
+
+/* popover: brand switcher, account menu, bell */
+.lx-pop{position:absolute;z-index:60;min-width:220px;max-width:min(360px,calc(100vw - 24px));max-height:min(70vh,560px);overflow:auto;padding:6px;background:#fff;border-radius:16px;box-shadow:var(--sh-3);animation:lx-pop var(--t) var(--ease)}
+@keyframes lx-pop{from{opacity:0;transform:translateY(-4px)}}
+.lx-pop-h{padding:8px 10px 8px}
+.lx-pop-h b{display:block;font-weight:600}
+.lx-pop-h span{display:block;font-size:12.5px;color:var(--muted)}
+.lx-pop hr{border:0;border-top:1px solid var(--line);margin:6px 4px}
+.lx-item{display:flex;align-items:center;gap:10px;width:100%;min-height:36px;padding:0 10px;border:0;border-radius:var(--r-md);background:transparent;font-size:13.5px;font-weight:500;color:var(--ink);text-align:left;text-decoration:none;cursor:pointer}
+.lx-item:hover,.lx-item:focus-visible{background:var(--surface-2)}
+.lx-item.on{background:var(--bg-sunk);font-weight:600}
+.lx-item .lx-ic{color:var(--muted);width:16px;height:16px}
+.lx-item small{margin-left:auto;font-size:11.5px;font-weight:400;color:var(--faint)}
+.lx-pop .lx-empty{padding:26px 18px;box-shadow:none}
+
+/* page frame */
+.lx-page{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--gap-page);align-content:start;width:100%;max-width:1228px;padding:var(--sp-3) var(--pad-page) var(--sp-12)}
+.lx-head{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--sp-4);min-width:0}
+.lx-tabs-slot{min-width:0}
+.lx-head-row{display:flex;align-items:flex-end;gap:var(--sp-4);min-height:40px}
+.lx-head h1{font-size:var(--fs-title);font-weight:600;letter-spacing:-.035em;line-height:1.15}
+.lx-asof{font-size:12px;color:var(--faint);white-space:nowrap}
+.lx-asof.busy::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--slate);margin-right:6px;vertical-align:1px;opacity:.7}
+.lx-view{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--gap-page);align-content:start;min-width:0}
+.lx-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:var(--sp-6);align-items:start}
+/* two thirds and one third while both fit (the narrow side never under 280px), then one under the other */
+.lx-wide-narrow{display:flex;flex-wrap:wrap;gap:var(--sp-6);align-items:flex-start}
+.lx-wide-narrow>*{flex:1 1 280px;min-width:0}
+.lx-wide-narrow>:first-child{flex:2 1 560px}
+.lx-foot{font-size:12px;color:var(--faint)}
+
+/* tabs: sub pages across the top of a page */
+.lx-tabs{display:flex;gap:6px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.lx-tabs::-webkit-scrollbar{display:none}
+.lx-tabs a{display:inline-flex;gap:6px;align-items:center;flex:none;padding:10px 12px;margin-bottom:-1px;font-size:13.5px;font-weight:550;color:var(--muted);text-decoration:none;white-space:nowrap}
+.lx-tabs a:hover{color:var(--ink)}
+.lx-tabs a.on{color:var(--ink);font-weight:600;background:linear-gradient(90deg,var(--e1),var(--e3)) left bottom/100% 2.5px no-repeat}
+.lx-tabs .n{font-size:11.5px;font-weight:600;background:var(--bg-sunk);border-radius:999px;padding:0 7px;color:var(--ink-2)}
+.lx-tabs .lock{width:12px;height:12px;color:var(--faint)}
+.lx-seg{display:inline-flex;background:var(--bg-sunk);border-radius:12px;padding:3px;gap:2px}
+.lx-seg button{padding:5px 11px;border:0;border-radius:9px;background:transparent;font-size:13px;font-weight:550;color:var(--muted);cursor:pointer}
+.lx-seg .on{background:#fff;color:var(--ink);box-shadow:0 0 0 1px rgba(28,20,10,.05),0 1px 3px rgba(28,20,10,.10)}
+
+/* phone tab bar (shown under 760px) */
+.lx-tabbar{display:none}
+
+/* ---------- 4. buttons: one ember primary, everything else quiet ---------- */
+.lx-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:var(--ctl-h);padding:0 13px;border:0;border-radius:11px;
+  font-size:13px;font-weight:550;line-height:1;white-space:nowrap;cursor:pointer;text-decoration:none;color:var(--ink);background:#fff;
+  box-shadow:0 0 0 1px rgba(28,20,10,.10),0 1px 2px rgba(28,20,10,.05);
+  transition:background var(--t-fast) var(--ease),box-shadow var(--t-fast) var(--ease),transform var(--t-fast) var(--ease),filter var(--t-fast) var(--ease)}
+.lx-btn:hover{background:var(--surface-2);box-shadow:0 0 0 1px rgba(28,20,10,.16),0 2px 6px rgba(28,20,10,.07)}
+.lx-btn:active{transform:translateY(1px)}
+.lx-btn .lx-ic{width:16px;height:16px;stroke-width:1.5}
+.lx-btn.quiet{color:var(--ink-2)}
+.lx-btn.primary{background:var(--grad-btn);color:#fff;font-weight:600;text-shadow:0 1px 1px rgba(150,45,0,.35);
+  box-shadow:0 0 0 1px var(--btn-edge),inset 0 1px 0 rgba(255,255,255,.38),var(--sh-ember)}
+.lx-btn.primary:hover{background:var(--grad-btn);filter:brightness(1.05) saturate(1.05)}
+.lx-btn.primary:active{filter:none;box-shadow:0 0 0 1px var(--btn-edge),inset 0 2px 3px rgba(140,40,0,.35)}
+.lx-btn.lg{height:42px;padding:0 18px;font-size:14.5px;border-radius:13px}
+.lx-btn.ghost{background:transparent;box-shadow:none;color:var(--ink-2)}
+.lx-btn.ghost:hover{background:rgba(28,20,10,.05);box-shadow:none}
+.lx-btn.ink{background:var(--ink);color:#fff;box-shadow:0 1px 2px rgba(28,20,10,.25)}
+.lx-btn.icon{width:var(--ctl-h);padding:0}
+.lx-btn:disabled{opacity:.5;cursor:default;transform:none;filter:none}
+
+/* ---------- 5. cards: white on white, soft depth, almost no hard borders ---------- */
+.lx-card{background:var(--surface);border-radius:var(--r-lg);box-shadow:var(--sh-1);padding:clamp(18px,10px + 1.3vw,24px) var(--pad-card);min-width:0}
+.lx-card.raised{box-shadow:var(--sh-2)}
+.lx-card.flush{padding:0;overflow:hidden}
+.lx-card.flush>.lx-sec{padding:clamp(16px,12px + .8vw,20px) var(--pad-card) clamp(8px,6px + .4vw,10px)}
+.lx-card.flush>.lx-pad{padding:4px var(--pad-card) clamp(16px,12px + .8vw,20px)}
+.lx-sec{display:flex;align-items:center;gap:var(--sp-3)}
+.lx-sec h2,.lx-sec h3{font-size:var(--fs-h3);font-weight:600;letter-spacing:-.015em}
+.lx-sec .note{font-size:13px;color:var(--muted)}
+.lx-sec .act{margin-left:auto;display:flex;align-items:center;gap:var(--sp-4);font-size:var(--fs-meta)}
+.lx-sec .act a:not(.lx-btn){color:var(--ink);font-weight:550;text-decoration:none}
+.lx-sec .act a:not(.lx-btn):hover{text-decoration:underline}
+.lx-cap{font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);white-space:nowrap}
+.lx-band{background:var(--band);border-radius:var(--r-xl);padding:clamp(16px,8px + 1.7vw,24px);min-width:0}
+.lx-rows{display:flex;flex-direction:column}
+.lx-rows>*{display:flex;align-items:center;gap:14px;padding:13px 0;border-top:1px solid var(--line);color:inherit;text-decoration:none}
+.lx-rows>:first-child{border-top:0}
+.lx-empty{display:grid;gap:10px;justify-items:start;padding:36px 32px;border-radius:var(--r-lg);box-shadow:inset 0 0 0 1px var(--line);background:linear-gradient(180deg,#FAF9F7,#fff)}
+.lx-empty h3{font-size:18px;font-weight:600;letter-spacing:-.02em}
+.lx-empty p{color:var(--muted);max-width:52ch;min-width:0;overflow-wrap:anywhere}
+.lx-empty .lx-btn{margin-top:6px}
+
+/* the ONE hero band per page: neutral paper with a soft ember wash in one corner */
+.lx-hero{position:relative;display:grid;grid-template-columns:minmax(0,1fr);gap:clamp(20px,14px + 1vw,24px);min-width:0;padding:clamp(20px,12px + 1.7vw,28px) clamp(18px,6px + 2.6vw,32px) clamp(20px,13px + 1.4vw,26px);border-radius:var(--r-xl);
+  background:var(--wash),linear-gradient(180deg,#FAF9F7 0%,#FFFFFF 100%);box-shadow:inset 0 0 0 1px rgba(28,20,10,.045)}
+/* 'line' used to draw a short ember stripe on the hero. Ember is kept for the lead chart line, the primary
+   button, the logo, the Locus AI button and the active menu marker, so the stripe is gone and 'line' is a no-op. */
+.lx-hero-h{display:flex;align-items:flex-end;gap:var(--sp-4);flex-wrap:wrap}
+.lx-hero h1{margin-top:6px;font-size:var(--fs-title);font-weight:600;letter-spacing:-.035em;line-height:1.15}
+.lx-hero p{margin-top:4px;color:var(--muted)}
+.lx-eyebrow{display:inline-flex;align-items:center;gap:7px;font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.lx-serif{font-family:var(--serif);font-style:italic;font-weight:400;font-size:1.2em;letter-spacing:-.015em;line-height:1}
+.lx-grad-text{background:var(--grad-text);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent;padding-right:.08em}
+
+/* the takeaway strip: one sentence from the assistant. The gem is the only ember. */
+.lx-take{display:flex;align-items:center;gap:14px;padding:12px 14px 12px 12px;border-radius:999px;font-size:15px;color:var(--ink-2);background:#fff;box-shadow:var(--sh-1)}
+.lx-take b{color:var(--ink);font-weight:650;font-variant-numeric:tabular-nums}
+.lx-take .by{flex:none;font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--brand-ink)}
+.lx-take .say{min-width:0}
+.lx-take .lx-btn{margin-left:auto;flex:none;border-radius:999px}
+
+/* ---------- 6. numbers: ink, large, tabular ---------- */
+/* --kpi-em (big figures) and --kpi-em-s (standard ones beside them) come from kit.js kpis(): the widest figure in
+   ems of its own size. A row written by hand (no --kpi-em) gets 4.55, room for a six figure amount. No tile goes under 104px. */
+.lx-kpis{--cols:4;--half:2;--kpi-fs:var(--fs-kpi);--kpi-min:max(104px,var(--kpi-em,4.55) * var(--kpi-fs),var(--kpi-em-s,0) * var(--fs-kpi));
+  --w-all:calc((100% - (var(--cols) - 1) * var(--gap-kpi)) / var(--cols) - .5px);
+  --w-half:calc((100% - (var(--half) - 1) * var(--gap-kpi)) / var(--half) - .5px);
+  --w-two:calc((100% - var(--gap-kpi)) / 2 - .5px);
+  --need-all:calc(var(--cols) * var(--kpi-min) + (var(--cols) - 1) * var(--gap-kpi));
+  --need-half:calc(var(--half) * var(--kpi-min) + (var(--half) - 1) * var(--gap-kpi));
+  display:grid;gap:var(--gap-kpi);
+  /* a fixed count ({ cols }) holds while every tile has the room its number needs; then half as many
+     across (5 or 6 become 3, 7 or 8 become 4); then two; then one. --kpi-min is the widest figure. */
+  grid-template-columns:repeat(auto-fill,minmax(min(100%,max(var(--kpi-min),var(--w-all),min(var(--w-half),(var(--need-all) - 100%) * 9999),min(var(--w-two),(var(--need-half) - 100%) * 9999))),1fr))}
+.lx-kpis[style*="--cols:5"],.lx-kpis[style*="--cols: 5"],.lx-kpis[style*="--cols:6"],.lx-kpis[style*="--cols: 6"]{--half:3}
+.lx-kpis[style*="--cols:7"],.lx-kpis[style*="--cols: 7"],.lx-kpis[style*="--cols:8"],.lx-kpis[style*="--cols: 8"]{--half:4}
+.lx-kpis:has(>.lx-kpi.lg){--kpi-fs:var(--fs-hero)}
+/* a hand written row of big figures cannot say how wide its numbers are, so the figures give a little first
+   (down to 34px, sized from the row's own width) and the row keeps its count until a six figure amount no longer fits */
+.lx-kpis:not([style*="--kpi-em"]){container-type:inline-size}
+.lx-kpis:not([style*="--kpi-em"]):has(>.lx-kpi.lg){--kpi-fs:min(var(--fs-hero),34px)}
+.lx-kpis:not([style*="--kpi-em"])>.lx-kpi.lg .v:not(.words),.lx-kpis:not([style*="--kpi-em"])>.lx-kpi.lg .lx-hero-num{font-size:min(var(--fs-hero),max(34px,(100cqw - (var(--cols) - 1) * var(--gap-kpi)) / var(--cols) / 4.55))}
+/* no count given: as many as fit at 180px or the number's own width, never fewer than two across while two fit */
+.lx-kpis:not([style*="--cols"]){grid-template-columns:repeat(auto-fit,minmax(min(100%,max(var(--kpi-min),min(180px,(100% - var(--gap-kpi)) / 2 - .5px))),1fr))}
+.lx-kpi{display:grid;gap:4px;align-content:start;min-width:0;color:inherit;text-decoration:none}
+.lx-kpi .l{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);white-space:nowrap}
+.lx-kpi .v{display:flex;align-items:baseline;gap:var(--sp-2);margin-top:2px;font-size:var(--fs-kpi);font-weight:600;line-height:1.12;letter-spacing:-.035em;font-variant-numeric:tabular-nums;color:var(--ink);white-space:nowrap}
+.lx-kpi.lg .v{font-size:var(--fs-hero);letter-spacing:-.04em;line-height:1.02}
+.lx-kpi .v small{font-size:13px;font-weight:400;letter-spacing:-.005em;color:var(--muted)}
+.lx-kpi .s{display:flex;align-items:center;gap:6px;min-height:22px;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.lx-kpi .lx-spark{margin-top:var(--sp-3)}
+.lx-src{margin-left:auto;font-size:11px;font-weight:550;color:var(--faint);border:1px solid var(--line);border-radius:999px;padding:0 7px;line-height:18px;white-space:nowrap}
+.lx-big{font-size:var(--fs-hero);font-weight:600;letter-spacing:-.04em;line-height:1.02;font-variant-numeric:tabular-nums;white-space:nowrap}
+/* the one number that matters: ink numerals on a short ember underline */
+.lx-hero-num{display:inline-block;font-size:var(--fs-hero);font-weight:600;letter-spacing:-.04em;line-height:1.02;font-variant-numeric:tabular-nums;color:var(--ink);white-space:nowrap;padding-bottom:9px;background:var(--grad) left bottom/100% 3px no-repeat}
+.lx-delta{display:inline-flex;align-items:baseline;gap:3px;font-size:var(--fs-meta);font-weight:550;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted)}
+.lx-delta::before{font-size:.62em;line-height:1;transform:translateY(-.12em)}
+.lx-delta.up::before{content:"\25B2"}.lx-delta.down::before{content:"\25BC"}
+.lx-delta.is-good{color:var(--good)}.lx-delta.is-bad{color:var(--bad)}.lx-delta.plain{color:var(--ink-2)}
+
+/* ---------- 7. pills, counts and status ---------- */
+.lx-pill{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:999px;font-size:var(--fs-meta);font-weight:550;line-height:1;white-space:nowrap;font-variant-numeric:tabular-nums;background:var(--bg-sunk);color:var(--ink-2)}
+.lx-pill.good{background:var(--good-bg);color:var(--good)}
+.lx-pill.bad{background:var(--bad-bg);color:var(--bad)}
+.lx-pill.warn::before,.lx-pill.ai::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--watch);flex:none}
+.lx-pill.ai{background:#fff;color:var(--ink);box-shadow:inset 0 0 0 1px var(--line-strong)}
+.lx-pill.ai::before{background:var(--grad)}
+.lx-count{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:24px;padding:0 8px;border-radius:999px;background:var(--bg-sunk);color:var(--ink);font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums}
+.lx-count.ink{background:var(--ink);color:#fff}
+.lx-count.bad{background:var(--bad-bg);color:var(--bad)}
+.lx-count.sm{height:20px;min-width:20px;padding:0 6px}
+.lx-stat{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-meta);font-weight:550;line-height:1.3;color:var(--ink-2);white-space:nowrap}
+.lx-stat::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--faint);flex:none}
+.lx-stat.good{color:var(--good)}.lx-stat.good::before{background:var(--good)}
+.lx-stat.warn::before{background:var(--watch);box-shadow:0 0 0 3px rgba(232,181,0,.20)}
+.lx-stat.bad{color:var(--bad)}.lx-stat.bad::before{background:var(--bad)}
+.lx-stat.info::before{background:var(--slate)}
+.lx-stat.off{color:var(--muted)}.lx-stat.off::before{background:transparent;box-shadow:inset 0 0 0 1.5px var(--faint)}
+
+/* platform: a small ink glyph plus the name in ink. At most a 6px dot. */
+.lx-plat{display:inline-flex;align-items:center;gap:8px;font-size:13.5px;font-weight:550;color:var(--ink);white-space:nowrap;text-decoration:none}
+.lx-plat .lx-ic{width:17px;height:17px;stroke-width:1.7}
+.lx-plat i{width:6px;height:6px;border-radius:50%;background:var(--dot,var(--faint));flex:none}
+.lx-plat.chip{height:30px;padding:0 12px 0 10px;border-radius:999px;background:#fff;box-shadow:0 0 0 1px var(--line-strong)}
+
+/* date block for list rows. now is ink, not ember. */
+.lx-date{display:inline-grid;place-items:center;width:46px;height:46px;border-radius:13px;background:var(--bg-sunk);line-height:1.05;text-align:center;flex:none}
+.lx-date small{display:block;font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.lx-date b{display:block;font-size:17px;font-weight:650;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.lx-date.now{background:var(--ink)}
+.lx-date.now small{color:rgba(255,255,255,.7)}
+.lx-date.now b{color:#fff}
+
+/* ---------- 8. charts ---------- */
+.lx-spark{display:block;width:100%;height:38px;overflow:visible}
+.lx-spark .ln{fill:none;stroke:var(--slate);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.lx-spark .ln.lead{stroke:url(#lx-line) var(--brand);stroke-width:2}
+.lx-spark .fill{fill:url(#lx-slate) rgba(91,107,140,.07);stroke:none}
+.lx-spark .fill.lead{fill:url(#lx-area) rgba(255,122,26,.10)}
+.lx-plot{display:block;width:100%;height:auto;overflow:visible;font-family:var(--sans)}
+.lx-plot .gl{stroke:var(--grid);stroke-width:1;stroke-dasharray:2 5;shape-rendering:crispEdges}
+.lx-plot .ax{stroke:var(--line-strong);stroke-width:1;shape-rendering:crispEdges}
+.lx-plot .tk{fill:var(--faint);font-size:11.5px;font-variant-numeric:tabular-nums}
+.lx-plot .tk.y{text-anchor:end}.lx-plot .tk.x{text-anchor:middle}
+.lx-plot .s1{fill:none;stroke:url(#lx-line) var(--brand);stroke-width:2.6;stroke-linejoin:round;stroke-linecap:round;filter:drop-shadow(0 6px 7px rgba(255,100,30,.32))}
+.lx-plot .area{fill:url(#lx-area) rgba(255,122,26,.10);stroke:none}
+.lx-plot .s2{fill:none;stroke:var(--slate);stroke-width:1.75;stroke-linejoin:round;stroke-linecap:round}
+.lx-plot .cmp{fill:none;stroke:#A3ABBD;stroke-width:1.5;stroke-dasharray:3 4}
+.lx-plot .ref{stroke:var(--ink-2);stroke-width:1;stroke-dasharray:4 3;shape-rendering:crispEdges}
+.lx-plot .ev{stroke:var(--line-strong);stroke-width:1;stroke-dasharray:3 4;shape-rendering:crispEdges}
+.lx-plot .dot{fill:var(--brand);stroke:#fff;stroke-width:2.5;filter:drop-shadow(0 2px 4px rgba(255,90,30,.55))}
+.lx-plot .dl{font-size:12.5px;font-weight:600;font-variant-numeric:tabular-nums}
+.lx-plot .dl.s1t{fill:var(--brand-ink)}.lx-plot .dl.s2t{fill:var(--slate)}
+.lx-plot .nt{fill:var(--muted);font-size:11.5px}
+/* bars and columns are data marks: ink and grey. Ember only on the one lead column. */
+.lx-plot .col{fill:var(--ink)}
+.lx-plot .col.dim{fill:#D9DDE6}
+.lx-plot .col.lead{fill:var(--brand)}
+.lx-legend{display:flex;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--ink-2)}
+.lx-legend span{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.lx-legend span::before{content:"";width:14px;height:0;border-top:3px solid var(--c,var(--slate));border-radius:2px}
+.lx-legend span.lead::before{border:0;height:3px;background:linear-gradient(90deg,var(--e1),var(--e3))}
+.lx-legend span.dash::before{border-top:2px dashed #A3ABBD}
+.lx-legend span.sq::before{width:10px;height:10px;border:0;border-radius:2px;background:var(--c,var(--slate))}
+
+/* range gauge: ink measure, status fills, a crisp goal tick. No ember. */
+.lx-gauge{display:grid;gap:5px;min-width:0}
+.lx-gauge-track{position:relative;height:8px;border-radius:999px;background:var(--bg-sunk)}
+.lx-gauge.thin .lx-gauge-track{height:6px}
+.lx-gauge .fill{position:absolute;left:0;top:0;height:100%;width:var(--v,0%);background:var(--ink);border-radius:999px}
+.lx-gauge .fill.good{background:var(--good)}.lx-gauge .fill.warn{background:var(--watch)}.lx-gauge .fill.bad{background:var(--bad)}
+.lx-gauge .goal{position:absolute;left:var(--v,0%);top:-4px;bottom:-4px;width:2px;margin-left:-1px;border-radius:1px;background:var(--ink);box-shadow:0 0 0 1.5px var(--surface)}
+.lx-gauge-ticks{position:relative;height:14px;font-size:11px;line-height:14px;color:var(--muted);font-variant-numeric:tabular-nums}
+.lx-gauge-ticks span{position:absolute;left:var(--at,0%);transform:translateX(-50%);white-space:nowrap}
+.lx-gauge-ticks span.l{left:0;transform:none}
+.lx-gauge-ticks span.r{left:auto;right:0;transform:none}
+.lx-gauge-ticks span.on{color:var(--ink);font-weight:600}
+.lx-cellbar{display:inline-block;width:64px;height:5px;border-radius:999px;background:var(--bg-sunk);vertical-align:middle;margin-left:var(--sp-2);position:relative}
+.lx-cellbar::after{content:"";position:absolute;left:0;top:0;bottom:0;width:var(--v,0%);background:var(--ink);border-radius:999px}
+
+/* ---------- 9. tables: aligned tabular numerals, hairline rows, neutral hover ---------- */
+.lx-table-wrap{width:100%;min-width:0;contain:inline-size;overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+/* a table put straight into a card scrolls inside the card, never the page */
+.lx-card:has(>.lx-table){overflow-x:auto}
+.lx-table-wrap.virtual{overflow-y:auto}
+.lx-table{width:100%;border-collapse:collapse;font-size:var(--fs-cell);font-variant-numeric:tabular-nums}
+.lx-table th{height:34px;padding:0 var(--sp-3);text-align:left;font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);white-space:nowrap;border-bottom:1px solid var(--line);background:#fff}
+.lx-table-wrap.virtual th{position:sticky;top:0;z-index:1}
+.lx-table td{height:var(--rh,40px);padding:0 var(--sp-3);border-bottom:1px solid var(--line);vertical-align:middle;color:var(--ink);white-space:nowrap}
+.lx-table.roomy td{height:var(--rh,56px)}
+.lx-table th:first-child,.lx-table td:first-child{padding-left:0}
+.lx-table th:last-child,.lx-table td:last-child{padding-right:0}
+.lx-card.flush .lx-table th:first-child,.lx-card.flush .lx-table td:first-child{padding-left:var(--pad-card)}
+.lx-card.flush .lx-table th:last-child,.lx-card.flush .lx-table td:last-child{padding-right:var(--pad-card)}
+.lx-table tbody tr:last-child td{border-bottom:0}
+.lx-table .num{text-align:right;letter-spacing:-.01em}
+.lx-table .name{font-weight:550;white-space:normal}
+.lx-table .sub{display:block;font-size:var(--fs-meta);font-weight:400;color:var(--muted)}
+.lx-table .dim{color:var(--muted)}.lx-table .neg{color:var(--bad)}.lx-table .pos{color:var(--good)}.lx-table .strong{font-weight:650}
+.lx-table tbody tr:hover td{background:var(--surface-2)}
+.lx-table tr.click{cursor:pointer}
+.lx-table tr.total td{border:0;background:var(--band);font-weight:650}
+.lx-table tr.spacer:hover td,.lx-table tr.empty:hover td{background:none}
+.lx-table tr.empty td{height:96px;text-align:center;color:var(--muted)}
+.lx-table th.can-sort{cursor:pointer}
+.lx-table th.sorted{color:var(--ink)}
+.lx-table th.sorted::after{content:"\2193";margin-left:4px;font-weight:400}
+.lx-table th.sorted.asc::after{content:"\2191"}
+.lx-thumb{width:32px;height:32px;border-radius:var(--r-sm);object-fit:cover;background:var(--bg-sunk);box-shadow:0 0 0 1px var(--line);vertical-align:middle;margin-right:10px}
+
+/* ---------- 10. form fields and the toggle ---------- */
+.lx-field{display:grid;gap:7px}
+.lx-field label{font-size:13px;font-weight:600;color:var(--ink-2)}
+.lx-field .hint{font-size:12.5px;color:var(--muted)}
+.lx-input-wrap{position:relative}
+.lx-input-wrap .lx-ic{position:absolute;left:14px;top:50%;margin-top:-9px;color:var(--faint)}
+.lx-input{width:100%;height:42px;padding:0 14px;border:0;border-radius:12px;background:#fff;font:500 14.5px var(--sans);color:var(--ink);letter-spacing:-.006em;box-shadow:0 0 0 1px rgba(28,20,10,.13),0 1px 2px rgba(28,20,10,.04)}
+.lx-input.has-icon{padding-left:44px}
+.lx-input::placeholder{color:var(--faint)}
+.lx-input:focus{outline:0;box-shadow:0 0 0 1.5px var(--e2),0 0 0 5px rgba(255,122,26,.16)}
+textarea.lx-input{height:auto;min-height:96px;padding:11px 14px;line-height:1.5;resize:vertical}
+select.lx-input{appearance:none;padding-right:34px;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236F6A63' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") right 10px center/16px no-repeat}
+.lx-toggle{display:inline-flex;align-items:center;gap:10px;cursor:pointer;font-size:13.5px;font-weight:500}
+.lx-toggle input{position:absolute;opacity:0;width:0;height:0}
+.lx-toggle .track{position:relative;width:38px;height:22px;border-radius:999px;background:#D9D6D0;transition:background var(--t) var(--ease);flex:none}
+.lx-toggle .track::after{content:"";position:absolute;left:2px;top:2px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(28,20,10,.3);transition:transform var(--t) var(--ease)}
+.lx-toggle input:checked+.track{background:var(--ink)}
+.lx-toggle input:checked+.track::after{transform:translateX(16px)}
+.lx-toggle input:focus-visible+.track{outline:2px solid var(--e2);outline-offset:2px}
+
+/* ---------- 11. skeleton, toast, overlay and sheet ---------- */
+/* first ever visit only. A short run, not endless. */
+.lx-skel{border-radius:var(--r-sm);background:linear-gradient(90deg,#F0EEEA 25%,#F8F7F5 50%,#F0EEEA 75%) 0 0/200% 100%;animation:lx-shim 1.4s linear 12}
+.lx-skel.line{height:14px;margin:8px 0;max-width:60%}
+.lx-skel.title{height:30px;width:min(260px,100%)}
+.lx-skel.kpi{height:112px;border-radius:var(--r-lg)}
+.lx-skel.chart{height:320px;border-radius:var(--r-lg)}
+.lx-skel.row{height:44px;margin:6px 0}
+.lx-skel-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr));gap:var(--sp-6)}
+@keyframes lx-shim{to{background-position:-200% 0}}
+.lx-toasts{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:90;display:grid;gap:8px;justify-items:center;pointer-events:none}
+.lx-toast{padding:10px 16px;border-radius:999px;background:var(--ink);color:#fff;font-size:13.5px;font-weight:550;box-shadow:var(--sh-3);animation:lx-pop var(--t-slow) var(--ease);transition:opacity .2s,transform .2s}
+.lx-toast.bad{background:var(--bad)}.lx-toast.good{background:var(--good)}
+.lx-toast.out{opacity:0;transform:translateY(6px)}
+.lx-overlay{position:fixed;inset:0;z-index:80;display:flex;justify-content:flex-end;background:rgba(22,19,15,.28);animation:lx-fade var(--t) var(--ease)}
+@keyframes lx-fade{from{opacity:0}}
+.lx-sheet{display:flex;flex-direction:column;width:min(480px,100%);height:100%;background:#fff;box-shadow:var(--sh-3);animation:lx-slide-r var(--t-slow) var(--ease)}
+.lx-sheet.center{align-self:center;margin:auto;height:auto;max-height:86vh;width:min(560px,calc(100% - 32px));border-radius:22px;animation-name:lx-pop}
+.lx-sheet.bottom{align-self:flex-end;width:100%;height:auto;max-height:88vh;border-radius:22px 22px 0 0;animation-name:lx-slide-u}
+.lx-overlay:has(.lx-sheet.center),.lx-overlay:has(.lx-sheet.bottom){justify-content:center}
+.lx-sheet .grab{display:none;width:38px;height:4px;border-radius:999px;background:var(--line-strong);margin:10px auto 0;flex:none}
+.lx-sheet.bottom .grab{display:block}
+.lx-sheet-h{display:flex;align-items:center;gap:var(--sp-3);padding:18px 16px 10px 24px;flex:none}
+.lx-sheet-h h2{font-size:18px;font-weight:600;letter-spacing:-.02em;flex:1}
+.lx-sheet-b{padding:8px 24px 28px;overflow:auto;display:grid;gap:var(--sp-4);align-content:start}
+@keyframes lx-slide-r{from{transform:translateX(24px);opacity:0}}
+@keyframes lx-slide-u{from{transform:translateY(32px);opacity:0}}
+
+/* the loader mark: the one endless animation. Still when motion is off. */
+.lx-spin .lx-mark-pt,.lx-spin .lx-mark-ring{transform-box:fill-box;transform-origin:center}
+.lx-spin .lx-mark-pt,.lx-spin .lx-mark-ring{animation:lx-pt 2s ease-in-out -.8s infinite}
+.lx-mark-ring{fill:none;stroke:var(--e2);stroke-width:1.5px;vector-effect:non-scaling-stroke;opacity:0}
+.lx-spin .lx-mark-ring{animation-name:lx-ring}
+@keyframes lx-pt{0%,100%{transform:scale(1)}50%{transform:scale(1.14)}}
+@keyframes lx-ring{0%{transform:scale(1);opacity:0}18%{opacity:.6}100%{transform:scale(3.4);opacity:0}}
+
+/* ---------- 12. sign in ---------- */
+.lx-si{display:grid;grid-template-columns:520px minmax(0,1fr);min-height:100vh;background:#fff}
+.lx-si-left{display:flex;flex-direction:column;padding:36px 56px 30px;min-width:0}
+.lx-si-left .lx-logo{padding:0;gap:10px;align-self:flex-start}
+.lx-si-left .lx-logo b{font-size:25px}
+.lx-si-form{margin:auto 0;width:100%;max-width:384px;align-self:center;display:flex;flex-direction:column;padding:32px 0}
+.lx-si-form h1{font-size:38px;font-weight:600;letter-spacing:-.04em;line-height:1.08}
+.lx-si-form .lede{margin:10px 0 30px;font-size:15px;color:var(--muted)}
+.lx-si-form .lx-input{height:50px;border-radius:14px;font-size:15px}
+.lx-si-form .lx-btn{width:100%;height:50px;font-size:15px;border-radius:14px}
+.lx-si-form .lx-btn.primary{margin-top:14px}
+.lx-si-or{display:flex;align-items:center;gap:14px;margin:20px 0;font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)}
+.lx-si-or::before,.lx-si-or::after{content:"";flex:1;height:1px;background:var(--line-strong)}
+.lx-si-client{display:flex;align-items:center;justify-content:center;gap:9px;margin-top:26px;font-size:13.5px;color:var(--muted)}
+.lx-si-client .lx-ic{width:16px;height:16px;color:var(--faint)}
+.lx-si-client b{font-weight:600;color:var(--ink)}
+.lx-si-note{margin-top:14px;font-size:12.5px;color:var(--muted);text-align:center}
+.lx-si-foot{display:flex;align-items:center;justify-content:space-between;font-size:12.5px;color:var(--faint)}
+.lx-si-foot a{color:var(--faint);text-decoration:none;margin-left:18px}
+.lx-si-right{position:relative;margin:16px 16px 16px 0;border-radius:32px;overflow:hidden;min-height:760px;
+  background:radial-gradient(60% 70% at 100% 0%,rgba(255,138,31,.16),rgba(255,122,26,.05) 46%,rgba(255,122,26,0) 72%),linear-gradient(180deg,#FAF9F7 0%,#FDFCFB 100%);
+  box-shadow:inset 0 0 0 1px rgba(28,20,10,.05)}
+.lx-si-right::before{content:"";position:absolute;left:56px;top:0;width:72px;height:3px;border-radius:0 0 3px 3px;background:var(--grad)}
+.lx-si-copy{position:absolute;left:56px;top:60px;right:56px}
+.lx-si-copy h2{font-size:46px;font-weight:600;letter-spacing:-.04em;line-height:1.06}
+.lx-si-copy p{margin-top:14px;font-size:16px;color:var(--muted)}
+.lx-si-card{position:absolute;background:#fff;border-radius:22px;box-shadow:var(--sh-2)}
+.lx-si-main{left:56px;top:256px;width:min(520px,calc(100% - 300px));height:424px;overflow:hidden}
+.lx-si-main .hd{padding:26px 28px 0}
+.lx-si-card .l{font-size:13.5px;color:var(--muted)}
+.lx-si-main .v{font-size:52px;font-weight:600;letter-spacing:-.045em;line-height:1.05;font-variant-numeric:tabular-nums;margin-top:6px}
+.lx-si-main .sub{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted);margin-top:8px;font-variant-numeric:tabular-nums}
+.lx-si-main svg.ch{position:absolute;left:0;right:0;bottom:0;width:100%;height:240px;display:block}
+.lx-si-main .lx-legend{position:absolute;right:28px;top:30px}
+.lx-si-side{right:40px;width:226px;padding:20px 22px}
+.lx-si-side .v{font-size:34px;font-weight:600;letter-spacing:-.04em;line-height:1.1;font-variant-numeric:tabular-nums;margin-top:4px}
+.lx-si-side .s{font-size:12.5px;color:var(--muted);margin-top:4px;font-variant-numeric:tabular-nums}
+.lx-si-ai{position:absolute;left:56px;right:40px;bottom:52px;border-radius:999px;box-shadow:var(--sh-2)}
+
+/* ---------- 13. the rail shrinks to icons before the page gets tight (the page keeps about 900px or more) ---------- */
+@media (max-width:1199px){
+  :root{--rail-w:68px}
+  .lx-rail{padding:var(--sp-4) 10px;align-items:center}
+  .lx-rail .lx-logo{padding:4px 0 12px}
+  .lx-rail .lx-logo b,.lx-rail .lx-grp,.lx-rail .lx-nav .n,.lx-rail .lx-nav .note,.lx-rail .lx-nav span.t{display:none}
+  .lx-rail .lx-nav{width:46px;min-height:42px;justify-content:center;padding:0}
+  .lx-rail .lx-nav.on::before{left:-10px}
+  .lx-rail .lx-nav[data-first]{margin-top:10px}
+}
+/* the sign in page has no side menu: it keeps its two columns until the picture no longer fits */
+@media (max-width:1040px){
+  .lx-si{grid-template-columns:minmax(0,1fr)}
+  .lx-si-right{display:none}
+  .lx-si-left{padding:28px 24px 24px}
+}
+
+/* ---------- 14. phone: a bottom tab bar, single column, sheets from the bottom ---------- */
+@media (max-width:759px){
+  :root{--top-h:52px}
+  body{font-size:15px}
+  .lx-shell{display:block;padding-bottom:calc(var(--tabbar-h) + env(safe-area-inset-bottom,0px))}
+  .lx-rail{display:none}
+  .lx-top{gap:10px;border-bottom:1px solid var(--line)}
+  .lx-top .lx-mark{display:block}
+  .lx-top .lx-ask,.lx-top .lx-myday,.lx-top .lx-seeas{display:none}
+  .lx-top .lx-chip{font-size:11px;padding:0 8px;display:block;line-height:24px;overflow:hidden;text-overflow:ellipsis}
+  .lx-top>*{flex:none}
+  .lx-top>.lx-switch,.lx-top>.lx-chip{flex:0 1 auto;min-width:0}
+  .lx-top>.lx-switch{overflow:hidden}
+  .lx-top>.lx-sp{flex:1 1 0;min-width:0}
+  .lx-page{padding-top:14px;padding-bottom:28px}
+  .lx-head h1{font-weight:700;letter-spacing:-.03em;line-height:1.1}
+  .lx-tabs{margin:0 calc(var(--pad-page) * -1);padding:0 var(--pad-page)}
+  .lx-two,.lx-skel-grid{grid-template-columns:1fr;gap:var(--sp-4)}
+  .lx-wide-narrow{gap:var(--sp-4)}
+  .lx-hero{border-radius:22px}
+  .lx-take{border-radius:20px;align-items:flex-start;flex-wrap:wrap;font-size:14.500px;padding:14px}
+  .lx-take .lx-btn{margin-left:0;width:100%;height:44px}
+  .lx-btn.lg{height:48px;font-size:16px}
+  .lx-empty{padding:24px 20px}
+  .lx-empty .lx-btn{width:100%;height:48px;font-size:15.500px}
+  .lx-tabbar{position:fixed;left:0;right:0;bottom:0;z-index:40;display:grid;grid-template-columns:repeat(5,1fr);background:rgba(255,255,255,.97);border-top:1px solid var(--line-strong);padding-bottom:env(safe-area-inset-bottom,0px)}
+  .lx-tabbar a,.lx-tabbar button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:var(--tabbar-h);padding:6px 0 4px;border:0;background:none;font-size:10.500px;font-weight:550;color:var(--muted);text-decoration:none;cursor:pointer}
+  .lx-tabbar .lx-ic{width:22px;height:22px;stroke-width:1.8}
+  .lx-tabbar .on{color:var(--ink);font-weight:650}
+  .lx-tabbar .ask{color:var(--ink)}
+  .lx-tabbar .ask .lx-ic{width:30px;height:30px;padding:6px;border-radius:999px;background:var(--grad);stroke:#fff;fill:#fff;stroke-width:1.2;box-shadow:var(--sh-ember);margin-top:-2px}
+  .lx-tabbar .badge{position:relative}
+  .lx-tabbar .badge .lx-count{position:absolute;top:-6px;left:12px;height:16px;min-width:16px;padding:0 4px;font-size:10px;box-shadow:0 0 0 2px #fff}
+  .lx-overlay{justify-content:center}
+  .lx-sheet,.lx-sheet.center,.lx-sheet.right{align-self:flex-end;margin:0;width:100%;height:auto;max-height:90vh;border-radius:22px 22px 0 0;animation-name:lx-slide-u}
+  .lx-sheet .grab{display:block}
+  .lx-sheet-b{padding:8px 18px calc(24px + env(safe-area-inset-bottom,0px))}
+  .lx-pop{position:fixed!important;left:0!important;right:0!important;top:auto!important;bottom:0;max-width:none;width:100%!important;max-height:80vh;border-radius:22px 22px 0 0;padding:10px 10px calc(16px + env(safe-area-inset-bottom,0px));animation-name:lx-slide-u}
+  .lx-item{min-height:48px;font-size:15.500px}
+  .lx-more .lx-grp{margin-top:14px}
+  .lx-more .lx-nav{min-height:46px;font-size:15.500px}
+  .lx-toasts{bottom:calc(var(--tabbar-h) + 16px)}
+  .lx-si-form h1{font-size:32px}
+}
+.lx-scrim{position:fixed;inset:0;z-index:55;background:transparent}
+@media (max-width:759px){.lx-scrim{background:rgba(22,19,15,.28)}}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition:none!important}
+}
+
+/* ---------- 15. batch 2: the page head, the date range, the bell, the one chart ---------- */
+/* page head: the question as the title, the stamp and the dates beside it, tabs under it */
+.lx-head-row{flex-wrap:wrap;row-gap:10px}
+.lx-head-t{display:grid;gap:6px;min-width:0}
+.lx-head-tools{display:flex;align-items:center;gap:12px;min-height:var(--ctl-h)}
+.lx-head-tools:empty,.lx-asof-slot:empty,.lx-range-slot:empty{display:none}
+.lx-range .lx-ic:last-child{width:14px;height:14px;color:var(--faint)}
+.lx-range-custom{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 6px 6px;margin-top:6px;border-top:1px solid var(--line)}
+.lx-range-custom label{display:grid;gap:4px;font-size:12px;font-weight:550;color:var(--muted);min-width:0}
+.lx-range-custom .lx-input{height:36px;padding:0 8px;font-size:13px;border-radius:10px}
+.lx-range-custom .lx-btn{grid-column:1/-1}
+.lx-switch.still{box-shadow:none;cursor:default;padding-left:0;background:none}
+.lx-hero-t{font-size:20px;font-weight:600;letter-spacing:-.02em;line-height:1.2;margin-top:6px}
+/* "See as client": one bar on every screen size until switched back */
+.lx-asbar{display:flex;align-items:center;justify-content:center;gap:10px;min-height:40px;padding:5px 14px;background:var(--ink);color:#fff;font-size:13px;font-weight:550}
+.lx-asbar .lx-ic{width:16px;height:16px;flex:none}
+.lx-asbar .lx-btn{height:28px;margin-left:6px;flex:none}
+
+/* the bell panel */
+.lx-pop.lx-bell-pop{padding:0;max-width:calc(100vw - 24px);max-height:min(82vh,720px);border-radius:22px;display:flex;flex-direction:column;overflow:hidden}
+.lx-bell-h{display:flex;align-items:center;padding:22px 24px 10px;flex:none}
+.lx-bell-h h2{flex:1;font-size:18px;font-weight:600;letter-spacing:-.02em}
+.lx-bell-h a,.lx-bell-f a{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:550;color:var(--ink);text-decoration:none}
+.lx-bell-h a:hover,.lx-bell-f a:hover{text-decoration:underline}
+.lx-bell-f .lx-ic{width:15px;height:15px}
+.lx-bell-tabs{display:flex;gap:6px;padding:0 14px;border-bottom:1px solid var(--line);flex:none;overflow-x:auto;scrollbar-width:none}
+.lx-bell-tabs button{display:inline-flex;align-items:center;gap:7px;flex:none;padding:10px 10px;margin-bottom:-1px;border:0;background:none;font-size:13.5px;font-weight:550;color:var(--muted);white-space:nowrap;cursor:pointer}
+.lx-bell-tabs button:hover{color:var(--ink)}
+.lx-bell-tabs button.on{color:var(--ink);font-weight:600;background:linear-gradient(90deg,var(--e1),var(--e3)) left bottom/100% 2.5px no-repeat}
+.lx-bell-tabs .n{min-width:20px;padding:0 6px;border-radius:999px;background:var(--bg-sunk);color:var(--ink-2);font-size:11.5px;font-weight:600;line-height:18px;text-align:center;font-variant-numeric:tabular-nums}
+.lx-bell-body{flex:1 1 auto;min-height:132px;overflow:auto;overscroll-behavior:contain}
+.lx-bell-row{display:flex;align-items:center;gap:14px;padding:14px 24px;border-top:1px solid var(--line)}
+.lx-bell-row:first-child{border-top:0}
+.lx-bell-row .t{flex:1;min-width:0}
+.lx-bell-row p{font-size:13.5px;line-height:1.4;color:var(--ink-2)}
+.lx-bell-row p b{color:var(--ink);font-weight:650;font-variant-numeric:tabular-nums}
+.lx-bell-row .m{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:3px;font-size:12px;color:var(--muted)}
+.lx-bell-row .m b{color:var(--ink);font-weight:600}
+.lx-bell-row .m i{width:3px;height:3px;border-radius:50%;background:var(--faint)}
+.lx-bell-row .lx-btn{flex:none}
+.lx-bell-mark{display:inline-grid;place-items:center;flex:none;width:38px;height:38px;border-radius:50%;background:#fff;box-shadow:0 0 0 1px var(--line-strong)}
+.lx-bell-none,.lx-bell-wait{display:grid;gap:4px;padding:36px 24px;font-size:13.5px;color:var(--muted)}
+.lx-bell-none b{font-size:15px;font-weight:600;color:var(--ink)}
+.lx-bell-f{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 24px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted);flex:none}
+
+/* the one chart: a box that follows its container, drawn at its real pixel width */
+/* contain:inline-size : the box fills its parent but never props the parent open, so a chart
+   drawn wide can always shrink again when the screen gets narrower */
+.lx-chart{position:relative;width:100%;min-width:0;contain:inline-size}
+.lx-chart>svg{display:block;max-width:100%}
+.lx-plot .col.slate{fill:#C9D0DE}
+.lx-plot .dot2{fill:#fff;stroke:var(--slate);stroke-width:2}
+.lx-plot .mk{fill:var(--ink);stroke:#fff;stroke-width:2}
+.lx-plot .halo{paint-order:stroke;stroke:#fff;stroke-width:3.5px;stroke-linejoin:round}
+.lx-plot .dl{fill:var(--ink)}
+.lx-plot .dl.sub{fill:var(--slate);font-size:11.5px;font-weight:550}
+.lx-plot .nt.on{fill:var(--ink-2)}
+.lx-plot .tk.on{fill:var(--ink);font-weight:600}
+.lx-plot .hit{fill:transparent}
+.lx-plot .cur{stroke:var(--ink-2);stroke-width:1;shape-rendering:crispEdges;pointer-events:none}
+.lx-chart-read{position:absolute;left:50px;top:-10px;display:flex;gap:12px;align-items:center;padding:6px 12px;border-radius:999px;background:#fff;box-shadow:var(--sh-2);font-size:12.5px;color:var(--ink-2);font-variant-numeric:tabular-nums;white-space:nowrap;pointer-events:none}
+.lx-chart-read b{color:var(--ink);font-weight:650}
+.lx-spark .gref{stroke:var(--ink-2);stroke-width:1;stroke-dasharray:3 3;vector-effect:non-scaling-stroke}
+/* a chart card's own head: the question, one quiet line, the legend on the right */
+.lx-chart-h{display:flex;align-items:flex-start;gap:24px;margin-bottom:18px}
+.lx-chart-h p{margin-top:2px;font-size:13px;color:var(--muted)}
+.lx-chart-h .lx-legend{margin-left:auto;padding-top:4px}
+
+/* a table column that leaves on a small screen: give the column class 'hide-sm' (phone) or 'hide-md' (tablet and phone) */
+@media (max-width:1040px){.lx-table .hide-md{display:none}}
+@media (max-width:759px){
+  .lx-table .hide-sm{display:none}
+  .lx-head-row{align-items:flex-start}
+  .lx-head-row>.lx-sp{display:none}
+  .lx-head-t,.lx-head-tools{width:100%}
+  .lx-head-tools{justify-content:space-between}
+  .lx-asbar{justify-content:space-between;font-size:12.5px}
+  .lx-pop.lx-bell-pop{padding:0 0 env(safe-area-inset-bottom,0px);max-width:none;max-height:86vh;border-radius:22px 22px 0 0}
+  .lx-bell-h{padding:18px 18px 8px}
+  .lx-bell-tabs{padding:0 8px}
+  .lx-bell-row{padding:14px 18px;gap:12px;flex-wrap:wrap}
+  .lx-bell-row .t{flex:1 1 60%}
+  .lx-bell-row .lx-btn{margin-left:52px;height:38px}
+  .lx-bell-f{padding:14px 18px}
+  .lx-chart-read{left:0;right:0;top:-12px;justify-content:center;gap:8px;font-size:11.5px;padding:6px 8px}
+  .lx-chart-h{flex-wrap:wrap;gap:10px;margin-bottom:14px}
+  .lx-chart-h .lx-legend{margin-left:0;width:100%}
+}
+
+/* ---------- batch 2 kit additions (merged from page folders) ---------- */
+/* the example chip: one look on every page */
+.lx-chip.lx-ex{background:transparent;border:1px dashed var(--line-strong,var(--muted));color:var(--muted);font-weight:500}
+/* a big figure outside .lx-kpi */
+.lx-big{display:inline-flex;align-items:baseline;gap:var(--sp-2);font-size:var(--fs-kpi);font-weight:600;line-height:1.12;letter-spacing:-.035em;font-variant-numeric:tabular-nums;color:var(--ink)}
+.lx-big small{font-size:13px;font-weight:400;letter-spacing:-.005em;color:var(--muted)}
+/* kpi: long labels and the small text beside a figure wrap instead of pushing the grid wider */
+.lx-kpi .l{white-space:normal;min-width:0}
+.lx-kpi .v{flex-wrap:wrap;row-gap:2px;min-width:0}
+.lx-kpi .v small{white-space:normal}
+.lx-kpi .s{min-width:0;flex-wrap:wrap}
+/* a thin bar in a table cell that fills its cell: add class 'fill' */
+.lx-cellbar.fill{width:100%;margin-left:0}
+/* hide-sm and hide-md work anywhere, not only in tables */
+@media (max-width:1040px){.hide-md{display:none!important}}
+@media (max-width:759px){
+  .hide-sm{display:none!important}
+  /* card heads with a note and an action wrap onto two lines instead of squashing */
+  .lx-sec{flex-wrap:wrap;row-gap:4px}
+  .lx-sec .note{flex:1 1 100%;order:3}
+  .lx-sec h2,.lx-sec h3{min-width:0}
+}
+
+/* ---------- 16. fluid: right at every width, 320 to 2560 ----------
+   Type, gaps and padding come from the clamp() tokens at the top. Grids reflow from their own width
+   (.lx-kpis, .lx-two, .lx-wide-narrow), so nothing waits for a breakpoint to stop being squeezed.
+   The only steps left are the shell's: full menu, icon rail (under 1200), phone tab bar (under 760). */
+html{overflow-wrap:break-word}
+.lx-main>*{min-width:0}
+/* a grid that names no columns gets one column that can shrink: a row of no-wrap text or a chart inside
+   it can no longer prop the whole page wider than the screen (minmax(0,auto) draws the same as auto) */
+.lx-main *,.lx-sheet *{grid-auto-columns:minmax(0,auto)}
+.lx-view>*,.lx-hero>*,.lx-card>*,.lx-band>*{min-width:0}
+.lx-view img,.lx-view video,.lx-view canvas{max-width:100%}
+.lx-card,.lx-hero,.lx-band,.lx-empty{max-width:100%}
+/* a big number is one piece: it never breaks in the middle and never pokes out of its tile */
+.lx-kpi .v>small{flex:0 1 auto;min-width:0}
+/* the line under a figure wraps inside its tile instead of poking out of it */
+.lx-kpi .s>.lx-stat,.lx-kpi .s>.lx-delta{white-space:normal;min-width:0;flex-shrink:1}
+/* a status line stays on one line while it fits, and wraps inside its box when it is longer than the box
+   (a long list of names can no longer push the page wider than the screen). In a table it never wraps. */
+.lx-stat{white-space:normal;max-width:100%;flex-shrink:0;align-items:flex-start}
+.lx-stat::before{margin-top:calc((1.3em - 7px) / 2)}
+.lx-table .lx-stat,td .lx-stat,th .lx-stat{white-space:nowrap}
+.lx-big{max-width:100%}
+.lx-big small{white-space:normal}
+/* top bar: the gap gives first, then the assistant button, then labels fold to icons, then the brand name clips */
+.lx-top>*{flex:none}
+.lx-top>.lx-sp{flex:1 1 0;min-width:0}
+.lx-top>.lx-switch{flex:0 1 auto;min-width:64px;overflow:hidden;justify-content:flex-start}
+.lx-top>.lx-chip{flex:0 8 auto;min-width:0;display:block;line-height:24px;overflow:hidden;text-overflow:ellipsis}
+.lx-top>.lx-ask{flex:0 64 232px;min-width:auto;white-space:nowrap}
+.lx-ask .lx-ic,.lx-ask kbd{flex:none}
+@media (max-width:1319px){.lx-ask kbd{display:none}}
+@media (max-width:1040px){
+  .lx-top>.lx-seeas{width:var(--ctl-h);padding:0;gap:0;font-size:0}
+}
+@media (max-width:899px){
+  .lx-top>.lx-ask{flex:none;gap:0;padding:0 5px;font-size:0}
+  .lx-top>.lx-chip{flex-shrink:1}
+}
+/* page head: the stamp and the dates wrap as a group */
+.lx-head h1{overflow-wrap:break-word}
+.lx-head-tools{flex-wrap:wrap;row-gap:6px;max-width:100%}
+/* card heads: the action drops under the title when both no longer fit on one line */
+@media (min-width:760px){
+  .lx-sec{flex-wrap:wrap;row-gap:6px}
+  .lx-sec .note{flex:1 1 0;min-width:min(100%,16ch)}
+  .lx-sec h2,.lx-sec h3{min-width:0}
+}
+.lx-sec .act{flex-wrap:wrap;row-gap:6px;max-width:100%}
+.lx-seg{max-width:100%;overflow-x:auto;scrollbar-width:none}
+.lx-seg::-webkit-scrollbar{display:none}
+.lx-seg button{flex:none;white-space:nowrap}
+.lx-rows>*{min-width:0}
+.lx-take .say{flex:1 1 auto}
+.lx-chart-h{flex-wrap:wrap;row-gap:10px}
+.lx-chart-h>:first-child{flex:1 1 240px;min-width:0}
+.lx-legend{row-gap:6px}
+.lx-input,.lx-field{min-width:0;max-width:100%}

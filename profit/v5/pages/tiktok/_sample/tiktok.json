@@ -1,0 +1,372 @@
+{
+ "range": {
+  "from": "2026-08-25",
+  "to": "2026-11-23",
+  "label": "Aug 25 to Nov 23"
+ },
+ "source": "sample",
+ "state": "connected",
+ "goal_roas": 3.0,
+ "goal_cpa": 40,
+ "totals": {
+  "spend": 2920,
+  "per_day": 32,
+  "sales": 3766,
+  "purchases": 61,
+  "roas": 1.29,
+  "cpa": 48,
+  "tiktok_roas": 1.29,
+  "tiktok_cpa": 48,
+  "tiktok_sales": 3766
+ },
+ "take": [
+  "TikTok brings back ",
+  {
+   "b": "$1.29"
+  },
+  " for each ",
+  {
+   "b": "$1"
+  },
+  ". Every dollar is in one automatic TikTok Shop campaign."
+ ],
+ "weeks": [
+  {
+   "label": "Aug 25",
+   "sales": 132,
+   "spend": 150
+  },
+  {
+   "label": "Sep 1",
+   "sales": 198,
+   "spend": 171
+  },
+  {
+   "label": "Sep 8",
+   "sales": 291,
+   "spend": 204
+  },
+  {
+   "label": "Sep 15",
+   "sales": 262,
+   "spend": 219
+  },
+  {
+   "label": "Sep 22",
+   "sales": 371,
+   "spend": 246
+  },
+  {
+   "label": "Sep 29",
+   "sales": 334,
+   "spend": 262
+  },
+  {
+   "label": "Oct 6",
+   "sales": 259,
+   "spend": 255
+  },
+  {
+   "label": "Oct 13",
+   "sales": 318,
+   "spend": 239
+  },
+  {
+   "label": "Oct 20",
+   "sales": 270,
+   "spend": 228
+  },
+  {
+   "label": "Oct 27",
+   "sales": 356,
+   "spend": 249
+  },
+  {
+   "label": "Nov 3",
+   "sales": 402,
+   "spend": 258
+  },
+  {
+   "label": "Nov 10",
+   "sales": 329,
+   "spend": 231
+  },
+  {
+   "label": "Nov 17",
+   "sales": 244,
+   "spend": 208
+  }
+ ],
+ "campaigns": [
+  {
+   "id": "1",
+   "name": "TikTok Shop, automatic",
+   "type": "Shop campaign",
+   "spend": 2920,
+   "impressions": 431800,
+   "clicks": 5270,
+   "ctr": 0.0122,
+   "cpm": 6.76,
+   "purchases": 61,
+   "roas": 1.29
+  }
+ ],
+ "videos": [
+  {
+   "name": "Belt swap in 5 seconds",
+   "spark": true,
+   "by": "@northlake.caddie",
+   "dur": "0:21",
+   "look": "",
+   "spend": 352,
+   "roas": 1.71,
+   "sales": 602,
+   "v2": 0.33,
+   "v6": 0.13,
+   "end": 0.044,
+   "tiktok_roas": 2.52,
+   "meta": {
+    "hook": 0.29,
+    "roas": 1.4
+   }
+  },
+  {
+   "name": "Walnut drop",
+   "spark": false,
+   "by": "Brand video",
+   "dur": "0:14",
+   "look": "",
+   "spend": 246,
+   "roas": 0.88,
+   "sales": 216,
+   "v2": 0.23,
+   "v6": 0.09,
+   "end": 0.058,
+   "tiktok_roas": 1.45,
+   "meta": {
+    "hook": 0.25,
+    "roas": 2.2
+   }
+  },
+  {
+   "name": "Sale ends Sunday",
+   "spark": false,
+   "by": "Brand video",
+   "dur": "0:09",
+   "look": "",
+   "spend": 112,
+   "roas": 0,
+   "sales": 0,
+   "v2": 0.15,
+   "v6": 0.05,
+   "end": 0.09,
+   "tiktok_roas": 0.48,
+   "meta": null
+  },
+  {
+   "name": "What is in the bag",
+   "spark": true,
+   "by": "@backnine.riley",
+   "dur": "0:34",
+   "look": "b",
+   "spend": 81,
+   "roas": 2.1,
+   "sales": 170,
+   "v2": 0.39,
+   "v6": 0.2,
+   "end": 0.024,
+   "tiktok_roas": 2.3,
+   "meta": {
+    "hook": 0.34,
+    "roas": 1.9
+   }
+  },
+  {
+   "name": "Sunday scramble",
+   "spark": true,
+   "by": "@fairway.casey",
+   "dur": "0:18",
+   "look": "",
+   "spend": 63,
+   "roas": 1.16,
+   "sales": 73,
+   "v2": 0.27,
+   "v6": 0.11,
+   "end": 0.048,
+   "tiktok_roas": 1.66,
+   "meta": null
+  },
+  {
+   "name": "Belt wall",
+   "spark": false,
+   "by": "Brand video",
+   "dur": "0:12",
+   "look": "b",
+   "spend": 41,
+   "roas": 0.44,
+   "sales": 18,
+   "v2": 0.18,
+   "v6": 0.06,
+   "end": 0.072,
+   "tiktok_roas": 0.93,
+   "meta": null
+  }
+ ],
+ "live": {
+  "as_of": "2 pm",
+  "spend": 19,
+  "normal": 21,
+  "budget": 35,
+  "videos_live": 4,
+  "campaigns_live": 1,
+  "cpm": 6.8,
+  "cpm_normal": 6.64,
+  "hours_done": 14,
+  "hours": [
+   {
+    "label": "12a",
+    "spend": 0.5
+   },
+   {
+    "label": "1a",
+    "spend": 0.3
+   },
+   {
+    "label": "2a",
+    "spend": 0.3
+   },
+   {
+    "label": "3a",
+    "spend": 0.2
+   },
+   {
+    "label": "4a",
+    "spend": 0.2
+   },
+   {
+    "label": "5a",
+    "spend": 0.4
+   },
+   {
+    "label": "6a",
+    "spend": 0.8
+   },
+   {
+    "label": "7a",
+    "spend": 1.2
+   },
+   {
+    "label": "8a",
+    "spend": 1.6
+   },
+   {
+    "label": "9a",
+    "spend": 1.9
+   },
+   {
+    "label": "10a",
+    "spend": 2.1
+   },
+   {
+    "label": "11a",
+    "spend": 2.5
+   },
+   {
+    "label": "12p",
+    "spend": 3.1
+   },
+   {
+    "label": "1p",
+    "spend": 3.9
+   },
+   {
+    "label": "2p",
+    "spend": 0
+   },
+   {
+    "label": "3p",
+    "spend": 0
+   },
+   {
+    "label": "4p",
+    "spend": 0
+   },
+   {
+    "label": "5p",
+    "spend": 0
+   },
+   {
+    "label": "6p",
+    "spend": 0
+   },
+   {
+    "label": "7p",
+    "spend": 0
+   },
+   {
+    "label": "8p",
+    "spend": 0
+   },
+   {
+    "label": "9p",
+    "spend": 0
+   },
+   {
+    "label": "10p",
+    "spend": 0
+   },
+   {
+    "label": "11p",
+    "spend": 0
+   }
+  ],
+  "campaigns": [
+   {
+    "id": "1",
+    "name": "TikTok Shop, automatic",
+    "type": "Shop campaign",
+    "status": "live",
+    "budget": 35,
+    "spend_today": 19
+   }
+  ]
+ },
+ "suggestions": [
+  {
+   "kind": "raise",
+   "title": "Give What is in the bag more room",
+   "why": "2.10x on $81, the best ROAS here, and 39% stay past 2 seconds. It has spent the least of the four."
+  },
+  {
+   "kind": "pause",
+   "title": "Turn off Sale ends Sunday",
+   "why": "$112 spent and no sales Triple Whale can see. The offer it names ended."
+  },
+  {
+   "kind": "test",
+   "title": "Run Belt swap in 5 seconds as a Meta ad",
+   "why": "1.71x here with a 33% hook. It is already 1.40x on Meta, so a fresh cut is a cheap test."
+  }
+ ],
+ "changes": [
+  {
+   "date": "Nov 20",
+   "who": "Jordan",
+   "what": "Budget $25 to $35 a day",
+   "why": "Early Black Friday week, ROAS held above 1.2x."
+  },
+  {
+   "date": "Nov 14",
+   "who": "Sam",
+   "what": "Added What is in the bag as a Spark ad",
+   "why": "Creator video from @backnine.riley, approved Nov 13."
+  },
+  {
+   "date": "Nov 3",
+   "who": "Jordan",
+   "what": "Turned off Old belt promo",
+   "why": "Offer ended Oct 31."
+  }
+ ],
+ "foot": "Sample. Northlake Golf, TikTok only. Every number, video, suggestion and change here is invented."
+}

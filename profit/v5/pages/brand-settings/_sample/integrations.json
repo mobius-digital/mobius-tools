@@ -1,0 +1,22 @@
+{
+ "as_of": null,
+ "items": [
+  { "key": "shopify", "name": "Shopify store", "group": "Store", "state": "ok", "note": "northlake-golf.example.com, orders in up to 6:00am today.", "gives": "Sales, orders, products, stock" },
+  { "key": "tw", "name": "Triple Whale", "group": "Store", "state": "ok", "note": "Shop linked. Attribution in up to yesterday.", "gives": "Which ad each sale came from" },
+  { "key": "meta", "name": "Meta ad account", "group": "Ads", "state": "ok", "note": "1 ad account. Read and manage access.", "gives": "Spend, delivery, changes we make" },
+  { "key": "google_ads", "name": "Google Ads", "group": "Ads", "state": "ok", "note": "1 account under the agency manager account.", "gives": "Spend, search terms, changes we make" },
+  { "key": "tiktok", "name": "TikTok Ads", "group": "Ads", "state": "warn", "note": "Connected Oct 14, but no spend has been read for 3 days.", "gives": "Spend and video results", "fix": "Open TikTok Ads Manager and check the agency still has access to the advertiser. Then press Check again in Agency settings, Integrations." },
+  { "key": "amazon", "name": "Amazon", "group": "Ads", "state": "off", "note": "Not connected. Amazon pages show nothing for this brand.", "gives": "Amazon sales and ads", "fix": "Ask the client to add the agency in Seller Central, User Permissions. Taylor Kim finishes it from there." },
+  { "key": "ga4", "name": "Google Analytics", "group": "Website", "state": "ok", "note": "1 property visible.", "gives": "Website steps and pages" },
+  { "key": "gsc", "name": "Search Console", "group": "Website", "state": "off", "note": "Not connected. The SEO page is empty for this brand.", "gives": "Search terms people find the site with", "fix": "Ask the client to add the agency's access email as a full user in Search Console, Settings, Users and permissions." },
+  { "key": "klaviyo", "name": "Klaviyo", "group": "Email & SMS", "state": "ok", "note": "Campaigns and flows in up to yesterday.", "gives": "Email and SMS sales, list growth" },
+  { "key": "asana", "name": "Asana project", "group": "Making ads", "state": "ok", "note": "Northlake Golf, synced 9:02am.", "gives": "Briefs and the production board" },
+  { "key": "drive", "name": "Google Drive folder", "group": "Making ads", "state": "ok", "note": "Folder recorded. The client can add files.", "gives": "Files from the client" },
+  { "key": "frame", "name": "Frame.io project", "group": "Making ads", "state": "ok", "note": "Project recorded. Review links live.", "gives": "Video review links" }
+ ],
+ "agency": [
+  { "key": "slack", "name": "Slack", "state": "ok", "brands": 7 },
+  { "key": "anthropic", "name": "AI assistant", "state": "ok", "brands": 7 },
+  { "key": "stripe", "name": "Stripe", "state": "ok", "brands": 7 }
+ ]
+}

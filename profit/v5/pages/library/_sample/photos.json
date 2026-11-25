@@ -1,0 +1,323 @@
+{
+ "act": "brand_northlake_golf",
+ "items": [
+  {
+   "file_id": "sample_photo_00_northlake",
+   "name": "Ridge belt, brown, on white.jpg",
+   "path": "Northlake Golf / Shoots / Spring 2026",
+   "w": 4000,
+   "h": 4000,
+   "status": "tagged",
+   "people": 0,
+   "setting": "studio",
+   "shot": "product",
+   "products": "Ridge belt",
+   "colors": "",
+   "descr": "A brown leather belt with a gold buckle on a white background.",
+   "thumb_key": null,
+   "modified": "2026-11-20T12:00:00Z",
+   "source": "drive",
+   "kind": "photo",
+   "art": {
+    "kind": "belt",
+    "c1": "#1F3A2C",
+    "c2": "#C9A45C",
+    "bg": "#EEE9DF"
+   }
+  },
+  {
+   "file_id": "sample_photo_01_northlake",
+   "name": "Golfer at the first tee, dawn.jpg",
+   "path": "Northlake Golf / Shoots / Holiday 2026",
+   "w": 4000,
+   "h": 5000,
+   "status": "tagged",
+   "people": 1,
+   "setting": "golf course",
+   "shot": "lifestyle",
+   "products": "Ridge belt",
+   "colors": "",
+   "descr": "A man in a navy polo on the first tee at dawn, belt in view.",
+   "thumb_key": null,
+   "modified": "2026-11-19T12:00:00Z",
+   "source": "drive",
+   "kind": "photo",
+   "art": {
+    "kind": "golfer",
+    "c1": "#1F3A2C",
+    "c2": "#2B2B2B",
+    "bg": "#DCE7DD"
+   }
+  },
+  {
+   "file_id": "sample_photo_02_northlake",
+   "name": "Buckle close up.jpg",
+   "path": "Northlake Golf / Shoots / Spring 2026",
+   "w": 4000,
+   "h": 5000,
+   "status": "tagged",
+   "people": 0,
+   "setting": "studio",
+   "shot": "detail",
+   "products": "Ridge belt",
+   "colors": "",
+   "descr": "The magnetic buckle up close, brushed gold.",
+   "thumb_key": null,
+   "modified": "2026-11-18T12:00:00Z",
+   "source": "drive",
+   "kind": "photo",
+   "art": {
+    "kind": "belt",
+    "c1": "#1F3A2C",
+    "c2": "#C9A45C",
+    "bg": "#EEE9DF"
+   }
+  },
+  {
+   "file_id": "sample_photo_03_northlake",
+   "name": "Putting green, evening.jpg",
+   "path": "Northlake Golf / Shoots / Holiday 2026",
+   "w": 4000,
+   "h": 4000,
+   "status": "tagged",
+   "people": 0,
+   "setting": "golf course",
+   "shot": "scene",
+   "products": "",
+   "colors": "",
+   "descr": "An empty putting green at sunset with a flag.",
+   "thumb_key": null,
+   "modified": "2026-11-17T12:00:00Z",
+   "source": "drive",
+   "kind": "photo",
+   "art": {
+    "kind": "green",
+    "c1": "#4C7A52",
+    "c2": "#C9A45C",
+    "bg": "#DDE8EE"
+   }
+  },
+  {
+   "file_id": "sample_photo_04_northlake",
+   "name": "Gift box, ribbon.jpg",
+   "path": "Northlake Golf / Shoots / Spring 2026",
+   "w": 4000,
+   "h": 5000,
+   "status": "tagged",
+   "people": 0,
+   "setting": "studio",
+   "shot": "product",
+   "products": "Gift box",
+   "colors": "",
+   "descr": "The Northlake gift box with a ribbon, belt inside.",
+   "thumb_key": null,
+   "modified": "2026-11-16T12:00:00Z",
+   "source": "drive",
+   "kind": "photo",
+   "art": {
+    "kind": "box",
+    "c1": "#9B2C2C",
+    "c2": "#C9A45C",
+    "bg": "#F1E7DA"
+   }
+  },
+  {
+   "file_id": "sample_photo_05_northlake",
+   "name": "Two friends on the cart.jpg",
+   "path": "Northlake Golf / Shoots / Holiday 2026",
+   "w": 4000,
+   "h": 5000,
+   "status": "tagged",
+   "people": 2,
+   "setting": "golf course",
+   "shot": "lifestyle",
+   "products": "Ridge belt",
+   "colors": "",
+   "descr": "Two men laughing on a golf cart, both wearing belts.",
+   "thumb_key": null,
+   "modified": "2026-11-15T12:00:00Z",
+   "source": "drive",
+   "kind": "photo",
+   "art": {
+    "kind": "golfer",
+    "c1": "#1F3A2C",
+    "c2": "#2B2B2B",
+    "bg": "#DCE7DD"
+   }
+  },
+  {
+   "file_id": "sample_photo_06_northlake",
+   "name": "Ball marker set, flat lay.jpg",
+   "path": "Northlake Golf / Shoots / Spring 2026",
+   "w": 4000,
+   "h": 4000,
+   "status": "tagged",
+   "people": 0,
+   "setting": "studio",
+   "shot": "product",
+   "products": "Ball marker set",
+   "colors": "",
+   "descr": "Three ball markers laid out on green felt.",
+   "thumb_key": null,
+   "modified": "2026-11-14T12:00:00Z",
+   "source": "drive",
+   "kind": "photo",
+   "art": {
+    "kind": "green",
+    "c1": "#4C7A52",
+    "c2": "#C9A45C",
+    "bg": "#DDE8EE"
+   }
+  },
+  {
+   "file_id": "sample_photo_07_northlake",
+   "name": "Clubhouse bar.jpg",
+   "path": "Northlake Golf / Shoots / Holiday 2026",
+   "w": 4000,
+   "h": 5000,
+   "status": "tagged",
+   "people": 1,
+   "setting": "indoors",
+   "shot": "lifestyle",
+   "products": "Ridge belt",
+   "colors": "",
+   "descr": "A woman at a clubhouse bar in a white polo.",
+   "thumb_key": null,
+   "modified": "2026-11-13T12:00:00Z",
+   "source": "drive",
+   "kind": "photo",
+   "art": {
+    "kind": "golfer",
+    "c1": "#1F3A2C",
+    "c2": "#2B2B2B",
+    "bg": "#DCE7DD"
+   }
+  },
+  {
+   "file_id": "sample_photo_08_northlake",
+   "name": "Belt rolled, black.jpg",
+   "path": "Northlake Golf / Shoots / Spring 2026",
+   "w": 4000,
+   "h": 5000,
+   "status": "tagged",
+   "people": 0,
+   "setting": "studio",
+   "shot": "product",
+   "products": "Ridge belt",
+   "colors": "",
+   "descr": "A black belt rolled up on a white background.",
+   "thumb_key": null,
+   "modified": "2026-11-12T12:00:00Z",
+   "source": "drive",
+   "kind": "photo",
+   "art": {
+    "kind": "belt",
+    "c1": "#1F3A2C",
+    "c2": "#C9A45C",
+    "bg": "#EEE9DF"
+   }
+  },
+  {
+   "file_id": "sample_photo_09_northlake",
+   "name": "Fairway walk.jpg",
+   "path": "Northlake Golf / Shoots / Holiday 2026",
+   "w": 4000,
+   "h": 4000,
+   "status": "tagged",
+   "people": 1,
+   "setting": "golf course",
+   "shot": "lifestyle",
+   "products": "Ridge belt",
+   "colors": "",
+   "descr": "A golfer walking a fairway, bag on his shoulder.",
+   "thumb_key": null,
+   "modified": "2026-11-11T12:00:00Z",
+   "source": "drive",
+   "kind": "photo",
+   "art": {
+    "kind": "golfer",
+    "c1": "#1F3A2C",
+    "c2": "#2B2B2B",
+    "bg": "#DCE7DD"
+   }
+  },
+  {
+   "file_id": "sample_photo_10_northlake",
+   "name": "Holiday table.jpg",
+   "path": "Northlake Golf / Shoots / Spring 2026",
+   "w": 4000,
+   "h": 5000,
+   "status": "tagged",
+   "people": 0,
+   "setting": "indoors",
+   "shot": "scene",
+   "products": "Gift box",
+   "colors": "",
+   "descr": "Gift boxes on a holiday table with pine.",
+   "thumb_key": null,
+   "modified": "2026-11-10T12:00:00Z",
+   "source": "locus",
+   "kind": "look",
+   "art": {
+    "kind": "box",
+    "c1": "#9B2C2C",
+    "c2": "#C9A45C",
+    "bg": "#F1E7DA"
+   }
+  },
+  {
+   "file_id": "sample_photo_11_northlake",
+   "name": "Range at dusk.jpg",
+   "path": "Northlake Golf / Shoots / Holiday 2026",
+   "w": 4000,
+   "h": 5000,
+   "status": "tagged",
+   "people": 0,
+   "setting": "golf course",
+   "shot": "scene",
+   "products": "",
+   "colors": "",
+   "descr": "A driving range at dusk, warm light.",
+   "thumb_key": null,
+   "modified": "2026-11-09T12:00:00Z",
+   "source": "drive",
+   "kind": "photo",
+   "art": {
+    "kind": "green",
+    "c1": "#4C7A52",
+    "c2": "#C9A45C",
+    "bg": "#DDE8EE"
+   }
+  }
+ ],
+ "looks": 1,
+ "counts": {
+  "tagged": 412,
+  "new": 18
+ },
+ "settings": [
+  {
+   "setting": "golf course",
+   "n": 188
+  },
+  {
+   "setting": "studio",
+   "n": 142
+  },
+  {
+   "setting": "indoors",
+   "n": 61
+  },
+  {
+   "setting": "outdoors",
+   "n": 21
+  }
+ ],
+ "synced_at": "2026-11-24T13:05:00Z",
+ "sources": [
+  {
+   "name": "Northlake Golf shared Drive",
+   "kind": "drive"
+  }
+ ]
+}

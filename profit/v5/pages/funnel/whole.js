@@ -1,0 +1,153 @@
+/* Business > Full funnel > Whole funnel.
+   Where do people drop off between the ad click and the second order? Every channel together.
+   Live numbers, three reads, each allowed to fail on its own:
+     GET /api/hub/paid?platform=all  (profit worker)          ad clicks on Meta, Google and TikTok
+     GET /api/google/website         (account-health worker)  visits, added to cart, reached checkout
+     GET /api/customers              (profit worker)          orders, average order, came back in 90 days
+   The channel paths before an order have no route yet: that card draws the sample file under an
+   "Example" chip in real mode. */
+
+import { put } from '../../kit.js';
+import { h, num, pct, money, card, hero, em, kpi, kpis, takeaway, button, table, empty } from '../../kit.js';
+import { fxStyles, steps, exampleChip, bar, head, pathDots, channelName } from './_flow.js';
+
+const ok = n => n != null && isFinite(n);
+const q = ctx => `act=${encodeURIComponent(ctx.brand.id)}&from=${ctx.range.from}&to=${ctx.range.to}`;
+const quiet = p => p.then(v => v, () => null);
+
+function shape(paid, site, cust, sample) {
+  const g = site && !site.error ? site.cur || {} : null;
+  const hd = cust && cust.headline ? cust.headline : null;
+  const j = cust && cust.journey && cust.journey.have ? cust.journey : null;
+  const at90 = j ? (j.curve || []).find(c => c.days === 90) : null;
+  const orders = hd && hd.orders > 0 ? hd.orders : null;
+  const back = at90 && ok(at90.repeat_rate) ? at90.repeat_rate : null;
+  const clicks = paid && paid.brands && paid.brands[0] && paid.brands[0].paid ? paid.brands[0].paid.clicks : null;
+  const days = g ? (site.days || []) : [];
+  return {
+    connected: !!(orders || (g && g.sessions > 0)),
+    site_linked: !!g,
+    example: ['paths'],
+    steps: {
+      clicks: clicks > 0 ? clicks : null,
+      visits: g && g.sessions > 0 ? g.sessions : null,
+      carts: g && ok(g.addToCarts) && g.sessions > 0 ? g.addToCarts : null,
+      checkouts: g && ok(g.checkouts) && g.sessions > 0 ? g.checkouts : null,
+      orders,
+      second: ok(orders) && ok(back) ? Math.round(orders * back) : null,
+    },
+    aov: hd ? hd.aov : null, back_90: back, multi_orders: null, touch_orders: null,
+    sparks: { buy_rate: days.map(d => d.sessions > 0 ? 100 * (d.purchases || 0) / d.sessions : null), orders: days.map(d => d.purchases), multi: [], back: j ? (j.curve || []).map(c => (c.repeat_rate || 0) * 100) : [] },
+    paths: sample.paths, single: sample.single, sample_multi: sample.multi_orders, sample_orders: sample.touch_orders,
+  };
+}
+
+function figures(d) {
+  const st = d.steps, rate = ok(st.orders) && st.visits > 0 ? st.orders / st.visits : null;
+  const list = [
+    { label: 'Visits that buy', value: ok(rate) ? pct(rate, { digits: 1 }) : 'no data', sub: ok(rate) ? `${num(st.orders)} of ${num(st.visits)} visits` : 'needs the website connected', spark: d.sparks.buy_rate },
+    { label: 'Orders', value: ok(st.orders) ? num(st.orders) : 'no data', sub: ok(d.aov) ? money(Math.round(d.aov)) + ' average order' : null, spark: d.sparks.orders },
+    { label: 'Two or more touches', value: ok(d.multi_orders) && d.touch_orders > 0 ? pct(d.multi_orders / d.touch_orders) : 'no data',
+      sub: ok(d.multi_orders) ? `${num(d.multi_orders)} of ${num(d.touch_orders)} orders` : 'not counted yet', spark: d.sparks.multi },
+    { label: 'Came back', value: ok(d.back_90) ? pct(d.back_90, { digits: 1 }) : 'no data', sub: ok(d.back_90) ? 'within 90 days' : null, spark: d.sparks.back },
+  ];
+  const el = kpis(list.map(k => kpi({ ...k, size: 'lg', spark: (k.spark || []).filter(ok) })), { cols: 4 });
+  el.classList.add('fx-kpis');
+  return el;
+}
+
+function stepList(d) {
+  const st = d.steps;
+  const of = (a, b) => (ok(a) && b > 0 ? a / b : null);
+  const raw = [
+    { key: 'clicks', label: 'Ad clicks', value: st.clicks, sub: 'all platforms' },
+    { key: 'visits', label: 'Site visits', value: st.visits, sub: ok(of(st.visits, st.clicks)) && st.visits <= st.clicks ? pct(of(st.visits, st.clicks)) + ' arrive' : 'every channel' },
+    { key: 'carts', label: 'Added to cart', value: st.carts, r: of(st.carts, st.visits), sub: ok(of(st.carts, st.visits)) ? pct(of(st.carts, st.visits), { digits: 1 }) + ' of visits' : '' },
+    { key: 'checkouts', label: 'Reached checkout', value: st.checkouts, r: of(st.checkouts, st.carts), sub: ok(of(st.checkouts, st.carts)) ? pct(of(st.checkouts, st.carts)) + ' of carts' : '' },
+    { key: 'orders', label: 'Orders', value: st.orders, r: of(st.orders, st.checkouts), sub: ok(of(st.orders, st.checkouts)) ? pct(of(st.orders, st.checkouts)) + ' of checkouts' : '' },
+    { key: 'second', label: 'Second order', value: st.second, sub: ok(d.back_90) ? pct(d.back_90, { digits: 1 }) + ' come back' : '' },
+  ].filter(x => ok(x.value));
+  const judged = raw.filter(x => ok(x.r));
+  const worst = judged.length > 1 ? judged.reduce((a, b) => (b.r < a.r ? b : a)) : null;
+  if (worst) worst.worst = true;
+  return { list: raw, worst };
+}
+
+function dropCard(d, ctx) {
+  const { list, worst } = stepList(d);
+  const first = list[0], orders = list.find(x => x.key === 'orders');
+  const big = first && orders && first !== orders ? `${num(first.value)} ${first.key === 'clicks' ? 'clicks' : 'visits'} to ${num(orders.value)} orders` : orders ? num(orders.value) + ' orders' : '';
+  const say = worst ? takeaway(['Only ', h('b', null, pct(worst.r, { digits: worst.r < 0.1 ? 1 : 0 })), ` ${worst.sub.replace(/^[\d.]+% /, '')} ${worst.key === 'carts' ? 'add to cart' : worst.key === 'checkouts' ? 'reach checkout' : 'finish the order'}, the biggest drop in the funnel.`],
+    { action: ctx.isClient ? null : button('Ask why', { href: ctx.href('ask', 'index') }) }) : null;
+  const missing = !d.site_linked && d.site_linked !== undefined;
+  return card({ class: 'fx-pad' },
+    head('Where do people drop off?', 'from the ad click to the second order, every channel together'),
+    h('div', { class: 'fx-big' }, h('span', { class: 'lx-hero-num' }, big)),
+    steps(list, { height: 340 }),
+    missing ? h('p', { class: 'lx-foot', style: { marginTop: '14px' } }, ctx.isClient ? 'Website steps show once the website is connected.' : 'Visits, carts and checkouts show once Google Analytics is linked in Brand settings.') : null,
+    say ? h('div', { style: { marginTop: '20px' } }, say) : null);
+}
+
+function pathCard(d, ctx) {
+  const rows = (d.paths || []).filter(r => r.orders > 0).sort((a, b) => b.orders - a.orders);
+  if (!rows.length) return null;
+  const ex = (d.example || []).includes('paths');
+  const multi = ex ? d.sample_multi : d.multi_orders, all = ex ? d.sample_orders : d.touch_orders;
+  const max = rows[0].orders;
+  const one = Object.entries(d.single || {}).filter(e => e[1] > 0 && e[0] !== 'other' && e[0] !== 'organic').sort((a, b) => b[1] - a[1]).slice(0, 4);
+  return card({ flush: true },
+    head('What do people touch before buying?', 'every channel, clicks only', ex ? exampleChip() : null, h('a', { class: 'lx-btn ghost', href: ctx.href('funnel', 'path') }, 'See it as a flow')),
+    ok(multi) ? h('div', { class: 'fx-big', style: { padding: '0 28px' } }, h('span', { class: 'lx-hero-num', style: { fontSize: '30px' } }, `${num(multi)} of ${num(all)}`), h('span', null, 'orders took two or more touches')) : null,
+    table({
+      roomy: true,
+      cols: [
+        { key: 'path', label: 'Path', class: 'name', render: r => pathDots(r.path) },
+        { key: 'orders', label: 'Orders', num: true, width: 90, render: r => num(r.orders) },
+        { key: 'bar', label: '', class: 'fx-barcell hide-sm', render: r => bar(r.orders / max) },
+      ],
+      rows,
+    }),
+    one.length ? h('div', { class: 'fx-note' }, 'One touch only: ', one.map(([id, v], i) => [i ? ', ' : '', channelName(id) + ' ', h('b', null, num(v))]), ' orders') : null);
+}
+
+export default {
+  title: ['Where do people ', em('drop off?')],
+  eyebrow: 'Full funnel',
+
+  async load(ctx) {
+    if (!ctx.brand) return { connected: false };
+    const [paid, site, cust, sample] = await Promise.all([
+      quiet(ctx.api(`/api/hub/paid?platform=all&cmp=none&${q(ctx)}`, { signal: ctx.signal })),
+      quiet(ctx.api(`/api/google/website?${q(ctx)}`, { worker: 'ah', signal: ctx.signal })),
+      quiet(ctx.api(`/api/customers?months=6&${q(ctx)}`, { signal: ctx.signal })),
+      quiet(ctx.fixture('whole.json')),
+    ]);
+    if (!site && !cust) throw new Error('Could not read the funnel');
+    return shape(paid, site, cust, sample || {});
+  },
+
+  render(el, d, ctx) {
+    fxStyles();
+    d = d || {};
+    const team = !ctx.isClient;
+    if (d.connected === false || !d.steps) {
+      put(el, empty({
+        title: 'No sales source connected',
+        text: team ? 'The funnel needs the store and the website. Connect Triple Whale or Shopify, and Google Analytics, and it will show here.' : 'The funnel will show here once the store is connected.',
+        action: team && ctx.brand ? button('Open integrations', { href: ctx.href('brand-settings', 'integrations') }) : null,
+      }));
+      return;
+    }
+    const top = hero({ line: true }, figures(d));
+    put(el, ...[
+      top,
+      dropCard(d, ctx),
+      pathCard(d, ctx),
+      h('p', { class: 'lx-foot' }, 'Sources: ad platforms for clicks, Google Analytics for visits, carts and checkouts, Triple Whale and Shopify for orders. Second order is the share of customers back within 90 days.'),
+    ].filter(Boolean));
+  },
+
+  skeleton(el) {
+    el.innerHTML = '<div class="lx-skel-grid"><div class="lx-skel kpi"></div><div class="lx-skel kpi"></div><div class="lx-skel kpi"></div><div class="lx-skel kpi"></div></div><div class="lx-skel chart"></div><div class="lx-skel chart"></div>';
+  },
+};

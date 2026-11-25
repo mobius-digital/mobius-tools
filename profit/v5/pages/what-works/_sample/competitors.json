@@ -1,0 +1,29 @@
+{
+ "state": "ok",
+ "source": "sample",
+ "example": true,
+ "watch": [
+  { "name": "Fairway Supply", "url": "https://fairwaysupply.example.com", "note": "Golf clubs. Sells to the same golfers and runs a sale every month." },
+  { "name": "Tallgrass Apparel", "url": "https://tallgrass.example.com", "note": "Polos and hats. Added belts in October." }
+ ],
+ "reads": [
+  { "brand": "Tallgrass Apparel", "text": "7 of their 9 new ads open on a hand pulling a belt tight. None name a price. All send to a quiz page.", "proof": ["c_201", "c_202", "c_203"] },
+  { "brand": "Fairway Supply", "text": "Their oldest live ad is a plain still with one line of proof. It has run 94 days through two sales.", "proof": ["c_101", "c_104"] }
+ ],
+ "ads": [
+  { "id": "c_101", "brand": "Fairway Supply", "name": "Trusted by 40,000 golfers", "kind": "image", "tone": "#2E3B2F", "over": "40,000 GOLFERS", "headline": "The club fitting you never had", "days": 94, "versions": 3, "live": true, "started": "2026-08-23" },
+  { "id": "c_102", "brand": "Fairway Supply", "name": "Driver swing, slow motion", "kind": "video", "tone": "#1E4A38", "over": "WATCH THE FACE", "first_line": "Watch the face at impact.", "days": 61, "versions": 2, "live": true, "started": "2026-09-25", "batch": "fs_0925" },
+  { "id": "c_103", "brand": "Fairway Supply", "name": "Fitting day, customer talk", "kind": "video", "tone": "#5F6368", "over": "", "first_line": "I added 12 yards in one session.", "days": 61, "versions": 1, "live": false, "started": "2026-09-25", "batch": "fs_0925" },
+  { "id": "c_104", "brand": "Fairway Supply", "name": "Black Friday, 25% off irons", "kind": "image", "tone": "#3B2F1E", "over": "25% OFF IRONS", "headline": "Black Friday starts now", "days": 4, "versions": 4, "live": true, "started": "2026-11-21" },
+  { "id": "c_105", "brand": "Fairway Supply", "name": "Gift card, still", "kind": "image", "tone": "#3E4A5E", "over": "GIVE A BETTER ROUND", "headline": "Gift cards from $50", "days": 3, "versions": 1, "live": true, "started": "2026-11-22" },
+  { "id": "c_201", "brand": "Tallgrass Apparel", "name": "Belt pulled tight, range", "kind": "video", "tone": "#8A6A3B", "over": "ONE BELT. EVERY SIZE.", "first_line": "Watch this.", "days": 5, "versions": 2, "live": true, "started": "2026-11-20", "batch": "tg_1120" },
+  { "id": "c_202", "brand": "Tallgrass Apparel", "name": "Belt pulled tight, car park", "kind": "video", "tone": "#14304A", "over": "", "first_line": "My old belt never fit right.", "days": 5, "versions": 1, "live": true, "started": "2026-11-20", "batch": "tg_1120" },
+  { "id": "c_203", "brand": "Tallgrass Apparel", "name": "Belt and polo set", "kind": "image", "tone": "#1E4A38", "over": "THE SET", "headline": "Take the quiz", "days": 5, "versions": 3, "live": true, "started": "2026-11-20", "batch": "tg_1120" },
+  { "id": "c_204", "brand": "Tallgrass Apparel", "name": "Polo flat lay, three colours", "kind": "image", "tone": "#5F6368", "over": "", "headline": "New colours", "days": 5, "versions": 1, "live": false, "started": "2026-11-20", "batch": "tg_1120" },
+  { "id": "c_205", "brand": "Tallgrass Apparel", "name": "Founder in the warehouse", "kind": "video", "tone": "#3B2F1E", "over": "WHY WE MADE IT", "first_line": "We started this in a garage.", "days": 48, "versions": 1, "live": true, "started": "2026-10-08" }
+ ],
+ "batches": [
+  { "brand": "Tallgrass Apparel", "id": "tg_1120", "date": "2026-11-20", "note": "Three of four still live after 5 days. Too early to call." },
+  { "brand": "Fairway Supply", "id": "fs_0925", "date": "2026-09-25", "note": "The slow motion swing is still live two months later. The customer talk stopped in week two." }
+ ]
+}

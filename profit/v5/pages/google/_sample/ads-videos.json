@@ -1,0 +1,236 @@
+{
+ "range": {
+  "from": "2026-10-25",
+  "to": "2026-11-23",
+  "label": "Oct 25 to Nov 23"
+ },
+ "source": "sample",
+ "totals": {
+  "spend": 474,
+  "share": 0.09,
+  "views": 7428,
+  "view_rate": 0.158,
+  "cpv": 0.06,
+  "impressions": 46980,
+  "roas": 0.35,
+  "back": 164,
+  "goal_roas": 3.0,
+  "note": "4 videos, Demand Gen, Video and Performance Max"
+ },
+ "take": [
+  "People watch ",
+  {
+   "b": "NG1"
+  },
+  " to the end, but the four videos brought back ",
+  {
+   "b": "$164"
+  },
+  " on ",
+  {
+   "b": "$474"
+  },
+  "."
+ ],
+ "videos": [
+  {
+   "name": "NG1",
+   "where": "Demand Gen, new people",
+   "placement": "In-stream, Shorts, Discover",
+   "dur": "0:22",
+   "look": "",
+   "spend": 318,
+   "roas": 0.41,
+   "sales": 130,
+   "google_roas": 2.6,
+   "views": 4410,
+   "view_rate": 0.171,
+   "cpv": 0.07,
+   "quartiles": [
+    100,
+    84,
+    75,
+    68
+   ]
+  },
+  {
+   "name": "Belt swap demo",
+   "where": "Video, new people",
+   "placement": "In-stream",
+   "dur": "0:30",
+   "look": "b",
+   "spend": 86,
+   "roas": 0.0,
+   "sales": 0,
+   "google_roas": 0.52,
+   "views": 1985,
+   "view_rate": 0.33,
+   "cpv": 0.04,
+   "quartiles": [
+    76,
+    55,
+    44,
+    38
+   ]
+  },
+  {
+   "name": "Buckle close up",
+   "where": "Demand Gen, past visitors",
+   "placement": "Shorts",
+   "dur": "0:15",
+   "look": "c",
+   "spend": 47,
+   "roas": 0.72,
+   "sales": 34,
+   "google_roas": 1.6,
+   "views": 702,
+   "view_rate": 0.094,
+   "cpv": 0.07,
+   "quartiles": [
+    82,
+    60,
+    50,
+    42
+   ]
+  },
+  {
+   "name": "Belts, from product photos",
+   "where": "Performance Max, belts",
+   "placement": "YouTube",
+   "dur": "0:10",
+   "look": "d",
+   "made_by_google": true,
+   "spend": 23,
+   "roas": null,
+   "sales": null,
+   "google_roas": null,
+   "says": "Google does not split it out",
+   "views": 331,
+   "view_rate": 0.076,
+   "cpv": 0.07,
+   "quartiles": [
+    64,
+    42,
+    33,
+    28
+   ]
+  }
+ ],
+ "assets": {
+  "count": 28,
+  "best": 5,
+  "good": 16,
+  "low": 7,
+  "counts": {
+   "image": 11,
+   "headline": 13,
+   "video": 4
+  },
+  "images": [
+   {
+    "name": "Belt on turf, square",
+    "stat": "click rate 0.47%",
+    "rating": "Best"
+   },
+   {
+    "name": "Belt wall flat lay",
+    "stat": "click rate 0.79%",
+    "rating": "Good"
+   },
+   {
+    "name": "Buckle on the green",
+    "stat": "click rate 0.33%",
+    "rating": "Good"
+   },
+   {
+    "name": "Logo on white",
+    "stat": "click rate 0.11%",
+    "rating": "Low"
+   }
+  ],
+  "headlines": [
+   {
+    "name": "Golf Belts That Stay Put",
+    "stat": "click rate 1.31%",
+    "rating": "Best"
+   },
+   {
+    "name": "Northlake Golf Belts",
+    "stat": "click rate 0.98%",
+    "rating": "Good"
+   },
+   {
+    "name": "Belts Made for 18 Holes",
+    "stat": "click rate 0.71%",
+    "rating": "Good"
+   },
+   {
+    "name": "Shop Golf Gear Online",
+    "stat": "click rate 0.27%",
+    "rating": "Low"
+   }
+  ],
+  "videos": [
+   {
+    "name": "NG1, landscape",
+    "stat": "view rate 14.8%",
+    "rating": "Good"
+   },
+   {
+    "name": "Buckle close up, vertical",
+    "stat": "view rate 9.1%",
+    "rating": "Good"
+   },
+   {
+    "name": "Made by Google from photos",
+    "stat": "view rate 7.6%",
+    "rating": "Low"
+   }
+  ]
+ },
+ "headlines": [
+  {
+   "text": "Northlake Golf Official Site",
+   "where": "Brand search, pinned first",
+   "shown": 10400,
+   "ctr": 0.0731,
+   "orders": 46.0
+  },
+  {
+   "text": "Golf Belts That Stay Put",
+   "where": "Belts search",
+   "shown": 7120,
+   "ctr": 0.0294,
+   "orders": 5.8
+  },
+  {
+   "text": "Shop Northlake Belts",
+   "where": "Brand search",
+   "shown": 8030,
+   "ctr": 0.0251,
+   "orders": 9.4
+  },
+  {
+   "text": "Ball Markers With Some Weight",
+   "where": "Accessories search",
+   "shown": 3560,
+   "ctr": 0.0188,
+   "orders": 2.0
+  },
+  {
+   "text": "Golf Gifts He Will Use",
+   "where": "Gifting search",
+   "shown": 5210,
+   "ctr": 0.0122,
+   "orders": 1.0
+  },
+  {
+   "text": "Golf Belts Online",
+   "where": "Belts search",
+   "shown": 4890,
+   "ctr": 0.0058,
+   "orders": 0.0
+  }
+ ],
+ "foot": "Sample. Northlake Golf, Google only. Every video, asset, rating, headline and number here is invented."
+}

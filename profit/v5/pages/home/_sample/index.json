@@ -1,0 +1,227 @@
+{
+ "today": "2026-11-23",
+ "range": {
+  "from": "2026-11-01",
+  "to": "2026-11-22"
+ },
+ "source": true,
+ "totals": {
+  "sales": 63429,
+  "spend": 23702,
+  "new_customers": 456,
+  "cac": 51.98,
+  "profit": 10550
+ },
+ "plan": {
+  "sales": 59000,
+  "spend": 20900
+ },
+ "goal": {
+  "mer": 3.0,
+  "cac": 40
+ },
+ "days": [
+  {
+   "date": "2026-11-01",
+   "sales": 3612,
+   "spend": 1108,
+   "new_customers": 29,
+   "profit": 842
+  },
+  {
+   "date": "2026-11-02",
+   "sales": 2762,
+   "spend": 1036,
+   "new_customers": 18,
+   "profit": 455
+  },
+  {
+   "date": "2026-11-03",
+   "sales": 2904,
+   "spend": 1150,
+   "new_customers": 19,
+   "profit": 418
+  },
+  {
+   "date": "2026-11-04",
+   "sales": 3080,
+   "spend": 1132,
+   "new_customers": 23,
+   "profit": 531
+  },
+  {
+   "date": "2026-11-05",
+   "sales": 4199,
+   "spend": 1221,
+   "new_customers": 29,
+   "profit": 1046
+  },
+  {
+   "date": "2026-11-06",
+   "sales": 3095,
+   "spend": 1007,
+   "new_customers": 26,
+   "profit": 664
+  },
+  {
+   "date": "2026-11-07",
+   "sales": 4020,
+   "spend": 1059,
+   "new_customers": 31,
+   "profit": 1112
+  },
+  {
+   "date": "2026-11-08",
+   "sales": 3546,
+   "spend": 1079,
+   "new_customers": 23,
+   "profit": 836
+  },
+  {
+   "date": "2026-11-09",
+   "sales": 3568,
+   "spend": 1084,
+   "new_customers": 22,
+   "profit": 843
+  },
+  {
+   "date": "2026-11-10",
+   "sales": 3413,
+   "spend": 1221,
+   "new_customers": 25,
+   "profit": 622
+  },
+  {
+   "date": "2026-11-11",
+   "sales": 2598,
+   "spend": 1072,
+   "new_customers": 18,
+   "profit": 331
+  },
+  {
+   "date": "2026-11-12",
+   "sales": 2538,
+   "spend": 991,
+   "new_customers": 18,
+   "profit": 380
+  },
+  {
+   "date": "2026-11-13",
+   "sales": 3675,
+   "spend": 1220,
+   "new_customers": 28,
+   "profit": 765
+  },
+  {
+   "date": "2026-11-14",
+   "sales": 4690,
+   "spend": 1143,
+   "new_customers": 38,
+   "profit": 1390
+  },
+  {
+   "date": "2026-11-15",
+   "sales": 3097,
+   "spend": 1250,
+   "new_customers": 22,
+   "profit": 422
+  },
+  {
+   "date": "2026-11-16",
+   "sales": 2435,
+   "spend": 1267,
+   "new_customers": 18,
+   "profit": 48
+  },
+  {
+   "date": "2026-11-17",
+   "sales": 1782,
+   "spend": 1150,
+   "new_customers": 12,
+   "profit": -188
+  },
+  {
+   "date": "2026-11-18",
+   "sales": 2627,
+   "spend": 1150,
+   "new_customers": 17,
+   "profit": 269
+  },
+  {
+   "date": "2026-11-19",
+   "sales": 1663,
+   "spend": 999,
+   "new_customers": 11,
+   "profit": -101
+  },
+  {
+   "date": "2026-11-20",
+   "sales": 1395,
+   "spend": 1008,
+   "new_customers": 9,
+   "profit": -255
+  },
+  {
+   "date": "2026-11-21",
+   "sales": 1092,
+   "spend": 541,
+   "new_customers": 9,
+   "profit": 49
+  },
+  {
+   "date": "2026-11-22",
+   "sales": 1638,
+   "spend": 814,
+   "new_customers": 11,
+   "profit": 71
+  }
+ ],
+ "note": {
+  "date": "2026-11-15",
+  "text": "Early sale ended Nov 15"
+ },
+ "suggestions": {
+  "meta": 4,
+  "google": 2
+ },
+ "coming": [
+  {
+   "date": "2026-11-26",
+   "title": "Black Friday starts",
+   "sub": "6pm",
+   "tone": "good",
+   "status": "Ready"
+  },
+  {
+   "date": "2026-11-30",
+   "title": "Cyber Monday ads on",
+   "sub": "ads switch on",
+   "tone": "good",
+   "status": "Ready"
+  },
+  {
+   "date": "2026-12-05",
+   "title": "Holiday gifting ads",
+   "sub": "waiting on approval",
+   "tone": "warn",
+   "status": "2 to approve"
+  }
+ ],
+ "platforms": [
+  {
+   "id": "meta",
+   "spend": 16925,
+   "sales": 30047
+  },
+  {
+   "id": "google",
+   "spend": 4336,
+   "sales": 11447
+  },
+  {
+   "id": "email",
+   "spend": null,
+   "sales": 9578
+  }
+ ]
+}

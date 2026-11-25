@@ -1,0 +1,88 @@
+{
+ "monday": "2026-11-23",
+ "week": {
+  "from": "2026-11-16",
+  "to": "2026-11-22"
+ },
+ "as_of": null,
+ "note": "Sample. The eight blocks and their minutes are the plan. Every brand, person and number here is invented.",
+ "brands": [
+  {
+   "id": "brand_northlake_golf",
+   "name": "Northlake Golf",
+   "mer": 1.45,
+   "goal_mer": 3.0,
+   "owner": "Sam"
+  },
+  {
+   "id": "brand_fairway_supply",
+   "name": "Fairway Supply",
+   "mer": 1.8,
+   "goal_mer": 2.5,
+   "owner": "Sam"
+  },
+  {
+   "id": "brand_tallgrass_apparel",
+   "name": "Tallgrass Apparel",
+   "mer": 2.2,
+   "goal_mer": 3.0,
+   "owner": "Jordan"
+  },
+  {
+   "id": "brand_brightside_patch",
+   "name": "Brightside Patch",
+   "mer": 3.87,
+   "goal_mer": 2.5,
+   "owner": "Jordan"
+  }
+ ],
+ "agenda": {
+  "counts": {
+   "scoreboard": "7 brands",
+   "promises": "5 due, 2 late",
+   "green": "4 brands",
+   "pipeline": "2 sales at risk",
+   "learned": "2 added",
+   "agency": "1 added",
+   "close": "Rate it 1 to 10"
+  },
+  "read": {
+   "done": 4,
+   "of": 5,
+   "nudge": "Nudge at 7:00am",
+   "people": [
+    {
+     "name": "Sam",
+     "read": true
+    },
+    {
+     "name": "Jordan",
+     "read": true
+    },
+    {
+     "name": "Alex",
+     "read": true
+    },
+    {
+     "name": "Riley",
+     "read": true
+    },
+    {
+     "name": "Casey",
+     "read": false
+    }
+   ]
+  },
+  "example_decision": {
+   "owner": "Sam",
+   "text": "Hold Meta at $700 a day",
+   "note": "Northlake Golf, Sam, until Thu 6pm"
+  },
+  "example_myday": {
+   "owner": "Jordan",
+   "text": "Jordan's My day",
+   "note": "3 new tasks from Monday, first due Tue"
+  },
+  "closer": "Alex"
+ }
+}

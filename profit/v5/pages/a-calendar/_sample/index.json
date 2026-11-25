@@ -1,0 +1,1160 @@
+{
+ "sample": true,
+ "today": "2026-11-24",
+ "from": "2026-10-01",
+ "to": "2027-04-23",
+ "brands": [
+  {
+   "id": "brand_northlake_golf",
+   "name": "Northlake Golf"
+  },
+  {
+   "id": "brand_harbor_and_pine",
+   "name": "Harbor & Pine"
+  },
+  {
+   "id": "brand_tallgrass_apparel",
+   "name": "Tallgrass Apparel"
+  },
+  {
+   "id": "brand_copper_kettle_pets",
+   "name": "Copper Kettle Pets"
+  },
+  {
+   "id": "brand_summit_sticks",
+   "name": "Summit Sticks"
+  },
+  {
+   "id": "brand_brightside_patch",
+   "name": "Brightside Patch"
+  },
+  {
+   "id": "brand_fairway_supply",
+   "name": "Fairway Supply"
+  }
+ ],
+ "items": [
+  {
+   "id": "ev1",
+   "src": "season",
+   "act": "brand_northlake_golf",
+   "name": "Early Black Friday",
+   "kind": "sale",
+   "kind_label": "Sale or offer",
+   "start": "2026-11-01",
+   "end": "2026-11-15",
+   "status": "conf",
+   "offer": "20% off every belt, early for the list",
+   "channels": [
+    "paid",
+    "email",
+    "sms"
+   ],
+   "by": "the Black Friday plan",
+   "steps": [],
+   "editable": false
+  },
+  {
+   "id": "ev14",
+   "src": "season",
+   "act": "brand_copper_kettle_pets",
+   "name": "Black Friday weekend",
+   "kind": "sale",
+   "kind_label": "Sale or offer",
+   "start": "2026-11-23",
+   "end": "2026-11-30",
+   "status": "conf",
+   "offer": "30% off the first subscription order",
+   "channels": [
+    "paid",
+    "email"
+   ],
+   "by": "the Black Friday plan",
+   "steps": [],
+   "editable": false
+  },
+  {
+   "id": "ev16",
+   "src": "season",
+   "act": "brand_summit_sticks",
+   "name": "Black Friday weekend",
+   "kind": "sale",
+   "kind_label": "Sale or offer",
+   "start": "2026-11-23",
+   "end": "2026-11-30",
+   "status": "conf",
+   "offer": "Free tape and wax with any stick",
+   "channels": [
+    "paid",
+    "email"
+   ],
+   "by": "the Black Friday plan",
+   "steps": [],
+   "editable": false
+  },
+  {
+   "id": "ev20",
+   "src": "season",
+   "act": "brand_fairway_supply",
+   "name": "Black Friday weekend",
+   "kind": "sale",
+   "kind_label": "Sale or offer",
+   "start": "2026-11-24",
+   "end": "2026-11-30",
+   "status": "conf",
+   "offer": "Wedge set bundle, $60 off",
+   "channels": [
+    "paid",
+    "email",
+    "sms"
+   ],
+   "by": "the Black Friday plan",
+   "steps": [],
+   "editable": false
+  },
+  {
+   "id": "ev2",
+   "src": "season",
+   "act": "brand_northlake_golf",
+   "name": "Black Friday weekend",
+   "kind": "sale",
+   "kind_label": "Sale or offer",
+   "start": "2026-11-26",
+   "end": "2026-11-30",
+   "status": "conf",
+   "offer": "Buy a belt, get a ball marker set free",
+   "channels": [
+    "paid",
+    "email",
+    "sms"
+   ],
+   "by": "the Black Friday plan",
+   "steps": [
+    {
+     "key": "offer",
+     "label": "Offer written",
+     "due": "2026-11-05",
+     "who": "Alex Morgan",
+     "state": "done",
+     "note": "Written and confirmed"
+    },
+    {
+     "key": "briefs",
+     "label": "Ads briefed",
+     "due": "2026-11-12",
+     "who": "Sam Rivera",
+     "state": "done",
+     "note": "Task completed"
+    },
+    {
+     "key": "built",
+     "label": "Ads built",
+     "due": "2026-11-21",
+     "who": "Sam Rivera",
+     "state": "done",
+     "note": "Task completed"
+    },
+    {
+     "key": "email",
+     "label": "Email and text scheduled",
+     "due": "2026-11-23",
+     "who": "Morgan Patel",
+     "state": "done",
+     "note": "A send is scheduled the day before"
+    },
+    {
+     "key": "loaded",
+     "label": "Ads loaded",
+     "due": "2026-11-24",
+     "who": "Jordan Lee",
+     "state": "open",
+     "note": "No new ads in Meta yet"
+    }
+   ],
+   "editable": false
+  },
+  {
+   "id": "ev8",
+   "src": "season",
+   "act": "brand_harbor_and_pine",
+   "name": "Black Friday weekend",
+   "kind": "sale",
+   "kind_label": "Sale or offer",
+   "start": "2026-11-26",
+   "end": "2026-11-30",
+   "status": "conf",
+   "offer": "Four pieces for $150",
+   "channels": [
+    "paid",
+    "email"
+   ],
+   "by": "the Black Friday plan",
+   "steps": [
+    {
+     "key": "offer",
+     "label": "Offer written",
+     "due": "2026-11-05",
+     "who": "Alex Morgan",
+     "state": "done",
+     "note": "Written and confirmed"
+    },
+    {
+     "key": "briefs",
+     "label": "Ads briefed",
+     "due": "2026-11-12",
+     "who": "Sam Rivera",
+     "state": "done",
+     "note": "Task completed"
+    },
+    {
+     "key": "built",
+     "label": "Ads built",
+     "due": "2026-11-21",
+     "who": "Sam Rivera",
+     "state": "done",
+     "note": "Task completed"
+    },
+    {
+     "key": "email",
+     "label": "Email and text scheduled",
+     "due": "2026-11-23",
+     "who": "Morgan Patel",
+     "state": "done",
+     "note": "A send is scheduled the day before"
+    },
+    {
+     "key": "loaded",
+     "label": "Ads loaded",
+     "due": "2026-11-24",
+     "who": "Jordan Lee",
+     "state": "done",
+     "note": "New ads are in Meta"
+    }
+   ],
+   "editable": false
+  },
+  {
+   "id": "ev11",
+   "src": "season",
+   "act": "brand_tallgrass_apparel",
+   "name": "Black Friday weekend",
+   "kind": "sale",
+   "kind_label": "Sale or offer",
+   "start": "2026-11-26",
+   "end": "2026-11-30",
+   "status": "conf",
+   "offer": "Buy one polo, get one free",
+   "channels": [
+    "paid",
+    "email",
+    "sms"
+   ],
+   "by": "the Black Friday plan",
+   "steps": [
+    {
+     "key": "offer",
+     "label": "Offer written",
+     "due": "2026-11-05",
+     "who": "Alex Morgan",
+     "state": "done",
+     "note": "Written and confirmed"
+    },
+    {
+     "key": "briefs",
+     "label": "Ads briefed",
+     "due": "2026-11-12",
+     "who": "Sam Rivera",
+     "state": "done",
+     "note": "Task completed"
+    },
+    {
+     "key": "built",
+     "label": "Ads built",
+     "due": "2026-11-21",
+     "who": "Sam Rivera",
+     "state": "done",
+     "note": "Task completed"
+    },
+    {
+     "key": "email",
+     "label": "Email and text scheduled",
+     "due": "2026-11-23",
+     "who": "Morgan Patel",
+     "state": "done",
+     "note": "A send is scheduled the day before"
+    },
+    {
+     "key": "loaded",
+     "label": "Ads loaded",
+     "due": "2026-11-24",
+     "who": "Jordan Lee",
+     "state": "done",
+     "note": "New ads are in Meta"
+    }
+   ],
+   "editable": false
+  },
+  {
+   "id": "ev18",
+   "src": "season",
+   "act": "brand_brightside_patch",
+   "name": "Black Friday weekend",
+   "kind": "sale",
+   "kind_label": "Sale or offer",
+   "start": "2026-11-26",
+   "end": "2026-11-30",
+   "status": "pen",
+   "offer": "25% off three packs",
+   "channels": [
+    "paid",
+    "email"
+   ],
+   "by": "the Black Friday plan",
+   "steps": [
+    {
+     "key": "offer",
+     "label": "Offer written",
+     "due": "2026-11-05",
+     "who": "Alex Morgan",
+     "state": "done",
+     "note": "Written and confirmed"
+    },
+    {
+     "key": "briefs",
+     "label": "Ads briefed",
+     "due": "2026-11-12",
+     "who": "Sam Rivera",
+     "state": "done",
+     "note": "Task completed"
+    },
+    {
+     "key": "built",
+     "label": "Ads built",
+     "due": "2026-11-21",
+     "who": "Sam Rivera",
+     "state": "done",
+     "note": "Task completed"
+    },
+    {
+     "key": "email",
+     "label": "Email and text scheduled",
+     "due": "2026-11-23",
+     "who": "Morgan Patel",
+     "state": "late",
+     "note": "No send around the day yet"
+    },
+    {
+     "key": "loaded",
+     "label": "Ads loaded",
+     "due": "2026-11-24",
+     "who": "Jordan Lee",
+     "state": "open",
+     "note": "No new ads in Meta yet"
+    }
+   ],
+   "editable": false
+  },
+  {
+   "id": "ev3",
+   "src": "season",
+   "act": "brand_northlake_golf",
+   "name": "Cyber Monday",
+   "kind": "sale",
+   "kind_label": "Sale or offer",
+   "start": "2026-11-30",
+   "end": "2026-11-30",
+   "status": "conf",
+   "offer": "Free marker set plus free shipping, one day",
+   "channels": [
+    "paid",
+    "email"
+   ],
+   "by": "the Black Friday plan",
+   "steps": [
+    {
+     "key": "offer",
+     "label": "Offer written",
+     "due": "2026-11-09",
+     "who": "Alex Morgan",
+     "state": "done",
+     "note": "Written and confirmed"
+    },
+    {
+     "key": "briefs",
+     "label": "Ads briefed",
+     "due": "2026-11-16",
+     "who": "Sam Rivera",
+     "state": "done",
+     "note": "Task completed"
+    },
+    {
+     "key": "built",
+     "label": "Ads built",
+     "due": "2026-11-25",
+     "who": "Sam Rivera",
+     "state": "done",
+     "note": "Task completed"
+    },
+    {
+     "key": "email",
+     "label": "Email and text scheduled",
+     "due": "2026-11-27",
+     "who": "Morgan Patel",
+     "state": "open",
+     "note": "No send around the day yet"
+    },
+    {
+     "key": "loaded",
+     "label": "Ads loaded",
+     "due": "2026-11-28",
+     "who": "Jordan Lee",
+     "state": "open",
+     "note": "No new ads in Meta yet"
+    }
+   ],
+   "editable": false
+  },
+  {
+   "id": "ev17",
+   "src": "season",
+   "act": "brand_summit_sticks",
+   "name": "Holiday bundles",
+   "kind": "sale",
+   "kind_label": "Sale or offer",
+   "start": "2026-12-01",
+   "end": "2026-12-17",
+   "status": "conf",
+   "offer": "Stick, tape and bag bundles",
+   "channels": [
+    "paid",
+    "email"
+   ],
+   "by": "the Black Friday plan",
+   "steps": [
+    {
+     "key": "offer",
+     "label": "Offer written",
+     "due": "2026-11-10",
+     "who": "Alex Morgan",
+     "state": "done",
+     "note": "Written and confirmed"
+    },
+    {
+     "key": "briefs",
+     "label": "Ads briefed",
+     "due": "2026-11-17",
+     "who": "Sam Rivera",
+     "state": "done",
+     "note": "Task completed"
+    },
+    {
+     "key": "built",
+     "label": "Ads built",
+     "due": "2026-11-26",
+     "who": "Sam Rivera",
+     "state": "done",
+     "note": "Task completed"
+    },
+    {
+     "key": "email",
+     "label": "Email and text scheduled",
+     "due": "2026-11-28",
+     "who": "Morgan Patel",
+     "state": "open",
+     "note": "No send around the day yet"
+    },
+    {
+     "key": "loaded",
+     "label": "Ads loaded",
+     "due": "2026-11-29",
+     "who": "Jordan Lee",
+     "state": "open",
+     "note": "No new ads in Meta yet"
+    }
+   ],
+   "editable": false
+  },
+  {
+   "id": "ev9",
+   "src": "cal",
+   "act": "brand_harbor_and_pine",
+   "name": "Gift sets",
+   "kind": "drop",
+   "kind_label": "Drop or launch",
+   "start": "2026-12-03",
+   "end": "2026-12-03",
+   "status": "conf",
+   "offer": "Three gift sets, boxed",
+   "channels": [
+    "paid",
+    "email",
+    "organic"
+   ],
+   "by": "Sam Rivera",
+   "steps": [
+    {
+     "key": "assets",
+     "label": "Photos in",
+     "due": "2026-11-19",
+     "who": "the client",
+     "state": "done",
+     "note": "Photos link on the date"
+    },
+    {
+     "key": "briefs",
+     "label": "Ads briefed",
+     "due": "2026-11-21",
+     "who": "Sam Rivera",
+     "state": "done",
+     "note": "Task completed"
+    },
+    {
+     "key": "built",
+     "label": "Ads built",
+     "due": "2026-11-28",
+     "who": "Sam Rivera",
+     "state": "done",
+     "note": "Task completed"
+    },
+    {
+     "key": "email",
+     "label": "Email and text scheduled",
+     "due": "2026-11-30",
+     "who": "Morgan Patel",
+     "state": "open",
+     "note": "No send around the day yet"
+    },
+    {
+     "key": "loaded",
+     "label": "Ads loaded",
+     "due": "2026-12-01",
+     "who": "Jordan Lee",
+     "state": "open",
+     "note": "No new ads in Meta yet"
+    }
+   ],
+   "editable": true
+  },
+  {
+   "id": "ev4",
+   "src": "cal",
+   "act": "brand_northlake_golf",
+   "name": "New belt colours",
+   "kind": "drop",
+   "kind_label": "Drop or launch",
+   "start": "2026-12-04",
+   "end": "2026-12-04",
+   "status": "pen",
+   "offer": "Three new colours: Pine, Slate and Clay",
+   "channels": [
+    "paid",
+    "email",
+    "organic"
+   ],
+   "by": "Sam Rivera",
+   "steps": [
+    {
+     "key": "assets",
+     "label": "Photos in",
+     "due": "2026-11-20",
+     "who": "the client",
+     "state": "done",
+     "note": "Photos link on the date"
+    },
+    {
+     "key": "briefs",
+     "label": "Ads briefed",
+     "due": "2026-11-22",
+     "who": "Sam Rivera",
+     "state": "done",
+     "note": "Task completed"
+    },
+    {
+     "key": "built",
+     "label": "Ads built",
+     "due": "2026-11-29",
+     "who": "Sam Rivera",
+     "state": "open",
+     "note": "Task open"
+    },
+    {
+     "key": "email",
+     "label": "Email and text scheduled",
+     "due": "2026-12-01",
+     "who": "Morgan Patel",
+     "state": "open",
+     "note": "No send around the day yet"
+    },
+    {
+     "key": "loaded",
+     "label": "Ads loaded",
+     "due": "2026-12-02",
+     "who": "Jordan Lee",
+     "state": "open",
+     "note": "No new ads in Meta yet"
+    }
+   ],
+   "editable": true
+  },
+  {
+   "id": "ev12",
+   "src": "cal",
+   "act": "brand_tallgrass_apparel",
+   "name": "Hoodie drop",
+   "kind": "drop",
+   "kind_label": "Drop or launch",
+   "start": "2026-12-05",
+   "end": "2026-12-05",
+   "status": "pen",
+   "offer": "The first hoodie, two colours",
+   "channels": [
+    "paid",
+    "email",
+    "organic"
+   ],
+   "by": "Sam Rivera",
+   "steps": [
+    {
+     "key": "assets",
+     "label": "Photos in",
+     "due": "2026-11-21",
+     "who": "the client",
+     "state": "done",
+     "note": "Photos link on the date"
+    },
+    {
+     "key": "briefs",
+     "label": "Ads briefed",
+     "due": "2026-11-23",
+     "who": "Sam Rivera",
+     "state": "late",
+     "note": "Task open"
+    },
+    {
+     "key": "built",
+     "label": "Ads built",
+     "due": "2026-11-30",
+     "who": "Sam Rivera",
+     "state": "open",
+     "note": "Task open"
+    },
+    {
+     "key": "email",
+     "label": "Email and text scheduled",
+     "due": "2026-12-02",
+     "who": "Morgan Patel",
+     "state": "open",
+     "note": "No send around the day yet"
+    },
+    {
+     "key": "loaded",
+     "label": "Ads loaded",
+     "due": "2026-12-03",
+     "who": "Jordan Lee",
+     "state": "open",
+     "note": "No new ads in Meta yet"
+    }
+   ],
+   "editable": true
+  },
+  {
+   "id": "ev10",
+   "src": "season",
+   "act": "brand_harbor_and_pine",
+   "name": "Order by Dec 16",
+   "kind": "sale",
+   "kind_label": "Sale or offer",
+   "start": "2026-12-07",
+   "end": "2026-12-16",
+   "status": "pen",
+   "offer": "Free studs on orders over $120",
+   "channels": [
+    "paid",
+    "email"
+   ],
+   "by": "the Black Friday plan",
+   "steps": [
+    {
+     "key": "offer",
+     "label": "Offer written",
+     "due": "2026-11-16",
+     "who": "Alex Morgan",
+     "state": "done",
+     "note": "Written and confirmed"
+    },
+    {
+     "key": "briefs",
+     "label": "Ads briefed",
+     "due": "2026-11-23",
+     "who": "Sam Rivera",
+     "state": "late",
+     "note": "Task open"
+    },
+    {
+     "key": "built",
+     "label": "Ads built",
+     "due": "2026-12-02",
+     "who": "Sam Rivera",
+     "state": "open",
+     "note": "Task open"
+    },
+    {
+     "key": "email",
+     "label": "Email and text scheduled",
+     "due": "2026-12-04",
+     "who": "Morgan Patel",
+     "state": "open",
+     "note": "No send around the day yet"
+    },
+    {
+     "key": "loaded",
+     "label": "Ads loaded",
+     "due": "2026-12-05",
+     "who": "Jordan Lee",
+     "state": "open",
+     "note": "No new ads in Meta yet"
+    }
+   ],
+   "editable": false
+  },
+  {
+   "id": "ev5",
+   "src": "season",
+   "act": "brand_northlake_golf",
+   "name": "Order by Dec 17 for Christmas",
+   "kind": "sale",
+   "kind_label": "Sale or offer",
+   "start": "2026-12-08",
+   "end": "2026-12-17",
+   "status": "pen",
+   "offer": "Free gift wrap on every order",
+   "channels": [
+    "paid",
+    "email"
+   ],
+   "by": "the Black Friday plan",
+   "steps": [
+    {
+     "key": "offer",
+     "label": "Offer written",
+     "due": "2026-11-17",
+     "who": "Alex Morgan",
+     "state": "done",
+     "note": "Written and confirmed"
+    },
+    {
+     "key": "briefs",
+     "label": "Ads briefed",
+     "due": "2026-11-24",
+     "who": "Sam Rivera",
+     "state": "open",
+     "note": "Task open"
+    },
+    {
+     "key": "built",
+     "label": "Ads built",
+     "due": "2026-12-03",
+     "who": "Sam Rivera",
+     "state": "open",
+     "note": "Task open"
+    },
+    {
+     "key": "email",
+     "label": "Email and text scheduled",
+     "due": "2026-12-05",
+     "who": "Morgan Patel",
+     "state": "open",
+     "note": "No send around the day yet"
+    },
+    {
+     "key": "loaded",
+     "label": "Ads loaded",
+     "due": "2026-12-06",
+     "who": "Jordan Lee",
+     "state": "open",
+     "note": "No new ads in Meta yet"
+    }
+   ],
+   "editable": false
+  },
+  {
+   "id": "ev21",
+   "src": "cal",
+   "act": "brand_fairway_supply",
+   "name": "New hybrid launch",
+   "kind": "drop",
+   "kind_label": "Drop or launch",
+   "start": "2026-12-09",
+   "end": "2026-12-09",
+   "status": "pen",
+   "offer": "The 4 hybrid, first run of 250",
+   "channels": [
+    "paid",
+    "email",
+    "organic"
+   ],
+   "by": "Sam Rivera",
+   "steps": [
+    {
+     "key": "assets",
+     "label": "Photos in",
+     "due": "2026-11-25",
+     "who": "the client",
+     "state": "done",
+     "note": "Photos link on the date"
+    },
+    {
+     "key": "briefs",
+     "label": "Ads briefed",
+     "due": "2026-11-27",
+     "who": "Sam Rivera",
+     "state": "done",
+     "note": "Task completed"
+    },
+    {
+     "key": "built",
+     "label": "Ads built",
+     "due": "2026-12-04",
+     "who": "Sam Rivera",
+     "state": "open",
+     "note": "Task open"
+    },
+    {
+     "key": "email",
+     "label": "Email and text scheduled",
+     "due": "2026-12-06",
+     "who": "Morgan Patel",
+     "state": "open",
+     "note": "No send around the day yet"
+    },
+    {
+     "key": "loaded",
+     "label": "Ads loaded",
+     "due": "2026-12-07",
+     "who": "Jordan Lee",
+     "state": "open",
+     "note": "No new ads in Meta yet"
+    }
+   ],
+   "editable": true
+  },
+  {
+   "id": "ev13",
+   "src": "cal",
+   "act": "brand_tallgrass_apparel",
+   "name": "Site: new size guide",
+   "kind": "site",
+   "kind_label": "Site change",
+   "start": "2026-12-10",
+   "end": "2026-12-10",
+   "status": "pen",
+   "offer": "New size guide on every product page",
+   "channels": [
+    "organic"
+   ],
+   "by": "Sam Rivera",
+   "steps": [],
+   "editable": true
+  },
+  {
+   "id": "ev6",
+   "src": "season",
+   "act": "brand_northlake_golf",
+   "name": "New year sale",
+   "kind": "sale",
+   "kind_label": "Sale or offer",
+   "start": "2026-12-26",
+   "end": "2027-01-03",
+   "status": "miss",
+   "offer": "",
+   "channels": [
+    "paid",
+    "email"
+   ],
+   "by": "the Black Friday plan",
+   "steps": [
+    {
+     "key": "offer",
+     "label": "Offer written",
+     "due": "2026-12-05",
+     "who": "Alex Morgan",
+     "state": "open",
+     "note": "Not written yet"
+    },
+    {
+     "key": "briefs",
+     "label": "Ads briefed",
+     "due": "2026-12-12",
+     "who": "Sam Rivera",
+     "state": "open",
+     "note": "Task open"
+    },
+    {
+     "key": "built",
+     "label": "Ads built",
+     "due": "2026-12-21",
+     "who": "Sam Rivera",
+     "state": "open",
+     "note": "Task open"
+    },
+    {
+     "key": "email",
+     "label": "Email and text scheduled",
+     "due": "2026-12-23",
+     "who": "Morgan Patel",
+     "state": "open",
+     "note": "No send around the day yet"
+    },
+    {
+     "key": "loaded",
+     "label": "Ads loaded",
+     "due": "2026-12-24",
+     "who": "Jordan Lee",
+     "state": "open",
+     "note": "No new ads in Meta yet"
+    }
+   ],
+   "editable": false
+  },
+  {
+   "id": "ev19",
+   "src": "cal",
+   "act": "brand_brightside_patch",
+   "name": "Dry January push",
+   "kind": "adpush",
+   "kind_label": "Ad push",
+   "start": "2027-01-02",
+   "end": "2027-01-31",
+   "status": "miss",
+   "offer": "",
+   "channels": [
+    "paid"
+   ],
+   "by": "Sam Rivera",
+   "steps": [
+    {
+     "key": "briefs",
+     "label": "Ads briefed",
+     "due": "2026-12-19",
+     "who": "Sam Rivera",
+     "state": "open",
+     "note": "Task open"
+    },
+    {
+     "key": "built",
+     "label": "Ads built",
+     "due": "2026-12-28",
+     "who": "Sam Rivera",
+     "state": "open",
+     "note": "Task open"
+    },
+    {
+     "key": "loaded",
+     "label": "Ads loaded",
+     "due": "2026-12-31",
+     "who": "Jordan Lee",
+     "state": "open",
+     "note": "No new ads in Meta yet"
+    }
+   ],
+   "editable": true
+  },
+  {
+   "id": "ev22",
+   "src": "season",
+   "act": "brand_fairway_supply",
+   "name": "New year: the full bag",
+   "kind": "sale",
+   "kind_label": "Sale or offer",
+   "start": "2027-01-06",
+   "end": "2027-01-12",
+   "status": "pen",
+   "offer": "Build a full bag, save 15%",
+   "channels": [
+    "paid",
+    "email"
+   ],
+   "by": "the Black Friday plan",
+   "steps": [
+    {
+     "key": "offer",
+     "label": "Offer written",
+     "due": "2026-12-16",
+     "who": "Alex Morgan",
+     "state": "open",
+     "note": "Not written yet"
+    },
+    {
+     "key": "briefs",
+     "label": "Ads briefed",
+     "due": "2026-12-23",
+     "who": "Sam Rivera",
+     "state": "open",
+     "note": "Task open"
+    },
+    {
+     "key": "built",
+     "label": "Ads built",
+     "due": "2027-01-01",
+     "who": "Sam Rivera",
+     "state": "open",
+     "note": "Task open"
+    },
+    {
+     "key": "email",
+     "label": "Email and text scheduled",
+     "due": "2027-01-03",
+     "who": "Morgan Patel",
+     "state": "open",
+     "note": "No send around the day yet"
+    },
+    {
+     "key": "loaded",
+     "label": "Ads loaded",
+     "due": "2027-01-04",
+     "who": "Jordan Lee",
+     "state": "open",
+     "note": "No new ads in Meta yet"
+    }
+   ],
+   "editable": false
+  },
+  {
+   "id": "ev15",
+   "src": "cal",
+   "act": "brand_copper_kettle_pets",
+   "name": "Joint chew launch",
+   "kind": "drop",
+   "kind_label": "Drop or launch",
+   "start": "2027-01-12",
+   "end": "2027-01-12",
+   "status": "pen",
+   "offer": "New joint chew for older dogs",
+   "channels": [
+    "paid",
+    "email"
+   ],
+   "by": "Sam Rivera",
+   "steps": [
+    {
+     "key": "assets",
+     "label": "Photos in",
+     "due": "2026-12-29",
+     "who": "the client",
+     "state": "open",
+     "note": "No photos link yet"
+    },
+    {
+     "key": "briefs",
+     "label": "Ads briefed",
+     "due": "2026-12-31",
+     "who": "Sam Rivera",
+     "state": "open",
+     "note": "Task open"
+    },
+    {
+     "key": "built",
+     "label": "Ads built",
+     "due": "2027-01-07",
+     "who": "Sam Rivera",
+     "state": "open",
+     "note": "Task open"
+    },
+    {
+     "key": "email",
+     "label": "Email and text scheduled",
+     "due": "2027-01-09",
+     "who": "Morgan Patel",
+     "state": "open",
+     "note": "No send around the day yet"
+    },
+    {
+     "key": "loaded",
+     "label": "Ads loaded",
+     "due": "2027-01-10",
+     "who": "Jordan Lee",
+     "state": "open",
+     "note": "No new ads in Meta yet"
+    }
+   ],
+   "editable": true
+  },
+  {
+   "id": "ev7",
+   "src": "cal",
+   "act": "brand_northlake_golf",
+   "name": "Spring range day ads",
+   "kind": "adpush",
+   "kind_label": "Ad push",
+   "start": "2027-02-15",
+   "end": "2027-02-28",
+   "status": "pen",
+   "offer": "Range day videos, new hooks",
+   "channels": [
+    "paid"
+   ],
+   "by": "Sam Rivera",
+   "steps": [
+    {
+     "key": "briefs",
+     "label": "Ads briefed",
+     "due": "2027-02-01",
+     "who": "Sam Rivera",
+     "state": "open",
+     "note": "Task open"
+    },
+    {
+     "key": "built",
+     "label": "Ads built",
+     "due": "2027-02-10",
+     "who": "Sam Rivera",
+     "state": "open",
+     "note": "Task open"
+    },
+    {
+     "key": "loaded",
+     "label": "Ads loaded",
+     "due": "2027-02-13",
+     "who": "Jordan Lee",
+     "state": "open",
+     "note": "No new ads in Meta yet"
+    }
+   ],
+   "editable": true
+  }
+ ],
+ "emails": [
+  {
+   "act": "brand_northlake_golf",
+   "date": "2026-11-25",
+   "name": "Black Friday early access",
+   "channel": "email"
+  },
+  {
+   "act": "brand_northlake_golf",
+   "date": "2026-11-27",
+   "name": "Black Friday is live",
+   "channel": "email"
+  },
+  {
+   "act": "brand_northlake_golf",
+   "date": "2026-11-27",
+   "name": "Live now: free marker set",
+   "channel": "sms"
+  },
+  {
+   "act": "brand_northlake_golf",
+   "date": "2026-11-30",
+   "name": "Cyber Monday, last call",
+   "channel": "email"
+  },
+  {
+   "act": "brand_northlake_golf",
+   "date": "2026-12-04",
+   "name": "Three new colours",
+   "channel": "email"
+  }
+ ],
+ "planned": [],
+ "social": []
+}

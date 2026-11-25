@@ -1,0 +1,130 @@
+{
+ "note": "Sample. Every row is invented. The same shape as GET /api/notices. A row with client: true is one a client sees. when is sample only: the real rows carry created_at.",
+ "email": "sam@agency.example",
+ "home": [
+  {
+   "id": "nt_sample1",
+   "kind": "proposal",
+   "title": "Suggested: pause the card \"Putter still, round 2\"",
+   "body": "It has sat in Live for 3 days with no sales. Nothing was changed. Make the change in Ads if you agree.",
+   "brand_id": "brand_northlake_golf",
+   "automation_id": "au_3",
+   "state": "open",
+   "home": true,
+   "held_until": null,
+   "created_at": "2026-11-24T14:10:00Z",
+   "when": "40 min"
+  },
+  {
+   "id": "nt_sample2",
+   "kind": "release",
+   "title": "A message for the client waits for your yes",
+   "body": "To the client's people at Harbor & Pine:\nYour weekly report is ready to read.",
+   "brand_id": "brand_harbor_and_pine",
+   "automation_id": "au_5",
+   "state": "open",
+   "home": true,
+   "held_until": null,
+   "created_at": "2026-11-24T13:00:00Z",
+   "when": "2 hours"
+  },
+  {
+   "id": "nt_sample3",
+   "kind": "tell",
+   "title": "The daily plan was missing at 10am",
+   "body": null,
+   "brand_id": "brand_northlake_golf",
+   "automation_id": "au_1",
+   "state": "open",
+   "home": true,
+   "held_until": null,
+   "created_at": "2026-11-24T10:00:00Z",
+   "when": "today"
+  }
+ ],
+ "bell": [
+  {
+   "id": "nt_sample1",
+   "kind": "proposal",
+   "title": "Suggested: pause the card \"Putter still, round 2\"",
+   "body": "It has sat in Live for 3 days with no sales. Nothing was changed. Make the change in Ads if you agree.",
+   "brand_id": "brand_northlake_golf",
+   "automation_id": "au_3",
+   "state": "open",
+   "home": true,
+   "held_until": null,
+   "created_at": "2026-11-24T14:10:00Z",
+   "when": "40 min"
+  },
+  {
+   "id": "nt_sample2",
+   "kind": "release",
+   "title": "A message for the client waits for your yes",
+   "body": "To the client's people at Harbor & Pine:\nYour weekly report is ready to read.",
+   "brand_id": "brand_harbor_and_pine",
+   "automation_id": "au_5",
+   "state": "open",
+   "home": true,
+   "held_until": null,
+   "created_at": "2026-11-24T13:00:00Z",
+   "when": "2 hours"
+  },
+  {
+   "id": "nt_sample3",
+   "kind": "tell",
+   "title": "The daily plan was missing at 10am",
+   "body": null,
+   "brand_id": "brand_northlake_golf",
+   "automation_id": "au_1",
+   "state": "open",
+   "home": true,
+   "held_until": null,
+   "created_at": "2026-11-24T10:00:00Z",
+   "when": "today"
+  },
+  {
+   "id": "nt_sample4",
+   "kind": "tell",
+   "title": "MER over the last 7 days is under the goal",
+   "body": "It waits for your morning read.",
+   "brand_id": "brand_tallgrass_apparel",
+   "automation_id": "au_2",
+   "state": "open",
+   "home": false,
+   "held_until": "2099-01-01T07:00:00Z",
+   "created_at": "2026-11-24T09:00:00Z",
+   "when": "today"
+  },
+  {
+   "id": "nt_sample5",
+   "kind": "tell",
+   "title": "A card moved to Review",
+   "body": null,
+   "brand_id": "brand_northlake_golf",
+   "automation_id": "au_4",
+   "state": "done",
+   "home": true,
+   "held_until": null,
+   "created_at": "2026-11-24T08:00:00Z",
+   "done_at": "2026-11-24T08:30:00Z",
+   "when": "today"
+  },
+  {
+   "id": "nt_sample6",
+   "kind": "tell",
+   "title": "Your weekly report is ready to read",
+   "brand_id": "brand_northlake_golf",
+   "state": "open",
+   "home": false,
+   "held_until": null,
+   "created_at": "2026-11-24T12:00:00Z",
+   "when": "today",
+   "client": true
+  }
+ ],
+ "morning": [],
+ "counts": {
+  "open": 4,
+  "taps": 2
+ }
+}

@@ -1,0 +1,595 @@
+{
+ "as_of": null,
+ "today": "2026-11-24",
+ "currency": "USD",
+ "connected": true,
+ "sales_source": true,
+ "goals": {
+  "roas": 3.0,
+  "cpa": 40
+ },
+ "campaigns": [
+  {
+   "id": "c1",
+   "name": "Black Friday 2026",
+   "state": "live",
+   "lead": false,
+   "budget": 400,
+   "spend_today": 265,
+   "spend7": 2748,
+   "roas7": 1.92,
+   "cpl7": null,
+   "adsets": [
+    {
+     "id": "s1",
+     "name": "Early sale | New people",
+     "budget": null,
+     "starts": null,
+     "n_ads": 31,
+     "ads": [
+      {
+       "id": "s1_a1",
+       "name": "Walnut belt, range day",
+       "video": true,
+       "spend_today": 58,
+       "spend": 412,
+       "roas": 3.4,
+       "purchases": 12
+      },
+      {
+       "id": "s1_a2",
+       "name": "Two belts, one buckle",
+       "video": false,
+       "spend_today": 44,
+       "spend": 366,
+       "roas": 3.12,
+       "purchases": 10
+      },
+      {
+       "id": "s1_a3",
+       "name": "Gift box, flat lay",
+       "video": false,
+       "spend_today": 37,
+       "spend": 301,
+       "roas": 2.71,
+       "purchases": 7
+      },
+      {
+       "id": "s1_a4",
+       "name": "First tee, slow motion",
+       "video": true,
+       "spend_today": 29,
+       "spend": 244,
+       "roas": 1.84,
+       "purchases": 4
+      },
+      {
+       "id": "s1_a5",
+       "name": "Buckle close up",
+       "video": false,
+       "spend_today": 21,
+       "spend": 188,
+       "roas": 1.2,
+       "purchases": 2
+      },
+      {
+       "id": "s1_a6",
+       "name": "Caddie review",
+       "video": true,
+       "spend_today": 9,
+       "spend": 96,
+       "roas": null,
+       "purchases": 0
+      }
+     ],
+     "spend_today": 206,
+     "spend7": 2011,
+     "roas7": 1.71,
+     "cpl7": null
+    },
+    {
+     "id": "s2",
+     "name": "Early sale | Past buyers",
+     "budget": null,
+     "starts": null,
+     "n_ads": 12,
+     "ads": [
+      {
+       "id": "s2_a1",
+       "name": "Welcome back, 20% off",
+       "video": false,
+       "spend_today": 33,
+       "spend": 402,
+       "roas": 3.6,
+       "purchases": 12
+      },
+      {
+       "id": "s2_a2",
+       "name": "Your belt, new strap",
+       "video": true,
+       "spend_today": 26,
+       "spend": 335,
+       "roas": 3.1,
+       "purchases": 9
+      }
+     ],
+     "spend_today": 59,
+     "spend7": 737,
+     "roas7": 3.38,
+     "cpl7": null
+    }
+   ]
+  },
+  {
+   "id": "c4",
+   "name": "Creators",
+   "state": "live",
+   "lead": false,
+   "budget": 150,
+   "spend_today": 84,
+   "spend7": 1022,
+   "roas7": 1.38,
+   "cpl7": null,
+   "adsets": [
+    {
+     "id": "s3",
+     "name": "Creator pool",
+     "budget": 50,
+     "starts": null,
+     "n_ads": 6,
+     "ads": [
+      {
+       "id": "s3_a1",
+       "name": "Pool 01, range bag",
+       "video": true,
+       "spend_today": 8,
+       "spend": 96,
+       "roas": 3.3,
+       "purchases": 3
+      },
+      {
+       "id": "s3_a2",
+       "name": "Pool 02, buckle swap",
+       "video": true,
+       "spend_today": 7,
+       "spend": 82,
+       "roas": 3.05,
+       "purchases": 2
+      },
+      {
+       "id": "s3_a3",
+       "name": "Pool 03, first round",
+       "video": true,
+       "spend_today": 6,
+       "spend": 61,
+       "roas": 1.9,
+       "purchases": 1
+      },
+      {
+       "id": "s3_a4",
+       "name": "Pool 04, belt wall",
+       "video": false,
+       "spend_today": 4,
+       "spend": 48,
+       "roas": null,
+       "purchases": 0
+      },
+      {
+       "id": "s3_a5",
+       "name": "Pool 05, cart ride",
+       "video": true,
+       "spend_today": 4,
+       "spend": 38,
+       "roas": null,
+       "purchases": 0
+      },
+      {
+       "id": "s3_a6",
+       "name": "Pool 06, unboxing",
+       "video": true,
+       "spend_today": 2,
+       "spend": 23,
+       "roas": 0.4,
+       "purchases": 0
+      }
+     ],
+     "spend_today": 31,
+     "spend7": 348,
+     "roas7": 1.58,
+     "cpl7": null
+    },
+    {
+     "id": "s4",
+     "name": "Creator | Dana Whitlock",
+     "budget": 20,
+     "starts": null,
+     "n_ads": 3,
+     "ads": [],
+     "spend_today": 19,
+     "spend7": 138,
+     "roas7": 3.21,
+     "cpl7": null
+    },
+    {
+     "id": "s5",
+     "name": "Creator | Marcus Bell",
+     "budget": 20,
+     "starts": null,
+     "n_ads": 3,
+     "ads": [],
+     "spend_today": 14,
+     "spend7": 131,
+     "roas7": 2.4,
+     "cpl7": null
+    },
+    {
+     "id": "s6",
+     "name": "Creator | Priya Nair",
+     "budget": 20,
+     "starts": null,
+     "n_ads": 4,
+     "ads": [],
+     "spend_today": 12,
+     "spend7": 127,
+     "roas7": 1.72,
+     "cpl7": null
+    },
+    {
+     "id": "s7",
+     "name": "Creator | Owen Hart",
+     "budget": 20,
+     "starts": null,
+     "n_ads": 3,
+     "ads": [],
+     "spend_today": 8,
+     "spend7": 140,
+     "roas7": 0.94,
+     "cpl7": null
+    },
+    {
+     "id": "s8",
+     "name": "Creator | Lena Ortiz",
+     "budget": 20,
+     "starts": null,
+     "n_ads": 3,
+     "ads": [],
+     "spend_today": 0,
+     "spend7": 138,
+     "roas7": null,
+     "cpl7": null
+    }
+   ]
+  },
+  {
+   "id": "c6",
+   "name": "Evergreen | Belts",
+   "state": "live",
+   "lead": false,
+   "budget": 150,
+   "spend_today": 96,
+   "spend7": 1010,
+   "roas7": 1.12,
+   "cpl7": null,
+   "adsets": [
+    {
+     "id": "s9",
+     "name": "Belts | Broad",
+     "budget": null,
+     "starts": null,
+     "n_ads": 14,
+     "ads": [],
+     "spend_today": 96,
+     "spend7": 1010,
+     "roas7": 1.12,
+     "cpl7": null
+    }
+   ]
+  },
+  {
+   "id": "c5",
+   "name": "Evergreen | Broad",
+   "state": "live",
+   "lead": false,
+   "budget": 120,
+   "spend_today": 78,
+   "spend7": 832,
+   "roas7": 1.21,
+   "cpl7": null,
+   "adsets": [
+    {
+     "id": "s10",
+     "name": "Broad | New people",
+     "budget": null,
+     "starts": null,
+     "n_ads": 9,
+     "ads": [],
+     "spend_today": 78,
+     "spend7": 832,
+     "roas7": 1.21,
+     "cpl7": null
+    }
+   ]
+  },
+  {
+   "id": "c7",
+   "name": "Creators | Whitelist",
+   "state": "live",
+   "lead": false,
+   "budget": 100,
+   "spend_today": 52,
+   "spend7": 655,
+   "roas7": 0.94,
+   "cpl7": null,
+   "adsets": [
+    {
+     "id": "s11",
+     "name": "Whitelist | New people",
+     "budget": null,
+     "starts": null,
+     "n_ads": 5,
+     "ads": [],
+     "spend_today": 52,
+     "spend7": 655,
+     "roas7": 0.94,
+     "cpl7": null
+    }
+   ]
+  },
+  {
+   "id": "c8",
+   "name": "Accessories | Gifts",
+   "state": "live",
+   "lead": false,
+   "budget": 150,
+   "spend_today": 33,
+   "spend7": 540,
+   "roas7": 0.81,
+   "cpl7": null,
+   "adsets": [
+    {
+     "id": "s12",
+     "name": "Gifts under $50",
+     "budget": null,
+     "starts": null,
+     "n_ads": 6,
+     "ads": [],
+     "spend_today": 33,
+     "spend7": 540,
+     "roas7": 0.81,
+     "cpl7": null
+    }
+   ]
+  },
+  {
+   "id": "c9",
+   "name": "Sale list sign up",
+   "state": "live",
+   "lead": true,
+   "budget": 100,
+   "spend_today": 22,
+   "spend7": 410,
+   "roas7": null,
+   "cpl7": 0.61,
+   "adsets": [
+    {
+     "id": "s13",
+     "name": "Sign up | New people",
+     "budget": null,
+     "starts": null,
+     "n_ads": 2,
+     "ads": [],
+     "spend_today": 22,
+     "spend7": 410,
+     "roas7": null,
+     "cpl7": null
+    }
+   ]
+  },
+  {
+   "id": "c2",
+   "name": "Early access | Black Friday",
+   "state": "scheduled",
+   "lead": false,
+   "budget": 300,
+   "spend_today": 0,
+   "spend7": 0,
+   "roas7": null,
+   "cpl7": null,
+   "adsets": [
+    {
+     "id": "s14",
+     "name": "Early access | Past buyers",
+     "budget": null,
+     "starts": "2026-11-26T18:00:00-0600",
+     "n_ads": 8,
+     "ads": [],
+     "spend_today": 0,
+     "spend7": 0,
+     "roas7": null,
+     "cpl7": null
+    }
+   ]
+  },
+  {
+   "id": "c3",
+   "name": "Holiday 2026",
+   "state": "scheduled",
+   "lead": false,
+   "budget": 200,
+   "spend_today": 0,
+   "spend7": 0,
+   "roas7": null,
+   "cpl7": null,
+   "adsets": [
+    {
+     "id": "s15",
+     "name": "Holiday | New people",
+     "budget": null,
+     "starts": "2026-12-05T00:00:00-0600",
+     "n_ads": 12,
+     "ads": [],
+     "spend_today": 0,
+     "spend7": 0,
+     "roas7": null,
+     "cpl7": null
+    },
+    {
+     "id": "s16",
+     "name": "Holiday | Past buyers",
+     "budget": null,
+     "starts": "2026-12-05T00:00:00-0600",
+     "n_ads": 12,
+     "ads": [],
+     "spend_today": 0,
+     "spend7": 0,
+     "roas7": null,
+     "cpl7": null
+    }
+   ]
+  },
+  {
+   "id": "o0",
+   "name": "Early sale | Teaser",
+   "state": "off",
+   "lead": false,
+   "budget": null,
+   "spend_today": 0,
+   "spend7": 0,
+   "roas7": null,
+   "cpl7": null
+  },
+  {
+   "id": "o1",
+   "name": "Fall belts | Broad",
+   "state": "off",
+   "lead": false,
+   "budget": null,
+   "spend_today": 0,
+   "spend7": 0,
+   "roas7": null,
+   "cpl7": null
+  },
+  {
+   "id": "o2",
+   "name": "Giveaway | Sign up",
+   "state": "off",
+   "lead": false,
+   "budget": null,
+   "spend_today": 0,
+   "spend7": 0,
+   "roas7": null,
+   "cpl7": null
+  },
+  {
+   "id": "o3",
+   "name": "Summer clearance",
+   "state": "off",
+   "lead": false,
+   "budget": null,
+   "spend_today": 0,
+   "spend7": 0,
+   "roas7": null,
+   "cpl7": null
+  },
+  {
+   "id": "o4",
+   "name": "Creators | Test 09",
+   "state": "off",
+   "lead": false,
+   "budget": null,
+   "spend_today": 0,
+   "spend7": 0,
+   "roas7": null,
+   "cpl7": null
+  },
+  {
+   "id": "o5",
+   "name": "Father's Day gifts",
+   "state": "off",
+   "lead": false,
+   "budget": null,
+   "spend_today": 0,
+   "spend7": 0,
+   "roas7": null,
+   "cpl7": null
+  }
+ ],
+ "next": [
+  {
+   "date": "2026-11-26",
+   "name": "Black Friday ad sets",
+   "detail": "6pm, 4 ad sets"
+  },
+  {
+   "date": "2026-11-26",
+   "name": "Early access | Black Friday",
+   "detail": "$300 a day"
+  },
+  {
+   "date": "2026-11-30",
+   "name": "Cyber Monday ads",
+   "detail": "18 ads, New people"
+  },
+  {
+   "date": "2026-12-05",
+   "name": "Holiday 2026",
+   "detail": "$200 a day"
+  }
+ ],
+ "pace": {
+  "hour": 14,
+  "today": [
+   9.69,
+   16.03,
+   21.01,
+   25.76,
+   32.73,
+   46.41,
+   74.28,
+   120.39,
+   183.1,
+   259.05,
+   344.56,
+   438.62,
+   533.5,
+   630.16
+  ],
+  "usual": [
+   9.5,
+   15.84,
+   20.59,
+   25.34,
+   31.67,
+   44.34,
+   69.67,
+   110.85,
+   167.85,
+   237.53,
+   316.7,
+   402.21,
+   490.89,
+   579.56,
+   666.66,
+   752.17,
+   839.26,
+   931.1,
+   1032.45,
+   1143.29,
+   1257.31,
+   1361.82,
+   1444.16,
+   1498.0
+  ],
+  "spent": 630.16,
+  "usual_by_now": 579.56,
+  "usual_total": 1498.0,
+  "projected": 1628.79
+ },
+ "limit": {
+  "used": 630,
+  "limit": 5000
+ },
+ "examples": {
+  "limit": false
+ }
+}

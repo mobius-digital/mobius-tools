@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#FFFFFF">
+<meta name="robots" content="noindex">
+<title></title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpath d='M13 7V26A10 10 0 0 0 23 36H41' fill='none' stroke='%23FF7A1A' stroke-width='7.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='31.5' cy='17.5' r='6' fill='%2316130F'/%3E%3C/svg%3E">
+<link rel="preload" href="fonts/inter.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/instrument-serif-italic.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+/* first paint only: the page colour and the loader. Everything else is app.css. */
+html,body{margin:0;background:#fff;color:#16130F;font-family:'Geist','Inter',system-ui,-apple-system,'Segoe UI',sans-serif}
+#lx-load{position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:radial-gradient(360px 300px at 50% 44%,rgba(255,138,31,.075),rgba(255,122,26,0) 72%),#fff}
+#lx-load svg{width:96px;height:96px;overflow:visible}
+#lx-load .pt,#lx-load .ring{transform-box:fill-box;transform-origin:center}
+#lx-load .pt{animation:ld-pt 2s ease-in-out -.8s infinite}
+#lx-load .ring{fill:none;stroke:#FF7A1A;stroke-width:1.5px;vector-effect:non-scaling-stroke;animation:ld-ring 2s ease-in-out -.8s infinite}
+#lx-load .bar{position:relative;width:184px;height:3px;margin-top:34px;border-radius:999px;background:#F2F1EE;overflow:hidden}
+#lx-load .bar i{position:absolute;left:0;top:0;bottom:0;width:42%;border-radius:999px;background:linear-gradient(90deg,#FFA62B,#FF5226);animation:ld-bar 2s ease-in-out -.8s infinite}
+#lx-load p{margin:16px 0 0;font-size:14px;color:#6F6A63}
+@keyframes ld-pt{0%,100%{transform:scale(1)}50%{transform:scale(1.14)}}
+@keyframes ld-ring{0%{transform:scale(1);opacity:0}18%{opacity:.6}100%{transform:scale(3.4);opacity:0}}
+@keyframes ld-bar{0%{transform:translateX(-105%)}100%{transform:translateX(245%)}}
+@media (prefers-reduced-motion:reduce){#lx-load .pt,#lx-load .ring,#lx-load .bar i{animation:none}#lx-load .ring{opacity:0}#lx-load .bar i{width:100%;opacity:.5}}
+</style>
+<link rel="stylesheet" href="app.css">
+<link rel="modulepreload" href="config.js">
+<link rel="modulepreload" href="data.js">
+<link rel="modulepreload" href="menu.js">
+<link rel="modulepreload" href="icons.js">
+<link rel="modulepreload" href="kit.js">
+<link rel="modulepreload" href="router.js">
+<link rel="modulepreload" href="shell.js">
+<script type="module" src="app.js"></script>
+</head>
+<body>
+<!-- the gradients every mark and chart uses. Kept here so they exist before any script runs. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<linearGradient id="lx-mark" x1="10" y1="6" x2="40" y2="40" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FFA62B"/><stop offset=".45" stop-color="#FF7A1A"/><stop offset="1" stop-color="#FF5226"/></linearGradient>
+<linearGradient id="lx-line" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#FFA62B"/><stop offset=".5" stop-color="#FF8A1F"/><stop offset="1" stop-color="#FF6A1F"/></linearGradient>
+<linearGradient id="lx-area" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF7A1A" stop-opacity=".24"/><stop offset="1" stop-color="#FF7A1A" stop-opacity="0"/></linearGradient>
+<linearGradient id="lx-slate" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5B6B8C" stop-opacity=".16"/><stop offset="1" stop-color="#5B6B8C" stop-opacity="0"/></linearGradient>
+</defs></svg>
+<div id="lx-load" role="status" aria-label="Loading">
+<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M13 7V26A10 10 0 0 0 23 36H41" fill="none" stroke="url(#lx-mark)" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/><circle class="ring" cx="31.5" cy="17.5" r="5"/><circle class="pt" cx="31.5" cy="17.5" r="5" fill="#16130F"/></svg>
+<div class="bar"><i></i></div>
+<p>Getting your numbers ready</p>
+</div>
+<div id="app"></div>
+<noscript>This app needs JavaScript.</noscript>
+</body>
+</html>

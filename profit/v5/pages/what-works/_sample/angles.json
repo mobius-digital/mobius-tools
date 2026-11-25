@@ -1,0 +1,49 @@
+{
+ "state": "ok",
+ "source": "sample",
+ "goal_roas": 3,
+ "goal_cpa": 40,
+ "angles": [
+  { "id": "an_1", "name": "No holes, no notches", "status": "active", "note": "The belt fits every waist size to the click.",
+    "stats": { "batches": 6, "spend": 6420, "roas": 2.74, "winners": 2, "losers": 2, "judged": 5, "last": "2026-11-19", "orders": 152 },
+    "tests": [
+     { "num": "423", "title": "Creator range day, three hooks", "level": "variation", "variable": "hook", "verdict": null, "spend": 38, "orders": 0, "roas": null, "date": "2026-11-22" },
+     { "num": "418", "title": "Naming the belt next to the offer", "level": "variation", "variable": "copy", "verdict": "winner", "spend": 1480, "orders": 38, "roas": 3.21, "date": "2026-11-12", "learning": "Naming the belt next to the offer beats the plain offer line." },
+     { "num": "409", "title": "Walnut belt on the range", "level": "concept", "verdict": "winner", "spend": 1910, "orders": 47, "roas": 2.83, "date": "2026-10-30" },
+     { "num": "401", "title": "Old belt against new belt", "level": "concept", "verdict": "loser", "spend": 430, "orders": 1, "roas": 0.27, "date": "2026-10-18" },
+     { "num": "395", "title": "Flat lay, black belt", "level": "concept", "verdict": "loser", "spend": 1020, "orders": 15, "roas": 1.69, "date": "2026-10-04" },
+     { "num": "388", "title": "Creator first tee talk", "level": "angle", "verdict": "cancelled", "spend": 1180, "orders": 12, "roas": 1.14, "date": "2026-09-22" }
+    ] },
+  { "id": "an_2", "name": "The click you can hear", "status": "active", "note": "The ratchet sound as proof it holds.",
+    "stats": { "batches": 3, "spend": 2240, "roas": 1.98, "winners": 1, "losers": 0, "judged": 1, "last": "2026-11-19", "orders": 31 },
+    "tests": [
+     { "num": "421", "title": "Question opener against claim opener", "level": "variation", "variable": "hook", "verdict": null, "spend": 186, "orders": 3, "roas": 1.9, "date": "2026-11-19" },
+     { "num": "414", "title": "Ratchet click, close up", "level": "concept", "verdict": null, "spend": 1620, "orders": 22, "roas": 1.53, "date": "2026-11-08" },
+     { "num": "402", "title": "Hear that click, still", "level": "angle", "verdict": "winner", "spend": 434, "orders": 6, "roas": 2.95, "date": "2026-10-20" }
+    ] },
+  { "id": "an_3", "name": "The golfer gift", "status": "active", "note": "A gift a golfer will wear every round.",
+    "stats": { "batches": 3, "spend": 2004, "roas": 1.73, "winners": 1, "losers": 1, "judged": 2, "last": "2026-11-21", "orders": 31 },
+    "tests": [
+     { "num": "422", "title": "Gift guide with the price on the image", "level": "variation", "variable": "copy", "verdict": null, "spend": 74, "orders": 1, "roas": 1.4, "date": "2026-11-21" },
+     { "num": "412", "title": "Gift stills, past buyers against new people", "level": "concept", "verdict": "winner", "spend": 1410, "orders": 27, "roas": 2.09, "date": "2026-11-04", "learning": "Gift stills work for past buyers and lose money for new people." },
+     { "num": "397", "title": "Dad gift, still", "level": "concept", "verdict": "loser", "spend": 520, "orders": 3, "roas": 0.6, "date": "2026-10-10" }
+    ] },
+  { "id": "an_4", "name": "Ball marker in the buckle", "status": "active",
+    "stats": { "batches": 2, "spend": 1060, "roas": 0.52, "winners": 0, "losers": 2, "judged": 2, "last": "2026-11-01", "orders": 6 },
+    "tests": [
+     { "num": "404", "title": "Ball marker pops out", "level": "concept", "verdict": "loser", "spend": 640, "orders": 4, "roas": 0.66, "date": "2026-10-21", "learning": "A ball marker in the buckle is a feature people click on, not one they buy on." },
+     { "num": "390", "title": "Mark your ball, still", "level": "angle", "verdict": "loser", "spend": 420, "orders": 2, "roas": 0.31, "date": "2026-09-28" }
+    ] },
+  { "id": "an_5", "name": "Black Friday offer", "status": "active",
+    "stats": { "batches": 2, "spend": 5910, "roas": 2.15, "winners": 1, "losers": 0, "judged": 1, "last": "2026-11-16", "orders": 130 },
+    "tests": [
+     { "num": "419", "title": "Buy 2, save 20%", "level": "offer", "verdict": null, "spend": 2640, "orders": 52, "roas": 2.32, "date": "2026-11-16" },
+     { "num": "416", "title": "Early sale, last day", "level": "offer", "verdict": "winner", "spend": 790, "orders": 12, "roas": 1.59, "date": "2026-11-10" }
+    ] },
+  { "id": "an_6", "name": "Built for 18 holes in the heat", "status": "active", "note": "Breathable, no sweat marks.",
+    "stats": { "batches": 0, "spend": 0, "roas": null, "winners": 0, "losers": 0, "judged": 0, "last": null, "orders": 0 }, "tests": [] },
+  { "id": "an_7", "name": "Leather that ages well", "status": "retired",
+    "stats": { "batches": 1, "spend": 310, "roas": 0.8, "winners": 0, "losers": 1, "judged": 1, "last": "2026-08-14", "orders": 2 },
+    "tests": [ { "num": "355", "title": "Five years of wear", "level": "angle", "verdict": "loser", "spend": 310, "orders": 2, "roas": 0.8, "date": "2026-08-14" } ] }
+ ]
+}

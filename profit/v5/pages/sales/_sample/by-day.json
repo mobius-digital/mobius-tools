@@ -1,0 +1,321 @@
+{
+ "connected": true,
+ "range": {
+  "from": "2026-11-01",
+  "to": "2026-11-22"
+ },
+ "totals": {
+  "sales": 63429,
+  "sales_prev": 59073,
+  "orders": 693,
+  "orders_prev": 644,
+  "aov": 91.53,
+  "aov_prev": 88.4,
+  "visits": 28414,
+  "conversion": 0.0244,
+  "conversion_prev": 0.0231,
+  "units": 984,
+  "gross": 69508,
+  "discounts": 7505,
+  "returns": 1486,
+  "shipping": 2912,
+  "new_sales": 39960,
+  "returning_sales": 23469,
+  "new_orders": 456,
+  "returning_orders": 237
+ },
+ "days": [
+  {
+   "date": "2026-11-01",
+   "sales": 3612,
+   "orders": 42,
+   "aov": 86,
+   "new_share": 0.677,
+   "discounts": 445,
+   "visits": 1725
+  },
+  {
+   "date": "2026-11-02",
+   "sales": 2762,
+   "orders": 30,
+   "aov": 92.07,
+   "new_share": 0.708,
+   "discounts": 342,
+   "visits": 1183
+  },
+  {
+   "date": "2026-11-03",
+   "sales": 2904,
+   "orders": 32,
+   "aov": 90.75,
+   "new_share": 0.568,
+   "discounts": 441,
+   "visits": 1149
+  },
+  {
+   "date": "2026-11-04",
+   "sales": 3080,
+   "orders": 32,
+   "aov": 96.25,
+   "new_share": 0.672,
+   "discounts": 431,
+   "visits": 1346
+  },
+  {
+   "date": "2026-11-05",
+   "sales": 4199,
+   "orders": 45,
+   "aov": 93.31,
+   "new_share": 0.619,
+   "discounts": 560,
+   "visits": 1864
+  },
+  {
+   "date": "2026-11-06",
+   "sales": 3095,
+   "orders": 33,
+   "aov": 93.79,
+   "new_share": 0.623,
+   "discounts": 463,
+   "visits": 1463
+  },
+  {
+   "date": "2026-11-07",
+   "sales": 4020,
+   "orders": 42,
+   "aov": 95.71,
+   "new_share": 0.651,
+   "discounts": 516,
+   "visits": 1506
+  },
+  {
+   "date": "2026-11-08",
+   "sales": 3546,
+   "orders": 41,
+   "aov": 86.49,
+   "new_share": 0.718,
+   "discounts": 555,
+   "visits": 1939
+  },
+  {
+   "date": "2026-11-09",
+   "sales": 3568,
+   "orders": 41,
+   "aov": 87.02,
+   "new_share": 0.705,
+   "discounts": 439,
+   "visits": 1715
+  },
+  {
+   "date": "2026-11-10",
+   "sales": 3413,
+   "orders": 39,
+   "aov": 87.51,
+   "new_share": 0.656,
+   "discounts": 465,
+   "visits": 1417
+  },
+  {
+   "date": "2026-11-11",
+   "sales": 2598,
+   "orders": 27,
+   "aov": 96.22,
+   "new_share": 0.674,
+   "discounts": 406,
+   "visits": 1250
+  },
+  {
+   "date": "2026-11-12",
+   "sales": 2538,
+   "orders": 28,
+   "aov": 90.64,
+   "new_share": 0.693,
+   "discounts": 294,
+   "visits": 1156
+  },
+  {
+   "date": "2026-11-13",
+   "sales": 3675,
+   "orders": 42,
+   "aov": 87.5,
+   "new_share": 0.584,
+   "discounts": 486,
+   "visits": 1878
+  },
+  {
+   "date": "2026-11-14",
+   "sales": 4690,
+   "orders": 50,
+   "aov": 93.8,
+   "new_share": 0.607,
+   "discounts": 642,
+   "visits": 1848
+  },
+  {
+   "date": "2026-11-15",
+   "sales": 3097,
+   "orders": 32,
+   "aov": 96.78,
+   "new_share": 0.647,
+   "discounts": 450,
+   "visits": 1354
+  },
+  {
+   "date": "2026-11-16",
+   "sales": 2435,
+   "orders": 27,
+   "aov": 90.19,
+   "new_share": 0.632,
+   "discounts": 129,
+   "visits": 1227
+  },
+  {
+   "date": "2026-11-17",
+   "sales": 1782,
+   "orders": 20,
+   "aov": 89.1,
+   "new_share": 0.58,
+   "discounts": 74,
+   "visits": 845
+  },
+  {
+   "date": "2026-11-18",
+   "sales": 2627,
+   "orders": 27,
+   "aov": 97.3,
+   "new_share": 0.627,
+   "discounts": 125,
+   "visits": 979
+  },
+  {
+   "date": "2026-11-19",
+   "sales": 1663,
+   "orders": 18,
+   "aov": 92.39,
+   "new_share": 0.64,
+   "discounts": 84,
+   "visits": 666
+  },
+  {
+   "date": "2026-11-20",
+   "sales": 1395,
+   "orders": 16,
+   "aov": 87.19,
+   "new_share": 0.587,
+   "discounts": 52,
+   "visits": 672
+  },
+  {
+   "date": "2026-11-21",
+   "sales": 1092,
+   "orders": 12,
+   "aov": 91,
+   "new_share": 0.687,
+   "discounts": 45,
+   "visits": 525
+  },
+  {
+   "date": "2026-11-22",
+   "sales": 1638,
+   "orders": 17,
+   "aov": 96.35,
+   "new_share": 0.63,
+   "discounts": 61,
+   "visits": 707
+  }
+ ],
+ "prev_days": [
+  {
+   "date": "2026-11-01",
+   "sales": 2886
+  },
+  {
+   "date": "2026-11-02",
+   "sales": 2707
+  },
+  {
+   "date": "2026-11-03",
+   "sales": 2912
+  },
+  {
+   "date": "2026-11-04",
+   "sales": 2589
+  },
+  {
+   "date": "2026-11-05",
+   "sales": 4135
+  },
+  {
+   "date": "2026-11-06",
+   "sales": 2957
+  },
+  {
+   "date": "2026-11-07",
+   "sales": 3636
+  },
+  {
+   "date": "2026-11-08",
+   "sales": 3533
+  },
+  {
+   "date": "2026-11-09",
+   "sales": 3244
+  },
+  {
+   "date": "2026-11-10",
+   "sales": 3070
+  },
+  {
+   "date": "2026-11-11",
+   "sales": 2571
+  },
+  {
+   "date": "2026-11-12",
+   "sales": 2202
+  },
+  {
+   "date": "2026-11-13",
+   "sales": 3706
+  },
+  {
+   "date": "2026-11-14",
+   "sales": 4349
+  },
+  {
+   "date": "2026-11-15",
+   "sales": 3067
+  },
+  {
+   "date": "2026-11-16",
+   "sales": 2355
+  },
+  {
+   "date": "2026-11-17",
+   "sales": 1656
+  },
+  {
+   "date": "2026-11-18",
+   "sales": 2298
+  },
+  {
+   "date": "2026-11-19",
+   "sales": 1352
+  },
+  {
+   "date": "2026-11-20",
+   "sales": 1110
+  },
+  {
+   "date": "2026-11-21",
+   "sales": 1098
+  },
+  {
+   "date": "2026-11-22",
+   "sales": 1640
+  }
+ ],
+ "note": {
+  "date": "2026-11-15",
+  "text": "Early sale ended Nov 15"
+ }
+}

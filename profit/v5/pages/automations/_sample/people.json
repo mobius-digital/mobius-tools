@@ -1,0 +1,55 @@
+{
+ "power": false,
+ "can_power": true,
+ "ok": true,
+ "can_edit": true,
+ "can_all": true,
+ "can_team": true,
+ "role_words": {
+  "owner": "the brand owner",
+  "buyer": "the buyer",
+  "strategist": "the strategist",
+  "maker": "the card's maker",
+  "email_owner": "the email owner",
+  "reviewer": "the reviewer"
+ },
+ "roles": {
+  "all": {
+   "owner": "sam@agency.example",
+   "buyer": "jo@agency.example"
+  },
+  "brand_northlake_golf": {
+   "strategist": "riley@agency.example",
+   "maker": "devon@agency.example"
+  }
+ },
+ "brands": [
+  {
+   "id": "brand_northlake_golf",
+   "name": "Northlake Golf"
+  },
+  {
+   "id": "brand_harbor_and_pine",
+   "name": "Harbor & Pine"
+  }
+ ],
+ "team": [
+  {
+   "email": "devon@agency.example",
+   "by_hand": true
+  },
+  {
+   "email": "jo@agency.example",
+   "by_hand": false
+  },
+  {
+   "email": "riley@agency.example",
+   "by_hand": false
+  },
+  {
+   "email": "sam@agency.example",
+   "by_hand": false
+  }
+ ],
+ "note": "A role nobody holds falls back to the person who made the automation, and the run log says so. \"The whole team\" is everyone on the team list."
+}

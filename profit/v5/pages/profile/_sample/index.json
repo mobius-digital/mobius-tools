@@ -1,0 +1,103 @@
+{
+ "profile": {
+  "as_of": null,
+  "name": "Sam",
+  "last_name": "Rivera",
+  "email": "sam@example.com",
+  "role": "Creative strategist",
+  "role_by": "Alex",
+  "brands": [
+   "Northlake Golf",
+   "Tallgrass Apparel",
+   "Fairway Supply",
+   "Copper Kettle Pets"
+  ],
+  "tz": "Central Time, 9:41am now",
+  "slack": {
+   "linked": true,
+   "handle": "Sam Rivera"
+  },
+  "photo": null,
+  "photo_from": "Slack",
+  "previews": {
+   "comment": {
+    "when": "2h",
+    "text": "Which hook goes first?"
+   },
+   "task": {
+    "text": "Send Riley the range day recut brief",
+    "due": "Wed"
+   },
+   "promise": {
+    "text": "sends the recut brief",
+    "due": "by Wed"
+   }
+  }
+ },
+ "reach": {
+  "slack_handle": "Sam Rivera",
+  "kinds": [
+   {
+    "id": "yes",
+    "title": "Needs my yes",
+    "eg": "Approve the Fairway Supply brief",
+    "slack": true,
+    "email": false,
+    "push": true
+   },
+   {
+    "id": "assigned",
+    "title": "Assigned to me",
+    "eg": "Alex gave you the range day recut brief",
+    "slack": true,
+    "email": false,
+    "push": false
+   },
+   {
+    "id": "due",
+    "title": "Due today",
+    "eg": "5pm: Fairway Supply ads go live at 6pm",
+    "slack": true,
+    "email": false,
+    "push": true
+   },
+   {
+    "id": "client",
+    "title": "A client replied",
+    "eg": "Pat replied on the hoodie",
+    "slack": true,
+    "email": false,
+    "push": true
+   },
+   {
+    "id": "down",
+    "title": "Something is down",
+    "eg": "Meta is down, or a live brand spent $0",
+    "slack": true,
+    "email": false,
+    "push": true
+   },
+   {
+    "id": "summary",
+    "title": "Daily summary",
+    "eg": "4 things need you today",
+    "slack": true,
+    "email": false,
+    "push": false
+   }
+  ],
+  "summary": {
+   "time": "05:00",
+   "weekdays": true,
+   "by": "slack",
+   "eg": "\"Sam, 4 things need you today.\""
+  },
+  "quiet": {
+   "from": "19:00",
+   "to": "05:00",
+   "weekends": true,
+   "down_through": true
+  },
+  "phone": "off"
+ }
+}

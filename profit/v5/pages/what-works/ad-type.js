@@ -1,0 +1,101 @@
+/* What works > Ad type. "What kind of ad sells?" One question per row, the ads under each group.
+   Live data: GET /api/hub/creative (profit worker) for spend, clicks, add to carts and Triple Whale sales per Meta ad;
+   GET /api/ad-creatives (account-health) for the pictures. Video or still is Meta's own field. Who made it is read
+   from the ad name for now. People in the ad, product shown and type of picture are AI tags: hidden behind
+   "Tags are being re-checked" until a person has checked them. */
+
+import { APP_NAME } from '../../config.js';
+import { put } from '../../kit.js';
+import { h, card, takeaway, segmented, statusDot, em, money, num, pct, x, skeleton } from '../../kit.js';
+import { css, gate, noAds, loadAds, sampleAds, art, meter, roll, tagsNote, findingButton, foot, thin, thinWords, p1, SRC_NOTE } from './_ww.js';
+
+const ST = { measure: null };
+const MEASURE = {
+  roas: { label: 'ROAS', fmt: v => x(v), unit: 'ROAS', of: g => g.roas, goal: d => d.goal_roas, needsSales: true },
+  ctr: { label: 'Click rate', fmt: v => p1(v), unit: 'click rate', of: g => g.ctr, goal: () => null },
+  atc: { label: 'Add to cart rate', fmt: v => p1(v), unit: 'add to cart', of: g => g.atc_rate, goal: () => null },
+};
+const madeBy = a => (a.maker ? a.maker : /@|creator|ugc|ambassador/i.test(a.name || '') ? 'creator' : 'brand');
+const ageOf = a => (a.age == null ? null : a.age < 14 ? 'new' : a.age <= 45 ? 'mid' : 'old');
+
+function group(list) {
+  const g = roll(list);
+  const atc = list.reduce((t, a) => t + (a.atc != null ? a.atc : (a.atc_rate || 0) * (a.clicks || 0)), 0);
+  return { ...g, atc_rate: g.clicks ? atc / g.clicks : null, top: [...list].sort((a, b) => b.spend - a.spend).slice(0, 3) };
+}
+
+function question(d, q, ctx) {
+  const m = MEASURE[ST.measure];
+  const groups = q.groups.map(gr => ({ ...gr, g: group(gr.list) })).filter(gr => gr.g.ads);
+  if (groups.length < 2) return null;
+  const val = gr => m.of(gr.g);
+  const ranked = groups.filter(gr => val(gr) != null && !(m.needsSales && thin(gr.g.orders)));
+  const best = ranked.length >= 2 ? ranked.reduce((p, c) => (val(c) > val(p) ? c : p)) : null;
+  const worst = ranked.length >= 2 ? ranked.reduce((p, c) => (val(c) < val(p) ? c : p)) : null;
+  const goal = m.goal(d);
+  const max = Math.max(goal || 0, ...groups.map(gr => val(gr) || 0)) * 1.15 || 1;
+  const gap = best && worst && best !== worst ? (m.needsSales ? x(val(best) - val(worst)) : ((val(best) - val(worst)) * 100).toFixed(2) + ' pts') : null;
+  return h('section', { class: 'lx-card' },
+    h('div', { class: 'ww-q' },
+      h('div', { class: 'meta' }, h('h3', null, q.title), q.source, gap ? h('span', null, 'Gap best to worst ', h('b', null, gap)) : null, q.care ? h('div', { class: 'care' }, q.care) : null),
+      h('div', { class: 'ww-gs' }, groups.map(gr => {
+        const v = val(gr), dim = m.needsSales && thin(gr.g.orders);
+        return h('div', { class: 'ww-g' },
+          h('div', { class: 'hd' }, gr.name, gr === best ? statusDot('good', 'Best') : gr === worst ? statusDot('bad', 'Weakest') : null),
+          h('div', { class: 'v' + (dim ? ' dim' : '') }, v == null ? 'no data' : m.fmt(v), h('small', null, m.unit)),
+          meter(v, goal, { max, dim }),
+          h('p', null, `${num(gr.g.ads)} ads, ${money(gr.g.spend)} spend`),
+          h('p', null, d.has_sales ? (thin(gr.g.orders) ? thinWords(gr.g.orders) : `${num(gr.g.orders)} orders, ${money(gr.g.cpa)} a sale`) + `, click rate ${p1(gr.g.ctr)}` : `Click rate ${p1(gr.g.ctr)}`),
+          h('div', { class: 'ww-thumbs' }, gr.g.top.map(a => h('div', null, art(a), h('small', null, a.name)))));
+      }))),
+    best && worst && best !== worst && !ctx.isClient ? h('div', { style: { marginTop: '18px', display: 'flex', justifyContent: 'flex-end' } }, findingButton(ctx, () => ({
+      say: [h('b', null, best.name), ` leads on ${m.label.toLowerCase()}: ${m.fmt(val(best))} against ${m.fmt(val(worst))} for ${worst.name.toLowerCase()}.`], measure: m.label.toLowerCase(),
+      proof: best.g.top.slice(0, 2).map(a => ({ value: m.of(group([a])) || 0, text: m.fmt(m.of(group([a]))), name: a.name.slice(0, 16), sub: best.name.toLowerCase() })),
+      normal: { value: val(worst) || 0, text: m.fmt(val(worst)), name: worst.name, sub: 'the weakest group' },
+      brief: { title: 'More ' + best.name.toLowerCase() + ' ads', make: 'Three new ' + best.name.toLowerCase() + ' ads on the angles that sell now', why: `${best.name} leads on ${m.label.toLowerCase()}.`, count: 3 },
+    }), 'Make new ads from this')) : null);
+}
+
+function view(d, ctx) {
+  const stop = gate(d, ctx);
+  if (stop) return [stop];
+  if (!d.ads || !d.ads.length) return [noAds(ctx)];
+  if (!ST.measure || (MEASURE[ST.measure].needsSales && !d.has_sales)) ST.measure = d.has_sales ? 'roas' : 'ctr';
+  const ads = d.ads.filter(a => a.spend > 0);
+  const stills = ads.filter(a => a.kind !== 'video'), vids = ads.filter(a => a.kind === 'video');
+  const all = group(ads), st = group(stills), vd = group(vids);
+  const Q = [
+    { title: 'Video or still?', source: 'Format, from Meta itself', groups: [{ name: 'Still', list: stills }, { name: 'Video', list: vids }],
+      care: st.spend > vd.spend ? 'Offers travel with format. If most sale ads are stills, part of this gap is the offer, not the format.' : null },
+    { title: 'Creator or brand made?', source: 'Read from the ad name for now', groups: [{ name: 'Brand made', list: ads.filter(a => madeBy(a) === 'brand') }, { name: 'Creator', list: ads.filter(a => madeBy(a) === 'creator') }] },
+    { title: 'New or older?', source: 'Days since the ad first spent', groups: [{ name: 'Under 14 days', list: ads.filter(a => ageOf(a) === 'new') }, { name: '14 to 45 days', list: ads.filter(a => ageOf(a) === 'mid') }, { name: 'Over 45 days', list: ads.filter(a => ageOf(a) === 'old') }],
+      care: 'Older ads have already won a place, so they are not a fair fight with brand new ones.' },
+  ];
+  const lead = d.has_sales && st.roas != null && vd.roas != null && !thin(st.orders) && !thin(vd.orders)
+    ? [h('b', null, st.roas >= vd.roas ? 'Stills' : 'Videos'), ` return ${x(Math.max(st.roas, vd.roas))} against ${x(Math.min(st.roas, vd.roas))}. Stills take `, h('b', null, pct(all.spend ? st.spend / all.spend : null)), ' of spend.']
+    : ['Stills take ', h('b', null, pct(all.spend ? st.spend / all.spend : null)), ` of spend. Click rate ${p1(st.ctr)} on stills, ${p1(vd.ctr)} on videos.`];
+  const MS = Object.entries(MEASURE).filter(([, m]) => !m.needsSales || d.has_sales).map(([id, m]) => ({ id, label: m.label }));
+  const body = h('div', { class: 'ww-stack' });
+  const paint = () => put(body, ...Q.map(q => question(d, q, ctx)).filter(Boolean));
+  paint();
+  return [
+    takeaway(lead),
+    h('div', { class: 'ww-bar' },
+      h('span', { class: 'note' }, 'Judge on'), segmented(MS, ST.measure, id => { ST.measure = id; paint(); }),
+      h('span', { class: 'sp' }),
+      h('span', { class: 'note' }, `${num(ads.length)} ads, ${money(all.spend)}` + (d.goal_roas ? `. The tick on each bar is the ${x(d.goal_roas)} goal.` : ''))),
+    body,
+    card({ class: 'ww-cd', title: 'People in it, product shown, type of picture', action: tagsNote() },
+      h('p', { class: 'lx-foot', style: { marginTop: '10px' } }, 'These groups come from tags ' + APP_NAME + ' AI reads off each ad. They come back here once a person has checked them.')),
+    foot('Grey = under 30 orders: read it as a hint, not a result.', SRC_NOTE),
+  ];
+}
+
+export default {
+  title: ['What kind of ad ', em('sells?')],
+  eyebrow: 'What works',
+  load: ctx => loadAds(ctx, { covers: true }),
+  sample: () => sampleAds(),
+  skeleton(el) { put(el, skeleton('row', 2), skeleton('chart', 2)); },
+  render(el, d, ctx) { css(); put(el, ...view(d, ctx)); },
+};

@@ -189,8 +189,13 @@ function showDir() {
   /* Signing in for the Cashew link goes back there first, whoever is signed in. */
   const nx = new URLSearchParams(location.search).get('next');
   if (nx && !nx.startsWith('/')) { handToHub(nx); return; }
+  /* A tool that sent the person here to sign in gets them straight back, before this page is drawn.
+     Only a path on this site. A client login only ever goes back into Locus. */
+  const isClient = localStorage.getItem('mobius_session_role') === 'client';
+  const back = sameSite(nx);
+  if (back && (!isClient || back.startsWith('/profit/'))) { location.replace(back); return; }
   /* A client login (2026-10-09) has no HQ: it goes straight to its brand in Locus. */
-  if (localStorage.getItem('mobius_session_role') === 'client') { location.href = '/profit/'; return; }
+  if (isClient) { location.href = '/profit/'; return; }
   $('#scene').style.display = 'none';
   $('#dir').classList.add('show');
   $('#footNote').style.display = 'none';
@@ -202,8 +207,17 @@ function showDir() {
   const h = new Date().getHours();
   $('#daypart').textContent = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
   const next = new URLSearchParams(location.search).get('next');
-  if (next && next.startsWith('/') && !next.startsWith('//')) location.href = next;   // seamless hand-off back to the tool
-  else if (next) handToHub(next);
+  if (sameSite(next)) location.href = sameSite(next);   // seamless hand-off back to the tool
+  else if (next && !next.startsWith('/')) handToHub(next);
+}
+
+/* next= as a path on this site, or '' when it is anything else. The browser resolves it, the way it would
+   when following it (tabs, newlines and backslashes can turn a "path" into another site), and only an
+   address that lands on this origin is kept. What goes back is the resolved path, never the raw text. */
+function sameSite(nx) {
+  if (!nx || !nx.startsWith('/')) return '';
+  try { const u = new URL(nx, location.origin); return u.origin === location.origin ? u.pathname + u.search + u.hash : ''; }
+  catch { return ''; }
 }
 
 /* The Cashew link (one address for every set of books) cannot run Google's button on its own

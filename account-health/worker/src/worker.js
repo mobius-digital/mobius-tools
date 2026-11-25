@@ -11,8 +11,10 @@ import { ensureCreative, putCover, serveCover, assetKeyOf, creativeTick, tagTick
 import { marketFor, metaDay, chatterFor, useFetch as marketFetch } from './market.js';
 import { pulseTick, pulseStatus, pulseImport, pulseButton } from './pulse.js';
 import { handleSchedules, scheduleTick } from './askschedule.js';
+import { lookupDoor, lookupSlack, lookupWhyTap } from './lookups.js';
 import { handleReview, reviewTick } from './review.js';
 import { handleAlerts, alertTick } from './alerts.js';
+import { handleAutomations, automationTick } from './automations.js';
 import { handleSocial, socialTick, serveSocialMedia, useFetch as socialFetch } from './social.js';
 import { handleSocialPost, socialPostTick, socialResultsTick, socialNudgeTick, handleSocialButton, useFetch as socialPostFetch } from './socialpost.js';
 import { handleMake as handleMakeApp, serveMakeMedia, runExit } from './make.js';
@@ -79,6 +81,7 @@ import { handleBrandAsana, handleAsanaHook, brandAsanaTick, unifyGoals, mondayTi
 import { ideaStart, runIdeaJob, handleIdeaAction, adminIdea, useExits, useFetch as ideasFetch } from './ideas.js';
 import { handleAtria, useFetch as atriaFetch } from './atria.js';
 import { handleMcp } from './mcp.js';
+import { handleConnectAi, isConnectAiPath } from './connectai.js';
 import { handleNewClient, newClientTick, handleStripeWebhook, welcomeOnJoinByChannel, handleNewClientAction, onCallBooked, useFetch as newClientFetch, markShopifySent } from './newclient.js';
 import { todoList, todoSkip } from './todo.js';
 import { handleCalendly, useFetch as calendlyFetch } from './calendly.js';
@@ -6664,6 +6667,7 @@ async function handleSlackInteract(request, env, ctx) {
     if (payload.type === 'block_actions' && (payload.actions || []).some(a => /^soc_/.test(a.action_id || '')))
       return await handleSocialButton(env, ctx, payload, socialPostDeps(), { ACK, xfetch });
     /* Platform status: "Send to all clients" on an #outages card (pulse.js). */
+    if (payload.type === 'block_actions' && (payload.actions || []).some(a => a.action_id === 'lookup_why')) return await lookupWhyTap(env, ctx, payload, lookupDeps());   // "Ask why" on a free lookup (lookups.js)
     if (payload.type === 'block_actions' && (payload.actions || []).some(a => a.action_id === 'pulse_send'))
       return await pulseButton(env, ctx, payload, { slackApi, ACK });
     /* The ideas bot's buttons (Creator link, Asana brief, Studio, Redo, Discard...). */
@@ -7515,6 +7519,8 @@ function strategistDeps() {
   return _stratDeps;
 }
 /* What checknow.js, alerts.js and the scheduled checks need from here. */
+/* Automations (automations.js): the same reads as the alerts, plus the report engine and who is asking. */
+function automationDeps() { return { ...autoDeps(), clientScope, brandsFor, resolveBrandId, makeReport, roleFor, emailAllowed, ownerEmail: 'cole@go-mobius-digital.com' }; }
 function autoDeps() {
   return { getSetting, putSetting, listAccounts, localDate, localHourFrac, addDays, twSummary, twShift, metaAll, pickAction, PURCHASE_TYPES, xfetch,
     subCanAfford, centralHour, centralDate, slackApi, isAdmin, sessionEmail, goalsFor, daysInMonth, twMetaDaily, mintSession, postDashboard };
@@ -7883,7 +7889,10 @@ async function isGroupDm(env, ch) {
   return yes;
 }
 
+/* Free lookups (lookups.js): off until settings.freeLookups is set, and then only a plain "pull a number" question stops there. */
+function lookupDeps() { return { isAdmin, sessionEmail, slack: slackApi, accessDeps, xfetch, slackAnswer: strategistSlackAnswer, ACK }; }
 async function strategistSlackAnswer(env, ev, screen) {
+  if (await lookupSlack(env, ev, screen, lookupDeps())) return { lookup: true };
   const { engine, h } = strategist();
   const findings = await engine.openFindings(env, h()).catch(() => []);
   /* call: a plainly asked-for internal setting is applied right away, as the owner (the same as an Apply tap from Slack). */
@@ -8225,6 +8234,8 @@ const AH_APP = {
         ran.mondayReview = await reviewTick(env, { ...hubDeps(), briefHour }).catch(e => ({ error: e.message }));
         /* Alerts: rules checked at their hour, posted at most once a Central day (alerts.js). */
         ran.alerts = await alertTick(env, autoDeps()).catch(e => ({ error: e.message }));
+        /* Automations (automations.js): with none switched on this is one count and nothing else. */
+        ran.automations = await automationTick(env, automationDeps()).catch(e => ({ error: e.message }));
         /* The calendar: a client's new or moved date, the day before / a week out, Monday "still running?" (calendar.js). */
         ran.calendar = await calendarTick(env, hubDeps()).catch(e => ({ error: e.message }));
         /* Locus Social: each followed brand and topic pulled once a day, four a tick (social.js). */
@@ -8270,6 +8281,8 @@ const AH_APP = {
     /* Claude Code's MCP door (mcp.js, 2026-11-01): its own token, every Locus call made as Cole, so it sits above the
        brand guard (which keys off a session this token is not). */
     if (new URL(request.url).pathname === '/mcp') return handleMcp(request, env, ctx, mcpDeps());
+    /* Connect your AI (connectai.js): a person's own key, its own sign-in and scope. Off until settings connectAi is on. */
+    if (isConnectAiPath(new URL(request.url).pathname)) return handleConnectAi(request, env, ctx, { mintSession, sessionEmail, emailAllowed, listAccounts, cors: CORS, ahFetch: (req, e) => AH_APP.fetch(req, e, { waitUntil() {} }) });
     /* Phase 3: `?act=` carries a brand id. An old id (act_, asana_, demo_harborline, a slug) from a
        saved link, a bookmark or an older client is resolved to its brand id ONCE here, before the
        access guard and every handler, so nothing downstream sees an old id. */
@@ -8778,6 +8791,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     }
 
     /* ---- the Strategist, in Locus ---- */
+    if (path === '/api/lookups' || path === '/api/lookup' || path === '/api/ask') { const lk = await lookupDoor(request, env, path, json, lookupDeps()); if (lk) return lk; }
     if (path.startsWith('/api/ask')) {
       /* A client login (the brand edition, 2026-10-10) asks the SAME engine in its client mode (clients.js clientAsk):
          pinned to its brand, reading Locus through its own sign-in, $2 a day. It may also follow and Stop its own answer.
@@ -9500,6 +9514,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
        never cite a figure that is not on the page. Cached an hour per exact set of facts
        (settings `read:<hash>`); made on open, never on a cron. Sonnet tier, about a cent. */
     /* Right now (checknow.js) and the alerts (alerts.js): GET /api/daycheck/now, /api/alerts*. Admin-checked inside. */
+    if (path.startsWith('/api/automations') || path.startsWith('/api/notices') || path === '/api/me/delivery') { const r = await handleAutomations(request, env, path, json, automationDeps()); if (r) return r; }
     if (path === '/api/daycheck/now' || path.startsWith('/api/alerts')) {
       const r = await handleAlerts(request, env, path, json, autoDeps());
       if (r) return r;

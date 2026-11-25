@@ -1,0 +1,202 @@
+{
+ "current": "2026-11",
+ "source": true,
+ "months": [
+  {
+   "month": "2026-11",
+   "status": "current",
+   "planned": true,
+   "days_in_month": 30,
+   "goals": {
+    "sales": 80455,
+    "spend": 28500,
+    "mer": 2.823
+   },
+   "agreed_at": "2026-11-02",
+   "basis": {
+    "month": "2026-10",
+    "sales": 74490,
+    "run_rate": false
+   },
+   "growth": 0.0801,
+   "expected_profit": 14946,
+   "actual": {
+    "sales": 63429,
+    "spend": 23702,
+    "mer": 2.68,
+    "days": 22
+   },
+   "yard": {
+    "returning": 31500,
+    "new_needed": 48955,
+    "needs": 1.7177,
+    "recent": 1.75,
+    "from": "2026-10-26",
+    "to": "2026-11-22"
+   },
+   "options": [
+    {
+     "growth": 0,
+     "sales": 74490,
+     "spend": 24566,
+     "mer": 3.03,
+     "profit": 15659
+    },
+    {
+     "growth": 0.1,
+     "sales": 81939,
+     "spend": 28822,
+     "mer": 2.84,
+     "profit": 15425
+    },
+    {
+     "growth": 0.2,
+     "sales": 89388,
+     "spend": 33079,
+     "mer": 2.7,
+     "profit": 15191
+    },
+    {
+     "growth": 0.3,
+     "sales": 96837,
+     "spend": 37335,
+     "mer": 2.59,
+     "profit": 14957
+    }
+   ]
+  },
+  {
+   "month": "2026-12",
+   "status": "future",
+   "planned": true,
+   "days_in_month": 31,
+   "goals": {
+    "sales": 92000,
+    "spend": 31000,
+    "mer": 2.9677
+   },
+   "agreed_at": null,
+   "basis": {
+    "month": "2026-10",
+    "sales": 74490,
+    "run_rate": false
+   },
+   "growth": 0.2351,
+   "expected_profit": 18680,
+   "actual": null,
+   "yard": {
+    "returning": 32550,
+    "new_needed": 59450,
+    "needs": 1.9177,
+    "recent": 1.75,
+    "from": "2026-10-26",
+    "to": "2026-11-22"
+   },
+   "options": [
+    {
+     "growth": 0,
+     "sales": 74490,
+     "spend": 23966,
+     "mer": 3.11,
+     "profit": 16259
+    },
+    {
+     "growth": 0.1,
+     "sales": 81939,
+     "spend": 28222,
+     "mer": 2.9,
+     "profit": 16025
+    },
+    {
+     "growth": 0.2,
+     "sales": 89388,
+     "spend": 32479,
+     "mer": 2.75,
+     "profit": 15791
+    },
+    {
+     "growth": 0.3,
+     "sales": 96837,
+     "spend": 36735,
+     "mer": 2.64,
+     "profit": 15557
+    }
+   ]
+  }
+ ],
+ "history": [
+  {
+   "month": "2026-04",
+   "sales": 52310,
+   "spend": 17900,
+   "mer": 2.92,
+   "profit": 10347,
+   "partial": false,
+   "days": null
+  },
+  {
+   "month": "2026-05",
+   "sales": 58840,
+   "spend": 19650,
+   "mer": 2.99,
+   "profit": 12124,
+   "partial": false,
+   "days": null
+  },
+  {
+   "month": "2026-06",
+   "sales": 61275,
+   "spend": 21300,
+   "mer": 2.88,
+   "profit": 11788,
+   "partial": false,
+   "days": null
+  },
+  {
+   "month": "2026-07",
+   "sales": 57960,
+   "spend": 20480,
+   "mer": 2.83,
+   "profit": 10818,
+   "partial": false,
+   "days": null
+  },
+  {
+   "month": "2026-08",
+   "sales": 63120,
+   "spend": 22150,
+   "mer": 2.85,
+   "profit": 11935,
+   "partial": false,
+   "days": null
+  },
+  {
+   "month": "2026-09",
+   "sales": 68905,
+   "spend": 24300,
+   "mer": 2.84,
+   "profit": 12909,
+   "partial": false,
+   "days": null
+  },
+  {
+   "month": "2026-10",
+   "sales": 74490,
+   "spend": 26100,
+   "mer": 2.85,
+   "profit": 14125,
+   "partial": false,
+   "days": null
+  },
+  {
+   "month": "2026-11",
+   "sales": 63429,
+   "spend": 23702,
+   "mer": 2.68,
+   "profit": 10550,
+   "partial": true,
+   "days": 22
+  }
+ ],
+ "profit_withheld": false
+}

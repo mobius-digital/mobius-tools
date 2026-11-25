@@ -1,0 +1,16 @@
+{
+ "sample": true,
+ "today": "2026-11-24",
+ "clients": [
+  { "email": "pat@example.com", "name": "Pat Doyle", "brands": [{ "id": "brand_northlake_golf", "name": "Northlake Golf" }, { "id": "brand_tallgrass_apparel", "name": "Tallgrass Apparel" }], "invited_at": "2026-10-12T15:00:00Z", "last_sign_in": "2026-11-20T14:00:00Z", "last_seen": "2026-11-24T16:40:00Z" },
+  { "email": "jamie@example.com", "name": "Jamie Fox", "brands": [{ "id": "brand_harbor_and_pine", "name": "Harbor & Pine" }], "invited_at": "2026-10-14T15:00:00Z", "last_sign_in": "2026-11-24T11:00:00Z", "last_seen": "2026-11-24T11:20:00Z" },
+  { "email": "orders@example.com", "name": null, "brands": [{ "id": "brand_northlake_golf", "name": "Northlake Golf" }], "invited_at": "2026-11-02T15:00:00Z", "last_sign_in": null, "last_seen": null },
+  { "email": "owner@example.com", "name": null, "brands": [{ "id": "brand_summit_sticks", "name": "Summit Sticks" }], "invited_at": "2026-10-30T15:00:00Z", "last_sign_in": "2026-11-09T10:00:00Z", "last_seen": "2026-11-12T10:00:00Z" },
+  { "email": "team@example.com", "name": null, "brands": [{ "id": "brand_copper_kettle_pets", "name": "Copper Kettle Pets" }], "invited_at": "2026-11-05T15:00:00Z", "last_sign_in": "2026-11-21T10:00:00Z", "last_seen": "2026-11-23T19:00:00Z" }
+ ],
+ "waiting": {
+  "brand_northlake_golf": { "us": 2, "client": 2 },
+  "brand_harbor_and_pine": { "us": 1, "client": 1 },
+  "brand_summit_sticks": { "us": 0, "client": 1 }
+ }
+}

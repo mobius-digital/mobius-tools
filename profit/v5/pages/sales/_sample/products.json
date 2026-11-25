@@ -1,0 +1,153 @@
+{
+ "connected": true,
+ "range": {
+  "from": "2026-11-01",
+  "to": "2026-11-22"
+ },
+ "orders": 693,
+ "products": [
+  {
+   "id": "p1",
+   "title": "Ridgeline Magnetic Belt, Black",
+   "type": "Belts",
+   "orders": 178,
+   "units": 224,
+   "sales": 14162,
+   "returned": 0.021,
+   "first_order": 0.64
+  },
+  {
+   "id": "p2",
+   "title": "Ridgeline Magnetic Belt, Tan",
+   "type": "Belts",
+   "orders": 131,
+   "units": 141,
+   "sales": 10422,
+   "returned": 0.024,
+   "first_order": 0.74
+  },
+  {
+   "id": "p3",
+   "title": "Two Belt Bundle",
+   "type": "Bundles",
+   "orders": 84,
+   "units": 96,
+   "sales": 11278,
+   "returned": 0.018,
+   "first_order": 0.76
+  },
+  {
+   "id": "p4",
+   "title": "Links Leather Belt, Navy",
+   "type": "Belts",
+   "orders": 72,
+   "units": 80,
+   "sales": 6086,
+   "returned": 0.031,
+   "first_order": 0.5
+  },
+  {
+   "id": "p5",
+   "title": "Ball Marker Set, Brass",
+   "type": "Accessories",
+   "orders": 96,
+   "units": 113,
+   "sales": 2769,
+   "returned": 0.008,
+   "first_order": 0.72
+  },
+  {
+   "id": "p6",
+   "title": "Cabretta Glove",
+   "type": "Accessories",
+   "orders": 88,
+   "units": 97,
+   "sales": 2363,
+   "returned": 0.044,
+   "first_order": 0.55
+  },
+  {
+   "id": "p7",
+   "title": "Tour Divot Tool",
+   "type": "Accessories",
+   "orders": 61,
+   "units": 69,
+   "sales": 1456,
+   "returned": 0.006,
+   "first_order": 0.48
+  },
+  {
+   "id": "p8",
+   "title": "Gift Card",
+   "type": "Gift cards",
+   "orders": 34,
+   "units": 38,
+   "sales": 2536,
+   "returned": 0,
+   "first_order": 0.61
+  },
+  {
+   "id": "p9",
+   "title": "Weekend Buckle, Silver",
+   "type": "Buckles",
+   "orders": 41,
+   "units": 48,
+   "sales": 1835,
+   "returned": 0.012,
+   "first_order": 0.59
+  },
+  {
+   "id": "p10",
+   "title": "Walnut Tee Pack",
+   "type": "Accessories",
+   "orders": 57,
+   "units": 71,
+   "sales": 794,
+   "returned": 0.004,
+   "first_order": 0.65
+  },
+  {
+   "id": "p11",
+   "title": "Starter Bundle: belt, glove, markers",
+   "type": "Bundles",
+   "orders": 29,
+   "units": 31,
+   "sales": 3605,
+   "returned": 0.027,
+   "first_order": 0.6
+  },
+  {
+   "id": "p12",
+   "title": "Links Leather Belt, Brown",
+   "type": "Belts",
+   "orders": 38,
+   "units": 48,
+   "sales": 3212,
+   "returned": 0.029,
+   "first_order": 0.78
+  }
+ ],
+ "pairs": [
+  {
+   "a": "Ridgeline Magnetic Belt, Black",
+   "b": "Ball Marker Set, Brass",
+   "orders": 46
+  },
+  {
+   "a": "Ridgeline Magnetic Belt, Black",
+   "b": "Ridgeline Magnetic Belt, Tan",
+   "orders": 39
+  },
+  {
+   "a": "Cabretta Glove",
+   "b": "Walnut Tee Pack",
+   "orders": 27
+  },
+  {
+   "a": "Links Leather Belt, Navy",
+   "b": "Weekend Buckle, Silver",
+   "orders": 18
+  }
+ ],
+ "example": []
+}

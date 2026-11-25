@@ -1,0 +1,62 @@
+# The app's screens on Cloudflare Pages.
+#
+# Uploads only the app's own static files (the allow-list in
+# .github/pages/build-site.sh) to two Cloudflare Pages projects, one per
+# address, because the two addresses show a different home page:
+#   mobius-tools-site  ->  mobius-tools-site.pages.dev  (later tools.*)
+#   locus-app-site     ->  locus-app-site.pages.dev     (later locus.*)
+#
+# Runs by hand only. Merging this file changes nothing live: GitHub Pages and
+# publish-locus.yml keep serving both addresses until the DNS records move.
+# Once they have moved, add "push: branches: [main]" here so every merge
+# publishes.
+#
+# Needs the CLOUDFLARE_API_TOKEN secret with "Cloudflare Pages: Edit" on it.
+# CLOUDFLARE_ACCOUNT_ID is optional (only needed if the token sees more than
+# one account).
+name: Publish site (Cloudflare Pages)
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'main = the project address. Anything else = a test address (<name>.<project>.pages.dev).'
+        required: false
+        default: 'main'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    if: ${{ github.repository == 'mobius-digital/mobius-tools' }}
+    permissions:
+      contents: read
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      DEPLOY_BRANCH: ${{ github.event.inputs.branch || 'main' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Check the branch name and the key
+        run: |
+          set -euo pipefail
+          case "$DEPLOY_BRANCH" in
+            *[!a-zA-Z0-9._-]*|'') echo "Branch may only hold letters, numbers, dot, dash and underscore."; exit 1 ;;
+          esac
+          [ -n "$CLOUDFLARE_API_TOKEN" ] || { echo "CLOUDFLARE_API_TOKEN is not set."; exit 1; }
+
+      - name: Build the two sites from the allow-list
+        run: |
+          set -euo pipefail
+          bash .github/pages/build-site.sh /tmp/site-tools tools
+          bash .github/pages/build-site.sh /tmp/site-locus locus
+
+      - name: Upload the tools site
+        run: npx --yes wrangler@4 pages deploy /tmp/site-tools --project-name=mobius-tools-site --branch="$DEPLOY_BRANCH" --commit-dirty=true
+
+      - name: Upload the Locus site (same files, the home page opens /profit/)
+        run: npx --yes wrangler@4 pages deploy /tmp/site-locus --project-name=locus-app-site --branch="$DEPLOY_BRANCH" --commit-dirty=true

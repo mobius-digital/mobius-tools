@@ -1,0 +1,117 @@
+{
+ "sample_age_min": 4,
+ "window": {
+  "from": "2026-10-25",
+  "to": "2026-11-23"
+ },
+ "days": 30,
+ "line": 10,
+ "buyer": "Taylor",
+ "spend_total": 1274,
+ "sold": {
+  "terms": 61,
+  "spend": 648
+ },
+ "waste_big": {
+  "terms": 6,
+  "spend": 104
+ },
+ "waste_small": {
+  "terms": 702,
+  "spend": 522,
+  "clicks": 913
+ },
+ "take": [
+  "Only ",
+  {
+   "b": "6 terms"
+  },
+  " cost over $10 with no sale. Turning them off saves about ",
+  {
+   "b": "$104"
+  },
+  " a month."
+ ],
+ "sell_rows": [
+  {
+   "term": "northlake golf belt",
+   "spend": 96,
+   "orders": 22,
+   "roas": 8.7
+  },
+  {
+   "term": "mens golf belt",
+   "spend": 121,
+   "orders": 12,
+   "roas": 3.6
+  },
+  {
+   "term": "northlake belt",
+   "spend": 18,
+   "orders": 6,
+   "roas": 12.1
+  },
+  {
+   "term": "leather golf belt",
+   "spend": 31,
+   "orders": 5,
+   "roas": 6.2
+  },
+  {
+   "term": "white golf belt",
+   "spend": 39,
+   "orders": 4,
+   "roas": 4.1
+  },
+  {
+   "term": "golf belts for men",
+   "spend": 26,
+   "orders": 4,
+   "roas": 5.3
+  }
+ ],
+ "sell_more": {
+  "terms": 55,
+  "spend": 317,
+  "orders": 94,
+  "roas": 5.2
+ },
+ "waste_rows": [
+  {
+   "term": "golf glove womens",
+   "spend": 29,
+   "clicks": 47,
+   "orders": 0
+  },
+  {
+   "term": "golf",
+   "spend": 21,
+   "clicks": 33,
+   "orders": 0
+  },
+  {
+   "term": "golf accessories for men",
+   "spend": 17,
+   "clicks": 24,
+   "orders": 0
+  },
+  {
+   "term": "golf gifts for men",
+   "spend": 14,
+   "clicks": 18,
+   "orders": 0
+  },
+  {
+   "term": "dress belt",
+   "spend": 12,
+   "clicks": 15,
+   "orders": 0
+  },
+  {
+   "term": "braided belt",
+   "spend": 11,
+   "clicks": 16,
+   "orders": 0
+  }
+ ]
+}

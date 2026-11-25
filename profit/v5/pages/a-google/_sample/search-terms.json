@@ -1,0 +1,589 @@
+{
+ "sample_age_min": 4,
+ "window": {
+  "from": "2026-11-01",
+  "to": "2026-11-22"
+ },
+ "brands": [
+  {
+   "id": "brand_northlake_golf",
+   "name": "Northlake Golf",
+   "terms": [
+    {
+     "term": "northlake golf",
+     "status": "added",
+     "campaign": "Brand search",
+     "ad_group": "Brand",
+     "impressions": 1989,
+     "clicks": 221,
+     "spend": 142.6,
+     "conversions": 13,
+     "value": 1742
+    },
+    {
+     "term": "northlake belt",
+     "status": "added",
+     "campaign": "Brand search",
+     "ad_group": "Brand",
+     "impressions": 1116,
+     "clicks": 124,
+     "spend": 91.2,
+     "conversions": 8,
+     "value": 1096
+    },
+    {
+     "term": "magnetic golf belt",
+     "status": "none",
+     "campaign": "Shopping",
+     "ad_group": "All products",
+     "impressions": 441,
+     "clicks": 49,
+     "spend": 61.4,
+     "conversions": 2,
+     "value": 271
+    },
+    {
+     "term": "golf gifts for men",
+     "status": "none",
+     "campaign": "Search | Non brand",
+     "ad_group": "Gifts",
+     "impressions": 369,
+     "clicks": 41,
+     "spend": 52.3,
+     "conversions": 1,
+     "value": 129
+    },
+    {
+     "term": "gifts for golfers",
+     "status": "none",
+     "campaign": "Search | Non brand",
+     "ad_group": "Gifts",
+     "impressions": 279,
+     "clicks": 31,
+     "spend": 38.7,
+     "conversions": 0,
+     "value": 0
+    },
+    {
+     "term": "ridgeline golf belt",
+     "status": "none",
+     "campaign": "Shopping",
+     "ad_group": "All products",
+     "impressions": 99,
+     "clicks": 11,
+     "spend": 29.9,
+     "conversions": 0,
+     "value": 0
+    },
+    {
+     "term": "$150 belt",
+     "status": "excluded",
+     "campaign": "Search | Non brand",
+     "ad_group": "Gifts",
+     "impressions": 72,
+     "clicks": 8,
+     "spend": 12.6,
+     "conversions": 0,
+     "value": 0
+    },
+    {
+     "term": "rain gear for golf",
+     "status": "none",
+     "campaign": "Brand search",
+     "ad_group": "Brand",
+     "impressions": 9,
+     "clicks": 1,
+     "spend": 12.2,
+     "conversions": 0,
+     "value": 0
+    },
+    {
+     "term": "golf stores near me",
+     "status": "none",
+     "campaign": "Brand search",
+     "ad_group": "Brand",
+     "impressions": 9,
+     "clicks": 1,
+     "spend": 10.4,
+     "conversions": 0,
+     "value": 0
+    },
+    {
+     "term": "northlake golf belt",
+     "status": "none",
+     "campaign": "Shopping",
+     "ad_group": "All products",
+     "impressions": 126,
+     "clicks": 14,
+     "spend": 9.8,
+     "conversions": 1,
+     "value": 134
+    }
+   ]
+  },
+  {
+   "id": "brand_fairway_supply",
+   "name": "Fairway Supply",
+   "terms": [
+    {
+     "term": "fairway supply",
+     "status": "added",
+     "campaign": "Brand search",
+     "ad_group": "Brand",
+     "impressions": 1692,
+     "clicks": 188,
+     "spend": 121.4,
+     "conversions": 9,
+     "value": 1890
+    },
+    {
+     "term": "fairway supply hybrids",
+     "status": "added",
+     "campaign": "Brand search",
+     "ad_group": "Brand",
+     "impressions": 576,
+     "clicks": 64,
+     "spend": 48.2,
+     "conversions": 3,
+     "value": 702
+    },
+    {
+     "term": "hybrid golf clubs",
+     "status": "none",
+     "campaign": "Shopping",
+     "ad_group": "Hybrids",
+     "impressions": 864,
+     "clicks": 96,
+     "spend": 188.5,
+     "conversions": 1,
+     "value": 219
+    },
+    {
+     "term": "best hybrid for seniors",
+     "status": "none",
+     "campaign": "Search | Non brand",
+     "ad_group": "Hybrids",
+     "impressions": 468,
+     "clicks": 52,
+     "spend": 96.3,
+     "conversions": 0,
+     "value": 0
+    },
+    {
+     "term": "used golf clubs",
+     "status": "none",
+     "campaign": "Shopping",
+     "ad_group": "Hybrids",
+     "impressions": 549,
+     "clicks": 61,
+     "spend": 74.9,
+     "conversions": 0,
+     "value": 0
+    },
+    {
+     "term": "golf club fitting near me",
+     "status": "none",
+     "campaign": "Search | Non brand",
+     "ad_group": "Hybrids",
+     "impressions": 297,
+     "clicks": 33,
+     "spend": 58.1,
+     "conversions": 0,
+     "value": 0
+    },
+    {
+     "term": "7 wood vs hybrid",
+     "status": "none",
+     "campaign": "Search | Non brand",
+     "ad_group": "Hybrids",
+     "impressions": 252,
+     "clicks": 28,
+     "spend": 41.7,
+     "conversions": 0,
+     "value": 0
+    },
+    {
+     "term": "left handed hybrid",
+     "status": "none",
+     "campaign": "Shopping",
+     "ad_group": "Hybrids",
+     "impressions": 171,
+     "clicks": 19,
+     "spend": 36.2,
+     "conversions": 2,
+     "value": 438
+    },
+    {
+     "term": "cheap golf clubs",
+     "status": "excluded",
+     "campaign": "Shopping",
+     "ad_group": "Hybrids",
+     "impressions": 198,
+     "clicks": 22,
+     "spend": 18.4,
+     "conversions": 0,
+     "value": 0
+    },
+    {
+     "term": "golf swing tips",
+     "status": "none",
+     "campaign": "Search | Non brand",
+     "ad_group": "Hybrids",
+     "impressions": 81,
+     "clicks": 9,
+     "spend": 7.6,
+     "conversions": 0,
+     "value": 0
+    }
+   ]
+  },
+  {
+   "id": "brand_tallgrass_apparel",
+   "name": "Tallgrass Apparel",
+   "terms": [
+    {
+     "term": "tallgrass apparel",
+     "status": "added",
+     "campaign": "Brand search",
+     "ad_group": "Brand",
+     "impressions": 1287,
+     "clicks": 143,
+     "spend": 88.1,
+     "conversions": 7,
+     "value": 612
+    },
+    {
+     "term": "tallgrass polo",
+     "status": "added",
+     "campaign": "Brand search",
+     "ad_group": "Brand",
+     "impressions": 639,
+     "clicks": 71,
+     "spend": 39.4,
+     "conversions": 4,
+     "value": 348
+    },
+    {
+     "term": "mens golf polo",
+     "status": "none",
+     "campaign": "Shopping",
+     "ad_group": "Polos",
+     "impressions": 1062,
+     "clicks": 118,
+     "spend": 131.2,
+     "conversions": 2,
+     "value": 176
+    },
+    {
+     "term": "moisture wicking polo",
+     "status": "none",
+     "campaign": "Shopping",
+     "ad_group": "Polos",
+     "impressions": 513,
+     "clicks": 57,
+     "spend": 66.8,
+     "conversions": 0,
+     "value": 0
+    },
+    {
+     "term": "golf shirts on sale",
+     "status": "none",
+     "campaign": "Shopping",
+     "ad_group": "Polos",
+     "impressions": 396,
+     "clicks": 44,
+     "spend": 49.5,
+     "conversions": 0,
+     "value": 0
+    },
+    {
+     "term": "polo shirt women",
+     "status": "none",
+     "campaign": "Shopping",
+     "ad_group": "Polos",
+     "impressions": 234,
+     "clicks": 26,
+     "spend": 27.3,
+     "conversions": 0,
+     "value": 0
+    },
+    {
+     "term": "golf polo big and tall",
+     "status": "none",
+     "campaign": "Search | Non brand",
+     "ad_group": "Polos",
+     "impressions": 189,
+     "clicks": 21,
+     "spend": 24.6,
+     "conversions": 2,
+     "value": 188
+    },
+    {
+     "term": "custom embroidered polos",
+     "status": "excluded",
+     "campaign": "Search | Non brand",
+     "ad_group": "Polos",
+     "impressions": 108,
+     "clicks": 12,
+     "spend": 14.1,
+     "conversions": 0,
+     "value": 0
+    },
+    {
+     "term": "golf outfit ideas",
+     "status": "none",
+     "campaign": "Search | Non brand",
+     "ad_group": "Polos",
+     "impressions": 54,
+     "clicks": 6,
+     "spend": 4.2,
+     "conversions": 0,
+     "value": 0
+    }
+   ]
+  },
+  {
+   "id": "brand_harbor_and_pine",
+   "name": "Harbor & Pine",
+   "terms": [
+    {
+     "term": "harbor and pine",
+     "status": "added",
+     "campaign": "Brand search",
+     "ad_group": "Brand",
+     "impressions": 1494,
+     "clicks": 166,
+     "spend": 96.7,
+     "conversions": 11,
+     "value": 1474
+    },
+    {
+     "term": "harbor pine candles",
+     "status": "added",
+     "campaign": "Brand search",
+     "ad_group": "Brand",
+     "impressions": 522,
+     "clicks": 58,
+     "spend": 31.5,
+     "conversions": 4,
+     "value": 512
+    },
+    {
+     "term": "soy candle gift set",
+     "status": "none",
+     "campaign": "Shopping",
+     "ad_group": "Candles",
+     "impressions": 657,
+     "clicks": 73,
+     "spend": 82.4,
+     "conversions": 3,
+     "value": 402
+    },
+    {
+     "term": "cedar candle",
+     "status": "none",
+     "campaign": "Shopping",
+     "ad_group": "Candles",
+     "impressions": 351,
+     "clicks": 39,
+     "spend": 35.9,
+     "conversions": 2,
+     "value": 264
+    },
+    {
+     "term": "candle making kit",
+     "status": "none",
+     "campaign": "Shopping",
+     "ad_group": "Candles",
+     "impressions": 216,
+     "clicks": 24,
+     "spend": 26.8,
+     "conversions": 0,
+     "value": 0
+    },
+    {
+     "term": "housewarming gift",
+     "status": "none",
+     "campaign": "Search | Non brand",
+     "ad_group": "Gifts",
+     "impressions": 162,
+     "clicks": 18,
+     "spend": 19.3,
+     "conversions": 1,
+     "value": 98
+    },
+    {
+     "term": "candle wax bulk",
+     "status": "none",
+     "campaign": "Shopping",
+     "ad_group": "Candles",
+     "impressions": 81,
+     "clicks": 9,
+     "spend": 8.7,
+     "conversions": 0,
+     "value": 0
+    }
+   ]
+  },
+  {
+   "id": "brand_brightside_patch",
+   "name": "Brightside Patch",
+   "terms": [
+    {
+     "term": "brightside patch",
+     "status": "added",
+     "campaign": "Brand search",
+     "ad_group": "Brand",
+     "impressions": 2187,
+     "clicks": 243,
+     "spend": 136.7,
+     "conversions": 30,
+     "value": 1450
+    },
+    {
+     "term": "brightside patches reviews",
+     "status": "added",
+     "campaign": "Brand search",
+     "ad_group": "Brand",
+     "impressions": 144,
+     "clicks": 16,
+     "spend": 25.9,
+     "conversions": 0,
+     "value": 0
+    },
+    {
+     "term": "vitamin patch",
+     "status": "none",
+     "campaign": "Search | Non brand",
+     "ad_group": "Patches",
+     "impressions": 576,
+     "clicks": 64,
+     "spend": 58.3,
+     "conversions": 3,
+     "value": 171
+    },
+    {
+     "term": "energy patch",
+     "status": "none",
+     "campaign": "Search | Non brand",
+     "ad_group": "Patches",
+     "impressions": 369,
+     "clicks": 41,
+     "spend": 37.2,
+     "conversions": 2,
+     "value": 104
+    },
+    {
+     "term": "how to feel less tired",
+     "status": "none",
+     "campaign": "Search | Non brand",
+     "ad_group": "Patches",
+     "impressions": 171,
+     "clicks": 19,
+     "spend": 22.4,
+     "conversions": 0,
+     "value": 0
+    },
+    {
+     "term": "caffeine pills",
+     "status": "none",
+     "campaign": "Search | Non brand",
+     "ad_group": "Patches",
+     "impressions": 126,
+     "clicks": 14,
+     "spend": 16.9,
+     "conversions": 0,
+     "value": 0
+    },
+    {
+     "term": "b12 shots near me",
+     "status": "excluded",
+     "campaign": "Search | Non brand",
+     "ad_group": "Patches",
+     "impressions": 63,
+     "clicks": 7,
+     "spend": 6.1,
+     "conversions": 0,
+     "value": 0
+    },
+    {
+     "term": "sleep patch",
+     "status": "none",
+     "campaign": "Search | Non brand",
+     "ad_group": "Patches",
+     "impressions": 72,
+     "clicks": 8,
+     "spend": 5.4,
+     "conversions": 0,
+     "value": 0
+    }
+   ]
+  },
+  {
+   "id": "brand_summit_sticks",
+   "name": "Summit Sticks",
+   "terms": [
+    {
+     "term": "summit sticks",
+     "status": "added",
+     "campaign": "Brand search",
+     "ad_group": "Brand",
+     "impressions": 873,
+     "clicks": 97,
+     "spend": 54.2,
+     "conversions": 6,
+     "value": 870
+    },
+    {
+     "term": "summit hockey stick",
+     "status": "added",
+     "campaign": "Brand search",
+     "ad_group": "Brand",
+     "impressions": 396,
+     "clicks": 44,
+     "spend": 28.8,
+     "conversions": 3,
+     "value": 447
+    },
+    {
+     "term": "youth hockey stick",
+     "status": "none",
+     "campaign": "Shopping",
+     "ad_group": "Sticks",
+     "impressions": 468,
+     "clicks": 52,
+     "spend": 61.3,
+     "conversions": 2,
+     "value": 198
+    },
+    {
+     "term": "hockey stick flex chart",
+     "status": "none",
+     "campaign": "Search | Non brand",
+     "ad_group": "Sticks",
+     "impressions": 153,
+     "clicks": 17,
+     "spend": 13.4,
+     "conversions": 0,
+     "value": 0
+    },
+    {
+     "term": "hockey tape",
+     "status": "none",
+     "campaign": "Shopping",
+     "ad_group": "Sticks",
+     "impressions": 99,
+     "clicks": 11,
+     "spend": 6.9,
+     "conversions": 0,
+     "value": 0
+    }
+   ]
+  },
+  {
+   "id": "brand_copper_kettle_pets",
+   "name": "Copper Kettle Pets",
+   "error": "not_linked"
+  }
+ ]
+}
