@@ -282,15 +282,26 @@ export function kpi({ label, value, small, sub, delta: d, spark, lead = false, s
 export function kpis(list, { cols } = {}) {
   const el = h('div', { class: 'lx-kpis', style: cols ? { '--cols': cols } : null }, list);
   /* tell the grid how wide its longest figure is (in ems of the figure's own size), so a tile is never
-     narrower than its number: app.css turns --kpi-em into the smallest tile width and reflows from it */
-  const em = Math.max(0, ...[...el.children].map(k => { const v = k.querySelector && k.querySelector('.v'); return v ? figureEm([...v.childNodes].filter(n => n.nodeName !== 'SMALL').map(n => n.textContent).join('')) : 0; }));
-  if (em) el.style.setProperty('--kpi-em', Math.max(3.6, em + .1).toFixed(2));
+     narrower than its number: app.css turns these into the smallest tile width and reflows from it.
+     --kpi-em is the widest big (lg) figure, --kpi-em-s the widest standard one: a row of big figures with
+     one standard tile in it is not sized as if that tile were big too. */
+  let big = 0, std = 0;
+  for (const k of el.children) {
+    const v = k.querySelector && k.querySelector('.v'); if (!v) continue;
+    const em = figureEm([...v.childNodes].filter(n => n.nodeName !== 'SMALL').map(n => n.textContent).join(''));
+    if (k.classList.contains('lg')) big = Math.max(big, em); else std = Math.max(std, em);
+  }
+  if (big) { el.style.setProperty('--kpi-em', big.toFixed(2)); if (std) el.style.setProperty('--kpi-em-s', std.toFixed(2)); }
+  else if (std) el.style.setProperty('--kpi-em', std.toFixed(2));
   return el;
 }
-/** figureEm('$63,429') : about how wide a figure draws, in ems of its font size. Tabular digits are all one width. */
+/** figureEm('$63,429') : about how wide a figure draws, in ems of its font size, never less than it really is.
+    Measured on the app font at the figure's letter spacing: a digit is .61, a comma .23, a percent sign .96. */
 export function figureEm(text) {
   let w = 0;
-  for (const c of String(text ?? '').trim()) w += /[0-9$]/.test(c) ? .62 : /[.,:;'!|\s]/.test(c) ? .27 : /[%MWmw]/.test(c) ? .88 : .58;
+  for (const c of String(text ?? '').trim()) {
+    w += /[0-9$+]/.test(c) ? .615 : /[.,:;'!|\s]/.test(c) ? .24 : c === '%' ? .97 : /[MWmw]/.test(c) ? .95 : /[fijlrt()\/-]/.test(c) ? .42 : /[A-Z]/.test(c) ? .72 : .6;
+  }
   return w;
 }
 

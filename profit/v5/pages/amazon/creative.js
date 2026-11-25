@@ -103,7 +103,7 @@ export default {
       kids.push(sect('Listing photos', `top ${d.listings.length} by sales`), h('div', { class: 'az-grid four' }, d.listings.map(listing)));
     }
     if (d.tests && d.tests.length) {
-      kids.push(sect('Split tests', 'conversion, A against B'), h('div', { class: 'az-grid three' }, d.tests.map(test)));
+      kids.push(sect('Split tests', 'conversion, A against B'), h('div', { class: 'az-grid three', style: { gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,300px),1fr))' } }, d.tests.map(test)));
     }
 
     const ba = d.brand_ads;

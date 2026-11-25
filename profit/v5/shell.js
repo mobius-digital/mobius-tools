@@ -184,7 +184,7 @@ function drawTop(route) {
     ? h('button', { class: 'lx-btn lx-switch', type: 'button', 'aria-haspopup': 'menu', 'aria-label': 'Switch brand, now ' + (brand ? brand.name : 'All brands'), onclick: e => brandMenu(e.currentTarget, route) }, label, svgNode(icon('chevron')))
     : h('span', { class: 'lx-btn lx-switch still' }, label));
   if (S.realRole !== 'client' && route.view === 'brand' && !S.asClient) {
-    kids.push(h('button', { class: 'lx-btn quiet lx-seeas', type: 'button', onclick: () => seeAs(true) }, svgNode(icon('eye')), 'See as client'));
+    kids.push(h('button', { class: 'lx-btn quiet lx-seeas', type: 'button', title: 'See as client', onclick: () => seeAs(true) }, svgNode(icon('eye')), 'See as client'));
   }
   kids.push(h('span', { class: 'lx-sp' }));
   if (SAMPLE) kids.push(h('span', { class: 'lx-chip', title: 'These are sample numbers, not a real brand' }, 'Sample numbers'));

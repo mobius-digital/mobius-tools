@@ -219,7 +219,9 @@ button.lx-avatar{cursor:pointer}
 .lx-take .lx-btn{margin-left:auto;flex:none;border-radius:999px}
 
 /* ---------- 6. numbers: ink, large, tabular ---------- */
-.lx-kpis{--cols:4;--half:2;--kpi-fs:var(--fs-kpi);--kpi-min:calc(var(--kpi-em,4.8) * var(--kpi-fs));
+/* --kpi-em (big figures) and --kpi-em-s (standard ones beside them) come from kit.js kpis(): the widest figure in
+   ems of its own size. A row written by hand (no --kpi-em) gets 4.55, room for a six figure amount. No tile goes under 104px. */
+.lx-kpis{--cols:4;--half:2;--kpi-fs:var(--fs-kpi);--kpi-min:max(104px,var(--kpi-em,4.55) * var(--kpi-fs),var(--kpi-em-s,0) * var(--fs-kpi));
   --w-all:calc((100% - (var(--cols) - 1) * var(--gap-kpi)) / var(--cols) - .5px);
   --w-half:calc((100% - (var(--half) - 1) * var(--gap-kpi)) / var(--half) - .5px);
   --w-two:calc((100% - var(--gap-kpi)) / 2 - .5px);
@@ -232,6 +234,11 @@ button.lx-avatar{cursor:pointer}
 .lx-kpis[style*="--cols:5"],.lx-kpis[style*="--cols: 5"],.lx-kpis[style*="--cols:6"],.lx-kpis[style*="--cols: 6"]{--half:3}
 .lx-kpis[style*="--cols:7"],.lx-kpis[style*="--cols: 7"],.lx-kpis[style*="--cols:8"],.lx-kpis[style*="--cols: 8"]{--half:4}
 .lx-kpis:has(>.lx-kpi.lg){--kpi-fs:var(--fs-hero)}
+/* a hand written row of big figures cannot say how wide its numbers are, so the figures give a little first
+   (down to 34px, sized from the row's own width) and the row keeps its count until a six figure amount no longer fits */
+.lx-kpis:not([style*="--kpi-em"]){container-type:inline-size}
+.lx-kpis:not([style*="--kpi-em"]):has(>.lx-kpi.lg){--kpi-fs:min(var(--fs-hero),34px)}
+.lx-kpis:not([style*="--kpi-em"])>.lx-kpi.lg .v:not(.words),.lx-kpis:not([style*="--kpi-em"])>.lx-kpi.lg .lx-hero-num{font-size:min(var(--fs-hero),max(34px,(100cqw - (var(--cols) - 1) * var(--gap-kpi)) / var(--cols) / 4.55))}
 /* no count given: as many as fit at 180px or the number's own width, never fewer than two across while two fit */
 .lx-kpis:not([style*="--cols"]){grid-template-columns:repeat(auto-fit,minmax(min(100%,max(var(--kpi-min),min(180px,(100% - var(--gap-kpi)) / 2 - .5px))),1fr))}
 .lx-kpi{display:grid;gap:4px;align-content:start;min-width:0;color:inherit;text-decoration:none}
