@@ -11,6 +11,7 @@ import { ensureCreative, putCover, serveCover, assetKeyOf, creativeTick, tagTick
 import { marketFor, metaDay, chatterFor, useFetch as marketFetch } from './market.js';
 import { pulseTick, pulseStatus, pulseImport, pulseButton } from './pulse.js';
 import { handleSchedules, scheduleTick } from './askschedule.js';
+import { lookupDoor, lookupSlack, lookupWhyTap } from './lookups.js';
 import { handleReview, reviewTick } from './review.js';
 import { handleAlerts, alertTick } from './alerts.js';
 import { handleSocial, socialTick, serveSocialMedia, useFetch as socialFetch } from './social.js';
@@ -6663,6 +6664,7 @@ async function handleSlackInteract(request, env, ctx) {
     if (payload.type === 'block_actions' && (payload.actions || []).some(a => /^soc_/.test(a.action_id || '')))
       return await handleSocialButton(env, ctx, payload, socialPostDeps(), { ACK, xfetch });
     /* Platform status: "Send to all clients" on an #outages card (pulse.js). */
+    if (payload.type === 'block_actions' && (payload.actions || []).some(a => a.action_id === 'lookup_why')) return await lookupWhyTap(env, ctx, payload, lookupDeps());   // "Ask why" on a free lookup (lookups.js)
     if (payload.type === 'block_actions' && (payload.actions || []).some(a => a.action_id === 'pulse_send'))
       return await pulseButton(env, ctx, payload, { slackApi, ACK });
     /* The ideas bot's buttons (Creator link, Asana brief, Studio, Redo, Discard...). */
@@ -7855,7 +7857,10 @@ async function isGroupDm(env, ch) {
   return yes;
 }
 
+/* Free lookups (lookups.js): off until settings.freeLookups is set, and then only a plain "pull a number" question stops there. */
+function lookupDeps() { return { isAdmin, sessionEmail, slack: slackApi, accessDeps, xfetch, slackAnswer: strategistSlackAnswer, ACK }; }
 async function strategistSlackAnswer(env, ev, screen) {
+  if (await lookupSlack(env, ev, screen, lookupDeps())) return { lookup: true };
   const { engine, h } = strategist();
   const findings = await engine.openFindings(env, h()).catch(() => []);
   /* call: a plainly asked-for internal setting is applied right away, as the owner (the same as an Apply tap from Slack). */
@@ -8750,6 +8755,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     }
 
     /* ---- the Strategist, in Locus ---- */
+    if (path === '/api/lookups' || path === '/api/lookup' || path === '/api/ask') { const lk = await lookupDoor(request, env, path, json, lookupDeps()); if (lk) return lk; }
     if (path.startsWith('/api/ask')) {
       /* A client login (the brand edition, 2026-10-10) asks the SAME engine in its client mode (clients.js clientAsk):
          pinned to its brand, reading Locus through its own sign-in, $2 a day. It may also follow and Stop its own answer.
