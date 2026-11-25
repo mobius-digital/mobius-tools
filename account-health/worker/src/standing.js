@@ -111,7 +111,73 @@ async function metaSide(env, md, act, today) {
   }
   /* Meta would not say: the limits Cole listed on 2026-11-22 (raise requests pending), labelled as such. */
   if (limit == null && KNOWN_LIMITS[act]) { limit = KNOWN_LIMITS[act]; src = 'known'; }
-  return { camp: camp ? { id: camp.id, name: camp.name, daily: camp.daily || null, spent: spent ? (spent[camp.id] || 0) : null } : null, on, limit, limit_src: limit ? src : null, limit_error: limitErr, headroom: limit ? limit - on : null };
+  const camps = await campList(env, act, ml, spent || {}, today).catch(() => []);
+  return { camps, camp: camp ? { id: camp.id, name: camp.name, daily: camp.daily || null, spent: spent ? (spent[camp.id] || 0) : null } : null, on, limit, limit_src: limit ? src : null, limit_error: limitErr, headroom: limit ? limit - on : null };
+}
+
+/* Every live campaign of a brand (Cole 2026-11-25: "is this the Black Friday campaign? the evergreen? should I be
+   adjusting other campaigns too?"): today's spend against its budget (Meta), and its return over the last 3 finished
+   days (Triple Whale lastPlatformClick on its ads; spend from ad_daily). Campaign returns are ad-platform credit, not
+   the store MER the call runs on, so the card labels them. */
+const KIND = n => SALE_RE.test(n || '') ? 'sale' : /giveaway|lead/i.test(n || '') ? 'leads' : /creator|trybe|\bace\b/i.test(n || '') ? 'creators' : /\[md\]|evergreen|cbo|abo/i.test(n || '') ? 'evergreen' : 'other';
+async function campList(env, act, ml, spent, today) {
+  const cs = Object.entries((ml && ml.campaigns) || {}).map(([id, c]) => ({ id, name: c.name, daily: c.daily || null, status: c.status, spent: spent[id] || 0 }))
+    .filter(c => c.status === 'ACTIVE' && (c.spent > 0 || c.daily));
+  if (!cs.length) return [];
+  const from = (() => { const d = new Date(today + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - 3); return d.toISOString().slice(0, 10); })();
+  const acts = await metaActsOf(env, act).catch(() => []);
+  const sp = {}, rv = {};
+  if (acts.length) {
+    const r1 = await env.DB.prepare(`SELECT a.campaign_id c, SUM(d.spend) s FROM ad_daily d JOIN ads a ON a.ad_id = d.ad_id WHERE d.act_id IN (${acts.map((_, i) => `?${i + 3}`).join(', ')}) AND d.date >= ?1 AND d.date < ?2 GROUP BY a.campaign_id`)
+      .bind(from, today, ...acts).all().catch(() => ({ results: [] }));
+    for (const x of r1.results || []) sp[x.c] = x.s || 0;
+  }
+  const r2 = await env.DB.prepare(`SELECT a.campaign_id c, SUM(t.revenue) r, SUM(t.orders) o FROM tw_ad_attr t JOIN ads a ON a.ad_id = t.ad_id WHERE t.act_id = ?1 AND t.model = 'lastPlatformClick' AND t.date >= ?2 AND t.date < ?3 GROUP BY a.campaign_id`)
+    .bind(act, from, today).all().catch(() => ({ results: [] }));
+  for (const x of r2.results || []) rv[x.c] = { r: x.r || 0, o: x.o || 0 };
+  return cs.map(c => ({ ...c, kind: KIND(c.name), spend3: sp[c.id] || 0, sales3: (rv[c.id] || {}).o || 0, roas3: sp[c.id] > 0 ? ((rv[c.id] || {}).r || 0) / sp[c.id] : null }))
+    .sort((a, b) => b.spent - a.spent || (b.daily || 0) - (a.daily || 0)).slice(0, 6);
+}
+
+/* The War Room DM (Cole 2026-11-25): per brand, Last 6 hours / Today / This week like the client update, the campaigns,
+   and the call naming the campaign it changes, with Approve. One colored bar per brand (Today against the goal). */
+const KIND_WORD = { sale: 'sale', evergreen: 'evergreen', leads: 'leads', creators: 'creators', other: 'other' };
+function opsCard(rec) {
+  const hr = +String(rec.slot).split('T')[1], when = hr === 12 ? '12pm' : hr === 0 ? '12am' : hr < 12 ? `${hr}am` : `${hr - 12}pm`;
+  const t = longDay(rec.slot);
+  const blocks = [{ type: 'markdown', text: `# Where we stand · ${when}` },
+    { type: 'context', elements: [{ type: 'mrkdwn', text: `${t.day}  ·  MER = store sales ÷ all ad spend, judged against each brand's goal. Campaign returns are Triple Whale last click, last 3 days.` }] }];
+  const attachments = [];
+  const win = (l, p) => p && p.sales != null ? `*${l}*   Sales ${usd(p.sales)}  ·  Ad spend ${usd(p.spend)}  ·  MER *${nx(p.mer)}*` : `*${l}*   no data yet`;
+  for (const b of rec.brands || []) {
+    const line = b.hold ?? (b.kpi ? b.kpi * 0.8 : null), s = b.suggest || {}, m = b.meta || {};
+    const head = `*${b.name}*   goal ${nx(b.kpi)}${line ? `, break-even ${nx(line)}` : ''}`;
+    const out = [{ type: 'section', text: { type: 'mrkdwn', text: `${head}\n${win('Last 6 hours', b.last6)}\n${win('Today', b.today)}\n${win('This week', b.week)}` } }];
+    const camps = m.camps || [];
+    if (camps.length) {
+      const rows = camps.map(c => {
+        const ret = c.roas3 != null && c.spend3 >= 50 ? `${nx(c.roas3)} on ${usd(c.spend3)} (${c.sales3} sales)` : 'too little spend to read';
+        const pick = m.camp && m.camp.id === c.id ? '  ← the call' : '';
+        return `• *${c.name}* (${KIND_WORD[c.kind]})   today ${usd(c.spent)}${c.daily ? ` of ${usd(c.daily)}` : ' (ad set budgets)'}   ·   3 days ${ret}${pick}`;
+      });
+      out.push({ type: 'section', text: { type: 'mrkdwn', text: `*Campaigns*\n${rows.join('\n')}` } });
+      /* Others worth a look: not the campaign the call changes, enough spend to read, over goal or under break-even. */
+      const look = camps.filter(c => !(m.camp && m.camp.id === c.id) && c.roas3 != null && c.spend3 >= 100 && b.kpi)
+        .map(c => c.roas3 >= b.kpi ? `${c.name} returned ${nx(c.roas3)} over 3 days, over goal: room to raise it too.` : line && c.roas3 < line ? `${c.name} returned ${nx(c.roas3)} over 3 days, under break-even: look at its ads.` : null).filter(Boolean);
+      if (look.length) out.push({ type: 'context', elements: [{ type: 'mrkdwn', text: look.join('\n') }] });
+    } else if (m.error) out.push({ type: 'context', elements: [{ type: 'mrkdwn', text: `Meta did not answer: ${m.error}` }] });
+    const cn = m.camp ? m.camp.name : null, done = (rec.approved || {})[b.act_id];
+    let call;
+    if (s.to && cn) call = `*${s.pct > 0 ? 'Raise' : 'Cut'} ${cn}: ${usd(m.camp.daily)} → ${usd(s.to)} a day (${s.pct > 0 ? '+' : ''}${Math.round(s.pct * 100)}%)*\n${s.why || ''}${s.note ? `\n_${s.note}_` : ''}`;
+    else call = `*Hold${cn ? ` ${cn}` : ''}.*  ${s.why || ''}${s.note ? `\n_${s.note}_` : ''}`;
+    if (done) call = `✓ Approved: ${cn} ${usd(done.from || (m.camp || {}).daily)} → ${usd(done.to || s.to)} a day.`;
+    const sec = { type: 'section', text: { type: 'mrkdwn', text: call.slice(0, 2900) } };
+    if (s.to && cn && !done) sec.accessory = { type: 'button', action_id: 'ws_approve', style: 'primary', text: { type: 'plain_text', text: 'Approve' }, value: `${rec.slot}|${b.act_id}` };
+    out.push(sec);
+    attachments.push({ color: tierOf(b.today && b.today.mer, b.kpi, line).color, blocks: out });
+  }
+  const n = (rec.brands || []).filter(b => (b.suggest || {}).to && !(rec.approved || {})[b.act_id]).length;
+  return { text: `Where we stand, ${rec.label}. ${n ? `${n} to approve.` : 'Nothing to approve.'}`, blocks, attachments };
 }
 
 /** Build one check-in (reads only). */
@@ -212,18 +278,19 @@ async function load(env, deps, slot) {
   const v = await deps.getSetting(env, `standing:${s}`);
   try { return v ? JSON.parse(v) : null; } catch { return null; }
 }
-export const DM_STYLES = ['list', 'wc', 'board', 'a', 'b', 'c', 'd'];
+export const DM_STYLES = ['ops', 'list', 'wc', 'board', 'a', 'b', 'c', 'd'];
 const linkOf = rec => act => `${LOCUS}?open=warlive&act=all&standing=${encodeURIComponent(rec.slot)}${act ? `&brand=${encodeURIComponent(act)}` : ''}`;
 /** The DM in the style Cole picked (settings `standingDmStyle`; 'list' = the rich-text list until he picks), or `style` for a test. */
 async function sendDm(env, deps, rec, { style, prev, img } = {}) {
-  const st = DM_STYLES.includes(style) ? style : DM_STYLES.includes(await deps.getSetting(env, 'standingDmStyle')) ? await deps.getSetting(env, 'standingDmStyle') : 'list';
+  /* Cole 2026-11-25: the per-brand windows + campaigns card is THE check-in. Older styles only when asked for by name. */
+  const st = DM_STYLES.includes(style) ? style : 'ops';
   /* Style d (Cole's pick, 2026-11-22): draw the scoreboard, upload it to Slack, show it by file id. If the picture
      fails the DM still goes, with a note where the picture would be. */
   if (st === 'd' && !img) {
     try { const up = await slackPng(env, deps, await toPng(boardSvg(rec), deps.xfetch), `where-we-stand-${rec.slot}.png`); if (up.id) img = up.id; else rec.img_error = up.error; }
     catch (e) { rec.img_error = e.message; }
   }
-  const msg = st === 'list' ? standingMessage(rec) : standingCard(rec, prev, st, linkOf(rec), { img });
+  const msg = st === 'ops' ? opsCard(rec) : st === 'list' ? standingMessage(rec) : standingCard(rec, prev, st, linkOf(rec), { img });
   const r = await postRetry(env, deps, msg, img);
   rec.sent = r.ok ? { at: new Date().toISOString(), ts: r.ts, style: st, img: img || null } : { error: r.error };
   return r;
@@ -595,11 +662,11 @@ function batchBlocks(rec, bt) {
   return blocks;
 }
 async function threadPreview(env, deps, bt, d) {
-  await deps.slackApi(env, 'chat.postMessage', { channel: bt.channel, thread_ts: bt.ts, text: d.m.text, blocks: d.m.blocks, attachments: d.m.attachments, unfurl_links: false }).catch(() => null);
+  await deps.slackApi(env, 'chat.postMessage', { channel: bt.channel, thread_ts: bt.ts, text: d.m.text, blocks: d.m.blocks, attachments: d.m.attachments, unfurl_links: false, username: 'Locus', icon_url: 'https://tools.go-mobius-digital.com/favicon.png' }).catch(() => null);
 }
 async function saveBatch(env, deps, rec, bt, update = true) {
   await deps.putSetting(env, `wsBatch:${bt.slot}`, JSON.stringify(bt));
-  if (update && bt.ts) await deps.slackApi(env, 'chat.update', { channel: bt.channel, ts: bt.ts, text: 'Client updates', blocks: batchBlocks(rec, bt) }).catch(() => null);
+  if (update && bt.ts) await deps.slackApi(env, 'chat.update', { channel: bt.channel, ts: bt.ts, text: 'Client updates', blocks: batchBlocks(rec, bt), username: 'Locus', icon_url: 'https://tools.go-mobius-digital.com/favicon.png' }).catch(() => null);
 }
 /** The one message for a check-in. */
 export async function postBatch(env, deps, rec) {
@@ -617,7 +684,7 @@ export async function postBatch(env, deps, rec) {
     drafts.push(d);
   }
   if (!bt.items.length) return { ok: true, empty: true };
-  const r = await deps.slackApi(env, 'chat.postMessage', { channel: uid, text: 'Client updates', blocks: batchBlocks(rec, bt), unfurl_links: false });
+  const r = await deps.slackApi(env, 'chat.postMessage', { channel: uid, text: 'Client updates', blocks: batchBlocks(rec, bt), unfurl_links: false, username: 'Locus', icon_url: 'https://tools.go-mobius-digital.com/favicon.png' });
   if (!r || !r.ok) return { ok: false, error: (r && r.error) || 'slack' };
   bt.channel = r.channel; bt.ts = r.ts;
   await saveBatch(env, deps, rec, bt, false);
@@ -646,7 +713,7 @@ async function sendDraft(env, xfetch, dr) {
 export async function handleClientUpdateButton(env, ctx, payload, deps, { ACK, xfetch }) {
   const a = (payload.actions || []).find(x => /^ws_/.test(x.action_id || ''));
   const reply = t => payload.response_url && xfetch(payload.response_url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ replace_original: true, text: t }) }).catch(() => {});
-  const inThread = t => deps.slackApi(env, 'chat.postMessage', { channel: payload.channel && payload.channel.id, thread_ts: payload.message && payload.message.ts, text: t }).catch(() => {});
+  const inThread = t => deps.slackApi(env, 'chat.postMessage', { channel: payload.channel && payload.channel.id, thread_ts: payload.message && payload.message.ts, text: t, username: 'Locus', icon_url: 'https://tools.go-mobius-digital.com/favicon.png' }).catch(() => {});
   ctx.waitUntil((async () => {
     if (a.action_id === 'ws_capprove') {
       /* The CLIENT's Approve (Yak): only in that brand's client channel (or Cole), only on a check-in under 6 hours old
