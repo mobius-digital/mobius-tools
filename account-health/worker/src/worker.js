@@ -9370,6 +9370,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       return json({ ok: true, results: out });
     }
     if (path === '/health') {
+      if (!(await isAdmin(request, env))) return json({ ok: true, time: new Date().toISOString() });
       const last = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'lastRun'`).first().catch(() => null);
       return json({ ok: true, lastRun: safeJson(last?.value, null), hasMetaToken: !!env.META_TOKEN, hasAnthropicKey: !!env.ANTHROPIC_API_KEY, hasSlackToken: !!env.SLACK_BOT_TOKEN, hasTwKey: !!env.TW_API_KEY });
     }
@@ -9701,29 +9702,6 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       return r.error ? json({ error: r.error }, r.status) : json(r);
     }
 
-    /* Read-only client share links - token in the URL is the auth. */
-    let sm;
-    if ((sm = path.match(/^\/api\/share\/([A-Za-z0-9-]{16,})$/)) && request.method === 'GET') {
-      try {
-        const tokens = safeJson(await getSetting(env, 'shareTokens'), {});
-        const t = tokens[sm[1]];
-        if (!t) return json({ error: 'This share link is no longer valid.' }, 404);
-        const acct = await acctOf(env, t.act_id);
-        if (!acct) return json({ error: 'unknown account' }, 404);
-        acct.budgets = safeJson(acct.budgets_json, {});
-        const ov = await accountOverview(env, acct, { attr: false });   // retired link: left exactly as it was
-        const from = addDays(localDate(acct.tz), -180);
-        const { results: rows } = await env.DB.prepare(
-          `SELECT date, SUM(spend) AS spend, SUM(impressions) AS impressions, SUM(clicks) AS clicks, SUM(link_clicks) AS link_clicks, SUM(purchases) AS purchases, SUM(revenue) AS revenue, SUM(video_views) AS video_views FROM daily_insights
-           WHERE act_id IN ${metaOf(1)} AND date >= ?2 GROUP BY date ORDER BY date`,
-        ).bind(acct.act_id, from).all();
-        const events = await seriesEvents(env, acct.act_id, addDays(localDate(acct.tz), -180));
-        return json({ share: true, account: { name: acct.name, currency: acct.currency, tz: acct.tz },
-          rows, events, mtd: ov.mtd, today: ov.today, today_spend: ov.today_spend,
-          l7: ov.l7, target_cpa: ov.target_cpa, target_roas: ov.target_roas });
-      } catch (e) { return json({ error: e.message }, 500); }
-    }
-
       /* DIAGNOSTIC, TEMPORARY (2026-08-30) - delete with settings key twDiagKey.
        Dumps every metric Triple Whale returns for a shop: id, human title and the
        value for the window, INCLUDING the ones TW_KEEP drops on the way into
@@ -9797,6 +9775,10 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
        person it applies to. Anyone not listed in settings.userRoles is an admin,
        so this is inert until a role is actually assigned. */
     const who = await sessionEmail(env, request);
+    /* The owner: Cole's own sign-in, or the admin key (which carries no name). A sign-in with no name is not. */
+    const ownerEmail = String(env.OWNER_EMAIL || 'cole@go-mobius-digital.com').toLowerCase();
+    const adminKey = !!env.ADMIN_TOKEN && request.headers.get('Authorization') === 'Bearer ' + env.ADMIN_TOKEN;
+    const isOwner = adminKey || (!!who && String(who).toLowerCase() === ownerEmail);
     if (request.method !== 'GET' && (await roleFor(env, who)) === 'viewer') {
       return json({ error: 'Your account has view-only access, so this cannot be changed. Ask an admin on your team.' }, 403);
     }
@@ -9818,11 +9800,12 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       const emails = [...new Set([...extra, ...Object.keys(roles).map(e => e.toLowerCase()), ...Object.keys(ub).map(e => e.toLowerCase())])].sort();
       const owner = String(env.OWNER_EMAIL || 'cole@go-mobius-digital.com').toLowerCase();
       return json({
-        domain: ALLOWED_DOMAIN, you: who, owner, can_set_brands: !who || String(who).toLowerCase() === owner,
+        domain: ALLOWED_DOMAIN, you: who, owner, can_set_brands: isOwner,
         members: emails.map(e => ({ email: e, role: roles[e] === 'viewer' ? 'viewer' : 'admin', guest: extra.includes(e), brands: Array.isArray(ub[e]) ? ub[e] : [] })),
       });
     }
     if (path === '/api/team' && request.method === 'PUT') {
+      if (!isOwner) return json({ error: 'Only Cole can change who has access.' }, 403);
       const b = await request.json().catch(() => ({}));
       const email = String(b.email || '').trim().toLowerCase();
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json({ error: 'That does not look like an email address' }, 400);
@@ -9850,7 +9833,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       const owner = String(env.OWNER_EMAIL || 'cole@go-mobius-digital.com').toLowerCase();
       if (b.remove) delete ub[email];
       else if (Array.isArray(b.brands)) {
-        if (who && String(who).toLowerCase() !== owner) return json({ error: 'Only Cole can change which brands someone sees.' }, 403);
+        if (!isOwner) return json({ error: 'Only Cole can change which brands someone sees.' }, 403);
         if (email === owner) return json({ error: 'The owner always sees every brand.' }, 400);
         /* Brand ids (old act_ ids from an older screen are resolved to theirs). */
         ub[email] = (await Promise.all(b.brands.map(x => resolveBrandId(env, String(x))))).filter(isBrandId);
@@ -9874,8 +9857,8 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
          must say so: they refuse role 'client' outside the client allowlist. */
       const cs = clientScope(request);
       if (cs) { await touchClient(env, cs.email, 'seen').catch(() => {}); return json({ email: cs.email, exp: sess?.exp || null, master: false, role: 'client', client: await meClient(env, cs.email) }); }
-      const owner = !sess || String(sess.email || '').toLowerCase() === String(env.OWNER_EMAIL || 'cole@go-mobius-digital.com').toLowerCase();
-      return json({ email: sess?.email || null, exp: sess?.exp || null, master: !sess, role: owner ? 'owner' : 'team' });
+      /* No name on the sign-in: only the admin key is the owner (master). */
+      return json({ email: sess?.email || null, exp: sess?.exp || null, master: adminKey, role: isOwner ? 'owner' : 'team' });
     }
 
     try {
@@ -10372,8 +10355,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       /* The Meta-only client share link was retired 2026-08-27. Clients get
          blended reporting - the profit worker's ?perf, ?plan and ?reports links -
          and a Meta-attributed view was the one surface that contradicted it.
-         GET /api/share/:token above still answers for any link already handed
-         out, but nothing mints new ones and no page renders them. */
+         Nothing mints new ones, no page renders them, and its route is gone. */
       if (path === '/api/settings' && request.method === 'GET') {
         return json({
           slackChannel: await getSetting(env, 'slackChannel'),

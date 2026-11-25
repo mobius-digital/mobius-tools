@@ -239,6 +239,14 @@ const TABLES = ['brand_accounts', 'connections', 'accounts', 'daily_insights', '
                 'tw_ad_attr', 'tw_orders', 'p_br_line', 'p_br_persona', 'p_br_voc', 'p_br_comp', 'p_br_angle', 'p_br_concept', 'p_br_batch', 'p_br_doc',
                 'p_scenario', 'p_studio_batch', 'idea_thread'];
 
+/* What the SQL tool never reads (the gate in ask/engine.js): these tables whole, any column with one of
+   these words in its name, and SELECT * on a table that has such a column (the engine adds every other
+   one from the database's own catalogue). */
+const SQL_NO_TABLES = ['p_shopify', 'p_studio_cfg', 'social_account', 'p_oauth_state', 'social_oauth_state', 'p_dc_join', 'p_store_view'];
+const SQL_NO_COLUMNS = /token|secret|key|password|auth/i;
+const SQL_NO_STAR = ['p_br_doc', 'p_br_onboard', 'p_plan', 'p_profit_share', 'p_ad_share', 'p_season_share', 'p_snapshot', 'p_client_page',
+                     'p_contract', 'p_newclient', 'p_site_review', 'strat_report'];
+
 const DEFAULT_BRIEF = `Mobius Digital runs paid media for a handful of DTC brands (Dartee, Grunk Dolfer, Party Patch, Galway Bay, Lucky Golf, InStyler and others). Each brand has a Meta ad account, a Triple Whale store, an internal Slack channel for the team and a client channel. Every morning a Daily Brief goes to each client; every week and month a report. Strategists (Ahsan, Noma) run the accounts day to day and log what they change and why. The plan per brand sets a monthly sales and spend goal; the target ROAS and CPA are the client's own lines.`;
 
 /* How a good strategist thinks. Read before every answer; the copy in
@@ -1875,7 +1883,7 @@ export function buildStrategist(d) {
   let engine;
   const rawViews = buildViews(d);
   const views = Object.fromEntries(Object.entries(rawViews).map(([k, fn]) => [k, (env, a, ctx) => fn(env, a, ctx, engine)]));
-  const app = makeAppView({ views, blurbs: VIEW_BLURBS, secretKey, getSetting: d.getSetting, safeJson: d.safeJson, fallbackTables: TABLES });
+  const app = makeAppView({ views, blurbs: VIEW_BLURBS, secretKey, getSetting: d.getSetting, safeJson: d.safeJson, fallbackTables: TABLES, secretTables: SQL_NO_TABLES });
   const h = () => ({
     getSetting: d.getSetting, putSetting: d.putSetting, safeJson: d.safeJson,
     centralDate: () => d.localDate('America/Chicago'), monthOf: x => String(x).slice(0, 7),
@@ -1920,6 +1928,7 @@ export function buildStrategist(d) {
     webHistory: 12, webHistoryChars: 4000,
     who: WHO, schema: SCHEMA, rules: RULES, tables: TABLES, sqlTool: 'query_locus',
     blobColumns: ['data_json', 'extra_json', 'budgets_json', 'goals_json', 'google_spend_json', 'report_config_json'],
+    secretTables: SQL_NO_TABLES, secretColumns: SQL_NO_COLUMNS, starTables: SQL_NO_STAR,
     brief: DEFAULT_BRIEF,
     liveContext: async env => {
       const names = (await d.listAccounts(env, true)).map(a => `${a.name} (${a.act_id}, ${a.currency})`);
@@ -1941,4 +1950,4 @@ export function buildStrategist(d) {
 }
 
 /* For test-strategist.mjs only. */
-export const _test = { ASANA_ACTIONS, BUILD_ACTIONS, SLACK_TOOLS, briefNotesHtml, briefNotesText, BRIEF_BLANKS, leadMath, blanksOf };
+export const _test = { SQL_NO_TABLES, SQL_NO_COLUMNS, SQL_NO_STAR, ASANA_ACTIONS, BUILD_ACTIONS, SLACK_TOOLS, briefNotesHtml, briefNotesText, BRIEF_BLANKS, leadMath, blanksOf };
