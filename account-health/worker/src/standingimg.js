@@ -17,9 +17,9 @@ async function boot(fetcher = fetch) {
     .then(a => a.map(b => new Uint8Array(b))).catch(e => { fonts = null; throw e; });
   await ready; return fonts;
 }
-export async function toPng(svg, fetcher) {
+export async function toPng(svg, fetcher, width = 3200) {
   const fontBuffers = await boot(fetcher);
-  const r = new Resvg(svg, { font: { fontBuffers, defaultFontFamily: 'Inter', loadSystemFonts: false }, fitTo: { mode: 'width', value: 3200 } });
+  const r = new Resvg(svg, { font: { fontBuffers, defaultFontFamily: 'Inter', loadSystemFonts: false }, fitTo: { mode: 'width', value: width } });
   return r.render().asPng();
 }
 

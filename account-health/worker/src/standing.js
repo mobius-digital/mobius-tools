@@ -193,7 +193,7 @@ function opsCard(rec) {
 async function opsUpload(env, deps, rec) {
   const imgs = {}, errs = [];
   for (const b of rec.brands || []) {
-    try { const up = await slackPng(env, deps, await toPng(opsBrandSvg(rec, b), deps.xfetch), `${b.act_id.replace('brand_', '')}-${rec.slot}.png`); if (up.id) imgs[b.act_id] = up.id; else errs.push(`${b.name}: ${up.error}`); }
+    try { const up = await slackPng(env, deps, await toPng(opsBrandSvg(rec, b), deps.xfetch, 1400), `${b.act_id.replace('brand_', '')}-${rec.slot}.png`); if (up.id) imgs[b.act_id] = up.id; else errs.push(`${b.name}: ${up.error}`); }
     catch (e) { errs.push(`${b.name}: ${e.message}`); }
   }
   return { imgs, error: errs.join('; ') || null };
@@ -942,7 +942,8 @@ export async function handleStanding(request, env, url, path, json, deps) {
     if (path === '/api/standing/sample' && request.method === 'POST' && body.batch) {
       const rec = await load(env, deps).catch(() => null);
       if (!rec) return json({ error: 'No check-in yet.' }, 404);
-      const prev = null, d1 = await sendDm(env, deps, rec, { prev }).catch(e => ({ ok: false, error: e.message }));
+      /* no_dm: only the client updates, no scoreboard (2026-11-25: scoreboard pictures + drafts in one request ran out of CPU). */
+      const prev = null, d1 = body.no_dm ? null : await sendDm(env, deps, rec, { prev }).catch(e => ({ ok: false, error: e.message }));
       const d2 = await postBatch(env, deps, rec).catch(e => ({ ok: false, error: e.message }));
       /* Counts as that slot's check-in, so the hourly catch-up does not send it a second time. */
       if (d1 && d1.ok) await deps.putSetting(env, `standingSent:${rec.slot}`, new Date().toISOString());
