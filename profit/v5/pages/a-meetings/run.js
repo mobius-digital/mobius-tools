@@ -110,7 +110,7 @@ const decisionsOf = b => [
 
 /* ---------- shared parts ---------- */
 function notesBox(id, hint) {
-  const ta = h('textarea', { class: 'mr-notes', rows: '4', placeholder: hint || 'Type what was said. One line per point.', 'aria-label': 'Notes',
+  const ta = h('textarea', { class: 'mr-notes', rows: '4', dataset: { note: id }, placeholder: hint || 'Type what was said. One line per point.', 'aria-label': 'Notes',
     oninput: e => { ui.notes[id] = e.target.value; if (!ui.notes[id]) delete ui.notes[id]; keep(); } });
   ta.value = ui.notes[id] || '';
   return h('section', { class: 'mr-sec' }, h('div', { class: 'mt-h' }, h('h3', null, 'Notes'), h('span', null, 'Kept in this tab only. Nothing is saved or sent.')), ta);
@@ -350,12 +350,19 @@ function draw(el, data, ctx) {
   d.brands = d.brands || [];
   if (!d.brands.length) return put(el, empty({ title: 'No brands on the Monday meeting yet', text: 'A brand shows here once it has a weekly report.', action: button('Open the agenda', { href: ctx.href('a-meetings', 'agenda') }) }));
   restore((ctx.sample ? 'sample:' : '') + (d.monday || 'week'));
+  /* A late part of the meeting lands and the page is drawn again. Someone may be typing in a notes box:
+     keep what they typed, the step they are on (the steps can shift when the goals land), the caret and the scroll. */
+  const was = live && live.el.isConnected && el.contains(live.el) ? live.id() : null;
+  const box = was && document.activeElement && document.activeElement.matches && document.activeElement.matches('textarea.mr-notes') && live.el.contains(document.activeElement) ? document.activeElement : null;
+  const typing = box && { id: box.dataset.note, value: box.value, from: box.selectionStart, to: box.selectionEnd, dir: box.selectionDirection, top: box.scrollTop, x: window.scrollX, y: window.scrollY };
+  if (typing) { if (typing.value) ui.notes[typing.id] = typing.value; else delete ui.notes[typing.id]; keep(); }
   const P = plan(d), S = P.steps;
+  if (was) { const at = S.findIndex(s => s.id === was); if (at >= 0) ui.step = at; }
   ui.step = Math.max(0, Math.min(S.length - 1, ui.step | 0));
   const START = ctx.settingNow('agency.meetingStart', MEETING_START);
   const root = h('div', { class: 'mt-page mr' });
   const go = i => { ui.step = Math.max(0, Math.min(S.length - 1, i)); keep(); paint(); try { window.scrollTo(0, 0); } catch {} };
-  live = { el: root, move: n => go(ui.step + n) };
+  live = { el: root, move: n => go(ui.step + n), id: () => S[ui.step].id };
 
   function paint() {
     const i = ui.step, s = S[i], b = s.brand;
@@ -385,6 +392,15 @@ function draw(el, data, ctx) {
   }
   paint();
   put(el, root);
+  if (typing) {
+    const now = [...root.querySelectorAll('textarea.mr-notes')].find(t => t.dataset.note === typing.id);
+    if (now) try {
+      now.focus({ preventScroll: true });
+      now.setSelectionRange(typing.from, typing.to, typing.dir || 'none');
+      now.scrollTop = typing.top;
+      window.scrollTo(typing.x, typing.y);
+    } catch {}
+  }
 }
 
 /* each part of the meeting is painted as it lands */
