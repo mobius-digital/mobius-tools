@@ -42,8 +42,10 @@ const ATTR = 'lastPlatformClick';
 /* ------------------------------------------------------------------------------------------ */
 /*  small helpers                                                                              */
 /* ------------------------------------------------------------------------------------------ */
-const rows = async (db, sql, ...b) => ((await db.prepare(sql).bind(...b).all().catch(() => null))?.results) || [];
-const first = async (db, sql, ...b) => db.prepare(sql).bind(...b).first().catch(() => null);
+/* A query that FAILS throws: an error or a timeout is never read as "no rows", so it can never turn into a confident
+   "there is no data" line. lookupAnswer catches it and hands the question to the assistant. */
+const rows = async (db, sql, ...b) => (await db.prepare(sql).bind(...b).all())?.results || [];
+const first = async (db, sql, ...b) => db.prepare(sql).bind(...b).first();
 const marks = (n, from = 1) => Array.from({ length: n }, (_, i) => `?${i + from}`).join(',');
 const usd = (n, cur) => (cur && cur !== 'USD' ? cur + ' ' : '$') + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const int = n => Math.round(Number(n || 0)).toLocaleString('en-US');
@@ -85,7 +87,23 @@ const yearFor = (m, d, today) => { const y = +today.slice(0, 4); const guess = m
 
 /** Every date window named in the text, in the order written. today = 'YYYY-MM-DD' in the brand's time zone.
  *  Each is {from, to, kind, text}. Weeks start on Monday. "last 7 days" ends yesterday (seven whole days). */
-export function parseWindows(text, today) {
+export function parseWindows(text, today) { return scanDates(text, today).windows; }
+/* Date words the parser has no rule for. Any of these left over after the known phrases are taken out means the
+   question names a period this file cannot work out, so it is the assistant's (never the 7 day default). */
+const DATE_LEFT = new RegExp('\\b(' + [
+  '(?:19|20)\\d{2}', 'q[1-4]', 'quarter\\w*', 'weekends?', 'nights?', 'mornings?', 'afternoons?', 'evenings?', 'overnight', 'annual\\w*', 'daily', 'weekly', 'monthly', 'yearly',
+  /* "last year", "the past 2 weeks", "3 months ago"; "about $6,000 a month" is a rate, not a period */
+  '(?:last|past|previous|prior|next|this|these|coming|few|couple of|the|\\d+) (?:\\d+ |few |couple of )?(?:years?|months?|weeks?|days?|hours?)',
+  'since', 'until', 'till', '(?<!click[- ])through', 'thru', 'before', 'after', 'between', 'ago', 'tomorrow', 'next', 'upcoming', 'so far', 'to date', 'all time', 'lifetime', 'ever', 'lately', 'earlier',
+  'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sun', 'mon', 'tues?', 'wed', 'thurs?', 'fri', 'sat',
+  'jan(?:uary)?', 'feb(?:ruary)?', 'mar(?:ch)?', 'apr(?:il)?', 'june?', 'july?', 'aug(?:ust)?', 'sept?(?:ember)?', 'oct(?:ober)?', 'nov(?:ember)?', 'dec(?:ember)?',
+  'black friday', 'cyber monday', 'cyber week', 'bfcm', 'thanksgiving', 'christmas', 'xmas', 'holidays?', 'easter', 'halloween', 'new years?', 'memorial', 'labor', 'prime day', 'valentines?', 'mothers', 'fathers', 'boxing',
+  '(?:this|last|next|past) (?:winter|spring|summer|fall|autumn|season|sale|launch|drop|promo|giveaway|event)',
+].join('|') + ')\\b|\\b\\d{1,2}(?:st|nd|rd|th)\\b|\\d{1,2}/\\d{1,2}', 'i');
+/** True when the text still holds date words after every phrase the parser knows is taken out ("last year", "Q3",
+ *  "the weekend", "Black Friday", "next week", a bare year). */
+export function dateLeft(text, today) { return DATE_LEFT.test(scanDates(String(text || '').replace(/[‘’']/g, ''), today).rest); }
+function scanDates(text, today) {
   let s = ' ' + String(text || '').toLowerCase().replace(LONG_DASH, '-') + ' ';
   const out = [];
   const take = (re, fn) => { s = s.replace(re, (...m) => { const w = fn(...m); if (!w) return m[0]; out.push({ ...w, text: m[0].trim(), at: m[m.length - 2] }); return ' '.repeat(m[0].length); }); };
@@ -129,7 +147,14 @@ export function parseWindows(text, today) {
     (_, lead, name, ya) => { if (name === 'may' && !ya && !lead) return null; const m = MONTHS[name]; let y = ya ? +ya : y0; if (!ya && mk(y, m, 1) > today) y -= 1;
       const to = mk(y, m, lastOfMonth(y, m)); return { from: mk(y, m, 1), to: y === y0 && m === m0 && to > today ? today : to, kind: 'month' }; });
 
-  return out.sort((a, b) => a.at - b.at).map(({ at, ...w }) => w);
+  /* "since Nov 1", "from Nov 1" (with no end written), "starting last Monday": from that day through today, not that one day. */
+  for (const w of out) {
+    const lead = /\b(?:since|from|starting(?:\s+(?:on|from))?|beginning(?:\s+(?:on|from))?)\s+(?:the\s+)?$/.exec(s.slice(0, w.at));
+    if (!lead || w.kind === 'range' || w.from > today) continue;
+    s = s.slice(0, lead.index) + ' '.repeat(lead[0].length) + s.slice(w.at);
+    w.to = today; w.kind = 'since';
+  }
+  return { windows: out.sort((a, b) => a.at - b.at).map(({ at, ...w }) => w), rest: s };
 }
 /** The one window a question names; null when it names none; {multi:true} when it names more than one. */
 export function parseWindow(text, today) {
@@ -193,11 +218,19 @@ const NOT_A_LOOKUP = new RegExp('\\b(' + [
 const MAX_CHARS = 260;
 
 const META_W = /\b(meta|facebook|fb|instagram)\b/i, GOOGLE_W = /\bgoogle\b/i;
+/* A channel or platform other than Meta and Google. There is no lookup for one, and the whole-store number is not
+   what was asked, so any of these words sends the question to the assistant. */
+export const OTHER_CHANNEL = /\b(tik ?tok|amazon|klaviyo|e-?mails?|sms|texts?|attentive|postscript|snap(?:chat)?|pinterest|youtube|bing|microsoft|reddit|twitter|linkedin|applovin|whatnot|ebay|walmart|etsy|wholesale|retail|organic|direct|affiliates?|influencers?|creators?|newsletters?|flows?|shop app|pmax|performance max|search|shopping|display)\b/i;
+/* Words that narrow a store number to a slice the store lookups do not hold (tax, refunds, one product, one kind of
+   customer, a count of "sales"). The whole-store number would answer a different question. */
+const STORE_SLICE = /\btax(?:es)?\b|\brefund\w*|\breturns\b|\bdiscount\w*|\bshipping\b|\bgross (?:sales|revenue)\b|\b(?:how many|number of|count of|# of) (?:\w+ )?sales\b|\bsales count\b|\b(?:new|returning|repeat|first[- ]time)[- ](?:customers?|buyers?) (?:revenue|sales|aov|spend|orders?|margin)\b|\b(?:revenue|sales|aov|margin|orders|spend) (?:from|for|by|of|per|on|in) (?:the |our |each |a )?(?:new|returning|repeat|first|product|sku|item|collection|variant|channel|source|state|country|region|customer|day|week|month|hour)/i;
+/* "lead" as a thing that was bought, never the verb ("who leads creative"). */
+const LEAD_W = /\bcost per lead\b|\bcpl\b|\b(?:cost|price|paid|pay|paying) (?:\w+ ){0,2}leads?\b|\b(?:how many|number of|per|total|a|each) leads?\b|\bleads? (?:cost|costs|count|total|price)\b|\blead (?:ads?|campaigns?|gen|generation|forms?)\b/i;
 const SPEND_W = /\b(ad ?spend|spend|spent|spending|ad costs?)\b/i;
 const CAL_NOUN = /\b(sale|sales event|offer|promo|promotion|giveaway|black friday|cyber monday|bfcm|early access|drop|deal|holiday|launch|event)\b/i;
 const CARD_REF = /\b(?:card|batch|brief|test|ticket)\s*(?:number\s*|no\.?\s*|#\s*)?(\d{2,5}(?:-\d{1,3})?)\b|#(\d{2,5})\b/i;
 const STORE_RE = {
-  revenue: /\brevenue\b|\b(?:total |net |store |shopify |gross )?sales\b(?! ad)|\bhow much (?:did|has|have) \w+(?: \w+)? (?:sell|sold|bring in|brought in|do|done)\b/i,
+  revenue: /\brevenue\b|\b(?:total |net |store |shopify )?sales\b(?! ad)|\bhow much (?:did|has|have) \w+(?: \w+)? (?:sell|sold|bring in|brought in|do|done)\b/i,
   ad_spend: SPEND_W,
   mer: /\bmer\b|\bblended roas\b|\broas\b|marketing efficiency/i,
   orders: /\borders?\b/i,
@@ -217,6 +250,7 @@ export function matchLookup(text) {
   /* "the Spring Drop" in a when, offer or calendar question is a launch, not a number that dropped. */
   if (/\bwhen\b|\boffer\b|\bcalendar\b/.test(t)) t = t.replace(/\bdrop\b/g, 'launch');
   if (NOT_A_LOOKUP.test(t.replace(/\bad sets?\b/g, 'adset').replace(/\bsales? ads?\b/g, 'ads'))) return null;
+  if (OTHER_CHANNEL.test(t)) return null;
   const params = {};
   const platform = META_W.test(t) ? 'meta' : GOOGLE_W.test(t) ? 'google' : null;
   if (META_W.test(t) && GOOGLE_W.test(t)) return null;
@@ -239,7 +273,7 @@ export function matchLookup(text) {
     if (platform === 'google') return null;
     hits.push('top_ads');
   }
-  if (/cost per lead|\bcpl\b|\bleads?\b/.test(t)) hits.push('cost_per_lead');
+  if (LEAD_W.test(t)) hits.push('cost_per_lead');
   if (/\bbudgets?\b/.test(t) && !/monthly budget|budget for the month/.test(t)) hits.push('campaign_budget');
   if (/\b(?:last|latest|most recent)\b[^.?]*\b(?:new ads|ads (?:were|was|went)|launch(?:ed)?)\b|\bwhen (?:were|did|was)\b[^.?]*\bads?\b[^.?]*\b(?:launch(?:ed)?|go live|went live|added)\b/.test(t)) hits.push('last_launch');
   if (/\b(?:goal|target)\b/.test(t) && /\b(?:roas|cpa|cac|mer|cost per)\b/.test(t)) hits.push('brand_goal');
@@ -253,6 +287,7 @@ export function matchLookup(text) {
   /* Top ads, leads, a budget and a launch each use spend or sales words of their own: they win over the store numbers. */
   const special = hits.length > 0;
   let store = special ? [] : STORE_IDS.filter(id => STORE_RE[id].test(t));
+  if (store.length && STORE_SLICE.test(t)) return null;
   if (store.includes('new_vs_returning')) store = store.filter(id => !['orders', 'new_customers', 'revenue'].includes(id));
   if (store.includes('cac')) store = store.filter(id => id !== 'new_customers');
   if (store.includes('aov')) store = store.filter(id => id !== 'orders');
@@ -346,7 +381,8 @@ async function calendarRows(env, brand) {
   const sel = `SELECT name, type, status, launch_date AS start, promo_end_date AS "end", brief AS offer FROM events WHERE status != 'cancelled' AND`;
   const a = await env.CAL.prepare(`${sel} (locus_brand = ?1 OR brand_id = ?2) ORDER BY launch_date`).bind(brand.id, brand.slug).all().catch(() => null);
   if (a) return a.results || [];
-  return ((await env.CAL.prepare(`${sel} brand_id = ?1 ORDER BY launch_date`).bind(brand.slug).all().catch(() => null))?.results) || [];
+  /* The older calendar has no locus_brand column: one more read by slug. If that fails too it throws (never "an empty calendar"). */
+  return (await env.CAL.prepare(`${sel} brand_id = ?1 ORDER BY launch_date`).bind(brand.slug).all())?.results || [];
 }
 const CAL_STOP = new Set(['when', 'does', 'do', 'did', 'is', 'the', 'a', 'an', 'our', 'for', 'of', 'and', 'what', 'whats', 'start', 'starts', 'end', 'ends', 'begin', 'begins', 'open', 'opens', 'close', 'closes', 'sale',
   'offer', 'deal', 'promo', 'date', 'dates', 'to', 'in', 'on', 'it', 'will', 'how', 'long', 'run', 'runs', 'get', 'they', 'with']);
@@ -594,7 +630,7 @@ export async function askRouter(env, d, question, brands, screenBrand) {
 /*  one question, start to finish                                                              */
 /* ------------------------------------------------------------------------------------------ */
 export async function lookupMode(env) {
-  const v = (await first(env.DB, `SELECT value FROM settings WHERE key = ?1`, SETTING))?.value;
+  const v = (await first(env.DB, `SELECT value FROM settings WHERE key = ?1`, SETTING).catch(() => null))?.value;
   return v === 'on' || v === 'code' ? v : null;
 }
 const windowFor = (id, win, today) => {
@@ -604,41 +640,52 @@ const windowFor = (id, win, today) => {
   if (kind === 'week') { if (win && win.kind !== 'this_week') return win; const mon = addDays(today, -((dow(today) + 6) % 7)); return { from: mon, to: addDays(mon, 6), kind: 'week' }; }
   return win || { from: addDays(today, -7), to: addDays(today, -1), kind: 'default', assumed: true };
 };
-const NO_ACCESS = 'You do not have access to that brand here, so there is no number to give. Ask the account owner if you need it.';
+/* A lookup that reads dates: does the question hold date words the parser could not turn into a window? */
+const needsDates = ids => ids.some(id => BY_ID[id].window !== false);
+/* A follow-up that leans on the thread ("and orders?", "what about that one?"): only the assistant has the thread. */
+const LEANS_ON_THREAD = /^(?:and|or|but|also|ok|okay|so|then|same|what about|how about)\b|\b(?:it|its|that|those|these|them|they|their|this one|that one|same|again|instead|too|as well|other one)\b/i;
 
 /** Answer a question as a lookup, or return null so the caller sends it to the assistant unchanged.
  *  o = { question, act (the brand on screen or in the channel), only (null or the Set of ids the person may see),
  *        mode ('on' | 'code'), followUp (true inside a thread or a chat with history: code matcher only), now }
- *  Returns { text, line, more, lookup:{...}, via, cost, usage, refused? }. */
+ *  Returns { text, line, more, lookup:{...}, via, cost, usage }, or { miss: true, ... } when the small model was asked and passed.
+ *  It never says a brand is off limits: a brand the person may not see is treated as a name nobody has. */
 export async function lookupAnswer(env, d, o) {
   const t0 = Date.now();
   const question = String(o.question || '').replace(/\s+/g, ' ').trim();
   if (!question || question.length > MAX_CHARS) return null;
-  const brands = await loadBrands(env);
+  let brands; try { brands = await loadBrands(env); } catch (e) { console.log('lookup brands: ' + (e && e.message)); return null; }
   if (!brands.length) return null;
+  /* Everything below sees ONLY the brands this person may see: the names matched in the question, the brand on
+     screen, the list the small model gets. A brand outside that list does not exist here, so naming one behaves
+     exactly like naming a company that is not a customer at all (no refusal line that would confirm it is one). */
   const allowed = brands.filter(b => mayRead(b, o.only));
-  const screen = o.act ? brands.find(b => b.id === o.act || b.legacy_key === o.act || b.slug === o.act || b.meta.includes(o.act)) || null : null;
-  const named = brandsNamed(question, brands);
+  if (!allowed.length) return null;
+  const screen = o.act ? allowed.find(b => b.id === o.act || b.legacy_key === o.act || b.slug === o.act || b.meta.includes(o.act)) || null : null;
+  const named = brandsNamed(question, allowed);
   let m = matchLookup(question), via = 'code', usage = null, cost = 0, brand = null, winText = question;
 
   if (m) {
-    /* A number for a brand this person may not see is refused here, in code, before any query runs. */
-    if (named.some(b => !mayRead(b, o.only))) return { refused: true, text: NO_ACCESS, line: NO_ACCESS, more: [], via, cost: 0, ms: Date.now() - t0, lookup: { ids: m.ids, brand: null } };
     if (named.length > 1) m = null;                                  // two brands in one question: the assistant's
     else brand = named[0] || screen;
     if (m && !brand) m = null;
   }
   if (m && brand) {
-    const w = parseWindow(question, todayIn(brand.tz, o.now));
+    const today = todayIn(brand.tz, o.now), w = parseWindow(question, today);
     if (w && w.multi) return null;                                   // two periods: a comparison, the assistant's
+    /* A period the parser cannot work out ("last year", "Q3", "the weekend", "Black Friday"): the assistant's, never the 7 day default. */
+    if (needsDates(m.ids) && dateLeft(question, today)) return null;
+    /* A follow-up (a thread, a chat with history) is answered here only when the message stands on its own: its own
+       dates, its own brand (or a screen or channel that is one brand), and no word that points back at the thread. */
+    if (o.followUp && (LEANS_ON_THREAD.test(question) || (needsDates(m.ids) && !w))) return null;
   }
   if (!m) {
     /* Unsure. The small model may pick, but never for a follow-up (it has no thread), a question with judgement or
-       change words, two brands, or a brand the person may not see. */
-    if (o.mode !== 'on' || o.followUp || !d || named.length > 1 || named.some(b => !mayRead(b, o.only))) return null;
-    if (NOT_A_LOOKUP.test(question.toLowerCase())) return null;
+       change words, two brands, or a channel there is no lookup for. */
+    if (o.mode !== 'on' || o.followUp || !d || named.length > 1) return null;
+    if (NOT_A_LOOKUP.test(question.toLowerCase()) || OTHER_CHANNEL.test(question)) return null;
     if (parseWindow(question, todayIn((named[0] || screen || allowed[0] || {}).tz, o.now))?.multi) return null;
-    const scr = screen && mayRead(screen, o.only) ? screen : null;
+    const scr = screen;
     const r = await askRouter(env, d, question, allowed, scr);
     usage = r.usage || null; cost = r.cost || 0; via = 'model';
     const pick = r.pick;
@@ -655,8 +702,13 @@ export async function lookupAnswer(env, d, o) {
     if ((pick.lookup === 'platform_spend' || pick.lookup === 'platform_roas') && !params.platform) return miss;
     m = { ids: [pick.lookup], params, why: 'model' };
     winText = pick.when || '';
+    /* The model's pick is held to the same rules as the code matcher's: a store number is never given for a slice
+       it does not hold, and date words the parser cannot work out (in the question or in what the model copied) go on. */
+    const day = todayIn(brand.tz, o.now);
+    if (BY_ID[pick.lookup].group === 'store' && STORE_SLICE.test(question)) return miss;
+    if (needsDates(m.ids) && (dateLeft(question, day) || (winText.trim() && !parseWindow(winText, day)))) return miss;
   }
-  if (!mayRead(brand, o.only)) return { refused: true, text: NO_ACCESS, line: NO_ACCESS, more: [], via, cost, usage, ms: Date.now() - t0, lookup: { ids: m.ids, brand: null } };
+  if (!mayRead(brand, o.only)) return null;                           // cannot happen (the brand comes from the allowed list); kept as the last guard
 
   const today = todayIn(brand.tz, o.now);
   let win = parseWindow(winText, today);
@@ -668,7 +720,10 @@ export async function lookupAnswer(env, d, o) {
   win = windowFor(ids[0], win, today);
   if (win && dayDiff(win.from, win.to) > 400) return via === 'model' ? { miss: true, via, cost, usage, ms: Date.now() - t0 } : null;
 
-  const out = await runLookups(env, ids, brand, win, { ...m.params, today }, question);
+  /* A query that fails (an error, a timeout in a heavy sync) is not "no data": the question goes to the assistant. */
+  let out = null, error = null;
+  try { out = await runLookups(env, ids, brand, win, { ...m.params, today }, question); } catch (e) { error = String(e && e.message || e).slice(0, 200); console.log('lookup query: ' + error); }
+  if (!out && via === 'model') return { miss: true, via, cost, usage, ms: Date.now() - t0, error };
   if (!out) return via === 'model' ? { miss: true, via, cost, usage, ms: Date.now() - t0 } : null;
   const def = BY_ID[ids[0]];
   const link = `${APP}?open=${encodeURIComponent(def.page.open)}&act=${encodeURIComponent(brand.id)}`;
@@ -699,7 +754,7 @@ export async function logLookup(env, r, o) {
   await env.DB.prepare(`INSERT INTO strat_run (id, at, surface, who, brand, question, model, effort, in_tok, cache_read, cache_write, out_tok, cost, steps, ms, stopped, error, kind)
     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, 0, ?14, 0, ?15, ?16)`)
     .bind('r_' + Math.random().toString(36).slice(2, 10), new Date().toISOString(), o.surface || null, o.who || null, r.lookup?.brand || null, r.miss ? null : String(o.question || '').slice(0, 300),
-      r.via === 'model' ? ROUTER_MODEL : 'code', r.miss ? null : String(r.refused ? 'refused' : r.lookup?.id || '').slice(0, 80), u.input_tokens || 0, u.cache_read_input_tokens || 0, u.cache_creation_input_tokens || 0, u.output_tokens || 0,
+      r.via === 'model' ? ROUTER_MODEL : 'code', r.miss ? null : String(r.lookup?.id || '').slice(0, 80), u.input_tokens || 0, u.cache_read_input_tokens || 0, u.cache_creation_input_tokens || 0, u.output_tokens || 0,
       Math.round((r.cost || 0) * 1e6) / 1e6, r.ms || 0, r.error || null, r.miss ? 'router' : 'lookup').run().catch(e => console.log('logLookup: ' + e.message));
 }
 /** The share of questions each lane took, for the help page and for measuring. */
@@ -766,7 +821,8 @@ export async function lookupDoor(request, env, path, json, d) {
     if (typeof body.question !== 'string' || !body.question.trim()) return json({ error: 'Ask something.' }, 400);
     const { cs, only, who } = await whoOnWeb(env, request, d);
     const act = String(body.act || '');
-    const r = await lookupAnswer(env, d, { question: body.question, act: act && act !== 'all' ? act : null, only, mode });
+    const followUp = Array.isArray(body.history) && body.history.length > 0;
+    const r = await lookupAnswer(env, d, { question: body.question, act: act && act !== 'all' ? act : null, only, mode, followUp }).catch(e => { console.log('lookup: ' + (e && e.message)); return null; });
     if (r) await logLookup(env, r, { surface: cs ? 'client' : 'web', who, question: body.question });
     if (!r || r.miss) return json({ lookup: null, answer: 'That one needs the full assistant.', ask_why: { label: 'Ask the assistant', question: body.question, full: true } });
     return json(webShape(r, body.question));
@@ -781,6 +837,9 @@ async function ensureWhy(env) {
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS p_lookup_why (id TEXT PRIMARY KEY, at TEXT NOT NULL, json TEXT NOT NULL)`).run();
   whyReady = true;
 }
+/* Everything a lookup posts is plain text. Names and offers typed by people (a calendar event, a card title, an ad
+   name) are escaped so Slack never reads them as a mention, a channel ping or a link with different words on it. */
+export const slackEsc = t => String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const slackText = t => String(t || '').replace(/<@[A-Z0-9]+(?:\|[^>]*)?>/g, ' ').replace(/<(https?:[^>|]+)(?:\|[^>]*)?>/g, '$1').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim();
 
 /** In front of the assistant's Slack answer. true = answered here; false = the assistant answers as it always has.
@@ -799,19 +858,20 @@ export async function lookupSlack(env, ev, screen, d) {
     if (!gate || !gate.ok || gate.role === 'guest' || screen?.guest) return false;
     const only = gate.role === 'team' && gate.email ? await brandsFor(env, gate.email).catch(() => new Set(gate.brands || [])) : (gate.brands ? new Set(gate.brands) : null);
     const followUp = !!ev.thread_ts && ev.thread_ts !== ev.ts;
-    const r = await lookupAnswer(env, d, { question, act: internal?.id || screen?.act_id || null, only, mode, followUp });
+    /* In a thread the brand must be in the message itself, or be the one brand this channel belongs to. */
+    const r = await lookupAnswer(env, d, { question, act: internal?.id || (followUp ? null : screen?.act_id) || null, only, mode, followUp });
     if (!r) return false;
     const who = gate.name || gate.email || `<@${ev.user}>`;
     await logLookup(env, r, { surface: 'slack', who, question });
     if (r.miss) return false;
     await ensureWhy(env);
     const id = 'lw_' + Math.random().toString(36).slice(2, 12);
-    await env.DB.prepare(`INSERT INTO p_lookup_why (id, at, json) VALUES (?1, ?2, ?3)`).bind(id, new Date().toISOString(), JSON.stringify({ ev: { ...ev, lookup_skip: true }, screen: screen || null })).run();
+    await env.DB.prepare(`INSERT INTO p_lookup_why (id, at, json) VALUES (?1, ?2, ?3)`).bind(id, new Date().toISOString(), JSON.stringify({ ev: { ...ev, lookup_skip: true }, screen: screen || null, asker: ev.user })).run();
     await env.DB.prepare(`DELETE FROM p_lookup_why WHERE at < ?1`).bind(new Date(Date.now() - 14 * 86400e3).toISOString()).run().catch(() => {});
-    const body = [`*${r.line}*`, ...r.more.map(x => (/^\d+\. /.test(x) ? x : `_${x}_`)), r.lookup?.source ? `_Source: ${r.lookup.source}._` : null].filter(Boolean).join('\n');
+    const body = [`*${slackEsc(r.line)}*`, ...r.more.map(slackEsc).map(x => (/^\d+\. /.test(x) ? x : `_${x}_`)), r.lookup?.source ? `_Source: ${slackEsc(r.lookup.source)}._` : null].filter(Boolean).join('\n');
     const btns = [...(r.lookup?.link ? [{ type: 'button', action_id: 'noop_open', text: { type: 'plain_text', text: 'Open in Locus' }, url: r.lookup.link }] : []),
       { type: 'button', action_id: 'lookup_why', text: { type: 'plain_text', text: 'Ask why' }, value: JSON.stringify({ lk: id }) }];
-    const res = await d.slack(env, 'chat.postMessage', { channel: ev.channel, thread_ts: ev.thread_ts || ev.ts, unfurl_links: false, text: r.text,
+    const res = await d.slack(env, 'chat.postMessage', { channel: ev.channel, thread_ts: ev.thread_ts || ev.ts, unfurl_links: false, text: slackEsc(r.text),
       blocks: [{ type: 'section', text: { type: 'mrkdwn', text: body.slice(0, 2900) } }, { type: 'actions', elements: btns },
         { type: 'context', elements: [{ type: 'mrkdwn', text: 'Free lookup, written from the numbers by code. Ask why sends this question to the full assistant.' }] }] });
     /* Could not post: let the assistant answer rather than leave the person with nothing. */
@@ -829,9 +889,17 @@ export async function lookupWhyTap(env, ctx, payload, d) {
     await ensureWhy(env);
     const row = await first(env.DB, `SELECT json FROM p_lookup_why WHERE id = ?1`, id);
     if (!row) return;
-    await env.DB.prepare(`DELETE FROM p_lookup_why WHERE id = ?1`).bind(id).run().catch(() => {});      // one tap, one answer
     let saved = null; try { saved = JSON.parse(row.json); } catch {}
     if (!saved?.ev) return;
+    /* The full answer runs as the person who ASKED, with their rights. So only that person may start it: anyone else
+       who taps gets a private note and nothing runs (no answer under another name, no assistant cost on their tap). */
+    const tapper = payload.user?.id;
+    if (!tapper || tapper !== (saved.asker || saved.ev.user)) {
+      if (tapper) await Promise.resolve(d.slack(env, 'chat.postEphemeral', { channel: payload.channel?.id || saved.ev.channel, user: tapper, thread_ts: saved.ev.thread_ts || saved.ev.ts,
+        text: 'Only the person who asked can tap Ask why. Ask your own question in this thread and Locus answers you.' })).catch(() => {});
+      return;
+    }
+    await env.DB.prepare(`DELETE FROM p_lookup_why WHERE id = ?1`).bind(id).run().catch(() => {});      // one tap, one answer
     if (env.IDEA_Q) await env.IDEA_Q.send({ kind: 'strategist', ev: saved.ev, screen: saved.screen });
     else await d.slackAnswer(env, saved.ev, saved.screen);
   })().catch(e => console.log('lookup why: ' + (e && e.message))));
