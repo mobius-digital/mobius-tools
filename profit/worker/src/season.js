@@ -491,7 +491,9 @@ export const STAND_BRANDS = {
   brand_lucky_golf: { goal: 150000, kpi: 2.5, be_new: 1.55 }, brand_dartee_golf: { goal: 78000, kpi: 2.5, be_new: 1.5 }, brand_bonk_golf: { goal: 130000, kpi: 2.5, be_new: 1.8 },
   brand_grunk_dolfer: { goal: 51000, kpi: 3.0, be_new: 2.0 },
   /* Cole 2026-11-24: Yak and VetriPaws Black Friday started Mon Nov 23 (Meta sets), not the plan's Thursday. */
-  brand_yak_sports: { goal: 25000, kpi: 2.5, be_new: 1.65, start: '2026-11-23' }, brand_vetripaws: { goal: 4500, kpi: 2.5, be_new: 1.65, start: '2026-11-23' },
+  /* client_approve (Cole 2026-11-25, Rob at Yak): the client update carries our suggestion with an Approve button the
+     client taps; the change goes live only on their tap. */
+  brand_yak_sports: { goal: 25000, kpi: 2.5, be_new: 1.65, start: '2026-11-23', client_approve: true }, brand_vetripaws: { goal: 4500, kpi: 2.5, be_new: 1.65, start: '2026-11-23' },
   /* Ice & Gold: Fela runs the budgets, so updates only (no raise or cut call); its sale is live this week. */
   brand_ice_and_gold: { goal: null, kpi: 2.5, be_new: null, start: '2026-11-23', watch: 'Fela runs Ice & Gold budgets, so this is updates only.' },
 };
@@ -585,6 +587,7 @@ async function standingAll(env, accounts, today, deps) {
     r.no_sales = noSales ? 1 : 0; r.as_of = (lv && lv.as_of) || null;
     r.suggest = r.error ? { call: 'hold', pct: 0, why: `No live numbers: ${r.error}` } : standCall({ soFar: r.so_far, last6: r.last6, kpi: cfg.kpi, hold: r.hold, noSales, beNew: cfg.be_new });
     if (cfg.watch) { r.watch = 1; r.suggest = { call: 'hold', pct: 0, why: cfg.watch }; }
+    if (cfg.client_approve) r.client_approve = 1;
     return r;
   }));
   rows.sort((p, q) => (q.goal || 0) - (p.goal || 0));

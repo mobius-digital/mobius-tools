@@ -508,6 +508,16 @@ export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name
   }
   const upd = [T1('Updates'), md((did.length ? did : ['No changes since the last update']).map(d => `•  ${d}`).join('\n')),
     ctx(rec.next ? `Next update at ${rec.next} CT` : 'Next update tomorrow at 8am CT')];
+  /* The client decides (client_approve, Yak): our suggestion with an Approve button the client taps; Locus makes the
+     change only on that tap and confirms only once Meta took it (handleClientUpdateButton ws_capprove). */
+  const sg = b.suggest || {}, camp = b.meta && b.meta.camp;
+  if (b.client_approve && sg.to && camp && camp.daily && !(rec.approved || {})[act]) {
+    const up = sg.to > camp.daily;
+    const sug = [T1('Our suggestion'), md(`${up ? 'Raise' : 'Lower'} the Black Friday budget from *${usd(camp.daily)}* to *${usd(sg.to)}* a day. ${up ? `The store is at ${nx(b.so_far && b.so_far.mer)} return on ad spend for the sale, over your ${nx(b.kpi)} goal.` : `The store is under break-even, so we would protect the return.`}`),
+      { type: 'actions', elements: [{ type: 'button', action_id: 'ws_capprove', style: 'primary', text: { type: 'plain_text', text: `Approve ${usd(sg.to)} a day` }, value: `${rec.slot}|${act}` }] },
+      ctx('Tap Approve and it goes live right away; we will confirm here once it is done. Or just reply with a yes or no.')];
+    if (layout === 'clean' || layout === 'spaced') blocks.push({ type: 'divider' }, ...sug); else attachments.push({ color: '#2EB67D', blocks: sug });
+  }
   if (layout === 'clean' || layout === 'spaced') blocks.push({ type: 'divider' }, ...upd); else attachments.push({ color: BLUE, blocks: upd });
   return { text: `${name || b.name} ${m}, ${t.day} ${t.hour}`, blocks, attachments };
 }
@@ -595,7 +605,7 @@ export async function postBatch(env, deps, rec) {
   const bt = { slot: rec.slot, channel: null, ts: null, items: [] }, drafts = [];
   for (const b of rec.brands) {
     if (b.no_sales) continue;
-    const waiting = b.suggest && b.suggest.to && !(rec.approved || {})[b.act_id];
+    const waiting = b.suggest && b.suggest.to && !(rec.approved || {})[b.act_id] && !b.client_approve;   // a client-approve brand goes out now, suggestion inside
     if (waiting) { bt.items.push({ act: b.act_id, name: b.name, id: null, status: 'waiting' }); continue; }
     const d = await draftFor(env, deps, rec, b.act_id, rec.slot).catch(() => null);
     if (!d) continue;
@@ -634,6 +644,24 @@ export async function handleClientUpdateButton(env, ctx, payload, deps, { ACK, x
   const reply = t => payload.response_url && xfetch(payload.response_url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ replace_original: true, text: t }) }).catch(() => {});
   const inThread = t => deps.slackApi(env, 'chat.postMessage', { channel: payload.channel && payload.channel.id, thread_ts: payload.message && payload.message.ts, text: t }).catch(() => {});
   ctx.waitUntil((async () => {
+    if (a.action_id === 'ws_capprove') {
+      /* The CLIENT's Approve (Yak): only in that brand's client channel (or Cole), only on a check-in under 6 hours old
+         (approve() checks), confirmed only once Meta took the change. Cole hears either way. */
+      const [slot, act] = String(a.value || '').split('|');
+      const br = await env.DB.prepare(`SELECT name, brief_channel FROM brand_accounts WHERE act_id = ?1`).bind(act).first().catch(() => null);
+      if (!br || (payload.channel && payload.channel.id) !== br.brief_channel && payload.user?.id !== OWNER_SLACK) return inThread('This button only works in the client channel.');
+      const rec = await load(env, deps, slot).catch(() => null);
+      const who = `${payload.user.name || payload.user.username || 'client'} (${br.name}, Slack)`;
+      const r = rec ? await approve(env, deps, rec, act, who).catch(e => ({ error: e.message })) : { error: 'That suggestion is gone.' };
+      if (r && r.ok) {
+        await inThread(`Done. ${br.name}'s Black Friday budget is now ${money(r.to)} a day (was ${money(r.from)}). It is live in Meta.`);
+        await dmPerson(env, deps, env.OWNER_EMAIL || 'cole@go-mobius-digital.com', { text: `${who} approved: ${br.name} ${money(r.from)} -> ${money(r.to)} a day. Live in Meta.` }).catch(() => {});
+      } else {
+        await inThread('We could not make that change automatically. Cole will take care of it and confirm here.');
+        await dmPerson(env, deps, env.OWNER_EMAIL || 'cole@go-mobius-digital.com', { text: `${who} tapped Approve on ${br.name} but it did not go through: ${(r && r.error) || 'unknown'}. Change it by hand and confirm in their channel.` }).catch(() => {});
+      }
+      return null;
+    }
     if (payload.user?.id !== OWNER_SLACK) return inThread('Only Cole can do that.');
     if (a.action_id === 'ws_approve') {
       const [slot, act] = String(a.value || '').split('|');
