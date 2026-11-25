@@ -6,7 +6,7 @@
  *   4. a 1 hour cache write is 2x input, a 5 minute one 1.25x; Sonnet 5.5 reads its cache at $0.10.
  * In-memory SQLite for D1, Slack mocked, made-up brands, no secrets. */
 import { DatabaseSync } from 'node:sqlite';
-import { clientSide, directApplyThere, silentThere, readSwitches, writeSwitches, SWITCHES } from './src/clientchan.js';
+import { clientSide, tapOnlyThere, directApplyThere, silentThere, readSwitches, writeSwitches, SWITCHES, TAP_ONLY_NOTE } from './src/clientchan.js';
 import { autoApproveTick, AUTO_APPROVE_KEY, AUTO_APPROVE_WHO, AUTO_APPROVE_NOTE } from './src/checkin.js';
 import { indexEvent, backfillTick, forgetChannelCache, INDEX_CLIENT_KEY } from './src/slackindex.js';
 import { costOf, PRICE } from '../../ask/engine.js';
@@ -35,7 +35,10 @@ const clearSetting = k => db.prepare(`DELETE FROM settings WHERE key = ?`).run(k
 ok(clientSide({ side: 'client' }) && clientSide({ side: null, shared: true }) && clientSide({ side: 'team', shared: true }), 'client side: marked client, or shared');
 ok(!clientSide({ side: 'internal' }) && !clientSide({ side: 'internal', shared: true }) && !clientSide({ side: null, shared: false }) && !clientSide({ side: 'team' }), 'not client side: internal, team, a plain project channel');
 ok(!directApplyThere({ side: 'client' }) && !directApplyThere({ shared: true }), 'client side: never applied from the words');
-ok(directApplyThere({ side: 'internal' }) && directApplyThere({}), 'internal and plain channels: direct apply as before');
+ok(directApplyThere({ side: 'internal' }) && directApplyThere({}) && directApplyThere({ side: 'team' }), 'internal and plain channels: direct apply as before');
+ok(tapOnlyThere({ side: 'internal', shared: true }) && !directApplyThere({ side: 'internal', shared: true }), 'an internal channel shared with another workspace is tap-only');
+ok(!silentThere({ side: 'internal', shared: true }, '0') && !clientSide({ side: 'internal', shared: true }), 'a shared internal channel still answers and is still stored');
+ok(/needs a tap/.test(TAP_ONLY_NOTE) && /outside the team/.test(TAP_ONLY_NOTE) && !TAP_ONLY_NOTE.includes('—'), 'the tap-only note says why, no em dash');
 ok(!silentThere({ side: 'client' }, null) && !silentThere({ side: 'client' }, '1') && !silentThere({ shared: true }, undefined), 'no key: it answers in client channels as today');
 ok(silentThere({ side: 'client' }, '0') && silentThere({ shared: true }, '0'), "'0': silent in client channels");
 ok(!silentThere({ side: 'internal' }, '0') && !silentThere({}, '0') && !silentThere({ side: 'team' }, '0'), "'0': internal channels still answer");
@@ -144,7 +147,9 @@ ok(costOf('claude-opus-5-5', {}) === 0 && costOf('claude-opus-5-5') === 0, 'no u
 const { readFileSync } = await import('node:fs');
 const src = readFileSync(new URL('./src/worker.js', import.meta.url), 'utf8');
 ok(/call: screen\?\.guest \|\| screen\?\.tapOnly \? null : askCaller\(/.test(src), 'a tap-only screen gets no direct-apply caller');
-ok(/other\.client = clientSide\(\{ side, shared: info\.shared \}\)/.test(src) && /if \(screen && other\?\.client\) screen\.tapOnly = true/.test(src), 'a client-side channel is marked tap-only, with no setting in the way');
+ok(/other\.client = tapOnlyThere\(\{ side, shared: info\.shared \}\)/.test(src), 'a client-side channel is marked tap-only, with no setting in the way');
+ok(/if \(brandRow\) brandRow\.shared = \(await channelInfo\(/.test(src) && /tapOnlyThere\(\{ side: 'internal', shared: brandRow\?\.shared \}\)/.test(src), 'a shared internal brand channel is checked too');
+ok(/screen\.tapOnly = true; screen\.note \+= TAP_ONLY_NOTE;/.test(src), 'a tap-only channel is told why nothing applies from the words');
 ok(src.indexOf('getSetting(env, ASK_CLIENT_KEY)') > 0 && src.indexOf('getSetting(env, ASK_CLIENT_KEY)') < src.indexOf('askSeen:${ev.channel}:${ev.ts}'), 'the silent check runs before the message is claimed or answered');
 ok(/\.\.\.\(await readSwitches\(env, getSetting\)\)/.test(src) && /await writeSwitches\(env, putSetting, b\)/.test(src), 'GET and PUT /api/settings carry the switches');
 

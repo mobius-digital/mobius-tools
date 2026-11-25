@@ -67,7 +67,7 @@ import { laneBlocks, laneLines, lanePost, laneWho, laneOwner, fyi, roundupTick }
 
 import { buildStrategist } from './strategist.js';
 import { indexEvent, backfillTick, indexStatus, forgetChannelCache, indexedChannels } from './slackindex.js';
-import { clientSide, silentThere, readSwitches, writeSwitches, ASK_CLIENT_KEY } from './clientchan.js';
+import { tapOnlyThere, silentThere, readSwitches, writeSwitches, ASK_CLIENT_KEY, TAP_ONLY_NOTE } from './clientchan.js';
 import { consolidate, factsList, remember as stratRemember, forget as stratForget, editFact, skillsList, saveSkill, deleteSkill, usageSummary } from './stratmem.js';
 import { PRESETS as STRAT_PRESETS } from './strattools.js';
 import { accessReport, grantSelf, partnerSweep } from './metaaccess.js';
@@ -7786,8 +7786,11 @@ async function handleSlackEvent(request, env, ctx) {
          'client', or it is a Slack Connect shared channel) nothing is applied straight from the words. Every change
          becomes a card someone taps. */
       const side = (await indexedChannels(env, getSetting).catch(() => new Map())).get(ev.channel)?.side || null;
-      other.client = clientSide({ side, shared: info.shared });
+      other.client = tapOnlyThere({ side, shared: info.shared });
     }
+    /* The same rule in a brand's own internal channel that Slack shares with another workspace: registered as
+       internal, but someone outside reads it. channelInfo is one settings read (cached a day). */
+    if (brandRow) brandRow.shared = (await channelInfo(env, accessDeps(), ev.channel).catch(() => ({ shared: false }))).shared === true;
   }
   /* A person limited to some brands (a teammate in userBrands, or a guest) never gets another brand's channel. */
   const chanBrand = brandRow?.act_id || other?.brand?.id || null;
@@ -7814,7 +7817,7 @@ async function handleSlackEvent(request, env, ctx) {
       note: `This is #${other.name || ev.channel}, a Slack channel that is not a brand's internal team channel.${other.brand ? ` It is about ${other.brand.name} (act_id ${other.brand.id}): every question here is about ${other.brand.name} unless it names another brand. Never ask which brand.` : ' Work out the brand from the channel name and the words; when it matters and is unclear, ask which brand in one line.'}${outsiders} ${asker}${rule}` }
     : dmScreen;
   if (screen) screen.guest = gate.role === 'guest';
-  if (screen && other?.client) screen.tapOnly = true;
+  if (screen && (other?.client || tapOnlyThere({ side: 'internal', shared: brandRow?.shared }))) { screen.tapOnly = true; screen.note += TAP_ONLY_NOTE; }
   /* /slack/owns says yes for this channel from now on, so plain replies in Locus's threads here reach it too. */
   if (other) ctx.waitUntil(putSetting(env, `locusChan:${ev.channel}`, '1').catch(() => {}));
   ctx.waitUntil((async () => {
