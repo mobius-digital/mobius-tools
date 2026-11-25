@@ -1,7 +1,9 @@
 /* Business > Sales > Inventory. "Will anything run out?"
    Live: on hand, pace, days left and what is on the way for every product (the stock feed, read only:
-   GET /api/supply/client?what=state on the account-health worker) and the ad spend tied to each product over
+   GET /api/supply/client?act=&what=state on the account-health worker) and the ad spend tied to each product over
    30 days (GET /api/hub/stockads on the profit worker, Triple Whale orders).
+   A brand with no stock feed answers 404 on what=state, so the page first asks what=brands (same route, answers
+   200 with an empty list) and shows "No stock feed connected" without ever asking for the state.
    This page is about today, so the date range is hidden. Nothing here writes. */
 
 import { put } from '../../kit.js';
@@ -103,11 +105,20 @@ export default {
   async load(ctx) {
     if (!ctx.brand) return { connected: false };
     const act = encodeURIComponent(ctx.brand.id);
-    let st;
-    try { st = await ctx.api(`/api/supply/client?act=${act}&what=state`, { worker: 'ah', signal: ctx.signal }); }
-    catch (e) { if (ctx.signal && ctx.signal.aborted) throw e; if (e.status === 404 || e.status === 400) return { connected: false, reason: e.message }; throw e; }
+    /* no feed, no access, or stock not wired to this worker: the plain "not connected" state, never the error page */
+    const off = e => { if ((ctx.signal && ctx.signal.aborted) || e.status === 401) throw e; if ([400, 403, 404].includes(e.status) || /not connected|no stock feed/i.test(e.message || '')) return { connected: false, reason: e.message }; throw e; };
+    let has;
+    try { has = await ctx.api(`/api/supply/client?act=${act}&what=brands`, { worker: 'ah', signal: ctx.signal }); }
+    catch (e) { return off(e); }
+    if (!has || !Array.isArray(has.brands) || !has.brands.length) return { connected: false };
+    let st, ads;
+    try {
+      [st, ads] = await Promise.all([
+        ctx.api(`/api/supply/client?act=${act}&what=state`, { worker: 'ah', signal: ctx.signal }),
+        soft(ctx, ctx.api('/api/hub/stockads?act=' + act, { signal: ctx.signal }).then(r => (r.brands || [])[0] || null)),
+      ]);
+    } catch (e) { return off(e); }
     if (!st || st.error || !Array.isArray(st.products)) return { connected: false, reason: st && st.error };
-    const ads = await soft(ctx, ctx.api('/api/hub/stockads?act=' + act, { signal: ctx.signal }).then(r => (r.brands || [])[0] || null));
     return shape(st, ads);
   },
 

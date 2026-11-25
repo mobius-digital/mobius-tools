@@ -3,8 +3,9 @@
    promises, then everything else folded away. Live data is what the team meeting screen loads. */
 
 import { put } from '../../kit.js';
-import { h, hero, em, kpi, sparkline, delta, statusDot, legend, button, avatar, toast, empty } from '../../kit.js';
-import { css, loadMeeting, SENT_LABEL, rangeText, lightOf, trafficLight, tick, sentence, merChart, foldRow, detailTable, MEETING_START, ok, money, x } from './_meet.js';
+import { h, hero, em, kpi, sparkline, delta, statusDot, legend, button, avatar, toast, empty, skeleton } from '../../kit.js';
+import { follow } from '../_parts.js';
+import { css, loadMeeting, meetingOf, SENT_LABEL, rangeText, lightOf, trafficLight, tick, sentence, merChart, foldRow, detailTable, MEETING_START, ok, money, x } from './_meet.js';
 
 const ui = { brand: null, open: new Set(), answer: {} };   // what the reader picked; kept across a refresh
 try { ui.brand = sessionStorage.getItem('lx5.preread.brand'); } catch {}
@@ -112,17 +113,26 @@ function draw(el, data, ctx) {
             r.go ? button('Open ' + r.label, { icon: 'arrow', href: `#/brand/${slug(b.id)}/${r.go[0]}/${r.go[1]}` }) : null) });
       }))));
   }
+  /* Meta, Google and the pipeline come with the slow read: rows hold their place until it lands */
+  if (data.waiting && data.waiting.screen) {
+    parts.push(h('section', { class: 'mt-open', style: { gap: '14px' }, role: 'status', 'aria-label': 'Still reading Meta, Google and the pipeline' },
+      (b.rows && b.rows.length) ? null : h('div', { class: 'mt-h' }, h('h3', null, 'Everything else'), h('span', null, 'reading Meta, Google and the pipeline')),
+      h('div', null, skeleton('row', 3))));
+  }
 
   if (data.note) parts.push(h('p', { class: 'lx-foot' }, data.note));
   put(el, h('div', { class: 'mt-page' }, parts));
 }
 
+/* each part of the meeting is painted as it lands */
+const paint = (el, d, ctx) => follow(ctx, d, now => draw(el, meetingOf(now, ctx), ctx));
+
 export default {
   title: 'Pre-read for Monday',
   eyebrow: 'Meetings, team',
   ranges: false,
-  asOf: d => (d && d.as_of) || null,
+  asOf: d => (d && d.parts ? (d.parts.cmd && d.parts.cmd.as_of) || d.at : d && d.as_of) || null,
   load: loadMeeting,
-  render: draw,
-  update: draw,
+  render: paint,
+  update: paint,
 };

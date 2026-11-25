@@ -2,24 +2,27 @@
    Every creator video waiting in the creator platform, grouped by brand, oldest first. The brand whose video has
    waited longest sits on top. A video opens a sheet: watch it, read what the creator says. Approve and Skip are
    switched off here (approving pays the creator and tells them), so the yes is given in old Locus.
-   Data: GET /api/trybe/review?act=<brand id> on the account-health worker, once per brand the team can see (there is
-   no all-brands review route yet). A brand with no creator platform key answers 400 and is left out, never shown as 0.
+   Data: GET /api/trybe/review?act=<brand id> on the account-health worker, once per brand with a creator program
+   (there is no all-brands review route yet). The route answers 400 for a brand with no creator platform key, so the
+   page first reads which brands have one (GET /api/trybe?act=all, keyedBrands in creators/_cr.js) and asks only
+   those. A 400 that still comes back means "no creator program": the brand is left out, never shown as 0.
    The video file: GET /api/trybe/video?act=&sub= (a read; the link lasts 20 minutes, so it is asked for on play). */
 
 import { h, hero, kpi, kpis, em, button, statusDot, empty, skeleton, sheet, addStyles } from '../../kit.js';
 import { SAMPLE } from '../../data.js';
 import { legacyUrl, APP_NAME } from '../../config.js';
 import { put, css, plural, day } from '../production/_ui.js';
-import { crCss, clip } from '../creators/_cr.js';
+import { crCss, clip, keyedBrands } from '../creators/_cr.js';
 
 /* ---------- shared with By brand ---------- */
 /** The brands worth asking: live ones only. */
 export const liveBrands = ctx => (ctx.brands || []).filter(b => !b.status || b.status === 'active');
 
 /** One read per brand, all at once. Each answer is { act_id, data } or { act_id, none: true } (no creator platform
-    key, or no access) or { act_id, failed: 'why' }. One brand failing never fails the page. */
-export async function perBrand(ctx, path) {
-  const brands = liveBrands(ctx);
+    key, or no access) or { act_id, failed: 'why' }. One brand failing never fails the page.
+    `only` is a Set of brand ids to ask (the ones with a creator program); the others are not called at all. */
+export async function perBrand(ctx, path, only = null) {
+  const brands = liveBrands(ctx).filter(b => !only || only.has(b.id));
   return Promise.all(brands.map(async b => {
     try { return { act_id: b.id, data: await ctx.api(path + encodeURIComponent(b.id), { worker: 'ah', signal: ctx.signal }) }; }
     catch (e) {
@@ -119,7 +122,7 @@ export default {
   ranges: false,                     // what is waiting now, not a span of days
 
   async load(ctx) {
-    const got = await perBrand(ctx, '/api/trybe/review?act=');
+    const got = await perBrand(ctx, '/api/trybe/review?act=', await keyedBrands(ctx));
     const out = { today: todayStr(), brands: [], connected: 0, failed: [] };
     for (const g of got) {
       if (g.failed) { out.failed.push({ act_id: g.act_id, why: g.failed }); continue; }

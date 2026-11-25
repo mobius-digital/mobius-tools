@@ -1,13 +1,16 @@
 /* Creative > Creators > To review. "Which creator videos need a yes?"
    The videos waiting in the creator platform for this brand, oldest first, each with what the creator says.
    Read only: approve, ask for changes or turn down in old Locus (it writes to the creator platform and pays the creator).
-   Data: GET /api/trybe/review?act=<brand id> on the account-health worker (team only; a client never calls it). */
+   Data: GET /api/trybe/review?act=<brand id> on the account-health worker (team only; a client never calls it).
+   That route needs the brand's creator platform key and answers 400 without one, so the page first checks which
+   brands have a program (keyedBrands in _cr.js) and does not ask for a brand that has none. A 400 that still comes
+   back reads as "no creator program", never as an error. */
 
 import { APP_NAME } from '../../config.js';
 import { h, hero, kpi, kpis, em, button, statusDot, empty, skeleton } from '../../kit.js';
 import { SAMPLE } from '../../data.js';
 import { put, css, oldLocus } from '../production/_ui.js';
-import { crCss, clip, play, ago, todayOf, plural } from './_cr.js';
+import { crCss, clip, play, ago, todayOf, plural, keyedBrands } from './_cr.js';
 
 export default {
   title: ['Which creator videos ', em('need a yes?')],
@@ -16,8 +19,11 @@ export default {
 
   async load(ctx) {
     if (ctx.isClient) return { client: true };
+    if (!ctx.brand) return { has_key: false };
+    const keyed = await keyedBrands(ctx, ctx.brand.id);
+    if (keyed && !keyed.has(ctx.brand.id)) return { has_key: false };
     try { return await ctx.api('/api/trybe/review?act=' + encodeURIComponent(ctx.brand.id), { worker: 'ah', signal: ctx.signal }); }
-    catch (e) { if (e && e.name === 'AbortError') throw e; if (e && e.status === 400) return { has_key: false, error: e.message }; throw e; }
+    catch (e) { if (e && e.name === 'AbortError') throw e; if (e && (e.status === 400 || e.status === 404)) return { has_key: false, error: e.message }; throw e; }
   },
   skeleton(el) { put(el, skeleton('kpi', 3), skeleton('chart')); },
 
@@ -28,7 +34,7 @@ export default {
       return;
     }
     if (!data || data.has_key === false) {
-      put(el, empty({ title: 'Creators are not connected for this brand', text: 'Add the brand\'s creator platform key in Brand settings > Integrations. Then every video waiting for a yes shows here.',
+      put(el, empty({ title: 'No creator program for this brand', text: 'This brand has no creator platform connected, so there is nothing to review. To start one, add the brand\'s creator platform key in Brand settings > Integrations.',
         action: button('Open Integrations', { href: ctx.href('brand-settings', 'integrations'), icon: 'arrow' }) }));
       return;
     }
