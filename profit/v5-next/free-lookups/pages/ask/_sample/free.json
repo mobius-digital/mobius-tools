@@ -1,0 +1,26 @@
+{
+ "on": true,
+ "revenue": "Revenue is store net sales less tax, from Triple Whale.",
+ "share": { "days": 30, "lookups": 41, "assistant": 72, "share_pct": 36.3 },
+ "lookups": [
+  { "id": "revenue", "title": "Revenue", "example": "What was revenue yesterday?" },
+  { "id": "ad_spend", "title": "Ad spend, every platform", "example": "How much did we spend on ads last week?" },
+  { "id": "mer", "title": "MER (revenue for each ad dollar)", "example": "What was MER this month?" },
+  { "id": "new_customers", "title": "New customers", "example": "How many new customers last week?" },
+  { "id": "top_ads", "title": "Top Meta ads", "example": "Top 5 ads by spend last week" },
+  { "id": "campaign_budget", "title": "Budget of a campaign", "example": "What is the budget of the Evergreen campaign?" },
+  { "id": "sale_dates", "title": "When a sale starts and ends", "example": "When does the Black Friday sale end?" },
+  { "id": "card_status", "title": "Status of a production card", "example": "What is the status of card 412?" },
+  { "id": "due_this_week", "title": "What is due", "example": "What briefs are due this week?" }
+ ],
+ "answers": [
+  { "q": "What was revenue yesterday?", "answer": "Sample Golf revenue was $4,218.40 on Nov 24, 2026.\nRevenue is store net sales less tax, from Triple Whale.", "lookup": { "id": "revenue" }, "sources": "Triple Whale",
+    "open": { "label": "Open Sales", "line": "sales", "tab": "by-day" }, "ask_why": { "label": "Ask why" } },
+  { "q": "What was MER this month?", "answer": "Sample Golf MER was 2.84x ($96,410.00 revenue on $33,950.00 ad spend) for Nov 1 to Nov 25, 2026.\nRevenue is store net sales less tax, from Triple Whale.\nMER is revenue divided by all ad spend.", "lookup": { "id": "mer" }, "sources": "Triple Whale",
+    "open": { "label": "Open This month", "line": "month", "tab": "pace" }, "ask_why": { "label": "Ask why" } },
+  { "q": "When does the Black Friday sale end?", "answer": "Sample Golf, Black Friday: starts Nov 26, 2026 and ends Nov 30, 2026.\nOffer: 30% off everything", "lookup": { "id": "sale_dates" }, "sources": "the season plan",
+    "open": { "label": "Open Calendar", "line": "calendar", "tab": "index" }, "ask_why": { "label": "Ask why" } },
+  { "q": "What is the status of card 412?", "answer": "Sample Golf card 412 (Holiday statics) is in Review.", "lookup": { "id": "card_status" }, "sources": "Production",
+    "open": { "label": "Open Production", "line": "production", "tab": "board" }, "ask_why": { "label": "Ask why" } }
+ ]
+}
