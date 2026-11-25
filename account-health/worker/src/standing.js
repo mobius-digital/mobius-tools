@@ -20,7 +20,7 @@ import { dmPerson } from './morning.js';
 import { adNumbers, metaActsOf, sumAds, withCovers } from './buyerai.js';
 import { buildBuyerList } from './buyerlist.js';
 import { standingCard, clientCard } from './standingdm.js';
-import { boardSvg, brandSvg, opsSvg, toPng } from './standingimg.js';
+import { boardSvg, brandSvg, opsSvg, callWarn, toPng } from './standingimg.js';
 
 const PROFIT_ORIGIN = 'https://mobius-profit.mobius-digital.workers.dev';
 const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
@@ -187,7 +187,7 @@ function opsImgMsg(rec, img) {
   if (N.length) blocks.push({ type: 'divider' });
   for (const b of N) {
     const s = b.suggest, c = b.meta.camp;
-    blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `*${b.name}:* ${s.pct < 0 ? 'cut' : 'raise'} *${c.name}* ${usd(c.daily)} → ${usd(s.to)} a day` },
+    blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `*${b.name}:* ${s.pct < 0 ? 'cut' : 'raise'} *${c.name}* ${usd(c.daily)} → ${usd(s.to)} a day${callWarn(b) ? `\n:warning: ${callWarn(b)}` : ''}` },
       accessory: { type: 'button', action_id: 'ws_approve', style: s.pct < 0 ? 'danger' : 'primary', text: { type: 'plain_text', text: 'Approve' }, value: `${rec.slot}|${b.act_id}` } });
   }
   blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: N.length ? `Nothing changes until you tap Approve.${rec.next ? ` Next check-in ${rec.next}.` : ''}` : `Nothing to approve.${rec.next ? ` Next check-in ${rec.next}.` : ''}` }] });
