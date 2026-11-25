@@ -54,7 +54,10 @@ async function fromLink() {
   }
   const inv = await si.readInvite(invite);
   if (inv.ok) { await showSignin('', { invite: inv }); return true; }
-  history.replaceState(null, '', si.backAddress());
+  /* Could not ask (no connection, a server error): the invite may be fine. Keep it in the address,
+     say so with a way to try again, and do not open the app under an older login. */
+  if (inv.retry) { showInviteRetry(inv.error); return true; }
+  history.replaceState(null, '', si.backAddress());         // the worker said this invite is dead: drop it
   if (!token()) { await showSignin(inv.error); return true; }
   return false;                                           // a dead invite, but already signed in: carry on
 }
@@ -73,6 +76,15 @@ async function signOut() {
   try { [LS.tok, LS.shared, LS.sharedExp, LS.email, LS.role].forEach(k => localStorage.removeItem(k)); sessionStorage.removeItem(LS5.asClient); } catch {}
   history.replaceState(null, '', location.pathname + location.search);
   showSignin();
+}
+
+function showInviteRetry(message) {
+  signinUp = true;
+  hideLoader();
+  document.title = 'Sign in · ' + APP_NAME;
+  app.innerHTML = '<div style="min-height:100vh;display:grid;place-items:center;padding:24px"><div class="lx-empty" style="width:100%;max-width:460px;min-width:0;overflow-wrap:anywhere"><h3>Could not open your invite</h3><p role="alert"></p><button class="lx-btn primary lg" type="button">Try again</button></div></div>';
+  app.querySelector('p').textContent = (message || 'Check the connection and try again.') + ' Your invite link still works.';
+  app.querySelector('button').onclick = () => location.reload();
 }
 
 function showDown(e) {
