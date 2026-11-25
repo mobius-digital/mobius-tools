@@ -324,7 +324,7 @@ async function sendSample(env, deps, rec, prev, { style, act, label }) {
       if (up.error) imgErr = up.error; else img = up.id;
     } catch (e) { imgErr = e.message; }
   }
-  const msg = act ? clientCard(rec, act, style, prev, { img }) : standingCard(rec, prev, style, linkOf(rec), { img });
+  const msg = !act && style === 'ops' ? opsCard(rec) : act ? clientCard(rec, act, style, prev, { img }) : standingCard(rec, prev, style, linkOf(rec), { img });
   if (label) { msg.blocks = [{ type: 'section', text: { type: 'mrkdwn', text: `*${label}*` } }, ...(msg.blocks || [])]; msg.text = `${label}: ${msg.text}`; }
   /* Slack can take a moment to process a fresh upload before a block may show it: retry a few times. */
   const r = await postRetry(env, deps, msg, img);
