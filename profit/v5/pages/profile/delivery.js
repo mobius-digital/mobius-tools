@@ -2,12 +2,15 @@
    the ways (home list, the bell, Slack DM, email), the default (right away, morning read, only if missing, one line a
    day, mute), the morning read hour, quiet hours, and a choice per automation.
    account-health GET and PUT /api/me/delivery. A client sees the bell and email only.
-   Moves to profit/v5/pages/profile/delivery.js (a tab on Your profile). */
+   The choices are saved whether automations are on or off. For the team the switch is read from GET /api/automations
+   beside it, so the page can say when automations are off (a client cannot read that route and sees no banner). */
 
 import { h, put, em, card, toggle, toast, pill } from '../../kit.js';
-import { style, ah } from './_auto.js';
+import { style, ah, powerBar } from '../automations/_auto.js';
 
-const load = ctx => ah(ctx, '/api/me/delivery');
+const power = ctx => (ctx.isClient ? Promise.resolve({ power: null, can_power: false })
+  : ah(ctx, '/api/automations').then(a => ({ power: !!a.power, can_power: !!a.can_power }), e => { if (e && e.name === 'AbortError') throw e; return { power: null, can_power: false }; }));
+const load = async ctx => { const [d, p] = await Promise.all([ah(ctx, '/api/me/delivery'), power(ctx)]); return { ...d, ...p }; };
 const hours = Array.from({ length: 24 }, (_, i) => ({ id: i, label: (i % 12 === 0 ? 12 : i % 12) + (i < 12 ? 'am' : 'pm') }));
 const select = (label, items, value, onchange) => h('select', { 'aria-label': label, onchange: e => onchange(e.target.value) }, items.map(o => h('option', { value: String(o.id), selected: String(o.id) === String(value) || null }, o.label)));
 const WAY = { home: ['Home list', 'A row on your home list until you tick it'], bell: ['The bell', 'Always on. The bell is the record'], slack: ['Slack DM', 'A direct message, only if you switch it on'], email: ['Email', 'One email, only if you switch it on'] };
@@ -23,7 +26,7 @@ function render(el, d, ctx) {
   const line = (title, sub, control) => h('div', { class: 'au-run', style: { gridTemplateColumns: 'minmax(0,1fr) auto' } }, h('div', null, h('b', null, title), sub ? h('p', null, sub) : null), control);
   const allowed = (d && d.ways) || {};
   const ways = card({ title: 'Where it lands', note: 'Nothing lands only in Slack. The app always has it.' }, h('div', { class: 'au-log' },
-    Object.entries(WAY).filter(([k]) => allowed[k] !== false).map(([k, [title, sub]]) => line(title, (d.ways_note && d.ways_note[k]) || sub,
+    Object.entries(WAY).filter(([k]) => allowed[k] !== false).map(([k, [title, sub]]) => line(title, (d && d.ways_note && d.ways_note[k]) || sub,
       k === 'bell' ? pill('good', 'Always on') : toggle({ checked: !!(st.ways || {})[k], ariaLabel: title, onchange: v => { st.ways = { ...(st.ways || {}), [k]: v }; save({ delivery: { ways: st.ways } }); } })))));
   const mode = card({ title: 'How I usually hear', note: MODE_HELP[st.mode] || '' }, h('div', { class: 'au-pick' },
     h('label', null, 'Unless I pick something else for one automation'),
@@ -35,7 +38,8 @@ function render(el, d, ctx) {
   const per = (d && d.per) || [];
   const each = card({ title: 'One by one', note: per.length ? 'Pick a different way for any automation that tells you.' : 'When an automation is switched on, it shows here.' },
     h('div', { class: 'au-log' }, per.map(p => line(p.name, p.sentence, select('How "' + p.name + '" reaches me', [{ id: '', label: 'My usual way' }, ...modes], p.own ? p.mode : '', v => save({ per: [{ automation_id: p.automation_id, mode: v || null }] }))))));
-  put(el, h('div', { class: 'au' }, ways, mode, each));
+  const reload = async () => { if (ctx.sample) return; const fresh = await load(ctx).catch(() => null); if (fresh) render(el, fresh, ctx); };
+  put(el, h('div', { class: 'au' }, powerBar(d, ctx, reload), ways, mode, each));
 }
 
 export default {

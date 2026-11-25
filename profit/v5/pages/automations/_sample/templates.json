@@ -467,7 +467,7 @@
     ]
    },
    "notes": [
-    "Locus does not make this change in this version. It arrives as a suggestion. You make the change in Ads and tap \"I did it\", or tap \"No\"."
+    "The app does not make this change in this version. It arrives as a suggestion. You make the change in Ads and tap \"I did it\", or tap \"No\"."
    ],
    "costs_ai": false,
    "last_run_at": null,
@@ -2221,7 +2221,7 @@
     "id": "propose",
     "label": "Suggest a change (a person makes it)",
     "ai": false,
-    "not_yet": "Locus does not make this change in this version. It arrives as a suggestion. You make the change in Ads and tap \"I did it\", or tap \"No\"."
+    "not_yet": "The app does not make this change in this version. It arrives as a suggestion. You make the change in Ads and tap \"I did it\", or tap \"No\"."
    },
    {
     "id": "stop_spend",

@@ -1,4 +1,6 @@
 {
+ "power": false,
+ "can_power": true,
  "ok": true,
  "can_edit": true,
  "can_all": true,

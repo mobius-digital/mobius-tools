@@ -3,10 +3,9 @@
    Real mode: account-health GET /api/connect-ai (is it on, the address, limits), GET /api/connect-ai/keys,
    GET /api/connect-ai/calls; POST /api/connect-ai/keys makes a key, POST /api/connect-ai/keys/revoke turns one off,
    PUT /api/connect-ai/switch is the owner's on and off.
-   The AI can read and suggest. It cannot change anything: a suggestion is a card that waits for a tap (cards.js).
-
-   This file lives in profit/v5-next/connect-ai/ until it is moved to profit/v5/pages/connect-ai/ (see README.md);
-   the imports are written for that place. */
+   The AI can read and suggest. It cannot change anything: a suggestion is a card that waits for a tap (ai-cards.js,
+   the next tab). Off by default: with the workspace switch off the page says so in one line, the owner gets the
+   switch, and everyone else is told who turns it on. */
 
 import { h, put, card, button, field, toggle, tabs, table, empty, statusDot, pill, toast, sheet, relativeTime, addStyles, em } from '../../kit.js';
 import { APP_NAME } from '../../config.js';
@@ -83,6 +82,7 @@ async function fetchAll(ctx, signal) {
 
 function draw(el, data, ctx) {
   addStyles('lx-cai-css', CSS);
+  data = data || {};
   const st = data.status || {}, keys = data.keys || [], calls = data.calls || [];
   const brandName = id => (ctx.brands || []).find(b => b.id === id)?.name || id || '';
   /* after a change: read again and draw again, in place (the key itself is never part of this data) */
@@ -100,7 +100,9 @@ function draw(el, data, ctx) {
     h('p', { class: 'lx-cai-foot' }, 'Off: the address does not answer and no key works. On: each person makes their own key, sees only their own brands, and nothing changes without a tap in ' + APP_NAME + '.')) : null;
 
   if (!st.on) {
-    return put(el, h('div', { class: 'lx-cai' }, switchCard,
+    return put(el, h('div', { class: 'lx-cai' },
+      h('p', { class: 'lx-cai-lede' }, 'Connect your AI is switched off for this workspace.' + (st.can_switch ? ' Switch it on below.' : '')),
+      switchCard,
       st.can_switch ? null : empty({ title: 'Not switched on yet', text: 'Your workspace owner turns this on. Then you can link your own Claude or ChatGPT to your numbers.' })));
   }
 
@@ -160,7 +162,8 @@ function draw(el, data, ctx) {
 
   const can = card({ title: 'What your AI can do' },
     h('ul', { class: 'lx-cai-can' }, CAN.map(([a, b]) => h('li', null, h('b', null, a), ', ' + b))),
-    h('p', { class: 'lx-cai-foot' }, 'It cannot change an ad, a budget, a setting or anything else. It cannot send, post or invite. When it suggests a change, you get a card in ' + APP_NAME + ' and nothing happens until you tap yes.'
+    h('p', { class: 'lx-cai-foot' }, 'It cannot change an ad, a budget, a setting or anything else. It cannot send, post or invite. When it suggests a change, you get a card in ' + APP_NAME + ' and nothing happens until you tap yes. ',
+      h('a', { href: ctx.href('profile', 'ai-cards') }, 'See the cards that are waiting'), '.'
       + (st.limits ? ` A key can ask ${st.limits.perMin} times a minute and ${st.limits.perDay.toLocaleString('en-US')} times a day.` : '')));
 
   put(el, h('div', { class: 'lx-cai' },

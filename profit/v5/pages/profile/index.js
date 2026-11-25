@@ -1,16 +1,16 @@
-/* Your profile, with three sections as tabs inside the page: Profile, Notifications ("How it reaches you"), Sign-in.
-   The menu gives this line one route (profile/index), so the tabs are local. Open one directly with ?ptab=notifications.
+/* Your profile, with two sections as tabs inside the page: Profile and Sign-in. How notifications reach a person is
+   its own tab on the line now (profile/delivery, saved to the account), which replaced the device-only page here.
+   The menu gives this line one route (profile/index), so the tabs are local. Open one directly with ?ptab=sign-in.
    Live data: who you are from the stored session (/api/me, already loaded by the shell) and, for the team,
-   role, brands and the Slack link from GET /api/mywork. Notification choices stay on this device for now. */
+   role, brands and the Slack link from GET /api/mywork. */
 
 import { put } from '../../kit.js';
 import { h, button, tabs, em, statusDot, toast, sheet } from '../../kit.js';
 import { APP_NAME, OLD_LOCUS, QS } from '../../config.js';
 import { css, face, ic, store } from '../my-day/_ui.js';
-import { renderReach, reachState } from './reach.js';
 
 const TAB_KEY = 'lx5_profile_tab';
-const TABS = [{ id: 'profile', label: 'Profile' }, { id: 'notifications', label: 'Notifications' }, { id: 'sign-in', label: 'Sign-in' }];
+const TABS = [{ id: 'profile', label: 'Profile' }, { id: 'sign-in', label: 'Sign-in' }];
 let tab = TABS.some(t => t.id === QS.get('ptab')) ? QS.get('ptab') : null;
 
 const ZONES = { 'America/Chicago': 'Central Time', 'America/New_York': 'Eastern Time', 'America/Denver': 'Mountain Time', 'America/Los_Angeles': 'Pacific Time', 'America/Phoenix': 'Arizona Time' };
@@ -80,7 +80,6 @@ function signinTab(host, p, ctx) {
 function draw(el, data, ctx) {
   css();
   const p = (data && data.profile) || fromLive(ctx, null);
-  const reach = (data && data.reach) || reachState(ctx.sample);
   if (!tab) tab = ctx.sample ? 'profile' : store.get(TAB_KEY, 'profile');
   if (!TABS.some(t => t.id === tab)) tab = 'profile';
   const who = { name: p.name, email: p.email, photo: p.photo };
@@ -88,10 +87,7 @@ function draw(el, data, ctx) {
   const outKey = 'lx5_out_' + new Date().toLocaleDateString('en-CA');
 
   const paint = () => {
-    if (tab === 'notifications') {
-      ctx.setTitle(['How ' + APP_NAME + ' ', em('reaches you')], { eyebrow: (p.name ? p.name + ', ' : '') + 'your profile' });
-      put(head, );
-    } else {
+    {
       ctx.setTitle([p.name || 'You', p.last_name ? ' ' : null, p.last_name ? em(p.last_name) : null], { eyebrow: 'Your profile' });
       const isOut = !ctx.sample && store.get(outKey, false);
       const outBtn = button(isOut ? "You're out today" : "I'm out today", { ghost: true, onclick: () => {
@@ -111,8 +107,7 @@ function draw(el, data, ctx) {
           p.photo_from ? statusDot('good', 'Photo from ' + p.photo_from) : statusDot('off', 'No photo yet')))));
     }
     const nav = tabs(TABS, tab, id => { tab = id; if (!ctx.sample) store.set(TAB_KEY, id); paint(); });
-    if (tab === 'notifications') renderReach(body, reach, ctx, { name: p.name });
-    else if (tab === 'sign-in') signinTab(body, p, ctx);
+    if (tab === 'sign-in') signinTab(body, p, ctx);
     else profileTab(body, p, ctx);
     put(el, nav, head, body);       /* the title is the shell's; the tabs sit under it, the hero under the tabs */
   };

@@ -1,4 +1,6 @@
 {
+ "power": false,
+ "can_power": true,
  "ok": true,
  "email": "sam@agency.example",
  "delivery": {

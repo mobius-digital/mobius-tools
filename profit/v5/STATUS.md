@@ -7,8 +7,54 @@ mode has still not been run in a browser against the live workers, and the shell
 A read-only check of the live worker answers against what each page reads was run later the same day; what it
 found and what was changed is in "Real-data and sample-name fixes" below. Nothing outside `profit/v5/` changed.
 
-- **Routes in the menu: 114** (Brand settings > Costs is new). **Built: 114. Coming: 0.** The router decides
-  by file presence: every route now has its page file, so the shared "being rebuilt" page shows for none.
+The move-in pass (2026-11-25, last) brought three finished features in from `profit/v5-next/`, which is now deleted:
+Automations, Connect your AI and free lookups. It is the next section. It was checked in sample mode only, in the
+Browser pane at desktop width and at 375. Real mode was not run and no live route was called, read or write.
+
+- **Routes in the menu: 126** (114 before the move-in; Automations has 4 tabs and sits in both side menus, so it
+  counts 8; Ask gained 1; Your profile gained 3). **Built: 126. Coming: 0.** The router decides by file presence:
+  every route has its page file, so the shared "being rebuilt" page shows for none.
+
+## The move-in: Automations, Connect your AI, free lookups (2026-11-25)
+
+All three are OFF by default on the account-health worker, each behind its own switch. The worker routes were
+already on main; this pass changed no worker file. What each page does when its switch is off:
+
+| Feature | Switch (account-health) | In the menu | When it is off |
+|---|---|---|---|
+| Automations | settings `automationsOn`, set by `POST /api/automations/power { on }` (owner only) | Its own group and line, team only, in the brand menu and the agency menu: Running, Templates, Who does what, Run log. Each person's choice is Your profile > How things reach me | Every page shows one banner: "Automations are off for this workspace." The owner gets a real "Switch automations on" button (the pages already had it). Everyone else is told the owner switches it on. Setting up and "Try it" still work, as the worker allows |
+| Connect your AI | settings `connectAi`, set by `PUT /api/connect-ai/switch { on }` (owner only) | Your profile > Connect your AI, and Your profile > AI suggestions (the cards). Everyone, clients included | One line: "Connect your AI is switched off for this workspace." The owner gets the real switch (the page already had it). Everyone else reads "Not switched on yet". The cards tab says it is off and links to the switch |
+| Free lookups | settings `freeLookups` (`on` or `code`). No route for it that the page may call | Ask > Free answers (team only), and the main Ask page shows a free answer with "Ask why" | One line: "Free answers are switched off", and that there is no switch on the page yet. No switch is drawn, because none would work. The list of what will be free still shows, and a question is not sent |
+
+Where the files went (the READMEs in `v5-next` are gone; this is the record):
+
+- `pages/automations/`: `running.js`, `templates.js`, `people.js`, `log.js`, shared `_auto.js`, and new `_notices.js`.
+- `pages/profile/delivery.js` (How things reach me). It replaces the device-only "How it reaches you" tab that
+  lived inside Your profile: `pages/profile/reach.js` is deleted and the Profile page has two inner tabs now
+  (Profile, Sign-in). The bell's "Settings" link opens the new tab.
+- `pages/profile/connect-ai.js` and `pages/profile/ai-cards.js`. The README asked for a `connect-ai` folder with
+  its own two routes; they are tabs of Your profile instead, so they are found under Profile and need no new line.
+  A link an AI hands back (`?open=aiproposal&id=<card id>&act=<brand id>`) opens the cards tab (app.js) and the
+  page marks that card.
+- `pages/ask/free.js`. The Ask line has two tabs now (Ask, Free answers).
+- Sample files sit beside each page. `pages/_sample/notices.json` is new (the shape of `GET /api/notices`).
+
+The bell and the "needs you" lists:
+
+- `bell.js` reads `GET /api/notices` (account-health) beside what it already read, and adds those rows to Needs
+  you, Watching and Done today. The route has no on or off flag: with automations off nothing makes rows, so it
+  answers empty and the bell is as before. The read is a quiet fetch of its own: a refusal, an older worker or a
+  dropped connection gives no rows and never opens the sign in page. The bell count includes the new rows.
+- Notifications > Needs you, Watching and Done today show the same rows (they read `bell.js`). A row an automation
+  left is answered in its sheet on that page: "I did it" or "No" for a suggested change, "Send to the client" or
+  "Do not send" for a held client message, "Done" for anything else (`POST /api/notices/done`).
+- Home (brand) and Today (agency) have a "Needs you" card (`pages/automations/_notices.js`) with the same buttons.
+  It draws itself after the page and is not drawn at all when there are no rows or the read fails.
+
+Also changed: the product name in the automations toast comes from `APP_NAME`; three sample files said the
+product name in a worker sentence and now say "The app"; `menu.js` `viewOf()` answers null for a line that is in
+both side menus, so Automations keeps the view you are in; a new `bolt` icon. Home and Today now import `bell.js` and
+`_notices.js` with the page (about 10 KB raw together), so `bell.js` is no longer only loaded when idle on those two.
 
 ## Real-data and sample-name fixes (2026-11-25, after the shell pass)
 
@@ -77,6 +123,22 @@ changes after it are not sent. Sample mode sends nothing.
 | Test and call rules for one brand | Brand settings > Goals, "Test and call rules for this brand" | profit `PUT /api/brand/rules?act=<brand id>` `{ rules: { <name>: <number> } }`, one name per call: cr_judge_x, cr_min_days, cr_scale_buys, cr_cut_zero_x, cr_cut_spend_x, cr_cut_cpa_x, judge_days, judge_spend. 0 or empty puts a rule back on the standard |
 | My settings (morning summary as a Slack DM) | Your profile > My settings | ah `PUT /api/me/prefs` `{ morning_dm: true or false }` |
 | Assistant settings (depth, standing instructions) | Agency settings > AI | ah `PUT /api/ask/settings` `{ model: quick, smart or deep }` and `{ instructions }` |
+
+The three moved-in features bring their own writes, all on the account-health worker and all refused by the worker
+while the feature (or the login) does not allow them. They are single taps or small sheets, not the staged Save
+bar above. Sample mode sends none of them. None was sent in this pass.
+
+| Write | Page | Sends |
+|---|---|---|
+| Switch automations on | The banner on every Automations page and on How things reach me (owner only) | `POST /api/automations/power` `{ on: true }` |
+| Save, switch or delete an automation; Try it | Automations > Running, Templates (the editor sheet) | `PUT /api/automations`, `DELETE /api/automations?id=`, `POST /api/automations/test` (a dry run) |
+| Who does what, the team list | Automations > Who does what | `PUT /api/automations/people` |
+| How things reach me | Your profile > How things reach me | `PUT /api/me/delivery` |
+| Answer a row an automation left | Home and Today "Needs you", Notifications | `POST /api/notices/done` (`answer: did_it / no / send`, or `done`). The worker refuses `yes` on a suggested change: the app changes nothing there |
+| The Connect your AI switch | Your profile > Connect your AI (owner only) | `PUT /api/connect-ai/switch` `{ on }` |
+| Make a key, turn a key off | Your profile > Connect your AI | `POST /api/connect-ai/keys`, `POST /api/connect-ai/keys/revoke` |
+| Yes or No on an AI card | Your profile > AI suggestions | `POST /api/connect-ai/proposals/check` (reads Meta, changes nothing), `POST /api/connect-ai/proposals/decide`. A yes only makes the change when the worker setting `connectAiApply` is on (off by default) |
+| A free answer, and "Ask why" | Ask > Free answers, Ask | `POST /api/lookup` (reads only), `POST /api/ask` with `full: true` |
 
 Changed on purpose on the Goals page: typing in the four facts no longer stages a goal by itself. The goal in
 use is a box the person types in. "Use 2.78x" copies the worked out number in, and only shows when that number
@@ -169,6 +231,10 @@ in _set.js, and drop `'ai.brief'` from `held` in a-settings/ask.js.
 | `brand-settings/brand` | Built (some example: social and creator times, stock and judge windows) |
 | `brand-settings/integrations` | Built (live data) |
 | `brand-settings/people` | Built (some example: who runs the brand, send times and launch days) |
+| `automations/running` | Moved in (team only; also in the agency view). Live data, checked in sample mode only. In a brand view it lists that brand's and the any-brand automations |
+| `automations/templates` | Moved in. Live data, checked in sample mode only |
+| `automations/people` | Moved in. Live data, checked in sample mode only. Reads `GET /api/automations` as well, only to know if the switch is off |
+| `automations/log` | Moved in. Live data, checked in sample mode only |
 
 ### Agency view (`#/agency/all/...`)
 
@@ -211,16 +277,22 @@ in _set.js, and drop `'ai.brief'` from `held` in a-settings/ask.js.
 | `a-settings/how-we-run-ads` | Built (some example: the agency standard and the non-creative rules) |
 | `a-settings/sending` | Built (some example: previews, counts, each person's choices, the stopped list) |
 
+The four `automations/*` routes above are the same pages in the agency view (`#/agency/all/automations/...`), where they cover every brand.
+
 ### Top bar pages (either view)
 
 | Route | State |
 |---|---|
-| `ask/index` | Built (live data) |
+| `ask/index` | Built (live data). A free answer (free lookups on) shows as "Free answer" with its page link and an "Ask why" button, which sends the same question with `full: true`. Not seen against the live worker |
+| `ask/free` | Moved in (team only). Live data, checked in sample mode only. Says so when free lookups are off |
 | `my-day/index` | Built (some example: meetings, times on done rows) |
 | `notifications/needs-you` | Built in batch 3 (its header comment says what is live and what is example) |
 | `notifications/watching` | Built in batch 3 (its header comment says what is live and what is example) |
 | `notifications/done-today` | Built in batch 3 (its header comment says what is live and what is example) |
-| `profile/index` | Built (some example: the three message previews) |
+| `profile/index` | Built (some example: the three message previews). Its inner Notifications tab is gone: see `profile/delivery` |
+| `profile/delivery` | Moved in. Live data (`GET /api/me/delivery`), saved to the account. Checked in sample mode only. The team's page also reads `GET /api/automations` to know if the switch is off; a client cannot read that and sees no banner |
+| `profile/connect-ai` | Moved in. Live data, checked in sample mode only |
+| `profile/ai-cards` | Moved in. Live data, checked in sample mode only. In a brand view it shows that brand's cards |
 | `profile/settings` | Built (some example: everything except the morning DM switch). SAVE IS ON: the morning DM switch |
 
 ## New read-only worker routes needed (one list, no repeats)
@@ -318,6 +390,21 @@ Every row here still links to old Locus or opens a read-only sheet, except the f
 
 ## Known gaps
 
+- **The move-in was checked in sample mode only.** Every moved page, the bell, the Notifications tabs, Home and
+  Today were opened in the Browser pane with `?sample=1` at desktop width and at 375 (also as a client): no console
+  error, no sideways scroll, the editor sheet rises from the bottom. The off states of Connect your AI, the cards
+  and Free answers were drawn by calling each page's render with an "off" answer, because their sample files are on.
+  Nothing was run signed in, signed out against the live worker, or with a real switch flipped.
+- Free lookups have no switch in the app. Turning them on is a settings key on the worker (`freeLookups`); the
+  agency settings save (`PUT /api/settings`) is still held in v5, so the page only says it is off.
+- After a row is answered on a Notifications tab the row is taken off the page, but the count in the page's hero
+  and on the bell stays until the next read (up to a minute, or the next open of the bell).
+- A client login needs `/api/notices`, `/api/notices/done` and `/api/me/delivery` to pass the worker's client
+  guard. The automations module says a client reaches them; that was not tried with a client login. If the guard
+  refuses, the client sees no automation rows (the read fails quietly) and How things reach me shows the error page.
+- The three connect steps for Claude and ChatGPT were written from each app's help pages and were not clicked through.
+- A sheet that is open stays open when the address changes (kit.js, as before). Not changed here.
+
 - Real mode has not been run in a browser. The live answers were compared with what the pages read for the
   pages named in "Real-data and sample-name fixes"; every other page's not-connected, empty and real-data states
   are unverified. The fixes in that section were not re-run against the live workers after they were made.
@@ -352,19 +439,19 @@ Every row here still links to old Locus or opens a read-only sheet, except the f
 | `index.html` | 4,226 |
 | `app.css` | about 50,500 |
 | `kit.js` | about 43,700 |
-| `shell.js` | 23,730 |
+| `shell.js` | 23,751 |
 | `data.js` | 14,180 |
-| `menu.js` | about 12,300 |
+| `menu.js` | 12,925 |
 | `router.js` | 9,741 |
-| `icons.js` | about 5,350 |
-| `app.js` | 4,689 |
+| `icons.js` | 5,261 |
+| `app.js` | 5,197 |
 | `config.js` | 4,855 |
-| `bell.js` (loaded when idle) | 4,023 |
-| Shell JS total | about 117,000 (under the 150 KB line) |
+| `bell.js` (loaded when idle) | 7,690 |
+| Shell JS total | about 118,000 (under the 150 KB line) |
 | Fonts (Inter, Instrument Serif Italic) | 64,116 |
 | Home page module + its sample | 21,216 + 3,519 |
 
 A first open of Home loads index.html, app.css, the eight shell modules, the Home module and the
 fonts: about 263 KB raw, plus bell.js when idle. Page modules load only with `import()` when their
-route is visited (or when a menu link is hovered, as a warm up). All 144 page modules together (129 at the end of batch 2; the size line below was not re-measured) are
+route is visited (or when a menu link is hovered, as a warm up). All 153 page modules together (144 before the move-in, 129 at the end of batch 2; the size line below was not re-measured) are
 about 1.15 MB raw and the sample files about 434 KB; none of them loads before its page.

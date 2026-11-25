@@ -1,4 +1,4 @@
-/* Connect your AI > Suggestions from your AI. The cards a connected AI made, each waiting for one tap.
+/* Your profile > AI suggestions. The cards a connected AI made, each waiting for one tap.
    Nothing here has happened yet: a card is a suggestion until a signed-in person taps Yes.
    Real mode: account-health GET /api/connect-ai/proposals (add ?act=<brand id> in a brand view), and
    POST /api/connect-ai/proposals/decide { id, yes } for the tap.
@@ -6,10 +6,8 @@
    POST /api/connect-ai/proposals/check { id }, which reads the real name and the real before and after from Meta,
    and shows them in a sheet. The yes in that sheet sends back what was shown ({ expect, big }); the worker refuses
    a yes that does not carry it. A login that can only look (can_act false) gets no buttons.
-   A link the AI hands back (?open=aiproposal&id=...&act=...) should open this page; the id in the address marks that card.
-
-   This file lives in profit/v5-next/connect-ai/ until it is moved to profit/v5/pages/connect-ai/ (see README.md);
-   the imports are written for that place. */
+   A link the AI hands back (?open=aiproposal&id=...&act=...) opens this page (app.js); the id in the address marks that card.
+   With Connect your AI switched off the route answers { on: false, proposals: [] } and the page says so in one line. */
 
 import { h, put, button, empty, pill, toast, sheet, field, addStyles, em, money } from '../../kit.js';
 import { APP_NAME, QS } from '../../config.js';
@@ -45,6 +43,11 @@ function left(iso) {
 
 function draw(el, data, ctx) {
   addStyles('lx-caip-css', CSS);
+  data = data || {};
+  if (data.on === false) {
+    return put(el, h('div', { class: 'lx-caip' }, empty({ title: 'Connect your AI is switched off', text: 'No AI is connected to this workspace, so there are no cards. The switch is on the Connect your AI tab.',
+      action: button('Open Connect your AI', { href: ctx.href('profile', 'connect-ai') }) })));
+  }
   const list = (data.proposals || []).filter(p => p.status === 'waiting');
   const applies = !!data.applies_on_yes;
   const marked = QS.get('id');
@@ -133,7 +136,7 @@ function draw(el, data, ctx) {
 
 export default {
   title: ['Suggestions from ', em('your AI')],
-  eyebrow: 'Connect your AI',
+  eyebrow: 'Your profile',
   ranges: false,
   async load(ctx) {
     const q = ctx.brand && ctx.brand.id ? '?act=' + encodeURIComponent(ctx.brand.id) : '';
