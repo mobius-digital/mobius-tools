@@ -213,6 +213,13 @@ const CSS = `
 .cr-heroline .big{font-size:30px;font-weight:600;letter-spacing:-.035em;line-height:1.15;overflow-wrap:anywhere}
 .cr-heroline .of{font-size:13.5px;color:var(--muted);font-variant-numeric:tabular-nums}
 .cr-herogrid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.4fr);gap:44px;align-items:end}
+/* a row of big tiles wrapped in .cr-fit keeps its count on one row: when the figures at full size would need a
+   second row, they get smaller (never under 30px) until the row fits its box. If even 30px does not fit, the
+   row wraps as it always did, at full size. --kpi-em is the widest figure, set by kit kpis(). */
+.cr-fit{container-type:inline-size;min-width:0}
+.cr-fit>.lx-kpis{--fit:calc((100cqw - (var(--cols) - 1) * var(--gap-kpi)) / var(--cols) / var(--kpi-em,4.55) - .5px)}
+.cr-fit>.lx-kpis:has(>.lx-kpi.lg){--kpi-fs:max(min(var(--fs-hero),var(--fit)),min(var(--fs-hero),(30px - var(--fit)) * 9999))}
+.cr-fit>.lx-kpis>.lx-kpi.lg .v{font-size:var(--kpi-fs)}
 .cr-ladder{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:24px}
 .cr-ladder div{display:grid;gap:4px;padding-top:14px;border-top:3px solid var(--bg-sunk)}
 .cr-ladder .good{border-top-color:var(--good)}
