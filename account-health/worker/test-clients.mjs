@@ -647,6 +647,31 @@ await check('Brand costs: a client sets, removes and uploads cost rules for its 
   db.exec(`DELETE FROM p_cost_rule; DELETE FROM p_product_cost;`);
 });
 
+await check('Daily Brief: a client login never gets a fixed cost category, and no fixed cost or net profit while the switch is off', async () => {
+  const { briefSent, CLIENT_RULES } = await import('./src/brandguard.js');
+  const payload = on => ({
+    act_id: 'brand_alpha', mtd: { sales: 9000, cm: 3000 },
+    days: [{ date: '2026-11-01', f: {}, a: { sales: 500, cm: 150, fixed: 40, ad_expense: 5, net: 105 } }, { date: '2026-11-02', f: {}, a: null }],
+    history: [{ date: '2026-11-01', status: 'sent', text: 'SENT' }, { date: '2026-11-02', status: 'draft', text: 'DRAFT' }],
+    fixed: { by_category: [{ category: 'c1', label: 'Founder salary', amount: 1200 }, { category: 'c2', label: 'Loan', amount: 300 }], in_posts: on, mtd: { fixed: 1500, ad_expense: 100, net: 1400 } },
+  });
+  const off = briefSent(payload(false)), offS = JSON.stringify(off);
+  assert.equal(off.fixed, undefined, 'switch off: no fixed block');
+  assert.ok(!/Founder salary|Loan|by_category|"net"|"ad_expense"|"fixed"/.test(offS), offS);
+  assert.deepEqual(off.days[0].a, { sales: 500, cm: 150 }, 'the day keeps its sales and margin');
+  assert.deepEqual(off.history.map(r => r.status), ['sent']);
+  const on = briefSent(payload(true)), onS = JSON.stringify(on);
+  assert.ok(!/Founder salary|Loan|by_category/.test(onS), 'switch on: still no category');
+  assert.deepEqual(on.fixed, { in_posts: true, mtd: { fixed: 1500, ad_expense: 100, net: 1400 } }, 'one total and net');
+  assert.equal(on.days[0].a.net, 105);
+  /* anything but a real true is off; a brand with no fixed cost is untouched */
+  assert.equal(briefSent({ ...payload(false), fixed: { in_posts: 1, by_category: [{ label: 'Loan', amount: 1 }], mtd: { net: 1 } } }).fixed, undefined);
+  assert.deepEqual(briefSent({ days: [{ a: { sales: 1 } }], history: [] }), { days: [{ a: { sales: 1 } }], history: [] });
+  assert.equal(briefSent(null), null);
+  /* the client rule for the route still runs this pass */
+  assert.equal(CLIENT_RULES.find(r => r.m === 'GET' && r.p === '/api/brief').post, briefSent);
+});
+
 await check('a client can edit only its own profile', async () => {
   const r = await ah(CLIENT, 'PUT', '/api/clients/me', { name: 'Nick Y', welcomed: true });
   assert.equal(r.status, 200);

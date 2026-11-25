@@ -155,7 +155,18 @@ export function capMessage(key) {
    = the body the handler gets instead (async). post(answer) = a last pass over the answer. cal = calendar route. */
 const sentOnlyList = b => { if (b && Array.isArray(b.rows)) b.rows = b.rows.filter(r => r && r.status === 'sent'); if (b) delete b.lastRun; return b; };
 const sentOnlyOne = b => (b && b.status === 'sent' ? b : { __deny: 404, error: 'no report for that period' });
-const briefSent = b => { if (b && Array.isArray(b.history)) b.history = b.history.filter(r => r && r.status === 'sent'); return b; };
+/* The Daily Brief page for a client: sent briefs only, and fixed costs under the same rule as every client page
+   (2026-11-25). Never a category name or amount (they are the team's free text). With settings costsNetInPosts off
+   (fixed.in_posts is not true) nothing about fixed costs or net profit leaves: not the month block, not a day's
+   fixed / ad_expense / net. With it on, the one total and net stay. */
+export const briefSent = b => {
+  if (!b || typeof b !== 'object') return b;
+  if (Array.isArray(b.history)) b.history = b.history.filter(r => r && r.status === 'sent');
+  const on = !!b.fixed && typeof b.fixed === 'object' && b.fixed.in_posts === true;
+  if (on) delete b.fixed.by_category; else delete b.fixed;
+  if (!on && Array.isArray(b.days)) for (const d of b.days) if (d && d.a && typeof d.a === 'object') { delete d.a.fixed; delete d.a.ad_expense; delete d.a.net; }
+  return b;
+};
 const ownDash = (ids) => b => { if (b && Array.isArray(b.dashboards)) b.dashboards = b.dashboards.filter(d => d && d.act && ids.has(d.act)); return b; };
 const noAgency = b => { if (b && typeof b === 'object') b.agency = []; return b; };
 /* Integrations for a client (2026-10-14, Cole saw other clients' Google Ads accounts in the pick list): no agency card,

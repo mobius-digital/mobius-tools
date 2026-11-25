@@ -2500,7 +2500,9 @@ async function briefData(env, acct, upTo) {
      and only where contribution margin exists; nothing is added otherwise. Brief CM does not hold the "counts as ad
      spend" expenses, so net subtracts those too (the text prints them as their own row, so the sum shows).
      `in_posts` (settings costsNetInPosts = 1, default off) decides whether the Slack text prints the rows. This payload
-     is the team's (by_category stays here); a report and the client profit link carry nothing while the switch is off. */
+     is the team's (by_category stays here). GET /api/brief is also a client route: brandguard briefSent drops
+     by_category for a client login always, and the whole block plus each day's fixed / ad_expense / net while the
+     switch is off. A report and the client profit link carry nothing while the switch is off. */
   let fixedBlock = null;
   if (fixedCosts.length) {
     const dayRow = x => ({ date: x.date, sales: x.a.sales, spend: x.a.spend, orders: x.a.orders });
