@@ -171,10 +171,7 @@ async function authKind(request, env) {
   if (clientScope(request)) return 'client';
   const sess = await verifySession(env, tok);
   if (sess && (await emailAllowed(env, sess.email))) return 'admin';
-  // Dashboard password lives in the SHARED settings table, so one password
-  // opens both tools with nothing to configure here.
-  const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'passwordHash'`).first();
-  if (row?.value && (await sha256hex(tok)) === row.value) return 'admin';
+  /* No shared password (removed 2026-11-25): a person signs in as themselves. */
   // Checked BEFORE delegating: the demo password is local to this tool and must not
   // be forwarded to HQ, which would reject it and cost a round trip.
   const demo = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'demoPasswordHash'`).first();
@@ -1765,13 +1762,12 @@ export default {
        token you supplied — no secrets, no other user's state. */
     if (path === '/api/auth-check') {
       const tok = (request.headers.get('Authorization') || '').replace(/^Bearer /, '');
-      const out = {
-        has_auth_binding: !!env.AUTH,
-        has_session_secret: !!env.SESSION_SECRET,
-        has_admin_token: !!env.ADMIN_TOKEN,
-        shared_password_set: !!(await env.DB.prepare(`SELECT value FROM settings WHERE key = 'passwordHash'`).first())?.value,
-        token_seen: tok ? `${tok.slice(0, 4)}…(${tok.length})` : null,
-      };
+      const out = { has_auth_binding: !!env.AUTH };
+      /* How this worker is set up is for a signed-in team member only. */
+      if (tok && (await isAdmin(request, env))) {
+        out.has_session_secret = !!env.SESSION_SECRET;
+        out.has_admin_token = !!env.ADMIN_TOKEN;
+      }
       // Prove the worker-to-worker binding is actually reachable.
       try {
         const probe = env.AUTH ? await env.AUTH.fetch(new Request(`${AUTH_WORKER}/health`)) : null;

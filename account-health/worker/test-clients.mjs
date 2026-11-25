@@ -907,6 +907,56 @@ await check('Lucky HQ (2026-11-11): a pass from HQ opens Lucky Golf only, with t
   delete ahEnv.LOCUS_HQ_SECRET;
 });
 
+await check('the team list: the owner or the admin key changes it; a sign-in with no name is a team member', async () => {
+  const listed = () => db.prepare(`SELECT value FROM settings WHERE key = 'allowedEmails'`).get()?.value || '[]';
+  const before = listed();
+  assert.equal((await ah(TEAM, 'PUT', '/api/team', { email: 'new@outside.com' })).status, 403);
+  assert.equal(listed(), before, 'nothing was written');
+  assert.equal((await ah(TEAM, 'GET', '/api/team')).j.can_set_brands, false);
+  assert.equal((await ah(OWNER, 'PUT', '/api/team', { email: 'new@outside.com', role: 'viewer' })).status, 200);
+  assert.ok(listed().includes('new@outside.com'));
+  assert.equal((await ah(OWNER, 'PUT', '/api/team', { email: 'new@outside.com', remove: true })).status, 200);
+  assert.equal((await ah(OWNER, 'GET', '/api/team')).j.can_set_brands, true);
+  /* Made-up values, for this test only. */
+  ahEnv.ADMIN_TOKEN = 'test-admin-key';
+  db.prepare(`INSERT INTO settings (key, value) VALUES ('passwordHash', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).run(crypto.createHash('sha256').update('test-shared-pass').digest('hex'));
+  try {
+    const key = await ah('test-admin-key', 'GET', '/api/me');
+    assert.deepEqual([key.status, key.j.master, key.j.role, key.j.email], [200, true, 'owner', null]);
+    assert.equal((await ah('test-admin-key', 'GET', '/api/team')).j.can_set_brands, true);
+    assert.equal((await ah('test-admin-key', 'PUT', '/api/team', { email: 'new@outside.com', brands: ['brand_alpha'] })).status, 200);
+    assert.equal((await ah('test-admin-key', 'PUT', '/api/team', { email: 'new@outside.com', remove: true })).status, 200);
+    /* The shared password is gone: a stored hash opens nothing on either worker, and nobody can set one. */
+    for (const [m, p] of [['GET', '/api/me'], ['GET', '/api/team'], ['GET', '/api/accounts']]) assert.equal((await ah('test-shared-pass', m, p)).status, 401, p);
+    assert.equal((await ah('test-shared-pass', 'PUT', '/api/team', { email: 'new@outside.com' })).status, 401);
+    assert.equal((await pf('test-shared-pass', 'GET', '/api/auth-check')).j.authorized, false);
+    assert.notEqual((await ah(OWNER, 'PUT', '/api/password', { password: 'another-made-up' })).status, 200);
+    assert.equal(db.prepare(`SELECT value FROM settings WHERE key = 'passwordHash'`).get().value, crypto.createHash('sha256').update('test-shared-pass').digest('hex'), 'the route wrote nothing');
+    assert.equal(listed(), before, 'nothing was written');
+  } finally {
+    delete ahEnv.ADMIN_TOKEN;
+    db.prepare(`DELETE FROM settings WHERE key = 'passwordHash'`).run();
+  }
+  const me = await ah(OWNER, 'GET', '/api/me'), tm = await ah(TEAM, 'GET', '/api/me');
+  assert.deepEqual([me.j.master, me.j.role, tm.j.master, tm.j.role], [false, 'owner', false, 'team']);
+});
+
+await check('with no sign-in: health says ok and the time, the sign-in check keeps the set-up to the team', async () => {
+  const h = await ah(null, 'GET', '/health');
+  assert.deepEqual([h.status, Object.keys(h.j).sort()], [200, ['ok', 'time']]);
+  const hs = await ah(TEAM, 'GET', '/health');
+  assert.ok(hs.j.ok && 'lastRun' in hs.j && 'hasMetaToken' in hs.j, JSON.stringify(hs.j));
+  const none = await pf(null, 'GET', '/api/auth-check'), bad = await pf('not-a-session-123456', 'GET', '/api/auth-check'), team = await pf(OWNER, 'GET', '/api/auth-check');
+  for (const r of [none, bad]) {
+    assert.equal(r.status, 200);
+    for (const k of ['shared_password_set', 'has_admin_token', 'has_session_secret', 'token_seen']) assert.ok(!(k in r.j), k);
+  }
+  assert.deepEqual([bad.j.authorized, bad.j.kind, bad.j.local_session_verify], [false, null, false]);
+  assert.ok(!JSON.stringify(bad.j).includes('not-'), 'nothing of the token comes back');
+  assert.deepEqual([team.j.authorized, team.j.kind, typeof team.j.has_admin_token, 'shared_password_set' in team.j, 'token_seen' in team.j], [true, 'admin', 'boolean', false, false]);
+  assert.equal((await ah(null, 'GET', '/api/share/0123456789abcdef0123')).status, 401);
+});
+
 globalThis.fetch = realFetch;
 const pass = results.filter(Boolean).length;
 console.log(`\n${pass}/${results.length} passed`);
