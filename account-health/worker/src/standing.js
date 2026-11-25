@@ -717,8 +717,8 @@ export async function postBatch(env, deps, rec) {
   const bt = { slot: rec.slot, channel: null, ts: null, items: [] }, drafts = [];
   for (const b of rec.brands) {
     if (b.no_sales) continue;
-    const waiting = b.suggest && b.suggest.to && !(rec.approved || {})[b.act_id] && !(b.client_approve || CLIENT_APPROVE.has(b.act_id));   // a client-approve brand goes out now, suggestion inside
-    if (waiting) { bt.items.push({ act: b.act_id, name: b.name, id: null, status: 'waiting' }); continue; }
+    /* Every brand's update is ready to send now (2026-11-25: the 2pm round never went out because three brands sat
+       "waiting on your Approve" with no draft). An Approve later rebuilds that brand's draft with the change in it. */
     const d = await draftFor(env, deps, rec, b.act_id, rec.slot).catch(() => null);
     if (!d) continue;
     bt.items.push({ act: b.act_id, name: d.name, id: d.id, status: d.forCole ? 'forme' : 'ready' });
