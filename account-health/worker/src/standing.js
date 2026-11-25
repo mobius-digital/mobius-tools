@@ -111,7 +111,7 @@ async function metaSide(env, md, act, today) {
   }
   /* Meta would not say: the limits Cole listed on 2026-11-22 (raise requests pending), labelled as such. */
   if (limit == null && KNOWN_LIMITS[act]) { limit = KNOWN_LIMITS[act]; src = 'known'; }
-  const camps = await campList(env, act, ml, spent || {}, today).catch(() => []);
+  const camps = await campList(env, act, ml, spent || {}, today, md).catch(() => []);
   return { camps, camp: camp ? { id: camp.id, name: camp.name, daily: camp.daily || null, spent: spent ? (spent[camp.id] || 0) : null } : null, on, limit, limit_src: limit ? src : null, limit_error: limitErr, headroom: limit ? limit - on : null };
 }
 
@@ -120,14 +120,22 @@ async function metaSide(env, md, act, today) {
    days (Triple Whale lastPlatformClick on its ads; spend from ad_daily). Campaign returns are ad-platform credit, not
    the store MER the call runs on, so the card labels them. */
 const KIND = n => SALE_RE.test(n || '') ? 'sale' : /giveaway|lead/i.test(n || '') ? 'leads' : /creator|trybe|\bace\b/i.test(n || '') ? 'creators' : /\[md\]|evergreen|cbo|abo/i.test(n || '') ? 'evergreen' : 'other';
-async function campList(env, act, ml, spent, today) {
+async function campList(env, act, ml, spent, today, md = null) {
   const cs = Object.entries((ml && ml.campaigns) || {}).map(([id, c]) => ({ id, name: c.name, daily: c.daily || null, status: c.status, spent: spent[id] || 0 }))
     .filter(c => c.status === 'ACTIVE' && (c.spent > 0 || c.daily));
   if (!cs.length) return [];
   const from = (() => { const d = new Date(today + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - 3); return d.toISOString().slice(0, 10); })();
   const acts = await metaActsOf(env, act).catch(() => []);
   const sp = {}, rv = {};
-  if (acts.length) {
+  /* Spend from Meta's own campaign totals: the ad-level table lags for new ads (Lucky BFCM 2026, 168 ads, read $0 for
+     Nov 24 on 2026-11-25). The ad-level table is only the fallback when Meta does not answer. */
+  const until = (() => { const d = new Date(today + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - 1); return d.toISOString().slice(0, 10); })();
+  let metaOk = false;
+  for (const m of md ? await metaActs(env, act).catch(() => []) : []) {
+    const r = await gget(md, env, `${m.act}/insights`, { level: 'campaign', time_range: JSON.stringify({ since: from, until }), fields: 'campaign_id,spend', limit: 200 }).catch(() => null);
+    if (r && r.data) { metaOk = true; for (const x of r.data) sp[x.campaign_id] = (sp[x.campaign_id] || 0) + (+x.spend || 0); }
+  }
+  if (!metaOk && acts.length) {
     const r1 = await env.DB.prepare(`SELECT a.campaign_id c, SUM(d.spend) s FROM ad_daily d JOIN ads a ON a.ad_id = d.ad_id WHERE d.act_id IN (${acts.map((_, i) => `?${i + 3}`).join(', ')}) AND d.date >= ?1 AND d.date < ?2 GROUP BY a.campaign_id`)
       .bind(from, today, ...acts).all().catch(() => ({ results: [] }));
     for (const x of r1.results || []) sp[x.c] = x.s || 0;
