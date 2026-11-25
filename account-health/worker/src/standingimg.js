@@ -88,6 +88,64 @@ export function boardSvg(rec) {
   return svgWrap(W, H, o);
 }
 
+
+/** The check-in picture (Cole 2026-11-25: "a nice photo to read, with the buttons underneath"). One card per brand:
+ *  Last 6 hours / Today / This week (MER big, colored against the goal; sales and ad spend under it), then the call
+ *  naming the campaign it changes, then at most two other campaigns worth a look. Approve buttons sit under it in Slack. */
+function holdWhy(b) {
+  const g = b.suggest || {}, m = b.meta || {}, c = m.camp;
+  if (b.watch) return 'Fela runs these budgets';
+  if (b.no_sales) return 'no sales feed, spend only';
+  if (b.mode === 'after') return 'sale ended';
+  if (/would not get spent/.test(g.why || '') && c) return `spent only ${money(c.spent)} of ${money(c.daily)} today, so more would not get spent`;
+  if (/too early|not enough/i.test(g.why || '')) return 'too early to judge today';
+  if (g.note) return g.note.replace(/\.$/, '');
+  return 'between break-even and goal';
+}
+export function opsSvg(rec) {
+  const W = 1200, pad = 40, cardH = 236, gap = 18, top = 110;
+  const B = [...rec.brands].sort((a, b) => ((b.suggest || {}).to ? 1 : 0) - ((a.suggest || {}).to ? 1 : 0));
+  const H = top + B.length * (cardH + gap) + 50;
+  let o = T(pad, 58, 'WHERE WE STAND', { size: 15, bold: true, fill: C.dim, ls: 2 })
+    + T(W - pad, 58, `${dayOf(rec.slot)} · ${hourOf(rec.slot)} CT`, { size: 15, fill: C.dim, anchor: 'end' })
+    + T(pad, 88, 'MER = store sales ÷ all ad spend. Green at or over goal, yellow under goal, red under break-even.', { size: 14, fill: C.dim });
+  B.forEach((b, i) => {
+    const y = top + i * (cardH + gap), g = b.suggest || {}, m = b.meta || {}, c = m.camp;
+    const line = b.hold ?? (b.kpi ? b.kpi * 0.8 : null);
+    const col = v => v == null || !b.kpi ? C.dim : v >= b.kpi ? C.green : line != null && v < line ? C.red : C.yellow;
+    o += R(pad, y, W - 2 * pad, cardH, C.card, 16);
+    o += R(pad, y + 14, 6, cardH - 28, col(b.today && b.today.mer), 3);
+    o += T(pad + 28, y + 42, b.name, { size: 24, bold: true });
+    o += T(pad + 28 + b.name.length * 14 + 16, y + 42, `goal ${x(b.kpi)}${line ? ` · break-even ${x(line)}` : ''}`, { size: 15, fill: C.dim });
+    const done = (rec.approved || {})[b.act_id];
+    const [lab, lc] = done ? ['APPROVED', C.blue] : g.to ? (g.pct < 0 ? CALL.cut : CALL[g.call] || CALL.raise) : CALL.hold;
+    o += R(W - pad - 168, y + 18, 146, 36, lc + '26', 18) + T(W - pad - 95, y + 42, lab, { size: 15, bold: true, fill: lc, anchor: 'middle' });
+    /* three windows */
+    const wins = [['LAST 6 HOURS', b.last6], ['TODAY', b.today], ['THIS WEEK', b.week]], tw = (W - 2 * pad - 56 - 2 * 16) / 3;
+    wins.forEach(([l, p], j) => {
+      const px = pad + 28 + j * (tw + 16), py = y + 62;
+      o += R(px, py, tw, 86, C.bg, 12) + T(px + 16, py + 24, l, { size: 12, bold: true, fill: C.dim, ls: 1.2 });
+      if (!p || p.sales == null) { o += T(px + 16, py + 62, b.no_sales && p && p.spend != null ? `${money(p.spend)} spent` : 'no data yet', { size: 18, fill: C.dim }); return; }
+      o += T(px + 16, py + 62, x(p.mer), { size: 30, bold: true, fill: col(p.mer) });
+      o += T(px + 16 + x(p.mer).length * 18 + 12, py + 50, `${money(p.sales)} sales`, { size: 14 }) + T(px + 16 + x(p.mer).length * 18 + 12, py + 70, `${money(p.spend)} ad spend`, { size: 14, fill: C.dim });
+    });
+    /* the call, naming the campaign */
+    const cn = c ? c.name : 'no live sale campaign';
+    let call;
+    if (done) call = `Approved: ${cn}  ${money(done.from)} → ${money(done.to)} a day`;
+    else if (g.to && c) call = `${g.pct < 0 ? 'Cut' : 'Raise'} ${cn}  ${money(c.daily)} → ${money(g.to)} a day`;
+    else call = `Hold ${cn}${c && c.daily ? ` at ${money(c.daily)} a day` : ''}: ${holdWhy(b)}`;
+    o += T(pad + 28, y + 182, call.length > 100 ? call.slice(0, 98) + '…' : call, { size: 18, bold: true });
+    /* every campaign with $100+ over the last 3 days, best first (Triple Whale last click): which one earns the money.
+       Campaign returns run under the store MER by design, so they are read against each other, not the goal. */
+    const rk = (m.camps || []).filter(z => z.roas3 != null && z.spend3 >= 100).sort((p, q) => q.roas3 - p.roas3).slice(0, 3)
+      .map(z => `${z.name} ${x(z.roas3)}`);
+    const ctxt = rk.length > 1 ? `Last 3 days by campaign: ${rk.join('  ·  ')}` : b.mode === 'plan' && b.sale ? `Black Friday starts ${dayShort(b.sale.start)}; judged on today's whole store until then` : '';
+    if (ctxt) o += T(pad + 28, y + 212, ctxt.length > 120 ? ctxt.slice(0, 118) + '…' : ctxt, { size: 14, fill: C.dim });
+  });
+  o += T(pad, H - 20, `Sales from Triple Whale, spend from Meta. Campaign returns are Triple Whale last click, best first.${rec.next ? ` Next check-in ${rec.next}.` : ''}`, { size: 13, fill: C.dim });
+  return svgWrap(W, H, o);
+}
 /** One brand, for its client: sales vs the weekend goal, ad spend, MER, the last hour. Nothing internal. */
 /* did = {text, up}: the change we just made, drawn as a "What we did" band under the tiles (the client update, Cole 2026-11-24). */
 export function brandSvg(rec, act, prev, did = null) {

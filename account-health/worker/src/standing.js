@@ -20,7 +20,7 @@ import { dmPerson } from './morning.js';
 import { adNumbers, metaActsOf, sumAds, withCovers } from './buyerai.js';
 import { buildBuyerList } from './buyerlist.js';
 import { standingCard, clientCard } from './standingdm.js';
-import { boardSvg, brandSvg, toPng } from './standingimg.js';
+import { boardSvg, brandSvg, opsSvg, toPng } from './standingimg.js';
 
 const PROFIT_ORIGIN = 'https://mobius-profit.mobius-digital.workers.dev';
 const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
@@ -180,6 +180,19 @@ function opsCard(rec) {
   return { text: `Where we stand, ${rec.label}. ${n ? `${n} to approve.` : 'Nothing to approve.'}`, blocks, attachments };
 }
 
+/* The picture, then one line per call with its Approve button (Cole 2026-11-25). */
+function opsImgMsg(rec, img) {
+  const N = (rec.brands || []).filter(b => (b.suggest || {}).to && b.meta && b.meta.camp && !(rec.approved || {})[b.act_id]);
+  const blocks = [{ type: 'image', slack_file: { id: img }, alt_text: 'Where we stand: every brand, last 6 hours, today, this week, and the call' }];
+  if (N.length) blocks.push({ type: 'divider' });
+  for (const b of N) {
+    const s = b.suggest, c = b.meta.camp;
+    blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `*${b.name}:* ${s.pct < 0 ? 'cut' : 'raise'} *${c.name}* ${usd(c.daily)} → ${usd(s.to)} a day` },
+      accessory: { type: 'button', action_id: 'ws_approve', style: s.pct < 0 ? 'danger' : 'primary', text: { type: 'plain_text', text: 'Approve' }, value: `${rec.slot}|${b.act_id}` } });
+  }
+  blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: N.length ? `Nothing changes until you tap Approve.${rec.next ? ` Next check-in ${rec.next}.` : ''}` : `Nothing to approve.${rec.next ? ` Next check-in ${rec.next}.` : ''}` }] });
+  return { text: `Where we stand, ${rec.label}. ${N.length ? `${N.length} to approve.` : 'Nothing to approve.'}`, blocks };
+}
 /** Build one check-in (reads only). */
 export async function buildStanding(env, deps, slot = slotOf()) {
   const md = { xfetch: deps.xfetch, listAccounts: deps.listAccounts, getSetting: deps.getSetting, putSetting: deps.putSetting };
@@ -286,11 +299,15 @@ async function sendDm(env, deps, rec, { style, prev, img } = {}) {
   const st = DM_STYLES.includes(style) ? style : 'ops';
   /* Style d (Cole's pick, 2026-11-22): draw the scoreboard, upload it to Slack, show it by file id. If the picture
      fails the DM still goes, with a note where the picture would be. */
+  if (st === 'ops' && !img) {
+    try { const up = await slackPng(env, deps, await toPng(opsSvg(rec), deps.xfetch), `check-in-${rec.slot}.png`); if (up.id) img = up.id; else rec.img_error = up.error; }
+    catch (e) { rec.img_error = e.message; }
+  }
   if (st === 'd' && !img) {
     try { const up = await slackPng(env, deps, await toPng(boardSvg(rec), deps.xfetch), `where-we-stand-${rec.slot}.png`); if (up.id) img = up.id; else rec.img_error = up.error; }
     catch (e) { rec.img_error = e.message; }
   }
-  const msg = st === 'ops' ? opsCard(rec) : st === 'list' ? standingMessage(rec) : standingCard(rec, prev, st, linkOf(rec), { img });
+  const msg = st === 'ops' ? (img ? opsImgMsg(rec, img) : opsCard(rec)) : st === 'list' ? standingMessage(rec) : standingCard(rec, prev, st, linkOf(rec), { img });
   const r = await postRetry(env, deps, msg, img);
   rec.sent = r.ok ? { at: new Date().toISOString(), ts: r.ts, style: st, img: img || null } : { error: r.error };
   return r;
@@ -324,7 +341,8 @@ async function sendSample(env, deps, rec, prev, { style, act, label }) {
       if (up.error) imgErr = up.error; else img = up.id;
     } catch (e) { imgErr = e.message; }
   }
-  const msg = !act && style === 'ops' ? opsCard(rec) : act ? clientCard(rec, act, style, prev, { img }) : standingCard(rec, prev, style, linkOf(rec), { img });
+  if (!act && style === 'ops') { try { const up = await slackPng(env, deps, await toPng(opsSvg(rec), deps.xfetch), `check-in-${rec.slot}.png`); if (up.id) img = up.id; else imgErr = up.error; } catch (e) { imgErr = e.message; } }
+  const msg = !act && style === 'ops' ? (img ? opsImgMsg(rec, img) : opsCard(rec)) : act ? clientCard(rec, act, style, prev, { img }) : standingCard(rec, prev, style, linkOf(rec), { img });
   if (label) { msg.blocks = [{ type: 'section', text: { type: 'mrkdwn', text: `*${label}*` } }, ...(msg.blocks || [])]; msg.text = `${label}: ${msg.text}`; }
   /* Slack can take a moment to process a fresh upload before a block may show it: retry a few times. */
   const r = await postRetry(env, deps, msg, img);
