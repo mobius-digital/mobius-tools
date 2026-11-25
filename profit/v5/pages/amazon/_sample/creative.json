@@ -1,0 +1,122 @@
+{
+ "sample_age_min": 4,
+ "window": {
+  "from": "2026-10-25",
+  "to": "2026-11-23"
+ },
+ "owner": "Taylor",
+ "owner_role": "the Amazon owner",
+ "store_name": "Northlake Golf's brand store on Amazon",
+ "spend": {
+  "products": 1028,
+  "brands": 72,
+  "display": 0
+ },
+ "listings": [
+  {
+   "name": "Walnut Belt",
+   "shot": "Belt on white, coiled",
+   "ctr": 0.0104,
+   "units": 81,
+   "spend": 14,
+   "c1": "#5B3A21",
+   "c2": "#3B2414"
+  },
+  {
+   "name": "Slate Belt",
+   "shot": "Belt on white, flat",
+   "ctr": 0.0089,
+   "units": 58,
+   "spend": 176,
+   "c1": "#8A8F98",
+   "c2": "#5F6570",
+   "flip": true
+  },
+  {
+   "name": "Navy Belt",
+   "shot": "Belt on white, coiled",
+   "ctr": 0.0081,
+   "units": 33,
+   "spend": 6,
+   "c1": "#3F4C6B",
+   "c2": "#2B3550"
+  },
+  {
+   "name": "Chalk Belt",
+   "shot": "Belt on white, flat",
+   "ctr": 0.0038,
+   "units": 29,
+   "spend": 388,
+   "c1": "#B9C0CC",
+   "c2": "#8C95A6",
+   "flip": true
+  }
+ ],
+ "tests": [
+  {
+   "name": "Walnut Belt",
+   "what": "Main image",
+   "dates": "Oct 6 to Nov 3",
+   "winner": "b",
+   "chance": 0.89,
+   "a": {
+    "label": "Belt on white",
+    "rate": 0.084,
+    "art": "belt",
+    "c1": "#5B3A21",
+    "c2": "#3B2414"
+   },
+   "b": {
+    "label": "Belt on a golfer",
+    "rate": 0.099,
+    "art": "golfer",
+    "c1": "#5B3A21",
+    "c2": "#3B2414"
+   }
+  },
+  {
+   "name": "Slate Belt",
+   "what": "Title",
+   "dates": "Nov 4 to now",
+   "winner": null,
+   "chance": 0.56,
+   "a": {
+    "label": "Short title",
+    "rate": 0.094,
+    "art": "text",
+    "text": "Northlake Golf Belt"
+   },
+   "b": {
+    "label": "Long title",
+    "rate": 0.097,
+    "art": "text",
+    "text": "Golf Belt for Men, Cut to Fit"
+   }
+  },
+  {
+   "name": "Navy Belt",
+   "what": "A+ content",
+   "dates": "Sep 8 to Oct 6",
+   "winner": "a",
+   "chance": 0.31,
+   "a": {
+    "label": "Size chart first",
+    "rate": 0.077,
+    "art": "chart"
+   },
+   "b": {
+    "label": "Photos first",
+    "rate": 0.074,
+    "art": "golfer",
+    "c1": "#3F4C6B",
+    "c2": "#2B3550"
+   }
+  }
+ ],
+ "brand_ads": {
+  "campaign": "Belts, branded",
+  "live": 1,
+  "spend": 72,
+  "ad_sales": 366
+ }
+}

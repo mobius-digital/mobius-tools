@@ -1,0 +1,514 @@
+{
+ "monday": "2026-11-23",
+ "week": {
+  "from": "2026-11-16",
+  "to": "2026-11-22"
+ },
+ "as_of": null,
+ "note": "Sample. Sent Monday 6am with last week's final numbers (Mon to Sun). Every brand, person and number here is invented.",
+ "brands": [
+  {
+   "id": "brand_northlake_golf",
+   "name": "Northlake Golf",
+   "currency": "USD",
+   "connected": true,
+   "has_report": true,
+   "week": {
+    "from": "2026-11-16",
+    "to": "2026-11-22"
+   },
+   "sales": 11639,
+   "sales_prior": 21472,
+   "spend": 8047,
+   "spend_prior": 7245,
+   "mer": 1.45,
+   "goal_mer": 3.0,
+   "weeks": [
+    {
+     "label": "Sep 28",
+     "sales": 21651,
+     "spend": 6489,
+     "mer": 3.34
+    },
+    {
+     "label": "Oct 5",
+     "sales": 20713,
+     "spend": 7302,
+     "mer": 2.84
+    },
+    {
+     "label": "Oct 12",
+     "sales": 20692,
+     "spend": 6822,
+     "mer": 3.03
+    },
+    {
+     "label": "Oct 19",
+     "sales": 22064,
+     "spend": 6835,
+     "mer": 3.23
+    },
+    {
+     "label": "Oct 26",
+     "sales": 22085,
+     "spend": 6460,
+     "mer": 3.42
+    },
+    {
+     "label": "Nov 2",
+     "sales": 21751,
+     "spend": 7468,
+     "mer": 2.91
+    },
+    {
+     "label": "Nov 9",
+     "sales": 21472,
+     "spend": 7245,
+     "mer": 2.96
+    },
+    {
+     "label": "Nov 16",
+     "sales": 11639,
+     "spend": 8047,
+     "mer": 1.45
+    }
+   ],
+   "verdict": [
+    "Sales ",
+    {
+     "b": "fell by about half"
+    },
+    " after the early sale ended, so MER is ",
+    {
+     "b": "1.45x"
+    },
+    " against a 3.00x goal."
+   ],
+   "owner": "Sam",
+   "decision": {
+    "text": "Hold Meta at $700 a day until Black Friday starts Thursday 6pm.",
+    "win": "A win is MER 2.50x by Sunday.",
+    "owner": "Sam",
+    "number": "$700",
+    "number_note": "a day on Meta, no change"
+   },
+   "promises": [
+    {
+     "text": "Black Friday landing page live",
+     "owner": "Alex",
+     "due": "Thu Nov 19",
+     "done": true
+    },
+    {
+     "text": "Load the 40 Black Friday image ads on Meta",
+     "owner": "Jordan",
+     "due": "Fri Nov 20",
+     "done": true
+    },
+    {
+     "text": "Build the early access campaign on Meta",
+     "owner": "Alex",
+     "due": "Sat Nov 21",
+     "done": false
+    }
+   ],
+   "rows": [
+    {
+     "id": "meta",
+     "icon": "meta",
+     "label": "Meta",
+     "big": "1.12x",
+     "sub": "ROAS, goal 3.00x",
+     "tone": "bad",
+     "status": "Under goal",
+     "go": [
+      "meta",
+      "overview"
+     ],
+     "detail": {
+      "cols": [
+       {
+        "label": "Campaign"
+       },
+       {
+        "label": "Spend",
+        "num": true
+       },
+       {
+        "label": "Sales",
+        "num": true
+       },
+       {
+        "label": "ROAS",
+        "num": true
+       }
+      ],
+      "rows": [
+       [
+        "Black Friday 2026",
+        "$4,570",
+        "$5,375",
+        "1.18x"
+       ],
+       [
+        "Evergreen | Broad",
+        "$686",
+        "$640",
+        "0.93x"
+       ],
+       [
+        "Creators",
+        "$457",
+        "$384",
+        "0.84x"
+       ],
+       [
+        "All of Meta",
+        "$5,713",
+        "$6,399",
+        "1.12x"
+       ]
+      ],
+      "note": "Sales are Triple Whale, last platform click."
+     }
+    },
+    {
+     "id": "google",
+     "icon": "google",
+     "label": "Google",
+     "big": "2.20x",
+     "sub": "ROAS, goal 3.00x",
+     "tone": "warn",
+     "status": "Close",
+     "go": [
+      "google",
+      "overview"
+     ],
+     "detail": {
+      "cols": [
+       {
+        "label": "Campaign"
+       },
+       {
+        "label": "Spend",
+        "num": true
+       },
+       {
+        "label": "Sales",
+        "num": true
+       },
+       {
+        "label": "ROAS",
+        "num": true
+       }
+      ],
+      "rows": [
+       [
+        "Shopping",
+        "$1,506",
+        "$2,124",
+        "1.41x"
+       ],
+       [
+        "Brand search",
+        "$425",
+        "$2,124",
+        "5.00x"
+       ],
+       [
+        "All of Google",
+        "$1,931",
+        "$4,248",
+        "2.20x"
+       ]
+      ],
+      "note": "Sales are Triple Whale, last platform click."
+     }
+    },
+    {
+     "id": "email",
+     "icon": "email",
+     "label": "Email & SMS",
+     "big": "$1,910",
+     "sub": "sales, 2 emails sent",
+     "tone": "off",
+     "status": "No SMS sent",
+     "go": [
+      "email",
+      "campaigns"
+     ],
+     "detail": {
+      "cols": [
+       {
+        "label": "Sent"
+       },
+       {
+        "label": "Email"
+       },
+       {
+        "label": "Sales",
+        "num": true
+       }
+      ],
+      "rows": [
+       [
+        "Fri Nov 20",
+        "Early sale ends tonight",
+        "$1,290"
+       ],
+       [
+        "Sun Nov 22",
+        "Black Friday starts Thursday",
+        "$620"
+       ]
+      ]
+     }
+    },
+    {
+     "id": "pipeline",
+     "icon": "board",
+     "label": "Creative in the pipeline",
+     "big": "74 of 110",
+     "sub": "ads loaded for the next 4 dates",
+     "tone": "bad",
+     "status": "24 videos missing",
+     "go": [
+      "production",
+      "board"
+     ],
+     "detail": {
+      "cols": [
+       {
+        "label": "Date"
+       },
+       {
+        "label": "What"
+       },
+       {
+        "label": "Loaded",
+        "num": true
+       },
+       {
+        "label": "Missing",
+        "num": true
+       }
+      ],
+      "rows": [
+       [
+        "Thu Nov 26",
+        "Black Friday images",
+        "40 of 40",
+        "0"
+       ],
+       [
+        "Thu Nov 26",
+        "Black Friday videos",
+        "0 of 24",
+        "24"
+       ],
+       [
+        "Mon Nov 30",
+        "Cyber Monday",
+        "18 of 18",
+        "0"
+       ],
+       [
+        "Sat Dec 5",
+        "Holiday",
+        "16 of 20",
+        "4"
+       ],
+       [
+        "Sun Dec 13",
+        "Order by",
+        "0 of 8",
+        "8"
+       ]
+      ]
+     }
+    },
+    {
+     "id": "customers",
+     "icon": "customers",
+     "label": "Customers",
+     "big": "62",
+     "sub": "new, at $130 each, goal $40",
+     "tone": "bad",
+     "status": "Over goal cost",
+     "go": [
+      "customers",
+      "snapshot"
+     ],
+     "detail": {
+      "cols": [
+       {
+        "label": ""
+       },
+       {
+        "label": "Last week",
+        "num": true
+       },
+       {
+        "label": "The week before",
+        "num": true
+       }
+      ],
+      "rows": [
+       [
+        "New customers",
+        "62",
+        "148"
+       ],
+       [
+        "Cost per new customer",
+        "$130",
+        "$49"
+       ],
+       [
+        "Goal cost",
+        "$40",
+        "$40"
+       ],
+       [
+        "Repeat orders",
+        "41",
+        "72"
+       ]
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": "brand_fairway_supply",
+   "name": "Fairway Supply",
+   "currency": "USD",
+   "connected": true,
+   "has_report": true,
+   "week": {
+    "from": "2026-11-16",
+    "to": "2026-11-22"
+   },
+   "sales": 26840,
+   "sales_prior": 29310,
+   "spend": 14900,
+   "spend_prior": 15220,
+   "mer": 1.8,
+   "goal_mer": 2.5,
+   "weeks": [
+    {
+     "label": "Nov 9",
+     "sales": 29310,
+     "spend": 15220,
+     "mer": 1.93
+    },
+    {
+     "label": "Nov 16",
+     "sales": 26840,
+     "spend": 14900,
+     "mer": 1.8
+    }
+   ],
+   "verdict": null,
+   "owner": "Sam",
+   "decision": null,
+   "promises": [],
+   "rows": []
+  },
+  {
+   "id": "brand_tallgrass_apparel",
+   "name": "Tallgrass Apparel",
+   "currency": "USD",
+   "connected": true,
+   "has_report": true,
+   "week": {
+    "from": "2026-11-16",
+    "to": "2026-11-22"
+   },
+   "sales": 11920,
+   "sales_prior": 10140,
+   "spend": 5430,
+   "spend_prior": 5710,
+   "mer": 2.2,
+   "goal_mer": 3.0,
+   "weeks": [
+    {
+     "label": "Nov 9",
+     "sales": 10140,
+     "spend": 5710,
+     "mer": 1.78
+    },
+    {
+     "label": "Nov 16",
+     "sales": 11920,
+     "spend": 5430,
+     "mer": 2.2
+    }
+   ],
+   "verdict": null,
+   "owner": "Jordan",
+   "decision": null,
+   "promises": [],
+   "rows": []
+  },
+  {
+   "id": "brand_brightside_patch",
+   "name": "Brightside Patch",
+   "currency": "USD",
+   "connected": true,
+   "has_report": true,
+   "week": {
+    "from": "2026-11-16",
+    "to": "2026-11-22"
+   },
+   "sales": 14380,
+   "sales_prior": 12260,
+   "spend": 3720,
+   "spend_prior": 3540,
+   "mer": 3.87,
+   "goal_mer": 2.5,
+   "weeks": [
+    {
+     "label": "Nov 9",
+     "sales": 12260,
+     "spend": 3540,
+     "mer": 3.46
+    },
+    {
+     "label": "Nov 16",
+     "sales": 14380,
+     "spend": 3720,
+     "mer": 3.87
+    }
+   ],
+   "verdict": null,
+   "owner": "Jordan",
+   "decision": null,
+   "promises": [],
+   "rows": []
+  },
+  {
+   "id": "brand_copper_kettle_pets",
+   "name": "Copper Kettle Pets",
+   "currency": "USD",
+   "connected": false,
+   "has_report": true,
+   "week": {
+    "from": "2026-11-16",
+    "to": "2026-11-22"
+   },
+   "sales": null,
+   "sales_prior": null,
+   "spend": 610,
+   "spend_prior": 820,
+   "mer": null,
+   "goal_mer": null,
+   "weeks": [],
+   "verdict": null,
+   "owner": null,
+   "decision": null,
+   "promises": null,
+   "rows": []
+  }
+ ]
+}

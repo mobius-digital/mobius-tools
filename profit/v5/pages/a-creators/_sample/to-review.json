@@ -1,0 +1,197 @@
+{
+ "today": "2026-11-24",
+ "connected": 5,
+ "failed": [],
+ "brands": [
+  {
+   "act_id": "brand_harbor_and_pine",
+   "items": [
+    {
+     "id": "submission_h1",
+     "creator": "Rowan Ellis",
+     "product": "Cedar candle, large",
+     "program": "Holiday",
+     "angle": "Smells like the cabin",
+     "media": "video",
+     "thumb": null,
+     "art": {
+      "kind": "box",
+      "c1": "#854D0E",
+      "c2": "#C9A45C",
+      "bg": "#F1E7DA"
+     },
+     "line": "We lit this the night the tree went up and the whole house smelled like a cabin. Three wicks, sixty hours.",
+     "created_at": "2026-11-19T14:10:00Z"
+    },
+    {
+     "id": "submission_h2",
+     "creator": "Rowan Ellis",
+     "product": "Cedar candle, large",
+     "program": "Holiday",
+     "angle": "Smells like the cabin",
+     "media": "video",
+     "thumb": null,
+     "art": {
+      "kind": "box",
+      "c1": "#854D0E",
+      "c2": "#2B2B2B",
+      "bg": "#EFE6D8"
+     },
+     "line": "Second take of the cabin one, shorter, with the lid shot first like you asked.",
+     "created_at": "2026-11-19T14:22:00Z"
+    },
+    {
+     "id": "submission_h3",
+     "creator": "Dana Whitlock",
+     "product": "Gift set of three",
+     "program": "Black Friday",
+     "angle": "Three for the price of two",
+     "media": "video",
+     "thumb": null,
+     "art": {
+      "kind": "box",
+      "c1": "#7C4A1E",
+      "c2": "#C9A45C",
+      "bg": "#F4ECE0"
+     },
+     "line": "Black Friday is the only week the gift set is three for two. I wrapped one for my sister and kept two.",
+     "created_at": "2026-11-21T18:02:00Z"
+    },
+    {
+     "id": "submission_h4",
+     "creator": "Mika Torres",
+     "product": "Linen spray",
+     "program": "Holiday",
+     "angle": "Guests are coming",
+     "media": "image",
+     "thumb": null,
+     "art": {
+      "kind": "box",
+      "c1": "#5B6B4C",
+      "c2": "#C9A45C",
+      "bg": "#E7EDE0"
+     },
+     "line": "Guests land in an hour and the couch smells like the dog. Two sprays. Done.",
+     "created_at": "2026-11-23T09:40:00Z"
+    }
+   ]
+  },
+  {
+   "act_id": "brand_northlake_golf",
+   "items": [
+    {
+     "id": "submission_n1",
+     "creator": "Quinn Harper",
+     "product": "Ridge belt, brown",
+     "program": "Holiday",
+     "angle": "The gift they will wear",
+     "media": "video",
+     "thumb": null,
+     "art": {
+      "kind": "golfer",
+      "c1": "#1F3A2C",
+      "c2": "#2B2B2B",
+      "bg": "#DCE7DD"
+     },
+     "line": "I have bought my dad three belts that broke. This one has a magnetic buckle and it has not moved in a year.",
+     "created_at": "2026-11-21T15:20:00Z"
+    },
+    {
+     "id": "submission_n2",
+     "creator": "Avery Stone",
+     "product": "Ridge belt, black",
+     "program": "Black Friday",
+     "angle": "Buy one, get one",
+     "media": "video",
+     "thumb": null,
+     "art": {
+      "kind": "belt",
+      "c1": "#1F3A2C",
+      "c2": "#C9A45C",
+      "bg": "#EEE9DF"
+     },
+     "line": "Black Friday is the only time this belt is buy one get one. I got one for me and one for my brother.",
+     "created_at": "2026-11-22T09:04:00Z"
+    },
+    {
+     "id": "submission_n3",
+     "creator": "Jules Moreno",
+     "product": "Ball marker set",
+     "program": "Holiday",
+     "angle": "Stocking stuffer",
+     "media": "video",
+     "thumb": null,
+     "art": {
+      "kind": "green",
+      "c1": "#4C7A52",
+      "c2": "#C9A45C",
+      "bg": "#DDE8EE"
+     },
+     "line": "Under twenty dollars and every golfer on your list will use it every round.",
+     "created_at": "2026-11-23T19:40:00Z"
+    }
+   ]
+  },
+  {
+   "act_id": "brand_copper_kettle_pets",
+   "items": [
+    {
+     "id": "submission_c1",
+     "creator": "Sasha Lindqvist",
+     "product": "Calming chews",
+     "program": "Everyday",
+     "angle": "Fireworks night",
+     "media": "video",
+     "thumb": null,
+     "art": {
+      "kind": "box",
+      "c1": "#581C87",
+      "c2": "#C9A45C",
+      "bg": "#ECE4F3"
+     },
+     "line": "Every New Year my dog hides in the bathtub. I gave him one of these an hour before and he slept on the couch.",
+     "created_at": "2026-11-22T21:15:00Z"
+    },
+    {
+     "id": "submission_c2",
+     "creator": "Theo Banks",
+     "product": "Joint chews",
+     "program": "Everyday",
+     "angle": "He takes the stairs again",
+     "media": "video",
+     "thumb": null,
+     "art": {
+      "kind": "box",
+      "c1": "#6B3FA0",
+      "c2": "#2B2B2B",
+      "bg": "#EFE8F5"
+     },
+     "line": "He is eleven and he stopped taking the stairs in the spring. Six weeks on these and he beat me to the top.",
+     "created_at": "2026-11-24T08:30:00Z"
+    }
+   ]
+  },
+  {
+   "act_id": "brand_brightside_patch",
+   "items": [
+    {
+     "id": "submission_b1",
+     "creator": "Priya Nand",
+     "product": "Morning patch, 30 pack",
+     "program": "Holiday",
+     "angle": "The office party",
+     "media": "video",
+     "thumb": null,
+     "art": {
+      "kind": "box",
+      "c1": "#1E3A8A",
+      "c2": "#C9A45C",
+      "bg": "#E1E8F5"
+     },
+     "line": "The office party is Thursday and I have a nine o clock on Friday. This goes on before the first drink.",
+     "created_at": "2026-11-24T07:55:00Z"
+    }
+   ]
+  }
+ ]
+}

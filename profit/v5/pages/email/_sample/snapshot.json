@@ -1,0 +1,259 @@
+{
+ "connected": true,
+ "klaviyo": true,
+ "range": {
+  "from": "2026-11-01",
+  "to": "2026-11-22"
+ },
+ "totals": {
+  "sales": 15512,
+  "sales_prev": 13806,
+  "orders": 222,
+  "share": 0.2446,
+  "share_prev": 0.2656,
+  "campaigns": 9455,
+  "flows": 6057,
+  "returning_share": 0.71,
+  "returning_move": 0.04,
+  "list_size": 21840,
+  "list_net": 1846,
+  "sms_size": 4124
+ },
+ "days": [
+  {
+   "date": "2026-11-01",
+   "campaigns": 1619,
+   "flows": 258,
+   "store": 3612
+  },
+  {
+   "date": "2026-11-02",
+   "campaigns": 924,
+   "flows": 238,
+   "store": 2762
+  },
+  {
+   "date": "2026-11-03",
+   "campaigns": 33,
+   "flows": 219,
+   "store": 2904
+  },
+  {
+   "date": "2026-11-04",
+   "campaigns": 34,
+   "flows": 284,
+   "store": 3080
+  },
+  {
+   "date": "2026-11-05",
+   "campaigns": 769,
+   "flows": 246,
+   "store": 4199
+  },
+  {
+   "date": "2026-11-06",
+   "campaigns": 24,
+   "flows": 325,
+   "store": 3095
+  },
+  {
+   "date": "2026-11-07",
+   "campaigns": 57,
+   "flows": 233,
+   "store": 4020
+  },
+  {
+   "date": "2026-11-08",
+   "campaigns": 579,
+   "flows": 582,
+   "store": 3546
+  },
+  {
+   "date": "2026-11-09",
+   "campaigns": 49,
+   "flows": 196,
+   "store": 3568
+  },
+  {
+   "date": "2026-11-10",
+   "campaigns": 3,
+   "flows": 308,
+   "store": 3413
+  },
+  {
+   "date": "2026-11-11",
+   "campaigns": 548,
+   "flows": 319,
+   "store": 2598
+  },
+  {
+   "date": "2026-11-12",
+   "campaigns": 40,
+   "flows": 248,
+   "store": 2538
+  },
+  {
+   "date": "2026-11-13",
+   "campaigns": 871,
+   "flows": 285,
+   "store": 3675
+  },
+  {
+   "date": "2026-11-14",
+   "campaigns": 1054,
+   "flows": 324,
+   "store": 4690
+  },
+  {
+   "date": "2026-11-15",
+   "campaigns": 1485,
+   "flows": 237,
+   "store": 3097
+  },
+  {
+   "date": "2026-11-16",
+   "campaigns": 16,
+   "flows": 257,
+   "store": 2435
+  },
+  {
+   "date": "2026-11-17",
+   "campaigns": 31,
+   "flows": 303,
+   "store": 1782
+  },
+  {
+   "date": "2026-11-18",
+   "campaigns": 39,
+   "flows": 199,
+   "store": 2627
+  },
+  {
+   "date": "2026-11-19",
+   "campaigns": 455,
+   "flows": 273,
+   "store": 1663
+  },
+  {
+   "date": "2026-11-20",
+   "campaigns": 62,
+   "flows": 321,
+   "store": 1395
+  },
+  {
+   "date": "2026-11-21",
+   "campaigns": 708,
+   "flows": 211,
+   "store": 1092
+  },
+  {
+   "date": "2026-11-22",
+   "campaigns": 55,
+   "flows": 191,
+   "store": 1638
+  }
+ ],
+ "list_spark": [
+  20008,
+  20006,
+  20042,
+  20069,
+  20070,
+  20107,
+  20136,
+  20159,
+  20194,
+  20426,
+  20609,
+  20803,
+  20994,
+  21209,
+  21417,
+  21691,
+  21711,
+  21748,
+  21748,
+  21790,
+  21811,
+  21840
+ ],
+ "note": {
+  "date": "2026-11-15",
+  "text": "Early sale ended Nov 15"
+ },
+ "campaigns": [
+  {
+   "id": "c1",
+   "name": "Early sale is here: second belt half off",
+   "sent": "2026-11-01",
+   "channel": "email",
+   "recipients": 21480,
+   "open_rate": 0.412,
+   "click_rate": 0.0081,
+   "sales": 1712,
+   "orders": 24,
+   "order_rate": 0.00112,
+   "unsub_rate": 0.0027,
+   "first_time": 0.36
+  },
+  {
+   "id": "c4",
+   "name": "Last weekend of the early sale",
+   "sent": "2026-11-14",
+   "channel": "email",
+   "recipients": 21710,
+   "open_rate": 0.398,
+   "click_rate": 0.0093,
+   "sales": 1186,
+   "orders": 17,
+   "order_rate": 0.00078,
+   "unsub_rate": 0.0022,
+   "first_time": 0.29
+  },
+  {
+   "id": "c5",
+   "name": "Ends tonight: second belt half off",
+   "sent": "2026-11-15",
+   "channel": "email",
+   "recipients": 21744,
+   "open_rate": 0.431,
+   "click_rate": 0.0118,
+   "sales": 1094,
+   "orders": 15,
+   "order_rate": 0.00069,
+   "unsub_rate": 0.0023,
+   "first_time": 0.22
+  },
+  {
+   "id": "c9",
+   "name": "Friday list: what is coming",
+   "sent": "2026-11-13",
+   "channel": "email",
+   "recipients": 21660,
+   "open_rate": 0.455,
+   "click_rate": 0.0131,
+   "sales": 958,
+   "orders": 13,
+   "order_rate": 0.0006,
+   "unsub_rate": 0.0022,
+   "first_time": 0.19
+  },
+  {
+   "id": "c2",
+   "name": "The early sale pair math",
+   "sent": "2026-11-02",
+   "channel": "email",
+   "recipients": 21390,
+   "open_rate": 0.447,
+   "click_rate": 0.0072,
+   "sales": 902,
+   "orders": 13,
+   "order_rate": 0.00061,
+   "unsub_rate": 0.0017,
+   "first_time": 0.24
+  }
+ ],
+ "campaign_count": 12,
+ "flow_count": 5,
+ "example": []
+}

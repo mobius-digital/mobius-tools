@@ -1,0 +1,89 @@
+{
+ "currency": "USD",
+ "today": "2026-11-24",
+ "sample_month": { "sales": 63429, "spend": 23702, "orders": 512 },
+ "fixed": {
+  "items": [
+   { "id": 11, "name": "Warehouse rent", "category": "rent", "category_label": "Rent and premises", "kind": "monthly", "amount": 2400, "start_date": "2026-01-01", "end_date": null, "is_ad_spend": false, "notes": "", "added_by": "Alex", "added_at": "2026-01-06 15:02:11", "updated_at": "2026-01-06 15:02:11" },
+   { "id": 12, "name": "Two part time packers", "category": "team", "category_label": "Team", "kind": "weekly", "amount": 620, "start_date": "2026-03-02", "end_date": null, "is_ad_spend": false, "notes": "", "added_by": "Pat", "added_at": "2026-03-02 14:20:00", "updated_at": "2026-03-02 14:20:00" },
+   { "id": 13, "name": "Store plan and apps", "category": "software", "category_label": "Software", "kind": "monthly", "amount": 389, "start_date": "2026-01-01", "end_date": null, "is_ad_spend": false, "notes": "Store plan, reviews app, email tool", "added_by": "Pat", "added_at": "2026-01-06 15:04:40", "updated_at": "2026-09-14 10:11:00" },
+   { "id": 14, "name": "Business insurance", "category": "Insurance", "category_label": "Insurance", "kind": "yearly", "amount": 1860, "start_date": "2026-01-01", "end_date": null, "is_ad_spend": false, "notes": "", "added_by": "Pat", "added_at": "2026-01-06 15:06:02", "updated_at": "2026-01-06 15:06:02" },
+   { "id": 15, "name": "Thank you card in every box", "category": "Packaging", "category_label": "Packaging", "kind": "per_order", "amount": 0.35, "start_date": "2026-06-01", "end_date": null, "is_ad_spend": false, "notes": "", "added_by": "Alex", "added_at": "2026-06-01 09:00:00", "updated_at": "2026-06-01 09:00:00" },
+   { "id": 16, "name": "Holiday photo shoot", "category": "contractors", "category_label": "Contractors", "kind": "once", "amount": 1500, "start_date": "2026-11-06", "end_date": null, "is_ad_spend": false, "notes": "", "added_by": "Alex", "added_at": "2026-11-06 17:30:00", "updated_at": "2026-11-06 17:30:00" },
+   { "id": 17, "name": "Trade show booth", "category": "marketing", "category_label": "Marketing, other", "kind": "custom", "amount": 3200, "start_date": "2026-12-01", "end_date": "2026-12-14", "is_ad_spend": false, "notes": "", "added_by": "Pat", "added_at": "2026-11-18 11:45:00", "updated_at": "2026-11-18 11:45:00" },
+   { "id": 18, "name": "Creator video fee", "category": "marketing", "category_label": "Marketing, other", "kind": "monthly", "amount": 600, "start_date": "2026-10-01", "end_date": null, "is_ad_spend": true, "notes": "", "added_by": "Alex", "added_at": "2026-10-01 08:15:00", "updated_at": "2026-10-01 08:15:00" }
+  ],
+  "active": 5,
+  "month_total": 6240.19,
+  "categories": [
+   { "id": "team", "label": "Team", "hint": "Salaries and wages" },
+   { "id": "contractors", "label": "Contractors", "hint": "Freelancers and outside help" },
+   { "id": "software", "label": "Software", "hint": "Store plan, apps, email tool" },
+   { "id": "rent", "label": "Rent and premises", "hint": "Office, warehouse, storage" },
+   { "id": "marketing", "label": "Marketing, other", "hint": "Influencers, sponsorships, PR, channels with no ad account" },
+   { "id": "other", "label": "Other", "hint": "Anything else" }
+  ],
+  "brand_categories": [
+   { "id": "contractors", "label": "Contractors" },
+   { "id": "Insurance", "label": "Insurance" },
+   { "id": "marketing", "label": "Marketing, other" },
+   { "id": "Packaging", "label": "Packaging" },
+   { "id": "rent", "label": "Rent and premises" },
+   { "id": "software", "label": "Software" },
+   { "id": "team", "label": "Team" }
+  ],
+  "kinds": [
+   { "id": "monthly", "label": "Fixed, every month", "unit": "money" },
+   { "id": "once", "label": "One time, on a date", "unit": "money" },
+   { "id": "pct_revenue", "label": "% of revenue", "unit": "pct" },
+   { "id": "pct_spend", "label": "% of ad spend", "unit": "pct" },
+   { "id": "per_order", "label": "Per order", "unit": "money" },
+   { "id": "daily", "label": "Every day", "unit": "money" },
+   { "id": "weekly", "label": "Every week", "unit": "money" },
+   { "id": "quarterly", "label": "Every quarter", "unit": "money" },
+   { "id": "yearly", "label": "Every year", "unit": "money" },
+   { "id": "custom", "label": "Custom dates", "unit": "money" }
+  ]
+ },
+ "shipping_rules": {
+  "rules": [
+   { "id": 31, "rule": "zone", "source": "typed", "amount": null, "table": [ { "zone": "United States", "amount": 5.2 }, { "zone": "Canada", "amount": 11.4 }, { "zone": "Everywhere else", "amount": 18 } ], "start_date": "2026-11-10", "end_date": null, "status": "on", "applied": false, "label": "Carrier rates by country", "notes": "", "added_by": "Pat" },
+   { "id": 30, "rule": "per_order", "source": "typed", "amount": 5.9, "start_date": "2026-10-01", "end_date": null, "status": "on", "applied": true, "label": "", "notes": "", "added_by": "Alex" },
+   { "id": 29, "rule": "per_order", "source": "typed", "amount": 5.4, "start_date": "2026-06-01", "end_date": "2026-09-30", "status": "on", "applied": true, "label": "", "notes": "", "added_by": "Alex" }
+  ],
+  "in_use": { "source": "locus", "rule_id": 30 },
+  "last30": { "from": "2026-10-25", "to": "2026-11-23", "tw": 3310.4, "used": 3622.6, "charged": 2148.5, "orders": 614 }
+ },
+ "product_cost": {
+  "rules": [],
+  "in_use": { "source": "triple_whale" },
+  "sheet": { "batch": "sample-batch-1", "skus": 42, "start_date": "2026-11-01", "filename": "northlake-costs-nov.csv", "uploaded_by": "Pat", "uploaded_at": "2026-11-12 16:40:00", "applied": false },
+  "coverage": { "days": 30, "days_with_cost": 28, "skus_on_file": 42 },
+  "last30": { "tw": 19840.75, "used": 19840.75 }
+ },
+ "payment_fees": { "source": "triple_whale", "last30": 2212.3, "editable": false },
+ "handling": { "source": "none", "last30": 0 },
+ "margin_override": null,
+ "choices": {
+  "costs": ["shipping", "product"],
+  "rules": {
+   "shipping": [
+    { "id": "per_order", "label": "Per order", "unit": "money", "hint": "The same amount for every paid order." },
+    { "id": "pct_revenue", "label": "% of revenue", "unit": "pct", "hint": "Worked out from each day’s revenue (total sales minus tax)." },
+    { "id": "per_item", "label": "Per item", "unit": "money", "hint": "An amount for every item in the order." },
+    { "id": "weight_tier", "label": "By weight", "unit": "table", "hint": "A table of parcel weights and what each costs to send." },
+    { "id": "zone", "label": "By country or zone", "unit": "table", "hint": "A table of places and what each costs to send to." }
+   ],
+   "product": [
+    { "id": "pct_revenue", "label": "% of revenue", "unit": "pct", "hint": "Worked out from each day’s revenue (total sales minus tax)." },
+    { "id": "per_order", "label": "Per order", "unit": "money", "hint": "The same amount for every paid order." },
+    { "id": "per_item", "label": "Per item", "unit": "money", "hint": "An amount for every item sold." }
+   ]
+  },
+  "applied_today": ["per_order", "pct_revenue"]
+ },
+ "missing": [
+  "Your shipping cost rule (by country or zone) is saved. It will be used once the app reads each order’s items, weight and country. Until then your per order rule stays in use.",
+  "Your cost sheet (42 products) is saved. It is not used in profit yet: that needs each order’s items."
+ ]
+}

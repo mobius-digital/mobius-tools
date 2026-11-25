@@ -1,0 +1,719 @@
+{
+ "sample": true,
+ "checked": "12:00pm",
+ "next": "3:00pm",
+ "dry": false,
+ "now_hour": 14,
+ "cmp_label": "Last year",
+ "weekend": {
+  "sales": 188740,
+  "goal": 326000,
+  "spend": 61400,
+  "mer": 3.07,
+  "kpi": 2.5
+ },
+ "phases": [
+  {
+   "name": "Early Black Friday",
+   "sub": "Nov 1 to 25, done",
+   "state": "done",
+   "weight": 3
+  },
+  {
+   "name": "Black Friday",
+   "sub": "Day 4 of 5, Sun Nov 29, 2:10pm",
+   "state": "now",
+   "weight": 5,
+   "progress": 0.72
+  },
+  {
+   "name": "Cyber Monday",
+   "sub": "Mon Nov 30, 12:00am",
+   "state": "",
+   "weight": 3.6
+  },
+  {
+   "name": "Holiday",
+   "sub": "Dec 1 to 17",
+   "state": "",
+   "weight": 2.4
+  }
+ ],
+ "brands": [
+  {
+   "id": "brand_northlake_golf",
+   "name": "Northlake Golf",
+   "status": {
+    "tone": "info",
+    "text": "Needs your yes"
+   },
+   "call": {
+    "kind": "raise",
+    "text": "Raise 25%",
+    "sub": "$2,800 to $3,500 a day",
+    "why": "3.41x so far, over the 3.00x goal",
+    "needs_yes": true
+   },
+   "today": {
+    "sales": 7960,
+    "goal": 10500,
+    "orders": 68,
+    "aov": 117,
+    "vs": {
+     "pct": 0.19,
+     "label": "vs last year"
+    }
+   },
+   "weekend": {
+    "sales": 46100,
+    "goal": 69000
+   },
+   "hours": [
+    0,
+    237,
+    413,
+    523,
+    592,
+    629,
+    754,
+    1008,
+    1419,
+    2233,
+    3152,
+    4208,
+    5483,
+    6604,
+    7960
+   ],
+   "cmp": [
+    0,
+    197,
+    328,
+    426,
+    492,
+    558,
+    656,
+    918,
+    1296,
+    1853,
+    2640,
+    3641,
+    4477,
+    5527,
+    6494,
+    7528,
+    8380,
+    9282,
+    10234,
+    11234,
+    12398,
+    13546,
+    14826,
+    15777,
+    16400
+   ],
+   "mer": {
+    "so_far": 3.41,
+    "last6": 3.88,
+    "last6_hours": 6,
+    "kpi": 3.0,
+    "hold": 2.4,
+    "new": 2.14,
+    "be_new": 1.6
+   },
+   "spend": {
+    "today": 2330,
+    "budget": 2800,
+    "limit_used": 0.21,
+    "near": false
+   },
+   "no_sales": false
+  },
+  {
+   "id": "brand_tallgrass_apparel",
+   "name": "Tallgrass Apparel",
+   "status": {
+    "tone": "bad",
+    "text": "Under break-even"
+   },
+   "call": {
+    "kind": "cut",
+    "text": "Cut 25%",
+    "sub": "Done, now $1,500 a day",
+    "why": "Alex already made the cut"
+   },
+   "today": {
+    "sales": 3380,
+    "goal": 6800,
+    "orders": 49,
+    "aov": 69,
+    "vs": {
+     "pct": -0.17,
+     "label": "vs last year"
+    }
+   },
+   "weekend": {
+    "sales": 20900,
+    "goal": 44000
+   },
+   "hours": [
+    0,
+    104,
+    176,
+    215,
+    243,
+    276,
+    319,
+    435,
+    614,
+    936,
+    1371,
+    1823,
+    2301,
+    2806,
+    3380
+   ],
+   "cmp": [
+    0,
+    119,
+    198,
+    257,
+    297,
+    337,
+    396,
+    554,
+    782,
+    1119,
+    1594,
+    2198,
+    2703,
+    3336,
+    3920,
+    4544,
+    5059,
+    5603,
+    6178,
+    6782,
+    7484,
+    8177,
+    8950,
+    9524,
+    9900
+   ],
+   "mer": {
+    "so_far": 2.21,
+    "last6": 2.05,
+    "last6_hours": 6,
+    "kpi": 3.0,
+    "hold": 2.4,
+    "new": 1.68,
+    "be_new": 2.0
+   },
+   "spend": {
+    "today": 1530,
+    "budget": 1500,
+    "limit_used": 0.61,
+    "near": false
+   },
+   "no_sales": false
+  },
+  {
+   "id": "brand_fairway_supply",
+   "name": "Fairway Supply",
+   "status": {
+    "tone": "good",
+    "text": "On plan"
+   },
+   "call": {
+    "kind": "hold",
+    "text": "Hold",
+    "sub": "Stays $5,200 a day",
+    "why": "2.26x so far, a raise needs 2.50x"
+   },
+   "today": {
+    "sales": 11480,
+    "goal": 16000,
+    "orders": 79,
+    "aov": 145,
+    "vs": {
+     "pct": 0.07,
+     "label": "vs last year"
+    }
+   },
+   "weekend": {
+    "sales": 61700,
+    "goal": 105000
+   },
+   "hours": [
+    0,
+    335,
+    580,
+    754,
+    844,
+    934,
+    1124,
+    1470,
+    2136,
+    3302,
+    4617,
+    6033,
+    7642,
+    9647,
+    11480
+   ],
+   "cmp": [
+    0,
+    313,
+    522,
+    679,
+    783,
+    887,
+    1044,
+    1462,
+    2062,
+    2949,
+    4202,
+    5794,
+    7125,
+    8796,
+    10336,
+    11980,
+    13337,
+    14773,
+    16286,
+    17878,
+    19732,
+    21559,
+    23594,
+    25108,
+    26100
+   ],
+   "mer": {
+    "so_far": 2.26,
+    "last6": 2.81,
+    "last6_hours": 6,
+    "kpi": 2.5,
+    "hold": 2.0,
+    "new": 1.61,
+    "be_new": 1.5
+   },
+   "spend": {
+    "today": 5080,
+    "budget": 5200,
+    "limit_used": 0.76,
+    "near": true
+   },
+   "no_sales": false
+  },
+  {
+   "id": "brand_brightside_patch",
+   "name": "Brightside Patch",
+   "status": {
+    "tone": "good",
+    "text": "On plan"
+   },
+   "call": {
+    "kind": "hold",
+    "text": "Hold",
+    "sub": "Stays $3,300 a day",
+    "why": "2.38x so far, a raise needs 2.50x"
+   },
+   "today": {
+    "sales": 7620,
+    "goal": 9800,
+    "orders": 211,
+    "aov": 36,
+    "vs": {
+     "pct": 0.27,
+     "label": "vs last year"
+    }
+   },
+   "weekend": {
+    "sales": 38300,
+    "goal": 71000
+   },
+   "hours": [
+    0,
+    230,
+    389,
+    491,
+    562,
+    634,
+    722,
+    936,
+    1411,
+    2186,
+    2954,
+    3920,
+    5060,
+    6388,
+    7620
+   ],
+   "cmp": [
+    0,
+    175,
+    292,
+    380,
+    438,
+    496,
+    584,
+    818,
+    1153,
+    1650,
+    2351,
+    3241,
+    3986,
+    4920,
+    5782,
+    6701,
+    7461,
+    8264,
+    9110,
+    10001,
+    11038,
+    12060,
+    13198,
+    14045,
+    14600
+   ],
+   "mer": {
+    "so_far": 2.38,
+    "last6": 2.57,
+    "last6_hours": 6,
+    "kpi": 2.5,
+    "hold": 2.0,
+    "new": 1.98,
+    "be_new": 1.7
+   },
+   "spend": {
+    "today": 3200,
+    "budget": 3300,
+    "limit_used": 0.66,
+    "near": false
+   },
+   "no_sales": false
+  },
+  {
+   "id": "brand_summit_sticks",
+   "name": "Summit Sticks",
+   "status": {
+    "tone": "warn",
+    "text": "Near Meta limit"
+   },
+   "call": {
+    "kind": "hold",
+    "text": "Hold",
+    "sub": "Stays $600 a day",
+    "why": "A raise would pass the $700 Meta limit"
+   },
+   "today": {
+    "sales": 2410,
+    "goal": 3100,
+    "orders": 28,
+    "aov": 86,
+    "vs": null
+   },
+   "weekend": {
+    "sales": 11800,
+    "goal": 21000
+   },
+   "hours": [
+    0,
+    72,
+    122,
+    154,
+    176,
+    194,
+    228,
+    308,
+    448,
+    667,
+    935,
+    1253,
+    1615,
+    2079,
+    2410
+   ],
+   "cmp": null,
+   "mer": {
+    "so_far": 4.62,
+    "last6": 4.9,
+    "last6_hours": 6,
+    "kpi": 2.5,
+    "hold": 2.0,
+    "new": 2.3,
+    "be_new": 1.6
+   },
+   "spend": {
+    "today": 520,
+    "budget": 600,
+    "limit_used": 0.74,
+    "near": true
+   },
+   "no_sales": false
+  },
+  {
+   "id": "brand_copper_kettle_pets",
+   "name": "Copper Kettle Pets",
+   "status": {
+    "tone": "off",
+    "text": "Too early"
+   },
+   "call": {
+    "kind": "hold",
+    "text": "Hold",
+    "sub": "Stays $120 a day",
+    "why": "Needs $150 of ads before a read"
+   },
+   "today": {
+    "sales": 270,
+    "goal": 650,
+    "orders": 6,
+    "aov": 45,
+    "vs": null
+   },
+   "weekend": {
+    "sales": 1640,
+    "goal": 4000
+   },
+   "hours": [
+    0,
+    8,
+    14,
+    17,
+    20,
+    22,
+    25,
+    34,
+    50,
+    78,
+    108,
+    139,
+    179,
+    226,
+    270
+   ],
+   "cmp": null,
+   "mer": {
+    "so_far": null,
+    "last6": null,
+    "last6_hours": 6,
+    "kpi": 2.5,
+    "hold": 2.0,
+    "new": null,
+    "be_new": 1.6,
+    "early": true
+   },
+   "spend": {
+    "today": 104,
+    "budget": 120,
+    "limit_used": 0.04,
+    "near": false
+   },
+   "no_sales": false
+  },
+  {
+   "id": "brand_harbor_and_pine",
+   "name": "Harbor & Pine",
+   "status": {
+    "tone": "off",
+    "text": "Watch only"
+   },
+   "call": {
+    "kind": "watch",
+    "text": "Watch only",
+    "sub": "No budget move from the app",
+    "why": "The client runs these ads"
+   },
+   "today": {
+    "sales": 5140,
+    "goal": null,
+    "orders": 31,
+    "aov": 166,
+    "vs": {
+     "pct": 0.11,
+     "label": "vs last year"
+    }
+   },
+   "weekend": {
+    "sales": 8300,
+    "goal": null
+   },
+   "hours": [
+    0,
+    155,
+    275,
+    322,
+    376,
+    428,
+    494,
+    640,
+    912,
+    1439,
+    2081,
+    2683,
+    3475,
+    4256,
+    5140
+   ],
+   "cmp": [
+    0,
+    134,
+    224,
+    291,
+    336,
+    381,
+    448,
+    627,
+    885,
+    1266,
+    1803,
+    2486,
+    3058,
+    3774,
+    4435,
+    5141,
+    5723,
+    6339,
+    6989,
+    7672,
+    8467,
+    9251,
+    10125,
+    10774,
+    11200
+   ],
+   "mer": {
+    "so_far": 5.12,
+    "last6": 4.87,
+    "last6_hours": 6,
+    "kpi": 2.5,
+    "hold": null,
+    "new": null,
+    "be_new": null,
+    "watch": true
+   },
+   "spend": {
+    "today": 1004,
+    "budget": null,
+    "limit_used": null,
+    "near": false
+   },
+   "no_sales": false
+  }
+ ],
+ "switch_note": "First switch in 9h 50m",
+ "switches": [
+  {
+   "when": "Mon Nov 30, 12:00am",
+   "what": "Cyber Monday ads turn on",
+   "brand": "Northlake Golf",
+   "where": "Black Friday ad sets",
+   "ads": 18,
+   "status": {
+    "tone": "good",
+    "text": "Ready"
+   }
+  },
+  {
+   "when": "",
+   "what": "Cyber Monday ads turn on",
+   "brand": "Fairway Supply",
+   "where": "Second ad sets only",
+   "ads": 16,
+   "status": {
+    "tone": "good",
+    "text": "Ready"
+   }
+  },
+  {
+   "when": "",
+   "what": "Cyber Monday ads turn on",
+   "brand": "Tallgrass Apparel",
+   "where": "Black Friday ad sets",
+   "ads": 12,
+   "status": {
+    "tone": "good",
+    "text": "Ready"
+   }
+  },
+  {
+   "when": "",
+   "what": "Cyber Monday ads turn on",
+   "brand": "Brightside Patch",
+   "where": "Black Friday ad sets",
+   "ads": 8,
+   "status": {
+    "tone": "good",
+    "text": "Ready"
+   }
+  },
+  {
+   "when": "",
+   "what": "Cyber Monday ads turn on",
+   "brand": "Copper Kettle Pets",
+   "where": "Black Friday ad sets",
+   "ads": 5,
+   "status": {
+    "tone": "good",
+    "text": "Ready"
+   }
+  },
+  {
+   "when": "",
+   "what": "Cyber Monday ads turn on",
+   "brand": "Summit Sticks",
+   "where": "None loaded yet",
+   "ads": 0,
+   "status": {
+    "tone": "warn",
+    "text": "Check"
+   }
+  },
+  {
+   "when": "Tue Dec 1, 12:00am",
+   "what": "Black Friday off, Holiday ads on",
+   "brand": "Brightside Patch",
+   "where": "Holiday 2026 campaign",
+   "ads": null,
+   "status": {
+    "tone": "good",
+    "text": "Ready"
+   }
+  },
+  {
+   "when": "",
+   "what": "Black Friday off, Holiday ads on",
+   "brand": "Tallgrass Apparel",
+   "where": "Holiday 2026 campaign",
+   "ads": null,
+   "status": {
+    "tone": "good",
+    "text": "Ready"
+   }
+  },
+  {
+   "when": "",
+   "what": "Black Friday off, Holiday ads on",
+   "brand": "Summit Sticks",
+   "where": "Holiday 2026 campaign",
+   "ads": null,
+   "status": {
+    "tone": "good",
+    "text": "Ready"
+   }
+  },
+  {
+   "when": "",
+   "what": "Black Friday runs on to Dec 4",
+   "brand": "Northlake Golf",
+   "where": "Holiday from Dec 5",
+   "ads": null,
+   "status": {
+    "tone": "off",
+    "text": "Later"
+   }
+  }
+ ],
+ "foot": "Sample numbers, set on Sun Nov 29. Every brand, goal, limit, sale, budget and status here is invented."
+}

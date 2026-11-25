@@ -1,0 +1,272 @@
+/* Local parts shared by the calendar, offers, Black Friday plan, reports, documents, requests,
+   to send, shared links and client list pages. Nothing here touches the network.
+   Kit gaps written here (see the report): the list row, the month grid, the "example" chip, copy a link. */
+
+import { exampleChip as kitExampleChip } from '../../kit.js';
+import { h, addStyles, button, toast, dateBlock, statusDot } from '../../kit.js';
+
+/* ---------- dates (whole days, no time zones) ---------- */
+const DAY = 864e5;
+export const at = ymd => Date.parse(String(ymd).slice(0, 10) + 'T12:00:00Z');
+export const ymd = ms => new Date(ms).toISOString().slice(0, 10);
+export const addDays = (d, n) => ymd(at(d) + n * DAY);
+export const between = (a, b) => Math.round((at(b) - at(a)) / DAY);
+const fmt = (d, o) => new Date(at(d)).toLocaleDateString('en-US', { timeZone: 'UTC', ...o });
+export const short = d => fmt(d, { month: 'short', day: 'numeric' });
+export const wday = d => fmt(d, { weekday: 'short' });
+export const monthName = d => fmt(d, { month: 'long', year: 'numeric' });
+/** "Nov 26", "Nov 26 to 30", "Nov 30 to Dec 4" */
+export function span(a, b) {
+  if (!a) return '';
+  if (!b || b === a) return short(a);
+  return a.slice(0, 7) === b.slice(0, 7) ? `${short(a)} to ${+b.slice(8, 10)}` : `${short(a)} to ${short(b)}`;
+}
+/** "today", "tomorrow", "in 6 days", "3 days ago" */
+export function away(today, d) {
+  const n = between(today, d);
+  return n === 0 ? 'today' : n === 1 ? 'tomorrow' : n === -1 ? 'yesterday' : n > 0 ? `in ${n} days` : `${-n} days ago`;
+}
+/** A time stamp from the API ("2026-11-23T14:02:11Z" or "2026-11-23 14:02:11") as "Nov 23". */
+export const dayOf = ts => ts ? short(String(ts).slice(0, 10)) : '';
+export const todayYmd = () => { const n = new Date(); return ymd(Date.UTC(n.getFullYear(), n.getMonth(), n.getDate(), 12)); };
+
+/* ---------- small parts ---------- */
+/** The chip on anything drawn from the fixture in real mode. */
+export const exampleChip = kitExampleChip; /* one version, in the kit */
+
+/** A section heading with a count and a quiet note. */
+export function heading(title, n, note) {
+  return h('div', { class: 'cr-h' }, h('h2', null, title), n != null && h('span', { class: 'lx-count' }, String(n)), note && h('span', { class: 'note' }, note));
+}
+
+/** row({ lead, title, sub, cells: [{ w, node, class }], action, onclick })
+    One list row with a real height. Desktop: lead, words, fixed cells, the button. Phone: stacked. */
+export function row({ lead, title, sub, cells = [], action, onclick, late } = {}) {
+  return h(onclick ? 'button' : 'div', { class: 'cr-row' + (onclick ? ' click' : '') + (lead ? '' : ' nolead'), type: onclick ? 'button' : null, onclick },
+    lead ? h('span', { class: 'cr-lead' }, lead) : null,
+    h('span', { class: 'cr-what' }, h('b', null, title), sub ? h('span', { class: 'cr-sub' + (late ? ' late' : '') }, sub) : null),
+    cells.length ? h('span', { class: 'cr-cells' }, cells.filter(Boolean).map(c => h('span', { class: 'cr-cell ' + (c.class || ''), style: c.w ? { '--w': c.w + 'px' } : null }, c.label ? h('small', null, c.label) : null, c.node))) : null,
+    action ? h('span', { class: 'cr-go' }, action) : null);
+}
+export const list = (rows, none) => h('div', { class: 'cr-list' }, rows.length ? rows : h('p', { class: 'cr-none' }, none || 'Nothing here yet.'));
+
+/** A button that copies a link and says so. */
+export function copyBtn(url, label = 'Copy link') {
+  return button(label, { iconLeft: 'link', onclick: async e => {
+    e.stopPropagation();
+    try { await navigator.clipboard.writeText(url); toast('Link copied.'); }
+    catch { toast('Could not copy. The link is ' + url, { ms: 6000 }); }
+  } });
+}
+
+/** A brand's name with its colour as a small square. */
+export function brandTag(name, color) {
+  return h('span', { class: 'cr-brand' }, h('i', { style: { '--dot': color || 'var(--faint)' } }), name);
+}
+export const colorOf = (ctx, id) => ((ctx.brands || []).find(b => b.id === id) || {}).color || null;
+
+/* ---------- the month grid ---------- */
+/** monthGrid({ month: '2026-11', today, events: [{ start, end, name, tone, color, id }], onPick })
+    Weeks as rows, each event a bar across the days it runs. Three bars a week, then "+ n more". */
+export function monthGrid({ month, today, events = [], onPick, lanes = 3 } = {}) {
+  const first = month + '-01';
+  const startDow = new Date(at(first)).getUTCDay();
+  const gridStart = addDays(first, -startDow);
+  const dim = new Date(Date.UTC(+month.slice(0, 4), +month.slice(5, 7), 0)).getUTCDate();
+  const weeks = Math.ceil((startDow + dim) / 7);
+  const el = h('div', { class: 'cr-month', role: 'grid', 'aria-label': monthName(first) });
+  el.append(h('div', { class: 'cr-dow' }, ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => h('span', null, d))));
+  for (let w = 0; w < weeks; w++) {
+    const ws = addDays(gridStart, w * 7), we = addDays(ws, 6);
+    const wk = h('div', { class: 'cr-week' });
+    for (let d = 0; d < 7; d++) {
+      const day = addDays(ws, d), out = day.slice(0, 7) !== month;
+      wk.append(h('span', { class: 'cr-day' + (out ? ' out' : '') + (day === today ? ' today' : '') + (day < today ? ' past' : ''), style: { gridColumn: String(d + 1) } }, h('b', null, +day.slice(8, 10))));
+    }
+    const here = events.filter(e => e.start <= we && (e.end || e.start) >= ws).sort((a, b) => a.start.localeCompare(b.start) || (b.end || b.start).localeCompare(a.end || a.start));
+    const used = [];           // per lane: the last column taken
+    let more = Array(7).fill(0);
+    for (const e of here) {
+      const c0 = Math.max(0, between(ws, e.start)), c1 = Math.min(6, between(ws, e.end || e.start));
+      let lane = used.findIndex(last => last < c0);
+      if (lane < 0) lane = used.length;
+      if (lane >= lanes) { for (let c = c0; c <= c1; c++) more[c]++; continue; }
+      used[lane] = c1;
+      const cont = e.start < ws, goes = (e.end || e.start) > we;
+      wk.append(h('button', { type: 'button', class: 'cr-bar ' + (e.tone || '') + (cont ? ' cont' : '') + (goes ? ' goes' : ''), title: e.name + ', ' + span(e.start, e.end),
+        style: { gridColumn: `${c0 + 1} / ${c1 + 2}`, gridRow: String(lane + 2) }, onclick: () => onPick && onPick(e) },
+        e.color ? h('i', { style: { '--dot': e.color } }) : null, h('span', null, e.name)));
+    }
+    more.forEach((n, c) => { if (n) wk.append(h('span', { class: 'cr-more', style: { gridColumn: String(c + 1), gridRow: String(lanes + 2) } }, '+ ' + n + ' more')); });
+    el.append(wk);
+  }
+  return el;
+}
+
+/** The legend under a calendar: what the three dots mean. */
+export const statusLegend = () => h('div', { class: 'cr-legend' }, statusDot('good', 'Confirmed'), statusDot('warn', 'Pencilled in'), statusDot('bad', 'No offer written'));
+
+/** A date block that reads "NOV 26". */
+export const dateOf = (d, today) => dateBlock(d, { month: true, now: d === today });
+
+/* ---------- styles ---------- */
+let done = false;
+export function css() {
+  if (done) return;
+  done = true;
+  addStyles('lx-cr-css', CSS);
+}
+const CSS = `
+.cr-ex{background:#fff;box-shadow:inset 0 0 0 1px var(--line-strong);color:var(--muted)}
+.cr-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-bottom:12px}
+.cr-h h2{margin:0;font-size:17px;font-weight:600;letter-spacing:-.02em}
+.cr-h .note{font-size:13px;color:var(--muted)}
+.cr-h .sp{flex:1}
+.cr-sect{display:grid;min-width:0}
+.cr-bar-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;min-width:0}
+.cr-bar-top .lx-seg{max-width:100%;overflow-x:auto;scrollbar-width:none}
+.cr-bar-top .lx-seg button{flex:none;white-space:nowrap}
+.cr-bar-top .sp{flex:1}
+.cr-list{display:grid;min-width:0}
+.cr-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:18px;align-items:center;min-height:74px;padding:13px 0;border:0;border-top:1px solid var(--line);background:transparent;width:100%;text-align:left;font:inherit;color:inherit;min-width:0}
+.cr-row.nolead{grid-template-columns:minmax(0,1fr) auto auto}
+.cr-row.click{cursor:pointer}
+.cr-row.click:hover .cr-what b{text-decoration:underline;text-decoration-color:var(--line-strong);text-underline-offset:3px}
+.cr-lead{display:flex;align-items:center}
+.cr-lead:empty{display:none}
+.cr-what{min-width:0;display:block}
+.cr-what b{display:block;font-size:15px;font-weight:600;letter-spacing:-.012em;line-height:1.35;overflow-wrap:anywhere}
+.cr-sub{display:block;margin-top:3px;font-size:13px;color:var(--muted);line-height:1.4;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.cr-sub.late{color:var(--bad)}
+.cr-cells{display:flex;align-items:center;gap:22px}
+.cr-cell{display:block;width:var(--w,120px);font-size:13.5px;color:var(--ink-2);font-variant-numeric:tabular-nums;min-width:0}
+.cr-cell small{display:none;font-size:11.5px;color:var(--muted)}
+.cr-cell.strong{font-weight:600;color:var(--ink)}
+.cr-cell.num{text-align:right}
+.cr-cell .lx-stat{white-space:normal}
+.cr-go{display:flex;justify-content:flex-end;gap:8px;min-width:0}
+.cr-go .lx-btn{height:36px;white-space:nowrap}
+.cr-none{padding:18px 0;border-top:1px solid var(--line);font-size:13.5px;color:var(--muted)}
+.cr-brand{display:inline-flex;align-items:center;gap:8px;font-size:13.5px;font-weight:500;color:var(--ink-2);min-width:0}
+.cr-brand i{width:10px;height:10px;border-radius:3px;background:var(--dot);flex:none}
+.cr-legend{display:flex;gap:18px;flex-wrap:wrap;padding-top:14px}
+
+.cr-month{display:grid;border-radius:18px;box-shadow:var(--sh-1);background:#fff;overflow:hidden;min-width:0}
+.cr-dow{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-bottom:1px solid var(--line)}
+.cr-dow span{padding:10px 12px;font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+.cr-week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));grid-template-rows:34px repeat(4,26px);row-gap:3px;min-height:150px;padding-bottom:8px;border-top:1px solid var(--line);position:relative}
+.cr-dow+.cr-week{border-top:0}
+.cr-day{grid-row:1 / -1;padding:8px 10px;border-left:1px solid var(--line);min-width:0}
+.cr-day:first-child{border-left:0}
+.cr-day b{display:inline-grid;place-items:center;min-width:24px;height:24px;border-radius:999px;font-size:13px;font-weight:550;font-variant-numeric:tabular-nums;color:var(--ink)}
+.cr-day.out b{color:var(--icon)}
+.cr-day.past:not(.out) b{color:var(--muted)}
+.cr-day.today b{background:var(--ink);color:#fff;padding:0 6px}
+.cr-day.out{background:var(--surface-2)}
+.cr-bar{display:flex;align-items:center;gap:6px;height:24px;margin:0 5px;padding:0 9px;border:0;border-radius:8px;background:var(--bg-sunk);font:inherit;font-size:12.5px;font-weight:550;color:var(--ink);text-align:left;cursor:pointer;min-width:0;z-index:1}
+.cr-bar::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--faint);flex:none}
+.cr-bar.good::before{background:var(--good)}
+.cr-bar.warn::before{background:var(--watch)}
+.cr-bar.bad::before{background:var(--bad)}
+.cr-bar.mail{background:transparent;color:var(--muted);font-weight:450}
+.cr-bar.mail::before{background:transparent;box-shadow:inset 0 0 0 1.5px var(--faint)}
+.cr-bar i{width:8px;height:8px;border-radius:3px;background:var(--dot);flex:none}
+.cr-bar span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.cr-bar.cont{margin-left:0;border-top-left-radius:0;border-bottom-left-radius:0}
+.cr-bar.goes{margin-right:0;border-top-right-radius:0;border-bottom-right-radius:0}
+.cr-bar:hover{background:#E9E7E2}
+.cr-bar.mail:hover{background:var(--surface-2)}
+.cr-more{align-self:center;padding:0 12px;font-size:11.5px;color:var(--muted);z-index:1;white-space:nowrap}
+.cr-nav{display:flex;align-items:center;gap:8px}
+.cr-nav h2{margin:0 6px 0 0;font-size:19px;font-weight:600;letter-spacing:-.025em;min-width:172px}
+.cr-nav .lx-btn.icon svg{width:16px;height:16px}
+
+.cr-kv{display:grid;grid-template-columns:150px minmax(0,1fr);gap:8px 16px;font-size:14px}
+.cr-kv dt{color:var(--muted);font-size:13.5px}
+.cr-kv dd{margin:0;font-weight:550;overflow-wrap:anywhere}
+.cr-steps{display:grid;margin-top:6px}
+.cr-step{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 14px;padding:12px 0;border-top:1px solid var(--line);font-size:14px}
+.cr-step b{font-weight:600}
+.cr-step small{grid-column:1/-1;font-size:12.5px;color:var(--muted)}
+.cr-sheet{display:grid;gap:20px}
+.cr-sheet p.offer{font-size:16px;line-height:1.45;font-weight:550;letter-spacing:-.01em}
+.cr-thread{display:grid;gap:12px}
+.cr-msg{padding:12px 14px;border-radius:14px;background:var(--bg-sunk);font-size:14px;line-height:1.45;overflow-wrap:anywhere;white-space:pre-line}
+.cr-msg.team{background:#fff;box-shadow:var(--sh-1)}
+.cr-msg small{display:block;margin-bottom:4px;font-size:12px;color:var(--muted);font-weight:550}
+
+.cr-offer{display:grid;grid-template-columns:44px minmax(0,1fr) 190px 150px;gap:18px;align-items:start;padding:20px 0;border-top:1px solid var(--line)}
+.cr-offer .n{display:inline-grid;place-items:center;width:34px;height:34px;border-radius:999px;background:var(--bg-sunk);font-size:14px;font-weight:650;font-variant-numeric:tabular-nums}
+.cr-offer.lead .n{background:var(--ink);color:#fff}
+.cr-offer .nm{font-size:13px;color:var(--muted)}
+.cr-offer .deal{margin-top:2px;font-size:18px;font-weight:600;letter-spacing:-.02em;line-height:1.3;overflow-wrap:anywhere}
+.cr-offer.lead .deal{font-size:22px}
+.cr-offer .deal.none{color:var(--muted);font-weight:500;font-size:15px}
+.cr-offer .detail{margin-top:6px;font-size:13.5px;color:var(--muted);line-height:1.45;max-width:70ch}
+.cr-offer .when{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums}
+.cr-offer .when small{display:block;margin-top:2px;font-size:12.5px;font-weight:400;color:var(--muted)}
+.cr-offer .res{margin-top:10px;display:flex;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.cr-offer .res b{color:var(--ink);font-weight:650}
+
+.cr-heroline{display:grid;gap:8px;min-width:0}
+.cr-heroline .lab{font-size:13px;color:var(--muted)}
+.cr-heroline .big{font-size:30px;font-weight:600;letter-spacing:-.035em;line-height:1.15;overflow-wrap:anywhere}
+.cr-heroline .of{font-size:13.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.cr-herogrid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.4fr);gap:44px;align-items:end}
+.cr-ladder{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:24px}
+.cr-ladder div{display:grid;gap:4px;padding-top:14px;border-top:3px solid var(--bg-sunk)}
+.cr-ladder .good{border-top-color:var(--good)}
+.cr-ladder .warn{border-top-color:var(--watch)}
+.cr-ladder .bad{border-top-color:var(--bad)}
+.cr-ladder small{font-size:13px;color:var(--muted)}
+.cr-ladder b{font-size:26px;font-weight:600;letter-spacing:-.035em;font-variant-numeric:tabular-nums}
+.cr-ladder span{font-size:13px;color:var(--ink-2)}
+.cr-check{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:0 36px}
+.cr-check>div{display:flex;gap:12px;align-items:flex-start;padding:13px 0;border-top:1px solid var(--line);font-size:14px;min-height:56px}
+.cr-check b{font-weight:600}
+.cr-check small{display:block;font-size:12.5px;color:var(--muted);margin-top:2px}
+.cr-tick{flex:none;display:inline-grid;place-items:center;width:22px;height:22px;border-radius:999px;box-shadow:inset 0 0 0 1.5px var(--line-strong);margin-top:1px}
+.cr-tick.on{background:var(--good);box-shadow:none}
+.cr-tick.on::after{content:"";width:9px;height:5px;border-left:2px solid #fff;border-bottom:2px solid #fff;transform:rotate(-45deg) translateY(-1px)}
+.cr-people{display:flex;align-items:center;gap:12px;min-width:0}
+.cr-foot{font-size:12.5px;color:var(--muted);line-height:1.5;max-width:90ch}
+
+@media (max-width:1040px){
+  .cr-cells{gap:16px}
+  .cr-cell.hide-md{display:none}
+  .cr-herogrid{grid-template-columns:1fr;gap:28px}
+  .cr-offer{grid-template-columns:44px minmax(0,1fr) 150px}
+  .cr-offer .st{grid-column:2/-1}
+}
+@media (max-width:759px){
+  .cr-row{grid-template-columns:auto minmax(0,1fr);gap:8px 14px;min-height:0;padding:15px 0;align-items:start}
+  .cr-row.nolead{grid-template-columns:minmax(0,1fr)}
+  .cr-cells{grid-column:1/-1;flex-wrap:wrap;gap:6px 18px}
+  .cr-cell{width:auto;text-align:left!important}
+  .cr-cell.hide-sm{display:none}
+  .cr-cell small{display:inline;margin-right:5px}
+  .cr-go{grid-column:1/-1;justify-content:stretch;flex-wrap:wrap}
+  .cr-go .lx-btn{flex:1;height:44px}
+  .cr-month{border-radius:16px}
+  .cr-dow span{padding:8px 0;text-align:center;font-size:9.5px;letter-spacing:.04em}
+  .cr-week{grid-template-rows:30px repeat(4,8px);row-gap:3px;min-height:78px;padding-bottom:6px}
+  .cr-day{padding:5px 0;text-align:center}
+  .cr-day b{font-size:12px;min-width:22px;height:22px}
+  .cr-bar{height:8px;margin:0 3px;padding:0;border-radius:4px;background:var(--faint)}
+  .cr-bar::before,.cr-bar span,.cr-bar i{display:none}
+  .cr-bar.good{background:var(--good)}.cr-bar.warn{background:var(--watch)}.cr-bar.bad{background:var(--bad)}
+  .cr-bar.mail{background:transparent;box-shadow:inset 0 0 0 1.5px var(--icon)}
+  .cr-more{font-size:0;padding:0;justify-self:center;width:4px;height:4px;border-radius:50%;background:var(--muted)}
+  .cr-nav{width:100%}
+  .cr-nav h2{flex:1;min-width:0;font-size:18px}
+  .cr-kv{grid-template-columns:110px minmax(0,1fr)}
+  .cr-offer{grid-template-columns:36px minmax(0,1fr);gap:8px 12px;padding:18px 0}
+  .cr-offer .wh,.cr-offer .st{grid-column:2}
+  .cr-offer .n{width:30px;height:30px;font-size:13px}
+  .cr-offer.lead .deal{font-size:19px}
+  .cr-heroline .big{font-size:24px}
+  .cr-ladder{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+  .cr-ladder b{font-size:22px}
+  .cr-people{flex-wrap:wrap}
+}
+`;

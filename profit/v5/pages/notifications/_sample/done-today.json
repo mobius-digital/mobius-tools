@@ -1,0 +1,16 @@
+{
+ "note": "Sample. Every row is invented. The rows themselves come from pages/_sample/notifications.json (the bell's file); this file adds what only the page shows, keyed by the row's words.",
+ "read": { "team": true },
+ "groups": [
+  { "id": "you", "title": "By you" },
+  { "id": "team", "title": "By the team" }
+ ],
+ "take": { "say": [{ "b": "4 things" }, " are done so far today, 2 of them yours."] },
+ "rows": {
+  "Posted the Tallgrass Apparel and Copper Kettle Pets week plans": { "group": "you", "btn": { "label": "Open the plans", "line": "a-meetings", "tab": "agenda" }, "detail": "Both week plans were posted to the team after the Monday call." },
+  "Approved 6 creator videos": { "group": "you", "btn": { "label": "Open videos", "line": "creators", "tab": "videos" }, "detail": "6 of 9 videos were approved. The other 3 went back with notes." },
+  "Turned off 2 ads on Meta": { "group": "team", "btn": { "label": "Open changes", "line": "meta", "tab": "changes" }, "detail": "Both ads had spent three times the goal with no sale." },
+  "Sent the November report": { "group": "team", "btn": { "label": "Open reports", "line": "reports", "tab": "index" }, "detail": "The report went to the client's channel at 9:30am." },
+  "The November report is ready to read": { "group": "you", "btn": { "label": "Open the report", "line": "reports", "tab": "index" } }
+ }
+}

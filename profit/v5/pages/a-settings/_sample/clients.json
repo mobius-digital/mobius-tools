@@ -1,0 +1,12 @@
+{
+ "brands": [
+  { "id": "brand_northlake_golf", "name": "Northlake Golf", "status": "active", "color": "#14532D", "logins": 2, "lead": "Alex Morgan", "connected": { "ok": 9, "of": 12 }, "hidden": false },
+  { "id": "brand_harbor_and_pine", "name": "Harbor & Pine", "status": "active", "color": "#854D0E", "logins": 1, "lead": "Sam Rivera", "connected": { "ok": 10, "of": 11 }, "hidden": false },
+  { "id": "brand_tallgrass_apparel", "name": "Tallgrass Apparel", "status": "active", "color": "#7C2D12", "logins": 1, "lead": "Jordan Lee", "connected": { "ok": 11, "of": 11 }, "hidden": false },
+  { "id": "brand_copper_kettle_pets", "name": "Copper Kettle Pets", "status": "active", "color": "#581C87", "logins": 0, "lead": "Sam Rivera", "connected": { "ok": 7, "of": 10 }, "hidden": false },
+  { "id": "brand_summit_sticks", "name": "Summit Sticks", "status": "active", "color": "#155E75", "logins": 1, "lead": "Jordan Lee", "connected": { "ok": 8, "of": 9 }, "hidden": false },
+  { "id": "brand_brightside_patch", "name": "Brightside Patch", "status": "active", "color": "#9D174D", "logins": 0, "lead": "Morgan Patel", "connected": { "ok": 6, "of": 9 }, "hidden": false },
+  { "id": "brand_fairway_supply", "name": "Fairway Supply", "status": "paused", "color": "#1E3A8A", "logins": 0, "lead": null, "connected": { "ok": 4, "of": 9 }, "hidden": true }
+ ],
+ "defaults": { "sender": "owner", "mail_name": "Alex Morgan", "daily_mode": "hold", "client_style": "short", "ai_daily": 5, "invite_days": 30, "show_by": true }
+}

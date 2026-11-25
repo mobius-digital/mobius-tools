@@ -1,0 +1,96 @@
+{
+ "act": "brand_northlake_golf",
+ "count": 5,
+ "items": [
+  {
+   "id": "submission_s1",
+   "creator": "Quinn Harper",
+   "product": "Ridge belt, brown",
+   "program": "Holiday",
+   "angle": "The gift they will wear",
+   "media": "video",
+   "thumb": null,
+   "art": {
+    "kind": "golfer",
+    "c1": "#1F3A2C",
+    "c2": "#2B2B2B",
+    "bg": "#DCE7DD"
+   },
+   "line": "I have bought my dad three belts that broke. This one has a magnetic buckle and it has not moved in a year.",
+   "created_at": "2026-11-21T15:20:00Z",
+   "secs": 34
+  },
+  {
+   "id": "submission_s2",
+   "creator": "Avery Stone",
+   "product": "Ridge belt, black",
+   "program": "Black Friday",
+   "angle": "Buy one, get one",
+   "media": "video",
+   "thumb": null,
+   "art": {
+    "kind": "belt",
+    "c1": "#1F3A2C",
+    "c2": "#C9A45C",
+    "bg": "#EEE9DF"
+   },
+   "line": "Black Friday is the only time this belt is buy one get one. I got one for me and one for my brother.",
+   "created_at": "2026-11-22T09:04:00Z",
+   "secs": 22
+  },
+  {
+   "id": "submission_s3",
+   "creator": "Jules Moreno",
+   "product": "Ball marker set",
+   "program": "Holiday",
+   "angle": "Stocking stuffer",
+   "media": "video",
+   "thumb": null,
+   "art": {
+    "kind": "green",
+    "c1": "#4C7A52",
+    "c2": "#C9A45C",
+    "bg": "#DDE8EE"
+   },
+   "line": "Under twenty dollars and every golfer on your list will use it every round.",
+   "created_at": "2026-11-23T19:40:00Z",
+   "secs": 18
+  },
+  {
+   "id": "submission_s4",
+   "creator": "Emery Vance",
+   "product": "Ridge belt, brown",
+   "program": "Evergreen",
+   "angle": "No more slipping",
+   "media": "video",
+   "thumb": null,
+   "art": {
+    "kind": "golfer",
+    "c1": "#1F3A2C",
+    "c2": "#2B2B2B",
+    "bg": "#DCE7DD"
+   },
+   "line": "Watch my swing. Now watch my belt. It does not move.",
+   "created_at": "2026-11-24T08:10:00Z",
+   "secs": 27
+  },
+  {
+   "id": "submission_s5",
+   "creator": "Blake Sutter",
+   "product": "Gift box",
+   "program": "Holiday",
+   "angle": "Unboxing",
+   "media": "image",
+   "thumb": null,
+   "art": {
+    "kind": "box",
+    "c1": "#9B2C2C",
+    "c2": "#C9A45C",
+    "bg": "#F1E7DA"
+   },
+   "line": "",
+   "created_at": "2026-11-24T11:30:00Z",
+   "secs": null
+  }
+ ]
+}

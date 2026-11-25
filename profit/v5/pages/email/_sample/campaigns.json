@@ -1,0 +1,202 @@
+{
+ "connected": true,
+ "klaviyo": true,
+ "range": {
+  "from": "2026-11-01",
+  "to": "2026-11-22"
+ },
+ "campaigns": [
+  {
+   "id": "c1",
+   "name": "Early sale is here: second belt half off",
+   "sent": "2026-11-01",
+   "channel": "email",
+   "recipients": 21480,
+   "open_rate": 0.412,
+   "click_rate": 0.0081,
+   "sales": 1712,
+   "orders": 24,
+   "order_rate": 0.00112,
+   "unsub_rate": 0.0027,
+   "first_time": 0.36
+  },
+  {
+   "id": "c2",
+   "name": "The early sale pair math",
+   "sent": "2026-11-02",
+   "channel": "email",
+   "recipients": 21390,
+   "open_rate": 0.447,
+   "click_rate": 0.0072,
+   "sales": 902,
+   "orders": 13,
+   "order_rate": 0.00061,
+   "unsub_rate": 0.0017,
+   "first_time": 0.24
+  },
+  {
+   "id": "c3",
+   "name": "Gift a belt without the waist size",
+   "sent": "2026-11-08",
+   "channel": "email",
+   "recipients": 21620,
+   "open_rate": 0.371,
+   "click_rate": 0.0064,
+   "sales": 648,
+   "orders": 9,
+   "order_rate": 0.00042,
+   "unsub_rate": 0.0027,
+   "first_time": 0.41
+  },
+  {
+   "id": "c4",
+   "name": "Last weekend of the early sale",
+   "sent": "2026-11-14",
+   "channel": "email",
+   "recipients": 21710,
+   "open_rate": 0.398,
+   "click_rate": 0.0093,
+   "sales": 1186,
+   "orders": 17,
+   "order_rate": 0.00078,
+   "unsub_rate": 0.0022,
+   "first_time": 0.29
+  },
+  {
+   "id": "c5",
+   "name": "Ends tonight: second belt half off",
+   "sent": "2026-11-15",
+   "channel": "email",
+   "recipients": 21744,
+   "open_rate": 0.431,
+   "click_rate": 0.0118,
+   "sales": 1094,
+   "orders": 15,
+   "order_rate": 0.00069,
+   "unsub_rate": 0.0023,
+   "first_time": 0.22
+  },
+  {
+   "id": "c6",
+   "name": "Ends tonight (text)",
+   "sent": "2026-11-15",
+   "channel": "sms",
+   "recipients": 4088,
+   "open_rate": null,
+   "click_rate": 0.061,
+   "sales": 412,
+   "orders": 6,
+   "order_rate": 0.00147,
+   "unsub_rate": 0.0016,
+   "first_time": 0.18
+  },
+  {
+   "id": "c7",
+   "name": "One for the course, one for dinner",
+   "sent": "2026-11-05",
+   "channel": "email",
+   "recipients": 21455,
+   "open_rate": 0.366,
+   "click_rate": 0.0055,
+   "sales": 771,
+   "orders": 11,
+   "order_rate": 0.00051,
+   "unsub_rate": 0.0019,
+   "first_time": 0.27
+  },
+  {
+   "id": "c8",
+   "name": "The belt battle is almost over",
+   "sent": "2026-11-11",
+   "channel": "email",
+   "recipients": 21588,
+   "open_rate": 0.224,
+   "click_rate": 0.009,
+   "sales": 528,
+   "orders": 7,
+   "order_rate": 0.00032,
+   "unsub_rate": 0.0026,
+   "first_time": 0.61
+  },
+  {
+   "id": "c9",
+   "name": "Friday list: what is coming",
+   "sent": "2026-11-13",
+   "channel": "email",
+   "recipients": 21660,
+   "open_rate": 0.455,
+   "click_rate": 0.0131,
+   "sales": 958,
+   "orders": 13,
+   "order_rate": 0.0006,
+   "unsub_rate": 0.0022,
+   "first_time": 0.19
+  },
+  {
+   "id": "c10",
+   "name": "Ball markers are back",
+   "sent": "2026-11-19",
+   "channel": "email",
+   "recipients": 21802,
+   "open_rate": 0.342,
+   "click_rate": 0.0048,
+   "sales": 436,
+   "orders": 6,
+   "order_rate": 0.00028,
+   "unsub_rate": 0.0023,
+   "first_time": 0.33
+  },
+  {
+   "id": "c11",
+   "name": "Black Friday starts Thursday",
+   "sent": "2026-11-21",
+   "channel": "email",
+   "recipients": 21840,
+   "open_rate": 0.468,
+   "click_rate": 0.0102,
+   "sales": 702,
+   "orders": 10,
+   "order_rate": 0.00046,
+   "unsub_rate": 0.0027,
+   "first_time": 0.21
+  },
+  {
+   "id": "c12",
+   "name": "Thursday reminder (text)",
+   "sent": "2026-11-21",
+   "channel": "sms",
+   "recipients": 4124,
+   "open_rate": null,
+   "click_rate": 0.048,
+   "sales": 188,
+   "orders": 3,
+   "order_rate": 0.00073,
+   "unsub_rate": 0.0015,
+   "first_time": 0.16
+  }
+ ],
+ "upcoming": [
+  {
+   "id": "u1",
+   "name": "Black Friday: doors open",
+   "channel": "email",
+   "status": "Scheduled",
+   "send_at": "2026-11-26T18:00:00"
+  },
+  {
+   "id": "u2",
+   "name": "Black Friday: doors open (text)",
+   "channel": "sms",
+   "status": "Scheduled",
+   "send_at": "2026-11-26T18:05:00"
+  },
+  {
+   "id": "u3",
+   "name": "Cyber Monday: last call",
+   "channel": "email",
+   "status": "Draft",
+   "send_at": null
+  }
+ ],
+ "example": []
+}

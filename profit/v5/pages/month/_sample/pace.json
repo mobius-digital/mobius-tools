@@ -1,0 +1,171 @@
+{
+ "month": "2026-11",
+ "today": "2026-11-23",
+ "days_in_month": 30,
+ "source": true,
+ "days": [
+  {
+   "date": "2026-11-01",
+   "sales": 3612,
+   "spend": 1108,
+   "profit": 842
+  },
+  {
+   "date": "2026-11-02",
+   "sales": 2762,
+   "spend": 1036,
+   "profit": 455
+  },
+  {
+   "date": "2026-11-03",
+   "sales": 2904,
+   "spend": 1150,
+   "profit": 418
+  },
+  {
+   "date": "2026-11-04",
+   "sales": 3080,
+   "spend": 1132,
+   "profit": 531
+  },
+  {
+   "date": "2026-11-05",
+   "sales": 4199,
+   "spend": 1221,
+   "profit": 1046
+  },
+  {
+   "date": "2026-11-06",
+   "sales": 3095,
+   "spend": 1007,
+   "profit": 664
+  },
+  {
+   "date": "2026-11-07",
+   "sales": 4020,
+   "spend": 1059,
+   "profit": 1112
+  },
+  {
+   "date": "2026-11-08",
+   "sales": 3546,
+   "spend": 1079,
+   "profit": 836
+  },
+  {
+   "date": "2026-11-09",
+   "sales": 3568,
+   "spend": 1084,
+   "profit": 843
+  },
+  {
+   "date": "2026-11-10",
+   "sales": 3413,
+   "spend": 1221,
+   "profit": 622
+  },
+  {
+   "date": "2026-11-11",
+   "sales": 2598,
+   "spend": 1072,
+   "profit": 331
+  },
+  {
+   "date": "2026-11-12",
+   "sales": 2538,
+   "spend": 991,
+   "profit": 380
+  },
+  {
+   "date": "2026-11-13",
+   "sales": 3675,
+   "spend": 1220,
+   "profit": 765
+  },
+  {
+   "date": "2026-11-14",
+   "sales": 4690,
+   "spend": 1143,
+   "profit": 1390
+  },
+  {
+   "date": "2026-11-15",
+   "sales": 3097,
+   "spend": 1250,
+   "profit": 422
+  },
+  {
+   "date": "2026-11-16",
+   "sales": 2435,
+   "spend": 1267,
+   "profit": 48
+  },
+  {
+   "date": "2026-11-17",
+   "sales": 1782,
+   "spend": 1150,
+   "profit": -188
+  },
+  {
+   "date": "2026-11-18",
+   "sales": 2627,
+   "spend": 1150,
+   "profit": 269
+  },
+  {
+   "date": "2026-11-19",
+   "sales": 1663,
+   "spend": 999,
+   "profit": -101
+  },
+  {
+   "date": "2026-11-20",
+   "sales": 1395,
+   "spend": 1008,
+   "profit": -255
+  },
+  {
+   "date": "2026-11-21",
+   "sales": 1092,
+   "spend": 541,
+   "profit": 49
+  },
+  {
+   "date": "2026-11-22",
+   "sales": 1638,
+   "spend": 814,
+   "profit": 71
+  }
+ ],
+ "totals": {
+  "sales": 63429,
+  "spend": 23702,
+  "profit": 10550,
+  "meta_spend": 16925,
+  "google_spend": 4336
+ },
+ "profit_withheld": false,
+ "goals": {
+  "sales": 80455,
+  "spend": 28500
+ },
+ "goal_mer": 3.0,
+ "forecast": {
+  "projected": 86240,
+  "at_pace": 86494
+ },
+ "notes": [
+  {
+   "date": "2026-11-15",
+   "text": "Early sale ended"
+  },
+  {
+   "date": "2026-11-27",
+   "text": "Black Friday"
+  },
+  {
+   "date": "2026-11-30",
+   "text": "Cyber Monday"
+  }
+ ]
+}

@@ -1,0 +1,605 @@
+/* The kit: small pure functions that return DOM or SVG nodes. No state, no network.
+   Charts are inline SVG drawn at the real width of their box (see lineChart), so pages never draw their own.
+   Ember (the gradient) is for the lead series only; everything else is slate or ink. */
+
+import { GLYPH, PLATFORM_NAME, icon } from './icons.js';
+import { AI_NAME } from './config.js';
+
+/* ---------- dom helpers ---------- */
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+/** h('div', { class: 'x', onclick: fn, style: { width: '4px' }, dataset: { id: 1 } }, child, 'text', [more]) */
+export function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  setAttrs(el, attrs);
+  add(el, kids);
+  return el;
+}
+/** The same for SVG elements. */
+export function s(tag, attrs, ...kids) {
+  const el = document.createElementNS(SVG_NS, tag);
+  setAttrs(el, attrs);
+  add(el, kids);
+  return el;
+}
+function setAttrs(el, attrs) {
+  if (!attrs) return;
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v == null || v === false) continue;
+    if (k === 'class') el.setAttribute('class', v);
+    else if (k === 'style' && typeof v === 'object') for (const [p, x] of Object.entries(v)) p.startsWith('--') ? el.style.setProperty(p, x) : (el.style[p] = x);
+    else if (k === 'dataset') Object.assign(el.dataset, v);
+    else if (k === 'html') el.innerHTML = v;
+    else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2), v);
+    else el.setAttribute(k, v === true ? '' : v);
+  }
+}
+function add(el, kids) {
+  for (const k of kids.flat(Infinity)) {
+    if (k == null || k === false) continue;
+    el.append(k.nodeType ? k : document.createTextNode(String(k)));
+  }
+}
+/** An SVG string (from icons.js) as a node. */
+export function svgNode(str) {
+  const t = document.createElement('template');
+  t.innerHTML = str.trim();
+  return t.content.firstChild;
+}
+/** addStyles('hm-css', CSS) : a page's own layout rules, added to the document once. */
+export function addStyles(id, text) {
+  if (document.getElementById(id)) return;
+  const el = document.createElement('style'); el.id = id; el.textContent = text; document.head.append(el);
+}
+/** Text from a worker or a person, with any long dash turned into a comma. The dashes are written as escapes on purpose. */
+export const noDash = t => String(t == null ? '' : t).replace(/\s*[\u2014\u2013]\s*/g, ', ');
+export const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/* ---------- numbers ---------- */
+const NONE = 'no data';
+const ok = n => n != null && isFinite(n);
+/** money(44721) "$44,721"   money(12.5) "$12.50"   money(44721, { compact: true }) "$44.7k"   money(null) "no data" */
+export function money(n, { cur = 'USD', compact = false, cents } = {}) {
+  if (!ok(n)) return NONE;
+  if (compact && Math.abs(n) >= 1000) {
+    const sym = money(0, { cur, cents: false }).replace(/[\d.,\s]/g, '');
+    const k = Math.abs(n) >= 1e6 ? [n / 1e6, 'M'] : [n / 1e3, 'k'];
+    return (n < 0 ? '-' : '') + sym + Math.abs(k[0]).toFixed(Math.abs(k[0]) >= 100 ? 0 : 1).replace(/\.0$/, '') + k[1];
+  }
+  const digits = cents ?? (Math.abs(n) < 1000 && n % 1 !== 0) ? 2 : 0;
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: cur, minimumFractionDigits: digits, maximumFractionDigits: digits }).format(n);
+}
+/** num(231) "231"   num(12840) "12,840"   num(1.234, 1) "1.2" */
+export function num(n, digits = 0) {
+  return ok(n) ? new Intl.NumberFormat('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(n) : NONE;
+}
+/** pct(0.094) "9%"   pct(0.094, { digits: 1 }) "9.4%"   pct(-0.2, { signed: true }) "-20%"   takes a fraction */
+export function pct(n, { digits = 0, signed = false } = {}) {
+  if (!ok(n)) return NONE;
+  const v = +(n * 100).toFixed(digits);
+  return (signed && v > 0 ? '+' : '') + (v === 0 ? '0' : v.toFixed(digits)) + '%';
+}
+/** x(1.754) "1.75x". ROAS for one platform, campaign or ad; MER for the whole store. */
+export function x(n, digits = 2) { return ok(n) ? n.toFixed(digits) + 'x' : NONE; }
+/** relativeTime(Date.now() - 240000) "4 min ago" */
+export function relativeTime(ts, now = Date.now()) {
+  if (!ts) return '';
+  const sec = Math.max(0, Math.round((now - +new Date(ts)) / 1000));
+  if (sec < 45) return 'just now';
+  if (sec < 3600) return Math.max(1, Math.round(sec / 60)) + ' min ago';
+  if (sec < 86400) { const hr = Math.round(sec / 3600); return hr + (hr === 1 ? ' hour ago' : ' hours ago'); }
+  const d = Math.round(sec / 86400);
+  return d === 1 ? 'yesterday' : d + ' days ago';
+}
+
+/* ---------- small parts ---------- */
+/** statusDot('good' | 'warn' | 'bad' | 'info' | 'off', 'Ready') : a dot and a word */
+export function statusDot(tone, text) { return h('span', { class: 'lx-stat ' + (tone || '') }, text); }
+/** pill('good' | 'warn' | 'bad' | 'ai' | '', '0.75x under goal') */
+export function pill(tone, text) { return h('span', { class: 'lx-pill ' + (tone || '') }, text); }
+/** count(3) a small round count; count(3, 'ink') on ink */
+export function count(n, tone) { return h('span', { class: 'lx-count ' + (tone || '') }, String(n)); }
+/** delta(0.09) "▲ 9%" green; delta(0.68, { bad: true }) red; delta(-0.1, { plain: true }) no judgement */
+export function delta(n, { bad = false, plain = false, text } = {}) {
+  if (!ok(n)) return h('span', { class: 'lx-delta' }, NONE);
+  const dir = n >= 0 ? 'up' : 'down';
+  return h('span', { class: 'lx-delta ' + dir + (plain ? ' plain' : bad ? ' is-bad' : ' is-good') }, text || pct(Math.abs(n)));
+}
+/** button('Review all 6', { primary, large, ghost, icon: 'arrow', iconLeft: 'month', href, onclick }) */
+export function button(label, o = {}) {
+  const cls = 'lx-btn' + (o.primary ? ' primary' : '') + (o.large ? ' lg' : '') + (o.ghost ? ' ghost' : '') + (o.class ? ' ' + o.class : '');
+  const kids = [o.iconLeft && svgNode(icon(o.iconLeft)), label, o.icon && svgNode(icon(o.icon))];
+  return o.href ? h('a', { class: cls, href: o.href, target: o.target, 'aria-label': o.aria }, kids)
+    : h('button', { class: cls, type: 'button', onclick: o.onclick, disabled: o.disabled, 'aria-label': o.aria }, kids);
+}
+/** platformChip('meta') glyph and name in ink; { chip: true } on a pill; { dot: '#2F6FED' } a 6px dot; { label } own text */
+export function platformChip(id, { chip = false, dot, label } = {}) {
+  const el = h('span', { class: 'lx-plat' + (chip ? ' chip' : '') });
+  if (GLYPH[id]) el.append(svgNode(icon(id)));
+  el.append(label || PLATFORM_NAME[id] || id);
+  if (dot) el.append(h('i', { style: { '--dot': dot } }));
+  return el;
+}
+/** The picture address a person carries, at the larger size when the address lets us ask.
+    The API gives a Slack picture (image_192, image_72, or an address ending _72.jpg) or a Google one (=s96-c). */
+export function photoOf(person = {}, size = 34) {
+  const p = person.profile || {};
+  let url = person.photo || person.picture || person.image_192 || p.image_192 || person.avatar_url || person.image_72 || p.image_72 || person.image || '';
+  if (!url || typeof url !== 'string') return '';
+  const want = size * 2 > 96 ? 192 : 96;                                  // twice the drawn size, for sharp screens
+  url = url.replace(/_(24|32|48|72)(\.(?:jpg|jpeg|png|gif))(\?.*)?$/i, '_192$2$3');   // Slack: always ask for the 192
+  url = url.replace(/=s\d+(-c)?$/, '=s' + want + '-c');                     // Google: the size is in the address
+  return url;
+}
+/** The two letters shown when there is no picture: "Sam Rivera" is SR, "Northlake Golf" is NG, "sam@..." is S. */
+export function initials(person = {}) {
+  const name = String(person.name || (person.email || '').split('@')[0] || '?').trim();
+  const parts = name.split(/[\s._-]+/).filter(Boolean);
+  return ((parts[0] || '?')[0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
+}
+/** avatar({ name, email, photo }, { size }) : the person's photo when the data carries one, initials on ink otherwise.
+    A picture that fails to load falls back to the initials. size in px. */
+export function avatar(person = {}, { size = 34 } = {}) {
+  const name = person.name || (person.email || '').split('@')[0] || '?';
+  const el = h('span', { class: 'lx-avatar', role: 'img', 'aria-label': name, style: { width: size + 'px', height: size + 'px', fontSize: Math.round(size * 0.38) + 'px' } });
+  const url = photoOf(person, size), letters = initials(person);
+  if (url) {
+    const img = h('img', { src: url, alt: '', width: size, height: size, loading: 'lazy', decoding: 'async', referrerpolicy: 'no-referrer' });
+    img.addEventListener('error', () => { el.textContent = letters; }, { once: true });
+    el.append(img);
+  } else el.textContent = letters;
+  return el;
+}
+/** dateBlock('2026-11-26') a soft block "THU 26"; { now: true } on ink; { month: true } shows "DEC 5" */
+export function dateBlock(date, { now = false, month = false } = {}) {
+  const d = typeof date === 'string' ? new Date(date + (date.length === 10 ? 'T12:00:00' : '')) : new Date(date);
+  const top = month ? d.toLocaleDateString('en-US', { month: 'short' }) : d.toLocaleDateString('en-US', { weekday: 'short' });
+  return h('span', { class: 'lx-date' + (now ? ' now' : '') }, h('span', null, h('small', null, top), h('b', null, d.getDate())));
+}
+/** takeaway(['Sales are ', h('b', null, '$3,797 ahead'), ' of plan.'], { action: button('Ask why') })
+    The one sentence from the assistant. One per page. */
+export function takeaway(content, { action, by } = {}) {
+  return h('div', { class: 'lx-take' },
+    h('span', { class: 'lx-gem' }, svgNode(icon('sparkle'))),
+    h('span', { class: 'by' }, by || AI_NAME),
+    h('span', { class: 'say' }, content), action || null);
+}
+/** skeleton('line' | 'title' | 'kpi' | 'chart' | 'row', n) : placeholders for a first ever visit only */
+export function skeleton(kind = 'line', n = 1) {
+  const f = document.createDocumentFragment();
+  for (let i = 0; i < n; i++) f.append(h('div', { class: 'lx-skel ' + kind, 'aria-hidden': 'true' }));
+  return f;
+}
+/** put(el, ...kids) : replace an element's children, leaving out null and false (replaceChildren would print "null"). */
+export function put(el, ...kids) { el.replaceChildren(...kids.flat(Infinity).filter(k => k != null && k !== false).map(k => k.nodeType ? k : document.createTextNode(String(k)))); return el; }
+/** exampleChip() : marks a part that shows sample numbers until its read-only data feed is built. One wording everywhere. */
+export const EXAMPLE_TEXT = 'Example until its data feed is built';
+export function exampleChip({ title = 'These are example numbers. The real ones show here when the data feed is built.' } = {}) { return h('span', { class: 'lx-chip lx-ex', title }, EXAMPLE_TEXT); }
+/** big(value, small) : a large figure outside a kpi (inside a table cell, a card head or a sheet). */
+export function big(value, small) { return h('span', { class: 'lx-big' }, value, small && h('small', null, small)); }
+/** card({ title, note, action, flush }, ...children) : a white card with a quiet section header */
+export function card({ title, note, action, flush = false, class: cls } = {}, ...kids) {
+  return h('section', { class: 'lx-card' + (flush ? ' flush' : '') + (cls ? ' ' + cls : '') },
+    title ? h('div', { class: 'lx-sec' }, h('h3', null, title), note && h('span', { class: 'note' }, note), action && h('div', { class: 'act' }, action)) : null, kids);
+}
+/** hero({ line, class }, ...children) : the one hero band on a page (the big figures).
+    The page title is drawn by the shell above the tabs, so a hero normally has no title of its own.
+    eyebrow, title, sub and action still work for a band that needs its own heading (a sheet, sign in). */
+export function hero({ eyebrow, title, sub, action, line = false, class: cls } = {}, ...kids) {
+  const head = eyebrow || title || sub || action
+    ? h('div', { class: 'lx-hero-h' }, h('div', null, eyebrow && h('span', { class: 'lx-eyebrow' }, eyebrow), title && h('h2', { class: 'lx-hero-t' }, title), sub && h('p', null, sub)), h('span', { class: 'lx-sp' }), action || null)
+    : null;
+  return h('section', { class: 'lx-hero' + (line ? ' line' : '') + (cls ? ' ' + cls : '') }, head, kids);
+}
+/** em('this month?') : the serif, ember gradient phrase. Page titles only, once per page: title: ctx => ['How is it going ', em('this month?')] */
+export function em(text) { return h('span', { class: 'lx-serif lx-grad-text' }, text); }
+
+/* ---------- toast and sheet ---------- */
+let toastBox;
+/** toast('Saved') ; toast('Could not save', { tone: 'bad', ms: 5000 }) */
+export function toast(text, { tone = '', ms = 2600 } = {}) {
+  if (!toastBox) { toastBox = h('div', { class: 'lx-toasts', role: 'status', 'aria-live': 'polite' }); document.body.append(toastBox); }
+  const el = h('div', { class: 'lx-toast ' + tone }, text);
+  toastBox.append(el);
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 220); }, ms);
+  return el;
+}
+/** sheet({ title, body, side: 'right' | 'bottom' | 'center' }) : an overlay. Returns { el, close }.
+    On a phone every sheet rises from the bottom. Escape and a tap outside close it. */
+export function sheet({ title, body, side = 'right', onClose, class: cls } = {}) {
+  const panel = h('div', { class: 'lx-sheet ' + side + (cls ? ' ' + cls : ''), role: 'dialog', 'aria-modal': 'true', 'aria-label': title || 'Panel' },
+    h('div', { class: 'grab' }),
+    title ? h('div', { class: 'lx-sheet-h' }, h('h2', null, title), h('button', { class: 'lx-btn ghost icon', type: 'button', 'aria-label': 'Close', onclick: () => close() }, svgNode(icon('close')))) : null,
+    h('div', { class: 'lx-sheet-b' }, body));
+  const wrap = h('div', { class: 'lx-overlay', onmousedown: e => { if (e.target === wrap) close(); } }, panel);
+  const key = e => { if (e.key === 'Escape') close(); };
+  function close() { document.removeEventListener('keydown', key); wrap.remove(); onClose && onClose(); }
+  document.addEventListener('keydown', key);
+  document.body.append(wrap);
+  return { el: panel, close };
+}
+
+/* ---------- form fields ---------- */
+/** field({ label, hint, type, value, placeholder, icon, oninput }) : a labelled input. Returns the wrapper; .input is the input. */
+export function field({ label, hint, icon: ic, id = 'f' + Math.random().toString(36).slice(2, 8), ...attrs } = {}) {
+  const input = h('input', { class: 'lx-input' + (ic ? ' has-icon' : ''), id, type: 'text', ...attrs });
+  const el = h('div', { class: 'lx-field' }, label && h('label', { for: id }, label), h('div', { class: 'lx-input-wrap' }, ic && svgNode(icon(ic)), input), hint && h('p', { class: 'hint' }, hint));
+  el.input = input;
+  return el;
+}
+/** toggle({ label, checked, onchange }) : a switch */
+export function toggle({ label, checked = false, onchange, ariaLabel, disabled = false } = {}) {
+  const input = h('input', { type: 'checkbox', role: 'switch', checked: checked || null, disabled: disabled || null, 'aria-label': ariaLabel || null, onchange: e => onchange && onchange(e.target.checked) });
+  input.checked = !!checked;
+  return h('label', { class: 'lx-toggle' }, input, h('span', { class: 'track' }), label && h('span', null, label));
+}
+/** segmented([{ id, label }], activeId, onPick) : the small two or three way switch */
+export function segmented(items, active, onPick) {
+  const el = h('div', { class: 'lx-seg', role: 'tablist' });
+  items.forEach(it => el.append(h('button', { type: 'button', role: 'tab', class: it.id === active ? 'on' : '', 'aria-selected': it.id === active, onclick: () => {
+    el.querySelectorAll('button').forEach(b => { b.classList.remove('on'); b.setAttribute('aria-selected', 'false'); });
+    const b = el.children[items.indexOf(it)]; b.classList.add('on'); b.setAttribute('aria-selected', 'true');
+    onPick && onPick(it.id);
+  } }, it.label)));
+  return el;
+}
+
+/* ---------- tabs ---------- */
+/** tabs([{ id, label, href, count, lock }], activeId, onPick) : sub pages across the top of a page */
+export function tabs(items, active, onPick) {
+  const el = h('nav', { class: 'lx-tabs', 'aria-label': 'Sections' });
+  for (const it of items) {
+    el.append(h('a', { href: it.href || '#', class: it.id === active ? 'on' : '', 'aria-current': it.id === active ? 'page' : null, dataset: { tab: it.id },
+      onclick: onPick ? e => { e.preventDefault(); onPick(it.id); } : null },
+      it.label, it.count != null && h('span', { class: 'n' }, it.count), it.lock && svgNode(icon('lock', 'lock'))));
+  }
+  return el;
+}
+
+/* ---------- KPI ---------- */
+/** kpi({ label, value, small, sub, delta, spark, lead, size: 'lg', href })
+    value is already formatted text. small sits beside it ("$111 each"). sub is a node or text under it.
+    delta is a node from delta() or statusDot(). spark is an array of numbers (slate; lead: true for ember). */
+export function kpi({ label, value, small, sub, delta: d, spark, lead = false, size, href, src } = {}) {
+  const kids = [
+    h('span', { class: 'l' }, label, src && h('span', { class: 'lx-src' }, src)),
+    h('span', { class: 'v' }, value, small && h('small', null, small)),
+    (d || sub) && h('span', { class: 's' }, d || null, sub || null),
+    spark && spark.length > 1 ? sparkline(spark, { lead, fill: true }) : null,
+  ];
+  const cls = 'lx-kpi' + (size === 'lg' ? ' lg' : '');
+  return href ? h('a', { class: cls, href }, kids) : h('div', { class: cls }, kids);
+}
+/** kpis(...kpi nodes) : the open row of figures. { cols: 4 } fixes the column count. */
+export function kpis(list, { cols } = {}) {
+  return h('div', { class: 'lx-kpis', style: cols ? { '--cols': cols } : null }, list);
+}
+
+/* ---------- charts ----------
+   One chart for every page. A chart is a box that follows its container: the drawing is made at the
+   box's real pixel width (viewBox = pixels), so type is a true size on a phone and on a wide screen.
+   One shared ResizeObserver watches only the WIDTH of each box. The height is set from the width, and
+   the width never depends on the height, so a redraw cannot trigger another one. Pass `width` to pin it. */
+const path = pts => pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+const niceMax = v => { if (!(v > 0)) return 1; const p = Math.pow(10, Math.floor(Math.log10(v))); const m = v / p; return (m <= 1 ? 1 : m <= 1.5 ? 1.5 : m <= 2 ? 2 : m <= 3 ? 3 : m <= 4 ? 4 : m <= 5 ? 5 : m <= 6 ? 6 : m <= 8 ? 8 : 10) * p; };
+const textW = (t, px = 6.4) => String(t ?? '').length * px;
+
+/** sparkline([3854, 2703, ...], { lead, fill, width, height, goal }) : a thin line, slate by default.
+    goal draws a dashed level line (MER against its goal) and joins the scale. */
+export function sparkline(values, { lead = false, fill = false, width = 226, height = 38, goal } = {}) {
+  const v = values.filter(ok);
+  const svg = s('svg', { class: 'lx-spark', viewBox: `0 0 ${width} ${height}`, preserveAspectRatio: 'none', 'aria-hidden': 'true' });
+  if (v.length < 2) return svg;
+  const max = Math.max(...v, ok(goal) ? goal : -Infinity), min = ok(goal) ? 0 : Math.min(...v), span = max - min || 1;
+  const Y = val => (height - 8) - (height - 12) * (val - min) / span;
+  const d = path(v.map((val, i) => [width * i / (v.length - 1), Y(val)]));
+  if (ok(goal)) svg.append(s('line', { class: 'gref', x1: 0, x2: width, y1: Y(goal), y2: Y(goal) }));
+  if (fill) svg.append(s('path', { class: 'fill' + (lead ? ' lead' : ''), d: `${d} L${width} ${height} L0 ${height} Z` }));
+  svg.append(s('path', { class: 'ln' + (lead ? ' lead' : ''), d }));
+  return svg;
+}
+
+const CHARTS = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(list => {
+  for (const e of list) { const el = e.target, w = Math.round(e.contentRect.width); if (w > 40 && Math.abs(w - el._w) > 1) { el._w = w; el._paint(w); } }
+});
+/* the width a full row chart most likely gets, for the first drawing before the box is on the page */
+const guessW = () => { const vw = window.innerWidth || 1280; return Math.max(260, Math.min(1124, vw - (vw < 760 ? 64 : vw <= 1040 ? 172 : 352))); };
+function chartBox(o, draw) {
+  const el = h('div', { class: 'lx-chart' + (o.class ? ' ' + o.class : '') });
+  el._paint = w => {
+    const phone = w < 520, H = phone ? (o.phoneHeight || Math.min(o.height, 290)) : o.height;
+    el.style.height = H + 'px';
+    el.replaceChildren(...draw(w, H, phone));
+  };
+  el._w = o.width || guessW();
+  el._paint(el._w);
+  if (!o.width && CHARTS) CHARTS.observe(el);
+  return el;
+}
+
+/** lineChart({ series, labels, ... }) : THE chart. Lines, columns or both, on one dollar (or any) scale.
+    Returns a <div class="lx-chart"> that follows its container. Give it its own full width row.
+
+    series: [{ name, values, lead, dashed, type, axis, labels, points, end, tone, leadAt, dimAt }]
+      lead: true        the ONE ember line (soft area under it when fill is on). Every other line is slate.
+      dashed: true      a comparison line (last year, "sales needed"): grey dashes, no end label.
+      type: 'bar'       columns instead of a line. tone: 'ink' (default) | 'dim' | 'slate'. leadAt: index of the
+                        one ember column. dimAt: [indexes] or i => bool drawn pale.
+      axis: 'right'     read against the right axis (see y2). For a share drawn over counts.
+      labels: true      a figure on every point or column (v => text for your own words). Crowded ones are
+                        dropped on a narrow screen; the last is always kept.
+      points: true      a dot on every point.
+      end: v => text    the words at the right end of the line (false for none). Default is the last value.
+    labels: x axis text, one per point. On a narrow screen only as many as fit are drawn (first and last stay).
+      Works for days ("Nov 4"), weeks ("Oct 26") and hours ("6am").
+    ticks: [indexes]    name exactly which x labels to try (still thinned when they would touch).
+    xs: [numbers]       real x positions when points are not evenly spaced (day 0, 30, 60, 90, 180, 365).
+    slots: bool         points sit in the middle of equal slots. On by default when there is a column series.
+    goal: { value, label, at: 'start' | 'end' }   a dashed level line with its words.
+    notes: [{ index, text }]   a dated note: a dashed upright line with a few words. `note` takes one.
+    marks: [{ at | index, value, axis, text, line }]   an ink dot with words (where two lines cross); line: true
+                        adds an upright line. at is a free position (slot units, or x units with xs).
+    now: index          an upright line at "now" (hour charts).
+    y2: { max, format } the right axis for series with axis: 'right'.
+    fill, endLabels     the soft area under the lead line; the figures at the right end (both on by default).
+    format, endFormat   v => text for the left axis; for end and point labels (defaults to format).
+    yMax, yTicks, axis  the top of the scale; grid steps (picked to land on round figures); axis: false hides the left axis (small cards).
+    height, phoneHeight pixels. Real height, never squished: 350 and 290 by default.
+    width               a fixed pixel width. Leave it out and the chart follows its container.
+    hover: i => nodes   a read out above the plot for the point under the pointer or finger.
+    label, empty        the spoken description; the words when there is nothing to draw. */
+export function lineChart(o = {}) {
+  const opt = { height: 350, fill: true, endLabels: true, axis: true, label: 'Chart', empty: 'No data for these dates',
+    format: v => money(v, { compact: true }), ...o };
+  opt.notes = (o.notes || (o.note ? [o.note] : [])).filter(nt => nt && nt.index != null && nt.index >= 0);
+  return chartBox(opt, (W, H, phone) => plot(opt, W, H, phone));
+}
+
+/** barChart({ values, labels, dim, lead, format, height, valueLabels, label }) : one column series.
+    Columns are data marks: ink, with dim ones in grey. dim: array of indexes (or i => bool).
+    lead: index of the one column to draw in ember. The same responsive box as lineChart. */
+export function barChart({ values = [], labels = [], dim, lead, format = v => num(v), height = 240, valueLabels = false, ...rest } = {}) {
+  return lineChart({ series: [{ type: 'bar', values, dimAt: dim, leadAt: lead, labels: valueLabels }], labels, format, height, yTicks: 2, endLabels: false, min: 1, ...rest });
+}
+
+function plot(o, W, H, phone) {
+  const series = (o.series || []).filter(Boolean).map(sr => ({ type: 'line', ...sr, values: sr.values || [] }));
+  const n = Math.max(0, ...series.map(sr => sr.values.length));
+  const svg = s('svg', { class: 'lx-plot', viewBox: `0 0 ${W} ${H}`, width: W, height: H, preserveAspectRatio: 'xMinYMin meet', role: 'img', 'aria-label': o.label });
+  const left = series.filter(sr => sr.axis !== 'right');
+  const vals = left.flatMap(sr => sr.values.filter(ok)).concat(o.goal && ok(o.goal.value) ? [o.goal.value] : []);
+  if (!vals.length || n < (o.min || 2)) { svg.append(s('text', { class: 'tk', x: W / 2, y: H / 2, 'text-anchor': 'middle' }, o.empty)); return [svg]; }
+
+  const bars = series.filter(sr => sr.type === 'bar'), lines = series.filter(sr => sr.type !== 'bar');
+  const slots = o.slots ?? bars.length > 0;
+  const fmt = o.format, endFmt = o.endFormat || fmt, labFmt = sr => typeof sr.labels === 'function' ? sr.labels : endFmt;
+  const max = o.yMax || niceMax(Math.max(...vals) * (series.some(sr => sr.labels) ? 1.08 : 1));
+  /* grid steps that land on round figures: 3 for a top of 1.5, 3 or 6; 5 for 1, 5 or 10; else 4 */
+  if (!o.yTicks) { const m = +(max / Math.pow(10, Math.floor(Math.log10(max)))).toPrecision(3); o = { ...o, yTicks: [1.5, 3, 6].includes(m) ? 3 : [1, 5, 10].includes(m) ? 5 : 4 }; }
+  const yl = Array.from({ length: o.yTicks + 1 }, (_, g) => fmt(max * (o.yTicks - g) / o.yTicks));
+  const lastOf = sr => sr.values.filter(ok).pop();
+  const endText = sr => sr.end === false || sr.dashed && !sr.end || sr.labels || sr.type === 'bar' ? null : sr.end ? sr.end(lastOf(sr)) : endFmt(lastOf(sr));
+  const ends = o.endLabels ? lines.map(endText).filter(Boolean) : [];
+  const y2 = o.y2 && series.some(sr => sr.axis === 'right') ? o.y2 : null;
+  const hasLab = series.some(sr => sr.labels), topNotes = phone && o.notes.length;
+
+  const L = o.axis ? Math.max(30, Math.max(...yl.map(t => textW(t, 6.5))) + 14) : 2;
+  const R = W - (y2 ? textW(y2.format(y2.max), 6.5) + 14 : ends.length ? Math.max(...ends.map(t => textW(t, 7.3))) + 16 : hasLab || !o.axis ? 14 : 8);
+  const T = (o.top ?? 14) + (hasLab ? 14 : 0) + (topNotes ? 18 : 0) + (o.marks && o.marks.some(m => m.line) ? 20 : 0);
+  const hasX = !!(o.labels && o.labels.length), B = H - (hasX ? 30 : 6);
+  const xs = o.xs && o.xs.length === n ? o.xs : null, x0 = xs ? xs[0] : 0, x1 = xs ? xs[n - 1] : n - 1;
+  const step = (R - L) / n, pad = o.pad ?? 0;
+  const free = pos => slots ? L + step * pos : xs ? L + (R - L) * (pos - x0) / ((x1 - x0) || 1) : L + pad + (R - L - 2 * pad) * pos / Math.max(1, n - 1);
+  const X = i => slots ? L + step * (i + 0.5) : free(xs ? xs[i] : i);
+  const Y = v => B - (B - T) * Math.min(v, max) / max, Y2 = v => B - (B - T) * Math.min(v, y2.max) / y2.max;
+
+  /* grid and the axes */
+  for (let g = 0; g <= o.yTicks; g++) {
+    const y = T + (B - T) * g / o.yTicks;
+    svg.append(s('line', { class: g === o.yTicks ? 'ax' : 'gl', x1: L, x2: R, y1: y, y2: y }));
+    if (o.axis) svg.append(s('text', { class: 'tk y', x: L - 8, y: y + 4 }, yl[g]));
+    if (y2 && g < o.yTicks) svg.append(s('text', { class: 'tk', x: R + 8, y: y + 4 }, y2.format(y2.max * (o.yTicks - g) / o.yTicks)));
+  }
+
+  /* x labels: as many as fit. The first and the last always stay. */
+  if (hasX) {
+    let cand = Array.isArray(o.ticks) ? o.ticks.filter(i => i >= 0 && i < n) : [...Array(n).keys()].filter(i => o.labels[i] != null && o.labels[i] !== '');
+    const gap = phone ? 10 : 18, wOf = i => textW(o.labels[i], 6.3);
+    if (!Array.isArray(o.ticks) && cand.length > 2) {
+      const fit = Math.max(2, Math.floor((R - L) / (Math.max(...cand.map(wOf)) + gap + 6)));
+      /* an even step (every 2nd, every 5th day), then the last one */
+      if (cand.length > fit) { const st = Math.ceil((cand.length - 1) / (fit - 1)); cand = cand.filter((_, j) => j % st === 0 || j === cand.length - 1); }
+    }
+    const box = i => {
+      const w = wOf(i), cx = X(i), anchor = slots || pad ? 'middle' : i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle';
+      const a = anchor === 'start' ? cx : anchor === 'end' ? cx - w : cx - w / 2;
+      return { i, cx, anchor, a, b: a + w };
+    };
+    const kept = [];
+    cand.forEach((i, k) => {
+      const bx = box(i);
+      if (!kept.length || bx.a - kept[kept.length - 1].b >= gap) return kept.push(bx);
+      if (k === cand.length - 1) { while (kept.length > 1 && bx.a - kept[kept.length - 1].b < gap) kept.pop(); kept.push(bx); }
+    });
+    kept.forEach(t => svg.append(s('text', { class: 'tk' + (t.i === o.now ? ' on' : ''), x: t.cx, y: B + 21, 'text-anchor': t.anchor }, o.labels[t.i])));
+  }
+
+  /* notes, the goal, now */
+  const noteBoxes = [];
+  o.notes.forEach(nt => {
+    if (nt.index >= n) return;
+    const nx = X(nt.index), flip = topNotes ? nx > W / 2 : nx > R - textW(nt.text, 6.3) - 16;
+    svg.append(s('line', { class: 'ev', x1: nx, x2: nx, y1: T, y2: B }));
+    /* two notes close together: the later one drops a line so the words never sit on each other */
+    const tx = topNotes ? nx + (flip ? 4 : -4) : nx + (flip ? -8 : 8), tw = textW(nt.text, 6.3), a = flip ? tx - tw : tx;
+    let ty = topNotes ? T - 8 : T + 12;
+    while (noteBoxes.some(q => q.y === ty && a < q.b + 8 && q.a < a + tw + 8)) ty += 15;
+    noteBoxes.push({ a, b: a + tw, y: ty });
+    svg.append(s('text', { class: 'nt halo', x: tx, y: ty, 'text-anchor': flip ? 'end' : 'start' }, nt.text));
+  });
+  if (o.now != null && o.now < n) svg.append(s('line', { class: 'ev', x1: X(o.now), x2: X(o.now), y1: T, y2: B }));
+  if (o.goal && ok(o.goal.value)) {
+    const gy = Y(o.goal.value), start = o.goal.at === 'start';
+    svg.append(s('line', { class: 'ref', x1: L, x2: R, y1: gy, y2: gy }));
+    if (o.goal.label) svg.append(s('text', { class: 'nt on', x: start ? L + 8 : R - 4, y: start || gy - T < 18 ? gy + 16 : gy - 7, 'text-anchor': start ? 'start' : 'end' }, o.goal.label));
+  }
+
+  /* columns */
+  const taken = [];                       // label boxes already drawn, so two figures never sit on each other
+  const clear = (x, y, w) => !taken.some(t => Math.abs(t.y - y) < 14 && Math.abs(t.x - x) < (t.w + w) / 2 + 4);
+  const put = (text, x, y, cls, must) => { const w = textW(text, 7); if (!must && !clear(x, y, w)) return false; taken.push({ x, y, w }); svg.append(s('text', { class: 'dl halo ' + (cls || ''), x, y, 'text-anchor': 'middle' }, text)); return true; };
+  bars.forEach(sr => {
+    const bw = Math.max(3, slots ? Math.min(o.barWidth || 46, step * 0.62) : Math.min(12, (R - L) / n * 0.55)), r = Math.min(4, bw / 3);
+    const isDim = i => typeof sr.dimAt === 'function' ? sr.dimAt(i) : Array.isArray(sr.dimAt) && sr.dimAt.includes(i);
+    sr.values.forEach((v, i) => {
+      if (!ok(v)) return;
+      const l = X(i) - bw / 2, rr = l + bw, t = Math.min(B - r, Y(v));
+      const cls = i === sr.leadAt ? 'lead' : isDim(i) || sr.tone === 'dim' ? 'dim' : sr.tone === 'slate' ? 'slate' : '';
+      if (v > 0) svg.append(s('path', { class: 'col ' + cls, d: `M${l.toFixed(1)} ${B} V${(t + r).toFixed(1)} Q${l.toFixed(1)} ${t.toFixed(1)} ${(l + r).toFixed(1)} ${t.toFixed(1)} H${(rr - r).toFixed(1)} Q${rr.toFixed(1)} ${t.toFixed(1)} ${rr.toFixed(1)} ${(t + r).toFixed(1)} V${B} Z` },
+        s('title', null, (o.labels && o.labels[i] ? o.labels[i] + ': ' : '') + labFmt(sr)(v, i))));
+    });
+  });
+
+  /* lines: the lead line last, so it sits on top */
+  const endsOut = [];
+  [...lines].sort((a, b) => (a.lead ? 1 : 0) - (b.lead ? 1 : 0)).forEach(sr => {
+    const yOf = sr.axis === 'right' && y2 ? Y2 : Y;
+    const pts = sr.values.map((v, i) => ok(v) ? [X(i), yOf(v), i, v] : null).filter(Boolean);
+    if (pts.length < 2) return;
+    const d = path(pts), last = pts[pts.length - 1];
+    if (sr.lead && o.fill) svg.append(s('path', { class: 'area', d: `${d} L${last[0].toFixed(1)} ${B} L${pts[0][0].toFixed(1)} ${B} Z` }));
+    svg.append(s('path', { class: sr.dashed ? 'cmp' : sr.lead ? 's1' : 's2', d }));
+    if (sr.points) pts.slice(0, -1).forEach(p => svg.append(s('circle', { class: sr.lead ? 'dot' : 'dot2', cx: p[0], cy: p[1], r: 3.5 })));
+    if (sr.lead || sr.points) svg.append(s('circle', { class: sr.lead ? 'dot' : 'dot2', cx: last[0], cy: last[1], r: 4.5 }));
+    const et = o.endLabels ? endText(sr) : null;
+    if (et) endsOut.push({ y: last[1], text: et, lead: sr.lead });
+    sr._pts = pts;
+  });
+  /* figures on points and columns. The last point first (it must stay), then the rest left to right. */
+  series.forEach(sr => {
+    if (!sr.labels) return;
+    const f = labFmt(sr), isBar = sr.type === 'bar', yOf = sr.axis === 'right' && y2 ? Y2 : Y;
+    const pts = isBar ? sr.values.map((v, i) => ok(v) ? [X(i), yOf(v), i, v] : null).filter(Boolean) : (sr._pts || []);
+    const at = (p, k) => {
+      const prev = pts[k - 1], next = pts[k + 1], dip = !isBar && prev && next && p[3] < prev[3] && p[3] <= next[3] && p[1] + 26 < B;
+      return [p[0], dip ? p[1] + 21 : p[1] - (isBar ? 7 : 12)];
+    };
+    const order = pts.map((p, k) => k); if (!isBar && order.length) order.unshift(order.pop());
+    order.forEach(k => { const p = pts[k], [lx, ly] = at(p, k), lastOne = k === pts.length - 1; put(f(p[3], p[2]), Math.max(L + 4, Math.min(W - 4 - textW(f(p[3], p[2]), 7) / 2, lx)), ly, lastOne && sr.lead ? 's1t' : isBar ? 'sub' : '', lastOne && !isBar); });
+  });
+  endsOut.sort((a, b) => a.y - b.y);
+  for (let i = 1; i < endsOut.length; i++) if (endsOut[i].y - endsOut[i - 1].y < 15) endsOut[i].y = endsOut[i - 1].y + 15;
+  endsOut.forEach(e => svg.append(s('text', { class: 'dl ' + (e.lead ? 's1t' : 's2t'), x: R + 10, y: e.y + 4 }, e.text)));
+
+  /* marks: an ink dot and a few words */
+  (o.marks || []).forEach(m => {
+    const mx = m.at != null ? free(m.at) : X(m.index), my = ok(m.value) ? (m.axis === 'right' && y2 ? Y2 : Y)(m.value) : null;
+    const right = mx > (L + R) * 0.6;
+    if (m.line) svg.append(s('line', { class: 'ref', x1: mx, x2: mx, y1: T - 16, y2: B }));
+    if (my != null) svg.append(s('circle', { class: 'mk', cx: mx, cy: my, r: 4 }));
+    if (m.text) svg.append(s('text', { class: 'nt on halo', x: mx + (right ? -10 : 10), y: m.line || my == null ? T - 8 : my + (m.dy ?? 22), 'text-anchor': right ? 'end' : 'start' }, m.text));
+  });
+
+  if (!o.hover) return [svg];
+  /* hover or touch: one point, read out above the plot. Listeners sit on the svg, which a redraw replaces. */
+  const cur = s('line', { class: 'cur', y1: T, y2: B, visibility: 'hidden' });
+  const read = h('div', { class: 'lx-chart-read', hidden: true });
+  svg.append(cur, s('rect', { class: 'hit', x: L, y: T, width: R - L, height: B - T }));
+  const move = e => {
+    const box = svg.getBoundingClientRect(); if (!box.width) return;
+    const px = (e.clientX - box.left) * W / box.width;
+    const i = Math.max(0, Math.min(n - 1, slots ? Math.floor((px - L) / step) : xs ? xs.reduce((best, v, k) => Math.abs(free(v) - px) < Math.abs(free(xs[best]) - px) ? k : best, 0) : Math.round((px - L - pad) / ((R - L - 2 * pad) || 1) * (n - 1))));
+    cur.setAttribute('x1', X(i)); cur.setAttribute('x2', X(i)); cur.setAttribute('visibility', 'visible');
+    read.hidden = false; read.replaceChildren(...[].concat(o.hover(i)).filter(Boolean));
+  };
+  const off = () => { cur.setAttribute('visibility', 'hidden'); read.hidden = true; };
+  svg.addEventListener('pointermove', move); svg.addEventListener('pointerdown', move); svg.addEventListener('pointerleave', off);
+  return [read, svg];
+}
+
+/** legend([{ name, lead }, { name }, { name, dashed }, { name, square }]) : text with a line sample (a square for columns), for above a chart */
+export function legend(items) {
+  return h('div', { class: 'lx-legend' }, items.filter(Boolean).map(it => h('span', { class: (it.lead ? 'lead' : it.dashed ? 'dash' : '') + (it.square ? ' sq' : ''), style: it.color ? { '--c': it.color } : null }, it.name)));
+}
+
+/** gauge({ value, max, goal, tone, thin, ticks })
+    An ink measure on a soft track with a crisp goal tick. tone: 'good' | 'warn' | 'bad' colours the fill.
+    ticks: [{ at, text, on, side: 'l' | 'r' }] labels under the track (at is in the same units as value). */
+export function gauge({ value, max, goal, tone, thin = false, ticks } = {}) {
+  const m = max || Math.max(value || 0, goal || 0) * 1.2 || 1;
+  const p = v => Math.max(0, Math.min(100, 100 * v / m)).toFixed(1) + '%';
+  const el = h('div', { class: 'lx-gauge' + (thin ? ' thin' : '') },
+    h('div', { class: 'lx-gauge-track' },
+      ok(value) && h('i', { class: 'fill ' + (tone || ''), style: { '--v': p(value) } }),
+      ok(goal) && h('i', { class: 'goal', style: { '--v': p(goal) } })));
+  if (ticks && ticks.length) el.append(h('div', { class: 'lx-gauge-ticks' }, ticks.map(t => h('span', { class: (t.side || '') + (t.on ? ' on' : ''), style: t.side ? null : { '--at': p(t.at) } }, t.text))));
+  return el;
+}
+
+/* ---------- table ---------- */
+/** table({ cols, rows, virtual, total, roomy, rowHeight, height, sort, onRow, empty })
+    cols: [{ key, label, num, width, render(row, i), sortable, value(row) }]. num right aligns with tabular numerals.
+    render returns text or a node; without it the cell is row[key].
+    rows: array of objects. total: one more row object drawn as the band at the foot.
+    Over 100 rows (or virtual: true) only the rows on screen are in the DOM (60 at most), inside a
+    scrolling box of `height` px. Sorting works on the data: click a sortable header.
+    Returns the wrapper element; .setRows(rows) swaps the data in place. */
+export function table({ cols = [], rows = [], virtual, total, roomy = false, rowHeight, height = 560, sort, onRow, empty = 'Nothing here yet' } = {}) {
+  const rh = rowHeight || (roomy ? 56 : 40);
+  let data = rows.slice(), state = sort ? { ...sort } : null;
+  const isVirtual = () => virtual === true || (virtual !== false && data.length > 100);
+  const thead = h('thead', null, h('tr', null, cols.map(c => h('th', { class: (c.num ? 'num' : '') + (c.sortable ? ' can-sort' : '') + (c.class ? ' ' + c.class : ''), style: c.width ? { width: typeof c.width === 'number' ? c.width + 'px' : c.width } : null, dataset: c.sortable ? { key: c.key } : null, scope: 'col' }, c.label || ''))));
+  const tbody = h('tbody');
+  const tbl = h('table', { class: 'lx-table' + (roomy ? ' roomy' : '') }, thead, tbody);
+  const wrap = h('div', { class: 'lx-table-wrap' }, tbl);
+  const cell = (c, row, i) => { const v = c.render ? c.render(row, i) : row[c.key]; return h('td', { class: (c.num ? 'num' : '') + (c.class ? ' ' + c.class : '') }, v == null ? '' : v); };
+  const tr = (row, i, cls) => h('tr', { class: cls || (onRow ? 'click' : ''), dataset: { i } }, cols.map(c => cell(c, row, i)));
+  const spacer = px => h('tr', { class: 'spacer', 'aria-hidden': 'true' }, h('td', { colspan: cols.length, style: { height: px + 'px', padding: 0, border: 0 } }));
+  let raf = 0;
+  function draw() {
+    raf = 0;
+    const kids = [];
+    if (!data.length) kids.push(h('tr', { class: 'empty' }, h('td', { colspan: cols.length }, empty)));
+    else if (isVirtual()) {
+      const top = wrap.scrollTop, view = wrap.clientHeight || height;
+      const first = Math.max(0, Math.floor(top / rh) - 8), last = Math.min(data.length, first + Math.min(60, Math.ceil(view / rh) + 16));
+      if (first > 0) kids.push(spacer(first * rh));
+      for (let i = first; i < last; i++) kids.push(tr(data[i], i));
+      if (last < data.length) kids.push(spacer((data.length - last) * rh));
+    } else data.forEach((row, i) => kids.push(tr(row, i)));
+    if (total) kids.push(tr(total, -1, 'total'));
+    tbody.replaceChildren(...kids);
+  }
+  function applySort() {
+    if (!state) return;
+    const c = cols.find(k => k.key === state.key); if (!c) return;
+    const val = c.value || (r => r[c.key]);
+    data.sort((a, b) => { const x1 = val(a), y1 = val(b); if (x1 == null || y1 == null) return x1 == null ? (y1 == null ? 0 : 1) : -1;   /* no value sorts last, both ways */
+      const r = typeof x1 === 'number' && typeof y1 === 'number' ? x1 - y1 : String(x1).localeCompare(String(y1)); return state.dir === 'asc' ? r : -r; });
+    thead.querySelectorAll('th').forEach(th => { th.classList.toggle('sorted', th.dataset.key === state.key); th.classList.toggle('asc', th.dataset.key === state.key && state.dir === 'asc'); });
+  }
+  function setup() {
+    wrap.classList.toggle('virtual', isVirtual());
+    wrap.style.maxHeight = isVirtual() ? height + 'px' : '';
+    tbl.style.setProperty('--rh', rh + 'px');
+  }
+  thead.addEventListener('click', e => {
+    const th = e.target.closest('th[data-key]'); if (!th) return;
+    state = { key: th.dataset.key, dir: state && state.key === th.dataset.key && state.dir === 'desc' ? 'asc' : 'desc' };
+    applySort(); draw();
+  });
+  wrap.addEventListener('scroll', () => { if (isVirtual() && !raf) raf = requestAnimationFrame(draw); }, { passive: true });
+  if (onRow) tbody.addEventListener('click', e => { const r = e.target.closest('tr[data-i]'); if (r && +r.dataset.i >= 0) onRow(data[+r.dataset.i], +r.dataset.i, e); });
+  wrap.setRows = next => { data = next.slice(); setup(); applySort(); draw(); };
+  setup(); applySort(); draw();
+  return wrap;
+}
+
+/** asOf(ts) : "updated 4 min ago" as a quiet chip. The SHELL draws this in every page head from the
+    as-of time; a page never calls it. */
+export function asOf(ts) { return ts ? h('span', { class: 'lx-asof', title: new Date(ts).toLocaleString() }, 'updated ' + relativeTime(ts)) : null; }
+
+/** empty({ title, text, action }) : the plain state for "not connected" or "no sales source". Never a zero. */
+export function empty({ title, text, action } = {}) {
+  return h('div', { class: 'lx-empty' }, title && h('h3', null, title), text && h('p', null, text), action || null);
+}

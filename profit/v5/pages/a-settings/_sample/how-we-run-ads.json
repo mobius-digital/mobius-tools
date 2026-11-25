@@ -1,0 +1,7 @@
+{
+ "standard": { "cr_judge_x": 2, "cr_min_days": 3, "cr_scale_buys": 3, "cr_cut_zero_x": 3, "cr_cut_spend_x": 3, "cr_cut_cpa_x": 1.5, "judge_days": 7, "launch_days": ["mon", "thu"] },
+ "exceptions": [
+  { "id": "brand_copper_kettle_pets", "name": "Copper Kettle Pets", "diff": [{ "key": "cr_min_days", "value": 5 }, { "key": "judge_days", "value": 14 }] }
+ ],
+ "example": false
+}

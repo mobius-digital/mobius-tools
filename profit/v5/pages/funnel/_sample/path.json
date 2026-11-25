@@ -1,0 +1,720 @@
+{
+ "connected": true,
+ "range": {
+  "from": "2026-11-01",
+  "to": "2026-11-22"
+ },
+ "example": [],
+ "orders": 597,
+ "multi_orders": 203,
+ "clicks_avg": 1.6,
+ "days_avg": 2.1,
+ "same_day": 0.61,
+ "top_first": {
+  "channel": "meta",
+  "orders": 262
+ },
+ "sparks": {
+  "multi": [
+   32.716,
+   31.057,
+   32.157,
+   32.966,
+   31.723,
+   34.431,
+   35.551,
+   30.372,
+   39.528,
+   33.427,
+   38.937,
+   35.838,
+   35.827,
+   34.221,
+   34.067,
+   36.57,
+   39.978,
+   32.595,
+   36.832,
+   30.615,
+   35.181,
+   31.968
+  ],
+  "clicks": [
+   1.519,
+   1.548,
+   1.741,
+   1.781,
+   1.413,
+   1.753,
+   1.397,
+   1.555,
+   1.434,
+   1.397,
+   1.838,
+   1.466,
+   1.664,
+   1.429,
+   1.579,
+   1.645,
+   1.426,
+   1.802,
+   1.785,
+   1.787,
+   1.785,
+   1.796
+  ],
+  "days": [
+   2.374,
+   1.864,
+   1.586,
+   1.836,
+   1.655,
+   1.577,
+   2.223,
+   1.818,
+   2.353,
+   2.089,
+   2.297,
+   1.825,
+   2.501,
+   1.822,
+   1.968,
+   2.514,
+   1.699,
+   2.089,
+   1.578,
+   2.534,
+   2.244,
+   2.543
+  ],
+  "first": [
+   9.126,
+   14.4,
+   10.129,
+   14.812,
+   12.392,
+   13.076,
+   10.598,
+   10.337,
+   10.254,
+   12.386,
+   9.314,
+   13.617,
+   13.204,
+   13.284,
+   11.989,
+   9.196,
+   9.662,
+   14.514,
+   9.785,
+   13.127,
+   14.358,
+   9.222
+  ]
+ },
+ "flow": {
+  "lead": "1:meta>2:google",
+  "more_clicks": 34,
+  "columns": [
+   {
+    "title": "First click",
+    "sub": "597 orders",
+    "nodes": [
+     {
+      "id": "1:meta",
+      "label": "Meta",
+      "value": 262
+     },
+     {
+      "id": "1:google",
+      "label": "Google",
+      "value": 131
+     },
+     {
+      "id": "1:email",
+      "label": "Email",
+      "value": 49
+     },
+     {
+      "id": "1:organic",
+      "label": "Organic and social",
+      "short": "Organic",
+      "value": 79
+     },
+     {
+      "id": "1:direct",
+      "label": "Direct",
+      "value": 48
+     },
+     {
+      "id": "1:other",
+      "label": "Other",
+      "value": 28
+     }
+    ]
+   },
+   {
+    "title": "Second click",
+    "sub": "203 orders",
+    "nodes": [
+     {
+      "id": "2:meta",
+      "label": "Meta",
+      "value": 71
+     },
+     {
+      "id": "2:google",
+      "label": "Google",
+      "value": 52
+     },
+     {
+      "id": "2:email",
+      "label": "Email",
+      "value": 34
+     },
+     {
+      "id": "2:organic",
+      "label": "Organic and social",
+      "short": "Organic",
+      "value": 30
+     },
+     {
+      "id": "2:other",
+      "label": "Other",
+      "value": 16
+     }
+    ]
+   },
+   {
+    "title": "Third click",
+    "sub": "88 orders",
+    "nodes": [
+     {
+      "id": "3:meta",
+      "label": "Meta",
+      "value": 30
+     },
+     {
+      "id": "3:google",
+      "label": "Google",
+      "value": 22
+     },
+     {
+      "id": "3:email",
+      "label": "Email",
+      "value": 16
+     },
+     {
+      "id": "3:organic",
+      "label": "Organic and social",
+      "short": "Organic",
+      "value": 17
+     },
+     {
+      "id": "3:other",
+      "label": "Other",
+      "value": 3
+     }
+    ]
+   },
+   {
+    "title": "Bought",
+    "sub": "597 orders",
+    "nodes": [
+     {
+      "id": "b",
+      "label": "Bought",
+      "value": 597
+     }
+    ]
+   }
+  ],
+  "links": [
+   {
+    "from": "1:meta",
+    "to": "b",
+    "value": 196,
+    "text": "Meta only, 196",
+    "name": "Meta, then bought"
+   },
+   {
+    "from": "1:google",
+    "to": "b",
+    "value": 88,
+    "text": "Google only, 88",
+    "name": "Google, then bought"
+   },
+   {
+    "from": "1:email",
+    "to": "b",
+    "value": 30,
+    "text": "Email only, 30",
+    "name": "Email, then bought"
+   },
+   {
+    "from": "1:organic",
+    "to": "b",
+    "value": 22,
+    "text": "Organic and social only, 22",
+    "name": "Organic and social, then bought"
+   },
+   {
+    "from": "1:direct",
+    "to": "b",
+    "value": 40,
+    "text": "Direct only, 40",
+    "name": "Direct, then bought"
+   },
+   {
+    "from": "1:other",
+    "to": "b",
+    "value": 18,
+    "text": "Other only, 18",
+    "name": "Other, then bought"
+   },
+   {
+    "from": "1:meta",
+    "to": "2:google",
+    "value": 31
+   },
+   {
+    "from": "1:meta",
+    "to": "2:email",
+    "value": 14
+   },
+   {
+    "from": "1:meta",
+    "to": "2:organic",
+    "value": 12
+   },
+   {
+    "from": "1:meta",
+    "to": "2:meta",
+    "value": 6
+   },
+   {
+    "from": "1:meta",
+    "to": "2:other",
+    "value": 3
+   },
+   {
+    "from": "1:google",
+    "to": "2:meta",
+    "value": 24
+   },
+   {
+    "from": "1:google",
+    "to": "2:organic",
+    "value": 9
+   },
+   {
+    "from": "1:google",
+    "to": "2:email",
+    "value": 6
+   },
+   {
+    "from": "1:google",
+    "to": "2:google",
+    "value": 2
+   },
+   {
+    "from": "1:google",
+    "to": "2:other",
+    "value": 2
+   },
+   {
+    "from": "1:email",
+    "to": "2:meta",
+    "value": 17
+   },
+   {
+    "from": "1:email",
+    "to": "2:google",
+    "value": 2
+   },
+   {
+    "from": "1:organic",
+    "to": "2:meta",
+    "value": 22
+   },
+   {
+    "from": "1:organic",
+    "to": "2:google",
+    "value": 15
+   },
+   {
+    "from": "1:organic",
+    "to": "2:email",
+    "value": 12
+   },
+   {
+    "from": "1:organic",
+    "to": "2:organic",
+    "value": 4
+   },
+   {
+    "from": "1:organic",
+    "to": "2:other",
+    "value": 4
+   },
+   {
+    "from": "1:direct",
+    "to": "2:google",
+    "value": 2
+   },
+   {
+    "from": "1:direct",
+    "to": "2:email",
+    "value": 2
+   },
+   {
+    "from": "1:direct",
+    "to": "2:organic",
+    "value": 2
+   },
+   {
+    "from": "1:direct",
+    "to": "2:other",
+    "value": 2
+   },
+   {
+    "from": "1:other",
+    "to": "2:meta",
+    "value": 2
+   },
+   {
+    "from": "1:other",
+    "to": "2:organic",
+    "value": 3
+   },
+   {
+    "from": "1:other",
+    "to": "2:other",
+    "value": 5
+   },
+   {
+    "from": "2:meta",
+    "to": "b",
+    "value": 42,
+    "name": "Second click on Meta, then bought"
+   },
+   {
+    "from": "2:google",
+    "to": "b",
+    "value": 30,
+    "name": "Second click on Google, then bought"
+   },
+   {
+    "from": "2:email",
+    "to": "b",
+    "value": 18,
+    "name": "Second click on Email, then bought"
+   },
+   {
+    "from": "2:organic",
+    "to": "b",
+    "value": 15,
+    "name": "Second click on Organic and social, then bought"
+   },
+   {
+    "from": "2:other",
+    "to": "b",
+    "value": 10,
+    "name": "Second click on Other, then bought"
+   },
+   {
+    "from": "2:meta",
+    "to": "3:google",
+    "value": 12
+   },
+   {
+    "from": "2:meta",
+    "to": "3:email",
+    "value": 8
+   },
+   {
+    "from": "2:meta",
+    "to": "3:organic",
+    "value": 7
+   },
+   {
+    "from": "2:meta",
+    "to": "3:meta",
+    "value": 2
+   },
+   {
+    "from": "2:google",
+    "to": "3:meta",
+    "value": 12
+   },
+   {
+    "from": "2:google",
+    "to": "3:organic",
+    "value": 5
+   },
+   {
+    "from": "2:google",
+    "to": "3:email",
+    "value": 4
+   },
+   {
+    "from": "2:google",
+    "to": "3:google",
+    "value": 1
+   },
+   {
+    "from": "2:email",
+    "to": "3:meta",
+    "value": 9
+   },
+   {
+    "from": "2:email",
+    "to": "3:google",
+    "value": 5
+   },
+   {
+    "from": "2:email",
+    "to": "3:organic",
+    "value": 2
+   },
+   {
+    "from": "2:organic",
+    "to": "3:meta",
+    "value": 6
+   },
+   {
+    "from": "2:organic",
+    "to": "3:google",
+    "value": 4
+   },
+   {
+    "from": "2:organic",
+    "to": "3:email",
+    "value": 3
+   },
+   {
+    "from": "2:organic",
+    "to": "3:organic",
+    "value": 2
+   },
+   {
+    "from": "2:other",
+    "to": "3:meta",
+    "value": 1
+   },
+   {
+    "from": "2:other",
+    "to": "3:email",
+    "value": 1
+   },
+   {
+    "from": "2:other",
+    "to": "3:organic",
+    "value": 1
+   },
+   {
+    "from": "2:other",
+    "to": "3:other",
+    "value": 3
+   },
+   {
+    "from": "3:meta",
+    "to": "b",
+    "value": 30,
+    "name": "Third click on Meta, then bought"
+   },
+   {
+    "from": "3:google",
+    "to": "b",
+    "value": 22,
+    "name": "Third click on Google, then bought"
+   },
+   {
+    "from": "3:email",
+    "to": "b",
+    "value": 16,
+    "name": "Third click on Email, then bought"
+   },
+   {
+    "from": "3:organic",
+    "to": "b",
+    "value": 17,
+    "name": "Third click on Organic and social, then bought"
+   },
+   {
+    "from": "3:other",
+    "to": "b",
+    "value": 3,
+    "name": "Third click on Other, then bought"
+   }
+  ]
+ },
+ "paths": [
+  {
+   "path": [
+    "meta"
+   ],
+   "orders": 196
+  },
+  {
+   "path": [
+    "google"
+   ],
+   "orders": 88
+  },
+  {
+   "path": [
+    "direct"
+   ],
+   "orders": 40
+  },
+  {
+   "path": [
+    "email"
+   ],
+   "orders": 30
+  },
+  {
+   "path": [
+    "organic"
+   ],
+   "orders": 22
+  },
+  {
+   "path": [
+    "meta",
+    "google"
+   ],
+   "orders": 19
+  },
+  {
+   "path": [
+    "google",
+    "meta"
+   ],
+   "orders": 15
+  },
+  {
+   "path": [
+    "organic",
+    "meta"
+   ],
+   "orders": 13
+  },
+  {
+   "path": [
+    "email",
+    "meta"
+   ],
+   "orders": 11
+  },
+  {
+   "path": [
+    "meta",
+    "email"
+   ],
+   "orders": 9
+  }
+ ],
+ "ads": [
+  {
+   "first": {
+    "name": "N41, Still",
+    "where": "Holiday Sale 2026",
+    "channel": "meta",
+    "kind": "image"
+   },
+   "orders": 34
+  },
+  {
+   "first": {
+    "name": "Men’s golf belts",
+    "where": "Search, General",
+    "channel": "google",
+    "kind": "search"
+   },
+   "orders": 31
+  },
+  {
+   "first": {
+    "name": "N38-12, Video",
+    "where": "Holiday Sale 2026",
+    "channel": "meta",
+    "kind": "video"
+   },
+   "orders": 27
+  },
+  {
+   "first": {
+    "name": "Shopping, Belts",
+    "where": "Performance Max",
+    "channel": "google",
+    "kind": "grid"
+   },
+   "orders": 22
+  },
+  {
+   "first": {
+    "name": "N29-4, Still",
+    "where": "Always on",
+    "channel": "meta",
+    "kind": "image"
+   },
+   "orders": 16
+  },
+  {
+   "first": {
+    "name": "Email click",
+    "where": "Campaigns and flows",
+    "channel": "email",
+    "kind": "mail"
+   },
+   "orders": 14
+  },
+  {
+   "first": {
+    "name": "Shopping, Gift sets",
+    "where": "Performance Max",
+    "channel": "google",
+    "kind": "grid"
+   },
+   "orders": 11
+  },
+  {
+   "first": {
+    "name": "N38-12, Video",
+    "where": "Holiday Sale 2026",
+    "channel": "meta",
+    "kind": "video"
+   },
+   "next": {
+    "name": "Men’s golf belts",
+    "where": "Search, General",
+    "channel": "google",
+    "kind": "search"
+   },
+   "gap_days": 1.4,
+   "note": "Meta opens, Google search closes",
+   "orders": 7
+  }
+ ],
+ "ads_orders": 162,
+ "clicks": [
+  {
+   "name": "One click",
+   "orders": 394
+  },
+  {
+   "name": "Two",
+   "orders": 115
+  },
+  {
+   "name": "Three",
+   "orders": 54
+  },
+  {
+   "name": "Four or more",
+   "orders": 34
+  }
+ ]
+}

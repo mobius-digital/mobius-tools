@@ -1,0 +1,523 @@
+{
+ "monday": "2026-11-23",
+ "week": {
+  "from": "2026-11-16",
+  "to": "2026-11-22"
+ },
+ "as_of": null,
+ "theme": "No on and off changes through Black Friday weekend",
+ "note": "Sample. Every brand, person and number here is invented. Marks and notes stay in this tab.",
+ "brands": [
+  {
+   "currency": "USD",
+   "connected": true,
+   "current": true,
+   "has_report": true,
+   "week": {
+    "from": "2026-11-16",
+    "to": "2026-11-22"
+   },
+   "verdict": [
+    "Sales ",
+    {
+     "b": "fell by about half"
+    },
+    " after the early sale ended, so MER is ",
+    {
+     "b": "1.45x"
+    },
+    " against a 3.00x goal."
+   ],
+   "happened": [],
+   "decisions": [
+    {
+     "text": "Hold Meta at $700 a day until Black Friday starts Thursday 6pm.",
+     "owner": "Sam",
+     "number": "$700",
+     "number_note": "a day on Meta",
+     "win": "A win is MER 2.50x by Sunday"
+    },
+    {
+     "text": "Turn off the biggest image ad and move its money to video.",
+     "owner": "Jordan",
+     "number": "$180",
+     "number_note": "a day moved"
+    }
+   ],
+   "promises": [
+    {
+     "text": "Build the early access campaign on Meta",
+     "owner": "Alex",
+     "due": "2026-11-21",
+     "late": true
+    },
+    {
+     "text": "Check Google search terms from last week",
+     "owner": "Riley",
+     "due": "2026-11-25",
+     "late": false
+    }
+   ],
+   "asks": [
+    "Confirm the December 13 shipping cutoff before the Christmas ads are written"
+   ],
+   "channels": [
+    {
+     "label": "Meta",
+     "big": "1.12x",
+     "tone": "bad",
+     "status": "Under goal"
+    },
+    {
+     "label": "Google",
+     "big": "2.41x",
+     "tone": "warn",
+     "status": "Close"
+    }
+   ],
+   "pipeline": {
+    "big": "2 of 5",
+    "status": "3 being made",
+    "detail": {
+     "cols": [
+      {
+       "label": "Card"
+      },
+      {
+       "label": "Where"
+      },
+      {
+       "label": "Owner"
+      },
+      {
+       "label": "Due"
+      }
+     ],
+     "rows": [
+      [
+       "#412 Black Friday stills",
+       "ready",
+       "Jordan",
+       "Nov 24"
+      ],
+      [
+       "#413 Cyber Monday video",
+       "ready",
+       "Casey",
+       "Nov 25"
+      ],
+      [
+       "#414 Gift guide carousel",
+       "making",
+       "Casey",
+       "Nov 27"
+      ],
+      [
+       "#415 Order by Christmas",
+       "brief",
+       "Jordan",
+       "Dec 1"
+      ],
+      [
+       "#416 Customer review cuts",
+       "review",
+       "Casey",
+       "Nov 26"
+      ]
+     ]
+    }
+   },
+   "id": "brand_northlake_golf",
+   "name": "Northlake Golf",
+   "owner": "Sam",
+   "sales": 11639,
+   "sales_prior": 21472,
+   "spend": 8047,
+   "spend_prior": 7245,
+   "mer": 1.45,
+   "goal_mer": 3
+  },
+  {
+   "currency": "USD",
+   "connected": true,
+   "current": true,
+   "has_report": true,
+   "week": {
+    "from": "2026-11-16",
+    "to": "2026-11-22"
+   },
+   "verdict": null,
+   "happened": [
+    "Spend came down by a fifth and sales still rose, so MER went from 1.34x to 1.80x.",
+    "Seven in ten orders came from people who had never bought before.",
+    "Video earned more per dollar than still images this week."
+   ],
+   "decisions": [
+    {
+     "text": "Add $100 a day back to Google while it stays above 3.00x.",
+     "owner": "Riley",
+     "number": "+$100",
+     "number_note": "a day on Google"
+    },
+    {
+     "text": "Cut the weaker of the two new image ads by Tuesday.",
+     "owner": "Sam"
+    }
+   ],
+   "promises": [
+    {
+     "text": "Send the client the Black Friday budget for a yes",
+     "owner": "Alex",
+     "due": "2026-11-24",
+     "late": false
+    }
+   ],
+   "asks": [],
+   "channels": [
+    {
+     "label": "Meta",
+     "big": "1.64x",
+     "tone": "bad",
+     "status": "Under goal"
+    },
+    {
+     "label": "Google",
+     "big": "3.10x",
+     "tone": "good",
+     "status": "On goal"
+    }
+   ],
+   "pipeline": {
+    "big": "1 of 3",
+    "status": "2 being made",
+    "detail": {
+     "cols": [
+      {
+       "label": "Card"
+      },
+      {
+       "label": "Where"
+      },
+      {
+       "label": "Owner"
+      },
+      {
+       "label": "Due"
+      }
+     ],
+     "rows": [
+      [
+       "#208 Bundle offer stills",
+       "ready",
+       "Jordan",
+       "Nov 24"
+      ],
+      [
+       "#209 Putting mat video",
+       "making",
+       "Casey",
+       "Nov 27"
+      ],
+      [
+       "#210 Gift card ads",
+       "brief",
+       "Jordan",
+       "Dec 2"
+      ]
+     ]
+    }
+   },
+   "id": "brand_fairway_supply",
+   "name": "Fairway Supply",
+   "owner": "Sam",
+   "sales": 14820,
+   "sales_prior": 13950,
+   "spend": 8233,
+   "spend_prior": 10410,
+   "mer": 1.8,
+   "goal_mer": 2.5
+  },
+  {
+   "currency": "USD",
+   "connected": true,
+   "current": true,
+   "has_report": true,
+   "week": {
+    "from": "2026-11-16",
+    "to": "2026-11-22"
+   },
+   "verdict": null,
+   "happened": [
+    "Cutting spend did not cost sales, which says the extra money was reaching people who would have bought anyway.",
+    "Email sales nearly doubled."
+   ],
+   "decisions": [
+    {
+     "text": "Hold Meta near this level through Black Friday and raise only ads already above goal.",
+     "owner": "Jordan",
+     "number": "$520",
+     "number_note": "a day on Meta"
+    }
+   ],
+   "promises": [],
+   "asks": [],
+   "channels": [
+    {
+     "label": "Meta",
+     "big": "2.05x",
+     "tone": "bad",
+     "status": "Under goal"
+    }
+   ],
+   "pipeline": {
+    "big": "0 of 2",
+    "status": "2 being made",
+    "detail": {
+     "cols": [
+      {
+       "label": "Card"
+      },
+      {
+       "label": "Where"
+      },
+      {
+       "label": "Owner"
+      },
+      {
+       "label": "Due"
+      }
+     ],
+     "rows": [
+      [
+       "#77 Polo launch video",
+       "making",
+       "Casey",
+       "Nov 28"
+      ],
+      [
+       "#78 Black Friday stills",
+       "review",
+       "Jordan",
+       "Nov 25"
+      ]
+     ]
+    }
+   },
+   "id": "brand_tallgrass_apparel",
+   "name": "Tallgrass Apparel",
+   "owner": "Jordan",
+   "sales": 8017,
+   "sales_prior": 7142,
+   "spend": 3644,
+   "spend_prior": 5120,
+   "mer": 2.2,
+   "goal_mer": 3
+  },
+  {
+   "currency": "USD",
+   "connected": true,
+   "current": true,
+   "has_report": true,
+   "week": {
+    "from": "2026-11-16",
+    "to": "2026-11-22"
+   },
+   "verdict": [
+    "Sales rose by ",
+    {
+     "b": "more than a third"
+    },
+    " on flat spend. MER ",
+    {
+     "b": "3.87x"
+    },
+    " against a 2.50x goal."
+   ],
+   "happened": [],
+   "decisions": [
+    {
+     "text": "Raise the Black Friday budget while MER stays above 3.00x.",
+     "owner": "Jordan",
+     "number": "+25%",
+     "number_note": "checked each morning"
+    }
+   ],
+   "promises": [],
+   "asks": [],
+   "channels": [
+    {
+     "label": "Meta",
+     "big": "3.20x",
+     "tone": "good",
+     "status": "On goal"
+    },
+    {
+     "label": "Google",
+     "big": "4.05x",
+     "tone": "good",
+     "status": "On goal"
+    }
+   ],
+   "pipeline": null,
+   "id": "brand_brightside_patch",
+   "name": "Brightside Patch",
+   "owner": "Jordan",
+   "sales": 15672,
+   "sales_prior": 11485,
+   "spend": 4050,
+   "spend_prior": 4010,
+   "mer": 3.87,
+   "goal_mer": 2.5
+  },
+  {
+   "currency": "USD",
+   "connected": true,
+   "current": true,
+   "has_report": true,
+   "week": {
+    "from": "2026-11-16",
+    "to": "2026-11-22"
+   },
+   "verdict": null,
+   "happened": [
+    "Sales climbed sharply on flat spend.",
+    "New buyers cost about $67 each, down from $84."
+   ],
+   "decisions": [],
+   "promises": [
+    {
+     "text": "Agree a December plan with the client",
+     "owner": "Alex",
+     "due": "2026-11-28",
+     "late": false
+    }
+   ],
+   "asks": [],
+   "channels": [
+    {
+     "label": "Meta",
+     "big": "2.90x",
+     "tone": "good",
+     "status": "On goal"
+    }
+   ],
+   "pipeline": null,
+   "id": "brand_harbor_candle",
+   "name": "Harbor Candle Co",
+   "owner": "Riley",
+   "sales": 10398,
+   "sales_prior": 6174,
+   "spend": 3275,
+   "spend_prior": 3267,
+   "mer": 3.17,
+   "goal_mer": 2.5
+  },
+  {
+   "currency": "USD",
+   "connected": true,
+   "current": true,
+   "has_report": true,
+   "week": {
+    "from": "2026-11-16",
+    "to": "2026-11-22"
+   },
+   "verdict": null,
+   "happened": [
+    "Sales roughly doubled while spend held flat."
+   ],
+   "decisions": [],
+   "promises": [],
+   "asks": [],
+   "channels": [
+    {
+     "label": "Meta",
+     "big": "4.10x",
+     "tone": "good",
+     "status": "On goal"
+    }
+   ],
+   "pipeline": null,
+   "id": "brand_summit_hockey",
+   "name": "Summit Hockey",
+   "owner": "Riley",
+   "sales": 3993,
+   "sales_prior": 1966,
+   "spend": 785,
+   "spend_prior": 753,
+   "mer": 5.09,
+   "goal_mer": 2.5
+  },
+  {
+   "currency": "USD",
+   "connected": true,
+   "current": true,
+   "has_report": true,
+   "week": {
+    "from": "2026-11-16",
+    "to": "2026-11-22"
+   },
+   "verdict": null,
+   "happened": [
+    "One video took most of the Meta spend and few people watched past three seconds."
+   ],
+   "decisions": [],
+   "promises": [],
+   "asks": [],
+   "channels": [],
+   "pipeline": null,
+   "id": "brand_cedar_pets",
+   "name": "Cedar Pets",
+   "owner": null,
+   "sales": 745,
+   "sales_prior": 907,
+   "spend": 1815,
+   "spend_prior": 2357,
+   "mer": 0.41,
+   "goal_mer": null
+  },
+  {
+   "currency": "USD",
+   "connected": false,
+   "current": false,
+   "has_report": false,
+   "week": null,
+   "verdict": null,
+   "happened": [],
+   "decisions": [],
+   "promises": [],
+   "asks": [],
+   "channels": [],
+   "pipeline": null,
+   "id": "brand_oak_and_iron",
+   "name": "Oak and Iron",
+   "sales": null,
+   "sales_prior": null,
+   "spend": null,
+   "spend_prior": null,
+   "mer": null,
+   "goal_mer": null
+  }
+ ],
+ "agency": {
+  "open": [
+   {
+    "text": "Raise the daily account limit on Meta before Thursday",
+    "owner": "Alex",
+    "due": "2026-11-24",
+    "late": false
+   }
+  ]
+ },
+ "learned": [
+  {
+   "text": "A price shown in the first second beat a slow reveal on three brands.",
+   "by": "Jordan",
+   "brand": "Fairway Supply"
+  },
+  {
+   "text": "Switching campaigns off and on cost two days of settling each time.",
+   "by": "Sam",
+   "brand": "Northlake Golf"
+  }
+ ]
+}

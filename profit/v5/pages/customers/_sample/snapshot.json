@@ -1,0 +1,133 @@
+{
+ "connected": true,
+ "range": {
+  "from": "2026-11-01",
+  "to": "2026-11-22"
+ },
+ "new_customers": 456,
+ "orders": 597,
+ "new_spark": [
+  29,
+  18,
+  19,
+  23,
+  29,
+  26,
+  31,
+  23,
+  22,
+  25,
+  18,
+  18,
+  28,
+  38,
+  22,
+  18,
+  12,
+  17,
+  11,
+  9,
+  9,
+  11
+ ],
+ "cac": 52,
+ "cac_goal": 40,
+ "cac_then": {
+  "label": "June",
+  "value": 38
+ },
+ "cac_spark": [
+  38,
+  44,
+  41,
+  47,
+  52,
+  52
+ ],
+ "back_90": 0.094,
+ "back_365": 0.236,
+ "back_spark": [
+  0,
+  4.8,
+  7.9,
+  9.4,
+  13.1,
+  23.6
+ ],
+ "aov": 118,
+ "aov_move": 0.14,
+ "aov_prev": {
+  "label": "October",
+  "value": 104
+ },
+ "aov_spark": [
+  96,
+  99,
+  108,
+  101,
+  104,
+  118
+ ],
+ "ltv": {
+  "days": [
+   0,
+   30,
+   60,
+   90,
+   180,
+   365
+  ],
+  "values": [
+   47.2,
+   51.6,
+   54.9,
+   57.3,
+   63.8,
+   74.5
+  ]
+ },
+ "ltv_reason": null,
+ "again": {
+  "weeks": [
+   212,
+   188,
+   131,
+   97,
+   74,
+   66,
+   58,
+   49,
+   41,
+   36,
+   27,
+   24,
+   19
+  ],
+  "same_day": 64,
+  "repeaters": 1676,
+  "half_day": 48
+ },
+ "second": {
+  "rows": [
+   {
+    "name": "A belt in a different colour",
+    "orders": 318
+   },
+   {
+    "name": "An add-on",
+    "orders": 92
+   },
+   {
+    "name": "Same belt again",
+    "orders": 57
+   }
+  ],
+  "tip": [
+   "Offer a ",
+   {
+    "b": "new colour"
+   },
+   ", not the same belt."
+  ]
+ }
+}

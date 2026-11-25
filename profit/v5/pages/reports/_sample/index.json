@@ -1,0 +1,38 @@
+{
+ "sample": true,
+ "rows": [
+  { "act_id": "brand_northlake_golf", "period": "weekly", "period_start": "2026-11-16", "period_end": "2026-11-22", "status": "draft", "generated_at": "2026-11-23T14:00:00Z", "sent_at": null },
+  { "act_id": "brand_northlake_golf", "period": "weekly", "period_start": "2026-11-09", "period_end": "2026-11-15", "status": "sent", "generated_at": "2026-11-16T14:00:00Z", "sent_at": "2026-11-16T17:20:00Z" },
+  { "act_id": "brand_northlake_golf", "period": "weekly", "period_start": "2026-11-02", "period_end": "2026-11-08", "status": "sent", "generated_at": "2026-11-09T14:00:00Z", "sent_at": "2026-11-09T16:05:00Z" },
+  { "act_id": "brand_northlake_golf", "period": "monthly", "period_start": "2026-10-01", "period_end": "2026-10-31", "status": "sent", "generated_at": "2026-11-01T14:00:00Z", "sent_at": "2026-11-02T15:30:00Z" },
+  { "act_id": "brand_northlake_golf", "period": "weekly", "period_start": "2026-10-26", "period_end": "2026-11-01", "status": "sent", "generated_at": "2026-11-02T14:00:00Z", "sent_at": "2026-11-02T15:31:00Z" },
+  { "act_id": "brand_northlake_golf", "period": "weekly", "period_start": "2026-10-19", "period_end": "2026-10-25", "status": "sent", "generated_at": "2026-10-26T14:00:00Z", "sent_at": "2026-10-26T16:12:00Z" }
+ ],
+ "latest": {
+  "period": "weekly", "period_start": "2026-11-09", "period_end": "2026-11-15", "status": "sent", "sent_at": "2026-11-16T17:20:00Z", "currency": "USD",
+  "summary": "What we saw\n- The early sale's last week was the best week of the year so far, with sales up 18% on the week before.\n- Most of the lift came from new customers on the belt bundle ads.\n\nWhat it means\nThe early sale did its job: it brought in new buyers at a cost the store can afford, and it warmed up the list for Black Friday.\n\nWhat we're doing\n- Turning the early sale ads off on Sunday night, as agreed.\n- Loading the Black Friday ads paused, ready for Thursday.",
+  "totals": { "sales": 17940, "spend": 6120, "orders": 231, "mer": 2.93, "aov": 77.66 },
+  "previous": { "sales": 15210, "spend": 5480, "orders": 201, "mer": 2.78, "aov": 75.67 },
+  "chart": [
+   { "date": "2026-11-09", "sales": 2210, "spend": 820 },
+   { "date": "2026-11-10", "sales": 2380, "spend": 840 },
+   { "date": "2026-11-11", "sales": 2195, "spend": 850 },
+   { "date": "2026-11-12", "sales": 2540, "spend": 860 },
+   { "date": "2026-11-13", "sales": 2665, "spend": 880 },
+   { "date": "2026-11-14", "sales": 2890, "spend": 920 },
+   { "date": "2026-11-15", "sales": 3060, "spend": 950 }
+  ]
+ },
+ "more": {
+  "weekly|2026-11-16": {
+   "period": "weekly", "period_start": "2026-11-16", "period_end": "2026-11-22", "status": "draft", "currency": "USD",
+   "summary": "What we saw\n- A quieter week between the two sales, as planned: sales down 31% on the early sale's last week.\n\nWhat it means\nPeople are waiting for Black Friday. Spending more this week would have bought sales we would have made on Friday anyway.\n\nWhat we're doing\n- Black Friday ads go live Thursday at 6pm.",
+   "totals": { "sales": 12380, "spend": 4410, "orders": 164, "mer": 2.81, "aov": 75.49 },
+   "previous": { "sales": 17940, "spend": 6120, "orders": 231, "mer": 2.93, "aov": 77.66 },
+   "chart": [
+    { "date": "2026-11-16", "sales": 1720, "spend": 610 }, { "date": "2026-11-17", "sales": 1655, "spend": 600 }, { "date": "2026-11-18", "sales": 1810, "spend": 620 },
+    { "date": "2026-11-19", "sales": 1690, "spend": 630 }, { "date": "2026-11-20", "sales": 1795, "spend": 640 }, { "date": "2026-11-21", "sales": 1830, "spend": 650 }, { "date": "2026-11-22", "sales": 1880, "spend": 660 }
+   ]
+  }
+ }
+}

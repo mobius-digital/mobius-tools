@@ -1,0 +1,109 @@
+{
+ "sample": true,
+ "as_of": null,
+ "today": "2026-11-24",
+ "hour": 14,
+ "currency": "USD",
+ "connected": true,
+ "sales_source": true,
+ "sales_pending": false,
+ "goal_roas": 3.0,
+ "store": {
+  "sales": 3184,
+  "orders": 29,
+  "spend": 1012,
+  "mer": 3.15
+ },
+ "platforms": [
+  {
+   "id": "meta",
+   "spend": 642,
+   "usual_day": 905,
+   "usual_by_now": 548,
+   "projected": 1060,
+   "sales": 1420,
+   "roas": 2.21,
+   "roas7": 1.92
+  },
+  {
+   "id": "google",
+   "spend": 214,
+   "usual_day": 322,
+   "usual_by_now": null,
+   "projected": null,
+   "sales": 702,
+   "roas": 3.28,
+   "roas7": 2.64
+  },
+  {
+   "id": "amazon",
+   "spend": 96,
+   "usual_day": 138,
+   "usual_by_now": null,
+   "projected": null,
+   "sales": 318,
+   "roas": 3.31,
+   "roas7": 3.12
+  },
+  {
+   "id": "tiktok",
+   "spend": 60,
+   "usual_day": 84,
+   "usual_by_now": null,
+   "projected": null,
+   "sales": null,
+   "roas": null,
+   "roas7": 1.22
+  }
+ ],
+ "chart": {
+  "kind": "sales",
+  "hour": 14,
+  "today": [
+   62,
+   98,
+   121,
+   121,
+   149,
+   203,
+   318,
+   512,
+   794,
+   1126,
+   1498,
+   1902,
+   2344,
+   3184
+  ],
+  "usual": [
+   44,
+   71,
+   88,
+   97,
+   112,
+   158,
+   262,
+   431,
+   668,
+   948,
+   1244,
+   1556,
+   1871,
+   2176,
+   2468,
+   2752,
+   3036,
+   3338,
+   3672,
+   4046,
+   4420,
+   4712,
+   4898,
+   5010
+  ],
+  "usual_name": "A normal day",
+  "total": 3184,
+  "goal": 5010,
+  "pace": 1.29
+ }
+}

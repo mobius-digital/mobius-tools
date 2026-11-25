@@ -1,0 +1,956 @@
+{
+ "today": "2026-11-24",
+ "monday": "2026-11-23",
+ "connected": true,
+ "note": "Sample. Every meeting, brand, person and line here is invented.",
+ "brands": [
+  {
+   "id": "brand_northlake_golf",
+   "name": "Northlake Golf"
+  },
+  {
+   "id": "brand_fairway_supply",
+   "name": "Fairway Supply"
+  },
+  {
+   "id": "brand_tallgrass_apparel",
+   "name": "Tallgrass Apparel"
+  },
+  {
+   "id": "brand_brightside_patch",
+   "name": "Brightside Patch"
+  },
+  {
+   "id": "brand_harbor_candle",
+   "name": "Harbor Candle Co"
+  }
+ ],
+ "meetings": [
+  {
+   "id": "m_1123_team",
+   "title": "Team Meeting",
+   "date": "2026-11-23",
+   "at": "2026-11-23T14:00:00.000Z",
+   "duration": 62,
+   "kind": "monday_call",
+   "status": "extracted",
+   "error": null,
+   "confirmed_by": null,
+   "confirmed_at": null,
+   "with": [],
+   "brand_ids": [
+    "brand_northlake_golf",
+    "brand_fairway_supply",
+    "brand_tallgrass_apparel",
+    "brand_brightside_patch",
+    "brand_harbor_candle"
+   ],
+   "counts": {
+    "team": 6,
+    "brief": 1,
+    "client_owes": 0,
+    "client": 9
+   },
+   "made": null
+  },
+  {
+   "id": "m_1123_ng",
+   "title": "Northlake Golf weekly call",
+   "date": "2026-11-23",
+   "at": "2026-11-23T16:00:00.000Z",
+   "duration": 34,
+   "kind": "client_call",
+   "status": "extracted",
+   "error": null,
+   "confirmed_by": null,
+   "confirmed_at": null,
+   "with": [
+    "Dana",
+    "Pat"
+   ],
+   "brand_ids": [
+    "brand_northlake_golf"
+   ],
+   "counts": {
+    "team": 2,
+    "brief": 0,
+    "client_owes": 2,
+    "client": 4
+   },
+   "made": null
+  },
+  {
+   "id": "m_1123_hc",
+   "title": "Harbor Candle Co weekly call",
+   "date": "2026-11-23",
+   "at": "2026-11-23T18:00:00.000Z",
+   "duration": 28,
+   "kind": "client_call",
+   "status": "confirmed",
+   "error": null,
+   "confirmed_by": "Alex",
+   "confirmed_at": "2026-11-23T19:10:00.000Z",
+   "with": [
+    "Morgan"
+   ],
+   "brand_ids": [
+    "brand_harbor_candle"
+   ],
+   "counts": {
+    "team": 2,
+    "brief": 1,
+    "client_owes": 1,
+    "client": 3
+   },
+   "made": {
+    "tasks": 2,
+    "briefs": 1,
+    "asks": 1,
+    "report": 1
+   }
+  },
+  {
+   "id": "m_1116_team",
+   "title": "Team Meeting",
+   "date": "2026-11-16",
+   "at": "2026-11-16T14:00:00.000Z",
+   "duration": 58,
+   "kind": "monday_call",
+   "status": "confirmed",
+   "error": null,
+   "confirmed_by": "Alex",
+   "confirmed_at": "2026-11-16T15:20:00.000Z",
+   "with": [],
+   "brand_ids": [
+    "brand_northlake_golf",
+    "brand_fairway_supply",
+    "brand_tallgrass_apparel",
+    "brand_brightside_patch"
+   ],
+   "counts": {
+    "team": 5,
+    "brief": 1,
+    "client_owes": 0,
+    "client": 8
+   },
+   "made": {
+    "tasks": 5,
+    "briefs": 1,
+    "asks": 0,
+    "report": 4
+   }
+  },
+  {
+   "id": "m_1116_fs",
+   "title": "Fairway Supply weekly call",
+   "date": "2026-11-16",
+   "at": "2026-11-16T17:00:00.000Z",
+   "duration": 41,
+   "kind": "client_call",
+   "status": "confirmed",
+   "error": null,
+   "confirmed_by": "Sam",
+   "confirmed_at": "2026-11-16T18:02:00.000Z",
+   "with": [
+    "Lee"
+   ],
+   "brand_ids": [
+    "brand_fairway_supply"
+   ],
+   "counts": {
+    "team": 3,
+    "brief": 0,
+    "client_owes": 1,
+    "client": 3
+   },
+   "made": {
+    "tasks": 3,
+    "briefs": 0,
+    "asks": 1,
+    "report": 1
+   }
+  },
+  {
+   "id": "m_1116_short",
+   "title": "Tallgrass Apparel creative call",
+   "date": "2026-11-16",
+   "at": "2026-11-16T20:00:00.000Z",
+   "duration": 9,
+   "kind": null,
+   "status": "skipped",
+   "error": "too short to hold decisions",
+   "confirmed_by": null,
+   "confirmed_at": null,
+   "with": [
+    "Quinn"
+   ],
+   "brand_ids": [],
+   "counts": null,
+   "made": null
+  },
+  {
+   "id": "m_1112_kick",
+   "title": "Brightside Patch gifting kickoff",
+   "date": "2026-11-12",
+   "at": "2026-11-12T15:00:00.000Z",
+   "duration": 26,
+   "kind": "kickoff",
+   "status": "confirmed",
+   "error": null,
+   "confirmed_by": "Jordan",
+   "confirmed_at": "2026-11-12T16:00:00.000Z",
+   "with": [],
+   "brand_ids": [
+    "brand_brightside_patch"
+   ],
+   "counts": {
+    "team": 1,
+    "brief": 2,
+    "client_owes": 0,
+    "client": 2
+   },
+   "made": {
+    "tasks": 1,
+    "briefs": 2,
+    "asks": 0,
+    "report": 0
+   }
+  },
+  {
+   "id": "m_1109_team",
+   "title": "Team Meeting",
+   "date": "2026-11-09",
+   "at": "2026-11-09T14:00:00.000Z",
+   "duration": 71,
+   "kind": "monday_call",
+   "status": "confirmed",
+   "error": null,
+   "confirmed_by": "Alex",
+   "confirmed_at": "2026-11-09T15:31:00.000Z",
+   "with": [],
+   "brand_ids": [
+    "brand_northlake_golf",
+    "brand_fairway_supply",
+    "brand_tallgrass_apparel",
+    "brand_brightside_patch",
+    "brand_harbor_candle"
+   ],
+   "counts": {
+    "team": 7,
+    "brief": 1,
+    "client_owes": 0,
+    "client": 10
+   },
+   "made": {
+    "tasks": 7,
+    "briefs": 1,
+    "asks": 0,
+    "report": 5
+   }
+  },
+  {
+   "id": "m_1109_ta",
+   "title": "Tallgrass Apparel weekly call",
+   "date": "2026-11-09",
+   "at": "2026-11-09T18:00:00.000Z",
+   "duration": 37,
+   "kind": "client_call",
+   "status": "skipped",
+   "error": null,
+   "confirmed_by": null,
+   "confirmed_at": null,
+   "with": [
+    "Quinn"
+   ],
+   "brand_ids": [
+    "brand_tallgrass_apparel"
+   ],
+   "counts": {
+    "team": 3,
+    "brief": 0,
+    "client_owes": 1,
+    "client": 3
+   },
+   "made": null
+  },
+  {
+   "id": "m_1102_team",
+   "title": "Team Meeting",
+   "date": "2026-11-02",
+   "at": "2026-11-02T14:00:00.000Z",
+   "duration": 66,
+   "kind": "monday_call",
+   "status": "confirmed",
+   "error": null,
+   "confirmed_by": "Alex",
+   "confirmed_at": "2026-11-02T15:12:00.000Z",
+   "with": [],
+   "brand_ids": [
+    "brand_northlake_golf",
+    "brand_fairway_supply",
+    "brand_tallgrass_apparel"
+   ],
+   "counts": {
+    "team": 4,
+    "brief": 0,
+    "client_owes": 0,
+    "client": 6
+   },
+   "made": {
+    "tasks": 4,
+    "briefs": 0,
+    "asks": 0,
+    "report": 3
+   }
+  }
+ ],
+ "open": [
+  {
+   "brand_id": "",
+   "name": "Agency-wide",
+   "items": [
+    {
+     "id": "ac_s01",
+     "text": "Raise the daily account limit on Meta before Thursday",
+     "owner": "Alex",
+     "due": "2026-11-24",
+     "source_id": "m_1116_team",
+     "created": "2026-11-16"
+    }
+   ]
+  },
+  {
+   "brand_id": "brand_fairway_supply",
+   "name": "Fairway Supply",
+   "items": [
+    {
+     "id": "ac_s02",
+     "text": "Send the client the Black Friday budget for a yes",
+     "owner": "Alex",
+     "due": "2026-11-24",
+     "source_id": "m_1116_fs",
+     "created": "2026-11-16"
+    }
+   ]
+  },
+  {
+   "brand_id": "brand_harbor_candle",
+   "name": "Harbor Candle Co",
+   "items": [
+    {
+     "id": "ac_s03",
+     "text": "Agree a December plan with the client",
+     "owner": "Alex",
+     "due": "2026-11-28",
+     "source_id": "m_1123_hc",
+     "created": "2026-11-23"
+    }
+   ]
+  },
+  {
+   "brand_id": "brand_northlake_golf",
+   "name": "Northlake Golf",
+   "items": [
+    {
+     "id": "ac_s04",
+     "text": "Build the early access campaign on Meta",
+     "owner": "Alex",
+     "due": "2026-11-21",
+     "source_id": "m_1116_team",
+     "created": "2026-11-16"
+    },
+    {
+     "id": "ac_s05",
+     "text": "Check Google search terms from last week",
+     "owner": "Riley",
+     "due": "2026-11-25",
+     "source_id": "m_1116_team",
+     "created": "2026-11-16"
+    }
+   ]
+  }
+ ],
+ "details": {
+  "m_1123_team": {
+   "notes": {
+    "summary": "Two brands are well under goal after their early sales ended, three are on goal. Spend holds where it is through Black Friday weekend, with raises only on ads already above goal. Video goes into Meta on every brand that is still mostly images.",
+    "brands": [
+     {
+      "brand_id": "brand_northlake_golf",
+      "decisions": [
+       "Hold Meta at $700 a day until Black Friday starts Thursday 6pm.",
+       "Turn off the biggest image ad and move its money to video."
+      ],
+      "items": [
+       {
+        "text": "Pause the top spending image ad",
+        "detail": "",
+        "owner": "Jordan",
+        "due": "2026-11-24",
+        "kind": "team",
+        "area": "",
+        "sure": true,
+        "quote": "",
+        "at": ""
+       },
+       {
+        "text": "Audit Google search terms",
+        "detail": "",
+        "owner": "Riley",
+        "due": "2026-11-25",
+        "kind": "team",
+        "area": "",
+        "sure": true,
+        "quote": "",
+        "at": ""
+       }
+      ],
+      "this_week": [
+       "We are holding budgets steady so results can settle before Black Friday."
+      ],
+      "need_from_client": []
+     },
+     {
+      "brand_id": "brand_fairway_supply",
+      "decisions": [
+       "Add $100 a day back to Google while it stays above 3.00x."
+      ],
+      "items": [
+       {
+        "text": "Raise Google by $100 a day",
+        "detail": "",
+        "owner": "Riley",
+        "due": "2026-11-24",
+        "kind": "team",
+        "area": "",
+        "sure": true,
+        "quote": "",
+        "at": ""
+       }
+      ],
+      "this_week": [
+       "We are putting more behind Google while it keeps returning well."
+      ],
+      "need_from_client": []
+     },
+     {
+      "brand_id": "brand_tallgrass_apparel",
+      "decisions": [
+       "Hold Meta near this level through Black Friday."
+      ],
+      "items": [
+       {
+        "text": "3 new image ads to replace the weak videos",
+        "detail": "",
+        "owner": "Jordan",
+        "due": "2026-11-27",
+        "kind": "brief",
+        "area": "",
+        "sure": true,
+        "quote": "",
+        "at": ""
+       }
+      ],
+      "this_week": [],
+      "need_from_client": []
+     },
+     {
+      "brand_id": "brand_brightside_patch",
+      "decisions": [
+       "Raise the Black Friday budget while MER stays above 3.00x."
+      ],
+      "items": [
+       {
+        "text": "Raise the Black Friday campaign 25%",
+        "detail": "",
+        "owner": "Jordan",
+        "due": "2026-11-24",
+        "kind": "team",
+        "area": "",
+        "sure": true,
+        "quote": "",
+        "at": ""
+       }
+      ],
+      "this_week": [],
+      "need_from_client": []
+     },
+     {
+      "brand_id": "brand_harbor_candle",
+      "decisions": [
+       "Agree a real December plan before month end."
+      ],
+      "items": [
+       {
+        "text": "Draft the December plan",
+        "detail": "",
+        "owner": "Alex",
+        "due": "2026-11-28",
+        "kind": "team",
+        "area": "",
+        "sure": true,
+        "quote": "",
+        "at": ""
+       },
+       {
+        "text": "Pause image ads that miss their cost per order",
+        "detail": "",
+        "owner": "Riley",
+        "due": "2026-11-28",
+        "kind": "team",
+        "area": "",
+        "sure": true,
+        "quote": "",
+        "at": ""
+       }
+      ],
+      "this_week": [],
+      "need_from_client": []
+     }
+    ]
+   },
+   "result": null
+  },
+  "m_1123_ng": {
+   "notes": {
+    "summary": "The client agreed to hold spend through the weekend and wants deadline ads for Christmas. The shipping cutoff still needs their yes.",
+    "brands": [
+     {
+      "brand_id": "brand_northlake_golf",
+      "decisions": [
+       "No budget changes until Black Friday starts.",
+       "Christmas ads lead with the delivery deadline once the cutoff is confirmed."
+      ],
+      "items": [
+       {
+        "text": "Send the Black Friday ad previews",
+        "detail": "",
+        "owner": "Sam",
+        "due": "2026-11-24",
+        "kind": "team",
+        "area": "",
+        "sure": true,
+        "quote": "",
+        "at": ""
+       },
+       {
+        "text": "Write the deadline ad briefs",
+        "detail": "",
+        "owner": "Jordan",
+        "due": "2026-11-27",
+        "kind": "team",
+        "area": "",
+        "sure": true,
+        "quote": "",
+        "at": ""
+       },
+       {
+        "text": "Confirm the December 13 shipping cutoff",
+        "detail": "",
+        "owner": "",
+        "due": "2026-11-25",
+        "kind": "client_owes",
+        "area": "",
+        "sure": true,
+        "quote": "",
+        "at": ""
+       },
+       {
+        "text": "Send three new product photos",
+        "detail": "",
+        "owner": "",
+        "due": "2026-11-26",
+        "kind": "client_owes",
+        "area": "",
+        "sure": true,
+        "quote": "",
+        "at": ""
+       }
+      ],
+      "this_week": [
+       "We are keeping budgets steady into Black Friday.",
+       "We are preparing Christmas ads built around your delivery deadline."
+      ],
+      "need_from_client": [
+       "Confirm the December 13 shipping cutoff.",
+       "Send three new product photos."
+      ]
+     }
+    ]
+   },
+   "result": null
+  },
+  "m_1123_hc": {
+   "notes": {
+    "summary": "A strong week on flat spend. Video keeps beating images, so more video goes live by December 1. A December plan gets agreed before month end.",
+    "brands": [
+     {
+      "brand_id": "brand_harbor_candle",
+      "decisions": [
+       "Hold spend through Black Friday weekend.",
+       "More money behind video, with new cuts live by December 1."
+      ],
+      "items": [
+       {
+        "text": "Agree a December plan with the client",
+        "detail": "",
+        "owner": "Alex",
+        "due": "2026-11-28",
+        "kind": "team",
+        "area": "",
+        "sure": true,
+        "quote": "",
+        "at": ""
+       },
+       {
+        "text": "Pause image ads that miss their cost per order",
+        "detail": "",
+        "owner": "Riley",
+        "due": "2026-11-28",
+        "kind": "team",
+        "area": "",
+        "sure": true,
+        "quote": "",
+        "at": ""
+       },
+       {
+        "text": "3 new cuts of the best video",
+        "detail": "",
+        "owner": "Jordan",
+        "due": "2026-11-30",
+        "kind": "brief",
+        "area": "",
+        "sure": true,
+        "quote": "",
+        "at": ""
+       },
+       {
+        "text": "Approve the December sale dates",
+        "detail": "",
+        "owner": "",
+        "due": "2026-11-27",
+        "kind": "client_owes",
+        "area": "",
+        "sure": true,
+        "quote": "",
+        "at": ""
+       }
+      ],
+      "this_week": [
+       "We are putting more behind video, which is earning more per dollar."
+      ],
+      "need_from_client": [
+       "Approve the December sale dates."
+      ]
+     }
+    ]
+   },
+   "result": {
+    "brands": [
+     {
+      "brand_id": "brand_harbor_candle",
+      "name": "Harbor Candle Co",
+      "tasks": [
+       {
+        "id": "ac_s03",
+        "text": "Agree a December plan with the client",
+        "owner": "Alex",
+        "due": "2026-11-28"
+       },
+       {
+        "id": "ac_s06",
+        "text": "Pause image ads that miss their cost per order",
+        "owner": "Riley",
+        "due": "2026-11-28"
+       }
+      ],
+      "briefs": [
+       {
+        "text": "3 new cuts of the best video",
+        "owner": "Jordan",
+        "due": "2026-11-30",
+        "num": 31
+       }
+      ],
+      "asks": [
+       {
+        "text": "Approve the December sale dates",
+        "due": "2026-11-27"
+       }
+      ],
+      "report": {
+       "period_start": "2026-11-16",
+       "status": "draft"
+      }
+     }
+    ],
+    "agency": null,
+    "warnings": []
+   }
+  },
+  "m_1116_team": {
+   "notes": {
+    "summary": "Black Friday campaigns were rebuilt this week, so results will swing for a few days. Early access goes live Thursday. The Meta account limit needs raising before the weekend.",
+    "brands": [
+     {
+      "brand_id": "",
+      "decisions": [
+       "No brand turns campaigns off and on again during Black Friday weekend."
+      ],
+      "items": [
+       {
+        "text": "Raise the daily account limit on Meta before Thursday",
+        "detail": "",
+        "owner": "Alex",
+        "due": "2026-11-24",
+        "kind": "team",
+        "area": "",
+        "sure": true,
+        "quote": "",
+        "at": ""
+       }
+      ],
+      "this_week": [],
+      "need_from_client": []
+     },
+     {
+      "brand_id": "brand_northlake_golf",
+      "decisions": [
+       "Early access campaign goes live Thursday."
+      ],
+      "items": [
+       {
+        "text": "Build the early access campaign on Meta",
+        "detail": "",
+        "owner": "Alex",
+        "due": "2026-11-21",
+        "kind": "team",
+        "area": "",
+        "sure": true,
+        "quote": "",
+        "at": ""
+       },
+       {
+        "text": "Check Google search terms from last week",
+        "detail": "",
+        "owner": "Riley",
+        "due": "2026-11-25",
+        "kind": "team",
+        "area": "",
+        "sure": true,
+        "quote": "",
+        "at": ""
+       },
+       {
+        "text": "Load the 40 Black Friday image ads",
+        "detail": "",
+        "owner": "Jordan",
+        "due": "2026-11-20",
+        "kind": "team",
+        "area": "",
+        "sure": true,
+        "quote": "",
+        "at": ""
+       }
+      ],
+      "this_week": [],
+      "need_from_client": []
+     },
+     {
+      "brand_id": "brand_fairway_supply",
+      "decisions": [
+       "Cut Meta by a fifth while the new campaigns settle."
+      ],
+      "items": [
+       {
+        "text": "Lower the Meta budget to $900 a day",
+        "detail": "",
+        "owner": "Sam",
+        "due": "2026-11-17",
+        "kind": "team",
+        "area": "",
+        "sure": true,
+        "quote": "",
+        "at": ""
+       }
+      ],
+      "this_week": [],
+      "need_from_client": []
+     }
+    ]
+   },
+   "result": {
+    "brands": [
+     {
+      "brand_id": "brand_northlake_golf",
+      "name": "Northlake Golf",
+      "tasks": [
+       {
+        "id": "ac_s04",
+        "text": "Build the early access campaign on Meta",
+        "owner": "Alex",
+        "due": "2026-11-21"
+       },
+       {
+        "id": "ac_s05",
+        "text": "Check Google search terms from last week",
+        "owner": "Riley",
+        "due": "2026-11-25"
+       },
+       {
+        "id": "ac_s07",
+        "text": "Load the 40 Black Friday image ads",
+        "owner": "Jordan",
+        "due": "2026-11-20"
+       }
+      ],
+      "briefs": [],
+      "asks": [],
+      "report": {
+       "period_start": "2026-11-09",
+       "status": "sent"
+      }
+     },
+     {
+      "brand_id": "brand_fairway_supply",
+      "name": "Fairway Supply",
+      "tasks": [
+       {
+        "id": "ac_s08",
+        "text": "Lower the Meta budget to $900 a day",
+        "owner": "Sam",
+        "due": "2026-11-17"
+       }
+      ],
+      "briefs": [],
+      "asks": [],
+      "report": {
+       "period_start": "2026-11-09",
+       "status": "sent"
+      }
+     }
+    ],
+    "agency": {
+     "name": "Agency-wide",
+     "tasks": [
+      {
+       "id": "ac_s01",
+       "text": "Raise the daily account limit on Meta before Thursday",
+       "owner": "Alex",
+       "due": "2026-11-24"
+      }
+     ],
+     "briefs": [],
+     "asks": []
+    },
+    "warnings": []
+   }
+  },
+  "m_1116_fs": {
+   "notes": {
+    "summary": "The client approved the Black Friday offer and asked for the budget in writing before the weekend.",
+    "brands": [
+     {
+      "brand_id": "brand_fairway_supply",
+      "decisions": [
+       "The Black Friday offer stays as planned."
+      ],
+      "items": [
+       {
+        "text": "Send the client the Black Friday budget for a yes",
+        "detail": "",
+        "owner": "Alex",
+        "due": "2026-11-24",
+        "kind": "team",
+        "area": "",
+        "sure": true,
+        "quote": "",
+        "at": ""
+       },
+       {
+        "text": "Swap the site banner to the new dates",
+        "detail": "",
+        "owner": "Sam",
+        "due": "2026-11-18",
+        "kind": "team",
+        "area": "",
+        "sure": true,
+        "quote": "",
+        "at": ""
+       },
+       {
+        "text": "Send the offer wording to email",
+        "detail": "",
+        "owner": "Sam",
+        "due": "2026-11-18",
+        "kind": "team",
+        "area": "",
+        "sure": true,
+        "quote": "",
+        "at": ""
+       },
+       {
+        "text": "Approve the Black Friday budget",
+        "detail": "",
+        "owner": "",
+        "due": "2026-11-25",
+        "kind": "client_owes",
+        "area": "",
+        "sure": true,
+        "quote": "",
+        "at": ""
+       }
+      ],
+      "this_week": [
+       "We are finishing the Black Friday setup and sending you the budget to approve."
+      ],
+      "need_from_client": [
+       "Approve the Black Friday budget."
+      ]
+     }
+    ]
+   },
+   "result": {
+    "brands": [
+     {
+      "brand_id": "brand_fairway_supply",
+      "name": "Fairway Supply",
+      "tasks": [
+       {
+        "id": "ac_s02",
+        "text": "Send the client the Black Friday budget for a yes",
+        "owner": "Alex",
+        "due": "2026-11-24"
+       },
+       {
+        "id": "ac_s09",
+        "text": "Swap the site banner to the new dates",
+        "owner": "Sam",
+        "due": "2026-11-18"
+       },
+       {
+        "id": "ac_s10",
+        "text": "Send the offer wording to email",
+        "owner": "Sam",
+        "due": "2026-11-18"
+       }
+      ],
+      "briefs": [],
+      "asks": [
+       {
+        "text": "Approve the Black Friday budget",
+        "due": "2026-11-25"
+       }
+      ],
+      "report": {
+       "period_start": "2026-11-09",
+       "status": "sent"
+      }
+     }
+    ],
+    "agency": null,
+    "warnings": []
+   }
+  }
+ }
+}

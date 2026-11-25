@@ -1,0 +1,145 @@
+{
+ "sample_age_min": 4,
+ "window": {
+  "from": "2026-10-25",
+  "to": "2026-11-23"
+ },
+ "kpi": {
+  "sales": 13210,
+  "sales_prev": 9870,
+  "spend": 1287,
+  "spend_prev": 2460,
+  "ad_sales": 5530,
+  "ad_sales_prev": 5488
+ },
+ "take": [
+  "Ad spend fell ",
+  {
+   "b": "48%"
+  },
+  " and sales still grew ",
+  {
+   "b": "34%"
+  },
+  ", not counting one bulk order."
+ ],
+ "weeks": [
+  {
+   "label": "Sep 28",
+   "sales": 1940,
+   "spend": 610
+  },
+  {
+   "label": "Oct 5",
+   "sales": 2310,
+   "spend": 574
+  },
+  {
+   "label": "Oct 12",
+   "sales": 2105,
+   "spend": 432
+  },
+  {
+   "label": "Oct 19",
+   "sales": 1760,
+   "spend": 488
+  },
+  {
+   "label": "Oct 26",
+   "sales": 1688,
+   "spend": 301
+  },
+  {
+   "label": "Nov 2",
+   "sales": 3420,
+   "spend": 276,
+   "note": "one bulk order, $1,460"
+  },
+  {
+   "label": "Nov 9",
+   "sales": 2795,
+   "spend": 288
+  },
+  {
+   "label": "Nov 16",
+   "sales": 4630,
+   "spend": 322,
+   "note": "27 orders a day since Nov 19"
+  }
+ ],
+ "campaigns": {
+  "count": 17,
+  "rows": [
+   {
+    "name": "Belts, golf belt keywords",
+    "type": "Products",
+    "spend": 398,
+    "ad_sales": 1512,
+    "orders": 44
+   },
+   {
+    "name": "All products, auto, low bid",
+    "type": "Products",
+    "spend": 131,
+    "ad_sales": 640,
+    "orders": 19
+   },
+   {
+    "name": "Junior belts",
+    "type": "Products",
+    "spend": 96,
+    "ad_sales": 318,
+    "orders": 9
+   },
+   {
+    "name": "Belts, branded",
+    "type": "Products",
+    "spend": 118,
+    "ad_sales": 1294,
+    "orders": 37,
+    "flag": "best"
+   },
+   {
+    "name": "Belts, keyword group",
+    "type": "Products",
+    "spend": 104,
+    "ad_sales": 702,
+    "orders": 20
+   },
+   {
+    "name": "Belts, gift keywords",
+    "type": "Products",
+    "spend": 97,
+    "ad_sales": 38,
+    "orders": 1,
+    "flag": "losing",
+    "paused": true
+   },
+   {
+    "name": "Ball markers",
+    "type": "Products",
+    "spend": 84,
+    "ad_sales": 131,
+    "orders": 5
+   },
+   {
+    "name": "Belts, branded",
+    "type": "Brands",
+    "spend": 72,
+    "ad_sales": 366,
+    "orders": 11
+   }
+  ],
+  "more": {
+   "count": 9,
+   "spend": 187,
+   "ad_sales": 529,
+   "orders": 14
+  },
+  "total": {
+   "spend": 1287,
+   "ad_sales": 5530,
+   "orders": 160
+  }
+ }
+}
