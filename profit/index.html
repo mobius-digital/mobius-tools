@@ -12523,17 +12523,19 @@ async function renderSettings() {
   (async () => {
     const host = $('#teamCard'); if (!host || !mApi) return;
     const paint = d => {
+      /* Who has access is the owner's to change (the server refuses anyone else). */
+      const ownerOnly = d.can_set_brands ? '' : ' disabled title="Only Cole can change this"';
       const rows = d.members.map(mm => `<tr data-e="${esc(mm.email)}">
         <td><b>${esc(mm.email)}</b>${mm.email === d.you ? ' <span class="tiny">(you)</span>' : ''}<br><span class="tiny">${mm.guest ? 'Invited guest' : 'On your domain'}</span></td>
-        <td><select data-k="role" style="max-width:230px">
+        <td><select data-k="role" style="max-width:230px"${ownerOnly}>
           <option value="admin"${mm.role === 'admin' ? ' selected' : ''}>Admin - can change things</option>
           <option value="viewer"${mm.role === 'viewer' ? ' selected' : ''}>Viewer - read only</option></select></td>
         <td>${mm.email === d.owner ? '<span class="tiny">Every brand, always</span>' : `<button class="btn" data-k="brands" ${d.can_set_brands ? '' : 'disabled title="Only Cole can change this"'} style="font-size:11.5px;padding:4px 8px">${mm.brands && mm.brands.length ? `${mm.brands.length} brand${mm.brands.length === 1 ? '' : 's'}: ${esc(mm.brands.map(id => (S.accounts.find(a => a.act_id === id) || {}).name || id).join(', '))}` : 'Every brand'}</button>`}</td>
-        <td>${mm.email === d.you ? '<span class="tiny"> - </span>' : '<button class="btn" data-k="remove" style="font-size:11.5px;padding:4px 8px">Remove</button>'}
+        <td>${mm.email === d.you ? '<span class="tiny"> - </span>' : `<button class="btn" data-k="remove" style="font-size:11.5px;padding:4px 8px"${ownerOnly}>Remove</button>`}
           <span class="tiny" data-msg></span></td></tr>`).join('');
       host.innerHTML = `<div class="card settings">
         <ul class="set-list">
-          <li><b>Anyone with an @${esc(d.domain)} email can already sign in</b>, no invite needed, as an admin. Invite anyone else below.</li>
+          <li><b>Anyone with an @${esc(d.domain)} email can already sign in</b>, no invite needed, as an admin. Only Cole can invite anyone else, change a role or remove someone.</li>
           <li><b>Admin</b> can change anything, including sending a report into a client’s Slack.</li>
           <li><b>Viewer</b> sees every screen and can press nothing that leaves the building. Use it for a contractor or anyone on our side who should watch the numbers without moving them. <b>For a client, use Client logins</b> (Agency settings > Clients): they see only their own brand.</li></ul>
         <ul class="set-list" style="margin-top:0"><li><b>Brands they see</b>: limit a person to some brands and every screen and list in Locus shows only those. Enforced on the server, not just hidden. Only Cole can change it.</li></ul>
@@ -12541,9 +12543,9 @@ async function renderSettings() {
           <tbody>${rows || '<tr><td colspan="4" class="tiny">Only people on your domain, all admins.</td></tr>'}</tbody></table></div>
         <label class="set-lbl" for="tmEmail">Invite someone</label>
         <div class="row" style="margin:6px 0 0;gap:8px;flex-wrap:wrap">
-          <input type="text" id="tmEmail" placeholder="name@example.com" style="width:230px">
-          <select id="tmRole" style="max-width:230px"><option value="viewer">Viewer - read only</option><option value="admin">Admin - can change things</option></select>
-          <button class="btn primary" id="tmAdd">Invite</button><span class="tiny" id="tmMsg"></span></div></div>`;
+          <input type="text" id="tmEmail" placeholder="name@example.com" style="width:230px"${ownerOnly}>
+          <select id="tmRole" style="max-width:230px"${ownerOnly}><option value="viewer">Viewer - read only</option><option value="admin">Admin - can change things</option></select>
+          <button class="btn primary" id="tmAdd"${ownerOnly}>Invite</button><span class="tiny" id="tmMsg"></span></div></div>`;
       const save = async (email, body, el) => {
         if (el) el.textContent = 'Saving…';
         try { await mApi('/api/team', { method: 'PUT', body: JSON.stringify({ email, ...body }) }); return true; }

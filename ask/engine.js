@@ -88,7 +88,13 @@ function sqlShape(raw) {
     if (c === "'") {
       let j = i + 1;
       while (j < s.length) { if (s[j] !== "'") j++; else if (s[j + 1] === "'") j += 2; else break; }
-      lits.push(s.slice(i + 1, j)); clean += s.slice(i, j + 1); bare += "''"; i = j + 1; continue;
+      /* After a dot a quoted string is a NAME (p.'col'), so the checks must read it. Right after a
+         comparison it can only be a value. */
+      const before = bare.trimEnd(), text = s.slice(i + 1, j);
+      clean += s.slice(i, j + 1); i = j + 1;
+      if (before.endsWith('.')) { bare += ' ' + text + ' '; continue; }
+      lits.push({ text, value: /[=<>]$/.test(before) || /\b(like|glob|is|not|then|else|when)$/i.test(before) });
+      bare += "''"; continue;
     }
     if (c === '"' || c === '`' || c === '[') {
       let j = s.indexOf(c === '[' ? ']' : c, i + 1);
@@ -144,7 +150,7 @@ export function gateSql(raw, allowed, opts = {}) {
    * table). */
   const bare = shape.bare;
   const forbid = opts.forbidWords || /\bsettings\b/i;
-  const fm = bare.match(forbid) || shape.lits.map(l => /^\s*[\w.$]+\s*$/.test(l) && l.match(forbid)).find(Boolean);
+  const fm = bare.match(forbid) || shape.lits.map(l => !l.value && /^\s*[\w.$]+\s*$/.test(l.text) && l.text.match(forbid)).find(Boolean);
   if (fm) return { error: `Table "${fm[0]}" is not readable. Available: ${allowed.join(', ')}.` };
   if (/\b(main|temp|temporary)\s*\./i.test(bare)) return { error: 'Schema-qualified names are not allowed.' };
 
@@ -160,7 +166,7 @@ export function gateSql(raw, allowed, opts = {}) {
     /* opts.safeColumns: exact names the host knows are ordinary (a doc's `key`, an ad's `asset_key`). */
     const fine = new Set((opts.safeColumns || []).map(c => String(c).toLowerCase()));
     const cm = (bare.match(/[a-z_][a-z0-9_$]*/gi) || []).find(w => opts.secretColumns.test(w) && !fine.has(w.toLowerCase()));
-    if (cm) return { error: `"${cm}" is not readable: names like that are kept out of queries. Leave it out.` };
+    if (cm) return { error: `"${cm}" cannot be used as a name here: names like that are kept out of queries. If it is your own alias or CTE name, pick another word; if it is a column, leave it out.` };
   }
   if (/(?:\b(?:select|distinct|all)\s*|[,.]\s*)\*/i.test(bare)) {
     const star = (opts.starTables || []).find(named);

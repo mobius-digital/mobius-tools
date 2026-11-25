@@ -105,6 +105,11 @@ const REFUSED = [
   `SELECT [share_token] FROM p_plan`,
   `SELECT SHARE_TOKEN FROM p_plan`,
   `SELECT p.share_token AS t FROM p_plan p`,
+  `SELECT p.'share_token' FROM p_plan p`,
+  `SELECT p_plan.'share_token' FROM p_plan`,
+  `SELECT a.x FROM (SELECT p.'share_token' AS x FROM p_plan p) a`,
+  `SELECT act_id FROM p_plan WHERE p_plan.'share_token' LIKE 'm%'`,
+  `SELECT act_id FROM tw_daily, 'settings'`,
   `SELECT substr(share_token, 1, 4) FROM p_plan`,
   `SELECT client_secret FROM p_newthing`,
   `SELECT file_key FROM ads`,
@@ -164,6 +169,9 @@ const ALLOWED = [
   `SELECT act_id FROM tw_daily WHERE act_id = '-- not a comment' AND date > '2026-01-01'`,
   `SELECT act_id FROM tw_daily WHERE act_id = 'it''s /* fine */'`,
   `SELECT act_id FROM tw_daily;`,
+  /* a VALUE is not a table */
+  `SELECT act_id FROM tw_daily WHERE act_id = 'settings'`,
+  `SELECT act_id FROM tw_daily WHERE act_id != 'settings' AND act_id LIKE 'settings'`,
   /* ordinary columns that only look secret-shaped */
   `SELECT key, status FROM p_br_doc WHERE act_id = 'brand_x'`,
   `SELECT KEY FROM p_br_doc`,
