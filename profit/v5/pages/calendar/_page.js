@@ -150,6 +150,7 @@ export function calendarPage({ agency = false } = {}) {
       return { ...all, brands: all.brands.filter(b => b.id === id), items: all.items.filter(e => e.act === id), emails: (all.emails || []).filter(e => e.act === id) };
     },
     render: (el, d, ctx) => follow(ctx, d, now => draw(el, whole(now), ctx, agency)),
+    asOf: d => (d && d.at) || null,   // the oldest part on screen
     skeleton(el) { el.innerHTML = '<div class="lx-skel chart" style="height:150px"></div><div class="lx-skel chart" style="height:520px"></div><div class="lx-skel row"></div><div class="lx-skel row"></div>'; },
   };
 }

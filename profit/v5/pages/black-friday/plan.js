@@ -222,5 +222,6 @@ export const agencyPlan = {
     }).filter(Boolean) };
   },
   render: (el, d, ctx) => follow(ctx, d, now => drawAll(el, planOf(now), ctx)),
+  asOf: d => (d && d.at) || null,   // the oldest part on screen
   skeleton(el) { el.innerHTML = '<div class="lx-skel chart" style="height:200px"></div><div class="lx-skel row"></div><div class="lx-skel row"></div><div class="lx-skel row"></div><div class="lx-skel row"></div>'; },
 };

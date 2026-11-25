@@ -153,6 +153,7 @@ const page = {
   skeleton(el) { put(el, skeleton('kpi', 4), skeleton('chart')); },
 
   render(el, data, ctx) { follow(ctx, data, d => page.draw(el, shape(d), ctx)); },
+  asOf: d => (d && d.at) || null,   // the oldest part on screen
 
   draw(el, data, ctx) {
     css(); crCss(); acCss(); abCss();
