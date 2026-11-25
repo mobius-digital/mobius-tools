@@ -118,6 +118,26 @@ await check('netAfter: null without an active fixed cost or without a CM; a per 
   near(b.net, 1100 - 925, 'the profit worker\'s CM already holds them'); near(b.net - a.net, a.ad, 'the two differ by exactly the ad pile');
   assert.ok(!/Rent"|Podcast|Tools/.test(JSON.stringify(a).replace(/"label":"[^"]*"/g, '')), 'no row name leaves, only category totals');
 });
+await check('one window: a one-time cost dated after the window is not counted; net profit is withheld or clipped when a day has no margin', () => {
+  const rows = ROWS();
+  const later = [{ id: 1, name: 'Trade show', category: 'marketing', kind: 'once', amount: 5000, start_date: '2026-12-15' }, { id: 2, name: 'Sponsor', category: 'marketing', kind: 'once', amount: 700, start_date: '2026-12-15', is_ad_spend: 1 }];
+  const s = X.spread(later, '2026-11-01', '2026-11-24', []);
+  assert.deepEqual([s.total, s.ad_total, s.items.length, s.ad_items.length, Object.keys(s.byDate).length, Object.keys(s.adByDate).length], [0, 0, 0, 0, 0, 0], 'spread itself, so P&L, the hub and the Costs page agree with the client link');
+  assert.equal(X.spread(later, '2026-12-01', '2026-12-31', []).total, 5000, 'inside the window it counts'); assert.equal(X.spread(later, '2026-12-16', '2026-12-31', []).total, 0, 'and not once the window is past it');
+  assert.equal(X.netAfter(later, '2026-11-01', '2026-11-24', [], 900), null);
+  /* gpKey: every day of the window needs a gross profit, or there is no net profit at all */
+  const rent = [{ name: 'Rent', category: 'rent', kind: 'monthly', amount: 3100, start_date: '2026-09-01' }, { name: 'Sponsor', category: 'marketing', kind: 'once', amount: 50, start_date: '2026-10-01', is_ad_spend: 1 }];
+  const gp = rows.map((r, i) => ({ ...r, gross_profit: i === 0 ? null : 400 }));
+  assert.equal(X.netAfter(rent, '2026-10-01', '2026-10-03', gp, 800, { gpKey: 'gross_profit' }), null, 'one uncosted day in the window');
+  near(X.netAfter(rent, '2026-10-02', '2026-10-03', gp, 800, { gpKey: 'gross_profit' }).net, 800 - 200 - 0, 'the uncosted day is outside this window');
+  near(X.netAfter(rent, '2026-10-01', '2026-10-03', gp, 800).net, 800 - 300 - 50, 'without gpKey it reads as before');
+  /* dates: the caller summed cm over these days only, so fixed costs are counted on exactly those days */
+  const d = X.netAfter(rent, '2026-10-01', '2026-10-03', rows, 800, { dates: ['2026-10-02', '2026-10-03', '2026-11-09'] });
+  near(d.fixed, 200, 'two days of rent, and a date outside the window is ignored'); assert.equal(d.ad, 0, 'the Oct 1 sponsor fee is not on a counted day'); near(d.net, 600, 'net');
+  assert.deepEqual(d.by_category, [{ category: 'rent', label: 'Rent and premises', amount: 200 }]);
+  const all = X.netAfter(rent, '2026-10-01', '2026-10-03', rows, 800, { dates: ['2026-10-01', '2026-10-02', '2026-10-03'] }), plain = X.netAfter(rent, '2026-10-01', '2026-10-03', rows, 800);
+  assert.deepEqual(all, plain, 'every day counted = the whole-window answer');
+});
 
 /* ---------- the real worker ---------- */
 db.exec(`INSERT INTO brands (id, slug, name, status, currency, tz, source) VALUES ('brand_alpha', 'alpha', 'Alpha Golf', 'active', 'USD', 'America/Chicago', 'locus')`);

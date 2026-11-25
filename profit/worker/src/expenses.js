@@ -112,6 +112,7 @@ export function spread(list, from, to, rows) {
   const R = {}; for (const r of rows || []) if (r && r.date) R[r.date] = r;
   for (const e of list || []) {
     if (!e || !YMD.test(e.start_date || '')) continue;
+    if (e.kind === 'once' && e.start_date > to) continue;   // a one-time cost dated after the window has not happened yet
     const lo = e.start_date > from ? e.start_date : from;
     const end = e.kind === 'once' ? e.start_date : e.end_date && e.end_date < to ? e.end_date : to;
     const ad = !!+e.is_ad_spend, by = ad ? out.adByDate : out.byDate;
@@ -122,6 +123,25 @@ export function spread(list, from, to, rows) {
     if (ad) { out.ad_items.push(it); out.ad_total += amt; } else { out.items.push(it); out.total += amt; }
   }
   out.items.sort((a, b) => b.amount - a.amount); out.ad_items.sort((a, b) => b.amount - a.amount);
+  out.total = r2(out.total); out.ad_total = r2(out.ad_total);
+  return out;
+}
+
+/** spread() over a list of single days instead of a whole window: only those days count. -> { total, ad_total, items }
+ *  (items: one { category, amount } per expense that cost something). */
+function spreadOn(list, dates, rows) {
+  const out = { total: 0, ad_total: 0, items: [] };
+  const R = {}; for (const r of rows || []) if (r && r.date) R[r.date] = r;
+  for (const e of list || []) {
+    if (!e || !YMD.test(e.start_date || '')) continue;
+    let amt = 0;
+    for (const d of dates || []) {
+      if (d < e.start_date || (e.kind !== 'once' && e.end_date && d > e.end_date)) continue;
+      amt += dayValue(e, d, R[d]) || 0;
+    }
+    if (!(amt > 0)) continue;
+    if (+e.is_ad_spend) out.ad_total += amt; else { out.total += amt; out.items.push({ category: e.category || 'other', amount: r2(amt) }); }
+  }
   out.total = r2(out.total); out.ad_total = r2(out.ad_total);
   return out;
 }
@@ -151,11 +171,15 @@ export function activeIn(list, from, to) {
  *  cmHasAd: true when the caller's cm already includes the "counts as ad spend" expenses (profit worker), false when
  *  it does not (account-health briefs and reports). Only category totals are returned, never a row's name or notes.
  *  The gate is activeIn, not the spread: a per order or % row is 0 on a day with no sales and must not make the line flicker. */
-export function netAfter(list, from, to, rows, cm, { cmHasAd = false } = {}) {
+export function netAfter(list, from, to, rows, cm, { cmHasAd = false, gpKey = null, dates = null } = {}) {
   if (cm == null || !activeIn(list, from, to).length) return null;
-  /* spread() counts a one-time cost dated AFTER the window (it clips `once` to its own date, not to `to`). That is how
-     P&L has always read it and it is left alone there; here a cost that has not happened yet is kept out. */
-  const s = spread((list || []).filter(e => e && !(e.kind === 'once' && e.start_date > to)), from, to, rows);
+  /* `dates`: the caller's cm is a sum over these days only (the Daily Brief adds up the days that have a contribution
+     margin), so the fixed costs are counted on exactly those days and no others. */
+  /* ONE WINDOW. Fixed costs are spread over every calendar day of [from, to], so cm must cover the same days. With
+     gpKey (the name of the rows' gross profit field) a window that holds a day with no gross profit gets no net profit
+     at all: the gross profit of some days minus the fixed costs of all of them is not a number anyone should read. */
+  if (gpKey && (rows || []).some(r => r && r.date >= from && r.date <= to && r[gpKey] == null)) return null;
+  const s = dates ? spreadOn(list, dates.filter(d => d >= from && d <= to), rows) : spread(list, from, to, rows);   // spread() keeps out a one-time cost dated after the window
   const by = {};
   for (const it of s.items) by[it.category] = (by[it.category] || 0) + it.amount;
   const by_category = Object.entries(by).map(([category, amount]) => ({ category, label: (CATEGORIES.find(c => c.id === category) || {}).label || 'Other', amount: r2(amount) }))
@@ -202,7 +226,7 @@ export function clean(x) {
 }
 
 /** ctx: { path, url, request, env, json, accountsFor, email, client (clientScope or null), sources(acct) } */
-export async function handleExpenses({ path, url, request, env, json, accountsFor, email, client, sources }) {
+export async function handleExpenses({ path, url, request, env, json, accountsFor, email, client, sources, only }) {
   if (path !== '/api/expenses') return null;
   await ensure(env);
   const brandOk = async act => {
@@ -210,6 +234,9 @@ export async function handleExpenses({ path, url, request, env, json, accountsFo
     const acct = (await accountsFor()).find(a => a.act_id === act);
     if (!acct) return null;
     if (client && !(client.ids && client.ids.has(act))) return null;   // brandguard already refused; belt and braces
+    /* `only` = the signed-in person's brands (brandguard brandsFor), null when not limited. brandguard reads a body's
+       act only when the request says it is JSON; this check does not depend on the Content-Type. */
+    if (only && !only.has(act)) return null;
     return acct;
   };
   if (request.method === 'GET') {

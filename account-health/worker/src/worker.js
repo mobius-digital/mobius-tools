@@ -20,7 +20,7 @@ import { handleCalendar, calendarTick, calendarView, liveOn as calendarLiveOn, u
 /* The client posts (2026-10-19 reporting audit): the six-line daily and the weekly / monthly shape, built from stored numbers. */
 import { dailyPost, dailyThread, weeklyPost, weekSentence, internalChannel } from './clientpost.js';
 /* Brand costs and net profit after fixed costs (2026-11-25): the same pure functions the profit worker prices with. */
-import { ruleCosts, shippingRuled } from '../../../profit/worker/src/costs.js';
+import { ruleCosts, shippingRuled, partlyCosted } from '../../../profit/worker/src/costs.js';
 import { netAfter } from '../../../profit/worker/src/expenses.js';
 import { handleRequests, createAsk } from './requests.js';
 import { handleMeetings, handleFirefliesHook, meetingsTick } from './meetings.js';
@@ -2504,11 +2504,14 @@ async function briefData(env, acct, upTo) {
   if (fixedCosts.length) {
     const dayRow = x => ({ date: x.date, sales: x.a.sales, spend: x.a.spend, orders: x.a.orders });
     for (const x of done) { const n = netAfter(fixedCosts, x.date, x.date, [dayRow(x)], x.a.cm); if (n) { x.a.fixed = n.fixed; x.a.ad_expense = n.ad; x.a.net = n.net; } }
-    const m = netAfter(fixedCosts, monthStart, upTo, done.map(dayRow), mtd.cm);
+    /* mtd.cm above is the sum of the days that HAVE a contribution margin, so the fixed costs are counted on exactly
+       those days (`dates`): a product cost rule that starts mid month must not set five days of margin against a whole
+       month of rent. */
+    const m = netAfter(fixedCosts, monthStart, upTo, done.map(dayRow), mtd.cm, { dates: done.filter(x => x.a.cm != null).map(x => x.date) });
     if (m) {
-      mtd.fixed = m.fixed; mtd.ad_expense = m.ad; mtd.net = m.net;
-      const flag = await getSetting(env, 'costsNetInPosts').catch(() => null);
-      fixedBlock = { by_category: m.by_category, in_posts: ['1', 'true', '"1"'].includes(String(flag)) };
+      /* The month's figures ride under `fixed`, NOT on `mtd`: both narrative prompts hand the whole mtd object to the
+         model, and a net profit figure must never reach a client through a sentence nobody previewed. */
+      fixedBlock = { by_category: m.by_category, in_posts: await netInPosts(env), mtd: { fixed: m.fixed, ad_expense: m.ad, net: m.net } };
     }
   }
   /* The catch-up: what it takes FROM HERE, not just how far behind we are.
@@ -2926,7 +2929,7 @@ function buildBriefTextV2(data, dates, narrative) {
     rowFor('Net Sales', mt.sales, mt.sales_f, fm);
     rowFor('Ad Spend', mt.spend, mt.spend_f, fm);
     if (cmOk) rowFor('Contribution Margin', mt.cm, mt.cm_f, fm);
-    if (cmOk && data.fixed?.in_posts && mt.net != null) rowFor('Net profit after fixed costs', mt.net, null, fm);
+    if (cmOk && data.fixed?.in_posts && data.fixed.mtd?.net != null) rowFor('Net profit after fixed costs', data.fixed.mtd.net, null, fm);
   }
 
   const th = data.to_hit;
@@ -3484,13 +3487,19 @@ async function adsWork(env, act, start, end) {
 }
 async function clientReportText(env, acct, row, data) {
   const period = row.period, start = row.period_start;
+  /* Net profit after fixed costs prints only with settings costsNetInPosts on, the same switch as the Daily Brief: a
+     report of a brand with review_first off is sent at 11am Central (reportFallbackPass) with no person pressing Send.
+     Read here, at the moment the text is built, so the draft card and the sent post always agree. */
+  const noNet = t => { if (!t || t.net == null) return t; const { net, ...rest } = t; return rest; };
+  const showNet = await netInPosts(env);
+  const totals = showNet ? data?.totals : noNet(data?.totals), previous = showNet ? data?.previous : noNet(data?.previous);
   const url = `${DASHBOARD_URL}?reports=${await reportToken(env, acct.act_id)}`;
   const cal = period === 'weekly' ? await clientCalendarFor(env, acct.act_id, localDate(BRIEF_TZ), { days: 6 }).catch(() => null) : null;
   const asks = (await env.DB.prepare(`SELECT title, body, created_at FROM p_request WHERE act_id = ?1 AND kind = 'ask' AND status = 'open' ORDER BY created_at`)
     .bind(acct.act_id).all().catch(() => ({ results: [] }))).results || [];
   const askOf = a => ({ text: a.title, asked: String(a.created_at || '').slice(0, 10) || null, due: (String(a.body || '').match(/Needed by (\d{4}-\d{2}-\d{2})/) || [])[1] || null });
   return weeklyPost({
-    brand: acct.name, period, start, end: row.period_end, currency: data?.account?.currency || acct.currency, totals: data?.totals, previous: data?.previous,
+    brand: acct.name, period, start, end: row.period_end, currency: data?.account?.currency || acct.currency, totals, previous,
     sentence: weekSentence(data?.totals, data?.previous, period === 'monthly' ? 'month' : 'week'),
     amazon: (() => { const c = (data?.channels || []).find(x => x.id === 'amazon'); return c ? { cur: c.cur ? { sales: c.cur.sales, orders: c.cur.orders } : null, prev: c.prev ? { sales: c.prev.sales, orders: c.prev.orders } : null } : null; })(),
     work: period === 'weekly' ? await adsWork(env, acct.act_id, start, row.period_end || addDays(start, 6)).catch(() => null) : null,
@@ -3786,6 +3795,13 @@ function econDay(piv, metaBy, date, cmPct, rules) {
   };
 }
 
+/** settings costsNetInPosts (default off): may an automatic client post print "Net profit after fixed costs"?
+ *  One switch for the Daily Brief, its thread, and the weekly and monthly client post. */
+async function netInPosts(env) {
+  const flag = await getSetting(env, 'costsNetInPosts').catch(() => null);
+  return ['1', 'true', '"1"'].includes(String(flag));
+}
+
 /** Aggregate a run of econDay rows. Ratios are ratio-of-sums, never averages. */
 function periodTotals(rows) {
   const sum = get => { let s = 0, any = false; for (const r of rows) { const v = get(r); if (v != null) { s += v; any = true; } } return any ? s : null; };
@@ -3817,9 +3833,13 @@ async function storePeriod(env, acct, from, to) {
   const { results: metaRows } = await env.DB.prepare(`SELECT date, SUM(spend) AS spend, SUM(impressions) AS impressions, SUM(clicks) AS clicks, SUM(link_clicks) AS link_clicks, SUM(purchases) AS purchases, SUM(revenue) AS revenue FROM daily_insights WHERE act_id IN ${metaOf(1)} AND date >= ?2 AND date <= ?3 GROUP BY date`).bind(acct.act_id, from, to).all();
   const metaBy = Object.fromEntries((metaRows || []).map(r => [r.date, r]));
   const cmPct = goalsFor(acct, monthOf(to))?.cm_pct ?? null;
+  /* The brand's own cost rules, read the way reportData reads them (a plain SELECT that tolerates a missing table), so
+     this view prices a day exactly like the reports. No rule: every number below is what it always was. */
+  const costRules = (await env.DB.prepare(`SELECT * FROM p_cost_rule WHERE act_id = ?1 AND status = 'on'`).bind(acct.act_id).all().catch(() => ({ results: [] }))).results || [];
   const rows = [];
-  for (let d = from; d <= to; d = addDays(d, 1)) { const r = econDay(piv, metaBy, d, cmPct); if (r) rows.push(r); }
+  for (let d = from; d <= to; d = addDays(d, 1)) { const r = econDay(piv, metaBy, d, cmPct, costRules); if (r) rows.push(r); }
   const t = periodTotals(rows);
+  if (partlyCosted(costRules, rows, 'gp')) { t.cm = null; t.gp = null; t.margin = null; }   // as reportData: one window or no margin
   const sumM = k => { let s = 0, any = false; for (const d in (piv[k] || {})) if (d >= from && d <= to && piv[k][d] != null) { s += piv[k][d]; any = true; } return any ? s : null; };
   const email = sumM('klaviyoPlacedOrderSales');
   const retOrders = t.orders != null && t.new_orders != null ? t.orders - t.new_orders : null;
@@ -4595,8 +4615,13 @@ async function reportData(env, acct, period, start, end) {
     for (const t of [cur, prev]) { t.cm = null; t.gp = null; t.margin = null; }
     for (const r of days) { r.cm = null; r.gp = null; r.margin = null; }
   }
-  /* Net profit after fixed costs: only when CM is shown (cur.cm is null otherwise) and a fixed cost is in force. */
-  const netCur = netAfter(fixedCosts, start, end, days, cur.cm), netPrev = netAfter(fixedCosts, prevStart, prevEnd, prevDays, prev.cm);
+  /* ONE WINDOW (costs.js partlyCosted): a product cost rule that starts inside a window leaves the days before it with
+     no gross profit, and periodTotals would then set the gross profit of some days against the ad spend of all of
+     them. That window's margin is withheld. A brand with no product rule is never affected. */
+  for (const [t, list] of [[cur, days], [prev, prevDays]]) if (partlyCosted(costRules, list, 'gp')) { t.cm = null; t.gp = null; t.margin = null; }
+  /* Net profit after fixed costs: only when CM is shown (cur.cm is null otherwise), a fixed cost is in force and every
+     day of the window has a gross profit (fixed costs are spread over all of them). */
+  const netCur = netAfter(fixedCosts, start, end, days, cur.cm, { gpKey: 'gp' }), netPrev = netAfter(fixedCosts, prevStart, prevEnd, prevDays, prev.cm, { gpKey: 'gp' });
   if (netCur) { cur.fixed = netCur.fixed; cur.ad_expense = netCur.ad; cur.net = netCur.net; }
   if (netPrev) { prev.fixed = netPrev.fixed; prev.ad_expense = netPrev.ad; prev.net = netPrev.net; }
 
@@ -5040,7 +5065,7 @@ async function reportData(env, acct, period, start, end) {
     chart: days.map(r => ({ date: r.date, sales: r.sales, spend: r.spend })),
     cm_ok: cmOk, cogs_quality: cogsQuality, margin_28d: margin28, cm_pct: cmPct,
     generated_at: new Date().toISOString(),
-    ...(netCur ? { fixed: { by_category: netCur.by_category } } : {}),
+    ...(netCur ? { fixed: { by_category: netCur.by_category, in_posts: await netInPosts(env) } } : {}),
   };
 }
 
@@ -5141,7 +5166,7 @@ function reportHeadline(data) {
     `• *MER* ${x(t.mer)}${vs(t.mer, f.mer, p.mer)}`,
   ];
   if (t.cm != null) L.push(`• *Contribution margin* ${money(t.cm)}${vs(t.cm, f.cm, p.cm)}`);
-  if (t.net != null) L.push(`• *Net profit after fixed costs* ${money(t.net)}${vs(t.net, null, p.net)}`);
+  if (t.net != null && data.fixed?.in_posts) L.push(`• *Net profit after fixed costs* ${money(t.net)}${vs(t.net, null, p.net)}`);
   return L.join('\n');
 }
 
@@ -10883,7 +10908,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
 /* For the offline dashboard checks (test-dashrange.mjs). */
 export { dashNumbers, dashBlocks, dashRange };
 /* For the offline cost checks (test-costs-brief.mjs). */
-export { econDay, briefData, reportData, buildBriefText, buildBriefTextV2, reportHeadline, spendFor };
+export { econDay, briefData, reportData, buildBriefText, buildBriefTextV2, reportHeadline, spendFor, clientReportText, storePeriod };
 /** A creator link on the AUTO board (profit amb.js autoBoard, migration amb-004) also shows the
  *  brand's top-ranked video ads. The ranked ids are cached on the brand row, so the slug authorises
  *  exactly those ads on a LIVE page, the same rule as proof. Empty for a hand-picked board. */

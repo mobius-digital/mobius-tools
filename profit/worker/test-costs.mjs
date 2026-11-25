@@ -460,6 +460,102 @@ await check('12. /api/profit/:token: net profit only with a fixed cost AND a tru
   assert.equal(norm((await raw('GET', P)).text), first.profit, 'and with the fixed costs removed, the same bytes as at the start');
 });
 
+/* ---------------- 13 to 17. review fixes (2026-11-25) ---------------- */
+await check('13. a saved-only rule never ends the rule in use; a new rule ends only the open rule of its own kind', async () => {
+  const P = rule => call('PUT', '/api/costs', { act: 'brand_alpha', rule });
+  const open = () => db.prepare(`SELECT rule, amount, start_date, end_date FROM p_cost_rule WHERE act_id = 'brand_alpha' ORDER BY id`).all().map(r => [r.rule, r.start_date, r.end_date]);
+  const day = async d => (await call('GET', `/api/client?act=brand_alpha&${W}`)).j.rows.find(r => r.date === d);
+  assert.equal((await P({ cost: 'shipping', rule: 'per_order', amount: 6.5, start_date: '2026-09-01' })).status, 200);
+  assert.equal((await P({ cost: 'product', rule: 'pct_revenue', amount: 30, start_date: '2026-09-01' })).status, 200);
+  const before = await day('2026-10-12');
+  near(before.ship_cost, before.orders * 6.5, 'per order shipping'); near(before.cogs, before.sales * 0.3, '30% product cost');
+  const wt = await P({ cost: 'shipping', rule: 'weight_tier', table: [{ min: 0, max: 1, amount: 5 }, { min: 1, max: 5, amount: 9 }], start_date: '2026-10-10' });
+  const pi = await P({ cost: 'product', rule: 'per_item', amount: 4, start_date: '2026-10-10' });
+  assert.equal(wt.status, 200); assert.equal(pi.status, 200);
+  assert.deepEqual(open(), [['per_order', '2026-09-01', null], ['pct_revenue', '2026-09-01', null], ['weight_tier', '2026-10-10', null], ['per_item', '2026-10-10', null]], 'both applied rules stay open');
+  const after = await day('2026-10-12');
+  assert.equal(after.ship_cost, before.ship_cost, 'shipping did not fall back to Triple Whale'); assert.equal(after.cogs, before.cogs, 'product cost did not vanish'); assert.equal(after.cm, before.cm);
+  assert.deepEqual([pi.j.shipping_rules.in_use.source, pi.j.product_cost.in_use.source], ['locus', 'locus']);
+  assert.ok(pi.j.missing.includes('Your shipping cost rule (by weight) is saved. It will be used once Locus reads each order’s items, weight and country. Until then your per order rule stays in use.'), JSON.stringify(pi.j.missing));
+  assert.ok(pi.j.missing.includes('Your product cost rule (per item) is saved. It will be used once Locus reads each order’s items, weight and country. Until then your % of revenue rule stays in use.'), JSON.stringify(pi.j.missing));
+  /* a second saved-only rule ends the first saved-only one, not the applied one */
+  assert.equal((await P({ cost: 'shipping', rule: 'zone', table: [{ zone: 'US', amount: 6 }], start_date: '2026-10-12' })).status, 200);
+  /* a new applied rule ends the applied one, and leaves the saved-only one alone */
+  assert.equal((await P({ cost: 'shipping', rule: 'per_order', amount: 7, start_date: '2026-10-14' })).status, 200);
+  assert.deepEqual(open(), [['per_order', '2026-09-01', '2026-10-13'], ['pct_revenue', '2026-09-01', null], ['weight_tier', '2026-10-10', '2026-10-11'], ['per_item', '2026-10-10', null], ['zone', '2026-10-12', null], ['per_order', '2026-10-14', null]]);
+  const d14 = await day('2026-10-14'); near(d14.ship_cost, d14.orders * 7, 'the new rate from Oct 14');
+  for (const r of db.prepare(`SELECT id FROM p_cost_rule WHERE act_id = 'brand_alpha'`).all()) assert.equal((await call('DELETE', `/api/costs?act=brand_alpha&id=${r.id}`)).status, 200);
+  const b = alphaOnly(await capture()), f = alphaOnly(first);
+  for (const k of Object.keys(ROUTES)) assert.equal(b[k], f[k], `${k}: back to the bytes it started with`);
+});
+await check('14. a decimal comma is refused, never read 10 or 100 times too large', () => {
+  const amt = a => C.cleanRule({ cost: 'shipping', rule: 'per_order', amount: a, start_date: '2026-10-01' });
+  for (const a of ['4,50', '12,5', '1.234,56', '0,5']) assert.match(amt(a)[0], /with a point/, a);
+  for (const a of ['1,2,3', '1,23,456', ',5', '5,', '1,2345']) assert.ok(amt(a)[0], `${a} is refused`);
+  assert.equal(amt('4.50')[1].amount, 4.5); assert.equal(amt(4.5)[1].amount, 4.5); assert.equal(amt('1,234')[1].amount, 1234); assert.equal(amt('$1,234,567.50')[1].amount, 1234567.5);
+  assert.match(C.cleanRule({ cost: 'shipping', rule: 'zone', table: [{ zone: 'US', amount: '6,5' }], start_date: '2026-10-01' })[0], /not a number/);
+  const s = C.parseSheet('SKU;Cost\nA1;12,50\nA2;4,5\nA3;1.234,56\nA4;"1,234.50"\nA5;7.25\nA6;-3,5\n');
+  assert.deepEqual(s.rows.map(r => [r.sku, r.unit_cost]), [['A4', 1234.5], ['A5', 7.25]], 'only the unambiguous rows are read');
+  assert.deepEqual(s.errors.map(e => e.line), [2, 3, 4, 7]);
+  for (const e of s.errors) assert.match(e.reason, /write the cost with a point, like 12\.50/);
+  assert.equal(C.plainNumber('12,50'), NaN); assert.equal(C.plainNumber('-2', { sign: true }), -2); assert.equal(C.plainNumber('-2'), NaN);
+});
+await check('15. a one-time cost dated after the window is out of P&L, the Costs page and the client link alike', async () => {
+  await call('PUT', '/api/expenses', { act: 'brand_alpha', items: [{ name: 'Rent', category: 'rent', kind: 'monthly', amount: 3100, start_date: '2026-09-01' }, { name: 'Trade show', category: 'marketing', kind: 'once', amount: 5000, start_date: '2026-11-15' }] });
+  const pl = (await call('GET', `/api/client?act=brand_alpha&${W}`)).j;
+  near(pl.fixed.total, 1500, 'P&L: 15 days of rent, not the trade show that has not happened');
+  assert.ok(!pl.fixed.items.some(i => i.name === 'Trade show'));
+  const link = (await call('GET', `/api/profit/${TOKEN}?${W}`)).j;
+  near(link.fixed.total, pl.fixed.total, 'the client link and P&L agree'); near(link.net, pl.totals.cm - pl.fixed.total, 'on net profit too');
+  near((await call('GET', '/api/costs?act=brand_alpha')).j.fixed.month_total, 1900, 'the Costs page month total: 19 days of rent');
+  const dr = (await call('GET', `/api/hub/drill?act=brand_alpha&${W}&cmp=none`)).text;
+  assert.ok(!dr.includes('Trade show'), 'and the tile drill-down');
+  await call('PUT', '/api/expenses', { act: 'brand_alpha', items: [] });
+});
+await check('16. the client link: a product rule that starts inside the window withholds profit; from the first day it shows', async () => {
+  /* Beta has no Triple Whale product cost, a 35% product rule, a per order shipping rule and a monthly rent of 3,100. */
+  const P = `/api/profit/${BETA_TOKEN}?${W}`;
+  const setStart = d => { db.prepare(`UPDATE p_cost_rule SET start_date = ?, status = 'on' WHERE act_id = 'brand_beta' AND cost = 'product' AND rule = 'pct_revenue'`).run(d); db.exec(`UPDATE p_cost_health SET verdict = 'good' WHERE act_id = 'brand_beta'`); };
+  setStart('2026-10-11');
+  const rows = (await call('GET', `/api/client?act=brand_beta&${W}`)).j.rows;
+  assert.equal(rows.filter(r => r.gross_profit != null).length, 5, 'five costed days out of fifteen');
+  const part = (await call('GET', P)).j;
+  assert.equal(part.cm_ok, false); assert.equal(part.mtd.cm, null); assert.equal(part.waterfall, null);
+  assert.ok(!('net' in part) && !('fixed' in part), 'no net profit over a window that is only partly costed');
+  assert.ok(part.mtd.sales > 0 && part.mtd.spend > 0, 'sales and spend still show');
+  setStart('2026-10-01');
+  const whole = (await call('GET', P)).j;
+  assert.equal(whole.cm_ok, true); assert.ok(whole.mtd.cm != null);
+  near(whole.net, whole.mtd.cm - 1500, 'fifteen days of margin against fifteen days of rent');
+  near(whole.waterfall.sales - whole.waterfall.cogs - whole.waterfall.ship_cost - whole.waterfall.handling - whole.waterfall.fees, whole.waterfall.gross_profit, 'and the waterfall adds up');
+  setStart('2026-07-01');
+});
+await check('17. a teammate limited to one brand cannot write another brand\'s costs or expenses, whatever the Content-Type', async () => {
+  const X = await import('./src/expenses.js');
+  const json = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { 'Content-Type': 'application/json' } });
+  const accountsFor = async () => [{ act_id: 'brand_alpha', name: 'Alpha Golf', currency: 'USD' }, { act_id: 'brand_beta', name: 'Beta Socks', currency: 'USD' }];
+  const only = new Set(['brand_alpha']);
+  const send = (handler, path, method, body, type, o = only) => { const url = new URL('https://pf.test' + path);
+    return handler({ path: url.pathname, url, request: new Request(url, { method, headers: { 'Content-Type': type }, ...(body ? { body: JSON.stringify(body) } : {}) }), env, json, accountsFor, email: 'mate@example.com', client: null, only: o }); };
+  const rulesN = () => db.prepare(`SELECT COUNT(*) n FROM p_cost_rule WHERE act_id = 'brand_beta'`).get().n, expN = () => db.prepare(`SELECT COUNT(*) n FROM p_expense WHERE act_id = 'brand_beta'`).get().n;
+  const r0 = rulesN(), e0 = expN(), s0 = db.prepare(`SELECT COUNT(*) n FROM p_product_cost`).get().n;
+  const rule = { cost: 'product', rule: 'pct_revenue', amount: 5, start_date: '2026-11-01' };
+  for (const type of ['text/plain', 'application/json', 'application/x-www-form-urlencoded']) {
+    assert.equal((await send(C.handleCosts, '/api/costs', 'PUT', { act: 'brand_beta', rule }, type)).status, 404, `PUT /api/costs as ${type}`);
+    assert.equal((await send(C.handleCosts, '/api/costs/sheet', 'POST', { act: 'brand_beta', csv: 'sku,cost\nA,1\n', start_date: '2026-11-01', dry_run: false }, type)).status, 404, `sheet as ${type}`);
+    assert.equal((await send(X.handleExpenses, '/api/expenses', 'PUT', { act: 'brand_beta', items: [] }, type)).status, 404, `PUT /api/expenses as ${type}`);
+  }
+  const anyId = db.prepare(`SELECT id FROM p_cost_rule WHERE act_id = 'brand_beta' LIMIT 1`).get().id;
+  assert.equal((await send(C.handleCosts, `/api/costs?act=brand_beta&id=${anyId}`, 'DELETE', null, 'text/plain')).status, 404);
+  assert.deepEqual([rulesN(), expN(), db.prepare(`SELECT COUNT(*) n FROM p_product_cost`).get().n], [r0, e0, s0], 'nothing of brand_beta changed');
+  /* their own brand still works, and a person with no limit is not affected */
+  const own = await send(C.handleCosts, '/api/costs', 'PUT', { act: 'brand_alpha', rule: { cost: 'shipping', rule: 'zone', table: [{ zone: 'US', amount: 6 }], start_date: '2026-11-01' } }, 'text/plain');
+  assert.equal(own.status, 200);
+  const free = await send(C.handleCosts, '/api/costs', 'PUT', { act: 'brand_beta', rule: { cost: 'shipping', rule: 'zone', table: [{ zone: 'US', amount: 6 }], start_date: '2026-11-01' } }, 'text/plain', null);
+  assert.equal(free.status, 200);
+  db.exec(`DELETE FROM p_cost_rule WHERE rule = 'zone'`);
+});
+
 const pass = checks.filter(Boolean).length;
 console.log(`\n${pass}/${checks.length} passed`);
 process.exit(pass === checks.length ? 0 : 1);

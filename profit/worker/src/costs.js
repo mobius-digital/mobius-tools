@@ -112,13 +112,35 @@ export function shippingRuled(rules, from, to) {
     && YMD.test(r.start_date || '') && r.start_date <= to && (!r.end_date || r.end_date >= from));
 }
 
+/** true when a product rule Locus applies is on AND the rows hold both a day with a gross profit and a day without
+ *  (the rule starts inside the window, or a per order rule met a day with no order count). Summed, such a window
+ *  gives the gross profit of some days minus the ad spend of all of them, so its contribution margin is withheld.
+ *  A brand with no product rule is never touched: this is false and its numbers read as they always did. */
+export function partlyCosted(rules, rows, gpKey = 'gross_profit') {
+  if (!(rules || []).some(r => r && r.cost === 'product' && (r.status || 'on') === 'on' && APPLIED.has(r.rule))) return false;
+  let has = false, lacks = false;
+  for (const r of rows || []) { if (!r) continue; if (r[gpKey] == null) lacks = true; else has = true; }
+  return has && lacks;
+}
+
 /* ---------------- input checks ---------------- */
 
-/** "$1,234.50" -> 1234.5; anything that is not a plain number -> NaN (never stored). */
+/** A typed amount -> a number, or NaN (never stored). "12.50" and "$1,234.50" are read: a comma is only ever a
+ *  thousands mark, in full groups of three. "12,50", "4,5" and "1.234,56" (a decimal comma) are NOT guessed at. They
+ *  are refused, because dropping the comma would store a cost 10 or 100 times too large. */
+export function plainNumber(v, { sign = false } = {}) {
+  const s = String(v ?? '').replace(/[\s$£€¥%]/g, '');
+  const neg = sign && s.startsWith('-'), b = neg ? s.slice(1) : s;
+  let n = NaN;
+  if (/^\d+(\.\d+)?$/.test(b)) n = +b;
+  else if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(b)) n = +b.replace(/,/g, '');
+  return neg ? -n : n;
+}
+/** true when the text reads as a number written with a decimal comma ("12,50", "1.234,56"). */
+const decimalComma = v => /^-?(\d+|\d{1,3}(\.\d{3})+),\d+$/.test(String(v ?? '').replace(/[\s$£€¥%]/g, ''));
 function num(v) {
   if (typeof v === 'number') return isFinite(v) && v >= 0 ? v : NaN;
-  const s = String(v ?? '').replace(/[\s,$£€¥%]/g, '');
-  return /^\d+(\.\d+)?$/.test(s) ? +s : NaN;
+  return plainNumber(v);
 }
 
 /** Check one incoming rule; returns [error] or [null, clean]. `fixed` = { cost, rule } of the stored row when editing. */
@@ -155,7 +177,7 @@ export function cleanRule(x, fixed) {
     }
   } else {
     amount = num(x?.amount);
-    if (isNaN(amount)) return ['The amount is not a number.'];
+    if (isNaN(amount)) return [typeof x?.amount === 'string' && decimalComma(x.amount) ? 'Write the amount with a point, like 4.50.' : 'The amount is not a number.'];
     if (def.unit === 'pct' && amount > 100) return ['A percentage cannot be more than 100.'];
     if (amount > 1e7) return ['That amount is too large.'];
   }
@@ -212,10 +234,10 @@ export function parseSheet(csv) {
     const sku = String(r.cells[iSku] ?? '').trim();
     if (!sku) { out.errors.push({ line: r.line, reason: 'No SKU on this row.' }); continue; }
     if (sku.length > 80) { out.errors.push({ line: r.line, reason: 'The SKU is longer than 80 characters.' }); continue; }
-    const raw = String(r.cells[iCost] ?? '').replace(/[\s,$£€¥]/g, '');
+    const raw = String(r.cells[iCost] ?? '').replace(/[\s$£€¥]/g, '');
     if (!raw) { out.errors.push({ line: r.line, reason: `${sku}: no cost on this row.` }); continue; }
-    if (!/^-?\d+(\.\d+)?$/.test(raw)) { out.errors.push({ line: r.line, reason: `${sku}: the cost is not a number.` }); continue; }
-    const cost = +raw;
+    const cost = plainNumber(raw, { sign: true });
+    if (isNaN(cost)) { out.errors.push({ line: r.line, reason: decimalComma(raw) ? `${sku}: write the cost with a point, like 12.50.` : `${sku}: the cost is not a number.` }); continue; }
     if (cost < 0) { out.errors.push({ line: r.line, reason: `${sku}: the cost is below zero.` }); continue; }
     if (cost > 1e6) { out.errors.push({ line: r.line, reason: `${sku}: that cost is too large.` }); continue; }
     if (by.has(sku)) out.duplicates++;
@@ -275,6 +297,10 @@ export async function costsPage(env, acct, { sources, rows = [] } = {}) {
   if (known && src.fees == null) missing.push('No payment fees counted. They come from Triple Whale today; set them there.');
   for (const cost of COSTS) {
     const cur = current(cost);
+    /* A saved-only rule never ends the rule in use (see the PUT below), so both can be current at once. */
+    const savedOnly = cur.filter(r => !APPLIED.has(r.rule)), inUse = live(cost);
+    if (savedOnly.length && inUse && (cost === 'shipping' ? shipUse.source : prodUse.source) === 'locus')
+      missing.push(`Your ${cost} cost rule (${RULE_WORDS[savedOnly[0].rule] || savedOnly[0].rule}) is saved. It will be used once Locus reads each order’s items, weight and country. Until then your ${RULE_WORDS[inUse.rule] || inUse.rule} rule stays in use.`);
     if (cur.length && !cur.some(r => APPLIED.has(r.rule))) {
       const use = cost === 'shipping' ? shipUse.source : prodUse.source;
       const until = use === 'triple_whale' ? 'Triple Whale’s number is used' : use === 'flat_margin' ? 'the flat margin is used' : `no ${cost} cost is counted`;
@@ -308,7 +334,7 @@ export async function costsPage(env, acct, { sources, rows = [] } = {}) {
 /** ctx: { path, url, request, env, json, accountsFor, email, client (clientScope or null),
  *         rehealth(acct) -> { rows } (re-grade the cost check and store it), page(acct, rows) -> costsPage }.
  *  GET /api/costs stays in worker.js; this handles the writes. */
-export async function handleCosts({ path, url, request, env, json, accountsFor, email, client, rehealth, page }) {
+export async function handleCosts({ path, url, request, env, json, accountsFor, email, client, rehealth, page, only }) {
   const isSheet = path.endsWith('/costs/sheet');
   if (!isSheet && !path.endsWith('/api/costs')) return null;
   await ensure(env);
@@ -317,6 +343,10 @@ export async function handleCosts({ path, url, request, env, json, accountsFor, 
     const acct = (await accountsFor()).find(a => a.act_id === act);
     if (!acct) return null;
     if (client && !(client.ids && client.ids.has(act))) return null;   // brandguard already refused; belt and braces
+    /* `only` = the signed-in person's brands (brandguard brandsFor), null when not limited. brandguard reads a body's
+       act only when the request says it is JSON; these writes reprice a brand, so the check is repeated here and does
+       not depend on the Content-Type. */
+    if (only && !only.has(act)) return null;
     return acct;
   };
   const me = email || null, myName = (client && client.name) || nameOf(email) || 'Mobius';
@@ -372,8 +402,12 @@ export async function handleCosts({ path, url, request, env, json, accountsFor, 
     if ((n?.n || 0) >= 40) return json({ error: 'A brand can hold up to 40 cost rules. Remove an old one first.' }, 400);
     const stmts = [];
     if (c.status === 'on' && !c.end_date) {
-      const open = await env.DB.prepare(`SELECT id, start_date FROM p_cost_rule WHERE act_id = ?1 AND cost = ?2 AND end_date IS NULL AND status = 'on' ORDER BY start_date DESC, id DESC`).bind(acct.act_id, c.cost).all();
+      /* A new rule ends the open rule OF ITS OWN KIND only: a rule Locus applies replaces the applied one, a saved-only
+         rule (per item, by weight, by zone) replaces a saved-only one. A saved-only rule must never end the rule that
+         prices the brand today, or shipping and product cost would fall back to Triple Whale without anyone asking. */
+      const open = await env.DB.prepare(`SELECT id, start_date, rule FROM p_cost_rule WHERE act_id = ?1 AND cost = ?2 AND end_date IS NULL AND status = 'on' ORDER BY start_date DESC, id DESC`).bind(acct.act_id, c.cost).all();
       for (const o of open.results || []) {
+        if (APPLIED.has(o.rule) !== APPLIED.has(c.rule)) continue;
         if (o.start_date >= c.start_date) return json({ error: 'A rule already starts on or after that date. Edit or remove it first.' }, 400);
         stmts.push(env.DB.prepare(`UPDATE p_cost_rule SET end_date = ?3, updated_by = ?4, updated_at = datetime('now') WHERE id = ?1 AND act_id = ?2`).bind(o.id, acct.act_id, shift(c.start_date, -1), me));
       }

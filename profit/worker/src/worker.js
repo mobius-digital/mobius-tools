@@ -1,4 +1,4 @@
-import { guardBrands, clientScope } from './brandguard.js';
+import { guardBrands, clientScope, brandsFor } from './brandguard.js';
 import { memo, bumpMemo } from './memo.js';
 import { metaOf, isBrandId, resolveBrandId } from './brandids.js';
 /**
@@ -34,7 +34,7 @@ import { snapshotPublic, handleSnapshot } from './snapshot.js';
 import { clientPagePublic, handleClientPage } from './clientpage.js';
 import { handleHub } from './hub.js';
 import { handleExpenses, loadExpenses, spread, applyAdSpend, netAfter } from './expenses.js';
-import { handleCosts, costsPage, loadCostRules, ruleCosts, shippingRuled } from './costs.js';
+import { handleCosts, costsPage, loadCostRules, ruleCosts, shippingRuled, partlyCosted } from './costs.js';
 // The account-health worker is the Mobius auth server (it mints the Google sessions).
 const AUTH_WORKER = 'https://mobius-account-health.mobius-digital.workers.dev';
 /* Served by the account-health worker and forwarded verbatim (see the proxy block). */
@@ -633,7 +633,9 @@ async function liveDay(env, request, acct) {
   }
   const day = await twDay(env, request, acct, date);
   const h = day.hours || {}, hrs = hoursOf(day).map((x, i) => ({ ...x, orders: (h.orders || [])[i] || 0, meta: (h.fb_ads_spend || [])[i] || 0, google: (h.ga_adCost || [])[i] || 0 }));
-  const row = liveRow(acct, day);
+  /* The brand's own cost rules price today's row too, the way seriesFor prices every stored day. None: unchanged. */
+  const rules = (await loadCostRules(env, [acct.act_id]).catch(() => ({})))[acct.act_id] || [];
+  const row = liveRow(acct, day, rules);
   const twSpend = +(day.map && day.map.blendedAds) || 0;
   if (twSpend > 0) return { date, hours: hrs, as_of: day.as_of, row };
   const m = await metaHours().catch(() => null);
@@ -1866,18 +1868,22 @@ export default {
           from = qf > to ? to : qf;
           fixed = true;
         }
-        const { rows, margin_pct, exp } = await seriesFor(env, acct, from, to);
+        const { rows, margin_pct, exp, rules } = await seriesFor(env, acct, from, to);
         const t = totals(rows);
         const g = goalsFor(acct, ym);
         const planned = !!safeJson(acct.goals_json, {})[ym];
         // Profit is shown only when we would trust it internally. A client should
         // never be the first person to see a number the Costs page calls broken.
         const snap = await env.DB.prepare(`SELECT verdict FROM p_cost_health WHERE act_id = ?1`).bind(acct.act_id).first().catch(() => null);
-        const cmOk = margin_pct != null || !(snap?.verdict === 'broken' || snap?.verdict === 'none');
+        /* ONE WINDOW (costs.js partlyCosted): a product cost rule that starts inside this window leaves the days before
+           it with no gross profit, and the sums below would then be the gross profit of some days minus the ad spend of
+           all of them. Profit is withheld for such a window. A brand with no product rule is never affected. */
+        const cmOk = (margin_pct != null || !(snap?.verdict === 'broken' || snap?.verdict === 'none')) && !partlyCosted(rules, rows, 'gross_profit');
         /* Net profit after fixed costs (2026-11-25): only when CM is shown AND the brand entered a fixed cost in force in
-           this window. Absent otherwise (not null), so a brand with none gets the same bytes as before. Category totals
-           only: never a row's name, notes or who added it. This route's CM already holds the "counts as ad spend" rows. */
-        const nf = cmOk ? netAfter(exp, from, to, rows, t.cm, { cmHasAd: true }) : null;
+           this window AND every day of the window has a gross profit (fixed costs are spread over all of them). Absent
+           otherwise (not null), so a brand with none gets the same bytes as before. Category totals only: never a row's
+           name, notes or who added it. This route's CM already holds the "counts as ad spend" rows. */
+        const nf = cmOk ? netAfter(exp, from, to, rows, t.cm, { cmHasAd: true, gpKey: 'gross_profit' }) : null;
         const history = (await monthHistory(env, acct, ym, 6))
           .filter(h => !h.empty)
           .map(h => ({ month: h.month, sales: h.sales, spend: h.spend, mer: h.mer, partial: !!h.partial }));
@@ -2172,6 +2178,9 @@ export default {
     // Every account lookup below goes through this, so a demo session can only ever
     // resolve the demo brand and a real session can never see it.
     const accountsFor = (activeOnly = true) => listAccounts(env, activeOnly, isDemo);
+    /* The brands a teammate is limited to (settings.userBrands), null when not limited. A client is judged by
+       clientScope instead. For the cost and expense writes, which check the brand named in the body themselves. */
+    const teamOnly = async () => clientScope(request) ? null : brandsFor(env, await sessionEmail(env, request).catch(() => null)).catch(() => null);
 
     try {
       const days = Math.min(+url.searchParams.get('days') || 30, 180);
@@ -2778,7 +2787,7 @@ export default {
       /* Brand costs (2026-11-25, costs.js): a brand's own shipping and product cost rules and its cost sheet.
          The writes live in costs.js; the read below keeps every old key and adds the Costs page's keys after them. */
       const costWrite = async () => handleCosts({ path, url, request, env, json, accountsFor: () => accountsFor(false), email: await sessionEmail(env, request),
-        client: clientScope(request), rehealth: acct => saveCostHealth(env, acct),
+        client: clientScope(request), only: await teamOnly(), rehealth: acct => saveCostHealth(env, acct),
         page: (acct, rows) => costsPage(env, acct, { sources: () => costSources(env, acct), rows }) });
       /* Add one shipping or product cost rule, or change one by id: {act, rule: {id?, cost, rule, amount | table, start_date, end_date?, status?, label?, notes?}} */
       if (path === '/api/costs' && request.method === 'PUT') return await costWrite();
@@ -2935,7 +2944,7 @@ export default {
          from. Brand settings > Data and costs > Costs, and P&L's Costs button (clients too, P&L on). expenses.js. */
       if (path === '/api/expenses') {
         const fr = await handleExpenses({ path, url, request, env, json, accountsFor: () => accountsFor(false), email: await sessionEmail(env, request),
-          client: clientScope(request), sources: acct => costSources(env, acct) });
+          client: clientScope(request), only: await teamOnly(), sources: acct => costSources(env, acct) });
         if (fr) return fr;
       }
       /* Save to Locus (2026-10-21): inspiration saved from the Ask bar, the phone share sheet or the bookmarklet. */

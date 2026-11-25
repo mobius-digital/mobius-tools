@@ -218,26 +218,40 @@ await check('a fixed cost adds net profit to the brief and report payloads; the 
   const b = c._brief, a = b.days.find(x => x.date === UP).a, a0 = first._brief.days.find(x => x.date === UP).a;
   near(a.fixed, 300, 'rent 100 + retainer 200 a day'); assert.equal(a.ad_expense, 0); near(a.net, a.cm - 300, 'day net');
   assert.equal(a.cm, a0.cm, 'contribution margin itself is unchanged');
-  near(b.mtd.fixed, 19 * 300, 'month to date'); near(b.mtd.ad_expense, 500, 'the "counts as ad spend" row'); near(b.mtd.net, b.mtd.cm - 5700 - 500, 'brief CM has no ad expenses in it, so they come off here');
+  const fm = b.fixed.mtd;
+  near(fm.fixed, 19 * 300, 'month to date'); near(fm.ad_expense, 500, 'the "counts as ad spend" row'); near(fm.net, b.mtd.cm - 5700 - 500, 'brief CM has no ad expenses in it, so they come off here');
   assert.equal(b.mtd.cm, first._brief.mtd.cm);
-  assert.deepEqual(b.fixed, { by_category: [{ category: 'agency', label: 'Agency fees', amount: 3800 }, { category: 'rent', label: 'Rent and premises', amount: 1900 }], in_posts: false });
+  /* The narrative prompts hand the whole mtd object to the model, so net profit must never sit on it. */
+  assert.deepEqual(b.mtd, first._brief.mtd, 'mtd is exactly what the model was given before: no fixed, no ad_expense, no net');
+  assert.deepEqual(b.fixed, { by_category: [{ category: 'agency', label: 'Agency fees', amount: 3800 }, { category: 'rent', label: 'Rent and premises', amount: 1900 }], in_posts: false,
+    mtd: { fixed: fm.fixed, ad_expense: fm.ad_expense, net: fm.net } });
   assert.ok(!/Warehouse|Retainer|Podcast|private note/.test(c.brief + c.report), 'only category totals leave, never a row\'s name or note');
   assert.equal(c.text1, first.text1, 'the posts switch is off: the v1 text is exactly as before');
   assert.equal(c.text2, first.text2, 'and the v2 text');
   const t = c._report.totals, p = c._report.previous;
   near(t.fixed, 7 * 300, 'report week'); near(t.ad_expense, 500, 'the podcast read fell in this week'); near(t.net, t.cm - 2100 - 500, 'report net');
   near(p.fixed, 3 * 3100 / 30 + 4 * 300, 'the week before (Sep 28 to Oct 4): rent only in September, the retainer from Oct 1'); near(p.net, p.cm - 1510, 'previous net');
-  assert.deepEqual(c._report.fixed, { by_category: [{ category: 'agency', label: 'Agency fees', amount: 1400 }, { category: 'rent', label: 'Rent and premises', amount: 700 }] });
+  assert.deepEqual(c._report.fixed, { by_category: [{ category: 'agency', label: 'Agency fees', amount: 1400 }, { category: 'rent', label: 'Rent and premises', amount: 700 }], in_posts: false });
   assert.equal(t.cm, first._report.totals.cm);
-  assert.ok(c.headline.startsWith(first.headline + '\n• *Net profit after fixed costs* '), c.headline);
+  assert.equal(c.headline, first.headline, 'the posts switch is off: the report headline is exactly as before');
+  /* The client post a report sends (clientReportText, which reportFallbackPass sends with no person pressing Send). */
+  const row = { period: 'weekly', period_start: WK[0], period_end: WK[1] };
+  const post0 = await AH.clientReportText(env, ACCT('brand_alpha'), row, first._report);
+  const postOff = await AH.clientReportText(env, ACCT('brand_alpha'), row, c._report);
+  assert.ok(post0.includes('Contribution margin') && !post0.includes('Net profit'));
+  assert.equal(postOff, post0, 'the posts switch is off: the weekly client post is exactly as before, net profit and its footnote absent');
 
   db.exec(`INSERT INTO settings (key, value) VALUES ('costsNetInPosts', '1')`);
   const on = await capture();
-  assert.equal(on._brief.fixed.in_posts, true);
+  assert.equal(on._brief.fixed.in_posts, true); assert.equal(on._report.fixed.in_posts, true);
+  assert.ok(on.headline.startsWith(first.headline + '\n• *Net profit after fixed costs* '), on.headline);
+  const postOn = await AH.clientReportText(env, ACCT('brand_alpha'), row, on._report);
+  assert.equal(postOn.split('Net profit after fixed costs').length - 1, 1, 'switch on: the weekly client post prints it once');
+  assert.deepEqual(on._brief.mtd, first._brief.mtd, 'and mtd still carries no net profit for the model');
   const money = n => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
   assert.ok(on.text1.includes(`Net profit after fixed costs: *${money(a.net)}*`), on.text1);
   assert.equal(on.text1.split('Net profit after fixed costs').length - 1, 1, 'v1: once, for the day');
-  assert.ok(on.text2.includes(`Net profit after fixed costs: *${money(a.net)}*`) && on.text2.includes(`Net profit after fixed costs: *${money(b.mtd.net)}*`), on.text2);
+  assert.ok(on.text2.includes(`Net profit after fixed costs: *${money(a.net)}*`) && on.text2.includes(`Net profit after fixed costs: *${money(fm.net)}*`), on.text2);
   assert.equal(on.text2.split('Net profit after fixed costs').length - 1, 2, 'v2: the day and the month so far');
   /* the cost check not trusted: the builders print neither CM nor net */
   const broken = { ...on._brief, cogs_quality: { verdict: 'broken' } };
@@ -255,6 +269,37 @@ await check('a brand whose only fixed cost is a "counts as ad spend" row, or who
   assert.equal(c._report.cm_ok, false); assert.ok(!('net' in c._report.totals) && !('fixed' in c._report), 'report: no CM, no net profit');
   assert.ok(!('fixed' in c._brief) && !('net' in c._brief.mtd), 'brief: no CM, no net profit');
   assert.ok(!c.headline.includes('Net profit'));
+});
+await check('a product rule that starts inside the window: the report withholds margin and net, the brief counts fixed costs on the costed days only', async () => {
+  /* brand_alpha has no Triple Whale product cost left (deleted above), a monthly rent of 3,100 and the posts switch on. */
+  db.exec(`INSERT INTO p_cost_rule (act_id, cost, rule, source, amount, start_date, status) VALUES ('brand_alpha', 'product', 'pct_revenue', 'typed', 40, '2026-10-15', 'on')`);
+  const c = await capture(), b = c._brief;
+  const costed = b.days.filter(x => x.date <= UP && x.a && x.a.cm != null).map(x => x.date);
+  assert.deepEqual(costed, ['2026-10-15', '2026-10-16', '2026-10-17', '2026-10-18', '2026-10-19'], 'only the days from the rule start have a margin');
+  near(b.fixed.mtd.fixed, 5 * 100, 'five costed days of rent, not nineteen'); near(b.fixed.mtd.net, b.mtd.cm - 500, 'net and CM cover the same five days');
+  /* the report week Oct 5 to 11 is all before the rule: no margin at all, as before the rule */
+  assert.equal(c._report.totals.cm, null); assert.ok(!('net' in c._report.totals));
+  /* a week only partly under the rule (Oct 12 to 18, the rule ends Oct 13): two costed days out of seven. The 28 days
+     before the week are all ruled, so the cost check passes and only the one-window guard stands in the way. */
+  db.exec(`UPDATE p_cost_rule SET start_date = '2026-09-01', end_date = '2026-10-13' WHERE act_id = 'brand_alpha'`);
+  const mid = await AH.reportData(env, ACCT('brand_alpha'), 'weekly', '2026-10-12', '2026-10-18');
+  assert.equal(mid.cm_ok, true, 'the cost check itself passes on the ruled days');
+  assert.equal(mid.totals.cm, null, 'gross profit of 2 days minus ad spend of 7 is not shown'); assert.equal(mid.totals.gp, null); assert.equal(mid.totals.margin, null);
+  assert.ok(mid.previous.cm != null && mid.previous.net != null, 'the week before is wholly ruled and keeps its margin and net');
+  assert.ok(!('net' in mid.totals) && !('fixed' in mid), 'and no net profit');
+  assert.ok(mid.totals.sales > 0 && mid.totals.spend > 0, 'sales and spend are untouched');
+  assert.ok(!AH.reportHeadline(mid).includes('Contribution margin') && !AH.reportHeadline(mid).includes('Net profit'));
+  /* storePeriod (the Strategist's store view) prices with the same rules and withholds the same way */
+  const sp = await AH.storePeriod(env, ACCT('brand_alpha'), '2026-10-12', '2026-10-18');
+  assert.equal(sp.contribution_margin, null); assert.equal(sp.gross_margin_pct, null);
+  /* the rule open ended again: one window, so margin and net are back, and storePeriod agrees with the report */
+  db.exec(`UPDATE p_cost_rule SET end_date = NULL WHERE act_id = 'brand_alpha'`);
+  const full = await AH.reportData(env, ACCT('brand_alpha'), 'weekly', '2026-10-12', '2026-10-18');
+  assert.ok(full.totals.cm != null); near(full.totals.net, full.totals.cm - 700, 'seven days of rent against seven days of margin');
+  const sp2 = await AH.storePeriod(env, ACCT('brand_alpha'), '2026-10-12', '2026-10-18');
+  near(sp2.contribution_margin, full.totals.cm, 'storePeriod and the report give the same contribution margin for a ruled brand');
+  near(sp2.gross_margin_pct, full.totals.margin, 'and the same gross margin');
+  db.exec(`DELETE FROM p_cost_rule; DELETE FROM p_expense;`);
 });
 
 console.log(`\n${results.filter(Boolean).length}/${results.length} passed`);
