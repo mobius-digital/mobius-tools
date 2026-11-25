@@ -39,7 +39,7 @@
 <script src="calc.js?v=11"></script>
 <script>
   const id = new URLSearchParams(location.search).get('s') || '';
-  const url = localStorage.getItem('pf_worker') || 'https://mobius-profit.mobius-digital.workers.dev';
+  const url = (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && localStorage.getItem('pf_worker')) || 'https://mobius-profit.mobius-digital.workers.dev';
   if (!id) document.getElementById('main').innerHTML = '<div class="card"><h3>No scenario in this link</h3><p class="hint">Ask whoever sent it to share it again from Locus.</p></div>';
   else window.CalcTab.renderShared({ id, url });
 </script>

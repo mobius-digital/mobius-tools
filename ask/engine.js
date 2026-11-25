@@ -176,6 +176,8 @@ export function gateSql(raw, allowed, opts = {}) {
   const cte = new Set();
   if (/^with\s/i.test(sql)) for (const m of sql.matchAll(/([a-z_][a-z0-9_]*)\s+as\s*\(/gi)) cte.add(m[1].toLowerCase());
   const ok = t => allowed.includes(t) || cte.has(t);
+  /* SQLite reads a quoted string after FROM/JOIN as a table name, and literals are blanked in `bare`. */
+  if (/(?<!\bdistinct\s+)\b(?:from|join)\s*''/i.test(bare)) return { error: 'Name tables without single quotes.' };
   for (const m of bare.matchAll(/\b(?:from|join)\s+([`"[]?)([a-z_][a-z0-9_]*)\1?/gi)) {
     if (!ok(m[2].toLowerCase())) return { error: `Table "${m[2]}" is not readable. Available: ${allowed.join(', ')}.` };
   }
@@ -186,8 +188,12 @@ export function gateSql(raw, allowed, opts = {}) {
     const rest = bare.slice(m.index + m[0].length);
     const stop = rest.search(END);
     const list = stop < 0 ? rest : rest.slice(0, stop);
-    for (const part of list.split(',').slice(1)) {
+    const parts = list.split(',');
+    for (const [k, part] of parts.entries()) {
+      if (!k) continue;
       const p = part.trim();
+      /* not inside a call such as json_each(col, '$.a') */
+      if (p.startsWith("''") && !parts.slice(0, k).join(',').includes('(')) return { error: 'Name tables without single quotes.' };
       if (!p || p.startsWith('(')) continue;
       const name = p.replace(/^[`"[]/, '').match(/^[a-z_][a-z0-9_]*/i);
       if (name && !ok(name[0].toLowerCase())) return { error: `Table "${name[0]}" is not readable. Available: ${allowed.join(', ')}.` };
