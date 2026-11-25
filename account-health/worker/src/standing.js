@@ -589,7 +589,9 @@ function batchBlocks(rec, bt) {
     if (it.status === 'ready' && it.id) sec.accessory = { type: 'button', action_id: 'ws_send', style: 'primary', text: { type: 'plain_text', text: 'Send' }, value: it.id };
     blocks.push(sec);
   }
-  if (bt.items.filter(i => i.status === 'ready').length > 1) blocks.push({ type: 'actions', elements: [{ type: 'button', action_id: 'ws_sendall', style: 'primary', text: { type: 'plain_text', text: 'Send all ready' }, value: rec.slot }] });
+  /* Send all sits right under the title (Cole 2026-11-25 could not find how to send): one tap sends every ready one. */
+  const nReady = bt.items.filter(i => i.status === 'ready').length;
+  if (nReady) blocks.splice(2, 0, { type: 'actions', elements: [{ type: 'button', action_id: 'ws_sendall', style: 'primary', text: { type: 'plain_text', text: nReady > 1 ? `Send all ${nReady} to clients` : 'Send to client' }, value: rec.slot }] });
   return blocks;
 }
 async function threadPreview(env, deps, bt, d) {
@@ -837,6 +839,27 @@ export async function handleStanding(request, env, url, path, json, deps) {
       /* Counts as that slot's check-in, so the hourly catch-up does not send it a second time. */
       if (d1 && d1.ok) await deps.putSetting(env, `standingSent:${rec.slot}`, new Date().toISOString());
       return json({ scoreboard: { ok: !!(d1 && d1.ok), error: (d1 && d1.error) || null }, batch: d2 });
+    }
+    /* Send a check-in's client updates from Locus (Cole 2026-11-25: "please send the stuff"): every brand in that
+       batch except Lucky-style for-you items and anything sent in the last 2 hours; a brand still "waiting" gets its
+       update drafted now (without a change). Posts as Cole, marks the batch message. */
+    if (path === '/api/standing/sample' && request.method === 'POST' && body.send_batch) {
+      const slot = String(body.send_batch), raw = await deps.getSetting(env, `wsBatch:${slot}`), bt = raw ? JSON.parse(raw) : null;
+      const rec = await load(env, deps, slot).catch(() => null);
+      if (!bt || !rec) return json({ error: 'No batch for that check-in.' }, 404);
+      const out = [];
+      for (const it of bt.items) {
+        if (it.status === 'forme' || it.status === 'sent' || it.status === 'skipped') { out.push({ name: it.name, skipped: it.status }); continue; }
+        const last = await deps.getSetting(env, `wsLastSent:${it.act}`);
+        if (last && Date.now() - Date.parse(last) < 2 * 3600e3) { it.status = 'sent'; out.push({ name: it.name, skipped: 'sent in the last 2 hours' }); continue; }
+        if (!it.id) { const d = await draftFor(env, deps, rec, it.act, slot); if (!d) { out.push({ name: it.name, error: 'no draft' }); continue; } it.id = d.id; }
+        const dr = JSON.parse((await deps.getSetting(env, `wsDraft:${it.id}`)) || 'null');
+        const res = dr ? await sendDraft(env, deps.xfetch, dr) : { ok: false, error: 'draft gone' };
+        if (res.ok) { const now = new Date().toISOString(); it.status = 'sent'; dr.done = `sent ${now}`; await deps.putSetting(env, `wsDraft:${it.id}`, JSON.stringify(dr)); await deps.putSetting(env, `wsLastSent:${it.act}`, now); out.push({ name: it.name, sent: true }); }
+        else out.push({ name: it.name, error: res.error });
+      }
+      await saveBatch(env, deps, rec, bt);
+      return json({ ok: true, results: out });
     }
     if (path === '/api/standing/sample' && request.method === 'POST' && body.title_test) {
       const lbl = s => ({ type: 'context', elements: [{ type: 'mrkdwn', text: s }] });
