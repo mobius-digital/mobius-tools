@@ -268,8 +268,11 @@ async function sendSample(env, deps, rec, prev, { style, act, label }) {
 export async function standingTick(env, deps, now = new Date()) {
   const c = central(now);
   if (c.date < STAND_DAYS.from || c.date > STAND_DAYS.to) return { skipped: 'outside Nov 23 to Dec 4' };
-  if (!STAND_HOURS.includes(c.hour)) return { skipped: 'not a check-in hour' };
-  const slot = slotOf(now);
+  /* At or up to 2 hours after a check-in hour, never only ON it (Cole 2026-11-25: the 8am check-in never came). An
+     exact-hour match cannot recover from one missed or late hourly tick; the standingSent flag stops a double send. */
+  const h = [...STAND_HOURS].reverse().find(x => x <= c.hour && c.hour - x <= 2);
+  if (h == null) { await deps.putSetting(env, 'standingLastSkip', JSON.stringify({ at: now.toISOString(), why: 'not a check-in hour', hour: c.hour })).catch(() => {}); return { skipped: 'not a check-in hour' }; }
+  const slot = `${c.date}T${String(h).padStart(2, '0')}`;
   /* Its own flag: a "Check now" on the page in the same hour writes standingLatest too and must not swallow the DM. */
   if (await deps.getSetting(env, `standingSent:${slot}`)) return { skipped: 'already sent' };
   const prev = await load(env, deps).catch(() => null);
@@ -801,6 +804,8 @@ export async function handleStanding(request, env, url, path, json, deps) {
       if (!rec) return json({ error: 'No check-in yet.' }, 404);
       const prev = null, d1 = await sendDm(env, deps, rec, { prev }).catch(e => ({ ok: false, error: e.message }));
       const d2 = await postBatch(env, deps, rec).catch(e => ({ ok: false, error: e.message }));
+      /* Counts as that slot's check-in, so the hourly catch-up does not send it a second time. */
+      if (d1 && d1.ok) await deps.putSetting(env, `standingSent:${rec.slot}`, new Date().toISOString());
       return json({ scoreboard: { ok: !!(d1 && d1.ok), error: (d1 && d1.error) || null }, batch: d2 });
     }
     if (path === '/api/standing/sample' && request.method === 'POST' && body.title_test) {
