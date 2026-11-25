@@ -39,6 +39,8 @@ function since(rec, prev) {
 }
 const sorted = rec => [...rec.brands].sort((a, b) => (ORDER[(a.suggest || {}).call] ?? 2) - (ORDER[(b.suggest || {}).call] ?? 2));
 const needs = rec => sorted(rec).filter(b => (b.suggest || {}).to && !(rec.approved || {})[b.act_id]);
+/* Approve in Slack itself (Cole 2026-11-24): a real button, handled by standing.js handleClientUpdateButton (ws_approve). */
+const apBtn = (rec, act, style) => ({ type: 'button', action_id: 'ws_approve', text: { type: 'plain_text', text: 'Approve', emoji: true }, value: `${rec.slot}|${act}`, ...(style ? { style } : {}) });
 const btn = (text, url, style) => ({ type: 'button', action_id: 'noop_open', text: { type: 'plain_text', text, emoji: true }, url, ...(style ? { style } : {}) });
 
 /* ---------- 'wc': Well Copy's app message, matched ---------- */
@@ -53,7 +55,7 @@ function wcBlocks(rec, prev, link) {
   blocks.push({ type: 'divider' }, md(`*Needs Your Yes* ✅`));
   if (!N.length) blocks.push(md('_Nothing to approve. Every brand is on Hold._'));
   for (const b of N) blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `\`${b.name}\`\n> *${W[b.suggest.call]}:* ${money(b.meta.camp.daily)} to ${money(b.suggest.to)}/day\n> _${b.suggest.why || ''}_` },
-    accessory: btn('Approve', link(b.act_id), (b.suggest.call === 'scale' || b.suggest.call === 'raise') ? 'primary' : 'danger') });
+    accessory: apBtn(rec, b.act_id, (b.suggest.call === 'scale' || b.suggest.call === 'raise') ? 'primary' : 'danger') });
   blocks.push({ type: 'divider' }, md('*Brands* 📊'));
   const field = b => {
     const s = b.so_far || {}, l6 = b.last6 || {}, m = b.meta || {}, g = b.suggest || {}, ap = (rec.approved || {})[b.act_id], dd = d && d.per[b.act_id];
@@ -93,12 +95,12 @@ function boardBlocks(rec, prev, link) {
     fields.push({ type: 'mrkdwn', text: `*Budget*\n${m.camp && m.camp.daily ? `${money(m.camp.daily)}/day` : m.error ? 'Meta did not answer' : 'n/a'}` },
       { type: 'mrkdwn', text: `*Room under Meta's limit*\n${m.headroom != null ? money(m.headroom) : 'n/a'}` });
     const sec = { type: 'section', text: { type: 'mrkdwn', text: head } };
-    if (g.to && !ap) sec.accessory = btn('Approve', link(b.act_id), (g.call === 'scale' || g.call === 'raise') ? 'primary' : 'danger');
+    if (g.to && !ap) sec.accessory = apBtn(rec, b.act_id, (g.call === 'scale' || g.call === 'raise') ? 'primary' : 'danger');
     const why = `${g.why || ''}${g.note ? ` ${g.note}` : ''}`.trim();
     return { color: ap ? COLOR.done : COLOR[g.call] || COLOR.hold, blocks: [sec, { type: 'section', fields }, ...(why ? [{ type: 'context', elements: [{ type: 'mrkdwn', text: why }] }] : [])] };
   });
   attachments.push({ color: '#4C7AE6', blocks: [{ type: 'actions', elements: [btn('Open the War Room', link())] },
-    { type: 'context', elements: [{ type: 'mrkdwn', text: 'Sales and MER from Triple Whale, budgets from Meta. Nothing changes until you tap Approve on the War Room.' }] }] });
+    { type: 'context', elements: [{ type: 'mrkdwn', text: 'Sales and MER from Triple Whale, budgets from Meta. Nothing changes until you tap Approve.' }] }] });
   return { blocks, attachments };
 }
 
@@ -126,7 +128,7 @@ function needBlocks(rec, link) {
   if (!N.length) return [DIV, H('Needs your yes'), CTX('Nothing to approve. Every brand is on Hold.')];
   return [DIV, H(`Needs your yes (${N.length})`), ...N.flatMap(b => [
     { type: 'section', text: { type: 'mrkdwn', text: `${callDot(b)} *${b.name}*\n${W[b.suggest.call]}: ${money(b.meta.camp.daily)} to *${money(b.suggest.to)}*/day` },
-      accessory: btn('Approve', link(b.act_id), (b.suggest.call === 'scale' || b.suggest.call === 'raise') ? 'primary' : 'danger') },
+      accessory: apBtn(rec, b.act_id, (b.suggest.call === 'scale' || b.suggest.call === 'raise') ? 'primary' : 'danger') },
     ...(b.suggest.why ? [CTX(b.suggest.why)] : [])])];
 }
 const foot = (rec, link) => [DIV, CTX(`Sales and MER: Triple Whale · Budgets: Meta · Nothing changes until you tap Approve · <${link()}|Open the War Room>`)];
@@ -166,10 +168,10 @@ function cBlocks(rec, prev, link) {
       : [F('Sales', `${k(s.sales)} of ${k(b.goal)}${dd ? `\n_+${k(dd.sales)} since ${d.label}_` : ''}`), F('MER', `${x(s.mer)} so far\n_${x(l6.mer)} last 6h · KPI ${x(b.kpi)}_`)];
     fields.push(F('Budget', m.camp && m.camp.daily ? `${money(m.camp.daily)}/day` : 'n/a'), F('Room under limit', m.headroom != null ? money(m.headroom) : 'n/a'));
     const sec = { type: 'section', text: { type: 'mrkdwn', text: `*${b.name}*\n${callText(b, ap)}` } };
-    if (g.to && !ap) sec.accessory = btn('Approve', link(b.act_id), (g.call === 'scale' || g.call === 'raise') ? 'primary' : 'danger');
+    if (g.to && !ap) sec.accessory = apBtn(rec, b.act_id, (g.call === 'scale' || g.call === 'raise') ? 'primary' : 'danger');
     return { color: ap ? COLOR.done : COLOR[g.call] || COLOR.hold, blocks: [sec, { type: 'section', fields }, ...(g.why ? [CTX(g.why)] : [])] };
   });
-  return { blocks: [...topBlocks(rec, prev), DIV, H('Brands'), CTX('Green = scale, yellow = hold, red = cut. Approve opens the brand on the War Room.')], attachments: [...attachments, { color: '#4C7AE6', blocks: foot(rec, link).slice(1) }] };
+  return { blocks: [...topBlocks(rec, prev), DIV, H('Brands'), CTX('Green = scale, yellow = hold, red = cut. Approve here makes the change in Meta.')], attachments: [...attachments, { color: '#4C7AE6', blocks: foot(rec, link).slice(1) }] };
 }
 /* D: one designed image (a PNG scoreboard Locus draws: standingimg.js), then one short "what to do" line and the
  * Approve buttons. `img` is a Slack file id the DM uploaded (no public link), or an https URL. */
