@@ -19,6 +19,9 @@ import { handleMake as handleMakeApp, serveMakeMedia, runExit } from './make.js'
 import { handleCalendar, calendarTick, calendarView, liveOn as calendarLiveOn, useFetch as calendarFetch, calendarData, teamOf as calendarTeam, clientCalendarFor } from './calendar.js';
 /* The client posts (2026-10-19 reporting audit): the six-line daily and the weekly / monthly shape, built from stored numbers. */
 import { dailyPost, dailyThread, weeklyPost, weekSentence, internalChannel } from './clientpost.js';
+/* Brand costs and net profit after fixed costs (2026-11-25): the same pure functions the profit worker prices with. */
+import { ruleCosts, shippingRuled } from '../../../profit/worker/src/costs.js';
+import { netAfter } from '../../../profit/worker/src/expenses.js';
 import { handleRequests, createAsk } from './requests.js';
 import { handleMeetings, handleFirefliesHook, meetingsTick } from './meetings.js';
 import { handleCalls, finishCall } from './callscreen.js';
@@ -2357,7 +2360,11 @@ async function briefData(env, acct, upTo) {
   // Diagnostic only now. Shipping revenue is inside netSales and cannot be removed,
   // so a client who bills shipping without recording a fulfilment cost simply has
   // overstated profit - we flag it rather than pretending to net it off.
-  const shipMode = shipTotal('totalShippingPrice') > 0 && shipTotal('totalShippingCosts') <= 0 ? 'uncosted' : 'costed';
+  /* The brand's own cost rules and fixed costs (profit worker costs.js / expenses.js, 2026-11-25). Plain reads that
+     tolerate a missing table: no rule and no fixed cost leaves every number and every key below exactly as it was. */
+  const costRules = (await env.DB.prepare(`SELECT * FROM p_cost_rule WHERE act_id = ?1 AND status = 'on'`).bind(acct.act_id).all().catch(() => ({ results: [] }))).results || [];
+  const fixedCosts = (await env.DB.prepare(`SELECT * FROM p_expense WHERE act_id = ?1`).bind(acct.act_id).all().catch(() => ({ results: [] }))).results || [];
+  const shipMode = shipTotal('totalShippingPrice') > 0 && shipTotal('totalShippingCosts') <= 0 && !(costRules.length && shippingRuled(costRules, histFrom, upTo)) ? 'uncosted' : 'costed';
 
   // The trailing 28 days still feed the new/returning share and the margin, but the
   // day-of-week CURVE is deliberately not used to split the goal - see below.
@@ -2371,7 +2378,14 @@ async function briefData(env, acct, upTo) {
     salesSum += s;
     newRevSum += piv.newCustomerSales?.[d] ?? 0;
     retRevSum += piv.rcRevenue?.[d] ?? 0;
-    const gp = piv.grossProfit?.[d] ?? (piv.totalProductCosts?.[d] != null ? s - piv.totalProductCosts[d] - (piv.totalPaymentGatewayCosts?.[d] ?? 0) : null);
+    let gp = piv.grossProfit?.[d] ?? (piv.totalProductCosts?.[d] != null ? s - piv.totalProductCosts[d] - (piv.totalPaymentGatewayCosts?.[d] ?? 0) : null);
+    /* A cost rule in force that day prices the day the way the day rows below do: revenue minus product, shipping,
+       handling and fees, with the rule's figure in place of Triple Whale's. No rule that day: the line above stands. */
+    const ov28 = costRules.length ? ruleCosts(costRules, d, { sales: s - (piv.totalNetTaxes?.[d] ?? 0), orders: piv.totalOrders?.[d] ?? null }) : null;
+    if (ov28) {
+      const c28 = ov28.product != null ? ov28.product : (piv.totalProductCosts?.[d] ?? null);
+      if (c28 != null) gp = s - (piv.totalNetTaxes?.[d] ?? 0) - c28 - (ov28.shipping != null ? ov28.shipping : (piv.totalShippingCosts?.[d] ?? 0)) - (piv.totalHandlingFees?.[d] ?? 0) - (piv.totalPaymentGatewayCosts?.[d] ?? 0);
+    }
     if (gp != null && s > 0) { marginNum += gp; marginDen += s; dayMargins.push(gp / s); }
   }
   const newShare = newRevSum + retRevSum > 0 ? newRevSum / (newRevSum + retRevSum) : null;
@@ -2398,9 +2412,10 @@ async function briefData(env, acct, upTo) {
     // old double-counted figure.
     const tax = piv.totalNetTaxes?.[date] ?? 0;
     const shipRev = piv.totalShippingPrice?.[date] ?? 0;   // reported only; already in netSalesDay
-    const shipCost = piv.totalShippingCosts?.[date] ?? 0;
     const handling = piv.totalHandlingFees?.[date] ?? 0;
     const sales = netSalesDay == null ? null : netSalesDay - tax;
+    const ov = costRules.length ? ruleCosts(costRules, date, { sales, orders: piv.totalOrders?.[date] ?? null }) : null;   // the brand's own cost rules
+    const shipCost = ov && ov.shipping != null ? ov.shipping : (piv.totalShippingCosts?.[date] ?? 0);
     const mrow = meta[date];
     const gSpend = piv.ga_adCost?.[date] ?? null;
     const blended = piv.blendedAds?.[date] ?? null;
@@ -2457,7 +2472,7 @@ async function briefData(env, acct, upTo) {
       new_orders: piv.newCustomersOrders?.[date] ?? null,
       total_sales: netSalesDay, tax, net_sales: sales == null ? null : sales - shipRev,
       ship_rev: shipRev, ship_cost: shipCost, handling,
-      cogs: piv.totalProductCosts?.[date] ?? null,
+      cogs: ov && ov.product != null ? ov.product : (piv.totalProductCosts?.[date] ?? null),
       fees: piv.totalPaymentGatewayCosts?.[date] ?? null,
     };
     a.amer = a.new_rev != null && a.spend ? a.new_rev / a.spend : null;
@@ -2481,6 +2496,21 @@ async function briefData(env, acct, upTo) {
     spend: sum(done, x => x.a.spend), spend_f: sum(done, x => x.f.spend ?? null),
     cm: sum(done, x => x.a.cm), cm_f: sum(done, x => x.f.cm ?? null),
   };
+  /* NET PROFIT AFTER FIXED COSTS (2026-11-25). Only for a brand that entered a fixed cost (profit worker, p_expense)
+     and only where contribution margin exists; nothing is added otherwise. Brief CM does not hold the "counts as ad
+     spend" expenses, so net subtracts those too. `in_posts` (settings costsNetInPosts = 1, default off) decides only
+     whether the automatic Slack text prints the line: the payload and the pages carry it from the first deploy. */
+  let fixedBlock = null;
+  if (fixedCosts.length) {
+    const dayRow = x => ({ date: x.date, sales: x.a.sales, spend: x.a.spend, orders: x.a.orders });
+    for (const x of done) { const n = netAfter(fixedCosts, x.date, x.date, [dayRow(x)], x.a.cm); if (n) { x.a.fixed = n.fixed; x.a.ad_expense = n.ad; x.a.net = n.net; } }
+    const m = netAfter(fixedCosts, monthStart, upTo, done.map(dayRow), mtd.cm);
+    if (m) {
+      mtd.fixed = m.fixed; mtd.ad_expense = m.ad; mtd.net = m.net;
+      const flag = await getSetting(env, 'costsNetInPosts').catch(() => null);
+      fixedBlock = { by_category: m.by_category, in_posts: ['1', 'true', '"1"'].includes(String(flag)) };
+    }
+  }
   /* The catch-up: what it takes FROM HERE, not just how far behind we are.
    *
    * Every other figure in the brief describes the past. This one is the only
@@ -2534,6 +2564,7 @@ async function briefData(env, acct, upTo) {
       bad_dates: done.filter(x => x.a.issues?.some(i => i.severity === 'broken')).map(x => x.date),
       by_date: Object.fromEntries(done.filter(x => x.a.issues?.length).map(x => [x.date, x.a.issues])),
     },
+    ...(fixedBlock ? { fixed: fixedBlock } : {}),
   };
 }
 
@@ -2607,6 +2638,7 @@ function buildBriefText(data, dates, narrative) {
     rowFor('MER', a.mer, f.mer, fx);
     rowFor('aMER', a.amer, f.amer, fx);
     if (cmOk) rowFor('Contribution Margin', a.cm, f.cm, fm);
+    if (cmOk && data.fixed?.in_posts && a.net != null) rowFor('Net profit after fixed costs', a.net, null, fm);
   }
 
   /* NO "WEEK IN REVIEW" BLOCK. It used to print here on the Monday brief, and
@@ -2882,6 +2914,7 @@ function buildBriefTextV2(data, dates, narrative) {
     rowFor('MER', a.mer, f.mer, fx);
     rowFor('aMER', a.amer, f.amer, fx);
     if (cmOk) rowFor('Contribution Margin', a.cm, f.cm, fm);
+    if (cmOk && data.fixed?.in_posts && a.net != null) rowFor('Net profit after fixed costs', a.net, null, fm);
   }
 
   // MONTH SO FAR: the same rows, summed. Deterministic, never left to the model.
@@ -2893,6 +2926,7 @@ function buildBriefTextV2(data, dates, narrative) {
     rowFor('Net Sales', mt.sales, mt.sales_f, fm);
     rowFor('Ad Spend', mt.spend, mt.spend_f, fm);
     if (cmOk) rowFor('Contribution Margin', mt.cm, mt.cm_f, fm);
+    if (cmOk && data.fixed?.in_posts && mt.net != null) rowFor('Net profit after fixed costs', mt.net, null, fm);
   }
 
   const th = data.to_hit;
@@ -3385,6 +3419,7 @@ function clientDailyThreadFor(acct, date, data) {
   return dailyThread({
     date, currency: acct.currency, cm_ok: !!q && q !== 'broken' && q !== 'none',
     day: { sales: a.sales, orders: a.orders ?? null, new_orders: a.new_orders ?? null, new_rev: a.new_rev ?? null, ret_rev: a.ret_rev ?? null, cm: a.cm ?? null,
+      net: data?.fixed?.in_posts ? (a.net ?? null) : null,
       attr: !!a.attr_source,
       channels: [{ name: 'Meta', spend: a.meta_spend, roas: a.meta_roas, purchases: a.meta_purchases }, { name: 'Google', spend: a.google_spend, roas: a.google_roas, purchases: a.google_purchases }] },
   });
@@ -3713,14 +3748,17 @@ async function insightsFreshness(env, a, day) {
  *  (shipping already inside it, never added); CM subtracts every variable
  *  cost; the new/returning split keeps TW's measured SHARE rebased onto the
  *  headline revenue. Keep the three implementations in step. */
-function econDay(piv, metaBy, date, cmPct) {
+function econDay(piv, metaBy, date, cmPct, rules) {
   const totalSales = twDay(piv, date, TW_SALES);
   if (totalSales == null) return null;
   const tax = piv.totalNetTaxes?.[date] ?? 0;
   const sales = totalSales - tax;
-  const shipCost = piv.totalShippingCosts?.[date] ?? 0;
+  /* The brand's own cost rules (profit worker costs.js). No rule, or none in force that day: `ov` is null and every
+     line reads as it did before. No key is added to the row either way. */
+  const ov = rules && rules.length ? ruleCosts(rules, date, { sales, orders: piv.totalOrders?.[date] ?? null }) : null;
+  const shipCost = ov && ov.shipping != null ? ov.shipping : (piv.totalShippingCosts?.[date] ?? 0);
   const handling = piv.totalHandlingFees?.[date] ?? 0;
-  const cogs = piv.totalProductCosts?.[date] ?? null;
+  const cogs = ov && ov.product != null ? ov.product : (piv.totalProductCosts?.[date] ?? null);
   const fees = piv.totalPaymentGatewayCosts?.[date] ?? null;
   const mrow = metaBy[date];
   const gSpend = piv.ga_adCost?.[date] ?? null;
@@ -4527,13 +4565,17 @@ async function reportData(env, acct, period, start, end) {
 
   const gjson = safeJson(acct.goals_json, {});
   const cmPct = goalsFor(acct, ymEnd)?.cm_pct ?? null;
+  /* The brand's own cost rules and fixed costs (2026-11-25), read the way briefData reads them: plain SELECTs that
+     tolerate a missing table. None of either leaves the report exactly as it was. */
+  const costRules = (await env.DB.prepare(`SELECT * FROM p_cost_rule WHERE act_id = ?1 AND status = 'on'`).bind(acct.act_id).all().catch(() => ({ results: [] }))).results || [];
+  const fixedCosts = (await env.DB.prepare(`SELECT * FROM p_expense WHERE act_id = ?1`).bind(acct.act_id).all().catch(() => ({ results: [] }))).results || [];
 
   // The same COGS trust gate as the Daily Brief: a client whose cost data is
   // broken must never see a Contribution Margin in a report with their name on it.
   const dayMargins = []; let mNum = 0, mDen = 0;
   for (let i = 1; i <= 28; i++) {
     const d = addDays(start, -i);
-    const r = econDay(piv, metaBy, d, null);
+    const r = econDay(piv, metaBy, d, null, costRules);
     if (r && r.gp != null && r.sales > 0) { dayMargins.push(r.gp / r.sales); mNum += r.gp; mDen += r.sales; }
   }
   const margin28 = mDen > 0 ? mNum / mDen : null;
@@ -4545,14 +4587,18 @@ async function reportData(env, acct, period, start, end) {
   const curDates = [], prevDates = [];
   for (let d = start; d <= end; d = addDays(d, 1)) curDates.push(d);
   for (let d = prevStart; d <= prevEnd; d = addDays(d, 1)) prevDates.push(d);
-  const days = curDates.map(d => econDay(piv, metaBy, d, cmPct)).filter(Boolean);
-  const prevDays = prevDates.map(d => econDay(piv, metaBy, d, cmPct)).filter(Boolean);
+  const days = curDates.map(d => econDay(piv, metaBy, d, cmPct, costRules)).filter(Boolean);
+  const prevDays = prevDates.map(d => econDay(piv, metaBy, d, cmPct, costRules)).filter(Boolean);
   const cur = periodTotals(days);
   const prev = periodTotals(prevDays);
   if (!cmOk) {
     for (const t of [cur, prev]) { t.cm = null; t.gp = null; t.margin = null; }
     for (const r of days) { r.cm = null; r.gp = null; r.margin = null; }
   }
+  /* Net profit after fixed costs: only when CM is shown (cur.cm is null otherwise) and a fixed cost is in force. */
+  const netCur = netAfter(fixedCosts, start, end, days, cur.cm), netPrev = netAfter(fixedCosts, prevStart, prevEnd, prevDays, prev.cm);
+  if (netCur) { cur.fixed = netCur.fixed; cur.ad_expense = netCur.ad; cur.net = netCur.net; }
+  if (netPrev) { prev.fixed = netPrev.fixed; prev.ad_expense = netPrev.ad; prev.net = netPrev.net; }
 
   // The plan for these exact days. Each day inherits ITS OWN month's goals,
   // spread evenly - the agreed convention - so a week straddling a month
@@ -4581,7 +4627,7 @@ async function reportData(env, acct, period, start, end) {
   let pacing = null;
   if (period === 'weekly') {
     const mtdRows = [];
-    for (let d = monthStart; d <= end; d = addDays(d, 1)) { const r = econDay(piv, metaBy, d, cmPct); if (r) mtdRows.push(r); }
+    for (let d = monthStart; d <= end; d = addDays(d, 1)) { const r = econDay(piv, metaBy, d, cmPct, costRules); if (r) mtdRows.push(r); }
     const mtd = periodTotals(mtdRows);
     const gEnd = goalsFor(acct, ymEnd);
     if (gEnd && (gEnd.sales != null || gEnd.spend != null)) {
@@ -4994,6 +5040,7 @@ async function reportData(env, acct, period, start, end) {
     chart: days.map(r => ({ date: r.date, sales: r.sales, spend: r.spend })),
     cm_ok: cmOk, cogs_quality: cogsQuality, margin_28d: margin28, cm_pct: cmPct,
     generated_at: new Date().toISOString(),
+    ...(netCur ? { fixed: { by_category: netCur.by_category } } : {}),
   };
 }
 
@@ -5094,6 +5141,7 @@ function reportHeadline(data) {
     `• *MER* ${x(t.mer)}${vs(t.mer, f.mer, p.mer)}`,
   ];
   if (t.cm != null) L.push(`• *Contribution margin* ${money(t.cm)}${vs(t.cm, f.cm, p.cm)}`);
+  if (t.net != null) L.push(`• *Net profit after fixed costs* ${money(t.net)}${vs(t.net, null, p.net)}`);
   return L.join('\n');
 }
 
@@ -10834,6 +10882,8 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
 };
 /* For the offline dashboard checks (test-dashrange.mjs). */
 export { dashNumbers, dashBlocks, dashRange };
+/* For the offline cost checks (test-costs-brief.mjs). */
+export { econDay, briefData, reportData, buildBriefText, buildBriefTextV2, reportHeadline, spendFor };
 /** A creator link on the AUTO board (profit amb.js autoBoard, migration amb-004) also shows the
  *  brand's top-ranked video ads. The ranked ids are cached on the brand row, so the slug authorises
  *  exactly those ads on a LIVE page, the same rule as proof. Empty for a hand-picked board. */

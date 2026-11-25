@@ -2959,8 +2959,9 @@ async function renderPerfShare(token) {
         <tr style="border-top:2px solid var(--line-strong)"><td><b>Gross profit</b></td><td class="num"><b>${fmtMoney(w.gross_profit, cur)}</b></td><td class="tiny">${fmtPct(w.sales ? w.gross_profit / w.sales : null)} of revenue, before any advertising</td></tr>
         ${wRow('Advertising', w.spend, 'every platform combined', true)}
         <tr style="border-top:2px solid var(--line-strong)"><td><b>Contribution margin</b></td><td class="num"><b style="color:${w.cm >= 0 ? 'var(--good)' : 'var(--bad)'}">${fmtMoney(w.cm, cur)}</b></td><td class="tiny">${fmtPct(w.sales ? w.cm / w.sales : null)} of revenue</td></tr>
+        ${d.fixed ? (d.fixed.by_category || []).map(c => wRow(esc(c.label), c.amount, '', true)).join('') + `<tr style="border-top:2px solid var(--line-strong)"><td><b>Net profit</b></td><td class="num"><b style="color:${d.net >= 0 ? 'var(--good)' : 'var(--bad)'}">${fmtMoney(d.net, cur)}</b></td><td class="tiny">${fmtPct(w.sales ? d.net / w.sales : null)} of revenue</td></tr>` : ''}
       </tbody></table></div>
-      <p class="tiny" style="margin-top:8px">This is what the month has produced after every <b>variable</b> cost. It deliberately excludes fixed costs - rent, salaries, software - so it answers "is the marketing making money on the margin", not "what is the net profit of the business".</p></div>` : ''}
+      ${d.fixed ? `<p class="tiny" style="margin-top:8px">Net profit is contribution margin minus the fixed costs entered for this business.</p>` : `<p class="tiny" style="margin-top:8px">This is what the month has produced after every <b>variable</b> cost. It deliberately excludes fixed costs - rent, salaries, software - so it answers "is the marketing making money on the margin", not "what is the net profit of the business".</p>`}</div>` : ''}
 
     ${hist.length ? `<div class="card"><h3 style="margin-bottom:8px">Recent months</h3>
       <div class="tbl-wrap"><table><thead><tr><th>Month</th><th class="num">Revenue</th><th class="num">Ad spend</th><th class="num">MER</th></tr></thead>
@@ -9463,6 +9464,7 @@ function reportBodyHTML(d, summary, opts = {}) {
     kpi('MER', t.mer, fmtX, f.mer, p.mer, false, 'All store revenue ÷ all ad spend, blended on both sides. The honest “are the ads paying for themselves” number - the same thing as blended ROAS.'),
     kpi('aMER', t.amer, fmtX, f.amer, p.amer, false, 'New-customer revenue ÷ that same total ad spend. Repeat buyers and email can’t flatter it - this is what the ads actually bought.'),
     t.cm != null ? kpi('Contribution margin', t.cm, money, f.cm, p.cm, false, 'Revenue minus every variable cost - product, fulfilment, handling, payment fees and ad spend. Excludes fixed costs like rent, salaries and software.') : '',
+    t.net != null ? kpi('Net profit after fixed costs', t.net, money, null, p.net, false, 'Contribution margin minus the fixed costs entered for this brand (rent, team, software, any fee). Monthly costs are spread evenly over the days.') : '',
     kpi('New-customer CPA', t.ncpa, money, null, p.ncpa, true, 'Total ad spend ÷ new customers acquired. Blended - not any platform’s self-reported CPA.'),
     kpi('Orders', t.orders, fmtInt, null, p.orders, false, 'Total store orders in the period.'),
     kpi('Average order value', t.aov, money, null, p.aov, false, 'Revenue ÷ orders.'),

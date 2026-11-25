@@ -20,7 +20,9 @@
  *   - is_ad_spend rows: applyAdSpend() adds them to each day's `spend` inside seriesFor (worker.js) and the tile
  *     drill-downs (hub.js), and recomputes mer / amer / cm. Rows keep base_spend (the platforms alone) and ad_expense.
  *   - every other row: Net profit = contribution margin minus these, on P&L and in the CM drill-down. CM is unchanged.
- *   - briefs and reports (account-health worker) do not read this table.
+ *   - briefs, reports and the client profit link carry "Net profit after fixed costs" (2026-11-25) through netAfter()
+ *     below, only when the brand has a fixed cost in force and its contribution margin is shown. CM itself is unchanged
+ *     there: the account-health worker reads p_expense with a plain SELECT (no ensure, no migration).
  *
  * Old rows: p_fixed_cost (fixed.js) are copied once into p_expense as monthly fixed costs (legacy_id, INSERT OR IGNORE,
  * then settings.expensesMigrated), so nothing a brand already entered is lost and a deleted row never comes back.
@@ -139,6 +141,28 @@ export function applyAdSpend(rows, adByDate) {
   return rows;
 }
 
+/** Fixed-cost rows (not "counts as ad spend") in force at any point in [from, to]. */
+export function activeIn(list, from, to) {
+  return (list || []).filter(e => e && !+e.is_ad_spend && YMD.test(e.start_date || '') && e.start_date <= to
+    && (e.kind === 'once' ? e.start_date >= from : (!e.end_date || e.end_date >= from)));
+}
+/** Net profit after fixed costs for one window.
+ *  -> null when cm is null or no fixed row is in force; else { fixed, ad, net, by_category: [{ category, label, amount }] }.
+ *  cmHasAd: true when the caller's cm already includes the "counts as ad spend" expenses (profit worker), false when
+ *  it does not (account-health briefs and reports). Only category totals are returned, never a row's name or notes.
+ *  The gate is activeIn, not the spread: a per order or % row is 0 on a day with no sales and must not make the line flicker. */
+export function netAfter(list, from, to, rows, cm, { cmHasAd = false } = {}) {
+  if (cm == null || !activeIn(list, from, to).length) return null;
+  /* spread() counts a one-time cost dated AFTER the window (it clips `once` to its own date, not to `to`). That is how
+     P&L has always read it and it is left alone there; here a cost that has not happened yet is kept out. */
+  const s = spread((list || []).filter(e => e && !(e.kind === 'once' && e.start_date > to)), from, to, rows);
+  const by = {};
+  for (const it of s.items) by[it.category] = (by[it.category] || 0) + it.amount;
+  const by_category = Object.entries(by).map(([category, amount]) => ({ category, label: (CATEGORIES.find(c => c.id === category) || {}).label || 'Other', amount: r2(amount) }))
+    .sort((a, b) => b.amount - a.amount);
+  return { fixed: s.total, ad: s.ad_total, net: r2(cm - s.total - (cmHasAd ? 0 : s.ad_total)), by_category };
+}
+
 /** Every brand's expense rows, one query. -> { act: [rows] } */
 export async function loadExpenses(env, acts) {
   const out = Object.fromEntries(acts.map(a => [a, []]));
@@ -157,7 +181,7 @@ export async function expensesFor(env, acts, from, to, rowsBy = {}) {
 }
 
 /** What a client or teammate may see of one row: never an email. */
-const view = r => ({ id: r.id, name: r.name, category: r.category || 'other', kind: r.kind, amount: r.amount, start_date: r.start_date, end_date: r.end_date || null,
+export const view = r => ({ id: r.id, name: r.name, category: r.category || 'other', kind: r.kind, amount: r.amount, start_date: r.start_date, end_date: r.end_date || null,
   is_ad_spend: !!+r.is_ad_spend, notes: r.notes || '', added_by: r.created_name || nameOf(r.created_by) || null, added_at: r.created_at || null, updated_at: r.updated_at || null });
 
 /** Check one incoming item; returns [error] or [null, clean]. */

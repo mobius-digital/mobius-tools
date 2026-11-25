@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
-import { dailyPost, dailyThread, weeklyPost, weekSentence, dailyVerdict, pctChange, shortMoney, oneChannel, internalChannel, CM_WORDS } from './src/clientpost.js';
+import { dailyPost, dailyThread, weeklyPost, weekSentence, dailyVerdict, pctChange, shortMoney, oneChannel, internalChannel, CM_WORDS, NET_WORDS } from './src/clientpost.js';
 import { clientBits, clientMessages } from './src/calendar.js';
 import { confirm, ensureMeetings } from './src/meetings.js';
 import { allowedChannels } from './src/askschedule.js';
@@ -238,6 +238,29 @@ await check('weekly report: Our work this week shows new ads and client-readable
   const t = weeklyPost({ brand: 'Dartee', start: '2026-11-16', end: '2026-11-22', totals: { sales: 10000, spend: 4000, mer: 2.5 }, previous: { sales: 9000, spend: 4000, mer: 2.25 }, work: w });
   assert.ok(t.includes('*Our work this week*'), t);
   assert.ok(!t.includes('Email'));
+});
+
+/* Net profit after fixed costs (2026-11-25). The strings below are what the commit before this change printed. */
+await check('net profit: the thread and the weekly print it only when it is set and CM is shown; without it both are exactly as before', () => {
+  const day = { sales: 4200, orders: 60, new_orders: 30, new_rev: 2400, ret_rev: 1800, cm: 900, attr: true, channels: [{ name: 'Meta', spend: 800, roas: 2.5, purchases: 20 }] };
+  const OLD_THREAD = '*More on Thursday Oct 15*\n• Orders: *60* (30 from new customers), average order $70\n• Sales from new customers: *$2,400*, returning *$1,800*\n• Meta: *$800* spent, *$2,000* in sales tracked to it (2.50x)\n• Contribution margin: *$900*\n\n_Sales tracked to a channel are Triple Whale’s count, so the channels can add up to more than the day. Contribution margin = sales minus product cost, shipping, fees and ad spend._';
+  assert.equal(dailyThread({ date: '2026-10-15', day, cm_ok: true }), OLD_THREAD);
+  assert.equal(dailyThread({ date: '2026-10-15', day: { ...day, net: null }, cm_ok: true }), OLD_THREAD, 'net null = not printed');
+  const withNet = dailyThread({ date: '2026-10-15', day: { ...day, net: 650 }, cm_ok: true });
+  assert.ok(withNet.includes('• Contribution margin: *$900*\n• Net profit after fixed costs: *$650*'), withNet);
+  assert.ok(withNet.endsWith(`${CM_WORDS} ${NET_WORDS}_`), withNet);
+  assert.ok(!dailyThread({ date: '2026-10-15', day: { ...day, net: 650 }, cm_ok: false }).includes('Net profit'), 'cost data not trusted: no net profit');
+  assert.ok(!dailyThread({ date: '2026-10-15', day: { ...day, cm: null, net: 650 }, cm_ok: true }).includes('Net profit'), 'no CM: no net profit');
+
+  const base = { brand: 'Alpha Golf', start: '2026-10-05', end: '2026-10-11', totals: { sales: 10000, spend: 4000, mer: 2.5, cm: 1500 }, previous: { sales: 9000, spend: 4000, mer: 2.25, cm: 1200 } };
+  const OLD_WEEKLY = '*Alpha Golf · Weekly report, Oct 5 to 11*\n_Sales up 11% on the same ad spend._\n\n*The week* (compared with the week before)\n• Sales: *$10,000* (up 11%)\n• Ad spend: *$4,000* (flat)\n• MER: *2.50x* (was 2.25x)\n• Contribution margin: *$1,500* (was $1,200)\n_Contribution margin = sales minus product cost, shipping, fees and ad spend._';
+  assert.equal(weeklyPost(base), OLD_WEEKLY);
+  assert.equal(weeklyPost({ ...base, previous: { ...base.previous, net: 700 } }), OLD_WEEKLY, 'only last week has it: not printed');
+  const w = weeklyPost({ ...base, totals: { ...base.totals, net: 900 }, previous: { ...base.previous, net: 700 } });
+  assert.ok(w.includes(`• Net profit after fixed costs: *$900* (was $700)\n_${NET_WORDS}_`), w);
+  assert.ok(weeklyPost({ ...base, totals: { ...base.totals, net: 900 } }).includes('• Net profit after fixed costs: *$900*\n'), 'no "(was ...)" without last week');
+  assert.ok(!weeklyPost({ ...base, totals: { ...base.totals, cm: null, net: 900 } }).includes('Net profit'), 'no CM: no net profit');
+  assert.ok(!NET_WORDS.includes(String.fromCharCode(0x2014)));
 });
 
 console.log(`\n${results.filter(Boolean).length}/${results.length} passed`);

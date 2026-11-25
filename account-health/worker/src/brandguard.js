@@ -224,6 +224,10 @@ export const CLIENT_RULES = [
   R('GET', '/api/client'),
   R('GET', '/api/forecast'),
   R('GET', '/api/costs'),
+  /* Brand costs (2026-11-25, costs.js): a brand's own shipping and product cost rules and its cost sheet. */
+  R('PUT', '/api/costs'),
+  R('DELETE', '/api/costs'),
+  R('POST', '/api/costs/sheet'),
   R('PUT', '/api/margin'),
   R('GET', '/api/expenses'),
   R('PUT', '/api/expenses'),

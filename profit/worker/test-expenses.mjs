@@ -84,6 +84,41 @@ await check('bad input is refused with a plain sentence', () => {
   assert.ok(!/—/.test(JSON.stringify([X.CATEGORIES, X.KINDS])), 'no em dashes in the choices');
 });
 
+/* Net profit after fixed costs (2026-11-25): the two pure helpers briefs, reports and the client profit link share. */
+await check('activeIn: a one-time cost only inside the window, ended and not-started rows out, "counts as ad spend" rows never', () => {
+  const ids = (list, f, t) => X.activeIn(list, f, t).map(e => e.id);
+  const list = [
+    { id: 1, kind: 'monthly', amount: 100, start_date: '2026-09-01' },
+    { id: 2, kind: 'monthly', amount: 100, start_date: '2026-01-01', end_date: '2026-09-30' },          // ended before the window
+    { id: 3, kind: 'monthly', amount: 100, start_date: '2026-11-01' },                                  // not started
+    { id: 4, kind: 'once', amount: 100, start_date: '2026-10-02' },                                     // inside
+    { id: 5, kind: 'once', amount: 100, start_date: '2026-09-15', end_date: '2026-12-31' },             // a one-time cost before the window
+    { id: 6, kind: 'monthly', amount: 100, start_date: '2026-09-01', is_ad_spend: 1 },                  // already inside ad spend
+    { id: 7, kind: 'per_order', amount: 1, start_date: '2026-09-01', end_date: '2026-10-01' },          // ends on the first day: still in force
+    { id: 8, kind: 'monthly', amount: 100, start_date: 'soon' }, null,
+  ];
+  assert.deepEqual(ids(list, '2026-10-01', '2026-10-03'), [1, 4, 7]);
+  assert.deepEqual(ids(list, '2026-10-03', '2026-10-03'), [1]);
+  assert.deepEqual(ids([], '2026-10-01', '2026-10-03'), []); assert.deepEqual(ids(null, '2026-10-01', '2026-10-03'), []);
+});
+await check('netAfter: null without an active fixed cost or without a CM; a per order row on a zero-order day still counts; cmHasAd differs by exactly the ad pile', () => {
+  const rows = ROWS();
+  assert.equal(X.netAfter([], '2026-10-01', '2026-10-03', rows, 1000), null, 'no rows');
+  assert.equal(X.netAfter([{ name: 'Ad only', kind: 'monthly', amount: 3100, start_date: '2026-10-01', is_ad_spend: 1 }], '2026-10-01', '2026-10-03', rows, 1000), null, 'only an ad-spend row');
+  assert.equal(X.netAfter([{ name: 'Rent', kind: 'monthly', amount: 3100, start_date: '2026-10-01' }], '2026-10-01', '2026-10-03', rows, null), null, 'no contribution margin');
+  assert.equal(X.netAfter([{ name: 'Rent', kind: 'monthly', amount: 3100, start_date: '2026-11-01' }], '2026-10-01', '2026-10-03', rows, 1000), null, 'not started');
+  const z = X.netAfter([{ name: 'Insert card', category: 'other', kind: 'per_order', amount: 0.5, start_date: '2026-09-01' }], '2026-10-03', '2026-10-03', [rows[2]], -100);
+  assert.deepEqual(z, { fixed: 0, ad: 0, net: -100, by_category: [] }, 'a zero-order day: the line stays, at zero');
+  const list = [{ name: 'Rent', category: 'rent', kind: 'monthly', amount: 3100, start_date: '2026-09-01' }, { name: 'Tools', category: 'software', kind: 'monthly', amount: 1550, start_date: '2026-09-01' },
+    { name: 'More tools', category: 'software', kind: 'once', amount: 400, start_date: '2026-10-02' }, { name: 'Retainer', category: 'agency', kind: 'pct_spend', amount: 10, start_date: '2026-09-01' },
+    { name: 'Podcast', category: 'marketing', kind: 'once', amount: 250, start_date: '2026-10-02', is_ad_spend: 1 }, { name: 'Odd', category: 'nope', kind: 'once', amount: 5, start_date: '2026-10-01' }];
+  const a = X.netAfter(list, '2026-10-01', '2026-10-03', rows, 1100), b = X.netAfter(list, '2026-10-01', '2026-10-03', rows, 1100, { cmHasAd: true });
+  assert.deepEqual(a.by_category, [{ category: 'software', label: 'Software', amount: 550 }, { category: 'rent', label: 'Rent and premises', amount: 300 }, { category: 'agency', label: 'Agency fees', amount: 70 }, { category: 'nope', label: 'Other', amount: 5 }]);
+  near(a.fixed, 925, 'fixed'); near(a.ad, 250, 'ad pile'); near(a.net, 1100 - 925 - 250, 'brief and report CM has no ad expenses in it, so they come off here');
+  near(b.net, 1100 - 925, 'the profit worker\'s CM already holds them'); near(b.net - a.net, a.ad, 'the two differ by exactly the ad pile');
+  assert.ok(!/Rent"|Podcast|Tools/.test(JSON.stringify(a).replace(/"label":"[^"]*"/g, '')), 'no row name leaves, only category totals');
+});
+
 /* ---------- the real worker ---------- */
 db.exec(`INSERT INTO brands (id, slug, name, status, currency, tz, source) VALUES ('brand_alpha', 'alpha', 'Alpha Golf', 'active', 'USD', 'America/Chicago', 'locus')`);
 db.exec(`INSERT INTO p_fixed_cost (act_id, name, category, monthly, start_month, end_month, created_by) VALUES

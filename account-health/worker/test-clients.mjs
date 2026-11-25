@@ -616,6 +616,37 @@ await check('Costs: a client adds and edits its own brand\'s custom expenses, ne
   assert.equal(db.prepare(`SELECT name FROM p_expense WHERE act_id = 'brand_beta'`).get().name, 'Klaviyo', 'beta untouched');
 });
 
+await check('Brand costs: a client sets, removes and uploads cost rules for its own brand, never another brand\'s', async () => {
+  const rule = { cost: 'shipping', rule: 'per_order', amount: 6.5, start_date: '2026-10-01' };
+  const csv = 'SKU,Cost\nA1,4.5\n';
+  const put = await pf(CLIENT, 'PUT', '/api/costs', { act: 'brand_alpha', rule });
+  assert.equal(put.status, 200, JSON.stringify(put.j));
+  assert.equal(put.j.shipping_rules.rules[0].added_by, 'Nick', 'the client\'s own name');
+  assert.ok(!JSON.stringify(put.j.shipping_rules).includes('@'), 'no email in the answer');
+  const sheet = await pf(CLIENT, 'POST', '/api/costs/sheet', { act: 'brand_alpha', csv, start_date: '2026-11-01', dry_run: false });
+  assert.equal(sheet.status, 200, JSON.stringify(sheet.j));
+  assert.equal((await pf(CLIENT, 'GET', '/api/costs?act=brand_alpha')).j.product_cost.sheet.skus, 1);
+  /* another brand, "all", and a query naming its brand while the body names another */
+  assert.equal((await pf(CLIENT, 'PUT', '/api/costs', { act: 'brand_beta', rule })).status, 403);
+  assert.equal((await pf(CLIENT, 'PUT', '/api/costs?act=brand_alpha', { act: 'brand_beta', rule })).status, 403);
+  assert.equal((await pf(CLIENT, 'PUT', '/api/costs', { act: 'all', rule })).status, 403);
+  assert.equal((await pf(CLIENT, 'POST', '/api/costs/sheet', { act: 'brand_beta', csv, start_date: '2026-11-01', dry_run: false })).status, 403);
+  assert.equal((await pf(CLIENT, 'POST', '/api/costs/sheet?act=brand_alpha', { act: 'brand_beta', csv, start_date: '2026-11-01', dry_run: false })).status, 403);
+  assert.equal((await pf(CLIENT, 'POST', '/api/costs/sheet', { act: 'all', csv, start_date: '2026-11-01' })).status, 403);
+  const t = await pf(OWNER, 'PUT', '/api/costs', { act: 'brand_beta', rule });
+  assert.equal(t.status, 200, JSON.stringify(t.j));
+  const betaId = t.j.shipping_rules.rules[0].id;
+  assert.equal((await pf(CLIENT, 'DELETE', `/api/costs?act=brand_beta&id=${betaId}`)).status, 403);
+  assert.equal((await pf(CLIENT, 'DELETE', '/api/costs?act=all&id=1')).status, 403);
+  assert.equal((await pf(CLIENT, 'DELETE', `/api/costs?act=brand_alpha&id=${betaId}`)).status, 404, 'its own brand, another brand\'s rule id: nothing is removed');
+  assert.equal((await pf(CLIENT, 'PUT', '/api/costs', { act: 'brand_alpha', rule: { id: betaId, amount: 1, start_date: '2026-10-01' } })).status, 404);
+  assert.equal(db.prepare(`SELECT amount FROM p_cost_rule WHERE id = ?`).get(betaId).amount, 6.5, 'beta untouched');
+  assert.equal((await pf(CLIENT, 'DELETE', `/api/costs?act=brand_alpha&id=${put.j.shipping_rules.rules[0].id}`)).status, 200);
+  assert.equal(db.prepare(`SELECT COUNT(*) n FROM p_cost_rule WHERE act_id = 'brand_alpha'`).get().n, 0);
+  /* left as it was found, so the checks below see no cost rule and no cost sheet */
+  db.exec(`DELETE FROM p_cost_rule; DELETE FROM p_product_cost;`);
+});
+
 await check('a client can edit only its own profile', async () => {
   const r = await ah(CLIENT, 'PUT', '/api/clients/me', { name: 'Nick Y', welcomed: true });
   assert.equal(r.status, 200);

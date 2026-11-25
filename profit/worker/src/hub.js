@@ -725,19 +725,20 @@ async function keptMany(env, ctx, accts, opts = {}) {
   if (!accts.length) return { as_of, date: null, brands: [] };
   const acts = accts.map(a => a.act_id);
   const y = ctx.addDays(ctx.localDate(accts[0].tz), -1), lo = ctx.addDays(y, -28);
-  const [piv, metaRows, health, exps, calls] = await Promise.all([
+  const [piv, metaRows, health, exps, calls, costRules] = await Promise.all([
     twPivotMany(env, acts, lo, y, ECON_IDS),
     env.DB.prepare(`SELECT c.brand_id act_id, d.date, SUM(d.spend) spend FROM daily_insights d JOIN connections c ON c.kind = 'meta' AND c.external_id = d.act_id
       WHERE c.brand_id IN (${inList(acts.length, 3)}) AND d.date BETWEEN ?1 AND ?2 GROUP BY c.brand_id, d.date`).bind(lo, y, ...acts).all().then(r => r.results || []).catch(() => []),
     env.DB.prepare(`SELECT act_id, verdict FROM p_cost_health WHERE act_id IN (${inList(acts.length)})`).bind(...acts).all().then(r => r.results || []).catch(() => []),
     ctx.loadExpenses(env, acts).catch(() => ({})),
     opts.calls === false ? Promise.resolve(null) : buyerListOnce(env, ctx, accts.filter(a => !SKIP_HUB.test(a.name || ''))).catch(() => null),
+    ctx.loadCostRules ? ctx.loadCostRules(env, acts).catch(() => ({})) : Promise.resolve({}),   // the brand's own cost rules (costs.js)
   ]);
   const metaBy = {}; for (const r of metaRows) (metaBy[r.act_id] ??= {})[r.date] = { spend: r.spend };
   const verdict = Object.fromEntries(health.map(r => [r.act_id, r.verdict]));
   const brands = accts.map(a => {
     const P = piv[a.act_id] || {}, M = metaBy[a.act_id] || {}, mp = ctx.marginOverride(a, ctx.monthOf(y));
-    const rows = dates(lo, y, ctx.addDays).map(d => ctx.econ(P, M, d, mp)).filter(Boolean);
+    const rows = dates(lo, y, ctx.addDays).map(d => ctx.econ(P, M, d, mp, costRules[a.act_id])).filter(Boolean);
     const sp = ctx.spread(exps[a.act_id] || [], lo, y, rows); ctx.applyAdSpend(rows, sp.adByDate);
     const x = rows.find(r => r.date === y) || null;
     const base = rows.filter(r => r.date !== y && r.cm != null);
@@ -1399,7 +1400,7 @@ const ECON_IDS = ['netSales', 'totalSales', 'totalNetTaxes', 'totalShippingPrice
   'totalKlaviyoPlacedOrderTotalPriceCampaigns', 'totalKlaviyoPlacedOrderTotalPriceFlows'];
 async function drillMany(env, ctx, accts, w, model) {
   const acts = accts.map(a => a.act_id), lo = w.pf && w.pf < w.from ? w.pf : w.from;
-  const [chs, sts, pivs, metaRows, health, exps] = await Promise.all([
+  const [chs, sts, pivs, metaRows, health, exps, costRules] = await Promise.all([
     allChannelsMany(env, ctx, accts, w, model).catch(() => accts.map(() => null)),
     accts.length === 1 ? storeMany(env, ctx, accts, w).catch(() => [null]) : Promise.resolve([]),
     twPivotMany(env, acts, lo, w.to, ECON_IDS),
@@ -1407,6 +1408,7 @@ async function drillMany(env, ctx, accts, w, model) {
       WHERE c.brand_id IN (${inList(acts.length, 3)}) AND d.date BETWEEN ?1 AND ?2 GROUP BY c.brand_id, d.date`).bind(lo, w.to, ...acts).all().then(r => r.results || []).catch(() => []),
     env.DB.prepare(`SELECT act_id, verdict FROM p_cost_health WHERE act_id IN (${inList(acts.length)})`).bind(...acts).all().then(r => r.results || []).catch(() => []),
     ctx.loadExpenses(env, acts).catch(() => ({})),
+    ctx.loadCostRules ? ctx.loadCostRules(env, acts).catch(() => ({})) : Promise.resolve({}),   // the brand's own cost rules (costs.js)
   ]);
   const metaBy = {}; for (const r of metaRows) (metaBy[r.act_id] ??= {})[r.date] = { spend: r.spend };
   const verdict = Object.fromEntries(health.map(r => [r.act_id, r.verdict]));
@@ -1415,7 +1417,7 @@ async function drillMany(env, ctx, accts, w, model) {
     const piv = pivs[a.act_id] || {}, meta = metaBy[a.act_id] || {}, mp = ctx.marginOverride(a, ctx.monthOf(w.to));
     const exp = exps[a.act_id] || [];
     /* each window's day rows with its "counts as ad spend" expenses already inside spend, and the spread itself */
-    const rowsOf = (f, t) => { if (!f) return [[], ctx.spread([], f, t, [])]; const r = dates(f, t, ctx.addDays).map(d => ctx.econ(piv, meta, d, mp)).filter(Boolean);
+    const rowsOf = (f, t) => { if (!f) return [[], ctx.spread([], f, t, [])]; const r = dates(f, t, ctx.addDays).map(d => ctx.econ(piv, meta, d, mp, costRules[a.act_id])).filter(Boolean);
       const sp = ctx.spread(exp, f, t, r); ctx.applyAdSpend(r, sp.adByDate); return [r, sp]; };
     const [rows, fc] = rowsOf(w.from, w.to), [prows, fp] = rowsOf(w.pf, w.pt);
     const T = ctx.totals(rows), P = prows.length ? ctx.totals(prows) : null;
