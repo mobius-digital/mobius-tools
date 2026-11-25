@@ -940,7 +940,7 @@ export async function handleStanding(request, env, url, path, json, deps) {
       return json({ ok: !!r.ok, error: r.error || null });
     }
     if (path === '/api/standing/sample' && request.method === 'POST') {
-      const st = ['a', 'b', 'c', 'd'].includes(body.style) ? body.style : 'd', act = body.act ? String(body.act) : null;
+      const st = ['a', 'b', 'c', 'd', 'ops'].includes(body.style) ? body.style : 'd', act = body.act ? String(body.act) : null;
       const prev = await load(env, deps).catch(() => null);
       const rec = body.fresh ? await buildStanding(env, deps, slotOf()) : prev;
       if (!rec) return json({ error: 'No check-in yet.' }, 404);
