@@ -970,6 +970,16 @@ export async function handleStanding(request, env, url, path, json, deps) {
       await saveBatch(env, deps, rec, bt);
       return json({ ok: true, results: out });
     }
+    /* Take a message back (Cole only, through the admin gate): {delete: {channel, ts, as_cole}}. as_cole = a message
+       Locus sent under Cole's name; otherwise the bot's own. */
+    if (path === '/api/standing/sample' && request.method === 'POST' && body.delete) {
+      const d = body.delete || {};
+      if (!d.channel || !d.ts) return json({ error: 'channel and ts' }, 400);
+      const r = d.as_cole
+        ? await deps.xfetch('https://slack.com/api/chat.delete', { method: 'POST', headers: { Authorization: `Bearer ${env.SLACK_USER_TOKEN}`, 'Content-Type': 'application/json; charset=utf-8' }, body: JSON.stringify({ channel: d.channel, ts: d.ts }) }).then(x => x.json()).catch(e => ({ ok: false, error: e.message }))
+        : await deps.slackApi(env, 'chat.delete', { channel: d.channel, ts: d.ts }).catch(e => ({ ok: false, error: e.message }));
+      return json({ ok: !!(r && r.ok), error: (r && r.error) || null });
+    }
     if (path === '/api/standing/sample' && request.method === 'POST' && body.title_test) {
       const lbl = s => ({ type: 'context', elements: [{ type: 'mrkdwn', text: s }] });
       const body1 = { type: 'section', text: { type: 'mrkdwn', text: '*Sales:* $6,118   (normal text, for comparison)' } };
