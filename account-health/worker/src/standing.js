@@ -124,27 +124,27 @@ async function campList(env, act, ml, spent, today, md = null) {
   const cs = Object.entries((ml && ml.campaigns) || {}).map(([id, c]) => ({ id, name: c.name, daily: c.daily || null, status: c.status, spent: spent[id] || 0 }))
     .filter(c => c.status === 'ACTIVE' && (c.spent > 0 || c.daily));
   if (!cs.length) return [];
-  const from = (() => { const d = new Date(today + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - 3); return d.toISOString().slice(0, 10); })();
-  const acts = await metaActsOf(env, act).catch(() => []);
-  const sp = {}, rv = {};
-  /* Spend from Meta's own campaign totals: the ad-level table lags for new ads (Lucky BFCM 2026, 168 ads, read $0 for
-     Nov 24 on 2026-11-25). The ad-level table is only the fallback when Meta does not answer. */
-  const until = (() => { const d = new Date(today + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - 1); return d.toISOString().slice(0, 10); })();
-  let metaOk = false;
+  /* Cole 2026-11-25: per campaign, TODAY and THIS WEEK only (the Lucky BF ads went live today, so the days before tell
+     nothing). Week = Monday to now. Spend from Meta's campaign totals; orders and revenue from Triple Whale last click,
+     with yesterday and today pulled live first (the nightly sync never holds them). */
+  const day = n => { const d = new Date(today + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+  const dow = new Date(today + 'T12:00:00Z').getUTCDay(), monday = day(-((dow + 6) % 7));
+  if (md && md.twAttr) await md.twAttr(env, act, day(-1) < monday ? today : day(-1), today).catch(() => null);
+  const ws = {};
   for (const m of md ? await metaActs(env, act).catch(() => []) : []) {
-    const r = await gget(md, env, `${m.act}/insights`, { level: 'campaign', time_range: JSON.stringify({ since: from, until }), fields: 'campaign_id,spend', limit: 200 }).catch(() => null);
-    if (r && r.data) { metaOk = true; for (const x of r.data) sp[x.campaign_id] = (sp[x.campaign_id] || 0) + (+x.spend || 0); }
+    const r = await gget(md, env, `${m.act}/insights`, { level: 'campaign', time_range: JSON.stringify({ since: monday, until: today }), fields: 'campaign_id,spend', limit: 200 }).catch(() => null);
+    for (const x of (r && r.data) || []) ws[x.campaign_id] = (ws[x.campaign_id] || 0) + (+x.spend || 0);
   }
-  if (!metaOk && acts.length) {
-    const r1 = await env.DB.prepare(`SELECT a.campaign_id c, SUM(d.spend) s FROM ad_daily d JOIN ads a ON a.ad_id = d.ad_id WHERE d.act_id IN (${acts.map((_, i) => `?${i + 3}`).join(', ')}) AND d.date >= ?1 AND d.date < ?2 GROUP BY a.campaign_id`)
-      .bind(from, today, ...acts).all().catch(() => ({ results: [] }));
-    for (const x of r1.results || []) sp[x.c] = x.s || 0;
-  }
-  const r2 = await env.DB.prepare(`SELECT a.campaign_id c, SUM(t.revenue) r, SUM(t.orders) o FROM tw_ad_attr t JOIN ads a ON a.ad_id = t.ad_id WHERE t.act_id = ?1 AND t.model = 'lastPlatformClick' AND t.date >= ?2 AND t.date < ?3 GROUP BY a.campaign_id`)
-    .bind(act, from, today).all().catch(() => ({ results: [] }));
-  for (const x of r2.results || []) rv[x.c] = { r: x.r || 0, o: x.o || 0 };
-  return cs.map(c => ({ ...c, kind: KIND(c.name), spend3: sp[c.id] || 0, sales3: (rv[c.id] || {}).o || 0, roas3: sp[c.id] > 0 ? ((rv[c.id] || {}).r || 0) / sp[c.id] : null }))
-    .sort((a, b) => b.spent - a.spent || (b.daily || 0) - (a.daily || 0)).slice(0, 6);
+  const q = await env.DB.prepare(`SELECT a.campaign_id c, SUM(CASE WHEN t.date = ?3 THEN t.revenue ELSE 0 END) tr, SUM(CASE WHEN t.date = ?3 THEN t.orders ELSE 0 END) tt,
+      SUM(t.revenue) wr, SUM(t.orders) wo FROM tw_ad_attr t JOIN ads a ON a.ad_id = t.ad_id
+      WHERE t.act_id = ?1 AND t.model = 'lastPlatformClick' AND t.date >= ?2 AND t.date <= ?3 GROUP BY a.campaign_id`)
+    .bind(act, monday, today).all().catch(() => ({ results: [] }));
+  const rv = {}; for (const x of q.results || []) rv[x.c] = x;
+  return cs.map(c => {
+    const v = rv[c.id] || {}, wsp = ws[c.id] != null ? ws[c.id] : null;
+    return { ...c, kind: KIND(c.name), t_ord: Math.round(v.tt || 0), t_roas: c.spent > 0 ? (v.tr || 0) / c.spent : null,
+      w_spend: wsp, w_ord: Math.round(v.wo || 0), w_roas: wsp > 0 ? (v.wr || 0) / wsp : null };
+  }).sort((a, b) => b.spent - a.spent || (b.daily || 0) - (a.daily || 0)).slice(0, 6);
 }
 
 /* The War Room DM (Cole 2026-11-25): per brand, Last 6 hours / Today / This week like the client update, the campaigns,
@@ -164,13 +164,13 @@ function opsCard(rec) {
     const camps = m.camps || [];
     if (camps.length) {
       const rows = camps.map(c => {
-        const ret = c.roas3 != null && c.spend3 >= 50 ? `${nx(c.roas3)} on ${usd(c.spend3)} (${c.sales3} sales)` : 'too little spend to read';
+        const ret = c.t_roas != null ? `${nx(c.t_roas)} today (${c.t_ord} orders), ${nx(c.w_roas)} this week` : 'no spend today';
         const pick = m.camp && m.camp.id === c.id ? '  ← the call' : '';
-        return `• *${c.name}* (${KIND_WORD[c.kind]})   today ${usd(c.spent)}${c.daily ? ` of ${usd(c.daily)}` : ' (ad set budgets)'}   ·   3 days ${ret}${pick}`;
+        return `• *${c.name}* (${KIND_WORD[c.kind]})   today ${usd(c.spent)}${c.daily ? ` of ${usd(c.daily)}` : ' (ad set budgets)'}   ·   ${ret}${pick}`;
       });
       out.push({ type: 'section', text: { type: 'mrkdwn', text: `*Campaigns*\n${rows.join('\n')}` } });
       /* Others worth a look: not the campaign the call changes, enough spend to read, over goal or under break-even. */
-      const look = camps.filter(c => !(m.camp && m.camp.id === c.id) && c.roas3 != null && c.spend3 >= 100 && b.kpi)
+      const look = camps.filter(c => !(m.camp && m.camp.id === c.id) && false)
         .map(c => c.roas3 >= b.kpi ? `${c.name} returned ${nx(c.roas3)} over 3 days, over goal: room to raise it too.` : line && c.roas3 < line ? `${c.name} returned ${nx(c.roas3)} over 3 days, under break-even: look at its ads.` : null).filter(Boolean);
       if (look.length) out.push({ type: 'context', elements: [{ type: 'mrkdwn', text: look.join('\n') }] });
     } else if (m.error) out.push({ type: 'context', elements: [{ type: 'mrkdwn', text: `Meta did not answer: ${m.error}` }] });
@@ -219,7 +219,7 @@ function opsImgMsg(rec, imgs) {
 }
 /** Build one check-in (reads only). */
 export async function buildStanding(env, deps, slot = slotOf()) {
-  const md = { xfetch: deps.xfetch, listAccounts: deps.listAccounts, getSetting: deps.getSetting, putSetting: deps.putSetting };
+  const md = { xfetch: deps.xfetch, listAccounts: deps.listAccounts, getSetting: deps.getSetting, putSetting: deps.putSetting, twAttr: deps.twAttr };
   const tw = await readProfit(env, deps, '/api/season/standing');
   const brands = [];
   for (const b of tw.brands || []) {

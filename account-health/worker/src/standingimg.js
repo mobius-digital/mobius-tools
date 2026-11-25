@@ -108,10 +108,11 @@ export function callWarn(b) {
   const g = b.suggest || {}, m = b.meta || {}, c = m.camp;
   if (!g.to || !(g.pct > 0) || !c) return null;
   const me = (m.camps || []).find(z => z.id === c.id);
-  if (!me || me.spend3 < 50) return `${c.name} barely ran before today (under $50), too soon to judge its ads`;
-  const read = (m.camps || []).filter(z => z.roas3 != null && z.spend3 >= 100);
-  if (me.roas3 < 1) return `${c.name} made only ${x(me.roas3)} in 3 days. Check its ads first`;
-  if (read.length > 1 && read.every(z => z.id === me.id || z.roas3 > me.roas3)) return `${c.name} is the weakest campaign (${x(me.roas3)} in 3 days). Check its ads first`;
+  /* Judged on TODAY (Cole 2026-11-25), once it has spent $100 today. */
+  if (!me || me.spent < 100 || me.t_roas == null) return null;
+  const read = (m.camps || []).filter(z => z.t_roas != null && z.spent >= 100);
+  if (me.t_roas < 1) return `${c.name} made only ${x(me.t_roas)} today. Check its ads first`;
+  if (read.length > 1 && read.every(z => z.id === me.id || z.t_roas > me.t_roas)) return `${c.name} is the weakest campaign today (${x(me.t_roas)}). Check its ads first`;
   return null;
 }
 const KINDW = { sale: 'Sale', evergreen: 'Evergreen', leads: 'Leads', creators: 'Creators', other: 'Other' };
@@ -209,22 +210,23 @@ export function opsBrandSvg(rec, b) {
   if (warn) o += T(pad + 10, callY + 34, `⚠ ${warn.length > 72 ? warn.slice(0, 71) + '…' : warn}`, { size: 18, bold: true, fill: C.red });
   /* campaigns */
   if (camps.length) {
-    const cx = [pad + 10, 390, 530, 640, W - pad - 6];
-    /* Two header lines (Cole 2026-11-25 could not tell what '3 days $9, sales 1, return new' meant): which days, then what. */
-    const wd = n => { const d = new Date(String(rec.slot).split('T')[0] + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - n); return d.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' }); };
-    o += T(cx[1], tableTop, 'TODAY', { size: 13, bold: true, fill: C.dim, ls: 1 }) + T(cx[2], tableTop, `${wd(3).toUpperCase()} TO ${wd(1).toUpperCase()} (BEFORE TODAY)`, { size: 13, bold: true, fill: C.dim, ls: 1 });
-    o += R(cx[2], tableTop + 7, W - pad - 6 - cx[2], 1.5, C.line);
-    ['CAMPAIGN', 'SPENT / BUDGET', 'SPENT', 'ORDERS', 'ROAS'].forEach((h, k) => { o += T(cx[k], tableTop + 26, h, { size: 13, bold: true, fill: C.dim, ls: 1, anchor: k === 4 ? 'end' : undefined }); });
+    /* Cole 2026-11-25: per campaign, TODAY and THIS WEEK only. Today = spent / budget, orders, ROAS; this week =
+       Monday to now, orders and ROAS. Orders and ROAS = Triple Whale last click. */
+    const cx = [pad + 10, 300, 445, 530, 640, W - pad - 6];
+    o += T(cx[1], tableTop, 'TODAY', { size: 13, bold: true, fill: C.dim, ls: 1 }) + R(cx[1], tableTop + 7, 300, 1.5, C.line);
+    o += T(cx[4], tableTop, 'THIS WEEK', { size: 13, bold: true, fill: C.dim, ls: 1 }) + R(cx[4], tableTop + 7, cx[5] - cx[4], 1.5, C.line);
+    ['CAMPAIGN', 'SPENT / BUDGET', 'ORDERS', 'ROAS', 'ORDERS', 'ROAS'].forEach((h, k) => { o += T(cx[k], tableTop + 26, h, { size: 13, bold: true, fill: C.dim, ls: 1, anchor: k === 5 ? 'end' : undefined }); });
+    const rs = v => v == null ? '–' : x(v);
     camps.forEach((z, k) => {
       const ry = tableTop + 34 + k * rowH, isCall = c && c.id === z.id;
       if (isCall) o += R(pad, ry, W - 2 * pad, rowH - 4, '#E6F4FB', 10);
-      const nm = z.name.length > 28 ? z.name.slice(0, 27) + '…' : z.name;
+      const nm = z.name.length > 22 ? z.name.slice(0, 21) + '…' : z.name;
       o += T(cx[0], ry + 25, nm, { size: 18, bold: isCall });
       o += T(cx[1], ry + 25, z.daily ? `${money(z.spent)}/${money(z.daily)}` : money(z.spent), { size: 18 });
-      o += T(cx[2], ry + 25, money(z.spend3), { size: 18 });
-      o += T(cx[3], ry + 25, String(z.sales3 || 0), { size: 18 });
-      const ok = z.roas3 != null && z.spend3 >= 50;
-      o += T(cx[4], ry + 25, ok ? x(z.roas3) : 'too new', { size: 19, bold: true, fill: ok ? C.text : C.dim, anchor: 'end' });
+      o += T(cx[2], ry + 25, String(z.t_ord || 0), { size: 18 });
+      o += T(cx[3], ry + 25, rs(z.t_roas), { size: 19, bold: true });
+      o += T(cx[4], ry + 25, String(z.w_ord || 0), { size: 18 });
+      o += T(cx[5], ry + 25, rs(z.w_roas), { size: 19, bold: true, anchor: 'end' });
     });
   }
   return svgWrap(W, H, R(0, 0, W, H, C.card) + o);

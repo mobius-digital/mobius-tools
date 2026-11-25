@@ -7650,7 +7650,9 @@ onActionDone((env, row) => blockActionDone(env, row));
 setBlockDone((env, id, o) => markDone(env, id, true, o));
 const blockDeps = () => ({ getSetting, putSetting });
 /* standing.js: Triple Whale as the owner over the PROFIT binding, Meta through metawrite, the DM through slackApi. */
-function standingDeps() { return { mintSession, slackApi, xfetch, listAccounts, getSetting, putSetting, isAdmin, sessionEmail, brandsFor, get buyer() { return buyerDeps(); } }; }
+function standingDeps() { return { mintSession, slackApi, xfetch, listAccounts, getSetting, putSetting, isAdmin, sessionEmail, brandsFor, get buyer() { return buyerDeps(); },
+  /* The War Room's campaign table reads TODAY's Triple Whale orders per campaign: pull that window live first. */
+  twAttr: async (env, act, from, to) => { const a = (await listAccounts(env)).find(x => x.act_id === act); return a ? syncTwAttribution(env, a, 0, { from, to }) : null; } }; }
 function hubDeps() {
   return { getSetting, putSetting, listAccounts, localDate, addDays, centralHour, centralDate, slackPost, slackApi,
     subCanAfford, strategist, isAdmin, sessionEmail, postDashboard, auto: autoDeps() };
