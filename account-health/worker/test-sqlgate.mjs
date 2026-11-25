@@ -197,5 +197,8 @@ ok(plain(`SELECT key, receipt_key FROM bills`).sql, 'no column rule unless the h
 ok(plain(`SELECT * FROM bills`).sql, 'no star rule unless the host asks for one');
 ok(plain(`SELECT * FROM settings`).error && plain(`SELECT * FROM 'settings'`).error && plain(`SELECT * FROM/**/settings`).error, 'settings is refused everywhere');
 ok(plain(`SELECT * FROM/**/other`).error, 'a comment cannot hide a table from the allowlist');
+ok(plain(`SELECT * FROM 'other'`).error && plain(`SELECT * FROM bills JOIN 'other' ON 1`).error && plain(`SELECT * FROM bills, 'other'`).error, 'a single-quoted table name is refused');
+ok(plain(`SELECT * FROM bills WHERE note IS DISTINCT FROM ''`).sql && plain(`SELECT * FROM bills WHERE note = 'from'`).sql, 'a value after FROM in a comparison still runs');
+ok(gateSql(`SELECT j.value FROM bills, json_each(bills.note, '$.a') j`, ['bills', 'json_each'], {}).sql,'a quoted argument inside a FROM call still runs');
 
 console.log(`sql gate: ${n} checks passed`);

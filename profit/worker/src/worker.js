@@ -1,4 +1,5 @@
 import { guardBrands, clientScope } from './brandguard.js';
+import { sessionStart, sessionEnded, isRemoved } from './sessions.js';
 import { memo, bumpMemo } from './memo.js';
 import { metaOf, isBrandId, resolveBrandId } from './brandids.js';
 /**
@@ -119,13 +120,16 @@ async function verifySession(env, token) {
   if (!key) return null;
   const sig = b64u(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(m[1])));
   if (sig !== m[2]) return null;
-  let email, exp;
-  try { [email, exp] = atob(m[1].replace(/-/g, '+').replace(/_/g, '/')).split('|'); } catch { return null; }
+  let email, exp, iat;
+  try { [email, exp, iat] = atob(m[1].replace(/-/g, '+').replace(/_/g, '/')).split('|'); } catch { return null; }
   if (+exp < Date.now()) return null;
+  /* Signed out or removed since this session began (sessions.js; a failed read cuts nothing). */
+  if (await sessionEnded(env, email, sessionStart(exp, iat))) return null;
   return { email, exp: +exp };
 }
 async function emailAllowed(env, email) {
   if (!email) return false;
+  if (await isRemoved(env, email)) return false;   // before the domain rule: a removed teammate stays removed
   if (email.toLowerCase().endsWith('@' + ALLOWED_DOMAIN)) return true;
   const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'allowedEmails'`).first().catch(() => null);
   return safeJson(row?.value, []).map(e => String(e).toLowerCase()).includes(email.toLowerCase());

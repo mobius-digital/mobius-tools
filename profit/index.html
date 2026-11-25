@@ -3152,7 +3152,7 @@ async function gateFromUrl(qs) {
   }
   return null;
 }
-$('#btnOut').onclick = () => { S.tok=''; localStorage.removeItem(LS.tok); ['mobius_session','mobius_session_email','mobius_session_exp','mobius_session_role'].forEach(k=>localStorage.removeItem(k)); S.role = null; S.client = null; document.body.classList.remove('is-client'); renderGate(); };
+$('#btnOut').onclick = () => { if (/^mds\./.test(S.tok || '')) fetch(AH_URL + '/api/logout', { method: 'POST', keepalive: true, headers: { Authorization: 'Bearer ' + S.tok, 'Content-Type': 'application/json' }, body: '{}' }).catch(() => {}); S.tok=''; localStorage.removeItem(LS.tok); ['mobius_session','mobius_session_email','mobius_session_exp','mobius_session_role'].forEach(k=>localStorage.removeItem(k)); S.role = null; S.client = null; document.body.classList.remove('is-client'); renderGate(); };
 
 function renderPicker() {
   const p = $('#clientPick');

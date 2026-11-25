@@ -277,8 +277,9 @@ export async function meetingsTick(env, d) {
   return out;
 }
 
+let warnedHook = false;
 async function hmacOk(secret, body, header) {
-  if (!secret) return true;
+  if (!secret) { if (!warnedHook) { warnedHook = true; console.warn('meetings: Fireflies webhook calls are not checked; set FIREFLIES_WEBHOOK_SECRET'); } return true; }
   const sig = String(header || '').replace(/^sha256=/, '');
   if (!sig) return false;
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);

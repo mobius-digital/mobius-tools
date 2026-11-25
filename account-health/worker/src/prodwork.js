@@ -618,7 +618,9 @@ function mustOwn(scope, r) {
 const scopeIds = scope => scope ? (scope.ids instanceof Set ? [...scope.ids] : Array.isArray(scope.ids) ? scope.ids : Array.isArray(scope.brands) ? scope.brands : []) : null;
 
 /* ---------- signed file links (an <img> or <video> cannot send the Bearer header) ---------- */
+let warnedKey = false;
 async function hmac(env, s) {
+  if (!(env.SESSION_SECRET || env.ADMIN_TOKEN) && !warnedKey) { warnedKey = true; console.warn('prodwork: file links are signed with the built-in key; set SESSION_SECRET'); }
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(env.SESSION_SECRET || env.ADMIN_TOKEN || 'locus'), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   return [...new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(s)))].slice(0, 16).map(x => x.toString(16).padStart(2, '0')).join('');
 }

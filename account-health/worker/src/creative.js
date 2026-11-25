@@ -33,7 +33,9 @@ export async function ensureCreative(env) {
 }
 
 /* ---------- covers ---------- */
+let warnedKey = false;
 async function sig(env, adId) {
+  if (!(env.SESSION_SECRET || env.ADMIN_TOKEN) && !warnedKey) { warnedKey = true; console.warn('creative: cover links are signed with the built-in key; set SESSION_SECRET'); }
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(env.SESSION_SECRET || env.ADMIN_TOKEN || 'dev'), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   const mac = new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`cover:${adId}`)));
   return [...mac.slice(0, 8)].map(b => b.toString(16).padStart(2, '0')).join('');

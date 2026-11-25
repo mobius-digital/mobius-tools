@@ -957,6 +957,95 @@ await check('with no sign-in: health says ok and the time, the sign-in check kee
   assert.equal((await ah(null, 'GET', '/api/share/0123456789abcdef0123')).status, 401);
 });
 
+/* ---- Ending sessions (sessions.js, 2026-11-25). LAST on purpose: signing out ends every earlier session for that email. ---- */
+const payloadOf = t => Buffer.from(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8').split('|');
+const login = async email => (await ah(null, 'POST', '/api/google-login', { credential: email })).j?.token;
+const tick = () => new Promise(r => setTimeout(r, 5));   // a sign-in in the same millisecond as a sign out counts as ended
+
+await check('sessions.js is byte-identical in both workers', () => {
+  assert.equal(fs.readFileSync(path.join(here, 'src', 'sessions.js'), 'utf8'), fs.readFileSync(path.join(root, 'profit', 'worker', 'src', 'sessions.js'), 'utf8'));
+});
+
+await check('a new sign-in lasts 7 days and carries its start; an older 30-day sign-in still works until its own end', async () => {
+  const t = await login('riley@go-mobius-digital.com');
+  const [email, exp, start] = payloadOf(t);
+  assert.equal(email, 'riley@go-mobius-digital.com');
+  assert.ok(Math.abs(+exp - +start - 7 * 86400e3) < 5, 'seven days');
+  assert.ok(Math.abs(+start - Date.now()) < 60e3);
+  assert.equal((await ah(t, 'GET', '/api/me')).j.email, 'riley@go-mobius-digital.com');
+  /* The old shape (email|exp, minted with 20 days left on a 30-day life) still opens Locus. */
+  const p = b64u(`old@go-mobius-digital.com|${Date.now() + 20 * 86400e3}`);
+  const old = `mds.${p}.${b64u(crypto.createHmac('sha256', SECRET).update(p).digest())}`;
+  assert.equal((await ah(old, 'GET', '/api/me')).status, 200);
+  assert.equal((await ah(old, 'GET', '/api/team')).status, 200);
+});
+
+await check('sign out ends every session that person has, on both workers; signing in again works', async () => {
+  const a = await login('sam@go-mobius-digital.com'), b = await login('sam@go-mobius-digital.com');
+  const older = mint('sam@go-mobius-digital.com');
+  assert.equal((await ah(b, 'GET', '/api/team')).status, 200);
+  assert.equal((await ah(a, 'POST', '/api/logout', {})).j.ok, true);
+  for (const tok of [a, b, older]) {
+    assert.equal((await ah(tok, 'GET', '/api/team')).status, 401);
+    assert.equal((await ah(tok, 'GET', '/api/me')).status, 401);
+    assert.equal((await pf(tok, 'GET', '/api/auth-check')).j.authorized, false);
+  }
+  /* Profit with its own key (the local check) refuses it too. */
+  const pfLocal = { DB: { prepare: DB.prepare, batch: DB.batch }, SESSION_SECRET: SECRET };
+  const r = await PF.fetch(new Request('https://pf.test/api/auth-check', { headers: { Authorization: 'Bearer ' + b } }), pfLocal, ctx).then(x => x.json());
+  assert.equal(r.local_session_verify, false);
+  await tick();
+  const c = await login('sam@go-mobius-digital.com');
+  assert.equal((await ah(c, 'GET', '/api/team')).status, 200, 'a fresh sign-in after signing out works');
+  assert.equal((await ah(null, 'POST', '/api/logout', {})).j.ok, true, 'no session: nothing to end');
+  /* Someone else is untouched. */
+  assert.equal((await ah(TEAM, 'GET', '/api/team')).status, 200);
+});
+
+await check('a client can sign out too', async () => {
+  const t = await login('nick@alpha.com');
+  assert.equal((await ah(t, 'GET', '/api/me')).j.role, 'client');
+  const lo = await ah(t, 'POST', '/api/logout', {});
+  assert.equal(lo.status, 200, JSON.stringify(lo.j) + JSON.stringify(getSetting('accessCuts')));
+  const after = await ah(t, 'GET', '/api/me');
+  assert.equal(after.status, 401, JSON.stringify(after.j) + JSON.stringify(getSetting('accessCuts')));
+  await tick();
+  assert.equal((await ah(await login('nick@alpha.com'), 'GET', '/api/me')).j.role, 'client');
+});
+
+await check('removing a Mobius-domain teammate shuts them out and stops new sign-ins; adding them back lets them in', async () => {
+  const t = await login('leaver@go-mobius-digital.com');
+  assert.equal((await ah(t, 'GET', '/api/team')).status, 200);
+  assert.equal((await ah(OWNER, 'PUT', '/api/team', { email: 'leaver@go-mobius-digital.com', remove: true })).status, 200);
+  assert.equal((await ah(t, 'GET', '/api/team')).status, 401);
+  assert.equal((await pf(t, 'GET', '/api/auth-check')).j.authorized, false);
+  assert.equal((await ah(null, 'POST', '/api/google-login', { credential: 'leaver@go-mobius-digital.com' })).status, 403);
+  assert.ok(getSetting('accessCuts').removed.includes('leaver@go-mobius-digital.com'));
+  assert.equal((await ah(OWNER, 'PUT', '/api/team', { email: 'leaver@go-mobius-digital.com' })).status, 200);
+  assert.ok(!getSetting('accessCuts').removed.includes('leaver@go-mobius-digital.com'));
+  await tick();
+  const back = await login('leaver@go-mobius-digital.com');
+  assert.equal((await ah(back, 'GET', '/api/team')).status, 200);
+  assert.equal((await ah(t, 'GET', '/api/team')).status, 401, 'the session from before the removal stays ended');
+  /* Nobody can remove the owner. */
+  ahEnv.ADMIN_TOKEN = 'test-admin-key';
+  try { assert.equal((await ah('test-admin-key', 'PUT', '/api/team', { email: 'cole@go-mobius-digital.com', remove: true })).status, 400); }
+  finally { delete ahEnv.ADMIN_TOKEN; }
+  assert.equal((await ah(OWNER, 'GET', '/api/team')).status, 200);
+});
+
+await check('if the stored list cannot be read, sign-in works as before (nothing is cut)', async () => {
+  const broken = { prepare: sql => { const s = DB.prepare(sql); let args = []; return { bind(...a) { args = a; s.bind(...a); return this; }, async first() { if (args[0] === 'accessCuts') throw new Error('storage hiccup'); return s.first(); }, all: () => s.all(), run: () => s.run() }; }, batch: DB.batch };
+  const env = { ...ahEnv, DB: broken };
+  const t = await login('sam@go-mobius-digital.com');
+  const res = await AH.fetch(new Request('https://ah.test/api/team', { headers: { Authorization: 'Bearer ' + t } }), env, ctx);
+  assert.equal(res.status, 200);
+  /* Even a removed person's old token passes while the list is unreadable: the sale tools must not lock anyone out. */
+  setSetting('accessCuts', { after: {}, removed: ['gone@go-mobius-digital.com'] });
+  const g = mint('gone@go-mobius-digital.com');
+  assert.equal((await AH.fetch(new Request('https://ah.test/api/team', { headers: { Authorization: 'Bearer ' + g } }), env, ctx)).status, 200);
+});
+
 globalThis.fetch = realFetch;
 const pass = results.filter(Boolean).length;
 console.log(`\n${pass}/${results.length} passed`);
