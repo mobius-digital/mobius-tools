@@ -108,10 +108,10 @@ export function callWarn(b) {
   const g = b.suggest || {}, m = b.meta || {}, c = m.camp;
   if (!g.to || !(g.pct > 0) || !c) return null;
   const me = (m.camps || []).find(z => z.id === c.id);
-  if (!me || me.spend3 < 50) return `${c.name} is new (under $50 over 3 days), so its own ads cannot be judged yet`;
+  if (!me || me.spend3 < 50) return `${c.name} is new: under $50 in 3 days, too soon to judge its ads`;
   const read = (m.camps || []).filter(z => z.roas3 != null && z.spend3 >= 100);
-  if (me.roas3 < 1) return `${c.name} returned only ${x(me.roas3)} over 3 days: check its ads before approving`;
-  if (read.length > 1 && read.every(z => z.id === me.id || z.roas3 > me.roas3)) return `${c.name} is the weakest campaign over 3 days (${x(me.roas3)}): check its ads before approving`;
+  if (me.roas3 < 1) return `${c.name} made only ${x(me.roas3)} in 3 days. Check its ads first`;
+  if (read.length > 1 && read.every(z => z.id === me.id || z.roas3 > me.roas3)) return `${c.name} is the weakest campaign (${x(me.roas3)} in 3 days). Check its ads first`;
   return null;
 }
 const KINDW = { sale: 'Sale', evergreen: 'Evergreen', leads: 'Leads', creators: 'Creators', other: 'Other' };
@@ -174,6 +174,56 @@ export function opsSvg(rec) {
   }
   o += T(pad, H - 20, `Sales from Triple Whale, spend from Meta. Campaign sales and return = Triple Whale last click, last 3 days.${rec.next ? ` Next check-in ${rec.next}.` : ''}`, { size: 13, fill: C.dim });
   return svgWrap(W, H, o);
+}
+/** ONE brand's card as its own picture (Cole 2026-11-25: the all-brands picture was too big to read in Slack and zoomed
+ *  too far). Narrow (800 wide) with big type, so it reads at Slack's width without zooming; its Approve sits under it. */
+export function opsBrandSvg(rec, b) {
+  const W = 800, pad = 28, rowH = 40, g = b.suggest || {}, m = b.meta || {}, c = m.camp;
+  const camps = m.camps || [], warn = callWarn(b);
+  const line = b.hold ?? (b.kpi ? b.kpi * 0.8 : null);
+  const col = v => v == null || !b.kpi ? C.dim : v >= b.kpi ? C.green : line != null && v < line ? C.red : C.yellow;
+  const callY = 290, warnH = warn ? 34 : 0, tableTop = callY + warnH + 46;
+  const H = tableTop + (camps.length ? 30 + camps.length * rowH : 0) + 24;
+  let o = R(0, 0, 10, H, col(b.today && b.today.mer));
+  o += T(pad + 10, 52, b.name, { size: 34, bold: true });
+  o += T(pad + 10, 84, `goal ${x(b.kpi)}${line ? ` · break-even ${x(line)}` : ''} · ${dayOf(rec.slot)} ${hourOf(rec.slot)} CT`, { size: 19, fill: C.dim });
+  const done = (rec.approved || {})[b.act_id];
+  const [lab, lc] = done ? ['APPROVED', C.blue] : g.to ? (g.pct < 0 ? CALL.cut : CALL[g.call] || CALL.raise) : CALL.hold;
+  o += R(W - pad - 170, 24, 170, 44, lc + '26', 22) + T(W - pad - 85, 54, lab, { size: 19, bold: true, fill: lc, anchor: 'middle' });
+  /* three windows */
+  const wins = [['LAST 6 HOURS', b.last6], ['TODAY', b.today], ['THIS WEEK', b.week]], tw = (W - 2 * pad - 10 - 2 * 12) / 3;
+  wins.forEach(([l, p], j) => {
+    const px = pad + 10 + j * (tw + 12), py = 108;
+    o += R(px, py, tw, 146, C.bg, 14) + T(px + 16, py + 30, l, { size: 15, bold: true, fill: C.dim, ls: 1 });
+    if (!p || p.sales == null) { o += T(px + 16, py + 82, b.no_sales && p && p.spend != null ? `${money(p.spend)} spent` : 'no data yet', { size: 22, fill: C.dim }); return; }
+    o += T(px + 16, py + 80, x(p.mer), { size: 40, bold: true, fill: col(p.mer) });
+    o += T(px + 16, py + 108, `${money(p.sales)} sales`, { size: 18 }) + T(px + 16, py + 132, `${money(p.spend)} spend`, { size: 18, fill: C.dim });
+  });
+  /* the call */
+  const cn = c ? c.name : 'no live sale campaign';
+  let call;
+  if (done) call = `Approved: ${cn} ${money(done.from)} → ${money(done.to)}/day`;
+  else if (g.to && c) call = `${g.pct < 0 ? 'Cut' : 'Raise'} ${cn}: ${money(c.daily)} → ${money(g.to)}/day`;
+  else call = `Hold ${cn}: ${holdWhy(b)}`;
+  o += T(pad + 10, callY, call.length > 62 ? call.slice(0, 61) + '…' : call, { size: 24, bold: true });
+  if (warn) o += T(pad + 10, callY + 34, `⚠ ${warn.length > 72 ? warn.slice(0, 71) + '…' : warn}`, { size: 18, bold: true, fill: C.red });
+  /* campaigns */
+  if (camps.length) {
+    const cx = [pad + 10, 390, 530, 640, W - pad - 6];
+    ['CAMPAIGN', 'TODAY', '3 DAYS', 'SALES', 'RETURN'].forEach((h, k) => { o += T(cx[k], tableTop, h, { size: 13, bold: true, fill: C.dim, ls: 1, anchor: k === 4 ? 'end' : undefined }); });
+    camps.forEach((z, k) => {
+      const ry = tableTop + 12 + k * rowH, isCall = c && c.id === z.id;
+      if (isCall) o += R(pad, ry, W - 2 * pad, rowH - 4, '#E6F4FB', 10);
+      const nm = z.name.length > 28 ? z.name.slice(0, 27) + '…' : z.name;
+      o += T(cx[0], ry + 25, nm, { size: 18, bold: isCall });
+      o += T(cx[1], ry + 25, z.daily ? `${money(z.spent)}/${money(z.daily)}` : money(z.spent), { size: 18 });
+      o += T(cx[2], ry + 25, money(z.spend3), { size: 18 });
+      o += T(cx[3], ry + 25, String(z.sales3 || 0), { size: 18 });
+      const ok = z.roas3 != null && z.spend3 >= 50;
+      o += T(cx[4], ry + 25, ok ? x(z.roas3) : 'new', { size: 19, bold: true, fill: ok ? C.text : C.dim, anchor: 'end' });
+    });
+  }
+  return svgWrap(W, H, R(0, 0, W, H, C.card) + o);
 }
 /** One brand, for its client: sales vs the weekend goal, ad spend, MER, the last hour. Nothing internal. */
 /* did = {text, up}: the change we just made, drawn as a "What we did" band under the tiles (the client update, Cole 2026-11-24). */

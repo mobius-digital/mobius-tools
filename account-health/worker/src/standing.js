@@ -20,7 +20,7 @@ import { dmPerson } from './morning.js';
 import { adNumbers, metaActsOf, sumAds, withCovers } from './buyerai.js';
 import { buildBuyerList } from './buyerlist.js';
 import { standingCard, clientCard } from './standingdm.js';
-import { boardSvg, brandSvg, opsSvg, callWarn, toPng } from './standingimg.js';
+import { boardSvg, brandSvg, opsBrandSvg, callWarn, toPng } from './standingimg.js';
 
 const PROFIT_ORIGIN = 'https://mobius-profit.mobius-digital.workers.dev';
 const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
@@ -188,17 +188,33 @@ function opsCard(rec) {
   return { text: `Where we stand, ${rec.label}. ${n ? `${n} to approve.` : 'Nothing to approve.'}`, blocks, attachments };
 }
 
-/* The picture, then one line per call with its Approve button (Cole 2026-11-25). */
-function opsImgMsg(rec, img) {
-  const N = (rec.brands || []).filter(b => (b.suggest || {}).to && b.meta && b.meta.camp && !(rec.approved || {})[b.act_id]);
-  const blocks = [{ type: 'image', slack_file: { id: img }, alt_text: 'Where we stand: every brand, last 6 hours, today, this week, and the call' }];
-  if (N.length) blocks.push({ type: 'divider' });
-  for (const b of N) {
-    const s = b.suggest, c = b.meta.camp;
-    blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `*${b.name}:* ${s.pct < 0 ? 'cut' : 'raise'} *${c.name}* ${usd(c.daily)} → ${usd(s.to)} a day${callWarn(b) ? `\n:warning: ${callWarn(b)}` : ''}` },
-      accessory: { type: 'button', action_id: 'ws_approve', style: s.pct < 0 ? 'danger' : 'primary', text: { type: 'plain_text', text: 'Approve' }, value: `${rec.slot}|${b.act_id}` } });
+/* One picture per brand (Cole 2026-11-25: the single tall picture was unreadable in Slack), each brand's Approve right
+   under its own picture. imgs = {act_id: Slack file id}; a brand whose picture failed gets its numbers as text. */
+async function opsUpload(env, deps, rec) {
+  const imgs = {}, errs = [];
+  for (const b of rec.brands || []) {
+    try { const up = await slackPng(env, deps, await toPng(opsBrandSvg(rec, b), deps.xfetch), `${b.act_id.replace('brand_', '')}-${rec.slot}.png`); if (up.id) imgs[b.act_id] = up.id; else errs.push(`${b.name}: ${up.error}`); }
+    catch (e) { errs.push(`${b.name}: ${e.message}`); }
   }
-  blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: N.length ? `Nothing changes until you tap Approve.${rec.next ? ` Next check-in ${rec.next}.` : ''}` : `Nothing to approve.${rec.next ? ` Next check-in ${rec.next}.` : ''}` }] });
+  return { imgs, error: errs.join('; ') || null };
+}
+function opsImgMsg(rec, imgs) {
+  const hr = +String(rec.slot).split('T')[1], when = hr === 12 ? '12pm' : hr === 0 ? '12am' : hr < 12 ? `${hr}am` : `${hr - 12}pm`;
+  const ord = [...(rec.brands || [])].sort((a, b) => ((b.suggest || {}).to ? 1 : 0) - ((a.suggest || {}).to ? 1 : 0));
+  const N = ord.filter(b => (b.suggest || {}).to && b.meta && b.meta.camp && !(rec.approved || {})[b.act_id]);
+  const blocks = [{ type: 'markdown', text: `# Where we stand · ${when}` },
+    { type: 'context', elements: [{ type: 'mrkdwn', text: `${N.length ? `*${N.length} to approve.* ` : 'Nothing to approve. '}MER = store sales ÷ all ad spend. Campaign returns = Triple Whale last click, last 3 days.` }] }];
+  for (const b of ord) {
+    blocks.push({ type: 'divider' });
+    if (imgs[b.act_id]) blocks.push({ type: 'image', slack_file: { id: imgs[b.act_id] }, alt_text: `${b.name}: last 6 hours, today, this week, the call and its campaigns` });
+    else blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `*${b.name}*  today ${nx(b.today && b.today.mer)} on ${usd(b.today && b.today.spend)}` } });
+    if (N.includes(b)) {
+      const s = b.suggest, c = b.meta.camp, w = callWarn(b);
+      blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `*${s.pct < 0 ? 'Cut' : 'Raise'} ${c.name}* ${usd(c.daily)} → ${usd(s.to)} a day${w ? `\n:warning: ${w}` : ''}` },
+        accessory: { type: 'button', action_id: 'ws_approve', style: s.pct < 0 ? 'danger' : 'primary', text: { type: 'plain_text', text: 'Approve' }, value: `${rec.slot}|${b.act_id}` } });
+    }
+  }
+  blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: `Nothing changes until you tap Approve.${rec.next ? ` Next check-in ${rec.next}.` : ''}` }] });
   return { text: `Where we stand, ${rec.label}. ${N.length ? `${N.length} to approve.` : 'Nothing to approve.'}`, blocks };
 }
 /** Build one check-in (reads only). */
@@ -307,16 +323,14 @@ async function sendDm(env, deps, rec, { style, prev, img } = {}) {
   const st = DM_STYLES.includes(style) ? style : 'ops';
   /* Style d (Cole's pick, 2026-11-22): draw the scoreboard, upload it to Slack, show it by file id. If the picture
      fails the DM still goes, with a note where the picture would be. */
-  if (st === 'ops' && !img) {
-    try { const up = await slackPng(env, deps, await toPng(opsSvg(rec), deps.xfetch), `check-in-${rec.slot}.png`); if (up.id) img = up.id; else rec.img_error = up.error; }
-    catch (e) { rec.img_error = e.message; }
-  }
+  let imgs = null;
+  if (st === 'ops') { const u = await opsUpload(env, deps, rec); imgs = u.imgs; if (u.error) rec.img_error = u.error; }
   if (st === 'd' && !img) {
     try { const up = await slackPng(env, deps, await toPng(boardSvg(rec), deps.xfetch), `where-we-stand-${rec.slot}.png`); if (up.id) img = up.id; else rec.img_error = up.error; }
     catch (e) { rec.img_error = e.message; }
   }
-  const msg = st === 'ops' ? (img ? opsImgMsg(rec, img) : opsCard(rec)) : st === 'list' ? standingMessage(rec) : standingCard(rec, prev, st, linkOf(rec), { img });
-  const r = await postRetry(env, deps, msg, img);
+  const msg = st === 'ops' ? (Object.keys(imgs || {}).length ? opsImgMsg(rec, imgs) : opsCard(rec)) : st === 'list' ? standingMessage(rec) : standingCard(rec, prev, st, linkOf(rec), { img });
+  const r = await postRetry(env, deps, msg, img || (imgs && Object.keys(imgs).length ? 'many' : null));
   rec.sent = r.ok ? { at: new Date().toISOString(), ts: r.ts, style: st, img: img || null } : { error: r.error };
   return r;
 }
@@ -349,11 +363,12 @@ async function sendSample(env, deps, rec, prev, { style, act, label }) {
       if (up.error) imgErr = up.error; else img = up.id;
     } catch (e) { imgErr = e.message; }
   }
-  if (!act && style === 'ops') { try { const up = await slackPng(env, deps, await toPng(opsSvg(rec), deps.xfetch), `check-in-${rec.slot}.png`); if (up.id) img = up.id; else imgErr = up.error; } catch (e) { imgErr = e.message; } }
-  const msg = !act && style === 'ops' ? (img ? opsImgMsg(rec, img) : opsCard(rec)) : act ? clientCard(rec, act, style, prev, { img }) : standingCard(rec, prev, style, linkOf(rec), { img });
+  let imgs = null;
+  if (!act && style === 'ops') { const u = await opsUpload(env, deps, rec); imgs = u.imgs; imgErr = u.error; }
+  const msg = !act && style === 'ops' ? (Object.keys(imgs || {}).length ? opsImgMsg(rec, imgs) : opsCard(rec)) : act ? clientCard(rec, act, style, prev, { img }) : standingCard(rec, prev, style, linkOf(rec), { img });
   if (label) { msg.blocks = [{ type: 'section', text: { type: 'mrkdwn', text: `*${label}*` } }, ...(msg.blocks || [])]; msg.text = `${label}: ${msg.text}`; }
   /* Slack can take a moment to process a fresh upload before a block may show it: retry a few times. */
-  const r = await postRetry(env, deps, msg, img);
+  const r = await postRetry(env, deps, msg, img || (imgs && Object.keys(imgs).length ? 'many' : null));
   return { ok: !!r.ok, ts: r.ts, error: r.error, img, imgErr, slot: rec.slot };
 }
 
