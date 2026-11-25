@@ -56,6 +56,14 @@ export async function indexedChannels(env, getSetting) {
   return map;
 }
 export const forgetChannelCache = () => { chanCache = { at: 0, map: new Map() }; };
+/* settings.slackIndexClient: absent = client channel messages are stored like any other (as they always were); '0' =
+   from then on nothing from a channel marked side 'client' is written, live or by the hourly walk back. Internal and
+   team channels are still stored, and nothing already stored is removed. */
+import { INDEX_CLIENT_KEY } from './clientchan.js';
+export { INDEX_CLIENT_KEY };
+export async function clientIndexOff(env, getSetting) {
+  return !!getSetting && (await Promise.resolve(getSetting(env, INDEX_CLIENT_KEY)).catch(() => null)) === '0';
+}
 
 /* ---------------- people ---------------- */
 
@@ -111,6 +119,8 @@ export async function indexEvent(env, deps, ev) {
     await env.DB.prepare(`DELETE FROM slack_msg WHERE channel = ?1 AND ts = ?2`).bind(ev.channel, ev.deleted_ts || ev.previous_message?.ts || '').run();
     return true;
   }
+  /* A message the person deleted in Slack still leaves the index (above); nothing new from a client channel is written. */
+  if (info.side === 'client' && await clientIndexOff(env, deps.getSetting)) return false;
   const m = ev.subtype === 'message_changed' ? ev.message : ev;
   if (!m?.ts) return false;
   if (m.subtype && !/^(file_share|thread_broadcast|bot_message|me_message)$/.test(m.subtype)) return false;
@@ -150,7 +160,9 @@ export async function backfillTick(env, deps) {
   const { results: seen } = await env.DB.prepare(`SELECT channel, last_run FROM slack_chan`).all();
   const lastRun = Object.fromEntries((seen || []).map(r => [r.channel, r.last_run || '']));
   const order = [...map].sort((a, b) => String(lastRun[a[0]] || '').localeCompare(String(lastRun[b[0]] || '')));
+  const noClient = await clientIndexOff(env, deps.getSetting);
   for (const [channel, info] of order) {
+    if (noClient && info.side === 'client') continue;   // settings.slackIndexClient = '0': not read, not stored
     if (pages >= PAGES_PER_TICK || (deps.canAfford && !deps.canAfford(8))) break;
     let st = await env.DB.prepare(`SELECT * FROM slack_chan WHERE channel = ?1`).bind(channel).first();
     if (!st) {
