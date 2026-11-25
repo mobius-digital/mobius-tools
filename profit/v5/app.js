@@ -28,13 +28,47 @@ async function fetchBoot() {
   return { me, brands: (list || []).filter(x => !x.status || x.status === 'active').map(x => ({ id: x.id, name: x.name, status: x.status || 'active', color: x.color || null })) };
 }
 
+/* Sign in happens on this app's own page (pages/_signin.js). Once the session is stored the app loads
+   at the address the person first asked for: the same address, less any one time token and the sign in route. */
 let signinUp = false;
-async function showSignin(message) {
+async function showSignin(message, more) {
   signinUp = true;
-  const page = (await import('./pages/_signin.js')).default;
+  const si = await import('./pages/_signin.js');
   document.title = 'Sign in · ' + APP_NAME;
-  page.render(app, null, { message, sample: SAMPLE });
+  si.default.render(app, null, { message, sample: SAMPLE, ...(more || {}), onDone: () => { history.replaceState(null, '', si.backAddress()); location.reload(); } });
   hideLoader();
+}
+
+/* A link in the address: ?signin=<token> is an emailed one time link and signs straight in;
+   ?invite=<token> is a client invite and opens the sign in page with whose invite it is, even over an
+   older session on this browser. True when this took over the screen. */
+async function fromLink() {
+  const once = QS.get('signin'), invite = QS.get('invite');
+  if (SAMPLE || (!once && !invite)) return false;
+  const si = await import('./pages/_signin.js');
+  if (once) {
+    history.replaceState(null, '', si.backAddress());     // the token leaves the address bar before anything else
+    try { await si.redeemLink(once); } catch (e) { await showSignin(e.message); return true; }
+    location.reload();
+    return true;
+  }
+  const inv = await si.readInvite(invite);
+  if (inv.ok) { await showSignin('', { invite: inv }); return true; }
+  /* Could not ask (no connection, a server error): the invite may be fine. Keep it in the address,
+     say so with a way to try again, and do not open the app under an older login. */
+  if (inv.retry) { showInviteRetry(inv.error); return true; }
+  history.replaceState(null, '', si.backAddress());         // the worker said this invite is dead: drop it
+  if (!token()) { await showSignin(inv.error); return true; }
+  return false;                                           // a dead invite, but already signed in: carry on
+}
+
+/* The app's own key can hold an older session than the shared one (a sign in made on another tool).
+   When the server refuses it, drop it once and let the shared one through. */
+function dropStale() {
+  const own = get(LS.tok), shared = get(LS.shared);
+  if (!own || !shared || own === shared) return false;
+  try { localStorage.removeItem(LS.tok); } catch { return false; }
+  return true;
 }
 
 async function signOut() {
@@ -42,6 +76,15 @@ async function signOut() {
   try { [LS.tok, LS.shared, LS.sharedExp, LS.email, LS.role].forEach(k => localStorage.removeItem(k)); sessionStorage.removeItem(LS5.asClient); } catch {}
   history.replaceState(null, '', location.pathname + location.search);
   showSignin();
+}
+
+function showInviteRetry(message) {
+  signinUp = true;
+  hideLoader();
+  document.title = 'Sign in · ' + APP_NAME;
+  app.innerHTML = '<div style="min-height:100vh;display:grid;place-items:center;padding:24px"><div class="lx-empty" style="width:100%;max-width:460px;min-width:0;overflow-wrap:anywhere"><h3>Could not open your invite</h3><p role="alert"></p><button class="lx-btn primary lg" type="button">Try again</button></div></div>';
+  app.querySelector('p').textContent = (message || 'Check the connection and try again.') + ' Your invite link still works.';
+  app.querySelector('button').onclick = () => location.reload();
 }
 
 function showDown(e) {
@@ -53,13 +96,14 @@ function showDown(e) {
 }
 
 async function boot() {
+  if (await fromLink()) return;
   if (router.parse(location.hash).signin || (!token() && !SAMPLE)) return showSignin();
   setUser(get(LS.email) || 't:' + token().slice(-16));
   let rec;
   try {
     rec = await cached('boot', fetchBoot, fresh => shell.update(fresh.data), { maxAge: 60e3 });
   } catch (e) {
-    if (e && e.status === 401) return showSignin('Your sign in ran out. Sign in again to carry on.');
+    if (e && e.status === 401) return dropStale() ? boot() : showSignin('Your sign in ran out. Sign in again to carry on.');
     return showDown(e);
   }
   shell.setData(rec.data);

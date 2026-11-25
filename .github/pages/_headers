@@ -1,0 +1,31 @@
+# Headers Cloudflare Pages adds to the static site. Copied to the site root by
+# build-site.sh. Loose on purpose: nothing here can block a script, a frame or
+# a sign-in. No Content-Security-Policy yet, not even report-only; add one
+# after the move has run clean for a week.
+
+/*
+  Strict-Transport-Security: max-age=86400
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+
+/profit/*
+  X-Robots-Tag: noindex
+
+/onboard/*
+  X-Robots-Tag: noindex
+
+/yourads/*
+  X-Robots-Tag: noindex
+
+# The test addresses must never show up in search next to the real ones.
+https://mobius-tools-site.pages.dev/*
+  X-Robots-Tag: noindex
+
+https://locus-app-site.pages.dev/*
+  X-Robots-Tag: noindex
+
+https://:branch.mobius-tools-site.pages.dev/*
+  X-Robots-Tag: noindex
+
+https://:branch.locus-app-site.pages.dev/*
+  X-Robots-Tag: noindex

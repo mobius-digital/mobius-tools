@@ -75,11 +75,18 @@ export const QS = new URLSearchParams(location.search);
 /** Sample mode: every page draws from fixture files and no API is called. */
 export const SAMPLE = QS.get('sample') === '1';
 
-/* Old Locus is the live app one folder up. Sign in lives there too. */
+/* Old Locus is the live app one folder up. */
 export const OLD_LOCUS = '../';
-/* The live sign in. The Google hop returns here by itself; the email link page does not. */
-export const SIGNIN_URL = '../';
-export const SIGNIN_GOOGLE_URL = '../../hq/?next=' + encodeURIComponent(location.pathname);
+
+/* ---- Sign in. The new app signs people in on its own page (pages/_signin.js). ---- */
+/* Google's sign in client for this site. Public by design: the same id the live pages use. */
+export const GOOGLE_CLIENT_ID = '1095210859237-eqn8nsr9p3mcui7cuq17l3jas4dgpl8a.apps.googleusercontent.com';
+export const GOOGLE_SCRIPT = 'https://accounts.google.com/gsi/client';
+/* Only if Google's button cannot load here: the old Google page, which sends the person straight back
+   to the address in next= (a path on this site, never another site). */
+export const googleHopUrl = back => '../../hq/?next=' + encodeURIComponent(back);
+/* An emailed sign in link works once, for this many minutes (the worker's own rule). */
+export const SIGNIN_LINK_MIN = 20;
 export const OLD_UNTIL = 'to Dec 15';
 
 /** The old Locus link for one page: ../?open=<old page id>&act=<brand id or all>. */
