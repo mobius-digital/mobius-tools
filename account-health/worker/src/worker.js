@@ -1,6 +1,7 @@
 import { useFetch as tiktokFetch, tiktokStatus, tiktokStart, tiktokCallback, tiktokReport, setTiktokLink } from './tiktok.js';
 import { useFetch as assetsFetch, syncAssets, tagAssets, listAssets, assetsTick, assetFile, removeLook, tagBacklog } from './assets.js';
 import { guardBrands, brandsFor, clientScope, isClientEmail } from './brandguard.js';
+import { SESSION_DAYS, sessionStart, sessionEnded, isRemoved, endSessions } from './sessions.js';
 import { handleCommand } from './command.js';
 import { handleAgency } from './agency.js';
 import { handleClients, clientAsk, clientOwnsRun, touchClient, meClient, claimInvite, hqSignin } from './clients.js';
@@ -7208,7 +7209,7 @@ async function sha256hex(s) {
 /* ---- Google sign-in + shared sessions (used by /hq and every tool) ---- */
 
 const ALLOWED_DOMAIN = 'go-mobius-digital.com';
-const SESSION_DAYS = 30;
+/* SESSION_DAYS (7 since 2026-11-25, was 30) lives in sessions.js; a session made before then keeps its own expiry. */
 const b64u = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
 /* No 'dev' fallback (2026-10-09): with neither secret set, nothing verifies (see profit worker.js for why). */
@@ -7218,10 +7219,11 @@ async function hmacKey(env) {
     { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify']);
 }
 
-/** Session token: base64url(email|exp) + '.' + HMAC. Verified by every tool worker sharing SESSION_SECRET. */
+/** Session token: base64url(email|exp|start) + '.' + HMAC. Verified by every tool worker sharing SESSION_SECRET.
+ *  The start (2026-11-25) lets sessions.js end a person's sessions; older tokens are email|exp and still verify. */
 async function mintSession(env, email) {
-  const exp = Date.now() + SESSION_DAYS * 86400e3;
-  const payload = btoa(`${email}|${exp}`).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const now = Date.now(), exp = now + SESSION_DAYS * 86400e3;
+  const payload = btoa(`${email}|${exp}|${now}`).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   const sig = b64u(await crypto.subtle.sign('HMAC', await hmacKey(env), new TextEncoder().encode(payload)));
   return { token: `mds.${payload}.${sig}`, email, exp };
 }
@@ -7231,14 +7233,16 @@ async function verifySession(env, token) {
   if (!m || !(env.SESSION_SECRET || env.ADMIN_TOKEN)) return null;
   const sig = b64u(await crypto.subtle.sign('HMAC', await hmacKey(env), new TextEncoder().encode(m[1])));
   if (sig !== m[2]) return null;
-  let email, exp;
-  try { [email, exp] = atob(m[1].replace(/-/g, '+').replace(/_/g, '/')).split('|'); } catch { return null; }
+  let email, exp, iat;
+  try { [email, exp, iat] = atob(m[1].replace(/-/g, '+').replace(/_/g, '/')).split('|'); } catch { return null; }
   if (+exp < Date.now()) return null;
-  return { email, exp: +exp };
+  /* Signed out or removed since this session began (sessions.js; a failed read cuts nothing). */
+  if (await sessionEnded(env, email, sessionStart(exp, iat))) return null;  return { email, exp: +exp };
 }
 
 async function emailAllowed(env, email) {
   if (!email) return false;
+  if (await isRemoved(env, email)) return false;   // before the domain rule: a removed teammate stays removed
   if (email.toLowerCase().endsWith('@' + ALLOWED_DOMAIN)) return true;
   const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'allowedEmails'`).first().catch(() => null);
   const extra = safeJson(row?.value, []);
@@ -9701,6 +9705,14 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       return r.error ? json({ error: r.error }, r.status) : json(r);
     }
 
+    /* Sign out (2026-11-25): every session this person has stops working, on every device (sessions.js). */
+    if (path === '/api/logout' && request.method === 'POST') {
+      const sess = await verifySession(env, (request.headers.get('Authorization') || '').replace(/^Bearer /, '')).catch(() => null);
+      if (!sess) return json({ ok: true });
+      try { await endSessions(env, sess.email); return json({ ok: true }); }
+      catch { return json({ ok: false, error: 'Could not end the session. Try again.' }, 503); }
+    }
+
       /* DIAGNOSTIC, TEMPORARY (2026-08-30) - delete with settings key twDiagKey.
        Dumps every metric Triple Whale returns for a shop: id, human title and the
        value for the window, INCLUDING the ones TW_KEEP drops on the way into
@@ -9819,6 +9831,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (b.remove) {
         // Never let someone remove their own access and lock themselves out.
         if (who && email === String(who).toLowerCase()) return json({ error: 'You cannot remove your own access.' }, 400);
+        if (email === String(env.OWNER_EMAIL || 'cole@go-mobius-digital.com').toLowerCase()) return json({ error: 'The owner cannot be removed.' }, 400);
         extra = extra.filter(e => e !== email);
         delete roles[email];
       } else {
@@ -9840,6 +9853,11 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       await putSetting(env, 'allowedEmails', JSON.stringify(extra));
       await putSetting(env, 'userRoles', JSON.stringify(roles));
       await putSetting(env, 'userBrands', JSON.stringify(ub));
+      /* Removal ends their sessions and keeps a Mobius-domain address out; adding them again lets them back in. */
+      try {
+        if (b.remove) await endSessions(env, email, { remove: true });
+        else await endSessions(env, email, { remove: false });
+      } catch { return json({ error: 'Saved, but their sign-in could not be updated. Try again.' }, 503); }
       return json({ ok: true, email, role, guest: extra.includes(email), brands: ub[email] || [] });
     }
 

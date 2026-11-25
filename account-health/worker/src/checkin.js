@@ -548,7 +548,9 @@ export async function checkinAction(env, ctx, d, p) {
 }
 
 /* ---------- finished ads to Cole ---------- */
+let warnedKey = false;
 async function rvSig(env, fid) {
+  if (!(env.SESSION_SECRET || env.ADMIN_TOKEN) && !warnedKey) { warnedKey = true; console.warn('checkin: review pictures are signed with the built-in key; set SESSION_SECRET'); }
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(env.SESSION_SECRET || env.ADMIN_TOKEN || 'locus'), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   return [...new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`rv.${fid}`)))].slice(0, 12).map(x => x.toString(16).padStart(2, '0')).join('');
 }

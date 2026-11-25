@@ -214,6 +214,7 @@ export const CLIENT_RULES = [
   R('PUT', '/api/me/prefs', 'none', { fields: ['morning_dm', 'nudge'] }),
   R('GET', '/api/me/morning', 'none'),
   R('POST', '/api/me/morning', 'none'),
+  R('POST', '/api/logout', 'none', { fields: [] }),   // sign out ends the login everywhere (sessions.js)
 
   /* ---- HOME: Overview, Day check, P&L, Goals, Requests ---- */
   R('GET', '/api/overview', 'opt'),
