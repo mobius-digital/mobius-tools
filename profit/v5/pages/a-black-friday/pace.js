@@ -30,9 +30,16 @@ const CSS = `
 .wr-phase b{font-size:14px;font-weight:500;color:var(--muted)}
 .wr-phase .now b{color:var(--ink);font-weight:600}
 .wr-phase span{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
-.wr-list{display:grid;gap:6px}
-.wr-list>.lx-sec{padding:0 28px 8px;flex-wrap:wrap;row-gap:10px}
-.wr-list>.lx-sec .act{gap:22px;flex-wrap:wrap}
+.wr-list{display:grid;grid-template-columns:minmax(0,1fr);gap:6px;min-width:0}
+.wr-list>.lx-sec{padding:0 28px 8px;flex-wrap:wrap;row-gap:10px;min-width:0}
+.wr-list>.lx-sec>*{min-width:0}
+.wr-list>.lx-sec>.note{min-width:max-content;max-width:100%}
+.wr-list>.lx-sec .act{gap:10px 22px;flex-wrap:wrap;min-width:0;max-width:100%}
+.wr-list>.lx-sec .act>*{min-width:0;max-width:100%}
+.wr-list>.lx-sec .act>.lx-legend,.wr-list>.lx-sec .act>.wr-key{flex-wrap:wrap;row-gap:4px}
+.wr-list>.lx-sec .act>.lx-legend span{white-space:normal}
+.wr-list>.lx-sec .act>.lx-seg{overflow-x:auto}
+.wr .big,.wr .mid{flex-wrap:wrap;row-gap:2px;min-width:0}
 .wr{padding:22px 28px 24px;border-top:1px solid var(--line);min-width:0}
 .wr.first{border-top:0}
 .wr.yes{border-top:0;border-radius:24px;background:#fff;box-shadow:var(--sh-2);margin-bottom:10px}
@@ -40,7 +47,8 @@ const CSS = `
 .wr-h{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;min-height:36px}
 .wr-h .nm{font-size:19px;font-weight:600;letter-spacing:-.025em;white-space:nowrap}
 .wr-h .sp{flex:1}
-.wr-call{display:inline-flex;align-items:baseline;gap:10px;min-width:0;white-space:nowrap}
+.wr-call{display:inline-flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px;min-width:0;max-width:100%;white-space:nowrap}
+.wr-call>*{min-width:0;max-width:100%}
 .wr-call b{font-size:14px;font-weight:650;letter-spacing:-.015em}
 .wr.yes .wr-call b{font-size:17px}
 .wr-call b.good{color:var(--good)}.wr-call b.bad{color:var(--bad)}.wr-call b.off{color:var(--muted)}
@@ -48,6 +56,8 @@ const CSS = `
 .wr-call em{font-style:normal;font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis}
 .wr-why{margin-top:6px;font-size:13px;line-height:1.5;color:var(--muted);max-width:92ch}
 .wr-b{display:grid;grid-template-columns:200px minmax(0,1fr) 300px;gap:40px;align-items:start;margin-top:12px}
+.wr-b>*{min-width:0}
+.wr-b .lx-chart,.wr-b svg{max-width:100%}
 .wr .lab{font-size:12.5px;color:var(--muted);white-space:nowrap}
 .wr .c{display:grid;gap:7px;min-width:0;align-content:start}
 .wr .big{display:flex;align-items:baseline;gap:7px;white-space:nowrap;font-size:32px;font-weight:600;letter-spacing:-.04em;line-height:1.08;font-variant-numeric:tabular-nums}

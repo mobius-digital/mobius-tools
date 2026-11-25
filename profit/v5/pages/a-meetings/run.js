@@ -148,7 +148,7 @@ function brandView(b, d, ctx, { notes = true } = {}) {
     /* the decisions */
     const list = decisionsOf(b);
     const pick = (key, what) => () => { if (ui.ans[key] === what) delete ui.ans[key]; else ui.ans[key] = what; keep(); draw(); };
-    const input = h('input', { class: 'lx-input mr-in', type: 'text', placeholder: 'Add a decision: what, the number, who', 'aria-label': 'Add a decision',
+    const input = h('input', { class: 'lx-input mr-in', type: 'text', dataset: { add: b.id }, placeholder: 'Add a decision: what, the number, who', 'aria-label': 'Add a decision',
       onkeydown: e => { if (e.key === 'Enter') addOne(); } });
     const addOne = () => {
       const t = input.value.trim(); if (!t) return;
@@ -350,12 +350,18 @@ function draw(el, data, ctx) {
   d.brands = d.brands || [];
   if (!d.brands.length) return put(el, empty({ title: 'No brands on the Monday meeting yet', text: 'A brand shows here once it has a weekly report.', action: button('Open the agenda', { href: ctx.href('a-meetings', 'agenda') }) }));
   restore((ctx.sample ? 'sample:' : '') + (d.monday || 'week'));
-  /* A late part of the meeting lands and the page is drawn again. Someone may be typing in a notes box:
-     keep what they typed, the step they are on (the steps can shift when the goals land), the caret and the scroll. */
+  /* A late part of the meeting lands and the page is drawn again. Someone may be typing in a notes box or in
+     "Add a decision": keep what they typed, the step they are on (the steps can shift when the goals land), the
+     caret and the scroll. */
   const was = live && live.el.isConnected && el.contains(live.el) ? live.id() : null;
   const box = was && document.activeElement && document.activeElement.matches && document.activeElement.matches('textarea.mr-notes') && live.el.contains(document.activeElement) ? document.activeElement : null;
   const typing = box && { id: box.dataset.note, value: box.value, from: box.selectionStart, to: box.selectionEnd, dir: box.selectionDirection, top: box.scrollTop, x: window.scrollX, y: window.scrollY };
   if (typing) { if (typing.value) ui.notes[typing.id] = typing.value; else delete ui.notes[typing.id]; keep(); }
+  /* a decision being typed is not kept anywhere until Enter or Add, so carry every half typed one across by brand id */
+  const ins = was ? [...live.el.querySelectorAll('input.mr-in')] : [];
+  const drafts = ins.filter(n => n.value).map(n => ({ id: n.dataset.add, value: n.value }));
+  const inp = ins.find(n => n === document.activeElement) || null;
+  const adding = inp && { id: inp.dataset.add, from: inp.selectionStart, to: inp.selectionEnd, dir: inp.selectionDirection, x: window.scrollX, y: window.scrollY };
   const P = plan(d), S = P.steps;
   if (was) { const at = S.findIndex(s => s.id === was); if (at >= 0) ui.step = at; }
   ui.step = Math.max(0, Math.min(S.length - 1, ui.step | 0));
@@ -399,6 +405,16 @@ function draw(el, data, ctx) {
       now.setSelectionRange(typing.from, typing.to, typing.dir || 'none');
       now.scrollTop = typing.top;
       window.scrollTo(typing.x, typing.y);
+    } catch {}
+  }
+  if (drafts.length || adding) {
+    const find = id => [...root.querySelectorAll('input.mr-in')].find(n => n.dataset.add === id);
+    for (const k of drafts) { const now = find(k.id); if (now && !now.value) now.value = k.value; }
+    const now = adding && find(adding.id);
+    if (now) try {
+      now.focus({ preventScroll: true });
+      now.setSelectionRange(adding.from, adding.to, adding.dir || 'none');
+      window.scrollTo(adding.x, adding.y);
     } catch {}
   }
 }

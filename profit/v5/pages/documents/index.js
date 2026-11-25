@@ -22,11 +22,11 @@ function draw(el, d, ctx) {
   const views = live.reduce((t, p) => t + (+p.views || 0), 0);
   const last = live.map(p => p.last_view).filter(Boolean).sort().pop();
 
-  const head = hero({ line: true }, kpis([
+  const head = hero({ line: true }, h('div', { class: 'cr-fit' }, kpis([
     kpi({ label: 'Live documents', value: String(live.length), size: 'lg', sub: pages.length > live.length ? (pages.length - live.length) + ' turned off' : 'all links work' }),
     ctx.isClient ? null : kpi({ label: 'Times opened', value: num(views), size: 'lg', sub: 'across the live links' }),
     ctx.isClient ? null : kpi({ label: 'Last opened', value: last ? relativeTime(last) : 'never', size: 'lg', sub: last ? dayOf(last) : 'nobody has opened one yet' }),
-  ].filter(Boolean), { cols: ctx.isClient ? 1 : 3 }));
+  ].filter(Boolean), { cols: ctx.isClient ? 1 : 3 })));
 
   const rows = pages.map(p => row({
     title: p.title,
