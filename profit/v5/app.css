@@ -219,7 +219,7 @@ button.lx-avatar{cursor:pointer}
 .lx-take .lx-btn{margin-left:auto;flex:none;border-radius:999px}
 
 /* ---------- 6. numbers: ink, large, tabular ---------- */
-.lx-kpis{--cols:4;--half:2;--kpi-fs:var(--fs-kpi);--kpi-min:calc(var(--kpi-em,4.1) * var(--kpi-fs));
+.lx-kpis{--cols:4;--half:2;--kpi-fs:var(--fs-kpi);--kpi-min:calc(var(--kpi-em,4.8) * var(--kpi-fs));
   --w-all:calc((100% - (var(--cols) - 1) * var(--gap-kpi)) / var(--cols) - .5px);
   --w-half:calc((100% - (var(--half) - 1) * var(--gap-kpi)) / var(--half) - .5px);
   --w-two:calc((100% - var(--gap-kpi)) / 2 - .5px);
@@ -464,6 +464,9 @@ select.lx-input{appearance:none;padding-right:34px;background:#fff url("data:ima
   .lx-rail .lx-nav{width:46px;min-height:42px;justify-content:center;padding:0}
   .lx-rail .lx-nav.on::before{left:-10px}
   .lx-rail .lx-nav[data-first]{margin-top:10px}
+}
+/* the sign in page has no side menu: it keeps its two columns until the picture no longer fits */
+@media (max-width:1040px){
   .lx-si{grid-template-columns:minmax(0,1fr)}
   .lx-si-right{display:none}
   .lx-si-left{padding:28px 24px 24px}
@@ -647,7 +650,12 @@ html{overflow-wrap:break-word}
 /* a big number is one piece: it never breaks in the middle and never pokes out of its tile */
 .lx-kpi .v>small{flex:0 1 auto;min-width:0}
 /* the line under a figure wraps inside its tile instead of poking out of it */
-.lx-kpi .s>.lx-stat,.lx-kpi .s>.lx-delta{white-space:normal;min-width:0}
+.lx-kpi .s>.lx-stat,.lx-kpi .s>.lx-delta{white-space:normal;min-width:0;flex-shrink:1}
+/* a status line stays on one line while it fits, and wraps inside its box when it is longer than the box
+   (a long list of names can no longer push the page wider than the screen). In a table it never wraps. */
+.lx-stat{white-space:normal;max-width:100%;flex-shrink:0;align-items:flex-start}
+.lx-stat::before{margin-top:calc((1.3em - 7px) / 2)}
+.lx-table .lx-stat,td .lx-stat,th .lx-stat{white-space:nowrap}
 .lx-big{max-width:100%}
 .lx-big small{white-space:normal}
 /* top bar: the gap gives first, then the assistant button, then labels fold to icons, then the brand name clips */
