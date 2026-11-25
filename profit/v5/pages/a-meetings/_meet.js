@@ -1,10 +1,12 @@
 /* Meetings: what the pre-read and the Monday agenda share.
-   - loadMeeting(ctx): the same two calls the live team meeting screen makes, shaped for both pages.
+   - loadMeeting(ctx) and meetingOf(d, ctx): the Monday meeting's three reads, each painted as it lands
+     (pages/_parts.js), and the one shape all three pages draw from.
    - small local parts the kit does not have (see "Kit gaps" in the build notes): the traffic light, the tick, the folded row.
    - the page CSS, added once, every class starts with mt-. */
 
 import { h, svgNode, lineChart, money, x, num, addStyles } from '../../kit.js';
 import { icon } from '../../icons.js';
+import { loadParts } from '../_parts.js';
 
 /** Sunday is not final until Monday morning, so the pre-read goes out then. The start time is the
     setting agency.meetingStart; this is only its fallback. */
@@ -33,31 +35,78 @@ export function lightOf(mer, goal) {
   return r >= 1 ? { tone: 'good', text: 'On goal', at: 0 } : r >= 0.9 ? { tone: 'warn', text: 'Close', at: 1 } : { tone: 'bad', text: 'Off goal', at: 2 };
 }
 
-/* ---------- live data: the same calls the team meeting screen makes ---------- */
-/** Returns { monday, week: { from, to }, as_of, brands: [...], agenda: {...} }. The fixtures have this shape. */
-export async function loadMeeting(ctx) {
-  const [screen, cmd] = await Promise.all([
-    ctx.api('/api/calls/screen?kind=monday', { worker: 'ah', signal: ctx.signal }),
-    ctx.api('/api/hub/command', { signal: ctx.signal }).catch(() => null),
-  ]);
-  const monday = screen.monday;
-  const CMD = Object.fromEntries(((cmd && cmd.brands) || []).map(b => [b.act_id, b]));
-  const brands = (screen.brands || []).map(b => brandOf(b, CMD[b.act_id]));
+/* ---------- live data ----------
+   Three reads, asked at the same moment, each kept small and painted as it lands:
+     monday   ah GET /api/meetings/monday            last week's report per brand (sales, spend, MER, the plan, the
+                                                     summary) and the open tasks. The worker's own tables: quick.
+     cmd      profit GET /api/hub/command            each brand's MER goal. Kept by the worker for 3 minutes.
+     screen   ah GET /api/calls/screen?kind=monday   the team meeting screen: the same report plus Meta and Google
+                                                     by channel, the cards being made and the promises. The slow one:
+                                                     it opens the call, reads the whole production board and splits
+                                                     each brand's plan thread.
+   The scoreboard, the decision brands and the tasks draw from `monday` alone; the channel rows and the pipeline
+   fill in when `screen` lands. If `monday` fails, `screen` stands in for it. */
+const pickT = t => ({ sales: (t && t.sales) ?? null, spend: (t && t.spend) ?? null, mer: (t && t.mer) ?? null });
+const readOf = r => (r ? { period_start: r.period_start || null, period_end: r.period_end || null, currency: r.currency || 'USD', totals: pickT(r.totals), prior: pickT(r.prior), plan: pickT(r.plan),
+  need_from_you: r.need_from_you || [], summary: String(r.summary || ''),
+  channels: Array.isArray(r.channels) ? r.channels.filter(c => c && (c.id === 'meta' || c.id === 'google')).map(c => ({ id: c.id, cur: c.cur || null, prev: c.prev || null })) : null } : null);
+const openOf = list => (list || []).map(t => ({ text: t.text || t.name || '', owner: t.owner || '', due: t.due || '' }));
+const fromMonday = m => ({ monday: m.monday, theme: m.theme || '', agency_open: openOf(m.agency_open),
+  brands: (m.brands || []).map(b => ({ act_id: b.act_id, name: b.name, read: readOf(b.report), open: openOf(b.open), making: null })) });
+const fromScreen = s => ({ monday: s.monday, theme: s.theme || '', agency_open: openOf(s.agency_open),
+  promised: ((s.call && s.call.state && s.call.state.promised) || []).filter(p => p && p.text).length,
+  brands: (s.brands || []).map(b => ({ act_id: b.act_id, name: b.name, read: readOf(b.read), open: openOf(b.open),
+    making: (b.making || []).map(k => ({ num: k.num || null, title: k.title || '', board: k.board || '', owner: k.owner || '', due: k.due || '' })) })) });
+
+export function loadMeeting(ctx) {
+  const ah = { worker: 'ah', signal: ctx.signal };
+  const screen = ctx.api('/api/calls/screen?kind=monday', ah).then(fromScreen);
+  screen.catch(() => {});                                   // read below; a failure is the part's, not an unhandled one
+  return loadParts(ctx, {
+    monday: () => ctx.api('/api/meetings/monday', ah).then(fromMonday).catch(e => { if ((e && e.name === 'AbortError') || (e && e.status === 401)) throw e; return screen; }),
+    cmd: () => ctx.api('/api/hub/command', { signal: ctx.signal }).then(c => ({ as_of: (c && c.as_of) || null,
+      goals: Object.fromEntries(((c && c.brands) || []).filter(b => b.goal && b.goal.kind === 'mer' && ok(+b.goal.target)).map(b => [b.act_id, +b.goal.target])) })),
+    screen: () => screen,
+  }, { first: ['monday'] });
+}
+
+/** The parts that have landed, as { monday, week: { from, to }, as_of, brands: [...], agenda: {...}, waiting }.
+    The fixtures have this shape already and pass straight through. `waiting.screen` is true while the channel
+    rows and the pipeline are still on their way. */
+export function meetingOf(d, ctx) {
+  if (!d || !d.parts) return d;
+  const mon = d.parts.monday, scr = d.parts.screen, cmd = d.parts.cmd, lateList = d.late || [];
+  /* the meeting screen leaves paused brands off; until it lands, keep to the brands in the brand list */
+  const mine = new Set(((ctx && ctx.brands) || []).map(b => b.id));
+  const src = scr || (mon ? { ...mon, brands: (mon.brands || []).filter(b => !mine.size || mine.has(b.act_id)) } : null);
+  if (!src) return { brands: [], agenda: { counts: {} }, waiting: { screen: lateList.includes('screen') } };
+  const more = new Map(((mon && mon.brands) || []).map(b => [b.act_id, b]));
+  const goals = (cmd && cmd.goals) || {};
+  const monday = src.monday;
+  const brands = (src.brands || []).map(b => {
+    const m = more.get(b.act_id);
+    /* the report's own summary is longer on `monday` (the screen cuts it shorter) */
+    const read = b.read && m && m.read && m.read.summary.length > b.read.summary.length ? { ...b.read, summary: m.read.summary } : b.read;
+    return brandOf({ ...b, read, open: b.open && b.open.length ? b.open : (m && m.open) || b.open }, goals[b.act_id]);
+  });
   const first = brands.find(b => b.week);
-  const promised = ((screen.call && screen.call.state && screen.call.state.promised) || []).filter(p => p && p.text);
+  const promised = scr ? scr.promised || 0 : 0;
   const under = brands.filter(b => { const l = lightOf(b.mer, b.goal_mer); return l && l.tone !== 'good'; });
   const green = brands.filter(b => { const l = lightOf(b.mer, b.goal_mer); return l && l.tone === 'good'; });
-  const ready = (screen.brands || []).reduce((n, b) => n + (b.making || []).filter(c => c.board === 'ready').length, 0);
+  const ready = scr ? (scr.brands || []).reduce((n, b) => n + (b.making || []).filter(c => c.board === 'ready').length, 0) : null;
+  const screen = { agency_open: src.agency_open || [] };
   return {
     monday, week: first ? first.week : { from: addDays(monday, -7), to: addDays(monday, -1) },
-    as_of: (cmd && cmd.as_of) || null, brands,
+    as_of: (cmd && cmd.as_of) || d.at || null, brands, theme: src.theme || '', agency_open: src.agency_open || [],
+    waiting: { screen: !scr && lateList.includes('screen'), goals: !cmd && lateList.includes('cmd') },
+    missing: { screen: !scr && !lateList.includes('screen') },
     agenda: {
       counts: {
         scoreboard: `${brands.length} brands`,
-        promises: promised.length ? `${promised.length} written` : null,
+        promises: promised ? `${promised} written` : null,
         green: `${green.length} brands`,
         decision: under.length,
-        pipeline: `${ready} ready to load`,
+        pipeline: ready == null ? null : `${ready} ready to load`,
         learned: null,
         agency: (screen.agency_open || []).length ? `${screen.agency_open.length} open` : null,
         close: 'Rate it 1 to 10',
@@ -67,10 +116,10 @@ export async function loadMeeting(ctx) {
   };
 }
 
-function brandOf(b, c) {
+function brandOf(b, merGoal) {
   const r = b.read, t = (r && r.totals) || {}, p = (r && r.prior) || {}, plan = (r && r.plan) || {};
   const cur = (r && r.currency) || 'USD';
-  const goal = c && c.goal && c.goal.kind === 'mer' ? +c.goal.target : ok(plan.mer) ? plan.mer : null;
+  const goal = ok(merGoal) ? merGoal : ok(plan.mer) ? plan.mer : null;
   const week = r && r.period_start ? { from: r.period_start, to: r.period_end } : null;
   const weeks = [];
   if (week && ok(p.mer)) weeks.push({ label: shortDay(addDays(week.from, -7)), sales: p.sales, spend: p.spend, mer: p.mer });
@@ -96,6 +145,8 @@ function brandOf(b, c) {
     id: b.act_id, name: b.name, currency: cur, week, connected: !!r && ok(t.sales),
     has_report: !!r, sales: t.sales ?? null, sales_prior: p.sales ?? null, spend: t.spend ?? null, spend_prior: p.spend ?? null,
     mer: t.mer ?? null, goal_mer: goal, weeks, verdict: null, owner: null, decision: null, promises: null, rows,
+    /* for Run the meeting: the open tasks, the report's own words and what we wait on from the client */
+    open: b.open || null, summary: (r && r.summary) || '', need: (r && r.need_from_you) || [],
   };
 }
 

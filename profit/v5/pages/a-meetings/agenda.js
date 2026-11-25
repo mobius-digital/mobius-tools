@@ -4,7 +4,8 @@
 import { APP_NAME } from '../../config.js';
 import { put } from '../../kit.js';
 import { h, hero, em, button, gauge, avatar, statusDot } from '../../kit.js';
-import { css, loadMeeting, SENT_LABEL, MEETING_START, longDay, lightOf, ok, x } from './_meet.js';
+import { css, loadMeeting, meetingOf, SENT_LABEL, MEETING_START, longDay, lightOf, ok, x } from './_meet.js';
+import { follow, reading } from '../_parts.js';
 
 /** The plan. Minutes are fixed; only the small line under each block comes from data. */
 const BLOCKS = [
@@ -77,16 +78,22 @@ function draw(el, data, ctx) {
       b.owner && h('span', { class: 'ow' }, b.owner + ' speaks first'))))
       : h('p', { class: 'mt-none' }, any ? 'Every brand with a goal is on goal.' : 'No brand has both a sales source and a MER goal yet.'));
 
-  put(el, h('div', { class: 'mt-page', style: { gap: '52px' } }, head, cols, db, h('p', { class: 'lx-foot' }, (data && data.note) || SENT_LABEL + '.')));
+  const more = data && data.waiting && (data.waiting.screen || data.waiting.goals);
+  put(el, h('div', { class: 'mt-page', style: { gap: '52px' } }, head, cols, db,
+    more ? reading(data.waiting.screen ? 'Still reading the promises and the pipeline.' : 'Still reading each brand\'s MER goal.') : null,
+    h('p', { class: 'lx-foot' }, (data && data.note) || SENT_LABEL + '.')));
 }
+
+/* each part of the meeting is painted as it lands */
+const paint = (el, d, ctx) => follow(ctx, d, now => draw(el, meetingOf(now, ctx), ctx));
 
 export default {
   /* drawn by the shell above the tabs. The meeting is one fixed week, so there are no dates to pick. */
   title: () => ['Monday agenda, ', em(TOTAL + ' minutes')],
   eyebrow: 'Meetings, team',
   ranges: false,
-  asOf: d => (d && d.as_of) || null,
+  asOf: d => (d && d.parts ? (d.parts.cmd && d.parts.cmd.as_of) || d.at : d && d.as_of) || null,
   load: loadMeeting,
-  render: draw,
-  update: draw,
+  render: paint,
+  update: paint,
 };

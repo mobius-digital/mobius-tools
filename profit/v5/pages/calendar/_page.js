@@ -1,5 +1,9 @@
 /* The calendar, for one brand or for every brand. Read only: a month of dates, then what is coming up.
    Live data: GET /api/calendar?act=<brand id | all>&from=&to= (account-health). The same answer old Locus draws.
+   That full answer is slow for every brand at once: for each brand the worker also reads its email sends, its new
+   ads by day and its task ticks, to work out the "getting it ready" steps. So the page asks twice at the same
+   moment: &lite=1 (the dates only, quick) paints the month and the list, and the full answer adds the steps and
+   the scheduled emails when it lands (pages/_parts.js).
    Adding, moving and ticking dates stays in old Locus for now (ctx.legacy). */
 
 import { APP_NAME } from '../../config.js';
@@ -7,6 +11,7 @@ import { put } from '../../kit.js';
 import { h, hero, kpis, kpi, statusDot, button, segmented, sheet, em, empty, svgNode } from '../../kit.js';
 import { icon } from '../../icons.js';
 import { fixture } from '../../data.js';
+import { loadParts, follow, dots, reading } from '../_parts.js';
 import { css, at, ymd, addDays, between, span, away, short, monthName, todayYmd, heading, row, list, monthGrid, statusLegend, dateOf, brandTag, colorOf } from './_cr.js';
 
 const STATUS = { conf: ['good', 'Confirmed'], pen: ['warn', 'Pencilled in'], miss: ['bad', 'No offer written'] };
@@ -67,7 +72,7 @@ function draw(el, d, ctx, agency) {
       sub: next ? (agency ? next.brand + ': ' : '') + next.name + ', ' + short(next.start) : 'nothing dated' }),
     kpi({ label: 'In the next 60 days', value: String(soon.length), size: 'lg', sub: soon.filter(e => e.status === 'conf').length + ' confirmed' }),
     kpi({ label: 'Not confirmed yet', value: String(open.length), size: 'lg', sub: open.length ? statusDot(open.some(e => e.status === 'miss') ? 'bad' : 'warn', open.filter(e => e.status === 'miss').length ? open.filter(e => e.status === 'miss').length + ' with no offer written' : 'pencilled in') : 'all confirmed' }),
-    ctx.isClient ? null : kpi({ label: 'Steps running late', value: String(lateSteps), size: 'lg', sub: lateSteps ? statusDot('bad', 'open the date to see which') : 'everything on time' }),
+    ctx.isClient ? null : kpi({ label: 'Steps running late', value: d.waiting ? dots() : d.no_steps ? 'not read' : String(lateSteps), size: 'lg', sub: d.waiting ? 'reading what is ready' : d.no_steps ? 'the steps did not load' : lateSteps ? statusDot('bad', 'open the date to see which') : 'everything on time' }),
   ].filter(Boolean), { cols: ctx.isClient ? 3 : 4 }));
 
   /* month grid */
@@ -105,7 +110,21 @@ function draw(el, d, ctx, agency) {
 
   put(el, head, gridBox,
     h('section', { class: 'cr-sect' }, heading('Coming up', coming.length), list(rows, 'Nothing is coming up.')),
-    up.length ? h('section', { class: 'cr-sect' }, heading('Emails and texts scheduled', up.length), list(up.map(m => row({ lead: dateOf(m.start, today), title: m.name, sub: m.kind_label, cells: [{ w: 128, class: 'strong', node: short(m.start) }, { w: 92, node: away(today, m.start) }] })))) : null);
+    up.length ? h('section', { class: 'cr-sect' }, heading('Emails and texts scheduled', up.length), list(up.map(m => row({ lead: dateOf(m.start, today), title: m.name, sub: m.kind_label, cells: [{ w: 128, class: 'strong', node: short(m.start) }, { w: 92, node: away(today, m.start) }] })))) : null,
+    d.waiting ? reading(ctx.isClient ? 'Still reading the scheduled emails and texts.' : 'Still reading what is ready for each date' + (agency ? '.' : ', and the scheduled emails and texts.')) : null);
+}
+
+/** The two answers as one. The full one wins. While it is on its way, the fresh dates are drawn with the steps
+    and emails from last time's full answer when there is one, and `waiting` says more is coming. */
+function whole(d) {
+  if (!d || !d.parts) return d;
+  const full = d.parts.full, dates = d.parts.dates;
+  if (full && !(d.late || []).includes('full')) return full;
+  if (!dates) return full ? { ...full, waiting: (d.late || []).includes('full') } : null;
+  if (full && (d.late || []).includes('dates')) return { ...full, waiting: true };          // last time's, until anything fresh lands
+  const steps = new Map(((full && full.items) || []).map(e => [e.id, e.steps || []]));
+  return { ...dates, items: dates.items.map(e => ({ ...e, steps: steps.get(e.id) || [] })), emails: (full && full.emails) || [],
+    waiting: (d.late || []).includes('full'), no_steps: !full && !(d.late || []).includes('full') };
 }
 
 /** calendarPage({ agency }) : the page module for pages/calendar/index.js and pages/a-calendar/index.js */
@@ -118,7 +137,10 @@ export function calendarPage({ agency = false } = {}) {
       const t = todayYmd();
       const from = ymd(Date.UTC(+t.slice(0, 4), +t.slice(5, 7) - 2, 1, 12)), to = addDays(t, 150);
       const act = agency ? 'all' : encodeURIComponent(ctx.brand.id);
-      return ctx.api(`/api/calendar?act=${act}&from=${from}&to=${to}`, { worker: 'ah', signal: ctx.signal });
+      const q = `/api/calendar?act=${act}&from=${from}&to=${to}`, opt = { worker: 'ah', signal: ctx.signal };
+      /* keep what the page draws: the send plan, the social posts and each brand's team and channels are not shown here */
+      const keep = d => ({ today: d.today, from: d.from, to: d.to, brands: (d.brands || []).map(b => ({ id: b.id, name: b.name })), items: d.items || [], emails: d.emails || [] });
+      return loadParts(ctx, { dates: () => ctx.api(q + '&lite=1', opt).then(keep), full: () => ctx.api(q, opt).then(keep) });
     },
     /* one fixture for both views: the brand page keeps its own brand's rows */
     async sample(ctx) {
@@ -127,7 +149,7 @@ export function calendarPage({ agency = false } = {}) {
       const id = ctx.brand && ctx.brand.id;
       return { ...all, brands: all.brands.filter(b => b.id === id), items: all.items.filter(e => e.act === id), emails: (all.emails || []).filter(e => e.act === id) };
     },
-    render: (el, d, ctx) => draw(el, d, ctx, agency),
+    render: (el, d, ctx) => follow(ctx, d, now => draw(el, whole(now), ctx, agency)),
     skeleton(el) { el.innerHTML = '<div class="lx-skel chart" style="height:150px"></div><div class="lx-skel chart" style="height:520px"></div><div class="lx-skel row"></div><div class="lx-skel row"></div>'; },
   };
 }

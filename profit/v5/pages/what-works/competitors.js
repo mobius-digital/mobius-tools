@@ -12,11 +12,22 @@ import { fixture } from '../../data.js';
 
 const ST = { brand: 'all' };
 const day = d => (d ? new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '');
+/** A web address as a person typed it ("northlake.example", "www.northlake.example/shop", with or without https://)
+    as { href, host }, or null when it is not an address. The brand's list is typed by hand, so never trust it. */
+export function site(u) {
+  const t = String(u == null ? '' : u).trim();
+  if (!t || /\s/.test(t)) return null;
+  try {
+    const full = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(t) ? t : 'https://' + t.replace(/^\/+/, ''));
+    if (!/^https?:$/.test(full.protocol) || full.username || full.password || !/\.[a-z]{2,}$/i.test(full.hostname)) return null;
+    return { href: full.href, host: full.hostname.replace(/^www\./, '') };
+  } catch { return null; }
+}
 
 async function load(ctx) {
   if (!ctx.brand) return { state: 'none' };
   const [b, ex] = await Promise.all([loadBrand(ctx), fixture('what-works/_sample/competitors.json')]);
-  const watch = ((b && b.comps) || []).map(c => ({ name: c.name, url: c.url || null, note: (c.data || {}).why || (c.data || {}).note || (c.data || {}).summary || null }));
+  const watch = ((b && Array.isArray(b.comps) && b.comps) || []).filter(c => c && (c.name || c.url)).map(c => ({ name: c.name || (site(c.url) || {}).host || 'Competitor', url: c.url || null, note: (c.data || {}).why || (c.data || {}).note || (c.data || {}).summary || null }));
   /* the feed has no route yet: its parts come from the example, and the page says so */
   return { state: 'ok', source: 'live', watch, watch_live: true, example: true, reads: ex.reads, ads: ex.ads, batches: ex.batches, example_watch: ex.watch };
 }
@@ -72,8 +83,8 @@ function view(d, ctx) {
     ], { cols: 3 }),
     takeaway(['What a competitor runs, since when and how many versions is knowable. Their spend and results are not, so nothing here is ', h('b', null, 'called a winner'), '.']),
     card({ class: 'ww-cd', title: 'Who we watch', note: watch.length ? null : 'No competitors are listed for this brand yet.' },
-      watch.length ? h('div', { class: 'ww-watch', style: { marginTop: '14px' } }, watch.map(w => h('div', null, h('b', null, w.name), w.note ? h('small', null, w.note) : null,
-        w.url ? h('a', { href: w.url, target: '_blank', rel: 'noopener', style: { fontSize: '12px', fontWeight: 550 } }, new URL(w.url).hostname.replace(/^www\./, '')) : null)))
+      watch.length ? h('div', { class: 'ww-watch', style: { marginTop: '14px' } }, watch.map(w => { const s = site(w.url); return h('div', null, h('b', null, w.name), w.note ? h('small', null, w.note) : null,
+        s ? h('a', { href: s.href, target: '_blank', rel: 'noopener', style: { fontSize: '12px', fontWeight: 550 } }, s.host) : null); }))
         : h('p', { class: 'lx-foot', style: { marginTop: '10px' } }, ctx.isClient ? 'Your team adds the brands to watch.' : 'Add them on the brand\'s research page in old ' + APP_NAME + '.')),
     brands.length > 1 ? h('div', { class: 'ww-bar' }, segmented([{ id: 'all', label: 'All brands' }, ...brands.map(b => ({ id: b, label: b }))], ST.brand, id => { ST.brand = id; paint(); })) : null,
     body,

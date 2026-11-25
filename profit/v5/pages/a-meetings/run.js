@@ -8,7 +8,8 @@
 import { APP_NAME } from '../../config.js';
 import { put, noDash } from '../../kit.js';
 import { h, em, button, avatar, statusDot, pill, delta, sheet, toast, empty, addStyles } from '../../kit.js';
-import { css, loadMeeting, MEETING_START, rangeText, longDay, shortDay, lightOf, trafficLight, sentence, detailTable, ok, money, x } from './_meet.js';
+import { follow, reading } from '../_parts.js';
+import { css, loadMeeting, meetingOf, MEETING_START, rangeText, longDay, shortDay, lightOf, trafficLight, sentence, detailTable, ok, money, x } from './_meet.js';
 
 /* ---------- what the people in the room picked and typed (this tab only) ---------- */
 const ui = { key: null, step: 0, ans: {}, added: {}, notes: {}, rate: null };
@@ -47,21 +48,18 @@ function splitSummary(text) {
 }
 
 /* ---------- real mode ----------
-   loadMeeting is what Agenda and Pre-read read (ah /api/calls/screen?kind=monday and profit /api/hub/command).
-   ah /api/meetings/monday adds what the room needs on top: the open tasks per brand, the report's own
-   "What we saw" and "What we're doing" lines, and what we are waiting on from the client. */
-async function load(ctx) {
-  const [m, mon] = await Promise.all([
-    loadMeeting(ctx),
-    ctx.api('/api/meetings/monday', { worker: 'ah', signal: ctx.signal }).catch(e => { if (e && e.name === 'AbortError') throw e; return null; }),
-  ]);
-  const BY = Object.fromEntries(((mon && mon.brands) || []).map(b => [b.act_id, b]));
+   loadMeeting (in _meet.js) is the same three reads Agenda and Pre-read make: ah /api/meetings/monday (quick: the
+   scoreboard, the open tasks per brand, the report's own "What we saw" and "What we're doing" lines and what we
+   are waiting on from the client), profit /api/hub/command (the MER goals) and ah /api/calls/screen?kind=monday
+   (slow: Meta and Google by channel, the pipeline). The room sees the scoreboard as soon as the first lands. */
+function build(d, ctx) {
+  if (!d || !d.parts) return d;                 // a sample fixture is already in the page's shape
+  const m = meetingOf(d, ctx);
   const today = new Date().toLocaleDateString('en-CA');
   const task = t => ({ text: noDash(t.text || t.name || ''), owner: t.owner || '', due: t.due || '', late: !!t.due && t.due < today });
   const brands = (m.brands || []).map(b => {
-    const k = BY[b.id], rep = k && k.report;
     const current = !!b.week && !!m.week && b.week.from === m.week.from;
-    const parts = rep && current ? splitSummary(rep.summary) : { saw: [], means: '', doing: [] };
+    const parts = b.has_report && current ? splitSummary(b.summary) : { saw: [], means: '', doing: [] };
     const pipe = (b.rows || []).find(r => r.id === 'pipeline');
     return {
       id: b.id, name: b.name, currency: b.currency, connected: b.connected, current, has_report: b.has_report, week: b.week,
@@ -69,16 +67,17 @@ async function load(ctx) {
       owner: b.owner || null, verdict: null,
       happened: parts.saw.slice(0, 3),
       decisions: parts.doing.slice(0, 4).map(text => ({ text, from: 'report' })),
-      promises: k ? (k.open || []).map(task).filter(t => t.text) : null,
-      asks: rep && current ? (rep.need_from_you || []).map(noDash) : [],
+      promises: b.open ? b.open.map(task).filter(t => t.text) : null,
+      asks: b.has_report && current ? (b.need || []).map(noDash) : [],
       channels: (b.rows || []).filter(r => r.id === 'meta' || r.id === 'google').map(r => ({ label: r.label, big: r.big, tone: r.tone, status: r.status })),
       pipeline: pipe ? { big: pipe.big, status: pipe.status, detail: pipe.detail } : null,
     };
   });
   return {
     monday: m.monday, week: m.week, as_of: m.as_of, brands,
-    theme: (mon && mon.theme) || '',
-    agency: { open: mon ? (mon.agency_open || []).map(task).filter(t => t.text) : null },
+    theme: m.theme || '',
+    agency: { open: (m.agency_open || []).map(task).filter(t => t.text) },
+    waiting: m.waiting || null,
     learned: null,           // lessons have no feed: the step is the prompt and the notes box
   };
 }
@@ -257,7 +256,7 @@ function pipeline(d, P, ctx) {
     list.length ? h('section', { class: 'mr-sec' }, h('div', { class: 'mt-h' }, h('h3', null, 'Creative in the pipeline'), h('span', null, 'ready to load, of everything being made. Tap a brand for the cards.')),
       h('div', { class: 'lx-card flush' }, list.map(b => h('button', { type: 'button', class: 'mr-q pipe', onclick: () => open(b), 'aria-label': 'Open the cards for ' + b.name },
         h('span', { class: 'nm' }, b.name), h('span', { class: 'big' }, b.pipeline.big, h('small', null, 'ready to load')), h('span', { class: 'say' }), statusDot('off', b.pipeline.status)))))
-      : h('p', { class: 'mt-none' }, 'No brand has a card in the pipeline right now.'),
+      : d.waiting && d.waiting.screen ? reading('Still reading the pipeline.') : h('p', { class: 'mt-none' }, 'No brand has a card in the pipeline right now.'),
     notesBox('pipeline'),
   ];
 }
@@ -388,14 +387,17 @@ function draw(el, data, ctx) {
   put(el, root);
 }
 
+/* each part of the meeting is painted as it lands */
+const paint = (el, d, ctx) => follow(ctx, d, now => draw(el, build(now, ctx), ctx));
+
 export default {
   title: 'Run the meeting',
   eyebrow: 'Meetings, team',
   ranges: false,
-  asOf: d => (d && d.as_of) || null,
-  load,
-  render: draw,
-  update: draw,
+  asOf: d => (d && d.parts ? (d.parts.cmd && d.parts.cmd.as_of) || d.at : d && d.as_of) || null,
+  load: loadMeeting,
+  render: paint,
+  update: paint,
 };
 
 /* ---------- the page CSS, once. Every class starts with mr-. ---------- */

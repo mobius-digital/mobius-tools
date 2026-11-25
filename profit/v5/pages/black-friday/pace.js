@@ -13,6 +13,7 @@
 import { put } from '../../kit.js';
 import { h, em, money, num, x, pct, statusDot, button, platformChip, hero, card, legend, lineChart, delta, empty, sheet, skeleton, addStyles } from '../../kit.js';
 import { APP_NAME } from '../../config.js';
+import { loadParts, follow, late, reading } from '../_parts.js';
 
 const CSS = `
 .bp-hero{display:grid;grid-template-columns:330px minmax(0,1fr);gap:48px;align-items:end}
@@ -110,22 +111,34 @@ function phasesFor(list, today) {
   });
 }
 
-/* ---------- load: two read routes folded into one plain shape (the fixture has the same shape) ---------- */
-async function load(ctx) {
+/* ---------- load: two read routes, asked together, each painted as it lands (pages/_parts.js) ----------
+     war        profit GET /api/season/war?act=<brand>&live=1   the plan, the phases and today by the hour. The slow
+                                                                one: live=1 reads today from Triple Whale as it is asked.
+     standing   ah GET /api/standing (team only)                the last 3-hourly check-in: the call, the budgets,
+                                                                the sale so far. Kept by the worker: quick.
+   Only this brand's row of the check-in is kept. fuse() folds what has landed into one plain shape (the fixture
+   has the same shape). */
+function load(ctx) {
   if (!ctx.brand) return { no_brand: true };
-  const id = ctx.brand.id, sig = ctx.signal, team = !ctx.isClient;
-  const [warR, stR] = await Promise.allSettled([
-    ctx.api('/api/season/war?act=' + encodeURIComponent(id) + '&live=1', { signal: sig }),
-    team ? ctx.api('/api/standing', { worker: 'ah', signal: sig }) : Promise.resolve(null),
-  ]);
-  for (const r of [warR, stR]) if (r.status === 'rejected' && r.reason && (r.reason.name === 'AbortError' || r.reason.status === 401)) throw r.reason;
-  const war = warR.status === 'fulfilled' ? warR.value : null;
-  const S = stR.status === 'fulfilled' && stR.value ? stR.value.standing : null;
-  if (!war && !S) throw warR.reason || new Error('The plan did not answer');
+  const id = ctx.brand.id, sig = ctx.signal;
+  const parts = { war: () => ctx.api('/api/season/war?act=' + encodeURIComponent(id) + '&live=1', { signal: sig }) };
+  if (!ctx.isClient) parts.standing = () => ctx.api('/api/standing', { worker: 'ah', signal: sig }).then(r => {
+    const S = r && r.standing;
+    if (!S) return null;
+    return { today: S.today || null, label: S.label || null, next: S.next || null, dry: !!S.dry, brands: (S.brands || []).filter(v => v.act_id === id), approved: S.approved && S.approved[id] ? { [id]: S.approved[id] } : {} };
+  });
+  return loadParts(ctx, parts);
+}
+function fuse(d, ctx) {
+  if (!d || !d.parts) return d;                 // no brand picked, or a sample fixture
+  const id = ctx.brand.id, team = !ctx.isClient;
+  const war = d.parts.war || null, S = d.parts.standing || null;
+  const waiting = { war: late(d, 'war'), standing: late(d, 'standing') };
+  if (!war && !S) return { fetched_at: d.at, none: true, waiting };
   const b = S ? (S.brands || []).find(v => v.act_id === id) || null : null;
   const sale = (b && b.sale) || (war && war.sale) || null;
   const now = Date.now(), today = (war && war.today) || (S && S.today) || new Date().toISOString().slice(0, 10);
-  if (!sale || !sale.start) return { fetched_at: now, none: true, today };
+  if (!sale || !sale.start) return { fetched_at: d.at || now, none: true, today, waiting };
 
   const L = war && war.live && !war.live.error ? war.live : null, lT = (L && L.today) || {};
   const noSales = !!(b && b.no_sales) || !!(lT.no_sales);
@@ -155,7 +168,8 @@ async function load(ctx) {
   if (team) {
     const from = camp && camp.daily;
     const stays = m.error ? 'Meta did not answer' : !camp ? (b ? 'No sale campaign in Meta' : '') : from ? `Stays ${money(from)} a day` : 'Ad set budgets, no campaign budget';
-    if (!b) call = { kind: 'hold', text: 'No check-in yet', sub: '', why: S ? 'This brand is not in the check-in yet.' : 'The first check-in runs at 9am Central.' };
+    if (!b && waiting.standing) call = { kind: 'hold', text: 'Reading the check-in', sub: '', why: '' };
+    else if (!b) call = { kind: 'hold', text: 'No check-in yet', sub: '', why: S ? 'This brand is not in the check-in yet.' : 'The first check-in runs at 9am Central.' };
     else if (b.watch) call = { kind: 'watch', text: 'Watch only', sub: `No budget move from ${APP_NAME}`, why: g.why || '' };
     else if (ap) call = { kind: g.call || 'hold', text: CALL_WORD[g.call] || 'Hold', sub: `Done, now ${money(ap.to)} a day`, why: `Approved by ${ap.by || 'the team'}.` };
     else if (g.to) call = { kind: g.call, text: CALL_WORD[g.call] || 'Hold', sub: `${money(from)} to ${money(g.to)} a day`, why: [g.why, g.note].filter(Boolean).join(' '), needs_yes: true };
@@ -184,7 +198,7 @@ async function load(ctx) {
     .map(v => ({ when: new Date(v.at).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' }), what: v.what, status: { tone: '', text: 'Scheduled' } }));
 
   return {
-    fetched_at: now, today, currency: (war && war.currency) || (b && b.currency) || 'USD', client_view: !team,
+    fetched_at: d.at || now, waiting, today, currency: (war && war.currency) || (b && b.currency) || 'USD', client_view: !team,
     checked: S ? S.label : null, next: S ? S.next : null, dry: !!(S && S.dry), cmp_label: L && L.in_sale === false ? 'A normal day' : 'Plan for today',
     status, call, no_sales: noSales,
     sale: { start: sale.start, end: sale.end, day: started ? Math.min(daysBetween(sale.start, today), daysBetween(sale.start, sale.end)) + 1 : null, days: daysBetween(sale.start, sale.end) + 1,
@@ -344,8 +358,13 @@ export default {
   title: ctx => (ctx.isClient ? ['Is the sale on pace ', em('today?')] : ['Does this brand need a call ', em('right now?')]),
   eyebrow: 'Black Friday',
   ranges: false,
-  asOf: d => (d && d.fetched_at) || null,
+  asOf: d => (d && (d.at || d.fetched_at)) || null,
   load,
   skeleton(el) { put(el, h('div', { class: 'lx-skel-grid' }, skeleton('kpi', 2)), skeleton('chart', 1), skeleton('row', 3)); },
-  render,
+  render: (el, data, ctx) => follow(ctx, data, now => {
+    const f = fuse(now, ctx), w = (f && f.waiting) || {};
+    if (f && f.none && (w.war || w.standing)) return put(el, h('div', { class: 'lx-skel-grid' }, skeleton('kpi', 2)), skeleton('chart', 1), reading('Still reading the plan.'));
+    render(el, f, ctx);
+    if (w.war || w.standing) el.append(reading(w.war ? 'Still reading today by the hour.' : 'Still reading the last check-in.'));
+  }),
 };

@@ -6,7 +6,7 @@
 
 import { put } from '../../kit.js';
 import { h, button, toast, sheet, addStyles, statusDot, empty } from '../../kit.js';
-import { SAMPLE } from '../../data.js';
+import { SAMPLE, putSaved } from '../../data.js';
 import { ORG_SHORT } from '../../config.js';
 import { picture, day, daysFrom, todayOf, plural } from '../production/_ui.js';
 
@@ -14,6 +14,24 @@ import { picture, day, daysFrom, todayOf, plural } from '../production/_ui.js';
 export async function loadCreators(ctx) {
   try { return await ctx.api('/api/trybe?act=' + encodeURIComponent(ctx.brand.id), { worker: 'ah', signal: ctx.signal }); }
   catch (e) { if (e && e.name === 'AbortError') throw e; if (e && (e.status === 400 || e.status === 404)) return { has_key: false, error: e.message }; throw e; }
+}
+
+/* Which brands have a creator program here. GET /api/trybe/review and /api/trybe/video answer 400 for a brand with no
+   creator platform key, so the team's pages ask this first and never call those for a brand without one.
+   One read for every brand: GET /api/trybe?act=all (team only; counts from the worker's own tables, no call out).
+   brands[].has_key is the answer. It is kept as a saved copy, so the next visit does not wait for it. */
+const KEYED = 'creators|keyed';
+const readKeyed = ctx => ctx.api('/api/trybe?act=all', { worker: 'ah', signal: ctx.signal }).then(r => ((r && r.brands) || []).filter(b => b.has_key).map(b => b.act_id));
+/** A Set of brand ids with a creator program, or null when that could not be read (the caller then asks anyway and
+    reads 400 as "no creator program"). `sure` is a brand id that must not be judged from an old copy: when the
+    saved copy says it has none, the list is read again before the page says so. */
+export async function keyedBrands(ctx, sure) {
+  try {
+    const rec = await ctx.cached(KEYED, () => readKeyed(ctx), null, { maxAge: 5 * 60e3 });
+    let ids = rec.data || [];
+    if (sure && !rec.fresh && !ids.includes(sure)) { ids = await readKeyed(ctx); await putSaved(KEYED, ids); }
+    return new Set(ids);
+  } catch (e) { if (e && (e.name === 'AbortError' || e.status === 401)) throw e; return null; }
 }
 
 /** The plain state when the brand has no creator platform key yet, or nothing at all. */

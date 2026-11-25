@@ -5,15 +5,20 @@
    Data, account-health worker:
      GET /api/trybe/scorecard          every brand with a creator program: spend, sales, cost per sale, goal,
                                        videos in, approved, launched (7 and 30 days), active creators
-     GET /api/trybe?act=<brand id>     once per brand: counts.pending (waiting for a yes), counts.live,
-                                       counts.not_launched, counts.oldest, counts.rebook
+     GET /api/trybe?act=<brand id>     once per brand WITH a creator program: counts.pending (waiting for a yes),
+                                       counts.live, counts.not_launched, counts.oldest, counts.rebook
+     GET /api/trybe?act=all            which brands have a program (keyedBrands in creators/_cr.js, a saved copy
+                                       after the first visit), so the others are never asked
+   The scorecard and the per-brand counts are two parts: the page paints when the first lands and fills the
+   other in (pages/_parts.js).
    A brand whose creators run in their own app has no /api/trybe answer: its live and waiting counts read
    "not read here", never 0. Sales are Triple Whale (last platform click); spend is Meta's. */
 
 import { h, hero, kpi, kpis, em, money, num, x, button, statusDot, empty, skeleton, sheet, addStyles } from '../../kit.js';
 import { APP_NAME } from '../../config.js';
 import { put, css, plural } from '../production/_ui.js';
-import { crCss } from '../creators/_cr.js';
+import { crCss, keyedBrands } from '../creators/_cr.js';
+import { loadParts, follow, late, dots, reading } from '../_parts.js';
 import { acCss, perBrand, brandOf, brandName, brandPage, oldCreators, todayStr, notRead } from './to-review.js';
 
 const CSS = `
@@ -50,7 +55,7 @@ const abCss = () => addStyles('ab-css', CSS);
 
 const known = v => v != null && Number.isFinite(+v);
 /** A number, or plain words when it could not be read. Never a made-up zero. */
-const figure = (v, { hot = false, none = 'not read here' } = {}) => known(v) ? h('b', { class: hot && +v > 0 ? 'hot' : null }, num(+v)) : h('b', { class: 'none' }, none);
+const figure = (v, { hot = false, none = 'not read here', wait = false } = {}) => known(v) ? h('b', { class: hot && +v > 0 ? 'hot' : null }, num(+v)) : wait ? h('b', null, dots()) : h('b', { class: 'none' }, none);
 const sum = (rows, f) => rows.reduce((s, r) => s + (known(f(r)) ? +f(r) : 0), 0);
 
 /** Creator ads against the brand's goal cost per sale, last 30 days. */
@@ -79,7 +84,7 @@ function rowsOf(data) {
       pending: known(c.pending) ? +c.pending : null,
       not_launched: known(c.not_launched) ? +c.not_launched : known(r.waiting_launch) ? +r.waiting_launch : null,
       oldest: known(c.oldest) ? +c.oldest : null, stale: known(c.stale) ? +c.stale : null, rebook: known(c.rebook) ? +c.rebook : null };
-  }).filter(r => r.scored || r.pending > 0 || r.live > 0 || r.not_launched > 0)   /* a connected brand with nothing at all is left off, as the scorecard does */
+  }).filter(r => r.scored || r.pending > 0 || r.live > 0 || r.not_launched > 0 || (data && data.wait_score && r.counts))   /* a connected brand with nothing at all is left off, as the scorecard does */
     .sort((a, b) => (b.pending ?? -1) - (a.pending ?? -1) || (b.not_launched ?? -1) - (a.not_launched ?? -1) || (b.creators ?? -1) - (a.creators ?? -1));
 }
 
@@ -116,35 +121,44 @@ function openBrand(ctx, r) {
   window.addEventListener('hashchange', () => sh.close(), { once: true });   // a link inside the sheet moves on: the sheet goes with it
 }
 
-export default {
+/** The parts that have landed, in the one shape the page and the sample fixture share. */
+function shape(d) {
+  if (!d || !d.parts) return d;
+  const s = d.parts.score, c = d.parts.counts;
+  return { today: (s && s.today) || todayStr(), cards: (s && s.cards) || [], brands: (c && c.brands) || [], failed: (c && c.failed) || [],
+    score_failed: (d.errors && d.errors.score) || null, wait_score: late(d, 'score'), wait_counts: late(d, 'counts') };
+}
+
+const page = {
   title: ['Which brand\'s creators ', em('need us today?')],
   eyebrow: 'Creators, all brands',
   ranges: false,
 
-  async load(ctx) {
-    const [score, got] = await Promise.all([
-      ctx.api('/api/trybe/scorecard', { worker: 'ah', signal: ctx.signal }).catch(e => { if (e && e.name === 'AbortError') throw e; return { failed: (e && e.message) || 'no answer' }; }),
-      perBrand(ctx, '/api/trybe?act='),
-    ]);
-    const out = { today: (score && score.today) || todayStr(), cards: [], brands: [], failed: [], score_failed: score && score.failed ? score.failed : null };
-    for (const c of (score && score.cards) || []) {
-      if (!c || c.error) continue;
-      out.cards.push({ act_id: c.act_id, name: c.name, source: c.source, creators_active: c.creators_active ?? null, waiting: c.waiting ?? null, last_7: c.last_7 || null, last_30: c.last_30 || null });
-    }
-    for (const g of got) {
-      if (g.failed) { out.failed.push({ act_id: g.act_id, why: g.failed }); continue; }
-      if (g.none || !g.data || g.data.has_key === false) continue;
-      const d = g.data;                                   // keep the counts, drop the long lists
-      out.brands.push({ act_id: g.act_id, synced_at: d.synced_at || null, counts: d.counts || null, account: d.account ? { cpa: d.account.cpa ?? null, trybe_cpa: d.account.trybe_cpa ?? null, share: d.account.share ?? null } : null });
-    }
-    if (!out.cards.length && !out.brands.length && (out.score_failed || out.failed.length)) throw new Error('The creator numbers did not load. ' + (out.score_failed || out.failed[0].why));
-    return out;
-  },
+  /* two parts, read together, each kept small (the counts, never the long lists) */
+  load: ctx => loadParts(ctx, {
+    score: () => ctx.api('/api/trybe/scorecard', { worker: 'ah', signal: ctx.signal }).then(score => ({ today: (score && score.today) || null,
+      cards: ((score && score.cards) || []).filter(c => c && !c.error).map(c => ({ act_id: c.act_id, name: c.name, source: c.source, creators_active: c.creators_active ?? null, waiting: c.waiting ?? null, last_7: c.last_7 || null, last_30: c.last_30 || null })) })),
+    counts: async () => {
+      const got = await perBrand(ctx, '/api/trybe?act=', await keyedBrands(ctx));
+      const out = { brands: [], failed: [] };
+      for (const g of got) {
+        if (g.failed) { out.failed.push({ act_id: g.act_id, why: g.failed }); continue; }
+        if (g.none || !g.data || g.data.has_key === false) continue;
+        const d = g.data;
+        out.brands.push({ act_id: g.act_id, synced_at: d.synced_at || null, counts: d.counts || null, account: d.account ? { cpa: d.account.cpa ?? null, trybe_cpa: d.account.trybe_cpa ?? null, share: d.account.share ?? null } : null });
+      }
+      return out;
+    },
+  }),
   skeleton(el) { put(el, skeleton('kpi', 4), skeleton('chart')); },
 
-  render(el, data, ctx) {
+  render(el, data, ctx) { follow(ctx, data, d => page.draw(el, shape(d), ctx)); },
+
+  draw(el, data, ctx) {
     css(); crCss(); acCss(); abCss();
     const rows = rowsOf(data), failed = (data && data.failed) || [];
+    const wc = !!(data && data.wait_counts), ws = !!(data && data.wait_score);
+    if (!rows.length && (wc || ws)) { put(el, skeleton('kpi', 4), skeleton('chart'), reading('Reading every brand\'s creator numbers')); return; }
     if (!rows.length) {
       put(el, empty({ title: 'No brand has a creator program yet', text: 'Add a brand\'s creator platform key in its Brand settings > Integrations. Then it gets a card here.' }), notRead(ctx, failed));
       return;
@@ -157,29 +171,31 @@ export default {
       hero({ line: true },
         kpis([
           kpi({ label: 'Brands with creators', value: String(rows.length), sub: plural(sum(rows, r => r.creators), 'active creator') }),
-          kpi({ label: 'Waiting for a yes', value: readPending.length ? String(sum(rows, r => r.pending)) : 'not read',
+          kpi({ label: 'Waiting for a yes', value: readPending.length ? String(sum(rows, r => r.pending)) : wc ? dots() : 'not read',
             sub: !readPending.length ? null : waitingBrands.length ? statusDot('warn', plural(waitingBrands.length, 'brand') + (readPending.length < rows.length ? ', ' + part(readPending) + ' read' : '')) : statusDot('good', 'nothing waiting'),
             href: ctx.href('a-creators', 'to-review') }),
-          kpi({ label: 'Live videos', value: readLive.length ? String(sum(rows, r => r.live)) : 'not read', sub: readLive.length ? 'ran as ads in 30 days, ' + part(readLive) : null }),
-          kpi({ label: 'Approved, not launched', value: String(notLaunched), sub: notLaunched ? statusDot('warn', 'ready to load into Meta') : statusDot('good', 'all launched') }),
+          kpi({ label: 'Live videos', value: readLive.length ? String(sum(rows, r => r.live)) : wc ? dots() : 'not read', sub: readLive.length ? 'ran as ads in 30 days, ' + part(readLive) : null }),
+          kpi({ label: 'Approved, not launched', value: wc && !rows.some(r => known(r.not_launched)) ? dots() : String(notLaunched), sub: notLaunched ? statusDot('warn', 'ready to load into Meta') : statusDot('good', 'all launched') }),
         ], { cols: 4 })),
       h('div', { class: 'pd-tools' }, h('span', { class: 'cr-quiet' }, 'Most waiting first. Tap a brand for its last 7 and 30 days.')),
       h('div', { class: 'ab-grid' }, rows.map(r => {
         const m = r.last_30 || {}, own = r.own_app;
         return h('button', { type: 'button', class: 'ab-card', 'aria-label': 'Open ' + ((brandOf(ctx, r.act_id) || {}).name || r.name || 'the brand'), onclick: () => openBrand(ctx, r) },
-          h('div', { class: 'ab-top' }, brandName(ctx, r.act_id, r.name), goalDot(r)),
+          h('div', { class: 'ab-top' }, brandName(ctx, r.act_id, r.name), ws && !r.last_30 ? null : goalDot(r)),
           h('div', { class: 'ab-nums' },
-            h('span', null, h('em', null, 'Creators'), figure(r.creators), h('small', null, 'active, 30 days')),
-            h('span', null, h('em', null, 'Live videos'), figure(r.live, { none: own ? 'in their own app' : 'not read here' }), r.live != null ? h('small', null, 'ran as ads') : null),
-            h('span', null, h('em', null, 'Waiting'), figure(r.pending, { hot: true, none: own ? 'in their own app' : 'not read here' }), r.pending != null ? h('small', null, 'need a yes') : null)),
+            h('span', null, h('em', null, 'Creators'), figure(r.creators, { wait: ws || wc }), h('small', null, 'active, 30 days')),
+            h('span', null, h('em', null, 'Live videos'), figure(r.live, { none: own ? 'in their own app' : 'not read here', wait: wc && !own }), r.live != null ? h('small', null, 'ran as ads') : null),
+            h('span', null, h('em', null, 'Waiting'), figure(r.pending, { hot: true, none: own ? 'in their own app' : 'not read here', wait: wc && !own }), r.pending != null ? h('small', null, 'need a yes') : null)),
           h('div', { class: 'ab-line' },
             known(r.not_launched) ? h('span', null, r.not_launched ? h('b', null, plural(r.not_launched, 'approved video')) : 'Every approved video', r.not_launched ? ' not launched yet' + (known(r.oldest) && r.oldest ? ', oldest ' + plural(r.oldest, 'day') : '') : ' has launched') : null,
             known(m.spend) && +m.spend > 0
               ? h('span', null, '30 days: ' + money(m.spend) + ' spend, ' + plural(num(m.orders || 0), 'sale') + (known(m.cpa) ? ', ' + money(m.cpa) + ' per sale' : '') + (known(m.goal_cpa) ? ' (goal ' + money(m.goal_cpa) + ')' : '') + (known(m.roas) ? ', ' + x(m.roas) + ' ROAS' : ''))
-              : r.last_30 ? h('span', null, 'No creator ad spend in 30 days') : null));
+              : r.last_30 ? h('span', null, 'No creator ad spend in 30 days') : ws ? h('span', null, dots('9em')) : null));
       })),
+      wc || ws ? reading(wc && ws ? 'Still reading the counts and the spend' : wc ? 'Still reading each brand\'s live and waiting videos' : 'Still reading spend and sales') : null,
       notRead(ctx, failed),
       data && data.score_failed ? h('p', { class: 'lx-foot ac-miss' }, statusDot('warn', 'The spend and sales lines did not load, so the cards show counts only.')) : null,
       h('p', { class: 'lx-foot' }, 'Sales are Triple Whale, spend is Meta. Active creators sent a video in the last 30 days. Live videos ran as ads in the last 30 days. Read only: approve and launch in old ' + APP_NAME + '.'));
   },
 };
+export default page;
