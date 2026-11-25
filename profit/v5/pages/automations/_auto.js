@@ -126,7 +126,7 @@ function picker(part, draft, data, onPick) {
   const email = h('input', { type: 'email', placeholder: 'name@company.com', 'aria-label': 'Their email', value: (draft.tell.who[+key.split('.')[2]] || {}).email || '', style: { display: cur === 'person' ? '' : 'none' },
     onchange: () => { if (email.value.includes('@')) onPick(email.value.trim().toLowerCase()); } });
   function choose(v) { if (ok === 'tell.who' && v === 'person') { email.style.display = ''; email.focus(); return; } onPick(v); }
-  if (key === 'brand') return h('div', { class: 'au-pick' }, sel('Which brand', [{ id: 'all', label: 'Any brand' }, ...(data.brands || [])], cur));
+  if (key === 'brand') return h('div', { class: 'au-pick' }, sel('Which brand', [{ id: 'all', label: 'Any brand' }, ...(data.brands || []).map(b => ({ id: b.id, label: b.name }))], cur));
   if (key === 'when.line') {
     const inp = h('input', { type: 'number', step: 'any', min: '0', 'aria-label': 'The line', value: cur === 'goal' ? '' : cur, placeholder: 'A number', onchange: () => onPick(inp.value) });
     return h('div', { class: 'au-pick' }, h('label', null, 'The line'), inp, button('Use the brand\'s goal', { onclick: () => onPick('goal') }));
@@ -136,6 +136,18 @@ function picker(part, draft, data, onPick) {
   const items = (data.options || {})[ok];
   if (!items) return null;
   return h('div', { class: 'au-pick' }, sel('Change "' + part.text + '" to', items, cur), ok === 'tell.who' ? email : null);
+}
+
+/** A new automation opened inside a brand view is for that brand, and its sentence must say so before the first
+    save. Returns { brand, sentence }: the brand slot reads the brand's name. A sentence with no brand word stays
+    for any brand, so the words and the saved automation never disagree. */
+export function forBrand(sentence, ctx) {
+  const s = copy(sentence || { text: '', parts: [] });
+  const slot = ctx.brand && (s.parts || []).find(p => p.t === 'slot' && p.key === 'brand');
+  if (!slot) return { brand: 'all', sentence: s };
+  slot.text = ctx.brand.name;
+  s.text = s.parts.map(p => p.text).join('');
+  return { brand: ctx.brand.id, sentence: s };
 }
 
 /** The one-sentence editor, in a sheet from the bottom. start = a saved automation or a template's automation.

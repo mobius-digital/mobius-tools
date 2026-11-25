@@ -6,11 +6,12 @@
    POST /api/connect-ai/proposals/check { id }, which reads the real name and the real before and after from Meta,
    and shows them in a sheet. The yes in that sheet sends back what was shown ({ expect, big }); the worker refuses
    a yes that does not carry it. A login that can only look (can_act false) gets no buttons.
-   A link the AI hands back (?open=aiproposal&id=...&act=...) opens this page (app.js); the id in the address marks that card.
+   A link the AI hands back (?open=aiproposal&id=...&act=...) opens this page (app.js), which hands the id over; that card is marked.
    With Connect your AI switched off the route answers { on: false, proposals: [] } and the page says so in one line. */
 
 import { h, put, button, empty, pill, toast, sheet, field, addStyles, em, money } from '../../kit.js';
-import { APP_NAME, QS } from '../../config.js';
+import { APP_NAME, LS5 } from '../../config.js';
+import { seenAsClient, clientsOwn, staleHold, ownGet, noEmail } from './_own.js';
 
 const CSS = `
 .lx-caip{display:grid;gap:var(--sp-5)}
@@ -41,16 +42,33 @@ function left(iso) {
   return hrs >= 1 ? `${hrs} ${hrs === 1 ? 'hour' : 'hours'} left` : `${Math.max(1, Math.round(ms / 60e3))} min left`;
 }
 
+/* The card a link from a connected AI opened. app.js hands the id over once and takes it out of the address, so
+   the mark lasts while this tab stays open on the page and is gone after a reload. */
+let MARK = null;
+function markedCard() {
+  try { const v = sessionStorage.getItem(LS5.aiCard); if (v != null) { MARK = v || null; sessionStorage.removeItem(LS5.aiCard); } } catch {}
+  return MARK;
+}
+
+async function load(ctx) {
+  if (seenAsClient(ctx)) return { preview: true };       // the team looking as a client: no call is made
+  const q = ctx.brand && ctx.brand.id ? '?act=' + encodeURIComponent(ctx.brand.id) : '';
+  return ownGet(ctx, '/api/connect-ai/proposals' + q, ctx.signal);
+}
+
 function draw(el, data, ctx) {
   addStyles('lx-caip-css', CSS);
   data = data || {};
+  if (seenAsClient(ctx)) return clientsOwn(el);
+  if (staleHold(el, data, ctx, load, draw)) return;
+  if (data.no_email) return noEmail(el);
   if (data.on === false) {
     return put(el, h('div', { class: 'lx-caip' }, empty({ title: 'Connect your AI is switched off', text: 'No AI is connected to this workspace, so there are no cards. The switch is on the Connect your AI tab.',
       action: button('Open Connect your AI', { href: ctx.href('profile', 'connect-ai') }) })));
   }
   const list = (data.proposals || []).filter(p => p.status === 'waiting');
   const applies = !!data.applies_on_yes;
-  const marked = QS.get('id');
+  const marked = markedCard();
   const brandOf = id => (ctx.brands || []).find(b => b.id === id) || { name: id, currency: 'USD' };
   const host = h('div', { class: 'lx-caip' });
 
@@ -138,9 +156,6 @@ export default {
   title: ['Suggestions from ', em('your AI')],
   eyebrow: 'Your profile',
   ranges: false,
-  async load(ctx) {
-    const q = ctx.brand && ctx.brand.id ? '?act=' + encodeURIComponent(ctx.brand.id) : '';
-    return ctx.api('/api/connect-ai/proposals' + q, { worker: 'ah', signal: ctx.signal });
-  },
+  load,
   render: draw,
 };

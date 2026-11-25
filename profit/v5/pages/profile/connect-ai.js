@@ -9,6 +9,7 @@
 
 import { h, put, card, button, field, toggle, tabs, table, empty, statusDot, pill, toast, sheet, relativeTime, addStyles, em } from '../../kit.js';
 import { APP_NAME } from '../../config.js';
+import { seenAsClient, clientsOwn, staleHold, ownGet, noEmail } from './_own.js';
 
 const CSS = `
 .lx-cai{display:grid;gap:var(--sp-8)}
@@ -73,8 +74,10 @@ function showKey(k) {
 }
 
 async function fetchAll(ctx, signal) {
+  if (seenAsClient(ctx)) return { preview: true };       // the team looking as a client: no call is made
   const get = p => ctx.api(p, { worker: 'ah', signal });
-  const status = await get('/api/connect-ai');
+  const status = await ownGet(ctx, '/api/connect-ai', signal);
+  if (status.no_email) return status;
   if (!status.on) return { status, keys: [], calls: [] };
   const [k, c] = await Promise.all([get('/api/connect-ai/keys'), get('/api/connect-ai/calls').catch(e => { if (e && e.name === 'AbortError') throw e; return { calls: [] }; })]);
   return { status, keys: k.keys || [], calls: c.calls || [] };
@@ -83,6 +86,9 @@ async function fetchAll(ctx, signal) {
 function draw(el, data, ctx) {
   addStyles('lx-cai-css', CSS);
   data = data || {};
+  if (seenAsClient(ctx)) return clientsOwn(el);
+  if (staleHold(el, data, ctx, c => fetchAll(c), draw)) return;
+  if (data.no_email) return noEmail(el);
   const st = data.status || {}, keys = data.keys || [], calls = data.calls || [];
   const brandName = id => (ctx.brands || []).find(b => b.id === id)?.name || id || '';
   /* after a change: read again and draw again, in place (the key itself is never part of this data) */

@@ -68,7 +68,11 @@ async function boot() {
   /* a link a connected AI hands back (?open=aiproposal&id=<card id>&act=<brand id>) opens the cards page; the page marks the card */
   if (QS.get('open') === 'aiproposal' && (!location.hash || location.hash === '#' || location.hash === '#/')) {
     const b = shell.state().brands.find(x => x.id === QS.get('act'));
-    history.replaceState(null, '', location.pathname + location.search + (b && b.slug ? '#/brand/' + encodeURIComponent(b.slug) : '#/agency/all') + '/profile/ai-cards');
+    /* the card id is handed to the page once, then open, id and act leave the address so a later visit marks nothing */
+    try { sessionStorage.setItem(LS5.aiCard, QS.get('id') || ''); } catch {}
+    const q = new URLSearchParams(location.search); ['open', 'id', 'act'].forEach(k => q.delete(k));
+    const rest = q.toString();
+    history.replaceState(null, '', location.pathname + (rest ? '?' + rest : '') + (b && b.slug ? '#/brand/' + encodeURIComponent(b.slug) : '#/agency/all') + '/profile/ai-cards');
   }
   router.start({ state: shell.state, frame: shell.frame, brandBySlug: shell.brandBySlug, signin: () => location.reload() });
   bellCount();

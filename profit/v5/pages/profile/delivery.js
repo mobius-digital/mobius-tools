@@ -7,10 +7,11 @@
 
 import { h, put, em, card, toggle, toast, pill } from '../../kit.js';
 import { style, ah, powerBar } from '../automations/_auto.js';
+import { seenAsClient, clientsOwn, staleHold } from './_own.js';
 
 const power = ctx => (ctx.isClient ? Promise.resolve({ power: null, can_power: false })
   : ah(ctx, '/api/automations').then(a => ({ power: !!a.power, can_power: !!a.can_power }), e => { if (e && e.name === 'AbortError') throw e; return { power: null, can_power: false }; }));
-const load = async ctx => { const [d, p] = await Promise.all([ah(ctx, '/api/me/delivery'), power(ctx)]); return { ...d, ...p }; };
+const load = async ctx => { if (seenAsClient(ctx)) return { preview: true }; const [d, p] = await Promise.all([ah(ctx, '/api/me/delivery'), power(ctx)]); return { ...d, ...p }; };
 const hours = Array.from({ length: 24 }, (_, i) => ({ id: i, label: (i % 12 === 0 ? 12 : i % 12) + (i < 12 ? 'am' : 'pm') }));
 const select = (label, items, value, onchange) => h('select', { 'aria-label': label, onchange: e => onchange(e.target.value) }, items.map(o => h('option', { value: String(o.id), selected: String(o.id) === String(value) || null }, o.label)));
 const WAY = { home: ['Home list', 'A row on your home list until you tick it'], bell: ['The bell', 'Always on. The bell is the record'], slack: ['Slack DM', 'A direct message, only if you switch it on'], email: ['Email', 'One email, only if you switch it on'] };
@@ -18,6 +19,8 @@ const MODE_HELP = { now: 'It reaches me now, by the ways I picked.', morning_rea
 
 function render(el, d, ctx) {
   style();
+  if (seenAsClient(ctx)) return clientsOwn(el);
+  if (staleHold(el, d, ctx, load, render)) return;
   const st = (d && d.delivery) || {}, modes = Object.entries((d && d.modes) || {}).map(([id, label]) => ({ id, label }));
   const save = async body => {
     if (ctx.sample) return toast('Sample mode: nothing is saved.');

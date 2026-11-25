@@ -18,19 +18,19 @@
    "owner": "sam@agency.example",
    "buyer": "jo@agency.example"
   },
-  "brand_northlake": {
+  "brand_northlake_golf": {
    "strategist": "riley@agency.example",
    "maker": "devon@agency.example"
   }
  },
  "brands": [
   {
-   "id": "brand_northlake",
+   "id": "brand_northlake_golf",
    "name": "Northlake Golf"
   },
   {
-   "id": "brand_pinecrest",
-   "name": "Pinecrest Candle"
+   "id": "brand_harbor_and_pine",
+   "name": "Harbor & Pine"
   }
  ],
  "team": [

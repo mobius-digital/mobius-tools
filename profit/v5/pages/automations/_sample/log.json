@@ -167,7 +167,7 @@
   {
    "id": "au_3",
    "name": "When MER over the last 7 days is under the brand's goal, for Northlake Golf, tell the brand owner, each in their own way.",
-   "brand": "brand_northlake",
+   "brand": "brand_northlake_golf",
    "when": {
     "type": "metric",
     "metric": "mer",
@@ -1872,7 +1872,7 @@
   {
    "id": "ar_4",
    "automation_id": "au_3",
-   "brand_id": "brand_northlake",
+   "brand_id": "brand_northlake_golf",
    "brand": "Northlake Golf",
    "started_at": "2026-11-25T14:00:00Z",
    "result": "skipped",
@@ -1894,8 +1894,8 @@
   {
    "id": "ar_2",
    "automation_id": "au_2",
-   "brand_id": "brand_pinecrest",
-   "brand": "Pinecrest Candle",
+   "brand_id": "brand_harbor_and_pine",
+   "brand": "Harbor & Pine",
    "started_at": "2026-11-24T14:10:00Z",
    "result": "done",
    "title": "#41 Winter gift set moved to Review",
@@ -1905,7 +1905,7 @@
   {
    "id": "ar_3",
    "automation_id": "au_3",
-   "brand_id": "brand_northlake",
+   "brand_id": "brand_northlake_golf",
    "brand": "Northlake Golf",
    "started_at": "2026-11-23T14:00:00Z",
    "result": "done",
@@ -1916,7 +1916,7 @@
   {
    "id": "ar_5",
    "automation_id": "au_2",
-   "brand_id": "brand_northlake",
+   "brand_id": "brand_northlake_golf",
    "brand": "Northlake Golf",
    "started_at": "2026-11-22T19:30:00Z",
    "result": "held",
@@ -1927,12 +1927,12 @@
  ],
  "brands": [
   {
-   "id": "brand_northlake",
+   "id": "brand_northlake_golf",
    "name": "Northlake Golf"
   },
   {
-   "id": "brand_pinecrest",
-   "name": "Pinecrest Candle"
+   "id": "brand_harbor_and_pine",
+   "name": "Harbor & Pine"
   }
  ],
  "options": {

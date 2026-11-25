@@ -35,7 +35,13 @@ Where the files went (the READMEs in `v5-next` are gone; this is the record):
 - `pages/profile/connect-ai.js` and `pages/profile/ai-cards.js`. The README asked for a `connect-ai` folder with
   its own two routes; they are tabs of Your profile instead, so they are found under Profile and need no new line.
   A link an AI hands back (`?open=aiproposal&id=<card id>&act=<brand id>`) opens the cards tab (app.js) and the
-  page marks that card.
+  page marks that card. app.js then takes `open`, `id` and `act` out of the address, so the mark is for that one
+  visit. The worker builds that link from its `connectAiAppUrl` setting, or the old app's address when the setting
+  is empty. So the link lands in v5 only once that setting points at the v5 address (no worker change here); until
+  then it opens the old app.
+  In the team's "See as client" view the three own tabs (Connect your AI, AI suggestions, How things reach me)
+  say "This is the client's own page" and make no call (`pages/profile/_own.js`). A sign in with no email of its
+  own gets "Sign in with your own email" on the two AI tabs instead of the sign in page.
 - `pages/ask/free.js`. The Ask line has two tabs now (Ask, Free answers).
 - Sample files sit beside each page. `pages/_sample/notices.json` is new (the shape of `GET /api/notices`).
 
