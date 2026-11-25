@@ -7,7 +7,7 @@ They sit here because another run owns `profit/v5/` today.
 | File | Page | Reads | Writes |
 |---|---|---|---|
 | `index.js` | Your profile, Connect your AI | `GET /api/connect-ai`, `/keys`, `/calls` | make a key, turn a key off, the owner's switch |
-| `cards.js` | Suggestions from your AI | `GET /api/connect-ai/proposals` | the Yes or No tap |
+| `cards.js` | Suggestions from your AI | `GET /api/connect-ai/proposals`, `POST /proposals/check` | the Yes or No tap |
 
 All routes are on the account-health worker (`account-health/worker/src/connectai.js`).
 
@@ -21,6 +21,15 @@ All routes are on the account-health worker (`account-health/worker/src/connecta
 4. Add the count of waiting cards to the bell if wanted: `GET /api/connect-ai/proposals` returns only waiting cards.
 
 ## Things to know
+
+- A card belongs to the side that made it. The team's cards are never shown to a client login; a client sees only
+  cards its own side's AI made. The team sees both.
+- A view-only teammate and a read-only client login get no Yes or No (the answer carries `can_act: false`), and
+  their AI cannot make a card. They can still make a key and read.
+- When a yes makes the change (settings key `connectAiApply`, off by default), Yes opens a sheet with the real name
+  and the real before and after, read from Meta. The yes in the sheet sends back what was shown. A budget step of
+  more than half needs its own yes. The Change Log line starts with "AI card <id>". This path was checked against a
+  stand-in for the Meta write route only: run it on one paused test ad before switching `connectAiApply` on.
 
 - The key is shown once, in a sheet, from the answer to `POST /api/connect-ai/keys`. It is never part of what
   `load` returns, so it is never kept in the saved copy of the page.

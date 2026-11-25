@@ -6,7 +6,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import assert from 'node:assert/strict';
 import { handleConnectAi, isConnectAiPath, createKey, keyAuth, hashKey, makeKey, scopeOf, personOf, pickBrand, windowOf, tidy, wrap, TOOL_NAMES, DEFAULT_DAYS, _test } from './src/connectai.js';
-import { guardBrands } from './src/brandguard.js';
+import { guardBrands, HQ_BRAND, HQ_DOMAIN } from './src/brandguard.js';
 
 const db = new DatabaseSync(':memory:');
 const bindSql = sql => sql.replace(/\?(\d+)/g, (_, n) => ':p' + n);
@@ -25,7 +25,7 @@ const BRANDS = [
   { act_id: 'brand_beta', name: 'Beta Skincare', active: 1, currency: 'USD', target_roas: 3, target_cpa: 30 },
   { act_id: 'brand_gamma', name: 'Gamma Coffee', active: 1, currency: 'CAD', target_roas: 2, target_cpa: 25 },
 ];
-const OWNER = 'owner@agency.test', ALEX = 'alex@agency.test', SAM = 'sam@agency.test', PAT = 'pat@alphagolf.test', GONE = 'gone@agency.test';
+const OWNER = 'owner@agency.test', ALEX = 'alex@agency.test', SAM = 'sam@agency.test', PAT = 'pat@alphagolf.test', GONE = 'gone@agency.test', VIC = 'vic@agency.test';
 const TEAM = new Set([OWNER, ALEX, SAM, GONE]);
 setSetting('userBrands', { [SAM]: ['brand_alpha', 'brand_beta'] });
 setSetting('clientUsers', { [PAT]: { name: 'Pat', brands: ['brand_alpha'] } });
@@ -33,7 +33,25 @@ setSetting('clientUsers', { [PAT]: { name: 'Pat', brands: ['brand_alpha'] } });
 /* Fake Locus behind the REAL brand guard: every request the door makes is written down. */
 const seen = [];
 const sessionEmail = async (env, request) => { const m = /^Bearer sess:(.+)$/.exec(request.headers.get('Authorization') || ''); return m ? m[1] : null; };
-let writeAnswer = () => new Response(JSON.stringify({ ok: true, write: 'mw_1' }), { headers: { 'Content-Type': 'application/json' } });
+/* A small stand-in for the app's Meta write route (metawrite.js locusWrite): a dry run reads the real thing and
+   changes nothing, a write refuses when `expect` no longer matches, and only a real write moves a value. */
+const META = { 555555: { name: 'Main campaign', level: 'campaign', status: 'ACTIVE', daily_budget: 10000 }, 333333: { name: 'Best ad', level: 'ad', status: 'ACTIVE' } };
+const metaSent = [];
+const metaFake = async req => {
+  const b = await req.json(); metaSent.push(b);
+  const J = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { 'Content-Type': 'application/json' } });
+  const o = META[b.object];
+  if (!o) return J({ error: 'That id is not in this ad account.' });
+  let before, after;
+  if (b.kind === 'budget') { before = { daily_budget: String(o.daily_budget) }; after = { daily_budget: String(Math.round(b.amount * 100)) }; }
+  else { const to = b.kind === 'pause' ? 'PAUSED' : 'ACTIVE'; if (o.status === to) return J({ error: `"${o.name}" is already ${to}.` }); before = { status: o.status }; after = { status: to }; }
+  const step = Object.keys(after).map(k => ({ field: k, from: before[k], to: after[k] }));
+  if (b.dry) return J({ ok: true, dry: true, summary: `Alpha Golf: ${o.level} "${o.name}"`, detail: 'Why: ' + b.reason, level: o.level, name: o.name, step, before });
+  if (b.expect) for (const [k, v] of Object.entries(b.expect)) if (k in before && String(before[k]) !== String(v)) return J({ error: `"${o.name}" changed since you opened this.`, stale: true });
+  if (b.kind === 'budget') o.daily_budget = Math.round(b.amount * 100); else o.status = after.status;
+  return J({ ok: true, write: 'mw_' + metaSent.length, level: o.level, object: b.object, name: o.name, after });
+};
+let writeAnswer = metaFake;
 async function locus(request) {
   const u = new URL(request.url);
   const who = await sessionEmail(null, request);
@@ -317,17 +335,37 @@ await check('a card needs a real kind, a title, a why and, for a pause or budget
   }
   assert.equal(q(`SELECT COUNT(*) n FROM p_ai_proposal`)[0].n, 1);
 });
-await check('the card shows to people who can see that brand, and to nobody else', async () => {
-  const mine = await (await app('/api/connect-ai/proposals', { as: PAT })).json();
-  assert.deepEqual(mine.proposals.map(p => p.id), [cardId]);
-  assert.equal(mine.proposals[0].proposed_by, SAM); assert.equal(mine.proposals[0].status, 'waiting');
+const cardOf = async (key, args) => JSON.parse(textOf(await call(key, 'propose_change', args)).split('\n')[2]).id;
+const tap = (as, body) => app('/api/connect-ai/proposals/decide', { method: 'POST', as, body });
+const look = (as, id) => app('/api/connect-ai/proposals/check', { method: 'POST', as, body: { id } });
+const statusOf = id => q(`SELECT status FROM p_ai_proposal WHERE id = ?`, id)[0].status;
+await check('a card belongs to the side that made it: the team sees the team\'s card, the client login does not and cannot tap it, and nobody off the brand does', async () => {
+  const team = await (await app('/api/connect-ai/proposals', { as: SAM })).json();
+  assert.deepEqual(team.proposals.map(p => p.id), [cardId]);
+  assert.equal(team.proposals[0].proposed_by, SAM); assert.equal(team.proposals[0].audience, 'team'); assert.equal(team.can_act, true);
+  /* the brand's client login: the team's reasoning and the teammate's email never reach it, by the list, by its own AI, or by id */
+  const mine = await app('/api/connect-ai/proposals?act=brand_alpha', { as: PAT });
+  assert.equal(mine.status, 200);
+  const mineText = await mine.text();
+  assert.deepEqual(JSON.parse(mineText).proposals, []); assert.ok(!mineText.includes(SAM)); assert.ok(!mineText.includes('Spent $90'));
+  const waiting = textOf(await call(patKey, 'suggestions_waiting'));
+  assert.deepEqual(JSON.parse(waiting.split('\n')[2]).ai_cards_waiting, []); assert.ok(!waiting.includes(SAM));
+  assert.equal((await tap(PAT, { id: cardId, yes: false })).status, 404);
+  assert.equal((await tap(PAT, { id: cardId, yes: true })).status, 404);
+  assert.equal((await look(PAT, cardId)).status, 404);
+  assert.equal(statusOf(cardId), 'waiting', 'the client could not close the team\'s card');
+  /* a teammate without the brand */
   setSetting('userBrands', { [SAM]: ['brand_alpha', 'brand_beta'], [ALEX]: ['brand_gamma'] });
   assert.deepEqual((await (await app('/api/connect-ai/proposals', { as: ALEX })).json()).proposals, []);
   assert.equal((await app('/api/connect-ai/proposals?act=brand_alpha', { as: ALEX })).status, 403);
-  assert.equal((await app('/api/connect-ai/proposals/decide', { method: 'POST', as: ALEX, body: { id: cardId, yes: true } })).status, 404);
+  assert.equal((await tap(ALEX, { id: cardId, yes: true })).status, 404);
   setSetting('userBrands', { [SAM]: ['brand_alpha', 'brand_beta'] });
-  const waiting = JSON.parse(textOf(await call(patKey, 'suggestions_waiting')).split('\n')[2]);
-  assert.deepEqual(waiting.ai_cards_waiting.map(p => p.id), [cardId]);
+  /* the client's own AI makes a client card: the client sees and taps it, and so can the team */
+  const own = await cardOf(patKey, { kind: 'other', title: 'Try a gift set', why: 'Gift sets were 30% of orders last December, Shopify.' });
+  assert.equal(q(`SELECT audience FROM p_ai_proposal WHERE id = ?`, own)[0].audience, 'client');
+  assert.deepEqual((await (await app('/api/connect-ai/proposals', { as: PAT })).json()).proposals.map(p => p.id), [own]);
+  assert.deepEqual((await (await app('/api/connect-ai/proposals', { as: SAM })).json()).proposals.map(p => p.id).sort(), [cardId, own].sort());
+  assert.equal((await (await tap(PAT, { id: own, yes: false })).json()).status, 'declined');
 });
 await check('a yes with the apply switch off only marks the card; a no declines it; a decided card cannot be tapped again', async () => {
   seen.length = 0;
@@ -339,38 +377,82 @@ await check('a yes with the apply switch off only marks the card; a no declines 
   const c2 = JSON.parse(textOf(await call(samKey, 'propose_change', { brand: 'Alpha Golf', kind: 'other', title: 'Test a new hook', why: 'Hook rate fell from 30% to 20%, last 14 days, Meta.' })).split('\n')[2]);
   assert.equal((await (await app('/api/connect-ai/proposals/decide', { method: 'POST', as: SAM, body: { id: c2.id } })).json()).status, 'declined');
 });
-await check('with the apply switch on, a yes sends ONE write through the app\'s own route as the person who tapped; a refused write leaves the card waiting', async () => {
+await check('with the apply switch on, a yes reads the real thing from Meta first, needs what the person was shown, then sends ONE write as the tapper with the card named in its reason', async () => {
   setSetting('connectAiApply', '1');
-  const mk = async () => JSON.parse(textOf(await call(samKey, 'propose_change', { brand: 'Alpha Golf', kind: 'budget', level: 'campaign', object_id: '555555', amount: 120, title: 'Raise the budget to $120', why: 'ROAS 4.0 on $50 a day against a goal of 2.5, last 7 days, Triple Whale.' })).split('\n')[2]).id;
+  const mk = (more = {}, key = samKey) => cardOf(key, { brand: 'Alpha Golf', kind: 'budget', level: 'campaign', object_id: '555555', amount: 120, title: 'Raise the budget to $120', why: 'ROAS 4.0 on $50 a day against a goal of 2.5, last 7 days, Triple Whale.', ...more });
+  const realWrites = () => metaSent.filter(b => !b.dry);
   const id = await mk();
-  seen.length = 0;
-  let sentBody = null;
-  writeAnswer = async req => { sentBody = await req.json(); return new Response(JSON.stringify({ ok: true, write: 'mw_9' }), { headers: { 'Content-Type': 'application/json' } }); };
-  const r = await (await app('/api/connect-ai/proposals/decide', { method: 'POST', as: ALEX, body: { id, yes: true } })).json();
-  assert.equal(r.status, 'applied'); assert.equal(r.applied, true);
-  const writes = seen.filter(s => s.method !== 'GET');
-  assert.equal(writes.length, 1); assert.equal(writes[0].path, '/api/meta/write'); assert.equal(writes[0].auth, 'Bearer sess:' + ALEX, 'the tapper\'s own session, not the key\'s');
-  assert.deepEqual(sentBody, { act: 'brand_alpha', kind: 'budget', level: 'campaign', object: '555555', amount: 120, by: ALEX });
-  assert.equal(q(`SELECT status, decided_by FROM p_ai_proposal WHERE id = ?`, id)[0].status, 'applied');
-  const id2 = await mk();
-  writeAnswer = async () => new Response(JSON.stringify({ error: 'That jump is over 50%.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
-  const bad2 = await app('/api/connect-ai/proposals/decide', { method: 'POST', as: ALEX, body: { id: id2, yes: true } });
-  assert.equal(bad2.status, 400); assert.match((await bad2.json()).error, /over 50%/);
-  assert.equal(q(`SELECT status FROM p_ai_proposal WHERE id = ?`, id2)[0].status, 'waiting');
-  /* a client's tap goes through the same brand guard as the app's own button: their session, their own brand, nothing else */
-  seen.length = 0;
-  writeAnswer = async () => new Response(JSON.stringify({ ok: true, write: 'mw_10' }), { headers: { 'Content-Type': 'application/json' } });
-  assert.equal((await (await app('/api/connect-ai/proposals/decide', { method: 'POST', as: PAT, body: { id: id2, yes: true } })).json()).status, 'applied');
-  const cw = seen.filter(s => s.path === '/api/meta/write');
-  assert.equal(cw.length, 1); assert.equal(cw[0].who, PAT);
+  seen.length = 0; metaSent.length = 0;
+  /* a bare yes: refused, nothing written, and the answer carries what Meta really says */
+  const r0 = await tap(ALEX, { id, yes: true });
+  const j0 = await r0.json();
+  assert.equal(r0.status, 409); assert.equal(j0.need, 'check'); assert.equal(j0.real.name, 'Main campaign'); assert.deepEqual(j0.real.before, { daily_budget: '10000' });
+  assert.equal(realWrites().length, 0); assert.equal(META[555555].daily_budget, 10000); assert.equal(statusOf(id), 'waiting');
+  /* the look: real name, real before and after, the size of the step, what else moves */
+  const chk = await (await look(ALEX, id)).json();
+  assert.equal(chk.applies, true); assert.equal(chk.real.name, 'Main campaign'); assert.equal(chk.real.level, 'campaign');
+  assert.deepEqual(chk.real.step, [{ field: 'daily_budget', from: '10000', to: '12000' }]); assert.equal(chk.real.big, false); assert.equal(chk.real.change_pct, 20);
+  assert.match(chk.real.also, /Past buyers/); assert.equal(realWrites().length, 0);
+  /* the yes with what was shown */
+  metaSent.length = 0; seen.length = 0;
+  const r = await (await tap(ALEX, { id, yes: true, expect: chk.real.before, client_why: 'We raised the sale budget.' })).json();
+  assert.equal(r.status, 'applied'); assert.equal(r.applied, true); assert.equal(r.name, 'Main campaign');
+  assert.equal(realWrites().length, 1, 'one write');
+  const sent = realWrites()[0];
+  assert.deepEqual({ act: sent.act, kind: sent.kind, level: sent.level, object: sent.object, amount: sent.amount, by: sent.by, expect: sent.expect, client_why: sent.client_why },
+    { act: 'brand_alpha', kind: 'budget', level: 'campaign', object: '555555', amount: 120, by: ALEX, expect: { daily_budget: '10000' }, client_why: 'We raised the sale budget.' });
+  assert.ok(sent.reason.startsWith(`AI card ${id} (suggested by ${SAM}'s AI): Raise the budget to $120.`), sent.reason); assert.ok(sent.reason.length <= 300);
+  assert.ok(seen.filter(x => x.path === '/api/meta/write').every(x => x.auth === 'Bearer sess:' + ALEX), 'the tapper\'s own session, not the key\'s');
+  assert.equal(META[555555].daily_budget, 12000);
+  const row = q(`SELECT status, decided_by, result FROM p_ai_proposal WHERE id = ?`, id)[0];
+  assert.equal(row.status, 'applied'); assert.equal(row.decided_by, ALEX); assert.ok(row.result.includes(id));
+
+  /* the AI's words say one thing, its id and amount another: the person is shown Meta's, and a jump needs its own yes */
+  const lie = await mk({ amount: 12000, object_name: 'Test set', before: '$100 a day', after: '$120 a day' });
+  const c2 = (await (await look(ALEX, lie)).json()).real;
+  assert.equal(c2.name, 'Main campaign'); assert.equal(c2.name_differs, true); assert.equal(c2.ai_name, 'Test set'); assert.equal(c2.big, true);
+  assert.deepEqual(c2.step, [{ field: 'daily_budget', from: '12000', to: '1200000' }]);
+  metaSent.length = 0;
+  const rb = await tap(ALEX, { id: lie, yes: true, expect: c2.before });
+  assert.equal(rb.status, 409); assert.equal((await rb.json()).need, 'big');
+  assert.equal(realWrites().length, 0); assert.equal(META[555555].daily_budget, 12000); assert.equal(statusOf(lie), 'waiting');
+  assert.equal((await (await tap(ALEX, { id: lie, yes: false })).json()).status, 'declined');
+  const pz = await cardOf(samKey, { brand: 'Alpha Golf', kind: 'pause', level: 'ad', object_id: '333333', object_name: 'Losing ad 3', title: 'Turn off Losing ad 3', why: 'Spent $212 with 0 sales, last 7 days, Triple Whale.' });
+  const c3 = (await (await look(ALEX, pz)).json()).real;
+  assert.equal(c3.name, 'Best ad'); assert.equal(c3.name_differs, true); assert.deepEqual(c3.before, { status: 'ACTIVE' });
+  assert.equal((await (await tap(ALEX, { id: pz, yes: false })).json()).status, 'declined'); assert.equal(META[333333].status, 'ACTIVE');
+
+  /* Meta moved between the look and the tap: nothing is written */
+  const id3 = await mk({ amount: 130 });
+  const c4 = (await (await look(ALEX, id3)).json()).real;
+  META[555555].daily_budget = 11000; metaSent.length = 0;
+  const rs = await tap(ALEX, { id: id3, yes: true, expect: c4.before });
+  assert.equal(rs.status, 409); assert.equal((await rs.json()).real.before.daily_budget, '11000');
+  assert.equal(realWrites().length, 0); assert.equal(META[555555].daily_budget, 11000); assert.equal(statusOf(id3), 'waiting');
+  /* a write Meta refuses leaves the card waiting */
+  writeAnswer = async req => ((await req.clone().json()).dry ? metaFake(req) : new Response(JSON.stringify({ error: 'Meta said no.' }), { status: 400, headers: { 'Content-Type': 'application/json' } }));
+  const bad2 = await tap(ALEX, { id: id3, yes: true, expect: { daily_budget: '11000' } });
+  assert.equal(bad2.status, 400); assert.match((await bad2.json()).error, /Meta said no/);
+  assert.equal(statusOf(id3), 'waiting'); assert.equal(META[555555].daily_budget, 11000);
+  writeAnswer = metaFake;
+
+  /* a client's own card goes through the same brand guard as the app's own button: their session, their brand, and no client note from them */
+  const mineId = await mk({ amount: 120 }, patKey);
+  const c5 = (await (await look(PAT, mineId)).json()).real;
+  seen.length = 0; metaSent.length = 0;
+  assert.equal((await (await tap(PAT, { id: mineId, yes: true, expect: c5.before, client_why: 'x'.repeat(20) })).json()).status, 'applied');
+  const cw = seen.filter(x => x.path === '/api/meta/write');
+  assert.ok(cw.length >= 1 && cw.every(x => x.who === PAT)); assert.equal(realWrites().length, 1); assert.ok(!('client_why' in realWrites()[0]));
   /* a card on a brand the client cannot see is not there for them, and nothing is sent */
   const k3 = await newKey(ALEX, { label: 'beta' });
-  const id3 = JSON.parse(textOf(await call(k3.key, 'propose_change', { brand: 'Beta Skincare', kind: 'pause', level: 'ad', object_id: '777777', title: 'Pause a Beta ad', why: 'No sales on $120, last 7 days, Triple Whale.' })).split('\n')[2]).id;
+  const idB = await cardOf(k3.key, { brand: 'Beta Skincare', kind: 'pause', level: 'ad', object_id: '777777', title: 'Pause a Beta ad', why: 'No sales on $120, last 7 days, Triple Whale.' });
   seen.length = 0;
-  assert.equal((await app('/api/connect-ai/proposals/decide', { method: 'POST', as: PAT, body: { id: id3, yes: true } })).status, 404);
-  assert.equal(seen.filter(s => s.method !== 'GET').length, 0);
-  assert.equal(q(`SELECT status FROM p_ai_proposal WHERE id = ?`, id3)[0].status, 'waiting');
+  assert.equal((await tap(PAT, { id: idB, yes: true })).status, 404);
+  assert.equal(seen.length, 0); assert.equal(statusOf(idB), 'waiting');
   setSetting('connectAiApply', '0');
+  /* with the switch off the look says so and reads nothing */
+  seen.length = 0;
+  assert.deepEqual(await (await look(ALEX, id3)).json(), { ok: true, applies: false }); assert.equal(seen.length, 0);
 });
 await check('a card past its 24 hours cannot be tapped and leaves the waiting list', async () => {
   const id = JSON.parse(textOf(await call(samKey, 'propose_change', { brand: 'Alpha Golf', kind: 'other', title: 'An old idea', why: 'It seemed right at the time, last 7 days.' })).split('\n')[2]).id;
@@ -409,6 +491,61 @@ await check('a key over its limit is told to wait, per key, and that is written 
   setSetting('connectAiLimits', { perMin: 1000, perDay: 2 });
   assert.match(textOf(await call(k.key, 'list_brands')), /in the last day/);
   setSetting('connectAiLimits', {});
+});
+/* ---------- 9. look-only logins ---------- */
+await check('a view-only teammate can look and can make a key, but cannot tap a card and their AI cannot make one', async () => {
+  TEAM.add(VIC);
+  setSetting('userRoles', { [VIC]: 'viewer' });
+  const id = await cardOf(samKey, { brand: 'Alpha Golf', kind: 'other', title: 'A card for the viewer test', why: 'Hook rate fell from 30% to 20%, last 14 days, Meta.' });
+  const list = await (await app('/api/connect-ai/proposals', { as: VIC })).json();
+  assert.equal(list.can_act, false); assert.ok(list.proposals.some(p => p.id === id), 'they can still read it');
+  assert.equal((await (await app('/api/connect-ai', { as: VIC })).json()).can_act, false);
+  for (const yes of [true, false]) { const r = await tap(VIC, { id, yes }); assert.equal(r.status, 403); assert.match((await r.json()).error, /view-only/); }
+  assert.equal((await look(VIC, id)).status, 403);
+  assert.equal(statusOf(id), 'waiting'); assert.equal(q(`SELECT decided_by FROM p_ai_proposal WHERE id = ?`, id)[0].decided_by, null);
+  /* with the apply switch on, nothing is sent to Meta for them either */
+  setSetting('connectAiApply', '1');
+  const bid = await cardOf(samKey, { brand: 'Alpha Golf', kind: 'pause', level: 'ad', object_id: '333333', title: 'Turn off an ad', why: 'Spent $90 with 1 sale, last 7 days, Triple Whale.' });
+  seen.length = 0;
+  assert.equal((await tap(VIC, { id: bid, yes: true, expect: { status: 'ACTIVE' } })).status, 403);
+  assert.equal(seen.length, 0); assert.equal(META[333333].status, 'ACTIVE');
+  setSetting('connectAiApply', '0');
+  /* their own key reads; its propose_change is refused and leaves no card */
+  const vk = await newKey(VIC, { label: 'vic' });
+  assert.ok(vk.key, 'reading through their own AI is looking');
+  const brands = JSON.parse(textOf(await call(vk.key, 'list_brands')).split('\n')[2]);
+  assert.equal(brands.you.can_propose, false);
+  const before = q(`SELECT COUNT(*) n FROM p_ai_proposal`)[0].n;
+  const pr = await call(vk.key, 'propose_change', { brand: 'Alpha Golf', kind: 'other', title: 'An idea from a viewer', why: 'It looked good in the last 7 days, Meta.' });
+  assert.equal(pr.result.isError, true); assert.match(textOf(pr), /view-only/);
+  assert.equal(q(`SELECT COUNT(*) n FROM p_ai_proposal`)[0].n, before);
+  /* the role is read on every call: lifted, the same login taps */
+  setSetting('userRoles', {});
+  assert.equal((await (await tap(VIC, { id, yes: false })).json()).status, 'declined');
+  assert.equal((await (await tap(VIC, { id: bid, yes: false })).json()).status, 'declined');
+});
+await check('a read-only client login sees its side\'s cards and cannot tap them', async () => {
+  const RAE = 'rae@' + HQ_DOMAIN, MAX = 'max@' + HQ_DOMAIN, until = Date.now() + 3600e3;
+  BRANDS.push({ act_id: HQ_BRAND, name: 'Delta Clubs', active: 1, currency: 'USD', target_roas: 2.5, target_cpa: 50 });
+  setSetting('clientUsers', { [PAT]: { name: 'Pat', brands: ['brand_alpha'] }, [RAE]: { name: 'Rae', hq: true, readOnly: true, hq_until: until }, [MAX]: { name: 'Max', hq: true, hq_until: until } });
+  const mk = await newKey(MAX, { label: 'max' });
+  const id = await cardOf(mk.key, { kind: 'other', title: 'Show the new irons first', why: 'Irons had the best ROAS, 3.2, last 14 days, Triple Whale.' });
+  const list = await (await app('/api/connect-ai/proposals', { as: RAE })).json();
+  assert.equal(list.can_act, false); assert.deepEqual(list.proposals.map(p => p.id), [id]);
+  for (const yes of [true, false]) assert.equal((await tap(RAE, { id, yes })).status, 403);
+  assert.equal(statusOf(id), 'waiting');
+  const rk = await newKey(RAE, { label: 'rae' });
+  assert.equal((await call(rk.key, 'propose_change', { kind: 'other', title: 'An idea from a reader', why: 'It looked good in the last 7 days, Meta.' })).result.isError, true);
+  assert.equal((await (await tap(MAX, { id, yes: true })).json()).status, 'approved');
+  BRANDS.pop();
+  setSetting('clientUsers', { [PAT]: { name: 'Pat', brands: ['brand_alpha'] } });
+});
+await check('a table made before cards had an audience gets the column, and its cards are the team\'s', async () => {
+  db.exec(`ALTER TABLE p_ai_proposal DROP COLUMN audience`);
+  _test.reset();
+  assert.equal((await app('/api/connect-ai/proposals', { as: SAM })).status, 200);
+  assert.ok(q(`SELECT audience FROM p_ai_proposal`).every(r => r.audience === 'team'));
+  assert.deepEqual((await (await app('/api/connect-ai/proposals', { as: PAT })).json()).proposals, []);
 });
 await check('switched off again, every key stops at once', async () => {
   assert.equal((await app('/api/connect-ai/switch', { method: 'PUT', as: OWNER, body: { on: false } })).status, 200);

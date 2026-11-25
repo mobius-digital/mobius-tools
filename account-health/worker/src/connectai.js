@@ -17,7 +17,8 @@
  *   POST /api/connect-ai/keys/revoke {id}    turn one of my keys off for good
  *   GET  /api/connect-ai/calls               the last calls my keys made (who, tool, brand, time)
  *   GET  /api/connect-ai/proposals?act=      the cards an AI made that wait for a tap
- *   POST /api/connect-ai/proposals/decide {id, yes}   the tap
+ *   POST /api/connect-ai/proposals/check {id}         what a yes would really change, read from Meta (changes nothing)
+ *   POST /api/connect-ai/proposals/decide {id, yes, expect, big}   the tap
  *
  * WHO A KEY IS. A key belongs to one signed-in person. Only its SHA-256 is stored. It carries the person, their role
  * when it was made and a brand list, and it ends after 90 days unless a shorter life was asked for. On every call the
@@ -33,6 +34,17 @@
  * a link. It changes nothing else. The tap happens in the app, by a signed-in person; with settings key
  * `connectAiApply` on, a yes on a pause, resume or budget card is sent through the app's own Meta write route as the
  * person who tapped (their session, today's guards). With it off (the default) a yes only marks the card.
+ *
+ * WHAT A YES CHANGES (2026-11-25 review). The card's words are the AI's. Before a yes that applies, Locus reads the
+ * real thing from Meta (a dry run of the same write): its real name, its level, how it is now and what it would be
+ * after. The tap must carry what the person was shown (`expect`); if Meta no longer matches, nothing is written. A
+ * budget step of more than half needs its own yes (`big`). The Change Log line says an AI card was behind the change.
+ *
+ * WHO SEES A CARD. A card belongs to the side that made it: the team's cards (`audience` team) are the team's, a
+ * client's own AI makes client cards. A client login sees and taps only client cards on its own brands.
+ *
+ * LOOK ONLY. A view-only teammate (settings userRoles) and a read-only client login can read and can make a key,
+ * but cannot tap a card, and their AI cannot make one.
  *
  * EVERY CALL leaves a row in p_ai_call (who, tool, brand, time) and counts against the key's limits. Every result is
  * labelled as data, not instructions, with its window and source, and anything that looks like a secret is dropped.
@@ -79,7 +91,9 @@ export async function ensure(env) {
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS p_ai_proposal (id TEXT PRIMARY KEY, act_id TEXT NOT NULL, kind TEXT NOT NULL, title TEXT NOT NULL, why TEXT,
     level TEXT, object_id TEXT, object_name TEXT, amount REAL, before_text TEXT, after_text TEXT, status TEXT NOT NULL DEFAULT 'waiting',
     by_email TEXT NOT NULL, by_key TEXT NOT NULL, by_app TEXT, created_at TEXT NOT NULL, expires_at TEXT NOT NULL,
-    decided_by TEXT, decided_at TEXT, result TEXT)`).run();
+    decided_by TEXT, decided_at TEXT, result TEXT, audience TEXT NOT NULL DEFAULT 'team')`).run();
+  /* a table made before cards had an audience: every card on it was the team's */
+  await env.DB.prepare(`ALTER TABLE p_ai_proposal ADD COLUMN audience TEXT NOT NULL DEFAULT 'team'`).run().catch(() => {});
   await env.DB.prepare(`CREATE INDEX IF NOT EXISTS p_ai_proposal_act ON p_ai_proposal(act_id, status)`).run();
   ready = true;
 }
@@ -112,12 +126,23 @@ const keyOut = row => ({ id: row.id, label: row.label || '', starts_with: row.pr
 export async function personOf(env, d, email) {
   const e = lower(email);
   if (!e) return null;
-  if (env.OWNER_EMAIL && e === lower(env.OWNER_EMAIL)) return { email: e, role: 'owner' };
+  /* The app's own view-only rule (worker.js roleFor): settings userRoles maps an email to viewer; anyone else may act. */
+  const viewer = String((safe(await setting(env, 'userRoles'), {}) || {})[e] || '').toLowerCase() === 'viewer';
+  const look = viewer ? { viewOnly: true } : {};
+  if (env.OWNER_EMAIL && e === lower(env.OWNER_EMAIL)) return { email: e, role: 'owner', ...look };
   const client = await clientOf(env, e).catch(() => null);
-  if (client) return { email: e, role: 'client', name: client.name || null };
-  if (await d.emailAllowed(env, e)) return { email: e, role: 'team' };
+  /* A client login whose pass says read only (brandguard.js readOnly) looks and presses nothing. */
+  if (client) return { email: e, role: 'client', name: client.name || null, ...(client.readOnly === true ? { viewOnly: true } : {}) };
+  if (await d.emailAllowed(env, e)) return { email: e, role: 'team', ...look };
   return null;
 }
+const LOOK_ONLY = 'Your login is view-only here, so it cannot say yes or no to a card. Ask someone on the team who can.';
+/** May this person press something? A view-only teammate and a read-only client login may not. */
+export const canAct = person => !!person && person.viewOnly !== true;
+/** Which side a person is on: a client login is the client side, everyone else is the team. */
+const sideOf = person => (person && person.role === 'client' ? 'client' : 'team');
+/** May this person see (and so tap) this card? The team sees every card; a client only cards the client side made. */
+export const canSeeCard = (person, row) => sideOf(person) === 'team' || row.audience === 'client';
 
 /** The brands this person may see today, narrowed by the key's own list. `keyBrands` is 'all' or a list of brand ids. */
 export async function scopeOf(env, d, person, keyBrands = 'all') {
@@ -270,7 +295,7 @@ export function wrap({ brand, window: win, source, data }) {
 /* ---------------- proposals: the one write-shaped thing ---------------- */
 const KINDS = ['pause', 'resume', 'budget', 'other'];
 const LEVELS = ['campaign', 'adset', 'ad'];
-const propOut = r => ({ id: r.id, brand_id: r.act_id, kind: r.kind, title: r.title, why: r.why || '', level: r.level || null, object_id: r.object_id || null,
+const propOut = r => ({ id: r.id, brand_id: r.act_id, audience: r.audience === 'client' ? 'client' : 'team', kind: r.kind, title: r.title, why: r.why || '', level: r.level || null, object_id: r.object_id || null,
   object_name: r.object_name || null, amount: r.amount ?? null, before: r.before_text || null, after: r.after_text || null, status: r.status,
   proposed_by: r.by_email, through: r.by_app || 'an AI app', created_at: r.created_at, expires_at: r.expires_at, decided_by: r.decided_by || null, decided_at: r.decided_at || null, result: r.result || null });
 const proposalLink = async (env, id, act) => `${(await setting(env, 'connectAiAppUrl')) || APP_URL}?open=aiproposal&id=${encodeURIComponent(id)}&act=${encodeURIComponent(act)}`;
@@ -278,6 +303,7 @@ const proposalLink = async (env, id, act) => `${(await setting(env, 'connectAiAp
 /** Make a card that waits for a tap in the app. Changes nothing else. */
 export async function propose(env, who, brand, args, { app = null, limits = LIMITS } = {}) {
   await ensure(env);
+  if (!canAct(who.person)) throw new Error('Your login is view-only in Locus, so your AI can read but cannot make a card. Tell the person what you would suggest instead.');
   const kind = KINDS.includes(String(args.kind || '')) ? String(args.kind) : null;
   if (!kind) throw new Error('kind is one of: pause, resume, budget, other.');
   const title = plainText(args.title, 160);
@@ -295,35 +321,86 @@ export async function propose(env, who, brand, args, { app = null, limits = LIMI
   if (made >= limits.proposalsPerDay) throw new Error(`This key has made ${limits.proposalsPerDay} cards in the last day, which is the limit. Ask the person to go through the waiting ones first.`);
   const id = 'aip_' + crypto.randomUUID().replace(/-/g, '').slice(0, 20);
   const now = Date.now();
-  await env.DB.prepare(`INSERT INTO p_ai_proposal (id, act_id, kind, title, why, level, object_id, object_name, amount, before_text, after_text, status, by_email, by_key, by_app, created_at, expires_at)
-    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 'waiting', ?12, ?13, ?14, ?15, ?16)`)
+  await env.DB.prepare(`INSERT INTO p_ai_proposal (id, act_id, kind, title, why, level, object_id, object_name, amount, before_text, after_text, status, by_email, by_key, by_app, created_at, expires_at, audience)
+    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 'waiting', ?12, ?13, ?14, ?15, ?16, ?17)`)
     .bind(id, brand.id, kind, title, why, level, objectId, plainText(args.object_name, 200) || null, amount, plainText(args.before, 300) || null, plainText(args.after, 300) || null,
-      who.person.email, who.key.id, app ? plainText(app, 80) : null, new Date(now).toISOString(), new Date(now + PROPOSAL_HOURS * 3600e3).toISOString()).run();
+      who.person.email, who.key.id, app ? plainText(app, 80) : null, new Date(now).toISOString(), new Date(now + PROPOSAL_HOURS * 3600e3).toISOString(), sideOf(who.person)).run();
   return { id, status: 'waiting', applied: false, link: await proposalLink(env, id, brand.id), expires_in_hours: PROPOSAL_HOURS,
     say: `Card made: "${title}". Nothing was changed. It waits for a tap in Locus for ${PROPOSAL_HOURS} hours, then it goes away.` };
 }
 
-/** Cards that wait, for the brands in `ids` (null = every brand). Cards past their time are marked expired first. */
-export async function waitingProposals(env, ids, { act = null, all = false } = {}) {
+/** Cards that wait, for the brands in `ids` (null = every brand), as `person` may see them (a client: only the
+ *  client side's cards). Cards past their time are marked expired first. */
+export async function waitingProposals(env, ids, { act = null, all = false, person = null } = {}) {
   await ensure(env);
   await env.DB.prepare(`UPDATE p_ai_proposal SET status = 'expired' WHERE status = 'waiting' AND expires_at <= ?1`).bind(nowIso()).run().catch(() => {});
   const { results } = act
     ? await env.DB.prepare(`SELECT * FROM p_ai_proposal WHERE act_id = ?1 ${all ? '' : `AND status = 'waiting'`} ORDER BY created_at DESC LIMIT 100`).bind(act).all()
     : await env.DB.prepare(`SELECT * FROM p_ai_proposal ${all ? '' : `WHERE status = 'waiting'`} ORDER BY created_at DESC LIMIT 200`).all();
-  return (results || []).filter(r => !ids || ids.has(r.act_id)).map(propOut);
+  return (results || []).filter(r => (!ids || ids.has(r.act_id)) && canSeeCard(person, r)).map(propOut);
 }
 
-/** The tap. `request` is the signed-in person's own request: a yes that applies is sent on with THEIR session. */
-export async function decide(env, d, request, person, { id, yes }) {
+/* ---- what a yes would really change: the app's own Meta write route, as the person, first as a dry run ---- */
+const BIG_STEP = 0.5;   // the house rule in metawrite.js: more than half in one step is asked for outright
+const sameName = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+/** The line the Change Log keeps: an AI card was behind this, which card, whose AI, and its own title and why. */
+const cardReason = row => clip(`AI card ${row.id} (suggested by ${row.by_email}'s AI): ${row.title}. ${row.why || ''}`.replace(/\s+/g, ' ').trim(), 300);
+const writeBody = (row, person, more = {}) => ({ act: row.act_id, kind: row.kind, level: row.level, object: row.object_id, ...(row.kind === 'budget' ? { amount: row.amount } : {}),
+  by: person.email, reason: cardReason(row), ...more });
+async function metaWrite(env, d, request, body) {
+  let res = null, j = null;
+  try {
+    res = await d.ahFetch(new Request(AH_ORIGIN + '/api/meta/write', { method: 'POST', headers: { Authorization: request.headers.get('Authorization') || '', 'Content-Type': 'application/json', 'X-Via': 'connect-ai' }, body: JSON.stringify(body) }), env);
+    j = await res.json().catch(() => null);
+  } catch (e) { j = { error: e.message }; }
+  if (!res || !res.ok || !j || j.error) return { error: (j && j.error) || 'Locus could not reach Meta for that. The card is still waiting.', status: res && res.status >= 400 ? res.status : res ? 409 : 502 };
+  return { j };
+}
+/** Read the real thing from Meta (a dry run: nothing is written). The name, level, before and after here are
+ *  Meta's, never the AI's words. */
+async function realChange(env, d, request, person, row, more = {}) {
+  const r = await metaWrite(env, d, request, writeBody(row, person, { ...more, dry: true }));
+  if (r.error) return r;
+  const j = r.j, before = j.before && typeof j.before === 'object' ? j.before : null;
+  if (!j.dry || !before || !Object.keys(before).length) return { error: 'Locus could not read how this is set in Meta right now, so nothing was changed. The card is still waiting.', status: 409 };
+  const step = (Array.isArray(j.step) ? j.step : []).map(x => ({ field: String(x.field), from: x.from ?? null, to: x.to ?? null }));
+  let big = false, pct = null;
+  if (row.kind === 'budget') {
+    const b = step.find(x => /_budget$/.test(x.field));
+    if (b && +b.from > 0 && +b.to > 0) { pct = (+b.to - +b.from) / +b.from; big = Math.abs(pct) > BIG_STEP; } else big = true;
+  }
+  return { real: { name: j.name || null, level: j.level || null, summary: j.summary || null, before, step, big, change_pct: pct == null ? null : Math.round(pct * 100),
+    ai_name: row.object_name || null, name_differs: !!row.object_name && !sameName(row.object_name, j.name), level_differs: !!j.level && j.level !== row.level,
+    also: row.kind === 'budget' && j.level === 'campaign' ? 'Any Past buyers ad set in this campaign is kept at 10% of the new budget.' : null } };
+}
+async function cardFor(env, d, person, id) {
   await ensure(env);
   const row = await env.DB.prepare(`SELECT * FROM p_ai_proposal WHERE id = ?1`).bind(String(id || '')).first();
   const scope = await scopeOf(env, d, person, 'all');
-  if (!row || !scope.ids.has(row.act_id)) return { error: 'No card with that id.', status: 404 };
+  if (!row || !scope.ids.has(row.act_id) || !canSeeCard(person, row)) return { error: 'No card with that id.', status: 404 };
   if (row.status !== 'waiting') return { error: `This card is already ${row.status}.`, status: 409 };
   if (!(Date.parse(row.expires_at) > Date.now())) {
     await env.DB.prepare(`UPDATE p_ai_proposal SET status = 'expired' WHERE id = ?1 AND status = 'waiting'`).bind(row.id).run();
     return { error: 'This card ran out of time. Ask your AI again if it still matters.', status: 410 };
   }
+  return { row };
+}
+/** What a yes on this card would do, read from Meta now. Changes nothing. */
+export async function checkCard(env, d, request, person, { id, over_pause }) {
+  if (!canAct(person)) return { error: LOOK_ONLY, status: 403 };
+  const c = await cardFor(env, d, person, id);
+  if (c.error) return c;
+  if (c.row.kind === 'other' || !(await applyOn(env))) return { ok: true, applies: false };
+  const r = await realChange(env, d, request, person, c.row, over_pause ? { over_pause: clip(over_pause, 200) } : {});
+  return r.error ? r : { ok: true, applies: true, id: c.row.id, real: r.real };
+}
+
+/** The tap. `request` is the signed-in person's own request: a yes that applies is sent on with THEIR session. */
+export async function decide(env, d, request, person, { id, yes, expect = null, big = false, client_why = null, over_pause = null }) {
+  if (!canAct(person)) return { error: LOOK_ONLY, status: 403 };
+  const c = await cardFor(env, d, person, id);
+  if (c.error) return c;
+  const row = c.row;
   const close = (status, result) => env.DB.prepare(`UPDATE p_ai_proposal SET status = ?2, decided_by = ?3, decided_at = ?4, result = ?5 WHERE id = ?1`)
     .bind(row.id, status, person.email, nowIso(), result ? clip(result, 1500) : null).run();
   if (!yes) { await close('declined', null); return { ok: true, status: 'declined', applied: false }; }
@@ -332,21 +409,27 @@ export async function decide(env, d, request, person, { id, yes }) {
     await close('approved', null);
     return { ok: true, status: 'approved', applied: false, say: 'Marked yes. Nothing was changed for you: make the change on its own page.' };
   }
+  /* Read the real thing first. The yes must carry what the person was shown; the card's own words are the AI's. */
+  const more = over_pause ? { over_pause: clip(over_pause, 200) } : {};
+  const dry = await realChange(env, d, request, person, row, more);
+  if (dry.error) return dry;
+  const real = dry.real;
+  const shown = expect && typeof expect === 'object' && !Array.isArray(expect) && Object.keys(real.before).every(k => k in expect && String(expect[k] ?? '0') === String(real.before[k] ?? '0'));
+  if (!shown) return { error: 'Look at what this would really change first. Nothing was changed.', status: 409, need: 'check', real };
+  if (real.big && big !== true) return { error: 'This moves the budget by more than half in one step. Say yes to that outright, or turn the card down. Nothing was changed.', status: 409, need: 'big', real };
   /* One tap, one write: claim the card before sending, give it back if the write is refused. */
   const claim = await env.DB.prepare(`UPDATE p_ai_proposal SET status = 'applying' WHERE id = ?1 AND status = 'waiting'`).bind(row.id).run();
   if (claim?.meta && claim.meta.changes === 0) return { error: 'Someone else just tapped this card.', status: 409 };
-  const body = { act: row.act_id, kind: row.kind, level: row.level, object: row.object_id, ...(row.kind === 'budget' ? { amount: row.amount } : {}), by: person.email };
-  let res, j = null;
-  try {
-    res = await d.ahFetch(new Request(AH_ORIGIN + '/api/meta/write', { method: 'POST', headers: { Authorization: request.headers.get('Authorization') || '', 'Content-Type': 'application/json', 'X-Via': 'connect-ai' }, body: JSON.stringify(body) }), env);
-    j = await res.json().catch(() => null);
-  } catch (e) { res = null; j = { error: e.message }; }
-  if (!res || !res.ok || (j && j.error)) {
+  /* `expect` goes on to the write, which reads Meta again and refuses if it moved since the dry run. A note for the
+     client's Updates page is the tapper's own words (team only), never the AI's. */
+  const w = await metaWrite(env, d, request, writeBody(row, person, { ...more, expect: real.before,
+    ...(sideOf(person) === 'team' && plainText(client_why, 600) ? { client_why: plainText(client_why, 600) } : {}) }));
+  if (w.error) {
     await env.DB.prepare(`UPDATE p_ai_proposal SET status = 'waiting' WHERE id = ?1 AND status = 'applying'`).bind(row.id).run();
-    return { error: (j && j.error) || 'Locus could not make that change. The card is still waiting.', status: res && res.status >= 400 ? res.status : 502 };
+    return { error: w.error, status: w.status };
   }
-  await close('applied', JSON.stringify(tidy(j)));
-  return { ok: true, status: 'applied', applied: true, write: tidy(j) };
+  await close('applied', JSON.stringify(tidy({ card: row.id, was: real.before, name: real.name, write: w.j })));
+  return { ok: true, status: 'applied', applied: true, name: real.name, write: tidy(w.j) };
 }
 
 /* ---------------- the tools: a fixed list ---------------- */
@@ -364,7 +447,7 @@ function tools() {
     ({ def: { name, title, description, inputSchema: { type: 'object', properties, ...(required.length ? { required } : {}), additionalProperties: false }, annotations }, run });
   return [
     t('list_brands', 'Brands', 'The brands this key can see, each with its id, currency and goals (goal ROAS, goal cost per sale). Call it first.', {}, [],
-      async (env, d, who) => ({ source: 'The brand list in Locus.', data: { brands: who.scope.brands, you: { role: who.person.role } } })),
+      async (env, d, who) => ({ source: 'The brand list in Locus.', data: { brands: who.scope.brands, you: { role: who.person.role, can_propose: canAct(who.person) } } })),
     t('get_numbers', 'Store numbers for a window', 'A brand\'s store numbers for a window: revenue, orders, ad spend, MER, new customers, and the same by day. Use it for "how did we do".', { brand: BRAND, ...WINDOW }, [],
       async (env, d, who, a) => { const brand = pickBrand(who.scope, a.brand), win = windowOf(a);
         return { brand, window: win, source: STORE, data: await locusGet(env, d, who, 'profit', '/api/client', { act: brand.id, from: win.from, to: win.to }) }; }),
@@ -383,7 +466,7 @@ function tools() {
     t('suggestions_waiting', 'Suggestions waiting', 'What waits for a yes or no on a brand: the Meta calls Locus made from the brand\'s own rules (each with its numbers), and the cards an AI proposed that nobody has tapped yet.', { brand: BRAND }, [],
       async (env, d, who, a) => { const brand = pickBrand(who.scope, a.brand);
         const calls = await locusGet(env, d, who, 'ah', '/api/buyer-list', { act: brand.id, ads: 0 });
-        return { brand, source: 'Calls: Locus rules on Triple Whale sales and Meta spend, each row says its own window. Cards: made through a connected AI.', data: { calls, ai_cards_waiting: await waitingProposals(env, null, { act: brand.id }) } }; }),
+        return { brand, source: 'Calls: Locus rules on Triple Whale sales and Meta spend, each row says its own window. Cards: made through a connected AI.', data: { calls, ai_cards_waiting: await waitingProposals(env, null, { act: brand.id, person: who.person }) } }; }),
     t('production_board', 'Production board', 'The brand\'s creative work in progress: each card with its number, title, column (brief, making, review, ready, scheduled, live, off), who has it and when it is due.', { brand: BRAND }, [],
       async (env, d, who, a) => { const brand = pickBrand(who.scope, a.brand);
         const r = await locusGet(env, d, who, 'ah', '/api/production', { act: brand.id });
@@ -566,7 +649,7 @@ async function handleApi(request, env, d, url) {
   if (path === API_PATH && m === 'GET') {
     const own = await owner();
     return json({ on, address, you: { email: person.email, role: own ? 'owner' : person.role }, can_switch: own, default_days: DEFAULT_DAYS, max_days: MAX_DAYS, max_keys: MAX_LIVE_KEYS,
-      limits: await limitsOf(env), applies_on_yes: on ? await applyOn(env) : false, tools: TOOL_NAMES });
+      limits: await limitsOf(env), applies_on_yes: on ? await applyOn(env) : false, tools: TOOL_NAMES, can_act: canAct(person) });
   }
   if (path === API_PATH + '/keys' && m === 'GET') {
     if (!on) return json({ on, keys: [] });
@@ -600,17 +683,25 @@ async function handleApi(request, env, d, url) {
     return json({ on, calls: (results || []).map(r => ({ key_id: r.key_id, email: r.email, tool: r.tool, brand_id: r.act_id || null, at: r.at, ok: !!r.ok, note: r.note || null })) });
   }
   if (path === API_PATH + '/proposals' && m === 'GET') {
-    if (!on) return json({ on, proposals: [] });
+    if (!on) return json({ on, proposals: [], can_act: canAct(person) });
     const scope = await scopeOf(env, d, person, 'all');
     const act = url.searchParams.get('act') || null;
     if (act && !scope.ids.has(act)) return json({ error: 'You do not have access to that brand.' }, 403);
-    return json({ on, applies_on_yes: await applyOn(env), proposals: await waitingProposals(env, scope.ids, { act, all: url.searchParams.get('all') === '1' }) });
+    return json({ on, applies_on_yes: await applyOn(env), can_act: canAct(person), you: { role: person.role },
+      proposals: await waitingProposals(env, scope.ids, { act, all: url.searchParams.get('all') === '1', person }) });
+  }
+  if (path === API_PATH + '/proposals/check' && m === 'POST') {
+    if (!on) return json({ error: 'Connecting your own AI is not switched on yet.' }, 403);
+    const b = await body();
+    const r = await checkCard(env, d, request, person, { id: b.id, over_pause: typeof b.over_pause === 'string' ? b.over_pause : null });
+    return r.error ? json({ error: r.error }, r.status || 400) : json(r);
   }
   if (path === API_PATH + '/proposals/decide' && m === 'POST') {
     if (!on) return json({ error: 'Connecting your own AI is not switched on yet.' }, 403);
     const b = await body();
-    const r = await decide(env, d, request, person, { id: b.id, yes: b.yes === true });
-    return r.error ? json({ error: r.error }, r.status || 400) : json(r);
+    const r = await decide(env, d, request, person, { id: b.id, yes: b.yes === true, expect: b.expect, big: b.big === true,
+      client_why: typeof b.client_why === 'string' ? b.client_why : null, over_pause: typeof b.over_pause === 'string' ? b.over_pause : null });
+    return r.error ? json({ error: r.error, ...(r.need ? { need: r.need, real: r.real } : {}) }, r.status || 400) : json(r);
   }
   return json({ error: 'not found' }, 404);
 }
