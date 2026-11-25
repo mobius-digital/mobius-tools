@@ -319,6 +319,8 @@ async function approve(env, deps, rec, act, who) {
    written in the ladder's words and two buttons. Nothing reaches a client without his tap; Send posts it AS COLE in the
    brand's client channel (brief_channel, never the internal one). No client channel = no DM. */
 const OWNER_SLACK = 'U06C37MDWD7';
+/* Brands whose client approves our suggestion themselves (also flagged client_approve by profit season.js). */
+const CLIENT_APPROVE = new Set(['brand_yak_sports']);
 /* THE CLIENT UPDATE, laid out (Cole 2026-11-24: "big headlines, real line breaks, clean, colors by KPI"). Slack Block
    Kit, posted AS COLE: a header (large type), the time and goal, then Week so far / Today so far / Last 6 hours as a
    two-column grid (Sales, Ad spend, MER, Goal) with dividers, then What we did as a real bulleted list. Three looks,
@@ -511,7 +513,7 @@ export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name
   /* The client decides (client_approve, Yak): our suggestion with an Approve button the client taps; Locus makes the
      change only on that tap and confirms only once Meta took it (handleClientUpdateButton ws_capprove). */
   const sg = b.suggest || {}, camp = b.meta && b.meta.camp;
-  if (b.client_approve && sg.to && camp && camp.daily && !(rec.approved || {})[act]) {
+  if ((b.client_approve || CLIENT_APPROVE.has(act)) && sg.to && camp && camp.daily && !(rec.approved || {})[act]) {
     const up = sg.to > camp.daily;
     const sug = [T1('Our suggestion'), md(`${up ? 'Raise' : 'Lower'} the Black Friday budget from *${usd(camp.daily)}* to *${usd(sg.to)}* a day. ${up ? `The store is at ${nx(b.so_far && b.so_far.mer)} return on ad spend for the sale, over your ${nx(b.kpi)} goal.` : `The store is under break-even, so we would protect the return.`}`),
       { type: 'actions', elements: [{ type: 'button', action_id: 'ws_capprove', style: 'primary', text: { type: 'plain_text', text: `Approve ${usd(sg.to)} a day` }, value: `${rec.slot}|${act}` }] },
@@ -605,7 +607,7 @@ export async function postBatch(env, deps, rec) {
   const bt = { slot: rec.slot, channel: null, ts: null, items: [] }, drafts = [];
   for (const b of rec.brands) {
     if (b.no_sales) continue;
-    const waiting = b.suggest && b.suggest.to && !(rec.approved || {})[b.act_id] && !b.client_approve;   // a client-approve brand goes out now, suggestion inside
+    const waiting = b.suggest && b.suggest.to && !(rec.approved || {})[b.act_id] && !(b.client_approve || CLIENT_APPROVE.has(b.act_id));   // a client-approve brand goes out now, suggestion inside
     if (waiting) { bt.items.push({ act: b.act_id, name: b.name, id: null, status: 'waiting' }); continue; }
     const d = await draftFor(env, deps, rec, b.act_id, rec.slot).catch(() => null);
     if (!d) continue;
