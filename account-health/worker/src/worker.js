@@ -13,6 +13,7 @@ import { pulseTick, pulseStatus, pulseImport, pulseButton } from './pulse.js';
 import { handleSchedules, scheduleTick } from './askschedule.js';
 import { handleReview, reviewTick } from './review.js';
 import { handleAlerts, alertTick } from './alerts.js';
+import { handleAutomations, automationTick } from './automations.js';
 import { handleSocial, socialTick, serveSocialMedia, useFetch as socialFetch } from './social.js';
 import { handleSocialPost, socialPostTick, socialResultsTick, socialNudgeTick, handleSocialButton, useFetch as socialPostFetch } from './socialpost.js';
 import { handleMake as handleMakeApp, serveMakeMedia, runExit } from './make.js';
@@ -7514,6 +7515,8 @@ function strategistDeps() {
   return _stratDeps;
 }
 /* What checknow.js, alerts.js and the scheduled checks need from here. */
+/* Automations (automations.js): the same reads as the alerts, plus the report engine and who is asking. */
+function automationDeps() { return { ...autoDeps(), clientScope, brandsFor, resolveBrandId, makeReport, ownerEmail: 'cole@go-mobius-digital.com' }; }
 function autoDeps() {
   return { getSetting, putSetting, listAccounts, localDate, localHourFrac, addDays, twSummary, twShift, metaAll, pickAction, PURCHASE_TYPES, xfetch,
     subCanAfford, centralHour, centralDate, slackApi, isAdmin, sessionEmail, goalsFor, daysInMonth, twMetaDaily, mintSession, postDashboard };
@@ -8197,6 +8200,8 @@ const AH_APP = {
         ran.mondayReview = await reviewTick(env, { ...hubDeps(), briefHour }).catch(e => ({ error: e.message }));
         /* Alerts: rules checked at their hour, posted at most once a Central day (alerts.js). */
         ran.alerts = await alertTick(env, autoDeps()).catch(e => ({ error: e.message }));
+        /* Automations (automations.js): with none switched on this is one count and nothing else. */
+        ran.automations = await automationTick(env, automationDeps()).catch(e => ({ error: e.message }));
         /* The calendar: a client's new or moved date, the day before / a week out, Monday "still running?" (calendar.js). */
         ran.calendar = await calendarTick(env, hubDeps()).catch(e => ({ error: e.message }));
         /* Locus Social: each followed brand and topic pulled once a day, four a tick (social.js). */
@@ -9472,6 +9477,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
        never cite a figure that is not on the page. Cached an hour per exact set of facts
        (settings `read:<hash>`); made on open, never on a cron. Sonnet tier, about a cent. */
     /* Right now (checknow.js) and the alerts (alerts.js): GET /api/daycheck/now, /api/alerts*. Admin-checked inside. */
+    if (path.startsWith('/api/automations') || path.startsWith('/api/notices') || path === '/api/me/delivery') { const r = await handleAutomations(request, env, path, json, automationDeps()); if (r) return r; }
     if (path === '/api/daycheck/now' || path.startsWith('/api/alerts')) {
       const r = await handleAlerts(request, env, path, json, autoDeps());
       if (r) return r;

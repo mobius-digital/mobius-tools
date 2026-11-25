@@ -1,0 +1,86 @@
+{
+ "ok": true,
+ "email": "sam@agency.example",
+ "delivery": {
+  "tz": "America/Chicago",
+  "read_hour": 7,
+  "read_days": [
+   "mon",
+   "tue",
+   "wed",
+   "thu",
+   "fri"
+  ],
+  "quiet_from": 19,
+  "quiet_to": 5,
+  "break_quiet": [
+   "tap",
+   "down"
+  ],
+  "mode": "now",
+  "ways": {
+   "home": true,
+   "slack": true,
+   "email": false
+  }
+ },
+ "per": [
+  {
+   "automation_id": "au_1",
+   "name": "When a daily plan is missing by 10am, for any brand, tell me, each in their own way.",
+   "sentence": "When a daily plan is missing by 10am, for any brand, tell me, each in their own way.",
+   "mode": "only_if_missing",
+   "ways": {
+    "home": true,
+    "slack": true,
+    "email": false
+   },
+   "at_hour": 7,
+   "own": true
+  },
+  {
+   "automation_id": "au_2",
+   "name": "When a production card moves to Review, for any brand, ask the AI checker to look at it, then tell the card's maker, each in their own way.",
+   "sentence": "When a production card moves to Review, for any brand, ask the AI checker to look at it, then tell the card's maker, each in their own way.",
+   "mode": "now",
+   "ways": {
+    "home": true,
+    "slack": true,
+    "email": false
+   },
+   "at_hour": 7,
+   "own": false
+  },
+  {
+   "automation_id": "au_3",
+   "name": "When MER over the last 7 days is under the brand's goal, for Northlake Golf, tell the brand owner, each in their own way.",
+   "sentence": "When MER over the last 7 days is under the brand's goal, for Northlake Golf, tell the brand owner, each in their own way.",
+   "mode": "now",
+   "ways": {
+    "home": true,
+    "slack": true,
+    "email": false
+   },
+   "at_hour": 7,
+   "own": false
+  }
+ ],
+ "modes": {
+  "now": "Right away",
+  "morning_read": "In my morning read",
+  "only_if_missing": "Only if missing",
+  "daily_line": "One line a day",
+  "mute": "Mute"
+ },
+ "ways": {
+  "home": true,
+  "bell": true,
+  "slack": true,
+  "email": true
+ },
+ "ways_note": {
+  "bell": "Always on. The bell is the record.",
+  "email": "Your choice is saved. Email starts when the mail address for this product is set up. Until then it waits in the bell.",
+  "slack": null
+ }
+}
