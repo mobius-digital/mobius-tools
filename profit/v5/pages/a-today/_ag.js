@@ -106,12 +106,12 @@ const CSS = `
 .ag-bc-n small{font-size:13px;color:var(--muted)}
 .ag-bc-n .w{font-size:15px;font-weight:550;color:var(--ink-2)}
 .ag-bc-g{min-height:25px}
-.ag-figs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding-top:14px;border-top:1px solid var(--line)}
+.ag-figs{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,112px),1fr));gap:10px;padding-top:14px;border-top:1px solid var(--line)}
 .ag-figs>span{display:grid;gap:2px;min-width:0;align-content:start}
 .ag-figs small{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ag-figs b{font-size:15.5px;font-weight:600;letter-spacing:-.015em;font-variant-numeric:tabular-nums;white-space:nowrap}
 .ag-figs b.ag-q{font-size:13px;font-weight:400;letter-spacing:0;white-space:normal}
-.ag-bc-a{display:flex;align-items:center;gap:10px;min-height:34px;align-self:end}
+.ag-bc-a{display:flex;flex-wrap:wrap;align-items:center;gap:10px;min-height:34px;align-self:end}
 .ag-bc-a .lx-sp{flex:1}
 .ag-name{display:inline-flex;align-items:center;gap:10px;min-width:0;color:inherit;text-decoration:none;font-weight:550}
 .ag-name:hover b,a.ag-name:hover{text-decoration:underline}

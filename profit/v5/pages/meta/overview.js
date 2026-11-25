@@ -60,7 +60,7 @@ const CSS = `
 .mo-top{display:flex;gap:18px;align-items:center;padding:18px 28px 22px}
 .mo-top-b{min-width:0;flex:1;display:grid;gap:6px}
 .mo-top-b .nm{font-size:13.5px;font-weight:550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.mo-top-b .r{display:flex;gap:10px;align-items:baseline;color:var(--muted);font-size:13px}
+.mo-top-b .r{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;color:var(--muted);font-size:13px}
 .mo-top-b .r .lx-stat{margin-left:auto}
 .mo-thumb{width:76px;height:95px;border-radius:14px;background:var(--bg-sunk);display:inline-flex;align-items:center;justify-content:center;flex:none}
 .mo-thumb svg{width:22px;height:22px;fill:var(--faint);stroke:none}

@@ -35,7 +35,10 @@
   --wash:radial-gradient(70% 130% at 100% 0%,rgba(255,138,31,.13),rgba(255,122,26,.04) 48%,rgba(255,122,26,0) 72%);
   --r-xs:4px; --r-sm:8px; --r-md:10px; --r-lg:18px; --r-xl:26px; --r-pill:999px;
   --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:20px; --sp-6:24px; --sp-8:32px; --sp-10:40px; --sp-12:48px;
-  --fs-micro:11px; --fs-meta:12px; --fs-cell:13px; --fs-body:14px; --fs-h3:16px; --fs-title:30px; --fs-kpi:30px; --fs-hero:44px;
+  --fs-micro:11px; --fs-meta:12px; --fs-cell:13px; --fs-body:14px; --fs-h3:16px;
+  /* big type and the main gaps follow the screen width between a phone and a desktop: no jumps */
+  --fs-title:clamp(28px,26px + .26vw,30px); --fs-kpi:clamp(26px,23.6px + .5vw,30px); --fs-hero:max(clamp(30px,14px + 5vw,34px),min(44px,16.7px + 2.28vw));
+  --pad-page:clamp(14px,6px + 1.7vw,24px); --pad-card:clamp(18px,10px + 1.7vw,28px); --gap-page:clamp(20px,12px + 1.7vw,32px); --gap-kpi:clamp(20px,8px + 2.2vw,32px);
   --sans:'Geist','Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
   --serif:'Instrument Serif','Iowan Old Style',Georgia,serif;
   --ctl-h:34px; --top-h:60px; --rail-w:248px; --tabbar-h:58px;
@@ -64,7 +67,7 @@ h1,h2,h3,p{margin:0}
 .lx-main{min-width:0;display:flex;flex-direction:column}
 
 /* rail: light, open, a slim ember marker on the active item */
-.lx-rail{position:sticky;top:0;height:100vh;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;
+.lx-rail{position:sticky;top:0;height:100vh;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-width:thin;
   display:flex;flex-direction:column;gap:2px;padding:var(--sp-4) var(--sp-3);background:var(--rail);border-right:1px solid var(--line)}
 .lx-logo{display:flex;align-items:center;gap:9px;padding:4px 10px 16px;color:var(--ink);text-decoration:none;flex:none}
 .lx-logo b{font-size:21px;font-weight:600;letter-spacing:-.045em;line-height:1}
@@ -84,7 +87,7 @@ h1,h2,h3,p{margin:0}
 .lx-rail .lx-sp{min-height:var(--sp-4)}
 
 /* top bar */
-.lx-top{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:var(--sp-3);height:var(--top-h);padding:0 var(--sp-6);background:rgba(255,255,255,.96);flex:none}
+.lx-top{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:var(--sp-3);height:var(--top-h);min-width:0;padding:0 var(--pad-page);background:rgba(255,255,255,.96);flex:none}
 .lx-top .lx-mark{display:none}
 .lx-swatch{display:inline-block;width:16px;height:16px;border-radius:5px;background:var(--dot,var(--muted));flex:none}
 /* the brand marker in the switcher and the brand list: a small grey circle with the first letter, tokens only so it follows the theme */
@@ -124,16 +127,19 @@ button.lx-avatar{cursor:pointer}
 .lx-pop .lx-empty{padding:26px 18px;box-shadow:none}
 
 /* page frame */
-.lx-page{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--sp-8);align-content:start;width:100%;max-width:1228px;padding:var(--sp-3) var(--sp-6) var(--sp-12)}
+.lx-page{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--gap-page);align-content:start;width:100%;max-width:1228px;padding:var(--sp-3) var(--pad-page) var(--sp-12)}
 .lx-head{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--sp-4);min-width:0}
 .lx-tabs-slot{min-width:0}
 .lx-head-row{display:flex;align-items:flex-end;gap:var(--sp-4);min-height:40px}
 .lx-head h1{font-size:var(--fs-title);font-weight:600;letter-spacing:-.035em;line-height:1.15}
 .lx-asof{font-size:12px;color:var(--faint);white-space:nowrap}
 .lx-asof.busy::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--slate);margin-right:6px;vertical-align:1px;opacity:.7}
-.lx-view{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--sp-8);align-content:start;min-width:0}
-.lx-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:var(--sp-6);align-items:start}
-.lx-wide-narrow{display:grid;grid-template-columns:minmax(0,2fr) minmax(280px,1fr);gap:var(--sp-6);align-items:start}
+.lx-view{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--gap-page);align-content:start;min-width:0}
+.lx-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:var(--sp-6);align-items:start}
+/* two thirds and one third while both fit (the narrow side never under 280px), then one under the other */
+.lx-wide-narrow{display:flex;flex-wrap:wrap;gap:var(--sp-6);align-items:flex-start}
+.lx-wide-narrow>*{flex:1 1 280px;min-width:0}
+.lx-wide-narrow>:first-child{flex:2 1 560px}
 .lx-foot{font-size:12px;color:var(--faint)}
 
 /* tabs: sub pages across the top of a page */
@@ -172,11 +178,11 @@ button.lx-avatar{cursor:pointer}
 .lx-btn:disabled{opacity:.5;cursor:default;transform:none;filter:none}
 
 /* ---------- 5. cards: white on white, soft depth, almost no hard borders ---------- */
-.lx-card{background:var(--surface);border-radius:var(--r-lg);box-shadow:var(--sh-1);padding:var(--sp-6) 28px;min-width:0}
+.lx-card{background:var(--surface);border-radius:var(--r-lg);box-shadow:var(--sh-1);padding:clamp(18px,10px + 1.3vw,24px) var(--pad-card);min-width:0}
 .lx-card.raised{box-shadow:var(--sh-2)}
 .lx-card.flush{padding:0;overflow:hidden}
-.lx-card.flush>.lx-sec{padding:20px 28px 10px}
-.lx-card.flush>.lx-pad{padding:4px 28px 20px}
+.lx-card.flush>.lx-sec{padding:clamp(16px,12px + .8vw,20px) var(--pad-card) clamp(8px,6px + .4vw,10px)}
+.lx-card.flush>.lx-pad{padding:4px var(--pad-card) clamp(16px,12px + .8vw,20px)}
 .lx-sec{display:flex;align-items:center;gap:var(--sp-3)}
 .lx-sec h2,.lx-sec h3{font-size:var(--fs-h3);font-weight:600;letter-spacing:-.015em}
 .lx-sec .note{font-size:13px;color:var(--muted)}
@@ -184,7 +190,7 @@ button.lx-avatar{cursor:pointer}
 .lx-sec .act a:not(.lx-btn){color:var(--ink);font-weight:550;text-decoration:none}
 .lx-sec .act a:not(.lx-btn):hover{text-decoration:underline}
 .lx-cap{font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);white-space:nowrap}
-.lx-band{background:var(--band);border-radius:var(--r-xl);padding:var(--sp-6)}
+.lx-band{background:var(--band);border-radius:var(--r-xl);padding:clamp(16px,8px + 1.7vw,24px);min-width:0}
 .lx-rows{display:flex;flex-direction:column}
 .lx-rows>*{display:flex;align-items:center;gap:14px;padding:13px 0;border-top:1px solid var(--line);color:inherit;text-decoration:none}
 .lx-rows>:first-child{border-top:0}
@@ -194,7 +200,7 @@ button.lx-avatar{cursor:pointer}
 .lx-empty .lx-btn{margin-top:6px}
 
 /* the ONE hero band per page: neutral paper with a soft ember wash in one corner */
-.lx-hero{position:relative;display:grid;gap:var(--sp-6);padding:28px 32px 26px;border-radius:var(--r-xl);
+.lx-hero{position:relative;display:grid;grid-template-columns:minmax(0,1fr);gap:clamp(20px,14px + 1vw,24px);min-width:0;padding:clamp(20px,12px + 1.7vw,28px) clamp(18px,6px + 2.6vw,32px) clamp(20px,13px + 1.4vw,26px);border-radius:var(--r-xl);
   background:var(--wash),linear-gradient(180deg,#FAF9F7 0%,#FFFFFF 100%);box-shadow:inset 0 0 0 1px rgba(28,20,10,.045)}
 /* 'line' used to draw a short ember stripe on the hero. Ember is kept for the lead chart line, the primary
    button, the logo, the Locus AI button and the active menu marker, so the stripe is gone and 'line' is a no-op. */
@@ -213,8 +219,21 @@ button.lx-avatar{cursor:pointer}
 .lx-take .lx-btn{margin-left:auto;flex:none;border-radius:999px}
 
 /* ---------- 6. numbers: ink, large, tabular ---------- */
-.lx-kpis{display:grid;grid-template-columns:repeat(var(--cols,auto-fit),minmax(0,1fr));gap:var(--sp-8)}
-.lx-kpis:not([style]){grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+.lx-kpis{--cols:4;--half:2;--kpi-fs:var(--fs-kpi);--kpi-min:calc(var(--kpi-em,4.1) * var(--kpi-fs));
+  --w-all:calc((100% - (var(--cols) - 1) * var(--gap-kpi)) / var(--cols) - .5px);
+  --w-half:calc((100% - (var(--half) - 1) * var(--gap-kpi)) / var(--half) - .5px);
+  --w-two:calc((100% - var(--gap-kpi)) / 2 - .5px);
+  --need-all:calc(var(--cols) * var(--kpi-min) + (var(--cols) - 1) * var(--gap-kpi));
+  --need-half:calc(var(--half) * var(--kpi-min) + (var(--half) - 1) * var(--gap-kpi));
+  display:grid;gap:var(--gap-kpi);
+  /* a fixed count ({ cols }) holds while every tile has the room its number needs; then half as many
+     across (5 or 6 become 3, 7 or 8 become 4); then two; then one. --kpi-min is the widest figure. */
+  grid-template-columns:repeat(auto-fill,minmax(min(100%,max(var(--kpi-min),var(--w-all),min(var(--w-half),(var(--need-all) - 100%) * 9999),min(var(--w-two),(var(--need-half) - 100%) * 9999))),1fr))}
+.lx-kpis[style*="--cols:5"],.lx-kpis[style*="--cols: 5"],.lx-kpis[style*="--cols:6"],.lx-kpis[style*="--cols: 6"]{--half:3}
+.lx-kpis[style*="--cols:7"],.lx-kpis[style*="--cols: 7"],.lx-kpis[style*="--cols:8"],.lx-kpis[style*="--cols: 8"]{--half:4}
+.lx-kpis:has(>.lx-kpi.lg){--kpi-fs:var(--fs-hero)}
+/* no count given: as many as fit at 180px or the number's own width, never fewer than two across while two fit */
+.lx-kpis:not([style*="--cols"]){grid-template-columns:repeat(auto-fit,minmax(min(100%,max(var(--kpi-min),min(180px,(100% - var(--gap-kpi)) / 2 - .5px))),1fr))}
 .lx-kpi{display:grid;gap:4px;align-content:start;min-width:0;color:inherit;text-decoration:none}
 .lx-kpi .l{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);white-space:nowrap}
 .lx-kpi .v{display:flex;align-items:baseline;gap:var(--sp-2);margin-top:2px;font-size:var(--fs-kpi);font-weight:600;line-height:1.12;letter-spacing:-.035em;font-variant-numeric:tabular-nums;color:var(--ink);white-space:nowrap}
@@ -223,9 +242,9 @@ button.lx-avatar{cursor:pointer}
 .lx-kpi .s{display:flex;align-items:center;gap:6px;min-height:22px;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
 .lx-kpi .lx-spark{margin-top:var(--sp-3)}
 .lx-src{margin-left:auto;font-size:11px;font-weight:550;color:var(--faint);border:1px solid var(--line);border-radius:999px;padding:0 7px;line-height:18px;white-space:nowrap}
-.lx-big{font-size:var(--fs-hero);font-weight:600;letter-spacing:-.04em;line-height:1.02;font-variant-numeric:tabular-nums}
+.lx-big{font-size:var(--fs-hero);font-weight:600;letter-spacing:-.04em;line-height:1.02;font-variant-numeric:tabular-nums;white-space:nowrap}
 /* the one number that matters: ink numerals on a short ember underline */
-.lx-hero-num{display:inline-block;font-size:var(--fs-hero);font-weight:600;letter-spacing:-.04em;line-height:1.02;font-variant-numeric:tabular-nums;color:var(--ink);padding-bottom:9px;background:var(--grad) left bottom/100% 3px no-repeat}
+.lx-hero-num{display:inline-block;font-size:var(--fs-hero);font-weight:600;letter-spacing:-.04em;line-height:1.02;font-variant-numeric:tabular-nums;color:var(--ink);white-space:nowrap;padding-bottom:9px;background:var(--grad) left bottom/100% 3px no-repeat}
 .lx-delta{display:inline-flex;align-items:baseline;gap:3px;font-size:var(--fs-meta);font-weight:550;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted)}
 .lx-delta::before{font-size:.62em;line-height:1;transform:translateY(-.12em)}
 .lx-delta.up::before{content:"\25B2"}.lx-delta.down::before{content:"\25BC"}
@@ -312,7 +331,9 @@ button.lx-avatar{cursor:pointer}
 .lx-cellbar::after{content:"";position:absolute;left:0;top:0;bottom:0;width:var(--v,0%);background:var(--ink);border-radius:999px}
 
 /* ---------- 9. tables: aligned tabular numerals, hairline rows, neutral hover ---------- */
-.lx-table-wrap{width:100%;overflow-x:auto}
+.lx-table-wrap{width:100%;min-width:0;contain:inline-size;overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+/* a table put straight into a card scrolls inside the card, never the page */
+.lx-card:has(>.lx-table){overflow-x:auto}
 .lx-table-wrap.virtual{overflow-y:auto}
 .lx-table{width:100%;border-collapse:collapse;font-size:var(--fs-cell);font-variant-numeric:tabular-nums}
 .lx-table th{height:34px;padding:0 var(--sp-3);text-align:left;font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);white-space:nowrap;border-bottom:1px solid var(--line);background:#fff}
@@ -321,8 +342,8 @@ button.lx-avatar{cursor:pointer}
 .lx-table.roomy td{height:var(--rh,56px)}
 .lx-table th:first-child,.lx-table td:first-child{padding-left:0}
 .lx-table th:last-child,.lx-table td:last-child{padding-right:0}
-.lx-card.flush .lx-table th:first-child,.lx-card.flush .lx-table td:first-child{padding-left:28px}
-.lx-card.flush .lx-table th:last-child,.lx-card.flush .lx-table td:last-child{padding-right:28px}
+.lx-card.flush .lx-table th:first-child,.lx-card.flush .lx-table td:first-child{padding-left:var(--pad-card)}
+.lx-card.flush .lx-table th:last-child,.lx-card.flush .lx-table td:last-child{padding-right:var(--pad-card)}
 .lx-table tbody tr:last-child td{border-bottom:0}
 .lx-table .num{text-align:right;letter-spacing:-.01em}
 .lx-table .name{font-weight:550;white-space:normal}
@@ -363,11 +384,11 @@ select.lx-input{appearance:none;padding-right:34px;background:#fff url("data:ima
 /* first ever visit only. A short run, not endless. */
 .lx-skel{border-radius:var(--r-sm);background:linear-gradient(90deg,#F0EEEA 25%,#F8F7F5 50%,#F0EEEA 75%) 0 0/200% 100%;animation:lx-shim 1.4s linear 12}
 .lx-skel.line{height:14px;margin:8px 0;max-width:60%}
-.lx-skel.title{height:30px;width:260px}
+.lx-skel.title{height:30px;width:min(260px,100%)}
 .lx-skel.kpi{height:112px;border-radius:var(--r-lg)}
 .lx-skel.chart{height:320px;border-radius:var(--r-lg)}
 .lx-skel.row{height:44px;margin:6px 0}
-.lx-skel-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--sp-6)}
+.lx-skel-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr));gap:var(--sp-6)}
 @keyframes lx-shim{to{background-position:-200% 0}}
 .lx-toasts{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:90;display:grid;gap:8px;justify-items:center;pointer-events:none}
 .lx-toast{padding:10px 16px;border-radius:999px;background:var(--ink);color:#fff;font-size:13.5px;font-weight:550;box-shadow:var(--sh-3);animation:lx-pop var(--t-slow) var(--ease);transition:opacity .2s,transform .2s}
@@ -434,8 +455,8 @@ select.lx-input{appearance:none;padding-right:34px;background:#fff url("data:ima
 .lx-si-side .s{font-size:12.5px;color:var(--muted);margin-top:4px;font-variant-numeric:tabular-nums}
 .lx-si-ai{position:absolute;left:56px;right:40px;bottom:52px;border-radius:999px;box-shadow:var(--sh-2)}
 
-/* ---------- 13. tablet: the rail shrinks to icons ---------- */
-@media (max-width:1040px){
+/* ---------- 13. the rail shrinks to icons before the page gets tight (the page keeps about 900px or more) ---------- */
+@media (max-width:1199px){
   :root{--rail-w:68px}
   .lx-rail{padding:var(--sp-4) 10px;align-items:center}
   .lx-rail .lx-logo{padding:4px 0 12px}
@@ -443,8 +464,6 @@ select.lx-input{appearance:none;padding-right:34px;background:#fff url("data:ima
   .lx-rail .lx-nav{width:46px;min-height:42px;justify-content:center;padding:0}
   .lx-rail .lx-nav.on::before{left:-10px}
   .lx-rail .lx-nav[data-first]{margin-top:10px}
-  .lx-ask{min-width:0}.lx-ask kbd{display:none}
-  .lx-wide-narrow{grid-template-columns:1fr}
   .lx-si{grid-template-columns:minmax(0,1fr)}
   .lx-si-right{display:none}
   .lx-si-left{padding:28px 24px 24px}
@@ -452,11 +471,11 @@ select.lx-input{appearance:none;padding-right:34px;background:#fff url("data:ima
 
 /* ---------- 14. phone: a bottom tab bar, single column, sheets from the bottom ---------- */
 @media (max-width:759px){
-  :root{--top-h:52px;--fs-title:28px;--fs-hero:34px;--fs-kpi:26px}
+  :root{--top-h:52px}
   body{font-size:15px}
   .lx-shell{display:block;padding-bottom:calc(var(--tabbar-h) + env(safe-area-inset-bottom,0px))}
   .lx-rail{display:none}
-  .lx-top{padding:0 14px;gap:10px;border-bottom:1px solid var(--line)}
+  .lx-top{gap:10px;border-bottom:1px solid var(--line)}
   .lx-top .lx-mark{display:block}
   .lx-top .lx-ask,.lx-top .lx-myday,.lx-top .lx-seeas{display:none}
   .lx-top .lx-chip{font-size:11px;padding:0 8px;display:block;line-height:24px;overflow:hidden;text-overflow:ellipsis}
@@ -464,18 +483,12 @@ select.lx-input{appearance:none;padding-right:34px;background:#fff url("data:ima
   .lx-top>.lx-switch,.lx-top>.lx-chip{flex:0 1 auto;min-width:0}
   .lx-top>.lx-switch{overflow:hidden}
   .lx-top>.lx-sp{flex:1 1 0;min-width:0}
-  .lx-page{padding:14px 14px 28px;gap:var(--sp-5)}
+  .lx-page{padding-top:14px;padding-bottom:28px}
   .lx-head h1{font-weight:700;letter-spacing:-.03em;line-height:1.1}
-  .lx-view{gap:var(--sp-5)}
-  .lx-tabs{margin:0 -14px;padding:0 14px}
-  .lx-two,.lx-wide-narrow,.lx-skel-grid{grid-template-columns:1fr;gap:var(--sp-4)}
-  .lx-kpis,.lx-kpis[style]{grid-template-columns:1fr 1fr;gap:var(--sp-5)}
-  .lx-card{padding:18px;border-radius:18px}
-  .lx-card.flush>.lx-sec{padding:16px 18px 8px}
-  .lx-card.flush>.lx-pad{padding:4px 18px 16px}
-  .lx-card.flush .lx-table th:first-child,.lx-card.flush .lx-table td:first-child{padding-left:18px}
-  .lx-card.flush .lx-table th:last-child,.lx-card.flush .lx-table td:last-child{padding-right:18px}
-  .lx-hero{padding:20px 18px;border-radius:22px;gap:var(--sp-5)}
+  .lx-tabs{margin:0 calc(var(--pad-page) * -1);padding:0 var(--pad-page)}
+  .lx-two,.lx-skel-grid{grid-template-columns:1fr;gap:var(--sp-4)}
+  .lx-wide-narrow{gap:var(--sp-4)}
+  .lx-hero{border-radius:22px}
   .lx-take{border-radius:20px;align-items:flex-start;flex-wrap:wrap;font-size:14.500px;padding:14px}
   .lx-take .lx-btn{margin-left:0;width:100%;height:44px}
   .lx-btn.lg{height:48px;font-size:16px}
@@ -553,7 +566,9 @@ select.lx-input{appearance:none;padding-right:34px;background:#fff url("data:ima
 .lx-bell-f{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 24px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted);flex:none}
 
 /* the one chart: a box that follows its container, drawn at its real pixel width */
-.lx-chart{position:relative;width:100%;min-width:0}
+/* contain:inline-size : the box fills its parent but never props the parent open, so a chart
+   drawn wide can always shrink again when the screen gets narrower */
+.lx-chart{position:relative;width:100%;min-width:0;contain:inline-size}
 .lx-chart>svg{display:block;max-width:100%}
 .lx-plot .col.slate{fill:#C9D0DE}
 .lx-plot .dot2{fill:#fff;stroke:var(--slate);stroke-width:2}
@@ -616,3 +631,56 @@ select.lx-input{appearance:none;padding-right:34px;background:#fff url("data:ima
   .lx-sec .note{flex:1 1 100%;order:3}
   .lx-sec h2,.lx-sec h3{min-width:0}
 }
+
+/* ---------- 16. fluid: right at every width, 320 to 2560 ----------
+   Type, gaps and padding come from the clamp() tokens at the top. Grids reflow from their own width
+   (.lx-kpis, .lx-two, .lx-wide-narrow), so nothing waits for a breakpoint to stop being squeezed.
+   The only steps left are the shell's: full menu, icon rail (under 1200), phone tab bar (under 760). */
+html{overflow-wrap:break-word}
+.lx-main>*{min-width:0}
+/* a grid that names no columns gets one column that can shrink: a row of no-wrap text or a chart inside
+   it can no longer prop the whole page wider than the screen (minmax(0,auto) draws the same as auto) */
+.lx-main *,.lx-sheet *{grid-auto-columns:minmax(0,auto)}
+.lx-view>*,.lx-hero>*,.lx-card>*,.lx-band>*{min-width:0}
+.lx-view img,.lx-view video,.lx-view canvas{max-width:100%}
+.lx-card,.lx-hero,.lx-band,.lx-empty{max-width:100%}
+/* a big number is one piece: it never breaks in the middle and never pokes out of its tile */
+.lx-kpi .v>small{flex:0 1 auto;min-width:0}
+/* the line under a figure wraps inside its tile instead of poking out of it */
+.lx-kpi .s>.lx-stat,.lx-kpi .s>.lx-delta{white-space:normal;min-width:0}
+.lx-big{max-width:100%}
+.lx-big small{white-space:normal}
+/* top bar: the gap gives first, then the assistant button, then labels fold to icons, then the brand name clips */
+.lx-top>*{flex:none}
+.lx-top>.lx-sp{flex:1 1 0;min-width:0}
+.lx-top>.lx-switch{flex:0 1 auto;min-width:64px;overflow:hidden;justify-content:flex-start}
+.lx-top>.lx-chip{flex:0 8 auto;min-width:0;display:block;line-height:24px;overflow:hidden;text-overflow:ellipsis}
+.lx-top>.lx-ask{flex:0 64 232px;min-width:auto;white-space:nowrap}
+.lx-ask .lx-ic,.lx-ask kbd{flex:none}
+@media (max-width:1319px){.lx-ask kbd{display:none}}
+@media (max-width:1040px){
+  .lx-top>.lx-seeas{width:var(--ctl-h);padding:0;gap:0;font-size:0}
+}
+@media (max-width:899px){
+  .lx-top>.lx-ask{flex:none;gap:0;padding:0 5px;font-size:0}
+  .lx-top>.lx-chip{flex-shrink:1}
+}
+/* page head: the stamp and the dates wrap as a group */
+.lx-head h1{overflow-wrap:break-word}
+.lx-head-tools{flex-wrap:wrap;row-gap:6px;max-width:100%}
+/* card heads: the action drops under the title when both no longer fit on one line */
+@media (min-width:760px){
+  .lx-sec{flex-wrap:wrap;row-gap:6px}
+  .lx-sec .note{flex:1 1 0;min-width:min(100%,16ch)}
+  .lx-sec h2,.lx-sec h3{min-width:0}
+}
+.lx-sec .act{flex-wrap:wrap;row-gap:6px;max-width:100%}
+.lx-seg{max-width:100%;overflow-x:auto;scrollbar-width:none}
+.lx-seg::-webkit-scrollbar{display:none}
+.lx-seg button{flex:none;white-space:nowrap}
+.lx-rows>*{min-width:0}
+.lx-take .say{flex:1 1 auto}
+.lx-chart-h{flex-wrap:wrap;row-gap:10px}
+.lx-chart-h>:first-child{flex:1 1 240px;min-width:0}
+.lx-legend{row-gap:6px}
+.lx-input,.lx-field{min-width:0;max-width:100%}
