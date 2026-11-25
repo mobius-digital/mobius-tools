@@ -451,3 +451,38 @@ CREATE TABLE IF NOT EXISTS p_client_page (
   views       INTEGER NOT NULL DEFAULT 0,
   last_view   TEXT
 );
+
+-- Brand costs (2026-11-25, src/costs.js). Also created lazily by ensure() in costs.js.
+-- One dated rule for one cost type. A change closes the old row (end_date) and adds a new one.
+CREATE TABLE IF NOT EXISTS p_cost_rule (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  act_id       TEXT NOT NULL,
+  cost         TEXT NOT NULL,                  -- shipping | product
+  rule         TEXT NOT NULL,                  -- per_order | pct_revenue | per_item | weight_tier | zone
+  source       TEXT NOT NULL DEFAULT 'typed',  -- typed | sheet | connection
+  amount       REAL,                           -- money, or the percent for pct_revenue; NULL for table rules
+  table_json   TEXT,                           -- weight_tier: [{min,max,amount}]  zone: [{zone,amount}]
+  start_date   TEXT NOT NULL,                  -- YYYY-MM-DD, first day it applies
+  end_date     TEXT,                           -- last day it applies; NULL = still current
+  status       TEXT NOT NULL DEFAULT 'on',     -- on | off
+  label        TEXT,
+  notes        TEXT,
+  created_by   TEXT, created_name TEXT, created_at TEXT DEFAULT (datetime('now')),
+  updated_by   TEXT, updated_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS p_cost_rule_act ON p_cost_rule(act_id, cost, start_date);
+
+-- Per-product cost, filled by a cost sheet upload. Dated, so a new sheet never rewrites the past. Stored, not applied yet.
+CREATE TABLE IF NOT EXISTS p_product_cost (
+  act_id      TEXT NOT NULL,
+  sku         TEXT NOT NULL,
+  title       TEXT,
+  unit_cost   REAL NOT NULL,
+  start_date  TEXT NOT NULL,                   -- the date this sheet's numbers take effect
+  source      TEXT NOT NULL DEFAULT 'sheet',   -- sheet | connection | typed
+  batch       TEXT,                            -- one id per upload
+  filename    TEXT,
+  uploaded_by TEXT, uploaded_name TEXT, uploaded_at TEXT DEFAULT (datetime('now')),
+  PRIMARY KEY (act_id, sku, start_date)
+);
+CREATE INDEX IF NOT EXISTS p_product_cost_act ON p_product_cost(act_id, start_date);

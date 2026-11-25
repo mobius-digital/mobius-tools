@@ -1,4 +1,4 @@
-import { guardBrands, clientScope } from './brandguard.js';
+import { guardBrands, clientScope, brandsFor } from './brandguard.js';
 import { memo, bumpMemo } from './memo.js';
 import { metaOf, isBrandId, resolveBrandId } from './brandids.js';
 /**
@@ -33,7 +33,8 @@ import { handleInspo } from './inspo.js';
 import { snapshotPublic, handleSnapshot } from './snapshot.js';
 import { clientPagePublic, handleClientPage } from './clientpage.js';
 import { handleHub } from './hub.js';
-import { handleExpenses, loadExpenses, spread, applyAdSpend } from './expenses.js';
+import { handleExpenses, loadExpenses, spread, applyAdSpend, netAfter, netInPosts } from './expenses.js';
+import { handleCosts, costsPage, loadCostRules, ruleCosts, shippingRuled, partlyCosted } from './costs.js';
 // The account-health worker is the Mobius auth server (it mints the Google sessions).
 const AUTH_WORKER = 'https://mobius-account-health.mobius-digital.workers.dev';
 /* Served by the account-health worker and forwarded verbatim (see the proxy block). */
@@ -477,7 +478,7 @@ const pick = (piv, date, ids) => { for (const id of ids) { const v = piv[id]?.[d
  *  Revenue is Shopify's TOTAL SALES minus sales tax - which is CTC's reported
  *  "Net Sales + Shipping" line. Shipping charged to customers is already inside
  *  Triple Whale's netSales and must never be added again. */
-function dayEconomics(piv, meta, date, marginPct) {
+function dayEconomics(piv, meta, date, marginPct, rules) {
   const totalSales = pick(piv, date, SALES_IDS);   // Shopify TOTAL SALES (incl. shipping + tax)
   if (totalSales == null) return null;
   // Tax is collected for the state, not earned, so it comes off the top. Defaults
@@ -485,10 +486,15 @@ function dayEconomics(piv, meta, date, marginPct) {
   // back to the old double-counted figure.
   const tax = piv.totalNetTaxes?.[date] ?? 0;
   const shipRev = piv.totalShippingPrice?.[date] ?? 0;
-  const shipCost = piv.totalShippingCosts?.[date] ?? 0;
+  const twShip = piv.totalShippingCosts?.[date] ?? 0;
   const handling = piv.totalHandlingFees?.[date] ?? 0;
   const sales = totalSales - tax;            // CTC's "Net Sales + Shipping"
   const netSales = sales - shipRev;          // = Shopify net_sales, for the waterfall
+  const orders = piv.totalOrders?.[date] ?? null;
+  /* The brand's own cost rules (costs.js, 2026-11-25). No rule, or none that applies on this date: `ov` is null,
+     every line below reads exactly as it did before, and no key is added to the row. */
+  const ov = rules && rules.length ? ruleCosts(rules, date, { sales, orders }) : null;
+  const shipCost = ov && ov.shipping != null ? ov.shipping : twShip;
   const mrow = meta[date];
   const gSpend = piv.ga_adCost?.[date] ?? null;
   const spend = piv.blendedAds?.[date] ?? (mrow || gSpend != null ? (mrow?.spend ?? 0) + (gSpend ?? 0) : null);
@@ -499,16 +505,15 @@ function dayEconomics(piv, meta, date, marginPct) {
   // revenue (incl. tax), so the raw figures do not add up to our headline.
   const newShare = rawSplit > 0 && rawNew != null ? rawNew / rawSplit : null;
   const newRev = newShare != null ? sales * newShare : rawNew;
-  const cogs = piv.totalProductCosts?.[date] ?? null;
+  const cogs = ov && ov.product != null ? ov.product : (piv.totalProductCosts?.[date] ?? null);
   const fees = piv.totalPaymentGatewayCosts?.[date] ?? null;
   // Everything variable except ad spend. Ad spend is subtracted separately so the
   // page can show gross profit (the pre-marketing line) as its own step.
   const variableCosts = cogs != null ? cogs + shipCost + handling + (fees ?? 0) : null;
   const grossProfit = marginPct != null ? sales * marginPct
     : variableCosts != null ? sales - variableCosts : null;
-  const orders = piv.totalOrders?.[date] ?? null;
   const newOrders = piv.newCustomersOrders?.[date] ?? null;
-  return {
+  const row = {
     date, sales, total_sales: totalSales, tax, net_sales: netSales, ship_rev: shipRev, spend,
     orders, new_orders: newOrders, email_rev: piv.klaviyoPlacedOrderSales?.[date] ?? null,
     new_rev: newRev,
@@ -521,6 +526,8 @@ function dayEconomics(piv, meta, date, marginPct) {
     cm: grossProfit != null && spend != null ? grossProfit - spend : null,
     margin: sales > 0 && grossProfit != null ? grossProfit / sales : null,
   };
+  if (ov) row.cost_src = ov.src;
+  return row;
 }
 
 async function seriesFor(env, acct, from, to) {
@@ -530,17 +537,20 @@ async function seriesFor(env, acct, from, to) {
   ).bind(acct.act_id, from, to).all();
   const meta = Object.fromEntries(metaRows.map(r => [r.date, r]));
   const marginPct = marginOverride(acct, monthOf(to));
-  const ship = shippingMode(piv);            // diagnostic only - see shippingMode()
+  let ship = shippingMode(piv);              // diagnostic only - see shippingMode()
+  const rules = (await loadCostRules(env, [acct.act_id]).catch(() => ({})))[acct.act_id] || [];
+  /* A shipping rule set in Locus is a fulfilment cost: the "nothing booked against delivery" flag no longer holds. */
+  if (ship.mode === 'uncosted' && rules.length && shippingRuled(rules, from, to)) ship = { ...ship, mode: 'measured', source: 'locus', note: 'shipping cost comes from the rule set in Locus' };
   const rows = [];
   for (let d = from; d <= to; d = addDays(d, 1)) {
-    const row = dayEconomics(piv, meta, d, marginPct);
+    const row = dayEconomics(piv, meta, d, marginPct, rules);
     if (row) rows.push(row);
   }
   /* Custom expenses marked "counts as ad spend" (expenses.js, 2026-10-10) join blended spend here, so MER, aMER,
      CAC and CM include them on every screen that reads this series. `exp` rides along for the live row and Net profit. */
   const exp = (await loadExpenses(env, [acct.act_id]).catch(() => ({})))[acct.act_id] || [];
   if (exp.some(e => +e.is_ad_spend)) applyAdSpend(rows, spread(exp, from, to, rows).adByDate);
-  return { rows, margin_pct: marginPct, shipping: ship, piv, exp };
+  return { rows, margin_pct: marginPct, shipping: ship, piv, exp, rules };
 }
 
 /* ---------- Channels (Home, 2026-10-07) ----------
@@ -623,7 +633,9 @@ async function liveDay(env, request, acct) {
   }
   const day = await twDay(env, request, acct, date);
   const h = day.hours || {}, hrs = hoursOf(day).map((x, i) => ({ ...x, orders: (h.orders || [])[i] || 0, meta: (h.fb_ads_spend || [])[i] || 0, google: (h.ga_adCost || [])[i] || 0 }));
-  const row = liveRow(acct, day);
+  /* The brand's own cost rules price today's row too, the way seriesFor prices every stored day. None: unchanged. */
+  const rules = (await loadCostRules(env, [acct.act_id]).catch(() => ({})))[acct.act_id] || [];
+  const row = liveRow(acct, day, rules);
   const twSpend = +(day.map && day.map.blendedAds) || 0;
   if (twSpend > 0) return { date, hours: hrs, as_of: day.as_of, row };
   const m = await metaHours().catch(() => null);
@@ -638,13 +650,13 @@ async function liveDay(env, request, acct) {
 }
 /** Today so far as ONE synthetic row, through the same dayEconomics as every
  *  stored day, so revenue means exactly what it means everywhere else. */
-function liveRow(acct, day) {
+function liveRow(acct, day, rules) {
   const piv = {};
   for (const [k, v] of Object.entries(day.map || {})) piv[k] = { [day.date]: v };
   // Meta's own figure rides along so the strip can still say "Meta x . Google y".
   const fb = day.map ? day.map.fb_ads_spend : null;
   const meta = fb != null ? { [day.date]: { spend: fb } } : {};
-  return dayEconomics(piv, meta, day.date, marginOverride(acct, monthOf(day.date)));
+  return dayEconomics(piv, meta, day.date, marginOverride(acct, monthOf(day.date)), rules);
 }
 /** Revenue and ad spend hour by hour, blended. Revenue is Total Sales less tax,
  *  the same line as the day; tax by hour is subtracted when TW carries it. */
@@ -724,9 +736,11 @@ async function seriesRaw(env, acct, from, to) {
     `SELECT date, SUM(spend) AS spend FROM daily_insights WHERE act_id IN ${metaOf(1)} AND date BETWEEN ?2 AND ?3 GROUP BY date`,
   ).bind(acct.act_id, from, to).all();
   const meta = Object.fromEntries(metaRows.map(r => [r.date, r]));
+  /* The cost check grades the costs profit actually uses, so a brand's own rules ride along here too. */
+  const rules = (await loadCostRules(env, [acct.act_id]).catch(() => ({})))[acct.act_id] || [];
   const rows = [];
   for (let d = from; d <= to; d = addDays(d, 1)) {
-    const row = dayEconomics(piv, meta, d, null);
+    const row = dayEconomics(piv, meta, d, null, rules);
     if (row) rows.push(row);
   }
   return rows;
@@ -1677,19 +1691,26 @@ async function costHealth(env, acct, days = 60) {
   return { account: pubAccount(acct), margin_pct, health, shipping, worst: worstDays(rawRows), rows: rawRows };
 }
 
+/** Grade one brand's cost data and store the verdict. -> the costHealth() answer (health, rows, ...). */
+async function saveCostHealth(env, a) {
+  const r = await costHealth(env, a);
+  const health = r.health;
+  await env.DB.prepare(
+    `INSERT INTO p_cost_health (act_id, verdict, reason, blended, p10, p90, negatives, days, checked_at)
+     VALUES (?1,?2,?3,?4,?5,?6,?7,?8,datetime('now'))
+     ON CONFLICT(act_id) DO UPDATE SET verdict=excluded.verdict, reason=excluded.reason, blended=excluded.blended,
+       p10=excluded.p10, p90=excluded.p90, negatives=excluded.negatives, days=excluded.days, checked_at=excluded.checked_at`,
+  ).bind(a.act_id, health.verdict, health.reason ?? null, health.blended ?? null,
+    health.p10 ?? null, health.p90 ?? null, health.negatives ?? 0, health.days ?? 0).run();
+  return r;
+}
+
 async function refreshCostHealth(env) {
   const accounts = await listAccounts(env, true, null);
   const out = [];
   for (const a of accounts) {
     try {
-      const { health } = await costHealth(env, a);
-      await env.DB.prepare(
-        `INSERT INTO p_cost_health (act_id, verdict, reason, blended, p10, p90, negatives, days, checked_at)
-         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,datetime('now'))
-         ON CONFLICT(act_id) DO UPDATE SET verdict=excluded.verdict, reason=excluded.reason, blended=excluded.blended,
-           p10=excluded.p10, p90=excluded.p90, negatives=excluded.negatives, days=excluded.days, checked_at=excluded.checked_at`,
-      ).bind(a.act_id, health.verdict, health.reason ?? null, health.blended ?? null,
-        health.p10 ?? null, health.p90 ?? null, health.negatives ?? 0, health.days ?? 0).run();
+      const { health } = await saveCostHealth(env, a);
       out.push({ name: a.name, verdict: health.verdict });
     } catch (e) { out.push({ name: a.name, error: e.message }); }
   }
@@ -1847,14 +1868,23 @@ export default {
           from = qf > to ? to : qf;
           fixed = true;
         }
-        const { rows, margin_pct } = await seriesFor(env, acct, from, to);
+        const { rows, margin_pct, exp, rules } = await seriesFor(env, acct, from, to);
         const t = totals(rows);
         const g = goalsFor(acct, ym);
         const planned = !!safeJson(acct.goals_json, {})[ym];
         // Profit is shown only when we would trust it internally. A client should
         // never be the first person to see a number the Costs page calls broken.
         const snap = await env.DB.prepare(`SELECT verdict FROM p_cost_health WHERE act_id = ?1`).bind(acct.act_id).first().catch(() => null);
-        const cmOk = margin_pct != null || !(snap?.verdict === 'broken' || snap?.verdict === 'none');
+        /* ONE WINDOW (costs.js partlyCosted): a product cost rule that starts inside this window leaves the days before
+           it with no gross profit, and the sums below would then be the gross profit of some days minus the ad spend of
+           all of them. Profit is withheld for such a window. A brand with no product rule is never affected. */
+        const cmOk = (margin_pct != null || !(snap?.verdict === 'broken' || snap?.verdict === 'none')) && !partlyCosted(rules, rows, 'gross_profit', from, to);
+        /* Fixed costs and net profit (2026-11-25): only with settings costsNetInPosts on (the same switch as the Slack
+           text; off by default), when CM is shown AND the brand entered a fixed cost in force in this window AND every
+           day of the window has a gross profit. Absent otherwise (not null), so a brand with none, and every brand
+           while the switch is off, gets the same bytes as before. ONE total: never a category, a row's name, notes or
+           who added it. This route's CM already holds the "counts as ad spend" rows, so cm - fixed = net on the page. */
+        const nf = cmOk && exp.length && await netInPosts(env) ? netAfter(exp, from, to, rows, t.cm, { cmHasAd: true, gpKey: 'gross_profit' }) : null;
         const history = (await monthHistory(env, acct, ym, 6))
           .filter(h => !h.empty)
           .map(h => ({ month: h.month, sales: h.sales, spend: h.spend, mer: h.mer, partial: !!h.partial }));
@@ -1878,6 +1908,7 @@ export default {
             sales: t.sales, cogs: t.cogs, ship_cost: t.ship_cost, handling: t.handling,
             fees: t.fees, gross_profit: t.gross_profit, spend: t.spend, cm: t.cm,
           } : null,
+          ...(nf ? { fixed: { total: nf.fixed }, net: nf.net } : {}),
           // Daily shape, for the chart. Money only - no cost diagnostics per day.
           rows: rows.map(r => ({ date: r.date, sales: r.sales, spend: r.spend })),
           rhythm: rhythm && rhythm.enough ? rhythm : null,
@@ -2148,6 +2179,9 @@ export default {
     // Every account lookup below goes through this, so a demo session can only ever
     // resolve the demo brand and a real session can never see it.
     const accountsFor = (activeOnly = true) => listAccounts(env, activeOnly, isDemo);
+    /* The brands a teammate is limited to (settings.userBrands), null when not limited. A client is judged by
+       clientScope instead. For the cost and expense writes, which check the brand named in the body themselves. */
+    const teamOnly = async () => clientScope(request) ? null : brandsFor(env, await sessionEmail(env, request).catch(() => null)).catch(() => null);
 
     try {
       const days = Math.min(+url.searchParams.get('days') || 30, 180);
@@ -2214,7 +2248,7 @@ export default {
           if (cmp === 'prev') { pTo = addDays(from, -1); pFrom = addDays(pTo, -(span - 1)); }
           else if (cmp === 'yoy') { pFrom = `${+from.slice(0, 4) - 1}${from.slice(4)}`; pTo = `${+to.slice(0, 4) - 1}${to.slice(4)}`; }
           const fetchFrom = [from, monthStart, cmp === 'prev' ? pFrom : from].sort()[0];
-          const { rows: allRows, margin_pct, shipping, piv, exp } = await seriesFor(env, a, fetchFrom, to);
+          const { rows: allRows, margin_pct, shipping, piv, exp, rules } = await seriesFor(env, a, fetchFrom, to);
           const rows = allRows.filter(r => r.date >= from && r.date <= to);
           let prevRows = [];
           if (cmp === 'prev') prevRows = allRows.filter(r => r.date >= pFrom && r.date <= pTo);
@@ -2231,7 +2265,7 @@ export default {
           let live = null;
           if (to === today) {
             const day = await twDay(env, request, a, today).catch(() => null);
-            if (day) { const row = liveRow(a, day); if (row) { applyAdSpend([row], spread(exp, today, today, [row]).adByDate); rows.push(row); mtdRows.push(row); } live = { as_of: day.as_of }; }
+            if (day) { const row = liveRow(a, day, rules); if (row) { applyAdSpend([row], spread(exp, today, today, [row]).adByDate); rows.push(row); mtdRows.push(row); } live = { as_of: day.as_of }; }
           }
           return {
             ...pubAccount(a),
@@ -2279,7 +2313,7 @@ export default {
         const { today, from, to } = windowFor(acct);
         const ym = monthOf(today);
         const monthStart = `${ym}-01`;
-        const { rows: allRows, margin_pct, shipping, exp } = await seriesFor(env, acct, from < monthStart ? from : monthStart, to);
+        const { rows: allRows, margin_pct, shipping, exp, rules } = await seriesFor(env, acct, from < monthStart ? from : monthStart, to);
         const rows = allRows.filter(r => r.date >= from && r.date <= to);
         // planFor spreads the month goal over the days ELAPSED, so it must see the
         // month-to-date rows - the whole window here once pro-rated a plan past 100%.
@@ -2293,7 +2327,7 @@ export default {
           const day = await twDay(env, request, acct, to).catch(() => null);
           if (day) {
             if (from === to) hours = hoursOf(day);
-            if (to === today) { const row = liveRow(acct, day); if (row) { applyAdSpend([row], spread(exp, today, today, [row]).adByDate); rows.push(row); mtdRows.push(row); } liveAsOf = day.as_of; }
+            if (to === today) { const row = liveRow(acct, day, rules); if (row) { applyAdSpend([row], spread(exp, today, today, [row]).adByDate); rows.push(row); mtdRows.push(row); } liveAsOf = day.as_of; }
           }
         }
         /* Custom expenses over the window (expenses.js, 2026-10-10). `total`/`items` = the ones under contribution margin
@@ -2751,6 +2785,18 @@ export default {
           ? { month: ym, sales: g.sales ?? null, spend: g.spend ?? null, days_in_month: daysInMonth(ym) } : null });
       }
 
+      /* Brand costs (2026-11-25, costs.js): a brand's own shipping and product cost rules and its cost sheet.
+         The writes live in costs.js; the read below keeps every old key and adds the Costs page's keys after them. */
+      const costWrite = async () => handleCosts({ path, url, request, env, json, accountsFor: () => accountsFor(false), email: await sessionEmail(env, request),
+        client: clientScope(request), only: await teamOnly(), rehealth: acct => saveCostHealth(env, acct),
+        page: (acct, rows) => costsPage(env, acct, { sources: () => costSources(env, acct), rows }) });
+      /* Add one shipping or product cost rule, or change one by id: {act, rule: {id?, cost, rule, amount | table, start_date, end_date?, status?, label?, notes?}} */
+      if (path === '/api/costs' && request.method === 'PUT') return await costWrite();
+      /* Remove one cost rule (?act=&id=) or one uploaded cost sheet (?act=&sheet=<batch>) */
+      if (path === '/api/costs' && request.method === 'DELETE') return await costWrite();
+      /* Check a product cost sheet {act, csv, start_date, filename?}; dry_run:false saves it (saved, not used in profit yet) */
+      if (path === '/api/costs/sheet' && request.method === 'POST') return await costWrite();
+      /* The Costs page for one brand: the cost check, where each cost comes from, the rules, fixed costs, and what is missing */
       if (path === '/api/costs') {
         const act = url.searchParams.get('act');
         const acct = (await accountsFor(false)).find(a => a.act_id === act);
@@ -2759,7 +2805,7 @@ export default {
         const { results: skus } = await env.DB.prepare(
           `SELECT * FROM p_sku_costs WHERE act_id = ?1 ORDER BY sku LIMIT 500`,
         ).bind(act).all();
-        return json({ ...r, skus });
+        return json({ ...r, skus, ...(await costsPage(env, acct, { sources: () => costSources(env, acct), rows: r.rows })) });
       }
 
       /* The margin override — deliberately the SAME field the Daily Brief reads. */
@@ -2892,14 +2938,14 @@ export default {
         const hr = await handleHub({ path, url, request, env, json, accountsFor: async () => { const cs = clientScope(request); const all = await accountsFor(); return cs ? all.filter(a => cs.ids.has(a.act_id)) : all; }, windowFor, addDays, localDate,
           twDay: (acct, date) => twDay(env, request, acct, date), liveRow, productTitles: (acct, ids) => productTitles(env, acct, ids),
           /* The tile drill-downs (2026-10-09) price contribution margin exactly like /api/overview. */
-          econ: dayEconomics, totals, marginOverride, monthOf, loadExpenses, spread, applyAdSpend });
+          econ: dayEconomics, totals, marginOverride, monthOf, loadExpenses, spread, applyAdSpend, loadCostRules });
         if (hr) return hr;
       }
       /* Costs per brand (2026-10-10, Triple Whale's Cost Settings): custom expenses + where each per-order cost comes
          from. Brand settings > Data and costs > Costs, and P&L's Costs button (clients too, P&L on). expenses.js. */
       if (path === '/api/expenses') {
         const fr = await handleExpenses({ path, url, request, env, json, accountsFor: () => accountsFor(false), email: await sessionEmail(env, request),
-          client: clientScope(request), sources: acct => costSources(env, acct) });
+          client: clientScope(request), only: await teamOnly(), sources: acct => costSources(env, acct) });
         if (fr) return fr;
       }
       /* Save to Locus (2026-10-21): inspiration saved from the Ask bar, the phone share sheet or the bookmarklet. */
@@ -2943,3 +2989,5 @@ export default {
     }
   },
 };
+/* For the offline cost checks (test-costs.mjs). */
+export { dayEconomics };

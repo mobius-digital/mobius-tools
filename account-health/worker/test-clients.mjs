@@ -616,6 +616,62 @@ await check('Costs: a client adds and edits its own brand\'s custom expenses, ne
   assert.equal(db.prepare(`SELECT name FROM p_expense WHERE act_id = 'brand_beta'`).get().name, 'Klaviyo', 'beta untouched');
 });
 
+await check('Brand costs: a client sets, removes and uploads cost rules for its own brand, never another brand\'s', async () => {
+  const rule = { cost: 'shipping', rule: 'per_order', amount: 6.5, start_date: '2026-10-01' };
+  const csv = 'SKU,Cost\nA1,4.5\n';
+  const put = await pf(CLIENT, 'PUT', '/api/costs', { act: 'brand_alpha', rule });
+  assert.equal(put.status, 200, JSON.stringify(put.j));
+  assert.equal(put.j.shipping_rules.rules[0].added_by, 'Nick', 'the client\'s own name');
+  assert.ok(!JSON.stringify(put.j.shipping_rules).includes('@'), 'no email in the answer');
+  const sheet = await pf(CLIENT, 'POST', '/api/costs/sheet', { act: 'brand_alpha', csv, start_date: '2026-11-01', dry_run: false });
+  assert.equal(sheet.status, 200, JSON.stringify(sheet.j));
+  assert.equal((await pf(CLIENT, 'GET', '/api/costs?act=brand_alpha')).j.product_cost.sheet.skus, 1);
+  /* another brand, "all", and a query naming its brand while the body names another */
+  assert.equal((await pf(CLIENT, 'PUT', '/api/costs', { act: 'brand_beta', rule })).status, 403);
+  assert.equal((await pf(CLIENT, 'PUT', '/api/costs?act=brand_alpha', { act: 'brand_beta', rule })).status, 403);
+  assert.equal((await pf(CLIENT, 'PUT', '/api/costs', { act: 'all', rule })).status, 403);
+  assert.equal((await pf(CLIENT, 'POST', '/api/costs/sheet', { act: 'brand_beta', csv, start_date: '2026-11-01', dry_run: false })).status, 403);
+  assert.equal((await pf(CLIENT, 'POST', '/api/costs/sheet?act=brand_alpha', { act: 'brand_beta', csv, start_date: '2026-11-01', dry_run: false })).status, 403);
+  assert.equal((await pf(CLIENT, 'POST', '/api/costs/sheet', { act: 'all', csv, start_date: '2026-11-01' })).status, 403);
+  const t = await pf(OWNER, 'PUT', '/api/costs', { act: 'brand_beta', rule });
+  assert.equal(t.status, 200, JSON.stringify(t.j));
+  const betaId = t.j.shipping_rules.rules[0].id;
+  assert.equal((await pf(CLIENT, 'DELETE', `/api/costs?act=brand_beta&id=${betaId}`)).status, 403);
+  assert.equal((await pf(CLIENT, 'DELETE', '/api/costs?act=all&id=1')).status, 403);
+  assert.equal((await pf(CLIENT, 'DELETE', `/api/costs?act=brand_alpha&id=${betaId}`)).status, 404, 'its own brand, another brand\'s rule id: nothing is removed');
+  assert.equal((await pf(CLIENT, 'PUT', '/api/costs', { act: 'brand_alpha', rule: { id: betaId, amount: 1, start_date: '2026-10-01' } })).status, 404);
+  assert.equal(db.prepare(`SELECT amount FROM p_cost_rule WHERE id = ?`).get(betaId).amount, 6.5, 'beta untouched');
+  assert.equal((await pf(CLIENT, 'DELETE', `/api/costs?act=brand_alpha&id=${put.j.shipping_rules.rules[0].id}`)).status, 200);
+  assert.equal(db.prepare(`SELECT COUNT(*) n FROM p_cost_rule WHERE act_id = 'brand_alpha'`).get().n, 0);
+  /* left as it was found, so the checks below see no cost rule and no cost sheet */
+  db.exec(`DELETE FROM p_cost_rule; DELETE FROM p_product_cost;`);
+});
+
+await check('Daily Brief: a client login never gets a fixed cost category, and no fixed cost or net profit while the switch is off', async () => {
+  const { briefSent, CLIENT_RULES } = await import('./src/brandguard.js');
+  const payload = on => ({
+    act_id: 'brand_alpha', mtd: { sales: 9000, cm: 3000 },
+    days: [{ date: '2026-11-01', f: {}, a: { sales: 500, cm: 150, fixed: 40, ad_expense: 5, net: 105 } }, { date: '2026-11-02', f: {}, a: null }],
+    history: [{ date: '2026-11-01', status: 'sent', text: 'SENT' }, { date: '2026-11-02', status: 'draft', text: 'DRAFT' }],
+    fixed: { by_category: [{ category: 'c1', label: 'Founder salary', amount: 1200 }, { category: 'c2', label: 'Loan', amount: 300 }], in_posts: on, mtd: { fixed: 1500, ad_expense: 100, net: 1400 } },
+  });
+  const off = briefSent(payload(false)), offS = JSON.stringify(off);
+  assert.equal(off.fixed, undefined, 'switch off: no fixed block');
+  assert.ok(!/Founder salary|Loan|by_category|"net"|"ad_expense"|"fixed"/.test(offS), offS);
+  assert.deepEqual(off.days[0].a, { sales: 500, cm: 150 }, 'the day keeps its sales and margin');
+  assert.deepEqual(off.history.map(r => r.status), ['sent']);
+  const on = briefSent(payload(true)), onS = JSON.stringify(on);
+  assert.ok(!/Founder salary|Loan|by_category/.test(onS), 'switch on: still no category');
+  assert.deepEqual(on.fixed, { in_posts: true, mtd: { fixed: 1500, ad_expense: 100, net: 1400 } }, 'one total and net');
+  assert.equal(on.days[0].a.net, 105);
+  /* anything but a real true is off; a brand with no fixed cost is untouched */
+  assert.equal(briefSent({ ...payload(false), fixed: { in_posts: 1, by_category: [{ label: 'Loan', amount: 1 }], mtd: { net: 1 } } }).fixed, undefined);
+  assert.deepEqual(briefSent({ days: [{ a: { sales: 1 } }], history: [] }), { days: [{ a: { sales: 1 } }], history: [] });
+  assert.equal(briefSent(null), null);
+  /* the client rule for the route still runs this pass */
+  assert.equal(CLIENT_RULES.find(r => r.m === 'GET' && r.p === '/api/brief').post, briefSent);
+});
+
 await check('a client can edit only its own profile', async () => {
   const r = await ah(CLIENT, 'PUT', '/api/clients/me', { name: 'Nick Y', welcomed: true });
   assert.equal(r.status, 200);

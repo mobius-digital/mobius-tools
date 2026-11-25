@@ -2,9 +2,12 @@
  *   1. Where each cost comes from (read only): product cost, shipping, handling, payment fees for the last 30 days,
  *      the source (Triple Whale, or the flat margin override when one is set), what is missing, and a link to change
  *      them in Triple Whale. Triple Whale stays the source for these (profit/CLAUDE.md hard rules); no COGS editor here.
- *   2. Custom expenses: fixed monthly, one time, % of revenue, % of ad spend, per order; a category; start and end;
- *      "counts as ad spend" (Triple Whale's "is ad spend"); notes; "Added by". Add and edit in an in-app modal; every
- *      save writes the brand's whole list (PUT /api/expenses, worker/src/expenses.js).
+ *   2. Fixed costs (2026-11-25, Cole: "It is just fixed costs. People add line items, add their own categories"):
+ *      line items the brand adds. Each has a category the brand NAMES ITSELF (free text; the list is only suggestions)
+ *      and is charged daily, weekly, monthly, quarterly, yearly, over custom dates, one time, as a % of revenue or of
+ *      ad spend, or per order; start and end; "counts as ad spend" (Triple Whale's "is ad spend"); notes; "Added by".
+ *      Add and edit in an in-app modal; every save writes the brand's whole list (PUT /api/expenses,
+ *      worker/src/expenses.js).
  * Used in Brand settings > Data and costs (mount) and as a sheet from P&L and the margin drill-down (open), for the
  * team and for a client login with P&L on (brandguard lets a client reach only its own brand).
  * window.CostsUI = { mount(box, {act, api}), open({act, api, onSaved}) }
@@ -116,45 +119,53 @@
         <a class="btn btn-s" href="${TW}" target="_blank" rel="noopener">Change them in Triple Whale ›</a><span>Settings &gt; Cost Settings. Locus picks up changes overnight.</span></div>`;
   }
 
-  /* ---------- 2. custom expenses ---------- */
+  /* ---------- 2. fixed costs ---------- */
   const kindOf = (d, id) => (d.kinds || []).find(k => k.id === id) || { id, label: id };
-  const catOf = (d, id) => (d.categories || []).find(c => c.id === id) || { id, label: 'Other' };
+  /* A category is the brand's own words. A row carries its label (category_label); a suggestion's id reads as its label. */
+  const catLabel = (d, x) => x.category_label || ((d.categories || []).find(c => c.id === String(x.category || '').toLowerCase()) || {}).label || x.category || 'Other';
+  /* Every name the box offers: the brand's own categories first, then the suggestions it has not used yet. */
+  const catChoices = (d, items) => { const seen = new Set(), out = []; for (const l of [...(items || []).map(x => catLabel(d, x)), ...(d.categories || []).map(c => c.label)]) { const k = l.toLowerCase(); if (!seen.has(k)) { seen.add(k); out.push(l); } } return out; };
+  const EVERY = { daily: 'every day', weekly: 'every week', monthly: 'every month', quarterly: 'every quarter', yearly: 'every year' };
+  /* What one line costs in a month, roughly, for the "running now" line. Custom dates and the moving kinds are left out. */
+  const PER_MONTH = { daily: 365 / 12, weekly: 52 / 12, monthly: 1, quarterly: 1 / 3, yearly: 1 / 12 };
   function describe(x, cur) {
     const a = PCT.has(x.kind) ? `${+x.amount}%` : money(+x.amount, cur);
     const when = x.kind === 'once' ? `on ${md(x.start_date)}` : `from ${md(x.start_date)}${x.end_date ? ` to ${md(x.end_date)}` : ', still running'}`;
-    const what = { monthly: `${a} every month`, once: `${a} once`, pct_revenue: `${a} of revenue`, pct_spend: `${a} of ad spend`, per_order: `${a} per order` }[x.kind] || a;
+    const what = EVERY[x.kind] ? `${a} ${EVERY[x.kind]}` : { once: `${a} once`, custom: `${a} spread evenly`, pct_revenue: `${a} of revenue`, pct_spend: `${a} of ad spend`, per_order: `${a} per order` }[x.kind] || a;
     return `${what} ${when}`;
   }
   function runningMonthly(items) {
     const t = today();
-    return items.filter(x => x.kind === 'monthly' && x.start_date <= t && (!x.end_date || x.end_date >= t)).reduce((s, x) => s + (+x.amount || 0), 0);
+    return items.filter(x => PER_MONTH[x.kind] && !x.is_ad_spend && x.start_date <= t && (!x.end_date || x.end_date >= t)).reduce((s, x) => s + (+x.amount || 0) * PER_MONTH[x.kind], 0);
   }
 
-  function form(d, x, onDone) {
+  function form(d, x, items, onDone) {
     const cur = d.currency, isNew = !x;
-    const v = x ? { ...x } : { name: '', category: 'software', kind: 'monthly', amount: '', start_date: today().slice(0, 8) + '01', end_date: '', is_ad_spend: false, notes: '' };
-    const m = modal(`<h3>${isNew ? 'Add an expense' : 'Edit expense'}</h3>
+    const v = x ? { ...x, category: catLabel(d, x) } : { name: '', category: '', kind: 'monthly', amount: '', start_date: today().slice(0, 8) + '01', end_date: '', is_ad_spend: false, notes: '' };
+    const m = modal(`<h3>${isNew ? 'Add a fixed cost' : 'Edit fixed cost'}</h3>
       <p class="hint" style="margin:2px 0 0">A cost Triple Whale does not know about. It comes off contribution margin to give Net profit, unless it counts as ad spend.</p>
       <label class="cx-f"><b>Name</b><small>What it is, the way you would say it.</small><input type="text" data-v="name" maxlength="80" placeholder="e.g. Warehouse rent, Klaviyo, Podcast read" value="${esc(v.name)}"></label>
-      <label class="cx-f"><b>Category</b><small>Groups it on P&amp;L.</small><select data-v="category">${(d.categories || []).map(c => `<option value="${esc(c.id)}" ${c.id === v.category ? 'selected' : ''}>${esc(c.label)}: ${esc(c.hint)}</option>`).join('')}</select></label>
+      <label class="cx-f"><b>Category</b><small>Your own name for the group: software, contractors, marketing, anything. Pick one you have used or type a new one.</small><input type="text" data-v="category" maxlength="40" list="cxCats" autocomplete="off" placeholder="e.g. Software" value="${esc(v.category)}"><datalist id="cxCats">${catChoices(d, items).map(l => `<option value="${esc(l)}"></option>`).join('')}</datalist></label>
       <div class="cx-f"><b>How it is charged</b><small>Pick the one that matches the bill.</small><div class="cx-kinds">${(d.kinds || []).map(k => `<button type="button" class="cx-kind" data-kind="${esc(k.id)}" aria-pressed="${k.id === v.kind}"><b>${esc(k.label)}</b><small>${esc(k.hint)}</small></button>`).join('')}</div></div>
       <label class="cx-f"><b data-l="amount">Amount</b><small data-l="amounthint"></small><span class="unit-in"><span data-u="pre">${esc(sym(cur))}</span><input type="text" inputmode="decimal" data-v="amount" value="${esc(v.amount)}" placeholder="0"><span data-u="post"></span></span></label>
       <div class="cx-two"><label class="cx-f"><b data-l="start">Starts</b><small data-l="starthint">The first day it applies.</small><input type="date" data-v="start_date" value="${esc(v.start_date || '')}"></label>
-        <label class="cx-f" data-end><b>Ends</b><small>Leave blank while it is still running.</small><input type="date" data-v="end_date" value="${esc(v.end_date || '')}"></label></div>
+        <label class="cx-f" data-end><b>Ends</b><small data-l="endhint">Leave blank while it is still running.</small><input type="date" data-v="end_date" value="${esc(v.end_date || '')}"></label></div>
       <div class="cx-f"><label class="cx-sw"><span class="toggle ${v.is_ad_spend ? 'on' : ''}" data-v="is_ad_spend" role="switch" aria-checked="${!!v.is_ad_spend}" tabindex="0"></span>
         <span><b style="font-size:13px">Counts as ad spend</b><small style="display:block;color:var(--muted);font-size:12.5px;line-height:1.4">For marketing with no ad account in Locus: influencers, sponsorships, a podcast read. It is added to ad spend, so MER, cost per new customer and contribution margin include it.</small></span></label></div>
       <label class="cx-f"><b>Notes</b><small>Optional. Anything the next person should know.</small><textarea data-v="notes" rows="2" maxlength="300">${esc(v.notes || '')}</textarea></label>
       <p class="cx-err" data-err></p>
-      <div class="row" style="justify-content:flex-end;gap:8px;margin-top:8px"><button class="btn" data-x="no">Cancel</button><button class="btn primary" data-x="yes">${isNew ? 'Add expense' : 'Save changes'}</button></div>`);
+      <div class="row" style="justify-content:flex-end;gap:8px;margin-top:8px"><button class="btn" data-x="no">Cancel</button><button class="btn primary" data-x="yes">${isNew ? 'Add fixed cost' : 'Save changes'}</button></div>`);
     const q = s => m.el.querySelector(s);
     const paint = () => {
       const k = v.kind, p = PCT.has(k);
       q('[data-u="pre"]').textContent = p ? '' : sym(cur); q('[data-u="post"]').textContent = p ? '%' : '';
-      q('[data-l="amount"]').textContent = { monthly: 'Amount each month', once: 'Amount', pct_revenue: 'Percent of revenue', pct_spend: 'Percent of ad spend', per_order: 'Amount per order' }[k];
+      q('[data-l="amount"]').textContent = { monthly: 'Amount each month', daily: 'Amount each day', weekly: 'Amount each week', quarterly: 'Amount each quarter', yearly: 'Amount each year', custom: 'Amount for the whole stretch',
+        once: 'Amount', pct_revenue: 'Percent of revenue', pct_spend: 'Percent of ad spend', per_order: 'Amount per order' }[k] || 'Amount';
       q('[data-l="amounthint"]').textContent = kindOf(d, k).hint || '';
       q('[data-l="start"]').textContent = k === 'once' ? 'Date' : 'Starts';
       q('[data-l="starthint"]').textContent = k === 'once' ? 'The day it was paid.' : 'The first day it applies.';
       q('[data-end]').style.display = k === 'once' ? 'none' : '';
+      q('[data-l="endhint"]').textContent = k === 'custom' ? 'The last day it covers. Needed for custom dates.' : 'Leave blank while it is still running.';
       m.el.querySelectorAll('[data-kind]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.kind === k)));
     };
     m.el.querySelectorAll('[data-kind]').forEach(b => b.onclick = () => { v.kind = b.dataset.kind; paint(); });
@@ -162,7 +173,7 @@
     const flip = () => { v.is_ad_spend = !v.is_ad_spend; tg.classList.toggle('on', v.is_ad_spend); tg.setAttribute('aria-checked', String(v.is_ad_spend)); };
     tg.closest('.cx-sw').onclick = e => { e.preventDefault(); flip(); };
     tg.onkeydown = e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); flip(); } };
-    q('[data-v="category"]').onchange = e => { v.category = e.target.value; if (v.category === 'marketing' && isNew && !v.is_ad_spend) flip(); };
+    q('[data-v="category"]').onchange = e => { v.category = e.target.value; if (/^marketing/i.test(v.category.trim()) && isNew && !v.is_ad_spend) flip(); };
     q('[data-x="no"]').onclick = m.close;
     q('[data-x="yes"]').onclick = async () => {
       for (const f of ['name', 'amount', 'start_date', 'end_date', 'notes', 'category']) v[f] = q(`[data-v="${f}"]`).value;
@@ -190,23 +201,23 @@
       if (onSaved) onSaved();
     };
     const paint = (msg = '') => {
-      const run = runningMonthly(items), vary = items.filter(x => x.kind !== 'monthly' && x.kind !== 'once').length, ads = items.filter(x => x.is_ad_spend).length;
+      const run = runningMonthly(items), vary = items.filter(x => PCT.has(x.kind) || x.kind === 'per_order').length, ads = items.filter(x => x.is_ad_spend).length;
       box.innerHTML = `<div class="cx">
         <section class="cx-sec"><h4>Where each cost comes from</h4>
           <p class="cx-hint">The costs on every order. The brand sets them in Triple Whale and Locus reads them from there every night, so a change there shows up here the next day.</p>
           ${sourcesHTML(d.sources, cur)}</section>
-        <section class="cx-sec"><h4>Custom expenses</h4>
-          <p class="cx-hint">Costs Triple Whale does not know about: the team, software, rent, agency fees, other marketing. They come off contribution margin to give <b>Net profit</b>. The ones marked <b>counts as ad spend</b> join ad spend instead, so MER, cost per new customer and contribution margin include them.</p>
-          ${items.length ? `<p class="cx-sum">${run ? `<b>${money(run, cur)}</b> a month in fixed costs running now` : 'No fixed monthly costs running now'}${vary ? ` · ${vary} that move with sales` : ''}${ads ? ` · ${ads} counted as ad spend` : ''}.</p>` : ''}
+        <section class="cx-sec"><h4>Fixed costs</h4>
+          <p class="cx-hint">Costs Triple Whale does not know about. Add each one as a line, under any category you name (software, contractors, marketing, anything), charged daily, weekly, monthly, quarterly or over dates you pick. They come off contribution margin to give <b>Net profit</b>. The ones marked <b>counts as ad spend</b> join ad spend instead, so MER, cost per new customer and contribution margin include them.</p>
+          ${items.length ? `<p class="cx-sum">${run ? `About <b>${money(run, cur)}</b> a month in fixed costs running now` : 'No fixed costs running now'}${vary ? ` · ${vary} that move with sales` : ''}${ads ? ` · ${ads} counted as ad spend` : ''}.</p>` : ''}
           ${items.length ? `<div class="cx-list">${items.map((x, i) => `<div class="cx-it"><div class="cx-m">
-              <div class="cx-t">${esc(x.name)} <span class="cx-tag">${esc(catOf(d, x.category).label)}</span>${x.is_ad_spend ? '<span class="cx-tag ad">Counts as ad spend</span>' : ''}${x.end_date && x.end_date < today() ? '<span class="cx-tag old">Ended</span>' : ''}</div>
+              <div class="cx-t">${esc(x.name)} <span class="cx-tag">${esc(catLabel(d, x))}</span>${x.is_ad_spend ? '<span class="cx-tag ad">Counts as ad spend</span>' : ''}${x.end_date && x.end_date < today() ? '<span class="cx-tag old">Ended</span>' : ''}</div>
               <div class="cx-d">${esc(describe(x, cur))}</div>
               <div class="cx-w">${x.added_by ? `Added by ${esc(x.added_by)}` : 'Added before names were kept'}${x.notes ? ` · ${esc(x.notes)}` : ''}</div></div>
               <div class="cx-acts"><button type="button" class="btn btn-s" data-ed="${i}">Edit</button><button type="button" class="btn btn-s" data-rm="${i}" aria-label="Remove ${esc(x.name)}">Remove</button></div></div>`).join('')}</div>`
-            : '<div class="cx-empty">No custom expenses yet. Net profit equals contribution margin until you add one.</div>'}
-          <div class="cx-add"><button type="button" class="btn primary" data-add>+ Add an expense</button><span class="tiny" data-msg>${esc(msg)}</span></div></section></div>`;
-      box.querySelector('[data-add]').onclick = () => form(d, null, v => save([...items, v], `Added ${v.name}. P&L uses it now.`));
-      box.querySelectorAll('[data-ed]').forEach(b => b.onclick = () => { const i = +b.dataset.ed; form(d, items[i], v => save(items.map((x, j) => j === i ? { ...v, id: x.id } : x), 'Saved.')); });
+            : '<div class="cx-empty">No fixed costs yet. Net profit equals contribution margin until you add one.</div>'}
+          <div class="cx-add"><button type="button" class="btn primary" data-add>+ Add a fixed cost</button><span class="tiny" data-msg>${esc(msg)}</span></div></section></div>`;
+      box.querySelector('[data-add]').onclick = () => form(d, null, items, v => save([...items, v], `Added ${v.name}. P&L uses it now.`));
+      box.querySelectorAll('[data-ed]').forEach(b => b.onclick = () => { const i = +b.dataset.ed; form(d, items[i], items, v => save(items.map((x, j) => j === i ? { ...v, id: x.id } : x), 'Saved.')); });
       box.querySelectorAll('[data-rm]').forEach(b => b.onclick = async () => {
         const x = items[+b.dataset.rm];
         if (!(await ask(`Remove ${x.name}?`, 'It comes out of every past and future period, the way Triple Whale does it. To stop it from a date instead, edit it and set an end date.', 'Remove'))) return;
