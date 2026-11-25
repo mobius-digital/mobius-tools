@@ -7899,7 +7899,8 @@ async function strategistSlackAnswer(env, ev, screen) {
   /* who: the asker's Slack name, so a change made straight from a message is logged as theirs in the Change Log. */
   const u = ev.user ? await slackApi(env, 'users.info', { user: ev.user }).catch(() => null) : null;
   const who = u?.user?.real_name || u?.user?.profile?.real_name || u?.user?.name || (ev.user ? `<@${ev.user}>` : null);
-  /* A guest (an outside person on the Slack access list) reads only: no call, so nothing applies straight from a message. */
+  /* Nothing applies straight from a message for anyone (2026-11-25, always a tap: ask/engine.js). A guest (an outside
+     person on the Slack access list) and a tap-only channel also get no caller, so their answer reads only. */
   return engine.answerSlack(env, ev, h(), { findings: findings.slice(0, 6), ...(screen ? { screen } : {}), who, call: screen?.guest || screen?.tapOnly ? null : askCaller(env, 'Bearer ' + (env.ADMIN_TOKEN || ''), null).call });
 }
 

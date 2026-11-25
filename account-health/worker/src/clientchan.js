@@ -29,8 +29,10 @@ export const clientSide = ({ side = null, shared = false } = {}) => side === 'cl
  *  the index calls it. Wider than clientSide on purpose: a shared internal channel keeps answering, but taps. */
 export const tapOnlyThere = ({ side = null, shared = false } = {}) => side === 'client' || !!shared;
 
-/** May a change be applied straight from the words here? Never where it is tap-only; elsewhere as before. */
-export const directApplyThere = ch => !tapOnlyThere(ch);
+/** May a change be applied straight from the words here? Never, anywhere (2026-11-25, always a tap: ask/engine.js
+ *  has no apply-from-a-message path and allwrite.js TAP_TOOLS is the one place for the rule). Kept only so an old
+ *  import does not break; it cannot be switched back on from here. */
+export const directApplyThere = () => false;
 
 /** Added to what the assistant is told in a tap-only channel, so the person who asked hears why nothing was applied. */
 export const TAP_ONLY_NOTE = ' TAP ONLY: people outside the team can read this channel, so nothing is changed straight from a message here, even when the person tells you to do it. Every change is a card with an Apply button that someone on the team taps. When someone tells you to make a change, put up the card and say in one short line that it needs a tap because people outside the team read this channel. Never say the change is done before the tap.';

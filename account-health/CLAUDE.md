@@ -2338,10 +2338,34 @@ sort 14 pairs"). Tests: `node test-stratdata.mjs` (8); test-stratmake checks the
   `wrangler dev --remote`, which carries the deployed secrets).
 - Ledger and Supply use the same engine: they get the one-message Slack shape on their next deploy (not deployed here).
 
+## 2026-11-25: ALWAYS A TAP (`ask/engine.js`, `src/allwrite.js` TAP_TOOLS, `src/strategist.js`). Read before adding a write or a tool.
+
+The owner, after a safety trace: the assistant must ALWAYS wait for a tap before it changes anything. Before this, an
+owner's ask on the web or in Slack applied an action at once whenever the MODEL set `asked_directly`, and several
+plain tools published or spent with no card at all.
+- **The rule, in one place:** `allwrite.js` (the header above `TAP_TOOLS`). No setting, flag or asker turns it off.
+  `directActions`, `cardOnly`, `CARD_ONLY` and `asked_directly` are gone; the engine ignores them if passed, and
+  `clientchan.js directApplyThere` always answers false.
+- **Actions:** `runAction` only proposes. The single caller of an action's `apply()` from the assistant is
+  `applyProposal` (POST `/api/ask/apply`, the Slack Apply button), unchanged: undo and the Change Log line as before.
+- **Tools that post, publish or spend** are named in `TAP_TOOLS` and passed as `tapTools`: `make_image`,
+  `studio_make`, `frame_share`, `post_file` (Slack; in Locus it is a download button and stays direct),
+  `make_canvas`, `draft_from_thread`, and `make_report`'s public link and PDF (the report itself still shows at
+  once; a client login gets the report and no link). The engine holds the call as a proposal (`tool: true`, the input
+  and where it was asked) and `applyHeldTool` runs it on the tap, in the same thread, as the person who tapped.
+- **Wording:** the tool result says NOT DONE YET, the prompt says never to claim a change, and the engine adds
+  "Nothing has changed yet. Tap Apply to do it." to any answer with a card that does not already say to tap Apply.
+- **Still direct on purpose:** reads and lookups, `remember` / `forget` / `save_skill` / `watch_for` /
+  `stop_checking` / `close_finding` (the assistant's own notes), `run_analysis` (a sandbox run whose files go to
+  the asker), `hand_to_claude_code` (a prompt on a card). A new tool that posts, publishes or spends gets a line in
+  `TAP_TOOLS` or is written as an action.
+- Tests: `node --import <stubwasm> test-alwaystap.mjs`.
+
 ## 2026-10-17: FULL CONTROL OVER EVERY CONNECTION (`src/extwrite.js`, `allwrite.js`, `slackwrite.js`, `googlewrite.js`, `tiktokwrite.js`, `shopifywrite.js`). Read before adding a write.
 
-Cole: "Locus should have every Slack permission and full control over every connection we add." Every action applies at
-once on a teammate's direct ask (strategist.js `directActions: 'all'`, `cardOnly: CARD_ONLY` from allwrite.js) and keeps the
+Cole: "Locus should have every Slack permission and full control over every connection we add." **Superseded on
+2026-11-25 (ALWAYS A TAP, see the section below): nothing applies on the model's own decision any more.** Every action is
+a card a person taps, and keeps the
 metawrite.js rules: look up first, the brand's own object only, before -> after, one Change Log line (`activities`,
 event_type `<platform>_write`, filed under the brand's Meta account), undo where the API allows. Tests: `node test-fullcontrol.mjs` (10).
 - **The record:** Meta writes stay in `p_meta_write`; everything else goes to `p_ext_write` (platform, before, after, `undo`

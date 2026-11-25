@@ -167,9 +167,10 @@ await check('registered: the new actions and tools exist, slack_post_client is c
   for (const n of ['slack_post', 'slack_post_client', 'slack_schedule', 'slack_react', 'slack_pin', 'slack_edit', 'slack_delete', 'slack_invite', 'slack_channel', 'google_status', 'google_budget', 'google_target', 'google_rename', 'google_keywords', 'google_keyword_bid', 'google_negative', 'google_ad_text',
     'tiktok_status', 'tiktok_budget', 'shopify_product', 'shopify_discount', 'undo_change', 'meta_bid', 'meta_targeting', 'meta_schedule', 'meta_create_campaign', 'meta_create_adset', 'meta_ad_copy', 'asana_update', 'drive_folder', 'drive_move', 'drive_rename']) assert.ok(A[n], n);
   for (const n of ['google_read', 'tiktok_read', 'write_access']) assert.ok(T[n], n);
-  assert.ok(aw.CARD_ONLY.includes('slack_post_client') && aw.CARD_ONLY.includes('klaviyo_campaign_schedule') && aw.CARD_ONLY.includes('drive_share'));
+  /* 2026-11-25, always a tap: there is no card-only list because nothing is direct. */
+  assert.equal(aw.CARD_ONLY, undefined); assert.ok(aw.TAP_TOOLS.make_image && aw.TAP_TOOLS.frame_share && aw.TAP_TOOLS.post_file);
   const strat = fs.readFileSync(path.join(here, 'src', 'strategist.js'), 'utf8');
-  assert.match(strat, /cardOnly: CARD_ONLY/); assert.match(strat, /\.\.\.extraActions\(d\)/); assert.match(strat, /\.\.\.extraTools\(d\)/);
+  assert.match(strat, /tapTools: TAP_TOOLS/); assert.ok(!/directActions|cardOnly|asked_directly/.test(strat), 'no direct apply left in strategist.js'); assert.match(strat, /\.\.\.extraActions\(d\)/); assert.match(strat, /\.\.\.extraTools\(d\)/);
   for (const f of ['extwrite.js', 'slackwrite.js', 'googlewrite.js', 'tiktokwrite.js', 'shopifywrite.js', 'allwrite.js']) assert.ok(!fs.readFileSync(path.join(here, 'src', f), 'utf8').includes('—'), 'em dash in ' + f);
   const make = fs.readFileSync(path.join(here, 'src', 'stratmake.js'), 'utf8');
   assert.ok(!/frameApi\(env, 'DELETE'/.test(make), 'Frame never deletes');

@@ -64,5 +64,60 @@ export function extraActions(d) {
   const metaUndo = metaActions(d).find(a => a.name === 'meta_undo');
   return [...slackActions(d), ...googleActions(d), ...tiktokActions(d), ...shopifyActions(d), ...undoActions(d, metaUndo)];
 }
-/** The actions that always show a card, whoever asks: things a client or a customer receives, or a file shared out. */
-export const CARD_ONLY = ['klaviyo_campaign_schedule', 'klaviyo_flow_status', 'drive_share', 'slack_post_client'];
+/**
+ * ALWAYS A TAP (2026-11-25, the owner, after a safety trace). THE ONE PLACE FOR THE RULE.
+ *
+ * The assistant never changes anything by its own decision, whoever asks (the owner included) and wherever they ask
+ * (Locus chat, Slack, a scheduled question, a review). There is no list of "direct" actions any more and no setting
+ * that brings one back:
+ *   1. Every ACTION (Meta, Google, TikTok, Shopify, Klaviyo, Slack posts, settings, billing day, locus_write, Asana,
+ *      Drive, Frame, the calendar, undo) is a card. ask/engine.js runAction only ever proposes; the one caller of an
+ *      action's apply() is applyProposal, reached by a person's tap (POST /api/ask/apply, the Slack Apply button).
+ *   2. The plain TOOLS below are not actions but still post to people, make a public link or spend money on
+ *      generation. They are held as a card too: card() says what the card reads, and returning null means "nothing
+ *      leaves and nothing is spent here, run it now" (a download button in the app, a report shown to the asker).
+ *      done() is the line the person reads after the tap.
+ * Reads, lookups, memory notes (remember / forget / save_skill / watch_for) and drafts nobody outside sees stay direct.
+ * A new tool that posts, publishes or spends gets a line here, or it must be an action.
+ */
+const cut = (s, n) => String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
+const kb = s => { const n = String(s ?? '').length; return n > 2000 ? Math.round(n / 1000) + 'KB' : n + ' characters'; };
+export const TAP_TOOLS = {
+  /* Spends money: about $0.25 to $0.42 an image. A redo needs the first image, which a card never shows the model. */
+  make_image: {
+    card: i => i.redo_of ? { error: 'Images are made on a tap now, so there is no image in this answer to redo. Send the whole brief again without redo_of.' }
+      : { summary: `Make an image: ${cut(i.title || i.brief, 100)}`, detail: `About $0.25 to $0.42 on the image AI. ${i.format || '4:5'}${i.product ? ', ' + cut(i.product, 60) : ''}.\n${cut(i.brief, 700)}` },
+    done: r => { const m = (r.flags?.media || [])[0]; return m?.url ? `Image made: ${m.url}` : 'Image made.'; },
+  },
+  /* Spends money: up to 24 ads at about $0.35 each, and posts them in the thread. */
+  studio_make: {
+    card: i => { const b = Array.isArray(i.batches) ? i.batches : []; return { summary: `Make the ads of ${b.length || 'the'} Studio batch${b.length === 1 ? '' : 'es'}`, detail: `About $0.35 an ad on the image AI, up to 24 ads.\n${b.slice(0, 8).map(x => `${cut(x.batch_id, 40)}: ${cut(x.product, 60)}`).join('\n')}` }; },
+    done: r => cut(String(r.text || 'Making the ads now.').split(' Tell the person')[0], 400),
+  },
+  /* A link that opens without a login (public), or a new share in the client's Frame project (secure). */
+  frame_share: {
+    card: i => ({ summary: `Make a ${i.access === 'secure' ? 'secure' : 'public'} Frame review link for ${cut(i.target, 80)}`, detail: i.access === 'secure' ? 'Only people invited in Frame can open it.' : `Anyone with the link can open it without a login${i.downloads ? ', and download the files' : ''}.` }),
+    done: r => { const l = (r.flags?.links || [])[0]; return l?.url ? `Review link: ${l.url}` : cut(r.text, 300); },
+  },
+  /* In Slack the file is posted into the thread for everyone there. In Locus it is a download button for the asker only. */
+  post_file: {
+    card: (i, ctx) => ctx?.surface === 'slack' && ctx?.channel ? { summary: `Post the file ${cut(i.filename, 80)} in this thread`, detail: `${kb(i.content)}${i.comment ? '. With the line: ' + cut(i.comment, 300) : ''}` } : null,
+    done: (r, i) => `The file ${cut(i.filename, 80)} is in the thread.`,
+  },
+  /* A Slack canvas everyone in the channel can open. */
+  make_canvas: {
+    card: (i, ctx) => ctx?.surface === 'slack' ? { summary: `Make the Slack canvas "${cut(i.title, 100)}"`, detail: `${kb(i.markdown)}. Everyone in this channel can open it.` } : null,
+    done: r => cut(String(r.text || 'Canvas made.').split('. Link it')[0], 400),
+  },
+  /* Starts the ideas pipeline: it spends on a teardown and posts a draft card in the thread. */
+  draft_from_thread: {
+    card: (i, ctx) => ctx?.ev?.channel ? { summary: `Start the ideas pipeline on this thread${i.brand ? ' for ' + cut(i.brand, 60) : ''}`, detail: `It opens the references in the thread, does a teardown and posts a draft card here.${i.steer ? '\nSteer: ' + cut(i.steer, 300) : ''}` } : null,
+    done: () => 'The ideas pipeline is reading the thread. Its draft card lands here in a minute or two.',
+  },
+  /* The report itself is shown to the asker at once. Its public link and PDF (open without a login) wait for the tap.
+     A client's own login cannot tap Apply, so a client gets the report on screen and no link. */
+  make_report: {
+    card: (i, ctx) => ctx?.client ? null : { summary: `Make a share link and PDF for "${cut(i.title, 100)}"`, detail: 'Anyone with the link can open the report without a login.' },
+    done: r => r.report?.share ? `Share link: ${r.report.share}${r.report.pdf ? `\nPDF: ${r.report.pdf}` : ''}` : 'Share link made.',
+  },
+};

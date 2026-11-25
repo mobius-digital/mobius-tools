@@ -35,7 +35,7 @@ const clearSetting = k => db.prepare(`DELETE FROM settings WHERE key = ?`).run(k
 ok(clientSide({ side: 'client' }) && clientSide({ side: null, shared: true }) && clientSide({ side: 'team', shared: true }), 'client side: marked client, or shared');
 ok(!clientSide({ side: 'internal' }) && !clientSide({ side: 'internal', shared: true }) && !clientSide({ side: null, shared: false }) && !clientSide({ side: 'team' }), 'not client side: internal, team, a plain project channel');
 ok(!directApplyThere({ side: 'client' }) && !directApplyThere({ shared: true }), 'client side: never applied from the words');
-ok(directApplyThere({ side: 'internal' }) && directApplyThere({}) && directApplyThere({ side: 'team' }), 'internal and plain channels: direct apply as before');
+ok(!directApplyThere({ side: 'internal' }) && !directApplyThere({}) && !directApplyThere({ side: 'team' }), 'internal and plain channels: no direct apply either (always a tap, 2026-11-25)');
 ok(tapOnlyThere({ side: 'internal', shared: true }) && !directApplyThere({ side: 'internal', shared: true }), 'an internal channel shared with another workspace is tap-only');
 ok(!silentThere({ side: 'internal', shared: true }, '0') && !clientSide({ side: 'internal', shared: true }), 'a shared internal channel still answers and is still stored');
 ok(/needs a tap/.test(TAP_ONLY_NOTE) && /outside the team/.test(TAP_ONLY_NOTE) && !TAP_ONLY_NOTE.includes('—'), 'the tap-only note says why, no em dash');
