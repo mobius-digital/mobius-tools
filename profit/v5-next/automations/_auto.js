@@ -56,8 +56,23 @@ export function sentenceNode(s, { large = false, onSlot, active } = {}) {
   }));
 }
 
-const RESULT = { done: ['good', 'Done'], skipped: ['off', 'Skipped'], held: ['warn', 'Held'], waiting_for_tap: ['warn', 'Waits for a tap'], failed: ['bad', 'Failed'], over_limit: ['warn', 'Over the AI limit'] };
+const RESULT = { done: ['good', 'Done'], skipped: ['off', 'Skipped'], held: ['warn', 'Held'], waiting_for_tap: ['warn', 'Waits for an answer'], failed: ['bad', 'Failed'], over_limit: ['warn', 'Over the AI limit'],
+  retry: ['warn', 'Will try again'], folded: ['off', 'Told as one row'] };
 export const resultDot = r => { const [tone, word] = RESULT[r] || ['off', r || 'Not run yet']; return statusDot(tone, word); };
+
+/** The buttons for one row from GET /api/notices (the bell and the home list call this).
+    A suggested change: Locus changes nothing, so the answers are "I did it" (made by hand in Ads) or "No".
+    A held client message: "Send to the client" or "Do not send". Anything else: tick it done. */
+export function noticeActions(row, ctx, reload) {
+  const post = async (body, said) => {
+    if (ctx.sample) return toast('Sample mode: nothing is saved.');
+    try { await ah(ctx, '/api/notices/done', { method: 'POST', body: { id: row.id, ...body } }); toast(said); reload && reload(); } catch (e) { toast(e.message, { tone: 'bad', ms: 5000 }); }
+  };
+  if (row.state !== 'open') return [];
+  if (row.kind === 'proposal') return [button('I did it', { primary: true, onclick: () => post({ answer: 'did_it' }, 'Noted. Locus changed nothing.') }), button('No', { onclick: () => post({ answer: 'no' }, 'Noted.') })];
+  if (row.kind === 'release') return [button('Send to the client', { primary: true, onclick: () => post({ answer: 'send' }, 'Sent to the client.') }), button('Do not send', { onclick: () => post({ answer: 'no' }, 'Dropped. The client was not told.') })];
+  return [button('Done', { onclick: () => post({ done: true }, 'Done.') })];
+}
 
 /** The banner while the workspace switch is off. Only the owner sees the button. */
 export function powerBar(data, ctx, reload) {
@@ -205,7 +220,7 @@ export function autoRow(a, data, ctx, reload) {
     h('div', { class: 'au-meta' },
       a.state === 'paused' ? pill('bad', 'Paused itself after 5 failures') : null,
       a.costs_ai ? pill('', 'Uses AI') : null,
-      (a.do || []).some(x => x.type === 'propose' || x.type === 'stop_spend') ? pill('', 'Waits for a tap') : null,
+      (a.do || []).some(x => x.type === 'propose' || x.type === 'stop_spend') ? pill('', 'A person makes the change') : null,
       h('span', null, a.last_run_at ? 'Last ran ' + relativeTime(Date.parse(a.last_run_at)) : 'Has not run yet'),
       a.last_status ? h('span', null, a.last_status) : null));
 }

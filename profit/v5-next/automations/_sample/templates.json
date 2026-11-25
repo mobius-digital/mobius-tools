@@ -155,7 +155,10 @@
      }
     ]
    },
-   "notes": [],
+   "notes": [
+    "The AI checker reads the words on the card. It does not look at the picture or video yet, and it says so on every check.",
+    "Nobody is set as the card's maker for some brands yet, so the person who made this hears instead. Set it in Who does what."
+   ],
    "costs_ai": true,
    "last_run_at": "2026-11-24T14:10:00Z",
    "last_status": "done: The AI checker flagged 1 thing",
@@ -354,15 +357,17 @@
      }
     ]
    },
-   "notes": [],
-   "costs_ai": false,
+   "notes": [
+    "The report is drafted and held. Nothing is sent to a client. Writing it costs AI, about 10 cents a brand (an estimate), and it stops at the automations AI limit for the day. A draft still unsent at noon is listed in the team's daily \"not sent yet\" reminder in Slack, like any other draft."
+   ],
+   "costs_ai": true,
    "last_run_at": null,
    "last_status": null,
    "fail_count": 0
   },
   {
    "id": "au_5",
-   "name": "When a card has sat in Live for 3 days, for any brand, propose pausing it and wait for a tap, then tell the buyer, each in their own way.",
+   "name": "When a card has sat in Live for 3 days, for any brand, suggest pausing it and wait for an answer, then tell the buyer, each in their own way.",
    "brand": "all",
    "when": {
     "type": "card_stale",
@@ -392,7 +397,7 @@
    "owner": "sam@agency.example",
    "brand_name": "Any brand",
    "sentence": {
-    "text": "When a card has sat in Live for 3 days, for any brand, propose pausing it and wait for a tap, then tell the buyer, each in their own way.",
+    "text": "When a card has sat in Live for 3 days, for any brand, suggest pausing it and wait for an answer, then tell the buyer, each in their own way.",
     "parts": [
      {
       "t": "text",
@@ -431,7 +436,7 @@
      },
      {
       "t": "text",
-      "text": "propose "
+      "text": "suggest "
      },
      {
       "t": "slot",
@@ -440,7 +445,7 @@
      },
      {
       "t": "text",
-      "text": " and wait for a tap"
+      "text": " and wait for an answer"
      },
      {
       "t": "text",
@@ -461,7 +466,9 @@
      }
     ]
    },
-   "notes": [],
+   "notes": [
+    "Locus does not make this change in this version. It arrives as a suggestion. You make the change in Ads and tap \"I did it\", or tap \"No\"."
+   ],
    "costs_ai": false,
    "last_run_at": null,
    "last_status": null,
@@ -1369,7 +1376,7 @@
    "ready": true,
    "on": false,
    "tap": false,
-   "ai": false,
+   "ai": true,
    "note": null,
    "automation": {
     "name": "Every Monday at 7am, for any brand, draft the weekly report and hold it, then tell the brand owner, each in their own way.",
@@ -1469,7 +1476,7 @@
    "ready": true,
    "on": false,
    "tap": false,
-   "ai": false,
+   "ai": true,
    "note": null,
    "automation": {
     "name": "On the 1st of the month at 7am, for any brand, draft the monthly report and hold it, then tell the brand owner, each in their own way.",
@@ -2201,7 +2208,7 @@
    {
     "id": "draft_report",
     "label": "Draft a report (never sent)",
-    "ai": false,
+    "ai": true,
     "not_yet": null
    },
    {
@@ -2212,15 +2219,15 @@
    },
    {
     "id": "propose",
-    "label": "Propose a change (waits for a tap)",
+    "label": "Suggest a change (a person makes it)",
     "ai": false,
-    "not_yet": null
+    "not_yet": "Locus does not make this change in this version. It arrives as a suggestion. You make the change in Ads and tap \"I did it\", or tap \"No\"."
    },
    {
     "id": "stop_spend",
     "label": "Stop spend without asking",
     "ai": false,
-    "not_yet": "Saved and shown, but it does not run in this version. It arrives as a proposal that waits for a tap instead."
+    "not_yet": "Saved and shown, but it does not run in this version. It arrives as a suggestion that a person acts on instead."
    }
   ],
   "do.period": [
@@ -2301,5 +2308,8 @@
   "daily_line": "One line a day",
   "mute": "Mute"
  },
- "note": "Automations are switched off for this workspace. You can set them up and try them. Nothing runs until the owner switches them on."
+ "note": "Automations are switched off for this workspace. You can set them up and try them. Nothing runs until the owner switches them on.",
+ "can_edit": true,
+ "can_clients": true,
+ "team_size": 4
 }

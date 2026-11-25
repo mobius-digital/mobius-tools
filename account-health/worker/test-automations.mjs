@@ -202,7 +202,7 @@ await ok('a report draft uses the report engine and sends nothing', async () => 
   assert.match(r.runs[0].why, /Nothing is sent to a client/);
   NOW = new Date('2026-03-11T16:00:00Z');
 });
-await ok('a proposal waits for a tap and a yes applies nothing', async () => {
+await ok('a suggested change is never applied and never recorded as applied: a yes is refused, "I did it" is what gets written', async () => {
   fresh(); await turnOn();
   await call('PUT', '/api/automations', { when: { type: 'card_stale', status: 'live', days: 3 }, do: [{ type: 'stop_spend', change: 'pause' }], may_act_alone: true, tell: { who: [{ kind: 'me' }] }, state: 'on' });
   db.prepare(`INSERT INTO p_br_batch VALUES ('c9', 'brand_northlake', 30, 'Clearance', '', 'live', '2026-03-01 10:00:00')`).run();
@@ -210,13 +210,20 @@ await ok('a proposal waits for a tap and a yes applies nothing', async () => {
   assert.equal(r.runs[0].result, 'waiting_for_tap');
   assert.match(r.runs[0].why, /does not run in this version/);
   const nt = rows(`SELECT * FROM p_notice`)[0];
-  assert.equal(nt.kind, 'proposal');
-  const tap = await call('POST', '/api/notices/done', { id: nt.id, answer: 'yes' });
-  assert.equal(tap.body.applied, false);
-  assert.equal(tap.body.next.path, '/api/meta/write'); assert.ok(!('big' in tap.body.next.body), 'a proposal never carries the big mark');
-  assert.match(rows(`SELECT tapped_by FROM p_automation_run`)[0].tapped_by, /owner@agency\.example \(yes\)/);
+  assert.equal(nt.kind, 'proposal'); assert.match(nt.title, /^Suggested: pausing it/); assert.match(nt.body, /Locus does not make this change/);
+  assert.ok(!/api\/meta\/write|"yes"|"path"/.test(nt.button_json), 'the row carries no write route and no id to write to');
+  const yes = await call('POST', '/api/notices/done', { id: nt.id, answer: 'yes' });
+  assert.equal(yes.status, 409); assert.equal(yes.body.applied, false);
+  assert.equal(rows(`SELECT state FROM p_notice`)[0].state, 'open', 'the row stays open');
+  assert.equal(rows(`SELECT tapped_by FROM p_automation_run`)[0].tapped_by, null, 'and the log does not say anyone approved it');
+  const tap = await call('POST', '/api/notices/done', { id: nt.id, answer: 'did_it' });
+  assert.equal(tap.body.applied, false); assert.ok(!('next' in tap.body)); assert.match(tap.body.note, /Locus changed nothing/);
+  assert.match(rows(`SELECT tapped_by FROM p_automation_run`)[0].tapped_by, /owner@agency\.example \(made the change by hand\)/);
   const view = (await call('GET', '/api/automations')).body.automations[0];
   assert.ok(view.notes.some(x => /does not run in this version/.test(x)));
+  const p = (await call('PUT', '/api/automations', { when: { type: 'metric', metric: 'spend', window: 'yesterday', compare: 'above', line: 500 }, do: [{ type: 'propose', change: 'pause' }] })).body.automation;
+  assert.match(p.sentence.text, /suggest pausing it and wait for an answer/);
+  assert.ok(p.notes.some(x => /Locus does not make this change in this version/.test(x)));
 });
 await ok('the AI checker keeps its notes as a flagged draft and counts its tokens', async () => {
   fresh(); await turnOn(); aiCalls = 0;
@@ -315,11 +322,12 @@ await ok('a client reads only its own rows on its own brand, sets only its own d
   ins('n4', 'owner@agency.example', 'brand_northlake'); ins('n5', 'pat@northlake.example', 'brand_northlake', 'proposal'); ins('n6', 'pat@northlake.example', null);
   as('pat@northlake.example', { email: 'pat@northlake.example', ids: new Set(['brand_northlake']) });
   const mine = (await call('GET', '/api/notices')).body;
-  assert.deepEqual(mine.bell.map(r => r.id).sort(), ['n1', 'n5'], 'not another brand, not another person, not a row with no brand');
+  assert.deepEqual(mine.bell.map(r => r.id).sort(), ['n1'], 'not another brand, not another person, not a row with no brand, and never a suggested change');
+  assert.ok(!('button' in mine.bell[0]) && !('sent' in mine.bell[0]) && !('run_id' in mine.bell[0]));
   assert.equal((await call('POST', '/api/notices/done', { id: 'n3' })).status, 404, 'another client\'s row');
   assert.equal((await call('POST', '/api/notices/done', { id: 'n2' })).status, 404, 'its own row on a brand it does not have');
   assert.equal((await call('POST', '/api/notices/done', { id: 'n4' })).status, 404);
-  assert.equal((await call('POST', '/api/notices/done', { id: 'n5', answer: 'yes' })).status, 403, 'a client never approves a change to the ads');
+  assert.equal((await call('POST', '/api/notices/done', { id: 'n5', answer: 'did_it' })).status, 404, 'a client never answers a change to the ads');
   assert.equal((await call('POST', '/api/notices/done', { id: 'n1' })).body.state, 'done');
   assert.equal((await call('GET', '/api/automations')).status, 403);
   assert.equal((await call('PUT', '/api/automations', { template: 'plan_missing', state: 'on' })).status, 403);
@@ -354,14 +362,258 @@ await ok('five failures in a row pause an automation and tell its maker', async 
   fresh(); await turnOn();
   await call('PUT', '/api/automations', { template: 'review_check', state: 'on', tell: { who: [{ kind: 'me' }] } });
   const bad = { ...d, xfetch: async () => ({ ok: false, status: 500, json: async () => ({ error: { message: 'down' } }) }) };
-  for (let i = 0; i < 5; i++) {
-    db.prepare(`INSERT INTO p_br_batch VALUES (?, 'brand_northlake', ?, 'Card', 'copy', 'review', ?)`).run('f' + i, i, `2026-03-11 ${16 + i}:10:00`);
+  /* Each card gets three tries (the AI may be back the next hour); only the third counts as a failure. */
+  const results = [];
+  for (let i = 0; i < 7; i++) {
+    if (i < 5) db.prepare(`INSERT INTO p_br_batch VALUES (?, 'brand_northlake', ?, 'Card', 'copy', 'review', ?)`).run('f' + i, i, `2026-03-11 ${String(16 + i).padStart(2, '0')}:10:00`);
     NOW = new Date(`2026-03-11T${17 + i}:00:00Z`);
-    await automationTick(env, bad);
+    results.push(...(await automationTick(env, bad)).runs.map(x => x.result));
   }
+  assert.equal(results.filter(x => x === 'failed').length, 5); assert.equal(results.filter(x => x === 'retry').length, 10);
+  assert.equal(rows(`SELECT * FROM p_notice WHERE title LIKE '%Could not check%'`).length, 5, 'each card is told once, on its last try, with what could not be done');
   assert.equal(rows(`SELECT state FROM p_automation`)[0].state, 'paused');
-  assert.match(rows(`SELECT title FROM p_notice ORDER BY created_at DESC`)[0].title, /failed 5 times in a row, so it paused itself/);
+  assert.equal(rows(`SELECT title FROM p_notice WHERE title LIKE '%failed 5 times in a row, so it paused itself'`).length, 1);
   assert.equal(await onCount(env), 0);
+  NOW = new Date('2026-03-11T16:00:00Z');
+});
+/* ---------------- 7. review fixes (2026-11-25) ---------------- */
+const callD = async (dd, method, path, body) => handleAutomations(new Request('https://x.test' + path, { method, ...(body ? { body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } } : {}) }), env, path.split('?')[0], json, dd);
+const hourOn = (iso, h) => new Date(new Date(iso).getTime() + h * 36e5);
+await ok('more than 20 at once fold into ONE row, once, and each match still follows the repeat rule', async () => {
+  fresh(); await turnOn();
+  await call('PUT', '/api/automations', { template: 'ready_not_loaded', state: 'on', tell: { who: [{ kind: 'me' }] } });
+  for (let i = 0; i < 25; i++) db.prepare(`INSERT INTO p_br_batch VALUES (?, 'brand_northlake', ?, ?, '', 'ready', '2026-03-08 10:00:00')`).run('s' + i, i + 1, 'Card ' + i);
+  await automationTick(env, d);
+  assert.equal(rows(`SELECT * FROM p_notice`).length, 1);
+  assert.match(rows(`SELECT body FROM p_notice`)[0].body, /25 things matched/);
+  assert.equal(rows(`SELECT * FROM p_automation_run WHERE result = 'folded' AND thing_key IS NOT NULL`).length, 25, 'every match is in the log under its own key');
+  for (let h = 1; h <= 5; h++) { NOW = hourOn('2026-03-11T16:00:00Z', h); assert.equal((await automationTick(env, d)).ran, 0, 'the next hours tell nothing new'); }
+  assert.equal(rows(`SELECT * FROM p_notice`).length, 1, 'one task, not one an hour');
+  NOW = new Date('2026-03-13T16:00:00Z');   // day +2 is a quiet day
+  const r2 = await automationTick(env, d);
+  assert.ok(r2.runs.length === 25 && r2.runs.every(x => x.result === 'skipped'));
+  assert.equal(rows(`SELECT * FROM p_notice`).length, 1);
+  NOW = new Date('2026-03-14T16:00:00Z');   // day +3 reminds, still as one row
+  await automationTick(env, d);
+  assert.equal(rows(`SELECT * FROM p_notice`).length, 2);
+  NOW = new Date('2026-03-11T16:00:00Z');
+});
+await ok('a person on the morning read still gets the day, +1, +3, +7 and then quiet, for as long as it stays wrong', async () => {
+  fresh(); await turnOn();
+  await call('PUT', '/api/automations', { when: { type: 'card_stale', status: 'making', days: 5 }, tell: { who: [{ kind: 'me' }] }, state: 'on' });
+  await call('PUT', '/api/me/delivery', { delivery: { mode: 'morning_read', read_hour: 7, tz: 'America/Chicago' } });
+  db.prepare(`INSERT INTO p_br_batch VALUES ('c7', 'brand_northlake', 41, 'Slow card', '', 'making', '2026-03-01 10:00:00')`).run();
+  const told = [];
+  for (let day = 0; day < 30; day++) {
+    NOW = hourOn('2026-03-11T16:00:00Z', 24 * day);
+    const r = await automationTick(env, d);
+    if (r.runs.some(x => x.result === 'held')) told.push(day);
+  }
+  assert.deepEqual(told, [0, 1, 3, 7], 'a held row starts the rule, and day 22 does not start it over');
+  assert.equal(rows(`SELECT * FROM p_notice`).length, 4);
+  /* gone for a week, then back: that is a new problem and it is told again */
+  db.prepare(`UPDATE p_br_batch SET board_stage = 'review' WHERE id = 'c7'`).run();
+  NOW = hourOn('2026-03-11T16:00:00Z', 24 * 36); await automationTick(env, d);
+  db.prepare(`UPDATE p_br_batch SET board_stage = 'making', board_at = '2026-04-01 10:00:00' WHERE id = 'c7'`).run();
+  NOW = hourOn('2026-03-11T16:00:00Z', 24 * 40);
+  assert.equal((await automationTick(env, d)).runs[0].result, 'held');
+  NOW = new Date('2026-03-11T16:00:00Z');
+});
+await ok('no room this hour: the cursor waits, and the cards left over are handled on the next pass', async () => {
+  fresh(); await turnOn();
+  NOW = new Date('2026-03-11T15:00:00Z');
+  await call('PUT', '/api/automations', { when: { type: 'card_status', status: 'review' }, tell: { who: [{ kind: 'me' }] }, state: 'on' });
+  for (let i = 0; i < 8; i++) db.prepare(`INSERT INTO p_br_batch VALUES (?, 'brand_northlake', ?, 'Card', '', 'review', ?)`).run('r' + i, i + 1, `2026-03-11 15:${10 + i}:00`);
+  let room = 3;
+  const tight = { ...d, subCanAfford: n => n !== 20 || room-- > 0 };
+  NOW = new Date('2026-03-11T16:00:00Z');
+  const r1 = await automationTick(env, tight);
+  assert.equal(r1.ran, 3); assert.equal(r1.deferred, true);
+  assert.equal(rows(`SELECT cursor FROM p_automation`)[0].cursor, '2026-03-11T15:00:00.000Z', 'the cursor did not move past what was left');
+  NOW = new Date('2026-03-11T17:00:00Z'); room = 100;
+  assert.equal((await automationTick(env, tight)).ran, 5);
+  assert.equal(rows(`SELECT * FROM p_notice`).length, 8, 'all eight cards were told, each once');
+  assert.equal(rows(`SELECT cursor FROM p_automation`)[0].cursor, '2026-03-11T17:00:00.000Z');
+  NOW = new Date('2026-03-11T16:00:00Z');
+});
+const reportEngine = failing => async (e, acct, period, start) => {
+  if (failing(acct)) throw new Error('Triple Whale data is missing for 1 of the 7 days');
+  reportsMade.push([acct.act_id, period, start]);
+  db.prepare(`INSERT INTO reports VALUES (?, ?, ?, ?, 'draft', ?)`).run(acct.act_id, period, start, start, NOW.toISOString());
+};
+await ok('a report that could not be drafted is tried again the next hour, and nobody is told twice', async () => {
+  fresh(); await turnOn(); reportsMade = [];
+  NOW = new Date('2026-03-09T12:00:00Z');   // Monday, 7am in Chicago
+  await call('PUT', '/api/automations', { template: 'brand_weekly', state: 'on', tell: { who: [{ kind: 'me' }] } });
+  let down = true;
+  const dd = { ...d, makeReport: reportEngine(acct => down && acct.act_id === 'brand_pinecrest') };
+  const r1 = await automationTick(env, dd);
+  assert.equal(r1.runs[0].result, 'retry'); assert.match(r1.runs[0].why, /Could not draft Pinecrest Candle: Triple Whale data is missing.*try again/);
+  assert.equal(rows(`SELECT * FROM p_notice`).length, 0, 'nothing is told while a try is left');
+  NOW = new Date('2026-03-09T13:00:00Z'); down = false;
+  const r2 = await automationTick(env, dd);
+  assert.equal(r2.runs[0].result, 'done');
+  assert.deepEqual(reportsMade.map(x => x[0]), ['brand_northlake', 'brand_pinecrest'], 'the brand that worked is not drafted twice');
+  assert.equal(rows(`SELECT * FROM p_notice`).length, 1);
+  NOW = new Date('2026-03-09T14:00:00Z');
+  assert.equal((await automationTick(env, dd)).ran, 0);
+  /* never works: three tries, then it says so, is logged as failed, and stops */
+  fresh(); await turnOn(); reportsMade = [];
+  NOW = new Date('2026-03-09T12:00:00Z');
+  await call('PUT', '/api/automations', { template: 'brand_weekly', state: 'on', tell: { who: [{ kind: 'me' }] } });
+  const never = { ...d, makeReport: reportEngine(acct => acct.act_id === 'brand_pinecrest') };
+  const seen = [];
+  for (let h = 0; h < 5; h++) { NOW = hourOn('2026-03-09T12:00:00Z', h); seen.push(...(await automationTick(env, never)).runs.map(x => x.result)); }
+  assert.deepEqual(seen, ['retry', 'retry', 'failed']);
+  assert.match(rows(`SELECT title FROM p_notice`)[0].title, /Could not draft Pinecrest Candle/);
+  assert.equal(rows(`SELECT * FROM p_notice`).length, 1);
+  NOW = new Date('2026-03-11T16:00:00Z');
+});
+await ok('a report draft costs AI: it is counted, shown, and stops at the day limit', async () => {
+  fresh(); await turnOn(); reportsMade = [];
+  setS('automationsAiDayCap', '0.15');
+  NOW = new Date('2026-03-09T12:00:00Z');
+  const a = (await call('PUT', '/api/automations', { template: 'brand_weekly', state: 'on', tell: { who: [{ kind: 'me' }] } })).body.automation;
+  assert.equal(a.costs_ai, true); assert.ok(a.notes.some(x => /costs AI/.test(x) && /not sent yet/.test(x)));
+  assert.equal(gallery().find(t => t.key === 'brand_weekly').ai, true);
+  const r = await automationTick(env, { ...d, makeReport: reportEngine(() => false) });
+  assert.equal(r.runs[0].result, 'over_limit');
+  assert.deepEqual(reportsMade.map(x => x[0]), ['brand_northlake'], 'the second brand would have gone over the limit');
+  const run = rows(`SELECT * FROM p_automation_run`)[0];
+  assert.equal(run.ai_usd, 0.1); assert.match(run.why, /AI: about \$0\.10, an estimate/); assert.match(run.why, /AI limit/);
+  assert.equal(+rows(`SELECT value FROM settings WHERE key = 'aiSpend:auto:day:2026-03-09'`)[0].value, 0.1);
+  NOW = new Date('2026-03-11T16:00:00Z');
+});
+await ok('"the whole team" is everyone who may sign in, not the view only list, and never a client', async () => {
+  fresh(); await turnOn();
+  setS('userRoles', { 'guest@agency.example': 'viewer' });
+  setS('userPrefs:buyer@agency.example', {}); setS('userPrefs:maker@agency.example', {}); setS('userPrefs:pat@northlake.example', {});
+  setS('clientUsers', { 'pat@northlake.example': { brands: ['brand_northlake'] } });
+  NOW = new Date('2026-03-11T15:00:00Z');
+  await call('PUT', '/api/automations', { when: { type: 'card_status', status: 'review' }, tell: { who: [{ kind: 'team' }] }, state: 'on' });
+  NOW = new Date('2026-03-11T16:00:00Z');
+  db.prepare(`INSERT INTO p_br_batch VALUES ('c1', 'brand_northlake', 12, 'Spring polo', '', 'review', '2026-03-11 15:30:00')`).run();
+  await automationTick(env, d);
+  assert.deepEqual(rows(`SELECT person_id FROM p_notice ORDER BY person_id`).map(r => r.person_id), ['buyer@agency.example', 'guest@agency.example', 'maker@agency.example', 'owner@agency.example']);
+  assert.equal((await call('GET', '/api/automations')).body.team_size, 4);
+});
+await ok('who does what: a role is set per brand, and a role nobody holds says so before and after', async () => {
+  fresh(); await turnOn();
+  setS('clientUsers', { 'pat@northlake.example': { brands: ['brand_northlake'] } });
+  NOW = new Date('2026-03-11T15:00:00Z');
+  const a = (await call('PUT', '/api/automations', { when: { type: 'card_status', status: 'review' }, tell: { who: [{ kind: 'role', role: 'buyer' }] }, state: 'on' })).body.automation;
+  assert.ok(a.notes.some(x => /Nobody is set as the buyer yet/.test(x)));
+  assert.equal((await call('PUT', '/api/automations/people', { roles: { brand_northlake: { buyer: 'pat@northlake.example' } } })).status, 400, 'a client cannot hold a role');
+  const set = await call('PUT', '/api/automations/people', { roles: { brand_northlake: { buyer: 'Buyer@agency.example' } } });
+  assert.equal(set.body.roles.brand_northlake.buyer, 'buyer@agency.example');
+  assert.ok(set.body.team.some(p => p.email === 'buyer@agency.example'), 'a person with a role is on the team list');
+  assert.ok((await call('GET', '/api/automations')).body.automations[0].notes.some(x => /for some brands/.test(x)));
+  NOW = new Date('2026-03-11T16:00:00Z');
+  db.prepare(`INSERT INTO p_br_batch VALUES ('c1', 'brand_northlake', 12, 'Spring polo', '', 'review', '2026-03-11 15:30:00')`).run();
+  db.prepare(`INSERT INTO p_br_batch VALUES ('c2', 'brand_pinecrest', 3, 'Gift set', '', 'review', '2026-03-11 15:31:00')`).run();
+  const r = await automationTick(env, d);
+  assert.deepEqual(rows(`SELECT person_id, brand_id FROM p_notice ORDER BY brand_id`).map(x => x.person_id), ['buyer@agency.example', 'owner@agency.example']);
+  assert.match(r.runs[1].why, /Nobody is set as the buyer for Pinecrest Candle, so its maker was told instead/);
+  /* someone held to one brand cannot set a role on another, or for every brand */
+  as('buyer@agency.example');
+  const held = { ...d, brandsFor: async () => new Set(['brand_northlake']) };
+  assert.equal((await callD(held, 'PUT', '/api/automations/people', { roles: { brand_pinecrest: { buyer: 'buyer@agency.example' } } })).status, 403);
+  assert.equal((await callD(held, 'PUT', '/api/automations/people', { roles: { all: { buyer: 'buyer@agency.example' } } })).status, 403);
+  assert.equal((await callD(held, 'PUT', '/api/automations/people', { team_add: ['new@agency.example'] })).status, 403, 'only the owner changes the team list');
+});
+await ok('a view only login reads automations and changes none of them', async () => {
+  fresh(); await turnOn();
+  const a = (await call('PUT', '/api/automations', { template: 'review_check', tell: { who: [{ kind: 'me' }] } })).body.automation;
+  const dv = { ...d, roleFor: async (e, email) => (email === 'guest@agency.example' ? 'viewer' : 'admin') };
+  as('guest@agency.example');
+  assert.equal((await callD(dv, 'GET', '/api/automations')).body.can_edit, false);
+  assert.equal((await callD(dv, 'PUT', '/api/automations', { template: 'review_check', state: 'on' })).status, 403);
+  assert.equal((await callD(dv, 'PUT', '/api/automations', { id: a.id, state: 'on' })).status, 403);
+  assert.equal((await callD(dv, 'DELETE', '/api/automations?id=' + a.id)).status, 403);
+  assert.equal((await callD(dv, 'POST', '/api/automations/test', { automation: { template: 'review_check' } })).status, 403);
+  assert.equal((await callD(dv, 'POST', '/api/automations/power', { on: false })).status, 403);
+  assert.equal((await callD(dv, 'PUT', '/api/automations/people', { roles: { all: { buyer: 'guest@agency.example' } } })).status, 403);
+  assert.deepEqual(rows(`SELECT state FROM p_automation`).map(r => r.state), ['draft']);
+  assert.equal((await callD(dv, 'PUT', '/api/me/delivery', { delivery: { mode: 'mute' } })).status, 200, 'their own delivery choice is theirs');
+  as('owner@agency.example');
+  assert.equal((await callD(dv, 'PUT', '/api/automations', { id: a.id, state: 'on' })).status, 200);
+});
+await ok('a client is told only after a person says send, reads only the plain line, and lists only what tells it', async () => {
+  fresh(); await turnOn(); slack.length = 0;
+  setS('clientUsers', { 'pat@northlake.example': { brands: ['brand_northlake'] }, 'lee@pinecrest.example': { brands: ['brand_pinecrest'] } });
+  const pat = { email: 'pat@northlake.example', ids: new Set(['brand_northlake']) };
+  NOW = new Date('2026-03-11T15:00:00Z');
+  await call('PUT', '/api/automations', { brand: 'brand_northlake', when: { type: 'metric', metric: 'mer', window: 'last7', compare: 'below', line: 'goal' }, do: [{ type: 'propose', change: 'pause' }], tell: { who: [{ kind: 'person', email: 'buyer@agency.example' }] }, state: 'on' });
+  const withClient = { brand: 'brand_northlake', when: { type: 'card_status', status: 'ready' }, tell: { who: [{ kind: 'me' }, { kind: 'clients' }], text: 'Your new ads are ready to look at' }, state: 'on' };
+  as('buyer@agency.example');
+  assert.equal((await call('PUT', '/api/automations', withClient)).status, 403, 'only the owner puts a client into a sentence');
+  assert.equal((await call('PUT', '/api/automations', { ...withClient, tell: { who: [{ kind: 'person', email: 'pat@northlake.example' }] } })).status, 403, 'a client typed in as a person is still a client');
+  assert.equal((await call('POST', '/api/automations/test', { automation: withClient })).status, 200, 'a dry run reaches nobody, so anyone may try it');
+  as('owner@agency.example');
+  const a = (await call('PUT', '/api/automations', withClient)).body.automation;
+  assert.ok(a.notes.some(x => /never told straight away/.test(x)));
+  as('buyer@agency.example');
+  assert.equal((await call('PUT', '/api/automations', { id: a.id, state: 'draft' })).status, 200, 'someone else may switch it off');
+  assert.equal((await call('PUT', '/api/automations', { id: a.id, state: 'on' })).status, 403, 'and not back on');
+  as('owner@agency.example'); await call('PUT', '/api/automations', { id: a.id, state: 'on' });
+  /* How things reach me, as the client: one row, none of the team's words or emails */
+  as('pat@northlake.example', pat);
+  const dv = (await call('GET', '/api/me/delivery')).body;
+  assert.equal(dv.per.length, 1); assert.equal(dv.per[0].automation_id, a.id); assert.equal(dv.per[0].name, 'A message from your team');
+  assert.ok(!/agency\.example|MER|goal|pausing|When /.test(JSON.stringify(dv.per)));
+  /* the event: a draft for the client, one row for the maker, nothing sent */
+  as('owner@agency.example');
+  NOW = new Date('2026-03-11T16:00:00Z');
+  db.prepare(`INSERT INTO p_br_batch VALUES ('c5', 'brand_northlake', 41, 'Secret internal name', '', 'ready', '2026-03-11 15:30:00')`).run();
+  const r = await automationTick(env, d);
+  assert.match(r.runs[0].why, /pat@northlake\.example: A draft\. It reaches the client only when a person on the team says send/);
+  const draft = rows(`SELECT * FROM p_notice WHERE person_id = 'pat@northlake.example'`);
+  assert.equal(draft.length, 1); assert.equal(draft[0].state, 'draft'); assert.equal(draft[0].title, 'Your new ads are ready to look at');
+  assert.equal(rows(`SELECT * FROM p_notice WHERE person_id = 'lee@pinecrest.example'`).length, 0, 'not another brand\'s client');
+  as('pat@northlake.example', pat);
+  assert.equal((await call('GET', '/api/notices')).body.bell.length, 0, 'the client sees nothing yet');
+  assert.equal((await call('POST', '/api/notices/done', { id: draft[0].id })).status, 404);
+  as('owner@agency.example');
+  const ask = (await call('GET', '/api/notices')).body.home.find(x => x.kind === 'release');
+  assert.match(ask.body, /"Your new ads are ready to look at" would go to pat@northlake\.example/);
+  const dv2 = { ...d, roleFor: async () => 'viewer' };
+  assert.equal((await callD(dv2, 'POST', '/api/notices/done', { id: ask.id, answer: 'send' })).status, 403, 'a view only login cannot send to a client');
+  assert.deepEqual((await call('POST', '/api/notices/done', { id: ask.id, answer: 'send' })).body.sent_to, ['pat@northlake.example']);
+  assert.equal((await call('POST', '/api/notices/done', { id: ask.id, answer: 'send' })).status, 409);
+  as('pat@northlake.example', pat);
+  const bell = (await call('GET', '/api/notices')).body.bell;
+  assert.equal(bell.length, 1);
+  assert.deepEqual(Object.keys(bell[0]).sort(), ['brand_id', 'created_at', 'done_at', 'held_until', 'home', 'id', 'kind', 'state', 'title'], 'no button, no ids, no record of who sent it');
+  assert.ok(!/Secret internal name|agency\.example|run_id|automation_id/.test(JSON.stringify(bell)));
+  assert.equal(slack.length, 0);
+  /* "no" drops it for good */
+  as('owner@agency.example');
+  db.prepare(`INSERT INTO p_br_batch VALUES ('c6', 'brand_northlake', 42, 'Another', '', 'ready', '2026-03-11 16:30:00')`).run();
+  NOW = new Date('2026-03-11T17:00:00Z'); await automationTick(env, d);
+  const ask2 = (await call('GET', '/api/notices')).body.home.find(x => x.kind === 'release');
+  await call('POST', '/api/notices/done', { id: ask2.id, answer: 'no' });
+  as('pat@northlake.example', pat);
+  assert.equal((await call('GET', '/api/notices')).body.bell.length, 1);
+  NOW = new Date('2026-03-11T16:00:00Z');
+});
+await ok('nobody is told about a brand they may not see, not in the app and not in Slack', async () => {
+  fresh(); await turnOn(); slack.length = 0;
+  setS('userPrefs:contractor@agency.example', {});
+  as('contractor@agency.example');
+  await call('PUT', '/api/me/delivery', { delivery: { ways: { home: true, slack: true } } });
+  as('owner@agency.example');
+  NOW = new Date('2026-03-11T15:00:00Z');
+  await call('PUT', '/api/automations', { when: { type: 'card_status', status: 'review' }, tell: { who: [{ kind: 'team' }] }, state: 'on' });
+  const dd = { ...d, brandsFor: async (e, email) => (email === 'contractor@agency.example' ? new Set(['brand_northlake']) : null) };
+  NOW = new Date('2026-03-11T16:00:00Z');
+  db.prepare(`INSERT INTO p_br_batch VALUES ('c2', 'brand_pinecrest', 3, 'Gift set', '', 'review', '2026-03-11 15:31:00')`).run();
+  const r = await automationTick(env, dd);
+  assert.equal(slack.length, 0, 'no Slack DM left the building');
+  assert.deepEqual(rows(`SELECT person_id FROM p_notice`).map(x => x.person_id), ['owner@agency.example']);
+  assert.match(r.runs[0].why, /contractor@agency\.example: May not see Pinecrest Candle, so they were not told/);
+  db.prepare(`INSERT INTO p_br_batch VALUES ('c1', 'brand_northlake', 12, 'Spring polo', '', 'review', '2026-03-11 16:30:00')`).run();
+  NOW = new Date('2026-03-11T17:00:00Z'); await automationTick(env, dd);
+  assert.equal(slack.filter(s => s[0] === 'chat.postMessage').length, 1, 'their own brand still reaches them');
   NOW = new Date('2026-03-11T16:00:00Z');
 });
 await ok('small things: quiet hours across midnight, last Monday, bracket slots', () => {

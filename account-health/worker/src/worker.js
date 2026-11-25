@@ -7516,7 +7516,7 @@ function strategistDeps() {
 }
 /* What checknow.js, alerts.js and the scheduled checks need from here. */
 /* Automations (automations.js): the same reads as the alerts, plus the report engine and who is asking. */
-function automationDeps() { return { ...autoDeps(), clientScope, brandsFor, resolveBrandId, makeReport, ownerEmail: 'cole@go-mobius-digital.com' }; }
+function automationDeps() { return { ...autoDeps(), clientScope, brandsFor, resolveBrandId, makeReport, roleFor, emailAllowed, ownerEmail: 'cole@go-mobius-digital.com' }; }
 function autoDeps() {
   return { getSetting, putSetting, listAccounts, localDate, localHourFrac, addDays, twSummary, twShift, metaAll, pickAction, PURCHASE_TYPES, xfetch,
     subCanAfford, centralHour, centralDate, slackApi, isAdmin, sessionEmail, goalsFor, daysInMonth, twMetaDaily, mintSession, postDashboard };

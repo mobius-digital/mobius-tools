@@ -13,10 +13,28 @@
  * job reads ONE count and returns; it does not even create the tables. Every template in the gallery is off.
  *
  * WHAT IT MAY DO. A tell, a task on a home list, a report DRAFT (never sent), an AI look at a card (its notes are kept
- * as a flagged draft; it never moves, approves or rejects a card), and a PROPOSED change: a card that waits for a tap.
- * A proposal is never applied here: the tap hands the screen the existing write route to call as the person who
- * tapped, without the "big" mark, so the 50 percent step rule, the Change Log line and the 24 hour undo all still
- * apply. "Stop spend alone" (may_act_alone, owner only) is stored and shown, and is NOT executable in this version.
+ * as a flagged draft; it never moves, approves or rejects a card), and a SUGGESTED change: a row that waits for an
+ * answer. Locus NEVER makes the change in this version: no trigger carries a campaign, ad set or ad id, so there is
+ * nothing a write route could be handed. The person makes the change in Ads and taps "I did it", or taps "No"; the
+ * row and the run log record exactly that and never say a change was applied. "Stop spend alone" (may_act_alone,
+ * owner only) is stored and shown, and is NOT executable in this version either.
+ *
+ * WHO HEARS. A role (buyer, brand owner, strategist, maker, email owner, reviewer) is set per brand in
+ * settings automationRoles (GET/PUT /api/automations/people). "The whole team" is everyone who may sign in and is
+ * not a client. Nobody is told about a brand they may not see. A CLIENT is never told straight away: the message is
+ * held as a draft, the automation's maker sees the exact words, and it reaches the client only on "send". Only the
+ * owner may put a client into a sentence, and a client only ever gets the plain line (never a task, a suggested
+ * change, the checker's notes or any id).
+ *
+ * AI. The card checker and "draft a report" both cost AI and both stop at the automations day limit. The report
+ * engine does not hand back its token count, so a report is counted at a fixed estimate (REPORT_AI_USD) and the log
+ * says it is an estimate.
+ *
+ * ONCE, THEN THE REPEAT RULE. One event is handled once (its key). A step that could not run (no room this hour,
+ * the AI or the numbers were not there) is tried again on the next ticks, RETRY_MAX times, and the cursor does not
+ * move past it. A thing that stays wrong follows the fixed repeat rule from the day it started (the day, +1, +3, +7,
+ * then quiet) until it has been gone EPISODE_GAP days. More than FOLD_OVER matches in one pass become one row, and
+ * each match is still written to the log so it is not told again the next hour.
  *
  * Triggers in version one, all read with plain SELECTs on a timer (no line added to any other file):
  *   schedule         every day / weekday / week / month at an hour, in the brand's own time zone
@@ -40,6 +58,7 @@
  *   POST   /api/automations/test       dry run: what would have happened, nothing is written or sent
  *   POST   /api/automations/power      { on } owner only: the one switch
  *   GET    /api/automations/runs?id=   the run log
+ *   GET    /api/automations/people, PUT /api/automations/people   who does what (roles per brand) and the team list
  *   GET    /api/me/delivery, PUT /api/me/delivery   how things reach me
  *   GET    /api/notices, POST /api/notices/done */
 
@@ -51,6 +70,11 @@ const AI_DAY_CAP = 2;                 // dollars a day across every brand; setti
 const REPEAT_DAYS = [0, 1, 3, 7];     // the fixed repeat rule: the day, +1, +3, +7, then quiet
 const FOLD_OVER = 20;                 // more matches than this in one pass become one row
 const FAIL_PAUSE = 5;
+const RETRY_MAX = 3;                  // tries for one event when a step could not run
+const EPISODE_GAP = 3;                // days a thing must be gone before it counts as a new problem and the repeat rule starts over
+const REPORT_AI_USD = 0.1;            // one report narrative, an estimate: the report engine does not hand back tokens
+const CLIENT_HOLD = 'A draft. It reaches the client only when a person on the team says send';
+const TOLD = ['done', 'waiting_for_tap', 'held', 'folded'];
 
 const SQL = [
   `CREATE TABLE IF NOT EXISTS p_automation (
@@ -63,9 +87,10 @@ const SQL = [
   `CREATE TABLE IF NOT EXISTS p_automation_run (
     id TEXT PRIMARY KEY, automation_id TEXT NOT NULL, org_id TEXT NOT NULL DEFAULT 'default', brand_id TEXT, event_key TEXT NOT NULL, thing_key TEXT,
     started_at TEXT NOT NULL, finished_at TEXT, result TEXT NOT NULL, why TEXT, title TEXT, did_json TEXT,
-    ai_in INTEGER NOT NULL DEFAULT 0, ai_out INTEGER NOT NULL DEFAULT 0, ai_usd REAL NOT NULL DEFAULT 0, change_ref TEXT, tapped_by TEXT, tapped_at TEXT)`,
+    ai_in INTEGER NOT NULL DEFAULT 0, ai_out INTEGER NOT NULL DEFAULT 0, ai_usd REAL NOT NULL DEFAULT 0, change_ref TEXT, tapped_by TEXT, tapped_at TEXT, episode_at TEXT)`,
   `CREATE INDEX IF NOT EXISTS p_automation_run_key ON p_automation_run (automation_id, event_key)`,
   `CREATE INDEX IF NOT EXISTS p_automation_run_at ON p_automation_run (started_at)`,
+  `CREATE INDEX IF NOT EXISTS p_automation_run_thing ON p_automation_run (automation_id, thing_key, started_at)`,
   `CREATE TABLE IF NOT EXISTS p_automation_sub (
     automation_id TEXT NOT NULL, person_id TEXT NOT NULL, mode TEXT NOT NULL DEFAULT 'now', ways_json TEXT, at_hour INTEGER, updated_at TEXT,
     PRIMARY KEY (automation_id, person_id))`,
@@ -129,10 +154,10 @@ export const TRIGGERS = {
 };
 export const ACTIONS = {
   task: { label: 'Put a task on a home list', ai: false, tap: false },
-  draft_report: { label: 'Draft a report (never sent)', ai: false, tap: false },
+  draft_report: { label: 'Draft a report (never sent)', ai: true, tap: false },
   ai_check: { label: 'Ask the AI checker to look at the card', ai: true, tap: false },
-  propose: { label: 'Propose a change (waits for a tap)', ai: false, tap: true },
-  stop_spend: { label: 'Stop spend without asking', ai: false, tap: false, not_yet: 'Saved and shown, but it does not run in this version. It arrives as a proposal that waits for a tap instead.' },
+  propose: { label: 'Suggest a change (a person makes it)', ai: false, tap: true, not_yet: 'Locus does not make this change in this version. It arrives as a suggestion. You make the change in Ads and tap "I did it", or tap "No".' },
+  stop_spend: { label: 'Stop spend without asking', ai: false, tap: false, not_yet: 'Saved and shown, but it does not run in this version. It arrives as a suggestion that a person acts on instead.' },
 };
 export const MODES = {
   now: 'Right away', morning_read: 'In my morning read', only_if_missing: 'Only if missing', daily_line: 'One line a day', mute: 'Mute',
@@ -247,7 +272,7 @@ export function sentence(a, { brandName } = {}) {
     if (x.type === 'task') { T('put '); S(`do.${i}.text`, `"${x.text}"`); T(' on the home list, due in '); S(`do.${i}.due_days`, x.due_days === 0 ? '0 days' : `${x.due_days} day${x.due_days === 1 ? '' : 's'}`); }
     else if (x.type === 'draft_report') { T('draft the '); S(`do.${i}.period`, x.period); T(' report and hold it'); }
     else if (x.type === 'ai_check') T('ask the AI checker to look at it');
-    else if (x.type === 'propose') { T('propose '); S(`do.${i}.change`, PROPOSALS[x.change] || 'a change'); T(' and wait for a tap'); }
+    else if (x.type === 'propose') { T('suggest '); S(`do.${i}.change`, PROPOSALS[x.change] || 'a change'); T(' and wait for an answer'); }
     else if (x.type === 'stop_spend') { T('stop the spend by '); S(`do.${i}.change`, PROPOSALS[x.change] || 'pausing it'); }
   });
   const who = (a.tell && a.tell.who) || [];
@@ -310,9 +335,10 @@ const rowToAuto = r => ({ id: r.id, name: r.name, brand: r.brand_id || 'all', ow
 const notesOf = a => {
   const n = [];
   if ((a.do || []).some(x => x.type === 'stop_spend')) n.push(ACTIONS.stop_spend.not_yet);
+  if ((a.do || []).some(x => x.type === 'propose')) n.push(ACTIONS.propose.not_yet);
   if ((a.do || []).some(x => x.type === 'ai_check')) n.push('The AI checker reads the words on the card. It does not look at the picture or video yet, and it says so on every check.');
-  if ((a.do || []).some(x => x.type === 'draft_report')) n.push('The report is drafted and held. Nothing is sent to a client.');
-  if ((a.do || []).some(x => x.type === 'propose')) n.push('A proposal waits for one tap. Nothing changes until a person says yes.');
+  if ((a.do || []).some(x => x.type === 'draft_report')) n.push(`The report is drafted and held. Nothing is sent to a client. Writing it costs AI, about ${Math.round(REPORT_AI_USD * 100)} cents a brand (an estimate), and it stops at the automations AI limit for the day. A draft still unsent at noon is listed in the team's daily "not sent yet" reminder in Slack, like any other draft.`);
+  if (((a.tell && a.tell.who) || []).some(p => p.kind === 'clients' || p.client)) n.push('A client is never told straight away. The message waits as a draft, you see the exact words, and it goes only when you say send.');
   return n;
 };
 const viewOf = (a, names) => ({ ...a, cursor: undefined, brand_name: a.brand === 'all' ? 'Any brand' : names[a.brand] || a.brand, sentence: sentence(a, { brandName: names[a.brand] }), notes: notesOf(a),
@@ -392,28 +418,97 @@ async function sendWays(env, d, email, ways, text) {
 
 /* ---------------- who is told ---------------- */
 async function setting(env, d, key, fb) { return safe(d.getSetting ? await d.getSetting(env, key).catch(() => null) : null, fb); }
-/** Emails for the people a sentence names. A job nobody is named for falls back to the automation's maker, and says so. */
-export async function receivers(env, d, a, ev) {
-  const out = new Map(), notes = [];
+const emailsIn = v => (Array.isArray(v) ? v : v && typeof v === 'object' ? Object.keys(v) : []).map(lower).filter(isEmail);
+const lowerKeys = o => Object.fromEntries(Object.entries(o && typeof o === 'object' ? o : {}).map(([k, v]) => [lower(k), v]));
+/** A client login: an email in settings.clientUsers that is not also on the team (the same rule as brandguard.js). */
+async function clientMap(env, d) { return lowerKeys(await setting(env, d, 'clientUsers', {})); }
+async function isClientOf(env, d, clients, email) { return !!clients[email] && !(d.emailAllowed && (await d.emailAllowed(env, email).catch(() => false))); }
+/** May this email be a team member here: someone who may sign in and is not a client. */
+async function onTeam(env, d, clients, email) { return d.emailAllowed ? !!(await d.emailAllowed(env, email).catch(() => false)) : !clients[email]; }
+
+/** "The whole team": everyone who may sign in and is not a client. settings.userRoles is NOT the team (it lists only
+ *  the exceptions, the view only people), so the list is built from every place a team email is written down: the
+ *  owner, invited guests, the people held to some brands, anyone with a role, anyone who saved how things reach
+ *  them or their own settings, anyone who made an automation, the people named in Who does what, and the names the
+ *  owner added there by hand. */
+export async function teamList(env, d) {
+  if (d.teamEmails) return (await d.teamEmails(env)).map(lower).filter(isEmail);
+  const found = new Set(), add = e => { e = lower(e); if (isEmail(e)) found.add(e); };
+  add(env.OWNER_EMAIL || d.ownerEmail);
+  emailsIn(await setting(env, d, 'allowedEmails', [])).forEach(add);
+  for (const k of ['userBrands', 'userRoles']) emailsIn(await setting(env, d, k, {})).forEach(add);
+  const saved = await setting(env, d, 'automationRoles', {});
+  emailsIn(saved.team).forEach(add);
+  for (const [k, m] of Object.entries(saved || {})) if (k !== 'team' && m && typeof m === 'object') Object.values(m).forEach(add);
+  const read = async sql => { for (const r of (await env.DB.prepare(sql).all().catch(() => ({ results: [] }))).results || []) add(r.e); };
+  await read(`SELECT SUBSTR(key, 11) AS e FROM settings WHERE key LIKE 'userPrefs:%'`);
+  await read(`SELECT person_id AS e FROM p_person_delivery`);
+  await read(`SELECT DISTINCT owner_person AS e FROM p_automation WHERE owner_person IS NOT NULL`);
+  const clients = await clientMap(env, d), out = [];
+  for (const e of found) if (await onTeam(env, d, clients, e)) out.push(e);
+  return out.sort();
+}
+
+/** The roles as saved: { all: { buyer: email }, <brand id>: { owner: email } }. */
+export async function rolesOf(env, d) {
+  const saved = await setting(env, d, 'automationRoles', {}), out = {};
+  for (const [k, m] of Object.entries(saved || {})) {
+    if (k === 'team' || !m || typeof m !== 'object') continue;
+    const one = {};
+    for (const r of Object.keys(ROLES)) if (isEmail(lower(m[r]))) one[r] = lower(m[r]);
+    if (Object.keys(one).length) out[k] = one;
+  }
+  return out;
+}
+/** In plain words, the roles a sentence names that nobody holds yet. */
+function roleNotes(a, roles, accts) {
+  const out = [];
+  for (const p of (a.tell && a.tell.who) || []) {
+    if (p.kind !== 'role' || (roles.all && roles.all[p.role])) continue;
+    const brands = a.brand === 'all' ? (accts || []).map(x => x.act_id) : [a.brand];
+    const without = brands.filter(b => !(roles[b] && roles[b][p.role]));
+    if (!without.length) continue;
+    out.push(`Nobody is set as ${ROLES[p.role]}${a.brand === 'all' && without.length < brands.length ? ' for some brands' : ''} yet, so the person who made this hears instead. Set it in Who does what.`);
+  }
+  return [...new Set(out)];
+}
+
+/** Emails for the people a sentence names. A job nobody is named for falls back to the automation's maker, and says so.
+ *  A client comes back as { as: 'client' } and only for an event about its own brand. */
+export async function receivers(env, d, a, ev, ctx = {}) {
+  const out = new Map(), notes = [], memo = ctx.memo || {};
   const add = (email, as) => { const e = lower(email); if (isEmail(e) && !out.has(e)) out.set(e, as); };
-  const roles = await setting(env, d, 'automationRoles', {});
+  const roles = memo.roles || (memo.roles = await rolesOf(env, d));
+  const clients = memo.clients || (memo.clients = await clientMap(env, d));
   for (const p of (a.tell && a.tell.who) || []) {
     if (p.kind === 'me') add(a.owner, 'me');
-    else if (p.kind === 'person') add(p.email, 'person');
-    else if (p.kind === 'team') {
-      const team = d.teamEmails ? await d.teamEmails(env) : Object.keys(await setting(env, d, 'userRoles', {}));
+    else if (p.kind === 'person') {
+      const e = lower(p.email);
+      if (!(await isClientOf(env, d, clients, e))) add(e, 'person');
+      else if (ev.brand_id && Array.isArray(clients[e].brands) && clients[e].brands.includes(ev.brand_id)) add(e, 'client');
+      else notes.push(`${e} is a client and this is not about their brand, so they were not told`);
+    } else if (p.kind === 'team') {
+      const team = memo.team || (memo.team = await teamList(env, d));
       for (const e of team) add(e, 'team');
       add(a.owner, 'team');
     } else if (p.kind === 'role') {
       const hit = (ev.brand_id && roles[ev.brand_id] && roles[ev.brand_id][p.role]) || (roles.all && roles.all[p.role]) || null;
       if (isEmail(hit)) add(hit, p.role);
       else { add(a.owner, 'me'); notes.push(`Nobody is set as ${ROLES[p.role]}${ev.brand ? ` for ${ev.brand}` : ''}, so its maker was told instead`); }
-    } else if (p.kind === 'clients' && ev.brand_id) {
-      const users = await setting(env, d, 'clientUsers', {});
-      for (const [e, c] of Object.entries(users || {})) if (c && Array.isArray(c.brands) && c.brands.includes(ev.brand_id)) add(e, 'client');
+    } else if (p.kind === 'clients') {
+      if (!ev.brand_id) { notes.push('This is not about one brand, so no client was told'); continue; }
+      for (const [e, c] of Object.entries(clients)) if (c && Array.isArray(c.brands) && c.brands.includes(ev.brand_id) && (await isClientOf(env, d, clients, e))) add(e, 'client');
     }
   }
   return { list: [...out].map(([email, as]) => ({ email, as })), notes };
+}
+/** May this team member hear about this brand. Someone held to some brands never hears about another one. */
+async function mayHear(env, d, ctx, email, brand) {
+  if (!brand || !d.brandsFor) return true;
+  const memo = ctx.memo || (ctx.memo = {}), m = memo.allow || (memo.allow = new Map());
+  if (!m.has(email)) m.set(email, await d.brandsFor(env, email).catch(() => new Set()));
+  const only = m.get(email);
+  return !only || only.has(brand);
 }
 
 /* ---------------- triggers: what happened ---------------- */
@@ -470,7 +565,7 @@ export async function eventsFor(env, d, a, ctx) {
     const acct = a.brand === 'all' ? null : accts.find(x => x.act_id === a.brand);
     const c = clockIn(acct ? acct.tz : d.orgTz || ORG_TZ, now);
     const dayOk = w.every === 'day' || (w.every === 'weekday' && !['sat', 'sun'].includes(c.dow)) || (w.every === 'week' && c.dow === (w.day || 'mon')) || (w.every === 'month' && c.date.slice(8) === '01');
-    if (ctx.dry || (dayOk && c.hour >= w.hour && c.hour <= w.hour + 3)) out.push({ type: 'schedule', key: `schedule:${c.date}`, brand_id: acct ? acct.act_id : null, brand: acct ? acct.name : '', problem: false, title: a.name || 'On schedule' });
+    if (ctx.dry || (dayOk && c.hour >= w.hour && c.hour <= w.hour + 3)) out.push({ type: 'schedule', key: `schedule:${c.date}`, brand_id: acct ? acct.act_id : null, brand: acct ? acct.name : '', problem: false, title: a.name || 'On schedule', last_chance: c.hour >= w.hour + 3 });
   } else if (w.type === 'card_status') {
     const { results } = await env.DB.prepare(`SELECT id, act_id, num, title, board_at FROM p_br_batch WHERE board_stage = ?1 AND board_at >= ?2 ORDER BY board_at LIMIT 200`).bind(w.status, sqlTime(since)).all().catch(() => ({ results: [] }));
     for (const c of results || []) if (mine(c.act_id)) out.push(card(c, w.status, String(c.board_at || '').slice(0, 10)));
@@ -546,19 +641,27 @@ function passesIf(a, ev, now) {
 async function addNotice(env, n) {
   const id = rid('nt_');
   await env.DB.prepare(`INSERT INTO p_notice (id, org_id, person_id, brand_id, run_id, automation_id, kind, title, body, button_json, state, home, due_at, hold_until, sent_json, created_at)
-    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 'open', ?11, ?12, ?13, ?14, ?15)`)
+    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?16, ?11, ?12, ?13, ?14, ?15)`)
     .bind(id, ORG, lower(n.person), n.brand_id || null, n.run_id || null, n.automation_id || null, n.kind || 'tell', noDash(clip(n.title, 300)), n.body ? noDash(clip(n.body, 1500)) : null,
-      n.button ? JSON.stringify(n.button) : null, n.home === false ? 0 : 1, n.due_at || null, n.hold_until || null, JSON.stringify(n.sent || {}), n.at).run();
+      n.button ? JSON.stringify(n.button) : null, n.home === false ? 0 : 1, n.due_at || null, n.hold_until || null, JSON.stringify(n.sent || {}), n.at, n.state || 'open').run();
   return id;
 }
 
-/** Tell the people the sentence names, each by their own choice. dry = say what would happen and do nothing. */
+/** Tell the people the sentence names, each by their own choice. dry = say what would happen and do nothing.
+ *  A team member held to some brands is skipped for another brand BEFORE anything is sent. A client is never told
+ *  here: its plain line is kept as a draft and the automation's maker gets one row to say send or no. */
 async function tell(env, d, a, ev, ctx, { kind = 'tell', title, body, button, must, run_id } = {}) {
-  const { list, notes } = await receivers(env, d, a, ev);
-  const told = [], at = ctx.now.toISOString(), text = title || a.tell.text || ev.title;
+  const { list, notes } = await receivers(env, d, a, ev, ctx);
+  const told = [], drafts = [], at = ctx.now.toISOString(), text = title || a.tell.text || ev.title, clientText = a.tell.text || ev.title;
   for (const p of list) {
-    const client = p.as === 'client';
-    const plan = planDelivery(await choiceFor(env, a.id, p.email), { ...ev, must: must || ev.must }, ctx.now, { client });
+    if (p.as === 'client') {
+      if (kind !== 'tell') { told.push({ who: p.email, reached: false, why: 'A client is never sent a task or a suggested change' }); continue; }
+      if (!ctx.dry) drafts.push({ email: p.email, id: await addNotice(env, { person: p.email, brand_id: ev.brand_id, run_id, automation_id: a.id, kind: 'tell', title: clientText, home: false, state: 'draft', at }) });
+      told.push({ who: p.email, reached: true, ways: ['bell'], held: CLIENT_HOLD, draft: true });
+      continue;
+    }
+    if (!(await mayHear(env, d, ctx, p.email, ev.brand_id))) { told.push({ who: p.email, reached: false, why: `May not see ${ev.brand || 'this brand'}, so they were not told` }); continue; }
+    const plan = planDelivery(await choiceFor(env, a.id, p.email), { ...ev, must: must || ev.must }, ctx.now);
     if (plan.skip) { told.push({ who: p.email, reached: false, why: plan.skip }); continue; }
     const ways = ['bell', ...(plan.notice.home ? ['home'] : []), ...plan.send];
     if (ctx.dry) { told.push({ who: p.email, reached: true, ways, held: plan.notice.held_why || null, later: plan.later || [] }); continue; }
@@ -567,12 +670,21 @@ async function tell(env, d, a, ev, ctx, { kind = 'tell', title, body, button, mu
       sent: { bell: at, ...(plan.notice.home ? { home: at } : {}), ...sent, ...(plan.later && plan.later.length ? { later: plan.later } : {}) }, at });
     told.push({ who: p.email, reached: true, ways, sent, held: plan.notice.held_why || null });
   }
+  if (drafts.length) {
+    const to = isEmail(a.owner) ? a.owner : lower(env.OWNER_EMAIL || d.ownerEmail || '');
+    if (isEmail(to)) await addNotice(env, { person: to, brand_id: ev.brand_id, run_id, automation_id: a.id, kind: 'release', title: `A message for ${ev.brand ? `${ev.brand}'s client` : 'a client'} waits for your yes`,
+      body: `"${clientText}" would go to ${drafts.map(x => x.email).join(', ')}. Nothing reaches them until you say send.`,
+      button: { kind: 'client_message', notices: drafts.map(x => x.id), to: drafts.map(x => x.email), text: clientText, answers: ['send', 'no'] }, home: true, at });
+    else notes.push('Nobody could be asked to send the client message, so it stays a draft');
+  }
   return { type: 'tell', ok: true, text, told, notes };
 }
 
 async function aiSpend(env, d, day) { return +(await setting(env, d, `aiSpend:auto:day:${day}`, 0)) || 0; }
+async function aiCap(env, d) { return +(await setting(env, d, 'automationsAiDayCap', AI_DAY_CAP)) || AI_DAY_CAP; }
+/** Count AI spend for the day and the month. u = { in, out } tokens, or { usd } for a step that only has an estimate. */
 async function aiRecord(env, d, day, brand, u) {
-  const usd = Math.round(((u.in || 0) * AI_PRICE[0] + (u.out || 0) * AI_PRICE[1]) / 1e6 * 1e6) / 1e6;
+  const usd = u.usd != null ? +u.usd : Math.round(((u.in || 0) * AI_PRICE[0] + (u.out || 0) * AI_PRICE[1]) / 1e6 * 1e6) / 1e6;
   if (!d.putSetting) return usd;
   const mk = `aiSpend:auto:${day.slice(0, 7)}`, m = await setting(env, d, mk, {});
   const next = { calls: (m.calls || 0) + 1, in: (m.in || 0) + (u.in || 0), out: (m.out || 0) + (u.out || 0), usd: Math.round(((m.usd || 0) + usd) * 1e6) / 1e6, by: { ...(m.by || {}), [brand || 'none']: Math.round((((m.by || {})[brand || 'none'] || 0) + usd) * 1e6) / 1e6 } };
@@ -588,20 +700,25 @@ Answer with JSON only: {"lines":[{"key":"spelling"|"dates"|"price"|"offer"|"numb
 - number: the ad number in the title and in the copy disagree.
 - headline: a headline longer than 32 characters, when one is marked as the headline.
 Use "could_not" with the reason when the card does not hold what you would need. Never judge whether the ad is good. Never guess. One line per key, six lines.`;
-/** The AI look at a card. Costs AI: tokens and dollars are counted. Notes are kept as a flagged draft. It never moves a card. */
+/** The AI look at a card. Costs AI: tokens and dollars are counted. Notes are kept as a flagged draft. It never moves a card.
+ *  retry: true = it could not run this time (no room, or the AI did not answer) and is worth another try. */
 export async function aiCheck(env, d, a, ev, ctx, run_id) {
+  if (ev.folded) return { type: 'ai_check', ok: true, skipped: true, text: `Not checked: ${ev.folded} cards came at once, too many to check each one` };
   if (ev.object_type !== 'card' || !ev.object_id) return { type: 'ai_check', ok: false, text: 'Could not check: there is no card on this event' };
   if (ctx.dry) return { type: 'ai_check', ok: true, dry: true, text: `Would ask the AI checker to read the words on "${ev.card_title || 'the card'}". This step costs AI, about a cent` };
-  const day = clockIn(ORG_TZ, ctx.now).date, cap = +(await setting(env, d, 'automationsAiDayCap', AI_DAY_CAP)) || AI_DAY_CAP;
+  const day = clockIn(ORG_TZ, ctx.now).date, cap = await aiCap(env, d);
   if ((await aiSpend(env, d, day)) >= cap) return { type: 'ai_check', ok: false, over_limit: true, text: `Not checked: today's AI limit for automations ($${cap}) is used up` };
   if (!env.ANTHROPIC_API_KEY || !d.xfetch) return { type: 'ai_check', ok: false, text: 'Could not check: the AI is not connected here' };
-  if (d.subCanAfford && !d.subCanAfford(4)) return { type: 'ai_check', ok: false, text: 'Could not check: no room left this hour' };
+  if (d.subCanAfford && !d.subCanAfford(4)) return { type: 'ai_check', ok: false, retry: true, text: 'Could not check: no room left this hour' };
   const c = await env.DB.prepare(`SELECT id, act_id, num, title, brief_text FROM p_br_batch WHERE id = ?1`).bind(ev.object_id).first().catch(() => null);
   if (!c) return { type: 'ai_check', ok: false, text: 'Could not check: the card is gone' };
-  const res = await d.xfetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-    body: JSON.stringify({ model: AI_MODEL, max_tokens: 700, system: CHECK_SYSTEM, messages: [{ role: 'user', content: JSON.stringify({ number: c.num, title: clip(c.title, 300), brief_and_copy: clip(c.brief_text, 9000) }) }] }) });
-  const j = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(j.error?.message || `The AI answered ${res.status}`);
+  let res, j;
+  try {
+    res = await d.xfetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+      body: JSON.stringify({ model: AI_MODEL, max_tokens: 700, system: CHECK_SYSTEM, messages: [{ role: 'user', content: JSON.stringify({ number: c.num, title: clip(c.title, 300), brief_and_copy: clip(c.brief_text, 9000) }) }] }) });
+    j = await res.json().catch(() => ({}));
+  } catch (e) { return { type: 'ai_check', ok: false, retry: true, text: `Could not check: the AI could not be reached (${noDash(clip(e.message, 120))})` }; }
+  if (!res.ok) return { type: 'ai_check', ok: false, retry: true, text: `Could not check: ${noDash(clip(j.error?.message || `the AI answered ${res.status}`, 160))}` };
   const u = { in: j.usage?.input_tokens || 0, out: j.usage?.output_tokens || 0 };
   const usd = await aiRecord(env, d, day, c.act_id, u);
   const raw = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
@@ -622,99 +739,181 @@ export async function aiCheck(env, d, a, ev, ctx, run_id) {
 const lastMonday = date => { let x = date; while (DOW[new Date(x + 'T12:00:00Z').getUTCDay()] !== 'mon') x = addDay(x, -1); return addDay(x, -7); };
 const lastMonthStart = date => { const t = new Date(date.slice(0, 7) + '-01T12:00:00Z'); t.setUTCMonth(t.getUTCMonth() - 1); return t.toISOString().slice(0, 10); };
 
-/** Run the sentence's actions for one event. Returns the "did" list. dry = describe only. */
+/** Draft the report for each brand the event covers. Costs AI (the report engine writes the summary with Claude), so it
+ *  checks the automations day limit first and counts each one at REPORT_AI_USD, an estimate. Never sends anything. */
+async function draftReports(env, d, a, ev, ctx, x) {
+  const accts = ev.brand_id ? ctx.accts.filter(b => b.act_id === ev.brand_id) : brandsOf(a, ctx.accts);
+  const made = [], cents = Math.round(REPORT_AI_USD * 100), s = n => (n === 1 ? '' : 's');
+  const day = clockIn(ORG_TZ, ctx.now).date, cap = ctx.dry ? 0 : await aiCap(env, d);
+  for (const acct of accts) {
+    const today = clockIn(acct.tz, ctx.now).date, start = x.period === 'monthly' ? lastMonthStart(today) : lastMonday(today), base = { brand: acct.name, start };
+    if (ctx.dry) { made.push({ ...base, ok: true, dry: true }); continue; }
+    if (!d.makeReport) { made.push({ ...base, ok: false, why: 'the report engine is not reachable here' }); continue; }
+    const have = await env.DB.prepare(`SELECT status FROM reports WHERE act_id = ?1 AND period = ?2 AND period_start = ?3`).bind(acct.act_id, x.period, start).first().catch(() => null);
+    if (have) { made.push({ ...base, ok: true, why: have.status === 'sent' ? 'Already sent' : 'Already drafted' }); continue; }
+    if ((await aiSpend(env, d, day)) + REPORT_AI_USD > cap) { made.push({ ...base, ok: false, over_limit: true, why: `today's AI limit for automations ($${cap}) is used up` }); continue; }
+    if (d.subCanAfford && !d.subCanAfford(60)) { made.push({ ...base, ok: false, retry: true, why: 'no room left this hour' }); continue; }
+    try {
+      const r = await d.makeReport(env, acct, x.period, start);
+      if (r && r.narrative_error) made.push({ ...base, ok: true, why: `The numbers are in. The summary could not be written: ${noDash(clip(r.narrative_error, 160))}` });
+      else made.push({ ...base, ok: true, usd: await aiRecord(env, d, day, acct.act_id, { usd: REPORT_AI_USD }) });
+    } catch (e) { made.push({ ...base, ok: false, retry: true, why: noDash(clip(e.message, 200)) }); }
+  }
+  const bad = made.filter(m => !m.ok), usd = Math.round(made.reduce((t, m) => t + (m.usd || 0), 0) * 1e6) / 1e6, n = made.length - bad.length;
+  const text = ctx.dry ? `Would draft the ${x.period} report for ${made.length} brand${s(made.length)} and hold it. Nothing is sent to a client. This step costs AI, about ${cents} cents a brand`
+    : `Drafted the ${x.period} report for ${bad.length ? `${n} of ${made.length}` : made.length} brand${s(made.length)} and held it. Nothing is sent to a client`
+      + (usd ? `. AI: about $${usd.toFixed(2)}, an estimate` : '') + (bad.length ? `. Could not draft ${bad.map(m => `${m.brand}: ${m.why}`).join('; ')}` : '');
+  return { type: 'draft_report', ok: !bad.length, retry: bad.some(m => m.retry), over_limit: bad.some(m => m.over_limit), made, text, ...(usd ? { ai: { in: 0, out: 0, usd, estimate: true } } : {}) };
+}
+
+/** Run the sentence's actions for one event. Returns the "did" list. dry = describe only.
+ *  The steps that can fail to run (the AI checker, a report draft) go first. While one of them is worth another try
+ *  and tries are left (ctx.lastTry is false), nothing else happens: no task, no suggestion, no tell, so a later try
+ *  never tells anyone twice. On the last try the rest runs and the tell says plainly what could not be done. */
 export async function act(env, d, a, ev, ctx, run_id) {
-  const did = [];
+  const did = [], steps = a.do || [];
   let checkText = null, checkFlag = false;
-  for (const x of a.do || []) {
+  for (const x of steps) {
     if (x.type === 'ai_check') { const r = await aiCheck(env, d, a, ev, ctx, run_id); did.push(r); if (r.ok && !r.dry) { checkText = r.text; checkFlag = !!r.flagged; } }
-    else if (x.type === 'task') {
+    else if (x.type === 'draft_report') did.push(await draftReports(env, d, a, ev, ctx, x));
+  }
+  if (!ctx.dry && did.some(x => x.retry)) {
+    if (!ctx.lastTry) return did;
+    for (const x of did) if (x.retry) { x.retry = false; x.gave_up = true; }
+  }
+  for (const x of steps) {
+    if (x.type === 'task') {
       const due = addDay(clockIn(ORG_TZ, ctx.now).date, x.due_days || 0);
       const r = await tell(env, d, { ...a, tell: { ...a.tell, text: '' } }, { ...ev, problem: true }, ctx, { kind: 'task', title: `${x.text}${ev.brand ? ` (${ev.brand})` : ''}`, body: ev.title, run_id });
       if (!ctx.dry) await env.DB.prepare(`UPDATE p_notice SET due_at = ?2, home = 1 WHERE run_id = ?1 AND kind = 'task'`).bind(run_id, due).run().catch(() => {});
       did.push({ ...r, type: 'task', text: `${ctx.dry ? 'Would put' : 'Put'} "${x.text}" on the home list, due ${due}`, due });
-    } else if (x.type === 'draft_report') {
-      const accts = ev.brand_id ? ctx.accts.filter(b => b.act_id === ev.brand_id) : brandsOf(a, ctx.accts);
-      const made = [];
-      for (const acct of accts) {
-        const today = clockIn(acct.tz, ctx.now).date, start = x.period === 'monthly' ? lastMonthStart(today) : lastMonday(today);
-        if (ctx.dry) { made.push({ brand: acct.name, start, ok: true, dry: true }); continue; }
-        if (!d.makeReport) { made.push({ brand: acct.name, start, ok: false, why: 'The report engine is not reachable here' }); continue; }
-        if (d.subCanAfford && !d.subCanAfford(60)) { made.push({ brand: acct.name, start, ok: false, why: 'No room left this hour, it will try again' }); continue; }
-        const have = await env.DB.prepare(`SELECT status FROM reports WHERE act_id = ?1 AND period = ?2 AND period_start = ?3`).bind(acct.act_id, x.period, start).first().catch(() => null);
-        if (have) { made.push({ brand: acct.name, start, ok: true, why: have.status === 'sent' ? 'Already sent' : 'Already drafted' }); continue; }
-        await d.makeReport(env, acct, x.period, start).then(() => made.push({ brand: acct.name, start, ok: true }), e => made.push({ brand: acct.name, start, ok: false, why: e.message }));
-      }
-      did.push({ type: 'draft_report', ok: made.every(m => m.ok), made, text: `${ctx.dry ? 'Would draft' : 'Drafted'} the ${x.period} report for ${made.length} brand${made.length === 1 ? '' : 's'} and held it. Nothing is sent to a client` });
     } else if (x.type === 'propose' || x.type === 'stop_spend') {
-      /* Never applied here. The tap hands the screen the existing write route to call as that person, with no "big" mark. */
-      const button = { kind: 'proposal', change: x.change, object_type: ev.object_type || null, object_id: ev.object_id || null, why: x.note || ev.title, old: ev.old ?? null, new: ev.new ?? null,
-        yes: { method: 'POST', path: '/api/meta/write', body: { act: ev.brand_id || null, kind: x.change === 'min_off' ? 'min_spend' : x.change === 'budget' ? 'budget' : 'pause', object: ev.object_id || null } }, undo_hours: 24 };
-      const r = await tell(env, d, a.tell.who.length ? a : { ...a, tell: { who: [{ kind: 'me' }], text: '' } }, { ...ev, problem: true }, ctx, { kind: 'proposal', title: `Proposed: ${PROPOSALS[x.change]}${ev.brand ? ` for ${ev.brand}` : ''}`, body: x.note || ev.title, button, must: 'tap', run_id });
-      did.push({ ...r, type: x.type, waits_for_tap: true, text: `${x.type === 'stop_spend' ? 'Stop spend alone does not run in this version, so this ' : 'This '}${ctx.dry ? 'would arrive' : 'arrived'} as a proposal that waits for a tap. Nothing was changed` });
+      /* A suggestion only. No trigger carries a campaign, ad set or ad id, so there is nothing to hand a write route, and
+         the row has no button that changes anything. The person makes the change in Ads and answers "I did it" or "No". */
+      const button = { kind: 'suggestion', change: x.change, why: x.note || ev.title, by_hand: true, answers: ['did_it', 'no'] };
+      const r = await tell(env, d, a.tell.who.length ? a : { ...a, tell: { who: [{ kind: 'me' }], text: '' } }, { ...ev, problem: true }, ctx, { kind: 'proposal', title: `Suggested: ${PROPOSALS[x.change]}${ev.brand ? ` for ${ev.brand}` : ''}`,
+        body: `${x.note || ev.title}. Locus does not make this change. Make it in Ads, then tap "I did it", or tap "No".`, button, must: 'tap', run_id });
+      did.push({ ...r, type: x.type, waits_for_tap: r.told.some(t => t.reached), text: `${x.type === 'stop_spend' ? 'Stop spend alone does not run in this version, so this ' : 'This '}${ctx.dry ? 'would arrive' : 'arrived'} as a suggestion that waits for an answer. Locus changed nothing and does not make this change in this version` });
     }
   }
-  /* A task or a proposal already IS the row each person gets, so the plain tell is only for a sentence without one. */
-  if ((a.tell.who || []).length && !(a.do || []).some(x => ['propose', 'stop_spend', 'task'].includes(x.type))) {
-    did.push(await tell(env, d, a, checkFlag ? { ...ev, problem: true } : ev, ctx, { title: a.tell.text || (checkText ? `${ev.title}. ${checkText}` : ev.title), run_id }));
+  /* A task or a suggestion already IS the row each person gets, so the plain tell is only for a sentence without one. */
+  if ((a.tell.who || []).length && !steps.some(x => ['propose', 'stop_spend', 'task'].includes(x.type))) {
+    const bad = did.filter(x => x.ok === false).map(x => x.text);
+    did.push(await tell(env, d, a, checkFlag || bad.length ? { ...ev, problem: true } : ev, ctx, { title: a.tell.text || [ev.title, checkText, ...bad].filter(Boolean).join('. '), body: a.tell.text && bad.length ? bad.join('. ') : undefined, run_id }));
   }
   return did;
 }
 
 /* ---------------- the runner ---------------- */
-async function repeatSkip(env, a, ev, now) {
-  if (!ev.thing) return null;
-  const first = await env.DB.prepare(`SELECT MIN(started_at) AS t FROM p_automation_run WHERE automation_id = ?1 AND thing_key = ?2 AND result IN ('done', 'waiting_for_tap') AND started_at >= ?3`)
-    .bind(a.id, ev.thing, new Date(now.getTime() - 14 * 864e5).toISOString()).first().catch(() => null);
-  if (!first || !first.t) return null;
-  const n = dayDiff(clockIn(ORG_TZ, now).date, clockIn(ORG_TZ, new Date(first.t)).date);
-  if (REPEAT_DAYS.includes(n)) return null;
-  const next = REPEAT_DAYS.find(x => x > n);
-  return `Already told about this ${n} day${n === 1 ? '' : 's'} ago. ${next ? `The next reminder is in ${next - n} day${next - n === 1 ? '' : 's'}` : 'It has been reminded four times, so it stays quiet now'}`;
+/** What the log already holds for these events: the keys that are finished, and the tries used on the ones that could not run. */
+async function seenKeys(env, a, keys) {
+  const done = new Set(), tries = new Map();
+  for (let i = 0; i < keys.length; i += 80) {
+    const part = keys.slice(i, i + 80);
+    const { results } = await env.DB.prepare(`SELECT event_key AS k, result AS r FROM p_automation_run WHERE automation_id = ?1 AND event_key IN (${part.map((_, j) => `?${j + 2}`).join(', ')})`).bind(a.id, ...part).all().catch(() => ({ results: [] }));
+    for (const r of results || []) { if (r.r === 'retry') tries.set(r.k, (tries.get(r.k) || 0) + 1); else done.add(r.k); }
+  }
+  return { done, tries };
 }
-const resultOf = did => (did.some(x => x.waits_for_tap) ? 'waiting_for_tap' : did.some(x => x.over_limit) ? 'over_limit'
+/** The problem each thing is in: when it was last seen and when this stretch of it began. A thing not seen for
+ *  EPISODE_GAP days is not here, so it starts over. One read for the whole automation. */
+async function episodes(env, a, now) {
+  const { results } = await env.DB.prepare(`SELECT thing_key AS k, MAX(started_at) AS last, episode_at AS ep FROM p_automation_run WHERE automation_id = ?1 AND thing_key IS NOT NULL AND started_at >= ?2 GROUP BY thing_key`)
+    .bind(a.id, new Date(now.getTime() - EPISODE_GAP * 864e5).toISOString()).all().catch(() => ({ results: [] }));
+  return new Map((results || []).map(r => [r.k, r]));
+}
+/** The fixed repeat rule for a thing that stays wrong: the day it started, +1, +3, +7, then quiet until it has been
+ *  gone for EPISODE_GAP days. Counted from the first day it was SEEN, whatever happened to that first run (told,
+ *  held for the morning read, folded into one row), so a held row cannot restart the rule every day. */
+export function repeatOf(seen, now) {
+  if (!seen) return { episode: now.toISOString(), quiet: null };
+  const episode = seen.ep || seen.last, n = dayDiff(clockIn(ORG_TZ, now).date, clockIn(ORG_TZ, new Date(episode)).date);
+  if (REPEAT_DAYS.includes(n)) return { episode, quiet: null };
+  const next = REPEAT_DAYS.find(x => x > n);
+  return { episode, quiet: `Already told about this ${n} day${n === 1 ? '' : 's'} ago. ${next ? `The next reminder is in ${next - n} day${next - n === 1 ? '' : 's'}` : 'It has been reminded four times, so it stays quiet until it has been gone for a few days'}` };
+}
+const resultOf = did => (did.some(x => x.retry) ? 'retry' : did.some(x => x.waits_for_tap) ? 'waiting_for_tap' : did.some(x => x.over_limit) ? 'over_limit' : did.some(x => x.ok === false) ? 'failed'
   : did.length && did.every(x => x.type === 'tell' && x.told && x.told.length && x.told.every(t => !t.reached)) ? 'skipped' : did.some(x => x.told && x.told.some(t => t.held)) && !did.some(x => x.told && x.told.some(t => t.reached && !t.held)) ? 'held' : 'done');
 const whyOf = (did, extra = []) => noDash([...did.map(x => x.text).filter(Boolean), ...did.flatMap(x => (x.told || []).filter(t => !t.reached).map(t => `${t.who}: ${t.why}`)),
   ...did.flatMap(x => (x.told || []).filter(t => t.held).map(t => `${t.who}: ${t.held}`)), ...did.flatMap(x => x.notes || []), ...extra].join('. ')).slice(0, 1200);
 
-/** One automation, now. Returns { runs: [...] } (dry: nothing written, nothing sent). */
+/** Write run rows, six to a statement (a statement holds 100 values at most). */
+async function saveRuns(env, a, rows, started, finished) {
+  for (let i = 0; i < rows.length; i += 6) {
+    const part = rows.slice(i, i + 6), vals = [a.id, ORG, started, finished];
+    const sql = part.map(r => { const at = vals.length; vals.push(r.id, r.ev.brand_id || null, r.ev.key, r.ev.thing || null, r.result, r.why || '', noDash(clip(r.ev.title, 300)), JSON.stringify(r.did || []).slice(0, 20000), r.ai?.in || 0, r.ai?.out || 0, r.ai?.usd || 0, r.ev.episode || null);
+      return `(?${at + 1}, ?1, ?2, ?${at + 2}, ?${at + 3}, ?${at + 4}, ?3, ?4, ?${at + 5}, ?${at + 6}, ?${at + 7}, ?${at + 8}, ?${at + 9}, ?${at + 10}, ?${at + 11}, ?${at + 12})`; }).join(', ');
+    await env.DB.prepare(`INSERT INTO p_automation_run (id, automation_id, org_id, brand_id, event_key, thing_key, started_at, finished_at, result, why, title, did_json, ai_in, ai_out, ai_usd, episode_at) VALUES ${sql}`).bind(...vals).run();
+  }
+}
+const aiOf = did => did.reduce((s, x) => ({ in: s.in + (x.ai?.in || 0), out: s.out + (x.ai?.out || 0), usd: s.usd + (x.ai?.usd || 0) }), { in: 0, out: 0, usd: 0 });
+
+/** One automation, now. Returns { runs: [...], skipped, hold } (dry: nothing written, nothing sent).
+ *  hold = something is left for the next tick (no room this hour, or a step to try again), so the cursor must not move. */
 export async function runOne(env, d, a, ctx) {
   const { events: all, skipped } = await eventsFor(env, d, a, ctx);
   let events = all.filter(ev => { const no = passesIf(a, ev, ctx.now); if (no) skipped.push(`${ev.title}: ${no}`); return !no; });
-  if (events.length > FOLD_OVER) {
-    const date = clockIn(ORG_TZ, ctx.now).date;
-    events = [{ type: a.when.type, key: `fold:${date}:${ctx.now.getUTCHours()}`, brand_id: a.brand === 'all' ? null : a.brand, brand: '', problem: events.some(e => e.problem), title: `${events.length} things matched "${a.name}". Open the list`, folded: events.length }];
-  }
+  const foldOf = list => ({ type: a.when.type, key: `fold:${rid('')}`, brand_id: a.brand === 'all' ? null : a.brand, brand: '', problem: list.some(e => e.problem), title: `${list.length} things matched "${a.name}". Open the list`, folded: list.length });
   const runs = [];
-  for (const ev of events) {
-    if (ctx.dry) { const did = await act(env, d, a, ev, ctx, null); runs.push({ test: true, title: ev.title, brand: ev.brand || null, result: resultOf(did), why: whyOf(did), did }); continue; }
-    if (d.subCanAfford && !d.subCanAfford(20)) { runs.push({ deferred: true }); break; }
-    if (await env.DB.prepare(`SELECT 1 AS x FROM p_automation_run WHERE automation_id = ?1 AND event_key = ?2 LIMIT 1`).bind(a.id, ev.key).first().catch(() => null)) continue;
-    const id = rid('ar_'), started = ctx.now.toISOString();
-    let result = 'done', why = '', did = [];
-    const quiet = await repeatSkip(env, a, ev, ctx.now);
-    if (quiet) { result = 'skipped'; why = quiet; }
-    else try { did = await act(env, d, a, ev, ctx, id); result = resultOf(did); why = whyOf(did); } catch (e) { result = 'failed'; why = noDash(clip(e.message, 400)); }
-    const ai = did.reduce((s, x) => ({ in: s.in + (x.ai?.in || 0), out: s.out + (x.ai?.out || 0), usd: s.usd + (x.ai?.usd || 0) }), { in: 0, out: 0, usd: 0 });
-    await env.DB.prepare(`INSERT INTO p_automation_run (id, automation_id, org_id, brand_id, event_key, thing_key, started_at, finished_at, result, why, title, did_json, ai_in, ai_out, ai_usd)
-      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)`)
-      .bind(id, a.id, ORG, ev.brand_id || null, ev.key, ev.thing || null, started, nowOf(d).toISOString(), result, why, noDash(clip(ev.title, 300)), JSON.stringify(did).slice(0, 20000), ai.in, ai.out, ai.usd).run();
-    runs.push({ id, title: ev.title, result, why });
+  if (ctx.dry) {
+    if (events.length > FOLD_OVER) events = [foldOf(events)];
+    for (const ev of events) { const did = await act(env, d, a, ev, ctx, null); runs.push({ test: true, title: ev.title, brand: ev.brand || null, result: resultOf(did), why: whyOf(did), did }); }
+    return { runs, skipped, hold: false };
   }
-  return { runs, skipped };
+  if (!events.length) return { runs, skipped, hold: false };
+  /* Once per event: leave out what the log already holds. Then the repeat rule, read once for every thing. */
+  const { done, tries } = await seenKeys(env, a, events.map(e => e.key));
+  events = events.filter(e => !done.has(e.key));
+  if (!events.length) return { runs, skipped, hold: false };
+  const seen = events.some(e => e.thing) ? await episodes(env, a, ctx.now) : new Map();
+  const started = ctx.now.toISOString(), fin = () => nowOf(d).toISOString(), quiet = [], fresh = [];
+  for (const ev of events) {
+    if (!ev.thing) { fresh.push(ev); continue; }
+    const rp = repeatOf(seen.get(ev.thing), ctx.now);
+    ev.episode = rp.episode;
+    if (rp.quiet) quiet.push({ id: rid('ar_'), ev, result: 'skipped', why: rp.quiet }); else fresh.push(ev);
+  }
+  if (quiet.length) { await saveRuns(env, a, quiet, started, fin()); runs.push(...quiet.map(r => ({ id: r.id, title: r.ev.title, result: r.result, why: r.why }))); }
+  const one = async (ev, c2, tail = '') => {
+    const id = rid('ar_');
+    let result = 'done', why = '', did = [];
+    try { did = await act(env, d, a, ev, c2, id); result = resultOf(did); why = whyOf(did); } catch (e) { result = 'failed'; why = noDash(clip(e.message, 400)); }
+    if (result === 'retry') why = clip(`${why}. It will try again on the next pass${tail}`, 1200);
+    await saveRuns(env, a, [{ id, ev, result, why, did, ai: aiOf(did) }], started, fin());
+    runs.push({ id, title: ev.title, result, why });
+    return result;
+  };
+  /* More than FOLD_OVER at once: ONE row for the people, and every match still goes in the log under its own key and
+     its own thing, so the next hour does not tell it again and the repeat rule keeps counting. */
+  if (fresh.length > FOLD_OVER) {
+    if (d.subCanAfford && !d.subCanAfford(20 + Math.ceil(fresh.length / 6))) return { runs, skipped, hold: true };
+    const result = await one(foldOf(fresh), { ...ctx, lastTry: true });
+    await saveRuns(env, a, fresh.map(ev => ({ id: rid('ar_'), ev, result: 'folded', why: `Told as one row with ${fresh.length - 1} others (${result})` })), started, fin());
+    return { runs, skipped, hold: false };
+  }
+  let hold = false;
+  for (const ev of fresh) {
+    if (d.subCanAfford && !d.subCanAfford(20)) { hold = true; break; }
+    const n = tries.get(ev.key) || 0, lastTry = n + 1 >= RETRY_MAX || !!ev.last_chance;
+    if ((await one(ev, { ...ctx, lastTry }, ` (try ${n + 1} of ${RETRY_MAX})`)) === 'retry') hold = true;
+  }
+  return { runs, skipped, hold };
 }
 
-/** Held rows whose hour has come: one message per person, by the ways they chose. */
-async function deliverHeld(env, d, now) {
-  const { results } = await env.DB.prepare(`SELECT id, person_id, title, sent_json FROM p_notice WHERE state = 'open' AND hold_until IS NOT NULL AND hold_until <= ?1 ORDER BY created_at LIMIT 300`).bind(now.toISOString()).all().catch(() => ({ results: [] }));
+/** Held rows whose hour has come: one message per person, by the ways they chose. A row about a brand the person
+ *  may no longer see is let go without being read out. */
+async function deliverHeld(env, d, now, ctx = {}) {
+  const { results } = await env.DB.prepare(`SELECT id, person_id, brand_id, title, sent_json FROM p_notice WHERE state = 'open' AND hold_until IS NOT NULL AND hold_until <= ?1 ORDER BY created_at LIMIT 300`).bind(now.toISOString()).all().catch(() => ({ results: [] }));
   const by = new Map();
   for (const r of results || []) { if (!by.has(r.person_id)) by.set(r.person_id, []); by.get(r.person_id).push(r); }
   let sent = 0;
   for (const [person, rows] of by) {
-    const later = [...new Set(rows.flatMap(r => safe(r.sent_json, {}).later || []))];
-    const out = later.length ? await sendWays(env, d, person, later, `${rows.length} thing${rows.length === 1 ? '' : 's'} for you:\n${rows.slice(0, 20).map(r => `• ${r.title}`).join('\n')}${rows.length > 20 ? `\nand ${rows.length - 20} more in the bell` : ''}`) : {};
-    for (const r of rows) await env.DB.prepare(`UPDATE p_notice SET hold_until = NULL, sent_json = ?2 WHERE id = ?1`).bind(r.id, JSON.stringify({ ...safe(r.sent_json, {}), ...out, released: now.toISOString() })).run().catch(() => {});
-    sent += rows.length;
+    const say = [];
+    for (const r of rows) if (await mayHear(env, d, ctx, person, r.brand_id)) say.push(r);
+    const later = [...new Set(say.flatMap(r => safe(r.sent_json, {}).later || []))];
+    const out = later.length ? await sendWays(env, d, person, later, `${say.length} thing${say.length === 1 ? '' : 's'} for you:\n${say.slice(0, 20).map(r => `• ${r.title}`).join('\n')}${say.length > 20 ? `\nand ${say.length - 20} more in the bell` : ''}`) : {};
+    for (const r of rows) await env.DB.prepare(`UPDATE p_notice SET hold_until = NULL, sent_json = ?2 WHERE id = ?1`).bind(r.id, JSON.stringify({ ...safe(r.sent_json, {}), ...(say.includes(r) ? out : {}), released: now.toISOString() })).run().catch(() => {});
+    sent += say.length;
   }
   return sent;
 }
@@ -725,7 +924,7 @@ export async function automationTick(env, d, { events } = {}) {
   if (!on) return { on: 0 };
   if (lower(await d.getSetting(env, 'automationsOn').catch(() => '')) !== 'on') return { on, off: 'Automations are switched off for this workspace' };
   await ensure(env);
-  const now = nowOf(d), out = { on, ran: 0, runs: [], errors: [] };
+  const now = nowOf(d), out = { on, ran: 0, runs: [], errors: [] }, memo = {};
   const { results } = await env.DB.prepare(`SELECT * FROM p_automation WHERE state = 'on' ORDER BY created_at LIMIT 500`).all();
   const accts = await d.listAccounts(env, true);
   for (const row of results || []) {
@@ -733,33 +932,43 @@ export async function automationTick(env, d, { events } = {}) {
     if (events && !events.some(e => e && e.type === a.when.type)) continue;
     if (d.subCanAfford && !d.subCanAfford(30)) { out.deferred = true; break; }
     try {
-      const r = await runOne(env, d, a, { now, accts, dry: false, passed: events || null });
-      const real = r.runs.filter(x => x.id), failed = real.some(x => x.result === 'failed');
+      const r = await runOne(env, d, a, { now, accts, dry: false, passed: events || null, memo });
+      const real = r.runs.filter(x => x.id), failed = real.some(x => x.result === 'failed'), went = real.some(x => TOLD.includes(x.result));
       out.ran += real.length; out.runs.push(...real.map(x => ({ automation: a.id, ...x })));
-      const fails = failed ? a.fail_count + 1 : real.length ? 0 : a.fail_count;
+      if (r.hold) out.deferred = true;
+      const fails = failed ? a.fail_count + 1 : went ? 0 : a.fail_count;
       const pause = fails >= FAIL_PAUSE;
       const last = real.length ? real[real.length - 1] : null;
+      /* The cursor moves only when everything it covered was handled. Left over work (no room this hour, or a step
+         to try again) is read again on the next tick; what is already in the log is left out there by its key. */
+      const cursor = events ? a.cursor : r.hold ? a.cursor || new Date(now.getTime() - 2 * 36e5).toISOString() : now.toISOString();
       await env.DB.prepare(`UPDATE p_automation SET cursor = ?2, last_run_at = COALESCE(?3, last_run_at), last_status = COALESCE(?4, last_status), fail_count = ?5, state = ?6 WHERE id = ?1`)
-        .bind(a.id, events ? a.cursor : now.toISOString(), last ? now.toISOString() : null, last ? clip(`${last.result}: ${last.why || last.title}`, 300) : r.skipped[0] ? clip(`nothing to do: ${r.skipped[0]}`, 300) : null, fails, pause ? 'paused' : 'on').run();
+        .bind(a.id, cursor, last ? now.toISOString() : null, last ? clip(`${last.result}: ${last.why || last.title}`, 300) : r.skipped[0] ? clip(`nothing to do: ${r.skipped[0]}`, 300) : null, fails, pause ? 'paused' : 'on').run();
       if (pause && isEmail(a.owner)) await addNotice(env, { person: a.owner, automation_id: a.id, kind: 'tell', title: `"${a.name}" failed ${FAIL_PAUSE} times in a row, so it paused itself`, body: last ? last.why : null, at: now.toISOString() });
     } catch (e) { out.errors.push(`${a.id}: ${e.message}`); }
   }
-  out.released = await deliverHeld(env, d, now).catch(() => 0);
+  out.released = await deliverHeld(env, d, now, { memo }).catch(() => 0);
   return out;
 }
 
 /* ---------------- routes ---------------- */
 async function whoOf(request, env, d) {
   const cs = d.clientScope ? d.clientScope(request) : null;
-  if (cs) return { email: lower(cs.email), client: cs, only: cs.ids || new Set(), owner: false };
+  if (cs) return { email: lower(cs.email), client: cs, only: cs.ids || new Set(), owner: false, viewer: false };
   if (!(await d.isAdmin(request, env))) return null;
   const email = lower(await d.sessionEmail(env, request).catch(() => null));
   const ownerEmail = lower(env.OWNER_EMAIL || d.ownerEmail || '');
   const only = email && d.brandsFor ? await d.brandsFor(env, email).catch(() => null) : null;
-  return { email: email || 'admin', client: null, only, owner: !email || (!!ownerEmail && email === ownerEmail) };
+  /* A view only login (settings.userRoles) reads everything and changes nothing. These routes answer before the
+     worker's own view only gate, so the same rule is held here. */
+  const viewer = !!(email && d.roleFor && (await d.roleFor(env, email).catch(() => 'admin')) === 'viewer');
+  return { email: email || 'admin', client: null, only, owner: !viewer && (!email || (!!ownerEmail && email === ownerEmail)), viewer };
 }
 const noticeView = r => ({ id: r.id, kind: r.kind, title: r.title, body: r.body, brand_id: r.brand_id, automation_id: r.automation_id, run_id: r.run_id, state: r.state, home: !!r.home, due_at: r.due_at,
   held_until: r.hold_until, button: safe(r.button_json, null), sent: safe(r.sent_json, {}), answer: r.answer, created_at: r.created_at, done_at: r.done_at });
+/** What a client reads of a row: the plain line and nothing else. No button, no ids, no record of who sent it. */
+const clientNoticeView = r => ({ id: r.id, kind: 'tell', title: r.title, brand_id: r.brand_id, state: r.state, home: false, held_until: r.hold_until, created_at: r.created_at, done_at: r.done_at });
+const LIVE = ['open', 'done'];
 
 export async function handleAutomations(request, env, path, json, d) {
   const isAuto = path === '/api/automations' || path.startsWith('/api/automations/');
@@ -767,30 +976,54 @@ export async function handleAutomations(request, env, path, json, d) {
   const me = await whoOf(request, env, d);
   if (!me) return json({ error: 'unauthorized' }, 401);
   const url = new URL(request.url), m = request.method;
+  if (me.viewer && isAuto && m !== 'GET') return json({ error: 'Your login is view only, so you cannot change or try automations.' }, 403);
   const body = m === 'GET' || m === 'DELETE' ? {} : await request.json().catch(() => ({}));
   const sees = brand => !me.only || (brand && brand !== 'all' && me.only.has(brand));
   await ensure(env);
 
-  /* ---- the home list and the bell: a person's own rows only; a client only its own brands ---- */
+  /* ---- the home list and the bell: a person's own rows only; a client only its own brands, and only the plain line ---- */
   if (path === '/api/notices' && m === 'GET') {
     const { results } = await env.DB.prepare(`SELECT * FROM p_notice WHERE person_id = ?1 ORDER BY created_at DESC LIMIT 200`).bind(me.email).all();
     const now = nowOf(d).toISOString();
-    const rows = (results || []).filter(r => !me.only || !r.brand_id || me.only.has(r.brand_id)).filter(r => !me.client || (r.brand_id && me.only.has(r.brand_id))).map(noticeView);
+    const rows = (results || []).filter(r => LIVE.includes(r.state)).filter(r => !me.only || !r.brand_id || me.only.has(r.brand_id))
+      .filter(r => !me.client || (r.kind === 'tell' && r.brand_id && me.only.has(r.brand_id))).map(me.client ? clientNoticeView : noticeView);
     const open = rows.filter(r => r.state === 'open');
     return json({ email: me.email, home: open.filter(r => r.home && (!r.held_until || r.held_until <= now)), bell: rows, morning: open.filter(r => r.held_until && r.held_until > now),
-      counts: { open: open.length, taps: open.filter(r => r.kind === 'proposal').length } });
+      counts: { open: open.length, taps: open.filter(r => r.kind === 'proposal' || r.kind === 'release').length } });
   }
   if (path === '/api/notices/done' && m === 'POST') {
     const r = await env.DB.prepare(`SELECT * FROM p_notice WHERE id = ?1`).bind(String(body.id || '')).first();
-    if (!r || r.person_id !== me.email || (me.client && !(r.brand_id && me.only.has(r.brand_id)))) return json({ error: 'No such row on your list.' }, 404);
+    if (!r || r.person_id !== me.email || !LIVE.includes(r.state) || (me.client && !(r.kind === 'tell' && r.brand_id && me.only.has(r.brand_id)))) return json({ error: 'No such row on your list.' }, 404);
     const now = nowOf(d).toISOString();
+    const tapped = word => (r.run_id ? env.DB.prepare(`UPDATE p_automation_run SET tapped_by = ?2, tapped_at = ?3 WHERE id = ?1`).bind(r.run_id, `${me.email} (${word})`, now).run().catch(() => {}) : null);
     if (r.kind === 'proposal' && body.answer) {
-      if (me.client) return json({ error: 'A change to the ads is approved by the team.' }, 403);
-      const yes = body.answer === 'yes';
-      await env.DB.prepare(`UPDATE p_notice SET state = 'done', answer = ?2, done_at = ?3, done_by = ?4 WHERE id = ?1`).bind(r.id, yes ? 'yes' : 'no', now, me.email).run();
-      if (r.run_id) await env.DB.prepare(`UPDATE p_automation_run SET tapped_by = ?2, tapped_at = ?3 WHERE id = ?1`).bind(r.run_id, `${me.email} (${yes ? 'yes' : 'no'})`, now).run().catch(() => {});
-      /* Nothing is applied here. A yes hands back the existing write route for the screen to call as this person. */
-      return json({ ok: true, answer: yes ? 'yes' : 'no', applied: false, next: yes ? (safe(r.button_json, {}).yes || null) : null });
+      /* A suggestion. Locus changes nothing: the answer only records what the person did. "yes" is refused so no
+         screen can read it as "applied" and the row stays open. */
+      const ans = body.answer === 'did_it' ? 'did_it' : body.answer === 'no' ? 'no' : null;
+      if (!ans) return json({ error: 'Locus does not make this change in this version. Make it in Ads and tap "I did it", or tap "No".', applied: false }, 409);
+      await env.DB.prepare(`UPDATE p_notice SET state = 'done', answer = ?2, done_at = ?3, done_by = ?4 WHERE id = ?1`).bind(r.id, ans, now, me.email).run();
+      await tapped(ans === 'did_it' ? 'made the change by hand' : 'no');
+      return json({ ok: true, answer: ans, applied: false, note: 'Locus changed nothing. This row records your answer only.' });
+    }
+    if (r.kind === 'release' && body.answer) {
+      /* The held client message: send = it reaches the client now, by the client's own choice; no = it is dropped. */
+      if (me.viewer) return json({ error: 'Your login is view only, so you cannot send a message to a client.' }, 403);
+      if (body.answer !== 'send' && body.answer !== 'no') return json({ error: 'Say send, or no.' }, 400);
+      if (r.state !== 'open') return json({ error: 'This one was already answered.' }, 409);
+      const send = body.answer === 'send', sentTo = [];
+      for (const id of (safe(r.button_json, {}).notices || []).slice(0, 50)) {
+        const n = await env.DB.prepare(`SELECT * FROM p_notice WHERE id = ?1 AND state = 'draft'`).bind(String(id)).first();
+        if (!n) continue;
+        if (!send) { await env.DB.prepare(`UPDATE p_notice SET state = 'dropped', done_at = ?2, done_by = ?3 WHERE id = ?1`).bind(n.id, now, me.email).run(); continue; }
+        const plan = planDelivery(await choiceFor(env, n.automation_id, n.person_id), { problem: true }, nowOf(d), { client: true });
+        const out = plan.skip ? {} : await sendWays(env, d, n.person_id, plan.send, n.title);
+        await env.DB.prepare(`UPDATE p_notice SET state = 'open', created_at = ?2, hold_until = ?3, sent_json = ?4 WHERE id = ?1`)
+          .bind(n.id, now, plan.notice ? plan.notice.hold_until : null, JSON.stringify({ bell: now, ...out, ...(plan.later && plan.later.length ? { later: plan.later } : {}), released_by: me.email })).run();
+        sentTo.push(n.person_id);
+      }
+      await env.DB.prepare(`UPDATE p_notice SET state = 'done', answer = ?2, done_at = ?3, done_by = ?4 WHERE id = ?1`).bind(r.id, send ? 'send' : 'no', now, me.email).run();
+      await tapped(send ? 'sent to the client' : 'not sent');
+      return json({ ok: true, answer: send ? 'send' : 'no', sent_to: sentTo });
     }
     const done = body.done !== false;
     await env.DB.prepare(`UPDATE p_notice SET state = ?2, done_at = ?3, done_by = ?4 WHERE id = ?1`).bind(r.id, done ? 'done' : 'open', done ? now : null, done ? me.email : null).run();
@@ -800,8 +1033,11 @@ export async function handleAutomations(request, env, path, json, d) {
   /* ---- how things reach me: each person sets only their own ---- */
   if (path === '/api/me/delivery') {
     if (me.email === 'admin') return json({ error: 'Sign in as yourself to set how things reach you.' }, 400);
+    /* A client lists ONLY the automations that tell it (the client's people, or its own email), and reads none of
+       the sentence: that holds the team's rule and the emails of the people it tells. */
+    const tellsMe = a => ((a.tell && a.tell.who) || []).some(p => p.kind === 'clients' || (p.kind === 'person' && p.email === me.email));
     const autos = ((await env.DB.prepare(`SELECT * FROM p_automation WHERE state != 'draft' ORDER BY created_at`).all()).results || []).map(rowToAuto)
-      .filter(a => (me.client ? a.brand !== 'all' && me.only.has(a.brand) : sees(a.brand) || a.owner === me.email));
+      .filter(a => (me.client ? tellsMe(a) && (a.brand === 'all' || me.only.has(a.brand)) : sees(a.brand) || a.owner === me.email));
     if (m === 'PUT') {
       const now = nowOf(d).toISOString(), b = body.delivery && typeof body.delivery === 'object' ? body.delivery : null;
       if (b) {
@@ -827,7 +1063,11 @@ export async function handleAutomations(request, env, path, json, d) {
     } else if (m !== 'GET') return json({ error: 'method' }, 405);
     const names = namesOf(await d.listAccounts(env, false));
     const per = [];
-    for (const a of autos) { const c = await choiceFor(env, a.id, me.email); per.push({ automation_id: a.id, name: a.name, sentence: sentence(a, { brandName: names[a.brand] }).text, mode: c.mode, ways: c.ways, at_hour: c.at_hour, own: c.own }); }
+    for (const a of autos) {
+      const c = await choiceFor(env, a.id, me.email);
+      per.push({ automation_id: a.id, ...(me.client ? { name: 'A message from your team', sentence: `About: ${lower(TRIGGERS[a.when.type] || 'an update')}` } : { name: a.name, sentence: sentence(a, { brandName: names[a.brand] }).text }),
+        mode: c.mode, ways: cleanWays(c.ways, { client: !!me.client }), at_hour: c.at_hour, own: c.own });
+    }
     return json({ ok: true, email: me.email, delivery: await deliveryOf(env, me.email), per, modes: MODES,
       ways: { home: !me.client, bell: true, slack: !me.client, email: true }, ways_note: { bell: 'Always on. The bell is the record.', email: d.sendEmail ? null : 'Your choice is saved. Email starts when the mail address for this product is set up. Until then it waits in the bell.',
         slack: d.slackApi ? null : 'Slack is not connected, so everything lands in the app.' } });
@@ -838,41 +1078,88 @@ export async function handleAutomations(request, env, path, json, d) {
   const accts = await d.listAccounts(env, false), names = namesOf(accts);
   const getRow = async id => { const r = await env.DB.prepare(`SELECT * FROM p_automation WHERE id = ?1`).bind(String(id || '')).first(); return r ? rowToAuto(r) : null; };
   const power = lower(await d.getSetting(env, 'automationsOn').catch(() => '')) === 'on';
+  const roles = await rolesOf(env, d), clients = await clientMap(env, d);
+  const view = a => { const v = viewOf(a, names); return { ...v, notes: [...v.notes, ...roleNotes(a, roles, accts)] }; };
+
+  /* ---- who does what: the person behind each role, per brand, and the team list ---- */
+  if (path === '/api/automations/people') {
+    const saved = await setting(env, d, 'automationRoles', {});
+    if (m === 'PUT') {
+      const next = { ...roles }, added = new Set(emailsIn(saved.team));
+      for (const [brand, set] of Object.entries(body.roles && typeof body.roles === 'object' ? body.roles : {})) {
+        if (brand === 'all' ? !!me.only : !(accts.some(x => x.act_id === brand) && sees(brand))) return json({ error: brand === 'all' ? 'Only someone who sees every brand can set a role for every brand.' : 'You can set who does what for your own brands only.' }, 403);
+        const one = { ...(next[brand] || {}) };
+        for (const [role, v] of Object.entries(set && typeof set === 'object' ? set : {})) {
+          if (!ROLES[role]) continue;
+          const e = lower(v);
+          if (!e) { delete one[role]; continue; }
+          if (!isEmail(e)) return json({ error: `"${clip(v, 60)}" is not an email.` }, 400);
+          if (!(await onTeam(env, d, clients, e))) return json({ error: `${e} is not on the team, so they cannot be ${ROLES[role]}. Add them to the team first.` }, 400);
+          one[role] = e;
+        }
+        if (Object.keys(one).length) next[brand] = one; else delete next[brand];
+      }
+      if (body.team_add || body.team_remove) {
+        if (!me.owner) return json({ error: 'Only the owner changes the team list.' }, 403);
+        for (const v of Array.isArray(body.team_add) ? body.team_add.slice(0, 50) : []) {
+          const e = lower(v);
+          if (!isEmail(e)) return json({ error: `"${clip(v, 60)}" is not an email.` }, 400);
+          if (!(await onTeam(env, d, clients, e))) return json({ error: `${e} cannot sign in as team yet. Invite them in Team first.` }, 400);
+          added.add(e);
+        }
+        for (const v of Array.isArray(body.team_remove) ? body.team_remove : []) added.delete(lower(v));
+      }
+      await d.putSetting(env, 'automationRoles', JSON.stringify({ ...next, team: [...added].sort() }));
+    } else if (m !== 'GET') return json({ error: 'method' }, 405);
+    const now = await rolesOf(env, d), team = await teamList(env, d), byHand = emailsIn((await setting(env, d, 'automationRoles', {})).team);
+    const mine = accts.filter(a => a.active !== 0 && sees(a.act_id));
+    return json({ ok: true, can_edit: !me.viewer, can_all: !me.viewer && !me.only, can_team: me.owner, role_words: ROLES,
+      roles: Object.fromEntries(Object.entries(now).filter(([k]) => (k === 'all' ? true : sees(k)))), brands: mine.map(a => ({ id: a.act_id, name: a.name })),
+      team: team.map(e => ({ email: e, by_hand: byHand.includes(e) })),
+      note: 'A role nobody holds falls back to the person who made the automation, and the run log says so. "The whole team" is everyone on the team list.' });
+  }
 
   if (path === '/api/automations' && m === 'GET') {
     const rows = ((await env.DB.prepare(`SELECT * FROM p_automation ORDER BY created_at DESC`).all()).results || []).map(rowToAuto).filter(a => sees(a.brand) || a.owner === me.email);
     const ids = new Set(rows.map(a => a.id));
-    const runs = ((await env.DB.prepare(`SELECT id, automation_id, brand_id, started_at, result, why, title, ai_in, ai_out, ai_usd, tapped_by, tapped_at FROM p_automation_run ORDER BY started_at DESC LIMIT 60`).all()).results || []).filter(r => ids.has(r.automation_id));
+    const runs = ((await env.DB.prepare(`SELECT id, automation_id, brand_id, started_at, result, why, title, ai_in, ai_out, ai_usd, tapped_by, tapped_at FROM p_automation_run WHERE result != 'folded' ORDER BY started_at DESC LIMIT 60`).all()).results || []).filter(r => ids.has(r.automation_id));
     const used = new Set(rows.filter(a => a.state === 'on').map(a => a.template).filter(Boolean));
-    return json({ power, can_power: me.owner, automations: rows.map(a => viewOf(a, names)), templates: gallery().map(t => ({ ...t, on: used.has(t.key) })), runs: runs.map(r => ({ ...r, brand: names[r.brand_id] || null })),
-      brands: accts.filter(a => sees(a.act_id)).map(a => ({ id: a.act_id, name: a.name })), options: OPTIONS, modes: MODES,
+    return json({ power, can_power: me.owner, can_edit: !me.viewer, can_clients: me.owner, automations: rows.map(view), templates: gallery().map(t => ({ ...t, on: used.has(t.key) })), runs: runs.map(r => ({ ...r, brand: names[r.brand_id] || null })),
+      brands: accts.filter(a => sees(a.act_id)).map(a => ({ id: a.act_id, name: a.name })), options: OPTIONS, modes: MODES, team_size: (await teamList(env, d)).length,
       note: power ? null : 'Automations are switched off for this workspace. You can set them up and try them. Nothing runs until the owner switches them on.' });
   }
   if (path === '/api/automations/runs' && m === 'GET') {
     const a = await getRow(url.searchParams.get('id'));
     if (!a || !(sees(a.brand) || a.owner === me.email)) return json({ error: 'No automation with that id.' }, 404);
     const { results } = await env.DB.prepare(`SELECT * FROM p_automation_run WHERE automation_id = ?1 ORDER BY started_at DESC LIMIT 200`).bind(a.id).all();
-    return json({ automation: viewOf(a, names), runs: (results || []).map(r => ({ ...r, did: safe(r.did_json, []), did_json: undefined, brand: names[r.brand_id] || null })) });
+    return json({ automation: view(a), runs: (results || []).map(r => ({ ...r, did: safe(r.did_json, []), did_json: undefined, brand: names[r.brand_id] || null })) });
   }
   if (path === '/api/automations/power' && m === 'POST') {
     if (!me.owner) return json({ error: 'Only the owner switches automations on or off for the workspace.' }, 403);
     await d.putSetting(env, 'automationsOn', body.on ? 'on' : 'off');
     return json({ ok: true, power: !!body.on });
   }
-  const fromBody = async src => {
+  /* have = the saved row being changed (null for a new one). trial = a dry run, which reaches nobody. */
+  const fromBody = async (src, { have = null, trial = false } = {}) => {
     let b = src;
     if (b && b.template && !b.when) { const t = TEMPLATES.find(x => x.key === b.template); if (!t) return { error: 'No template with that name.' }; if (!t.ready) return { error: `That one is not ready yet. It waits for ${t.waits}.` }; b = { ...t.automation, ...b }; }
     const c = cleanAutomation(b, { owner: me.owner });
     if (c.error) return c;
     if (c.automation.brand !== 'all') { const id = d.resolveBrandId ? await d.resolveBrandId(env, c.automation.brand).catch(() => c.automation.brand) : c.automation.brand; if (!accts.some(x => x.act_id === id)) return { error: 'No brand with that id.' }; c.automation.brand = id; }
     if (!sees(c.automation.brand)) return { error: 'You can set automations for your own brands only. Pick one.', status: 403 };
+    /* A client in the sentence (the client's people, or a client's own email): the owner's call only. Someone else
+       may still switch such an automation OFF, never on, and never add a client to one. */
+    for (const p of c.automation.tell.who) if (p.kind === 'person' && (await isClientOf(env, d, clients, p.email))) p.client = true;
+    const hasClient = w => ((w && w.who) || []).some(p => p.kind === 'clients' || p.client);
+    if (hasClient(c.automation.tell) && !me.owner && !trial && (c.automation.state === 'on' || !(have && hasClient(have.tell))))
+      return { error: 'Only the owner can put a client into an automation, or switch on one that tells a client.', status: 403 };
     if (!(src && src.custom_name === true && c.automation.name)) c.automation.name = clip(sentence(c.automation, { brandName: names[c.automation.brand] }).text, 200);
     return c;
   };
   if (path === '/api/automations' && m === 'PUT') {
     const have = body.id ? await getRow(body.id) : null;
     if (body.id && (!have || !(sees(have.brand) || have.owner === me.email))) return json({ error: 'No automation with that id.' }, 404);
-    const c = await fromBody(have ? { ...have, ...body } : body);
+    const c = await fromBody(have ? { ...have, ...body } : body, { have });
     if (c.error) return json({ error: c.error }, c.status || 400);
     const a = c.automation, now = nowOf(d).toISOString(), id = have ? have.id : rid('au_');
     if (have) await env.DB.prepare(`UPDATE p_automation SET brand_id = ?2, name = ?3, trigger_json = ?4, conditions_json = ?5, actions_json = ?6, audience_json = ?7, state = ?8, may_act_alone = ?9, updated_at = ?10, version = version + 1,
@@ -882,7 +1169,7 @@ export async function handleAutomations(request, env, path, json, d) {
       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?15, ?15)`)
       .bind(id, ORG, a.brand === 'all' ? 'org' : 'brand', a.brand, me.email === 'admin' ? null : me.email, a.name, a.template, a.do.some(x => x.type === 'draft_report') ? 'report' : a.do.some(x => x.type === 'ai_check') ? 'check' : 'rule',
         JSON.stringify(a.when), JSON.stringify(a.if), JSON.stringify(a.do), JSON.stringify(a.tell), a.state, a.may_act_alone ? 1 : 0, now, me.email).run();
-    return json({ ok: true, power, automation: viewOf(await getRow(id), names) });
+    return json({ ok: true, power, automation: view(await getRow(id)) });
   }
   if (path === '/api/automations' && m === 'DELETE') {
     const have = await getRow(url.searchParams.get('id'));
@@ -894,13 +1181,13 @@ export async function handleAutomations(request, env, path, json, d) {
   if (path === '/api/automations/test' && m === 'POST') {
     let a = body.id ? await getRow(body.id) : null;
     if (body.id && (!a || !(sees(a.brand) || a.owner === me.email))) return json({ error: 'No automation with that id.' }, 404);
-    if (!a) { const c = await fromBody(body.automation || body); if (c.error) return json({ error: c.error }, c.status || 400); a = { ...c.automation, id: null, owner: me.email === 'admin' ? null : me.email }; }
-    if (body.words_only) return json({ ok: true, automation: a, sentence: sentence(a, { brandName: names[a.brand] }), notes: notesOf(a) });
-    const r = await runOne(env, d, a, { now: nowOf(d), accts: accts.filter(x => x.active !== 0), dry: true, passed: null });
+    if (!a) { const c = await fromBody(body.automation || body, { trial: true }); if (c.error) return json({ error: c.error }, c.status || 400); a = { ...c.automation, id: null, owner: me.email === 'admin' ? null : me.email }; }
+    if (body.words_only) return json({ ok: true, automation: a, sentence: sentence(a, { brandName: names[a.brand] }), notes: [...notesOf(a), ...roleNotes(a, roles, accts)] });
+    const r = await runOne(env, d, a, { now: nowOf(d), accts: accts.filter(x => x.active !== 0), dry: true, passed: null, memo: {} });
     return json({ ok: true, test: true, sentence: sentence(a, { brandName: names[a.brand] }).text, would: r.runs, nothing: r.runs.length ? null : 'Nothing would have happened: nothing matched in the last day.', skipped: r.skipped,
       note: 'This is a test. Nothing was sent, saved or changed.' });
   }
   return json({ error: 'not found' }, 404);
 }
 
-export const _test = { nextHour, inQuiet, passesIf, resultOf, rowToAuto, deliverHeld, bracketParts, lastMonday, lastMonthStart };
+export const _test = { nextHour, inQuiet, passesIf, resultOf, rowToAuto, deliverHeld, bracketParts, lastMonday, lastMonthStart, seenKeys, episodes, notesOf, roleNotes };

@@ -17,6 +17,7 @@ function render(el, d, ctx) {
     powerBar(d, ctx, reload),
     h('div', { class: 'au-top' },
       h('p', null, on.length ? `${on.length} switched on. Each person picks how it reaches them in Your profile, How things reach me.` : 'Nothing is switched on. Start from a template, or write your own.'),
+      button('Who does what', { href: ctx.href('automations', 'people') }),
       button('Templates', { href: ctx.href('automations', 'templates') }),
       button('New automation', { primary: true, onclick: () => openEditor(blank, d, ctx, reload) })),
     !mine.length ? empty({ title: 'No automations yet', text: 'An automation is one sentence: when this happens, do this, and tell these people. Pick a template to start.', action: button('See the templates', { primary: true, href: ctx.href('automations', 'templates') }) }) : null,
