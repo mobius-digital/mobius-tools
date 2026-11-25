@@ -78,6 +78,7 @@ import { handleBrandAsana, handleAsanaHook, brandAsanaTick, unifyGoals, mondayTi
 import { ideaStart, runIdeaJob, handleIdeaAction, adminIdea, useExits, useFetch as ideasFetch } from './ideas.js';
 import { handleAtria, useFetch as atriaFetch } from './atria.js';
 import { handleMcp } from './mcp.js';
+import { handleConnectAi, isConnectAiPath } from './connectai.js';
 import { handleNewClient, newClientTick, handleStripeWebhook, welcomeOnJoinByChannel, handleNewClientAction, onCallBooked, useFetch as newClientFetch, markShopifySent } from './newclient.js';
 import { todoList, todoSkip } from './todo.js';
 import { handleCalendly, useFetch as calendlyFetch } from './calendly.js';
@@ -8242,6 +8243,8 @@ const AH_APP = {
     /* Claude Code's MCP door (mcp.js, 2026-11-01): its own token, every Locus call made as Cole, so it sits above the
        brand guard (which keys off a session this token is not). */
     if (new URL(request.url).pathname === '/mcp') return handleMcp(request, env, ctx, mcpDeps());
+    /* Connect your AI (connectai.js): a person's own key, its own sign-in and scope. Off until settings connectAi is on. */
+    if (isConnectAiPath(new URL(request.url).pathname)) return handleConnectAi(request, env, ctx, { mintSession, sessionEmail, emailAllowed, listAccounts, cors: CORS, ahFetch: (req, e) => AH_APP.fetch(req, e, { waitUntil() {} }) });
     /* Phase 3: `?act=` carries a brand id. An old id (act_, asana_, demo_harborline, a slug) from a
        saved link, a bookmark or an older client is resolved to its brand id ONCE here, before the
        access guard and every handler, so nothing downstream sees an old id. */
