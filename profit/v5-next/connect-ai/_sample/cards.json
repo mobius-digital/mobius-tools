@@ -1,0 +1,11 @@
+{
+ "on": true,
+ "applies_on_yes": false,
+ "can_act": true,
+ "you": { "role": "team" },
+ "proposals": [
+  { "id": "aip_sample1", "brand_id": "brand_northlake_golf", "audience": "team", "kind": "pause", "title": "Turn off the ad \"Fairway still 3\"", "why": "It spent $212 with 0 sales in the last 7 days (Nov 17 to 23, Triple Whale last click). The goal cost per sale is $40, so that is over five times the goal with nothing back. Its ad set is still on goal without it.", "level": "ad", "object_id": "120200000000001", "object_name": "Fairway still 3", "amount": null, "before": "On", "after": "Off", "status": "waiting", "proposed_by": "sam@example.com", "through": "Claude", "created_at": "2026-11-24T14:10:00Z", "expires_at": "2099-01-01T00:00:00Z", "decided_by": null, "decided_at": null, "result": null },
+  { "id": "aip_sample2", "brand_id": "brand_harbor_and_pine", "audience": "team", "kind": "budget", "title": "Raise the Early sale campaign to $150 a day", "why": "ROAS 3.4 on $100 a day against a goal of 2.5, last 7 days (Nov 17 to 23, Triple Whale last click). Store MER for the same days is 3.1.", "level": "campaign", "object_id": "120200000000002", "object_name": "Early sale", "amount": 150, "before": "$100 a day", "after": null, "status": "waiting", "proposed_by": "sam@example.com", "through": "ChatGPT", "created_at": "2026-11-24T13:40:00Z", "expires_at": "2099-01-01T00:00:00Z", "decided_by": null, "decided_at": null, "result": null },
+  { "id": "aip_sample3", "brand_id": "brand_northlake_golf", "audience": "team", "kind": "other", "title": "Make two new hooks for the putter video", "why": "The putter video has the best ROAS (4.1, last 14 days, Triple Whale) but its hook rate fell from 31% to 22% (Meta). A new first three seconds may bring it back.", "level": null, "object_id": null, "object_name": null, "amount": null, "before": null, "after": null, "status": "waiting", "proposed_by": "sam@example.com", "through": "Claude", "created_at": "2026-11-24T12:05:00Z", "expires_at": "2099-01-01T00:00:00Z", "decided_by": null, "decided_at": null, "result": null }
+ ]
+}
