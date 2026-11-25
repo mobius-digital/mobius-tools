@@ -244,6 +244,11 @@ const TABLES = ['brand_accounts', 'connections', 'accounts', 'daily_insights', '
    one from the database's own catalogue). */
 const SQL_NO_TABLES = ['p_shopify', 'p_studio_cfg', 'social_account', 'p_oauth_state', 'social_oauth_state', 'p_dc_join', 'p_store_view'];
 const SQL_NO_COLUMNS = /token|secret|key|password|auth/i;
+/* Ordinary names the pattern above would catch (checked against the live catalogue, 2026-11-25): a doc's or a
+   season row's name, a creative's grouping id, a brand's old id, a memory topic, token COUNTS, who wrote a note.
+   Exact names only. Paths to stored files (file_key, r2_key, pdf_key, thumb_key) stay refused. */
+const SQL_OK_COLUMNS = ['key', 'asset_key', 'legacy_key', 'phase_key', 'topic_key', 'in_tokens', 'out_tokens',
+                        'author', 'author_name', 'author_email', 'author_role'];
 const SQL_NO_STAR = ['p_br_doc', 'p_br_onboard', 'p_plan', 'p_profit_share', 'p_ad_share', 'p_season_share', 'p_snapshot', 'p_client_page',
                      'p_contract', 'p_newclient', 'p_site_review', 'strat_report'];
 
@@ -1928,7 +1933,7 @@ export function buildStrategist(d) {
     webHistory: 12, webHistoryChars: 4000,
     who: WHO, schema: SCHEMA, rules: RULES, tables: TABLES, sqlTool: 'query_locus',
     blobColumns: ['data_json', 'extra_json', 'budgets_json', 'goals_json', 'google_spend_json', 'report_config_json'],
-    secretTables: SQL_NO_TABLES, secretColumns: SQL_NO_COLUMNS, starTables: SQL_NO_STAR,
+    secretTables: SQL_NO_TABLES, secretColumns: SQL_NO_COLUMNS, safeColumns: SQL_OK_COLUMNS, starTables: SQL_NO_STAR,
     brief: DEFAULT_BRIEF,
     liveContext: async env => {
       const names = (await d.listAccounts(env, true)).map(a => `${a.name} (${a.act_id}, ${a.currency})`);
@@ -1950,4 +1955,4 @@ export function buildStrategist(d) {
 }
 
 /* For test-strategist.mjs only. */
-export const _test = { SQL_NO_TABLES, SQL_NO_COLUMNS, SQL_NO_STAR, ASANA_ACTIONS, BUILD_ACTIONS, SLACK_TOOLS, briefNotesHtml, briefNotesText, BRIEF_BLANKS, leadMath, blanksOf };
+export const _test = { SQL_NO_TABLES, SQL_NO_COLUMNS, SQL_OK_COLUMNS, SQL_NO_STAR, ASANA_ACTIONS, BUILD_ACTIONS, SLACK_TOOLS, briefNotesHtml, briefNotesText, BRIEF_BLANKS, leadMath, blanksOf };

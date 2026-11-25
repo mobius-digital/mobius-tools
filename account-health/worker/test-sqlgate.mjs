@@ -26,7 +26,7 @@ db.exec(`
   INSERT INTO social_account VALUES ('s1', 'brand_x', 'ig', '{"t":"made-up"}');
   INSERT INTO p_br_doc VALUES ('brand_x', '', 'klaviyo', '{"private":"made-up-doc-key"}', 'approved', '2026-01-01');
   INSERT INTO p_plan VALUES ('brand_x', '2026-11', 1000, 'made-up-share');
-  INSERT INTO ads VALUES ('a1', 'act_1', 'Ad one', 'r2/made-up');
+  INSERT INTO ads VALUES ('a1', 'act_1', 'Ad one', 'v:123');
   INSERT INTO tw_daily VALUES ('brand_x', '2026-11-01', 100, 250, 5);
 `);
 const SECRETS = ['made-up-hash', 'made-up-access', 'made-up-refresh', 'made-up-key', 'made-up', 'made-up-doc-key', 'made-up-share'];
@@ -35,8 +35,8 @@ const SECRETS = ['made-up-hash', 'made-up-access', 'made-up-refresh', 'made-up-k
    star list grown from the catalogue's own column names. */
 const catalogue = db.prepare(`SELECT name, sql FROM sqlite_master WHERE type = 'table'`).all();
 const allowed = catalogue.map(r => r.name).filter(n => !/^(settings|_cf|sqlite_|d1_)/i.test(n));
-const derived = tablesWithColumns(catalogue, _test.SQL_NO_COLUMNS);
-const opts = { blobColumns: ['data_json'], secretTables: _test.SQL_NO_TABLES, secretColumns: _test.SQL_NO_COLUMNS,
+const derived = tablesWithColumns(catalogue, _test.SQL_NO_COLUMNS, _test.SQL_OK_COLUMNS);
+const opts = { blobColumns: ['data_json'], secretTables: _test.SQL_NO_TABLES, secretColumns: _test.SQL_NO_COLUMNS, safeColumns: _test.SQL_OK_COLUMNS,
   starTables: [..._test.SQL_NO_STAR, ...derived] };
 const gate = sql => gateSql(sql, allowed, opts);
 
@@ -44,9 +44,11 @@ let n = 0;
 const ok = (c, m) => { assert.ok(c, m); n++; };
 
 /* ---- the catalogue read ---- */
-for (const t of ['p_shopify', 'p_studio_cfg', 'social_account', 'p_br_doc', 'p_plan', 'ads', 'p_newthing', 'settings'])
+for (const t of ['p_shopify', 'social_account', 'p_plan', 'p_newthing'])
   ok(derived.includes(t), `${t} has a secret-shaped column`);
 for (const t of ['tw_daily', 'p_checked']) ok(!derived.includes(t), `${t} has none (PRIMARY KEY / CHECK / UNIQUE are not columns)`);
+/* A doc's `key` and an ad's `asset_key` are ordinary names (SQL_OK_COLUMNS), so they do not put a table on the list. */
+for (const t of ['ads', 'p_br_doc']) ok(!derived.includes(t), `${t}: only ordinary names`);
 
 /* ---- refused ---- */
 const REFUSED = [
@@ -105,8 +107,10 @@ const REFUSED = [
   `SELECT p.share_token AS t FROM p_plan p`,
   `SELECT substr(share_token, 1, 4) FROM p_plan`,
   `SELECT client_secret FROM p_newthing`,
-  `SELECT key FROM p_br_doc`,
-  `SELECT asset_key FROM ads`,
+  `SELECT file_key FROM ads`,
+  `SELECT pdf_key, r2_key FROM tw_daily`,
+  `SELECT api_key FROM tw_daily`,
+  `SELECT keys FROM tw_daily`,
   `SELECT password FROM tw_daily`,
   `SELECT oauth_state FROM tw_daily`,
   /* SELECT * where a secret-shaped column would ride along */
@@ -119,7 +123,6 @@ const REFUSED = [
   `SELECT*FROM p_br_doc`,
   `SELECT/**/*/**/FROM p_br_doc`,
   `SELECT * FROM p_plan`,
-  `SELECT * FROM ads`,
   `SELECT * FROM p_newthing`,
   `SELECT t.spend, x.* FROM tw_daily t JOIN (SELECT * FROM p_plan) x ON x.act_id = t.act_id`,
   `WITH x AS (SELECT * FROM p_plan) SELECT act_id FROM x`,
@@ -161,6 +164,12 @@ const ALLOWED = [
   `SELECT act_id FROM tw_daily WHERE act_id = '-- not a comment' AND date > '2026-01-01'`,
   `SELECT act_id FROM tw_daily WHERE act_id = 'it''s /* fine */'`,
   `SELECT act_id FROM tw_daily;`,
+  /* ordinary columns that only look secret-shaped */
+  `SELECT key, status FROM p_br_doc WHERE act_id = 'brand_x'`,
+  `SELECT KEY FROM p_br_doc`,
+  `SELECT asset_key, COUNT(*) AS ads FROM ads GROUP BY asset_key`,
+  `SELECT a.asset_key AS creative FROM ads a`,
+  `SELECT * FROM ads`,
 ];
 for (const sql of ALLOWED) {
   const g = gate(sql);

@@ -926,11 +926,12 @@ await check('the team list: the owner or the admin key changes it; a sign-in wit
     assert.equal((await ah('test-admin-key', 'GET', '/api/team')).j.can_set_brands, true);
     assert.equal((await ah('test-admin-key', 'PUT', '/api/team', { email: 'new@outside.com', brands: ['brand_alpha'] })).status, 200);
     assert.equal((await ah('test-admin-key', 'PUT', '/api/team', { email: 'new@outside.com', remove: true })).status, 200);
-    const pw = await ah('test-shared-pass', 'GET', '/api/me');
-    assert.deepEqual([pw.status, pw.j.master, pw.j.role, pw.j.email], [200, false, 'team', null]);
-    assert.equal((await ah('test-shared-pass', 'GET', '/api/team')).j.can_set_brands, false);
-    assert.equal((await ah('test-shared-pass', 'PUT', '/api/team', { email: 'new@outside.com' })).status, 403);
-    assert.equal((await ah('test-shared-pass', 'PUT', '/api/team', { email: 'new@outside.com', brands: [] })).status, 403);
+    /* The shared password is gone: a stored hash opens nothing on either worker, and nobody can set one. */
+    for (const [m, p] of [['GET', '/api/me'], ['GET', '/api/team'], ['GET', '/api/accounts']]) assert.equal((await ah('test-shared-pass', m, p)).status, 401, p);
+    assert.equal((await ah('test-shared-pass', 'PUT', '/api/team', { email: 'new@outside.com' })).status, 401);
+    assert.equal((await pf('test-shared-pass', 'GET', '/api/auth-check')).j.authorized, false);
+    assert.notEqual((await ah(OWNER, 'PUT', '/api/password', { password: 'another-made-up' })).status, 200);
+    assert.equal(db.prepare(`SELECT value FROM settings WHERE key = 'passwordHash'`).get().value, crypto.createHash('sha256').update('test-shared-pass').digest('hex'), 'the route wrote nothing');
     assert.equal(listed(), before, 'nothing was written');
   } finally {
     delete ahEnv.ADMIN_TOKEN;
@@ -952,7 +953,7 @@ await check('with no sign-in: health says ok and the time, the sign-in check kee
   }
   assert.deepEqual([bad.j.authorized, bad.j.kind, bad.j.local_session_verify], [false, null, false]);
   assert.ok(!JSON.stringify(bad.j).includes('not-'), 'nothing of the token comes back');
-  assert.deepEqual([team.j.authorized, team.j.kind, typeof team.j.shared_password_set, 'token_seen' in team.j], [true, 'admin', 'boolean', false]);
+  assert.deepEqual([team.j.authorized, team.j.kind, typeof team.j.has_admin_token, 'shared_password_set' in team.j, 'token_seen' in team.j], [true, 'admin', 'boolean', false, false]);
   assert.equal((await ah(null, 'GET', '/api/share/0123456789abcdef0123')).status, 401);
 });
 

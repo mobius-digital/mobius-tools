@@ -7322,9 +7322,8 @@ async function isAdmin(request, env) {
   /* A client login passes ONLY on a route brandguard.js cleared for it (its allowlist). */
   if (clientScope(request)) return true;
   const sess = await verifySession(env, tok);
-  if (sess && (await emailAllowed(env, sess.email))) return true;
-  const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'passwordHash'`).first();
-  return !!row?.value && (await sha256hex(tok)) === row.value;
+  /* No shared password (removed 2026-11-25): a person signs in as themselves. */
+  return !!(sess && (await emailAllowed(env, sess.email)));
 }
 
 /** Write down what a scheduled tick actually did, including what it could not
@@ -10826,14 +10825,6 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       }
 
       /* ---- settings ---- */
-      if (path === '/api/password' && request.method === 'PUT') {
-        const { password } = await request.json();
-        if (!password || password.length < 6) return json({ error: 'password too short' }, 400);
-        await env.DB.prepare(`INSERT INTO settings (key, value) VALUES ('passwordHash', ?1) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
-          .bind(await sha256hex(password)).run();
-        return json({ ok: true });
-      }
-
       return json({ error: 'not found' }, 404);
     } catch (e) {
       console.log('error', e.message, e.stack);

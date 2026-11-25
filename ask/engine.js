@@ -102,8 +102,9 @@ function sqlShape(raw) {
 
 /* Tables whose own column names match `re`, from catalogue rows of
  * {name, sql}, so a table added next year is covered before anyone lists it. */
-export function tablesWithColumns(rows, re) {
+export function tablesWithColumns(rows, re, safe = []) {
   const out = [];
+  const fine = new Set(safe.map(c => String(c).toLowerCase()));
   for (const r of rows || []) {
     const ddl = sqlShape(r.sql).bare;
     const a = ddl.indexOf('('), b = ddl.lastIndexOf(')');
@@ -115,7 +116,7 @@ export function tablesWithColumns(rows, re) {
       if (ch === ',' && !depth) { parts.push(cur); cur = ''; } else cur += ch;
     }
     parts.push(cur);
-    const hit = parts.some(p => { const m = p.trim().match(/^[a-z_][\w$]*/i); return m && !/^(primary|unique|check|foreign|constraint)$/i.test(m[0]) && re.test(m[0]); });
+    const hit = parts.some(p => { const m = p.trim().match(/^[a-z_][\w$]*/i); return m && !/^(primary|unique|check|foreign|constraint)$/i.test(m[0]) && re.test(m[0]) && !fine.has(m[0].toLowerCase()); });
     if (hit) out.push(String(r.name).toLowerCase());
   }
   return out;
@@ -156,7 +157,9 @@ export function gateSql(raw, allowed, opts = {}) {
   const st = (opts.secretTables || []).find(named);
   if (st) return { error: `Table "${st}" is not readable.` };
   if (opts.secretColumns) {
-    const cm = (bare.match(/[a-z_][a-z0-9_$]*/gi) || []).find(w => opts.secretColumns.test(w));
+    /* opts.safeColumns: exact names the host knows are ordinary (a doc's `key`, an ad's `asset_key`). */
+    const fine = new Set((opts.safeColumns || []).map(c => String(c).toLowerCase()));
+    const cm = (bare.match(/[a-z_][a-z0-9_$]*/gi) || []).find(w => opts.secretColumns.test(w) && !fine.has(w.toLowerCase()));
     if (cm) return { error: `"${cm}" is not readable: names like that are kept out of queries. Leave it out.` };
   }
   if (/(?:\b(?:select|distinct|all)\s*|[,.]\s*)\*/i.test(bare)) {
@@ -840,10 +843,10 @@ export function createAssistant(config) {
     let starTables = C.starTables || [];
     if (C.secretColumns) {
       const cat = await env.DB.prepare("SELECT name, sql FROM sqlite_master WHERE type = 'table'").all().catch(() => null);
-      starTables = [...starTables, ...tablesWithColumns(cat?.results, C.secretColumns)];
+      starTables = [...starTables, ...tablesWithColumns(cat?.results, C.secretColumns, C.safeColumns)];
     }
     const gate = gateSql(raw, allowed, { maxRows: C.maxRows, blobColumns: C.blobColumns, forbidWords: C.forbidWords,
-      secretTables: C.secretTables, secretColumns: C.secretColumns, starTables });
+      secretTables: C.secretTables, secretColumns: C.secretColumns, safeColumns: C.safeColumns, starTables });
     if (gate.error) return { error: gate.error };
     /* A multi-tenant host scopes every query to the tenant being viewed, by
      * shadowing each table with a CTE of that tenant's rows (config.sqlWrap). */
@@ -1631,7 +1634,7 @@ type is "bar" (comparing items), "line" (a trend; labels are dates) or "table" (
     memory, memoryBlock, getBrief, getPlaybook, runMemoryTool,
     applyProposal, pendingList, proposalBlocks, groupProposals, runAction, actions: ACTIONS.map(a => a.name), reportsList,
     gateSql: (raw, allowed) => gateSql(raw, allowed || C.tables || [], { maxRows: C.maxRows, blobColumns: C.blobColumns, forbidWords: C.forbidWords,
-      secretTables: C.secretTables, secretColumns: C.secretColumns, starTables: C.starTables }),
+      secretTables: C.secretTables, secretColumns: C.secretColumns, safeColumns: C.safeColumns, starTables: C.starTables }),
     readApp, schemaDoc, usageToday,
     tools: { slack: slackToolDefs, web: webToolDefs },
   };
