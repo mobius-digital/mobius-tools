@@ -1535,7 +1535,7 @@ async function ensureAccounts(force) {
   if (S.accounts.length && !force) return;
   const [acc, health] = await Promise.all([
     api('/api/accounts'),
-    fetch(S.url + '/health').then(r => r.json()).catch(() => null),
+    fetch(S.url + '/health', { headers: { 'Authorization': 'Bearer ' + S.tok } }).then(r => r.json()).catch(() => null),
   ]);
   S.accounts = acc.accounts || [];
   S.metaAvailable = acc.meta_available || [];

@@ -6,22 +6,40 @@
  *   shopify_product    a product's status (active / draft / archived), title, tags, price and compare-at price
  *   shopify_discount   make a discount code (percent or amount off, dates, limits), or switch one off / on
  *
- * The token is the Mobius Digital app's (installed per store, profit worker OAuth, table p_shopify). As of 2026-10-17 the
- * app asks only read scopes (profit/shopify.app.toml + SHOPIFY_SCOPES in profit/worker/src/worker.js), so every card
- * refuses with the fix until write_products / write_discounts are added there and the store re-approves the app.
- * Lucky's own store is written by the Supply engine's separate app, not here.
+ * The token is the Mobius Digital app's (installed per store, profit worker, table p_shopify). It EXPIRES (about an
+ * hour) since 2026-11-24, so it is never read from the table directly: storeOf() goes through shopToken()
+ * (profit/worker/src/shoptoken.js), which refreshes it. This worker does not hold the app secret, so the refresh is
+ * done by the profit worker over the PROFIT binding (POST /api/shopify/token-refresh) and the fresh token is read from
+ * the shared table.
+ * write_products / write_discounts are OPTIONAL scopes since 2026-11-24 (App Store requirement 3.2): a store has them
+ * only after its owner pressed "Allow product and discount updates" inside the app. Until then every card refuses
+ * with that one step. Lucky's own store is written by the Supply engine's separate app, not here.
  */
 import { recordWrite, registerUndo, doneNote, brandOf } from './extwrite.js';
+import { shopToken } from '../../../profit/worker/src/shoptoken.js';
 
 const P = 'shopify';
 const API = '2026-07';
 const clip = (s, n) => String(s ?? '').slice(0, n);
 const REASON = { type: 'string', description: 'Why, in one line.' };
-const FIX = need => `The Shopify connection can only read this store (it lacks ${need}). Cole: add ${need} to the Mobius Digital app's scopes in profit/shopify.app.toml and SHOPIFY_SCOPES in profit/worker/src/worker.js (Claude Code can do this), run shopify app deploy, then the store owner opens the app in Shopify admin and approves the new access.`;
+const FIX = need => `The Shopify connection can only read this store (it lacks ${need}). The store owner opens the Mobius Digital app in their Shopify admin (Apps > Mobius Digital) and presses "Allow product and discount updates". Then ask again.`;
+const PROFIT_ORIGIN = 'https://mobius-profit.mobius-digital.workers.dev';
 
-export async function storeOf(env, act) {
-  const r = await env.DB.prepare(`SELECT shop, access_token, scopes FROM p_shopify WHERE act_id = ?1 AND uninstalled_at IS NULL AND access_token <> '' ORDER BY installed_at DESC LIMIT 1`).bind(act).first().catch(() => null);
-  return r || null;
+/** Asks the profit worker (it holds the app secret) to refresh this shop's token in the shared table. */
+function remoteRefresh(env, d) {
+  if (!env.PROFIT || !d?.mintSession) return undefined;
+  return async shop => {
+    const { token } = await d.mintSession(env, env.OWNER_EMAIL || 'cole@go-mobius-digital.com');
+    const res = await env.PROFIT.fetch(new Request(`${PROFIT_ORIGIN}/api/shopify/token-refresh?shop=${encodeURIComponent(shop)}`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } }));
+    if (!res.ok) throw new Error(`token refresh HTTP ${res.status}`);
+  };
+}
+/** The brand's connected store with a token that works right now, or null. `d` = the action deps (xfetch, mintSession). */
+export async function storeOf(env, act, d) {
+  const r = await env.DB.prepare(`SELECT shop, scopes FROM p_shopify WHERE act_id = ?1 AND uninstalled_at IS NULL AND access_token <> '' ORDER BY installed_at DESC LIMIT 1`).bind(act).first().catch(() => null);
+  if (!r) return null;
+  const access_token = await shopToken(env, r.shop, { F: d?.xfetch || fetch, remote: remoteRefresh(env, d) }).catch(() => null);
+  return access_token ? { ...r, access_token } : null;
 }
 async function gql(d, store, query, variables = {}) {
   const res = await d.xfetch(`https://${store.shop}/admin/api/${API}/graphql.json`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': store.access_token }, body: JSON.stringify({ query, variables }) });
@@ -33,8 +51,8 @@ const userErr = (x, what) => { const e = x?.userErrors || []; if (e.length) thro
 async function prep(env, d, input, ctx, need) {
   const brand = await brandOf(env, d, input.brand, ctx);
   if (!brand) return { error: `Which brand? No brand called "${input.brand || ''}".` };
-  const store = await storeOf(env, brand.act_id);
-  if (!store) return { error: `${brand.name}'s store has not installed the Mobius Digital Shopify app (or it is not linked to the brand), so Locus cannot change it.` };
+  const store = await storeOf(env, brand.act_id, d);
+  if (!store) return { error: `${brand.name}'s store has not installed the Mobius Digital Shopify app (or it is not linked to the brand, or its owner has to open the app in Shopify once to reconnect), so Locus cannot change it.` };
   if (!String(store.scopes || '').split(',').includes(need)) return { error: FIX(need) };
   return { brand, store };
 }
@@ -157,7 +175,7 @@ async function codeSwitch(d, store, id, to) {
 }
 
 registerUndo(P, async (env, d, row, u) => {
-  const store = await storeOf(env, row.brand);
+  const store = await storeOf(env, row.brand, d);
   if (!store) return { error: 'The store is not connected any more.' };
   try {
     if (u.op === 'product') await writeProduct(d, store, u.id, u.upd, u.vars);

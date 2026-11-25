@@ -159,6 +159,60 @@ const monthOf = date => String(date).slice(0, 7);
 const validMonth = m => /^\d{4}-\d{2}$/.test(m || '');
 const round2 = n => Math.round(n * 100) / 100;
 
+/* ---- Debts (2026-11-24): loans the business owes and loans it made ----
+ * settings.debts = { loans: [{ id, side: 'owe'|'owed', name, who, taken,
+ *   principal, months, fee (flat fee per month), firstPay (YYYY-MM-DD),
+ *   match, paidBefore, note }] }.
+ * Every loan here is a fixed installment: principal/months + fee each month.
+ * Paid so far = payments whose date has passed (autopay, so the schedule is the
+ * truth) unless `match` is set, then = rows whose vendor holds that text.
+ * The money itself is a transfer in the books, never revenue or an expense;
+ * only the fee is a cost. */
+const debtYmd = s => /^\d{4}-\d{2}-\d{2}$/.test(String(s || '')) ? String(s) : null;
+function debtAddMonths(d, n) {
+  const [y, m, day] = d.split('-').map(Number);
+  const t = new Date(Date.UTC(y, m - 1 + n, 1));
+  const last = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() + 1, 0)).getUTCDate();
+  return `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, '0')}-${String(Math.min(day, last)).padStart(2, '0')}`;
+}
+function cleanLoan(l) {
+  const num = v => (v === '' || v == null || !Number.isFinite(Number(v))) ? 0 : Math.max(0, Number(v));
+  return {
+    id: String(l.id || Math.random().toString(36).slice(2, 10)).slice(0, 24),
+    side: l.side === 'owed' ? 'owed' : 'owe',
+    name: String(l.name || 'Loan').slice(0, 80), who: String(l.who || '').slice(0, 80),
+    taken: debtYmd(l.taken), firstPay: debtYmd(l.firstPay),
+    principal: num(l.principal), months: Math.max(1, Math.round(num(l.months)) || 1), fee: num(l.fee),
+    match: String(l.match || '').trim().slice(0, 80), paidBefore: num(l.paidBefore), note: String(l.note || '').slice(0, 600),
+  };
+}
+async function debtsReport(env) {
+  const cfg = safeJson(await getSetting(env, 'debts'), {}) || {};
+  const today = new Date().toISOString().slice(0, 10);
+  const loans = [];
+  for (const raw of Array.isArray(cfg.loans) ? cfg.loans : []) {
+    const l = cleanLoan(raw);
+    const total = round2(l.principal + l.fee * l.months), monthly = round2(total / l.months);
+    const schedule = l.firstPay ? Array.from({ length: l.months }, (_, i) => debtAddMonths(l.firstPay, i)) : [];
+    const dueSoFar = schedule.filter(d => d <= today).length;
+    let paid, how;
+    if (l.match) {
+      const r = await env.DB.prepare(`SELECT SUM(amount) t FROM transactions WHERE UPPER(vendor) LIKE ?1 AND date >= ?2 AND expected = 0`)
+        .bind(`%${l.match.toUpperCase()}%`, l.taken || '2000-01-01').first();
+      paid = round2(l.paidBefore + (r?.t || 0)); how = `payments whose name holds "${l.match}"`;
+    } else { paid = dueSoFar >= l.months ? total : round2(l.paidBefore + dueSoFar * monthly); how = 'by the schedule (autopay)'; }
+    paid = Math.min(paid, total);
+    const remaining = round2(total - paid), paymentsLeft = Math.ceil(remaining / monthly - 0.001);
+    const principalLeft = round2(Math.max(0, l.principal - (paid / total) * l.principal));
+    const next = schedule.find(d => d > today) || null;
+    loans.push({ ...l, total, monthly, feeTotal: round2(l.fee * l.months), paid, remaining, principalLeft, paymentsLeft,
+      next, last: schedule[schedule.length - 1] || null, how });
+  }
+  const sum = (side, k) => round2(loans.filter(x => x.side === side).reduce((s, x) => s + x[k], 0));
+  return { loans, owe: { remaining: sum('owe', 'remaining'), principalLeft: sum('owe', 'principalLeft'), monthly: sum('owe', 'monthly') },
+    owed: { remaining: sum('owed', 'remaining'), principalLeft: sum('owed', 'principalLeft'), monthly: sum('owed', 'monthly') } };
+}
+
 async function monthStatus(env, month) {
   const row = await env.DB.prepare('SELECT status FROM months WHERE month = ?1').bind(month).first();
   return row?.status || 'open';
@@ -4357,6 +4411,14 @@ const LEDGER = {
       if (path === '/api/client' && request.method === 'DELETE') {
         await env.DB.prepare('DELETE FROM clients WHERE name = ?1').bind(url.searchParams.get('name') || '').run();
         return json({ ok: true });
+      }
+
+      if (path === '/api/debts' && request.method === 'GET') return json(await debtsReport(env));
+      if (path === '/api/debts' && request.method === 'PUT') {
+        const b = await request.json().catch(() => ({}));
+        if (!Array.isArray(b.loans)) return json({ error: 'loans must be a list' }, 400);
+        await putSetting(env, 'debts', JSON.stringify({ loans: b.loans.slice(0, 30).map(cleanLoan) }));
+        return json(await debtsReport(env));
       }
 
       if (path === '/api/settings' && request.method === 'PUT') {

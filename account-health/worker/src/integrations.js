@@ -127,7 +127,7 @@ export async function integrationsReport(env, { brand = null } = {}) {
     q(`SELECT act_id, data_json FROM p_br_doc WHERE line_id = '' AND key = 'asana' AND act_id IN (${IN})`, ...ids).then(rows => Object.fromEntries(rows.map(r => [r.act_id, safeJson(r.data_json, null)]))),
     q(`SELECT act_id, drive_url, steps_json FROM p_newclient WHERE act_id IN (${IN})`, ...ids).then(byAct),
     q(`SELECT act_id, status FROM p_br_onboard WHERE act_id IN (${IN})`, ...ids).then(byAct),
-    q(`SELECT act_id, shop, access_token, installed_at, uninstalled_at, last_sync_at FROM p_shopify WHERE act_id IN (${IN})`, ...ids).then(rows => { const o = {}; for (const r of rows) if (!o[r.act_id] || (!r.uninstalled_at && r.access_token)) o[r.act_id] = r; return o; }),
+    q(`SELECT act_id, shop, (access_token <> '') AS access_token, installed_at, uninstalled_at, last_sync_at FROM p_shopify WHERE act_id IN (${IN})`, ...ids).then(rows => { const o = {}; for (const r of rows) if (!o[r.act_id] || (!r.uninstalled_at && r.access_token)) o[r.act_id] = r; return o; }),
     q(`SELECT act_id, SUM(value) AS v FROM tw_daily WHERE metric = 'ga_adCost' AND date >= date('now', '-14 days') AND act_id IN (${IN}) GROUP BY act_id`, ...ids).then(byAct),
     q(`SELECT act_id, SUM(value) AS v FROM tw_daily WHERE metric = 'klaviyoPlacedOrderSales' AND date >= date('now', '-14 days') AND act_id IN (${IN}) GROUP BY act_id`, ...ids).then(byAct),
     q(`SELECT act_id, COUNT(*) AS n FROM p_studio_batch WHERE act_id IN (${IN}) GROUP BY act_id`, ...ids).then(byAct),
@@ -200,8 +200,9 @@ export async function integrationsReport(env, { brand = null } = {}) {
       { t: 'Paste the store domain (xxx.myshopify.com) here. The nightly sync starts within the hour and backfills 400 days of orders one slice a night.' },
     ],
     shopify: [
-      { t: 'Send the client the install link below. They sign in to their store admin and approve the Mobius Digital app (read orders, customers, products, reports).' },
-      { t: 'Blocked today: Shopify paused the app review on 2026-08-31 until the post-install page shows a real report. Being fixed; until it passes, Triple Whale carries the store numbers.' },
+      { t: 'Send the client the install link below. They sign in to their store admin and approve the Mobius Digital app (read orders, customers, products, inventory, returns, reports). It opens inside their Shopify admin.' },
+      { t: 'No link showing? The brand has no store address yet. Set it once (POST /api/connections/address on the profit worker) and the link appears.' },
+      { t: 'Blocked until Shopify approves the app (review 131577, fixes resubmitted late November 2026). Until then Triple Whale carries the store numbers.' },
     ],
     asana: [
       { t: 'New client makes the project from "MD - Template 2026 v2". For an older brand: Brand tab > Brand info > Connect Asana picks the project by the brand name, or choose it by hand.' },

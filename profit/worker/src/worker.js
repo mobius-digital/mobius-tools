@@ -26,6 +26,7 @@ import { handlePublic as studioPublic, handleStaff as studioStaff } from './stud
 const DASHBOARD_URL = 'https://locus.go-mobius-digital.com/profit/';
 import { handleSeason, seasonPublic } from './season.js';
 import { handleShopifyApp } from './shopifyapp.js';
+import { shopToken, exchangeCode, ensureTokenColumns } from './shoptoken.js';
 import { handleScenario } from './scenario.js';
 import { handleDashboard } from './dashboard.js';
 import { handleInspo } from './inspo.js';
@@ -170,10 +171,7 @@ async function authKind(request, env) {
   if (clientScope(request)) return 'client';
   const sess = await verifySession(env, tok);
   if (sess && (await emailAllowed(env, sess.email))) return 'admin';
-  // Dashboard password lives in the SHARED settings table, so one password
-  // opens both tools with nothing to configure here.
-  const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'passwordHash'`).first();
-  if (row?.value && (await sha256hex(tok)) === row.value) return 'admin';
+  /* No shared password (removed 2026-11-25): a person signs in as themselves. */
   // Checked BEFORE delegating: the demo password is local to this tool and must not
   // be forwarded to HQ, which would reject it and cost a round trip.
   const demo = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'demoPasswordHash'`).first();
@@ -226,50 +224,43 @@ async function sessionEmail(env, request) {
  * still goes through Shopify's review, which is why the compliance webhooks below are
  * not optional: an app that fails them is rejected.
  *
- * Non-embedded, so this is the authorization code grant:
- *   /shopify/install?shop=x.myshopify.com  -> issue a nonce, redirect to Shopify
+ * EMBEDDED, on Shopify MANAGED installation since 2026-11-15 (use_legacy_install_flow = false in
+ * shopify.app.toml): Shopify shows the permission screen itself, opens /shopify/app inside the admin, and the page
+ * trades its session token for the store's token (shopifyapp.js). That is the front door, and the one Shopify tests.
+ * The older authorization code grant is kept only as a fallback for a direct link:
+ *   /shopify/install?shop=x.myshopify.com  -> issue a nonce (good for 10 minutes), redirect to Shopify
  *   /shopify/callback                      -> verify HMAC + state, swap code for token
+ *
+ * TOKENS EXPIRE (2026-11-24, requirement 3.1.2). Never read p_shopify.access_token and use it: call
+ * shopToken(env, shop) from shoptoken.js, which refreshes it. The account-health worker does the same.
  */
-// read_reports is what grants shopifyqlQuery, and the cohort data comes from
-// ShopifyQL `FROM customers`. Without it cohorts fail silently. Must stay in step
-// with profit/shopify.app.toml - Shopify compares the two at install.
-const SHOPIFY_SCOPES = 'read_orders,read_customers,read_products,read_reports,write_products,write_discounts';
+// The REQUIRED scopes, asked at install. Must stay in step with `scopes` in profit/shopify.app.toml - Shopify compares
+// the two. read_reports is what grants shopifyqlQuery (cohorts come from ShopifyQL `FROM customers`; without it they
+// fail silently). read_inventory = stock and cost per item, read_returns = refund and return detail (2026-11-24).
+// write_products and write_discounts are OPTIONAL since 2026-11-24 (requirement 3.2): a store grants them from inside
+// the app (shopifyapp.js OPTIONAL_SCOPES) only if it wants Locus to change products or codes. Do NOT add write_pixels
+// or read_customer_events until the app has a pixel to show for them.
+const SHOPIFY_SCOPES = 'read_orders,read_customers,read_products,read_reports,read_inventory,read_returns';
+/** An install code (p_oauth_state) is good for this long. */
+const OAUTH_STATE_MINUTES = 10;
 const SHOP_RE = /^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/;
 // Keep in step with `api_version` in profit/shopify.app.toml.
 const SHOPIFY_API_VERSION = '2026-07';
 
-/** Subscribe THIS shop to app/uninstalled.
- *
- *  It cannot be declared in shopify.app.toml: app-specific subscriptions are
- *  rejected when use_legacy_install_flow is true, and that flag has to stay true
- *  because the worker does the standalone authorization-code grant rather than
- *  token exchange. Shop-specific registration at install is the alternative
- *  Shopify itself names. The three compliance webhooks are unaffected - those are
- *  declared with `compliance_topics` and stay in the TOML.
- *
- *  Best effort on purpose: a merchant who is otherwise connected must not see the
- *  install fail because a webhook did not take. Worst case we learn about an
- *  uninstall on the next sync's 401 instead of instantly.
- */
-async function registerUninstallWebhook(env, shop, token, origin) {
-  const q = `mutation($sub: WebhookSubscriptionInput!) {
-    webhookSubscriptionCreate(topic: APP_UNINSTALLED, webhookSubscription: $sub) {
-      userErrors { field message }
-    }
-  }`;
-  try {
-    const res = await fetch(`https://${shop}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': token },
-      body: JSON.stringify({
-        query: q,
-        variables: { sub: { callbackUrl: `${origin}/shopify/webhooks/app/uninstalled`, format: 'JSON' } },
-      }),
-    });
-    const b = await res.json().catch(() => ({}));
-    const errs = b?.data?.webhookSubscriptionCreate?.userErrors;
-    if (!res.ok || errs?.length) console.log('uninstall webhook not registered', shop, res.status, JSON.stringify(errs || b));
-  } catch (e) { console.log('uninstall webhook failed', shop, e.message); }
+/** Store a shop's offline token, from either the classic callback or the embedded app's token exchange (managed
+ *  installation, 2026-11-15). app/uninstalled is declared in shopify.app.toml since then, so no per-shop webhook. */
+async function saveShopToken(env, shop, t) {
+  /* t = the token set from shoptoken.js: {token, scope, refresh_token, expires_at, refresh_expires_at}. */
+  const actId = await matchAccount(env, shop);
+  await ensureTokenColumns(env);
+  await env.DB.prepare(
+    `INSERT INTO p_shopify (shop, act_id, access_token, scopes, installed_at, uninstalled_at, refresh_token, expires_at, refresh_expires_at)
+     VALUES (?1,?2,?3,?4,datetime('now'),NULL,?5,?6,?7)
+     ON CONFLICT(shop) DO UPDATE SET act_id = COALESCE(excluded.act_id, p_shopify.act_id), access_token = excluded.access_token,
+       scopes = excluded.scopes, installed_at = excluded.installed_at, uninstalled_at = NULL,
+       refresh_token = excluded.refresh_token, expires_at = excluded.expires_at, refresh_expires_at = excluded.refresh_expires_at`,
+  ).bind(shop, actId, t.token, t.scope ?? SHOPIFY_SCOPES, t.refresh_token ?? null, t.expires_at ?? null, t.refresh_expires_at ?? null).run();
+  if (actId) await profitShareToken(env, actId).catch(() => {});
 }
 
 /* ---------------- the merchant's own store report (2026-10-07) ----------------
@@ -299,14 +290,18 @@ async function storeReport(env, viewToken) {
   const row = await env.DB.prepare(`SELECT v.shop, s.access_token, s.uninstalled_at FROM p_store_view v LEFT JOIN p_shopify s ON s.shop = v.shop WHERE v.token = ?1`).bind(viewToken).first().catch(() => null);
   if (!row) return { error: 'No store on this link.', status: 404 };
   if (!row.access_token || row.uninstalled_at) return { error: 'This store removed the Mobius Digital app, so there is nothing to read. Install it again from Shopify to see the report.', status: 410, shop: row.shop };
+  row.access_token = await shopToken(env, row.shop);
+  if (!row.access_token) return { error: 'This store needs to open the Mobius Digital app in its Shopify admin once to reconnect. Nothing can be read until then.', status: 410, shop: row.shop };
   const since = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
   const shopQ = `{ shop { name myshopifyDomain currencyCode primaryDomain { url } } }`;
-  const ordersQ = `query($q: String!, $after: String) { orders(first: 250, query: $q, after: $after, sortKey: CREATED_AT) { pageInfo { hasNextPage endCursor }
+  /* 50 a page, not 250: Shopify refuses a single query over 1,000 points and an order with ten line items costs
+     about 16, so 250 asked for about 4,000 and was refused (2026-11-24). 20 pages keeps the same 1,000 order reach. */
+  const ordersQ = `query($q: String!, $after: String) { orders(first: 50, query: $q, after: $after, sortKey: CREATED_AT) { pageInfo { hasNextPage endCursor }
     nodes { id createdAt currentTotalPriceSet { shopMoney { amount } } customer { numberOfOrders } lineItems(first: 10) { nodes { title quantity } } } } }`;
   const shop = (await shopifyGraph(row.shop, row.access_token, shopQ)).shop || {};
   const orders = [];
   let after = null;
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 20; i++) {
     const d = await shopifyGraph(row.shop, row.access_token, ordersQ, { q: `created_at:>=${since} AND financial_status:paid`, after });
     orders.push(...(d.orders?.nodes || []));
     if (!d.orders?.pageInfo?.hasNextPage) break;
@@ -355,7 +350,6 @@ async function validWebhookHmac(env, rawBody, header) {
   return safeEq(toB64(await hmacSha256(env.SHOPIFY_API_SECRET, rawBody)), header);
 }
 
-/** Tie a shop domain to one of our brands. brand_accounts.tw_shop (the triple_whale connection) already holds it. */
 /** The client's own dashboard token, created on first use.
  *  Shared by /api/profit-share and the Shopify post-install redirect so a merchant
  *  and a share link always land on the SAME page - two mint paths would give one
@@ -371,9 +365,39 @@ async function profitShareToken(env, actId) {
   return token;
 }
 
+/** Tie a shop domain to one of our brands. First the store address someone typed for the brand (p_shop_address,
+ *  2026-11-24: VetriPaws, Dental Fresh and SpeedIn have no Triple Whale), then brand_accounts.tw_shop (the
+ *  triple_whale connection). */
 async function matchAccount(env, shop) {
+  const own = await env.DB.prepare(`SELECT act_id FROM p_shop_address WHERE lower(shop) = lower(?1)`).bind(shop).first().catch(() => null);
+  if (own?.act_id) return own.act_id;
   const row = await env.DB.prepare(`SELECT act_id FROM brand_accounts WHERE lower(tw_shop) = lower(?1)`).bind(shop).first().catch(() => null);
   return row?.act_id ?? null;
+}
+const SHOP_ADDRESS_DDL = `CREATE TABLE IF NOT EXISTS p_shop_address (act_id TEXT PRIMARY KEY, shop TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT (datetime('now')))`;
+/** The link a store owner opens to add the app. Installs must start on Shopify (requirement 2.3.1), so this is never
+ *  our own /shopify/install address: it is the App Store listing when SHOPIFY_LISTING_URL is set (works for any
+ *  store, no address needed), otherwise Shopify's own install page for that one store. */
+function shopifyInstallLink(env, shop) {
+  if (env.SHOPIFY_LISTING_URL) return env.SHOPIFY_LISTING_URL;
+  if (!SHOP_RE.test(shop || '') || !env.SHOPIFY_API_KEY) return null;
+  return `https://admin.shopify.com/store/${shop.replace(/\.myshopify\.com$/i, '')}/oauth/install?client_id=${env.SHOPIFY_API_KEY}`;
+}
+/** Everything we hold about a shop, gone (shop/redact, 48 hours after an uninstall). */
+async function redactShop(env, shop) {
+  if (!shop) return;
+  const row = await env.DB.prepare(`SELECT act_id FROM p_shopify WHERE shop = ?1`).bind(shop).first().catch(() => null);
+  const run = (sql, ...a) => env.DB.prepare(sql).bind(...a).run().catch(() => {});
+  await run(`DELETE FROM p_store_view WHERE shop = ?1`, shop);
+  await run(`DELETE FROM p_oauth_state WHERE shop = ?1`, shop);
+  await run(`DELETE FROM p_shop_address WHERE lower(shop) = lower(?1)`, shop);
+  /* Cohorts are the only store data kept (monthly totals, no person in them). They are filed under the brand, so
+     they go when this shop was the brand's only store. */
+  if (row?.act_id) {
+    const other = await env.DB.prepare(`SELECT 1 AS x FROM p_shopify WHERE act_id = ?1 AND shop <> ?2 LIMIT 1`).bind(row.act_id, shop).first().catch(() => null);
+    if (!other) await run(`DELETE FROM p_cohorts WHERE act_id = ?1`, row.act_id);
+  }
+  await run(`DELETE FROM p_shopify WHERE shop = ?1`, shop);
 }
 
 /* ---------------- accounts ---------------- */
@@ -1051,8 +1075,9 @@ async function shopifyql(shop, token, query) {
  *  is the whole point of the card and a useful smell test if these ever look flat.
  */
 async function syncCohorts(env, row) {
-  const { shop, act_id, access_token } = row;
-  if (!access_token) throw new Error('no access token');
+  const { shop, act_id } = row;
+  const access_token = await shopToken(env, shop);
+  if (!access_token) throw new Error('the store has to open the Mobius Digital app in Shopify once to reconnect');
 
   const WINDOW = 'SINCE -1095d UNTIL today';        // three years back
   const base = await shopifyql(shop, access_token,
@@ -1737,13 +1762,12 @@ export default {
        token you supplied — no secrets, no other user's state. */
     if (path === '/api/auth-check') {
       const tok = (request.headers.get('Authorization') || '').replace(/^Bearer /, '');
-      const out = {
-        has_auth_binding: !!env.AUTH,
-        has_session_secret: !!env.SESSION_SECRET,
-        has_admin_token: !!env.ADMIN_TOKEN,
-        shared_password_set: !!(await env.DB.prepare(`SELECT value FROM settings WHERE key = 'passwordHash'`).first())?.value,
-        token_seen: tok ? `${tok.slice(0, 4)}…(${tok.length})` : null,
-      };
+      const out = { has_auth_binding: !!env.AUTH };
+      /* How this worker is set up is for a signed-in team member only. */
+      if (tok && (await isAdmin(request, env))) {
+        out.has_session_secret = !!env.SESSION_SECRET;
+        out.has_admin_token = !!env.ADMIN_TOKEN;
+      }
       // Prove the worker-to-worker binding is actually reachable.
       try {
         const probe = env.AUTH ? await env.AUTH.fetch(new Request(`${AUTH_WORKER}/health`)) : null;
@@ -1927,7 +1951,7 @@ export default {
        so they sit above the dashboard auth gate and authenticate themselves by HMAC. */
     /* The embedded app inside the Shopify admin (2026-10-18, review 131577): its page and its session-token API. */
     if (path === '/shopify/app' || path === '/shopify/app/api/report') {
-      const r = await handleShopifyApp(request, env, url);
+      const r = await handleShopifyApp(request, env, url, { saveToken: (shop, t) => saveShopToken(env, shop, t) });
       if (r) return r;
     }
     if (path === '/shopify/install') {
@@ -1935,6 +1959,8 @@ export default {
       if (!SHOP_RE.test(shop)) return new Response('Invalid shop domain.', { status: 400 });
       if (!env.SHOPIFY_API_KEY) return new Response('Shopify app is not configured yet.', { status: 503 });
       // A nonce Shopify must hand back, so a callback we did not start is rejected.
+      // Codes nobody came back for are swept here, so the table cannot grow without limit.
+      await env.DB.prepare(`DELETE FROM p_oauth_state WHERE created_at < datetime('now', '-${OAUTH_STATE_MINUTES} minutes')`).run().catch(() => {});
       const state = crypto.randomUUID().replace(/-/g, '');
       await env.DB.prepare(`INSERT INTO p_oauth_state (state, shop) VALUES (?1, ?2)`).bind(state, shop).run();
       const redirectUri = `${url.origin}/shopify/callback`;
@@ -1952,33 +1978,21 @@ export default {
       const state = url.searchParams.get('state');
       if (!SHOP_RE.test(shop) || !code || !state) return new Response('Invalid request.', { status: 400 });
       if (!(await validOauthHmac(env, url))) return new Response('HMAC validation failed.', { status: 401 });
-      // The nonce must be one WE issued, for THIS shop, and it is single use.
-      const st = await env.DB.prepare(`SELECT shop FROM p_oauth_state WHERE state = ?1`).bind(state).first();
+      // The nonce must be one WE issued, for THIS shop, within the last 10 minutes, and it is single use.
+      const st = await env.DB.prepare(`SELECT shop FROM p_oauth_state WHERE state = ?1 AND created_at >= datetime('now', '-${OAUTH_STATE_MINUTES} minutes')`).bind(state).first();
       await env.DB.prepare(`DELETE FROM p_oauth_state WHERE state = ?1`).bind(state).run().catch(() => {});
       if (!st || st.shop !== shop) return new Response('Invalid or expired state.', { status: 401 });
 
-      const res = await fetch(`https://${shop}/admin/oauth/access_token`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ client_id: env.SHOPIFY_API_KEY, client_secret: env.SHOPIFY_API_SECRET, code }),
-      });
-      if (!res.ok) return new Response('Could not complete the install.', { status: 502 });
-      const tok = await res.json().catch(() => ({}));
-      if (!tok.access_token) return new Response('No access token returned.', { status: 502 });
+      // expiring=1: an EXPIRING offline token plus its refresh token (requirement 3.1.2).
+      let tok;
+      try { tok = await exchangeCode(env, shop, code); }
+      catch { return new Response('Could not complete the install.', { status: 502 }); }
 
-      const actId = await matchAccount(env, shop);
-      await env.DB.prepare(
-        `INSERT INTO p_shopify (shop, act_id, access_token, scopes, installed_at, uninstalled_at)
-         VALUES (?1,?2,?3,?4,datetime('now'),NULL)
-         ON CONFLICT(shop) DO UPDATE SET act_id = excluded.act_id, access_token = excluded.access_token,
-           scopes = excluded.scopes, installed_at = excluded.installed_at, uninstalled_at = NULL`,
-      ).bind(shop, actId, tok.access_token, tok.scope ?? SHOPIFY_SCOPES).run();
-
-      await registerUninstallWebhook(env, shop, tok.access_token, url.origin);
+      await saveShopToken(env, shop, tok);
 
       // Land the merchant back INSIDE the Shopify admin, on the embedded app (shopifyapp.js): every store, client or not,
       // gets the same live store screen there. Review 131577 (2026-10-17) paused the app because the old landing page
       // outside Shopify showed "Shopify could not be read: Shopify returned 403" to a reviewer's test store.
-      if (actId) await profitShareToken(env, actId).catch(() => {});
       return Response.redirect(`https://${shop}/admin/apps/${env.SHOPIFY_API_KEY}`, 302);
     }
 
@@ -1997,9 +2011,15 @@ export default {
       if (topic === 'app/uninstalled') {
         // The token is dead the moment the merchant uninstalls - stop using it.
         await env.DB.prepare(`UPDATE p_shopify SET uninstalled_at = datetime('now'), access_token = '' WHERE shop = ?1`).bind(shop).run().catch(() => {});
+        await env.DB.prepare(`UPDATE p_shopify SET refresh_token = NULL, expires_at = NULL, refresh_expires_at = NULL WHERE shop = ?1`).bind(shop).run().catch(() => {});
       } else if (topic === 'shop/redact') {
-        // 48h after uninstall. We hold no shop-level personal data beyond the token.
-        await env.DB.prepare(`DELETE FROM p_shopify WHERE shop = ?1`).bind(shop).run().catch(() => {});
+        // 48h after uninstall: every row about this shop goes, not only the token.
+        await redactShop(env, shop);
+      } else if (topic === 'app/scopes_update') {
+        // The store granted or removed optional access. Keep what Locus believes in step with what Shopify holds.
+        if (Array.isArray(body.current) && body.current.length && shop) {
+          await env.DB.prepare(`UPDATE p_shopify SET scopes = ?2 WHERE shop = ?1`).bind(shop, body.current.map(String).join(',')).run().catch(() => {});
+        }
       }
       // customers/data_request and customers/redact: we store no customer-level personal
       // data - the sync keeps only aggregates and anonymous customer ids - so there is
@@ -2548,8 +2568,11 @@ export default {
        * Cole asked where clients get added moving forward - this is that screen. */
       if (path === '/api/connections') {
         const accounts = await accountsFor(false);
-        const { results: shops } = await env.DB.prepare(`SELECT * FROM p_shopify`).all()
+        /* Never SELECT *: this answer goes to the browser and the row holds the store's tokens. */
+        const { results: shops } = await env.DB.prepare(`SELECT shop, act_id, scopes, installed_at, uninstalled_at, last_sync_at, (access_token <> '') AS access_token FROM p_shopify`).all()
           .catch(() => ({ results: [] }));
+        const { results: addrRows } = await env.DB.prepare(`SELECT act_id, shop FROM p_shop_address`).all().catch(() => ({ results: [] }));
+        const addrBy = Object.fromEntries(addrRows.map(r => [r.act_id, r.shop]));
         const { results: coRows } = await env.DB.prepare(
           `SELECT act_id, COUNT(*) AS n, MAX(as_of) AS as_of FROM p_cohorts GROUP BY act_id`,
         ).all().catch(() => ({ results: [] }));
@@ -2557,8 +2580,9 @@ export default {
 
         const byAct = {};
         for (const sh of shops) if (sh.act_id) (byAct[sh.act_id] ??= []).push(sh);
-        // A store only gets an install link if we actually know its domain.
-        const installUrl = d => (SHOP_RE.test(d || '') ? `${url.origin}/shopify/install?shop=${encodeURIComponent(d)}` : null);
+        // The listing link works for any store; without it a store only gets a link if we know its address
+        // (typed for the brand, an earlier install, or the Triple Whale shop, in that order).
+        const installUrl = d => shopifyInstallLink(env, d);
 
         const clients = accounts.map(a => {
           const rows = byAct[a.act_id] || [];
@@ -2567,7 +2591,10 @@ export default {
           const co = coBy[a.act_id];
           return {
             act_id: a.act_id, name: a.name, active: !!a.active,
-            shop: live?.shop ?? past?.shop ?? a.tw_shop ?? null,
+            shop: live?.shop ?? past?.shop ?? addrBy[a.act_id] ?? a.tw_shop ?? null,
+            shop_address: addrBy[a.act_id] ?? null,
+            // installed, but the token ran out for good: the owner opens the app in Shopify once
+            reconnect: !live && !!past && !past.uninstalled_at,
             // 'uninstalled' is deliberately distinct from 'not_connected': a merchant
             // who removed the app looks identical otherwise, and that is the one case
             // where the data silently stops updating.
@@ -2576,7 +2603,7 @@ export default {
             uninstalled_at: live ? null : (past?.uninstalled_at ?? null),
             last_sync_at: live?.last_sync_at ?? null,
             cohort_months: co?.n ?? 0, cohort_as_of: co?.as_of ?? null,
-            install_url: installUrl(a.tw_shop || live?.shop || past?.shop),
+            install_url: installUrl(addrBy[a.act_id] || live?.shop || past?.shop || a.tw_shop),
           };
         });
 
@@ -2596,7 +2623,7 @@ export default {
       if (path === '/api/cohort-sync' && request.method === 'POST') {
         const act = url.searchParams.get('act');
         const { results: shops } = await env.DB.prepare(
-          `SELECT * FROM p_shopify WHERE uninstalled_at IS NULL AND access_token <> ''
+          `SELECT shop, act_id FROM p_shopify WHERE uninstalled_at IS NULL AND access_token <> ''
              AND act_id IS NOT NULL ${act && act !== 'all' ? 'AND act_id = ?1' : ''}`,
         ).bind(...(act && act !== 'all' ? [act] : [])).all().catch(() => ({ results: [] }));
         if (!shops.length) return json({ error: 'no connected store for that client' }, 404);
@@ -2606,6 +2633,33 @@ export default {
           catch (e) { out.push({ shop: row.shop, act_id: row.act_id, error: e.message }); }
         }
         return json({ ok: out.some(r => r.months), results: out });
+      }
+
+      /* A brand's store address, typed by the team: for brands with no Triple Whale shop to read it from. It gives
+         the brand an install link and lets the install match itself to the brand. Empty shop clears it. */
+      if (path === '/api/connections/address' && request.method === 'POST') {
+        const b = await request.json().catch(() => ({}));
+        const shop = String(b.shop || '').toLowerCase().trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+        const acct = (await accountsFor(false)).find(a => a.act_id === b.act);
+        if (!acct) return json({ error: 'unknown account' }, 404);
+        await env.DB.prepare(SHOP_ADDRESS_DDL).run().catch(() => {});
+        if (!shop) { await env.DB.prepare(`DELETE FROM p_shop_address WHERE act_id = ?1`).bind(b.act).run(); return json({ ok: true, act: b.act, shop: null }); }
+        if (!SHOP_RE.test(shop)) return json({ error: 'Use the store\'s myshopify.com address, like brand.myshopify.com' }, 400);
+        const taken = await env.DB.prepare(`SELECT act_id FROM p_shop_address WHERE lower(shop) = ?1 AND act_id <> ?2`).bind(shop, b.act).first().catch(() => null);
+        if (taken) return json({ error: 'That store address is already set on another brand.' }, 409);
+        await env.DB.prepare(`INSERT INTO p_shop_address (act_id, shop) VALUES (?1, ?2) ON CONFLICT(act_id) DO UPDATE SET shop = excluded.shop, updated_at = datetime('now')`).bind(b.act, shop).run();
+        /* a store that installed before the address was typed is linked now */
+        await env.DB.prepare(`UPDATE p_shopify SET act_id = ?2 WHERE shop = ?1 AND act_id IS NULL`).bind(shop, b.act).run().catch(() => {});
+        return json({ ok: true, act: b.act, shop, install_url: shopifyInstallLink(env, shop) });
+      }
+
+      /* The account-health worker shares this database but not the app secret, so it asks here for a refresh
+         (shoptoken.js `remote`). The answer never carries the token: the caller reads it from the shared table. */
+      if (path === '/api/shopify/token-refresh' && request.method === 'POST') {
+        const shop = String(url.searchParams.get('shop') || '').toLowerCase();
+        if (!SHOP_RE.test(shop)) return json({ error: 'invalid shop domain' }, 400);
+        try { const t = await shopToken(env, shop); return json({ ok: !!t, connected: !!t }); }
+        catch (e) { return json({ ok: false, error: e.message }, 502); }
       }
 
       /* Point a connected store at a client, for a domain that did not auto-match. */

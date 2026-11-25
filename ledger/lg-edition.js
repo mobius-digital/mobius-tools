@@ -30,7 +30,7 @@ const EDITIONS = {
     nav: [
       { id: 'home', label: 'Home', icon: 'home', pages: [['overview', 'Overview']] },
       { id: 'money', label: 'Money', icon: 'chart-line', pages: [['pnl', 'Profit and loss'], ['balance', 'Balance sheet'], ['costs', 'Costs'], ['taxes', 'Taxes']] },
-      { id: 'cash', label: 'Cash', icon: 'dollar', pages: [['forecast', 'Forecast'], ['plan', 'Plan']] },
+      { id: 'cash', label: 'Cash', icon: 'dollar', pages: [['forecast', 'Forecast'], ['plan', 'Plan'], ['debts', 'Debts']] },
       { id: 'books', label: 'Books', icon: 'receipt', pages: [['txns', 'Transactions'], ['receipts', 'Receipts'], ['close', 'Close']] },
       { id: 'clients', label: 'Clients', icon: 'users', pages: [['retainers', 'Retainers'], ['invoices', 'Invoices and Stripe'], ['contractors', 'Contractors']] },
       { id: 'reports', label: 'Reports', icon: 'file-chart', pages: [['statements', 'Statements'], ['pack', 'CPA pack'], ['creports', 'Cashew reports']] },
@@ -74,7 +74,6 @@ const EDITIONS = {
       ['banks', 'Banks and cards', 'landmark'], ['shopify', 'Shopify', 'shopping-bag'], ['slack', 'Slack and the Caddie', 'message'], ['access', 'Access', 'key'], ['data', 'Data', 'refresh'],
     ],
     stub: {
-      debts: 'Debts (Shopify Capital, Kickfurther, other loans) live in the Lucky engine. They reach this engine in Step B, one worker for every edition.',
       products: 'Products and margin need Shopify orders and unit costs. This engine has no store connection yet; Step B brings the Lucky routes over.',
       inventory: 'Inventory on hand at cost needs the Shopify sync and the cost book. Not connected in this engine yet.',
       orders: 'Orders, units and the average order come from Shopify. Not connected in this engine yet.',

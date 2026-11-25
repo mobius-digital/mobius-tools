@@ -93,28 +93,30 @@ SCREENS.pnl = renderPnl;
 async function renderBalance() {
   const m = $('#main'), my = S.rt, cur = nowMonth(), y = cur.slice(0, 4);
   m.innerHTML = pageHead('Balance sheet', 'A photo of today, not a period.') + skPage({ tiles: 4, chart: false });
-  let bal, ser; try { [bal, ser] = await Promise.all([getBalances(), getSeries(`${y}-01`, cur).catch(() => null)]); } catch (e) { if (!stale(my)) m.innerHTML = errorCard(e, 'renderBalance()'); return; }
+  let bal, ser, dbt; try { [bal, ser, dbt] = await Promise.all([getBalances(), getSeries(`${y}-01`, cur).catch(() => null), api('/api/debts').catch(() => null)]); } catch (e) { if (!stale(my)) m.innerHTML = errorCard(e, 'renderBalance()'); return; }
   if (stale(my)) return;
   const accts = (bal.accounts || []).filter(a => !a.error);
   const cashAccts = accts.filter(a => a.type === 'depository'), cards = accts.filter(a => a.type === 'credit');
   const ytd = ser ? addUp(ser.months.filter(x => x.month >= firstMonth())) : null;
   const taxAside = ytd ? Math.max(0, ytd.taxes - (ytd.incomeTax || 0)) : 0;
   const ta = cashAccts.reduce((s, a) => s + (a.current || 0), 0), tl = cards.reduce((s, a) => s + (a.current || 0), 0);
-  const net = ta - tl;
+  const loansOwe = (dbt?.loans || []).filter(l => l.side === 'owe' && l.principalLeft > 0), loansLent = (dbt?.loans || []).filter(l => l.side === 'owed' && l.principalLeft > 0);
+  const lo = loansOwe.reduce((s, l) => s + l.principalLeft, 0), ll = loansLent.reduce((s, l) => s + l.principalLeft, 0);
+  const net = ta + ll - tl - lo;
   const lead = bal.connected
-    ? `${ED.id === 'household' ? 'You have' : 'The business has'} <b>${money0(ta)}</b> in the bank and owes <b>${money0(tl)}</b> on cards, so what is really yours is <b class="${net >= 0 ? 'good' : 'bad'}">${money0(net)}</b>${taxAside ? `, of which <b>${money0(taxAside)}</b> is set aside for tax and not yours to spend` : ''}. Bank balances as of ${bal.at ? new Date(bal.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'the last sync'}.`
+    ? `${ED.id === 'household' ? 'You have' : 'The business has'} <b>${money0(ta)}</b> in the bank and owes <b>${money0(tl + lo)}</b> on cards${lo ? ' and loans' : ''}${ll ? `, is owed <b>${money0(ll)}</b> in loans it made` : ''}, so what is really yours is <b class="${net >= 0 ? 'good' : 'bad'}">${money0(net)}</b>${taxAside ? `, of which <b>${money0(taxAside)}</b> is set aside for tax and not yours to spend` : ''}. Bank balances as of ${bal.at ? new Date(bal.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'the last sync'}.`
     : 'No bank is connected yet, so there is nothing to photograph. Connect one in Settings › Banks and cards.';
   m.innerHTML = pageHead('Balance sheet', lead, bal.connected ? `<button class="btn" onclick="refreshBalances(this)">${icon('refresh')} Ask the bank again</button>` : '') + `
     <div class="v2">
       <div class="tiles">
         ${tile({ label: 'In the bank', value: money0(ta), sub: cashAccts.length ? cashAccts.map(a => esc(a.name)).join(', ') : 'no checking or savings connected' })}
         ${tile({ label: 'Owed on cards', value: money0(tl), sub: cards.length ? cards.map(a => esc(a.name)).join(', ') : 'no card connected' })}
-        ${tile({ label: ED.id === 'household' ? 'Really yours' : 'Net worth of the business', value: money0(net), tone: net >= 0 ? 'good' : 'bad', sub: 'cash minus what the cards owe' })}
+        ${tile({ label: ED.id === 'household' ? 'Really yours' : 'Net worth of the business', value: money0(net), tone: net >= 0 ? 'good' : 'bad', sub: lo || ll ? 'cash and loans made, minus cards and loans owed' : 'cash minus what the cards owe' })}
         ${tile({ label: 'Set aside for tax', value: money0(taxAside), sub: ytd ? `${S.boot.money.taxPct}% of this year's ${word('netLow')}, less income tax already paid` : 'needs the year\'s months', go: "show('taxes')", goTitle: 'Open Taxes' })}
       </div>
       <div class="two even">
-        ${card(ED.id === 'household' ? 'What you have' : 'What the business has', 'Cash straight from the bank, one line per account.', cashAccts.map(a => lnRow(esc(a.name) + (a.mask ? ` <small style="display:inline">··${esc(a.mask)}</small>` : ''), a.available != null && a.available !== a.current ? `${money0(a.available)} available` : 'in the bank', money0(a.current || 0))).join('') + lnRow('Total', '', money0(ta)).replace('class="ln"', 'class="ln tot"') || '<p class="hint">Nothing connected.</p>')}
-        ${card('What it owes', 'Every balance that has to be paid back. Cards clear when the statement is paid.', (cards.map(a => lnRow(esc(a.name), a.limit ? `of a ${money0(a.limit)} limit` : 'card balance', money0(a.current || 0))).join('') || '<p class="hint">No card balance.</p>') + (taxAside ? lnRow('Tax set-aside', 'owed to the government, not a bank', money0(taxAside)) : '') + lnRow('Total owed', '', money0(tl + taxAside)).replace('class="ln"', 'class="ln tot"'))}
+        ${card(ED.id === 'household' ? 'What you have' : 'What the business has', 'Cash straight from the bank, one line per account.', cashAccts.map(a => lnRow(esc(a.name) + (a.mask ? ` <small style="display:inline">··${esc(a.mask)}</small>` : ''), a.available != null && a.available !== a.current ? `${money0(a.available)} available` : 'in the bank', money0(a.current || 0))).join('') + loansLent.map(l => lnRow(esc(l.name), 'lent, still to come back (fees not counted)', money0(l.principalLeft)).replace('class="ln"', `class="ln click" onclick="show('debts')"`)).join('') + lnRow('Total', '', money0(ta + ll)).replace('class="ln"', 'class="ln tot"') || '<p class="hint">Nothing connected.</p>')}
+        ${card('What it owes', 'Every balance that has to be paid back. Cards clear when the statement is paid; loans run on the Debts page.', (cards.map(a => lnRow(esc(a.name), a.limit ? `of a ${money0(a.limit)} limit` : 'card balance', money0(a.current || 0))).join('') || '<p class="hint">No card balance.</p>') + loansOwe.map(l => lnRow(esc(l.name), 'loan, money borrowed still owed (future fees not counted)', money0(l.principalLeft)).replace('class="ln"', `class="ln click" onclick="show('debts')"`)).join('') + (taxAside ? lnRow('Tax set-aside', 'owed to the government, not a bank', money0(taxAside)) : '') + lnRow('Total owed', '', money0(tl + lo + taxAside)).replace('class="ln"', 'class="ln tot"'))}
       </div>
       ${(bal.accounts || []).some(a => a.error) ? `<div class="notice warn">The bank did not answer for ${(bal.accounts || []).filter(a => a.error).map(a => esc(a.item)).join(', ')}: ${esc((bal.accounts || []).find(a => a.error).error)}</div>` : ''}
       <p class="foot">Not on this sheet: money clients owe that has not landed, and deposits already paid for work not delivered. The P&L can say profitable while this falls, if spending runs ahead of collections: watch it month to month.</p>
