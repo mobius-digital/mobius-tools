@@ -28,8 +28,8 @@ const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
  * Dec 4). It only sends once at least one brand's own sale is live; each brand counts from its own start. */
 export const STAND_DAYS = { from: '2026-11-23', to: '2026-12-04' };
 /* Central hours. 9am to 9pm every 3 hours, and 11pm to close the day (a midnight read would be an empty new day). */
-/* Every 6 hours since Cole 2026-11-24 ("can Meta even optimize after every 3 hours?"): 9am, 3pm, 9pm Central. */
-export const STAND_HOURS = [9, 15, 21];
+/* Every 6 hours since Cole 2026-11-24 ("can Meta even optimize after every 3 hours?"): 9am, 3pm, 9pm Central; moved to 8am, 2pm, 8pm the same day (Cole). */
+export const STAND_HOURS = [8, 14, 20];
 const KNOWN_LIMITS = { brand_lucky_golf: 6637, brand_dartee_golf: 13806, brand_bonk_golf: 5000, brand_grunk_dolfer: 2583, brand_yak_sports: 841, brand_vetripaws: 3428 };
 const SALE_RE =/bfcm|black friday|\bbf\b|cyber|holiday 20\d\d/i;
 
@@ -504,7 +504,7 @@ export async function clientUpdateMsg(env, deps, rec, act, style = 'plain', name
     }
   }
   const upd = [T1('Updates'), md((did.length ? did : ['No changes since the last update']).map(d => `•  ${d}`).join('\n')),
-    ctx(rec.next ? `Next update at ${rec.next} CT` : 'Next update tomorrow at 9am CT')];
+    ctx(rec.next ? `Next update at ${rec.next} CT` : 'Next update tomorrow at 8am CT')];
   if (layout === 'clean' || layout === 'spaced') blocks.push({ type: 'divider' }, ...upd); else attachments.push({ color: BLUE, blocks: upd });
   return { text: `${name || b.name} ${m}, ${t.day} ${t.hour}`, blocks, attachments };
 }
@@ -518,7 +518,7 @@ export async function offerClientUpdate(env, deps, { act, rec = null, style = nu
   rec = rec || await load(env, deps).catch(() => null);
   if (!rec) return { ok: false, error: 'No check-in yet.' };
   /* A preview of another moment (sample route): the same numbers drawn as the 9am or 9pm version. */
-  if (at === 'morning' || at === 'evening') rec = { ...rec, slot: `${String(rec.slot).split('T')[0]}T${at === 'morning' ? '09' : '21'}`, next: at === 'morning' ? '3pm' : null };
+  if (at === 'morning' || at === 'evening') rec = { ...rec, slot: `${String(rec.slot).split('T')[0]}T${at === 'morning' ? '08' : '20'}`, next: at === 'morning' ? '2pm' : null };
   const saved = await deps.getSetting(env, 'clientUpdateStyle');
   const st = STYLES.includes(style) ? style : STYLES.includes(saved) ? saved : 'plain';
   const id = Math.random().toString(16).slice(2, 12);
