@@ -1,4 +1,4 @@
-import { guardBrands, clientScope } from './brandguard.js';
+import { guardBrands, clientScope, brandsFor } from './brandguard.js';
 import { memo, bumpMemo } from './memo.js';
 import { metaOf, isBrandId, resolveBrandId } from './brandids.js';
 /**
@@ -26,13 +26,15 @@ import { handlePublic as studioPublic, handleStaff as studioStaff } from './stud
 const DASHBOARD_URL = 'https://locus.go-mobius-digital.com/profit/';
 import { handleSeason, seasonPublic } from './season.js';
 import { handleShopifyApp } from './shopifyapp.js';
+import { shopToken, exchangeCode, ensureTokenColumns } from './shoptoken.js';
 import { handleScenario } from './scenario.js';
 import { handleDashboard } from './dashboard.js';
 import { handleInspo } from './inspo.js';
 import { snapshotPublic, handleSnapshot } from './snapshot.js';
 import { clientPagePublic, handleClientPage } from './clientpage.js';
 import { handleHub } from './hub.js';
-import { handleExpenses, loadExpenses, spread, applyAdSpend } from './expenses.js';
+import { handleExpenses, loadExpenses, spread, applyAdSpend, netAfter, netInPosts } from './expenses.js';
+import { handleCosts, costsPage, loadCostRules, ruleCosts, shippingRuled, partlyCosted } from './costs.js';
 // The account-health worker is the Mobius auth server (it mints the Google sessions).
 const AUTH_WORKER = 'https://mobius-account-health.mobius-digital.workers.dev';
 /* Served by the account-health worker and forwarded verbatim (see the proxy block). */
@@ -170,10 +172,7 @@ async function authKind(request, env) {
   if (clientScope(request)) return 'client';
   const sess = await verifySession(env, tok);
   if (sess && (await emailAllowed(env, sess.email))) return 'admin';
-  // Dashboard password lives in the SHARED settings table, so one password
-  // opens both tools with nothing to configure here.
-  const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'passwordHash'`).first();
-  if (row?.value && (await sha256hex(tok)) === row.value) return 'admin';
+  /* No shared password (removed 2026-11-25): a person signs in as themselves. */
   // Checked BEFORE delegating: the demo password is local to this tool and must not
   // be forwarded to HQ, which would reject it and cost a round trip.
   const demo = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'demoPasswordHash'`).first();
@@ -226,50 +225,43 @@ async function sessionEmail(env, request) {
  * still goes through Shopify's review, which is why the compliance webhooks below are
  * not optional: an app that fails them is rejected.
  *
- * Non-embedded, so this is the authorization code grant:
- *   /shopify/install?shop=x.myshopify.com  -> issue a nonce, redirect to Shopify
+ * EMBEDDED, on Shopify MANAGED installation since 2026-11-15 (use_legacy_install_flow = false in
+ * shopify.app.toml): Shopify shows the permission screen itself, opens /shopify/app inside the admin, and the page
+ * trades its session token for the store's token (shopifyapp.js). That is the front door, and the one Shopify tests.
+ * The older authorization code grant is kept only as a fallback for a direct link:
+ *   /shopify/install?shop=x.myshopify.com  -> issue a nonce (good for 10 minutes), redirect to Shopify
  *   /shopify/callback                      -> verify HMAC + state, swap code for token
+ *
+ * TOKENS EXPIRE (2026-11-24, requirement 3.1.2). Never read p_shopify.access_token and use it: call
+ * shopToken(env, shop) from shoptoken.js, which refreshes it. The account-health worker does the same.
  */
-// read_reports is what grants shopifyqlQuery, and the cohort data comes from
-// ShopifyQL `FROM customers`. Without it cohorts fail silently. Must stay in step
-// with profit/shopify.app.toml - Shopify compares the two at install.
-const SHOPIFY_SCOPES = 'read_orders,read_customers,read_products,read_reports,write_products,write_discounts';
+// The REQUIRED scopes, asked at install. Must stay in step with `scopes` in profit/shopify.app.toml - Shopify compares
+// the two. read_reports is what grants shopifyqlQuery (cohorts come from ShopifyQL `FROM customers`; without it they
+// fail silently). read_inventory = stock and cost per item, read_returns = refund and return detail (2026-11-24).
+// write_products and write_discounts are OPTIONAL since 2026-11-24 (requirement 3.2): a store grants them from inside
+// the app (shopifyapp.js OPTIONAL_SCOPES) only if it wants Locus to change products or codes. Do NOT add write_pixels
+// or read_customer_events until the app has a pixel to show for them.
+const SHOPIFY_SCOPES = 'read_orders,read_customers,read_products,read_reports,read_inventory,read_returns';
+/** An install code (p_oauth_state) is good for this long. */
+const OAUTH_STATE_MINUTES = 10;
 const SHOP_RE = /^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/;
 // Keep in step with `api_version` in profit/shopify.app.toml.
 const SHOPIFY_API_VERSION = '2026-07';
 
-/** Subscribe THIS shop to app/uninstalled.
- *
- *  It cannot be declared in shopify.app.toml: app-specific subscriptions are
- *  rejected when use_legacy_install_flow is true, and that flag has to stay true
- *  because the worker does the standalone authorization-code grant rather than
- *  token exchange. Shop-specific registration at install is the alternative
- *  Shopify itself names. The three compliance webhooks are unaffected - those are
- *  declared with `compliance_topics` and stay in the TOML.
- *
- *  Best effort on purpose: a merchant who is otherwise connected must not see the
- *  install fail because a webhook did not take. Worst case we learn about an
- *  uninstall on the next sync's 401 instead of instantly.
- */
-async function registerUninstallWebhook(env, shop, token, origin) {
-  const q = `mutation($sub: WebhookSubscriptionInput!) {
-    webhookSubscriptionCreate(topic: APP_UNINSTALLED, webhookSubscription: $sub) {
-      userErrors { field message }
-    }
-  }`;
-  try {
-    const res = await fetch(`https://${shop}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': token },
-      body: JSON.stringify({
-        query: q,
-        variables: { sub: { callbackUrl: `${origin}/shopify/webhooks/app/uninstalled`, format: 'JSON' } },
-      }),
-    });
-    const b = await res.json().catch(() => ({}));
-    const errs = b?.data?.webhookSubscriptionCreate?.userErrors;
-    if (!res.ok || errs?.length) console.log('uninstall webhook not registered', shop, res.status, JSON.stringify(errs || b));
-  } catch (e) { console.log('uninstall webhook failed', shop, e.message); }
+/** Store a shop's offline token, from either the classic callback or the embedded app's token exchange (managed
+ *  installation, 2026-11-15). app/uninstalled is declared in shopify.app.toml since then, so no per-shop webhook. */
+async function saveShopToken(env, shop, t) {
+  /* t = the token set from shoptoken.js: {token, scope, refresh_token, expires_at, refresh_expires_at}. */
+  const actId = await matchAccount(env, shop);
+  await ensureTokenColumns(env);
+  await env.DB.prepare(
+    `INSERT INTO p_shopify (shop, act_id, access_token, scopes, installed_at, uninstalled_at, refresh_token, expires_at, refresh_expires_at)
+     VALUES (?1,?2,?3,?4,datetime('now'),NULL,?5,?6,?7)
+     ON CONFLICT(shop) DO UPDATE SET act_id = COALESCE(excluded.act_id, p_shopify.act_id), access_token = excluded.access_token,
+       scopes = excluded.scopes, installed_at = excluded.installed_at, uninstalled_at = NULL,
+       refresh_token = excluded.refresh_token, expires_at = excluded.expires_at, refresh_expires_at = excluded.refresh_expires_at`,
+  ).bind(shop, actId, t.token, t.scope ?? SHOPIFY_SCOPES, t.refresh_token ?? null, t.expires_at ?? null, t.refresh_expires_at ?? null).run();
+  if (actId) await profitShareToken(env, actId).catch(() => {});
 }
 
 /* ---------------- the merchant's own store report (2026-10-07) ----------------
@@ -299,14 +291,18 @@ async function storeReport(env, viewToken) {
   const row = await env.DB.prepare(`SELECT v.shop, s.access_token, s.uninstalled_at FROM p_store_view v LEFT JOIN p_shopify s ON s.shop = v.shop WHERE v.token = ?1`).bind(viewToken).first().catch(() => null);
   if (!row) return { error: 'No store on this link.', status: 404 };
   if (!row.access_token || row.uninstalled_at) return { error: 'This store removed the Mobius Digital app, so there is nothing to read. Install it again from Shopify to see the report.', status: 410, shop: row.shop };
+  row.access_token = await shopToken(env, row.shop);
+  if (!row.access_token) return { error: 'This store needs to open the Mobius Digital app in its Shopify admin once to reconnect. Nothing can be read until then.', status: 410, shop: row.shop };
   const since = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
   const shopQ = `{ shop { name myshopifyDomain currencyCode primaryDomain { url } } }`;
-  const ordersQ = `query($q: String!, $after: String) { orders(first: 250, query: $q, after: $after, sortKey: CREATED_AT) { pageInfo { hasNextPage endCursor }
+  /* 50 a page, not 250: Shopify refuses a single query over 1,000 points and an order with ten line items costs
+     about 16, so 250 asked for about 4,000 and was refused (2026-11-24). 20 pages keeps the same 1,000 order reach. */
+  const ordersQ = `query($q: String!, $after: String) { orders(first: 50, query: $q, after: $after, sortKey: CREATED_AT) { pageInfo { hasNextPage endCursor }
     nodes { id createdAt currentTotalPriceSet { shopMoney { amount } } customer { numberOfOrders } lineItems(first: 10) { nodes { title quantity } } } } }`;
   const shop = (await shopifyGraph(row.shop, row.access_token, shopQ)).shop || {};
   const orders = [];
   let after = null;
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 20; i++) {
     const d = await shopifyGraph(row.shop, row.access_token, ordersQ, { q: `created_at:>=${since} AND financial_status:paid`, after });
     orders.push(...(d.orders?.nodes || []));
     if (!d.orders?.pageInfo?.hasNextPage) break;
@@ -355,7 +351,6 @@ async function validWebhookHmac(env, rawBody, header) {
   return safeEq(toB64(await hmacSha256(env.SHOPIFY_API_SECRET, rawBody)), header);
 }
 
-/** Tie a shop domain to one of our brands. brand_accounts.tw_shop (the triple_whale connection) already holds it. */
 /** The client's own dashboard token, created on first use.
  *  Shared by /api/profit-share and the Shopify post-install redirect so a merchant
  *  and a share link always land on the SAME page - two mint paths would give one
@@ -371,9 +366,39 @@ async function profitShareToken(env, actId) {
   return token;
 }
 
+/** Tie a shop domain to one of our brands. First the store address someone typed for the brand (p_shop_address,
+ *  2026-11-24: VetriPaws, Dental Fresh and SpeedIn have no Triple Whale), then brand_accounts.tw_shop (the
+ *  triple_whale connection). */
 async function matchAccount(env, shop) {
+  const own = await env.DB.prepare(`SELECT act_id FROM p_shop_address WHERE lower(shop) = lower(?1)`).bind(shop).first().catch(() => null);
+  if (own?.act_id) return own.act_id;
   const row = await env.DB.prepare(`SELECT act_id FROM brand_accounts WHERE lower(tw_shop) = lower(?1)`).bind(shop).first().catch(() => null);
   return row?.act_id ?? null;
+}
+const SHOP_ADDRESS_DDL = `CREATE TABLE IF NOT EXISTS p_shop_address (act_id TEXT PRIMARY KEY, shop TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT (datetime('now')))`;
+/** The link a store owner opens to add the app. Installs must start on Shopify (requirement 2.3.1), so this is never
+ *  our own /shopify/install address: it is the App Store listing when SHOPIFY_LISTING_URL is set (works for any
+ *  store, no address needed), otherwise Shopify's own install page for that one store. */
+function shopifyInstallLink(env, shop) {
+  if (env.SHOPIFY_LISTING_URL) return env.SHOPIFY_LISTING_URL;
+  if (!SHOP_RE.test(shop || '') || !env.SHOPIFY_API_KEY) return null;
+  return `https://admin.shopify.com/store/${shop.replace(/\.myshopify\.com$/i, '')}/oauth/install?client_id=${env.SHOPIFY_API_KEY}`;
+}
+/** Everything we hold about a shop, gone (shop/redact, 48 hours after an uninstall). */
+async function redactShop(env, shop) {
+  if (!shop) return;
+  const row = await env.DB.prepare(`SELECT act_id FROM p_shopify WHERE shop = ?1`).bind(shop).first().catch(() => null);
+  const run = (sql, ...a) => env.DB.prepare(sql).bind(...a).run().catch(() => {});
+  await run(`DELETE FROM p_store_view WHERE shop = ?1`, shop);
+  await run(`DELETE FROM p_oauth_state WHERE shop = ?1`, shop);
+  await run(`DELETE FROM p_shop_address WHERE lower(shop) = lower(?1)`, shop);
+  /* Cohorts are the only store data kept (monthly totals, no person in them). They are filed under the brand, so
+     they go when this shop was the brand's only store. */
+  if (row?.act_id) {
+    const other = await env.DB.prepare(`SELECT 1 AS x FROM p_shopify WHERE act_id = ?1 AND shop <> ?2 LIMIT 1`).bind(row.act_id, shop).first().catch(() => null);
+    if (!other) await run(`DELETE FROM p_cohorts WHERE act_id = ?1`, row.act_id);
+  }
+  await run(`DELETE FROM p_shopify WHERE shop = ?1`, shop);
 }
 
 /* ---------------- accounts ---------------- */
@@ -453,7 +478,7 @@ const pick = (piv, date, ids) => { for (const id of ids) { const v = piv[id]?.[d
  *  Revenue is Shopify's TOTAL SALES minus sales tax - which is CTC's reported
  *  "Net Sales + Shipping" line. Shipping charged to customers is already inside
  *  Triple Whale's netSales and must never be added again. */
-function dayEconomics(piv, meta, date, marginPct) {
+function dayEconomics(piv, meta, date, marginPct, rules) {
   const totalSales = pick(piv, date, SALES_IDS);   // Shopify TOTAL SALES (incl. shipping + tax)
   if (totalSales == null) return null;
   // Tax is collected for the state, not earned, so it comes off the top. Defaults
@@ -461,10 +486,15 @@ function dayEconomics(piv, meta, date, marginPct) {
   // back to the old double-counted figure.
   const tax = piv.totalNetTaxes?.[date] ?? 0;
   const shipRev = piv.totalShippingPrice?.[date] ?? 0;
-  const shipCost = piv.totalShippingCosts?.[date] ?? 0;
+  const twShip = piv.totalShippingCosts?.[date] ?? 0;
   const handling = piv.totalHandlingFees?.[date] ?? 0;
   const sales = totalSales - tax;            // CTC's "Net Sales + Shipping"
   const netSales = sales - shipRev;          // = Shopify net_sales, for the waterfall
+  const orders = piv.totalOrders?.[date] ?? null;
+  /* The brand's own cost rules (costs.js, 2026-11-25). No rule, or none that applies on this date: `ov` is null,
+     every line below reads exactly as it did before, and no key is added to the row. */
+  const ov = rules && rules.length ? ruleCosts(rules, date, { sales, orders }) : null;
+  const shipCost = ov && ov.shipping != null ? ov.shipping : twShip;
   const mrow = meta[date];
   const gSpend = piv.ga_adCost?.[date] ?? null;
   const spend = piv.blendedAds?.[date] ?? (mrow || gSpend != null ? (mrow?.spend ?? 0) + (gSpend ?? 0) : null);
@@ -475,16 +505,15 @@ function dayEconomics(piv, meta, date, marginPct) {
   // revenue (incl. tax), so the raw figures do not add up to our headline.
   const newShare = rawSplit > 0 && rawNew != null ? rawNew / rawSplit : null;
   const newRev = newShare != null ? sales * newShare : rawNew;
-  const cogs = piv.totalProductCosts?.[date] ?? null;
+  const cogs = ov && ov.product != null ? ov.product : (piv.totalProductCosts?.[date] ?? null);
   const fees = piv.totalPaymentGatewayCosts?.[date] ?? null;
   // Everything variable except ad spend. Ad spend is subtracted separately so the
   // page can show gross profit (the pre-marketing line) as its own step.
   const variableCosts = cogs != null ? cogs + shipCost + handling + (fees ?? 0) : null;
   const grossProfit = marginPct != null ? sales * marginPct
     : variableCosts != null ? sales - variableCosts : null;
-  const orders = piv.totalOrders?.[date] ?? null;
   const newOrders = piv.newCustomersOrders?.[date] ?? null;
-  return {
+  const row = {
     date, sales, total_sales: totalSales, tax, net_sales: netSales, ship_rev: shipRev, spend,
     orders, new_orders: newOrders, email_rev: piv.klaviyoPlacedOrderSales?.[date] ?? null,
     new_rev: newRev,
@@ -497,6 +526,8 @@ function dayEconomics(piv, meta, date, marginPct) {
     cm: grossProfit != null && spend != null ? grossProfit - spend : null,
     margin: sales > 0 && grossProfit != null ? grossProfit / sales : null,
   };
+  if (ov) row.cost_src = ov.src;
+  return row;
 }
 
 async function seriesFor(env, acct, from, to) {
@@ -506,17 +537,20 @@ async function seriesFor(env, acct, from, to) {
   ).bind(acct.act_id, from, to).all();
   const meta = Object.fromEntries(metaRows.map(r => [r.date, r]));
   const marginPct = marginOverride(acct, monthOf(to));
-  const ship = shippingMode(piv);            // diagnostic only - see shippingMode()
+  let ship = shippingMode(piv);              // diagnostic only - see shippingMode()
+  const rules = (await loadCostRules(env, [acct.act_id]).catch(() => ({})))[acct.act_id] || [];
+  /* A shipping rule set in Locus is a fulfilment cost: the "nothing booked against delivery" flag no longer holds. */
+  if (ship.mode === 'uncosted' && rules.length && shippingRuled(rules, from, to)) ship = { ...ship, mode: 'measured', source: 'locus', note: 'shipping cost comes from the rule set in Locus' };
   const rows = [];
   for (let d = from; d <= to; d = addDays(d, 1)) {
-    const row = dayEconomics(piv, meta, d, marginPct);
+    const row = dayEconomics(piv, meta, d, marginPct, rules);
     if (row) rows.push(row);
   }
   /* Custom expenses marked "counts as ad spend" (expenses.js, 2026-10-10) join blended spend here, so MER, aMER,
      CAC and CM include them on every screen that reads this series. `exp` rides along for the live row and Net profit. */
   const exp = (await loadExpenses(env, [acct.act_id]).catch(() => ({})))[acct.act_id] || [];
   if (exp.some(e => +e.is_ad_spend)) applyAdSpend(rows, spread(exp, from, to, rows).adByDate);
-  return { rows, margin_pct: marginPct, shipping: ship, piv, exp };
+  return { rows, margin_pct: marginPct, shipping: ship, piv, exp, rules };
 }
 
 /* ---------- Channels (Home, 2026-10-07) ----------
@@ -599,7 +633,9 @@ async function liveDay(env, request, acct) {
   }
   const day = await twDay(env, request, acct, date);
   const h = day.hours || {}, hrs = hoursOf(day).map((x, i) => ({ ...x, orders: (h.orders || [])[i] || 0, meta: (h.fb_ads_spend || [])[i] || 0, google: (h.ga_adCost || [])[i] || 0 }));
-  const row = liveRow(acct, day);
+  /* The brand's own cost rules price today's row too, the way seriesFor prices every stored day. None: unchanged. */
+  const rules = (await loadCostRules(env, [acct.act_id]).catch(() => ({})))[acct.act_id] || [];
+  const row = liveRow(acct, day, rules);
   const twSpend = +(day.map && day.map.blendedAds) || 0;
   if (twSpend > 0) return { date, hours: hrs, as_of: day.as_of, row };
   const m = await metaHours().catch(() => null);
@@ -614,13 +650,13 @@ async function liveDay(env, request, acct) {
 }
 /** Today so far as ONE synthetic row, through the same dayEconomics as every
  *  stored day, so revenue means exactly what it means everywhere else. */
-function liveRow(acct, day) {
+function liveRow(acct, day, rules) {
   const piv = {};
   for (const [k, v] of Object.entries(day.map || {})) piv[k] = { [day.date]: v };
   // Meta's own figure rides along so the strip can still say "Meta x . Google y".
   const fb = day.map ? day.map.fb_ads_spend : null;
   const meta = fb != null ? { [day.date]: { spend: fb } } : {};
-  return dayEconomics(piv, meta, day.date, marginOverride(acct, monthOf(day.date)));
+  return dayEconomics(piv, meta, day.date, marginOverride(acct, monthOf(day.date)), rules);
 }
 /** Revenue and ad spend hour by hour, blended. Revenue is Total Sales less tax,
  *  the same line as the day; tax by hour is subtracted when TW carries it. */
@@ -700,9 +736,11 @@ async function seriesRaw(env, acct, from, to) {
     `SELECT date, SUM(spend) AS spend FROM daily_insights WHERE act_id IN ${metaOf(1)} AND date BETWEEN ?2 AND ?3 GROUP BY date`,
   ).bind(acct.act_id, from, to).all();
   const meta = Object.fromEntries(metaRows.map(r => [r.date, r]));
+  /* The cost check grades the costs profit actually uses, so a brand's own rules ride along here too. */
+  const rules = (await loadCostRules(env, [acct.act_id]).catch(() => ({})))[acct.act_id] || [];
   const rows = [];
   for (let d = from; d <= to; d = addDays(d, 1)) {
-    const row = dayEconomics(piv, meta, d, null);
+    const row = dayEconomics(piv, meta, d, null, rules);
     if (row) rows.push(row);
   }
   return rows;
@@ -1051,8 +1089,9 @@ async function shopifyql(shop, token, query) {
  *  is the whole point of the card and a useful smell test if these ever look flat.
  */
 async function syncCohorts(env, row) {
-  const { shop, act_id, access_token } = row;
-  if (!access_token) throw new Error('no access token');
+  const { shop, act_id } = row;
+  const access_token = await shopToken(env, shop);
+  if (!access_token) throw new Error('the store has to open the Mobius Digital app in Shopify once to reconnect');
 
   const WINDOW = 'SINCE -1095d UNTIL today';        // three years back
   const base = await shopifyql(shop, access_token,
@@ -1652,19 +1691,26 @@ async function costHealth(env, acct, days = 60) {
   return { account: pubAccount(acct), margin_pct, health, shipping, worst: worstDays(rawRows), rows: rawRows };
 }
 
+/** Grade one brand's cost data and store the verdict. -> the costHealth() answer (health, rows, ...). */
+async function saveCostHealth(env, a) {
+  const r = await costHealth(env, a);
+  const health = r.health;
+  await env.DB.prepare(
+    `INSERT INTO p_cost_health (act_id, verdict, reason, blended, p10, p90, negatives, days, checked_at)
+     VALUES (?1,?2,?3,?4,?5,?6,?7,?8,datetime('now'))
+     ON CONFLICT(act_id) DO UPDATE SET verdict=excluded.verdict, reason=excluded.reason, blended=excluded.blended,
+       p10=excluded.p10, p90=excluded.p90, negatives=excluded.negatives, days=excluded.days, checked_at=excluded.checked_at`,
+  ).bind(a.act_id, health.verdict, health.reason ?? null, health.blended ?? null,
+    health.p10 ?? null, health.p90 ?? null, health.negatives ?? 0, health.days ?? 0).run();
+  return r;
+}
+
 async function refreshCostHealth(env) {
   const accounts = await listAccounts(env, true, null);
   const out = [];
   for (const a of accounts) {
     try {
-      const { health } = await costHealth(env, a);
-      await env.DB.prepare(
-        `INSERT INTO p_cost_health (act_id, verdict, reason, blended, p10, p90, negatives, days, checked_at)
-         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,datetime('now'))
-         ON CONFLICT(act_id) DO UPDATE SET verdict=excluded.verdict, reason=excluded.reason, blended=excluded.blended,
-           p10=excluded.p10, p90=excluded.p90, negatives=excluded.negatives, days=excluded.days, checked_at=excluded.checked_at`,
-      ).bind(a.act_id, health.verdict, health.reason ?? null, health.blended ?? null,
-        health.p10 ?? null, health.p90 ?? null, health.negatives ?? 0, health.days ?? 0).run();
+      const { health } = await saveCostHealth(env, a);
       out.push({ name: a.name, verdict: health.verdict });
     } catch (e) { out.push({ name: a.name, error: e.message }); }
   }
@@ -1737,13 +1783,12 @@ export default {
        token you supplied — no secrets, no other user's state. */
     if (path === '/api/auth-check') {
       const tok = (request.headers.get('Authorization') || '').replace(/^Bearer /, '');
-      const out = {
-        has_auth_binding: !!env.AUTH,
-        has_session_secret: !!env.SESSION_SECRET,
-        has_admin_token: !!env.ADMIN_TOKEN,
-        shared_password_set: !!(await env.DB.prepare(`SELECT value FROM settings WHERE key = 'passwordHash'`).first())?.value,
-        token_seen: tok ? `${tok.slice(0, 4)}…(${tok.length})` : null,
-      };
+      const out = { has_auth_binding: !!env.AUTH };
+      /* How this worker is set up is for a signed-in team member only. */
+      if (tok && (await isAdmin(request, env))) {
+        out.has_session_secret = !!env.SESSION_SECRET;
+        out.has_admin_token = !!env.ADMIN_TOKEN;
+      }
       // Prove the worker-to-worker binding is actually reachable.
       try {
         const probe = env.AUTH ? await env.AUTH.fetch(new Request(`${AUTH_WORKER}/health`)) : null;
@@ -1823,14 +1868,23 @@ export default {
           from = qf > to ? to : qf;
           fixed = true;
         }
-        const { rows, margin_pct } = await seriesFor(env, acct, from, to);
+        const { rows, margin_pct, exp, rules } = await seriesFor(env, acct, from, to);
         const t = totals(rows);
         const g = goalsFor(acct, ym);
         const planned = !!safeJson(acct.goals_json, {})[ym];
         // Profit is shown only when we would trust it internally. A client should
         // never be the first person to see a number the Costs page calls broken.
         const snap = await env.DB.prepare(`SELECT verdict FROM p_cost_health WHERE act_id = ?1`).bind(acct.act_id).first().catch(() => null);
-        const cmOk = margin_pct != null || !(snap?.verdict === 'broken' || snap?.verdict === 'none');
+        /* ONE WINDOW (costs.js partlyCosted): a product cost rule that starts inside this window leaves the days before
+           it with no gross profit, and the sums below would then be the gross profit of some days minus the ad spend of
+           all of them. Profit is withheld for such a window. A brand with no product rule is never affected. */
+        const cmOk = (margin_pct != null || !(snap?.verdict === 'broken' || snap?.verdict === 'none')) && !partlyCosted(rules, rows, 'gross_profit', from, to);
+        /* Fixed costs and net profit (2026-11-25): only with settings costsNetInPosts on (the same switch as the Slack
+           text; off by default), when CM is shown AND the brand entered a fixed cost in force in this window AND every
+           day of the window has a gross profit. Absent otherwise (not null), so a brand with none, and every brand
+           while the switch is off, gets the same bytes as before. ONE total: never a category, a row's name, notes or
+           who added it. This route's CM already holds the "counts as ad spend" rows, so cm - fixed = net on the page. */
+        const nf = cmOk && exp.length && await netInPosts(env) ? netAfter(exp, from, to, rows, t.cm, { cmHasAd: true, gpKey: 'gross_profit' }) : null;
         const history = (await monthHistory(env, acct, ym, 6))
           .filter(h => !h.empty)
           .map(h => ({ month: h.month, sales: h.sales, spend: h.spend, mer: h.mer, partial: !!h.partial }));
@@ -1854,6 +1908,7 @@ export default {
             sales: t.sales, cogs: t.cogs, ship_cost: t.ship_cost, handling: t.handling,
             fees: t.fees, gross_profit: t.gross_profit, spend: t.spend, cm: t.cm,
           } : null,
+          ...(nf ? { fixed: { total: nf.fixed }, net: nf.net } : {}),
           // Daily shape, for the chart. Money only - no cost diagnostics per day.
           rows: rows.map(r => ({ date: r.date, sales: r.sales, spend: r.spend })),
           rhythm: rhythm && rhythm.enough ? rhythm : null,
@@ -1927,7 +1982,7 @@ export default {
        so they sit above the dashboard auth gate and authenticate themselves by HMAC. */
     /* The embedded app inside the Shopify admin (2026-10-18, review 131577): its page and its session-token API. */
     if (path === '/shopify/app' || path === '/shopify/app/api/report') {
-      const r = await handleShopifyApp(request, env, url);
+      const r = await handleShopifyApp(request, env, url, { saveToken: (shop, t) => saveShopToken(env, shop, t) });
       if (r) return r;
     }
     if (path === '/shopify/install') {
@@ -1935,6 +1990,8 @@ export default {
       if (!SHOP_RE.test(shop)) return new Response('Invalid shop domain.', { status: 400 });
       if (!env.SHOPIFY_API_KEY) return new Response('Shopify app is not configured yet.', { status: 503 });
       // A nonce Shopify must hand back, so a callback we did not start is rejected.
+      // Codes nobody came back for are swept here, so the table cannot grow without limit.
+      await env.DB.prepare(`DELETE FROM p_oauth_state WHERE created_at < datetime('now', '-${OAUTH_STATE_MINUTES} minutes')`).run().catch(() => {});
       const state = crypto.randomUUID().replace(/-/g, '');
       await env.DB.prepare(`INSERT INTO p_oauth_state (state, shop) VALUES (?1, ?2)`).bind(state, shop).run();
       const redirectUri = `${url.origin}/shopify/callback`;
@@ -1952,33 +2009,21 @@ export default {
       const state = url.searchParams.get('state');
       if (!SHOP_RE.test(shop) || !code || !state) return new Response('Invalid request.', { status: 400 });
       if (!(await validOauthHmac(env, url))) return new Response('HMAC validation failed.', { status: 401 });
-      // The nonce must be one WE issued, for THIS shop, and it is single use.
-      const st = await env.DB.prepare(`SELECT shop FROM p_oauth_state WHERE state = ?1`).bind(state).first();
+      // The nonce must be one WE issued, for THIS shop, within the last 10 minutes, and it is single use.
+      const st = await env.DB.prepare(`SELECT shop FROM p_oauth_state WHERE state = ?1 AND created_at >= datetime('now', '-${OAUTH_STATE_MINUTES} minutes')`).bind(state).first();
       await env.DB.prepare(`DELETE FROM p_oauth_state WHERE state = ?1`).bind(state).run().catch(() => {});
       if (!st || st.shop !== shop) return new Response('Invalid or expired state.', { status: 401 });
 
-      const res = await fetch(`https://${shop}/admin/oauth/access_token`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ client_id: env.SHOPIFY_API_KEY, client_secret: env.SHOPIFY_API_SECRET, code }),
-      });
-      if (!res.ok) return new Response('Could not complete the install.', { status: 502 });
-      const tok = await res.json().catch(() => ({}));
-      if (!tok.access_token) return new Response('No access token returned.', { status: 502 });
+      // expiring=1: an EXPIRING offline token plus its refresh token (requirement 3.1.2).
+      let tok;
+      try { tok = await exchangeCode(env, shop, code); }
+      catch { return new Response('Could not complete the install.', { status: 502 }); }
 
-      const actId = await matchAccount(env, shop);
-      await env.DB.prepare(
-        `INSERT INTO p_shopify (shop, act_id, access_token, scopes, installed_at, uninstalled_at)
-         VALUES (?1,?2,?3,?4,datetime('now'),NULL)
-         ON CONFLICT(shop) DO UPDATE SET act_id = excluded.act_id, access_token = excluded.access_token,
-           scopes = excluded.scopes, installed_at = excluded.installed_at, uninstalled_at = NULL`,
-      ).bind(shop, actId, tok.access_token, tok.scope ?? SHOPIFY_SCOPES).run();
-
-      await registerUninstallWebhook(env, shop, tok.access_token, url.origin);
+      await saveShopToken(env, shop, tok);
 
       // Land the merchant back INSIDE the Shopify admin, on the embedded app (shopifyapp.js): every store, client or not,
       // gets the same live store screen there. Review 131577 (2026-10-17) paused the app because the old landing page
       // outside Shopify showed "Shopify could not be read: Shopify returned 403" to a reviewer's test store.
-      if (actId) await profitShareToken(env, actId).catch(() => {});
       return Response.redirect(`https://${shop}/admin/apps/${env.SHOPIFY_API_KEY}`, 302);
     }
 
@@ -1997,9 +2042,15 @@ export default {
       if (topic === 'app/uninstalled') {
         // The token is dead the moment the merchant uninstalls - stop using it.
         await env.DB.prepare(`UPDATE p_shopify SET uninstalled_at = datetime('now'), access_token = '' WHERE shop = ?1`).bind(shop).run().catch(() => {});
+        await env.DB.prepare(`UPDATE p_shopify SET refresh_token = NULL, expires_at = NULL, refresh_expires_at = NULL WHERE shop = ?1`).bind(shop).run().catch(() => {});
       } else if (topic === 'shop/redact') {
-        // 48h after uninstall. We hold no shop-level personal data beyond the token.
-        await env.DB.prepare(`DELETE FROM p_shopify WHERE shop = ?1`).bind(shop).run().catch(() => {});
+        // 48h after uninstall: every row about this shop goes, not only the token.
+        await redactShop(env, shop);
+      } else if (topic === 'app/scopes_update') {
+        // The store granted or removed optional access. Keep what Locus believes in step with what Shopify holds.
+        if (Array.isArray(body.current) && body.current.length && shop) {
+          await env.DB.prepare(`UPDATE p_shopify SET scopes = ?2 WHERE shop = ?1`).bind(shop, body.current.map(String).join(',')).run().catch(() => {});
+        }
       }
       // customers/data_request and customers/redact: we store no customer-level personal
       // data - the sync keeps only aggregates and anonymous customer ids - so there is
@@ -2128,6 +2179,9 @@ export default {
     // Every account lookup below goes through this, so a demo session can only ever
     // resolve the demo brand and a real session can never see it.
     const accountsFor = (activeOnly = true) => listAccounts(env, activeOnly, isDemo);
+    /* The brands a teammate is limited to (settings.userBrands), null when not limited. A client is judged by
+       clientScope instead. For the cost and expense writes, which check the brand named in the body themselves. */
+    const teamOnly = async () => clientScope(request) ? null : brandsFor(env, await sessionEmail(env, request).catch(() => null)).catch(() => null);
 
     try {
       const days = Math.min(+url.searchParams.get('days') || 30, 180);
@@ -2194,7 +2248,7 @@ export default {
           if (cmp === 'prev') { pTo = addDays(from, -1); pFrom = addDays(pTo, -(span - 1)); }
           else if (cmp === 'yoy') { pFrom = `${+from.slice(0, 4) - 1}${from.slice(4)}`; pTo = `${+to.slice(0, 4) - 1}${to.slice(4)}`; }
           const fetchFrom = [from, monthStart, cmp === 'prev' ? pFrom : from].sort()[0];
-          const { rows: allRows, margin_pct, shipping, piv, exp } = await seriesFor(env, a, fetchFrom, to);
+          const { rows: allRows, margin_pct, shipping, piv, exp, rules } = await seriesFor(env, a, fetchFrom, to);
           const rows = allRows.filter(r => r.date >= from && r.date <= to);
           let prevRows = [];
           if (cmp === 'prev') prevRows = allRows.filter(r => r.date >= pFrom && r.date <= pTo);
@@ -2211,7 +2265,7 @@ export default {
           let live = null;
           if (to === today) {
             const day = await twDay(env, request, a, today).catch(() => null);
-            if (day) { const row = liveRow(a, day); if (row) { applyAdSpend([row], spread(exp, today, today, [row]).adByDate); rows.push(row); mtdRows.push(row); } live = { as_of: day.as_of }; }
+            if (day) { const row = liveRow(a, day, rules); if (row) { applyAdSpend([row], spread(exp, today, today, [row]).adByDate); rows.push(row); mtdRows.push(row); } live = { as_of: day.as_of }; }
           }
           return {
             ...pubAccount(a),
@@ -2259,7 +2313,7 @@ export default {
         const { today, from, to } = windowFor(acct);
         const ym = monthOf(today);
         const monthStart = `${ym}-01`;
-        const { rows: allRows, margin_pct, shipping, exp } = await seriesFor(env, acct, from < monthStart ? from : monthStart, to);
+        const { rows: allRows, margin_pct, shipping, exp, rules } = await seriesFor(env, acct, from < monthStart ? from : monthStart, to);
         const rows = allRows.filter(r => r.date >= from && r.date <= to);
         // planFor spreads the month goal over the days ELAPSED, so it must see the
         // month-to-date rows - the whole window here once pro-rated a plan past 100%.
@@ -2273,7 +2327,7 @@ export default {
           const day = await twDay(env, request, acct, to).catch(() => null);
           if (day) {
             if (from === to) hours = hoursOf(day);
-            if (to === today) { const row = liveRow(acct, day); if (row) { applyAdSpend([row], spread(exp, today, today, [row]).adByDate); rows.push(row); mtdRows.push(row); } liveAsOf = day.as_of; }
+            if (to === today) { const row = liveRow(acct, day, rules); if (row) { applyAdSpend([row], spread(exp, today, today, [row]).adByDate); rows.push(row); mtdRows.push(row); } liveAsOf = day.as_of; }
           }
         }
         /* Custom expenses over the window (expenses.js, 2026-10-10). `total`/`items` = the ones under contribution margin
@@ -2548,8 +2602,11 @@ export default {
        * Cole asked where clients get added moving forward - this is that screen. */
       if (path === '/api/connections') {
         const accounts = await accountsFor(false);
-        const { results: shops } = await env.DB.prepare(`SELECT * FROM p_shopify`).all()
+        /* Never SELECT *: this answer goes to the browser and the row holds the store's tokens. */
+        const { results: shops } = await env.DB.prepare(`SELECT shop, act_id, scopes, installed_at, uninstalled_at, last_sync_at, (access_token <> '') AS access_token FROM p_shopify`).all()
           .catch(() => ({ results: [] }));
+        const { results: addrRows } = await env.DB.prepare(`SELECT act_id, shop FROM p_shop_address`).all().catch(() => ({ results: [] }));
+        const addrBy = Object.fromEntries(addrRows.map(r => [r.act_id, r.shop]));
         const { results: coRows } = await env.DB.prepare(
           `SELECT act_id, COUNT(*) AS n, MAX(as_of) AS as_of FROM p_cohorts GROUP BY act_id`,
         ).all().catch(() => ({ results: [] }));
@@ -2557,8 +2614,9 @@ export default {
 
         const byAct = {};
         for (const sh of shops) if (sh.act_id) (byAct[sh.act_id] ??= []).push(sh);
-        // A store only gets an install link if we actually know its domain.
-        const installUrl = d => (SHOP_RE.test(d || '') ? `${url.origin}/shopify/install?shop=${encodeURIComponent(d)}` : null);
+        // The listing link works for any store; without it a store only gets a link if we know its address
+        // (typed for the brand, an earlier install, or the Triple Whale shop, in that order).
+        const installUrl = d => shopifyInstallLink(env, d);
 
         const clients = accounts.map(a => {
           const rows = byAct[a.act_id] || [];
@@ -2567,7 +2625,10 @@ export default {
           const co = coBy[a.act_id];
           return {
             act_id: a.act_id, name: a.name, active: !!a.active,
-            shop: live?.shop ?? past?.shop ?? a.tw_shop ?? null,
+            shop: live?.shop ?? past?.shop ?? addrBy[a.act_id] ?? a.tw_shop ?? null,
+            shop_address: addrBy[a.act_id] ?? null,
+            // installed, but the token ran out for good: the owner opens the app in Shopify once
+            reconnect: !live && !!past && !past.uninstalled_at,
             // 'uninstalled' is deliberately distinct from 'not_connected': a merchant
             // who removed the app looks identical otherwise, and that is the one case
             // where the data silently stops updating.
@@ -2576,7 +2637,7 @@ export default {
             uninstalled_at: live ? null : (past?.uninstalled_at ?? null),
             last_sync_at: live?.last_sync_at ?? null,
             cohort_months: co?.n ?? 0, cohort_as_of: co?.as_of ?? null,
-            install_url: installUrl(a.tw_shop || live?.shop || past?.shop),
+            install_url: installUrl(addrBy[a.act_id] || live?.shop || past?.shop || a.tw_shop),
           };
         });
 
@@ -2596,7 +2657,7 @@ export default {
       if (path === '/api/cohort-sync' && request.method === 'POST') {
         const act = url.searchParams.get('act');
         const { results: shops } = await env.DB.prepare(
-          `SELECT * FROM p_shopify WHERE uninstalled_at IS NULL AND access_token <> ''
+          `SELECT shop, act_id FROM p_shopify WHERE uninstalled_at IS NULL AND access_token <> ''
              AND act_id IS NOT NULL ${act && act !== 'all' ? 'AND act_id = ?1' : ''}`,
         ).bind(...(act && act !== 'all' ? [act] : [])).all().catch(() => ({ results: [] }));
         if (!shops.length) return json({ error: 'no connected store for that client' }, 404);
@@ -2606,6 +2667,33 @@ export default {
           catch (e) { out.push({ shop: row.shop, act_id: row.act_id, error: e.message }); }
         }
         return json({ ok: out.some(r => r.months), results: out });
+      }
+
+      /* A brand's store address, typed by the team: for brands with no Triple Whale shop to read it from. It gives
+         the brand an install link and lets the install match itself to the brand. Empty shop clears it. */
+      if (path === '/api/connections/address' && request.method === 'POST') {
+        const b = await request.json().catch(() => ({}));
+        const shop = String(b.shop || '').toLowerCase().trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+        const acct = (await accountsFor(false)).find(a => a.act_id === b.act);
+        if (!acct) return json({ error: 'unknown account' }, 404);
+        await env.DB.prepare(SHOP_ADDRESS_DDL).run().catch(() => {});
+        if (!shop) { await env.DB.prepare(`DELETE FROM p_shop_address WHERE act_id = ?1`).bind(b.act).run(); return json({ ok: true, act: b.act, shop: null }); }
+        if (!SHOP_RE.test(shop)) return json({ error: 'Use the store\'s myshopify.com address, like brand.myshopify.com' }, 400);
+        const taken = await env.DB.prepare(`SELECT act_id FROM p_shop_address WHERE lower(shop) = ?1 AND act_id <> ?2`).bind(shop, b.act).first().catch(() => null);
+        if (taken) return json({ error: 'That store address is already set on another brand.' }, 409);
+        await env.DB.prepare(`INSERT INTO p_shop_address (act_id, shop) VALUES (?1, ?2) ON CONFLICT(act_id) DO UPDATE SET shop = excluded.shop, updated_at = datetime('now')`).bind(b.act, shop).run();
+        /* a store that installed before the address was typed is linked now */
+        await env.DB.prepare(`UPDATE p_shopify SET act_id = ?2 WHERE shop = ?1 AND act_id IS NULL`).bind(shop, b.act).run().catch(() => {});
+        return json({ ok: true, act: b.act, shop, install_url: shopifyInstallLink(env, shop) });
+      }
+
+      /* The account-health worker shares this database but not the app secret, so it asks here for a refresh
+         (shoptoken.js `remote`). The answer never carries the token: the caller reads it from the shared table. */
+      if (path === '/api/shopify/token-refresh' && request.method === 'POST') {
+        const shop = String(url.searchParams.get('shop') || '').toLowerCase();
+        if (!SHOP_RE.test(shop)) return json({ error: 'invalid shop domain' }, 400);
+        try { const t = await shopToken(env, shop); return json({ ok: !!t, connected: !!t }); }
+        catch (e) { return json({ ok: false, error: e.message }, 502); }
       }
 
       /* Point a connected store at a client, for a domain that did not auto-match. */
@@ -2697,6 +2785,18 @@ export default {
           ? { month: ym, sales: g.sales ?? null, spend: g.spend ?? null, days_in_month: daysInMonth(ym) } : null });
       }
 
+      /* Brand costs (2026-11-25, costs.js): a brand's own shipping and product cost rules and its cost sheet.
+         The writes live in costs.js; the read below keeps every old key and adds the Costs page's keys after them. */
+      const costWrite = async () => handleCosts({ path, url, request, env, json, accountsFor: () => accountsFor(false), email: await sessionEmail(env, request),
+        client: clientScope(request), only: await teamOnly(), rehealth: acct => saveCostHealth(env, acct),
+        page: (acct, rows) => costsPage(env, acct, { sources: () => costSources(env, acct), rows }) });
+      /* Add one shipping or product cost rule, or change one by id: {act, rule: {id?, cost, rule, amount | table, start_date, end_date?, status?, label?, notes?}} */
+      if (path === '/api/costs' && request.method === 'PUT') return await costWrite();
+      /* Remove one cost rule (?act=&id=) or one uploaded cost sheet (?act=&sheet=<batch>) */
+      if (path === '/api/costs' && request.method === 'DELETE') return await costWrite();
+      /* Check a product cost sheet {act, csv, start_date, filename?}; dry_run:false saves it (saved, not used in profit yet) */
+      if (path === '/api/costs/sheet' && request.method === 'POST') return await costWrite();
+      /* The Costs page for one brand: the cost check, where each cost comes from, the rules, fixed costs, and what is missing */
       if (path === '/api/costs') {
         const act = url.searchParams.get('act');
         const acct = (await accountsFor(false)).find(a => a.act_id === act);
@@ -2705,7 +2805,7 @@ export default {
         const { results: skus } = await env.DB.prepare(
           `SELECT * FROM p_sku_costs WHERE act_id = ?1 ORDER BY sku LIMIT 500`,
         ).bind(act).all();
-        return json({ ...r, skus });
+        return json({ ...r, skus, ...(await costsPage(env, acct, { sources: () => costSources(env, acct), rows: r.rows })) });
       }
 
       /* The margin override — deliberately the SAME field the Daily Brief reads. */
@@ -2838,14 +2938,14 @@ export default {
         const hr = await handleHub({ path, url, request, env, json, accountsFor: async () => { const cs = clientScope(request); const all = await accountsFor(); return cs ? all.filter(a => cs.ids.has(a.act_id)) : all; }, windowFor, addDays, localDate,
           twDay: (acct, date) => twDay(env, request, acct, date), liveRow, productTitles: (acct, ids) => productTitles(env, acct, ids),
           /* The tile drill-downs (2026-10-09) price contribution margin exactly like /api/overview. */
-          econ: dayEconomics, totals, marginOverride, monthOf, loadExpenses, spread, applyAdSpend });
+          econ: dayEconomics, totals, marginOverride, monthOf, loadExpenses, spread, applyAdSpend, loadCostRules });
         if (hr) return hr;
       }
       /* Costs per brand (2026-10-10, Triple Whale's Cost Settings): custom expenses + where each per-order cost comes
          from. Brand settings > Data and costs > Costs, and P&L's Costs button (clients too, P&L on). expenses.js. */
       if (path === '/api/expenses') {
         const fr = await handleExpenses({ path, url, request, env, json, accountsFor: () => accountsFor(false), email: await sessionEmail(env, request),
-          client: clientScope(request), sources: acct => costSources(env, acct) });
+          client: clientScope(request), only: await teamOnly(), sources: acct => costSources(env, acct) });
         if (fr) return fr;
       }
       /* Save to Locus (2026-10-21): inspiration saved from the Ask bar, the phone share sheet or the bookmarklet. */
@@ -2889,3 +2989,5 @@ export default {
     }
   },
 };
+/* For the offline cost checks (test-costs.mjs). */
+export { dayEconomics };

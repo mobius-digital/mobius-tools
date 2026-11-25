@@ -74,28 +74,104 @@ const SEV = { high: 3, med: 2, low: 1 };
 
 const BANNED = /\b(insert|update|delete|drop|alter|create|replace|attach|detach|pragma|vacuum|reindex|analyze|begin|commit|rollback|savepoint|trigger)\b/i;
 
+/* A statement the way the database reads it: comments gone, quoted names
+ * unquoted, string literals set aside. `clean` is what runs; `bare` is what
+ * the checks read (literals blanked, so a value cannot trip a name check). */
+function sqlShape(raw) {
+  const s = String(raw || '');
+  let clean = '', bare = '', i = 0;
+  const lits = [];
+  while (i < s.length) {
+    const c = s[i], d = s[i + 1];
+    if (c === '-' && d === '-') { const e = s.indexOf('\n', i); i = e < 0 ? s.length : e; clean += ' '; bare += ' '; continue; }
+    if (c === '/' && d === '*') { const e = s.indexOf('*/', i + 2); i = e < 0 ? s.length : e + 2; clean += ' '; bare += ' '; continue; }
+    if (c === "'") {
+      let j = i + 1;
+      while (j < s.length) { if (s[j] !== "'") j++; else if (s[j + 1] === "'") j += 2; else break; }
+      /* After a dot a quoted string is a NAME (p.'col'), so the checks must read it. Right after a
+         comparison it can only be a value. */
+      const before = bare.trimEnd(), text = s.slice(i + 1, j);
+      clean += s.slice(i, j + 1); i = j + 1;
+      if (before.endsWith('.')) { bare += ' ' + text + ' '; continue; }
+      lits.push({ text, value: /[=<>]$/.test(before) || /\b(like|glob|is|not|then|else|when)$/i.test(before) });
+      bare += "''"; continue;
+    }
+    if (c === '"' || c === '`' || c === '[') {
+      let j = s.indexOf(c === '[' ? ']' : c, i + 1);
+      if (j < 0) j = s.length;
+      clean += s.slice(i, j + 1); bare += ' ' + s.slice(i + 1, j) + ' '; i = j + 1; continue;
+    }
+    clean += c; bare += c; i++;
+  }
+  return { clean, bare, lits };
+}
+
+/* Tables whose own column names match `re`, from catalogue rows of
+ * {name, sql}, so a table added next year is covered before anyone lists it. */
+export function tablesWithColumns(rows, re, safe = []) {
+  const out = [];
+  const fine = new Set(safe.map(c => String(c).toLowerCase()));
+  for (const r of rows || []) {
+    const ddl = sqlShape(r.sql).bare;
+    const a = ddl.indexOf('('), b = ddl.lastIndexOf(')');
+    if (a < 0 || b < a) continue;
+    const parts = [];
+    let depth = 0, cur = '';
+    for (const ch of ddl.slice(a + 1, b)) {
+      if (ch === '(') depth++; else if (ch === ')') depth--;
+      if (ch === ',' && !depth) { parts.push(cur); cur = ''; } else cur += ch;
+    }
+    parts.push(cur);
+    const hit = parts.some(p => { const m = p.trim().match(/^[a-z_][\w$]*/i); return m && !/^(primary|unique|check|foreign|constraint)$/i.test(m[0]) && re.test(m[0]) && !fine.has(m[0].toLowerCase()); });
+    if (hit) out.push(String(r.name).toLowerCase());
+  }
+  return out;
+}
+
 /* Everything a generated query is not allowed to be. The model is
  * cooperative, but cooperative is not a security boundary. This is. */
 export function gateSql(raw, allowed, opts = {}) {
   const maxRows = opts.maxRows || DEFAULTS.maxRows;
   const blobs = opts.blobColumns || [];
-  let sql = String(raw || '').trim().replace(/;+\s*$/, '');
+  const shape = sqlShape(raw);
+  let sql = shape.clean.trim().replace(/;+\s*$/, '');
   if (!sql) return { error: 'Empty query.' };
   if (sql.includes(';')) return { error: 'One statement only. Remove the semicolon.' };
   if (!/^(select|with)\b/i.test(sql)) return { error: 'Only SELECT (or WITH ... SELECT) is allowed.' };
   if (BANNED.test(sql)) return { error: 'Read-only: that statement changes data and is not allowed.' };
-  if (/\bsqlite_/i.test(sql)) return { error: 'The sqlite_ internal tables are not readable.' };
+  if (/\b(sqlite_|pragma_)/i.test(sql)) return { error: 'The sqlite_ internal tables are not readable.' };
   for (const col of blobs)
     if (new RegExp('\\b' + col + '\\b', 'i').test(sql)) return { error: `${col} is a large blob. Select the columns you need instead.` };
 
   /* Words that are never readable wherever they appear: a table the model
    * must not reach even aliased or comma-joined. `settings` holds tokens in
-   * every app. String literals are blanked first so a value cannot trip it. */
-  const bare = sql.replace(/'(?:[^']|'')*'/g, "''");
+   * every app. String literals are blanked first so a value cannot trip it,
+   * except a literal that is one bare name (a quoted name can stand in for a
+   * table). */
+  const bare = shape.bare;
   const forbid = opts.forbidWords || /\bsettings\b/i;
-  const fm = bare.match(forbid);
+  const fm = bare.match(forbid) || shape.lits.map(l => !l.value && /^\s*[\w.$]+\s*$/.test(l.text) && l.text.match(forbid)).find(Boolean);
   if (fm) return { error: `Table "${fm[0]}" is not readable. Available: ${allowed.join(', ')}.` };
   if (/\b(main|temp|temporary)\s*\./i.test(bare)) return { error: 'Schema-qualified names are not allowed.' };
+
+  /* The host's own never-readable tables (opts.secretTables), by name
+   * wherever it appears, quoted or not; columns by the shape of their name
+   * (opts.secretColumns); and no SELECT * on a table that has such a column
+   * (opts.starTables), since * reads a column without naming it. */
+  const loose = sql.replace(/['"`[\]]/g, ' ').toLowerCase();
+  const named = t => new RegExp('\\b' + t + '\\b').test(loose);
+  const st = (opts.secretTables || []).find(named);
+  if (st) return { error: `Table "${st}" is not readable.` };
+  if (opts.secretColumns) {
+    /* opts.safeColumns: exact names the host knows are ordinary (a doc's `key`, an ad's `asset_key`). */
+    const fine = new Set((opts.safeColumns || []).map(c => String(c).toLowerCase()));
+    const cm = (bare.match(/[a-z_][a-z0-9_$]*/gi) || []).find(w => opts.secretColumns.test(w) && !fine.has(w.toLowerCase()));
+    if (cm) return { error: `"${cm}" cannot be used as a name here: names like that are kept out of queries. If it is your own alias or CTE name, pick another word; if it is a column, leave it out.` };
+  }
+  if (/(?:\b(?:select|distinct|all)\s*|[,.]\s*)\*/i.test(bare)) {
+    const star = (opts.starTables || []).find(named);
+    if (star) return { error: `SELECT * is not allowed on ${star}. Name the columns you need.` };
+  }
 
   const cte = new Set();
   if (/^with\s/i.test(sql)) for (const m of sql.matchAll(/([a-z_][a-z0-9_]*)\s+as\s*\(/gi)) cte.add(m[1].toLowerCase());
@@ -173,7 +249,8 @@ export async function storedKeys(env, secretKey, table = 'settings') {
  * {name: 'one line'}. The worker calls this from its askHelpers.appView.
  */
 export function makeAppView({ views, blurbs, secretKey, getSetting, safeJson, settingsTable = 'settings', fallbackTables = [],
-                              listStored = null, getStored = null }) {
+                              listStored = null, getStored = null, secretTables = [] }) {
+  const tables = env => readableTables(env, fallbackTables).then(ts => ts.filter(t => !secretTables.includes(String(t).toLowerCase())));
   /* A multi-brand app keeps its settings per brand, so it hands in its own
    * list and read; a single-brand app takes the defaults over `settings`. */
   const listKeys = env => listStored ? listStored(env).then(ks => ks.filter(k => !secretKey(k.key))) : storedKeys(env, secretKey, settingsTable);
@@ -182,7 +259,7 @@ export function makeAppView({ views, blurbs, secretKey, getSetting, safeJson, se
     ...views,
     map: async env => ({
       views: Object.keys(all).map(v => ({ view: v, holds: blurbs[v] || '' })),
-      tables_you_can_query: await readableTables(env, fallbackTables),
+      tables_you_can_query: await tables(env),
       stored_values: await listKeys(env),
       how_to_read: 'This is the whole app as you can see it, generated live, so it is never out of date. ' +
         'views are read with read_app. tables_you_can_query are read with the SQL tool. stored_values are read ' +
@@ -207,13 +284,13 @@ export function makeAppView({ views, blurbs, secretKey, getSetting, safeJson, se
           how_to_read: 'A value the app has stored. It is whatever the feature that wrote it put there.' };
       }
       return { error: `Nothing here is called "${name}".`, views: Object.keys(all), stored: keys.map(k => k.key),
-        tables: await readableTables(env, fallbackTables), hint: 'Pick the closest one of these, or call view "map" for what each holds.' };
+        tables: await tables(env), hint: 'Pick the closest one of these, or call view "map" for what each holds.' };
     } catch (e) {
       return { error: String(e.message || e) };
     }
   }
   return { appView, appViews: () => Object.keys(all), viewBlurbs: () => blurbs,
-           readableTables: env => readableTables(env, fallbackTables) };
+           readableTables: tables };
 }
 
 /* A report as Slack text: tiles as lines, tables as monospace, charts as
@@ -448,6 +525,24 @@ export function splitDraft(text) {
 /* ------------------------------------------------------------------ */
 /*  the assistant                                                      */
 /* ------------------------------------------------------------------ */
+
+/* Dollars per million tokens: [input, output, cache read]. A cache WRITE costs more than plain input and the price
+   depends on how long the entry lives: 1.25x input for 5 minutes, 2x for 1 hour (the stable prefix is written at 1 hour).
+   The API splits the write by life in usage.cache_creation; an older reply that carries only the one total is priced
+   at 1.25x as before. Sonnet 5.5 reads its cache at $0.10 (it was listed at $0.20 here until 2026-11-25). */
+export const PRICE = { 'claude-opus-5-5': [4, 20, 0.2], 'claude-sonnet-5-5': [2, 10, 0.1], 'claude-sonnet-5': [2, 10, 0.2], 'claude-opus-5': [5, 25, 0.5],
+  'claude-fable-5-1': [10, 50, 0.25], 'claude-haiku-4-5-20251001': [1, 5, 0.1], 'claude-haiku-4-5': [1, 5, 0.1], 'claude-haiku-5-5': [0.1, 0.5, 0.01] };
+export const CACHE_WRITE_5M = 1.25, CACHE_WRITE_1H = 2;
+export function costOf(model, u = {}) {
+  const p = PRICE[model] || [4, 20, 0.4];
+  const total = u.cache_creation_input_tokens || 0, split = u.cache_creation;
+  const has = split && (split.ephemeral_1h_input_tokens != null || split.ephemeral_5m_input_tokens != null);
+  const h1 = has ? split.ephemeral_1h_input_tokens || 0 : 0;
+  /* whatever the split does not account for (or all of it, with no split) is a 5 minute write */
+  const m5 = has ? Math.max(split.ephemeral_5m_input_tokens || 0, total - h1) : total;
+  return ((u.input_tokens || 0) * p[0] + m5 * p[0] * CACHE_WRITE_5M + h1 * p[0] * CACHE_WRITE_1H
+    + (u.cache_read_input_tokens || 0) * p[2] + (u.output_tokens || 0) * p[1]) / 1e6;
+}
 
 export function createAssistant(config) {
   const C = { ...DEFAULTS, ...config };
@@ -768,7 +863,14 @@ export function createAssistant(config) {
 
   async function runQuery(env, raw, h) {
     const allowed = h?.readableTables ? await h.readableTables(env).catch(() => C.tables || []) : (C.tables || []);
-    const gate = gateSql(raw, allowed, { maxRows: C.maxRows, blobColumns: C.blobColumns, forbidWords: C.forbidWords });
+    /* Tables with a secret-shaped column come from the catalogue itself, on top of the host's own list. */
+    let starTables = C.starTables || [];
+    if (C.secretColumns) {
+      const cat = await env.DB.prepare("SELECT name, sql FROM sqlite_master WHERE type = 'table'").all().catch(() => null);
+      starTables = [...starTables, ...tablesWithColumns(cat?.results, C.secretColumns, C.safeColumns)];
+    }
+    const gate = gateSql(raw, allowed, { maxRows: C.maxRows, blobColumns: C.blobColumns, forbidWords: C.forbidWords,
+      secretTables: C.secretTables, secretColumns: C.secretColumns, safeColumns: C.safeColumns, starTables });
     if (gate.error) return { error: gate.error };
     /* A multi-tenant host scopes every query to the tenant being viewed, by
      * shadowing each table with a CTE of that tenant's rows (config.sqlWrap). */
@@ -1109,11 +1211,7 @@ Plain English, no em dashes, lead with the answer.` }];
 
   /* ---------------- the loop ---------------- */
 
-  /* Dollars per million tokens: [input, output]. Cache reads are a tenth of input (Opus/Sonnet 5.5: $0.20),
-     cache writes 1.25x. Used for the cost line under every answer and the usage log. */
-  const PRICE = { 'claude-opus-5-5': [4, 20, 0.2], 'claude-sonnet-5-5': [2, 10, 0.2], 'claude-sonnet-5': [2, 10, 0.2], 'claude-opus-5': [5, 25, 0.5],
-    'claude-fable-5-1': [10, 50, 0.25], 'claude-haiku-4-5-20251001': [1, 5, 0.1], 'claude-haiku-4-5': [1, 5, 0.1], 'claude-haiku-5-5': [0.1, 0.5, 0.01] };
-  const costOf = (model, u) => { const p = PRICE[model] || [4, 20, 0.4]; return ((u.input_tokens || 0) * p[0] + (u.cache_creation_input_tokens || 0) * p[0] * 1.25 + (u.cache_read_input_tokens || 0) * p[2] + (u.output_tokens || 0) * p[1]) / 1e6; };
+  /* Dollars for one reply: costOf at the top of this file. Used for the cost line under every answer and the usage log. */
   /* What a step looks like to the person watching ("Searching Slack for 'folder'"). An app can name its own. */
   const stepLabel = (name, input) => {
     const own = C.stepLabel && C.stepLabel(name, input || {});
@@ -1555,7 +1653,8 @@ type is "bar" (comparing items), "line" (a trend; labels are dates) or "table" (
     openFindings, setFindingState, recordFindings, ensureFindings,
     memory, memoryBlock, getBrief, getPlaybook, runMemoryTool,
     applyProposal, pendingList, proposalBlocks, groupProposals, runAction, actions: ACTIONS.map(a => a.name), reportsList,
-    gateSql: (raw, allowed) => gateSql(raw, allowed || C.tables || [], { maxRows: C.maxRows, blobColumns: C.blobColumns, forbidWords: C.forbidWords }),
+    gateSql: (raw, allowed) => gateSql(raw, allowed || C.tables || [], { maxRows: C.maxRows, blobColumns: C.blobColumns, forbidWords: C.forbidWords,
+      secretTables: C.secretTables, secretColumns: C.secretColumns, safeColumns: C.safeColumns, starTables: C.starTables }),
     readApp, schemaDoc, usageToday,
     tools: { slack: slackToolDefs, web: webToolDefs },
   };

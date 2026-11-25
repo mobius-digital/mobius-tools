@@ -22,6 +22,7 @@
  * sent}; `checkinNudged:<date>`; `rvPost:<card>` = {channel, ts, at, act, done}; `rvOpen` = [card ids]. */
 import { slackIdOf, morningHour } from './morningcard.js';
 import { adsOf, decide, decideMany, htmlToText, isCarousel } from './prodwork.js';
+import { AUTO_APPROVE_KEY } from './clientchan.js';
 import { teamOf } from './calendar.js';
 import { ROSTER, addAction } from './actions.js';
 import { laneBlocks, laneWho } from './lane.js';
@@ -48,6 +49,12 @@ const chLabel = v => (CHANNELS.find(c => c[0] === v) || [null, 'Meta'])[1];
 const DAY_TYPES = ['Briefs', 'Research', 'Making', 'Revisions', 'Launches', 'Meetings'];
 const NUDGE_AFTER = 4;           // hours past the morning hour
 const AUTO_APPROVE_HOURS = 24;
+/* settings.checkinAutoApprove: absent = a review card nobody answered in 24 hours is approved by the timer (as it always
+   was); '0' = the timer never approves, the card stays waiting for a person. The note a timer approval leaves never names
+   a person: nobody looked at it. */
+export { AUTO_APPROVE_KEY };
+export const AUTO_APPROVE_WHO = 'Locus (automatic)';
+export const AUTO_APPROVE_NOTE = `Approved automatically after ${AUTO_APPROVE_HOURS} hours with no answer. Nobody looked at it.`;
 const PAUSED = /galway|instyler|gum of gods|judyp|le pickle|popby|golf sock|harborline/i;
 
 const safe = (s, d) => { try { return s == null ? d : JSON.parse(s); } catch { return d; } };
@@ -770,7 +777,13 @@ export async function checkinTick(env, d) {
     await d.putSetting(env, `checkinWeekDm:${date}`, JSON.stringify(sent));
     out.weekDm = sent;
   }
-  /* no notes in 24 hours = approved */
+  await autoApproveTick(env, d, out);
+  return out;
+}
+/* No answer in 24 hours = approved by the timer, unless settings.checkinAutoApprove is '0' (then nothing here runs and
+   the card waits for a person). Its own function so the switch can be tested without the rest of the tick. */
+export async function autoApproveTick(env, d, out = {}) {
+  if ((await d.getSetting(env, AUTO_APPROVE_KEY)) === '0') { out.autoApprove = 'off'; return out; }
   const open = safe(await d.getSetting(env, 'rvOpen'), []);
   let approved = 0;
   for (const id of open.slice(0, 10)) {
@@ -780,8 +793,10 @@ export async function checkinTick(env, d) {
     const st = await cardState(env, id);
     const waiting = st?.ads.filter(a => a.status === 'review') || [];
     if (!waiting.length) { await redrawReview(env, d, id, '✅ Every ad has its call.'); continue; }
-    try { await decideMany(env, d.prod, { id, all: true }, 'no notes from Cole in 24 hours', null, { later: false }); approved++; await redrawReview(env, d, id, `✅ Approved: no notes in ${AUTO_APPROVE_HOURS} hours`); }
-    catch (e) { out.approveError = e.message; }
+    try {
+      await (d.decideMany || decideMany)(env, d.prod, { id, all: true, body: AUTO_APPROVE_NOTE }, AUTO_APPROVE_WHO, null, { later: false, name: AUTO_APPROVE_WHO });
+      approved++; await redrawReview(env, d, id, `✅ Approved automatically: no answer in ${AUTO_APPROVE_HOURS} hours`);
+    } catch (e) { out.approveError = e.message; }
   }
   if (approved) out.autoApproved = approved;
   return out;

@@ -77,16 +77,30 @@ CREATE TABLE IF NOT EXISTS p_shopify (
   scopes         TEXT,
   installed_at   TEXT NOT NULL DEFAULT (datetime('now')),
   uninstalled_at TEXT,                      -- set by the app/uninstalled webhook
-  last_sync_at   TEXT
+  last_sync_at   TEXT,
+  -- Expiring offline tokens (2026-11-24, App Store requirement 3.1.2; migrations/shopify-001-expiring-tokens.sql).
+  -- access_token lasts about an hour. NEVER read it directly: call shopToken() in src/shoptoken.js, which refreshes.
+  refresh_token      TEXT,                  -- replaced on every refresh; good for 90 days
+  expires_at         INTEGER,               -- unix seconds; NULL = an old never-expiring token, migrated on next use
+  refresh_expires_at INTEGER                -- unix seconds
 );
 CREATE INDEX IF NOT EXISTS p_shopify_act_idx ON p_shopify (act_id);
 
 -- Short-lived OAuth nonces. The callback must reject any `state` it did not issue,
 -- or the install can be forged.
+-- A code is good for 10 minutes: older rows are rejected by the callback and swept on the next install.
 CREATE TABLE IF NOT EXISTS p_oauth_state (
   state      TEXT PRIMARY KEY,
   shop       TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- A brand's store address, typed by the team (POST /api/connections/address). For brands with no Triple Whale shop
+-- to read it from: gives the brand an install link and lets the install match itself to the brand.
+CREATE TABLE IF NOT EXISTS p_shop_address (
+  act_id     TEXT PRIMARY KEY,
+  shop       TEXT NOT NULL,                 -- brand.myshopify.com
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- Real cohorts: customers grouped by the month of their FIRST order, followed
@@ -437,3 +451,38 @@ CREATE TABLE IF NOT EXISTS p_client_page (
   views       INTEGER NOT NULL DEFAULT 0,
   last_view   TEXT
 );
+
+-- Brand costs (2026-11-25, src/costs.js). Also created lazily by ensure() in costs.js.
+-- One dated rule for one cost type. A change closes the old row (end_date) and adds a new one.
+CREATE TABLE IF NOT EXISTS p_cost_rule (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  act_id       TEXT NOT NULL,
+  cost         TEXT NOT NULL,                  -- shipping | product
+  rule         TEXT NOT NULL,                  -- per_order | pct_revenue | per_item | weight_tier | zone
+  source       TEXT NOT NULL DEFAULT 'typed',  -- typed | sheet | connection
+  amount       REAL,                           -- money, or the percent for pct_revenue; NULL for table rules
+  table_json   TEXT,                           -- weight_tier: [{min,max,amount}]  zone: [{zone,amount}]
+  start_date   TEXT NOT NULL,                  -- YYYY-MM-DD, first day it applies
+  end_date     TEXT,                           -- last day it applies; NULL = still current
+  status       TEXT NOT NULL DEFAULT 'on',     -- on | off
+  label        TEXT,
+  notes        TEXT,
+  created_by   TEXT, created_name TEXT, created_at TEXT DEFAULT (datetime('now')),
+  updated_by   TEXT, updated_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS p_cost_rule_act ON p_cost_rule(act_id, cost, start_date);
+
+-- Per-product cost, filled by a cost sheet upload. Dated, so a new sheet never rewrites the past. Stored, not applied yet.
+CREATE TABLE IF NOT EXISTS p_product_cost (
+  act_id      TEXT NOT NULL,
+  sku         TEXT NOT NULL,
+  title       TEXT,
+  unit_cost   REAL NOT NULL,
+  start_date  TEXT NOT NULL,                   -- the date this sheet's numbers take effect
+  source      TEXT NOT NULL DEFAULT 'sheet',   -- sheet | connection | typed
+  batch       TEXT,                            -- one id per upload
+  filename    TEXT,
+  uploaded_by TEXT, uploaded_name TEXT, uploaded_at TEXT DEFAULT (datetime('now')),
+  PRIMARY KEY (act_id, sku, start_date)
+);
+CREATE INDEX IF NOT EXISTS p_product_cost_act ON p_product_cost(act_id, start_date);

@@ -616,6 +616,62 @@ await check('Costs: a client adds and edits its own brand\'s custom expenses, ne
   assert.equal(db.prepare(`SELECT name FROM p_expense WHERE act_id = 'brand_beta'`).get().name, 'Klaviyo', 'beta untouched');
 });
 
+await check('Brand costs: a client sets, removes and uploads cost rules for its own brand, never another brand\'s', async () => {
+  const rule = { cost: 'shipping', rule: 'per_order', amount: 6.5, start_date: '2026-10-01' };
+  const csv = 'SKU,Cost\nA1,4.5\n';
+  const put = await pf(CLIENT, 'PUT', '/api/costs', { act: 'brand_alpha', rule });
+  assert.equal(put.status, 200, JSON.stringify(put.j));
+  assert.equal(put.j.shipping_rules.rules[0].added_by, 'Nick', 'the client\'s own name');
+  assert.ok(!JSON.stringify(put.j.shipping_rules).includes('@'), 'no email in the answer');
+  const sheet = await pf(CLIENT, 'POST', '/api/costs/sheet', { act: 'brand_alpha', csv, start_date: '2026-11-01', dry_run: false });
+  assert.equal(sheet.status, 200, JSON.stringify(sheet.j));
+  assert.equal((await pf(CLIENT, 'GET', '/api/costs?act=brand_alpha')).j.product_cost.sheet.skus, 1);
+  /* another brand, "all", and a query naming its brand while the body names another */
+  assert.equal((await pf(CLIENT, 'PUT', '/api/costs', { act: 'brand_beta', rule })).status, 403);
+  assert.equal((await pf(CLIENT, 'PUT', '/api/costs?act=brand_alpha', { act: 'brand_beta', rule })).status, 403);
+  assert.equal((await pf(CLIENT, 'PUT', '/api/costs', { act: 'all', rule })).status, 403);
+  assert.equal((await pf(CLIENT, 'POST', '/api/costs/sheet', { act: 'brand_beta', csv, start_date: '2026-11-01', dry_run: false })).status, 403);
+  assert.equal((await pf(CLIENT, 'POST', '/api/costs/sheet?act=brand_alpha', { act: 'brand_beta', csv, start_date: '2026-11-01', dry_run: false })).status, 403);
+  assert.equal((await pf(CLIENT, 'POST', '/api/costs/sheet', { act: 'all', csv, start_date: '2026-11-01' })).status, 403);
+  const t = await pf(OWNER, 'PUT', '/api/costs', { act: 'brand_beta', rule });
+  assert.equal(t.status, 200, JSON.stringify(t.j));
+  const betaId = t.j.shipping_rules.rules[0].id;
+  assert.equal((await pf(CLIENT, 'DELETE', `/api/costs?act=brand_beta&id=${betaId}`)).status, 403);
+  assert.equal((await pf(CLIENT, 'DELETE', '/api/costs?act=all&id=1')).status, 403);
+  assert.equal((await pf(CLIENT, 'DELETE', `/api/costs?act=brand_alpha&id=${betaId}`)).status, 404, 'its own brand, another brand\'s rule id: nothing is removed');
+  assert.equal((await pf(CLIENT, 'PUT', '/api/costs', { act: 'brand_alpha', rule: { id: betaId, amount: 1, start_date: '2026-10-01' } })).status, 404);
+  assert.equal(db.prepare(`SELECT amount FROM p_cost_rule WHERE id = ?`).get(betaId).amount, 6.5, 'beta untouched');
+  assert.equal((await pf(CLIENT, 'DELETE', `/api/costs?act=brand_alpha&id=${put.j.shipping_rules.rules[0].id}`)).status, 200);
+  assert.equal(db.prepare(`SELECT COUNT(*) n FROM p_cost_rule WHERE act_id = 'brand_alpha'`).get().n, 0);
+  /* left as it was found, so the checks below see no cost rule and no cost sheet */
+  db.exec(`DELETE FROM p_cost_rule; DELETE FROM p_product_cost;`);
+});
+
+await check('Daily Brief: a client login never gets a fixed cost category, and no fixed cost or net profit while the switch is off', async () => {
+  const { briefSent, CLIENT_RULES } = await import('./src/brandguard.js');
+  const payload = on => ({
+    act_id: 'brand_alpha', mtd: { sales: 9000, cm: 3000 },
+    days: [{ date: '2026-11-01', f: {}, a: { sales: 500, cm: 150, fixed: 40, ad_expense: 5, net: 105 } }, { date: '2026-11-02', f: {}, a: null }],
+    history: [{ date: '2026-11-01', status: 'sent', text: 'SENT' }, { date: '2026-11-02', status: 'draft', text: 'DRAFT' }],
+    fixed: { by_category: [{ category: 'c1', label: 'Founder salary', amount: 1200 }, { category: 'c2', label: 'Loan', amount: 300 }], in_posts: on, mtd: { fixed: 1500, ad_expense: 100, net: 1400 } },
+  });
+  const off = briefSent(payload(false)), offS = JSON.stringify(off);
+  assert.equal(off.fixed, undefined, 'switch off: no fixed block');
+  assert.ok(!/Founder salary|Loan|by_category|"net"|"ad_expense"|"fixed"/.test(offS), offS);
+  assert.deepEqual(off.days[0].a, { sales: 500, cm: 150 }, 'the day keeps its sales and margin');
+  assert.deepEqual(off.history.map(r => r.status), ['sent']);
+  const on = briefSent(payload(true)), onS = JSON.stringify(on);
+  assert.ok(!/Founder salary|Loan|by_category/.test(onS), 'switch on: still no category');
+  assert.deepEqual(on.fixed, { in_posts: true, mtd: { fixed: 1500, ad_expense: 100, net: 1400 } }, 'one total and net');
+  assert.equal(on.days[0].a.net, 105);
+  /* anything but a real true is off; a brand with no fixed cost is untouched */
+  assert.equal(briefSent({ ...payload(false), fixed: { in_posts: 1, by_category: [{ label: 'Loan', amount: 1 }], mtd: { net: 1 } } }).fixed, undefined);
+  assert.deepEqual(briefSent({ days: [{ a: { sales: 1 } }], history: [] }), { days: [{ a: { sales: 1 } }], history: [] });
+  assert.equal(briefSent(null), null);
+  /* the client rule for the route still runs this pass */
+  assert.equal(CLIENT_RULES.find(r => r.m === 'GET' && r.p === '/api/brief').post, briefSent);
+});
+
 await check('a client can edit only its own profile', async () => {
   const r = await ah(CLIENT, 'PUT', '/api/clients/me', { name: 'Nick Y', welcomed: true });
   assert.equal(r.status, 200);
@@ -905,6 +961,56 @@ await check('Lucky HQ (2026-11-11): a pass from HQ opens Lucky Golf only, with t
   /* An address on the HQ domain that was not minted by a pass is not an hq login. */
   users['fake@hq.luckygolf.com'] = { brands: ['brand_alpha'] }; db.prepare(`UPDATE settings SET value = ? WHERE key = 'clientUsers'`).run(JSON.stringify(users));
   delete ahEnv.LOCUS_HQ_SECRET;
+});
+
+await check('the team list: the owner or the admin key changes it; a sign-in with no name is a team member', async () => {
+  const listed = () => db.prepare(`SELECT value FROM settings WHERE key = 'allowedEmails'`).get()?.value || '[]';
+  const before = listed();
+  assert.equal((await ah(TEAM, 'PUT', '/api/team', { email: 'new@outside.com' })).status, 403);
+  assert.equal(listed(), before, 'nothing was written');
+  assert.equal((await ah(TEAM, 'GET', '/api/team')).j.can_set_brands, false);
+  assert.equal((await ah(OWNER, 'PUT', '/api/team', { email: 'new@outside.com', role: 'viewer' })).status, 200);
+  assert.ok(listed().includes('new@outside.com'));
+  assert.equal((await ah(OWNER, 'PUT', '/api/team', { email: 'new@outside.com', remove: true })).status, 200);
+  assert.equal((await ah(OWNER, 'GET', '/api/team')).j.can_set_brands, true);
+  /* Made-up values, for this test only. */
+  ahEnv.ADMIN_TOKEN = 'test-admin-key';
+  db.prepare(`INSERT INTO settings (key, value) VALUES ('passwordHash', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).run(crypto.createHash('sha256').update('test-shared-pass').digest('hex'));
+  try {
+    const key = await ah('test-admin-key', 'GET', '/api/me');
+    assert.deepEqual([key.status, key.j.master, key.j.role, key.j.email], [200, true, 'owner', null]);
+    assert.equal((await ah('test-admin-key', 'GET', '/api/team')).j.can_set_brands, true);
+    assert.equal((await ah('test-admin-key', 'PUT', '/api/team', { email: 'new@outside.com', brands: ['brand_alpha'] })).status, 200);
+    assert.equal((await ah('test-admin-key', 'PUT', '/api/team', { email: 'new@outside.com', remove: true })).status, 200);
+    /* The shared password is gone: a stored hash opens nothing on either worker, and nobody can set one. */
+    for (const [m, p] of [['GET', '/api/me'], ['GET', '/api/team'], ['GET', '/api/accounts']]) assert.equal((await ah('test-shared-pass', m, p)).status, 401, p);
+    assert.equal((await ah('test-shared-pass', 'PUT', '/api/team', { email: 'new@outside.com' })).status, 401);
+    assert.equal((await pf('test-shared-pass', 'GET', '/api/auth-check')).j.authorized, false);
+    assert.notEqual((await ah(OWNER, 'PUT', '/api/password', { password: 'another-made-up' })).status, 200);
+    assert.equal(db.prepare(`SELECT value FROM settings WHERE key = 'passwordHash'`).get().value, crypto.createHash('sha256').update('test-shared-pass').digest('hex'), 'the route wrote nothing');
+    assert.equal(listed(), before, 'nothing was written');
+  } finally {
+    delete ahEnv.ADMIN_TOKEN;
+    db.prepare(`DELETE FROM settings WHERE key = 'passwordHash'`).run();
+  }
+  const me = await ah(OWNER, 'GET', '/api/me'), tm = await ah(TEAM, 'GET', '/api/me');
+  assert.deepEqual([me.j.master, me.j.role, tm.j.master, tm.j.role], [false, 'owner', false, 'team']);
+});
+
+await check('with no sign-in: health says ok and the time, the sign-in check keeps the set-up to the team', async () => {
+  const h = await ah(null, 'GET', '/health');
+  assert.deepEqual([h.status, Object.keys(h.j).sort()], [200, ['ok', 'time']]);
+  const hs = await ah(TEAM, 'GET', '/health');
+  assert.ok(hs.j.ok && 'lastRun' in hs.j && 'hasMetaToken' in hs.j, JSON.stringify(hs.j));
+  const none = await pf(null, 'GET', '/api/auth-check'), bad = await pf('not-a-session-123456', 'GET', '/api/auth-check'), team = await pf(OWNER, 'GET', '/api/auth-check');
+  for (const r of [none, bad]) {
+    assert.equal(r.status, 200);
+    for (const k of ['shared_password_set', 'has_admin_token', 'has_session_secret', 'token_seen']) assert.ok(!(k in r.j), k);
+  }
+  assert.deepEqual([bad.j.authorized, bad.j.kind, bad.j.local_session_verify], [false, null, false]);
+  assert.ok(!JSON.stringify(bad.j).includes('not-'), 'nothing of the token comes back');
+  assert.deepEqual([team.j.authorized, team.j.kind, typeof team.j.has_admin_token, 'shared_password_set' in team.j, 'token_seen' in team.j], [true, 'admin', 'boolean', false, false]);
+  assert.equal((await ah(null, 'GET', '/api/share/0123456789abcdef0123')).status, 401);
 });
 
 globalThis.fetch = realFetch;

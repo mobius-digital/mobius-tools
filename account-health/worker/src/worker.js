@@ -19,6 +19,9 @@ import { handleMake as handleMakeApp, serveMakeMedia, runExit } from './make.js'
 import { handleCalendar, calendarTick, calendarView, liveOn as calendarLiveOn, useFetch as calendarFetch, calendarData, teamOf as calendarTeam, clientCalendarFor } from './calendar.js';
 /* The client posts (2026-10-19 reporting audit): the six-line daily and the weekly / monthly shape, built from stored numbers. */
 import { dailyPost, dailyThread, weeklyPost, weekSentence, internalChannel } from './clientpost.js';
+/* Brand costs and net profit after fixed costs (2026-11-25): the same pure functions the profit worker prices with. */
+import { ruleCosts, shippingRuled, partlyCosted } from '../../../profit/worker/src/costs.js';
+import { netAfter, netInPosts } from '../../../profit/worker/src/expenses.js';
 import { handleRequests, createAsk } from './requests.js';
 import { handleMeetings, handleFirefliesHook, meetingsTick } from './meetings.js';
 import { handleCalls, finishCall } from './callscreen.js';
@@ -63,7 +66,8 @@ import { laneBlocks, laneLines, lanePost, laneWho, laneOwner, fyi, roundupTick }
  */
 
 import { buildStrategist } from './strategist.js';
-import { indexEvent, backfillTick, indexStatus, forgetChannelCache } from './slackindex.js';
+import { indexEvent, backfillTick, indexStatus, forgetChannelCache, indexedChannels } from './slackindex.js';
+import { tapOnlyThere, silentThere, readSwitches, writeSwitches, ASK_CLIENT_KEY, TAP_ONLY_NOTE } from './clientchan.js';
 import { consolidate, factsList, remember as stratRemember, forget as stratForget, editFact, skillsList, saveSkill, deleteSkill, usageSummary } from './stratmem.js';
 import { PRESETS as STRAT_PRESETS } from './strattools.js';
 import { accessReport, grantSelf, partnerSweep } from './metaaccess.js';
@@ -2357,7 +2361,11 @@ async function briefData(env, acct, upTo) {
   // Diagnostic only now. Shipping revenue is inside netSales and cannot be removed,
   // so a client who bills shipping without recording a fulfilment cost simply has
   // overstated profit - we flag it rather than pretending to net it off.
-  const shipMode = shipTotal('totalShippingPrice') > 0 && shipTotal('totalShippingCosts') <= 0 ? 'uncosted' : 'costed';
+  /* The brand's own cost rules and fixed costs (profit worker costs.js / expenses.js, 2026-11-25). Plain reads that
+     tolerate a missing table: no rule and no fixed cost leaves every number and every key below exactly as it was. */
+  const costRules = (await env.DB.prepare(`SELECT * FROM p_cost_rule WHERE act_id = ?1 AND status = 'on'`).bind(acct.act_id).all().catch(() => ({ results: [] }))).results || [];
+  const fixedCosts = (await env.DB.prepare(`SELECT * FROM p_expense WHERE act_id = ?1`).bind(acct.act_id).all().catch(() => ({ results: [] }))).results || [];
+  const shipMode = shipTotal('totalShippingPrice') > 0 && shipTotal('totalShippingCosts') <= 0 && !(costRules.length && shippingRuled(costRules, histFrom, upTo)) ? 'uncosted' : 'costed';
 
   // The trailing 28 days still feed the new/returning share and the margin, but the
   // day-of-week CURVE is deliberately not used to split the goal - see below.
@@ -2371,7 +2379,14 @@ async function briefData(env, acct, upTo) {
     salesSum += s;
     newRevSum += piv.newCustomerSales?.[d] ?? 0;
     retRevSum += piv.rcRevenue?.[d] ?? 0;
-    const gp = piv.grossProfit?.[d] ?? (piv.totalProductCosts?.[d] != null ? s - piv.totalProductCosts[d] - (piv.totalPaymentGatewayCosts?.[d] ?? 0) : null);
+    let gp = piv.grossProfit?.[d] ?? (piv.totalProductCosts?.[d] != null ? s - piv.totalProductCosts[d] - (piv.totalPaymentGatewayCosts?.[d] ?? 0) : null);
+    /* A cost rule in force that day prices the day the way the day rows below do: revenue minus product, shipping,
+       handling and fees, with the rule's figure in place of Triple Whale's. No rule that day: the line above stands. */
+    const ov28 = costRules.length ? ruleCosts(costRules, d, { sales: s - (piv.totalNetTaxes?.[d] ?? 0), orders: piv.totalOrders?.[d] ?? null }) : null;
+    if (ov28) {
+      const c28 = ov28.product != null ? ov28.product : (piv.totalProductCosts?.[d] ?? null);
+      if (c28 != null) gp = s - (piv.totalNetTaxes?.[d] ?? 0) - c28 - (ov28.shipping != null ? ov28.shipping : (piv.totalShippingCosts?.[d] ?? 0)) - (piv.totalHandlingFees?.[d] ?? 0) - (piv.totalPaymentGatewayCosts?.[d] ?? 0);
+    }
     if (gp != null && s > 0) { marginNum += gp; marginDen += s; dayMargins.push(gp / s); }
   }
   const newShare = newRevSum + retRevSum > 0 ? newRevSum / (newRevSum + retRevSum) : null;
@@ -2398,9 +2413,10 @@ async function briefData(env, acct, upTo) {
     // old double-counted figure.
     const tax = piv.totalNetTaxes?.[date] ?? 0;
     const shipRev = piv.totalShippingPrice?.[date] ?? 0;   // reported only; already in netSalesDay
-    const shipCost = piv.totalShippingCosts?.[date] ?? 0;
     const handling = piv.totalHandlingFees?.[date] ?? 0;
     const sales = netSalesDay == null ? null : netSalesDay - tax;
+    const ov = costRules.length ? ruleCosts(costRules, date, { sales, orders: piv.totalOrders?.[date] ?? null }) : null;   // the brand's own cost rules
+    const shipCost = ov && ov.shipping != null ? ov.shipping : (piv.totalShippingCosts?.[date] ?? 0);
     const mrow = meta[date];
     const gSpend = piv.ga_adCost?.[date] ?? null;
     const blended = piv.blendedAds?.[date] ?? null;
@@ -2457,7 +2473,7 @@ async function briefData(env, acct, upTo) {
       new_orders: piv.newCustomersOrders?.[date] ?? null,
       total_sales: netSalesDay, tax, net_sales: sales == null ? null : sales - shipRev,
       ship_rev: shipRev, ship_cost: shipCost, handling,
-      cogs: piv.totalProductCosts?.[date] ?? null,
+      cogs: ov && ov.product != null ? ov.product : (piv.totalProductCosts?.[date] ?? null),
       fees: piv.totalPaymentGatewayCosts?.[date] ?? null,
     };
     a.amer = a.new_rev != null && a.spend ? a.new_rev / a.spend : null;
@@ -2481,6 +2497,27 @@ async function briefData(env, acct, upTo) {
     spend: sum(done, x => x.a.spend), spend_f: sum(done, x => x.f.spend ?? null),
     cm: sum(done, x => x.a.cm), cm_f: sum(done, x => x.f.cm ?? null),
   };
+  /* NET PROFIT AFTER FIXED COSTS (2026-11-25). Only for a brand that entered a fixed cost (profit worker, p_expense)
+     and only where contribution margin exists; nothing is added otherwise. Brief CM does not hold the "counts as ad
+     spend" expenses, so net subtracts those too (the text prints them as their own row, so the sum shows).
+     `in_posts` (settings costsNetInPosts = 1, default off) decides whether the Slack text prints the rows. This payload
+     is the team's (by_category stays here). GET /api/brief is also a client route: brandguard briefSent drops
+     by_category for a client login always, and the whole block plus each day's fixed / ad_expense / net while the
+     switch is off. A report and the client profit link carry nothing while the switch is off. */
+  let fixedBlock = null;
+  if (fixedCosts.length) {
+    const dayRow = x => ({ date: x.date, sales: x.a.sales, spend: x.a.spend, orders: x.a.orders });
+    for (const x of done) { const n = netAfter(fixedCosts, x.date, x.date, [dayRow(x)], x.a.cm); if (n) { x.a.fixed = n.fixed; x.a.ad_expense = n.ad; x.a.net = n.net; } }
+    /* mtd.cm above is the sum of the days that HAVE a contribution margin, so the fixed costs are counted on exactly
+       those days (`dates`): a product cost rule that starts mid month must not set five days of margin against a whole
+       month of rent. */
+    const m = netAfter(fixedCosts, monthStart, upTo, done.map(dayRow), mtd.cm, { dates: done.filter(x => x.a.cm != null).map(x => x.date) });
+    if (m) {
+      /* The month's figures ride under `fixed`, NOT on `mtd`: both narrative prompts hand the whole mtd object to the
+         model, and a net profit figure must never reach a client through a sentence nobody previewed. */
+      fixedBlock = { by_category: m.by_category, in_posts: await netInPosts(env), mtd: { fixed: m.fixed, ad_expense: m.ad, net: m.net } };
+    }
+  }
   /* The catch-up: what it takes FROM HERE, not just how far behind we are.
    *
    * Every other figure in the brief describes the past. This one is the only
@@ -2534,6 +2571,7 @@ async function briefData(env, acct, upTo) {
       bad_dates: done.filter(x => x.a.issues?.some(i => i.severity === 'broken')).map(x => x.date),
       by_date: Object.fromEntries(done.filter(x => x.a.issues?.length).map(x => [x.date, x.a.issues])),
     },
+    ...(fixedBlock ? { fixed: fixedBlock } : {}),
   };
 }
 
@@ -2607,6 +2645,7 @@ function buildBriefText(data, dates, narrative) {
     rowFor('MER', a.mer, f.mer, fx);
     rowFor('aMER', a.amer, f.amer, fx);
     if (cmOk) rowFor('Contribution Margin', a.cm, f.cm, fm);
+    if (cmOk && data.fixed?.in_posts) for (const [label, v] of netRows(a)) rowFor(label, v, null, fm);
   }
 
   /* NO "WEEK IN REVIEW" BLOCK. It used to print here on the Monday brief, and
@@ -2882,6 +2921,7 @@ function buildBriefTextV2(data, dates, narrative) {
     rowFor('MER', a.mer, f.mer, fx);
     rowFor('aMER', a.amer, f.amer, fx);
     if (cmOk) rowFor('Contribution Margin', a.cm, f.cm, fm);
+    if (cmOk && data.fixed?.in_posts) for (const [label, v] of netRows(a)) rowFor(label, v, null, fm);
   }
 
   // MONTH SO FAR: the same rows, summed. Deterministic, never left to the model.
@@ -2893,6 +2933,7 @@ function buildBriefTextV2(data, dates, narrative) {
     rowFor('Net Sales', mt.sales, mt.sales_f, fm);
     rowFor('Ad Spend', mt.spend, mt.spend_f, fm);
     if (cmOk) rowFor('Contribution Margin', mt.cm, mt.cm_f, fm);
+    if (cmOk && data.fixed?.in_posts) for (const [label, v] of netRows(data.fixed.mtd)) rowFor(label, v, null, fm);
   }
 
   const th = data.to_hit;
@@ -3385,6 +3426,7 @@ function clientDailyThreadFor(acct, date, data) {
   return dailyThread({
     date, currency: acct.currency, cm_ok: !!q && q !== 'broken' && q !== 'none',
     day: { sales: a.sales, orders: a.orders ?? null, new_orders: a.new_orders ?? null, new_rev: a.new_rev ?? null, ret_rev: a.ret_rev ?? null, cm: a.cm ?? null,
+      ...(data?.fixed?.in_posts && a.net != null ? { net: a.net, fixed: a.fixed ?? 0, ad_expense: a.ad_expense ?? 0 } : { net: null }),
       attr: !!a.attr_source,
       channels: [{ name: 'Meta', spend: a.meta_spend, roas: a.meta_roas, purchases: a.meta_purchases }, { name: 'Google', spend: a.google_spend, roas: a.google_roas, purchases: a.google_purchases }] },
   });
@@ -3449,13 +3491,19 @@ async function adsWork(env, act, start, end) {
 }
 async function clientReportText(env, acct, row, data) {
   const period = row.period, start = row.period_start;
+  /* Fixed costs and net profit print only when the REPORT says so: data.fixed.in_posts, frozen from settings
+     costsNetInPosts when the report was generated (reportData). reportHeadline and the report page read the same
+     frozen value, so the draft card, the sent post and the page can never disagree, whatever the switch says later. */
+  const noNet = t => { if (!t || (t.net == null && t.fixed == null && t.ad_expense == null)) return t; const { net, fixed, ad_expense, ...rest } = t; return rest; };
+  const showNet = data?.fixed?.in_posts === true;
+  const totals = showNet ? data?.totals : noNet(data?.totals), previous = showNet ? data?.previous : noNet(data?.previous);
   const url = `${DASHBOARD_URL}?reports=${await reportToken(env, acct.act_id)}`;
   const cal = period === 'weekly' ? await clientCalendarFor(env, acct.act_id, localDate(BRIEF_TZ), { days: 6 }).catch(() => null) : null;
   const asks = (await env.DB.prepare(`SELECT title, body, created_at FROM p_request WHERE act_id = ?1 AND kind = 'ask' AND status = 'open' ORDER BY created_at`)
     .bind(acct.act_id).all().catch(() => ({ results: [] }))).results || [];
   const askOf = a => ({ text: a.title, asked: String(a.created_at || '').slice(0, 10) || null, due: (String(a.body || '').match(/Needed by (\d{4}-\d{2}-\d{2})/) || [])[1] || null });
   return weeklyPost({
-    brand: acct.name, period, start, end: row.period_end, currency: data?.account?.currency || acct.currency, totals: data?.totals, previous: data?.previous,
+    brand: acct.name, period, start, end: row.period_end, currency: data?.account?.currency || acct.currency, totals, previous,
     sentence: weekSentence(data?.totals, data?.previous, period === 'monthly' ? 'month' : 'week'),
     amazon: (() => { const c = (data?.channels || []).find(x => x.id === 'amazon'); return c ? { cur: c.cur ? { sales: c.cur.sales, orders: c.cur.orders } : null, prev: c.prev ? { sales: c.prev.sales, orders: c.prev.orders } : null } : null; })(),
     work: period === 'weekly' ? await adsWork(env, acct.act_id, start, row.period_end || addDays(start, 6)).catch(() => null) : null,
@@ -3713,14 +3761,17 @@ async function insightsFreshness(env, a, day) {
  *  (shipping already inside it, never added); CM subtracts every variable
  *  cost; the new/returning split keeps TW's measured SHARE rebased onto the
  *  headline revenue. Keep the three implementations in step. */
-function econDay(piv, metaBy, date, cmPct) {
+function econDay(piv, metaBy, date, cmPct, rules) {
   const totalSales = twDay(piv, date, TW_SALES);
   if (totalSales == null) return null;
   const tax = piv.totalNetTaxes?.[date] ?? 0;
   const sales = totalSales - tax;
-  const shipCost = piv.totalShippingCosts?.[date] ?? 0;
+  /* The brand's own cost rules (profit worker costs.js). No rule, or none in force that day: `ov` is null and every
+     line reads as it did before. No key is added to the row either way. */
+  const ov = rules && rules.length ? ruleCosts(rules, date, { sales, orders: piv.totalOrders?.[date] ?? null }) : null;
+  const shipCost = ov && ov.shipping != null ? ov.shipping : (piv.totalShippingCosts?.[date] ?? 0);
   const handling = piv.totalHandlingFees?.[date] ?? 0;
-  const cogs = piv.totalProductCosts?.[date] ?? null;
+  const cogs = ov && ov.product != null ? ov.product : (piv.totalProductCosts?.[date] ?? null);
   const fees = piv.totalPaymentGatewayCosts?.[date] ?? null;
   const mrow = metaBy[date];
   const gSpend = piv.ga_adCost?.[date] ?? null;
@@ -3746,6 +3797,16 @@ function econDay(piv, metaBy, date, cmPct) {
     gp, margin: sales > 0 && gp != null ? gp / sales : null,
     cm: gp != null && spend != null ? gp - spend : null,
   };
+}
+
+/* settings costsNetInPosts (default off) is read by netInPosts() in the profit worker's expenses.js: ONE switch for the
+   Daily Brief text, its thread, the weekly and monthly client post, a report (frozen into it when it is generated) and
+   the public client profit link. */
+/** The rows a post prints under Contribution Margin so the sum is on the page: fixed costs, then the "counts as ad
+ *  spend" costs when there are any (brief and report CM do not hold them), then net profit. cm minus the rows = net. */
+function netRows(x) {
+  if (!x || x.net == null) return [];
+  return [['Fixed costs', x.fixed ?? 0], ...(x.ad_expense > 0 ? [['Extra ad costs', x.ad_expense]] : []), ['Net profit', x.net]];
 }
 
 /** Aggregate a run of econDay rows. Ratios are ratio-of-sums, never averages. */
@@ -3779,9 +3840,13 @@ async function storePeriod(env, acct, from, to) {
   const { results: metaRows } = await env.DB.prepare(`SELECT date, SUM(spend) AS spend, SUM(impressions) AS impressions, SUM(clicks) AS clicks, SUM(link_clicks) AS link_clicks, SUM(purchases) AS purchases, SUM(revenue) AS revenue FROM daily_insights WHERE act_id IN ${metaOf(1)} AND date >= ?2 AND date <= ?3 GROUP BY date`).bind(acct.act_id, from, to).all();
   const metaBy = Object.fromEntries((metaRows || []).map(r => [r.date, r]));
   const cmPct = goalsFor(acct, monthOf(to))?.cm_pct ?? null;
+  /* The brand's own cost rules, read the way reportData reads them (a plain SELECT that tolerates a missing table), so
+     this view prices a day exactly like the reports. No rule: every number below is what it always was. */
+  const costRules = (await env.DB.prepare(`SELECT * FROM p_cost_rule WHERE act_id = ?1 AND status = 'on'`).bind(acct.act_id).all().catch(() => ({ results: [] }))).results || [];
   const rows = [];
-  for (let d = from; d <= to; d = addDays(d, 1)) { const r = econDay(piv, metaBy, d, cmPct); if (r) rows.push(r); }
+  for (let d = from; d <= to; d = addDays(d, 1)) { const r = econDay(piv, metaBy, d, cmPct, costRules); if (r) rows.push(r); }
   const t = periodTotals(rows);
+  if (partlyCosted(costRules, rows, 'gp', from, to)) { t.cm = null; t.gp = null; t.margin = null; }   // as reportData: one window or no margin
   const sumM = k => { let s = 0, any = false; for (const d in (piv[k] || {})) if (d >= from && d <= to && piv[k][d] != null) { s += piv[k][d]; any = true; } return any ? s : null; };
   const email = sumM('klaviyoPlacedOrderSales');
   const retOrders = t.orders != null && t.new_orders != null ? t.orders - t.new_orders : null;
@@ -4527,13 +4592,17 @@ async function reportData(env, acct, period, start, end) {
 
   const gjson = safeJson(acct.goals_json, {});
   const cmPct = goalsFor(acct, ymEnd)?.cm_pct ?? null;
+  /* The brand's own cost rules and fixed costs (2026-11-25), read the way briefData reads them: plain SELECTs that
+     tolerate a missing table. None of either leaves the report exactly as it was. */
+  const costRules = (await env.DB.prepare(`SELECT * FROM p_cost_rule WHERE act_id = ?1 AND status = 'on'`).bind(acct.act_id).all().catch(() => ({ results: [] }))).results || [];
+  const fixedCosts = (await env.DB.prepare(`SELECT * FROM p_expense WHERE act_id = ?1`).bind(acct.act_id).all().catch(() => ({ results: [] }))).results || [];
 
   // The same COGS trust gate as the Daily Brief: a client whose cost data is
   // broken must never see a Contribution Margin in a report with their name on it.
   const dayMargins = []; let mNum = 0, mDen = 0;
   for (let i = 1; i <= 28; i++) {
     const d = addDays(start, -i);
-    const r = econDay(piv, metaBy, d, null);
+    const r = econDay(piv, metaBy, d, null, costRules);
     if (r && r.gp != null && r.sales > 0) { dayMargins.push(r.gp / r.sales); mNum += r.gp; mDen += r.sales; }
   }
   const margin28 = mDen > 0 ? mNum / mDen : null;
@@ -4545,14 +4614,27 @@ async function reportData(env, acct, period, start, end) {
   const curDates = [], prevDates = [];
   for (let d = start; d <= end; d = addDays(d, 1)) curDates.push(d);
   for (let d = prevStart; d <= prevEnd; d = addDays(d, 1)) prevDates.push(d);
-  const days = curDates.map(d => econDay(piv, metaBy, d, cmPct)).filter(Boolean);
-  const prevDays = prevDates.map(d => econDay(piv, metaBy, d, cmPct)).filter(Boolean);
+  const days = curDates.map(d => econDay(piv, metaBy, d, cmPct, costRules)).filter(Boolean);
+  const prevDays = prevDates.map(d => econDay(piv, metaBy, d, cmPct, costRules)).filter(Boolean);
   const cur = periodTotals(days);
   const prev = periodTotals(prevDays);
   if (!cmOk) {
     for (const t of [cur, prev]) { t.cm = null; t.gp = null; t.margin = null; }
     for (const r of days) { r.cm = null; r.gp = null; r.margin = null; }
   }
+  /* ONE WINDOW (costs.js partlyCosted): a product cost rule that starts inside a window leaves the days before it with
+     no gross profit, and periodTotals would then set the gross profit of some days against the ad spend of all of
+     them. That window's margin is withheld. A brand with no product rule is never affected. */
+  for (const [t, list, lo, hi] of [[cur, days, start, end], [prev, prevDays, prevStart, prevEnd]]) if (partlyCosted(costRules, list, 'gp', lo, hi)) { t.cm = null; t.gp = null; t.margin = null; }
+  /* Fixed costs and net profit: only when CM is shown (cur.cm is null otherwise), a fixed cost is in force and every
+     day of the window has a gross profit. A report is a CLIENT page, so it obeys settings costsNetInPosts (default
+     off), read ONCE here and frozen into the report: with the switch off a new report carries no fixed, ad_expense or
+     net field at all. Totals only, never a category. Report CM does not hold the "counts as ad spend" costs, so they
+     ride along as ad_expense and the page shows them: cm - fixed - ad_expense = net. */
+  const showNet = fixedCosts.length ? await netInPosts(env) : false;
+  const netCur = showNet ? netAfter(fixedCosts, start, end, days, cur.cm, { gpKey: 'gp' }) : null, netPrev = showNet ? netAfter(fixedCosts, prevStart, prevEnd, prevDays, prev.cm, { gpKey: 'gp' }) : null;
+  if (netCur) { cur.fixed = netCur.fixed; cur.ad_expense = netCur.ad; cur.net = netCur.net; }
+  if (netPrev) { prev.fixed = netPrev.fixed; prev.ad_expense = netPrev.ad; prev.net = netPrev.net; }
 
   // The plan for these exact days. Each day inherits ITS OWN month's goals,
   // spread evenly - the agreed convention - so a week straddling a month
@@ -4581,7 +4663,7 @@ async function reportData(env, acct, period, start, end) {
   let pacing = null;
   if (period === 'weekly') {
     const mtdRows = [];
-    for (let d = monthStart; d <= end; d = addDays(d, 1)) { const r = econDay(piv, metaBy, d, cmPct); if (r) mtdRows.push(r); }
+    for (let d = monthStart; d <= end; d = addDays(d, 1)) { const r = econDay(piv, metaBy, d, cmPct, costRules); if (r) mtdRows.push(r); }
     const mtd = periodTotals(mtdRows);
     const gEnd = goalsFor(acct, ymEnd);
     if (gEnd && (gEnd.sales != null || gEnd.spend != null)) {
@@ -4994,6 +5076,7 @@ async function reportData(env, acct, period, start, end) {
     chart: days.map(r => ({ date: r.date, sales: r.sales, spend: r.spend })),
     cm_ok: cmOk, cogs_quality: cogsQuality, margin_28d: margin28, cm_pct: cmPct,
     generated_at: new Date().toISOString(),
+    ...(netCur ? { fixed: { in_posts: true } } : {}),
   };
 }
 
@@ -5094,6 +5177,8 @@ function reportHeadline(data) {
     `• *MER* ${x(t.mer)}${vs(t.mer, f.mer, p.mer)}`,
   ];
   if (t.cm != null) L.push(`• *Contribution margin* ${money(t.cm)}${vs(t.cm, f.cm, p.cm)}`);
+  /* The same frozen switch as clientReportText and the report page. The rows add up: cm minus them = net. */
+  if (t.cm != null && data.fixed?.in_posts === true) for (const [label, v] of netRows(t)) L.push(`• *${label}* ${money(v)}${label === 'Net profit' ? vs(t.net, null, p.net) : ''}`);
   return L.join('\n');
 }
 
@@ -7322,9 +7407,8 @@ async function isAdmin(request, env) {
   /* A client login passes ONLY on a route brandguard.js cleared for it (its allowlist). */
   if (clientScope(request)) return true;
   const sess = await verifySession(env, tok);
-  if (sess && (await emailAllowed(env, sess.email))) return true;
-  const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'passwordHash'`).first();
-  return !!row?.value && (await sha256hex(tok)) === row.value;
+  /* No shared password (removed 2026-11-25): a person signs in as themselves. */
+  return !!(sess && (await emailAllowed(env, sess.email)));
 }
 
 /** Write down what a scheduled tick actually did, including what it could not
@@ -7644,6 +7728,11 @@ async function handleSlackEvent(request, env, ctx) {
   const botId = body?.authorizations?.[0]?.user_id || null;
   const mentioned = ev.type === 'app_mention' || (!!botId && String(ev.text || '').includes(`<@${botId}>`));
   const inThread = !!ev.thread_ts && ev.thread_ts !== ev.ts;
+  /* settings.askInClientChannels = '0' (clientchan.js): in a client-side channel Locus does not answer and says nothing,
+     not even the private "you do not have access" note. Read before anything else looks at the message. With the key
+     absent this is one settings read and the handler carries on as it always did. */
+  if (!dm && !group && (mentioned || inThread) && (await getSetting(env, ASK_CLIENT_KEY).catch(() => null)) === '0'
+    && await clientSideChannel(env, ev.channel).catch(() => false)) return ACK();
   if (!dm && !mentioned) {
     /* A plain reply in a thread. Cole (2026-10-05): "if I reply in a thread to the Strategist I
        shouldn't have to mention it again." It answers when the thread is OPEN: the Strategist
@@ -7693,7 +7782,15 @@ async function handleSlackEvent(request, env, ctx) {
       const info = await channelInfo(env, accessDeps(), ev.channel).catch(() => ({ name: '', shared: false }));
       const { results: brands } = await env.DB.prepare(`SELECT id, name FROM brands WHERE status IN ('active', 'demo')`).all().catch(() => ({ results: [] }));
       other = { name: info.name, shared: info.shared, brand: await brandForChannel(env, gate.access, ev.channel, info.name, brands || []) };
+      /* THE SAFETY RULE (no setting): where the client or a partner reads along (the index marks the channel side
+         'client', or it is a Slack Connect shared channel) nothing is applied straight from the words. Every change
+         becomes a card someone taps. */
+      const side = (await indexedChannels(env, getSetting).catch(() => new Map())).get(ev.channel)?.side || null;
+      other.client = tapOnlyThere({ side, shared: info.shared });
     }
+    /* The same rule in a brand's own internal channel that Slack shares with another workspace: registered as
+       internal, but someone outside reads it. channelInfo is one settings read (cached a day). */
+    if (brandRow) brandRow.shared = (await channelInfo(env, accessDeps(), ev.channel).catch(() => ({ shared: false }))).shared === true;
   }
   /* A person limited to some brands (a teammate in userBrands, or a guest) never gets another brand's channel. */
   const chanBrand = brandRow?.act_id || other?.brand?.id || null;
@@ -7720,6 +7817,7 @@ async function handleSlackEvent(request, env, ctx) {
       note: `This is #${other.name || ev.channel}, a Slack channel that is not a brand's internal team channel.${other.brand ? ` It is about ${other.brand.name} (act_id ${other.brand.id}): every question here is about ${other.brand.name} unless it names another brand. Never ask which brand.` : ' Work out the brand from the channel name and the words; when it matters and is unclear, ask which brand in one line.'}${outsiders} ${asker}${rule}` }
     : dmScreen;
   if (screen) screen.guest = gate.role === 'guest';
+  if (screen && (other?.client || tapOnlyThere({ side: 'internal', shared: brandRow?.shared }))) { screen.tapOnly = true; screen.note += TAP_ONLY_NOTE; }
   /* /slack/owns says yes for this channel from now on, so plain replies in Locus's threads here reach it too. */
   if (other) ctx.waitUntil(putSetting(env, `locusChan:${ev.channel}`, '1').catch(() => {}));
   ctx.waitUntil((async () => {
@@ -7744,6 +7842,19 @@ async function handleSlackEvent(request, env, ctx) {
   return ACK();
 }
 
+/* Is this a channel the client (or anyone outside the workspace) reads? Only asked when settings.askInClientChannels
+   is '0'. A brand's own internal channel and the agency channel are never client-side; any other channel is when the
+   index marks it side 'client' or Slack says it is shared with another workspace. */
+async function clientSideChannel(env, ch) {
+  const side = (await indexedChannels(env, getSetting).catch(() => new Map())).get(ch)?.side || null;
+  if (side === 'client') return true;
+  if (side === 'internal') return false;
+  if (await brandByChannel(env, ch).catch(() => null)) return false;
+  if (await env.DB.prepare(`SELECT act_id FROM brand_accounts WHERE slack_channel = ?1 LIMIT 1`).bind(ch).first().catch(() => null)) return false;
+  if (ch === await getSetting(env, 'strategistChannel').catch(() => null)) return false;
+  const info = await channelInfo(env, accessDeps(), ch).catch(() => ({ shared: false }));
+  return silentThere({ side, shared: info.shared }, '0');
+}
 /* Who may use Locus in Slack lives in slackaccess.js (the access list + the team rule); these are its deps. */
 function accessDeps() {
   return { slack: slackApi, getSetting, putSetting, emailAllowed, userBrands: async e => safeJson(await getSetting(e, 'userBrands'), {}) || {} };
@@ -7780,7 +7891,7 @@ async function strategistSlackAnswer(env, ev, screen) {
   const u = ev.user ? await slackApi(env, 'users.info', { user: ev.user }).catch(() => null) : null;
   const who = u?.user?.real_name || u?.user?.profile?.real_name || u?.user?.name || (ev.user ? `<@${ev.user}>` : null);
   /* A guest (an outside person on the Slack access list) reads only: no call, so nothing applies straight from a message. */
-  return engine.answerSlack(env, ev, h(), { findings: findings.slice(0, 6), ...(screen ? { screen } : {}), who, call: screen?.guest ? null : askCaller(env, 'Bearer ' + (env.ADMIN_TOKEN || ''), null).call });
+  return engine.answerSlack(env, ev, h(), { findings: findings.slice(0, 6), ...(screen ? { screen } : {}), who, call: screen?.guest || screen?.tapOnly ? null : askCaller(env, 'Bearer ' + (env.ADMIN_TOKEN || ''), null).call });
 }
 
 /* A thread is "open" (plain replies in it go to the reply gate) only once the Strategist was TAGGED there. The mark
@@ -9370,6 +9481,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       return json({ ok: true, results: out });
     }
     if (path === '/health') {
+      if (!(await isAdmin(request, env))) return json({ ok: true, time: new Date().toISOString() });
       const last = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'lastRun'`).first().catch(() => null);
       return json({ ok: true, lastRun: safeJson(last?.value, null), hasMetaToken: !!env.META_TOKEN, hasAnthropicKey: !!env.ANTHROPIC_API_KEY, hasSlackToken: !!env.SLACK_BOT_TOKEN, hasTwKey: !!env.TW_API_KEY });
     }
@@ -9701,29 +9813,6 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       return r.error ? json({ error: r.error }, r.status) : json(r);
     }
 
-    /* Read-only client share links - token in the URL is the auth. */
-    let sm;
-    if ((sm = path.match(/^\/api\/share\/([A-Za-z0-9-]{16,})$/)) && request.method === 'GET') {
-      try {
-        const tokens = safeJson(await getSetting(env, 'shareTokens'), {});
-        const t = tokens[sm[1]];
-        if (!t) return json({ error: 'This share link is no longer valid.' }, 404);
-        const acct = await acctOf(env, t.act_id);
-        if (!acct) return json({ error: 'unknown account' }, 404);
-        acct.budgets = safeJson(acct.budgets_json, {});
-        const ov = await accountOverview(env, acct, { attr: false });   // retired link: left exactly as it was
-        const from = addDays(localDate(acct.tz), -180);
-        const { results: rows } = await env.DB.prepare(
-          `SELECT date, SUM(spend) AS spend, SUM(impressions) AS impressions, SUM(clicks) AS clicks, SUM(link_clicks) AS link_clicks, SUM(purchases) AS purchases, SUM(revenue) AS revenue, SUM(video_views) AS video_views FROM daily_insights
-           WHERE act_id IN ${metaOf(1)} AND date >= ?2 GROUP BY date ORDER BY date`,
-        ).bind(acct.act_id, from).all();
-        const events = await seriesEvents(env, acct.act_id, addDays(localDate(acct.tz), -180));
-        return json({ share: true, account: { name: acct.name, currency: acct.currency, tz: acct.tz },
-          rows, events, mtd: ov.mtd, today: ov.today, today_spend: ov.today_spend,
-          l7: ov.l7, target_cpa: ov.target_cpa, target_roas: ov.target_roas });
-      } catch (e) { return json({ error: e.message }, 500); }
-    }
-
       /* DIAGNOSTIC, TEMPORARY (2026-08-30) - delete with settings key twDiagKey.
        Dumps every metric Triple Whale returns for a shop: id, human title and the
        value for the window, INCLUDING the ones TW_KEEP drops on the way into
@@ -9797,6 +9886,10 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
        person it applies to. Anyone not listed in settings.userRoles is an admin,
        so this is inert until a role is actually assigned. */
     const who = await sessionEmail(env, request);
+    /* The owner: Cole's own sign-in, or the admin key (which carries no name). A sign-in with no name is not. */
+    const ownerEmail = String(env.OWNER_EMAIL || 'cole@go-mobius-digital.com').toLowerCase();
+    const adminKey = !!env.ADMIN_TOKEN && request.headers.get('Authorization') === 'Bearer ' + env.ADMIN_TOKEN;
+    const isOwner = adminKey || (!!who && String(who).toLowerCase() === ownerEmail);
     if (request.method !== 'GET' && (await roleFor(env, who)) === 'viewer') {
       return json({ error: 'Your account has view-only access, so this cannot be changed. Ask an admin on your team.' }, 403);
     }
@@ -9818,11 +9911,12 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       const emails = [...new Set([...extra, ...Object.keys(roles).map(e => e.toLowerCase()), ...Object.keys(ub).map(e => e.toLowerCase())])].sort();
       const owner = String(env.OWNER_EMAIL || 'cole@go-mobius-digital.com').toLowerCase();
       return json({
-        domain: ALLOWED_DOMAIN, you: who, owner, can_set_brands: !who || String(who).toLowerCase() === owner,
+        domain: ALLOWED_DOMAIN, you: who, owner, can_set_brands: isOwner,
         members: emails.map(e => ({ email: e, role: roles[e] === 'viewer' ? 'viewer' : 'admin', guest: extra.includes(e), brands: Array.isArray(ub[e]) ? ub[e] : [] })),
       });
     }
     if (path === '/api/team' && request.method === 'PUT') {
+      if (!isOwner) return json({ error: 'Only Cole can change who has access.' }, 403);
       const b = await request.json().catch(() => ({}));
       const email = String(b.email || '').trim().toLowerCase();
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json({ error: 'That does not look like an email address' }, 400);
@@ -9850,7 +9944,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       const owner = String(env.OWNER_EMAIL || 'cole@go-mobius-digital.com').toLowerCase();
       if (b.remove) delete ub[email];
       else if (Array.isArray(b.brands)) {
-        if (who && String(who).toLowerCase() !== owner) return json({ error: 'Only Cole can change which brands someone sees.' }, 403);
+        if (!isOwner) return json({ error: 'Only Cole can change which brands someone sees.' }, 403);
         if (email === owner) return json({ error: 'The owner always sees every brand.' }, 400);
         /* Brand ids (old act_ ids from an older screen are resolved to theirs). */
         ub[email] = (await Promise.all(b.brands.map(x => resolveBrandId(env, String(x))))).filter(isBrandId);
@@ -9874,8 +9968,8 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
          must say so: they refuse role 'client' outside the client allowlist. */
       const cs = clientScope(request);
       if (cs) { await touchClient(env, cs.email, 'seen').catch(() => {}); return json({ email: cs.email, exp: sess?.exp || null, master: false, role: 'client', client: await meClient(env, cs.email) }); }
-      const owner = !sess || String(sess.email || '').toLowerCase() === String(env.OWNER_EMAIL || 'cole@go-mobius-digital.com').toLowerCase();
-      return json({ email: sess?.email || null, exp: sess?.exp || null, master: !sess, role: owner ? 'owner' : 'team' });
+      /* No name on the sign-in: only the admin key is the owner (master). */
+      return json({ email: sess?.email || null, exp: sess?.exp || null, master: adminKey, role: isOwner ? 'owner' : 'team' });
     }
 
     try {
@@ -10372,8 +10466,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       /* The Meta-only client share link was retired 2026-08-27. Clients get
          blended reporting - the profit worker's ?perf, ?plan and ?reports links -
          and a Meta-attributed view was the one surface that contradicted it.
-         GET /api/share/:token above still answers for any link already handed
-         out, but nothing mints new ones and no page renders them. */
+         Nothing mints new ones, no page renders them, and its route is gone. */
       if (path === '/api/settings' && request.method === 'GET') {
         return json({
           slackChannel: await getSetting(env, 'slackChannel'),
@@ -10409,6 +10502,9 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
           dailyBriefsError: safeJson(await getSetting(env, 'dailyBriefsError'), null),
           hasSlackToken: !!env.SLACK_BOT_TOKEN,
           hasTwKey: !!env.TW_API_KEY,
+          /* The three safety switches (clientchan.js): each is true until someone turns it off.
+             checkinAutoApprove, askInClientChannels, slackIndexClient. */
+          ...(await readSwitches(env, getSetting)),
         });
       }
       if (path === '/api/settings' && request.method === 'PUT') {
@@ -10429,6 +10525,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         if ('buyerOwner' in b && String(b.buyerOwner || '').trim()) await putSetting(env, 'buyerOwner', String(b.buyerOwner).trim().slice(0, 40));
         if ('buyerChannel' in b) await putSetting(env, 'buyerChannel', /^[CG][A-Z0-9]{6,}$/.test(String(b.buyerChannel || '')) ? String(b.buyerChannel) : '');
         if ('morningCard' in b) await putSetting(env, 'morningCard', b.morningCard ? 'on' : 'off');
+        await writeSwitches(env, putSetting, b);
         if ('morningHour' in b) {
           const h = +b.morningHour;
           if (!Number.isInteger(h) || h < 0 || h > 23) return json({ error: 'The hour is a whole number from 0 to 23.' }, 400);
@@ -10844,14 +10941,6 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       }
 
       /* ---- settings ---- */
-      if (path === '/api/password' && request.method === 'PUT') {
-        const { password } = await request.json();
-        if (!password || password.length < 6) return json({ error: 'password too short' }, 400);
-        await env.DB.prepare(`INSERT INTO settings (key, value) VALUES ('passwordHash', ?1) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
-          .bind(await sha256hex(password)).run();
-        return json({ ok: true });
-      }
-
       return json({ error: 'not found' }, 404);
     } catch (e) {
       console.log('error', e.message, e.stack);
@@ -10861,6 +10950,8 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
 };
 /* For the offline dashboard checks (test-dashrange.mjs). */
 export { dashNumbers, dashBlocks, dashRange };
+/* For the offline cost checks (test-costs-brief.mjs). */
+export { econDay, briefData, reportData, buildBriefText, buildBriefTextV2, reportHeadline, spendFor, clientReportText, storePeriod };
 /** A creator link on the AUTO board (profit amb.js autoBoard, migration amb-004) also shows the
  *  brand's top-ranked video ads. The ranked ids are cached on the brand row, so the slug authorises
  *  exactly those ads on a LIVE page, the same rule as proof. Empty for a hand-picked board. */
