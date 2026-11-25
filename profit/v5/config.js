@@ -35,6 +35,7 @@ export const LS5 = {
   last: 'lx5_last',                // the last route, so opening the app lands where you left
   set: 'lx5_set',                  // the per person settings store (data.js setting / saveSetting), one JSON object per user
   asClient: 'lx5_as_client',       // "See as client" is on (sessionStorage: it ends with the browser tab)
+  aiCard: 'lx5_ai_card',           // the card a link from a connected AI opened (sessionStorage, read once by profile/ai-cards)
 };
 
 export const DEFAULT_PROFIT_URL = `https://${ORG_KEY}-profit.${ORG_HOST}.workers.dev`;

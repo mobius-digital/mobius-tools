@@ -13,6 +13,13 @@ import { AI_NAME, ORG_SHORT } from './config.js';
 const t = (id, label, legacy = null, team = false) => ({ id, label, legacy, team });
 const one = (legacy = null) => [t('index', '', legacy)];
 
+/* Automations is one line in BOTH side menus (team only). In a brand view its pages show that brand's rows,
+   in the agency view every brand's. viewOf() answers null for a line that sits in both, so the view you are in is kept. */
+const AUTOMATIONS = { group: 'Automations', lines: [
+  { id: 'automations', label: 'Automations', icon: 'bolt', who: 'team', tabs: [
+    t('running', 'Running'), t('templates', 'Templates'), t('people', 'Who does what'), t('log', 'Run log')] },
+] };
+
 /* ---------- brand view ---------- */
 export const BRAND_MENU = [
   { group: null, lines: [
@@ -71,6 +78,7 @@ export const BRAND_MENU = [
     { id: 'documents', label: 'Documents', icon: 'folder', who: 'all', tabs: one('dash') },
     { id: 'requests', label: 'Requests', icon: 'chat', who: 'all', gap: true, tabs: one('requests') },
   ] },
+  AUTOMATIONS,
   { group: null, foot: true, lines: [
     { id: 'brand-settings', label: 'Brand settings', icon: 'gear', who: 'team', foot: true, tabs: [
       t('goals', 'Goals', 'settings'), t('costs', 'Costs', 'costs'), t('brand', 'Brand', 'settings'), t('integrations', 'Integrations', 'settings'), t('people', 'People and sending', 'settings')] },
@@ -111,6 +119,7 @@ export const AGENCY_MENU = [
     { id: 'a-team', label: 'Team', icon: 'customers', who: 'team', tabs: one('workload') },
     { id: 'a-status', label: 'Platform status', icon: 'pulse', who: 'team', tabs: one('pulse') },
   ] },
+  AUTOMATIONS,
   { group: null, foot: true, lines: [
     { id: 'a-settings', label: 'Agency settings', icon: 'gear', who: 'team', foot: true, tabs: [
       t('clients', 'Clients', 'settings'), t('team', 'Team', 'settings'), t('integrations', 'Integrations', 'settings'), t('ask', AI_NAME, 'settings'),
@@ -120,11 +129,12 @@ export const AGENCY_MENU = [
 
 /* ---------- pages reached from the top bar, in both views ---------- */
 export const TOP_LINES = [
-  { id: 'ask', label: 'Ask ' + AI_NAME, icon: 'sparkle', who: 'team', top: true, tabs: one() },
+  { id: 'ask', label: 'Ask ' + AI_NAME, icon: 'sparkle', who: 'team', top: true, tabs: [t('index', 'Ask'), t('free', 'Free answers', null, true)] },
   { id: 'my-day', label: 'My day', icon: 'day', who: 'team', top: true, tabs: one('mywork') },
   { id: 'notifications', label: 'Notifications', icon: 'bell', who: 'all', top: true, tabs: [
     t('needs-you', 'Needs you'), t('watching', 'Watching'), t('done-today', 'Done today')] },
-  { id: 'profile', label: 'Your profile', icon: 'customers', who: 'all', top: true, tabs: [t('index', 'Profile'), t('settings', 'My settings')] },
+  { id: 'profile', label: 'Your profile', icon: 'customers', who: 'all', top: true, tabs: [
+    t('index', 'Profile'), t('settings', 'My settings'), t('delivery', 'How things reach me'), t('connect-ai', 'Connect your AI'), t('ai-cards', 'AI suggestions')] },
 ];
 
 /* ---------- reading the menus ---------- */
@@ -142,10 +152,13 @@ const ALL = () => [...BRAND_MENU, ...AGENCY_MENU].flatMap(g => g.lines).concat(T
 /** One line by id, from any menu. */
 export function lineOf(id) { return ALL().find(l => l.id === id) || null; }
 
-/** Which view a line belongs to: 'brand', 'agency', or null for the top bar pages (they work in both). */
+/** Which view a line belongs to: 'brand', 'agency', or null for the top bar pages and a line in both menus (they work in both). */
 export function viewOf(lineId) {
-  if (AGENCY_MENU.some(g => g.lines.some(l => l.id === lineId))) return 'agency';
-  if (BRAND_MENU.some(g => g.lines.some(l => l.id === lineId))) return 'brand';
+  const inAgency = AGENCY_MENU.some(g => g.lines.some(l => l.id === lineId));
+  const inBrand = BRAND_MENU.some(g => g.lines.some(l => l.id === lineId));
+  if (inAgency && inBrand) return null;
+  if (inAgency) return 'agency';
+  if (inBrand) return 'brand';
   return null;
 }
 

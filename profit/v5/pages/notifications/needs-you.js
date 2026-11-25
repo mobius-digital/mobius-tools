@@ -10,6 +10,9 @@
                     how many days late, the full message, where it was asked.
      client, real   GET /api/requests?act=<brand id> (account-health, read only): open approvals and questions -> Needs you,
                     open requests -> Watching, closed in the last day -> Done today.
+     every mode     rows an automation left for this person (GET /api/notices, through bell.js). They carry .notice and are
+                    answered in the row's sheet with the buttons from automations/_auto.js (POST /api/notices/done).
+                    With automations off, or when that read fails, there are none and the page is as it was.
    Nothing here writes. A row's button is a link to the page where the thing is handled. A tap on the row opens a read-only sheet.
 
    Row shape (the bell's, plus the page's own fields):
@@ -20,7 +23,7 @@ import { mark } from '../../icons.js';
 import { APP_NAME } from '../../config.js';
 import { storedClient } from '../../data.js';
 import { lineOf } from '../../menu.js';
-import { loadBell } from '../../bell.js';
+import { loadBell, readNotices, noticeRows, forgetNotices } from '../../bell.js';
 
 /* ---------- small helpers (exported for the other two tabs) ---------- */
 export const DAY = 864e5;
@@ -73,13 +76,13 @@ async function loadTeam(ctx, K, more) {
   const me = ctx.me || {};
   /* the same key and the same call as bell.js, so this is one request, not two */
   const raw = ctx.cached('bell', () => ctx.api('/api/mywork' + (me.email ? '?who=' + encodeURIComponent(me.email) : ''), { worker: 'ah' }), null, { maxAge: 60e3 }).then(r => r.data, () => null);
-  const [bell, mw, extra] = await Promise.all([loadBell({ me, role: ctx.role, asClient: false, brand: ctx.brand }), raw, more ? more(ctx) : null]);
+  const [bell, mw, extra] = await Promise.all([loadBell({ me, role: ctx.role, asClient: false, brand: ctx.brand, brands: ctx.brands }), raw, more ? more(ctx) : null]);
   const byLink = new Map(((mw && mw.items) || []).filter(i => i.link).map(i => [i.link, i]));
   let rows = (bell[K.key] || []).map(r => enrich(r, r.btn && r.btn.href ? byLink.get(r.btn.href) : null, mw && mw.today));
   if (K.key === 'needs') rows.sort((a, b) => (a.late ? 0 : 1) - (b.late ? 0 : 1) || (b.days || 0) - (a.days || 0));
   if (K.key === 'watching') rows = rows.map(r => ({ ...r, group: 'week' }));
   /* a ticked row has no time on it yet, so none is shown */
-  if (K.key === 'done') rows = rows.map(r => ({ ...r, group: 'you', by: 'You', when: '', late: false, btn: { label: 'Open My day', line: 'my-day', tab: 'index' } }));
+  if (K.key === 'done') rows = rows.map(r => (r.notice ? { ...r, group: 'you', when: '', late: false } : { ...r, group: 'you', by: 'You', when: '', late: false, btn: { label: 'Open My day', line: 'my-day', tab: 'index' } }));
   const x = extra || {};
   return {
     kind: K.key, mode: 'team', lateKnown: K.key === 'needs',
@@ -100,11 +103,13 @@ async function loadClient(ctx, K) {
     watching: () => items.filter(r => r.kind === 'request' && r.status === 'open').map(row),
     done: () => items.filter(r => r.status === 'done' && Date.now() - Date.parse(r.updated_at || r.created_at) < DAY).map(r => ({ ...row(r), when: '', by: r.decided_by || cap(r.kind || 'request') })),
   };
-  return { kind: K.key, mode: 'client', groups: CLIENT_GROUPS[K.key], rows: pick[K.key]() };
+  /* what an automation told this client (GET /api/notices): never throws, empty when there is nothing */
+  const told = noticeRows(await readNotices(), { brands: ctx.brands, brand: ctx.brand, client: true })[K.key].map(r => ({ ...r, group: 'main' }));
+  return { kind: K.key, mode: 'client', groups: CLIENT_GROUPS[K.key], rows: [...told, ...pick[K.key]()] };
 }
 
 async function loadSample(ctx, K) {
-  const [bell, x] = await Promise.all([loadBell({ me: ctx.me, role: ctx.role, brand: ctx.brand }), ctx.fixture(K.tab + '.json')]);
+  const [bell, x] = await Promise.all([loadBell({ me: ctx.me, role: ctx.role, brand: ctx.brand, brands: ctx.brands }), ctx.fixture(K.tab + '.json')]);
   const extra = x.rows || {};
   return {
     kind: K.key, mode: ctx.isClient ? 'client' : 'team', lateKnown: !!x.late_known, read: x.read || {},
@@ -135,6 +140,7 @@ const CSS = `
 .nt-sh dd{font-weight:600;overflow-wrap:anywhere}
 .nt-sh dd.late{color:var(--bad)}
 .nt-notes{display:grid;gap:4px}
+.nt-acts{display:flex;gap:8px;flex-wrap:wrap}
 @media (max-width:759px){
   .nt-card .lx-bell-row{padding:14px 16px}
   .nt-card.lx-card.flush>.lx-sec{padding:18px 16px 8px}
@@ -154,25 +160,40 @@ function placeOf(b) {
 const say = parts => [].concat(parts || '').map(p => (p && typeof p === 'object' ? h('b', null, p.b) : p));
 const go = (b, ctx, o = {}) => { const link = linkOf(b, ctx); return link ? button(b.label || 'Open', { ...o, href: link, target: b.href && /^https?:/.test(b.href) ? '_blank' : null }) : null; };
 
-/** The read-only sheet for one row: the whole message, who and when, and the way to the page where it is handled. */
-function openRow(r, ctx, K) {
-  const place = placeOf(r.btn);
+/* What the answer buttons on an automation row mean, in one line. */
+function noticeFoot(n) {
+  if (n.state !== 'open') return 'This one is answered.';
+  if (n.kind === 'proposal') return 'This is a suggestion. ' + APP_NAME + ' changes nothing. Make the change in Ads and tap I did it, or tap No.';
+  if (n.kind === 'release') return 'Until you tap Send to the client, the client sees nothing.';
+  return 'Tap Done when you have seen it.';
+}
+
+/** The sheet for one row: the whole message, who and when, and the way to the page where it is handled.
+    A row an automation left (r.notice) is answered here: its buttons come from automations/_auto.js. */
+function openRow(r, ctx, K, node) {
+  const place = r.notice ? '' : placeOf(r.btn);
+  const acts = r.notice ? h('div', { class: 'nt-acts' }) : null;
   const pairs = [['Brand', r.brand], [K.key === 'done' ? 'Done by' : 'From', r.who && r.who.name ? r.who.name : r.by], ['Asked in', r.where],
     [K.key === 'done' ? 'When' : r.late ? 'Late by' : 'Waiting', r.when, r.late], ['Handled in', place]].filter(p => p[1]);
-  sheet({ title: K.label, body: h('div', { class: 'nt-sh' },
+  const sh = sheet({ title: K.label, body: h('div', { class: 'nt-sh' },
     h('p', { class: 'say' }, say(r.text)),
     r.detail ? h('p', { class: 'more' }, r.detail) : null,
     h('dl', null, pairs.flatMap(([k, v, bad]) => [h('dt', null, k), h('dd', { class: bad ? 'late' : '' }, v)])),
-    go(r.btn, ctx, { primary: true, large: true, icon: 'arrow' }),
-    h('p', { class: 'lx-foot' }, 'Nothing changes from this panel. The button opens the page where this is handled.')) });
+    acts || go(r.btn, ctx, { primary: true, large: true, icon: 'arrow' }),
+    h('p', { class: 'lx-foot' }, r.notice ? noticeFoot(r.notice) : 'Nothing changes from this panel. The button opens the page where this is handled.')) });
+  if (acts) import('../automations/_auto.js')
+    .then(m => put(acts, ...m.noticeActions(r.notice, ctx, () => { forgetNotices(); sh.close(); if (node) node.remove(); })))
+    .catch(() => put(acts, h('p', { class: 'lx-foot' }, 'The buttons could not be loaded. Close this and try again.')));
 }
 
 function rowNode(r, ctx, K, lead) {
   const meta = [r.brand && h('b', null, r.brand), r.by, r.when && h('span', { class: r.late ? 'late' : '' }, r.when)].filter(Boolean).flatMap((x, i) => (i ? [h('i'), x] : [x]));
-  return h('div', { class: 'lx-bell-row nt-row' },
+  const node = h('div', { class: 'lx-bell-row nt-row' },
     r.who ? avatar(r.who, { size: 38 }) : h('span', { class: 'lx-bell-mark', role: 'img', 'aria-label': APP_NAME }, svgNode(mark(18))),
-    h('button', { class: 't', type: 'button', 'aria-label': 'Details: ' + plain(r.text), onclick: () => openRow(r, ctx, K) }, h('p', null, say(r.text)), h('span', { class: 'm' }, meta)),
-    go(r.btn, ctx, { primary: lead }));
+    h('button', { class: 't', type: 'button', 'aria-label': 'Details: ' + plain(r.text), onclick: () => openRow(r, ctx, K, node) }, h('p', null, say(r.text)), h('span', { class: 'm' }, meta)),
+    /* a row an automation left is answered in its own sheet, on this page */
+    r.notice ? (r.btn ? button(r.btn.label, { primary: lead && !!r.btn.primary, onclick: () => openRow(r, ctx, K, node) }) : null) : go(r.btn, ctx, { primary: lead }));
+  return node;
 }
 
 function figures(d, rows, K) {

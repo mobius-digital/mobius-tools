@@ -3,7 +3,7 @@
    says what it waits for and cannot be switched on. account-health GET /api/automations (`templates`). */
 
 import { h, put, em, button, pill } from '../../kit.js';
-import { style, ah, powerBar, sentenceNode, openEditor } from './_auto.js';
+import { style, ah, powerBar, sentenceNode, openEditor, forBrand } from './_auto.js';
 
 const load = ctx => ah(ctx, '/api/automations');
 
@@ -14,7 +14,7 @@ function render(el, d, ctx) {
   const groups = [...new Set(list.map(t => t.group))];
   const row = t => h('div', { class: 'au-row' + (t.ready ? '' : ' dim'), style: { cursor: 'default' } },
     sentenceNode(t.sentence),
-    t.ready ? button(t.on ? 'Use again' : 'Use this', { primary: !t.on, onclick: () => openEditor({ ...t.automation, template: t.key, brand: ctx.brand ? ctx.brand.id : 'all', sentence: t.sentence }, d, ctx, done) }) : h('span'),
+    t.ready ? button(t.on ? 'Use again' : 'Use this', { primary: !t.on, onclick: () => openEditor({ ...t.automation, template: t.key, ...forBrand(t.sentence, ctx) }, d, ctx, done) }) : h('span'),
     h('div', { class: 'au-meta' },
       t.on ? pill('good', 'In use') : pill('', 'Off'),
       t.ai ? pill('', 'Uses AI') : null,

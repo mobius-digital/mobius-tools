@@ -9,9 +9,12 @@
      ctx.setting brand:<id>.target_roas   account-health  goal ROAS and goal cost per customer, from the brand list (team only)
      /api/buyer-list?act                  account-health  Meta suggestions waiting (team only): n_do, or the rows that ask for a yes or a no
      /api/season?act                      profit worker   dated phases for Coming up and the chart note
+     /api/notices                         account-health  "Needs you": rows an automation left for this person (automations/_notices.js).
+                                                          Read by the card itself, never by load: off, empty or failing, the card is not drawn
    The page needs only the first; any other that fails leaves its own card in a plain empty state. */
 
 import { put } from '../../kit.js';
+import { homeNotices } from '../automations/_notices.js';
 import { h, money, num, pct, x, card, hero, em, kpi, kpis, takeaway, button, platformChip, statusDot, pill,
   delta, count, gauge, legend, lineChart, dateBlock, table, empty, addStyles } from '../../kit.js';
 
@@ -308,6 +311,7 @@ export default {
     const team = !ctx.isClient && data.suggestions;
     put(el, ...[
       heroBlock(data, ctx),
+      homeNotices(ctx),          /* rows an automation left for this person; hidden when there are none */
       say ? takeaway(say, { action: ctx.isClient ? null : button('Ask why', { href: ctx.href('ask', 'index') }) }) : null,
       data.source ? chartCard(data) : null,
       h('div', { class: 'hm-pair' + (team ? '' : ' one') }, team ? suggestCard(data, ctx) : null, comingCard(data, ctx)),

@@ -6,6 +6,7 @@
 import { put } from '../../kit.js';
 import { h, em, money, pct, x, pill, statusDot, delta, button, card, table, gauge, empty } from '../../kit.js';
 import { rangeOf } from '../../data.js';
+import { homeNotices } from '../automations/_notices.js';
 import { style, world, readBrands, soft, paceOf, plat, ok, sumOf, figs, figures, brandName, brandHref, quiet, exampleChip, longDay, shortDay } from './_ag.js';
 
 /* ---------- real mode ---------- */
@@ -102,7 +103,7 @@ function render(el, d, ctx) {
     h('div', { class: 'lx-rows' }, d.meetings.map(m => h('div', null, h('b', { style: { minWidth: '52px', fontVariantNumeric: 'tabular-nums' } }, m.time), h('span', { style: { flex: '1', minWidth: '0' } }, m.title), statusDot(m.state === 'ready' ? 'good' : 'warn', m.note))))) : null;
 
   const foot = h('p', { class: 'lx-foot' }, 'Sales and MER are the whole store, this month through yesterday. Meta ROAS is one platform: Triple Whale, last platform click, last 7 days. A brand with no sales source shows no sales figure.');
-  put(el, h('div', { class: 'ag' }, hero, cards, weekCard, meet, foot));
+  put(el, h('div', { class: 'ag' }, hero, homeNotices(ctx), cards, weekCard, meet, foot));
 }
 
 export default {

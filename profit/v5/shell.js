@@ -290,7 +290,7 @@ async function bellPanel(anchor, route) {
   const tabsRow = h('div', { class: 'lx-bell-tabs', role: 'tablist' });
   const client = S.role === 'client';
   const pop = popover(anchor, [
-    h('div', { class: 'lx-bell-h' }, h('h2', null, 'Notifications'), S.asClient ? null : h('a', { href: href(normalise({ ...route, line: 'profile', tab: 'index' })) }, 'Settings')),
+    h('div', { class: 'lx-bell-h' }, h('h2', null, 'Notifications'), S.asClient ? null : h('a', { href: href(normalise({ ...route, line: 'profile', tab: 'delivery' })) }, 'Settings')),
     tabsRow, body,
     h('div', { class: 'lx-bell-f' }, h('span', null, client ? (brandBySlug(route.brand) || {}).name || '' : 'All brands'),
       client ? null : h('a', { href: href(normalise({ ...route, line: 'my-day', tab: 'index' })) }, 'Open My day', svgNode(icon('arrow')))),
@@ -306,7 +306,7 @@ async function bellPanel(anchor, route) {
   paint();
   try {
     const m = await import('./bell.js');
-    data = await m.loadBell({ me: S.me, role: S.role, asClient: S.asClient, brand: brandBySlug(route.brand) });
+    data = await m.loadBell({ me: S.me, role: S.role, asClient: S.asClient, brand: brandBySlug(route.brand), brands: S.brands });
   } catch (e) { data = { needs: [], watching: [], done: [], error: 'Notifications could not be read just now.' }; }
   if (!pop.isConnected) return;
   if (!S.asClient) setCounts({ bell: data.needs.length });

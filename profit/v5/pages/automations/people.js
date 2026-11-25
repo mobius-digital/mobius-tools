@@ -4,9 +4,12 @@
    log says so. account-health GET and PUT /api/automations/people. */
 
 import { h, put, em, card, button, toast, pill } from '../../kit.js';
-import { style, ah } from './_auto.js';
+import { style, ah, powerBar } from './_auto.js';
 
-const load = ctx => ah(ctx, '/api/automations/people');
+/* The people answer has no on or off flag, so the switch is read from GET /api/automations beside it. If that read
+   fails the page still draws, with no banner. */
+const power = ctx => ah(ctx, '/api/automations').then(a => ({ power: !!a.power, can_power: !!a.can_power }), e => { if (e && e.name === 'AbortError') throw e; return { power: null, can_power: false }; });
+const load = async ctx => { const [d, p] = await Promise.all([ah(ctx, '/api/automations/people'), power(ctx)]); return { ...d, ...p }; };
 const cap = s => String(s || '').replace(/^the /, '').replace(/^./, c => c.toUpperCase());
 
 function render(el, d, ctx) {
@@ -15,7 +18,7 @@ function render(el, d, ctx) {
   const roles = d.roles || {}, words = d.role_words || {}, team = d.team || [];
   const save = async body => {
     if (ctx.sample) return toast('Sample mode: nothing is saved.');
-    try { const r = await ah(ctx, '/api/automations/people', { method: 'PUT', body }); toast('Saved.'); render(el, r, ctx); }
+    try { const r = await ah(ctx, '/api/automations/people', { method: 'PUT', body }); toast('Saved.'); render(el, { ...r, power: d.power, can_power: d.can_power }, ctx); }
     catch (e) { toast(e.message, { tone: 'bad', ms: 5000 }); render(el, d, ctx); }
   };
   const pick = (scope, role, label) => {
@@ -34,7 +37,9 @@ function render(el, d, ctx) {
       p.by_hand ? (d.can_team ? button('Take off', { onclick: () => save({ team_remove: [p.email] }) }) : pill('', 'Added by hand')) : h('span')))),
     d.can_team ? h('div', { class: 'au-pick' }, h('label', null, 'Someone missing? Add them. They must already be able to sign in.'), add,
       button('Add to the team list', { onclick: () => { const v = add.value.trim().toLowerCase(); if (v.includes('@')) save({ team_add: [v] }); } })) : null);
+  const reload = async () => { if (ctx.sample) return; const fresh = await load(ctx).catch(() => null); if (fresh) render(el, fresh, ctx); };
   put(el, h('div', { class: 'au' },
+    powerBar(d, ctx, reload),
     h('div', { class: 'au-top' }, h('p', null, d.note || 'Pick the person behind each role. An automation that tells "the buyer" reaches whoever is set here.')),
     ctx.brand ? null : block('all', 'Every brand', 'Used for any brand that has nobody of its own set below.'),
     brands.map(b => block(b.id, b.name, 'Only for this brand.')),

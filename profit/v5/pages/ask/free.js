@@ -4,12 +4,17 @@
      account-health POST /api/lookup {question, act}     one free answer, written by code from the brand's numbers.
                                                          Asking is the person's own tap, never done on load. It only reads.
      account-health POST /api/ask {question, full:true}  "Ask why": the same question, sent to the full assistant.
+   Off by default (the settings key freeLookups on the account-health worker). There is no route for that switch
+   that this page may call, so when it is off the page says so in one line, lists what will be free, and sends
+   nothing: it never shows a switch that does not work.
    Sample mode answers the example questions from the fixture and says so for anything else.
    Nothing here changes an ad account, a store or an email tool. */
 
 import { put } from '../../kit.js';
 import { h, card, em, button, addStyles, pill, empty } from '../../kit.js';
 import { AI_NAME } from '../../config.js';
+
+const OFF_LINE = 'Free answers are switched off, so this was not looked up.';
 
 function draw(el, data, ctx) {
   addStyles('lx-fl-css', CSS);
@@ -59,6 +64,7 @@ function draw(el, data, ctx) {
   async function ask(q) {
     q = String(q || '').trim();
     if (!q || busy) return;
+    if (d.on === false) return show(q, { answer: OFF_LINE, ask_why: true });
     busy = true; send.disabled = true;
     put(out, h('p', { class: 'lx-foot' }, 'Reading the numbers...'));
     let r;
@@ -76,13 +82,13 @@ function draw(el, data, ctx) {
   const box = h('section', { class: 'lx-hero line lx-fl-hero' },
     h('label', { class: 'lx-cap', for: 'lxFlIn' }, brandName ? 'Pull a number for ' + brandName : 'Pull a number for a brand'),
     h('div', { class: 'lx-fl-row' }, input, send),
-    h('p', { class: 'lx-foot' }, d.on === false
-      ? 'Free answers are not switched on yet. The list below shows what will be free.'
-      : 'One line, written from the numbers by code. It uses none of the AI allowance, and you can ask as often as you like.'),
+    d.on === false
+      ? h('p', { class: 'lx-fl-off', role: 'note' }, h('b', null, 'Free answers are switched off.'), ' There is no switch on this page yet: they are turned on in the server settings. Until then every question goes to ' + AI_NAME + '. The list below shows what will be free.')
+      : h('p', { class: 'lx-foot' }, 'One line, written from the numbers by code. It uses none of the AI allowance, and you can ask as often as you like.'),
     out);
 
   const rowsEl = list.length ? h('div', { class: 'lx-rows lx-fl-list' }, list.map(l => h('button', { type: 'button', onclick: () => { input.value = l.example; ask(l.example); } },
-    h('span', { class: 't' }, l.title), h('span', { class: 'ex' }, l.example)))) : empty({ title: 'The list could not be read', text: 'Try again in a minute.' });
+    h('span', { class: 't' }, l.title), h('span', { class: 'ex' }, l.example)))) : empty({ title: 'The list could not be read', text: 'Try again in a minute. You can still ask ' + AI_NAME + ' on the Ask tab.', action: button('Open Ask', { href: ctx.href('ask', 'index') }) });
 
   const s = d.share;
   put(el, h('div', { class: 'lx-fl' }, box,
@@ -101,6 +107,8 @@ const CSS = `
 .lx-fl-in:focus{outline:0;box-shadow:0 0 0 1.5px var(--e2),0 0 0 5px rgba(255,122,26,.16)}
 .lx-fl-row .lx-btn{height:58px;padding:0 24px;border-radius:16px;font-size:15.5px}
 .lx-fl-out:empty{display:none}
+.lx-fl-off{margin:0;padding:12px 14px;border-radius:12px;background:var(--surface-2);border:1px solid var(--line);font-size:13.5px;line-height:1.5;color:var(--ink-2)}
+.lx-fl-off b{color:var(--ink);font-weight:600}
 .lx-fl-card{display:grid;grid-template-columns:minmax(0,1fr);gap:14px}
 .lx-fl-q{font-size:13px;color:var(--muted);overflow-wrap:anywhere}
 .lx-fl-a{display:grid;gap:6px;font-size:14.5px;line-height:1.5;color:var(--ink-2);overflow-wrap:anywhere}

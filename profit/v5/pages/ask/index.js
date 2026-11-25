@@ -55,13 +55,16 @@ function answerCard(a, ctx, onAgain) {
   return h('article', { class: 'lx-qa-a' + (a.error ? ' err' : '') },
     h('div', { class: 'lx-qa-q' }, h('span', null, a.q)),
     h('section', { class: 'lx-card lx-qa-card' },
-      h('div', { class: 'lx-qa-say' }, h('span', { class: 'by' }, AI_NAME), h('div', { class: 'w' }, words)),
+      h('div', { class: 'lx-qa-say' }, h('span', { class: 'by' }, a.free ? 'Free answer' : AI_NAME), h('div', { class: 'w' }, words)),
       chart,
       h('div', { class: 'lx-qa-foot' },
         a.sources ? h('span', { class: 'src' }, a.sources) : null,
         a.sample ? pill('', 'Sample answer') : null,
+        a.free ? pill('', 'Free') : null,
         h('span', { class: 'lx-sp' }),
         a.open && ctx.href ? h('a', { class: 'lx-qa-open', href: ctx.href(a.open.line, a.open.tab) }, a.open.label) : null,
+        /* a free answer is one line written by code; "Ask why" sends the same question to the full assistant */
+        a.why && !a.error ? button(a.free ? 'Ask why' : 'Ask ' + AI_NAME, { onclick: () => onAgain(a.q, { full: true }) }) : null,
         a.error ? button('Ask again', { onclick: () => onAgain(a.q) }) : null)));
 }
 /* "$236" and "19%" in an answer read as the figures they are */
@@ -91,7 +94,7 @@ function draw(el, data, ctx) {
   const paintAnswers = () => put(answers, ...thread.slice().reverse().map(a => answerCard(a, ctx, ask)));
   const keep = () => { try { ctx.saveSetting(THREAD(ctx.brand && ctx.brand.id), thread.slice(-12).map(a => ({ ...a, chart: a.chart || null }))); } catch {} };
 
-  async function ask(q) {
+  async function ask(q, opts = {}) {
     q = String(q || '').trim();
     if (!q || busy) return;
     busy = true; send.disabled = true; input.value = ''; input.style.height = '';
@@ -104,8 +107,13 @@ function draw(el, data, ctx) {
       try {
         const history = thread.slice(-4).flatMap(t => [{ role: 'user', text: t.q }, { role: 'assistant', text: t.text }]);
         const screen = { screen: 'Ask ' + AI_NAME, screen_id: 'ask', brand_selected: ctx.brand ? ctx.brand.name : 'Agency view (every client)', act_id: ctx.brand ? ctx.brand.id : null, range: ctx.range && ctx.range.preset };
-        const r = await ctx.api('/api/ask', { worker: 'ah', method: 'POST', body: { question: q, history, runId: Math.random().toString(36).slice(2, 10), screen } });
-        a = r.error ? { q, text: r.error, error: true } : { q, text: r.answer || '', sources: (r.reports || []).length ? 'Also made a report: ' + r.reports[0].title : null };
+        const r = await ctx.api('/api/ask', { worker: 'ah', method: 'POST', body: { question: q, history, runId: Math.random().toString(36).slice(2, 10), screen, ...(opts.full ? { full: true } : {}) } });
+        /* a free lookup (free lookups switched on) comes back with the same keys plus lookup, sources, open and ask_why;
+           its text ends with its own link and "ask why" lines, which are a link and a button here */
+        const free = !!r.lookup;
+        const text = free ? String(r.answer || '').split('\n').filter(l => !/^Open the page: /.test(l) && !/^Want the reasoning/.test(l) && !/^Source: /.test(l)).join('\n').trim() : r.answer || '';
+        a = r.error ? { q, text: r.error, error: true } : { q, text, free, why: !!r.ask_why && !opts.full, open: r.open && r.open.line ? r.open : null,
+          sources: free && r.sources ? 'Source: ' + r.sources : (r.reports || []).length ? 'Also made a report: ' + r.reports[0].title : null };
       } catch (e) { a = { q, text: 'That one did not come back: ' + (e && e.message || 'no answer') + '.', error: true }; }
     }
     a.at = Date.now();

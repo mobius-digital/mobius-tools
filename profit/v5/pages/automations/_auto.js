@@ -1,9 +1,10 @@
-/* Automations: what the three tabs and the profile page share. The sentence with its changeable words, the on/off
+/* Automations: what the four tabs and the profile page share. The sentence with its changeable words, the on/off
    switch, and the one-sentence editor that rises from the bottom with "Try it".
    Every word list comes from the worker (GET /api/automations `options`), so this file never types its own.
    Worker: account-health /api/automations, /api/automations/test, /api/me/delivery, /api/notices. */
 
 import { h, put, addStyles, button, toggle, sheet, toast, pill, statusDot, relativeTime } from '../../kit.js';
+import { APP_NAME } from '../../config.js';
 
 const CSS = `
 .au{display:grid;gap:var(--sp-6)}
@@ -61,7 +62,7 @@ const RESULT = { done: ['good', 'Done'], skipped: ['off', 'Skipped'], held: ['wa
 export const resultDot = r => { const [tone, word] = RESULT[r] || ['off', r || 'Not run yet']; return statusDot(tone, word); };
 
 /** The buttons for one row from GET /api/notices (the bell and the home list call this).
-    A suggested change: Locus changes nothing, so the answers are "I did it" (made by hand in Ads) or "No".
+    A suggested change: the app changes nothing, so the answers are "I did it" (made by hand in Ads) or "No".
     A held client message: "Send to the client" or "Do not send". Anything else: tick it done. */
 export function noticeActions(row, ctx, reload) {
   const post = async (body, said) => {
@@ -69,19 +70,20 @@ export function noticeActions(row, ctx, reload) {
     try { await ah(ctx, '/api/notices/done', { method: 'POST', body: { id: row.id, ...body } }); toast(said); reload && reload(); } catch (e) { toast(e.message, { tone: 'bad', ms: 5000 }); }
   };
   if (row.state !== 'open') return [];
-  if (row.kind === 'proposal') return [button('I did it', { primary: true, onclick: () => post({ answer: 'did_it' }, 'Noted. Locus changed nothing.') }), button('No', { onclick: () => post({ answer: 'no' }, 'Noted.') })];
+  if (row.kind === 'proposal') return [button('I did it', { primary: true, onclick: () => post({ answer: 'did_it' }, 'Noted. ' + APP_NAME + ' changed nothing.') }), button('No', { onclick: () => post({ answer: 'no' }, 'Noted.') })];
   if (row.kind === 'release') return [button('Send to the client', { primary: true, onclick: () => post({ answer: 'send' }, 'Sent to the client.') }), button('Do not send', { onclick: () => post({ answer: 'no' }, 'Dropped. The client was not told.') })];
   return [button('Done', { onclick: () => post({ done: true }, 'Done.') })];
 }
 
-/** The banner while the workspace switch is off. Only the owner sees the button. */
+/** The banner while the workspace switch is off. Only the owner sees the button (POST /api/automations/power).
+    data.power must be exactly false: a page that could not read the switch shows no banner. */
 export function powerBar(data, ctx, reload) {
-  if (!data || data.power) return null;
+  if (!data || data.power !== false) return null;
   return h('div', { class: 'au-off' }, h('b', null, 'Automations are off for this workspace.'),
-    h('span', null, 'You can set them up and try them. Nothing runs until the owner switches them on.'),
+    h('span', null, data.can_power ? 'You can set them up and try them. Nothing runs until you switch them on.' : 'You can set them up and try them. Nothing runs until the owner switches them on.'),
     data.can_power ? button('Switch automations on', { primary: true, onclick: async () => {
       if (ctx.sample) return toast('Sample mode: nothing is saved.');
-      try { await ah(ctx, '/api/automations/power', { method: 'POST', body: { on: true } }); toast('Automations are on.'); reload(); } catch (e) { toast(e.message, { tone: 'bad', ms: 5000 }); }
+      try { await ah(ctx, '/api/automations/power', { method: 'POST', body: { on: true } }); toast('Automations are on.'); reload && reload(); } catch (e) { toast(e.message, { tone: 'bad', ms: 5000 }); }
     } }) : null);
 }
 
@@ -124,7 +126,7 @@ function picker(part, draft, data, onPick) {
   const email = h('input', { type: 'email', placeholder: 'name@company.com', 'aria-label': 'Their email', value: (draft.tell.who[+key.split('.')[2]] || {}).email || '', style: { display: cur === 'person' ? '' : 'none' },
     onchange: () => { if (email.value.includes('@')) onPick(email.value.trim().toLowerCase()); } });
   function choose(v) { if (ok === 'tell.who' && v === 'person') { email.style.display = ''; email.focus(); return; } onPick(v); }
-  if (key === 'brand') return h('div', { class: 'au-pick' }, sel('Which brand', [{ id: 'all', label: 'Any brand' }, ...(data.brands || [])], cur));
+  if (key === 'brand') return h('div', { class: 'au-pick' }, sel('Which brand', [{ id: 'all', label: 'Any brand' }, ...(data.brands || []).map(b => ({ id: b.id, label: b.name }))], cur));
   if (key === 'when.line') {
     const inp = h('input', { type: 'number', step: 'any', min: '0', 'aria-label': 'The line', value: cur === 'goal' ? '' : cur, placeholder: 'A number', onchange: () => onPick(inp.value) });
     return h('div', { class: 'au-pick' }, h('label', null, 'The line'), inp, button('Use the brand\'s goal', { onclick: () => onPick('goal') }));
@@ -134,6 +136,18 @@ function picker(part, draft, data, onPick) {
   const items = (data.options || {})[ok];
   if (!items) return null;
   return h('div', { class: 'au-pick' }, sel('Change "' + part.text + '" to', items, cur), ok === 'tell.who' ? email : null);
+}
+
+/** A new automation opened inside a brand view is for that brand, and its sentence must say so before the first
+    save. Returns { brand, sentence }: the brand slot reads the brand's name. A sentence with no brand word stays
+    for any brand, so the words and the saved automation never disagree. */
+export function forBrand(sentence, ctx) {
+  const s = copy(sentence || { text: '', parts: [] });
+  const slot = ctx.brand && (s.parts || []).find(p => p.t === 'slot' && p.key === 'brand');
+  if (!slot) return { brand: 'all', sentence: s };
+  slot.text = ctx.brand.name;
+  s.text = s.parts.map(p => p.text).join('');
+  return { brand: ctx.brand.id, sentence: s };
 }
 
 /** The one-sentence editor, in a sheet from the bottom. start = a saved automation or a template's automation.

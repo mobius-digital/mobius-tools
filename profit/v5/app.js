@@ -109,6 +109,15 @@ async function boot() {
   shell.setData(rec.data);
   shell.mount(app, { onSignOut: signOut });
   hideLoader();
+  /* a link a connected AI hands back (?open=aiproposal&id=<card id>&act=<brand id>) opens the cards page; the page marks the card */
+  if (QS.get('open') === 'aiproposal' && (!location.hash || location.hash === '#' || location.hash === '#/')) {
+    const b = shell.state().brands.find(x => x.id === QS.get('act'));
+    /* the card id is handed to the page once, then open, id and act leave the address so a later visit marks nothing */
+    try { sessionStorage.setItem(LS5.aiCard, QS.get('id') || ''); } catch {}
+    const q = new URLSearchParams(location.search); ['open', 'id', 'act'].forEach(k => q.delete(k));
+    const rest = q.toString();
+    history.replaceState(null, '', location.pathname + (rest ? '?' + rest : '') + (b && b.slug ? '#/brand/' + encodeURIComponent(b.slug) : '#/agency/all') + '/profile/ai-cards');
+  }
   router.start({ state: shell.state, frame: shell.frame, brandBySlug: shell.brandBySlug, signin: () => location.reload() });
   bellCount();
   /* a link from a Slack or email reminder can open the bell: add ?bell=1 to any address */
@@ -121,7 +130,7 @@ function bellCount() {
   if (st.asClient) return;
   const idle = window.requestIdleCallback || (fn => setTimeout(fn, 400));
   idle(() => import('./bell.js')
-    .then(m => m.loadBell({ me: st.me, role: st.role, brand: st.brands[0] || null }))
+    .then(m => m.loadBell({ me: st.me, role: st.role, brand: st.brands[0] || null, brands: st.brands }))
     .then(d => shell.setCounts({ bell: d.needs.length }))
     .catch(() => {}));
 }
