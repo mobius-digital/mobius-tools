@@ -1,0 +1,13 @@
+{
+ "email": "sam@example.com",
+ "name": "Sam Rivera",
+ "role": "team",
+ "photo": null,
+ "counts": {
+  "meta": 4,
+  "google": 2,
+  "requests": 2,
+  "myDay": 4,
+  "bell": 6
+ }
+}

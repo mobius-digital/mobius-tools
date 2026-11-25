@@ -1,0 +1,2579 @@
+{
+ "window": {
+  "from": "2026-11-01",
+  "to": "2026-11-22"
+ },
+ "rules": {
+  "behind_pct": 10
+ },
+ "brands": [
+  {
+   "id": "brand_northlake_golf",
+   "name": "Northlake Golf",
+   "store": true,
+   "costs_ok": true,
+   "sales": 63429,
+   "spend": 23702,
+   "mer": 2.68,
+   "orders": 1220,
+   "new_orders": 456,
+   "cac": 52,
+   "gross_profit": 34252,
+   "profit": 10550,
+   "plan_sales": 59000,
+   "plan_spend": 20900,
+   "goal_mer": 3,
+   "goal_roas": 3,
+   "goal_cost": 40,
+   "platforms": [
+    {
+     "id": "meta",
+     "spend": 16925,
+     "sales": 30047,
+     "roas": 1.78,
+     "cost": 60
+    },
+    {
+     "id": "google",
+     "spend": 4336,
+     "sales": 11447,
+     "roas": 2.64,
+     "cost": 49
+    },
+    {
+     "id": "amazon",
+     "spend": 1367,
+     "sales": 4525,
+     "roas": 3.31,
+     "cost": null
+    },
+    {
+     "id": "tiktok",
+     "spend": 1074,
+     "sales": 1310,
+     "roas": 1.22,
+     "cost": 71
+    }
+   ],
+   "prev": {
+    "sales": 58610,
+    "spend": 21480,
+    "meta_spend": 15310,
+    "google_spend": 4020
+   },
+   "days": [
+    {
+     "date": "2026-11-01",
+     "sales": 1829,
+     "spend": 972
+    },
+    {
+     "date": "2026-11-02",
+     "sales": 3272,
+     "spend": 1072
+    },
+    {
+     "date": "2026-11-03",
+     "sales": 2282,
+     "spend": 1177
+    },
+    {
+     "date": "2026-11-04",
+     "sales": 2699,
+     "spend": 1117
+    },
+    {
+     "date": "2026-11-05",
+     "sales": 3864,
+     "spend": 1105
+    },
+    {
+     "date": "2026-11-06",
+     "sales": 3197,
+     "spend": 1088
+    },
+    {
+     "date": "2026-11-07",
+     "sales": 2345,
+     "spend": 1174
+    },
+    {
+     "date": "2026-11-08",
+     "sales": 3008,
+     "spend": 1173
+    },
+    {
+     "date": "2026-11-09",
+     "sales": 3013,
+     "spend": 1036
+    },
+    {
+     "date": "2026-11-10",
+     "sales": 2680,
+     "spend": 1026
+    },
+    {
+     "date": "2026-11-11",
+     "sales": 2902,
+     "spend": 1155
+    },
+    {
+     "date": "2026-11-12",
+     "sales": 2826,
+     "spend": 1025
+    },
+    {
+     "date": "2026-11-13",
+     "sales": 4042,
+     "spend": 979
+    },
+    {
+     "date": "2026-11-14",
+     "sales": 3202,
+     "spend": 1016
+    },
+    {
+     "date": "2026-11-15",
+     "sales": 2657,
+     "spend": 1050
+    },
+    {
+     "date": "2026-11-16",
+     "sales": 2939,
+     "spend": 1016
+    },
+    {
+     "date": "2026-11-17",
+     "sales": 2923,
+     "spend": 1180
+    },
+    {
+     "date": "2026-11-18",
+     "sales": 1913,
+     "spend": 1083
+    },
+    {
+     "date": "2026-11-19",
+     "sales": 2901,
+     "spend": 1127
+    },
+    {
+     "date": "2026-11-20",
+     "sales": 2563,
+     "spend": 1165
+    },
+    {
+     "date": "2026-11-21",
+     "sales": 3275,
+     "spend": 955
+    },
+    {
+     "date": "2026-11-22",
+     "sales": 3097,
+     "spend": 1011
+    }
+   ]
+  },
+  {
+   "id": "brand_harbor_and_pine",
+   "name": "Harbor & Pine",
+   "store": true,
+   "costs_ok": true,
+   "sales": 41870,
+   "spend": 11240,
+   "mer": 3.73,
+   "orders": 498,
+   "new_orders": 301,
+   "cac": 37,
+   "gross_profit": 20870,
+   "profit": 9630,
+   "plan_sales": 35500,
+   "plan_spend": 11100,
+   "goal_mer": 3.2,
+   "goal_roas": 2.5,
+   "goal_cost": 45,
+   "platforms": [
+    {
+     "id": "meta",
+     "spend": 9120,
+     "sales": 24990,
+     "roas": 2.74,
+     "cost": 41
+    },
+    {
+     "id": "google",
+     "spend": 2120,
+     "sales": 6890,
+     "roas": 3.25,
+     "cost": 38
+    }
+   ],
+   "prev": {
+    "sales": 36240,
+    "spend": 10980,
+    "meta_spend": 9080,
+    "google_spend": 1900
+   },
+   "days": [
+    {
+     "date": "2026-11-01",
+     "sales": 2018,
+     "spend": 555
+    },
+    {
+     "date": "2026-11-02",
+     "sales": 1957,
+     "spend": 527
+    },
+    {
+     "date": "2026-11-03",
+     "sales": 1855,
+     "spend": 527
+    },
+    {
+     "date": "2026-11-04",
+     "sales": 1588,
+     "spend": 512
+    },
+    {
+     "date": "2026-11-05",
+     "sales": 2424,
+     "spend": 511
+    },
+    {
+     "date": "2026-11-06",
+     "sales": 1427,
+     "spend": 533
+    },
+    {
+     "date": "2026-11-07",
+     "sales": 1790,
+     "spend": 564
+    },
+    {
+     "date": "2026-11-08",
+     "sales": 1765,
+     "spend": 498
+    },
+    {
+     "date": "2026-11-09",
+     "sales": 2139,
+     "spend": 536
+    },
+    {
+     "date": "2026-11-10",
+     "sales": 2442,
+     "spend": 480
+    },
+    {
+     "date": "2026-11-11",
+     "sales": 1964,
+     "spend": 521
+    },
+    {
+     "date": "2026-11-12",
+     "sales": 1556,
+     "spend": 492
+    },
+    {
+     "date": "2026-11-13",
+     "sales": 1836,
+     "spend": 490
+    },
+    {
+     "date": "2026-11-14",
+     "sales": 1694,
+     "spend": 497
+    },
+    {
+     "date": "2026-11-15",
+     "sales": 1788,
+     "spend": 546
+    },
+    {
+     "date": "2026-11-16",
+     "sales": 1858,
+     "spend": 556
+    },
+    {
+     "date": "2026-11-17",
+     "sales": 1751,
+     "spend": 463
+    },
+    {
+     "date": "2026-11-18",
+     "sales": 1984,
+     "spend": 549
+    },
+    {
+     "date": "2026-11-19",
+     "sales": 2080,
+     "spend": 459
+    },
+    {
+     "date": "2026-11-20",
+     "sales": 1635,
+     "spend": 499
+    },
+    {
+     "date": "2026-11-21",
+     "sales": 2422,
+     "spend": 468
+    },
+    {
+     "date": "2026-11-22",
+     "sales": 1897,
+     "spend": 457
+    }
+   ]
+  },
+  {
+   "id": "brand_tallgrass_apparel",
+   "name": "Tallgrass Apparel",
+   "store": true,
+   "costs_ok": true,
+   "sales": 28610,
+   "spend": 13480,
+   "mer": 2.12,
+   "orders": 512,
+   "new_orders": 266,
+   "cac": 51,
+   "gross_profit": 15200,
+   "profit": 1720,
+   "plan_sales": 40300,
+   "plan_spend": 13400,
+   "goal_mer": 3,
+   "goal_roas": 3,
+   "goal_cost": 24,
+   "platforms": [
+    {
+     "id": "meta",
+     "spend": 10940,
+     "sales": 17830,
+     "roas": 1.63,
+     "cost": 44
+    },
+    {
+     "id": "google",
+     "spend": 2540,
+     "sales": 4320,
+     "roas": 1.7,
+     "cost": 39
+    }
+   ],
+   "prev": {
+    "sales": 35120,
+    "spend": 14900,
+    "meta_spend": 12480,
+    "google_spend": 2420
+   },
+   "days": [
+    {
+     "date": "2026-11-01",
+     "sales": 1682,
+     "spend": 640
+    },
+    {
+     "date": "2026-11-02",
+     "sales": 1078,
+     "spend": 574
+    },
+    {
+     "date": "2026-11-03",
+     "sales": 1399,
+     "spend": 669
+    },
+    {
+     "date": "2026-11-04",
+     "sales": 1019,
+     "spend": 574
+    },
+    {
+     "date": "2026-11-05",
+     "sales": 1263,
+     "spend": 594
+    },
+    {
+     "date": "2026-11-06",
+     "sales": 1368,
+     "spend": 671
+    },
+    {
+     "date": "2026-11-07",
+     "sales": 1014,
+     "spend": 557
+    },
+    {
+     "date": "2026-11-08",
+     "sales": 1624,
+     "spend": 611
+    },
+    {
+     "date": "2026-11-09",
+     "sales": 1595,
+     "spend": 540
+    },
+    {
+     "date": "2026-11-10",
+     "sales": 1600,
+     "spend": 674
+    },
+    {
+     "date": "2026-11-11",
+     "sales": 1596,
+     "spend": 633
+    },
+    {
+     "date": "2026-11-12",
+     "sales": 1613,
+     "spend": 675
+    },
+    {
+     "date": "2026-11-13",
+     "sales": 1499,
+     "spend": 542
+    },
+    {
+     "date": "2026-11-14",
+     "sales": 1121,
+     "spend": 672
+    },
+    {
+     "date": "2026-11-15",
+     "sales": 915,
+     "spend": 567
+    },
+    {
+     "date": "2026-11-16",
+     "sales": 1100,
+     "spend": 682
+    },
+    {
+     "date": "2026-11-17",
+     "sales": 966,
+     "spend": 622
+    },
+    {
+     "date": "2026-11-18",
+     "sales": 909,
+     "spend": 639
+    },
+    {
+     "date": "2026-11-19",
+     "sales": 1387,
+     "spend": 578
+    },
+    {
+     "date": "2026-11-20",
+     "sales": 1087,
+     "spend": 572
+    },
+    {
+     "date": "2026-11-21",
+     "sales": 1484,
+     "spend": 570
+    },
+    {
+     "date": "2026-11-22",
+     "sales": 1291,
+     "spend": 624
+    }
+   ]
+  },
+  {
+   "id": "brand_copper_kettle_pets",
+   "name": "Copper Kettle Pets",
+   "store": false,
+   "costs_ok": true,
+   "sales": null,
+   "spend": 3940,
+   "mer": null,
+   "orders": null,
+   "new_orders": null,
+   "cac": null,
+   "gross_profit": null,
+   "profit": null,
+   "plan_sales": null,
+   "plan_spend": null,
+   "goal_mer": null,
+   "goal_roas": null,
+   "goal_cost": null,
+   "platforms": [
+    {
+     "id": "meta",
+     "spend": 3210,
+     "sales": null,
+     "roas": null,
+     "cost": null
+    },
+    {
+     "id": "google",
+     "spend": 730,
+     "sales": null,
+     "roas": null,
+     "cost": null
+    }
+   ],
+   "prev": {
+    "sales": null,
+    "spend": 4610,
+    "meta_spend": 3820,
+    "google_spend": 790
+   },
+   "days": [
+    {
+     "date": "2026-11-01",
+     "sales": null,
+     "spend": 157
+    },
+    {
+     "date": "2026-11-02",
+     "sales": null,
+     "spend": 187
+    },
+    {
+     "date": "2026-11-03",
+     "sales": null,
+     "spend": 184
+    },
+    {
+     "date": "2026-11-04",
+     "sales": null,
+     "spend": 185
+    },
+    {
+     "date": "2026-11-05",
+     "sales": null,
+     "spend": 176
+    },
+    {
+     "date": "2026-11-06",
+     "sales": null,
+     "spend": 156
+    },
+    {
+     "date": "2026-11-07",
+     "sales": null,
+     "spend": 159
+    },
+    {
+     "date": "2026-11-08",
+     "sales": null,
+     "spend": 194
+    },
+    {
+     "date": "2026-11-09",
+     "sales": null,
+     "spend": 160
+    },
+    {
+     "date": "2026-11-10",
+     "sales": null,
+     "spend": 184
+    },
+    {
+     "date": "2026-11-11",
+     "sales": null,
+     "spend": 192
+    },
+    {
+     "date": "2026-11-12",
+     "sales": null,
+     "spend": 156
+    },
+    {
+     "date": "2026-11-13",
+     "sales": null,
+     "spend": 192
+    },
+    {
+     "date": "2026-11-14",
+     "sales": null,
+     "spend": 191
+    },
+    {
+     "date": "2026-11-15",
+     "sales": null,
+     "spend": 197
+    },
+    {
+     "date": "2026-11-16",
+     "sales": null,
+     "spend": 195
+    },
+    {
+     "date": "2026-11-17",
+     "sales": null,
+     "spend": 187
+    },
+    {
+     "date": "2026-11-18",
+     "sales": null,
+     "spend": 172
+    },
+    {
+     "date": "2026-11-19",
+     "sales": null,
+     "spend": 165
+    },
+    {
+     "date": "2026-11-20",
+     "sales": null,
+     "spend": 185
+    },
+    {
+     "date": "2026-11-21",
+     "sales": null,
+     "spend": 192
+    },
+    {
+     "date": "2026-11-22",
+     "sales": null,
+     "spend": 174
+    }
+   ]
+  },
+  {
+   "id": "brand_summit_sticks",
+   "name": "Summit Sticks",
+   "store": true,
+   "costs_ok": true,
+   "sales": 19240,
+   "spend": 5310,
+   "mer": 3.62,
+   "orders": 301,
+   "new_orders": 204,
+   "cac": 26,
+   "gross_profit": 10120,
+   "profit": 4810,
+   "plan_sales": 19050,
+   "plan_spend": 5500,
+   "goal_mer": 3.3,
+   "goal_roas": 2.5,
+   "goal_cost": 32,
+   "platforms": [
+    {
+     "id": "meta",
+     "spend": 4180,
+     "sales": 8950,
+     "roas": 2.14,
+     "cost": 30
+    },
+    {
+     "id": "google",
+     "spend": 1130,
+     "sales": 3400,
+     "roas": 3.01,
+     "cost": 27
+    }
+   ],
+   "prev": {
+    "sales": 17880,
+    "spend": 4490,
+    "meta_spend": 3540,
+    "google_spend": 950
+   },
+   "days": [
+    {
+     "date": "2026-11-01",
+     "sales": 712,
+     "spend": 258
+    },
+    {
+     "date": "2026-11-02",
+     "sales": 798,
+     "spend": 269
+    },
+    {
+     "date": "2026-11-03",
+     "sales": 1043,
+     "spend": 242
+    },
+    {
+     "date": "2026-11-04",
+     "sales": 876,
+     "spend": 224
+    },
+    {
+     "date": "2026-11-05",
+     "sales": 771,
+     "spend": 240
+    },
+    {
+     "date": "2026-11-06",
+     "sales": 908,
+     "spend": 223
+    },
+    {
+     "date": "2026-11-07",
+     "sales": 966,
+     "spend": 252
+    },
+    {
+     "date": "2026-11-08",
+     "sales": 763,
+     "spend": 244
+    },
+    {
+     "date": "2026-11-09",
+     "sales": 961,
+     "spend": 246
+    },
+    {
+     "date": "2026-11-10",
+     "sales": 807,
+     "spend": 243
+    },
+    {
+     "date": "2026-11-11",
+     "sales": 693,
+     "spend": 258
+    },
+    {
+     "date": "2026-11-12",
+     "sales": 751,
+     "spend": 235
+    },
+    {
+     "date": "2026-11-13",
+     "sales": 1093,
+     "spend": 257
+    },
+    {
+     "date": "2026-11-14",
+     "sales": 1097,
+     "spend": 215
+    },
+    {
+     "date": "2026-11-15",
+     "sales": 914,
+     "spend": 231
+    },
+    {
+     "date": "2026-11-16",
+     "sales": 1035,
+     "spend": 245
+    },
+    {
+     "date": "2026-11-17",
+     "sales": 1059,
+     "spend": 225
+    },
+    {
+     "date": "2026-11-18",
+     "sales": 694,
+     "spend": 256
+    },
+    {
+     "date": "2026-11-19",
+     "sales": 920,
+     "spend": 230
+    },
+    {
+     "date": "2026-11-20",
+     "sales": 661,
+     "spend": 227
+    },
+    {
+     "date": "2026-11-21",
+     "sales": 845,
+     "spend": 252
+    },
+    {
+     "date": "2026-11-22",
+     "sales": 873,
+     "spend": 238
+    }
+   ]
+  },
+  {
+   "id": "brand_brightside_patch",
+   "name": "Brightside Patch",
+   "store": true,
+   "costs_ok": true,
+   "sales": 12480,
+   "spend": 2890,
+   "mer": 4.32,
+   "orders": 571,
+   "new_orders": 322,
+   "cac": 9,
+   "gross_profit": 6010,
+   "profit": 3120,
+   "plan_sales": 13000,
+   "plan_spend": 3000,
+   "goal_mer": 3.5,
+   "goal_roas": 2.5,
+   "goal_cost": 21,
+   "platforms": [
+    {
+     "id": "google",
+     "spend": 2110,
+     "sales": 5870,
+     "roas": 2.78,
+     "cost": 19
+    },
+    {
+     "id": "meta",
+     "spend": 780,
+     "sales": 1640,
+     "roas": 2.1,
+     "cost": 23
+    }
+   ],
+   "prev": {
+    "sales": 12890,
+    "spend": 3350,
+    "meta_spend": 910,
+    "google_spend": 2440
+   },
+   "days": [
+    {
+     "date": "2026-11-01",
+     "sales": 429,
+     "spend": 123
+    },
+    {
+     "date": "2026-11-02",
+     "sales": 670,
+     "spend": 138
+    },
+    {
+     "date": "2026-11-03",
+     "sales": 687,
+     "spend": 124
+    },
+    {
+     "date": "2026-11-04",
+     "sales": 719,
+     "spend": 131
+    },
+    {
+     "date": "2026-11-05",
+     "sales": 717,
+     "spend": 148
+    },
+    {
+     "date": "2026-11-06",
+     "sales": 638,
+     "spend": 130
+    },
+    {
+     "date": "2026-11-07",
+     "sales": 734,
+     "spend": 138
+    },
+    {
+     "date": "2026-11-08",
+     "sales": 412,
+     "spend": 141
+    },
+    {
+     "date": "2026-11-09",
+     "sales": 666,
+     "spend": 129
+    },
+    {
+     "date": "2026-11-10",
+     "sales": 610,
+     "spend": 130
+    },
+    {
+     "date": "2026-11-11",
+     "sales": 653,
+     "spend": 119
+    },
+    {
+     "date": "2026-11-12",
+     "sales": 713,
+     "spend": 124
+    },
+    {
+     "date": "2026-11-13",
+     "sales": 416,
+     "spend": 142
+    },
+    {
+     "date": "2026-11-14",
+     "sales": 450,
+     "spend": 148
+    },
+    {
+     "date": "2026-11-15",
+     "sales": 431,
+     "spend": 122
+    },
+    {
+     "date": "2026-11-16",
+     "sales": 440,
+     "spend": 146
+    },
+    {
+     "date": "2026-11-17",
+     "sales": 432,
+     "spend": 133
+    },
+    {
+     "date": "2026-11-18",
+     "sales": 406,
+     "spend": 121
+    },
+    {
+     "date": "2026-11-19",
+     "sales": 612,
+     "spend": 123
+    },
+    {
+     "date": "2026-11-20",
+     "sales": 729,
+     "spend": 136
+    },
+    {
+     "date": "2026-11-21",
+     "sales": 469,
+     "spend": 122
+    },
+    {
+     "date": "2026-11-22",
+     "sales": 447,
+     "spend": 122
+    }
+   ]
+  },
+  {
+   "id": "brand_fairway_supply",
+   "name": "Fairway Supply",
+   "store": true,
+   "costs_ok": true,
+   "sales": 52300,
+   "spend": 26150,
+   "mer": 2,
+   "orders": 328,
+   "new_orders": 241,
+   "cac": 109,
+   "gross_profit": 28240,
+   "profit": 2090,
+   "plan_sales": 67050,
+   "plan_spend": 22400,
+   "goal_mer": 2.5,
+   "goal_roas": 2.5,
+   "goal_cost": 64,
+   "platforms": [
+    {
+     "id": "meta",
+     "spend": 20110,
+     "sales": 34790,
+     "roas": 1.73,
+     "cost": 96
+    },
+    {
+     "id": "google",
+     "spend": 5200,
+     "sales": 9870,
+     "roas": 1.9,
+     "cost": 88
+    },
+    {
+     "id": "tiktok",
+     "spend": 840,
+     "sales": 610,
+     "roas": 0.73,
+     "cost": 210
+    }
+   ],
+   "prev": {
+    "sales": 61900,
+    "spend": 17020,
+    "meta_spend": 12260,
+    "google_spend": 4760
+   },
+   "days": [
+    {
+     "date": "2026-11-01",
+     "sales": 2094,
+     "spend": 1112
+    },
+    {
+     "date": "2026-11-02",
+     "sales": 2638,
+     "spend": 1128
+    },
+    {
+     "date": "2026-11-03",
+     "sales": 3259,
+     "spend": 1153
+    },
+    {
+     "date": "2026-11-04",
+     "sales": 2876,
+     "spend": 1153
+    },
+    {
+     "date": "2026-11-05",
+     "sales": 3144,
+     "spend": 1173
+    },
+    {
+     "date": "2026-11-06",
+     "sales": 1807,
+     "spend": 1215
+    },
+    {
+     "date": "2026-11-07",
+     "sales": 2299,
+     "spend": 1200
+    },
+    {
+     "date": "2026-11-08",
+     "sales": 2155,
+     "spend": 1191
+    },
+    {
+     "date": "2026-11-09",
+     "sales": 1704,
+     "spend": 1217
+    },
+    {
+     "date": "2026-11-10",
+     "sales": 1707,
+     "spend": 1261
+    },
+    {
+     "date": "2026-11-11",
+     "sales": 2299,
+     "spend": 1250
+    },
+    {
+     "date": "2026-11-12",
+     "sales": 1831,
+     "spend": 1289
+    },
+    {
+     "date": "2026-11-13",
+     "sales": 2038,
+     "spend": 1137
+    },
+    {
+     "date": "2026-11-14",
+     "sales": 3042,
+     "spend": 1150
+    },
+    {
+     "date": "2026-11-15",
+     "sales": 2829,
+     "spend": 1281
+    },
+    {
+     "date": "2026-11-16",
+     "sales": 2809,
+     "spend": 1286
+    },
+    {
+     "date": "2026-11-17",
+     "sales": 1633,
+     "spend": 1115
+    },
+    {
+     "date": "2026-11-18",
+     "sales": 1912,
+     "spend": 1038
+    },
+    {
+     "date": "2026-11-19",
+     "sales": 2169,
+     "spend": 1111
+    },
+    {
+     "date": "2026-11-20",
+     "sales": 2863,
+     "spend": 1260
+    },
+    {
+     "date": "2026-11-21",
+     "sales": 2661,
+     "spend": 1212
+    },
+    {
+     "date": "2026-11-22",
+     "sales": 2531,
+     "spend": 1218
+    }
+   ]
+  }
+ ],
+ "daily": {
+  "dates": [
+   "2026-11-01",
+   "2026-11-02",
+   "2026-11-03",
+   "2026-11-04",
+   "2026-11-05",
+   "2026-11-06",
+   "2026-11-07",
+   "2026-11-08",
+   "2026-11-09",
+   "2026-11-10",
+   "2026-11-11",
+   "2026-11-12",
+   "2026-11-13",
+   "2026-11-14",
+   "2026-11-15",
+   "2026-11-16",
+   "2026-11-17",
+   "2026-11-18",
+   "2026-11-19",
+   "2026-11-20",
+   "2026-11-21",
+   "2026-11-22"
+  ],
+  "sales": [
+   8764,
+   10413,
+   10525,
+   9777,
+   12183,
+   9345,
+   9148,
+   9727,
+   10078,
+   9846,
+   10107,
+   9290,
+   10924,
+   10606,
+   9534,
+   10181,
+   8764,
+   7818,
+   10069,
+   9538,
+   11156,
+   10136
+  ],
+  "spend": [
+   3817,
+   3895,
+   4076,
+   3896,
+   3947,
+   4016,
+   4044,
+   4052,
+   3864,
+   3998,
+   4128,
+   3996,
+   3739,
+   3889,
+   3994,
+   4126,
+   3925,
+   3858,
+   3793,
+   4044,
+   3771,
+   3844
+  ]
+ },
+ "week": {
+  "from": "2026-11-17",
+  "to": "2026-11-23",
+  "rows": [
+   {
+    "id": "brand_fairway_supply",
+    "name": "Fairway Supply",
+    "spend": 6410,
+    "before": 3890,
+    "roas": 1.58
+   },
+   {
+    "id": "brand_northlake_golf",
+    "name": "Northlake Golf",
+    "spend": 5290,
+    "before": 5010,
+    "roas": 1.71
+   },
+   {
+    "id": "brand_tallgrass_apparel",
+    "name": "Tallgrass Apparel",
+    "spend": 3320,
+    "before": 4660,
+    "roas": 1.49
+   },
+   {
+    "id": "brand_harbor_and_pine",
+    "name": "Harbor & Pine",
+    "spend": 2960,
+    "before": 2950,
+    "roas": 2.81
+   },
+   {
+    "id": "brand_summit_sticks",
+    "name": "Summit Sticks",
+    "spend": 1480,
+    "before": 1250,
+    "roas": 2.22
+   },
+   {
+    "id": "brand_copper_kettle_pets",
+    "name": "Copper Kettle Pets",
+    "spend": 890,
+    "before": 1060,
+    "roas": null
+   },
+   {
+    "id": "brand_brightside_patch",
+    "name": "Brightside Patch",
+    "spend": 210,
+    "before": 245,
+    "roas": 2.04
+   }
+  ]
+ },
+ "today": {
+  "date": "2026-11-24",
+  "requests_waiting": 7,
+  "requests_old": 2,
+  "meetings": [
+   {
+    "time": "10:00",
+    "title": "Fairway Supply, weekly",
+    "state": "ready",
+    "note": "Notes ready"
+   },
+   {
+    "time": "1:30",
+    "title": "Northlake Golf, weekly",
+    "state": "prep",
+    "note": "Needs prep"
+   },
+   {
+    "time": "3:00",
+    "title": "Tallgrass Apparel, client call",
+    "state": "prep",
+    "note": "Needs prep"
+   }
+  ]
+ },
+ "suggestions": {
+  "as_of": "2026-11-24T07:05:00-06:00",
+  "meta": [
+   {
+    "id": "meta-tallgrass_apparel-412BStill",
+    "brand_id": "brand_tallgrass_apparel",
+    "brand": "Tallgrass Apparel",
+    "platform": "meta",
+    "kind": "cut",
+    "action": "Turn off",
+    "name": "412 B | Still",
+    "why": "Spent $148, 3x the goal cost, no sales in 6 days.",
+    "stake": 148
+   },
+   {
+    "id": "meta-tallgrass_apparel-409Creator",
+    "brand_id": "brand_tallgrass_apparel",
+    "brand": "Tallgrass Apparel",
+    "platform": "meta",
+    "kind": "cut",
+    "action": "Turn off",
+    "name": "409 | Creator video",
+    "why": "Spent $211 at $70 a sale against a $24 goal.",
+    "stake": 211
+   },
+   {
+    "id": "meta-tallgrass_apparel-EarlysaleN",
+    "brand_id": "brand_tallgrass_apparel",
+    "brand": "Tallgrass Apparel",
+    "platform": "meta",
+    "kind": "refresh",
+    "action": "Make a new version",
+    "name": "Early sale | New people",
+    "why": "CTR is down 24% and frequency is up to 3.4.",
+    "stake": 0
+   },
+   {
+    "id": "meta-tallgrass_apparel-EvergreenP",
+    "brand_id": "brand_tallgrass_apparel",
+    "brand": "Tallgrass Apparel",
+    "platform": "meta",
+    "kind": "trim",
+    "action": "Lower the budget",
+    "name": "Evergreen | Polos",
+    "why": "ROAS 1.21x on $620 in 7 days, goal 3.00x.",
+    "stake": 620
+   },
+   {
+    "id": "meta-tallgrass_apparel-Pastbuyers",
+    "brand_id": "brand_tallgrass_apparel",
+    "brand": "Tallgrass Apparel",
+    "platform": "meta",
+    "kind": "scale",
+    "action": "Raise the budget 25%",
+    "name": "Past buyers | Hats",
+    "why": "5 sales at $18 each, under the $24 goal.",
+    "stake": 0
+   },
+   {
+    "id": "meta-tallgrass_apparel-Batch418Bl",
+    "brand_id": "brand_tallgrass_apparel",
+    "brand": "Tallgrass Apparel",
+    "platform": "meta",
+    "kind": "launch",
+    "action": "Load 6 ads",
+    "name": "Batch 418, Black Friday stills",
+    "why": "Approved Friday, starts Thu Nov 26.",
+    "stake": 0
+   },
+   {
+    "id": "meta-fairway_supply-331ADriver",
+    "brand_id": "brand_fairway_supply",
+    "brand": "Fairway Supply",
+    "platform": "meta",
+    "kind": "cut",
+    "action": "Turn off",
+    "name": "331 A | Driver demo",
+    "why": "Spent $402, no sales, 3x the goal cost.",
+    "stake": 402
+   },
+   {
+    "id": "meta-fairway_supply-327Fitting",
+    "brand_id": "brand_fairway_supply",
+    "brand": "Fairway Supply",
+    "platform": "meta",
+    "kind": "cut",
+    "action": "Turn off",
+    "name": "327 | Fitting quiz",
+    "why": "Spent $288 at $144 a sale against a $64 goal.",
+    "stake": 288
+   },
+   {
+    "id": "meta-fairway_supply-EvergreenI",
+    "brand_id": "brand_fairway_supply",
+    "brand": "Fairway Supply",
+    "platform": "meta",
+    "kind": "trim",
+    "action": "Lower the budget",
+    "name": "Evergreen | Irons",
+    "why": "Spend is up 65% in a week and ROAS fell to 1.58x.",
+    "stake": 1910
+   },
+   {
+    "id": "meta-fairway_supply-WedgesNewp",
+    "brand_id": "brand_fairway_supply",
+    "brand": "Fairway Supply",
+    "platform": "meta",
+    "kind": "refresh",
+    "action": "Make a new version",
+    "name": "Wedges | New people",
+    "why": "CTR is down 31% and frequency is up to 4.1.",
+    "stake": 0
+   },
+   {
+    "id": "meta-fairway_supply-Pastbuyers",
+    "brand_id": "brand_fairway_supply",
+    "brand": "Fairway Supply",
+    "platform": "meta",
+    "kind": "scale",
+    "action": "Raise the budget 25%",
+    "name": "Past buyers | Putters",
+    "why": "4 sales at $41 each, under the $64 goal.",
+    "stake": 0
+   },
+   {
+    "id": "meta-fairway_supply-Batch336Cy",
+    "brand_id": "brand_fairway_supply",
+    "brand": "Fairway Supply",
+    "platform": "meta",
+    "kind": "launch",
+    "action": "Load 4 ads",
+    "name": "Batch 336, Cyber Monday",
+    "why": "Approved Monday, switches on Nov 30.",
+    "stake": 0
+   },
+   {
+    "id": "meta-northlake_golf-508CStill",
+    "brand_id": "brand_northlake_golf",
+    "brand": "Northlake Golf",
+    "platform": "meta",
+    "kind": "cut",
+    "action": "Turn off",
+    "name": "508 C | Still",
+    "why": "Spent $126, no sales, 3x the goal cost.",
+    "stake": 126
+   },
+   {
+    "id": "meta-northlake_golf-BeltsNewpe",
+    "brand_id": "brand_northlake_golf",
+    "brand": "Northlake Golf",
+    "platform": "meta",
+    "kind": "trim",
+    "action": "Lower the budget",
+    "name": "Belts | New people",
+    "why": "ROAS 1.44x on $1,180 in 7 days, goal 3.00x.",
+    "stake": 1180
+   },
+   {
+    "id": "meta-northlake_golf-Ballmarker",
+    "brand_id": "brand_northlake_golf",
+    "brand": "Northlake Golf",
+    "platform": "meta",
+    "kind": "scale",
+    "action": "Raise the budget 25%",
+    "name": "Ball markers | Past buyers",
+    "why": "9 sales at $22 each, under the $40 goal.",
+    "stake": 0
+   },
+   {
+    "id": "meta-northlake_golf-GiftsetsVi",
+    "brand_id": "brand_northlake_golf",
+    "brand": "Northlake Golf",
+    "platform": "meta",
+    "kind": "refresh",
+    "action": "Make a new version",
+    "name": "Gift sets | Visitors",
+    "why": "CTR is down 22% and frequency is up to 3.0.",
+    "stake": 0
+   },
+   {
+    "id": "meta-harbor_and_pine-BundlesNew",
+    "brand_id": "brand_harbor_and_pine",
+    "brand": "Harbor & Pine",
+    "platform": "meta",
+    "kind": "scale",
+    "action": "Raise the budget 25%",
+    "name": "Bundles | New people",
+    "why": "14 sales at $36 each, under the $45 goal.",
+    "stake": 0
+   },
+   {
+    "id": "meta-harbor_and_pine-Batch64gif",
+    "brand_id": "brand_harbor_and_pine",
+    "brand": "Harbor & Pine",
+    "platform": "meta",
+    "kind": "launch",
+    "action": "Load 5 ads",
+    "name": "Batch 64, gift guide",
+    "why": "Approved today.",
+    "stake": 0
+   },
+   {
+    "id": "meta-summit_sticks-Batch22Bla",
+    "brand_id": "brand_summit_sticks",
+    "brand": "Summit Sticks",
+    "platform": "meta",
+    "kind": "launch",
+    "action": "Load 6 ads",
+    "name": "Batch 22, Black Friday",
+    "why": "Approved Friday, started Mon Nov 23.",
+    "stake": 0
+   }
+  ],
+  "google": [
+   {
+    "id": "google-northlake_golf-SearchGolf",
+    "brand_id": "brand_northlake_golf",
+    "brand": "Northlake Golf",
+    "platform": "google",
+    "kind": "negative",
+    "action": "Add 6 negative keywords",
+    "name": "Search | Golf belts",
+    "why": "6 search terms spent $94 with no sales in 30 days.",
+    "stake": 94
+   },
+   {
+    "id": "google-northlake_golf-Performanc",
+    "brand_id": "brand_northlake_golf",
+    "brand": "Northlake Golf",
+    "platform": "google",
+    "kind": "trim",
+    "action": "Lower the budget",
+    "name": "Performance Max | All products",
+    "why": "ROAS 1.90x on $870 in 7 days, goal 3.00x.",
+    "stake": 870
+   },
+   {
+    "id": "google-fairway_supply-ShoppingHy",
+    "brand_id": "brand_fairway_supply",
+    "brand": "Fairway Supply",
+    "platform": "google",
+    "kind": "cut",
+    "action": "Pause the campaign",
+    "name": "Shopping | Hybrids",
+    "why": "Spent $310 at $155 a sale against a $64 goal.",
+    "stake": 310
+   },
+   {
+    "id": "google-fairway_supply-SearchGolf",
+    "brand_id": "brand_fairway_supply",
+    "brand": "Fairway Supply",
+    "platform": "google",
+    "kind": "negative",
+    "action": "Add 9 negative keywords",
+    "name": "Search | Golf clubs",
+    "why": "9 search terms spent $212 with no sales in 30 days.",
+    "stake": 212
+   },
+   {
+    "id": "google-tallgrass_apparel-Performanc",
+    "brand_id": "brand_tallgrass_apparel",
+    "brand": "Tallgrass Apparel",
+    "platform": "google",
+    "kind": "trim",
+    "action": "Lower the budget",
+    "name": "Performance Max | Polos",
+    "why": "ROAS 1.31x on $540 in 7 days, goal 3.00x.",
+    "stake": 540
+   },
+   {
+    "id": "google-brightside_patch-Brandsearc",
+    "brand_id": "brand_brightside_patch",
+    "brand": "Brightside Patch",
+    "platform": "google",
+    "kind": "scale",
+    "action": "Raise the budget 20%",
+    "name": "Brand search",
+    "why": "ROAS 6.10x and the campaign runs out of budget by 4pm.",
+    "stake": 0
+   },
+   {
+    "id": "google-harbor_and_pine-ShoppingNe",
+    "brand_id": "brand_harbor_and_pine",
+    "brand": "Harbor & Pine",
+    "platform": "google",
+    "kind": "scale",
+    "action": "Raise the budget 20%",
+    "name": "Shopping | Necklaces",
+    "why": "ROAS 3.80x on $410 in 7 days, goal 2.50x.",
+    "stake": 0
+   }
+  ]
+ },
+ "changes": {
+  "rows": [
+   {
+    "id": "23T16:42-fairway_supply",
+    "time": "2026-11-23T16:42:00-06:00",
+    "brand_id": "brand_fairway_supply",
+    "brand": "Fairway Supply",
+    "platform": "meta",
+    "category": "budget",
+    "summary": "Evergreen | Irons budget $300 to $240 a day",
+    "by": "Jordan Lee",
+    "why": "ROAS fell to 1.58x after the raise a week ago."
+   },
+   {
+    "id": "23T16:40-fairway_supply",
+    "time": "2026-11-23T16:40:00-06:00",
+    "brand_id": "brand_fairway_supply",
+    "brand": "Fairway Supply",
+    "platform": "meta",
+    "category": "ad_paused",
+    "summary": "Turned off 331 A | Driver demo",
+    "by": "Jordan Lee",
+    "why": "Spent 3x the goal cost with no sales."
+   },
+   {
+    "id": "23T15:12-northlake_golf",
+    "time": "2026-11-23T15:12:00-06:00",
+    "brand_id": "brand_northlake_golf",
+    "brand": "Northlake Golf",
+    "platform": "google",
+    "category": "budget",
+    "summary": "Performance Max | All products budget $140 to $110 a day",
+    "by": "Morgan Patel",
+    "why": "ROAS 1.90x against a 3.00x goal."
+   },
+   {
+    "id": "23T11:05-summit_sticks",
+    "time": "2026-11-23T11:05:00-06:00",
+    "brand_id": "brand_summit_sticks",
+    "brand": "Summit Sticks",
+    "platform": "meta",
+    "category": "new_adset",
+    "summary": "New ad set Black Friday | New people, 6 ads",
+    "by": "Jordan Lee",
+    "why": "Black Friday started Monday."
+   },
+   {
+    "id": "23T10:58-summit_sticks",
+    "time": "2026-11-23T10:58:00-06:00",
+    "brand_id": "brand_summit_sticks",
+    "brand": "Summit Sticks",
+    "platform": "meta",
+    "category": "budget",
+    "summary": "Black Friday 2026 budget $75 to $100 a day",
+    "by": "Jordan Lee",
+    "why": "MER 3.62x, above the 3.30x goal."
+   },
+   {
+    "id": "23T09:31-tallgrass_apparel",
+    "time": "2026-11-23T09:31:00-06:00",
+    "brand_id": "brand_tallgrass_apparel",
+    "brand": "Tallgrass Apparel",
+    "platform": "meta",
+    "category": "name",
+    "summary": "Renamed 4 ads in Early sale | New people",
+    "by": "Jordan Lee",
+    "why": ""
+   },
+   {
+    "id": "22T14:20-harbor_and_pine",
+    "time": "2026-11-22T14:20:00-06:00",
+    "brand_id": "brand_harbor_and_pine",
+    "brand": "Harbor & Pine",
+    "platform": "meta",
+    "category": "budget",
+    "summary": "Bundles campaign budget $150 to $190 a day",
+    "by": "Jordan Lee",
+    "why": "14 sales at $36 each, under the $45 goal."
+   },
+   {
+    "id": "22T14:02-harbor_and_pine",
+    "time": "2026-11-22T14:02:00-06:00",
+    "brand_id": "brand_harbor_and_pine",
+    "brand": "Harbor & Pine",
+    "platform": "google",
+    "category": "new_creative",
+    "summary": "Added 3 headlines to Shopping | Necklaces",
+    "by": "Morgan Patel",
+    "why": ""
+   },
+   {
+    "id": "22T10:15-northlake_golf",
+    "time": "2026-11-22T10:15:00-06:00",
+    "brand_id": "brand_northlake_golf",
+    "brand": "Northlake Golf",
+    "platform": "meta",
+    "category": "campaign_paused",
+    "summary": "Paused campaign Early sale 2026",
+    "by": "Jordan Lee",
+    "why": "The early sale ended Nov 15."
+   },
+   {
+    "id": "21T17:44-tallgrass_apparel",
+    "time": "2026-11-21T17:44:00-06:00",
+    "brand_id": "brand_tallgrass_apparel",
+    "brand": "Tallgrass Apparel",
+    "platform": "meta",
+    "category": "ad_paused",
+    "summary": "Turned off 2 ads in Evergreen | Polos",
+    "by": "Jordan Lee",
+    "why": "Both over 3x the goal cost."
+   },
+   {
+    "id": "21T13:30-brightside_patch",
+    "time": "2026-11-21T13:30:00-06:00",
+    "brand_id": "brand_brightside_patch",
+    "brand": "Brightside Patch",
+    "platform": "google",
+    "category": "budget",
+    "summary": "Brand search budget $30 to $36 a day",
+    "by": "Morgan Patel",
+    "why": "The campaign ran out of budget by 4pm."
+   },
+   {
+    "id": "21T09:12-copper_kettle_pets",
+    "time": "2026-11-21T09:12:00-06:00",
+    "brand_id": "brand_copper_kettle_pets",
+    "brand": "Copper Kettle Pets",
+    "platform": "meta",
+    "category": "budget",
+    "summary": "Evergreen budget $100 to $50 a day",
+    "by": "Jordan Lee",
+    "why": "Held low until the store is connected."
+   },
+   {
+    "id": "20T16:03-fairway_supply",
+    "time": "2026-11-20T16:03:00-06:00",
+    "brand_id": "brand_fairway_supply",
+    "brand": "Fairway Supply",
+    "platform": "meta",
+    "category": "new_creative",
+    "summary": "Loaded 4 ads into Cyber Monday | New people, paused",
+    "by": "Jordan Lee",
+    "why": "They switch on Nov 30."
+   },
+   {
+    "id": "20T11:26-northlake_golf",
+    "time": "2026-11-20T11:26:00-06:00",
+    "brand_id": "brand_northlake_golf",
+    "brand": "Northlake Golf",
+    "platform": "meta",
+    "category": "targeting",
+    "summary": "Excluded 180 day buyers from Belts | New people",
+    "by": "Jordan Lee",
+    "why": "The set was reaching repeat buyers."
+   },
+   {
+    "id": "19T15:18-harbor_and_pine",
+    "time": "2026-11-19T15:18:00-06:00",
+    "brand_id": "brand_harbor_and_pine",
+    "brand": "Harbor & Pine",
+    "platform": "meta",
+    "category": "name",
+    "summary": "Renamed campaign to Holiday 2026",
+    "by": "Jordan Lee",
+    "why": ""
+   },
+   {
+    "id": "19T10:40-summit_sticks",
+    "time": "2026-11-19T10:40:00-06:00",
+    "brand_id": "brand_summit_sticks",
+    "brand": "Summit Sticks",
+    "platform": "google",
+    "category": "campaign_paused",
+    "summary": "Paused Shopping | Clearance",
+    "by": "Morgan Patel",
+    "why": "Out of stock on 4 of 6 products."
+   }
+  ]
+ },
+ "billing": {
+  "month": "2026-11",
+  "label": "November 2026",
+  "current": true,
+  "months": [
+   {
+    "id": "2026-11",
+    "label": "November 2026 (so far)"
+   },
+   {
+    "id": "2026-10",
+    "label": "October 2026"
+   },
+   {
+    "id": "2026-09",
+    "label": "September 2026"
+   }
+  ],
+  "rows": [
+   {
+    "brand": "brand_northlake_golf",
+    "name": "Northlake Golf",
+    "revenue": 6500,
+    "tasks": 41,
+    "hours": 62.5,
+    "team_cost": 2410,
+    "ai_cost": 61.2,
+    "margin": 4028.8,
+    "margin_pct": 62,
+    "per_hour": 104
+   },
+   {
+    "brand": "brand_fairway_supply",
+    "name": "Fairway Supply",
+    "revenue": 6000,
+    "tasks": 58,
+    "hours": 88,
+    "team_cost": 3390,
+    "ai_cost": 84.6,
+    "margin": 2525.4,
+    "margin_pct": 42.1,
+    "per_hour": 68.18
+   },
+   {
+    "brand": "brand_harbor_and_pine",
+    "name": "Harbor & Pine",
+    "revenue": 4500,
+    "tasks": 24,
+    "hours": 36.5,
+    "team_cost": 1410,
+    "ai_cost": 22.4,
+    "margin": 3067.6,
+    "margin_pct": 68.2,
+    "per_hour": 123.29
+   },
+   {
+    "brand": "brand_tallgrass_apparel",
+    "name": "Tallgrass Apparel",
+    "revenue": 4500,
+    "tasks": 47,
+    "hours": 71,
+    "team_cost": 2740,
+    "ai_cost": 58.9,
+    "margin": 1701.1,
+    "margin_pct": 37.8,
+    "per_hour": 63.38
+   },
+   {
+    "brand": "brand_summit_sticks",
+    "name": "Summit Sticks",
+    "revenue": 3000,
+    "tasks": 19,
+    "hours": 29,
+    "team_cost": 1120,
+    "ai_cost": 14.1,
+    "margin": 1865.9,
+    "margin_pct": 62.2,
+    "per_hour": 103.45
+   },
+   {
+    "brand": "brand_brightside_patch",
+    "name": "Brightside Patch",
+    "revenue": 2500,
+    "tasks": 11,
+    "hours": 17,
+    "team_cost": 650,
+    "ai_cost": 6.3,
+    "margin": 1843.7,
+    "margin_pct": 73.7,
+    "per_hour": 147.06
+   },
+   {
+    "brand": "brand_copper_kettle_pets",
+    "name": "Copper Kettle Pets",
+    "revenue": 0,
+    "tasks": 22,
+    "hours": 33.5,
+    "team_cost": 1290,
+    "ai_cost": 31.7,
+    "margin": -1321.7,
+    "margin_pct": null,
+    "per_hour": null
+   }
+  ],
+  "people_set": true,
+  "ledger": {
+   "ok": true,
+   "error": null
+  },
+  "unmatched": [
+   {
+    "name": "Wire transfer, no memo",
+    "amount": 1200
+   }
+  ],
+  "invoices": [
+   {
+    "brand": "brand_northlake_golf",
+    "billing_day": 1,
+    "paid_on": "2026-11-02",
+    "amount_due": null
+   },
+   {
+    "brand": "brand_fairway_supply",
+    "billing_day": 1,
+    "paid_on": "2026-11-01",
+    "amount_due": null
+   },
+   {
+    "brand": "brand_harbor_and_pine",
+    "billing_day": 5,
+    "paid_on": "2026-11-05",
+    "amount_due": null
+   },
+   {
+    "brand": "brand_tallgrass_apparel",
+    "billing_day": 15,
+    "paid_on": "2026-11-17",
+    "amount_due": null
+   },
+   {
+    "brand": "brand_summit_sticks",
+    "billing_day": 15,
+    "paid_on": "2026-11-15",
+    "amount_due": null
+   },
+   {
+    "brand": "brand_brightside_patch",
+    "billing_day": 20,
+    "paid_on": "2026-11-20",
+    "amount_due": null
+   },
+   {
+    "brand": "brand_copper_kettle_pets",
+    "billing_day": 20,
+    "paid_on": null,
+    "amount_due": 3500
+   }
+  ],
+  "model": "Estimate. Each person’s monthly cost and hours are split across clients by their share of the tasks they finished that month in each client’s project.",
+  "totals": {
+   "revenue": 27000,
+   "team_cost": 13010,
+   "ai_cost": 279.2,
+   "margin": 13710.8,
+   "tasks": 222,
+   "hours": 337.5
+  },
+  "sentence": "Northlake Golf brings the most per team hour at $104. Copper Kettle Pets has not paid this month and has cost $1,322 so far."
+ },
+ "team": {
+  "as_of": "2026-11-24T08:02:00-06:00",
+  "today": "2026-11-24",
+  "week": [
+   "2026-11-23",
+   "2026-11-24",
+   "2026-11-25",
+   "2026-11-26",
+   "2026-11-27",
+   "2026-11-28",
+   "2026-11-29"
+  ],
+  "errors": [],
+  "people": [
+   {
+    "key": "p1",
+    "name": "Riley Chen",
+    "role": "Editor",
+    "overdue": [
+     {
+      "name": "Cut 6 Black Friday videos",
+      "brand": "brand_tallgrass_apparel",
+      "brand_name": "Tallgrass Apparel",
+      "due": "2026-11-20",
+      "url": null,
+      "section": "Creative Studio",
+      "late": true
+     },
+     {
+      "name": "Recut driver demo, 9:16",
+      "brand": "brand_fairway_supply",
+      "brand_name": "Fairway Supply",
+      "due": "2026-11-21",
+      "url": null,
+      "section": "Creative Studio",
+      "late": true
+     }
+    ],
+    "days": {
+     "2026-11-23": [
+      {
+       "name": "Captions on creator batch 22",
+       "brand": "brand_summit_sticks",
+       "brand_name": "Summit Sticks",
+       "due": "2026-11-23",
+       "url": null,
+       "section": "Creative Studio",
+       "late": true
+      }
+     ],
+     "2026-11-24": [
+      {
+       "name": "Gift guide video, 3 hooks",
+       "brand": "brand_harbor_and_pine",
+       "brand_name": "Harbor & Pine",
+       "due": "2026-11-24",
+       "url": null,
+       "section": "Creative Studio",
+       "late": false
+      },
+      {
+       "name": "Cyber Monday recuts",
+       "brand": "brand_fairway_supply",
+       "brand_name": "Fairway Supply",
+       "due": "2026-11-24",
+       "url": null,
+       "section": "Creative Studio",
+       "late": false
+      },
+      {
+       "name": "Belt close ups, 4 clips",
+       "brand": "brand_northlake_golf",
+       "brand_name": "Northlake Golf",
+       "due": "2026-11-24",
+       "url": null,
+       "section": "Creative Studio",
+       "late": false
+      }
+     ],
+     "2026-11-25": [
+      {
+       "name": "Holiday gifting edit",
+       "brand": "brand_northlake_golf",
+       "brand_name": "Northlake Golf",
+       "due": "2026-11-25",
+       "url": null,
+       "section": "Creative Studio",
+       "late": false
+      },
+      {
+       "name": "Order by video",
+       "brand": "brand_tallgrass_apparel",
+       "brand_name": "Tallgrass Apparel",
+       "due": "2026-11-25",
+       "url": null,
+       "section": "Creative Studio",
+       "late": false
+      }
+     ],
+     "2026-11-26": [],
+     "2026-11-27": [
+      {
+       "name": "Thank you reel",
+       "brand": "brand_brightside_patch",
+       "brand_name": "Brightside Patch",
+       "due": "2026-11-27",
+       "url": null,
+       "section": "Creative Studio",
+       "late": false
+      },
+      {
+       "name": "December opener",
+       "brand": "brand_harbor_and_pine",
+       "brand_name": "Harbor & Pine",
+       "due": "2026-11-27",
+       "url": null,
+       "section": "Creative Studio",
+       "late": false
+      }
+     ],
+     "2026-11-28": [],
+     "2026-11-29": []
+    },
+    "n": 10,
+    "late": 3
+   },
+   {
+    "key": "p2",
+    "name": "Casey Brooks",
+    "role": "Designer",
+    "overdue": [],
+    "days": {
+     "2026-11-23": [
+      {
+       "name": "Black Friday stills, batch 418",
+       "brand": "brand_tallgrass_apparel",
+       "brand_name": "Tallgrass Apparel",
+       "due": "2026-11-23",
+       "url": null,
+       "section": "Creative Studio",
+       "late": true
+      }
+     ],
+     "2026-11-24": [
+      {
+       "name": "Gift guide stills, batch 64",
+       "brand": "brand_harbor_and_pine",
+       "brand_name": "Harbor & Pine",
+       "due": "2026-11-24",
+       "url": null,
+       "section": "Creative Studio",
+       "late": false
+      }
+     ],
+     "2026-11-25": [
+      {
+       "name": "Cyber Monday banner swap",
+       "brand": "brand_fairway_supply",
+       "brand_name": "Fairway Supply",
+       "due": "2026-11-25",
+       "url": null,
+       "section": "Creative Studio",
+       "late": false
+      },
+      {
+       "name": "Order by cutoff stills",
+       "brand": "brand_northlake_golf",
+       "brand_name": "Northlake Golf",
+       "due": "2026-11-25",
+       "url": null,
+       "section": "Creative Studio",
+       "late": false
+      }
+     ],
+     "2026-11-26": [
+      {
+       "name": "Site banner, sale ends",
+       "brand": "brand_summit_sticks",
+       "brand_name": "Summit Sticks",
+       "due": "2026-11-26",
+       "url": null,
+       "section": "Creative Studio",
+       "late": false
+      }
+     ],
+     "2026-11-27": [
+      {
+       "name": "Holiday stills, batch 23",
+       "brand": "brand_summit_sticks",
+       "brand_name": "Summit Sticks",
+       "due": "2026-11-27",
+       "url": null,
+       "section": "Creative Studio",
+       "late": false
+      }
+     ],
+     "2026-11-28": [],
+     "2026-11-29": []
+    },
+    "n": 6,
+    "late": 1
+   },
+   {
+    "key": "p3",
+    "name": "Sam Rivera",
+    "role": "Creative strategist",
+    "overdue": [],
+    "days": {
+     "2026-11-23": [],
+     "2026-11-24": [
+      {
+       "name": "Briefs for Holiday 2026",
+       "brand": "brand_northlake_golf",
+       "brand_name": "Northlake Golf",
+       "due": "2026-11-24",
+       "url": null,
+       "section": "Creative Studio",
+       "late": false
+      }
+     ],
+     "2026-11-25": [
+      {
+       "name": "Briefs for December gifting",
+       "brand": "brand_harbor_and_pine",
+       "brand_name": "Harbor & Pine",
+       "due": "2026-11-25",
+       "url": null,
+       "section": "Creative Studio",
+       "late": false
+      },
+      {
+       "name": "Review creator videos",
+       "brand": "brand_tallgrass_apparel",
+       "brand_name": "Tallgrass Apparel",
+       "due": "2026-11-25",
+       "url": null,
+       "section": "Creative Studio",
+       "late": false
+      }
+     ],
+     "2026-11-26": [],
+     "2026-11-27": [
+      {
+       "name": "Angle review, clubs",
+       "brand": "brand_fairway_supply",
+       "brand_name": "Fairway Supply",
+       "due": "2026-11-27",
+       "url": null,
+       "section": "Creative Studio",
+       "late": false
+      }
+     ],
+     "2026-11-28": [],
+     "2026-11-29": []
+    },
+    "n": 4,
+    "late": 0
+   },
+   {
+    "key": "p4",
+    "name": "Jordan Lee",
+    "role": "Media buyer",
+    "overdue": [],
+    "days": {
+     "2026-11-23": [],
+     "2026-11-24": [
+      {
+       "name": "Load batch 418",
+       "brand": "brand_tallgrass_apparel",
+       "brand_name": "Tallgrass Apparel",
+       "due": "2026-11-24",
+       "url": null,
+       "section": "Creative Studio",
+       "late": false
+      },
+      {
+       "name": "Load batch 64",
+       "brand": "brand_harbor_and_pine",
+       "brand_name": "Harbor & Pine",
+       "due": "2026-11-24",
+       "url": null,
+       "section": "Creative Studio",
+       "late": false
+      }
+     ],
+     "2026-11-25": [],
+     "2026-11-26": [
+      {
+       "name": "Black Friday budgets",
+       "brand": "brand_northlake_golf",
+       "brand_name": "Northlake Golf",
+       "due": "2026-11-26",
+       "url": null,
+       "section": "Creative Studio",
+       "late": false
+      },
+      {
+       "name": "Black Friday budgets",
+       "brand": "brand_fairway_supply",
+       "brand_name": "Fairway Supply",
+       "due": "2026-11-26",
+       "url": null,
+       "section": "Creative Studio",
+       "late": false
+      }
+     ],
+     "2026-11-27": [],
+     "2026-11-28": [],
+     "2026-11-29": [
+      {
+       "name": "Switch on Cyber Monday ads",
+       "brand": "brand_fairway_supply",
+       "brand_name": "Fairway Supply",
+       "due": "2026-11-29",
+       "url": null,
+       "section": "Creative Studio",
+       "late": false
+      }
+     ]
+    },
+    "n": 5,
+    "late": 0
+   },
+   {
+    "key": "p5",
+    "name": "Morgan Patel",
+    "role": "Google",
+    "overdue": [],
+    "days": {
+     "2026-11-23": [],
+     "2026-11-24": [
+      {
+       "name": "Negative keywords pass",
+       "brand": "brand_fairway_supply",
+       "brand_name": "Fairway Supply",
+       "due": "2026-11-24",
+       "url": null,
+       "section": "Creative Studio",
+       "late": false
+      }
+     ],
+     "2026-11-25": [
+      {
+       "name": "Shopping feed check",
+       "brand": "brand_northlake_golf",
+       "brand_name": "Northlake Golf",
+       "due": "2026-11-25",
+       "url": null,
+       "section": "Creative Studio",
+       "late": false
+      }
+     ],
+     "2026-11-26": [],
+     "2026-11-27": [],
+     "2026-11-28": [],
+     "2026-11-29": []
+    },
+    "n": 2,
+    "late": 0
+   },
+   {
+    "key": "p6",
+    "name": "Taylor Kim",
+    "role": "Amazon",
+    "overdue": [],
+    "days": {
+     "2026-11-23": [],
+     "2026-11-24": [],
+     "2026-11-25": [
+      {
+       "name": "Sponsored products bids",
+       "brand": "brand_northlake_golf",
+       "brand_name": "Northlake Golf",
+       "due": "2026-11-25",
+       "url": null,
+       "section": "Creative Studio",
+       "late": false
+      }
+     ],
+     "2026-11-26": [],
+     "2026-11-27": [],
+     "2026-11-28": [],
+     "2026-11-29": []
+    },
+    "n": 1,
+    "late": 0
+   },
+   {
+    "key": "none",
+    "name": "Not assigned",
+    "role": "",
+    "overdue": [
+     {
+      "name": "Connect the store",
+      "brand": "brand_copper_kettle_pets",
+      "brand_name": "Copper Kettle Pets",
+      "due": "2026-11-19",
+      "url": null,
+      "section": "Creative Studio",
+      "late": true
+     }
+    ],
+    "days": {
+     "2026-11-23": [],
+     "2026-11-24": [],
+     "2026-11-25": [],
+     "2026-11-26": [
+      {
+       "name": "Product photos for December",
+       "brand": "brand_brightside_patch",
+       "brand_name": "Brightside Patch",
+       "due": "2026-11-26",
+       "url": null,
+       "section": "Creative Studio",
+       "late": false
+      }
+     ],
+     "2026-11-27": [],
+     "2026-11-28": [],
+     "2026-11-29": []
+    },
+    "n": 2,
+    "late": 1
+   }
+  ],
+  "total": 30,
+  "brands": [
+   {
+    "id": "brand_northlake_golf",
+    "name": "Northlake Golf"
+   },
+   {
+    "id": "brand_harbor_and_pine",
+    "name": "Harbor & Pine"
+   },
+   {
+    "id": "brand_tallgrass_apparel",
+    "name": "Tallgrass Apparel"
+   },
+   {
+    "id": "brand_copper_kettle_pets",
+    "name": "Copper Kettle Pets"
+   },
+   {
+    "id": "brand_summit_sticks",
+    "name": "Summit Sticks"
+   },
+   {
+    "id": "brand_brightside_patch",
+    "name": "Brightside Patch"
+   },
+   {
+    "id": "brand_fairway_supply",
+    "name": "Fairway Supply"
+   }
+  ]
+ },
+ "status": {
+  "lastRun": "2026-11-24T08:00:00-06:00",
+  "platforms": [
+   {
+    "id": "meta",
+    "name": "Meta Ads",
+    "type": "metastatus",
+    "link": "https://metastatus.com",
+    "state": {
+     "worst": "degraded",
+     "ok": true,
+     "checkedAt": "2026-11-24T08:00:00-06:00",
+     "services": {
+      "a": {
+       "name": "Ads Manager",
+       "state": "degraded",
+       "note": "Ads Manager: some people see delays when publishing ads"
+      },
+      "b": {
+       "name": "Marketing API",
+       "state": "operational",
+       "note": "No known issues"
+      },
+      "c": {
+       "name": "Catalog",
+       "state": "operational",
+       "note": "No known issues"
+      },
+      "d": {
+       "name": "Shops",
+       "state": "operational",
+       "note": "No known issues"
+      }
+     }
+    }
+   },
+   {
+    "id": "google-ads",
+    "name": "Google Ads",
+    "type": "google_incidents",
+    "link": "https://ads.google.com/status/publisher/",
+    "state": {
+     "worst": "operational",
+     "ok": true,
+     "checkedAt": "2026-11-24T08:00:00-06:00",
+     "services": {
+      "all": {
+       "name": "All Google Ads products",
+       "state": "operational",
+       "note": "No open incidents"
+      }
+     }
+    }
+   },
+   {
+    "id": "shopify",
+    "name": "Shopify",
+    "type": "statuspage",
+    "link": "https://www.shopifystatus.com",
+    "state": {
+     "worst": "operational",
+     "ok": true,
+     "checkedAt": "2026-11-24T08:00:00-06:00",
+     "services": {
+      "a": {
+       "name": "Admin",
+       "state": "operational",
+       "note": "No known issues"
+      },
+      "b": {
+       "name": "Checkout",
+       "state": "operational",
+       "note": "No known issues"
+      },
+      "c": {
+       "name": "Storefront",
+       "state": "operational",
+       "note": "No known issues"
+      },
+      "d": {
+       "name": "Reports and Analytics",
+       "state": "operational",
+       "note": "No known issues"
+      }
+     }
+    }
+   },
+   {
+    "id": "pinterest",
+    "name": "Pinterest Ads",
+    "type": "statuspage",
+    "link": "https://status.pinterest.com",
+    "state": {
+     "worst": "operational",
+     "ok": true,
+     "checkedAt": "2026-11-24T08:00:00-06:00",
+     "services": {
+      "a": {
+       "name": "Ads",
+       "state": "operational",
+       "note": "No known issues"
+      },
+      "b": {
+       "name": "Analytics",
+       "state": "operational",
+       "note": "No known issues"
+      }
+     }
+    }
+   },
+   {
+    "id": "openai",
+    "name": "OpenAI / ChatGPT",
+    "type": "statuspage",
+    "link": "https://status.openai.com",
+    "state": {
+     "worst": "operational",
+     "ok": true,
+     "checkedAt": "2026-11-24T08:00:00-06:00",
+     "services": {
+      "a": {
+       "name": "API",
+       "state": "operational",
+       "note": "No known issues"
+      },
+      "b": {
+       "name": "ChatGPT",
+       "state": "operational",
+       "note": "No known issues"
+      }
+     }
+    }
+   },
+   {
+    "id": "anthropic",
+    "name": "Claude / Anthropic",
+    "type": "statuspage",
+    "link": "https://status.anthropic.com",
+    "state": {
+     "worst": "operational",
+     "ok": true,
+     "checkedAt": "2026-11-24T08:00:00-06:00",
+     "services": {
+      "a": {
+       "name": "API",
+       "state": "operational",
+       "note": "No known issues"
+      },
+      "b": {
+       "name": "Console",
+       "state": "operational",
+       "note": "No known issues"
+      }
+     }
+    }
+   },
+   {
+    "id": "microsoft-ads",
+    "name": "Microsoft Ads",
+    "type": "link",
+    "link": "https://status.ads.microsoft.com/"
+   },
+   {
+    "id": "tiktok-ads",
+    "name": "TikTok Ads",
+    "type": "link",
+    "link": "https://ads.tiktok.com/"
+   }
+  ],
+  "incidents": [
+   {
+    "ts": "2026-11-24T07:20:00-06:00",
+    "platformId": "meta",
+    "platform": "Meta Ads",
+    "service": "Ads Manager",
+    "from": "operational",
+    "to": "degraded",
+    "note": "Some people see delays when publishing ads",
+    "kind": "incident"
+   },
+   {
+    "ts": "2026-11-21T15:10:00-06:00",
+    "platformId": "shopify",
+    "platform": "Shopify",
+    "service": "Checkout",
+    "from": "degraded",
+    "to": "operational",
+    "note": "Slow checkout for some stores",
+    "kind": "resolved"
+   },
+   {
+    "ts": "2026-11-21T13:42:00-06:00",
+    "platformId": "shopify",
+    "platform": "Shopify",
+    "service": "Checkout",
+    "from": "operational",
+    "to": "degraded",
+    "note": "Slow checkout for some stores",
+    "kind": "incident"
+   },
+   {
+    "ts": "2026-11-18T10:05:00-06:00",
+    "platformId": "google-ads",
+    "platform": "Google Ads",
+    "service": "Reporting",
+    "from": "degraded",
+    "to": "operational",
+    "note": "Reports were delayed by up to 6 hours",
+    "kind": "resolved"
+   },
+   {
+    "ts": "2026-11-18T04:30:00-06:00",
+    "platformId": "google-ads",
+    "platform": "Google Ads",
+    "service": "Reporting",
+    "from": "operational",
+    "to": "degraded",
+    "note": "Reports were delayed by up to 6 hours",
+    "kind": "incident"
+   }
+  ]
+ }
+}

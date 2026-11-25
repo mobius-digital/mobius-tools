@@ -1,0 +1,4 @@
+{
+ "brand": { "id": "brand_northlake_golf", "name": "Northlake Golf", "tz": "America/Chicago", "currency": "USD", "status": "active" },
+ "defaults": { "social_times": ["07:30", "12:00", "18:30"], "social_days": ["mon", "tue", "wed", "thu", "fri"], "creator_welcome": "17:00", "creator_days": ["mon", "fri"], "creator_inactive_days": 60, "swipe_folder": "", "stock_days": 30, "judge_window": 7, "slow_window": 14 }
+}

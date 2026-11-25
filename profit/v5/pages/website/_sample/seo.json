@@ -1,0 +1,298 @@
+{
+ "connected": true,
+ "range": {
+  "from": "2026-11-01",
+  "to": "2026-11-22"
+ },
+ "site": "northlakegolf.example",
+ "totals": {
+  "clicks": 3249,
+  "clicks_prev": 2859,
+  "impressions": 92913,
+  "impressions_prev": 86409,
+  "ctr": 0.035,
+  "ctr_prev": 0.0331,
+  "position": 9.4,
+  "position_prev": 10.2
+ },
+ "split": {
+  "brand": {
+   "clicks": 1030,
+   "impressions": 2592
+  },
+  "other": {
+   "clicks": 2219,
+   "impressions": 90321
+  }
+ },
+ "days": [
+  {
+   "date": "2026-11-01",
+   "clicks": 102,
+   "impressions": 2654
+  },
+  {
+   "date": "2026-11-02",
+   "clicks": 141,
+   "impressions": 4096
+  },
+  {
+   "date": "2026-11-03",
+   "clicks": 133,
+   "impressions": 3471
+  },
+  {
+   "date": "2026-11-04",
+   "clicks": 123,
+   "impressions": 3483
+  },
+  {
+   "date": "2026-11-05",
+   "clicks": 121,
+   "impressions": 3656
+  },
+  {
+   "date": "2026-11-06",
+   "clicks": 145,
+   "impressions": 3968
+  },
+  {
+   "date": "2026-11-07",
+   "clicks": 138,
+   "impressions": 3522
+  },
+  {
+   "date": "2026-11-08",
+   "clicks": 151,
+   "impressions": 4560
+  },
+  {
+   "date": "2026-11-09",
+   "clicks": 150,
+   "impressions": 4514
+  },
+  {
+   "date": "2026-11-10",
+   "clicks": 133,
+   "impressions": 3591
+  },
+  {
+   "date": "2026-11-11",
+   "clicks": 112,
+   "impressions": 3462
+  },
+  {
+   "date": "2026-11-12",
+   "clicks": 146,
+   "impressions": 4218
+  },
+  {
+   "date": "2026-11-13",
+   "clicks": 149,
+   "impressions": 3766
+  },
+  {
+   "date": "2026-11-14",
+   "clicks": 146,
+   "impressions": 4088
+  },
+  {
+   "date": "2026-11-15",
+   "clicks": 153,
+   "impressions": 4742
+  },
+  {
+   "date": "2026-11-16",
+   "clicks": 163,
+   "impressions": 5163
+  },
+  {
+   "date": "2026-11-17",
+   "clicks": 185,
+   "impressions": 5032
+  },
+  {
+   "date": "2026-11-18",
+   "clicks": 174,
+   "impressions": 4813
+  },
+  {
+   "date": "2026-11-19",
+   "clicks": 167,
+   "impressions": 5018
+  },
+  {
+   "date": "2026-11-20",
+   "clicks": 157,
+   "impressions": 4757
+  },
+  {
+   "date": "2026-11-21",
+   "clicks": 174,
+   "impressions": 4692
+  },
+  {
+   "date": "2026-11-22",
+   "clicks": 186,
+   "impressions": 5647
+  }
+ ],
+ "queries": [
+  {
+   "query": "northlake golf",
+   "clicks": 612,
+   "impressions": 1480,
+   "ctr": 0.4135,
+   "position": 1.1,
+   "brand": true
+  },
+  {
+   "query": "northlake belt",
+   "clicks": 344,
+   "impressions": 902,
+   "ctr": 0.3814,
+   "position": 1.2,
+   "brand": true
+  },
+  {
+   "query": "magnetic golf belt",
+   "clicks": 218,
+   "impressions": 9640,
+   "ctr": 0.0226,
+   "position": 6.4,
+   "brand": false
+  },
+  {
+   "query": "golf belt no holes",
+   "clicks": 142,
+   "impressions": 5120,
+   "ctr": 0.0277,
+   "position": 7.8,
+   "brand": false
+  },
+  {
+   "query": "best golf belts",
+   "clicks": 96,
+   "impressions": 12480,
+   "ctr": 0.0077,
+   "position": 11.6,
+   "brand": false
+  },
+  {
+   "query": "golf belt gift",
+   "clicks": 88,
+   "impressions": 4310,
+   "ctr": 0.0204,
+   "position": 9.2,
+   "brand": false
+  },
+  {
+   "query": "northlake golf discount code",
+   "clicks": 74,
+   "impressions": 210,
+   "ctr": 0.3524,
+   "position": 1,
+   "brand": true
+  },
+  {
+   "query": "ratchet belt for golf",
+   "clicks": 61,
+   "impressions": 6880,
+   "ctr": 0.0089,
+   "position": 12.4,
+   "brand": false
+  },
+  {
+   "query": "how to size a golf belt",
+   "clicks": 58,
+   "impressions": 2240,
+   "ctr": 0.0259,
+   "position": 4.1,
+   "brand": false
+  },
+  {
+   "query": "brass ball marker",
+   "clicks": 44,
+   "impressions": 3120,
+   "ctr": 0.0141,
+   "position": 8.7,
+   "brand": false
+  },
+  {
+   "query": "golf belts for men",
+   "clicks": 39,
+   "impressions": 15900,
+   "ctr": 0.0025,
+   "position": 18.3,
+   "brand": false
+  },
+  {
+   "query": "leather golf belt navy",
+   "clicks": 31,
+   "impressions": 1410,
+   "ctr": 0.022,
+   "position": 5.6,
+   "brand": false
+  },
+  {
+   "query": "golf stocking stuffers",
+   "clicks": 27,
+   "impressions": 8420,
+   "ctr": 0.0032,
+   "position": 14.9,
+   "brand": false
+  },
+  {
+   "query": "golf belt black friday",
+   "clicks": 22,
+   "impressions": 2960,
+   "ctr": 0.0074,
+   "position": 10.8,
+   "brand": false
+  }
+ ],
+ "pages": [
+  {
+   "page": "/",
+   "clicks": 842,
+   "impressions": 21400,
+   "ctr": 0.0393,
+   "position": 4.2
+  },
+  {
+   "page": "/products/ridgeline-magnetic-belt",
+   "clicks": 508,
+   "impressions": 18960,
+   "ctr": 0.0268,
+   "position": 6.8
+  },
+  {
+   "page": "/blogs/journal/how-to-size-a-golf-belt",
+   "clicks": 214,
+   "impressions": 9120,
+   "ctr": 0.0235,
+   "position": 5.1
+  },
+  {
+   "page": "/collections/belts",
+   "clicks": 196,
+   "impressions": 14880,
+   "ctr": 0.0132,
+   "position": 9.9
+  },
+  {
+   "page": "/pages/gift-guide",
+   "clicks": 88,
+   "impressions": 11240,
+   "ctr": 0.0078,
+   "position": 13.2
+  },
+  {
+   "page": "/products/ball-marker-set",
+   "clicks": 71,
+   "impressions": 4020,
+   "ctr": 0.0177,
+   "position": 8.4
+  }
+ ]
+}

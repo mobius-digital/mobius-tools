@@ -1,0 +1,20 @@
+{
+ "channels": { "internal": "#northlake-golf-internal", "client": "#northlake-golf" },
+ "tz_label": "Central Time",
+ "team": [
+  { "email": "alex@example.com", "name": "Alex Morgan" },
+  { "email": "sam@example.com", "name": "Sam Rivera" },
+  { "email": "jordan@example.com", "name": "Jordan Lee" },
+  { "email": "riley@example.com", "name": "Riley Chen" },
+  { "email": "casey@example.com", "name": "Casey Brooks" },
+  { "email": "morgan@example.com", "name": "Morgan Patel" },
+  { "email": "taylor@example.com", "name": "Taylor Kim" }
+ ],
+ "people": { "strategist": "sam@example.com", "buyer": "jordan@example.com", "editor": "riley@example.com", "designer": "casey@example.com", "google": "morgan@example.com", "amazon": "taylor@example.com", "email": "", "lead": "alex@example.com" },
+ "logins": [
+  { "email": "pat@example.com", "name": "Pat Doyle", "last_seen": "2026-11-24T15:10:00Z", "last_sign_in": "2026-11-24T15:10:00Z" },
+  { "email": "jamie@example.com", "name": "Jamie Fox", "last_seen": null, "last_sign_in": null }
+ ],
+ "defaults": { "send_as": "agency", "daily_on": true, "daily_mode": "hold", "daily_time": "07:00", "weekly_day": "agency", "launch_days": ["mon", "thu"], "spend_check_1": "08:00", "spend_check_2": "14:00" },
+ "example": []
+}

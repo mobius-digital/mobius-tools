@@ -1,0 +1,152 @@
+{
+ "act": "brand_northlake_golf",
+ "items": [
+  {
+   "id": "sample_clip_00",
+   "name": "Tee box, slow motion swing",
+   "secs": 14,
+   "res": "4K",
+   "setting": "golf course",
+   "people": 1,
+   "descr": "A full swing in slow motion, the belt stays put.",
+   "folder": "Clips and B-roll / Spring 2026",
+   "modified": "2026-11-22T12:00:00Z",
+   "art": {
+    "kind": "golfer",
+    "c1": "#1F3A2C",
+    "c2": "#2B2B2B",
+    "bg": "#DCE7DD"
+   },
+   "used": true
+  },
+  {
+   "id": "sample_clip_01",
+   "name": "Buckle snaps shut",
+   "secs": 6,
+   "res": "4K",
+   "setting": "studio",
+   "people": 0,
+   "descr": "The magnetic buckle closing, macro.",
+   "folder": "Clips and B-roll / Holiday 2026",
+   "modified": "2026-11-21T12:00:00Z",
+   "art": {
+    "kind": "belt",
+    "c1": "#1F3A2C",
+    "c2": "#C9A45C",
+    "bg": "#EEE9DF"
+   },
+   "used": false
+  },
+  {
+   "id": "sample_clip_02",
+   "name": "Sunrise over the 9th",
+   "secs": 22,
+   "res": "4K",
+   "setting": "golf course",
+   "people": 0,
+   "descr": "A wide drone shot of the 9th hole at sunrise.",
+   "folder": "Clips and B-roll / Spring 2026",
+   "modified": "2026-11-20T12:00:00Z",
+   "art": {
+    "kind": "green",
+    "c1": "#4C7A52",
+    "c2": "#C9A45C",
+    "bg": "#DDE8EE"
+   },
+   "used": false
+  },
+  {
+   "id": "sample_clip_03",
+   "name": "Unboxing on the kitchen table",
+   "secs": 31,
+   "res": "1080p",
+   "setting": "indoors",
+   "people": 1,
+   "descr": "Hands open the gift box, belt reveal.",
+   "folder": "Clips and B-roll / Holiday 2026",
+   "modified": "2026-11-19T12:00:00Z",
+   "art": {
+    "kind": "box",
+    "c1": "#9B2C2C",
+    "c2": "#C9A45C",
+    "bg": "#F1E7DA"
+   },
+   "used": true
+  },
+  {
+   "id": "sample_clip_04",
+   "name": "Walk and talk, fairway",
+   "secs": 48,
+   "res": "4K",
+   "setting": "golf course",
+   "people": 2,
+   "descr": "Two golfers walking and talking, natural sound.",
+   "folder": "Clips and B-roll / Spring 2026",
+   "modified": "2026-11-18T12:00:00Z",
+   "art": {
+    "kind": "golfer",
+    "c1": "#1F3A2C",
+    "c2": "#2B2B2B",
+    "bg": "#DCE7DD"
+   },
+   "used": false
+  },
+  {
+   "id": "sample_clip_05",
+   "name": "Belt cut to size",
+   "secs": 19,
+   "res": "1080p",
+   "setting": "studio",
+   "people": 1,
+   "descr": "Trimming the belt to size with the tool in the box.",
+   "folder": "Clips and B-roll / Holiday 2026",
+   "modified": "2026-11-17T12:00:00Z",
+   "art": {
+    "kind": "belt",
+    "c1": "#1F3A2C",
+    "c2": "#C9A45C",
+    "bg": "#EEE9DF"
+   },
+   "used": false
+  },
+  {
+   "id": "sample_clip_06",
+   "name": "Putting, close on the hole",
+   "secs": 9,
+   "res": "4K",
+   "setting": "golf course",
+   "people": 0,
+   "descr": "A ball rolling into the cup, low angle.",
+   "folder": "Clips and B-roll / Spring 2026",
+   "modified": "2026-11-16T12:00:00Z",
+   "art": {
+    "kind": "green",
+    "c1": "#4C7A52",
+    "c2": "#C9A45C",
+    "bg": "#DDE8EE"
+   },
+   "used": true
+  },
+  {
+   "id": "sample_clip_07",
+   "name": "Holiday wrap",
+   "secs": 12,
+   "res": "1080p",
+   "setting": "indoors",
+   "people": 1,
+   "descr": "Wrapping the gift box with ribbon.",
+   "folder": "Clips and B-roll / Holiday 2026",
+   "modified": "2026-11-15T12:00:00Z",
+   "art": {
+    "kind": "box",
+    "c1": "#9B2C2C",
+    "c2": "#C9A45C",
+    "bg": "#F1E7DA"
+   },
+   "used": false
+  }
+ ],
+ "total": 86,
+ "hours": 2.4,
+ "synced_at": "2026-11-24T09:40:00Z"
+}

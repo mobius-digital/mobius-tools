@@ -1,0 +1,244 @@
+{
+ "connected": true,
+ "range": {
+  "from": "2026-11-01",
+  "to": "2026-11-22"
+ },
+ "example": [],
+ "steps": {
+  "visits": 33180,
+  "engaged": 19410,
+  "carts": 2256,
+  "checkouts": 1243,
+  "orders": 597
+ },
+ "prev": {
+  "visits": 30120,
+  "carts": 2168,
+  "checkouts": 1130,
+  "orders": 512
+ },
+ "days": [
+  {
+   "date": "2026-11-01",
+   "visits": 1670,
+   "orders": 31
+  },
+  {
+   "date": "2026-11-02",
+   "visits": 1430,
+   "orders": 24
+  },
+  {
+   "date": "2026-11-03",
+   "visits": 1460,
+   "orders": 26
+  },
+  {
+   "date": "2026-11-04",
+   "visits": 1505,
+   "orders": 29
+  },
+  {
+   "date": "2026-11-05",
+   "visits": 1760,
+   "orders": 36
+  },
+  {
+   "date": "2026-11-06",
+   "visits": 1610,
+   "orders": 32
+  },
+  {
+   "date": "2026-11-07",
+   "visits": 1740,
+   "orders": 37
+  },
+  {
+   "date": "2026-11-08",
+   "visits": 1530,
+   "orders": 29
+  },
+  {
+   "date": "2026-11-09",
+   "visits": 1490,
+   "orders": 28
+  },
+  {
+   "date": "2026-11-10",
+   "visits": 1580,
+   "orders": 31
+  },
+  {
+   "date": "2026-11-11",
+   "visits": 1440,
+   "orders": 24
+  },
+  {
+   "date": "2026-11-12",
+   "visits": 1450,
+   "orders": 25
+  },
+  {
+   "date": "2026-11-13",
+   "visits": 1700,
+   "orders": 35
+  },
+  {
+   "date": "2026-11-14",
+   "visits": 2090,
+   "orders": 46
+  },
+  {
+   "date": "2026-11-15",
+   "visits": 1570,
+   "orders": 29
+  },
+  {
+   "date": "2026-11-16",
+   "visits": 1460,
+   "orders": 24
+  },
+  {
+   "date": "2026-11-17",
+   "visits": 1310,
+   "orders": 18
+  },
+  {
+   "date": "2026-11-18",
+   "visits": 1420,
+   "orders": 23
+  },
+  {
+   "date": "2026-11-19",
+   "visits": 1280,
+   "orders": 17
+  },
+  {
+   "date": "2026-11-20",
+   "visits": 1230,
+   "orders": 15
+  },
+  {
+   "date": "2026-11-21",
+   "visits": 1190,
+   "orders": 13
+  },
+  {
+   "date": "2026-11-22",
+   "visits": 1265,
+   "orders": 25
+  }
+ ],
+ "devices": [
+  {
+   "name": "Phone",
+   "visits": 24220,
+   "carts": 1494,
+   "checkouts": 786,
+   "orders": 352
+  },
+  {
+   "name": "Computer",
+   "visits": 7630,
+   "carts": 668,
+   "checkouts": 404,
+   "orders": 221
+  },
+  {
+   "name": "Tablet",
+   "visits": 1330,
+   "carts": 94,
+   "checkouts": 53,
+   "orders": 24
+  }
+ ],
+ "channels": [
+  {
+   "name": "Paid social",
+   "visits": 17840,
+   "carts": 1010,
+   "checkouts": 512,
+   "orders": 228
+  },
+  {
+   "name": "Paid search",
+   "visits": 5960,
+   "carts": 512,
+   "checkouts": 301,
+   "orders": 151
+  },
+  {
+   "name": "Email",
+   "visits": 2410,
+   "carts": 286,
+   "checkouts": 178,
+   "orders": 94
+  },
+  {
+   "name": "Organic search",
+   "visits": 3120,
+   "carts": 232,
+   "checkouts": 133,
+   "orders": 66
+  },
+  {
+   "name": "Direct",
+   "visits": 2890,
+   "carts": 176,
+   "checkouts": 97,
+   "orders": 48
+  },
+  {
+   "name": "Other",
+   "visits": 960,
+   "carts": 40,
+   "checkouts": 22,
+   "orders": 10
+  }
+ ],
+ "pages": [
+  {
+   "name": "/products/classic-golf-belt",
+   "visits": 9840,
+   "carts": 866,
+   "orders": 236
+  },
+  {
+   "name": "/",
+   "visits": 7210,
+   "carts": 389,
+   "orders": 101
+  },
+  {
+   "name": "/pages/holiday-sale",
+   "visits": 5630,
+   "carts": 462,
+   "orders": 128
+  },
+  {
+   "name": "/collections/belts",
+   "visits": 4120,
+   "carts": 301,
+   "orders": 74
+  },
+  {
+   "name": "/products/ball-marker-set",
+   "visits": 2260,
+   "carts": 122,
+   "orders": 31
+  },
+  {
+   "name": "/pages/how-it-fits",
+   "visits": 1480,
+   "carts": 43,
+   "orders": 9
+  },
+  {
+   "name": "/collections/gift-sets",
+   "visits": 1190,
+   "carts": 52,
+   "orders": 14
+  }
+ ]
+}

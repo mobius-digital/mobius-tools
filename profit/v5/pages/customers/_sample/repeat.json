@@ -1,0 +1,188 @@
+{
+ "connected": true,
+ "range": {
+  "from": "2026-11-01",
+  "to": "2026-11-22"
+ },
+ "example": [],
+ "back_90": 0.094,
+ "back_365": 0.236,
+ "days_to_second": 48,
+ "orders": 597,
+ "repeat_orders": 141,
+ "per_customer_365": 1.31,
+ "curve": {
+  "days": [
+   30,
+   60,
+   90,
+   180,
+   365
+  ],
+  "rate": [
+   0.048,
+   0.079,
+   0.094,
+   0.131,
+   0.236
+  ]
+ },
+ "again": {
+  "weeks": [
+   212,
+   188,
+   131,
+   97,
+   74,
+   66,
+   58,
+   49,
+   41,
+   36,
+   27,
+   24,
+   19
+  ],
+  "same_day": 64,
+  "repeaters": 1676,
+  "half_day": 48
+ },
+ "cohorts": [
+  {
+   "month": "2025-12",
+   "customers": 1284,
+   "back_90": 0.118,
+   "back_ever": 0.292,
+   "young": false
+  },
+  {
+   "month": "2026-01",
+   "customers": 612,
+   "back_90": 0.109,
+   "back_ever": 0.268,
+   "young": false
+  },
+  {
+   "month": "2026-02",
+   "customers": 548,
+   "back_90": 0.097,
+   "back_ever": 0.241,
+   "young": false
+  },
+  {
+   "month": "2026-03",
+   "customers": 702,
+   "back_90": 0.101,
+   "back_ever": 0.229,
+   "young": false
+  },
+  {
+   "month": "2026-04",
+   "customers": 815,
+   "back_90": 0.099,
+   "back_ever": 0.208,
+   "young": false
+  },
+  {
+   "month": "2026-05",
+   "customers": 934,
+   "back_90": 0.096,
+   "back_ever": 0.184,
+   "young": false
+  },
+  {
+   "month": "2026-06",
+   "customers": 1018,
+   "back_90": 0.094,
+   "back_ever": 0.162,
+   "young": false
+  },
+  {
+   "month": "2026-07",
+   "customers": 876,
+   "back_90": 0.089,
+   "back_ever": 0.131,
+   "young": false
+  },
+  {
+   "month": "2026-08",
+   "customers": 791,
+   "back_90": 0.092,
+   "back_ever": 0.108,
+   "young": false
+  },
+  {
+   "month": "2026-09",
+   "customers": 688,
+   "back_90": null,
+   "back_ever": 0.071,
+   "young": true
+  },
+  {
+   "month": "2026-10",
+   "customers": 742,
+   "back_90": null,
+   "back_ever": 0.038,
+   "young": true
+  },
+  {
+   "month": "2026-11",
+   "customers": 456,
+   "back_90": null,
+   "back_ever": 0.011,
+   "young": true
+  }
+ ],
+ "sources": [
+  {
+   "name": "Meta",
+   "id": "meta",
+   "first": 0.47,
+   "repeat": 0.16
+  },
+  {
+   "name": "Google",
+   "id": "google",
+   "first": 0.22,
+   "repeat": 0.14
+  },
+  {
+   "name": "Email and SMS",
+   "id": "email",
+   "first": 0.06,
+   "repeat": 0.41
+  },
+  {
+   "name": "On their own",
+   "id": "direct",
+   "first": 0.25,
+   "repeat": 0.29
+  }
+ ],
+ "sparks": {
+  "share": [
+   27.218,
+   27.035,
+   28.139,
+   27.816,
+   26.225,
+   23.325,
+   21.885,
+   25.912,
+   27.211,
+   23.146,
+   21.772,
+   23.201,
+   27.251,
+   24.494,
+   22.752,
+   25.021,
+   25.973,
+   22.614,
+   25.892,
+   23.351,
+   21.468,
+   22.418
+  ]
+ }
+}

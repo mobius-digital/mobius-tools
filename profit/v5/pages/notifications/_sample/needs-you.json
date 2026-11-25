@@ -1,0 +1,19 @@
+{
+ "note": "Sample. Every row is invented. The rows themselves come from pages/_sample/notifications.json (the bell's file); this file adds what only the page shows, keyed by the row's words.",
+ "late_known": true,
+ "groups": [
+  { "id": "first", "title": "Do these first", "note": "Someone or something is held up until you answer" },
+  { "id": "today", "title": "Also waiting on you", "note": "Any time today" }
+ ],
+ "take": { "say": ["Start with the Fairway Supply budget. Black Friday starts ", { "b": "Thu 6pm" }, " and it cannot go up without your yes."], "action": { "label": "Open the budget", "line": "a-black-friday", "tab": "pace" } },
+ "take_client": { "say": ["Sam is waiting on a yes for ", { "b": "2 holiday ads" }, ". They go live the day you approve."] },
+ "rows": {
+  "Approve Fairway Supply Black Friday at $1,800 a day from Thu 6pm": { "group": "first", "detail": "The plan the client saw says $1,800 a day for the weekend. Today it is at $600. The raise only happens when you approve it." },
+  "412 Black Friday stills are ready for your review": { "group": "first", "detail": "Casey finished the batch this morning. Nothing loads into the ad account until the card is approved." },
+  "Jamie typed \"Approved\" on cards 20 and 21. Send them for a real approval": { "group": "first", "late": true, "days": 1, "detail": "A typed comment does not count as an approval. Send both cards to the client so the yes is on record.", "where": "A comment on the card" },
+  "Confirm the notes from 8 calls": { "group": "today", "detail": "The notes and to-dos from this week's calls are drafted. They post to each brand once you confirm them." },
+  "4 ad calls are waiting on a yes or a no": { "group": "today", "detail": "2 ads to turn off, 1 budget raise and 1 ad to refresh. Each one shows its numbers on the page." },
+  "The store app asks for new permissions": { "group": "today", "detail": "The store app was updated and needs one more permission before orders sync again for new stores." },
+  "2 holiday ads are waiting on your approval": { "group": "first", "detail": "Two gift guide ads for December. You can approve them or ask for a change." }
+ }
+}

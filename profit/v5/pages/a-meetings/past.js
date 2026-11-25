@@ -1,0 +1,264 @@
+/* Meetings > Past meetings: every recorded meeting of the last 60 days, what was decided on it,
+   and what is still open.
+   Reads ah GET /api/meetings (the list, plus every open task) and, when a meeting is opened,
+   ah GET /api/meetings?id=<id> (its notes: summary, decisions and tasks per brand, and what filing it made).
+   It never writes: filing a meeting (Confirm) and skipping one stay in old Locus. */
+
+import { APP_NAME } from '../../config.js';
+import { put, noDash } from '../../kit.js';
+import { h, em, button, avatar, statusDot, pill, dateBlock, segmented, toggle, sheet, empty, addStyles } from '../../kit.js';
+
+const ui = { kind: 'all', skipped: false, allOpen: false };
+
+/* ---------- words ---------- */
+const KIND = { monday_call: 'Monday team meeting', client_call: 'Client call', kickoff: 'Kickoff', internal: 'Internal', other: 'Other' };
+const kindOf = m => KIND[m.kind] || 'Other';
+const groupOf = m => m.kind === 'monday_call' ? 'team' : m.kind === 'client_call' ? 'client' : 'other';
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many || one + 's'}`;
+const day = ymd => new Date(ymd + 'T12:00:00');
+const shortDay = ymd => day(ymd).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+const longDay = ymd => day(ymd).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+const mondayOf = ymd => { const d = day(ymd); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.toLocaleDateString('en-CA'); };
+const first = name => String(name || '').split('@')[0].split(/\s+/)[0];
+
+/** Where a meeting stands: filed (its tasks exist), waiting for someone to file it, or skipped. */
+function stateOf(m) {
+  if (m.status === 'confirmed') return { id: 'filed', tone: 'good', text: 'Filed' };
+  if (m.status === 'extracted') return { id: 'waiting', tone: 'warn', text: 'Waiting to be filed' };
+  if (m.status === 'skipped') return { id: 'skipped', tone: 'off', text: 'Skipped' };
+  if (m.error) return { id: 'error', tone: 'bad', text: 'Could not be read' };
+  return { id: 'new', tone: 'off', text: 'Being read' };
+}
+const list = (pairs) => pairs.filter(p => p[0] > 0).map(p => plural(p[0], p[1], p[2])).join(', ');
+/** One plain line for the list: what filing made, or what the notes found, or why it was skipped. */
+function whatOf(m, st) {
+  if (st.id === 'filed') {
+    const k = m.made || {};
+    const made = list([[k.tasks, 'task'], [k.briefs, 'brief'], [k.asks, 'ask for the client', 'asks for the client']]);
+    return [made, k.report > 0 ? 'weekly report updated' : ''].filter(Boolean).join(', ') || 'Notes filed, nothing new to do';
+  }
+  if (st.id === 'skipped' && m.error) return noDash(m.error.charAt(0).toUpperCase() + m.error.slice(1));
+  if (st.id === 'error') return noDash(m.error);
+  const c = m.counts;
+  if (!c) return st.id === 'new' ? 'Notes are not ready yet' : 'No notes were kept';
+  const found = list([[c.team, 'task'], [c.brief, 'brief'], [c.client_owes, 'thing for the client to do', 'things for the client to do']]);
+  return found ? (st.id === 'skipped' ? 'Not filed: ' : 'Found: ') + found : 'Nothing to do came out of it';
+}
+
+/* ---------- real mode ---------- */
+async function load(ctx) {
+  const r = await ctx.api('/api/meetings', { worker: 'ah', signal: ctx.signal });
+  return {
+    today: r.today || new Date().toLocaleDateString('en-CA'), monday: r.monday || null, connected: r.connected !== false,
+    brands: (r.brands || []).map(b => ({ id: b.act_id, name: b.name })),
+    meetings: r.meetings || [],
+    open: Array.isArray(r.open) ? r.open : null,
+  };
+}
+async function detailOf(m, data, ctx) {
+  if (ctx.sample) return (data.details && data.details[m.id]) || null;
+  const r = await ctx.api('/api/meetings?id=' + encodeURIComponent(m.id), { worker: 'ah' });
+  return { notes: r.notes || null, result: r.result || null };
+}
+
+/* ---------- one meeting, in a sheet ---------- */
+function openMeeting(m, data, ctx, world) {
+  const st = stateOf(m);
+  const body = h('div', { class: 'mp-sheet' }, h('p', { class: 'mp-quiet' }, 'Reading the notes.'));
+  const sh = sheet({ title: m.title || 'Meeting', body });
+  window.addEventListener('hashchange', () => sh.close(), { once: true });      // a sheet never outlives its page
+  const head = h('div', { class: 'mp-sh' },
+    statusDot(st.tone, st.text + (st.id === 'filed' && m.confirmed_by ? ' by ' + first(m.confirmed_by) : '')),
+    h('span', null, [longDay(m.date), kindOf(m), m.duration > 0 ? Math.round(m.duration) + ' min' : null, m.with && m.with.length ? 'with ' + m.with.join(', ') : null].filter(Boolean).join(', ')));
+  const foot = () => st.id === 'filed' ? null : h('div', { class: 'mp-foot' },
+    h('p', { class: 'mp-quiet' }, st.id === 'waiting' ? 'Nothing from this meeting is a task yet. Filing it makes the tasks, the client asks and the report lines. That is not switched on here.' : 'This meeting was not filed, so nothing below became a task.'),
+    ctx.legacy && !ctx.sample ? button('Open in old ' + APP_NAME, { href: ctx.legacy, icon: 'arrow' }) : null);
+
+  detailOf(m, data, ctx).then(d => {
+    if (!body.isConnected) return;
+    const notes = d && d.notes;
+    if (!notes || !(notes.brands || []).length && !notes.summary) return put(body, head, h('p', { class: 'mp-quiet' }, whatOf(m, st) + '.'), foot());
+    const res = d.result, made = res ? [...(res.brands || []), ...(res.agency ? [{ ...res.agency, brand_id: '' }] : [])] : [];
+    const taskState = (brandId, it) => {
+      if (st.id !== 'filed') return statusDot('off', st.id === 'waiting' ? 'Not filed yet' : 'Not filed');
+      if (it.kind === 'client_owes') return statusDot('off', 'Asked of the client');
+      if (it.kind === 'brief') return statusDot('good', 'Brief made');
+      const mine = (made.find(r => (r.brand_id || '') === brandId) || {}).tasks || [];
+      const row = mine.find(t => t.text === it.text);
+      if (!row || !row.id || !world.openIds) return statusDot('good', 'Task made');
+      return world.openIds.has(row.id) ? pill('warn', 'Still open') : statusDot('good', 'Done');
+    };
+    const block = b => {
+      const tasks = (b.items || []).filter(i => i.kind !== 'client');
+      return h('section', { class: 'mp-b' },
+        h('h3', null, b.brand_id ? world.nameOf(b.brand_id) : 'Agency-wide'),
+        (b.decisions || []).length ? h('div', null, h('span', { class: 'lx-cap' }, 'Decided'), h('ul', { class: 'mp-ul' }, b.decisions.map(t => h('li', null, noDash(t))))) : null,
+        tasks.length ? h('div', null, h('span', { class: 'lx-cap' }, 'To do'), h('div', { class: 'mp-tasks' }, tasks.map(it => h('div', { class: 'mp-t' },
+          h('span', { class: 'what' }, noDash(it.text), h('small', null, [it.kind === 'client_owes' ? 'the client' : it.owner || 'no owner', it.due && 'due ' + shortDay(it.due), it.kind === 'brief' && 'new ads'].filter(Boolean).join(', '))),
+          taskState(b.brand_id || '', it))))) : null,
+        (b.this_week || []).length ? h('div', null, h('span', { class: 'lx-cap' }, 'The client hears'), h('ul', { class: 'mp-ul soft' }, b.this_week.map(t => h('li', null, noDash(t))))) : null,
+        (b.need_from_client || []).length ? h('div', null, h('span', { class: 'lx-cap' }, 'Waiting on the client'), h('ul', { class: 'mp-ul soft' }, b.need_from_client.map(t => h('li', null, noDash(t))))) : null);
+    };
+    put(body, head, notes.summary ? h('p', { class: 'mp-sum' }, noDash(notes.summary)) : null, (notes.brands || []).map(block), foot());
+  }).catch(e => {
+    if (!body.isConnected) return;
+    put(body, head, h('p', { class: 'mp-quiet' }, e && e.status === 404 ? 'The notes for this meeting are gone.' : 'The notes could not be read just now. Close this and try again.'));
+  });
+}
+
+/* ---------- the page ---------- */
+function draw(el, data, ctx) {
+  addStyles('mp-css', CSS);
+  const d = data || {};
+  const all = d.meetings || [];
+  if (!all.length) {
+    return put(el, empty({ title: d.connected === false ? 'The note taker is not connected' : 'No meetings in the last 60 days',
+      text: d.connected === false ? 'Meetings show here once the note taker is connected in Agency settings.' : 'A meeting shows here once its recording has been read.',
+      action: button('Open integrations', { href: ctx.href('a-settings', 'integrations'), icon: 'arrow' }) }));
+  }
+  const names = Object.fromEntries((d.brands || []).map(b => [b.id, b.name]));
+  const world = {
+    nameOf: id => names[id] || String(id).replace(/^brand_/, '').replace(/_/g, ' '),
+    openIds: d.open ? new Set(d.open.flatMap(g => (g.items || []).map(i => i.id))) : null,
+  };
+  const today = d.today || new Date().toLocaleDateString('en-CA');
+  const rows = all.map(m => ({ m, st: stateOf(m) }));
+  const filed = rows.filter(r => r.st.id === 'filed'), waiting = rows.filter(r => r.st.id === 'waiting'), skipped = rows.filter(r => r.st.id === 'skipped');
+  const openItems = d.open ? d.open.flatMap(g => (g.items || []).map(i => ({ ...i, brand: g.brand_id ? (g.name || world.nameOf(g.brand_id)) : 'Agency-wide', late: !!i.due && i.due < today }))) : null;
+  const late = openItems ? openItems.filter(i => i.late).length : 0;
+  const openFrom = id => openItems ? openItems.filter(i => i.source_id === id).length : 0;
+
+  /* the four counts */
+  const fig = (label, value, sub, tone) => h('div', { class: 'mp-fig' }, h('span', { class: 'l' }, label), h('span', { class: 'v' + (tone ? ' ' + tone : '') }, value), sub && h('span', { class: 's' }, sub));
+  const figs = h('div', { class: 'mp-figs' },
+    fig('Meetings', String(all.length), 'recorded in the last 60 days'),
+    fig('Filed', String(filed.length), 'decisions and tasks made'),
+    fig('Waiting to be filed', String(waiting.length), waiting.length ? 'newest ' + shortDay(waiting[0].m.date) : 'nothing waiting'),
+    openItems ? fig('Tasks still open', String(openItems.length), late ? plural(late, 'is', 'are') + ' late' : 'none late', late ? 'bad' : '') : null);
+
+  /* what is still open */
+  let openCard = null;
+  if (openItems && openItems.length) {
+    const sorted = [...openItems].sort((a, b) => (a.due || '9') < (b.due || '9') ? -1 : 1);
+    const shown = ui.allOpen ? sorted : sorted.slice(0, 6);
+    openCard = h('section', { class: 'mp-sec' },
+      h('div', { class: 'mp-h' }, h('h3', null, 'What is still open?'), h('span', null, 'every open task, oldest due date first')),
+      h('div', { class: 'lx-card flush' }, shown.map(i => h('div', { class: 'mp-o' },
+        i.owner ? avatar({ name: i.owner }, { size: 36 }) : h('span', { class: 'mp-nobody', role: 'img', 'aria-label': 'No owner' }),
+        h('span', { class: 'what' }, noDash(i.text || i.name), h('small', null, i.brand)),
+        h('span', { class: 'who' }, [i.owner || 'No owner', i.due ? 'due ' + shortDay(i.due) : 'no due date'].join(', ')),
+        i.late ? pill('bad', 'Late') : statusDot('off', 'Open')))),
+      sorted.length > 6 ? button(ui.allOpen ? 'Show fewer' : `Show all ${sorted.length}`, { ghost: true, onclick: () => { ui.allOpen = !ui.allOpen; draw(el, data, ctx); } }) : null);
+  } else if (openItems) {
+    openCard = h('section', { class: 'mp-sec' }, h('div', { class: 'mp-h' }, h('h3', null, 'What is still open?'), h('span', null, 'No task is open. Everything filed has been done.')));
+  }
+
+  /* the meetings, by week */
+  const pass = r => (ui.kind === 'all' || groupOf(r.m) === ui.kind) && (ui.skipped || r.st.id !== 'skipped');
+  const vis = rows.filter(pass);
+  const weeks = new Map();
+  for (const r of vis) { const w = mondayOf(r.m.date); if (!weeks.has(w)) weeks.set(w, []); weeks.get(w).push(r); }
+  const row = ({ m, st }) => {
+    const ids = m.brand_ids || [], nm = ids.slice(0, 3).map(world.nameOf);
+    const stillOpen = st.id === 'filed' ? openFrom(m.id) : 0;
+    return h('button', { type: 'button', class: 'mp-m' + (st.id === 'skipped' ? ' off' : ''), onclick: () => openMeeting(m, data, ctx, world), 'aria-label': 'Open ' + (m.title || 'meeting') + ', ' + longDay(m.date) },
+      dateBlock(m.date),
+      h('span', { class: 'ti' }, h('b', null, m.title || 'Untitled meeting'),
+        h('small', null, [kindOf(m), m.duration > 0 ? Math.round(m.duration) + ' min' : null, m.with && m.with.length ? 'with ' + m.with.join(', ') : null].filter(Boolean).join(', '))),
+      h('span', { class: 'br' }, nm.length ? nm.join(', ') + (ids.length > 3 ? ` and ${ids.length - 3} more` : '') : ''),
+      h('span', { class: 'wh' }, whatOf(m, st), stillOpen ? h('small', null, plural(stillOpen, 'task') + ' still open') : null),
+      st.id === 'waiting' ? pill('warn', st.text) : statusDot(st.tone, st.text));
+  };
+  const filters = h('div', { class: 'mp-filters' },
+    segmented([{ id: 'all', label: 'All' }, { id: 'team', label: 'Monday team' }, { id: 'client', label: 'Client calls' }, { id: 'other', label: 'Other' }], ui.kind, id => { ui.kind = id; draw(el, data, ctx); }),
+    skipped.length ? toggle({ label: `Show skipped (${skipped.length})`, checked: ui.skipped, onchange: on => { ui.skipped = on; draw(el, data, ctx); } }) : null);
+  const meetings = h('section', { class: 'mp-sec' },
+    h('div', { class: 'mp-h' }, h('h3', null, 'What was decided?'), h('span', null, 'Tap a meeting for its decisions and tasks.')),
+    filters,
+    vis.length ? [...weeks.entries()].map(([w, list]) => h('div', { class: 'mp-wk' },
+      h('span', { class: 'lx-eyebrow' }, 'Week of ' + shortDay(w)),
+      h('div', { class: 'lx-card flush' }, list.map(row))))
+      : h('p', { class: 'mp-quiet' }, 'No meeting matches. Try All, or show the skipped ones.'));
+
+  put(el, h('div', { class: 'mp' }, figs, openCard, meetings,
+    h('p', { class: 'lx-foot' }, d.note || 'A meeting is filed when someone confirms its notes: that makes the tasks, the client asks and the report lines. Skipped means nobody filed it. Filing and skipping are done in old ' + APP_NAME + '.')));
+}
+
+export default {
+  title: ['Past meetings, ', em('last 60 days')],
+  eyebrow: 'Meetings, team',
+  ranges: false,
+  load,
+  render: draw,
+  update: draw,
+};
+
+/* ---------- the page CSS, once. Every class starts with mp-. ---------- */
+const CSS = `
+.mp{display:grid;gap:44px;min-width:0}
+.mp-figs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:40px}
+.mp-fig{display:grid;gap:6px;min-width:0;align-content:start}
+.mp-fig .l{font-size:13.5px;font-weight:550;color:var(--muted)}
+.mp-fig .v{font-size:52px;font-weight:600;letter-spacing:-.045em;line-height:1;font-variant-numeric:tabular-nums}
+.mp-fig .v.bad{color:var(--bad)}
+.mp-fig .s{font-size:13.5px;color:var(--muted)}
+.mp-sec{display:grid;gap:14px;min-width:0;justify-items:stretch}
+.mp-sec>.lx-btn{justify-self:start}
+.mp-h{display:flex;align-items:baseline;gap:6px 12px;flex-wrap:wrap}
+.mp-h h3{margin:0;font-size:19px;font-weight:600;letter-spacing:-.022em}
+.mp-h>span{font-size:13.5px;color:var(--muted)}
+.mp-filters{display:flex;align-items:center;gap:12px 22px;flex-wrap:wrap}
+.mp-wk{display:grid;gap:10px;margin-top:10px}
+.mp-m{display:grid;grid-template-columns:46px minmax(0,1.5fr) minmax(0,1fr) minmax(0,1.4fr) 160px;gap:20px;align-items:center;width:100%;min-height:76px;padding:12px 26px;border:0;border-top:1px solid var(--line);background:none;text-align:left;font:inherit;color:inherit;cursor:pointer}
+.mp-m:first-child{border-top:0}
+.mp-m:hover{background:var(--surface-2)}
+.mp-m.off .ti b,.mp-m.off .wh{color:var(--muted)}
+.mp-m .ti{display:grid;gap:2px;min-width:0}
+.mp-m .ti b{font-size:15.5px;font-weight:600;letter-spacing:-.012em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mp-m .ti small,.mp-m .wh small{font-size:12.5px;color:var(--muted)}
+.mp-m .br{font-size:13.5px;color:var(--ink-2);min-width:0}
+.mp-m .wh{display:grid;gap:2px;font-size:14px;min-width:0}
+.mp-m .wh small{color:var(--warn);font-weight:550}
+.mp-m>.lx-stat,.mp-m>.lx-pill{justify-self:start}
+.mp-o{display:flex;align-items:center;gap:14px;min-height:64px;padding:10px 26px;border-top:1px solid var(--line)}
+.mp-o:first-child{border-top:0}
+.mp-o .what{flex:1;min-width:0;font-size:15px;font-weight:550;letter-spacing:-.01em}
+.mp-o .what small{display:block;font-size:12.5px;font-weight:500;color:var(--muted)}
+.mp-o .who{width:200px;font-size:13px;color:var(--muted)}
+.mp-o>.lx-stat,.mp-o>.lx-pill{width:70px;flex:none}
+.mp-nobody{flex:none;width:36px;height:36px;border-radius:50%;background:var(--bg-sunk);box-shadow:inset 0 0 0 1.5px var(--line-strong)}
+.mp-quiet{margin:0;font-size:13.5px;color:var(--muted)}
+.mp-sheet{display:grid;gap:22px;min-width:0}
+.mp-sh{display:grid;gap:6px;font-size:13.5px;color:var(--muted)}
+.mp-sum{margin:0;font-size:16px;line-height:1.5;color:var(--ink-2)}
+.mp-b{display:grid;gap:14px;padding-top:20px;border-top:1px solid var(--line)}
+.mp-b h3{margin:0;font-size:17px;font-weight:600;letter-spacing:-.02em}
+.mp-b>div{display:grid;gap:8px}
+.mp-ul{margin:0;padding:0;list-style:none;display:grid;gap:8px}
+.mp-ul li{position:relative;padding-left:18px;font-size:14.5px;line-height:1.45}
+.mp-ul li::before{content:"";position:absolute;left:2px;top:.6em;width:6px;height:6px;border-radius:50%;background:var(--ink)}
+.mp-ul.soft li{color:var(--ink-2)}
+.mp-ul.soft li::before{background:var(--icon)}
+.mp-tasks{display:grid}
+.mp-t{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
+.mp-t:first-child{border-top:0}
+.mp-t .what{flex:1;min-width:0;font-size:14.5px;font-weight:550}
+.mp-t .what small{display:block;font-size:12.5px;font-weight:500;color:var(--muted)}
+.mp-foot{display:grid;gap:12px;justify-items:start;padding-top:18px;border-top:1px solid var(--line)}
+@media (max-width:1040px){
+  .mp-figs{grid-template-columns:repeat(2,minmax(0,1fr));gap:28px}
+  .mp-m{grid-template-columns:46px minmax(0,1.3fr) minmax(0,1.2fr) auto;gap:14px;padding:12px 18px}
+  .mp-m .br{display:none}
+}
+@media (max-width:759px){
+  .mp{gap:30px}
+  .mp-figs{gap:22px 16px}
+  .mp-fig .v{font-size:40px}
+  .mp-m{grid-template-columns:46px minmax(0,1fr);gap:6px 12px;padding:14px 16px;align-items:start}
+  .mp-m .ti b{white-space:normal}
+  .mp-m .wh,.mp-m>.lx-stat,.mp-m>.lx-pill{grid-column:2}
+  .mp-o{display:grid;grid-template-columns:36px minmax(0,1fr) auto;gap:2px 12px;padding:12px 16px}
+  .mp-o .what{grid-column:2}
+  .mp-o .who{grid-column:2;grid-row:2;width:auto}
+  .mp-o>.lx-stat,.mp-o>.lx-pill{grid-column:3;grid-row:1/3;width:auto}
+}`;

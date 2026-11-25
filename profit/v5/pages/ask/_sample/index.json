@@ -1,0 +1,60 @@
+{
+ "suggestions": [
+  "Which products bring customers who come back?",
+  "Why is the cost per new customer where it is?",
+  "Which Meta ads bring new customers this week?",
+  "Is Google worth more budget?"
+ ],
+ "first": {
+  "q": "Which products bring customers who come back?",
+  "text": "Customers who start with the belt and marker bundle are worth $228 in their first 12 months, and 18% order again. Tee pack buyers rarely come back: $45 and 3%.\n\nThe bundle is also the cheapest first order to win on Meta, so it is the one to lead new customer ads with.",
+  "chart": { "type": "bar", "title": "12 month value per customer, by first product", "note": "First orders Nov 2024 to Oct 2025", "unit": "$",
+   "labels": ["Bundle", "Leather belt", "Markers", "Glove", "Tees"], "series": [{ "name": "Value", "values": [228, 164, 102, 71, 45] }],
+   "extra": { "name": "Order again", "unit": "%", "values": [18, 13, 8, 6, 3] } },
+  "sources": "Shopify orders, Triple Whale",
+  "open": { "label": "Open in Customers", "line": "customers", "tab": "buy-next" }
+ },
+ "answers": [
+  {
+   "q": "Which products bring customers who come back?",
+   "text": "Customers who start with the belt and marker bundle are worth $228 in their first 12 months, and 18% order again. Tee pack buyers rarely come back: $45 and 3%.\n\nThe bundle is also the cheapest first order to win on Meta, so it is the one to lead new customer ads with.",
+   "chart": { "type": "bar", "title": "12 month value per customer, by first product", "note": "First orders Nov 2024 to Oct 2025", "unit": "$",
+    "labels": ["Bundle", "Leather belt", "Markers", "Glove", "Tees"], "series": [{ "name": "Value", "values": [228, 164, 102, 71, 45] }],
+    "extra": { "name": "Order again", "unit": "%", "values": [18, 13, 8, 6, 3] } },
+   "sources": "Shopify orders, Triple Whale",
+   "open": { "label": "Open in Customers", "line": "customers", "tab": "buy-next" }
+  },
+  {
+   "q": "Why is the cost per new customer where it is?",
+   "text": "A new customer cost $52 this month against a $40 goal. Meta spend rose 13% while new customers stayed flat after the early sale ended on Nov 15.\n\nBefore Nov 15 a new customer cost $44; since then it has been $63.",
+   "chart": { "type": "line", "title": "Cost per new customer, by week", "unit": "$",
+    "labels": ["Oct 19", "Oct 26", "Nov 2", "Nov 9", "Nov 16"], "series": [{ "name": "Cost per new customer", "values": [41, 43, 44, 45, 63] }], "goal": 40 },
+   "sources": "Triple Whale, last platform click",
+   "open": { "label": "Open This month", "line": "month", "tab": "pace" }
+  },
+  {
+   "q": "Which Meta ads bring new customers this week?",
+   "text": "Three ads brought 61% of new customers this week. The founder story video leads with 24 at $31 each; the two static bundle ads follow at $38 and $47.",
+   "chart": { "type": "bar", "title": "New customers this week, top Meta ads", "unit": "",
+    "labels": ["Founder story", "Bundle static A", "Bundle static B", "Course walk", "Gift guide"], "series": [{ "name": "New customers", "values": [24, 17, 12, 9, 6] }] },
+   "sources": "Triple Whale, last platform click",
+   "open": { "label": "Open Top ads", "line": "meta", "tab": "top-ads" }
+  },
+  {
+   "q": "Is Google worth more budget?",
+   "text": "Some. Google ran at 2.85x ROAS this month on $3,950, above its 2.60x goal, but brand search is half of it. Shopping alone ran 2.10x.\n\nA 20% raise on shopping is the safe step; brand search will not grow with more money.",
+   "chart": { "type": "bar", "title": "ROAS by Google campaign, this month", "unit": "x", "goal": 2.6,
+    "labels": ["Brand search", "Shopping", "Performance Max"], "series": [{ "name": "ROAS", "values": [4.4, 2.1, 1.6] }] },
+   "sources": "Triple Whale, last platform click",
+   "open": { "label": "Open Google", "line": "google", "tab": "overview" }
+  }
+ ],
+ "recent": [
+  { "q": "Why did sales drop after Nov 15?", "when": "Today", "who": "Jordan Lee" },
+  { "q": "Which Meta ads bring new customers?", "when": "Yesterday", "who": "Sam Rivera" },
+  { "q": "How long until a second order?", "when": "Nov 20", "who": "Alex Morgan" },
+  { "q": "Is Google worth more budget?", "when": "Nov 18", "who": "Morgan Patel" }
+ ],
+ "recent_note": "Asked by the team in the last 30 days",
+ "usage": "4 questions asked today"
+}

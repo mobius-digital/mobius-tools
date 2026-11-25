@@ -1,0 +1,4 @@
+{
+ "values": { "timeZone": "America/New_York", "quietFrom": "20:00", "quietTo": "06:00", "morning_dm": true, "summaryTime": "06:30", "summaryDays": ["mon", "tue", "wed", "thu", "fri"], "summaryBy": "slack",
+  "range": "month", "firstPage": "my-day", "alertTime": "08:00", "slack": true }
+}

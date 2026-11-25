@@ -1,0 +1,156 @@
+{
+ "items": [
+  {
+   "id": "sample_ref_0",
+   "act": "brand_northlake_golf",
+   "kind": "link",
+   "url": "https://example.com/ref/0",
+   "image": null,
+   "title": "Holiday gift guide carousel from a golf apparel brand",
+   "site": "example.com",
+   "note": "Saved for the gift guide card. Love the price on every frame.",
+   "by": "sam@example.com",
+   "by_name": "Sam Rivera",
+   "at": "2026-11-23T10:00:00Z",
+   "art": {
+    "kind": "box",
+    "c1": "#9B2C2C",
+    "c2": "#C9A45C",
+    "bg": "#F1E7DA"
+   }
+  },
+  {
+   "id": "sample_ref_1",
+   "act": "brand_northlake_golf",
+   "kind": "link",
+   "url": "https://example.com/ref/1",
+   "image": null,
+   "title": "Countdown story ad, 3 frames",
+   "site": "example.com",
+   "note": "The shape for 435: big number, product, the deal.",
+   "by": "riley@example.com",
+   "by_name": "Riley Chen",
+   "at": "2026-11-21T11:00:00Z",
+   "art": {
+    "kind": "green",
+    "c1": "#4C7A52",
+    "c2": "#C9A45C",
+    "bg": "#DDE8EE"
+   }
+  },
+  {
+   "id": "sample_ref_2",
+   "act": "brand_northlake_golf",
+   "kind": "image",
+   "url": null,
+   "image": null,
+   "title": "Buy one get one static, dark background",
+   "site": "",
+   "note": "The type size we want for the BF statics.",
+   "by": "casey@example.com",
+   "by_name": "Casey Brooks",
+   "at": "2026-11-19T12:00:00Z",
+   "art": {
+    "kind": "belt",
+    "c1": "#1F3A2C",
+    "c2": "#C9A45C",
+    "bg": "#EEE9DF"
+   }
+  },
+  {
+   "id": "sample_ref_3",
+   "act": "brand_northlake_golf",
+   "kind": "link",
+   "url": "https://example.com/ref/3",
+   "image": null,
+   "title": "Creator unboxing, one take",
+   "site": "example.com",
+   "note": "Send to creators as the unboxing example.",
+   "by": "sam@example.com",
+   "by_name": "Sam Rivera",
+   "at": "2026-11-17T13:00:00Z",
+   "art": {
+    "kind": "box",
+    "c1": "#9B2C2C",
+    "c2": "#C9A45C",
+    "bg": "#F1E7DA"
+   }
+  },
+  {
+   "id": "sample_ref_4",
+   "act": "brand_northlake_golf",
+   "kind": "link",
+   "url": "https://example.com/ref/4",
+   "image": null,
+   "title": "Before and after belt slip, split screen",
+   "site": "example.com",
+   "note": "",
+   "by": "jordan@example.com",
+   "by_name": "Jordan Lee",
+   "at": "2026-11-15T14:00:00Z",
+   "art": {
+    "kind": "golfer",
+    "c1": "#1F3A2C",
+    "c2": "#2B2B2B",
+    "bg": "#DCE7DD"
+   }
+  },
+  {
+   "id": "sample_ref_5",
+   "act": "brand_northlake_golf",
+   "kind": "image",
+   "url": null,
+   "image": null,
+   "title": "Order by Dec 17 banner",
+   "site": "",
+   "note": "Clean date banner for the order-by ads.",
+   "by": "alex@example.com",
+   "by_name": "Alex Morgan",
+   "at": "2026-11-13T15:00:00Z",
+   "art": {
+    "kind": "box",
+    "c1": "#9B2C2C",
+    "c2": "#C9A45C",
+    "bg": "#F1E7DA"
+   }
+  },
+  {
+   "id": "sample_ref_6",
+   "act": "brand_northlake_golf",
+   "kind": "link",
+   "url": "https://example.com/ref/6",
+   "image": null,
+   "title": "Founder story, 45 seconds",
+   "site": "example.com",
+   "note": "Could work for January.",
+   "by": "sam@example.com",
+   "by_name": "Sam Rivera",
+   "at": "2026-11-11T16:00:00Z",
+   "art": {
+    "kind": "golfer",
+    "c1": "#1F3A2C",
+    "c2": "#2B2B2B",
+    "bg": "#DCE7DD"
+   }
+  },
+  {
+   "id": "sample_ref_7",
+   "act": "brand_northlake_golf",
+   "kind": "link",
+   "url": "https://example.com/ref/7",
+   "image": null,
+   "title": "Course flat lay, gift set",
+   "site": "example.com",
+   "note": "",
+   "by": "casey@example.com",
+   "by_name": "Casey Brooks",
+   "at": "2026-11-09T17:00:00Z",
+   "art": {
+    "kind": "green",
+    "c1": "#4C7A52",
+    "c2": "#C9A45C",
+    "bg": "#DDE8EE"
+   }
+  }
+ ]
+}

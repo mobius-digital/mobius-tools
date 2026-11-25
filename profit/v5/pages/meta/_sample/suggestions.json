@@ -1,0 +1,396 @@
+{
+ "as_of": null,
+ "today": "2026-11-24",
+ "currency": "USD",
+ "connected": true,
+ "goals": {
+  "roas": 3.0,
+  "cpa": 40,
+  "metric": "cpa"
+ },
+ "rows": [
+  {
+   "key": "k1",
+   "kind": "cut",
+   "level": "adset",
+   "call": "Turn off",
+   "object": "Whitelist | New people",
+   "because": "It has spent three times the goal with sales at more than twice the goal cost. It is the only live ad set in its campaign, so that campaign goes quiet.",
+   "facts": [
+    {
+     "l": "Spend 7d",
+     "v": "$655",
+     "good": false,
+     "bad": false
+    },
+    {
+     "l": "Sales",
+     "v": "7",
+     "good": false,
+     "bad": false
+    },
+    {
+     "l": "Cost per sale",
+     "v": "$94 vs $40",
+     "good": false,
+     "bad": true
+    },
+    {
+     "l": "First click",
+     "v": "2 sales",
+     "good": false,
+     "bad": false
+    },
+    {
+     "l": "Budget",
+     "v": "$100/day",
+     "good": false,
+     "bad": false
+    }
+   ],
+   "metric": "cpa",
+   "cpa": 94,
+   "goal": 40,
+   "roas": 0.94,
+   "goal_roas": 3.0,
+   "results": 7,
+   "spend": 655,
+   "video": true,
+   "state": "decide",
+   "note": "",
+   "by": null,
+   "thumb": null
+  },
+  {
+   "key": "k2",
+   "kind": "raise",
+   "level": "adset",
+   "call": "Raise budget from $20 to $25 a day",
+   "object": "Creator | Dana Whitlock",
+   "because": "Every sale this week is under the goal cost and it spends its full budget each day.",
+   "facts": [
+    {
+     "l": "Spend 7d",
+     "v": "$138",
+     "good": false,
+     "bad": false
+    },
+    {
+     "l": "Sales",
+     "v": "5",
+     "good": false,
+     "bad": false
+    },
+    {
+     "l": "Cost per sale",
+     "v": "$28 vs $40",
+     "good": true,
+     "bad": false
+    },
+    {
+     "l": "Budget",
+     "v": "$20/day",
+     "good": false,
+     "bad": false
+    }
+   ],
+   "metric": "cpa",
+   "cpa": 28,
+   "goal": 40,
+   "roas": 3.21,
+   "goal_roas": 3.0,
+   "results": 5,
+   "spend": 138,
+   "video": true,
+   "state": "decide",
+   "note": "",
+   "by": null,
+   "thumb": null
+  },
+  {
+   "key": "k3",
+   "kind": "refresh",
+   "level": "ad",
+   "call": "Keep the ad set, replace this ad",
+   "object": "First tee, slow motion in Early sale | New people",
+   "because": "The ad set is working, so it stays on. This video takes 31% of its spend and its click rate is down 24% while people see it more often.",
+   "facts": [
+    {
+     "l": "Spend 7d",
+     "v": "$352",
+     "good": false,
+     "bad": false
+    },
+    {
+     "l": "Sales",
+     "v": "4",
+     "good": false,
+     "bad": false
+    },
+    {
+     "l": "Cost per sale",
+     "v": "$88 vs $40",
+     "good": false,
+     "bad": true
+    },
+    {
+     "l": "Click rate",
+     "v": "0.71%, was 0.94%",
+     "good": false,
+     "bad": true
+    }
+   ],
+   "metric": "cpa",
+   "cpa": 88,
+   "goal": 40,
+   "roas": 1.31,
+   "goal_roas": 3.0,
+   "results": 4,
+   "spend": 352,
+   "video": true,
+   "state": "decide",
+   "note": "",
+   "by": null,
+   "thumb": null
+  },
+  {
+   "key": "k4",
+   "kind": "cut",
+   "level": "ad",
+   "call": "Turn off",
+   "object": "Fall colours, flat lay in Broad | New people",
+   "because": "It spent three times the goal cost with no sale.",
+   "facts": [
+    {
+     "l": "Spend 7d",
+     "v": "$126",
+     "good": false,
+     "bad": false
+    },
+    {
+     "l": "Sales",
+     "v": "0",
+     "good": false,
+     "bad": true
+    },
+    {
+     "l": "Budget",
+     "v": "shared",
+     "good": false,
+     "bad": false
+    }
+   ],
+   "metric": "cpa",
+   "cpa": null,
+   "goal": 40,
+   "roas": null,
+   "goal_roas": 3.0,
+   "results": 0,
+   "spend": 126,
+   "video": false,
+   "state": "decide",
+   "note": "",
+   "by": null,
+   "thumb": null
+  },
+  {
+   "key": "k5",
+   "kind": "cut",
+   "level": "ad",
+   "call": "Turn off",
+   "object": "Ball marker set in Gifts under $50",
+   "because": "It spent three times the goal cost at more than one and a half times the goal.",
+   "facts": [
+    {
+     "l": "Spend 7d",
+     "v": "$171",
+     "good": false,
+     "bad": false
+    },
+    {
+     "l": "Sales",
+     "v": "1",
+     "good": false,
+     "bad": false
+    },
+    {
+     "l": "Cost per sale",
+     "v": "$171 vs $40",
+     "good": false,
+     "bad": true
+    }
+   ],
+   "metric": "cpa",
+   "cpa": 171,
+   "goal": 40,
+   "roas": 0.6,
+   "goal_roas": 3.0,
+   "results": 1,
+   "spend": 171,
+   "video": false,
+   "state": "yes",
+   "note": "Turned off at 9:12am",
+   "by": "jordan@example.com",
+   "thumb": null
+  },
+  {
+   "key": "k6",
+   "kind": "raise",
+   "level": "adset",
+   "call": "Raise budget from $50 to $60 a day",
+   "object": "Creator pool",
+   "because": "Nine sales at goal this week on a small budget.",
+   "facts": [
+    {
+     "l": "Spend 7d",
+     "v": "$348",
+     "good": false,
+     "bad": false
+    },
+    {
+     "l": "Sales",
+     "v": "9",
+     "good": false,
+     "bad": false
+    },
+    {
+     "l": "Cost per sale",
+     "v": "$39 vs $40",
+     "good": true,
+     "bad": false
+    }
+   ],
+   "metric": "cpa",
+   "cpa": 39,
+   "goal": 40,
+   "roas": 1.58,
+   "goal_roas": 3.0,
+   "results": 9,
+   "spend": 348,
+   "video": true,
+   "state": "yes",
+   "note": "Budget raised to $60",
+   "by": "jordan@example.com",
+   "thumb": null
+  },
+  {
+   "key": "k7",
+   "kind": "trim",
+   "level": "ad",
+   "call": "Trim",
+   "object": "Leather care kit in Gifts under $50",
+   "because": "A small ad over the line inside a set that is otherwise fine.",
+   "facts": [
+    {
+     "l": "Spend 7d",
+     "v": "$204",
+     "good": false,
+     "bad": false
+    },
+    {
+     "l": "Sales",
+     "v": "3",
+     "good": false,
+     "bad": false
+    },
+    {
+     "l": "Cost per sale",
+     "v": "$68 vs $40",
+     "good": false,
+     "bad": true
+    }
+   ],
+   "metric": "cpa",
+   "cpa": 68,
+   "goal": 40,
+   "roas": 0.92,
+   "goal_roas": 3.0,
+   "results": 3,
+   "spend": 204,
+   "video": false,
+   "state": "no",
+   "note": "Give it more time, the gift guide email goes out Thursday",
+   "by": "alex@example.com",
+   "thumb": null
+  },
+  {
+   "key": "k8",
+   "kind": "keep",
+   "level": "adset",
+   "call": "Leave it on",
+   "object": "Early sale | New people",
+   "because": "This ad set finds new buyers. Its ROAS is under goal, so it gets new ads instead of being turned off.",
+   "facts": [
+    {
+     "l": "Spend 7d",
+     "v": "$2,011",
+     "good": false,
+     "bad": false
+    },
+    {
+     "l": "Sales",
+     "v": "29",
+     "good": false,
+     "bad": false
+    },
+    {
+     "l": "ROAS",
+     "v": "1.71x vs 3.00x",
+     "good": false,
+     "bad": true
+    }
+   ],
+   "metric": "roas",
+   "cpa": 69,
+   "goal": 40,
+   "roas": 1.71,
+   "goal_roas": 3.0,
+   "results": 29,
+   "spend": 2011,
+   "video": true,
+   "state": "fyi",
+   "note": "Nothing to do",
+   "by": null,
+   "thumb": null
+  }
+ ],
+ "early": [
+  {
+   "id": "e1",
+   "name": "Pool 04, belt wall",
+   "video": false,
+   "spend": 48,
+   "need": 80,
+   "day": 3,
+   "judge_on": null
+  },
+  {
+   "id": "e2",
+   "name": "Lena Ortiz, gift guide",
+   "video": true,
+   "spend": 61,
+   "need": 80,
+   "day": 5,
+   "judge_on": null
+  },
+  {
+   "id": "e3",
+   "name": "Pool 05, cart ride",
+   "video": true,
+   "spend": 38,
+   "need": 80,
+   "day": 3,
+   "judge_on": null
+  },
+  {
+   "id": "e4",
+   "name": "Tee holder, close up",
+   "video": false,
+   "spend": 22,
+   "need": 80,
+   "day": 2,
+   "judge_on": "2026-11-26"
+  }
+ ],
+ "notes": []
+}

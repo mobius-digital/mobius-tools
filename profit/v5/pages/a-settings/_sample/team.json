@@ -1,0 +1,18 @@
+{
+ "people": [
+  { "email": "alex@example.com", "name": "Alex Morgan", "job": "owner", "access": "owner", "brands": [], "slack": true },
+  { "email": "sam@example.com", "name": "Sam Rivera", "job": "strategist", "access": "admin", "brands": [], "slack": true },
+  { "email": "jordan@example.com", "name": "Jordan Lee", "job": "buyer", "access": "admin", "brands": [], "slack": true },
+  { "email": "riley@example.com", "name": "Riley Chen", "job": "editor", "access": "admin", "brands": ["brand_northlake_golf", "brand_harbor_and_pine", "brand_tallgrass_apparel", "brand_summit_sticks"], "slack": true },
+  { "email": "casey@example.com", "name": "Casey Brooks", "job": "designer", "access": "admin", "brands": ["brand_northlake_golf", "brand_harbor_and_pine", "brand_copper_kettle_pets"], "slack": true },
+  { "email": "morgan@example.com", "name": "Morgan Patel", "job": "google", "access": "admin", "brands": [], "slack": false },
+  { "email": "taylor@example.com", "name": "Taylor Kim", "job": "amazon", "access": "viewer", "guest": true, "brands": ["brand_northlake_golf", "brand_summit_sticks"], "slack": true }
+ ],
+ "domain": "example.com",
+ "owner_name": "Alex Morgan",
+ "send_who": "owner",
+ "approvers": "owner_strategist",
+ "see_others": "owner",
+ "contractors": false,
+ "example": []
+}

@@ -1,0 +1,174 @@
+{
+ "range": {
+  "from": "2026-11-01",
+  "to": "2026-11-22",
+  "preset": "month"
+ },
+ "source": true,
+ "withheld": false,
+ "withheld_why": null,
+ "flat_margin": null,
+ "totals": {
+  "sales": 63429,
+  "spend": 23702,
+  "orders": 881,
+  "cogs": 20236,
+  "ship_cost": 5833,
+  "handling": 1141,
+  "fees": 1967,
+  "before_ads": 34252,
+  "profit": 10550
+ },
+ "fixed": {
+  "total": 3960,
+  "items": [
+   {
+    "name": "Agency fee",
+    "amount": 2200
+   },
+   {
+    "name": "Warehouse rent",
+    "amount": 1320
+   },
+   {
+    "name": "Software",
+    "amount": 440
+   }
+  ]
+ },
+ "plan_profit": null,
+ "days": [
+  {
+   "date": "2026-11-01",
+   "sales": 3612,
+   "spend": 1108,
+   "before_ads": 1950
+  },
+  {
+   "date": "2026-11-02",
+   "sales": 2762,
+   "spend": 1036,
+   "before_ads": 1491
+  },
+  {
+   "date": "2026-11-03",
+   "sales": 2904,
+   "spend": 1150,
+   "before_ads": 1568
+  },
+  {
+   "date": "2026-11-04",
+   "sales": 3080,
+   "spend": 1132,
+   "before_ads": 1663
+  },
+  {
+   "date": "2026-11-05",
+   "sales": 4199,
+   "spend": 1221,
+   "before_ads": 2267
+  },
+  {
+   "date": "2026-11-06",
+   "sales": 3095,
+   "spend": 1007,
+   "before_ads": 1671
+  },
+  {
+   "date": "2026-11-07",
+   "sales": 4020,
+   "spend": 1059,
+   "before_ads": 2171
+  },
+  {
+   "date": "2026-11-08",
+   "sales": 3546,
+   "spend": 1079,
+   "before_ads": 1915
+  },
+  {
+   "date": "2026-11-09",
+   "sales": 3568,
+   "spend": 1084,
+   "before_ads": 1927
+  },
+  {
+   "date": "2026-11-10",
+   "sales": 3413,
+   "spend": 1221,
+   "before_ads": 1843
+  },
+  {
+   "date": "2026-11-11",
+   "sales": 2598,
+   "spend": 1072,
+   "before_ads": 1403
+  },
+  {
+   "date": "2026-11-12",
+   "sales": 2538,
+   "spend": 991,
+   "before_ads": 1371
+  },
+  {
+   "date": "2026-11-13",
+   "sales": 3675,
+   "spend": 1220,
+   "before_ads": 1985
+  },
+  {
+   "date": "2026-11-14",
+   "sales": 4690,
+   "spend": 1143,
+   "before_ads": 2533
+  },
+  {
+   "date": "2026-11-15",
+   "sales": 3097,
+   "spend": 1250,
+   "before_ads": 1672
+  },
+  {
+   "date": "2026-11-16",
+   "sales": 2435,
+   "spend": 1267,
+   "before_ads": 1315
+  },
+  {
+   "date": "2026-11-17",
+   "sales": 1782,
+   "spend": 1150,
+   "before_ads": 962
+  },
+  {
+   "date": "2026-11-18",
+   "sales": 2627,
+   "spend": 1150,
+   "before_ads": 1419
+  },
+  {
+   "date": "2026-11-19",
+   "sales": 1663,
+   "spend": 999,
+   "before_ads": 898
+  },
+  {
+   "date": "2026-11-20",
+   "sales": 1395,
+   "spend": 1008,
+   "before_ads": 753
+  },
+  {
+   "date": "2026-11-21",
+   "sales": 1092,
+   "spend": 541,
+   "before_ads": 590
+  },
+  {
+   "date": "2026-11-22",
+   "sales": 1638,
+   "spend": 814,
+   "before_ads": 885
+  }
+ ]
+}

@@ -1,0 +1,215 @@
+{
+ "connected": true,
+ "klaviyo": true,
+ "range": {
+  "from": "2026-11-01",
+  "to": "2026-11-22"
+ },
+ "days": [
+  {
+   "date": "2026-11-01",
+   "joined": 48,
+   "left": 34,
+   "sms_joined": 9,
+   "sms_left": 4
+  },
+  {
+   "date": "2026-11-02",
+   "joined": 37,
+   "left": 39,
+   "sms_joined": 12,
+   "sms_left": 4
+  },
+  {
+   "date": "2026-11-03",
+   "joined": 46,
+   "left": 10,
+   "sms_joined": 8,
+   "sms_left": 3
+  },
+  {
+   "date": "2026-11-04",
+   "joined": 43,
+   "left": 16,
+   "sms_joined": 11,
+   "sms_left": 4
+  },
+  {
+   "date": "2026-11-05",
+   "joined": 48,
+   "left": 47,
+   "sms_joined": 10,
+   "sms_left": 5
+  },
+  {
+   "date": "2026-11-06",
+   "joined": 53,
+   "left": 16,
+   "sms_joined": 11,
+   "sms_left": 5
+  },
+  {
+   "date": "2026-11-07",
+   "joined": 45,
+   "left": 16,
+   "sms_joined": 13,
+   "sms_left": 4
+  },
+  {
+   "date": "2026-11-08",
+   "joined": 51,
+   "left": 28,
+   "sms_joined": 11,
+   "sms_left": 3
+  },
+  {
+   "date": "2026-11-09",
+   "joined": 46,
+   "left": 11,
+   "sms_joined": 13,
+   "sms_left": 3
+  },
+  {
+   "date": "2026-11-10",
+   "joined": 246,
+   "left": 14,
+   "sms_joined": 74,
+   "sms_left": 3
+  },
+  {
+   "date": "2026-11-11",
+   "joined": 226,
+   "left": 43,
+   "sms_joined": 57,
+   "sms_left": 4
+  },
+  {
+   "date": "2026-11-12",
+   "joined": 211,
+   "left": 17,
+   "sms_joined": 74,
+   "sms_left": 2
+  },
+  {
+   "date": "2026-11-13",
+   "joined": 225,
+   "left": 34,
+   "sms_joined": 61,
+   "sms_left": 3
+  },
+  {
+   "date": "2026-11-14",
+   "joined": 251,
+   "left": 36,
+   "sms_joined": 77,
+   "sms_left": 5
+  },
+  {
+   "date": "2026-11-15",
+   "joined": 246,
+   "left": 38,
+   "sms_joined": 69,
+   "sms_left": 4
+  },
+  {
+   "date": "2026-11-16",
+   "joined": 288,
+   "left": 14,
+   "sms_joined": 48,
+   "sms_left": 2
+  },
+  {
+   "date": "2026-11-17",
+   "joined": 39,
+   "left": 19,
+   "sms_joined": 7,
+   "sms_left": 2
+  },
+  {
+   "date": "2026-11-18",
+   "joined": 55,
+   "left": 18,
+   "sms_joined": 12,
+   "sms_left": 2
+  },
+  {
+   "date": "2026-11-19",
+   "joined": 39,
+   "left": 39,
+   "sms_joined": 6,
+   "sms_left": 5
+  },
+  {
+   "date": "2026-11-20",
+   "joined": 58,
+   "left": 16,
+   "sms_joined": 12,
+   "sms_left": 5
+  },
+  {
+   "date": "2026-11-21",
+   "joined": 58,
+   "left": 37,
+   "sms_joined": 11,
+   "sms_left": 4
+  },
+  {
+   "date": "2026-11-22",
+   "joined": 46,
+   "left": 17,
+   "sms_joined": 7,
+   "sms_left": 4
+  }
+ ],
+ "list_size": 21840,
+ "sms_size": 4124,
+ "lists": [
+  {
+   "name": "Newsletter",
+   "profiles": 21840
+  },
+  {
+   "name": "Black Friday early access",
+   "profiles": 6412
+  },
+  {
+   "name": "Text club",
+   "profiles": 4124
+  },
+  {
+   "name": "Giveaway entrants",
+   "profiles": 3980
+  },
+  {
+   "name": "Customers",
+   "profiles": 9216
+  }
+ ],
+ "sources": [
+  {
+   "name": "Black Friday early access page",
+   "joined": 1184,
+   "bought": 0.061
+  },
+  {
+   "name": "Site popup, 10% off",
+   "joined": 742,
+   "bought": 0.094
+  },
+  {
+   "name": "Checkout box",
+   "joined": 388,
+   "bought": 1
+  },
+  {
+   "name": "Footer form",
+   "joined": 96,
+   "bought": 0.031
+  }
+ ],
+ "note": {
+  "date": "2026-11-10",
+  "text": "Early access page live"
+ },
+ "example": []
+}

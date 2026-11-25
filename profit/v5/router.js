@@ -1,0 +1,178 @@
+/* Routing and the page life cycle.
+   Address:  /v5/#/<view>/<brand>/<line>/<tab>
+     view   brand | agency
+     brand  the brand slug (northlake-golf), or all in the agency view
+     line   a main menu line id from menu.js
+     tab    one of that line's tab ids (index when the line has no sub pages)
+   A page module lives at pages/<line>/<tab>.js and is loaded with import() only when visited.
+   No module at that path = the shared "Coming" page. */
+
+import { SAMPLE, cached, getSaved, pageKey, fixture, api, STALE_MS, setting, settingNow, saveSetting } from './data.js';
+import { lineOf, viewOf, menuFor } from './menu.js';
+import { legacyUrl, LS5, APP_NAME } from './config.js';
+
+let host = null;          // { state(), frame(route, line, tab), brandBySlug(slug) } from the shell
+let current = null;       // the route on screen
+let ticket = 0;           // a slow page never paints over the one you moved to
+let shownAt = 0;
+const MODS = new Map();
+
+export const parse = hash => {
+  const p = String(hash || '').replace(/^#\/?/, '').split('/').filter(Boolean).map(decodeURIComponent);
+  if (p[0] === 'signin') return { signin: true };
+  return { view: p[0], brand: p[1], line: p[2], tab: p[3] };
+};
+export const href = r => '#/' + [r.view, r.brand, r.line, r.tab || 'index'].map(encodeURIComponent).join('/');
+export const currentRoute = () => current;
+
+/** Go to a route. go({ line: 'meta', tab: 'top-ads' }) keeps the view and brand you are in. */
+export function go(r, { replace = false } = {}) {
+  const next = href(normalise({ ...(current || {}), tab: undefined, ...r }));
+  if (replace) history.replaceState(null, '', next); else location.hash = next;
+  if (replace) onHash();
+}
+
+/** Make any address a valid one for this person: a view they may see, a brand they have, a real line and tab. */
+export function normalise(r) {
+  const st = host.state();
+  const role = st.role;
+  let line = lineOf(r.line);
+  let view = r.view === 'agency' && role !== 'client' ? 'agency' : 'brand';
+  if (line) { const v = viewOf(line.id); if (v && !(v === 'agency' && role === 'client')) view = v; }
+  const menu = menuFor(view, role).flatMap(g => g.lines);
+  const top = line && line.top && (line.who === 'all' || role !== 'client');
+  if (!line || !(top || menu.some(l => l.id === line.id))) line = menu[0];
+  const tabs = line.tabs.filter(x => role !== 'client' || !x.team);
+  const tab = tabs.find(x => x.id === r.tab) || tabs[0];
+  let brand = 'all';
+  if (view === 'brand') {
+    const b = host.brandBySlug(r.brand) || host.brandBySlug(st.lastBrand) || st.brands[0];
+    brand = b ? b.slug : 'none';
+  }
+  return { view, brand, line: line.id, tab: tab.id };
+}
+
+function importPage(line, tab) {
+  const key = line + '/' + tab;
+  if (!MODS.has(key)) MODS.set(key, import(`./pages/${line}/${tab}.js`).then(m => m.default || null, () => null));
+  return MODS.get(key);
+}
+const coming = () => import('./pages/_coming.js').then(m => m.default);
+
+function ctxFor(route, line, tab, signal, frame) {
+  const st = host.state();
+  const brand = route.view === 'brand' ? host.brandBySlug(route.brand) : null;
+  return {
+    route, view: route.view, line, tab, brand, brands: st.brands, me: st.me, role: st.role,
+    /** True for a client, and for the team while "See as client" is on. Team-only words and links must check this. */
+    isClient: st.role === 'client',
+    sample: SAMPLE, signal,
+    /** The dates in the page head: { preset, label, from, to, days, dates }. Always real dates. */
+    range: st.range,
+    api, cached,
+    /** Settings, wherever they live: await ctx.setting('agency.morningHour', 5), ctx.settingNow('me.tab', 'a'), await ctx.saveSetting(key, value) */
+    setting, settingNow, saveSetting,
+    /** A fixture in this line's folder: ctx.fixture('extra.json') reads pages/<line>/_sample/extra.json */
+    fixture: name => fixture(`${line.id}/_sample/${name}`),
+    /** The address of another page in the same view and brand. */
+    href: (lineId, tabId) => href(normalise({ view: route.view, brand: route.brand, line: lineId, tab: tabId })),
+    go,
+    /** Change the page title from inside the page (a brand picked inside the page): ctx.setTitle(['Northlake Golf, ', em('Nov 16 to 22')], { eyebrow }) */
+    setTitle: (content, opts) => frame.setTitle(content, opts),
+    /** This page in old Locus, or null. */
+    legacy: legacyUrl(tab.legacy, brand ? brand.id : 'all'),
+    title: tab.label ? `${line.label}: ${tab.label}` : line.label,
+  };
+}
+const SAMPLE_AGE = 4 * 60e3;       // a fixture reads "updated 4 min ago"
+
+let ctl = null;
+async function show(route, { soft = false } = {}) {
+  const my = ++ticket;
+  if (ctl) ctl.abort();
+  ctl = new AbortController();
+  const line = lineOf(route.line), tab = line.tabs.find(x => x.id === route.tab) || line.tabs[0];
+  const frame = host.frame(route, line, tab);          // rail, title and tabs change at once
+  const ctx = ctxFor(route, line, tab, ctl.signal, frame);
+  document.title = `${ctx.title} · ${APP_NAME}`;
+  try { localStorage.setItem(LS5.last, href(route)); } catch {}
+  const mod = await importPage(line.id, tab.id);
+  if (my !== ticket) return;
+  const el = frame.el;
+  const val = (v, data) => typeof v === 'function' ? v(ctx, data) : v;
+  /* the title and the small line above it come from the page: text, nodes, or (ctx, data) => either */
+  const head = (m, data) => frame.setTitle(val(m.title, data), { eyebrow: val(m.eyebrow, data) });
+  const paint = (m, data, method = 'render') => { if (my !== ticket) return; head(m, data); if (method === 'render') el.replaceChildren(); (m[method] || m.render)(el, data, ctx); };
+  if (!mod) { frame.setRanges(false); frame.setAsOf(null); const c = await coming(); if (my !== ticket) return; frame.setTitle(null); el.replaceChildren(); c.render(el, null, ctx); if (!soft) scrollTop(); return; }
+  const ranged = mod.ranges !== false;
+  frame.setRanges(ranged);
+  head(mod, null);
+  /* one stamp for every page: a page may say when its numbers were read (asOf), else it is when they were fetched */
+  const stamp = (data, at) => frame.setAsOf((mod.asOf && mod.asOf(data)) || at || null);
+  try {
+    const still = SAMPLE ? (mod.sample === null || (mod.sample === undefined && !mod.load)) : !mod.load;   // a page with no data
+    if (still) { paint(mod, null); frame.setAsOf(null); }
+    else if (SAMPLE) {
+      const data = typeof mod.sample === 'function' ? await mod.sample(ctx) : mod.sample !== undefined ? mod.sample : await fixture(`${line.id}/_sample/${tab.id}.json`);
+      paint(mod, data); stamp(data, Date.now() - SAMPLE_AGE);
+    } else {
+      /* the dates are part of the key only for a page that honours them, so the others keep one saved copy */
+      const key = pageKey({ view: route.view, brandId: ctx.brand ? ctx.brand.id : 'all', line: line.id, tab: tab.id, range: ranged ? ctx.range : null });
+      const saved = await getSaved(key);
+      if (my !== ticket) return;
+      if (!saved) { el.replaceChildren(); (mod.skeleton || defaultSkeleton)(el, ctx); frame.setAsOf(null, true); }   // first ever visit only
+      else frame.setAsOf(saved.asOf, Date.now() - saved.asOf > 20e3);
+      const onFresh = rec => { if (my !== ticket) return; paint(mod, rec.data, mod.update ? 'update' : 'render'); stamp(rec.data, rec.asOf); shownAt = rec.asOf; };
+      onFresh.touch = asOf => { if (my === ticket) { frame.setAsOf(asOf); shownAt = asOf; } };
+      onFresh.error = () => { if (my === ticket) frame.setAsOf(saved ? saved.asOf : null); };
+      const rec = await cached(key, () => mod.load(ctx), onFresh);
+      if (my !== ticket) return;
+      paint(mod, rec.data);
+      if (rec.fresh) stamp(rec.data, rec.asOf);
+      shownAt = rec.asOf;
+    }
+  } catch (e) {
+    if (my !== ticket || (e && e.name === 'AbortError')) return;
+    (await coming()).error(el, e, ctx, () => show(route));
+    frame.setAsOf(null);
+  }
+  if (!soft) scrollTop();
+}
+function scrollTop() { try { window.scrollTo(0, 0); } catch {} }
+function defaultSkeleton(el) {
+  el.innerHTML = '<div class="lx-skel-grid"><div class="lx-skel kpi"></div><div class="lx-skel kpi"></div><div class="lx-skel kpi"></div><div class="lx-skel kpi"></div></div><div class="lx-skel chart"></div>';
+}
+
+/** Load a page's code before the click (menu hover, focus or touch). */
+export function prefetch(lineId, tabId) {
+  const line = lineOf(lineId); if (!line) return;
+  importPage(line.id, tabId || line.tabs[0].id);
+}
+
+function onHash() {
+  const raw = parse(location.hash);
+  if (raw.signin) { host.signin(); current = null; return; }
+  const route = normalise(raw);
+  const want = href(route);
+  if (location.hash !== want) { history.replaceState(null, '', want); }
+  const same = current && href(current) === want;
+  current = route;
+  show(route, { soft: same });
+}
+
+/** Start routing. The shell passes itself in as the host. */
+export function start(shellHost) {
+  host = shellHost;
+  window.addEventListener('hashchange', onHash);
+  /* Events, not timers: refresh when the tab comes back and the copy on screen is older than 5 minutes. */
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && current && !SAMPLE && shownAt && Date.now() - shownAt > STALE_MS) show(current, { soft: true });
+  });
+  if (!location.hash || location.hash === '#' || location.hash === '#/') {
+    let last = null; try { last = localStorage.getItem(LS5.last); } catch {}
+    history.replaceState(null, '', last && !SAMPLE ? last : href(normalise({})));
+  }
+  onHash();
+}
+/** Draw the page on screen again (after the brand list or the role changed). */
+export function refresh() { if (current) { current = normalise(current); history.replaceState(null, '', href(current)); show(current, { soft: true }); } }

@@ -1,0 +1,150 @@
+{
+ "sample": true,
+ "fetched_at": null,
+ "today": "2026-11-29",
+ "currency": "USD",
+ "client_view": false,
+ "checked": "12:00pm",
+ "next": "3:00pm",
+ "dry": false,
+ "cmp_label": "Plan for today",
+ "status": {
+  "tone": "info",
+  "text": "Needs your yes"
+ },
+ "call": {
+  "kind": "raise",
+  "text": "Raise 25%",
+  "sub": "$2,800 to $3,500 a day",
+  "why": "3.41x so far, over the 3.00x goal",
+  "needs_yes": true
+ },
+ "no_sales": false,
+ "sale": {
+  "start": "2026-11-26",
+  "end": "2026-11-30",
+  "day": 4,
+  "days": 5,
+  "sales": 46100,
+  "goal": 69000,
+  "from": "2026-11-26"
+ },
+ "day": {
+  "sales": 7960,
+  "goal": 16400,
+  "orders": 68,
+  "aov": 117,
+  "vs": {
+   "pct": 0.23,
+   "label": "vs plan by now"
+  }
+ },
+ "hours": [
+  0,
+  237,
+  413,
+  523,
+  592,
+  629,
+  754,
+  1008,
+  1419,
+  2233,
+  3152,
+  4208,
+  5483,
+  6604,
+  7960
+ ],
+ "cmp": [
+  0,
+  197,
+  328,
+  426,
+  492,
+  558,
+  656,
+  918,
+  1296,
+  1853,
+  2640,
+  3641,
+  4477,
+  5527,
+  6494,
+  7528,
+  8380,
+  9282,
+  10234,
+  11234,
+  12398,
+  13546,
+  14826,
+  15777,
+  16400
+ ],
+ "mer": {
+  "so_far": 3.41,
+  "last6": 3.88,
+  "last6_hours": 6,
+  "kpi": 3.0,
+  "hold": 2.4,
+  "new": 2.14,
+  "be_new": 1.6,
+  "early": false,
+  "watch": false,
+  "placed": true,
+  "today": 3.42
+ },
+ "spend": {
+  "today": 2330,
+  "budget": 2800,
+  "limit_used": 0.21,
+  "near": false
+ },
+ "phases": [
+  {
+   "name": "Early sale",
+   "state": "done",
+   "sub": "Nov 1 to Nov 25, done"
+  },
+  {
+   "name": "Black Friday weekend",
+   "state": "now",
+   "progress": 0.7,
+   "sub": "Day 4 of 5, Sun, Nov 29"
+  },
+  {
+   "name": "Order by Christmas",
+   "state": "",
+   "sub": "Dec 7 to Dec 17"
+  }
+ ],
+ "switches": [
+  {
+   "when": "Mon, Nov 30, 12:00 AM",
+   "what": "Cyber Monday ads turn on in the Black Friday ad sets, 18 ads",
+   "status": {
+    "tone": "good",
+    "text": "Ready"
+   }
+  },
+  {
+   "when": "Tue, Dec 1, 12:00 AM",
+   "what": "Black Friday and Cyber Monday ad sets end",
+   "status": {
+    "tone": "",
+    "text": "Scheduled"
+   }
+  },
+  {
+   "when": "Mon, Dec 7, 12:00 AM",
+   "what": "Order by Christmas ad sets start, 12 ads",
+   "status": {
+    "tone": "",
+    "text": "Scheduled"
+   }
+  }
+ ],
+ "foot": "Sample numbers, set on Sun Nov 29. Every goal, limit, sale, budget and status here is invented."
+}

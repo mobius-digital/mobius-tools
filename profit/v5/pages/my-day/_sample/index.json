@@ -1,0 +1,200 @@
+{
+ "as_of": null,
+ "today": "2026-11-24",
+ "greeting": "Good morning",
+ "person": {
+  "name": "Sam",
+  "role": "Creative strategist"
+ },
+ "take": {
+  "say": [
+   "Start with ",
+   {
+    "b": "Pat"
+   },
+   ". Tallgrass Apparel's Black Friday ads go live ",
+   {
+    "b": "Thursday"
+   },
+   "."
+  ],
+  "action": {
+   "label": "Draft the reply",
+   "line": "ask"
+  }
+ },
+ "clients_waiting": {
+  "n": 1,
+  "sub": "Pat, since 9:12am"
+ },
+ "today_rows": [
+  {
+   "id": "s1",
+   "source": "slack",
+   "text": "Reply to Pat about the Black Friday hoodie",
+   "why": "Client asked at 9:12am",
+   "brand": "Tallgrass Apparel",
+   "due": "Today",
+   "btn": {
+    "label": "Reply",
+    "line": "requests"
+   }
+  },
+  {
+   "id": "s2",
+   "source": "card",
+   "text": "Review 9 creator videos",
+   "why": "You own this brand. Waiting 2 days or more",
+   "brand": "Tallgrass Apparel",
+   "due": "Today",
+   "btn": {
+    "label": "Open the 9 videos",
+    "line": "creators"
+   }
+  },
+  {
+   "id": "s3",
+   "source": "task",
+   "text": "Write this week's plan for Fairway Supply",
+   "why": "You own this brand. No plan posted yet",
+   "brand": "Fairway Supply",
+   "due": "1 day late",
+   "late": true,
+   "btn": {
+    "label": "Write plan",
+    "line": "month"
+   }
+  },
+  {
+   "id": "s4",
+   "source": "call",
+   "text": "Brief the evergreen stills rebuild",
+   "why": "You said it on Monday's call",
+   "brand": "Fairway Supply",
+   "due": "Today",
+   "btn": {
+    "label": "Open brief",
+    "line": "production"
+   }
+  }
+ ],
+ "week_rows": [
+  {
+   "id": "w1",
+   "source": "card",
+   "text": "Send Riley the range day recut brief",
+   "why": "Assigned to you by Alex",
+   "brand": "Northlake Golf",
+   "due": "Wed",
+   "btn": {
+    "label": "Open brief",
+    "line": "production"
+   }
+  },
+  {
+   "id": "w2",
+   "source": "card",
+   "text": "Brief 4 putter stills for Casey",
+   "why": "Assigned to you by Alex",
+   "brand": "Fairway Supply",
+   "due": "Thu",
+   "btn": {
+    "label": "Open brief",
+    "line": "production"
+   }
+  },
+  {
+   "id": "w3",
+   "source": "task",
+   "text": "Plan December gifting angles",
+   "why": "You own this brand",
+   "brand": "Copper Kettle Pets",
+   "due": "Fri",
+   "btn": {
+    "label": "Open",
+    "line": "what-works"
+   }
+  }
+ ],
+ "waiting_rows": [
+  {
+   "id": "x1",
+   "source": "request",
+   "text": "Revise the hoodie mock up",
+   "who": "Pat",
+   "why": "Sits with Pat, client",
+   "brand": "Tallgrass Apparel",
+   "due": "8 days",
+   "days": 8,
+   "btn": {
+    "label": "Nudge",
+    "nudge": true
+   }
+  },
+  {
+   "id": "x2",
+   "source": "request",
+   "text": "Card 86: a real person or an illustration?",
+   "who": "Alex",
+   "why": "Sits with Alex",
+   "brand": "Tallgrass Apparel",
+   "due": "11 days",
+   "days": 11,
+   "btn": {
+    "label": "Nudge",
+    "nudge": true
+   }
+  },
+  {
+   "id": "x3",
+   "source": "card",
+   "text": "Card 91: putter stills",
+   "who": "Casey",
+   "why": "Sits with Casey, due Wed",
+   "brand": "Fairway Supply",
+   "due": "2 days",
+   "days": 2,
+   "btn": {
+    "label": "Open card",
+    "line": "production"
+   }
+  }
+ ],
+ "meetings": [
+  {
+   "time": "10:00",
+   "ap": "am",
+   "title": "Fairway Supply weekly call",
+   "sub": "Client, 30 min",
+   "now": true
+  },
+  {
+   "time": "1:00",
+   "ap": "pm",
+   "title": "Creative review",
+   "sub": "Riley and Casey"
+  },
+  {
+   "time": "3:30",
+   "ap": "pm",
+   "title": "Black Friday check",
+   "sub": "Tallgrass Apparel, with Pat"
+  }
+ ],
+ "meeting_btn": {
+  "label": "Open the 10:00 pre-read",
+  "line": "a-meetings",
+  "tab": "pre-read"
+ },
+ "done_title": "Done today",
+ "done": [
+  {
+   "text": "Posted the Tallgrass Apparel and Copper Kettle Pets week plans",
+   "at": "8:14am"
+  },
+  {
+   "text": "Approved 6 creator videos for Copper Kettle Pets",
+   "at": "8:40am"
+  }
+ ]
+}

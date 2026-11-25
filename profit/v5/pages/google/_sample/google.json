@@ -1,0 +1,842 @@
+{
+ "window": {
+  "from": "2026-11-01",
+  "to": "2026-11-22",
+  "label": "Nov 1 to 22"
+ },
+ "currency": "USD",
+ "source": "sample",
+ "state": "connected",
+ "sales_source": true,
+ "goals": {
+  "roas": 3,
+  "ncpa": 40,
+  "cpa": 40
+ },
+ "overview": {
+  "totals": {
+   "spend": 4336,
+   "share_of_ads": 0.18,
+   "cpc": 1.12,
+   "cpc_prev": 0.94,
+   "sales": 11447,
+   "roas": 2.64,
+   "orders": 86,
+   "new_customers": 88,
+   "cost_new": 49,
+   "google_sales": 14118,
+   "google_roas": 3.26
+  },
+  "split": {
+   "brand": {
+    "spend": 1084,
+    "sales": 7212,
+    "roas": 6.65,
+    "orders": 52,
+    "new_customers": 38,
+    "cost_new": 29,
+    "google_roas": 7.4
+   },
+   "other": {
+    "spend": 3252,
+    "sales": 4235,
+    "roas": 1.3,
+    "orders": 34,
+    "new_customers": 50,
+    "cost_new": 65,
+    "google_roas": 1.87,
+    "budget": 180
+   }
+  },
+  "series": [
+   {
+    "date": "2026-11-01",
+    "spend": 121,
+    "brand": 35,
+    "sales": 497,
+    "prev_spend": 202
+   },
+   {
+    "date": "2026-11-02",
+    "spend": 182,
+    "brand": 44,
+    "sales": 485,
+    "prev_spend": 183
+   },
+   {
+    "date": "2026-11-03",
+    "spend": 155,
+    "brand": 53,
+    "sales": 464,
+    "prev_spend": 183
+   },
+   {
+    "date": "2026-11-04",
+    "spend": 145,
+    "brand": 47,
+    "sales": 409,
+    "prev_spend": 173
+   },
+   {
+    "date": "2026-11-05",
+    "spend": 173,
+    "brand": 46,
+    "sales": 581,
+    "prev_spend": 172
+   },
+   {
+    "date": "2026-11-06",
+    "spend": 161,
+    "brand": 45,
+    "sales": 375,
+    "prev_spend": 188
+   },
+   {
+    "date": "2026-11-07",
+    "spend": 156,
+    "brand": 52,
+    "sales": 450,
+    "prev_spend": 209
+   },
+   {
+    "date": "2026-11-08",
+    "spend": 199,
+    "brand": 70,
+    "sales": 645,
+    "prev_spend": 163
+   },
+   {
+    "date": "2026-11-09",
+    "spend": 183,
+    "brand": 54,
+    "sales": 757,
+    "prev_spend": 189
+   },
+   {
+    "date": "2026-11-10",
+    "spend": 170,
+    "brand": 53,
+    "sales": 848,
+    "prev_spend": 150
+   },
+   {
+    "date": "2026-11-11",
+    "spend": 251,
+    "brand": 68,
+    "sales": 705,
+    "prev_spend": 179
+   },
+   {
+    "date": "2026-11-12",
+    "spend": 232,
+    "brand": 53,
+    "sales": 583,
+    "prev_spend": 159
+   },
+   {
+    "date": "2026-11-13",
+    "spend": 242,
+    "brand": 48,
+    "sales": 667,
+    "prev_spend": 157
+   },
+   {
+    "date": "2026-11-14",
+    "spend": 198,
+    "brand": 52,
+    "sales": 624,
+    "prev_spend": 162
+   },
+   {
+    "date": "2026-11-15",
+    "spend": 213,
+    "brand": 56,
+    "sales": 652,
+    "prev_spend": 197
+   },
+   {
+    "date": "2026-11-16",
+    "spend": 224,
+    "brand": 39,
+    "sales": 371,
+    "prev_spend": 204
+   },
+   {
+    "date": "2026-11-17",
+    "spend": 238,
+    "brand": 53,
+    "sales": 354,
+    "prev_spend": 138
+   },
+   {
+    "date": "2026-11-18",
+    "spend": 175,
+    "brand": 45,
+    "sales": 392,
+    "prev_spend": 199
+   },
+   {
+    "date": "2026-11-19",
+    "spend": 231,
+    "brand": 48,
+    "sales": 408,
+    "prev_spend": 135
+   },
+   {
+    "date": "2026-11-20",
+    "spend": 217,
+    "brand": 52,
+    "sales": 335,
+    "prev_spend": 163
+   },
+   {
+    "date": "2026-11-21",
+    "spend": 237,
+    "brand": 34,
+    "sales": 465,
+    "prev_spend": 142
+   },
+   {
+    "date": "2026-11-22",
+    "spend": 233,
+    "brand": 37,
+    "sales": 380,
+    "prev_spend": 133
+   }
+  ],
+  "notes": [
+   {
+    "date": "2026-11-11",
+    "text": "Performance Max budget $50 to $70"
+   },
+   {
+    "date": "2026-11-15",
+    "text": "Early sale ended"
+   }
+  ],
+  "take": [
+   "Brand search takes ",
+   {
+    "b": "25%"
+   },
+   " of the spend and brings ",
+   {
+    "b": "63%"
+   },
+   " of the sales. Everything else returns ",
+   {
+    "b": "1.30x"
+   },
+   " against a ",
+   {
+    "b": "3.00x"
+   },
+   " goal."
+  ],
+  "campaigns": [
+   {
+    "name": "Search | Brand",
+    "type": "Search, brand",
+    "status": "on",
+    "brand": true,
+    "budget": 45,
+    "spend": 1084,
+    "sales": 7212,
+    "roas": 6.65,
+    "orders": 52,
+    "new_customers": 38,
+    "cost_new": 29,
+    "google_roas": 7.4,
+    "lost_budget": 0.03,
+    "lost_rank": 0.08
+   },
+   {
+    "name": "Search | Gifts",
+    "type": "Search, non-brand",
+    "status": "on",
+    "budget": 25,
+    "spend": 312,
+    "sales": 221,
+    "roas": 0.71,
+    "orders": 2,
+    "new_customers": 2,
+    "cost_new": 156,
+    "google_roas": 1.18,
+    "lost_budget": 0.04,
+    "lost_rank": 0.46
+   },
+   {
+    "name": "Shopping | Belts",
+    "type": "Shopping",
+    "status": "on",
+    "budget": 40,
+    "spend": 688,
+    "sales": 913,
+    "roas": 1.33,
+    "orders": 9,
+    "new_customers": 9,
+    "cost_new": 76,
+    "google_roas": 1.52,
+    "lost_budget": 0.14,
+    "lost_rank": 0.52
+   },
+   {
+    "name": "Performance Max | Belts",
+    "type": "Performance Max",
+    "status": "on",
+    "budget": 70,
+    "spend": 1412,
+    "sales": 2406,
+    "roas": 1.7,
+    "orders": 16,
+    "new_customers": 31,
+    "cost_new": 46,
+    "google_roas": 2.44,
+    "lost_budget": 0.21,
+    "lost_rank": 0.29
+   },
+   {
+    "name": "Performance Max | Accessories",
+    "type": "Performance Max",
+    "status": "on",
+    "budget": 30,
+    "spend": 526,
+    "sales": 531,
+    "roas": 1.01,
+    "orders": 6,
+    "new_customers": 7,
+    "cost_new": 75,
+    "google_roas": 1.39,
+    "lost_budget": 0.06,
+    "lost_rank": 0.57
+   },
+   {
+    "name": "Demand Gen | Videos",
+    "type": "Demand Gen",
+    "status": "on",
+    "first_touch": true,
+    "budget": 15,
+    "spend": 314,
+    "sales": 164,
+    "roas": 0.52,
+    "orders": 1,
+    "new_customers": 1,
+    "cost_new": 314,
+    "google_roas": 1.61,
+    "lost_budget": null,
+    "lost_rank": null
+   }
+  ],
+  "budget_total": 225,
+  "paused": 3,
+  "suggestions": 2,
+  "test": {
+   "title": "New product titles and main images on Shopping",
+   "by": "Morgan Patel",
+   "status": "Running",
+   "number": "Shopping click rate",
+   "from": 0.0034,
+   "now": 0.0047,
+   "to": 0.01,
+   "read_on": "Mon Dec 7"
+  },
+  "waiting": [
+   {
+    "title": "Landscape YouTube videos, 15 to 30 seconds",
+    "who": "Pat Doyle, client. Asked Nov 3, 10 and 17",
+    "tone": "bad",
+    "state": "21 days, no answer"
+   },
+   {
+    "title": "Add the agency to Merchant Center",
+    "who": "Pat Doyle, client. Needed to read feed health",
+    "tone": "warn",
+    "state": "Not asked yet"
+   }
+  ]
+ },
+ "terms": {
+  "shown": {
+   "spend": 1022,
+   "total": 4336,
+   "count": 50
+  },
+  "pmax": {
+   "spend": 1938,
+   "share": 0.45
+  },
+  "nonbrand_sold": {
+   "n": 4,
+   "of": 50
+  },
+  "stray": {
+   "spend": 45,
+   "n": 4
+  },
+  "take": [
+   "Four searches in the Brand ad group are not about Northlake. Blocking them saves ",
+   {
+    "b": "$45"
+   },
+   " a month."
+  ],
+  "themes": [
+   {
+    "id": "name",
+    "name": "Our name",
+    "count": 12,
+    "spend": 388,
+    "clicks": 512,
+    "orders": 29,
+    "sales": 3940,
+    "rows": [
+     {
+      "term": "northlake golf",
+      "where": "Brand search",
+      "spend": 142.6,
+      "clicks": 221,
+      "orders": 13,
+      "sales": 1742,
+      "state": "keyword"
+     },
+     {
+      "term": "northlake belt",
+      "where": "Brand search",
+      "spend": 91.2,
+      "clicks": 124,
+      "orders": 8,
+      "sales": 1096,
+      "state": "keyword"
+     },
+     {
+      "term": "northlake golf belt",
+      "where": "Shopping",
+      "flag": "Our name in Shopping",
+      "spend": 24.8,
+      "clicks": 19,
+      "orders": 1,
+      "sales": 128,
+      "state": "block"
+     }
+    ]
+   },
+   {
+    "id": "product",
+    "name": "Product type",
+    "count": 14,
+    "spend": 262,
+    "clicks": 208,
+    "orders": 2,
+    "sales": 271,
+    "rows": [
+     {
+      "term": "magnetic golf belt",
+      "where": "Shopping",
+      "spend": 61.4,
+      "clicks": 49,
+      "orders": 1,
+      "sales": 136,
+      "state": "add"
+     },
+     {
+      "term": "golf belts for men",
+      "where": "Shopping",
+      "spend": 46.9,
+      "clicks": 37,
+      "orders": 1,
+      "sales": 135,
+      "state": "add"
+     },
+     {
+      "term": "ratchet golf belt",
+      "where": "Shopping",
+      "spend": 29.7,
+      "clicks": 23,
+      "orders": 0,
+      "sales": 0
+     }
+    ]
+   },
+   {
+    "id": "gifts",
+    "name": "Gifts",
+    "count": 11,
+    "spend": 171,
+    "clicks": 139,
+    "orders": 1,
+    "sales": 129,
+    "rows": [
+     {
+      "term": "golf gifts for men",
+      "where": "Gift search",
+      "spend": 52.3,
+      "clicks": 41,
+      "orders": 1,
+      "sales": 129,
+      "state": "add"
+     },
+     {
+      "term": "gifts for golfers",
+      "where": "Gift search",
+      "spend": 38.7,
+      "clicks": 31,
+      "orders": 0,
+      "sales": 0
+     },
+     {
+      "term": "golf gifts for dad who has everything",
+      "where": "Gift search",
+      "spend": 25.1,
+      "clicks": 19,
+      "orders": 0,
+      "sales": 0
+     }
+    ]
+   },
+   {
+    "id": "competitors",
+    "name": "Competitors",
+    "count": 4,
+    "spend": 88,
+    "clicks": 21,
+    "orders": 0,
+    "sales": 0,
+    "rows": [
+     {
+      "term": "ridgeline golf belt",
+      "where": "Shopping",
+      "spend": 29.9,
+      "clicks": 11,
+      "orders": 0,
+      "sales": 0,
+      "state": "block"
+     },
+     {
+      "term": "calder belts review",
+      "where": "Brand search",
+      "spend": 17.4,
+      "clicks": 1,
+      "orders": 0,
+      "sales": 0,
+      "state": "block"
+     }
+    ]
+   },
+   {
+    "id": "price",
+    "name": "Price and deals",
+    "count": 4,
+    "spend": 62,
+    "clicks": 51,
+    "orders": 0.4,
+    "sales": 52,
+    "rows": [
+     {
+      "term": "golf belt sale",
+      "where": "Shopping",
+      "spend": 22.8,
+      "clicks": 17,
+      "orders": 0.4,
+      "sales": 52
+     },
+     {
+      "term": "$150 belt",
+      "where": "Gift search",
+      "spend": 12.6,
+      "clicks": 8,
+      "orders": 0,
+      "sales": 0,
+      "state": "blocked",
+      "state_text": "Blocked Nov 14"
+     }
+    ]
+   },
+   {
+    "id": "junk",
+    "name": "Junk",
+    "count": 5,
+    "spend": 51,
+    "clicks": 9,
+    "orders": 0,
+    "sales": 0,
+    "rows": [
+     {
+      "term": "rain gear for golf",
+      "where": "Brand search",
+      "spend": 12.2,
+      "clicks": 1,
+      "orders": 0,
+      "sales": 0,
+      "state": "block"
+     },
+     {
+      "term": "golf stores near me",
+      "where": "Brand search",
+      "spend": 10.4,
+      "clicks": 1,
+      "orders": 0,
+      "sales": 0,
+      "state": "block"
+     },
+     {
+      "term": "used golf balls",
+      "where": "Brand search",
+      "spend": 4.7,
+      "clicks": 1,
+      "orders": 0,
+      "sales": 0,
+      "state": "block"
+     }
+    ]
+   }
+  ],
+  "total": {
+   "count": 50,
+   "spend": 1022,
+   "clicks": 940,
+   "orders": 32.4,
+   "sales": 4392
+  },
+  "themed_by": "ai"
+ },
+ "products": {
+  "summary": {
+   "carry": 3,
+   "carry_share": 0.71,
+   "no_sale": 3,
+   "no_sale_spend": 394,
+   "feed": {
+    "approved": 38,
+    "limited": 2,
+    "disapproved": 1
+   }
+  },
+  "take": [
+   "Three products take ",
+   {
+    "b": "71%"
+   },
+   " of the Shopping and Performance Max spend. Three more took ",
+   {
+    "b": "$394"
+   },
+   " of clicks and sold nothing."
+  ],
+  "rows": [
+   {
+    "name": "Walnut Leather Belt",
+    "short": "Walnut belt",
+    "price": 89,
+    "feed": "approved",
+    "shown": 36950,
+    "ctr": 0.019,
+    "spend": 842,
+    "sales": 1612,
+    "roas": 1.91,
+    "google_roas": 2.61,
+    "page_rate": 0.031
+   },
+   {
+    "name": "Black Magnetic Belt",
+    "short": "Black belt",
+    "price": 79,
+    "feed": "approved",
+    "shown": 28400,
+    "ctr": 0.017,
+    "spend": 611,
+    "sales": 1208,
+    "roas": 1.98,
+    "google_roas": 2.4,
+    "page_rate": 0.028
+   },
+   {
+    "name": "Canvas Stretch Belt",
+    "short": "Canvas belt",
+    "price": 59,
+    "feed": "approved",
+    "shown": 24100,
+    "ctr": 0.013,
+    "spend": 402,
+    "sales": 384,
+    "roas": 0.96,
+    "google_roas": 1.3,
+    "page_rate": 0.014
+   },
+   {
+    "name": "Ball Marker Set",
+    "short": "Ball markers",
+    "price": 24,
+    "feed": "limited",
+    "feed_why": "Image too small",
+    "shown": 30200,
+    "ctr": 0.008,
+    "spend": 268,
+    "sales": 0,
+    "roas": 0,
+    "google_roas": 0.21,
+    "page_rate": 0.004
+   },
+   {
+    "name": "Leather Golf Glove",
+    "short": "Glove",
+    "price": 32,
+    "feed": "approved",
+    "shown": 15800,
+    "ctr": 0.011,
+    "spend": 214,
+    "sales": 318,
+    "roas": 1.49,
+    "google_roas": 1.72,
+    "page_rate": 0.022
+   },
+   {
+    "name": "Belt Gift Box",
+    "short": "Gift box",
+    "price": 119,
+    "feed": "approved",
+    "shown": 9100,
+    "ctr": 0.012,
+    "spend": 163,
+    "sales": 328,
+    "roas": 2.01,
+    "google_roas": 2.3,
+    "page_rate": 0.026
+   },
+   {
+    "name": "Brass Divot Tool",
+    "short": "Divot tool",
+    "price": 19,
+    "feed": "disapproved",
+    "feed_why": "Price does not match the page",
+    "shown": 7400,
+    "ctr": 0.009,
+    "spend": 96,
+    "sales": 0,
+    "roas": 0,
+    "google_roas": 0,
+    "page_rate": 0.006
+   },
+   {
+    "name": "Canvas Tee Pouch",
+    "short": "Tee pouch",
+    "price": 16,
+    "feed": "limited",
+    "feed_why": "Missing size",
+    "shown": 3900,
+    "ctr": 0.006,
+    "spend": 30,
+    "sales": 0,
+    "roas": 0,
+    "google_roas": 0,
+    "page_rate": 0.009
+   }
+  ]
+ },
+ "suggestions": {
+  "judged": "tw",
+  "decide": [
+   {
+    "kind": "block",
+    "title": "Block 4 searches in the Brand ad group that are not about Northlake",
+    "why": "$45 spent on them, no sale on Triple Whale or on Google’s count.",
+    "where": "Search | Brand",
+    "open": "search-terms",
+    "open_label": "See the searches"
+   },
+   {
+    "kind": "lower",
+    "title": "Performance Max | Accessories costs $75 a new customer",
+    "why": "$526 spent, 7 new customers. The goal is $40. ROAS 1.01x, Google says 1.39x.",
+    "where": "Performance Max",
+    "open": "products-ads",
+    "open_label": "See its products"
+   }
+  ],
+  "watching": [
+   {
+    "kind": "watch",
+    "title": "Performance Max | Belts loses 21% of its searches to budget",
+    "why": "It returns 1.70x against a 3.00x goal, so more budget is not the fix yet. Google says 2.44x.",
+    "where": "Performance Max",
+    "open": "overview",
+    "open_label": "See the campaign"
+   },
+   {
+    "kind": "feed",
+    "title": "Brass Divot Tool is disapproved in the feed",
+    "why": "Price does not match the page. It took $96 of clicks before it stopped.",
+    "where": "Merchant Center",
+    "open": "products-ads",
+    "open_label": "See the product"
+   }
+  ],
+  "rules": [
+   "Video and Demand Gen are never judged on last click.",
+   "Giveaway lead lists are never suggested as audience signals."
+  ]
+ },
+ "changes": {
+  "floor": "2026-10-26",
+  "rows": [
+   {
+    "at": "2026-11-18 10:42",
+    "who": "Morgan Patel",
+    "via": "in Google Ads",
+    "category": "bids",
+    "summary": "Search | Gifts: target ROAS from 245% to 175%",
+    "why": "Too few searches at 245%.",
+    "before": 0.82,
+    "after": 0.64,
+    "after_days": 4
+   },
+   {
+    "at": "2026-11-14 16:05",
+    "who": "Morgan Patel",
+    "via": "in Google Ads",
+    "category": "keywords",
+    "summary": "Added negative keyword \"$150 belt\" (exact) in Search | Gifts",
+    "why": "Price hunters, no sale."
+   },
+   {
+    "at": "2026-11-11 09:18",
+    "who": "Morgan Patel",
+    "via": "in Google Ads",
+    "category": "budget",
+    "summary": "Performance Max | Belts: daily budget $50.00 to $70.00 (+40%)",
+    "why": "Room to grow before the sale.",
+    "before": 1.82,
+    "after": 1.63,
+    "after_days": 7
+   },
+   {
+    "at": "2026-11-09 14:30",
+    "who": "Jordan Lee",
+    "via": "through the app",
+    "category": "status",
+    "summary": "Campaign \"Demand Gen | Videos\" turned on",
+    "why": "First video test."
+   },
+   {
+    "at": "2026-11-06 11:02",
+    "who": "Morgan Patel",
+    "via": "in Google Ads",
+    "category": "new",
+    "summary": "New asset group \"Gift box\" in Performance Max | Belts"
+   }
+  ],
+  "other": [
+   {
+    "at": "2026-11-06 11:04",
+    "who": "Morgan Patel",
+    "summary": "Added asset group asset in Performance Max | Belts",
+    "n": 14
+   },
+   {
+    "at": "2026-11-03 08:51",
+    "who": "Morgan Patel",
+    "summary": "Added campaign asset in Shopping | Belts",
+    "n": 3
+   }
+  ]
+ }
+}

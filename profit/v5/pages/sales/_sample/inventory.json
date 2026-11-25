@@ -1,0 +1,218 @@
+{
+ "connected": true,
+ "today": "2026-11-23",
+ "season_day": "2026-11-30",
+ "season_name": "Cyber Monday",
+ "weeks": [
+  {
+   "label": "Aug 31",
+   "sold": 212
+  },
+  {
+   "label": "Sep 7",
+   "sold": 198
+  },
+  {
+   "label": "Sep 14",
+   "sold": 224
+  },
+  {
+   "label": "Sep 21",
+   "sold": 231
+  },
+  {
+   "label": "Sep 28",
+   "sold": 206
+  },
+  {
+   "label": "Oct 5",
+   "sold": 241
+  },
+  {
+   "label": "Oct 12",
+   "sold": 228
+  },
+  {
+   "label": "Oct 19",
+   "sold": 263
+  },
+  {
+   "label": "Oct 26",
+   "sold": 287
+  },
+  {
+   "label": "Nov 2",
+   "sold": 342
+  },
+  {
+   "label": "Nov 9",
+   "sold": 358
+  },
+  {
+   "label": "Nov 16",
+   "sold": 301
+  }
+ ],
+ "note": {
+  "index": 9,
+  "text": "Early sale started"
+ },
+ "products": [
+  {
+   "id": "p1",
+   "title": "Ridgeline Magnetic Belt, Black",
+   "on_hand": 412,
+   "per_day": 8.1,
+   "days_left": 51,
+   "lands": null,
+   "incoming": 0,
+   "ad_spend": 2384,
+   "first_size": "36 in",
+   "cost": 18,
+   "status": "ok"
+  },
+  {
+   "id": "p2",
+   "title": "Ridgeline Magnetic Belt, Tan",
+   "on_hand": 96,
+   "per_day": 6,
+   "days_left": 16,
+   "lands": "2026-12-04",
+   "incoming": 600,
+   "ad_spend": 1622,
+   "first_size": "34 in",
+   "cost": 18,
+   "status": "ok"
+  },
+  {
+   "id": "p3",
+   "title": "Two Belt Bundle",
+   "on_hand": 150,
+   "per_day": 3.8,
+   "days_left": 39,
+   "lands": null,
+   "incoming": 0,
+   "ad_spend": 1218,
+   "first_size": null,
+   "cost": 34,
+   "status": "ok"
+  },
+  {
+   "id": "p4",
+   "title": "Links Leather Belt, Navy",
+   "on_hand": 0,
+   "per_day": 3.3,
+   "days_left": 0,
+   "lands": "2026-12-11",
+   "incoming": 300,
+   "ad_spend": 412,
+   "first_size": "34 in",
+   "cost": 22,
+   "status": "out"
+  },
+  {
+   "id": "p5",
+   "title": "Ball Marker Set, Brass",
+   "on_hand": 1480,
+   "per_day": 4.4,
+   "days_left": 336,
+   "lands": null,
+   "incoming": 0,
+   "ad_spend": 296,
+   "first_size": null,
+   "cost": 6,
+   "status": "ok"
+  },
+  {
+   "id": "p6",
+   "title": "Cabretta Glove",
+   "on_hand": 264,
+   "per_day": 4,
+   "days_left": 66,
+   "lands": null,
+   "incoming": 0,
+   "ad_spend": 388,
+   "first_size": "Medium left",
+   "cost": 9,
+   "status": "ok"
+  },
+  {
+   "id": "p7",
+   "title": "Tour Divot Tool",
+   "on_hand": 2210,
+   "per_day": 2.8,
+   "days_left": 789,
+   "lands": null,
+   "incoming": 0,
+   "ad_spend": 0,
+   "first_size": null,
+   "cost": 5,
+   "status": "ok"
+  },
+  {
+   "id": "p8",
+   "title": "Weekend Buckle, Silver",
+   "on_hand": 58,
+   "per_day": 1.9,
+   "days_left": 31,
+   "lands": null,
+   "incoming": 0,
+   "ad_spend": 204,
+   "first_size": null,
+   "cost": 11,
+   "status": "ok"
+  },
+  {
+   "id": "p9",
+   "title": "Walnut Tee Pack",
+   "on_hand": 3120,
+   "per_day": 2.6,
+   "days_left": 1200,
+   "lands": null,
+   "incoming": 0,
+   "ad_spend": 0,
+   "first_size": null,
+   "cost": 3,
+   "status": "ok"
+  },
+  {
+   "id": "p10",
+   "title": "Links Leather Belt, Brown",
+   "on_hand": 22,
+   "per_day": 1.7,
+   "days_left": 13,
+   "lands": "2026-11-28",
+   "incoming": 240,
+   "ad_spend": 186,
+   "first_size": "38 in",
+   "cost": 22,
+   "status": "ok"
+  },
+  {
+   "id": "p11",
+   "title": "Canvas Belt, Olive",
+   "on_hand": 640,
+   "per_day": 0.2,
+   "days_left": 3200,
+   "lands": null,
+   "incoming": 0,
+   "ad_spend": 0,
+   "first_size": null,
+   "cost": 14,
+   "status": "ok"
+  },
+  {
+   "id": "p12",
+   "title": "Tournament Towel",
+   "on_hand": 0,
+   "per_day": 0,
+   "days_left": null,
+   "lands": null,
+   "incoming": 0,
+   "ad_spend": 0,
+   "first_size": null,
+   "cost": 7,
+   "status": "off"
+  }
+ ]
+}

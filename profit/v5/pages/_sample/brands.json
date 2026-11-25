@@ -1,0 +1,46 @@
+{
+ "brands": [
+  {
+   "id": "brand_northlake_golf",
+   "name": "Northlake Golf",
+   "status": "active",
+   "color": "#14532D"
+  },
+  {
+   "id": "brand_harbor_and_pine",
+   "name": "Harbor & Pine",
+   "status": "active",
+   "color": "#854D0E"
+  },
+  {
+   "id": "brand_tallgrass_apparel",
+   "name": "Tallgrass Apparel",
+   "status": "active",
+   "color": "#7C2D12"
+  },
+  {
+   "id": "brand_copper_kettle_pets",
+   "name": "Copper Kettle Pets",
+   "status": "active",
+   "color": "#581C87"
+  },
+  {
+   "id": "brand_summit_sticks",
+   "name": "Summit Sticks",
+   "status": "active",
+   "color": "#155E75"
+  },
+  {
+   "id": "brand_brightside_patch",
+   "name": "Brightside Patch",
+   "status": "active",
+   "color": "#1E3A8A"
+  },
+  {
+   "id": "brand_fairway_supply",
+   "name": "Fairway Supply",
+   "status": "active",
+   "color": "#1F6F43"
+  }
+ ]
+}

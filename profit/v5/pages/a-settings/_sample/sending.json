@@ -1,0 +1,45 @@
+{
+ "values": { "morningHour": 5, "morningCard": true, "morningWho": "each", "clientDailyTime": "07:00", "clientDailyWho": "client", "clientDailyOn": true,
+  "prereadDay": "sun", "prereadTime": "18:00", "prereadWho": "each", "prereadOn": true, "saleChecks": ["09:00", "15:00", "21:00"], "saleWho": "owner", "saleOn": true,
+  "todayPost": false, "actionRemind": true, "timeZone": "America/Chicago", "quietFrom": "19:00", "quietTo": "05:00", "sendDays": ["mon", "tue", "wed", "thu", "fri"], "weeklyDay": "mon",
+  "reportAuto": "never", "reviewAutoHours": 0, "nudgeHours": 4, "morningStop": "12:00", "slackSendWho": "owner" },
+ "stats": [
+  { "label": "Posts a day in team channels", "value": "About 6", "sub": "down from about 30 in October" },
+  { "label": "Messages a day to each person", "value": "1 to 3", "sub": "the morning message and what needs them" },
+  { "label": "Replies to an alert last week", "value": "0", "sub": "so alerts became asks" }
+ ],
+ "messages": [
+  { "id": "morning", "n": 1, "name": "Morning message", "what": "The one job that matters most, then at most five lines, each with a button.", "replaces": "Replaces 11 kinds of post.",
+   "preview": { "time": "5:00 AM", "to": "DM", "title": "Sam, 3 things need you today.", "lines": ["Northlake Golf: confirm the notes from Monday's call", "Harbor & Pine: MER under 3x three days running (2.4, 2.1, 2.6)", "Copper Kettle Pets: send the onboarding reminder"], "buttons": ["Open", "Snooze to Thursday", "Not mine"] } },
+  { "id": "daily", "n": 2, "name": "Client daily", "what": "Yesterday against the plan, in plain words. Carries the weekly report on its day.", "replaces": "Held for the account lead unless the brand sends on its own.",
+   "preview": { "time": "7:00 AM", "to": "#northlake-golf", "title": "Northlake Golf, Tuesday Nov 24", "lines": ["Yesterday: $2,140 in sales. The plan was $1,980. Ahead.", "Ad spend: $812. MER 2.64x. The goal is 3.00x.", "What we did: turned off 2 ads that were not selling."] } },
+  { "id": "preread", "n": 3, "name": "Monday pre-read", "what": "Each brand's week on one page, ready before the team meeting.", "replaces": "If the week's numbers are not all in, it says which source is still filling.",
+   "preview": { "time": "Sun 6:00 PM", "to": "DM", "title": "This week's pre-read is ready", "lines": ["7 brands. 2 under their MER goal. 4 decisions waiting.", "Northlake Golf: early sale ended, new customer cost up to $63."], "buttons": ["Open the pre-read"] } },
+  { "id": "sale", "n": 4, "name": "Sale check-in", "what": "Where each brand stands during a sale, with one Approve for the next budget step.", "replaces": "Switches itself on in sale weeks and off after.",
+   "preview": { "time": "3:00 PM", "to": "DM", "title": "Tallgrass Apparel, where we stand", "lines": ["Sales today $6,420 of $9,000. MER 3.4x, break-even 1.6x.", "Raise 25%: $1,600 to $2,000 a day."], "buttons": ["Approve", "Not now"] } }
+ ],
+ "events": [
+  { "id": "client_waiting", "name": "A client is waiting on you", "says": "A request, a decision or a reply in the app", "when": "The moment the client acts", "who": "The account lead", "on": true },
+  { "id": "sent_back", "name": "Your card was sent back", "says": "Creative review", "when": "The moment it is sent back", "who": "The maker", "on": true },
+  { "id": "zero_spend", "name": "Zero spend on a live brand", "says": "No spend for 3 hours with live budgets", "when": "Once per incident", "who": "The account lead", "on": true },
+  { "id": "reminders", "key": "agency.actionRemind", "name": "Action reminders", "says": "A promise from a meeting is due", "when": "The morning it is due", "who": "The person who promised", "on": true },
+  { "id": "today_post", "key": "agency.todayPost", "name": "Today's calls in the brand channel", "says": "The day's ad calls for that brand", "when": "With the morning message", "who": "The internal channel", "on": false },
+  { "id": "asked", "name": "Answers when you tag the assistant", "says": "Questions, ideas, apply cards", "when": "Only when asked", "who": "The thread you asked in", "always": true }
+ ],
+ "people": [
+  { "name": "Alex Morgan", "role": "Owner", "time": "05:00", "by": "Slack", "days": "Every day in sale weeks", "quiet": "7pm to 5am", "zone": "Central" },
+  { "name": "Sam Rivera", "role": "Creative strategist", "time": "06:30", "by": "Slack", "days": "Weekdays", "quiet": "8pm to 6am", "zone": "Eastern" },
+  { "name": "Jordan Lee", "role": "Media buyer", "time": "05:00", "by": "Slack", "days": "Weekdays", "quiet": "7pm to 5am", "zone": "Central" },
+  { "name": "Riley Chen", "role": "Editor", "time": "08:00", "by": "Email", "days": "Weekdays", "quiet": "6pm to 8am", "zone": "Pacific" },
+  { "name": "Casey Brooks", "role": "Designer", "time": "07:00", "by": "Slack", "days": "Weekdays", "quiet": "7pm to 7am", "zone": "Central" },
+  { "name": "Morgan Patel", "role": "Google", "time": "06:00", "by": "Slack", "days": "Mon, Wed, Fri", "quiet": "7pm to 6am", "zone": "Mountain" },
+  { "name": "Taylor Kim", "role": "Amazon", "time": "07:00", "by": "Both", "days": "Weekdays", "quiet": "7pm to 7am", "zone": "Central" }
+ ],
+ "stopped": [
+  { "name": "Brief receipts, sent to the client", "seen": 28, "why": "A receipt nobody read", "where": "Done today, in the bell" },
+  { "name": "Morning card, one per brand channel", "seen": 16, "why": "Tagged four people, so nobody owned it", "where": "Each person's morning message" },
+  { "name": "Spending well below normal", "seen": 12, "why": "A false alarm on planned cuts", "where": "Watching, in the bell" },
+  { "name": "Meeting notes to confirm", "seen": 5, "why": "The queue grew to 14 calls", "where": "One line in the morning message" },
+  { "name": "Nightly sync errors", "seen": 3, "why": "Nothing a person can do", "where": "Platform status" }
+ ]
+}

@@ -1,0 +1,261 @@
+{
+ "note": "Sample. Every row is invented. A row with client: true is one a client sees; the others are the team's.",
+ "needs": [
+  {
+   "text": [
+    "Approve Fairway Supply Black Friday at ",
+    {
+     "b": "$1,800 a day"
+    },
+    " from Thu 6pm"
+   ],
+   "brand": "Fairway Supply",
+   "by": "Automatic",
+   "when": "12 min",
+   "who": null,
+   "btn": {
+    "label": "Approve",
+    "line": "a-black-friday",
+    "tab": "pace",
+    "primary": true
+   }
+  },
+  {
+   "text": [
+    {
+     "b": "412"
+    },
+    " Black Friday stills are ready for your review"
+   ],
+   "brand": "Tallgrass Apparel",
+   "by": "Casey",
+   "when": "40 min",
+   "who": {
+    "name": "Casey Brooks"
+   },
+   "btn": {
+    "label": "Open card",
+    "line": "production",
+    "tab": "board"
+   }
+  },
+  {
+   "text": [
+    "Confirm the notes from ",
+    {
+     "b": "8 calls"
+    }
+   ],
+   "brand": "Agency",
+   "by": "Automatic",
+   "when": "5 h",
+   "who": null,
+   "btn": {
+    "label": "Confirm notes",
+    "line": "a-meetings",
+    "tab": "past"
+   }
+  },
+  {
+   "text": [
+    {
+     "b": "4 ad calls"
+    },
+    " are waiting on a yes or a no"
+   ],
+   "brand": "Northlake Golf",
+   "by": "Automatic",
+   "when": "5 h",
+   "who": null,
+   "btn": {
+    "label": "Open calls",
+    "line": "meta",
+    "tab": "suggestions"
+   }
+  },
+  {
+   "text": "The store app asks for new permissions",
+   "brand": "Agency",
+   "by": "Automatic",
+   "when": "6 h",
+   "who": null,
+   "btn": {
+    "label": "Open",
+    "line": "a-settings",
+    "tab": "integrations"
+   }
+  },
+  {
+   "text": [
+    "Jamie typed \"Approved\" on cards ",
+    {
+     "b": "20 and 21"
+    },
+    ". Send them for a real approval"
+   ],
+   "brand": "Summit Sticks",
+   "by": "Jamie, client",
+   "when": "1 day",
+   "who": {
+    "name": "Jamie Fox"
+   },
+   "btn": {
+    "label": "Send to client",
+    "line": "requests",
+    "tab": "index"
+   }
+  },
+  {
+   "text": [
+    {
+     "b": "2 holiday ads"
+    },
+    " are waiting on your approval"
+   ],
+   "brand": "Northlake Golf",
+   "by": "Sam",
+   "when": "2 h",
+   "who": {
+    "name": "Sam Rivera"
+   },
+   "client": true,
+   "client_only": true,
+   "btn": {
+    "label": "Review",
+    "line": "requests",
+    "tab": "index",
+    "primary": true
+   }
+  }
+ ],
+ "watching": [
+  {
+   "text": "Recut of the range day video",
+   "brand": "Northlake Golf",
+   "by": "Riley",
+   "when": "due Wed",
+   "who": {
+    "name": "Riley Chen"
+   },
+   "btn": {
+    "label": "Open card",
+    "line": "production",
+    "tab": "board"
+   }
+  },
+  {
+   "text": [
+    "Google budget raise to ",
+    {
+     "b": "$220 a day"
+    }
+   ],
+   "brand": "Northlake Golf",
+   "by": "Morgan",
+   "when": "due Thu",
+   "who": {
+    "name": "Morgan Patel"
+   },
+   "btn": {
+    "label": "Open",
+    "line": "google",
+    "tab": "suggestions"
+   }
+  },
+  {
+   "text": "Revise the hoodie mock up",
+   "brand": "Tallgrass Apparel",
+   "by": "Pat, client",
+   "when": "8 days",
+   "who": {
+    "name": "Pat Doyle"
+   },
+   "btn": {
+    "label": "Open request",
+    "line": "requests",
+    "tab": "index"
+   }
+  },
+  {
+   "text": "Amazon listing photos for the navy belt",
+   "brand": "Northlake Golf",
+   "by": "Taylor",
+   "when": "due Fri",
+   "who": {
+    "name": "Taylor Kim"
+   },
+   "btn": {
+    "label": "Open",
+    "line": "amazon",
+    "tab": "creative"
+   }
+  },
+  {
+   "text": "Your request: a second colour for the gift box",
+   "brand": "Northlake Golf",
+   "by": "Sam",
+   "when": "due Fri",
+   "who": {
+    "name": "Sam Rivera"
+   },
+   "client": true,
+   "client_only": true,
+   "btn": {
+    "label": "Open request",
+    "line": "requests",
+    "tab": "index"
+   }
+  }
+ ],
+ "done": [
+  {
+   "text": "Posted the Tallgrass Apparel and Copper Kettle Pets week plans",
+   "brand": "Agency",
+   "by": "You",
+   "when": "8:14am",
+   "who": null
+  },
+  {
+   "text": "Approved 6 creator videos",
+   "brand": "Copper Kettle Pets",
+   "by": "You",
+   "when": "8:40am",
+   "who": null
+  },
+  {
+   "text": [
+    "Turned off ",
+    {
+     "b": "2 ads"
+    },
+    " on Meta"
+   ],
+   "brand": "Northlake Golf",
+   "by": "Jordan",
+   "when": "9:05am",
+   "who": {
+    "name": "Jordan Lee"
+   }
+  },
+  {
+   "text": "Sent the November report",
+   "brand": "Fairway Supply",
+   "by": "Alex",
+   "when": "9:30am",
+   "who": {
+    "name": "Alex Morgan"
+   }
+  },
+  {
+   "text": "The November report is ready to read",
+   "brand": "Northlake Golf",
+   "by": "Alex",
+   "when": "9:30am",
+   "who": {
+    "name": "Alex Morgan"
+   },
+   "client": true,
+   "client_only": true
+  }
+ ]
+}

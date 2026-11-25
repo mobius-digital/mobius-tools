@@ -1,0 +1,17 @@
+{
+ "note": "Sample. Every row is invented. The rows themselves come from pages/_sample/notifications.json (the bell's file); this file adds what only the page shows, keyed by the row's words.",
+ "read": { "client": true },
+ "groups": [
+  { "id": "week", "title": "With the team", "note": "Moving, nothing for you to do" },
+  { "id": "client", "title": "Waiting on the client", "note": "Sent, no answer yet. Oldest first" }
+ ],
+ "take": { "say": ["Everything here is moving. The hoodie mock up has sat for ", { "b": "8 days" }, ", so it is worth a nudge."] },
+ "take_client": { "say": ["Your gift box request is with Sam and is due ", { "b": "Fri" }, "."] },
+ "rows": {
+  "Recut of the range day video": { "group": "week", "detail": "Riley is cutting a shorter open. The first cut is due Wed." },
+  "Google budget raise to $220 a day": { "group": "week", "detail": "Morgan raises it Thu if ROAS holds through Wed." },
+  "Amazon listing photos for the navy belt": { "group": "week", "detail": "Taylor is shooting the six listing photos. Due Fri." },
+  "Revise the hoodie mock up": { "group": "client", "days": 8, "late": true, "detail": "Pat asked for a darker green. The new mock up was sent back and has no answer yet." },
+  "Your request: a second colour for the gift box": { "group": "week", "detail": "Sam is pricing a second colour with the printer." }
+ }
+}

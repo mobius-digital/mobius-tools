@@ -1,0 +1,26 @@
+{
+ "as_of": null,
+ "brands": 7,
+ "agency": [
+  { "key": "meta", "name": "Meta business", "group": "Ads", "state": "ok", "note": "7 ad accounts reachable. Read and manage access.", "used_by": "Meta pages, suggestions, budget changes" },
+  { "key": "google_ads", "name": "Google Ads manager account", "group": "Ads", "state": "ok", "note": "6 ad accounts under the manager account.", "used_by": "Google pages and changes" },
+  { "key": "tiktok", "name": "TikTok app", "group": "Ads", "state": "warn", "note": "Connected, but one advertiser has not answered for 3 days.", "fix": "Open TikTok Ads Manager, check the agency still has access to the advertiser, then check again here.", "used_by": "TikTok pages" },
+  { "key": "tw", "name": "Triple Whale", "group": "Data", "state": "ok", "note": "Key works. Attribution in up to yesterday on every shop.", "used_by": "every sale, ROAS and MER" },
+  { "key": "slack", "name": "Slack", "group": "Messages", "state": "ok", "note": "Bot in 16 channels. Buttons on messages work.", "used_by": "every alert, draft and client daily" },
+  { "key": "anthropic", "name": "AI assistant", "group": "AI assistant", "state": "ok", "note": "Answers, drafts and reads are on.", "used_by": "Ask, the daily read, briefs" },
+  { "key": "openai", "name": "Image maker", "group": "Making ads", "state": "off", "note": "Not connected. Making ad images is off.", "fix": "Paste an image maker key in Making ads, Connections. The owner does this once for the agency.", "used_by": "Making ads" },
+  { "key": "asana", "name": "Asana", "group": "Production tools", "state": "ok", "note": "Workspace linked. Hourly sync.", "used_by": "the production board, briefs" },
+  { "key": "frame", "name": "Frame.io", "group": "Production tools", "state": "ok", "note": "Connected. Review links live.", "used_by": "video review" },
+  { "key": "stripe", "name": "Stripe", "group": "Money", "state": "ok", "note": "Live key. Invoices and autopay.", "used_by": "new client invoices" }
+ ],
+ "per_brand": [
+  { "key": "shopify", "name": "Shopify store", "group": "Store", "ok": 7, "missing": [] },
+  { "key": "tw", "name": "Triple Whale shop", "group": "Store", "ok": 6, "missing": ["Fairway Supply"] },
+  { "key": "meta", "name": "Meta ad account", "group": "Ads", "ok": 7, "missing": [] },
+  { "key": "google_ads", "name": "Google Ads", "group": "Ads", "ok": 6, "missing": ["Brightside Patch"] },
+  { "key": "tiktok", "name": "TikTok Ads", "group": "Ads", "ok": 2, "missing": ["Harbor & Pine", "Tallgrass Apparel", "Copper Kettle Pets", "Brightside Patch"] },
+  { "key": "amazon", "name": "Amazon", "group": "Ads", "ok": 2, "missing": ["Northlake Golf", "Harbor & Pine", "Tallgrass Apparel", "Copper Kettle Pets"] },
+  { "key": "klaviyo", "name": "Klaviyo", "group": "Email & SMS", "ok": 5, "missing": ["Brightside Patch", "Fairway Supply"] },
+  { "key": "ga4", "name": "Google Analytics", "group": "Website", "ok": 6, "missing": ["Fairway Supply"] }
+ ]
+}

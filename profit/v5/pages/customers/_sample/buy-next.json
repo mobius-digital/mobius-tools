@@ -1,0 +1,1130 @@
+{
+ "connected": true,
+ "range": {
+  "from": "2026-11-01",
+  "to": "2026-11-22"
+ },
+ "example": [],
+ "since": "2025-01",
+ "customers": 12480,
+ "came_back": 1676,
+ "belt_belt": 1318,
+ "same_colour": 124,
+ "top_back": 1019,
+ "top_addon": {
+  "name": "Ball marker",
+  "customers": 131,
+  "of": "belt buyers"
+ },
+ "gap_days": 44,
+ "by_category": {
+  "lead": "1:belt>2:belt",
+  "columns": [
+   {
+    "title": "1st order",
+    "sub": "12,480 customers",
+    "nodes": [
+     {
+      "id": "1:belt",
+      "label": "Belt",
+      "value": 1548,
+      "note": "1,548 of 11,890 came back",
+      "tip": "came back"
+     },
+     {
+      "id": "1:marker",
+      "label": "Ball marker",
+      "value": 41,
+      "note": "41 of 214 came back",
+      "tip": "came back"
+     },
+     {
+      "id": "1:hat",
+      "label": "Hat",
+      "value": 38,
+      "note": "38 of 198 came back",
+      "tip": "came back"
+     },
+     {
+      "id": "1:glove",
+      "label": "Glove",
+      "value": 19,
+      "note": "19 of 96 came back",
+      "tip": "came back"
+     },
+     {
+      "id": "1:other",
+      "label": "Other",
+      "value": 30,
+      "note": "30 of 82 came back",
+      "tip": "came back"
+     },
+     {
+      "id": "1:none",
+      "label": "Did not order again",
+      "short": "No 2nd order",
+      "ghost": true,
+      "count": 10804,
+      "value": 0
+     }
+    ]
+   },
+   {
+    "title": "2nd order",
+    "sub": "1,676 customers",
+    "nodes": [
+     {
+      "id": "2:belt",
+      "label": "Belt",
+      "value": 1392,
+      "tip": "second orders"
+     },
+     {
+      "id": "2:marker",
+      "label": "Ball marker",
+      "value": 148,
+      "tip": "second orders"
+     },
+     {
+      "id": "2:hat",
+      "label": "Hat",
+      "value": 71,
+      "tip": "second orders"
+     },
+     {
+      "id": "2:glove",
+      "label": "Glove",
+      "value": 46,
+      "tip": "second orders"
+     },
+     {
+      "id": "2:other",
+      "label": "Other",
+      "value": 19,
+      "tip": "second orders"
+     }
+    ]
+   },
+   {
+    "title": "3rd order",
+    "sub": "412 customers",
+    "nodes": [
+     {
+      "id": "3:belt",
+      "label": "Belt",
+      "value": 318,
+      "tip": "third orders"
+     },
+     {
+      "id": "3:marker",
+      "label": "Ball marker",
+      "value": 52,
+      "tip": "third orders"
+     },
+     {
+      "id": "3:hat",
+      "label": "Hat",
+      "value": 21,
+      "tip": "third orders"
+     },
+     {
+      "id": "3:glove",
+      "label": "Glove",
+      "value": 14,
+      "tip": "third orders"
+     },
+     {
+      "id": "3:other",
+      "label": "Other",
+      "value": 7,
+      "tip": "third orders"
+     },
+     {
+      "id": "3:none",
+      "label": "Did not order again",
+      "short": "No 3rd order",
+      "soft": true,
+      "value": 1264,
+      "tip": "stopped at two orders"
+     }
+    ]
+   }
+  ],
+  "links": [
+   {
+    "from": "1:belt",
+    "to": "2:belt",
+    "value": 1318,
+    "name": "Belt, then Belt",
+    "extra": "Typical gap 44 days"
+   },
+   {
+    "from": "1:belt",
+    "to": "2:marker",
+    "value": 131,
+    "name": "Belt, then Ball marker"
+   },
+   {
+    "from": "1:belt",
+    "to": "2:hat",
+    "value": 52,
+    "name": "Belt, then Hat"
+   },
+   {
+    "from": "1:belt",
+    "to": "2:glove",
+    "value": 36,
+    "name": "Belt, then Glove"
+   },
+   {
+    "from": "1:belt",
+    "to": "2:other",
+    "value": 11,
+    "name": "Belt, then Other"
+   },
+   {
+    "from": "1:marker",
+    "to": "2:belt",
+    "value": 29,
+    "name": "Ball marker, then Belt"
+   },
+   {
+    "from": "1:marker",
+    "to": "2:marker",
+    "value": 9,
+    "name": "Ball marker, then Ball marker"
+   },
+   {
+    "from": "1:marker",
+    "to": "2:hat",
+    "value": 3,
+    "name": "Ball marker, then Hat"
+   },
+   {
+    "from": "1:hat",
+    "to": "2:belt",
+    "value": 22,
+    "name": "Hat, then Belt"
+   },
+   {
+    "from": "1:hat",
+    "to": "2:hat",
+    "value": 12,
+    "name": "Hat, then Hat"
+   },
+   {
+    "from": "1:hat",
+    "to": "2:marker",
+    "value": 4,
+    "name": "Hat, then Ball marker"
+   },
+   {
+    "from": "1:glove",
+    "to": "2:belt",
+    "value": 9,
+    "name": "Glove, then Belt"
+   },
+   {
+    "from": "1:glove",
+    "to": "2:glove",
+    "value": 8,
+    "name": "Glove, then Glove"
+   },
+   {
+    "from": "1:glove",
+    "to": "2:marker",
+    "value": 2,
+    "name": "Glove, then Ball marker"
+   },
+   {
+    "from": "1:other",
+    "to": "2:belt",
+    "value": 14,
+    "name": "Other, then Belt"
+   },
+   {
+    "from": "1:other",
+    "to": "2:other",
+    "value": 8,
+    "name": "Other, then Other"
+   },
+   {
+    "from": "1:other",
+    "to": "2:hat",
+    "value": 4,
+    "name": "Other, then Hat"
+   },
+   {
+    "from": "1:other",
+    "to": "2:glove",
+    "value": 2,
+    "name": "Other, then Glove"
+   },
+   {
+    "from": "1:other",
+    "to": "2:marker",
+    "value": 2,
+    "name": "Other, then Ball marker"
+   },
+   {
+    "from": "2:belt",
+    "to": "3:belt",
+    "value": 281,
+    "name": "Belt, then Belt"
+   },
+   {
+    "from": "2:belt",
+    "to": "3:marker",
+    "value": 41,
+    "name": "Belt, then Ball marker"
+   },
+   {
+    "from": "2:belt",
+    "to": "3:hat",
+    "value": 14,
+    "name": "Belt, then Hat"
+   },
+   {
+    "from": "2:belt",
+    "to": "3:glove",
+    "value": 9,
+    "name": "Belt, then Glove"
+   },
+   {
+    "from": "2:belt",
+    "to": "3:other",
+    "value": 4,
+    "name": "Belt, then Other"
+   },
+   {
+    "from": "2:marker",
+    "to": "3:belt",
+    "value": 21,
+    "name": "Ball marker, then Belt"
+   },
+   {
+    "from": "2:marker",
+    "to": "3:marker",
+    "value": 8,
+    "name": "Ball marker, then Ball marker"
+   },
+   {
+    "from": "2:marker",
+    "to": "3:hat",
+    "value": 3,
+    "name": "Ball marker, then Hat"
+   },
+   {
+    "from": "2:marker",
+    "to": "3:glove",
+    "value": 2,
+    "name": "Ball marker, then Glove"
+   },
+   {
+    "from": "2:hat",
+    "to": "3:belt",
+    "value": 9,
+    "name": "Hat, then Belt"
+   },
+   {
+    "from": "2:hat",
+    "to": "3:hat",
+    "value": 4,
+    "name": "Hat, then Hat"
+   },
+   {
+    "from": "2:hat",
+    "to": "3:marker",
+    "value": 2,
+    "name": "Hat, then Ball marker"
+   },
+   {
+    "from": "2:hat",
+    "to": "3:glove",
+    "value": 1,
+    "name": "Hat, then Glove"
+   },
+   {
+    "from": "2:glove",
+    "to": "3:belt",
+    "value": 5,
+    "name": "Glove, then Belt"
+   },
+   {
+    "from": "2:glove",
+    "to": "3:glove",
+    "value": 2,
+    "name": "Glove, then Glove"
+   },
+   {
+    "from": "2:glove",
+    "to": "3:marker",
+    "value": 1,
+    "name": "Glove, then Ball marker"
+   },
+   {
+    "from": "2:glove",
+    "to": "3:other",
+    "value": 1,
+    "name": "Glove, then Other"
+   },
+   {
+    "from": "2:other",
+    "to": "3:belt",
+    "value": 2,
+    "name": "Other, then Belt"
+   },
+   {
+    "from": "2:other",
+    "to": "3:other",
+    "value": 2,
+    "name": "Other, then Other"
+   },
+   {
+    "from": "2:belt",
+    "to": "3:none",
+    "value": 1043,
+    "name": "Belt, then nothing more"
+   },
+   {
+    "from": "2:marker",
+    "to": "3:none",
+    "value": 114,
+    "name": "Ball marker, then nothing more"
+   },
+   {
+    "from": "2:hat",
+    "to": "3:none",
+    "value": 55,
+    "name": "Hat, then nothing more"
+   },
+   {
+    "from": "2:glove",
+    "to": "3:none",
+    "value": 37,
+    "name": "Glove, then nothing more"
+   },
+   {
+    "from": "2:other",
+    "to": "3:none",
+    "value": 15,
+    "name": "Other, then nothing more"
+   }
+  ]
+ },
+ "by_product": {
+  "lead": null,
+  "columns": [
+   {
+    "title": "1st order",
+    "sub": "12,480 customers",
+    "nodes": [
+     {
+      "id": "1:midnight",
+      "label": "Midnight Black",
+      "value": 214,
+      "note": "214 of 2,380",
+      "tip": "came back"
+     },
+     {
+      "id": "1:fairway",
+      "label": "Fairway Green",
+      "value": 230,
+      "note": "230 of 1,640",
+      "tip": "came back"
+     },
+     {
+      "id": "1:storm",
+      "label": "Storm Grey",
+      "value": 181,
+      "note": "181 of 1,510",
+      "tip": "came back"
+     },
+     {
+      "id": "1:sand",
+      "label": "Sandstone",
+      "value": 167,
+      "note": "167 of 980",
+      "tip": "came back"
+     },
+     {
+      "id": "1:navy",
+      "label": "Navy Stripe",
+      "value": 113,
+      "note": "113 of 870",
+      "tip": "came back"
+     },
+     {
+      "id": "1:chestnut",
+      "label": "Chestnut Brown",
+      "value": 114,
+      "note": "114 of 760",
+      "tip": "came back"
+     },
+     {
+      "id": "1:obelts",
+      "label": "Other belts",
+      "value": 529,
+      "note": "529 of 3,750",
+      "tip": "came back"
+     },
+     {
+      "id": "1:addons",
+      "label": "Add-ons",
+      "value": 128,
+      "note": "128 of 590",
+      "tip": "came back"
+     },
+     {
+      "id": "1:none",
+      "label": "Did not order again",
+      "short": "No 2nd order",
+      "ghost": true,
+      "count": 10804,
+      "value": 0
+     }
+    ]
+   },
+   {
+    "title": "2nd order",
+    "sub": "1,676 customers",
+    "nodes": [
+     {
+      "id": "2:midnight",
+      "label": "Midnight Black",
+      "value": 180,
+      "tip": "second orders"
+     },
+     {
+      "id": "2:fairway",
+      "label": "Fairway Green",
+      "value": 164,
+      "tip": "second orders"
+     },
+     {
+      "id": "2:storm",
+      "label": "Storm Grey",
+      "value": 147,
+      "tip": "second orders"
+     },
+     {
+      "id": "2:sand",
+      "label": "Sandstone",
+      "value": 103,
+      "tip": "second orders"
+     },
+     {
+      "id": "2:navy",
+      "label": "Navy Stripe",
+      "value": 84,
+      "tip": "second orders"
+     },
+     {
+      "id": "2:chestnut",
+      "label": "Chestnut Brown",
+      "value": 84,
+      "tip": "second orders"
+     },
+     {
+      "id": "2:obelts",
+      "label": "Other belts",
+      "value": 646,
+      "tip": "second orders"
+     },
+     {
+      "id": "2:addons",
+      "label": "Add-ons",
+      "value": 268,
+      "tip": "second orders"
+     }
+    ]
+   }
+  ],
+  "links": [
+   {
+    "from": "1:midnight",
+    "to": "2:addons",
+    "value": 32,
+    "name": "Midnight Black, then Add-ons"
+   },
+   {
+    "from": "1:midnight",
+    "to": "2:midnight",
+    "value": 26,
+    "name": "Midnight Black, then the same belt"
+   },
+   {
+    "from": "1:midnight",
+    "to": "2:fairway",
+    "value": 19,
+    "name": "Midnight Black, then Fairway Green"
+   },
+   {
+    "from": "1:midnight",
+    "to": "2:storm",
+    "value": 17,
+    "name": "Midnight Black, then Storm Grey"
+   },
+   {
+    "from": "1:midnight",
+    "to": "2:sand",
+    "value": 11,
+    "name": "Midnight Black, then Sandstone"
+   },
+   {
+    "from": "1:midnight",
+    "to": "2:navy",
+    "value": 9,
+    "name": "Midnight Black, then Navy Stripe"
+   },
+   {
+    "from": "1:midnight",
+    "to": "2:chestnut",
+    "value": 9,
+    "name": "Midnight Black, then Chestnut Brown"
+   },
+   {
+    "from": "1:midnight",
+    "to": "2:obelts",
+    "value": 91,
+    "name": "Midnight Black, then Other belts"
+   },
+   {
+    "from": "1:fairway",
+    "to": "2:addons",
+    "value": 34,
+    "name": "Fairway Green, then Add-ons"
+   },
+   {
+    "from": "1:fairway",
+    "to": "2:fairway",
+    "value": 28,
+    "name": "Fairway Green, then the same belt"
+   },
+   {
+    "from": "1:fairway",
+    "to": "2:midnight",
+    "value": 23,
+    "name": "Fairway Green, then Midnight Black"
+   },
+   {
+    "from": "1:fairway",
+    "to": "2:storm",
+    "value": 18,
+    "name": "Fairway Green, then Storm Grey"
+   },
+   {
+    "from": "1:fairway",
+    "to": "2:sand",
+    "value": 12,
+    "name": "Fairway Green, then Sandstone"
+   },
+   {
+    "from": "1:fairway",
+    "to": "2:navy",
+    "value": 10,
+    "name": "Fairway Green, then Navy Stripe"
+   },
+   {
+    "from": "1:fairway",
+    "to": "2:chestnut",
+    "value": 10,
+    "name": "Fairway Green, then Chestnut Brown"
+   },
+   {
+    "from": "1:fairway",
+    "to": "2:obelts",
+    "value": 95,
+    "name": "Fairway Green, then Other belts"
+   },
+   {
+    "from": "1:storm",
+    "to": "2:addons",
+    "value": 27,
+    "name": "Storm Grey, then Add-ons"
+   },
+   {
+    "from": "1:storm",
+    "to": "2:storm",
+    "value": 22,
+    "name": "Storm Grey, then the same belt"
+   },
+   {
+    "from": "1:storm",
+    "to": "2:midnight",
+    "value": 18,
+    "name": "Storm Grey, then Midnight Black"
+   },
+   {
+    "from": "1:storm",
+    "to": "2:fairway",
+    "value": 16,
+    "name": "Storm Grey, then Fairway Green"
+   },
+   {
+    "from": "1:storm",
+    "to": "2:sand",
+    "value": 10,
+    "name": "Storm Grey, then Sandstone"
+   },
+   {
+    "from": "1:storm",
+    "to": "2:navy",
+    "value": 8,
+    "name": "Storm Grey, then Navy Stripe"
+   },
+   {
+    "from": "1:storm",
+    "to": "2:chestnut",
+    "value": 8,
+    "name": "Storm Grey, then Chestnut Brown"
+   },
+   {
+    "from": "1:storm",
+    "to": "2:obelts",
+    "value": 72,
+    "name": "Storm Grey, then Other belts"
+   },
+   {
+    "from": "1:sand",
+    "to": "2:addons",
+    "value": 25,
+    "name": "Sandstone, then Add-ons"
+   },
+   {
+    "from": "1:sand",
+    "to": "2:sand",
+    "value": 20,
+    "name": "Sandstone, then the same belt"
+   },
+   {
+    "from": "1:sand",
+    "to": "2:midnight",
+    "value": 17,
+    "name": "Sandstone, then Midnight Black"
+   },
+   {
+    "from": "1:sand",
+    "to": "2:fairway",
+    "value": 15,
+    "name": "Sandstone, then Fairway Green"
+   },
+   {
+    "from": "1:sand",
+    "to": "2:storm",
+    "value": 13,
+    "name": "Sandstone, then Storm Grey"
+   },
+   {
+    "from": "1:sand",
+    "to": "2:navy",
+    "value": 7,
+    "name": "Sandstone, then Navy Stripe"
+   },
+   {
+    "from": "1:sand",
+    "to": "2:chestnut",
+    "value": 7,
+    "name": "Sandstone, then Chestnut Brown"
+   },
+   {
+    "from": "1:sand",
+    "to": "2:obelts",
+    "value": 63,
+    "name": "Sandstone, then Other belts"
+   },
+   {
+    "from": "1:navy",
+    "to": "2:addons",
+    "value": 17,
+    "name": "Navy Stripe, then Add-ons"
+   },
+   {
+    "from": "1:navy",
+    "to": "2:navy",
+    "value": 14,
+    "name": "Navy Stripe, then the same belt"
+   },
+   {
+    "from": "1:navy",
+    "to": "2:midnight",
+    "value": 11,
+    "name": "Navy Stripe, then Midnight Black"
+   },
+   {
+    "from": "1:navy",
+    "to": "2:fairway",
+    "value": 10,
+    "name": "Navy Stripe, then Fairway Green"
+   },
+   {
+    "from": "1:navy",
+    "to": "2:storm",
+    "value": 9,
+    "name": "Navy Stripe, then Storm Grey"
+   },
+   {
+    "from": "1:navy",
+    "to": "2:sand",
+    "value": 6,
+    "name": "Navy Stripe, then Sandstone"
+   },
+   {
+    "from": "1:navy",
+    "to": "2:chestnut",
+    "value": 5,
+    "name": "Navy Stripe, then Chestnut Brown"
+   },
+   {
+    "from": "1:navy",
+    "to": "2:obelts",
+    "value": 41,
+    "name": "Navy Stripe, then Other belts"
+   },
+   {
+    "from": "1:chestnut",
+    "to": "2:addons",
+    "value": 17,
+    "name": "Chestnut Brown, then Add-ons"
+   },
+   {
+    "from": "1:chestnut",
+    "to": "2:chestnut",
+    "value": 14,
+    "name": "Chestnut Brown, then the same belt"
+   },
+   {
+    "from": "1:chestnut",
+    "to": "2:midnight",
+    "value": 11,
+    "name": "Chestnut Brown, then Midnight Black"
+   },
+   {
+    "from": "1:chestnut",
+    "to": "2:fairway",
+    "value": 10,
+    "name": "Chestnut Brown, then Fairway Green"
+   },
+   {
+    "from": "1:chestnut",
+    "to": "2:storm",
+    "value": 9,
+    "name": "Chestnut Brown, then Storm Grey"
+   },
+   {
+    "from": "1:chestnut",
+    "to": "2:sand",
+    "value": 6,
+    "name": "Chestnut Brown, then Sandstone"
+   },
+   {
+    "from": "1:chestnut",
+    "to": "2:navy",
+    "value": 5,
+    "name": "Chestnut Brown, then Navy Stripe"
+   },
+   {
+    "from": "1:chestnut",
+    "to": "2:obelts",
+    "value": 42,
+    "name": "Chestnut Brown, then Other belts"
+   },
+   {
+    "from": "1:obelts",
+    "to": "2:addons",
+    "value": 78,
+    "name": "Other belts, then Add-ons"
+   },
+   {
+    "from": "1:obelts",
+    "to": "2:midnight",
+    "value": 62,
+    "name": "Other belts, then Midnight Black"
+   },
+   {
+    "from": "1:obelts",
+    "to": "2:fairway",
+    "value": 55,
+    "name": "Other belts, then Fairway Green"
+   },
+   {
+    "from": "1:obelts",
+    "to": "2:storm",
+    "value": 49,
+    "name": "Other belts, then Storm Grey"
+   },
+   {
+    "from": "1:obelts",
+    "to": "2:sand",
+    "value": 32,
+    "name": "Other belts, then Sandstone"
+   },
+   {
+    "from": "1:obelts",
+    "to": "2:navy",
+    "value": 26,
+    "name": "Other belts, then Navy Stripe"
+   },
+   {
+    "from": "1:obelts",
+    "to": "2:chestnut",
+    "value": 26,
+    "name": "Other belts, then Chestnut Brown"
+   },
+   {
+    "from": "1:obelts",
+    "to": "2:obelts",
+    "value": 201,
+    "name": "Other belts, then Other belts"
+   },
+   {
+    "from": "1:addons",
+    "to": "2:addons",
+    "value": 38,
+    "name": "Add-ons, then Add-ons"
+   },
+   {
+    "from": "1:addons",
+    "to": "2:midnight",
+    "value": 12,
+    "name": "Add-ons, then Midnight Black"
+   },
+   {
+    "from": "1:addons",
+    "to": "2:fairway",
+    "value": 11,
+    "name": "Add-ons, then Fairway Green"
+   },
+   {
+    "from": "1:addons",
+    "to": "2:storm",
+    "value": 10,
+    "name": "Add-ons, then Storm Grey"
+   },
+   {
+    "from": "1:addons",
+    "to": "2:sand",
+    "value": 6,
+    "name": "Add-ons, then Sandstone"
+   },
+   {
+    "from": "1:addons",
+    "to": "2:navy",
+    "value": 5,
+    "name": "Add-ons, then Navy Stripe"
+   },
+   {
+    "from": "1:addons",
+    "to": "2:chestnut",
+    "value": 5,
+    "name": "Add-ons, then Chestnut Brown"
+   },
+   {
+    "from": "1:addons",
+    "to": "2:obelts",
+    "value": 41,
+    "name": "Add-ons, then Other belts"
+   }
+  ]
+ },
+ "pick": [
+  {
+   "id": "midnight",
+   "name": "Midnight Black",
+   "customers": 2380,
+   "back": 214,
+   "next": [
+    {
+     "name": "Same belt again",
+     "customers": 26,
+     "same": true
+    },
+    {
+     "name": "Fairway Green",
+     "customers": 19
+    },
+    {
+     "name": "Ball marker",
+     "customers": 19
+    },
+    {
+     "name": "Storm Grey",
+     "customers": 17
+    },
+    {
+     "name": "Hat or glove",
+     "customers": 13
+    }
+   ],
+   "rest": {
+    "name": "Something else",
+    "customers": 120
+   }
+  },
+  {
+   "id": "fairway",
+   "name": "Fairway Green",
+   "customers": 1640,
+   "back": 230,
+   "next": [
+    {
+     "name": "Same belt again",
+     "customers": 28,
+     "same": true
+    },
+    {
+     "name": "Midnight Black",
+     "customers": 23
+    },
+    {
+     "name": "Ball marker",
+     "customers": 20
+    },
+    {
+     "name": "Storm Grey",
+     "customers": 18
+    },
+    {
+     "name": "Hat or glove",
+     "customers": 14
+    }
+   ],
+   "rest": {
+    "name": "Something else",
+    "customers": 127
+   }
+  },
+  {
+   "id": "storm",
+   "name": "Storm Grey",
+   "customers": 1510,
+   "back": 181,
+   "next": [
+    {
+     "name": "Same belt again",
+     "customers": 22,
+     "same": true
+    },
+    {
+     "name": "Midnight Black",
+     "customers": 18
+    },
+    {
+     "name": "Fairway Green",
+     "customers": 16
+    },
+    {
+     "name": "Ball marker",
+     "customers": 16
+    },
+    {
+     "name": "Hat or glove",
+     "customers": 11
+    }
+   ],
+   "rest": {
+    "name": "Something else",
+    "customers": 98
+   }
+  },
+  {
+   "id": "sand",
+   "name": "Sandstone",
+   "customers": 980,
+   "back": 167,
+   "next": [
+    {
+     "name": "Same belt again",
+     "customers": 20,
+     "same": true
+    },
+    {
+     "name": "Midnight Black",
+     "customers": 17
+    },
+    {
+     "name": "Fairway Green",
+     "customers": 15
+    },
+    {
+     "name": "Ball marker",
+     "customers": 15
+    },
+    {
+     "name": "Storm Grey",
+     "customers": 13
+    }
+   ],
+   "rest": {
+    "name": "Something else",
+    "customers": 87
+   }
+  },
+  {
+   "id": "navy",
+   "name": "Navy Stripe",
+   "customers": 870,
+   "back": 113,
+   "next": [
+    {
+     "name": "Same belt again",
+     "customers": 14,
+     "same": true
+    },
+    {
+     "name": "Midnight Black",
+     "customers": 11
+    },
+    {
+     "name": "Fairway Green",
+     "customers": 10
+    },
+    {
+     "name": "Ball marker",
+     "customers": 10
+    },
+    {
+     "name": "Storm Grey",
+     "customers": 9
+    }
+   ],
+   "rest": {
+    "name": "Something else",
+    "customers": 59
+   }
+  },
+  {
+   "id": "chestnut",
+   "name": "Chestnut Brown",
+   "customers": 760,
+   "back": 114,
+   "next": [
+    {
+     "name": "Same belt again",
+     "customers": 14,
+     "same": true
+    },
+    {
+     "name": "Midnight Black",
+     "customers": 11
+    },
+    {
+     "name": "Fairway Green",
+     "customers": 10
+    },
+    {
+     "name": "Ball marker",
+     "customers": 10
+    },
+    {
+     "name": "Storm Grey",
+     "customers": 9
+    }
+   ],
+   "rest": {
+    "name": "Something else",
+    "customers": 60
+   }
+  }
+ ]
+}

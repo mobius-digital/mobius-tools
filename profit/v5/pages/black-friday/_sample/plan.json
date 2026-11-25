@@ -1,0 +1,54 @@
+{
+ "sample": true,
+ "act_id": "brand_northlake_golf",
+ "name": "Northlake Golf",
+ "currency": "USD",
+ "today": "2026-11-24",
+ "bf": "2026-11-27",
+ "mode": "plan",
+ "sale": { "start": "2026-11-26", "end": "2026-11-30", "set": 1 },
+ "sale_days_to": 2,
+ "goals_list": [
+  { "metric": "revenue", "target": 69000 },
+  { "metric": "mer", "target": 3 },
+  { "metric": "orders", "target": 590 },
+  { "metric": "new_customers", "target": 410 }
+ ],
+ "goals_saved": 1,
+ "metrics": { "revenue": "Revenue", "orders": "Orders", "aov": "AOV", "mer": "MER", "new_customers": "New customers", "spend": "Ad spend" },
+ "ladder": { "be": 1.6, "hold": 2.4, "target": 3, "s50": 3.3, "s100": 3.8, "start": 2800, "cap": 6000 },
+ "budget": {
+  "total": 19000,
+  "allocated": 19000,
+  "unallocated": 0,
+  "channels": [
+   { "id": "meta", "label": "Meta", "unit": "%", "value": 70, "amount": 13300, "metric": "roas", "target": 2.5 },
+   { "id": "google", "label": "Google", "unit": "%", "value": 25, "amount": 4750, "metric": "roas", "target": 3.5 },
+   { "id": "tiktok", "label": "TikTok", "unit": "%", "value": 5, "amount": 950, "metric": null, "target": null }
+  ]
+ },
+ "baseline": { "from": "2025-11-26", "to": "2025-12-02", "totals": { "sales": 58420, "orders": 512, "aov": 114, "spend": 16900, "mer": 3.46, "days": 5 } },
+ "plan": [
+  { "date": "2026-11-26", "ly": "2025-11-27", "ly_sales": 5100, "ly_spend": 1800, "revenue": 6200, "spend": 2000 },
+  { "date": "2026-11-27", "ly": "2025-11-28", "ly_sales": 18300, "ly_spend": 4900, "revenue": 21400, "spend": 5400 },
+  { "date": "2026-11-28", "ly": "2025-11-29", "ly_sales": 11600, "ly_spend": 3400, "revenue": 13800, "spend": 3900 },
+  { "date": "2026-11-29", "ly": "2025-11-30", "ly_sales": 8820, "ly_spend": 2500, "revenue": 10500, "spend": 2800 },
+  { "date": "2026-11-30", "ly": "2025-12-01", "ly_sales": 14600, "ly_spend": 4300, "revenue": 17100, "spend": 4900 }
+ ],
+ "steps": [
+  { "key": "goals", "label": "Set the goals", "done": true, "why": "" },
+  { "key": "ladder", "label": "Set the scaling ladder", "done": true, "why": "" },
+  { "key": "offers", "label": "Lock the offers and dates", "done": true, "why": "" }
+ ],
+ "phases": [
+  { "key": "early", "name": "Early Black Friday", "start": "2026-11-01", "end": "2026-11-15", "offer": "20% off every belt, early for the list", "status": "locked" },
+  { "key": "bf", "name": "Black Friday weekend", "start": "2026-11-26", "end": "2026-11-30", "offer": "Buy a belt, get a ball marker set free", "status": "locked" },
+  { "key": "cm", "name": "Cyber Monday", "start": "2026-11-30", "end": "2026-11-30", "offer": "Free marker set plus free shipping, one day", "status": "locked" }
+ ],
+ "scheduled": [
+  { "at": "2026-11-27T00:00:00.000Z", "what": "Black Friday ad sets start, the early ads stop", "task": "Thursday 6pm switch" },
+  { "at": "2026-11-30T06:00:00.000Z", "what": "Cyber Monday ads switch on", "task": "Monday midnight switch" },
+  { "at": "2026-12-01T06:00:00.000Z", "what": "Black Friday ad sets end, the holiday campaign starts", "task": "Back to normal" }
+ ],
+ "checkins": []
+}

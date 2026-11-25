@@ -1,0 +1,283 @@
+{
+ "today": "2026-11-24",
+ "score_failed": null,
+ "failed": [],
+ "cards": [
+  {
+   "act_id": "brand_northlake_golf",
+   "name": "Northlake Golf",
+   "source": "trybe",
+   "creators_active": 27,
+   "waiting": 3,
+   "last_7": {
+    "spend": 840.5,
+    "orders": 14,
+    "sales": 1502.2,
+    "cpa": 60.04,
+    "roas": 1.79,
+    "goal_cpa": 45,
+    "on_goal": false,
+    "videos_in": 22,
+    "approved": 6,
+    "launched": 9,
+    "winners": 5
+   },
+   "last_30": {
+    "spend": 4047.9,
+    "orders": 49,
+    "sales": 6120.4,
+    "cpa": 82.61,
+    "roas": 1.51,
+    "goal_cpa": 45,
+    "on_goal": false,
+    "videos_in": 118,
+    "approved": 41,
+    "launched": 52
+   }
+  },
+  {
+   "act_id": "brand_harbor_and_pine",
+   "name": "Harbor & Pine",
+   "source": "trybe",
+   "creators_active": 19,
+   "waiting": 1,
+   "last_7": {
+    "spend": 412.75,
+    "orders": 11,
+    "sales": 1180.6,
+    "cpa": 37.52,
+    "roas": 2.86,
+    "goal_cpa": 40,
+    "on_goal": true,
+    "videos_in": 9,
+    "approved": 4,
+    "launched": 6,
+    "winners": 4
+   },
+   "last_30": {
+    "spend": 1630.2,
+    "orders": 45,
+    "sales": 4710.9,
+    "cpa": 36.23,
+    "roas": 2.89,
+    "goal_cpa": 40,
+    "on_goal": true,
+    "videos_in": 47,
+    "approved": 22,
+    "launched": 25
+   }
+  },
+  {
+   "act_id": "brand_copper_kettle_pets",
+   "name": "Copper Kettle Pets",
+   "source": "trybe",
+   "creators_active": 8,
+   "waiting": 2,
+   "last_7": {
+    "spend": 96.4,
+    "orders": 0,
+    "sales": 0,
+    "cpa": null,
+    "roas": 0,
+    "goal_cpa": 22,
+    "on_goal": null,
+    "videos_in": 6,
+    "approved": 2,
+    "launched": 1,
+    "winners": 0
+   },
+   "last_30": {
+    "spend": 318.1,
+    "orders": 7,
+    "sales": 402.3,
+    "cpa": 45.44,
+    "roas": 1.26,
+    "goal_cpa": 22,
+    "on_goal": false,
+    "videos_in": 21,
+    "approved": 9,
+    "launched": 7
+   }
+  },
+  {
+   "act_id": "brand_brightside_patch",
+   "name": "Brightside Patch",
+   "source": "trybe",
+   "creators_active": 64,
+   "waiting": 12,
+   "last_7": {
+    "spend": 0,
+    "orders": 0,
+    "sales": 0,
+    "cpa": null,
+    "roas": null,
+    "goal_cpa": 28,
+    "on_goal": null,
+    "videos_in": 31,
+    "approved": 5,
+    "launched": 0,
+    "winners": 0
+   },
+   "last_30": {
+    "spend": 0,
+    "orders": 0,
+    "sales": 0,
+    "cpa": null,
+    "roas": null,
+    "goal_cpa": 28,
+    "on_goal": null,
+    "videos_in": 160,
+    "approved": 74,
+    "launched": 0
+   }
+  },
+  {
+   "act_id": "brand_fairway_supply",
+   "name": "Fairway Supply",
+   "source": "own_app",
+   "creators_active": 58,
+   "last_7": {
+    "spend": 705.1,
+    "orders": 9,
+    "sales": 1608.3,
+    "cpa": 78.34,
+    "roas": 2.28,
+    "goal_cpa": 60,
+    "on_goal": false,
+    "videos_in": 38,
+    "approved": 19,
+    "launched": 21,
+    "winners": 4
+   },
+   "last_30": {
+    "spend": 3980.6,
+    "orders": 31,
+    "sales": 6402.8,
+    "cpa": 128.41,
+    "roas": 1.61,
+    "goal_cpa": 60,
+    "on_goal": false,
+    "videos_in": 149,
+    "approved": 55,
+    "launched": 70
+   }
+  }
+ ],
+ "brands": [
+  {
+   "act_id": "brand_northlake_golf",
+   "synced_at": "2026-11-24T14:52:00Z",
+   "counts": {
+    "approved": 21,
+    "queue": 3,
+    "not_launched": 3,
+    "no_spend": 0,
+    "other": 0,
+    "stale": 1,
+    "oldest": 5,
+    "live": 18,
+    "creators": 11,
+    "rebook": 2,
+    "pending": 3,
+    "revision": 1
+   },
+   "account": {
+    "cpa": 68,
+    "trybe_cpa": 82.61,
+    "share": 0.18
+   }
+  },
+  {
+   "act_id": "brand_harbor_and_pine",
+   "synced_at": "2026-11-24T14:50:00Z",
+   "counts": {
+    "approved": 13,
+    "queue": 1,
+    "not_launched": 1,
+    "no_spend": 0,
+    "other": 0,
+    "stale": 0,
+    "oldest": 1,
+    "live": 12,
+    "creators": 9,
+    "rebook": 1,
+    "pending": 4,
+    "revision": 0
+   },
+   "account": {
+    "cpa": 38.4,
+    "trybe_cpa": 36.23,
+    "share": 0.12
+   }
+  },
+  {
+   "act_id": "brand_copper_kettle_pets",
+   "synced_at": "2026-11-24T14:49:00Z",
+   "counts": {
+    "approved": 6,
+    "queue": 2,
+    "not_launched": 2,
+    "no_spend": 0,
+    "other": 0,
+    "stale": 0,
+    "oldest": 2,
+    "live": 4,
+    "creators": 3,
+    "rebook": 0,
+    "pending": 2,
+    "revision": 1
+   },
+   "account": {
+    "cpa": 31,
+    "trybe_cpa": 45.44,
+    "share": 0.06
+   }
+  },
+  {
+   "act_id": "brand_brightside_patch",
+   "synced_at": "2026-11-24T14:47:00Z",
+   "counts": {
+    "approved": 12,
+    "queue": 12,
+    "not_launched": 12,
+    "no_spend": 0,
+    "other": 0,
+    "stale": 1,
+    "oldest": 6,
+    "live": 0,
+    "creators": 0,
+    "rebook": 0,
+    "pending": 1,
+    "revision": 3
+   },
+   "account": {
+    "cpa": 24.5,
+    "trybe_cpa": null,
+    "share": 0
+   }
+  },
+  {
+   "act_id": "brand_summit_sticks",
+   "synced_at": "2026-11-24T14:45:00Z",
+   "counts": {
+    "approved": 0,
+    "queue": 0,
+    "not_launched": 0,
+    "no_spend": 0,
+    "other": 0,
+    "stale": 0,
+    "oldest": 0,
+    "live": 0,
+    "creators": 0,
+    "rebook": 0,
+    "pending": 0,
+    "revision": 0
+   },
+   "account": {
+    "cpa": 52,
+    "trybe_cpa": null,
+    "share": 0
+   }
+  }
+ ]
+}

@@ -1,0 +1,165 @@
+{
+ "model": "smart",
+ "instructions": "Lead with the number. Two or three sentences. Say MER for the whole store and ROAS for one platform.",
+ "brief": "We run paid ads and creative for seven ecommerce brands, from golf gear to pet supplements. Every brand is judged on MER first, against the goal agreed with the client. Sales and ROAS are always Triple Whale, last platform click.",
+ "usage": {
+  "answers": 476,
+  "cost": 33.75,
+  "avg_seconds": 14,
+  "by_day": [
+   {
+    "day": "2026-10-26",
+    "answers": 17,
+    "cost": 1.21
+   },
+   {
+    "day": "2026-10-27",
+    "answers": 18,
+    "cost": 1.28
+   },
+   {
+    "day": "2026-10-28",
+    "answers": 15,
+    "cost": 1.06
+   },
+   {
+    "day": "2026-10-29",
+    "answers": 25,
+    "cost": 1.77
+   },
+   {
+    "day": "2026-10-30",
+    "answers": 20,
+    "cost": 1.42
+   },
+   {
+    "day": "2026-10-31",
+    "answers": 6,
+    "cost": 0.43
+   },
+   {
+    "day": "2026-11-01",
+    "answers": 4,
+    "cost": 0.28
+   },
+   {
+    "day": "2026-11-02",
+    "answers": 15,
+    "cost": 1.06
+   },
+   {
+    "day": "2026-11-03",
+    "answers": 15,
+    "cost": 1.06
+   },
+   {
+    "day": "2026-11-04",
+    "answers": 14,
+    "cost": 0.99
+   },
+   {
+    "day": "2026-11-05",
+    "answers": 20,
+    "cost": 1.42
+   },
+   {
+    "day": "2026-11-06",
+    "answers": 22,
+    "cost": 1.56
+   },
+   {
+    "day": "2026-11-07",
+    "answers": 5,
+    "cost": 0.35
+   },
+   {
+    "day": "2026-11-08",
+    "answers": 3,
+    "cost": 0.21
+   },
+   {
+    "day": "2026-11-09",
+    "answers": 17,
+    "cost": 1.21
+   },
+   {
+    "day": "2026-11-10",
+    "answers": 22,
+    "cost": 1.56
+   },
+   {
+    "day": "2026-11-11",
+    "answers": 22,
+    "cost": 1.56
+   },
+   {
+    "day": "2026-11-12",
+    "answers": 19,
+    "cost": 1.35
+   },
+   {
+    "day": "2026-11-13",
+    "answers": 18,
+    "cost": 1.28
+   },
+   {
+    "day": "2026-11-14",
+    "answers": 4,
+    "cost": 0.28
+   },
+   {
+    "day": "2026-11-15",
+    "answers": 3,
+    "cost": 0.21
+   },
+   {
+    "day": "2026-11-16",
+    "answers": 18,
+    "cost": 1.28
+   },
+   {
+    "day": "2026-11-17",
+    "answers": 17,
+    "cost": 1.21
+   },
+   {
+    "day": "2026-11-18",
+    "answers": 14,
+    "cost": 0.99
+   },
+   {
+    "day": "2026-11-19",
+    "answers": 24,
+    "cost": 1.7
+   },
+   {
+    "day": "2026-11-20",
+    "answers": 32,
+    "cost": 2.27
+   },
+   {
+    "day": "2026-11-21",
+    "answers": 11,
+    "cost": 0.78
+   },
+   {
+    "day": "2026-11-22",
+    "answers": 11,
+    "cost": 0.78
+   },
+   {
+    "day": "2026-11-23",
+    "answers": 23,
+    "cost": 1.63
+   },
+   {
+    "day": "2026-11-24",
+    "answers": 22,
+    "cost": 1.56
+   }
+  ]
+ },
+ "ideas_bot": true,
+ "client_daily": 2,
+ "cap": 200
+}

@@ -1,0 +1,134 @@
+{
+ "sample_age_min": 4,
+ "window": {
+  "from": "2026-10-25",
+  "to": "2026-11-23"
+ },
+ "kpi": {
+  "sales": 13210,
+  "sales_prev": 9870,
+  "spend": 1287,
+  "spend_prev": 2460,
+  "ad_sales": 5530,
+  "ad_sales_prev": 5488
+ },
+ "take": [
+  "The Classic Belt in black makes ",
+  {
+   "b": "69%"
+  },
+  " of its sales with no ad behind them. The Junior Belt is the other way round: ",
+  {
+   "b": "86%"
+  },
+  " of its sales came through an ad."
+ ],
+ "products": [
+  {
+   "id": "B0NL000001",
+   "name": "Northlake Classic Belt",
+   "variant": "Black, one size",
+   "sales": 4860,
+   "units": 108,
+   "orders": 101,
+   "ad_spend": 398,
+   "ad_sales": 1512,
+   "stock": {
+    "units": 412,
+    "days": 114
+   }
+  },
+  {
+   "id": "B0NL000002",
+   "name": "Northlake Classic Belt",
+   "variant": "White, one size",
+   "sales": 2940,
+   "units": 66,
+   "orders": 63,
+   "ad_spend": 222,
+   "ad_sales": 1800,
+   "stock": {
+    "units": 38,
+    "days": 17
+   }
+  },
+  {
+   "id": "B0NL000003",
+   "name": "Northlake Braided Belt",
+   "variant": "Navy",
+   "sales": 1985,
+   "units": 41,
+   "orders": 40,
+   "ad_spend": 201,
+   "ad_sales": 1245,
+   "stock": {
+    "units": 196,
+    "days": 143
+   }
+  },
+  {
+   "id": "B0NL000004",
+   "name": "Belt and Ball Marker Gift Set",
+   "variant": "Black belt, two markers",
+   "sales": 1460,
+   "units": 20,
+   "orders": 4,
+   "ad_spend": 0,
+   "ad_sales": 0,
+   "stock": null
+  },
+  {
+   "id": "B0NL000005",
+   "name": "Northlake Junior Belt",
+   "variant": "Black, youth",
+   "sales": 742,
+   "units": 23,
+   "orders": 22,
+   "ad_spend": 214,
+   "ad_sales": 640,
+   "stock": {
+    "units": 88,
+    "days": 115
+   }
+  },
+  {
+   "id": "B0NL000006",
+   "name": "Magnetic Ball Markers",
+   "variant": "Pack of four",
+   "sales": 618,
+   "units": 34,
+   "orders": 31,
+   "ad_spend": 84,
+   "ad_sales": 131,
+   "stock": {
+    "units": 240,
+    "days": 212
+   }
+  },
+  {
+   "id": "B0NL000007",
+   "name": "Leather Scorecard Holder",
+   "variant": "Tan",
+   "sales": 405,
+   "units": 11,
+   "orders": 11,
+   "ad_spend": 97,
+   "ad_sales": 38,
+   "stock": null
+  },
+  {
+   "id": "B0NL000008",
+   "name": "Northlake Reversible Belt",
+   "variant": "Black and brown",
+   "sales": 200,
+   "units": 4,
+   "orders": 4,
+   "ad_spend": 71,
+   "ad_sales": 164,
+   "stock": {
+    "units": 9,
+    "days": 6
+   }
+  }
+ ]
+}

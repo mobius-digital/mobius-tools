@@ -1,0 +1,229 @@
+{
+ "connected": true,
+ "klaviyo": true,
+ "range": {
+  "from": "2026-11-01",
+  "to": "2026-11-22"
+ },
+ "days": [
+  {
+   "date": "2026-11-01",
+   "flows": 258,
+   "campaigns": 1619
+  },
+  {
+   "date": "2026-11-02",
+   "flows": 238,
+   "campaigns": 924
+  },
+  {
+   "date": "2026-11-03",
+   "flows": 219,
+   "campaigns": 33
+  },
+  {
+   "date": "2026-11-04",
+   "flows": 284,
+   "campaigns": 34
+  },
+  {
+   "date": "2026-11-05",
+   "flows": 246,
+   "campaigns": 769
+  },
+  {
+   "date": "2026-11-06",
+   "flows": 325,
+   "campaigns": 24
+  },
+  {
+   "date": "2026-11-07",
+   "flows": 233,
+   "campaigns": 57
+  },
+  {
+   "date": "2026-11-08",
+   "flows": 582,
+   "campaigns": 579
+  },
+  {
+   "date": "2026-11-09",
+   "flows": 196,
+   "campaigns": 49
+  },
+  {
+   "date": "2026-11-10",
+   "flows": 308,
+   "campaigns": 3
+  },
+  {
+   "date": "2026-11-11",
+   "flows": 319,
+   "campaigns": 548
+  },
+  {
+   "date": "2026-11-12",
+   "flows": 248,
+   "campaigns": 40
+  },
+  {
+   "date": "2026-11-13",
+   "flows": 285,
+   "campaigns": 871
+  },
+  {
+   "date": "2026-11-14",
+   "flows": 324,
+   "campaigns": 1054
+  },
+  {
+   "date": "2026-11-15",
+   "flows": 237,
+   "campaigns": 1485
+  },
+  {
+   "date": "2026-11-16",
+   "flows": 257,
+   "campaigns": 16
+  },
+  {
+   "date": "2026-11-17",
+   "flows": 303,
+   "campaigns": 31
+  },
+  {
+   "date": "2026-11-18",
+   "flows": 199,
+   "campaigns": 39
+  },
+  {
+   "date": "2026-11-19",
+   "flows": 273,
+   "campaigns": 455
+  },
+  {
+   "date": "2026-11-20",
+   "flows": 321,
+   "campaigns": 62
+  },
+  {
+   "date": "2026-11-21",
+   "flows": 211,
+   "campaigns": 708
+  },
+  {
+   "date": "2026-11-22",
+   "flows": 191,
+   "campaigns": 55
+  }
+ ],
+ "flows": [
+  {
+   "id": "f1",
+   "name": "Welcome series",
+   "status": "live",
+   "channels": [
+    "email"
+   ],
+   "recipients": 2140,
+   "open_rate": 0.512,
+   "click_rate": 0.062,
+   "sales": 1486,
+   "orders": 22,
+   "order_rate": 0.0103,
+   "per_recipient": 0.69
+  },
+  {
+   "id": "f2",
+   "name": "Abandoned cart",
+   "status": "live",
+   "channels": [
+    "email",
+    "sms"
+   ],
+   "recipients": 1318,
+   "open_rate": 0.468,
+   "click_rate": 0.071,
+   "sales": 1722,
+   "orders": 25,
+   "order_rate": 0.019,
+   "per_recipient": 1.31
+  },
+  {
+   "id": "f3",
+   "name": "Browse abandonment",
+   "status": "live",
+   "channels": [
+    "email"
+   ],
+   "recipients": 2904,
+   "open_rate": 0.391,
+   "click_rate": 0.034,
+   "sales": 742,
+   "orders": 11,
+   "order_rate": 0.0038,
+   "per_recipient": 0.26
+  },
+  {
+   "id": "f4",
+   "name": "Post purchase: fit check",
+   "status": "live",
+   "channels": [
+    "email"
+   ],
+   "recipients": 1106,
+   "open_rate": 0.584,
+   "click_rate": 0.041,
+   "sales": 512,
+   "orders": 8,
+   "order_rate": 0.0072,
+   "per_recipient": 0.46
+  },
+  {
+   "id": "f5",
+   "name": "Back in stock",
+   "status": "live",
+   "channels": [
+    "email"
+   ],
+   "recipients": 388,
+   "open_rate": 0.602,
+   "click_rate": 0.118,
+   "sales": 446,
+   "orders": 7,
+   "order_rate": 0.018,
+   "per_recipient": 1.15
+  },
+  {
+   "id": "f6",
+   "name": "Win back, 120 days",
+   "status": "manual",
+   "channels": [
+    "email"
+   ],
+   "recipients": 0,
+   "open_rate": null,
+   "click_rate": null,
+   "sales": 0,
+   "orders": 0,
+   "order_rate": null,
+   "per_recipient": null
+  },
+  {
+   "id": "f7",
+   "name": "Sunset unengaged",
+   "status": "draft",
+   "channels": [
+    "email"
+   ],
+   "recipients": 0,
+   "open_rate": null,
+   "click_rate": null,
+   "sales": 0,
+   "orders": 0,
+   "order_rate": null,
+   "per_recipient": null
+  }
+ ],
+ "example": []
+}
