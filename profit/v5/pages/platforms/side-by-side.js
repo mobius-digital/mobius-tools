@@ -108,7 +108,7 @@ const CSS = `
   .sbs-item-h{display:flex;align-items:center;gap:10px;min-width:0}
   .sbs-item-h b{font-size:15px;font-weight:650}
   .sbs-item-h>.sbs-q{font-size:12.5px;white-space:nowrap}
-  .sbs-item-h .sbs-pl{gap:8px;min-width:0}
+  .sbs-item-h .sbs-pl{gap:4px 8px;min-width:0;flex-wrap:wrap}
   .sbs-item-h .sbs-open{margin-left:auto;margin-right:-6px}
   .sbs-figs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
   .sbs-figs span{display:grid;gap:2px;min-width:0}

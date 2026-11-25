@@ -37,7 +37,7 @@ const CSS = `
 .wr.first{border-top:0}
 .wr.yes{border-top:0;border-radius:24px;background:#fff;box-shadow:var(--sh-2);margin-bottom:10px}
 .wr.yes+.wr{border-top:0}
-.wr-h{display:flex;align-items:center;gap:14px;min-height:36px}
+.wr-h{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;min-height:36px}
 .wr-h .nm{font-size:19px;font-weight:600;letter-spacing:-.025em;white-space:nowrap}
 .wr-h .sp{flex:1}
 .wr-call{display:inline-flex;align-items:baseline;gap:10px;min-width:0;white-space:nowrap}
@@ -52,7 +52,7 @@ const CSS = `
 .wr .c{display:grid;gap:7px;min-width:0;align-content:start}
 .wr .big{display:flex;align-items:baseline;gap:7px;white-space:nowrap;font-size:32px;font-weight:600;letter-spacing:-.04em;line-height:1.08;font-variant-numeric:tabular-nums}
 .wr .mid{display:flex;align-items:baseline;gap:8px;font-size:24px;font-weight:600;letter-spacing:-.035em;line-height:1.1;font-variant-numeric:tabular-nums;white-space:nowrap}
-.wr .sm{display:flex;align-items:baseline;gap:6px;font-size:18px;font-weight:600;letter-spacing:-.025em;line-height:1.15;font-variant-numeric:tabular-nums;white-space:nowrap}
+.wr .sm{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 6px;font-size:18px;font-weight:600;letter-spacing:-.025em;line-height:1.15;font-variant-numeric:tabular-nums;white-space:nowrap}
 .wr .big small,.wr .mid small,.wr .sm small{font-size:12.5px;font-weight:400;letter-spacing:0;color:var(--muted)}
 .wr .mid.bad{color:var(--bad)}.wr .mid.off,.wr .sm.off,.wr .big.off{color:var(--muted)}
 .wr .big.off{font-size:17px;letter-spacing:-.015em;white-space:normal;line-height:1.3}
