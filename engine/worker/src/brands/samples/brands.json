@@ -1,0 +1,102 @@
+{
+  "brands": [
+    {
+      "id": "brand_north_kites",
+      "slug": "north-kites",
+      "name": "North Kites",
+      "status": "active",
+      "tz": "America/Chicago",
+      "currency": "USD",
+      "internal_channel": "C0NORTH0001",
+      "client_channel": "C0NORTH0002",
+      "legacy_key": "act_111",
+      "source": "mirror",
+      "created_at": "2026-11-25 23:03:31",
+      "updated_at": "2026-11-25 23:03:31",
+      "monthly_budget": 9000,
+      "budgets_json": "{\"2026-11\":9000}",
+      "goals_json": "{\"default\":{\"sales\":40000}}",
+      "target_cpa": 28,
+      "target_roas": 2.5,
+      "google_spend_json": null,
+      "brief_enabled": 0,
+      "brief_review": 0,
+      "review_first": 1,
+      "report_config_json": null,
+      "tw_attr_cursor": null,
+      "tw_attr_done": 0,
+      "storage_prefix": null,
+      "connections": [
+        {
+          "id": "meta:act_111",
+          "brand_id": "brand_north_kites",
+          "kind": "meta",
+          "external_id": "act_111",
+          "label": null,
+          "is_primary": 1,
+          "status": "connected",
+          "last_sync": null,
+          "last_error": null,
+          "source": "mirror",
+          "config": {}
+        }
+      ]
+    },
+    {
+      "id": "brand_river_tea",
+      "slug": "river-tea",
+      "name": "River Tea",
+      "status": "active",
+      "tz": "America/Chicago",
+      "currency": "USD",
+      "internal_channel": "C0RIVER0001",
+      "client_channel": "C0RIVER0002",
+      "legacy_key": "act_222",
+      "source": "mirror",
+      "created_at": "2026-11-25 23:03:31",
+      "updated_at": "2026-11-25 23:03:31",
+      "monthly_budget": 5000,
+      "budgets_json": "{}",
+      "goals_json": "{}",
+      "target_cpa": 41,
+      "target_roas": 3,
+      "google_spend_json": null,
+      "brief_enabled": 0,
+      "brief_review": 0,
+      "review_first": 1,
+      "report_config_json": null,
+      "tw_attr_cursor": null,
+      "tw_attr_done": 0,
+      "storage_prefix": null,
+      "connections": [
+        {
+          "id": "meta:act_222",
+          "brand_id": "brand_river_tea",
+          "kind": "meta",
+          "external_id": "act_222",
+          "label": null,
+          "is_primary": 1,
+          "status": "connected",
+          "last_sync": null,
+          "last_error": null,
+          "source": "mirror",
+          "config": {}
+        }
+      ]
+    }
+  ],
+  "kinds": {
+    "meta": "Meta ad account",
+    "triple_whale": "Triple Whale",
+    "shopify": "Shopify",
+    "google_ads": "Google Ads",
+    "ga4": "Google Analytics",
+    "gsc": "Search Console",
+    "tiktok": "TikTok ads",
+    "klaviyo": "Klaviyo",
+    "attentive": "Attentive",
+    "asana": "Asana project",
+    "drive": "Drive folder",
+    "frame": "Frame project"
+  }
+}

@@ -1,0 +1,83 @@
+{
+  "monday": "2026-01-12",
+  "theme": "Clean accounts",
+  "brands": [
+    {
+      "act_id": "brand_north_kites",
+      "name": "North Kites",
+      "report": {
+        "period_start": "2026-01-05",
+        "period_end": "2026-01-11",
+        "status": "sent",
+        "sent_at": "2026-01-12T15:00:00.000Z",
+        "summary": "A steady week.",
+        "totals": {
+          "sales": 1000,
+          "spend": 400,
+          "mer": 2.5,
+          "cm": 300
+        },
+        "plan": {
+          "sales": 1100,
+          "spend": 420,
+          "mer": 2.6
+        },
+        "prior": {
+          "sales": 900,
+          "spend": 380,
+          "mer": 2.4
+        },
+        "currency": "USD",
+        "this_week": [
+          "New kite ads go live"
+        ],
+        "need_from_you": [
+          "Photos of the new kite"
+        ],
+        "fresh": true
+      },
+      "thread": [
+        {
+          "by": "Sam",
+          "text": "Plan for the week: two new batches.",
+          "at": "2026-01-12T14:00:00.000Z",
+          "where": "thread"
+        }
+      ],
+      "open": [
+        {
+          "id": "pa_1",
+          "name": "Check the kite ads",
+          "text": "Check the kite ads",
+          "detail": "",
+          "owner": "Sam",
+          "due": "2026-01-09",
+          "kind": "team",
+          "area": "ads",
+          "source": "monday",
+          "source_id": null,
+          "url": "https://app.test/profit/?open=actions&act=brand_north_kites&item=pa_1",
+          "asana_url": null,
+          "created": "2026-01-05"
+        }
+      ]
+    }
+  ],
+  "agency_open": [
+    {
+      "id": "pa_2",
+      "name": "Check the kite ads",
+      "text": "Check the kite ads",
+      "detail": "",
+      "owner": "Sam",
+      "due": "2026-01-09",
+      "kind": "team",
+      "area": "ads",
+      "source": "monday",
+      "source_id": null,
+      "url": "https://app.test/profit/?open=actions&item=pa_2",
+      "asana_url": null,
+      "created": "2026-01-05"
+    }
+  ]
+}

@@ -1,0 +1,246 @@
+{
+  "account": {
+    "act_id": "brand_north_kites",
+    "name": "North Kites",
+    "currency": "USD",
+    "tz": "America/Chicago",
+    "tw_shop": "north-kites.shop.test"
+  },
+  "months": [
+    "2026-10",
+    "2026-11"
+  ],
+  "margin_pct": null,
+  "window": {
+    "days": 5,
+    "from": "2026-11-20",
+    "to": "2026-11-24"
+  },
+  "headline": {
+    "cac": 25,
+    "new_aov": 62.5,
+    "margin": 0.6,
+    "first_order_gp": 37.5,
+    "first_order_cm": 12.5,
+    "payback": 1.5,
+    "repeat_share": 0.6,
+    "returning_aov": 41.666666666666664,
+    "new_orders": 40,
+    "returning_orders": 60,
+    "new_rev": 2500,
+    "returning_rev": 2500,
+    "new_rev_share": 0.5,
+    "spend": 1000,
+    "sales": 5000,
+    "orders": 100,
+    "aov": 50,
+    "cpa": 10,
+    "mer": 5,
+    "thin": true
+  },
+  "series": [
+    {
+      "month": "2026-10",
+      "empty": true
+    },
+    {
+      "month": "2026-11",
+      "partial": true,
+      "days": 10,
+      "spend": 2000,
+      "sales": 10000,
+      "margin": 0.6,
+      "new_orders": 80,
+      "returning_orders": 120,
+      "total_orders": 200,
+      "new_rev": 5000,
+      "returning_rev": 5000,
+      "cac": 25,
+      "new_aov": 62.5,
+      "returning_aov": 41.666666666666664,
+      "first_order_gp": 37.5,
+      "first_order_cm": 12.5,
+      "payback": 1.5,
+      "repeat_share": 0.6
+    }
+  ],
+  "journey": {
+    "have": true,
+    "history": {
+      "from": "2026-05-09",
+      "to": "2026-11-22",
+      "days": 198,
+      "reliable_from": "2026-07-08",
+      "complete": false
+    },
+    "customers": 3,
+    "certain_customers": 2,
+    "guest_orders": 1,
+    "guest_revenue": 30,
+    "orders": 6,
+    "first_aov": 55,
+    "returning_aov": 85,
+    "repeat_rate_ever": 0.5,
+    "days_to_second": 20,
+    "orders_per_customer_365": null,
+    "curve": [
+      {
+        "days": 30,
+        "customers": 1,
+        "ltv": 140,
+        "repeat_rate": 1
+      },
+      {
+        "days": 60,
+        "customers": 1,
+        "ltv": 140,
+        "repeat_rate": 1
+      },
+      {
+        "days": 90,
+        "customers": 1,
+        "ltv": 140,
+        "repeat_rate": 1
+      },
+      {
+        "days": 180,
+        "customers": 0,
+        "ltv": null,
+        "repeat_rate": null
+      },
+      {
+        "days": 365,
+        "customers": 0,
+        "ltv": null,
+        "repeat_rate": null
+      }
+    ],
+    "ltv_cac": null,
+    "cohorts": [
+      {
+        "month": "2026-05",
+        "customers": 1,
+        "uncertain": true,
+        "repeat_customers": 0,
+        "repeat_rate": 0,
+        "orders": 1,
+        "revenue": 40,
+        "ltv_now": 40,
+        "ltv_90": null,
+        "ltv_365": null,
+        "cac": null,
+        "ltv_cac_90": null,
+        "ltv_cac_365": null,
+        "age_days": 205
+      },
+      {
+        "month": "2026-08",
+        "customers": 1,
+        "uncertain": false,
+        "repeat_customers": 1,
+        "repeat_rate": 1,
+        "orders": 3,
+        "revenue": 230,
+        "ltv_now": 230,
+        "ltv_90": 140,
+        "ltv_365": null,
+        "cac": null,
+        "ltv_cac_90": null,
+        "ltv_cac_365": null,
+        "age_days": 113
+      },
+      {
+        "month": "2026-11",
+        "customers": 1,
+        "uncertain": false,
+        "repeat_customers": 0,
+        "repeat_rate": 0,
+        "orders": 1,
+        "revenue": 50,
+        "ltv_now": 50,
+        "ltv_90": null,
+        "ltv_365": null,
+        "cac": 25,
+        "ltv_cac_90": null,
+        "ltv_cac_365": null,
+        "age_days": 21
+      }
+    ],
+    "products": {
+      "coverage": 1,
+      "first": [
+        {
+          "id": "p2",
+          "name": "Blue Kite",
+          "customers": 2,
+          "share": 1,
+          "then": [
+            {
+              "id": "p3",
+              "name": "Old Kite",
+              "customers": 1
+            }
+          ],
+          "repeat_rate": null
+        },
+        {
+          "id": "p1",
+          "name": "Red Kite",
+          "customers": 1,
+          "share": 0.5,
+          "then": [
+            {
+              "id": "p3",
+              "name": "Old Kite",
+              "customers": 1
+            }
+          ],
+          "repeat_rate": null
+        }
+      ],
+      "next": [
+        {
+          "id": "p3",
+          "name": "Old Kite",
+          "customers": 1
+        }
+      ]
+    },
+    "sources": {
+      "first": [
+        {
+          "source": "meta",
+          "orders": 1,
+          "share": 0.5
+        },
+        {
+          "source": "google",
+          "orders": 1,
+          "share": 0.5
+        }
+      ],
+      "repeat": [
+        {
+          "source": "email",
+          "orders": 1,
+          "share": 0.5
+        },
+        {
+          "source": "own",
+          "orders": 1,
+          "share": 0.5
+        }
+      ]
+    },
+    "window": {
+      "from": "2026-11-20",
+      "to": "2026-11-24",
+      "orders": 2,
+      "returning_orders": 1,
+      "returning_share": 0.5,
+      "revenue": 140,
+      "returning_revenue": 90
+    }
+  },
+  "cm_ok": true
+}

@@ -1,0 +1,43 @@
+{
+ "ok": true,
+ "can_edit": true,
+ "can_all": true,
+ "can_team": true,
+ "role_words": {
+  "owner": "the brand owner",
+  "buyer": "the buyer",
+  "strategist": "the strategist",
+  "maker": "the card's maker",
+  "email_owner": "the email owner",
+  "reviewer": "the reviewer"
+ },
+ "roles": {
+  "all": {
+   "buyer": "team@agency.test"
+  },
+  "brand_river_tea": {
+   "owner": "owner@agency.test"
+  }
+ },
+ "brands": [
+  {
+   "id": "brand_north_kites",
+   "name": "North Kites"
+  },
+  {
+   "id": "brand_river_tea",
+   "name": "River Tea"
+  }
+ ],
+ "team": [
+  {
+   "email": "owner@agency.test",
+   "by_hand": false
+  },
+  {
+   "email": "team@agency.test",
+   "by_hand": true
+  }
+ ],
+ "note": "A role nobody holds falls back to the person who made the automation, and the run log says so. \"The whole team\" is everyone on the team list."
+}

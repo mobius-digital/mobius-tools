@@ -1,0 +1,20 @@
+{
+  "rows": [
+    {
+      "act_id": "brand_north_kites",
+      "period": "weekly",
+      "period_start": "2026-01-05",
+      "period_end": "2026-01-11",
+      "status": "sent",
+      "generated_at": "2026-01-12T12:00:00.000Z",
+      "sent_at": "2026-01-12T15:00:00.000Z",
+      "account_name": "North Kites",
+      "currency": "USD"
+    }
+  ],
+  "lastRun": {
+    "at": "2026-01-12T12:00:00.000Z",
+    "made": 1
+  },
+  "can_skip": true
+}
