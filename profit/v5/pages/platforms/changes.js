@@ -9,7 +9,8 @@
                                                                      (those rows also carry Google and TikTok writes)
      team    account-health /api/google/ads-changes?act=&from=&to=   Google's own change history (Google keeps 30 days)
      client  account-health /api/ad-updates?act=&from=&to=           only the changes with a reason written for the client
-   TikTok's own change history comes through no route yet. The page says so and never shows a zero for it. */
+   TikTok's own change history comes through no route yet. The page says so and never shows a zero for it.
+   Meta > Changes made and Google > Changes made reuse the row and the sheet from here (dayCards, openChange). */
 
 import { put } from '../../kit.js';
 import { h, em, card, segmented, platformChip, empty, sheet, button, skeleton, num, addStyles } from '../../kit.js';
@@ -18,6 +19,7 @@ import { PLATFORM_NAME } from '../../icons.js';
 import { style } from '../a-today/_more.js';
 import { figures, quiet, longDay } from '../a-today/_ag.js';
 import { canUndo, undoSheet, undoneSet, writeOf } from '../meta/_write.js';
+import { def, info, headRow, warnLine, rangeChips, clock, levelChip } from './_ads.js';
 
 const CSS = `
 button.pc-row{width:100%;border:0;border-top:1px solid var(--line);background:transparent;font:inherit;color:inherit;text-align:left;cursor:pointer}
@@ -47,10 +49,10 @@ button.pc-row:hover .t>b{text-decoration:underline;text-decoration-color:var(--l
 const CAT = { budget: 'Budget', bids: 'Bids', bid_strategy: 'Bid strategy', new_campaign: 'New campaign', campaign_paused: 'Turned off', campaign_relaunched: 'Turned back on',
   adset_paused: 'Ad set turned off', ad_paused: 'Ad turned off', ad_relaunched: 'Ad turned back on', targeting: 'Audience', new_creative: 'New ad', new_adset: 'New ad set',
   status: 'On or off', keywords: 'Keywords', new: 'New', optimisation: 'Optimization', schedule: 'Schedule', name: 'Rename', review: 'Ad review', billing: 'Billing', manual: 'Note', other: 'Other' };
-const catWord = c => CAT[c] || String(c || 'other').replace(/_/g, ' ').replace(/^./, m => m.toUpperCase());
+export const catWord = c => CAT[c] || String(c || 'other').replace(/_/g, ' ').replace(/^./, m => m.toUpperCase());
 /* the changes a person would want to hear about (the same list as the agency page); the rest is housekeeping */
-const MATTER = new Set(['budget', 'new_campaign', 'campaign_paused', 'campaign_relaunched', 'bid_strategy', 'targeting', 'new_creative', 'new_adset', 'manual', 'ad_paused', 'adset_paused']);
-const groupOf = c => /budget|bid/.test(c) ? 'budget' : /paused|relaunched|^status$/.test(c) ? 'onoff' : /^new/.test(c) ? 'new' : 'other';
+export const MATTER = new Set(['budget', 'new_campaign', 'campaign_paused', 'campaign_relaunched', 'bid_strategy', 'targeting', 'new_creative', 'new_adset', 'manual', 'ad_paused', 'adset_paused']);
+export const groupOf = c => /budget|bid/.test(c) ? 'budget' : /paused|relaunched|^status$/.test(c) ? 'onoff' : /^new/.test(c) ? 'new' : 'other';
 const platOf = r => /^google/i.test(r.event_type || '') || /^GOOGLE/.test(r.object_type || '') ? 'google' : /^tiktok/i.test(r.event_type || '') || /^TIKTOK/.test(r.object_type || '') ? 'tiktok' : 'meta';
 const levelOf = t => { const s = String(t || '').toUpperCase(); return /ADSET|AD_SET|AD_GROUP/.test(s) && !/^ADGROUP$/.test(s) ? 'Ad set' : /CAMPAIGN/.test(s) ? 'Campaign' : /(^|_)AD$|^ADGROUP$/.test(s) ? 'Ad' : /ACCOUNT/.test(s) ? 'Account' : ''; };
 const nameOf = who => { const s = String(who || ''); return s.includes('@') ? s.split('@')[0].replace(/[._-]+/g, ' ').replace(/\b\w/g, m => m.toUpperCase()) : s; };
@@ -58,16 +60,16 @@ const platName = id => PLATFORM_NAME[id] || id;
 
 /* ---------- time: Meta sends a real instant, Google a wall clock time with no zone ---------- */
 const pad = n => String(n).padStart(2, '0');
-function stamp(at) {
+export function stamp(at) {
   const s = String(at || '');
   if (/(Z|[+-]\d{2}:?\d{2})$/.test(s)) {
     const d = new Date(s.replace(/([+-]\d{2})(\d{2})$/, '$1:$2'));
-    if (!isNaN(d)) return { day: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`, min: d.getHours() * 60 + d.getMinutes(), time: d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) };
+    if (!isNaN(d)) return { day: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`, min: d.getHours() * 60 + d.getMinutes(), time: clock(d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })) };
   }
   const m = /(\d{2}):(\d{2})/.exec(s.slice(10));
   if (!m) return { day: s.slice(0, 10), min: 0, time: '' };
   const hr = +m[1];
-  return { day: s.slice(0, 10), min: hr * 60 + +m[2], time: `${hr % 12 || 12}:${m[2]} ${hr < 12 ? 'AM' : 'PM'}` };
+  return { day: s.slice(0, 10), min: hr * 60 + +m[2], time: `${hr % 12 || 12}:${m[2]}${hr < 12 ? 'am' : 'pm'}` };
 }
 const addDay = date => { const d = new Date(date + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + 1); return d.toISOString().slice(0, 10); };
 
@@ -111,27 +113,47 @@ async function load(ctx) {
 }
 
 /* ---------- the sheet: one change, whole ---------- */
-function openChange(r, d, ctx, redraw) {
+/** openChange(change, d, ctx, redraw) : the one detail of a change (every Ads page uses it). A change that carries
+    roas_before / roas_after (7 days before and after) shows them. */
+export function openChange(r, d, ctx, redraw) {
   const s = stamp(r.at), kv = (label, value) => value ? h('div', null, h('small', null, label), h('span', null, value)) : null;
   const undoable = !d.client_view && r.platform === 'meta' && canUndo(r, ctx);
   const sh = sheet({ title: r.what, body: h('div', { class: 'pc-notes' },
     h('div', { class: 'pc-kv' }, [
       kv('Platform', platformChip(r.platform)),
       kv('What', catWord(r.cat)),
-      kv('On', [r.level, r.name].filter(Boolean).join(' ')),
+      r.name ? kv('On', h('span', null, levelChip(r.level), ' ', r.name)) : null,
       kv('When', [longDay(s.day), s.time].filter(Boolean).join(', ')),
       d.client_view ? null : kv('Who', [nameOf(r.who), r.via].filter(Boolean).join(', ')),
       kv('Why', r.why || (d.client_view ? '' : quiet('No reason written yet'))),
+      r.roas_before != null || r.roas_after != null ? kv('ROAS', `${r.roas_before != null ? r.roas_before.toFixed(2) + 'x' : 'not read'} in the 7 days before, ${r.roas_after != null ? r.roas_after.toFixed(2) + 'x' : 'not read yet'} since`) : null,
+      r.write && !d.client_view ? kv('Write id', r.write) : null,
       r.undone && !d.client_view ? kv('Undo', 'This change was undone. Meta has the old value back.') : null,
     ].filter(Boolean)),
     undoable ? button('Undo this change', { primary: true, class: 'pc-undo', onclick: () => { sh.close(); undoSheet(ctx, { act: ctx.brand.id, write: r.write, what: r.what, name: [r.level, r.name].filter(Boolean).join(' ') }, ok => { if (ok) { r.undone = true; redraw && redraw(); } }); } }) : null,
-    !d.client_view && !r.why && r.platform === 'meta' && ctx.legacy ? button('Add a reason in old ' + APP_NAME, { href: ctx.legacy }) : null,
-    !d.client_view ? button(`Open ${platName(r.platform)} changes`, { href: ctx.href(r.platform, 'changes'), icon: 'arrow' }) : null) });
+    !d.client_view && ctx.tab === 'changes' && ctx.line === 'platforms' ? button(`Open ${platName(r.platform)} changes`, { href: ctx.href(r.platform, 'changes'), icon: 'arrow' }) : null) });
 }
+/** dayCards(rows, d, ctx, redraw) : the list, one card per day, newest first. Every Ads changes page draws this. */
+export function dayCards(rows, d, ctx, redraw) {
+  const shown = rows.map(r => ({ r, s: stamp(r.at) })).sort((a, b) => b.s.day.localeCompare(a.s.day) || b.s.min - a.s.min);
+  const days = new Map();
+  for (const v of shown) (days.get(v.s.day) || days.set(v.s.day, []).get(v.s.day)).push(v);
+  if (!shown.length) return [empty({ title: 'None of these on these dates' })];
+  return [...days].map(([day, rs]) => card({ title: longDay(day), note: `${rs.length} change${rs.length === 1 ? '' : 's'}`, flush: true },
+    h('div', { class: 'ag-sg' }, rs.map(({ r, s }) => h('button', { type: 'button', class: 'ag-sg-r ag-ch pc-row', onclick: () => openChange(r, d, ctx, redraw) },
+      h('span', { class: 'k' }, s.time),
+      h('span', { class: 't' }, h('span', { class: 'ag-ch-h' }, platformChip(r.platform || 'meta'), catWord(r.cat) !== r.what ? h('span', { class: 'lx-chip' }, catWord(r.cat)) : null),
+        h('b', null, r.what), r.name ? h('span', { class: 'o' }, levelChip(r.level), ' ', r.name) : null,
+        r.why ? h('span', { class: 'w' }, r.why) : d.client_view ? null : quiet('No reason written yet')),
+      h('span', { class: 'm' }, r.who && !d.client_view ? h('small', null, nameOf(r.who) + (r.via ? ', ' + r.via : '')) : null,
+        r.roas_before != null && r.roas_after != null ? h('small', null, h('b', null, r.roas_before.toFixed(2) + 'x to ' + r.roas_after.toFixed(2) + 'x'), ' ROAS, 7 days before and after') : null,
+        r.undone && !d.client_view ? h('small', { class: 'pc-undone' }, 'Undone') : !d.client_view && (r.platform || 'meta') === 'meta' && canUndo(r, ctx) ? h('small', null, 'Tap to undo') : null))))));
+}
+export function changesCss() { style(); addStyles('pc-css', CSS); }
 
 /* ---------- render ---------- */
 function render(el, d, ctx) {
-  style(); addStyles('pc-css', CSS);
+  changesCss();
   if (!ctx.brand || !d || d.no_brand) return put(el, empty({ title: 'Pick a brand', text: 'Changes made is one brand at a time.' }));
   if (d.connected === false) return put(el, empty({ title: 'The change list did not answer', text: d.error || 'Nothing was read. Try again in a minute.',
     action: ctx.isClient ? null : button('Open integrations', { primary: true, href: ctx.href('brand-settings', 'integrations') }) }));
@@ -144,7 +166,7 @@ function render(el, d, ctx) {
   const n = g => rows.filter(r => groupOf(r.cat) === g).length;
   const plats = ['meta', 'google', 'tiktok'].filter(p => rows.some(r => r.platform === p));
   const hero = figures([
-    { label: d.client_view ? 'Changes made for you' : 'Changes made', value: num(rows.length), lead: true, sub: plats.map(p => `${platName(p)} ${rows.filter(r => r.platform === p).length}`).join(', ') },
+    { label: (d.client_view ? 'Changes made for you, ' : 'Changes made, ') + (d.window ? d.window.label : ''), value: num(rows.length), lead: true, sub: plats.map(p => `${platName(p)} ${rows.filter(r => r.platform === p).length}`).join(', ') },
     { label: 'Budgets moved', value: num(n('budget')) },
     { label: 'Turned off or on', value: num(n('onoff')) },
     { label: 'New ads and sets', value: num(n('new')) },
@@ -153,32 +175,19 @@ function render(el, d, ctx) {
   let plat = ctx.settingNow('platforms.changes.platform', 'all'), kind = 'all';
   if (plat !== 'all' && !plats.includes(plat)) plat = 'all';
   const list = h('div', { class: 'ag', style: { gap: '20px' } });
-  const draw = () => {
-    const shown = rows.filter(r => (plat === 'all' || r.platform === plat) && (kind === 'all' || groupOf(r.cat) === kind))
-      .map(r => ({ r, s: stamp(r.at) })).sort((a, b) => b.s.day.localeCompare(a.s.day) || b.s.min - a.s.min);
-    const days = new Map();
-    for (const v of shown) (days.get(v.s.day) || days.set(v.s.day, []).get(v.s.day)).push(v);
-    put(list, ...(shown.length ? [...days].map(([day, rs]) => card({ title: longDay(day), note: `${rs.length} change${rs.length === 1 ? '' : 's'}`, flush: true },
-      h('div', { class: 'ag-sg' }, rs.map(({ r, s }) => h('button', { type: 'button', class: 'ag-sg-r ag-ch pc-row', onclick: () => openChange(r, d, ctx, draw) },
-        h('span', { class: 'k' }, s.time),
-        h('span', { class: 't' }, h('span', { class: 'ag-ch-h' }, platformChip(r.platform), h('span', { class: 'lx-chip' }, catWord(r.cat))),
-          h('b', null, r.what), r.name ? h('span', { class: 'o' }, [r.level, r.name].filter(Boolean).join(' ')) : null,
-          r.why ? h('span', { class: 'w' }, r.why) : d.client_view ? null : quiet('No reason written')),
-        h('span', { class: 'm' }, r.who && !d.client_view ? h('small', null, nameOf(r.who)) : null,
-          r.undone && !d.client_view ? h('small', { class: 'pc-undone' }, 'Undone') : !d.client_view && r.platform === 'meta' && canUndo(r, ctx) ? h('small', null, 'Tap to undo') : null)))))) : [empty({ title: 'None of these on these dates' })]));
-  };
+  const draw = () => put(list, ...dayCards(rows.filter(r => (plat === 'all' || r.platform === plat) && (kind === 'all' || groupOf(r.cat) === kind)), d, ctx, draw));
   draw();
-  const bar = h('div', { class: 'pc-bar' }, h('h3', null, 'Every change, newest first'), h('span', { class: 'sp' }),
+  const bar = h('div', { class: 'pc-bar' }, h('h3', null, `Every change, ${d.window ? d.window.label + ', ' : ''}newest first`), h('span', { class: 'sp' }),
     plats.length > 1 ? segmented([{ id: 'all', label: 'All platforms' }, ...plats.map(p => ({ id: p, label: platName(p) }))], plat, id => { plat = id; ctx.saveSetting('platforms.changes.platform', id); draw(); }) : null,
     segmented([{ id: 'all', label: 'All' }, { id: 'budget', label: 'Budgets' }, { id: 'onoff', label: 'Off and on' }, { id: 'new', label: 'New' }], 'all', id => { kind = id; draw(); }));
 
-  const words = d.client_view ? ['Changes to your ads on every platform, with the reason for each.']
-    : [`Changes made in Meta, in Google Ads, and in TikTok through ${APP_NAME}.${d.other ? ` ${num(d.other)} small edits (renames, each platform's own housekeeping) are not listed.` : ''}`,
-      ...(d.notes || []),
-      d.google_read === false ? 'Google Ads is not connected for this brand, or its change history did not answer.' : null,
-      'Changes made inside TikTok Ads Manager do not come through yet, so they are not on this list.'];
-  put(el, h('div', { class: 'ag' }, hero, h('div', { class: 'ag', style: { gap: '16px' } }, bar, list),
-    h('div', { class: 'pc-notes' }, words.filter(Boolean).map(t => h('p', { class: 'lx-foot', style: { margin: 0 } }, t)))));
+  const help = d.client_view ? [{ title: 'What it is for', text: 'Changes to your ads on every platform, with the reason for each. Tap a change for the whole of it.' }]
+    : [{ title: 'What it is for', text: `One list of what changed on Meta, Google and TikTok, newest first, and why. Tap a change for the whole of it; a Meta change made in ${APP_NAME} in the last 24 hours can be undone from there.` },
+      { title: 'What is listed', text: `Changes made in Meta and Google Ads, plus changes made in TikTok through ${APP_NAME}.${d.other ? ` ${num(d.other)} small edits (renames, each platform's own housekeeping) are left out.` : ''} Changes made inside TikTok Ads Manager do not come through yet.` },
+      ...(d.notes || []).map(t => ({ title: 'Note', text: t }))];
+  put(el, h('div', { class: 'ag' }, headRow({ help, left: rangeChips(ctx) }),
+    !d.client_view && d.google_read === false ? warnLine('Google Ads is not connected for this brand, or its change history did not answer.') : null,
+    hero, h('div', { class: 'ag', style: { gap: '16px' } }, bar, list)));
 }
 
 export default {

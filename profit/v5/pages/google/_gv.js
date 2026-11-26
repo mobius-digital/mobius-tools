@@ -21,7 +21,7 @@ const CSS = `
 .gv-vid h4{margin:0;font-size:15px;font-weight:600;letter-spacing:-.015em;overflow-wrap:anywhere}
 .gv-vid .sub{font-size:12.5px;color:var(--muted);line-height:1.45}
 .gv-roas{display:flex;align-items:flex-end;justify-content:space-between;gap:10px}
-.gv-roas .big{font-size:28px;font-weight:600;letter-spacing:-.035em;line-height:1.1;font-variant-numeric:tabular-nums}
+.gv-roas .big{font-size:var(--num-l);font-weight:600;letter-spacing:-.035em;line-height:1.1;font-variant-numeric:tabular-nums}
 .gv-roas .big.na{color:var(--faint)}
 .gv-roas .r{text-align:right;font-size:12px;color:var(--muted);line-height:1.3}
 .gv-roas .r b{display:block;font-size:16px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}

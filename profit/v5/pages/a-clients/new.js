@@ -9,7 +9,13 @@
    Only the owner previews and sends; the rest of the team sees the form with Send off. Other agencies (extras off) get
    only name, website, contact and services. Sample mode: _sample/new.json, nothing is sent. */
 
-import { h, button, field, toggle, segmented, toast, sheet, em, empty, put, pill, statusDot, card } from '../../kit.js';
+import { h, button, field, toggle, segmented, toast, sheet, em, empty, put, pill, statusDot, card, addStyles } from '../../kit.js';
+
+/* this page's spacing: 16px between a card's title and its form; the two fields of a pair line up at the top
+   (a hint under one field no longer pushes the other down) */
+const NC_CSS = `.gs .lx-card>.gs-form,.gs .lx-card>.gs-res{margin-top:var(--sp-4,16px)}
+.gs-form .two{align-items:start}
+.gs-res .gs-fix{margin:4px 0 0;font-size:13px;color:var(--bad)}`;
 import { APP_NAME } from '../../config.js';
 import { dropSaved } from '../../data.js';
 import { css } from '../get-started/_ui.js';
@@ -180,14 +186,16 @@ function results(el, o, ctx) {
   };
   put(el, h('div', { class: 'gs' },
     card({ title: nFail ? 'Sent, with ' + nFail + ' to fix' : 'Sent' }, h('div', { class: 'gs-res' },
-      Object.keys(PART).filter(k => list[k]).map(k => h('div', null, tone(list[k].status), h('b', null, PART[k]), h('span', { class: 'gs-hint' }, list[k].text || ''))))),
+      Object.keys(PART).filter(k => list[k]).map(k => h('div', null, tone(list[k].status), h('b', null, PART[k]), h('span', { class: 'gs-hint' }, list[k].text || ''),
+        list[k].status === 'failed' ? h('p', { class: 'gs-fix' }, 'It keeps its reason. Send it again from their setup page.') : null)),
+      h('p', { class: 'gs-hint' }, APP_NAME + ' reads their website on the next hourly run, or press Read their website now on their setup page.'))),
     r.invite_link ? h('div', { class: 'gs-acts' }, button('Copy their link', { iconLeft: 'link', onclick: async () => { try { await navigator.clipboard.writeText(r.invite_link); toast('Link copied.'); } catch { toast('Could not copy. It is ' + r.invite_link, { ms: 6000 }); } } })) : null,
     h('div', { class: 'gs-acts' }, button('Open ' + (F.name || 'their') + "'s setup", { primary: true, large: true, icon: 'arrow', onclick: openIt }),
-      button('Set up another client', { ghost: true, onclick: () => { F = fresh(o); step = 'form'; P = R = null; draw(el, o, ctx); } })),
-    h('p', { class: 'lx-foot' }, 'A failed part keeps its reason. Send it again from their setup page. ' + APP_NAME + ' reads their website on the next hourly run, or press Read their website now on their setup page.')));
+      button('Set up another client', { ghost: true, onclick: () => { F = fresh(o); step = 'form'; P = R = null; draw(el, o, ctx); } }))));
 }
 
 function draw(el, o, ctx) {
+  addStyles('lx-nc-css', NC_CSS);
   css();
   if (!o || !o.services) return put(el, empty({ title: 'New client did not load', text: 'Nothing was read. Try again in a minute.' }));
   if (!F) F = fresh(o);

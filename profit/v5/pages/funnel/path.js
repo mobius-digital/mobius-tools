@@ -6,6 +6,7 @@
    draws the sample file under an "Example until its data feed is built" chip. */
 
 import { put } from '../../kit.js';
+import { askWhy, helpBar, rangeWords } from '../home/_biz.js';
 import { h, num, pct, card, hero, em, kpi, kpis, takeaway, button, table, empty, segmented, svgNode, addStyles } from '../../kit.js';
 import { icon } from '../../icons.js';
 import { fxStyles, flow, exampleChip, bar, head, pathDots, channelName, channelDot } from './_flow.js';
@@ -57,9 +58,9 @@ function figures(d) {
   const top = d.top_first || {};
   const list = [
     { label: 'Orders with 2 or more clicks', value: ok(multi) ? pct(multi) : 'no data', sub: ok(multi) ? `${num(d.multi_orders)} of ${num(d.orders)} orders` : null, spark: d.sparks && d.sparks.multi },
-    { label: 'Clicks before buying', value: ok(d.clicks_avg) ? num(d.clicks_avg, 1) : 'no data', sub: ok(multi) ? pct(1 - multi) + ' buy on one click' : null, spark: d.sparks && d.sparks.clicks },
-    { label: 'Days, first click to order', value: ok(d.days_avg) ? num(d.days_avg, 1) : 'no data', sub: ok(d.same_day) ? pct(d.same_day) + ' buy the same day' : null, spark: d.sparks && d.sparks.days },
-    { label: 'Most common first click', value: top.channel ? channelName(top.channel) : 'no data', sub: top.orders ? `${num(top.orders)} of ${num(d.orders)} orders start here` : null, spark: d.sparks && d.sparks.first },
+    { label: 'Clicks before buying', value: ok(d.clicks_avg) ? num(d.clicks_avg, 1) : 'no data', sub: ok(multi) ? pct(1 - multi) + ' buy on one click' : null },
+    { label: 'Days, first click to order', value: ok(d.days_avg) ? num(d.days_avg, 1) : 'no data', sub: ok(d.same_day) ? pct(d.same_day) + ' buy the same day' : null },
+    { label: 'Most common first click', value: top.channel ? channelName(top.channel) : 'no data', sub: top.orders ? `${num(top.orders)} of ${num(d.orders)} orders start here` : null },
   ];
   const el = kpis(list.map(k => kpi({ ...k, size: 'lg', spark: (k.spark || []).filter(ok) })), { cols: 4 });
   el.classList.add('fx-kpis');
@@ -72,9 +73,11 @@ function readLine(d, ctx) {
   const alone = (f.links || []).find(l => l.from === '1:' + top.channel && l.to === 'b');
   const nextOf = (f.links || []).filter(l => l.from === '1:' + top.channel && l.to !== 'b' && l.to !== '2:' + top.channel).sort((a, b) => b.value - a.value)[0];
   const nextName = nextOf ? channelName(nextOf.to.split(':')[1]) : null;
-  return takeaway([channelName(top.channel), ' is the first click on ', b(`${num(top.orders)} of ${num(d.orders)}`), ' orders',
-    alone ? [' and closes ', b(num(alone.value)), ' alone'] : '', '.', nextName ? [' When another click follows, it is most often ', b(nextName), '.'] : ''],
-  { action: ctx.isClient ? null : button('Ask why', { href: ctx.href('ask', 'index') }) });
+  /* the tiles carry the first click count: the sentence adds how often it closes alone and what follows it */
+  if (!alone && !nextName) return null;
+  return takeaway([channelName(top.channel), alone ? [' closes ', b(num(alone.value)), ' orders on its own'] : ' starts most paths', '.',
+    nextName ? [' When another click follows, it is most often ', b(nextName), '.'] : ''],
+  { action: ctx.isClient ? null : askWhy(ctx, 'What do people click before they buy') });
 }
 
 /* ---------- channels: the flow, then the top paths ---------- */
@@ -85,7 +88,7 @@ function channelsView(d, ex) {
     height: 660, phoneHeight: 620, label: `Which channels people click, in order, before ${num(d.orders)} orders`, empty: 'No click paths for these dates' });
   return [
     h('div', { style: { marginTop: '8px' } }, flowEl),
-    h('div', { class: 'fx-under' }, ok(f.more_clicks) ? h('span', null, `${num(f.more_clicks)} orders took four or more clicks; they are counted to the third.`) : null, h('span', { class: 'sp' }), h('span', null, 'Clicks only, ad views are not counted')),
+    h('div', { class: 'fx-under' }, f.lead ? h('span', { class: 'fx-key' }, h('i'), 'orange: the most common two click path') : null, ok(f.more_clicks) ? h('span', null, `${num(f.more_clicks)} orders took four or more clicks; they are counted to the third.`) : null, h('span', { class: 'sp' }), h('span', null, 'Clicks only, ad views are not counted')),
   ];
 }
 
@@ -98,7 +101,6 @@ function pathsCard(d) {
     table({
       roomy: true,
       cols: [
-        { key: 'rank', label: '#', width: 44, class: 'hide-sm', render: (r, i) => String(i + 1) },
         { key: 'path', label: 'Path', class: 'name', render: r => pathDots(r.path, { end: 'bought' }) },
         { key: 'orders', label: 'Orders', num: true, width: 84, render: r => num(r.orders) },
         { key: 'share', label: 'Share', num: true, width: 80, class: 'hide-sm', render: r => pct(r.orders / d.orders, { digits: 1 }) },
@@ -122,11 +124,11 @@ function adsView(d, ctx, from) {
     h('span', { class: 'o' }, num(r.orders)))));
   const lead = rows.filter(r => !r.next).slice(0, 2);
   return [
-    h('div', { class: 'fx-big', style: { padding: '0 28px' } }, h('span', { class: 'lx-hero-num', style: { fontSize: '30px' } }, num(sum) + ' orders'), h('span', null, `took one of these ${rows.length} paths, out of ${num(d.orders)}. Most orders first.`)),
+    h('div', { class: 'fx-big', style: { padding: '0 28px' } }, h('span', { class: 'fx-bigtxt' }, num(sum) + ' orders'), h('span', null, `took one of these ${rows.length} paths, out of ${num(d.orders)}. Most orders first.`)),
     rows.length ? h('div', { class: 'pp-head', 'aria-hidden': 'true' }, h('span', null, '#'), h('span', null, 'First click'), h('span', null, 'Next click, if any'), h('span', null, 'Bought'), h('span', null, 'Orders')) : null,
-    rows.length ? list : h('p', { class: 'lx-foot', style: { padding: '12px 28px' } }, 'No ad paths from this channel for these dates.'),
+    rows.length ? list : h('p', { class: 'fx-under', style: { padding: '12px 28px' } }, 'No ad paths from this channel for these dates.'),
     lead.length ? h('div', { class: 'pp-say' }, takeaway(['Most buyers click one ad and buy. ', ...lead.map((r, i) => [i ? ' and ' : '', b(r.first.name), ' on ', channelName(r.first.channel)]), lead.length > 1 ? ' each close ' : ' closes ', b(lead.map(r => num(r.orders)).join(' and ')), ' alone.'],
-      { action: ctx.isClient ? null : button('Ask why', { href: ctx.href('ask', 'index') }) })) : null,
+      { action: ctx.isClient ? null : askWhy(ctx, 'Which ads did they click before buying') })) : null,
   ];
 }
 
@@ -197,12 +199,15 @@ export default {
     };
     paint();
     put(el, ...[
+      helpBar([
+        { title: 'What it is for', text: 'What people click before they buy: the channels in order, the ads, and how many clicks it takes.' },
+        { title: 'Where the numbers come from', text: 'Triple Whale click paths, clicks only (ad views are not counted). Each order counts once; a path names up to three clicks before the order. Hover or tap a band for its count and share.' },
+      ], h('span', { class: 'bz-chip' }, rangeWords(ctx, d.range))),
       hero({ line: true }, figures(d), ex ? h('div', null, exampleChip()) : null),
       readLine(d, ctx),
       flowCard,
       paths,
       clicks,
-      h('p', { class: 'lx-foot' }, 'Source: Triple Whale click paths, clicks only. Each order counts once; a path names up to three clicks before the order.'),
     ].filter(Boolean));
   },
 

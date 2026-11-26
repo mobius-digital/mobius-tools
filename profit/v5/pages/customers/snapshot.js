@@ -6,6 +6,7 @@
    mode those two cards say so plainly; the fixture carries them for sample mode. */
 
 import { put } from '../../kit.js';
+import { helpBar, dl, rangeWords } from '../home/_biz.js';
 import { h, money, num, pct, card, hero, em, kpi, kpis, takeaway, button, statusDot, delta, legend, table, empty, addStyles } from '../../kit.js';
 import { ltvChart, againChart, crossing, halfDayOf } from './charts.js';
 
@@ -25,10 +26,17 @@ const CSS = `
 .cs-tip{display:flex;align-items:center;gap:10px;padding:14px 28px 20px;border-top:1px solid var(--line);font-size:14px;color:var(--ink-2)}
 .cs-tip b{color:var(--ink);font-weight:650}
 .cs-kpis .lx-kpi .s{flex-wrap:wrap}
+.cs-go{display:grid;gap:0;padding:4px 16px 12px}
+.cs-go a{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 16px;align-items:center;padding:14px 12px;border-radius:12px;color:inherit;text-decoration:none}
+.cs-go a+a{border-top:1px solid var(--line)}
+.cs-go a:hover{background:var(--row-hover)}
+.cs-go b{font-weight:600}
+.cs-go span{grid-column:1;font-size:13px;color:var(--muted)}
+.cs-go i{grid-column:2;grid-row:1/span 2;font-style:normal;color:var(--faint)}
 @media (max-width:759px){
   .cs-chart{padding:18px}
-  .cs-big b{font-size:36px}
-  .cs-kpis .lx-kpi.lg .v{font-size:34px}
+  .cs-big b{font-size:var(--num-xl)}
+  .cs-kpis .lx-kpi.lg .v{font-size:var(--num-l)}
   .cs-kpis .lx-kpi .l{white-space:normal}
   .cs-second .cs-big{padding:4px 18px 10px}
   .cs-second .cs-bar{display:none}
@@ -79,32 +87,30 @@ function figures(d) {
   const over = ok(d.cac) && ok(d.cac_goal) ? d.cac > d.cac_goal : null;
   const aovMove = ok(d.aov_move) ? d.aov_move : ok(d.aov) && d.aov_prev && d.aov_prev.value > 0 ? d.aov / d.aov_prev.value - 1 : null;
   const list = [
-    { label: 'New customers', value: ok(d.new_customers) ? num(d.new_customers) : 'no data',
+    { label: dl('New customers', 'new_customers'), value: ok(d.new_customers) ? num(d.new_customers) : 'no data',
       sub: ok(share) ? `${pct(share)} of ${num(d.orders)} orders` : null, spark: d.new_spark },
-    { label: 'Cost per new customer', value: ok(d.cac) ? dollars(d.cac) : 'no data',
+    { label: dl('Cost per new customer', 'new_customer_cost'), value: ok(d.cac) ? dollars(d.cac) : 'no data',
       delta: ok(d.cac_goal) ? statusDot(over ? 'bad' : 'good', 'goal ' + dollars(d.cac_goal)) : null,
-      sub: d.cac_then && ok(d.cac_then.value) ? `${dollars(d.cac_then.value)} in ${d.cac_then.label}` : null, spark: d.cac_spark },
-    { label: 'Came back in 90 days', value: ok(d.back_90) ? pct(d.back_90, { digits: 1 }) : 'no data',
+      sub: d.cac_then && ok(d.cac_then.value) ? `vs ${dollars(d.cac_then.value)} in ${d.cac_then.label}` : null, spark: d.cac_spark },
+    { label: dl('Came back in 90 days', { name: 'Came back in 90 days', definition: 'Share of new customers who placed a second order within 90 days of their first. Counts people, not orders.', source: 'Triple Whale orders' }), value: ok(d.back_90) ? pct(d.back_90, { digits: 1 }) : 'no data',
       sub: ok(d.back_365) ? pct(d.back_365, { digits: 1 }) + ' within a year' : null, spark: d.back_spark },
-    { label: 'Average order', value: ok(d.aov) ? dollars(d.aov) : 'no data',
+    { label: dl('Average order', 'aov'), value: ok(d.aov) ? money(d.aov, { cents: true }) : 'no data',
       delta: ok(aovMove) && Math.abs(aovMove) >= 0.005 ? delta(aovMove) : null,
-      sub: d.aov_prev && ok(d.aov_prev.value) ? `${d.aov_prev.label} ${dollars(d.aov_prev.value)}` : null, spark: d.aov_spark },
+      sub: d.aov_prev && ok(d.aov_prev.value) ? `vs ${money(d.aov_prev.value, { cents: true })} in ${d.aov_prev.label}` : null, spark: d.aov_spark },
   ];
   const el = kpis(list.map(k => kpi({ ...k, size: 'lg', spark: (k.spark || []).filter(ok) })), { cols: 4 });
   el.classList.add('cs-kpis');
   return el;
 }
 
-/** The one sentence: does the customer pay back, by day 90 (or the furthest day we can see). */
-function verdict(d, ctx) {
-  if (!ok(d.cac) || !d.ltv) return null;
-  const want = d.ltv.days.indexOf(90), i = want > 0 ? want : d.ltv.days.length - 1;
-  const day = d.ltv.days[i], worth = d.ltv.values[i];
-  if (!ok(worth) || !day) return null;
-  const ratio = worth / d.cac;
-  const lead = ratio < 1 ? 'Not yet. ' : ratio < 1.2 ? 'Only just. ' : 'Yes. ';
-  const ask = ctx.isClient ? null : button('Ask why', { href: ctx.href('ask', 'index') });
-  return takeaway([lead, 'A new customer costs ', h('b', null, dollars(d.cac)), ' and is worth ', h('b', null, dollars(worth)), ` in sales by day ${day}, before product cost.`], { action: ask });
+/** Where each question has its one chart: the curve on LTV, the reorder weeks on Repeat, the next product on Buy next. */
+function moreCard(ctx) {
+  const go = (tab, title, text) => h('a', { href: ctx.href('customers', tab) }, h('b', null, title), h('span', null, text), h('i', { 'aria-hidden': 'true' }, '>'));
+  return card({ title: 'Read more', flush: true },
+    h('div', { class: 'cs-go' },
+      go('ltv', 'What is a customer worth over time?', 'LTV by day after the first order, against what a new customer costs'),
+      go('repeat', 'Do they come back, and when?', 'second orders by week, and each month of new customers followed since'),
+      go('buy-next', 'What do they buy next?', 'the second order after each first product')));
 }
 
 function head(title, sub, key) {
@@ -130,7 +136,7 @@ function againCard(d) {
     return card({ title }, empty({ title: 'Reorder timing is not connected yet', text: 'This needs each customer’s order dates from the store. It will show second orders by week after the first order.' }));
   }
   const a = d.again, half = ok(a.half_day) ? a.half_day : halfDayOf(a.weeks, a.same_day, a.repeaters);
-  const key = legend([{ name: 'Second orders that week', square: true, color: '#C9CED9' }, ok(a.repeaters) && { name: 'Running share of repeat buyers' }]);
+  const key = legend([{ name: 'Second orders that week', square: true, color: 'var(--line-strong)' }, ok(a.repeaters) && { name: 'Running share of repeat buyers' }]);
   return card({ class: 'cs-chart' },
     head(title, 'second orders by week after the first order', key),
     ok(half) ? h('div', { class: 'cs-big' }, h('b', null, 'Day ' + half), h('span', null, `half of the ${num(a.repeaters)} repeat buyers are back`)) : null,
@@ -196,12 +202,12 @@ export default {
       return;
     }
     put(el, ...[
+      helpBar([
+        { title: 'What it is for', text: 'The customers in one look: how many were new, what one cost, how many came back and the average order. Each question then has its own tab with the chart.' },
+        { title: 'Where the numbers come from', text: 'Triple Whale and Shopify. Cost per new customer is all ad spend over new customers in these dates. Came back counts people, not orders.' },
+      ], h('span', { class: 'bz-chip' }, rangeWords(ctx, d.range))),
       top,
-      verdict(d, ctx),
-      worthCard(d),
-      againCard(d),
-      secondCard(d, ctx),
-      h('p', { class: 'lx-foot' }, 'Sources: Triple Whale and Shopify. LTV is sales per customer, before product cost.'),
+      moreCard(ctx),
     ].filter(Boolean));
   },
 

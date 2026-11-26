@@ -8,8 +8,32 @@
 
 import { APP_NAME } from '../../config.js';
 import { put } from '../../kit.js';
-import { h, hero, kpis, kpi, statusDot, button, sheet, em, empty, avatar, relativeTime, pill } from '../../kit.js';
-import { css, dayOf, between, todayYmd, heading, row, list, brandTag } from '../calendar/_cr.js';
+import { h, hero, kpis, kpi, statusDot, button, sheet, em, empty, avatar, relativeTime, pill, addStyles } from '../../kit.js';
+import { css, dayOf, between, todayYmd, heading, row, list, brandTag, helpBar } from '../calendar/_cr.js';
+
+const CL_CSS = `.cl-steps{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.cl-step{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:999px;background:var(--bg-sunk);font-size:12px;font-weight:600;color:var(--muted)}
+.cl-step::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--faint)}
+.cl-step.good{background:var(--good-bg,#E7F4EE);color:var(--good)}
+.cl-step.good::before{background:var(--good)}
+.cl-title{display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap}
+.cl-reqs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.cl-req{display:grid;gap:2px;padding:12px 14px;border-radius:14px;background:var(--bg-sunk)}
+.cl-req .l{font-size:12.5px;font-weight:600;color:var(--muted)}
+.cl-req .v{font-size:var(--num-m);font-weight:650;font-variant-numeric:tabular-nums}`;
+
+/** The five setup steps of a new client as small chips: done = green, still to do = gray. */
+function stepChips(o) {
+  if (!o) return null;
+  const sp = o.sign_pay || {}, c = o.connect || {}, b = o.brief || {}, a = o.assets || {};
+  const chip = (ok, text, title) => h('span', { class: 'cl-step' + (ok ? ' good' : ''), title }, text);
+  return h('span', { class: 'cl-steps' },
+    chip(!!sp.signed, 'Signed', sp.signed ? 'The agreement is signed' : 'The agreement is not signed yet'),
+    chip(!!sp.paid, 'Paid', sp.paid ? 'The first invoice is paid' : 'The first invoice is not paid yet'),
+    c.total ? chip(c.done >= c.total, 'Connected ' + (c.done || 0) + '/' + c.total, 'Accounts connected, of the ones asked for') : null,
+    b.total ? chip(b.answered >= b.total, 'Brief ' + (b.answered || 0) + '/' + b.total, 'Brief questions answered') : null,
+    chip(!!a.linked, 'Assets', a.linked ? 'Their photos and files are linked' : 'Their photos and files are not linked yet'));
+}
 
 const seenDay = p => String(p.last_seen || p.last_sign_in || '').slice(0, 10);
 
@@ -31,53 +55,62 @@ function draw(el, d, ctx) {
   const recent = logins.filter(p => seenDay(p) && between(seenDay(p), today) <= 7);
   const never = logins.filter(p => !p.last_sign_in && !p.last_seen);
   const noLogin = brands.filter(b => !of(b.id).length);
-  /* new clients from New client: their setup line, a pill, and who it waits on; the row opens Get started */
+  /* new clients from New client: a setup tag after the name and the five steps as chips; the row opens Get started */
   const onb = new Map((d.onboard || []).map(o => [o.act, o]));
   const setupHref = o => '#/brand/' + encodeURIComponent(o.slug) + '/get-started/index';
-  const setupRow = (o, title) => row({
-    title, sub: o.line, late: false,
-    cells: [
-      { w: 120, class: 'hide-sm', label: 'Setup', node: o.finished_at ? pill('good', 'Finished') : pill('warn', 'Setting up') },
-      { w: 130, label: 'Sent', node: o.days == null ? '' : o.days === 0 ? 'today' : o.days + (o.days === 1 ? ' day ago' : ' days ago') },
-      { w: 170, node: o.finished_at ? statusDot('good', 'Nothing open') : o.waiting_on === 'us' ? statusDot('warn', 'Waiting on us') : statusDot('off', 'Waiting on client') },
-    ],
-    onclick: () => { location.hash = setupHref(o); },
-  });
 
   const head = hero({ line: true }, kpis([
     kpi({ label: 'Clients', value: String(brands.length), size: 'lg', sub: d.brands.length > brands.length ? (d.brands.length - brands.length) + ' paused' : 'all active' }),
-    kpi({ label: 'Client logins', value: String(logins.length), size: 'lg', sub: noLogin.length ? statusDot('warn', noLogin.length + (noLogin.length === 1 ? ' brand has' : ' brands have') + ' none') : 'every brand has one' }),
-    kpi({ label: 'Looked this week', value: String(recent.length), size: 'lg', sub: 'of ' + logins.length + ' people' }),
-    kpi({ label: 'Never signed in', value: String(never.length), size: 'lg', sub: never.length ? 'invited, not in yet' : 'everyone is in' }),
+    kpi({ label: 'Client logins', value: String(logins.length), sub: noLogin.length ? statusDot('warn', noLogin.length + (noLogin.length === 1 ? ' brand has' : ' brands have') + ' none') : 'every brand has one' }),
+    kpi({ label: 'Looked this week', value: String(recent.length), sub: 'of ' + logins.length + ' people' }),
+    kpi({ label: 'Never signed in', value: String(never.length), sub: never.length ? 'invited, not in yet' : 'everyone is in' }),
   ], { cols: 4 }));
 
-  const rows = brands.map(b => {
-    if (onb.has(b.id)) return setupRow(onb.get(b.id), b.name);
-    const ps = of(b.id), last = ps.map(seenDay).filter(Boolean).sort().pop(), w = (d.waiting || {})[b.id] || { us: 0, client: 0 };
+  /* one row shape for every client: Logins | Last looked | Open requests. A client still setting up carries a tag
+     after its name and its setup steps as chips, and opens its Get started page. */
+  const waitOf = id => (d.waiting || {})[id] || { us: 0, client: 0 };
+  const openCell = w => w.us ? statusDot('warn', w.us + ' waiting for us') : w.client ? statusDot('off', w.client + ' waiting for them') : statusDot('good', 'Nothing open');
+  const brandRow = (b, o) => {
+    const ps = b ? of(b.id) : [], last = ps.map(seenDay).filter(Boolean).sort().pop(), w = waitOf(b ? b.id : o.act);
+    const tag = o ? (o.finished_at ? pill('good', 'Setup finished') : pill('warn', 'Setting up')) : null;
     return row({
-      title: b.name,
-      sub: ps.length ? ps.map(p => p.name || p.email).join(', ') : 'No client login yet',
+      title: h('span', { class: 'cl-title' }, b ? b.name : o.name, tag),
+      sub: o && !o.finished_at ? [o.contact ? o.contact + (o.days != null ? ', sent ' + (o.days === 0 ? 'today' : o.days + (o.days === 1 ? ' day ago' : ' days ago')) : '') : null, stepChips(o)]
+        : ps.length ? ps.map(p => p.name || p.email.split('@')[0]).join(', ') : 'No client login yet',
       late: false,
       cells: [
-        { w: 120, class: 'hide-sm', label: 'Logins', node: ps.length ? h('span', { class: 'cr-people', style: { gap: '4px' } }, ps.slice(0, 3).map(p => avatar(p, { size: 26 })), ps.length > 3 ? '+' + (ps.length - 3) : '') : '' },
-        ps.length ? { w: 130, label: 'Last looked', node: last ? (between(last, today) === 0 ? 'today' : relativeTime(last + 'T12:00:00Z')) : 'never' } : { w: 130, node: '' },
-        { w: 170, node: w.us ? statusDot('warn', w.us + ' waiting for us') : w.client ? statusDot('off', w.client + ' waiting for them') : statusDot('good', 'Nothing open') },
+        { w: 120, class: 'hide-sm', label: 'Logins', node: ps.length ? h('span', { class: 'cr-people', style: { gap: '4px' } }, ps.slice(0, 3).map(p => avatar(p, { size: 26 })), ps.length > 3 ? '+' + (ps.length - 3) : '') : h('span', { style: { color: 'var(--muted)' } }, 'None') },
+        { w: 130, label: 'Last looked', node: ps.length ? (last ? (between(last, today) === 0 ? 'today' : relativeTime(last + 'T12:00:00Z')) : 'never') : '' },
+        { w: 170, label: 'Open requests', node: openCell(w) },
       ],
-      onclick: () => sheet({ title: b.name, body: h('div', { class: 'cr-sheet' },
-        ps.length ? h('div', null, heading('Who can sign in', ps.length), people(ps, ctx)) : h('p', { class: 'cr-none', style: { border: 0 } }, 'Nobody from this client can sign in yet.'),
-        h('div', { style: { display: 'flex', gap: '10px', flexWrap: 'wrap' } },
-          button('Open the brand', { href: '#/brand/' + encodeURIComponent(b.slug || b.id.replace(/^brand_/, '').replace(/_/g, '-')) + '/home/index', icon: 'arrow' }),
-          ctx.legacy ? button('Invite or remove in old ' + APP_NAME, { href: ctx.legacy }) : null)) }),
+      onclick: o && !o.finished_at ? () => { location.hash = setupHref(o); } : () => openClient(b, o, ps, w),
     });
-  });
+  };
+  const openClient = (b, o, ps, w) => sheet({ title: b.name, body: h('div', { class: 'cr-sheet' },
+    o ? h('div', null, heading('Setup', null, o.finished_at ? 'finished' : 'still going'), stepChips(o)) : null,
+    h('div', null, heading('Open requests'), h('div', { class: 'cl-reqs' },
+      h('div', { class: 'cl-req' }, h('span', { class: 'l' }, 'Waiting for us'), h('span', { class: 'v' }, String(w.us))),
+      h('div', { class: 'cl-req' }, h('span', { class: 'l' }, 'Waiting for them'), h('span', { class: 'v' }, String(w.client))))),
+    ps.length ? h('div', null, heading('Who can sign in', ps.length), people(ps, ctx)) : h('p', { class: 'cr-none', style: { border: 0 } }, 'Nobody from this client can sign in yet.'),
+    h('div', { style: { display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' } },
+      button('Open the brand', { href: '#/brand/' + encodeURIComponent(b.slug || b.id.replace(/^brand_/, '').replace(/_/g, '-')) + '/home/index', icon: 'arrow' }),
+      button('Requests', { href: '#/brand/' + encodeURIComponent(b.slug || b.id.replace(/^brand_/, '').replace(/_/g, '-')) + '/requests/index' }),
+      ctx.legacy ? h('a', { href: ctx.legacy, style: { fontSize: '13px', color: 'var(--muted)' } }, 'Invite or remove a login (opens old ' + APP_NAME + ')') : null)) });
+  const rows = brands.map(b => brandRow(b, onb.get(b.id) || null));
   /* a client set up a minute ago may not be in the brand list yet */
-  const extra = (d.onboard || []).filter(o => !brands.some(b => b.id === o.act)).map(o => setupRow(o, o.name));
+  const extra = (d.onboard || []).filter(o => !brands.some(b => b.id === o.act)).map(o => brandRow(null, o));
   const setting = (d.onboard || []).filter(o => !o.finished_at).length;
-  put(el, head,
+  addStyles('lx-cl-css', CL_CSS);
+  put(el, helpBar([
+    { title: 'What it is for', text: 'Every brand we run, who at the client can sign in, when they last looked, and what is open between us.' },
+    { title: 'Setting up', text: 'A client added with New client shows its five setup steps until they are done: agreement signed, first invoice paid, accounts connected, brief answered and assets linked. Green is done. Its row opens the client\'s Get started page.' },
+    { title: 'Open requests', text: 'Waiting for us: a request from the client, or ads they sent back with changes. Waiting for them: ads or questions we sent that they have not answered.' },
+  ]), head,
     h('div', { style: { display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center', margin: '0 0 18px' } },
       button('New client', { primary: true, icon: 'arrow', href: ctx.href('a-clients', 'new') }),
       setting ? h('span', { style: { fontSize: '13px', color: 'var(--muted)' } }, setting + (setting === 1 ? ' client is' : ' clients are') + ' setting up') : null),
-    h('section', { class: 'cr-sect' }, heading('Every client', brands.length + extra.length), list([...extra, ...rows])));
+    h('section', { class: 'cr-sect' }, heading('Every client', brands.length + extra.length),
+      list([...extra, ...rows], null, { head: [{ label: 'Logins', w: 120, class: 'hide-sm' }, { label: 'Last looked', w: 130 }, { label: 'Open requests', w: 170 }], first: 'Client' })));
 }
 
 export default {

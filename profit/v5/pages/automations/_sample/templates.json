@@ -23,7 +23,7 @@
    "state": "on",
    "template": "plan_missing",
    "may_act_alone": false,
-   "owner": "sam@agency.example",
+   "owner": "sam@example.com",
    "brand_name": "Any brand",
    "sentence": {
     "text": "When a daily plan is missing by 10am, for any brand, tell me, each in their own way.",
@@ -101,7 +101,7 @@
    "state": "on",
    "template": "review_check",
    "may_act_alone": false,
-   "owner": "sam@agency.example",
+   "owner": "sam@example.com",
    "brand_name": "Any brand",
    "sentence": {
     "text": "When a production card moves to Review, for any brand, ask the AI checker to look at it, then tell the card's maker, each in their own way.",
@@ -189,7 +189,7 @@
    "state": "on",
    "template": "mer_under_goal",
    "may_act_alone": false,
-   "owner": "sam@agency.example",
+   "owner": "sam@example.com",
    "brand_name": "Northlake Golf",
    "sentence": {
     "text": "When MER over the last 7 days is under the brand's goal, for Northlake Golf, tell the brand owner, each in their own way.",
@@ -293,7 +293,7 @@
    "state": "draft",
    "template": "brand_weekly",
    "may_act_alone": false,
-   "owner": "sam@agency.example",
+   "owner": "sam@example.com",
    "brand_name": "Any brand",
    "sentence": {
     "text": "Every Monday at 7am, for any brand, draft the weekly report and hold it, then tell the brand owner, each in their own way.",
@@ -394,7 +394,7 @@
    "state": "draft",
    "template": null,
    "may_act_alone": false,
-   "owner": "sam@agency.example",
+   "owner": "sam@example.com",
    "brand_name": "Any brand",
    "sentence": {
     "text": "When a card has sat in Live for 3 days, for any brand, suggest pausing it and wait for an answer, then tell the buyer, each in their own way.",
@@ -1888,7 +1888,7 @@
    "started_at": "2026-11-24T16:00:00Z",
    "result": "skipped",
    "title": "All 4 plans are in",
-   "why": "sam@agency.example: Only if missing: it went as planned",
+   "why": "sam@example.com: Only if missing: it went as planned",
    "ai_usd": 0
   },
   {
@@ -1921,7 +1921,7 @@
    "started_at": "2026-11-22T19:30:00Z",
    "result": "held",
    "title": "#118 Putter story moved to Review",
-   "why": "jo@agency.example: Quiet hours, so it goes in the morning read",
+   "why": "jordan@example.com: Quiet hours, so it goes in the morning read",
    "ai_usd": 0.0013
   }
  ],

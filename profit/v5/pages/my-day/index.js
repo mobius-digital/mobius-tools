@@ -12,7 +12,8 @@ import { OLD_LOCUS, APP_NAME } from '../../config.js';
 import { css, face, ic, heading, store } from './_ui.js';
 import { lineButtons, css as gsCss } from '../get-started/_ui.js';
 import { loadWaiting, primeRead } from '../../bell.js';
-import { agencyRows, liveNote } from './_waiting.js';
+import { agencyRows, liveNote, liveHelp, brandWord } from './_waiting.js';
+import { pageHelp } from '../../defs.js';
 
 let brandPick = 'all';     // the brand filter survives a refresh behind
 
@@ -81,26 +82,33 @@ function row(r, ctx, { primary, onDone }) {
     gsCss();
     /* Every setup line can be ticked off like any other row (PUT /api/mywork/done with its onb: key), so a line with
        no action of its own (budget, a check, a key to make, a goal) never sits on the list for good. */
-    const tick = button('Done', { ghost: true, aria: 'Mark this line done', onclick: async e => {
+    const tick = button('Mark done', { ghost: true, aria: 'Mark this line done', onclick: async e => {
       if (ctx.sample) return toast('Sample numbers: nothing is saved.');
       const btn = e.currentTarget; btn.disabled = true;
       try { await ctx.api('/api/mywork/done', { worker: 'ah', method: 'PUT', body: { key: r.id, done: true } }); onDone(r, null, true); toast('Done.'); }
       catch (err) { btn.disabled = false; toast('Could not mark it done: ' + err.message, { tone: 'bad', ms: 5000 }); }
     } });
+    const acts = lineButtons(ctx, r, { primary, onDone: (line, what) => {
+      /* a remind keeps the line (it comes back after the next day band); a tick, a yes or no and a release finish it */
+      if (what !== 'remind' && what !== 'Remind them') onDone(r, null, true);
+    } });
+    /* one button at the right edge like every other row; Open and Mark done as small links under it.
+       A line whose own action is already Done never shows a second Done. */
+    const ownDone = acts.some(b => /^Done$/.test(b.textContent.trim()));
+    const [main, ...rest] = acts;
+    const links = [...rest, ownDone ? null : tick].filter(Boolean);
+    links.forEach(b => { b.classList.remove('primary'); b.classList.add('lx-md-link'); });
     return h('div', { class: 'lx-md-row', dataset: { id: r.id } },
       h('div', { class: 'what' }, h('b', null, r.text), h('span', { class: 'why' }, h('span', null, r.detail || r.why))),
-      h('span', { class: 'brand' }, r.brand), h('span', { class: 'due' + (r.late ? ' late' : '') }, r.due),
-      h('span', { class: 'go gs-acts' }, lineButtons(ctx, r, { primary, onDone: (line, what) => {
-        /* a remind keeps the line (it comes back after the next day band); a tick, a yes or no and a release finish it */
-        if (what !== 'remind' && what !== 'Remind them') onDone(r, null, true);
-      } }), tick));
+      h('span', { class: 'brand' }, brandWord(r.brand)), h('span', { class: 'due' + (r.late ? ' late' : '') }, r.due),
+      h('span', { class: 'go lx-md-go2' }, main || null, links.length ? h('span', { class: 'lx-md-more' }, links) : null));
   }
   const go = b.done ? button(b.label, { primary, onclick: e => onDone(r, e.currentTarget) })
     : b.nudge ? button(b.label, { onclick: () => toast(ctx.sample ? 'Sample numbers: no nudge was sent.' : 'Nudges come with the notifications release.') })
     : button(b.label || 'Open', { primary, icon: primary ? 'arrow' : null, href: hrefOf(b, ctx) || '#', target: b.out ? '_blank' : null });
   return h('div', { class: 'lx-md-row', dataset: { id: r.id } },
     h('div', { class: 'what' }, h('b', null, r.text), h('span', { class: 'why' }, r.who && face({ name: r.who }, 22), h('span', null, r.why))),
-    h('span', { class: 'brand' }, r.brand), h('span', { class: 'due' + (r.late ? ' late' : '') }, r.due), h('span', { class: 'go' }, go));
+    h('span', { class: 'brand' }, brandWord(r.brand)), h('span', { class: 'due' + (r.late ? ' late' : '') }, r.due), h('span', { class: 'go' }, go));
 }
 
 function group(title, rows, ctx, opts, emptyText) {
@@ -128,15 +136,21 @@ function draw(el, data, ctx) {
     outBtn.firstChild.textContent = next ? "You're out today" : "I'm out today";
     toast(next ? 'Marked out today on this device. Telling the team comes with the notifications release.' : 'You are back in.');
   } });
+  /* the greeting already names the person: no avatar here. The two actions sit in the bar above the counts. */
+  const bar = h('div', { class: 'lx-md-top' },
+    pageHelp({ body: [
+      { title: 'What it is for', text: 'Your own list for today: what needs you today, what is due this week, and what waits on someone else. One button per row opens the place where it is done.' },
+      ctx.isClient || ctx.role === 'client' ? null : { title: 'Waiting across the agency', text: 'What needs any person on the team today, on every brand: the same rows the bell shows.' },
+      ctx.isClient || ctx.role === 'client' ? null : liveHelp(),
+    ] }),
+    h('span', { class: 'lx-sp' }),
+    h('div', { class: 'lx-md-acts' }, outBtn, h('button', { class: 'lx-btn', type: 'button', onclick: () => addTask(el, d, ctx) }, ic('plus'), 'Task')));
   const hero = h('section', { class: 'lx-hero line lx-md-hero' },
-    h('div', { class: 'lx-hero-h' }, face(person, 76, true),
-      h('span', { class: 'lx-sp' }),
-      h('div', { class: 'lx-md-acts' }, outBtn, h('button', { class: 'lx-btn', type: 'button', onclick: () => addTask(el, d, ctx) }, ic('plus'), 'Task'))),
     kpis([
-      kpi({ label: 'Need you today', value: String(T.length), size: 'lg', sub: lateN ? statusDot('bad', lateN + (lateN === 1 ? ' is late' : ' are late')) : T.length ? 'none late' : 'all clear' }),
-      kpi({ label: 'Clients waiting', value: d.clients_waiting ? String(d.clients_waiting.n) : 'not connected', size: d.clients_waiting ? 'lg' : null, sub: d.clients_waiting ? d.clients_waiting.sub : 'Requests did not answer' }),
-      kpi({ label: 'Due this week', value: String(W.length), size: 'lg', sub: W.length ? 'next one ' + W[0].due : 'nothing else this week' }),
-      kpi({ label: 'Waiting on someone else', value: X ? String(X.length) : 'not connected', size: X ? 'lg' : null, sub: X && X.length ? statusDot(oldest >= 7 ? 'warn' : '', 'oldest ' + oldest + (oldest === 1 ? ' day' : ' days')) : X ? 'nothing is stuck' : '' }),
+      kpi({ label: 'Need you today', value: String(T.length), sub: lateN ? statusDot('bad', lateN + (lateN === 1 ? ' is late' : ' are late')) : T.length ? 'none late' : 'all clear' }),
+      kpi({ label: 'Clients waiting', value: d.clients_waiting ? String(d.clients_waiting.n) : 'not connected', sub: d.clients_waiting ? d.clients_waiting.sub : 'Requests did not answer' }),
+      kpi({ label: 'Due this week', value: String(W.length), sub: W.length ? 'next one ' + W[0].due : 'nothing else this week' }),
+      kpi({ label: 'Waiting on someone else', value: X ? String(X.length) : 'not connected', sub: X && X.length ? statusDot(oldest >= 7 ? 'warn' : '', 'oldest ' + oldest + (oldest === 1 ? ' day' : ' days')) : X ? 'nothing is stuck' : '' }),
     ], { cols: 4 }));
 
   /* the lists, filtered by brand */
@@ -162,9 +176,13 @@ function draw(el, data, ctx) {
     const brands = [...new Set([...T, ...W, ...(X || []), ...(A || [])].map(r => r.brand).filter(Boolean))];
     if (brandPick !== 'all' && !brands.includes(brandPick)) brandPick = 'all';
     const f = rows => rows && (brandPick === 'all' ? rows : rows.filter(r => r.brand === brandPick));
-    put(lists, 
-      h('div', { class: 'lx-md-bar' },
-        brands.length > 1 ? segmented([{ id: 'all', label: 'All brands' }, ...brands.map(b => ({ id: b, label: b }))], brandPick, id => { brandPick = id; paintLists(); }) : null),
+    const opts = [{ id: 'all', label: 'All brands' }, ...brands.map(b => ({ id: b, label: brandWord(b) }))];
+    const pickEl = brands.length > 4
+      ? h('label', { class: 'lx-md-pick' }, h('span', null, 'Brand'), h('select', { class: 'lx-input', 'aria-label': 'Show one brand', onchange: e => { brandPick = e.target.value; paintLists(); } },
+          opts.map(o => h('option', { value: o.id, selected: o.id === brandPick || null }, o.label))))
+      : brands.length > 1 ? segmented(opts, brandPick, id => { brandPick = id; paintLists(); }) : null;
+    put(lists,
+      h('div', { class: 'lx-md-bar' }, pickEl),
       group('Needs you today', f(T), ctx, { lead: true, onDone }, 'Nothing needs you today.'),
       team ? agencyGroup(d.agency, f, ctx) : null,
       group('This week', f(W), ctx, { onDone }, 'Nothing else is due this week.'),
@@ -195,7 +213,7 @@ function draw(el, data, ctx) {
       : h('p', { class: 'lx-md-quiet' }, 'Nothing ticked off yet.'));
 
   const t = d.take;
-  put(el, hero,
+  put(el, bar, hero,
     team ? liveNote(ctx) : null,
     t ? takeaway(say(t.say), { action: t.action ? button(t.action.label, { href: hrefOf(t.action, ctx) || '#' }) : null }) : '',
     h('div', { class: 'lx-md-cols' }, lists, h('aside', { class: 'lx-md-side' }, meet, done)));
@@ -247,3 +265,18 @@ export default {
     el.innerHTML = '<div class="lx-skel chart" style="height:230px"></div><div class="lx-skel row"></div><div class="lx-skel row"></div><div class="lx-skel row"></div><div class="lx-skel row"></div>';
   },
 };
+
+import { addStyles } from '../../kit.js';
+addStyles('lx-md-page-css', `
+.lx-md-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:var(--sp-4)}
+.lx-md-go2{flex-direction:column;align-items:flex-end;gap:4px}
+.lx-md-more{display:flex;gap:12px;justify-content:flex-end;flex-wrap:wrap}
+.lx-md-row .go .lx-btn.lx-md-link{height:auto;padding:0;border:0;background:none;box-shadow:none;font-size:12.5px;font-weight:550;color:var(--muted);text-decoration:underline;text-underline-offset:3px}
+.lx-md-row .go .lx-btn.lx-md-link:hover{color:var(--ink)}
+.lx-md-pick{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.lx-md-pick select{height:34px;width:auto;min-width:200px;font-size:13.5px}
+@media (max-width:759px){
+  .lx-md-go2{align-items:stretch}
+  .lx-md-more{justify-content:flex-start}
+  .lx-md-row .go .lx-btn.lx-md-link{width:auto;height:auto}
+}`);

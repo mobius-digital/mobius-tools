@@ -6,6 +6,7 @@
    what waits on the team across every brand (the bell's list, loadWaiting in bell.js), read after the page draws. */
 
 import { put } from '../../kit.js';
+import { helpBar, dl } from '../home/_biz.js';
 import { h, em, money, pct, x, pill, statusDot, delta, button, card, table, gauge, empty } from '../../kit.js';
 import { rangeOf } from '../../data.js';
 import { homeNotices } from '../automations/_notices.js';
@@ -61,30 +62,30 @@ function render(el, d, ctx) {
     { label: 'Brands behind plan', value: String(behind.length), sub: `of ${withStore.length} with a store connected`, href: ctx.href('a-month', 'pace') },
   ]);
 
-  /* every brand, the same card */
-  let primaryUsed = false;
+  /* every brand, the same card: one status style (a dot), one button style, and one "Needs your yes" badge with a
+     strip on the top edge only when Meta suggestions wait on a person */
   const one = b => {
-    const meta = b.meta7, tone = b.st.tone;
-    const next = !b.store ? ['Connect store', brandHref(b.id, 'brand-settings', 'integrations')]
-      : b.calls > 0 ? [`Review ${b.calls}`, brandHref(b.id, 'meta', 'suggestions')] : null;
-    const first = next && b.st.act && !primaryUsed; if (first) primaryUsed = true;
-    return h('section', { class: 'lx-card ag-bc' },
-      h('div', { class: 'ag-bc-h' }, brandName(b, ctx, brandHref(b.id, 'home', 'index')), b.st.act ? pill(tone, b.st.text) : statusDot(tone, b.st.text)),
+    const meta = b.meta7, tone = b.st.tone, needs = b.calls > 0;
+    const next = !b.store ? ['Connect the store', brandHref(b.id, 'brand-settings', 'integrations')]
+      : needs ? [`Review ${b.calls} Meta suggestion${b.calls === 1 ? '' : 's'}`, brandHref(b.id, 'meta', 'suggestions')] : null;
+    return h('section', { class: 'lx-card ag-bc' + (needs ? ' needs' : '') },
+      h('div', { class: 'ag-bc-h' }, brandName({ ...b, goTitle: 'Open ' + b.name + ' Home' }, ctx, brandHref(b.id, 'home', 'index')),
+        statusDot(tone === 'off' ? '' : tone, b.st.text)),
       h('div', null,
         h('div', { class: 'ag-bc-n' }, b.store ? [h('span', { class: 'lx-big' }, money(b.sales)), h('small', null, ok(b.plan_sales) ? `${pct(b.st.pace)} of plan ${money(b.plan_sales)}` : 'sales this month, no plan set')]
           : h('span', { class: 'w' }, 'No sales source connected')),
         h('div', { class: 'ag-bc-g' }, b.store && ok(b.plan_sales) ? gauge({ value: b.sales, goal: b.plan_sales, max: b.plan_sales * 1.4, tone: tone === 'off' ? '' : tone }) : null)),
       figs([
-        ['MER, whole store', b.store ? x(b.mer) + (ok(b.goal_mer) ? ` of ${x(b.goal_mer)}` : '') : quiet('no data')],
+        ['Store MER', b.store ? x(b.mer) + (ok(b.goal_mer) ? ` of ${x(b.goal_mer)}` : '') : quiet('no data')],
         ['Meta ROAS, 7 days', meta && ok(meta.roas) ? x(meta.roas) : quiet(meta && meta.spend > 0 ? 'no sales source' : 'ads off')],
         ['Ad spend, month', money(b.spend)],
       ]),
-      h('div', { class: 'ag-bc-a' }, next ? button(next[0], { primary: first, href: next[1], icon: 'arrow' }) : quiet(b.calls === 0 ? 'Nothing to decide' : ''),
-        h('span', { class: 'lx-sp' }), button('Open brand', { ghost: true, href: brandHref(b.id, 'home', 'index') })));
+      h('div', { class: 'ag-bc-a' }, needs ? h('span', { class: 'ag-needs' }, 'Needs your yes') : null, next ? button(next[0], { href: next[1], icon: 'arrow' }) : quiet(needs || b.calls == null ? '' : 'Nothing to decide'),
+        h('span', { class: 'lx-sp' }), button('Open Home', { ghost: true, href: brandHref(b.id, 'home', 'index'), title: 'Open ' + b.name + ' Home' })));
   };
   const cards = h('div', null,
     h('div', { class: 'lx-sec', style: { marginBottom: '16px', flexWrap: 'wrap' } }, h('h3', null, 'Which brand needs someone first?'), h('span', { class: 'note' }, `Behind plan first. This month through ${shortDay(d.window.to)}.`)),
-    h('div', { class: 'ag-grid' }, list.map(one)));
+    h('div', { class: 'ag-grid three' }, list.map(one)));
 
   /* where Meta money went in the last 7 days */
   let weekCard = null;
@@ -94,12 +95,12 @@ function render(el, d, ctx) {
     const total = { total: true, name: 'All brands', spend: sumOf(rows, r => r.spend), before: sumOf(rows, r => r.before) };
     weekCard = card({ title: 'Where did Meta money go this week?', note: `${shortDay(d.week.from)} to ${shortDay(d.week.to)}, against the 7 days before`, flush: true,
       action: h('a', { href: ctx.href('a-meta', 'overview') }, 'Meta by brand') },
-      table({ roomy: true, rowHeight: 52, total,
+      table({ roomy: true, total,
         cols: [
           { key: 'name', label: 'Brand', class: 'name', render: r => r.total ? r.name : brandName(r, ctx, brandHref(r.id, 'meta', 'overview')) },
           { key: 'bar', label: '', class: 'hide-sm', width: '42%', render: r => r.total ? '' : h('span', { class: 'ag-bar' }, h('span', { class: 'lx-cellbar', style: { '--v': (100 * (r.spend || 0) / top).toFixed(1) + '%' } })) },
           { key: 'spend', label: 'Spend', num: true, class: 'strong', render: r => money(r.spend) },
-          { key: 'roas', label: 'ROAS', num: true, class: 'hide-sm', render: r => r.total ? '' : ok(r.roas) ? x(r.roas) : quiet('no sales source') },
+          { key: 'roas', label: dl('ROAS', 'roas'), num: true, class: 'hide-sm', render: r => r.total ? '' : ok(r.roas) ? x(r.roas) : quiet('no sales source') },
           { key: 'change', label: 'Change', num: true, render: r => { const c = change(r); return c == null ? quiet('new') : Math.abs(c) < 0.005 ? quiet('0%') : delta(c, { plain: true }); } },
         ], rows }));
   }
@@ -108,8 +109,12 @@ function render(el, d, ctx) {
   const meet = d.meetings && d.meetings.length ? card({ title: 'Meetings today', note: d.meetings_example ? exampleChip() : null, action: button('Open agenda', { href: ctx.href('a-meetings', 'agenda') }) },
     h('div', { class: 'lx-rows' }, d.meetings.map(m => h('div', null, h('b', { style: { minWidth: '52px', fontVariantNumeric: 'tabular-nums' } }, m.time), h('span', { style: { flex: '1', minWidth: '0' } }, m.title), statusDot(m.state === 'ready' ? 'good' : 'warn', m.note))))) : null;
 
-  const foot = h('p', { class: 'lx-foot' }, 'Sales and MER are the whole store, this month through yesterday. Meta ROAS is one platform: Triple Whale, last platform click, last 7 days. A brand with no sales source shows no sales figure.');
-  put(el, h('div', { class: 'ag' }, hero, liveNote(ctx), homeNotices(ctx), waitingCard(ctx), cards, weekCard, meet, foot));
+  const help = helpBar([
+    { title: 'What it is for', text: 'What needs a person today across every brand: suggestions to decide, client requests, ads to load, and which brand needs someone first.' },
+    { title: 'How it is counted', text: 'Sales and store MER are the whole store, this month through yesterday. Meta ROAS is one platform: Triple Whale, last platform click, last 7 days. A brand with no sales source shows no sales figure.' },
+    { title: 'The brand cards', text: 'Every brand gets the same card. "Needs your yes" and the orange edge mean Meta suggestions wait on a person; the button opens them on that brand\'s Meta page. Open Home opens the brand\'s Home.' },
+  ]);
+  put(el, h('div', { class: 'ag' }, help, hero, liveNote(ctx), homeNotices(ctx), waitingCard(ctx), cards, weekCard, meet));
 }
 
 export default {

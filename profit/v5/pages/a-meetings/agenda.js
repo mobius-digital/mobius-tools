@@ -6,6 +6,7 @@ import { put } from '../../kit.js';
 import { h, hero, em, button, gauge, avatar, statusDot } from '../../kit.js';
 import { css, loadMeeting, meetingOf, SENT_LABEL, MEETING_START, longDay, lightOf, ok, x } from './_meet.js';
 import { follow, reading } from '../_parts.js';
+import { defined, pageHelp } from '../../defs.js';
 
 /** The plan. Minutes are fixed; only the small line under each block comes from data. */
 const BLOCKS = [
@@ -70,18 +71,24 @@ function draw(el, data, ctx) {
 
   const any = ((data && data.brands) || []).some(b => ok(b.mer) && ok(b.goal_mer));
   const db = h('section', { class: 'mt-open', style: { gap: '20px' } },
-    h('div', { class: 'mt-h' }, h('h3', null, "This Monday's decision brands"), h('span', null, 'MER, whole store, last week. Furthest under goal first.')),
+    h('div', { class: 'mt-h' }, h('h3', null, "This Monday's decision brands"), h('span', null, defined(h('span', null, 'Store MER'), 'mer'), ', last week. Furthest under goal first.')),
     under.length ? h('div', { class: 'mt-db' }, under.map(b => h('a', { href: ctx.href('a-meetings', 'pre-read'), onclick: () => { try { sessionStorage.setItem('lx5.preread.brand', b.id); } catch {} } },
       h('span', { class: 'nm' }, b.name),
       h('span', { class: 'n' }, x(b.mer), h('small', null, 'goal ' + x(b.goal_mer))),
-      gauge({ value: b.mer, max: b.goal_mer * 1.2, goal: b.goal_mer, tone: lightOf(b.mer, b.goal_mer).tone, thin: true }),
+      (() => { const g = gauge({ value: b.mer, max: b.goal_mer * 1.2, goal: b.goal_mer, tone: lightOf(b.mer, b.goal_mer).tone, thin: true,
+        ticks: [{ at: 0, text: '0', side: 'l' }, { at: b.goal_mer, text: 'goal ' + x(b.goal_mer) }] });
+        g.title = 'Store MER ' + x(b.mer) + ' against the goal of ' + x(b.goal_mer) + ' (the tick)'; return g; })(),
       b.owner && h('span', { class: 'ow' }, b.owner + ' speaks first'))))
       : h('p', { class: 'mt-none' }, any ? 'Every brand with a goal is on goal.' : 'No brand has both a sales source and a MER goal yet.'));
 
   const more = data && data.waiting && (data.waiting.screen || data.waiting.goals);
-  put(el, h('div', { class: 'mt-page', style: { gap: '52px' } }, head, cols, db,
-    more ? reading(data.waiting.screen ? 'Still reading the promises and the pipeline.' : 'Still reading each brand\'s MER goal.') : null,
-    h('p', { class: 'lx-foot' }, (data && data.note) || SENT_LABEL + '.')));
+  const help = h('div', { class: 'mt-helpbar' }, pageHelp({ body: [
+    { title: 'What it is for', text: 'The Monday team meeting: 45 minutes, the same eight blocks every week, and the brands that need a decision this Monday.' },
+    { title: 'Decision brands', text: 'Brands whose Store MER last week was under its goal, furthest under first. The bar runs from 0 to a little past the goal; the tick is the goal. The owner named on each one speaks first.' },
+    { title: 'The pre-read', text: SENT_LABEL + '.' },
+  ] }));
+  put(el, h('div', { class: 'mt-page', style: { gap: '40px' } }, help, head, cols, db,
+    more ? reading(data.waiting.screen ? 'Still reading the promises and the pipeline.' : 'Still reading each brand\'s MER goal.') : null));
 }
 
 /* each part of the meeting is painted as it lands */

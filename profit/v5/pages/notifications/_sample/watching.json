@@ -5,7 +5,6 @@
   { "id": "week", "title": "With the team", "note": "Moving, nothing for you to do" },
   { "id": "client", "title": "Waiting on the client", "note": "Sent, no answer yet. Oldest first" }
  ],
- "take": { "say": ["Everything here is moving. The hoodie mock up has sat for ", { "b": "8 days" }, ", so it is worth a nudge."] },
  "take_client": { "say": ["Your gift box request is with Sam and is due ", { "b": "Fri" }, "."] },
  "rows": {
   "Recut of the range day video": { "group": "week", "detail": "Riley is cutting a shorter open. The first cut is due Wed." },

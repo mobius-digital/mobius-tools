@@ -5,7 +5,7 @@
   "to": "2026-11-22"
  },
  "new_customers": 456,
- "orders": 597,
+ "orders": 693,
  "new_spark": [
   29,
   18,
@@ -54,11 +54,11 @@
   13.1,
   23.6
  ],
- "aov": 118,
- "aov_move": 0.14,
+ "aov": 91.53,
+ "aov_move": 0.0618,
  "aov_prev": {
   "label": "October",
-  "value": 104
+  "value": 86.2
  },
  "aov_spark": [
   96,

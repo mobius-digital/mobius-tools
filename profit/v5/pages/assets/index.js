@@ -6,7 +6,8 @@
      PUT /api/brand/assets-link { act, url, label }   url '' removes it
    Client and team both read and change it. Sample mode: _sample/index.json, nothing is sent. */
 
-import { h, button, field, toast, empty, em, put, statusDot, card, addStyles } from '../../kit.js';
+import { h, button, field, toast, empty, em, put, statusDot, card, addStyles, safeHref } from '../../kit.js';
+import { pageHelp } from '../../defs.js';
 import { APP_NAME } from '../../config.js';
 
 const KIND = { drive: 'Google Drive', dropbox: 'Dropbox', air: 'Air', frame: 'Frame', box: 'Box', link: 'A link' };
@@ -15,9 +16,9 @@ const dateOf = iso => { const t = Date.parse(/^\d{4}-\d{2}-\d{2}$/.test(String(i
 
 addStyles('lx-as-css', `
 .as{display:grid;gap:var(--sp-6);max-width:760px}
-.as-big{display:grid;gap:14px;justify-items:start;padding:28px;border-radius:18px;background:#fff;box-shadow:0 0 0 1px var(--line)}
-.as-big .k{font-size:13px;color:var(--muted)}
-.as-big .u{font-size:14px;color:var(--ink-2);overflow-wrap:anywhere}
+.as-one{display:grid;gap:14px;justify-items:start;margin-top:12px}
+.as-one dl{display:grid;grid-template-columns:90px minmax(0,1fr);gap:6px 12px;margin:0;font-size:13.5px;width:100%}
+.as-one dt{color:var(--muted)}.as-one dd{margin:0;overflow-wrap:anywhere;color:var(--ink-2)}
 .as-form{display:grid;gap:12px}
 .as-acts{display:flex;gap:10px;flex-wrap:wrap}
 .as-err{color:var(--bad);font-size:13px;font-weight:600;margin:0}
@@ -27,16 +28,18 @@ let editing = false;
 function draw(el, d, ctx) {
   if (!ctx.brand) return put(el, empty({ title: 'Pick a brand', text: 'Assets belong to one brand.' }));
   const A = d && d.url ? d : null;
-  const line = h('p', { class: 'lx-foot' }, APP_NAME + ' does not copy your files. It opens your folder.');
+  const help = h('div', null, pageHelp({ body: [{ title: 'What it is for', text: 'The one link to where this brand\'s photos and videos live: Google Drive, Dropbox, Air, Frame or any link. Anyone on the brand, client or team, can open or change it.' },
+    { title: 'Your files stay yours', text: APP_NAME + ' does not copy, read or store the files. The button opens your folder.' }] }));
+  const copy = async () => { try { await navigator.clipboard.writeText(A.url); toast('Link copied.'); } catch { toast('The link: ' + A.url, { ms: 9000 }); } };
   if (A && !editing) {
-    return put(el, h('div', { class: 'as' },
-      h('div', { class: 'as-big' },
-        h('span', { class: 'k' }, [KIND[A.kind] || KIND.link, A.label, A.at ? 'added ' + dateOf(A.at) : null].filter(Boolean).join(', ')),
-        button('Open the folder', { primary: true, large: true, href: A.url, target: '_blank', icon: 'arrow' }),
-        h('span', { class: 'u' }, A.url),
-        A.from === 'drive' ? statusDot('warn', 'This is the older Drive folder. Paste the link you use now if it moved.') : null,
-        h('div', { class: 'as-acts' }, button('Change the link', { ghost: true, onclick: () => { editing = true; draw(el, d, ctx); } }))),
-      line));
+    return put(el, h('div', { class: 'as' }, help,
+      card({ title: A.label || 'Photos and videos', note: APP_NAME + ' opens your folder; it never copies the files.', action: h('span', { class: 'lx-chip' }, KIND[A.kind] || KIND.link) },
+        h('div', { class: 'as-one' },
+          h('dl', null, A.at ? [h('dt', null, 'Added'), h('dd', null, dateOf(A.at))] : null, h('dt', null, 'Link'), h('dd', null, A.url)),
+          A.from === 'drive' ? statusDot('warn', 'This is the older Drive folder. Paste the link you use now if it moved.') : null,
+          h('div', { class: 'as-acts' }, safeHref(A.url) && button('Open the folder', { primary: true, href: safeHref(A.url), target: '_blank', icon: 'arrow', title: 'Opens the folder in a new tab' }),
+            button('Copy link', { ghost: true, onclick: copy }),
+            button('Change the link', { ghost: true, onclick: () => { editing = true; draw(el, d, ctx); } }))))));
   }
   const url = field({ label: 'Paste a link to where your photos and videos live (Google Drive, Dropbox, Air, Frame, anything)', type: 'url', inputmode: 'url', placeholder: 'https://', value: A ? A.url : '' });
   const label = field({ label: 'A name for it (optional)', placeholder: 'Brand photos', value: A && A.label ? A.label : '', maxlength: 60 });
@@ -54,10 +57,9 @@ function draw(el, d, ctx) {
       editing = false; draw(el, d, ctx); toast('Saved.');
     } catch (e) { save.disabled = false; toast(e.message || 'Not saved. Try again.', { tone: 'bad', ms: 5000 }); }
   } });
-  put(el, h('div', { class: 'as' },
-    card({ title: A ? 'Change the link' : 'No folder linked yet' },
-      h('div', { class: 'as-form' }, url, label, err, h('div', { class: 'as-acts' }, save, A ? button('Keep the old link', { ghost: true, onclick: () => { editing = false; draw(el, d, ctx); } }) : null))),
-    line));
+  put(el, h('div', { class: 'as' }, help,
+    card({ title: A ? 'Change the link' : 'No folder linked yet', note: APP_NAME + ' opens your folder; it never copies the files.' },
+      h('div', { class: 'as-form' }, url, label, err, h('div', { class: 'as-acts' }, save, A ? button('Keep the old link', { ghost: true, onclick: () => { editing = false; draw(el, d, ctx); } }) : null)))));
 }
 
 export default {

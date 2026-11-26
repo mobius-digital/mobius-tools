@@ -7,6 +7,7 @@
 import { put } from '../../kit.js';
 import { h, em, card, kpi, kpis, takeaway, button, table, statusDot, empty, money, num, pct, x } from '../../kit.js';
 import { styles, thumb, quartiles, shareBar, assetRow, cellBar, strip } from './_gv.js';
+import { askWhy } from '../home/_biz.js';
 
 const label = r => { const f = s => new Date(s + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); return f(r.from) + ' to ' + f(r.to); };
 const isVideo = a => /video/.test(a.type || '') || /^(video|demand_gen)$/.test(a.campaign_type || '');
@@ -89,7 +90,7 @@ function ratingCard(a, ctx) {
     shareBar(parts),
     h('div', { class: 'lx-row', style: { gap: '18px' } }, statusDot('good', (a.best || 0) + ' Best'), statusDot('info', (a.good || 0) + ' Good'), statusDot('bad', (a.low || 0) + ' Low')),
     h('div', { class: 'gv-cols' }, col('Images', 'image', a.images), col('Headlines', 'headline', a.headlines), col('Videos', 'video', a.videos)),
-    h('p', { class: 'lx-foot', style: { marginTop: '18px' } }, 'Best, Good and Low are Google’s own labels. They compare assets inside one campaign and are not a sales result.'));
+    null);
 }
 
 function groupsCard(d) {
@@ -102,7 +103,7 @@ function groupsCard(d) {
       { key: 'impressions', label: 'Times shown', num: true, class: 'hide-sm', render: r => num(r.impressions) },
       { key: 'ctr', label: 'Click rate', num: true, value: r => r.impressions ? r.clicks / r.impressions : null, render: r => r.impressions ? pct(r.clicks / r.impressions, { digits: 2 }) : 'no data' },
     ], sort: { key: 'spend', dir: 'desc' } }),
-    h('p', { class: 'lx-foot lx-pad' }, 'Google does not send a rating per image, headline or video through this connection yet, only the strength of each group.'));
+    null);
 }
 
 function headlinesCard(rows) {
@@ -149,20 +150,20 @@ export default {
     if (d.totals && vids.length) out.push(heroBand(d.totals, vids));
     else out.push(strip({ ic: 'youtube', title: 'No YouTube videos spent in these dates', text: 'When a Video, Demand Gen or Performance Max video spends, it shows here with its views and sales.' }));
 
-    if (d.take) out.push(takeaway(d.take.map(p => typeof p === 'string' ? p : h('b', null, p.b)), { action: !ctx.isClient ? button('Ask why', { href: ctx.href('ask', 'index') }) : null }));
+    if (d.take) out.push(takeaway(d.take.map(p => typeof p === 'string' ? p : h('b', null, p.b)), { action: !ctx.isClient ? askWhy(ctx, 'How are the Google ads and videos doing, and why?') : null }));
 
     if (vids.length) out.push(h('section', { style: { display: 'grid', gap: '16px' } },
       h('div', { class: 'lx-sec' }, h('h3', null, 'Each video'), h('span', { class: 'note' }, 'sorted by spend'),
         h('div', { class: 'act' }, h('a', { href: ctx.href('meta', 'top-ads') }, 'Compare with Meta videos'))),
       h('div', { class: 'gv-grid' }, [...vids].sort((a, b) => (b.spend || 0) - (a.spend || 0)).map(videoCard)),
-      d.source === 'google' ? h('p', { class: 'lx-foot' }, 'Views, how far people watch and Triple Whale sales per video do not come through the Google connection yet, so they are left out, not shown as zero.') : null));
+      null));
 
     if (d.assets) out.push(ratingCard(d.assets, ctx));
     else { const g = groupsCard(d); if (g) out.push(g); }
 
     const hc = headlinesCard(d.headlines); if (hc) out.push(hc);
     if (!vids.length && !d.assets && !(d.groups || []).length && !(d.headlines || []).length) out.push(empty({ title: 'No Google ads spent in these dates', text: 'Nothing with spend came back from Google Ads for ' + (d.range ? d.range.label : 'this window') + '.' }));
-    if (d.foot) out.push(h('p', { class: 'lx-foot' }, d.foot));
+
     put(el, ...out);
   },
 };

@@ -5,8 +5,10 @@
    Window: this month so far, through yesterday. */
 
 import { put } from '../../kit.js';
+import { def, defOn, headRow } from './_ads.js';
 import { h, em, svgNode, money, pct, x, button, platformChip, statusDot, delta, takeaway, card, legend, lineChart, gauge, table, empty, addStyles, handEm } from '../../kit.js';
 import { icon, PLATFORM_NAME } from '../../icons.js';
+import { askWhy } from '../home/_biz.js';
 
 /* ---------- dates ---------- */
 const day = d => new Date(d + 'T12:00:00');
@@ -87,15 +89,17 @@ const CSS = `
 .sbs-pl small{display:inline-flex;font-size:12.5px;color:var(--muted)}
 .sbs-pl small .lx-plat{font-size:12.5px;font-weight:400;color:var(--muted);gap:6px}
 .sbs-pl small .lx-ic{width:15px;height:15px}
-.sbs-share{display:grid;grid-template-columns:34px 1fr;align-items:center;gap:10px}
-.sbs-share b{font-weight:500;text-align:right}
-.sbs-share .lx-cellbar{display:block;width:100%;margin:0}
+.sbs-sp{display:grid;justify-items:end;gap:4px}
+.sbs-sp small{font-size:11.5px;color:var(--muted)}
+.sbs-sp .lx-cellbar{display:block;width:72px;margin:0}
+.sbs-wide .lx-table{table-layout:auto}
+.sbs-wide .lx-table td.name{width:30%}
 .sbs-q{color:var(--muted);font-weight:400}
 .sbs-open{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:50%;color:var(--muted)}
 .sbs-open:hover{background:var(--bg-sunk);color:var(--ink)}
 .sbs-open .lx-ic{width:16px;height:16px;stroke-width:2;transform:rotate(-90deg)}
 .sbs-wide .lx-table .g{padding-left:22px}
-.sbs-wide tr.total .lx-gauge-track{background:#E4E2DC}
+.sbs-wide tr.total .lx-gauge-track{background:var(--line-strong)}
 .sbs-wide tr.total .lx-gauge .goal{box-shadow:0 0 0 1.5px var(--band)}
 .sbs-list{display:none}
 .sbs-chart{padding:28px 32px 20px}
@@ -116,7 +120,7 @@ const CSS = `
   .sbs-figs b{font-size:16px;font-weight:600;letter-spacing:-.015em;font-variant-numeric:tabular-nums;white-space:nowrap}
   .sbs-figs b.sbs-q{font-size:13px;font-weight:400;white-space:normal;letter-spacing:0}
   .sbs-item .lx-gauge-ticks{margin-top:2px}
-  .sbs-item.total .lx-gauge-track{background:#E4E2DC}
+  .sbs-item.total .lx-gauge-track{background:var(--line-strong)}
   .sbs .lx-card.flush>.lx-sec{flex-wrap:wrap}
   .sbs .lx-card.flush>.lx-sec .act{margin-left:0;width:100%}
   .sbs .lx-card.flush>.lx-sec .act .lx-btn{width:100%;height:44px;justify-content:center}
@@ -152,20 +156,21 @@ function render(el, data, ctx) {
   const sug = d.suggestions ? [['meta', d.suggestions.meta], ['google', d.suggestions.google]].filter(v => v[1] != null) : [];
   const sugTotal = sug.reduce((t, v) => t + v[1], 0);
   const sugHref = ctx.href((sug.find(v => v[1] > 0) || ['meta'])[0], 'suggestions');
-  const costLabel = d.cost_kind === 'new_customer' ? 'Cost per new customer' : 'Cost per sale';
+  const costLabel = d.cost_kind === 'new_customer' ? def('New customer cost', 'ncpa') : def('Cost per sale', 'cpa');
 
   /* --- the four figures --- */
   const over = d.plan_spend > 0 && d.spend != null ? d.spend / d.plan_spend - 1 : null;
   const k = (label, value, sub, href) => h(href ? 'a' : 'div', { class: 'lx-kpi lg', href }, h('span', { class: 'l' }, label), value, h('span', { class: 's' }, sub));
+  const wl = windowText(d.window);
   const big = text => h('span', { class: 'v' }, text);
   const figures = [
-    k('Total ad spend', big(money(d.spend)),
+    k(def('Total ad spend' + (wl ? ', ' + wl : ''), 'ad_spend'), big(money(d.spend)),
       over == null ? 'no spend plan set'
         : Math.abs(over) < 0.005 ? `on plan ${money(d.plan_spend)}`
         : [delta(over, { bad: over > 0, plain: over < 0 }), `${over > 0 ? 'over' : 'under'} plan ${money(d.plan_spend)}`],
       ctx.href('month', 'pace')),
     h('a', { class: 'lx-kpi lg sbs-kpi', href: ctx.href('month', 'pace') },
-      h('span', { class: 'l' }, 'MER, whole store'),
+      h('span', { class: 'l' }, def('MER, whole store', 'mer')),
       hasSales ? h('span', { class: 'lx-hero-num' }, x(d.mer)) : h('span', { class: 'v words' }, 'No sales source connected'),
       h('span', { class: 's' }, hasSales && d.goal_mer != null ? statusDot(d.mer >= d.goal_mer ? 'good' : d.mer >= d.goal_mer * 0.6 ? 'warn' : 'bad', 'goal ' + x(d.goal_mer)) : hasSales ? 'no goal set' : '')),
     top ? k(`${PLATFORM_NAME[top.id] || top.id} share of ad spend`, big(pct(share(top))),
@@ -178,14 +183,10 @@ function render(el, data, ctx) {
   const heroBand = h('section', { class: 'lx-hero line' }, h('div', { class: 'lx-kpis', style: hand ? { '--cols': figures.length, '--kpi-hand': hand } : { '--cols': figures.length } }, figures));
 
   /* --- the one sentence --- */
-  let take = null;
-  const rated = bySpend.filter(p => p.roas != null).slice(0, 2).sort((a, b) => b.roas - a.roas);
-  if (hasSales && rated.length && top) {
-    const say = [];
-    rated.forEach((p, i) => say.push(i ? ', ' : '', `${PLATFORM_NAME[p.id] || p.id} ROAS is `, h('b', null, x(p.roas))));
-    say.push(rated.length > 1 ? ', and ' : ' and ', `${PLATFORM_NAME[top.id] || top.id} takes `, h('b', null, pct(share(top))), ' of spend.');
-    take = takeaway(say, { action: team ? button('Ask why', { href: ctx.href('ask', 'index') }) : null });
-  }
+  const take = headRow({ ask: team ? askWhy(ctx, 'How do the ad platforms compare, and why?') : null, help: [
+    { title: 'What it is for', text: 'Every ad platform side by side for the dates in the page head: spend, sales from its ads, ROAS against the goal and the cost per sale. Tap a platform to open it.' },
+    { title: 'Where the numbers come from', text: `Spend is each platform's own number. ${hasSales ? 'Sales per platform are Triple Whale, last platform click, so platforms can overlap. ' : ''}ROAS is one platform; MER is the whole store.` },
+  ] });
 
   /* --- one equal row per platform --- */
   const chip = r => h('span', { class: 'sbs-pl' }, platformChip(r.id, { chip: true }),
@@ -203,13 +204,13 @@ function render(el, data, ctx) {
     roomy: true, rowHeight: 68, total, sort: { key: 'spend', dir: 'desc' },
     cols: [
       { key: 'name', label: 'Platform', class: 'name', render: r => r.total ? r.name : chip(r) },
-      { key: 'spend', label: 'Spend', num: true, sortable: true, value: r => r.spend ?? -1, render: cSpend },
-      { key: 'share', label: 'Share of spend', width: 150, render: r => r.share == null ? '' : h('span', { class: 'sbs-share' }, h('b', null, pct(r.share)), h('span', { class: 'lx-cellbar', style: { '--v': (r.share * 100).toFixed(1) + '%' } })) },
-      { key: 'sales', label: 'Sales from its ads', num: true, sortable: true, value: r => r.sales ?? -1, render: cSales },
-      { key: 'roas', label: 'ROAS', num: true, sortable: true, class: 'strong', value: r => r.roas ?? -1, render: cRoas },
-      { key: 'goal', label: d.goal_roas != null ? 'Against goal ' + x(d.goal_roas) : 'Against goal', width: 170, class: 'g', render: r => r.email || !hasSales ? '' : against(r.roas, r.goal, r.tone) },
+      { key: 'spend', label: def('Spend, share', 'ad_spend'), num: true, sortable: true, value: r => r.spend ?? -1,
+        render: r => r.share == null ? cSpend(r) : h('span', { class: 'sbs-sp' }, h('span', null, cSpend(r)), h('span', { class: 'lx-cellbar', style: { '--v': (r.share * 100).toFixed(1) + '%' } }), h('small', null, pct(r.share) + ' of spend')) },
+      { key: 'sales', label: def('Sales from its ads', 'roas'), num: true, sortable: true, value: r => r.sales ?? -1, render: cSales },
+      { key: 'roas', label: def('ROAS', 'roas'), num: true, sortable: true, class: 'strong', value: r => r.roas ?? -1, render: cRoas },
+      { key: 'goal', label: def(d.goal_roas != null ? 'Against goal ' + x(d.goal_roas) : 'Against goal', 'goal_roas'), class: 'g hide-md', render: r => r.email || !hasSales ? '' : against(r.roas, r.goal, r.tone) },
       { key: 'cost', label: costLabel, num: true, render: cCost },
-      { key: 'open', label: '', width: 44, num: true, render: r => r.total ? '' : open(r) },
+      { key: 'open', label: '', width: 36, num: true, render: r => r.total ? '' : open(r) },
     ],
     rows,
     onRow: (r, _i, e) => { if (!e.target.closest('a')) location.hash = r.href; },
@@ -247,8 +248,7 @@ function render(el, data, ctx) {
       }));
   }
 
-  const foot = h('p', { class: 'lx-foot' }, `Spend is each platform's own number. ${hasSales ? 'Sales per platform are Triple Whale, last platform click, so platforms can overlap. ' : ''}ROAS is one platform; MER is the whole store.`);
-  put(el, h('div', { class: 'sbs' }, heroBand, take, platforms, chart, foot));
+  put(el, h('div', { class: 'sbs' }, take, heroBand, platforms, chart));
 }
 
 export default {

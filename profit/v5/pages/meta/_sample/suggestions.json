@@ -18,7 +18,7 @@
    "because": "It has spent three times the goal with sales at more than twice the goal cost. It is the only live ad set in its campaign, so that campaign goes quiet.",
    "facts": [
     {
-     "l": "Spend 7d",
+     "l": "Spend, 7 days",
      "v": "$655",
      "good": false,
      "bad": false
@@ -62,7 +62,8 @@
    "thumb": null,
    "do": "pause",
    "adset_id": "100000000001",
-   "object_id": "100000000001"
+   "object_id": "100000000001",
+   "campaign": "Creators | Whitelist"
   },
   {
    "key": "k2",
@@ -73,7 +74,7 @@
    "because": "Every sale this week is under the goal cost and it spends its full budget each day.",
    "facts": [
     {
-     "l": "Spend 7d",
+     "l": "Spend, 7 days",
      "v": "$138",
      "good": false,
      "bad": false
@@ -113,18 +114,19 @@
    "adset_id": "100000000002",
    "object_id": "100000000002",
    "budget": 20,
-   "suggested_budget": 25
+   "suggested_budget": 25,
+   "campaign": "Creators"
   },
   {
    "key": "k3",
    "kind": "refresh",
    "level": "ad",
    "call": "Keep the ad set, replace this ad",
-   "object": "First tee, slow motion in Early sale | New people",
+   "object": "First tee, slow motion",
    "because": "The ad set is working, so it stays on. This video takes 31% of its spend and its click rate is down 24% while people see it more often.",
    "facts": [
     {
-     "l": "Spend 7d",
+     "l": "Spend, 7 days",
      "v": "$352",
      "good": false,
      "bad": false
@@ -162,18 +164,20 @@
    "thumb": null,
    "do": "brief",
    "ad_id": "100000000003",
-   "object_id": "100000000003"
+   "object_id": "100000000003",
+   "adset": "Early sale | New people",
+   "campaign": "Black Friday 2026"
   },
   {
    "key": "k4",
    "kind": "cut",
    "level": "ad",
    "call": "Turn off",
-   "object": "Fall colors, flat lay in Broad | New people",
+   "object": "Fall colors, flat lay",
    "because": "It spent three times the goal cost with no sale.",
    "facts": [
     {
-     "l": "Spend 7d",
+     "l": "Spend, 7 days",
      "v": "$126",
      "good": false,
      "bad": false
@@ -205,18 +209,20 @@
    "thumb": null,
    "do": "pause",
    "ad_id": "1000000000k4",
-   "object_id": "1000000000k4"
+   "object_id": "1000000000k4",
+   "adset": "Broad | New people",
+   "campaign": "Creators"
   },
   {
    "key": "k5",
    "kind": "cut",
    "level": "ad",
    "call": "Turn off",
-   "object": "Ball marker set in Gifts under $50",
+   "object": "Ball marker set",
    "because": "It spent three times the goal cost at more than one and a half times the goal.",
    "facts": [
     {
-     "l": "Spend 7d",
+     "l": "Spend, 7 days",
      "v": "$171",
      "good": false,
      "bad": false
@@ -245,7 +251,9 @@
    "state": "yes",
    "note": "Turned off at 9:12am",
    "by": "jordan@example.com",
-   "thumb": null
+   "thumb": null,
+   "adset": "Gifts under $50",
+   "campaign": "Creators"
   },
   {
    "key": "k6",
@@ -256,7 +264,7 @@
    "because": "Nine sales at goal this week on a small budget.",
    "facts": [
     {
-     "l": "Spend 7d",
+     "l": "Spend, 7 days",
      "v": "$348",
      "good": false,
      "bad": false
@@ -285,18 +293,19 @@
    "state": "yes",
    "note": "Budget raised to $60",
    "by": "jordan@example.com",
-   "thumb": null
+   "thumb": null,
+   "campaign": "Evergreen | Broad"
   },
   {
    "key": "k7",
    "kind": "trim",
    "level": "ad",
    "call": "Trim",
-   "object": "Leather care kit in Gifts under $50",
+   "object": "Leather care kit",
    "because": "A small ad over the line inside a set that is otherwise fine.",
    "facts": [
     {
-     "l": "Spend 7d",
+     "l": "Spend, 7 days",
      "v": "$204",
      "good": false,
      "bad": false
@@ -325,7 +334,9 @@
    "state": "no",
    "note": "Give it more time, the gift guide email goes out Thursday",
    "by": "alex@example.com",
-   "thumb": null
+   "thumb": null,
+   "adset": "Gifts under $50",
+   "campaign": "Creators"
   },
   {
    "key": "k8",
@@ -336,7 +347,7 @@
    "because": "This ad set finds new buyers. Its ROAS is under goal, so it gets new ads instead of being turned off.",
    "facts": [
     {
-     "l": "Spend 7d",
+     "l": "Spend, 7 days",
      "v": "$2,011",
      "good": false,
      "bad": false
@@ -365,7 +376,8 @@
    "state": "fyi",
    "note": "Nothing to do",
    "by": null,
-   "thumb": null
+   "thumb": null,
+   "campaign": "Evergreen | Broad"
   }
  ],
  "early": [

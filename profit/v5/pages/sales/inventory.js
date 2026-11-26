@@ -7,6 +7,7 @@
    This page is about today, so the date range is hidden. Nothing here writes. */
 
 import { put } from '../../kit.js';
+import { askWhy, helpBar, dl } from '../home/_biz.js';
 import { h, em, card, kpi, kpis, takeaway, button, table, barChart, statusDot, skeleton } from '../../kit.js';
 import { ok, usd, sum, shortDate, addDays, css, head, soft, notConnected, num } from '../email/_em.js';
 
@@ -30,6 +31,13 @@ function shape(st, ads) {
 
 /* ---------- the call on each product ---------- */
 const CALLS = { ease: ['bad', 'Ease off ads'], watch: ['', 'Watch'], scale: ['good', 'Safe to scale'], clear: ['warn', 'Push to clear'], quiet: ['off', 'Not selling'] };
+/* what each call means, shown on hover or tap of the call itself */
+const CALL_DEF = (k, rule) => ({ name: CALLS[k][1], definition: {
+  ease: `It runs out within ${rule.low} days and no restock lands first. Spend less on its ads until stock is back.`,
+  watch: `Between ${rule.low} and ${rule.safe} days of stock and no restock in time. No action yet; check again next week.`,
+  scale: `${rule.safe} days of stock or more, or a restock lands before it runs out. More ad spend will not run it dry.`,
+  clear: 'Over a year of stock at the current pace: money sits on the shelf. Sell it with an offer or a push.',
+  quiet: 'Has stock but sold nothing in the last 30 days.' }[k] });
 const ORDER = { ease: 0, watch: 1, scale: 2, clear: 3, quiet: 4 };
 function judge(d, ctx) {
   const id = ctx.brand ? ctx.brand.id : 'all';
@@ -51,7 +59,7 @@ function figures(d, rule) {
     kpi({ label: 'Out of stock', size: 'lg', value: num(out.length), delta: out.length ? statusDot('bad', 'selling when in stock') : statusDot('good', 'nothing out') }),
     kpi({ label: `Out within ${rule.low} days`, size: 'lg', value: num(ease.length - out.length), sub: 'with no restock landing first' }),
     kpi({ label: 'Safe to scale', size: 'lg', value: num(by('scale').length), sub: `${rule.safe} days of stock, or a restock in time` }),
-    kpi({ label: 'Tied up in slow stock', size: 'lg', value: anyCost ? usd(tied) : num(by('clear').length), sub: anyCost ? `${num(by('clear').length)} products, at cost` : 'products over a year of stock' }),
+    kpi({ label: 'Tied up in slow stock, as of today', size: 'lg', value: anyCost ? usd(tied) : num(by('clear').length), sub: anyCost ? `${num(by('clear').length)} products, at cost` : 'products over a year of stock' }),
   ], { cols: 4 });
   el.classList.add('em-kpis');
   return el;
@@ -63,7 +71,7 @@ function verdict(d, rule, ctx) {
   const parts = !ease.length ? ['Nothing runs out in the next ', b(rule.low + ' days'), '. Every product selling has stock or a restock on the way.']
     : [b(num(ease.length) + (ease.length === 1 ? ' product' : ' products')), ease.length === 1 ? ' is' : ' are', ` out or will be within ${rule.low} days`,
       ...(spend > 0 ? [', and ads spent ', b(usd(spend)), ' on them in the last 30 days'] : []), '.'];
-  return takeaway(parts, { action: ctx.isClient ? null : button('Ask what to do', { href: ctx.href('ask', 'index') }) });
+  return takeaway(parts, { action: ctx.isClient ? null : askWhy(ctx, 'Will anything run out', 'Ask what to do') });
 }
 
 function chartCard(d) {
@@ -77,19 +85,21 @@ function chartCard(d) {
       hover: i => [b('Week of ' + w[i].label), h('span', null, 'Sold ', b(num(w[i].sold)))] }));
 }
 
-function listCard(d) {
+function listCard(d, rule) {
   const rows = d.products.slice().sort((a, b) => ORDER[a.call] - ORDER[b.call] || (a.days_left ?? 9e9) - (b.days_left ?? 9e9));
   const left = p => {
     if (p.days_left == null) return h('span', { class: 'em-none' }, 'no sales');
-    if (p.days_left === 0) return statusDot('bad', 'Out');
-    return statusDot(p.call === 'ease' ? 'bad' : p.call === 'scale' ? 'good' : 'off', num(p.days_left) + ' days');
+    if (p.days_left === 0) return h('span', { class: 'em-bad' }, 'Out');
+    /* plain days; red only when it runs out within the low line and no restock lands first */
+    const txt = num(p.days_left) + ' days' + (p.lands && p.covered ? ', restock ' + shortDate(p.lands) : '');
+    return p.call === 'ease' ? h('span', { class: 'em-bad' }, txt) : h('span', null, txt);
   };
   const restock = p => (p.lands ? [shortDate(p.lands), p.incoming ? h('span', { class: 'em-none' }, ` (${num(p.incoming)})`) : null, p.gap > 0 && p.days_left != null ? h('small', { class: 'neg' }, `${p.gap} days too late`) : null] : h('span', { class: 'em-none' }, 'none placed'));
   return card({ title: 'Every product', note: 'most urgent first', flush: true, class: 'em-flush' },
     table({ roomy: true, rows, cols: [
       { key: 'title', label: 'Product', class: 'name', render: p => h('span', { class: 'em-name' }, p.title, p.first_size && p.call !== 'quiet' ? h('small', null, 'first out: ' + p.first_size) : null) },
-      { key: 'call', label: 'Call', sortable: true, class: 'hide-sm', value: p => ORDER[p.call], render: p => statusDot(CALLS[p.call][0], CALLS[p.call][1]) },
-      { key: 'days_left', label: 'Stock lasts', sortable: true, render: left },
+      { key: 'call', label: dl('Call', 'stock_call'), sortable: true, class: 'hide-sm', value: p => ORDER[p.call], render: p => statusDot(CALLS[p.call][0], dl(CALLS[p.call][1], CALL_DEF(p.call, rule))) },
+      { key: 'days_left', label: dl('Stock lasts', 'stock_lasts'), sortable: true, render: left },
       { key: 'on_hand', label: 'On hand', num: true, sortable: true, class: 'hide-sm', render: p => num(p.on_hand) },
       { key: 'per_day', label: 'Sells a week', num: true, sortable: true, class: 'hide-sm', render: p => (p.per_day > 0 ? num(p.per_day * 7) : h('span', { class: 'em-none' }, '0')) },
       { key: 'lands', label: 'Restock lands', class: 'hide-md', render: p => h('span', { class: 'em-name' }, restock(p)) },
@@ -140,11 +150,15 @@ export default {
     d = { ...d, products: d.products.map(p => ({ ...p })) };
     const rule = judge(d, ctx);
     put(el, ...[
+      helpBar([
+        { title: 'What it is for', text: 'Will anything run out, and is any money stuck in slow stock? Everything here is as of today.' },
+        { title: 'Where the numbers come from', text: `Stock and pace are from the store's inventory, read today. Ad spend is tied to products through Triple Whale orders over the last 30 days.` },
+        { title: 'The calls', text: `Ease off ads: runs out within ${rule.low} days and no restock lands first. Watch: under ${rule.safe} days of stock. Safe to scale: ${rule.safe} days or more, or a restock in time. Push to clear: over a year of stock. Hover or tap a call for its meaning.` },
+      ], h('span', { class: 'bz-chip' }, 'As of today')),
       h('section', { class: 'lx-hero line' }, figures(d, rule)),
       verdict(d, rule, ctx),
       chartCard(d),
-      listCard(d),
-      h('p', { class: 'lx-foot' }, `Stock and pace are from the store's inventory, read today. "Ease off ads" means it runs out within ${rule.low} days and no restock lands first. Ad spend is tied to products through Triple Whale orders.`),
+      listCard(d, rule),
     ].filter(Boolean));
   },
 };

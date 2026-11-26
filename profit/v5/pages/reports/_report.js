@@ -53,14 +53,14 @@ export function adName(a) {
 export const safeThumb = t => typeof t === 'string' && /^(data:image\/(png|jpe?g|webp|gif|svg\+xml)[;,]|https:\/\/)/i.test(t) ? t : null;
 
 /** Up to n best ads: from the ads that carried real money, ranked on Triple Whale ROAS when the report has
-    Triple Whale's ad credit, else on spend. Each: { id, name, spend, roas, thumb, video } (roas null = not read). */
+    Triple Whale's ad credit, else on spend. Each: { id, platform, name, spend, roas, thumb, video } (platform: the ad's own, else 'meta': the report's ad list is Meta's) (roas null = not read). */
 export function bestAds(data, n = 3) {
   const top = (data && data.ads && data.ads.top) || [];
   if (!top.length) return [];
   const tw = data.attr && data.attr.ads && data.attr.ads[ATTR_MODEL];
   const rows = top.map(a => {
     const credit = tw ? (tw[a.ad_id] || { revenue: 0 }) : null;   /* no row under the model is a real zero */
-    return { id: a.ad_id, name: adName(a), spend: a.spend, roas: credit && a.spend > 0 ? (credit.revenue || 0) / a.spend : null, thumb: safeThumb(a.thumb), video: !!a.video };
+    return { id: a.ad_id, platform: a.platform || 'meta', name: adName(a), spend: a.spend, roas: credit && a.spend > 0 ? (credit.revenue || 0) / a.spend : null, thumb: safeThumb(a.thumb), video: !!a.video };
   });
   if (tw) rows.sort((a, b) => (b.roas || 0) - (a.roas || 0) || b.spend - a.spend);
   return rows.slice(0, n);
@@ -77,3 +77,22 @@ export const linesOf = v => (Array.isArray(v) ? v : []).map(s => String(s == nul
 
 /** Change against the period before as a fraction, or null. */
 export const change = (a, b) => a != null && b > 0 ? a / b - 1 : null;
+
+/* No goal typed, no goal shown (2026-11-26). The months in a report with no goal of their own, sorted: the worker's
+   `no_goal` list (report-view), else forecast.months[ym].planned === false and pacing.planned === false (GET /api/report).
+   A month listed here never shows a goal, a forecast or pacing; the page says "No goal set for <Month>" instead. */
+export function noGoalOf(data) {
+  if (!data) return [];
+  const out = new Set(Array.isArray(data.no_goal) ? data.no_goal.filter(m => /^\d{4}-\d{2}$/.test(m)) : []);
+  const months = data.forecast && data.forecast.months;
+  if (months && typeof months === 'object') for (const [ym, m] of Object.entries(months)) if (m && m.planned === false) out.add(ym);
+  if (data.pacing && data.pacing.planned === false && data.pacing.month) out.add(data.pacing.month);
+  return [...out].sort();
+}
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+/** "No goal set for December", or "No goal set for November and December". Null when every month had one. */
+export function noGoalLine(list) {
+  const names = (list || []).map(ym => MONTHS[+ym.slice(5, 7) - 1]).filter(Boolean);
+  if (!names.length) return null;
+  return 'No goal set for ' + (names.length === 1 ? names[0] : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1]);
+}

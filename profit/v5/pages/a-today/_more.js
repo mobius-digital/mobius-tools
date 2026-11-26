@@ -3,6 +3,7 @@
    Read only: every button opens the brand's own page, where the change is made. */
 
 import { put } from '../../kit.js';
+import { helpBar } from '../home/_biz.js';
 import { h, money, x, num, pill, statusDot, delta, button, card, legend, lineChart, empty, addStyles } from '../../kit.js';
 import { style as agStyle, world, readBrands, soft, ok, sumOf, figures, brandRows, brandName, brandHref, quiet, shortDay, plat, roasTone, against, platName } from './_ag.js';
 
@@ -111,8 +112,11 @@ export function renderPlatform(el, d, ctx, id) {
       figs: [['Spend', money(r.spend)], ['Sales', ok(r.sales) ? money(r.sales) : quiet('no data')], ['ROAS', ok(r.roas) ? x(r.roas) + (ok(r.goal_roas) && !isTotal ? ` of ${x(r.goal_roas)}` : '') : quiet('no data')]],
       gauge: !isTotal && ok(r.roas) && ok(r.goal_roas) ? against(r.roas, r.goal_roas, r.tone) : null }),
   });
-  const foot = h('p', { class: 'lx-foot' }, `Spend is ${name}'s own. Sales and ROAS are Triple Whale, last platform click, so they will not match ${name}'s own reporting. A brand with no sales source shows no sales figure.${d.days_missing ? ` ${d.days_missing} brand${d.days_missing === 1 ? '' : 's'} did not answer for the day by day chart.` : ''}`);
-  put(el, h('div', { class: 'ag' }, hero, chart, tbl, foot));
+  const help = helpBar([
+    { title: 'What it is for', text: `${name} across every brand: spend, the sales it brought in and its ROAS against each brand's goal.` },
+    { title: 'How it is counted', text: `Spend is ${name}'s own. Sales and ROAS are Triple Whale, last platform click, so they will not match ${name}'s own reporting. A brand with no sales source shows no sales figure.${d.days_missing ? ` ${d.days_missing} brand${d.days_missing === 1 ? '' : 's'} did not answer for the day by day chart.` : ''}` },
+  ]);
+  put(el, h('div', { class: 'ag' }, help, hero, chart, tbl));
 }
 
 /* ---------- suggestions across brands ---------- */
@@ -147,7 +151,10 @@ export function renderSuggestions(el, d, ctx, id) {
         h('span', { class: 't' }, h('b', null, r.action), r.name ? h('span', { class: 'n' }, r.name) : null, r.why ? h('span', { class: 'w' }, r.why) : null),
         h('span', { class: 'm' }, r.stake > 0 ? money(r.stake) : '', r.stake > 0 ? h('small', null, 'at stake') : null)))));
   });
-  const foot = h('p', { class: 'lx-foot' }, `Read only. Each brand's suggestions are decided on that brand's ${name} page, where Yes makes the change and records it.${d.example ? '' : ''}`);
-  put(el, h('div', { class: 'ag' }, hero, h('div', { class: 'ag', style: { gap: '20px' } }, cards), foot));
+  const help = helpBar([
+    { title: 'What it is for', text: `Every ${name} suggestion waiting across the brands, the biggest money first.` },
+    { title: 'Where you decide', text: `This list is read only. Each brand's suggestions are decided on that brand's ${name} page, where Yes makes the change and records it.` },
+  ]);
+  put(el, h('div', { class: 'ag' }, help, hero, h('div', { class: 'ag', style: { gap: '20px' } }, cards)));
 }
 export { num };

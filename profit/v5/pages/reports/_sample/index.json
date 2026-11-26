@@ -7,6 +7,7 @@
    "period_start": "2026-11-16",
    "period_end": "2026-11-22",
    "status": "draft",
+   "hold": "Numbers look incomplete: Triple Whale has not synced",
    "generated_at": "2026-11-23T14:00:00Z",
    "sent_at": null
   },
@@ -343,7 +344,25 @@
     }
    },
    "this_week": [],
-   "need_from_you": []
+   "need_from_you": [],
+   "forecast": {
+    "sales": 14200,
+    "spend": 4600,
+    "months": {
+     "2026-11": {
+      "planned": false,
+      "has_goals": true
+     }
+    }
+   },
+   "pacing": {
+    "month": "2026-11",
+    "mtd_sales": 41200,
+    "plan_to_date": 38000,
+    "goal_sales": 52000,
+    "projected": 56100,
+    "planned": false
+   }
   }
  },
  "reads": {

@@ -5,7 +5,8 @@
 import { put } from '../../kit.js';
 import { h, em, empty, card, statusDot } from '../../kit.js';
 import { css, stateDot } from './_set.js';
-import { conGroups, conHero } from './_con.js';
+import { conGroups, conHero, conHead } from './_con.js';
+import { pageHelp } from '../../defs.js';
 
 const ORDER = ['Store', 'Ads', 'Data', 'Website', 'Email & SMS', 'Email and SMS', 'Making ads', 'Work'];
 
@@ -15,12 +16,15 @@ function draw(el, data, ctx) {
   if (!items.length) return put(el, empty({ title: 'Nothing is connected yet', text: 'This brand has no store, ad account or tool connected. ' + (ctx.isClient ? '' : 'Start with the store, then the ad accounts.') }));
   const agency = (data.agency || []);
   put(el, h('div', { class: 'lx-st' },
+    h('div', null, pageHelp({ body: [
+      { title: 'What it is for', text: 'Every tool this brand is connected to, one row each: whether it works, what was last read, and what it gives the app.' },
+      { title: 'How a connection is made', text: 'By the client giving access, or by the agency once for every brand. Nothing on this page changes a connection; a row that is not connected says how to connect it.' },
+    ] })),
     conHero(items, 'connected for ' + (ctx.brand ? ctx.brand.name : 'this brand')),
-    ...conGroups(items, ORDER, it => it.gives ? 'Gives: ' + it.gives : ''),
+    ...conGroups(items, ORDER, it => it.gives || ''),
     agency.length ? card({ title: 'Agency connections this brand rides on', note: 'Made once for every brand', flush: true, class: 'lx-st-card',
       action: ctx.isClient ? null : h('a', { href: '#/agency/all/a-settings/integrations' }, 'Open agency integrations') },
-      h('div', { class: 'lx-st-rows' }, agency.map(a => h('div', { class: 'lx-st-row inline' }, h('div', { class: 't' }, h('div', { class: 'k' }, a.name), a.brands ? h('div', { class: 'hint' }, 'Used by ' + a.brands + (a.brands === 1 ? ' brand' : ' brands')) : null), h('div', { class: 'c' }, stateDot(a.state)))))) : null,
-    h('p', { class: 'lx-foot' }, 'A connection is made by the client giving access, or by the agency once for every brand. Nothing on this page changes a connection.')));
+      h('div', { class: 'lx-st-rows' }, agency.map(a => h('div', { class: 'lx-st-row inline' }, h('div', { class: 't' }, h('div', { class: 'k' }, a.name), a.brands ? h('div', { class: 'hint' }, a.brands + (a.brands === 1 ? ' brand' : ' brands')) : null), h('div', { class: 'c' }, stateDot(a.state)))))) : null));
 }
 
 export default {

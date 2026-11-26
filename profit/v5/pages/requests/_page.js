@@ -5,14 +5,30 @@
    Live data: GET /api/requests?act=<brand id | all> (account-health). A client can read it for their own brand. */
 
 import { APP_NAME } from '../../config.js';
-import { put } from '../../kit.js';
-import { h, hero, kpis, kpi, statusDot, button, segmented, sheet, em, empty, toast } from '../../kit.js';
+import { put, safeHref } from '../../kit.js';
+import { h, hero, kpis, kpi, statusDot, pill, button, segmented, sheet, em, empty, toast, addStyles } from '../../kit.js';
 import { fixture } from '../../data.js';
-import { css, short, dayOf, away, between, todayYmd, heading, row, list, brandTag, colorOf } from '../calendar/_cr.js';
+import { css, short, dayOf, away, between, todayYmd, heading, row, list, brandTag, colorOf, helpBar, searchBox, selectBox, filterNote } from '../calendar/_cr.js';
+
+const RQ_CSS = `.rq-head{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.rq-facts{margin:0;font-size:13px;color:var(--muted)}
+.rq-ads{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}
+.rq-ad{flex:none;position:relative;width:96px;aspect-ratio:4/5;border-radius:12px;overflow:hidden;background:linear-gradient(160deg,var(--bg-sunk),var(--line-strong));display:grid;place-items:center;font-size:12px;font-weight:600;color:var(--muted)}
+.rq-ad img{width:100%;height:100%;object-fit:cover;display:block}
+.rq-ad .ok{position:absolute;left:6px;bottom:6px;padding:1px 7px;border-radius:999px;background:rgba(255,255,255,.92);font-size:11px;font-weight:650;color:var(--good)}
+.rq-ad .ok.no{color:var(--muted)}
+.rq-chat{display:grid;gap:10px}
+.rq-msg{max-width:80%;justify-self:start;display:grid;gap:3px}
+.rq-msg .b{padding:10px 14px;border-radius:16px 16px 16px 4px;background:var(--bg-sunk);font-size:14px;line-height:1.45;overflow-wrap:anywhere;white-space:pre-line}
+.rq-msg small{font-size:11.5px;color:var(--muted);padding:0 4px}
+.rq-msg.team{justify-self:end;text-align:right}
+.rq-msg.team .b{border-radius:16px 16px 4px 16px;background:var(--ink);color:#fff;text-align:left}
+.rq-old{font-size:13px;color:var(--muted)}`;
+const safeImg = u => typeof u === 'string' && /^(https:\/\/|data:image\/)/i.test(u) ? u : null;
 
 const KIND = { approval: 'For approval', ask: 'We asked', request: 'They asked' };
 const WHAT = { studio: 'Ads', link: 'Link or file', offer: 'Offer', date: 'Calendar date' };
-const view = { filter: 'open' };
+const view = { filter: 'open', q: '', brand: '' };
 
 /** Who the item waits on, from the team's side or the client's. */
 function waitsOn(it) {
@@ -64,22 +80,27 @@ function answerButtons(it, ctx, close, redraw) {
 }
 
 function detail(it, ctx, agency, redraw) {
+  addStyles('lx-rq-css', RQ_CSS);
   const thread = [{ by: it.by, role: it.by_role, text: it.body, at: it.created_at }, ...(it.thread || [])].filter(m => m.text);
+  const ads = it.ads || [];
+  const what = [KIND[it.kind] || 'Request', it.what ? (WHAT[it.what] || it.what).toLowerCase() : null].filter(Boolean).join(', ');
+  const facts = ['Opened ' + dayOf(it.created_at) + ' by ' + (it.by || 'the team'), it.decided_at ? 'answered ' + dayOf(it.decided_at) + (it.decided_by ? ' by ' + it.decided_by : '') : null].filter(Boolean).join(', ');
   const body = h('div', { class: 'cr-sheet' },
-    h('dl', { class: 'cr-kv' },
-      agency ? [h('dt', null, 'Brand'), h('dd', null, it.brand)] : null,
-      h('dt', null, 'What'), h('dd', null, [KIND[it.kind] || 'Request', it.what ? ', ' + (WHAT[it.what] || it.what).toLowerCase() : ''].join('')),
-      h('dt', null, 'Status'), h('dd', null, statusOf(it, ctx.isClient)),
-      h('dt', null, 'Opened'), h('dd', null, dayOf(it.created_at) + ' by ' + (it.by || 'the team')),
-      it.decided_at ? [h('dt', null, 'Answered'), h('dd', null, dayOf(it.decided_at) + (it.decided_by ? ' by ' + it.decided_by : ''))] : null,
-      it.ads && it.ads.length ? [h('dt', null, 'Ads'), h('dd', null, it.ads.filter(a => a.approved).length + ' of ' + it.ads.length + ' approved')] : null,
-      it.date ? [h('dt', null, 'Date'), h('dd', null, it.date.name + ', ' + short(it.date.start) + (it.date.end ? ' to ' + short(it.date.end) : ''))] : null,
-      it.link ? [h('dt', null, 'Link'), h('dd', null, h('a', { href: it.link, target: '_blank', rel: 'noopener' }, 'Open it'))] : null),
-    it.decision_note ? h('div', { class: 'cr-msg' }, h('small', null, 'What they said'), it.decision_note) : null,
-    thread.length ? h('div', null, heading('The thread', thread.length),
-      h('div', { class: 'cr-thread' }, thread.map(m => h('div', { class: 'cr-msg' + (m.role === 'team' ? ' team' : '') }, h('small', null, (m.by || '') + (m.at ? ', ' + dayOf(m.at) : '')), m.text)))) : null,
+    /* the head: the state as one pill, the brand, what it is */
+    h('div', { class: 'rq-head' }, statusOf(it, ctx.isClient), agency && it.brand ? brandTag(it.brand, it.color) : null, h('span', { class: 'rq-facts' }, what)),
+    h('p', { class: 'rq-facts' }, facts),
+    ads.length ? h('div', null, heading('The ads', null, ads.filter(a => a.approved).length + ' of ' + ads.length + ' approved'),
+      h('div', { class: 'rq-ads' }, ads.map((a, i) => h('div', { class: 'rq-ad', title: (a.name || 'Ad ' + (i + 1)) + (a.approved ? ', approved' : ', not approved yet') },
+        safeImg(a.thumb || a.image) ? h('img', { src: safeImg(a.thumb || a.image), alt: a.name || 'Ad ' + (i + 1), loading: 'lazy' }) : 'Ad ' + (i + 1),
+        h('span', { class: 'ok' + (a.approved ? '' : ' no') }, a.approved ? 'Approved' : 'Not yet'))))) : null,
+    it.date ? h('p', { class: 'rq-facts' }, 'Date: ' + it.date.name + ', ' + short(it.date.start) + (it.date.end ? ' to ' + short(it.date.end) : '')) : null,
+    safeHref(it.link) ? h('p', { class: 'rq-facts' }, h('a', { href: safeHref(it.link), target: '_blank', rel: 'noopener' }, 'Open the link')) : null,
+    thread.length || it.decision_note ? h('div', null, heading('The conversation', thread.length + (it.decision_note ? 1 : 0)),
+      h('div', { class: 'rq-chat' },
+        thread.map(m => h('div', { class: 'rq-msg' + (m.role === 'team' ? ' team' : '') }, h('span', { class: 'b' }, m.text), h('small', null, (m.by || (m.role === 'team' ? 'The team' : 'The client')) + (m.at ? ', ' + dayOf(m.at) : '')))),
+        it.decision_note ? h('div', { class: 'rq-msg' }, h('span', { class: 'b' }, it.decision_note), h('small', null, (it.decided_by || 'The client') + (it.decided_at ? ', ' + dayOf(it.decided_at) : '') + ', asking for changes')) : null)) : null,
     h('div', { class: 'cr-answer-slot' }),
-    ctx.legacy ? button(ctx.isClient ? 'Reply in ' + APP_NAME : 'Reply in old ' + APP_NAME, { href: ctx.legacy, icon: 'arrow' }) : null);
+    ctx.legacy ? h('a', { class: 'rq-old', href: ctx.legacy }, ctx.isClient ? 'Reply (opens the full ' + APP_NAME + ' page)' : 'Reply (opens old ' + APP_NAME + ')') : null);
   const sh = sheet({ title: it.title, body });
   const acts = answerButtons(it, ctx, () => sh.close(), redraw || (() => {}));
   const slot = body.querySelector('.cr-answer-slot');
@@ -100,34 +121,50 @@ function draw(el, d, ctx, agency) {
   const head = hero({ line: true }, kpis([
     kpi({ label: ctx.isClient ? 'With the team' : 'Waiting for us', value: String(us.length), size: 'lg',
       sub: us.length ? statusDot(between(String(oldest.created_at).slice(0, 10), today) > 2 ? 'bad' : 'warn', 'oldest opened ' + away(today, String(oldest.created_at).slice(0, 10))) : 'nothing open' }),
-    kpi({ label: ctx.isClient ? 'Waiting for you' : 'Waiting for the client', value: String(them.length), size: 'lg', sub: them.filter(i => i.kind === 'approval').length + ' to approve' }),
-    kpi({ label: 'Done in the last 60 days', value: String(done.length), size: 'lg', sub: done.filter(i => i.status === 'approved').length + ' approved' }),
+    kpi({ label: ctx.isClient ? 'Waiting for you' : 'Waiting for the client', value: String(them.length), sub: them.filter(i => i.kind === 'approval').length + ' to approve' }),
+    kpi({ label: 'Done in the last 60 days', value: String(done.length), sub: done.filter(i => i.status === 'approved').length + ' approved' }),
   ], { cols: 3 }));
 
-  const box = h('section', { class: 'cr-sect' });
+  const listBox = h('div'), noteBox = h('span');
+  const redrawAll = () => draw(el, d, ctx, agency);
+  const clear = () => { view.q = ''; view.brand = ''; redrawAll(); };
+  const brandsIn = [...new Map(items.filter(i => i.act_id).map(i => [i.act_id, i.brand || i.act_id])).entries()].sort((a, b) => String(a[1]).localeCompare(String(b[1])));
+  const tools = h('div', { class: 'cr-tools' },
+    segmented([{ id: 'open', label: 'Open ' + (us.length + them.length) }, { id: 'done', label: 'Done ' + done.length }, { id: 'all', label: 'All ' + items.length }], view.filter, id => { view.filter = id; paint(); }),
+    agency ? searchBox(view.q, v => { view.q = v; paint(); }, 'Search title, brand or person') : null,
+    agency ? selectBox('Brand', [{ id: '', label: 'All brands' }, ...brandsIn.map(([id, name]) => ({ id, label: name }))], view.brand, v => { view.brand = v; paint(); }) : null,
+    noteBox, h('span', { class: 'sp', style: { flex: '1' } }),
+    !ctx.isClient && ctx.legacy ? button('Send for approval', { ghost: true, href: ctx.legacy, icon: 'arrow', title: 'Opens old ' + APP_NAME }) : null);
   const paint = () => {
-    const pick = view.filter === 'open' ? [...us, ...them] : view.filter === 'done' ? done : items;
+    const q = view.q.trim().toLowerCase();
+    const base = view.filter === 'open' ? [...us, ...them] : view.filter === 'done' ? done : items;
+    const pick = base.filter(it => (!view.brand || it.act_id === view.brand) && (!q || [it.title, it.brand, it.by, it.body].some(t => String(t || '').toLowerCase().includes(q))));
+    const on = !!(q || view.brand);
+    put(noteBox, filterNote(pick.length, base.length, on, clear));
     pick.sort((a, b) => (a.wait === b.wait ? 0 : a.wait === 'us' ? -1 : b.wait === 'us' ? 1 : 0) || String(lastAt(b)).localeCompare(String(lastAt(a))));
     const rows = pick.map(it => row({
       title: it.title,
       sub: [KIND[it.kind], it.what ? WHAT[it.what] : null, it.ads && it.ads.length ? it.ads.length + ' ads' : null, (it.thread || []).length ? it.thread.length + (it.thread.length === 1 ? ' reply' : ' replies') : null].filter(Boolean).join('. '),
       cells: [
-        agency ? { w: 160, node: brandTag(it.brand, it.color) } : null,
-        { w: 120, class: 'hide-sm', label: 'From', node: it.by || '' },
-        { w: 96, class: 'hide-md', label: 'Last', node: dayOf(lastAt(it)) },
-        { w: 170, node: statusOf(it, ctx.isClient) },
+        agency ? { w: 160, label: 'Brand', node: brandTag(it.brand, it.color) } : null,
+        { w: 120, class: 'hide-sm', label: 'Opened by', node: it.by || '' },
+        { w: 96, class: 'hide-md', label: 'Last reply', node: dayOf(lastAt(it)) },
+        { w: 170, label: 'Status', node: statusOf(it, ctx.isClient) },
       ],
       onclick: () => detail(it, ctx, agency, patch => { Object.assign(d.items.find(x => x.id === it.id) || {}, patch); draw(el, d, ctx, agency); }),
     }));
-    put(box, 
-      h('div', { class: 'cr-bar-top', style: { paddingBottom: '6px' } },
-        segmented([{ id: 'open', label: 'Open ' + (us.length + them.length) }, { id: 'done', label: 'Done ' + done.length }, { id: 'all', label: 'All ' + items.length }], view.filter, id => { view.filter = id; paint(); }),
-        h('span', { class: 'sp' }),
-        !ctx.isClient && ctx.legacy ? button('Send something for approval in old ' + APP_NAME, { href: ctx.legacy }) : null),
-      list(rows, view.filter === 'open' ? 'Nothing open. Everything is answered.' : 'Nothing here.'));
+    put(listBox, list(rows, on ? h('span', null, 'Nothing matches. ', h('button', { type: 'button', class: 'cr-clear', onclick: clear }, 'Clear the filters.')) : view.filter === 'open' ? 'Nothing open. Everything is answered.' : 'Nothing here.',
+      { head: [agency ? { label: 'Brand', w: 160 } : null, { label: 'Opened by', w: 120, class: 'hide-sm' }, { label: 'Last reply', w: 96, class: 'hide-md' }, { label: 'Status', w: 170 }], first: 'Request' }));
   };
   paint();
-  put(el, head, box);
+  put(el, helpBar(ctx.isClient ? [
+    { title: 'What it is for', text: 'Everything between you and the team: ads and offers sent for your approval, things we asked you for, and things you asked us for.' },
+    { title: 'Approving', text: 'Open an approval to Approve it, or Ask for changes with a note. The team sees your answer at once.' },
+  ] : [
+    { title: 'What it is for', text: 'Everything between the team and ' + (agency ? 'every client' : 'this client') + ': approvals we sent, things we asked them for, and things they asked us for, with the conversation under each one.' },
+    { title: 'Waiting for us and for them', text: 'Waiting for us: they asked for something, or sent ads back with changes. Waiting for the client: an approval or a question we sent that they have not answered. Done lists the last 60 days.' },
+    { title: 'Replying', text: 'Replies and sending something new for approval still open old ' + APP_NAME + '.' },
+  ]), head, h('section', { class: 'cr-sect' }, tools, listBox));
 }
 
 /** requestsPage({ agency }) : the page module for pages/requests/index.js and pages/a-requests/index.js */

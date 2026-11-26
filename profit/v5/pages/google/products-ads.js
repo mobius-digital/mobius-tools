@@ -10,8 +10,9 @@
    is the example from the sample file, with the chip. */
 
 import { put } from '../../kit.js';
-import { h, em, card, takeaway, segmented, table, barChart, legend, statusDot, money, num, pct, x } from '../../kit.js';
-import { styles, sampleGoogle, fig, say, ok, usd, exampleChip, isEx, footNote, rangeLabel } from './_g.js';
+import { h, em, card, segmented, table, barChart, legend, statusDot, money, num, pct, x, sheet } from '../../kit.js';
+import { def, headRow } from '../platforms/_ads.js';
+import { styles, sampleGoogle, fig, say, ok, usd, exampleChip, isEx, rangeLabel } from './_g.js';
 import videos from './ads-videos.js';
 
 const VIEWS = [{ id: 'products', label: 'Products' }, { id: 'videos', label: 'Videos' }, { id: 'text', label: 'Text and images' }];
@@ -29,23 +30,36 @@ function productsView(d) {
   const chart = card({ class: 'gg-chart' },
     h('div', { class: 'lx-chart-h' },
       h('div', null, h('div', { class: 'lx-sec' }, h('h3', null, 'Where the product spend goes'), ex ? exampleChip() : null), h('p', null, 'Shopping and Performance Max, by product')),
-      legend([{ name: 'Spend, it sold', square: true, color: 'var(--ink)' }, { name: 'Spend, no sale', square: true, color: '#D9DDE6' }])),
+      legend([{ name: 'Spend, it sold', square: true, color: 'var(--ink)' }, { name: 'Spend, no sale', square: true, color: 'var(--line-strong)' }])),
     barChart({ values: rows.map(r => r.spend), labels: rows.map(r => r.short || r.name), dim: i => !sold(rows[i]), format: v => money(v, { cur, compact: true }), valueLabels: true, height: 300,
       label: 'Spend by product, ' + rows.map(r => `${r.name} ${usd(r.spend, cur)}`).join(', ') }));
   const tbl = card({ title: 'Each product', note: 'Sales and ROAS are Triple Whale', flush: true, class: 'gg-prod', action: ex ? exampleChip() : null },
-    table({ roomy: true, rows, sort: { key: 'spend', dir: 'desc' }, cols: [
+    table({ roomy: true, rows, sort: { key: 'spend', dir: 'desc' }, onRow: r => productSheet(r, d, cur, g), cols: [
       { key: 'name', label: 'Product', render: r => h('span', { class: 'name' }, r.name, h('span', { class: 'sub' }, [ok(r.price) ? usd(r.price, cur) : null, r.feed_why].filter(Boolean).join('. '))) },
       { key: 'feed', label: 'Feed', class: 'hide-sm', render: r => (FEED[r.feed] ? statusDot(FEED[r.feed][0], FEED[r.feed][1]) : '') },
-      { key: 'shown', label: 'Times shown', num: true, class: 'hide-md', sortable: true, render: r => num(r.shown) },
-      { key: 'ctr', label: 'Click rate', num: true, class: 'hide-md', sortable: true, render: r => pct(r.ctr, { digits: 1 }) },
-      { key: 'spend', label: 'Spend', num: true, sortable: true, render: r => usd(r.spend, cur) },
-      { key: 'sales', label: 'Sales', num: true, class: 'hide-sm', sortable: true, render: r => usd(r.sales, cur) },
-      { key: 'roas', label: 'ROAS', num: true, class: 'strong', sortable: true, render: r => (sold(r) ? x(r.roas) : h('span', { class: 'neg' }, 'no sale')) },
-      { key: 'google_roas', label: 'Google says', num: true, class: 'gg-says hide-sm', sortable: true, render: r => x(r.google_roas) },
-      { key: 'page_rate', label: 'Page buys', num: true, class: 'hide-md', sortable: true, render: r => pct(r.page_rate, { digits: 1 }) },
-    ] }),
-    h('p', { class: 'gg-quiet', style: { paddingTop: '14px' } }, 'Page buys is the share of visits to the product page that end in an order.' + (g.roas ? ' Goal ' + x(g.roas) + '.' : '')));
-  return [figs, p.take ? takeaway(say(p.take)) : null, chart, tbl].filter(Boolean);
+      { key: 'shown', label: def('Times shown', 'impressions'), num: true, class: 'hide-md', sortable: true, render: r => num(r.shown) },
+      { key: 'ctr', label: def('Click rate', 'click_rate'), num: true, class: 'hide-md', sortable: true, render: r => pct(r.ctr, { digits: 1 }) },
+      { key: 'spend', label: def('Spend', 'ad_spend'), num: true, sortable: true, render: r => usd(r.spend, cur) },
+      { key: 'sales', label: def('Sales', 'roas'), num: true, class: 'hide-sm', sortable: true, render: r => usd(r.sales, cur) },
+      { key: 'roas', label: def(g.roas ? 'ROAS, goal ' + x(g.roas) : 'ROAS', 'roas'), num: true, class: 'strong', sortable: true, render: r => (sold(r) ? x(r.roas) : h('span', { class: 'neg' }, 'no sale')) },
+      { key: 'google_roas', label: def('Google says', 'google_says'), num: true, class: 'gg-says hide-sm', sortable: true, render: r => x(r.google_roas) },
+      { key: 'page_rate', label: def('Page buys', 'page_buys'), num: true, class: 'hide-md', sortable: true, render: r => pct(r.page_rate, { digits: 1 }) },
+    ] }));
+  return [figs, chart, tbl].filter(Boolean);
+}
+/* one product, every figure */
+function productSheet(r, d, cur, g) {
+  const kv = (l, k, v) => v == null || v === '' ? null : h('div', null, h('span', { class: 'l' }, def(l, k)), h('b', null, v));
+  sheet({ title: r.name, body: h('div', { class: 'gg-sh' },
+    h('p', { class: 'gg-says' }, 'Google Shopping and Performance Max, ' + (d.window ? d.window.label : 'these dates')),
+    h('div', { class: 'g' },
+      kv('Price', { title: 'Price', body: 'The price in the product feed.' }, ok(r.price) ? usd(r.price, cur) : null),
+      kv('Feed', { title: 'Feed status', body: 'What Merchant Center says about the product: approved, limited or disapproved.', source: 'Merchant Center' }, FEED[r.feed] ? FEED[r.feed][1] : null),
+      kv('Times shown', 'impressions', ok(r.shown) ? num(r.shown) : null), kv('Click rate', 'click_rate', ok(r.ctr) ? pct(r.ctr, { digits: 1 }) : null),
+      kv('Spend', 'ad_spend', usd(r.spend, cur)), kv('Sales', 'roas', usd(r.sales, cur)), kv('ROAS', 'roas', r.sales > 0 ? x(r.roas) + (g.roas ? ', goal ' + x(g.roas) : '') : 'no sale'),
+      kv('Google says', 'google_says', ok(r.google_roas) ? x(r.google_roas) : null), kv('Page buys', 'page_buys', ok(r.page_rate) ? pct(r.page_rate, { digits: 1 }) : null)),
+    r.feed_why ? h('p', null, statusDot(FEED[r.feed] ? FEED[r.feed][0] : 'warn', 'Feed: ' + r.feed_why)) : null,
+    r.feed && r.feed !== 'approved' ? h('a', { href: 'https://merchants.google.com/', target: '_blank', rel: 'noopener noreferrer' }, 'Open Merchant Center to fix it') : null) });
 }
 
 /* the videos module draws both halves; the class on the box shows one of them */
@@ -80,12 +94,13 @@ export default {
     if (!ctx.brand || !d || d.state === 'no_brand') return put(el, h('div', { class: 'lx-empty' }, h('h3', null, 'Pick one brand'), h('p', null, 'Products and creative are shown for one brand at a time.')));
     let view = ctx.settingNow('google.creativeView', 'products'); if (!VIEWS.some(v => v.id === view)) view = 'products';
     const body = h('div', { class: 'gg-sub' });
-    const foot = () => footNote(view === 'products'
-      ? `${(isEx(d, 'products') ? 'Example numbers. ' : '') + (d.window ? d.window.label + '. ' : '')}Sales and ROAS from Triple Whale. Spend, clicks and times shown from Google Ads. Feed status from Merchant Center.`
-      : 'Spend, views and times shown from Google Ads. Sales from Triple Whale where they exist per video. Google’s ratings compare assets inside one campaign and are not a sales result.');
-    const draw = () => put(body, ...(view === 'products' ? productsView(d) : creativeView(d, ctx, view)), foot());
+    const draw = () => put(body, ...(view === 'products' ? productsView(d) : creativeView(d, ctx, view)));
+    const help = [
+      { title: 'What it is for', text: 'Which products carry Google Shopping and Performance Max (and which take clicks and never sell), the YouTube videos, and the search headlines and assets. Tap a product for all of its numbers.' },
+      { title: 'Where the numbers come from', text: 'Sales and ROAS are Triple Whale. Spend, clicks, times shown and views are Google Ads. Feed status is Merchant Center. Best, Good and Low are Google\'s own asset labels: they compare assets inside one campaign and are not a sales result.' },
+    ];
     draw();
-    put(el, 
+    put(el, headRow({ help }),
       h('div', { class: 'gg-views' }, segmented(VIEWS, view, id => { view = id; draw(); ctx.saveSetting('google.creativeView', id).catch(() => {}); })),
       body);
   },

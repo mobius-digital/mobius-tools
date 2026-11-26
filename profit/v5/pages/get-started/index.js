@@ -432,29 +432,40 @@ function teamTop(D, ctx) {
   const lines = T.lines || [];
   return [
     hero({ line: true }, kpis([
-      kpi({ label: 'Steps done', value: pr.done + ' of ' + pr.total, size: 'lg', sub: D.finished_at ? statusDot('good', 'Finished ' + dateOf(D.finished_at)) : D.gated ? statusDot('warn', 'App held on Get started') : 'App open' }),
-      kpi({ label: 'Connected', value: (C.done || 0) + ' of ' + (C.total || 0), size: 'lg', sub: 'both ticks' }),
-      kpi({ label: 'Brief', value: (B.answered || 0) + ' of ' + (B.total || 0), size: 'lg', sub: 'questions answered' }),
-      kpi({ label: 'Sent', value: sent == null ? 'not yet' : sent === 0 ? 'today' : days(sent) + ' ago', size: 'lg', sub: T.contact ? 'to ' + T.contact.name : '' }),
-    ], { cols: 4 }), h('div', { class: 'gs-acts', style: { marginTop: '18px' } }, acts)),
+      kpi({ label: 'Steps done', value: pr.done + ' of ' + pr.total, sub: D.finished_at ? statusDot('good', 'Finished ' + dateOf(D.finished_at)) : D.gated ? statusDot('warn', 'App held on Get started') : 'App open' }),
+      kpi({ label: 'Accounts connected', value: (C.done || 0) + ' of ' + (C.total || 0), sub: missingWord(C) }),
+      kpi({ label: 'Brief', value: (B.answered || 0) + ' of ' + (B.total || 0), sub: 'questions answered' }),
+    ], { cols: 3 }),
+      h('p', { class: 'gs-sent' }, sent == null ? 'The invite has not been sent yet.' : 'Invite sent ' + (sent === 0 ? 'today' : days(sent) + ' ago') + (T.contact ? ' to ' + T.contact.name : '') + '.'),
+      h('div', { class: 'gs-acts', style: { marginTop: '14px' } }, acts)),
     lines.length ? h('section', { class: 'lx-card' }, h('div', { class: 'lx-sec' }, h('h3', null, 'Needs a person'), h('span', { class: 'note' }, lines.length + (lines.length === 1 ? ' line' : ' lines') + ', also on My day')),
-      h('div', { class: 'gs-lines' }, lines.map(l => h('div', { class: 'gs-line' }, h('div', null, h('b', null, l.text), l.detail ? h('small', null, l.detail) : l.when ? h('small', null, l.when) : null),
+      h('div', { class: 'gs-lines' }, lines.map(l => h('div', { class: 'gs-line' }, h('div', null, h('b', null, l.text), l.detail ? h('small', null, l.detail) : l.when && !String(l.text).includes(l.when) ? h('small', null, l.when) : null),
         h('div', { class: 'gs-acts' }, lineButtons(ctx, l, { onDone: () => (ctx.sample ? null : reread_().catch(() => {})) }).filter(b => !(b.tagName === 'A' && /get-started/.test(b.getAttribute('href') || '')))))))) : null,
     budgetCard(D, ctx),
   ];
 }
+/** "What is still missing" under the Connected count, named, not "both ticks". */
+function missingWord(C) {
+  const left = (C.platforms || []).filter(p => p.needed !== false && !p.skipped && !p.done).map(p => p.title);
+  return left.length ? 'Missing: ' + left.slice(0, 3).join(', ') + (left.length > 3 ? ' and ' + (left.length - 3) + ' more' : '') : (C.total ? 'every needed account' : 'nothing to connect');
+}
+const fmtMoney = v => { const n = Number(String(v || '').replace(/[$,\s]/g, '')); return n > 0 ? n.toLocaleString('en-US') : String(v || ''); };
 function budgetCard(D, ctx) {
   const b = (D.team && D.team.budget) || {};
   let open = !!b.open;
-  const f = field({ label: 'Monthly ad budget', type: 'text', inputmode: 'decimal', value: b.amount != null ? String(b.amount) : '', placeholder: '15000', disabled: open || null });
-  const t = toggle({ label: 'Not agreed yet', checked: open, onchange: v => { open = v; f.input.disabled = v; } });
+  /* a money box: $ in front, thousands separated; the saved body is the same { amount, open } */
+  const input = h('input', { class: 'gs-num', type: 'text', inputmode: 'decimal', value: b.amount != null ? fmtMoney(b.amount) : '', placeholder: '15,000', disabled: open || null, 'aria-label': 'Monthly ad budget in dollars' });
+  input.addEventListener('blur', () => { input.value = fmtMoney(input.value); });
+  const f = h('label', { class: 'lx-field gs-money' }, h('span', { class: 'l' }, 'Monthly ad budget'), h('span', { class: 'gs-box' }, h('i', null, '$'), input, h('i', null, 'a month')));
+  f.input = input;
+  const t = toggle({ label: 'Client agreed to this budget', checked: !open, onchange: v => { open = !v; f.input.disabled = open; } });
   const save = button('Save the budget', { onclick: async () => {
     const amount = open ? null : Number(String(f.input.value).replace(/[$,\s]/g, ''));
-    if (!open && !(amount > 0)) return toast('Type the monthly budget, or tick Not agreed yet.', { tone: 'bad' });
+    if (!open && !(amount > 0)) return toast('Type the monthly budget, or switch off Client agreed to this budget.', { tone: 'bad' });
     try { await write('/api/onboard/budget', 'PUT', { amount, open }, d => { d.team.budget = { amount, open }; }); toast('Saved. The brand budget is updated too.'); } catch (e) { fail(e); }
   } });
   return h('section', { class: 'lx-card' }, h('div', { class: 'lx-sec' }, h('h3', null, 'Ad budget'), h('span', { class: 'note' }, 'Also sets the brand budget')),
-    h('div', { class: 'gs-inputs' }, f, h('div', { class: 'gs-acts' }, t, save)));
+    h('div', { class: 'gs-budget' }, f, t, h('span', { class: 'lx-sp' }), save));
 }
 async function readSite(ctx, btn) {
   if (ctx.sample) return toast(SAMPLE_SAID);

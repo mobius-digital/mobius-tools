@@ -16,6 +16,7 @@
    Read only. A row opens a sheet; blocking or adding a term is done in Google Ads. */
 
 import { put } from '../../kit.js';
+import { headRow } from '../platforms/_ads.js';
 import { h, em, table, segmented, statusDot, sheet, button, empty, addStyles, money, num, pct, x } from '../../kit.js';
 import { style } from '../a-today/_more.js';
 import { soft, ok, sumOf, figures, brandRows, brandName, brandHref, quiet, shortDay } from '../a-today/_ag.js';
@@ -197,6 +198,6 @@ export default {
       { label: 'Brands read', value: String(d.brands.length), sub: d.not_linked.length || d.failed.length ? `${d.not_linked.length + d.failed.length} left out, named below` : 'up to 50 searches each' },
     ]);
     const foot = h('p', { class: 'lx-foot' }, `Search and Shopping terms from Google Ads, the top 50 by spend for each brand, so this is not all of Google's spend: Performance Max gives categories only. Triple Whale does not go down to the search term, so a term's orders and sales are what Google says. "No sale" leaves out a brand's own name and anything already blocked. ${missing} Nothing changes from this page.`.replace(/\s+/g, ' '));
-    put(el, h('div', { class: 'ag' }, hero, brandsCard(d, ctx), termsCard(d, ctx), foot));
+    put(el, h('div', { class: 'ag' }, headRow({ help: [{ title: 'What it is for', text: 'Every brand\'s Google search terms: which searches sold and which spent with no sale. Tap a term for its numbers.' }, { title: 'Where the numbers come from', text: foot.textContent }] }), hero, brandsCard(d, ctx), termsCard(d, ctx)));
   },
 };

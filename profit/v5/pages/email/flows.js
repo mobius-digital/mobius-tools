@@ -5,7 +5,8 @@
 
 import { put } from '../../kit.js';
 import { h, em, card, kpi, kpis, table, legend, lineChart, statusDot, skeleton, money } from '../../kit.js';
-import { ok, usd, rate, sum, shortDate, css, head, barCell, flowStatus, kl, hubEmail, soft, notConnected, num, pct } from './_em.js';
+import { ok, usd, rate, sum, shortDate, css, head, barCell, flowStatus, kl, hubEmail, soft, notConnected, num, pct, openFlow } from './_em.js';
+import { helpBar, dl, rangeWords } from '../home/_biz.js';
 
 /* the five flows most stores should have live, and how to spot each by name */
 const BASICS = [['Welcome', /welcome/i], ['Abandoned cart', /cart|checkout/i], ['Browse abandonment', /browse/i], ['Post purchase', /post.?purchase|thank|fit check|review/i], ['Win back', /win.?back|winback|lapsed/i]];
@@ -28,11 +29,11 @@ function figures(d) {
   const split = fs + cs > 0;
   const el = kpis([
     /* 'no data' only when there is no flow and campaign split at all (as snapshot.js splitOk); a real $0 in flows shows $0 */
-    kpi({ label: 'Flow sales', size: 'lg', value: split ? usd(fs) : 'no data', sub: split ? 'in these dates' : 'not split by flow for these dates', spark: split ? (d.days || []).map(r => r.flows || 0) : null }),
+    kpi({ label: 'Flow sales, these dates', size: 'lg', value: split ? usd(fs) : 'no data', sub: split ? 'Triple Whale\'s count' : 'not split by flow for these dates' }),
     kpi({ label: 'Share of email sales', size: 'lg', value: split ? pct(fs / (fs + cs)) : 'no data', sub: 'campaigns made the rest' }),
     kpi({ label: 'Live flows', size: 'lg', value: d.klaviyo ? num(live.length) : 'no data',
       delta: off.length ? statusDot('warn', off.length + ' not live') : null, sub: off.length ? null : d.klaviyo ? 'none switched off' : 'needs the Klaviyo key' }),
-    kpi({ label: 'Sales per message', size: 'lg', value: rec ? money(sales90 / rec, { cents: true }) : 'no data', sub: 'last 90 days' }),
+    kpi({ label: dl('Sales per message, last 90 days', 'sales_per_message'), size: 'lg', value: rec ? money(sales90 / rec, { cents: true }) : 'no data', sub: 'Klaviyo\'s count' }),
   ], { cols: 4 });
   el.classList.add('em-kpis');
   return el;
@@ -65,16 +66,19 @@ function basics(d) {
 function listCard(d) {
   const rows = d.flows || [], max = Math.max(...rows.map(r => r.sales || 0), 1);
   const ch = r => (r.channels || []).map(c => (c === 'sms' ? 'Text' : 'Email')).join(' and ') || '';
-  return card({ title: 'Every flow', note: 'last 90 days, Klaviyo\'s count', flush: true, class: 'em-flush' },
-    table({ roomy: true, rows, sort: { key: 'sales', dir: 'desc' }, empty: 'No flows in this Klaviyo account', cols: [
+  /* a flow that is off or a draft has no results: one quiet "not running" in the first result column, the rest blank */
+  const run = r => r.status === 'live' || (r.recipients || 0) > 0;
+  return card({ title: 'Every flow', note: h('span', { class: 'bz-chip' }, 'Last 90 days'), action: h('span', { class: 'em-none' }, 'Klaviyo\'s count, tap one to open it'), flush: true, class: 'em-flush' },
+    table({ roomy: true, rows, sort: { key: 'sales', dir: 'desc' }, onRow: r => openFlow(r), empty: 'No flows in this Klaviyo account', cols: [
       { key: 'name', label: 'Flow', class: 'name', render: r => h('span', { class: 'em-name' }, r.name) },
       { key: 'status', label: 'Status', render: r => flowStatus(r.status) },
-      { key: 'channels', label: 'Sends', class: 'dim hide-md', render: ch },
-      { key: 'recipients', label: 'Messages', num: true, sortable: true, class: 'hide-sm', render: r => (r.recipients ? num(r.recipients) : h('span', { class: 'em-none' }, 'none')) },
-      { key: 'open_rate', label: 'Open rate', num: true, sortable: true, class: 'hide-md', render: r => rate(r.open_rate) },
-      { key: 'click_rate', label: 'Click rate', num: true, sortable: true, class: 'hide-md', render: r => rate(r.click_rate) },
-      { key: 'per_recipient', label: 'Per message', num: true, sortable: true, class: 'hide-sm', render: r => (ok(r.per_recipient) ? money(r.per_recipient, { cents: true }) : h('span', { class: 'em-none' }, 'none')) },
-      { key: 'sales', label: 'Sales', num: true, sortable: true, render: r => barCell(h('span', { class: 'strong' }, usd(r.sales || 0)), (r.sales || 0) / max) },
+      { key: 'channels', label: 'Channel', class: 'dim hide-md', render: ch },
+      { key: 'recipients', label: 'Messages', num: true, sortable: true, class: 'hide-sm', render: r => (run(r) ? num(r.recipients || 0) : h('span', { class: 'em-none' }, 'not running')) },
+      { key: 'open_rate', label: dl('Open rate', 'open_rate'), num: true, sortable: true, class: 'hide-md', render: r => (run(r) ? rate(r.open_rate) : '') },
+      { key: 'click_rate', label: dl('Click rate', 'click_rate'), num: true, sortable: true, class: 'hide-md', render: r => (run(r) ? rate(r.click_rate) : '') },
+      { key: 'per_recipient', label: dl('Per message', 'sales_per_message'), num: true, sortable: true, class: 'hide-sm', render: r => (run(r) && ok(r.per_recipient) ? money(r.per_recipient, { cents: true }) : '') },
+      { key: 'sales', label: 'Sales', num: true, sortable: true, render: r => (run(r) ? barCell(h('span', { class: 'strong' }, usd(r.sales || 0)), (r.sales || 0) / max) : '') },
+      { key: 'go', label: '', class: 'em-go', render: () => '>' },
     ] }));
 }
 
@@ -100,12 +104,15 @@ export default {
       return;
     }
     put(el, ...[
+      helpBar([
+        { title: 'What it is for', text: 'Are the always-on emails and texts (welcome, abandoned cart, post purchase and the rest) earning? Tap a flow to open it.' },
+        { title: 'Two periods on this page', text: 'Flow sales by day and the share of email sales follow the dates at the top (Triple Whale). Each flow\'s results are Klaviyo\'s own count over the last 90 days, whatever dates are picked.' },
+      ], h('span', { class: 'bz-chip' }, rangeWords(ctx, d.range))),
       h('section', { class: 'lx-hero line' }, figures(d)),
       chartCard(d),
       d.klaviyo ? basics(d) : null,
       d.klaviyo ? listCard(d) : card({ title: 'Every flow' }, notConnected(ctx, { title: 'Klaviyo is not connected',
         text: 'The list of flows shows here once the brand\'s Klaviyo is connected.', teamText: 'Paste the brand\'s Klaviyo private key in Brand settings, Integrations, to see each flow.' })),
-      h('p', { class: 'lx-foot' }, 'Sales by day are from Triple Whale. Each flow\'s results are Klaviyo\'s own count over the last 90 days, whatever dates are picked.'),
     ].filter(Boolean));
   },
 };

@@ -741,7 +741,8 @@
     "why": "$45 spent on them, no sale on Triple Whale or on Google’s count.",
     "where": "Search | Brand",
     "open": "search-terms",
-    "open_label": "See the searches"
+    "open_label": "See the searches",
+    "level": "Ad group"
    },
    {
     "kind": "lower",
@@ -749,7 +750,12 @@
     "why": "$526 spent, 7 new customers. The goal is $40. ROAS 1.01x, Google says 1.39x.",
     "where": "Performance Max",
     "open": "products-ads",
-    "open_label": "See its products"
+    "open_label": "See its products",
+    "measure": {
+     "value": 75,
+     "goal": 40,
+     "unit": "cpa"
+    }
    }
   ],
   "watching": [
@@ -759,7 +765,12 @@
     "why": "It returns 1.70x against a 3.00x goal, so more budget is not the fix yet. Google says 2.44x.",
     "where": "Performance Max",
     "open": "overview",
-    "open_label": "See the campaign"
+    "open_label": "See the campaign",
+    "measure": {
+     "value": 1.7,
+     "goal": 3.0,
+     "unit": "roas"
+    }
    },
    {
     "kind": "feed",

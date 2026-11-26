@@ -30,8 +30,8 @@ async function teamChanges(ctx) {
       return { text: a.summary || a.translated || 'A change on the ad account', brand: a.account_name || '', by: mine ? 'You' : a.actor, when: clock(at),
         who: mine ? null : { name: a.actor }, group: mine ? 'you' : 'team', detail: a.reason || a.client_why || '', btn: { label: 'Open changes', line: 'a-platforms', tab: 'changes' } };
     });
-  return { groups: [{ id: 'team', title: 'By the team', note: 'Changes on the ad accounts, newest first' }], rows, read: { team: true },
-    foot: 'Ticked tasks and changes on the ad accounts are listed. Reports sent, cards moved and client answers join when the notifications feed is built.' };
+  /* no footer line: the group note says what is listed */
+  return { groups: [{ id: 'team', title: 'By the team', note: 'Changes on the ad accounts, newest first' }], rows, read: { team: true } };
 }
 
 export default page('done', { more: teamChanges });

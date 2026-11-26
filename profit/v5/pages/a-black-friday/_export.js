@@ -4,6 +4,11 @@
      downloadPdf(canvases, file, o) save one PDF: each canvas is cut into letter shaped pages at its content breaks
                                  (cv.breaks), drawn as a JPEG on each; o.fit = shrink each canvas onto one page
      boardCanvas(m)              the whole War Room board (team only: store lines, per brand numbers, campaign calls)
+     hiCanvas(w, h)              a canvas drawn at EXPORT_SCALE: { cv, ctx, k }. Draw in layout pixels, it comes out sharp
+     fontsReady(faces)           waits for document.fonts.ready and the given faces before anything is drawn
+   Quality (the owner, 2026-11-26): every picture is drawn at 3x or more (a wide card or the board is about 3840 to 4200
+   pixels wide), after the fonts have loaded, so text is crisp on a 4K screen and in print. The PDF pages carry
+   those pixels, which is well over 300 dpi on a letter page (the board: about 540 dpi; the card: about 490 dpi).
    The PDF is written by hand (catalog, pages, one JPEG image per page), so nothing is loaded from a CDN. */
 
 const FONT = "Inter, system-ui, -apple-system, 'Segoe UI', Arial, sans-serif";
@@ -11,6 +16,35 @@ const C = { bg: '#FFFFFF', tile: '#F5F7FB', line: '#E3E8F0', text: '#0E1B2E', di
 const ok = n => n != null && isFinite(n);
 const usd = v => ok(v) ? '$' + Math.round(v).toLocaleString('en-US') : 'n/a';
 const xx = v => ok(v) ? v.toFixed(2) + 'x' : 'n/a';
+
+/* ---------- quality ---------- */
+/** At least 3x, and at least 3840 pixels wide for a wide layout; held under the browser's canvas limits. */
+export const EXPORT_SCALE = 3;
+/* iPhone and iPad Safari draw a blank canvas over about 16.7 million pixels, so there the scale drops toward 1.5 to 2x */
+const IOS = typeof navigator !== 'undefined' && (/iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.userAgent)));
+const MAX_SIDE = IOS ? 16000 : 32000, MAX_AREA = IOS ? 16e6 : 200e6;
+export function exportScale(w, h) {
+  let k = Math.max(EXPORT_SCALE, 3840 / Math.max(1, w));
+  k = Math.min(k, MAX_SIDE / Math.max(1, w), MAX_SIDE / Math.max(1, h), Math.sqrt(MAX_AREA / Math.max(1, w * h)));
+  return Math.max(1, k);
+}
+/** A canvas for a w x h layout, drawn at the export scale. Draw with layout pixels; cv.k is the scale. */
+export function hiCanvas(w, h) {
+  const k = exportScale(w, h), cv = document.createElement('canvas');
+  cv.width = Math.round(w * k); cv.height = Math.round(h * k); cv.k = k;
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(k, 0, 0, k, 0, 0);
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  return { cv, ctx, k };
+}
+/** Wait for the web fonts, so the export never draws in a fallback face. faces: CSS font strings to load first. */
+export async function fontsReady(faces = []) {
+  try {
+    if (!document.fonts) return;
+    if (document.fonts.load) await Promise.all(faces.map(f => document.fonts.load(f).catch(() => null)));
+    await document.fonts.ready;
+  } catch {}
+}
 
 /* ---------- PNG ---------- */
 const blobOf = (cv, type = 'image/png', q) => new Promise(res => cv.toBlob(b => res(b), type, q));
@@ -93,7 +127,7 @@ export async function downloadPdf(canvases, file, o = {}) {
   const pages = [];
   for (const cv of [].concat(canvases)) {
     for (const s of o.fit ? [cv] : slices(cv)) {
-      const b = await blobOf(s, 'image/jpeg', 0.92);
+      const b = await blobOf(s, 'image/jpeg', 0.95);
       if (!b) throw new Error('The browser could not draw the page.');
       pages.push({ bytes: new Uint8Array(await b.arrayBuffer()), w: s.width, h: s.height });
     }
@@ -120,11 +154,11 @@ function rr(ctx, x, y, w, h, r, fill) {
 const clip = (ctx, s, w) => { s = String(s || ''); if (ctx.measureText(s).width <= w) return s; while (s.length > 1 && ctx.measureText(s + '...').width > w) s = s.slice(0, -1); return s + '...'; };
 const TONE = { good: C.good, warn: C.warn, bad: C.bad, '': C.dim };
 
-/** The War Room board as one tall canvas, 1400 wide.
+/** The War Room board as one tall canvas, laid out 1400 wide and drawn at 3x (4200 pixels wide).
     m = { title, when, store: [string], brands: [{ name, light: {word, tone}, goal, windows: [{label, mer, sales, spend, readable, tone}],
           lines: [string], camps: [{ name, since, today, week, call, tone, move }] }], foot } */
 export async function boardCanvas(m) {
-  try { if (document.fonts && document.fonts.load) await Promise.all([document.fonts.load('700 24px Inter'), document.fonts.load('400 18px Inter')]); } catch {}
+  await fontsReady(['750 30px Inter', '700 24px Inter', '600 16px Inter', '400 18px Inter']);
   const W = 1400, P = 48, inner = W - 2 * P;
   const meas = document.createElement('canvas').getContext('2d');
   /* measure first, so the canvas is the right height */
@@ -140,9 +174,7 @@ export async function boardCanvas(m) {
   const footLines = wrap(meas, m.foot || '', inner);
   const top = 130 + storeLines.length * 28 + 20;
   const H = top + blocks.reduce((t, x) => t + x.h + 20, 0) + footLines.length * 22 + 40;
-  const cv = document.createElement('canvas');
-  cv.width = W; cv.height = H;
-  const ctx = cv.getContext('2d');
+  const { cv, ctx, k } = hiCanvas(W, H);      /* layout in 1400 wide pixels, drawn at 3x (4200 wide) */
   ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = C.blue; ctx.fillRect(0, 0, W, 8);
   ctx.fillStyle = C.text; ctx.font = `750 30px ${FONT}`; ctx.fillText(m.title || 'Black Friday War Room', P, 62);
@@ -201,6 +233,6 @@ export async function boardCanvas(m) {
   }
   ctx.fillStyle = C.dim; ctx.font = `400 16px ${FONT}`;
   for (const s of footLines) { breaks.push(y - 8); ctx.fillText(s, P, y + 10); y += 22; }
-  cv.breaks = breaks;
+  cv.breaks = breaks.map(b => b * k);         /* the PDF cuts in canvas pixels */
   return cv;
 }

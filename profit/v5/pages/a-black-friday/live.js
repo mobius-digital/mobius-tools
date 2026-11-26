@@ -91,7 +91,7 @@ const CSS = `
 .wr3-hk .big{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
 .wr3-hk .scope{font-size:12px;color:var(--muted)}
 .wr3-hk .of{font-size:13.5px;color:var(--muted);font-variant-numeric:tabular-nums}
-.wr3-hk .mid{font-size:30px;font-weight:600;letter-spacing:-.035em;line-height:1.1;font-variant-numeric:tabular-nums}
+.wr3-hk .mid{font-size:var(--num-l);font-weight:600;letter-spacing:-.035em;line-height:1.1;font-variant-numeric:tabular-nums}
 .wr3-hk .mid small{font-size:13px;font-weight:400;letter-spacing:0;color:var(--muted);margin-left:6px}
 .wr3-prog{position:relative;height:8px;border-radius:999px;background:var(--bg-sunk);overflow:hidden}
 .wr3-prog i{position:absolute;left:0;top:0;bottom:0;width:var(--v,0%);border-radius:999px;background:var(--grad)}

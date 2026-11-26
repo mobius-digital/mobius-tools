@@ -9,7 +9,8 @@
      /api/client?act&from&to                     the store by day, totals, fixed costs, the plan so far
      /api/overview?days=7&cmp=none&series=0      the cost check for the brand */
 
-import { put } from '../../kit.js';
+import { put, tipShow, tipHide, tipRow } from '../../kit.js';
+import { askWhy, helpBar, dl } from '../home/_biz.js';
 import { h, money, num, pct, card, hero, em, kpi, kpis, takeaway, button, statusDot, legend, lineChart, empty } from '../../kit.js';
 import { ok, dayLabel, b, soft, brandFacts, hasSource, pickBrand, noSource, noDays, styles } from './_m.js';
 
@@ -51,29 +52,30 @@ function heroBlock(data, ctx) {
     list = [
       { label: 'Sales', value: money(t.sales), spark: days.map(d => d.sales) },
       { label: 'Ad spend', value: money(t.spend), sub: of(t.spend), spark: days.map(d => d.spend) },
-      { label: 'Profit after ads', value: 'held back', sub: data.withheld_why === 'check' ? 'the cost numbers need a check first' : 'no product costs to read yet' },
+      { label: dl('Profit after ads', 'profit_after_ads'), value: 'held back', sub: data.withheld_why === 'check' ? 'the cost numbers need a check first' : 'no product costs to read yet' },
     ];
   } else {
     const plan = data.plan_profit, gap = ok(plan) && ok(t.profit) ? t.profit - plan : null;
     list = [
-      { label: 'Profit after ads', value: money(t.profit), sub: gap != null ? statusDot(gap >= 0 ? 'good' : 'warn', money(Math.abs(gap)) + (gap >= 0 ? ' ahead of plan' : ' behind plan')) : of(t.profit),
+      { label: dl('Profit after ads', 'profit_after_ads'), value: money(t.profit), sub: gap != null ? statusDot(gap >= 0 ? 'good' : 'warn', money(Math.abs(gap)) + (gap >= 0 ? ' ahead of plan' : ' behind plan')) : of(t.profit),
         small: gap != null ? of(t.profit) : null, spark: days.map(d => (ok(d.before_ads) && ok(d.spend) ? Math.max(0, d.before_ads - d.spend) : null)), lead: true },
-      { label: 'Left before ads', value: money(t.before_ads), sub: of(t.before_ads), spark: days.map(d => d.before_ads) },
-      { label: 'Ad spend', value: money(t.spend), sub: of(t.spend), spark: days.map(d => d.spend), href: ctx.href('platforms', 'side-by-side') },
-      t.orders > 0 && ok(t.profit) ? { label: 'Profit an order', value: money(t.profit / t.orders, { cents: true }), sub: num(t.orders) + ' orders' } : null,
+      { label: dl('Left before ads', 'left_before_ads'), value: money(t.before_ads), sub: of(t.before_ads), spark: days.map(d => d.before_ads) },
+      { label: dl('Ad spend', 'ad_spend'), value: money(t.spend), sub: of(t.spend), spark: days.map(d => d.spend), href: ctx.href('platforms', 'side-by-side') },
+      t.orders > 0 && ok(t.profit) ? { label: 'Profit an order', value: money(t.profit / t.orders, { cents: true }), sub: [num(t.orders) + ' ', dl('orders', 'orders')] } : null,
     ].filter(Boolean);
   }
   return hero({}, kpis(list.map(k => kpi({ ...k, size: 'lg' })), { cols: list.length }));
 }
 
-/* One sentence, by rule: every $100 of sales, split three ways. */
+/* One sentence, only for what the tiles do not show: which single cost is the biggest, and whether it beats the ads. */
 function sentence(data) {
   const t = data.totals;
-  if (data.withheld || !(t.sales > 0) || !ok(t.before_ads) || !ok(t.spend) || !ok(t.profit)) return null;
-  const per = v => money(Math.round(v / t.sales * 100));
-  return t.profit >= 0
-    ? ['Of every $100 in sales, ', b(per(t.before_ads)), ' is left after product and delivery, ads take ', b(per(t.spend)), ', and ', b(per(t.profit)), ' is profit.']
-    : ['Of every $100 in sales, ', b(per(t.before_ads)), ' is left after product and delivery, but ads take ', b(per(t.spend)), ', a loss of ', b(per(-t.profit)), '.'];
+  if (data.withheld || data.flat_margin != null || !(t.sales > 0) || !ok(t.spend)) return null;
+  const costs = [['Product cost', t.cogs], ['Delivery', t.ship_cost], ['Handling', t.handling], ['Payment fees', t.fees], ['Ad spend', t.spend]].filter(c => c[1] > 0);
+  if (costs.length < 2) return null;
+  const top = costs.reduce((m, c) => (c[1] > m[1] ? c : m), costs[0]);
+  if (top[0] === 'Ad spend') return [b('Ad spend'), ' is the biggest single cost, more than what the products cost.'];
+  return [b(top[0]), ' is the biggest single cost, bigger than ad spend. Cutting it moves profit more than cutting ads.'];
 }
 
 function chartCard(data) {
@@ -99,7 +101,11 @@ function chartCard(data) {
 function dollarsCard(data, ctx) {
   const t = data.totals, fx = data.fixed, S = t.sales;
   if (!(S > 0) || !ok(t.before_ads)) return null;
-  const rows = [{ name: 'Sales', amount: S, res: true, left: 0, width: 1 }];
+  const rows = [{ name: 'Sales', amount: S, res: true, left: 0, width: 1, src: 'Store sales less tax (Triple Whale)' }];
+  const SRC = { Product: 'What the products cost (Triple Whale costs)', Delivery: 'Shipping labels and carrier cost', Handling: 'Pick, pack and warehouse handling per order',
+    'Payment fees': 'Card and payment provider fees', 'Ad spend': 'Every ad platform, added together', 'Other costs': 'Variable costs with no line of their own',
+    'Product, delivery and fees': 'A flat share of sales set for this brand', 'Fixed costs': 'Rent, software and fees that do not move with sales',
+    'Left before ads': 'Sales less product, delivery, handling and payment fees', 'Profit after ads': 'Left before ads, less all ad spend', 'Net profit': 'Profit after ads, less fixed costs' };
   let at = 1;                                          // where the next cost slice ends, as a share of sales
   const cost = (name, v) => { if (!(v > 0)) return; at -= v / S; rows.push({ name, amount: -v, left: at, width: v / S }); };
   const result = (name, v) => rows.push({ name, amount: v, res: true, left: 0, width: v / S, neg: v < 0 });
@@ -121,11 +127,22 @@ function dollarsCard(data, ctx) {
   }
   const clamp = v => Math.max(0, Math.min(1, v));
   return card({ title: 'Where every dollar of sales went', note: data.flat_margin != null && !ctx.isClient ? `costs before ads are a flat ${pct(1 - data.flat_margin)} of sales` : null, flush: true },
-    h('div', { class: 'mo-wf' }, rows.map(r => h('div', { class: (r.res ? 'res' : '') + (r.neg || (r.res && r.amount < 0) ? ' neg' : '') },
-      h('span', { class: 'n' }, r.name),
-      h('span', { class: 't' }, h('i', { style: { '--l': (clamp(r.left) * 100).toFixed(1) + '%', '--w': (clamp(Math.abs(r.width)) * 100).toFixed(1) + '%' } })),
-      h('span', { class: 'a' }, r.amount < 0 ? '-' + money(-r.amount) : money(r.amount)),
-      h('span', { class: 'p' }, pct(Math.abs(r.amount) / S))))));
+    h('div', { class: 'mo-wf' },
+      h('div', { class: 'hd', 'aria-hidden': 'true' }, h('span', { class: 'n' }, 'Cost'), h('span'), h('span', { class: 'a' }, 'Amount'), h('span', { class: 'p' }, '% of sales')),
+      rows.map(r => {
+        const amt = r.amount < 0 ? '-' + money(-r.amount) : money(r.amount), share = pct(Math.abs(r.amount) / S);
+        const name = r.name === 'Left before ads' ? dl(r.name, 'left_before_ads') : r.name === 'Profit after ads' ? dl(r.name, 'profit_after_ads') : r.name;
+        const row = h('div', { class: 'row ' + (r.res ? 'res' : '') + (r.neg || (r.res && r.amount < 0) ? ' neg' : '') },
+          h('span', { class: 'n' }, name),
+          h('span', { class: 't' }, h('i', { style: { '--l': (clamp(r.left) * 100).toFixed(1) + '%', '--w': (clamp(Math.abs(r.width)) * 100).toFixed(1) + '%' } })),
+          h('span', { class: 'a' }, amt),
+          h('span', { class: 'p' }, share));
+        const tip = () => [h('b', null, r.name), tipRow(null, 'Amount', amt), tipRow(null, 'Share of sales', share), h('span', { class: 'lx-tip-m' }, SRC[r.name] || (ctx.isClient ? 'A fixed cost' : 'A fixed cost set for this brand'))];
+        const bar = row.querySelector('.t');
+        bar.addEventListener('mouseenter', () => tipShow(bar, tip(), bar));
+        bar.addEventListener('mouseleave', () => tipHide(bar));
+        return row;
+      })));
 }
 
 function heldCard(data, ctx) {
@@ -153,12 +170,16 @@ export default {
     if (!data.source) return put(el, noSource(ctx, 'what is left after product, delivery and ads'));
     if (!(data.days || []).length) return put(el, noDays());
     const say = sentence(data);
+    tipHide();
     put(el, h('div', { class: 'mo' }, [
+      helpBar([
+        { title: 'What it is for', text: 'What is left of the sales after every cost: product, delivery, handling, payment fees, ads, then the fixed costs.' },
+        { title: 'How it is counted', text: 'Sales are store sales less tax (Triple Whale). Left before ads is sales less product, delivery, handling and payment fees. Profit after ads takes all ad spend off that. Fixed costs come off after that. Hover a bar for its amount and where the cost comes from.' },
+      ]),
       heroBlock(data, ctx),
-      say ? takeaway(say, { action: ctx.isClient ? null : button('Ask why', { href: ctx.href('ask', 'index') }) }) : null,
+      say ? takeaway(say, { action: ctx.isClient ? null : askWhy(ctx, 'What is left after every cost') }) : null,
       data.withheld ? heldCard(data, ctx) : chartCard(data),
       data.withheld ? null : dollarsCard(data, ctx),
-      h('p', { class: 'lx-foot' }, 'Sales are store sales less tax. Profit after ads is sales less product, delivery, handling, payment fees and all ad spend. Fixed costs come off after that.'),
     ].filter(Boolean)));
   },
 };

@@ -8,6 +8,7 @@
    "Example" chip in real mode. */
 
 import { put } from '../../kit.js';
+import { askWhy, helpBar, dl, rangeWords } from '../home/_biz.js';
 import { h, num, pct, money, card, hero, em, kpi, kpis, takeaway, button, table, empty } from '../../kit.js';
 import { fxStyles, steps, exampleChip, bar, head, pathDots, channelName } from './_flow.js';
 
@@ -45,8 +46,8 @@ function shape(paid, site, cust, sample) {
 function figures(d) {
   const st = d.steps, rate = ok(st.orders) && st.visits > 0 ? st.orders / st.visits : null;
   const list = [
-    { label: 'Visits that buy', value: ok(rate) ? pct(rate, { digits: 1 }) : 'no data', sub: ok(rate) ? `${num(st.orders)} of ${num(st.visits)} visits` : 'needs the website connected', spark: d.sparks.buy_rate },
-    { label: 'Orders', value: ok(st.orders) ? num(st.orders) : 'no data', sub: ok(d.aov) ? money(Math.round(d.aov)) + ' average order' : null, spark: d.sparks.orders },
+    { label: dl('Visits that buy', 'conversion_rate'), value: ok(rate) ? pct(rate, { digits: 1 }) : 'no data', sub: ok(rate) ? `${num(st.orders)} of ${num(st.visits)} visits` : 'needs the website connected', spark: d.sparks.buy_rate },
+    { label: dl('Orders', 'orders'), value: ok(st.orders) ? num(st.orders) : 'no data', sub: ok(d.aov) ? money(d.aov, { cents: true }) + ' average order' : null, spark: d.sparks.orders },
     { label: 'Two or more touches', value: ok(d.multi_orders) && d.touch_orders > 0 ? pct(d.multi_orders / d.touch_orders) : 'no data',
       sub: ok(d.multi_orders) ? `${num(d.multi_orders)} of ${num(d.touch_orders)} orders` : 'not counted yet', spark: d.sparks.multi },
     { label: 'Came back', value: ok(d.back_90) ? pct(d.back_90, { digits: 1 }) : 'no data', sub: ok(d.back_90) ? 'within 90 days' : null, spark: d.sparks.back },
@@ -60,12 +61,12 @@ function stepList(d) {
   const st = d.steps;
   const of = (a, b) => (ok(a) && b > 0 ? a / b : null);
   const raw = [
-    { key: 'clicks', label: 'Ad clicks', value: st.clicks, sub: 'all platforms' },
-    { key: 'visits', label: 'Site visits', value: st.visits, sub: ok(of(st.visits, st.clicks)) && st.visits <= st.clicks ? pct(of(st.visits, st.clicks)) + ' arrive' : 'every channel' },
-    { key: 'carts', label: 'Added to cart', value: st.carts, r: of(st.carts, st.visits), sub: ok(of(st.carts, st.visits)) ? pct(of(st.carts, st.visits), { digits: 1 }) + ' of visits' : '' },
-    { key: 'checkouts', label: 'Reached checkout', value: st.checkouts, r: of(st.checkouts, st.carts), sub: ok(of(st.checkouts, st.carts)) ? pct(of(st.checkouts, st.carts)) + ' of carts' : '' },
-    { key: 'orders', label: 'Orders', value: st.orders, r: of(st.orders, st.checkouts), sub: ok(of(st.orders, st.checkouts)) ? pct(of(st.orders, st.checkouts)) + ' of checkouts' : '' },
-    { key: 'second', label: 'Second order', value: st.second, sub: ok(d.back_90) ? pct(d.back_90, { digits: 1 }) + ' come back' : '' },
+    { key: 'clicks', label: 'Ad clicks', value: st.clicks, sub: 'all platforms', src: 'Ad platforms (Meta, Google, TikTok)' },
+    { key: 'visits', label: 'Site visits', src: 'Google Analytics', value: st.visits, sub: ok(of(st.visits, st.clicks)) && st.visits <= st.clicks ? pct(of(st.visits, st.clicks)) + ' arrive' : 'every channel' },
+    { key: 'carts', label: 'Added to cart', src: 'Google Analytics', value: st.carts, r: of(st.carts, st.visits), sub: ok(of(st.carts, st.visits)) ? pct(of(st.carts, st.visits), { digits: 1 }) + ' of visits' : '' },
+    { key: 'checkouts', label: 'Reached checkout', src: 'Google Analytics', value: st.checkouts, r: of(st.checkouts, st.carts), sub: ok(of(st.checkouts, st.carts)) ? pct(of(st.checkouts, st.carts)) + ' of carts' : '' },
+    { key: 'orders', label: 'Orders', src: 'Triple Whale and Shopify', value: st.orders, r: of(st.orders, st.checkouts), sub: ok(of(st.orders, st.checkouts)) ? pct(of(st.orders, st.checkouts)) + ' of checkouts' : '' },
+    { key: 'second', label: 'Second order', src: 'Customers back within 90 days', value: st.second, sub: ok(d.back_90) ? pct(d.back_90, { digits: 1 }) + ' come back' : '' },
   ].filter(x => ok(x.value));
   const judged = raw.filter(x => ok(x.r));
   const worst = judged.length > 1 ? judged.reduce((a, b) => (b.r < a.r ? b : a)) : null;
@@ -78,13 +79,13 @@ function dropCard(d, ctx) {
   const first = list[0], orders = list.find(x => x.key === 'orders');
   const big = first && orders && first !== orders ? `${num(first.value)} ${first.key === 'clicks' ? 'clicks' : 'visits'} to ${num(orders.value)} orders` : orders ? num(orders.value) + ' orders' : '';
   const say = worst ? takeaway(['Only ', h('b', null, pct(worst.r, { digits: worst.r < 0.1 ? 1 : 0 })), ` ${worst.sub.replace(/^[\d.]+% /, '')} ${worst.key === 'carts' ? 'add to cart' : worst.key === 'checkouts' ? 'reach checkout' : 'finish the order'}, the biggest drop in the funnel.`],
-    { action: ctx.isClient ? null : button('Ask why', { href: ctx.href('ask', 'index') }) }) : null;
+    { action: ctx.isClient ? null : askWhy(ctx, 'Where do people drop off') }) : null;
   const missing = !d.site_linked && d.site_linked !== undefined;
   return card({ class: 'fx-pad' },
-    head('Where do people drop off?', 'from the ad click to the second order, every channel together'),
-    h('div', { class: 'fx-big' }, h('span', { class: 'lx-hero-num' }, big)),
-    steps(list, { height: 340 }),
-    missing ? h('p', { class: 'lx-foot', style: { marginTop: '14px' } }, ctx.isClient ? 'Website steps show once the website is connected.' : 'Visits, carts and checkouts show once Google Analytics is linked in Brand settings.') : null,
+    head('Where do people drop off?', 'from the ad click to the second order, every channel together. Each bar is the share of the step before it; hover a bar for its count.'),
+    h('div', { class: 'fx-big' }, h('span', { class: 'fx-bigtxt' }, big)),
+    steps(list, { height: 300, relative: true }),
+    missing ? h('p', { class: 'fx-under' }, ctx.isClient ? 'Website steps show once the website is connected.' : 'Visits, carts and checkouts show once Google Analytics is linked in Brand settings.') : null,
     say ? h('div', { style: { marginTop: '20px' } }, say) : null);
 }
 
@@ -97,7 +98,7 @@ function pathCard(d, ctx) {
   const one = Object.entries(d.single || {}).filter(e => e[1] > 0 && e[0] !== 'other' && e[0] !== 'organic').sort((a, b) => b[1] - a[1]).slice(0, 4);
   return card({ flush: true },
     head('What do people touch before buying?', 'every channel, clicks only', ex ? exampleChip() : null, h('a', { class: 'lx-btn ghost', href: ctx.href('funnel', 'path') }, 'See it as a flow')),
-    ok(multi) ? h('div', { class: 'fx-big', style: { padding: '0 28px' } }, h('span', { class: 'lx-hero-num', style: { fontSize: '30px' } }, `${num(multi)} of ${num(all)}`), h('span', null, 'orders took two or more touches')) : null,
+    ok(multi) ? h('div', { class: 'fx-big', style: { padding: '0 28px' } }, h('span', { class: 'fx-bigtxt' }, `${num(multi)} of ${num(all)}`), h('span', null, 'orders took two or more touches')) : null,
     table({
       roomy: true,
       cols: [
@@ -140,10 +141,13 @@ export default {
     }
     const top = hero({ line: true }, figures(d));
     put(el, ...[
+      helpBar([
+        { title: 'What it is for', text: 'Where people drop off between the ad click and the second order, every channel together.' },
+        { title: 'Where the numbers come from', text: 'Ad platforms for clicks, Google Analytics for visits, carts and checkouts, Triple Whale and Shopify for orders. Second order is the share of customers back within 90 days.' },
+      ], h('span', { class: 'bz-chip' }, rangeWords(ctx, d.range))),
       top,
       dropCard(d, ctx),
       pathCard(d, ctx),
-      h('p', { class: 'lx-foot' }, 'Sources: ad platforms for clicks, Google Analytics for visits, carts and checkouts, Triple Whale and Shopify for orders. Second order is the share of customers back within 90 days.'),
     ].filter(Boolean));
   },
 

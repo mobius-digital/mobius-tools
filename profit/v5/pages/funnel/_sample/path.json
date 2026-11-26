@@ -5,14 +5,14 @@
   "to": "2026-11-22"
  },
  "example": [],
- "orders": 597,
+ "orders": 693,
  "multi_orders": 203,
  "clicks_avg": 1.6,
  "days_avg": 2.1,
  "same_day": 0.61,
  "top_first": {
   "channel": "meta",
-  "orders": 262
+  "orders": 312
  },
  "sparks": {
   "multi": [
@@ -118,38 +118,38 @@
   "columns": [
    {
     "title": "First click",
-    "sub": "597 orders",
+    "sub": "693 orders",
     "nodes": [
      {
       "id": "1:meta",
       "label": "Meta",
-      "value": 262
+      "value": 312
      },
      {
       "id": "1:google",
       "label": "Google",
-      "value": 131
+      "value": 153
      },
      {
       "id": "1:email",
       "label": "Email",
-      "value": 49
+      "value": 56
      },
      {
       "id": "1:organic",
       "label": "Organic and social",
       "short": "Organic",
-      "value": 79
+      "value": 83
      },
      {
       "id": "1:direct",
       "label": "Direct",
-      "value": 48
+      "value": 58
      },
      {
       "id": "1:other",
       "label": "Other",
-      "value": 28
+      "value": 31
      }
     ]
    },
@@ -219,12 +219,12 @@
    },
    {
     "title": "Bought",
-    "sub": "597 orders",
+    "sub": "693 orders",
     "nodes": [
      {
       "id": "b",
       "label": "Bought",
-      "value": 597
+      "value": 693
      }
     ]
    }
@@ -233,43 +233,43 @@
    {
     "from": "1:meta",
     "to": "b",
-    "value": 196,
-    "text": "Meta only, 196",
+    "value": 246,
+    "text": "Meta only, 246",
     "name": "Meta, then bought"
    },
    {
     "from": "1:google",
     "to": "b",
-    "value": 88,
-    "text": "Google only, 88",
+    "value": 110,
+    "text": "Google only, 110",
     "name": "Google, then bought"
    },
    {
     "from": "1:email",
     "to": "b",
-    "value": 30,
-    "text": "Email only, 30",
+    "value": 37,
+    "text": "Email only, 37",
     "name": "Email, then bought"
    },
    {
     "from": "1:organic",
     "to": "b",
-    "value": 22,
-    "text": "Organic and social only, 22",
+    "value": 26,
+    "text": "Organic and social only, 26",
     "name": "Organic and social, then bought"
    },
    {
     "from": "1:direct",
     "to": "b",
-    "value": 40,
-    "text": "Direct only, 40",
+    "value": 50,
+    "text": "Direct only, 50",
     "name": "Direct, then bought"
    },
    {
     "from": "1:other",
     "to": "b",
-    "value": 18,
-    "text": "Other only, 18",
+    "value": 21,
+    "text": "Other only, 21",
     "name": "Other, then bought"
    },
    {
@@ -554,31 +554,31 @@
    "path": [
     "meta"
    ],
-   "orders": 196
+   "orders": 246
   },
   {
    "path": [
     "google"
    ],
-   "orders": 88
+   "orders": 110
   },
   {
    "path": [
     "direct"
    ],
-   "orders": 40
+   "orders": 50
   },
   {
    "path": [
     "email"
    ],
-   "orders": 30
+   "orders": 37
   },
   {
    "path": [
     "organic"
    ],
-   "orders": 22
+   "orders": 26
   },
   {
    "path": [

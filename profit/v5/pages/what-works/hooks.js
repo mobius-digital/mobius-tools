@@ -6,8 +6,8 @@
 
 import { APP_NAME } from '../../config.js';
 import { put } from '../../kit.js';
-import { h, card, kpi, kpis, takeaway, segmented, legend, lineChart, delta, em, money, num, pct, x, skeleton, empty } from '../../kit.js';
-import { css, gate, noAds, loadAds, sampleAds, art, meter, tagsNote, findingButton, foot, thin, thinWords, p1, SRC_NOTE } from './_ww.js';
+import { h, card, kpi, kpis, hero, takeaway, segmented, legend, lineChart, delta, em, money, num, pct, x, skeleton, empty, platformChip } from '../../kit.js';
+import { css, gate, noAds, loadAds, sampleAds, art, meter, findingButton, thin, thinWords, p1, dl, helpBar } from './_ww.js';
 
 const MIN_VIEWS = 2000;                       // under this many impressions a hook rate is not shown
 const ST = { shelf: 'all', more: false };
@@ -39,11 +39,11 @@ function hookCard(a, d, s, ctx) {
     art({ ...a, cap: a.frame || null, over: a.over }),
     h('div', null, h('div', { class: 'q' + (a.first_line ? '' : ' none') }, line), h('div', { class: 'sub', style: { marginTop: '4px' } }, a.name)),
     h('div', null,
-      h('div', { class: 'hr' }, h('b', null, pct(a.hook)), h('span', null, 'hook rate'), diff != null ? delta(diff / 100, { text: (diff > 0 ? '+' : '') + diff + ' pts' }) : null),
-      meter(a.hook, s.normal, { max: Math.max(0.5, ...s.vids.map(v => v.hook)) }),
-      h('div', { class: 'sub', style: { marginTop: '6px' } }, num(a.impressions) + ' views' + (a.half_at ? `, half gone by 0:${String(a.half_at).padStart(2, '0')}` : ''))),
+      h('div', { class: 'hr' }, h('b', null, pct(a.hook)), dl('hook rate', 'hook_rate'), diff != null ? delta(diff / 100, { text: (diff > 0 ? '+' : '') + diff + ' pts vs normal' }) : null),
+      meter(a.hook, s.normal, { max: Math.max(0.5, ...s.vids.map(v => v.hook)), goalTitle: 'Normal ' + pct(s.normal) }),
+      h('div', { class: 'sub', style: { marginTop: '6px' } }, num(a.impressions) + ' impressions' + (a.half_at ? `, half the viewers gone by 0:${String(a.half_at).padStart(2, '0')}` : ''))),
     h('div', { class: 'ww-st' },
-      h('div', null, h('span', null, 'Hold rate'), h('b', { class: a.hold == null ? 'dim' : '' }, a.hold == null ? 'no data' : pct(a.hold))),
+      h('div', null, dl('Hold rate', 'hold_rate'), h('b', { class: a.hold == null ? 'dim' : '' }, a.hold == null ? 'no data' : pct(a.hold))),
       h('div', null, h('span', null, 'Cost per sale'), h('b', { class: !sales || thin(a.tw_orders) ? 'dim' : d.goal_cpa && a.cpa > d.goal_cpa ? 'bad' : '' }, !sales ? 'no data' : a.cpa ? money(a.cpa) : 'no sale'),
         sales && thin(a.tw_orders) ? h('small', null, thinWords(a.tw_orders)) : null)),
     h('div', { class: 'ww-two' },
@@ -59,16 +59,16 @@ function findings(d, s, ctx) {
   const out = [];
   const best = s.shelves.best, weak = s.shelves.weak, quiet = s.shelves.quiet;
   const avg = list => list.reduce((t, a) => t + a.hook, 0) / list.length;
-  if (best.length >= 2) out.push({ kind: 'Pattern', say: [`${best.length === s.vids.length ? 'These' : 'The top'} ${num(best.length)} videos stop `, h('b', null, pct(avg(best))), ' of people against a normal of ', h('b', null, pct(s.normal)), '.'], proof: best, brief: 'More openings like the best ones' });
+  /* a Pattern that only restates the figures at the top is left out; it shows only when there is nothing else to say */
+  if (best.length >= 2 && !weak.length && !quiet.length) out.push({ kind: 'Pattern', say: [`${best.length === s.vids.length ? 'These' : 'The top'} ${num(best.length)} videos stop `, h('b', null, pct(avg(best))), ' of people against a normal of ', h('b', null, pct(s.normal)), '.'], proof: best, brief: 'More openings like the best ones' });
   if (weak.length >= 1) out.push({ kind: 'Recut list', say: [`${num(weak.length)} of the best hooks ${weak.length === 1 ? 'has' : 'have'} weak sales. The opening works and the rest does not, so keep the opening and recut the body.`], proof: weak, brief: 'Same opening, new ending' });
   if (quiet.length >= 1) out.push({ kind: 'New first 3 seconds', say: [`${num(quiet.length)} ${quiet.length === 1 ? 'video sells' : 'videos sell'} on goal but few people stop. A new opening could take ${quiet.length === 1 ? 'it' : 'them'} further.`], proof: quiet, brief: 'New first 3 seconds' });
   if (!out.length) return null;
-  return card({ class: 'ww-cd', title: APP_NAME + ' AI noticed', note: 'Suggestions from the videos below, never results. A test is what makes one a fact.' },
+  return card({ class: 'ww-cd', title: APP_NAME + ' AI noticed', note: 'Patterns across the videos below, not tests. A test is what makes one a fact.' },
     h('div', { class: 'ww-find', style: { marginTop: '16px' } }, out.map(f => h('div', { class: 'ww-f' },
       h('span', { class: 'lx-cap' }, f.kind),
       h('p', { class: 'say' }, f.say),
       h('div', { class: 'ww-thumbs' }, f.proof.slice(0, 4).map(a => h('div', null, art(a, { pc: pct(a.hook) }), h('small', null, a.name)))),
-      h('p', { class: 'ft' }, `A pattern across ${num(f.proof.length)} ${f.proof.length === 1 ? 'video' : 'videos'} and ${num(f.proof.reduce((t, a) => t + a.impressions, 0))} views, not a test.`),
       findingButton(ctx, () => ({ say: f.say, measure: 'hook rate', proof: f.proof.slice(0, 3).map(a => ({ value: a.hook, text: pct(a.hook), name: short(a.name), sub: a.maker === 'creator' ? 'creator video' : 'brand video' })),
         normal: { value: s.normal, text: pct(s.normal), name: 'Normal', sub: 'all videos' }, brief: { title: f.brief, make: f.brief + ', 3 videos', why: f.kind, format: 'Video, 9:16 and 4:5', count: 3 } }), 'Make a brief from this')))));
 }
@@ -94,24 +94,23 @@ function view(d, ctx) {
   };
   paint();
   return [
-    kpis([
-      kpi({ label: 'Videos judged', value: num(s.vids.length), sub: `${num(MIN_VIEWS)}+ views each` + (s.few ? `, ${num(s.few)} under` : ''), size: 'lg' }),
-      kpi({ label: 'Normal hook rate', value: pct(s.normal), sub: 'the middle video here', size: 'lg' }),
-      kpi({ label: 'Best hook', value: pct(top.hook), sub: top.name, size: 'lg' }),
-      kpi({ label: 'Normal hold rate', value: s.holdN == null ? 'no data' : pct(s.holdN), sub: 'of those who stopped, watched on', size: 'lg' }),
-    ], { cols: 4 }),
-    takeaway([h('b', null, top.name), ` stops ${pct(top.hook)} of people, ${pts(top.hook, s.normal)} points over normal.`,
-      s.shelves.weak.length ? [' ', h('b', null, num(s.shelves.weak.length)), ' of the best hooks sell over goal: recut those first.'] : '']),
+    helpBar([{ title: 'What it is for', text: 'Which openings make people stop scrolling. Every Meta video ad with ' + num(MIN_VIEWS) + ' impressions or more on the dates at the top, judged on hook rate first.' },
+      { title: 'The words', text: 'Hook rate: people who watched 3 seconds, out of every time the video was shown. Hold rate: of those, the share who kept watching. Normal: the middle video on this page. Feed and Reels are mixed. Cost per sale is gray under 30 orders.' }], {},
+      platformChip('meta'), h('span', { class: 'note ww-q-note' }, 'Meta video ads, the dates at the top')),
+    hero({ line: true }, kpis([
+      kpi({ label: 'Videos judged', value: num(s.vids.length), sub: `${num(MIN_VIEWS)}+ impressions each` + (s.few ? `, ${num(s.few)} under` : '') }),
+      kpi({ label: dl('Normal hook rate', 'normal_hook'), value: pct(s.normal), sub: 'the middle video here' }),
+      kpi({ label: dl('Best hook rate', 'hook_rate'), value: pct(top.hook), sub: top.name }),
+      kpi({ label: dl('Normal hold rate', 'hold_rate'), value: s.holdN == null ? 'no data' : pct(s.holdN), sub: 'of those who stopped, watched on' }),
+    ], { cols: 4 })),
+    s.shelves.weak.length ? takeaway([h('b', null, num(s.shelves.weak.length)), ` of the best hooks sell over goal: the opening works and the rest does not, so recut those first.`]) : null,
     card({ class: 'ww-cd', title: 'Hook rate, video by video', note: `Sorted by hook rate. The line is this brand's normal, ${pct(s.normal)}.`, action: legend([{ name: 'Hook rate', square: true, color: 'var(--ink)' }, { name: 'Normal', dashed: true }]) },
       h('div', { style: { marginTop: '18px' } }, lineChart({ series: [{ type: 'bar', values: chartList.map(a => a.hook), leadAt: 0, labels: v => pct(v) }], labels: chartList.map(a => short(a.name, 14)),
         goal: { value: s.normal, label: 'Normal ' + pct(s.normal) }, format: v => pct(v), height: 320, phoneHeight: 260, endLabels: false, yTicks: 4,
-        hover: i => [h('b', null, chartList[i].name), ' ' + pct(chartList[i].hook) + ' hook rate, ' + num(chartList[i].impressions) + ' views'], label: 'Hook rate per video' }))),
-    card({ class: 'ww-cd', title: 'Hook rate by hook type', note: 'Videos grouped by how they open', action: tagsNote('Hook type tags') },
-      h('p', { class: 'lx-foot', style: { marginTop: '10px' } }, 'The grouping comes back once a person has checked the hook tags against the videos. Until then each video is judged on its own, above.')),
+        hover: i => [h('b', null, chartList[i].name), ' ' + pct(chartList[i].hook) + ' hook rate, ' + num(chartList[i].impressions) + ' impressions'], label: 'Hook rate per video' }))),
     findings(d, s, ctx),
     h('div', { class: 'lx-sec' }, h('h3', null, 'The hook bank'), h('span', { class: 'note' }, 'One card per video, judged on hook rate first.')),
     gallery,
-    foot('Hook rate = people who watched 3 seconds out of everyone who saw it. Feed and Reels are mixed.', 'Cost per sale is gray under 30 orders.', SRC_NOTE),
   ].filter(Boolean);
 }
 

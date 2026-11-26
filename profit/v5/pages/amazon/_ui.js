@@ -5,6 +5,7 @@
 
 import { h, svgNode, money, lineChart, button, empty, addStyles } from '../../kit.js';
 import { icon } from '../../icons.js';
+import { def } from '../platforms/_ads.js';
 
 /* ---------- local CSS, added once ---------- */
 const CSS = `
@@ -16,7 +17,7 @@ const CSS = `
 .az-more{font-weight:400;color:var(--muted)}
 .az-flag-s{display:none}
 .az-lead{display:flex;gap:22px;align-items:center}
-.az-lead .lx-hero-num{font-size:72px;padding-bottom:10px;flex:none}
+.az-lead .lx-hero-num{font-size:var(--num-xl);padding-bottom:10px;flex:none}
 .az-lead b{display:block;font-size:24px;font-weight:600;letter-spacing:-.03em;line-height:1.2}
 .az-split{display:flex;gap:3px;height:56px}
 .az-split.thin{height:20px}
@@ -29,7 +30,7 @@ const CSS = `
 .az-key{min-width:0;flex:none}
 .az-key.first{flex:0 0 calc(var(--w,50%) + 2px)}
 .az-key.mid{margin-right:36px}
-.az-key b{display:block;font-size:22px;font-weight:600;letter-spacing:-.03em;line-height:1.15;font-variant-numeric:tabular-nums;color:var(--ink)}
+.az-key b{display:block;font-size:var(--num-m);font-weight:600;letter-spacing:-.03em;line-height:1.15;font-variant-numeric:tabular-nums;color:var(--ink)}
 .az-key span{display:block;font-size:13px;color:var(--muted);white-space:nowrap}
 .az-key em{font-style:normal;display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;vertical-align:1px;background:var(--c)}
 .az-ends{display:flex;gap:28px;margin-top:12px;font-size:13px;color:var(--muted);flex-wrap:wrap}
@@ -38,7 +39,7 @@ const CSS = `
 .az-two{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:stretch}
 .az-two .lx-sec{min-height:76px}
 .az-term{display:inline-flex;align-items:center;gap:12px}
-.az-ck{display:inline-grid;place-items:center;width:17px;height:17px;padding:0;border:0;border-radius:5px;background:#fff;box-shadow:inset 0 0 0 1.5px var(--line-strong);cursor:pointer;flex:none}
+.az-ck{display:inline-grid;place-items:center;width:17px;height:17px;padding:0;border:0;border-radius:5px;background:var(--surface);box-shadow:inset 0 0 0 1.5px var(--line-strong);cursor:pointer;flex:none}
 .az-ck svg{width:11px;height:11px;fill:none;stroke:#fff;stroke-width:3;stroke-linecap:round;stroke-linejoin:round;opacity:0}
 .az-ck.on{background:var(--ink);box-shadow:none}
 .az-ck.on svg{opacity:1}
@@ -88,13 +89,13 @@ const CSS = `
 }
 @media (max-width:759px){
   .az-when{margin-left:0;width:100%}
-  .az-kpis .lx-kpi.lg .v{font-size:32px}
+  .az-kpis .lx-kpi.lg .v{font-size:var(--num-l)}
   .az-chart{padding:18px 12px 14px}
   .az-camps .lx-table th,.az-camps .lx-table td{padding:0 8px}
   .az-paused{display:block;margin:2px 0 0}
   .az-flag-s{display:block;margin-top:2px}
   .az-lead{flex-direction:column;align-items:flex-start;gap:12px}
-  .az-lead .lx-hero-num{font-size:56px}
+  .az-lead .lx-hero-num{font-size:var(--num-xl)}
   .az-lead b{font-size:19px}
   .az-split{height:40px}
   .az-keys{flex-direction:column;gap:10px}
@@ -123,14 +124,28 @@ export const roas = n => (ok(n) ? n.toFixed(1) + 'x' : 'no data');
 /** Change as a fraction, or null when there is nothing to compare with. */
 export const change = (now, was) => (ok(now) && ok(was) && was !== 0 ? (now - was) / was : null);
 
+/** "Nov 1 to 22" for the window the numbers cover, and how many days that is. */
+const md = s => new Date(String(s).slice(0, 10) + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+export function winLabel(w) {
+  if (!w || !w.from || !w.to) return 'these dates';
+  const a = md(w.from), b = md(w.to);
+  return w.from === w.to ? a : a.split(' ')[0] === b.split(' ')[0] ? a + ' to ' + b.split(' ')[1] : a + ' to ' + b;
+}
+export const winDays = w => (w && w.from && w.to ? Math.round((Date.parse(w.to) - Date.parse(w.from)) / 864e5) + 1 : null);
+/** "was $9,870 in the 30 days before" */
+export const wasText = (v, w, fmt) => 'was ' + fmt(v) + (winDays(w) ? ` in the ${winDays(w)} days before` : ' the dates before');
+
 export const say = parts => (parts || []).map(p => (p && typeof p === 'object' ? h('b', null, p.b) : p));
 
+/* The padlock is gone (the owner, note 8/11: an unexplained lock reads as broken). A missing number says "Not connected"
+   in words, with the reason on hover and tap. */
 const lockIcon = () => svgNode(icon('lock'));
-/** The small locked line at the foot of a card. */
-export const lockLine = text => h('div', { class: 'az-lock' }, lockIcon(), text);
-/** The gray box that says what is missing and what would fill it. lock: false drops the padlock. */
-export function lockBox(title, text, { lock = true } = {}) {
-  return h('div', { class: 'az-box' }, h('b', null, lock && lockIcon(), title), text && h('span', null, text));
+export const notConnected = () => def('Not connected', 'not_connected');
+/** A quiet line saying what is missing (no padlock). */
+export const lockLine = text => h('div', { class: 'az-lock' }, notConnected(), text ? ': ' + text : '');
+/** The gray box that says what is missing and what would fill it. */
+export function lockBox(title, text) {
+  return h('div', { class: 'az-box' }, h('b', null, title), text && h('span', null, text));
 }
 export { lockIcon };
 

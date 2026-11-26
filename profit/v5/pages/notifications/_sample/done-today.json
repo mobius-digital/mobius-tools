@@ -5,7 +5,6 @@
   { "id": "you", "title": "By you" },
   { "id": "team", "title": "By the team" }
  ],
- "take": { "say": [{ "b": "4 things" }, " are done so far today, 2 of them yours."] },
  "rows": {
   "Posted the Tallgrass Apparel and Copper Kettle Pets week plans": { "group": "you", "btn": { "label": "Open the plans", "line": "a-meetings", "tab": "agenda" }, "detail": "Both week plans were posted to the team after the Monday call." },
   "Approved 6 creator videos": { "group": "you", "btn": { "label": "Open videos", "line": "creators", "tab": "videos" }, "detail": "6 of 9 videos were approved. The other 3 went back with notes." },

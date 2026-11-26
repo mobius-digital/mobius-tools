@@ -34,7 +34,16 @@
        "spend_today": 58,
        "spend": 412,
        "roas": 3.4,
-       "purchases": 12
+       "purchases": 12,
+       "adset": "Early sale | New people",
+       "campaign": "Black Friday 2026",
+       "revenue": 1400.8,
+       "cpa": 34.33,
+       "impressions": 24476,
+       "cpm": 16.83,
+       "ctr": 0.0082,
+       "frequency": 1.81,
+       "clicks": 200
       },
       {
        "id": "s1_a2",
@@ -43,7 +52,16 @@
        "spend_today": 44,
        "spend": 366,
        "roas": 3.12,
-       "purchases": 10
+       "purchases": 10,
+       "adset": "Early sale | New people",
+       "campaign": "Black Friday 2026",
+       "revenue": 1141.92,
+       "cpa": 36.6,
+       "impressions": 23077,
+       "cpm": 15.86,
+       "ctr": 0.0078,
+       "frequency": 1.82,
+       "clicks": 180
       },
       {
        "id": "s1_a3",
@@ -52,7 +70,16 @@
        "spend_today": 37,
        "spend": 301,
        "roas": 2.71,
-       "purchases": 7
+       "purchases": 7,
+       "adset": "Early sale | New people",
+       "campaign": "Black Friday 2026",
+       "revenue": 815.71,
+       "cpa": 43.0,
+       "impressions": 12032,
+       "cpm": 25.02,
+       "ctr": 0.0166,
+       "frequency": 2.29,
+       "clicks": 199
       },
       {
        "id": "s1_a4",
@@ -61,7 +88,16 @@
        "spend_today": 29,
        "spend": 244,
        "roas": 1.84,
-       "purchases": 4
+       "purchases": 4,
+       "adset": "Early sale | New people",
+       "campaign": "Black Friday 2026",
+       "revenue": 448.96,
+       "cpa": 61.0,
+       "impressions": 14643,
+       "cpm": 16.66,
+       "ctr": 0.0134,
+       "frequency": 1.66,
+       "clicks": 196
       },
       {
        "id": "s1_a5",
@@ -70,7 +106,16 @@
        "spend_today": 21,
        "spend": 188,
        "roas": 1.2,
-       "purchases": 2
+       "purchases": 2,
+       "adset": "Early sale | New people",
+       "campaign": "Black Friday 2026",
+       "revenue": 225.6,
+       "cpa": 94.0,
+       "impressions": 11697,
+       "cpm": 16.07,
+       "ctr": 0.0083,
+       "frequency": 1.58,
+       "clicks": 97
       },
       {
        "id": "s1_a6",
@@ -79,7 +124,16 @@
        "spend_today": 9,
        "spend": 96,
        "roas": null,
-       "purchases": 0
+       "purchases": 0,
+       "adset": "Early sale | New people",
+       "campaign": "Black Friday 2026",
+       "revenue": 0,
+       "cpa": null,
+       "impressions": 3820,
+       "cpm": 25.13,
+       "ctr": 0.0169,
+       "frequency": 2.35,
+       "clicks": 64
       }
      ],
      "spend_today": 206,
@@ -101,7 +155,16 @@
        "spend_today": 33,
        "spend": 402,
        "roas": 3.6,
-       "purchases": 12
+       "purchases": 12,
+       "adset": "Early sale | Past buyers",
+       "campaign": "Black Friday 2026",
+       "revenue": 1447.2,
+       "cpa": 33.5,
+       "impressions": 17030,
+       "cpm": 23.61,
+       "ctr": 0.0093,
+       "frequency": 1.7,
+       "clicks": 158
       },
       {
        "id": "s2_a2",
@@ -110,7 +173,16 @@
        "spend_today": 26,
        "spend": 335,
        "roas": 3.1,
-       "purchases": 9
+       "purchases": 9,
+       "adset": "Early sale | Past buyers",
+       "campaign": "Black Friday 2026",
+       "revenue": 1038.5,
+       "cpa": 37.22,
+       "impressions": 15564,
+       "cpm": 21.52,
+       "ctr": 0.0158,
+       "frequency": 2.41,
+       "clicks": 245
       }
      ],
      "spend_today": 59,
@@ -145,7 +217,16 @@
        "spend_today": 8,
        "spend": 96,
        "roas": 3.3,
-       "purchases": 3
+       "purchases": 3,
+       "adset": "Creator pool",
+       "campaign": "Creators",
+       "revenue": 316.8,
+       "cpa": 32.0,
+       "impressions": 3908,
+       "cpm": 24.56,
+       "ctr": 0.008,
+       "frequency": 2.09,
+       "clicks": 31
       },
       {
        "id": "s3_a2",
@@ -154,7 +235,16 @@
        "spend_today": 7,
        "spend": 82,
        "roas": 3.05,
-       "purchases": 2
+       "purchases": 2,
+       "adset": "Creator pool",
+       "campaign": "Creators",
+       "revenue": 250.1,
+       "cpa": 41.0,
+       "impressions": 3717,
+       "cpm": 22.06,
+       "ctr": 0.0131,
+       "frequency": 1.53,
+       "clicks": 48
       },
       {
        "id": "s3_a3",
@@ -163,7 +253,16 @@
        "spend_today": 6,
        "spend": 61,
        "roas": 1.9,
-       "purchases": 1
+       "purchases": 1,
+       "adset": "Creator pool",
+       "campaign": "Creators",
+       "revenue": 115.9,
+       "cpa": 61.0,
+       "impressions": 3099,
+       "cpm": 19.68,
+       "ctr": 0.0081,
+       "frequency": 2.51,
+       "clicks": 25
       },
       {
        "id": "s3_a4",
@@ -172,7 +271,16 @@
        "spend_today": 4,
        "spend": 48,
        "roas": null,
-       "purchases": 0
+       "purchases": 0,
+       "adset": "Creator pool",
+       "campaign": "Creators",
+       "revenue": 0,
+       "cpa": null,
+       "impressions": 1968,
+       "cpm": 24.39,
+       "ctr": 0.0136,
+       "frequency": 1.69,
+       "clicks": 26
       },
       {
        "id": "s3_a5",
@@ -181,7 +289,16 @@
        "spend_today": 4,
        "spend": 38,
        "roas": null,
-       "purchases": 0
+       "purchases": 0,
+       "adset": "Creator pool",
+       "campaign": "Creators",
+       "revenue": 0,
+       "cpa": null,
+       "impressions": 1525,
+       "cpm": 24.92,
+       "ctr": 0.0139,
+       "frequency": 2.45,
+       "clicks": 21
       },
       {
        "id": "s3_a6",
@@ -190,7 +307,16 @@
        "spend_today": 2,
        "spend": 23,
        "roas": 0.4,
-       "purchases": 0
+       "purchases": 0,
+       "adset": "Creator pool",
+       "campaign": "Creators",
+       "revenue": 9.2,
+       "cpa": null,
+       "impressions": 951,
+       "cpm": 24.19,
+       "ctr": 0.0131,
+       "frequency": 1.84,
+       "clicks": 12
       }
      ],
      "spend_today": 31,
@@ -514,28 +640,6 @@
    "cpl7": null
   }
  ],
- "next": [
-  {
-   "date": "2026-11-26",
-   "name": "Black Friday ad sets",
-   "detail": "6pm, 4 ad sets"
-  },
-  {
-   "date": "2026-11-26",
-   "name": "Early access | Black Friday",
-   "detail": "$300 a day"
-  },
-  {
-   "date": "2026-11-30",
-   "name": "Cyber Monday ads",
-   "detail": "18 ads, New people"
-  },
-  {
-   "date": "2026-12-05",
-   "name": "Holiday 2026",
-   "detail": "$200 a day"
-  }
- ],
  "pace": {
   "hour": 14,
   "today": [
@@ -591,5 +695,89 @@
  },
  "examples": {
   "limit": false
- }
+ },
+ "scheduled": [
+  {
+   "level": "Ad set",
+   "name": "Black Friday | New people",
+   "campaign": "Black Friday 2026",
+   "adset": null,
+   "starts": "2026-11-26T18:00:00-0600",
+   "budget": null,
+   "n_ads": 22
+  },
+  {
+   "level": "Ad set",
+   "name": "Black Friday | Past buyers",
+   "campaign": "Black Friday 2026",
+   "adset": null,
+   "starts": "2026-11-26T18:00:00-0600",
+   "budget": null,
+   "n_ads": 14
+  },
+  {
+   "level": "Campaign",
+   "name": "Early access | Black Friday",
+   "campaign": null,
+   "adset": null,
+   "starts": "2026-11-26T18:00:00-0600",
+   "budget": 300,
+   "n_sets": 1,
+   "n_ads": 8
+  },
+  {
+   "level": "Ads",
+   "name": "18 ads loaded switched off",
+   "campaign": "Black Friday 2026",
+   "adset": "Black Friday | New people",
+   "starts": "2026-11-30T00:00:00-0600",
+   "budget": null,
+   "n_ads": 18,
+   "ads": [
+    "Cyber Monday 01, belt and buckle",
+    "Cyber Monday 02, belt and buckle",
+    "Cyber Monday 03, belt and buckle",
+    "Cyber Monday 04, belt and buckle",
+    "Cyber Monday 05, belt and buckle",
+    "Cyber Monday 06, belt and buckle",
+    "Cyber Monday 07, belt and buckle",
+    "Cyber Monday 08, belt and buckle",
+    "Cyber Monday 09, belt and buckle",
+    "Cyber Monday 10, belt and buckle",
+    "Cyber Monday 11, belt and buckle",
+    "Cyber Monday 12, belt and buckle",
+    "Cyber Monday 13, belt and buckle",
+    "Cyber Monday 14, belt and buckle",
+    "Cyber Monday 15, belt and buckle",
+    "Cyber Monday 16, belt and buckle",
+    "Cyber Monday 17, belt and buckle",
+    "Cyber Monday 18, belt and buckle"
+   ]
+  },
+  {
+   "level": "Ads",
+   "name": "4 ads loaded switched off",
+   "campaign": "Evergreen | Belts",
+   "adset": "Belts | Broad",
+   "starts": null,
+   "budget": null,
+   "n_ads": 4,
+   "ads": [
+    "Gift guide 01",
+    "Gift guide 02",
+    "Gift guide 03",
+    "Gift guide 04"
+   ]
+  },
+  {
+   "level": "Campaign",
+   "name": "Holiday 2026",
+   "campaign": null,
+   "adset": null,
+   "starts": "2026-12-05T00:00:00-0600",
+   "budget": 200,
+   "n_sets": 2,
+   "n_ads": 24
+  }
+ ]
 }

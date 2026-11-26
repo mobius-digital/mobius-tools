@@ -18,7 +18,9 @@
    "orders": 24,
    "order_rate": 0.00112,
    "unsub_rate": 0.0027,
-   "first_time": 0.36
+   "first_time": 0.36,
+   "subject": "Early sale is here: second belt half off",
+   "preview_text": "Pick two Ridgeline belts and the second one is half off, through Sunday."
   },
   {
    "id": "c2",
@@ -32,7 +34,9 @@
    "orders": 13,
    "order_rate": 0.00061,
    "unsub_rate": 0.0017,
-   "first_time": 0.24
+   "first_time": 0.24,
+   "subject": "The early sale pair math",
+   "preview_text": "Black for the course, tan for dinner. Here is what two belts cost this week."
   },
   {
    "id": "c3",
@@ -46,7 +50,9 @@
    "orders": 9,
    "order_rate": 0.00042,
    "unsub_rate": 0.0027,
-   "first_time": 0.41
+   "first_time": 0.41,
+   "subject": "Gift a belt without the waist size",
+   "preview_text": "Our belts cut to fit at home, so you never have to ask for a size."
   },
   {
    "id": "c4",
@@ -60,7 +66,9 @@
    "orders": 17,
    "order_rate": 0.00078,
    "unsub_rate": 0.0022,
-   "first_time": 0.29
+   "first_time": 0.29,
+   "subject": "Last weekend of the early sale",
+   "preview_text": "Second belt half off ends Sunday night. Here are the colors still in stock."
   },
   {
    "id": "c5",
@@ -74,7 +82,9 @@
    "orders": 15,
    "order_rate": 0.00069,
    "unsub_rate": 0.0023,
-   "first_time": 0.22
+   "first_time": 0.22,
+   "subject": "Ends tonight: second belt half off",
+   "preview_text": "A few hours left on the early sale."
   },
   {
    "id": "c6",
@@ -88,7 +98,9 @@
    "orders": 6,
    "order_rate": 0.00147,
    "unsub_rate": 0.0016,
-   "first_time": 0.18
+   "first_time": 0.18,
+   "subject": "Ends tonight (text)",
+   "preview_text": "Northlake: second belt half off ends at midnight. Shop now."
   },
   {
    "id": "c7",
@@ -102,7 +114,9 @@
    "orders": 11,
    "order_rate": 0.00051,
    "unsub_rate": 0.0019,
-   "first_time": 0.27
+   "first_time": 0.27,
+   "subject": "One for the course, one for dinner",
+   "preview_text": "Two belts, two jobs. The pair our customers buy most."
   },
   {
    "id": "c8",
@@ -116,7 +130,9 @@
    "orders": 7,
    "order_rate": 0.00032,
    "unsub_rate": 0.0026,
-   "first_time": 0.61
+   "first_time": 0.61,
+   "subject": "The belt battle is almost over",
+   "preview_text": "Your votes are in. See which color won before the sale ends."
   },
   {
    "id": "c9",
@@ -130,7 +146,9 @@
    "orders": 13,
    "order_rate": 0.0006,
    "unsub_rate": 0.0022,
-   "first_time": 0.19
+   "first_time": 0.19,
+   "subject": "Friday list: what is coming",
+   "preview_text": "Black Friday plans, new ball markers and a restock date."
   },
   {
    "id": "c10",
@@ -144,7 +162,9 @@
    "orders": 6,
    "order_rate": 0.00028,
    "unsub_rate": 0.0023,
-   "first_time": 0.33
+   "first_time": 0.33,
+   "subject": "Ball markers are back",
+   "preview_text": "The brass set sold out in October. It is back, with a new magnet."
   },
   {
    "id": "c11",
@@ -158,7 +178,9 @@
    "orders": 10,
    "order_rate": 0.00046,
    "unsub_rate": 0.0027,
-   "first_time": 0.21
+   "first_time": 0.21,
+   "subject": "Black Friday starts Thursday",
+   "preview_text": "Doors open Thursday at 6pm. Here is the deal, and how to be first in."
   },
   {
    "id": "c12",
@@ -172,7 +194,9 @@
    "orders": 3,
    "order_rate": 0.00073,
    "unsub_rate": 0.0015,
-   "first_time": 0.16
+   "first_time": 0.16,
+   "subject": "Thursday reminder (text)",
+   "preview_text": "Northlake: Black Friday opens Thursday 6pm. Reply STOP to opt out."
   }
  ],
  "upcoming": [
@@ -181,14 +205,18 @@
    "name": "Black Friday: doors open",
    "channel": "email",
    "status": "Scheduled",
-   "send_at": "2026-11-26T18:00:00"
+   "send_at": "2026-11-26T18:00:00",
+   "subject": "Black Friday: doors open",
+   "preview_text": "Our biggest deal of the year is live."
   },
   {
    "id": "u2",
    "name": "Black Friday: doors open (text)",
    "channel": "sms",
    "status": "Scheduled",
-   "send_at": "2026-11-26T18:05:00"
+   "send_at": "2026-11-26T18:05:00",
+   "subject": "Black Friday: doors open (text)",
+   "preview_text": "Northlake: Black Friday is live. Shop now."
   },
   {
    "id": "u3",

@@ -10,6 +10,8 @@
 import { h, put, card, button, field, toggle, tabs, table, empty, statusDot, pill, toast, sheet, relativeTime, addStyles, em } from '../../kit.js';
 import { APP_NAME } from '../../config.js';
 import { seenAsClient, clientsOwn, staleHold, ownGet, noEmail } from './_own.js';
+import { pageHelp } from '../../defs.js';
+import { fold, css as setCss } from '../brand-settings/_set.js';
 
 const CSS = `
 .lx-cai{display:grid;gap:var(--sp-8)}
@@ -26,10 +28,19 @@ const CSS = `
 .lx-cai-once{padding:10px 12px;border-radius:var(--r-md,10px);background:rgba(255,166,43,.14);color:var(--ink);font-size:13.5px;line-height:1.45;margin:0 0 var(--sp-5)}
 .lx-cai-can{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:var(--sp-3) var(--sp-6);margin:0;padding:0;list-style:none;color:var(--ink-2);font-size:13.5px;line-height:1.45}
 .lx-cai-can b{color:var(--ink);font-weight:600}
+.lx-cai-full{font-size:13px;color:var(--warn);margin:var(--sp-4) 0 0}
+.lx-cai-canwrap{padding:16px 28px 20px}
+.lx-cai-lede b{font-weight:600;color:var(--ink)}
 .lx-cai-foot{font-size:12.5px;color:var(--muted);line-height:1.5;margin:var(--sp-4) 0 0;max-width:70ch}
 @media (max-width:640px){.lx-cai-make .life{flex:1 1 100%}}
 `;
 
+const help = (st, ctx) => pageHelp({ body: [
+  { title: 'What it is for', text: 'Use your own Claude or ChatGPT with your numbers. It can read and suggest. It cannot change an ad, a budget, a setting or anything else, and it cannot send, post or invite. When it suggests a change you get a card under AI suggestions, and nothing happens until you tap there.' },
+  { title: 'The workspace switch', text: 'Off: the address does not answer and no key works. On: each person makes their own key, sees only their own brands, and nothing changes without a tap in ' + APP_NAME + '.' },
+  { title: 'Keys', text: 'A key is yours. It sees the same brands you see here, and it stops on its end date or when you turn it off.' + (st && st.limits ? ` A key can ask ${st.limits.perMin} times a minute and ${st.limits.perDay.toLocaleString('en-US')} times a day.` : '') },
+  { title: 'What you need', text: 'A paid plan with that AI app. Your numbers go to that AI company under your own plan with them. Menu names in those apps can change; the address and the key do not.' },
+] });
 const LIVES = [{ days: 30, label: '30 days' }, { days: 90, label: '90 days' }, { days: 180, label: '6 months' }, { days: 365, label: '1 year' }];
 /* What the AI can do, in plain words. The names match the tools the server lists. */
 const CAN = [
@@ -102,11 +113,11 @@ function draw(el, data, ctx) {
       if (sampleStop()) return;
       try { await ctx.api('/api/connect-ai/switch', { worker: 'ah', method: 'PUT', body: { on } }); toast(on ? 'Switched on. Each person makes their own key.' : 'Switched off. Every key stopped working.'); reload(); }
       catch (e) { toast(e.message || 'That did not save.', { tone: 'bad' }); }
-    } }),
-    h('p', { class: 'lx-cai-foot' }, 'Off: the address does not answer and no key works. On: each person makes their own key, sees only their own brands, and nothing changes without a tap in ' + APP_NAME + '.')) : null;
+    } })) : null;
 
   if (!st.on) {
     return put(el, h('div', { class: 'lx-cai' },
+      h('div', null, help(st, ctx)),
       h('p', { class: 'lx-cai-lede' }, 'Connect your AI is switched off for this workspace.' + (st.can_switch ? ' Switch it on below.' : '')),
       switchCard,
       st.can_switch ? null : empty({ title: 'Not switched on yet', text: 'Your workspace owner turns this on. Then you can link your own Claude or ChatGPT to your numbers.' })));
@@ -125,8 +136,7 @@ function draw(el, data, ctx) {
   } });
   const make = card({ title: 'Make a key', note: 'One per AI app' },
     h('div', { class: 'lx-cai-make' }, name, h('div', { class: 'lx-field life' }, h('label', null, 'Works for'), life), makeBtn),
-    h('p', { class: 'lx-cai-foot' }, full ? `You have ${live} working keys, which is the most allowed. Turn one off to make another.`
-      : 'The key is yours. It sees the same brands you see here, and it stops on its end date or when you turn it off.'));
+    full ? h('p', { class: 'lx-cai-full', role: 'status' }, `You have ${live} working keys, which is the most allowed. Turn one off to make another.`) : null);
 
   /* ---- the three steps ---- */
   const stepsHost = h('ol', { class: 'lx-cai-steps' });
@@ -134,8 +144,7 @@ function draw(el, data, ctx) {
   const stepTabs = tabs([{ id: 'claude', label: 'Claude' }, { id: 'chatgpt', label: 'ChatGPT' }], which, id => { which = id; stepTabs.querySelectorAll('a').forEach(a => a.classList.toggle('on', a.dataset.tab === id)); paintSteps(); });
   paintSteps();
   const steps = card({ title: 'Connect it in three steps' },
-    copyRow('Address', st.address, 'Address'), stepTabs, stepsHost,
-    h('p', { class: 'lx-cai-foot' }, 'You need a paid plan with that AI app. Your numbers go to that AI company under your own plan with them. Menu names in those apps can change; the address and the key do not.'));
+    copyRow('Address', st.address, 'Address'), stepTabs, stepsHost);
 
   /* ---- my keys ---- */
   const off = k => sheet({ title: 'Turn this key off?', side: 'center', body: h('div', null,
@@ -150,7 +159,7 @@ function draw(el, data, ctx) {
   const keyList = card({ title: 'Your keys', note: keys.length ? live + ' working' : null, flush: !!keys.length },
     keys.length ? table({ roomy: true, rows: keys, cols: [
       { key: 'label', label: 'Key', render: k => h('span', null, h('b', null, k.label), h('br'), h('span', { class: 'lx-foot' }, 'starts ' + k.starts_with)) },
-      { key: 'state', label: '', render: state },
+      { key: 'state', label: 'Status', render: state },
       { key: 'last_used_at', label: 'Last used', render: k => (k.last_used_at ? relativeTime(k.last_used_at) : 'Never') },
       { key: 'expires_at', label: 'Works until', render: k => day(k.expires_at) },
       { key: 'brands', label: 'Sees', render: k => (k.brands === 'all' ? 'All your brands' : (k.brands || []).map(brandName).join(', ')) },
@@ -162,18 +171,17 @@ function draw(el, data, ctx) {
     table({ rows: calls.slice(0, 10), cols: [
       { key: 'at', label: 'When', render: c => relativeTime(c.at) },
       { key: 'tool', label: 'What', render: c => TOOL_WORDS[c.tool] || 'Asked for something it cannot do' },
-      { key: 'brand_id', label: 'Brand', render: c => brandName(c.brand_id) },
-      { key: 'ok', label: '', render: c => (c.ok ? '' : pill('warn', 'Refused')) },
+      { key: 'brand_id', label: 'Brand', render: c => (c.brand_id ? brandName(c.brand_id) : 'All brands') },
+      { key: 'ok', label: 'Result', render: c => (c.ok ? statusDot('good', 'Allowed') : pill('warn', 'Refused')) },
     ] })) : null;
 
-  const can = card({ title: 'What your AI can do' },
-    h('ul', { class: 'lx-cai-can' }, CAN.map(([a, b]) => h('li', null, h('b', null, a), ', ' + b))),
-    h('p', { class: 'lx-cai-foot' }, 'It cannot change an ad, a budget, a setting or anything else. It cannot send, post or invite. When it suggests a change, you get a card in ' + APP_NAME + ' and nothing happens until you tap yes. ',
-      h('a', { href: ctx.href('profile', 'ai-cards') }, 'See the cards that are waiting'), '.'
-      + (st.limits ? ` A key can ask ${st.limits.perMin} times a minute and ${st.limits.perDay.toLocaleString('en-US')} times a day.` : '')));
+  setCss();
+  const can = fold('What your AI can do', CAN.length + ' things it can read', h('div', { class: 'lx-cai-canwrap' }, h('ul', { class: 'lx-cai-can' }, CAN.map(([a, b]) => h('li', null, h('b', null, a), ', ' + b)))));
 
   put(el, h('div', { class: 'lx-cai' },
-    h('p', { class: 'lx-cai-lede' }, 'Use your own Claude or ChatGPT with your numbers. There is no fee per question from us. It can read and suggest; every change waits for your tap.'),
+    h('div', null, help(st, ctx)),
+    h('p', { class: 'lx-cai-lede' }, 'Use your own Claude or ChatGPT with your numbers. ', h('b', null, 'It can read and suggest. It cannot change anything: '), 'every change waits for your tap under ',
+      h('a', { href: ctx.href('profile', 'ai-cards') }, 'AI suggestions'), '. There is no fee per question from us.'),
     switchCard, make, steps, keyList, callList, can));
 }
 

@@ -10,6 +10,7 @@ import { put, noDash } from '../../kit.js';
 import { h, em, button, avatar, statusDot, pill, delta, sheet, toast, empty, addStyles } from '../../kit.js';
 import { follow, reading } from '../_parts.js';
 import { css, loadMeeting, meetingOf, MEETING_START, rangeText, longDay, shortDay, lightOf, trafficLight, sentence, detailTable, ok, money, x } from './_meet.js';
+import { defLabel } from '../../defs.js';
 
 /* ---------- what the people in the room picked and typed (this tab only) ---------- */
 const ui = { key: null, step: 0, ans: {}, added: {}, notes: {}, rate: null };
@@ -198,13 +199,20 @@ function scoreboard(d, P, ctx) {
   const row = b => {
     const cur = b.currency || 'USD', light = lit(b), on = isCurrent(b);
     const dS = change(b.sales, b.sales_prior);
+    /* one grid for every row: a brand with no report keeps the columns and says so in Status */
+    const none = !on ? (!b.connected && b.has_report !== false ? 'No sales source' : 'No weekly report') : null;
     return h('button', { type: 'button', class: 'mr-sb', onclick: () => openBrand(b, d, ctx), 'aria-label': 'Open ' + b.name },
-      h('span', { class: 'nm' }, h('i', { class: light ? light.tone : '' }), b.name),
-      on ? h('span', { class: 'n' }, h('small', null, 'Sales'), h('b', null, money(b.sales, { cur })), ok(dS) ? delta(dS, { bad: dS < 0 }) : null) : h('span', { class: 'n none' }, !b.connected && b.has_report !== false ? 'No sales source connected' : 'No weekly report for last week'),
-      on ? h('span', { class: 'n' }, h('small', null, 'Ad spend'), h('b', null, ok(b.spend) ? money(b.spend, { cur }) : 'no data')) : h('span'),
-      on ? h('span', { class: 'n mer' }, h('small', null, 'MER'), h('b', null, ok(b.mer) ? x(b.mer) : 'no data'), h('em', null, ok(b.goal_mer) ? 'goal ' + x(b.goal_mer) : 'no goal set')) : h('span'),
-      on && light ? statusDot(light.tone, light.text) : h('span'));
+      h('span', { class: 'nm' }, b.name),
+      h('span', { class: 'n' }, on ? money(b.sales, { cur }) : ''),
+      h('span', { class: 'n' }, on && ok(dS) ? delta(dS, { bad: dS < 0 }) : ''),
+      h('span', { class: 'n' }, on ? (ok(b.spend) ? money(b.spend, { cur }) : 'no data') : ''),
+      h('span', { class: 'n mer' }, on ? (ok(b.mer) ? x(b.mer) : 'no data') : ''),
+      h('span', { class: 'n goal' }, on ? (ok(b.goal_mer) ? x(b.goal_mer) : 'not set') : ''),
+      h('span', { class: 'st' }, none ? statusDot('off', none) : light ? trafficLight(light) : statusDot('off', 'No goal set')));
   };
+  const head = h('div', { class: 'mr-sb mr-sbh', 'aria-hidden': 'true' },
+    h('span', null, 'Brand'), h('span', null, defLabel('Sales', 'sales'), ' (last week)'), h('span', null, 'vs week before'),
+    h('span', null, defLabel('Ad spend', 'ad_spend')), h('span', null, defLabel('Store MER', 'mer')), h('span', null, 'MER goal'), h('span', null, 'Status'));
   const cur = d.brands.filter(isCurrent);
   return [
     h('div', { class: 'mr-counts' },
@@ -212,7 +220,7 @@ function scoreboard(d, P, ctx) {
       fig('Under goal', String(P.deep.length + P.alsoUnder.length), P.deep.length ? P.deep.map(b => b.name).join(', ') : 'none this week'),
       P.noGoal.length + P.noReport.length ? fig('No goal or no report', String(P.noGoal.length + P.noReport.length), [...P.noGoal, ...P.noReport].map(b => b.name).join(', ')) : null),
     h('section', { class: 'mr-sec' }, h('div', { class: 'mt-h' }, h('h3', null, 'Every brand, last week'), h('span', null, 'Whole store, Mon to Sun. Furthest under goal first. Tap a brand to open it.')),
-      h('div', { class: 'lx-card flush mr-sbs' }, order.map(row))),
+      h('div', { class: 'lx-card flush mr-sbs' }, head, order.map(row))),
   ];
 }
 
@@ -374,8 +382,8 @@ function draw(el, data, ctx) {
     const i = ui.step, s = S[i], b = s.brand;
     ctx.setTitle(['Run the meeting, ', em(`step ${i + 1} of ${S.length}`)], { eyebrow: d.monday ? 'Monday ' + shortDay(d.monday) + ', last week ' + rangeText(d.week && d.week.from, d.week && d.week.to) : 'Meetings, team' });
     const rail = h('div', { class: 'mr-rail', role: 'tablist', 'aria-label': 'Steps of the meeting' }, S.map((k, n) =>
-      h('button', { type: 'button', role: 'tab', class: n === i ? 'on' : n < i ? 'past' : '', 'aria-selected': String(n === i), onclick: () => go(n) },
-        h('small', null, clock(START, k.at)), h('b', null, k.name))));
+      h('button', { type: 'button', role: 'tab', class: n === i ? 'on' : n < i ? 'past' : '', 'aria-selected': String(n === i), onclick: () => go(n),
+        title: clock(START, k.at) + 'am, ' + plural(k.min, 'minute') }, h('b', null, (n + 1) + '. ' + k.name))));
     const head = h('div', { class: 'mr-head' },
       h('div', null, h('span', { class: 'lx-eyebrow' }, b ? 'Decision brand' : `Step ${i + 1} of ${S.length}`), h('h2', null, s.name)),
       b && isCurrent(b) ? trafficLight(lit(b)) : null,
@@ -393,7 +401,7 @@ function draw(el, data, ctx) {
       button('Back', { large: true, disabled: i === 0, onclick: () => go(i - 1) }),
       h('span', { class: 'hint' }, 'Arrow keys move between steps'),
       next ? button('Next: ' + next.name, { primary: true, large: true, icon: 'arrow', onclick: () => go(i + 1) }) : button('Back to the start', { large: true, onclick: () => go(0) }));
-    put(root, rail, head, !b && s.ask ? h('p', { class: 'mr-ask' }, s.ask) : null, body, nav, d.note ? h('p', { class: 'lx-foot' }, d.note) : null);
+    put(root, rail, head, !b && s.ask ? h('p', { class: 'mr-ask' }, s.ask) : null, body, nav);
     const on = rail.querySelector('.on'); if (on && on.scrollIntoView) try { on.scrollIntoView({ block: 'nearest', inline: 'center' }); } catch {}
   }
   paint();
@@ -435,48 +443,48 @@ export default {
 /* ---------- the page CSS, once. Every class starts with mr-. ---------- */
 const CSS = `
 .mr{gap:36px}
-.mr-rail{display:flex;gap:6px;overflow-x:auto;padding:2px 2px 6px;scrollbar-width:none}
+.mr-rail{display:flex;flex-wrap:wrap;gap:6px;padding:2px 2px 6px}
 .mr-rail::-webkit-scrollbar{display:none}
-.mr-rail button{flex:none;display:grid;gap:1px;text-align:left;padding:9px 15px;border:0;border-radius:14px;background:var(--bg-sunk);color:var(--ink-2);cursor:pointer;font:inherit}
+.mr-rail button{flex:none;display:grid;gap:1px;text-align:left;padding:7px 12px;border:0;border-radius:14px;background:var(--bg-sunk);color:var(--ink-2);cursor:pointer;font:inherit}
 .mr-rail small{font-size:11.5px;color:var(--faint);font-variant-numeric:tabular-nums}
-.mr-rail b{font-size:13.5px;font-weight:600;white-space:nowrap}
+.mr-rail b{font-size:13px;font-weight:600;white-space:nowrap}
 .mr-rail button:hover{color:var(--ink)}
 .mr-rail button.past{background:transparent;box-shadow:inset 0 0 0 1px var(--line-strong)}
 .mr-rail button.on{background:var(--ink);color:#fff}
 .mr-rail button.on small{color:rgba(255,255,255,.72)}
 .mr-head{display:flex;align-items:flex-end;gap:14px 28px;flex-wrap:wrap}
 .mr-head>div{display:grid;gap:8px;min-width:0}
-.mr-head h2{margin:0;font-size:56px;font-weight:600;letter-spacing:-.045em;line-height:1.02;overflow-wrap:anywhere}
+.mr-head h2{margin:0;font-size:var(--fs-title);font-weight:600;letter-spacing:-.045em;line-height:1.02;overflow-wrap:anywhere}
 .mr-head .mt-light{margin-bottom:8px}
 .mr-head .when{margin-left:auto;margin-bottom:10px;color:var(--muted);font-size:16px;font-variant-numeric:tabular-nums;white-space:nowrap}
-.mr-ask{margin:0;max-width:940px;font-size:23px;line-height:1.4;letter-spacing:-.018em;color:var(--ink-2)}
+.mr-ask{margin:0;max-width:940px;font-size:18px;line-height:1.4;letter-spacing:-.018em;color:var(--ink-2)}
 .mr-ask b{color:var(--ink);font-weight:600}
 .mr-brand{display:grid;gap:36px;min-width:0}
 .mr-nums,.mr-counts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:48px}
 .mr-fig{display:grid;gap:8px;min-width:0;align-content:start}
 .mr-fig .l{font-size:14.5px;font-weight:550;color:var(--muted)}
-.mr-fig .v{font-size:76px;font-weight:600;letter-spacing:-.05em;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap}
-.mr-fig .v.w{font-size:24px;letter-spacing:-.02em;line-height:1.25;color:var(--ink-2);white-space:normal}
+.mr-fig .v{font-size:var(--num-l);font-weight:600;letter-spacing:-.05em;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap}
+.mr-fig .v.w{font-size:var(--num-m);letter-spacing:-.02em;line-height:1.25;color:var(--ink-2);white-space:normal}
 .mr-fig .s{display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap;font-size:15px;color:var(--muted)}
 .mr-chan{display:flex;gap:14px 44px;flex-wrap:wrap;padding-top:22px;border-top:1px solid var(--line)}
 .mr-chan>span{display:inline-flex;align-items:baseline;gap:12px}
 .mr-chan small{font-size:14px;color:var(--muted)}
-.mr-chan b{font-size:28px;font-weight:600;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.mr-chan b{font-size:var(--num-l);font-weight:600;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
 .mr-sec{display:grid;gap:14px;min-width:0}
-.mr-sec .mt-h h3{font-size:22px}
+.mr-sec .mt-h h3{font-size:20px}
 .mr-sec .mt-h>span{font-size:14.5px}
 .mr-list{margin:0;padding:0;list-style:none;display:grid;gap:14px;max-width:1000px}
-.mr-list li{position:relative;padding-left:26px;font-size:20px;line-height:1.42;letter-spacing:-.012em;color:var(--ink-2)}
+.mr-list li{position:relative;padding-left:26px;font-size:17px;line-height:1.42;letter-spacing:-.012em;color:var(--ink-2)}
 .mr-list li::before{content:"";position:absolute;left:4px;top:.58em;width:8px;height:8px;border-radius:50%;background:var(--ink)}
 .mr-list li small{display:block;font-size:13.5px;color:var(--muted);margin-top:2px}
 .mr-list.sm li{font-size:17px}
 .mr-decs{display:grid;gap:14px}
 .mr-dec{display:grid;grid-template-columns:minmax(0,1fr) auto 150px;gap:36px;align-items:center;padding:26px 32px}
 .mr-dec .txt{display:grid;gap:8px;min-width:0}
-.mr-dec .txt b{font-size:24px;font-weight:600;letter-spacing:-.026em;line-height:1.28}
+.mr-dec .txt b{font-size:var(--num-m);font-weight:600;letter-spacing:-.026em;line-height:1.28}
 .mr-dec .txt small{font-size:14px;color:var(--muted)}
 .mr-dec .num{display:grid;gap:2px;padding-left:36px;border-left:1px solid var(--line)}
-.mr-dec .num span{font-size:56px;font-weight:600;letter-spacing:-.045em;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap}
+.mr-dec .num span{font-size:var(--num-l);font-weight:600;letter-spacing:-.045em;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap}
 .mr-dec .num small{font-size:13px;color:var(--muted)}
 .mr-dec .btns{display:grid;gap:10px}
 .mr-dec .btns .lx-btn{justify-content:center}
@@ -499,23 +507,28 @@ const CSS = `
 .mr-grp:first-child{border-top:0;padding-top:0}
 .mr-grp h4{margin:0 0 4px;font-size:15px;font-weight:650;letter-spacing:-.01em}
 .mr-sbs{overflow:hidden}
-.mr-sb{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1.2fr) minmax(0,1fr) minmax(0,1.1fr) 104px;gap:24px;align-items:center;width:100%;min-height:86px;padding:14px 30px;border:0;border-top:1px solid var(--line);background:none;text-align:left;font:inherit;color:inherit;cursor:pointer}
+.mr-sb{display:grid;grid-template-columns:minmax(0,1.4fr) repeat(5,minmax(0,1fr)) 120px;gap:16px;align-items:center;width:100%;min-height:var(--row-h-roomy);padding:6px 24px;border:0;border-top:1px solid var(--line);background:none;text-align:left;font:inherit;color:inherit;cursor:pointer}
 .mr-sb:first-child{border-top:0}
 .mr-sb:hover,.mr-q:hover{background:var(--surface-2)}
-.mr-sb .nm{display:flex;align-items:center;gap:12px;min-width:0;font-size:21px;font-weight:600;letter-spacing:-.022em}
+.mr-sb .nm{display:flex;align-items:center;gap:12px;min-width:0;font-size:16px;font-weight:600;letter-spacing:-.015em}
+.mr-sbh{min-height:32px;cursor:default;font-size:11px;font-weight:600;letter-spacing:.03em;white-space:nowrap;text-transform:uppercase;color:var(--muted)}
+.mr-sbh:hover{background:none!important}
+.mr-sb .n{font-size:var(--num-s);font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.mr-sb .n.goal{color:var(--muted);font-weight:500}
+.mr-sb .st{justify-self:start}
 .mr-sb .nm i{flex:none;width:12px;height:12px;border-radius:50%;background:#E4E2DC}
 .mr-sb .nm i.good{background:var(--good)}.mr-sb .nm i.warn{background:var(--watch)}.mr-sb .nm i.bad{background:var(--bad)}
 .mr-sb .n{display:grid;gap:1px;min-width:0;justify-items:start}
 .mr-sb .n small{font-size:12px;color:var(--muted)}
-.mr-sb .n b{font-size:28px;font-weight:600;letter-spacing:-.035em;line-height:1.1;font-variant-numeric:tabular-nums;white-space:nowrap}
+.mr-sb .n b{font-size:var(--num-s);font-weight:600;letter-spacing:-.035em;line-height:1.1;font-variant-numeric:tabular-nums;white-space:nowrap}
 .mr-sb .n em{font-style:normal;font-size:13px;color:var(--muted)}
-.mr-sb .n.mer b{font-size:34px}
+.mr-sb .n.mer b{font-size:var(--num-s)}
 .mr-sb .n.none{grid-column:2/5;font-size:16px;font-weight:550;color:var(--muted)}
 .mr-q{display:grid;grid-template-columns:minmax(0,220px) 190px minmax(0,1fr) 110px;gap:24px;align-items:center;width:100%;min-height:84px;padding:14px 30px;border:0;border-top:1px solid var(--line);background:none;text-align:left;font:inherit;color:inherit;cursor:pointer}
 .mr-q:first-child{border-top:0}
 .mr-q .nm{font-size:20px;font-weight:600;letter-spacing:-.02em;min-width:0}
 .mr-q .nm small{display:block;font-size:13px;font-weight:500;color:var(--muted)}
-.mr-q .big{font-size:32px;font-weight:600;letter-spacing:-.035em;font-variant-numeric:tabular-nums;white-space:nowrap}
+.mr-q .big{font-size:var(--num-l);font-weight:600;letter-spacing:-.035em;font-variant-numeric:tabular-nums;white-space:nowrap}
 .mr-q .big small{font-size:13px;font-weight:500;letter-spacing:0;color:var(--muted);margin-left:8px}
 .mr-q .say{font-size:15.5px;line-height:1.4;color:var(--ink-2);min-width:0}
 .mr-q .say b{font-weight:600;color:var(--ink)}
@@ -535,7 +548,7 @@ const CSS = `
 .mr-insheet .mt-light{justify-self:start;box-shadow:inset 0 0 0 1px var(--line-strong)}
 .mr-sheet .mr-brand{gap:28px}
 .mr-sheet .mr-nums{grid-template-columns:1fr;gap:22px}
-.mr-sheet .mr-fig .v{font-size:48px}
+.mr-sheet .mr-fig .v{font-size:var(--num-l)}
 .mr-sheet .mr-dec{grid-template-columns:1fr;gap:18px;padding:20px}
 .mr-sheet .mr-dec .num{padding-left:0;border-left:0}
 .mr-sheet .mr-dec .btns{grid-template-columns:1fr 1fr}
@@ -543,31 +556,30 @@ const CSS = `
 .mr-sheet .mr-list li{font-size:16.5px}
 .mr-sheet .mr-task .who{width:auto}
 @media (max-width:1040px){
-  .mr-head h2{font-size:44px}
+  .mr-head h2{font-size:var(--fs-title)}
   .mr-nums,.mr-counts{gap:28px}
-  .mr-fig .v{font-size:54px}
+  .mr-fig .v{font-size:var(--num-l)}
   .mr-dec{grid-template-columns:minmax(0,1fr) auto;gap:22px}
   .mr-dec .btns{grid-column:1/-1;grid-template-columns:1fr 1fr}
-  .mr-sb{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);gap:16px;padding:14px 20px}
-  .mr-sb>.lx-stat,.mr-sb>span:last-child:empty{display:none}
+  .mr-sb{grid-template-columns:minmax(0,1.3fr) repeat(5,minmax(0,1fr)) 104px;gap:10px;padding:6px 16px}
   .mr-q{grid-template-columns:minmax(0,180px) 160px minmax(0,1fr);gap:16px;padding:14px 20px}
   .mr-q>.lx-stat{display:none}
 }
 @media (max-width:759px){
   .mr{gap:26px}
-  .mr-head h2{font-size:34px}
+  .mr-head h2{font-size:var(--num-l)}
   .mr-head .when{margin-left:0;margin-bottom:0;flex:1 1 100%;font-size:14.5px}
   .mr-ask{font-size:18px}
   .mr-brand{gap:28px}
   .mr-nums,.mr-counts{grid-template-columns:1fr;gap:22px}
-  .mr-fig .v{font-size:52px}
+  .mr-fig .v{font-size:var(--num-l)}
   .mr-chan{gap:10px 28px;padding-top:18px}
-  .mr-chan b{font-size:22px}
+  .mr-chan b{font-size:var(--num-m)}
   .mr-list li{font-size:17px}
   .mr-dec{grid-template-columns:1fr;gap:18px;padding:20px 18px}
   .mr-dec .txt b{font-size:20px}
   .mr-dec .num{padding-left:0;border-left:0}
-  .mr-dec .num span{font-size:44px}
+  .mr-dec .num span{font-size:var(--num-l)}
   .mr-add{flex-wrap:wrap}
   .mr-add .mr-in{flex:1 1 100%}
   .mr-notes{font-size:16px}
@@ -575,13 +587,16 @@ const CSS = `
   .mr-task .what{grid-column:2;font-size:16px}
   .mr-task .who{grid-column:2;grid-row:2;width:auto}
   .mr-task>.lx-stat,.mr-task>.lx-pill{grid-column:3;grid-row:1/3;width:auto}
-  .mr-sb{grid-template-columns:1fr 1fr 1fr;gap:8px 12px;padding:16px 18px}
-  .mr-sb .nm{grid-column:1/-1;font-size:18px}
-  .mr-sb .n b,.mr-sb .n.mer b{font-size:22px}
+  .mr-sb{grid-template-columns:1fr 1fr 1fr;gap:8px 12px;padding:14px 18px}
+  .mr-sbh{display:none}
+  .mr-sb .nm{grid-column:1/-1;font-size:16px}
+  .mr-sb .n:empty{display:none}
+  .mr-sb .n b,.mr-sb .n.mer b{font-size:var(--num-s)}
+  .mr-rail{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
   .mr-sb .n.none{grid-column:1/-1;font-size:14.5px}
   .mr-q{grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;padding:16px 18px}
   .mr-q .nm{font-size:17px}
-  .mr-q .big{font-size:24px;text-align:right}
+  .mr-q .big{font-size:var(--num-m);text-align:right}
   .mr-q .big small{display:block;margin-left:0}
   .mr-q .say{grid-column:1/-1;font-size:14.5px}
   .mr-q .say:empty{display:none}

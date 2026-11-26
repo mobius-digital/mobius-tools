@@ -6,6 +6,7 @@
    Nothing here is sample data in real mode. */
 
 import { put } from '../../kit.js';
+import { askWhy, helpBar, dl } from '../home/_biz.js';
 import { h, money, num, card, hero, em, kpi, kpis, takeaway, button, statusDot, table, empty, lineChart, legend, x, addStyles } from '../../kit.js';
 import { ltvChart } from './charts.js';
 
@@ -26,12 +27,14 @@ const CSS = `
 .lv-kpis .lx-kpi .s{flex-wrap:wrap}
 .lv-flush .lv-head{padding:20px 28px 6px;margin:0}
 .lv-young{color:var(--faint)}
+.lv-lab{font-size:13.5px;color:var(--ink-2);font-weight:550}
+.lv-num{font-size:var(--num-l);font-weight:600;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
 @media (max-width:759px){
   .lv-pad{padding:18px}
   .lv-flush .lv-head{padding:16px 18px 6px}
-  .lv-kpis .lx-kpi.lg .v{font-size:32px}
+  .lv-kpis .lx-kpi.lg .v{font-size:var(--num-l)}
   .lv-kpis .lx-kpi .l{white-space:normal}
-  .lv-big .lx-hero-num{font-size:36px}
+  .lv-big .lx-hero-num{font-size:var(--num-xl)}
 }`;
 const headOf = (title, sub, ...tools) => h('div', { class: 'lv-head' }, h('div', null, h('h3', null, title), sub ? h('p', null, sub) : null), tools.filter(Boolean).length ? h('div', null, tools) : null);
 
@@ -57,24 +60,27 @@ function figures(d) {
   const v90 = at(d, 90), v365 = at(d, 365), ratio = ok(v90) && d.cac > 0 ? v90 / d.cac : null;
   const over = ok(d.cac) && ok(d.cac_goal) ? d.cac > d.cac_goal : null;
   const list = [
-    { label: 'Worth by day 90', value: ok(v90) ? dollars(v90) : 'no data', sub: ok(d.first_order) ? dollars(d.first_order) + ' on the first order' : null, spark: d.ltv.values },
-    { label: 'Worth by day 365', value: ok(v365) ? dollars(v365) : 'no data', sub: ok(v365) && ok(d.first_order) ? x(v365 / d.first_order, 1) + ' the first order' : 'needs a year of orders' },
-    { label: 'Cost per new customer', value: ok(d.cac) ? dollars(d.cac) : 'no data',
-      delta: over == null ? null : statusDot(over ? 'bad' : 'good', 'goal ' + dollars(d.cac_goal)), sub: 'last 90 days', spark: d.cohorts.filter(c => ok(c.cac)).map(c => c.cac) },
-    { label: 'Back per $1 by day 90', value: ok(ratio) ? money(ratio, { cents: true }) : 'no data', sub: ok(ratio) ? (ratio >= 1 ? 'paid back, before product cost' : 'not paid back yet') : null },
+    { label: dl('LTV by day 90', 'ltv'), value: ok(v90) ? dollars(v90) : 'no data', sub: ok(d.first_order) ? 'vs ' + dollars(d.first_order) + ' on the first order' : null, spark: d.ltv.values },
+    { label: dl('LTV by day 365', 'ltv'), value: ok(v365) ? dollars(v365) : 'no data', sub: ok(v365) && ok(d.first_order) ? x(v365 / d.first_order, 1) + ' the first order' : 'needs a year of orders', spark: d.cohorts.filter(c => ok(c.ltv_365)).map(c => c.ltv_365) },
+    { label: dl('Cost per new customer, last 90 days', 'new_customer_cost'), value: ok(d.cac) ? dollars(d.cac) : 'no data',
+      delta: over == null ? null : statusDot(over ? 'bad' : 'good', 'goal ' + dollars(d.cac_goal)), sub: null, spark: d.cohorts.filter(c => ok(c.cac)).map(c => c.cac) },
+    { label: dl('Back per $1 by day 90', 'ltv_back'), value: ok(ratio) ? money(ratio, { cents: true }) : 'no data', sub: ok(ratio) ? (ratio >= 1 ? 'paid back, before product cost' : 'not paid back yet') : null, spark: d.cohorts.filter(c => ok(c.ltv_90) && c.cac > 0).map(c => c.ltv_90 / c.cac) },
   ];
   const el = kpis(list.map(k => kpi({ ...k, size: 'lg', spark: (k.spark || []).filter(ok) })), { cols: 4 });
   el.classList.add('lv-kpis');
   return el;
 }
 
+/* One sentence, only for what the tiles do not show: how the newest month with a day 90 read did against its cost. */
 function say(d, ctx) {
-  const v90 = at(d, 90);
-  if (!ok(v90) || !ok(d.cac)) return null;
-  const r = v90 / d.cac;
-  const words = r >= 1.5 ? 'Yes, with room. ' : r >= 1 ? 'Only just. ' : 'Not yet. ';
-  return takeaway([words, 'A new customer costs ', b(dollars(d.cac)), ' and is worth ', b(dollars(v90)), ' in sales by day 90.'],
-    { action: ctx.isClient ? null : button('Ask why', { href: ctx.href('ask', 'index') }) });
+  const grown = (d.cohorts || []).filter(c => ok(c.ltv_90) && c.cac > 0);
+  if (!grown.length) return null;
+  const c = grown[grown.length - 1], r = c.ltv_90 / c.cac;
+  const best = grown.reduce((m, x) => (x.ltv_90 / x.cac > m.ltv_90 / m.cac ? x : m), grown[0]);
+  const parts = r < 1
+    ? ['Customers won in ', b(monthLabel(c.month)), ' have not paid back by day 90: they cost ', b(dollars(c.cac)), ' and are worth ', b(dollars(c.ltv_90)), '.']
+    : ['The best month was ', b(monthLabel(best.month)), ': ', b(money(best.ltv_90 / best.cac, { cents: true })), ' back per $1 by day 90.'];
+  return takeaway(parts, { action: ctx.isClient ? null : askWhy(ctx, 'What is a customer worth over time') });
 }
 
 function curveCard(d) {
@@ -83,7 +89,7 @@ function curveCard(d) {
   return card({ class: 'lv-pad' },
     headOf('What is a customer worth over time?', 'sales per customer from the first order, before product cost',
       legend([{ name: 'Worth per customer', lead: true }, ok(d.cac) && { name: 'Cost per new customer', dashed: true }])),
-    ok(lastV) ? h('div', { class: 'lv-big' }, h('span', { class: 'lx-hero-num' }, dollars(lastV)), h('span', null, `by day ${last}, ${num(d.counted)} customers counted`)) : null,
+    ok(lastV) ? h('div', { class: 'lv-big' }, h('span', { class: 'lv-lab' }, dl('LTV at day ' + last, 'ltv')), h('b', { class: 'lv-num' }, dollars(lastV)), h('span', null, `${num(d.counted)} customers counted`)) : null,
     ltvChart({ days, values: d.ltv.values, cac: d.cac }));
 }
 
@@ -93,7 +99,7 @@ function cohortChart(d) {
   const grown = rows.filter(c => ok(c.ltv_90));
   const lastBelow = grown.length && grown[grown.length - 1].ltv_90 < (grown[grown.length - 1].cac || 0);
   return card({ class: 'lv-pad' },
-    headOf('Is each month’s batch worth what it cost?', 'by the month of the first order: worth by day 90 against the cost per new customer that month',
+    headOf('Is each month’s batch worth what it cost?', 'by the month of the first order: worth by day 90 against the cost per new customer that month. The newest months have no day 90 yet, so only their cost shows.',
       legend([{ name: 'Worth by day 90', lead: true }, { name: 'Cost per new customer' }])),
     lineChart({
       series: [
@@ -104,8 +110,7 @@ function cohortChart(d) {
       format: dollars, yMax: Math.ceil(Math.max(...rows.flatMap(c => [c.ltv_90 || 0, c.cac || 0])) * 1.25 / 20) * 20, yTicks: 4, height: 340, phoneHeight: 280, fill: false,
       label: `Worth by day 90 and cost per new customer for each first-order month, ${monthLabel(rows[0].month)} to ${monthLabel(rows[rows.length - 1].month)}.` + (lastBelow ? ' The latest month with a 90 day read cost more than it was worth.' : ''),
       hover: i => [b(monthLabel(rows[i].month)), h('span', null, 'Worth ', b(ok(rows[i].ltv_90) ? dollars(rows[i].ltv_90) : 'too new')), h('span', null, 'Cost ', b(ok(rows[i].cac) ? dollars(rows[i].cac) : 'no data'))],
-    }),
-    h('p', { class: 'lx-foot', style: { marginTop: '10px' } }, 'The newest months have no day 90 yet, so only their cost shows.'));
+    }));
 }
 
 function cohortTable(d) {
@@ -121,7 +126,7 @@ function cohortTable(d) {
         { key: 'cac', label: 'Cost each', num: true, render: c => (ok(c.cac) ? dollars(c.cac) : 'no data') },
         { key: 'ltv_90', label: 'By day 90', num: true, class: 'hide-sm', render: c => (ok(c.ltv_90) ? dollars(c.ltv_90) : h('span', { class: 'lv-young' }, 'too new')) },
         { key: 'ltv_now', label: 'So far', num: true, render: c => (ok(c.ltv_now) ? dollars(c.ltv_now) : 'no data') },
-        { key: 'per', label: 'Back per $1', num: true, render: c => { const r = per(c); return ok(r) ? statusDot(r >= 1 ? 'good' : r >= 0.8 ? 'warn' : 'bad', money(r, { cents: true })) : h('span', { class: 'lv-young' }, 'too new'); } },
+        { key: 'per', label: dl('Back per $1', 'ltv_back'), num: true, render: c => { const r = per(c); return ok(r) ? statusDot(r >= 1 ? 'good' : r >= 0.8 ? 'warn' : 'bad', money(r, { cents: true })) : h('span', { class: 'lv-young' }, 'too new'); } },
       ],
       rows,
     }));
@@ -156,12 +161,15 @@ export default {
     }
     d.cohorts = d.cohorts || [];
     put(el, ...[
+      helpBar([
+        { title: 'What it is for', text: 'What a customer is worth over time, and whether each month of new customers paid back what it cost.' },
+        { title: 'How it is counted', text: 'Triple Whale orders, followed per customer from the first order. LTV (worth) is sales per customer before product cost. Customers first seen in the first 60 days of history are left out, and a month needs 90 days before it has a day 90 read. The cost per new customer in the tiles is the last 90 days.' },
+      ], h('span', { class: 'bz-chip' }, 'Every first order, the last 12 months')),
       hero({ line: true }, figures(d)),
       say(d, ctx),
       curveCard(d),
       cohortChart(d),
       cohortTable(d),
-      h('p', { class: 'lx-foot' }, 'Sources: Triple Whale orders, followed per customer from the first order. Worth is sales before product cost. Customers first seen in the first 60 days of history are left out, and a month needs 90 days before it has a day 90 read.'),
     ].filter(Boolean));
   },
 

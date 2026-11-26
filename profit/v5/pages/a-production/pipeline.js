@@ -8,7 +8,8 @@ import { h, hero, kpi, kpis, em, card, table, statusDot, empty, skeleton } from 
 import { SAMPLE } from '../../data.js';
 import { refresh } from '../../router.js';
 import { canWrite } from '../production/_act.js';
-import { put, css, day, plural, dueText } from '../production/_ui.js';
+import { put, css, day, plural, dueText, pageTop, dotDef } from '../production/_ui.js';
+import { defLabel } from '../../defs.js';
 import { openCard } from '../production/_sheet.js';
 import { apCss, loadAll, brandName, boardOf, lateBy, todayOf, weekOf, daysFrom } from './_ap.js';
 
@@ -36,7 +37,7 @@ function rowsOf(cards, today) {
 const bar = r => {
   const total = STAGES.reduce((s, st) => s + r[st.id], 0) || 1;
   return h('div', { class: 'ap-bar', role: 'img', 'aria-label': STAGES.map(st => `${r[st.id]} ${st.label.toLowerCase()}`).join(', ') },
-    STAGES.map(st => r[st.id] ? h('span', { class: 's-' + st.id, style: { width: (r[st.id] / total * 100) + '%' } }) : null));
+    STAGES.map(st => r[st.id] ? h('span', { class: 's-' + st.id, title: `${st.label}: ${plural(r[st.id], 'card')}`, style: { width: (r[st.id] / total * 100) + '%' } }) : null));
 };
 const n = v => h('span', { class: 'ap-n' + (v ? '' : ' zero') }, String(v));
 
@@ -44,7 +45,7 @@ function line(ctx, c, data, today, right) {
   return h('button', { type: 'button', class: 'pd-line', onclick: () => openCard(ctx, c, { photos: data.photos || {}, today, team: data.team || [], onChange: () => { if (!SAMPLE) refresh({ fresh: true }); } }) },
     h('span', { class: 'n' }, c.num),
     h('span', { class: 't' }, h('b', null, c.title || 'Untitled card'), h('small', null, brandName(ctx, c.act_id, c.brand), ', ' + (c.format || ''))),
-    h('span', { class: 'w' }, c.assignee ? c.assignee.split(' ')[0] : statusDot('warn', 'Nobody')),
+    h('span', { class: 'w' }, c.assignee ? h('span', { title: c.assignee }, c.assignee.split(' ')[0]) : dotDef(statusDot('warn', 'Nobody'), 'Nobody', 'No one has this card yet. Open it and pick who has it.')),
     right);
 }
 
@@ -68,29 +69,36 @@ export default {
     const work = cards.filter(c => ['brief', 'making', 'review'].includes(c.board));
     const goingLive = cards.filter(c => (c.board === 'ready' || c.board === 'scheduled') && c.launch_on && c.launch_on >= wk[0] && c.launch_on <= wk[1]);
     const worst = late[0];
+    const IN_WORK = { name: 'In work', definition: 'Cards in Brief, Making or Review: not approved yet.' };
+    const LATE = { name: 'Late', definition: 'Past its date and not approved yet.' };
     put(el,
+      pageTop([
+        { title: 'What it is for', text: 'Every brand\'s ad cards in one place: how many sit in each stage, what is late and what waits on the client. Most late first.' },
+        { title: 'What you can do here', text: (canWrite(ctx) ? 'A brand opens its board; a card opens its sheet, where you can move it, assign it and approve it.' : 'A brand opens its board; a card opens its sheet.') + ' Tap a column header to sort.' },
+        { title: 'The words', text: 'In work: Brief, Making and Review together. Late: past its date and not approved yet. The bar shows where a brand\'s cards are; hover a part for its count.' },
+      ]),
       hero({ line: true },
         kpis([
-          kpi({ label: 'In the works', value: String(work.length), sub: plural(rows.filter(r => r.work).length, 'brand') }),
-          kpi({ label: 'Late', value: String(late.length), sub: late.length ? statusDot('bad', 'oldest ' + plural(lateBy(worst, today), 'day')) : statusDot('good', 'nothing overdue') }),
+          kpi({ label: defLabel('In work', IN_WORK), value: String(work.length), sub: plural(rows.filter(r => r.work).length, 'brand') }),
+          kpi({ label: defLabel('Late', LATE), value: String(late.length), sub: late.length ? statusDot('bad', 'oldest ' + plural(lateBy(worst, today), 'day')) : statusDot('good', 'nothing overdue') }),
           kpi({ label: 'Waiting on clients', value: String(client.length), sub: client.length ? statusDot('warn', plural(new Set(client.map(c => c.act_id)).size, 'brand')) : 'none' }),
           kpi({ label: 'Going live this week', value: String(goingLive.length), sub: `${day(wk[0])} to ${day(wk[1])}` }),
         ], { cols: 4 })),
       card({ title: 'Every brand', note: 'most late first', flush: true,
-        action: h('div', { class: 'ap-key' }, STAGES.map(st => h('span', null, h('i', { class: 's-' + st.id, style: { background: `var(--${{ brief: 'line-strong', making: 'faint', review: 'slate', ready: 'ink-2', live: 'ink' }[st.id]})` } }), st.label))) },
+        action: h('div', { class: 'ap-key' }, STAGES.map(st => h('span', null, h('i', { class: 's-' + st.id }), st.label))) },
         table({
           rows, roomy: true,
           onRow: r => { const to = boardOf(ctx, r.act_id); if (to) location.hash = to; },
           cols: [
-            { key: 'brand', label: 'Brand', render: r => brandName(ctx, r.act_id, r.brand) },
-            { key: 'bar', label: 'Where the cards are', class: 'hide-sm', width: '26%', render: bar },
-            { key: 'brief', label: 'Brief', num: true, class: 'hide-md', render: r => n(r.brief) },
-            { key: 'making', label: 'Making', num: true, class: 'hide-md', render: r => n(r.making) },
-            { key: 'review', label: 'Review', num: true, class: 'hide-sm', render: r => h('span', null, n(r.review), r.client ? h('small', { class: 'ap-n', style: { color: 'var(--muted)' } }, ' (' + r.client + ' client)') : null) },
-            { key: 'ready', label: 'Ready', num: true, class: 'hide-md', render: r => n(r.ready) },
-            { key: 'work', label: 'In work', num: true, render: r => n(r.work) },
-            { key: 'late', label: 'Late', num: true, render: r => r.late ? h('span', null, h('span', { class: 'ap-late' }, String(r.late)), r.oldest ? h('small', { class: 'ap-old' }, ' up to ' + r.oldest + 'd') : null) : n(0) },
-            { key: 'next', label: 'Next date', class: 'hide-sm', render: r => r.next ? (r.next.live ? 'Live ' : 'Due ') + day(r.next.d) : 'none' },
+            { key: 'brand', label: 'Brand', sortable: true, render: r => brandName(ctx, r.act_id, r.brand) },
+            { key: 'bar', label: 'Where the cards are', class: 'hide-sm', width: '24%', render: bar },
+            { key: 'brief', label: 'Brief', num: true, sortable: true, class: 'hide-md', render: r => n(r.brief) },
+            { key: 'making', label: 'Making', num: true, sortable: true, class: 'hide-md', render: r => n(r.making) },
+            { key: 'review', label: 'Review', num: true, sortable: true, class: 'hide-sm', render: r => h('span', null, n(r.review), r.client ? h('small', { class: 'ap-old' }, ', ' + r.client + ' with client') : null) },
+            { key: 'ready', label: 'Ready', num: true, sortable: true, class: 'hide-md', render: r => n(r.ready) },
+            { key: 'work', label: defLabel('In work', IN_WORK), num: true, sortable: true, render: r => n(r.work) },
+            { key: 'late', label: defLabel('Late', LATE), num: true, sortable: true, render: r => r.late ? h('span', null, h('span', { class: 'ap-late' }, r.late + ' late'), r.oldest ? h('small', { class: 'ap-old' }, ', oldest ' + plural(r.oldest, 'day')) : null) : n(0) },
+            { key: 'next', label: 'Next date', sortable: true, value: r => (r.next ? r.next.d : null), class: 'hide-sm', render: r => r.next ? (r.next.live ? 'Live ' : 'Due ') + day(r.next.d) : 'none' },
           ],
         })),
       late.length ? card({ title: 'Late', note: plural(late.length, 'card') + ', most late first', flush: true },
@@ -99,7 +107,6 @@ export default {
         h('div', { class: 'pd-list ap-list' }, client.map(c => {
           const waited = c.client_sent_at ? daysFrom(c.client_sent_at, today) : null;
           return line(ctx, c, data, today, h('span', { class: 'd' }, waited != null ? (waited <= 0 ? 'sent today' : 'sent ' + plural(waited, 'day') + ' ago') : dueText(c, today)));
-        }))) : null,
-      h('p', { class: 'lx-foot' }, (canWrite(ctx) ? 'A brand opens its board; a card opens its sheet, where you can move it, assign it and approve it.' : 'A brand opens its board; a card opens its sheet.') + ' Late means past its date and not yet approved.'));
+        }))) : null);
   },
 };

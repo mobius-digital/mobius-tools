@@ -7,7 +7,7 @@
 
 import { APP_NAME } from '../../config.js';
 import { h, hero, kpi, kpis, gauge, statusDot, empty, em, skeleton } from '../../kit.js';
-import { put, css, COLS, OPEN, day, daysFrom, dueText, todayOf, weekOf, picture, who, oldLocus, plural } from './_ui.js';
+import { put, css, COLS, OPEN, day, daysFrom, dueText, todayOf, weekOf, picture, who, oldLocus, plural, pageTop, dotDef, teamTag } from './_ui.js';
 import { openCard } from './_sheet.js';
 import review from './review.js';
 import { SAMPLE } from '../../data.js';
@@ -34,10 +34,10 @@ const FILTERS = [
 function tile(c, data, ctx, today, changed) {
   const photos = data.photos || {};
   const waited = c.needs_client && c.client_sent_at ? daysFrom(c.client_sent_at, today) : null;
-  const mark = c.needs_client ? statusDot('warn', waited != null ? 'Client, ' + plural(waited, 'day') : 'Client')
-    : c.late ? statusDot('bad', 'Late')
-    : c.board === 'scheduled' ? statusDot('info', 'Scheduled')
-    : c.board === 'off' ? statusDot('off', 'Ended') : null;
+  const mark = c.needs_client ? dotDef(statusDot('warn', waited != null ? 'Client, ' + plural(waited, 'day') : 'Client'), 'Waiting on the client', 'Sent to the client for a yes or changes' + (waited != null ? ', ' + plural(waited, 'day') + ' ago' : '') + '.')
+    : c.late ? dotDef(statusDot('bad', 'Late'), 'Late', 'Past its due date and not approved yet.')
+    : c.board === 'scheduled' ? dotDef(statusDot('info', 'Scheduled'), 'Scheduled', 'Loaded into Meta and set to start on its date.')
+    : c.board === 'off' ? dotDef(statusDot('off', 'Ended'), 'Ended', 'Its ads ran and are off in Meta now.') : null;
   const sub = c.board === 'review' && c.versions ? plural(c.versions, 'file') : dueText(c, today);
   return h('button', { type: 'button', class: 'pd-card', onclick: () => openCard(ctx, c, { photos, today, team: data.team || [], onChange: changed }) },
     picture({ src: c.thumb, art: c.art, video: c.format === 'Video' || c.format === 'UGC' }),
@@ -54,13 +54,13 @@ function board(cards, data, ctx, today, changed) {
       .sort((a, b) => (a.board === 'off') - (b.board === 'off') || String(a.due || a.launch_on || '9').localeCompare(String(b.due || b.launch_on || '9')) || (+b.num || 0) - (+a.num || 0));
     const more = col.id === 'live' && data.live && data.live.total > data.live.shown ? data.live.total - data.live.shown : 0;
     return h('section', { class: 'pd-col' },
-      h('div', { class: 'pd-col-h' }, col.label, h('span', null, mine.length)),
+      h('div', { class: 'pd-col-h' }, col.label, h('span', { title: more ? `${mine.length} shown here, ${mine.length + more} in all` : null }, more ? `${mine.length} of ${mine.length + more}` : mine.length)),
       mine.length ? mine.map(c => tile(c, data, ctx, today, changed)) : h('div', { class: 'pd-col-none' }, 'Nothing here'),
       more ? h('div', { class: 'pd-col-more' }, more + ' more live in Meta') : null);
   }));
 }
 
-function top(cards, today) {
+function top(cards, today, pickFilter) {
   const n = f => cards.filter(f).length;
   const wk = weekOf(today);
   const due = cards.filter(c => { const d = c.due || c.launch_on; return d && d >= wk[0] && d <= wk[1] && c.board !== 'off'; });
@@ -68,12 +68,15 @@ function top(cards, today) {
   const late = cards.filter(c => c.late);
   const worst = Math.max(0, ...late.map(c => daysFrom(c.due, today) || 0));
   const client = n(c => c.needs_client);
+  /* a tile that has a matching filter chip sets it on click */
+  const tap = (node, id, words) => { if (!id) return node; node.classList.add('pd-kpi-go'); node.tabIndex = 0; node.setAttribute('role', 'button'); node.title = 'Show ' + words;
+    node.addEventListener('click', () => pickFilter(id)); node.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pickFilter(id); } }); return node; };
   return hero({ line: true },
     kpis([
       kpi({ label: 'Being made', value: String(n(c => c.board === 'brief' || c.board === 'making')), sub: plural(n(c => c.board === 'brief'), 'brief') + ' not started' }),
-      kpi({ label: 'In review', value: String(n(c => c.board === 'review')), sub: client ? statusDot('warn', client + ' with the client') : 'none with the client' }),
+      tap(kpi({ label: 'In review', value: String(n(c => c.board === 'review')), sub: client ? statusDot('warn', client + ' with the client') : 'none with the client' }), client ? 'client' : null, 'the cards waiting on the client'),
       kpi({ label: 'Ready to load', value: String(n(c => c.board === 'ready' || c.board === 'scheduled')), sub: plural(n(c => c.board === 'scheduled'), 'card') + ' scheduled in Meta' }),
-      kpi({ label: 'Late', value: String(late.length), sub: late.length ? statusDot('bad', 'oldest ' + plural(worst, 'day')) : statusDot('good', 'nothing overdue') }),
+      tap(kpi({ label: 'Late', value: String(late.length), sub: late.length ? statusDot('bad', 'oldest ' + plural(worst, 'day')) : statusDot('good', 'nothing overdue') }), 'late', 'the late cards'),
     ], { cols: 4 }),
     due.length ? h('div', { class: 'pb-week' },
       h('div', null, h('span', null, `Due this week, ${day(wk[0])} to ${day(wk[1])}`), h('b', null, `${done} of ${due.length} ready`)),
@@ -117,11 +120,17 @@ const page = {
     /* a write landed in the sheet: draw the card where it now is, then read the board again (real mode) */
     const changed = () => { page.render(el, data, ctx); if (!SAMPLE) refresh({ fresh: true }); };
     draw();
+    const pickFilter = id => { pick = id; ctx.saveSetting('production.filter', pick); draw(); chips.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); };
+    const old = oldLocus(ctx, { label: 'New card in old ' + APP_NAME });
     put(el,
-      top(cards, today),
-      h('div', { class: 'pd-tools' }, chips, h('span', { class: 'lx-sp' }), oldLocus(ctx, { label: 'New card in old ' + APP_NAME })),
-      slot,
-      ctx.isClient ? null : h('p', { class: 'lx-foot' }, canWrite(ctx) ? 'Open a card to move it, give it to someone, approve it, add a note, send it to the client or load it into Meta. New cards and uploads are still made in old ' + APP_NAME + '. Scheduled, Live and Off follow Meta by themselves.' : 'You can look here. Changes are made by the team.'));
+      pageTop([
+        { title: 'What it is for', text: 'Every ad card for this brand, from brief to live, in five columns. Tap a card to see it large with its brief, files and notes.' },
+        { title: 'What you can do here', text: canWrite(ctx) ? 'Open a card to move it, give it to someone, approve it, add a note, send it to the client or load it into Meta. New cards and uploads are still made in old ' + APP_NAME + '. Scheduled, Live and Off follow Meta by themselves.' : 'You can look here. Changes are made by the team.' },
+        { title: 'The marks', text: 'Late: past its date and not approved. Client: waiting on the client for a yes. Scheduled: loaded into Meta with a start date. Ended: its ads are off. Nobody: no one has the card yet. Hover or tap any mark for its meaning.' },
+      ], old ? teamTag() : null, old),
+      top(cards, today, pickFilter),
+      h('div', { class: 'pd-tools' }, chips),
+      slot);
   },
 };
 export default page;

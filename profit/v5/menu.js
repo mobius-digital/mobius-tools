@@ -140,7 +140,7 @@ export const AGENCY_MENU = [
 
 /* ---------- pages reached from the top bar, in both views ---------- */
 export const TOP_LINES = [
-  { id: 'ask', label: 'Ask ' + AI_NAME, icon: 'sparkle', who: 'team', top: true, tabs: [t('index', 'Ask'), t('free', 'Free answers', null, true)] },
+  { id: 'ask', label: 'Ask ' + AI_NAME, icon: 'sparkle', who: 'team', top: true, tabs: [t('index', 'Ask'), t('free', 'Quick lookups', null, true)] },
   { id: 'my-day', label: 'My day', icon: 'day', who: 'team', top: true, tabs: one('mywork') },
   /* a new client's setup checklist. Not drawn in the top bar: reached by the gate, the Client list, My day and the bell */
   { id: 'get-started', label: 'Get started', icon: 'check', who: 'all', top: true, tabs: one() },

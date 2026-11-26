@@ -97,12 +97,24 @@ const CSS = `
 .ag-q{color:var(--muted);font-weight:400}
 .ag-ex{font-weight:500}
 .ag-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-6)}
+.ag-grid.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+.ag-grid.three .ag-figs{grid-template-columns:repeat(3,minmax(0,1fr))}
+.ag-grid.three .ag-figs small{white-space:normal}
+.ag-grid.three .ag-bc-h .lx-stat{white-space:nowrap}
+@media (max-width:1180px){.ag-grid.three{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.ag-bc{position:relative;overflow:hidden}
+.ag-bc.needs::before{content:'';position:absolute;left:0;right:0;top:0;height:3px;background:var(--brand)}
+.ag-needs{display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:999px;background:var(--warn-bg);color:var(--warn);font-size:12px;font-weight:600;white-space:nowrap}
+.ag-name .nm{display:block;min-width:0;max-width:30ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ag-wide td.name{min-width:200px}
+.ag-go{font-size:12.5px;color:var(--muted);white-space:nowrap;text-decoration:none}
+.ag-go:hover{color:var(--ink);text-decoration:underline}
 .ag-bc{display:grid;grid-template-rows:auto auto auto 1fr;gap:16px;color:inherit;text-decoration:none}
 .ag-bc-h{display:flex;align-items:center;gap:10px;min-height:24px;min-width:0}
 .ag-bc-h b{font-size:16px;font-weight:600;letter-spacing:-.015em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ag-bc-h>:last-child{margin-left:auto;flex:none}
 .ag-bc-n{display:flex;align-items:baseline;gap:10px;min-height:38px;flex-wrap:wrap}
-.ag-bc-n .lx-big{font-size:34px}
+.ag-bc-n .lx-big{font-size:var(--num-l)}
 .ag-bc-n small{font-size:13px;color:var(--muted)}
 .ag-bc-n .w{font-size:15px;font-weight:550;color:var(--ink-2)}
 .ag-bc-g{min-height:25px}
@@ -116,7 +128,7 @@ const CSS = `
 .ag-name{display:inline-flex;align-items:center;gap:10px;min-width:0;color:inherit;text-decoration:none;font-weight:550}
 .ag-name:hover b,a.ag-name:hover{text-decoration:underline}
 .ag-wide .lx-table .g{padding-left:22px}
-.ag-wide tr.total .lx-gauge-track{background:#E4E2DC}
+.ag-wide tr.total .lx-gauge-track{background:var(--line-strong)}
 .ag-list{display:none}
 .ag-chart{padding:28px 32px 20px}
 .ag-bar{display:grid;grid-template-columns:minmax(0,1fr);align-items:center}
@@ -137,15 +149,15 @@ const CSS = `
   .ag-chart{padding:18px 14px 12px}
   .ag-pad{padding:4px 18px 18px}
   .ag .lx-card.flush>.lx-sec{flex-wrap:wrap}
-  .ag-bc-n .lx-big{font-size:30px}
+  .ag-bc-n .lx-big{font-size:var(--num-l)}
 }`;
 export const style = () => addStyles('ag-css', CSS);
 
 /** The brand's color square and name. As a link when href is given. */
 export function brandName(b, ctx, href) {
   const known = ((ctx && ctx.brands) || []).find(k => k.id === b.id) || {};
-  const kids = [h('i', { class: 'lx-swatch', style: { '--dot': b.color || known.color || 'var(--ink)' } }), h('b', null, b.name)];
-  return href ? h('a', { class: 'ag-name', href }, kids) : h('span', { class: 'ag-name' }, kids);
+  const kids = [h('i', { class: 'lx-swatch', style: { '--dot': b.color || known.color || 'var(--ink)' } }), h('b', { class: 'nm' }, b.name)];
+  return href ? h('a', { class: 'ag-name', href, title: b.goTitle || null }, kids) : h('span', { class: 'ag-name' }, kids);
 }
 /** Up to three small figures in a row: [[label, text or node], ...]. A node is drawn quiet (words, not a number). */
 export const figs = list => h('div', { class: 'ag-figs' }, list.filter(Boolean).map(([label, v]) =>
@@ -163,7 +175,8 @@ export function figures(list) {
 }
 /** One equal row per brand: a table on a wide screen, a list of the same rows on a phone.
     cols are kit table columns. item(row) gives the phone row: { head, tail, figs: [[label, text]], gauge, href }. */
-export function brandRows({ title, note, action, cols, rows, total, sort, item, rowHeight = 64, emptyText }) {
+export function brandRows({ title, note, action, cols, rows, total, sort, item, rowHeight, emptyText }) {
+  /* the kit scale: 48px roomy rows; a page passes a taller rowHeight only where a cell holds two lines */
   const wide = table({ roomy: true, rowHeight, cols, rows, total, sort, empty: emptyText || 'No brands for these dates',
     onRow: (r, _i, e) => { if (r.href && !e.target.closest('a,button')) location.hash = r.href; } });
   const one = (r, isTotal) => { const it = item(r, isTotal); return h(it.href && !isTotal ? 'a' : 'div', { class: 'ag-item' + (isTotal ? ' total' : ''), href: isTotal ? null : it.href },

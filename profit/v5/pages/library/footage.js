@@ -9,7 +9,7 @@ import { APP_NAME } from '../../config.js';
 import { h, hero, kpi, kpis, em, num, statusDot, skeleton } from '../../kit.js';
 import { fixture, SAMPLE } from '../../data.js';
 import { put, css, oldLocus, exampleChip, plural } from '../production/_ui.js';
-import { lbCss, chips, search, openItem, picture, assetsButton } from './_lib.js';
+import { lbCss, chips, search, openItem, picture, assetsButton, pageTop, teamTag } from './_lib.js';
 
 const len = s => (s == null ? '' : s >= 60 ? Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0') : '0:' + String(s).padStart(2, '0'));
 
@@ -36,22 +36,25 @@ export default {
         facts: [['Length', len(x.secs)], ['Quality', x.res], ['People', x.people ? plural(x.people, 'person', 'people') : 'No people'], ['Setting', x.setting], ['Folder', x.folder], ['In an ad', x.used ? 'Yes' : 'Not yet']],
         actions: [ctx.isClient ? null : oldLocus(ctx, { label: 'Open in old ' + APP_NAME })] }) },
         picture({ src: x.thumb, art: x.art, video: true, ratio: '16/9', badge: len(x.secs) }),
-        h('b', null, x.name), h('small', null, [x.setting, x.used ? 'used in an ad' : 'not used yet'].filter(Boolean).join(', ')))));
+        h('b', null, x.name), h('div', { class: 'lb-tags' }, x.setting ? h('span', null, x.setting) : null, h('span', null, x.used ? 'Used in an ad' : 'Not used yet')))));
     };
     const pick = h('div');
     const drawChips = () => put(pick, chips([{ id: 'all', label: 'Everything' }, { id: 'unused', label: 'Not used yet', n: items.filter(x => !x.used).length },
-      { id: 'people', label: 'With people', n: items.filter(x => x.people > 0).length }, { id: 'none', label: 'No people', n: items.filter(x => !x.people).length }], who, id => { who = id; drawChips(); draw(); }));
+      { id: 'people', label: 'With people', n: items.filter(x => x.people > 0).length }, { id: 'none', label: 'No people', n: items.filter(x => !x.people).length }], who, id => { who = id; drawChips(); draw(); }, 'Show'));
     drawChips(); draw();
+    const old = ctx.isClient ? null : oldLocus(ctx, { label: 'Open the footage in old ' + APP_NAME });
     put(el,
-      data && data.example && !SAMPLE ? h('div', null, exampleChip()) : null,
+      pageTop([
+        { title: 'What it is for', text: 'Raw clips and B-roll the team can cut ads from: length, setting, who is in them, and whether an ad has used them yet. Tap one for its details.' },
+        { title: 'Where it comes from', text: 'Files stay where they are; nothing here moves or changes them.' + (data && data.example ? ' The clips here are an example until the footage feed is built.' : '') },
+      ], data && data.example && !SAMPLE ? exampleChip() : null, old ? teamTag() : null, old),
       hero({ line: true },
         kpis([
           kpi({ label: 'Clips', value: num(data.total || items.length), sub: data.hours ? data.hours + ' hours of footage' : null }),
           kpi({ label: 'Not used in an ad yet', value: num(items.filter(x => !x.used).length), sub: 'of the newest ' + items.length }),
           kpi({ label: 'With people', value: num(items.filter(x => x.people > 0).length), sub: 'real people, filmed' }),
         ], { cols: 3 })),
-      h('div', { class: 'lb-tools' }, search('Search: swing, buckle, unboxing', '', v => { q = v; draw(); }), count, h('span', { class: 'lx-sp' }), assetsButton(ctx, null), ctx.isClient ? null : oldLocus(ctx, { label: 'Open the footage in old ' + APP_NAME })),
-      pick, grid,
-      h('p', { class: 'lx-foot' }, 'Clips and B-roll the team can cut from. Files stay where they are; nothing here moves or changes them.'));
+      h('div', { class: 'lb-tools' }, search('Search: swing, buckle, unboxing', '', v => { q = v; draw(); }), count, h('span', { class: 'lx-sp' }), assetsButton(ctx, null)),
+      pick, grid);
   },
 };

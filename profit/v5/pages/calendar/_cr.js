@@ -4,6 +4,7 @@
 
 import { exampleChip as kitExampleChip } from '../../kit.js';
 import { h, addStyles, button, toast, dateBlock, statusDot } from '../../kit.js';
+import { pageHelp } from '../../defs.js';
 
 /* ---------- dates (whole days, no time zones) ---------- */
 const DAY = 864e5;
@@ -39,16 +40,53 @@ export function heading(title, n, note) {
   return h('div', { class: 'cr-h' }, h('h2', null, title), n != null && h('span', { class: 'lx-count' }, String(n)), note && h('span', { class: 'note' }, note));
 }
 
-/** row({ lead, title, sub, cells: [{ w, node, class }], action, onclick })
+/** row({ lead, title, sub, cells: [{ w, node, class, label }], action, onclick, late, one }). one: the sub on one line.
     One list row with a real height. Desktop: lead, words, fixed cells, the button. Phone: stacked. */
-export function row({ lead, title, sub, cells = [], action, onclick, late } = {}) {
-  return h(onclick ? 'button' : 'div', { class: 'cr-row' + (onclick ? ' click' : '') + (lead ? '' : ' nolead'), type: onclick ? 'button' : null, onclick },
+export function row({ lead, title, sub, cells = [], action, onclick, late, one } = {}) {
+  /* a clickable row is a div with the button role (it can hold its own buttons, which a <button> may not) */
+  return h('div', { class: 'cr-row' + (onclick ? ' click' : '') + (lead ? '' : ' nolead'), role: onclick ? 'button' : null, tabindex: onclick ? '0' : null, onclick,
+    onkeydown: onclick ? e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); onclick(e); } } : null },
     lead ? h('span', { class: 'cr-lead' }, lead) : null,
-    h('span', { class: 'cr-what' }, h('b', null, title), sub ? h('span', { class: 'cr-sub' + (late ? ' late' : '') }, sub) : null),
+    h('span', { class: 'cr-what' }, h('b', null, title), sub ? h('span', { class: 'cr-sub' + (late ? ' late' : '') + (one ? ' one' : ''), title: one && typeof sub === 'string' ? sub : null }, sub) : null),
     cells.length ? h('span', { class: 'cr-cells' }, cells.filter(Boolean).map(c => h('span', { class: 'cr-cell ' + (c.class || ''), style: c.w ? { '--w': c.w + 'px' } : null }, c.label ? h('small', null, c.label) : null, c.node))) : null,
-    action ? h('span', { class: 'cr-go' }, action) : null);
+    /* the action slot is always there (empty when the row has none), so every row's cells stay in their columns */
+    h('span', { class: 'cr-go' }, action || null));
 }
-export const list = (rows, none) => h('div', { class: 'cr-list' }, rows.length ? rows : h('p', { class: 'cr-none' }, none || 'Nothing here yet.'));
+/** list(rows, none, { head, go }) : the rows under one optional header row.
+    head: [{ label, w }] one entry per cell, same widths as the rows' cells; first: the words over the title column.
+    go: the width of the action slot in px, so every row (with or without buttons) lines its cells up.
+    The header shows on a desktop only; on a phone each cell carries its own small label. */
+export function list(rows, none, { head, first = '', go } = {}) {
+  const el = h('div', { class: 'cr-list', style: go ? { '--go': go + 'px' } : null });
+  if (head && rows.length) el.append(h('div', { class: 'cr-row nolead cr-head', 'aria-hidden': 'true' },
+    h('span', { class: 'cr-what' }, first),
+    h('span', { class: 'cr-cells' }, head.filter(Boolean).map(c => h('span', { class: 'cr-cell ' + (c.class || ''), style: c.w ? { '--w': c.w + 'px' } : null }, c.label))),
+    h('span', { class: 'cr-go' })));
+  el.append(...(rows.length ? rows : [h('p', { class: 'cr-none' }, none || 'Nothing here yet.')]));
+  return el;
+}
+/** A quiet word in the action slot of a row that has no buttons ("Link ended"). */
+export const goNote = text => h('span', { class: 'cr-gonote' }, text);
+
+/** The quiet bar at the top of a page: the one "What is this page?" help, then anything else (no footers). */
+export const helpBar = (body, ...kids) => h('div', { class: 'cr-bar-top cr-helpbar' }, pageHelp({ body }), ...kids);
+
+/** The filter row: searchBox, selectBox and a "n of m, Clear" note. Built once; only the list under it redraws,
+    so typing in the search never loses its place. */
+export function searchBox(value, onInput, placeholder = 'Search') {
+  const el = h('input', { class: 'lx-input cr-search', type: 'search', placeholder, 'aria-label': placeholder, value: value || '' });
+  el.addEventListener('input', () => onInput(el.value));
+  return el;
+}
+/** selectBox('Brand', [{ id, label }], value, onPick) */
+export function selectBox(label, items, value, onPick) {
+  const el = h('select', { class: 'lx-input cr-select', 'aria-label': label, title: label }, items.map(it => h('option', { value: it.id, selected: it.id === value ? true : null }, it.label)));
+  el.value = value;
+  el.addEventListener('change', () => onPick(el.value));
+  return el;
+}
+/** "4 of 12 shown, Clear filters" when a filter is on, else nothing. */
+export const filterNote = (n, m, on, onClear) => on ? h('span', { class: 'cr-fnote' }, n + ' of ' + m + ' shown', h('button', { type: 'button', class: 'cr-clear', onclick: onClear }, 'Clear filters')) : null;
 
 /** A button that copies a link and says so. */
 export function copyBtn(url, label = 'Copy link') {
@@ -98,13 +136,17 @@ export function monthGrid({ month, today, events = [], onPick, lanes = 3 } = {})
         e.color ? h('i', { style: { '--dot': e.color } }) : null, h('span', null, e.name)));
     }
     more.forEach((n, c) => { if (n) wk.append(h('span', { class: 'cr-more', style: { gridColumn: String(c + 1), gridRow: String(lanes + 2) } }, '+ ' + n + ' more')); });
+    /* a week is only as tall as the bars it holds (a quiet week does not take a full 150px) */
+    wk.style.setProperty('--lanes', String(Math.max(1, more.some(Boolean) ? lanes + 1 : used.length)));
     el.append(wk);
   }
   return el;
 }
 
-/** The legend under a calendar: what the three dots mean. */
-export const statusLegend = () => h('div', { class: 'cr-legend' }, statusDot('good', 'Confirmed'), statusDot('warn', 'Pencilled in'), statusDot('bad', 'No offer written'));
+/** The legend under a calendar: the bar's left edge is its status; with brands, the small square is the brand's color. */
+export const statusLegend = ({ brand = false } = {}) => h('div', { class: 'cr-legend' },
+  h('span', { class: 'cr-lg-h' }, 'Left edge:'), statusDot('good', 'Confirmed'), statusDot('warn', 'Pencilled in'), statusDot('bad', 'No offer written'),
+  brand ? h('span', { class: 'cr-lg-b' }, h('i'), 'Square = the brand') : null);
 
 /** A date block that reads "NOV 26". */
 export const dateOf = (d, today) => dateBlock(d, { month: true, now: d === today });
@@ -127,10 +169,22 @@ const CSS = `
 .cr-bar-top .lx-seg{max-width:100%;overflow-x:auto;scrollbar-width:none}
 .cr-bar-top .lx-seg button{flex:none;white-space:nowrap}
 .cr-bar-top .sp{flex:1}
+.cr-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0;padding-bottom:12px}
+.cr-tools .lx-input{height:36px;font-size:13.5px;border-radius:10px;width:auto}
+.cr-tools .cr-search{flex:1 1 220px;min-width:180px;max-width:320px}
+.cr-tools .cr-select{flex:none;max-width:200px}
+.cr-fnote{display:inline-flex;gap:10px;align-items:center;font-size:13px;color:var(--muted)}
+.cr-clear{border:0;background:none;padding:0;font:inherit;font-size:13px;font-weight:600;color:var(--ink);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.cr-fold{display:flex;align-items:center;gap:10px;width:100%;min-height:var(--row-h-roomy,48px);padding:10px 0;border:0;border-top:1px solid var(--line);background:none;font:inherit;font-size:14px;font-weight:600;color:var(--ink-2);text-align:left;cursor:pointer}
+.cr-fold:hover{color:var(--ink)}
+.cr-fold small{font-weight:400;color:var(--muted);font-size:13px}
+.cr-sub.one{-webkit-line-clamp:1}
 .cr-list{display:grid;min-width:0}
-.cr-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:18px;align-items:center;min-height:74px;padding:13px 0;border:0;border-top:1px solid var(--line);background:transparent;width:100%;text-align:left;font:inherit;color:inherit;min-width:0}
+.cr-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:18px;align-items:center;min-height:var(--row-h-roomy,48px);padding:10px 0;border:0;border-top:1px solid var(--line);background:transparent;width:100%;text-align:left;font:inherit;color:inherit;min-width:0}
 .cr-row.nolead{grid-template-columns:minmax(0,1fr) auto auto}
 .cr-row.click{cursor:pointer}
+.cr-row.click:focus-visible{outline:2px solid var(--ink-2);outline-offset:2px;border-radius:8px}
+.cr-row.click:hover{background:var(--row-hover);border-radius:10px;box-shadow:-10px 0 0 var(--row-hover),10px 0 0 var(--row-hover)}
 .cr-row.click:hover .cr-what b{text-decoration:underline;text-decoration-color:var(--line-strong);text-underline-offset:3px}
 .cr-lead{display:flex;align-items:center}
 .cr-lead:empty{display:none}
@@ -144,7 +198,12 @@ const CSS = `
 .cr-cell.strong{font-weight:600;color:var(--ink)}
 .cr-cell.num{text-align:right}
 .cr-cell .lx-stat{white-space:normal}
-.cr-go{display:flex;justify-content:flex-end;gap:8px;min-width:0}
+.cr-go{display:flex;justify-content:flex-end;align-items:center;gap:8px;min-width:var(--go,0)}
+.cr-go:empty{min-width:var(--go,0)}
+.cr-gonote{font-size:13px;color:var(--muted);white-space:nowrap}
+.cr-head{min-height:32px;padding:0;border-top:0}
+.cr-head .cr-what,.cr-head .cr-cell{font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.cr-head+.cr-row{border-top:1px solid var(--line)}
 .cr-go .lx-btn{height:36px;white-space:nowrap}
 .cr-none{padding:18px 0;border-top:1px solid var(--line);font-size:13.5px;color:var(--muted)}
 .cr-brand{display:inline-flex;align-items:center;gap:8px;font-size:13.5px;font-weight:500;color:var(--ink-2);min-width:0}
@@ -154,7 +213,7 @@ const CSS = `
 .cr-month{display:grid;border-radius:18px;box-shadow:var(--sh-1);background:#fff;overflow:hidden;min-width:0}
 .cr-dow{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-bottom:1px solid var(--line)}
 .cr-dow span{padding:10px 12px;font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
-.cr-week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));grid-template-rows:34px repeat(4,26px);row-gap:3px;min-height:150px;padding-bottom:8px;border-top:1px solid var(--line);position:relative}
+.cr-week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));grid-template-rows:34px repeat(var(--lanes,4),26px);row-gap:3px;min-height:72px;padding-bottom:8px;border-top:1px solid var(--line);position:relative}
 .cr-dow+.cr-week{border-top:0}
 .cr-day{grid-row:1 / -1;padding:8px 10px;border-left:1px solid var(--line);min-width:0}
 .cr-day:first-child{border-left:0}
@@ -164,12 +223,28 @@ const CSS = `
 .cr-day.today b{background:var(--ink);color:#fff;padding:0 6px}
 .cr-day.out{background:var(--surface-2)}
 .cr-bar{display:flex;align-items:center;gap:6px;height:24px;margin:0 5px;padding:0 9px;border:0;border-radius:8px;background:var(--bg-sunk);font:inherit;font-size:12.5px;font-weight:550;color:var(--ink);text-align:left;cursor:pointer;min-width:0;z-index:1}
-.cr-bar::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--faint);flex:none}
-.cr-bar.good::before{background:var(--good)}
-.cr-bar.warn::before{background:var(--watch)}
-.cr-bar.bad::before{background:var(--bad)}
+.cr-bar{box-shadow:inset 3px 0 0 var(--faint)}
+.cr-bar.good{box-shadow:inset 3px 0 0 var(--good)}
+.cr-bar.warn{box-shadow:inset 3px 0 0 var(--watch)}
+.cr-bar.bad{box-shadow:inset 3px 0 0 var(--bad)}
+.cr-bar.cont{box-shadow:none}
+.cr-lg-h{font-size:12.5px;color:var(--muted)}
+.cr-lg-b{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-2)}
+.cr-lg-b i{width:8px;height:8px;border-radius:3px;background:var(--ink-2)}
+.cr-prog{display:grid;gap:6px;margin:4px 0 2px}
+.cr-prog .bar{height:8px;border-radius:999px;background:var(--bg-sunk);overflow:hidden}
+.cr-prog .bar i{display:block;height:100%;background:var(--good);border-radius:999px}
+.cr-prog small{font-size:12.5px;color:var(--muted)}
+.cr-shead{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.cr-shead .when{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums}
+.cr-shead .away{font-size:13px;color:var(--muted)}
+/* a kpi whose value is words ("Running now", "2 days ago") is drawn at the smaller word size */
+.lx-kpi .v.words{font-size:var(--num-m);letter-spacing:-.015em;line-height:1.25;white-space:normal}
+.cr-tile-click{cursor:pointer;border-radius:12px}
+.cr-tile-click:hover{background:var(--row-hover)}
+.cr-tile-click.on{box-shadow:inset 0 0 0 1.5px var(--ink)}
 .cr-bar.mail{background:transparent;color:var(--muted);font-weight:450}
-.cr-bar.mail::before{background:transparent;box-shadow:inset 0 0 0 1.5px var(--faint)}
+.cr-bar.mail{box-shadow:inset 0 0 0 1px var(--line-strong)}
 .cr-bar i{width:8px;height:8px;border-radius:3px;background:var(--dot);flex:none}
 .cr-bar span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .cr-bar.cont{margin-left:0;border-top-left-radius:0;border-bottom-left-radius:0}
@@ -210,7 +285,7 @@ const CSS = `
 
 .cr-heroline{display:grid;gap:8px;min-width:0}
 .cr-heroline .lab{font-size:13px;color:var(--muted)}
-.cr-heroline .big{font-size:30px;font-weight:600;letter-spacing:-.035em;line-height:1.15;overflow-wrap:anywhere}
+.cr-heroline .big{font-size:var(--num-l);font-weight:600;letter-spacing:-.035em;line-height:1.15;overflow-wrap:anywhere}
 .cr-heroline .of{font-size:13.5px;color:var(--muted);font-variant-numeric:tabular-nums}
 .cr-herogrid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.4fr);gap:44px;align-items:end}
 /* a row of big tiles wrapped in .cr-fit keeps its count on one row: when the figures at full size would need a
@@ -247,6 +322,8 @@ const CSS = `
 }
 @media (max-width:759px){
   .cr-row{grid-template-columns:auto minmax(0,1fr);gap:8px 14px;min-height:0;padding:15px 0;align-items:start}
+  .cr-head{display:none}
+  .cr-go:empty{display:none}
   .cr-row.nolead{grid-template-columns:minmax(0,1fr)}
   .cr-cells{grid-column:1/-1;flex-wrap:wrap;gap:6px 18px}
   .cr-cell{width:auto;text-align:left!important}
@@ -256,14 +333,16 @@ const CSS = `
   .cr-go .lx-btn{flex:1;height:44px}
   .cr-month{border-radius:16px}
   .cr-dow span{padding:8px 0;text-align:center;font-size:9.5px;letter-spacing:.04em}
-  .cr-week{grid-template-rows:30px repeat(4,8px);row-gap:3px;min-height:78px;padding-bottom:6px}
+  .cr-week{grid-template-rows:30px repeat(var(--lanes,4),8px);row-gap:3px;min-height:56px;padding-bottom:6px}
   .cr-day{padding:5px 0;text-align:center}
   .cr-day b{font-size:12px;min-width:22px;height:22px}
   .cr-bar{height:8px;margin:0 3px;padding:0;border-radius:4px;background:var(--faint)}
-  .cr-bar::before,.cr-bar span,.cr-bar i{display:none}
+  .cr-bar span,.cr-bar i{display:none}
+  .cr-bar,.cr-bar.good,.cr-bar.warn,.cr-bar.bad{box-shadow:none}
   .cr-bar.good{background:var(--good)}.cr-bar.warn{background:var(--watch)}.cr-bar.bad{background:var(--bad)}
   .cr-bar.mail{background:transparent;box-shadow:inset 0 0 0 1.5px var(--icon)}
   .cr-more{font-size:0;padding:0;justify-self:center;width:4px;height:4px;border-radius:50%;background:var(--muted)}
+  .cr-tools .cr-search,.cr-tools .cr-select{flex:1 1 100%;max-width:none}
   .cr-nav{width:100%}
   .cr-nav h2{flex:1;min-width:0;font-size:18px}
   .cr-kv{grid-template-columns:110px minmax(0,1fr)}

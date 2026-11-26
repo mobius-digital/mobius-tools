@@ -11,7 +11,7 @@
 import { h, hero, kpi, kpis, em, button, statusDot, empty, skeleton, sheet, addStyles } from '../../kit.js';
 import { SAMPLE } from '../../data.js';
 import { legacyUrl, APP_NAME } from '../../config.js';
-import { put, css, plural, day } from '../production/_ui.js';
+import { put, css, plural, day, pageTop, oldLocus } from '../production/_ui.js';
 import { crCss, clip, keyedBrands } from '../creators/_cr.js';
 
 /* ---------- shared with By brand ---------- */
@@ -49,7 +49,7 @@ export const oldCreators = actId => legacyUrl('trybe', actId);
 export const todayStr = () => new Date().toLocaleDateString('en-CA');
 /** "Could not read: A, B." under a page, when a brand did not answer. */
 export function notRead(ctx, failed) {
-  return failed && failed.length ? h('p', { class: 'lx-foot ac-miss' }, statusDot('warn', 'Could not read ' + failed.map(f => (brandOf(ctx, f.act_id) || {}).name || f.name || 'a brand').join(', ') + '. Its videos are not counted here.')) : null;
+  return failed && failed.length ? h('p', { class: 'cr-quiet ac-miss' }, statusDot('warn', 'Could not read ' + failed.map(f => (brandOf(ctx, f.act_id) || {}).name || f.name || 'a brand').join(', ') + '. Its videos are not counted here.')) : null;
 }
 
 const AC_CSS = `
@@ -102,12 +102,11 @@ function openVideo(ctx, group, it, today) {
       it.created_at ? h('div', null, h('dt', null, 'Sent'), h('dd', null, day(it.created_at) + (age != null ? ', ' + agoText(age) : ''))) : null),
     it.line ? h('q', { class: 'ac-said' }, '"' + it.line + '"') : null,
     h('div', { class: 'ac-off' },
-      h('div', { class: 'lx-row' }, button('Approve', { primary: true, disabled: true }), button('Skip', { disabled: true }),
-        old ? button('Review in old ' + APP_NAME, { href: old, target: '_blank', icon: 'arrow' }) : null),
-      h('p', null, 'Approve and Skip are switched off here. Approving pays the creator and tells them, so the yes is given in old ' + APP_NAME + ' or the creator platform.')));
+      old ? h('div', { class: 'lx-row' }, oldLocus(ctx, { label: 'Approve in old ' + APP_NAME, href: old, primary: true })) : null,
+      h('p', null, 'Approving pays the creator and tells them, so the yes is given in old ' + APP_NAME + ' or the creator platform.')));
   const sh = sheet({ title: it.creator || 'Creator', body, class: 'cr-sheet ac-sheet' });
   window.addEventListener('hashchange', () => sh.close(), { once: true });   // leaving the page closes the sheet
-  if (SAMPLE) { put(box, clip(it), h('p', { class: 'cr-quiet' }, 'The video plays here with real data.')); return; }
+  if (SAMPLE) { put(box, clip(it), h('p', { class: 'cr-quiet' }, 'Sample numbers: the video itself plays here with real data.')); return; }
   put(box, h('p', { class: 'cr-quiet' }, 'Getting the video...'));
   ctx.api(`/api/trybe/video?act=${encodeURIComponent(group.act_id)}&sub=${encodeURIComponent(it.sub_id || it.id)}`, { worker: 'ah' }).then(r => {
     const url = r && (r.url || r.video_url || r.src);
@@ -164,10 +163,13 @@ export default {
         kpis([
           kpi({ label: 'Waiting for a yes', value: String(all.length), sub: plural(people, 'creator') + ', ' + plural(groups.length, 'brand') }),
           kpi({ label: 'Oldest', value: worst.oldest != null ? plural(worst.oldest, 'day') : 'no date',
-            sub: worst.oldest == null ? null : worst.oldest >= 3 ? statusDot('bad', (brandOf(ctx, worst.act_id) || {}).name || worst.name || '3 days or more') : statusDot('good', 'under 3 days') }),
+            sub: worst.oldest == null ? null : worst.oldest >= 3 ? statusDot('bad', ((brandOf(ctx, worst.act_id) || {}).name || worst.name || 'A brand') + ', over the 3 day line') : statusDot('good', 'inside the 3 day line') }),
           kpi({ label: 'Brands waiting 3 days or more', value: String(late.length), sub: late.length ? statusDot('bad', 'review these first') : statusDot('good', 'none') }),
         ], { cols: 3 })),
-      h('div', { class: 'pd-tools' }, h('span', { class: 'cr-quiet' }, 'Grouped by brand, the longest wait on top. Oldest first inside a brand. Tap a video to watch it.')),
+      pageTop([
+        { title: 'What it is for', text: 'Every creator video waiting for a yes on any brand, grouped by brand, the longest wait on top and oldest first inside a brand. A wait of 3 days or more is over the line.' },
+        { title: 'Why approving is not here', text: 'Approving pays the creator and tells them, so it is done in old ' + APP_NAME + ' or the creator platform. Tap a video to watch it; the sheet has the button. A brand with no creator platform connected is not listed.' },
+      ]),
       groups.map(g => {
         const b = brandOf(ctx, g.act_id), to = brandPage(ctx, g.act_id, 'to-review');
         return h('section', { class: 'ac-group' },
@@ -178,12 +180,11 @@ export default {
             h('span', { class: 'lx-sp' }),
             to ? button('Open the brand', { href: to, icon: 'arrow', ghost: true }) : null),
           h('div', { class: 'cr-grid' }, g.items.map(it => h('article', { class: 'cr-tile' },
-            h('button', { type: 'button', 'aria-label': 'Open the video by ' + (it.creator || 'a creator'), onclick: () => openVideo(ctx, g, it, today) }, clip(it)),
-            h('div', null, h('b', null, it.creator || 'Creator'), h('small', null, [it.product, agoText(ageOf(it, today))].filter(Boolean).join(', '))),
-            it.angle ? h('span', { class: 'lx-chip cr-tag' }, it.angle) : null,
+            h('button', { type: 'button', 'aria-label': 'Open the video by ' + (it.creator || 'a creator'), onclick: () => openVideo(ctx, g, it, today) }, clip(it, agoText(ageOf(it, today)))),
+            h('div', null, h('b', null, it.creator || 'Creator'), it.product ? h('small', null, it.product) : null),
+            it.angle ? h('span', { class: 'lx-chip cr-tag' }, 'Angle: ' + it.angle) : null,
             it.line ? h('q', null, it.line) : null))));
       }),
-      notRead(ctx, failed),
-      h('p', { class: 'lx-foot' }, 'Read only here. Approving pays the creator and tells them, so it is done in old ' + APP_NAME + ' or the creator platform. A brand with no creator platform connected is not listed.'));
+      notRead(ctx, failed));
   },
 };

@@ -11,7 +11,21 @@
 import { put } from '../../kit.js';
 import { h, hero, card, gauge, takeaway, kpis, kpi, statusDot, money, x, pct, em, empty, platformChip, addStyles } from '../../kit.js';
 import { AI_NAME, APP_NAME } from '../../config.js';
-import { css, stage, saveBar, numBox, seg, exampleChip, facts, fold, say } from './_set.js';
+import { css, stage, saveBar, numBox, seg, exampleChip, fold, say, setHelp } from './_set.js';
+import { defLabel } from '../../defs.js';
+
+/* hover definitions this page needs that the shared glossary does not have */
+const DEF = {
+  keep: { title: 'What an order keeps', body: 'The share of each sales dollar left after product cost, postage and payment fees, before any ad spend. Also called the margin.' },
+  left: { title: 'Left after ads, per sales dollar', body: 'The cents of each sales dollar you want to keep after ads are paid. More cents left means a higher goal MER and less spend on new customers.' },
+  goal_roas: { title: 'Goal ROAS in use (all ads)', body: 'The ROAS every platform and campaign is judged on, unless a platform has its own goal below. Saved for everyone. ROAS is one platform or campaign: Triple Whale attributed sales (last click) divided by its spend.' },
+  platform_goal: { title: 'Platform goal ROAS', body: 'Used instead of the all-ads goal ROAS for ads on this platform only.' },
+  first_order: { title: 'First order size', body: 'The average first order of a new customer, paying orders only, from Triple Whale.' },
+  order_again: { title: 'Order again', body: 'The share of new customers who place a second order within 90 days.' },
+  returning: { title: 'Returning sales', body: 'The share of store sales that came from customers who had ordered before.' },
+  order_size: { title: 'Order size', body: 'Average order value: store sales divided by orders, paying orders only ($0 and creator sample orders left out).' },
+  goal_cac: { title: 'Goal cost per new customer', body: 'The most the ads should spend to win one new customer and still leave the cents you asked for. Ad spend divided by new customers.' },
+};
 
 const ok = n => n != null && isFinite(n) && n > 0;
 const STANCE = [{ id: 'profit', label: 'Profit now' }, { id: 'balanced', label: 'Balanced' }, { id: 'growth', label: 'Growth' }];
@@ -68,13 +82,14 @@ function draw(el, data, ctx) {
     const max = Math.max(mer, w.goalMer || 0, w.be || 0) * 1.25;
     put(top, hero({ line: true },
       h('div', { class: 'lx-gl-top' },
-        h('span', { class: 'lx-hero-num' }, x(mer)), h('span', { class: 'lab' }, 'MER ' + (data.mtd.dates ? data.mtd.dates : 'this month')), statusDot(tone, word),
+        h('span', { class: 'lx-hero-num' }, x(mer)), h('span', { class: 'lab' }, defLabel('Store MER', 'mer'), ', ' + (data.mtd.dates ? data.mtd.dates : 'this month')), statusDot(tone, word),
         h('span', { class: 'lx-sp' }), h('span', { class: 'src' }, 'store sales ' + money(data.mtd.sales) + ' / all ad spend ' + money(data.mtd.spend))),
       gauge({ value: mer, max, goal: w.goalMer || undefined, tone, ticks: [
         w.be && { at: w.be, text: 'Break-even ' + x(w.be) }, far(mer, [w.be, w.goalMer], max) && { at: mer, text: 'Now ' + x(mer), on: true }, w.goalMer && { at: w.goalMer, text: 'Goal ' + x(w.goalMer) }].filter(Boolean) }),
-      takeaway(w.be && w.goalMer
-        ? ['Every dollar of ads brings back ', h('b', null, money(mer, { cents: true })), '. The order is covered at ', h('b', null, money(w.be, { cents: true })), ' and the goal is ', h('b', null, money(w.goalMer, { cents: true })), '.']
-        : ['Every dollar of ads brings back ', h('b', null, money(mer, { cents: true })), '. Fill in the four facts to see break-even and the goal.'])));
+      /* the gauge already shows now, break-even and goal: a line only when it adds something the gauge does not */
+      w.be && w.goalMer
+        ? (mer < w.goalMer ? takeaway(['At this ad spend the store needs ', h('b', null, money(Math.round((w.goalMer - mer) * data.mtd.spend))), ' more sales to reach the goal MER.']) : null)
+        : takeaway('Fill in the four facts below to see break-even and the goal.')));
   };
 
   /* what Locus works out: each number shows its working, and the number in use today beside it */
@@ -94,7 +109,7 @@ function draw(el, data, ctx) {
       state.replaceChildren(ok(now) && ok(was) && +now !== +was ? statusDot('warn', 'Not saved yet, was ' + show(was)) : !ok(now) ? statusDot('off', 'Not set') : !ok(was) ? statusDot('warn', 'Not saved yet') : w == null ? statusDot('off', 'In use today') : near(now, w) ? statusDot('good', 'Matches the working') : statusDot('warn', 'Set by hand'));
       use1.replaceChildren(w == null || near(now, w) ? '' : own() ? h('button', { class: 'lx-btn quiet', type: 'button', onclick: () => { box.querySelector('input').value = w; S.set(liveKey, w); bits(); } }, 'Use ' + show(w)) : h('small', null, 'Worked from example facts, so type the goal yourself.'));
     }
-    const cell = h('div', { class: 'u' }, h('span', null, 'Goal in use'), box, state, use1);
+    const cell = h('div', { class: 'u' }, name === 'Goal ROAS' ? defLabel('Goal ROAS in use (all ads)', DEF.goal_roas) : defLabel('Goal cost in use', DEF.goal_cac), box, state, use1);
     cell.bits = bits;
     return cell;
   };
@@ -108,36 +123,37 @@ function draw(el, data, ctx) {
     const need = what => 'Needs ' + what + '.';
     roasCell.bits(); cpaCell.bits();
     put(outs,
-      outRow('Break-even MER', w.be ? `An order keeps ${cents(w.k)} of each dollar, so ads can take up to ${cents(w.k)}. 1 / ${w.k.toFixed(2)}.` : need('what an order keeps'), w.be ? x(w.be) : 'not set', 'whole store'),
-      outRow('Break-even MER with fixed costs', w.beFixed ? `Fixed costs are ${money(v.fixed)} a month, ${pct(w.fixedShare, { digits: 1 })} of sales at this goal. 1 / (${w.k.toFixed(2)} minus ${w.fixedShare.toFixed(3)}).` : need('fixed costs and a sales goal'), w.beFixed ? x(w.beFixed) : 'not set', 'whole store'),
-      outRow('Goal MER', w.goalMer ? `You want ${cents(w.l)} left after ads. 1 / (${w.k.toFixed(2)} minus ${w.l.toFixed(2)}).` : need('what an order keeps and the stance'), w.goalMer ? x(w.goalMer) : 'not set', 'whole store', roasCell),
-      outRow('Goal cost per new customer', w.goalCac != null ? `A first order is ${money(v.first)} and keeps ${cents(w.k)} of each dollar, so break-even is ${money(Math.round(w.beCac))}. Goal: ${money(Math.round(w.beCac))} minus ${cents(w.l)} of ${money(v.first)}.` : need('the first order size from the store'),
+      h('div', { class: 'lx-gl-out head' }, h('div', null, 'Goal'), h('div', { class: 'v' }, 'Worked out'), h('div', { class: 'u' }, 'In use today')),
+      outRow(defLabel('Break-even MER', 'break_even_mer'), w.be ? `An order keeps ${cents(w.k)} of each dollar, so ads can take up to ${cents(w.k)}. 1 / ${w.k.toFixed(2)}.` : need('what an order keeps'), w.be ? x(w.be) : 'not set', 'whole store'),
+      outRow(defLabel('Break-even MER with fixed costs', { title: 'Break-even MER with fixed costs', body: 'The store MER where ads use up the profit on sales and the monthly fixed costs too (rent, people, software).' }), w.beFixed ? `Fixed costs are ${money(v.fixed)} a month, ${pct(w.fixedShare, { digits: 1 })} of sales at this goal. 1 / (${w.k.toFixed(2)} minus ${w.fixedShare.toFixed(3)}).` : need('fixed costs and a sales goal'), w.beFixed ? x(w.beFixed) : 'not set', 'whole store'),
+      outRow(defLabel('Goal MER', 'target_mer'), w.goalMer ? `You want ${cents(w.l)} left after ads. 1 / (${w.k.toFixed(2)} minus ${w.l.toFixed(2)}).` : need('what an order keeps and the stance'), w.goalMer ? x(w.goalMer) : 'not set', 'whole store', roasCell),
+      outRow(defLabel('Goal cost per new customer', DEF.goal_cac), w.goalCac != null ? `A first order is ${money(v.first)} and keeps ${cents(w.k)} of each dollar, so break-even is ${money(Math.round(w.beCac))}. Goal: ${money(Math.round(w.beCac))} minus ${cents(w.l)} of ${money(v.first)}.` : need('the first order size from the store'),
         w.goalCac != null ? money(Math.round(w.goalCac)) : 'not set', w.beCac != null ? 'break-even ' + money(Math.round(w.beCac)) : null, cpaCell),
       ...[['meta', use.goal_meta], ['google', use.goal_google], ['tiktok', use.goal_tiktok]].filter(p => ok(p[1])).map(([p, g]) =>
-        h('div', { class: 'lx-gl-out' }, h('div', null, h('div', { class: 'k' }, platformChip(p, { label: 'Goal ROAS, ' + ({ meta: 'Meta', google: 'Google', tiktok: 'TikTok' })[p] })), h('div', { class: 'w' }, 'What Triple Whale credits this platform, against its own goal. Ads on this platform are judged on it.')),
+        h('div', { class: 'lx-gl-out' }, h('div', null, h('div', { class: 'k' }, platformChip(p, { label: ' ' }), defLabel('Goal ROAS, ' + ({ meta: 'Meta', google: 'Google', tiktok: 'TikTok' })[p], DEF.platform_goal)), h('div', { class: 'w' }, 'Used instead of the all-ads goal for this platform. Triple Whale credited sales, last click.')),
           h('div', { class: 'v' }, h('b', null, x(g))), h('div', { class: 'u' }, statusDot('warn', 'Set by hand')))));
   };
 
   /* the four facts */
-  const step = (n, title, control, hint) => h('div', { class: 'lx-gl-step' }, h('span', { class: 'n' }, n), h('div', { class: 'k' }, title), h('div', { class: 'c' }, control), h('p', { class: 'hint' }, hint));
+  const step = (n, title, control, hint) => h('div', { class: 'lx-gl-step' }, h('div', { class: 'k' }, title), h('div', { class: 'c' }, control), hint ? h('p', { class: 'hint' }, hint) : null);
   /* a change to the facts redraws the working. It never stages a goal by itself (see goalCell). */
   const again = () => { paintTop(); paintOut(); };
   const leftBox = numBox(S, key('left'), inp.left_cents, { suffix: '¢', max: 90, onInput: again, label: 'Cents left after ads' });
   steps.append(
-    step(1, 'What an order keeps', numBox(S, key('keep'), inp.keep_pct, { suffix: '%', max: 100, onInput: again, label: 'What an order keeps' }),
+    step(1, defLabel('What an order keeps', DEF.keep), numBox(S, key('keep'), inp.keep_pct, { suffix: '%', max: 100, onInput: again, label: 'What an order keeps' }),
       ok(f.order_size) && ok(f.product) ? `${money(f.order_size)} order: ${money(f.product)} product, ${money(f.postage)} postage, ${money(f.fees)} fees. Keeps ${money(f.order_size - f.product - f.postage - f.fees)} before ads.` : 'The share of each sales dollar left after product, postage and fees, before ads.'),
     step(2, 'Fixed costs a month', numBox(S, key('fixed'), inp.fixed_costs, { prefix: '$', step: 100, width: 76, onInput: again, label: 'Fixed costs a month' }), 'Optional. Rent, people, software: what you pay whether or not an order comes in.'),
     step(3, (data.month || 'This month') + ' sales goal', numBox(S, key('sales'), inp.sales_goal, { prefix: '$', step: 1000, width: 86, onInput: again, label: 'Sales goal' }), ex.has('sales_goal') ? 'Agreed with the client on the plan.' : 'Read from the plan agreed with the client.'),
-    step(4, 'Stance', [seg(S, key('stance'), inp.stance || 'profit', STANCE), leftBox],
-      'Cents of each sales dollar you want left after ads. Profit now keeps the most; Growth spends it on new customers.'));
+    step(4, 'Stance', [seg(S, key('stance'), inp.stance || 'profit', STANCE), h('span', { class: 'lx-gl-left' }, defLabel('Left after ads, per sales dollar', DEF.left), leftBox)],
+      'Profit now keeps the most; Growth spends it on new customers.'));
   S.onChange((k2, v2) => { if (k2 === key('stance') && v2 in STANCE_LEFT) { leftBox.querySelector('input').value = STANCE_LEFT[v2]; S.set(key('left'), STANCE_LEFT[v2]); } if (k2 === null || k2 === key('stance')) again(); });
 
   const factList = [
-    ok(f.order_size) && { label: 'Order size', value: money(f.order_size), sub: 'paying orders only' },
-    ok(f.first_order) && { label: 'First order size', value: money(f.first_order), sub: 'new customers' },
-    f.repeat_90 != null && { label: 'Order again', value: pct(f.repeat_90, { digits: 1 }), sub: 'within 90 days' },
-    f.returning_share != null && { label: 'Returning sales', value: pct(f.returning_share), sub: 'of store sales' },
-    ok(f.store_mer_90) && { label: 'Store MER', value: x(f.store_mer_90), sub: 'last 90 days' },
+    ok(f.order_size) && { label: defLabel('Order size', DEF.order_size), value: money(f.order_size), sub: 'paying orders only' },
+    ok(f.first_order) && { label: defLabel('First order size', DEF.first_order), value: money(f.first_order), sub: 'new customers' },
+    f.repeat_90 != null && { label: defLabel('Order again', DEF.order_again), value: pct(f.repeat_90, { digits: 1 }), sub: 'within 90 days' },
+    f.returning_share != null && { label: defLabel('Returning sales', DEF.returning), value: pct(f.returning_share), sub: 'of store sales' },
+    ok(f.store_mer_90) && { label: defLabel('Store MER', 'mer'), value: x(f.store_mer_90), sub: 'last 90 days' },
   ].filter(Boolean);
 
   const rule = (n, o = {}) => numBox(S, rk(n), R ? R[n] : null, { width: 40, ...o, label: names[rk(n)] });
@@ -146,7 +162,16 @@ function draw(el, data, ctx) {
 
   paintTop(); paintOut();
   put(el, h('div', { class: 'lx-st' },
-    saveBar(S, ctx, { label: 'Save goals', note: data.saved ? 'Saved ' + data.saved.at + ' by ' + data.saved.by + '.' : undefined }),
+    saveBar(S, ctx, { label: 'Save goals', note: data.saved ? 'Saved ' + data.saved.at + ' by ' + data.saved.by + '.' : undefined, help: setHelp({
+      about: 'You give ' + APP_NAME + ' four facts about the brand and it works out break-even and the goals from them, live as you type. Save shows every change first, then writes the goal ROAS, the goal cost and the rules for everyone.' + (ctx.isClient ? ' Changes you make are logged and your team is told.' : ' A change a client makes is logged and the team gets a bell note.'),
+      sections: [{ title: 'Store MER and ROAS', text: 'Store MER is the whole store: all sales divided by all ad spend. ROAS is one platform or campaign: the sales Triple Whale credits to it, divided by its own spend. Hover or tap any dotted label for its meaning.' }],
+      fixedTitle: 'How goals are used',
+      fixed: [
+        ['Used by', 'Home, This month, Suggestions, Black Friday, Reports, Ask ' + APP_NAME + ' AI', 'One set of goals, read everywhere.'],
+        ['Ad call rules', data.rules_exception ? 'This brand has its own numbers' : 'Agency standard, the same for every brand', 'Change them in Agency settings, How we run ads.'],
+        ['Attribution', 'Triple Whale, last platform click', 'Every sale and every ROAS. Not a setting.'],
+        ['Months', 'Calendar months', 'Goals, pace and plans are all kept by calendar month.'],
+      ] }) }),
     top,
     card({ title: 'What you tell ' + APP_NAME, note: ex.has('inputs') ? exampleChip() : '4 facts' }, steps),
     card({ title: 'What ' + APP_NAME + ' works out', note: 'Each number shows its working. A number set by hand never wins silently.', flush: true, class: 'lx-st-card' }, outs),
@@ -156,23 +181,14 @@ function draw(el, data, ctx) {
       say(h('b', null, 'Scale '), 'an ad set with ', rule('cr_scale_buys'), ' or more results on goal.'),
       say(h('b', null, 'Cut '), 'when it spent ', rule('cr_cut_zero_x', { suffix: 'x', step: 0.5 }), ' the goal with no result, or ', rule('cr_cut_spend_x', { suffix: 'x', step: 0.5 }), ' the goal at more than ', rule('cr_cut_cpa_x', { suffix: 'x', step: 0.1 }), ' the goal cost. Never while its ROAS beats the goal ROAS.'),
       say(h('b', null, 'A new test '), 'is judged after ', rule('judge_days', { suffix: 'days', width: 34 }), ' or once it has spent ', rule('judge_spend', { prefix: '$', width: 54 }), '. A spend of 0 means 3 times the goal cost.'),
-      say('An empty box, or a 0, puts that rule back on the agency standard.')) : null,
-    facts('How goals are used', [
-      ['Used by', 'Home, This month, Suggestions, Black Friday, Reports, Ask ' + APP_NAME + ' AI', 'One set of goals, read everywhere.'],
-      ['Ad call rules', data.rules_exception ? 'This brand has its own numbers' : 'Agency standard, the same for every brand', 'Change them in Agency settings, How we run ads.'],
-      ['Attribution', 'Triple Whale, last platform click', 'Every sale and every ROAS. Not a setting.'],
-      ['Months', 'Calendar months', 'Goals, pace and plans are all kept by calendar month.'],
-    ]),
-    /* a client changes its own goals and ad rules too (Cole, Nov 26): the server logs each change with who made it and tells the team */
-    ctx.isClient ? h('p', { class: 'lx-foot' }, 'Save shows every change first. Changes you make are logged and your team is told.')
-      : ctx.legacy ? h('p', { class: 'lx-foot' }, 'Save shows every change first, then writes the goal ROAS, the goal cost and the rules for everyone. A change a client makes is logged and the team gets a bell note. The four facts are kept on this device until the settings release. ', h('a', { href: ctx.legacy }, 'Old ' + APP_NAME)) : null));
+      say('An empty box, or a 0, puts that rule back on the agency standard.')) : null));
 }
 
 addStyles('lx-goals-css', `
 .lx-gl-top{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
 .lx-gl-top .lab{font-size:15px;color:var(--muted)}
 .lx-gl-top .src{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
-.lx-gl-in{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--sp-8);margin-top:var(--sp-5)}
+.lx-gl-in{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(260px,1.3fr);gap:var(--sp-8);margin-top:var(--sp-5)}
 .lx-gl-step{display:grid;gap:8px;align-content:start;min-width:0}
 .lx-gl-step .n{font-size:11px;font-weight:650;color:var(--faint);letter-spacing:.08em}
 .lx-gl-step .k{font-size:14px;font-weight:600}
@@ -180,7 +196,11 @@ addStyles('lx-goals-css', `
 .lx-gl-step .lx-st-box{height:46px;padding:0 14px;border-radius:12px}
 .lx-gl-step .lx-st-num{font-size:22px;width:64px}
 .lx-gl-step .lx-st-box i{font-size:16px}
+.lx-gl-step .lx-seg{flex-wrap:wrap;height:auto}
 .lx-gl-step .lx-seg button{white-space:nowrap;padding:5px 9px}
+.lx-gl-left{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+.lx-gl-out.head{padding-top:10px;padding-bottom:10px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.lx-gl-out .k{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .lx-gl-facts{margin-top:var(--sp-5)}
 .lx-gl-step .hint{font-size:12.5px;line-height:1.45;color:var(--muted)}
 .lx-gl-out{display:grid;grid-template-columns:minmax(0,1fr) 150px 170px;gap:6px 28px;align-items:center;padding:16px 28px;border-top:1px solid var(--line)}
@@ -188,7 +208,7 @@ addStyles('lx-goals-css', `
 .lx-gl-out .k{font-size:14px;font-weight:600}
 .lx-gl-out .w{margin-top:2px;font-size:12.5px;line-height:1.45;color:var(--muted);max-width:62ch}
 .lx-gl-out .v{text-align:right}
-.lx-gl-out .v b{display:block;font-size:24px;font-weight:600;letter-spacing:-.03em;font-variant-numeric:tabular-nums;line-height:1.15}
+.lx-gl-out .v b{display:block;font-size:var(--num-m);font-weight:600;letter-spacing:-.03em;font-variant-numeric:tabular-nums;line-height:1.15}
 .lx-gl-out .v small{font-size:12px;color:var(--muted)}
 .lx-gl-out .u{display:grid;gap:2px;justify-items:end;font-size:12px;color:var(--muted)}
 .lx-gl-out .u small{max-width:170px;text-align:right;line-height:1.35}
@@ -196,6 +216,7 @@ addStyles('lx-goals-css', `
 .lx-gl-out .u .lx-btn{height:28px;padding:0 10px;font-size:12.5px}
 .lx-gl-out .u b{font-size:15px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
 @media (max-width:1040px){.lx-gl-in{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:759px){.lx-gl-out.head{display:none}}
 @media (max-width:759px){
   .lx-gl-in{grid-template-columns:minmax(0,1fr);gap:var(--sp-6)}
   .lx-gl-out{grid-template-columns:minmax(0,1fr) auto;padding:14px 18px}

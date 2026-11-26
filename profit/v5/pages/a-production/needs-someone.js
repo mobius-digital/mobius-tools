@@ -4,11 +4,11 @@
    (POST /api/production/field { id, owner }, Asana follows). Data: GET /api/production?act=all on the account-health worker (see _ap.js). */
 
 import { APP_NAME } from '../../config.js';
-import { h, hero, kpi, kpis, em, card, statusDot, empty, skeleton } from '../../kit.js';
+import { h, hero, kpi, kpis, em, card, statusDot, empty, skeleton, table } from '../../kit.js';
 import { SAMPLE } from '../../data.js';
 import { refresh } from '../../router.js';
 import { canWrite } from '../production/_act.js';
-import { put, css, day, plural, who, oldLocus } from '../production/_ui.js';
+import { put, css, day, plural, who, oldLocus, pageTop, teamTag } from '../production/_ui.js';
 import { openCard } from '../production/_sheet.js';
 import { apCss, loadAll, brandName, isOpen, todayOf, weekOf, daysFrom } from './_ap.js';
 
@@ -50,24 +50,32 @@ const page = {
         h('span', { class: 'w' }, gap != null && gap < 0 ? statusDot('bad', 'Past its date') : gap != null && gap <= 2 ? statusDot('warn', 'Soon') : null),
         h('span', { class: 'd' + (gap != null && gap < 0 ? ' late' : '') }, !d ? 'No date' : (c.board === 'ready' ? 'Live ' : 'Due ') + day(d)));
     };
+    const old = canWrite(ctx) ? null : oldLocus(ctx, { label: 'Open in old ' + APP_NAME });
+    const key = h('div', { class: 'ap-key ap-legend' }, h('span', null, h('i', { style: { background: 'var(--bad)' } }), 'Late'), h('span', null, h('i', { style: { background: 'var(--ink-2)' } }), 'Due this week'), h('span', null, h('i', { style: { background: 'var(--line-strong)' } }), 'Later or no date'));
     put(el,
+      pageTop([
+        { title: 'What it is for', text: 'Every open card (Brief to Ready) on any brand with nobody on it, soonest date first, then who on the team has room.' },
+        { title: 'What you can do here', text: canWrite(ctx) ? 'Open a card and pick who has it. Asana follows.' : 'You can look here. Cards are assigned by the team.' },
+        { title: 'Who has room', text: 'One square per open card a person has: red is late, dark is due this week, light is later or has no date. Tap a column header to sort.' },
+      ], old ? teamTag() : null, old),
       hero({ line: true },
         kpis([
           kpi({ label: 'Open cards with nobody', value: String(nobody.length), sub: plural(new Set(nobody.map(c => c.act_id)).size, 'brand') }),
           kpi({ label: 'Due by Sunday', value: String(soon.length), sub: soon.length ? statusDot('warn', 'need someone this week') : statusDot('good', 'nothing this week') }),
           kpi({ label: 'Already past their date', value: String(lateNobody.length), sub: lateNobody.length ? statusDot('bad', 'oldest ' + day(dateOf(lateNobody[0]))) : statusDot('good', 'none') }),
         ], { cols: 3 })),
-      nobody.length ? card({ title: 'Nobody on them', note: 'soonest first', flush: true, action: canWrite(ctx) ? null : oldLocus(ctx, { label: 'Open in old ' + APP_NAME }) },
+      nobody.length ? card({ title: 'Nobody on them', note: 'soonest first', flush: true },
         h('div', { class: 'pd-list ap-list' }, nobody.map(row)))
         : card({}, h('p', { class: 'ps-none' }, 'Every open card has someone on it.')),
-      card({ title: 'Who has room', note: 'open cards, fewest first', flush: true },
-        h('div', { class: 'ap-people' }, people.map(p => h('div', { class: 'ap-person' },
-          h('div', { class: 'nm' }, who(p.name, data.photos || {}, 28), h('span', null, p.name)),
-          h('div', { class: 'ap-load', role: 'img', 'aria-label': `${p.open} open, ${p.week} due this week, ${p.late} late` },
-            Array.from({ length: p.open }, (_, i) => h('i', { class: i < p.late ? 'late' : i < p.late + p.week ? 'week' : '' }))),
-          h('div', { class: 'nums' }, p.open ? `${p.open} open, ${p.week} this week` : 'Nothing open', p.late ? h('span', { class: 'ap-late' }, `, ${p.late} late`) : null))))),
-      h('div', { class: 'ap-key ap-legend' }, h('span', null, h('i', { style: { background: 'var(--bad)' } }), 'Late'), h('span', null, h('i', { style: { background: 'var(--ink-2)' } }), 'Due this week'), h('span', null, h('i', { style: { background: 'var(--line-strong)' } }), 'Later or no date')),
-      h('p', { class: 'lx-foot' }, canWrite(ctx) ? 'Open a card and pick who has it. Asana follows.' : 'You can look here. Cards are assigned by the team.'));
+      card({ title: 'Who has room', note: 'open cards, fewest first', flush: true, action: key },
+        table({ rows: people, sort: { key: 'open', dir: 'asc' }, cols: [
+          { key: 'name', label: 'Person', sortable: true, render: p => h('span', { class: 'ap-pn' }, who(p.name, data.photos || {}, 26), p.name) },
+          { key: 'load', label: 'Their cards', class: 'hide-sm', render: p => { const later = p.open - p.late - p.week; return h('div', { class: 'ap-load', role: 'img', title: `${p.late} late, ${p.week} due this week, ${later} later or no date`, 'aria-label': `${p.open} open, ${p.week} due this week, ${p.late} late` },
+            Array.from({ length: p.open }, (_, i) => h('i', { class: i < p.late ? 'late' : i < p.late + p.week ? 'week' : '' }))); } },
+          { key: 'open', label: 'Open', num: true, sortable: true },
+          { key: 'week', label: 'This week', num: true, sortable: true },
+          { key: 'late', label: 'Late', num: true, sortable: true, render: p => p.late ? h('span', { class: 'ap-late' }, String(p.late)) : '0' },
+        ] })));
   },
 };
 export default page;

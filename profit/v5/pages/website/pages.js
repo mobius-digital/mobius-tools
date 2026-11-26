@@ -6,9 +6,10 @@
      gives the last 3 days, so those columns say so.
    Either source may be missing; the page draws what it has and never prints a zero for a source that is not there. */
 
-import { put } from '../../kit.js';
+import { put, sheet } from '../../kit.js';
+import { askWhy, helpBar, dl as defl, rangeWords } from '../home/_biz.js';
 import { h, em, card, kpi, kpis, delta, takeaway, button, table, legend, lineChart, skeleton, money } from '../../kit.js';
-import { ok, usd, move, shortDate, noteAt, css, head, barCell, before, soft, notConnected, num, pct } from '../email/_em.js';
+import { ok, usd, move, shortDate, noteAt, css, head, barCell, before, soft, notConnected, num, pct, kv } from '../email/_em.js';
 
 const path = u => { try { return new URL(u).pathname.replace(/\/$/, '') || '/'; } catch { return String(u || '').split('?')[0].replace(/\/$/, '') || '/'; } };
 const label = pg => (pg === '/' ? 'The home page' : pg);
@@ -47,13 +48,13 @@ function figures(d) {
   const dl = v => (ok(v) && Math.abs(v) >= 0.005 ? delta(v, { bad: v < 0 }) : null);
   const el = kpis([
     kpi({ label: 'Visits', size: 'lg', value: ok(t.visits) ? num(t.visits) : 'no data', delta: dl(move(t.visits, t.visits_prev)),
-      sub: ok(t.visits_prev) ? 'was ' + num(t.visits_prev) : null, spark: (d.days || []).map(r => r.visits) }),
-    kpi({ label: 'Conversion rate', size: 'lg', value: ok(t.conversion) ? pct(t.conversion, { digits: 2 }) : 'no data', delta: dl(move(t.conversion, t.conversion_prev)),
-      sub: ok(t.orders) ? num(t.orders) + ' orders' : null, spark: (d.days || []).map(r => rateOf(r.orders, r.visits)).filter(ok) }),
+      sub: ok(t.visits_prev) ? 'vs ' + num(t.visits_prev) + ' before' : null }),
+    kpi({ label: defl('Conversion rate', 'conversion_rate'), size: 'lg', value: ok(t.conversion) ? pct(t.conversion, { digits: 2 }) : 'no data', delta: dl(move(t.conversion, t.conversion_prev)),
+      sub: ok(t.orders) ? num(t.orders) + ' orders' : null }),
     kpi({ label: 'Added to cart', size: 'lg', value: ok(t.cart_rate) ? pct(t.cart_rate, { digits: 1 }) : 'no data', delta: dl(move(t.cart_rate, t.cart_rate_prev)),
       sub: ok(t.carts) ? num(t.carts) + ' carts' : 'of visits' }),
     kpi({ label: 'Sales per visit', size: 'lg', value: ok(t.per_visit) ? money(t.per_visit, { cents: true }) : 'no data', delta: dl(move(t.per_visit, t.per_visit_prev)),
-      sub: ok(t.per_visit_prev) ? 'was ' + money(t.per_visit_prev, { cents: true }) : null }),
+      sub: ok(t.per_visit_prev) ? 'vs ' + money(t.per_visit_prev, { cents: true }) + ' before' : null }),
   ], { cols: 4 });
   el.classList.add('em-kpis');
   return el;
@@ -67,7 +68,7 @@ function verdict(d, ctx) {
   const worst = rows.filter(r => r !== best).reduce((m, r) => (r.visits * (cv(best) - cv(r)) > m.visits * (cv(best) - cv(m)) ? r : m), rows.find(r => r !== best));
   const parts = [b(label(best.page)), ' turns the most visits into orders, ', b(pct(cv(best), { digits: 1 })), '.'];
   if (worst && cv(worst) < cv(best) / 2) parts.push(' ', b(label(worst.page)), ' got ', b(num(worst.visits)), ' visits and only ', b(num(worst.orders)), ' orders.');
-  return takeaway(parts, { action: ctx.isClient ? null : button('Ask why', { href: ctx.href('ask', 'index') }) });
+  return takeaway(parts, { action: ctx.isClient ? null : askWhy(ctx, 'Which pages turn visits into sales') });
 }
 
 function chartCard(d) {
@@ -90,16 +91,33 @@ function pagesCard(d, ctx) {
   if (!rows.length) return card({ title: 'Pages' }, ctx && notConnected(ctx, { title: 'No page numbers for these dates', text: 'Pick a longer range.' }));
   const max = Math.max(...rows.map(r => r.sales || 0), 1), hasSales = rows.some(r => ok(r.sales)), cl = d.clarity;
   const thin = v => h('span', { class: 'em-none' }, v);
-  return card({ title: 'Pages people land on', note: hasSales ? 'sorted by sales' : 'sorted by visits', flush: true, class: 'em-flush em-wrap' },
-    table({ rows, sort: { key: hasSales ? 'sales' : 'visits', dir: 'desc' }, cols: [
+  const win = d.clarity_window || 'last 3 days';
+  return card({ title: 'Pages people land on', note: (hasSales ? 'sorted by sales' : 'sorted by visits') + ', tap a page for its detail', flush: true, class: 'em-flush em-wrap' },
+    table({ rows, sort: { key: hasSales ? 'sales' : 'visits', dir: 'desc' }, onRow: r => openPage(r, d), cols: [
       { key: 'page', label: 'Page', sortable: true, render: r => h('span', { class: 'em-name', title: r.page }, label(r.page)) },
       { key: 'visits', label: 'Visits', num: true, sortable: true, render: r => num(r.visits) },
       hasSales && { key: 'cr', label: 'Add to cart', num: true, sortable: true, class: 'hide-md', render: r => (ok(r.cr) ? pct(r.cr, { digits: 1 }) : '') },
-      hasSales && { key: 'cv', label: 'Conversion', num: true, sortable: true, render: r => (ok(r.cv) ? pct(r.cv, { digits: 1 }) : '') },
-      cl && { key: 'scroll', label: 'Scroll', num: true, sortable: true, class: 'hide-md', render: r => (ok(r.scroll) ? Math.round(r.scroll) + '%' : thin('none')) },
-      cl && { key: 'rage', label: 'Rage clicks', num: true, sortable: true, class: 'hide-md', render: r => (ok(r.rage) ? (r.rage >= 5 ? h('b', { class: 'em-bad' }, pct(r.rage / 100, { digits: 1 })) : pct(r.rage / 100, { digits: 1 })) : thin('none')) },
+      hasSales && { key: 'cv', label: defl('Conversion', 'conversion_rate'), num: true, sortable: true, render: r => (ok(r.cv) ? pct(r.cv, { digits: 1 }) : '') },
+      cl && { key: 'scroll', label: defl('Scroll, ' + win, 'scroll_depth'), num: true, sortable: true, class: 'hide-md', render: r => (ok(r.scroll) ? Math.round(r.scroll) + '%' : thin('none')) },
+      cl && { key: 'rage', label: defl('Rage clicks, ' + win, 'rage_clicks'), num: true, sortable: true, class: 'hide-md', render: r => (ok(r.rage) ? (r.rage >= 5 ? h('b', { class: 'em-bad' }, pct(r.rage / 100, { digits: 1 })) : pct(r.rage / 100, { digits: 1 })) : thin('none')) },
       hasSales && { key: 'sales', label: 'Sales', num: true, sortable: true, class: 'hide-sm', render: r => barCell(h('span', { class: 'strong' }, ok(r.sales) ? usd(r.sales) : ''), (r.sales || 0) / max) },
     ].filter(Boolean) }));
+}
+
+/* One landing page, opened from its row: what is known about it in these dates. */
+function openPage(r, d) {
+  const t = d.totals || {}, cv = rateOf(r.orders, r.visits), cr = rateOf(r.carts, r.visits);
+  const vsSite = (v, site) => (ok(v) && ok(site) && site > 0 ? (v >= site ? ' above' : ' under') + ' the site, ' + pct(site, { digits: 1 }) : '');
+  sheet({ title: label(r.page), body: h('div', { class: 'em-sheet' },
+    h('div', { class: 'tiles' },
+      h('div', null, h('small', null, 'Visits'), h('b', null, num(r.visits)), h('span', null, ok(t.visits) && t.visits > 0 ? pct(r.visits / t.visits, { digits: 1 }) + ' of all visits' : '')),
+      h('div', null, h('small', null, 'Add to cart'), h('b', null, ok(cr) ? pct(cr, { digits: 1 }) : 'no data'), h('span', null, vsSite(cr, t.cart_rate))),
+      h('div', null, h('small', null, defl('Conversion', 'conversion_rate')), h('b', null, ok(cv) ? pct(cv, { digits: 1 }) : 'no data'), h('span', null, vsSite(cv, t.conversion))),
+      h('div', null, h('small', null, 'Sales'), h('b', null, ok(r.sales) ? usd(r.sales) : 'no data'), h('span', null, ok(r.sales) && r.visits > 0 ? money(r.sales / r.visits, { cents: true }) + ' a visit' : ''))),
+    kv([['Orders', ok(r.orders) ? num(r.orders) : 'no data'], ['Added to cart', ok(r.carts) ? num(r.carts) : 'no data'],
+      d.clarity && ['Scroll, ' + (d.clarity_window || 'last 3 days'), ok(r.scroll) ? Math.round(r.scroll) + '%' : 'none'], d.clarity && ['Rage clicks, ' + (d.clarity_window || 'last 3 days'), ok(r.rage) ? pct(r.rage / 100, { digits: 1 }) : 'none'],
+      ['Address', r.page]]),
+    h('p', { class: 'quiet' }, 'Visits by day and the phone or desktop split for one page are not read yet; the whole site by day is in the chart on this page.')) });
 }
 
 function splitTable(title, rows, key, label) {
@@ -109,7 +127,8 @@ function splitTable(title, rows, key, label) {
     table({ rows, sort: { key: 'visits', dir: 'desc' }, cols: [
       { key, label, render: r => r[key] },
       { key: 'visits', label: 'Visits', num: true, render: r => barCell(num(r.visits), r.visits / tot) },
-      { key: 'conversion', label: 'Conversion', num: true, render: r => (ok(r.conversion) ? pct(r.conversion, { digits: 2 }) : '') },
+      { key: 'share', label: 'Share', num: true, render: r => pct(r.visits / tot) },
+      { key: 'conversion', label: defl('Conversion', 'conversion_rate'), num: true, render: r => (ok(r.conversion) ? pct(r.conversion, { digits: 2 }) : '') },
     ] }));
 }
 
@@ -139,15 +158,18 @@ export default {
       return;
     }
     const two = [splitTable('Phone or desktop', d.devices, 'device', 'Device'), splitTable('Where visits came from', d.channels, 'name', 'Channel')].filter(Boolean);
-    const foot = [d.analytics !== false ? 'Visits, carts, orders and sales are Google Analytics\' own count.' : 'Google Analytics is not linked, so there are no orders or sales per page.',
-      d.clarity ? ` Scroll and rage clicks are from Microsoft Clarity and cover ${d.clarity_window || 'the last 3 days'} only.` : ''].join('');
+    const src = [d.analytics !== false ? 'Visits, carts, orders and sales are Google Analytics\' own count.' : 'Google Analytics is not linked, so there are no orders or sales per page.',
+      d.clarity ? ` Scroll and rage clicks are from Microsoft Clarity and cover ${d.clarity_window || 'the last 3 days'} only, whatever dates are picked.` : ''].join('');
     put(el, ...[
+      helpBar([
+        { title: 'What it is for', text: 'Which pages turn visits into sales on the dates at the top. Tap a page for its detail.' },
+        { title: 'Where the numbers come from', text: src },
+      ], h('span', { class: 'bz-chip' }, rangeWords(ctx, d.range))),
       d.analytics !== false && h('section', { class: 'lx-hero line' }, figures(d)),
       d.analytics !== false && verdict(d, ctx),
       chartCard(d),
       pagesCard(d, ctx),
       two.length === 2 ? h('div', { class: 'em-two' }, two) : two[0],
-      h('p', { class: 'lx-foot' }, foot),
     ].filter(Boolean));
   },
 };

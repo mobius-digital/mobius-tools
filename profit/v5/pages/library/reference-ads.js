@@ -7,7 +7,7 @@ import { APP_NAME } from '../../config.js';
 import { h, hero, kpi, kpis, em, num, button, skeleton, empty, relativeTime } from '../../kit.js';
 import { SAMPLE } from '../../data.js';
 import { put, css, oldLocus, plural, daysFrom } from '../production/_ui.js';
-import { lbCss, chips, search, openItem, picture, assetsButton, withAssets } from './_lib.js';
+import { lbCss, chips, search, openItem, picture, assetsButton, withAssets, pageTop, teamTag } from './_lib.js';
 
 const SAMPLE_TODAY = '2026-11-24';
 const whoOf = x => x.by_name || (x.by ? String(x.by).split('@')[0].replace(/[._-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Someone');
@@ -43,18 +43,22 @@ export default {
           actions: [x.url ? button('Open the ad', { href: x.url, target: '_blank', icon: 'arrow', primary: false }) : null] }) },
           pic(), h('b', null, x.title || x.site || 'Saved ad'), x.note ? h('q', null, x.note) : null, h('small', null, meta));
       }) : [h('p', { class: 'lb-quiet' }, 'Nothing matches.')]));
-      put(pick, chips([{ id: '', label: 'Everyone' }, ...people.map(p => ({ id: p, label: p, n: items.filter(x => whoOf(x) === p).length }))], by, id => { by = id; draw(); }));
+      put(pick, chips([{ id: '', label: 'Everyone' }, ...people.map(p => ({ id: p, label: p, n: items.filter(x => whoOf(x) === p).length }))], by, id => { by = id; draw(); }, 'Saved by'));
     };
     draw();
+    const old = oldLocus(ctx, { label: 'Save one in old ' + APP_NAME });
     put(el,
+      pageTop([
+        { title: 'What it is for', text: 'Every ad the team or the client saved for this brand as inspiration, with the note on why. Newest first; tap one to see it large and open the saved link.' },
+        { title: 'How things get here', text: 'Saved with Save to ' + APP_NAME + ': paste the link in the Ask bar, share it from your phone, or use the bookmark button. A link keeps the page\'s own title and picture from the day it was saved.' },
+      ], old ? teamTag() : null, old),
       hero({ line: true },
         kpis([
           kpi({ label: 'Saved for this brand', value: num(items.length), sub: plural(items.filter(x => x.kind === 'image').length, 'picture') + ', the rest links' }),
           kpi({ label: 'Saved this week', value: num(week), sub: 'last 7 days' }),
           kpi({ label: 'People saving', value: num(people.length), sub: people.slice(0, 3).join(', ') }),
         ], { cols: 3 })),
-      h('div', { class: 'lb-tools' }, search('Search the titles and notes', '', v => { q = v; draw(); }), h('span', { class: 'lx-sp' }), assetsButton(ctx, data && data.assets_link), oldLocus(ctx, { label: 'Save one in old ' + APP_NAME })),
-      pick, grid,
-      h('p', { class: 'lx-foot' }, 'Saved with Save to ' + APP_NAME + '. A link keeps the page\'s own title and picture from the day it was saved.'));
+      h('div', { class: 'lb-tools' }, search('Search the titles and notes', '', v => { q = v; draw(); }), h('span', { class: 'lx-sp' }), assetsButton(ctx, data && data.assets_link)),
+      pick, grid);
   },
 };

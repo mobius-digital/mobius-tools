@@ -7,6 +7,7 @@
    page has no date range. */
 
 import { put } from '../../kit.js';
+import { askWhy, helpBar, dl } from '../home/_biz.js';
 import { exampleChip as kitExampleChip } from '../../kit.js';
 import { h, num, pct, card, hero, em, kpi, kpis, takeaway, button, table, empty, lineChart, legend, statusDot, addStyles } from '../../kit.js';
 import { againChart, halfDayOf } from './charts.js';
@@ -30,15 +31,15 @@ const CSS = `
 .rp-kpis .lx-kpi .s{flex-wrap:wrap}
 .rp-bar{display:block;width:100%;min-width:60px;height:5px;border-radius:999px;background:var(--bg-sunk);position:relative}
 .rp-bar::after{content:"";position:absolute;left:0;top:0;bottom:0;width:var(--v,0%);background:var(--ink);border-radius:999px}
-.rp-bar.soft::after{background:#A8A29A}
+.rp-bar.soft::after{background:var(--icon)}
 .lx-table td.rp-barcell{width:30%;min-width:80px}
 .rp-young{color:var(--faint)}
 @media (max-width:759px){
   .rp-pad{padding:18px}
   .rp-flush .rp-head{padding:16px 18px 6px}
-  .rp-kpis .lx-kpi.lg .v{font-size:32px}
+  .rp-kpis .lx-kpi.lg .v{font-size:var(--num-l)}
   .rp-kpis .lx-kpi .l{white-space:normal}
-  .rp-big .lx-hero-num{font-size:36px}
+  .rp-big .lx-hero-num{font-size:var(--num-xl)}
 }`;
 const headOf = (title, sub, ...tools) => h('div', { class: 'rp-head' }, h('div', null, h('h3', null, title), sub ? h('p', null, sub) : null), tools.filter(Boolean).length ? h('div', { class: 'tools' }, tools.filter(Boolean)) : null);
 const chip = () => kitExampleChip();
@@ -69,23 +70,22 @@ function shape(r, sample) {
 function figures(d) {
   const share = ok(d.repeat_orders) && d.orders > 0 ? d.repeat_orders / d.orders : null;
   const list = [
-    { label: 'Came back in 90 days', value: ok(d.back_90) ? pct(d.back_90, { digits: 1 }) : 'no data', sub: ok(d.back_365) ? pct(d.back_365, { digits: 1 }) + ' within a year' : null, spark: d.curve && d.curve.rate.map(v => v * 100) },
+    { label: dl('Came back in 90 days', { name: 'Came back in 90 days', definition: 'Share of new customers who placed a second order within 90 days of their first. Counts people, not orders.', source: 'Triple Whale orders' }), value: ok(d.back_90) ? pct(d.back_90, { digits: 1 }) : 'no data', sub: ok(d.back_365) ? pct(d.back_365, { digits: 1 }) + ' within a year' : null, spark: d.curve && d.curve.rate.map(v => v * 100) },
     { label: 'Days to the second order', value: ok(d.days_to_second) ? num(d.days_to_second) : 'no data', sub: ok(d.days_to_second) ? 'the middle repeat buyer' : null },
     { label: 'Orders per customer in a year', value: ok(d.per_customer_365) ? num(d.per_customer_365, 2) : 'no data', sub: ok(d.per_customer_365) ? 'first order plus ' + num(d.per_customer_365 - 1, 2) + ' more' : null },
-    { label: 'Orders from returning buyers', value: ok(share) ? pct(share, { digits: 1 }) : 'no data', sub: ok(share) ? `${num(d.repeat_orders)} of ${num(d.orders)} lately` : null, spark: d.sparks && d.sparks.share },
+    { label: dl('Orders from returning buyers', { name: 'Orders from returning buyers', definition: 'Share of the orders in these dates placed by someone who had ordered before. Counts orders, not people.', source: 'Triple Whale' }), value: ok(share) ? pct(share, { digits: 1 }) : 'no data', sub: ok(share) ? `${num(d.repeat_orders)} of ${num(d.orders)} lately` : null, spark: d.sparks && d.sparks.share },
   ];
   const el = kpis(list.map(k => kpi({ ...k, size: 'lg', spark: (k.spark || []).filter(ok) })), { cols: 4 });
   el.classList.add('rp-kpis');
   return el;
 }
 
+/* One sentence, only for what the tiles do not show: which channel repeat orders lean on. */
 function say(d, ctx) {
-  if (!ok(d.back_90)) return null;
   const src = (d.sources || []).slice().sort((a, b) => (b.repeat - b.first) - (a.repeat - a.first))[0];
-  return takeaway([b(pct(d.back_90, { digits: 1 })), ' of new customers order again within 90 days',
-    ok(d.days_to_second) ? [', usually by day ', b(num(d.days_to_second))] : '', '.',
-    src && src.repeat > src.first ? [' Repeat orders lean on ', b(src.name), ': ', pct(src.repeat), ' of them, against ', pct(src.first), ' of first orders.'] : ''],
-  { action: ctx.isClient ? null : button('Ask why', { href: ctx.href('ask', 'index') }) });
+  if (!src || !(src.repeat > src.first)) return null;
+  return takeaway(['Repeat orders lean on ', b(src.name), ': ', pct(src.repeat), ' of them, against ', pct(src.first), ' of first orders.'],
+    { action: ctx.isClient ? null : askWhy(ctx, 'Do they come back, and when') });
 }
 
 function curveCard(d) {
@@ -111,7 +111,7 @@ function againCard(d) {
   const ex = (d.example || []).includes('again');
   return card({ class: 'rp-pad' },
     headOf('When do they order again?', 'second orders by week after the first order', ex ? chip() : null,
-      legend([{ name: 'Second orders that week', square: true, color: '#C9C5BD' }, { name: 'Running share of repeat buyers' }])),
+      legend([{ name: 'Second orders that week', square: true, color: 'var(--line-strong)' }, { name: 'Running share of repeat buyers' }])),
     ok(half) ? h('div', { class: 'rp-big' }, h('span', { class: 'lx-hero-num' }, 'Day ' + half), h('span', null, `half of the ${num(a.repeaters)} repeat buyers are back`)) : null,
     againChart({ weeks: a.weeks, sameDay: a.same_day, repeaters: a.repeaters, halfDay: half }));
 }
@@ -142,7 +142,7 @@ function sourceCard(d) {
   if (!rows.length) return null;
   const max = Math.max(...rows.flatMap(s => [s.first, s.repeat]));
   return card({ class: 'rp-flush', flush: true },
-    headOf('Where do first and repeat orders come from?', 'share of each, by the last click before the order', legend([{ name: 'First orders', square: true, color: '#A8A29A' }, { name: 'Repeat orders', square: true, color: 'var(--ink)' }])),
+    headOf('Where do first and repeat orders come from?', 'share of each, by the last click before the order', legend([{ name: 'First orders', square: true, color: 'var(--icon)' }, { name: 'Repeat orders', square: true, color: 'var(--ink)' }])),
     table({
       roomy: true,
       cols: [
@@ -184,13 +184,16 @@ export default {
       return;
     }
     put(el, ...[
+      helpBar([
+        { title: 'What it is for', text: 'Do customers come back, how soon, and which channel brings the repeat orders.' },
+        { title: 'How it is counted', text: 'Triple Whale orders, followed per customer. Came back counts people, not orders. A month needs 90 days before it has a 90 day read.' },
+      ]),
       hero({ line: true }, figures(d)),
       say(d, ctx),
       curveCard(d),
       againCard(d),
       cohortCard(d),
       sourceCard(d),
-      h('p', { class: 'lx-foot' }, 'Sources: Triple Whale orders, followed per customer. Came back counts people, not orders. A month needs 90 days before it has a 90 day read.'),
     ].filter(Boolean));
   },
 
