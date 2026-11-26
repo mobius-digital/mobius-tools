@@ -25,9 +25,11 @@ function shape(ctx, hub, r) {
 function figures(d) {
   const flows = d.flows || [], live = flows.filter(f => f.status === 'live'), off = flows.filter(f => f.status && f.status !== 'live');
   const fs = sum(d.days, 'flows'), cs = sum(d.days, 'campaigns'), rec = sum(flows, 'recipients'), sales90 = sum(flows, 'sales');
+  const split = fs + cs > 0;
   const el = kpis([
-    kpi({ label: 'Flow sales', size: 'lg', value: fs > 0 ? usd(fs) : 'no data', sub: fs > 0 ? 'in these dates' : 'not split by flow for these dates', spark: fs > 0 ? (d.days || []).map(r => r.flows || 0) : null }),
-    kpi({ label: 'Share of email sales', size: 'lg', value: fs + cs > 0 ? pct(fs / (fs + cs)) : 'no data', sub: 'campaigns made the rest' }),
+    /* 'no data' only when there is no flow and campaign split at all (as snapshot.js splitOk); a real $0 in flows shows $0 */
+    kpi({ label: 'Flow sales', size: 'lg', value: split ? usd(fs) : 'no data', sub: split ? 'in these dates' : 'not split by flow for these dates', spark: split ? (d.days || []).map(r => r.flows || 0) : null }),
+    kpi({ label: 'Share of email sales', size: 'lg', value: split ? pct(fs / (fs + cs)) : 'no data', sub: 'campaigns made the rest' }),
     kpi({ label: 'Live flows', size: 'lg', value: d.klaviyo ? num(live.length) : 'no data',
       delta: off.length ? statusDot('warn', off.length + ' not live') : null, sub: off.length ? null : d.klaviyo ? 'none switched off' : 'needs the Klaviyo key' }),
     kpi({ label: 'Sales per message', size: 'lg', value: rec ? money(sales90 / rec, { cents: true }) : 'no data', sub: 'last 90 days' }),

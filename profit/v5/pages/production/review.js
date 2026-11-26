@@ -225,7 +225,11 @@ export default {
         if (ctx.sample) { ad.status = ok ? 'approved' : 'changes'; toast('Sample: nothing saved'); }
         else {
           const r = await ctx.api('/api/production/decide', { worker: 'ah', method: 'POST', body: { id: need.id, file_id: ad.file_id, ok, ...(ok ? {} : { body: note }) } });
-          if (r && Array.isArray(r.ads) && r.ads.length) sh.ads = r.ads; else ad.status = ok ? 'approved' : 'changes';
+          /* An idea card answers for the whole idea and the server sends no ads back: every ad on it takes the answer. */
+          const idea = need.what === 'idea' || (sh.card && sh.card.needs_client === 'idea');
+          if (r && Array.isArray(r.ads) && r.ads.length) sh.ads = r.ads;
+          else if (idea) sh.ads.forEach(a => { a.status = ok ? 'approved' : 'changes'; });
+          else ad.status = ok ? 'approved' : 'changes';
           all = !!(r && r.all_approved);
           toast(ok ? (all ? 'All approved. Thank you.' : 'Approved') : 'Sent to the team');
         }
@@ -274,7 +278,7 @@ export default {
           h('span', { class: 'lx-sp' }),
           oneTap ? button(h('span', null, h('span', { class: 'rv-long' }, 'Request changes'), h('span', { class: 'rv-short' }, 'Changes')), { large: true, disabled: busy, onclick: () => askChanges(need, sh, ad) })
             : button('Request changes', { large: true, href: link, target: '_blank' }),
-          oneTap ? button('Approve', { primary: true, large: true, iconLeft: 'check', disabled: busy, onclick: () => answer(need, sh, ad, true, '') })
+          oneTap ? button(ad.status === 'approved' ? 'Approved' : 'Approve', { primary: true, large: true, iconLeft: 'check', disabled: busy || ad.status === 'approved', onclick: () => answer(need, sh, ad, true, '') })
             : button('Approve', { primary: true, large: true, iconLeft: 'check', href: link, target: '_blank' })),
         comingUp(data.coming, today));
     };

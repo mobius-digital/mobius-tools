@@ -10,6 +10,7 @@
    when invited, so a new guest never opens every brand. Remove shows only when the server says safe_remove, so a
    removed person can never come back with full access. A person's job has no server home: it shows in sample mode only. */
 
+import { OLD_LOCUS } from '../../config.js';
 import { put } from '../../kit.js';
 import { h, em, empty, card, table, avatar, statusDot, button, sheet, toast } from '../../kit.js';
 import { css, stage, saveBar, group, row, fold, facts, pick, onOff, exampleChip } from '../brand-settings/_set.js';
@@ -18,14 +19,18 @@ const JOBS = [{ id: '', label: 'Not set' }, { id: 'owner', label: 'Owner' }, { i
   { id: 'editor', label: 'Editor' }, { id: 'designer', label: 'Designer' }, { id: 'google', label: 'Google' }, { id: 'amazon', label: 'Amazon' }, { id: 'email', label: 'Email and SMS' }];
 const ACCESS = { owner: 'Owner', admin: 'Team', viewer: 'Viewer', contractor: 'Contractor' };
 const nameOf = p => p.name || String(p.email || '').split('@')[0].replace(/[._-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-const appAddress = () => { try { return location.origin + location.pathname; } catch { return 'the app'; } };
+/* Where the team signs in today: the live app (one folder up), until this new app is the front door. */
+const appAddress = () => { try { return new URL(OLD_LOCUS, location.href).href; } catch { return 'the app'; } };
 const sayErr = e => (e && e.message) || 'No answer from the server.';
 
-/** One write to PUT /api/team, or a toast in sample mode. Reads the page again after a save. */
-async function teamWrite(ctx, body, done, reload) {
+/** One write to PUT /api/team, or a toast in sample mode. Reads the page again after a save.
+    check(answer) may return a problem in words: the save is then reported as not done. */
+async function teamWrite(ctx, body, done, reload, check) {
   if (ctx.sample) { toast('Sample: nothing saved'); return true; }
   try {
-    await ctx.api('/api/team', { worker: 'ah', method: 'PUT', body });
+    const r = await ctx.api('/api/team', { worker: 'ah', method: 'PUT', body });
+    const bad = check ? check(r || {}) : null;
+    if (bad) { toast('Not saved as asked: ' + bad, { tone: 'bad', ms: 8000 }); reload(); return false; }
     toast(done, { ms: 5000 });
     reload();
     return true;
@@ -41,12 +46,15 @@ function inviteSheet(ctx, data, reload) {
   const need = h('p', { class: 'lx-tm-need', role: 'status' });
   const send = button('Send', { primary: true, large: true });
   const no = button('Not yet', { large: true });
+  const known = email => (data.people || []).find(p => String(p.email).toLowerCase() === email);
   const onDomain = () => !!data.domain && String(email.value).trim().toLowerCase().endsWith('@' + String(data.domain).toLowerCase());
   const valid = () => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(email.value).trim());
   const paint = () => {
     const guestNeedsBrand = !onDomain() && !ticked.size;
     send.disabled = !valid() || guestNeedsBrand;
-    need.textContent = valid() && guestNeedsBrand ? 'Pick the brands this person may see.' : onDomain() && !ticked.size ? 'On the team domain with no brands picked: they see every brand.' : '';
+    const was = known(String(email.value).trim().toLowerCase());
+    need.textContent = valid() && guestNeedsBrand ? 'Pick the brands this person may see.'
+      : onDomain() && !ticked.size ? (was && was.brands && was.brands.length ? 'No brands picked: they keep the ' + was.brands.length + ' they have now.' : 'On the team domain with no brands picked: they see every brand.') : '';
   };
   const boxes = h('div', { class: 'lx-tm-brands', role: 'group', 'aria-label': 'Brands they may see' },
     brands.length ? brands.map(b => h('label', null,
@@ -68,7 +76,10 @@ function inviteSheet(ctx, data, reload) {
     if (ticked.size) b.brands = [...ticked];
     else if (!onDomain()) return paint();         // never an empty brand list for a guest
     send.disabled = no.disabled = true;
-    const ok = await teamWrite(ctx, b, 'Saved. Tell them to sign in at ' + appAddress() + '. No email is sent.', reload);
+    const guest = !onDomain();
+    /* the server stores [] as every brand: a guest whose brands did not all come back is reported, never trusted */
+    const check = r => guest && !(Array.isArray(r.brands) && r.brands.length) ? 'the server kept no brands for this guest, so they would open every brand. Remove them now.' : null;
+    const ok = await teamWrite(ctx, b, 'Saved. Tell them to sign in at ' + appAddress() + '. No email is sent.', reload, check);
     if (ok) sh.close(); else { no.disabled = false; paint(); }
   });
   paint();
@@ -98,7 +109,8 @@ function draw(el, data, ctx, reload) {
   if (!people.length) return put(el, empty({ title: 'Nobody on the team list yet', text: 'Everyone on the agency email domain can sign in.' + (owner ? ' Invite anyone else by email.' : ''), action: invite() }));
   const S = stage(ctx, {
     live: { 'agency.slackSendWho': data.send_who },
-    savers: { 'agency.slackSendWho': v => ctx.api('/api/settings', { worker: 'ah', method: 'PUT', body: { slackSendWho: v } }) },
+    /* through data.js saveSetting, so the session's cached agency settings are cleared too */
+    savers: { 'agency.slackSendWho': async v => { await ctx.saveSetting('agency.slackSendWho', v); data.send_who = v; } },
   });
   const k = (p, n) => 'team:' + p.email + '.' + n;
   const nBrands = (ctx.brands || []).length;

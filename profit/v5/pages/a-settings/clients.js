@@ -2,7 +2,10 @@
    Real mode:
      account-health GET /api/brands             every brand, its status and its channels
      account-health GET /api/clients            every client login and the brands it can open
-     account-health PUT /api/accounts/<id>      { active } pauses or runs a brand (through the Save bar's confirm sheet)
+     account-health PUT /api/accounts/<id>      { active } pauses or runs a brand (through the Save bar's confirm sheet).
+                                                The owner only. A demo brand has no switch: { active: true } would make it a
+                                                real brand (briefs, calls and the first sync start). After a save the
+                                                status is read back from GET /api/brands, never assumed.
      account-health GET|PUT /api/settings       briefClientStyle: what a client reads
    Only switches that save on the server are drawn in real mode. The rest (hide from team, sender name, client daily
    mode, the AI allowance, invite days) have no server home yet: they show in sample mode only. */
@@ -22,24 +25,35 @@ function draw(el, data, ctx) {
   const k = (id, n) => 'brand:' + id + '.' + n;
   const sum = h('div', { class: 'lx-st-sum' });
   const paintSum = () => {
-    const active = brands.filter(b => b.status !== 'paused').length;
+    const active = brands.filter(b => b.status === 'active').length;
+    const paused = brands.filter(b => b.status === 'paused').length, demo = brands.filter(b => b.status === 'demo').length;
     const logins = brands.reduce((n, b) => n + (b.logins || 0), 0);
     put(sum,
       h('span', { class: 'lx-big' }, String(active), h('small', null, active === 1 ? 'client running' : 'clients running')),
       h('span', { class: 'lx-sp' }),
-      brands.length > active ? statusDot('off', (brands.length - active) + ' paused') : null,
+      paused ? statusDot('off', paused + ' paused') : null,
+      demo ? statusDot('off', demo + (demo === 1 ? ' demo' : ' demos')) : null,
       statusDot(logins ? 'good' : 'off', logins + (logins === 1 ? ' client login' : ' client logins')));
   };
-  const savers = { 'agency.briefClientStyle': v => ctx.api('/api/settings', { worker: 'ah', method: 'PUT', body: { briefClientStyle: v } }) };
+  /* Through data.js saveSetting, so the session's cached agency settings are cleared too. */
+  const savers = { 'agency.briefClientStyle': async v => { await ctx.saveSetting('agency.briefClientStyle', v); d.client_style = v; } };
   const names = {}, live = { 'agency.briefClientStyle': d.client_style };
+  /* Pausing: the owner only, and never on a demo brand. */
+  const canPause = b => b.status !== 'demo' && (ctx.sample || ctx.role === 'owner');
   for (const b of brands) {
+    if (!canPause(b)) continue;
     if (real) live[k(b.id, 'paused')] = b.status === 'paused';
     savers[k(b.id, 'paused')] = async v => {
       await ctx.api('/api/accounts/' + encodeURIComponent(b.id), { worker: 'ah', method: 'PUT', body: { active: !v } });
-      b.status = v ? 'paused' : 'active';
+      /* what the server now says, not what was asked for */
+      try {
+        const j = await ctx.api('/api/brands', { worker: 'ah' });
+        const now = (j.brands || []).find(x => x.id === b.id);
+        b.status = (now && now.status) || (v ? 'paused' : 'active');
+      } catch { b.status = v ? 'paused' : 'active'; }
       paintSum();
     };
-    names[k(b.id, 'paused')] = 'Pause ' + b.name;
+    names[k(b.id, 'paused')] = b.status === 'paused' ? 'Pause ' + b.name + ' (running it again restarts its briefs, calls and client posts)' : 'Pause ' + b.name;
   }
   const S = stage(ctx, { live, savers, names });
 
@@ -49,7 +63,8 @@ function draw(el, data, ctx) {
       { key: 'lead', label: 'Account lead', class: 'hide-sm', render: b => b.lead ? h('span', { class: 'lx-st-who' }, avatar({ name: b.lead }, { size: 24 }), h('span', null, b.lead)) : h('span', { class: 'lx-foot' }, 'Nobody yet') },
       { key: 'logins', label: 'Client logins', num: true, class: 'hide-md', value: b => b.logins || 0, render: b => b.logins ? String(b.logins) : 'None' },
       { key: 'connected', label: 'Connected', class: 'hide-md', render: b => b.connected == null ? '' : statusDot(b.connected.ok === b.connected.of ? 'good' : 'warn', b.connected.ok + ' of ' + b.connected.of) },
-      { key: 'paused', label: 'Paused', num: true, render: b => onOff(S, k(b.id, 'paused'), b.status === 'paused', 'Pause ' + b.name) },
+      { key: 'paused', label: 'Paused', num: true, render: b => canPause(b) ? onOff(S, k(b.id, 'paused'), b.status === 'paused', 'Pause ' + b.name)
+        : h('span', { class: 'lx-foot' }, b.status === 'demo' ? 'Demo' : b.status === 'paused' ? 'Paused' : 'Running') },
       real ? null : { key: 'hide', label: 'Hide from team', num: true, class: 'hide-sm', render: b => onOff(S, k(b.id, 'hide_team'), !!b.hidden, 'Hide ' + b.name + ' from team screens') },
     ].filter(Boolean),
     rows: brands, sort: { key: 'name', dir: 'asc' },
@@ -57,7 +72,7 @@ function draw(el, data, ctx) {
   paintSum();
 
   put(el, h('div', { class: 'lx-st' },
-    saveBar(S, ctx, { note: real ? 'Pausing a brand and what a client reads save for everyone, after a check.' : undefined }),
+    saveBar(S, ctx, { note: real ? (ctx.role === 'owner' ? 'Pausing a brand and what a client reads save for everyone, after a check.' : 'What a client reads saves for everyone, after a check. Only the owner pauses a brand.') : undefined }),
     h('section', { class: 'lx-hero line' }, sum),
     card({ title: 'Every client', note: 'Open a brand to set its goals, people and sending', flush: true, class: 'lx-st-card lx-cl' }, list),
     group('What every client gets', real ? 'The agency default.' : 'The agency default. A brand can change its own in People and sending.',
