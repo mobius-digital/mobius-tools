@@ -1,3 +1,4 @@
+import { jobOn } from './jobflags.js';
 /* THE MORNING LINE AS A SLACK DM (2026-10-11, docs/two-products.md section 5, session D).
  * "Every morning, 7:02, before coffee, you know exactly where you stand." One sentence per brand, the SAME sentence
  * Home shows until noon (profit worker hub.js keptMany, GET /api/hub/kept: "Grunk kept $1,240 yesterday on $4,100 of
@@ -61,6 +62,8 @@ export async function morningFor(env, deps, email) {
 }
 
 export async function morningTick(env, deps) {
+  /* 2026-11-26: a quiet job (jobflags.js jobOn:morningLineDm): only settings jobOn:morningLineDm = 'on' runs it; the older switch still counts too. */
+  if (!(await jobOn(env, 'morningLineDm', deps.getSetting))) return { skipped: 'quiet' };
   if ((await deps.getSetting(env, 'morningDm')) === 'off') return { skipped: 'off' };
   const hour = deps.centralHour(), at = +(await deps.getSetting(env, 'morningHour')) || 7;
   if (hour < at || hour >= 12) return { skipped: hour < at ? `before ${at}am Central` : 'after noon' };

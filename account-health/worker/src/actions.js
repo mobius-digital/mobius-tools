@@ -34,6 +34,7 @@
  */
 
 import { laneBlocks, laneOfArea } from './lane.js';
+import { jobOn } from './jobflags.js';
 const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 const SQL = [
   `CREATE TABLE IF NOT EXISTS p_action (
@@ -315,6 +316,9 @@ const laneHeadOf = msg => {
 
 export async function actionTick(env, d) {
   const areas = await judgeAreas(env, d).catch(e => ({ error: e.message }));
+  /* 2026-11-26: the Slack reminders are a quiet job (jobflags.js jobOn:taskReminders); judgeAreas above still runs.
+     The bell tasks row and My day say it now. */
+  if (!(await jobOn(env, 'taskReminders'))) return { skipped: 'quiet', areas };
   if ((await getSetting(env, 'actionRemind')) === 'off') return { skipped: 'off', areas };
   const hour = d.centralHour();
   const from = +(await getSetting(env, 'actionHour')) || 7;

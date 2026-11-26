@@ -70,8 +70,12 @@ const d = { getSetting, putSetting, prod: {}, slackApi: async (e, method, p) => 
   decideMany: async (e, prod, body, who, scope, opts) => { decided.push({ body, who, opts }); return { count: 1 }; } };
 
 await seedCard();
-await putSetting(env, AUTO_APPROVE_KEY, '0');
+/* 2026-11-26 (jobflags.js): the timer is a quiet job. Off by default: nothing is approved and nothing posts. */
 let out = await autoApproveTick(env, d, {});
+ok(out.autoApprove === 'quiet' && !out.autoApproved && decided.length === 0 && slack.length === 0, 'quiet by default: nothing approved, nothing posted ' + JSON.stringify(out));
+await putSetting(env, 'jobOn:autoApprove', 'on');
+await putSetting(env, AUTO_APPROVE_KEY, '0');
+out = await autoApproveTick(env, d, {});
 ok(out.autoApprove === 'off' && !out.autoApproved && decided.length === 0 && slack.length === 0, "'0': a silent card is not approved " + JSON.stringify(out));
 ok(JSON.parse(await getSetting(env, 'rvOpen')).includes('card1') && !JSON.parse(await getSetting(env, 'rvPost:card1')).done, "'0': the card stays waiting");
 

@@ -25,6 +25,7 @@
 import { slackAnswer } from './askschedule.js';
 import { resolveBrandId } from './brands.js';
 import { laneBlocks } from './lane.js';
+import { jobOn } from './jobflags.js';
 
 /* Paused brands, the test account and the demo never get a review (memory: paused-brands, golf-sock-paused). */
 const SKIP = /galway|instyler|gum of gods|judy ?p|le ?pickle|popby|golf sock|harborline/i;
@@ -117,6 +118,8 @@ export async function reviewBrand(env, d, b, { dry = false, who = 'Monday review
 
 /** The hourly job. d = hubDeps() + briefHour. Monday only, from the reports hour, once per brand. */
 export async function reviewTick(env, d) {
+  /* 2026-11-26: a quiet job (jobflags.js jobOn:mondayReview): only settings jobOn:mondayReview = 'on' runs it; the older switch still counts too. */
+  if (!(await jobOn(env, 'mondayReview', d && d.getSetting ? d.getSetting : undefined))) return { skipped: 'quiet' };
   if (!(await isOn(env, d))) return { off: true };
   const today = d.centralDate();
   if (dowOf(today) !== 1) return { notMonday: true };

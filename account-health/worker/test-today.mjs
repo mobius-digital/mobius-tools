@@ -48,6 +48,9 @@ await check('the line and the message: call, name, money at stake, why, the Locu
   assert.equal(messageFor({ act_id: 'b', name: 'B' }, [{ kind: 'call' }]), null);
 });
 await check('the tick: nothing before 8am; at 8am one post per brand with calls to its INTERNAL channel, paused and channel-less brands skipped, once a day', async () => {
+  /* 2026-11-26 (jobflags.js): the today post is a quiet job. Off by default: nothing posts. */
+  hour = 9; posts = []; assert.deepEqual(await todayTick(env, deps), { skipped: 'quiet' }); assert.equal(posts.length, 0);
+  settings.set('jobOn:todayPost', 'on');
   hour = 7; assert.deepEqual(await todayTick(env, deps), { skipped: 'before 8am Central' });
   hour = 8; posts = []; reads = [];
   const r = await todayTick(env, deps);

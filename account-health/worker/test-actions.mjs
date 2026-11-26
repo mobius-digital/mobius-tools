@@ -65,6 +65,9 @@ await check('the reminder message: one line per item, overdue marked, a Done but
   assert.ok(!/—/.test(JSON.stringify(m)));
 });
 await check('the tick: nothing before the hour; then one post per owner per brand (internal channel; agency to the Strategist channel; a DM when the brand has no channel), once a day, overdue again tomorrow', async () => {
+  /* 2026-11-26 (jobflags.js): task reminders are a quiet job. Off by default: nothing posts. */
+  hour = 8; posts = []; assert.equal((await actionTick(env, d)).skipped, 'quiet'); assert.equal(posts.length, 0, 'quiet by default posts nothing');
+  setSetting('jobOn:taskReminders', 'on');
   hour = 6; assert.deepEqual(await actionTick(env, d), { skipped: 'not the morning' });
   hour = 8; posts = [];
   let r = await actionTick(env, d);

@@ -61,6 +61,8 @@
  *   GET    /api/automations/people, PUT /api/automations/people   who does what (roles per brand) and the team list
  *   GET    /api/me/delivery, PUT /api/me/delivery   how things reach me
  *   GET    /api/notices, POST /api/notices/done */
+import { catalogTypes, catalogView, notifyOf, applyBody, saveNotify, ensureNotify } from './notify.js';
+import { featuresNow } from './jobflags.js';
 
 const ORG = 'default';
 const ORG_TZ = 'America/Chicago';
@@ -398,7 +400,7 @@ export function planDelivery(choice, ev, now = new Date(), { client = false } = 
   return { notice: { home: ways.home, hold_until: null, held_why: null }, send: out };
 }
 
-async function slackDm(env, d, email, text) {
+export async function slackDm(env, d, email, text) {
   if (!d.slackApi) return 'Slack is not connected';
   if (d.subCanAfford && !d.subCanAfford(6)) return 'No room left this hour';
   const u = await d.slackApi(env, 'users.lookupByEmail', { email }).catch(() => null);
@@ -965,7 +967,12 @@ async function whoOf(request, env, d) {
   return { email: email || 'admin', client: null, only, owner: !viewer && (!email || (!!ownerEmail && email === ownerEmail)), viewer };
 }
 const noticeView = r => ({ id: r.id, kind: r.kind, title: r.title, body: r.body, brand_id: r.brand_id, automation_id: r.automation_id, run_id: r.run_id, state: r.state, home: !!r.home, due_at: r.due_at,
-  held_until: r.hold_until, button: safe(r.button_json, null), sent: safe(r.sent_json, {}), answer: r.answer, created_at: r.created_at, done_at: r.done_at });
+  held_until: r.hold_until, button: safe(r.button_json, null), sent: safe(r.sent_json, {}), answer: r.answer, created_at: r.created_at, done_at: r.done_at,
+  type: r.ntype || null, urgent: r.kind === 'alert', seen_at: r.seen_at || null, thing: r.thing_key || null });
+/** Urgent alerts first in this order (urgent.js), then the newest seen. */
+const ALERT_ORDER = ['outage', 'claude_failed', 'meta_sync', 'brief_failed', 'spend_high', 'spend_low'];
+const alertRank = r => { const i = ALERT_ORDER.indexOf(r.type); return i < 0 ? ALERT_ORDER.length : i; };
+export const sortAlerts = rows => rows.slice().sort((a, b) => (alertRank(a) - alertRank(b)) || String(b.seen_at || b.created_at || '').localeCompare(String(a.seen_at || a.created_at || '')));
 /** What a client reads of a row: the plain line and nothing else. No button, no ids, no record of who sent it. */
 const clientNoticeView = r => ({ id: r.id, kind: 'tell', title: r.title, brand_id: r.brand_id, state: r.state, home: false, held_until: r.hold_until, created_at: r.created_at, done_at: r.done_at });
 const LIVE = ['open', 'done'];
@@ -988,8 +995,11 @@ export async function handleAutomations(request, env, path, json, d) {
     const rows = (results || []).filter(r => LIVE.includes(r.state)).filter(r => !me.only || !r.brand_id || me.only.has(r.brand_id))
       .filter(r => !me.client || (r.kind === 'tell' && r.brand_id && me.only.has(r.brand_id))).map(me.client ? clientNoticeView : noticeView);
     const open = rows.filter(r => r.state === 'open');
+    /* Urgent alerts (urgent.js): a client never sees one (the client filter above keeps only kind 'tell'). */
+    const alerts = sortAlerts(open.filter(r => r.kind === 'alert'));
+    const features = await featuresNow(env, d.getSetting ? (e, k) => d.getSetting(e, k) : undefined).catch(() => ({ creatorProgram: false, socialPosting: false, siteReviewsOpen: false }));
     return json({ email: me.email, home: open.filter(r => r.home && (!r.held_until || r.held_until <= now)), bell: rows, morning: open.filter(r => r.held_until && r.held_until > now),
-      counts: { open: open.length, taps: open.filter(r => r.kind === 'proposal' || r.kind === 'release').length } });
+      alerts, features, counts: { open: open.length, taps: open.filter(r => r.kind === 'proposal' || r.kind === 'release').length, alerts: alerts.length } });
   }
   if (path === '/api/notices/done' && m === 'POST') {
     const r = await env.DB.prepare(`SELECT * FROM p_notice WHERE id = ?1`).bind(String(body.id || '')).first();
@@ -1025,6 +1035,13 @@ export async function handleAutomations(request, env, path, json, d) {
       await tapped(send ? 'sent to the client' : 'not sent');
       return json({ ok: true, answer: send ? 'send' : 'no', sent_to: sentTo });
     }
+    if (r.kind === 'alert') {
+      /* An urgent alert clears itself when the thing is fixed (urgent.js). A tap only hides it for today; it comes
+         back tomorrow if it is still true. */
+      if (body.done === false) return json({ error: 'It clears itself when it is fixed.' }, 409);
+      await env.DB.prepare(`UPDATE p_notice SET state = 'done', answer = 'hidden', done_at = ?2, done_by = ?3 WHERE id = ?1`).bind(r.id, now, me.email).run();
+      return json({ ok: true, state: 'done', answer: 'hidden' });
+    }
     const done = body.done !== false;
     await env.DB.prepare(`UPDATE p_notice SET state = ?2, done_at = ?3, done_by = ?4 WHERE id = ?1`).bind(r.id, done ? 'done' : 'open', done ? now : null, done ? me.email : null).run();
     return json({ ok: true, state: done ? 'done' : 'open' });
@@ -1038,8 +1055,15 @@ export async function handleAutomations(request, env, path, json, d) {
     const tellsMe = a => ((a.tell && a.tell.who) || []).some(p => p.kind === 'clients' || (p.kind === 'person' && p.email === me.email));
     const autos = ((await env.DB.prepare(`SELECT * FROM p_automation WHERE state != 'draft' ORDER BY created_at`).all()).results || []).map(rowToAuto)
       .filter(a => (me.client ? tellsMe(a) && (a.brand === 'all' || me.only.has(a.brand)) : sees(a.brand) || a.owner === me.email));
+    /* The notify presets (notify.js): which types and channels this person picked. Owner only types only for the owner. */
+    const who = { owner: me.owner, client: !!me.client }, cat = catalogTypes(who);
+    await ensureNotify(env);
     if (m === 'PUT') {
       const now = nowOf(d).toISOString(), b = body.delivery && typeof body.delivery === 'object' ? body.delivery : null;
+      if (body.notify && typeof body.notify === 'object') {
+        const cur = await notifyOf(env, me.email, who);
+        await saveNotify(env, me.email, applyBody(cat, cur, body.notify, who), now);
+      }
       if (b) {
         const cur = await deliveryOf(env, me.email);
         const next = { tz: b.tz === undefined ? cur.tz : b.tz && okTz(b.tz) ? String(b.tz) : null, read_hour: int(b.read_hour, 0, 23, cur.read_hour),
@@ -1068,7 +1092,9 @@ export async function handleAutomations(request, env, path, json, d) {
       per.push({ automation_id: a.id, ...(me.client ? { name: 'A message from your team', sentence: `About: ${lower(TRIGGERS[a.when.type] || 'an update')}` } : { name: a.name, sentence: sentence(a, { brandName: names[a.brand] }).text }),
         mode: c.mode, ways: cleanWays(c.ways, { client: !!me.client }), at_hour: c.at_hour, own: c.own });
     }
+    const copiesOn = lower(await d.getSetting(env, 'notifyCopies').catch(() => '')) === 'on';
     return json({ ok: true, email: me.email, delivery: await deliveryOf(env, me.email), per, modes: MODES,
+      notify: await notifyOf(env, me.email, who), catalog: catalogView(d, who, copiesOn),
       ways: { home: !me.client, bell: true, slack: !me.client, email: true }, ways_note: { bell: 'Always on. The bell is the record.', email: d.sendEmail ? null : 'Your choice is saved. Email starts when the mail address for this product is set up. Until then it waits in the bell.',
         slack: d.slackApi ? null : 'Slack is not connected, so everything lands in the app.' } });
   }

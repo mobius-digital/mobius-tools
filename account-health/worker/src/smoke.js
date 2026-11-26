@@ -27,6 +27,7 @@
  */
 import { supplyFetch } from './stock.js';
 import { laneBlocks, fyi } from './lane.js';
+import { jobOn } from './jobflags.js';
 
 const OWNER = 'cole@go-mobius-digital.com';
 const PROFIT_ORIGIN = 'https://mobius-profit.mobius-digital.workers.dev';
@@ -377,6 +378,9 @@ async function finish(env, d, run) {
   const channel = await d.getSetting(env, 'strategistChannel');
   /* 2026-11-09 (lane.js): an all-clear asks nobody for anything, so it is a line in the agency's end-of-day roundup. */
   if (!run.dry && channel && !s.failed.length && !quiet) { s.posted = await fyi(env, { act: '', lane: 'OPS', line: slackText(s, new Date(`${run.date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })) }) ? 'roundup' : false; }
+  /* 2026-11-26: the failure post is a quiet job (jobflags.js jobOn:smokePost). smokeLast is still written below and
+     Agency > Status shows the failures. */
+  else if (!run.dry && channel && s.failed.length && !(await jobOn(env, 'smokePost', d.getSetting))) s.posted = 'quiet';
   else if (!run.dry && channel && s.failed.length) {
     /* 2026-11-20 (Cole: "so much noise"): the 8am post was mostly Locus's own Google quota and timeout errors (HTTP 429,
        "Resource has been exhausted", "took longer than 25 seconds"), which nobody on the team can fix, and the same

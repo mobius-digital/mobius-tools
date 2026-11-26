@@ -27,6 +27,7 @@ import { teamOf } from './calendar.js';
 import { ROSTER, addAction } from './actions.js';
 import { laneBlocks, laneWho } from './lane.js';
 import { houseMessage } from './house.js';
+import { jobOn } from './jobflags.js';
 
 const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 const ORIGIN = 'https://mobius-account-health.mobius-digital.workers.dev';
@@ -790,6 +791,8 @@ export async function checkinTick(env, d) {
    A card sent to the client (needs_client) is NEVER approved by the timer (journey audit 2026-11-26): it waits for the
    client or a person, and it does not use up one of the ten cards judged per tick. */
 export async function autoApproveTick(env, d, out = {}) {
+  /* 2026-11-26: a quiet job (jobflags.js jobOn:autoApprove). */
+  if (!(await jobOn(env, 'autoApprove', d.getSetting))) { out.autoApprove = 'quiet'; return out; }
   if ((await d.getSetting(env, AUTO_APPROVE_KEY)) === '0') { out.autoApprove = 'off'; return out; }
   const open = safe(await d.getSetting(env, 'rvOpen'), []);
   let approved = 0, judged = 0;

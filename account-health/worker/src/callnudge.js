@@ -14,6 +14,7 @@
 import { mondayScreen } from './meetings.js';
 import { SKIP } from './moved.js';
 import { DEFAULT_PEOPLE, DEFAULT_CHANNEL } from './checkin.js';
+import { jobOn } from './jobflags.js';
 
 const COLE = 'U06C37MDWD7';
 const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
@@ -77,14 +78,22 @@ export async function callNudgeTick(env, d) {
          A meeting that fails to finish falls back to the old DM asking him to press it. */
       const done = [], failed = [];
       if (d.finish) for (const c of due) { try { await d.finish(c.id); done.push(c); } catch (e) { failed.push(c); } }
-      if (done.length) {
+      /* 2026-11-26: the two DMs below are a quiet job (jobflags.js jobOn:meetingFinishedDm). Finish and the stamps still run. */
+      const dmOn = await jobOn(env, 'meetingFinishedDm', d.getSetting);
+      if (done.length && !dmOn) {
+        for (const c of done) await d.putSetting(env, `callNudge:open:${c.id}`, new Date().toISOString());
+        out.finished = done.map(c => c.id); out.quiet = true;
+      } else if (done.length) {
         const text = `*OPS · Meetings finished at noon*\n<@${COLE}>  Nobody pressed Finish, so Locus did:\n${done.map(c => `• <${callLink(c)}|${esc(c.title || 'A meeting')}>`).join('\n')}\nWhy: the tasks, requests and recaps from ${done.length === 1 ? 'it' : 'them'} are out now. Reopen one from its screen to add anything.`;
         await d.slackApi(env, 'chat.postMessage', { channel: COLE, text, blocks: [{ type: 'section', text: md(text) }] });
         for (const c of done) await d.putSetting(env, `callNudge:open:${c.id}`, new Date().toISOString());
         out.finished = done.map(c => c.id);
       }
       const ask = d.finish ? failed : due;
-      if (ask.length) {
+      if (ask.length && !dmOn) {
+        for (const c of ask) await d.putSetting(env, `callNudge:open:${c.id}`, new Date().toISOString());
+        out.open = ask.map(c => c.id); out.quiet = true;
+      } else if (ask.length) {
         const lines = ask.map(c => `• <${callLink(c)}|${esc(c.title || 'A meeting')}>`).join('\n');
         const text = `*OPS · Meetings not finished*\n<@${COLE}>  Open ${ask.length === 1 ? 'this meeting' : 'these meetings'} and press Finish:\n${lines}\nWhy: until Finish, nothing from the meeting becomes a task, a request or a line in the client's report.`;
         await d.slackApi(env, 'chat.postMessage', { channel: COLE, text, blocks: [{ type: 'section', text: md(text) }] });
