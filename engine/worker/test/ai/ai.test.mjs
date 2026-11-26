@@ -269,3 +269,38 @@ test('save the brief: one settings row, cut at 4000 characters, nothing else mov
   assert.equal(empty.status, 200);
   assert.equal(env.DB.rows('settings', "key = 'strategistBrief'")[0].value, '');
 });
+
+test('my own key: a view only teammate and a look and approve client may make one and turn it off, as the old door', async () => {
+  const env = envWith({ p_ai_key: [key('aik_1', TEAM)] });
+  const viewer = asCaller('viewer');
+  const made = await call(env, 'POST', '/ah/api/connect-ai/keys', { token: viewer, body: { label: 'Mine' } });
+  assert.equal(made.status, 200);
+  assert.equal(made.json.email, 'viewer@agency.test');
+  const notMine = await call(env, 'POST', '/ah/api/connect-ai/keys/revoke', { token: viewer, body: { id: 'aik_1' } });
+  assert.equal(notMine.status, 404);
+  const off = await call(env, 'POST', '/ah/api/connect-ai/keys/revoke', { token: viewer, body: { id: made.json.id } });
+  assert.deepEqual([off.status, off.json.state], [200, 'revoked']);
+  assert.equal(env.DB.rows('p_ai_key', "id = 'aik_1'")[0].revoked_at, null);
+
+  const client = asCaller('client');
+  await call(env, 'GET', '/ah/api/connect-ai', { token: client });
+  env.DB.insert('settings', [{ key: 'clientUsers', value: JSON.stringify({ [CLIENT]: { brands: [NORTH], name: 'Client Person', readOnly: true } }) }]);
+  const c = await call(env, 'POST', '/ah/api/connect-ai/keys', { token: client, body: {}, keep: true });
+  assert.equal(c.status, 200);
+  assert.deepEqual([c.json.email, c.json.brands], [CLIENT, [NORTH]]);
+  const cOff = await call(env, 'POST', '/ah/api/connect-ai/keys/revoke', { token: client, body: { id: c.json.id }, keep: true });
+  assert.equal(cOff.status, 200);
+  const other = await call(env, 'POST', '/ah/api/connect-ai/keys/revoke', { token: client, body: { id: 'aik_1' }, keep: true });
+  assert.equal(other.status, 404);
+  const cBad = await call(env, 'POST', '/ah/api/connect-ai/keys', { token: client, body: { brands: [RIVER] }, keep: true });
+  assert.equal(cBad.status, 403);
+});
+
+test('my own key: the look and approve pass reaches these two writes only', async () => {
+  const env = envWith();
+  const viewer = asCaller('viewer');
+  for (const path of ['/ah/api/ask/settings', '/ah/api/ask/brief']) {
+    const r = await call(env, 'PUT', path, { token: viewer, body: {} });
+    assert.equal(r.status, 403, path);
+  }
+});

@@ -5,7 +5,7 @@ import { lower } from '../platform/text.js';
 import { swallowed } from '../platform/log.js';
 import { ROLES, isEmail, safe } from './words.js';
 
-const KEYS = ['automationsOn', 'automationRoles', 'allowedEmails', 'userBrands', 'userRoles', 'clientUsers'];
+const KEYS = ['automationsOn', 'automationRoles', 'allowedEmails', 'userBrands', 'userRoles', 'clientUsers', 'removedEmails'];
 
 /** The caller as the old handler saw them. A sign in with no name reads as 'admin', as before. */
 export function meOf(ctx) {
@@ -38,7 +38,8 @@ export async function settingsOf(ctx) {
   const rows = await ctx.db.all('automations.settingsMany', { keys: KEYS });
   const raw = Object.fromEntries(rows.map(r => [r.key, r.value]));
   return { power: lower(raw.automationsOn) === 'on', saved: safe(raw.automationRoles, {}), allowed: emailsInList(safe(raw.allowedEmails, [])),
-    userBrands: safe(raw.userBrands, {}), userRoles: safe(raw.userRoles, {}), clients: lowerKeys(safe(raw.clientUsers, {})) };
+    userBrands: safe(raw.userBrands, {}), userRoles: safe(raw.userRoles, {}), clients: lowerKeys(safe(raw.clientUsers, {})),
+    removed: emailsInList(safe(raw.removedEmails, [])) };
 }
 
 /* The old emailAllowed reads the invited list as a plain list of text. */
@@ -71,8 +72,17 @@ export async function teamFacts(ctx) {
   }
 }
 
-/** May this email sign in as team: on the agency's domain, or invited by hand. */
-export const onTeam = (facts, s, email) => !!email && (email.toLowerCase().endsWith('@' + facts.domain) || s.allowed.includes(email.toLowerCase()));
+/** Taken off on the Team screen (settings.removedEmails). The owner never is, as the old isRemovedEmail says. */
+export const isRemoved = (facts, s, email) => {
+  const e = lower(email);
+  return !!e && e !== lower(facts && facts.owner) && (s.removed || []).includes(e);
+};
+
+/** May this email sign in as team, as the old emailAllowed says: not taken off on the Team screen (checked
+ *  before the domain rule, so a removed teammate on the agency's domain is out too), then on the agency's
+ *  domain or invited by hand. */
+export const onTeam = (facts, s, email) => !!email && !isRemoved(facts, s, email)
+  && (email.toLowerCase().endsWith('@' + facts.domain) || s.allowed.includes(email.toLowerCase()));
 
 /** "The whole team": everyone who may sign in and is not a client, from every place a team email is written down. */
 export async function teamList(ctx, s, facts) {

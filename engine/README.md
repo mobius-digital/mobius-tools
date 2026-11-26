@@ -54,7 +54,7 @@ engine/
   docs/                made by the build: routes.md, forwarded.md, statements.md, metrics.md
 
 profit/v5/             the screens' side of the switch
-  config.js            ENGINE_URL (the engine's address) and ENGINE_DEFAULT ('old')
+  config.js            ENGINE_URL (the engine's address) and ENGINE_DEFAULT ('new' since the switch on; 'old' is the way back)
   engine.js            which engine answers, the fall back to the old engine, the misses
   engine-paths.js      made by the build: the calls the engine answers with its own code
   defs.js              shows what a number means, from GET /v1/metrics/definitions

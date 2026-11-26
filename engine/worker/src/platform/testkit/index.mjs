@@ -239,13 +239,14 @@ export function genAccessTests(routes, opts = {}) {
         assert.equal(r.status, 403);
       });
     }
-    if (s.write && !s.a.public && !viewerMay(row.path)) {
+    const viewerOwn = viewerMay(row.path) || s.a.look_may === true;     // the old door's list, or a row of the caller's own
+    if (s.write && !s.a.public && !viewerOwn) {
       test(`${s.key}: a view only teammate cannot write`, async () => {
         const r = await call(makeEnv(opts), row.method, s.url(NORTH), { token: asCaller('viewer'), body });
         assert.equal(r.status, 403);
       });
     }
-    if (s.write && !s.a.public && viewerMay(row.path)) {
+    if (s.write && !s.a.public && viewerOwn) {
       test(`${s.key}: a view only teammate may write its own (the old door allows it)`, async () => {
         const r = await call(makeEnv(opts), row.method, s.url(NORTH), { token: asCaller('viewer'), body });
         assert.ok(!(r.status === 403 && /view.only/i.test(String(r.json && r.json.error))), 'refused as view only');
