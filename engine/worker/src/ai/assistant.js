@@ -85,7 +85,9 @@ export async function askFindings(ctx) {
   return { findings: await openFindings(ctx), briefing: safeJson(await get('lastBriefing'), null),
     memory: { notes: listOf(await get('notes')), watches: listOf(await get('watches')), muted: listOf(await get('muted')) },
     brief, channel: await get('channel'), playbook,
-    pending: listOf(await get('pending')).filter(x => x && Date.parse(x.at) > cutoff) };
+    pending: listOf(await get('pending')).filter(x => x && Date.parse(x.at) > cutoff)
+      // card words only: a held input (patch, preview, rows) never reaches a team screen (main PR 336, pendingCards)
+      .map(p => ({ id: p.id, action: p.action, ...(p.tool ? { tool: true } : {}), summary: p.summary, detail: p.detail, at: p.at })) };
 }
 
 /** PUT /api/ask/brief {text}: the "about your agency" text every answer reads. One settings row. */

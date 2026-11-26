@@ -244,7 +244,7 @@ test('ask findings: answered here once both texts are saved, in the old shape an
   const fresh = new Date(Date.now() - 3600e3).toISOString();
   const env = envWith({ settings: [ON, ...SAVED, { key: 'strategistLastBriefing', value: '{"at":"2030-01-01T00:00:00.000Z","text":"Made up.","findings":1}' },
     { key: 'strategistNotes', value: '[{"at":"2030-01-01","text":"Made up."}]' },
-    { key: 'strategistPending', value: JSON.stringify([{ id: 'p1', at: fresh }, { id: 'p2', at: PAST }]) }],
+    { key: 'strategistPending', value: JSON.stringify([{ id: 'p1', at: fresh, action: 'pause', tool: true, summary: 'Pause it', detail: 'Why', patch: { body: { rows: [1] } }, preview: 'held' }, { id: 'p2', at: PAST }]) }],
   findings: [finding('a:low', { evidence: 'not json' }), finding('b:high', { severity: 'high' }), finding('c:done', { state: 'done' }),
     finding('d:later', { state: 'snoozed', snooze_until: '2999-01-01' }), finding('e:back', { state: 'snoozed', snooze_until: '2001-01-01', severity: 'med' })] });
   const r = await get(env, 'ask/findings');
@@ -254,7 +254,8 @@ test('ask findings: answered here once both texts are saved, in the old shape an
   assert.deepEqual([r.json.findings[0].evidence, r.json.findings[2].evidence], [{ days: 3 }, {}]);
   assert.deepEqual([r.json.brief, r.json.playbook, r.json.channel], ['We sell kites and tea.', 'Read the ad set first.', null]);
   assert.deepEqual(r.json.memory, { notes: [{ at: '2030-01-01', text: 'Made up.' }], watches: [], muted: [] });
-  assert.deepEqual(r.json.pending.map(p => p.id), ['p1']);
+  assert.deepEqual(r.json.pending, [{ id: 'p1', action: 'pause', tool: true, summary: 'Pause it', detail: 'Why', at: fresh }]);
+  assert.ok(!('patch' in r.json.pending[0]) && !('preview' in r.json.pending[0]));
 });
 
 test('save the brief: one settings row, cut at 4000 characters, nothing else moved', async () => {
