@@ -4,6 +4,7 @@ import { guardBrands, brandsFor, clientScope, isClientEmail } from './brandguard
 import { handleCommand } from './command.js';
 import { handleAgency } from './agency.js';
 import { handleClients, clientAsk, clientOwnsRun, touchClient, meClient, claimInvite, hqSignin } from './clients.js';
+import { handleOnboard, onboardTick } from './onboard.js';
 import { listBrands, addConnection, createBrand, brandByChannel, connectionNote, KINDS as BRAND_KINDS, metaOf, isBrandId, resolveBrandId, acctOf, metaSyncRows, setTripleWhale, storagePrefix, brandOf, connGet, connSet } from './brands.js';
 import { whoIs, channelInfo, brandForChannel, readAccess, writeAccess } from './slackaccess.js';
 import { movedTick, movedPreview } from './moved.js';
@@ -613,7 +614,8 @@ async function connectMetaFor(env, r, a) {
   await env.DB.prepare(`UPDATE brands SET status = 'active', name = ?2,
       internal_channel = COALESCE(NULLIF(internal_channel, ''), ?3), client_channel = COALESCE(NULLIF(client_channel, ''), ?4), updated_at = datetime('now') WHERE id = ?1`)
     .bind(brand.id, r.name, r.slack_internal, r.slack_client || null).run();
-  if (shop && !(await env.DB.prepare(`SELECT 1 FROM connections WHERE brand_id = ?1 AND kind = 'triple_whale'`).bind(brand.id).first())) await setTripleWhale(env, brand.id, shop).catch(() => {});
+  /* A v2 run (the new onboarding) never links a store the client typed: the team's tick on Get started does (onboard.js). */
+  if (shop && steps.v !== 2 && !(await env.DB.prepare(`SELECT 1 FROM connections WHERE brand_id = ?1 AND kind = 'triple_whale'`).bind(brand.id).first())) await setTripleWhale(env, brand.id, shop).catch(() => {});
   await env.DB.prepare(`UPDATE p_newclient SET act_id = ?2, updated_at = datetime('now') WHERE id = ?1`).bind(r.id, brand.id).run();
   steps.meta_connected = { act: a.act_id, account: a.name, at: new Date().toISOString() }; await save('meta_connected');
   await lanePost(env, { slackPost }, r.slack_internal, { lane: 'OPS', brand: r.name, who: COLE_SLACK, ask: `Add the media buyer to ${r.name}'s ad account "${a.name}" and page in Business Settings`,
@@ -7356,7 +7358,11 @@ async function googleLogin(env, credential, invite) {
   /* A client login (clients.js) signs in the same way; brandguard.js decides what it may open. */
   const team = await emailAllowed(env, info.email);
   /* An invite link (?invite=) lets the person use ANY Google account: that email takes over the invited login. */
-  const client = !team && ((invite && await claimInvite(env, invite, info.email).catch(() => false)) || await isClientEmail(env, info.email));
+  const claim = !team && invite ? await claimInvite(env, invite, info.email).catch(() => false) : false;
+  /* A one-job invite (a colleague handed one setup step) opened with a Google account that already has another login
+     is refused, so the limit is never merged away (clients.js claimInvite). */
+  if (claim && claim.error) return { error: claim.error, status: 403 };
+  const client = !team && (claim === true || await isClientEmail(env, info.email));
   if (!team && !client) return { error: `${info.email} has no Locus login. Ask Mobius Digital to invite this email.`, status: 403 };
   const s = await mintSession(env, info.email);
   if (client) await touchClient(env, info.email, 'login').catch(() => {});
@@ -7379,7 +7385,7 @@ async function googleLogin(env, credential, invite) {
 const VIEWER_MAY = new Set([
   '/api/me/prefs', '/api/me/morning', '/api/me/delivery', '/api/notices/done',
   '/api/read', '/api/daycheck', '/api/summarise',
-  '/api/google-login', '/api/hq-signin', '/api/clients/signin', '/api/clients/login-link',
+  '/api/google-login', '/api/hq-signin', '/api/clients/signin', '/api/clients/login-link', '/api/clients/code', '/api/clients/code/verify',
 ]);
 
 async function roleFor(env, email) {
@@ -8225,6 +8231,9 @@ const AH_APP = {
         ran.creative = await creativeTick(env, ids => adThumbnails(env, ids, LIVE_THUMBS), () => subCanAfford(80), { meta, perBrand: 120, tags: 150 }).catch(e => ({ error: e.message }));
         /* New clients made from Locus: tell the team when the onboarding form is sent. */
         ran.newClient = await newClientTick(env).catch(e => ({ error: e.message }));
+        /* Client onboarding (onboard.js): the day 3 and day 7 client reminders, then one website read. Per brand it
+           checks canAfford(60) before starting it, never mid brand. */
+        if (subCanAfford(40)) ran.onboarding = await onboardTick(env, { canAfford: n => subCanAfford(n), centralHour, centralDate, mintSession }).catch(e => ({ error: e.message }));
         /* Meta partner sweep first (metaaccess.js): assigns the team + Mobius Tools on what clients shared, so a new
            client's ad account is visible to the auto-connect right after it. Small: ~30 reads an hour. */
         /* No timed access checks (Cole 2026-10-15): the connect link's Done button, the onboarding ticks and Cole's
@@ -8562,6 +8571,13 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     /* ---- New client: one button in Locus sets up Asana, the onboarding link, Drive and Slack (admin) ---- */
     if (path.startsWith('/api/new-client')) {
       const r = await handleNewClient(request, env, path, json, isAdmin, (rq, e) => sessionEmail(e, rq));
+      if (r) return r;
+    }
+    /* ---- Client onboarding (onboard.js, 2026-11-26): New client, Get started, the assets link, Remind them. Each route
+       checks its own caller (owner, team, or the client of that brand that brandguard.js already cleared). ---- */
+    if (path.startsWith('/api/onboard') || path === '/api/brand/assets-link') {
+      const connectDeps = { adsInvite: googleAdsInvite, onDone: (key, b) => ctx.waitUntil(connectNow(env, key, b.id).catch(() => {})), tellTeam: null };
+      const r = await handleOnboard(request, env, ctx, path, json, { isAdmin, sessionEmail, mintSession, clientScope, xfetch, connectDeps });
       if (r) return r;
     }
     /* ---- Client logins (clients.js; who may open what is brandguard.js) ---- */

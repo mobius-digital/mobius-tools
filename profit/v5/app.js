@@ -5,6 +5,7 @@ import { token, SAMPLE, LS, LS5, APP_NAME, QS } from './config.js';
 import { api, cached, fixture, setUser, wipeSaved, storedClient, onAnnounce } from './data.js';
 import * as shell from './shell.js';
 import * as router from './router.js';
+import { heldHere } from './gate.js';
 
 const app = document.getElementById('app');
 const hideLoader = () => { const l = document.getElementById('lx-load'); if (l) l.remove(); };
@@ -14,6 +15,13 @@ document.title = APP_NAME;
 /* me + the brand list, in one saved copy, so the menu and the brand switcher draw before any network */
 async function fetchBoot() {
   if (SAMPLE) {
+    /* ?sample=1&as=client&onboarding=1 is a new client held on Get started; &welcome=1 (without onboarding) one who just finished */
+    if (QS.get('as') === 'client' && (QS.get('onboarding') === '1' || QS.get('welcome') === '1')) {
+      const c = await fixture('get-started/_sample/me-client.json');
+      if (QS.get('onboarding') !== '1') c.onboarding = { ...c.onboarding, gated: false, left: [] };
+      if (QS.get('welcome') === '1') c.welcome_seen = false;
+      return { me: { email: c.email, name: c.name, role: 'client', client: c }, brands: c.brands.map(x => ({ id: x.id, name: x.name, status: 'active' })) };
+    }
     const [me, b] = await Promise.all([fixture('_sample/me.json'), fixture('_sample/brands.json')]);
     return { me, brands: b.brands };
   }
@@ -46,6 +54,8 @@ async function showSignin(message, more) {
    older session on this browser. True when this took over the screen. */
 async function fromLink() {
   const once = QS.get('signin'), invite = QS.get('invite');
+  /* sample: ?sample=1&invite=1 shows the new client sign up page. Nothing is sent. */
+  if (SAMPLE && invite) { await showSignin('', { invite: { ok: true, name: 'Pat Doyle', email: 'p***@example.com', brands: ['Northlake Golf'], token: 'sample' } }); return true; }
   if (SAMPLE || (!once && !invite)) return false;
   const si = await import('./pages/_signin.js');
   if (once) {
@@ -102,8 +112,14 @@ async function boot() {
   if (router.parse(location.hash).signin || (!token() && !SAMPLE)) return showSignin();
   setUser(get(LS.email) || 't:' + token().slice(-16));
   let rec;
+  /* The welcome cards are decided on a FRESH /api/me: a saved boot copy can still say welcome_seen false after the
+     cards were closed. A copy under a minute old is not refreshed (cached maxAge), so it counts as fresh. */
+  let decided = false, started = false, freshSeen = false;
+  const decide = () => { if (decided || !started) return; decided = true; welcomeCards(); };
+  const onFresh = fresh => { shell.update(fresh.data); freshSeen = true; decide(); };
+  onFresh.touch = () => { freshSeen = true; decide(); };
   try {
-    rec = await cached('boot', fetchBoot, fresh => shell.update(fresh.data), { maxAge: 60e3 });
+    rec = await cached('boot', fetchBoot, onFresh, { maxAge: 60e3 });
   } catch (e) {
     if (e && e.status === 401) return dropStale() ? boot() : showSignin('Your sign in ran out. Sign in again to carry on.');
     return showDown(e);
@@ -122,8 +138,21 @@ async function boot() {
   }
   router.start({ state: shell.state, frame: shell.frame, brandBySlug: shell.brandBySlug, signin: () => location.reload() });
   bellCount();
+  started = true;
+  if (rec.fresh || SAMPLE || freshSeen || Date.now() - rec.asOf <= 60e3) decide();
   /* a link from a Slack or email reminder can open the bell: add ?bell=1 to any address */
   if (QS.get('bell')) setTimeout(() => { const b = document.querySelector('.lx-bell'); if (b) b.click(); }, 300);
+}
+
+/* The welcome cards: once per person, the first time a real client opens the app past the setup gate.
+   Only when the server says welcome_seen is false (an older server that does not know it shows nothing).
+   Sample: ?sample=1&as=client&welcome=1. */
+function welcomeCards() {
+  const st = shell.state(), c = st.me && st.me.client;
+  const r = router.currentRoute();
+  if (st.realRole !== 'client' || st.asClient || !c || c.welcome_seen !== false || heldHere(st, r)) return;
+  const brand = (r && shell.brandBySlug(r.brand)) || st.brands[0] || null;
+  import('./pages/get-started/_welcome.js').then(m => m.showWelcome({ brand, me: st.me })).catch(() => {});
 }
 
 /* The count on the bell: read once the first page is up, from the same rows the panel shows. */

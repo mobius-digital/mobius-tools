@@ -10,6 +10,7 @@
 import { SAMPLE, cached, getSaved, putSaved, pageKey, fixture, api, STALE_MS, setting, settingNow, saveSetting } from './data.js';
 import { lineOf, viewOf, menuFor } from './menu.js';
 import { legacyUrl, LS5, APP_NAME } from './config.js';
+import { gateOf, gateRoute, heldBrand } from './gate.js';
 
 let host = null;          // { state(), frame(route, line, tab), brandBySlug(slug) } from the shell
 let current = null;       // the route on screen
@@ -32,10 +33,16 @@ export function go(r, { replace = false } = {}) {
   if (replace) onHash();
 }
 
+/* The new client gate lives in gate.js (per brand; shell.js and app.js read it too). */
+export { gateOf };
+
 /** Make any address a valid one for this person: a view they may see, a brand they have, a real line and tab. */
 export function normalise(r) {
   const st = host.state();
   const role = st.role;
+  /* a gated client sees Get started and their profile for a brand still being set up; a brand already running stays open */
+  const gate = gateOf(st);
+  if (gate) r = gateRoute(r, gate);
   let line = lineOf(r.line);
   let view = r.view === 'agency' && role !== 'client' ? 'agency' : 'brand';
   if (line) { const v = viewOf(line.id); if (v && !(v === 'agency' && role === 'client')) view = v; }
@@ -49,6 +56,8 @@ export function normalise(r) {
     const b = host.brandBySlug(r.brand) || host.brandBySlug(st.lastBrand) || st.brands[0];
     brand = b ? b.slug : 'none';
   }
+  /* the brand picked above (the last one, or the first) can be one still being set up */
+  if (gate && view === 'brand' && line.id !== 'profile' && line.id !== 'get-started' && heldBrand(gate, brand)) return { view: 'brand', brand, line: 'get-started', tab: 'index' };
   return { view, brand, line: line.id, tab: tab.id };
 }
 

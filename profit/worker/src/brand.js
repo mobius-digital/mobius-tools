@@ -479,7 +479,12 @@ export async function handlePublic(request, env, url, path, json) {
     if (inv?.url && !inv.paid) links.invoice = inv.url;
     /* The brand's connect page (account-health connect.js, settings connectTokens {token: brand id}): one page that
        ticks itself off as accounts connect. Made here on first ask when the brand exists (same D1). */
-    if (/^brand_[a-z0-9_]+$/.test(row.act_id || '')) {
+    /* A brand set up through onboarding (an account-health p_onboard row, same D1) connects on Get started in Locus,
+       where a typed store or ad account waits for the team's tick: the old connect link is never handed out for it.
+       No such table yet = no such brand. */
+    const onb = /^brand_[a-z0-9_]+$/.test(row.act_id || '') ? await env.DB.prepare(`SELECT 1 AS x FROM p_onboard WHERE act_id = ?1`).bind(row.act_id).first().catch(() => null) : null;
+    if (onb) links.locus = 'https://locus.go-mobius-digital.com/profit/v5/';
+    else if (/^brand_[a-z0-9_]+$/.test(row.act_id || '')) {
       const t = safeJson((await env.DB.prepare(`SELECT value FROM settings WHERE key = 'connectTokens'`).first().catch(() => null))?.value, {});
       let tok = Object.keys(t).find(k => t[k] === row.act_id);
       if (!tok) { tok = crypto.randomUUID().replace(/-/g, '').slice(0, 20); t[tok] = row.act_id;

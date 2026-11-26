@@ -46,6 +46,7 @@ Every fixture uses these and nothing else. Numbers are made up and agree across 
 | `config.js` | `APP_NAME`, `ORG_NAME`, storage keys, worker URLs, `SAMPLE`, old Locus links. |
 | `menu.js` | The three menus (brand, agency, top bar lines) and every route. |
 | `router.js` | Hash routes, page loading, saved copy then refresh, prefetch on hover, the page's `ctx`. |
+| `gate.js` | The new client gate, per brand (pure, no imports; router, shell and app read it). |
 | `data.js` | `api()`, `cached()`, `fixture()`, the saved copy, settings, the date range. |
 | `kit.js` | The UI kit every page builds with, the one chart included. |
 | `icons.js` | The mark, platform glyphs, the icon set. |
@@ -175,6 +176,28 @@ menu counts, suggestions, or the bell's team rows. The router sends a client awa
 addresses. In a page, anything written for the team (Ask why, Open integrations, "connect it in
 Brand settings", a link to old Locus) must be behind `!ctx.isClient`. Check `ctx.isClient`, never
 `ctx.role === 'client'`.
+
+## New client setup (onboarding)
+
+- **New client** (`agency/all/a-clients/new`): one form, previews, one Send (owner only). Routes `/api/onboard/options`,
+  `/preview`, `/send` on account-health.
+- **Get started** (`brand/<brand>/get-started/index`): the client's checklist (profile, then Sign and pay, Connect, Ten
+  questions, Photos and videos, any order, each with "Someone else does this") and the team's view of the same client
+  (who waits on whom, Remind them, ticks, budget, Mark finished). `pages/get-started/_ui.js` holds the shared parts and
+  the line buttons My day uses.
+- **The gate**: while `/api/me` says `client.onboarding.gated`, a real client login sees only Get started and their
+  profile for a brand still being set up (`gate.js`, read by `router.js` normalise, the side menu and the phone tabs).
+  It is PER BRAND: `gated_slugs` are the held brands and a brand already running stays open; `all_gated` (or a
+  colleague's `only`) also holds the pages with no brand. Old Locus sends a fully held client here. The team and
+  See as client are never gated.
+- **Welcome cards** (`pages/get-started/_welcome.js`): once per person after the gate (`client.welcome_seen` false),
+  last card asks for feedback ("Message the team").
+- **Sign up**: an invite link opens "make your login": Google, or an emailed 6 digit code (`/api/clients/code`,
+  `/api/clients/code/verify`).
+- **Assets** (`brand/<brand>/assets/index`): the brand's photo and video folder link; Locus never copies the files.
+  The Library pages carry an Assets button.
+- Sample: `?sample=1&as=client&onboarding=1` (a gated client), `&welcome=1` (the cards), `?sample=1&invite=1` (sign up),
+  `?sample=1#/brand/northlake-golf/get-started/index` (team view), `#/agency/all/a-clients/new`.
 
 ## The bell
 
@@ -377,6 +400,7 @@ whole-document MutationObserver; no polling; tables over 100 rows use `virtual`.
 | `brand/<brand>/creators/to-review` | Creators > To review | `pages/creators/to-review.js` | trybe |  |
 | `brand/<brand>/creators/videos` | Creators > Videos | `pages/creators/videos.js` | trybe |  |
 | `brand/<brand>/creators/people` | Creators > People | `pages/creators/people.js` | trybe |  |
+| `brand/<brand>/assets/index` | Assets | `pages/assets/index.js` | none |  |
 | `brand/<brand>/library/photos` | Library > Photos | `pages/library/photos.js` | library |  |
 | `brand/<brand>/library/footage` | Library > Footage | `pages/library/footage.js` | library |  |
 | `brand/<brand>/library/reference-ads` | Library > Reference ads | `pages/library/reference-ads.js` | inspo |  |
@@ -387,9 +411,10 @@ whole-document MutationObserver; no polling; tables over 100 rows use `virtual`.
 | `brand/<brand>/reports/index` | Reports | `pages/reports/index.js` | reports |  |
 | `brand/<brand>/documents/index` | Documents | `pages/documents/index.js` | dash |  |
 | `brand/<brand>/requests/index` | Requests | `pages/requests/index.js` | requests |  |
-| `brand/<brand>/brand-settings/goals` | Brand settings > Goals | `pages/brand-settings/goals.js` | settings | yes |
-| `brand/<brand>/brand-settings/brand` | Brand settings > Brand | `pages/brand-settings/brand.js` | settings | yes |
-| `brand/<brand>/brand-settings/integrations` | Brand settings > Integrations | `pages/brand-settings/integrations.js` | settings | yes |
+| `brand/<brand>/brand-settings/goals` | Brand settings > Goals | `pages/brand-settings/goals.js` | settings |  |
+| `brand/<brand>/brand-settings/costs` | Brand settings > Costs | `pages/brand-settings/costs.js` | costs |  |
+| `brand/<brand>/brand-settings/brand` | Brand settings > Brand | `pages/brand-settings/brand.js` | settings |  |
+| `brand/<brand>/brand-settings/integrations` | Brand settings > Integrations | `pages/brand-settings/integrations.js` | settings |  |
 | `brand/<brand>/brand-settings/people` | Brand settings > People and sending | `pages/brand-settings/people.js` | settings | yes |
 | `agency/all/a-today/index` | Today | `pages/a-today/index.js` | morning | yes |
 | `agency/all/a-month/pace` | This month > Pace | `pages/a-month/pace.js` | month | yes |
@@ -411,7 +436,8 @@ whole-document MutationObserver; no polling; tables over 100 rows use `virtual`.
 | `agency/all/a-black-friday/plan` | Black Friday > Plan | `pages/a-black-friday/plan.js` | warplan | yes |
 | `agency/all/a-to-send/index` | To send | `pages/a-to-send/index.js` | reports | yes |
 | `agency/all/a-shared-links/index` | Shared links | `pages/a-shared-links/index.js` | none | yes |
-| `agency/all/a-clients/index` | Client list | `pages/a-clients/index.js` | settings | yes |
+| `agency/all/a-clients/index` | Client list > Client list | `pages/a-clients/index.js` | settings | yes |
+| `agency/all/a-clients/new` | Client list > New client | `pages/a-clients/new.js` | none | yes |
 | `agency/all/a-requests/index` | Requests | `pages/a-requests/index.js` | requests | yes |
 | `agency/all/a-meetings/agenda` | Meetings > Agenda | `pages/a-meetings/agenda.js` | calls | yes |
 | `agency/all/a-meetings/pre-read` | Meetings > Pre-read | `pages/a-meetings/pre-read.js` | none | yes |
@@ -429,6 +455,7 @@ whole-document MutationObserver; no polling; tables over 100 rows use `virtual`.
 | `agency/all/a-settings/sending` | Agency settings > Sending and notifications | `pages/a-settings/sending.js` | settings | yes |
 | `<view>/<brand>/ask/index` | Ask Locus AI | `pages/ask/index.js` | none | yes |
 | `<view>/<brand>/my-day/index` | My day | `pages/my-day/index.js` | mywork | yes |
+| `brand/<brand>/get-started/index` | Get started (new client setup; the gate) | `pages/get-started/index.js` | none |  |
 | `<view>/<brand>/notifications/needs-you` | Notifications > Needs you | `pages/notifications/needs-you.js` | none |  |
 | `<view>/<brand>/notifications/watching` | Notifications > Watching | `pages/notifications/watching.js` | none |  |
 | `<view>/<brand>/notifications/done-today` | Notifications > Done today | `pages/notifications/done-today.js` | none |  |

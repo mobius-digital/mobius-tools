@@ -20,7 +20,8 @@
  *   PUT  /api/clients/me              the signed-in client: {name?, welcomed?} (their own profile only)
  * Nothing here sends anything unless the owner pressed Send on text they saw (the New client rule).
  */
-import { sendMail as sendMailAs } from './mail.js';
+import { sendMail as sendMailAs, sendProductMail } from './mail.js';
+import { onboardGate } from './onboard.js';
 /* Sign in links and login invites come from the login_email sender: Locus once a Locus mailbox exists, Cole until then. */
 const sendMail = (env, to, subject, text) => sendMailAs(env, to, subject, text, { kind: 'login_email' });
 import { clientOf, clientScope, brandsFor, CLIENT_SWITCHES, CLIENT_CAPS, capUse, capAdd, capMessage, HQ_BRAND, HQ_DOMAIN } from './brandguard.js';
@@ -28,6 +29,8 @@ import { clientOf, clientScope, brandsFor, CLIENT_SWITCHES, CLIENT_CAPS, capUse,
 const OWNER = 'cole@go-mobius-digital.com';
 const DOMAIN = 'go-mobius-digital.com';
 export const LOCUS_URL = 'https://locus.go-mobius-digital.com/profit/';
+/* New Locus (profit/v5): where an onboarding invite opens (2026-11-26). */
+export const ONBOARD_URL = LOCUS_URL + 'v5/';
 const lower = s => String(s || '').trim().toLowerCase();
 const emailOk = e => /^[^@\s,;<>]+@[^@\s,;<>]+\.[^@\s,;<>]+$/.test(e);
 const firstName = s => String(s || '').trim().split(/\s+/)[0] || '';
@@ -38,6 +41,23 @@ async function getJson(env, key, dflt) {
 }
 async function putJson(env, key, v) {
   await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(key, JSON.stringify(v)).run();
+}
+/** One client login written (or removed with rec = null) by its own key inside settings.clientUsers, in one statement,
+ *  so two requests changing two different logins at the same moment never drop each other's write (a whole-blob write
+ *  from an older copy did). An address a JSON path cannot quote safely falls back to the whole-blob write. */
+export async function putClientUser(env, email, rec) {
+  const e = lower(email);
+  if (!e) return;
+  if (/["\\]/.test(e)) {
+    const users = (await getJson(env, 'clientUsers', {})) || {};
+    if (rec) users[e] = rec; else delete users[e];
+    return putJson(env, 'clientUsers', users);
+  }
+  const path = `$."${e}"`;
+  if (!rec) { await env.DB.prepare(`UPDATE settings SET value = json_remove(value, ?2) WHERE key = ?1 AND json_valid(value)`).bind('clientUsers', path).run(); return; }
+  await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, json_object(?2, json(?3)))
+    ON CONFLICT(key) DO UPDATE SET value = json_set(CASE WHEN json_valid(settings.value) AND json_type(settings.value) = 'object' THEN settings.value ELSE '{}' END, ?4, json(?3))`)
+    .bind('clientUsers', e, JSON.stringify(rec), path).run();
 }
 async function brandNames(env, ids) {
   if (!ids.length) return {};
@@ -57,19 +77,29 @@ async function brandNames(env, ids) {
 export const LINK_PLACEHOLDER = '{{sign-in link}}';
 const INVITE_DAYS = 30, SIGNIN_MIN = 20;
 const hex = n => [...crypto.getRandomValues(new Uint8Array(n))].map(b => b.toString(16).padStart(2, '0')).join('');
-const inviteUrl = t => `${LOCUS_URL}?invite=${t}`;
+const inviteUrl = (t, base = LOCUS_URL) => `${base}?invite=${t}`;
 const maskEmail = e => { const [u, d] = String(e).split('@'); return `${u.slice(0, 2)}${'*'.repeat(Math.max(1, Math.min(6, u.length - 2)))}@${d}`; };
 
-/** The client's current invite link, made (or renewed when expired) on the way. */
-async function ensureInvite(env, email) {
+/** The client's current invite link, made (or renewed when expired) on the way. `base` = where the link opens
+ *  (onboarding passes ONBOARD_URL, new Locus); old callers keep the old Locus. */
+export async function ensureInvite(env, email, base = LOCUS_URL) {
   const e = lower(email);
   const users = (await getJson(env, 'clientUsers', {})) || {};
   if (!users[e]) return null;
   const cur = users[e].invite;
-  if (cur?.token && Date.parse(cur.exp) > Date.now() + 86400e3) return inviteUrl(cur.token);
+  if (cur?.token && Date.parse(cur.exp) > Date.now() + 86400e3) return inviteUrl(cur.token, base);
   users[e].invite = { token: hex(16), exp: new Date(Date.now() + INVITE_DAYS * 86400e3).toISOString() };
-  await putJson(env, 'clientUsers', users);
-  return inviteUrl(users[e].invite.token);
+  await putClientUser(env, e, users[e]);
+  return inviteUrl(users[e].invite.token, base);
+}
+/** Where an emailed sign-in link opens: new Locus (ONBOARD_URL) when any of the login's brands has an onboarding
+ *  checklist, so the Get started gate applies; else the old address. */
+async function onboardBase(env, brands) {
+  const list = (brands || []).filter(b => /^brand_[a-z0-9_]+$/.test(b));
+  if (!list.length) return LOCUS_URL;
+  const ph = list.map((_, i) => `?${i + 1}`).join(',');
+  const hit = await env.DB.prepare(`SELECT 1 FROM p_onboard WHERE act_id IN (${ph}) LIMIT 1`).bind(...list).first().catch(() => null);
+  return hit ? ONBOARD_URL : LOCUS_URL;
 }
 function findInvite(users, token) {
   if (!/^[0-9a-f]{32}$/.test(token || '')) return null;
@@ -77,8 +107,12 @@ function findInvite(users, token) {
   return null;
 }
 
-/** Google sign-in through an invite link: the Google email takes over the invited login. Returns true when it did.
- *  Team and Mobius emails never become clients (googleLogin checks the team first). */
+/** Google sign-in through an invite link: the Google email takes over the invited login. Returns true when it did,
+ *  false when there was nothing to claim, or {error} when the claim is refused.
+ *  Team and Mobius emails never become clients (googleLogin checks the team first).
+ *  A one-job invite (onboard_only, a colleague handed one setup step) is never merged into a login that reaches any
+ *  other brand, or that is a full login without the brand: the merge would drop the limit and hand over a whole brand. */
+export const ONE_JOB_REFUSED = 'Use the email this was sent to, or ask Mobius.';
 export async function claimInvite(env, token, googleEmail) {
   const g = lower(googleEmail);
   if (!emailOk(g) || g.endsWith('@' + DOMAIN) || g === lower(env.OWNER_EMAIL || OWNER) || (await teamGuests(env)).includes(g)) return false;
@@ -88,7 +122,19 @@ export async function claimInvite(env, token, googleEmail) {
   const rec = { ...hit.u }; delete rec.invite;
   if (hit.email !== g) {
     const into = users[g] && typeof users[g] === 'object' ? users[g] : null;
-    users[g] = into ? { ...into, brands: [...new Set([...(into.brands || []), ...(rec.brands || [])])], name: into.name || rec.name } : { ...rec, invited_as: hit.email };
+    const oneJob = Array.isArray(rec.onboard_only) && rec.onboard_only.length;
+    if (into && oneJob) {
+      const recBrands = rec.brands || [], intoBrands = into.brands || [];
+      const sameBrandOnly = intoBrands.length > 0 && intoBrands.every(b => recBrands.includes(b));
+      const intoOneJob = Array.isArray(into.onboard_only) && into.onboard_only.length;
+      /* Allowed: the same brand only, and the login is either already full there (nothing new) or another one-job login
+         (the jobs add up). Anything else is refused. */
+      if (!sameBrandOnly) return { error: ONE_JOB_REFUSED };
+      users[g] = intoOneJob ? { ...into, onboard_only: [...new Set([...into.onboard_only, ...rec.onboard_only])], name: into.name || rec.name } : { ...into, name: into.name || rec.name };
+    } else users[g] = into ? { ...into, brands: [...new Set([...(into.brands || []), ...(rec.brands || [])])], name: into.name || rec.name } : { ...rec, invited_as: hit.email };
+    /* The invited address is remembered on the login that took it over: an onboarding step holder, the run's contact
+       and every reminder still name the invited address, and onboard.js liveLogin finds this login through it. */
+    users[g].claimed_from = [...new Set([...(Array.isArray(users[g].claimed_from) ? users[g].claimed_from : []), ...(Array.isArray(rec.claimed_from) ? rec.claimed_from : []), hit.email])].slice(-10);
     delete users[hit.email];
   } else users[g] = rec;
   await putJson(env, 'clientUsers', users);
@@ -119,10 +165,13 @@ async function sendSigninLink(env, email, invite) {
   const t = hex(24);
   await putJson(env, `signin:${t}`, { email: e, exp: Date.now() + SIGNIN_MIN * 60e3 });
   const hi = firstName(users[e].name) || 'there';
+  /* A login still being set up (any of its brands has an onboarding checklist) signs in to new Locus, where the Get
+     started gate lives; everyone else keeps the old address. */
+  const base = await onboardBase(env, users[e].brands || []);
   await sendMail(env, e, 'Your Locus sign-in link', `Hi ${hi},
 
 Here is your link to sign in to Locus:
-${LOCUS_URL}?signin=${t}
+${base}?signin=${t}
 
 It works once, for the next ${SIGNIN_MIN} minutes. If you did not ask for it, ignore this email.`);
   return done;
@@ -140,6 +189,71 @@ async function redeemSignin(env, token, mintSession) {
   if (users[v.email].invite) { delete users[v.email].invite; await putJson(env, 'clientUsers', users); }
   await touchClient(env, v.email, 'login').catch(() => {});
   return { ...(await mintSession(env, v.email)), role: 'client', name: users[v.email].name || '' };
+}
+
+/* ---------------- the emailed 6 digit code (onboarding, 2026-11-26) ----------------
+ * The invite page offers Google or "Email me a code". The code is 6 random digits, kept only as a SHA-256 of
+ * code + invite + SESSION_SECRET in settings `code:<invite>` = {h, exp, tries, sent_at, sends}. 10 minutes, 5 tries,
+ * one send a minute and 5 an hour per invite. The right code is one use: the row and the invite token go, and the
+ * answer is a session in the same shape as /api/clients/signin. Sent by sendProductMail (a system mail). */
+const CODE_MIN = 10, CODE_TRIES = 5;
+const sha256hex = async s => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))].map(x => x.toString(16).padStart(2, '0')).join('');
+const codeHash = (env, code, invite) => sha256hex(`${code}:${invite}:${env.SESSION_SECRET || env.ADMIN_TOKEN || ''}`);
+export async function sendCode(env, invite) {
+  const users = (await getJson(env, 'clientUsers', {})) || {};
+  const hit = findInvite(users, invite);
+  if (!hit || !hit.live) return { ok: false, error: 'This invite link is not valid any more. Ask Mobius for a new one.' };
+  const key = `code:${invite}`;
+  const now = Date.now();
+  const n = crypto.getRandomValues(new Uint32Array(1))[0] % 1000000;
+  const code = String(n).padStart(6, '0');
+  const h = await codeHash(env, code, invite);
+  /* The send slot is taken in ONE statement before the mail goes (parallel presses all read the same row, so a
+     read-check-write let a burst through): the new code is written only when the last send is over a minute old and
+     this hour has fewer than five. The hash is replaced in the same write, so only the newest code works. */
+  await env.DB.prepare(`INSERT OR IGNORE INTO settings (key, value) VALUES (?1, '{}')`).bind(key).run();
+  const took = await env.DB.prepare(`UPDATE settings SET value = json_object('h', ?2, 'exp', ?3, 'tries', 0, 'sent_at', ?4,
+      'sends', json_insert((SELECT COALESCE(json_group_array(j.value), '[]') FROM json_each(settings.value, '$.sends') AS j WHERE j.value > ?5), '$[#]', ?4))
+    WHERE key = ?1 AND json_valid(value) AND COALESCE(json_extract(value, '$.sent_at'), 0) <= ?6
+      AND (SELECT COUNT(*) FROM json_each(settings.value, '$.sends') AS j WHERE j.value > ?5) < 5
+    RETURNING key`).bind(key, h, now + CODE_MIN * 60e3, now, now - 3600e3, now - 60e3).first();
+  if (!took) {
+    const cur = await getJson(env, key, null);
+    if (cur?.sent_at && now - cur.sent_at < 60e3) return { ok: true, to: maskEmail(hit.email), wait: true };
+    return { ok: false, error: 'That is five codes this hour. Wait a little, or sign in with Google.' };
+  }
+  await sendProductMail(env, hit.email, 'Your Locus code', `Your code is ${code.slice(0, 3)} ${code.slice(3)}. It works for ${CODE_MIN} minutes. If you did not ask for it, ignore this email.`);
+  return { ok: true, to: maskEmail(hit.email) };
+}
+export async function verifyCode(env, invite, code, mintSession) {
+  const key = `code:${invite}`;
+  const ranOut = { error: 'That code ran out. Ask for a new one.', status: 400 };
+  /* A spent code keeps its row WITHOUT the hash: the send limits (sent_at, sends) live in it, so five wrong guesses or
+     an expiry never reset the one-a-minute and five-an-hour limits on sending a new one. */
+  const spend = v => putJson(env, key, { sent_at: v.sent_at || 0, sends: Array.isArray(v.sends) ? v.sends : [], tries: CODE_TRIES }).catch(() => {});
+  const v = /^[0-9a-f]{32}$/.test(invite || '') ? await getJson(env, key, null) : null;
+  if (!v || !v.h) return ranOut;
+  if (!(v.exp > Date.now())) { await spend(v); return ranOut; }
+  /* The try is counted BEFORE the code is compared, in one statement, so parallel guesses cannot all see tries = 0. */
+  const took = await env.DB.prepare(`UPDATE settings SET value = json_set(value, '$.tries', COALESCE(json_extract(value, '$.tries'), 0) + 1)
+    WHERE key = ?1 AND json_extract(value, '$.h') = ?2 AND COALESCE(json_extract(value, '$.tries'), 0) < ?3
+    RETURNING json_extract(value, '$.tries') AS t`).bind(key, v.h, CODE_TRIES).first().catch(() => null);
+  if (!took) { await spend(v); return ranOut; }
+  const tries = Number(took.t) || CODE_TRIES;
+  const c = String(code || '').replace(/\D/g, '');
+  if (c.length !== 6 || (await codeHash(env, c, invite)) !== v.h) {
+    if (tries >= CODE_TRIES) { await spend(v); return ranOut; }
+    const left = CODE_TRIES - tries;
+    return { error: `That code is not right. ${left} ${left === 1 ? 'try' : 'tries'} left.`, status: 400 };
+  }
+  await env.DB.prepare(`DELETE FROM settings WHERE key = ?1`).bind(key).run().catch(() => {});
+  const users = (await getJson(env, 'clientUsers', {})) || {};
+  const hit = findInvite(users, invite);
+  if (!hit || !hit.live) return { error: 'This invite link is not valid any more. Ask Mobius for a new one.', status: 400 };
+  delete users[hit.email].invite;
+  await putJson(env, 'clientUsers', users);
+  await touchClient(env, hit.email, 'login').catch(() => {});
+  return { ...(await mintSession(env, hit.email)), role: 'client', name: users[hit.email].name || '' };
 }
 
 /* ---------------- the invite email ---------------- */
@@ -170,13 +284,21 @@ Talk soon,`,
 async function teamGuests(env) { return ((await getJson(env, 'allowedEmails', [])) || []).map(lower); }
 
 /** Add brands to (or create) one client login. Returns an error string or null. */
-async function upsertClient(env, email, brands, by, name, readOnly) {
+export async function upsertClient(env, email, brands, by, name, readOnly) {
   const e = lower(email);
   if (!emailOk(e)) return `${email || 'That'} does not look like an email address.`;
   if (e.endsWith('@' + DOMAIN) || e === lower(env.OWNER_EMAIL || OWNER)) return `${e} is a Mobius account. Mobius people go in Team and access, not here.`;
   if ((await teamGuests(env)).includes(e)) return `${e} is on the team list (Team and access). Remove them there first if they should be a client.`;
   const users = (await getJson(env, 'clientUsers', {})) || {};
   const cur = users[e] && typeof users[e] === 'object' ? users[e] : { invited_at: new Date().toISOString(), invited_by: by || 'admin' };
+  /* A one-job login (a colleague handed one setup step) that the team now makes a FULL login: the job limit goes when
+     the team names every brand that login has, so the person is not locked to one step. Naming only another brand
+     would turn the one job into a whole brand they were never given, so that is refused with a plain reason. */
+  if (Array.isArray(cur.onboard_only) && cur.onboard_only.length) {
+    const had = Array.isArray(cur.brands) ? cur.brands : [];
+    if (!had.every(b => brands.includes(b))) return `${e} has a one-job setup login for another brand. Finish or remove it in Clients first.`;
+    delete cur.onboard_only; delete cur.handed_by;
+  }
   cur.brands = [...new Set([...(Array.isArray(cur.brands) ? cur.brands : []), ...brands])];
   if (name && !cur.name) cur.name = String(name).trim().slice(0, 80);
   /* Look-and-approve login (brandguard.js READONLY_CLIENT_MAY). An invite only ever narrows it; POST /api/clients/access widens. */
@@ -243,7 +365,12 @@ export async function meClient(env, email) {
   if (!c) return null;
   const names = await brandNames(env, c.brands);
   const users = (await getJson(env, 'clientUsers', {})) || {};
-  return { name: c.name, ...(c.hq ? { hq: true } : {}), ...(c.readOnly ? { readOnly: true } : {}), welcomed: !!users[c.email]?.welcomed_at, brands: c.brands.map(b => ({ id: b, name: names[b] || b, access: c.access[b] })) };
+  const u = users[c.email] || {};
+  /* Onboarding (2026-11-26): the profile, the welcome cards flag and the Get started gate, all from one read. */
+  const onboarding = await onboardGate(env, c.email, c.brands, c.onlyOnboard || null).catch(() => null);
+  return { name: c.name, title: u.title || '', phone: u.phone || '', ...(c.hq ? { hq: true } : {}), ...(c.readOnly ? { readOnly: true } : {}), welcomed: !!u.welcomed_at,
+    welcome_seen: !!u.welcome_seen_at, profile_done: !!(String(u.name || '').trim() && String(u.title || '').trim()), onboarding,
+    brands: c.brands.map(b => ({ id: b, name: names[b] || b, access: c.access[b] })) };
 }
 
 /* ---------------- routes ---------------- */
@@ -256,6 +383,17 @@ export async function handleClients(request, env, path, json, { isAdmin, session
     const b = await request.json().catch(() => ({}));
     try { const r = await sendSigninLink(env, b.email, b.invite); return json(r, r.ok ? 200 : 400); }
     catch (e) { return json({ error: 'Could not send the email just now. Try again in a minute.' }, 502); }
+  }
+  if (path === '/api/clients/code' && request.method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    try { const r = await sendCode(env, String(b.invite || '')); return json(r, r.ok ? 200 : 400); }
+    catch (e) { return json({ ok: false, error: 'Could not send the email just now. Try again in a minute.' }, 502); }
+  }
+  if (path === '/api/clients/code/verify' && request.method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    if (!mintSession) return json({ error: 'not wired' }, 500);
+    const r = await verifyCode(env, String(b.invite || ''), b.code, mintSession);
+    return r.error ? json({ error: r.error }, r.status || 400) : json(r);
   }
   if (path === '/api/clients/signin' && request.method === 'POST') {
     const b = await request.json().catch(() => ({}));
@@ -277,9 +415,17 @@ export async function handleClients(request, env, path, json, { isAdmin, session
       const users = (await getJson(env, 'clientUsers', {})) || {};
       const me = users[cs.email]; if (!me) return json({ error: 'unauthorized' }, 401);
       if (typeof b.name === 'string') me.name = b.name.replace(/[<>]/g, '').trim().slice(0, 80) || null;
+      /* The short profile on sign up (2026-11-26): job title and an optional phone. */
+      if (typeof b.title === 'string') me.title = b.title.replace(/[<>]/g, '').trim().slice(0, 80);
+      if (typeof b.phone === 'string') {
+        const ph = b.phone.trim().slice(0, 30);
+        if (ph && !/^[0-9 +().-]+$/.test(ph)) return json({ error: 'A phone number has digits, spaces, + ( ) - and dots only.' }, 400);
+        me.phone = ph;
+      }
       if (b.welcomed) me.welcomed_at = me.welcomed_at || new Date().toISOString();
+      if (b.welcome_seen) me.welcome_seen_at = me.welcome_seen_at || new Date().toISOString();
       await putJson(env, 'clientUsers', users);
-      return json({ ok: true, name: me.name || null });
+      return json({ ok: true, name: me.name || null, title: me.title || '', phone: me.phone || '', welcome_seen: !!me.welcome_seen_at });
     }
     const me = await meClient(env, cs.email);
     /* The creator link, where the page is live. */

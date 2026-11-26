@@ -8,7 +8,7 @@ import { h, hero, kpi, kpis, em, num, button, statusDot, empty, skeleton, relati
 import { workers, ORG_SHORT, APP_NAME } from '../../config.js';
 import { SAMPLE } from '../../data.js';
 import { put, css, oldLocus, plural } from '../production/_ui.js';
-import { lbCss, chips, search, openItem, picture } from './_lib.js';
+import { lbCss, chips, search, openItem, picture, assetsButton, withAssets } from './_lib.js';
 
 const src = (ctx, x) => (x.thumb_key ? `${workers().ah}/assets-img/${encodeURIComponent(ctx.brand.id)}/${encodeURIComponent(x.file_id)}` : null);
 const ratioOf = x => (x.w && x.h ? (x.h > x.w * 1.1 ? '4/5' : x.w > x.h * 1.1 ? '4/3' : '1/1') : '4/5');
@@ -32,7 +32,7 @@ export default {
   eyebrow: 'Library',
   ranges: false,                 // the whole library, whatever the dates
   asOf: d => (!SAMPLE && d && d.synced_at) || null,
-  load: ctx => ctx.api(`/api/assets?act=${encodeURIComponent(ctx.brand.id)}&limit=200`, { worker: 'ah', signal: ctx.signal }),
+  load: ctx => withAssets(ctx, ctx.api(`/api/assets?act=${encodeURIComponent(ctx.brand.id)}&limit=200`, { worker: 'ah', signal: ctx.signal })),
   skeleton(el) { put(el, skeleton('kpi', 4), skeleton('chart')); },
 
   render(el, data, ctx) {
@@ -77,7 +77,7 @@ export default {
           kpi({ label: 'Still being tagged', value: num(c.new || 0), sub: c.new ? statusDot('warn', 'read a few each hour') : statusDot('good', 'all tagged') }),
           kpi({ label: 'Drive last checked', value: data.synced_at ? relativeTime(data.synced_at) : 'not yet', sub: looks ? plural(looks, 'look') + ' made by ' + APP_NAME : null }),
         ], { cols: 4 })),
-      h('div', { class: 'lb-tools' }, search('Search: man in a polo, buckle close up, golf course', '', v => { q = v; draw(); }), count, h('span', { class: 'lx-sp' }),
+      h('div', { class: 'lb-tools' }, search('Search: man in a polo, buckle close up, golf course', '', v => { q = v; draw(); }), count, h('span', { class: 'lx-sp' }), assetsButton(ctx, data.assets_link),
         ctx.isClient ? null : oldLocus(ctx, { label: 'Check Drive in old ' + APP_NAME })),
       row, grid,
       h('p', { class: 'lx-foot' }, 'Read from the brand\'s Drive folders. Files are never moved or changed. Tags are written once by ' + APP_NAME + ' AI from a small copy of each photo.'));

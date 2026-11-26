@@ -22,7 +22,7 @@
  *   POST /api/sign/:token           { name, agree: true }  the client's signature
  */
 import { googleToken } from './asana-brand.js';
-import { sendMail as sendMailAs } from './mail.js';
+import { sendMail as sendMailAs, mailGuard } from './mail.js';
 import { fyi } from './lane.js';
 /* The agreement emails come from the onboarding_email sender (Agency settings > Sending and notifications). */
 const sendMail = (env, to, subject, text) => sendMailAs(env, to, subject, text, { kind: 'onboarding_email' });
@@ -192,6 +192,10 @@ const b64url = s => btoa(String.fromCharCode(...new TextEncoder().encode(s))).re
    only as the fallback when that one throws. */
 async function gmail(env, to, subject, body) {
   try { return await sendMail(env, to, subject, String(body).replace(/\n\nCole\nMobius Digital\s*$/, '\n\nThanks,')); } catch (e) { console.log('html mail: ' + e.message); }
+  /* The fallback keeps the same test guard (MAIL_DRY, mailTestTo) as mail.js. */
+  const g = await mailGuard(env, to, subject, body, 'gmail-plain');
+  if (g.dry) return;
+  to = g.to; subject = g.subject;
   const tok = await googleToken(env, OWNER, 'https://www.googleapis.com/auth/gmail.send');
   const mime = [`From: Cole Wetzler <${OWNER}>`, `To: ${to}`, `Subject: =?UTF-8?B?${btoa(String.fromCharCode(...new TextEncoder().encode(subject)))}?=`, 'MIME-Version: 1.0', 'Content-Type: text/plain; charset=UTF-8', 'Content-Transfer-Encoding: 8bit', '', body].join('\r\n');
   const res = await F('https://www.googleapis.com/gmail/v1/users/me/messages/send', { method: 'POST', headers: { Authorization: `Bearer ${tok}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ raw: b64url(mime) }) });
@@ -256,6 +260,31 @@ It takes a minute: read, type your name, tick the box, press Sign. You get a cop
 Cole
 Mobius Digital`);
   return { url: link, hash, sent_at: now, version: v.version || 1, resend };
+}
+
+/** Onboarding (2026-11-26): the client named another signer and the owner said yes. The SAME signing link goes to the
+ *  new person (the text is not touched, so its hash and Cole's signature stand); the agreement row now names them. */
+export async function resendSigningLink(env, token, email, name) {
+  await ensureContractTable(env);
+  const e = String(email || '').trim().toLowerCase();
+  if (!/^[^@\s,;<>]+@[^@\s,;<>]+\.[^@\s,;<>]+$/.test(e)) throw new Error('The signer email does not look right.');
+  const row = await env.DB.prepare(`SELECT status, brand, vars_json FROM p_contract WHERE token = ?1`).bind(String(token || '')).first();
+  if (!row) throw new Error('The agreement has not been sent yet.');
+  if (row.status === 'signed') throw new Error('This agreement is already signed.');
+  await env.DB.prepare(`UPDATE p_contract SET client_email = ?2 WHERE token = ?1`).bind(token, e).run();
+  const v = safeJson(row.vars_json, {});
+  const first = String(name || '').trim().split(/\s+/)[0] || 'there';
+  await gmail(env, e, `Your agreement with Mobius Digital: please sign`,
+`Hi ${first},
+
+Here is our services agreement for ${v.company || row.brand}. Read it and sign it here:
+${SIGN_PAGE}${token}
+
+It takes a minute: read, type your name, tick the box, press Sign. You get a copy by email the moment it is signed.
+
+Cole
+Mobius Digital`);
+  return { ok: true, sent_to: e };
 }
 
 /* An amendment's token is `<base>a<n>`, but a base token is hex and can itself end in "a" + digits,

@@ -125,6 +125,20 @@ export async function connectGet(env, tok, { force = false } = {}) {
   return data;
 }
 
+/** The old connect link for a brand with an onboarding checklist: what a client types is only stored and confirmed by
+ *  the team (onboard.js storeTypedForTeam; "a client never attaches a store or an ad account itself"). False = a brand
+ *  with no checklist, which keeps the old behaviour. Loaded lazily (onboard.js imports this file). */
+async function storedForTeam(env, act, key, value) {
+  const { storeTypedForTeam } = await import('./onboard.js');
+  if (!(await storeTypedForTeam(env, act, key, value))) return false;
+  /* The page shows it as waiting on us ("Thanks. We are checking now"), never as linked. */
+  const inv = await invitedOf(env, act);
+  inv[key] = new Date().toISOString();
+  await putS(env, `connectInvited:${act}`, JSON.stringify(inv));
+  await putS(env, `connectCache:${act}`, JSON.stringify({ at: 0, data: null })).catch(() => {});
+  return true;
+}
+
 /** The client finishes one item on the page. */
 export async function connectPost(env, tok, body, deps) {
   const b = await brandOfToken(env, tok);
@@ -145,10 +159,14 @@ export async function connectPost(env, tok, body, deps) {
   } else if (key === 'tw') {
     const shop = val.toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
     if (!/^[a-z0-9-]+\.myshopify\.com$/.test(shop)) throw Object.assign(new Error('That should end in .myshopify.com. Shopify shows it under Settings > Domains.'), { status: 400 });
+    /* A brand set up through onboarding (a p_onboard row): the store is only kept, the team confirms it (onboard.js). */
+    if (!deps.fromOnboard && await storedForTeam(env, b.id, 'tw', shop)) return connectGet(env, tok, { force: true });
     await setTripleWhale(env, b.id, shop);
   } else if (key === 'google_ads') {
     const id = val.replace(/\D/g, '');
     if (id.length !== 10) throw Object.assign(new Error('A Google Ads customer ID has 10 digits, like 123-456-7890.'), { status: 400 });
+    /* Same for a Google Ads ID: no manager request and no pending link from this public page; the team's tick links it. */
+    if (!deps.fromOnboard && await storedForTeam(env, b.id, 'google_ads', id)) return connectGet(env, tok, { force: true });
     const sent = await deps.adsInvite(env, id).catch(e => ({ error: e.message }));
     const pend = safe(await getS(env, `connectPending:${b.id}`), {});
     pend.google_ads = { id, at: new Date().toISOString(), note: sent.error ? 'We got your ID and will send the request shortly.' : 'Request sent. Accept it in Google Ads (Admin > Access and security > Managers).', error: sent.error || null };
@@ -206,8 +224,12 @@ export async function onboardAdsTick(env, adsInvite) {
   const { results } = await env.DB.prepare(`SELECT o.act_id, json_extract(o.answers_json, '$.gads_id') AS gid FROM p_br_onboard o
     WHERE o.act_id LIKE 'brand_%' AND json_extract(o.answers_json, '$.gads_id') IS NOT NULL
       AND NOT EXISTS (SELECT 1 FROM connections c WHERE c.brand_id = o.act_id AND c.kind = 'google_ads')`).all().catch(() => ({ results: [] }));
+  /* Brands set up through onboarding (a p_onboard row) are skipped: a typed ID there waits for the team's tick. Read
+     apart from the main query, so a database without that table yet still runs the tick for everyone else. */
+  const onb = new Set((((await env.DB.prepare(`SELECT act_id FROM p_onboard`).all().catch(() => ({ results: [] }))).results) || []).map(r => r.act_id));
   const out = [];
   for (const r of results || []) {
+    if (onb.has(r.act_id)) continue;
     const id = String(r.gid || '').replace(/\D/g, ''); if (id.length !== 10) continue;
     const pend = safe(await getS(env, `connectPending:${r.act_id}`), {});
     if (pend.google_ads?.id === id) continue;

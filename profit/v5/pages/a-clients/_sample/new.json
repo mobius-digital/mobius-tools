@@ -1,0 +1,67 @@
+{
+ "extras": true,
+ "owner": true,
+ "team": [
+  { "name": "Sam Rivera", "email": "sam@example.com", "role": "strategist" },
+  { "name": "Jordan Lee", "email": "jordan@example.com", "role": "buyer" },
+  { "name": "Riley Chen", "email": "riley@example.com", "role": "editor" },
+  { "name": "Casey Brooks", "email": "casey@example.com", "role": "designer" },
+  { "name": "Morgan Patel", "email": "morgan@example.com", "role": "google" }
+ ],
+ "services": [
+  { "key": "meta_ads", "label": "Meta ads" },
+  { "key": "google_ads", "label": "Google ads" },
+  { "key": "tiktok_ads", "label": "TikTok ads" },
+  { "key": "email", "label": "Email and SMS" },
+  { "key": "creative", "label": "Creative" },
+  { "key": "other", "label": "Other" }
+ ],
+ "measures": [
+  { "key": "cpa", "label": "Cost per sale" },
+  { "key": "cpnc", "label": "Cost per new customer" },
+  { "key": "roas", "label": "Return on ad spend" },
+  { "key": "cpl", "label": "Cost per lead" }
+ ],
+ "defaults": { "start_date": "2026-11-26", "send": { "welcome": true, "agreement": true, "invoice": true }, "goal_measure": "cpa" },
+ "stripe": true,
+ "frame": true,
+ "approves_ads": true,
+ "preview": {
+  "ok": true,
+  "welcome": {
+   "to": "pat@example.com",
+   "subject": "Welcome to Mobius Digital, Pat",
+   "body": "Hi Pat,\n\nWelcome aboard. We are excited to get started on Northlake Golf.\n\nEverything starts from one link:\n{{sign-in link}}\n\nIt opens Locus, the app we run Northlake Golf from. Make your login (Google, or a code we email you), then four short steps: sign and pay, connect your accounts, ten questions only you can answer, and a link to your photos and videos. It saves as you go. If someone else on your team should do a step, press \"Someone else does this\" and we email them.\n\nOur agreement comes in a separate email from me, and the first invoice from Stripe. Both are on your checklist too.\nYou will also get an invite to our shared Slack channel.\n\nTalk soon,"
+  },
+  "agreement": {
+   "used": true,
+   "to": "pat@example.com",
+   "vars": { "client_name": "Pat Doyle", "company": "Northlake Golf", "start_date": "2026-11-26", "term": "", "payment": "$4,000 a month" },
+   "html": "<article><h2>Services Agreement</h2><p>This agreement is between Mobius Digital and <b>Northlake Golf</b>, signed by Pat Doyle.</p><p>Start date: November 26, 2026. Term: <span class=\"blank\">term</span>.</p><p>Fee: $4,000 a month, billed on the day the first invoice is paid and the same day each month after that.</p><p>Sample text only. The real agreement comes from the server.</p></article>",
+   "blanks": ["term"],
+   "ok_to_send": false
+  },
+  "invoice": { "used": true, "to": "pat@example.com", "amount": 4000, "currency": "usd", "due_days": 7, "text": "First month, $4,000, due in 7 days. When it is paid the card is saved and the retainer bills itself on the same day each month after that." },
+  "extras": ["Two Slack channels (team and shared)", "A Frame project", "Ledger"],
+  "confirm": "Welcome to Pat Doyle. Agreement to Pat Doyle. Invoice for $4,000 to Pat Doyle. Pressing Send signs the agreement for Mobius Digital as Alex Morgan.",
+  "problems": []
+ },
+ "sent": {
+  "ok": true,
+  "act": "brand_northlake_golf",
+  "slug": "northlake-golf",
+  "run_id": "sample",
+  "invite_link": "https://locus.example.com/profit/v5/?invite=sample",
+  "results": {
+   "link": { "status": "done", "text": "Their link is ready." },
+   "welcome": { "status": "done", "text": "Sent to pat@example.com from your Gmail." },
+   "agreement": { "status": "done", "text": "Sent for signature. You signed for Mobius Digital." },
+   "invoice": { "status": "done", "text": "Stripe sent the first invoice, $4,000, due Dec 3." },
+   "slack": { "status": "done", "text": "Made #northlake-golf and #northlake-golf-internal with the team." },
+   "slackInvite": { "status": "done", "text": "Shared channel invite sent after the welcome." },
+   "frame": { "status": "done", "text": "Frame project made." },
+   "ledger": { "status": "done", "text": "Added to Ledger at $4,000 a month." },
+   "summary": { "status": "done", "text": "Posted in the internal channel." }
+  }
+ }
+}

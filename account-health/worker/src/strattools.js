@@ -110,7 +110,7 @@ export function getWrites(path) {
 
 /* Never through the generic door: anything that reaches a client or moves money. Those keep their own
    buttons (the brief and report cards, the new-client flow), where Cole's rules already apply. */
-const CLIENT_FACING = /\/api\/(report-send|brief-send|send|newclient\/(email|invoice|stripe|send|welcome)|stripe|invoice|calendar\/client|ledger\/pay|payout)/i;
+const CLIENT_FACING = /\/api\/(report-send|brief-send|send|newclient\/(email|invoice|stripe|send|welcome)|stripe|invoice|calendar\/client|ledger\/pay|payout|onboard\/(send|send-part|remind|approve-signer|billing|handoff)|clients\/code)/i;
 
 /* ---------------- Slack files ---------------- */
 async function uploadToSlack(env, d, { channel, thread, filename, content, title, comment }) {

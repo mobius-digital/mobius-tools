@@ -180,6 +180,8 @@ const PAGE_ROUTES = [
   ['pf', '/api/snapshots'], ['pf', '/api/season?act=brand_alpha'], ['pf', '/api/season/war?act=brand_alpha'], ['ah', '/api/tw-day?act=brand_alpha'], ['pf', '/api/scenario?act=brand_alpha'],
   // Brand settings and the profile
   ['ah', '/api/accounts'], ['ah', '/api/integrations'], ['ah', '/api/clients/me'], ['ah', '/api/me/prefs'],
+  // Get started and the Assets button (onboard.js, 2026-11-26), and the brand list the goals page reads
+  ['ah', '/api/onboard?act=brand_alpha'], ['ah', '/api/brand/assets-link?act=brand_alpha'], ['ah', '/api/brands'],
 ];
 await check('the brand edition: every page a brand has answers a client for its own brand (both workers)', async () => {
   const shut = [];
@@ -205,7 +207,9 @@ await check('the agency edition stays the agency\'s: every agency-only route is 
     ['ah', 'GET', '/api/settings'], ['ah', 'GET', '/api/team'], ['ah', 'GET', '/api/clients'], ['ah', 'GET', '/api/schedule-health'], ['ah', 'GET', '/api/command/work'],
     ['ah', 'GET', '/api/agency/economics'], ['ah', 'GET', '/api/agency/workload'], ['ah', 'GET', '/api/actions?act=brand_alpha'], ['ah', 'POST', '/api/actions', { act: 'brand_alpha', text: 'x' }], ['ah', 'GET', '/api/meetings'], ['ah', 'GET', '/api/ask/settings'], ['ah', 'GET', '/api/ask/memory'], ['ah', 'GET', '/api/ask/skills'],
     ['ah', 'GET', '/api/ask/usage'], ['ah', 'GET', '/api/ask/findings'], ['ah', 'GET', '/api/ask/schedules'], ['ah', 'GET', '/api/ask/review'], ['ah', 'GET', '/api/ask/reports'], ['ah', 'GET', '/api/alerts'],
-    ['ah', 'GET', '/api/new-client/options'], ['pf', 'GET', '/api/brief-note?act=brand_alpha'], ['ah', 'GET', '/api/calendar/client-preview'], ['ah', 'GET', '/api/smoke'], ['ah', 'GET', '/api/meta-access'],
+    ['ah', 'GET', '/api/new-client/options'], ['ah', 'GET', '/api/onboard/options'], ['ah', 'GET', '/api/onboard/list'], ['ah', 'POST', '/api/onboard/preview', { name: 'x' }],
+    ['ah', 'POST', '/api/onboard/send', { name: 'x', confirm: true }], ['ah', 'POST', '/api/onboard/remind', { act: 'brand_alpha', step: 'brief' }], ['ah', 'POST', '/api/onboard/finish', { act: 'brand_alpha' }],
+    ['ah', 'PUT', '/api/onboard/budget', { act: 'brand_alpha', amount: 1 }], ['ah', 'POST', '/api/onboard/billing', { act: 'brand_alpha', release: 'in_1' }], ['pf', 'GET', '/api/brief-note?act=brand_alpha'], ['ah', 'GET', '/api/calendar/client-preview'], ['ah', 'GET', '/api/smoke'], ['ah', 'GET', '/api/meta-access'],
     ['ah', 'GET', '/api/google/ads-accounts'], ['ah', 'GET', '/api/tiktok/status'], ['ah', 'GET', '/api/atria/status'], ['ah', 'GET', '/api/frame/status'], ['pf', 'GET', '/api/slack-channels'],
     ['ah', 'GET', '/api/share/slack?act=brand_alpha'], ['pf', 'GET', '/api/hub/command?act=all'], ['pf', 'GET', '/api/hub/command?act=brand_alpha'], ['pf', 'GET', '/api/amb/overview'],
     ['pf', 'GET', '/api/brand/overview'], ['pf', 'GET', '/api/connections'], ['ah', 'GET', '/api/slack-identity'],
@@ -680,6 +684,29 @@ await check('a client can edit only its own profile', async () => {
   assert.equal(me.j.welcomed, true); assert.deepEqual(me.j.brands.map(b => b.id), ['brand_alpha']);
   assert.equal((await ah(CLIENT, 'PUT', '/api/clients/me', { email: 'cole@go-mobius-digital.com', brands: ['brand_beta'] })).status, 200);
   assert.deepEqual(getSetting('clientUsers')['nick@alpha.com'].brands, ['brand_alpha'], 'a client cannot widen its own brands');
+});
+
+await check('onboarding (2026-11-26): a colleague handed one setup step opens only Get started; a client sees only its own brands in /api/brands', async () => {
+  const { ensureOnboard } = await import('./src/onboard.js');
+  await ensureOnboard(ahEnv);
+  db.exec(`INSERT OR IGNORE INTO p_onboard (act_id, run_id, token, extras, sign_pay, steps_json, sent_at) VALUES ('brand_alpha', NULL, NULL, 1, 0, '{}', '2026-11-20T10:00:00Z')`);
+  const users = getSetting('clientUsers');
+  users['helper@alpha.example.com'] = { brands: ['brand_alpha'], name: 'Helper', onboard_only: ['brief'] };
+  setSetting('clientUsers', users);
+  const HELP = mint('helper@alpha.example.com');
+  assert.equal((await ah(HELP, 'GET', '/api/onboard?act=brand_alpha')).status, 200, 'Get started opens');
+  assert.equal((await ran('pf', HELP, 'GET', '/api/overview?days=30&series=0')).status, 403, 'the rest of the app is shut');
+  assert.equal((await ran('ah', HELP, 'GET', '/api/activities?act=brand_alpha')).status, 403);
+  const me = await ah(HELP, 'GET', '/api/me');
+  assert.equal(me.status, 200); assert.equal(me.j.client.onboarding.gated, true); assert.deepEqual(me.j.client.onboarding.only, ['brief']);
+  const st = await ah(HELP, 'GET', '/api/onboard?act=brand_alpha');
+  assert.deepEqual(st.j.steps.map(x => x.key), ['brief'], 'only the handed step');
+  assert.equal(st.j.sign_pay, null);
+  assert.equal((await ah(HELP, 'PUT', '/api/brand/assets-link', { act: 'brand_alpha', url: 'https://drive.google.com/x' })).status, 403, 'not their step');
+  const br = await ah(CLIENT, 'GET', '/api/brands');
+  assert.equal(br.status, 200); assert.deepEqual(br.j.brands.map(b => b.id), ['brand_alpha']);
+  delete users['helper@alpha.example.com']; setSetting('clientUsers', users);
+  db.exec(`DELETE FROM p_onboard WHERE act_id = 'brand_alpha'`);
 });
 
 await check('Inspiration: a client reads its own brand\'s Atria board and the shared season boards, never another brand\'s board', async () => {

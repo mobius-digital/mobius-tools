@@ -35,6 +35,8 @@ const OWNER = 'cole@go-mobius-digital.com';
 const DOMAIN = 'go-mobius-digital.com';
 const lower = s => String(s || '').trim().toLowerCase();
 export const HQ_BRAND = 'brand_lucky_golf', HQ_DOMAIN = 'hq.luckygolf.com';
+/* The four Get started steps (onboard.js). */
+const ONB_STEPS = ['sign_pay', 'connect', 'brief', 'assets'];
 
 async function settingJson(env, key, dflt) {
   const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = ?1`).bind(key).first().catch(() => null);
@@ -105,7 +107,9 @@ export async function clientOf(env, email) {
   if (hq && c.hq_until && !(Number(c.hq_until) > Date.now())) return null;
   const brands = hq ? [HQ_BRAND] : (Array.isArray(c.brands) ? c.brands : []).map(String).filter(b => /^brand_[a-z0-9_]+$/.test(b));
   const access = Object.fromEntries(brands.map(b => [b, { ...CLIENT_SWITCHES }]));
-  return { email: e, name: c.name || null, brands, access, ...(hq ? { hq: true } : {}), ...(c.readOnly === true ? { readOnly: true } : {}) };
+  /* Onboarding (2026-11-26): a colleague handed one setup step ("Someone else does this") only ever opens Get started. */
+  const only = Array.isArray(c.onboard_only) ? [...new Set(c.onboard_only.filter(x => ONB_STEPS.includes(x)))] : [];
+  return { email: e, name: c.name || null, brands, access, ...(hq ? { hq: true } : {}), ...(c.readOnly === true ? { readOnly: true } : {}), ...(only.length ? { onlyOnboard: only } : {}) };
 }
 
 /** True when this email may sign in as a client (googleLogin uses it next to emailAllowed). */
@@ -192,7 +196,8 @@ const BRAND_FIELDS = ['name', 'monthly_budget', 'budgets', 'tz', 'target_cpa', '
 const LINK_FIELDS = ['drive', 'frame', 'klaviyo_key', 'clarity_token', 'survey_key', 'fairing_key', 'kno_key'];
 /* Brand docs a client may not write (2026-10-14 audit): `asana` and `assets` point the hourly sync at a project or
    Drive folder (another brand's, if the id is known); the rest hold keys that only Integrations sets, checked. */
-const DOC_TEAM = /^(asana|assets|google|tiktok|klaviyo|clarity|survey_.*|voice_skill|rules)$/;
+/* `assets_link` (onboarding) has one door, PUT /api/brand/assets-link, which checks it is a plain https link. */
+const DOC_TEAM = /^(asana|assets|assets_link|google|tiktok|klaviyo|clarity|survey_.*|voice_skill|rules)$/;
 const docDeny = b => (b && DOC_TEAM.test(String(b.key || '')) ? 'That part is set from Integrations or by the Mobius team.' : null);
 /* GET /api/brand for a client: never the stored keys (Klaviyo, Clarity, survey) or the Asana webhook. */
 const noDocSecrets = b => { const d = b && b.docs; if (d && typeof d === 'object') for (const line of Object.values(d)) if (line && typeof line === 'object') for (const k of Object.keys(line)) if (/^(klaviyo|clarity|survey_.*|asana|google|tiktok)$/.test(k)) delete line[k]; return b; };
@@ -217,9 +222,20 @@ const S_ = (p, more = {}) => R('POST', '/api/studio/' + p, 'opt', { own: [{ in: 
 
 export const CLIENT_RULES = [
   /* ---- who am I, my own profile ---- */
-  R('GET', '/api/me', 'none'),
-  R('GET', '/api/clients/me', 'none'),
-  R('PUT', '/api/clients/me', 'none'),
+  /* onb: true = open to a colleague handed one setup step (onboard_only); every other route is shut to them. */
+  R('GET', '/api/me', 'none', { onb: true }),
+  R('GET', '/api/clients/me', 'none', { onb: true }),
+  R('PUT', '/api/clients/me', 'none', { onb: true }),
+  /* ---- GET STARTED (onboard.js, 2026-11-26): the brand's own setup. The handler checks the brand and a colleague's
+     handed steps again (the second lock). ---- */
+  R('GET', '/api/onboard', 'need', { onb: true }),
+  R('PUT', '/api/onboard/brief', 'need', { onb: true, fields: ['answers'] }),
+  R('PUT', '/api/onboard/connect', 'need', { onb: true, fields: ['platform', 'said', 'skip', 'inputs'] }),
+  R('POST', '/api/onboard/handoff', 'need', { onb: true, fields: ['step', 'email', 'name', 'role'] }),
+  R('GET', '/api/brand/assets-link', 'need', { onb: true }),
+  R('PUT', '/api/brand/assets-link', 'need', { onb: true, fields: ['url', 'label'] }),
+  /* The goals page reads the brand list: a client gets its own brands only. */
+  R('GET', '/api/brands', 'none', { postIds: ids => b => { if (b && Array.isArray(b.brands)) b.brands = b.brands.filter(x => x && ids.has(x.id)); return b; } }),
   /* Per-person preferences (prefs.js, 2026-10-11): the morning DM switch, the nudge card's Not now and Done. */
   R('GET', '/api/me/prefs', 'none'),
   R('PUT', '/api/me/prefs', 'none', { fields: ['morning_dm', 'nudge'] }),
@@ -227,7 +243,7 @@ export const CLIENT_RULES = [
   R('POST', '/api/me/morning', 'none'),
   /* Automations (automations.js, 2026-11-25): a client's own bell and its own delivery choices. The handler holds a
      client to its own rows on its own brands; setting up an automation stays the team's. */
-  R('GET', '/api/notices', 'none'),
+  R('GET', '/api/notices', 'none', { onb: true }),
   R('POST', '/api/notices/done', 'none', { fields: ['id', 'done', 'answer'] }),
   R('GET', '/api/me/delivery', 'none'),
   R('PUT', '/api/me/delivery', 'none', { fields: ['delivery', 'per'] }),
@@ -261,7 +277,7 @@ export const CLIENT_RULES = [
   R('PUT', '/api/plan'),
   R('POST', '/api/plan-agree'),
   R('POST', '/api/plan-share'),
-  R('PUT', '/api/goals'),
+  R('PUT', '/api/goals', 'need', { audit: 'goals' }),
   R('GET', '/api/quarter'),
   R('GET', '/api/rhythm'),
   R('GET', '/api/goal-suggest'),
@@ -460,7 +476,7 @@ export const CLIENT_RULES = [
   R('GET', '/api/brand', 'need', { post: noDocSecrets }),
   R('GET', '/api/brand/ads'),
   R('GET', '/api/brand/rules'),
-  R('PUT', '/api/brand/rules'),
+  R('PUT', '/api/brand/rules', 'need', { audit: 'ad rules' }),
   R('POST', '/api/brand/save'),
   R('POST', '/api/brand/save-many'),
   R('POST', '/api/brand/del'),
@@ -557,7 +573,7 @@ export const CLIENT_RULES = [
 
   /* ---- BRAND SETTINGS for their own brand: About, Ads rules, Data and costs, Integrations (their own keys) ---- */
   R('GET', '/api/accounts', 'none', { post: noDiscover }),
-  RX('PUT', /^\/api\/accounts\/(brand_[a-z0-9_]+|act_\d+)$/, 'path', { fields: BRAND_FIELDS }),
+  RX('PUT', /^\/api\/accounts\/(brand_[a-z0-9_]+|act_\d+)$/, 'path', { fields: BRAND_FIELDS, audit: 'brand settings' }),
   R('GET', '/api/integrations', 'none', { post: clientIntegrations }),
   R('PUT', '/api/brand-links', 'need', { fields: LINK_FIELDS }),
 
@@ -579,14 +595,16 @@ const ALWAYS_OUT = new Set(['by', 'created_by', 'agreed_by', 'slack_channel', 'b
   'lastRun', 'team', 'storage_prefix', 'tw_shop_token', 'shopify_token', 'access_token', 'notes_internal', 'internal_notes', 'team_notes']);
 /* A Slack channel id under any key that names a channel ("channel", "posts_to"...), wherever it sits. */
 const SLACK_ID = /^[CGD][A-Z0-9]{8,12}$/;
-export function scrub(v) {
-  if (Array.isArray(v)) return v.map(scrub);
+export function scrub(v, parent = '') {
+  if (Array.isArray(v)) return v.map(x => scrub(x, parent));
   if (!v || typeof v !== 'object') return v;
   const o = {};
   for (const [k, x] of Object.entries(v)) {
-    if (ALWAYS_OUT.has(k)) continue;
+    /* Get started's connect list (onboard.js) has two layers per platform, `layers.team` (give us access) and
+       `layers.app`: that `team` is the client's own to-do, not team-internal data, so it stays. */
+    if (ALWAYS_OUT.has(k) && !(k === 'team' && parent === 'layers')) continue;
     if (typeof x === 'string' && SLACK_ID.test(x) && /channel|post|slack/i.test(k)) continue;
-    o[k] = scrub(x);
+    o[k] = scrub(x, k);
   }
   return o;
 }
@@ -629,6 +647,62 @@ const READONLY_CLIENT_MAY = new Set([
   'POST /api/read', 'POST /api/daycheck', 'POST /api/summarise',
 ]);
 
+/* ---------------- a client's own change, logged (2026-11-26, Cole: clients change their goals and ad rules) ----------------
+   One manual activities row (filed under the brand's primary Meta account, else the brand id) and one bell note per team
+   person (p_notice): the owner and the team on the brand's latest New client run. Only the NEW values are named (the
+   guard never reads the before value). Never throws: the change itself already happened. */
+const AUDIT_WORDS = { target_roas: 'the goal ROAS', target_cpa: 'the goal cost', monthly_budget: 'the monthly ad budget', budgets: 'the monthly budgets', name: 'the brand name', tz: 'the time zone', goals: 'the monthly goals',
+  sales: 'the sales goal', spend: 'the spend goal', amer: 'the new customer MER goal', judge_spend: 'the spend before an ad is judged', judge_days: 'the days before an ad is judged', goal_metric: 'the goal measure',
+  /* The ad call rules (profit brand.js TEST_KEYS), in plain words. */
+  cr_judge_x: 'how many goals an ad set spends before it is judged', cr_min_days: 'the days an ad set runs before it is judged',
+  cr_scale_buys: 'the sales on goal before an ad set is scaled', cr_cut_zero_x: 'how many goals an ad set spends with no sale before it is cut',
+  cr_cut_spend_x: 'how many goals an ad set spends over the line before it is cut', cr_cut_cpa_x: 'how far over the goal cost an ad set is cut',
+  cr_anchor_pct: 'the spend share that makes an ad the anchor of its set', goal_ncpa: 'the goal cost per new customer', goal_cpl: 'the goal cost per lead',
+  goal_meta: 'the Meta goal', goal_google: 'the Google goal', goal_tiktok: 'the TikTok goal', min_days: 'the days a test runs at least',
+  yellow_pct: 'the warning line', min_cap_pct: 'the smallest spend cap', win_roas: 'the winning ROAS', lose_roas: 'the losing ROAS' };
+const auditMoney = new Set(['target_cpa', 'monthly_budget', 'sales', 'spend', 'judge_spend', 'goal_ncpa', 'goal_cpl']);
+function auditValue(k, v) {
+  if (v === null || v === '') return 'nothing';
+  if (typeof v === 'number' || /^\d+(\.\d+)?$/.test(String(v))) return auditMoney.has(k) ? `$${Number(v).toLocaleString('en-US')}` : String(Number(v));
+  if (typeof v === 'object') return 'new values';
+  return String(v).replace(/[\r\n]+/g, ' ').slice(0, 40);
+}
+export function auditSummary(who, what, body) {
+  const src = body && typeof body === 'object' ? (body.rules && typeof body.rules === 'object' ? body.rules : body) : {};
+  const parts = Object.entries(src).filter(([k]) => !['act', 'act_id', 'month', 'rules_v'].includes(k)).slice(0, 5)
+    .map(([k, v]) => `${AUDIT_WORDS[k] || k.replace(/_/g, ' ')} to ${auditValue(k, v)}`);
+  return `${who} changed ${parts.length ? parts.join(', ') : `the ${what}`}`.slice(0, 300);
+}
+export async function clientAudit(env, client, what, act, path, body) {
+  try {
+    const who = client.name || client.email;
+    const summary = auditSummary(who, what, body);
+    const at = new Date().toISOString();
+    const meta = await env.DB.prepare(`SELECT external_id FROM connections WHERE brand_id = ?1 AND kind = 'meta' ORDER BY is_primary DESC LIMIT 1`).bind(act || '').first().catch(() => null);
+    await env.DB.prepare(`INSERT INTO activities (id, act_id, event_time, event_type, category, summary, note, confirmed, manual, actor, object_type, object_id, extra_json)
+      VALUES (?1, ?2, ?3, 'client_change', 'goal', ?4, ?5, 1, 1, ?6, 'BRAND', ?7, ?8)`)
+      .bind(`manual:${crypto.randomUUID()}`, meta?.external_id || act || '', at, summary, 'Changed by the brand in Locus.', `${who} (client)`, act || '', JSON.stringify({ path, what, body: body || null }).slice(0, 4000)).run().catch(() => {});
+    const team = new Set([lower(env.OWNER_EMAIL || OWNER)]);
+    const run = await env.DB.prepare(`SELECT team_json FROM p_newclient WHERE act_id = ?1 ORDER BY created_at DESC LIMIT 1`).bind(act || '').first().catch(() => null);
+    let tj = {}; try { tj = JSON.parse(run?.team_json || '{}') || {}; } catch {}
+    for (const v of Object.values(tj)) for (const e of String(v || '').split(/[,\s]+/)) if (/@/.test(e)) team.add(lower(e));
+    /* Every existing client has no New client run: the brand's team is then whoever settings.userBrands gives the
+       brand to (its old ids count too), so the buyer on the brand hears about it, not only the owner. */
+    if (team.size === 1 && act) {
+      const ids = new Set([act]);
+      const al = (await env.DB.prepare(`SELECT alias AS id FROM brand_alias WHERE brand_id = ?1 UNION SELECT legacy_key FROM brands WHERE id = ?1 AND legacy_key IS NOT NULL UNION SELECT slug FROM brands WHERE id = ?1`).bind(act).all().catch(() => ({ results: [] }))).results || [];
+      for (const r of al) if (r.id) ids.add(String(r.id));
+      const ub = await settingJson(env, 'userBrands', {});
+      for (const [e, list] of Object.entries(ub || {})) if (Array.isArray(list) && list.some(x => ids.has(String(x))) && /@/.test(e)) team.add(lower(e));
+    }
+    for (const person of team) {
+      await env.DB.prepare(`INSERT INTO p_notice (id, org_id, person_id, brand_id, kind, title, state, home, sent_json, created_at) VALUES (?1, 'default', ?2, ?3, 'tell', ?4, 'open', 1, ?5, ?6)`)
+        .bind('nt_' + crypto.randomUUID().replace(/-/g, '').slice(0, 14), person, act || null, summary, JSON.stringify({ bell: at }), at).run().catch(() => {});
+    }
+    return { summary };
+  } catch { return null; }
+}
+
 async function guardClient(request, env, client, handle, CORS) {
   const url = new URL(request.url);
   const path = url.pathname.replace(/\/+$/, '') || '/';
@@ -637,6 +711,7 @@ async function guardClient(request, env, client, handle, CORS) {
   let match = null;
   const rule = CLIENT_RULES.find(r => r.m === m && (!r.hq || client.hq === true) && (r.p ? r.p === path : (match = path.match(r.re))));
   if (!rule) return out(403, CLIENT_NO);
+  if (client.onlyOnboard && !rule.onb) return out(403, 'Your login is for one setup job. Open your link to finish it.');
   if (client.readOnly === true && m !== 'GET' && m !== 'HEAD') {
     if (client.hq === true) return out(403, 'You can read Ads here. Pressing calls, launching and changing ads is switched off for you in Lucky HQ (Settings, People).');
     /* A read-only client login (clients.js, users[e].readOnly): it may look and approve, nothing else. */
@@ -721,9 +796,11 @@ async function guardClient(request, env, client, handle, CORS) {
   } else if (urlChanged) {
     req = new Request(u2.toString(), request);
   }
-  CLEARED.set(req, { email: client.email, name: client.name, brands: client.brands, access: client.access, ids: ids.all, brandOf, hq: client.hq === true });
+  CLEARED.set(req, { email: client.email, name: client.name, brands: client.brands, access: client.access, ids: ids.all, brandOf, hq: client.hq === true, onlyOnboard: client.onlyOnboard || null });
   const res = await handle(req);
   if (charge && res.status < 400) await capAdd(env, rule.cap[0], client.email, charge);
+  /* A client's change to its own goals or ad rules is logged with who made it, and the team is told (2026-11-26). */
+  if (rule.audit && m !== 'GET' && res.status < 400) await clientAudit(env, client, rule.audit, brandOf(act) || act, path, bodyObj);
   const type = res.headers.get('Content-Type') || '';
   if (!type.includes('application/json')) return res;
   let data; try { data = await res.clone().json(); } catch { return res; }

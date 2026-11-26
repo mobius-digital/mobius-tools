@@ -29,6 +29,55 @@
  },
  "today_rows": [
   {
+   "id": "onb:brand_northlake_golf:client_waiting:connect:d3",
+   "source": "onboard",
+   "text": "Northlake Golf has not connected Google Ads, Search Console and Clarity, 4 days",
+   "why": "New client setup, 4 days",
+   "detail": "",
+   "brand": "Northlake Golf",
+   "due": "Today",
+   "slug": "northlake-golf",
+   "act_id": "brand_northlake_golf",
+   "btn": {
+    "onboard": true
+   },
+   "onboard": {
+    "act": "brand_northlake_golf",
+    "step": "connect",
+    "kind": "client_waiting",
+    "remind": true,
+    "action": {
+     "kind": "remind",
+     "step": "connect"
+    }
+   }
+  },
+  {
+   "id": "onb:brand_northlake_golf:shopify_request",
+   "source": "onboard",
+   "text": "Send the Shopify collaborator request for Northlake Golf: northlake-golf.myshopify.com, code 4821",
+   "why": "New client setup, 4 days",
+   "detail": "Shopify Partners > Stores > Add store > Request access to a store > paste the address and the code > tick every permission > Request access. Shopify has no way to send this automatically.",
+   "brand": "Northlake Golf",
+   "due": "Today",
+   "slug": "northlake-golf",
+   "act_id": "brand_northlake_golf",
+   "btn": {
+    "onboard": true
+   },
+   "onboard": {
+    "act": "brand_northlake_golf",
+    "step": "connect",
+    "kind": "shopify_request",
+    "remind": false,
+    "action": {
+     "kind": "tick",
+     "platform": "shopify",
+     "layer": "team"
+    }
+   }
+  },
+  {
    "id": "s1",
    "source": "slack",
    "text": "Reply to Pat about the Black Friday hoodie",

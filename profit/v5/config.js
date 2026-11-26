@@ -11,6 +11,9 @@ export const AI_NAME = APP_NAME + ' AI';
    deployed workers are named that way. They are addresses, not copy, and are derived from ORG_KEY.) */
 export const ORG_NAME = 'Mobius Digital';
 export const ORG_SHORT = ORG_NAME.split(' ')[0];                       // the menu group for the agency's own pages
+/* The agency owner's first name, for the few client lines that name the person they talk to ("Tell Cole").
+   A server answer that carries owner_first wins over this. */
+export const OWNER_FIRST = 'Cole';
 const ORG_KEY = ORG_SHORT.toLowerCase();                               // the prefix the live app uses for its keys
 const ORG_HOST = ORG_NAME.toLowerCase().replace(/\s+/g, '-');           // the workers.dev account name
 

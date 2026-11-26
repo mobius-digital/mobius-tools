@@ -2,6 +2,8 @@
    Real mode reads the goals in use today from the brand list (account-health GET /api/brands), this month's sales
    goal from the plan (profit GET /api/plan) and the platform goals from the test rules (profit GET /api/brand/rules).
    The four facts have no server home yet, so they are kept on this device, and they never save a goal by themselves.
+   Clients see this page and save from it too; the server logs every client change (activities) and puts a bell note
+   on the team (brandguard clientAudit).
    WRITES SWITCHED ON (each behind the confirm sheet in _set.js, with its own error state):
      the goal ROAS and the goal cost the person types   account-health PUT /api/accounts/<brand id> { target_roas } / { target_cpa }
      the test and call rules for this brand             profit PUT /api/brand/rules?act=<brand id> { rules: { <name>: <number> } } */
@@ -161,7 +163,9 @@ function draw(el, data, ctx) {
       ['Attribution', 'Triple Whale, last platform click', 'Every sale and every ROAS. Not a setting.'],
       ['Months', 'Calendar months', 'Goals, pace and plans are all kept by calendar month.'],
     ]),
-    !ctx.isClient && ctx.legacy ? h('p', { class: 'lx-foot' }, 'Save shows every change first, then writes the goal ROAS, the goal cost and the rules for everyone. The four facts are kept on this device until the settings release. ', h('a', { href: ctx.legacy }, 'Old ' + APP_NAME)) : null));
+    /* a client changes its own goals and ad rules too (Cole, Nov 26): the server logs each change with who made it and tells the team */
+    ctx.isClient ? h('p', { class: 'lx-foot' }, 'Save shows every change first. Changes you make are logged and your team is told.')
+      : ctx.legacy ? h('p', { class: 'lx-foot' }, 'Save shows every change first, then writes the goal ROAS, the goal cost and the rules for everyone. A change a client makes is logged and the team gets a bell note. The four facts are kept on this device until the settings release. ', h('a', { href: ctx.legacy }, 'Old ' + APP_NAME)) : null));
 }
 
 addStyles('lx-goals-css', `
