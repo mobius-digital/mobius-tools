@@ -46,7 +46,8 @@ export function normalise(r) {
   let line = lineOf(r.line);
   let view = r.view === 'agency' && role !== 'client' ? 'agency' : 'brand';
   if (line) { const v = viewOf(line.id); if (v && !(v === 'agency' && role === 'client')) view = v; }
-  const menu = menuFor(view, role).flatMap(g => g.lines);
+  /* every line, even one whose agency feature is off: it leaves the menu, but its page still opens by its address */
+  const menu = menuFor(view, role, { allFeatures: true }).flatMap(g => g.lines);
   const top = line && line.top && (line.who === 'all' || role !== 'client');
   if (!line || !(top || menu.some(l => l.id === line.id))) line = menu[0];
   const tabs = line.tabs.filter(x => role !== 'client' || !x.team);

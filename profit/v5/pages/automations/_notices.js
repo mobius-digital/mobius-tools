@@ -44,7 +44,9 @@ export function homeNotices(ctx) {
         ? (n.bell || []).filter(r => r.state === 'open' && (ctx.sample ? r.client : !(r.held_until && Date.parse(r.held_until) > now)))
         : (n.home || []).filter(r => r.state === 'open');
       if (ctx.brand) rows = rows.filter(r => !r.brand_id || r.brand_id === ctx.brand.id);
-      rows = rows.filter(r => r && r.title);
+      rows = rows.filter(r => r && r.title && !(ctx.isClient && r.kind === 'alert'));
+      /* an alert (money at risk or something broken) goes first; the rest keep the server's order */
+      rows.sort((a, b) => (a.kind === 'alert' ? 0 : 1) - (b.kind === 'alert' ? 0 : 1));
       if (!rows.length) return hide();
       const m = await import('./_auto.js');
       addStyles('au-home-css', CSS);

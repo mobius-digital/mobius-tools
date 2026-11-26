@@ -62,7 +62,7 @@ export const BRAND_MENU = [
       t('learned', 'Learned', 'tests'), t('hooks', 'Hooks'), t('ad-type', 'Ad type'), t('copy', 'Copy'),
       t('angles', 'Angles', 'angles'), t('landing-pages', 'Landing pages'), t('competitors', 'Competitors', 'inspo')] },
     { id: 'production', label: 'Production', icon: 'board', who: 'all', tabs: [t('board', 'Board', 'production')] },
-    { id: 'creators', label: 'Creators', icon: 'creators', who: 'all', tabs: [
+    { id: 'creators', label: 'Creators', icon: 'creators', who: 'all', feature: 'creatorProgram', tabs: [
       t('to-review', 'To review', 'trybe'), t('videos', 'Videos', 'trybe'), t('people', 'People', 'trybe')] },
     /* the brand's own photo and video folder (Drive, Air, Dropbox, Frame or any link). Locus never copies the files. */
     { id: 'assets', label: 'Assets', icon: 'folder', who: 'all', tabs: one() },
@@ -101,7 +101,7 @@ export const AGENCY_MENU = [
   ] },
   { group: 'Creative', lines: [
     { id: 'a-production', label: 'Production', icon: 'board', who: 'team', tabs: [t('pipeline', 'Pipeline', 'production'), t('needs-someone', 'Needs someone', 'production')] },
-    { id: 'a-creators', label: 'Creators', icon: 'creators', who: 'team', tabs: [t('to-review', 'To review', 'trybe'), t('by-brand', 'By brand', 'trybe')] },
+    { id: 'a-creators', label: 'Creators', icon: 'creators', who: 'team', feature: 'creatorProgram', tabs: [t('to-review', 'To review', 'trybe'), t('by-brand', 'By brand', 'trybe')] },
   ] },
   { group: 'Calendar', lines: [
     { id: 'a-calendar', label: 'Calendar', icon: 'calendar', who: 'team', tabs: one('calendar') },
@@ -143,13 +143,32 @@ export const TOP_LINES = [
     t('index', 'Profile'), t('settings', 'My settings'), t('delivery', 'How things reach me'), t('connect-ai', 'Connect your AI'), t('ai-cards', 'AI suggestions')] },
 ];
 
+/* ---------- agency feature switches ----------
+   A line may carry feature: '<name>'. While that switch is off the line leaves the menus (the page and its code
+   stay, and it still opens by its address). The switches come from GET /api/notices `features` (app.js reads them
+   after boot and calls setFeatures). Until then everything is on, so nothing flickers away for this agency. */
+let FEATURES = { creatorProgram: true };
+/** setFeatures({ creatorProgram, socialPosting, ... }). True when a switch the menus read changed. */
+export function setFeatures(f) {
+  if (!f || typeof f !== 'object') return false;
+  const next = { ...FEATURES };
+  for (const [k, v] of Object.entries(f)) if (typeof v === 'boolean') next[k] = v;
+  const changed = JSON.stringify(next) !== JSON.stringify(FEATURES);
+  FEATURES = next;
+  return changed;
+}
+/** The switches as they stand now. */
+export const featuresNow = () => ({ ...FEATURES });
+const featureOk = l => !l.feature || FEATURES[l.feature] !== false;
+
 /* ---------- reading the menus ---------- */
 const canSee = (who, role) => (who === 'owner' ? role === 'owner' : who === 'all' || role !== 'client');
 
-/** The menu for a view and a role. role: 'owner' | 'team' | 'client'. The client's is the trimmed brand menu. */
-export function menuFor(view, role) {
+/** The menu for a view and a role. role: 'owner' | 'team' | 'client'. The client's is the trimmed brand menu.
+    A line whose feature is off is left out. { allFeatures: true } keeps it (the router: a page still opens by URL). */
+export function menuFor(view, role, { allFeatures = false } = {}) {
   const src = view === 'agency' && role !== 'client' ? AGENCY_MENU : BRAND_MENU;
-  return src.map(g => ({ ...g, lines: g.lines.filter(l => canSee(l.who, role)).map(l => ({ ...l, tabs: l.tabs.filter(x => role !== 'client' || !x.team) })) }))
+  return src.map(g => ({ ...g, lines: g.lines.filter(l => canSee(l.who, role) && (allFeatures || featureOk(l))).map(l => ({ ...l, tabs: l.tabs.filter(x => role !== 'client' || !x.team) })) }))
     .filter(g => g.lines.length);
 }
 

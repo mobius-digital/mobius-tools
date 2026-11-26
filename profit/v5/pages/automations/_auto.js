@@ -5,6 +5,7 @@
 
 import { h, put, addStyles, button, toggle, sheet, toast, pill, statusDot, relativeTime } from '../../kit.js';
 import { APP_NAME } from '../../config.js';
+import { alertHref } from '../../bell.js';
 
 const CSS = `
 .au{display:grid;gap:var(--sp-6)}
@@ -70,6 +71,11 @@ export function noticeActions(row, ctx, reload) {
     try { await ah(ctx, '/api/notices/done', { method: 'POST', body: { id: row.id, ...body } }); toast(said); reload && reload(); } catch (e) { toast(e.message, { tone: 'bad', ms: 5000 }); }
   };
   if (row.state !== 'open') return [];
+  /* an alert clears itself when it is fixed: the one answer is "hide for today" (any POST /api/notices/done on it).
+     It comes back tomorrow if it is still true. Open goes to the page that fixes it. */
+  if (row.kind === 'alert') return [
+    button((row.button && row.button.label) || 'Open', { primary: true, href: alertHref({ brand_id: row.brand_id, ...(row.button || {}) }, ctx.brands || []) }),
+    button('Hide for today', { onclick: () => post({ done: true }, 'Hidden for today. It comes back tomorrow if it is still true.') })];
   if (row.kind === 'proposal') return [button('I did it', { primary: true, onclick: () => post({ answer: 'did_it' }, 'Noted. ' + APP_NAME + ' changed nothing.') }), button('No', { onclick: () => post({ answer: 'no' }, 'Noted.') })];
   if (row.kind === 'release') return [button('Send to the client', { primary: true, onclick: () => post({ answer: 'send' }, 'Sent to the client.') }), button('Do not send', { onclick: () => post({ answer: 'no' }, 'Dropped. The client was not told.') })];
   return [button('Done', { onclick: () => post({ done: true }, 'Done.') })];
