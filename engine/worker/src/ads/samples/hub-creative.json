@@ -1,0 +1,462 @@
+{
+ "model": "lastPlatformClick",
+ "model_label": "Triple Whale, last platform click",
+ "cmp": "prev",
+ "window": {
+  "from": "2026-01-05",
+  "to": "2026-01-11",
+  "pf": "2025-12-29",
+  "pt": "2026-01-04",
+  "span": 7,
+  "today": "2026-01-12"
+ },
+ "act_id": "brand_north_kites",
+ "name": "North Kites",
+ "currency": "USD",
+ "goals": {
+  "metric": "roas",
+  "cpa": 30,
+  "roas": 2.2,
+  "ncpa": null,
+  "cpl": 0.75,
+  "cpl_lo": 0.5,
+  "cpl_auto": true
+ },
+ "ads": [
+  {
+   "id": "1001",
+   "name": "412 A | Still",
+   "media_type": "image",
+   "campaign": "Sales campaign",
+   "obj": "sales",
+   "adset_id": "s1",
+   "fc_rev": 600,
+   "lc_rev": 360,
+   "first_spend": "2026-01-02",
+   "age": 9,
+   "format": "Still",
+   "batch": "412",
+   "angle": "Lightness",
+   "asset_key": "k1",
+   "tags": {
+    "format": "still",
+    "hook": "question",
+    "person": "none",
+    "product": "kite",
+    "offer": "none",
+    "message": "light kites fly higher in soft wind",
+    "notes": "blue sky"
+   },
+   "last_day": "2026-01-10",
+   "spend": 120,
+   "impressions": 12000,
+   "reach": 7200,
+   "clicks": 240,
+   "atc": 12,
+   "checkouts": 9,
+   "purchases": 9,
+   "revenue": 360,
+   "platform_purchases": 6,
+   "platform_revenue": 240,
+   "leads": 0,
+   "cpl": null,
+   "lead_rate": 0,
+   "roas": 3,
+   "cpa": 13.333333333333334,
+   "cpm": 10,
+   "ctr": 0.02,
+   "cpc": 0.5,
+   "cost_per_atc": 10,
+   "atc_rate": 0.05,
+   "purchase_rate": 0.75,
+   "frequency": 1.6666666666666667,
+   "hook": 0.075,
+   "hold": 0.3,
+   "curve": [
+    0.075,
+    0.05,
+    0.03,
+    0.02,
+    0.01
+   ],
+   "ltv_n": 1,
+   "ltv_first": 50,
+   "ltv90": 80,
+   "ltv_x": 1.6,
+   "twins": [
+    {
+     "id": "1002",
+     "name": "412 B | Still"
+    }
+   ],
+   "twin_kind": "alike",
+   "adset": {
+    "id": "s1",
+    "name": "Broad",
+    "spend": 195,
+    "purchases": 12,
+    "revenue": 450,
+    "cpa": 16.25,
+    "roas": 2.3076923076923075,
+    "leads": 0,
+    "cpl": null,
+    "ads": 2
+   },
+   "set_share": 0.6153846153846154,
+   "set_rank": 1
+  },
+  {
+   "id": "1002",
+   "name": "412 B | Still",
+   "media_type": "image",
+   "campaign": "Sales campaign",
+   "obj": "sales",
+   "adset_id": "s1",
+   "fc_rev": 0,
+   "lc_rev": 90,
+   "first_spend": "2025-12-30",
+   "age": 12,
+   "format": "Still",
+   "batch": "412",
+   "angle": "Lightness",
+   "asset_key": "k2",
+   "tags": {
+    "format": "still",
+    "hook": "question",
+    "person": "none",
+    "product": "kite",
+    "offer": "none",
+    "message": "light kites fly higher in soft wind",
+    "notes": "blue sky"
+   },
+   "last_day": "2026-01-10",
+   "spend": 75,
+   "impressions": 7500,
+   "reach": 4500,
+   "clicks": 150,
+   "atc": 12,
+   "checkouts": 9,
+   "purchases": 3,
+   "revenue": 90,
+   "platform_purchases": 6,
+   "platform_revenue": 150,
+   "leads": 0,
+   "cpl": null,
+   "lead_rate": 0,
+   "roas": 1.2,
+   "cpa": 25,
+   "cpm": 10,
+   "ctr": 0.02,
+   "cpc": 0.5,
+   "cost_per_atc": 6.25,
+   "atc_rate": 0.08,
+   "purchase_rate": 0.25,
+   "frequency": 1.6666666666666667,
+   "hook": 0.12,
+   "hold": 0.3,
+   "curve": [
+    0.12,
+    0.08,
+    0.048,
+    0.032,
+    0.016
+   ],
+   "twins": [
+    {
+     "id": "1001",
+     "name": "412 A | Still"
+    }
+   ],
+   "twin_kind": "alike",
+   "adset": {
+    "id": "s1",
+    "name": "Broad",
+    "spend": 195,
+    "purchases": 12,
+    "revenue": 450,
+    "cpa": 16.25,
+    "roas": 2.3076923076923075,
+    "leads": 0,
+    "cpl": null,
+    "ads": 2
+   },
+   "set_share": 0.38461538461538464,
+   "set_rank": 2
+  },
+  {
+   "id": "1003",
+   "name": "Giveaway | Video",
+   "media_type": "video",
+   "campaign": "Giveaway",
+   "obj": "leads",
+   "adset_id": "s2",
+   "fc_rev": 0,
+   "lc_rev": 0,
+   "first_spend": "2026-01-04",
+   "age": 7,
+   "format": "Video",
+   "batch": null,
+   "angle": null,
+   "asset_key": null,
+   "tags": null,
+   "last_day": "2026-01-10",
+   "spend": 30,
+   "impressions": 3000,
+   "reach": 1800,
+   "clicks": 60,
+   "atc": 12,
+   "checkouts": 9,
+   "purchases": 0,
+   "revenue": 0,
+   "platform_purchases": 0,
+   "platform_revenue": 0,
+   "leads": 60,
+   "cpl": 0.5,
+   "lead_rate": 1,
+   "roas": 0,
+   "cpa": null,
+   "cpm": 10,
+   "ctr": 0.02,
+   "cpc": 0.5,
+   "cost_per_atc": 2.5,
+   "atc_rate": 0.2,
+   "purchase_rate": 0,
+   "frequency": 1.6666666666666667,
+   "hook": 0.3,
+   "hold": 0.3,
+   "curve": [
+    0.3,
+    0.2,
+    0.12,
+    0.08,
+    0.04
+   ],
+   "adset": {
+    "id": "s2",
+    "name": "Leads",
+    "spend": 30,
+    "purchases": 0,
+    "revenue": 0,
+    "cpa": null,
+    "roas": 0,
+    "leads": 60,
+    "cpl": 0.5,
+    "ads": 1
+   },
+   "set_share": 1,
+   "set_rank": 1
+  }
+ ],
+ "fatigue": [
+  {
+   "label": "Days 0-3",
+   "spend": 40,
+   "orders": 3,
+   "cpa": 13.333333333333334,
+   "ctr": 0.02,
+   "ads": 1
+  },
+  {
+   "label": "Days 4-7",
+   "spend": 65,
+   "orders": 4,
+   "cpa": 16.25,
+   "ctr": 0.02,
+   "ads": 2
+  },
+  {
+   "label": "Week 2",
+   "spend": 90,
+   "orders": 5,
+   "cpa": 18,
+   "ctr": 0.02,
+   "ads": 2
+  },
+  {
+   "label": "Week 3",
+   "spend": 0,
+   "orders": 0,
+   "cpa": null,
+   "ctr": null,
+   "ads": 0
+  },
+  {
+   "label": "Week 4",
+   "spend": 0,
+   "orders": 0,
+   "cpa": null,
+   "ctr": null,
+   "ads": 0
+  },
+  {
+   "label": "Month 2",
+   "spend": 0,
+   "orders": 0,
+   "cpa": null,
+   "ctr": null,
+   "ads": 0
+  },
+  {
+   "label": "Older",
+   "spend": 0,
+   "orders": 0,
+   "cpa": null,
+   "ctr": null,
+   "ads": 0
+  }
+ ],
+ "weeks": [
+  {
+   "week": "2025-10-20",
+   "launched": 0,
+   "spend": 0,
+   "fresh": 0,
+   "fresh_share": null
+  },
+  {
+   "week": "2025-10-27",
+   "launched": 0,
+   "spend": 0,
+   "fresh": 0,
+   "fresh_share": null
+  },
+  {
+   "week": "2025-11-03",
+   "launched": 0,
+   "spend": 0,
+   "fresh": 0,
+   "fresh_share": null
+  },
+  {
+   "week": "2025-11-10",
+   "launched": 0,
+   "spend": 0,
+   "fresh": 0,
+   "fresh_share": null
+  },
+  {
+   "week": "2025-11-17",
+   "launched": 0,
+   "spend": 0,
+   "fresh": 0,
+   "fresh_share": null
+  },
+  {
+   "week": "2025-11-24",
+   "launched": 0,
+   "spend": 0,
+   "fresh": 0,
+   "fresh_share": null
+  },
+  {
+   "week": "2025-12-01",
+   "launched": 0,
+   "spend": 0,
+   "fresh": 0,
+   "fresh_share": null
+  },
+  {
+   "week": "2025-12-08",
+   "launched": 0,
+   "spend": 0,
+   "fresh": 0,
+   "fresh_share": null
+  },
+  {
+   "week": "2025-12-15",
+   "launched": 0,
+   "spend": 0,
+   "fresh": 0,
+   "fresh_share": null
+  },
+  {
+   "week": "2025-12-22",
+   "launched": 0,
+   "spend": 0,
+   "fresh": 0,
+   "fresh_share": null
+  },
+  {
+   "week": "2025-12-29",
+   "launched": 3,
+   "spend": 60,
+   "fresh": 60,
+   "fresh_share": 1
+  },
+  {
+   "week": "2026-01-05",
+   "launched": 0,
+   "spend": 225,
+   "fresh": 225,
+   "fresh_share": 1
+  }
+ ],
+ "by_format": [
+  {
+   "key": "Still",
+   "ads": 2,
+   "spend": 195,
+   "revenue": 450,
+   "purchases": 12,
+   "impr": 19500,
+   "clicks": 390,
+   "v3": 1800,
+   "roas": 2.3076923076923075,
+   "cpa": 16.25,
+   "ctr": 0.02,
+   "hook": 0.09230769230769231
+  }
+ ],
+ "by_angle": [
+  {
+   "key": "Lightness",
+   "ads": 2,
+   "spend": 195,
+   "revenue": 450,
+   "purchases": 12,
+   "impr": 19500,
+   "clicks": 390,
+   "v3": 1800,
+   "roas": 2.3076923076923075,
+   "cpa": 16.25,
+   "ctr": 0.02,
+   "hook": 0.09230769230769231
+  }
+ ],
+ "by_type": [
+  {
+   "key": "image",
+   "ads": 2,
+   "spend": 195,
+   "revenue": 450,
+   "purchases": 12,
+   "impr": 19500,
+   "clicks": 390,
+   "v3": 1800,
+   "roas": 2.3076923076923075,
+   "cpa": 16.25,
+   "ctr": 0.02,
+   "hook": 0.09230769230769231
+  }
+ ],
+ "alike": [
+  {
+   "adset_id": "s1",
+   "kind": "alike",
+   "ads": [
+    {
+     "id": "1001",
+     "name": "412 A | Still",
+     "spend": 120
+    },
+    {
+     "id": "1002",
+     "name": "412 B | Still",
+     "spend": 75
+    }
+   ],
+   "spend": 195,
+   "adset_name": "Broad"
+  }
+ ]
+}

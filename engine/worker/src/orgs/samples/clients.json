@@ -1,0 +1,32 @@
+{
+  "clients": [
+    {
+      "email": "client@northkites.test",
+      "name": "Client Person",
+      "brands": [
+        {
+          "id": "brand_north_kites",
+          "name": "North Kites"
+        }
+      ],
+      "invited_at": "2026-01-05T10:00:00.000Z",
+      "invited_by": "owner@agency.test",
+      "last_invite": "2026-01-05T10:01:00.000Z",
+      "last_sign_in": "2026-01-06T09:00:00.000Z",
+      "last_seen": "2026-01-07T09:00:00.000Z",
+      "invited_as": null,
+      "read_only": false
+    }
+  ],
+  "access": {
+    "brand_north_kites": {
+      "pl": true,
+      "strategist": true,
+      "changes": true,
+      "creators": true
+    }
+  },
+  "switches": [],
+  "can_edit": true,
+  "locus": "https://app.agency.test/"
+}

@@ -1,0 +1,22 @@
+{
+  "email": "client@northkites.test",
+  "exp": 1790000000000,
+  "master": false,
+  "role": "client",
+  "client": {
+    "name": "Client Person",
+    "welcomed": true,
+    "brands": [
+      {
+        "id": "brand_north_kites",
+        "name": "North Kites",
+        "access": {
+          "pl": true,
+          "strategist": true,
+          "changes": true,
+          "creators": true
+        }
+      }
+    ]
+  }
+}

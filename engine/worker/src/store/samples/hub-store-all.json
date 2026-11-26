@@ -1,0 +1,131 @@
+{
+  "model": "lastPlatformClick",
+  "model_label": "Triple Whale, last platform click",
+  "cmp": "none",
+  "window": {
+    "from": "2026-11-22",
+    "to": "2026-11-24",
+    "pf": null,
+    "pt": null,
+    "span": 3,
+    "today": "2026-11-25"
+  },
+  "brands": [
+    {
+      "act_id": "brand_north_kites",
+      "name": "North Kites",
+      "currency": "USD",
+      "cur": {
+        "gross": 3900,
+        "discounts": 915,
+        "returns": 135,
+        "shipping": 150,
+        "taxes": 300,
+        "revenue": 3000,
+        "orders": 60,
+        "units": 90,
+        "aov": 50,
+        "upo": 1.5,
+        "new_orders": 24,
+        "returning_orders": 36,
+        "new_share": 0.5,
+        "new_revenue": 1500,
+        "returning_revenue": 1500,
+        "email": 450,
+        "sessions": 1200,
+        "carts": 150,
+        "conversion": 0.05,
+        "amazon": {
+          "sales": 210,
+          "orders": 6,
+          "net": null,
+          "fees": null,
+          "refunds": null
+        },
+        "tiktok_shop": {
+          "sales": null,
+          "orders": null,
+          "net": null,
+          "fees": null,
+          "refunds": null
+        }
+      },
+      "prev": null,
+      "series": [
+        {
+          "date": "2026-11-22",
+          "revenue": 1000,
+          "orders": 20
+        },
+        {
+          "date": "2026-11-23",
+          "revenue": 1000,
+          "orders": 20
+        },
+        {
+          "date": "2026-11-24",
+          "revenue": 1000,
+          "orders": 20
+        }
+      ]
+    },
+    {
+      "act_id": "brand_river_tea",
+      "name": "River Tea",
+      "currency": "USD",
+      "cur": {
+        "gross": null,
+        "discounts": null,
+        "returns": 300,
+        "shipping": null,
+        "taxes": 0,
+        "revenue": 27000,
+        "orders": 270,
+        "units": null,
+        "aov": 100,
+        "upo": 0,
+        "new_orders": 90,
+        "returning_orders": 180,
+        "new_share": 0.3333333333333333,
+        "new_revenue": 9000,
+        "returning_revenue": 18000.000000000004,
+        "email": 2331,
+        "sessions": null,
+        "carts": null,
+        "conversion": null,
+        "amazon": {
+          "sales": null,
+          "orders": null,
+          "net": null,
+          "fees": null,
+          "refunds": null
+        },
+        "tiktok_shop": {
+          "sales": null,
+          "orders": null,
+          "net": null,
+          "fees": null,
+          "refunds": null
+        }
+      },
+      "prev": null,
+      "series": [
+        {
+          "date": "2026-11-22",
+          "revenue": 9000,
+          "orders": 90
+        },
+        {
+          "date": "2026-11-23",
+          "revenue": 9000,
+          "orders": 90
+        },
+        {
+          "date": "2026-11-24",
+          "revenue": 9000,
+          "orders": 90
+        }
+      ]
+    }
+  ]
+}

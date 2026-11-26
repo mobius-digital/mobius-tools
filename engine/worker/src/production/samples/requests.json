@@ -1,0 +1,22 @@
+{
+  "items": [
+    {
+      "id": "rq_0000000000000001", "act_id": "brand_north_kites", "brand": "North Kites", "kind": "approval", "what": "studio",
+      "ref": "aaaaaaaaaaaaaaaaaaaaaaaa", "title": "Spring kite ads", "body": "", "link": "", "status": "open",
+      "by": "Sam", "by_role": "team", "decided_by": null, "decided_at": null, "decision_note": "",
+      "created_at": "2026-01-05T15:00:00.000Z", "updated_at": "2026-01-06T15:00:00.000Z",
+      "thread": [{ "by": "Sam", "role": "team", "text": "Two ads for the spring line.", "at": "2026-01-06T15:00:00.000Z" }],
+      "ads": [{ "id": "aaaaaaaaaaaaaaaaaaaaaaaa", "img": "final", "v": "20260105150000", "approved": false, "headline": "Fly higher" }]
+    },
+    {
+      "id": "rq_0000000000000002", "act_id": "brand_north_kites", "brand": "North Kites", "kind": "approval", "what": "date",
+      "ref": "ev_1", "title": "Spring sale date", "body": "", "link": "", "status": "open",
+      "by": "Sam", "by_role": "team", "decided_by": null, "decided_at": null, "decision_note": "",
+      "created_at": "2026-01-04T15:00:00.000Z", "updated_at": "2026-01-04T15:00:00.000Z",
+      "thread": [],
+      "date": { "id": "ev_1", "name": "Spring sale", "start": "2026-03-01", "end": "2026-03-05", "offer": "20 percent off kites", "confirmed": false, "cancelled": false }
+    }
+  ],
+  "waiting_client": 2,
+  "waiting_team": 0
+}

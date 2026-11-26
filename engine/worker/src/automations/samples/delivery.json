@@ -1,0 +1,56 @@
+{
+ "ok": true,
+ "email": "owner@agency.test",
+ "delivery": {
+  "tz": "America/Chicago",
+  "read_hour": 7,
+  "read_days": [
+   "mon",
+   "tue"
+  ],
+  "quiet_from": 19,
+  "quiet_to": 5,
+  "break_quiet": [
+   "tap"
+  ],
+  "mode": "now",
+  "ways": {
+   "home": true,
+   "slack": false,
+   "email": false
+  }
+ },
+ "per": [
+  {
+   "automation_id": "au_1",
+   "name": "Automation one",
+   "sentence": "When a production card moves to Review, for North Kites, if it is a weekday, ask the AI checker to look at it, then tell the card's maker, each in their own way.",
+   "mode": "daily_line",
+   "ways": {
+    "home": true,
+    "slack": true,
+    "email": false
+   },
+   "at_hour": 8,
+   "own": true
+  }
+ ],
+ "modes": {
+  "now": "Right away",
+  "morning_read": "In my morning read",
+  "only_if_missing": "Only if missing",
+  "daily_line": "One line a day",
+  "mute": "Mute"
+ },
+ "ways": {
+  "home": true,
+  "bell": true,
+  "slack": true,
+  "email": true
+ },
+ "ways_note": {
+  "bell": "Always on. The bell is the record.",
+  "email": "Your choice is saved. Email starts when the mail address for this product is set up. Until then it waits in the bell.",
+  "slack": null
+ }
+}

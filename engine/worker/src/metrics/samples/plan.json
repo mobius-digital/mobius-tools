@@ -1,0 +1,154 @@
+{
+ "account": {
+  "act_id": "brand_north_kites",
+  "name": "North Kites",
+  "currency": "USD",
+  "tz": "America/Chicago",
+  "tw_shop": "north-kites.example"
+ },
+ "month": "2026-01",
+ "status": "current",
+ "actual": {
+  "sales": 34061.41,
+  "spend": 8395.52,
+  "cm": 9926.68,
+  "mer": 4.06,
+  "amer": 2.21,
+  "days": 24,
+  "days_in_month": 30,
+  "partial": true
+ },
+ "history": [
+  {
+   "month": "2026-01",
+   "days": 30,
+   "days_in_month": 30,
+   "partial": false,
+   "sales": 44618.42,
+   "spend": 9513.24,
+   "new_rev": 24794.55,
+   "returning": 19823.87,
+   "cm": 14520.72,
+   "margin": 0.54,
+   "mer": 4.69,
+   "amer": 2.61,
+   "new_share": 0.56
+  },
+  {
+   "month": "2026-01",
+   "days": 31,
+   "days_in_month": 31,
+   "partial": false,
+   "sales": 47512.21,
+   "spend": 10359.85,
+   "new_rev": 25956.48,
+   "returning": 21555.73,
+   "cm": 15026.84,
+   "margin": 0.53,
+   "mer": 4.59,
+   "amer": 2.51,
+   "new_share": 0.55
+  }
+ ],
+ "basis": {
+  "sales": 40666.56,
+  "label": "2026-01 actual",
+  "month": "2026-01"
+ },
+ "ctx": {
+  "days_in_month": 30,
+  "returning_per_day": 647.11,
+  "amer": 2.2,
+  "margin": 0.51,
+  "measured": {
+   "returning_per_day": 647.11,
+   "amer": 2.18,
+   "margin": 0.51
+  },
+  "overrides": {
+   "amer": 2.2
+  },
+  "spend_floor_per_day": 150,
+  "sources": {
+   "trailing_days": 28,
+   "trailing_from": "2026-01-15",
+   "trailing_to": "2026-01-15",
+   "margin_month": "2026-01",
+   "basis_month": "2026-01",
+   "trailing_spend_per_day": 350.03
+  }
+ },
+ "options": [
+  {
+   "mode": "growth",
+   "input": 0,
+   "unreachable": null,
+   "sales": 40666.56,
+   "expected_returning": 19413.29,
+   "new_needed": 21253.27,
+   "required_spend": 9660.58,
+   "growth_pct": 0,
+   "implied_mer": 4.21,
+   "expected_cm": 10890.53,
+   "expected_cm_margin": 0.27
+  },
+  {
+   "mode": "growth",
+   "input": 0.1,
+   "unreachable": null,
+   "sales": 44733.22,
+   "expected_returning": 19413.29,
+   "new_needed": 25319.92,
+   "required_spend": 11509.06,
+   "growth_pct": 0.1,
+   "implied_mer": 3.89,
+   "expected_cm": 11097.16,
+   "expected_cm_margin": 0.25
+  }
+ ],
+ "to_hit": {
+  "revenue_per_day": 2989.77,
+  "new_per_day": 2342.66,
+  "spend_per_day": 1076.73,
+  "spend_ramp": 3.08,
+  "already_there": false,
+  "covered_by_returning": false
+ },
+ "pace": {
+  "days_elapsed": 24,
+  "days_remaining": 6,
+  "days_in_month": 30,
+  "mtd_sales": 34061.41,
+  "mtd_spend": 8395.52,
+  "spend_per_day": 350.03,
+  "projected": 43723.53,
+  "at_pace": 42626.3
+ },
+ "goals": {
+  "sales": 52000,
+  "spend": 11000,
+  "cm_pct": null,
+  "amer": 2.1
+ },
+ "plan": {
+  "act_id": "brand_north_kites",
+  "month": "2026-01",
+  "growth_pct": 0.1,
+  "basis_sales": 50000,
+  "basis_label": "made up",
+  "required_spend": 9000,
+  "expected_cm": 12000,
+  "agreed_at": null,
+  "agreed_by": "someone",
+  "share_token": "tok",
+  "note": null,
+  "assumptions_json": "{\"amer\":2.2,\"margin\":\"\",\"spend_floor_per_day\":150}",
+  "updated_at": "2026-01-15 12:00:00"
+ },
+ "planned": true,
+ "current_month": "2026-01",
+ "at_current_pace": {
+  "projected": 42626.3,
+  "month": "2026-01"
+ }
+}

@@ -1,0 +1,1909 @@
+{
+ "power": false,
+ "can_power": true,
+ "can_edit": true,
+ "can_clients": true,
+ "automations": [
+  {
+   "id": "au_1",
+   "name": "Automation one",
+   "brand": "brand_north_kites",
+   "owner": "owner@agency.test",
+   "template": "review_check",
+   "state": "on",
+   "may_act_alone": false,
+   "when": {
+    "type": "card_status",
+    "status": "review"
+   },
+   "if": [
+    {
+     "type": "days",
+     "value": "weekdays"
+    }
+   ],
+   "do": [
+    {
+     "type": "ai_check"
+    }
+   ],
+   "tell": {
+    "who": [
+     {
+      "kind": "role",
+      "role": "maker"
+     }
+    ],
+    "text": ""
+   },
+   "last_run_at": "2026-01-05T10:00:00.000Z",
+   "last_status": "done: told",
+   "fail_count": 0,
+   "created_by": "owner@agency.test",
+   "created_at": "2026-01-05T10:00:00.000Z",
+   "updated_at": "2026-01-05T10:00:00.000Z",
+   "brand_name": "North Kites",
+   "sentence": {
+    "text": "When a production card moves to Review, for North Kites, if it is a weekday, ask the AI checker to look at it, then tell the card's maker, each in their own way.",
+    "parts": [
+     {
+      "t": "text",
+      "text": "When "
+     },
+     {
+      "t": "text",
+      "text": "a production card moves to "
+     },
+     {
+      "t": "slot",
+      "key": "when.status",
+      "text": "Review"
+     },
+     {
+      "t": "text",
+      "text": ", for "
+     },
+     {
+      "t": "slot",
+      "key": "brand",
+      "text": "North Kites"
+     },
+     {
+      "t": "text",
+      "text": ", if it is a "
+     },
+     {
+      "t": "slot",
+      "key": "if.days",
+      "text": "weekday"
+     },
+     {
+      "t": "text",
+      "text": ", "
+     },
+     {
+      "t": "text",
+      "text": "ask the AI checker to look at it"
+     },
+     {
+      "t": "text",
+      "text": ", then tell "
+     },
+     {
+      "t": "slot",
+      "key": "tell.who.0",
+      "text": "the card's maker"
+     },
+     {
+      "t": "text",
+      "text": ", each in their own way"
+     },
+     {
+      "t": "text",
+      "text": "."
+     }
+    ]
+   },
+   "notes": [
+    "The AI checker reads the words on the card. It does not look at the picture or video yet, and it says so on every check.",
+    "Nobody is set as the card's maker yet, so the person who made this hears instead. Set it in Who does what."
+   ],
+   "costs_ai": true
+  }
+ ],
+ "templates": [
+  {
+   "key": "min_off",
+   "group": "Ads",
+   "ready": false,
+   "on": false,
+   "waits": "Not ready yet. It waits for the test minimum trigger.",
+   "tap": true,
+   "sentence": {
+    "text": "When a test minimum has been on 7 days or the test is judged, propose taking it off and tell the buyer.",
+    "parts": [
+     {
+      "t": "text",
+      "text": "When a test minimum has been on "
+     },
+     {
+      "t": "slot",
+      "text": "7 days",
+      "key": null
+     },
+     {
+      "t": "text",
+      "text": " or the test is judged, propose taking it off and tell "
+     },
+     {
+      "t": "slot",
+      "text": "the buyer",
+      "key": null
+     },
+     {
+      "t": "text",
+      "text": "."
+     }
+    ]
+   }
+  },
+  {
+   "key": "mer_under_goal",
+   "group": "Ads",
+   "ready": true,
+   "on": false,
+   "tap": false,
+   "ai": false,
+   "note": null,
+   "automation": {
+    "name": "When MER over the last 7 days is under the brand's goal, for any brand, tell the brand owner, each in their own way.",
+    "brand": "all",
+    "when": {
+     "type": "metric",
+     "metric": "mer",
+     "window": "last7",
+     "compare": "below",
+     "line": "goal"
+    },
+    "if": [],
+    "do": [],
+    "tell": {
+     "who": [
+      {
+       "kind": "role",
+       "role": "owner"
+      }
+     ],
+     "text": ""
+    },
+    "state": "draft",
+    "template": "mer_under_goal",
+    "may_act_alone": false
+   },
+   "sentence": {
+    "text": "When MER over the last 7 days is under the brand's goal, for any brand, tell the brand owner, each in their own way.",
+    "parts": [
+     {
+      "t": "text",
+      "text": "When "
+     },
+     {
+      "t": "slot",
+      "key": "when.metric",
+      "text": "MER"
+     },
+     {
+      "t": "text",
+      "text": " "
+     },
+     {
+      "t": "slot",
+      "key": "when.window",
+      "text": "over the last 7 days"
+     },
+     {
+      "t": "text",
+      "text": " is "
+     },
+     {
+      "t": "slot",
+      "key": "when.compare",
+      "text": "under"
+     },
+     {
+      "t": "text",
+      "text": " "
+     },
+     {
+      "t": "slot",
+      "key": "when.line",
+      "text": "the brand's goal"
+     },
+     {
+      "t": "text",
+      "text": ", for "
+     },
+     {
+      "t": "slot",
+      "key": "brand",
+      "text": "any brand"
+     },
+     {
+      "t": "text",
+      "text": ", tell "
+     },
+     {
+      "t": "slot",
+      "key": "tell.who.0",
+      "text": "the brand owner"
+     },
+     {
+      "t": "text",
+      "text": ", each in their own way"
+     },
+     {
+      "t": "text",
+      "text": "."
+     }
+    ]
+   }
+  },
+  {
+   "key": "zero_spend",
+   "group": "Ads",
+   "ready": false,
+   "on": false,
+   "waits": "Not ready yet. It waits for spend by the hour.",
+   "tap": false,
+   "sentence": {
+    "text": "When a live brand has spent nothing for 3 hours in the day, tell the buyer and the brand owner right away.",
+    "parts": [
+     {
+      "t": "text",
+      "text": "When a live brand has spent nothing for "
+     },
+     {
+      "t": "slot",
+      "text": "3 hours",
+      "key": null
+     },
+     {
+      "t": "text",
+      "text": " in the day, tell "
+     },
+     {
+      "t": "slot",
+      "text": "the buyer",
+      "key": null
+     },
+     {
+      "t": "text",
+      "text": " and "
+     },
+     {
+      "t": "slot",
+      "text": "the brand owner",
+      "key": null
+     },
+     {
+      "t": "text",
+      "text": " right away."
+     }
+    ]
+   }
+  },
+  {
+   "key": "cut_no_sale",
+   "group": "Ads",
+   "ready": false,
+   "on": false,
+   "waits": "Not ready yet. It waits for the ad call rules as a trigger.",
+   "tap": true,
+   "sentence": {
+    "text": "When an ad has spent 3 times the goal with no sale and is past its wait window, propose pausing it.",
+    "parts": [
+     {
+      "t": "text",
+      "text": "When an ad has spent "
+     },
+     {
+      "t": "slot",
+      "text": "3 times",
+      "key": null
+     },
+     {
+      "t": "text",
+      "text": " the goal with no sale and is past its wait window, propose pausing it."
+     }
+    ]
+   }
+  },
+  {
+   "key": "loaded_check",
+   "group": "Ads",
+   "ready": false,
+   "on": false,
+   "waits": "Not ready yet. It waits for the ads loaded trigger.",
+   "tap": false,
+   "sentence": {
+    "text": "When ads are loaded into Meta, put \"check they are spending\" on the buyer's list for the next morning.",
+    "parts": [
+     {
+      "t": "text",
+      "text": "When ads are loaded into Meta, put "
+     },
+     {
+      "t": "slot",
+      "text": "\"check they are spending\"",
+      "key": null
+     },
+     {
+      "t": "text",
+      "text": " on "
+     },
+     {
+      "t": "slot",
+      "text": "the buyer",
+      "key": null
+     },
+     {
+      "t": "text",
+      "text": "'s list for the next morning."
+     }
+    ]
+   }
+  },
+  {
+   "key": "sale_ended",
+   "group": "Ads",
+   "ready": false,
+   "on": false,
+   "waits": "Not ready yet. It waits for the sale dates trigger.",
+   "tap": true,
+   "sentence": {
+    "text": "When a sale's end date passes, propose turning off every ad tagged for it.",
+    "parts": [
+     {
+      "t": "text",
+      "text": "When a sale's end date passes, propose turning off "
+     },
+     {
+      "t": "slot",
+      "text": "every ad tagged for it",
+      "key": null
+     },
+     {
+      "t": "text",
+      "text": "."
+     }
+    ]
+   }
+  },
+  {
+   "key": "suggestions_line",
+   "group": "Ads",
+   "ready": false,
+   "on": false,
+   "waits": "Not ready yet. It waits for the suggestions trigger.",
+   "tap": false,
+   "sentence": {
+    "text": "When suggestions are waiting for a brand, give the buyer one line a day with the count, never one per ad.",
+    "parts": [
+     {
+      "t": "text",
+      "text": "When suggestions are waiting for a brand, give "
+     },
+     {
+      "t": "slot",
+      "text": "the buyer",
+      "key": null
+     },
+     {
+      "t": "text",
+      "text": " one line a day with the count, never one per ad."
+     }
+    ]
+   }
+  },
+  {
+   "key": "review_check",
+   "group": "Production",
+   "ready": true,
+   "on": true,
+   "tap": false,
+   "ai": true,
+   "note": null,
+   "automation": {
+    "name": "When a production card moves to Review, for any brand, ask the AI checker to look at it, then tell the card's maker, each in their own way.",
+    "brand": "all",
+    "when": {
+     "type": "card_status",
+     "status": "review"
+    },
+    "if": [],
+    "do": [
+     {
+      "type": "ai_check"
+     }
+    ],
+    "tell": {
+     "who": [
+      {
+       "kind": "role",
+       "role": "maker"
+      }
+     ],
+     "text": ""
+    },
+    "state": "draft",
+    "template": "review_check",
+    "may_act_alone": false
+   },
+   "sentence": {
+    "text": "When a production card moves to Review, for any brand, ask the AI checker to look at it, then tell the card's maker, each in their own way.",
+    "parts": [
+     {
+      "t": "text",
+      "text": "When "
+     },
+     {
+      "t": "text",
+      "text": "a production card moves to "
+     },
+     {
+      "t": "slot",
+      "key": "when.status",
+      "text": "Review"
+     },
+     {
+      "t": "text",
+      "text": ", for "
+     },
+     {
+      "t": "slot",
+      "key": "brand",
+      "text": "any brand"
+     },
+     {
+      "t": "text",
+      "text": ", "
+     },
+     {
+      "t": "text",
+      "text": "ask the AI checker to look at it"
+     },
+     {
+      "t": "text",
+      "text": ", then tell "
+     },
+     {
+      "t": "slot",
+      "key": "tell.who.0",
+      "text": "the card's maker"
+     },
+     {
+      "t": "text",
+      "text": ", each in their own way"
+     },
+     {
+      "t": "text",
+      "text": "."
+     }
+    ]
+   }
+  },
+  {
+   "key": "sent_back",
+   "group": "Production",
+   "ready": false,
+   "on": false,
+   "waits": "Not ready yet. It waits for the sent back trigger.",
+   "tap": false,
+   "sentence": {
+    "text": "When a card is sent back, tell its maker right away with the notes.",
+    "parts": [
+     {
+      "t": "text",
+      "text": "When a card is sent back, tell "
+     },
+     {
+      "t": "slot",
+      "text": "its maker",
+      "key": null
+     },
+     {
+      "t": "text",
+      "text": " right away with the notes."
+     }
+    ]
+   }
+  },
+  {
+   "key": "stuck_making",
+   "group": "Production",
+   "ready": true,
+   "on": false,
+   "tap": false,
+   "ai": false,
+   "note": null,
+   "automation": {
+    "name": "When a card has sat in Making for 5 days, for any brand, tell the card's maker and the brand owner, each in their own way.",
+    "brand": "all",
+    "when": {
+     "type": "card_stale",
+     "status": "making",
+     "days": 5
+    },
+    "if": [],
+    "do": [],
+    "tell": {
+     "who": [
+      {
+       "kind": "role",
+       "role": "maker"
+      },
+      {
+       "kind": "role",
+       "role": "owner"
+      }
+     ],
+     "text": ""
+    },
+    "state": "draft",
+    "template": "stuck_making",
+    "may_act_alone": false
+   },
+   "sentence": {
+    "text": "When a card has sat in Making for 5 days, for any brand, tell the card's maker and the brand owner, each in their own way.",
+    "parts": [
+     {
+      "t": "text",
+      "text": "When "
+     },
+     {
+      "t": "text",
+      "text": "a card has sat in "
+     },
+     {
+      "t": "slot",
+      "key": "when.status",
+      "text": "Making"
+     },
+     {
+      "t": "text",
+      "text": " for "
+     },
+     {
+      "t": "slot",
+      "key": "when.days",
+      "text": "5 days"
+     },
+     {
+      "t": "text",
+      "text": ", for "
+     },
+     {
+      "t": "slot",
+      "key": "brand",
+      "text": "any brand"
+     },
+     {
+      "t": "text",
+      "text": ", tell "
+     },
+     {
+      "t": "slot",
+      "key": "tell.who.0",
+      "text": "the card's maker"
+     },
+     {
+      "t": "text",
+      "text": " and "
+     },
+     {
+      "t": "slot",
+      "key": "tell.who.1",
+      "text": "the brand owner"
+     },
+     {
+      "t": "text",
+      "text": ", each in their own way"
+     },
+     {
+      "t": "text",
+      "text": "."
+     }
+    ]
+   }
+  },
+  {
+   "key": "ready_not_loaded",
+   "group": "Production",
+   "ready": true,
+   "on": false,
+   "tap": false,
+   "ai": false,
+   "note": null,
+   "automation": {
+    "name": "When a card has sat in Ready for 2 days, for any brand, put \"Load it\" on the home list, due in 0 days, then tell the buyer, each in their own way.",
+    "brand": "all",
+    "when": {
+     "type": "card_stale",
+     "status": "ready",
+     "days": 2
+    },
+    "if": [],
+    "do": [
+     {
+      "type": "task",
+      "text": "Load it",
+      "due_days": 0
+     }
+    ],
+    "tell": {
+     "who": [
+      {
+       "kind": "role",
+       "role": "buyer"
+      }
+     ],
+     "text": ""
+    },
+    "state": "draft",
+    "template": "ready_not_loaded",
+    "may_act_alone": false
+   },
+   "sentence": {
+    "text": "When a card has sat in Ready for 2 days, for any brand, put \"Load it\" on the home list, due in 0 days, then tell the buyer, each in their own way.",
+    "parts": [
+     {
+      "t": "text",
+      "text": "When "
+     },
+     {
+      "t": "text",
+      "text": "a card has sat in "
+     },
+     {
+      "t": "slot",
+      "key": "when.status",
+      "text": "Ready"
+     },
+     {
+      "t": "text",
+      "text": " for "
+     },
+     {
+      "t": "slot",
+      "key": "when.days",
+      "text": "2 days"
+     },
+     {
+      "t": "text",
+      "text": ", for "
+     },
+     {
+      "t": "slot",
+      "key": "brand",
+      "text": "any brand"
+     },
+     {
+      "t": "text",
+      "text": ", "
+     },
+     {
+      "t": "text",
+      "text": "put "
+     },
+     {
+      "t": "slot",
+      "key": "do.0.text",
+      "text": "\"Load it\""
+     },
+     {
+      "t": "text",
+      "text": " on the home list, due in "
+     },
+     {
+      "t": "slot",
+      "key": "do.0.due_days",
+      "text": "0 days"
+     },
+     {
+      "t": "text",
+      "text": ", then tell "
+     },
+     {
+      "t": "slot",
+      "key": "tell.who.0",
+      "text": "the buyer"
+     },
+     {
+      "t": "text",
+      "text": ", each in their own way"
+     },
+     {
+      "t": "text",
+      "text": "."
+     }
+    ]
+   }
+  },
+  {
+   "key": "live_tomorrow",
+   "group": "Production",
+   "ready": false,
+   "on": false,
+   "waits": "Not ready yet. It waits for the calendar trigger.",
+   "tap": false,
+   "sentence": {
+    "text": "When something goes live tomorrow on the calendar and its ads are not Ready, tell the strategist.",
+    "parts": [
+     {
+      "t": "text",
+      "text": "When something goes live "
+     },
+     {
+      "t": "slot",
+      "text": "tomorrow",
+      "key": null
+     },
+     {
+      "t": "text",
+      "text": " on the calendar and its ads are not Ready, tell "
+     },
+     {
+      "t": "slot",
+      "text": "the strategist",
+      "key": null
+     },
+     {
+      "t": "text",
+      "text": "."
+     }
+    ]
+   }
+  },
+  {
+   "key": "creator_waiting",
+   "group": "Production",
+   "ready": false,
+   "on": false,
+   "waits": "Not ready yet. It waits for the creator videos trigger.",
+   "tap": false,
+   "sentence": {
+    "text": "When creator videos have waited 2 days for review, give the reviewer one line a day with the count.",
+    "parts": [
+     {
+      "t": "text",
+      "text": "When creator videos have waited "
+     },
+     {
+      "t": "slot",
+      "text": "2 days",
+      "key": null
+     },
+     {
+      "t": "text",
+      "text": " for review, give "
+     },
+     {
+      "t": "slot",
+      "text": "the reviewer",
+      "key": null
+     },
+     {
+      "t": "text",
+      "text": " one line a day with the count."
+     }
+    ]
+   }
+  },
+  {
+   "key": "sale_no_email",
+   "group": "Email and SMS",
+   "ready": false,
+   "on": false,
+   "waits": "Not ready yet. It waits for email numbers by day.",
+   "tap": false,
+   "sentence": {
+    "text": "When a sale starts tomorrow and no campaign is scheduled for it, tell the email owner.",
+    "parts": [
+     {
+      "t": "text",
+      "text": "When a sale starts "
+     },
+     {
+      "t": "slot",
+      "text": "tomorrow",
+      "key": null
+     },
+     {
+      "t": "text",
+      "text": " and no campaign is scheduled for it, tell "
+     },
+     {
+      "t": "slot",
+      "text": "the email owner",
+      "key": null
+     },
+     {
+      "t": "text",
+      "text": "."
+     }
+    ]
+   }
+  },
+  {
+   "key": "flow_drop",
+   "group": "Email and SMS",
+   "ready": false,
+   "on": false,
+   "waits": "Not ready yet. It waits for email numbers by day.",
+   "tap": false,
+   "sentence": {
+    "text": "When a flow's weekly revenue falls by half against its normal week, tell the email owner.",
+    "parts": [
+     {
+      "t": "text",
+      "text": "When a flow's weekly revenue falls by "
+     },
+     {
+      "t": "slot",
+      "text": "half",
+      "key": null
+     },
+     {
+      "t": "text",
+      "text": " against its normal week, tell "
+     },
+     {
+      "t": "slot",
+      "text": "the email owner",
+      "key": null
+     },
+     {
+      "t": "text",
+      "text": "."
+     }
+    ]
+   }
+  },
+  {
+   "key": "plan_sends",
+   "group": "Email and SMS",
+   "ready": true,
+   "on": false,
+   "tap": false,
+   "ai": false,
+   "note": null,
+   "automation": {
+    "name": "Every Monday at 8am, for any brand, put \"Plan this week's sends\" on the home list, due in 1 day, then tell the email owner, each in their own way.",
+    "brand": "all",
+    "when": {
+     "type": "schedule",
+     "every": "week",
+     "hour": 8,
+     "day": "mon"
+    },
+    "if": [],
+    "do": [
+     {
+      "type": "task",
+      "text": "Plan this week's sends",
+      "due_days": 1
+     }
+    ],
+    "tell": {
+     "who": [
+      {
+       "kind": "role",
+       "role": "email_owner"
+      }
+     ],
+     "text": ""
+    },
+    "state": "draft",
+    "template": "plan_sends",
+    "may_act_alone": false
+   },
+   "sentence": {
+    "text": "Every Monday at 8am, for any brand, put \"Plan this week's sends\" on the home list, due in 1 day, then tell the email owner, each in their own way.",
+    "parts": [
+     {
+      "t": "slot",
+      "key": "when.every",
+      "text": "Every Monday"
+     },
+     {
+      "t": "text",
+      "text": " at "
+     },
+     {
+      "t": "slot",
+      "key": "when.hour",
+      "text": "8am"
+     },
+     {
+      "t": "text",
+      "text": ", for "
+     },
+     {
+      "t": "slot",
+      "key": "brand",
+      "text": "any brand"
+     },
+     {
+      "t": "text",
+      "text": ", "
+     },
+     {
+      "t": "text",
+      "text": "put "
+     },
+     {
+      "t": "slot",
+      "key": "do.0.text",
+      "text": "\"Plan this week's sends\""
+     },
+     {
+      "t": "text",
+      "text": " on the home list, due in "
+     },
+     {
+      "t": "slot",
+      "key": "do.0.due_days",
+      "text": "1 day"
+     },
+     {
+      "t": "text",
+      "text": ", then tell "
+     },
+     {
+      "t": "slot",
+      "key": "tell.who.0",
+      "text": "the email owner"
+     },
+     {
+      "t": "text",
+      "text": ", each in their own way"
+     },
+     {
+      "t": "text",
+      "text": "."
+     }
+    ]
+   }
+  },
+  {
+   "key": "meeting_report",
+   "group": "Reports",
+   "ready": false,
+   "on": false,
+   "waits": "Not ready yet. It waits for the meeting report.",
+   "tap": false,
+   "sentence": {
+    "text": "Every Monday before the team meeting, draft the agency meeting report and tell the team it is ready.",
+    "parts": [
+     {
+      "t": "slot",
+      "text": "Every Monday",
+      "key": null
+     },
+     {
+      "t": "text",
+      "text": " before the team meeting, draft the agency meeting report and tell "
+     },
+     {
+      "t": "slot",
+      "text": "the team",
+      "key": null
+     },
+     {
+      "t": "text",
+      "text": " it is ready."
+     }
+    ]
+   }
+  },
+  {
+   "key": "brand_weekly",
+   "group": "Reports",
+   "ready": true,
+   "on": false,
+   "tap": false,
+   "ai": true,
+   "note": null,
+   "automation": {
+    "name": "Every Monday at 7am, for any brand, draft the weekly report and hold it, then tell the brand owner, each in their own way.",
+    "brand": "all",
+    "when": {
+     "type": "schedule",
+     "every": "week",
+     "hour": 7,
+     "day": "mon"
+    },
+    "if": [],
+    "do": [
+     {
+      "type": "draft_report",
+      "period": "weekly"
+     }
+    ],
+    "tell": {
+     "who": [
+      {
+       "kind": "role",
+       "role": "owner"
+      }
+     ],
+     "text": ""
+    },
+    "state": "draft",
+    "template": "brand_weekly",
+    "may_act_alone": false
+   },
+   "sentence": {
+    "text": "Every Monday at 7am, for any brand, draft the weekly report and hold it, then tell the brand owner, each in their own way.",
+    "parts": [
+     {
+      "t": "slot",
+      "key": "when.every",
+      "text": "Every Monday"
+     },
+     {
+      "t": "text",
+      "text": " at "
+     },
+     {
+      "t": "slot",
+      "key": "when.hour",
+      "text": "7am"
+     },
+     {
+      "t": "text",
+      "text": ", for "
+     },
+     {
+      "t": "slot",
+      "key": "brand",
+      "text": "any brand"
+     },
+     {
+      "t": "text",
+      "text": ", "
+     },
+     {
+      "t": "text",
+      "text": "draft the "
+     },
+     {
+      "t": "slot",
+      "key": "do.0.period",
+      "text": "weekly"
+     },
+     {
+      "t": "text",
+      "text": " report and hold it"
+     },
+     {
+      "t": "text",
+      "text": ", then tell "
+     },
+     {
+      "t": "slot",
+      "key": "tell.who.0",
+      "text": "the brand owner"
+     },
+     {
+      "t": "text",
+      "text": ", each in their own way"
+     },
+     {
+      "t": "text",
+      "text": "."
+     }
+    ]
+   }
+  },
+  {
+   "key": "monthly_report",
+   "group": "Reports",
+   "ready": true,
+   "on": false,
+   "tap": false,
+   "ai": true,
+   "note": null,
+   "automation": {
+    "name": "On the 1st of the month at 7am, for any brand, draft the monthly report and hold it, then tell the brand owner, each in their own way.",
+    "brand": "all",
+    "when": {
+     "type": "schedule",
+     "every": "month",
+     "hour": 7
+    },
+    "if": [],
+    "do": [
+     {
+      "type": "draft_report",
+      "period": "monthly"
+     }
+    ],
+    "tell": {
+     "who": [
+      {
+       "kind": "role",
+       "role": "owner"
+      }
+     ],
+     "text": ""
+    },
+    "state": "draft",
+    "template": "monthly_report",
+    "may_act_alone": false
+   },
+   "sentence": {
+    "text": "On the 1st of the month at 7am, for any brand, draft the monthly report and hold it, then tell the brand owner, each in their own way.",
+    "parts": [
+     {
+      "t": "slot",
+      "key": "when.every",
+      "text": "On the 1st of the month"
+     },
+     {
+      "t": "text",
+      "text": " at "
+     },
+     {
+      "t": "slot",
+      "key": "when.hour",
+      "text": "7am"
+     },
+     {
+      "t": "text",
+      "text": ", for "
+     },
+     {
+      "t": "slot",
+      "key": "brand",
+      "text": "any brand"
+     },
+     {
+      "t": "text",
+      "text": ", "
+     },
+     {
+      "t": "text",
+      "text": "draft the "
+     },
+     {
+      "t": "slot",
+      "key": "do.0.period",
+      "text": "monthly"
+     },
+     {
+      "t": "text",
+      "text": " report and hold it"
+     },
+     {
+      "t": "text",
+      "text": ", then tell "
+     },
+     {
+      "t": "slot",
+      "key": "tell.who.0",
+      "text": "the brand owner"
+     },
+     {
+      "t": "text",
+      "text": ", each in their own way"
+     },
+     {
+      "t": "text",
+      "text": "."
+     }
+    ]
+   }
+  },
+  {
+   "key": "unsent_noon",
+   "group": "Reports",
+   "ready": true,
+   "on": false,
+   "tap": false,
+   "ai": false,
+   "note": null,
+   "automation": {
+    "name": "When a report is still unsent at 12pm, for any brand, tell the brand owner, each in their own way.",
+    "brand": "all",
+    "when": {
+     "type": "report_unsent",
+     "hour": 12
+    },
+    "if": [],
+    "do": [],
+    "tell": {
+     "who": [
+      {
+       "kind": "role",
+       "role": "owner"
+      }
+     ],
+     "text": ""
+    },
+    "state": "draft",
+    "template": "unsent_noon",
+    "may_act_alone": false
+   },
+   "sentence": {
+    "text": "When a report is still unsent at 12pm, for any brand, tell the brand owner, each in their own way.",
+    "parts": [
+     {
+      "t": "text",
+      "text": "When "
+     },
+     {
+      "t": "text",
+      "text": "a report is still unsent at "
+     },
+     {
+      "t": "slot",
+      "key": "when.hour",
+      "text": "12pm"
+     },
+     {
+      "t": "text",
+      "text": ", for "
+     },
+     {
+      "t": "slot",
+      "key": "brand",
+      "text": "any brand"
+     },
+     {
+      "t": "text",
+      "text": ", tell "
+     },
+     {
+      "t": "slot",
+      "key": "tell.who.0",
+      "text": "the brand owner"
+     },
+     {
+      "t": "text",
+      "text": ", each in their own way"
+     },
+     {
+      "t": "text",
+      "text": "."
+     }
+    ]
+   }
+  },
+  {
+   "key": "morning_read",
+   "group": "Reports",
+   "ready": false,
+   "on": false,
+   "waits": "Not ready yet. It waits for the morning read as one message. Held rows already wait for your hour.",
+   "tap": false,
+   "sentence": {
+    "text": "Every weekday at my hour, send me my morning read: what needs me, what changed, nothing else.",
+    "parts": [
+     {
+      "t": "slot",
+      "text": "Every weekday",
+      "key": null
+     },
+     {
+      "t": "text",
+      "text": " at my hour, send me my morning read: what needs me, what changed, nothing else."
+     }
+    ]
+   }
+  },
+  {
+   "key": "plan_missing",
+   "group": "Team",
+   "ready": true,
+   "on": false,
+   "tap": false,
+   "ai": false,
+   "note": "Pick \"Only if missing\" and you hear nothing on a day every plan is in.",
+   "automation": {
+    "name": "When a daily plan is missing by 10am, for any brand, tell me, each in their own way.",
+    "brand": "all",
+    "when": {
+     "type": "plan_missing",
+     "hour": 10
+    },
+    "if": [],
+    "do": [],
+    "tell": {
+     "who": [
+      {
+       "kind": "me"
+      }
+     ],
+     "text": ""
+    },
+    "state": "draft",
+    "template": "plan_missing",
+    "may_act_alone": false
+   },
+   "sentence": {
+    "text": "When a daily plan is missing by 10am, for any brand, tell me, each in their own way.",
+    "parts": [
+     {
+      "t": "text",
+      "text": "When "
+     },
+     {
+      "t": "text",
+      "text": "a daily plan is missing by "
+     },
+     {
+      "t": "slot",
+      "key": "when.hour",
+      "text": "10am"
+     },
+     {
+      "t": "text",
+      "text": ", for "
+     },
+     {
+      "t": "slot",
+      "key": "brand",
+      "text": "any brand"
+     },
+     {
+      "t": "text",
+      "text": ", tell "
+     },
+     {
+      "t": "slot",
+      "key": "tell.who.0",
+      "text": "me"
+     },
+     {
+      "t": "text",
+      "text": ", each in their own way"
+     },
+     {
+      "t": "text",
+      "text": "."
+     }
+    ]
+   }
+  },
+  {
+   "key": "client_request",
+   "group": "Team",
+   "ready": false,
+   "on": false,
+   "waits": "Not ready yet. It waits for the client request trigger.",
+   "tap": false,
+   "sentence": {
+    "text": "When a client sends a request or replies, tell the brand owner right away, quiet hours or not.",
+    "parts": [
+     {
+      "t": "text",
+      "text": "When a client sends a request or replies, tell "
+     },
+     {
+      "t": "slot",
+      "text": "the brand owner",
+      "key": null
+     },
+     {
+      "t": "text",
+      "text": " right away, quiet hours or not."
+     }
+    ]
+   }
+  },
+  {
+   "key": "meeting_promises",
+   "group": "Team",
+   "ready": false,
+   "on": false,
+   "waits": "Not ready yet. It waits for the meeting notes trigger.",
+   "tap": false,
+   "sentence": {
+    "text": "When a meeting ends, put each promise on its owner's list with the day it is due.",
+    "parts": [
+     {
+      "t": "text",
+      "text": "When a meeting ends, put each promise on "
+     },
+     {
+      "t": "slot",
+      "text": "its owner",
+      "key": null
+     },
+     {
+      "t": "text",
+      "text": "'s list with the day it is due."
+     }
+    ]
+   }
+  },
+  {
+   "key": "sync_failing",
+   "group": "Team",
+   "ready": true,
+   "on": false,
+   "tap": false,
+   "ai": false,
+   "note": "Once, with the fixed repeat rule: the day, a day later, three days later, a week later, then quiet.",
+   "automation": {
+    "name": "When a brand's numbers have not synced for 30 hours, for any brand, tell the brand owner, each in their own way.",
+    "brand": "all",
+    "when": {
+     "type": "sync_failing",
+     "hours": 30
+    },
+    "if": [],
+    "do": [],
+    "tell": {
+     "who": [
+      {
+       "kind": "role",
+       "role": "owner"
+      }
+     ],
+     "text": ""
+    },
+    "state": "draft",
+    "template": "sync_failing",
+    "may_act_alone": false
+   },
+   "sentence": {
+    "text": "When a brand's numbers have not synced for 30 hours, for any brand, tell the brand owner, each in their own way.",
+    "parts": [
+     {
+      "t": "text",
+      "text": "When "
+     },
+     {
+      "t": "text",
+      "text": "a brand's numbers have not synced for "
+     },
+     {
+      "t": "slot",
+      "key": "when.hours",
+      "text": "30 hours"
+     },
+     {
+      "t": "text",
+      "text": ", for "
+     },
+     {
+      "t": "slot",
+      "key": "brand",
+      "text": "any brand"
+     },
+     {
+      "t": "text",
+      "text": ", tell "
+     },
+     {
+      "t": "slot",
+      "key": "tell.who.0",
+      "text": "the brand owner"
+     },
+     {
+      "t": "text",
+      "text": ", each in their own way"
+     },
+     {
+      "t": "text",
+      "text": "."
+     }
+    ]
+   }
+  }
+ ],
+ "runs": [
+  {
+   "id": "ar_1",
+   "automation_id": "au_1",
+   "brand_id": "brand_north_kites",
+   "started_at": "2026-01-05T10:00:00.000Z",
+   "result": "done",
+   "why": "told",
+   "title": "A card moved",
+   "ai_in": 0,
+   "ai_out": 0,
+   "ai_usd": 0,
+   "tapped_by": "owner@agency.test",
+   "tapped_at": "2026-01-05T10:00:00.000Z",
+   "brand": "North Kites"
+  }
+ ],
+ "brands": [
+  {
+   "id": "brand_north_kites",
+   "name": "North Kites"
+  },
+  {
+   "id": "brand_river_tea",
+   "name": "River Tea"
+  }
+ ],
+ "options": {
+  "when.type": [
+   {
+    "id": "schedule",
+    "label": "On a schedule"
+   },
+   {
+    "id": "card_status",
+    "label": "A production card moves to a stage"
+   },
+   {
+    "id": "card_stale",
+    "label": "A card has sat in a stage"
+   },
+   {
+    "id": "plan_missing",
+    "label": "A daily plan is missing by a time"
+   },
+   {
+    "id": "report_drafted",
+    "label": "A report is drafted"
+   },
+   {
+    "id": "report_unsent",
+    "label": "A report is still unsent by a time"
+   },
+   {
+    "id": "sync_failing",
+    "label": "A brand's numbers stopped syncing"
+   },
+   {
+    "id": "metric",
+    "label": "A number crosses a line"
+   }
+  ],
+  "when.status": [
+   {
+    "id": "brief",
+    "label": "Brief"
+   },
+   {
+    "id": "making",
+    "label": "Making"
+   },
+   {
+    "id": "review",
+    "label": "Review"
+   },
+   {
+    "id": "ready",
+    "label": "Ready"
+   },
+   {
+    "id": "scheduled",
+    "label": "Scheduled"
+   },
+   {
+    "id": "live",
+    "label": "Live"
+   },
+   {
+    "id": "off",
+    "label": "Off"
+   }
+  ],
+  "when.every": [
+   {
+    "id": "day",
+    "label": "Every day"
+   },
+   {
+    "id": "weekday",
+    "label": "Every weekday"
+   },
+   {
+    "id": "week:mon",
+    "label": "Every Monday"
+   },
+   {
+    "id": "week:tue",
+    "label": "Every Tuesday"
+   },
+   {
+    "id": "week:wed",
+    "label": "Every Wednesday"
+   },
+   {
+    "id": "week:thu",
+    "label": "Every Thursday"
+   },
+   {
+    "id": "week:fri",
+    "label": "Every Friday"
+   },
+   {
+    "id": "week:sat",
+    "label": "Every Saturday"
+   },
+   {
+    "id": "week:sun",
+    "label": "Every Sunday"
+   },
+   {
+    "id": "month",
+    "label": "On the 1st of the month"
+   }
+  ],
+  "when.hour": [
+   {
+    "id": 0,
+    "label": "12am"
+   },
+   {
+    "id": 1,
+    "label": "1am"
+   },
+   {
+    "id": 2,
+    "label": "2am"
+   },
+   {
+    "id": 3,
+    "label": "3am"
+   },
+   {
+    "id": 4,
+    "label": "4am"
+   },
+   {
+    "id": 5,
+    "label": "5am"
+   },
+   {
+    "id": 6,
+    "label": "6am"
+   },
+   {
+    "id": 7,
+    "label": "7am"
+   },
+   {
+    "id": 8,
+    "label": "8am"
+   },
+   {
+    "id": 9,
+    "label": "9am"
+   },
+   {
+    "id": 10,
+    "label": "10am"
+   },
+   {
+    "id": 11,
+    "label": "11am"
+   },
+   {
+    "id": 12,
+    "label": "12pm"
+   },
+   {
+    "id": 13,
+    "label": "1pm"
+   },
+   {
+    "id": 14,
+    "label": "2pm"
+   },
+   {
+    "id": 15,
+    "label": "3pm"
+   },
+   {
+    "id": 16,
+    "label": "4pm"
+   },
+   {
+    "id": 17,
+    "label": "5pm"
+   },
+   {
+    "id": 18,
+    "label": "6pm"
+   },
+   {
+    "id": 19,
+    "label": "7pm"
+   },
+   {
+    "id": 20,
+    "label": "8pm"
+   },
+   {
+    "id": 21,
+    "label": "9pm"
+   },
+   {
+    "id": 22,
+    "label": "10pm"
+   },
+   {
+    "id": 23,
+    "label": "11pm"
+   }
+  ],
+  "when.period": [
+   {
+    "id": "any",
+    "label": "weekly or monthly"
+   },
+   {
+    "id": "weekly",
+    "label": "weekly"
+   },
+   {
+    "id": "monthly",
+    "label": "monthly"
+   }
+  ],
+  "when.metric": [
+   {
+    "id": "spend",
+    "label": "ad spend"
+   },
+   {
+    "id": "mer",
+    "label": "MER"
+   },
+   {
+    "id": "roas",
+    "label": "Meta ROAS (Triple Whale)"
+   }
+  ],
+  "when.window": [
+   {
+    "id": "yesterday",
+    "label": "yesterday"
+   },
+   {
+    "id": "last7",
+    "label": "over the last 7 days"
+   }
+  ],
+  "when.compare": [
+   {
+    "id": "below",
+    "label": "under"
+   },
+   {
+    "id": "above",
+    "label": "over"
+   }
+  ],
+  "if.days": [
+   {
+    "id": "weekdays",
+    "label": "weekday"
+   },
+   {
+    "id": "weekend",
+    "label": "weekend"
+   }
+  ],
+  "do.type": [
+   {
+    "id": "task",
+    "label": "Put a task on a home list",
+    "ai": false,
+    "not_yet": null
+   },
+   {
+    "id": "draft_report",
+    "label": "Draft a report (never sent)",
+    "ai": true,
+    "not_yet": null
+   },
+   {
+    "id": "ai_check",
+    "label": "Ask the AI checker to look at the card",
+    "ai": true,
+    "not_yet": null
+   },
+   {
+    "id": "propose",
+    "label": "Suggest a change (a person makes it)",
+    "ai": false,
+    "not_yet": "Locus does not make this change in this version. It arrives as a suggestion. You make the change in Ads and tap \"I did it\", or tap \"No\"."
+   },
+   {
+    "id": "stop_spend",
+    "label": "Stop spend without asking",
+    "ai": false,
+    "not_yet": "Saved and shown, but it does not run in this version. It arrives as a suggestion that a person acts on instead."
+   }
+  ],
+  "do.period": [
+   {
+    "id": "weekly",
+    "label": "weekly"
+   },
+   {
+    "id": "monthly",
+    "label": "monthly"
+   }
+  ],
+  "do.change": [
+   {
+    "id": "pause",
+    "label": "pausing it"
+   },
+   {
+    "id": "min_off",
+    "label": "taking the minimum off"
+   },
+   {
+    "id": "budget",
+    "label": "a budget change"
+   },
+   {
+    "id": "off",
+    "label": "turning it off"
+   }
+  ],
+  "tell.who": [
+   {
+    "id": "me",
+    "label": "me"
+   },
+   {
+    "id": "team",
+    "label": "the whole team"
+   },
+   {
+    "id": "role:owner",
+    "label": "the brand owner"
+   },
+   {
+    "id": "role:buyer",
+    "label": "the buyer"
+   },
+   {
+    "id": "role:strategist",
+    "label": "the strategist"
+   },
+   {
+    "id": "role:maker",
+    "label": "the card's maker"
+   },
+   {
+    "id": "role:email_owner",
+    "label": "the email owner"
+   },
+   {
+    "id": "role:reviewer",
+    "label": "the reviewer"
+   },
+   {
+    "id": "clients",
+    "label": "the client's people"
+   },
+   {
+    "id": "person",
+    "label": "a person, by email"
+   }
+  ]
+ },
+ "modes": {
+  "now": "Right away",
+  "morning_read": "In my morning read",
+  "only_if_missing": "Only if missing",
+  "daily_line": "One line a day",
+  "mute": "Mute"
+ },
+ "team_size": 2,
+ "note": "Automations are switched off for this workspace. You can set them up and try them. Nothing runs until the owner switches them on."
+}
