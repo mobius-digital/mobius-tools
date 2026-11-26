@@ -1,2 +1,3 @@
-/* Agency > Black Friday > Plan: every brand's plan on one list. The page lives beside the brand one. */
-export { agencyPlan as default } from '../black-friday/plan.js';
+/* Agency > Black Friday > Plan was folded into the War Room (the plan is its last section). The route is no longer a
+   tab, so the router opens the War Room; this file only answers anything that still imports it directly. */
+export { default } from './war-room.js';

@@ -72,8 +72,10 @@ export const BRAND_MENU = [
   { group: 'Calendar', lines: [
     { id: 'calendar', label: 'Calendar', icon: 'calendar', who: 'all', tabs: one('calendar') },
     { id: 'offers', label: 'Offers', icon: 'offers', who: 'all', tabs: one('season') },
+    /* one page: the old Pace and Plan addresses are not tabs any more, so the router sends them to the War Room.
+       A client sees the pace and the plan on it, never the calls. */
     { id: 'black-friday', label: 'Black Friday', icon: 'star', who: 'all', note: 'in season', tabs: [
-      t('pace', 'Pace', 'warlive'), t('plan', 'Plan', 'warplan'), t('war-room', 'War Room', 'warlive', true)] },
+      t('war-room', 'War Room', 'warlive')] },
   ] },
   { group: 'Reports', lines: [
     { id: 'reports', label: 'Reports', icon: 'report', who: 'all', tabs: one('reports') },
@@ -105,7 +107,7 @@ export const AGENCY_MENU = [
   ] },
   { group: 'Calendar', lines: [
     { id: 'a-calendar', label: 'Calendar', icon: 'calendar', who: 'team', tabs: one('calendar') },
-    { id: 'a-black-friday', label: 'Black Friday', icon: 'star', who: 'team', note: 'in season', tabs: [t('war-room', 'War Room', 'warlive'), t('pace', 'Pace', 'warlive'), t('plan', 'Plan', 'warplan')] },
+    { id: 'a-black-friday', label: 'Black Friday', icon: 'star', who: 'team', note: 'in season', tabs: [t('war-room', 'War Room', 'warlive')] },
   ] },
   { group: 'Reports', lines: [
     { id: 'a-to-send', label: 'To send', icon: 'send', who: 'team', tabs: one('reports') },
