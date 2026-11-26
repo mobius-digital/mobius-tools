@@ -119,6 +119,9 @@ import { deliveryMessage, lowToday, spendHigh, completedDayNormal, highAlertText
 import { raiseAlert, clearAlert, urgentSweep } from './urgent.js';
 import { OWNER_EMAIL } from './extwrite.js';
 import { jobOn, featureOn, jobsView, cleanJobs, cleanFeatures, featureSaved } from './jobflags.js';
+import { alarmsPass, alarmCfg, cleanAlarmCfg } from './alarms.js';
+import { markHold, recheckHolds, listHolds } from './drafthold.js';
+import { supplyBrandOf, supplyFetch } from './stock.js';
 /* /api/tw-day's 60-second memo (2026-10-26, Locus speed): key = brand | shop | day -> { at, p }. */
 const TW_DAY_MEMO = new Map();
 
@@ -3192,6 +3195,9 @@ async function upsertBrief(env, actId, date, status, channel, text, data, extra 
        steer = CASE WHEN ?9 = 1 THEN excluded.steer ELSE briefs.steer END`,
   ).bind(actId, date, new Date().toISOString(), channel ?? null, status, text ?? null, dataJson,
          extra.steer ?? null, 'steer' in extra ? 1 : 0).run();
+  /* 2026-11-26 (drafthold.js): a draft built from fresh numbers is checked once; broken numbers hold it (team only,
+     the row and what the client gets are unchanged). */
+  if (data !== undefined && (status === 'draft' || status === 'handled')) await markHold(env, holdDeps(), actId, 'brief', 'daily', date, date).catch(() => {});
 }
 
 /** Build the brief and park it as a DRAFT for review, notifying the internal
@@ -5218,6 +5224,8 @@ async function makeReport(env, acct, period, start, { force = false, steer } = {
        status = excluded.status, generated_at = excluded.generated_at, summary = excluded.summary,
        data_json = excluded.data_json, steer = excluded.steer, sent_at = NULL, sent_channel = NULL`,
   ).bind(acct.act_id, period, start, end, new Date().toISOString(), summary, JSON.stringify(data), steer || null, draftStatus(acct)).run();
+  /* 2026-11-26 (drafthold.js): numbers that look broken hold the draft (team only; the report row is unchanged). */
+  await markHold(env, holdDeps(), acct, 'report', period, start, end).catch(() => {});
   /* The team-only talking points (p_report_read, never this row). A failure leaves the report drafted, numbers intact. */
   try { await reportDrafted(env, readDeps(), acct, period, start, data, { steer }); } catch (e) { narrative_error = e.message; }
   return { period, start, end, summary, data, narrative_error, steer: steer || null };
@@ -7263,6 +7271,15 @@ async function alertRaise(env, o) {
 async function alertClear(env, type, thing) {
   return clearAlert(env, urgentDeps(), { type, thing, now: new Date() }).catch(e => ({ error: e.message }));
 }
+/** What alarms.js needs (round 21, 2026-11-26): stored numbers, one Meta read per check, the alert helpers. */
+function alarmDeps(env) {
+  return { getSetting, putSetting, listAccounts, localDate, localHourFrac, addDays, metaBackedOff, liveDailyBudget, supplyBrandOf, supplyFetch,
+    /* A Meta error still counts toward the shared backoff, so a rate limit here slows every Meta caller. */
+    meta: (e, path, params) => meta(e, path, params).catch(async err => { await noteMetaError(e, err).catch(() => {}); throw err; }),
+    can: n => subCanAfford(n), raise: o => alertRaise(env, o), clear: (type, thing) => alertClear(env, type, thing) };
+}
+/** What drafthold.js needs: the brand list and the clock in brand time. */
+function holdDeps() { return { listAccounts, localDate, localHourFrac, addDays }; }
 
 /** Runs on every hourly tick; each account gates itself on its OWN local clock,
  *  because the brands are spread across three US timezones and "2pm" has to mean
@@ -8271,6 +8288,13 @@ const AH_APP = {
         /* Urgent alerts in Locus (urgent.js, 2026-11-26): clear what fixed itself. After the client send warning and
            the check-in, so its D1 work never takes the tick's budget from them. */
         ran.urgentSweep = await urgentSweep(env, urgentDeps(), { now: new Date() }).catch(e => ({ error: e.message }));
+        /* The alarms (alarms.js, round 21): account blocked or out of limit, ads rejected, a live campaign stopped or far
+           over budget, ads spending with no store order, purchases not tracked, an advertised product sold out. Urgent
+           Locus rows first; stored numbers plus a few small Meta reads, one brand at a time. No new cron. After the War
+           Room check-in and the client send warning, so they always run first. */
+        ran.alarms = await alarmsPass(env, alarmDeps(env)).catch(e => ({ error: e.message }));
+        /* Client drafts held for broken numbers (drafthold.js): a held draft whose numbers came in is released. */
+        ran.draftHolds = await recheckHolds(env, holdDeps()).catch(e => ({ error: e.message }));
         if (hour >= bh) {
           ran.briefs = await dailyBriefs(env).catch(e => ({ error: e.message }));
           // Reports wait TWO hours behind the brief. They could share a tick now
@@ -10730,6 +10754,10 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
             creatorProgramSaved: await featureSaved(env, 'creatorProgram', getSetting) },
           notifyCopies: (await getSetting(env, 'notifyCopies')) === 'on',
           canEditJobs: !!isOwner,
+          /* The alarms' per brand settings (alarms.js) and the Slack DM bridge until Dec 5. Owner only to change. */
+          alarms: Object.fromEntries(((await env.DB.prepare(`SELECT key, value FROM settings WHERE key LIKE 'alarms:%'`).all().catch(() => ({ results: [] }))).results || [])
+            .map(r => [r.key.slice('alarms:'.length), alarmCfg(r.value)])),
+          alarmDm: (await getSetting(env, 'alarmDm')) !== 'off',
         });
       }
       if (path === '/api/settings' && request.method === 'PUT') {
@@ -10738,7 +10766,9 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
            and photo). Checked before anything saves, so a refused body changes nothing. */
         if ('senders' in b && !isOwner) return json({ error: 'Only Cole can change who messages come from.' }, 403);
         /* 2026-11-26 (jobflags.js): quiet jobs, agency features and the urgent copies switch are the owner's. */
-        if (('jobs' in b || 'features' in b || 'notifyCopies' in b) && !isOwner) return json({ error: 'Only the owner can change this.' }, 403);
+        if (('jobs' in b || 'features' in b || 'notifyCopies' in b || 'alarms' in b || 'alarmDm' in b) && !isOwner) return json({ error: 'Only the owner can change this.' }, 403);
+        if ('alarms' in b) for (const [brand, cfg] of Object.entries(cleanAlarmCfg(b.alarms))) await putSetting(env, `alarms:${brand}`, JSON.stringify(cfg));
+        if ('alarmDm' in b) await putSetting(env, 'alarmDm', b.alarmDm === false || b.alarmDm === 'off' ? 'off' : 'on');
         if ('jobs' in b) for (const [id, on] of Object.entries(cleanJobs(b.jobs, isOwner) || {})) await putSetting(env, `jobOn:${id}`, on ? 'on' : 'off');
         if ('features' in b) for (const [k, on] of Object.entries(cleanFeatures(b.features))) await putSetting(env, `feature:${k}`, on ? 'on' : 'off');
         if ('notifyCopies' in b) await putSetting(env, 'notifyCopies', b.notifyCopies === true || b.notifyCopies === 'on' ? 'on' : 'off');
@@ -11095,6 +11125,11 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         const steer = typeof b.steer === 'string' && b.steer.trim() ? b.steer.trim() : null;
         const r = await draftBrief(env, acct, date, { steer });
         return r.ok ? json(r) : json({ error: r.error || r.skipped }, 400);
+      }
+      /* Client drafts whose numbers look incomplete (drafthold.js, 2026-11-26): the warning line on To send and Reports.
+         TEAM ONLY: not on brandguard's client allowlist, so a client login is refused before this runs. */
+      if (path === '/api/draft-holds' && request.method === 'GET') {
+        return json({ holds: await listHolds(env, url.searchParams.get('act') || 'all') });
       }
       if (path === '/api/briefs' && request.method === 'GET') {
         const act = url.searchParams.get('act');

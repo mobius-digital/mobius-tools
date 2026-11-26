@@ -13,10 +13,16 @@
  * the channels each person chose (notify.js personWants). The existing Slack posts are not touched here. */
 import { ensure as ensureAutomations, rolesOf, slackDm } from './automations.js';
 import { personWants, typeOf } from './notify.js';
+import { ALARM_TYPES, ALARM_PAGE } from './alarms.js';
 
-export const ALERT_TYPES = ['outage', 'claude_failed', 'meta_sync', 'brief_failed', 'spend_high', 'spend_low'];
+export const ALERT_TYPES = ['outage', 'claude_failed', 'meta_sync', 'brief_failed', 'spend_high', 'spend_low', ...ALARM_TYPES];
 /** The v5 page each type opens. */
-export const ALERT_PAGE = { spend_high: 'meta/live-now', spend_low: 'meta/live-now', brief_failed: 'a-to-send/index', claude_failed: 'a-status/index', meta_sync: 'a-status/index', outage: 'a-status/index' };
+export const ALERT_PAGE = { spend_high: 'meta/live-now', spend_low: 'meta/live-now', brief_failed: 'a-to-send/index', claude_failed: 'a-status/index', meta_sync: 'a-status/index', outage: 'a-status/index', ...ALARM_PAGE };
+/* KEEP SLACK UNTIL THE BELL IS ON PHONES (round 21 research, review note on the spend and outage rows): until settings
+   notifyCopies is 'on' (Dec 5) these alarms, the ones that mean money stopped or the store is down right now, also DM
+   each person on a NEW episode, whatever their preset. settings alarmDm = 'off' stops it. Every other alarm is a Locus
+   row only tonight. Once notifyCopies is on, each person's own choices decide, like every other type. */
+export const DM_TONIGHT = ['account_blocked', 'campaign_stalled', 'no_orders'];
 
 const lower = s => String(s || '').trim().toLowerCase();
 const isEmail = s => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || ''));
@@ -51,6 +57,7 @@ export async function alertPeople(env, d, type, brandId) {
   const mine = (brandId && roles[brandId]) || {}, all = roles.all || {};
   let list;
   if (type === 'spend_high' || type === 'spend_low') list = [mine.buyer || all.buyer || owner];
+  else if (ALARM_TYPES.includes(type)) list = [mine.buyer || all.buyer, owner];
   else if (type === 'brief_failed') list = [owner, mine.owner];
   else list = [owner];
   const clients = Object.fromEntries(Object.entries((await setting(env, d, 'clientUsers', {})) || {}).map(([k, v]) => [lower(k), v]));
@@ -80,9 +87,13 @@ async function brandQuiet(env, d, brandId) {
   return null;
 }
 
-/** Copies outside Locus, on a NEW episode only. Tonight settings notifyCopies is off, so this records 'off'. */
+/** Copies outside Locus, on a NEW episode only. Tonight settings notifyCopies is off, so this records 'off' (and, for
+ *  the DM_TONIGHT alarms, the bridge DM). */
 async function copies(env, d, email, type, text) {
-  if (String((await rawSetting(env, d, 'notifyCopies')) ?? '').trim().toLowerCase() !== 'on') return { copies: 'off' };
+  if (String((await rawSetting(env, d, 'notifyCopies')) ?? '').trim().toLowerCase() !== 'on') {
+    if (!DM_TONIGHT.includes(type) || String((await rawSetting(env, d, 'alarmDm')) ?? '').trim().toLowerCase() === 'off') return { copies: 'off' };
+    return { copies: 'off', slack: (await slackDm(env, d, email, text).catch(e => e.message)) || 'sent', bridge: true };
+  }
   const out = {};
   if (await personWants(env, d, email, type, 'slack_dm')) out.slack = (await slackDm(env, d, email, text).catch(e => e.message)) || 'sent';
   if (await personWants(env, d, email, type, 'email')) out.email = await d.sendEmail(env, email, text).then(() => 'sent', e => e.message);
@@ -145,6 +156,9 @@ export async function urgentSweep(env, d, { now } = {}) {
   for (const r of results || []) {
     let clear = false;
     if (r.ntype === 'spend_high' || r.ntype === 'spend_low') clear = !r.seen_at || r.seen_at < ago(36);
+    /* The alarms (alarms.js) refresh their row every hour they still see it (tracking once a day): one no check has
+       seen for 30 hours has stopped being checked (a paused brand, a check switched off) and clears. */
+    else if (ALARM_TYPES.includes(r.ntype)) clear = !r.seen_at || r.seen_at < ago(30);
     else if (r.ntype === 'claude_failed') {
       if (claudeOld === null) { const last = await setting(env, d, 'lastClaudeAlert', null); claudeOld = !(last && last.at) || last.at < t - 24 * 36e5; }
       clear = claudeOld;

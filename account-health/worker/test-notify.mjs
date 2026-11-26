@@ -106,7 +106,7 @@ await ok('owner only types are missing from a teammate catalog; a client gets on
   for (const id of ['claude_failed', 'meta_sync', 'outage', 'war_room']) assert.ok(!ids.includes(id), id);
   assert.ok(OWNER.some(t => t.id === 'outage'));
   assert.deepEqual(catalogTypes({ client: true }).map(t => t.id), ['client_waiting']);
-  assert.equal(NOTIFY_TYPES.length, 15);
+  assert.equal(NOTIFY_TYPES.length, 22, '15 plus the 7 alarms (alarms.js)');
 });
 await ok('GET then PUT /api/me/delivery keeps the old fields and round trips notify', async () => {
   fresh(); as('sam@agency.example');

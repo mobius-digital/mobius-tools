@@ -3,7 +3,7 @@
  "today": "2026-11-24",
  "items": [
   { "kind": "brief", "act_id": "brand_northlake_golf", "brand": "Northlake Golf", "day": "2026-11-23", "status": "draft", "drafted_at": "2026-11-24", "sent_at": null, "preview": "Sales $1,880 yesterday at 2.85x MER, on plan for a quiet week before the sale. Black Friday ads are loaded and paused." },
-  { "kind": "brief", "act_id": "brand_harbor_and_pine", "brand": "Harbor & Pine", "day": "2026-11-23", "status": "draft", "drafted_at": "2026-11-24", "sent_at": null, "preview": "A strong Sunday: $2,310 in sales, the gift guide ads did most of it." },
+  { "kind": "brief", "act_id": "brand_harbor_and_pine", "brand": "Harbor & Pine", "day": "2026-11-23", "status": "draft", "drafted_at": "2026-11-24", "sent_at": null, "hold": "Numbers look incomplete: Triple Whale has not synced", "preview": "A strong Sunday: $2,310 in sales, the gift guide ads did most of it." },
   { "kind": "brief", "act_id": "brand_summit_sticks", "brand": "Summit Sticks", "day": "2026-11-23", "status": "error", "drafted_at": "2026-11-24", "sent_at": null, "preview": "" },
   { "kind": "brief", "act_id": "brand_tallgrass_apparel", "brand": "Tallgrass Apparel", "day": "2026-11-23", "status": "sent", "drafted_at": "2026-11-24", "sent_at": "2026-11-24", "preview": "Polo bundle sold 41 yesterday, the best Sunday this month." },
   { "kind": "brief", "act_id": "brand_copper_kettle_pets", "brand": "Copper Kettle Pets", "day": "2026-11-23", "status": "sent", "drafted_at": "2026-11-24", "sent_at": "2026-11-24", "preview": "A quiet day, as planned. The new chews page goes live tomorrow." },

@@ -17,6 +17,10 @@
      POST /api/report-send { act, period, start, to: 'team' }   no client channel: post in the team channel
      POST /api/report-skip { act, period, start }     Do not send
    GET  /api/slack-channels                           the channel's name for the confirm sheet (read once)
+   GET  /api/draft-holds?act=                         drafts whose numbers look incomplete (team only, 2026-11-26):
+                                                      { holds: [{ kind, act_id, period, start, reason }] }. A held item
+                                                      (item.hold = the reason) shows the reason as one warning line, and
+                                                      its Send asks twice. What the client gets is unchanged.
 
    Sample mode never calls a route: every write is simulated and says so. */
 
@@ -125,6 +129,30 @@ function needsRead(i, ctx, sh, body, read) {
       button('Not now', { ghost: true, large: true, onclick: () => sh.close() })));
 }
 
+/* ---------- numbers that look incomplete (drafthold.js on the server) ---------- */
+const holdKey = (kind, act, period, day) => kind + '|' + act + '|' + (kind === 'brief' ? 'daily' : period) + '|' + day;
+/** The held drafts: a Map of key -> reason. One call; any failure reads as no holds (Send then asks once, as before). */
+export async function readHolds(ctx, act, signal) {
+  if (ctx.sample) return new Map();
+  try {
+    const r = await ctx.api('/api/draft-holds?act=' + encodeURIComponent(act || 'all'), { worker: 'ah', signal });
+    return new Map(((r && r.holds) || []).map(x => [holdKey(x.kind, x.act_id, x.period, x.start), x.reason]));
+  } catch (e) { if (e && e.name === 'AbortError') throw e; return new Map(); }
+}
+/** The reason a waiting item is held, or null. */
+export const holdOf = (holds, i) => (holds && holds.get(holdKey(i.kind, i.act_id, i.period, i.day))) || null;
+/** The one warning line on a held draft. */
+export const holdLine = reason => reason ? h('p', { class: 'sd-err' }, reason + '. Check them before this goes to the client.') : null;
+/** A Send that asks twice when the numbers look incomplete: the first tap turns it into "Send anyway". Returns true
+    when the click should go on and send. */
+export function askTwice(btn, reason, note) {
+  if (!reason || btn.dataset.sure === '1') return true;
+  btn.dataset.sure = '1';
+  btn.textContent = 'Send anyway';
+  if (note) put(note, h('p', { class: 'sd-err' }, reason + '. Tap Send anyway to send it as it is.'));
+  return false;
+}
+
 /* ---------- reading the text ---------- */
 async function readBrief(i, ctx) {
   if (ctx.sample) {
@@ -199,8 +227,9 @@ export async function sendSheet(i, ctx, done) {
   const where = await channelName(ch, ctx);
   const brand = i.brand || 'this brand';
   const lines = [
+    holdLine(i.hold),
     h('p', { class: 'sd-where' }, h('b', null, brand + '. '), 'Posts in the client\'s channel' + (where ? ', ' + where : '') + ', under your name. Everyone in that channel sees it.'),
-  ];
+  ].filter(Boolean);
   if (i.kind === 'brief') {
     lines.push(h('p', { class: 'sd-lab' }, 'What the client gets'), slackText(txt.text || ''), h('p', { class: 'sd-note' }, 'The full numbers go in one reply under it.' + (txt.edited ? ' This post was edited by hand.' : '')));
   } else {
@@ -215,6 +244,8 @@ export async function sendSheet(i, ctx, done) {
   const back = button('Not now', { ghost: true, large: true, onclick: () => sh.close() });
   if (i.kind === 'brief' && !String(txt.text || '').trim()) go.disabled = true;
   go.addEventListener('click', async () => {
+    /* Numbers that look incomplete: the first tap only asks again. */
+    if (!askTwice(go, i.hold, err)) return;
     go.disabled = edit.disabled = back.disabled = true;
     put(err);
     try {

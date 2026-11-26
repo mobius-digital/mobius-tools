@@ -169,7 +169,7 @@ await ok('every gate sits in its file (the code is kept, only the post is gated)
   for (const [id, f] of Object.entries(where)) assert.ok(src(f).includes(`jobOn(env, '${id}'`), `${id} gated in ${f}`);
   const w = src('worker.js');
   assert.match(w, /featureOn\(env, 'socialPosting'/); assert.match(w, /featureOn\(env, 'creatorProgram'/);
-  assert.match(w, /\(\('jobs' in b \|\| 'features' in b \|\| 'notifyCopies' in b\) && !isOwner\) return json\(\{ error: 'Only the owner can change this\.' \}, 403\)/);
+  assert.match(w, /\(\('jobs' in b \|\| 'features' in b \|\| 'notifyCopies' in b \|\| 'alarms' in b \|\| 'alarmDm' in b\) && !isOwner\) return json\(\{ error: 'Only the owner can change this\.' \}, 403\)/);
 });
 
 console.log(process.exitCode ? 'test-jobflags: FAILED' : `test-jobflags: ${n} checks passed`);

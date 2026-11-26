@@ -970,7 +970,7 @@ const noticeView = r => ({ id: r.id, kind: r.kind, title: r.title, body: r.body,
   held_until: r.hold_until, button: safe(r.button_json, null), sent: safe(r.sent_json, {}), answer: r.answer, created_at: r.created_at, done_at: r.done_at,
   type: r.ntype || null, urgent: r.kind === 'alert', seen_at: r.seen_at || null, thing: r.thing_key || null });
 /** Urgent alerts first in this order (urgent.js), then the newest seen. */
-const ALERT_ORDER = ['outage', 'claude_failed', 'meta_sync', 'brief_failed', 'spend_high', 'spend_low'];
+const ALERT_ORDER = ['outage', 'account_blocked', 'no_orders', 'campaign_stalled', 'claude_failed', 'meta_sync', 'tracking_lost', 'brief_failed', 'over_budget', 'spend_high', 'spend_low', 'ad_rejected', 'sold_out'];
 const alertRank = r => { const i = ALERT_ORDER.indexOf(r.type); return i < 0 ? ALERT_ORDER.length : i; };
 export const sortAlerts = rows => rows.slice().sort((a, b) => (alertRank(a) - alertRank(b)) || String(b.seen_at || b.created_at || '').localeCompare(String(a.seen_at || a.created_at || '')));
 /** What a client reads of a row: the plain line and nothing else. No button, no ids, no record of who sent it. */
