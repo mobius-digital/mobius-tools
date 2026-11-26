@@ -4,13 +4,16 @@
      morningHour (the morning message hour), morningCard (morning message on), todayPost, actionRemind, and
      senders (2026-11-26, "Who it comes from": per kind of message, Locus the app or the owner; one object
      { all, kinds } saved whole; the worker's sender.js resolves it, the pure part of this group is _senders.js).
+   2026-11-26, "Features and quiet jobs" (owner only): features { creatorProgram, socialPosting } and jobs (one
+     switch per quiet job, off = quiet), drawn from the same GET and saved one field at a time through PUT /api/settings
+     { features: { <name>: bool } } or { jobs: { <id>: bool } }. canEditJobs false dims every switch.
    todayPost shows only while the morning message is off: the worker ignores it while the card is on.
    Only those are drawn in real mode. Every other time, switch, preview and table here has no server home yet: it
    shows in sample mode only, so no switch on a real brand saves nothing. */
 
 import { put } from '../../kit.js';
-import { h, em, empty, card, table, kpis, kpi, avatar, statusDot, addStyles, segmented } from '../../kit.js';
-import { APP_NAME } from '../../config.js';
+import { h, em, empty, card, table, kpis, kpi, avatar, statusDot, addStyles, segmented, toggle } from '../../kit.js';
+import { APP_NAME, ORG_SHORT, LS5, SAMPLE } from '../../config.js';
 import { css, stage, saveBar, group, row, fold, facts, pick, timePick, dayChips, onOff, numBox, exampleChip, clock, DAY_OPTS } from '../brand-settings/_set.js';
 import { ZONES } from '../brand-settings/brand.js';
 import { SAMPLE_SENDERS, storedOf, senderRows, topState, applyTop, applyKind } from './_senders.js';
@@ -49,6 +52,69 @@ export function whoGroup(S, d) {
   return group('Who it comes from', `${APP_NAME} is the app. ${person === 'You' ? 'The other choice' : person} posts as you, with your name and photo.${ro ? ' Only the owner can change this.' : ''}`, wrap);
 }
 
+/* ---------- Features and quiet jobs (owner only) ----------
+   From GET /api/settings: features { creatorProgram, socialPosting }, jobs [{ id, name, was, instead, on }],
+   canEditJobs. Each switch is its own staged key, so the Save bar's confirm sheet names it with its old and new
+   value; the saver sends one field: PUT /api/settings { features: { <name>: bool } } or { jobs: { <id>: bool } }.
+   A job switched off stays quiet: its code and the check behind it keep running, only the Slack post stops. */
+const FEATURES = [
+  ['creatorProgram', 'Creator program', 'Trybe, creator suggestions and Discord posts. Off hides Creators.'],
+  ['socialPosting', 'Social posting', 'Parked. ' + ORG_SHORT + ' does not offer it.'],
+];
+const featKey = name => 'agency.feature.' + name;
+/** A feature switch just saved: the menus follow at once (no reload). The same steps app.js takes on boot: the bell's
+    cached notices forgotten, the switch set, kept for the next visit, the menus drawn again. Never throws. */
+export async function featureSaved(name, v) {
+  try {
+    const [bell, menu, shell] = await Promise.all([import('../../bell.js'), import('../../menu.js'), import('../../shell.js')]);
+    bell.forgetNotices();
+    const changed = menu.setFeatures({ [name]: !!v });
+    try { localStorage.setItem(LS5.features + (SAMPLE ? '|sample' : ''), JSON.stringify(menu.featuresNow())); } catch { /* memory only */ }
+    if (changed) shell.redrawMenu();
+  } catch { /* the next boot reads them */ }
+}
+const jobKey = id => 'agency.job.' + id;
+/** The switches' current values, their names and their savers, for stage(). Empty when the server has no jobs yet. */
+export function switchesOf(fj, ctx) {
+  const live = {}, savers = {}, names = {};
+  if (!fj) return { live, savers, names };
+  for (const [name, label] of FEATURES) {
+    if (!ctx.sample) live[featKey(name)] = !!fj.features[name];
+    savers[featKey(name)] = async v => { await ctx.saveSetting('agency.features', { [name]: !!v }); await featureSaved(name, v); };
+    names[featKey(name)] = label;
+  }
+  for (const j of fj.jobs) {
+    if (!ctx.sample) live[jobKey(j.id)] = !!j.on;
+    savers[jobKey(j.id)] = v => ctx.saveSetting('agency.jobs', { [j.id]: !!v });
+    names[jobKey(j.id)] = 'Quiet job: ' + j.name;
+  }
+  return { live, savers, names };
+}
+/** The answer's switches, or null when this server does not send them yet. */
+export function featuresAndJobs(data) {
+  const d = (data && data.values) || {};
+  const jobs = data && Array.isArray(data.jobs) ? data.jobs : Array.isArray(d.jobs) ? d.jobs : null;
+  const features = (data && data.features) || d.features || null;
+  if (!jobs && !features) return null;
+  const can = data && data.canEditJobs != null ? data.canEditJobs : d.canEditJobs;
+  return { jobs: jobs || [], features: features || {}, canEdit: can !== false };
+}
+function featureGroup(S, fj) {
+  if (!fj) return null;
+  const ro = !fj.canEdit;
+  const sw = (key, fallback, label) => {
+    const el = toggle({ checked: !!S.get(key, fallback), disabled: ro, ariaLabel: label, onchange: v => S.set(key, v) });
+    el.dataset.key = key;
+    if (ro) el.classList.add('lx-sn-locked');
+    return el;
+  };
+  return group('Features and quiet jobs', ro ? 'Only the owner can change these.' : 'A quiet job still runs its check. Only its Slack post stops, and its code is kept.',
+    FEATURES.map(([name, label, hint]) => row(label, hint, sw(featKey(name), !!fj.features[name], label))),
+    fj.jobs.length ? h('div', { class: 'lx-sn-sub' }, 'Quiet jobs', h('span', null, 'Off means quiet')) : null,
+    fj.jobs.map(j => row(j.name, h('span', { class: 'lx-sn-job' }, j.was ? h('span', null, 'Posted: ' + j.was) : null, j.instead ? h('span', null, 'Instead: ' + j.instead) : null),
+      sw(jobKey(j.id), !!j.on, j.name), { top: true })));
+}
+
 function preview(p) {
   if (!p) return null;
   return h('div', { class: 'lx-sn-pv' },
@@ -66,9 +132,11 @@ function draw(el, data, ctx) {
   /* through data.js saveSetting, so the session's cached agency settings are cleared too, and the page's own copy follows */
   const one = name => async v => { await ctx.saveSetting('agency.' + name, v); d[name] = v; };
   if (!ctx.sample) live[SENDERS] = storedOf(d.senders);
-  const S = stage(ctx, { live, savers: { 'agency.morningHour': one('morningHour'), 'agency.morningCard': one('morningCard'), 'agency.todayPost': one('todayPost'), 'agency.actionRemind': one('actionRemind'), [SENDERS]: one('senders') },
-    names: { 'agency.morningHour': 'Morning message hour', 'agency.morningCard': 'Morning message on', 'agency.todayPost': 'Today’s calls in the brand channel', 'agency.actionRemind': 'Action reminders', [SENDERS]: 'Who it comes from' } });
-  if (!ctx.sample) return drawReal(el, S, d, ctx);
+  const fj = featuresAndJobs(data), sw = switchesOf(fj, ctx);
+  Object.assign(live, sw.live);
+  const S = stage(ctx, { live, savers: { 'agency.morningHour': one('morningHour'), 'agency.morningCard': one('morningCard'), 'agency.todayPost': one('todayPost'), 'agency.actionRemind': one('actionRemind'), [SENDERS]: one('senders'), ...sw.savers },
+    names: { 'agency.morningHour': 'Morning message hour', 'agency.morningCard': 'Morning message on', 'agency.todayPost': 'Today’s calls in the brand channel', 'agency.actionRemind': 'Action reminders', [SENDERS]: 'Who it comes from', ...sw.names } });
+  if (!ctx.sample) return drawReal(el, S, d, ctx, fj);
   const people = data.people || [];
   const team = [{ id: 'owner', label: 'The owner' }, { id: 'lead', label: 'The brand’s account lead' }, { id: 'each', label: 'Each person, as a DM' }, { id: 'client', label: 'The client channel' }, { id: 'channel', label: 'A team channel' }];
 
@@ -119,6 +187,7 @@ function draw(el, data, ctx) {
     saveBar(S, ctx),
     stats.length ? h('section', { class: 'lx-hero line' }, ex.has('stats') ? h('div', null, exampleChip()) : null, kpis(stats.map((s, i) => kpi({ label: s.label, value: s.value, sub: s.sub, size: i === 0 ? 'lg' : null })))) : null,
     whoGroup(S, d),
+    featureGroup(S, fj),
     card({ title: 'Messages that send on a clock', note: ex.has('messages') ? exampleChip() : 'Everything else waits in the bell, not in a channel', flush: true, class: 'lx-st-card' }, h('div', { class: 'lx-st-rows' }, messages)),
     card({ title: 'Only when something happens', note: 'One message to one person. Nothing here posts to a team channel.', flush: true, class: 'lx-st-card' }, events),
     group('Time and quiet', 'Times on this page are in this zone unless they say brand time',
@@ -147,13 +216,22 @@ function draw(el, data, ctx) {
 }
 
 /** Real mode: only what saves on the server. */
-function drawReal(el, S, d, ctx) {
+function drawReal(el, S, d, ctx, fj) {
+  /* 2026-11-26: Action reminders and Today's calls are quiet jobs now (taskReminders, todayPost). While its quiet job
+     is off the old switch does nothing, so it is not drawn as one: the row says where to switch it on. A server with
+     no jobs list keeps the old switches. */
+  const quietOff = id => !!fj && fj.jobs.some(j => j.id === id && !j.on);
+  const JOB_OF = { 'agency.actionRemind': 'taskReminders', 'agency.todayPost': 'todayPost' };
+  const onCell = r => (quietOff(JOB_OF[r.key])
+    ? h('span', { class: 'lx-sn-dim' }, 'Quiet. Switch it on under Quiet jobs.')
+    : onOff(S, r.key, d[r.key.split('.')[1]] ?? true, r.name));
+  const todayQuiet = quietOff('todayPost');
   const events = table({
     cols: [
       { key: 'name', label: 'Message', render: r => h('b', null, r.name) },
       { key: 'says', label: 'What it says', class: 'hide-md', render: r => h('span', { class: 'lx-sn-dim' }, r.says) },
       { key: 'when', label: 'When', class: 'hide-sm' },
-      { key: 'on', label: 'On', num: true, render: r => onOff(S, r.key, d[r.key.split('.')[1]] ?? true, r.name) },
+      { key: 'on', label: 'On', num: true, render: onCell },
     ],
     rows: [
       { key: 'agency.actionRemind', name: 'Action reminders', says: 'A promise from a meeting is due', when: 'The morning it is due' },
@@ -164,9 +242,12 @@ function drawReal(el, S, d, ctx) {
   put(el, h('div', { class: 'lx-st' },
     saveBar(S, ctx, { note: 'Each change saves for everyone, after a check.' }),
     whoGroup(S, d),
+    featureGroup(S, fj),
     group('The morning message', 'One message a day, at one hour (Central time)',
       row('Send at', 'The hour every morning post goes out.', h('div', { class: 'lx-st-times' }, timePick(S, 'agency.morningHour', d.morningHour ?? 5, { hours: true, label: 'Morning message hour' }))),
-      row('Morning message on', d.morningCard === false ? 'While it is off, today’s calls post on their own in each brand channel.' : 'It carries today’s calls for each brand.', onOff(S, 'agency.morningCard', d.morningCard ?? true, 'Morning message on'))),
+      row('Morning message on', d.morningCard === false
+        ? (todayQuiet ? 'While it is off, today’s calls stay in ' + APP_NAME + ' (their Slack post is a quiet job).' : 'While it is off, today’s calls post on their own in each brand channel.')
+        : 'It carries today’s calls for each brand.', onOff(S, 'agency.morningCard', d.morningCard ?? true, 'Morning message on'))),
     card({ title: 'Only when something happens', flush: true, class: 'lx-st-card' }, events),
     h('p', { class: 'lx-foot' }, 'More sending settings come when they save on the server.')));
 }
@@ -187,6 +268,10 @@ const CSS = `
 .lx-sn-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .lx-sn-mixed{font-size:12px;font-weight:600;color:var(--muted)}
 .lx-sn-locked{opacity:.55}
+.lx-sn-sub{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:18px 28px 6px;border-top:1px solid var(--line);font-size:13px;font-weight:600;color:var(--muted);letter-spacing:.02em}
+.lx-sn-sub span{font-weight:500;font-size:12px}
+.lx-sn-job{display:grid;gap:2px}
+@media (max-width:759px){.lx-sn-sub{padding:16px 18px 6px}}
 .lx-sn-locked button,.lx-seg button[disabled]{cursor:not-allowed}
 .lx-sn-pv{border-radius:12px;background:var(--surface-2);box-shadow:inset 0 0 0 1px var(--line);padding:12px 14px;font-size:12.5px;line-height:1.45;color:var(--ink-2);min-width:0;overflow-wrap:anywhere}
 .lx-sn-pv .top{display:flex;align-items:center;gap:6px;margin-bottom:4px}
@@ -207,7 +292,9 @@ export default {
   ranges: false,
   async load(ctx) {
     const s = await ctx.api('/api/settings', { worker: 'ah', signal: ctx.signal });
-    return { values: { morningHour: s.morningHour, morningCard: s.morningCard, todayPost: s.todayPost, actionRemind: s.actionRemind, senders: s.senders || null, senderPerson: s.senderPerson || null } };
+    return { values: { morningHour: s.morningHour, morningCard: s.morningCard, todayPost: s.todayPost, actionRemind: s.actionRemind, senders: s.senders || null, senderPerson: s.senderPerson || null,
+      /* 2026-11-26: the agency switches (owner only to change). Missing on an older worker: the group is not drawn. */
+      jobs: Array.isArray(s.jobs) ? s.jobs : null, features: s.features || null, canEditJobs: s.canEditJobs, notifyCopies: s.notifyCopies } };
   },
   render: draw,
 };

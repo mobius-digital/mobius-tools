@@ -48,8 +48,10 @@ const KINDS = {
 };
 /* what waits on the team across every brand (bell.js loadWaiting): ad calls, client updates, the War Room, creative, requests */
 const AGENCY_GROUP = { id: 'agency', title: 'Waiting across the agency', note: 'Every brand, today' };
+/* an alert (bell.js: kind 'alert' from GET /api/notices): money at risk or something broken. Always on top. */
+const ALERT_GROUP = { id: 'alert', title: 'Urgent', note: 'Each one clears itself when it is fixed' };
 const TEAM_GROUPS = {
-  needs: [{ id: 'late', title: 'Late' }, { id: 'today', title: 'Due today' }, AGENCY_GROUP],
+  needs: [ALERT_GROUP, { id: 'late', title: 'Late' }, { id: 'today', title: 'Due today' }, AGENCY_GROUP],
   watching: [{ id: 'week', title: 'Coming up this week', note: 'Yours, not due yet' }],
   done: [{ id: 'you', title: 'By you' }],
 };
@@ -80,8 +82,8 @@ async function loadTeam(ctx, K, more) {
   const raw = ctx.cached('bell', () => ctx.api('/api/mywork' + (me.email ? '?who=' + encodeURIComponent(me.email) : ''), { worker: 'ah' }), null, { maxAge: 60e3 }).then(r => r.data, () => null);
   const [bell, mw, extra] = await Promise.all([loadBell({ me, role: ctx.role, asClient: false, brand: ctx.brand, brands: ctx.brands }), raw, more ? more(ctx) : null]);
   const byLink = new Map(((mw && mw.items) || []).filter(i => i.link).map(i => [i.link, i]));
-  let rows = (bell[K.key] || []).map(r => (r.agency ? { ...r, group: 'agency', when: '' } : enrich(r, r.btn && r.btn.href ? byLink.get(r.btn.href) : null, mw && mw.today)));
-  if (K.key === 'needs') rows.sort((a, b) => (a.late ? 0 : 1) - (b.late ? 0 : 1) || (b.days || 0) - (a.days || 0));
+  let rows = (bell[K.key] || []).map(r => (r.urgent ? { ...r, group: 'alert' } : r.agency ? { ...r, group: 'agency', when: '' } : enrich(r, r.btn && r.btn.href ? byLink.get(r.btn.href) : null, mw && mw.today)));
+  if (K.key === 'needs') rows.sort((a, b) => (a.urgent ? 0 : 1) - (b.urgent ? 0 : 1) || (a.late ? 0 : 1) - (b.late ? 0 : 1) || (b.days || 0) - (a.days || 0));
   if (K.key === 'watching') rows = rows.map(r => ({ ...r, group: 'week' }));
   /* a ticked row has no time on it yet, so none is shown */
   if (K.key === 'done') rows = rows.map(r => (r.notice ? { ...r, group: 'you', when: '', late: false } : { ...r, group: 'you', by: 'You', when: '', late: false, btn: { label: 'Open My day', line: 'my-day', tab: 'index' } }));
@@ -113,8 +115,9 @@ async function loadClient(ctx, K) {
 async function loadSample(ctx, K) {
   const [bell, x] = await Promise.all([loadBell({ me: ctx.me, role: ctx.role, brand: ctx.brand, brands: ctx.brands }), ctx.fixture(K.tab + '.json')]);
   const extra = x.rows || {};
-  const rows = (bell[K.key] || []).map(r => (r.agency ? { ...r, group: 'agency', when: '' } : { ...r, ...(extra[plain(r.text)] || {}) }));
-  const groups = x.groups || [{ id: 'main', title: K.label }];
+  const rows = (bell[K.key] || []).map(r => (r.urgent ? { ...r, group: 'alert' } : r.agency ? { ...r, group: 'agency', when: '' } : { ...r, ...(extra[plain(r.text)] || {}) }));
+  const base = x.groups || [{ id: 'main', title: K.label }];
+  const groups = rows.some(r => r.group === 'alert') && !base.some(g => g.id === 'alert') ? [ALERT_GROUP, ...base] : base;
   return {
     kind: K.key, mode: ctx.isClient ? 'client' : 'team', lateKnown: !!x.late_known, read: x.read || {},
     groups: rows.some(r => r.group === 'agency') ? [...groups, AGENCY_GROUP] : groups,
@@ -166,6 +169,7 @@ const go = (b, ctx, o = {}) => { const link = linkOf(b, ctx); return link ? butt
 
 /* What the answer buttons on an automation row mean, in one line. */
 function noticeFoot(n) {
+  if (n.kind === 'alert') return n.state === 'open' ? 'It clears itself when it is fixed. Hide for today puts it away until tomorrow, and it comes back if it is still true.' : n.answer === 'hidden' ? 'Hidden for today. It comes back tomorrow if it is still true.' : 'This one cleared itself.';
   if (n.state !== 'open') return 'This one is answered.';
   if (n.kind === 'proposal') return 'This is a suggestion. ' + APP_NAME + ' changes nothing. Make the change in Ads and tap I did it, or tap No.';
   if (n.kind === 'release') return 'Until you tap Send to the client, the client sees nothing.';
@@ -192,7 +196,7 @@ function openRow(r, ctx, K, node) {
 
 function rowNode(r, ctx, K, lead) {
   const meta = [r.brand && h('b', null, r.brand), r.by, r.when && h('span', { class: r.late ? 'late' : '' }, r.when)].filter(Boolean).flatMap((x, i) => (i ? [h('i'), x] : [x]));
-  const node = h('div', { class: 'lx-bell-row nt-row' },
+  const node = h('div', { class: 'lx-bell-row nt-row' + (r.urgent ? ' urgent' : '') },
     r.who ? avatar(r.who, { size: 38 }) : h('span', { class: 'lx-bell-mark', role: 'img', 'aria-label': APP_NAME }, svgNode(mark(18))),
     h('button', { class: 't', type: 'button', 'aria-label': 'Details: ' + plain(r.text), onclick: () => openRow(r, ctx, K, node) }, h('p', null, say(r.text)), h('span', { class: 'm' }, meta)),
     /* a row an automation left is answered in its own sheet, on this page */

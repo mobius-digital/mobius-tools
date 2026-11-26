@@ -84,5 +84,306 @@
   "bell": "Always on. The bell is the record.",
   "email": "Your choice is saved. Email starts when the mail address for this product is set up. Until then it waits in the bell.",
   "slack": null
+ },
+ "notify": {
+  "preset": "urgent_brief",
+  "channels": {
+   "slack_dm": true,
+   "email": false,
+   "push": false
+  },
+  "types": {
+   "spend_high": {
+    "slack_dm": true,
+    "email": false,
+    "push": false
+   },
+   "spend_low": {
+    "slack_dm": true,
+    "email": false,
+    "push": false
+   },
+   "brief_failed": {
+    "slack_dm": true,
+    "email": false,
+    "push": false
+   },
+   "claude_failed": {
+    "slack_dm": true,
+    "email": false,
+    "push": false
+   },
+   "meta_sync": {
+    "slack_dm": true,
+    "email": false,
+    "push": false
+   },
+   "outage": {
+    "slack_dm": true,
+    "email": false,
+    "push": false
+   },
+   "ad_calls": {
+    "slack_dm": false,
+    "email": false,
+    "push": false
+   },
+   "client_send": {
+    "slack_dm": false,
+    "email": false,
+    "push": false
+   },
+   "review": {
+    "slack_dm": false,
+    "email": false,
+    "push": false
+   },
+   "client_requests": {
+    "slack_dm": false,
+    "email": false,
+    "push": false
+   },
+   "card_changes": {
+    "slack_dm": false,
+    "email": false,
+    "push": false
+   },
+   "tasks_late": {
+    "slack_dm": false,
+    "email": false,
+    "push": false
+   },
+   "war_room": {
+    "slack_dm": false,
+    "email": false,
+    "push": false
+   },
+   "morning_brief": {
+    "slack_dm": true,
+    "email": false,
+    "push": false
+   }
+  }
+ },
+ "catalog": {
+  "types": [
+   {
+    "id": "spend_high",
+    "name": "Spend far above normal",
+    "note": "A brand spends much more than its normal day and its budgets.",
+    "group": "urgent",
+    "urgent": true,
+    "presets": [
+     "only_urgent",
+     "urgent_brief",
+     "everything"
+    ],
+    "copy": "dec5"
+   },
+   {
+    "id": "spend_low",
+    "name": "Spend far below normal",
+    "note": "A brand spends much less than its normal day, so ads may have stopped.",
+    "group": "urgent",
+    "urgent": true,
+    "presets": [
+     "only_urgent",
+     "urgent_brief",
+     "everything"
+    ],
+    "copy": "dec5"
+   },
+   {
+    "id": "brief_failed",
+    "name": "A client daily did not go out",
+    "note": "A daily update for a client failed or was skipped.",
+    "group": "urgent",
+    "urgent": true,
+    "presets": [
+     "only_urgent",
+     "urgent_brief",
+     "everything"
+    ],
+    "copy": "dec5"
+   },
+   {
+    "id": "claude_failed",
+    "name": "Claude key or credit failed",
+    "note": "The AI key was refused or ran out of credit.",
+    "group": "urgent",
+    "urgent": true,
+    "presets": [
+     "only_urgent",
+     "urgent_brief",
+     "everything"
+    ],
+    "copy": "dec5"
+   },
+   {
+    "id": "meta_sync",
+    "name": "Meta sync failing",
+    "note": "A brand we run has not synced from Meta.",
+    "group": "urgent",
+    "urgent": true,
+    "presets": [
+     "only_urgent",
+     "urgent_brief",
+     "everything"
+    ],
+    "copy": "dec5"
+   },
+   {
+    "id": "outage",
+    "name": "Shopify, Meta or Google is down",
+    "note": "A platform we rely on reports a problem.",
+    "group": "urgent",
+    "urgent": true,
+    "presets": [
+     "only_urgent",
+     "urgent_brief",
+     "everything"
+    ],
+    "copy": "dec5"
+   },
+   {
+    "id": "ad_calls",
+    "name": "Ad calls waiting on you",
+    "note": "Suggested ad changes that wait on Yes or No.",
+    "group": "needs_me",
+    "urgent": false,
+    "presets": [
+     "everything"
+    ],
+    "copy": "soon"
+   },
+   {
+    "id": "client_send",
+    "name": "Client updates to send",
+    "note": "Daily updates and reports drafted and not sent.",
+    "group": "needs_me",
+    "urgent": false,
+    "presets": [
+     "everything"
+    ],
+    "copy": "soon"
+   },
+   {
+    "id": "review",
+    "name": "Review waiting on you",
+    "note": "Creative cards in Review for you.",
+    "group": "needs_me",
+    "urgent": false,
+    "presets": [
+     "everything"
+    ],
+    "copy": "soon"
+   },
+   {
+    "id": "client_requests",
+    "name": "Client requests",
+    "note": "Requests and questions from clients.",
+    "group": "needs_me",
+    "urgent": false,
+    "presets": [
+     "everything"
+    ],
+    "copy": "soon"
+   },
+   {
+    "id": "card_changes",
+    "name": "Card comments and changes asked",
+    "note": "Comments on your cards and changes someone asked for.",
+    "group": "needs_me",
+    "urgent": false,
+    "presets": [
+     "everything"
+    ],
+    "copy": "soon"
+   },
+   {
+    "id": "tasks_late",
+    "name": "Tasks late or due today",
+    "note": "Your tasks that are late or due today.",
+    "group": "needs_me",
+    "urgent": false,
+    "presets": [
+     "everything"
+    ],
+    "copy": "soon"
+   },
+   {
+    "id": "war_room",
+    "name": "War Room check-in waiting",
+    "note": "A sale check-in that waits on Approve.",
+    "group": "needs_me",
+    "urgent": false,
+    "presets": [
+     "everything"
+    ],
+    "copy": "soon"
+   },
+   {
+    "id": "morning_brief",
+    "name": "Morning brief",
+    "note": "One short message each morning with what needs you.",
+    "group": "brief",
+    "urgent": false,
+    "presets": [
+     "urgent_brief",
+     "everything"
+    ],
+    "copy": "now"
+   }
+  ],
+  "presets": [
+   {
+    "id": "only_urgent",
+    "name": "Only urgent",
+    "sub": "Money at risk or something broken."
+   },
+   {
+    "id": "urgent_brief",
+    "name": "Only urgent + morning brief",
+    "sub": "The same, plus one short morning brief."
+   },
+   {
+    "id": "everything",
+    "name": "Everything that needs me",
+    "sub": "Every row in your bell, the moment it lands."
+   },
+   {
+    "id": "custom",
+    "name": "Custom",
+    "sub": "Shown only when it is the state; not tappable."
+   }
+  ],
+  "channels": [
+   {
+    "id": "in_app",
+    "name": "In Locus",
+    "always": true,
+    "ready": true,
+    "note": null
+   },
+   {
+    "id": "slack_dm",
+    "name": "Slack DM",
+    "ready": true,
+    "note": null
+   },
+   {
+    "id": "email",
+    "name": "Email",
+    "ready": false,
+    "note": "Saved. Email starts when the product mailbox is set up."
+   },
+   {
+    "id": "push",
+    "name": "Phone",
+    "ready": false,
+    "note": "Coming soon"
+   }
+  ],
+  "copies_on": false
  }
 }

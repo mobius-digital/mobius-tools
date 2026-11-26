@@ -2943,7 +2943,7 @@ async function renderPerfShare(token) {
   $('#main').innerHTML = `<h2>${esc(monthLabel(d.month))} so far</h2>
     <p class="sub">${d.days} of ${d.days_in_month} days. Every channel combined - ads, email, organic and direct - not any single platform's reported figures.</p>
     <div class="rollup">
-      ${card('REVENUE', fmtMoney(m.sales, cur), pl && pl.sales ? `${fmtMoney(pl.sales, cur)} planned by now ${vs(m.sales, pl.sales)}` : 'month to date')}
+      ${card('REVENUE', fmtMoney(m.sales, cur), pl && pl.sales ? `${fmtMoney(pl.sales, cur)} planned by now ${vs(m.sales, pl.sales)}` : d.no_goal ? `No goal set for ${esc(new Date(String(d.month).slice(0, 7) + '-15T12:00:00Z').toLocaleDateString('en-US', { month: 'long', timeZone: 'UTC' }))}` : 'month to date')}
       ${card('AD SPEND', fmtMoney(m.spend, cur), pl && pl.spend ? `${fmtMoney(pl.spend, cur)} planned by now ${vs(m.spend, pl.spend, true)}` : 'across every platform')}
       ${card('MER', fmtX(m.mer), pl && pl.mer ? `${fmtX(pl.mer)} planned ${vs(m.mer, pl.mer)}` : 'revenue divided by ad spend')}
       ${card('NEW CUSTOMER MER', fmtX(m.amer), `${fmtPct(m.new_share)} of revenue came from new customers`)}
@@ -8921,7 +8921,7 @@ async function renderBrief(first) {
   const chan = [['Meta', a.meta_spend, a.meta_roas, a.meta_purchases, '--c-meta'], ['Google', a.google_spend, a.google_roas, a.google_purchases, '--c-google']].filter(r => r[1] != null && r[1] > 0);
   const chanHtml = `<div class="bf-chan">${a.new_rev != null ? `<span><b>${M(a.new_rev)}</b> from new customers${a.new_share != null ? ` (${Math.round(a.new_share * 100)}%)` : ''}, <b>${M(a.ret_rev)}</b> returning</span>` : '<span>No new-vs-returning split available</span>'}${chan.map(([n, sp, r, o, c]) => `<span${a.attr_source ? U.tipAttr('ROAS and orders per channel are Triple Whale attribution (last platform click), not the Meta or Google dashboards. Spend comes from each platform. Recent days keep settling for a few days as customer journeys resolve.') : ''}><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:var(${c});margin-right:6px"></i>${n} <b>${M(sp)}</b>${!a.attr_source ? '' : o != null && o < 2 ? ` (${o ? 'one order' : 'no orders'} yet)` : r != null ? ` at ${fx(r)} off ${Math.round(o)} orders` : ''}</span>`).join('')}</div>`;
   const numsHtml = `
-    ${d.goals && d.goals_planned === false ? `<p class="bf-flag"><b>No plan was set for ${esc(monthLabel(d.month))}.</b> Every "plan" figure here is carried over from ${d.goals_inherited_from ? `<b>${esc(monthLabel(d.goals_inherited_from))}</b>` : 'the last plan on file'}, and the posted brief says so. <button class="btn" id="bfToPlan2">Set ${esc(monthLabel(d.month))}'s plan</button></p>` : ''}
+    ${d.goals && d.goals_planned === false ? `<p class="bf-flag"><b>No plan was set for ${esc(monthLabel(d.month))}.</b> Every "plan" figure here is carried over from ${d.goals_inherited_from ? `<b>${esc(monthLabel(d.goals_inherited_from))}</b>` : 'the last plan on file'}, and the posted brief says so.${d.goals_inherited_from && d.goals.sales != null ? ` <span class="hint" style="color:var(--muted)">Last set goal (${esc(new Date(String(d.goals_inherited_from).slice(0, 7) + '-15T12:00:00Z').toLocaleDateString('en-US', { month: 'long', timeZone: 'UTC' }))}): ${M(d.goals.sales)}</span>` : ''} <button class="btn" id="bfToPlan2">Set ${esc(monthLabel(d.month))}'s plan</button></p>` : ''}
     ${!d.goals ? `<p class="bf-flag"><b>No goals set for ${esc(monthLabel(d.month))}.</b> Set them on the <b>Plan</b> tab. The forecast, the brief and auto-posting all switch on once a net-sales and spend goal exist.</p>` : ''}
     ${noTw && d.goals ? `<p class="bf-flag">No Triple Whale sales data for ${d.date} yet. Press “Refresh Triple Whale data” at the top, and check the shop domain in Settings if it stays empty.</p>` : ''}
     ${cmOff ? `<p class="bf-flag bad"><b>Contribution Margin is switched off for this client.</b> ${esc(cq.reason)}. It is left out of the brief and every other metric still works. To fix it, set real COGS in Triple Whale or a flat <b>margin %</b> on the <b>Costs</b> tab.</p>` : cq.verdict === 'noisy' ? `<p class="bf-flag"><b>Cost data is a little noisy:</b> ${esc(cq.reason)}. CM still shows, but treat it as directional. A flat <b>margin %</b> on the <b>Costs</b> tab gives it a stable rate.</p>` : ''}
@@ -9525,7 +9525,9 @@ function reportBodyHTML(d, summary, opts = {}) {
         endGap != null ? ` At this pace ${esc(monthLabel(pc.month))} finishes around <b>${money(pc.projected)}</b>, ${endGap >= 0 ? `${money(endGap)} above` : `${money(Math.abs(endGap))} short of`} the ${money(pc.goal_sales)} target.` : ''}</p>` : ''}
       ${catchUpLine(pc, money)}
     </div>`;
-  })() : '';
+  })() : Array.isArray(d.no_goal) && d.no_goal.length
+    /* The client archive (report-view hideUnsetGoals): a month with no goal typed shows no goal, only this line. */
+    ? `<div class="card">${d.no_goal.map(ym => `<p class="hint" style="margin:0">No goal set for ${esc(new Date(String(ym).slice(0, 7) + '-15T12:00:00Z').toLocaleDateString('en-US', { month: 'long', timeZone: 'UTC' }))}</p>`).join('')}</div>` : '';
 
   const chartId = opts.internal ? 'rpSvg' : 'rsSvg';
   const chartHtml = (d.chart || []).length > 1 ? `<div class="card"><div class="v2h"><h3>Day by day</h3><span class="find">Revenue from every channel against ad spend on every platform. The gap is what was left after advertising, before product costs, fulfillment and fees. Hover any day.</span></div>

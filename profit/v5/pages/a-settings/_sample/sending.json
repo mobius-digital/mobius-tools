@@ -1,4 +1,13 @@
 {
+ "features": { "creatorProgram": true, "socialPosting": false },
+ "canEditJobs": true,
+ "jobs": [
+  { "id": "fyiRoundup", "name": "FYI roundup", "was": "A roundup of small updates in a team channel", "instead": "Nothing needed, it was for the record", "on": false },
+  { "id": "taskReminders", "name": "Task reminders", "was": "A Slack reminder for each task due", "instead": "The bell and My day", "on": false },
+  { "id": "reviewPost", "name": "Card moved to Review", "was": "A post when a card moves to Review", "instead": "The bell, under Review", "on": false },
+  { "id": "smokePost", "name": "Daily self check", "was": "A post when a page check fails", "instead": "Agency settings, Status", "on": false },
+  { "id": "todayPost", "name": "Today's calls post", "was": "The day's ad calls in each brand channel", "instead": "Meta, Suggestions", "on": true }
+ ],
  "values": { "morningHour": 5, "morningCard": true, "morningWho": "each", "clientDailyTime": "07:00", "clientDailyWho": "client", "clientDailyOn": true,
   "prereadDay": "sun", "prereadTime": "18:00", "prereadWho": "each", "prereadOn": true, "saleChecks": ["09:00", "15:00", "21:00"], "saleWho": "owner", "saleOn": true,
   "todayPost": false, "actionRemind": true, "timeZone": "America/Chicago", "quietFrom": "19:00", "quietTo": "05:00", "sendDays": ["mon", "tue", "wed", "thu", "fri"], "weeklyDay": "mon",

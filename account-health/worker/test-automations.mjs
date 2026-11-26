@@ -345,7 +345,7 @@ await ok('the client rules are on the allowlist in both workers, and nothing els
   const has = (m, p) => CLIENT_RULES.some(r => r.m === m && r.p === p);
   assert.ok(has('GET', '/api/notices') && has('POST', '/api/notices/done') && has('GET', '/api/me/delivery') && has('PUT', '/api/me/delivery'));
   assert.ok(!CLIENT_RULES.some(r => String(r.p || '').startsWith('/api/automations')));
-  assert.deepEqual(CLIENT_RULES.find(r => r.m === 'PUT' && r.p === '/api/me/delivery').fields, ['delivery', 'per']);
+  assert.deepEqual(CLIENT_RULES.find(r => r.m === 'PUT' && r.p === '/api/me/delivery').fields, ['delivery', 'per', 'notify']);
 });
 await ok('a teammate held to some brands sees and saves only those', async () => {
   fresh(); as('owner@agency.example');

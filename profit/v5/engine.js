@@ -29,8 +29,12 @@ export function setEngineMode(mode) {
 }
 
 /* ---------- the ported list ---------- */
-const EXACT = new Set(PORTED.filter(k => !k.includes(':')));
-const SHAPES = PORTED.filter(k => k.includes(':')).map(k => {
+/* Routes held back from the engine by hand (engine-paths.js is made by a tool). Empty: the engine forwards
+   /ah/api/me/delivery, /ah/api/notices and /ah/api/settings to account-health since 2026-11-26. */
+export const HELD = new Set([]);
+const LIVE = PORTED.filter(k => !HELD.has(k));
+const EXACT = new Set(LIVE.filter(k => !k.includes(':')));
+const SHAPES = LIVE.filter(k => k.includes(':')).map(k => {
   const [method, path] = k.split(' ');
   return { key: k, method, re: new RegExp('^' + path.split('/').map(p => (p.startsWith(':') ? '[^/]+' : p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))).join('/') + '$') };
 });
@@ -43,7 +47,7 @@ export function portedKey(method, which, path) {
   const hit = SHAPES.find(s => s.method === m && s.re.test(p));
   return hit ? hit.key : null;
 }
-export const portedList = () => PORTED.slice();
+export const portedList = () => LIVE.slice();
 export const engineUrl = (which, path) => workers().engine + prefix(which) + path;
 
 /* ---------- misses ---------- */

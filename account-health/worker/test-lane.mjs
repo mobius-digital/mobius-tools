@@ -114,6 +114,10 @@ const d = { centralHour: () => hour, centralDate: () => '2026-11-09', canAfford:
 db.prepare(`INSERT INTO settings (key, value) VALUES ('slackChannel', 'C_AGENCY')`).run();
 
 await check('roundupTick: nothing before 4pm Central; at 4pm one post per brand (internal channel, lanes in order), the agency lines to the agency channel', async () => {
+  /* 2026-11-26 (jobflags.js): the roundup can go quiet. Default = today (runs); only 'off' quiets it. */
+  db.prepare(`INSERT INTO settings (key, value) VALUES ('jobOn:fyiRoundup', 'off')`).run();
+  assert.deepEqual(await roundupTick(env, d), { skipped: 'quiet' });
+  db.prepare(`DELETE FROM settings WHERE key = 'jobOn:fyiRoundup'`).run();
   assert.match((await roundupTick(env, d)).skipped, /before 16:00/);
   hour = 16;
   const r = await roundupTick(env, d);

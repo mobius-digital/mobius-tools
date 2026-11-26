@@ -296,7 +296,7 @@ function bellRow(r, route, lead) {
   const text = [].concat(r.text || '').map(p => (p && typeof p === 'object' ? h('b', null, p.b) : p));
   const b = r.btn;
   const link = b && (b.href || (b.line ? href(normalise({ view: route.view, brand: route.brand, line: b.line, tab: b.tab })) : null));
-  return h('div', { class: 'lx-bell-row' },
+  return h('div', { class: 'lx-bell-row' + (r.urgent ? ' urgent' : '') },
     r.who ? avatar(r.who, { size: 38 }) : h('span', { class: 'lx-bell-mark', role: 'img', 'aria-label': APP_NAME }, svgNode(mark(18))),
     h('div', { class: 't' }, h('p', null, text), h('span', { class: 'm' }, [r.brand && h('b', null, r.brand), r.by, r.when].filter(Boolean).flatMap((x, i) => (i ? [h('i'), x] : [x])))),
     b && link ? button(b.label, { href: link, target: b.href && /^https?:/.test(b.href) ? '_blank' : null, primary: !!(lead && b.primary) }) : null);
@@ -352,6 +352,15 @@ function moreSheet(route) {
   }
   const sh = sheet({ title: route.view === 'agency' ? 'All brands' : brand ? brand.name : 'Menu', body, side: 'bottom' });
   body.addEventListener('click', e => { if (e.target.closest('a')) sh.close(); });
+}
+
+/** The menus changed (an agency feature switch, menu.js setFeatures): draw the side menu, the More sheet and the
+    phone tabs again, on the page that is open. */
+export function redrawMenu() {
+  railKey = topKey = tabKey = '';
+  const r = currentRoute();
+  if (!root || !r) return;
+  drawRail(r); drawTop(r); drawTabbar(r);
 }
 
 /** After new data (brands, me, counts): redraw whatever depends on it. */

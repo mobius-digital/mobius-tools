@@ -29,6 +29,7 @@
 import { marketLine, metaDay, chatterFor } from './market.js';
 import { liveOn } from './calendar.js';
 import { fyi } from './lane.js';
+import { jobOn } from './jobflags.js';
 const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 export const MOVED_HOUR = 8;
 const MOVED_LAST_HOUR = 13;
@@ -156,6 +157,8 @@ export function metaDayBlocks(m) {
   ] };
 }
 export async function movedTick(env, d) {
+  /* 2026-11-26: a quiet job (jobflags.js jobOn:movedPost): runs unless settings jobOn:movedPost = 'off' (default: runs, as today); the older switch still counts too. */
+  if (!(await jobOn(env, 'movedPost', d && d.getSetting ? d.getSetting : undefined))) return { skipped: 'quiet' };
   /* NO SEPARATE 8AM POST (2026-10-09, Cole: "we already have a daily report; a bad day should just go in it"). The Meta
      day verdict rides inside the Daily Brief (worker.js metaDayFor). This tick does nothing; kept so the cron wiring stays. */
   return { skipped: 'the Meta day is in the Daily Brief now' };

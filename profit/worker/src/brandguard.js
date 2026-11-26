@@ -247,7 +247,7 @@ export const CLIENT_RULES = [
   R('GET', '/api/notices', 'none', { onb: true }),
   R('POST', '/api/notices/done', 'none', { fields: ['id', 'done', 'answer'] }),
   R('GET', '/api/me/delivery', 'none'),
-  R('PUT', '/api/me/delivery', 'none', { fields: ['delivery', 'per'] }),
+  R('PUT', '/api/me/delivery', 'none', { fields: ['delivery', 'per', 'notify'] }),
 
   /* ---- HOME: Overview, Day check, P&L, Goals, Requests ---- */
   R('GET', '/api/overview', 'opt'),

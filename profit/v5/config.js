@@ -41,6 +41,7 @@ export const LS5 = {
   aiCard: 'lx5_ai_card',           // the card a link from a connected AI opened (sessionStorage, read once by profile/ai-cards)
   engine: 'lx5_engine',            // which engine answers in this browser: old, new or compare (engine.js)
   engineMiss: 'lx5_engine_miss',   // the calls the new engine got wrong or failed, kept for the compare page
+  features: 'lx5_features',        // the last agency feature switches (GET /api/notices features), so the menu draws right at once
 };
 
 export const DEFAULT_PROFIT_URL = `https://${ORG_KEY}-profit.${ORG_HOST}.workers.dev`;

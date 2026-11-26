@@ -293,6 +293,12 @@ export const CATALOG = [
     why: 'A broken page gets fixed before a client opens it.',
     where: ['smoke.js:finish'],
     example: () => hm({ title: 'Fix the 2 failed Locus checks', summary: '2 of 140 checks failed this morning.', lines: [`${B1} · Website: no answer`, `${B2} · Email: timed out`], status: 'bad', buttons: [OPEN('Open Status')] }) }),
+  E('alarm_bridge_dm', ALERTS, 'Urgent alarm DM (until Dec 5)', {
+    channel: 'Slack DM', who: "The brand's buyer and the owner", kind: 'internal_alert', status: 'keep', onRenderer: false,
+    when: 'When an ad account is blocked or unpaid, a live campaign stopped spending, or ads spend with no store order for hours; once per thing per day, only until per person delivery copies go live on Dec 5.',
+    why: 'Money stops right now and the bell is not on phones yet, so the row in Locus also gets a Slack DM.',
+    where: ['urgent.js:copies'],
+    example: () => hm({ title: `${B1}: ads spending, no order in 5 hours`, summary: 'Check the store and the checkout.', numbers: [{ label: 'Since the last order', value: '$180 ad spend' }, { label: 'Normal gap', value: 'about 2 hours' }], source: 'Triple Whale, Meta', status: 'bad', buttons: [OPEN()] }) }),
   E('nightly_findings', ALERTS, 'Strategist nightly findings', {
     channel: 'internal channel', who: 'The team', kind: 'internal_alert', status: 'off after Dec 2', audit: 'a28', onRenderer: false,
     when: 'Nightly, one post per finding (for example a brand under goal 3 days running).',
