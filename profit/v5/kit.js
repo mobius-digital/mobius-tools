@@ -1,6 +1,18 @@
 /* The kit: small pure functions that return DOM or SVG nodes. No state, no network.
    Charts are inline SVG drawn at the real width of their box (see lineChart), so pages never draw their own.
-   Ember (the gradient) is for the lead series only; everything else is slate or ink. */
+   Ember (the gradient) is for the lead series only; everything else is slate or ink.
+
+   Tooltips (2026-11-26): every sparkline, lineChart and barChart shows a small dark bubble on hover AND on
+   tap, with the x label and each series value in the chart's own format, a thin crosshair (a soft band on
+   column charts) and a dot on each line. A lineChart / barChart also takes keyboard focus (arrow keys,
+   Home, End). On by default, nothing to pass. Options when the chart lacks words:
+     sparkline(values, { labels: ['6am', ...], format: v => money(v), name: 'Sales' })
+     lineChart({ ..., tipLabels: ['Thu 6am to 7am', ...], tipFormat: (v, series, i) => money(v) })
+     barChart({ ..., name: 'Ad spend' })            the series name in the bubble
+     tooltip: false                                  no bubble;  tooltip: i => nodes  your own lines
+   The bubble itself is reusable: tipShow(owner, content, at), tipHide(owner), tipRow(swatch, name, value),
+   placeFloat(el, at, gap). Definitions on hover/tap (dotted labels, (i) buttons, "What is this page?") are
+   in defs.js. */
 
 import { GLYPH, PLATFORM_NAME, icon } from './icons.js';
 import { AI_NAME } from './config.js';
@@ -268,13 +280,14 @@ export function tabs(items, active, onPick) {
 /* ---------- KPI ---------- */
 /** kpi({ label, value, small, sub, delta, spark, lead, size: 'lg', href })
     value is already formatted text. small sits beside it ("$111 each"). sub is a node or text under it.
-    delta is a node from delta() or statusDot(). spark is an array of numbers (slate; lead: true for ember). */
-export function kpi({ label, value, small, sub, delta: d, spark, lead = false, size, href, src } = {}) {
+    delta is a node from delta() or statusDot(). spark is an array of numbers (slate; lead: true for ember).
+    sparkLabels / sparkFormat feed the spark's tooltip bubble (x words per value; v => text). */
+export function kpi({ label, value, small, sub, delta: d, spark, sparkLabels, sparkFormat, lead = false, size, href, src } = {}) {
   const kids = [
     h('span', { class: 'l' }, label, src && h('span', { class: 'lx-src' }, src)),
     h('span', { class: 'v' }, value, small && h('small', null, small)),
     (d || sub) && h('span', { class: 's' }, d || null, sub || null),
-    spark && spark.length > 1 ? sparkline(spark, { lead, fill: true }) : null,
+    spark && spark.length > 1 ? sparkline(spark, { lead, fill: true, labels: sparkLabels, format: sparkFormat }) : null,
   ];
   const cls = 'lx-kpi' + (size === 'lg' ? ' lg' : '');
   return href ? h('a', { class: cls, href }, kids) : h('div', { class: cls }, kids);
@@ -324,19 +337,99 @@ const path = pts => pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + 
 const niceMax = v => { if (!(v > 0)) return 1; const p = Math.pow(10, Math.floor(Math.log10(v))); const m = v / p; return (m <= 1 ? 1 : m <= 1.5 ? 1.5 : m <= 2 ? 2 : m <= 3 ? 3 : m <= 4 ? 4 : m <= 5 ? 5 : m <= 6 ? 6 : m <= 8 ? 8 : 10) * p; };
 const textW = (t, px = 6.4) => String(t ?? '').length * px;
 
-/** sparkline([3854, 2703, ...], { lead, fill, width, height, goal }) : a thin line, slate by default.
-    goal draws a dashed level line (MER against its goal) and joins the scale. */
-export function sparkline(values, { lead = false, fill = false, width = 226, height = 38, goal } = {}) {
-  const v = values.filter(ok);
+/** sparkline([3854, 2703, ...], { lead, fill, width, height, goal, labels, format, name, tooltip })
+    A thin line, slate by default. goal draws a dashed level line (MER against its goal) and joins the scale.
+    Hover or tap shows the bubble: labels[i] (the x words, one per value) over name + format(value).
+    format defaults to a plain number; tooltip: false turns the bubble off. */
+export function sparkline(values, { lead = false, fill = false, width = 226, height = 38, goal, labels, format, name, tooltip = true } = {}) {
+  const at = values.map((val, i) => ok(val) ? i : -1).filter(i => i >= 0), v = at.map(i => values[i]);
   const svg = s('svg', { class: 'lx-spark', viewBox: `0 0 ${width} ${height}`, preserveAspectRatio: 'none', 'aria-hidden': 'true' });
   if (v.length < 2) return svg;
   const max = Math.max(...v, ok(goal) ? goal : -Infinity), min = ok(goal) ? 0 : Math.min(...v), span = max - min || 1;
-  const Y = val => (height - 8) - (height - 12) * (val - min) / span;
-  const d = path(v.map((val, i) => [width * i / (v.length - 1), Y(val)]));
+  const Y = val => (height - 8) - (height - 12) * (val - min) / span, X = k => width * k / (v.length - 1);
+  const d = path(v.map((val, k) => [X(k), Y(val)]));
   if (ok(goal)) svg.append(s('line', { class: 'gref', x1: 0, x2: width, y1: Y(goal), y2: Y(goal) }));
   if (fill) svg.append(s('path', { class: 'fill' + (lead ? ' lead' : ''), d: `${d} L${width} ${height} L0 ${height} Z` }));
   svg.append(s('path', { class: 'ln' + (lead ? ' lead' : ''), d }));
+  if (tooltip === false) return svg;
+  /* the bubble. The drawing is stretched (preserveAspectRatio none), so the dot is a zero length round stroke. */
+  const f = format || plainNum;
+  const cur = s('line', { class: 'cur', y1: 0, y2: height, visibility: 'hidden' }), pt = s('path', { class: 'pt' + (lead ? ' lead' : ''), visibility: 'hidden' });
+  svg.append(cur, pt);
+  const show = e => {
+    const box = svg.getBoundingClientRect(); if (!box.width) return;
+    const k = Math.max(0, Math.min(v.length - 1, Math.round((e.clientX - box.left) / box.width * (v.length - 1)))), i = at[k];
+    cur.setAttribute('x1', X(k)); cur.setAttribute('x2', X(k)); cur.setAttribute('visibility', 'visible');
+    pt.setAttribute('d', `M${X(k).toFixed(1)} ${Y(v[k]).toFixed(1)} l0 0`); pt.setAttribute('visibility', 'visible');
+    tipShow(svg, [labels && labels[i] != null && labels[i] !== '' ? h('div', { class: 'lx-tip-h' }, labels[i]) : null,
+      tipRow(lead ? 'lead' : 'slate', name, f(v[k], i))], { x: e.clientX, y: box.top + box.height * Y(v[k]) / height }, e.pointerType === 'touch' ? 30 : 12);
+  };
+  svg._tipOff = () => { cur.setAttribute('visibility', 'hidden'); pt.setAttribute('visibility', 'hidden'); };
+  svg.addEventListener('pointermove', show); svg.addEventListener('pointerdown', show);
+  svg.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') tipHide(svg); });
   return svg;
+}
+/* a plain figure for a tooltip when the chart was given no format: 12,840 / 312 / 4.25 */
+const plainNum = val => !ok(val) ? NONE : Math.abs(val) >= 100 || val % 1 === 0 ? num(val) : num(val, Math.abs(val) < 10 ? 2 : 1);
+
+/* ---------- the tooltip bubble ----------
+   One small dark bubble for the whole app (class lx-tip, colors from the --tip-* tokens in app.css).
+   It is position: fixed on <body>, so a card or a sheet never clips it, and it is kept inside the viewport.
+     tipShow(owner, content, at, gap)  content: nodes or text (arrays are fine). at: { x, y } in client pixels
+                                        (a pointer) or a DOMRect / element (sits above it, below when no room).
+     tipHide(owner)                    hides it when owner still owns it (no owner: always).
+     tipRow(swatch, name, value)       one "name ... value" line; swatch 'lead' | 'slate' | 'ink' | 'dash' | ''.
+   A tap anywhere else, Escape, a scroll or a route change hides it. Charts use it; a page may too. */
+let TIP = null, tipOwner = null;
+function tipBox() {
+  if (!TIP) {
+    TIP = h('div', { class: 'lx-tip', role: 'tooltip', id: 'lx-tip', hidden: true });
+    document.body.append(TIP);
+    document.addEventListener('pointerdown', e => { if (tipOwner && !(tipOwner.contains && tipOwner.contains(e.target))) tipHide(); }, true);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') tipHide(); });
+    window.addEventListener('scroll', () => tipHide(), { capture: true, passive: true });
+    window.addEventListener('hashchange', () => tipHide());
+  }
+  return TIP;
+}
+export function tipShow(owner, content, at, gap = 12) {
+  const el = tipBox();
+  if (tipOwner && tipOwner !== owner && tipOwner._tipOff) tipOwner._tipOff();
+  tipOwner = owner || null;
+  put(el, [].concat(content));
+  el.hidden = false;
+  placeFloat(el, at, gap);
+  return el;
+}
+export function tipHide(owner) {
+  if (!TIP || (owner && owner !== tipOwner)) return;
+  if (tipOwner && tipOwner._tipOff) tipOwner._tipOff();
+  TIP.hidden = true; tipOwner = null;
+}
+export function tipRow(swatch, name, value) {
+  return h('div', { class: 'lx-tip-r' }, swatch != null ? h('i', { class: 'sw ' + swatch }) : null, name ? h('span', null, name) : null, h('b', { class: 'v' }, value));
+}
+/** placeFloat(el, at, gap) : puts a position: fixed element above a point or a box, below it when there is no
+    room above, always inside the viewport (8px margin). at: { x, y } | DOMRect | element. Used by the tooltip
+    bubble and by the definitions in defs.js. */
+export function placeFloat(el, at, gap = 12) {
+  const r = at && at.getBoundingClientRect ? at.getBoundingClientRect() : at || { x: 0, y: 0 };
+  const vw = document.documentElement.clientWidth || window.innerWidth, vh = window.innerHeight;
+  el.style.left = '0px'; el.style.top = '0px';
+  const w = el.offsetWidth, ht = el.offsetHeight, box = r.width != null;
+  const cx = box ? r.left + r.width / 2 : r.x, top = box ? r.top : r.y, bottom = box ? r.bottom : r.y;
+  let y = top - gap - ht;
+  if (y < 8) y = bottom + (box ? gap : gap + 10);
+  y = Math.max(8, Math.min(vh - ht - 8, y));
+  const x = Math.max(8, Math.min(vw - w - 8, cx - w / 2));
+  el.style.left = Math.round(x) + 'px'; el.style.top = Math.round(y) + 'px';
+}
+/* what a page's hover(i) returned, as bubble lines: the first item is the heading, every other item a line.
+   Loose text loses the commas and spaces it was joined with. */
+function tipLines(items) {
+  const list = [].concat(items).flat(Infinity).filter(k => k != null && k !== false && k !== '')
+    .map(k => k.nodeType ? k : String(k).trim().replace(/^,\s*|,\s*$/g, '')).filter(k => k !== '');
+  return list.map((k, j) => h('div', { class: j ? 'lx-tip-r' : 'lx-tip-h' }, k));
 }
 
 const CHARTS = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(list => {
@@ -349,6 +442,7 @@ function chartBox(o, draw) {
   el._paint = w => {
     const phone = w < 520, H = phone ? (o.phoneHeight || Math.min(o.height, 290)) : o.height;
     el.style.height = H + 'px';
+    if (tipOwner && el.contains(tipOwner)) tipHide();   // the bubble belonged to the drawing being replaced
     el.replaceChildren(...draw(w, H, phone));
   };
   el._w = o.width || guessW();
@@ -386,7 +480,16 @@ function chartBox(o, draw) {
     yMax, yTicks, axis  the top of the scale; grid steps (picked to land on round figures); axis: false hides the left axis (small cards).
     height, phoneHeight pixels. Real height, never squished: 350 and 290 by default.
     width               a fixed pixel width. Leave it out and the chart follows its container.
-    hover: i => nodes   a read out above the plot for the point under the pointer or finger.
+    tooltip             ON BY DEFAULT: hover, tap or the arrow keys (the chart takes focus) show a small dark
+                        bubble that follows the pointer, with a crosshair (a soft band on column charts) and a
+                        dot on each line. It reads the x label, then one line per series: swatch, name, value
+                        (value = series tipFormat, else the series' labels fn, else endFormat / format; the
+                        right axis series use y2.format). tooltip: false turns it off; tooltip: i => nodes
+                        writes the bubble yourself (first node = the heading, each other node = one line).
+    tipLabels: [text]   the bubble's heading per point when the x labels are missing or too short ("6am" on
+                        the axis, "6am to 7am" in the bubble).
+    tipFormat: (v, sr, i) => text   one format for every value in the bubble.
+    hover: i => nodes   older name for tooltip: i => nodes (still works; now drawn in the bubble).
     label, empty        the spoken description; the words when there is nothing to draw. */
 export function lineChart(o = {}) {
   const opt = { height: 350, fill: true, endLabels: true, axis: true, label: 'Chart', empty: 'No data for these dates',
@@ -395,11 +498,12 @@ export function lineChart(o = {}) {
   return chartBox(opt, (W, H, phone) => plot(opt, W, H, phone));
 }
 
-/** barChart({ values, labels, dim, lead, format, height, valueLabels, label }) : one column series.
+/** barChart({ values, labels, dim, lead, format, height, valueLabels, label, name }) : one column series.
     Columns are data marks: ink, with dim ones in gray. dim: array of indexes (or i => bool).
-    lead: index of the one column to draw in ember. The same responsive box as lineChart. */
-export function barChart({ values = [], labels = [], dim, lead, format = v => num(v), height = 240, valueLabels = false, ...rest } = {}) {
-  return lineChart({ series: [{ type: 'bar', values, dimAt: dim, leadAt: lead, labels: valueLabels }], labels, format, height, yTicks: 2, endLabels: false, min: 1, ...rest });
+    lead: index of the one column to draw in ember. name: the series name in the tooltip bubble.
+    The same responsive box and tooltip options as lineChart (tooltip, tipLabels, tipFormat, hover). */
+export function barChart({ values = [], labels = [], dim, lead, format = v => num(v), height = 240, valueLabels = false, name, ...rest } = {}) {
+  return lineChart({ series: [{ type: 'bar', name, values, dimAt: dim, leadAt: lead, labels: valueLabels }], labels, format, height, yTicks: 2, endLabels: false, min: 1, ...rest });
 }
 
 function plot(o, W, H, phone) {
@@ -440,6 +544,10 @@ function plot(o, W, H, phone) {
     if (o.axis) svg.append(s('text', { class: 'tk y', x: L - 8, y: y + 4 }, yl[g]));
     if (y2 && g < o.yTicks) svg.append(s('text', { class: 'tk', x: R + 8, y: y + 4 }, y2.format(y2.max * (o.yTicks - g) / o.yTicks)));
   }
+  /* the tooltip's soft band behind the column under the pointer (column charts), drawn under the marks */
+  const tipOn = o.tooltip !== false;
+  const band = tipOn && slots ? s('rect', { class: 'hl', y: T - 4, height: B - T + 4, width: Math.max(4, step - 4), rx: 6, visibility: 'hidden' }) : null;
+  if (band) svg.append(band);
 
   /* x labels: as many as fit. The first and the last always stay. */
   if (hasX) {
@@ -540,21 +648,53 @@ function plot(o, W, H, phone) {
     if (m.text) svg.append(s('text', { class: 'nt on halo', x: mx + (right ? -10 : 10), y: m.line || my == null ? T - 8 : my + (m.dy ?? 22), 'text-anchor': right ? 'end' : 'start' }, m.text));
   });
 
-  if (!o.hover) return [svg];
-  /* hover or touch: one point, read out above the plot. Listeners sit on the svg, which a redraw replaces. */
-  const cur = s('line', { class: 'cur', y1: T, y2: B, visibility: 'hidden' });
-  const read = h('div', { class: 'lx-chart-read', hidden: true });
-  svg.append(cur, s('rect', { class: 'hit', x: L, y: T, width: R - L, height: B - T }));
+  if (!tipOn) return [svg];
+  /* the tooltip: hover, tap or arrow keys pick one point; the bubble follows the pointer. Listeners sit on the
+     svg, which a redraw replaces. A page's own words (tooltip: i => nodes, or the older hover) win. */
+  const own = typeof o.tooltip === 'function' ? o.tooltip : o.hover;
+  const heads = o.tipLabels || o.labels || [];
+  const valFmt = sr => sr.tipFormat || (o.tipFormat ? (v, i) => o.tipFormat(v, sr, i) : sr.axis === 'right' && y2 ? y2.format : labFmt(sr));
+  const swatch = (sr, i) => sr.type === 'bar' ? (i === sr.leadAt ? 'lead' : 'ink') : sr.lead ? 'lead' : sr.dashed ? 'dash' : 'slate';
+  const content = i => {
+    if (own) return tipLines(own(i));
+    const head = heads[i] != null && heads[i] !== '' ? h('div', { class: 'lx-tip-h' }, heads[i]) : null;
+    const rows = series.filter(sr => ok(sr.values[i])).map(sr => tipRow(swatch(sr, i), sr.name || null, valFmt(sr)(sr.values[i], i)));
+    return [head, rows.length ? rows : h('div', { class: 'lx-tip-r' }, NONE)];
+  };
+  const cur = slots ? null : s('line', { class: 'cur', y1: T, y2: B, visibility: 'hidden' });
+  const dots = lines.filter(sr => sr._pts).map(sr => ({ sr, c: s('circle', { class: 'hd' + (sr.lead ? ' lead' : ''), r: 4, visibility: 'hidden' }) }));
+  svg.append(...[cur, ...dots.map(d => d.c)].filter(Boolean), s('rect', { class: 'hit', x: L, y: T, width: Math.max(0, R - L), height: Math.max(0, B - T) }));
+  svg.setAttribute('tabindex', '0');
+  svg.setAttribute('aria-describedby', 'lx-tip');
+  const idxAt = px => Math.max(0, Math.min(n - 1, slots ? Math.floor((px - L) / step) : xs ? xs.reduce((best, v, k) => Math.abs(free(v) - px) < Math.abs(free(xs[best]) - px) ? k : best, 0) : Math.round((px - L - pad) / ((R - L - 2 * pad) || 1) * (n - 1))));
+  let at = -1;
+  const mark = i => {
+    at = i;
+    if (cur) { cur.setAttribute('x1', X(i)); cur.setAttribute('x2', X(i)); cur.setAttribute('visibility', 'visible'); }
+    if (band) { band.setAttribute('x', X(i) - (step - 4) / 2); band.setAttribute('visibility', 'visible'); }
+    dots.forEach(({ sr, c }) => { const v = sr.values[i]; if (!ok(v)) return c.setAttribute('visibility', 'hidden');
+      c.setAttribute('cx', X(i)); c.setAttribute('cy', (sr.axis === 'right' && y2 ? Y2 : Y)(v)); c.setAttribute('visibility', 'visible'); });
+  };
+  /* the top of the highest mark at i, in client pixels: the bubble sits above it when the keyboard drives */
+  const topAt = (i, box) => { const ys = series.filter(sr => ok(sr.values[i])).map(sr => (sr.axis === 'right' && y2 ? Y2 : Y)(sr.values[i])); return box.top + (ys.length ? Math.min(...ys) : T) * box.height / H; };
+  svg._tipOff = () => { at = -1; if (cur) cur.setAttribute('visibility', 'hidden'); if (band) band.setAttribute('visibility', 'hidden'); dots.forEach(d => d.c.setAttribute('visibility', 'hidden')); };
   const move = e => {
     const box = svg.getBoundingClientRect(); if (!box.width) return;
-    const px = (e.clientX - box.left) * W / box.width;
-    const i = Math.max(0, Math.min(n - 1, slots ? Math.floor((px - L) / step) : xs ? xs.reduce((best, v, k) => Math.abs(free(v) - px) < Math.abs(free(xs[best]) - px) ? k : best, 0) : Math.round((px - L - pad) / ((R - L - 2 * pad) || 1) * (n - 1))));
-    cur.setAttribute('x1', X(i)); cur.setAttribute('x2', X(i)); cur.setAttribute('visibility', 'visible');
-    read.hidden = false; read.replaceChildren(...[].concat(o.hover(i)).filter(Boolean));
+    const i = idxAt((e.clientX - box.left) * W / box.width);
+    mark(i);
+    tipShow(svg, content(i), { x: e.clientX, y: Math.min(e.clientY, topAt(i, box)) }, e.pointerType === 'touch' ? 30 : 14);
   };
-  const off = () => { cur.setAttribute('visibility', 'hidden'); read.hidden = true; };
-  svg.addEventListener('pointermove', move); svg.addEventListener('pointerdown', move); svg.addEventListener('pointerleave', off);
-  return [read, svg];
+  const byKey = i => { const box = svg.getBoundingClientRect(); mark(i); tipShow(svg, content(i), { x: box.left + X(i) * box.width / W, y: topAt(i, box) }, 12); };
+  svg.addEventListener('pointermove', move); svg.addEventListener('pointerdown', move);
+  svg.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') tipHide(svg); });
+  svg.addEventListener('focus', () => { if (svg.matches(':focus-visible')) byKey(at >= 0 ? at : n - 1); });
+  svg.addEventListener('blur', () => tipHide(svg));
+  svg.addEventListener('keydown', e => {
+    const step1 = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+    if (e.key === 'Home' || e.key === 'End') { e.preventDefault(); byKey(e.key === 'Home' ? 0 : n - 1); }
+    else if (step1) { e.preventDefault(); byKey(Math.max(0, Math.min(n - 1, (at < 0 ? n - 1 : at) + step1))); }
+  });
+  return [svg];
 }
 
 /** legend([{ name, lead }, { name }, { name, dashed }, { name, square }]) : text with a line sample (a square for columns), for above a chart */
