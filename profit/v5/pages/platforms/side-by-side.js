@@ -84,7 +84,7 @@ const CSS = `
 .sbs{display:grid;gap:var(--sp-8)}
 .sbs-kpi{display:grid;gap:4px;align-content:start;min-width:0;color:inherit;text-decoration:none}
 .sbs-kpi .lx-hero-num{justify-self:start;margin-top:2px}
-.sbs-kpi .v.words{font-size:15px;font-weight:550;letter-spacing:0;line-height:1.3;white-space:normal;color:var(--ink-2);padding:8px 0}
+.sbs-kpi .v.words{font-size:15px;font-weight:500;letter-spacing:0;line-height:1.3;white-space:normal;color:var(--ink-2);padding:8px 0}
 .sbs-pl{display:inline-flex;align-items:center;gap:10px}
 .sbs-pl small{display:inline-flex;font-size:12.5px;color:var(--muted)}
 .sbs-pl small .lx-plat{font-size:12.5px;font-weight:400;color:var(--muted);gap:6px}
@@ -110,7 +110,7 @@ const CSS = `
   .sbs-item{display:grid;gap:12px;padding:16px 18px;border-top:1px solid var(--line);color:inherit;text-decoration:none}
   .sbs-item.total{background:var(--band)}
   .sbs-item-h{display:flex;align-items:center;gap:10px;min-width:0}
-  .sbs-item-h b{font-size:15px;font-weight:650}
+  .sbs-item-h b{font-size:15px;font-weight:600}
   .sbs-item-h>.sbs-q{font-size:12.5px;white-space:nowrap}
   .sbs-item-h .sbs-pl{gap:4px 8px;min-width:0;flex-wrap:wrap}
   .sbs-item-h .sbs-open{margin-left:auto;margin-right:-6px}

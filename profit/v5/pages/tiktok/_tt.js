@@ -16,9 +16,9 @@ import { askWhy } from '../home/_biz.js';
 export const TT_TABS = [
   { id: 'overview', label: 'Overview' },
   { id: 'live-now', label: 'Live now' },
-  { id: 'top-videos', label: 'Top videos' },
+  { id: 'top-videos', label: 'Best videos' },
   { id: 'suggestions', label: 'Suggestions', team: true },
-  { id: 'changes', label: 'Changes made' },
+  { id: 'changes', label: 'Changes' },
 ];
 
 const CSS = `

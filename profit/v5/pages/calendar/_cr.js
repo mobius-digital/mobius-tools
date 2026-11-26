@@ -193,7 +193,7 @@ const CSS = `
 .cr-sub{display:block;margin-top:3px;font-size:13px;color:var(--muted);line-height:1.4;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .cr-sub.late{color:var(--bad)}
 .cr-cells{display:flex;align-items:center;gap:22px}
-.cr-cell{display:block;width:var(--w,120px);font-size:13.5px;color:var(--ink-2);font-variant-numeric:tabular-nums;min-width:0}
+.cr-cell{display:block;width:var(--w,120px);font-size:var(--fs-table,13px);color:var(--ink-2);font-variant-numeric:tabular-nums;min-width:0}
 .cr-cell small{display:none;font-size:11.5px;color:var(--muted)}
 .cr-cell.strong{font-weight:600;color:var(--ink)}
 .cr-cell.num{text-align:right}
@@ -217,12 +217,12 @@ const CSS = `
 .cr-dow+.cr-week{border-top:0}
 .cr-day{grid-row:1 / -1;padding:8px 10px;border-left:1px solid var(--line);min-width:0}
 .cr-day:first-child{border-left:0}
-.cr-day b{display:inline-grid;place-items:center;min-width:24px;height:24px;border-radius:999px;font-size:13px;font-weight:550;font-variant-numeric:tabular-nums;color:var(--ink)}
+.cr-day b{display:inline-grid;place-items:center;min-width:24px;height:24px;border-radius:999px;font-size:13px;font-weight:500;font-variant-numeric:tabular-nums;color:var(--ink)}
 .cr-day.out b{color:var(--icon)}
 .cr-day.past:not(.out) b{color:var(--muted)}
 .cr-day.today b{background:var(--ink);color:#fff;padding:0 6px}
 .cr-day.out{background:var(--surface-2)}
-.cr-bar{display:flex;align-items:center;gap:6px;height:24px;margin:0 5px;padding:0 9px;border:0;border-radius:8px;background:var(--bg-sunk);font:inherit;font-size:12.5px;font-weight:550;color:var(--ink);text-align:left;cursor:pointer;min-width:0;z-index:1}
+.cr-bar{display:flex;align-items:center;gap:6px;height:24px;margin:0 5px;padding:0 9px;border:0;border-radius:8px;background:var(--bg-sunk);font:inherit;font-size:12.5px;font-weight:500;color:var(--ink);text-align:left;cursor:pointer;min-width:0;z-index:1}
 .cr-bar{box-shadow:inset 3px 0 0 var(--faint)}
 .cr-bar.good{box-shadow:inset 3px 0 0 var(--good)}
 .cr-bar.warn{box-shadow:inset 3px 0 0 var(--watch)}
@@ -258,20 +258,20 @@ const CSS = `
 
 .cr-kv{display:grid;grid-template-columns:150px minmax(0,1fr);gap:8px 16px;font-size:14px}
 .cr-kv dt{color:var(--muted);font-size:13.5px}
-.cr-kv dd{margin:0;font-weight:550;overflow-wrap:anywhere}
+.cr-kv dd{margin:0;font-weight:500;overflow-wrap:anywhere}
 .cr-steps{display:grid;margin-top:6px}
 .cr-step{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 14px;padding:12px 0;border-top:1px solid var(--line);font-size:14px}
 .cr-step b{font-weight:600}
 .cr-step small{grid-column:1/-1;font-size:12.5px;color:var(--muted)}
 .cr-sheet{display:grid;gap:20px}
-.cr-sheet p.offer{font-size:16px;line-height:1.45;font-weight:550;letter-spacing:-.01em}
+.cr-sheet p.offer{font-size:16px;line-height:1.45;font-weight:500;letter-spacing:-.01em}
 .cr-thread{display:grid;gap:12px}
 .cr-msg{padding:12px 14px;border-radius:14px;background:var(--bg-sunk);font-size:14px;line-height:1.45;overflow-wrap:anywhere;white-space:pre-line}
 .cr-msg.team{background:#fff;box-shadow:var(--sh-1)}
-.cr-msg small{display:block;margin-bottom:4px;font-size:12px;color:var(--muted);font-weight:550}
+.cr-msg small{display:block;margin-bottom:4px;font-size:12px;color:var(--muted);font-weight:500}
 
 .cr-offer{display:grid;grid-template-columns:44px minmax(0,1fr) 190px 150px;gap:18px;align-items:start;padding:20px 0;border-top:1px solid var(--line)}
-.cr-offer .n{display:inline-grid;place-items:center;width:34px;height:34px;border-radius:999px;background:var(--bg-sunk);font-size:14px;font-weight:650;font-variant-numeric:tabular-nums}
+.cr-offer .n{display:inline-grid;place-items:center;width:34px;height:34px;border-radius:999px;background:var(--bg-sunk);font-size:14px;font-weight:600;font-variant-numeric:tabular-nums}
 .cr-offer.lead .n{background:var(--ink);color:#fff}
 .cr-offer .nm{font-size:13px;color:var(--muted)}
 .cr-offer .deal{margin-top:2px;font-size:18px;font-weight:600;letter-spacing:-.02em;line-height:1.3;overflow-wrap:anywhere}
@@ -281,7 +281,7 @@ const CSS = `
 .cr-offer .when{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums}
 .cr-offer .when small{display:block;margin-top:2px;font-size:12.5px;font-weight:400;color:var(--muted)}
 .cr-offer .res{margin-top:10px;display:flex;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
-.cr-offer .res b{color:var(--ink);font-weight:650}
+.cr-offer .res b{color:var(--ink);font-weight:600}
 
 .cr-heroline{display:grid;gap:8px;min-width:0}
 .cr-heroline .lab{font-size:13px;color:var(--muted)}

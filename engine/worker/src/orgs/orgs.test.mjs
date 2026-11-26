@@ -64,7 +64,7 @@ test('GET /ah/api/me/prefs: same shape as the sample, old entries are dropped', 
 
 test('GET /ah/api/me/prefs: nothing stored gives the empty preferences', async () => {
   const r = await call(world(), 'GET', '/ah/api/me/prefs', { token: OWNER });
-  assert.deepEqual(r.json.prefs, { morning_dm: false, nudge: {} });
+  assert.deepEqual(r.json.prefs, { morning_dm: false, nudge: {}, home_tiles: [] });
 });
 
 test('GET /ah/api/me/prefs: a client reads its own row, never another person\'s', async () => {
@@ -72,7 +72,7 @@ test('GET /ah/api/me/prefs: a client reads its own row, never another person\'s'
     'userPrefs:team@agency.test': { morning_dm: false, nudge: { [`card:${RIVER}`]: { state: 'done', until: Date.now() + 5000 } } } });
   const { mine } = await assertNoLeak(world(rows), 'GET', '/ah/api/me/prefs');
   assert.equal(mine.json.email, 'client@northkites.test');
-  assert.deepEqual(mine.json.prefs, { morning_dm: true, nudge: {} });
+  assert.deepEqual(mine.json.prefs, { morning_dm: true, nudge: {}, home_tiles: [] });
 });
 
 test('PUT /ah/api/me/prefs: writes the caller\'s one row and leaves the others alone', async () => {

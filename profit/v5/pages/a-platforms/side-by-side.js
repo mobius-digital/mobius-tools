@@ -41,7 +41,7 @@ function render(el, d, ctx) {
     ] }));
   if (!document.getElementById('aps-css')) document.head.append(h('style', { id: 'aps-css' }, `.aps-bar{display:grid;grid-template-columns:minmax(60px,1fr) 64px;align-items:center;gap:10px;min-width:160px}
 .aps-bar i{display:block;height:8px;border-radius:999px;background:var(--ink)}.aps-bar.sa i{background:var(--slate)}
-.aps-bar b{font-weight:550;font-variant-numeric:tabular-nums;text-align:right}`));
+.aps-bar b{font-weight:500;font-variant-numeric:tabular-nums;text-align:right}`));
 
   const goalWord = { title: 'The dot', body: "Green: at or over the brand's goal ROAS. Amber: close under it. Red: well under it." };
   const cell = (b, id) => { const p = plat(b, id); if (!p || !(p.spend > 0)) return quiet('off');

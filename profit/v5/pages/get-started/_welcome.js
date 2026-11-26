@@ -16,7 +16,7 @@ const CSS = `
 .wc-view{overflow:hidden;touch-action:pan-y;border-radius:16px}
 .wc-track{display:flex;transition:transform var(--t) var(--ease)}
 .wc-card{flex:0 0 100%;min-width:0;display:grid;gap:12px;align-content:start;padding:28px 26px;min-height:230px;border-radius:16px;background:var(--bg-sunk)}
-.wc-card .n{font-size:11px;font-weight:650;letter-spacing:.08em;color:var(--faint)}
+.wc-card .n{font-size:11px;font-weight:600;letter-spacing:.08em;color:var(--faint)}
 .wc-card h3{margin:0;font-size:24px;font-weight:600;letter-spacing:-.02em;line-height:1.2}
 .wc-card p{margin:0;font-size:15.5px;line-height:1.55;color:var(--ink-2)}
 .wc-dots{display:flex;gap:8px;justify-content:center}

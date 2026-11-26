@@ -7,6 +7,10 @@
         "state": "snoozed",
         "until": 1790000000000
       }
-    }
+    },
+    "home_tiles": [
+      "sales",
+      "ad_spend"
+    ]
   }
 }

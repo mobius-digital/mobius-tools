@@ -236,10 +236,14 @@ export async function saveSetting(key, value) {
 
 /* ---------- the date range in the page head ---------- */
 export const RANGES = [
-  { id: 'month', label: 'This month' },
+  { id: 'today', label: 'Today' },
+  { id: 'yesterday', label: 'Yesterday' },
   { id: '7d', label: 'Last 7 days' },
+  { id: '14d', label: 'Last 14 days' },
   { id: '30d', label: 'Last 30 days' },
+  { id: 'month', label: 'This month' },
   { id: 'last-month', label: 'Last month' },
+  { id: '90d', label: 'Last 90 days' },
   { id: 'custom', label: 'Custom' },
 ];
 const ymd = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -253,8 +257,8 @@ export function datesLabel(from, to) {
   return a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear() ? `${short(from)} to ${b.getDate()}` : `${short(from)} to ${short(to)}`;
 }
 /** rangeOf({ preset, from, to }) : the saved choice as real dates, worked out now.
-    Returns { preset, label, from, to, days, dates }. Whole days only: every preset ends yesterday,
-    except on the 1st of the month, when "This month" is today alone. label is the choice ("This month");
+    Returns { preset, label, from, to, days, dates }. Whole days only: the "Last N days" presets end yesterday,
+    Today is today, Yesterday is yesterday, and "This month" ends yesterday except on the 1st (today alone). label is the choice ("This month");
     dates is the plain span ("Nov 1 to 23"). */
 export function rangeOf(saved, now = new Date()) {
   const custom = !!(saved && saved.preset === 'custom' && saved.from && saved.to && saved.from <= saved.to);
@@ -262,7 +266,9 @@ export function rangeOf(saved, now = new Date()) {
   const y = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
   let from, to;
   if (custom) { from = saved.from; to = saved.to; }
-  else if (preset === '7d' || preset === '30d') { const n = preset === '7d' ? 7 : 30; to = ymd(y); from = ymd(new Date(y.getFullYear(), y.getMonth(), y.getDate() - n + 1)); }
+  else if (preset === 'today') { from = to = ymd(now); }
+  else if (preset === 'yesterday') { from = to = ymd(y); }
+  else if (/^\d+d$/.test(preset)) { const n = parseInt(preset, 10); to = ymd(y); from = ymd(new Date(y.getFullYear(), y.getMonth(), y.getDate() - n + 1)); }
   else if (preset === 'last-month') { from = ymd(new Date(now.getFullYear(), now.getMonth() - 1, 1)); to = ymd(new Date(now.getFullYear(), now.getMonth(), 0)); }
   else { from = ymd(new Date(now.getFullYear(), now.getMonth(), 1)); to = now.getDate() > 1 ? ymd(y) : ymd(now); }
   const days = Math.round((dayOf(to) - dayOf(from)) / 864e5) + 1;

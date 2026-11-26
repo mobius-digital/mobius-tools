@@ -1,13 +1,13 @@
 {
  "window": {
   "from": "2026-11-01",
-  "to": "2026-11-23",
-  "label": "Nov 1 to 23"
+  "to": "2026-11-22",
+  "label": "Nov 1 to 22"
  },
  "currency": "USD",
  "connected": true,
  "goals": {
-  "roas": 3.0,
+  "roas": 3,
   "cpa": 40
  },
  "sales_source": true,
@@ -15,17 +15,17 @@
   {
    "key": "video",
    "ads": 13,
-   "spend": 7841,
+   "spend": 7678,
    "purchases": 132,
-   "cpa": 59.4,
+   "cpa": 58.17,
    "roas": 2.01
   },
   {
    "key": "image",
    "ads": 12,
-   "spend": 9032,
+   "spend": 8845,
    "purchases": 147,
-   "cpa": 61.44,
+   "cpa": 60.17,
    "roas": 1.89
   }
  ],
@@ -37,28 +37,28 @@
    "lead": false,
    "campaign": "Black Friday 2026",
    "adset": "Early sale | New people",
-   "spend": 1506,
-   "revenue": 2771.04,
+   "spend": 1474,
+   "revenue": 2712.16,
    "purchases": 23,
    "roas": 1.84,
-   "cpa": 65.48,
+   "cpa": 64.09,
    "leads": null,
    "cpl": null,
    "age": 22,
    "thumb": null,
-   "impressions": 84199,
+   "impressions": 82410,
    "cpm": 17.89,
    "ctr": 0.0081,
-   "clicks": 682,
+   "clicks": 668,
    "frequency": 2.44,
-   "fc_rev": 1843.28,
+   "fc_rev": 1804.11,
    "nc_roas": 1.17,
    "set": {
     "name": "Early sale | New people",
-    "spend": 7174,
+    "spend": 7025,
     "purchases": 138,
     "roas": 2.29,
-    "cpa": 51.99
+    "cpa": 50.91
    },
    "days": [
     {
@@ -125,13 +125,16 @@
      "date": "2026-11-22",
      "spend": 114.59,
      "revenue": 240.13
-    },
-    {
-     "date": "2026-11-23",
-     "spend": 96.59,
-     "revenue": 186.21
     }
-   ]
+   ],
+   "hook": 0.28102,
+   "hold": 0.19257,
+   "art": {
+    "kind": "golfer",
+    "c1": "#1F2937",
+    "c2": "#C9A45C",
+    "bg": "#E9E4DA"
+   }
   },
   {
    "id": "ad03",
@@ -140,28 +143,28 @@
    "lead": false,
    "campaign": "Black Friday 2026",
    "adset": "Early sale | New people",
-   "spend": 1420,
-   "revenue": 4430.4,
+   "spend": 1391,
+   "revenue": 4339.92,
    "purchases": 37,
    "roas": 3.12,
-   "cpa": 38.38,
+   "cpa": 37.59,
    "leads": null,
    "cpl": null,
    "age": 22,
    "thumb": null,
-   "impressions": 96248,
+   "impressions": 94282,
    "cpm": 14.75,
    "ctr": 0.0068,
-   "clicks": 654,
+   "clicks": 641,
    "frequency": 1.59,
-   "fc_rev": 5371.24,
+   "fc_rev": 5261.55,
    "nc_roas": 1.87,
    "set": {
     "name": "Early sale | New people",
-    "spend": 7174,
+    "spend": 7025,
     "purchases": 138,
     "roas": 2.29,
-    "cpa": 51.99
+    "cpa": 50.91
    },
    "days": [
     {
@@ -228,13 +231,19 @@
      "date": "2026-11-22",
      "spend": 117.28,
      "revenue": 400.44
-    },
-    {
-     "date": "2026-11-23",
-     "spend": 107.91,
-     "revenue": 321.93
     }
-   ]
+   ],
+   "art": {
+    "kind": "ad",
+    "brand": "Northlake Golf",
+    "kicker": "Early sale",
+    "text": "Black Friday: 40% off belts",
+    "foot": "northlakegolf.example",
+    "cta": "Shop now",
+    "c1": "#E9E4DA",
+    "c2": "#C9A45C",
+    "bg": "#14532D"
+   }
   },
   {
    "id": "ad10",
@@ -243,28 +252,28 @@
    "lead": false,
    "campaign": "Evergreen | Broad",
    "adset": "Belts | Broad",
-   "spend": 1322,
-   "revenue": 1665.72,
+   "spend": 1295,
+   "revenue": 1631.7,
    "purchases": 14,
    "roas": 1.26,
-   "cpa": 94.43,
+   "cpa": 92.5,
    "leads": null,
    "cpl": null,
    "age": 22,
    "thumb": null,
-   "impressions": 54901,
+   "impressions": 53780,
    "cpm": 24.08,
    "ctr": 0.0192,
-   "clicks": 1054,
+   "clicks": 1032,
    "frequency": 2.1,
-   "fc_rev": 1995.09,
+   "fc_rev": 1954.34,
    "nc_roas": 0.59,
    "set": {
     "name": "Belts | Broad",
-    "spend": 2060,
+    "spend": 2017,
     "purchases": 19,
     "roas": 1.1,
-    "cpa": 108.42
+    "cpa": 106.16
    },
    "days": [
     {
@@ -331,13 +340,14 @@
      "date": "2026-11-22",
      "spend": 88.03,
      "revenue": 95.25
-    },
-    {
-     "date": "2026-11-23",
-     "spend": 123.45,
-     "revenue": 226.75
     }
-   ]
+   ],
+   "art": {
+    "kind": "belt",
+    "c1": "#1E3A8A",
+    "c2": "#C9A45C",
+    "bg": "#E6EAF3"
+   }
   },
   {
    "id": "ad06",
@@ -346,28 +356,28 @@
    "lead": false,
    "campaign": "Black Friday 2026",
    "adset": "Early sale | New people",
-   "spend": 1238,
-   "revenue": 3354.98,
+   "spend": 1212,
+   "revenue": 3284.52,
    "purchases": 28,
    "roas": 2.71,
-   "cpa": 44.21,
+   "cpa": 43.29,
    "leads": null,
    "cpl": null,
    "age": 19,
    "thumb": null,
-   "impressions": 78299,
+   "impressions": 76655,
    "cpm": 15.81,
    "ctr": 0.0085,
-   "clicks": 665,
+   "clicks": 651,
    "frequency": 1.64,
-   "fc_rev": 2717.54,
+   "fc_rev": 2660.47,
    "nc_roas": 1.68,
    "set": {
     "name": "Early sale | New people",
-    "spend": 7174,
+    "spend": 7025,
     "purchases": 138,
     "roas": 2.29,
-    "cpa": 51.99
+    "cpa": 50.91
    },
    "days": [
     {
@@ -434,13 +444,19 @@
      "date": "2026-11-22",
      "spend": 77.11,
      "revenue": 115.47
-    },
-    {
-     "date": "2026-11-23",
-     "spend": 53.07,
-     "revenue": 93.66
     }
-   ]
+   ],
+   "art": {
+    "kind": "ad",
+    "brand": "Northlake Golf",
+    "kicker": "Early sale",
+    "text": "The belt that fits your swing",
+    "foot": "northlakegolf.example",
+    "cta": "Shop now",
+    "c1": "#E9E4DA",
+    "c2": "#C9A45C",
+    "bg": "#9B2C2C"
+   }
   },
   {
    "id": "ad17",
@@ -449,33 +465,33 @@
    "lead": false,
    "campaign": "Evergreen | Broad",
    "adset": "Broad | New people",
-   "spend": 1188,
-   "revenue": 1437.48,
+   "spend": 1163,
+   "revenue": 1407.23,
    "purchases": 12,
    "roas": 1.21,
-   "cpa": 99.0,
+   "cpa": 96.92,
    "leads": null,
    "cpl": null,
    "age": 22,
    "thumb": null,
-   "impressions": 78067,
+   "impressions": 76424,
    "cpm": 15.22,
    "ctr": 0.0111,
-   "clicks": 866,
+   "clicks": 848,
    "frequency": 1.25,
-   "fc_rev": 1993.64,
+   "fc_rev": 1951.69,
    "nc_roas": 0.8,
    "set": {
     "name": "Broad | New people",
-    "spend": 1708,
+    "spend": 1672,
     "purchases": 14,
     "roas": 0.98,
-    "cpa": 122.0
+    "cpa": 119.43
    },
    "days": [
     {
      "date": "2026-11-10",
-     "spend": 61.0,
+     "spend": 61,
      "revenue": 55.52
     },
     {
@@ -537,13 +553,14 @@
      "date": "2026-11-22",
      "spend": 98.18,
      "revenue": 90.42
-    },
-    {
-     "date": "2026-11-23",
-     "spend": 75.81,
-     "revenue": 61.19
     }
-   ]
+   ],
+   "art": {
+    "kind": "box",
+    "c1": "#155E75",
+    "c2": "#C9A45C",
+    "bg": "#E4EEF0"
+   }
   },
   {
    "id": "ad01",
@@ -552,28 +569,28 @@
    "lead": false,
    "campaign": "Black Friday 2026",
    "adset": "Early sale | New people",
-   "spend": 1164,
-   "revenue": 3957.6,
+   "spend": 1140,
+   "revenue": 3876,
    "purchases": 34,
    "roas": 3.4,
-   "cpa": 34.24,
+   "cpa": 33.53,
    "leads": null,
    "cpl": null,
    "age": 21,
    "thumb": null,
-   "impressions": 50035,
+   "impressions": 49003,
    "cpm": 23.26,
    "ctr": 0.0135,
-   "clicks": 675,
+   "clicks": 661,
    "frequency": 2.68,
-   "fc_rev": 3548.77,
+   "fc_rev": 3475.6,
    "nc_roas": 1.8,
    "set": {
     "name": "Early sale | New people",
-    "spend": 7174,
+    "spend": 7025,
     "purchases": 138,
     "roas": 2.29,
-    "cpa": 51.99
+    "cpa": 50.91
    },
    "days": [
     {
@@ -640,13 +657,16 @@
      "date": "2026-11-22",
      "spend": 91.4,
      "revenue": 435.16
-    },
-    {
-     "date": "2026-11-23",
-     "spend": 105.79,
-     "revenue": 352.3
     }
-   ]
+   ],
+   "hook": 0.22726,
+   "hold": 0.3377,
+   "art": {
+    "kind": "green",
+    "c1": "#14532D",
+    "c2": "#1F2937",
+    "bg": "#E6EDE4"
+   }
   },
   {
    "id": "ad11",
@@ -655,28 +675,28 @@
    "lead": false,
    "campaign": "Black Friday 2026",
    "adset": "Early sale | New people",
-   "spend": 1104,
-   "revenue": 1324.8,
+   "spend": 1081,
+   "revenue": 1297.2,
    "purchases": 11,
    "roas": 1.2,
-   "cpa": 100.36,
+   "cpa": 98.27,
    "leads": null,
    "cpl": null,
    "age": 22,
    "thumb": null,
-   "impressions": 50559,
+   "impressions": 49506,
    "cpm": 21.84,
    "ctr": 0.0172,
-   "clicks": 869,
+   "clicks": 851,
    "frequency": 1.36,
-   "fc_rev": 1582.51,
+   "fc_rev": 1549.54,
    "nc_roas": 0.92,
    "set": {
     "name": "Early sale | New people",
-    "spend": 7174,
+    "spend": 7025,
     "purchases": 138,
     "roas": 2.29,
-    "cpa": 51.99
+    "cpa": 50.91
    },
    "days": [
     {
@@ -692,7 +712,7 @@
     {
      "date": "2026-11-12",
      "spend": 97.1,
-     "revenue": 97.0
+     "revenue": 97
     },
     {
      "date": "2026-11-13",
@@ -743,13 +763,19 @@
      "date": "2026-11-22",
      "spend": 48.21,
      "revenue": 85.09
-    },
-    {
-     "date": "2026-11-23",
-     "spend": 88.3,
-     "revenue": 108.78
     }
-   ]
+   ],
+   "art": {
+    "kind": "ad",
+    "brand": "Northlake Golf",
+    "kicker": "Early sale",
+    "text": "Two belts. One price.",
+    "foot": "northlakegolf.example",
+    "cta": "Shop now",
+    "c1": "#E9E4DA",
+    "c2": "#C9A45C",
+    "bg": "#1F2937"
+   }
   },
   {
    "id": "ad02",
@@ -758,28 +784,28 @@
    "lead": false,
    "campaign": "Black Friday 2026",
    "adset": "Early sale | Past buyers",
-   "spend": 986,
-   "revenue": 3549.6,
+   "spend": 966,
+   "revenue": 3477.6,
    "purchases": 29,
    "roas": 3.6,
-   "cpa": 34.0,
+   "cpa": 33.31,
    "leads": null,
    "cpl": null,
    "age": 22,
    "thumb": null,
-   "impressions": 39121,
+   "impressions": 38327,
    "cpm": 25.2,
    "ctr": 0.0121,
-   "clicks": 473,
+   "clicks": 463,
    "frequency": 2.86,
-   "fc_rev": 4769.03,
+   "fc_rev": 4672.3,
    "nc_roas": 1.89,
    "set": {
     "name": "Early sale | Past buyers",
-    "spend": 1859,
+    "spend": 1821,
     "purchases": 52,
     "roas": 3.37,
-    "cpa": 35.75
+    "cpa": 35.02
    },
    "days": [
     {
@@ -846,13 +872,14 @@
      "date": "2026-11-22",
      "spend": 83.12,
      "revenue": 316.13
-    },
-    {
-     "date": "2026-11-23",
-     "spend": 60.62,
-     "revenue": 222.24
     }
-   ]
+   ],
+   "art": {
+    "kind": "belt",
+    "c1": "#14532D",
+    "c2": "#C9A45C",
+    "bg": "#EAF0E6"
+   }
   },
   {
    "id": "ad14",
@@ -861,28 +888,28 @@
    "lead": false,
    "campaign": "Evergreen | Broad",
    "adset": "Whitelist | New people",
-   "spend": 944,
-   "revenue": 887.36,
+   "spend": 924,
+   "revenue": 868.56,
    "purchases": 7,
    "roas": 0.94,
-   "cpa": 134.86,
+   "cpa": 132,
    "leads": null,
    "cpl": null,
    "age": 22,
    "thumb": null,
-   "impressions": 45680,
+   "impressions": 44712,
    "cpm": 20.67,
    "ctr": 0.017,
-   "clicks": 776,
+   "clicks": 760,
    "frequency": 1.4,
-   "fc_rev": 979.88,
+   "fc_rev": 959.12,
    "nc_roas": 0.5,
    "set": {
     "name": "Whitelist | New people",
-    "spend": 944,
+    "spend": 924,
     "purchases": 7,
     "roas": 0.94,
-    "cpa": 134.86
+    "cpa": 132
    },
    "days": [
     {
@@ -949,13 +976,16 @@
      "date": "2026-11-22",
      "spend": 64.31,
      "revenue": 34.61
-    },
-    {
-     "date": "2026-11-23",
-     "spend": 53.44,
-     "revenue": 28.79
     }
-   ]
+   ],
+   "hook": 0.29648,
+   "hold": 0.24428,
+   "art": {
+    "kind": "golfer",
+    "c1": "#1E3A8A",
+    "c2": "#C9A45C",
+    "bg": "#E6EAF3"
+   }
   },
   {
    "id": "ad05",
@@ -964,28 +994,28 @@
    "lead": false,
    "campaign": "Black Friday 2026",
    "adset": "Early sale | Past buyers",
-   "spend": 873,
-   "revenue": 2706.3,
+   "spend": 855,
+   "revenue": 2650.5,
    "purchases": 23,
    "roas": 3.1,
-   "cpa": 37.96,
+   "cpa": 37.17,
    "leads": null,
    "cpl": null,
    "age": 22,
    "thumb": null,
-   "impressions": 39621,
+   "impressions": 38804,
    "cpm": 22.03,
    "ctr": 0.017,
-   "clicks": 673,
+   "clicks": 659,
    "frequency": 2.9,
-   "fc_rev": 1999.96,
+   "fc_rev": 1958.72,
    "nc_roas": 2.17,
    "set": {
     "name": "Early sale | Past buyers",
-    "spend": 1859,
+    "spend": 1821,
     "purchases": 52,
     "roas": 3.37,
-    "cpa": 35.75
+    "cpa": 35.02
    },
    "days": [
     {
@@ -1051,14 +1081,17 @@
     {
      "date": "2026-11-22",
      "spend": 40.62,
-     "revenue": 187.0
-    },
-    {
-     "date": "2026-11-23",
-     "spend": 76.74,
-     "revenue": 350.11
+     "revenue": 187
     }
-   ]
+   ],
+   "hook": 0.27205,
+   "hold": 0.19443000000000002,
+   "art": {
+    "kind": "green",
+    "c1": "#9B2C2C",
+    "c2": "#C9A45C",
+    "bg": "#F1E7DA"
+   }
   },
   {
    "id": "ad18",
@@ -1067,28 +1100,28 @@
    "lead": false,
    "campaign": "Black Friday 2026",
    "adset": "Early sale | New people",
-   "spend": 742,
-   "revenue": 593.6,
+   "spend": 727,
+   "revenue": 581.6,
    "purchases": 5,
    "roas": 0.8,
-   "cpa": 148.4,
+   "cpa": 145.4,
    "leads": null,
    "cpl": null,
    "age": 18,
    "thumb": null,
-   "impressions": 48632,
+   "impressions": 47649,
    "cpm": 15.26,
    "ctr": 0.0097,
-   "clicks": 471,
+   "clicks": 461,
    "frequency": 1.28,
-   "fc_rev": 772.33,
+   "fc_rev": 756.72,
    "nc_roas": 0.44,
    "set": {
     "name": "Early sale | New people",
-    "spend": 7174,
+    "spend": 7025,
     "purchases": 138,
     "roas": 2.29,
-    "cpa": 51.99
+    "cpa": 50.91
    },
    "days": [
     {
@@ -1114,7 +1147,7 @@
     {
      "date": "2026-11-14",
      "spend": 61.5,
-     "revenue": 29.0
+     "revenue": 29
     },
     {
      "date": "2026-11-15",
@@ -1155,13 +1188,16 @@
      "date": "2026-11-22",
      "spend": 71.09,
      "revenue": 43.67
-    },
-    {
-     "date": "2026-11-23",
-     "spend": 37.28,
-     "revenue": 30.63
     }
-   ]
+   ],
+   "hook": 0.25199,
+   "hold": 0.25012,
+   "art": {
+    "kind": "golfer",
+    "c1": "#155E75",
+    "c2": "#C9A45C",
+    "bg": "#E4EEF0"
+   }
   },
   {
    "id": "ad19",
@@ -1170,28 +1206,28 @@
    "lead": false,
    "campaign": "Evergreen | Broad",
    "adset": "Belts | Broad",
-   "spend": 664,
-   "revenue": 478.08,
+   "spend": 650,
+   "revenue": 468,
    "purchases": 4,
    "roas": 0.72,
-   "cpa": 166.0,
+   "cpa": 162.5,
    "leads": null,
    "cpl": null,
    "age": 17,
    "thumb": null,
-   "impressions": 39380,
+   "impressions": 38550,
    "cpm": 16.86,
    "ctr": 0.0075,
-   "clicks": 295,
+   "clicks": 289,
    "frequency": 1.51,
-   "fc_rev": 308.52,
+   "fc_rev": 302.02,
    "nc_roas": 0.37,
    "set": {
     "name": "Belts | Broad",
-    "spend": 2060,
+    "spend": 2017,
     "purchases": 19,
     "roas": 1.1,
-    "cpa": 108.42
+    "cpa": 106.16
    },
    "days": [
     {
@@ -1258,13 +1294,16 @@
      "date": "2026-11-22",
      "spend": 41.46,
      "revenue": 39.77
-    },
-    {
-     "date": "2026-11-23",
-     "spend": 55.27,
-     "revenue": 45.21
     }
-   ]
+   ],
+   "hook": 0.24225,
+   "hold": 0.21787,
+   "art": {
+    "kind": "green",
+    "c1": "#14532D",
+    "c2": "#1F2937",
+    "bg": "#E6EDE4"
+   }
   },
   {
    "id": "ad13",
@@ -1273,28 +1312,28 @@
    "lead": false,
    "campaign": "Evergreen | Broad",
    "adset": "Gifts under $50",
-   "spend": 612,
-   "revenue": 563.04,
+   "spend": 599,
+   "revenue": 551.08,
    "purchases": 9,
    "roas": 0.92,
-   "cpa": 68.0,
+   "cpa": 66.56,
    "leads": null,
    "cpl": null,
    "age": 22,
    "thumb": null,
-   "impressions": 32455,
+   "impressions": 31766,
    "cpm": 18.86,
    "ctr": 0.0109,
-   "clicks": 353,
+   "clicks": 346,
    "frequency": 1.3,
-   "fc_rev": 403.61,
+   "fc_rev": 395.04,
    "nc_roas": 0.44,
    "set": {
     "name": "Gifts under $50",
-    "spend": 1132,
+    "spend": 1109,
     "purchases": 13,
     "roas": 0.81,
-    "cpa": 87.08
+    "cpa": 85.31
    },
    "days": [
     {
@@ -1344,7 +1383,7 @@
     },
     {
      "date": "2026-11-19",
-     "spend": 60.0,
+     "spend": 60,
      "revenue": 44.69
     },
     {
@@ -1361,13 +1400,19 @@
      "date": "2026-11-22",
      "spend": 43.81,
      "revenue": 28.25
-    },
-    {
-     "date": "2026-11-23",
-     "spend": 43.88,
-     "revenue": 20.38
     }
-   ]
+   ],
+   "art": {
+    "kind": "ad",
+    "brand": "Northlake Golf",
+    "kicker": "Early sale",
+    "text": "Gift the golfer who has it all",
+    "foot": "northlakegolf.example",
+    "cta": "Shop now",
+    "c1": "#E9E4DA",
+    "c2": "#C9A45C",
+    "bg": "#1F2937"
+   }
   },
   {
    "id": "ad20",
@@ -1376,28 +1421,28 @@
    "lead": false,
    "campaign": "Evergreen | Broad",
    "adset": "Broad | New people",
-   "spend": 520,
-   "revenue": 239.2,
+   "spend": 509,
+   "revenue": 234.14,
    "purchases": 2,
    "roas": 0.46,
-   "cpa": 260.0,
+   "cpa": 254.5,
    "leads": null,
    "cpl": null,
    "age": 22,
    "thumb": null,
-   "impressions": 30285,
+   "impressions": 29644,
    "cpm": 17.17,
    "ctr": 0.0073,
-   "clicks": 221,
+   "clicks": 216,
    "frequency": 1.96,
-   "fc_rev": 152.49,
+   "fc_rev": 149.26,
    "nc_roas": 0.21,
    "set": {
     "name": "Broad | New people",
-    "spend": 1708,
+    "spend": 1672,
     "purchases": 14,
     "roas": 0.98,
-    "cpa": 122.0
+    "cpa": 119.43
    },
    "days": [
     {
@@ -1464,13 +1509,14 @@
      "date": "2026-11-22",
      "spend": 46.2,
      "revenue": 28.19
-    },
-    {
-     "date": "2026-11-23",
-     "spend": 39.64,
-     "revenue": 25.4
     }
-   ]
+   ],
+   "art": {
+    "kind": "box",
+    "c1": "#14532D",
+    "c2": "#C9A45C",
+    "bg": "#EAF0E6"
+   }
   },
   {
    "id": "ad15",
@@ -1479,28 +1525,28 @@
    "lead": false,
    "campaign": "Evergreen | Broad",
    "adset": "Gifts under $50",
-   "spend": 498,
-   "revenue": 353.58,
+   "spend": 488,
+   "revenue": 346.48,
    "purchases": 4,
    "roas": 0.71,
-   "cpa": 124.5,
+   "cpa": 122,
    "leads": null,
    "cpl": null,
    "age": 20,
    "thumb": null,
-   "impressions": 22437,
+   "impressions": 21986,
    "cpm": 22.2,
    "ctr": 0.0157,
-   "clicks": 352,
+   "clicks": 345,
    "frequency": 1.64,
-   "fc_rev": 222.06,
+   "fc_rev": 217.6,
    "nc_roas": 0.35,
    "set": {
     "name": "Gifts under $50",
-    "spend": 1132,
+    "spend": 1109,
     "purchases": 13,
     "roas": 0.81,
-    "cpa": 87.08
+    "cpa": 85.31
    },
    "days": [
     {
@@ -1567,13 +1613,19 @@
      "date": "2026-11-22",
      "spend": 32.23,
      "revenue": 22.4
-    },
-    {
-     "date": "2026-11-23",
-     "spend": 40.8,
-     "revenue": 36.7
     }
-   ]
+   ],
+   "art": {
+    "kind": "ad",
+    "brand": "Northlake Golf",
+    "kicker": "Early sale",
+    "text": "Free shipping this week",
+    "foot": "northlakegolf.example",
+    "cta": "Shop now",
+    "c1": "#E9E4DA",
+    "c2": "#C9A45C",
+    "bg": "#1E3A8A"
+   }
   },
   {
    "id": "ad04",
@@ -1582,28 +1634,28 @@
    "lead": false,
    "campaign": "Evergreen | Broad",
    "adset": "Creator | Dana Whitlock",
-   "spend": 412,
-   "revenue": 1322.52,
+   "spend": 403,
+   "revenue": 1293.63,
    "purchases": 11,
    "roas": 3.21,
-   "cpa": 37.45,
+   "cpa": 36.64,
    "leads": null,
    "cpl": null,
    "age": 16,
    "thumb": null,
-   "impressions": 19249,
+   "impressions": 18829,
    "cpm": 21.4,
    "ctr": 0.015,
-   "clicks": 288,
+   "clicks": 282,
    "frequency": 1.35,
-   "fc_rev": 968.99,
+   "fc_rev": 947.82,
    "nc_roas": 1.73,
    "set": {
     "name": "Creator | Dana Whitlock",
-    "spend": 412,
+    "spend": 403,
     "purchases": 11,
     "roas": 3.21,
-    "cpa": 37.45
+    "cpa": 36.64
    },
    "days": [
     {
@@ -1670,13 +1722,16 @@
      "date": "2026-11-22",
      "spend": 22.6,
      "revenue": 104.87
-    },
-    {
-     "date": "2026-11-23",
-     "spend": 22.62,
-     "revenue": 78.53
     }
-   ]
+   ],
+   "hook": 0.2011,
+   "hold": 0.23757,
+   "art": {
+    "kind": "golfer",
+    "c1": "#9B2C2C",
+    "c2": "#C9A45C",
+    "bg": "#F1E7DA"
+   }
   },
   {
    "id": "ad26",
@@ -1685,86 +1740,87 @@
    "lead": true,
    "campaign": "Evergreen | Broad",
    "adset": "Sign up | New people",
-   "spend": 410,
+   "spend": 402,
    "revenue": null,
    "purchases": null,
    "roas": null,
    "cpa": null,
    "leads": 672,
-   "cpl": 0.61,
+   "cpl": 0.6,
    "age": 10,
    "thumb": null,
-   "impressions": 26113,
+   "impressions": 25603,
    "cpm": 15.7,
    "ctr": 0.0133,
-   "clicks": 347,
+   "clicks": 340,
    "frequency": 3.01,
-   "fc_rev": 0.0,
+   "fc_rev": 0,
    "nc_roas": null,
    "set": {
     "name": "Sign up | New people",
-    "spend": 410,
+    "spend": 402,
     "purchases": 0,
-    "roas": 0.0,
+    "roas": 0,
     "cpa": null
    },
    "days": [
     {
      "date": "2026-11-13",
      "spend": 46.82,
-     "revenue": 0.0
+     "revenue": 0
     },
     {
      "date": "2026-11-14",
      "spend": 48.81,
-     "revenue": 0.0
+     "revenue": 0
     },
     {
      "date": "2026-11-15",
      "spend": 29.26,
-     "revenue": 0.0
+     "revenue": 0
     },
     {
      "date": "2026-11-16",
      "spend": 36.86,
-     "revenue": 0.0
+     "revenue": 0
     },
     {
      "date": "2026-11-17",
      "spend": 22.47,
-     "revenue": 0.0
+     "revenue": 0
     },
     {
      "date": "2026-11-18",
      "spend": 35.8,
-     "revenue": 0.0
+     "revenue": 0
     },
     {
      "date": "2026-11-19",
      "spend": 26.56,
-     "revenue": 0.0
+     "revenue": 0
     },
     {
      "date": "2026-11-20",
      "spend": 31.79,
-     "revenue": 0.0
+     "revenue": 0
     },
     {
      "date": "2026-11-21",
      "spend": 22.42,
-     "revenue": 0.0
+     "revenue": 0
     },
     {
      "date": "2026-11-22",
      "spend": 47.38,
-     "revenue": 0.0
-    },
-    {
-     "date": "2026-11-23",
-     "spend": 49.99,
-     "revenue": 0.0
+     "revenue": 0
     }
-   ]
+   ],
+   "art": {
+    "kind": "belt",
+    "c1": "#155E75",
+    "c2": "#C9A45C",
+    "bg": "#E4EEF0"
+   }
   },
   {
    "id": "ad16",
@@ -1773,28 +1829,28 @@
    "lead": false,
    "campaign": "Evergreen | Broad",
    "adset": "Creator | Owen Hart",
-   "spend": 402,
-   "revenue": 377.88,
+   "spend": 394,
+   "revenue": 370.36,
    "purchases": 3,
    "roas": 0.94,
-   "cpa": 134.0,
+   "cpa": 131.33,
    "leads": null,
    "cpl": null,
    "age": 13,
    "thumb": null,
-   "impressions": 16197,
+   "impressions": 15875,
    "cpm": 24.82,
    "ctr": 0.0101,
-   "clicks": 163,
+   "clicks": 160,
    "frequency": 1.91,
-   "fc_rev": 360.35,
+   "fc_rev": 353.18,
    "nc_roas": 0.75,
    "set": {
     "name": "Creator | Owen Hart",
-    "spend": 402,
+    "spend": 394,
     "purchases": 3,
     "roas": 0.94,
-    "cpa": 134.0
+    "cpa": 131.33
    },
    "days": [
     {
@@ -1861,13 +1917,16 @@
      "date": "2026-11-22",
      "spend": 27.59,
      "revenue": 32.49
-    },
-    {
-     "date": "2026-11-23",
-     "spend": 32.03,
-     "revenue": 23.67
     }
-   ]
+   ],
+   "hook": 0.3434,
+   "hold": 0.22231,
+   "art": {
+    "kind": "green",
+    "c1": "#14532D",
+    "c2": "#1F2937",
+    "bg": "#E6EDE4"
+   }
   },
   {
    "id": "ad07",
@@ -1876,28 +1935,28 @@
    "lead": false,
    "campaign": "Evergreen | Broad",
    "adset": "Creator | Marcus Bell",
-   "spend": 388,
-   "revenue": 931.2,
+   "spend": 380,
+   "revenue": 912,
    "purchases": 8,
    "roas": 2.4,
-   "cpa": 48.5,
+   "cpa": 47.5,
    "leads": null,
    "cpl": null,
    "age": 15,
    "thumb": null,
-   "impressions": 26597,
+   "impressions": 26049,
    "cpm": 14.59,
    "ctr": 0.019,
-   "clicks": 505,
+   "clicks": 495,
    "frequency": 1.44,
-   "fc_rev": 954.45,
+   "fc_rev": 934.77,
    "nc_roas": 1.37,
    "set": {
     "name": "Creator | Marcus Bell",
-    "spend": 388,
+    "spend": 380,
     "purchases": 8,
     "roas": 2.4,
-    "cpa": 48.5
+    "cpa": 47.5
    },
    "days": [
     {
@@ -1964,13 +2023,16 @@
      "date": "2026-11-22",
      "spend": 29.26,
      "revenue": 97.42
-    },
-    {
-     "date": "2026-11-23",
-     "spend": 33.25,
-     "revenue": 72.84
     }
-   ]
+   ],
+   "hook": 0.33914,
+   "hold": 0.21677000000000002,
+   "art": {
+    "kind": "golfer",
+    "c1": "#1F2937",
+    "c2": "#C9A45C",
+    "bg": "#E9E4DA"
+   }
   },
   {
    "id": "ad12",
@@ -1979,28 +2041,28 @@
    "lead": false,
    "campaign": "Evergreen | Broad",
    "adset": "Creator | Priya Nair",
-   "spend": 351,
-   "revenue": 603.72,
+   "spend": 344,
+   "revenue": 591.68,
    "purchases": 5,
    "roas": 1.72,
-   "cpa": 70.2,
+   "cpa": 68.8,
    "leads": null,
    "cpl": null,
    "age": 14,
    "thumb": null,
-   "impressions": 18506,
+   "impressions": 18137,
    "cpm": 18.97,
    "ctr": 0.0133,
-   "clicks": 246,
+   "clicks": 241,
    "frequency": 1.92,
-   "fc_rev": 545.99,
+   "fc_rev": 535.1,
    "nc_roas": 0.81,
    "set": {
     "name": "Creator | Priya Nair",
-    "spend": 351,
+    "spend": 344,
     "purchases": 5,
     "roas": 1.72,
-    "cpa": 70.2
+    "cpa": 68.8
    },
    "days": [
     {
@@ -2026,7 +2088,7 @@
     {
      "date": "2026-11-14",
      "spend": 20.03,
-     "revenue": 31.0
+     "revenue": 31
     },
     {
      "date": "2026-11-15",
@@ -2067,13 +2129,16 @@
      "date": "2026-11-22",
      "spend": 32.2,
      "revenue": 81.54
-    },
-    {
-     "date": "2026-11-23",
-     "spend": 20.03,
-     "revenue": 20.98
     }
-   ]
+   ],
+   "hook": 0.28596,
+   "hold": 0.31292000000000003,
+   "art": {
+    "kind": "green",
+    "c1": "#14532D",
+    "c2": "#C9A45C",
+    "bg": "#EAF0E6"
+   }
   },
   {
    "id": "ad09",
@@ -2082,28 +2147,28 @@
    "lead": false,
    "campaign": "Evergreen | Broad",
    "adset": "Creator pool",
-   "spend": 296,
-   "revenue": 976.8,
+   "spend": 290,
+   "revenue": 957,
    "purchases": 8,
    "roas": 3.3,
-   "cpa": 37.0,
+   "cpa": 36.25,
    "leads": null,
    "cpl": null,
    "age": 9,
    "thumb": null,
-   "impressions": 18672,
+   "impressions": 18294,
    "cpm": 15.85,
    "ctr": 0.0133,
-   "clicks": 248,
+   "clicks": 243,
    "frequency": 2.5,
-   "fc_rev": 1413.76,
+   "fc_rev": 1385.1,
    "nc_roas": 2.32,
    "set": {
     "name": "Creator pool",
-    "spend": 382,
+    "spend": 374,
     "purchases": 9,
     "roas": 2.87,
-    "cpa": 42.44
+    "cpa": 41.56
    },
    "days": [
     {
@@ -2150,13 +2215,16 @@
      "date": "2026-11-22",
      "spend": 30.18,
      "revenue": 107.85
-    },
-    {
-     "date": "2026-11-23",
-     "spend": 26.95,
-     "revenue": 64.35
     }
-   ]
+   ],
+   "hook": 0.27812,
+   "hold": 0.19025999999999998,
+   "art": {
+    "kind": "golfer",
+    "c1": "#1E3A8A",
+    "c2": "#C9A45C",
+    "bg": "#E6EAF3"
+   }
   },
   {
    "id": "ad24",
@@ -2165,28 +2233,28 @@
    "lead": false,
    "campaign": "Evergreen | Broad",
    "adset": "Belts | Broad",
-   "spend": 74,
-   "revenue": 118.4,
+   "spend": 72,
+   "revenue": 115.2,
    "purchases": 1,
    "roas": 1.6,
-   "cpa": 74.0,
+   "cpa": 72,
    "leads": null,
    "cpl": null,
    "age": 5,
    "thumb": null,
-   "impressions": 3488,
-   "cpm": 21.22,
+   "impressions": 3394,
+   "cpm": 21.21,
    "ctr": 0.0061,
-   "clicks": 21,
+   "clicks": 20,
    "frequency": 1.77,
-   "fc_rev": 120.13,
+   "fc_rev": 116.88,
    "nc_roas": 1.26,
    "set": {
     "name": "Belts | Broad",
-    "spend": 2060,
+    "spend": 2017,
     "purchases": 19,
     "roas": 1.1,
-    "cpa": 108.42
+    "cpa": 106.16
    },
    "days": [
     {
@@ -2202,7 +2270,7 @@
     {
      "date": "2026-11-20",
      "spend": 9.84,
-     "revenue": 23.0
+     "revenue": 23
     },
     {
      "date": "2026-11-21",
@@ -2213,13 +2281,19 @@
      "date": "2026-11-22",
      "spend": 7.61,
      "revenue": 12.16
-    },
-    {
-     "date": "2026-11-23",
-     "spend": 14.05,
-     "revenue": 20.68
     }
-   ]
+   ],
+   "art": {
+    "kind": "ad",
+    "brand": "Northlake Golf",
+    "kicker": "Early sale",
+    "text": "Built for 18 holes",
+    "foot": "northlakegolf.example",
+    "cta": "Shop now",
+    "c1": "#E9E4DA",
+    "c2": "#C9A45C",
+    "bg": "#9B2C2C"
+   }
   },
   {
    "id": "ad23",
@@ -2228,7 +2302,7 @@
    "lead": false,
    "campaign": "Evergreen | Broad",
    "adset": "Creator | Lena Ortiz",
-   "spend": 61,
+   "spend": 60,
    "revenue": 0,
    "purchases": 0,
    "roas": null,
@@ -2237,47 +2311,50 @@
    "cpl": null,
    "age": 4,
    "thumb": null,
-   "impressions": 3569,
+   "impressions": 3510,
    "cpm": 17.09,
    "ctr": 0.0153,
-   "clicks": 54,
+   "clicks": 53,
    "frequency": 2.96,
-   "fc_rev": 0.0,
+   "fc_rev": 0,
    "nc_roas": null,
    "set": {
     "name": "Creator | Lena Ortiz",
-    "spend": 61,
+    "spend": 60,
     "purchases": 0,
-    "roas": 0.0,
+    "roas": 0,
     "cpa": null
    },
    "days": [
     {
      "date": "2026-11-19",
      "spend": 7.65,
-     "revenue": 0.0
+     "revenue": 0
     },
     {
      "date": "2026-11-20",
      "spend": 11.42,
-     "revenue": 0.0
+     "revenue": 0
     },
     {
      "date": "2026-11-21",
      "spend": 9.25,
-     "revenue": 0.0
+     "revenue": 0
     },
     {
      "date": "2026-11-22",
      "spend": 14.53,
-     "revenue": 0.0
-    },
-    {
-     "date": "2026-11-23",
-     "spend": 9.32,
-     "revenue": 0.0
+     "revenue": 0
     }
-   ]
+   ],
+   "hook": 0.21743,
+   "hold": 0.25649,
+   "art": {
+    "kind": "green",
+    "c1": "#155E75",
+    "c2": "#C9A45C",
+    "bg": "#E4EEF0"
+   }
   },
   {
    "id": "ad21",
@@ -2286,7 +2363,7 @@
    "lead": false,
    "campaign": "Evergreen | Broad",
    "adset": "Creator pool",
-   "spend": 48,
+   "spend": 47,
    "revenue": 0,
    "purchases": 0,
    "roas": null,
@@ -2295,37 +2372,38 @@
    "cpl": null,
    "age": 2,
    "thumb": null,
-   "impressions": 2705,
+   "impressions": 2649,
    "cpm": 17.74,
    "ctr": 0.0175,
-   "clicks": 47,
+   "clicks": 46,
    "frequency": 1.64,
-   "fc_rev": 0.0,
+   "fc_rev": 0,
    "nc_roas": null,
    "set": {
     "name": "Creator pool",
-    "spend": 382,
+    "spend": 374,
     "purchases": 9,
     "roas": 2.87,
-    "cpa": 42.44
+    "cpa": 41.56
    },
    "days": [
     {
      "date": "2026-11-21",
      "spend": 19.33,
-     "revenue": 0.0
+     "revenue": 0
     },
     {
      "date": "2026-11-22",
      "spend": 21.78,
-     "revenue": 0.0
-    },
-    {
-     "date": "2026-11-23",
-     "spend": 12.0,
-     "revenue": 0.0
+     "revenue": 0
     }
-   ]
+   ],
+   "art": {
+    "kind": "box",
+    "c1": "#14532D",
+    "c2": "#1F2937",
+    "bg": "#E6EDE4"
+   }
   },
   {
    "id": "ad22",
@@ -2334,28 +2412,28 @@
    "lead": false,
    "campaign": "Evergreen | Broad",
    "adset": "Creator pool",
-   "spend": 38,
-   "revenue": 117.8,
+   "spend": 37,
+   "revenue": 114.7,
    "purchases": 1,
    "roas": 3.1,
-   "cpa": 38.0,
+   "cpa": 37,
    "leads": null,
    "cpl": null,
    "age": 2,
    "thumb": null,
-   "impressions": 1999,
+   "impressions": 1946,
    "cpm": 19.01,
    "ctr": 0.0153,
-   "clicks": 30,
-   "frequency": 3.0,
-   "fc_rev": 86.2,
+   "clicks": 29,
+   "frequency": 3,
+   "fc_rev": 83.93,
    "nc_roas": 1.82,
    "set": {
     "name": "Creator pool",
-    "spend": 382,
+    "spend": 374,
     "purchases": 9,
     "roas": 2.87,
-    "cpa": 42.44
+    "cpa": 41.56
    },
    "days": [
     {
@@ -2367,13 +2445,16 @@
      "date": "2026-11-22",
      "spend": 9.04,
      "revenue": 15.46
-    },
-    {
-     "date": "2026-11-23",
-     "spend": 8.21,
-     "revenue": 22.74
     }
-   ]
+   ],
+   "hook": 0.25762999999999997,
+   "hold": 0.19235,
+   "art": {
+    "kind": "golfer",
+    "c1": "#1F2937",
+    "c2": "#C9A45C",
+    "bg": "#E9E4DA"
+   }
   },
   {
    "id": "ad25",
@@ -2396,27 +2477,33 @@
    "ctr": 0.0184,
    "clicks": 16,
    "frequency": 2.59,
-   "fc_rev": 0.0,
+   "fc_rev": 0,
    "nc_roas": null,
    "set": {
     "name": "Gifts under $50",
-    "spend": 1132,
+    "spend": 1109,
     "purchases": 13,
     "roas": 0.81,
-    "cpa": 87.08
+    "cpa": 85.31
    },
    "days": [
     {
      "date": "2026-11-22",
      "spend": 14.8,
-     "revenue": 0.0
-    },
-    {
-     "date": "2026-11-23",
-     "spend": 8.23,
-     "revenue": 0.0
+     "revenue": 0
     }
-   ]
+   ],
+   "art": {
+    "kind": "ad",
+    "brand": "Northlake Golf",
+    "kicker": "Early sale",
+    "text": "Black Friday: 40% off belts",
+    "foot": "northlakegolf.example",
+    "cta": "Shop now",
+    "c1": "#E9E4DA",
+    "c2": "#C9A45C",
+    "bg": "#14532D"
+   }
   }
  ]
 }

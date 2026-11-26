@@ -381,7 +381,7 @@ const CSS = `
 .ps-h h3{font-size:15px;font-weight:600}
 .ps-h span{font-size:12.5px;color:var(--muted)}
 .ps-h a{margin-left:auto}
-.ps-link{font-size:12.5px;font-weight:550;color:var(--ink);text-decoration:underline;text-underline-offset:3px}
+.ps-link{font-size:12.5px;font-weight:500;color:var(--ink);text-decoration:underline;text-underline-offset:3px}
 .ps-none{font-size:13px;color:var(--muted)}
 .ps-brief{display:grid;grid-template-columns:96px minmax(0,1fr);gap:8px 14px;margin:0}
 .ps-brief dt{padding-top:3px;white-space:normal}
@@ -389,7 +389,7 @@ const CSS = `
 .ps-files{display:grid}
 .ps-files a{display:grid;grid-template-columns:minmax(0,1fr) 110px 70px 120px;gap:12px;align-items:center;padding:9px 0;border-top:1px solid var(--line);font-size:13px;color:var(--ink-2);text-decoration:none}
 .ps-files a:first-child{border-top:0}
-.ps-files b{font-weight:550;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ps-files b{font-weight:500;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ps-files a.old b,.ps-files a.old{color:var(--muted)}
 .ps-files span{font-variant-numeric:tabular-nums}
 .ps-notes{display:grid}

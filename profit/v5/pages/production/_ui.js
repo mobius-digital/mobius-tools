@@ -168,7 +168,7 @@ const CSS = `
 .pd-pic>img,.pd-pic>svg{width:100%;height:100%;object-fit:cover;display:block}
 .pd-pic-none{color:var(--icon);display:grid;place-items:center}
 .pd-pic-none .lx-ic{width:22px;height:22px}
-.pd-art-t{padding:10px;font-size:13px;font-weight:650;letter-spacing:-.01em;line-height:1.2;color:#fff;text-align:center}
+.pd-art-t{padding:10px;font-size:13px;font-weight:600;letter-spacing:-.01em;line-height:1.2;color:#fff;text-align:center}
 .pd-pic:has(.pd-admock){container-type:inline-size;place-items:stretch}
 .pd-admock{display:grid;grid-template-rows:auto auto auto 1fr auto;gap:2.500cqw;padding:7cqw;color:#fff;text-align:left;min-width:0}
 .pd-admock .m{font-size:3.600cqw;font-weight:700;letter-spacing:.16em;text-transform:uppercase;opacity:.9}
@@ -176,7 +176,7 @@ const CSS = `
 .pd-admock b{font-size:9.500cqw;line-height:1.04;letter-spacing:-.03em;font-weight:700}
 .pd-admock svg{width:100%;height:100%;min-height:0}
 .pd-admock .f{font-size:3.600cqw;opacity:.8}
-.pd-admock .c{position:absolute;right:7cqw;bottom:6cqw;padding:2cqw 4.500cqw;border-radius:99px;background:#fff;color:#16130F;font-size:3.400cqw;font-weight:650}
+.pd-admock .c{position:absolute;right:7cqw;bottom:6cqw;padding:2cqw 4.500cqw;border-radius:99px;background:#fff;color:#16130F;font-size:3.400cqw;font-weight:600}
 .pb-week{display:grid;gap:8px}
 .pb-week>div:first-child{display:flex;justify-content:space-between;gap:12px;font-size:13px;color:var(--muted)}
 .pb-week b{color:var(--ink);font-weight:600}
@@ -227,7 +227,7 @@ const CSS = `
 .pd-by>div{min-width:0}
 .pd-search{max-width:280px;flex:1 1 200px}
 .pd-chips{display:flex;gap:6px;flex-wrap:wrap}
-.pd-chips button{height:30px;padding:0 12px;border:0;border-radius:999px;background:var(--bg-sunk);color:var(--ink-2);font-size:13px;font-weight:550;cursor:pointer}
+.pd-chips button{height:30px;padding:0 12px;border:0;border-radius:999px;background:var(--bg-sunk);color:var(--ink-2);font-size:13px;font-weight:500;cursor:pointer}
 .pd-chips button.on{background:var(--ink);color:#fff}
 .pd-chips button span{margin-left:6px;opacity:.65;font-variant-numeric:tabular-nums}
 .pd-cell{display:flex;align-items:center;gap:10px;min-width:0}

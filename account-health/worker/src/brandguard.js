@@ -239,7 +239,7 @@ export const CLIENT_RULES = [
   R('GET', '/api/brands', 'none', { postIds: ids => b => { if (b && Array.isArray(b.brands)) b.brands = b.brands.filter(x => x && ids.has(x.id)); return b; } }),
   /* Per-person preferences (prefs.js, 2026-10-11): the morning DM switch, the nudge card's Not now and Done. */
   R('GET', '/api/me/prefs', 'none'),
-  R('PUT', '/api/me/prefs', 'none', { fields: ['morning_dm', 'nudge'] }),
+  R('PUT', '/api/me/prefs', 'none', { fields: ['morning_dm', 'nudge', 'home_tiles'] }),
   R('GET', '/api/me/morning', 'none'),
   R('POST', '/api/me/morning', 'none'),
   /* Automations (automations.js, 2026-11-25): a client's own bell and its own delivery choices. The handler holds a

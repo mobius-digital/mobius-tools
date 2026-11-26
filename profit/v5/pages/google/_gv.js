@@ -17,7 +17,7 @@ const CSS = `
 .gv-play{position:absolute;left:50%;top:50%;width:40px;height:40px;margin:-20px 0 0 -20px;border-radius:50%;background:#fff;box-shadow:0 2px 10px rgba(28,20,10,.18)}
 .gv-play::after{content:"";position:absolute;left:16px;top:13px;border-left:10px solid var(--ink);border-top:7px solid transparent;border-bottom:7px solid transparent}
 .gv-dur{position:absolute;right:8px;bottom:8px;padding:2px 7px;border-radius:7px;background:rgba(22,19,15,.86);color:#fff;font-size:11.5px;font-weight:600;font-variant-numeric:tabular-nums}
-.gv-tag{position:absolute;left:8px;top:8px;padding:2px 9px;border-radius:999px;background:#fff;font-size:11.5px;font-weight:550;box-shadow:0 0 0 1px var(--line-strong)}
+.gv-tag{position:absolute;left:8px;top:8px;padding:2px 9px;border-radius:999px;background:#fff;font-size:11.5px;font-weight:500;box-shadow:0 0 0 1px var(--line-strong)}
 .gv-vid h4{margin:0;font-size:15px;font-weight:600;letter-spacing:-.015em;overflow-wrap:anywhere}
 .gv-vid .sub{font-size:12.5px;color:var(--muted);line-height:1.45}
 .gv-roas{display:flex;align-items:flex-end;justify-content:space-between;gap:10px}
@@ -45,7 +45,7 @@ const CSS = `
 .gv-asset .sw{flex:none;width:42px;height:42px;border-radius:10px;background:linear-gradient(180deg,#F1EFEC,#E2DFD9);display:grid;place-items:center;font-family:var(--serif);font-size:17px;color:var(--ink-2);position:relative}
 .gv-asset .sw.v::after{content:"";width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(28,20,10,.2)}
 .gv-asset .t{min-width:0;flex:1}
-.gv-asset .t b{display:block;font-size:13.5px;font-weight:550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gv-asset .t b{display:block;font-size:13.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .gv-asset .t span{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
 .gv-bar{display:inline-block;width:150px;max-width:100%;height:4px;border-radius:999px;background:var(--bg-sunk);position:relative;vertical-align:middle}
 .gv-bar::after{content:"";position:absolute;left:0;top:0;bottom:0;width:var(--v,0%);background:var(--ink);border-radius:999px}

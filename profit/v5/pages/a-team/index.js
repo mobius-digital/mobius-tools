@@ -25,13 +25,13 @@ const CSS = `
 .tm-n{text-align:right;display:grid;justify-items:end;gap:4px}
 .tm-n b{font-size:16px;font-variant-numeric:tabular-nums}
 .tm-t{display:grid;gap:3px;min-width:0}
-.tm-t b{font-weight:550;font-size:14px}
+.tm-t b{font-weight:500;font-size:14px}
 .tm-t small{color:var(--muted);font-size:12.5px}
 .tm-legend{display:flex;gap:16px;align-items:center;font-size:12.5px;color:var(--muted);padding:0 28px 10px}
 .tm-legend i{display:inline-block;width:14px;height:14px;border-radius:4px;background:var(--bg-sunk);vertical-align:-3px;margin-right:6px}
 .tm-legend i.now{box-shadow:inset 0 0 0 1.5px var(--ink)}
 .tm-legend i.late{background:var(--bad-bg)}
-.tm-warn{margin:0;padding:10px 14px;border-radius:12px;background:var(--bad-bg);color:var(--bad);font-size:13.5px;font-weight:550}
+.tm-warn{margin:0;padding:10px 14px;border-radius:12px;background:var(--bad-bg);color:var(--bad);font-size:13.5px;font-weight:500}
 .tm-sh{display:grid;gap:18px}
 .tm-who{display:flex;align-items:center;gap:12px}
 .tm-who b{display:block;font-size:16px;font-weight:600}
@@ -39,10 +39,10 @@ const CSS = `
 .tm-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .tm-tile{display:grid;gap:3px;padding:12px 14px;border-radius:14px;background:var(--bg-sunk)}
 .tm-tile .l{font-size:12.5px;font-weight:600;color:var(--muted)}
-.tm-tile .v{font-size:var(--num-m);font-weight:650;font-variant-numeric:tabular-nums}
+.tm-tile .v{font-size:var(--num-m);font-weight:600;font-variant-numeric:tabular-nums}
 .tm-tile .v.bad{color:var(--bad)}
 .tm-grp{display:grid;gap:2px}
-.tm-grp>h4{margin:0 0 4px;font-size:12px;font-weight:650;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.tm-grp>h4{margin:0 0 4px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .tm-grp>h4.bad{color:var(--bad)}
 .tm-task{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-top:1px solid var(--line)}
 .tm-task i{flex:none;width:10px;height:10px;border-radius:3px;margin-top:5px;background:var(--dot)}

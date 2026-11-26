@@ -2,7 +2,7 @@
    Each row has Yes and No (../meta/_write.js: the same routes and bodies as old Locus buyer.js), so a buyer
    can work through every brand from one list. A viewer sees the list with no buttons.
    Real: account-health GET /api/buyer-list?act=all&ads=0 (rows not yet decided today). */
-import { em, h, statusDot, addStyles } from '../../kit.js';
+import { h, statusDot, addStyles } from '../../kit.js';
 import { world } from '../a-today/_ag.js';
 import { renderSuggestions } from '../a-today/_more.js';
 import { canWrite, yesNo } from '../meta/_write.js';
@@ -57,7 +57,7 @@ function render(el, d, ctx) {
 }
 
 export default {
-  title: ['What should we change ', em('in Meta today?')],
+  title: 'Suggestions for Meta, all brands',
   eyebrow: 'Meta, all brands',
   ranges: false,
   asOf: d => d && d.as_of,

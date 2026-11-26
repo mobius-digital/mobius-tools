@@ -24,7 +24,7 @@ const CSS = `
 .cs-second .lx-cellbar{display:block;width:100%;margin-left:0}
 .cs-second .cs-bar{padding-left:28px;width:46%}
 .cs-tip{display:flex;align-items:center;gap:10px;padding:14px 28px 20px;border-top:1px solid var(--line);font-size:14px;color:var(--ink-2)}
-.cs-tip b{color:var(--ink);font-weight:650}
+.cs-tip b{color:var(--ink);font-weight:600}
 .cs-kpis .lx-kpi .s{flex-wrap:wrap}
 .cs-go{display:grid;gap:0;padding:4px 16px 12px}
 .cs-go a{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 16px;align-items:center;padding:14px 12px;border-radius:12px;color:inherit;text-decoration:none}

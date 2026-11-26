@@ -1,0 +1,2466 @@
+{
+ "_note": "Sample world only. Made up numbers that agree with pages/meta/_sample/top-ads.json.",
+ "window": {
+  "from": "2026-11-01",
+  "to": "2026-11-22",
+  "label": "Nov 1 to 22"
+ },
+ "currency": "USD",
+ "goals": {
+  "roas": 3,
+  "cpa": 40
+ },
+ "ads": [
+  {
+   "id": "ad08",
+   "name": "First tee, slow motion",
+   "media_type": "video",
+   "status": "ACTIVE",
+   "campaign": "Black Friday 2026",
+   "adset_id": "200000000001",
+   "adset_name": "Early sale | New people",
+   "obj": "sales",
+   "first_spend": null,
+   "age": 22,
+   "spend": 1474,
+   "revenue": 2712.16,
+   "purchases": 23,
+   "roas": 1.84,
+   "cpa": 64.09,
+   "impressions": 82410,
+   "clicks": 668,
+   "atc": 71,
+   "checkouts": 35,
+   "ctr": 0.0081,
+   "cpm": 17.89,
+   "cpc": 2.21,
+   "frequency": 2.44,
+   "hook": 0.28102,
+   "hold": 0.19257,
+   "lc_rev": 2712.16,
+   "fc_rev": 1804.11,
+   "lc_orders": 23,
+   "fc_orders": 15,
+   "nc": 13,
+   "nc_fc": 11,
+   "platform_purchases": 29,
+   "platform_revenue": 3400.26,
+   "leads": null,
+   "cpl": null,
+   "days": [
+    {
+     "date": "2026-11-10",
+     "spend": 96.01,
+     "revenue": 98.58
+    },
+    {
+     "date": "2026-11-11",
+     "spend": 108.21,
+     "revenue": 107.02
+    },
+    {
+     "date": "2026-11-12",
+     "spend": 101.86,
+     "revenue": 106.8
+    },
+    {
+     "date": "2026-11-13",
+     "spend": 72.35,
+     "revenue": 123.08
+    },
+    {
+     "date": "2026-11-14",
+     "spend": 135.7,
+     "revenue": 155.76
+    },
+    {
+     "date": "2026-11-15",
+     "spend": 83.75,
+     "revenue": 173.74
+    },
+    {
+     "date": "2026-11-16",
+     "spend": 146.1,
+     "revenue": 289.55
+    },
+    {
+     "date": "2026-11-17",
+     "spend": 98.68,
+     "revenue": 268.05
+    },
+    {
+     "date": "2026-11-18",
+     "spend": 68.55,
+     "revenue": 171.35
+    },
+    {
+     "date": "2026-11-19",
+     "spend": 89.47,
+     "revenue": 106.06
+    },
+    {
+     "date": "2026-11-20",
+     "spend": 74.68,
+     "revenue": 111.09
+    },
+    {
+     "date": "2026-11-21",
+     "spend": 134.78,
+     "revenue": 168.82
+    },
+    {
+     "date": "2026-11-22",
+     "spend": 114.59,
+     "revenue": 240.13
+    }
+   ]
+  },
+  {
+   "id": "ad03",
+   "name": "Two belts, one buckle",
+   "media_type": "image",
+   "status": "ACTIVE",
+   "campaign": "Black Friday 2026",
+   "adset_id": "200000000001",
+   "adset_name": "Early sale | New people",
+   "obj": "sales",
+   "first_spend": null,
+   "age": 22,
+   "spend": 1391,
+   "revenue": 4339.92,
+   "purchases": 37,
+   "roas": 3.12,
+   "cpa": 37.59,
+   "impressions": 94282,
+   "clicks": 641,
+   "atc": 115,
+   "checkouts": 58,
+   "ctr": 0.0068,
+   "cpm": 14.75,
+   "cpc": 2.17,
+   "frequency": 1.59,
+   "hook": null,
+   "hold": null,
+   "lc_rev": 4339.92,
+   "fc_rev": 5261.55,
+   "lc_orders": 37,
+   "fc_orders": 45,
+   "nc": 23,
+   "nc_fc": 31,
+   "platform_purchases": 47,
+   "platform_revenue": 5667.92,
+   "leads": null,
+   "cpl": null,
+   "days": [
+    {
+     "date": "2026-11-10",
+     "spend": 86.35,
+     "revenue": 292.46
+    },
+    {
+     "date": "2026-11-11",
+     "spend": 97.63,
+     "revenue": 243.61
+    },
+    {
+     "date": "2026-11-12",
+     "spend": 125.32,
+     "revenue": 468.8
+    },
+    {
+     "date": "2026-11-13",
+     "spend": 80.66,
+     "revenue": 270.39
+    },
+    {
+     "date": "2026-11-14",
+     "spend": 103.47,
+     "revenue": 443.93
+    },
+    {
+     "date": "2026-11-15",
+     "spend": 120.05,
+     "revenue": 295.13
+    },
+    {
+     "date": "2026-11-16",
+     "spend": 140.39,
+     "revenue": 270.72
+    },
+    {
+     "date": "2026-11-17",
+     "spend": 94.78,
+     "revenue": 371.75
+    },
+    {
+     "date": "2026-11-18",
+     "spend": 73.19,
+     "revenue": 225.83
+    },
+    {
+     "date": "2026-11-19",
+     "spend": 64.04,
+     "revenue": 233.42
+    },
+    {
+     "date": "2026-11-20",
+     "spend": 122.9,
+     "revenue": 411.45
+    },
+    {
+     "date": "2026-11-21",
+     "spend": 131.9,
+     "revenue": 334.88
+    },
+    {
+     "date": "2026-11-22",
+     "spend": 117.28,
+     "revenue": 400.44
+    }
+   ]
+  },
+  {
+   "id": "ad10",
+   "name": "Belt wall, studio",
+   "media_type": "image",
+   "status": "ACTIVE",
+   "campaign": "Evergreen | Broad",
+   "adset_id": "200000000002",
+   "adset_name": "Belts | Broad",
+   "obj": "sales",
+   "first_spend": null,
+   "age": 22,
+   "spend": 1295,
+   "revenue": 1631.7,
+   "purchases": 14,
+   "roas": 1.26,
+   "cpa": 92.5,
+   "impressions": 53780,
+   "clicks": 1032,
+   "atc": 108,
+   "checkouts": 47,
+   "ctr": 0.0192,
+   "cpm": 24.08,
+   "cpc": 1.25,
+   "frequency": 2.1,
+   "hook": null,
+   "hold": null,
+   "lc_rev": 1631.7,
+   "fc_rev": 1954.34,
+   "lc_orders": 14,
+   "fc_orders": 17,
+   "nc": 9,
+   "nc_fc": 12,
+   "platform_purchases": 18,
+   "platform_revenue": 2133.98,
+   "leads": null,
+   "cpl": null,
+   "days": [
+    {
+     "date": "2026-11-10",
+     "spend": 109.65,
+     "revenue": 158.49
+    },
+    {
+     "date": "2026-11-11",
+     "spend": 131.68,
+     "revenue": 219.33
+    },
+    {
+     "date": "2026-11-12",
+     "spend": 78.16,
+     "revenue": 87.23
+    },
+    {
+     "date": "2026-11-13",
+     "spend": 107.17,
+     "revenue": 70.56
+    },
+    {
+     "date": "2026-11-14",
+     "spend": 91.53,
+     "revenue": 77.04
+    },
+    {
+     "date": "2026-11-15",
+     "spend": 65.5,
+     "revenue": 46.13
+    },
+    {
+     "date": "2026-11-16",
+     "spend": 114.69,
+     "revenue": 90.95
+    },
+    {
+     "date": "2026-11-17",
+     "spend": 75.36,
+     "revenue": 84.6
+    },
+    {
+     "date": "2026-11-18",
+     "spend": 122.49,
+     "revenue": 89.61
+    },
+    {
+     "date": "2026-11-19",
+     "spend": 90.59,
+     "revenue": 119.79
+    },
+    {
+     "date": "2026-11-20",
+     "spend": 123.39,
+     "revenue": 205.11
+    },
+    {
+     "date": "2026-11-21",
+     "spend": 121.92,
+     "revenue": 119.58
+    },
+    {
+     "date": "2026-11-22",
+     "spend": 88.03,
+     "revenue": 95.25
+    }
+   ]
+  },
+  {
+   "id": "ad06",
+   "name": "Gift box, flat lay",
+   "media_type": "image",
+   "status": "ACTIVE",
+   "campaign": "Black Friday 2026",
+   "adset_id": "200000000001",
+   "adset_name": "Early sale | New people",
+   "obj": "sales",
+   "first_spend": null,
+   "age": 19,
+   "spend": 1212,
+   "revenue": 3284.52,
+   "purchases": 28,
+   "roas": 2.71,
+   "cpa": 43.29,
+   "impressions": 76655,
+   "clicks": 651,
+   "atc": 87,
+   "checkouts": 43,
+   "ctr": 0.0085,
+   "cpm": 15.81,
+   "cpc": 1.86,
+   "frequency": 1.64,
+   "hook": null,
+   "hold": null,
+   "lc_rev": 3284.52,
+   "fc_rev": 2660.47,
+   "lc_orders": 28,
+   "fc_orders": 23,
+   "nc": 18,
+   "nc_fc": 16,
+   "platform_purchases": 35,
+   "platform_revenue": 3920.93,
+   "leads": null,
+   "cpl": null,
+   "days": [
+    {
+     "date": "2026-11-10",
+     "spend": 94.73,
+     "revenue": 195.81
+    },
+    {
+     "date": "2026-11-11",
+     "spend": 53.35,
+     "revenue": 132.86
+    },
+    {
+     "date": "2026-11-12",
+     "spend": 79.18,
+     "revenue": 228.81
+    },
+    {
+     "date": "2026-11-13",
+     "spend": 120.48,
+     "revenue": 388.7
+    },
+    {
+     "date": "2026-11-14",
+     "spend": 89.52,
+     "revenue": 271.13
+    },
+    {
+     "date": "2026-11-15",
+     "spend": 100.89,
+     "revenue": 151.47
+    },
+    {
+     "date": "2026-11-16",
+     "spend": 116.69,
+     "revenue": 404.76
+    },
+    {
+     "date": "2026-11-17",
+     "spend": 114.92,
+     "revenue": 404.2
+    },
+    {
+     "date": "2026-11-18",
+     "spend": 80.82,
+     "revenue": 196.9
+    },
+    {
+     "date": "2026-11-19",
+     "spend": 60.38,
+     "revenue": 185.6
+    },
+    {
+     "date": "2026-11-20",
+     "spend": 57.46,
+     "revenue": 88.35
+    },
+    {
+     "date": "2026-11-21",
+     "spend": 67.83,
+     "revenue": 121.74
+    },
+    {
+     "date": "2026-11-22",
+     "spend": 77.11,
+     "revenue": 115.47
+    }
+   ]
+  },
+  {
+   "id": "ad17",
+   "name": "Brown strap, on course",
+   "media_type": "image",
+   "status": "ACTIVE",
+   "campaign": "Evergreen | Broad",
+   "adset_id": "200000000003",
+   "adset_name": "Broad | New people",
+   "obj": "sales",
+   "first_spend": null,
+   "age": 22,
+   "spend": 1163,
+   "revenue": 1407.23,
+   "purchases": 12,
+   "roas": 1.21,
+   "cpa": 96.92,
+   "impressions": 76424,
+   "clicks": 848,
+   "atc": 101,
+   "checkouts": 56,
+   "ctr": 0.0111,
+   "cpm": 15.22,
+   "cpc": 1.37,
+   "frequency": 1.25,
+   "hook": null,
+   "hold": null,
+   "lc_rev": 1407.23,
+   "fc_rev": 1951.69,
+   "lc_orders": 12,
+   "fc_orders": 17,
+   "nc": 7,
+   "nc_fc": 12,
+   "platform_purchases": 16,
+   "platform_revenue": 1961.81,
+   "leads": null,
+   "cpl": null,
+   "days": [
+    {
+     "date": "2026-11-10",
+     "spend": 61,
+     "revenue": 55.52
+    },
+    {
+     "date": "2026-11-11",
+     "spend": 74.5,
+     "revenue": 77.9
+    },
+    {
+     "date": "2026-11-12",
+     "spend": 59.25,
+     "revenue": 96.71
+    },
+    {
+     "date": "2026-11-13",
+     "spend": 118.33,
+     "revenue": 138.31
+    },
+    {
+     "date": "2026-11-14",
+     "spend": 83.76,
+     "revenue": 59.38
+    },
+    {
+     "date": "2026-11-15",
+     "spend": 57.85,
+     "revenue": 58.98
+    },
+    {
+     "date": "2026-11-16",
+     "spend": 68.89,
+     "revenue": 110.77
+    },
+    {
+     "date": "2026-11-17",
+     "spend": 61.87,
+     "revenue": 39.16
+    },
+    {
+     "date": "2026-11-18",
+     "spend": 115.47,
+     "revenue": 143.67
+    },
+    {
+     "date": "2026-11-19",
+     "spend": 60.87,
+     "revenue": 76.83
+    },
+    {
+     "date": "2026-11-20",
+     "spend": 52.75,
+     "revenue": 65.62
+    },
+    {
+     "date": "2026-11-21",
+     "spend": 117.34,
+     "revenue": 193.57
+    },
+    {
+     "date": "2026-11-22",
+     "spend": 98.18,
+     "revenue": 90.42
+    }
+   ]
+  },
+  {
+   "id": "ad01",
+   "name": "Walnut belt, range day",
+   "media_type": "video",
+   "status": "ACTIVE",
+   "campaign": "Black Friday 2026",
+   "adset_id": "200000000001",
+   "adset_name": "Early sale | New people",
+   "obj": "sales",
+   "first_spend": null,
+   "age": 21,
+   "spend": 1140,
+   "revenue": 3876,
+   "purchases": 34,
+   "roas": 3.4,
+   "cpa": 33.53,
+   "impressions": 49003,
+   "clicks": 661,
+   "atc": 105,
+   "checkouts": 51,
+   "ctr": 0.0135,
+   "cpm": 23.26,
+   "cpc": 1.72,
+   "frequency": 2.68,
+   "hook": 0.22726,
+   "hold": 0.3377,
+   "lc_rev": 3876,
+   "fc_rev": 3475.6,
+   "lc_orders": 34,
+   "fc_orders": 30,
+   "nc": 22,
+   "nc_fc": 21,
+   "platform_purchases": 47,
+   "platform_revenue": 5240.56,
+   "leads": null,
+   "cpl": null,
+   "days": [
+    {
+     "date": "2026-11-10",
+     "spend": 103.86,
+     "revenue": 524.36
+    },
+    {
+     "date": "2026-11-11",
+     "spend": 106.6,
+     "revenue": 473.38
+    },
+    {
+     "date": "2026-11-12",
+     "spend": 104.32,
+     "revenue": 439.77
+    },
+    {
+     "date": "2026-11-13",
+     "spend": 64.97,
+     "revenue": 224.79
+    },
+    {
+     "date": "2026-11-14",
+     "spend": 73.54,
+     "revenue": 132.26
+    },
+    {
+     "date": "2026-11-15",
+     "spend": 51.74,
+     "revenue": 137.11
+    },
+    {
+     "date": "2026-11-16",
+     "spend": 67.12,
+     "revenue": 272.14
+    },
+    {
+     "date": "2026-11-17",
+     "spend": 113.51,
+     "revenue": 365.57
+    },
+    {
+     "date": "2026-11-18",
+     "spend": 112.21,
+     "revenue": 567.71
+    },
+    {
+     "date": "2026-11-19",
+     "spend": 113.41,
+     "revenue": 333.4
+    },
+    {
+     "date": "2026-11-20",
+     "spend": 64.55,
+     "revenue": 159.52
+    },
+    {
+     "date": "2026-11-21",
+     "spend": 62.97,
+     "revenue": 150.8
+    },
+    {
+     "date": "2026-11-22",
+     "spend": 91.4,
+     "revenue": 435.16
+    }
+   ]
+  },
+  {
+   "id": "ad11",
+   "name": "Buckle close up",
+   "media_type": "image",
+   "status": "ACTIVE",
+   "campaign": "Black Friday 2026",
+   "adset_id": "200000000001",
+   "adset_name": "Early sale | New people",
+   "obj": "sales",
+   "first_spend": null,
+   "age": 22,
+   "spend": 1081,
+   "revenue": 1297.2,
+   "purchases": 11,
+   "roas": 1.2,
+   "cpa": 98.27,
+   "impressions": 49506,
+   "clicks": 851,
+   "atc": 80,
+   "checkouts": 36,
+   "ctr": 0.0172,
+   "cpm": 21.84,
+   "cpc": 1.27,
+   "frequency": 1.36,
+   "hook": null,
+   "hold": null,
+   "lc_rev": 1297.2,
+   "fc_rev": 1549.54,
+   "lc_orders": 11,
+   "fc_orders": 13,
+   "nc": 7,
+   "nc_fc": 9,
+   "platform_purchases": 14,
+   "platform_revenue": 1593.79,
+   "leads": null,
+   "cpl": null,
+   "days": [
+    {
+     "date": "2026-11-10",
+     "spend": 96.67,
+     "revenue": 145.02
+    },
+    {
+     "date": "2026-11-11",
+     "spend": 77.47,
+     "revenue": 63.08
+    },
+    {
+     "date": "2026-11-12",
+     "spend": 97.1,
+     "revenue": 97
+    },
+    {
+     "date": "2026-11-13",
+     "spend": 97.83,
+     "revenue": 172.77
+    },
+    {
+     "date": "2026-11-14",
+     "spend": 72.29,
+     "revenue": 78.19
+    },
+    {
+     "date": "2026-11-15",
+     "spend": 107.04,
+     "revenue": 157.32
+    },
+    {
+     "date": "2026-11-16",
+     "spend": 58.04,
+     "revenue": 43.67
+    },
+    {
+     "date": "2026-11-17",
+     "spend": 56.85,
+     "revenue": 95.84
+    },
+    {
+     "date": "2026-11-18",
+     "spend": 98.19,
+     "revenue": 76.14
+    },
+    {
+     "date": "2026-11-19",
+     "spend": 99.46,
+     "revenue": 176.68
+    },
+    {
+     "date": "2026-11-20",
+     "spend": 88.78,
+     "revenue": 90.6
+    },
+    {
+     "date": "2026-11-21",
+     "spend": 81.93,
+     "revenue": 62.04
+    },
+    {
+     "date": "2026-11-22",
+     "spend": 48.21,
+     "revenue": 85.09
+    }
+   ]
+  },
+  {
+   "id": "ad02",
+   "name": "Welcome back, 20% off",
+   "media_type": "image",
+   "status": "ACTIVE",
+   "campaign": "Black Friday 2026",
+   "adset_id": "200000000004",
+   "adset_name": "Early sale | Past buyers",
+   "obj": "sales",
+   "first_spend": null,
+   "age": 22,
+   "spend": 966,
+   "revenue": 3477.6,
+   "purchases": 29,
+   "roas": 3.6,
+   "cpa": 33.31,
+   "impressions": 38327,
+   "clicks": 463,
+   "atc": 90,
+   "checkouts": 44,
+   "ctr": 0.0121,
+   "cpm": 25.2,
+   "cpc": 2.09,
+   "frequency": 2.86,
+   "hook": null,
+   "hold": null,
+   "lc_rev": 3477.6,
+   "fc_rev": 4672.3,
+   "lc_orders": 29,
+   "fc_orders": 39,
+   "nc": 3,
+   "nc_fc": 4,
+   "platform_purchases": 37,
+   "platform_revenue": 4250.43,
+   "leads": null,
+   "cpl": null,
+   "days": [
+    {
+     "date": "2026-11-10",
+     "spend": 56.45,
+     "revenue": 161.15
+    },
+    {
+     "date": "2026-11-11",
+     "spend": 55.81,
+     "revenue": 218.28
+    },
+    {
+     "date": "2026-11-12",
+     "spend": 56.87,
+     "revenue": 188.15
+    },
+    {
+     "date": "2026-11-13",
+     "spend": 49.64,
+     "revenue": 251.98
+    },
+    {
+     "date": "2026-11-14",
+     "spend": 62.19,
+     "revenue": 214.52
+    },
+    {
+     "date": "2026-11-15",
+     "spend": 75.12,
+     "revenue": 379.77
+    },
+    {
+     "date": "2026-11-16",
+     "spend": 65.96,
+     "revenue": 336.65
+    },
+    {
+     "date": "2026-11-17",
+     "spend": 70.52,
+     "revenue": 261.95
+    },
+    {
+     "date": "2026-11-18",
+     "spend": 71.75,
+     "revenue": 133.98
+    },
+    {
+     "date": "2026-11-19",
+     "spend": 67.06,
+     "revenue": 164.91
+    },
+    {
+     "date": "2026-11-20",
+     "spend": 42.48,
+     "revenue": 198.68
+    },
+    {
+     "date": "2026-11-21",
+     "spend": 51.97,
+     "revenue": 182.13
+    },
+    {
+     "date": "2026-11-22",
+     "spend": 83.12,
+     "revenue": 316.13
+    }
+   ]
+  },
+  {
+   "id": "ad14",
+   "name": "Whitelist, cart ride",
+   "media_type": "video",
+   "status": "ACTIVE",
+   "campaign": "Evergreen | Broad",
+   "adset_id": "200000000005",
+   "adset_name": "Whitelist | New people",
+   "obj": "sales",
+   "first_spend": null,
+   "age": 22,
+   "spend": 924,
+   "revenue": 868.56,
+   "purchases": 7,
+   "roas": 0.94,
+   "cpa": 132,
+   "impressions": 44712,
+   "clicks": 760,
+   "atc": 90,
+   "checkouts": 41,
+   "ctr": 0.017,
+   "cpm": 20.67,
+   "cpc": 1.22,
+   "frequency": 1.4,
+   "hook": 0.29648,
+   "hold": 0.24428,
+   "lc_rev": 868.56,
+   "fc_rev": 959.12,
+   "lc_orders": 7,
+   "fc_orders": 8,
+   "nc": 5,
+   "nc_fc": 6,
+   "platform_purchases": 9,
+   "platform_revenue": 1087.25,
+   "leads": null,
+   "cpl": null,
+   "days": [
+    {
+     "date": "2026-11-10",
+     "spend": 55.39,
+     "revenue": 66.24
+    },
+    {
+     "date": "2026-11-11",
+     "spend": 67.84,
+     "revenue": 67.71
+    },
+    {
+     "date": "2026-11-12",
+     "spend": 81.45,
+     "revenue": 108.14
+    },
+    {
+     "date": "2026-11-13",
+     "spend": 64.37,
+     "revenue": 67.32
+    },
+    {
+     "date": "2026-11-14",
+     "spend": 67.73,
+     "revenue": 64.44
+    },
+    {
+     "date": "2026-11-15",
+     "spend": 77.83,
+     "revenue": 69.67
+    },
+    {
+     "date": "2026-11-16",
+     "spend": 69.22,
+     "revenue": 63.64
+    },
+    {
+     "date": "2026-11-17",
+     "spend": 91.24,
+     "revenue": 102.85
+    },
+    {
+     "date": "2026-11-18",
+     "spend": 87.74,
+     "revenue": 118.94
+    },
+    {
+     "date": "2026-11-19",
+     "spend": 54.46,
+     "revenue": 54.24
+    },
+    {
+     "date": "2026-11-20",
+     "spend": 91.34,
+     "revenue": 115.05
+    },
+    {
+     "date": "2026-11-21",
+     "spend": 47.85,
+     "revenue": 27.96
+    },
+    {
+     "date": "2026-11-22",
+     "spend": 64.31,
+     "revenue": 34.61
+    }
+   ]
+  },
+  {
+   "id": "ad05",
+   "name": "Your belt, new strap",
+   "media_type": "video",
+   "status": "ACTIVE",
+   "campaign": "Black Friday 2026",
+   "adset_id": "200000000004",
+   "adset_name": "Early sale | Past buyers",
+   "obj": "sales",
+   "first_spend": null,
+   "age": 22,
+   "spend": 855,
+   "revenue": 2650.5,
+   "purchases": 23,
+   "roas": 3.1,
+   "cpa": 37.17,
+   "impressions": 38804,
+   "clicks": 659,
+   "atc": 73,
+   "checkouts": 37,
+   "ctr": 0.017,
+   "cpm": 22.03,
+   "cpc": 1.3,
+   "frequency": 2.9,
+   "hook": 0.27205,
+   "hold": 0.19443000000000002,
+   "lc_rev": 2650.5,
+   "fc_rev": 1958.72,
+   "lc_orders": 23,
+   "fc_orders": 17,
+   "nc": 3,
+   "nc_fc": 2,
+   "platform_purchases": 28,
+   "platform_revenue": 3137.6,
+   "leads": null,
+   "cpl": null,
+   "days": [
+    {
+     "date": "2026-11-10",
+     "spend": 70.35,
+     "revenue": 140.22
+    },
+    {
+     "date": "2026-11-11",
+     "spend": 81.46,
+     "revenue": 370.59
+    },
+    {
+     "date": "2026-11-12",
+     "spend": 48.37,
+     "revenue": 217.8
+    },
+    {
+     "date": "2026-11-13",
+     "spend": 57.28,
+     "revenue": 175.31
+    },
+    {
+     "date": "2026-11-14",
+     "spend": 86.79,
+     "revenue": 358.49
+    },
+    {
+     "date": "2026-11-15",
+     "spend": 45.47,
+     "revenue": 131.3
+    },
+    {
+     "date": "2026-11-16",
+     "spend": 63.14,
+     "revenue": 164.24
+    },
+    {
+     "date": "2026-11-17",
+     "spend": 47.18,
+     "revenue": 119.72
+    },
+    {
+     "date": "2026-11-18",
+     "spend": 73.44,
+     "revenue": 118.27
+    },
+    {
+     "date": "2026-11-19",
+     "spend": 65.05,
+     "revenue": 189.65
+    },
+    {
+     "date": "2026-11-20",
+     "spend": 38.32,
+     "revenue": 98.78
+    },
+    {
+     "date": "2026-11-21",
+     "spend": 68.54,
+     "revenue": 215.08
+    },
+    {
+     "date": "2026-11-22",
+     "spend": 40.62,
+     "revenue": 187
+    }
+   ]
+  },
+  {
+   "id": "ad18",
+   "name": "Caddie review",
+   "media_type": "video",
+   "status": "PAUSED",
+   "campaign": "Black Friday 2026",
+   "adset_id": "200000000001",
+   "adset_name": "Early sale | New people",
+   "obj": "sales",
+   "first_spend": null,
+   "age": 18,
+   "spend": 727,
+   "revenue": 581.6,
+   "purchases": 5,
+   "roas": 0.8,
+   "cpa": 145.4,
+   "impressions": 47649,
+   "clicks": 461,
+   "atc": 34,
+   "checkouts": 16,
+   "ctr": 0.0097,
+   "cpm": 15.26,
+   "cpc": 1.58,
+   "frequency": 1.28,
+   "hook": 0.25199,
+   "hold": 0.25012,
+   "lc_rev": 581.6,
+   "fc_rev": 756.72,
+   "lc_orders": 5,
+   "fc_orders": 7,
+   "nc": 3,
+   "nc_fc": 5,
+   "platform_purchases": 7,
+   "platform_revenue": 851.31,
+   "leads": null,
+   "cpl": null,
+   "days": [
+    {
+     "date": "2026-11-10",
+     "spend": 37.29,
+     "revenue": 27.51
+    },
+    {
+     "date": "2026-11-11",
+     "spend": 70.44,
+     "revenue": 74.33
+    },
+    {
+     "date": "2026-11-12",
+     "spend": 42.77,
+     "revenue": 22.22
+    },
+    {
+     "date": "2026-11-13",
+     "spend": 70.77,
+     "revenue": 60.61
+    },
+    {
+     "date": "2026-11-14",
+     "spend": 61.5,
+     "revenue": 29
+    },
+    {
+     "date": "2026-11-15",
+     "spend": 34.24,
+     "revenue": 32.55
+    },
+    {
+     "date": "2026-11-16",
+     "spend": 49.83,
+     "revenue": 22.82
+    },
+    {
+     "date": "2026-11-17",
+     "spend": 71.59,
+     "revenue": 64.97
+    },
+    {
+     "date": "2026-11-18",
+     "spend": 65.79,
+     "revenue": 30.72
+    },
+    {
+     "date": "2026-11-19",
+     "spend": 68.1,
+     "revenue": 30.87
+    },
+    {
+     "date": "2026-11-20",
+     "spend": 68.38,
+     "revenue": 52.18
+    },
+    {
+     "date": "2026-11-21",
+     "spend": 46.18,
+     "revenue": 38.9
+    },
+    {
+     "date": "2026-11-22",
+     "spend": 71.09,
+     "revenue": 43.67
+    }
+   ]
+  },
+  {
+   "id": "ad19",
+   "name": "Buckle swap, 6 seconds",
+   "media_type": "video",
+   "status": "ACTIVE",
+   "campaign": "Evergreen | Broad",
+   "adset_id": "200000000002",
+   "adset_name": "Belts | Broad",
+   "obj": "sales",
+   "first_spend": null,
+   "age": 17,
+   "spend": 650,
+   "revenue": 468,
+   "purchases": 4,
+   "roas": 0.72,
+   "cpa": 162.5,
+   "impressions": 38550,
+   "clicks": 289,
+   "atc": 28,
+   "checkouts": 13,
+   "ctr": 0.0075,
+   "cpm": 16.86,
+   "cpc": 2.25,
+   "frequency": 1.51,
+   "hook": 0.24225,
+   "hold": 0.21787,
+   "lc_rev": 468,
+   "fc_rev": 302.02,
+   "lc_orders": 4,
+   "fc_orders": 3,
+   "nc": 3,
+   "nc_fc": 2,
+   "platform_purchases": 5,
+   "platform_revenue": 581.45,
+   "leads": null,
+   "cpl": null,
+   "days": [
+    {
+     "date": "2026-11-10",
+     "spend": 40.3,
+     "revenue": 23.36
+    },
+    {
+     "date": "2026-11-11",
+     "spend": 57.27,
+     "revenue": 32.57
+    },
+    {
+     "date": "2026-11-12",
+     "spend": 47.43,
+     "revenue": 23.15
+    },
+    {
+     "date": "2026-11-13",
+     "spend": 41.62,
+     "revenue": 15.53
+    },
+    {
+     "date": "2026-11-14",
+     "spend": 37.96,
+     "revenue": 14.09
+    },
+    {
+     "date": "2026-11-15",
+     "spend": 56.27,
+     "revenue": 42.58
+    },
+    {
+     "date": "2026-11-16",
+     "spend": 35.65,
+     "revenue": 25.02
+    },
+    {
+     "date": "2026-11-17",
+     "spend": 63.92,
+     "revenue": 27.9
+    },
+    {
+     "date": "2026-11-18",
+     "spend": 59.53,
+     "revenue": 39.95
+    },
+    {
+     "date": "2026-11-19",
+     "spend": 47.24,
+     "revenue": 45.39
+    },
+    {
+     "date": "2026-11-20",
+     "spend": 43.37,
+     "revenue": 31.44
+    },
+    {
+     "date": "2026-11-21",
+     "spend": 54.55,
+     "revenue": 58.22
+    },
+    {
+     "date": "2026-11-22",
+     "spend": 41.46,
+     "revenue": 39.77
+    }
+   ]
+  },
+  {
+   "id": "ad13",
+   "name": "Leather care kit",
+   "media_type": "image",
+   "status": "ACTIVE",
+   "campaign": "Evergreen | Broad",
+   "adset_id": "200000000006",
+   "adset_name": "Gifts under $50",
+   "obj": "sales",
+   "first_spend": null,
+   "age": 22,
+   "spend": 599,
+   "revenue": 551.08,
+   "purchases": 9,
+   "roas": 0.92,
+   "cpa": 66.56,
+   "impressions": 31766,
+   "clicks": 346,
+   "atc": 38,
+   "checkouts": 17,
+   "ctr": 0.0109,
+   "cpm": 18.86,
+   "cpc": 1.73,
+   "frequency": 1.3,
+   "hook": null,
+   "hold": null,
+   "lc_rev": 551.08,
+   "fc_rev": 395.04,
+   "lc_orders": 9,
+   "fc_orders": 6,
+   "nc": 5,
+   "nc_fc": 4,
+   "platform_purchases": 13,
+   "platform_revenue": 824.54,
+   "leads": null,
+   "cpl": null,
+   "days": [
+    {
+     "date": "2026-11-10",
+     "spend": 52.14,
+     "revenue": 36.24
+    },
+    {
+     "date": "2026-11-11",
+     "spend": 31.94,
+     "revenue": 17.17
+    },
+    {
+     "date": "2026-11-12",
+     "spend": 55.65,
+     "revenue": 70.17
+    },
+    {
+     "date": "2026-11-13",
+     "spend": 49.68,
+     "revenue": 35.74
+    },
+    {
+     "date": "2026-11-14",
+     "spend": 34.7,
+     "revenue": 25.32
+    },
+    {
+     "date": "2026-11-15",
+     "spend": 42.3,
+     "revenue": 25.59
+    },
+    {
+     "date": "2026-11-16",
+     "spend": 41.82,
+     "revenue": 29.37
+    },
+    {
+     "date": "2026-11-17",
+     "spend": 59.86,
+     "revenue": 81.1
+    },
+    {
+     "date": "2026-11-18",
+     "spend": 45.36,
+     "revenue": 31.07
+    },
+    {
+     "date": "2026-11-19",
+     "spend": 60,
+     "revenue": 44.69
+    },
+    {
+     "date": "2026-11-20",
+     "spend": 38.7,
+     "revenue": 17.84
+    },
+    {
+     "date": "2026-11-21",
+     "spend": 39.57,
+     "revenue": 35.48
+    },
+    {
+     "date": "2026-11-22",
+     "spend": 43.81,
+     "revenue": 28.25
+    }
+   ]
+  },
+  {
+   "id": "ad20",
+   "name": "Fall colors, flat lay",
+   "media_type": "image",
+   "status": "PAUSED",
+   "campaign": "Evergreen | Broad",
+   "adset_id": "200000000003",
+   "adset_name": "Broad | New people",
+   "obj": "sales",
+   "first_spend": null,
+   "age": 22,
+   "spend": 509,
+   "revenue": 234.14,
+   "purchases": 2,
+   "roas": 0.46,
+   "cpa": 254.5,
+   "impressions": 29644,
+   "clicks": 216,
+   "atc": 26,
+   "checkouts": 14,
+   "ctr": 0.0073,
+   "cpm": 17.17,
+   "cpc": 2.36,
+   "frequency": 1.96,
+   "hook": null,
+   "hold": null,
+   "lc_rev": 234.14,
+   "fc_rev": 149.26,
+   "lc_orders": 2,
+   "fc_orders": 1,
+   "nc": 1,
+   "nc_fc": 1,
+   "platform_purchases": 3,
+   "platform_revenue": 356.13,
+   "leads": null,
+   "cpl": null,
+   "days": [
+    {
+     "date": "2026-11-10",
+     "spend": 31.33,
+     "revenue": 10.56
+    },
+    {
+     "date": "2026-11-11",
+     "spend": 39.69,
+     "revenue": 18.79
+    },
+    {
+     "date": "2026-11-12",
+     "spend": 44.59,
+     "revenue": 23.74
+    },
+    {
+     "date": "2026-11-13",
+     "spend": 43.56,
+     "revenue": 27.63
+    },
+    {
+     "date": "2026-11-14",
+     "spend": 33.86,
+     "revenue": 12.87
+    },
+    {
+     "date": "2026-11-15",
+     "spend": 51.55,
+     "revenue": 15.4
+    },
+    {
+     "date": "2026-11-16",
+     "spend": 43.8,
+     "revenue": 23.03
+    },
+    {
+     "date": "2026-11-17",
+     "spend": 23.59,
+     "revenue": 14.49
+    },
+    {
+     "date": "2026-11-18",
+     "spend": 48.79,
+     "revenue": 25.3
+    },
+    {
+     "date": "2026-11-19",
+     "spend": 44.09,
+     "revenue": 26.61
+    },
+    {
+     "date": "2026-11-20",
+     "spend": 26.43,
+     "revenue": 12.45
+    },
+    {
+     "date": "2026-11-21",
+     "spend": 37.27,
+     "revenue": 22.89
+    },
+    {
+     "date": "2026-11-22",
+     "spend": 46.2,
+     "revenue": 28.19
+    }
+   ]
+  },
+  {
+   "id": "ad15",
+   "name": "Ball marker set",
+   "media_type": "image",
+   "status": "ACTIVE",
+   "campaign": "Evergreen | Broad",
+   "adset_id": "200000000006",
+   "adset_name": "Gifts under $50",
+   "obj": "sales",
+   "first_spend": null,
+   "age": 20,
+   "spend": 488,
+   "revenue": 346.48,
+   "purchases": 4,
+   "roas": 0.71,
+   "cpa": 122,
+   "impressions": 21986,
+   "clicks": 345,
+   "atc": 34,
+   "checkouts": 14,
+   "ctr": 0.0157,
+   "cpm": 22.2,
+   "cpc": 1.41,
+   "frequency": 1.64,
+   "hook": null,
+   "hold": null,
+   "lc_rev": 346.48,
+   "fc_rev": 217.6,
+   "lc_orders": 4,
+   "fc_orders": 3,
+   "nc": 2,
+   "nc_fc": 2,
+   "platform_purchases": 5,
+   "platform_revenue": 420.77,
+   "leads": null,
+   "cpl": null,
+   "days": [
+    {
+     "date": "2026-11-10",
+     "spend": 31.61,
+     "revenue": 13.58
+    },
+    {
+     "date": "2026-11-11",
+     "spend": 45.13,
+     "revenue": 33.92
+    },
+    {
+     "date": "2026-11-12",
+     "spend": 39.21,
+     "revenue": 31.35
+    },
+    {
+     "date": "2026-11-13",
+     "spend": 40.71,
+     "revenue": 28.59
+    },
+    {
+     "date": "2026-11-14",
+     "spend": 21.44,
+     "revenue": 19.75
+    },
+    {
+     "date": "2026-11-15",
+     "spend": 42.64,
+     "revenue": 30.36
+    },
+    {
+     "date": "2026-11-16",
+     "spend": 36.57,
+     "revenue": 30.1
+    },
+    {
+     "date": "2026-11-17",
+     "spend": 23.22,
+     "revenue": 20.39
+    },
+    {
+     "date": "2026-11-18",
+     "spend": 28.52,
+     "revenue": 11.63
+    },
+    {
+     "date": "2026-11-19",
+     "spend": 28.9,
+     "revenue": 25.22
+    },
+    {
+     "date": "2026-11-20",
+     "spend": 27.18,
+     "revenue": 23.93
+    },
+    {
+     "date": "2026-11-21",
+     "spend": 49.11,
+     "revenue": 34.66
+    },
+    {
+     "date": "2026-11-22",
+     "spend": 32.23,
+     "revenue": 22.4
+    }
+   ]
+  },
+  {
+   "id": "ad04",
+   "name": "Dana Whitlock, range bag",
+   "media_type": "video",
+   "status": "ACTIVE",
+   "campaign": "Evergreen | Broad",
+   "adset_id": "200000000007",
+   "adset_name": "Creator | Dana Whitlock",
+   "obj": "sales",
+   "first_spend": null,
+   "age": 16,
+   "spend": 403,
+   "revenue": 1293.63,
+   "purchases": 11,
+   "roas": 3.21,
+   "cpa": 36.64,
+   "impressions": 18829,
+   "clicks": 282,
+   "atc": 34,
+   "checkouts": 18,
+   "ctr": 0.015,
+   "cpm": 21.4,
+   "cpc": 1.43,
+   "frequency": 1.35,
+   "hook": 0.2011,
+   "hold": 0.23757,
+   "lc_rev": 1293.63,
+   "fc_rev": 947.82,
+   "lc_orders": 11,
+   "fc_orders": 8,
+   "nc": 8,
+   "nc_fc": 6,
+   "platform_purchases": 14,
+   "platform_revenue": 1721.58,
+   "leads": null,
+   "cpl": null,
+   "days": [
+    {
+     "date": "2026-11-10",
+     "spend": 35.15,
+     "revenue": 90.76
+    },
+    {
+     "date": "2026-11-11",
+     "spend": 31.02,
+     "revenue": 51.03
+    },
+    {
+     "date": "2026-11-12",
+     "spend": 19.09,
+     "revenue": 47.11
+    },
+    {
+     "date": "2026-11-13",
+     "spend": 33.48,
+     "revenue": 128.13
+    },
+    {
+     "date": "2026-11-14",
+     "spend": 33.57,
+     "revenue": 85.22
+    },
+    {
+     "date": "2026-11-15",
+     "spend": 29.82,
+     "revenue": 92.34
+    },
+    {
+     "date": "2026-11-16",
+     "spend": 28.64,
+     "revenue": 56.86
+    },
+    {
+     "date": "2026-11-17",
+     "spend": 38.7,
+     "revenue": 86.87
+    },
+    {
+     "date": "2026-11-18",
+     "spend": 40.69,
+     "revenue": 187.6
+    },
+    {
+     "date": "2026-11-19",
+     "spend": 18.07,
+     "revenue": 55.62
+    },
+    {
+     "date": "2026-11-20",
+     "spend": 36.96,
+     "revenue": 174.18
+    },
+    {
+     "date": "2026-11-21",
+     "spend": 28.24,
+     "revenue": 69.68
+    },
+    {
+     "date": "2026-11-22",
+     "spend": 22.6,
+     "revenue": 104.87
+    }
+   ]
+  },
+  {
+   "id": "ad26",
+   "name": "Sale list, sign up",
+   "media_type": "image",
+   "status": "ACTIVE",
+   "campaign": "Evergreen | Broad",
+   "adset_id": "200000000008",
+   "adset_name": "Sign up | New people",
+   "obj": "leads",
+   "first_spend": null,
+   "age": 10,
+   "spend": 402,
+   "revenue": 0,
+   "purchases": 0,
+   "roas": null,
+   "cpa": null,
+   "impressions": 25603,
+   "clicks": 340,
+   "atc": 34,
+   "checkouts": 16,
+   "ctr": 0.0133,
+   "cpm": 15.7,
+   "cpc": 1.18,
+   "frequency": 3.01,
+   "hook": null,
+   "hold": null,
+   "lc_rev": 0,
+   "fc_rev": 0,
+   "lc_orders": 0,
+   "fc_orders": 0,
+   "nc": 0,
+   "nc_fc": 0,
+   "platform_purchases": null,
+   "platform_revenue": null,
+   "leads": 672,
+   "cpl": 0.6,
+   "days": [
+    {
+     "date": "2026-11-13",
+     "spend": 46.82,
+     "revenue": 0
+    },
+    {
+     "date": "2026-11-14",
+     "spend": 48.81,
+     "revenue": 0
+    },
+    {
+     "date": "2026-11-15",
+     "spend": 29.26,
+     "revenue": 0
+    },
+    {
+     "date": "2026-11-16",
+     "spend": 36.86,
+     "revenue": 0
+    },
+    {
+     "date": "2026-11-17",
+     "spend": 22.47,
+     "revenue": 0
+    },
+    {
+     "date": "2026-11-18",
+     "spend": 35.8,
+     "revenue": 0
+    },
+    {
+     "date": "2026-11-19",
+     "spend": 26.56,
+     "revenue": 0
+    },
+    {
+     "date": "2026-11-20",
+     "spend": 31.79,
+     "revenue": 0
+    },
+    {
+     "date": "2026-11-21",
+     "spend": 22.42,
+     "revenue": 0
+    },
+    {
+     "date": "2026-11-22",
+     "spend": 47.38,
+     "revenue": 0
+    }
+   ]
+  },
+  {
+   "id": "ad16",
+   "name": "Owen Hart, unboxing",
+   "media_type": "video",
+   "status": "ACTIVE",
+   "campaign": "Evergreen | Broad",
+   "adset_id": "200000000009",
+   "adset_name": "Creator | Owen Hart",
+   "obj": "sales",
+   "first_spend": null,
+   "age": 13,
+   "spend": 394,
+   "revenue": 370.36,
+   "purchases": 3,
+   "roas": 0.94,
+   "cpa": 131.33,
+   "impressions": 15875,
+   "clicks": 160,
+   "atc": 19,
+   "checkouts": 10,
+   "ctr": 0.0101,
+   "cpm": 24.82,
+   "cpc": 2.46,
+   "frequency": 1.91,
+   "hook": 0.3434,
+   "hold": 0.22231,
+   "lc_rev": 370.36,
+   "fc_rev": 353.18,
+   "lc_orders": 3,
+   "fc_orders": 3,
+   "nc": 2,
+   "nc_fc": 2,
+   "platform_purchases": 4,
+   "platform_revenue": 508.29,
+   "leads": null,
+   "cpl": null,
+   "days": [
+    {
+     "date": "2026-11-10",
+     "spend": 30.76,
+     "revenue": 24.89
+    },
+    {
+     "date": "2026-11-11",
+     "spend": 27.06,
+     "revenue": 19.72
+    },
+    {
+     "date": "2026-11-12",
+     "spend": 18.34,
+     "revenue": 10.37
+    },
+    {
+     "date": "2026-11-13",
+     "spend": 36.4,
+     "revenue": 26.88
+    },
+    {
+     "date": "2026-11-14",
+     "spend": 38.72,
+     "revenue": 27.27
+    },
+    {
+     "date": "2026-11-15",
+     "spend": 23.33,
+     "revenue": 22.17
+    },
+    {
+     "date": "2026-11-16",
+     "spend": 21.59,
+     "revenue": 17.72
+    },
+    {
+     "date": "2026-11-17",
+     "spend": 39.19,
+     "revenue": 50.99
+    },
+    {
+     "date": "2026-11-18",
+     "spend": 35.88,
+     "revenue": 38.14
+    },
+    {
+     "date": "2026-11-19",
+     "spend": 38.21,
+     "revenue": 51.75
+    },
+    {
+     "date": "2026-11-20",
+     "spend": 29.85,
+     "revenue": 34.22
+    },
+    {
+     "date": "2026-11-21",
+     "spend": 18.37,
+     "revenue": 21.28
+    },
+    {
+     "date": "2026-11-22",
+     "spend": 27.59,
+     "revenue": 32.49
+    }
+   ]
+  },
+  {
+   "id": "ad07",
+   "name": "Marcus Bell, buckle swap",
+   "media_type": "video",
+   "status": "ACTIVE",
+   "campaign": "Evergreen | Broad",
+   "adset_id": "200000000010",
+   "adset_name": "Creator | Marcus Bell",
+   "obj": "sales",
+   "first_spend": null,
+   "age": 15,
+   "spend": 380,
+   "revenue": 912,
+   "purchases": 8,
+   "roas": 2.4,
+   "cpa": 47.5,
+   "impressions": 26049,
+   "clicks": 495,
+   "atc": 36,
+   "checkouts": 16,
+   "ctr": 0.019,
+   "cpm": 14.59,
+   "cpc": 0.77,
+   "frequency": 1.44,
+   "hook": 0.33914,
+   "hold": 0.21677000000000002,
+   "lc_rev": 912,
+   "fc_rev": 934.77,
+   "lc_orders": 8,
+   "fc_orders": 8,
+   "nc": 6,
+   "nc_fc": 6,
+   "platform_purchases": 11,
+   "platform_revenue": 1274.11,
+   "leads": null,
+   "cpl": null,
+   "days": [
+    {
+     "date": "2026-11-10",
+     "spend": 23.23,
+     "revenue": 69.08
+    },
+    {
+     "date": "2026-11-11",
+     "spend": 38.27,
+     "revenue": 69.82
+    },
+    {
+     "date": "2026-11-12",
+     "spend": 31.17,
+     "revenue": 59.91
+    },
+    {
+     "date": "2026-11-13",
+     "spend": 28.99,
+     "revenue": 62.23
+    },
+    {
+     "date": "2026-11-14",
+     "spend": 20.34,
+     "revenue": 32.3
+    },
+    {
+     "date": "2026-11-15",
+     "spend": 21.24,
+     "revenue": 71.67
+    },
+    {
+     "date": "2026-11-16",
+     "spend": 27.65,
+     "revenue": 47.78
+    },
+    {
+     "date": "2026-11-17",
+     "spend": 36.72,
+     "revenue": 131.88
+    },
+    {
+     "date": "2026-11-18",
+     "spend": 26.6,
+     "revenue": 40.83
+    },
+    {
+     "date": "2026-11-19",
+     "spend": 20.89,
+     "revenue": 29.62
+    },
+    {
+     "date": "2026-11-20",
+     "spend": 24.21,
+     "revenue": 34.34
+    },
+    {
+     "date": "2026-11-21",
+     "spend": 21.93,
+     "revenue": 39.91
+    },
+    {
+     "date": "2026-11-22",
+     "spend": 29.26,
+     "revenue": 97.42
+    }
+   ]
+  },
+  {
+   "id": "ad12",
+   "name": "Priya Nair, first round",
+   "media_type": "video",
+   "status": "ACTIVE",
+   "campaign": "Evergreen | Broad",
+   "adset_id": "200000000011",
+   "adset_name": "Creator | Priya Nair",
+   "obj": "sales",
+   "first_spend": null,
+   "age": 14,
+   "spend": 344,
+   "revenue": 591.68,
+   "purchases": 5,
+   "roas": 1.72,
+   "cpa": 68.8,
+   "impressions": 18137,
+   "clicks": 241,
+   "atc": 27,
+   "checkouts": 12,
+   "ctr": 0.0133,
+   "cpm": 18.97,
+   "cpc": 1.43,
+   "frequency": 1.92,
+   "hook": 0.28596,
+   "hold": 0.31292000000000003,
+   "lc_rev": 591.68,
+   "fc_rev": 535.1,
+   "lc_orders": 5,
+   "fc_orders": 5,
+   "nc": 3,
+   "nc_fc": 4,
+   "platform_purchases": 6,
+   "platform_revenue": 676,
+   "leads": null,
+   "cpl": null,
+   "days": [
+    {
+     "date": "2026-11-10",
+     "spend": 20.61,
+     "revenue": 52.03
+    },
+    {
+     "date": "2026-11-11",
+     "spend": 17.57,
+     "revenue": 30.32
+    },
+    {
+     "date": "2026-11-12",
+     "spend": 27.67,
+     "revenue": 64.86
+    },
+    {
+     "date": "2026-11-13",
+     "spend": 19.37,
+     "revenue": 25.69
+    },
+    {
+     "date": "2026-11-14",
+     "spend": 20.03,
+     "revenue": 31
+    },
+    {
+     "date": "2026-11-15",
+     "spend": 23.99,
+     "revenue": 59.99
+    },
+    {
+     "date": "2026-11-16",
+     "spend": 32.07,
+     "revenue": 75.73
+    },
+    {
+     "date": "2026-11-17",
+     "spend": 15.48,
+     "revenue": 14.17
+    },
+    {
+     "date": "2026-11-18",
+     "spend": 29.27,
+     "revenue": 70.27
+    },
+    {
+     "date": "2026-11-19",
+     "spend": 24.54,
+     "revenue": 45.89
+    },
+    {
+     "date": "2026-11-20",
+     "spend": 15.05,
+     "revenue": 23.08
+    },
+    {
+     "date": "2026-11-21",
+     "spend": 33.63,
+     "revenue": 76.68
+    },
+    {
+     "date": "2026-11-22",
+     "spend": 32.2,
+     "revenue": 81.54
+    }
+   ]
+  },
+  {
+   "id": "ad09",
+   "name": "Pool 01, range bag",
+   "media_type": "video",
+   "status": "ACTIVE",
+   "campaign": "Evergreen | Broad",
+   "adset_id": "200000000012",
+   "adset_name": "Creator pool",
+   "obj": "sales",
+   "first_spend": null,
+   "age": 9,
+   "spend": 290,
+   "revenue": 957,
+   "purchases": 8,
+   "roas": 3.3,
+   "cpa": 36.25,
+   "impressions": 18294,
+   "clicks": 243,
+   "atc": 28,
+   "checkouts": 12,
+   "ctr": 0.0133,
+   "cpm": 15.85,
+   "cpc": 1.19,
+   "frequency": 2.5,
+   "hook": 0.27812,
+   "hold": 0.19025999999999998,
+   "lc_rev": 957,
+   "fc_rev": 1385.1,
+   "lc_orders": 8,
+   "fc_orders": 12,
+   "nc": 5,
+   "nc_fc": 8,
+   "platform_purchases": 10,
+   "platform_revenue": 1169.89,
+   "leads": null,
+   "cpl": null,
+   "days": [
+    {
+     "date": "2026-11-14",
+     "spend": 33.09,
+     "revenue": 138.11
+    },
+    {
+     "date": "2026-11-15",
+     "spend": 28.59,
+     "revenue": 99.21
+    },
+    {
+     "date": "2026-11-16",
+     "spend": 18.7,
+     "revenue": 79.13
+    },
+    {
+     "date": "2026-11-17",
+     "spend": 23.27,
+     "revenue": 109.04
+    },
+    {
+     "date": "2026-11-18",
+     "spend": 33.05,
+     "revenue": 87.66
+    },
+    {
+     "date": "2026-11-19",
+     "spend": 20.79,
+     "revenue": 51.58
+    },
+    {
+     "date": "2026-11-20",
+     "spend": 32.83,
+     "revenue": 129.85
+    },
+    {
+     "date": "2026-11-21",
+     "spend": 20.42,
+     "revenue": 38.43
+    },
+    {
+     "date": "2026-11-22",
+     "spend": 30.18,
+     "revenue": 107.85
+    }
+   ]
+  },
+  {
+   "id": "ad24",
+   "name": "Black strap, studio",
+   "media_type": "image",
+   "status": "ACTIVE",
+   "campaign": "Evergreen | Broad",
+   "adset_id": "200000000002",
+   "adset_name": "Belts | Broad",
+   "obj": "sales",
+   "first_spend": null,
+   "age": 5,
+   "spend": 72,
+   "revenue": 115.2,
+   "purchases": 1,
+   "roas": 1.6,
+   "cpa": 72,
+   "impressions": 3394,
+   "clicks": 20,
+   "atc": 3,
+   "checkouts": 2,
+   "ctr": 0.0061,
+   "cpm": 21.21,
+   "cpc": 3.6,
+   "frequency": 1.77,
+   "hook": null,
+   "hold": null,
+   "lc_rev": 115.2,
+   "fc_rev": 116.88,
+   "lc_orders": 1,
+   "fc_orders": 1,
+   "nc": 1,
+   "nc_fc": 1,
+   "platform_purchases": 1,
+   "platform_revenue": 111.02,
+   "leads": null,
+   "cpl": null,
+   "days": [
+    {
+     "date": "2026-11-18",
+     "spend": 13.76,
+     "revenue": 30.47
+    },
+    {
+     "date": "2026-11-19",
+     "spend": 12.09,
+     "revenue": 14.21
+    },
+    {
+     "date": "2026-11-20",
+     "spend": 9.84,
+     "revenue": 23
+    },
+    {
+     "date": "2026-11-21",
+     "spend": 14.35,
+     "revenue": 18.54
+    },
+    {
+     "date": "2026-11-22",
+     "spend": 7.61,
+     "revenue": 12.16
+    }
+   ]
+  },
+  {
+   "id": "ad23",
+   "name": "Lena Ortiz, gift guide",
+   "media_type": "video",
+   "status": "ACTIVE",
+   "campaign": "Evergreen | Broad",
+   "adset_id": "200000000013",
+   "adset_name": "Creator | Lena Ortiz",
+   "obj": "sales",
+   "first_spend": null,
+   "age": 4,
+   "spend": 60,
+   "revenue": 0,
+   "purchases": 0,
+   "roas": null,
+   "cpa": null,
+   "impressions": 3510,
+   "clicks": 53,
+   "atc": 4,
+   "checkouts": 2,
+   "ctr": 0.0153,
+   "cpm": 17.09,
+   "cpc": 1.13,
+   "frequency": 2.96,
+   "hook": 0.21743,
+   "hold": 0.25649,
+   "lc_rev": 0,
+   "fc_rev": 0,
+   "lc_orders": 0,
+   "fc_orders": 0,
+   "nc": 0,
+   "nc_fc": 0,
+   "platform_purchases": 0,
+   "platform_revenue": 0,
+   "leads": null,
+   "cpl": null,
+   "days": [
+    {
+     "date": "2026-11-19",
+     "spend": 7.65,
+     "revenue": 0
+    },
+    {
+     "date": "2026-11-20",
+     "spend": 11.42,
+     "revenue": 0
+    },
+    {
+     "date": "2026-11-21",
+     "spend": 9.25,
+     "revenue": 0
+    },
+    {
+     "date": "2026-11-22",
+     "spend": 14.53,
+     "revenue": 0
+    }
+   ]
+  },
+  {
+   "id": "ad21",
+   "name": "Pool 04, belt wall",
+   "media_type": "image",
+   "status": "ACTIVE",
+   "campaign": "Evergreen | Broad",
+   "adset_id": "200000000012",
+   "adset_name": "Creator pool",
+   "obj": "sales",
+   "first_spend": null,
+   "age": 2,
+   "spend": 47,
+   "revenue": 0,
+   "purchases": 0,
+   "roas": null,
+   "cpa": null,
+   "impressions": 2649,
+   "clicks": 46,
+   "atc": 4,
+   "checkouts": 2,
+   "ctr": 0.0175,
+   "cpm": 17.74,
+   "cpc": 1.02,
+   "frequency": 1.64,
+   "hook": null,
+   "hold": null,
+   "lc_rev": 0,
+   "fc_rev": 0,
+   "lc_orders": 0,
+   "fc_orders": 0,
+   "nc": 0,
+   "nc_fc": 0,
+   "platform_purchases": 0,
+   "platform_revenue": 0,
+   "leads": null,
+   "cpl": null,
+   "days": [
+    {
+     "date": "2026-11-21",
+     "spend": 19.33,
+     "revenue": 0
+    },
+    {
+     "date": "2026-11-22",
+     "spend": 21.78,
+     "revenue": 0
+    }
+   ]
+  },
+  {
+   "id": "ad22",
+   "name": "Pool 05, cart ride",
+   "media_type": "video",
+   "status": "ACTIVE",
+   "campaign": "Evergreen | Broad",
+   "adset_id": "200000000012",
+   "adset_name": "Creator pool",
+   "obj": "sales",
+   "first_spend": null,
+   "age": 2,
+   "spend": 37,
+   "revenue": 114.7,
+   "purchases": 1,
+   "roas": 3.1,
+   "cpa": 37,
+   "impressions": 1946,
+   "clicks": 29,
+   "atc": 3,
+   "checkouts": 2,
+   "ctr": 0.0153,
+   "cpm": 19.01,
+   "cpc": 1.28,
+   "frequency": 3,
+   "hook": 0.25762999999999997,
+   "hold": 0.19235,
+   "lc_rev": 114.7,
+   "fc_rev": 83.93,
+   "lc_orders": 1,
+   "fc_orders": 1,
+   "nc": 1,
+   "nc_fc": 1,
+   "platform_purchases": 1,
+   "platform_revenue": 112.04,
+   "leads": null,
+   "cpl": null,
+   "days": [
+    {
+     "date": "2026-11-21",
+     "spend": 9.76,
+     "revenue": 44.6
+    },
+    {
+     "date": "2026-11-22",
+     "spend": 9.04,
+     "revenue": 15.46
+    }
+   ]
+  },
+  {
+   "id": "ad25",
+   "name": "Tee holder, close up",
+   "media_type": "image",
+   "status": "PAUSED",
+   "campaign": "Evergreen | Broad",
+   "adset_id": "200000000006",
+   "adset_name": "Gifts under $50",
+   "obj": "sales",
+   "first_spend": null,
+   "age": 1,
+   "spend": 22,
+   "revenue": 0,
+   "purchases": 0,
+   "roas": null,
+   "cpa": null,
+   "impressions": 887,
+   "clicks": 16,
+   "atc": 2,
+   "checkouts": 1,
+   "ctr": 0.0184,
+   "cpm": 24.8,
+   "cpc": 1.38,
+   "frequency": 2.59,
+   "hook": null,
+   "hold": null,
+   "lc_rev": 0,
+   "fc_rev": 0,
+   "lc_orders": 0,
+   "fc_orders": 0,
+   "nc": 0,
+   "nc_fc": 0,
+   "platform_purchases": 0,
+   "platform_revenue": 0,
+   "leads": null,
+   "cpl": null,
+   "days": [
+    {
+     "date": "2026-11-22",
+     "spend": 14.8,
+     "revenue": 0
+    }
+   ]
+  }
+ ],
+ "calls": {
+  "ad08": {
+   "call": "Keep: carries the set",
+   "tone": "good",
+   "why": "Carries 21% of the set and the set is close to goal. Its own cost per sale is $65, but the set works through it: keep it, and test a new opener beside it before switching it off."
+  },
+  "ad11": {
+   "call": "Trim",
+   "tone": "warn",
+   "why": "Takes only 15% of the set and is over the cut line on its own ($100 a sale against a $40 goal). Low risk to switch off."
+  },
+  "ad18": {
+   "call": "Trim",
+   "tone": "warn",
+   "why": "Takes 10% of the set with 5 sales at $148 each, over three times the goal. Low risk to switch off."
+  },
+  "ad01": {
+   "call": "Scale",
+   "tone": "good",
+   "why": "34 sales at $34 each, under the $40 goal, on 16% of the set. Worth its own ad set to see if it holds at more budget."
+  },
+  "ad03": {
+   "call": "Scale",
+   "tone": "good",
+   "why": "37 sales at $38 each, under the $40 goal. The set can take more budget while this ad leads it."
+  },
+  "ad14": {
+   "call": "Cut",
+   "tone": "bad",
+   "why": "The whole set misses: it spent $944 at $135 a sale against a $40 goal. Turn off the ad set, not one ad."
+  },
+  "ad23": {
+   "call": "Too early",
+   "tone": "",
+   "why": "Spent $61 of the $80 it needs (twice the goal cost) before it is judged."
+  }
+ }
+}

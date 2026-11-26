@@ -70,50 +70,69 @@
    "spend": 6120,
    "orders": 231,
    "mer": 2.93,
-   "aov": 77.66
+   "aov": 77.66,
+   "new_orders": 142,
+   "new_rev": 10980,
+   "ret_rev": 6960,
+   "ncpa": 43.1,
+   "new_share": 0.612,
+   "amer": 1.79
   },
   "previous": {
    "sales": 15210,
    "spend": 5480,
    "orders": 201,
    "mer": 2.78,
-   "aov": 75.67
+   "aov": 75.67,
+   "new_orders": 118,
+   "new_rev": 9020,
+   "ret_rev": 6190,
+   "ncpa": 46.44,
+   "new_share": 0.593,
+   "amer": 1.65
   },
   "chart": [
    {
     "date": "2026-11-09",
     "sales": 2210,
-    "spend": 820
+    "spend": 820,
+    "new_orders": 17
    },
    {
     "date": "2026-11-10",
     "sales": 2380,
-    "spend": 840
+    "spend": 840,
+    "new_orders": 19
    },
    {
     "date": "2026-11-11",
     "sales": 2195,
-    "spend": 850
+    "spend": 850,
+    "new_orders": 18
    },
    {
     "date": "2026-11-12",
     "sales": 2540,
-    "spend": 860
+    "spend": 860,
+    "new_orders": 20
    },
    {
     "date": "2026-11-13",
     "sales": 2665,
-    "spend": 880
+    "spend": 880,
+    "new_orders": 21
    },
    {
     "date": "2026-11-14",
     "sales": 2890,
-    "spend": 920
+    "spend": 920,
+    "new_orders": 23
    },
    {
     "date": "2026-11-15",
     "sales": 3060,
-    "spend": 950
+    "spend": 950,
+    "new_orders": 24
    }
   ],
   "channels": [
@@ -153,7 +172,7 @@
   "ads": {
    "top": [
     {
-     "ad_id": "n1",
+     "ad_id": "ad10",
      "headline": "The belt that fits every bag",
      "name": "Belt bundle | still",
      "spend": 1480,
@@ -161,7 +180,7 @@
      "thumb": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20400%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%232F4F3A%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%237FA27A%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url%28%23g%29%22/%3E%3Ccircle%20cx%3D%22200%22%20cy%3D%22210%22%20r%3D%2296%22%20fill%3D%22none%22%20stroke%3D%22%23F4E9D0%22%20stroke-width%3D%2222%22/%3E%3C/svg%3E"
     },
     {
-     "ad_id": "n2",
+     "ad_id": "ad02",
      "headline": "Why golfers switch after one round",
      "name": "Customer story | video",
      "spend": 1110,
@@ -169,7 +188,7 @@
      "thumb": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20400%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233A3F58%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%239AA9C6%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url%28%23g%29%22/%3E%3Cpolygon%20points%3D%22168%2C140%20168%2C260%20268%2C200%22%20fill%3D%22%23FFFFFF%22%20opacity%3D%22.9%22/%3E%3C/svg%3E"
     },
     {
-     "ad_id": "n3",
+     "ad_id": "ad06",
      "headline": "Three colors, one price",
      "name": "Colors grid | still",
      "spend": 640,
@@ -184,14 +203,17 @@
    ],
    "ads": {
     "lastPlatformClick": {
-     "n1": {
-      "revenue": 4884
+     "ad10": {
+      "revenue": 4884,
+      "orders": 41
      },
-     "n2": {
-      "revenue": 2775
+     "ad06": {
+      "revenue": 1152,
+      "orders": 10
      },
-     "n3": {
-      "revenue": 1152
+     "ad02": {
+      "revenue": 2775,
+      "orders": 23
      }
     }
    }
@@ -202,7 +224,12 @@
   ],
   "need_from_you": [
    "The gift guide photos by Friday."
-  ]
+  ],
+  "this_week_from": {
+   "meeting": "m_sample_0",
+   "title": "Monday call",
+   "at": "2026-11-16T16:30:00Z"
+  }
  },
  "more": {
   "weekly|2026-11-16": {
@@ -217,50 +244,69 @@
     "spend": 4410,
     "orders": 164,
     "mer": 2.81,
-    "aov": 75.49
+    "aov": 75.49,
+    "new_orders": 96,
+    "new_rev": 7210,
+    "ret_rev": 5170,
+    "ncpa": 45.94,
+    "new_share": 0.582,
+    "amer": 1.63
    },
    "previous": {
     "sales": 17940,
     "spend": 6120,
     "orders": 231,
     "mer": 2.93,
-    "aov": 77.66
+    "aov": 77.66,
+    "new_orders": 142,
+    "new_rev": 10980,
+    "ret_rev": 6960,
+    "ncpa": 43.1,
+    "new_share": 0.612,
+    "amer": 1.79
    },
    "chart": [
     {
      "date": "2026-11-16",
      "sales": 1720,
-     "spend": 610
+     "spend": 610,
+     "new_orders": 13
     },
     {
      "date": "2026-11-17",
      "sales": 1655,
-     "spend": 600
+     "spend": 600,
+     "new_orders": 13
     },
     {
      "date": "2026-11-18",
      "sales": 1810,
-     "spend": 620
+     "spend": 620,
+     "new_orders": 14
     },
     {
      "date": "2026-11-19",
      "sales": 1690,
-     "spend": 630
+     "spend": 630,
+     "new_orders": 13
     },
     {
      "date": "2026-11-20",
      "sales": 1795,
-     "spend": 640
+     "spend": 640,
+     "new_orders": 14
     },
     {
      "date": "2026-11-21",
      "sales": 1830,
-     "spend": 650
+     "spend": 650,
+     "new_orders": 14
     },
     {
      "date": "2026-11-22",
      "sales": 1880,
-     "spend": 660
+     "spend": 660,
+     "new_orders": 15
     }
    ],
    "channels": [
@@ -300,7 +346,7 @@
    "ads": {
     "top": [
      {
-      "ad_id": "n1",
+      "ad_id": "ad10",
       "headline": "The belt that fits every bag",
       "name": "Belt bundle | still",
       "spend": 1066,
@@ -308,7 +354,7 @@
       "thumb": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20400%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%232F4F3A%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%237FA27A%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url%28%23g%29%22/%3E%3Ccircle%20cx%3D%22200%22%20cy%3D%22210%22%20r%3D%2296%22%20fill%3D%22none%22%20stroke%3D%22%23F4E9D0%22%20stroke-width%3D%2222%22/%3E%3C/svg%3E"
      },
      {
-      "ad_id": "n2",
+      "ad_id": "ad02",
       "headline": "Why golfers switch after one round",
       "name": "Customer story | video",
       "spend": 799,
@@ -316,7 +362,7 @@
       "thumb": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20400%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233A3F58%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%239AA9C6%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url%28%23g%29%22/%3E%3Cpolygon%20points%3D%22168%2C140%20168%2C260%20268%2C200%22%20fill%3D%22%23FFFFFF%22%20opacity%3D%22.9%22/%3E%3C/svg%3E"
      },
      {
-      "ad_id": "n3",
+      "ad_id": "ad06",
       "headline": "Three colors, one price",
       "name": "Colors grid | still",
       "spend": 461,
@@ -331,20 +377,28 @@
     ],
     "ads": {
      "lastPlatformClick": {
-      "n1": {
-       "revenue": 3518
+      "ad10": {
+       "revenue": 3518,
+       "orders": 29
       },
-      "n2": {
-       "revenue": 1998
+      "ad06": {
+       "revenue": 830,
+       "orders": 7
       },
-      "n3": {
-       "revenue": 830
+      "ad02": {
+       "revenue": 1998,
+       "orders": 17
       }
      }
     }
    },
-   "this_week": [],
-   "need_from_you": [],
+   "this_week": [
+    "Black Friday ads go live Thursday at 6pm, with the belt bundle leading.",
+    "The early sale ads come off tonight so the two sales do not overlap."
+   ],
+   "need_from_you": [
+    "Confirm the Black Friday budget by Wednesday."
+   ],
    "forecast": {
     "sales": 14200,
     "spend": 4600,
@@ -362,6 +416,329 @@
     "goal_sales": 52000,
     "projected": 56100,
     "planned": false
+   },
+   "this_week_from": {
+    "meeting": "m_sample_1",
+    "title": "Monday call",
+    "at": "2026-11-23T16:40:00Z"
+   }
+  },
+  "monthly|2026-10-01": {
+   "period": "monthly",
+   "period_start": "2026-10-01",
+   "period_end": "2026-10-31",
+   "status": "sent",
+   "sent_at": "2026-11-02T15:30:00Z",
+   "currency": "USD",
+   "summary": "October was steady. Sales grew each week while ad spend held flat, so MER climbed through the month.\nThe belt bundle carried Meta, and Google search picked up as people looked for gifts.\nNext: the early sale starts Nov 1 and the Black Friday ads are being made now.",
+   "totals": {
+    "sales": 62284,
+    "spend": 21005,
+    "orders": 820,
+    "mer": 2.97,
+    "aov": 76.1,
+    "new_orders": 492,
+    "new_rev": 36125,
+    "ret_rev": 26159,
+    "ncpa": 42.69,
+    "new_share": 0.58,
+    "amer": 1.72
+   },
+   "previous": {
+    "sales": 56678,
+    "spend": 20375,
+    "orders": 766,
+    "mer": 2.78,
+    "aov": 74.2,
+    "new_orders": 460,
+    "new_rev": 32307,
+    "ret_rev": 24371,
+    "ncpa": 44.29,
+    "new_share": 0.57,
+    "amer": 1.59
+   },
+   "chart": [
+    {
+     "date": "2026-10-01",
+     "sales": 1832,
+     "spend": 720,
+     "new_orders": 14
+    },
+    {
+     "date": "2026-10-02",
+     "sales": 1995,
+     "spend": 713,
+     "new_orders": 16
+    },
+    {
+     "date": "2026-10-03",
+     "sales": 2125,
+     "spend": 700,
+     "new_orders": 17
+    },
+    {
+     "date": "2026-10-04",
+     "sales": 2208,
+     "spend": 681,
+     "new_orders": 17
+    },
+    {
+     "date": "2026-10-05",
+     "sales": 2238,
+     "spend": 658,
+     "new_orders": 18
+    },
+    {
+     "date": "2026-10-06",
+     "sales": 2213,
+     "spend": 632,
+     "new_orders": 18
+    },
+    {
+     "date": "2026-10-07",
+     "sales": 2138,
+     "spend": 607,
+     "new_orders": 17
+    },
+    {
+     "date": "2026-10-08",
+     "sales": 2023,
+     "spend": 582,
+     "new_orders": 15
+    },
+    {
+     "date": "2026-10-09",
+     "sales": 1883,
+     "spend": 561,
+     "new_orders": 15
+    },
+    {
+     "date": "2026-10-10",
+     "sales": 1735,
+     "spend": 544,
+     "new_orders": 14
+    },
+    {
+     "date": "2026-10-11",
+     "sales": 1597,
+     "spend": 533,
+     "new_orders": 13
+    },
+    {
+     "date": "2026-10-12",
+     "sales": 1488,
+     "spend": 529,
+     "new_orders": 11
+    },
+    {
+     "date": "2026-10-13",
+     "sales": 1419,
+     "spend": 533,
+     "new_orders": 12
+    },
+    {
+     "date": "2026-10-14",
+     "sales": 1403,
+     "spend": 544,
+     "new_orders": 11
+    },
+    {
+     "date": "2026-10-15",
+     "sales": 1441,
+     "spend": 562,
+     "new_orders": 11
+    },
+    {
+     "date": "2026-10-16",
+     "sales": 1531,
+     "spend": 586,
+     "new_orders": 12
+    },
+    {
+     "date": "2026-10-17",
+     "sales": 1667,
+     "spend": 614,
+     "new_orders": 13
+    },
+    {
+     "date": "2026-10-18",
+     "sales": 1834,
+     "spend": 647,
+     "new_orders": 15
+    },
+    {
+     "date": "2026-10-19",
+     "sales": 2017,
+     "spend": 681,
+     "new_orders": 16
+    },
+    {
+     "date": "2026-10-20",
+     "sales": 2197,
+     "spend": 714,
+     "new_orders": 17
+    },
+    {
+     "date": "2026-10-21",
+     "sales": 2356,
+     "spend": 745,
+     "new_orders": 19
+    },
+    {
+     "date": "2026-10-22",
+     "sales": 2480,
+     "spend": 773,
+     "new_orders": 19
+    },
+    {
+     "date": "2026-10-23",
+     "sales": 2555,
+     "spend": 795,
+     "new_orders": 21
+    },
+    {
+     "date": "2026-10-24",
+     "sales": 2577,
+     "spend": 811,
+     "new_orders": 20
+    },
+    {
+     "date": "2026-10-25",
+     "sales": 2544,
+     "spend": 820,
+     "new_orders": 20
+    },
+    {
+     "date": "2026-10-26",
+     "sales": 2462,
+     "spend": 821,
+     "new_orders": 19
+    },
+    {
+     "date": "2026-10-27",
+     "sales": 2342,
+     "spend": 815,
+     "new_orders": 19
+    },
+    {
+     "date": "2026-10-28",
+     "sales": 2200,
+     "spend": 802,
+     "new_orders": 17
+    },
+    {
+     "date": "2026-10-29",
+     "sales": 2052,
+     "spend": 784,
+     "new_orders": 17
+    },
+    {
+     "date": "2026-10-30",
+     "sales": 1918,
+     "spend": 762,
+     "new_orders": 15
+    },
+    {
+     "date": "2026-10-31",
+     "sales": 1814,
+     "spend": 736,
+     "new_orders": 14
+    }
+   ],
+   "channels": [
+    {
+     "id": "meta",
+     "label": "Meta",
+     "cur": {
+      "spend": 18857,
+      "revenue": 44877,
+      "roas": 2.38,
+      "purchases": 148,
+      "source": "Triple Whale"
+     }
+    },
+    {
+     "id": "google",
+     "label": "Google",
+     "cur": {
+      "spend": 4536,
+      "revenue": 13833,
+      "roas": 3.05,
+      "purchases": 45,
+      "source": "Triple Whale"
+     }
+    },
+    {
+     "id": "tiktok",
+     "label": "TikTok",
+     "cur": {
+      "spend": 476,
+      "revenue": 281,
+      "roas": 0.59,
+      "low_signal": true
+     }
+    }
+   ],
+   "ads": {
+    "top": [
+     {
+      "ad_id": "ad10",
+      "headline": "The belt that fits every bag",
+      "name": "Belt bundle | still",
+      "spend": 5328,
+      "video": false,
+      "thumb": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20400%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%232F4F3A%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%237FA27A%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url%28%23g%29%22/%3E%3Ccircle%20cx%3D%22200%22%20cy%3D%22210%22%20r%3D%2296%22%20fill%3D%22none%22%20stroke%3D%22%23F4E9D0%22%20stroke-width%3D%2222%22/%3E%3C/svg%3E"
+     },
+     {
+      "ad_id": "ad02",
+      "headline": "Why golfers switch after one round",
+      "name": "Customer story | video",
+      "spend": 3996,
+      "video": true,
+      "thumb": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20400%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233A3F58%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%239AA9C6%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url%28%23g%29%22/%3E%3Cpolygon%20points%3D%22168%2C140%20168%2C260%20268%2C200%22%20fill%3D%22%23FFFFFF%22%20opacity%3D%22.9%22/%3E%3C/svg%3E"
+     },
+     {
+      "ad_id": "ad06",
+      "headline": "Three colors, one price",
+      "name": "Colors grid | still",
+      "spend": 2304,
+      "video": false,
+      "thumb": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20400%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%237A4A2A%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23E8B27A%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url%28%23g%29%22/%3E%3Crect%20x%3D%2270%22%20y%3D%22150%22%20width%3D%2270%22%20height%3D%22100%22%20rx%3D%2210%22%20fill%3D%22%231F1B16%22/%3E%3Crect%20x%3D%22165%22%20y%3D%22150%22%20width%3D%2270%22%20height%3D%22100%22%20rx%3D%2210%22%20fill%3D%22%23F4E9D0%22/%3E%3Crect%20x%3D%22260%22%20y%3D%22150%22%20width%3D%2270%22%20height%3D%22100%22%20rx%3D%2210%22%20fill%3D%22%23B8400A%22/%3E%3C/svg%3E"
+     }
+    ]
+   },
+   "attr": {
+    "models": [
+     "lastPlatformClick"
+    ],
+    "ads": {
+     "lastPlatformClick": {
+      "ad10": {
+       "revenue": 16606,
+       "orders": 138
+      },
+      "ad06": {
+       "revenue": 3917,
+       "orders": 33
+      },
+      "ad02": {
+       "revenue": 9435,
+       "orders": 79
+      }
+     }
+    }
+   },
+   "this_week": [
+    "The early sale starts Nov 1 for people on the list.",
+    "Black Friday ads are being made now."
+   ],
+   "need_from_you": [
+    "Send the new strap photos when they arrive."
+   ],
+   "this_week_from": {
+    "meeting": "m_sample_m",
+    "title": "Month review call",
+    "at": "2026-11-02T15:00:00Z"
    }
   }
  },
@@ -380,7 +757,7 @@
      },
      {
       "line": "The belt bundle ad still carries the account.",
-      "why": "34% of Meta spend at 3.3x ROAS (Triple Whale)."
+      "why": "31% of Meta spend at 3.3x ROAS (Triple Whale)."
      },
      {
       "line": "Google returned more per dollar than Meta.",
@@ -415,7 +792,7 @@
     },
     {
      "line": "The belt bundle ad still carries the account.",
-     "why": "34% of Meta spend at 3.3x ROAS (Triple Whale)."
+     "why": "31% of Meta spend at 3.3x ROAS (Triple Whale)."
     },
     {
      "line": "Google returned more per dollar than Meta.",

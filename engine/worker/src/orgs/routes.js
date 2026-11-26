@@ -32,7 +32,7 @@ export const routes = [
     source: { old: 'ah', file: PREFS } },
 
   { method: 'PUT', path: '/ah/api/me/prefs',
-    access: { client: true, brand: 'none', fields: ['morning_dm', 'nudge'] },
+    access: { client: true, brand: 'none', fields: ['morning_dm', 'nudge', 'home_tiles'] },
     handler: s.savePrefs,
     doc: 'Save your own preferences. One settings row, your own.',
     source: { old: 'ah', file: PREFS } },

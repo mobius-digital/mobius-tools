@@ -82,5 +82,5 @@ export function rangeWords(ctx, own) {
 addStyles('bz-css', `
 .bz-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;min-width:0;margin-bottom:-6px}
 .bz-bar .lx-chip{margin-left:auto}
-.bz-chip{display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:999px;background:var(--bg-sunk);color:var(--muted);font-size:12px;font-weight:550;white-space:nowrap}
+.bz-chip{display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:999px;background:var(--bg-sunk);color:var(--muted);font-size:12px;font-weight:500;white-space:nowrap}
 `);

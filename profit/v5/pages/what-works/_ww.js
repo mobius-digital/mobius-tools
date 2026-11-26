@@ -93,7 +93,7 @@ const CSS = `
 .ww-art img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .ww-art svg{position:absolute;left:50%;top:50%;width:34px;height:34px;margin:-17px 0 0 -17px;opacity:.9}
 .ww-art.plain{color:var(--icon)}
-.ww-art .cap{position:absolute;left:8px;top:8px;right:44px;font-size:11px;font-weight:550;line-height:1.25;text-shadow:0 1px 2px rgba(0,0,0,.35)}
+.ww-art .cap{position:absolute;left:8px;top:8px;right:44px;font-size:11px;font-weight:500;line-height:1.25;text-shadow:0 1px 2px rgba(0,0,0,.35)}
 .ww-art .len{position:absolute;right:8px;top:8px;font-size:11px;font-weight:600;background:rgba(0,0,0,.45);border-radius:6px;padding:1px 6px}
 .ww-art .over{position:absolute;left:8px;right:8px;bottom:10px;text-align:center;font-size:12.5px;font-weight:700;line-height:1.2;text-shadow:0 1px 3px rgba(0,0,0,.5)}
 .ww-art .kind{position:absolute;left:8px;top:8px;font-size:11px;font-weight:600;color:#fff;background:rgba(22,19,15,.72);border-radius:6px;padding:2px 7px}
@@ -165,7 +165,7 @@ const CSS = `
 .ww-f .lx-btn{justify-self:start}
 .ww-l{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px 24px;padding:20px 0;border-top:1px solid var(--line)}
 .ww-l:first-child{border-top:0}
-.ww-l .t{font-size:17px;font-weight:550;line-height:1.35;letter-spacing:-.01em}
+.ww-l .t{font-size:17px;font-weight:500;line-height:1.35;letter-spacing:-.01em}
 .ww-l .t.off{color:var(--muted);text-decoration:line-through}
 .ww-l .m{display:flex;gap:8px 14px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:var(--muted)}
 .ww-l .side{display:grid;gap:10px;justify-items:end;align-content:start}
@@ -244,7 +244,7 @@ const CSS = `
 .ww-bars i{display:block;border-radius:8px 8px 0 0;background:var(--ink);height:var(--v,10%);min-height:6px;margin-top:4px}
 .ww-bars .n i{background:var(--slate-soft)}
 .ww-bars .n b{color:var(--muted)}
-.ww-bars span{display:block;margin-top:8px;font-size:12.5px;font-weight:550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ww-bars span{display:block;margin-top:8px;font-size:12.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ww-bars small{display:block;font-size:11.5px;color:var(--muted)}
 .ww-bf{padding:16px 18px;border-radius:var(--r-lg);box-shadow:inset 0 0 0 1px var(--line);background:var(--surface)}
 .ww-bf h3{font-size:17px;font-weight:600;letter-spacing:-.02em;margin:8px 0 6px}
@@ -253,10 +253,10 @@ const CSS = `
 .ww-bf dl{margin:0}
 .ww-bf dl div{display:grid;grid-template-columns:86px 1fr;gap:10px;padding:11px 0;border-top:1px solid var(--line);font-size:14px}
 .ww-bf dt{font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);padding-top:3px}
-.ww-bf dd{margin:0;font-weight:550;overflow-wrap:anywhere}
+.ww-bf dd{margin:0;font-weight:500;overflow-wrap:anywhere}
 .ww-bd{padding:16px;border-radius:var(--r-lg);background:var(--band);display:grid;gap:10px}
 .ww-bd .col{font-size:12.5px;font-weight:600;color:var(--ink-2)}
-.ww-bd .k{padding:12px 14px;border-radius:12px;background:var(--surface);box-shadow:var(--sh-1);font-size:13.5px;font-weight:550}
+.ww-bd .k{padding:12px 14px;border-radius:12px;background:var(--surface);box-shadow:var(--sh-1);font-size:13.5px;font-weight:500}
 .ww-bd .k small{display:block;font-size:12px;font-weight:400;color:var(--muted);margin-top:2px}
 .ww-bd .k.new{box-shadow:var(--sh-2)}
 .ww-bd .k.new .lx-pill{float:right;background:var(--ink);color:#fff}

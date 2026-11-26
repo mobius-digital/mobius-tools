@@ -23,12 +23,12 @@ const CSS = `
 .mw-ba{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;font-size:17px;font-variant-numeric:tabular-nums}
 .mw-ba span{color:var(--muted)}.mw-ba b{font-weight:600}.mw-ba i{font-style:normal;color:var(--faint)}
 .mw-detail{color:var(--faint);font-size:12.5px;white-space:pre-line;overflow-wrap:anywhere}
-.mw-big{margin:0;padding:10px 12px;border-radius:12px;background:color-mix(in srgb,var(--bad) 10%,#fff);color:var(--bad);font-weight:600;font-size:13.5px}
+.mw-big{margin:0;padding:10px 12px;border-radius:var(--r-tbl,12px);background:color-mix(in srgb,var(--bad) 10%,#fff);color:var(--bad);font-weight:600;font-size:13.5px}
 .mw-err{margin:0;color:var(--bad);font-size:13.5px;line-height:1.45}
 .mw-lab{display:grid;gap:6px;font-size:13px;color:var(--muted)}
 .mw-lab .lx-input{font-size:15px;color:var(--ink)}
 .mw-lab textarea.lx-input{min-height:72px}
-.mw-held{margin:0;padding:10px 12px;border-radius:12px;background:var(--bg-2,#F4F3EF);font-size:13.5px;line-height:1.45}
+.mw-held{margin:0;padding:10px 12px;border-radius:var(--r-tbl,12px);background:var(--bg-2,#F4F3EF);font-size:13.5px;line-height:1.45}
 .mw-btns{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
 .mw-btns .lx-btn{min-height:44px}
 .mw-btns .lx-btn.danger{background:var(--bad);border-color:var(--bad);color:#fff}
@@ -171,7 +171,7 @@ export async function sayYes(ctx, c, onDone) {
     h('div', { class: 'mw-on' }, [c.brand, c.name].filter(Boolean).join(', ')),
     c.why ? h('p', { class: 'mw-why' }, c.why) : null,
     amountWrap, ba, status, bigLine, detail, heldLine, overWrap, whyWrap, err,
-    h('p', { class: 'mw-detail' }, 'Written to Meta and logged in Changes made. Undo for 24 hours.'),
+    h('p', { class: 'mw-detail' }, 'Written to Meta and logged in Changes. Undo for 24 hours.'),
     h('div', { class: 'mw-btns' }, button('Cancel', { onclick: () => sh.close() }), yes)) });
 
   let plan = null, from = null, big = false, seq = 0, needOver = false, checking = false, writing = false;

@@ -87,7 +87,7 @@ function view(d, ctx) {
     ], { cols: 3 })),
     card({ class: 'ww-cd', title: 'Who we watch', note: watch.length ? null : 'No competitors are listed for this brand yet.' },
       watch.length ? h('div', { class: 'ww-watch', style: { marginTop: '14px' } }, watch.map(w => { const s = site(w.url); return h('div', null, h('b', null, w.name), w.note ? h('small', null, w.note) : null,
-        s ? h('a', { href: s.href, target: '_blank', rel: 'noopener', style: { fontSize: '12px', fontWeight: 550 } }, s.host) : null); }))
+        s ? h('a', { href: s.href, target: '_blank', rel: 'noopener', style: { fontSize: '12px', fontWeight: 500 } }, s.host) : null); }))
         : h('p', { class: 'ww-an-note', style: { marginTop: '10px', fontSize: '13px', color: 'var(--muted)' } }, ctx.isClient ? 'Your team adds the brands to watch.' : 'Add them on the brand\'s research page in old ' + APP_NAME + '.')),
     brands.length > 1 ? h('div', { class: 'ww-bar' }, segmented([{ id: 'all', label: 'All brands' }, ...brands.map(b => ({ id: b, label: b }))], ST.brand, id => { ST.brand = id; paint(); })) : null,
     body,

@@ -1,10 +1,21 @@
 {
  "connected": true,
+ "analytics": true,
  "clarity": true,
  "clarity_window": "the last 3 days",
  "range": {
   "from": "2026-11-01",
   "to": "2026-11-22"
+ },
+ "window": {
+  "from": "2026-11-01",
+  "to": "2026-11-22"
+ },
+ "site": "https://northlakegolf.example",
+ "currency": "USD",
+ "goals": {
+  "roas": 3,
+  "cpa": 40
  },
  "totals": {
   "visits": 28414,
@@ -24,112 +35,156 @@
   {
    "date": "2026-11-01",
    "visits": 1725,
-   "orders": 42
+   "orders": 42,
+   "carts": 121,
+   "revenue": 3696
   },
   {
    "date": "2026-11-02",
    "visits": 1183,
-   "orders": 30
+   "orders": 30,
+   "carts": 88,
+   "revenue": 2760
   },
   {
    "date": "2026-11-03",
    "visits": 1149,
-   "orders": 32
+   "orders": 32,
+   "carts": 90,
+   "revenue": 3072
   },
   {
    "date": "2026-11-04",
    "visits": 1346,
-   "orders": 32
+   "orders": 32,
+   "carts": 97,
+   "revenue": 2912
   },
   {
    "date": "2026-11-05",
    "visits": 1864,
-   "orders": 45
+   "orders": 45,
+   "carts": 142,
+   "revenue": 4275
   },
   {
    "date": "2026-11-06",
    "visits": 1463,
-   "orders": 33
+   "orders": 33,
+   "carts": 102,
+   "revenue": 2970
   },
   {
    "date": "2026-11-07",
    "visits": 1506,
-   "orders": 42
+   "orders": 42,
+   "carts": 111,
+   "revenue": 3948
   },
   {
    "date": "2026-11-08",
    "visits": 1939,
-   "orders": 41
+   "orders": 41,
+   "carts": 151,
+   "revenue": 3649
   },
   {
    "date": "2026-11-09",
    "visits": 1715,
-   "orders": 41
+   "orders": 41,
+   "carts": 123,
+   "revenue": 3813
   },
   {
    "date": "2026-11-10",
    "visits": 1417,
-   "orders": 39
+   "orders": 39,
+   "carts": 108,
+   "revenue": 3432
   },
   {
    "date": "2026-11-11",
    "visits": 1250,
-   "orders": 27
+   "orders": 27,
+   "carts": 88,
+   "revenue": 2484
   },
   {
    "date": "2026-11-12",
    "visits": 1156,
-   "orders": 28
+   "orders": 28,
+   "carts": 86,
+   "revenue": 2688
   },
   {
    "date": "2026-11-13",
    "visits": 1878,
-   "orders": 42
+   "orders": 42,
+   "carts": 146,
+   "revenue": 3822
   },
   {
    "date": "2026-11-14",
    "visits": 1848,
-   "orders": 50
+   "orders": 50,
+   "carts": 133,
+   "revenue": 4750
   },
   {
    "date": "2026-11-15",
    "visits": 1354,
-   "orders": 32
+   "orders": 32,
+   "carts": 103,
+   "revenue": 2880
   },
   {
    "date": "2026-11-16",
    "visits": 1227,
-   "orders": 27
+   "orders": 27,
+   "carts": 86,
+   "revenue": 2538
   },
   {
    "date": "2026-11-17",
    "visits": 845,
-   "orders": 20
+   "orders": 20,
+   "carts": 63,
+   "revenue": 1780
   },
   {
    "date": "2026-11-18",
    "visits": 979,
-   "orders": 27
+   "orders": 27,
+   "carts": 76,
+   "revenue": 2511
   },
   {
    "date": "2026-11-19",
    "visits": 666,
-   "orders": 18
+   "orders": 18,
+   "carts": 48,
+   "revenue": 1584
   },
   {
    "date": "2026-11-20",
    "visits": 672,
-   "orders": 16
+   "orders": 16,
+   "carts": 51,
+   "revenue": 1472
   },
   {
    "date": "2026-11-21",
    "visits": 525,
-   "orders": 12
+   "orders": 12,
+   "carts": 37,
+   "revenue": 1152
   },
   {
    "date": "2026-11-22",
    "visits": 707,
-   "orders": 17
+   "orders": 17,
+   "carts": 52,
+   "revenue": 1547
   }
  ],
  "prev_days": [
@@ -237,7 +292,10 @@
    "sales": 17048,
    "scroll": 73,
    "rage": 3.5,
-   "dead": 2.9
+   "dead": 2.9,
+   "checkouts": 296,
+   "title": "Northlake Golf",
+   "og_image": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%201200%20630%22%3E%3Crect%20width%3D%221200%22%20height%3D%22630%22%20fill%3D%22%234a5d3a%22%2F%3E%3Ccircle%20cx%3D%221010%22%20cy%3D%22300%22%20r%3D%22230%22%20fill%3D%22%23e6ecd9%22%20opacity%3D%22.18%22%2F%3E%3Ccircle%20cx%3D%221010%22%20cy%3D%22300%22%20r%3D%22150%22%20fill%3D%22%23e6ecd9%22%20opacity%3D%22.22%22%2F%3E%3Ctext%20x%3D%2272%22%20y%3D%22110%22%20font-family%3D%22Helvetica%2CArial%2Csans-serif%22%20font-size%3D%2230%22%20font-weight%3D%22700%22%20letter-spacing%3D%226%22%20fill%3D%22%23e6ecd9%22%3ENORTHLAKE%20GOLF%3C%2Ftext%3E%3Ctext%20x%3D%2272%22%20y%3D%22330%22%20font-family%3D%22Georgia%2Cserif%22%20font-size%3D%2268%22%20fill%3D%22%23e6ecd9%22%3ENorthlake%20Golf%3C%2Ftext%3E%3Crect%20x%3D%2272%22%20y%3D%22430%22%20width%3D%22190%22%20height%3D%2254%22%20rx%3D%2227%22%20fill%3D%22%23e6ecd9%22%2F%3E%3Ctext%20x%3D%22167%22%20y%3D%22465%22%20text-anchor%3D%22middle%22%20font-family%3D%22Helvetica%2CArial%2Csans-serif%22%20font-size%3D%2222%22%20font-weight%3D%22700%22%20fill%3D%22%234a5d3a%22%3ESHOP%20NOW%3C%2Ftext%3E%3C%2Fsvg%3E"
   },
   {
    "page": "/products/ridgeline-magnetic-belt",
@@ -249,7 +307,10 @@
    "sales": 18927,
    "scroll": 41,
    "rage": 0.9,
-   "dead": 6.5
+   "dead": 6.5,
+   "checkouts": 388,
+   "title": "Ridgeline Magnetic Belt",
+   "og_image": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%201200%20630%22%3E%3Crect%20width%3D%221200%22%20height%3D%22630%22%20fill%3D%22%238a5a2b%22%2F%3E%3Ccircle%20cx%3D%221010%22%20cy%3D%22300%22%20r%3D%22230%22%20fill%3D%22%23f3e6d0%22%20opacity%3D%22.18%22%2F%3E%3Ccircle%20cx%3D%221010%22%20cy%3D%22300%22%20r%3D%22150%22%20fill%3D%22%23f3e6d0%22%20opacity%3D%22.22%22%2F%3E%3Ctext%20x%3D%2272%22%20y%3D%22110%22%20font-family%3D%22Helvetica%2CArial%2Csans-serif%22%20font-size%3D%2230%22%20font-weight%3D%22700%22%20letter-spacing%3D%226%22%20fill%3D%22%23f3e6d0%22%3ENORTHLAKE%20GOLF%3C%2Ftext%3E%3Ctext%20x%3D%2272%22%20y%3D%22330%22%20font-family%3D%22Georgia%2Cserif%22%20font-size%3D%2268%22%20fill%3D%22%23f3e6d0%22%3ERidgeline%20Magnetic%20Belt%3C%2Ftext%3E%3Crect%20x%3D%2272%22%20y%3D%22430%22%20width%3D%22190%22%20height%3D%2254%22%20rx%3D%2227%22%20fill%3D%22%23f3e6d0%22%2F%3E%3Ctext%20x%3D%22167%22%20y%3D%22465%22%20text-anchor%3D%22middle%22%20font-family%3D%22Helvetica%2CArial%2Csans-serif%22%20font-size%3D%2222%22%20font-weight%3D%22700%22%20fill%3D%22%238a5a2b%22%3ESHOP%20NOW%3C%2Ftext%3E%3C%2Fsvg%3E"
   },
   {
    "page": "/pages/early-sale",
@@ -261,7 +322,10 @@
    "sales": 11567,
    "scroll": 73,
    "rage": 1.6,
-   "dead": 7.2
+   "dead": 7.2,
+   "checkouts": 222,
+   "title": "Early Sale",
+   "og_image": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%201200%20630%22%3E%3Crect%20width%3D%221200%22%20height%3D%22630%22%20fill%3D%22%232f4a3a%22%2F%3E%3Ccircle%20cx%3D%221010%22%20cy%3D%22300%22%20r%3D%22230%22%20fill%3D%22%23d9c7a3%22%20opacity%3D%22.18%22%2F%3E%3Ccircle%20cx%3D%221010%22%20cy%3D%22300%22%20r%3D%22150%22%20fill%3D%22%23d9c7a3%22%20opacity%3D%22.22%22%2F%3E%3Ctext%20x%3D%2272%22%20y%3D%22110%22%20font-family%3D%22Helvetica%2CArial%2Csans-serif%22%20font-size%3D%2230%22%20font-weight%3D%22700%22%20letter-spacing%3D%226%22%20fill%3D%22%23d9c7a3%22%3ENORTHLAKE%20GOLF%3C%2Ftext%3E%3Ctext%20x%3D%2272%22%20y%3D%22330%22%20font-family%3D%22Georgia%2Cserif%22%20font-size%3D%2268%22%20fill%3D%22%23d9c7a3%22%3EEarly%20Sale%3C%2Ftext%3E%3Crect%20x%3D%2272%22%20y%3D%22430%22%20width%3D%22190%22%20height%3D%2254%22%20rx%3D%2227%22%20fill%3D%22%23d9c7a3%22%2F%3E%3Ctext%20x%3D%22167%22%20y%3D%22465%22%20text-anchor%3D%22middle%22%20font-family%3D%22Helvetica%2CArial%2Csans-serif%22%20font-size%3D%2222%22%20font-weight%3D%22700%22%20fill%3D%22%232f4a3a%22%3ESHOP%20NOW%3C%2Ftext%3E%3C%2Fsvg%3E"
   },
   {
    "page": "/collections/belts",
@@ -273,7 +337,10 @@
    "sales": 4225,
    "scroll": 43,
    "rage": 3.2,
-   "dead": 6.9
+   "dead": 6.9,
+   "checkouts": 106,
+   "title": "Golf Belts",
+   "og_image": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%201200%20630%22%3E%3Crect%20width%3D%221200%22%20height%3D%22630%22%20fill%3D%22%231f2f45%22%2F%3E%3Ccircle%20cx%3D%221010%22%20cy%3D%22300%22%20r%3D%22230%22%20fill%3D%22%23c9d6e3%22%20opacity%3D%22.18%22%2F%3E%3Ccircle%20cx%3D%221010%22%20cy%3D%22300%22%20r%3D%22150%22%20fill%3D%22%23c9d6e3%22%20opacity%3D%22.22%22%2F%3E%3Ctext%20x%3D%2272%22%20y%3D%22110%22%20font-family%3D%22Helvetica%2CArial%2Csans-serif%22%20font-size%3D%2230%22%20font-weight%3D%22700%22%20letter-spacing%3D%226%22%20fill%3D%22%23c9d6e3%22%3ENORTHLAKE%20GOLF%3C%2Ftext%3E%3Ctext%20x%3D%2272%22%20y%3D%22330%22%20font-family%3D%22Georgia%2Cserif%22%20font-size%3D%2268%22%20fill%3D%22%23c9d6e3%22%3EGolf%20Belts%3C%2Ftext%3E%3Crect%20x%3D%2272%22%20y%3D%22430%22%20width%3D%22190%22%20height%3D%2254%22%20rx%3D%2227%22%20fill%3D%22%23c9d6e3%22%2F%3E%3Ctext%20x%3D%22167%22%20y%3D%22465%22%20text-anchor%3D%22middle%22%20font-family%3D%22Helvetica%2CArial%2Csans-serif%22%20font-size%3D%2222%22%20font-weight%3D%22700%22%20fill%3D%22%231f2f45%22%3ESHOP%20NOW%3C%2Ftext%3E%3C%2Fsvg%3E"
   },
   {
    "page": "/products/two-belt-bundle",
@@ -285,7 +352,10 @@
    "sales": 8042,
    "scroll": 70,
    "rage": 3,
-   "dead": 5.2
+   "dead": 5.2,
+   "checkouts": 140,
+   "title": "Two Belt Bundle",
+   "og_image": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%201200%20630%22%3E%3Crect%20width%3D%221200%22%20height%3D%22630%22%20fill%3D%22%232f4a3a%22%2F%3E%3Ccircle%20cx%3D%221010%22%20cy%3D%22300%22%20r%3D%22230%22%20fill%3D%22%23d9c7a3%22%20opacity%3D%22.18%22%2F%3E%3Ccircle%20cx%3D%221010%22%20cy%3D%22300%22%20r%3D%22150%22%20fill%3D%22%23d9c7a3%22%20opacity%3D%22.22%22%2F%3E%3Ctext%20x%3D%2272%22%20y%3D%22110%22%20font-family%3D%22Helvetica%2CArial%2Csans-serif%22%20font-size%3D%2230%22%20font-weight%3D%22700%22%20letter-spacing%3D%226%22%20fill%3D%22%23d9c7a3%22%3ENORTHLAKE%20GOLF%3C%2Ftext%3E%3Ctext%20x%3D%2272%22%20y%3D%22330%22%20font-family%3D%22Georgia%2Cserif%22%20font-size%3D%2268%22%20fill%3D%22%23d9c7a3%22%3ETwo%20Belt%20Bundle%3C%2Ftext%3E%3Crect%20x%3D%2272%22%20y%3D%22430%22%20width%3D%22190%22%20height%3D%2254%22%20rx%3D%2227%22%20fill%3D%22%23d9c7a3%22%2F%3E%3Ctext%20x%3D%22167%22%20y%3D%22465%22%20text-anchor%3D%22middle%22%20font-family%3D%22Helvetica%2CArial%2Csans-serif%22%20font-size%3D%2222%22%20font-weight%3D%22700%22%20fill%3D%22%232f4a3a%22%3ESHOP%20NOW%3C%2Ftext%3E%3C%2Fsvg%3E"
   },
   {
    "page": "/pages/black-friday-early-access",
@@ -297,7 +367,10 @@
    "sales": 739,
    "scroll": 31,
    "rage": 6.8,
-   "dead": 5.9
+   "dead": 5.9,
+   "checkouts": 14,
+   "title": "Black Friday Early Access",
+   "og_image": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%201200%20630%22%3E%3Crect%20width%3D%221200%22%20height%3D%22630%22%20fill%3D%22%237a2f2f%22%2F%3E%3Ccircle%20cx%3D%221010%22%20cy%3D%22300%22%20r%3D%22230%22%20fill%3D%22%23f0dcd2%22%20opacity%3D%22.18%22%2F%3E%3Ccircle%20cx%3D%221010%22%20cy%3D%22300%22%20r%3D%22150%22%20fill%3D%22%23f0dcd2%22%20opacity%3D%22.22%22%2F%3E%3Ctext%20x%3D%2272%22%20y%3D%22110%22%20font-family%3D%22Helvetica%2CArial%2Csans-serif%22%20font-size%3D%2230%22%20font-weight%3D%22700%22%20letter-spacing%3D%226%22%20fill%3D%22%23f0dcd2%22%3ENORTHLAKE%20GOLF%3C%2Ftext%3E%3Ctext%20x%3D%2272%22%20y%3D%22330%22%20font-family%3D%22Georgia%2Cserif%22%20font-size%3D%2268%22%20fill%3D%22%23f0dcd2%22%3EBlack%20Friday%20Early%20Access%3C%2Ftext%3E%3Crect%20x%3D%2272%22%20y%3D%22430%22%20width%3D%22190%22%20height%3D%2254%22%20rx%3D%2227%22%20fill%3D%22%23f0dcd2%22%2F%3E%3Ctext%20x%3D%22167%22%20y%3D%22465%22%20text-anchor%3D%22middle%22%20font-family%3D%22Helvetica%2CArial%2Csans-serif%22%20font-size%3D%2222%22%20font-weight%3D%22700%22%20fill%3D%22%237a2f2f%22%3ESHOP%20NOW%3C%2Ftext%3E%3C%2Fsvg%3E"
   },
   {
    "page": "/products/ball-marker-set",
@@ -309,7 +382,10 @@
    "sales": 2679,
    "scroll": 39,
    "rage": 0.5,
-   "dead": 4.8
+   "dead": 4.8,
+   "checkouts": 58,
+   "title": "Ball Marker Set",
+   "og_image": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%201200%20630%22%3E%3Crect%20width%3D%221200%22%20height%3D%22630%22%20fill%3D%22%234a5d3a%22%2F%3E%3Ccircle%20cx%3D%221010%22%20cy%3D%22300%22%20r%3D%22230%22%20fill%3D%22%23e6ecd9%22%20opacity%3D%22.18%22%2F%3E%3Ccircle%20cx%3D%221010%22%20cy%3D%22300%22%20r%3D%22150%22%20fill%3D%22%23e6ecd9%22%20opacity%3D%22.22%22%2F%3E%3Ctext%20x%3D%2272%22%20y%3D%22110%22%20font-family%3D%22Helvetica%2CArial%2Csans-serif%22%20font-size%3D%2230%22%20font-weight%3D%22700%22%20letter-spacing%3D%226%22%20fill%3D%22%23e6ecd9%22%3ENORTHLAKE%20GOLF%3C%2Ftext%3E%3Ctext%20x%3D%2272%22%20y%3D%22330%22%20font-family%3D%22Georgia%2Cserif%22%20font-size%3D%2268%22%20fill%3D%22%23e6ecd9%22%3EBall%20Marker%20Set%3C%2Ftext%3E%3Crect%20x%3D%2272%22%20y%3D%22430%22%20width%3D%22190%22%20height%3D%2254%22%20rx%3D%2227%22%20fill%3D%22%23e6ecd9%22%2F%3E%3Ctext%20x%3D%22167%22%20y%3D%22465%22%20text-anchor%3D%22middle%22%20font-family%3D%22Helvetica%2CArial%2Csans-serif%22%20font-size%3D%2222%22%20font-weight%3D%22700%22%20fill%3D%22%234a5d3a%22%3ESHOP%20NOW%3C%2Ftext%3E%3C%2Fsvg%3E"
   },
   {
    "page": "/blogs/journal/how-to-size-a-golf-belt",
@@ -321,7 +397,10 @@
    "sales": 574,
    "scroll": 67,
    "rage": 2.4,
-   "dead": 6.4
+   "dead": 6.4,
+   "checkouts": 13,
+   "title": "How to Size a Golf Belt",
+   "og_image": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%201200%20630%22%3E%3Crect%20width%3D%221200%22%20height%3D%22630%22%20fill%3D%22%233b3b3b%22%2F%3E%3Ccircle%20cx%3D%221010%22%20cy%3D%22300%22%20r%3D%22230%22%20fill%3D%22%23e8e2d8%22%20opacity%3D%22.18%22%2F%3E%3Ccircle%20cx%3D%221010%22%20cy%3D%22300%22%20r%3D%22150%22%20fill%3D%22%23e8e2d8%22%20opacity%3D%22.22%22%2F%3E%3Ctext%20x%3D%2272%22%20y%3D%22110%22%20font-family%3D%22Helvetica%2CArial%2Csans-serif%22%20font-size%3D%2230%22%20font-weight%3D%22700%22%20letter-spacing%3D%226%22%20fill%3D%22%23e8e2d8%22%3ENORTHLAKE%20GOLF%3C%2Ftext%3E%3Ctext%20x%3D%2272%22%20y%3D%22330%22%20font-family%3D%22Georgia%2Cserif%22%20font-size%3D%2268%22%20fill%3D%22%23e8e2d8%22%3EHow%20to%20Size%20a%20Golf%20Belt%3C%2Ftext%3E%3Crect%20x%3D%2272%22%20y%3D%22430%22%20width%3D%22190%22%20height%3D%2254%22%20rx%3D%2227%22%20fill%3D%22%23e8e2d8%22%2F%3E%3Ctext%20x%3D%22167%22%20y%3D%22465%22%20text-anchor%3D%22middle%22%20font-family%3D%22Helvetica%2CArial%2Csans-serif%22%20font-size%3D%2222%22%20font-weight%3D%22700%22%20fill%3D%22%233b3b3b%22%3ESHOP%20NOW%3C%2Ftext%3E%3C%2Fsvg%3E"
   },
   {
    "page": "/collections/accessories",
@@ -333,7 +412,10 @@
    "sales": 1239,
    "scroll": 45,
    "rage": 3.1,
-   "dead": 3.3
+   "dead": 3.3,
+   "checkouts": 32,
+   "title": "Accessories",
+   "og_image": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%201200%20630%22%3E%3Crect%20width%3D%221200%22%20height%3D%22630%22%20fill%3D%22%237a2f2f%22%2F%3E%3Ccircle%20cx%3D%221010%22%20cy%3D%22300%22%20r%3D%22230%22%20fill%3D%22%23f0dcd2%22%20opacity%3D%22.18%22%2F%3E%3Ccircle%20cx%3D%221010%22%20cy%3D%22300%22%20r%3D%22150%22%20fill%3D%22%23f0dcd2%22%20opacity%3D%22.22%22%2F%3E%3Ctext%20x%3D%2272%22%20y%3D%22110%22%20font-family%3D%22Helvetica%2CArial%2Csans-serif%22%20font-size%3D%2230%22%20font-weight%3D%22700%22%20letter-spacing%3D%226%22%20fill%3D%22%23f0dcd2%22%3ENORTHLAKE%20GOLF%3C%2Ftext%3E%3Ctext%20x%3D%2272%22%20y%3D%22330%22%20font-family%3D%22Georgia%2Cserif%22%20font-size%3D%2268%22%20fill%3D%22%23f0dcd2%22%3EAccessories%3C%2Ftext%3E%3Crect%20x%3D%2272%22%20y%3D%22430%22%20width%3D%22190%22%20height%3D%2254%22%20rx%3D%2227%22%20fill%3D%22%23f0dcd2%22%2F%3E%3Ctext%20x%3D%22167%22%20y%3D%22465%22%20text-anchor%3D%22middle%22%20font-family%3D%22Helvetica%2CArial%2Csans-serif%22%20font-size%3D%2222%22%20font-weight%3D%22700%22%20fill%3D%22%237a2f2f%22%3ESHOP%20NOW%3C%2Ftext%3E%3C%2Fsvg%3E"
   },
   {
    "page": "/pages/gift-guide",
@@ -345,7 +427,10 @@
    "sales": 1552,
    "scroll": 63,
    "rage": 1.4,
-   "dead": 7.2
+   "dead": 7.2,
+   "checkouts": 32,
+   "title": "Gift Guide",
+   "og_image": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%201200%20630%22%3E%3Crect%20width%3D%221200%22%20height%3D%22630%22%20fill%3D%22%238a5a2b%22%2F%3E%3Ccircle%20cx%3D%221010%22%20cy%3D%22300%22%20r%3D%22230%22%20fill%3D%22%23f3e6d0%22%20opacity%3D%22.18%22%2F%3E%3Ccircle%20cx%3D%221010%22%20cy%3D%22300%22%20r%3D%22150%22%20fill%3D%22%23f3e6d0%22%20opacity%3D%22.22%22%2F%3E%3Ctext%20x%3D%2272%22%20y%3D%22110%22%20font-family%3D%22Helvetica%2CArial%2Csans-serif%22%20font-size%3D%2230%22%20font-weight%3D%22700%22%20letter-spacing%3D%226%22%20fill%3D%22%23f3e6d0%22%3ENORTHLAKE%20GOLF%3C%2Ftext%3E%3Ctext%20x%3D%2272%22%20y%3D%22330%22%20font-family%3D%22Georgia%2Cserif%22%20font-size%3D%2268%22%20fill%3D%22%23f3e6d0%22%3EGift%20Guide%3C%2Ftext%3E%3Crect%20x%3D%2272%22%20y%3D%22430%22%20width%3D%22190%22%20height%3D%2254%22%20rx%3D%2227%22%20fill%3D%22%23f3e6d0%22%2F%3E%3Ctext%20x%3D%22167%22%20y%3D%22465%22%20text-anchor%3D%22middle%22%20font-family%3D%22Helvetica%2CArial%2Csans-serif%22%20font-size%3D%2222%22%20font-weight%3D%22700%22%20fill%3D%22%238a5a2b%22%3ESHOP%20NOW%3C%2Ftext%3E%3C%2Fsvg%3E"
   },
   {
    "page": "/products/cabretta-glove",
@@ -357,9 +442,536 @@
    "sales": 1601,
    "scroll": 72,
    "rage": 1,
-   "dead": 5.7
+   "dead": 5.7,
+   "checkouts": 33,
+   "title": "Cabretta Glove",
+   "og_image": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%201200%20630%22%3E%3Crect%20width%3D%221200%22%20height%3D%22630%22%20fill%3D%22%238a5a2b%22%2F%3E%3Ccircle%20cx%3D%221010%22%20cy%3D%22300%22%20r%3D%22230%22%20fill%3D%22%23f3e6d0%22%20opacity%3D%22.18%22%2F%3E%3Ccircle%20cx%3D%221010%22%20cy%3D%22300%22%20r%3D%22150%22%20fill%3D%22%23f3e6d0%22%20opacity%3D%22.22%22%2F%3E%3Ctext%20x%3D%2272%22%20y%3D%22110%22%20font-family%3D%22Helvetica%2CArial%2Csans-serif%22%20font-size%3D%2230%22%20font-weight%3D%22700%22%20letter-spacing%3D%226%22%20fill%3D%22%23f3e6d0%22%3ENORTHLAKE%20GOLF%3C%2Ftext%3E%3Ctext%20x%3D%2272%22%20y%3D%22330%22%20font-family%3D%22Georgia%2Cserif%22%20font-size%3D%2268%22%20fill%3D%22%23f3e6d0%22%3ECabretta%20Glove%3C%2Ftext%3E%3Crect%20x%3D%2272%22%20y%3D%22430%22%20width%3D%22190%22%20height%3D%2254%22%20rx%3D%2227%22%20fill%3D%22%23f3e6d0%22%2F%3E%3Ctext%20x%3D%22167%22%20y%3D%22465%22%20text-anchor%3D%22middle%22%20font-family%3D%22Helvetica%2CArial%2Csans-serif%22%20font-size%3D%2222%22%20font-weight%3D%22700%22%20fill%3D%22%238a5a2b%22%3ESHOP%20NOW%3C%2Ftext%3E%3C%2Fsvg%3E"
   }
  ],
+ "ads_state": "ok",
+ "ads": [
+  {
+   "id": "ad08",
+   "name": "First tee, slow motion",
+   "video": true,
+   "lead": false,
+   "thumb": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20400%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23d9c7a3%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%232f4a3a%22%20stop-opacity%3D%22.55%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url(%23g)%22%2F%3E%3Cellipse%20cx%3D%22200%22%20cy%3D%22330%22%20rx%3D%22150%22%20ry%3D%2220%22%20fill%3D%22%23000%22%20opacity%3D%22.12%22%2F%3E%3Crect%20x%3D%2240%22%20y%3D%22150%22%20width%3D%22320%22%20height%3D%2256%22%20rx%3D%2228%22%20fill%3D%22%232f4a3a%22%2F%3E%3Crect%20x%3D%22250%22%20y%3D%22140%22%20width%3D%2270%22%20height%3D%2276%22%20rx%3D%2210%22%20fill%3D%22none%22%20stroke%3D%22%23c9a24a%22%20stroke-width%3D%2210%22%2F%3E%3C%2Fsvg%3E",
+   "link": "https://northlakegolf.example/pages/early-sale",
+   "campaign": "Black Friday 2026",
+   "adset": "Early sale | New people",
+   "spend": 1506,
+   "revenue": 2771.04,
+   "purchases": 23,
+   "roas": 1.84,
+   "cpa": 65.48,
+   "clicks": 682,
+   "impressions": 84199,
+   "ctr": 0.0081,
+   "cpm": 17.89,
+   "frequency": 2.44
+  },
+  {
+   "id": "ad03",
+   "name": "Two belts, one buckle",
+   "video": false,
+   "lead": false,
+   "thumb": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20400%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23c9d6e3%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%231f2f45%22%20stop-opacity%3D%22.55%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url(%23g)%22%2F%3E%3Cellipse%20cx%3D%22200%22%20cy%3D%22330%22%20rx%3D%22150%22%20ry%3D%2220%22%20fill%3D%22%23000%22%20opacity%3D%22.12%22%2F%3E%3Crect%20x%3D%2240%22%20y%3D%22150%22%20width%3D%22320%22%20height%3D%2256%22%20rx%3D%2228%22%20fill%3D%22%231f2f45%22%2F%3E%3Crect%20x%3D%22250%22%20y%3D%22140%22%20width%3D%2270%22%20height%3D%2276%22%20rx%3D%2210%22%20fill%3D%22none%22%20stroke%3D%22%23c9a24a%22%20stroke-width%3D%2210%22%2F%3E%3C%2Fsvg%3E",
+   "link": "https://northlakegolf.example/products/two-belt-bundle",
+   "campaign": "Black Friday 2026",
+   "adset": "Early sale | New people",
+   "spend": 1420,
+   "revenue": 4430.4,
+   "purchases": 37,
+   "roas": 3.12,
+   "cpa": 38.38,
+   "clicks": 654,
+   "impressions": 96248,
+   "ctr": 0.0068,
+   "cpm": 14.75,
+   "frequency": 1.59
+  },
+  {
+   "id": "ad10",
+   "name": "Belt wall, studio",
+   "video": false,
+   "lead": false,
+   "thumb": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20400%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23d9c7a3%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%232f4a3a%22%20stop-opacity%3D%22.55%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url(%23g)%22%2F%3E%3Cellipse%20cx%3D%22200%22%20cy%3D%22330%22%20rx%3D%22150%22%20ry%3D%2220%22%20fill%3D%22%23000%22%20opacity%3D%22.12%22%2F%3E%3Crect%20x%3D%22185%22%20y%3D%22120%22%20width%3D%2230%22%20height%3D%22180%22%20rx%3D%228%22%20fill%3D%22%23fbfaf7%22%2F%3E%3Cellipse%20cx%3D%22200%22%20cy%3D%22120%22%20rx%3D%2246%22%20ry%3D%2214%22%20fill%3D%22%23fbfaf7%22%2F%3E%3Ccircle%20cx%3D%22200%22%20cy%3D%2288%22%20r%3D%2234%22%20fill%3D%22%23fbfaf7%22%2F%3E%3C%2Fsvg%3E",
+   "link": "https://northlakegolf.example/collections/belts",
+   "campaign": "Evergreen | Broad",
+   "adset": "Belts | Broad",
+   "spend": 1322,
+   "revenue": 1665.72,
+   "purchases": 14,
+   "roas": 1.26,
+   "cpa": 94.43,
+   "clicks": 1054,
+   "impressions": 54901,
+   "ctr": 0.0192,
+   "cpm": 24.08,
+   "frequency": 2.1
+  },
+  {
+   "id": "ad06",
+   "name": "Gift box, flat lay",
+   "video": false,
+   "lead": false,
+   "thumb": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20400%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23efe3cf%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%236b3f2a%22%20stop-opacity%3D%22.55%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url(%23g)%22%2F%3E%3Cellipse%20cx%3D%22200%22%20cy%3D%22330%22%20rx%3D%22150%22%20ry%3D%2220%22%20fill%3D%22%23000%22%20opacity%3D%22.12%22%2F%3E%3Ccircle%20cx%3D%22200%22%20cy%3D%22190%22%20r%3D%2292%22%20fill%3D%22%23fbfaf7%22%2F%3E%3Ccircle%20cx%3D%22170%22%20cy%3D%22160%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3Ccircle%20cx%3D%22205%22%20cy%3D%22150%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3Ccircle%20cx%3D%22235%22%20cy%3D%22175%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3Ccircle%20cx%3D%22190%22%20cy%3D%22200%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3Ccircle%20cx%3D%22225%22%20cy%3D%22215%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3C%2Fsvg%3E",
+   "link": "https://northlakegolf.example/pages/gift-guide",
+   "campaign": "Black Friday 2026",
+   "adset": "Early sale | New people",
+   "spend": 1238,
+   "revenue": 3354.98,
+   "purchases": 28,
+   "roas": 2.71,
+   "cpa": 44.21,
+   "clicks": 665,
+   "impressions": 78299,
+   "ctr": 0.0085,
+   "cpm": 15.81,
+   "frequency": 1.64
+  },
+  {
+   "id": "ad17",
+   "name": "Brown strap, on course",
+   "video": false,
+   "lead": false,
+   "thumb": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20400%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23e6ecd9%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%234a5d3a%22%20stop-opacity%3D%22.55%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url(%23g)%22%2F%3E%3Cellipse%20cx%3D%22200%22%20cy%3D%22330%22%20rx%3D%22150%22%20ry%3D%2220%22%20fill%3D%22%23000%22%20opacity%3D%22.12%22%2F%3E%3Crect%20x%3D%22185%22%20y%3D%22120%22%20width%3D%2230%22%20height%3D%22180%22%20rx%3D%228%22%20fill%3D%22%23fbfaf7%22%2F%3E%3Cellipse%20cx%3D%22200%22%20cy%3D%22120%22%20rx%3D%2246%22%20ry%3D%2214%22%20fill%3D%22%23fbfaf7%22%2F%3E%3Ccircle%20cx%3D%22200%22%20cy%3D%2288%22%20r%3D%2234%22%20fill%3D%22%23fbfaf7%22%2F%3E%3C%2Fsvg%3E",
+   "link": "https://northlakegolf.example/",
+   "campaign": "Evergreen | Broad",
+   "adset": "Broad | New people",
+   "spend": 1188,
+   "revenue": 1437.48,
+   "purchases": 12,
+   "roas": 1.21,
+   "cpa": 99,
+   "clicks": 866,
+   "impressions": 78067,
+   "ctr": 0.0111,
+   "cpm": 15.22,
+   "frequency": 1.25
+  },
+  {
+   "id": "ad01",
+   "name": "Walnut belt, range day",
+   "video": true,
+   "lead": false,
+   "thumb": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20400%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23f0dcd2%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%237a2f2f%22%20stop-opacity%3D%22.55%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url(%23g)%22%2F%3E%3Cellipse%20cx%3D%22200%22%20cy%3D%22330%22%20rx%3D%22150%22%20ry%3D%2220%22%20fill%3D%22%23000%22%20opacity%3D%22.12%22%2F%3E%3Ccircle%20cx%3D%22200%22%20cy%3D%22190%22%20r%3D%2292%22%20fill%3D%22%23fbfaf7%22%2F%3E%3Ccircle%20cx%3D%22170%22%20cy%3D%22160%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3Ccircle%20cx%3D%22205%22%20cy%3D%22150%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3Ccircle%20cx%3D%22235%22%20cy%3D%22175%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3Ccircle%20cx%3D%22190%22%20cy%3D%22200%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3Ccircle%20cx%3D%22225%22%20cy%3D%22215%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3C%2Fsvg%3E",
+   "link": "https://northlakegolf.example/products/ridgeline-magnetic-belt",
+   "campaign": "Black Friday 2026",
+   "adset": "Early sale | New people",
+   "spend": 1164,
+   "revenue": 3957.6,
+   "purchases": 34,
+   "roas": 3.4,
+   "cpa": 34.24,
+   "clicks": 675,
+   "impressions": 50035,
+   "ctr": 0.0135,
+   "cpm": 23.26,
+   "frequency": 2.68
+  },
+  {
+   "id": "ad11",
+   "name": "Buckle close up",
+   "video": false,
+   "lead": false,
+   "thumb": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20400%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23f3e6d0%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%238a5a2b%22%20stop-opacity%3D%22.55%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url(%23g)%22%2F%3E%3Cellipse%20cx%3D%22200%22%20cy%3D%22330%22%20rx%3D%22150%22%20ry%3D%2220%22%20fill%3D%22%23000%22%20opacity%3D%22.12%22%2F%3E%3Crect%20x%3D%2240%22%20y%3D%22150%22%20width%3D%22320%22%20height%3D%2256%22%20rx%3D%2228%22%20fill%3D%22%238a5a2b%22%2F%3E%3Crect%20x%3D%22250%22%20y%3D%22140%22%20width%3D%2270%22%20height%3D%2276%22%20rx%3D%2210%22%20fill%3D%22none%22%20stroke%3D%22%23c9a24a%22%20stroke-width%3D%2210%22%2F%3E%3C%2Fsvg%3E",
+   "link": "https://northlakegolf.example/products/ridgeline-magnetic-belt",
+   "campaign": "Black Friday 2026",
+   "adset": "Early sale | New people",
+   "spend": 1104,
+   "revenue": 1324.8,
+   "purchases": 11,
+   "roas": 1.2,
+   "cpa": 100.36,
+   "clicks": 869,
+   "impressions": 50559,
+   "ctr": 0.0172,
+   "cpm": 21.84,
+   "frequency": 1.36
+  },
+  {
+   "id": "ad02",
+   "name": "Welcome back, 20% off",
+   "video": false,
+   "lead": false,
+   "thumb": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20400%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23d9c7a3%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%232f4a3a%22%20stop-opacity%3D%22.55%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url(%23g)%22%2F%3E%3Cellipse%20cx%3D%22200%22%20cy%3D%22330%22%20rx%3D%22150%22%20ry%3D%2220%22%20fill%3D%22%23000%22%20opacity%3D%22.12%22%2F%3E%3Crect%20x%3D%2240%22%20y%3D%22150%22%20width%3D%22320%22%20height%3D%2256%22%20rx%3D%2228%22%20fill%3D%22%232f4a3a%22%2F%3E%3Crect%20x%3D%22250%22%20y%3D%22140%22%20width%3D%2270%22%20height%3D%2276%22%20rx%3D%2210%22%20fill%3D%22none%22%20stroke%3D%22%23c9a24a%22%20stroke-width%3D%2210%22%2F%3E%3C%2Fsvg%3E",
+   "link": "https://northlakegolf.example/pages/early-sale?utm_source=meta&utm_campaign=early",
+   "campaign": "Black Friday 2026",
+   "adset": "Early sale | Past buyers",
+   "spend": 986,
+   "revenue": 3549.6,
+   "purchases": 29,
+   "roas": 3.6,
+   "cpa": 34,
+   "clicks": 473,
+   "impressions": 39121,
+   "ctr": 0.0121,
+   "cpm": 25.2,
+   "frequency": 2.86
+  },
+  {
+   "id": "ad14",
+   "name": "Whitelist, cart ride",
+   "video": true,
+   "lead": false,
+   "thumb": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20400%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23e6ecd9%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%234a5d3a%22%20stop-opacity%3D%22.55%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url(%23g)%22%2F%3E%3Cellipse%20cx%3D%22200%22%20cy%3D%22330%22%20rx%3D%22150%22%20ry%3D%2220%22%20fill%3D%22%23000%22%20opacity%3D%22.12%22%2F%3E%3Crect%20x%3D%22185%22%20y%3D%22120%22%20width%3D%2230%22%20height%3D%22180%22%20rx%3D%228%22%20fill%3D%22%23fbfaf7%22%2F%3E%3Cellipse%20cx%3D%22200%22%20cy%3D%22120%22%20rx%3D%2246%22%20ry%3D%2214%22%20fill%3D%22%23fbfaf7%22%2F%3E%3Ccircle%20cx%3D%22200%22%20cy%3D%2288%22%20r%3D%2234%22%20fill%3D%22%23fbfaf7%22%2F%3E%3C%2Fsvg%3E",
+   "link": "https://northlakegolf.example/",
+   "campaign": "Evergreen | Broad",
+   "adset": "Whitelist | New people",
+   "spend": 944,
+   "revenue": 887.36,
+   "purchases": 7,
+   "roas": 0.94,
+   "cpa": 134.86,
+   "clicks": 776,
+   "impressions": 45680,
+   "ctr": 0.017,
+   "cpm": 20.67,
+   "frequency": 1.4
+  },
+  {
+   "id": "ad05",
+   "name": "Your belt, new strap",
+   "video": true,
+   "lead": false,
+   "thumb": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20400%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23efe3cf%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%236b3f2a%22%20stop-opacity%3D%22.55%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url(%23g)%22%2F%3E%3Cellipse%20cx%3D%22200%22%20cy%3D%22330%22%20rx%3D%22150%22%20ry%3D%2220%22%20fill%3D%22%23000%22%20opacity%3D%22.12%22%2F%3E%3Crect%20x%3D%2240%22%20y%3D%22150%22%20width%3D%22320%22%20height%3D%2256%22%20rx%3D%2228%22%20fill%3D%22%236b3f2a%22%2F%3E%3Crect%20x%3D%22250%22%20y%3D%22140%22%20width%3D%2270%22%20height%3D%2276%22%20rx%3D%2210%22%20fill%3D%22none%22%20stroke%3D%22%23c9a24a%22%20stroke-width%3D%2210%22%2F%3E%3C%2Fsvg%3E",
+   "link": "https://northlakegolf.example/collections/belts",
+   "campaign": "Black Friday 2026",
+   "adset": "Early sale | Past buyers",
+   "spend": 873,
+   "revenue": 2706.3,
+   "purchases": 23,
+   "roas": 3.1,
+   "cpa": 37.96,
+   "clicks": 673,
+   "impressions": 39621,
+   "ctr": 0.017,
+   "cpm": 22.03,
+   "frequency": 2.9
+  },
+  {
+   "id": "ad18",
+   "name": "Caddie review",
+   "video": true,
+   "lead": false,
+   "thumb": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20400%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23d9c7a3%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%232f4a3a%22%20stop-opacity%3D%22.55%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url(%23g)%22%2F%3E%3Cellipse%20cx%3D%22200%22%20cy%3D%22330%22%20rx%3D%22150%22%20ry%3D%2220%22%20fill%3D%22%23000%22%20opacity%3D%22.12%22%2F%3E%3Crect%20x%3D%2240%22%20y%3D%22150%22%20width%3D%22320%22%20height%3D%2256%22%20rx%3D%2228%22%20fill%3D%22%232f4a3a%22%2F%3E%3Crect%20x%3D%22250%22%20y%3D%22140%22%20width%3D%2270%22%20height%3D%2276%22%20rx%3D%2210%22%20fill%3D%22none%22%20stroke%3D%22%23c9a24a%22%20stroke-width%3D%2210%22%2F%3E%3C%2Fsvg%3E",
+   "link": "https://northlakegolf.example/products/ridgeline-magnetic-belt",
+   "campaign": "Black Friday 2026",
+   "adset": "Early sale | New people",
+   "spend": 742,
+   "revenue": 593.6,
+   "purchases": 5,
+   "roas": 0.8,
+   "cpa": 148.4,
+   "clicks": 471,
+   "impressions": 48632,
+   "ctr": 0.0097,
+   "cpm": 15.26,
+   "frequency": 1.28
+  },
+  {
+   "id": "ad19",
+   "name": "Buckle swap, 6 seconds",
+   "video": true,
+   "lead": false,
+   "thumb": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20400%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23d9c7a3%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%232f4a3a%22%20stop-opacity%3D%22.55%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url(%23g)%22%2F%3E%3Cellipse%20cx%3D%22200%22%20cy%3D%22330%22%20rx%3D%22150%22%20ry%3D%2220%22%20fill%3D%22%23000%22%20opacity%3D%22.12%22%2F%3E%3Ccircle%20cx%3D%22200%22%20cy%3D%22190%22%20r%3D%2292%22%20fill%3D%22%23fbfaf7%22%2F%3E%3Ccircle%20cx%3D%22170%22%20cy%3D%22160%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3Ccircle%20cx%3D%22205%22%20cy%3D%22150%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3Ccircle%20cx%3D%22235%22%20cy%3D%22175%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3Ccircle%20cx%3D%22190%22%20cy%3D%22200%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3Ccircle%20cx%3D%22225%22%20cy%3D%22215%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3C%2Fsvg%3E",
+   "link": "https://northlakegolf.example/products/ridgeline-magnetic-belt",
+   "campaign": "Evergreen | Broad",
+   "adset": "Belts | Broad",
+   "spend": 664,
+   "revenue": 478.08,
+   "purchases": 4,
+   "roas": 0.72,
+   "cpa": 166,
+   "clicks": 295,
+   "impressions": 39380,
+   "ctr": 0.0075,
+   "cpm": 16.86,
+   "frequency": 1.51
+  },
+  {
+   "id": "ad13",
+   "name": "Leather care kit",
+   "video": false,
+   "lead": false,
+   "thumb": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20400%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23c9d6e3%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%231f2f45%22%20stop-opacity%3D%22.55%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url(%23g)%22%2F%3E%3Cellipse%20cx%3D%22200%22%20cy%3D%22330%22%20rx%3D%22150%22%20ry%3D%2220%22%20fill%3D%22%23000%22%20opacity%3D%22.12%22%2F%3E%3Crect%20x%3D%22185%22%20y%3D%22120%22%20width%3D%2230%22%20height%3D%22180%22%20rx%3D%228%22%20fill%3D%22%23fbfaf7%22%2F%3E%3Cellipse%20cx%3D%22200%22%20cy%3D%22120%22%20rx%3D%2246%22%20ry%3D%2214%22%20fill%3D%22%23fbfaf7%22%2F%3E%3Ccircle%20cx%3D%22200%22%20cy%3D%2288%22%20r%3D%2234%22%20fill%3D%22%23fbfaf7%22%2F%3E%3C%2Fsvg%3E",
+   "link": "https://northlakegolf.example/collections/accessories",
+   "campaign": "Evergreen | Broad",
+   "adset": "Gifts under $50",
+   "spend": 612,
+   "revenue": 563.04,
+   "purchases": 9,
+   "roas": 0.92,
+   "cpa": 68,
+   "clicks": 353,
+   "impressions": 32455,
+   "ctr": 0.0109,
+   "cpm": 18.86,
+   "frequency": 1.3
+  },
+  {
+   "id": "ad20",
+   "name": "Fall colors, flat lay",
+   "video": false,
+   "lead": false,
+   "thumb": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20400%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23e6ecd9%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%234a5d3a%22%20stop-opacity%3D%22.55%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url(%23g)%22%2F%3E%3Cellipse%20cx%3D%22200%22%20cy%3D%22330%22%20rx%3D%22150%22%20ry%3D%2220%22%20fill%3D%22%23000%22%20opacity%3D%22.12%22%2F%3E%3Ccircle%20cx%3D%22200%22%20cy%3D%22190%22%20r%3D%2292%22%20fill%3D%22%23fbfaf7%22%2F%3E%3Ccircle%20cx%3D%22170%22%20cy%3D%22160%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3Ccircle%20cx%3D%22205%22%20cy%3D%22150%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3Ccircle%20cx%3D%22235%22%20cy%3D%22175%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3Ccircle%20cx%3D%22190%22%20cy%3D%22200%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3Ccircle%20cx%3D%22225%22%20cy%3D%22215%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3C%2Fsvg%3E",
+   "link": "https://northlakegolf.example/collections/belts",
+   "campaign": "Evergreen | Broad",
+   "adset": "Broad | New people",
+   "spend": 520,
+   "revenue": 239.2,
+   "purchases": 2,
+   "roas": 0.46,
+   "cpa": 260,
+   "clicks": 221,
+   "impressions": 30285,
+   "ctr": 0.0073,
+   "cpm": 17.17,
+   "frequency": 1.96
+  },
+  {
+   "id": "ad15",
+   "name": "Ball marker set",
+   "video": false,
+   "lead": false,
+   "thumb": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20400%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23e8e2d8%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%233b3b3b%22%20stop-opacity%3D%22.55%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url(%23g)%22%2F%3E%3Cellipse%20cx%3D%22200%22%20cy%3D%22330%22%20rx%3D%22150%22%20ry%3D%2220%22%20fill%3D%22%23000%22%20opacity%3D%22.12%22%2F%3E%3Cpath%20d%3D%22M140%20300%20L140%20160%20Q140%20110%20175%20110%20L250%20110%20Q280%20110%20280%20150%20L280%20300%20Z%22%20fill%3D%22%23fbfaf7%22%2F%3E%3Crect%20x%3D%22140%22%20y%3D%22250%22%20width%3D%22140%22%20height%3D%2222%22%20fill%3D%22%233b3b3b%22%2F%3E%3C%2Fsvg%3E",
+   "link": "https://northlakegolf.example/products/ball-marker-set",
+   "campaign": "Evergreen | Broad",
+   "adset": "Gifts under $50",
+   "spend": 498,
+   "revenue": 353.58,
+   "purchases": 4,
+   "roas": 0.71,
+   "cpa": 124.5,
+   "clicks": 352,
+   "impressions": 22437,
+   "ctr": 0.0157,
+   "cpm": 22.2,
+   "frequency": 1.64
+  },
+  {
+   "id": "ad04",
+   "name": "Dana Whitlock, range bag",
+   "video": true,
+   "lead": false,
+   "thumb": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20400%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23d9c7a3%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%232f4a3a%22%20stop-opacity%3D%22.55%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url(%23g)%22%2F%3E%3Cellipse%20cx%3D%22200%22%20cy%3D%22330%22%20rx%3D%22150%22%20ry%3D%2220%22%20fill%3D%22%23000%22%20opacity%3D%22.12%22%2F%3E%3Ccircle%20cx%3D%22200%22%20cy%3D%22190%22%20r%3D%2292%22%20fill%3D%22%23fbfaf7%22%2F%3E%3Ccircle%20cx%3D%22170%22%20cy%3D%22160%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3Ccircle%20cx%3D%22205%22%20cy%3D%22150%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3Ccircle%20cx%3D%22235%22%20cy%3D%22175%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3Ccircle%20cx%3D%22190%22%20cy%3D%22200%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3Ccircle%20cx%3D%22225%22%20cy%3D%22215%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3C%2Fsvg%3E",
+   "link": "https://northlakegolf.example/products/ridgeline-magnetic-belt",
+   "campaign": "Evergreen | Broad",
+   "adset": "Creator | Dana Whitlock",
+   "spend": 412,
+   "revenue": 1322.52,
+   "purchases": 11,
+   "roas": 3.21,
+   "cpa": 37.45,
+   "clicks": 288,
+   "impressions": 19249,
+   "ctr": 0.015,
+   "cpm": 21.4,
+   "frequency": 1.35
+  },
+  {
+   "id": "ad26",
+   "name": "Sale list, sign up",
+   "video": false,
+   "lead": true,
+   "thumb": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20400%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23e8e2d8%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%233b3b3b%22%20stop-opacity%3D%22.55%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url(%23g)%22%2F%3E%3Cellipse%20cx%3D%22200%22%20cy%3D%22330%22%20rx%3D%22150%22%20ry%3D%2220%22%20fill%3D%22%23000%22%20opacity%3D%22.12%22%2F%3E%3Cpath%20d%3D%22M140%20300%20L140%20160%20Q140%20110%20175%20110%20L250%20110%20Q280%20110%20280%20150%20L280%20300%20Z%22%20fill%3D%22%23fbfaf7%22%2F%3E%3Crect%20x%3D%22140%22%20y%3D%22250%22%20width%3D%22140%22%20height%3D%2222%22%20fill%3D%22%233b3b3b%22%2F%3E%3C%2Fsvg%3E",
+   "link": "https://northlakegolf.example/pages/black-friday-early-access",
+   "campaign": "Evergreen | Broad",
+   "adset": "Sign up | New people",
+   "spend": 410,
+   "revenue": null,
+   "purchases": null,
+   "roas": null,
+   "cpa": null,
+   "clicks": 347,
+   "impressions": 26113,
+   "ctr": 0.0133,
+   "cpm": 15.7,
+   "frequency": 3.01
+  },
+  {
+   "id": "ad16",
+   "name": "Owen Hart, unboxing",
+   "video": true,
+   "lead": false,
+   "thumb": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20400%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23f0dcd2%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%237a2f2f%22%20stop-opacity%3D%22.55%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url(%23g)%22%2F%3E%3Cellipse%20cx%3D%22200%22%20cy%3D%22330%22%20rx%3D%22150%22%20ry%3D%2220%22%20fill%3D%22%23000%22%20opacity%3D%22.12%22%2F%3E%3Cpath%20d%3D%22M140%20300%20L140%20160%20Q140%20110%20175%20110%20L250%20110%20Q280%20110%20280%20150%20L280%20300%20Z%22%20fill%3D%22%23fbfaf7%22%2F%3E%3Crect%20x%3D%22140%22%20y%3D%22250%22%20width%3D%22140%22%20height%3D%2222%22%20fill%3D%22%237a2f2f%22%2F%3E%3C%2Fsvg%3E",
+   "link": "https://northlakegolf.example/products/two-belt-bundle",
+   "campaign": "Evergreen | Broad",
+   "adset": "Creator | Owen Hart",
+   "spend": 402,
+   "revenue": 377.88,
+   "purchases": 3,
+   "roas": 0.94,
+   "cpa": 134,
+   "clicks": 163,
+   "impressions": 16197,
+   "ctr": 0.0101,
+   "cpm": 24.82,
+   "frequency": 1.91
+  },
+  {
+   "id": "ad07",
+   "name": "Marcus Bell, buckle swap",
+   "video": true,
+   "lead": false,
+   "thumb": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20400%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23e8e2d8%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%233b3b3b%22%20stop-opacity%3D%22.55%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url(%23g)%22%2F%3E%3Cellipse%20cx%3D%22200%22%20cy%3D%22330%22%20rx%3D%22150%22%20ry%3D%2220%22%20fill%3D%22%23000%22%20opacity%3D%22.12%22%2F%3E%3Ccircle%20cx%3D%22200%22%20cy%3D%22190%22%20r%3D%2292%22%20fill%3D%22%23fbfaf7%22%2F%3E%3Ccircle%20cx%3D%22170%22%20cy%3D%22160%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3Ccircle%20cx%3D%22205%22%20cy%3D%22150%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3Ccircle%20cx%3D%22235%22%20cy%3D%22175%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3Ccircle%20cx%3D%22190%22%20cy%3D%22200%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3Ccircle%20cx%3D%22225%22%20cy%3D%22215%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3C%2Fsvg%3E",
+   "link": "https://northlakegolf.example/products/ridgeline-magnetic-belt",
+   "campaign": "Evergreen | Broad",
+   "adset": "Creator | Marcus Bell",
+   "spend": 388,
+   "revenue": 931.2,
+   "purchases": 8,
+   "roas": 2.4,
+   "cpa": 48.5,
+   "clicks": 505,
+   "impressions": 26597,
+   "ctr": 0.019,
+   "cpm": 14.59,
+   "frequency": 1.44
+  },
+  {
+   "id": "ad12",
+   "name": "Priya Nair, first round",
+   "video": true,
+   "lead": false,
+   "thumb": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20400%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23e6ecd9%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%234a5d3a%22%20stop-opacity%3D%22.55%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url(%23g)%22%2F%3E%3Cellipse%20cx%3D%22200%22%20cy%3D%22330%22%20rx%3D%22150%22%20ry%3D%2220%22%20fill%3D%22%23000%22%20opacity%3D%22.12%22%2F%3E%3Ccircle%20cx%3D%22200%22%20cy%3D%22190%22%20r%3D%2292%22%20fill%3D%22%23fbfaf7%22%2F%3E%3Ccircle%20cx%3D%22170%22%20cy%3D%22160%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3Ccircle%20cx%3D%22205%22%20cy%3D%22150%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3Ccircle%20cx%3D%22235%22%20cy%3D%22175%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3Ccircle%20cx%3D%22190%22%20cy%3D%22200%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3Ccircle%20cx%3D%22225%22%20cy%3D%22215%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3C%2Fsvg%3E",
+   "link": "https://northlakegolf.example/",
+   "campaign": "Evergreen | Broad",
+   "adset": "Creator | Priya Nair",
+   "spend": 351,
+   "revenue": 603.72,
+   "purchases": 5,
+   "roas": 1.72,
+   "cpa": 70.2,
+   "clicks": 246,
+   "impressions": 18506,
+   "ctr": 0.0133,
+   "cpm": 18.97,
+   "frequency": 1.92
+  },
+  {
+   "id": "ad09",
+   "name": "Pool 01, range bag",
+   "video": true,
+   "lead": false,
+   "thumb": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20400%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23e6ecd9%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%234a5d3a%22%20stop-opacity%3D%22.55%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url(%23g)%22%2F%3E%3Cellipse%20cx%3D%22200%22%20cy%3D%22330%22%20rx%3D%22150%22%20ry%3D%2220%22%20fill%3D%22%23000%22%20opacity%3D%22.12%22%2F%3E%3Crect%20x%3D%2240%22%20y%3D%22150%22%20width%3D%22320%22%20height%3D%2256%22%20rx%3D%2228%22%20fill%3D%22%234a5d3a%22%2F%3E%3Crect%20x%3D%22250%22%20y%3D%22140%22%20width%3D%2270%22%20height%3D%2276%22%20rx%3D%2210%22%20fill%3D%22none%22%20stroke%3D%22%23c9a24a%22%20stroke-width%3D%2210%22%2F%3E%3C%2Fsvg%3E",
+   "link": "https://northlakegolf.example/collections/accessories",
+   "campaign": "Evergreen | Broad",
+   "adset": "Creator pool",
+   "spend": 296,
+   "revenue": 976.8,
+   "purchases": 8,
+   "roas": 3.3,
+   "cpa": 37,
+   "clicks": 248,
+   "impressions": 18672,
+   "ctr": 0.0133,
+   "cpm": 15.85,
+   "frequency": 2.5
+  },
+  {
+   "id": "ad24",
+   "name": "Black strap, studio",
+   "video": false,
+   "lead": false,
+   "thumb": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20400%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23f0dcd2%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%237a2f2f%22%20stop-opacity%3D%22.55%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url(%23g)%22%2F%3E%3Cellipse%20cx%3D%22200%22%20cy%3D%22330%22%20rx%3D%22150%22%20ry%3D%2220%22%20fill%3D%22%23000%22%20opacity%3D%22.12%22%2F%3E%3Crect%20x%3D%2240%22%20y%3D%22150%22%20width%3D%22320%22%20height%3D%2256%22%20rx%3D%2228%22%20fill%3D%22%237a2f2f%22%2F%3E%3Crect%20x%3D%22250%22%20y%3D%22140%22%20width%3D%2270%22%20height%3D%2276%22%20rx%3D%2210%22%20fill%3D%22none%22%20stroke%3D%22%23c9a24a%22%20stroke-width%3D%2210%22%2F%3E%3C%2Fsvg%3E",
+   "link": "https://northlakegolf.example/collections/belts",
+   "campaign": "Evergreen | Broad",
+   "adset": "Belts | Broad",
+   "spend": 74,
+   "revenue": 118.4,
+   "purchases": 1,
+   "roas": 1.6,
+   "cpa": 74,
+   "clicks": 21,
+   "impressions": 3488,
+   "ctr": 0.0061,
+   "cpm": 21.22,
+   "frequency": 1.77
+  },
+  {
+   "id": "ad23",
+   "name": "Lena Ortiz, gift guide",
+   "video": true,
+   "lead": false,
+   "thumb": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20400%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23efe3cf%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%236b3f2a%22%20stop-opacity%3D%22.55%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url(%23g)%22%2F%3E%3Cellipse%20cx%3D%22200%22%20cy%3D%22330%22%20rx%3D%22150%22%20ry%3D%2220%22%20fill%3D%22%23000%22%20opacity%3D%22.12%22%2F%3E%3Cpath%20d%3D%22M140%20300%20L140%20160%20Q140%20110%20175%20110%20L250%20110%20Q280%20110%20280%20150%20L280%20300%20Z%22%20fill%3D%22%23fbfaf7%22%2F%3E%3Crect%20x%3D%22140%22%20y%3D%22250%22%20width%3D%22140%22%20height%3D%2222%22%20fill%3D%22%236b3f2a%22%2F%3E%3C%2Fsvg%3E",
+   "link": "https://northlakegolf.example/pages/gift-guide",
+   "campaign": "Evergreen | Broad",
+   "adset": "Creator | Lena Ortiz",
+   "spend": 61,
+   "revenue": 0,
+   "purchases": 0,
+   "roas": null,
+   "cpa": null,
+   "clicks": 54,
+   "impressions": 3569,
+   "ctr": 0.0153,
+   "cpm": 17.09,
+   "frequency": 2.96
+  },
+  {
+   "id": "ad21",
+   "name": "Pool 04, belt wall",
+   "video": false,
+   "lead": false,
+   "thumb": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20400%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23e6ecd9%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%234a5d3a%22%20stop-opacity%3D%22.55%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url(%23g)%22%2F%3E%3Cellipse%20cx%3D%22200%22%20cy%3D%22330%22%20rx%3D%22150%22%20ry%3D%2220%22%20fill%3D%22%23000%22%20opacity%3D%22.12%22%2F%3E%3Ccircle%20cx%3D%22200%22%20cy%3D%22190%22%20r%3D%2292%22%20fill%3D%22%23fbfaf7%22%2F%3E%3Ccircle%20cx%3D%22170%22%20cy%3D%22160%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3Ccircle%20cx%3D%22205%22%20cy%3D%22150%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3Ccircle%20cx%3D%22235%22%20cy%3D%22175%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3Ccircle%20cx%3D%22190%22%20cy%3D%22200%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3Ccircle%20cx%3D%22225%22%20cy%3D%22215%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3C%2Fsvg%3E",
+   "link": null,
+   "campaign": "Evergreen | Broad",
+   "adset": "Creator pool",
+   "spend": 48,
+   "revenue": 0,
+   "purchases": 0,
+   "roas": null,
+   "cpa": null,
+   "clicks": 47,
+   "impressions": 2705,
+   "ctr": 0.0175,
+   "cpm": 17.74,
+   "frequency": 1.64
+  },
+  {
+   "id": "ad22",
+   "name": "Pool 05, cart ride",
+   "video": true,
+   "lead": false,
+   "thumb": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20400%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23d9c7a3%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%232f4a3a%22%20stop-opacity%3D%22.55%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url(%23g)%22%2F%3E%3Cellipse%20cx%3D%22200%22%20cy%3D%22330%22%20rx%3D%22150%22%20ry%3D%2220%22%20fill%3D%22%23000%22%20opacity%3D%22.12%22%2F%3E%3Cpath%20d%3D%22M140%20300%20L140%20160%20Q140%20110%20175%20110%20L250%20110%20Q280%20110%20280%20150%20L280%20300%20Z%22%20fill%3D%22%23fbfaf7%22%2F%3E%3Crect%20x%3D%22140%22%20y%3D%22250%22%20width%3D%22140%22%20height%3D%2222%22%20fill%3D%22%232f4a3a%22%2F%3E%3C%2Fsvg%3E",
+   "link": "https://northlakegolf.example/",
+   "campaign": "Evergreen | Broad",
+   "adset": "Creator pool",
+   "spend": 38,
+   "revenue": 117.8,
+   "purchases": 1,
+   "roas": 3.1,
+   "cpa": 38,
+   "clicks": 30,
+   "impressions": 1999,
+   "ctr": 0.0153,
+   "cpm": 19.01,
+   "frequency": 3
+  },
+  {
+   "id": "ad25",
+   "name": "Tee holder, close up",
+   "video": false,
+   "lead": false,
+   "thumb": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20400%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23efe3cf%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%236b3f2a%22%20stop-opacity%3D%22.55%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url(%23g)%22%2F%3E%3Cellipse%20cx%3D%22200%22%20cy%3D%22330%22%20rx%3D%22150%22%20ry%3D%2220%22%20fill%3D%22%23000%22%20opacity%3D%22.12%22%2F%3E%3Ccircle%20cx%3D%22200%22%20cy%3D%22190%22%20r%3D%2292%22%20fill%3D%22%23fbfaf7%22%2F%3E%3Ccircle%20cx%3D%22170%22%20cy%3D%22160%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3Ccircle%20cx%3D%22205%22%20cy%3D%22150%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3Ccircle%20cx%3D%22235%22%20cy%3D%22175%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3Ccircle%20cx%3D%22190%22%20cy%3D%22200%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3Ccircle%20cx%3D%22225%22%20cy%3D%22215%22%20r%3D%226%22%20fill%3D%22%23ddd6cb%22%2F%3E%3C%2Fsvg%3E",
+   "link": "https://northlakegolf.example/collections/accessories",
+   "campaign": "Evergreen | Broad",
+   "adset": "Gifts under $50",
+   "spend": 22,
+   "revenue": 0,
+   "purchases": 0,
+   "roas": null,
+   "cpa": null,
+   "clicks": 16,
+   "impressions": 887,
+   "ctr": 0.0184,
+   "cpm": 24.8,
+   "frequency": 2.59
+  }
+ ],
+ "speed": null,
  "devices": [
   {
    "device": "Phone",

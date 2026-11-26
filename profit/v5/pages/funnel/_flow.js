@@ -34,7 +34,7 @@ const CSS = `
 .fx-flow .nd.ghost{fill:var(--line-strong)}
 .fx-flow text{font-family:var(--sans);font-size:12.5px;fill:var(--ink);font-variant-numeric:tabular-nums;pointer-events:none;transition:opacity .12s}
 .fx-flow text .q{fill:var(--muted);font-weight:400}
-.fx-flow text.nl{font-weight:550;paint-order:stroke;stroke:var(--surface);stroke-width:3.5px;stroke-linejoin:round}
+.fx-flow text.nl{font-weight:500;paint-order:stroke;stroke:var(--surface);stroke-width:3.5px;stroke-linejoin:round}
 .fx-flow text.ll{fill:var(--muted);font-size:12px}
 .fx-flow.hot .lk{fill:rgba(28,20,10,.035);opacity:1}
 .fx-flow.hot .lk.on{fill:var(--slate);opacity:.72}
@@ -46,7 +46,7 @@ const CSS = `
 .fx-tip{position:absolute;z-index:3;min-width:170px;max-width:260px;padding:10px 12px;border-radius:10px;background:var(--tip-bg);box-shadow:var(--tip-sh);font-size:12.5px;color:var(--tip-muted);pointer-events:none}
 .fx-tip b{display:block;color:var(--tip-fg);font-weight:600;margin-bottom:3px}
 .fx-tip span{display:block}
-.fx-tip em{font-style:normal;color:var(--tip-fg);font-weight:650;font-variant-numeric:tabular-nums}
+.fx-tip em{font-style:normal;color:var(--tip-fg);font-weight:600;font-variant-numeric:tabular-nums}
 .fx-under{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px;padding-top:14px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted)}
 .fx-under .sp{flex:1}
 .fx-bar{display:block;width:100%;min-width:60px;height:5px;border-radius:999px;background:var(--bg-sunk);position:relative}
@@ -71,19 +71,19 @@ const CSS = `
 .fx-rows{display:none}
 .fx-rows .row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;padding:12px 0;border-top:1px solid var(--line)}
 .fx-rows .row:first-child{border-top:0}
-.fx-rows .row b{font-size:13.5px;font-weight:550}
+.fx-rows .row b{font-size:13.5px;font-weight:500}
 .fx-rows .row strong{font-size:17px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums;text-align:right}
 .fx-rows .row .fx-bar{grid-column:1/-1;height:8px;margin:4px 0}
 .fx-rows .row span{grid-column:1/-1;font-size:12.5px;color:var(--muted)}
 .fx-rows .row span.worst{color:var(--bad);font-weight:600}
 .fx-path{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}
 .fx-path .then{color:var(--faint);font-size:12px}
-.fx-dot{display:inline-flex;align-items:center;gap:7px;font-weight:550;white-space:nowrap}
+.fx-dot{display:inline-flex;align-items:center;gap:7px;font-weight:500;white-space:nowrap}
 .fx-dot::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--dot,var(--faint));flex:none}
 .fx-kpis .lx-kpi .l{white-space:normal}
 .fx-kpis .lx-kpi .s{flex-wrap:wrap}
 .fx-note{font-size:13.5px;color:var(--ink-2);padding:14px 28px 18px;border-top:1px solid var(--line)}
-.fx-note b{color:var(--ink);font-weight:650;font-variant-numeric:tabular-nums}
+.fx-note b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
 .lx-card.fx-pad{padding:28px 32px 24px}
 .lx-card.flush>.fx-head{padding:20px 28px 6px;margin:0}
 .lx-table td.fx-barcell{width:34%;min-width:90px}

@@ -259,7 +259,7 @@
         "name": "Signature Polo",
         "kind": "evergreen",
         "daily": 100,
-        "spent": 150,
+        "spent": 90,
         "t_ord": 4,
         "t_roas": 2.6,
         "w_spend": 640,
@@ -315,7 +315,7 @@
        "id": "9201",
        "name": "BFCM 2026",
        "daily": 400,
-       "spent": 520
+       "spent": 360
       },
       "camps": [
        {
@@ -323,7 +323,7 @@
         "name": "BFCM 2026",
         "kind": "sale",
         "daily": 400,
-        "spent": 520,
+        "spent": 360,
         "t_ord": 5,
         "t_roas": 0.8,
         "w_spend": 1620,
@@ -1933,7 +1933,7 @@
         "name": "Signature Polo",
         "kind": "evergreen",
         "daily": 120,
-        "spent": 160,
+        "spent": 110,
         "t_ord": 5,
         "t_roas": 2.9,
         "w_spend": 800,
@@ -2069,7 +2069,7 @@
        "id": "9301",
        "name": "BFCM 2026",
        "daily": 250,
-       "spent": 300
+       "spent": 225
       },
       "camps": [
        {
@@ -2077,7 +2077,7 @@
         "name": "BFCM 2026",
         "kind": "sale",
         "daily": 250,
-        "spent": 300,
+        "spent": 225,
         "t_ord": 13,
         "t_roas": 3.9,
         "w_spend": 1200,
@@ -2089,7 +2089,7 @@
         "name": "Evergreen",
         "kind": "evergreen",
         "daily": 100,
-        "spent": 110,
+        "spent": 90,
         "t_ord": 3,
         "t_roas": 2.2,
         "w_spend": 440,

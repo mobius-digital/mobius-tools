@@ -1,4 +1,4 @@
-/* Ads > TikTok > Changes made. Who changed what on TikTok and why. No route carries TikTok changes yet
+/* Ads > TikTok > Changes. Who changed what on TikTok and why. No route carries TikTok changes yet
    (the change list holds Meta and Google), so real mode shows the plain state. */
 
 import { put } from '../../kit.js';

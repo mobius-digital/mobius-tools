@@ -10,6 +10,7 @@ export default {
   title: ctx => (ctx.isClient ? ['Is the sale on pace ', em('today?')] : ['Where does this brand ', em('stand right now?')]),
   eyebrow: 'Black Friday War Room',
   ranges: false,
+  stamp: false,                  /* each brand card has its own Read stamp and refresh */
   asOf: d => (d && d.standing && Date.parse(d.standing.at)) || (d && d.fetched_at) || null,
   load: ctx => readStanding(ctx),
   sample: ctx => readStanding(ctx),

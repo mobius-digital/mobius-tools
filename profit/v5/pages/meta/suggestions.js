@@ -8,10 +8,10 @@
      GET /api/hub/creative?act=&from=&to=&model=lastPlatformClick    profit: the last 14 days of ads, for the "too early to judge" list */
 
 import { put } from '../../kit.js';
-import { h, em, card, button, segmented, gauge, table, empty, skeleton, money, num, sheet } from '../../kit.js';
+import { h, card, button, segmented, gauge, table, empty, skeleton, money, num, sheet } from '../../kit.js';
 import { APP_NAME } from '../../config.js';
 import { ok, usd, addDays, shortDate, soft, adTile, gate, styles, statusDot, x, adSheet, opener } from './_rest.js';
-import { def, headRow, warnLine, levelChip } from '../platforms/_ads.js';
+import { def, info, headRow, warnLine, levelChip } from '../platforms/_ads.js';
 import { canWrite, yesNo } from './_write.js';
 
 const CSS = `
@@ -20,16 +20,16 @@ const CSS = `
 .ms-r .mr-tile{width:64px;height:80px}
 .ms-h{display:block;margin:0;padding:0;border:0;background:none;font:inherit;font-size:16px;font-weight:600;letter-spacing:-.015em;color:var(--ink);text-align:left;cursor:pointer}
 .ms-h:hover{text-decoration:underline;text-decoration-color:var(--line-strong);text-underline-offset:3px}
-.ms-pic{padding:0;border:0;background:none;cursor:pointer;border-radius:12px}
-.ms-t .o{margin-top:6px;display:flex;align-items:center;gap:8px;font-size:13px;min-width:0;overflow-wrap:anywhere}.ms-t .o b{font-weight:550}
+.ms-pic{padding:0;border:0;background:none;cursor:pointer;border-radius:var(--r-tbl,12px)}
+.ms-t .o{margin-top:6px;display:flex;align-items:center;gap:8px;font-size:13px;min-width:0;overflow-wrap:anywhere}.ms-t .o b{font-weight:500}
 .ms-t .o2{margin-top:2px;color:var(--muted);font-size:12.5px;overflow-wrap:anywhere}
 .ms-per{display:block;margin-top:6px;color:var(--muted);font-size:12px}
 .ms-sh{display:grid;gap:16px}.ms-sh .top{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .ms-sh .g{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
-.ms-sh .g>div{display:grid;gap:3px;padding:12px 14px;border-radius:12px;background:var(--surface-2)}.ms-sh .g .l{font-size:12px;color:var(--muted)}
+.ms-sh .g>div{display:grid;gap:3px;padding:12px 14px;border-radius:var(--r-tbl,12px);background:var(--surface-2)}.ms-sh .g .l{font-size:12px;color:var(--muted)}
 .ms-sh .y{font-size:14px;line-height:1.45;color:var(--ink-2)}
 .ms-sh h3{margin:0 0 8px;font-size:13px;font-weight:600;color:var(--muted)}
-.ms-ads{display:grid;border-radius:12px;box-shadow:inset 0 0 0 1px var(--line);overflow:hidden}
+.ms-ads{display:grid;border-radius:var(--r-tbl,12px);box-shadow:inset 0 0 0 1px var(--line);overflow:hidden}
 .ms-ads>div{display:grid;grid-template-columns:32px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 12px;border-top:1px solid var(--line);font-size:13px}.ms-ads>div:first-child{border-top:0}
 @media (max-width:759px){.ms-sh .g{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .ms-t .y{margin:10px 0 0;font-size:14px;line-height:1.45;color:var(--ink-2);max-width:62ch}
@@ -41,6 +41,7 @@ const CSS = `
 .ms-m .v span{color:var(--muted);font-size:13px}
 .ms-a{display:grid;gap:8px;justify-items:end;text-align:right;font-size:12.5px;color:var(--muted);max-width:220px}
 .ms-goal{color:var(--muted);font-size:13.5px}.ms-goal b{color:var(--ink);font-weight:600}
+.ms-tt{display:inline-flex;align-items:center;gap:6px}
 .ms-early .lx-gauge{min-width:120px}
 .ms-none{padding:22px 28px;color:var(--muted)}
 @media (max-width:1180px){.ms-r{grid-template-columns:64px minmax(0,1fr) 200px}.ms-a{grid-column:2/-1;justify-items:start;text-align:left;max-width:none}}
@@ -114,7 +115,7 @@ function measure(r, d) {
 const PERIOD = 'last 7 days';
 function measureWithPeriod(r, d) { const m = measure(r, d); if (m.childNodes.length) m.append(h('span', { class: 'ms-per' }, PERIOD)); return m; }
 /* the facts line: plain labels, the jargon defined */
-const FACT = { 'spend 7d': ['Spend, 7 days', 'ad_spend'], 'spend, 7 days': ['Spend, 7 days', 'ad_spend'], 'spend': ['Spend, 7 days', 'ad_spend'], 'sales': ['Sales', 'purchases_last_click'], 'cost per sale': ['Cost per sale', 'cpa'],
+const FACT = { 'spend 7d': ['Spend, 7 days', 'ad_spend'], 'spend, 7 days': ['Spend, 7 days', 'ad_spend'], 'spend': ['Spend, 7 days', 'ad_spend'], 'sales': ['Sales', 'sales'], 'cost per sale': ['Cost per sale', 'cpa'],
   'first click': ['First click', 'first_click'], 'click rate': ['Click rate', 'click_rate'], 'ctr': ['Click rate', 'click_rate'], 'budget': ['Budget', 'budget_a_day'], 'frequency': ['Frequency', 'frequency'], 'cpm': ['CPM', 'cpm'], 'roas': ['ROAS', 'roas'] };
 function factOf(f) {
   const k = String(f.l || '').trim().toLowerCase();
@@ -135,7 +136,7 @@ function openRow(r, d, ctx) {
   const kv = (label, key, value) => h('div', null, h('span', { class: 'l' }, def(label, key)), h('b', null, value));
   return sheet({ title: w.name, body: h('div', { class: 'ms-sh' },
     h('div', { class: 'top' }, levelChip(LEVEL[r.level] || 'Ad set'), h('span', { class: 'mr-dim' }, 'Meta ' + (LEVEL[r.level] || 'ad set').toLowerCase() + (w.campaign ? ' in ' + w.campaign : '') + ', numbers for the ' + PERIOD)),
-    h('div', { class: 'g' }, kv('Spend', 'ad_spend', ok(r.spend) ? usd(r.spend, cur) : 'not read'), kv('Sales', 'purchases_last_click', ok(r.results) ? num(r.results) : 'not read'),
+    h('div', { class: 'g' }, kv('Spend', 'ad_spend', ok(r.spend) ? usd(r.spend, cur) : 'not read'), kv('Orders', 'purchases_last_click', ok(r.results) ? num(r.results) : 'not read'),
       kv('Cost per sale', 'cpa', ok(r.cpa) ? usd(r.cpa, cur) + (r.goal ? ', goal ' + usd(r.goal, cur) : '') : 'no sales'), kv('ROAS', 'roas', ok(r.roas) ? x(r.roas) + (r.goal_roas ? ', goal ' + x(r.goal_roas) : '') : 'no sales')),
     measure(r, d),
     (r.facts || []).length ? h('div', { class: 'ms-f' }, r.facts.map(factOf)) : null,
@@ -195,7 +196,7 @@ function earlyCard(d, ctx) {
   const rows = d.early;
   if (!rows) return null;
   const cur = d.currency, need = rows[0] ? rows[0].need : (d.goals.cpa || 0) * 2;
-  return card({ title: def('Too early to judge', 'too_early'), note: `Meta ads, judged after ${usd(need, cur)} spent and 3 days`, flush: true, class: 'ms-early' },
+  return card({ title: h('span', { class: 'ms-tt' }, 'Too early to judge', info('too_early')), note: `Meta ads, judged after ${usd(need, cur)} spent and 3 days`, flush: true, class: 'ms-early' },
     table({ empty: 'Every running ad has enough spend to judge.', rows, onRow: r => adSheet({ ...r, age: r.day - 1 }, { ...d, sales_source: true }, ctx, { period: 'the last 14 days' }), cols: [
       { key: 'name', label: 'Ad', render: r => h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: '12px', minWidth: 0 } }, adTile(r, 'xs'), h('span', { class: 'name' }, r.name)) },
       { key: 'spend', label: def('Spent', 'ad_spend'), num: true, render: r => usd(r.spend, cur) },
@@ -205,7 +206,7 @@ function earlyCard(d, ctx) {
 }
 
 export default {
-  title: ['Which Meta ads should ', em('change today?')],
+  title: 'Suggestions for Meta',
   eyebrow: 'Meta',
   ranges: false,
   asOf: d => d && d.as_of,
@@ -213,12 +214,12 @@ export default {
   skeleton(el) { put(el, skeleton('row', 6)); },
   render(el, d, ctx) {
     styles('ms-css', CSS);
-    if (ctx.isClient) return put(el, empty({ title: 'Suggestions are for the team', text: 'Nothing for you to decide here. The changes we make are under Changes made.', action: button('Open changes made', { href: ctx.href('meta', 'changes') }) }));
+    if (ctx.isClient) return put(el, empty({ title: 'Suggestions are for the team', text: 'Nothing for you to decide here. The changes we make are under Changes.', action: button('Open Changes', { href: ctx.href('meta', 'changes') }) }));
     const stop = gate(d, ctx, 'Suggestions');
     if (stop) return put(el, stop);
     const help = [
       { title: 'What it is for', text: "Today's calls on this brand's Meta ads, from the agency's ad rules. Each row names the ad, ad set or campaign, the call, why, and the numbers for the last 7 days. Tap the picture or the call for every number." },
-      { title: 'Yes and No', text: 'Yes makes the change in Meta after a look at the before and after, and logs it under Changes made, where it can be undone for 24 hours. No changes nothing and keeps your reason as a lesson.' },
+      { title: 'Yes and No', text: 'Yes makes the change in Meta after a look at the before and after, and logs it under Changes, where it can be undone for 24 hours. No changes nothing and keeps your reason as a lesson.' },
       { title: 'Where the numbers come from', text: 'Sales and cost per sale are Triple Whale, last click per platform. Spend is Meta\'s. An ad is judged once it has spent twice the goal cost per sale and run 3 days.' },
       ctx.legacy && canWrite(ctx) ? h('p', null, h('a', { href: ctx.legacy, target: '_blank', rel: 'noopener' }, 'Open this list in old ' + APP_NAME)) : null,
     ].filter(Boolean);

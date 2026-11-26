@@ -190,7 +190,7 @@ addStyles('lx-goals-css', `
 .lx-gl-top .src{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
 .lx-gl-in{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(260px,1.3fr);gap:var(--sp-8);margin-top:var(--sp-5)}
 .lx-gl-step{display:grid;gap:8px;align-content:start;min-width:0}
-.lx-gl-step .n{font-size:11px;font-weight:650;color:var(--faint);letter-spacing:.08em}
+.lx-gl-step .n{font-size:11px;font-weight:600;color:var(--faint);letter-spacing:.08em}
 .lx-gl-step .k{font-size:14px;font-weight:600}
 .lx-gl-step .c{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .lx-gl-step .lx-st-box{height:46px;padding:0 14px;border-radius:12px}

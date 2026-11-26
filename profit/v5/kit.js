@@ -320,16 +320,53 @@ export function tabs(items, active, onPick) {
 }
 
 /* ---------- KPI ---------- */
-/** kpi({ label, value, small, sub, delta, spark, lead, size: 'lg', href })
-    value is already formatted text. small sits beside it ("$111 each"). sub is a node or text under it.
-    delta is a node from delta() or statusDot(). spark is an array of numbers (slate; lead: true for ember).
-    sparkLabels / sparkFormat feed the spark's tooltip bubble (x words per value; v => text). */
-export function kpi({ label, value, small, sub, delta: d, spark, sparkLabels, sparkFormat, lead = false, size, href, src } = {}) {
+/** fmtUnit(v, unit) : one number in its unit. unit: 'money' | 'x' (ROAS, MER) | 'pct' (a fraction) | 'num' | a function. */
+export function fmtUnit(v, unit, { cur } = {}) {
+  if (typeof unit === 'function') return unit(v);
+  return unit === 'money' ? money(v, { cur }) : unit === 'x' ? x(v) : unit === 'pct' ? pct(v, { digits: Math.abs(v) < 0.1 ? 1 : 0 }) : num(v, ok(v) && Math.abs(v) < 10 && v % 1 ? 1 : 0);
+}
+/** sourceLine(window, source) : the quiet line under a number that says what it covers and where it comes from:
+    sourceLine('Nov 1 to 25', 'Triple Whale') "Nov 1 to 25 · Triple Whale". window may be text or a range
+    ({ dates } from ctx.range). Either part may be left out. Triple Whale is the source for sales, ROAS and MER;
+    a Meta figure says "Meta's own count". */
+export function sourceLine(win, source) {
+  const w = win && typeof win === 'object' ? win.dates || win.label : win;
+  const parts = [w, source].filter(t => t != null && String(t).trim() !== '');
+  return parts.length ? h('span', { class: 'lx-srcline' }, parts.join(' · ')) : null;
+}
+/** staleStamp({ at, onRefresh, busy, label }) : "Updated 4 min ago" and a round refresh button, for any card whose
+    numbers can go stale. at: when the numbers were read (ms or a date). onRefresh: what the button does (it
+    spins until the promise it returns settles). No onRefresh = the words only. */
+export function staleStamp({ at, onRefresh, busy = false, label = 'Updated' } = {}) {
+  const words = h('span', { class: 'lx-stale-t', title: at ? new Date(at).toLocaleString() : null }, at ? label + ' ' + relativeTime(at) : busy ? 'Getting the numbers' : 'Not read yet');
+  const el = h('span', { class: 'lx-stale' + (busy ? ' busy' : '') }, words);
+  if (onRefresh) {
+    const b = h('button', { type: 'button', class: 'lx-btn ghost icon lx-stale-b', 'aria-label': 'Refresh these numbers', title: 'Refresh these numbers', onclick: async () => {
+      if (el.classList.contains('busy')) return;
+      el.classList.add('busy');
+      try { await onRefresh(); } finally { if (el.isConnected) el.classList.remove('busy'); }
+    } }, svgNode(REFRESH_SVG));
+    el.append(b);
+  }
+  return el;
+}
+const REFRESH_SVG = '<svg class="lx-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.5A8 8 0 0 0 6.3 6.3L4 8.5"/><path d="M4 4v4.5h4.5"/><path d="M4 12.5a8 8 0 0 0 13.7 5.2l2.3-2.2"/><path d="M20 20v-4.5h-4.5"/></svg>';
+
+/** kpi({ label, value, unit, small, sub, delta, spark, window, source, size: 'lg', href, src })
+    value: formatted text, or a number with unit ('money' | 'x' | 'pct' | 'num') and the kit formats it.
+    small sits beside it ("$111 each"). sub is a node or text under it. delta is a node from delta() or statusDot().
+    window + source draw the line under the number: "Nov 1 to 25 · Triple Whale" (see sourceLine).
+    spark is an array of numbers: an orange line with a soft fill, the low and high marked, and a scale under it
+    (first and last sparkLabels, "Low · High" in sparkFormat or the unit). lead: false draws it slate. */
+export function kpi({ label, value, unit, cur, small, sub, delta: d, spark, sparkLabels, sparkFormat, lead = true, size, href, src, window: win, source } = {}) {
+  const shown = typeof value === 'number' || value == null && unit ? fmtUnit(value, unit || 'num', { cur }) : value;
+  const sf = sparkFormat || (unit ? v => fmtUnit(v, unit, { cur }) : undefined);
   const kids = [
     h('span', { class: 'l' }, label, src && h('span', { class: 'lx-src' }, src)),
-    h('span', { class: 'v' }, value, small && h('small', null, small)),
+    h('span', { class: 'v' }, shown, small && h('small', null, small)),
     (d || sub) && h('span', { class: 's' }, d || null, sub || null),
-    spark && spark.length > 1 ? sparkline(spark, { lead, fill: true, labels: sparkLabels, format: sparkFormat }) : null,
+    (win || source) && sourceLine(win, source),
+    spark && spark.length > 1 ? sparkline(spark, { lead, fill: true, labels: sparkLabels, format: sf, axis: true }) : null,
   ];
   const cls = 'lx-kpi' + (size === 'lg' ? ' lg' : '');
   return href ? h('a', { class: cls, href }, kids) : h('div', { class: cls }, kids);
@@ -350,6 +387,12 @@ export function kpis(list, { cols } = {}) {
   if (big) { el.style.setProperty('--kpi-em', big.toFixed(2)); if (std) el.style.setProperty('--kpi-em-s', std.toFixed(2)); }
   else if (std) el.style.setProperty('--kpi-em', std.toFixed(2));
   return el;
+}
+/** tiles([kpi nodes], { cols: 2 | 3 | 4 }) : the one tile grid for every page (Home, Meta, Reports, the agency
+    pages). Each kpi becomes a card: label as a card title, the figure at --num-l (never the hero size), the change,
+    the window and source line and the orange sparkline. 3 a row by default, 2 under 1100px. */
+export function tiles(list, { cols = 3, class: cls } = {}) {
+  return h('div', { class: 'lx-tiles' + (cols === 4 ? ' c4' : cols === 2 ? ' c2' : '') + (cls ? ' ' + cls : '') }, list);
 }
 /** figureEm('$63,429') : about how wide a figure draws, in ems of its font size, never less than it really is.
     Measured on the app font at the figure's letter spacing: a digit is .61, a comma .23, a percent sign .96. */
@@ -379,11 +422,13 @@ const path = pts => pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + 
 const niceMax = v => { if (!(v > 0)) return 1; const p = Math.pow(10, Math.floor(Math.log10(v))); const m = v / p; return (m <= 1 ? 1 : m <= 1.5 ? 1.5 : m <= 2 ? 2 : m <= 3 ? 3 : m <= 4 ? 4 : m <= 5 ? 5 : m <= 6 ? 6 : m <= 8 ? 8 : 10) * p; };
 const textW = (t, px = 6.4) => String(t ?? '').length * px;
 
-/** sparkline([3854, 2703, ...], { lead, fill, width, height, goal, labels, format, name, tooltip })
-    A thin line, slate by default. goal draws a dashed level line (MER against its goal) and joins the scale.
-    Hover or tap shows the bubble: labels[i] (the x words, one per value) over name + format(value).
-    format defaults to a plain number; tooltip: false turns the bubble off. */
-export function sparkline(values, { lead = false, fill = false, width = 226, height = 38, goal, labels, format, name, tooltip = true } = {}) {
+/** sparkline([3854, 2703, ...], { lead, fill, width, height, goal, labels, format, name, tooltip, marks, axis })
+    A thin line in brand orange (lead: false for a slate comparison line). goal draws a dashed level line
+    (MER against its goal) and joins the scale. marks (on with axis) puts a small dot on the lowest and the
+    highest value. axis: true returns a box with the line and a quiet scale under it: the first label, "Low $X ·
+    High $Y" and the last label (labels and format give the words). Hover or tap shows the bubble: labels[i] over
+    name + format(value). format defaults to a plain number; tooltip: false turns the bubble off. */
+export function sparkline(values, { lead = true, fill = false, width = 226, height = 38, goal, labels, format, name, tooltip = true, marks, axis = false } = {}) {
   const at = values.map((val, i) => ok(val) ? i : -1).filter(i => i >= 0), v = at.map(i => values[i]);
   const svg = s('svg', { class: 'lx-spark', viewBox: `0 0 ${width} ${height}`, preserveAspectRatio: 'none', 'aria-hidden': 'true' });
   if (v.length < 2) return svg;
@@ -393,7 +438,14 @@ export function sparkline(values, { lead = false, fill = false, width = 226, hei
   if (ok(goal)) svg.append(s('line', { class: 'gref', x1: 0, x2: width, y1: Y(goal), y2: Y(goal) }));
   if (fill) svg.append(s('path', { class: 'fill' + (lead ? ' lead' : ''), d: `${d} L${width} ${height} L0 ${height} Z` }));
   svg.append(s('path', { class: 'ln' + (lead ? ' lead' : ''), d }));
-  if (tooltip === false) return svg;
+  const lo = v.indexOf(Math.min(...v)), hi = v.indexOf(Math.max(...v));
+  if (marks ?? axis) for (const k of new Set([lo, hi])) svg.append(s('path', { class: 'mm' + (lead ? ' lead' : ''), d: `M${X(k).toFixed(1)} ${Y(v[k]).toFixed(1)} l0 0` }));
+  const f0 = format || plainNum;
+  const out = axis ? h('div', { class: 'lx-spark-box' }, svg, h('div', { class: 'lx-spark-ax' },
+    h('span', null, labels && labels[at[0]] != null ? labels[at[0]] : ''),
+    h('span', { class: 'm' }, 'Low ' + f0(v[lo], at[lo]) + ' · High ' + f0(v[hi], at[hi])),
+    h('span', null, labels && labels[at[at.length - 1]] != null ? labels[at[at.length - 1]] : ''))) : svg;
+  if (tooltip === false) return out;
   /* the bubble. The drawing is stretched (preserveAspectRatio none), so the dot is a zero length round stroke. */
   const f = format || plainNum;
   const cur = s('line', { class: 'cur', y1: 0, y2: height, visibility: 'hidden' }), pt = s('path', { class: 'pt' + (lead ? ' lead' : ''), visibility: 'hidden' });
@@ -404,12 +456,12 @@ export function sparkline(values, { lead = false, fill = false, width = 226, hei
     cur.setAttribute('x1', X(k)); cur.setAttribute('x2', X(k)); cur.setAttribute('visibility', 'visible');
     pt.setAttribute('d', `M${X(k).toFixed(1)} ${Y(v[k]).toFixed(1)} l0 0`); pt.setAttribute('visibility', 'visible');
     tipShow(svg, [labels && labels[i] != null && labels[i] !== '' ? h('div', { class: 'lx-tip-h' }, labels[i]) : null,
-      tipRow(lead ? 'lead' : 'slate', name, f(v[k], i))], { x: e.clientX, y: box.top + box.height * Y(v[k]) / height }, e.pointerType === 'touch' ? 30 : 12);
+      tipRow(null, name || 'Value', f(v[k], i))], { x: e.clientX, y: box.top + box.height * Y(v[k]) / height }, e.pointerType === 'touch' ? 30 : 12);
   };
   svg._tipOff = () => { cur.setAttribute('visibility', 'hidden'); pt.setAttribute('visibility', 'hidden'); };
   svg.addEventListener('pointermove', show); svg.addEventListener('pointerdown', show);
   svg.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') tipHide(svg); });
-  return svg;
+  return out;
 }
 /* a plain figure for a tooltip when the chart was given no format: 12,840 / 312 / 4.25 */
 const plainNum = val => !ok(val) ? NONE : Math.abs(val) >= 100 || val % 1 === 0 ? num(val) : num(val, Math.abs(val) < 10 ? 2 : 1);
@@ -422,7 +474,30 @@ const plainNum = val => !ok(val) ? NONE : Math.abs(val) >= 100 || val % 1 === 0 
      tipHide(owner)                    hides it when owner still owns it (no owner: always).
      tipRow(swatch, name, value)       one "name ... value" line; swatch 'lead' | 'slate' | 'ink' | 'dash' | ''.
    A tap anywhere else, Escape, a scroll or a route change hides it. Charts use it; a page may too. */
-let TIP = null, tipOwner = null;
+/* Hover intent, one rule for the chart bubble and the definition bubble (defs.js reads the same clock):
+     a bubble opens after HOVER.open ms of the pointer resting on its owner, never while the page scrolls
+     (a hover that starts within HOVER.quiet ms of a scroll or wheel is ignored), and closes HOVER.close ms
+     after the pointer leaves (moving back in keeps it). A tap, a click or the keyboard opens it at once.
+     Moving from one bubble straight to the next opens the next at once too (the bubble is already "warm"). */
+export const HOVER = { open: 350, close: 120, quiet: 250, warm: 300 };
+const CLOCK = { scroll: 0, press: 0, key: 0, shut: 0 };
+if (typeof window !== 'undefined') {
+  const sc = () => { CLOCK.scroll = Date.now(); };
+  window.addEventListener('scroll', sc, { capture: true, passive: true });
+  window.addEventListener('wheel', sc, { capture: true, passive: true });
+  window.addEventListener('touchmove', sc, { capture: true, passive: true });
+  document.addEventListener('pointerdown', () => { CLOCK.press = Date.now(); }, true);
+  document.addEventListener('keydown', () => { CLOCK.key = Date.now(); }, true);
+}
+/** True while the page is scrolling (or just stopped): hovers do not open then. */
+export const scrollingNow = () => Date.now() - CLOCK.scroll < HOVER.quiet;
+/** True when the last thing the person did was a tap, a click or a key: a bubble opens at once. */
+export const pressedNow = () => Date.now() - CLOCK.press < 90 || Date.now() - CLOCK.key < 150;
+/** True when a bubble is open or closed a moment ago: the next one opens at once. */
+export const bubbleWarm = () => (TIP && !TIP.hidden) || Date.now() - CLOCK.shut < HOVER.warm || !!(typeof document !== 'undefined' && document.querySelector('.lx-defpop'));
+export const noteBubbleShut = () => { CLOCK.shut = Date.now(); };
+
+let TIP = null, tipOwner = null, pend = null, hideT = 0;
 function tipBox() {
   if (!TIP) {
     TIP = h('div', { class: 'lx-tip', role: 'tooltip', id: 'lx-tip', hidden: true });
@@ -434,8 +509,33 @@ function tipBox() {
   }
   return TIP;
 }
-export function tipShow(owner, content, at, gap = 12) {
+/** tipShow(owner, content, at, gap, { now }) : opens the bubble for owner (after the hover delay, see HOVER).
+    Call it as often as you like while the pointer moves: the latest content and position win.
+    now: true skips the delay (a page that opens the bubble from a click). */
+export function tipShow(owner, content, at, gap = 12, { now = false } = {}) {
   const el = tipBox();
+  clearTimeout(hideT);
+  const open = !el.hidden;
+  /* never while the page scrolls, even right after another bubble closed (a scroll closes the bubble, which would
+     otherwise leave it "warm" and let the next pointermove under the scrolling page open one at once) */
+  if (!now && !open && !pressedNow() && scrollingNow()) {
+    if (pend && pend.owner === owner) { clearTimeout(pend.t); pend = null; }
+    if (owner && owner._tipOff) owner._tipOff();
+    return el;
+  }
+  if (!now && !open && !pressedNow() && !bubbleWarm()) {
+    if (pend && pend.owner === owner) { Object.assign(pend, { content, at, gap }); return el; }
+    if (pend) { clearTimeout(pend.t); if (pend.owner && pend.owner._tipOff) pend.owner._tipOff(); }
+    pend = { owner, content, at, gap };
+    pend.t = setTimeout(() => { const p = pend; pend = null; if (p) drawTip(p.owner, p.content, p.at, p.gap); }, HOVER.open);
+    return el;
+  }
+  if (pend) { clearTimeout(pend.t); pend = null; }
+  return drawTip(owner, content, at, gap);
+}
+function drawTip(owner, content, at, gap) {
+  const el = tipBox();
+  if (owner && owner.isConnected === false) return el;
   if (tipOwner && tipOwner !== owner) { if (tipOwner._tipOff) tipOwner._tipOff(); if (tipOwner.removeAttribute) tipOwner.removeAttribute('aria-describedby'); }
   tipOwner = owner || null;
   /* the owner points at the bubble only while it is open (a pointer at a node that is not there helps no one) */
@@ -445,14 +545,27 @@ export function tipShow(owner, content, at, gap = 12) {
   placeFloat(el, at, gap);
   return el;
 }
-export function tipHide(owner) {
-  if (!TIP || (owner && owner !== tipOwner)) return;
+/** tipHide(owner) : closes the bubble after the short grace (owner given), or at once (no owner, { now: true }). */
+export function tipHide(owner, { now = false } = {}) {
+  if (pend && (!owner || pend.owner === owner)) { clearTimeout(pend.t); if (pend.owner && pend.owner._tipOff && pend.owner !== tipOwner) pend.owner._tipOff(); pend = null; }
+  if (!TIP || TIP.hidden || (owner && owner !== tipOwner)) return;
+  clearTimeout(hideT);
+  if (owner && !now) { hideT = setTimeout(() => { if (tipOwner === owner) shutTip(); }, HOVER.close); return; }
+  shutTip();
+}
+function shutTip() {
   if (tipOwner && tipOwner._tipOff) tipOwner._tipOff();
   if (tipOwner && tipOwner.removeAttribute) tipOwner.removeAttribute('aria-describedby');
-  TIP.hidden = true; tipOwner = null;
+  TIP.hidden = true; tipOwner = null; noteBubbleShut();
 }
+/** tipRow(swatch, name, value) : one line of the bubble, the label on the left and the value (with its unit) on
+    the right. A grid with a fixed label column, so a long value wraps under itself and never squeezes the label
+    to one letter per line. swatch: 'lead' | 'slate' | 'ink' | 'dash' | null (no square). */
 export function tipRow(swatch, name, value) {
-  return h('div', { class: 'lx-tip-r' }, swatch != null ? h('i', { class: 'sw ' + swatch }) : null, name ? h('span', null, name) : null, h('b', { class: 'v' }, value));
+  const sw = swatch != null && swatch !== '' ? h('i', { class: 'sw ' + swatch }) : null;
+  const k = name ? h('span', { class: 'k' }, name) : null;
+  const cls = 'lx-tip-r kv' + (sw && k ? ' c3' : sw || k ? '' : ' c1');
+  return h('div', { class: cls }, sw, k, h('b', { class: 'v' }, value));
 }
 /** placeFloat(el, at, gap) : puts a position: fixed element above a point or a box, below it when there is no
     room above, always inside the viewport (8px margin). at: { x, y } | DOMRect | element. Used by the tooltip
@@ -487,7 +600,7 @@ function chartBox(o, draw) {
   el._paint = w => {
     const phone = w < 520, H = phone ? (o.phoneHeight || Math.min(o.height, 290)) : o.height;
     el.style.height = H + 'px';
-    if (tipOwner && el.contains(tipOwner)) tipHide();   // the bubble belonged to the drawing being replaced
+    if ((tipOwner && el.contains(tipOwner)) || (pend && pend.owner && el.contains(pend.owner))) tipHide();   // the bubble belonged to the drawing being replaced
     el.replaceChildren(...draw(w, H, phone));
   };
   el._w = o.width || guessW();
@@ -536,7 +649,10 @@ function chartBox(o, draw) {
                         the axis, "6am to 7am" in the bubble).
     tipFormat: (v, sr, i) => text   one format for every value in the bubble.
     hover: i => nodes   older name for tooltip: i => nodes (still works; now drawn in the bubble).
-    label, empty        the spoken description; the words when there is nothing to draw. */
+    label, empty        the spoken description; the words when there is nothing to draw.
+    windowLabel         what the chart covers, drawn small at the top left: 'Daily, Nov 1 to 25'. Every chart
+                        should say it (decision 8). The y axis has 2 or 3 steps; give format a unit ($, x, %).
+    name                the series name in the bubble when the series has none of its own. */
 export function lineChart(o = {}) {
   const opt = { height: 350, fill: true, endLabels: true, axis: true, label: 'Chart', empty: 'No data for these dates',
     format: v => money(v, { compact: true }), ...o };
@@ -548,8 +664,9 @@ export function lineChart(o = {}) {
     Columns are data marks: ink, with dim ones in gray. dim: array of indexes (or i => bool).
     lead: index of the one column to draw in ember. name: the series name in the tooltip bubble.
     The same responsive box and tooltip options as lineChart (tooltip, tipLabels, tipFormat, hover). */
-export function barChart({ values = [], labels = [], dim, lead, format = v => num(v), height = 240, valueLabels = false, name, ...rest } = {}) {
-  return lineChart({ series: [{ type: 'bar', name, values, dimAt: dim, leadAt: lead, labels: valueLabels }], labels, format, height, yTicks: 2, endLabels: false, min: 1, ...rest });
+export function barChart({ values = [], labels = [], dim, lead, tone, format = v => num(v), height = 240, valueLabels = false, name, ...rest } = {}) {
+  /* the one series is the lead: brand orange columns. With a lead index, that column is orange and the rest slate. */
+  return lineChart({ series: [{ type: 'bar', name, values, dimAt: dim, leadAt: lead, labels: valueLabels, tone: tone || (lead != null ? 'slate' : 'brand') }], labels, format, height, yTicks: 2, endLabels: false, min: 1, ...rest });
 }
 
 function plot(o, W, H, phone) {
@@ -564,8 +681,8 @@ function plot(o, W, H, phone) {
   const slots = o.slots ?? bars.length > 0;
   const fmt = o.format, endFmt = o.endFormat || fmt, labFmt = sr => typeof sr.labels === 'function' ? sr.labels : endFmt;
   const max = o.yMax || niceMax(Math.max(...vals) * (series.some(sr => sr.labels) ? 1.08 : 1));
-  /* grid steps that land on round figures: 3 for a top of 1.5, 3 or 6; 5 for 1, 5 or 10; else 4 */
-  if (!o.yTicks) { const m = +(max / Math.pow(10, Math.floor(Math.log10(max)))).toPrecision(3); o = { ...o, yTicks: [1.5, 3, 6].includes(m) ? 3 : [1, 5, 10].includes(m) ? 5 : 4 }; }
+  /* two or three grid steps that land on round figures: 3 for a top of 1.5, 3 or 6; else 2 */
+  if (!o.yTicks) { const m = +(max / Math.pow(10, Math.floor(Math.log10(max)))).toPrecision(3); o = { ...o, yTicks: [1.5, 3, 6].includes(m) ? 3 : 2 }; }
   const yl = Array.from({ length: o.yTicks + 1 }, (_, g) => fmt(max * (o.yTicks - g) / o.yTicks));
   const lastOf = sr => sr.values.filter(ok).pop();
   const endText = sr => sr.end === false || sr.dashed && !sr.end || sr.labels || sr.type === 'bar' ? null : sr.end ? sr.end(lastOf(sr)) : endFmt(lastOf(sr));
@@ -575,7 +692,9 @@ function plot(o, W, H, phone) {
 
   const L = o.axis ? Math.max(30, Math.max(...yl.map(t => textW(t, 6.5))) + 14) : 2;
   const R = W - (y2 ? textW(y2.format(y2.max), 6.5) + 14 : ends.length ? Math.max(...ends.map(t => textW(t, 7.3))) + 16 : hasLab || !o.axis ? 14 : 8);
-  const T = (o.top ?? 14) + (hasLab ? 14 : 0) + (topNotes ? 18 : 0) + (o.marks && o.marks.some(m => m.line) ? 20 : 0);
+  const T = (o.top ?? 14) + (o.windowLabel ? 20 : 0) + (hasLab ? 14 : 0) + (topNotes ? 18 : 0) + (o.marks && o.marks.some(m => m.line) ? 20 : 0);
+  /* the window label: what the chart covers, top left ("Daily, Nov 1 to 25") */
+  if (o.windowLabel) svg.append(s('text', { class: 'win', x: 0, y: 12 }, o.windowLabel));
   const hasX = !!(o.labels && o.labels.length), B = H - (hasX ? 30 : 6);
   const xs = o.xs && o.xs.length === n ? o.xs : null, x0 = xs ? xs[0] : 0, x1 = xs ? xs[n - 1] : n - 1;
   const step = (R - L) / n, pad = o.pad ?? 0;
@@ -649,7 +768,7 @@ function plot(o, W, H, phone) {
     sr.values.forEach((v, i) => {
       if (!ok(v)) return;
       const l = X(i) - bw / 2, rr = l + bw, t = Math.min(B - r, Y(v));
-      const cls = i === sr.leadAt ? 'lead' : isDim(i) || sr.tone === 'dim' ? 'dim' : sr.tone === 'slate' ? 'slate' : '';
+      const cls = i === sr.leadAt ? 'lead' : isDim(i) || sr.tone === 'dim' ? 'dim' : sr.tone === 'slate' ? 'slate' : sr.tone === 'brand' ? 'brand' : '';
       if (v > 0) svg.append(s('path', { class: 'col ' + cls, d: `M${l.toFixed(1)} ${B} V${(t + r).toFixed(1)} Q${l.toFixed(1)} ${t.toFixed(1)} ${(l + r).toFixed(1)} ${t.toFixed(1)} H${(rr - r).toFixed(1)} Q${rr.toFixed(1)} ${t.toFixed(1)} ${rr.toFixed(1)} ${(t + r).toFixed(1)} V${B} Z` },
         s('title', null, (o.labels && o.labels[i] ? o.labels[i] + ': ' : '') + labFmt(sr)(v, i))));
     });
@@ -701,11 +820,13 @@ function plot(o, W, H, phone) {
   const own = typeof o.tooltip === 'function' ? o.tooltip : o.hover;
   const heads = o.tipLabels || o.labels || [];
   const valFmt = sr => sr.tipFormat || (o.tipFormat ? (v, i) => o.tipFormat(v, sr, i) : sr.axis === 'right' && y2 ? y2.format : labFmt(sr));
-  const swatch = (sr, i) => sr.type === 'bar' ? (i === sr.leadAt ? 'lead' : 'ink') : sr.lead ? 'lead' : sr.dashed ? 'dash' : 'slate';
+  const swatch = (sr, i) => sr.type === 'bar' ? (i === sr.leadAt || sr.tone === 'brand' ? 'lead' : sr.tone === 'slate' ? 'slate' : 'ink') : sr.lead ? 'lead' : sr.dashed ? 'dash' : 'slate';
   const content = i => {
     if (own) return tipLines(own(i));
     const head = heads[i] != null && heads[i] !== '' ? h('div', { class: 'lx-tip-h' }, heads[i]) : null;
-    const rows = series.filter(sr => ok(sr.values[i])).map(sr => tipRow(swatch(sr, i), sr.name || null, valFmt(sr)(sr.values[i], i)));
+    /* one series: no color square (it would only repeat the one line); more series: the square names the line */
+    const one = series.length === 1;
+    const rows = series.filter(sr => ok(sr.values[i])).map(sr => tipRow(one ? null : swatch(sr, i), sr.name || o.name || null, valFmt(sr)(sr.values[i], i)));
     return [head, rows.length ? rows : h('div', { class: 'lx-tip-r' }, NONE)];
   };
   const cur = slots ? null : s('line', { class: 'cur', y1: T, y2: B, visibility: 'hidden' });
@@ -745,7 +866,10 @@ function plot(o, W, H, phone) {
 
 /** legend([{ name, lead }, { name }, { name, dashed }, { name, square }]) : text with a line sample (a square for columns), for above a chart */
 export function legend(items) {
-  return h('div', { class: 'lx-legend' }, items.filter(Boolean).map(it => h('span', { class: (it.lead ? 'lead' : it.dashed ? 'dash' : '') + (it.square ? ' sq' : ''), style: it.color ? { '--c': it.color } : null }, it.name)));
+  /* a legend with one item says nothing the chart's own title does not: it is left out */
+  const list = (items || []).filter(Boolean);
+  if (list.length < 2) return h('div', { class: 'lx-legend', hidden: true });
+  return h('div', { class: 'lx-legend' }, list.map(it => h('span', { class: (it.lead ? 'lead' : it.dashed ? 'dash' : '') + (it.square ? ' sq' : ''), style: it.color ? { '--c': it.color } : null }, it.name)));
 }
 
 /** gauge({ value, max, goal, tone, thin, ticks })
@@ -828,4 +952,91 @@ export function asOf(ts) { return ts ? h('span', { class: 'lx-asof', title: new 
 /** empty({ title, text, action }) : the plain state for "not connected" or "no sales source". Never a zero. */
 export function empty({ title, text, action } = {}) {
   return h('div', { class: 'lx-empty' }, title && h('h3', null, title), text && h('p', null, text), action || null);
+}
+
+/* ---------- the Locus calendar: dates are always picked here, never with a native date input ---------- */
+const ymdOf = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+const dateOf = str => new Date(String(str) + 'T12:00:00');
+const shortDay = str => dateOf(str).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+const WEEK = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
+/** calendar({ from, to, min, max, months, onChange }) : a styled month grid that picks a span.
+    Click a first day (the start), then a second (the end; before the start swaps them). While only the start
+    is picked, the span under the pointer shows. months: 2 shows two months side by side (one on a phone).
+    onChange({ from, to }) runs on every pick (to is null after the first click). from, to, min, max: 'YYYY-MM-DD'.
+    Returns the element; .value() is the current { from, to }, .set({ from, to }) changes it. */
+export function calendar({ from = null, to = null, min = null, max = null, months = 2, onChange } = {}) {
+  const st = { from, to, hover: null };
+  const anchor = dateOf(to || from || max || ymdOf(new Date()));
+  let view = new Date(anchor.getFullYear(), anchor.getMonth() - (months > 1 ? 1 : 0), 1);
+  const el = h('div', { class: 'lx-cal' + (months > 1 ? ' two' : ''), role: 'group', 'aria-label': 'Pick dates' });
+  const off = d => (min && d < min) || (max && d > max);
+  const inSpan = d => { const a = st.from, b = st.to || st.hover; if (!a || !b) return false; const lo = a < b ? a : b, hi = a < b ? b : a; return d >= lo && d <= hi; };
+  function mark() {
+    const a = st.from, b = st.to || st.hover, lo = a && b ? (a < b ? a : b) : a, hi = a && b ? (a < b ? b : a) : a;
+    el.querySelectorAll('button.d').forEach(btn => {
+      const d = btn.dataset.d;
+      btn.classList.toggle('in', inSpan(d));
+      btn.classList.toggle('start', d === lo);
+      btn.classList.toggle('end', d === hi);
+      btn.classList.toggle('pre', !st.to && !!st.hover && inSpan(d));
+      btn.setAttribute('aria-pressed', String(d === st.from || d === st.to));
+    });
+  }
+  function monthGrid(first) {
+    const y = first.getFullYear(), m = first.getMonth(), days = new Date(y, m + 1, 0).getDate(), lead = first.getDay(), today = ymdOf(new Date());
+    const cells = [];
+    for (let i = 0; i < lead; i++) cells.push(h('span', { class: 'blank', 'aria-hidden': 'true' }));
+    for (let dnum = 1; dnum <= days; dnum++) {
+      const d = ymdOf(new Date(y, m, dnum));
+      cells.push(h('button', { type: 'button', class: 'd' + (d === today ? ' today' : ''), dataset: { d }, disabled: off(d) || null, 'aria-label': dateOf(d).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) }, String(dnum)));
+    }
+    return h('div', { class: 'lx-cal-m' },
+      h('div', { class: 'lx-cal-t' }, first.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })),
+      h('div', { class: 'lx-cal-g' }, WEEK.map(w => h('span', { class: 'wd', 'aria-hidden': 'true' }, w)), cells));
+  }
+  function draw() {
+    const shown = Array.from({ length: months }, (_, k) => new Date(view.getFullYear(), view.getMonth() + k, 1));
+    const step = k => { view = new Date(view.getFullYear(), view.getMonth() + k, 1); draw(); };
+    put(el,
+      h('div', { class: 'lx-cal-nav' },
+        h('button', { type: 'button', class: 'lx-btn ghost icon', 'aria-label': 'Earlier month', onclick: () => step(-1) }, svgNode('<svg class="lx-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>')),
+        h('span', { class: 'lx-sp' }),
+        h('button', { type: 'button', class: 'lx-btn ghost icon', 'aria-label': 'Later month', onclick: () => step(1) }, svgNode('<svg class="lx-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>'))),
+      h('div', { class: 'lx-cal-ms' }, shown.map(monthGrid)));
+    mark();
+  }
+  el.addEventListener('click', e => {
+    const b = e.target.closest('button.d'); if (!b || b.disabled) return;
+    const d = b.dataset.d;
+    if (!st.from || st.to) { st.from = d; st.to = null; }
+    else if (d < st.from) { st.to = st.from; st.from = d; }
+    else st.to = d;
+    st.hover = null; mark();
+    onChange && onChange({ from: st.from, to: st.to });
+  });
+  el.addEventListener('pointerover', e => { const b = e.target.closest('button.d'); if (!b || !st.from || st.to) return; st.hover = b.dataset.d; mark(); });
+  el.addEventListener('pointerleave', () => { if (st.hover) { st.hover = null; mark(); } });
+  el.value = () => ({ from: st.from, to: st.to });
+  el.set = v => { st.from = v.from || null; st.to = v.to || null; draw(); };
+  draw();
+  return el;
+}
+
+/** rangePicker({ from, to, min, max, onApply, onCancel }) : the calendar with a summary line and Apply / Cancel.
+    Two months side by side on a desktop, one on a phone. onApply({ from, to }) with both dates set
+    (Apply waits until both are picked; one day = click it twice). The shell's date menu uses it for Custom. */
+export function rangePicker({ from = null, to = null, min = null, max = null, onApply, onCancel } = {}) {
+  const phone = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width:759px)').matches;
+  const say = h('p', { class: 'lx-rp-say', 'aria-live': 'polite' });
+  const apply = button('Apply', { primary: true, onclick: () => { const v = cal.value(); if (v.from && v.to) onApply && onApply(v); } });
+  const cancel = button('Cancel', { ghost: true, onclick: () => onCancel && onCancel() });
+  const tell = v => {
+    const days = v.from && v.to ? Math.round((dateOf(v.to) - dateOf(v.from)) / 864e5) + 1 : 0;
+    say.textContent = !v.from ? 'Pick the first day' : !v.to ? shortDay(v.from) + ' to ...  pick the last day' : (v.from === v.to ? shortDay(v.from) : shortDay(v.from) + ' to ' + shortDay(v.to)) + ' \u00b7 ' + days + (days === 1 ? ' day' : ' days');
+    apply.disabled = !(v.from && v.to);
+  };
+  const cal = calendar({ from, to, min, max, months: phone ? 1 : 2, onChange: tell });
+  tell({ from, to });
+  return h('div', { class: 'lx-rp' }, cal, h('div', { class: 'lx-rp-foot' }, say, h('span', { class: 'lx-sp' }), cancel, apply));
 }

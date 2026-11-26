@@ -9,7 +9,7 @@
  "sales_source": true,
  "goals": {
   "metric": "roas",
-  "roas": 3.0,
+  "roas": 3,
   "cpa": 40,
   "ncpa": 40
  },
@@ -21,7 +21,14 @@
   "cpa": 41.24,
   "days": 22
  },
+ "prev": {
+  "from": "2026-10-10",
+  "to": "2026-10-31",
+  "revenue": 27412,
+  "spend": 15180
+ },
  "week": {
+  "revenue": 6118,
   "revenue_delta": -0.46,
   "roas": 1.22
  },
@@ -242,7 +249,13 @@
   "roas": 3.4,
   "orders": 6,
   "revenue": 918,
-  "spend": 270
+  "spend": 270,
+  "art": {
+   "kind": "golfer",
+   "c1": "#14532D",
+   "c2": "#1F2937",
+   "bg": "#E6EDE4"
+  }
  },
  "checks": {
   "limit": {

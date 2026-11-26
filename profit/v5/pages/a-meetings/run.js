@@ -462,7 +462,7 @@ const CSS = `
 .mr-brand{display:grid;gap:36px;min-width:0}
 .mr-nums,.mr-counts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:48px}
 .mr-fig{display:grid;gap:8px;min-width:0;align-content:start}
-.mr-fig .l{font-size:14.5px;font-weight:550;color:var(--muted)}
+.mr-fig .l{font-size:14.5px;font-weight:500;color:var(--muted)}
 .mr-fig .v{font-size:var(--num-l);font-weight:600;letter-spacing:-.05em;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap}
 .mr-fig .v.w{font-size:var(--num-m);letter-spacing:-.02em;line-height:1.25;color:var(--ink-2);white-space:normal}
 .mr-fig .s{display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap;font-size:15px;color:var(--muted)}
@@ -498,14 +498,14 @@ const CSS = `
 .mr-notes:focus{outline:2px solid var(--ink);outline-offset:1px}
 .mr-task{display:flex;align-items:center;gap:16px;min-height:68px;padding:10px 0;border-top:1px solid var(--line)}
 .mr-task:first-child{border-top:0}
-.mr-task .what{flex:1;min-width:0;font-size:18px;font-weight:550;letter-spacing:-.012em;line-height:1.35}
+.mr-task .what{flex:1;min-width:0;font-size:18px;font-weight:500;letter-spacing:-.012em;line-height:1.35}
 .mr-task .what small{display:block;font-size:13px;font-weight:500;color:var(--muted)}
 .mr-task .who{width:190px;font-size:14px;color:var(--muted)}
 .mr-task>.lx-stat,.mr-task>.lx-pill{width:74px;flex:none}
 .mr-nobody{flex:none;width:40px;height:40px;border-radius:50%;background:var(--bg-sunk);box-shadow:inset 0 0 0 1.5px var(--line-strong)}
 .mr-grp{display:grid;gap:4px;padding:18px 0;border-top:1px solid var(--line)}
 .mr-grp:first-child{border-top:0;padding-top:0}
-.mr-grp h4{margin:0 0 4px;font-size:15px;font-weight:650;letter-spacing:-.01em}
+.mr-grp h4{margin:0 0 4px;font-size:15px;font-weight:600;letter-spacing:-.01em}
 .mr-sbs{overflow:hidden}
 .mr-sb{display:grid;grid-template-columns:minmax(0,1.4fr) repeat(5,minmax(0,1fr)) 120px;gap:16px;align-items:center;width:100%;min-height:var(--row-h-roomy);padding:6px 24px;border:0;border-top:1px solid var(--line);background:none;text-align:left;font:inherit;color:inherit;cursor:pointer}
 .mr-sb:first-child{border-top:0}
@@ -523,7 +523,7 @@ const CSS = `
 .mr-sb .n b{font-size:var(--num-s);font-weight:600;letter-spacing:-.035em;line-height:1.1;font-variant-numeric:tabular-nums;white-space:nowrap}
 .mr-sb .n em{font-style:normal;font-size:13px;color:var(--muted)}
 .mr-sb .n.mer b{font-size:var(--num-s)}
-.mr-sb .n.none{grid-column:2/5;font-size:16px;font-weight:550;color:var(--muted)}
+.mr-sb .n.none{grid-column:2/5;font-size:16px;font-weight:500;color:var(--muted)}
 .mr-q{display:grid;grid-template-columns:minmax(0,220px) 190px minmax(0,1fr) 110px;gap:24px;align-items:center;width:100%;min-height:84px;padding:14px 30px;border:0;border-top:1px solid var(--line);background:none;text-align:left;font:inherit;color:inherit;cursor:pointer}
 .mr-q:first-child{border-top:0}
 .mr-q .nm{font-size:20px;font-weight:600;letter-spacing:-.02em;min-width:0}

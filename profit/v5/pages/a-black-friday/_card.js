@@ -33,7 +33,7 @@ export const CARD_CSS = `
 .wcc-t .l{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:${C.dim}}
 .wcc-t .m{font-size:28px;font-weight:750;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
 .wcc-t .n{font-size:12.5px;color:${C.text};font-variant-numeric:tabular-nums}
-.wcc-t .w{font-size:12px;font-weight:650}
+.wcc-t .w{font-size:12px;font-weight:600}
 .wcc-ch{background:${C.blueBg};border-radius:14px;padding:12px 14px;display:grid;gap:8px}
 .wcc-ch .h{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:${C.blue}}
 .wcc-ch p{margin:0;font-size:13.5px;line-height:1.45}

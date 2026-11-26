@@ -39,8 +39,8 @@ const CSS = `.sd{display:grid;gap:16px}
 .sd-hold{margin:0;padding:10px 12px;border-radius:10px;background:var(--warn-bg);color:var(--warn);font-size:14px;line-height:1.5}
 .sd-err{margin:0;padding:10px 12px;border-radius:10px;background:var(--bad-bg);color:var(--bad);font-size:14px;line-height:1.5}
 .sd-post{margin:0;padding:14px 16px;border-radius:12px;background:var(--bg-sunk);box-shadow:inset 0 0 0 1px var(--line);font-size:14.5px;line-height:1.55;color:var(--ink);white-space:pre-wrap;word-break:break-word;max-height:46vh;overflow:auto}
-.sd-post b{font-weight:650}
-.sd-lab{margin:0 0 -8px;font-size:12px;font-weight:650;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.sd-post b{font-weight:600}
+.sd-lab{margin:0 0 -8px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .sd-acts{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .sd-ta{min-height:260px;font-size:14.5px}
 .sd-old{font-size:13px;color:var(--muted)}

@@ -30,6 +30,8 @@
      profit   GET /api/hub/paid?platform=meta&act=<id>&model=fullFirstClick&cmp=none&from=<Monday>&to=<today>
                                                              the full picture per campaign, only when a campaign panel
                                                              opens, one request per brand per check-in (cached)
+     and when a campaign row is opened in place (./_tree.js, one at a time, cached per brand): ah /api/meta/live,
+     profit /api/hub/paid (lastPlatformClick, this week), ah /api/buyer-list (the ad calls), ah /api/ad-creatives
    A client (brand view only) reads only GET /api/season/war?act=<id>&live=1: the pace hero and the plan, no calls.
    Exports, all in the browser (./_export.js): the client card and the whole board as PNG or PDF.
    Writes (team only, each after a tap; sample mode never calls one):
@@ -46,7 +48,8 @@
      profit   POST /api/snapshot {act, kind:'card', title, html, css, days:30}   the client card's public link */
 
 import { APP_NAME, OWNER_FIRST, workers, token } from '../../config.js';
-import { h, put, money, x, pill, button, card, empty, sheet, toast, addStyles, segmented, platformChip, lineChart, legend, table, tipShow, tipHide, tipRow } from '../../kit.js';
+import { h, put, money, x, pill, button, card, empty, sheet, toast, addStyles, segmented, platformChip, lineChart, legend, table, tipShow, tipHide, tipRow, staleStamp, sourceLine } from '../../kit.js';
+import { treeReader, campaignInside, onSwitch, writeSheet, treeCss, stateOf, stateNote } from './_tree.js';
 import { defined, defLabel, pageHelp, glossaryFor } from '../../defs.js';
 import { fixture } from '../../data.js';
 import { undoSheet } from '../meta/_write.js';
@@ -63,7 +66,7 @@ const CSS = `
 .wr3{display:grid;gap:var(--sp-6);min-width:0}
 /* this page says when it checked in its own toolbar, so the shell's "updated" stamp is hidden and the head sits closer */
 .lx-page:has(.wr3){row-gap:16px}
-.lx-page:has(.wr3) .lx-asof-slot,.lx-page:has(.wr3) .lx-head-tools{display:none}
+.lx-page:has(.wr3) .lx-head-tools{display:none}
 .wr3-menu{min-width:200px}
 .wr3-menu .lx-item[disabled]{opacity:.5;cursor:default}
 .wr3-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;min-width:0}
@@ -72,7 +75,8 @@ const CSS = `
 .wr3-bar .sp{flex:1}
 .wr3-bar .btns{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .wr3-bar .lx-btn{min-height:34px}
-.wr3-old{font-size:12.5px;color:var(--muted)}
+.wr3-old{font-size:12.5px;color:var(--muted);text-decoration:none}
+.wr3-old:hover,.wr3-old:focus-visible{color:var(--ink);text-decoration:underline;text-underline-offset:3px}
 .wr3-amber{margin:0;color:var(--warn);background:var(--warn-bg);border-radius:10px;padding:6px 10px;font-size:12.5px;line-height:1.45}
 .wr3-quiet{margin:0;font-size:13px;color:var(--muted);line-height:1.5}
 /* a plan cell's second line, shown only on a phone where its own column is hidden */
@@ -87,7 +91,8 @@ const CSS = `
 .wr3-hk.lean{grid-template-columns:minmax(0,1fr)}
 .wr3-hk>div{display:grid;gap:6px;min-width:0;align-content:start}
 .wr3-hk .big .lx-hero-num{line-height:1}
-.wr3-scope{display:inline-flex;align-items:center;min-height:22px;padding:0 8px;border-radius:999px;background:var(--surface-2);font-size:12px;color:var(--ink-2);white-space:nowrap;margin-left:4px}
+/* which brands count: plain words after the percent (dotted, its meaning on hover), never a chip */
+.wr3-scope{display:inline;font-size:var(--fs-small,12.5px);color:var(--muted);white-space:nowrap;margin-left:6px}
 .wr3-hk .big{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
 .wr3-hk .scope{font-size:12px;color:var(--muted)}
 .wr3-hk .of{font-size:13.5px;color:var(--muted);font-variant-numeric:tabular-nums}
@@ -96,7 +101,7 @@ const CSS = `
 .wr3-prog{position:relative;height:8px;border-radius:999px;background:var(--bg-sunk);overflow:hidden}
 .wr3-prog i{position:absolute;left:0;top:0;bottom:0;width:var(--v,0%);border-radius:999px;background:var(--grad)}
 .wr3-ph{display:grid;grid-template-columns:var(--cols);gap:4px;min-width:0}
-.wr3-ph>button{display:grid;gap:6px;min-width:0;padding:4px 2px;border:0;background:none;text-align:left;cursor:default;border-radius:8px}
+.wr3-ph>button{display:grid;gap:6px;min-width:0;padding:4px 2px;border:0;background:none;text-align:left;cursor:default;border-radius:var(--r-chip,6px)}
 .wr3-ph>button:hover,.wr3-ph>button:focus-visible{background:var(--row-hover)}
 .wr3-ph i{display:block;height:6px;border-radius:999px;background:var(--bg-sunk);position:relative}
 .wr3-ph .done i{background:var(--faint);opacity:.45}
@@ -109,84 +114,125 @@ const CSS = `
 .wr3-ch{display:grid;gap:8px;min-width:0}
 .wr3-ch .lx-chart-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px}
 .wr3-ch h3{font-size:15px;font-weight:600;letter-spacing:-.01em;margin:0}
-/* needs your yes */
+/* calls that need a yes (agency view): one line per call, the brand opens its card on this page */
 .wr3-need{display:grid}
-.wr3-ask{display:grid;gap:6px;padding:14px 0;border-top:1px solid var(--line);min-width:0}
-.wr3-ask:first-child{border-top:0;padding-top:12px}
-.wr3-ask .br{font-size:13px;font-weight:600;color:var(--ink)}
-.wr3-ask .br+.sep{color:var(--faint);font-weight:400;margin:0 6px}
-.wr3-ask.flash{animation:wr3-flash 1.6s var(--ease)}
-@keyframes wr3-flash{0%,40%{background:var(--warn-bg)}100%{background:transparent}}
-.wr3-yes{border:0;font:inherit;cursor:pointer}
-.wr3-yes:hover,.wr3-yes:focus-visible{filter:brightness(.96);text-decoration:underline;text-underline-offset:2px}
-.wr3-ask .dec{font-size:15.5px;font-weight:600;letter-spacing:-.01em;overflow-wrap:anywhere}
+.wr3-ask{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 16px;align-items:center;padding:12px 0;border-top:1px solid var(--line);min-width:0}
+.wr3-ask:first-child{border-top:0;padding-top:4px}
+.wr3-ask .txt{display:grid;gap:3px;min-width:0}
+.wr3-ask .br,.wr3-jump{border:0;background:none;padding:0;font:inherit;font-size:12.5px;font-weight:600;color:var(--muted);cursor:pointer;text-align:left;justify-self:start}
+.wr3-ask .br:hover,.wr3-jump:hover{color:var(--ink);text-decoration:underline;text-underline-offset:3px}
+.wr3-ask .dec{font-size:15px;font-weight:600;letter-spacing:-.01em;overflow-wrap:anywhere}
 .wr3-ask .why{margin:0;font-size:13px;color:var(--ink-2);line-height:1.5}
+.wr3-ask.flash,.wr3-b.flash{animation:wr3-flash 1.6s var(--ease)}
+@keyframes wr3-flash{0%,40%{box-shadow:0 0 0 3px var(--warn-bg)}100%{box-shadow:0 0 0 0 transparent}}
 .wr3-chips{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
 .wr3-chips b{color:var(--ink);font-weight:600;margin-left:4px}
 .wr3-act{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.wr3-act .lx-btn{min-height:40px}
-/* brand cards: one style for every brand */
-.wr3-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--sp-5);align-items:start}
-@media (min-width:1100px){
-  .wr3-b{grid-template-columns:minmax(0,3fr) minmax(0,2fr);column-gap:var(--sp-6)}
-  .wr3-b>*{grid-column:1/-1}
-  .wr3-b>.wr3-tiles{grid-column:1;grid-row:3}
-  .wr3-b>.wr3-spark{grid-column:2;grid-row:3;align-self:start}
-  .wr3-b:not(:has(>.wr3-spark))>.wr3-tiles{grid-column:1/-1}
-  .wr3-ct .lx-table th{white-space:nowrap}
-}
-.wr3-b{position:relative;display:grid;gap:var(--sp-4);min-width:0;overflow:hidden}
-.wr3-b.yes::before{content:"";position:absolute;left:0;right:0;top:0;height:4px;background:var(--watch)}
-.wr3-r1{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap;min-width:0}
-.wr3-r1 .tg{font-size:12.5px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
-.wr3-r1 .tg b{color:var(--ink);font-weight:600}
-.wr3-r1 .nm{font-size:19px;font-weight:650;letter-spacing:-.02em;flex:1 1 180px;min-width:0;overflow-wrap:break-word}
-.wr3-r1 .nm a{color:inherit;text-decoration:none}.wr3-r1 .nm a:hover{text-decoration:underline}
-.wr3-chip{display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:0 10px;border-radius:999px;border:1px solid var(--line-strong);background:var(--surface);font:inherit;font-size:12.5px;color:var(--ink-2);cursor:pointer;white-space:nowrap}
+.wr3-act .lx-btn{min-height:38px}
+/* brand cards: one long card per brand, the same layout for every brand */
+.wr3-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--gap-5,24px);align-items:start}
+.wr3-b{position:relative;display:grid;gap:var(--gap-4,16px);min-width:0;container:wr3b / inline-size;scroll-margin-top:16px}
+.wr3-hd{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;min-width:0}
+.wr3-hd h3{margin:0;font-size:var(--fs-section);font-weight:600;letter-spacing:-.015em;line-height:var(--lh-head);min-width:0;overflow-wrap:anywhere}
+.wr3-hd .sp{flex:1 1 0}
+.wr3-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;font-size:var(--fs-small);color:var(--muted);font-variant-numeric:tabular-nums}
+.wr3-meta b{color:var(--ink);font-weight:600}
+.wr3-chip{display:inline-flex;align-items:center;gap:6px;min-height:28px;padding:0 10px;border-radius:var(--r-btn);border:1px solid var(--line-strong);background:var(--surface);font:inherit;font-size:12.5px;color:var(--ink-2);cursor:pointer;white-space:nowrap}
+.wr3-chip:hover{background:var(--row-hover)}
 .wr3-chip[disabled]{cursor:default}
 .wr3-chip.due{border-color:transparent;background:var(--warn-bg);color:var(--warn)}
-.wr3-r2{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap;min-width:0}
-.wr3-r2 .decs{display:grid;gap:4px;flex:1 1 220px;min-width:0}
-.wr3-r2 .dec{font-size:15px;font-weight:600;letter-spacing:-.01em;overflow-wrap:anywhere}
-.wr3-r2 .dec.dim{color:var(--muted);font-weight:500}
-.wr3-r2 .why{margin:0;font-size:13px;color:var(--ink-2);line-height:1.5}
-.wr3-r2 .wr3-act{margin:2px 0 6px}
-.wr3-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-items:start}
-.wr3-tile{background:var(--surface-2);border-radius:14px;padding:10px 12px 12px;display:grid;gap:2px;align-content:start;min-width:0}
-.wr3-tile .hd{display:block;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);line-height:1.3;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
-.wr3-tile .hd .lx-def{text-transform:uppercase}
-.wr3-tile .k{font-size:12px;color:var(--muted)}
-.wr3-tile .mer{font-size:24px;font-weight:650;letter-spacing:-.03em;line-height:1.15;font-variant-numeric:tabular-nums}
-.wr3-tile .mer small{font-size:12px;font-weight:400;letter-spacing:0;color:var(--muted);margin-left:4px}
-.wr3-tile .ln{display:flex;justify-content:space-between;gap:6px;font-size:12px;color:var(--ink-2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.wr3-body{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--gap-4,16px);min-width:0}
+@container wr3b (min-width:860px){.wr3-body.two{grid-template-columns:minmax(0,3fr) minmax(0,2fr);align-items:start}}
+/* the store strip: Since last check-in | Today | This week, always in that order, the same layout in each */
+.wr3-strip{display:grid;gap:6px;min-width:0}
+.wr3-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-items:stretch}
+.wr3-tile{background:var(--surface-2);border-radius:var(--r-tbl);padding:12px 14px;display:grid;gap:3px;align-content:start;min-width:0}
+.wr3-tile .hd{display:flex;align-items:baseline;justify-content:space-between;gap:8px;min-width:0}
+.wr3-tile .hd b{font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.wr3-tile .hd small{font-size:12px;color:var(--muted);white-space:nowrap}
+.wr3-tile .mer{font-size:var(--num-l);font-weight:600;letter-spacing:-.03em;line-height:1.15;font-variant-numeric:tabular-nums;margin:2px 0 4px}
+.wr3-tile .mer small{font-size:12px;font-weight:400;letter-spacing:0;color:var(--muted);margin-left:6px}
+.wr3-tile .ln{display:flex;justify-content:space-between;gap:8px;font-size:13px;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap;min-width:0}
 .wr3-tile .ln span:first-child{color:var(--muted)}
-.wr3-tile .gray{font-size:11.5px;color:var(--muted);margin-top:2px}
-.wr3-spark{display:grid;gap:4px;min-width:0}
-/* one column grid for every campaign table on the page (both views), so the columns line up card to card */
-.wr3-ct .lx-table{table-layout:fixed;width:100%}
-.wr3-ct .lx-table th{white-space:normal;line-height:1.25;height:auto;padding:6px 4px;vertical-align:bottom;font-size:10px;letter-spacing:.04em}
-.wr3-ct .lx-table td{white-space:nowrap;padding:8px 4px;font-size:12.5px;height:52px;overflow:hidden;text-overflow:ellipsis}
-.wr3-ct .lx-table th.callh,.wr3-ct .lx-table td.callh{text-align:left;padding-left:14px}
-.wr3-ct .lx-table td:first-child{white-space:normal}
-.wr3-ct .lx-table th:first-child,.wr3-ct .lx-table td:first-child{padding-left:0}
-.wr3-ct .lx-table th:last-child,.wr3-ct .lx-table td:last-child{padding-right:0}
-.wr3-ct .cn{display:flex;align-items:flex-start;gap:6px;font-weight:600;min-width:96px}
-.wr3-ct .cn .lx-plat{font-weight:400}
-.wr3-ct .bud small{display:block;font-size:11px;color:var(--muted)}
-.wr3-ct .lx-pill{white-space:nowrap}
-.wr3-ct .cn small{display:block;font-weight:400;font-size:11.5px;color:var(--muted)}
-.wr3-ct .callc{display:flex;align-items:center;gap:10px;justify-content:flex-start}
-.wr3-ct .callc>.lx-pill{width:84px;justify-content:center;text-align:center;flex:none;overflow:hidden;text-overflow:ellipsis}
-.wr3-ct .rowbtn{border:0;background:none;padding:2px 0;font:inherit;font-size:12px;color:var(--ink-2);text-decoration:underline;text-decoration-color:var(--line-strong);text-underline-offset:3px;cursor:pointer;white-space:nowrap}
-.wr3-ct .rowbtn:hover{color:var(--ink)}
-.wr3-ct .warnrow{display:block;font-size:11.5px;color:var(--warn);font-weight:400;margin-top:2px}
-.wr3-foot{display:flex;flex-wrap:wrap;gap:8px}
-.wr3-foot .lx-btn{min-height:40px}
+.wr3-tile .gray{font-size:12px;color:var(--muted);margin-top:2px;line-height:1.35}
+.wr3-spark{display:grid;gap:6px;min-width:0}
+.wr3-spark .lx-chart-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px}
+/* the call line under the strip: each call with its own real buttons */
+.wr3-calls{display:grid;border-radius:var(--r-tbl);background:var(--surface-2);padding:2px 14px;min-width:0}
+.wr3-call{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 16px;align-items:center;padding:10px 0;border-top:1px solid var(--line);min-width:0}
+.wr3-call:first-child{border-top:0}
+.wr3-call .txt{display:grid;gap:3px;min-width:0}
+.wr3-call .eb{font-size:11.5px;font-weight:600;color:var(--muted)}
+.wr3-call .dec{font-size:15px;font-weight:600;letter-spacing:-.01em;overflow-wrap:anywhere}
+.wr3-call .dec.dim{color:var(--muted);font-weight:500;font-size:14px}
+.wr3-call .why{margin:0;font-size:13px;color:var(--ink-2);line-height:1.5}
+.wr3-call.done .dec{color:var(--good)}
+.wr3-amber{margin:0;color:var(--warn);background:var(--warn-bg);border-radius:var(--r-btn);padding:8px 12px;font-size:12.5px;line-height:1.45}
+/* the campaigns: a row per campaign that opens in place to its ad sets and ads */
+.wr3-cl{--cg:minmax(0,1fr) 84px 80px 66px 66px 66px 124px 156px;display:grid;border:1px solid var(--line);border-radius:var(--r-tbl);overflow:hidden;container:wr3cl / inline-size;min-width:0;background:var(--surface)}
+.wr3-cr{display:grid;grid-template-columns:var(--cg);gap:10px;align-items:center;padding:0 14px 0 6px;min-height:54px;border-top:1px solid var(--line);font-size:var(--fs-table);min-width:0}
+.wr3-cr.hd{min-height:0;padding-top:8px;padding-bottom:6px;font-size:var(--fs-colhead);font-weight:600;color:var(--muted);border-top:0;align-items:end}
+.wr3-cr.hd>span{line-height:1.25;min-width:0}
+.wr3-cr.grp{min-height:0;padding-top:8px;padding-bottom:0;border-top:0;font-size:11.5px;color:var(--faint);font-weight:600}
+.wr3-cr.grp>span{grid-column:4 / span 3;text-align:center;border-bottom:1px solid var(--line);padding-bottom:4px;line-height:1.3}
+.wr3-cr.grp .short{display:none}
+.wr3-cn small .bud-in,.wr3-cn small .spent-in{display:none}
+.wr3-cr .c-call .lx-pill{height:auto;min-height:22px;padding:3px 8px;white-space:normal;line-height:1.25;text-align:left}
+.wr3-cr.row:hover{background:var(--row-hover)}
+.wr3-cr.row.open{background:var(--row-hover)}
+.wr3-cr.row.sel{box-shadow:inset 3px 0 0 var(--brand)}
+.wr3-cn{display:flex;align-items:center;gap:6px;min-width:0}
+.wr3-exp{flex:none;width:30px;height:30px;border-radius:var(--r-chip);border:0;background:none;display:grid;place-items:center;cursor:pointer;color:var(--muted)}
+.wr3-exp:hover{background:var(--bg-sunk);color:var(--ink)}
+.wr3-exp i{width:7px;height:7px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(-45deg);transition:transform .12s;margin-left:-2px}
+.wr3-cr.open .wr3-exp i{transform:rotate(45deg);margin:-3px 0 0}
+.wr3-cn .tx{display:grid;gap:1px;min-width:0;border:0;background:none;padding:6px 0;font:inherit;color:inherit;text-align:left;cursor:pointer}
+.wr3-cn .tx b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wr3-cn .tx:hover b{text-decoration:underline;text-underline-offset:3px}
+.wr3-cn small{font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:2px 8px;align-items:center}
+.wr3-cn .warnrow{color:var(--warn)}
+.wr3-cn .sub{display:none}
+.wr3-cr .r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wr3-cr .c-call{display:flex;min-width:0}
+.wr3-cbtn{border:0;font:inherit;font-size:var(--fs-meta,12px);font-weight:500;cursor:pointer;max-width:100%}
+.wr3-cbtn:hover,.wr3-cbtn:focus-visible{filter:brightness(.95)}
+.wr3-cr .c-act{display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:4px 10px;min-width:0}
+.wr3-cl-foot{padding:8px 14px 10px;font-size:12px;color:var(--faint);border-top:1px solid var(--line);line-height:1.45}
+@container wr3cl (max-width:880px){
+  .wr3-cr{grid-template-columns:minmax(0,1fr) 72px 60px 60px 60px 112px 156px}
+  .wr3-cr>.c-bud{display:none}
+  .wr3-cn small .bud-in{display:inline}
+  .wr3-cr.grp>span{grid-column:3 / span 3}
+}
+@container wr3cl (max-width:720px){
+  .wr3-cr{grid-template-columns:minmax(0,1fr) 58px 58px 58px 104px 156px;gap:8px}
+  .wr3-cr>.c-spent{display:none}
+  .wr3-cn small .spent-in{display:inline}
+  .wr3-cr.grp>span{grid-column:2 / span 3}
+  .wr3-cr.grp .full{display:none}
+  .wr3-cr.grp .short{display:inline}
+}
+@container wr3cl (max-width:500px){
+  .wr3-cr{grid-template-columns:minmax(0,1fr) auto}
+  .wr3-cr{padding:6px 12px 6px 4px;gap:4px 8px}
+  .wr3-cr.hd,.wr3-cr.grp{display:none}
+  .wr3-cr>.c-bud,.wr3-cr>.c-spent,.wr3-cr>.c-since,.wr3-cr>.c-today,.wr3-cr>.c-week{display:none}
+  .wr3-cn small .bud-in,.wr3-cn small .spent-in{display:none}
+  .wr3-cn .sub{display:block;font-variant-numeric:tabular-nums}
+  .wr3-cr.row .c-act{grid-column:1 / -1;justify-content:flex-end;padding:0 0 6px 36px}
+}
+.wr3-foot{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.wr3-foot .lx-btn{min-height:38px}
+.wr3-foot .sp{flex:1}
+.wr3-quiet{margin:0;font-size:13px;color:var(--muted);line-height:1.5}
+/* the plan table: a brand name is a button that opens that brand's card on this page */
+.wr3-plan .name button{border:0;background:none;padding:0;font:inherit;font-weight:600;color:var(--ink);cursor:pointer;text-align:left}
+.wr3-plan .name button:hover{text-decoration:underline;text-underline-offset:3px}
 /* sheets */
 .wr3-sh{display:grid;gap:var(--sp-4)}
 .wr3-sh .call{display:grid;gap:4px}
 .wr3-sh .call b{font-size:17px;letter-spacing:-.015em}
-.wr3-sh h4{margin:0;font-size:14px;font-weight:650;letter-spacing:-.01em}
+.wr3-sh h4{margin:0;font-size:14px;font-weight:600;letter-spacing:-.01em}
 .wr3-sh dl{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:8px 14px;margin:0;font-size:13.5px}
 .wr3-sh dt{color:var(--muted);overflow-wrap:anywhere}
 .wr3-sh dd{margin:0;font-weight:600;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;text-align:right}
@@ -219,20 +265,19 @@ const CSS = `
 @media (max-width:759px){
   .wr3-bar .btns{width:100%}
   .wr3-bar .btns .lx-btn{flex:1 1 auto;min-height:44px}
-  .wr3-ct .lx-table{table-layout:auto}
-  .wr3-ct col.hide-sm{display:none}
-  .wr3-ct .lx-table th.callh,.wr3-ct .lx-table td.callh{padding-left:4px}
-  .wr3-ct .callc{flex-direction:column;align-items:flex-start;gap:4px}
   .wr3-act .lx-btn,.wr3-foot .lx-btn{flex:1 1 auto;min-height:44px}
+  .wr3-ask,.wr3-call{grid-template-columns:minmax(0,1fr)}
   .wr3-ph{grid-template-columns:1fr 1fr;gap:12px 10px}
   .wr3-hk .mid{font-size:26px}
+  .wr3-hd .sp{display:none}
+  .wr3-meta{width:100%}
 }
-@media (max-width:520px){
+@media (max-width:560px){
   .wr3-tiles{grid-template-columns:1fr}
   .wr3-tile{grid-template-columns:auto minmax(0,1fr);column-gap:18px;align-items:center}
   .wr3-tile .hd{grid-column:1/-1}
-  .wr3-tile .k,.wr3-tile .ln,.wr3-tile .gray{grid-column:2}
-  .wr3-tile .mer{grid-column:1;grid-row:2/span 3;min-width:78px}
+  .wr3-tile .ln,.wr3-tile .gray{grid-column:2}
+  .wr3-tile .mer{grid-column:1;grid-row:2/span 3;min-width:84px}
   .wr3-sh dl{grid-template-columns:minmax(0,1fr) auto}
 }`;
 
@@ -245,8 +290,6 @@ const fx = v => ok(v) ? v.toFixed(2) + 'x' : 'n/a';
 const usd = v => ok(v) ? money(v) : 'n/a';
 const PLATFORM = 'Meta';           // every campaign in the check-in record is a Meta campaign
 const SEND_TIMEOUT = 20e3;
-/* the campaign table's columns: Campaign | Budget a day | Spent today | ROAS since | ROAS today | ROAS this week | Call */
-const COL_W = [['', ''], ['', '11%'], ['hide-sm', '11%'], ['', '12%'], ['', '10%'], ['hide-sm', '12%'], ['', '190px']];
 
 /* The season's phases, for the agency view (a brand's own phases come from its plan read). */
 const SEASON = [
@@ -338,22 +381,22 @@ function hourSeries(list) {
   return { sales: sales.slice(0, last + 1), spend: spend.slice(0, last + 1) };
 }
 /** Today by the hour: sales as columns, ad spend as a line, a bubble per hour with both and the hour's MER. */
-function hourChart(hs, { height = 240, phoneHeight = 200, axis = true, label = 'Sales and ad spend by the hour today, Central time', ticks } = {}) {
+function hourChart(hs, { height = 240, phoneHeight = 200, axis = true, label = 'Sales and ad spend by the hour today, Central time', ticks, windowLabel } = {}) {
   const n = hs.sales.length;
   const labels = Array.from({ length: n }, (_, i) => hourWord(i));
   const tip = i => [h('div', { class: 'lx-tip-h' }, `${hourWord(i)} to ${hourWord(i + 1)} CT`),
-    tipRow('ink', 'Sales', money(hs.sales[i] || 0)), tipRow('slate', 'Ad spend', money(hs.spend[i] || 0)),
+    tipRow('lead', 'Sales', money(hs.sales[i] || 0)), tipRow('slate', 'Ad spend', money(hs.spend[i] || 0)),
     tipRow(null, 'Store MER this hour', hs.spend[i] > 0 ? fx(hs.sales[i] / hs.spend[i]) : 'n/a')];
   return lineChart({
-    series: [{ name: 'Sales', type: 'bar', values: hs.sales }, { name: 'Ad spend', values: hs.spend, end: false }],
-    labels, ticks, slots: true, height, phoneHeight, axis, barWidth: axis ? 22 : 10, yTicks: axis ? undefined : 2, topLabel: !axis, endLabels: false, fill: false, label,
+    series: [{ name: 'Sales', type: 'bar', tone: 'brand', values: hs.sales }, { name: 'Ad spend', values: hs.spend, end: false }],
+    labels, ticks, slots: true, height, phoneHeight, axis, barWidth: axis ? 22 : 10, yTicks: axis ? undefined : 2, topLabel: !axis, endLabels: false, fill: false, label, windowLabel,
     format: v => money(v, { compact: true }), tooltip: tip,
   });
 }
 /** The legend for today by the hour; a series with nothing in it today is left out. */
 const hourLegend = hs => {
   const has = k => !hs || (hs[k] || []).some(v => +v > 0);
-  return legend([has('sales') ? { name: 'Sales', square: true, color: 'var(--ink)' } : null, has('spend') ? { name: 'Ad spend' } : null]);
+  return legend([has('sales') ? { name: 'Sales', square: true, color: 'var(--brand)' } : null, has('spend') ? { name: 'Ad spend' } : null]);
 };
 
 /** The season timeline. A phase shows its dates and offer in the bubble (hover, focus or tap). */
@@ -396,22 +439,22 @@ function paceHero(m) {
   const pctOf = ok(base) && ok(m.goal) && m.goal > 0 ? base / m.goal : null;
   const merTone = !ok(m.mer) || !ok(m.target) ? '' : m.mer >= m.target ? 'good-t' : ok(m.be) && m.mer < m.be ? 'bad-t' : 'warn-t';
   const salesBox = h('div', null,
-    h('span', { class: 'wr3-lab' }, defLabel('Sales', 'sales'), m.period ? `, ${m.period}` : ''),
+    h('span', { class: 'wr3-lab' }, 'Sales', m.period ? `, ${m.period}` : '', ' · Triple Whale'),
     ok(m.sales) ? h('div', { class: 'big' }, h('span', { class: 'lx-hero-num' }, money(Math.round(m.sales))),
       h('span', { class: 'of' }, ok(m.goal) && m.goal > 0 ? [`of the ${money(m.goal)} `, defLabel('sales goal', 'sales_goal'), ok(pctOf) ? `, ${Math.round(pctOf * 100)}%` : ''] : 'no sales goal set',
         m.scopeChip ? defined(h('span', { class: 'wr3-scope', tabindex: '0' }, m.scopeChip), { title: 'Which brands count', body: m.scopeWhy }) : null))
       : h('div', { class: 'big' }, h('span', { class: 'of' }, m.none || 'No sales read yet')),
     ok(pctOf) ? h('div', { class: 'wr3-prog', role: 'img', 'aria-label': Math.round(pctOf * 100) + '% of the sales goal' }, h('i', { style: { '--v': Math.min(100, pctOf * 100).toFixed(1) + '%' } })) : null);
   const merBox = h('div', null,
-    h('span', { class: 'wr3-lab' }, defLabel('Store MER', 'mer'), ', same period'),
-    h('div', { class: 'mid ' + merTone }, fx(m.mer), ok(m.target) ? h('small', null, defLabel('target', 'target_mer'), ' ' + fx(m.target)) : null));
+    h('span', { class: 'wr3-lab' }, defLabel('Store MER', 'mer'), ', same period · Triple Whale'),
+    h('div', { class: 'mid ' + merTone }, fx(m.mer), ok(m.target) ? h('small', null, defLabel('Goal MER', 'target_mer'), ' ' + fx(m.target)) : null));
   const spendBox = h('div', null,
-    h('span', { class: 'wr3-lab' }, defLabel('Ad spend', 'ad_spend'), ', same period'),
+    h('span', { class: 'wr3-lab' }, 'Ad spend, same period · every platform, Triple Whale'),
     h('div', { class: 'mid' }, usd(m.spend)));
   const hs = m.hours;
   const chart = h('div', { class: 'wr3-ch' },
-    h('div', { class: 'lx-chart-h' }, h('h3', null, defLabel('Today', 'today'), ' by the hour'), h('span', { class: 'wr3-lab' }, m.hourScope || ''), hs ? hourLegend(hs) : null),
-    hs ? hourChart(hs, { height: 240, phoneHeight: 200 }) : h('p', { class: 'wr3-quiet' }, m.hourNote || 'No sales or spend yet today.'),
+    h('div', { class: 'lx-chart-h' }, h('h3', null, 'Today by the hour'), h('span', { class: 'wr3-lab' }, [m.hourScope, 'Triple Whale'].filter(Boolean).join(' · ')), hs ? hourLegend(hs) : null),
+    hs ? hourChart(hs, { height: 240, phoneHeight: 200, windowLabel: 'Hourly, 12am to now, Central time' }) : h('p', { class: 'wr3-quiet' }, m.hourNote || 'No sales or spend yet today.'),
     hs && m.hourNote ? h('p', { class: 'wr3-quiet' }, m.hourNote) : null);
   /* lean: the brand view, where the Today tile on the brand card already shows store MER and ad spend */
   return card({ class: 'wr3-hero' },
@@ -420,24 +463,24 @@ function paceHero(m) {
     chart);
 }
 
-/** One row per brand: Brand | Offer | Sale dates | Sales goal | Target MER | Plan status | Open plan.
+/** One row per brand: Brand | Offer | Sale dates | Sales goal | Goal MER | Plan status | Open plan.
     On a phone the dates fold under the offer and the target under the goal, so nothing is dropped.
     planHref(act): the brand's plan page (day by day goal and budget, the ladder, the offers), from where the team edits. */
-function planTable(rows, { team, waiting, hrefOf, planHref }) {
+function planTable(rows, { team, waiting, hrefOf, planHref, onPick }) {
   const dim = t => h('span', { class: 'dim' }, t);
   const dates = r => r.sale && r.sale.start ? `${md(r.sale.start)} to ${md(r.sale.end || r.sale.start)}` : null;
-  const tgt = r => ok(r.target) ? fx(r.target) + ' target MER' : null;
+  const tgt = r => ok(r.target) ? 'Goal MER ' + fx(r.target) : null;
   const cols = [
-    { key: 'name', label: 'Brand', render: r => h('span', { class: 'name' }, hrefOf && hrefOf(r.act_id) ? h('a', { href: hrefOf(r.act_id) }, r.name) : r.name) },
-    { key: 'offer', label: defLabel('Black Friday offer', 'bf_offer'), render: r => h('span', { style: { whiteSpace: 'normal', display: 'block', minWidth: '140px' } },
+    { key: 'name', label: 'Brand', render: r => h('span', { class: 'name' }, onPick && onPick.has(r.act_id) ? h('button', { type: 'button', onclick: () => onPick.go(r.act_id), 'aria-label': `Show ${r.name} on this page` }, r.name) : hrefOf && hrefOf(r.act_id) ? h('a', { href: hrefOf(r.act_id) }, r.name) : r.name) },
+    { key: 'offer', label: 'Black Friday offer', render: r => h('span', { style: { whiteSpace: 'normal', display: 'block', minWidth: '140px' } },
       r.offer ? r.offer : waiting ? dim('Reading...') : dim('No offer written yet'),
       dates(r) ? h('small', { class: 'wr3-fold' }, dates(r)) : null) },
-    { key: 'sale', label: defLabel('Sale dates', 'sale_dates'), class: 'hide-sm', render: r => dates(r) || (waiting ? dim('Reading...') : dim('not set')) },
-    { key: 'goal', label: defLabel('Sales goal', 'sales_goal'), num: true, render: r => h('span', null,
+    { key: 'sale', label: 'Sale dates', class: 'hide-sm', render: r => dates(r) || (waiting ? dim('Reading...') : dim('not set')) },
+    { key: 'goal', label: 'Sales goal', num: true, render: r => h('span', null,
       ok(r.goal) && r.goal > 0 ? h('span', { class: 'strong' }, money(r.goal)) : dim('not set'),
       tgt(r) ? h('small', { class: 'wr3-fold' }, tgt(r)) : null) },
-    { key: 'target', label: defLabel('Target MER', 'target_mer'), num: true, class: 'hide-sm', render: r => tgt(r) || dim('not set') },
-    { key: 'status', label: defLabel('Plan status', 'plan_status'), render: r => {
+    { key: 'target', label: defLabel('Goal MER', 'target_mer'), num: true, class: 'hide-sm', render: r => ok(r.target) ? fx(r.target) : dim('not set') },
+    { key: 'status', label: 'Plan status', render: r => {
       if (!r.steps) return waiting ? dim('Reading...') : dim('not read');
       const open = r.steps.find(s => !s.done);
       /* a client reads only whether the plan is ready, never the team's internal step names */
@@ -446,7 +489,7 @@ function planTable(rows, { team, waiting, hrefOf, planHref }) {
     } },
   ];
   if (planHref) cols.push({ key: 'open', label: '', num: true, render: r => { const l = planHref(r.act_id); return l ? button('Open plan', { href: l, aria: `Open the ${r.name} Black Friday plan` }) : null; } });
-  return table({ cols, rows, roomy: true, empty: 'No brand has a Black Friday plan yet' });
+  return h('div', { class: 'wr3-plan' }, table({ cols, rows, roomy: true, empty: 'No brand has a Black Friday plan yet' }));
 }
 /** The brand plan page for a brand id, or null when the brand has no slug here. */
 const planHrefOf = ctx => act => { const s = ((ctx.brands || []).find(x => x.id === act) || (ctx.brand && ctx.brand.id === act ? ctx.brand : {}) || {}).slug; return s ? `#/brand/${encodeURIComponent(s)}/black-friday/plan` : null; };
@@ -495,7 +538,10 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     data: data || {}, prevs: {}, records: [], probing: true, probeFails: 0, probeId: 0,
     done: {}, links: {}, linkBusy: {}, hourCache: {}, hourP: {}, hourErr: {}, hourAt: {}, picture: {}, sent: {},
     warAll: null, warAllErr: '', warBusy: true, warId: 0, warGen: 0,
+    open: new Set(), insides: {}, trees: {},
   };
+  /* the ad sets and ads inside a campaign: read when a campaign row opens (./_tree.js) */
+  const T = treeReader(ctx);
   const hosts = { hero: null, plan: null, sparks: {} };
   /* Done is per check-in: a new check-in asks again */
   const doneKey = (act, id) => `${(rec() && rec().slot) || ''}|${act}|${id}`;
@@ -619,10 +665,13 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
   const merTone = (mer, c) => !ok(mer) || !ok(c.goal) ? '' : mer >= c.goal ? 'good' : ok(c.be) && mer < c.be ? 'bad' : 'warn';
   const roasTone = (w, c) => !w || !w.readable || !c.roas || !ok(c.roas.goal) ? '' : w.roas >= c.roas.goal ? 'good' : ok(c.roas.be) && w.roas < c.roas.be ? 'bad' : '';
   const tcls = t => t ? t + '-t' : null;
-  const roasTxt = w => !w ? (S.probing ? '...' : 'n/a') : w.readable ? fx(w.roas) : w.no_tw ? 'no sales read' : 'too little spend';
+  /* a brand with no store connected never has a ROAS: it reads "no read", never a waiting ellipsis */
+  const roasTxt = (w, c) => c && c.mode === 'no_sales' ? 'no read' : !w ? (S.probing ? 'reading' : 'n/a') : w.readable ? fx(w.roas) : w.no_tw ? 'no sales read' : 'too little spend';
   /** The ROAS cell: the number, or the reason there is none, with its meaning on hover or tap. */
   const roasCell = (w, c) => {
-    const t = roasTxt(w);
+    const t = roasTxt(w, c);
+    if (c && c.mode === 'no_sales') return defLabel(t, 'no_store_roas', { class: 'dim' });
+    if (!w) return h('span', { class: 'dim' }, t);
     if (w && !w.readable) return defLabel(t, w.no_tw ? 'no_sales_read' : 'too_little_spend', { class: 'dim' });
     return h('span', { class: tcls(roasTone(w, c)) }, t);
   };
@@ -640,17 +689,24 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
   function callWord(c, cp) {
     if (cp.done) return 'Done';
     if (cp.move && S.probing) return 'Reading';
-    if (cp.move) return CALL_WORD[cp.call];
+    if (cp.move) return cp.call === 'putback' ? CALL_WORD.putback : `${cp.move.to > cp.move.from ? 'Raise' : 'Cut'} ${Math.abs(Math.round(cp.move.pct * 100))}%`;
+    if (aboMove(c, cp)) return aboMove(c, cp) > 0 ? 'Raise the ad sets' : 'Cut the ad sets';
+    if (c.mode === 'watch') return 'Client decides';
     if (c.mode !== 'live' || !c.gate.light) return 'No read';
     if (cp.early) return 'Too early';
     return CALL_WORD[cp.call] || 'Hold';
   }
+  /** An ad set budget campaign the rules would raise (1) or cut (-1): its money sits on the ad sets, so the tap opens them. */
+  const aboMove = (c, cp) => !cp.abo || cp.done || S.probing || c.mode !== 'live' || !c.gate || !c.gate.light ? 0 : cp.call === 'raise50' || cp.call === 'raise25' ? 1 : cp.call === 'cut' ? -1 : 0;
+  /** The pill's tone: a move takes its call's tone, an ad set budget campaign the same tone as the move it stands for. */
+  const callTone = (c, cp) => cp.done ? 'good' : cp.move && !S.probing ? CALL_TONE[cp.call] : aboMove(c, cp) ? (aboMove(c, cp) > 0 ? 'good' : 'bad') : '';
   /** The definition that goes with the word callWord() shows, so the bubble always explains the word on screen. */
   function callKey(c, cp) {
     const w = callWord(c, cp);
     if (w === 'Done') return 'call_done';
     if (w === 'Reading') return 'call_reading';
     if (w === 'No read') return 'call_numbers';
+    if (w === 'Client decides') return 'call_client';
     if (w === 'Too early') return 'call_too_early';
     return CALL_KEY[cp.call] || 'call_hold';
   }
@@ -677,16 +733,41 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
   const reasonOnly = t => String(t || '').replace(/^Spent \$[\d,]+ of \$[\d,]+ today, /, '').replace(/^./, ch => ch.toUpperCase());
 
   /* ---------- the brand card ---------- */
-  function tile(w, c, label, key, emptyText) {
-    const hd = h('span', { class: 'hd' }, defLabel(label, key));
-    if (!w) return h('div', { class: 'wr3-tile' }, hd, h('span', { class: 'mer off-t' }, '...'), h('span', { class: 'gray' }, emptyText));
+  const cardId = act => 'wr3-card-' + String(act).replace(/[^\w-]/g, '_');
+  /** Scroll to a brand's card on this page and flash it (the queue, the plan table and the store items stay here). */
+  function jumpToCard(act) {
+    const el2 = document.getElementById(cardId(act));
+    if (!el2) return;
+    el2.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    el2.classList.remove('flash'); void el2.offsetWidth; el2.classList.add('flash');
+  }
+  const NUM_ONLY = { watch: 'The client runs the budget', no_sales: 'No store connected', plan: 'Sale not started', after: 'Sale ended', error: 'No live numbers', meta_error: 'Meta did not answer' };
+  /** The store light as a short plain reason, and its place in the card order (lower comes first). */
+  function lightOf(c) {
+    if (c.mode !== 'live') return { tone: '', word: NUM_ONLY[c.mode] || 'Numbers only', rank: 4 };
+    if (S.probing) return { tone: '', word: 'Reading the earlier check-in', rank: 3 };
+    const W = c.windows, sinceW = c.basis ? 'since ' + c.basis.short : 'since the last check-in';
+    const read = w => !!(w && w.readable && ok(w.mer));
+    const below = (w, line) => read(w) && ok(line) && w.mer < line;
+    const l = c.gate && c.gate.light;
+    if (l === 'red') return { tone: 'bad', word: below(W.today, c.be) ? (below(W.since, c.be) ? `Under break-even ${sinceW} and today` : 'Under break-even today') : 'Under break-even ' + sinceW, rank: 0 };
+    if (l === 'green') return { tone: 'good', word: read(W.since) ? `Over goal ${sinceW} and today` : 'Over goal today', rank: 3 };
+    if (l === 'amber') {
+      const s = below(W.since, c.goal), t = below(W.today, c.goal);
+      return { tone: 'warn', word: c.gate.early ? 'Too early to read today' : s && t ? `Under goal ${sinceW} and today` : s ? 'Under goal ' + sinceW : t ? 'Under goal today' : 'Mixed, so no raises', rank: 2 };
+    }
+    return { tone: '', word: 'No goal set', rank: 3 };
+  }
+  /** One window of the store strip: label with its window, store MER big, then Sales and Ad spend. */
+  function tile(w, c, head, sub, emptyText) {
+    const hd = h('span', { class: 'hd' }, h('b', null, head), sub ? h('small', null, sub) : null);
+    if (!w) return h('div', { class: 'wr3-tile' }, hd, h('span', { class: 'mer off-t' }, 'none'), h('span', { class: 'gray' }, emptyText));
     const noSales = c.mode === 'no_sales';
     const tone = w.readable && !noSales ? merTone(w.mer, c) : 'off';
     return h('div', { class: 'wr3-tile' }, hd,
-      noSales ? h('span', { class: 'k' }, defLabel('Ad spend', 'ad_spend')) : h('span', { class: 'k' }, defLabel('Store MER', 'mer')),
-      h('span', { class: 'mer ' + (tone ? tone + '-t' : '') }, noSales ? usd(w.spend) : fx(w.mer)),
-      noSales ? null : h('span', { class: 'ln' }, defLabel('Sales', 'sales'), h('span', null, usd(w.sales))),
-      noSales ? null : h('span', { class: 'ln' }, defLabel('Ad spend', 'ad_spend'), h('span', null, usd(w.spend))),
+      h('span', { class: 'mer ' + (tone ? tone + '-t' : '') }, noSales ? usd(w.spend) : fx(w.mer), h('small', null, noSales ? 'ad spend' : defLabel('store MER', 'mer'))),
+      noSales ? null : h('span', { class: 'ln' }, h('span', null, 'Sales'), h('span', null, usd(w.sales))),
+      noSales ? null : h('span', { class: 'ln' }, h('span', null, 'Ad spend'), h('span', null, usd(w.spend))),
       !w.readable ? h('span', { class: 'gray' }, 'Too little spend to read') : w.synced ? h('span', { class: 'gray' }, "Yesterday's part is from the nightly sync") : null);
   }
   function sparkFor(c) {
@@ -697,122 +778,172 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
   }
   function fillSpark(c, host) {
     const w = S.hourCache[c.act], hs = w ? hourSeries([w]) : null;
-    const head = h('div', { class: 'lx-chart-h' }, h('span', { class: 'wr3-lab' }, defLabel('Today', 'today'), ' by the hour, whole store'), hs ? hourLegend(hs) : null);
-    if (hs) return put(host, head, hourChart(hs, { height: 112, phoneHeight: 112, axis: false, ticks: [0, Math.min(6, hs.sales.length - 1), Math.min(12, hs.sales.length - 1), hs.sales.length - 1].filter((v, i, a) => a.indexOf(v) === i), label: `${c.name}: sales and ad spend by the hour today` }));
+    const head = h('div', { class: 'lx-chart-h' }, h('span', { class: 'wr3-lab' }, c.mode === 'no_sales' ? 'Ad spend by the hour · Meta' : 'Today by the hour, whole store · Triple Whale'), hs ? hourLegend(hs) : null);
+    if (hs) return put(host, head, hourChart(hs, { height: 128, phoneHeight: 120, axis: false, windowLabel: 'Hourly, 12am to now, Central time', ticks: [0, Math.min(6, hs.sales.length - 1), Math.min(12, hs.sales.length - 1), hs.sales.length - 1].filter((v, i, a) => a.indexOf(v) === i), label: `${c.name}: sales and ad spend by the hour today` }));
     const msg = S.hourErr[c.act] ? 'Today by the hour did not load: ' + S.hourErr[c.act] : w ? 'No sales or spend yet today.' : 'Reading today by the hour...';
     put(host, head, h('p', { class: 'wr3-quiet' }, msg));
   }
 
-  function campTable(c) {
+  /** The call line under the strip: every call with its own buttons, then what was done, else the hold line. */
+  function callLines(c) {
+    const pend = pendingOf(c), done = c.camps.filter(cp => cp.done), ml = modeLine(c);
+    const eb = h('span', { class: 'eb' }, `${APP_NAME} call`);
+    const line = (t, dim) => h('div', { class: 'wr3-call' }, h('div', { class: 'txt' }, eb.cloneNode(true), h('span', { class: 'dec' + (dim ? ' dim' : '') }, t)));
+    const rows = [];
+    if (ml) rows.push(line(ml, true));
+    else if (S.probing) rows.push(line('Reading the earlier check-ins...', true));
+    else {
+      for (const cp of pend) rows.push(h('div', { class: 'wr3-call', id: askId(c, cp) },
+        h('div', { class: 'txt' }, eb.cloneNode(true), h('span', { class: 'dec' }, decisionText(cp)), extraWhy(cp) ? h('p', { class: 'why' }, extraWhy(cp)) : null),
+        askButtons(c, cp)));
+      for (const cp of done) rows.push(h('div', { class: 'wr3-call done' },
+        h('div', { class: 'txt' }, h('span', { class: 'dec' }, doneText(cp))),
+        write && cp.done.write ? h('div', { class: 'wr3-act' }, button('Undo', { onclick: () => undo(c, cp) })) : null));
+      if (!pend.length && !done.length) rows.push(line(!c.camps.length ? 'No live campaign in Meta' : c.camps.some(cp => cp.needs_ads) ? 'Hold all campaigns, new ads needed' : 'Hold all campaigns', true));
+    }
+    return h('div', { class: 'wr3-calls' }, rows);
+  }
+
+  /** This week for the ad sets and ads inside a campaign: Monday to the check-in day. */
+  function weekWin(c) {
+    const R = rec(), to = R.today || slotDate(R.slot), from = (c.b.week && c.b.week.from) || mondayOf(to);
+    return { from, to, label: from === to ? md(to) : `${md(from)} to ${md(to)}` };
+  }
+  const openKey = (c, cp) => c.act + '|' + cp.id;
+  function insideOf(c, cp) {
+    const key = openKey(c, cp);
+    let box = S.insides[key];
+    if (!box) {
+      box = campaignInside(ctx, T, { act: c.act, brand: c.name, camp: { id: cp.id, name: cp.name }, win: weekWin(c), write,
+        goals: c.roas && ok(c.roas.goal) ? { roas: c.roas.goal } : null, onCampaign: d => { S.trees[c.act] = d; }, details: () => campSheet(c, cp),
+        /* a scale call on an ad set that has no budget of its own: the raise goes on this campaign's budget */
+        campBudget: () => { if (!write || cp.abo || !cp.daily) return false; approveSheet(c, cp, { manual: true }); return true; } });
+      S.insides[key] = box;
+    } else if (box.refresh) box.refresh();
+    return box;
+  }
+  function campRow(c, cp) {
+    const key = openKey(c, cp), open = S.open.has(key);
+    const flip = () => { if (S.open.has(key)) S.open.delete(key); else S.open.add(key); draw(); };
+    const word = callWord(c, cp), tone = callTone(c, cp);
+    const sug = hasSuggestion(c, cp) && write && !cp.abo;
+    const abo = aboMove(c, cp);
+    const callBtn = h('button', { type: 'button', class: 'lx-pill wr3-cbtn ' + (tone || ''),
+      onclick: e => { e.stopPropagation(); if (sug) approveSheet(c, cp); else if (abo) { S.open.add(key); draw(); } else campSheet(c, cp); },
+      'aria-label': sug ? `${decisionText(cp)}: check and apply` : abo ? `${word}: open ${cp.name} to set each ad set's budget` : `${word}: ${cp.name}, see why` }, word);
+    const daily = cp.done && ok(cp.done.to) ? cp.done.to : cp.daily;
+    const stt = stateOf(T, S.trees[c.act] || null, 'campaign', cp.id, 'ACTIVE'), on = String(stt.own || 'ACTIVE').toUpperCase() === 'ACTIVE';
+    const toggle = () => writeSheet(ctx, { act: c.act, brand: c.name, level: 'campaign', object: cp.id, name: cp.name, kind: on ? 'pause' : 'resume',
+      why: on ? 'Turning a campaign off stops every ad set and ad in it.' : null,
+      onDone: r => { T.local.status[cp.id] = r.status; draw(); }, onUndo: () => { delete T.local.status[cp.id]; draw(); } });
+    const sub = [daily ? money(daily) + ' a day' : 'Ad set budgets', money(cp.spent) + ' spent today', 'ROAS today ' + roasTxt(cp.w.today, c), 'this week ' + roasTxt(cp.w.week, c)].join(' · ');
+    const row = h('div', { class: 'wr3-cr row' + (open ? ' open' : '') },
+      h('span', { class: 'wr3-cn' },
+        h('button', { type: 'button', class: 'wr3-exp', 'aria-expanded': String(open), 'aria-label': `${open ? 'Close' : 'Open'} the ad sets in ${cp.name}`, onclick: flip }, h('i', { 'aria-hidden': 'true' })),
+        h('button', { type: 'button', class: 'tx', onclick: flip, 'aria-expanded': String(open) },
+          h('b', { title: cp.name }, cp.name),
+          h('small', null, platformChip('meta'), h('span', { class: 'bud-in' }, daily ? money(daily) + ' a day' : 'ad set budgets'), h('span', { class: 'spent-in' }, money(cp.spent) + ' spent today'),
+            cp.warn ? h('span', { class: 'warnrow' }, 'Last change not read yet') : null, on ? null : h('span', null, 'Off')),
+          h('small', { class: 'sub' }, sub))),
+      h('span', { class: 'r c-bud' }, daily ? money(daily) : h('span', { class: 'dim' }, 'ad sets')),
+      h('span', { class: 'r c-spent' }, money(cp.spent)),
+      h('span', { class: 'r c-since' }, roasCell(cp.w.since, c)),
+      h('span', { class: 'r c-today' }, roasCell(cp.w.today, c)),
+      h('span', { class: 'r c-week' }, roasCell(cp.w.week, c)),
+      h('span', { class: 'c-call' }, callBtn),
+      h('span', { class: 'c-act' },
+        write && !cp.abo ? h('button', { type: 'button', class: 'wr-lk', onclick: () => approveSheet(c, cp, { manual: true }), 'aria-label': `Set the budget on ${cp.name}` }, 'Set budget') : null,
+        onSwitch(on, { disabled: !write, note: stateNote(stt), label: `${cp.name} is ${on ? 'on' : 'off'}. ${on ? 'Turn it off' : 'Turn it on'}`, onclick: toggle })));
+    return open ? [row, insideOf(c, cp)] : [row];
+  }
+  function campList(c) {
+    treeCss();
     const since = sinceWord(c);
-    const cols = [
-      { key: 'name', label: 'Campaign', render: cp => h('span', { class: 'cn' },
-        h('span', null, cp.name, h('small', null, platformChip('meta')), cp.warn ? h('span', { class: 'warnrow' }, 'Last change not read yet') : null)) },
-      { key: 'daily', label: defLabel('Budget a day', 'budget_a_day'), num: true, render: cp => h('span', { class: 'bud' }, cp.daily ? money(cp.daily) : h('span', { class: 'dim' }, 'ad sets')) },
-      { key: 'spent', label: defLabel('Spent today', 'spent_today'), num: true, class: 'hide-sm', render: cp => money(cp.spent) },
-      { key: 'since', label: sinceRoasLabel(since), num: true,
-        render: cp => roasCell(cp.w.since, c) },
-      { key: 'today', label: defLabel('ROAS today', 'roas'), num: true, render: cp => roasCell(cp.w.today, c) },
-      { key: 'week', label: defLabel('ROAS this week', { title: 'ROAS this week', body: 'This campaign\'s ROAS from Monday 12am Central to now. Context only: it breaks a tie or adds a note, it never blocks a raise.' }), num: true, class: 'hide-sm',
-        render: cp => roasCell(cp.w.week, c) },
-      { key: 'call', class: 'callh', label: defLabel('Call', c.roas && ok(c.roas.be) ? { title: 'The call', body: `${glossaryFor('calls').definition} This brand's break-even ROAS: ${fx(c.roas.be)}${c.roas.assumed ? `, ${assumedWhy(c.roas)}` : ''}.` } : 'calls'), render: cp => {
-        const word = callWord(c, cp), tone = cp.done ? 'good' : cp.move && !S.probing ? CALL_TONE[cp.call] : '';
-        const p = pill(tone, word);
-        defined(p, callKey(c, cp));
-        const set = write && !cp.abo ? h('button', { class: 'rowbtn', type: 'button', onclick: e => { e.stopPropagation(); approveSheet(c, cp, { manual: true }); }, 'aria-label': `Set the budget on ${cp.name}` }, 'Set budget') : null;
-        return h('span', { class: 'callc' }, p, set);
-      } },
-    ];
-    const t = table({ cols, rows: c.camps, onRow: cp => campSheet(c, cp), empty: 'No live campaign in Meta.' });
-    /* one shared column grid (fixed layout), so every card's columns line up */
-    const tbl = t.querySelector('table');
-    if (tbl) tbl.prepend(h('colgroup', null, COL_W.map(([cls, w]) => h('col', { class: cls || null, style: w ? { width: w } : null }))));
-    return h('div', { class: 'wr3-ct' }, t);
+    const callHead = defLabel('Call', c.roas && ok(c.roas.be) ? { title: 'The call', body: `${glossaryFor('calls').definition} This brand's break-even ROAS: ${fx(c.roas.be)}${c.roas.assumed ? `, ${assumedWhy(c.roas)}` : ''}.` } : 'calls');
+    const noSales = c.mode === 'no_sales';
+    return h('div', { class: 'wr3-cl' },
+      /* no store connected: no Triple Whale ROAS, so no Triple Whale header over the columns */
+      h('div', { class: 'wr3-cr grp', 'aria-hidden': 'true' }, h('span', null, noSales ? h('span', null, 'ROAS, no store connected')
+        : [h('span', { class: 'full' }, 'ROAS, Triple Whale last click'), h('span', { class: 'short' }, 'ROAS (Triple Whale)')])),
+      h('div', { class: 'wr3-cr hd' },
+        h('span', { style: { paddingLeft: '36px' } }, 'Campaign'), h('span', { class: 'r c-bud' }, 'Budget a day'), h('span', { class: 'r c-spent' }, 'Spent today'),
+        h('span', { class: 'r c-since' }, since ? `Since ${since}` : 'Since check-in'), h('span', { class: 'r c-today' }, 'Today'), h('span', { class: 'r c-week' }, 'This week'),
+        h('span', { class: 'c-call' }, callHead), h('span', { class: 'r c-act' }, '')),
+      c.camps.length ? c.camps.flatMap(cp => campRow(c, cp)) : h('p', { class: 'wr3-quiet', style: { padding: '12px 14px' } }, 'No live campaign in Meta.'),
+      h('p', { class: 'wr3-cl-foot' }, noSales ? 'Budgets and spend are Meta. No store is connected, so there is no ROAS to read. Open a campaign for its ad sets and ads.'
+        : 'Budgets and spend are Meta. ROAS is Triple Whale last click: the sales it credits to the campaign over the campaign\'s own spend. Open a campaign for its ad sets and ads.'));
   }
 
   function brandCard(c) {
     const b = c.b, cad = c.cadence, R = rec(), hourNow = central(nowOf()).hour;
     const due = isDue(cad, R.slot, nowOf()), old = ageH() > cad + 1;
-    const pend = pendingOf(c), done = c.camps.filter(cp => cp.done);
+    const L = lightOf(c);
     const chip = h('button', { class: 'wr3-chip' + (due || old ? ' due' : ''), type: 'button', disabled: !write || null, onclick: write ? () => cadenceSheet(c) : null, 'aria-label': `Check-in every ${cad} hours. Change it` },
       due ? `Check-in due, every ${cad}h` : old ? `Check-in is old, every ${cad}h` : `Every ${cad}h, next ${nextDue(cad, Math.max(hourNow, c.recHour))}`);
-    let dec, dim = false, asks = false;
-    const ml = modeLine(c);
-    if (ml) { dec = ml; dim = true; }
-    else if (S.probing) { dec = 'Reading the earlier check-ins...'; dim = true; }
-    else if (pend.length) { dec = pend.map(decisionText); asks = true; }
-    else if (done.length) dec = done.map(doneText);
-    else if (!c.camps.length) { dec = 'No live campaign in Meta'; dim = true; }
-    else dec = c.camps.some(cp => cp.needs_ads) ? 'Hold all campaigns, new ads needed' : 'Hold all campaigns';
-    /* tile headings stay short; the exact period is in each heading's hover definition */
-    const at = `${hourWord(slotHour(R.slot))} CT`;
+    const at = hourWord(slotHour(R.slot));
     const sinceHead = c.basis ? `Since ${c.basis.short}` : 'Since last check-in';
-    const sinceDef = { title: sinceHead, body: c.basis ? `From the ${c.basis.short} check-in to the ${at} check-in, Central time. The freshest read, and the one the call leans on most.` : glossaryFor('since_check_in').definition };
-    const todayDef = { title: 'Today', body: `From 12am Central today to the ${at} check-in.` };
-    const weekDef = { title: 'This week', body: `From Monday 12am Central to the ${at} check-in.` };
     const warns = [];
     if (c.mode === 'live' && !S.probing && c.gate && (c.gate.light === 'amber' || c.gate.light === 'red') && c.gate.why) warns.push(c.gate.why);
     if (c.roas && c.roas.unread) warns.push('The goal ROAS could not be read, so there are no campaign calls.');
     else if (c.mode === 'live' && c.roas && !ok(c.roas.goal)) warns.push('No goal ROAS set for this brand, so there are no campaign calls. Set it in Brand settings > Goals.');
     if (!S.probing && !c.prvRec && c.mode === 'live' && S.probeFails) warns.push(`${S.probeFails} earlier check-in${S.probeFails === 1 ? '' : 's'} could not be read.`);
-    const slug = ((ctx.brands || []).find(x => x.id === c.act) || {}).slug;
-    return card({ class: 'wr3-b' + (pend.length ? ' yes' : '') },
-      h('div', { class: 'wr3-r1' }, h('span', { class: 'nm' }, !one && slug ? h('a', { href: `#/brand/${encodeURIComponent(slug)}/black-friday/war-room` }, b.name) : b.name),
-        ok(c.goal) && c.mode !== 'no_sales' ? h('span', { class: 'tg' }, defLabel('Target MER', 'target_mer'), ' ', h('b', null, fx(c.goal))) : null, chip),
-      h('div', { class: 'wr3-r2' }, h('div', { class: 'decs' },
-        /* the brand view has no queue: each decision carries its own buttons, right under it */
-        asks && one ? pend.map(cp => [h('span', { class: 'dec' }, decisionText(cp)), extraWhy(cp) ? h('p', { class: 'why' }, extraWhy(cp)) : null, askButtons(c, cp)])
-          : [].concat(dec).map(t => h('span', { class: 'dec' + (dim ? ' dim' : '') }, t))),
-        pend.length ? (one ? pill('warn', 'Needs your yes')
-          : h('button', { type: 'button', class: 'lx-pill warn wr3-yes', onclick: () => jumpToAsk(c, pend[0]), 'aria-label': `Needs your yes: go to ${c.name} in the list` }, 'Needs your yes')) : null),
-      h('div', { class: 'wr3-tiles' },
-        tile(c.windows.since, c, sinceHead, sinceDef, S.probing ? 'Reading the earlier check-in' : 'No earlier check-in today'),
-        tile(c.windows.today, c, 'Today', todayDef),
-        tile(c.windows.week, c, 'This week', weekDef)),
+    const slug = ((ctx.brands || []).find(z => z.id === c.act) || {}).slug;
+    const node = card({ class: 'wr3-b' },
+      h('div', { class: 'wr3-hd' }, h('h3', null, b.name), pill(L.tone, L.word), h('span', { class: 'sp' }),
+        h('span', { class: 'wr3-meta' },
+          ok(c.goal) && c.mode !== 'no_sales' ? h('span', null, defLabel('Goal MER', 'target_mer'), ' ', h('b', null, fx(c.goal))) : null,
+          h('span', null, 'Checked ', h('b', null, at + ' CT')), chip)),
+      h('div', { class: 'wr3-body' + (one ? '' : ' two') },
+        h('div', { class: 'wr3-strip' },
+          h('div', { class: 'wr3-tiles' },
+            tile(c.windows.since, c, sinceHead, c.basis ? `to ${at}` : null, S.probing ? 'Reading the earlier check-in' : 'No earlier check-in today'),
+            tile(c.windows.today, c, 'Today', `12am to ${at}`),
+            tile(c.windows.week, c, 'This week', `Mon to ${at}`)),
+          h('span', { class: 'lx-srcline' }, c.mode === 'no_sales' ? 'Ad spend, Central time · Meta' : 'Whole store, Central time · Triple Whale')),
+        one ? null : sparkFor(c)),            // one brand: the hero above already draws its today by the hour
+      callLines(c),
       warns.map(t => h('p', { class: 'wr3-amber' }, t)),
-      one ? null : sparkFor(c),            // one brand: the hero above already draws its today by the hour
-      campTable(c),
+      campList(c),
       c.roas && c.roas.unread ? h('div', { class: 'wr3-act' }, button('Read the goal ROAS again', { onclick: e => refresh(e.currentTarget) })) : null,
       h('div', { class: 'wr3-foot' },
         write ? button('Client update', { onclick: () => clientSheet(c) }) : null,
-        button('Open hourly chart', { onclick: () => hourSheet(c) })));
+        button('Hourly chart', { onclick: () => hourSheet(c) }),
+        h('span', { class: 'sp' }),
+        !one && slug ? h('a', { class: 'wr3-old', href: `#/brand/${encodeURIComponent(slug)}/black-friday/war-room` }, 'Open the brand page') : null));
+    node.id = cardId(c.act);
+    return node;
   }
-  /** Approve / Set budget / Not now for one pending move (the queue and the brand view use the same handlers). */
+  /** Approve / Set budget / Not now for one pending move (the queue and the card use the same handlers). */
   function askButtons(c, cp) {
     if (!write) return h('p', { class: 'wr3-quiet' }, 'Your access is read only, so you cannot approve this.');
     return h('div', { class: 'wr3-act' },
-      button(c.b.client_approve ? 'Client said yes' : 'Approve', { primary: true, onclick: () => approveSheet(c, cp), aria: c.b.client_approve ? `The client said yes: apply ${decisionText(cp)}` : null }),
+      button(c.b.client_approve ? 'Client said yes' : 'Approve', { primary: true, onclick: () => approveSheet(c, cp), aria: c.b.client_approve ? `The client said yes: apply ${decisionText(cp)}` : `Approve: ${decisionText(cp)}` }),
       button('Set budget', { onclick: () => approveSheet(c, cp, { manual: true }) }),
       button('Not now', { onclick: () => { setNotNow(rec().slot, cp.id); draw(); } }));
   }
   const askId = (c, cp) => `wr3-ask-${String(c.act).replace(/[^\w-]/g, '_')}-${String(cp.id).replace(/[^\w-]/g, '_')}`;
-  /** A card's "Needs your yes" badge: scroll to that brand's first row in the queue and flash it. */
-  function jumpToAsk(c, cp) {
-    const row = document.getElementById(askId(c, cp));
-    if (!row) return;
-    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    row.classList.remove('flash'); void row.offsetWidth; row.classList.add('flash');
-    const b = row.querySelector('.lx-btn.primary'); if (b) setTimeout(() => b.focus({ preventScroll: true }), 400);
-  }
 
-  /* ---------- needs your yes ---------- */
+  /* ---------- the calls that need a yes (agency view) ---------- */
   function needsYes(list) {
-    if (S.probing) return card({ title: 'Needs your yes' }, h('p', { class: 'wr3-quiet' }, 'Reading the earlier check-ins...'));
+    if (S.probing) return card({ title: 'Calls that need your yes' }, h('p', { class: 'wr3-quiet' }, 'Reading the earlier check-ins...'));
     /* list comes in card order (orderOf), so the queue reads top to bottom like the cards */
     const rows = [];
     for (const c of list) for (const cp of pendingOf(c)) rows.push([c, cp]);
-    if (!rows.length) return card({ title: 'Needs your yes' }, h('p', { class: 'wr3-quiet' }, 'Nothing waits on you. Every campaign holds.'));
-    return card({ title: 'Needs your yes', note: `${rows.length} ${rows.length === 1 ? 'decision' : 'decisions'}` },
+    if (!rows.length) return card({ title: 'No call needs your yes' }, h('p', { class: 'wr3-quiet' }, 'Every campaign holds at this check-in. The brand cards below have the numbers.'));
+    const n = rows.length;
+    return card({ title: `${n} ${n === 1 ? 'call needs' : 'calls need'} your yes`, note: 'from the last check-in, the most urgent first' },
       h('div', { class: 'wr3-need' }, rows.map(([c, cp]) => {
         const since = sinceWord(c), why = extraWhy(cp);
-        return h('div', { class: 'wr3-ask', id: askId(c, cp) },
-          h('span', { class: 'dec' }, one ? null : [h('span', { class: 'br' }, c.name), h('span', { class: 'sep', 'aria-hidden': 'true' }, '·')], decisionText(cp)),
-          h('div', { class: 'wr3-chips' },
-            h('span', null, sinceRoasLabel(since), h('b', null, roasTxt(cp.w.since))),
-            h('span', null, defLabel('ROAS today', 'roas'), h('b', null, roasTxt(cp.w.today))),
-            c.roas && ok(c.roas.goal) ? h('span', null, defLabel('Goal ROAS', { title: 'Goal ROAS', body: 'The ROAS this brand asks of each campaign. Set in Brand settings > Goals.' }), h('b', null, fx(c.roas.goal))) : null,
-            h('span', null, defLabel('Store MER today', 'mer'), h('b', null, fx(c.windows.today.mer)))),
-          why ? h('p', { class: 'why' }, why) : null,
+        return h('div', { class: 'wr3-ask', id: 'q-' + askId(c, cp) },
+          h('div', { class: 'txt' },
+            h('button', { type: 'button', class: 'br', onclick: () => jumpToCard(c.act), 'aria-label': `Show ${c.name} on this page` }, c.name),
+            h('span', { class: 'dec' }, decisionText(cp)),
+            h('div', { class: 'wr3-chips' },
+              h('span', null, sinceRoasLabel(since), h('b', null, roasTxt(cp.w.since, c))),
+              h('span', null, defLabel('ROAS today', 'roas'), h('b', null, roasTxt(cp.w.today, c))),
+              c.roas && ok(c.roas.goal) ? h('span', null, defLabel('Goal ROAS', { title: 'Goal ROAS', body: 'The ROAS this brand asks of each campaign. Set in Brand settings > Goals.' }), h('b', null, fx(c.roas.goal))) : null,
+              h('span', null, defLabel('Store MER today', 'mer'), h('b', null, fx(c.windows.today.mer)))),
+            why ? h('p', { class: 'why' }, why) : null),
           askButtons(c, cp));
       })));
   }
@@ -874,7 +1005,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     const hrefOf = one ? null : act => { const s = ((ctx.brands || []).find(x => x.id === act) || {}).slug; return s ? `#/brand/${encodeURIComponent(s)}/black-friday/war-room` : null; };
     const err = one ? S.hourErr[one] : S.warAllErr;
     return card({ title: 'The plan', note: 'what was agreed for the sale', flush: true },
-      planTable(planRows(list), { team: !ctx.isClient, waiting, hrefOf, planHref: planHrefOf(ctx) }),
+      planTable(planRows(list), { team: !ctx.isClient, waiting, hrefOf, planHref: planHrefOf(ctx), onPick: { has: act => list.some(c => c.act === act), go: jumpToCard } }),
       err ? h('p', { class: 'wr3-quiet', style: { padding: '0 var(--pad-card) 16px' } }, 'The plan did not load: ' + err) : null);
   }
 
@@ -913,7 +1044,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
   }
 
   function campSheet(c, cp) {
-    const word = callWord(c, cp), tone = cp.done ? 'good' : cp.move && !S.probing ? CALL_TONE[cp.call] : '';
+    const word = callWord(c, cp), tone = callTone(c, cp);
     const W = cp.w, since = sinceWord(c);
     const wTile = (label, key, w) => h('div', { class: 'wr3-tile' },
       h('span', { class: 'hd' }, defLabel(label, key)),
@@ -1409,7 +1540,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
   function boardModel(list) {
     const R = rec(), recDate = R.today || slotDate(R.slot);
     const hm = heroModel(list);
-    const store = ok(hm.sales) ? [`Sales ${money(hm.sales)}${hm.goal ? ` of the ${money(hm.goal)} goal (${Math.round((ok(hm.goalSales) ? hm.goalSales : hm.sales) / hm.goal * 100)}%)` : ''}, ad spend ${money(hm.spend)}, store MER ${fx(hm.mer)}${ok(hm.target) ? ` against ${fx(hm.target)} target` : ''}. ${hm.period}${hm.scope ? ', ' + hm.scope.toLowerCase() : ''}.`] : [];
+    const store = ok(hm.sales) ? [`Sales ${money(hm.sales)}${hm.goal ? ` of the ${money(hm.goal)} goal (${Math.round((ok(hm.goalSales) ? hm.goalSales : hm.sales) / hm.goal * 100)}%)` : ''}, ad spend ${money(hm.spend)}, store MER ${fx(hm.mer)}${ok(hm.target) ? ` against the ${fx(hm.target)} goal MER` : ''}. ${hm.period}${hm.scope ? ', ' + hm.scope.toLowerCase() : ''}.`] : [];
     const tone = (w, c) => !w || !w.readable ? '' : merTone(w.mer, c) === 'good' ? 'good' : merTone(w.mer, c) === 'bad' ? 'bad' : '';
     return {
       title: one && list[0] ? `${list[0].name}: Black Friday War Room` : 'Black Friday War Room',
@@ -1421,7 +1552,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
         const pend = pendingOf(c);
         return {
           name: c.name, light: lt ? { word: lt[1], tone: lt[0] } : null,
-          goal: ok(c.goal) ? `Target MER ${fx(c.goal)}${ok(c.be) ? `, break-even ${fx(c.be)}` : ''}${c.roas && ok(c.roas.goal) ? `, goal ROAS ${fx(c.roas.goal)}` : ''}` : '',
+          goal: ok(c.goal) ? `Goal MER ${fx(c.goal)}${ok(c.be) ? `, break-even ${fx(c.be)}` : ''}${c.roas && ok(c.roas.goal) ? `, goal ROAS ${fx(c.roas.goal)}` : ''}` : '',
           windows: [win(W.since, 'Since last check-in'), win(W.today, 'Today'), { ...win(W.week, 'This week'), label: 'This week' }],
           lines: modeLine(c) ? [modeLine(c)] : pend.length ? pend.map(decisionText) : ['Hold all campaigns'],
           camps: c.camps.map(cp => ({
@@ -1491,7 +1622,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
       check-ins and today by the hour again. */
   async function newSlot() {
     S.probing = true; S.probeId++;
-    S.warGen++; S.hourCache = {}; S.hourP = {}; S.hourErr = {}; S.hourAt = {}; S.warBusy = true;
+    S.warGen++; S.hourCache = {}; S.hourP = {}; S.hourErr = {}; S.hourAt = {}; S.warBusy = true; S.insides = {};
     draw();
     if (!ctx.sample) {
       try { const acts = await readActs(ctx, one); if (!alive()) return; S.data = { ...S.data, acts }; }
@@ -1506,15 +1637,15 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     }, 10 * 60e3);
   }
 
-  /** One order for the cards and the queue: brands waiting on a yes first (cuts before raises, then the biggest move),
-      then the rest as the check-in lists them. */
+  /** One order for the cards and the queue: store under break-even first, then brands with calls waiting (cuts before
+      raises, then the biggest move), then amber, then green, then the numbers only brands (client runs it, no store). */
   function orderOf(list) {
     const key = c => {
-      const p = pendingOf(c);
-      if (!p.length) return [2, 0];
-      return [p.some(cp => cp.move.to < cp.move.from) ? 0 : 1, -Math.max(...p.map(cp => Math.abs(cp.move.to - cp.move.from)))];
+      const p = pendingOf(c), L = lightOf(c);
+      const r = p.length && L.rank > 1 ? 1 : L.rank;
+      return [r, p.some(cp => cp.move.to < cp.move.from) ? 0 : 1, p.length ? -Math.max(...p.map(cp => Math.abs(cp.move.to - cp.move.from))) : 0];
     };
-    return list.map((c, i) => ({ c, i, k: key(c) })).sort((a, b) => a.k[0] - b.k[0] || a.k[1] - b.k[1] || a.i - b.i).map(x => x.c);
+    return list.map((c, i) => ({ c, i, k: key(c) })).sort((a, b) => a.k[0] - b.k[0] || a.k[1] - b.k[1] || a.k[2] - b.k[2] || a.i - b.i).map(z => z.c);
   }
   /** The Export menu: Copy PNG, Download PNG, PDF (team only) and Old Locus. A small menu on a desktop; the same
       .lx-pop rises from the bottom on a phone (app.css). */
@@ -1559,7 +1690,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     const checkBtn = write ? button('Check now', { disabled: fresh || null, onclick: e => checkNow(e.currentTarget), aria: fresh ? 'Check now: the latest check-in is under 30 minutes old' : 'Check now' }) : null;
     const minCad = Math.min(...list.map(c => c.cadence));
     const sampleSwitch = ctx.sample && f() && f().slots ? segmented(f().slots.map(s => ({ id: s.slot, label: s.label })), R.slot, slot => {
-      S.data = { ...S.data, standing: f().records[slot] }; S.done = {}; S.probing = true; draw(); probe();
+      S.data = { ...S.data, standing: f().records[slot] }; S.done = {}; S.insides = {}; S.probing = true; draw(); probe();
     }) : null;
     const exportBtn = write || ctx.legacy ? button('Export', { icon: 'chevron', onclick: e => exportMenu(e.currentTarget), aria: 'Export the board, or open the old app' }) : null;
     if (exportBtn) exportBtn.setAttribute('aria-haspopup', 'menu');
@@ -1569,11 +1700,16 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
       age > minCad + 1 ? h('span', { class: 'lx-stat warn' }, `Check-in is ${agoWords(age * 3600e3)} old`) : null,
       sampleSwitch,
       h('span', { class: 'sp' }),
-      h('div', { class: 'btns' }, refreshBtn, checkBtn, exportBtn));
+      h('div', { class: 'btns' }, staleStamp({ at: S.data.fetched_at || Date.parse(R.at), label: 'Read', onRefresh: () => refresh() }), checkBtn, exportBtn));
     hosts.sparks = {};
     hosts.hero = paceHero(heroModel(list));
     hosts.plan = planSection(list);
     const order = orderOf(list);
+    /* what the Ask Locus AI panel knows about this screen */
+    const nPend = order.reduce((t, c) => t + pendingOf(c).length, 0);
+    const reds = order.filter(c => lightOf(c).tone === 'bad').map(c => c.name);
+    const hm = heroModel(list);
+    ctx.askContext = `Black Friday War Room at the ${hourWord(slotHour(R.slot))} CT check-in${one ? ' for ' + (order[0] ? order[0].name : 'one brand') : ', ' + order.length + ' brands'}. Sales so far ${ok(hm.sales) ? money(Math.round(hm.sales)) : 'not read'}, store MER ${fx(hm.mer)} (Triple Whale). ${nPend ? nPend + (nPend === 1 ? ' budget call needs' : ' budget calls need') + ' a yes' : 'No budget call needs a yes'}${reds.length ? '; store MER under break-even on ' + reds.join(', ') : ''}.`;
     put(el, h('div', { class: 'wr3' },
       bar,
       hosts.hero,
@@ -1603,6 +1739,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
         S.warAllErr ? h('p', { class: 'wr3-quiet', style: { padding: '0 var(--pad-card) 16px' } }, 'The plan did not load: ' + S.warAllErr) : null);
     }
     hosts.hero = null; hosts.plan = null; hosts.sparks = {};
+    ctx.askContext = `Black Friday War Room with no check-in for this view yet: ${title}. The page shows the pace and the plan from the plan read.`;
     put(el, h('div', { class: 'wr3' }, h('div', { class: 'wr3-bar' }, help(), h('span', { class: 'sp' }), oldLink), note, hero, plan));
   }
 
@@ -1619,6 +1756,7 @@ function renderClient(el, data, ctx) {
   if (!w || !w.sale || !w.sale.start) return put(el, empty({ title: 'No Black Friday sale set yet', text: 'When the sale dates and the goal are set, the pace shows here.' }));
   const m = warModel(w, data.fetched_at);
   const row = warRow(w, ctx.brand.id, ctx.brand.name);
+  ctx.askContext = `${ctx.brand.name} Black Friday pace: sales so far ${ok(m.sales) ? money(Math.round(m.sales)) : 'not read'} of a ${ok(m.goal) ? money(m.goal) : 'unset'} goal, store MER ${fx(m.mer)} (Triple Whale), and the agreed plan.`;
   put(el, h('div', { class: 'wr3' },
     h('div', { class: 'wr3-bar' }, pageHelp({ body: [
       { title: 'What it is for', text: 'How your Black Friday sale is pacing against the goal we agreed, today by the hour, and the plan for the sale.' },
