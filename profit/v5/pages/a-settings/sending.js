@@ -54,9 +54,9 @@ export function whoGroup(S, d) {
 
 /* ---------- Features and quiet jobs (owner only) ----------
    From GET /api/settings: features { creatorProgram, socialPosting }, jobs [{ id, name, was, instead, switch_on, on,
-   off_reason }], canEditJobs. switch_on is the job's own quiet switch (what the toggle shows and saves); on is whether
+   off_reason, still_posts? }], canEditJobs. switch_on is the job's own quiet switch (what the toggle shows and saves); on is whether
    the post really goes out (the worker also checks the older switches, jobflags.js OLDER_SWITCHES); off_reason says
-   why it does not. An older worker sends only on: it is then the switch too. Each switch is its own staged key, so the Save bar's confirm sheet names it with its old and new
+   why it does not; still_posts says why a job switched off still posts. An older worker sends only on: it is then the switch too. Each switch is its own staged key, so the Save bar's confirm sheet names it with its old and new
    value; the saver sends one field: PUT /api/settings { features: { <name>: bool } } or { jobs: { <id>: bool } }.
    A job switched off stays quiet: its code and the check behind it keep running, only the Slack post stops. */
 const FEATURES = [
@@ -117,7 +117,9 @@ function featureGroup(S, fj) {
     fj.jobs.length ? h('div', { class: 'lx-sn-sub' }, 'Quiet jobs', h('span', null, 'Off means quiet')) : null,
     fj.jobs.map(j => row(j.name, h('span', { class: 'lx-sn-job' }, j.was ? h('span', null, 'Posted: ' + j.was) : null, j.instead ? h('span', null, 'Instead: ' + j.instead) : null,
       /* The switch is on but an older switch keeps the post off: say so, so the page shows what really happens. */
-      switchOf(j) && j.on === false && j.off_reason ? h('span', { class: 'lx-sn-off' }, 'Off: ' + j.off_reason) : null),
+      switchOf(j) && j.on === false && j.off_reason ? h('span', { class: 'lx-sn-off' }, 'Off: ' + j.off_reason) : null,
+      /* The switch is off but the post still goes out (jobflags.js STILL_POSTS): say that too. */
+      !switchOf(j) && j.on === true && j.still_posts ? h('span', { class: 'lx-sn-off' }, 'Still posts: ' + j.still_posts) : null),
       sw(jobKey(j.id), switchOf(j), j.name), { top: true })));
 }
 

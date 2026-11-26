@@ -127,8 +127,9 @@ export async function featuresNow(env, get = directGet) {
    A quiet job's own switch is not the only thing that stops its post: most jobs had a switch before the quiet jobs
    list, and a few are stopped in code. Each entry below is the SAME check the job's own file makes (named beside it),
    answered as a plain reason, or null when that check lets the post run. jobsView uses them so the settings list shows
-   what really happens. A failed read answers null (no reason), the same way a job reads a failed setting. */
-const rawOf = v => v == null ? null : String(v).trim().replace(/^"|"$/g, '').toLowerCase();
+   what really happens. A failed read answers null (no reason), the same way a job reads a failed setting.
+   s(key) hands back the exact stored text, as every one of these jobs reads it (no trim, no quotes stripped, no case
+   change), so a hand edited value reads here exactly as the job reads it. */
 /** Does any brand have a scheduled Monday test post (asana-brand.js mondayTick: rules doc monday_post > 0)? */
 async function anyMondayPost(env) {
   const r = await env.DB.prepare(`SELECT data_json FROM p_br_doc WHERE line_id = '' AND key = 'rules'`).all()
@@ -158,31 +159,47 @@ export const OLDER_SWITCHES = {
   /* morning.js morningTick */
   morningLineDm: async s => (await s('morningDm')) === 'off' ? 'The morning line DM is switched off' : null,
   /* review.js reviewTick: runs only when mondayReview is 'on' */
-  mondayReview: async s => (await s('mondayReview')) !== 'on' ? 'The Monday review switch is off' : null,
-  /* asana-brand.js mondayTick: only brands whose rules set a Monday post */
-  mondayTestPost: async (s, env) => (await anyMondayPost(env)) ? null : 'No brand has a Monday test post set',
-  /* checkin.js autoApproveTick: off on '0' (clientchan.js writeSwitches saves '0'/'1') */
-  autoApprove: async s => { const v = await s('checkinAutoApprove'); return v === '0' || v === 'false' ? 'Auto approve is switched off' : null; },
+  /* review.js isOn: lower case, no trim */
+  mondayReview: async s => String((await s('mondayReview')) || '').toLowerCase() !== 'on' ? 'The Monday review switch is off' : null,
+  /* asana-brand.js postMonday: the scheduled post runs only when settings mondayTestPost is 'on' (off since
+     2026-11-20), and mondayTick only for brands whose rules set a Monday post */
+  mondayTestPost: async (s, env) => (await s('mondayTestPost')) !== 'on' ? 'The scheduled Monday post is switched off'
+    : (await anyMondayPost(env)) ? null : 'No brand has a Monday test post set',
+  /* checkin.js autoApproveTick: off only on the exact value '0' (clientchan.js writeSwitches saves '0'/'1') */
+  autoApprove: async s => (await s('checkinAutoApprove')) === '0' ? 'Auto approve is switched off' : null,
+};
+
+/* A job whose post still goes out with its own quiet switch off: answers the plain reason it still posts, or null.
+   jobsView then shows it on (switch_on false), so the list says what really happens. */
+export const STILL_POSTS = {
+  /* worker.js dashboardTick: switched off it still runs when a dashboard already has a schedule and a channel */
+  dashboardsSlack: async env => {
+    const r = await env.DB.prepare(`SELECT 1 AS x FROM p_dashboard WHERE schedule IN ('daily','monday','first') AND channel IS NOT NULL AND channel != '' LIMIT 1`).first();
+    return r ? 'A dashboard with a schedule and a channel keeps posting' : null;
+  },
 };
 
 /** Why an older switch keeps this job's post off, or null. */
 export async function olderOffReason(env, id, get = directGet) {
   const fn = OLDER_SWITCHES[id];
   if (!fn) return null;
-  const s = k => Promise.resolve().then(() => get(env, k)).then(rawOf).catch(() => null);
+  const s = k => Promise.resolve().then(() => get(env, k)).then(v => v ?? null).catch(() => null);
   return Promise.resolve().then(() => fn(s, env, get)).catch(() => null);
 }
 
 /** The quiet jobs for GET /api/settings, with their REAL state so every screen agrees:
  *  switch_on  the job's own quiet switch (what the toggle saves),
  *  on         does the post really go out (its own switch AND every older switch allow it),
- *  off_reason null when on; else a plain reason ('Switched off as a quiet job' for its own switch, or the older switch's). */
+ *  off_reason null when on; else a plain reason ('Switched off as a quiet job' for its own switch, or the older switch's),
+ *  still_posts set (and on true) when the post still goes out with its own switch off (STILL_POSTS). */
 export const OWN_OFF = 'Switched off as a quiet job';
 export async function jobsView(env, get = directGet) {
   const out = [];
   for (const j of QUIET_JOBS) {
     const own = await jobOn(env, j.id, get);
     const older = own ? await olderOffReason(env, j.id, get) : null;
+    const still = !own && STILL_POSTS[j.id] ? await Promise.resolve().then(() => STILL_POSTS[j.id](env)).catch(() => null) : null;
+    if (still) { out.push({ ...j, switch_on: false, on: true, off_reason: null, still_posts: still }); continue; }
     out.push({ ...j, switch_on: own, on: own && !older, off_reason: own ? older : OWN_OFF });
   }
   return out;

@@ -85,10 +85,14 @@ await ok('real state: an older switch turns a job off with a plain reason; the q
   /* autoApprove: '0' (and false) is off, '1' or missing is on; the tick says the same. */
   fresh();
   assert.equal((await one('autoApprove')).on, true);
-  for (const v of ['0', 'false']) {
+  setS('checkinAutoApprove', '0');
+  const a0 = await one('autoApprove');
+  assert.equal(a0.on, false); assert.equal(a0.switch_on, true); assert.equal(a0.off_reason, 'Auto approve is switched off');
+  /* only the exact '0' stops the tick, so only '0' reads off here */
+  for (const v of ['false', ' 0', '"0"']) {
     setS('checkinAutoApprove', v);
-    const a = await one('autoApprove');
-    assert.equal(a.on, false, v); assert.equal(a.switch_on, true); assert.equal(a.off_reason, 'Auto approve is switched off');
+    assert.equal((await one('autoApprove')).on, true, v);
+    assert.notEqual((await autoApproveTick(env, { getSetting, putSetting }, {})).autoApprove, 'off', v + ' the tick runs too');
   }
   setS('checkinAutoApprove', '0');
   assert.equal((await autoApproveTick(env, { getSetting, putSetting }, {})).autoApprove, 'off');
@@ -111,9 +115,33 @@ await ok('real state: an older switch turns a job off with a plain reason; the q
   setS('feature:creatorProgram', 'off'); assert.equal((await one('trybeRecutPost')).off_reason, 'The creator program is off');
   fresh();
   db.exec(`CREATE TABLE p_br_doc (act_id TEXT, line_id TEXT, key TEXT, data_json TEXT)`);
-  assert.equal((await one('mondayTestPost')).off_reason, 'No brand has a Monday test post set');
+  /* postMonday stops the scheduled post unless mondayTestPost is exactly 'on' (off since 2026-11-20) */
+  assert.equal((await one('mondayTestPost')).off_reason, 'The scheduled Monday post is switched off');
   db.prepare(`INSERT INTO p_br_doc VALUES ('brand_northlake_golf', '', 'rules', '{"monday_post":1}')`).run();
-  assert.equal((await one('mondayTestPost')).on, true);
+  let mt = await one('mondayTestPost');
+  assert.equal(mt.on, false, 'a brand has a Monday post but the setting is missing: nothing posts');
+  assert.equal(mt.off_reason, 'The scheduled Monday post is switched off');
+  setS('mondayTestPost', 'off'); assert.equal((await one('mondayTestPost')).on, false);
+  setS('mondayTestPost', 'on'); assert.equal((await one('mondayTestPost')).on, true);
+  db.exec(`DELETE FROM p_br_doc`);
+  assert.equal((await one('mondayTestPost')).off_reason, 'No brand has a Monday test post set');
+  /* mondayReview reads like review.js isOn (lower case, no trim) */
+  setS('mondayReview', 'ON'); assert.equal((await one('mondayReview')).on, true);
+  setS('mondayReview', ' on'); assert.equal((await one('mondayReview')).on, false);
+  /* the other jobs compare the exact text, so a padded value reads as the job reads it */
+  setS('fyiRoundup', 'Off'); assert.equal((await one('fyiRoundup')).on, true, 'roundupTick stops only on the exact off');
+  /* dashboardsSlack switched off: still posts while a dashboard has a schedule and a channel (worker.js dashboardTick) */
+  setS('jobOn:dashboardsSlack', 'off');
+  let ds = await one('dashboardsSlack');
+  assert.equal(ds.on, false); assert.equal(ds.off_reason, OWN_OFF, 'no dashboard table: quiet');
+  db.exec(`CREATE TABLE p_dashboard (id TEXT, schedule TEXT, channel TEXT)`);
+  db.prepare(`INSERT INTO p_dashboard VALUES ('d1', 'daily', '')`).run();
+  assert.equal((await one('dashboardsSlack')).on, false, 'a schedule with no channel posts nothing');
+  db.prepare(`INSERT INTO p_dashboard VALUES ('d2', 'monday', 'C_TEAM')`).run();
+  ds = await one('dashboardsSlack');
+  assert.equal(ds.switch_on, false); assert.equal(ds.on, true); assert.equal(ds.off_reason, null);
+  assert.equal(ds.still_posts, 'A dashboard with a schedule and a channel keeps posting');
+  assert.ok(!/[—–]/.test(ds.still_posts));
   assert.equal((await one('movedPost')).off_reason, 'A bad day is in the Daily Brief now');
   /* a failed read gives no reason (the same as the job reading a failed setting) */
   assert.equal(await olderOffReason(env, 'fyiRoundup', async () => { throw new Error('db down'); }), null);
