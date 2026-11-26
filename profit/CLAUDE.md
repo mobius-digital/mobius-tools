@@ -424,6 +424,13 @@ profit/
   Claude not to call them this month's goal, and the Brief tab shows a warning with
   a jump to Plan. Without this, the 1st of a month silently re-uses last month's
   target and the brief reports "vs plan" against something nobody agreed.
+- **A client never sees an inherited goal (2026-11-26).** No goal typed for the month = no goal number and no on or
+  under goal word anywhere a client reads, only "No goal set for <Month>": the client daily (clientpost.js dailyPost
+  `goal_set: false`, from briefData goals_planned), the report archive (`hideUnsetGoals` in report-view drops the
+  forecast and pacing, sets `no_goal`) and the profit share page (`no_goal`). Internal screens may show it as a gray
+  "Last set goal (<Month>): $X" hint (Brief tab flag). The strategist (mywork.js STRAT, else OWNER_EMAIL) gets "Set
+  <Month>'s goal for <Brand>" in My day from the 25th of the month before until it is typed. Tests: test-nogoal.mjs in
+  both workers.
 - **`GET /api/profit/:token` is client-facing: everything about THEIR business, none
   of our workings.** It carries the month-to-date headline numbers against the
   pro-rated plan, the full revenue-to-CM waterfall, the daily revenue-vs-spend series,

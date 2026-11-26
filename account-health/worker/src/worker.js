@@ -3484,6 +3484,8 @@ async function clientDailyFor(env, acct, date, text, data, { next = true } = {})
       spend: days.length ? days.reduce((n, x) => n + (x.a.spend || 0), 0) : (data?.mtd?.spend ?? null),
       day_of_month: +date.slice(8, 10), days_in_month: daysInMonth(date) },
     others: days.filter(x => x.date !== date).map(x => x.a.sales), next: nextLine,
+    /* No goal typed for the month: no inherited number reaches the client, "No goal set for <Month>" instead. */
+    goal_set: data?.goals_planned !== false,
   });
 }
 
