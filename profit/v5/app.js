@@ -159,7 +159,7 @@ function welcomeCards() {
   return import('./pages/get-started/_welcome.js').then(m => m.showWelcome({ brand, me: st.me })).catch(() => {});
 }
 
-/* How things reach me: asked once per teammate who never saved a preset (pages/profile/_first-preset.js). Called
+/* How things reach me: asked once per person (teammate or client login) who never saved a preset (pages/profile/_first-preset.js). Called
    after welcomeCards() has put its cards up, and the sheet waits for them to close. Sample: ?sample=1&firstpreset=1. */
 function firstPreset() {
   const st = shell.state();
