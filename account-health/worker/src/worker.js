@@ -611,7 +611,8 @@ async function connectMetaFor(env, r, a) {
   await env.DB.prepare(`UPDATE brands SET status = 'active', name = ?2,
       internal_channel = COALESCE(NULLIF(internal_channel, ''), ?3), client_channel = COALESCE(NULLIF(client_channel, ''), ?4), updated_at = datetime('now') WHERE id = ?1`)
     .bind(brand.id, r.name, r.slack_internal, r.slack_client || null).run();
-  if (shop && !(await env.DB.prepare(`SELECT 1 FROM connections WHERE brand_id = ?1 AND kind = 'triple_whale'`).bind(brand.id).first())) await setTripleWhale(env, brand.id, shop).catch(() => {});
+  /* A v2 run (the new onboarding) never links a store the client typed: the team's tick on Get started does (onboard.js). */
+  if (shop && steps.v !== 2 && !(await env.DB.prepare(`SELECT 1 FROM connections WHERE brand_id = ?1 AND kind = 'triple_whale'`).bind(brand.id).first())) await setTripleWhale(env, brand.id, shop).catch(() => {});
   await env.DB.prepare(`UPDATE p_newclient SET act_id = ?2, updated_at = datetime('now') WHERE id = ?1`).bind(r.id, brand.id).run();
   steps.meta_connected = { act: a.act_id, account: a.name, at: new Date().toISOString() }; await save('meta_connected');
   await lanePost(env, { slackPost }, r.slack_internal, { lane: 'OPS', brand: r.name, who: COLE_SLACK, ask: `Add the media buyer to ${r.name}'s ad account "${a.name}" and page in Business Settings`,

@@ -778,10 +778,17 @@ async function holdCheck(env, inv) {
   const customer = typeof inv.customer === 'string' ? inv.customer : inv.customer?.id;
   const open = await stripe(env, 'GET', `invoices?${form({ customer, status: 'open', limit: 5 })}`);
   const month = await stripe(env, 'GET', `invoices?${form({ customer, 'created[gte]': centralMonthStart(), limit: 10 })}`);
-  /* Only THIS run's invoices count (its subscription, or its first invoice): two brands paid by the same email share
-     one Stripe customer, and one brand's invoice must never hold the other's every month. */
+  /* Every invoice of this customer counts EXCEPT one that clearly belongs to another run (another subscription, or
+     another run's first invoice): two brands paid by the same email share one Stripe customer and must not hold each
+     other, but an invoice made by hand in Stripe (no subscription, no run tag) still holds, so a month is never billed twice. */
   const runId = String(sub.metadata?.locus || '');
-  const ours = i => i.id !== inv.id && (subOf(i) === subId || (runId && String(i.metadata?.locus || '') === runId));
+  const ours = i => {
+    if (i.id === inv.id) return false;
+    const s = subOf(i), tag = String(i.metadata?.locus || '');
+    if (s && s !== subId) return false;
+    if (tag && runId && tag !== runId) return false;
+    return true;
+  };
   const why = (open.data || []).some(ours) ? 'the last one is not paid'
     : (month.data || []).some(i => ours(i) && i.status !== 'void') ? 'there is already an invoice this month' : null;
   if (!why) return 'fine';
@@ -1195,6 +1202,10 @@ export async function handleNewClient(request, env, path, json, isAdmin, who) {
           if (inv.status === 'open') await stripe(env, 'POST', `invoices/${st.invoice}/void`).catch(() => {});
         }
       }
+      /* Logins come off only while setup is still open: removing a finished client from this list must never lock a
+         paying client out (their logins are then managed in Clients). */
+      const ob = r.act_id ? await env.DB.prepare(`SELECT finished_at FROM p_onboard WHERE act_id = ?1 AND run_id = ?2`).bind(r.act_id, r.id).first().catch(() => null) : null;
+      const setupOpen = !ob || !ob.finished_at;
       await env.DB.prepare(`DELETE FROM p_newclient WHERE id = ?1`).bind(r.id).run();
       /* The onboarding checklist goes with it (onboard.js p_onboard): no more reminders, team lines or Get started gate
          for a client Cole removed. Only this run's row; the table may not exist yet. */
@@ -1203,7 +1214,7 @@ export async function handleNewClient(request, env, path, json, isAdmin, who) {
          would hold them on Get started, so the brand comes off every client login, the same way POST
          /api/clients/remove takes a brand away; a login left with no brand goes (its invite link with it). */
       let logins = 0;
-      if (isV2(r) && r.act_id) logins = await dropBrandFromClients(env, r.act_id);
+      if (isV2(r) && r.act_id && setupOpen) logins = await dropBrandFromClients(env, r.act_id);
       return json({ ok: true, logins_removed: logins });
     }
     return json({ error: 'not found' }, 404);
@@ -1463,7 +1474,7 @@ async function shopifyHeadsUp(env) {
         { type: 'button', style: 'primary', text: { type: 'plain_text', text: 'I sent the request' }, action_id: 'nc_shopify_sent', value: JSON.stringify({ id: r.id }) },
       ] });
     if (j.ok) { await setStep(env, r.id, 'shopify_ping', { store, at: new Date().toISOString() }); told++; }
-    if (r.act_id) {
+    if (r.act_id && !isV2(r)) {   /* v2: the team's tick on Get started links the store, never a typed answer */
       const bid = await resolveBrandId(env, r.act_id);
       const has = await env.DB.prepare(`SELECT 1 FROM connections WHERE brand_id = ?1 AND kind = 'triple_whale'`).bind(bid).first().catch(() => null);
       if (!has) await setTripleWhale(env, bid, store).catch(() => {});
