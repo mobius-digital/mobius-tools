@@ -101,8 +101,9 @@ test('a held login is asked about again on every request, so finishing opens at 
   const env = env0(oldMe([NORTH], held([NORTH], [NORTH])));
   await call(env, 'GET', `/pw/api/probe/one?act=${NORTH}`, { token });
   const first = meCalls(env);
+  assert.equal(first, 1, 'nothing kept: asked once, not twice');
   await call(env, 'GET', `/pw/api/probe/one?act=${NORTH}`, { token, keep: true });
-  assert.ok(meCalls(env) > first, 'asked again');
+  assert.equal(meCalls(env), first + 1, 'a kept held answer is asked again, once');
   const env2 = env0(oldMe([NORTH], null));
   await call(env2, 'GET', `/pw/api/probe/one?act=${NORTH}`, { token });
   const once = meCalls(env2);

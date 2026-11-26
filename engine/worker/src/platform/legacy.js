@@ -43,11 +43,12 @@ const bearer = request => {
 /** The old /api/me answer for a session. null when the old side does not know it.
  *  fresh: ask now, whatever is kept (the old account-health worker checked on every request).
  *  Not fresh: an answer is kept one minute, never past the session's own end, as the old profit worker did.
- *  A failure is never kept, and it drops what was kept. */
-export async function who(env, token, { fresh = false } = {}) {
+ *  A failure is never kept, and it drops what was kept.
+ *  again(me): a kept answer it says yes to is asked again now (a login held on Get started), so a miss asks once. */
+export async function who(env, token, { fresh = false, again = null } = {}) {
   if (!token || token.length < 8) return null;
   const hit = WHO.get(token);
-  if (!fresh && hit && hit.until > Date.now()) return hit.me;
+  if (!fresh && hit && hit.until > Date.now() && !(again && again(hit.me))) return hit.me;
   WHO.delete(token);
   const { binding, origin } = old(env, 'ah');
   let res;

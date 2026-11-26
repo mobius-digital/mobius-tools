@@ -677,12 +677,28 @@ export async function heldBrands(env, brands) {
   const until = NOT_HELD.get(key);
   if (until && until > Date.now()) return new Set();
   const ph = list.map((_, i) => `?${i + 1}`).join(',');
-  /* No p_onboard table (no client was ever set up here) or a failed read = nothing held, the same as /api/me. */
-  const rows = ((await env.DB.prepare(`SELECT act_id, extras, sign_pay, gate, steps_json, finished_at FROM p_onboard WHERE act_id IN (${ph}) AND gate = 1 AND finished_at IS NULL`).bind(...list).all().catch(() => null)) || {}).results || [];
+  /* No p_onboard table (no client was ever set up here) or a failed read = nothing held, the same as /api/me. A failed
+     read is not kept: the next request asks again, so one bad read opens a held brand for that request only. */
+  const got = await env.DB.prepare(`SELECT act_id, extras, sign_pay, gate, steps_json, finished_at FROM p_onboard WHERE act_id IN (${ph}) AND gate = 1 AND finished_at IS NULL`).bind(...list).all().catch(() => null);
+  const rows = (got || {}).results || [];
   const held = new Set();
   for (const r of rows) { let st = {}; try { st = JSON.parse(r.steps_json || '{}') || {}; } catch {} if (onbHeld(r, st)) held.add(String(r.act_id)); }
-  if (!held.size) { if (NOT_HELD.size > 500) NOT_HELD.clear(); NOT_HELD.set(key, Date.now() + NOT_HELD_MS); }
+  if (got && !held.size) { if (NOT_HELD.size > 500) NOT_HELD.clear(); NOT_HELD.set(key, Date.now() + NOT_HELD_MS); }
   return held;
+}
+/** Every id a person may see right now with the Get started hold applied: a client's held brands are left out (a
+ *  one-job colleague sees none); anyone else is brandsFor (null = every brand). For senders with no request, such as
+ *  the morning DM, which the guard never sees. */
+export async function openIdsFor(env, email) {
+  const client = await clientOf(env, email).catch(() => null);
+  if (!client) return brandsFor(env, email);
+  if (client.onlyOnboard) return new Set();
+  const ids = await clientIds(env, client);
+  const held = await heldBrands(env, client.brands);
+  if (!held.size) return ids.all;
+  const all = new Set();
+  for (const [b, s] of ids.of) if (!held.has(b)) for (const x of s) all.add(x);
+  return all;
 }
 
 /* ---------------- a client's own change, logged (2026-11-26, Cole: clients change their goals and ad rules) ----------------

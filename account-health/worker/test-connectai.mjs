@@ -6,7 +6,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import assert from 'node:assert/strict';
 import { handleConnectAi, isConnectAiPath, createKey, keyAuth, hashKey, makeKey, scopeOf, personOf, pickBrand, windowOf, tidy, wrap, TOOL_NAMES, DEFAULT_DAYS, _test } from './src/connectai.js';
-import { guardBrands, HQ_BRAND, HQ_DOMAIN } from './src/brandguard.js';
+import { guardBrands, HQ_BRAND, HQ_DOMAIN, forgetHeld } from './src/brandguard.js';
 
 const db = new DatabaseSync(':memory:');
 const bindSql = sql => sql.replace(/\?(\d+)/g, (_, n) => ':p' + n);
@@ -546,6 +546,18 @@ await check('a table made before cards had an audience gets the column, and its 
   assert.equal((await app('/api/connect-ai/proposals', { as: SAM })).status, 200);
   assert.ok(q(`SELECT audience FROM p_ai_proposal`).every(r => r.audience === 'team'));
   assert.deepEqual((await (await app('/api/connect-ai/proposals', { as: PAT })).json()).proposals, []);
+});
+await check('a client whose only brand is held on Get started cannot make a key, and no key of theirs sees that brand; the team is never held', async () => {
+  db.exec(`CREATE TABLE IF NOT EXISTS p_onboard (act_id TEXT PRIMARY KEY, extras INTEGER, sign_pay INTEGER, gate INTEGER, steps_json TEXT, finished_at TEXT)`);
+  db.exec(`INSERT INTO p_onboard (act_id, extras, sign_pay, gate, steps_json, finished_at) VALUES ('brand_alpha', 0, 0, 1, '{}', NULL)`);
+  forgetHeld();
+  try {
+    const r = await app('/api/connect-ai/keys', { method: 'POST', as: PAT, body: {} });
+    assert.equal(r.status, 403); const j = await r.json(); assert.equal(j.gated, true); assert.equal(j.error, 'Finish setting up first.');
+    assert.deepEqual((await scopeOf(env, d, { email: PAT, role: 'client' }, ['brand_alpha'])).brands, [], 'a key made before the hold names no held brand');
+    assert.ok((await scopeOf(env, d, { email: SAM, role: 'team' }, 'all')).ids.has('brand_alpha'), 'the team is never held');
+  } finally { db.exec(`DELETE FROM p_onboard`); forgetHeld(); }
+  assert.ok((await scopeOf(env, d, { email: PAT, role: 'client' }, 'all')).ids.has('brand_alpha'), 'finished: the brand is back');
 });
 await check('switched off again, every key stops at once', async () => {
   assert.equal((await app('/api/connect-ai/switch', { method: 'PUT', as: OWNER, body: { on: false } })).status, 200);

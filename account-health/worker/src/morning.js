@@ -50,10 +50,12 @@ export async function dmPerson(env, deps, email, msg) {
   /* Slack's own reason (response_metadata.messages) rides along, so a bad block says which one. */
   return r && r.ok ? { ok: true, ts: r.ts } : { ok: false, error: `${(r && r.error) || 'slack'}${r && r.response_metadata && r.response_metadata.messages ? `: ${r.response_metadata.messages.join(' | ').slice(0, 400)}` : ''}` };
 }
-/** The message one person would get right now (the "Send me today's line" button and the preview). */
+/** The message one person would get right now (the "Send me today's line" button and the preview).
+ *  deps.scope: a client's ids the brand guard cleared for this request (a brand held on Get started is not in it);
+ *  brandsFor would name every brand of the login, the held one too. */
 export async function morningFor(env, deps, email) {
   const kept = await readKept(env, deps);
-  const only = await deps.brandsFor(env, email).catch(() => null);
+  const only = deps.scope instanceof Set ? deps.scope : await deps.brandsFor(env, email).catch(() => null);
   const lines = linesFor(kept, only);
   return { date: kept.date, lines, message: messageFor(kept, lines) };
 }
@@ -77,8 +79,9 @@ export async function morningTick(env, deps) {
     if (deps.subCanAfford && !deps.subCanAfford(8)) { out.deferred = 'budget'; break; }
     /* Fail closed (2026-10-14 audit): "no limit" from brandsFor means every brand, which is right only for the team.
        A removed client keeps its morning switch in userPrefs and would otherwise get every brand's line. */
+    /* openIdsFor: a client's brand held on Get started sends no line (no request here, so the guard never sees it). */
     let only;
-    try { only = await deps.brandsFor(env, p.email); } catch { only = new Set(); }
+    try { only = await (deps.openIdsFor || deps.brandsFor)(env, p.email); } catch { only = new Set(); }
     if (only == null && !(deps.emailAllowed && await deps.emailAllowed(env, p.email).catch(() => false))) only = new Set();
     const lines = linesFor(kept, only), msg = messageFor(kept, lines);
     let st;

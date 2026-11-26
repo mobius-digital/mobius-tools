@@ -285,9 +285,24 @@ await check('the server holds a gated client: brand data refused on both workers
   const shut = [];
   for (const [m, p] of setup) { const r = await ah(PAT, m, p); if (!isOpen(r)) shut.push(`${m} ${p} -> ${r.status} ${JSON.stringify(r.j).slice(0, 80)}`); }
   const writes = [['PUT', '/api/clients/me', { welcome_seen: true }], ['POST', '/api/requests', { act: ACT, kind: 'request', title: 'Locus feedback', text: 'Hello from setup' }],
-    ['PUT', '/api/me/prefs', { morning_dm: false }], ['PUT', '/api/onboard/connect', { act: ACT, platform: 'email', skip: false }]];
+    ['PUT', '/api/me/prefs', { morning_dm: false }], ['PUT', '/api/onboard/connect', { act: ACT, platform: 'email', skip: false }],
+    /* Bodies that change nothing (a bad value, an unknown id): only "is it let through" is checked here. */
+    ['POST', '/api/requests/reply', { id: 'req_nope', text: 'hi' }], ['PUT', '/api/me/delivery', { delivery: 'nope' }], ['POST', '/api/notices/done', { id: 'nt_nope' }],
+    ['PUT', '/api/brand/assets-link', { act: ACT, url: 'javascript:alert(1)' }], ['PUT', '/api/onboard/brief', { act: ACT, answers: { password: 'x' } }],
+    ['POST', '/api/onboard/handoff', { act: ACT, step: 'nope' }]];
   for (const [m, p, b] of writes) { const r = await ah(PAT, m, p, b); if (isHeld(r) || r.status === 401) shut.push(`${m} ${p} -> ${r.status} ${JSON.stringify(r.j).slice(0, 80)}`); }
   assert.deepEqual(shut, [], 'held on a setup route:\n' + shut.join('\n'));
+  /* Every other exact route a client may call is held, on both workers (a probe over CLIENT_RULES). */
+  const bg = await import('./src/brandguard.js');
+  const answered = [];
+  for (const r of bg.CLIENT_RULES) {
+    if (!r.p || r.hq || r.onb || bg.SETUP_MAY.has(r.m + ' ' + r.p)) continue;
+    for (const w of ['ah', 'pf']) {
+      const res = await call(w, PAT, r.m, r.p, r.m === 'GET' || r.m === 'HEAD' ? undefined : {});
+      if (!isHeld(res)) answered.push(`${w} ${r.m} ${r.p} -> ${res.status} ${JSON.stringify(res.j).slice(0, 60)}`);
+    }
+  }
+  assert.deepEqual(answered, [], 'a non setup route answered a held client: ' + answered.join(' | '));
   /* The sign in routes carry no session and never meet the hold. */
   assert.ok(!isHeld(await ah(null, 'POST', '/api/clients/code', { invite: 'nope' })));
   /* Old clients (no checklist) and the team are never held, on the same routes. */
@@ -308,7 +323,24 @@ await check('the server holds a gated client: brand data refused on both workers
     const all = await pf(PAT, 'GET', '/api/overview?days=30&series=0');
     assert.ok(isOpen(all), `no brand named -> ${all.status}`); assert.ok(!JSON.stringify(all.j).includes(ACT), 'the held brand is left out of an answer');
     assert.ok(isOpen(await ah(PAT, 'GET', `/api/onboard?act=${ACT}`)), 'Get started of the held brand still opens');
+    /* The morning line (no brand on the route, plain strings): only the running brand's line, read and sent as a DM.
+       The Connect your AI scope and the morning DM's sender (openIdsFor) leave the held brand out too. */
+    const realPf = ahEnv.PROFIT.fetch;
+    ahEnv.PROFIT.fetch = async req => new URL(req.url).pathname === '/api/hub/kept'
+      ? new Response(JSON.stringify({ date: '2026-11-25', brands: [{ act_id: ACT, name: 'Northlake Golf', has: true, line: 'Northlake Golf kept $1 yesterday.' }, { act_id: 'brand_alpha', name: 'Alpha Golf', has: true, line: 'Alpha Golf kept $2 yesterday.' }] }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      : realPf(req);
+    try {
+      const mg = await ah(PAT, 'GET', '/api/me/morning');
+      assert.equal(mg.status, 200, JSON.stringify(mg.j)); assert.deepEqual(mg.j.lines, ['Alpha Golf kept $2 yesterday.'], 'the line of the held brand is left out');
+      const n0 = S.posted.length;
+      const mp = await ah(PAT, 'POST', '/api/me/morning');
+      assert.equal(mp.status, 200, JSON.stringify(mp.j)); assert.deepEqual(mp.j.lines, ['Alpha Golf kept $2 yesterday.']);
+      assert.ok(S.posted.slice(n0).length && !JSON.stringify(S.posted.slice(n0)).includes('Northlake'), 'the DM names no held brand');
+      const open = await bg.openIdsFor(ahEnv, 'pat@example.com');
+      assert.ok(open.has('brand_alpha') && !open.has(ACT), 'openIdsFor: the running brand only');
+    } finally { ahEnv.PROFIT.fetch = realPf; }
   } finally { const u2 = getSetting('clientUsers'); u2['pat@example.com'].brands = [ACT]; setSetting('clientUsers', u2); }
+  assert.ok(isHeld(await ah(PAT, 'GET', '/api/me/morning')), 'one brand, held: the morning line is refused');
 });
 
 await check('the emailed 6 digit code: hashed, 10 minutes, 5 tries, one use, one send a minute', async () => {

@@ -84,10 +84,10 @@ export async function identify(request, env, counters = {}) {
   const token = tokenOf(request);
   if (!token) return NOBODY;
   const fresh = !new URL(request.url).pathname.startsWith('/pw/');
-  let me = await who(env, token, { fresh });
-  /* A login held on Get started is asked again on every request, so finishing opens the app at once. */
-  const setup = me && me.role === 'client' && isPlainObject(me.client) && isPlainObject(me.client.onboarding) && me.client.onboarding.gated === true;
-  if (setup && !fresh) me = await who(env, token, { fresh: true });
+  /* A login held on Get started is asked again on every request, so finishing opens the app at once. Only a kept
+     answer is asked again: one fetched just now is already fresh. */
+  const setup = m => !!m && m.role === 'client' && isPlainObject(m.client) && isPlainObject(m.client.onboarding) && m.client.onboarding.gated === true;
+  const me = await who(env, token, { fresh, again: setup });
   if (!me) return NOBODY;
   return me.role === 'client' ? clientCaller(env, me, counters) : teamCaller(env, me, counters);
 }
