@@ -12,6 +12,9 @@ const CONNECT = 'account-health/worker/src/connectai.js';
 const LOOKUP = 'account-health/worker/src/lookups.js';
 const ASK = 'account-health/worker/src/worker.js';
 const person = { team: true, client: true, brand: 'none' };        // each person's own keys and cards
+/* Making and turning off my OWN key: a view only teammate and a look and approve client may too, as in the old
+   door (connectai.js sat above the view only check and the brand guard). Every statement binds :email. */
+const ownKey = { ...person, look_may: true };
 /* filter: false on the two lists that carry brand_id: the old door sat above the brand guard, and the handler
    keeps to the caller's brands itself, so a client or a teammate with a brand list keeps brand_id on each row. */
 const team = { team: true, client: false, brand: 'none' };
@@ -24,10 +27,10 @@ export const routes = [
     source: ported(CONNECT, { borrows: ['address'] }) },
   { method: 'GET', path: '/ah/api/connect-ai/keys', access: person, input: { query: { all: 'string?' } }, handler: c.listKeys,
     doc: 'My keys, never the key itself. The owner may ask for everyone with all=1.', source: ported(CONNECT) },
-  { method: 'POST', path: '/ah/api/connect-ai/keys', access: person, input: null, handler: c.makeKey,
+  { method: 'POST', path: '/ah/api/connect-ai/keys', access: ownKey, input: null, handler: c.makeKey,
     doc: 'Make a key (label, days, brands). The key is in this one answer, only its hash is kept. No secret is used.',
     source: ported(CONNECT, { borrows: ['address'] }) },
-  { method: 'POST', path: '/ah/api/connect-ai/keys/revoke', access: person, input: null, handler: c.revokeKey,
+  { method: 'POST', path: '/ah/api/connect-ai/keys/revoke', access: ownKey, input: null, handler: c.revokeKey,
     doc: 'Turn one of my keys off for good (id). The owner may turn off any key.', source: ported(CONNECT) },
   { method: 'GET', path: '/ah/api/connect-ai/calls', access: { ...person, filter: false }, input: { query: { all: 'string?' } }, handler: c.listCalls,
     doc: 'The last calls my keys made: tool, brand, time. The owner may ask for everyone with all=1.', source: ported(CONNECT) },

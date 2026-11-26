@@ -304,3 +304,26 @@ test('PUT me/delivery: a long list of choices goes to the old worker whole', asy
   assert.ok(r.forwarded);
   assert.equal(e.DB.rows('p_automation_sub', `person_id = '${TEAM}' AND mode = 'mute' AND automation_id LIKE 'au_m%'`).length, 0);
 });
+
+test('people: a person taken off on the Team screen is not on the team and cannot be given a role, the owner never is', async () => {
+  const GONE = 'gone@agency.test';
+  const e = env();
+  e.DB.insert('settings', [{ key: 'removedEmails', value: JSON.stringify([GONE, 'Guest@Other.test', OWNER]) },
+    { key: 'automationRoles', value: JSON.stringify({ all: { buyer: TEAM }, [RIVER]: { owner: OWNER }, [NORTH]: { maker: GONE }, team: ['guest@other.test'] }) }]);
+  const r = await call(e, 'GET', '/ah/api/automations/people', { token: asCaller('owner') });
+  assert.equal(r.status, 200);
+  const team = r.json.team.map(t => t.email);
+  assert.ok(!team.includes(GONE), 'a removed teammate on the agency domain is still on the team');
+  assert.ok(!team.includes('guest@other.test'), 'a removed invited person is still on the team');
+  assert.ok(team.includes(OWNER), 'the owner was taken off the team');
+  const before = e.DB.rows('settings', `key = 'automationRoles'`)[0].value;
+  const no = await call(e, 'PUT', '/ah/api/automations/people', { token: asCaller('owner'), body: { roles: { [NORTH]: { buyer: GONE } } } });
+  assert.equal(no.status, 400);
+  assert.match(no.json.error, /is not on the team, so they cannot be the buyer/);
+  const guest = await call(e, 'PUT', '/ah/api/automations/people', { token: asCaller('owner'), body: { team_add: ['guest@other.test'] } });
+  assert.equal(guest.status, 400);
+  assert.equal(e.DB.rows('settings', `key = 'automationRoles'`)[0].value, before);
+  const owner = await call(e, 'PUT', '/ah/api/automations/people', { token: asCaller('owner'), body: { roles: { [NORTH]: { buyer: OWNER } } } });
+  assert.equal(owner.status, 200);
+  assert.equal(owner.json.roles[NORTH].buyer, OWNER);
+});

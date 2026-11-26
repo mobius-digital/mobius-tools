@@ -89,3 +89,44 @@ test('a read answered by the old engine because the new handler broke is used, a
   assert.equal(oldCalls(meant), 0);
   assert.equal(misses().length, 0);
 });
+
+test('a browser that made no choice uses the new engine (config.js ENGINE_DEFAULT), and one line in it goes back', async () => {
+  const { ENGINE_DEFAULT } = await import('../../../profit/v5/config.js');
+  const { engineMode, setEngineMode } = await import('../../../profit/v5/engine.js');
+  assert.equal(ENGINE_DEFAULT, 'new');
+  const own = store.get('lx5_engine');
+  try {
+    setEngineMode(null);
+    assert.equal(engineMode(), 'new');
+    const calls = stub({ engine: () => answer({ automations: [] }, 200, 'new'), old: () => answer({ automations: ['old'] }) });
+    assert.deepEqual(await api(READ, { worker: 'ah' }), { automations: [] });
+    assert.deepEqual(calls.map(c => c.which), ['engine']);
+    setEngineMode('old');
+    const back = stub({ engine: () => answer({ automations: [] }, 200, 'new'), old: () => answer({ automations: ['old'] }) });
+    assert.deepEqual(await api(READ, { worker: 'ah' }), { automations: ['old'] });
+    assert.deepEqual(back.map(c => c.which), ['old']);
+  } finally { store.set('lx5_engine', own); }
+});
+
+test('by default a read the engine does not answer in time, or cannot be reached for, is asked of the old engine', async () => {
+  const own = store.get('lx5_engine');
+  store.delete('lx5_engine');
+  try {
+    for (const fail of [() => { throw Object.assign(new Error('aborted'), { name: 'AbortError' }); }, () => { throw new TypeError('Failed to fetch'); }]) {
+      const calls = stub({ engine: fail, old: () => answer({ automations: ['old'] }) });
+      assert.deepEqual(await api(READ, { worker: 'ah' }), { automations: ['old'] });
+      assert.deepEqual(calls.map(c => c.which), ['engine', 'old']);
+      assert.equal(misses()[0].kind, 'failed');
+    }
+  } finally { store.set('lx5_engine', own); }
+});
+
+test('by default the server flag off (the engine pipes to the old engine) is used as the answer, not asked twice', async () => {
+  const own = store.get('lx5_engine');
+  store.delete('lx5_engine');
+  try {
+    const calls = stub({ engine: () => answer({ automations: ['piped'] }, 200, 'pipe'), old: () => answer({ automations: ['old'] }) });
+    assert.deepEqual(await api(READ, { worker: 'ah' }), { automations: ['piped'] });
+    assert.equal(oldCalls(calls), 0);
+  } finally { store.set('lx5_engine', own); }
+});
