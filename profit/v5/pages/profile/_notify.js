@@ -80,3 +80,32 @@ export function cellOn(notify, typeId, channel) {
   if (channel === 'in_app') return true;
   return !!(notify && notify.channels && notify.channels[channel] && notify.types && notify.types[typeId] && notify.types[typeId][channel]);
 }
+
+/* ---- the client page (2026-11-26): pure helpers, so test-notify.mjs checks them in node ---- */
+
+/** Is this answer the client list? Only then does "See as client" draw it (never the team's list by mistake). */
+export const isClientCatalog = d => !!(d && d.catalog && d.catalog.audience === 'client' && Array.isArray(d.catalog.types));
+
+/** The read only "See as client" address: the client page for this brand. */
+export const previewPath = brandId => '/api/me/delivery?as=client' + (brandId ? '&act=' + encodeURIComponent(brandId) : '');
+
+const TEAM_GROUPS = { urgent: 'Urgent', needs_me: 'Needs you', brief: 'Morning' };
+const CLIENT_GROUPS = { urgent: 'Due soon', needs_me: 'Waiting on you', brief: 'Updates and reports' };
+/** A group's heading, in the reader's words. */
+export const groupTitle = (group, client = false) => (client ? CLIENT_GROUPS : TEAM_GROUPS)[group] || group;
+
+/** "About Northlake Golf." for a client: its own brands, as the server named them. Empty when there are none. */
+export function brandLine(brands) {
+  const names = (Array.isArray(brands) ? brands : []).map(b => b && String(b.name || '').trim()).filter(Boolean);
+  if (!names.length) return '';
+  const list = names.length === 1 ? names[0] : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
+  return 'About ' + list + ' only.';
+}
+
+/** The small line under a group: when copies outside Locus start. */
+export function copyNotes(list, { client = false, copiesOn = false } = {}) {
+  const out = [];
+  if ((list || []).some(t => t.copy === 'dec5') && !copiesOn) out.push('Slack and email copies start Dec 5. Until then they show here in Locus.');
+  if ((list || []).some(t => t.copy === 'soon')) out.push(client ? 'Copies outside Locus are coming soon. Until then they show here in Locus.' : 'Slack copies are coming soon.');
+  return out;
+}

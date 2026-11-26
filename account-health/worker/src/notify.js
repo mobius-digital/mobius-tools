@@ -12,7 +12,12 @@
  * is what happens to them today (the page must show the truth, and a first save must not drop the DM).
  *
  * A send path never decides who wants what itself: it calls personWants(env, d, email, typeId, channel).
- * The v5 page (profit/v5/pages/profile/_notify.js) carries the same fill rules so a tap fills at once. */
+ * The v5 page (profit/v5/pages/profile/_notify.js) carries the same fill rules so a tap fills at once.
+ *
+ * A client login (2026-11-26) gets the same three presets in its own words (CLIENT_PRESETS) over its own short list
+ * (who: client): its updates and reports, what waits on its approval, replies from its team. Urgent for a client is
+ * an approval due within a day or late. A client never sees a team type, and a client row (audience client) never
+ * counts for a team send path. */
 
 export const NOTIFY_PRESETS = [
   { id: 'only_urgent', name: 'Only urgent', sub: 'Money at risk or something broken.' },
@@ -50,29 +55,44 @@ export const NOTIFY_TYPES = [
   { id: 'tasks_late', name: 'Tasks late or due today', note: 'Your tasks that are late or due today.', group: 'needs_me', urgent: false, who: 'team', presets: E, copy: 'soon' },
   { id: 'war_room', name: 'War Room check-in waiting', note: 'Brands waiting on Approve in the War Room.', group: 'needs_me', urgent: false, who: 'owner', presets: E, copy: 'soon' },
   { id: 'morning_brief', name: 'Morning brief', note: 'One short list of your work today.', group: 'brief', urgent: false, who: 'team', presets: ['urgent_brief', 'everything'], copy: 'now' },
-  { id: 'client_waiting', name: 'Things waiting on you', note: 'Approvals and questions from your team.', group: 'client', urgent: false, who: 'client', presets: [], copy: 'soon' },
+  /* A client login's own list (2026-11-26, Cole: clients get their own presets). Only their own brand's updates,
+     approvals and replies; never an internal alert. Urgent for a client = an approval with a deadline that is due
+     within a day or already late. No sender reaches a client outside Locus yet (copy 'soon'). */
+  { id: 'client_approval_due', name: 'An approval is due soon', note: 'Something waiting on your yes has a deadline today or is already late.', group: 'urgent', urgent: true, who: 'client', presets: U, copy: 'soon' },
+  { id: 'client_waiting', name: 'Waiting on your approval', note: 'New ads to review and requests that need your yes.', group: 'needs_me', urgent: false, who: 'client', presets: E, copy: 'soon' },
+  { id: 'client_replies', name: 'Replies from your team', note: 'Answers to your requests and your comments.', group: 'needs_me', urgent: false, who: 'client', presets: E, copy: 'soon' },
+  { id: 'client_daily', name: 'Your daily update', note: 'How your brand did yesterday, in a few lines.', group: 'brief', urgent: false, who: 'client', presets: ['urgent_brief', 'everything'], copy: 'soon' },
+  { id: 'client_reports', name: 'A report is ready', note: 'Your weekly and monthly reports, when they are ready to read.', group: 'brief', urgent: false, who: 'client', presets: ['urgent_brief', 'everything'], copy: 'soon' },
+];
+/** The same three presets in a client's words: their team's approvals and updates, never the agency's alarms. */
+export const CLIENT_PRESETS = [
+  { id: 'only_urgent', name: 'Only urgent', sub: 'Only when an approval is due soon.' },
+  { id: 'urgent_brief', name: 'Only urgent + morning brief', sub: 'The same, plus your daily update and reports.' },
+  { id: 'everything', name: 'Everything that needs me', sub: 'Every approval, reply and update from your team, as it comes in.' },
+  { id: 'custom', name: 'Custom', sub: 'You changed one below. Pick a preset to reset.' },
 ];
 const TYPE = Object.fromEntries(NOTIFY_TYPES.map(t => [t.id, t]));
 export const typeOf = id => TYPE[id] || null;
 
-/** The types this person may pick: a client gets only client_waiting, a teammate no owner only type. */
+/** The types this person may pick: a client gets only the client types, a teammate no owner only type and no client type. */
 export function catalogTypes({ owner = false, client = false } = {}) {
   if (client) return NOTIFY_TYPES.filter(t => t.who === 'client');
   return NOTIFY_TYPES.filter(t => t.who === 'team' || (owner && t.who === 'owner'));
 }
 /** The channels as the page draws them. in_app is always on and never stored. */
-export function channelsView(d = {}, { client = false } = {}) {
+export function channelsView(d = {}) {
   return [
     { id: 'in_app', name: 'In Locus', always: true, ready: true, note: 'Always' },
-    { id: 'slack_dm', name: 'Slack DM', ready: !client && !!d.slackApi, note: client ? 'Not for client logins.' : d.slackApi ? null : 'Slack is not connected.' },
+    { id: 'slack_dm', name: 'Slack DM', ready: !!d.slackApi, note: d.slackApi ? null : 'Slack is not connected.' },
     { id: 'email', name: 'Email', ready: !!d.sendEmail, note: d.sendEmail ? null : 'Saved. Email starts when the product mailbox is set up.' },
     { id: 'push', name: 'Phone', ready: false, note: 'Coming soon' },
   ];
 }
 /** The whole catalog answer of GET /api/me/delivery. */
 export function catalogView(d, who, copiesOn) {
+  const client = !!(who && who.client);
   const types = catalogTypes(who).map(t => ({ id: t.id, name: t.name, note: t.note, group: t.group, urgent: t.urgent, presets: t.presets.slice(), copy: t.copy }));
-  return { types, presets: NOTIFY_PRESETS.map(p => ({ ...p })), channels: channelsView(d, who), copies_on: !!copiesOn };
+  return { audience: client ? 'client' : 'team', types, presets: (client ? CLIENT_PRESETS : NOTIFY_PRESETS).map(p => ({ ...p })), channels: channelsView(d), copies_on: !!copiesOn };
 }
 
 const bool = v => v === true;
@@ -116,24 +136,25 @@ export function defaultNotify(catalog, { slackDm = false } = {}) {
   return { preset: 'urgent_brief', channels, types: fillPreset(catalog, 'urgent_brief', channels) };
 }
 /** A stored or sent notify made safe: unknown types and channels dropped, booleans only, complete for the catalog.
- *  A client keeps only client_waiting, never slack_dm or push. */
+ *  A client keeps only the client types and is marked audience 'client'. A client's saved choice read with a team
+ *  catalog (a send path walking every saved row: mywork.js dmRecipients, urgent.js personWants) reads as nothing on,
+ *  so a client's "Slack DM on" never opts them into a team brief or an internal alert. */
 export function cleanNotify(raw, catalog, { client = false } = {}) {
-  const cat = client ? catalog.filter(t => t.who === 'client' || t.id === 'client_waiting') : catalog;
+  const cat = client ? catalog.filter(t => t.who === 'client') : catalog.filter(t => t.who !== 'client');
   const r = raw && typeof raw === 'object' ? raw : {};
+  if (!client && r.audience === 'client') return { preset: 'urgent_brief', channels: noChannels(), types: fillPreset(cat, 'urgent_brief', noChannels()) };
   const preset = PRESET_IDS.includes(r.preset) ? r.preset : 'urgent_brief';
   const channels = noChannels();
   for (const c of CHANNEL_IDS) channels[c] = bool(r.channels && r.channels[c]);
-  if (client) { channels.slack_dm = false; channels.push = false; }
   let types;
   if (preset === 'custom') {
     types = {};
     for (const t of cat) {
       const cell = (r.types && r.types[t.id]) || {};
       types[t.id] = { slack_dm: bool(cell.slack_dm), email: bool(cell.email), push: bool(cell.push) };
-      if (client) { types[t.id].slack_dm = false; types[t.id].push = false; }
     }
   } else types = fillPreset(cat, preset, channels);
-  return { preset, channels, types };
+  return client ? { audience: 'client', preset, channels, types } : { preset, channels, types };
 }
 
 /** Does this notify want this type on this channel? in_app always; push never yet (no sender exists). */
@@ -175,7 +196,8 @@ export async function allSavedNotify(env) {
 export async function notifyOf(env, email, { client = false, owner = false, slackDm = false } = {}) {
   const cat = catalogTypes({ owner, client });
   const raw = await savedNotify(env, email);
-  return raw ? cleanNotify(raw, cat, { client }) : defaultNotify(cat, { slackDm: slackDm && !client });
+  if (raw) return cleanNotify(raw, cat, { client });
+  return client ? { audience: 'client', ...defaultNotify(cat) } : defaultNotify(cat, { slackDm });
 }
 /** Save one person's notify (the row is made when missing; the old columns keep their defaults). */
 export async function saveNotify(env, email, n, at = new Date().toISOString()) {

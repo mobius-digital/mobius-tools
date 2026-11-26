@@ -6,9 +6,10 @@
  */
 import { DatabaseSync } from 'node:sqlite';
 import assert from 'node:assert/strict';
-import { NOTIFY_TYPES, NOTIFY_PRESETS, catalogTypes, fillPreset, applyPreset, applyChannels, applyCell, cleanNotify, defaultNotify, wants, personWants, notifyOf, saveNotify, _resetNotify } from './src/notify.js';
+import { NOTIFY_TYPES, NOTIFY_PRESETS, CLIENT_PRESETS, catalogView, catalogTypes, fillPreset, applyPreset, applyChannels, applyCell, cleanNotify, defaultNotify, wants, personWants, notifyOf, saveNotify, _resetNotify } from './src/notify.js';
 import { handleAutomations, _reset } from './src/automations.js';
-import { CLIENT_RULES } from './src/brandguard.js';
+import { CLIENT_RULES, SETUP_MAY } from './src/brandguard.js';
+import { readFileSync } from 'node:fs';
 import { _test as myWork } from './src/mywork.js';
 import { ROSTER } from './src/actions.js';
 
@@ -29,7 +30,8 @@ function fresh() {
 }
 const setS = (k, v) => db.prepare(`INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).run(k, typeof v === 'string' ? v : JSON.stringify(v));
 
-const BRANDS = [{ act_id: 'brand_northlake_golf', name: 'Northlake Golf', tz: 'America/Chicago', active: 1 }];
+const BRANDS = [{ act_id: 'brand_northlake_golf', name: 'Northlake Golf', tz: 'America/Chicago', active: 1 },
+  { act_id: 'brand_southpine_tees', name: 'Southpine Tees', tz: 'America/Chicago', active: 1 }];
 let session = null, client = null;
 const d = {
   now: () => new Date('2026-03-11T16:00:00Z'),
@@ -45,7 +47,10 @@ const as = (email, c = null) => { session = email; client = c; };
 let n = 0;
 const ok = (name, fn) => Promise.resolve().then(fn).then(() => { n++; }, e => { console.error('FAILED: ' + name + '\n', e); process.exitCode = 1; });
 
-const TEAM = catalogTypes({ owner: false }), OWNER = catalogTypes({ owner: true });
+const TEAM = catalogTypes({ owner: false }), OWNER = catalogTypes({ owner: true }), CLIENT = catalogTypes({ client: true });
+const CLIENT_IDS = ['client_approval_due', 'client_waiting', 'client_replies', 'client_daily', 'client_reports'];
+const PAT = { email: 'pat@northlake.example', ids: new Set(['brand_northlake_golf']) };
+const TEAM_IDS = NOTIFY_TYPES.filter(t => t.who !== 'client').map(t => t.id);
 const allCells = t => Object.values(t).flatMap(c => [c.slack_dm, c.email, c.push]);
 
 await ok('the default sends nothing anywhere: urgent_brief, every channel off, every cell off', () => {
@@ -85,15 +90,18 @@ await ok('a channel change refills from the preset; custom keeps its cells; a ce
   s = applyPreset(TEAM, s, 'everything');
   assert.equal(s.preset, 'everything', 'a preset resets custom');
 });
-await ok('cleanNotify drops unknown ids, coerces booleans, and holds a client to client_waiting with no slack or push', () => {
+await ok('cleanNotify drops unknown ids, coerces booleans, and holds a client to the client types', () => {
   const c = cleanNotify({ preset: 'custom', channels: { slack_dm: 1, email: true, fax: true }, types: { spend_high: { slack_dm: true, email: 'yes' }, nope: { slack_dm: true } } }, TEAM);
   assert.deepEqual(c.channels, { slack_dm: false, email: true, push: false });
   assert.ok(!('nope' in c.types)); assert.deepEqual(c.types.spend_high, { slack_dm: true, email: false, push: false });
   assert.ok(!('fax' in c.channels));
   const cl = cleanNotify({ preset: 'custom', channels: { slack_dm: true, email: true, push: true }, types: { client_waiting: { slack_dm: true, email: true, push: true }, spend_high: { email: true } } }, catalogTypes({ client: true }), { client: true });
-  assert.deepEqual(Object.keys(cl.types), ['client_waiting']);
-  assert.deepEqual(cl.channels, { slack_dm: false, email: true, push: false });
-  assert.deepEqual(cl.types.client_waiting, { slack_dm: false, email: true, push: false });
+  assert.deepEqual(Object.keys(cl.types), CLIENT_IDS);
+  assert.equal(cl.audience, 'client');
+  assert.deepEqual(cl.channels, { slack_dm: true, email: true, push: true }, 'Slack DM, email and phone per type, as for the team');
+  assert.deepEqual(cl.types.client_waiting, { slack_dm: true, email: true, push: true });
+  assert.ok(!('spend_high' in cl.types), 'an internal alert never sticks to a client');
+  assert.equal(wants(cl, 'client_waiting', 'push'), false, 'no phone sender yet');
 });
 await ok('wants: in_app always true, push always false (no sender yet)', () => {
   const s = applyChannels(TEAM, applyPreset(TEAM, defaultNotify(TEAM), 'everything'), { slack_dm: true, email: true, push: true });
@@ -101,12 +109,13 @@ await ok('wants: in_app always true, push always false (no sender yet)', () => {
   assert.equal(wants(s, 'spend_high', 'push'), false);
   assert.equal(wants(s, 'spend_high', 'email'), true);
 });
-await ok('owner only types are missing from a teammate catalog; a client gets only client_waiting', () => {
+await ok('owner only types are missing from a teammate catalog; a client gets only the client types', () => {
   const ids = TEAM.map(t => t.id);
   for (const id of ['claude_failed', 'meta_sync', 'outage', 'war_room']) assert.ok(!ids.includes(id), id);
   assert.ok(OWNER.some(t => t.id === 'outage'));
-  assert.deepEqual(catalogTypes({ client: true }).map(t => t.id), ['client_waiting']);
-  assert.equal(NOTIFY_TYPES.length, 22, '15 plus the 7 alarms (alarms.js)');
+  assert.deepEqual(catalogTypes({ client: true }).map(t => t.id), CLIENT_IDS);
+  assert.ok(!OWNER.some(t => t.who === 'client'), 'no client type in a team list, not even the owner\'s');
+  assert.equal(NOTIFY_TYPES.length, 26, '15 plus the 7 alarms (alarms.js) plus 4 more client types');
 });
 await ok('GET then PUT /api/me/delivery keeps the old fields and round trips notify', async () => {
   fresh(); as('sam@agency.example');
@@ -150,12 +159,12 @@ await ok('someone on the morning brief DM list sees Slack DM on with nothing sav
   assert.equal(defaultNotify(TEAM, { slackDm: true }).types.morning_brief.slack_dm, true);
   assert.equal(defaultNotify(TEAM).channels.slack_dm, false);
 });
-await ok('a client PUT keeps only client_waiting, never slack or push', async () => {
-  fresh(); as('pat@northlake.example', { email: 'pat@northlake.example', ids: new Set(['brand_northlake_golf']) });
+await ok('a client PUT keeps only the client types; a team type in the body is dropped', async () => {
+  fresh(); as('pat@northlake.example', PAT);
   const p = await call('PUT', '/api/me/delivery', { notify: { channels: { slack_dm: true, email: true, push: true }, types: { spend_high: { email: true } } } });
-  assert.deepEqual(Object.keys(p.body.notify.types), ['client_waiting']);
-  assert.equal(p.body.notify.channels.slack_dm, false); assert.equal(p.body.notify.channels.push, false);
-  assert.deepEqual(p.body.catalog.types.map(t => t.id), ['client_waiting']);
+  assert.deepEqual(Object.keys(p.body.notify.types), CLIENT_IDS);
+  assert.equal(p.body.notify.channels.slack_dm, true); assert.equal(p.body.notify.channels.email, true);
+  assert.deepEqual(p.body.catalog.types.map(t => t.id), CLIENT_IDS);
 });
 await ok('personWants: false with nothing saved, true once a channel is on, false when the channel is not ready', async () => {
   fresh(); as('sam@agency.example');
@@ -215,6 +224,101 @@ await ok('saveNotify makes the row with the old columns at their defaults', asyn
   await saveNotify(env, 'lee@agency.example', defaultNotify(TEAM));
   const r = db.prepare(`SELECT read_hour, mode, notify_json FROM p_person_delivery WHERE person_id = 'lee@agency.example'`).get();
   assert.equal(r.read_hour, 7); assert.equal(r.mode, 'now'); assert.equal(JSON.parse(r.notify_json).preset, 'urgent_brief');
+});
+
+/* ---- client presets (2026-11-26) ---- */
+await ok('the client list: five types, the same three presets in client words, urgent = an approval due soon', () => {
+  assert.ok(CLIENT.every(t => t.who === 'client'));
+  assert.deepEqual(CLIENT.filter(t => t.urgent).map(t => t.id), ['client_approval_due']);
+  const ch = { slack_dm: false, email: true, push: false };
+  const ids = preset => Object.entries(fillPreset(CLIENT, preset, ch)).filter(([, c]) => c.email).map(([id]) => id).sort();
+  assert.deepEqual(ids('only_urgent'), ['client_approval_due']);
+  assert.deepEqual(ids('urgent_brief'), ['client_approval_due', 'client_daily', 'client_reports'], 'the morning brief for a client is the daily update and reports');
+  assert.deepEqual(ids('everything'), [...CLIENT_IDS].sort());
+  const v = catalogView({ slackApi: true }, { client: true }, false);
+  assert.equal(v.audience, 'client');
+  assert.deepEqual(v.presets.map(p => p.id), NOTIFY_PRESETS.map(p => p.id));
+  assert.deepEqual(v.presets, CLIENT_PRESETS);
+  assert.deepEqual(v.channels.map(c => c.id), ['in_app', 'slack_dm', 'email', 'push']);
+  assert.equal(v.channels.find(c => c.id === 'slack_dm').ready, true, 'Slack DM per type, as for the team');
+  const words = JSON.stringify(v);
+  assert.ok(!/money at risk|broken|meta sync|claude|outage|spend far|war room/i.test(words), 'no internal alert words');
+  assert.ok(!/[\u2013\u2014]/.test(words), 'no dashes');
+  assert.equal(catalogView({}, { owner: true }, false).audience, 'team');
+});
+await ok('a client\'s saved choice never opts them into a team brief or an internal alert', async () => {
+  fresh(); as('pat@northlake.example', PAT);
+  await call('PUT', '/api/me/delivery', { notify: { preset: 'everything', channels: { slack_dm: true, email: true } } });
+  const raw = JSON.parse(db.prepare(`SELECT notify_json FROM p_person_delivery WHERE person_id = 'pat@northlake.example'`).get().notify_json);
+  assert.equal(raw.audience, 'client', 'stored with its audience');
+  const asTeam = cleanNotify(raw, OWNER);
+  assert.ok(allCells(asTeam.types).every(v => v === false), 'read with a team list: nothing on');
+  assert.deepEqual(asTeam.channels, { slack_dm: false, email: false, push: false });
+  assert.equal(await personWants(env, d, 'pat@northlake.example', 'spend_high', 'slack_dm'), false);
+  assert.equal(await personWants(env, d, 'pat@northlake.example', 'account_blocked', 'slack_dm'), false);
+  const people = [{ name: 'Pat', email: 'pat@northlake.example', slack: 'U_PAT' }];
+  assert.deepEqual(myWork.dmRecipients([], people, { 'pat@northlake.example': raw }), [], 'never on the team morning DM');
+});
+await ok('a client login end to end: asked once, own brand only, client list only, saved, never asked again', async () => {
+  fresh(); as('pat@northlake.example', PAT);
+  const g = await call('GET', '/api/me/delivery');
+  assert.equal(g.status, 200);
+  assert.equal(g.body.notify_chosen, false, 'the first sign in sheet asks a client too');
+  assert.equal(g.body.catalog.audience, 'client');
+  assert.deepEqual(g.body.catalog.types.map(t => t.id), CLIENT_IDS);
+  assert.equal(g.body.notify.preset, 'urgent_brief');
+  assert.deepEqual(g.body.notify.channels, { slack_dm: false, email: false, push: false }, 'nothing leaves Locus until a channel is on');
+  assert.deepEqual(g.body.brands, [{ id: 'brand_northlake_golf', name: 'Northlake Golf' }], 'its own brand and no other');
+  const text = JSON.stringify(g.body);
+  assert.ok(!text.includes('Southpine') && !text.includes('brand_southpine_tees'), 'another brand never shows');
+  for (const id of TEAM_IDS) assert.ok(!text.includes('"' + id + '"'), 'no internal type: ' + id);
+  const g2 = await call('GET', '/api/me/delivery?as=client&act=brand_southpine_tees');
+  assert.ok(!g2.body.preview, 'a client asking for the preview gets its own page');
+  assert.deepEqual(g2.body.brands, [{ id: 'brand_northlake_golf', name: 'Northlake Golf' }]);
+  const p = await call('PUT', '/api/me/delivery', { notify: { preset: 'only_urgent', channels: { email: true } } });
+  assert.equal(p.body.notify_chosen, true);
+  assert.equal(p.body.notify.preset, 'only_urgent');
+  assert.deepEqual(Object.entries(p.body.notify.types).filter(([, c]) => c.email).map(([id]) => id), ['client_approval_due']);
+  const p2 = await call('PUT', '/api/me/delivery', { notify: { types: { client_replies: { email: true }, outage: { email: true } } } });
+  assert.equal(p2.body.notify.preset, 'custom');
+  assert.equal(p2.body.notify.types.client_replies.email, true);
+  assert.ok(!('outage' in p2.body.notify.types));
+  const again = await call('GET', '/api/me/delivery');
+  assert.equal(again.body.notify_chosen, true, 'never asked again');
+  assert.equal(again.body.notify.types.client_replies.email, true);
+});
+await ok('See as client: the team reads the client page with its default, for its own brand, and nothing is saved', async () => {
+  fresh(); as('sam@agency.example');
+  await call('GET', '/api/me/delivery');
+  const rows = () => db.prepare(`SELECT COUNT(*) AS n FROM p_person_delivery`).get().n;
+  const before = rows();
+  const g = await call('GET', '/api/me/delivery?as=client&act=brand_northlake_golf');
+  assert.equal(g.status, 200);
+  assert.equal(g.body.preview, true);
+  assert.equal(g.body.catalog.audience, 'client');
+  assert.deepEqual(g.body.catalog.types.map(t => t.id), CLIENT_IDS);
+  assert.deepEqual(g.body.catalog.presets, CLIENT_PRESETS);
+  assert.equal(g.body.notify.preset, 'urgent_brief');
+  assert.deepEqual(g.body.brands, [{ id: 'brand_northlake_golf', name: 'Northlake Golf' }]);
+  assert.ok(!('per' in g.body) && !('delivery' in g.body), 'no automation or team choice comes along');
+  const text = JSON.stringify(g.body);
+  for (const id of TEAM_IDS) assert.ok(!text.includes('"' + id + '"'), 'no internal type: ' + id);
+  const p = await call('PUT', '/api/me/delivery?as=client', { notify: { preset: 'everything', channels: { email: true } } });
+  assert.equal(p.status, 400, 'a save while seeing as client is refused');
+  assert.equal(rows(), before, 'nothing written');
+  const mine = await call('GET', '/api/me/delivery');
+  assert.equal(mine.body.notify_chosen, false, 'the teammate\'s own choice is untouched');
+  assert.equal(mine.body.catalog.audience, 'team');
+  const scoped = { ...d, brandsFor: async () => new Set(['brand_southpine_tees']) };
+  const other = await call('GET', '/api/me/delivery?as=client&act=brand_northlake_golf', null, scoped);
+  assert.deepEqual(other.body.brands, [], 'a brand this teammate cannot see is not named');
+});
+await ok('brandguard: a client may read and save its own delivery (also on Get started); both copies identical', () => {
+  assert.ok(CLIENT_RULES.some(r => r.m === 'GET' && r.p === '/api/me/delivery'));
+  assert.ok(CLIENT_RULES.some(r => r.m === 'PUT' && r.p === '/api/me/delivery'));
+  assert.ok(SETUP_MAY.has('GET /api/me/delivery') && SETUP_MAY.has('PUT /api/me/delivery'));
+  const here = new URL('.', import.meta.url);
+  assert.equal(readFileSync(new URL('./src/brandguard.js', here), 'utf8'), readFileSync(new URL('../../profit/worker/src/brandguard.js', here), 'utf8'));
 });
 
 console.log(process.exitCode ? 'test-notify: FAILED' : `test-notify: ${n} checks passed`);

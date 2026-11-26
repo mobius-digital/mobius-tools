@@ -5,11 +5,12 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
-import { fillPreset, defaultNotify, normalNotify, applyPreset, applyChannels, applyCell, isCustom, cellOn } from './pages/profile/_notify.js';
+import { fillPreset, defaultNotify, normalNotify, applyPreset, applyChannels, applyCell, isCustom, cellOn, isClientCatalog, previewPath, groupTitle, brandLine, copyNotes } from './pages/profile/_notify.js';
 
 const here = p => fileURLToPath(new URL(p, import.meta.url));
 const sample = JSON.parse(readFileSync(here('./pages/profile/_sample/delivery.json'), 'utf8'));
 const types = sample.catalog.types;
+const clientSample = JSON.parse(readFileSync(here('./pages/profile/_sample/delivery-client.json'), 'utf8'));
 let n = 0;
 const ok = (name, fn) => { fn(); n++; console.log('ok  ' + name); };
 const on = (notify, ch) => Object.entries(notify.types).filter(([, c]) => c[ch]).map(([id]) => id).sort();
@@ -130,6 +131,34 @@ ok('back on brings them back', () => {
   assert.equal(menu.setFeatures({ creatorProgram: true }), true);
   assert.ok(lines('brand', 'team').includes('creators'));
   assert.ok(lines('agency', 'team').includes('a-creators'));
+});
+
+ok('the client page: its own list, the same rules, its own brand, client words', () => {
+  const ct = clientSample.catalog.types;
+  assert.equal(isClientCatalog(clientSample), true);
+  assert.equal(isClientCatalog(sample), false, 'the team list is never drawn as the client page');
+  assert.equal(isClientCatalog({ preview: true }), false, 'a failed preview read draws the plain state');
+  assert.ok(ct.every(t => /^client_/.test(t.id)), 'only client types');
+  const teamIds = new Set(types.map(t => t.id));
+  assert.ok(ct.every(t => !teamIds.has(t.id)), 'no internal alert in the client list');
+  const d = normalNotify(clientSample.notify, ct);
+  assert.equal(d.preset, 'urgent_brief');
+  for (const ch of ['slack_dm', 'email', 'push']) assert.deepEqual(on(d, ch), [], 'nothing leaves Locus by default');
+  const e = applyChannels(applyPreset(d, ct, 'only_urgent'), ct, { email: true });
+  assert.deepEqual(on(e, 'email'), ['client_approval_due'], 'only urgent = an approval due soon');
+  assert.deepEqual(on(applyPreset(e, ct, 'urgent_brief'), 'email'), ['client_approval_due', 'client_daily', 'client_reports']);
+  const c = applyCell(e, ct, 'client_replies', 'email', true);
+  assert.equal(isCustom(c), true);
+  assert.equal(brandLine(clientSample.brands), 'About Northlake Golf only.');
+  assert.equal(brandLine([{ name: 'A' }, { name: 'B' }, { name: 'C' }]), 'About A, B and C only.');
+  assert.equal(brandLine([]), '');
+  assert.equal(previewPath('brand_northlake_golf'), '/api/me/delivery?as=client&act=brand_northlake_golf');
+  assert.equal(previewPath(null), '/api/me/delivery?as=client');
+  assert.deepEqual(['urgent', 'needs_me', 'brief'].map(g => groupTitle(g, true)), ['Due soon', 'Waiting on you', 'Updates and reports']);
+  assert.deepEqual(['urgent', 'needs_me', 'brief'].map(g => groupTitle(g)), ['Urgent', 'Needs you', 'Morning']);
+  assert.ok(!copyNotes(ct, { client: true }).some(x => /slack/i.test(x)), 'client copy words');
+  assert.ok(!/[\u2013\u2014]/.test(JSON.stringify(clientSample)), 'no dashes');
+  assert.ok(!/[\u2013\u2014]/.test(readFileSync(here('./pages/profile/delivery.js'), 'utf8') + readFileSync(here('./pages/profile/_notify.js'), 'utf8')), 'no dashes in the page files');
 });
 
 console.log(n + ' passed');

@@ -12,17 +12,17 @@
    an answer: it asks again next time.
 
    When it shows: account-health GET /api/me/delivery answers notify_chosen false (this person never saved a notify
-   choice; notify.js keeps it in p_person_delivery.notify_json). A teammate who already saved one never sees it. An
-   older server that does not answer notify_chosen shows nothing. Never for a client login (client_waiting is in no
-   preset yet, so all three picks would save the same thing), never over "See as client", never while a new client
-   is held on Get started, and never on top of another sheet (app.js opens it after the welcome cards are up, and it
-   waits until they close).
+   choice; notify.js keeps it in p_person_delivery.notify_json). Someone who already saved one never sees it. An
+   older server that does not answer notify_chosen shows nothing. A client login is asked too (2026-11-26), in client
+   words, once the server answers the client list (catalog.audience 'client': its updates and reports, approvals and
+   replies from its team, never an internal alert); an older server's client answer shows nothing. Never over
+   "See as client", never while a new client is held on Get started, and never on top of another sheet (app.js opens
+   it after the welcome cards are up, and it waits until they close).
    Save: PUT /api/me/delivery { notify: { preset, channels } }, the same body the Profile > How things reach me page
    sends. Only an answer that says notify_chosen true counts as saved (an engine answer without notify does not).
    Once this browser knows the answer is saved for this login it stops asking the server (localStorage, a convenience
    only: the server stays the truth).
-   Sample: ?sample=1&firstpreset=1 shows it (add &as=client for the client words, kept for when client presets
-   exist). Nothing is saved.
+   Sample: ?sample=1&firstpreset=1 shows it (add &as=client for the client words and list). Nothing is saved.
 
    The top half is pure (no DOM, no imports) so test-first-preset.mjs runs it in node; the sheet loads kit.js late. */
 
@@ -35,17 +35,21 @@ const TEAM_WORDS = {
   urgent_brief: { name: 'Only urgent + morning brief', sub: 'The same, plus one short morning brief.' },
   everything: { name: 'Everything that needs me', sub: 'Every row in your bell, the moment it lands.' },
 };
-/* A client hears about its own brand from its team, never the agency's internal alarms. Shown only in the forced
-   sample until client_waiting is in a preset (notify.js). */
+/* A client hears about its own brand from its team, never the agency's internal alarms. The server's words are
+   notify.js CLIENT_PRESETS; these are the fallback. */
 const CLIENT_WORDS = {
-  only_urgent: { name: 'Only urgent', sub: 'Only when something needs your answer right away.' },
-  urgent_brief: { name: 'Only urgent + morning brief', sub: 'The same, plus one short morning summary.' },
-  everything: { name: 'Everything that needs me', sub: 'Every approval and question from your team, as it comes in.' },
+  only_urgent: { name: 'Only urgent', sub: 'Only when an approval is due soon.' },
+  urgent_brief: { name: 'Only urgent + morning brief', sub: 'The same, plus your daily update and reports.' },
+  everything: { name: 'Everything that needs me', sub: 'Every approval, reply and update from your team, as it comes in.' },
 };
 
-/** The three choices, in order, with the words this person reads. catalog = the server's catalog (or null). */
+/** Is this catalog written for this reader? A client reads only a client catalog, the team never one. */
+const forReader = (catalog, client) => !!catalog && (catalog.audience === 'client') === !!client;
+
+/** The three choices, in order, with the words this person reads. catalog = the server's catalog (or null). The
+    server's words are used only when the catalog is for this reader (a team catalog never gives a client its words). */
 export function choices({ client = false, catalog = null } = {}) {
-  const fromServer = !client && catalog && Array.isArray(catalog.presets) ? catalog.presets : [];
+  const fromServer = forReader(catalog, client) && Array.isArray(catalog.presets) ? catalog.presets : [];
   return CHOICES.map(id => {
     const own = client ? CLIENT_WORDS[id] : TEAM_WORDS[id];
     const s = fromServer.find(p => p && p.id === id);
@@ -59,24 +63,25 @@ export function startPreset(notify) {
   return CHOICES.includes(p) ? p : DEFAULT_PRESET;
 }
 
-/** Ask the server at all? Not in sample (unless forced), not for a client login, not over "See as client", not
-    while held on Get started, not when this browser already knows the choice is made for this login. */
-export function shouldFetch({ sample = false, forced = false, client = false, asClient = false, held = false, known = false } = {}) {
+/** Ask the server at all? Not in sample (unless forced), not over "See as client", not while held on Get started,
+    not when this browser already knows the choice is made for this login. A client login is asked like the team. */
+export function shouldFetch({ sample = false, forced = false, asClient = false, held = false, known = false } = {}) {
   if (forced) return true;
-  return !sample && !client && !asClient && !held && !known;
+  return !sample && !asClient && !held && !known;
 }
 
-/** Show the sheet for this answer? Only an explicit notify_chosen false from a server that has the presets. */
-export function shouldShow(answer, { forced = false } = {}) {
+/** Show the sheet for this answer? Only an explicit notify_chosen false from a server that has the presets, and for
+    a client only the client list (an older server answered a client a list in no preset: every pick saved the same). */
+export function shouldShow(answer, { forced = false, client = false } = {}) {
   if (forced) return true;
-  return !!answer && answer.notify_chosen === false && !!answer.catalog && Array.isArray(answer.catalog.presets);
+  return !!answer && answer.notify_chosen === false && !!answer.catalog && Array.isArray(answer.catalog.presets) && forReader(answer.catalog, client);
 }
 
 /** The "Also send to" channels this person can turn on here: Slack DM and email when the server says they are ready.
-    In the app is always on and never a choice; Phone has no sender yet; a client never gets Slack DM. */
-export function channelChoices({ catalog = null, client = false } = {}) {
+    In the app is always on and never a choice; Phone has no sender yet. A client gets the same channels as the team. */
+export function channelChoices({ catalog = null } = {}) {
   const list = catalog && Array.isArray(catalog.channels) ? catalog.channels : [];
-  return list.filter(c => c && (c.id === 'slack_dm' || c.id === 'email') && c.ready === true && !(client && c.id === 'slack_dm'))
+  return list.filter(c => c && (c.id === 'slack_dm' || c.id === 'email') && c.ready === true)
     .map(c => ({ id: c.id, name: c.name || (c.id === 'slack_dm' ? 'Slack DM' : 'Email') }));
 }
 
@@ -151,16 +156,15 @@ export async function askOnce({ st, held = false } = {}) {
   const forced = SAMPLE && QS.get('firstpreset') === '1';
   const email = st && st.me && st.me.email;
   const key = knownKey(email);
-  const realClient = !!st && (st.realRole === 'client' || !!(st.me && st.me.client));
-  if (!shouldFetch({ sample: SAMPLE, forced, client: realClient, asClient: !!(st && st.asClient), held, known: !!email && read(key) === '1' })) return;
+  if (!shouldFetch({ sample: SAMPLE, forced, asClient: !!(st && st.asClient), held, known: !!email && read(key) === '1' })) return;
+  const client = forced ? st.role === 'client' : !!st && (st.realRole === 'client' || !!(st.me && st.me.client));
   const data = await import('../../data.js');
   let answer;
   try {
-    answer = forced ? await data.fixture('profile/_sample/delivery.json') : await data.api('/api/me/delivery', { worker: 'ah' });
+    answer = forced ? await data.fixture(client ? 'profile/_sample/delivery-client.json' : 'profile/_sample/delivery.json') : await data.api('/api/me/delivery', { worker: 'ah' });
   } catch { return; }                                        // an admin token, an older server, no connection: ask later
   if (!forced && answer && answer.notify_chosen === true && email) write(key, '1');
-  if (!shouldShow(answer, { forced })) return;
-  const client = forced ? st.role === 'client' : st.realRole === 'client';
+  if (!shouldShow(answer, { forced, client })) return;
   whenClear(() => open({ answer, client, forced, remember: () => { if (email && !forced) write(key, '1'); } }));
 }
 
@@ -170,7 +174,7 @@ async function open({ answer, client, forced, remember }) {
   addStyles('fp-css', CSS);
   const list = choices({ client, catalog: answer && answer.catalog });
   let picked = startPreset(forced ? null : answer && answer.notify), done = false, how = 'dismiss';
-  const offered = channelChoices({ catalog: answer && answer.catalog, client });
+  const offered = channelChoices({ catalog: answer && answer.catalog });
   const ch = startChannels(answer && answer.notify, offered);
 
   const opts = list.map(c => h('button', { type: 'button', class: 'fp-opt', role: 'radio', 'aria-checked': 'false', 'data-id': c.id,

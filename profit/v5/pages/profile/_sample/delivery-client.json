@@ -1,0 +1,197 @@
+{
+ "ok": true,
+ "email": "pat@northlake.example",
+ "delivery": {
+  "tz": "America/Chicago",
+  "read_hour": 7,
+  "read_days": [
+   "mon",
+   "tue",
+   "wed",
+   "thu",
+   "fri"
+  ],
+  "quiet_from": 19,
+  "quiet_to": 5,
+  "break_quiet": [
+   "tap",
+   "down"
+  ],
+  "mode": "now",
+  "ways": {
+   "home": false,
+   "slack": false,
+   "email": true
+  }
+ },
+ "per": [],
+ "modes": {},
+ "notify": {
+  "audience": "client",
+  "preset": "urgent_brief",
+  "channels": {
+   "slack_dm": false,
+   "email": false,
+   "push": false
+  },
+  "types": {
+   "client_approval_due": {
+    "slack_dm": false,
+    "email": false,
+    "push": false
+   },
+   "client_waiting": {
+    "slack_dm": false,
+    "email": false,
+    "push": false
+   },
+   "client_replies": {
+    "slack_dm": false,
+    "email": false,
+    "push": false
+   },
+   "client_daily": {
+    "slack_dm": false,
+    "email": false,
+    "push": false
+   },
+   "client_reports": {
+    "slack_dm": false,
+    "email": false,
+    "push": false
+   }
+  }
+ },
+ "catalog": {
+  "audience": "client",
+  "types": [
+   {
+    "id": "client_approval_due",
+    "name": "An approval is due soon",
+    "note": "Something waiting on your yes has a deadline today or is already late.",
+    "group": "urgent",
+    "urgent": true,
+    "presets": [
+     "only_urgent",
+     "urgent_brief",
+     "everything"
+    ],
+    "copy": "soon"
+   },
+   {
+    "id": "client_waiting",
+    "name": "Waiting on your approval",
+    "note": "New ads to review and requests that need your yes.",
+    "group": "needs_me",
+    "urgent": false,
+    "presets": [
+     "everything"
+    ],
+    "copy": "soon"
+   },
+   {
+    "id": "client_replies",
+    "name": "Replies from your team",
+    "note": "Answers to your requests and your comments.",
+    "group": "needs_me",
+    "urgent": false,
+    "presets": [
+     "everything"
+    ],
+    "copy": "soon"
+   },
+   {
+    "id": "client_daily",
+    "name": "Your daily update",
+    "note": "How your brand did yesterday, in a few lines.",
+    "group": "brief",
+    "urgent": false,
+    "presets": [
+     "urgent_brief",
+     "everything"
+    ],
+    "copy": "soon"
+   },
+   {
+    "id": "client_reports",
+    "name": "A report is ready",
+    "note": "Your weekly and monthly reports, when they are ready to read.",
+    "group": "brief",
+    "urgent": false,
+    "presets": [
+     "urgent_brief",
+     "everything"
+    ],
+    "copy": "soon"
+   }
+  ],
+  "presets": [
+   {
+    "id": "only_urgent",
+    "name": "Only urgent",
+    "sub": "Only when an approval is due soon."
+   },
+   {
+    "id": "urgent_brief",
+    "name": "Only urgent + morning brief",
+    "sub": "The same, plus your daily update and reports."
+   },
+   {
+    "id": "everything",
+    "name": "Everything that needs me",
+    "sub": "Every approval, reply and update from your team, as it comes in."
+   },
+   {
+    "id": "custom",
+    "name": "Custom",
+    "sub": "You changed one below. Pick a preset to reset."
+   }
+  ],
+  "channels": [
+   {
+    "id": "in_app",
+    "name": "In Locus",
+    "always": true,
+    "ready": true,
+    "note": "Always"
+   },
+   {
+    "id": "slack_dm",
+    "name": "Slack DM",
+    "ready": true,
+    "note": null
+   },
+   {
+    "id": "email",
+    "name": "Email",
+    "ready": false,
+    "note": "Saved. Email starts when the product mailbox is set up."
+   },
+   {
+    "id": "push",
+    "name": "Phone",
+    "ready": false,
+    "note": "Coming soon"
+   }
+  ],
+  "copies_on": false
+ },
+ "brands": [
+  {
+   "id": "brand_northlake_golf",
+   "name": "Northlake Golf"
+  }
+ ],
+ "notify_chosen": false,
+ "ways": {
+  "home": false,
+  "bell": true,
+  "slack": false,
+  "email": true
+ },
+ "ways_note": {
+  "bell": "Always on. The bell is the record.",
+  "email": "Your choice is saved. Email starts when the mail address for this product is set up. Until then it waits in the bell.",
+  "slack": null
+ }
+}

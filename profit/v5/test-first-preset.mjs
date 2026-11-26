@@ -9,6 +9,7 @@ import { CHOICES, DEFAULT_PRESET, choices, startPreset, shouldFetch, shouldShow,
 
 const here = p => fileURLToPath(new URL(p, import.meta.url));
 const sample = JSON.parse(readFileSync(here('./pages/profile/_sample/delivery.json'), 'utf8'));
+const clientSample = JSON.parse(readFileSync(here('./pages/profile/_sample/delivery-client.json'), 'utf8'));
 let n = 0;
 const ok = (name, fn) => { fn(); n++; console.log('ok  ' + name); };
 
@@ -36,6 +37,10 @@ ok('a client reads client words, never the team alarms', () => {
   assert.deepEqual(c.map(x => x.name), ['Only urgent', 'Only urgent + morning brief', 'Everything that needs me']);
   assert.ok(c.every(x => !/money at risk|broken|bell/i.test(x.sub)), 'no agency alarm words');
   assert.ok(c.some(x => /your team/i.test(x.sub)));
+  const s = choices({ client: true, catalog: clientSample.catalog });
+  for (const x of s) assert.equal(x.sub, clientSample.catalog.presets.find(p => p.id === x.id).sub, 'the server\'s client words');
+  assert.ok(s.every(x => !/money at risk|broken|bell/i.test(x.sub)));
+  assert.deepEqual(choices({ client: false, catalog: clientSample.catalog }).map(x => x.sub), choices({}).map(x => x.sub), 'the team never reads client words');
 });
 
 ok('shows only on an explicit notify_chosen false from a server with presets', () => {
@@ -45,12 +50,17 @@ ok('shows only on an explicit notify_chosen false from a server with presets', (
   assert.equal(shouldShow({ notify_chosen: false }), false, 'no catalog: nothing');
   assert.equal(shouldShow(null), false);
   assert.equal(shouldShow(null, { forced: true }), true, '?firstpreset=1 in sample');
+  assert.equal(shouldShow({ ...clientSample, notify_chosen: false }, { client: true }), true, 'a client with the client list');
+  assert.equal(shouldShow({ ...sample, notify_chosen: false }, { client: true }), false, 'a client never gets the team list');
+  assert.equal(shouldShow({ ...clientSample, notify_chosen: false }), false, 'the team never gets the client list');
+  assert.equal(shouldShow({ ...clientSample, notify_chosen: true }, { client: true }), false, 'a client who saved is not asked again');
 });
 
-ok('who is asked: not in sample, not a client login, not as client preview, not on Get started, not once known', () => {
+ok('who is asked: a teammate and a client login; not in sample, not as client preview, not on Get started, not once known', () => {
   assert.equal(shouldFetch({}), true);
-  assert.equal(shouldFetch({ client: true }), false, 'client_waiting is in no preset: a client pick would change nothing');
-  assert.equal(shouldFetch({ client: true, sample: true, forced: true }), true, 'the sample still shows the client words');
+  assert.equal(shouldFetch({ client: true }), true, 'a client login is asked too, with its own list');
+  assert.equal(shouldFetch({ client: true, sample: true, forced: true }), true, 'the sample shows the client words');
+  assert.equal(shouldFetch({ client: true, held: true }), false, 'not while held on Get started');
   assert.equal(shouldFetch({ sample: true }), false);
   assert.equal(shouldFetch({ sample: true, forced: true }), true);
   assert.equal(shouldFetch({ asClient: true }), false);
@@ -58,12 +68,14 @@ ok('who is asked: not in sample, not a client login, not as client preview, not 
   assert.equal(shouldFetch({ known: true }), false);
 });
 
-ok('Also send to: only Slack DM and email that are ready; a client never gets Slack DM', () => {
+ok('Also send to: only Slack DM and email that are ready; a client gets the same channels as the team', () => {
   const cat = { channels: [{ id: 'in_app', ready: true, always: true }, { id: 'slack_dm', name: 'Slack DM', ready: true },
     { id: 'email', name: 'Email', ready: false }, { id: 'push', name: 'Phone', ready: false }] };
   assert.deepEqual(channelChoices({ catalog: cat }).map(c => c.id), ['slack_dm']);
   assert.deepEqual(channelChoices({ catalog: { channels: cat.channels.map(c => ({ ...c, ready: true })) } }).map(c => c.id), ['slack_dm', 'email'], 'never in_app or push');
-  assert.deepEqual(channelChoices({ catalog: { channels: cat.channels.map(c => ({ ...c, ready: true })) }, client: true }).map(c => c.id), ['email']);
+  assert.deepEqual(channelChoices({ catalog: { channels: cat.channels.map(c => ({ ...c, ready: true })) }, client: true }).map(c => c.id), ['slack_dm', 'email']);
+  assert.deepEqual(channelChoices({ catalog: clientSample.catalog }).map(c => c.id), ['slack_dm'], 'the client sample: Slack ready, email not yet');
+  assert.deepEqual(startChannels(clientSample.notify, [{ id: 'slack_dm' }, { id: 'email' }]), { slack_dm: false, email: false }, 'a client starts with nothing on');
   assert.deepEqual(channelChoices({}), [], 'no catalog: nothing to turn on');
   assert.deepEqual(channelChoices({ catalog: sample.catalog }).map(c => c.id), ['slack_dm'], 'the sample: Slack ready, email not yet');
 });
