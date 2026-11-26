@@ -481,6 +481,7 @@ function chartBox(o, draw) {
     fill, endLabels     the soft area under the lead line; the figures at the right end (both on by default).
     format, endFormat   v => text for the left axis; for end and point labels (defaults to format).
     yMax, yTicks, axis  the top of the scale; grid steps (picked to land on round figures); axis: false hides the left axis (small cards).
+    topLabel            with axis: false, one value label at the top gridline (the scale's max, e.g. "$1k").
     height, phoneHeight pixels. Real height, never squished: 350 and 290 by default.
     width               a fixed pixel width. Leave it out and the chart follows its container.
     tooltip             ON BY DEFAULT: hover, tap or the arrow keys (the chart takes focus) show a small dark
@@ -545,6 +546,7 @@ function plot(o, W, H, phone) {
     const y = T + (B - T) * g / o.yTicks;
     svg.append(s('line', { class: g === o.yTicks ? 'ax' : 'gl', x1: L, x2: R, y1: y, y2: y }));
     if (o.axis) svg.append(s('text', { class: 'tk y', x: L - 8, y: y + 4 }, yl[g]));
+    else if (o.topLabel && g === 0) svg.append(s('text', { class: 'tk', x: L + 2, y: y - 4, 'text-anchor': 'start' }, yl[g]));
     if (y2 && g < o.yTicks) svg.append(s('text', { class: 'tk', x: R + 8, y: y + 4 }, y2.format(y2.max * (o.yTicks - g) / o.yTicks)));
   }
   /* the tooltip's soft band behind the column under the pointer (column charts), drawn under the marks */

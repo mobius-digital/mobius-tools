@@ -61,6 +61,11 @@ import { boardCanvas, copyCanvas, downloadCanvas, downloadPdf } from './_export.
 
 const CSS = `
 .wr3{display:grid;gap:var(--sp-6);min-width:0}
+/* this page says when it checked in its own toolbar, so the shell's "updated" stamp is hidden and the head sits closer */
+.lx-page:has(.wr3){row-gap:16px}
+.lx-page:has(.wr3) .lx-asof-slot,.lx-page:has(.wr3) .lx-head-tools{display:none}
+.wr3-menu{min-width:200px}
+.wr3-menu .lx-item[disabled]{opacity:.5;cursor:default}
 .wr3-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;min-width:0}
 .wr3-bar .when{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
 .wr3-bar .when b{color:var(--ink);font-weight:600}
@@ -78,8 +83,11 @@ const CSS = `
 .good-t{color:var(--good)}.bad-t{color:var(--bad)}.warn-t{color:var(--warn)}.off-t{color:var(--muted)}
 /* the pace hero */
 .wr3-hero{display:grid;gap:var(--sp-6)}
-.wr3-hk{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr) minmax(0,1fr);gap:var(--sp-6);align-items:end}
-.wr3-hk>div{display:grid;gap:6px;min-width:0;align-content:end}
+.wr3-hk{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr) minmax(0,1fr);gap:var(--sp-6);align-items:start}
+.wr3-hk.lean{grid-template-columns:minmax(0,1fr)}
+.wr3-hk>div{display:grid;gap:6px;min-width:0;align-content:start}
+.wr3-hk .big .lx-hero-num{line-height:1}
+.wr3-scope{display:inline-flex;align-items:center;min-height:22px;padding:0 8px;border-radius:999px;background:var(--surface-2);font-size:12px;color:var(--ink-2);white-space:nowrap;margin-left:4px}
 .wr3-hk .big{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
 .wr3-hk .scope{font-size:12px;color:var(--muted)}
 .wr3-hk .of{font-size:13.5px;color:var(--muted);font-variant-numeric:tabular-nums}
@@ -104,8 +112,13 @@ const CSS = `
 /* needs your yes */
 .wr3-need{display:grid}
 .wr3-ask{display:grid;gap:6px;padding:14px 0;border-top:1px solid var(--line);min-width:0}
-.wr3-ask:first-child{border-top:0;padding-top:4px}
-.wr3-ask .br{font-size:12.5px;font-weight:600;color:var(--muted);letter-spacing:.01em}
+.wr3-ask:first-child{border-top:0;padding-top:12px}
+.wr3-ask .br{font-size:13px;font-weight:600;color:var(--ink)}
+.wr3-ask .br+.sep{color:var(--faint);font-weight:400;margin:0 6px}
+.wr3-ask.flash{animation:wr3-flash 1.6s var(--ease)}
+@keyframes wr3-flash{0%,40%{background:var(--warn-bg)}100%{background:transparent}}
+.wr3-yes{border:0;font:inherit;cursor:pointer}
+.wr3-yes:hover,.wr3-yes:focus-visible{filter:brightness(.96);text-decoration:underline;text-underline-offset:2px}
 .wr3-ask .dec{font-size:15.5px;font-weight:600;letter-spacing:-.01em;overflow-wrap:anywhere}
 .wr3-ask .why{margin:0;font-size:13px;color:var(--ink-2);line-height:1.5}
 .wr3-chips{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
@@ -115,10 +128,10 @@ const CSS = `
 /* brand cards: one style for every brand */
 .wr3-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--sp-5);align-items:start}
 @media (min-width:1100px){
-  .wr3-b{grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);column-gap:var(--sp-6)}
+  .wr3-b{grid-template-columns:minmax(0,3fr) minmax(0,2fr);column-gap:var(--sp-6)}
   .wr3-b>*{grid-column:1/-1}
   .wr3-b>.wr3-tiles{grid-column:1;grid-row:3}
-  .wr3-b>.wr3-spark{grid-column:2;grid-row:3;align-self:stretch}
+  .wr3-b>.wr3-spark{grid-column:2;grid-row:3;align-self:start}
   .wr3-b:not(:has(>.wr3-spark))>.wr3-tiles{grid-column:1/-1}
   .wr3-ct .lx-table th{white-space:nowrap}
 }
@@ -136,9 +149,11 @@ const CSS = `
 .wr3-r2 .decs{display:grid;gap:4px;flex:1 1 220px;min-width:0}
 .wr3-r2 .dec{font-size:15px;font-weight:600;letter-spacing:-.01em;overflow-wrap:anywhere}
 .wr3-r2 .dec.dim{color:var(--muted);font-weight:500}
-.wr3-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.wr3-r2 .why{margin:0;font-size:13px;color:var(--ink-2);line-height:1.5}
+.wr3-r2 .wr3-act{margin:2px 0 6px}
+.wr3-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-items:start}
 .wr3-tile{background:var(--surface-2);border-radius:14px;padding:10px 12px 12px;display:grid;gap:2px;align-content:start;min-width:0}
-.wr3-tile .hd{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);line-height:1.3;margin-bottom:4px}
+.wr3-tile .hd{display:block;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);line-height:1.3;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .wr3-tile .hd .lx-def{text-transform:uppercase}
 .wr3-tile .k{font-size:12px;color:var(--muted)}
 .wr3-tile .mer{font-size:24px;font-weight:650;letter-spacing:-.03em;line-height:1.15;font-variant-numeric:tabular-nums}
@@ -147,8 +162,11 @@ const CSS = `
 .wr3-tile .ln span:first-child{color:var(--muted)}
 .wr3-tile .gray{font-size:11.5px;color:var(--muted);margin-top:2px}
 .wr3-spark{display:grid;gap:4px;min-width:0}
+/* one column grid for every campaign table on the page (both views), so the columns line up card to card */
+.wr3-ct .lx-table{table-layout:fixed;width:100%}
 .wr3-ct .lx-table th{white-space:normal;line-height:1.25;height:auto;padding:6px 4px;vertical-align:bottom;font-size:10px;letter-spacing:.04em}
-.wr3-ct .lx-table td{white-space:nowrap;padding:8px 4px;font-size:12.5px}
+.wr3-ct .lx-table td{white-space:nowrap;padding:8px 4px;font-size:12.5px;height:52px;overflow:hidden;text-overflow:ellipsis}
+.wr3-ct .lx-table th.callh,.wr3-ct .lx-table td.callh{text-align:left;padding-left:14px}
 .wr3-ct .lx-table td:first-child{white-space:normal}
 .wr3-ct .lx-table th:first-child,.wr3-ct .lx-table td:first-child{padding-left:0}
 .wr3-ct .lx-table th:last-child,.wr3-ct .lx-table td:last-child{padding-right:0}
@@ -157,7 +175,8 @@ const CSS = `
 .wr3-ct .bud small{display:block;font-size:11px;color:var(--muted)}
 .wr3-ct .lx-pill{white-space:nowrap}
 .wr3-ct .cn small{display:block;font-weight:400;font-size:11.5px;color:var(--muted)}
-.wr3-ct .callc{display:inline-flex;flex-direction:column;align-items:flex-end;gap:4px;min-width:74px}
+.wr3-ct .callc{display:flex;align-items:center;gap:10px;justify-content:flex-start}
+.wr3-ct .callc>.lx-pill{width:84px;justify-content:center;text-align:center;flex:none;overflow:hidden;text-overflow:ellipsis}
 .wr3-ct .rowbtn{border:0;background:none;padding:2px 0;font:inherit;font-size:12px;color:var(--ink-2);text-decoration:underline;text-decoration-color:var(--line-strong);text-underline-offset:3px;cursor:pointer;white-space:nowrap}
 .wr3-ct .rowbtn:hover{color:var(--ink)}
 .wr3-ct .warnrow{display:block;font-size:11.5px;color:var(--warn);font-weight:400;margin-top:2px}
@@ -200,6 +219,10 @@ const CSS = `
 @media (max-width:759px){
   .wr3-bar .btns{width:100%}
   .wr3-bar .btns .lx-btn{flex:1 1 auto;min-height:44px}
+  .wr3-ct .lx-table{table-layout:auto}
+  .wr3-ct col.hide-sm{display:none}
+  .wr3-ct .lx-table th.callh,.wr3-ct .lx-table td.callh{padding-left:4px}
+  .wr3-ct .callc{flex-direction:column;align-items:flex-start;gap:4px}
   .wr3-act .lx-btn,.wr3-foot .lx-btn{flex:1 1 auto;min-height:44px}
   .wr3-ph{grid-template-columns:1fr 1fr;gap:12px 10px}
   .wr3-hk .mid{font-size:26px}
@@ -222,6 +245,8 @@ const fx = v => ok(v) ? v.toFixed(2) + 'x' : 'n/a';
 const usd = v => ok(v) ? money(v) : 'n/a';
 const PLATFORM = 'Meta';           // every campaign in the check-in record is a Meta campaign
 const SEND_TIMEOUT = 20e3;
+/* the campaign table's columns: Campaign | Budget a day | Spent today | ROAS since | ROAS today | ROAS this week | Call */
+const COL_W = [['', ''], ['', '11%'], ['hide-sm', '11%'], ['', '12%'], ['', '10%'], ['hide-sm', '12%'], ['', '190px']];
 
 /* The season's phases, for the agency view (a brand's own phases come from its plan read). */
 const SEASON = [
@@ -321,11 +346,15 @@ function hourChart(hs, { height = 240, phoneHeight = 200, axis = true, label = '
     tipRow(null, 'Store MER this hour', hs.spend[i] > 0 ? fx(hs.sales[i] / hs.spend[i]) : 'n/a')];
   return lineChart({
     series: [{ name: 'Sales', type: 'bar', values: hs.sales }, { name: 'Ad spend', values: hs.spend, end: false }],
-    labels, ticks, slots: true, height, phoneHeight, axis, barWidth: axis ? 22 : 10, yTicks: axis ? undefined : 2, endLabels: false, fill: false, label,
+    labels, ticks, slots: true, height, phoneHeight, axis, barWidth: axis ? 22 : 10, yTicks: axis ? undefined : 2, topLabel: !axis, endLabels: false, fill: false, label,
     format: v => money(v, { compact: true }), tooltip: tip,
   });
 }
-const hourLegend = () => legend([{ name: 'Sales', square: true, color: 'var(--ink)' }, { name: 'Ad spend' }]);
+/** The legend for today by the hour; a series with nothing in it today is left out. */
+const hourLegend = hs => {
+  const has = k => !hs || (hs[k] || []).some(v => +v > 0);
+  return legend([has('sales') ? { name: 'Sales', square: true, color: 'var(--ink)' } : null, has('spend') ? { name: 'Ad spend' } : null]);
+};
 
 /** The season timeline. A phase shows its dates and offer in the bubble (hover, focus or tap). */
 function phaseStrip(phases, today) {
@@ -368,9 +397,9 @@ function paceHero(m) {
   const merTone = !ok(m.mer) || !ok(m.target) ? '' : m.mer >= m.target ? 'good-t' : ok(m.be) && m.mer < m.be ? 'bad-t' : 'warn-t';
   const salesBox = h('div', null,
     h('span', { class: 'wr3-lab' }, defLabel('Sales', 'sales'), m.period ? `, ${m.period}` : ''),
-    m.scope ? h('span', { class: 'scope' }, m.scope) : null,
     ok(m.sales) ? h('div', { class: 'big' }, h('span', { class: 'lx-hero-num' }, money(Math.round(m.sales))),
-      h('span', { class: 'of' }, ok(m.goal) && m.goal > 0 ? [`of the ${money(m.goal)} `, defLabel('sales goal', 'sales_goal'), ok(pctOf) ? `, ${Math.round(pctOf * 100)}%` : ''] : 'no sales goal set'))
+      h('span', { class: 'of' }, ok(m.goal) && m.goal > 0 ? [`of the ${money(m.goal)} `, defLabel('sales goal', 'sales_goal'), ok(pctOf) ? `, ${Math.round(pctOf * 100)}%` : ''] : 'no sales goal set',
+        m.scopeChip ? defined(h('span', { class: 'wr3-scope', tabindex: '0' }, m.scopeChip), { title: 'Which brands count', body: m.scopeWhy }) : null))
       : h('div', { class: 'big' }, h('span', { class: 'of' }, m.none || 'No sales read yet')),
     ok(pctOf) ? h('div', { class: 'wr3-prog', role: 'img', 'aria-label': Math.round(pctOf * 100) + '% of the sales goal' }, h('i', { style: { '--v': Math.min(100, pctOf * 100).toFixed(1) + '%' } })) : null);
   const merBox = h('div', null,
@@ -381,11 +410,12 @@ function paceHero(m) {
     h('div', { class: 'mid' }, usd(m.spend)));
   const hs = m.hours;
   const chart = h('div', { class: 'wr3-ch' },
-    h('div', { class: 'lx-chart-h' }, h('h3', null, defLabel('Today', 'today'), ' by the hour'), h('span', { class: 'wr3-lab' }, m.hourScope || ''), hs ? hourLegend() : null),
+    h('div', { class: 'lx-chart-h' }, h('h3', null, defLabel('Today', 'today'), ' by the hour'), h('span', { class: 'wr3-lab' }, m.hourScope || ''), hs ? hourLegend(hs) : null),
     hs ? hourChart(hs, { height: 240, phoneHeight: 200 }) : h('p', { class: 'wr3-quiet' }, m.hourNote || 'No sales or spend yet today.'),
     hs && m.hourNote ? h('p', { class: 'wr3-quiet' }, m.hourNote) : null);
+  /* lean: the brand view, where the Today tile on the brand card already shows store MER and ad spend */
   return card({ class: 'wr3-hero' },
-    h('div', { class: 'wr3-hk' }, salesBox, merBox, spendBox),
+    h('div', { class: 'wr3-hk' + (m.lean ? ' lean' : '') }, salesBox, m.lean ? null : merBox, m.lean ? null : spendBox),
     phaseStrip(m.phases, m.today),
     chart);
 }
@@ -611,7 +641,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     if (cp.done) return 'Done';
     if (cp.move && S.probing) return 'Reading';
     if (cp.move) return CALL_WORD[cp.call];
-    if (c.mode !== 'live' || !c.gate.light) return 'Numbers';
+    if (c.mode !== 'live' || !c.gate.light) return 'No read';
     if (cp.early) return 'Too early';
     return CALL_WORD[cp.call] || 'Hold';
   }
@@ -620,7 +650,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     const w = callWord(c, cp);
     if (w === 'Done') return 'call_done';
     if (w === 'Reading') return 'call_reading';
-    if (w === 'Numbers') return 'call_numbers';
+    if (w === 'No read') return 'call_numbers';
     if (w === 'Too early') return 'call_too_early';
     return CALL_KEY[cp.call] || 'call_hold';
   }
@@ -667,8 +697,8 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
   }
   function fillSpark(c, host) {
     const w = S.hourCache[c.act], hs = w ? hourSeries([w]) : null;
-    const head = h('div', { class: 'lx-chart-h' }, h('span', { class: 'wr3-lab' }, defLabel('Today', 'today'), ' by the hour, whole store'), hs ? hourLegend() : null);
-    if (hs) return put(host, head, hourChart(hs, { height: 110, phoneHeight: 110, axis: false, ticks: [0, Math.min(6, hs.sales.length - 1), Math.min(12, hs.sales.length - 1), hs.sales.length - 1].filter((v, i, a) => a.indexOf(v) === i), label: `${c.name}: sales and ad spend by the hour today` }));
+    const head = h('div', { class: 'lx-chart-h' }, h('span', { class: 'wr3-lab' }, defLabel('Today', 'today'), ' by the hour, whole store'), hs ? hourLegend(hs) : null);
+    if (hs) return put(host, head, hourChart(hs, { height: 112, phoneHeight: 112, axis: false, ticks: [0, Math.min(6, hs.sales.length - 1), Math.min(12, hs.sales.length - 1), hs.sales.length - 1].filter((v, i, a) => a.indexOf(v) === i), label: `${c.name}: sales and ad spend by the hour today` }));
     const msg = S.hourErr[c.act] ? 'Today by the hour did not load: ' + S.hourErr[c.act] : w ? 'No sales or spend yet today.' : 'Reading today by the hour...';
     put(host, head, h('p', { class: 'wr3-quiet' }, msg));
   }
@@ -678,15 +708,14 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     const cols = [
       { key: 'name', label: 'Campaign', render: cp => h('span', { class: 'cn' },
         h('span', null, cp.name, h('small', null, platformChip('meta')), cp.warn ? h('span', { class: 'warnrow' }, 'Last change not read yet') : null)) },
-      { key: 'daily', label: defLabel('Budget a day', 'budget_a_day'), num: true, render: cp => h('span', { class: 'bud' }, cp.daily ? money(cp.daily) : h('span', { class: 'dim' }, 'ad sets'),
-        one ? null : h('small', null, defLabel(money(cp.spent) + ' spent today', 'spent_today'))) },
-      one ? { key: 'spent', label: defLabel('Spent today', 'spent_today'), num: true, class: 'hide-sm', render: cp => money(cp.spent) } : null,
+      { key: 'daily', label: defLabel('Budget a day', 'budget_a_day'), num: true, render: cp => h('span', { class: 'bud' }, cp.daily ? money(cp.daily) : h('span', { class: 'dim' }, 'ad sets')) },
+      { key: 'spent', label: defLabel('Spent today', 'spent_today'), num: true, class: 'hide-sm', render: cp => money(cp.spent) },
       { key: 'since', label: sinceRoasLabel(since), num: true,
         render: cp => roasCell(cp.w.since, c) },
       { key: 'today', label: defLabel('ROAS today', 'roas'), num: true, render: cp => roasCell(cp.w.today, c) },
       { key: 'week', label: defLabel('ROAS this week', { title: 'ROAS this week', body: 'This campaign\'s ROAS from Monday 12am Central to now. Context only: it breaks a tie or adds a note, it never blocks a raise.' }), num: true, class: 'hide-sm',
         render: cp => roasCell(cp.w.week, c) },
-      { key: 'call', label: defLabel('Call', c.roas && ok(c.roas.be) ? { title: 'The call', body: `${glossaryFor('calls').definition} This brand's break-even ROAS: ${fx(c.roas.be)}${c.roas.assumed ? `, ${assumedWhy(c.roas)}` : ''}.` } : 'calls'), num: true, width: 82, render: cp => {
+      { key: 'call', class: 'callh', label: defLabel('Call', c.roas && ok(c.roas.be) ? { title: 'The call', body: `${glossaryFor('calls').definition} This brand's break-even ROAS: ${fx(c.roas.be)}${c.roas.assumed ? `, ${assumedWhy(c.roas)}` : ''}.` } : 'calls'), render: cp => {
         const word = callWord(c, cp), tone = cp.done ? 'good' : cp.move && !S.probing ? CALL_TONE[cp.call] : '';
         const p = pill(tone, word);
         defined(p, callKey(c, cp));
@@ -694,7 +723,11 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
         return h('span', { class: 'callc' }, p, set);
       } },
     ];
-    return h('div', { class: 'wr3-ct' }, table({ cols: cols.filter(Boolean), rows: c.camps, onRow: cp => campSheet(c, cp), empty: 'No live campaign in Meta.' }));
+    const t = table({ cols, rows: c.camps, onRow: cp => campSheet(c, cp), empty: 'No live campaign in Meta.' });
+    /* one shared column grid (fixed layout), so every card's columns line up */
+    const tbl = t.querySelector('table');
+    if (tbl) tbl.prepend(h('colgroup', null, COL_W.map(([cls, w]) => h('col', { class: cls || null, style: w ? { width: w } : null }))));
+    return h('div', { class: 'wr3-ct' }, t);
   }
 
   function brandCard(c) {
@@ -703,15 +736,20 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     const pend = pendingOf(c), done = c.camps.filter(cp => cp.done);
     const chip = h('button', { class: 'wr3-chip' + (due || old ? ' due' : ''), type: 'button', disabled: !write || null, onclick: write ? () => cadenceSheet(c) : null, 'aria-label': `Check-in every ${cad} hours. Change it` },
       due ? `Check-in due, every ${cad}h` : old ? `Check-in is old, every ${cad}h` : `Every ${cad}h, next ${nextDue(cad, Math.max(hourNow, c.recHour))}`);
-    let dec, dim = false;
+    let dec, dim = false, asks = false;
     const ml = modeLine(c);
     if (ml) { dec = ml; dim = true; }
     else if (S.probing) { dec = 'Reading the earlier check-ins...'; dim = true; }
-    else if (pend.length) dec = pend.map(decisionText);
+    else if (pend.length) { dec = pend.map(decisionText); asks = true; }
     else if (done.length) dec = done.map(doneText);
     else if (!c.camps.length) { dec = 'No live campaign in Meta'; dim = true; }
     else dec = c.camps.some(cp => cp.needs_ads) ? 'Hold all campaigns, new ads needed' : 'Hold all campaigns';
-    const sinceLabel = c.basis ? `Since the ${c.basis.short} check-in` : 'Since last check-in';
+    /* tile headings stay short; the exact period is in each heading's hover definition */
+    const at = `${hourWord(slotHour(R.slot))} CT`;
+    const sinceHead = c.basis ? `Since ${c.basis.short}` : 'Since last check-in';
+    const sinceDef = { title: sinceHead, body: c.basis ? `From the ${c.basis.short} check-in to the ${at} check-in, Central time. The freshest read, and the one the call leans on most.` : glossaryFor('since_check_in').definition };
+    const todayDef = { title: 'Today', body: `From 12am Central today to the ${at} check-in.` };
+    const weekDef = { title: 'This week', body: `From Monday 12am Central to the ${at} check-in.` };
     const warns = [];
     if (c.mode === 'live' && !S.probing && c.gate && (c.gate.light === 'amber' || c.gate.light === 'red') && c.gate.why) warns.push(c.gate.why);
     if (c.roas && c.roas.unread) warns.push('The goal ROAS could not be read, so there are no campaign calls.');
@@ -721,47 +759,61 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     return card({ class: 'wr3-b' + (pend.length ? ' yes' : '') },
       h('div', { class: 'wr3-r1' }, h('span', { class: 'nm' }, !one && slug ? h('a', { href: `#/brand/${encodeURIComponent(slug)}/black-friday/war-room` }, b.name) : b.name),
         ok(c.goal) && c.mode !== 'no_sales' ? h('span', { class: 'tg' }, defLabel('Target MER', 'target_mer'), ' ', h('b', null, fx(c.goal))) : null, chip),
-      h('div', { class: 'wr3-r2' }, h('div', { class: 'decs' }, [].concat(dec).map(t => h('span', { class: 'dec' + (dim ? ' dim' : '') }, t))), pend.length ? pill('warn', 'Needs your yes') : null),
+      h('div', { class: 'wr3-r2' }, h('div', { class: 'decs' },
+        /* the brand view has no queue: each decision carries its own buttons, right under it */
+        asks && one ? pend.map(cp => [h('span', { class: 'dec' }, decisionText(cp)), extraWhy(cp) ? h('p', { class: 'why' }, extraWhy(cp)) : null, askButtons(c, cp)])
+          : [].concat(dec).map(t => h('span', { class: 'dec' + (dim ? ' dim' : '') }, t))),
+        pend.length ? (one ? pill('warn', 'Needs your yes')
+          : h('button', { type: 'button', class: 'lx-pill warn wr3-yes', onclick: () => jumpToAsk(c, pend[0]), 'aria-label': `Needs your yes: go to ${c.name} in the list` }, 'Needs your yes')) : null),
       h('div', { class: 'wr3-tiles' },
-        tile(c.windows.since, c, sinceLabel, 'since_check_in', S.probing ? 'Reading the earlier check-in' : 'No earlier check-in today'),
-        tile(c.windows.today, c, 'Today', 'today'),
-        tile(c.windows.week, c, 'This week (Mon to now)', 'this_week')),
+        tile(c.windows.since, c, sinceHead, sinceDef, S.probing ? 'Reading the earlier check-in' : 'No earlier check-in today'),
+        tile(c.windows.today, c, 'Today', todayDef),
+        tile(c.windows.week, c, 'This week', weekDef)),
       warns.map(t => h('p', { class: 'wr3-amber' }, t)),
       one ? null : sparkFor(c),            // one brand: the hero above already draws its today by the hour
       campTable(c),
       c.roas && c.roas.unread ? h('div', { class: 'wr3-act' }, button('Read the goal ROAS again', { onclick: e => refresh(e.currentTarget) })) : null,
       h('div', { class: 'wr3-foot' },
         write ? button('Client update', { onclick: () => clientSheet(c) }) : null,
-        button('Today by the hour', { onclick: () => hourSheet(c) })));
+        button('Open hourly chart', { onclick: () => hourSheet(c) })));
+  }
+  /** Approve / Set budget / Not now for one pending move (the queue and the brand view use the same handlers). */
+  function askButtons(c, cp) {
+    if (!write) return h('p', { class: 'wr3-quiet' }, 'Your access is read only, so you cannot approve this.');
+    return h('div', { class: 'wr3-act' },
+      button(c.b.client_approve ? 'Client said yes' : 'Approve', { primary: true, onclick: () => approveSheet(c, cp), aria: c.b.client_approve ? `The client said yes: apply ${decisionText(cp)}` : null }),
+      button('Set budget', { onclick: () => approveSheet(c, cp, { manual: true }) }),
+      button('Not now', { onclick: () => { setNotNow(rec().slot, cp.id); draw(); } }));
+  }
+  const askId = (c, cp) => `wr3-ask-${String(c.act).replace(/[^\w-]/g, '_')}-${String(cp.id).replace(/[^\w-]/g, '_')}`;
+  /** A card's "Needs your yes" badge: scroll to that brand's first row in the queue and flash it. */
+  function jumpToAsk(c, cp) {
+    const row = document.getElementById(askId(c, cp));
+    if (!row) return;
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    row.classList.remove('flash'); void row.offsetWidth; row.classList.add('flash');
+    const b = row.querySelector('.lx-btn.primary'); if (b) setTimeout(() => b.focus({ preventScroll: true }), 400);
   }
 
   /* ---------- needs your yes ---------- */
   function needsYes(list) {
     if (S.probing) return card({ title: 'Needs your yes' }, h('p', { class: 'wr3-quiet' }, 'Reading the earlier check-ins...'));
+    /* list comes in card order (orderOf), so the queue reads top to bottom like the cards */
     const rows = [];
     for (const c of list) for (const cp of pendingOf(c)) rows.push([c, cp]);
-    rows.sort((p, q) => {
-      const down = r => r[1].move.to < r[1].move.from ? 0 : 1;
-      return down(p) - down(q) || Math.abs(q[1].move.to - q[1].move.from) - Math.abs(p[1].move.to - p[1].move.from);
-    });
     if (!rows.length) return card({ title: 'Needs your yes' }, h('p', { class: 'wr3-quiet' }, 'Nothing waits on you. Every campaign holds.'));
     return card({ title: 'Needs your yes', note: `${rows.length} ${rows.length === 1 ? 'decision' : 'decisions'}` },
       h('div', { class: 'wr3-need' }, rows.map(([c, cp]) => {
         const since = sinceWord(c), why = extraWhy(cp);
-        return h('div', { class: 'wr3-ask' },
-          one ? null : h('span', { class: 'br' }, c.name),
-          h('span', { class: 'dec' }, decisionText(cp)),
+        return h('div', { class: 'wr3-ask', id: askId(c, cp) },
+          h('span', { class: 'dec' }, one ? null : [h('span', { class: 'br' }, c.name), h('span', { class: 'sep', 'aria-hidden': 'true' }, '·')], decisionText(cp)),
           h('div', { class: 'wr3-chips' },
             h('span', null, sinceRoasLabel(since), h('b', null, roasTxt(cp.w.since))),
             h('span', null, defLabel('ROAS today', 'roas'), h('b', null, roasTxt(cp.w.today))),
             c.roas && ok(c.roas.goal) ? h('span', null, defLabel('Goal ROAS', { title: 'Goal ROAS', body: 'The ROAS this brand asks of each campaign. Set in Brand settings > Goals.' }), h('b', null, fx(c.roas.goal))) : null,
             h('span', null, defLabel('Store MER today', 'mer'), h('b', null, fx(c.windows.today.mer)))),
           why ? h('p', { class: 'why' }, why) : null,
-          write ? h('div', { class: 'wr3-act' },
-            button(c.b.client_approve ? 'The client said yes, apply' : 'Approve', { primary: true, onclick: () => approveSheet(c, cp) }),
-            button('Set budget', { onclick: () => approveSheet(c, cp, { manual: true }) }),
-            button('Not now', { onclick: () => { setNotNow(rec().slot, cp.id); draw(); } }))
-            : h('p', { class: 'wr3-quiet' }, 'Your access is read only, so you cannot approve this.'));
+          askButtons(c, cp));
       })));
   }
 
@@ -784,9 +836,14 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     const endAt = `${clockCT(Date.parse(R.at))} CT (last check-in)`;
     const period = froms.length > 1 ? `each brand from 12am CT on its own first sale day (the earliest is ${dayLabel(from)}) to ${endAt}`
       : `${dayLabel(from)} 12am CT to ${endAt}`;
-    const scopeParts = one ? [] : [okb.length === list.length ? 'All brands' : `${okb.length} of ${list.length} brands: ${list.length - okb.length === 1 ? 'one has' : 'the rest have'} no sales source`];
-    if (!one && noGoal && goal) scopeParts.push(`${noGoal} ${noGoal === 1 ? 'brand has' : 'brands have'} no sales goal, so the percent counts only the brands with one`);
-    const scope = scopeParts.join('. ');
+    /* which brands count: a small chip after the percent, the names and the reason in its hover definition */
+    const names = a => a.map(c => c.name).join(', ');
+    const out = list.filter(c => !okb.includes(c)), noGoalList = okb.filter(c => !(c.b.goal > 0));
+    const why = [];
+    if (out.length) why.push(`Left out: ${names(out)}. ${out.length === 1 ? 'It has' : 'They have'} no Triple Whale store connected, so there are no sales to count.`);
+    if (noGoalList.length && goal) why.push(`${names(noGoalList)} ${noGoalList.length === 1 ? 'has' : 'have'} no sales goal, so the percent counts only the brands with one. ${noGoalList.length === 1 ? 'Its' : 'Their'} sales still count in the total.`);
+    const scopeChip = one || !why.length ? '' : out.length ? `${okb.length} of ${list.length} brands` : `${withGoal.length} of ${list.length} brands in the %`;
+    const scopeWhy = why.join(' ');
     const acts = list.map(c => c.act);
     const got = acts.filter(a => S.hourCache[a]);
     const hs = hourSeries(got.map(a => S.hourCache[a]));
@@ -794,7 +851,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     const hourNote = waitN && S.warBusy ? `Reading today by the hour: ${got.length} of ${acts.length} brands so far.` : waitN ? `${waitN} brand${waitN === 1 ? '' : 's'} could not be read by the hour.` : '';
     const ph = one ? phasesOfWar(S.hourCache[one]) || SEASON : SEASON;
     return {
-      period, scope,
+      period, scopeChip, scopeWhy, lean: !!one,
       sales: okb.length ? sales : null, goal: goal || null, goalSales: withGoal.length ? goalSales : null, spend: okb.length ? spend : null, mer: spend > 0 ? sales / spend : null,
       target: ok(target) ? Math.round(target * 100) / 100 : null, be, none: 'No sales source connected',
       phases: ph, today: recDate, hours: hs, hourNote, hourScope: one ? 'whole store, Central time' : `${got.length === acts.length ? 'all brands' : got.length + ' of ' + acts.length + ' brands'}, Central time`,
@@ -1188,7 +1245,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
         h('div', { class: 'wr3-tile' }, h('span', { class: 'hd' }, defLabel('Sales', 'sales')), h('span', { class: 'mer' }, money(sales))),
         h('div', { class: 'wr3-tile' }, h('span', { class: 'hd' }, defLabel('Ad spend', 'ad_spend')), h('span', { class: 'mer' }, money(spend))),
         h('div', { class: 'wr3-tile' }, h('span', { class: 'hd' }, defLabel('Store MER', 'mer')), h('span', { class: 'mer ' + (merTone(spend > 0 ? sales / spend : null, c) ? merTone(spend > 0 ? sales / spend : null, c) + '-t' : '') }, fx(spend > 0 ? sales / spend : null)))),
-      h('div', { class: 'wr3-ch' }, h('div', { class: 'lx-chart-h' }, h('span', { class: 'wr3-lab' }, '12am Central to now, whole store'), hourLegend()),
+      h('div', { class: 'wr3-ch' }, h('div', { class: 'lx-chart-h' }, h('span', { class: 'wr3-lab' }, '12am Central to now, whole store'), hourLegend(hs)),
         hourChart(hs, { height: 260, phoneHeight: 220 })),
       h('p', { class: 'dim' }, `Best hour for sales so far: ${hourWord(best)} to ${hourWord(best + 1)}.`));
   }
@@ -1449,6 +1506,37 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     }, 10 * 60e3);
   }
 
+  /** One order for the cards and the queue: brands waiting on a yes first (cuts before raises, then the biggest move),
+      then the rest as the check-in lists them. */
+  function orderOf(list) {
+    const key = c => {
+      const p = pendingOf(c);
+      if (!p.length) return [2, 0];
+      return [p.some(cp => cp.move.to < cp.move.from) ? 0 : 1, -Math.max(...p.map(cp => Math.abs(cp.move.to - cp.move.from)))];
+    };
+    return list.map((c, i) => ({ c, i, k: key(c) })).sort((a, b) => a.k[0] - b.k[0] || a.k[1] - b.k[1] || a.i - b.i).map(x => x.c);
+  }
+  /** The Export menu: Copy PNG, Download PNG, PDF (team only) and Old Locus. A small menu on a desktop; the same
+      .lx-pop rises from the bottom on a phone (app.css). */
+  function exportMenu(anchor) {
+    const old = document.querySelector('.wr3-menu');
+    if (old) { old.remove(); return; }
+    const close = () => { pop.remove(); document.removeEventListener('pointerdown', outside, true); document.removeEventListener('keydown', esc, true); window.removeEventListener('hashchange', close); };
+    const outside = e => { if (!pop.contains(e.target) && !anchor.contains(e.target)) close(); };
+    const esc = e => { if (e.key === 'Escape') { close(); anchor.focus(); } };
+    const run = kind => e => { const b = e.currentTarget; exportBoard(kind, b).finally(close); };
+    const item = (label, onclick, aria) => h('button', { type: 'button', class: 'lx-item', role: 'menuitem', onclick, 'aria-label': aria || null }, label);
+    const pop = h('div', { class: 'lx-pop wr3-menu', role: 'menu', 'aria-label': 'Export' },
+      write ? [item('Copy PNG', run('copy'), 'Copy the board as a picture, team only'), item('Download PNG', run('png'), 'Download the board as a picture, team only'), item('PDF', run('pdf'), 'Download the board as a PDF, team only')] : null,
+      ctx.legacy ? h('a', { class: 'lx-item', role: 'menuitem', href: ctx.legacy, onclick: close }, 'Old ' + APP_NAME) : null);
+    document.body.append(pop);
+    const r = anchor.getBoundingClientRect(), w = pop.offsetWidth;
+    pop.style.top = (r.bottom + window.scrollY + 6) + 'px';
+    pop.style.left = Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8) + window.scrollX) + 'px';
+    setTimeout(() => { document.addEventListener('pointerdown', outside, true); document.addEventListener('keydown', esc, true); window.addEventListener('hashchange', close); }, 0);
+    const first = pop.querySelector('.lx-item'); if (first) first.focus({ preventScroll: true });
+  }
+
   /* ---------- draw ---------- */
   function help() {
     return pageHelp({ body: [
@@ -1473,25 +1561,23 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     const sampleSwitch = ctx.sample && f() && f().slots ? segmented(f().slots.map(s => ({ id: s.slot, label: s.label })), R.slot, slot => {
       S.data = { ...S.data, standing: f().records[slot] }; S.done = {}; S.probing = true; draw(); probe();
     }) : null;
-    const exports = write ? [
-      button('Copy PNG', { ghost: true, class: 'hide-sm', onclick: e => exportBoard('copy', e.currentTarget), aria: 'Copy the board as a picture, team only' }),
-      button('Download PNG', { ghost: true, class: 'hide-sm', onclick: e => exportBoard('png', e.currentTarget), aria: 'Download the board as a picture, team only' }),
-      button('PDF', { ghost: true, class: 'hide-sm', onclick: e => exportBoard('pdf', e.currentTarget), aria: 'Download the board as a PDF, team only' })] : [];
+    const exportBtn = write || ctx.legacy ? button('Export', { icon: 'chevron', onclick: e => exportMenu(e.currentTarget), aria: 'Export the board, or open the old app' }) : null;
+    if (exportBtn) exportBtn.setAttribute('aria-haspopup', 'menu');
     const bar = h('div', { class: 'wr3-bar' },
       help(),
       h('span', { class: 'when' }, 'Checked ', h('b', null, `${hourWord(slotHour(R.slot))} CT`), R.next ? `, next ${R.next}` : '', R.dry ? ', dry run: no sale has started' : ''),
       age > minCad + 1 ? h('span', { class: 'lx-stat warn' }, `Check-in is ${agoWords(age * 3600e3)} old`) : null,
       sampleSwitch,
       h('span', { class: 'sp' }),
-      h('div', { class: 'btns' }, refreshBtn, checkBtn, ...exports, oldLink));
+      h('div', { class: 'btns' }, refreshBtn, checkBtn, exportBtn));
     hosts.sparks = {};
     hosts.hero = paceHero(heroModel(list));
     hosts.plan = planSection(list);
-    const order = [...list].sort((p, q) => (pendingOf(q).length ? 1 : 0) - (pendingOf(p).length ? 1 : 0));
+    const order = orderOf(list);
     put(el, h('div', { class: 'wr3' },
       bar,
       hosts.hero,
-      needsYes(list),
+      one ? null : needsYes(order),
       h('div', { class: 'wr3-grid' + (one ? ' one' : '') }, order.map(brandCard)),
       hosts.plan));
   }

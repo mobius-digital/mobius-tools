@@ -46,7 +46,7 @@ export const GLOSSARY = {
   call_hold: { name: 'Hold', definition: 'On target. Leave the budget where it is and check again at the next check-in.' },
   call_cut: { name: 'Cut', definition: 'Under break-even. Bring the budget down by the step shown.' },
   call_too_early: { name: 'Too early', definition: 'Not enough spend or time yet to judge. Check again at the next check-in.' },
-  call_numbers: { name: 'Numbers only', definition: 'No call is made for this campaign right now: the sale has not started or has ended, the client runs the budget, or the store numbers could not be read. The numbers still show.' },
+  call_numbers: { name: 'No read', definition: 'No call is made for this campaign right now: the sale has not started or has ended, the client runs the budget, or the store numbers could not be read. The numbers still show.' },
   call_reading: { name: 'Reading', definition: 'The earlier check-ins are still being read. The call shows once they are in, so a move is never suggested on half the numbers.' },
   call_done: { name: 'Done', definition: 'The budget was changed from this page or from the Slack check-in at this check-in.' },
   no_sales_read: { name: 'No sales read', definition: 'Triple Whale has no sales on record for this campaign, so its ROAS is not shown as a zero.' },
