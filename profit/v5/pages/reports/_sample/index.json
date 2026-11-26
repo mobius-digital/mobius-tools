@@ -1,38 +1,414 @@
 {
  "sample": true,
  "rows": [
-  { "act_id": "brand_northlake_golf", "period": "weekly", "period_start": "2026-11-16", "period_end": "2026-11-22", "status": "draft", "generated_at": "2026-11-23T14:00:00Z", "sent_at": null },
-  { "act_id": "brand_northlake_golf", "period": "weekly", "period_start": "2026-11-09", "period_end": "2026-11-15", "status": "sent", "generated_at": "2026-11-16T14:00:00Z", "sent_at": "2026-11-16T17:20:00Z" },
-  { "act_id": "brand_northlake_golf", "period": "weekly", "period_start": "2026-11-02", "period_end": "2026-11-08", "status": "sent", "generated_at": "2026-11-09T14:00:00Z", "sent_at": "2026-11-09T16:05:00Z" },
-  { "act_id": "brand_northlake_golf", "period": "monthly", "period_start": "2026-10-01", "period_end": "2026-10-31", "status": "sent", "generated_at": "2026-11-01T14:00:00Z", "sent_at": "2026-11-02T15:30:00Z" },
-  { "act_id": "brand_northlake_golf", "period": "weekly", "period_start": "2026-10-26", "period_end": "2026-11-01", "status": "sent", "generated_at": "2026-11-02T14:00:00Z", "sent_at": "2026-11-02T15:31:00Z" },
-  { "act_id": "brand_northlake_golf", "period": "weekly", "period_start": "2026-10-19", "period_end": "2026-10-25", "status": "sent", "generated_at": "2026-10-26T14:00:00Z", "sent_at": "2026-10-26T16:12:00Z" }
+  {
+   "act_id": "brand_northlake_golf",
+   "period": "weekly",
+   "period_start": "2026-11-16",
+   "period_end": "2026-11-22",
+   "status": "draft",
+   "generated_at": "2026-11-23T14:00:00Z",
+   "sent_at": null
+  },
+  {
+   "act_id": "brand_northlake_golf",
+   "period": "weekly",
+   "period_start": "2026-11-09",
+   "period_end": "2026-11-15",
+   "status": "sent",
+   "generated_at": "2026-11-16T14:00:00Z",
+   "sent_at": "2026-11-16T17:20:00Z"
+  },
+  {
+   "act_id": "brand_northlake_golf",
+   "period": "weekly",
+   "period_start": "2026-11-02",
+   "period_end": "2026-11-08",
+   "status": "sent",
+   "generated_at": "2026-11-09T14:00:00Z",
+   "sent_at": "2026-11-09T16:05:00Z"
+  },
+  {
+   "act_id": "brand_northlake_golf",
+   "period": "monthly",
+   "period_start": "2026-10-01",
+   "period_end": "2026-10-31",
+   "status": "sent",
+   "generated_at": "2026-11-01T14:00:00Z",
+   "sent_at": "2026-11-02T15:30:00Z"
+  },
+  {
+   "act_id": "brand_northlake_golf",
+   "period": "weekly",
+   "period_start": "2026-10-26",
+   "period_end": "2026-11-01",
+   "status": "sent",
+   "generated_at": "2026-11-02T14:00:00Z",
+   "sent_at": "2026-11-02T15:31:00Z"
+  },
+  {
+   "act_id": "brand_northlake_golf",
+   "period": "weekly",
+   "period_start": "2026-10-19",
+   "period_end": "2026-10-25",
+   "status": "sent",
+   "generated_at": "2026-10-26T14:00:00Z",
+   "sent_at": "2026-10-26T16:12:00Z"
+  }
  ],
  "latest": {
-  "period": "weekly", "period_start": "2026-11-09", "period_end": "2026-11-15", "status": "sent", "sent_at": "2026-11-16T17:20:00Z", "currency": "USD",
-  "summary": "What we saw\n- The early sale's last week was the best week of the year so far, with sales up 18% on the week before.\n- Most of the lift came from new customers on the belt bundle ads.\n\nWhat it means\nThe early sale did its job: it brought in new buyers at a cost the store can afford, and it warmed up the list for Black Friday.\n\nWhat we're doing\n- Turning the early sale ads off on Sunday night, as agreed.\n- Loading the Black Friday ads paused, ready for Thursday.",
-  "totals": { "sales": 17940, "spend": 6120, "orders": 231, "mer": 2.93, "aov": 77.66 },
-  "previous": { "sales": 15210, "spend": 5480, "orders": 201, "mer": 2.78, "aov": 75.67 },
+  "period": "weekly",
+  "period_start": "2026-11-09",
+  "period_end": "2026-11-15",
+  "status": "sent",
+  "sent_at": "2026-11-16T17:20:00Z",
+  "currency": "USD",
+  "summary": "A good week, the best of the year so far. Sales were up 18% on the week before at a 2.93x MER.\nThe early sale did the work: the belt bundle ads brought in new customers at a cost the store can afford.\nNext: the early sale ads come off Sunday night and the Black Friday ads are loaded, ready for Thursday.",
+  "totals": {
+   "sales": 17940,
+   "spend": 6120,
+   "orders": 231,
+   "mer": 2.93,
+   "aov": 77.66
+  },
+  "previous": {
+   "sales": 15210,
+   "spend": 5480,
+   "orders": 201,
+   "mer": 2.78,
+   "aov": 75.67
+  },
   "chart": [
-   { "date": "2026-11-09", "sales": 2210, "spend": 820 },
-   { "date": "2026-11-10", "sales": 2380, "spend": 840 },
-   { "date": "2026-11-11", "sales": 2195, "spend": 850 },
-   { "date": "2026-11-12", "sales": 2540, "spend": 860 },
-   { "date": "2026-11-13", "sales": 2665, "spend": 880 },
-   { "date": "2026-11-14", "sales": 2890, "spend": 920 },
-   { "date": "2026-11-15", "sales": 3060, "spend": 950 }
+   {
+    "date": "2026-11-09",
+    "sales": 2210,
+    "spend": 820
+   },
+   {
+    "date": "2026-11-10",
+    "sales": 2380,
+    "spend": 840
+   },
+   {
+    "date": "2026-11-11",
+    "sales": 2195,
+    "spend": 850
+   },
+   {
+    "date": "2026-11-12",
+    "sales": 2540,
+    "spend": 860
+   },
+   {
+    "date": "2026-11-13",
+    "sales": 2665,
+    "spend": 880
+   },
+   {
+    "date": "2026-11-14",
+    "sales": 2890,
+    "spend": 920
+   },
+   {
+    "date": "2026-11-15",
+    "sales": 3060,
+    "spend": 950
+   }
+  ],
+  "channels": [
+   {
+    "id": "meta",
+    "label": "Meta",
+    "cur": {
+     "spend": 4835,
+     "revenue": 11507,
+     "roas": 2.38,
+     "purchases": 148,
+     "source": "Triple Whale"
+    }
+   },
+   {
+    "id": "google",
+    "label": "Google",
+    "cur": {
+     "spend": 1163,
+     "revenue": 3547,
+     "roas": 3.05,
+     "purchases": 45,
+     "source": "Triple Whale"
+    }
+   },
+   {
+    "id": "tiktok",
+    "label": "TikTok",
+    "cur": {
+     "spend": 122,
+     "revenue": 72,
+     "roas": 0.59,
+     "low_signal": true
+    }
+   }
+  ],
+  "ads": {
+   "top": [
+    {
+     "ad_id": "n1",
+     "headline": "The belt that fits every bag",
+     "name": "Belt bundle | still",
+     "spend": 1480,
+     "video": false,
+     "thumb": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20400%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%232F4F3A%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%237FA27A%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url%28%23g%29%22/%3E%3Ccircle%20cx%3D%22200%22%20cy%3D%22210%22%20r%3D%2296%22%20fill%3D%22none%22%20stroke%3D%22%23F4E9D0%22%20stroke-width%3D%2222%22/%3E%3C/svg%3E"
+    },
+    {
+     "ad_id": "n2",
+     "headline": "Why golfers switch after one round",
+     "name": "Customer story | video",
+     "spend": 1110,
+     "video": true,
+     "thumb": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20400%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233A3F58%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%239AA9C6%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url%28%23g%29%22/%3E%3Cpolygon%20points%3D%22168%2C140%20168%2C260%20268%2C200%22%20fill%3D%22%23FFFFFF%22%20opacity%3D%22.9%22/%3E%3C/svg%3E"
+    },
+    {
+     "ad_id": "n3",
+     "headline": "Three colors, one price",
+     "name": "Colors grid | still",
+     "spend": 640,
+     "video": false,
+     "thumb": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20400%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%237A4A2A%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23E8B27A%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url%28%23g%29%22/%3E%3Crect%20x%3D%2270%22%20y%3D%22150%22%20width%3D%2270%22%20height%3D%22100%22%20rx%3D%2210%22%20fill%3D%22%231F1B16%22/%3E%3Crect%20x%3D%22165%22%20y%3D%22150%22%20width%3D%2270%22%20height%3D%22100%22%20rx%3D%2210%22%20fill%3D%22%23F4E9D0%22/%3E%3Crect%20x%3D%22260%22%20y%3D%22150%22%20width%3D%2270%22%20height%3D%22100%22%20rx%3D%2210%22%20fill%3D%22%23B8400A%22/%3E%3C/svg%3E"
+    }
+   ]
+  },
+  "attr": {
+   "models": [
+    "lastPlatformClick"
+   ],
+   "ads": {
+    "lastPlatformClick": {
+     "n1": {
+      "revenue": 4884
+     },
+     "n2": {
+      "revenue": 2775
+     },
+     "n3": {
+      "revenue": 1152
+     }
+    }
+   }
+  },
+  "this_week": [
+   "Early sale ads come off Sunday night.",
+   "Black Friday ads go live Thursday at 6pm."
+  ],
+  "need_from_you": [
+   "The gift guide photos by Friday."
   ]
  },
  "more": {
   "weekly|2026-11-16": {
-   "period": "weekly", "period_start": "2026-11-16", "period_end": "2026-11-22", "status": "draft", "currency": "USD",
-   "summary": "What we saw\n- A quieter week between the two sales, as planned: sales down 31% on the early sale's last week.\n\nWhat it means\nPeople are waiting for Black Friday. Spending more this week would have bought sales we would have made on Friday anyway.\n\nWhat we're doing\n- Black Friday ads go live Thursday at 6pm.",
-   "totals": { "sales": 12380, "spend": 4410, "orders": 164, "mer": 2.81, "aov": 75.49 },
-   "previous": { "sales": 17940, "spend": 6120, "orders": 231, "mer": 2.93, "aov": 77.66 },
+   "period": "weekly",
+   "period_start": "2026-11-16",
+   "period_end": "2026-11-22",
+   "status": "draft",
+   "currency": "USD",
+   "summary": "",
+   "totals": {
+    "sales": 12380,
+    "spend": 4410,
+    "orders": 164,
+    "mer": 2.81,
+    "aov": 75.49
+   },
+   "previous": {
+    "sales": 17940,
+    "spend": 6120,
+    "orders": 231,
+    "mer": 2.93,
+    "aov": 77.66
+   },
    "chart": [
-    { "date": "2026-11-16", "sales": 1720, "spend": 610 }, { "date": "2026-11-17", "sales": 1655, "spend": 600 }, { "date": "2026-11-18", "sales": 1810, "spend": 620 },
-    { "date": "2026-11-19", "sales": 1690, "spend": 630 }, { "date": "2026-11-20", "sales": 1795, "spend": 640 }, { "date": "2026-11-21", "sales": 1830, "spend": 650 }, { "date": "2026-11-22", "sales": 1880, "spend": 660 }
-   ]
+    {
+     "date": "2026-11-16",
+     "sales": 1720,
+     "spend": 610
+    },
+    {
+     "date": "2026-11-17",
+     "sales": 1655,
+     "spend": 600
+    },
+    {
+     "date": "2026-11-18",
+     "sales": 1810,
+     "spend": 620
+    },
+    {
+     "date": "2026-11-19",
+     "sales": 1690,
+     "spend": 630
+    },
+    {
+     "date": "2026-11-20",
+     "sales": 1795,
+     "spend": 640
+    },
+    {
+     "date": "2026-11-21",
+     "sales": 1830,
+     "spend": 650
+    },
+    {
+     "date": "2026-11-22",
+     "sales": 1880,
+     "spend": 660
+    }
+   ],
+   "channels": [
+    {
+     "id": "meta",
+     "label": "Meta",
+     "cur": {
+      "spend": 3484,
+      "revenue": 8292,
+      "roas": 2.38,
+      "purchases": 106,
+      "source": "Triple Whale"
+     }
+    },
+    {
+     "id": "google",
+     "label": "Google",
+     "cur": {
+      "spend": 838,
+      "revenue": 2556,
+      "roas": 3.05,
+      "purchases": 33,
+      "source": "Triple Whale"
+     }
+    },
+    {
+     "id": "tiktok",
+     "label": "TikTok",
+     "cur": {
+      "spend": 88,
+      "revenue": 72,
+      "roas": 0.82,
+      "low_signal": true
+     }
+    }
+   ],
+   "ads": {
+    "top": [
+     {
+      "ad_id": "n1",
+      "headline": "The belt that fits every bag",
+      "name": "Belt bundle | still",
+      "spend": 1066,
+      "video": false,
+      "thumb": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20400%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%232F4F3A%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%237FA27A%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url%28%23g%29%22/%3E%3Ccircle%20cx%3D%22200%22%20cy%3D%22210%22%20r%3D%2296%22%20fill%3D%22none%22%20stroke%3D%22%23F4E9D0%22%20stroke-width%3D%2222%22/%3E%3C/svg%3E"
+     },
+     {
+      "ad_id": "n2",
+      "headline": "Why golfers switch after one round",
+      "name": "Customer story | video",
+      "spend": 799,
+      "video": true,
+      "thumb": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20400%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233A3F58%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%239AA9C6%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url%28%23g%29%22/%3E%3Cpolygon%20points%3D%22168%2C140%20168%2C260%20268%2C200%22%20fill%3D%22%23FFFFFF%22%20opacity%3D%22.9%22/%3E%3C/svg%3E"
+     },
+     {
+      "ad_id": "n3",
+      "headline": "Three colors, one price",
+      "name": "Colors grid | still",
+      "spend": 461,
+      "video": false,
+      "thumb": "data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20400%20400%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%237A4A2A%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23E8B27A%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width%3D%22400%22%20height%3D%22400%22%20fill%3D%22url%28%23g%29%22/%3E%3Crect%20x%3D%2270%22%20y%3D%22150%22%20width%3D%2270%22%20height%3D%22100%22%20rx%3D%2210%22%20fill%3D%22%231F1B16%22/%3E%3Crect%20x%3D%22165%22%20y%3D%22150%22%20width%3D%2270%22%20height%3D%22100%22%20rx%3D%2210%22%20fill%3D%22%23F4E9D0%22/%3E%3Crect%20x%3D%22260%22%20y%3D%22150%22%20width%3D%2270%22%20height%3D%22100%22%20rx%3D%2210%22%20fill%3D%22%23B8400A%22/%3E%3C/svg%3E"
+     }
+    ]
+   },
+   "attr": {
+    "models": [
+     "lastPlatformClick"
+    ],
+    "ads": {
+     "lastPlatformClick": {
+      "n1": {
+       "revenue": 3518
+      },
+      "n2": {
+       "revenue": 1998
+      },
+      "n3": {
+       "revenue": 830
+      }
+     }
+    }
+   },
+   "this_week": [],
+   "need_from_you": []
   }
+ },
+ "reads": {
+  "weekly|2026-11-16": {
+   "status": "points",
+   "points": {
+    "points": [
+     {
+      "line": "Sales fell 31% on the week before, as planned between the two sales.",
+      "why": "$12,380 against $17,940 the week before."
+     },
+     {
+      "line": "MER held up while spend came down.",
+      "why": "2.81x against 2.93x, on 28% less spend."
+     },
+     {
+      "line": "The belt bundle ad still carries the account.",
+      "why": "34% of Meta spend at 3.3x ROAS (Triple Whale)."
+     },
+     {
+      "line": "Google returned more per dollar than Meta.",
+      "why": "3.05x against 2.38x ROAS, both Triple Whale attributed."
+     }
+    ],
+    "questions": [
+     "Do we tell the client the quiet week was planned, or let the numbers say it?",
+     "Is the Black Friday budget agreed, or still waiting on the client?"
+    ],
+    "proposed": "A quiet week between the two sales, as planned. Sales came down with spend while MER held near 2.8x. Black Friday ads go live Thursday with the belt bundle ad leading."
+   },
+   "team_view": null,
+   "team_source": null,
+   "meeting_id": null,
+   "draft": null,
+   "read_text": null,
+   "approved_by": null,
+   "approved_at": null
+  }
+ },
+ "sample_read": {
+  "points": {
+   "points": [
+    {
+     "line": "Sales fell 31% on the week before, as planned between the two sales.",
+     "why": "$12,380 against $17,940 the week before."
+    },
+    {
+     "line": "MER held up while spend came down.",
+     "why": "2.81x against 2.93x, on 28% less spend."
+    },
+    {
+     "line": "The belt bundle ad still carries the account.",
+     "why": "34% of Meta spend at 3.3x ROAS (Triple Whale)."
+    },
+    {
+     "line": "Google returned more per dollar than Meta.",
+     "why": "3.05x against 2.38x ROAS, both Triple Whale attributed."
+    }
+   ],
+   "questions": [
+    "Do we tell the client the quiet week was planned, or let the numbers say it?",
+    "Is the Black Friday budget agreed, or still waiting on the client?"
+   ],
+   "proposed": "A quiet week between the two sales, as planned. Sales came down with spend while MER held near 2.8x. Black Friday ads go live Thursday with the belt bundle ad leading."
+  },
+  "draft": "A quiet week, as planned. Sales were down 31% on the early sale's last week, but MER held at 2.81x on less spend.\nShoppers are waiting for Black Friday, so spending more this week would have bought sales we will make on Friday anyway.\nNext: the Black Friday ads go live Thursday at 6pm with the belt bundle ad leading."
  }
 }

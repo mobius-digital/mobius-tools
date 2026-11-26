@@ -7,12 +7,15 @@
      GET /api/briefs?act=all    the latest briefs for every brand (status draft | sent | skipped | handled | error)
      GET /api/reports?act=all   the latest weekly and monthly reports (status draft | sent | handled | skipped),
                                 and can_skip once the server can mark one report skipped
+     GET /api/report-read?act=&period=&start=   for each waiting report: is "How we read it" approved? Send is
+                                offered only then; otherwise the row says "Needs how we read it" and opens the
+                                brand's Reports page (a row may also carry read_status from the list itself)
    Writes: see _send.js. Sample mode simulates every write. */
 
 import { put } from '../../kit.js';
 import { h, hero, kpis, kpi, statusDot, button, segmented, em, empty } from '../../kit.js';
 import { span, short, dayOf, away, between, addDays, todayYmd, row, list, brandTag, colorOf, dateOf, css } from '../calendar/_cr.js';
-import { actions, noChannel, sampleChannels } from './_send.js';
+import { actions, noChannel, sampleChannels, readStatusOf, readApproved } from './_send.js';
 
 const view = { show: 'waiting' };
 
@@ -52,7 +55,9 @@ function draw(el, d, ctx) {
     const rows = pick.map(i => row({
       lead: dateOf(i.day, today),
       title: i.kind === 'brief' ? 'Daily brief for ' + short(i.day) : (i.period === 'monthly' ? 'Monthly report, ' : 'Weekly report, ') + span(i.day, i.end),
-      sub: i.status === 'error' ? 'The last send failed. Send it again, or edit it first.'
+      sub: i.kind === 'report' && (i.status === 'draft' || i.status === 'error') && !readApproved(i.read)
+        ? (i.read && i.read.status === 'drafted' ? 'How we read it is written. Approve it to send.' : i.read && i.read.status === 'points' ? 'Needs how we read it: the talking points wait for the call.' : 'Needs how we read it.')
+        : i.status === 'error' ? 'The last send failed. Send it again, or edit it first.'
         : i.preview ? (i.kind === 'brief' && !i.client && i.status !== 'sent' ? 'Team brief: ' : '') + i.preview
         : (i.status === 'sent' ? 'Sent ' + dayOf(i.sent_at) : 'Drafted ' + away(today, String(i.drafted_at || today).slice(0, 10))),
       late: i.status === 'error',
@@ -61,7 +66,7 @@ function draw(el, d, ctx) {
         { w: 150, node: i.status === 'sent' ? statusDot('good', 'Sent ' + dayOf(i.sent_at)) : i.status === 'error' ? statusDot('bad', 'Draft failed') : i.status === 'handled' ? statusDot('off', 'Team only') : statusDot('warn', 'Waiting') },
       ],
       action: i.status === 'draft' || i.status === 'error'
-        ? actions(i, ctx, changed(i, d, () => draw(el, d, ctx)), { canSkip: canSkip(i, d), noChannel: noChannel(i, ctx, d.channels) }) : null,
+        ? actions(i, ctx, changed(i, d, () => draw(el, d, ctx)), { canSkip: canSkip(i, d), noChannel: noChannel(i, ctx, d.channels), read: i.read }) : null,
     }));
     put(box, 
       h('div', { class: 'cr-bar-top', style: { paddingBottom: '6px' } },
@@ -75,7 +80,8 @@ function draw(el, d, ctx) {
 export default {
   async sample(ctx) {
     const [d, channels] = await Promise.all([ctx.fixture('index.json'), sampleChannels()]);
-    return { ...d, can_skip: true, channels };
+    const items = await Promise.all((d.items || []).map(async i => i.kind === 'report' && i.status === 'draft' ? { ...i, read: await readStatusOf(i, ctx) } : i));
+    return { ...d, items, can_skip: true, channels };
   },
   title: ['What is waiting ', em('to go to clients?')],
   eyebrow: 'To send',
@@ -90,6 +96,14 @@ export default {
       ...(b.rows || []).map(x => ({ kind: 'brief', act_id: x.act_id, brand: x.account_name, day: x.date, status: x.status, drafted_at: addDays(x.date, 1), sent_at: x.posted_at || null, preview: first(x.text) })),
       ...(r.rows || []).map(x => ({ kind: 'report', act_id: x.act_id, brand: x.account_name, day: x.period_start, end: x.period_end, period: x.period, status: x.status, drafted_at: x.generated_at, sent_at: x.sent_at || null })),
     ].filter(i => i.status !== 'skipped');
+    /* Each waiting report's read, so Send is offered only on an approved one. A few drafts at most, read at once. */
+    await Promise.all(items.map(async i => {
+      if (i.kind !== 'report' || (i.status !== 'draft' && i.status !== 'error')) return;
+      const src = (r.rows || []).find(x => x.act_id === i.act_id && x.period === i.period && x.period_start === i.day) || {};
+      if (src.read_status) { i.read = { status: src.read_status, read_text: src.read_status === 'approved' ? 'approved' : '' }; return; }
+      try { const rd = await readStatusOf(i, ctx, ctx.signal); i.read = { status: rd.status || 'none', read_text: String(rd.read_text || '').trim() ? 'yes' : '' }; }
+      catch (e) { if (e && e.name === 'AbortError') throw e; i.read = null; }
+    }));
     return { items, can_skip: r.can_skip === true };
   },
   render: draw,

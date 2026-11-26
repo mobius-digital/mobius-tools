@@ -22,6 +22,7 @@ import { handleMake as handleMakeApp, serveMakeMedia, runExit } from './make.js'
 import { handleCalendar, calendarTick, calendarView, liveOn as calendarLiveOn, useFetch as calendarFetch, calendarData, teamOf as calendarTeam, clientCalendarFor } from './calendar.js';
 /* The client posts (2026-10-19 reporting audit): the six-line daily and the weekly / monthly shape, built from stored numbers. */
 import { dailyPost, dailyThread, weeklyPost, weekSentence, internalChannel } from './clientpost.js';
+import { readRow as reportReadRow, approvedRead, GATE_ERROR as READ_GATE_ERROR, readLink, reportPageUrl, reportDrafted, draftRead, saveEdit as saveReadEdit, handleReportRead } from './reportread.js';
 /* Brand costs and net profit after fixed costs (2026-11-25): the same pure functions the profit worker prices with. */
 import { ruleCosts, shippingRuled, partlyCosted } from '../../../profit/worker/src/costs.js';
 import { netAfter, netInPosts } from '../../../profit/worker/src/expenses.js';
@@ -210,7 +211,7 @@ function subCanAfford(n) { return subLeft() >= n; }
    counting, one level up. Measure, then decide. */
 const COST_SYNC_BRAND = 20;    // insights + activities + ad-level slices
 const COST_BRIEF_BRAND = 22;   // TW sync + brief data + Claude + Slack + writes
-const COST_REPORT_BRAND = 22;  // report data + Claude + Slack + writes
+const COST_REPORT_BRAND = 26;  // report data + Claude (talking points) + p_report_read + Slack + writes
 const COST_DELIVERY_BRAND = 4; // D1 reads, sometimes one Meta pacing call
 
 /* Observed cost per unit of work, highest seen this invocation. Highest rather
@@ -3417,7 +3418,7 @@ async function postReportToTeam(env, acct, period, start) {
   if (!row) throw new Error('no report generated for that period yet');
   const data = safeJson(row.data_json, null);
   if (!data) throw new Error('this report has no data - regenerate it first');
-  const p = await slackPost(env, channel, await clientReportText(env, acct, row, data), null, { username: 'Locus' });
+  const p = await slackPost(env, channel, await clientReportText(env, acct, row, data, await readForPreview(env, acct.act_id, period, start)), null, { username: 'Locus' });
   const rec = { channel: p?.channel || channel, ts: p?.ts || null, at: new Date().toISOString() };
   await putSetting(env, `teamPost:${period}:${acct.act_id}:${start}`, JSON.stringify(rec));
   return { ok: true, ...rec };
@@ -3484,11 +3485,12 @@ async function clientDailyFor(env, acct, date, text, data, { next = true } = {})
   });
 }
 
-/** The weekly / monthly client post (clientpost.js weeklyPost) for a report row: the frozen totals against the prior
- *  period, one sentence written by a rule from those numbers, This week = the Monday call's lines (meetings.js confirm)
+/** The weekly / monthly client post (clientpost.js weeklyPost) for a report row: How we read it (approved by a person,
+ *  reportread.js; the rule sentence only when there is none), the frozen totals against the prior period, By platform
+ *  (Triple Whale attributed), This week = the Monday call's lines (meetings.js confirm)
  *  + the calendar's confirmed dates in the next 7 days, We need from you = the call's asks + the calendar's asks + open
- *  Requests asks (each with when it was asked and when it is needed), then the archive link. The draft card shows the
- *  same text. No model writes any of it. */
+ *  Requests asks (each with when it was asked and when it is needed), then the public report page link
+ *  (profit/v5/report.html). The draft card shows the same text. A model only DRAFTS the read; a person approves it. */
 /** The week's ads work for the client report: new Meta ads created and the client-readable changes (Ads > Updates). */
 async function adsWork(env, act, start, end) {
   const n = async (a, z) => (await env.DB.prepare(`SELECT COUNT(*) n FROM ads WHERE act_id IN (SELECT external_id FROM connections WHERE brand_id = ?1 AND kind = 'meta') AND substr(created_time, 1, 10) BETWEEN ?2 AND ?3`).bind(act, a, z).first().catch(() => null))?.n || 0;
@@ -3497,22 +3499,41 @@ async function adsWork(env, act, start, end) {
   return { ads: await n(start, end), ads_prev: await n(addDays(start, -7), addDays(start, -1)), changes: ch,
     updates_url: `https://locus.go-mobius-digital.com/profit/?open=adupdates&act=${encodeURIComponent(act)}` };
 }
-async function clientReportText(env, acct, row, data) {
+/** How we read it for a preview or a team post: the approved read, else the draft, else none. */
+async function readForPreview(env, act, period, start) {
+  const rr = await reportReadRow(env, act, period, start).catch(() => null);
+  return approvedRead(rr) || (rr?.status === 'drafted' ? rr.draft : null) || null;
+}
+/* The paid platforms for the post's By platform block: spend from the platform, sales and ROAS from Triple Whale
+   (twAttributeChannels). A ROAS that is not Triple Whale's (a platform's own, or attribution not synced) is left out:
+   spend only. */
+const PAID_CHANNELS = ['meta', 'google', 'tiktok', 'pinterest'];
+function reportPlatforms(data) {
+  return (data?.channels || []).filter(c => PAID_CHANNELS.includes(c.id) && c.cur?.spend > 0).map(c => {
+    const tw = c.cur.source === 'Triple Whale' && !c.cur.awaiting_attr;
+    return { name: c.label, spend: c.cur.spend, roas: tw ? c.cur.roas ?? null : null, low_signal: tw && !!c.cur.low_signal };
+  });
+}
+/* `read` = How we read it (the approved text when sending; the card passes the draft or a "waiting" line). */
+async function clientReportText(env, acct, row, data, read = null) {
   const period = row.period, start = row.period_start;
   /* Fixed costs and net profit print only when the REPORT says so: data.fixed.in_posts, frozen from settings
      costsNetInPosts when the report was generated (reportData). reportHeadline and the report page read the same
-     frozen value, so the draft card, the sent post and the page can never disagree, whatever the switch says later. */
-  const noNet = t => { if (!t || (t.net == null && t.fixed == null && t.ad_expense == null)) return t; const { net, fixed, ad_expense, ...rest } = t; return rest; };
-  const showNet = data?.fixed?.in_posts === true;
+     frozen value, so the draft card, the sent post and the page can never disagree, whatever the switch says later.
+     2026-11-26 (the client reports rebuild): contribution margin rides the same switch, so the post never shows CM
+     the report page does not (the page keeps CM only when in_posts and cm_ok). */
+  const noNet = t => { if (!t) return t; const { net, fixed, ad_expense, cm, ...rest } = t; return rest; };
+  const showNet = data?.fixed?.in_posts === true && data?.cm_ok !== false;
   const totals = showNet ? data?.totals : noNet(data?.totals), previous = showNet ? data?.previous : noNet(data?.previous);
-  const url = `${DASHBOARD_URL}?reports=${await reportToken(env, acct.act_id)}`;
+  const url = reportPageUrl(await reportToken(env, acct.act_id), period, start);
   const cal = period === 'weekly' ? await clientCalendarFor(env, acct.act_id, localDate(BRIEF_TZ), { days: 6 }).catch(() => null) : null;
   const asks = (await env.DB.prepare(`SELECT title, body, created_at FROM p_request WHERE act_id = ?1 AND kind = 'ask' AND status = 'open' ORDER BY created_at`)
     .bind(acct.act_id).all().catch(() => ({ results: [] }))).results || [];
   const askOf = a => ({ text: a.title, asked: String(a.created_at || '').slice(0, 10) || null, due: (String(a.body || '').match(/Needed by (\d{4}-\d{2}-\d{2})/) || [])[1] || null });
   return weeklyPost({
     brand: acct.name, period, start, end: row.period_end, currency: data?.account?.currency || acct.currency, totals, previous,
-    sentence: weekSentence(data?.totals, data?.previous, period === 'monthly' ? 'month' : 'week'),
+    read, platforms: reportPlatforms(data),
+    sentence: read ? null : weekSentence(data?.totals, data?.previous, period === 'monthly' ? 'month' : 'week'),
     amazon: (() => { const c = (data?.channels || []).find(x => x.id === 'amazon'); return c ? { cur: c.cur ? { sales: c.cur.sales, orders: c.cur.orders } : null, prev: c.prev ? { sales: c.prev.sales, orders: c.prev.orders } : null } : null; })(),
     work: period === 'weekly' ? await adsWork(env, acct.act_id, start, row.period_end || addDays(start, 6)).catch(() => null) : null,
     this_week: [...(Array.isArray(data?.this_week) ? data.this_week : []), ...(cal?.going_live || [])],
@@ -5088,64 +5109,9 @@ async function reportData(env, acct, period, start, end) {
   };
 }
 
-const REPORT_SYSTEM = `You are a senior media buyer at Mobius Digital writing the executive summary of a client's WEEKLY or MONTHLY performance report. The report page already shows every number in cards and tables - do NOT restate them as a list.
-Write exactly three sections, plain text, section titles on their own line exactly as written, with NO colon, arrow or question mark after them:
-What we saw
-• 3-5 bullets: what happened over the period, stated plainly. The trend against the prior period, the new-vs-returning read, the per-channel read, and where the month stands. Conclusion first in every bullet.
-What it means
-2-4 sentences, written the way you would explain it to the owner across a table: the one or two things from this period that matter most for their money, and why, with the context someone outside advertising needs. It explains, it does not report: if a sentence here could have been a bullet above, it is in the wrong place. Where the change log supports it, say which of our changes drove what.
-What we're doing
-• 2-4 bullets: what we will actually do next, each with a trigger or a date where possible.
-
-WRITING RULES - these matter as much as the facts, because the page is already full of numbers:
-Every figure is ALREADY on the page in cards and tables, WITH its percentage against plan and against the prior period. Name a number only when the sentence collapses without it.
-TWO NUMBERS PER BULLET, MAXIMUM. A bullet carrying seven figures is a table crammed into a sentence and the point disappears.
-"What it means" carries NO new figures at all. It is the consequence in plain words.
-NO ABBREVIATIONS OR SHORTHAND. Write "month to date", not MTD. Write "Wednesday", not 48h. Write "about 20", not ~20. Write "September 8", not 09-08. This rule is about WORDS, not symbols: always write money with its currency symbol as "$36", never "36 dollars", and percentages as "64%".
-NEVER print a raw ad or campaign name. Say "the new creative".
-NO EM DASHES, EVER. Use a comma, a colon or a full stop. This is a standing rule across everything Mobius writes.
-${PLAIN_VOICE}
-Every sentence should survive being read once, at speed, by a client who does not work in ads.
-Rules: use ONLY the numbers provided - never invent or extrapolate figures. Money in the account's own currency, whole units. MER = ALL store revenue (every channel, not ad-attributed) ÷ ALL ad spend on every platform; aMER = new-customer revenue ÷ that same spend. Both are blended on BOTH sides - never call them attributed, and never confuse them with a channel ROAS (which is Triple Whale attributed, double-counts across platforms, and should be treated as directional). Write for the client: confident, plain language, no hedging filler. Under 230 words total. No greeting, no sign-off, no markdown headers, no asterisks for bold.`;
-
-async function writeReportNarrative(env, acct, data, steer) {
-  const f2 = n => n == null ? ' - ' : String(Math.round(n * 100) / 100);
-  const label = data.period === 'weekly' ? 'week' : 'month';
-  const slim = t => t ? { sales: f2(t.sales), spend: f2(t.spend), orders: t.orders, mer: f2(t.mer), amer: f2(t.amer), aov: f2(t.aov), new_customer_cpa: f2(t.ncpa), new_share: f2(t.new_share), cm: f2(t.cm) } : null;
-  const chLines = (data.channels || []).map(c => `- ${c.label}: ${JSON.stringify(c.cur)} | prior ${label}: ${JSON.stringify(c.prev)}`);
-  const twAd = id => { const m = data.attr?.ads?.[BRIEF_ATTR_MODEL]; return m ? (m[id] || { revenue: 0, orders: 0 }) : null; };
-  const adLines = (data.ads?.top || []).slice(0, 5).map(a => { const t = twAd(a.ad_id); const cpa = t ? (t.orders > 0 ? a.spend / t.orders : null) : a.cpa, roas = t ? (a.spend ? t.revenue / a.spend : null) : a.roas; return `- ${a.name}: spend ${f2(a.spend)} (${Math.round((a.share || 0) * 100)}% of Meta), CPA ${f2(cpa)}, ROAS ${f2(roas)}${t ? ' (Triple Whale)' : ' (Meta-reported, Triple Whale not available)'}`
-    + (a.hook != null ? `, hook rate ${Math.round(a.hook * 100)}% (3s views/impressions; 30-40% is typical)` : '')
-    + (a.hold != null ? `, hold rate ${Math.round(a.hold * 100)}% (ThruPlay/3s views; 40-50% is typical)` : ''); });
-  const fmtLines = (data.ads?.formats || []).map(f => `- ${f.label}: ${f.count} ads, spend ${f2(f.spend)} (${Math.round((f.share || 0) * 100)}%), CPA ${f2(f.cpa)}, ROAS ${f2(f.roas)}`);
-  // Notable changes individually; routine churn as counts. Feeding the model 14
-  // rows of "new ad" made it write about ad names instead of about the money.
-  const ch = data.changes || {};
-  const evLines = (Array.isArray(ch) ? ch : ch.notable || [])
-    .map(e => `- ${e.t} [${e.category}] ${e.summary}${e.reason ? ` {${e.reason}}` : ''}`);
-  const rollLine = !Array.isArray(ch) && ch.rollup && Object.keys(ch.rollup).length
-    ? Object.entries(ch.rollup).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${v} ${k.replace(/_/g, ' ')}`).join(', ')
-    : null;
-  const unplanned = Object.entries(data.forecast?.months || {}).filter(([, m]) => !m.planned && m.has_goals);
-  return claude(env, {
-    system: REPORT_SYSTEM,
-    maxTokens: 6000,   // opus-5 spends thinking tokens inside max_tokens; leave real headroom
-    user: `Client: ${acct.name} (currency ${acct.currency}). ${data.period === 'weekly' ? 'Weekly' : 'Monthly'} report covering ${data.start} → ${data.end}.\n` +
-      `This ${label}: ${JSON.stringify(slim(data.totals))}\n` +
-      `Prior ${label} (${data.prev_start} → ${data.prev_end}): ${JSON.stringify(slim(data.previous))}\n` +
-      `Plan for the period: ${JSON.stringify({ sales: f2(data.forecast?.sales), spend: f2(data.forecast?.spend), mer: f2(data.forecast?.mer), cm: f2(data.forecast?.cm) })}\n` +
-      (unplanned.length ? `IMPORTANT: no plan was actually set for ${unplanned.map(([ym]) => ym).join(', ')} - the "plan" figures are carried over from an earlier month. Do not present them as an agreed target; refer to them as the prior pace.\n` : '') +
-      (data.cm_ok ? '' : `IMPORTANT: this client's cost data is unreliable (${data.cogs_quality?.reason}). Contribution margin has been removed from the report - do NOT mention margin, CM or profit anywhere.\n`) +
-      (data.pacing ? `Where the month stands after this week (${data.pacing.month}): MTD sales ${f2(data.pacing.mtd_sales)} vs ${f2(data.pacing.plan_to_date)} planned by now; projected ${f2(data.pacing.projected)} against the ${f2(data.pacing.goal_sales)} goal.\n` : '') +
-      `Channels - revenue, ROAS, purchases and CPA are Triple Whale's pixel attribution (last platform click); spend, CPM and CTR are the platform's own. A line marked low_signal recorded fewer than two orders in the whole window, so quote its spend and say the conversions have not landed rather than repeating the ratio. There is no per-platform ROAS target: the agreed goals are the blended ones above. Never judge a platform's ROAS against the MER goal (blended MER counts every channel's revenue over total spend and is always higher, so that reports a healthy account as failing). Use these to say which channel moved, not to declare a target missed:\n${chLines.join('\n') || '- (none)'}\n` +
-      `Top Meta ads by spend:\n${adLines.join('\n') || '- (none)'}\n` +
-      (fmtLines.length ? `Meta spend by creative format (from the ad naming convention - covers every ad that spent):\n${fmtLines.join('\n')}\n` : '') +
-      `Budget, bidding and structural changes we made during the period:\n${evLines.join('\n') || '- (none)'}\n` +
-      (rollLine ? `Routine activity in the same period (counts only, do not list these individually): ${rollLine}.\n` : '') +
-      (await styleBlock(env, 'report', acct.act_id)) +
-      steerBlock(steer),
-  });
-}
+/* The old client narrative (REPORT_SYSTEM / writeReportNarrative: What we saw / What it means / What we're doing) is
+   gone (2026-11-26, the client reports rebuild). makeReport writes team-only talking points instead and a person
+   approves How we read it (reportread.js). */
 
 const repMoney = (n, cur) => n == null ? ' - ' : new Intl.NumberFormat('en-US',
   { style: 'currency', currency: cur || 'USD', maximumFractionDigits: 0 }).format(n);
@@ -5208,8 +5174,10 @@ async function makeReport(env, acct, period, start, { force = false, steer } = {
   if (data.totals.sales == null) throw new Error('no Triple Whale data for this period - refresh Triple Whale data first');
   if (missing > 0 && !force) throw new Error(`Triple Whale data is missing for ${missing} of the ${expected} days - refresh Triple Whale data and regenerate (or generate anyway)`);
   data.missing_days = missing;
-  let summary = null, narrative_error = null;
-  try { summary = await writeReportNarrative(env, acct, data, steer); } catch (e) { narrative_error = e.message; }
+  /* 2026-11-26: no client narrative at draft. summary stays NULL until a person approves How we read it
+     (reportread.js approveRead writes it); the talking points for the call are written after the row below. */
+  const summary = null;
+  let narrative_error = null;
   // 'handled' for a brand with no client channel - see draftStatus.
   await env.DB.prepare(
     `INSERT INTO reports (act_id, period, period_start, period_end, status, generated_at, summary, data_json, steer)
@@ -5218,6 +5186,8 @@ async function makeReport(env, acct, period, start, { force = false, steer } = {
        status = excluded.status, generated_at = excluded.generated_at, summary = excluded.summary,
        data_json = excluded.data_json, steer = excluded.steer, sent_at = NULL, sent_channel = NULL`,
   ).bind(acct.act_id, period, start, end, new Date().toISOString(), summary, JSON.stringify(data), steer || null, draftStatus(acct)).run();
+  /* The team-only talking points (p_report_read, never this row). A failure leaves the report drafted, numbers intact. */
+  try { await reportDrafted(env, readDeps(), acct, period, start, data, { steer }); } catch (e) { narrative_error = e.message; }
   return { period, start, end, summary, data, narrative_error, steer: steer || null };
 }
 
@@ -5267,8 +5237,9 @@ async function postReportDraft(env, acct, r) {
   return { ok: true, channel };
 }
 
-/** The Send-to-client button. Posts the headline + the client's archive link to
- *  their channel and freezes the report. Nothing else ever posts to a client. */
+/** The Send-to-client button. Posts the read + the numbers + the report page link to
+ *  their channel and freezes the report. Nothing else ever posts to a client.
+ *  Refuses unless How we read it is approved (2026-11-26). */
 async function sendReport(env, acct, period, start) {
   const row = await env.DB.prepare(
     `SELECT * FROM reports WHERE act_id = ?1 AND period = ?2 AND period_start = ?3`,
@@ -5278,6 +5249,10 @@ async function sendReport(env, acct, period, start) {
   if (row.status === 'skipped') throw new Error('this report is marked Do not send, so it is not sent');
   const data = safeJson(row.data_json, null);
   if (!data) throw new Error('this report has no data - regenerate it first');
+  /* THE APPROVAL GATE (2026-11-26): nothing goes to a client without How we read it written and approved by a person
+     (reportread.js). Every caller (Locus, the Slack card, the approve route) comes through here. */
+  const read = approvedRead(await reportReadRow(env, acct.act_id, period, start).catch(() => null));
+  if (!read) throw new Error(READ_GATE_ERROR);
   // ONE client destination per brand, shared by the brief and both reports.
   // Deliberately no fallback to the internal channel: "Send to client" quietly
   // posting to the team is the failure this whole flow exists to prevent, so an
@@ -5286,13 +5261,13 @@ async function sendReport(env, acct, period, start) {
   if (!channel) throw new Error('no client channel set for this brand - pick one in Settings');
   /* The new shape (2026-10-19): the four numbers with one comparison each, one sentence, This week (the Monday call +
      the calendar), From you, the link. Client-facing, so it posts as the person, not the app. */
-  const text = await clientReportText(env, acct, row, data);
-  const url = `${DASHBOARD_URL}?reports=${await reportToken(env, acct.act_id)}`;
+  const text = await clientReportText(env, acct, row, data, read);
+  const url = reportPageUrl(await reportToken(env, acct.act_id), period, start);
   await slackPost(env, channel, text, null, { kind: 'client_report' });
   await env.DB.prepare(
-    `UPDATE reports SET status = 'sent', sent_at = ?4, sent_channel = ?5
+    `UPDATE reports SET status = 'sent', sent_at = ?4, sent_channel = ?5, summary = ?6
      WHERE act_id = ?1 AND period = ?2 AND period_start = ?3`,
-  ).bind(acct.act_id, period, start, new Date().toISOString(), channel).run();
+  ).bind(acct.act_id, period, start, new Date().toISOString(), channel, read).run();
   await slackSyncReport(env, acct, period, start).catch(() => {});
   return { ok: true, channel, url };
 }
@@ -5337,7 +5312,7 @@ async function reportsPass(env) {
         ).bind(a.act_id, addDays(today, -1) < j.start ? j.start : addDays(today, -1)).first().catch(() => null);
         if (!have) await syncTwDaily(env, a, j.period === 'monthly' ? 100 : 70).catch(() => {});
         const r = await makeReport(env, a, j.period, j.start);
-        if (r.narrative_error) await alertClaudeFailure(env, `${j.period} report summary for ${a.name}`, r.narrative_error);
+        if (r.narrative_error) await alertClaudeFailure(env, `${j.period} report talking points for ${a.name}`, r.narrative_error);
         // Same switch as the daily brief: review means it waits for a human,
         // off means it goes straight to the client. One rule for all three.
         /* `ok: true` USED TO BE HARD-CODED HERE, next to a caught error.
@@ -5347,8 +5322,8 @@ async function reportsPass(env) {
         // Internal-only brands post the card and stop: makeReport already
         // stored the report as 'handled', and sendReport would only refuse.
         /* 2026-10-19: DRAFTS ONLY, whatever review_first says. No report reaches a client before the Monday call unless a
-           person presses Send; a brand with review_first off is sent on the call's confirm (meetings.js) or by
-           reportFallbackPass at 11am Central. */
+           person presses Send. Since 2026-11-26 nothing sends a report automatically at all: the call's confirm
+           (meetings.js) drafts How we read it and a person approves and sends it (reportread.js). */
         const step = { posted: await postReportDraft(env, a, r).catch(e => ({ error: e.message })) };
         const failure = (step.posted || step.sent)?.error || null;
         results.push({
@@ -5367,9 +5342,9 @@ async function reportsPass(env) {
   return results;
 }
 
-/** 11am Central on a report day: a brand with review_first OFF whose report is still a draft gets it sent as it
- *  stands (no This week block when the call was not confirmed), so a late call never leaves a client with nothing.
- *  Brands with review_first on wait for a person's Send, as before. */
+/** 11am Central on a report day. It USED to send a review_first-off brand's draft as it stood. Since 2026-11-26 every
+ *  report needs How we read it approved by a person (reportread.js), and an approved report is sent by that person, so
+ *  this pass NEVER sends: each unsent draft is listed as waiting for an approved read. */
 const REPORT_FALLBACK_HOUR = 11;
 async function reportFallbackPass(env) {
   if (centralHour() < REPORT_FALLBACK_HOUR) return { skipped: `before ${REPORT_FALLBACK_HOUR}am Central` };
@@ -5386,8 +5361,7 @@ async function reportFallbackPass(env) {
       if (cfg[j.period] === false) continue;
       const row = await env.DB.prepare(`SELECT status FROM reports WHERE act_id = ?1 AND period = ?2 AND period_start = ?3`).bind(a.act_id, j.period, j.start).first().catch(() => null);
       if (row?.status !== 'draft') continue;
-      if (!subCanAfford(30)) { results.push({ name: a.name, period: j.period, deferred: 'budget' }); continue; }
-      results.push({ name: a.name, period: j.period, ...(await sendReport(env, a, j.period, j.start).then(r => ({ sent: r.channel })).catch(e => ({ error: e.message }))) });
+      results.push({ name: a.name, period: j.period, skipped: 'waits for an approved read' });
     }
   }
   return results;
@@ -6311,7 +6285,13 @@ async function reportCard(env, acct, row, banner) {
      as having no link at all (2026-09-14). The client link is the same archive
      link the client is sent; before the first send it opens empty. */
   const locusUrl = LOCUS_REPORTS(acct.act_id);
-  const clientUrl = `${DASHBOARD_URL}?reports=${await reportToken(env, acct.act_id)}`;
+  const clientUrl = reportPageUrl(await reportToken(env, acct.act_id), row.period, row.period_start);
+  /* How we read it (2026-11-26, reportread.js): waiting on the call until drafted, the draft once drafted, the approved
+     text once approved. Send refuses (sendReport) until a person approves it in Locus. */
+  const rr = await reportReadRow(env, acct.act_id, row.period, row.period_start).catch(() => null);
+  const approved = approvedRead(rr);
+  const readNow = row.status === 'sent' ? (row.summary || null) : approved || (rr?.status === 'drafted' && rr.draft) || '_Waiting on the call._';
+  const approveUrl = readLink(acct.act_id);
   const label = row.period === 'weekly' ? 'Weekly' : 'Monthly';
   const range = `${prettyDate(row.period_start)} \u2192 ${prettyDate(row.period_end)}`;
   const v = JSON.stringify({ a: acct.act_id, p: row.period, s: row.period_start });
@@ -6333,7 +6313,7 @@ async function reportCard(env, acct, row, banner) {
   if (banner) blocks.push({ type: 'section', text: { type: 'mrkdwn', text: banner } });
   /* 2026-10-19: the card carries the client post exactly as Send will post it (clientReportText), so a person reads what
      the client reads, This week included once the Monday call is confirmed. */
-  if (data) blocks.push({ type: 'section', text: { type: 'mrkdwn', text: await clientReportText(env, acct, row, data).catch(() => reportHeadline(data)) } });
+  if (data) blocks.push({ type: 'section', text: { type: 'mrkdwn', text: (await clientReportText(env, acct, row, data, readNow).catch(() => reportHeadline(data))).slice(0, 2990) } });
 
   /* THE SUMMARY DELIBERATELY DOES NOT GO IN THE MESSAGE, and this is the one
      place the report and the Daily Brief differ on purpose.
@@ -6359,7 +6339,11 @@ async function reportCard(env, acct, row, banner) {
   if (row.status === 'sent' && row.sent_channel) notes.push(`Posted to <#${row.sent_channel}>${row.sent_at ? ` at ${shortTime(row.sent_at)} Central` : ''}. A sent report is frozen.`);
   if (row.steer && row.status !== 'sent') notes.push(`Last rewrite was steered: \u201c${String(row.steer).slice(0, 160)}\u201d`);
   if (data?.missing_days) notes.push(`${data.missing_days} day(s) in this period had no Triple Whale data.`);
-  if (!row.summary) notes.push(handled ? ':warning: No summary was written - rewrite it.' : ':warning: No summary was written - rewrite it before sending.');
+  if (row.status !== 'sent' && !skipped) {
+    notes.push(approved ? 'How we read it is approved.'
+      : rr?.status === 'drafted' ? `How we read it is a draft, not approved yet: <${approveUrl}|Approve it in Locus>. Send refuses until it is.`
+      : `How we read it waits on the call: <${approveUrl}|write and approve it in Locus>. Send refuses until it is.`);
+  }
   blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: notes.join('  \u00b7  ') }] });
 
   const els = [];
@@ -6367,11 +6351,12 @@ async function reportCard(env, acct, row, banner) {
     if (!handled) {
       els.push(btn('Send to client', 'report_send', v, { style: 'primary', confirm: confirmDialog(
         'Send this report to the client?',
-        `This posts the ${row.period} report (*${range}*) and its link to ${acct.brief_channel ? `<#${acct.brief_channel}>` : 'the client channel'} under your own name, and *freezes the report permanently*.`,
+        `This posts the ${row.period} report (*${range}*) and its link to ${acct.brief_channel ? `<#${acct.brief_channel}>` : 'the client channel'} under your own name, and *freezes the report permanently*. It is refused until How we read it is approved in Locus.`,
         'Send it') }));
+      if (!approved) els.push(btn('Approve it in Locus', 'noop_open', v, { url: approveUrl }));
     } else if (acct.slack_channel && !acct.brief_channel) els.push(btn('Post to the team channel', 'report_team', v, { style: 'primary' }));
-    els.push(btn('Edit the summary', 'report_edit', v));
-    els.push(btn('Rewrite with AI', 'report_rewrite', v));
+    els.push(btn('Edit how we read it', 'report_edit', v));
+    els.push(btn('Write how we read it', 'report_rewrite', v));
   }
   els.push(btn('Open in Locus', 'noop_open', v, { url: LOCUS_REPORTS(acct.act_id) }));
   blocks.push({ type: 'actions', elements: els });
@@ -6741,16 +6726,18 @@ async function slackBlockAction(env, ctx, p) {
     const row = isBrief
       ? await env.DB.prepare(`SELECT * FROM briefs WHERE act_id = ?1 AND date = ?2`).bind(acct.act_id, meta.d).first()
       : await env.DB.prepare(`SELECT * FROM reports WHERE act_id = ?1 AND period = ?2 AND period_start = ?3`).bind(acct.act_id, meta.p, meta.s).first();
-    const body = isBrief ? row?.text : row?.summary;
+    /* A report's Edit opens How we read it (2026-11-26, reportread.js): the approved text, else the draft. */
+    const rr = isBrief ? null : await reportReadRow(env, acct.act_id, meta.p, meta.s).catch(() => null);
+    const body = isBrief ? row?.text : (rr?.read_text || rr?.draft || '');
     if (!row || row.status === 'sent') {
       await slackWhisper(env, chan, user, 'That one has already been sent to the client, so its wording is frozen - it is the record of what they received.');
       return ACK();
     }
     await slackApi(env, 'views.open', { trigger_id: p.trigger_id, view: editModal({
       callback_id: isBrief ? 'brief_edit_submit' : 'report_edit_submit',
-      meta, title: isBrief ? 'Edit the brief' : 'Edit the summary',
-      label: isBrief ? 'The brief, exactly as the client will read it' : 'The executive summary',
-      hint: '',
+      meta, title: isBrief ? 'Edit the brief' : 'Edit how we read it',
+      label: isBrief ? 'The brief, exactly as the client will read it' : 'How we read it, as the client will read it',
+      hint: isBrief ? '' : 'Saved as a draft. Approve it in Locus before it can be sent.',
       value: body || '',
     }) });
     return ACK();
@@ -6803,7 +6790,7 @@ async function slackBlockAction(env, ctx, p) {
     await slackApi(env, 'views.open', { trigger_id: p.trigger_id, view: rewriteModal({
       callback_id: isBrief ? 'brief_rewrite_submit' : 'report_rewrite_submit',
       meta, title: 'Rewrite with AI',
-      what: isBrief ? `the brief for ${prettyDate(meta.d)}` : 'the summary',
+      what: isBrief ? `the brief for ${prettyDate(meta.d)}` : 'how we read it',
       current: row?.steer || '',
     }) });
     return ACK();
@@ -6825,7 +6812,7 @@ async function slackBlockAction(env, ctx, p) {
       } else {
         await slackSyncReport(env, acct, meta.p, meta.s, ':hourglass_flowing_sand: _Sending…_');
         const r = await sendReport(env, acct, meta.p, meta.s).catch(e => ({ error: e.message }));
-        await slackSyncReport(env, acct, meta.p, meta.s, r.ok ? null : `:warning: *Not sent.* ${r.error}`);
+        await slackSyncReport(env, acct, meta.p, meta.s, r.ok ? null : `:warning: *Not sent.* ${r.error}${r.error === READ_GATE_ERROR ? `: <${readLink(acct.act_id)}|Approve it in Locus>` : ''}`);
         if (r.ok) await slackWhisper(env, chan, user, `Sent to <#${r.channel}> ✓`);
       }
     })());
@@ -6911,10 +6898,16 @@ async function slackViewSubmit(env, ctx, p) {
   }
 
   if (cb === 'report_edit_submit') {
-    const summary = joinEdit(p.view, meta);
+    /* How we read it, saved as the draft (reportread.js): an approved read drops back to a draft until approved again. */
+    const text = joinEdit(p.view, meta);
+    if (!text.trim()) {
+      return new Response(JSON.stringify({ response_action: 'errors', errors: { body0: 'How we read it cannot be empty.' } }),
+        { headers: { 'content-type': 'application/json' } });
+    }
     ctx.waitUntil((async () => {
-      await env.DB.prepare(`UPDATE reports SET summary = ?4 WHERE act_id = ?1 AND period = ?2 AND period_start = ?3 AND status IN ('draft','handled')`)
-        .bind(acct.act_id, meta.p, meta.s, summary).run().catch(() => {});
+      const rep = await env.DB.prepare(`SELECT status FROM reports WHERE act_id = ?1 AND period = ?2 AND period_start = ?3`).bind(acct.act_id, meta.p, meta.s).first().catch(() => null);
+      if (!rep || rep.status === 'sent') return;
+      await saveReadEdit(env, acct.act_id, meta.p, meta.s, text).catch(() => {});
       await slackSyncReport(env, acct, meta.p, meta.s);
     })());
     return ACK();
@@ -6936,9 +6929,11 @@ async function slackViewSubmit(env, ctx, p) {
   if (cb === 'report_rewrite_submit') {
     const steer = modalValue(p.view, 'steer').trim() || null;
     ctx.waitUntil((async () => {
-      await slackSyncReport(env, acct, meta.p, meta.s, `:hourglass_flowing_sand: _Claude is rewriting this… (~30s)_${steer ? `\n_Steered: “${steer.slice(0, 200)}”_` : ''}`);
+      await slackSyncReport(env, acct, meta.p, meta.s, `:hourglass_flowing_sand: _Writing how we read it… (~20s)_${steer ? `\n_Steered: “${steer.slice(0, 200)}”_` : ''}`);
       try {
-        await makeReport(env, acct, meta.p, meta.s, { force: true, steer });
+        /* 2026-11-26: the AI writes How we read it (reportread.js, the team's stored view + the talking points), not
+           the whole report: the numbers stay as drafted. The result is a draft a person approves in Locus. */
+        await draftRead(env, readDeps(), acct, meta.p, meta.s, { steer });
         await slackSyncReport(env, acct, meta.p, meta.s);
       } catch (e) {
         await slackSyncReport(env, acct, meta.p, meta.s, `:warning: *Could not rewrite it.* ${e.message}`);
@@ -7584,10 +7579,17 @@ function meetingDeps() {
     canAfford: n => subCanAfford(n),
     listBrands: async env => (await listAccounts(env, true)).map(a => ({ act_id: a.act_id, name: a.name, slack_channel: a.slack_channel || null, brief_channel: a.brief_channel || null, review_first: !!a.review_first })),
     createAsk: (env, act, title, text, who) => createAsk(env, { slackPost }, act, title, text, who),
-    slackSyncReport: async (env, act, start) => { const a = await acctOf(env, act); if (a) await slackSyncReport(env, a, 'weekly', start); },
-    /* The weekly goes to the client when the Monday call is confirmed, for brands that do not review first (2026-10-19). */
-    sendReport: async (env, act, start) => { const a = await acctOf(env, act); if (!a) throw new Error('no such brand'); return sendReport(env, a, 'weekly', start); },
+    slackSyncReport: async (env, act, start, period = 'weekly') => { const a = await acctOf(env, act); if (a) await slackSyncReport(env, a, period, start); },
+    /* 2026-11-26: the call's confirm no longer sends a report. It stores the team's view and drafts How we read it
+       (reportread.js); a person approves and sends it. */
+    draftReportRead: async (env, act, period, start, o) => { const a = await acctOf(env, act); if (!a) throw new Error('no such brand'); return draftRead(env, readDeps(), a, period, start, o); },
   };
+}
+/* reportread.js: the model (Sonnet 5.5 through this worker's claude()), and the route's helpers. */
+function readDeps() {
+  return { claude: (env, o) => claude(env, o), json, acctOf, sessionEmail, clientScope,
+    sendReport: (env, a, period, start) => sendReport(env, a, period, start),
+    slackSyncReport: (env, a, period, start) => slackSyncReport(env, a, period, start) };
 }
 /* actions.js: the team's action items; reminders under the brand's morning card (or its internal channel), a DM when it has none. */
 function actionDeps() {
@@ -8781,7 +8783,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       const brow = await env.DB.prepare(`SELECT date, text FROM briefs WHERE act_id = ?1 AND text IS NOT NULL ORDER BY (status = 'sent') DESC, date DESC LIMIT 1`).bind(acct.act_id).first().catch(() => null);
       if (brow) { const data = await briefData(env, acct, brow.date).catch(() => null); out.daily = { date: brow.date, text: await clientDailyFor(env, acct, brow.date, brow.text, data), thread: clientDailyThreadFor(acct, brow.date, data) }; }
       const rrow = await env.DB.prepare(`SELECT * FROM reports WHERE act_id = ?1 AND period = 'weekly' ORDER BY period_start DESC LIMIT 1`).bind(acct.act_id).first().catch(() => null);
-      if (rrow) out.weekly = { start: rrow.period_start, status: rrow.status, text: await clientReportText(env, acct, rrow, safeJson(rrow.data_json, null)) };
+      if (rrow) out.weekly = { start: rrow.period_start, status: rrow.status, text: await clientReportText(env, acct, rrow, safeJson(rrow.data_json, null), rrow.status === 'sent' ? rrow.summary : await readForPreview(env, acct.act_id, 'weekly', rrow.period_start)) };
       if (url.searchParams.get('post') === '1') {
         const ch = await getSetting(env, 'strategistChannel');
         if (!ch) return json({ ...out, error: 'no strategistChannel set' }, 400);
@@ -10985,6 +10987,12 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         return json({ rows: results });
       }
 
+      /* ---- How we read it (2026-11-26, reportread.js): talking points, the team's view, the AI draft, approve (and
+         send). TEAM ONLY: not on brandguard CLIENT_RULES, and the handler refuses a client scope again. ---- */
+      if (path === '/api/report-read' || path.startsWith('/api/report-read/')) {
+        const r = await handleReportRead(request, env, path, url, readDeps());
+        if (r) return r;
+      }
       /* ---- Weekly / Monthly reports (interface = Mobius Profit's Reports tab) ---- */
       if (path === '/api/reports' && request.method === 'GET') {
         const act = url.searchParams.get('act');

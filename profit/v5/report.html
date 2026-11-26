@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Your report</title>
+<!--
+  The client's report page. Standalone: no login, no app shell, no drop-downs, nothing folds.
+  ?t=<report token>[&period=weekly|monthly&start=YYYY-MM-DD]  reads GET <profit worker>/api/report-view/<token>
+  (sent reports only; a signed in team member also sees drafts, flagged as a preview).
+  ?sample=1  draws the built-in example (Sample Golf Co, invented numbers) with no network at all.
+  Order, top to bottom: brand and period, How we read it, the numbers, by platform, day by day, best ads,
+  this week / we need from you, earlier reports.
+-->
+<style>
+@font-face{font-family:'Inter';src:url('fonts/inter.woff2') format('woff2');font-weight:100 900;font-style:normal;font-display:swap}
+@font-face{font-family:'Instrument Serif';src:url('fonts/instrument-serif-italic.woff2') format('woff2');font-weight:400;font-style:italic;font-display:swap}
+:root{
+  color-scheme:light;
+  --bg:#FFFFFF;--sunk:#F4F3F0;--card:#FFFFFF;--ink:#16130F;--ink-2:#3F3A34;--muted:#6F6A63;--line:rgba(28,20,10,.09);--line-2:rgba(28,20,10,.15);
+  --lead:#F2541C;--lead-soft:rgba(242,84,28,.12);--slate:#5B6B8C;--good:#0B7D55;--bad:#C9184A;--warn-bg:#FBF3CC;--warn:#7A5A00;
+  --grad:linear-gradient(100deg,#F26A0F 0%,#F2481C 100%);
+  --sh:0 0 0 1px rgba(28,20,10,.05),0 1px 2px rgba(28,20,10,.04),0 10px 28px -14px rgba(28,20,10,.14);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#14120F;--sunk:#1C1A16;--card:#1D1B17;--ink:#F3EFE8;--ink-2:#D6D0C6;--muted:#A39C91;--line:rgba(255,248,235,.09);--line-2:rgba(255,248,235,.16);
+    --lead:#FF7A3D;--lead-soft:rgba(255,122,61,.16);--slate:#9AA9C6;--good:#4CC79A;--bad:#FF6B8E;--warn-bg:#3A3110;--warn:#F2D36B;
+    --grad:linear-gradient(100deg,#FF8A3D 0%,#FF6B3D 100%);
+    --sh:0 0 0 1px rgba(255,248,235,.06),0 10px 28px -14px rgba(0,0,0,.6);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#14120F;--sunk:#1C1A16;--card:#1D1B17;--ink:#F3EFE8;--ink-2:#D6D0C6;--muted:#A39C91;--line:rgba(255,248,235,.09);--line-2:rgba(255,248,235,.16);
+  --lead:#FF7A3D;--lead-soft:rgba(255,122,61,.16);--slate:#9AA9C6;--good:#4CC79A;--bad:#FF6B8E;--warn-bg:#3A3110;--warn:#F2D36B;
+  --grad:linear-gradient(100deg,#FF8A3D 0%,#FF6B3D 100%);
+  --sh:0 0 0 1px rgba(255,248,235,.06),0 10px 28px -14px rgba(0,0,0,.6);
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;font-size:15px;line-height:1.55;
+  font-feature-settings:"tnum" 1,"cv11" 1;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+h1,h2,h3,p,ul{margin:0}
+a{color:inherit}
+.wrap{max-width:860px;margin:0 auto;padding:28px 16px 56px;display:grid;gap:36px;min-width:0}
+@media (min-width:760px){.wrap{padding:48px 32px 72px;gap:44px}}
+.head{display:grid;gap:6px}
+.brand{font-size:13px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.title{font-size:clamp(26px,22px + 1.6vw,36px);font-weight:650;letter-spacing:-.025em;line-height:1.15}
+.title em{font-family:'Instrument Serif',Georgia,serif;font-style:italic;font-weight:400;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent;padding-right:.06em}
+.meta{font-size:13.5px;color:var(--muted)}
+.notice{padding:12px 14px;border-radius:12px;background:var(--warn-bg);color:var(--warn);font-size:14px;line-height:1.5}
+.lab{font-size:12px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+section{min-width:0}
+.read{padding:22px 20px;border-radius:20px;background:var(--card);box-shadow:var(--sh);position:relative;overflow:hidden}
+.read::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--grad)}
+@media (min-width:760px){.read{padding:30px 34px}}
+.read-t{display:grid;gap:12px;font-size:clamp(18px,16.5px + .6vw,21px);line-height:1.55;letter-spacing:-.01em;color:var(--ink);overflow-wrap:anywhere}
+.read-t ul{padding-left:22px;display:grid;gap:8px}
+.read-t h4{margin:6px 0 -4px;font-size:12px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.read-none{font-size:16px;color:var(--muted)}
+.nums{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+@media (min-width:760px){.nums{grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}}
+.num{padding:16px 16px 14px;border-radius:16px;background:var(--sunk);min-width:0;display:grid;gap:2px;align-content:start}
+.num .l{font-size:12.5px;font-weight:600;color:var(--muted)}
+.num .v{font-size:clamp(22px,19px + 1vw,28px);font-weight:650;letter-spacing:-.03em;line-height:1.2;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.num .s{font-size:13px;color:var(--muted);line-height:1.4}
+.up{color:var(--good);font-weight:600}.down{color:var(--bad);font-weight:600}.flat{color:var(--ink-2);font-weight:600}
+.tbl{width:100%;table-layout:fixed;border-collapse:collapse;font-size:14.5px;font-variant-numeric:tabular-nums}
+.tbl th{font-size:12px;font-weight:600;color:var(--muted);text-align:right;padding:0 0 8px 8px;border-bottom:1px solid var(--line-2)}
+.tbl th:first-child,.tbl td:first-child{text-align:left;padding-left:0}
+.tbl td{text-align:right;padding:12px 0 12px 8px;border-bottom:1px solid var(--line)}
+.tbl td:first-child{font-weight:600}
+.tbl td.quiet{color:var(--muted);font-size:13px;line-height:1.35}
+.tbl col.c1{width:28%}
+@media (max-width:420px){.tbl{font-size:13.5px}.tbl th{font-size:11.5px}}
+.foot{margin-top:10px;font-size:13px;color:var(--muted);line-height:1.5}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--ink-2);margin-bottom:8px}
+.legend i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:middle;margin-right:6px}
+.chart{width:100%;min-width:0}
+.chart svg{display:block;width:100%;overflow:visible}
+.chart text{font-size:11.5px;fill:var(--muted);font-family:inherit}
+.ads{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
+.ad{border-radius:16px;background:var(--card);box-shadow:var(--sh);overflow:hidden;display:grid;min-width:0}
+.ad .pic{aspect-ratio:1/1;background:var(--sunk);display:grid;place-items:center;color:var(--muted);font-size:13px;overflow:hidden;position:relative}
+.ad .pic img{width:100%;height:100%;object-fit:cover;display:block}
+.ad .vid{position:absolute;left:10px;top:10px;padding:2px 8px;border-radius:999px;background:rgba(0,0,0,.55);color:#fff;font-size:11.5px;font-weight:600}
+.ad .b{padding:12px 14px 14px;display:grid;gap:4px}
+.ad .n{font-weight:600;font-size:14.5px;line-height:1.35;overflow-wrap:anywhere}
+.ad .st{font-size:13.5px;color:var(--ink-2)}
+@media (max-width:559px){.ads{grid-template-columns:1fr;gap:12px}.ad{grid-template-columns:104px minmax(0,1fr)}.ad .pic{aspect-ratio:auto;min-height:104px}.ad .b{align-content:center}.ad .vid{left:6px;top:6px;font-size:10.5px}}
+.lists{display:grid;gap:24px}
+@media (min-width:760px){.lists.two{grid-template-columns:1fr 1fr}}
+.lists ul{padding-left:20px;display:grid;gap:6px;font-size:15.5px;line-height:1.5}
+.older{display:grid;border-top:1px solid var(--line)}
+.older a{display:flex;justify-content:space-between;gap:12px;padding:13px 0;border-bottom:1px solid var(--line);text-decoration:none;font-size:15px}
+.older a:hover .p{text-decoration:underline}
+.older a.on{font-weight:650}
+.older .d{color:var(--muted);font-size:13.5px;white-space:nowrap}
+.gate{padding:40px 0;display:grid;gap:10px}
+.gate h1{font-size:26px;letter-spacing:-.02em}
+.gate p{color:var(--muted)}
+.end{font-size:13px;color:var(--muted);line-height:1.5;border-top:1px solid var(--line);padding-top:18px}
+</style>
+</head>
+<body>
+<main class="wrap" id="app" aria-live="polite"><p class="meta">Reading the report...</p></main>
+<script type="module">
+import { workers, token as sessionToken, ORG_NAME } from './config.js';
+import { platformRows, amazonOf, bestAds, marginOf, linesOf, change } from './pages/reports/_report.js';
+
+const QS = new URLSearchParams(location.search);
+const SAMPLE = QS.get('sample') === '1';
+const app = document.getElementById('app');
+
+/* ---------- small helpers ---------- */
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v == null || v === false) continue;
+    if (k === 'class') el.className = v; else el.setAttribute(k, v === true ? '' : v);
+  }
+  for (const k of kids.flat(Infinity)) if (k != null && k !== false) el.append(k.nodeType ? k : document.createTextNode(String(k)));
+  return el;
+}
+const SVG = 'http://www.w3.org/2000/svg';
+function s(tag, attrs, ...kids) {
+  const el = document.createElementNS(SVG, tag);
+  for (const [k, v] of Object.entries(attrs || {})) if (v != null) el.setAttribute(k, v);
+  for (const k of kids) if (k != null) el.append(k.nodeType ? k : document.createTextNode(String(k)));
+  return el;
+}
+const noDash = t => String(t == null ? '' : t).replace(/\s*[\u2014\u2013]\s*/g, ', ');   /* long dashes written as escapes on purpose */
+const ok = n => n != null && isFinite(n);
+let CUR = 'USD';
+function money(n, { compact = false } = {}) {
+  if (!ok(n)) return 'no data';
+  if (compact && Math.abs(n) >= 1000) {
+    const sym = new Intl.NumberFormat('en-US', { style: 'currency', currency: CUR, maximumFractionDigits: 0 }).format(0).replace(/[\d.,\s]/g, '');
+    const [v, u] = Math.abs(n) >= 1e6 ? [n / 1e6, 'M'] : [n / 1e3, 'k'];
+    return (n < 0 ? '-' : '') + sym + Math.abs(v).toFixed(Math.abs(v) >= 100 ? 0 : 1).replace(/\.0$/, '') + u;
+  }
+  const digits = Math.abs(n) < 100 && n % 1 !== 0 ? 2 : 0;
+  try { return new Intl.NumberFormat('en-US', { style: 'currency', currency: CUR, minimumFractionDigits: digits, maximumFractionDigits: digits }).format(n); }
+  catch { return '$' + Math.round(n).toLocaleString('en-US'); }
+}
+const num = n => ok(n) ? Math.round(n).toLocaleString('en-US') : 'no data';
+const xs = n => ok(n) ? n.toFixed(2) + 'x' : 'no data';
+const at = d => new Date(String(d).slice(0, 10) + 'T12:00:00Z');
+const fmt = (d, o) => at(d).toLocaleDateString('en-US', { timeZone: 'UTC', ...o });
+const short = d => fmt(d, { month: 'short', day: 'numeric' });
+function span(a, b) {
+  if (!a) return '';
+  if (!b || a === b) return short(a);
+  return a.slice(0, 7) === b.slice(0, 7) ? short(a) + ' to ' + +b.slice(8, 10) : short(a) + ' to ' + short(b);
+}
+const periodName = (p, a, b) => p === 'monthly' ? fmt(a, { month: 'long' }) + ' report' : 'Weekly report, ' + span(a, b);
+const vsWord = p => p === 'monthly' ? 'last month' : 'last week';
+/** "+18% on last week" with the right color. bad: a rise is bad. plain: no judgment (ad spend). */
+function chg(a, b, period, { plain = false } = {}) {
+  const c = change(a, b);
+  if (c == null) return null;
+  const v = Math.round(c * 100);
+  const cls = plain || v === 0 ? 'flat' : v > 0 ? 'up' : 'down';
+  return [h('span', { class: cls }, (v > 0 ? '+' : '') + v + '%'), ' on ' + vsWord(period)];
+}
+
+/* ---------- the read ---------- */
+function readBlock(text) {
+  const box = h('div', { class: 'read-t' });
+  const t = noDash(text).trim();
+  if (!t) return h('section', null, h('div', { class: 'lab' }, 'How we read it'), h('div', { class: 'read' }, h('p', { class: 'read-none' }, 'Our read of this period is on its way.')));
+  let ul = null;
+  for (const raw of t.split('\n')) {
+    const line = raw.trim();
+    if (!line) { ul = null; continue; }
+    const b = line.match(/^[-\u2022*]\s+(.*)$/);
+    if (b) { if (!ul) { ul = h('ul'); box.append(ul); } ul.append(h('li', null, b[1])); continue; }
+    ul = null;
+    box.append(/^what (we saw|it means|we're doing|we are doing)$/i.test(line) ? h('h4', null, line) : h('p', null, line));
+  }
+  return h('section', null, h('div', { class: 'lab' }, 'How we read it'), h('div', { class: 'read' }, box));
+}
+
+/* ---------- the numbers ---------- */
+function numbers(r) {
+  const d = r.data || {}, t = d.totals || {}, p = d.previous || {};
+  const has = t.sales > 0;
+  const tile = (l, v, sub) => h('div', { class: 'num' }, h('span', { class: 'l' }, l), h('span', { class: 'v' }, v), sub ? h('span', { class: 's' }, sub) : null);
+  const tiles = [
+    tile('Sales', has ? money(t.sales) : 'no data', has ? chg(t.sales, p.sales, r.period) : 'sales are not connected yet'),
+    tile('Ad spend', money(t.spend), chg(t.spend, p.spend, r.period, { plain: true })),
+    tile('MER (whole store)', has ? xs(t.mer) : 'no data', has && ok(p.mer) ? 'was ' + xs(p.mer) : 'all sales over all ad spend'),
+    tile('Orders', has && ok(t.orders) ? num(t.orders) : 'no data', has && ok(t.aov) ? money(t.aov) + ' average order' : null),
+  ];
+  const cm = marginOf(d);
+  const out = [h('div', { class: 'lab' }, 'The numbers'), h('div', { class: 'nums' }, tiles)];
+  if (cm) out.push(h('div', { class: 'nums', style: 'margin-top:12px' }, tile('Contribution margin', money(cm.cur), ok(cm.prev) ? 'was ' + money(cm.prev) : 'after product, delivery and ad costs')));
+  return h('section', null, out);
+}
+
+/* ---------- by platform ---------- */
+function platforms(r) {
+  const d = r.data || {}, rows = platformRows(d), amz = amazonOf(d);
+  if (!rows.length && !amz) return null;
+  const body = rows.map(p => h('tr', null,
+    h('td', null, p.label), h('td', null, money(p.spend)),
+    p.waiting ? h('td', { class: 'quiet', colspan: 2 }, p.note || 'not credited yet')
+      : p.low ? [h('td', null, ok(p.sales) ? money(p.sales) : ''), h('td', { class: 'quiet' }, 'too few orders to read')]
+        : [h('td', null, money(p.sales)), h('td', null, xs(p.roas))]));
+  return h('section', null, h('div', { class: 'lab' }, 'By platform'),
+    rows.length ? h('table', { class: 'tbl' }, h('colgroup', null, h('col', { class: 'c1' }), h('col'), h('col'), h('col')),
+      h('thead', null, h('tr', null, h('th', null, 'Platform'), h('th', null, 'Spend'), h('th', null, 'Sales'), h('th', null, 'ROAS'))),
+      h('tbody', null, body)) : null,
+    amz ? h('p', { class: 'foot', style: 'color:var(--ink-2);font-size:14.5px' }, 'Amazon: ' + money(amz.sales) + ' in sales' + (ok(amz.orders) ? ' from ' + num(amz.orders) + ' orders.' : '.')) : null,
+    rows.length ? h('p', { class: 'foot' }, 'Platform sales are Triple Whale attributed and overlap, so they add up to more than the store\'s sales.') : null);
+}
+
+/* ---------- day by day ---------- */
+function chartSection(r) {
+  const days = ((r.data || {}).chart || []).filter(x => x && x.date);
+  if (days.length < 2) return null;
+  const hasSales = days.some(x => x.sales > 0);
+  const box = h('div', { class: 'chart', role: 'img', 'aria-label': 'Sales and ad spend for each day of the report' });
+  const draw = () => {
+    const W = Math.max(280, box.clientWidth || 600), H = W < 520 ? 220 : 280;
+    const L = 52, R = 8, T = 10, B = 28, iw = W - L - R, ih = H - T - B;
+    const max = Math.max(1, ...days.map(x => Math.max(hasSales ? x.sales || 0 : 0, x.spend || 0)));
+    const step = niceStep(max / 3), top = Math.ceil(max / step) * step;
+    const X = i => L + (days.length === 1 ? iw / 2 : i * iw / (days.length - 1));
+    const Y = v => T + ih - (v || 0) / top * ih;
+    const svg = s('svg', { viewBox: `0 0 ${W} ${H}`, width: W, height: H });
+    for (let v = 0; v <= top + 1e-9; v += step) {
+      svg.append(s('line', { x1: L, x2: W - R, y1: Y(v), y2: Y(v), stroke: 'var(--line)', 'stroke-width': 1 }));
+      svg.append(s('text', { x: L - 8, y: Y(v) + 4, 'text-anchor': 'end' }, money(v, { compact: true })));
+    }
+    const every = r.period === 'monthly' ? Math.max(1, Math.ceil(days.length / (W < 520 ? 5 : 8))) : 1;
+    days.forEach((x, i) => {
+      if (i % every && i !== days.length - 1) return;
+      const lab = r.period === 'monthly' ? String(+x.date.slice(8, 10)) : fmt(x.date, { weekday: 'short' }) + (W < 420 ? '' : ' ' + +x.date.slice(8, 10));
+      svg.append(s('text', { x: X(i), y: H - 8, 'text-anchor': i === 0 ? 'start' : i === days.length - 1 ? 'end' : 'middle' }, lab));
+    });
+    const path = key => days.map((x, i) => (i ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(x[key]).toFixed(1)).join(' ');
+    if (hasSales) {
+      svg.append(s('path', { d: path('sales') + ` L${X(days.length - 1)} ${T + ih} L${L} ${T + ih} Z`, fill: 'var(--lead-soft)', stroke: 'none' }));
+      svg.append(s('path', { d: path('sales'), fill: 'none', stroke: 'var(--lead)', 'stroke-width': 2.5, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+    }
+    svg.append(s('path', { d: path('spend'), fill: 'none', stroke: 'var(--slate)', 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-dasharray': '5 4' }));
+    if (r.period === 'weekly') days.forEach((x, i) => {
+      if (hasSales) svg.append(s('circle', { cx: X(i), cy: Y(x.sales), r: 3.5, fill: 'var(--lead)' }, s('title', null, short(x.date) + ': sales ' + money(x.sales) + ', ad spend ' + money(x.spend))));
+    });
+    box.replaceChildren(svg);
+  };
+  requestAnimationFrame(draw);
+  let tmr; addEventListener('resize', () => { clearTimeout(tmr); tmr = setTimeout(draw, 120); });
+  return h('section', null, h('div', { class: 'lab' }, 'Day by day'),
+    h('div', { class: 'legend' }, hasSales ? h('span', null, h('i', { style: 'background:var(--lead)' }), 'Sales') : null, h('span', null, h('i', { style: 'background:var(--slate)' }), 'Ad spend')),
+    box);
+}
+function niceStep(raw) {
+  const p = Math.pow(10, Math.floor(Math.log10(Math.max(raw, 1e-9)))), f = raw / p;
+  return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p;
+}
+
+/* ---------- best ads ---------- */
+function adsSection(r) {
+  const list = bestAds(r.data || {}, 3);
+  if (!list.length) return null;
+  return h('section', null, h('div', { class: 'lab' }, 'Best ads'),
+    h('div', { class: 'ads' }, list.map(a => h('article', { class: 'ad' },
+      h('div', { class: 'pic' }, a.thumb ? h('img', { src: a.thumb, alt: '', loading: 'lazy' }) : 'No picture', a.video ? h('span', { class: 'vid' }, 'Video') : null),
+      h('div', { class: 'b' }, h('span', { class: 'n' }, noDash(a.name)),
+        h('span', { class: 'st' }, money(a.spend) + ' spent' + (ok(a.roas) ? ', ' + xs(a.roas) + ' ROAS' : '')))))),
+    h('p', { class: 'foot' }, 'ROAS here is Triple Whale attributed.'));
+}
+
+/* ---------- this week / we need from you ---------- */
+function plans(r) {
+  const d = r.data || {}, tw = linesOf(d.this_week), fy = linesOf(d.need_from_you);
+  if (!tw.length && !fy.length) return null;
+  const block = (t, items) => items.length ? h('div', null, h('div', { class: 'lab' }, t), h('ul', null, items.map(x => h('li', null, noDash(x))))) : null;
+  return h('section', { class: 'lists' + (tw.length && fy.length ? ' two' : '') }, block(r.period === 'monthly' ? 'This month' : 'This week', tw), block('We need from you', fy));
+}
+
+/* ---------- earlier reports ---------- */
+function older(list, cur, linkOf) {
+  if (!list || list.length < 2) return null;
+  return h('section', null, h('div', { class: 'lab' }, 'Earlier reports'),
+    h('nav', { class: 'older', 'aria-label': 'Earlier reports' }, list.map(x => {
+      const on = x.period === cur.period && x.period_start === cur.start;
+      return h('a', { href: linkOf(x), class: on ? 'on' : null, 'aria-current': on ? 'page' : null },
+        h('span', { class: 'p' }, periodName(x.period, x.period_start, x.period_end) + (x.status && x.status !== 'sent' ? ' (draft)' : '')),
+        h('span', { class: 'd' }, on ? 'open now' : x.sent_at ? 'sent ' + short(x.sent_at) : ''));
+    })));
+}
+
+/* ---------- the page ---------- */
+function render(d, linkOf) {
+  const r = d.report;
+  CUR = (d.account && d.account.currency) || 'USD';
+  const brand = (d.account && d.account.name) || 'Your brand';
+  document.title = brand + ', ' + (r ? periodName(r.period, r.start, r.end) : 'reports');
+  if (!r) {
+    app.replaceChildren(h('div', { class: 'gate' }, h('div', { class: 'brand' }, brand), h('h1', null, 'No reports yet'),
+      h('p', null, 'Your first report shows here as soon as it is sent. This link stays the same, so keep it handy.')));
+    return;
+  }
+  const title = r.period === 'monthly'
+    ? [h('em', null, fmt(r.start, { month: 'long' })), ' report']
+    : ['Weekly report, ', h('em', null, span(r.start, r.end))];
+  put(
+    r.preview ? h('p', { class: 'notice' }, h('b', null, 'Preview, only the team can see this. '), 'This report has not been sent. The client opens this same link and sees it only once it is sent.') : null,
+    h('header', { class: 'head' }, h('div', { class: 'brand' }, brand), h('h1', { class: 'title' }, title),
+      h('p', { class: 'meta' }, (r.sent_at ? 'Sent ' + fmt(r.sent_at, { month: 'long', day: 'numeric', year: 'numeric' }) + '. ' : '') + 'Prepared by ' + ORG_NAME + '.')),
+    readBlock(r.summary),
+    numbers(r), platforms(r), chartSection(r), adsSection(r), plans(r),
+    older(d.reports, r, linkOf),
+    h('p', { class: 'end' }, 'MER is the whole store: every sale over all ad spend on every platform. Each report is a fixed snapshot of the period it covers.'));
+}
+/** Fill the page, skipping the parts a report does not have. */
+const put = (...kids) => app.replaceChildren(...kids.flat(Infinity).filter(k => k != null && k !== false));
+function fail(msg) {
+  app.replaceChildren(h('div', { class: 'gate' }, h('h1', null, 'Report unavailable'), h('p', null, msg)));
+}
+
+/* ---------- sample mode: Sample Golf Co, invented numbers, no network ---------- */
+function thumb(c1, c2, shape) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs><rect width="400" height="400" fill="url(#g)"/>${shape}</svg>`;
+  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+}
+function sampleData() {
+  const weeks = [
+    { period: 'weekly', period_start: '2026-11-16', period_end: '2026-11-22', sent_at: '2026-11-23T16:10:00Z', status: 'sent' },
+    { period: 'weekly', period_start: '2026-11-09', period_end: '2026-11-15', sent_at: '2026-11-16T16:05:00Z', status: 'sent' },
+    { period: 'monthly', period_start: '2026-10-01', period_end: '2026-10-31', sent_at: '2026-11-02T15:30:00Z', status: 'sent' },
+    { period: 'weekly', period_start: '2026-11-02', period_end: '2026-11-08', sent_at: '2026-11-09T16:00:00Z', status: 'sent' },
+    { period: 'weekly', period_start: '2026-10-26', period_end: '2026-11-01', sent_at: '2026-11-02T16:20:00Z', status: 'sent' },
+  ];
+  const want = weeks.find(w => w.period === QS.get('period') && w.period_start === QS.get('start')) || weeks[0];
+  const i = weeks.indexOf(want), k = want.period === 'monthly' ? 4.1 : 1 - i * 0.07;
+  const sc = n => Math.round(n * k);
+  const dates = [];
+  for (let t = at(want.period_start).getTime(), e = at(want.period_end).getTime(); t <= e; t += 864e5) dates.push(new Date(t).toISOString().slice(0, 10));
+  const shape = [0.86, 0.9, 0.95, 1.02, 1.06, 1.12, 1.09];
+  const chart = dates.map((d, j) => ({ date: d, sales: Math.round(2620 * shape[j % 7] * (want.period === 'monthly' ? 0.92 + (j % 11) / 40 : 1 - i * 0.07)), spend: Math.round(860 * (0.95 + (j % 7) / 40) * (want.period === 'monthly' ? 0.95 : 1 - i * 0.05)) }));
+  const sales = chart.reduce((a, x) => a + x.sales, 0), spend = chart.reduce((a, x) => a + x.spend, 0), orders = Math.round(sales / 78.4);
+  const prevSales = Math.round(sales / 1.14), prevSpend = Math.round(spend / 1.05), prevOrders = Math.round(prevSales / 76.9);
+  const reads = {
+    0: 'A good week. Sales were up 14% on the week before at a ' + (sales / spend).toFixed(2) + 'x MER, the best week since September.\nMost of the lift came from new customers on the belt bundle ads, which brought buyers in at a cost the store can afford.\nNext: the Black Friday ads go live Wednesday night with more budget behind the two best ads, and the early sale ads come off Tuesday.',
+    1: 'A steady week. Sales held at the same level as the week before while we tested three new ads.\nTwo of the three new ads beat the old ones, so they carry more of the budget from Monday.\nNext: we load the Black Friday ads paused and check the sale page with you on Thursday.',
+  };
+  const ads = [
+    { ad_id: 's1', headline: 'The belt that fits every bag', name: 'Belt bundle, still', spend: sc(1840), video: false, thumb: thumb('#2F4F3A', '#7FA27A', '<circle cx="200" cy="210" r="96" fill="none" stroke="#F4E9D0" stroke-width="22"/><rect x="186" y="96" width="28" height="70" rx="6" fill="#F4E9D0"/>') },
+    { ad_id: 's2', headline: 'Why golfers switch after one round', name: 'Customer story, video', spend: sc(1320), video: true, thumb: thumb('#3A3F58', '#9AA9C6', '<polygon points="168,140 168,260 268,200" fill="#FFFFFF" opacity=".9"/>') },
+    { ad_id: 's3', headline: 'Three colors, one price', name: 'Colors grid, still', spend: sc(760), video: false, thumb: thumb('#7A4A2A', '#E8B27A', '<rect x="70" y="150" width="70" height="100" rx="10" fill="#1F1B16"/><rect x="165" y="150" width="70" height="100" rx="10" fill="#F4E9D0"/><rect x="260" y="150" width="70" height="100" rx="10" fill="#B8400A"/>') },
+  ];
+  return {
+    share: true, preview: false, account: { name: 'Sample Golf Co', currency: 'USD' },
+    reports: weeks.slice().sort((a, b) => b.period_start.localeCompare(a.period_start)),
+    report: {
+      period: want.period, start: want.period_start, end: want.period_end, sent_at: want.sent_at, preview: false,
+      summary: reads[i] || 'A steady ' + (want.period === 'monthly' ? 'month' : 'week') + '. Sales moved with ad spend and the store stayed above its MER goal.\nThe bundle ads did most of the work.\nNext: more of what works, and new ads to test.',
+      data: {
+        totals: { sales, spend, mer: sales / spend, orders, aov: sales / orders },
+        previous: { sales: prevSales, spend: prevSpend, mer: prevSales / prevSpend, orders: prevOrders, aov: prevSales / prevOrders },
+        chart,
+        channels: [
+          { id: 'meta', label: 'Meta', cur: { spend: Math.round(spend * 0.78), revenue: Math.round(spend * 0.78 * 2.41), roas: 2.41, purchases: 118, source: 'Triple Whale' } },
+          { id: 'google', label: 'Google', cur: { spend: Math.round(spend * 0.2), revenue: Math.round(spend * 0.2 * 3.12), roas: 3.12, purchases: 41, source: 'Triple Whale' } },
+          { id: 'tiktok', label: 'TikTok', cur: { spend: Math.round(spend * 0.02), revenue: 78, roas: 78 / Math.round(spend * 0.02), low_signal: true } },
+          { id: 'email', label: 'Email (Klaviyo)', cur: { revenue: Math.round(sales * 0.21) } },
+        ],
+        ads: { top: ads },
+        attr: { models: ['lastPlatformClick'], ads: { lastPlatformClick: { s1: { revenue: ads[0].spend * 3.4 }, s2: { revenue: ads[1].spend * 2.6 }, s3: { revenue: ads[2].spend * 1.9 } } } },
+        this_week: i === 0 ? ['Black Friday ads go live Wednesday night.', 'More budget behind the two best ads while they hold.'] : [],
+        need_from_you: i === 0 ? ['The gift guide photos by Friday.'] : [],
+      },
+    },
+  };
+}
+
+/* ---------- start ---------- */
+(async () => {
+  if (SAMPLE) {
+    return render(sampleData(), x => `?sample=1&period=${x.period}&start=${x.period_start}`);
+  }
+  const tok = (QS.get('t') || '').trim();
+  if (!/^[a-f0-9]{16,}$/i.test(tok)) return fail('This link is missing its code. Open the link from your report message again.');
+  const sel = QS.get('period') && QS.get('start') ? `?period=${encodeURIComponent(QS.get('period'))}&start=${encodeURIComponent(QS.get('start'))}` : '';
+  /* A signed in team member also gets drafts, flagged as a preview. A client has no session and gets sent reports only. */
+  const auth = sessionToken();
+  let d;
+  try {
+    const res = await fetch(workers().profit + '/api/report-view/' + tok + sel, auth ? { headers: { Authorization: 'Bearer ' + auth } } : undefined);
+    d = await res.json().catch(() => ({}));
+    if (!res.ok || d.error) throw new Error(d.error || 'This link is no longer valid.');
+  } catch (e) { return fail(noDash((e && e.message) || 'The report could not be read. Try again in a minute.')); }
+  render(d, x => `?t=${encodeURIComponent(tok)}&period=${encodeURIComponent(x.period)}&start=${encodeURIComponent(x.period_start)}`);
+})();
+</script>
+</body>
+</html>
