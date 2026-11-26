@@ -2,7 +2,23 @@
  * shows no goal for a month nobody typed one for, and a planned report comes back byte for byte.
  *   node test-nogoal.mjs      (from profit/worker) */
 import assert from 'node:assert/strict';
-import { hideUnsetGoals } from './src/worker.js';
+import { hideUnsetGoals, goalsPlanned } from './src/worker.js';
+
+/* goalsPlanned (GET /api/client goals_planned, GET /api/overview goals_planned + month, GET /api/plan planned):
+   only the month's own sales goal counts. The routes themselves are proven in test-costs.mjs (section 18). */
+{
+  const a = g => ({ goals_json: g == null ? g : JSON.stringify(g) });
+  assert.equal(goalsPlanned(a({ default: { sales: 9000 } }), '2026-12'), false, 'no key: unplanned (the default is inherited)');
+  assert.equal(goalsPlanned(a({ '2026-11': { sales: 9000 } }), '2026-12'), false, 'an earlier month does not plan this one');
+  assert.equal(goalsPlanned(a({ '2026-12': {} }), '2026-12'), false, 'an empty key');
+  assert.equal(goalsPlanned(a({ '2026-12': { spend: 4000 } }), '2026-12'), false, 'spend only');
+  assert.equal(goalsPlanned(a({ '2026-12': { cm_pct: 0.5 } }), '2026-12'), false, 'margin only');
+  assert.equal(goalsPlanned(a({ '2026-12': { sales: null, spend: 4000 } }), '2026-12'), false, 'a cleared sales goal');
+  assert.equal(goalsPlanned(a({ '2026-12': { sales: 9000 } }), '2026-12'), true, 'planned');
+  assert.equal(goalsPlanned(a({ '2026-12': { sales: 0 } }), '2026-12'), true, 'a typed 0 is a goal');
+  assert.equal(goalsPlanned(a(null), '2026-12'), false, 'no goals at all');
+  assert.equal(goalsPlanned({ goals_json: 'not json' }, '2026-12'), false, 'unreadable goals');
+}
 
 const report = (months, pacing) => ({
   totals: { sales: 1000, spend: 400 }, previous: { sales: 900, spend: 380 },

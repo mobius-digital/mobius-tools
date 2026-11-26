@@ -4,7 +4,7 @@
 import { fail } from '../platform/errors.js';
 import { dayIn, monthOf } from '../platform/time.js';
 import { safeJson } from '../platform/text.js';
-import { goalsFor, pubAccount, daysInMonth } from './series.js';
+import { goalsFor, goalsPlanned, pubAccount, daysInMonth } from './series.js';
 import { forecastFor, forecastWindow, monthHistory, historyMonths, planMath } from './forecast.js';
 import { oneAccount, loadRaw } from './load.js';
 
@@ -114,8 +114,8 @@ export async function plan(ctx, input) {
     to_hit: live ? fc.to_hit : null,
     pace: live ? paceOf(fc) : null,
     goals: goalsFor(acct, ym), plan: saved || null,
-    // A month counts as planned only when somebody planned that month.
-    planned: !!safeJson(acct.goals_json, {})[ym],
+    // A month counts as planned only when somebody typed a sales goal for that month (goalsPlanned).
+    planned: goalsPlanned(acct, ym),
     current_month: curMonth,
     at_current_pace: fc ? { projected: fc.at_current_pace?.sales ?? null, month: fc.month } : null,
   };

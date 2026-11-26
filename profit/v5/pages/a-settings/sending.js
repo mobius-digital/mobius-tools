@@ -53,8 +53,10 @@ export function whoGroup(S, d) {
 }
 
 /* ---------- Features and quiet jobs (owner only) ----------
-   From GET /api/settings: features { creatorProgram, socialPosting }, jobs [{ id, name, was, instead, on }],
-   canEditJobs. Each switch is its own staged key, so the Save bar's confirm sheet names it with its old and new
+   From GET /api/settings: features { creatorProgram, socialPosting }, jobs [{ id, name, was, instead, switch_on, on,
+   off_reason, still_posts? }], canEditJobs. switch_on is the job's own quiet switch (what the toggle shows and saves); on is whether
+   the post really goes out (the worker also checks the older switches, jobflags.js OLDER_SWITCHES); off_reason says
+   why it does not; still_posts says why a job switched off still posts. An older worker sends only on: it is then the switch too. Each switch is its own staged key, so the Save bar's confirm sheet names it with its old and new
    value; the saver sends one field: PUT /api/settings { features: { <name>: bool } } or { jobs: { <id>: bool } }.
    A job switched off stays quiet: its code and the check behind it keep running, only the Slack post stops. */
 const FEATURES = [
@@ -74,6 +76,8 @@ export async function featureSaved(name, v) {
   } catch { /* the next boot reads them */ }
 }
 const jobKey = id => 'agency.job.' + id;
+/** The job's own quiet switch (an older worker sends only on). */
+const switchOf = j => !!(j.switch_on ?? j.on);
 /** The switches' current values, their names and their savers, for stage(). Empty when the server has no jobs yet. */
 export function switchesOf(fj, ctx) {
   const live = {}, savers = {}, names = {};
@@ -84,7 +88,7 @@ export function switchesOf(fj, ctx) {
     names[featKey(name)] = label;
   }
   for (const j of fj.jobs) {
-    if (!ctx.sample) live[jobKey(j.id)] = !!j.on;
+    if (!ctx.sample) live[jobKey(j.id)] = switchOf(j);
     savers[jobKey(j.id)] = v => ctx.saveSetting('agency.jobs', { [j.id]: !!v });
     names[jobKey(j.id)] = 'Quiet job: ' + j.name;
   }
@@ -111,8 +115,12 @@ function featureGroup(S, fj) {
   return group('Features and quiet jobs', ro ? 'Only the owner can change these.' : 'A quiet job still runs its check. Only its Slack post stops, and its code is kept.',
     FEATURES.map(([name, label, hint]) => row(label, hint, sw(featKey(name), !!fj.features[name], label))),
     fj.jobs.length ? h('div', { class: 'lx-sn-sub' }, 'Quiet jobs', h('span', null, 'Off means quiet')) : null,
-    fj.jobs.map(j => row(j.name, h('span', { class: 'lx-sn-job' }, j.was ? h('span', null, 'Posted: ' + j.was) : null, j.instead ? h('span', null, 'Instead: ' + j.instead) : null),
-      sw(jobKey(j.id), !!j.on, j.name), { top: true })));
+    fj.jobs.map(j => row(j.name, h('span', { class: 'lx-sn-job' }, j.was ? h('span', null, 'Posted: ' + j.was) : null, j.instead ? h('span', null, 'Instead: ' + j.instead) : null,
+      /* The switch is on but an older switch keeps the post off: say so, so the page shows what really happens. */
+      switchOf(j) && j.on === false && j.off_reason ? h('span', { class: 'lx-sn-off' }, 'Off: ' + j.off_reason) : null,
+      /* The switch is off but the post still goes out (jobflags.js STILL_POSTS): say that too. */
+      !switchOf(j) && j.on === true && j.still_posts ? h('span', { class: 'lx-sn-off' }, 'Still posts: ' + j.still_posts) : null),
+      sw(jobKey(j.id), switchOf(j), j.name), { top: true })));
 }
 
 function preview(p) {
@@ -220,7 +228,7 @@ function drawReal(el, S, d, ctx, fj) {
   /* 2026-11-26: Action reminders and Today's calls are quiet jobs now (taskReminders, todayPost). While its quiet job
      is off the old switch does nothing, so it is not drawn as one: the row says where to switch it on. A server with
      no jobs list keeps the old switches. */
-  const quietOff = id => !!fj && fj.jobs.some(j => j.id === id && !j.on);
+  const quietOff = id => !!fj && fj.jobs.some(j => j.id === id && !switchOf(j));
   const JOB_OF = { 'agency.actionRemind': 'taskReminders', 'agency.todayPost': 'todayPost' };
   const onCell = r => (quietOff(JOB_OF[r.key])
     ? h('span', { class: 'lx-sn-dim' }, 'Quiet. Switch it on under Quiet jobs.')
@@ -271,6 +279,7 @@ const CSS = `
 .lx-sn-sub{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:18px 28px 6px;border-top:1px solid var(--line);font-size:13px;font-weight:600;color:var(--muted);letter-spacing:.02em}
 .lx-sn-sub span{font-weight:500;font-size:12px}
 .lx-sn-job{display:grid;gap:2px}
+.lx-sn-off{font-weight:600;color:var(--ink-2)}
 @media (max-width:759px){.lx-sn-sub{padding:16px 18px 6px}}
 .lx-sn-locked button,.lx-seg button[disabled]{cursor:not-allowed}
 .lx-sn-pv{border-radius:12px;background:var(--surface-2);box-shadow:inset 0 0 0 1px var(--line);padding:12px 14px;font-size:12.5px;line-height:1.45;color:var(--ink-2);min-width:0;overflow-wrap:anywhere}

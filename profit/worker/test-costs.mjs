@@ -95,6 +95,15 @@ async function capture() {
   for (const [k, p] of Object.entries(ROUTES)) { const r = await raw('GET', p); if (r.status !== 200) throw new Error(`${k}: HTTP ${r.status} ${r.text.slice(0, 200)}`); out[k] = norm(r.text); }
   return out;
 }
+/* NO GOAL SET (2026-11-26) added goals_planned to /api/client and goals_planned + month to each /api/overview row.
+   Without exactly those keys the answer is the one MAIN hashed: everything else in the payload is unchanged. */
+function beforeGoalsPlanned(k, text) {
+  if (k !== 'client' && k !== 'overview') return text;
+  const j = JSON.parse(text);
+  if (k === 'client') { assert.equal(typeof j.goals_planned, 'boolean'); delete j.goals_planned; }
+  else for (const a of j.accounts) { assert.equal(typeof a.goals_planned, 'boolean'); assert.match(a.month, /^\d{4}-\d{2}$/); delete a.goals_planned; delete a.month; }
+  return JSON.stringify(j);
+}
 /* Brand Alpha's own part of an answer that lists every brand. */
 const alphaOnly = c => ({ ...c, overview: JSON.stringify(JSON.parse(c.overview).accounts.find(a => a.act_id === 'brand_alpha')) });
 const hash = s => crypto.createHash('sha256').update(s).digest('hex').slice(0, 16);
@@ -205,7 +214,7 @@ await check('1. dayEconomics with no rule equals the old function, byte for byte
 
 /* ---------------- 3 then 2: through the real worker ---------------- */
 await check('3. with the new tables missing, every answer hashes to what the commit before this change answered', () => {
-  for (const k of Object.keys(ROUTES)) assert.equal(hash(first[k]), MAIN[k], `${k} changed for a brand with no cost rule`);
+  for (const k of Object.keys(ROUTES)) assert.equal(hash(beforeGoalsPlanned(k, first[k])), MAIN[k], `${k} changed for a brand with no cost rule`);
 });
 await check('11a. GET /api/costs keeps every old key with the same value as before the change', () => {
   assert.equal(hash(firstCosts), MAIN.costs_old);
@@ -617,6 +626,29 @@ await check('17. a teammate limited to one brand cannot write another brand\'s c
   const free = await send(C.handleCosts, '/api/costs', 'PUT', { act: 'brand_beta', rule: { cost: 'shipping', rule: 'zone', table: [{ zone: 'US', amount: 6 }], start_date: '2026-11-01' } }, 'text/plain', null);
   assert.equal(free.status, 200);
   db.exec(`DELETE FROM p_cost_rule WHERE rule = 'zone'`);
+});
+
+await check('18. goals_planned (client, overview with month) and planned (plan): only the month\'s own sales goal counts', async () => {
+  const ym = '2026-10';   // the frozen clock's month
+  const was = db.prepare(`SELECT goals_json FROM brands WHERE id = 'brand_alpha'`).get().goals_json;
+  const cases = [
+    ['no key for the month', { default: { sales: 40000, spend: 9000 } }, false],
+    ['an empty key', { default: { sales: 40000 }, [ym]: {} }, false],
+    ['a spend only key', { default: { sales: 40000 }, [ym]: { spend: 11000 } }, false],
+    ['a margin only key', { default: { sales: 40000 }, [ym]: { cm_pct: 0.5 } }, false],
+    ['planned', { [ym]: { sales: 52000, spend: 11000 } }, true],
+  ];
+  try {
+    for (const [label, goals, want] of cases) {
+      db.prepare(`UPDATE brands SET goals_json = ? WHERE id = 'brand_alpha'`).run(JSON.stringify(goals));
+      const c = (await call('GET', `/api/client?act=brand_alpha&${W}`)).j;
+      assert.equal(c.goals_planned, want, `${label}: client`);
+      const o = (await call('GET', `/api/overview?${W}&fresh=1`)).j.accounts.find(a => a.act_id === 'brand_alpha');
+      assert.equal(o.goals_planned, want, `${label}: overview`); assert.equal(o.month, ym, `${label}: overview month`);
+      const p = (await call('GET', '/api/plan?act=brand_alpha')).j;
+      assert.equal(p.planned, want, `${label}: plan`);
+    }
+  } finally { db.prepare(`UPDATE brands SET goals_json = ? WHERE id = 'brand_alpha'`).run(was ?? null); }
 });
 
 const pass = checks.filter(Boolean).length;

@@ -6,7 +6,7 @@ import { fail } from '../platform/errors.js';
 import { addDays, monthOf, windowFor } from '../platform/time.js';
 import { safeJson } from '../platform/text.js';
 import { totals } from './money.js';
-import { buildSeries, channelsFor, goalsFor, planFor, pubAccount } from './series.js';
+import { buildSeries, channelsFor, goalsFor, goalsPlanned, planFor, pubAccount } from './series.js';
 import { spread } from './expenses.js';
 import { inlineHealth, checkIsStale } from './health.js';
 import { listAccounts, oneAccount, loadRaw, loadDays, loadCards } from './load.js';
@@ -71,6 +71,8 @@ function card(a, w, raw, yoyRaw, cards, { cmp, wantSeries }) {
     channels: channels || undefined,
     goals: g.sales != null || g.spend != null ? g : null,
     plan: planFor(a, w.ym, mtdRows), live_as_of: null,
+    // The month the goals are for, and whether it has its own sales goal (false: the goals are inherited).
+    goals_planned: goalsPlanned(a, w.ym), month: w.ym,
     margin_pct, cost_health: health, shipping,
     slack_channel: a.slack_channel || null, brief_channel: a.brief_channel || null,
     brief_enabled: !!a.brief_enabled,
@@ -142,6 +144,7 @@ export async function client(ctx, input) {
     totals: totals(rows), mtd: totals(mtdRows),
     goals: goalsFor(acct, ym), plan: planFor(acct, ym, mtdRows),
     live_as_of: null, hours: null,
+    goals_planned: goalsPlanned(acct, ym),
   };
   return { data, meta: { window: { from, to, tz: acct.tz } } };
 }
