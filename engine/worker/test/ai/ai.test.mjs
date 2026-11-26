@@ -90,6 +90,7 @@ test('calls: my own calls only, in the old shape', async () => {
   assert.equal((await get(env, 'connect-ai/calls?all=1', 'owner')).json.calls.length, 3);
   const client = await get(env, 'connect-ai/calls?all=1', 'client');
   assert.deepEqual(client.json.calls.map(c => c.key_id), ['aik_3']);
+  assert.deepEqual(client.json.calls.map(c => c.brand_id), [NORTH], 'a client keeps brand_id on its rows');
   for (const id of RIVER_IDS) assert.ok(!client.text.includes(id));
 });
 
@@ -171,6 +172,7 @@ test('cards: the team sees the waiting cards of its brands, in the old shape, wi
   assert.equal(env.DB.rows('p_ai_proposal', "id = 'aip_4'")[0].status, 'waiting');
   const limited = await get(env, 'connect-ai/proposals', 'limited');
   assert.deepEqual(limited.json.proposals.map(p => p.id), ['aip_2', 'aip_1']);
+  assert.deepEqual(limited.json.proposals.map(p => p.brand_id), [NORTH, NORTH], 'a teammate with a brand list keeps brand_id');
   const unknown = await get(env, 'connect-ai/proposals?act=brand_no_such');
   assert.deepEqual([unknown.status, unknown.json.error], [403, 'You do not have access to that brand.']);
 });
@@ -179,6 +181,7 @@ test('cards: a client login sees only its own side\'s cards on its own brand, an
   const env = envWith({ p_ai_proposal: CARDS });
   const { mine, none } = await assertNoLeak(env, 'GET', '/ah/api/connect-ai/proposals');
   assert.deepEqual(mine.json.proposals.map(p => p.id), ['aip_2']);
+  assert.deepEqual(mine.json.proposals.map(p => p.brand_id), [NORTH], 'a client keeps brand_id on its rows');
   assert.deepEqual(none.json.proposals.map(p => p.id), ['aip_2']);
   assert.equal(mine.json.you.role, 'client');
   const all = await get(env, 'connect-ai/proposals?all=1', 'client');

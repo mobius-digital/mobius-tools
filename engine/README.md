@@ -143,6 +143,10 @@ Deploy: a merge to main that touches `engine/worker/` deploys it by the GitHub j
 hand. The worker is named in `wrangler.toml` and its address is `ENGINE_URL` in `profit/v5/config.js`.
 Deploying changes nothing for anyone: every browser stays on the old engine until it is switched.
 
+The server flag starts off too: with no `engineMode` row (or any value but `new`) every request to the engine
+is piped to the old workers untouched. The owner turns it on with `PUT /v1/engine {mode: 'new'}` (Agency > Engine
+> Switch) before step 2. Compare runs the new code whatever the flag says, for the owner only.
+
 Switch on, smallest first:
 1. Compare first. Open Agency > Engine > Compare as the owner and run it. Fix or forward what differs.
 2. One browser: Agency > Engine > Switch, choose "Compare" (you see old answers, the new ones are checked

@@ -12,6 +12,8 @@ const CONNECT = 'account-health/worker/src/connectai.js';
 const LOOKUP = 'account-health/worker/src/lookups.js';
 const ASK = 'account-health/worker/src/worker.js';
 const person = { team: true, client: true, brand: 'none' };        // each person's own keys and cards
+/* filter: false on the two lists that carry brand_id: the old door sat above the brand guard, and the handler
+   keeps to the caller's brands itself, so a client or a teammate with a brand list keeps brand_id on each row. */
 const team = { team: true, client: false, brand: 'none' };
 const ported = (file, more = {}) => ({ old: 'ah', file, engine: 'new', ...more });
 const sent = (file, why) => ({ old: 'ah', file, engine: 'forward', why });
@@ -27,7 +29,7 @@ export const routes = [
     source: ported(CONNECT, { borrows: ['address'] }) },
   { method: 'POST', path: '/ah/api/connect-ai/keys/revoke', access: person, input: null, handler: c.revokeKey,
     doc: 'Turn one of my keys off for good (id). The owner may turn off any key.', source: ported(CONNECT) },
-  { method: 'GET', path: '/ah/api/connect-ai/calls', access: person, input: { query: { all: 'string?' } }, handler: c.listCalls,
+  { method: 'GET', path: '/ah/api/connect-ai/calls', access: { ...person, filter: false }, input: { query: { all: 'string?' } }, handler: c.listCalls,
     doc: 'The last calls my keys made: tool, brand, time. The owner may ask for everyone with all=1.', source: ported(CONNECT) },
   { method: 'GET', path: '/ah/api/connect-ai/switch', access: person, input: null, handler: 'forward',
     doc: 'The old engine has no read for the switch (its state is in GET connect-ai). The old answer is passed on.',
@@ -35,7 +37,7 @@ export const routes = [
   { method: 'PUT', path: '/ah/api/connect-ai/switch', access: { team: true, client: false, owner_only: true, brand: 'none' },
     input: null, handler: 'forward', doc: 'The owner turns Connect your AI on or off for everyone.',
     source: sent(CONNECT, 'switching on makes the key, call and card tables on first use, and the engine never makes a table') },
-  { method: 'GET', path: '/ah/api/connect-ai/proposals', access: { team: true, client: true, brand: 'opt' },
+  { method: 'GET', path: '/ah/api/connect-ai/proposals', access: { team: true, client: true, brand: 'opt', filter: false },
     input: { query: { act: 'brand?', all: 'string?' } }, handler: c.listCards,
     doc: 'The cards an AI made that wait for a tap. A client login sees only its own side\'s cards on its own brands.',
     source: ported(CONNECT) },

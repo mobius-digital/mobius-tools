@@ -129,11 +129,11 @@ test('engine: the shape of the switch', async () => {
   assert.deepEqual([r.json.mode, r.json.forward], ['new', ['GET /pw/api/probe/one']]);
 });
 
-test('engine: a broken flag row reads as new with nothing sent back', async () => {
+test('engine: a broken flag row reads as old (the default) with nothing sent back', async () => {
   const env = env0();
   env.DB.insert('settings', [{ key: 'engineMode', value: 'sideways' }, { key: 'engineForward', value: '{not json' }]);
   const r = await call(env, 'GET', '/v1/engine', { token: asCaller('owner') });
-  assert.deepEqual([r.json.mode, r.json.forward], ['new', []]);
+  assert.deepEqual([r.json.mode, r.json.forward], ['old', []]);
 });
 
 test('engine: a client login cannot read the switch or flip it', async () => {
@@ -142,7 +142,7 @@ test('engine: a client login cannot read the switch or flip it', async () => {
   assert.equal(get.status, 403);
   assert.deepEqual(Object.keys(get.json), ['error']);
   assert.equal((await call(env, 'PUT', '/v1/engine', { token, body: { mode: 'old' } })).status, 403);
-  assert.equal(await setting(env, 'engineMode'), null);
+  assert.equal((await setting(env, 'engineMode')).value, 'new');   // the test kit turns it on
 });
 
 test('engine: a teammate, a limited teammate and a view only teammate cannot flip it', async () => {
@@ -151,7 +151,7 @@ test('engine: a teammate, a limited teammate and a view only teammate cannot fli
     const r = await call(env, 'PUT', '/v1/engine', { token: asCaller(kind), body: { mode: 'old', forward: ['GET /pw/api/probe/one'] } });
     assert.equal(r.status, 403, kind);
   }
-  assert.equal(await setting(env, 'engineMode'), null);
+  assert.equal((await setting(env, 'engineMode')).value, 'new');   // the test kit turns it on
   assert.equal(await setting(env, 'engineForward'), null);
   assert.equal(oldCalls(env).length, 0);
 });
@@ -188,7 +188,7 @@ test('engine: a wrong mode, a wrong route key or an unknown key is refused and n
     const r = await call(env, 'PUT', '/v1/engine', { token: owner, body });
     assert.equal(r.status, 400, JSON.stringify(body));
   }
-  assert.equal(await setting(env, 'engineMode'), null);
+  assert.equal((await setting(env, 'engineMode')).value, 'new');   // the test kit turns it on
   assert.equal(await setting(env, 'engineForward'), null);
 });
 

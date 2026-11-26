@@ -6,7 +6,7 @@ import { routeKey } from './flags.js';
 
 const METHODS = new Set(['GET', 'PUT', 'POST', 'PATCH', 'DELETE']);
 const BRAND_NEEDS = new Set(['need', 'opt', 'none', 'path']);
-const ACCESS_DEFAULTS = { team: true, client: false, owner_only: false, public: false, brand: 'opt', fields: null, own: null, scrub: true };
+const ACCESS_DEFAULTS = { team: true, client: false, owner_only: false, public: false, brand: 'opt', fields: null, own: null, scrub: true, filter: true };
 
 function checkAccess(key, access) {
   const bad = why => { throw new Error(`route ${key}: ${why}`); };

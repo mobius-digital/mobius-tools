@@ -15,11 +15,12 @@ export async function listBriefs(ctx) {
   return { rows: isClient(ctx) ? sentOnly(rows) : rows };
 }
 
-/** GET /api/reports. The last 80 weekly and monthly reports, without their numbers. */
+/** GET /api/reports. The last 80 weekly and monthly reports, without their numbers. can_skip: the old side
+ *  has POST /api/report-skip (Do not send), and says so on every answer, a client's included. */
 export async function listReports(ctx) {
   const rows = await ctx.db.all(ctx.scope.brand ? 'reports.reportsOne' : 'reports.reportsAll', {});
-  if (isClient(ctx)) return { rows: sentOnly(rows) };          // a client never gets the last run
-  return { rows, lastRun: await ctx.settings.getJson('lastReportRun', null) };
+  if (isClient(ctx)) return { rows: sentOnly(rows), can_skip: true };          // a client never gets the last run
+  return { rows, lastRun: await ctx.settings.getJson('lastReportRun', null), can_skip: true };
 }
 
 /** GET /api/report. One report with its frozen numbers. A client only gets one that was sent. */

@@ -385,8 +385,11 @@ What the kernel really does, where sections 1 to 9 were open or wrong.
    caller's brands (empty for a caller who sees all, where `{{brands:col}}` becomes `1=1`). `Caller` also has
    `ids` (a Set, null for a caller who sees all).
 5. `access` defaults: `team: true, client: false, owner_only: false, public: false, brand: 'opt', fields: null,
-   own: null, scrub: true`. Two more optional keys: `hq: true` (only the client login marked hq) and
-   `upload: true` (a client may send a body that is not JSON).
+   own: null, scrub: true, filter: true`. Two more optional keys: `hq: true` (only the client login marked hq) and
+   `upload: true` (a client may send a body that is not JSON). `filter: false` leaves the answer as the handler
+   made it (no rows or keys of other brands dropped), for an old route that sat above the brand guard and keeps
+   to the caller's brands itself. Without it a key named like a brand id (`brand_id`) is dropped for a caller with
+   a brand list.
 6. `access.own` may only name a table listed in `platform/queries.js` `OWN_TABLES`. If your rule needs another
    table, say so in your report and the kernel adds it. Do not work around it.
 7. A handler gets `input.query` values already typed. An optional query value that does not parse is left out

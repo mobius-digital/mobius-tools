@@ -34,7 +34,9 @@ async function clientCaller(env, me, counters) {
   const brand_ids = (Array.isArray(c.brands) ? c.brands : []).map(b => String((b && b.id) || '')).filter(isBrandId)
     .filter(id => hq || listed.has(id));
   if (!brand_ids.length) return NOBODY;
-  const read_only = hq && (row.readOnly === true || c.readOnly === true);
+  /* Look and approve (the old clients.js readOnly): any login can have it now, not only a pinned one.
+     A pinned (hq) login reads only; any other one may still approve, comment and use its own bell. */
+  const read_only = row.readOnly === true || (hq && c.readOnly === true);
   return { kind: 'client', email, name: c.name || '', view_only: read_only, brand_ids,
     ids: await expandIds(env, brand_ids, counters),
     client: { name: c.name || null, hq, read_only }, via: 'session', me };
@@ -43,8 +45,15 @@ async function clientCaller(env, me, counters) {
 async function teamCaller(env, me, counters) {
   const email = lower(me.email);
   const owner = me.role === 'owner';
+  /* Taken off on the Team screen (settings.removedEmails): nobody from the next request on, even on the
+     agency's own domain, as the old emailAllowed now says. The owner is never on it. */
+  if (email && !owner) {
+    const removed = await systemJson(env, 'removedEmails', [], counters);
+    if (Array.isArray(removed) && removed.some(x => lower(x) === email)) return NOBODY;
+  }
   const roles = email ? await systemJson(env, 'userRoles', {}, counters) : {};
-  const view_only = lower(isPlainObject(roles) ? roles[email] : '') === 'viewer';
+  /* The owner is never view only, so a bad role on his row can never lock him out of every write. */
+  const view_only = !owner && lower(isPlainObject(roles) ? roles[email] : '') === 'viewer';
   let brand_ids = null, ids = null;
   if (!owner && email) {
     const map = await systemJson(env, 'userBrands', {}, counters);

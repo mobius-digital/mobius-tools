@@ -118,11 +118,11 @@ function allowed(q, who, params) {
     if (q.write === true || q.scope !== 'none' || who.open !== true) fail(401, 'unauthorized');
     return;
   }
-  if (q.write === true && caller.view_only === true) fail(403, 'Your account has view only access, so this cannot be changed.', 'view_only');
-  if (q.scope === 'none' && caller.kind === 'client') {
-    const mine = q.binds_email && params && typeof params.email === 'string' && params.email === caller.email;
-    if (!mine) fail(403, 'That is not open to your login.', 'client_scope_none');
-  }
+  /* A statement held to the caller's own row by :email (their prefs, their bell, their delivery). */
+  const mine = q.scope === 'none' && q.binds_email && params && typeof params.email === 'string' && !!caller.email && params.email === caller.email;
+  /* View only writes nothing but its own rows, which the route check already limited to the old allow list. */
+  if (q.write === true && caller.view_only === true && !mine) fail(403, 'Your account has view only access, so this cannot be changed.', 'view_only');
+  if (q.scope === 'none' && caller.kind === 'client' && !mine) fail(403, 'That is not open to your login.', 'client_scope_none');
 }
 
 /** The door for one request. `who` = { domain, caller } for a handler, SYSTEM for the kernel's own

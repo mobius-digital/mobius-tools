@@ -11,6 +11,7 @@ import { forget as forgetOld } from '../legacy.js';
 import { forget as forgetFlags } from '../flags.js';
 import { setSink } from '../log.js';
 import { ENGINE_HEADER } from '../respond.js';
+import { viewerMay } from '../access.js';
 
 export const NORTH = 'brand_north_kites';
 export const RIVER = 'brand_river_tea';
@@ -79,6 +80,8 @@ function syncPeople(env) {
 }
 
 function seed(db) {
+  /* The engine answers only when the flag says new (no row = old), so the tests turn it on. */
+  db.insert('settings', [{ key: 'engineMode', value: 'new' }]);
   db.insert('brands', [
     { id: NORTH, slug: 'north-kites', name: 'North Kites', legacy_key: NORTH_AD_ACCOUNT, internal_channel: 'C0NORTH0001', client_channel: 'C0NORTH0002' },
     { id: RIVER, slug: 'river-tea', name: 'River Tea', legacy_key: RIVER_AD_ACCOUNT, internal_channel: 'C0RIVER0001', client_channel: 'C0RIVER0002' },
@@ -236,10 +239,16 @@ export function genAccessTests(routes, opts = {}) {
         assert.equal(r.status, 403);
       });
     }
-    if (s.write && !s.a.public) {
+    if (s.write && !s.a.public && !viewerMay(row.path)) {
       test(`${s.key}: a view only teammate cannot write`, async () => {
         const r = await call(makeEnv(opts), row.method, s.url(NORTH), { token: asCaller('viewer'), body });
         assert.equal(r.status, 403);
+      });
+    }
+    if (s.write && !s.a.public && viewerMay(row.path)) {
+      test(`${s.key}: a view only teammate may write its own (the old door allows it)`, async () => {
+        const r = await call(makeEnv(opts), row.method, s.url(NORTH), { token: asCaller('viewer'), body });
+        assert.ok(!(r.status === 403 && /view.only/i.test(String(r.json && r.json.error))), 'refused as view only');
       });
     }
     if (s.forward) forwardTest(row, s, opts);

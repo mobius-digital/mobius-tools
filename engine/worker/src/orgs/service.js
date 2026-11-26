@@ -82,21 +82,27 @@ export async function savePrefs(ctx, input) {
 
 /* ---- the team ---- */
 
-/** GET /api/team -> { domain, you, owner, can_set_brands, members }. The agency's own domain and the owner's
- *  email are fixed on the old side, so those two fields are borrowed from it. */
+/** GET /api/team -> { domain, you, owner, can_set_brands, safe_remove, needs_brands_for_guests, members }.
+ *  The agency's own domain and the owner's email are fixed on the old side, so those two fields are borrowed
+ *  from it. A person taken off (settings.removedEmails) stays on the list marked removed, never the owner. */
 export async function team(ctx) {
-  const set = await settingsOf(ctx, ['allowedEmails', 'userRoles', 'userBrands']);
+  const set = await settingsOf(ctx, ['allowedEmails', 'userRoles', 'userBrands', 'removedEmails']);
   const extra = listOf(set.allowedEmails).map(e => String(e).toLowerCase());
   const roles = objectOf(set.userRoles);
   const brands = objectOf(set.userBrands);
+  const removed = listOf(set.removedEmails).map(e => String(e).toLowerCase());
   const emails = [...new Set([...extra, ...Object.keys(roles).map(e => e.toLowerCase()),
-    ...Object.keys(brands).map(e => e.toLowerCase())])].sort();
+    ...Object.keys(brands).map(e => e.toLowerCase()), ...removed])].sort();
   const old = (await ctx.legacy.get('ah', '/api/team', { cache_s: 300 })) || {};
+  const owner = old.owner ?? null;
   return {
-    domain: old.domain ?? null, you: (ctx.caller.me && ctx.caller.me.email) || null, owner: old.owner ?? null,
+    domain: old.domain ?? null, you: (ctx.caller.me && ctx.caller.me.email) || null, owner,
     can_set_brands: ctx.caller.kind === 'owner',
+    /* Tells the Team screen this server removes safely and asks brands for a new guest (the old side does too). */
+    safe_remove: true, needs_brands_for_guests: true,
     members: emails.map(e => ({ email: e, role: roles[e] === 'viewer' ? 'viewer' : 'admin', guest: extra.includes(e),
-      brands: Array.isArray(brands[e]) ? brands[e] : [] })),
+      brands: Array.isArray(brands[e]) ? brands[e] : [],
+      ...(removed.includes(e) && e !== String(owner || '').toLowerCase() ? { removed: true } : {}) })),
   };
 }
 
@@ -113,7 +119,8 @@ async function namesOf(ctx, ids) {
 const loginRow = (email, u, shown, names) => ({ email, name: u.name || null,
   brands: shown.map(b => ({ id: b, name: names[b] || b })),
   invited_at: u.invited_at || null, invited_by: u.invited_by || null, last_invite: u.last_invite || null,
-  last_sign_in: u.last_sign_in || null, last_seen: u.last_seen || null, invited_as: u.invited_as || null });
+  last_sign_in: u.last_sign_in || null, last_seen: u.last_seen || null, invited_as: u.invited_as || null,
+  read_only: u.readOnly === true });
 
 /** GET /api/clients?act= -> { clients, access, switches, can_edit, locus }. A teammate with a brand list
  *  sees only the logins of those brands, and only those brands on each login. The app's own address is

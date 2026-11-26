@@ -1,5 +1,6 @@
 /* The switch. Two rows in the old settings table:
-   engineMode     'new' (the engine answers) or 'old' (every request is piped to the old workers untouched)
+   engineMode     'new' (the engine answers) or 'old' (every request is piped to the old workers untouched).
+                  No row, or anything but 'new', is 'old': the engine answers only once the owner turns it on.
    engineForward  a JSON list of route keys ('GET /pw/api/costs') that are piped even in mode 'new'
    Read at most every 30 seconds, so switching back needs no deploy. */
 import { systemJson, putSetting } from './settings.js';
@@ -15,7 +16,7 @@ export const routeKey = (method, path) => `${String(method).toUpperCase()} ${pat
 async function load(env) {
   const row = await door(env, SYSTEM_SCOPE, {}, 'DB', SYSTEM).one('platform.settingGet', { key: 'engineMode' });
   const list = await systemJson(env, 'engineForward', []);
-  return { mode: row && String(row.value).trim() === 'old' ? 'old' : 'new',
+  return { mode: row && String(row.value).trim() === 'new' ? 'new' : 'old',
     forward: new Set(Array.isArray(list) ? list.map(String) : []) };
 }
 
@@ -25,10 +26,9 @@ export async function read(env) {
   try {
     flags = await load(env);
   } catch (e) {
-    /* The flag cannot be read. Keep the last known answer, or stay on the engine: the old workers are
-       one flag away, and a database that is down is down for them too. */
+    /* The flag cannot be read. Keep the last known answer, or pipe to the old workers, the default. */
     swallowed('the engine flag could not be read, the last known mode is used', e);
-    flags = kept ? kept.flags : { mode: 'new', forward: new Set() };
+    flags = kept ? kept.flags : { mode: 'old', forward: new Set() };
   }
   kept = { flags, until: Date.now() + KEEP_MS };
   return flags;

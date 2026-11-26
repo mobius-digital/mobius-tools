@@ -14,7 +14,8 @@
       "last_invite": "2026-01-05T10:01:00.000Z",
       "last_sign_in": "2026-01-06T09:00:00.000Z",
       "last_seen": "2026-01-07T09:00:00.000Z",
-      "invited_as": null
+      "invited_as": null,
+      "read_only": false
     }
   ],
   "access": {
