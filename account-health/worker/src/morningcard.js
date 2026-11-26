@@ -36,6 +36,7 @@ import { ensureActions, markDone, reminderMessage, ROSTER } from './actions.js';
 import { breakoutsFor } from './social.js';
 import { readKept } from './morning.js';
 import { laneLines, laneName, laneOfArea, laneOwner, fyi } from './lane.js';
+import { jobOn } from './jobflags.js';
 
 const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 export const DEFAULT_MORNING_HOUR = 5;
@@ -283,7 +284,10 @@ export async function buildCard(env, d, a, today, shared = {}) {
          leak over LEAK_FLOOR appeared since yesterday's card. Both point at the brand's Overview, where the list lives. */
       const actOn = ((L && L.leaks) || []).filter(l => l.verdict !== 'not_the_cause' && l.verdict !== 'measurement');
       const nw = Array.isArray(prev) ? big.find(l => !prev.includes(l.id)) : null;
-      if (monday && actOn.length) {
+      /* 2026-11-26: the leak line is a quiet job (jobflags.js jobOn:leakLine); leakIds are still recorded above. */
+      const leakOn = await jobOn(env, 'leakLine');
+      if (!leakOn) { /* quiet: the leaks list on the brand Overview has it */ }
+      else if (monday && actOn.length) {
         const top = actOn[0], n = (L.leaks || []).length, neg = (L.leaks || []).find(l => l.apply && l.apply.kind === 'negative');
         items.push({ key: 'leak:weekly', kind: 'leak', text: `Fix the biggest leak: ${words(top.title, 80)} (${moneyK(top.cost || 0, a.currency)} a month, est.; ${n} in all on Overview)`, who: top.owner || '', lane: 'MEDIA BUYING', rank: top.cost || 0 });
       } else if (nw) items.push({ key: `leak:${nw.id}`, kind: 'leak', text: `Fix a new leak: ${words(nw.title, 80)} (${moneyK(nw.cost, a.currency)} a month, est.)`, who: nw.owner || '', lane: 'MEDIA BUYING', rank: nw.cost });

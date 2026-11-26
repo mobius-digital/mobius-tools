@@ -246,6 +246,10 @@ await check('the leak finder: ONE line for the biggest NEW leak over $500, tagge
   assert.ok(!first.items.some(i => i.kind === 'leak'), 'no card yesterday = nothing announced as new');
   assert.deepEqual(first.leaks, ['old', 'new']);
   setSetting(`morningCard:brand_beta:${prev}`, JSON.stringify({ leaks: ['old'] }));
+  /* 2026-11-26 (jobflags.js): the leak line is a quiet job. Off by default: no line, the ids are still recorded. */
+  const hushed = await buildCard(env, dl, ACCTS[1], day, {});
+  assert.ok(!hushed.items.some(i => i.kind === 'leak'), 'quiet by default: no leak line'); assert.deepEqual(hushed.leaks, ['old', 'new'], 'quiet still records the ids');
+  setSetting('jobOn:leakLine', 'on');
   const c = await buildCard(env, dl, ACCTS[1], day, {});
   const line = c.items.find(i => i.kind === 'leak');
   assert.ok(line, 'a new leak line'); assert.match(line.text, /^Fix a new leak: "Pmax \| Wedges" costs 3\.1x the goal per sale \(\$4\.5K a month, est\.\)/);

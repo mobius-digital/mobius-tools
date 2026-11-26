@@ -23,6 +23,7 @@ import { laneBlocks, laneLines, laneWho, laneOwner, fyi } from './lane.js';
 import { frameApi } from './frame.js';
 import { frameProject } from './stratmake.js';
 import { gall, metaActs as metaAccounts } from './metawrite.js';
+import { jobOn, featureOn } from './jobflags.js';
 
 const API = 'https://api.jointrybe.com/v1';
 export const STALE_DAYS = 3, REBOOK_DAYS = 14, WINDOW_DAYS = 30, REBOOK_MIN_ORDERS = 2;
@@ -1120,6 +1121,9 @@ export async function trybeRecutBrief(env, d, act, subId, { test, note = '', why
 }
 /** The one Slack line after the cards are made: in the brand's internal channel, Ravo tagged. */
 export async function trybeRecutAnnounce(env, d, act, cards) {
+  /* 2026-11-26: a quiet job (jobflags.js jobOn:trybeRecutPost) under the creator program switch. The cards are assigned
+     to the editor and show in his My day. */
+  if (!(await jobOn(env, 'trybeRecutPost')) || !(await featureOn(env, 'creatorProgram'))) return { ok: true, quiet: true };
   const brand = (await d.listBrands(env)).find(b => b.act_id === act);
   if (!brand?.slack_channel || !d.slackPost || !cards?.length) return { ok: false };
   const tests = [...new Set(cards.map(c => (RECUT_TESTS[c.test] || {}).label).filter(Boolean))];

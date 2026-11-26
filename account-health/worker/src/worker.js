@@ -115,7 +115,9 @@ import { runStudioMake, studioMakeTools } from './studiomake.js';
 import { slackPostWith, senderFor, envFor, sendersOf, resolveSenders, clearSenderCache, senderPerson, buyerSlackPost } from './sender.js';
 import { handleExampleDm } from './exampledm.js';
 import { houseMessage } from './house.js';
-import { deliveryMessage } from './delivery.js';
+import { deliveryMessage, lowToday, spendHigh, highAlertText, lowAlertText, DELIVERY_FLOOR, DELIVERY_MIN_SPEND } from './delivery.js';
+import { raiseAlert, clearAlert, urgentSweep } from './urgent.js';
+import { jobOn, featureOn, jobsView, cleanJobs, cleanFeatures, featureSaved } from './jobflags.js';
 /* /api/tw-day's 60-second memo (2026-10-26, Locus speed): key = brand | shop | day -> { at, p }. */
 const TW_DAY_MEMO = new Map();
 
@@ -1410,6 +1412,13 @@ async function postDashboard(env, row) {
   return { ok: true, posted: r?.ts || true, brands: d.accts.length };
 }
 async function dashboardTick(env) {
+  /* 2026-11-26 (jobflags.js jobOn:dashboardsSlack): quiet unless switched on, OR a dashboard already has a schedule and a
+     channel (Cole: keep any that exist). */
+  if (!(await jobOn(env, 'dashboardsSlack', getSetting))) {
+    await env.DB.prepare(DASH_TABLE).run().catch(() => {});
+    const any = await env.DB.prepare(`SELECT 1 AS x FROM p_dashboard WHERE schedule IN ('daily','monday','first') AND channel IS NOT NULL AND channel != '' LIMIT 1`).first().catch(() => null);
+    if (!any) return { skipped: 'quiet' };
+  }
   if (centralHour() < DASH_POST_HOUR) return { skipped: 'before 8am Central' };
   await env.DB.prepare(DASH_TABLE).run().catch(() => {});
   const { results } = await env.DB.prepare(`SELECT * FROM p_dashboard WHERE schedule IN ('daily','monday','first') AND channel IS NOT NULL AND channel != ''`).all().catch(() => ({ results: [] }));
@@ -3551,6 +3560,9 @@ async function alertBriefFailure(env, acct, date, result) {
   if (result?.already_sent) return;
   const problem = result?.error || result?.skipped;
   if (!problem) return;
+  /* 2026-11-26: the Locus alert row first, before the channel and the "same as yesterday" checks (urgent.js). */
+  await alertRaise(env, { type: 'brief_failed', thing: acct.act_id, brand_id: acct.act_id, title: `${acct.name}'s client daily did not go out`,
+    body: `${prettyDate(date)}: ${String(problem).slice(0, 300)}. The client was not messaged.`, button: { date } });
   const channel = acct.slack_channel;          // internal, deliberately not brief_channel
   if (!channel) return;
   const prev = await env.DB.prepare(
@@ -3600,6 +3612,8 @@ async function alertScheduleTrouble(env, label, payload) {
   /* 2026-11-20 (Cole: "so much noise"): "Look at the N errors in nightly sync" named nothing he could act on and came
      most nights. Job errors stay in Locus > Settings > Are the automatic jobs actually running?; a sync that actually
      breaks a brand still reaches Slack as that brand's connection finding (strategist.js runChecks). */
+  /* 2026-11-26: a quiet job (jobflags.js jobOn:jobErrorsPost); the lastTrouble bookkeeping above still runs. */
+  if (!(await jobOn(env, 'jobErrorsPost', getSetting))) return;
   if ((await getSetting(env, 'jobErrorsToSlack')) !== 'on') return;
   const ch = await getSetting(env, 'slackChannel');
   if (!ch || !env.SLACK_BOT_TOKEN) return;
@@ -4088,6 +4102,12 @@ async function twAttributeChannels(env, acct, channels, [s, e], [ps, pe]) {
  *  alert gets muted. Posts INTERNAL-only, never to a client channel.
  */
 async function alertClaudeFailure(env, context, message) {
+  /* 2026-11-26: the Locus alert row first, before the channel and the 12 hour dedupe (urgent.js). */
+  {
+    const credit = /credit|balance|quota|insufficient|billing|payment|402/i.test(String(message || ''));
+    await alertRaise(env, { type: 'claude_failed', thing: 'agency', title: credit ? 'Claude credit looks empty' : 'Claude key or credit failed',
+      body: `Claude could not write the ${context}. ${credit ? 'It looks like the credit ran out: top it up in Console > Billing.' : 'Check the credit and the API key.'} Claude said: ${String(message || '').slice(0, 200)}` });
+  }
   const channel = await getSetting(env, 'reportChannel') || await getSetting(env, 'slackChannel');
   if (!channel) return;
   const last = safeJson(await getSetting(env, 'lastClaudeAlert'), null);
@@ -4127,6 +4147,13 @@ async function alertsMuted(env, id) {
 
 async function alertSyncFailure(env, acct, message) {
   if (await alertsMuted(env, acct.act_id)) return;
+  /* 2026-11-26: the Locus alert row first, before the channel and the 12 hour dedupe (urgent.js). One row per brand;
+     the Meta account id rides on the button so the hourly sweep can read accounts.last_error. */
+  {
+    const brand = acct.brand_id || acct.act_id;
+    await alertRaise(env, { type: 'meta_sync', thing: brand, brand_id: brand, title: `Meta sync failing for ${acct.name}`,
+      body: `Ad spend, creative cards and the report ad table stay stale until it clears. Meta said: ${String(message || '').slice(0, 200)}`, button: { act: acct.act_id } });
+  }
   const channel = await getSetting(env, 'reportChannel') || await getSetting(env, 'slackChannel');
   if (!channel) return;
   const last = safeJson(await getSetting(env, 'lastSyncAlert'), null);
@@ -7126,8 +7153,7 @@ async function unsentAtNoonPass(env) {
 /*  the day BEFORE yesterday. A break on Monday surfaced late on Tuesday.*/
 /* ------------------------------------------------------------------ */
 
-const DELIVERY_FLOOR = 0.4;          // at or below 40% of normal = something is wrong
-const DELIVERY_MIN_SPEND = 50;       // ignore accounts too small to judge
+/* DELIVERY_FLOOR (0.4) and DELIVERY_MIN_SPEND (50) live in delivery.js since 2026-11-26 (lowToday is pure there). */
 const DELIVERY_MORNING_HOUR = 8;     // local, reports on yesterday
 const DELIVERY_INTRADAY_HOUR = 14;   // local, reports on today so far
 
@@ -7188,25 +7214,55 @@ async function checkCompletedDay(env, a, day) {
     hint: spend === 0 ? 'Check billing, campaign status and policy.' : 'Something may be paused or throttled.' };
 }
 
+/** Yesterday far ABOVE normal (2026-11-26): the same D1 rows as checkCompletedDay (7 day median, liveDailyBudget), no
+ *  Meta call. null = nothing to judge; { ran: true } = judged and fine; else the spendHigh answer. */
+async function checkCompletedDayHigh(env, a, day) {
+  const { results } = await env.DB.prepare(
+    `SELECT date, SUM(spend) AS spend FROM daily_insights WHERE act_id IN ${metaOf(1)} AND date >= ?2 AND date <= ?3 GROUP BY date ORDER BY date`,
+  ).bind(a.act_id, addDays(day, -7), day).all();
+  const dayRow = results.find(r => r.date === day);
+  const prior = results.filter(r => r.date !== day).map(r => r.spend).sort((x, z) => x - z);
+  if (prior.length < 4 || !dayRow) return null;            // not enough to judge (no row is not a number)
+  const med = prior[Math.floor(prior.length / 2)];
+  const budget = await liveDailyBudget(env, a);
+  const hi = spendHigh({ spent: dayRow.spend ?? 0, normal: med, budget });
+  return hi ? { ...hi, period: 'yesterday' } : { ran: true };
+}
+
+/** Today so far, both sides from ONE hourlyPacing call. low = exactly what checkToday answered before (lowToday);
+ *  high = spendHigh against the normal by now or today's budgets, whichever is bigger. ran = the pacing read worked. */
+async function checkTodayBoth(env, a) {
+  let p;
+  try { p = await hourlyPacing(env, a); } catch { return { low: null, high: null, ran: false }; }
+  if (!p) return { low: null, high: null, ran: false };
+  const budget = await liveDailyBudget(env, a);
+  const low = lowToday(p, budget);
+  const hi = spendHigh({ spent: p.spent, normal: p.l7_by_now, budget });
+  return { low, high: hi ? { ...hi, period: 'today' } : null, ran: true };
+}
+
 /** Today so far against the shape of a normal day by this hour. One Meta call. */
 async function checkToday(env, a) {
-  let p;
-  try { p = await hourlyPacing(env, a); } catch { return null; }
-  if (!p || !(p.l7_by_now >= DELIVERY_MIN_SPEND / 2)) return null;   // too early / too small to judge
-  /* Scale "normal by now" down to today's budgets (liveDailyBudget): last week's giveaway spend is not today's normal. */
-  const budget = await liveDailyBudget(env, a);
-  if (budget != null && p.l7_daily_avg > 0 && budget < p.l7_daily_avg) p.l7_by_now = p.l7_by_now * budget / p.l7_daily_avg;
-  if (!(p.l7_by_now >= DELIVERY_MIN_SPEND / 2)) return null;
-  if (p.spent > p.l7_by_now * DELIVERY_FLOOR) return null;
-  return { period: 'today', spent: p.spent, normal: p.l7_by_now, budget,
-    hint: p.spent === 0 ? 'Check billing, campaign status and policy.' : 'Worth a look in Ads Manager while the day is still live.' };
+  return (await checkTodayBoth(env, a)).low;
+}
+
+/** The urgent alert helpers for worker.js (urgent.js). A failure here never stops the Slack path beside it. */
+function urgentDeps() {
+  return { getSetting, listAccounts, brandsFor, emailAllowed, slackApi, alertsMuted, ownerEmail: 'cole@go-mobius-digital.com' };
+}
+async function alertRaise(env, o) {
+  return raiseAlert(env, urgentDeps(), { now: new Date(), ...o }).catch(e => ({ error: e.message }));
+}
+async function alertClear(env, type, thing) {
+  return clearAlert(env, urgentDeps(), { type, thing, now: new Date() }).catch(e => ({ error: e.message }));
 }
 
 /** Runs on every hourly tick; each account gates itself on its OWN local clock,
  *  because the brands are spread across three US timezones and "2pm" has to mean
  *  2pm where the account is. */
 async function deliveryPass(env) {
-  if (!env.SLACK_BOT_TOKEN) return { skipped: 'no SLACK_BOT_TOKEN secret' };
+  /* 2026-11-26: the Locus alert rows are written even with no Slack token; only the posting loop below needs it. */
+  const canPost = !!env.SLACK_BOT_TOKEN;
   const def = await getSetting(env, 'slackChannel');
   const state = await deliveryState(env);
   const byChannel = new Map();
@@ -7237,8 +7293,18 @@ async function deliveryPass(env) {
     // Same day, mid-afternoon - the one that can still save the day's spend.
     if (hour >= DELIVERY_INTRADAY_HOUR && st.intra !== today) {
       st.intra = today; touched = true;
-      const line = await checkToday(env, a).catch(() => null);
+      /* One Meta call for both sides (2026-11-26). The low side's Slack path is unchanged; the Locus row comes first. */
+      const both = await checkTodayBoth(env, a).catch(() => ({ low: null, high: null, ran: false }));
+      const line = both.low;
+      if (line) await alertRaise(env, { type: 'spend_low', thing: a.act_id, brand_id: a.act_id, ...lowAlertText(a, line, { money }) });
+      else if (both.ran) await alertClear(env, 'spend_low', a.act_id);
       if (line && st.alerted !== today) { st.alerted = today; await queue(line); }
+      /* Spend far ABOVE normal: a Locus row only, no Slack post. Its own state keys (hiIntra, hiAlerted). */
+      if (st.hiIntra !== today) {
+        st.hiIntra = today;
+        if (both.high) { st.hiAlerted = today; await alertRaise(env, { type: 'spend_high', thing: a.act_id, brand_id: a.act_id, ...highAlertText(a, both.high, { money, period: 'today' }) }); }
+        else if (both.ran) await alertClear(env, 'spend_high', a.act_id);
+      }
     }
     // Next morning, on the completed day. Skipped when the afternoon pass
     // already reported that same day - one problem, one message.
@@ -7246,12 +7312,24 @@ async function deliveryPass(env) {
       st.day = today; touched = true;
       if (st.alerted !== yesterday) {
         const line = await checkCompletedDay(env, a, yesterday).catch(() => null);
+        /* The Locus row first. "No spend data yet" (fyi) is not an alert, and judges nothing. */
+        if (line && !line.fyi) await alertRaise(env, { type: 'spend_low', thing: a.act_id, brand_id: a.act_id, ...lowAlertText(a, line, { money }) });
+        else if (!line) await alertClear(env, 'spend_low', a.act_id);
         if (line) { st.alerted = yesterday; await queue(line); }
+      }
+    }
+    if (hour >= DELIVERY_MORNING_HOUR && st.hiDay !== today) {
+      st.hiDay = today; touched = true;
+      if (st.hiAlerted !== yesterday) {
+        const hi = await checkCompletedDayHigh(env, a, yesterday).catch(() => null);
+        if (hi && !hi.ran) { st.hiAlerted = yesterday; await alertRaise(env, { type: 'spend_high', thing: a.act_id, brand_id: a.act_id, ...highAlertText(a, hi, { money, period: 'yesterday' }) }); }
+        else if (hi && hi.ran) await alertClear(env, 'spend_high', a.act_id);
       }
     }
   }
 
   if (touched) await putSetting(env, 'deliveryState', JSON.stringify(state)).catch(() => {});
+  if (!canPost) return { skipped: 'no SLACK_BOT_TOKEN secret', rows: 'written in Locus' };
   if (!byChannel.size) return { ok: true, alerts: 0, ...(deferred.length ? { deferred } : {}) };
   let alerts = 0;
   const results = [];
@@ -8103,7 +8181,8 @@ async function nightly(env) {
   out.strategist = await strategistNightly(env).catch(e => ({ error: e.message }));
   /* Its memory: the day's brand channels read once, facts kept or corrected by topic (stratmem.js). */
   out.strategistMemory = await consolidate(env, { xfetch, getSetting, putSetting, canAfford: n => subCanAfford(n) }).catch(e => ({ error: e.message }));
-  if (new Date().getUTCDay() === 1) out.strategistBriefing = await strategistBriefing(env).then(t => !!t).catch(e => ({ error: e.message }));
+  /* 2026-11-26: a quiet job (jobflags.js jobOn:mondayBriefing). */
+  if (new Date().getUTCDay() === 1) out.strategistBriefing = (await jobOn(env, 'mondayBriefing', getSetting)) ? await strategistBriefing(env).then(t => !!t).catch(e => ({ error: e.message })) : { skipped: 'quiet' };
 
   await recordRun(env, 'lastRun', out);
   await alertScheduleTrouble(env, 'nightly sync', out);
@@ -8139,8 +8218,9 @@ const AH_APP = {
     if (event.cron === '*/5 * * * *') {
       env = meterEnv(env); subReset(env);
       /* Platform status (pulse.js, 2026-11-06): the outage monitor that was the separate Pulse worker. */
-      ctx.waitUntil(pulseTick(env, { F: xfetch, slackApi }).then(r => { if (r.changes) return recordRun(env, 'lastPulse', r); }).catch(e => console.log('pulse: ' + e.message)));
-      ctx.waitUntil(socialPostTick(env, socialPostDeps()).then(r => recordRun(env, 'lastSocialPost', r)).catch(() => {}));
+      ctx.waitUntil(pulseTick(env, { F: xfetch, slackApi, urgent: { raise: o => alertRaise(env, o), clear: (type, thing) => alertClear(env, type, thing) } }).then(r => { if (r.changes) return recordRun(env, 'lastPulse', r); }).catch(e => console.log('pulse: ' + e.message)));
+      /* Social posting is parked (2026-11-26, settings feature:socialPosting, missing = off). */
+      ctx.waitUntil(featureOn(env, 'socialPosting', getSetting).then(on => on ? socialPostTick(env, socialPostDeps()).then(r => recordRun(env, 'lastSocialPost', r)) : null).catch(() => {}));
       /* The Buyer list's morning read (buyerai.js, 2026-10-26): from an hour before the morning hour, three brands a tick. */
       ctx.waitUntil(buyerAITick(env, buyerDeps()).then(r => { if (r && !r.skipped && !r.done) return recordRun(env, 'lastBuyerAI', r); }).catch(() => {}));
       /* Production backlog (boardauto.js, 2026-11-11): Asana briefs into the Locus layout, Frame files onto cards. */
@@ -8178,6 +8258,8 @@ const AH_APP = {
         const clientCards = await clientCardsOnce(env).catch(e => ({ error: e.message }));
         if (clientCards) ran.clientCardsUpgrade = clientCards;
         ran.delivery = await deliveryPass(env).catch(e => ({ error: e.message }));
+        /* Urgent alerts in Locus (urgent.js, 2026-11-26): clear what fixed itself. */
+        ran.urgentSweep = await urgentSweep(env, urgentDeps(), { now: new Date() }).catch(e => ({ error: e.message }));
         ran.unsentNoon = await unsentAtNoonPass(env).catch(e => ({ error: e.message }));
         /* Where we stand (standing.js, 2026-11-22): BFCM check-in DM to Cole every 3 hours Nov 26-30. Reads only. */
         { const st = await standingTick(env, standingDeps()).catch(e => ({ error: e.message })); if (!st?.skipped) ran.standing = st; }
@@ -8200,13 +8282,16 @@ const AH_APP = {
           ran.morningCard = await morningCardTick(env, cardDeps()).catch(e => ({ error: e.message }));
           /* Trybe (trybe.js): once a Central day from 4am, every brand with a key is pulled, then its internal channel
              hears about approved videos that sat 3 days (and Monday's rebook list). */
-          if (subCanAfford(80)) ran.trybe = await trybeTick(env, trybeDeps()).catch(e => ({ error: e.message }));
+          /* 2026-11-26: the creator program is an agency feature (jobflags.js feature:creatorProgram). */
+          const creatorsOn = await featureOn(env, 'creatorProgram', getSetting).catch(() => true);
+          if (!creatorsOn) ran.creators = { skipped: 'creator program off' };
+          if (creatorsOn && subCanAfford(80)) ran.trybe = await trybeTick(env, trybeDeps()).catch(e => ({ error: e.message }));
           /* Creator graduate engine (creatorengine.js, 2026-11-22): once a Central day from 6am, every brand on suggest gets
              today's plan (graduate / keep / demote / pause / load / replace / raise) stored for GET /api/trybe/creator-moves.
              SUGGEST ONLY: it never writes to Meta and never posts; Cole approves the moves in the /trybe and /buy reviews. */
-          if (subCanAfford(150)) { const c = await creatorEngineTick(env, creatorDeps()).catch(e => ({ error: e.message })); if (!c?.skipped) ran.creatorEngine = c; }
+          if (creatorsOn && subCanAfford(150)) { const c = await creatorEngineTick(env, creatorDeps()).catch(e => ({ error: e.message })); if (!c?.skipped) ran.creatorEngine = c; }
           /* Creator Discord: one welcome post a day in #welcome, from 5pm Central (trybe.js discordWelcomeTick). */
-          if (subCanAfford(20)) { const w = await discordWelcomeTick(env, trybeDeps()).catch(e => ({ error: e.message })); if (!w?.skipped) ran.discordWelcome = w; }
+          if (creatorsOn && subCanAfford(20)) { const w = await discordWelcomeTick(env, trybeDeps()).catch(e => ({ error: e.message })); if (!w?.skipped) ran.discordWelcome = w; }
           /* Cole's calendar blocks: once a Central day, open tasks whose block day passed move to the next one. */
           if ((await getSetting(env, 'blockRollDay').catch(() => null)) !== centralDate() && subCanAfford(60)) {
             ran.blocks = await blockRollTick(env).catch(e => ({ error: e.message }));
@@ -8283,12 +8368,15 @@ const AH_APP = {
         /* The calendar: a client's new or moved date, the day before / a week out, Monday "still running?" (calendar.js). */
         ran.calendar = await calendarTick(env, hubDeps()).catch(e => ({ error: e.message }));
         /* Locus Social: each followed brand and topic pulled once a day, four a tick (social.js). */
-        ran.social = await socialTick(env, n => subCanAfford(n)).catch(e => ({ error: e.message }));
-        /* Locus Social posting: a catch-up for the 5-minute tick, then views / likes / comments once a day (socialpost.js). */
-        ran.socialPost = await socialPostTick(env, socialPostDeps()).catch(e => ({ error: e.message }));
-        ran.socialResults = await socialResultsTick(env, socialPostDeps()).catch(e => ({ error: e.message }));
-        /* Monday 8am brand local: "N of T posts planned this week" to the internal channel, only when short (socialpost.js). */
-        ran.socialNudge = await socialNudgeTick(env, socialPostDeps()).catch(e => ({ error: e.message }));
+        /* 2026-11-26: Locus Social is parked (settings feature:socialPosting, missing = off). The code stays. */
+        if (await featureOn(env, 'socialPosting', getSetting).catch(() => false)) {
+          ran.social = await socialTick(env, n => subCanAfford(n)).catch(e => ({ error: e.message }));
+          /* Locus Social posting: a catch-up for the 5-minute tick, then views / likes / comments once a day (socialpost.js). */
+          ran.socialPost = await socialPostTick(env, socialPostDeps()).catch(e => ({ error: e.message }));
+          ran.socialResults = await socialResultsTick(env, socialPostDeps()).catch(e => ({ error: e.message }));
+          /* Monday 8am brand local: "N of T posts planned this week" to the internal channel, only when short (socialpost.js). */
+          ran.socialNudge = await socialNudgeTick(env, socialPostDeps()).catch(e => ({ error: e.message }));
+        } else ran.social = { skipped: 'social parked' };
         /* Is Locus itself working: every page's routes, connections and freshness, once a Central morning (smoke.js). */
         ran.smoke = await smokeTick(env, smokeDeps()).catch(e => ({ error: e.message }));
         /* The Slack index: catch up and walk back a year, a page budget at a time (slackindex.js). */
@@ -8661,7 +8749,12 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     if (path === '/api/production' || path.startsWith('/api/production/')) {
       const r = await handleProduction(request, env, url, path, json, { ...actionDeps(), waitUntil: p => ctx.waitUntil(p),
         /* A person moving a card to Review posts its ads to Cole as pictures (checkin.js). */
-        onReview: (env, id, who) => ctx.waitUntil(reviewPost(env, checkinDeps(ctx), id, who).then(r => console.log('review post: ' + JSON.stringify(r))).catch(e => console.log('review post: ' + e.message))) });
+        onReview: (env, id, who) => ctx.waitUntil((async () => {
+          /* 2026-11-26: the automatic post is a quiet job (jobflags.js jobOn:reviewPost); the bell review row says it now.
+             The manual POST /api/checkin/review route is unchanged. */
+          if (!(await jobOn(env, 'reviewPost', getSetting))) return { skipped: 'quiet' };
+          return reviewPost(env, checkinDeps(ctx), id, who);
+        })().then(r => console.log('review post: ' + JSON.stringify(r))).catch(e => console.log('review post: ' + e.message))) });
       if (r) return r;
     }
     if (path.startsWith('/api/brand-asana')) {
@@ -10623,6 +10716,12 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
           /* The three safety switches (clientchan.js): each is true until someone turns it off.
              checkinAutoApprove, askInClientChannels, slackIndexClient. */
           ...(await readSwitches(env, getSetting)),
+          /* 2026-11-26 (jobflags.js): the quiet jobs, the agency features and the urgent copies switch. Owner only to change. */
+          jobs: await jobsView(env, getSetting),
+          features: { creatorProgram: await featureOn(env, 'creatorProgram', getSetting), socialPosting: await featureOn(env, 'socialPosting', getSetting),
+            creatorProgramSaved: await featureSaved(env, 'creatorProgram', getSetting) },
+          notifyCopies: (await getSetting(env, 'notifyCopies')) === 'on',
+          canEditJobs: !!isOwner,
         });
       }
       if (path === '/api/settings' && request.method === 'PUT') {
@@ -10630,6 +10729,11 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         /* Who messages come from: only the owner may change it (a client message set to Cole goes out under his name
            and photo). Checked before anything saves, so a refused body changes nothing. */
         if ('senders' in b && !isOwner) return json({ error: 'Only Cole can change who messages come from.' }, 403);
+        /* 2026-11-26 (jobflags.js): quiet jobs, agency features and the urgent copies switch are the owner's. */
+        if (('jobs' in b || 'features' in b || 'notifyCopies' in b) && !isOwner) return json({ error: 'Only the owner can change this.' }, 403);
+        if ('jobs' in b) for (const [id, on] of Object.entries(cleanJobs(b.jobs, isOwner) || {})) await putSetting(env, `jobOn:${id}`, on ? 'on' : 'off');
+        if ('features' in b) for (const [k, on] of Object.entries(cleanFeatures(b.features))) await putSetting(env, `feature:${k}`, on ? 'on' : 'off');
+        if ('notifyCopies' in b) await putSetting(env, 'notifyCopies', b.notifyCopies === true || b.notifyCopies === 'on' ? 'on' : 'off');
         if ('slackChannel' in b) await putSetting(env, 'slackChannel', b.slackChannel || '');
         if ('slackSendWho' in b) await putSetting(env, 'slackSendWho', b.slackSendWho === 'anyone' ? 'anyone' : 'owner');
         if ('paceAlertPct' in b) await putSetting(env, 'paceAlertPct', String(+b.paceAlertPct || 0.15));

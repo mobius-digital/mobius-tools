@@ -50,6 +50,7 @@ import { loadCard } from './morningcard.js';
 import { laneBlocks, fyi } from './lane.js';
 import { typedOnCall } from './callscreen.js';
 import { readRow as reportReadRow } from './reportread.js';
+import { jobOn } from './jobflags.js';
 
 const MODEL = 'claude-sonnet-5-5';
 const FF = 'https://api.fireflies.ai/graphql';
@@ -244,6 +245,8 @@ export async function ingest(env, d, id, { force = false } = {}) {
 }
 
 async function tellReady(env, d, m, notes) {
+  /* 2026-11-26: a quiet job (jobflags.js jobOn:meetingNotesConfirm). The noon line's notes count is not touched. */
+  if (!(await jobOn(env, 'meetingNotesConfirm'))) return { skipped: 'quiet' };
   /* 2026-11-20 (Cole: "so much noise"): one post per call (13 a week) is gone. Calls with notes to confirm are counted
      in the one noon "waiting on you" line (worker.js unsentAtNoonPass); setting meetingPings = 'on' brings these back. */
   if ((await getSetting(env, 'meetingPings')) !== 'on') return;

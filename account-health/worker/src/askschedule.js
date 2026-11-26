@@ -17,6 +17,7 @@ import { toSlackText, reportText } from '../../../ask/engine.js';
 import { checkNow } from './checknow.js';
 import { brandsFor } from './brandguard.js';
 import { resolveBrandId } from './brands.js';
+import { jobOn } from './jobflags.js';
 
 export const SCHED_SQL = `CREATE TABLE IF NOT EXISTS p_ask_schedule (
   id           TEXT PRIMARY KEY,
@@ -188,6 +189,8 @@ function isDue(row, d) {
 
 /** The hourly job. d = { getSetting, putSetting, listAccounts, centralHour, centralDate, slackApi, strategist, subCanAfford } */
 export async function scheduleTick(env, d) {
+  /* 2026-11-26: a quiet job (jobflags.js jobOn:askSchedules): only settings jobOn:askSchedules = 'on' runs it; the older switch still counts too. */
+  if (!(await jobOn(env, 'askSchedules', d && d.getSetting ? d.getSetting : undefined))) return { skipped: 'quiet' };
   await ensureSched(env);
   const { results } = await env.DB.prepare(`SELECT * FROM p_ask_schedule ORDER BY hour_central, created_at`).all().catch(() => ({ results: [] }));
   const due = (results || []).filter(r => isDue(r, d));
