@@ -931,6 +931,24 @@ export function staleMessage(brand, stale, rebook, link, o = {}) {
   return { text: noDash(m.text), blocks: m.blocks };
 }
 const subs2 = v => v.__subs || [];
+/* THE ASKS SNAPSHOT (2026-11-26, move lines, a45): what the morning post asks besides launching, kept for Locus so the
+   post can go quiet without losing it. settings trybeAsks = {date, monday, brands: [{act, name, stale, old_review,
+   discord, rebook: [{name, quiet_days, cpa}]}]}, written by the tick for every brand with a key, whether or not the post
+   runs. The Creators page (Agency > Creators > To review, GET /api/trybe/asks) and the strategist's My day line
+   (movelines.js creators) read it; it is today's only, so a stale snapshot never shows. */
+export const ASKS_KEY = 'trybeAsks';
+/** One brand's asks from its view (trybeView), the pending reviews 2 days or older and the Discord count. Pure. */
+export function askRow(b, v, oldReview, dcWait, monday) {
+  const stale = ((v && v.queue) || []).filter(q => q.state === 'not_launched' && q.days >= STALE_DAYS).length;
+  const rebook = monday ? ((v && v.creators) || []).filter(c => c.rebook).slice(0, 8).map(c => ({ name: noDash(String(c.name || 'Creator')).slice(0, 60), quiet_days: c.quiet_days ?? null, cpa: c.cpa != null ? Math.round(c.cpa) : null })) : [];
+  return { act: b.act_id, name: noDash(String(b.name || '')), stale, old_review: +oldReview || 0, discord: dcWait == null ? null : +dcWait || 0, rebook };
+}
+/** The snapshot for today, or null (another day, or never written). `only` = a Set of brand ids the caller may see. */
+export async function readAsks(env, today, only = null) {
+  const snap = safeJson(await getSetting(env, ASKS_KEY), null);
+  if (!snap || snap.date !== today || !Array.isArray(snap.brands)) return { date: today, monday: new Date(today + 'T12:00:00Z').getUTCDay() === 1, brands: [], fresh: false };
+  return { ...snap, brands: snap.brands.filter(b => !only || only.has(b.act)), fresh: true };
+}
 export async function trybeTick(env, d, { force = false } = {}) {
   const today = d.centralDate();
   if (!force && (await getSetting(env, 'trybeDay')) === today) return { skipped: 'done today' };
@@ -943,21 +961,24 @@ export async function trybeTick(env, d, { force = false } = {}) {
   const monday = new Date(today + 'T12:00:00Z').getUTCDay() === 1;
   const brands = (await d.listBrands(env)).filter(b => keyed.has(b.act_id));
   const out = { synced: 0, posted: 0, errors: [] };
+  const asks = [];
   for (const b of brands) {
     if (d.canAfford && !d.canAfford(60)) { out.errors.push('out of calls for this run'); break; }
     try {
       await syncBrand(env, d, b.act_id, { today }); out.synced++;
+      /* The asks are worked out for every brand with a key and kept (settings trybeAsks), post or no post. */
+      const v = await trybeView(env, d, b.act_id, { today });
+      v.__subs = ((await env.DB.prepare(`SELECT status, created_at FROM p_trybe_sub WHERE act_id = ?1 AND status = 'pending'`).bind(b.act_id).all()).results || []);
+      /* Falling behind (2026-11-05): videos waiting for review 2 days or more, and creators waiting on a Discord answer. */
+      const oldReview = subs2(v).filter(s => s.status === 'pending' && s.created_at && daysBetween(day(s.created_at), today) >= 2).length;
+      const dcWait = await discordWaiting(env, b.act_id);
+      asks.push(askRow(b, v, oldReview, dcWait, monday));
       if (!alertsOn || !b.slack_channel || (b.brief_channel && b.slack_channel === b.brief_channel)) continue;
       /* 2026-11-26 (move lines): the buyer's and reviewer's My day lines (movelines.js creators) carry the counts; the
          morning post goes quiet with settings jobOn:trybePost = 'off' (nothing is stamped as alerted while quiet). */
       if (!trybePostOn) continue;
-      const v = await trybeView(env, d, b.act_id, { today });
-      v.__subs = ((await env.DB.prepare(`SELECT status, created_at FROM p_trybe_sub WHERE act_id = ?1 AND status = 'pending'`).bind(b.act_id).all()).results || []);
       const seen = new Set(((await env.DB.prepare(`SELECT sub_id FROM p_trybe_sub WHERE act_id = ?1 AND alerted IS NOT NULL`).bind(b.act_id).all()).results || []).map(r => r.sub_id));
       const fresh = v.queue.filter(q => q.state === 'not_launched' && q.days >= STALE_DAYS && !seen.has(q.sub_id));
-      /* Falling behind (2026-11-05): videos waiting for review 2 days or more, and creators waiting on a Discord answer. */
-      const oldReview = subs2(v).filter(s => s.status === 'pending' && s.created_at && daysBetween(day(s.created_at), today) >= 2).length;
-      const dcWait = await discordWaiting(env, b.act_id);
       const team = d.teamOf ? ((await d.teamOf(env, [b.act_id]).catch(() => ({})))[b.act_id] || {}) : {};
       const msg = staleMessage(b.name, fresh, monday ? v.creators.filter(c => c.rebook) : [], `${d.appUrl || 'https://locus.go-mobius-digital.com'}/?open=trybe&act=${b.act_id}`,
         { oldReview, dcWait, buyer: await laneWho(env, d, laneOwner('MEDIA BUYING', team)), strat: await laneWho(env, d, laneOwner('CREATORS', team)) });
@@ -967,6 +988,8 @@ export async function trybeTick(env, d, { force = false } = {}) {
       await runAll(env, fresh.map(q => env.DB.prepare(`UPDATE p_trybe_sub SET alerted = ?3 WHERE act_id = ?1 AND sub_id = ?2`).bind(b.act_id, q.sub_id, today)));
     } catch (e) { out.errors.push(`${b.name}: ${e.message}`); }
   }
+  await putSetting(env, ASKS_KEY, JSON.stringify({ date: today, monday, brands: asks })).catch(e => out.errors.push(`asks: ${e.message}`));
+  out.asks = asks.length;
   out.discord = await discordWeekly(env, today, { d }).catch(e => ({ error: e.message }));
   /* The Tue/Wed/Thu "Question of the day" is OFF (Cole 2026-11-19: the bot asking questions every day felt weird).
      It no longer runs on the tick; POST /api/trybe/discord-daily still posts one by hand. The 5pm welcome and the
@@ -1436,6 +1459,12 @@ export async function handleTrybe(request, env, url, path, json, h) {
     if (path === '/api/trybe/week' && request.method === 'GET') {
       if (client) return json({ error: 'That part is the Mobius team' + "'" + 's.' }, 403);
       return json(await trybeWeek(env, d, (await d.listBrands(env)).filter(b => !only || only.has(b.act_id))));
+    }
+    /* The asks the morning post makes besides launching (videos waiting for review 2 days or more, creators waiting on
+       a Discord answer, Monday's rebook list), from this morning's snapshot. Team only. (2026-11-26, move lines) */
+    if (path === '/api/trybe/asks' && request.method === 'GET') {
+      if (client) return json({ error: 'That part is the Mobius team' + "'" + 's.' }, 403);
+      return json(await readAsks(env, d.centralDate ? d.centralDate() : new Date().toISOString().slice(0, 10), only));
     }
     if (path === '/api/trybe/scorecard' && request.method === 'GET') {
       if (client) return json({ error: 'That part is the Mobius team' + "'" + 's.' }, 403);

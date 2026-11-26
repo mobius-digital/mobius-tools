@@ -41,6 +41,15 @@
  *   POST /api/meetings/skip       {id}
  *   POST /api/meetings/ingest     {id} re-read one Fireflies transcript (or read one the poll missed)
  *   POST /api/meetings/poll       check Fireflies now
+ *   POST /api/meetings/pull       {id} PULL TASKS (2026-11-26, move lines a34): at most 5 suggested tasks from the call's
+ *                                 notes (already read; no new model call), the ones kept before left out
+ *   POST /api/meetings/keep       {id, items:[{text, owner, due, act, area, detail}]} the ticked suggestions become tasks
+ *                                 (p_action, source 'meeting'). No confirm, no report, no client line, no Slack post.
+ *
+ * PULL TASKS (a34): the Calls page asks for tasks only when someone wants them, instead of the confirm step. The hourly
+ * reading of every call (meetingsTick, ingest) is unchanged. What was kept is remembered in settings
+ * meetingPulled:<id> = [{text, id}] so a second pull never suggests the same task twice. The meeting's own status is
+ * not touched (GET /api/meetings is answered by the engine too; its states stay the same).
  */
 import { addAction, markDone, openItems as openActionItems, ROSTER, AREAS, AREA_RULE } from './actions.js';
 import { briefFor, ensureBoard, moveTaskTo, sectionFits } from './asana-brand.js';
@@ -600,6 +609,58 @@ export function callRow(m) {
   return { ...rest, with: people.map(a => a.displayName || String(a.email || '').split('@')[0]).filter(Boolean).slice(0, 4), brand_ids: [...new Set((notes?.brands || []).map(b => b.brand_id).filter(Boolean))], counts, made };
 }
 
+/* ---------- pull tasks (a34) ---------- */
+export const PULL_MAX = 5;
+const pullKey = id => `meetingPulled:${id}`;
+const sameText = (a, b) => clean(a, 300).toLowerCase() === clean(b, 300).toLowerCase();
+/** At most PULL_MAX task suggestions from a call's notes: team items, sure ones first, then the ones with an owner, then
+ *  the ones with a due date; anything already kept (`kept` = [{text}]) is left out. Pure. */
+export function pullSuggestions(notes, kept = [], max = PULL_MAX) {
+  const out = [];
+  for (const b of (notes && notes.brands) || []) {
+    for (const it of b.items || []) {
+      if (!it || it.kind !== 'team' || !clean(it.text, 300)) continue;
+      if ((kept || []).some(k => sameText(k.text, it.text)) || out.some(o => sameText(o.text, it.text))) continue;
+      out.push({ act: b.brand_id || '', text: clean(it.text, 300), detail: clean(it.detail, 1000), owner: clean(it.owner, 40), due: /^\d{4}-\d{2}-\d{2}$/.test(it.due || '') ? it.due : '',
+        area: AREAS.includes(it.area) ? it.area : '', sure: it.sure !== false, quote: clean(it.quote, 240), at: it.at || '' });
+    }
+  }
+  const rank = x => (x.sure ? 0 : 4) + (x.owner ? 0 : 2) + (x.due ? 0 : 1);
+  return out.map((x, i) => ({ x, i })).sort((p, q) => rank(p.x) - rank(q.x) || p.i - q.i).slice(0, max).map(p => p.x);
+}
+export async function pullTasks(env, id) {
+  await ensure(env);
+  const m = await env.DB.prepare(`SELECT id, title, date, status, notes_json FROM p_meeting WHERE id = ?1`).bind(String(id || '')).first();
+  if (!m) throw Object.assign(new Error('No such meeting.'), { status: 404 });
+  const notes = safe(m.notes_json, null);
+  const kept = safe(await getSetting(env, pullKey(m.id)), []) || [];
+  if (!notes) return { id: m.id, items: [], kept: kept.length, why: m.status === 'new' ? 'The call is still being read.' : 'No notes were kept for this call.' };
+  const items = pullSuggestions(notes, kept);
+  return { id: m.id, items, kept: kept.length, why: items.length ? '' : kept.length ? 'Every task from this call is already kept.' : 'No task came out of this call.' };
+}
+export async function keepTasks(env, d, body, who) {
+  await ensure(env);
+  const m = await env.DB.prepare(`SELECT id, notes_json FROM p_meeting WHERE id = ?1`).bind(String(body.id || '')).first();
+  if (!m) throw Object.assign(new Error('No such meeting.'), { status: 404 });
+  const brands = new Set((await d.listBrands(env)).map(b => b.act_id));
+  const kept = safe(await getSetting(env, pullKey(m.id)), []) || [];
+  const want = (Array.isArray(body.items) ? body.items : []).slice(0, PULL_MAX);
+  if (!want.length) throw Object.assign(new Error('Tick at least one task to keep.'), { status: 400 });
+  const made = [], warnings = [];
+  for (const raw of want) {
+    const text = clean(raw && raw.text, 300);
+    if (!text || kept.some(k => sameText(k.text, text))) continue;
+    const act = brands.has(String(raw.act || '')) ? String(raw.act) : '';
+    try {
+      const row = await addAction(env, { act, text, detail: clean(raw.detail, 2000), owner: clean(raw.owner, 40), due: /^\d{4}-\d{2}-\d{2}$/.test(raw.due || '') ? raw.due : '',
+        kind: 'team', area: AREAS.includes(raw.area) ? raw.area : '', source: 'meeting', source_id: m.id, created_by: who });
+      made.push({ text, id: row.id, owner: row.owner || '' }); kept.push({ text, id: row.id });
+    } catch (e) { warnings.push(`"${text}" was not added (${e.message}).`); }
+  }
+  await putSetting(env, pullKey(m.id), JSON.stringify(kept.slice(-50)));
+  return { ok: true, made, warnings };
+}
+
 /* ---------- routes ---------- */
 export async function handleMeetings(request, env, url, path, json, d) {
   if (path !== '/api/meetings' && !path.startsWith('/api/meetings/')) return null;
@@ -626,6 +687,8 @@ export async function handleMeetings(request, env, url, path, json, d) {
     const body = await request.json().catch(() => ({}));
     const who = (await d.sessionEmail(env, request).catch(() => null)) || 'the team';
     if (path === '/api/meetings/confirm') return json({ ok: true, result: await confirm(env, d, body, who) });
+    if (path === '/api/meetings/pull') return json(await pullTasks(env, body.id));
+    if (path === '/api/meetings/keep') return json(await keepTasks(env, d, body, who));
     /* The Monday call screen: tick an item done, add one, set the week's theme. Items are p_action rows (actions.js). */
     if (path === '/api/meetings/done') {
       const id = String(body.id || '').trim(); if (!id) return json({ error: 'No item id.' }, 400);

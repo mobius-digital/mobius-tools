@@ -12,6 +12,10 @@
  *   creatorProgram  Trybe, creator suggestions and Discord posts. Missing = derived: on when this workspace already
  *                   has creator data (a brand with a Trybe key, or any creatorEngine:* setting), off on an empty one.
  *   socialPosting   Locus Social. Missing = on, as it runs today (its ticks check their own brands); 'off' parks it.
+ *   weekPlan        The Monday "write this week's plan" line (a54, 2026-11-26): the strategist's My day row and the
+ *                   Monday agenda row (GET /api/mywork/weekplan). Missing = on (Mobius runs it); 'off' hides both.
+ *                   Set with PUT /api/settings { features: { weekPlan: false } }. Not in featuresNow (GET /api/notices
+ *                   is ported by the engine, so its answer is left as it was).
  * And one read only fact for the menus: siteReviewsOpen, any site review link still open or sent in the last 30 days.
  *
  * Money warnings and client sends are NOT in this list (they keep their Slack posts until Dec 5), with two exceptions
@@ -52,7 +56,7 @@ export const QUIET_JOBS = [
   { id: 'unsentNoonPost', name: 'Client updates not sent by noon', was: 'A noon post with the unsent client updates as cards', instead: 'The bell client updates row and To send', hold: 'Dec 5' },
 ];
 const JOB_IDS = new Set(QUIET_JOBS.map(j => j.id));
-export const FEATURES = ['creatorProgram', 'socialPosting'];
+export const FEATURES = ['creatorProgram', 'socialPosting', 'weekPlan'];
 
 /** A settings read straight from D1 (the raw stored text). */
 export async function directGet(env, key) {
@@ -112,7 +116,7 @@ export async function featureOn(env, name, get = directGet) {
   if (isWord(v, 'on')) return true;
   if (isWord(v, 'off')) return false;
   if (name === 'creatorProgram') return cached('creatorProgram', () => hasCreatorData(env)).catch(() => true);   // a failed read fails ON, uncached
-  return name === 'socialPosting';
+  return name === 'socialPosting' || name === 'weekPlan';
 }
 /** Was the creator program switch saved by a person (true), or is it still derived (false)? */
 export async function featureSaved(env, name, get = directGet) {

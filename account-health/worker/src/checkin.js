@@ -747,6 +747,63 @@ export async function reviewSubmit(env, ctx, d, p) {
 }
 
 /* ---------- the hourly tick ---------- */
+/* ---------- the check-in in Locus (2026-11-26, move lines a10) ----------
+   My day posts a plan or "I'm out today", and Agency > Team shows today's board: the SAME settings `checkin:<date>`
+   the Slack form writes (day.people[slack id] = {plan: {at, types, via}, items, out, wrap}), so the Slack board, the
+   "no plan yet" line (movelines.js) and the 10am summary all read one record. When today's day post is already up, a
+   plan typed in Locus is also posted in its thread and the board is redrawn, exactly as the Slack form does, so the two
+   never disagree. With no day post yet (before the morning hour, a weekend) the plan is only stored; ensureDay keeps it
+   when the post goes up. Nothing here makes the day post itself. */
+/** Today's board for Locus. Pure. `day` = settings checkin:<date> (or null), `people` = peopleOf. */
+export function plansView(date, day, people) {
+  const d = day || {};
+  const monday = weekday(date) === 1;
+  const rows = Object.entries(people || {}).filter(([, p]) => !p.weekOnly || monday).map(([uid, p]) => {
+    const s = (d.people || {})[uid] || {};
+    return { uid, name: clean(p.name, 40), roles: p.roles || [], week_only: !!p.weekOnly,
+      state: s.out ? 'out' : s.plan ? 'plan' : 'none',
+      plan: s.plan ? { at: s.plan.at || null, types: s.plan.types || [], via: s.plan.via || 'slack' } : null,
+      items: (s.items || []).slice(0, 12).map(x => clean(x, 200)), out: !!s.out, back: s.back || null,
+      wrap: s.wrap ? { at: s.wrap.at || null, done: s.wrap.done ?? null, of: s.wrap.of ?? null } : null,
+      week: !!s.week, need: (s.need || []).map(n => needLine(n)) };
+  });
+  return { date, weekend: weekday(date) === 0 || weekday(date) === 6, posted: !!d.ts, channel: d.channel || null,
+    counts: { plan: rows.filter(r => r.state === 'plan').length, out: rows.filter(r => r.state === 'out').length, none: rows.filter(r => r.state === 'none' && !r.week_only).length },
+    people: rows };
+}
+export async function plansToday(env, d, { date = d.centralDate() } = {}) {
+  return plansView(date, await dayOf(env, d, date), await peopleOf(env, d));
+}
+/** A plan or "out today" typed in Locus. `uid` = the person's Slack id (on the check-in list), `text` = one thing per
+ *  line, `types` = what today is (the Slack form's chips). Returns the person's row. */
+export async function planFromLocus(env, d, { uid, text = '', out = false, types = [], date = d.centralDate() } = {}) {
+  const people = await peopleOf(env, d);
+  const me = people[uid];
+  if (!uid || !me) throw Object.assign(new Error('You are not on the daily check-in list. Ask the owner to add you.'), { status: 400 });
+  if (me.weekOnly) throw Object.assign(new Error('You post a week, not a daily plan.'), { status: 400 });
+  const items = String(text || '').split(/\n+/).map(x => clean(x.replace(/^[-*•]\s*/, ''), 300)).filter(Boolean).slice(0, 20);
+  if (!out && !items.length) throw Object.assign(new Error('Write at least one thing for today.'), { status: 400 });
+  const day = (await dayOf(env, d, date)) || { people: {}, sent: [] };
+  day.people = day.people || {};
+  const s = day.people[uid] = day.people[uid] || {};
+  const now = new Date().toISOString();
+  const kinds = (Array.isArray(types) ? types : []).filter(t => DAY_TYPES.includes(t));
+  if (out) {
+    if (s.out) return plansView(date, day, people).people.find(r => r.uid === uid);
+    s.out = true;
+    if (day.ts) await postInThread(env, d, day, `${me.name} is out today`, [ctxLine(`🌴 *${me.name}* is out today.`)]).catch(() => {});
+  } else {
+    s.plan = { at: now, types: kinds, via: 'locus' }; s.out = false;
+    s.items = items;
+    if (day.ts) await postInThread(env, d, day, `${me.name}'s plan`, [head(me.name, 'plan', kinds.join(', ')),
+      { type: 'section', text: md(items.map(x => `• ${esc(x)}`).join('\n')) }, ctxLine('Posted from My day in Locus')]).catch(() => {});
+  }
+  await saveDay(env, d, date, day);
+  if (day.ts) await redraw(env, d, date, day);
+  return plansView(date, day, people).people.find(r => r.uid === uid);
+}
+export { DAY_TYPES };
+
 export async function checkinTick(env, d) {
   if ((await d.getSetting(env, 'checkinPost')) === 'off') return { skipped: 'off' };
   const out = {};

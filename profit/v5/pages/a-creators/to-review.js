@@ -6,13 +6,15 @@
    (there is no all-brands review route yet). The route answers 400 for a brand with no creator platform key, so the
    page first reads which brands have one (GET /api/trybe?act=all, keyedBrands in creators/_cr.js) and asks only
    those. A 400 that still comes back means "no creator program": the brand is left out, never shown as 0.
-   The video file: GET /api/trybe/video?act=&sub= (a read; the link lasts 20 minutes, so it is asked for on play). */
+   The video file: GET /api/trybe/video?act=&sub= (a read; the link lasts 20 minutes, so it is asked for on play).
+   Falling behind (2026-11-26, a45): GET /api/trybe/asks, this morning's asks the creator post made (_asks.js). */
 
 import { h, hero, kpi, kpis, em, button, statusDot, empty, skeleton, sheet, addStyles } from '../../kit.js';
 import { SAMPLE } from '../../data.js';
 import { legacyUrl, APP_NAME } from '../../config.js';
 import { put, css, plural, day, pageTop, oldLocus } from '../production/_ui.js';
 import { crCss, clip, keyedBrands } from '../creators/_cr.js';
+import { asksSection } from './_asks.js';
 
 /* ---------- shared with By brand ---------- */
 /** The brands worth asking: live ones only. */
@@ -121,8 +123,10 @@ export default {
   ranges: false,                     // what is waiting now, not a span of days
 
   async load(ctx) {
-    const got = await perBrand(ctx, '/api/trybe/review?act=', await keyedBrands(ctx));
-    const out = { today: todayStr(), brands: [], connected: 0, failed: [] };
+    const [got, asks] = await Promise.all([perBrand(ctx, '/api/trybe/review?act=', await keyedBrands(ctx)),
+      /* Falling behind (a45): this morning's asks; a page without it still draws */
+      SAMPLE ? Promise.resolve(null) : ctx.api('/api/trybe/asks', { worker: 'ah', signal: ctx.signal }).catch(() => null)]);
+    const out = { today: todayStr(), brands: [], connected: 0, failed: [], asks };
     for (const g of got) {
       if (g.failed) { out.failed.push({ act_id: g.act_id, why: g.failed }); continue; }
       if (g.none || !g.data) continue;
@@ -144,9 +148,10 @@ export default {
       return { ...g, items, oldest: ages.length ? Math.max(...ages) : null };
     }).filter(g => g.items.length).sort((a, b) => (b.oldest ?? -1) - (a.oldest ?? -1) || b.items.length - a.items.length);
     const failed = (data && data.failed) || [];
+    const behind = asksSection(data && data.asks, (act, name) => brandName(ctx, act, name));
 
     if (!groups.length) {
-      put(el,
+      put(el, behind,
         data && data.connected === 0 && !failed.length
           ? empty({ title: 'No brand has creators connected', text: 'Add a brand\'s creator platform key in its Brand settings > Integrations. Then every video waiting for a yes shows here.' })
           : empty({ title: 'Nothing waiting for a yes', text: 'When a creator sends a video for any brand, it shows here.' }),
@@ -170,6 +175,7 @@ export default {
         { title: 'What it is for', text: 'Every creator video waiting for a yes on any brand, grouped by brand, the longest wait on top and oldest first inside a brand. A wait of 3 days or more is over the line.' },
         { title: 'Why approving is not here', text: 'Approving pays the creator and tells them, so it is done in old ' + APP_NAME + ' or the creator platform. Tap a video to watch it; the sheet has the button. A brand with no creator platform connected is not listed.' },
       ]),
+      behind,
       groups.map(g => {
         const b = brandOf(ctx, g.act_id), to = brandPage(ctx, g.act_id, 'to-review');
         return h('section', { class: 'ac-group' },
