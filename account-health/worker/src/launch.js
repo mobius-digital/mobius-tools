@@ -737,15 +737,23 @@ export async function launchList(env, d, act, { refresh = false, only = null } =
 }
 
 /** Is every ad on the card loaded to Meta? An ad counts as loaded when a live (not archived or deleted) launch row
- *  points at any of its files. A card with no ads is never "all loaded". */
+ *  points at any of its files (as its work_file or as one of a carousel's cards). A card made outside its Production
+ *  files (Studio launches and Studio carousels write no work_file) has no file ads to check: one live launch row for
+ *  the card means it is loaded, as before. A card with no ads and no launch row is never "all loaded". */
 export async function allAdsLoaded(env, batchId) {
   const card = await env.DB.prepare(`SELECT id, brief_json FROM p_br_batch WHERE id = ?1`).bind(String(batchId)).first().catch(() => null);
   if (!card) return false;
   const files = (await env.DB.prepare(`SELECT id, ad, version, mime, name, created_at, kind FROM p_work_file WHERE batch_id = ?1 AND kind = 'version' AND deleted_at IS NULL`).bind(card.id).all().catch(() => ({ results: [] }))).results || [];
   const cs = ((await env.DB.prepare(`SELECT file_id, kind, parent_id, fixed_at, author_name AS who, created_at FROM p_work_comment WHERE batch_id = ?1 ORDER BY created_at`).bind(card.id).all().catch(() => ({ results: [] }))).results || []).map(c => ({ ...c, fixed: !!c.fixed_at }));
   const ads = adsOf(files, cs, { carousel: isCarousel(card.brief_json) });
-  if (!ads.length) return false;
-  const launched = new Set((((await env.DB.prepare(`SELECT work_file FROM p_launch WHERE batch_id = ?1 AND COALESCE(eff_status, '') NOT IN ('ARCHIVED', 'DELETED')`).bind(card.id).all().catch(() => ({ results: [] }))).results) || []).map(r => String(r.work_file || '')).filter(Boolean));
+  const rows = (((await env.DB.prepare(`SELECT work_file, cards FROM p_launch WHERE batch_id = ?1 AND COALESCE(eff_status, '') NOT IN ('ARCHIVED', 'DELETED')`).bind(card.id).all().catch(() => ({ results: [] }))).results) || []);
+  if (!ads.length) return rows.length > 0;
+  const launched = new Set();
+  for (const r of rows) {
+    if (r.work_file) launched.add(String(r.work_file));
+    let cards = []; try { cards = JSON.parse(r.cards || '[]'); } catch { /* not a list */ }
+    if (Array.isArray(cards)) for (const c of cards) if (c != null && typeof c !== 'object') launched.add(String(c));
+  }
   const filesOf = new Map();
   for (const f of files) { const k = f.ad || ''; (filesOf.get(k) || filesOf.set(k, []).get(k)).push(String(f.id)); }
   return ads.every(a => (filesOf.get(a.ad || '') || []).some(id => launched.has(id)));

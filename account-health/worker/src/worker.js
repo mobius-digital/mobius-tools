@@ -5269,6 +5269,8 @@ async function sendReport(env, acct, period, start) {
     `SELECT * FROM reports WHERE act_id = ?1 AND period = ?2 AND period_start = ?3`,
   ).bind(acct.act_id, period, start).first();
   if (!row) throw new Error('no report generated for that period yet');
+  // "Do not send" (POST /api/report-skip) holds on every surface: Slack and Locus both refuse it here.
+  if (row.status === 'skipped') throw new Error('this report is marked Do not send, so it is not sent');
   const data = safeJson(row.data_json, null);
   if (!data) throw new Error('this report has no data - regenerate it first');
   // ONE client destination per brand, shared by the brief and both reports.
@@ -6361,9 +6363,13 @@ async function reportCard(env, acct, row, banner) {
   const blocks = [];
   // Same rule as briefCard: a draft for an internal-only brand is handled.
   const handled = row.status === 'handled' || (row.status !== 'sent' && internalOnly(acct));
+  // Marked "Do not send" in Locus (POST /api/report-skip): read only here, no send or edit buttons.
+  const skipped = row.status === 'skipped';
 
   const head = row.status === 'sent'
     ? `:white_check_mark: *${label} report sent to the client - ${acct.name}* (${range})`
+    : skipped
+    ? `:no_entry_sign: *${label} report - ${acct.name}* (${range})  ·  _marked Do not send in Locus; nothing goes out_`
     : handled
       ? `:white_check_mark: *${label} report - ${acct.name}* (${range})  \u00b7  _internal only; no client channel, so nothing goes out_`
       /* 2026-11-09 (the lane format, lane.js): a draft is Cole's ask, lane first. */
@@ -6390,7 +6396,9 @@ async function reportCard(env, acct, row, banner) {
      reporting template". He is right, and this is a straight revert to the
      compact notice - headline, link, done - with the buttons kept, which were
      the actual point of the change. */
-  const notes = [handled
+  const notes = [skipped
+    ? `<${locusUrl}|Open the full report in Locus>. Marked Do not send, so nothing goes to the client.`
+    : handled
     ? `<${locusUrl}|Open the full report in Locus>. Nothing is sent for this brand - it is handled the moment it is written.`
     : `<${locusUrl}|Open the full report in Locus>  ·  <${clientUrl}|What the client sees>. The client receives the text above, nothing else.`];
   if (row.status === 'sent' && row.sent_channel) notes.push(`Posted to <#${row.sent_channel}>${row.sent_at ? ` at ${shortTime(row.sent_at)} Central` : ''}. A sent report is frozen.`);
@@ -6400,7 +6408,7 @@ async function reportCard(env, acct, row, banner) {
   blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: notes.join('  \u00b7  ') }] });
 
   const els = [];
-  if (row.status !== 'sent') {
+  if (row.status !== 'sent' && !skipped) {
     if (!handled) {
       els.push(btn('Send to client', 'report_send', v, { style: 'primary', confirm: confirmDialog(
         'Send this report to the client?',
@@ -6413,7 +6421,7 @@ async function reportCard(env, acct, row, banner) {
   els.push(btn('Open in Locus', 'noop_open', v, { url: LOCUS_REPORTS(acct.act_id) }));
   blocks.push({ type: 'actions', elements: els });
 
-  return { text: row.status === 'sent' || handled ? `${label} report ${row.status === 'sent' ? 'sent' : 'ready (internal only)'} - ${acct.name} (${range})` : `CLIENT · ${acct.name}: Read and send the ${label.toLowerCase()} update (${range})`, blocks };
+  return { text: row.status === 'sent' || skipped || handled ? `${label} report ${row.status === 'sent' ? 'sent' : skipped ? 'not sent (Do not send)' : 'ready (internal only)'} - ${acct.name} (${range})` : `CLIENT · ${acct.name}: Read and send the ${label.toLowerCase()} update (${range})`, blocks };
 }
 
 /* ---- Keep the card in step with the row, whichever surface moved it ---- */
@@ -8336,7 +8344,9 @@ const AH_APP = {
        it can apply changes. */
     if (!['GET', 'HEAD'].includes(request.method) && path.startsWith('/api/') && !VIEWER_MAY.has(path)) {
       const viewerWho = await sessionEmail(env, request).catch(() => null);
-      if (viewerWho && (await roleFor(env, viewerWho)) === 'viewer') {
+      /* The owner is never view-only, so a bad role on his row can never lock him out of every write. */
+      const ownerAddr = String(env.OWNER_EMAIL || 'cole@go-mobius-digital.com').toLowerCase();
+      if (viewerWho && String(viewerWho).toLowerCase() !== ownerAddr && (await roleFor(env, viewerWho)) === 'viewer') {
         return json({ error: 'Your account has view-only access, so this cannot be changed. Ask an admin on your team.' }, 403);
       }
     }
@@ -9997,6 +10007,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         await putSetting(env, 'removedEmails', JSON.stringify(removed));
         return json({ ok: true, email, removed: true, role: roles[email] === 'viewer' ? 'viewer' : 'admin', guest: false, brands: Array.isArray(ub[email]) ? ub[email] : [] });
       }
+      if (email === owner && role === 'viewer') return json({ error: 'The owner can always change things.' }, 400);
       /* A new outside guest starts with NO brands: it must come with the brands it may see
          ([] would mean every brand). */
       const newGuest = !onDomain && !extra.includes(email) && !(email in ub);

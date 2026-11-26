@@ -7,8 +7,8 @@
  *   buyer     a card is approved and ready     (the brand's buyer, else the owner)
  *   clients   a card was sent to the client    (every client login on that brand)
  * Roles come from settings.automationRoles ({ all: { role: email }, <brand id>: { role: email } }, set in Who does what).
- * Bell rows only: no Slack, no email (Slack stays where it already posts). A person who already has an open row with
- * the same title for the brand is not told twice. Never throws: a hand off must never fail the action behind it. */
+ * Bell rows only: no Slack, no email (Slack stays where it already posts). A person who already has an open row for
+ * the same card is not told twice. Never throws: a hand off must never fail the action behind it. */
 import { addNotice, ensure } from './automations.js';
 import { brandsFor, clientOf } from './brandguard.js';
 
@@ -71,10 +71,15 @@ export async function tellHandoff(env, { brand_id, to, title, body = null, card_
     const told = [];
     for (const person of people) {
       const saved = String(title).replace(/\s*[\u2014\u2013]\s*/g, ', ').slice(0, 300);   // as addNotice stores it
-      const open = await env.DB.prepare(`SELECT id FROM p_notice WHERE person_id = ?1 AND brand_id = ?2 AND title = ?3 AND state = 'open' LIMIT 1`).bind(person, brand, saved).first().catch(() => null);
-      if (open) continue;
       /* `for` marks the client rows, so clearClientHandoff closes only those (a client never sees the button). */
       const button = card_id ? { kind: 'card', card: String(card_id), for: to === 'clients' ? 'client' : to } : null;
+      /* Told once per CARD: with a card, an open row for that same card stops a repeat (card B is still told while
+         card A's row is open); with no card, an open row with the same title does. */
+      const open = button
+        ? await env.DB.prepare(`SELECT id FROM p_notice WHERE person_id = ?1 AND brand_id = ?2 AND kind = 'tell' AND state = 'open' AND button_json LIKE ?3 LIMIT 1`)
+          .bind(person, brand, `%"card":"${button.card.replace(/[%_"\\]/g, '')}","for":"${button.for}"%`).first().catch(() => null)
+        : await env.DB.prepare(`SELECT id FROM p_notice WHERE person_id = ?1 AND brand_id = ?2 AND title = ?3 AND state = 'open' LIMIT 1`).bind(person, brand, saved).first().catch(() => null);
+      if (open) continue;
       await addNotice(env, { person, brand_id: brand, kind: 'tell', title, body, button, home: true, at: new Date().toISOString() });
       told.push(person);
     }
