@@ -2,12 +2,13 @@
    Live: sales, share of store sales, campaigns against flows by day (Triple Whale, GET /api/hub/email and
    /api/hub/store on the profit worker); orders, list size, list change and the top campaigns (Klaviyo, read with
    the brand's own key: GET /api/klaviyo?what=daily | campaigns | overview on the account-health worker).
-   No route yet: the share of email sales that came from returning buyers (drawn from the example file with a chip)
-   and first-time buyers per campaign (the column shows in sample mode only). */
+   No route yet: the share of email sales that came from returning buyers and first-time buyers per campaign. Both
+   show in sample mode only; a real brand never sees an example number. When campaigns and flows are not split for
+   these dates, the split shows "no data", never $0. */
 
 import { put } from '../../kit.js';
 import { h, em, card, kpi, kpis, delta, takeaway, button, table, legend, lineChart, skeleton, money } from '../../kit.js';
-import { ok, usd, rate, sum, move, shortDate, inRange, noteAt, css, head, barCell, channelTag, kl, hubEmail, soft, example, notConnected, num, pct } from './_em.js';
+import { ok, usd, rate, sum, move, shortDate, inRange, noteAt, css, head, barCell, channelTag, kl, hubEmail, soft, notConnected, num, pct } from './_em.js';
 
 /* ---------- real mode: five reads, shaped like the fixture ---------- */
 function shape(ctx, hub, store, daily, camps, ov, ex) {
@@ -43,13 +44,14 @@ function figures(d) {
   const t = d.totals || {}, isEx = (d.example || []).includes('returning');
   const dSales = move(t.sales, t.sales_prev), dShare = ok(t.share) && ok(t.share_prev) ? t.share - t.share_prev : null;
   const pts = v => Math.abs(Math.round(v * 100)) + ' pts';
-  const daily = (d.days || []).map(r => (r.campaigns || 0) + (r.flows || 0));
+  const splitOk = ok(t.campaigns) && ok(t.flows) && t.campaigns + t.flows > 0;
+  const daily = splitOk ? (d.days || []).map(r => (r.campaigns || 0) + (r.flows || 0)) : null;
   const el = kpis([
     kpi({ label: 'Email & SMS sales', size: 'lg', value: ok(t.sales) ? usd(t.sales) : 'no data',
       delta: ok(dSales) ? delta(dSales, { bad: dSales < 0 }) : null, sub: ok(t.orders) ? num(t.orders) + ' orders' : ok(t.sales_prev) ? 'was ' + usd(t.sales_prev) : null, spark: daily }),
     kpi({ label: 'Share of store sales', size: 'lg', value: ok(t.share) ? pct(t.share) : 'no data',
       delta: ok(dShare) && Math.abs(dShare) >= 0.005 ? delta(dShare, { bad: dShare < 0, text: pts(dShare) }) : null, sub: 'of all store sales',
-      spark: (d.days || []).filter(r => r.store > 0).map(r => ((r.campaigns || 0) + (r.flows || 0)) / r.store) }),
+      spark: splitOk ? (d.days || []).filter(r => r.store > 0).map(r => ((r.campaigns || 0) + (r.flows || 0)) / r.store) : null }),
     ok(t.returning_share) ? kpi({ label: 'From returning buyers', size: 'lg', src: isEx ? 'Example' : null, value: pct(t.returning_share),
       delta: ok(t.returning_move) ? delta(t.returning_move, { text: pts(t.returning_move) }) : null, sub: 'of email and SMS sales' }) : null,
     kpi({ label: 'List size', size: 'lg', value: ok(t.list_size) ? num(t.list_size) : 'no data',
@@ -83,7 +85,7 @@ function chartCard(d) {
   const b = v => h('b', null, v);
   return card({ class: 'em-chart' },
     head('Flows or campaigns: what brought the sales?', 'Sales by day',
-      legend([{ name: 'Campaigns ' + usd(t.campaigns), square: true, color: 'var(--ink)' }, { name: 'Flows ' + usd(t.flows), square: true, color: '#D9DDE6' }, hasShare && { name: 'Share of store sales', lead: true }])),
+      legend([{ name: 'Campaigns ' + (t.campaigns > 0 ? usd(t.campaigns) : 'no data'), square: true, color: 'var(--ink)' }, { name: 'Flows ' + (t.flows > 0 ? usd(t.flows) : 'no data'), square: true, color: '#D9DDE6' }, hasShare && { name: 'Share of store sales', lead: true }])),
     lineChart({
       series: [
         { type: 'bar', name: 'Campaigns', values: total },
@@ -125,12 +127,12 @@ export default {
   async load(ctx) {
     if (!ctx.brand) return { connected: false };
     const q = `act=${encodeURIComponent(ctx.brand.id)}&from=${ctx.range.from}&to=${ctx.range.to}`;
-    const [hub, store, daily, camps, ov, ex] = await Promise.all([
+    const [hub, store, daily, camps, ov] = await Promise.all([
       hubEmail(ctx),
       soft(ctx, ctx.api('/api/hub/store?' + q, { signal: ctx.signal }).then(r => (r.brands || [])[0] || null)),
-      kl(ctx, 'daily'), kl(ctx, 'campaigns'), kl(ctx, 'overview'), example(ctx, 'snapshot'),
+      kl(ctx, 'daily'), kl(ctx, 'campaigns'), kl(ctx, 'overview'),
     ]);
-    return shape(ctx, hub, store, daily, camps, ov, ex);
+    return shape(ctx, hub, store, daily, camps, ov, null);   /* load() is real mode only: no example numbers on a real brand */
   },
 
   skeleton(el) { put(el, h('div', { class: 'lx-skel-grid' }, skeleton('kpi', 4)), skeleton('chart'), skeleton('row', 5)); },
