@@ -96,7 +96,7 @@ function view(d, ctx) {
     ], { cols: 4 }),
     best ? takeaway([h('b', null, best.name), ` returns ${x(best.stats.roas)} on ${money(best.stats.spend)}` + (d.goal_roas ? `, against a ${x(d.goal_roas)} goal.` : '.'),
       proven.length ? ` ${num(proven.length)} ${proven.length === 1 ? 'angle has' : 'angles have'} won tests.` : '']) : null,
-    chartList.length >= 2 ? card({ class: 'ww-cd', title: 'ROAS by angle', note: 'The angles with the most spend. Grey under 30 orders.', action: legend([{ name: 'ROAS', square: true, color: 'var(--ink)' }, d.goal_roas && { name: 'Goal', dashed: true }]) },
+    chartList.length >= 2 ? card({ class: 'ww-cd', title: 'ROAS by angle', note: 'The angles with the most spend. Gray under 30 orders.', action: legend([{ name: 'ROAS', square: true, color: 'var(--ink)' }, d.goal_roas && { name: 'Goal', dashed: true }]) },
       h('div', { style: { marginTop: '18px' } }, lineChart({ series: [{ type: 'bar', values: chartList.map(a => a.stats.roas), leadAt: bestI, dimAt: i => thin(chartList[i].stats.orders), labels: v => x(v) }],
         labels: chartList.map(a => (a.name.length > 22 ? a.name.slice(0, 21).trim() + '.' : a.name)), goal: d.goal_roas ? { value: d.goal_roas, label: 'Goal ' + x(d.goal_roas) } : null,
         format: v => x(v, 1), height: 300, phoneHeight: 250, endLabels: false, label: 'ROAS by angle', hover: i => [h('b', null, chartList[i].name), ` ${x(chartList[i].stats.roas)}, ${money(chartList[i].stats.spend)}, ${num(chartList[i].stats.orders)} orders`] }))) : null,

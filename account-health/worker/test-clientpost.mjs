@@ -37,7 +37,7 @@ db.exec(`INSERT INTO brands (id, slug, name, status, currency, tz, source, inter
 /* ---------------- the daily ---------------- */
 const DAY = { sales: 719, spend: 489, mer: 1.47, plan: 1800 };
 const MONTH = { ym: '2026-10', sales: 19574, goal: 30603, day_of_month: 17 };
-await check('the daily: title, Yesterday with its date, labelled bullets, the month, Next only when written; no headline, no weekday title', () => {
+await check('the daily: title, Yesterday with its date, labeled bullets, the month, Next only when written; no headline, no weekday title', () => {
   const t = dailyPost({ brand: 'Dartee Golf', date: '2026-10-15', day: { sales: 1458, spend: 519, mer: 2.81, amer: 1.95, plan: 1800 }, month: { ym: '2026-10', sales: 17800, plan: 27000, spend: 8100, day_of_month: 15, days_in_month: 31 }, others: [1018, 1600, 822], next: 'Ahsan steps the ads back up Monday.' });
   assert.equal(t, [
     '*Dartee Golf \u00b7 Daily update*',
@@ -93,7 +93,7 @@ await check('shortMoney and pctChange', () => {
 
 /* ---------------- the weekly ---------------- */
 const TOTALS = { sales: 5890, spend: 3105, mer: 1.90, cm: 1784 }, PREV = { sales: 6958, spend: 3140, mer: 2.22, cm: 2620 };
-await check('the weekly: title, the rule sentence, labelled bullets with ONE comparison each, contribution margin defined, This week, We need from you with dates, the link', () => {
+await check('the weekly: title, the rule sentence, labeled bullets with ONE comparison each, contribution margin defined, This week, We need from you with dates, the link', () => {
   const t = weeklyPost({ brand: 'Grunk Dolfer', period: 'weekly', start: '2026-10-12', end: '2026-10-18', totals: { ...TOTALS, amer: 1.2 }, previous: { ...PREV, amer: 1.41 },
     this_week: ['Splatter Collection goes live Friday; the drop email goes today', 'Three Splatter ads into testing by Thursday'],
     from_you: [{ text: 'Is Splatter full price or a deal?', asked: '2026-10-13', due: '2026-10-22' }, 'Photos for Splatter Collection (live Fri Oct 23)'], url: 'https://locus.go-mobius-digital.com/profit/?reports=abc' });

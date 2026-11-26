@@ -19,7 +19,7 @@ import { liveNote } from '../my-day/_waiting.js';
 import { h, money, num, pct, x, card, hero, em, kpi, kpis, takeaway, button, platformChip, statusDot, pill,
   delta, count, gauge, legend, lineChart, dateBlock, table, empty, addStyles } from '../../kit.js';
 
-/* ---------- local styles (layout only; every colour and size token comes from app.css) ---------- */
+/* ---------- local styles (layout only; every color and size token comes from app.css) ---------- */
 const CSS = `
 .hm-mer{display:flex;align-items:center;gap:24px;margin-bottom:18px;flex-wrap:wrap}
 .hm-mer .n{display:flex;align-items:baseline;gap:12px}

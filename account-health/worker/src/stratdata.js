@@ -237,7 +237,7 @@ async function matchAds(env, d, input, ctx) {
   if (pics.length > 50) return { error: `${pics.length} board files; name fewer tests.` };
 
   /* One look at everything: board files first, then the live ads. */
-  const content = [{ type: 'text', text: `You match live Meta ads to the design files on our Production board. Each board file is one VERSION of one ad (V1, V2...); versions of the same ad look alike and differ in details (a headline, a line of copy, a colour, a crop, a product shot, a sticker): compare the words on the image letter by letter and the layout before deciding. A Meta ad may be cropped or resized compared with the file. Every Meta ad matches at most one board file.` }];
+  const content = [{ type: 'text', text: `You match live Meta ads to the design files on our Production board. Each board file is one VERSION of one ad (V1, V2...); versions of the same ad look alike and differ in details (a headline, a line of copy, a color, a crop, a product shot, a sticker): compare the words on the image letter by letter and the layout before deciding. A Meta ad may be cropped or resized compared with the file. Every Meta ad matches at most one board file.` }];
   for (const [i, f] of pics.entries()) {
     const p = await smallPic(env, f.id).catch(() => null);
     content.push({ type: 'text', text: `Board file P${i + 1}: test ${f.num} "${clip(f.title, 60)}", ad ${f.ad}, V${f.version}, file "${clip(f.name, 60)}"` });

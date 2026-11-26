@@ -42,7 +42,7 @@ const CSS = `
 }`;
 
 const CAT = { budget: 'Budget', new_campaign: 'New campaign', campaign_paused: 'Turned off', campaign_relaunched: 'Turned back on', bid_strategy: 'Bid strategy', targeting: 'Audience',
-  new_creative: 'New ad', new_adset: 'New ad set', ad_paused: 'Ad turned off', ad_relaunched: 'Ad turned back on', optimisation: 'Optimisation', schedule: 'Schedule', name: 'Rename', review: 'Ad review', billing: 'Billing', manual: 'Note', other: 'Other' };
+  new_creative: 'New ad', new_adset: 'New ad set', ad_paused: 'Ad turned off', ad_relaunched: 'Ad turned back on', optimisation: 'Optimization', schedule: 'Schedule', name: 'Rename', review: 'Ad review', billing: 'Billing', manual: 'Note', other: 'Other' };
 const catWord = c => CAT[c] || String(c || 'other').replace(/_/g, ' ').replace(/^./, m => m.toUpperCase());
 /* the changes a person would want to hear about; the rest is Meta's own housekeeping */
 const MATTERS = new Set(['budget', 'new_campaign', 'campaign_paused', 'campaign_relaunched', 'bid_strategy', 'targeting', 'new_creative', 'new_adset', 'manual']);

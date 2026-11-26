@@ -295,7 +295,7 @@ await check('links: YouTube Shorts, youtu.be, TikTok, Instagram reel; other link
   assert.equal(ideas.classifyLink('https://grunkdolfer.com/products/x'), null);
   assert.deepEqual(ideas.linksOf('see <https://a.com/x?a=1&amp;b=2|here>'), ['https://a.com/x?a=1&b=2']);
 });
-await check('thread parsing: order, names, bot posts skipped, media labelled', () => {
+await check('thread parsing: order, names, bot posts skipped, media labeled', () => {
   const t = ideas.parseThread(threads[`${CH}:100.1`], { botUser: 'U_BOT', names: NAMES });
   assert.equal(t.msgs.length, 3);
   assert.equal(t.msgs[0].name, 'Ahsan');
@@ -734,19 +734,19 @@ await check('minimal card: one bold line, the idea in four lines, no teardown; D
   const dt = JSON.stringify(det.blocks);
   for (const s of ['Details: Grunk Dolfer idea from Cole', 'Why it works', 'Hook: He opens mid-rant', 'Take:', 'Best home:', 'Creator link angle', 'Openers:', 'On screen: Line one  /  Line two', 'Do: Keep it real']) assert.ok(dt.includes(s), `Details is missing ${s}`);
   assert.equal(det.blocks.find(b => b.type === 'actions'), undefined, 'Details has no buttons');
-  /* A non-blocking question stays off the card and shows in Details; an Asana pick summarises the brief. */
+  /* A non-blocking question stays off the card and shows in Details; an Asana pick summarizes the brief. */
   const id2 = `${CH}:730.1`;
   threads[id2] = [{ ts: '730.1', user: 'U_AHSAN', text: 'Needs the editor <@U_BOT> brief' }];
-  claudeQueue.push(draft({ destination: { pick: 'asana_brief', reason: 'Editor job.' }, questions: [{ q: 'Which cooler colour?', blocking: false }], creator_link: { ...draft().creator_link, title: '' } }));
+  claudeQueue.push(draft({ destination: { pick: 'asana_brief', reason: 'Editor job.' }, questions: [{ q: 'Which cooler color?', blocking: false }], creator_link: { ...draft().creator_link, title: '' } }));
   await ideas.runIdeaJob(env, job('730.1', '<@U_BOT> brief'));
   const c2 = lastPost();
   const t2 = c2.blocks.filter(b => b.type === 'section').map(b => b.text.text).join('\n');
   assert.match(t2, /^\*Grunk Dolfer idea from Ahsan -> Asana brief\*\n\*Garage rant hook\*\nAngle: Golf is hard.*\nTesting: 3 new concepts\n3 ads, video, concept test$/);
-  assert.ok(!t2.includes('Which cooler colour'));
+  assert.ok(!t2.includes('Which cooler color'));
   assert.equal(selectOf(c2.blocks), undefined, 'no Section dropdown when the idea is not for the creator link');
   assert.ok(actionIds(c2.blocks).includes('idea_make_creator_link'));
   await press('idea_details', id2, 'U_RANDO');
-  assert.match(JSON.stringify(lastPost().blocks), /Worth answering: Which cooler colour/);
+  assert.match(JSON.stringify(lastPost().blocks), /Worth answering: Which cooler color/);
 });
 
 /* ---------------- focused brain, line picker, blind compare ---------------- */

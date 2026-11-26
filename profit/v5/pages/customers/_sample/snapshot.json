@@ -110,7 +110,7 @@
  "second": {
   "rows": [
    {
-    "name": "A belt in a different colour",
+    "name": "A belt in a different color",
     "orders": 318
    },
    {
@@ -125,7 +125,7 @@
   "tip": [
    "Offer a ",
    {
-    "b": "new colour"
+    "b": "new color"
    },
    ", not the same belt."
   ]

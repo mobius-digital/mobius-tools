@@ -47,7 +47,7 @@ const CTAS = ['SHOP_NOW', 'LEARN_MORE', 'ORDER_NOW', 'BUY_NOW', 'GET_OFFER', 'SI
 const clip = (s, n) => String(s ?? '').slice(0, n);
 const parse = (v, fb) => { if (v == null) return fb; if (typeof v !== 'string') return v; try { return JSON.parse(v); } catch { return fb; } };
 const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-const VERDICT_WORD = { winner: 'Winner', loser: 'Loser', cancelled: 'Cancelled' };
+const VERDICT_WORD = { winner: 'Winner', loser: 'Loser', cancelled: 'Canceled' };
 
 /* ---------------- the table ---------------- */
 export const LAUNCH_SQL = `CREATE TABLE IF NOT EXISTS p_launch (id TEXT PRIMARY KEY, act TEXT NOT NULL, meta_act TEXT, source TEXT NOT NULL,
@@ -123,7 +123,7 @@ const wordsOf = s => String(s || '').replace(/<span data-ph>[\s\S]*?<\/span>/g, 
   .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\u200b/g, '').replace(/[ \t]+\n/g, '\n').trim();
 /* a link line as words with every anchor replaced by its address ("5-1 <a href=U>10mm Cuban</a>" reads "5-1 U") */
 const linkWords = h => wordsOf(String(h || '').replace(/<a [^>]*href="([^"]+)"[^>]*>[\s\S]*?<\/a>/gi, (m, u) => ` ${u.replace(/&amp;/g, '&')} `)).replace(/[ \t]{2,}/g, ' ');
-/** The labelled lines in one stretch of the page: `<p><strong>Label</strong></p><p>words</p>` (what saveCard stores), the
+/** The labeled lines in one stretch of the page: `<p><strong>Label</strong></p><p>words</p>` (what saveCard stores), the
  *  inline `<p><strong>Label:</strong> words</p>`, and words that run on over the next paragraphs until a label, a heading
  *  or a blank line. A hint (`<span data-ph>`) is not words. */
 function labelsIn(html) {
@@ -678,7 +678,7 @@ export async function batchCreate(env, d, act, b, ctx) {
 
 /* ---------------- the list: live status, and judged -> learning filed ---------------- */
 /** A launched ad's test got the buyer's verdict: copy it onto the launch and add one line to the angle's note
- *  ("#415 Winner: <learning>"), once per test. Only winner / loser / cancelled count; "keep running" is not a call. */
+ *  ("#415 Winner: <learning>"), once per test. Only winner / loser / canceled count; "keep running" is not a call. */
 export async function fileLearnings(env, act) {
   await ensure(env);
   /* A launch made before its test reached the library (the Asana sync files it later) links up by its number. */

@@ -37,7 +37,7 @@ const obj = props => ({ type: 'object', properties: props, required: Object.keys
 
 export const TOPICS = [
   ['story', 'Where it started', 'Tell us how the brand started. Why does it exist, in your own words?'],
-  ['customer', 'Who buys', 'Picture your favourite customer. Who are they, and what do they say when they tell a friend about you?'],
+  ['customer', 'Who buys', 'Picture your favorite customer. Who are they, and what do they say when they tell a friend about you?'],
   ['pov', 'What you stand against', 'What bugs you about your industry or the big names in it? Say it the way you would if nobody was going to quote you.'],
   ['person', 'The brand as a person', 'If the brand were a person, who would it be? How do they talk with friends, in a group chat, at a dinner?'],
   ['humor', 'How funny', 'How funny is the brand allowed to be? What kind of joke would you make, and what joke would make you cringe?'],

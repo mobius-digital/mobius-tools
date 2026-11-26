@@ -118,7 +118,7 @@ async function show(route, { soft = false, fresh = false } = {}) {
       const data = typeof mod.sample === 'function' ? await mod.sample(ctx) : mod.sample !== undefined ? mod.sample : await fixture(`${line.id}/_sample/${tab.id}.json`);
       paint(mod, data); stamp(data, Date.now() - SAMPLE_AGE);
     } else {
-      /* the dates are part of the key only for a page that honours them, so the others keep one saved copy */
+      /* the dates are part of the key only for a page that honors them, so the others keep one saved copy */
       const key = pageKey({ view: route.view, brandId: ctx.brand ? ctx.brand.id : 'all', line: line.id, tab: tab.id, range: ranged ? ctx.range : null });
       /* After a write: read the page again before drawing, so the saved copy from before the write never comes back.
          The screen keeps what the write already drew until the new answer lands. If the read fails, fall through. */

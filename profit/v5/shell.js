@@ -15,7 +15,7 @@ const PALETTE = ['#14532D', '#1E3A8A', '#7C2D12', '#581C87', '#0F766E', '#9F1239
 
 export const slugOf = id => String(id || '').replace(/^brand_/, '').replace(/_/g, '-');
 const colourOf = (b, i) => b.color || PALETTE[[...String(b.id)].reduce((a, c) => a + c.charCodeAt(0), i) % PALETTE.length];
-/** The brand marker: a small grey circle with the brand's first letter. No colour, so no brand outshouts another.
+/** The brand marker: a small gray circle with the brand's first letter. No color, so no brand outshouts another.
     brandMark() with no name is the neutral mark for "All brands" (the agency). */
 function brandMark(name) {
   const letter = (String(name || '').trim().match(/[A-Za-z0-9]/) || [''])[0].toUpperCase();
@@ -103,7 +103,7 @@ export function frame(route, line, tab) {
     },
     /** "updated 4 min ago", drawn here for every page. busy shows the quiet dot while fresh numbers are on the way. */
     setAsOf(ts, busy) { const c = ts ? asOfChip(ts) : busy ? h('span', { class: 'lx-asof' }, 'getting the numbers') : null; if (c && busy) c.classList.add('busy'); headAsOf.replaceChildren(c || ''); },
-    /** The date range control. A page that cannot honour it says ranges: false and the control hides. */
+    /** The date range control. A page that cannot honor it says ranges: false and the control hides. */
     setRanges(show) { headRange.replaceChildren(show ? rangeButton() : ''); },
   };
   api.setTitle(null);

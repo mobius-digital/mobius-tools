@@ -3,7 +3,7 @@
  * Before this, a test's minimum spend came off only on the Monday "Do it" (asana-brand.js runMondayPlan), and only for
  * brands with rules.monday_post on (Bonk, Lucky). Everyone else's minimums stayed on until someone remembered.
  * Now, once a Central day from the morning hour, every active brand (not paused, not The Golf Sock, not Harborline,
- * not demo_: morningcard.js `eligible`) gets the same judgement as Monday (asana-brand.js testMinimumsDue: judged and
+ * not demo_: morningcard.js `eligible`) gets the same judgment as Monday (asana-brand.js testMinimumsDue: judged and
  * not a loser, or past rules.min_days; and the minimum is still set in Meta, read live). When anything is due, ONE
  * reply goes under the brand's morning card (teamPost), the buyer tagged (calendar.js teamOf):
  *   "<set name>: test minimum $X/day is due off (day N, judged)."   [Take it off]

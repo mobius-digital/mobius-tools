@@ -215,7 +215,7 @@ await ok('questions that are lookups', () => {
   assert.equal(ids('What is waiting for review?'), 'in_review');
 });
 await ok('questions that stay with the assistant', () => {
-  for (const q of ['Why did revenue drop last week?', 'Should we raise the Meta budget?', 'Summarise last week in three lines', 'Compare revenue this week against last week',
+  for (const q of ['Why did revenue drop last week?', 'Should we raise the Meta budget?', 'Summarize last week in three lines', 'Compare revenue this week against last week',
     'Pause the Evergreen campaign', 'Raise the budget of Evergreen by 20%', 'Write three headlines for the next static batch', 'Make a PDF report of last week', 'What angles can we iterate on?',
     'What did the client say about the sale in Slack?', 'Paste the Meta token here', 'Change the retainer to bill on the 15th', 'Turn on the daily brief', 'Was anything off yesterday against a normal day?',
     'Which ad should we make more of?', 'hello', '', 'Which Meta ads bring new customers this week?', 'worst ads last week', 'Meta and Google spend yesterday', 'What is the monthly budget?',
@@ -495,7 +495,7 @@ await ok('"none", a brand that disagrees with the words, or a bad pick all go to
     ['What did Alpha Golf take in yesterday?', { lookup: 'revenue', brand: 'brand_alpha', when: 'the day of the big game' }], ['What did Alpha Golf net after refunds yesterday?', { lookup: 'revenue', brand: 'brand_alpha', when: 'yesterday' }]])
     assert.equal((await ask(q, { mode: 'on', d: stub(PICK(pick)) })).miss, true, q);
 });
-await ok('the small model is never called for judgement, a change, a follow-up, two brands, or in code mode', async () => {
+await ok('the small model is never called for judgment, a change, a follow-up, two brands, or in code mode', async () => {
   calls.length = 0;
   const d = stub(PICK({ lookup: 'revenue', brand: 'brand_alpha', when: 'yesterday' }));
   for (const [q, o] of [['Why did Alpha Golf revenue drop yesterday?', { mode: 'on' }], ['Pause the Alpha Golf Evergreen campaign', { mode: 'on' }], ['What did Alpha Golf take in yesterday?', { mode: 'code' }],
@@ -760,7 +760,7 @@ const SET = [
   ['W02', 'Which brand had the worst day on Nov 16, 2026 against its own normal, and why?', null],
   ['W03', "Alpha Golf's client says sales dropped by half in July 2026 and stayed there. Is that true from April through October 2026, and what does the spend say?", null],
   ['W04', 'What changed most for Gamma & Gold in Nov 10 to Nov 16, 2026 against Nov 3 to Nov 9, 2026, and why?', null],
-  ['W05', 'Summarise Nov 10 to Nov 16, 2026 for Alpha Golf in three lines.', null],
+  ['W05', 'Summarize Nov 10 to Nov 16, 2026 for Alpha Golf in three lines.', null],
   ['D01', 'For Alpha Golf, looking only at Nov 10 to Nov 16, 2026: what is the one thing most worth fixing, and what would you do first? Do not change anything.', null],
   ['D02', 'For Alpha Golf, from Nov 10 to Nov 16, 2026: which sales ad is working best that we should make more variations of?', null],
   ['D03', 'You are a creative strategist. For Alpha Golf we need two types of ads this week: 1. evergreen ads, which angles can we iterate, and 2. Christmas, which angles can we explore?', null],

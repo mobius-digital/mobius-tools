@@ -107,7 +107,7 @@ function boardBlocks(rec, prev, link) {
 /* ---------- Take 4 (Cole, 2026-11-22: "real lines, big header lines, each number its own mini block") ----------
  * Shared pieces: a header block per section (Slack's big bold line), divider blocks between sections (a real line),
  * and every number its own small block: section `fields` (label over value, two columns) or one rich-text quote per
- * metric (each with its own grey bar, Well Copy's look). */
+ * metric (each with its own gray bar, Well Copy's look). */
 const H = t => ({ type: 'header', text: { type: 'plain_text', text: t, emoji: true } });
 const DIV = { type: 'divider' };
 const CTX = t => ({ type: 'context', elements: [{ type: 'mrkdwn', text: t }] });
@@ -133,7 +133,7 @@ function needBlocks(rec, link) {
 }
 const foot = (rec, link) => [DIV, CTX(`Sales and MER: Triple Whale · Budgets: Meta · Nothing changes until you tap Approve · <${link()}|Open the War Room>`)];
 
-/* A: Well Copy, line for line: each brand's name in orange code, then one quote line (own grey bar) per number. */
+/* A: Well Copy, line for line: each brand's name in orange code, then one quote line (own gray bar) per number. */
 function aBlocks(rec, prev, link) {
   const d = since(rec, prev), B = sorted(rec);
   const brand = b => {
@@ -146,7 +146,7 @@ function aBlocks(rec, prev, link) {
   };
   return { blocks: [...topBlocks(rec, prev), ...needBlocks(rec, link), DIV, H('Brands'), ...B.map(brand), ...foot(rec, link)] };
 }
-/* B: a grid: each brand gets a bold line with its call, then six small blocks in two columns, then a grey why. */
+/* B: a grid: each brand gets a bold line with its call, then six small blocks in two columns, then a gray why. */
 function bBlocks(rec, prev, link) {
   const d = since(rec, prev), B = sorted(rec);
   const brand = b => {

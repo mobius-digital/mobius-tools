@@ -589,7 +589,7 @@ export async function frameFilesOf(env, d, link) {
     const folder = await frameApi(env, 'GET', `/accounts/${A}/folders/${id}`).then(j => j.data).catch(() => null);
     if (folder) return { url, files: await kids(env, A, id) };
   }
-  return { url, files: [], why: tried[0] || 'Frame did not recognise the link' };
+  return { url, files: [], why: tried[0] || 'Frame did not recognize the link' };
 }
 async function downloadOf(env, A, x) {
   let id = x.id;

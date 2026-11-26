@@ -8,7 +8,7 @@ import { OPEN, todayOf, weekOf, daysFrom } from '../production/_ui.js';
 
 export const loadAll = ctx => loadBoard(ctx, 'all');
 
-/** The brand's colour dot and name. */
+/** The brand's color dot and name. */
 export function brandName(ctx, actId, name) {
   const b = (ctx.brands || []).find(x => x.id === actId);
   return h('span', { class: 'ap-brand' }, h('i', { style: { background: (b && b.color) || 'var(--slate)' } }), name || (b && b.name) || 'Brand');

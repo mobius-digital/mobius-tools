@@ -34,7 +34,7 @@ export async function perBrand(ctx, path, only = null) {
 }
 
 export const brandOf = (ctx, actId) => (ctx.brands || []).find(b => b.id === actId) || null;
-/** The brand's colour dot and name. */
+/** The brand's color dot and name. */
 export function brandName(ctx, actId, name) {
   const b = brandOf(ctx, actId);
   return h('span', { class: 'ac-brand' }, h('i', { style: { background: (b && b.color) || 'var(--slate)' } }), (b && b.name) || name || 'Brand');

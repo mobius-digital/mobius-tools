@@ -107,7 +107,7 @@ export function statusDot(tone, text) { return h('span', { class: 'lx-stat ' + (
 export function pill(tone, text) { return h('span', { class: 'lx-pill ' + (tone || '') }, text); }
 /** count(3) a small round count; count(3, 'ink') on ink */
 export function count(n, tone) { return h('span', { class: 'lx-count ' + (tone || '') }, String(n)); }
-/** delta(0.09) "▲ 9%" green; delta(0.68, { bad: true }) red; delta(-0.1, { plain: true }) no judgement */
+/** delta(0.09) "▲ 9%" green; delta(0.68, { bad: true }) red; delta(-0.1, { plain: true }) no judgment */
 export function delta(n, { bad = false, plain = false, text } = {}) {
   if (!ok(n)) return h('span', { class: 'lx-delta' }, NONE);
   const dir = n >= 0 ? 'up' : 'down';
@@ -228,7 +228,7 @@ export function sheet({ title, body, side = 'right', onClose, class: cls } = {})
 }
 
 /* ---------- form fields ---------- */
-/** field({ label, hint, type, value, placeholder, icon, oninput }) : a labelled input. Returns the wrapper; .input is the input. */
+/** field({ label, hint, type, value, placeholder, icon, oninput }) : a labeled input. Returns the wrapper; .input is the input. */
 export function field({ label, hint, icon: ic, id = 'f' + Math.random().toString(36).slice(2, 8), ...attrs } = {}) {
   const input = h('input', { class: 'lx-input' + (ic ? ' has-icon' : ''), id, type: 'text', ...attrs });
   const el = h('div', { class: 'lx-field' }, label && h('label', { for: id }, label), h('div', { class: 'lx-input-wrap' }, ic && svgNode(icon(ic)), input), hint && h('p', { class: 'hint' }, hint));
@@ -361,7 +361,7 @@ function chartBox(o, draw) {
 
     series: [{ name, values, lead, dashed, type, axis, labels, points, end, tone, leadAt, dimAt }]
       lead: true        the ONE ember line (soft area under it when fill is on). Every other line is slate.
-      dashed: true      a comparison line (last year, "sales needed"): grey dashes, no end label.
+      dashed: true      a comparison line (last year, "sales needed"): gray dashes, no end label.
       type: 'bar'       columns instead of a line. tone: 'ink' (default) | 'dim' | 'slate'. leadAt: index of the
                         one ember column. dimAt: [indexes] or i => bool drawn pale.
       axis: 'right'     read against the right axis (see y2). For a share drawn over counts.
@@ -395,7 +395,7 @@ export function lineChart(o = {}) {
 }
 
 /** barChart({ values, labels, dim, lead, format, height, valueLabels, label }) : one column series.
-    Columns are data marks: ink, with dim ones in grey. dim: array of indexes (or i => bool).
+    Columns are data marks: ink, with dim ones in gray. dim: array of indexes (or i => bool).
     lead: index of the one column to draw in ember. The same responsive box as lineChart. */
 export function barChart({ values = [], labels = [], dim, lead, format = v => num(v), height = 240, valueLabels = false, ...rest } = {}) {
   return lineChart({ series: [{ type: 'bar', values, dimAt: dim, leadAt: lead, labels: valueLabels }], labels, format, height, yTicks: 2, endLabels: false, min: 1, ...rest });
@@ -562,7 +562,7 @@ export function legend(items) {
 }
 
 /** gauge({ value, max, goal, tone, thin, ticks })
-    An ink measure on a soft track with a crisp goal tick. tone: 'good' | 'warn' | 'bad' colours the fill.
+    An ink measure on a soft track with a crisp goal tick. tone: 'good' | 'warn' | 'bad' colors the fill.
     ticks: [{ at, text, on, side: 'l' | 'r' }] labels under the track (at is in the same units as value). */
 export function gauge({ value, max, goal, tone, thin = false, ticks } = {}) {
   const m = max || Math.max(value || 0, goal || 0) * 1.2 || 1;
