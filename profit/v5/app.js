@@ -6,6 +6,7 @@ import { api, cached, fixture, setUser, wipeSaved, storedClient, onAnnounce } fr
 import * as shell from './shell.js';
 import * as router from './router.js';
 import { heldHere } from './gate.js';
+import { setFeatures } from './menu.js';
 
 const app = document.getElementById('app');
 const hideLoader = () => { const l = document.getElementById('lx-load'); if (l) l.remove(); };
@@ -124,6 +125,7 @@ async function boot() {
     if (e && e.status === 401) return dropStale() ? boot() : showSignin('Your sign in ran out. Sign in again to carry on.');
     return showDown(e);
   }
+  savedFeatures();
   shell.setData(rec.data);
   shell.mount(app, { onSignOut: signOut });
   hideLoader();
@@ -138,6 +140,7 @@ async function boot() {
   }
   router.start({ state: shell.state, frame: shell.frame, brandBySlug: shell.brandBySlug, signin: () => location.reload() });
   bellCount();
+  freshFeatures();
   started = true;
   if (rec.fresh || SAMPLE || freshSeen || Date.now() - rec.asOf <= 60e3) decide();
   /* a link from a Slack or email reminder can open the bell: add ?bell=1 to any address */
@@ -153,6 +156,23 @@ function welcomeCards() {
   if (st.realRole !== 'client' || st.asClient || !c || c.welcome_seen !== false || heldHere(st, r)) return;
   const brand = (r && shell.brandBySlug(r.brand)) || st.brands[0] || null;
   import('./pages/get-started/_welcome.js').then(m => m.showWelcome({ brand, me: st.me })).catch(() => {});
+}
+
+/* The agency feature switches (Creator program, Social posting): a line whose switch is off leaves the menus.
+   The last ones this browser saw draw the first menu; GET /api/notices (read once by bell.js, so the bell count
+   costs no second call) answers the real ones, and the menu is drawn again only when they changed. Sample mode
+   reads them from pages/_sample/notices.json. An older worker answers none and the menu stays as it is. */
+const featureKey = () => LS5.features + (SAMPLE ? '|sample' : '');
+function savedFeatures() {
+  try { const f = JSON.parse(localStorage.getItem(featureKey()) || 'null'); if (f) setFeatures(f); } catch { /* no storage: everything stays on */ }
+}
+function freshFeatures() {
+  import('./bell.js').then(async m => {
+    const f = m.featuresFrom(await m.readNotices());
+    if (!f) return;
+    try { localStorage.setItem(featureKey(), JSON.stringify(f)); } catch { /* memory only */ }
+    if (setFeatures(f)) shell.redrawMenu();
+  }).catch(() => {});
 }
 
 /* The count on the bell: read once the first page is up, from the same rows the panel shows. */

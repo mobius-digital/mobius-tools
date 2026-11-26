@@ -179,7 +179,10 @@ export const storedClient = () => { try { return localStorage.getItem(LS.role) =
 const AGENCY_KEYS = ['morningHour', 'morningCard', 'slackChannel', 'slackSendWho', 'paceAlertPct', 'movedPost', 'marketHandles', 'marketChatter',
   'seasonTab', 'dailyBriefsChannel', 'briefClientStyle', 'todayPost', 'actionRemind', 'minOffPost', 'buyerPost', 'buyerOwner', 'buyerChannel',
   /* 2026-11-26: who each kind of message comes from, { all, kinds } (account-health sender.js) */
-  'senders'];
+  'senders',
+  /* 2026-11-26: quiet jobs { [id]: bool }, agency features { creatorProgram, socialPosting }, Slack and email copies
+     of urgent alerts (account-health PUT /api/settings, owner only) */
+  'jobs', 'features', 'notifyCopies'];
 const BRAND_GOALS = ['target_roas', 'target_cpa'];
 const BRAND_RULES = ['judge_spend', 'judge_days', 'yellow_pct', 'min_track', 'min_spend', 'min_days', 'min_cap_pct'];
 

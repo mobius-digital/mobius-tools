@@ -340,6 +340,15 @@ function moreSheet(route) {
   body.addEventListener('click', e => { if (e.target.closest('a')) sh.close(); });
 }
 
+/** The menus changed (an agency feature switch, menu.js setFeatures): draw the side menu, the More sheet and the
+    phone tabs again, on the page that is open. */
+export function redrawMenu() {
+  railKey = topKey = tabKey = '';
+  const r = currentRoute();
+  if (!root || !r) return;
+  drawRail(r); drawTop(r); drawTabbar(r);
+}
+
 /** After new data (brands, me, counts): redraw whatever depends on it. */
 export function update(data) {
   setData(data);

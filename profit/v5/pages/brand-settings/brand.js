@@ -6,6 +6,7 @@
 
 import { put } from '../../kit.js';
 import { h, em, empty, statusDot } from '../../kit.js';
+import { featuresNow } from '../../menu.js';
 import { css, stage, saveBar, group, row, fact, fold, facts, textBox, pick, timePick, dayChips, numBox } from './_set.js';
 
 export const ZONES = [
@@ -22,7 +23,7 @@ function draw(el, data, ctx) {
   const put1 = body => ctx.api('/api/accounts/' + encodeURIComponent(ctx.brand.id), { worker: 'ah', method: 'PUT', body });
   const S = stage(ctx, { live: ctx.sample ? {} : { [k('name')]: b.name, [k('tz')]: b.tz }, savers: { [k('name')]: v => put1({ name: String(v || '').trim() || b.name }), [k('tz')]: v => put1({ tz: v }) },
     names: { [k('name')]: 'Brand name', [k('tz')]: 'Brand time zone' } });
-  const real = !ctx.sample;
+  const real = !ctx.sample, feat = featuresNow();
   const status = b.status === 'paused' ? statusDot('off', 'Paused') : b.status === 'demo' ? statusDot('info', 'Demo') : statusDot('good', 'Active');
   put(el, h('div', { class: 'lx-st' },
     saveBar(S, ctx, { note: real ? 'Name and time zone save for everyone, after a check.' : undefined }),
@@ -31,10 +32,12 @@ function draw(el, data, ctx) {
       row('Brand time zone', 'Client updates and spend checks use this clock. History stays in the old zone when it changes.', pick(S, k('tz'), b.tz || 'America/Chicago', ZONES, { label: 'Brand time zone' })),
       fact('Status', status, h('span', null, 'Paused brands are switched in ', h('a', { href: '#/agency/all/a-settings/clients' }, 'Agency settings, Clients'), '.')),
       fact('Currency', CURRENCY[b.currency] || b.currency || 'US dollars', 'Read from the ad account. Never picked.')),
-    real ? null : group('Social posts', 'When scheduled posts go out, brand time',
+    /* Social posting is parked (agency switch socialPosting, off unless set on); the Creators group follows the
+       Creator program switch. Both are read from menu.js, which app.js fills from GET /api/notices features. */
+    real || !feat.socialPosting ? null : group('Social posts', 'When scheduled posts go out, brand time',
       row('Posting times', 'Up to seven a day. A post takes the next free time.', h('div', { class: 'lx-st-times' }, [0, 1, 2].map(i => timePick(S, k('social_time_' + i), (d.social_times || [])[i], { label: 'Posting time ' + (i + 1) })))),
       row('Posting days', null, dayChips(S, k('social_days'), d.social_days || ['mon', 'tue', 'wed', 'thu', 'fri']))),
-    real ? null : group('Creators', 'The brand’s creator community',
+    real || feat.creatorProgram === false ? null : group('Creators', 'The brand’s creator community',
       row('Welcome post time', 'One welcome a day for everyone who joined, never one per person.', timePick(S, k('creator_welcome'), d.creator_welcome || '17:00', { label: 'Welcome post time' })),
       row('Weekly post days', 'The top videos post.', dayChips(S, k('creator_days'), d.creator_days || ['mon', 'fri'])),
       row('Go quiet after', 'A creator with no video for this long is marked inactive. They are warned a week before.', numBox(S, k('creator_inactive_days'), d.creator_inactive_days ?? 60, { suffix: 'days', width: 44, label: 'Inactive after days' })),

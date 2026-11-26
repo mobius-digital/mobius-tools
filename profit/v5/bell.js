@@ -60,7 +60,7 @@ function fromRequests(rq, brand) {
 let NOTE = null;
 /** Read again on the next call (after a row was answered). */
 export function forgetNotices() { NOTE = null; }
-/** The answer of GET /api/notices ({ home, bell, morning, counts }), or null. Never throws. */
+/** The answer of GET /api/notices ({ home, bell, morning, counts, alerts, features }), or null. Never throws. */
 export async function readNotices() {
   try {
     if (SAMPLE) return await fixture('_sample/notices.json');
@@ -72,22 +72,48 @@ export async function readNotices() {
     return await NOTE.p;
   } catch { return null; }
 }
+/** Where an alert's Open goes. button.page is a v5 page: 'meta/live-now' (a brand page, opened on that brand) or
+    'a-status/index' (an agency page). A brand page for a brand not in the list opens Agency > Platform status. */
+export function alertHref(btn, brands = []) {
+  const page = String((btn && btn.page) || 'a-status/index').replace(/^\/+|\/+$/g, '');
+  const [line, tab] = page.split('/');
+  if (/^a-/.test(line)) return '#/agency/all/' + encodeURIComponent(line) + '/' + encodeURIComponent(tab || 'index');
+  const b = (brands || []).find(x => x.id === (btn && btn.brand_id));
+  return b && b.slug ? '#/brand/' + encodeURIComponent(b.slug) + '/' + encodeURIComponent(line) + '/' + encodeURIComponent(tab || 'index') : '#/agency/all/a-status/index';
+}
+/** The open alerts, in the order the server sent them (outage first). An older answer with no `alerts` list: the
+    open alert rows of the bell, in its order. */
+function alertList(n) {
+  if (Array.isArray(n.alerts)) return n.alerts.filter(r => r && r.title && r.state !== 'done');
+  return (n.bell || []).filter(r => r && r.title && r.kind === 'alert' && r.state === 'open');
+}
 /** Notices as bell rows. A row keeps the notice itself in .notice, so a page can draw its answer buttons.
+    An open alert (kind 'alert': spend far off normal, a client daily that did not go out, the AI key, a Meta sync,
+    a platform down) goes to Needs you before every other row, marked urgent, with a button to the page that fixes it.
     Open and waiting for an answer, or on the home list -> Needs you. Open and held for the morning read, or
-    only for the record -> Watching. Answered in the last day -> Done today. A client's open rows all need a look. */
+    only for the record -> Watching. Answered in the last day -> Done today (an alert hidden for today too).
+    A client's open rows all need a look. A client never sees an alert. */
 export function noticeRows(n, { brands = [], brand = null, client = false } = {}) {
   const out = { needs: [], watching: [], done: [] };
   if (!n || !Array.isArray(n.bell)) return out;
   const name = id => ((brands || []).find(b => b.id === id) || (brand && brand.id === id ? brand : {})).name || '';
   const now = Date.now();
+  if (!client) {
+    for (const r of alertList(n)) {
+      out.needs.push({ text: r.title, brand: name(r.brand_id), by: 'Alert', tone: 'bad', urgent: true, when: 'since ' + ago(r.created_at), who: null, detail: r.body || '', notice: r,
+        btn: { label: (r.button && r.button.label) || 'Open', href: alertHref({ brand_id: r.brand_id, ...(r.button || {}) }, brands), primary: true } });
+    }
+  }
   for (const r of n.bell) {
     if (!r || !r.title) continue;
+    /* open alerts were drawn above; a client never gets one */
+    if (r.kind === 'alert' && (client || r.state === 'open')) continue;
     if (SAMPLE && client && !r.client) continue;
     if (client && brand && r.brand_id && r.brand_id !== brand.id) continue;
     const waits = r.kind === 'proposal' || r.kind === 'release';
     const held = !SAMPLE && !!r.held_until && Date.parse(r.held_until) > now;
-    const row = { text: r.title, brand: name(r.brand_id), by: client ? 'From your team' : 'Automation', when: r.when || ago(r.created_at), who: null, detail: r.body || '', notice: r };
-    if (r.state === 'done') { if (SAMPLE || now - Date.parse(r.done_at || r.created_at) < 864e5) out.done.push({ ...row, when: 'done', btn: null }); }
+    const row = { text: r.title, brand: name(r.brand_id), by: client ? 'From your team' : r.kind === 'alert' ? 'Alert' : 'Automation', when: r.when || ago(r.created_at), who: null, detail: r.body || '', notice: r };
+    if (r.state === 'done') { if (SAMPLE || now - Date.parse(r.done_at || r.created_at) < 864e5) out.done.push({ ...row, when: r.kind === 'alert' ? 'hidden for today' : 'done', btn: null }); }
     else if (r.state === 'open') {
       const top = !held && (waits || r.home || client);
       /* A hand off about a card (team rows only: a client's row carries no button) opens the board. */
@@ -98,11 +124,16 @@ export function noticeRows(n, { brands = [], brand = null, client = false } = {}
   }
   return out;
 }
-/** Add the automation rows to a bell answer. Anything that goes wrong leaves the answer as it was. */
+/** The switches every signed in person learns from GET /api/notices:
+    { creatorProgram, socialPosting, siteReviewsOpen }, or null when the answer has none (an older worker). */
+export function featuresFrom(n) { return (n && n.features) || null; }
+/** Add the automation rows to a bell answer. Alerts go first, in front of the person's own list and the agency
+    rows; the other notices keep their place right after them. Anything that goes wrong leaves the answer as it was. */
 async function withNotices(base, opts) {
   try {
     const x = noticeRows(await readNotices(), opts);
-    return { ...base, needs: [...x.needs, ...base.needs], watching: [...base.watching, ...x.watching], done: [...base.done, ...x.done] };
+    const alerts = x.needs.filter(r => r.urgent), rest = x.needs.filter(r => !r.urgent);
+    return { ...base, needs: [...alerts, ...rest, ...base.needs], watching: [...base.watching, ...x.watching], done: [...base.done, ...x.done] };
   } catch { return base; }
 }
 
