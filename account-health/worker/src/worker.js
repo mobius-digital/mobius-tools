@@ -120,6 +120,7 @@ import { deliveryMessage, lowToday, spendHigh, completedDayNormal, highAlertText
 import { raiseAlert, clearAlert, urgentSweep } from './urgent.js';
 import { OWNER_EMAIL } from './extwrite.js';
 import { jobOn, featureOn, jobsView, cleanJobs, cleanFeatures, featureSaved } from './jobflags.js';
+import { keepNewMeta } from './movelines.js';
 import { alarmsPass, alarmCfg, cleanAlarmCfg } from './alarms.js';
 import { markHold, recheckHolds, listHolds, holdFor } from './drafthold.js';
 import { supplyBrandOf, supplyFetch } from './stock.js';
@@ -584,7 +585,10 @@ async function autoConnectMeta(env) {
   /* The name did not give it away (Yak Sports shared "Hockeyak"): any ad account that is new since the
      last look and matched nobody is put to Cole, once, with a button per waiting client. */
   const fresh = (disc?.fresh || []).filter(f => !out.connected.some(c => c.act === f.act_id));
-  if (fresh.length) {
+  /* 2026-11-26 (move lines): the owner's My day line "N new Meta ad accounts to match to a client" (movelines.js
+     newmeta) stays until it is matched; this #mobius-newbiz ask goes quiet with settings jobOn:newAccountPost = 'off'. */
+  if (fresh.length && !(await jobOn(env, 'newAccountPost', getSetting))) out.quiet = fresh.length;
+  else if (fresh.length) {
     const still = runs.filter(r => !out.connected.some(c => c.client === r.name));
     for (const f of fresh) {
       if (!still.length) break;
@@ -605,7 +609,8 @@ async function connectMetaFor(env, r, a) {
   try { await meta(env, `${a.act_id}/insights`, { date_preset: 'last_7d', fields: 'spend', limit: 1 }); }
   catch (e) {
     if (!steps.meta_blocked || steps.meta_blocked.act !== a.act_id) {
-      await lanePost(env, { slackPost }, r.slack_internal, { lane: 'OPS', brand: r.name, who: COLE_SLACK, ask: `Add the Mobius Tools system user to the ad account "${a.name}" (Business Settings > Ad accounts > ${a.name} > Assign people)`,
+      /* the owner's My day line "Give Locus access to N new client ad accounts" (movelines.js); jobOn:newAccountPost = 'off' quiets this ask */
+      if (await jobOn(env, 'newAccountPost', getSetting)) await lanePost(env, { slackPost }, r.slack_internal, { lane: 'OPS', brand: r.name, who: COLE_SLACK, ask: `Add the Mobius Tools system user to the ad account "${a.name}" (Business Settings > Ad accounts > ${a.name} > Assign people)`,
         why: `${r.name} shared it but Locus cannot read it yet; it switches on within the hour after. Meta said: ${String(e.message).slice(0, 120)}` }).catch(() => {});
       steps.meta_blocked = { act: a.act_id, at: new Date().toISOString() }; await save('meta_blocked');
     }
@@ -657,6 +662,10 @@ async function discoverAccounts(env) {
   await env.DB.prepare(
     `INSERT INTO settings (key, value) VALUES ('lastDiscover', ?1)
      ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(JSON.stringify(stamp)).run();
+  /* 2026-11-26 (move lines): the accounts that were NEW at a discovery are kept 14 days for the owner's My day line
+     "N new Meta ad accounts to match to a client" (movelines.js reads them, counts only the ones still unmatched).
+     Never the whole pool of old unconnected accounts. Quiet: a failure here never fails discovery. */
+  await keepNewMeta(env, stamp.fresh, stamp.at).catch(() => {});
   return { found: rows.length, direct, viaBusiness, fresh: stamp.fresh };
 }
 
@@ -7210,6 +7219,9 @@ async function unsentAtNoonPass(env) {
   const label = i => i.kind === 'brief' ? `${i.a.name} daily` : `${i.a.name} ${i.row.period}`;
   const callLine = calls.length ? `${calls.length} call${calls.length === 1 ? '' : 's'} with notes to confirm (${calls.slice(0, 4).map(c => c.title).join(', ')}${calls.length > 4 ? ', ...' : ''}): <${DASHBOARD_URL}?open=calls|open Calls>` : '';
   if (!items.length && !calls.length) return { ok: true, unsent: 0 };
+  /* 2026-11-26 (move lines): the bell's "N client updates waiting to send" row (bell.js send) is the Locus line; this
+     noon post and its cards go quiet with settings jobOn:unsentNoonPost = 'off' (a client send: not before Dec 5). */
+  if (!(await jobOn(env, 'unsentNoonPost', getSetting))) return { ok: true, unsent: items.length, calls: calls.length, quiet: true };
   const out = [];
   /* 2026-11-26 (the house style, house.js): header "3 client updates not sent", Cole tagged with the ask, one line per
      update (and the calls waiting on a confirm), one Open button. The cards still go in the thread. */

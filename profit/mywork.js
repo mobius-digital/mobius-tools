@@ -12,6 +12,9 @@
  *   Saved:      ideas and ads they pin (p_mywork_saved), only theirs.
  * Ticking a row uses the source's own done: a task is done on the task (/api/actions/done); a Slack ask, a card or a plan
  * line is ticked off this list only (/api/mywork/done), the card stays on the board.
+ * Move lines (2026-11-26, account-health movelines.js: no plan yet, week plans, dates, card comments, new ad accounts,
+ * connect asks, creator videos) clear themselves when the thing is done, so they have no tick here; their button opens
+ * the row's own `link` (a Locus v5 page, a card or Slack) with the row's own `btn_label`.
  * Classic script, own closure; window.MyWorkTab = { render }. Team only (AGENCY_TABS). Tokens only, both themes, no em dashes,
  * no prompt()/alert(): in-page forms and toasts.
  */
@@ -65,6 +68,7 @@
       .mw .mw-it+.mw-it{border-top:1px solid var(--line)}
       .mw .mw-tick{all:unset;cursor:pointer;width:18px;height:18px;border-radius:50%;border:1.5px solid var(--line-strong);margin-top:1px;display:grid;place-items:center;color:transparent}
       .mw .mw-tick:hover{border-color:var(--brand-ink)}
+      .mw .mw-tick.mw-auto{cursor:default;border-style:dashed}.mw .mw-tick.mw-auto:hover{border-color:var(--line-strong)}
       .mw .mw-tick:focus-visible,.mw .mw-chip:focus-visible,.mw .mw-seg button:focus-visible,.mw .mw-btn:focus-visible,.mw .mw-it:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
       .mw .mw-tick svg{width:11px;height:11px}
       .mw .mw-it.done .mw-tick{background:var(--good);border-color:var(--good);color:#fff}
@@ -141,18 +145,25 @@
     if (it.source === 'card') return `<span class="mw-src s-card"><i></i>Card ${esc(it.num)}</span><span>${esc(cap(it.column))}</span>`;
     if (it.source === 'slack') return `<span class="mw-src s-slack"><i></i>Slack</span><span>${esc([it.where, it.from, it.when].filter(Boolean).join(' · '))}</span>`;
     if (it.source === 'call') return `<span class="mw-src s-call"><i></i>Monday call</span><span>${esc(it.from || '')}</span>`;
+    if (isMove(it)) return `<span class="mw-src s-call"><i></i>${esc(it.from || 'Locus')}</span>`;
     return `<span class="mw-src s-task"><i></i>Task</span><span>${esc([it.from, it.when].filter(Boolean).join(' · '))}</span>`;
   }
   const OPEN_LABEL = { slack: 'Open in Slack', card: 'Open the card', task: 'Open the task', call: 'Open the Monday call' };
+  /* account-health movelines.js LINE_SOURCES: lines that clear themselves, never ticked */
+  const MOVE_SRC = new Set(['checkin', 'weekplan', 'dates', 'comments', 'newmeta', 'connect', 'creators']);
+  const isMove = it => MOVE_SRC.has(it.source);
   function row(it) {
     const t = dueTag(it), open = OPEN === it.id;
     const tip = it.source === 'task' ? 'Done (ticks the task)' : it.source === 'card' ? 'Off my list (the card stays on the board)' : 'Off my list';
+    const tick = isMove(it)
+      ? `<span class="mw-tick mw-auto" title="Clears on its own when it is done" aria-hidden="true"></span>`
+      : `<button type="button" class="mw-tick" data-tick="${esc(it.id)}" title="${esc(it.done ? 'Back on my list' : tip)}" aria-label="${esc(it.done ? 'Back on my list' : tip)}" aria-pressed="${!!it.done}">${CHECK}</button>`;
     return `<li class="mw-it${it.done ? ' done' : ''}${open ? ' open' : ''}" data-id="${esc(it.id)}" tabindex="0">
-      <button type="button" class="mw-tick" data-tick="${esc(it.id)}" title="${esc(it.done ? 'Back on my list' : tip)}" aria-label="${esc(it.done ? 'Back on my list' : tip)}" aria-pressed="${!!it.done}">${CHECK}</button>
+      ${tick}
       <div class="mw-t">${esc(it.text)}</div>
       <span class="mw-due ${t.cls}">${esc(t.txt)}</span>
       <div class="mw-meta">${srcLine(it)}<span class="mw-brand">${esc(it.brand)}</span></div>
-      <div class="mw-det">${esc(it.detail || '')}<div class="row"><button type="button" class="mw-link" data-openit="${esc(it.id)}">${OPEN_LABEL[it.source]}</button></div></div>
+      <div class="mw-det">${esc(it.detail || '')}<div class="row">${it.link || !isMove(it) ? `<button type="button" class="mw-link" data-openit="${esc(it.id)}">${esc(OPEN_LABEL[it.source] || it.btn_label || 'Open')}</button>` : ''}</div></div>
     </li>`;
   }
   function listBlock(key, items, emptyTxt) {
@@ -232,7 +243,7 @@
     D.counts = { today: open.filter(i => i.bucket === 'today').length, late: open.filter(i => i.bucket === 'late').length, week: open.filter(i => i.bucket === 'week').length, slack: open.filter(i => i.source === 'slack').length };
   }
   async function tick(id) {
-    const it = D.items.find(i => i.id === id); if (!it) return;
+    const it = D.items.find(i => i.id === id); if (!it || isMove(it)) return;
     const to = !it.done; it.done = to; recount(); paint();
     try {
       if (it.source === 'task') await H.apiAH('/api/actions/done', { method: 'POST', body: JSON.stringify({ id: it.ref, done: to }) });
@@ -243,6 +254,9 @@
     if (it.source === 'slack') { window.open(it.link, '_blank', 'noopener'); return; }
     if (it.source === 'card') { window.PD_CARD = it.ref; H.show('production'); return; }
     if (it.source === 'task') { window.ACT_OPEN = it.ref; H.show('tasks'); return; }
+    if (!it.link) return;
+    /* a move line: Slack opens in a new tab, a Locus page (old or v5) in this one */
+    if (isMove(it) && /^https:\/\/slack\.com\//.test(it.link)) { window.open(it.link, '_blank', 'noopener'); return; }
     location.href = it.link;
   }
   function wire() {

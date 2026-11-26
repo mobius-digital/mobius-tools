@@ -939,6 +939,7 @@ export async function trybeTick(env, d, { force = false } = {}) {
   const keyed = new Set(await keyedBrands(env));
   if (!keyed.size) return { skipped: 'no keys' };
   const alertsOn = (await getSetting(env, 'trybeAlerts')) === 'on';   // off until someone turns it on (Agency view, or PUT /api/trybe/alerts)
+  const trybePostOn = await jobOn(env, 'trybePost');
   const monday = new Date(today + 'T12:00:00Z').getUTCDay() === 1;
   const brands = (await d.listBrands(env)).filter(b => keyed.has(b.act_id));
   const out = { synced: 0, posted: 0, errors: [] };
@@ -947,6 +948,9 @@ export async function trybeTick(env, d, { force = false } = {}) {
     try {
       await syncBrand(env, d, b.act_id, { today }); out.synced++;
       if (!alertsOn || !b.slack_channel || (b.brief_channel && b.slack_channel === b.brief_channel)) continue;
+      /* 2026-11-26 (move lines): the buyer's and reviewer's My day lines (movelines.js creators) carry the counts; the
+         morning post goes quiet with settings jobOn:trybePost = 'off' (nothing is stamped as alerted while quiet). */
+      if (!trybePostOn) continue;
       const v = await trybeView(env, d, b.act_id, { today });
       v.__subs = ((await env.DB.prepare(`SELECT status, created_at FROM p_trybe_sub WHERE act_id = ?1 AND status = 'pending'`).bind(b.act_id).all()).results || []);
       const seen = new Set(((await env.DB.prepare(`SELECT sub_id FROM p_trybe_sub WHERE act_id = ?1 AND alerted IS NOT NULL`).bind(b.act_id).all()).results || []).map(r => r.sub_id));

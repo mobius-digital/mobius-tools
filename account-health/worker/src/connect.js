@@ -1,6 +1,7 @@
 import { integrationsReport } from './integrations.js';
 import { autoMatch as googleMatch } from './google.js';
 import { setTripleWhale, connSet } from './brands.js';
+import { jobOn } from './jobflags.js';
 /**
  * THE CONNECT LINK (2026-10-15). Cole: "some of these clients probably don't have Microsoft Clarity and we just need
  * to get access to that. Can we set up some sort of link that I can send to all the clients that still need certain
@@ -152,7 +153,9 @@ export async function connectPost(env, tok, body, deps) {
     if (body.invited) inv[key] = new Date().toISOString(); else delete inv[key];
     await putS(env, `connectInvited:${b.id}`, JSON.stringify(inv));
     /* 2026-11-09 (the lane format, lane.js): tellTeam takes {ask, why} (an OPS ask to Cole) or {fyi} (a roundup line). */
-    if (body.invited && YOURS[key] && deps.tellTeam) await deps.tellTeam({ ask: `Make the ${YOURS[key].label} for ${b.name} and paste it in Locus (Agency settings > Integrations > Ask clients for what is missing)`, why: `${b.name} invited you to ${ITEMS[key].title}` }).catch(() => {});
+    /* 2026-11-26 (move lines): the owner's My day line "N client connect asks waiting on you" (movelines.js); this Slack
+       ask goes quiet with settings jobOn:connectAskPost = 'off'. */
+    if (body.invited && YOURS[key] && deps.tellTeam && await jobOn(env, 'connectAskPost')) await deps.tellTeam({ ask: `Make the ${YOURS[key].label} for ${b.name} and paste it in Locus (Agency settings > Integrations > Ask clients for what is missing)`, why: `${b.name} invited you to ${ITEMS[key].title}` }).catch(() => {});
     /* The EVENT: the client says it is done, so Locus looks now (Meta: assign the team; Google: link it). No timers. */
     if (body.invited && deps.onDone) deps.onDone(key, b);
     return connectGet(env, tok, { force: true });
@@ -171,7 +174,7 @@ export async function connectPost(env, tok, body, deps) {
     const pend = safe(await getS(env, `connectPending:${b.id}`), {});
     pend.google_ads = { id, at: new Date().toISOString(), note: sent.error ? 'We got your ID and will send the request shortly.' : 'Request sent. Accept it in Google Ads (Admin > Access and security > Managers).', error: sent.error || null };
     await putS(env, `connectPending:${b.id}`, JSON.stringify(pend));
-    if (sent.error && deps.tellTeam) await deps.tellTeam({ ask: `Send ${b.name}'s Google Ads manager request (ID ${id}) from the Mobius manager by hand`, why: `Locus could not send it: ${sent.error}` }).catch(() => {});
+    if (sent.error && deps.tellTeam && await jobOn(env, 'connectAskPost')) await deps.tellTeam({ ask: `Send ${b.name}'s Google Ads manager request (ID ${id}) from the Mobius manager by hand`, why: `Locus could not send it: ${sent.error}` }).catch(() => {});
   } else throw Object.assign(new Error('Nothing to save for this one: invite us, then tap Done.'), { status: 400 });
   if (deps.tellTeam && body.skip === undefined && body.invited === undefined) await deps.tellTeam({ fyi: `${b.name} connected ${ITEMS[key].title} on their connect link.` }).catch(() => {});
   return connectGet(env, tok, { force: true });

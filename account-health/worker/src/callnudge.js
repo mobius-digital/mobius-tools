@@ -8,7 +8,9 @@
  *     yet, tagging the strategists (lane format: *CREATIVE · Monday plans*, who, the one thing, why).
  *   - Weekdays from noon to 9pm Central: a DM to Cole for each call of today still open an hour after anyone last typed
  *     on it, once per call, with the link straight back to that call's screen.
- * Switch: settings.callNudge = 'off' stops both. Stamps: callNudge:plan:<date>, callNudge:open:<call id>.
+ * Switch: settings.callNudge = 'off' stops both. 2026-11-26 (move lines): the Monday list is ALSO kept as settings
+ * mondayPlans:<date> {date, brands:[{act, name}]} for the strategists' My day line (movelines.js); the Monday post alone
+ * goes quiet with settings jobOn:mondayPlansPost = 'off' (jobflags.js). Stamps: callNudge:plan:<date>, callNudge:open:<call id>.
  * No em dashes in anything posted.
  */
 import { mondayScreen } from './meetings.js';
@@ -37,7 +39,11 @@ export function openCallsToNudge(rows, nowMs, stamped) {
 }
 /** Pure: the brands on the Monday call with a fresh weekly report and no plan in their thread. */
 export function brandsWithoutPlan(brands) {
-  return brands.filter(b => !SKIP.test(b.name || '') && b.report && b.report.fresh && !(b.thread || []).length).map(b => b.name);
+  return brandsWithoutPlanRows(brands).map(b => b.name);
+}
+/** The same brands as { act, name } (the My day line needs the brand id to find its strategist). Pure. */
+export function brandsWithoutPlanRows(brands) {
+  return brands.filter(b => !SKIP.test(b.name || '') && b.report && b.report.fresh && !(b.thread || []).length).map(b => ({ act: b.act_id, name: b.name }));
 }
 
 export async function callNudgeTick(env, d) {
@@ -49,8 +55,11 @@ export async function callNudgeTick(env, d) {
   if (wd === 1 && hour === 7 && !(await d.getSetting(env, `callNudge:plan:${date}`))) {
     try {
       const ms = await mondayScreen(env, d);
-      const missing = brandsWithoutPlan(ms.brands || []);
-      if (missing.length) {
+      const rows = brandsWithoutPlanRows(ms.brands || []), missing = rows.map(b => b.name);
+      /* The Locus line first (movelines.js), whether or not the post below goes. */
+      await d.putSetting(env, `mondayPlans:${date}`, JSON.stringify({ date, brands: rows }));
+      if (missing.length && !(await jobOn(env, 'mondayPlansPost', d.getSetting))) out.plans = { quiet: missing };
+      else if (missing.length) {
         const people = safe(await d.getSetting(env, 'checkinPeople'), null) || DEFAULT_PEOPLE;
         const strat = Object.entries(people).filter(([, p]) => (p.roles || []).includes('strategist')).map(([uid]) => `<@${uid}>`);
         const channel = (await d.getSetting(env, 'checkinChannel')) || DEFAULT_CHANNEL;
@@ -104,4 +113,4 @@ export async function callNudgeTick(env, d) {
   return out;
 }
 
-export const _test = { openCallsToNudge, brandsWithoutPlan, callLink };
+export const _test = { openCallsToNudge, brandsWithoutPlan, brandsWithoutPlanRows, callLink };

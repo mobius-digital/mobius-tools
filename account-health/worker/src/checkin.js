@@ -759,7 +759,10 @@ export async function checkinTick(env, d) {
     if (day?.ts && hour >= mh + NUDGE_AFTER && !(await d.getSetting(env, `checkinNudged:${date}`))) {
       const people = await peopleOf(env, d);
       const late = Object.entries(people).filter(([uid, p]) => { const s = day.people?.[uid] || {}; return !p.weekOnly && !s.plan && !s.out; });
-      for (const [uid] of late) {
+      /* 2026-11-26 (move lines): the same line is the top of each person's My day (movelines.js); this DM goes quiet
+         with settings jobOn:noPlanDm = 'off'. The stamp is written either way. */
+      const dmOn = await jobOn(env, 'noPlanDm', d.getSetting);
+      for (const [uid] of dmOn ? late : []) {
         /* 2026-11-09 (the lane format, lane.js): "*OPS · Agency*", the person, the ask, the same two buttons. */
         const m = laneBlocks({ lane: 'OPS', brand: 'Agency', who: uid, ask: `Post your plan for today in <https://slack.com/app_redirect?channel=${day.channel}|#daily-checkin>`, why: 'no plan from you yet today',
           buttons: [{ type: 'button', action_id: 'ci_plan', style: 'primary', text: pt('Post my plan'), value: date }, { type: 'button', action_id: 'ci_out', text: pt("I'm out today"), value: date }] });

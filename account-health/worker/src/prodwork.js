@@ -35,6 +35,7 @@ import { frameLater } from './framesync.js';
 import { laneBlocks, laneWho, fyi } from './lane.js';
 import { cardDelivery } from './boardauto.js';
 import { tellHandoff, clearClientHandoff } from './handoff.js';
+import { jobOn } from './jobflags.js';
 
 const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 const AI_MODEL = 'claude-sonnet-5-5';
@@ -904,7 +905,8 @@ export async function addComment(env, d, body, who, scope, opts = {}) {
 async function notifyComment(env, d, r, { id, text, kind, fileId, at, name, role }, out) {
   const label = `${r.num ? `#${r.num} ` : ''}"${clean(r.title, 60)}"`;
   /* @Name: a Slack DM to that person, never a channel post. */
-  const named = [...new Set([...text.matchAll(/@([A-Za-z][A-Za-z'-]{1,20})/g)].map(m => m[1].toLowerCase()))];
+  /* 2026-11-26 (move lines): the tagged person's My day shows it (movelines.js comments); jobOn:cardCommentDm = 'off' stops the DM. */
+  const named = (await jobOn(env, 'cardCommentDm')) ? [...new Set([...text.matchAll(/@([A-Za-z][A-Za-z'-]{1,20})/g)].map(m => m[1].toLowerCase()))] : [];
   let brandRow;
   const brandOf = async () => (brandRow !== undefined ? brandRow : (brandRow = d.listBrands ? (await d.listBrands(env).catch(() => [])).find(b => b.act_id === r.act_id) || null : null));
   for (const n of named) {
@@ -1028,7 +1030,10 @@ export async function decide(env, d, body, who, scope, opts = {}) {
   const later = p => { if (d.waitUntil && !opts.wait) d.waitUntil(p.catch(() => null)); else return p.catch(() => null); };
   const tell = [];
   if (!client && !reset && r.asana_gid && d.asana) tell.push((async () => { if (await mirrorOn(env)) await d.asana(env, `/tasks/${r.asana_gid}/stories`, { method: 'POST', body: { text: `From Locus, ${name}: ${line}` } }); })());
+  /* 2026-11-26 (move lines): the maker's My day shows changes asked (movelines.js comments); the Slack line and the DM
+     below go quiet with settings jobOn:cardCommentDm = 'off'. The client's approval FYI is not part of it. */
   if (client && !reset && d.listBrands && (d.teamPost || d.slackPost)) tell.push((async () => {
+    if (!ok && !(await jobOn(env, 'cardCommentDm'))) return;
     const brand = (await d.listBrands(env)).find(b => b.act_id === r.act_id);
     if (brand && brand.slack_channel) {
       /* 2026-11-09 (the lane format, lane.js): an approval asks nobody for anything (the card moves on by itself), so it
@@ -1070,7 +1075,7 @@ export async function decide(env, d, body, who, scope, opts = {}) {
   } else {
     if (idea || !waiting) await env.DB.prepare(`UPDATE p_br_batch SET needs_client = NULL, updated_at = datetime('now') WHERE id = ?1`).bind(r.id).run();
     if (!idea) moved = await move('making');
-    if (r.assignee_name) tell.push(dm(env, d, r.assignee_name, `${name} asked for changes on ${what} of #${r.num} "${clean(r.title, 60)}": "${clean(text, 300)}" <${cardUrl(r.id)}|Open the card>`));
+    if (r.assignee_name) tell.push(jobOn(env, 'cardCommentDm').then(on => on && dm(env, d, r.assignee_name, `${name} asked for changes on ${what} of #${r.num} "${clean(r.title, 60)}": "${clean(text, 300)}" <${cardUrl(r.id)}|Open the card>`)));
   }
   /* The client's bell row for this card is done once the card no longer waits on them. */
   if (!reset) {

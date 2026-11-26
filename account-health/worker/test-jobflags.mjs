@@ -41,7 +41,7 @@ const ok = (name, fn) => Promise.resolve().then(fn).then(() => { n++; }, e => { 
 
 await ok('default = today: every QUIET_JOBS id runs with nothing saved, and goes quiet only on "off"', async () => {
   fresh();
-  assert.equal(QUIET_JOBS.length, 18);
+  assert.equal(QUIET_JOBS.length, 28);
   for (const j of QUIET_JOBS) {
     assert.ok(j.id && j.name && j.was && j.instead, j.id);
     assert.equal(await jobOn(env, j.id), true, j.id + ' runs by default, as it does live today');
@@ -58,10 +58,11 @@ await ok('default = today: every QUIET_JOBS id runs with nothing saved, and goes
   assert.equal(await jobOn(env, 'x', async () => { throw new Error('db down'); }), true, 'a failed read never silences a post that runs today');
   fresh();
   const v = await jobsView(env);
-  assert.equal(v.length, 18); assert.ok(v.every(j => j.switch_on === true), 'every quiet switch is on by default (a deploy changes no post)');
+  assert.equal(v.length, 28); assert.ok(v.every(j => j.switch_on === true), 'every quiet switch is on by default (a deploy changes no post)');
   /* The real state with nothing saved: the older switches that already keep these posts off today. */
   const offNow = v.filter(j => !j.on).map(j => j.id).sort();
-  assert.deepEqual(offNow, ['jobErrorsPost', 'meetingNotesConfirm', 'mondayReview', 'mondayTestPost', 'movedPost', 'todayPost', 'trybeRecutPost'].sort());
+  /* trybePost: the creator morning post runs only when trybeAlerts is 'on', so with nothing saved it is off today too */
+  assert.deepEqual(offNow, ['jobErrorsPost', 'meetingNotesConfirm', 'mondayReview', 'mondayTestPost', 'movedPost', 'todayPost', 'trybeRecutPost', 'trybePost'].sort());
   for (const j of v) assert.equal(j.off_reason == null, j.on, j.id + ' has a reason exactly when off');
   for (const j of QUIET_JOBS) for (const s of [j.name, j.was, j.instead]) assert.ok(!/[\u2014\u2013]/.test(s), 'no dashes: ' + s);
 });
@@ -251,7 +252,10 @@ await ok('every gate sits in its file (the code is kept, only the post is gated)
   const src = f => readFileSync(new URL('./src/' + f, import.meta.url), 'utf8');
   const where = { fyiRoundup: 'lane.js', mondayBriefing: 'worker.js', meetingFinishedDm: 'callnudge.js', meetingNotesConfirm: 'meetings.js', taskReminders: 'actions.js', reviewPost: 'worker.js',
     smokePost: 'smoke.js', leakLine: 'morningcard.js', trybeRecutPost: 'trybe.js', dashboardsSlack: 'worker.js', jobErrorsPost: 'worker.js', todayPost: 'todaypost.js', movedPost: 'moved.js',
-    morningLineDm: 'morning.js', askSchedules: 'askschedule.js', mondayReview: 'review.js', mondayTestPost: 'asana-brand.js', autoApprove: 'checkin.js' };
+    morningLineDm: 'morning.js', askSchedules: 'askschedule.js', mondayReview: 'review.js', mondayTestPost: 'asana-brand.js', autoApprove: 'checkin.js',
+    /* the move lines (movelines.js, 2026-11-26) */
+    noPlanDm: 'checkin.js', mondayPlansPost: 'callnudge.js', calendarCountdown: 'calendar.js', cardCommentDm: 'prodwork.js', requestPost: 'requests.js',
+    connectAskPost: 'connect.js', newAccountPost: 'worker.js', trybePost: 'trybe.js', outagePost: 'pulse.js', unsentNoonPost: 'worker.js' };
   assert.deepEqual(Object.keys(where).sort(), QUIET_JOBS.map(j => j.id).sort());
   for (const [id, f] of Object.entries(where)) assert.ok(src(f).includes(`jobOn(env, '${id}'`), `${id} gated in ${f}`);
   const w = src('worker.js');
