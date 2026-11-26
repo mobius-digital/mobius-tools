@@ -130,6 +130,7 @@ const CSS = `
 .ag-figs>span{display:grid;gap:2px;min-width:0;align-content:start}
 .ag-figs small{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ag-figs b{font-size:15.5px;font-weight:600;letter-spacing:-.015em;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ag-figs .ag-fu{font-style:normal;font-size:12px;color:var(--muted);white-space:nowrap}
 .ag-figs b.ag-q{font-size:13px;font-weight:400;letter-spacing:0;white-space:normal}
 .ag-bc-a{display:flex;flex-wrap:wrap;align-items:center;gap:10px;min-height:34px;align-self:end}
 .ag-bc-a .lx-sp{flex:1}
@@ -145,7 +146,7 @@ const CSS = `
 .ag-note{font-size:13px;color:var(--muted);max-width:76ch}
 @media (max-width:759px){
   .ag{gap:var(--sp-5)}
-  .ag-grid{grid-template-columns:minmax(0,1fr);gap:var(--sp-4)}
+  .ag-grid,.ag-grid.three{grid-template-columns:minmax(0,1fr);gap:var(--sp-4)}
   .ag-wide{display:none}
   .ag-list{display:block}
   .ag-item{display:grid;gap:12px;padding:16px 18px;border-top:1px solid var(--line);color:inherit;text-decoration:none;min-width:0}
@@ -167,9 +168,11 @@ export function brandName(b, ctx, href) {
   const kids = [h('i', { class: 'lx-swatch', style: { '--dot': b.color || known.color || 'var(--ink)' } }), h('b', { class: 'nm' }, b.name)];
   return href ? h('a', { class: 'ag-name', href, title: b.goTitle || null }, kids) : h('span', { class: 'ag-name' }, kids);
 }
-/** Up to three small figures in a row: [[label, text or node], ...]. A node is drawn quiet (words, not a number). */
-export const figs = list => h('div', { class: 'ag-figs' }, list.filter(Boolean).map(([label, v]) =>
-  h('span', null, h('small', null, label), typeof v === 'string' ? h('b', null, v) : h('b', { class: 'ag-q' }, v && v.textContent != null ? v.textContent : ''))));
+/** Up to three small figures in a row: [[label, text or node, under?, title?], ...]. A node is drawn quiet (words, not a
+    number). under is a small muted line below the value ("goal 3.00x"); title is the label's hover text. */
+export const figs = list => h('div', { class: 'ag-figs' }, list.filter(Boolean).map(([label, v, under, title]) =>
+  h('span', null, h('small', { title: title || null }, label), typeof v === 'string' ? h('b', null, v) : h('b', { class: 'ag-q' }, v && v.textContent != null ? v.textContent : ''),
+    under ? h('i', { class: 'ag-fu' }, under) : null)));
 /** The hero band: big figures, numbers first. list: [{ label, value, sub, lead, href }] */
 export function figures(list) {
   const items = list.filter(Boolean);

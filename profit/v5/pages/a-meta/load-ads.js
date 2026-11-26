@@ -11,7 +11,7 @@
    This page does not read Meta itself (that is one call per brand; the brand page does it). So "loaded" here means
    loaded through Locus. Nothing is example data. If the launch read fails, its columns are left out. */
 
-import { h, em, card, hero, kpi, kpis, table, statusDot, empty, skeleton, put, num } from '../../kit.js';
+import { h, card, hero, kpi, kpis, table, statusDot, empty, skeleton, put, num } from '../../kit.js';
 import { APP_NAME } from '../../config.js';
 import { plural, day, todayOf, weekOf, isDay } from '../production/_ui.js';
 import { soft, styles } from '../meta/_rest.js';
@@ -39,7 +39,7 @@ const CSS = `
 .al-ready{display:grid}
 .al-ready>div{display:grid;grid-template-columns:48px minmax(0,1fr) auto;gap:14px;align-items:center;padding:12px 28px;border-top:1px solid var(--line);min-width:0}
 .al-ready>div:first-child{border-top:0}
-.al-ready .pd-pic{width:48px;border-radius:8px}
+.al-ready .pd-pic{width:48px;border-radius:var(--r-chip,6px)}
 .al-ready .t{min-width:0}
 .al-ready .t b{display:block;font-weight:600;overflow-wrap:anywhere}
 .al-ready .t small{display:block;color:var(--muted);font-size:12.5px}
@@ -100,7 +100,7 @@ const brandName = (ctx, id, name) => { const b = brandOf(ctx, id); return h('spa
 const n = v => h('span', { class: 'al-n' + (v ? '' : ' zero') }, String(v));
 
 export default {
-  title: ['Which brands have ads ', em('waiting to go into Meta?')],
+  title: 'Ads waiting to load, all brands',
   eyebrow: 'Meta, all brands',
   ranges: false,
   load,

@@ -5,8 +5,8 @@
 import { APP_NAME, APP_WORD, AI_NAME, ORG_NAME, OLD_LOCUS, OLD_UNTIL, LS5, SAMPLE, QS, legacyUrl } from './config.js';
 import { mark, icon } from './icons.js';
 import { menuFor, lineOf, PHONE_TABS, shownTabs } from './menu.js';
-import { h, svgNode, tabs as tabsKit, avatar, count, asOf as asOfChip, sheet, empty, button, toast } from './kit.js';
-import { href, normalise, prefetch, currentRoute, refresh } from './router.js';
+import { h, svgNode, tabs as tabsKit, avatar, count, asOf as asOfChip, sheet, empty, button, rangePicker } from './kit.js';
+import { href, normalise, prefetch, currentRoute, currentContext, refresh } from './router.js';
 import { heldHere } from './gate.js';
 import { RANGES, rangeOf, settingNow, saveSetting } from './data.js';
 
@@ -81,16 +81,21 @@ export function mount(el, opts = {}) {
 }
 
 /* ---------- Ask in place: the top bar button, Ctrl K and the phone Ask tab ---------- */
-/** Opens the Ask panel (askpanel.js) over the page you are on, with that page's title, brand, route and dates.
+/** Opens Ask Locus AI docked on the right (askpanel.js), with the page on screen as its context: title, brand, route,
+    dates and the page's own ctx.askContext. It follows the person from page to page while open.
     On the Ask page itself it just puts the cursor in the page's own box. */
+export function askContextNow() {
+  const route = currentRoute(); if (!route) return null;
+  const brand = route.view === 'brand' ? brandBySlug(route.brand) : null;
+  const ctx = currentContext();
+  return { route, brand, range: S.range, title: headTitle ? headTitle.textContent.trim() : '', context: ctx && ctx.askContext ? String(ctx.askContext) : null,
+    href: href(normalise({ ...route, line: 'ask', tab: 'index' })) };
+}
 function askHere() {
   const route = currentRoute(); if (!route) return;
   if (route.line === 'ask') { const f = document.getElementById('lxAskIn'); if (f) f.focus(); else location.hash = href(normalise({ ...route, line: 'ask', tab: 'index' })); return; }
-  const brand = route.view === 'brand' ? brandBySlug(route.brand) : null;
-  import('./askpanel.js').then(m => m.openAskPanel({
-    route, brand, range: S.range, title: headTitle ? headTitle.textContent.trim() : '',
-    href: href(normalise({ ...route, line: 'ask', tab: 'index' })),
-  })).catch(() => { location.hash = href(normalise({ ...route, line: 'ask', tab: 'index' })); });
+  import('./askpanel.js').then(m => m.openAskPanel({ ...askContextNow(), live: askContextNow }))
+    .catch(() => { location.hash = href(normalise({ ...route, line: 'ask', tab: 'index' })); });
 }
 
 /* ---------- the page frame: called by the router on every route ---------- */
@@ -136,21 +141,23 @@ function setRange(saved) {
 }
 function rangeMenu(anchor) {
   const now = S.range;
-  const from = h('input', { class: 'lx-input', type: 'date', value: now.from, max: rangeOf({ preset: '7d' }).to, 'aria-label': 'From' });
-  const to = h('input', { class: 'lx-input', type: 'date', value: now.to, 'aria-label': 'To' });
-  const custom = h('div', { class: 'lx-range-custom', hidden: now.preset !== 'custom' },
-    h('label', null, h('span', null, 'From'), from), h('label', null, h('span', null, 'To'), to),
-    h('button', { class: 'lx-btn primary', type: 'button', 'data-close': '1', onclick: () => {
-      if (!from.value || !to.value || from.value > to.value) { toast('Pick a start date on or before the end date.', { tone: 'bad' }); return; }
-      setRange({ preset: 'custom', from: from.value, to: to.value });
-    } }, 'Show these dates'));
   const items = RANGES.map(r => {
     const d = r.id === 'custom' ? null : rangeOf({ preset: r.id });
     return h('button', { class: 'lx-item' + (now.preset === r.id ? ' on' : ''), role: 'menuitemradio', 'aria-checked': String(now.preset === r.id), type: 'button', 'data-close': r.id === 'custom' ? null : '1',
-      onclick: () => { if (r.id === 'custom') { custom.hidden = false; from.focus(); } else setRange({ preset: r.id }); } },
-      r.label, h('small', null, d ? d.dates : now.preset === 'custom' ? now.dates : 'pick two dates'));
+      onclick: () => { if (r.id === 'custom') customDates(anchor); else setRange({ preset: r.id }); } },
+      r.label, h('small', null, d ? d.dates : now.preset === 'custom' ? now.dates : 'pick on a calendar'));
   });
-  popover(anchor, [...items, custom], { align: 'right', label: 'Dates', width: 300 });
+  popover(anchor, items, { align: 'right', label: 'Dates', width: 300, class: 'lx-range-pop' });
+}
+/* Custom: the Locus calendar in the same spot (two months on a desktop, one on a phone). Never a native date input. */
+function customDates(anchor) {
+  const now = S.range, latest = rangeOf({ preset: 'today' }).to;
+  const pick = rangePicker({
+    from: now.preset === 'custom' ? now.from : null, to: now.preset === 'custom' ? now.to : null, max: latest,
+    onApply: v => { closePop(); setRange({ preset: 'custom', from: v.from, to: v.to }); },
+    onCancel: () => closePop(),
+  });
+  setTimeout(() => popover(anchor, [pick], { align: 'right', label: 'Pick dates', role: 'dialog', width: 608, class: 'lx-range-pop' }), 0);
 }
 
 /* ---------- side menu ---------- */

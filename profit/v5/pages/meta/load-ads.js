@@ -15,7 +15,7 @@
    Where a card would go follows old Locus's own rule (launch.js, suggest): the ad set whose name starts with the
    card's number, else the newest numbered test ad set that is on. The person can still change it when loading. */
 
-import { h, em, card, hero, kpi, kpis, button, sheet, statusDot, empty, skeleton, put, num } from '../../kit.js';
+import { h, card, hero, kpi, kpis, button, sheet, statusDot, empty, skeleton, put, num } from '../../kit.js';
 import { APP_NAME } from '../../config.js';
 import { picture, plural, day, todayOf, isDay } from '../production/_ui.js';
 import { soft, styles } from './_rest.js';
@@ -29,13 +29,13 @@ const CSS = `
 .la-list{display:grid}
 .la-r{display:grid;grid-template-columns:64px minmax(0,1.15fr) minmax(0,.8fr) minmax(0,1.2fr) auto;gap:18px;align-items:center;padding:14px 28px;border-top:1px solid var(--line);min-width:0}
 .la-r:first-child{border-top:0}
-.la-r .pd-pic{width:64px;border-radius:10px}
+.la-r .pd-pic{width:64px;border-radius:var(--r-btn,10px)}
 .la-t{min-width:0}
 .la-t b{display:block;font-size:14px;font-weight:600;line-height:1.3;overflow-wrap:anywhere}
 .la-t small{display:block;margin-top:2px;font-size:12.5px;color:var(--muted)}
 .la-c{min-width:0;display:grid;gap:3px;font-size:13px}
 .la-c .k{display:none}
-.la-hd{display:grid;grid-template-columns:64px minmax(0,1.15fr) minmax(0,.8fr) minmax(0,1.2fr) 120px;gap:18px;padding:10px 28px 8px;border-bottom:1px solid var(--line);font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+.la-hd{display:grid;grid-template-columns:64px minmax(0,1.15fr) minmax(0,.8fr) minmax(0,1.2fr) 120px;gap:18px;padding:10px 28px 8px;border-bottom:1px solid var(--line);font-size:var(--fs-colhead,11.5px);font-weight:600;color:var(--muted)}
 .la-hd.l{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) 120px 150px}
 .la-hd .r{text-align:right}
 .la-c b{font-weight:600;overflow-wrap:anywhere}
@@ -55,11 +55,11 @@ const CSS = `
 .la-sh .top{display:grid;grid-template-columns:96px minmax(0,1fr);gap:16px;align-items:center}
 .la-sh .top b{display:block;font-size:17px;font-weight:600;letter-spacing:-.02em;line-height:1.25;overflow-wrap:anywhere}
 .la-sh .top small{display:block;margin-top:4px;color:var(--muted);font-size:13px}
-.la-box{display:grid;gap:6px;padding:14px 16px;border-radius:14px;background:var(--bg-sunk);min-width:0}
+.la-box{display:grid;gap:6px;padding:14px 16px;border-radius:var(--r-tbl,12px);background:var(--bg-sunk);min-width:0}
 .la-box b{font-weight:600;overflow-wrap:anywhere}
 .la-box p{font-size:13px;color:var(--ink-2);line-height:1.45}
 .la-box small{font-size:12.5px;color:var(--muted)}
-.la-ads{display:grid;gap:0;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.la-ads{display:grid;gap:0;border:1px solid var(--line);border-radius:var(--r-tbl,12px);overflow:hidden}
 .la-ads>div{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:9px 14px;border-top:1px solid var(--line);font-size:13px;min-width:0}
 .la-ads>div:first-child{border-top:0}
 .la-ads span:first-child{overflow-wrap:anywhere;min-width:0}
@@ -299,7 +299,7 @@ function recentCard(d) {
 }
 
 export default {
-  title: ['What is ready ', em('to go into Meta?')],
+  title: 'Load ads into Meta',
   eyebrow: 'Meta',
   ranges: false,
   load,

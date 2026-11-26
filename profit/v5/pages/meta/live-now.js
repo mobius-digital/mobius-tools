@@ -19,7 +19,7 @@
    of the waiting count. */
 
 import { put } from '../../kit.js';
-import { h, em, card, button, segmented, toggle, table, lineChart, legend, gauge, empty, skeleton, money, num, sheet } from '../../kit.js';
+import { h, card, button, segmented, toggle, table, lineChart, legend, gauge, empty, skeleton, money, num, sheet } from '../../kit.js';
 import { ok, usd, div, addDays, shortDate, weekDate, hourWord, soft, judge, roasBar, adTile, exampleChip, gate, styles, statusDot, x, adSheet, opener } from './_rest.js';
 import { def, headRow, levelChip } from '../platforms/_ads.js';
 
@@ -27,7 +27,7 @@ const CSS = `
 .ml-list{padding:0 0 6px}
 .ml-r{display:grid;grid-template-columns:minmax(0,1fr) 110px 110px 150px 170px;gap:14px;align-items:center;padding:0 var(--pad-card,24px);min-height:var(--row-h-roomy,48px);border-top:1px solid var(--line);font-size:13.5px}
 .ml-r.hd{min-height:32px;border-top:0}
-.ml-r.hd>span{font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+.ml-r.hd>span{font-size:var(--fs-colhead,11.5px);font-weight:600;color:var(--muted)}
 .ml-r .r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .ml-r .nm{display:flex;align-items:center;gap:10px;min-width:0}
 .ml-r .nm b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
@@ -41,7 +41,7 @@ button.ml-r:hover{background:var(--bg-sunk)}
 .ml-car{flex:none;width:8px;height:8px;border-right:1.5px solid var(--muted);border-bottom:1.5px solid var(--muted);transform:rotate(-45deg);transition:transform .12s}
 [aria-expanded=true]>.nm .ml-car{transform:rotate(45deg)}
 .ml-ads{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:14px;padding:16px var(--pad-card,24px) 20px 50px;background:var(--surface-2);border-top:1px solid var(--line)}
-.ml-ad{display:grid;gap:5px;min-width:0;font-size:12.5px;padding:6px;margin:-6px;border-radius:12px}
+.ml-ad{display:grid;gap:5px;min-width:0;font-size:12.5px;padding:6px;margin:-6px;border-radius:var(--r-tbl,12px)}
 .ml-ad:hover{background:var(--bg-sunk)}
 .ml-ad .mr-tile{width:100%;height:auto;aspect-ratio:1/1;max-height:150px}
 .ml-ad b{font-weight:550;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -55,14 +55,14 @@ button.ml-r:hover{background:var(--bg-sunk)}
 .ml-lim .t b{margin-left:auto;font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
 .ml-lim .t i{font-style:normal;color:var(--muted);font-size:13px}
 .ml-three{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 16px}
-.ml-three>div{display:grid;gap:4px;padding:12px 14px;border-radius:12px;background:var(--surface-2)}
+.ml-three>div{display:grid;gap:4px;padding:12px 14px;border-radius:var(--r-tbl,12px);background:var(--surface-2)}
 .ml-three .l{font-size:12.5px;color:var(--muted)}
 .ml-three b{font-size:var(--num-m);font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
 .ml-three small{color:var(--muted);font-size:12.5px}
 .ml-sc .lvl{display:flex;gap:8px;align-items:center;min-width:0}
 .ml-sc .nmw{display:grid;min-width:0}.ml-sc .nmw b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ml-sc .nmw small{color:var(--muted);font-size:12px}
-.ml-sh{display:grid;gap:0;border-radius:12px;box-shadow:inset 0 0 0 1px var(--line);overflow:hidden}
+.ml-sh{display:grid;gap:0;border-radius:var(--r-tbl,12px);box-shadow:inset 0 0 0 1px var(--line);overflow:hidden}
 .ml-sh>div{display:flex;justify-content:space-between;gap:12px;padding:9px 14px;border-top:1px solid var(--line);font-size:13px}
 .ml-sh>div:first-child{border-top:0}
 @media (max-width:1040px){.ml-r{grid-template-columns:minmax(0,1fr) 96px 96px 140px}.ml-r>.bar{display:none}}
@@ -70,7 +70,10 @@ button.ml-r:hover{background:var(--bg-sunk)}
   .ml-r{grid-template-columns:minmax(0,1fr) 70px 104px;gap:8px;padding:0 16px;font-size:13px}
   .ml-r.hd{padding-top:6px;padding-bottom:6px}.ml-r.hd>span{white-space:normal;line-height:1.25}
   .ml-r>.bud{display:none}
-  .ml-r .nm{flex-wrap:wrap;gap:2px 8px;padding-top:8px;padding-bottom:8px}
+  /* the chevron keeps its own column, so every row starts the same way however long its name */
+  .ml-r .nm{display:grid;grid-template-columns:8px minmax(0,1fr);align-items:center;gap:2px 10px;padding-top:8px;padding-bottom:8px}
+  .ml-r .nm>.ml-car{grid-column:1;grid-row:1}
+  .ml-r .nm>:not(.ml-car){grid-column:2;justify-self:start}
   .ml-r .nm b{white-space:normal;overflow-wrap:anywhere}
   .ml-r.set .nm{padding-left:14px}
   .ml-ads{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:14px 16px 18px}
@@ -215,7 +218,7 @@ function liveBody(d, ctx, showOff) {
 function header(d) {
   const goal = d.goals && d.goals.roas;
   return h('div', { class: 'ml-r hd' }, h('span', null, 'Campaign'), h('span', { class: 'r bud' }, def('Budget a day', 'budget_a_day')), h('span', { class: 'r' }, def('Spent today', 'spent_today')),
-    h('span', { class: 'r' }, def('Result, last 7 days', 'result_7d')), h('span', { class: 'bar' }, goal ? def('Against goal ' + x(goal), 'goal_roas') : ''));
+    h('span', { class: 'r' }, def(d.sales_source ? 'ROAS, Triple Whale, last 7 days' : 'Result, last 7 days', 'result_7d')), h('span', { class: 'bar' }, goal ? def('Against goal ' + x(goal), 'goal_roas') : ''));
 }
 
 function adsTable(d, ctx) {
@@ -286,7 +289,7 @@ function campaignsCard(d, ctx) {
 /* ---------- today's pace ---------- */
 function paceCard(d) {
   const p = d.pace, cur = d.currency;
-  if (!p || !(p.today || []).length) return card({ title: 'Is today\'s Meta spend on pace?' }, h('p', { class: 'mr-dim' }, 'Today\'s spend by hour could not be read from Meta just now.'));
+  if (!p || !(p.today || []).length) return card({ title: 'Spend today, by hour' }, h('p', { class: 'mr-dim' }, 'Today\'s spend by hour could not be read from Meta just now.'));
   const hr = Math.max(0, Math.min(23, p.hour ?? p.today.length)), usual = (p.usual || []).slice(0, 24);
   const today = [0, ...p.today.slice(0, hr)], base = [0, ...usual];
   const labels = Array.from({ length: 25 }, (_, i) => hourWord(i));
@@ -294,7 +297,7 @@ function paceCard(d) {
   const fig = (label, value, small) => h('div', null, h('span', { class: 'l' }, label), b(value), small ? h('small', null, small) : null);
   return card({ class: 'ml-pace' },
     h('div', { class: 'lx-chart-h' },
-      h('div', null, h('div', { class: 'lx-sec' }, h('h3', null, 'Is today\'s Meta spend on pace?')), h('p', null, 'Meta spend so far today, hour by hour, Central time')),
+      h('div', null, h('div', { class: 'lx-sec' }, h('h3', null, 'Spend today, by hour')), h('p', null, 'Meta spend so far today, hour by hour, Central time')),
       legend([{ name: 'Today', lead: true }, usual.some(ok) && { name: 'A usual day, last 7 days', dashed: true }])),
     h('div', { class: 'ml-three' },
       fig('Spent by ' + hourWord(hr), usd(p.spent, cur)),
@@ -317,7 +320,7 @@ const HELP = [
 ];
 
 export default {
-  title: ['What is running on Meta ', em('right now?')],
+  title: 'Live now on Meta',
   eyebrow: 'Meta',
   ranges: false,
   asOf: d => d && d.as_of,

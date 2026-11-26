@@ -277,10 +277,35 @@ All return a DOM node unless noted.
 - Overlays: `toast(text, { tone, ms })`, `sheet({ title, body, side, onClose, class })`
   (THE detail pattern: a centered modal sheet on desktop, 720px wide, or 560px with `side: 'center'` for a confirm;
   a sheet from the bottom on a phone. No side panels. Escape, backdrop click, focus trap, focus returns.)
-- Ask in place: `askpanel.js` `openAskPanel({ route, brand, title, range, href })` (the top bar button, Ctrl K and the
-  phone Ask tab open it; it reuses `askOnce` from `pages/ask/index.js` and sends the page as `screen`).
-- Type scale (app.css): `--num-xl` (the one hero number, 36px max, nothing on a page is bigger), `--num-l` (26px,
-  kpi tiles), `--num-m` (20px), `--num-s` (16px), `--fs-body` 14px, `--fs-cell` 13px, `--row-h` 36px tables.
+- Ask in place: `askpanel.js` `openAskPanel({ route, brand, title, range, href, context })` docks Ask Locus AI on the
+  right (420px; at 1280+ the page narrows, under 1280 it overlays, a bottom sheet on a phone) and follows the person
+  from page to page. **A page may set `ctx.askContext = 'one or two plain sentences of what is on screen'`**; it goes
+  with every question as `screen.page_summary`. `closeAskPanel()` closes it.
+- Foundation pass (2026-11-26), the rules every page follows:
+  - `kpi({ label, value, unit, window, source, spark, sparkLabels, sparkFormat, delta, sub, small, size, href })`:
+    value may be a number with `unit` 'money' | 'x' | 'pct' | 'num'. `window` + `source` draw "Nov 1 to 25 · Triple
+    Whale" under it. The spark is orange with a fill, low and high marked, first and last `sparkLabels` under it.
+  - `sourceLine(window, source)`: the same line anywhere else. Every number says its window and source; Meta's own
+    figures say "Meta's own count".
+  - `fmtUnit(v, unit)`: one number in its unit.
+  - `staleStamp({ at, onRefresh, busy })`: "Updated 4 min ago" + a refresh button, for every card that can go stale.
+  - `calendar({ from, to, min, max, months, onChange })` and `rangePicker({ from, to, min, max, onApply, onCancel })`:
+    the Locus calendar. Never `type=date`. The page head's date menu uses it for Custom; presets are Today,
+    Yesterday, Last 7, 14, 30 days, This month, Last month, Last 90 days, Custom (`data.js` RANGES).
+  - Bubbles: `tipShow(owner, content, at, gap, { now })` opens after 350ms of rest, never while scrolling, closes
+    120ms after leave (`HOVER`, `scrollingNow()`). Rows are `tipRow(swatch, label, value)`: label left, value with
+    its unit right. Definitions (defs.js) use the same dark bubble. `defLabel` on a plain word (Sales, Spend, Orders,
+    Today, Budget, Clicks, Impressions, Customers...) renders plain text (`STOPLIST`).
+  - Charts: pass `windowLabel: 'Daily, Nov 1 to 25'` to every `lineChart` / `barChart`; give `format` a unit. The y
+    axis has 2 or 3 steps. `barChart` columns are brand orange (with `lead`, that one orange and the rest slate). A
+    one-series tooltip has no color square; `legend()` with one item draws nothing.
+  - Tokens: radius `--r-chip` 6, `--r-btn` 10, `--r-tbl` 12, `--r-card` 16, `--r-hero` 20 (a child is never rounder
+    than its parent). Type `--fs-page` 26, `--fs-section` 17, `--fs-card` 14 (class `lx-card-t`), `--fs-small` 12.5
+    (class `lx-small`), `--fs-colhead` 11.5 sentence case. Gaps `--gap-1..6` (4, 8, 12, 16, 24, 32). Rows: one
+    `--row-hover` tint (class `lx-hover` for a hand made row); a selected row takes class `sel` (3px orange bar).
+    No highlight backgrounds and no underlines except the dotted defined term and a link on hover.
+- Type scale (app.css): `--num-xl` (the one hero number, 34px max, nothing on a page is bigger), `--num-l` (26px,
+  kpi tiles), `--num-m` (18px), `--num-s` (14px), `--fs-body` 14px, `--fs-cell` 13px, `--row-h` 36px tables.
   Pages use these tokens, never their own px for a figure.
 - Exports (`pages/a-black-friday/_export.js`): `hiCanvas(w, h)` draws at 3x or more (about 3840 to 4200 wide) and
   `fontsReady(faces)` waits for the web fonts first; reuse both for any new PNG or PDF.
@@ -312,7 +337,7 @@ lineChart({
   label, empty,      // the spoken description; the words when there is nothing to draw
 })
 barChart({ values, labels, dim, lead, format, height, valueLabels, ...the same options })
-sparkline(values, { lead, fill, width, height, goal })     // goal draws a dashed level line
+sparkline(values, { lead, fill, width, height, goal, labels, format, name, marks, axis })   // orange by default; lead: false = slate
 legend([{ name, lead }, { name }, { name, dashed }, { name, square, color }])   // empty items are skipped
 ```
 

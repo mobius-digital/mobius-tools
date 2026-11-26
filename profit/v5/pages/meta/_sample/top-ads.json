@@ -7,7 +7,7 @@
  "currency": "USD",
  "connected": true,
  "goals": {
-  "roas": 3.0,
+  "roas": 3,
   "cpa": 40
  },
  "sales_source": true,
@@ -131,7 +131,15 @@
      "spend": 96.59,
      "revenue": 186.21
     }
-   ]
+   ],
+   "hook": 0.28102,
+   "hold": 0.19257,
+   "art": {
+    "kind": "golfer",
+    "c1": "#1F2937",
+    "c2": "#C9A45C",
+    "bg": "#E9E4DA"
+   }
   },
   {
    "id": "ad03",
@@ -234,7 +242,18 @@
      "spend": 107.91,
      "revenue": 321.93
     }
-   ]
+   ],
+   "art": {
+    "kind": "ad",
+    "brand": "Northlake Golf",
+    "kicker": "Early sale",
+    "text": "Black Friday: 40% off belts",
+    "foot": "northlakegolf.example",
+    "cta": "Shop now",
+    "c1": "#E9E4DA",
+    "c2": "#C9A45C",
+    "bg": "#14532D"
+   }
   },
   {
    "id": "ad10",
@@ -337,7 +356,13 @@
      "spend": 123.45,
      "revenue": 226.75
     }
-   ]
+   ],
+   "art": {
+    "kind": "belt",
+    "c1": "#1E3A8A",
+    "c2": "#C9A45C",
+    "bg": "#E6EAF3"
+   }
   },
   {
    "id": "ad06",
@@ -440,7 +465,18 @@
      "spend": 53.07,
      "revenue": 93.66
     }
-   ]
+   ],
+   "art": {
+    "kind": "ad",
+    "brand": "Northlake Golf",
+    "kicker": "Early sale",
+    "text": "The belt that fits your swing",
+    "foot": "northlakegolf.example",
+    "cta": "Shop now",
+    "c1": "#E9E4DA",
+    "c2": "#C9A45C",
+    "bg": "#9B2C2C"
+   }
   },
   {
    "id": "ad17",
@@ -453,7 +489,7 @@
    "revenue": 1437.48,
    "purchases": 12,
    "roas": 1.21,
-   "cpa": 99.0,
+   "cpa": 99,
    "leads": null,
    "cpl": null,
    "age": 22,
@@ -470,12 +506,12 @@
     "spend": 1708,
     "purchases": 14,
     "roas": 0.98,
-    "cpa": 122.0
+    "cpa": 122
    },
    "days": [
     {
      "date": "2026-11-10",
-     "spend": 61.0,
+     "spend": 61,
      "revenue": 55.52
     },
     {
@@ -543,7 +579,13 @@
      "spend": 75.81,
      "revenue": 61.19
     }
-   ]
+   ],
+   "art": {
+    "kind": "box",
+    "c1": "#155E75",
+    "c2": "#C9A45C",
+    "bg": "#E4EEF0"
+   }
   },
   {
    "id": "ad01",
@@ -646,7 +688,15 @@
      "spend": 105.79,
      "revenue": 352.3
     }
-   ]
+   ],
+   "hook": 0.22726,
+   "hold": 0.3377,
+   "art": {
+    "kind": "green",
+    "c1": "#14532D",
+    "c2": "#1F2937",
+    "bg": "#E6EDE4"
+   }
   },
   {
    "id": "ad11",
@@ -692,7 +742,7 @@
     {
      "date": "2026-11-12",
      "spend": 97.1,
-     "revenue": 97.0
+     "revenue": 97
     },
     {
      "date": "2026-11-13",
@@ -749,7 +799,18 @@
      "spend": 88.3,
      "revenue": 108.78
     }
-   ]
+   ],
+   "art": {
+    "kind": "ad",
+    "brand": "Northlake Golf",
+    "kicker": "Early sale",
+    "text": "Two belts. One price.",
+    "foot": "northlakegolf.example",
+    "cta": "Shop now",
+    "c1": "#E9E4DA",
+    "c2": "#C9A45C",
+    "bg": "#1F2937"
+   }
   },
   {
    "id": "ad02",
@@ -762,7 +823,7 @@
    "revenue": 3549.6,
    "purchases": 29,
    "roas": 3.6,
-   "cpa": 34.0,
+   "cpa": 34,
    "leads": null,
    "cpl": null,
    "age": 22,
@@ -852,7 +913,13 @@
      "spend": 60.62,
      "revenue": 222.24
     }
-   ]
+   ],
+   "art": {
+    "kind": "belt",
+    "c1": "#14532D",
+    "c2": "#C9A45C",
+    "bg": "#EAF0E6"
+   }
   },
   {
    "id": "ad14",
@@ -955,7 +1022,15 @@
      "spend": 53.44,
      "revenue": 28.79
     }
-   ]
+   ],
+   "hook": 0.29648,
+   "hold": 0.24428,
+   "art": {
+    "kind": "golfer",
+    "c1": "#1E3A8A",
+    "c2": "#C9A45C",
+    "bg": "#E6EAF3"
+   }
   },
   {
    "id": "ad05",
@@ -1051,14 +1126,22 @@
     {
      "date": "2026-11-22",
      "spend": 40.62,
-     "revenue": 187.0
+     "revenue": 187
     },
     {
      "date": "2026-11-23",
      "spend": 76.74,
      "revenue": 350.11
     }
-   ]
+   ],
+   "hook": 0.27205,
+   "hold": 0.19443000000000002,
+   "art": {
+    "kind": "green",
+    "c1": "#9B2C2C",
+    "c2": "#C9A45C",
+    "bg": "#F1E7DA"
+   }
   },
   {
    "id": "ad18",
@@ -1114,7 +1197,7 @@
     {
      "date": "2026-11-14",
      "spend": 61.5,
-     "revenue": 29.0
+     "revenue": 29
     },
     {
      "date": "2026-11-15",
@@ -1161,7 +1244,15 @@
      "spend": 37.28,
      "revenue": 30.63
     }
-   ]
+   ],
+   "hook": 0.25199,
+   "hold": 0.25012,
+   "art": {
+    "kind": "golfer",
+    "c1": "#155E75",
+    "c2": "#C9A45C",
+    "bg": "#E4EEF0"
+   }
   },
   {
    "id": "ad19",
@@ -1174,7 +1265,7 @@
    "revenue": 478.08,
    "purchases": 4,
    "roas": 0.72,
-   "cpa": 166.0,
+   "cpa": 166,
    "leads": null,
    "cpl": null,
    "age": 17,
@@ -1264,7 +1355,15 @@
      "spend": 55.27,
      "revenue": 45.21
     }
-   ]
+   ],
+   "hook": 0.24225,
+   "hold": 0.21787,
+   "art": {
+    "kind": "green",
+    "c1": "#14532D",
+    "c2": "#1F2937",
+    "bg": "#E6EDE4"
+   }
   },
   {
    "id": "ad13",
@@ -1277,7 +1376,7 @@
    "revenue": 563.04,
    "purchases": 9,
    "roas": 0.92,
-   "cpa": 68.0,
+   "cpa": 68,
    "leads": null,
    "cpl": null,
    "age": 22,
@@ -1344,7 +1443,7 @@
     },
     {
      "date": "2026-11-19",
-     "spend": 60.0,
+     "spend": 60,
      "revenue": 44.69
     },
     {
@@ -1367,7 +1466,18 @@
      "spend": 43.88,
      "revenue": 20.38
     }
-   ]
+   ],
+   "art": {
+    "kind": "ad",
+    "brand": "Northlake Golf",
+    "kicker": "Early sale",
+    "text": "Gift the golfer who has it all",
+    "foot": "northlakegolf.example",
+    "cta": "Shop now",
+    "c1": "#E9E4DA",
+    "c2": "#C9A45C",
+    "bg": "#1F2937"
+   }
   },
   {
    "id": "ad20",
@@ -1380,7 +1490,7 @@
    "revenue": 239.2,
    "purchases": 2,
    "roas": 0.46,
-   "cpa": 260.0,
+   "cpa": 260,
    "leads": null,
    "cpl": null,
    "age": 22,
@@ -1397,7 +1507,7 @@
     "spend": 1708,
     "purchases": 14,
     "roas": 0.98,
-    "cpa": 122.0
+    "cpa": 122
    },
    "days": [
     {
@@ -1470,7 +1580,13 @@
      "spend": 39.64,
      "revenue": 25.4
     }
-   ]
+   ],
+   "art": {
+    "kind": "box",
+    "c1": "#14532D",
+    "c2": "#C9A45C",
+    "bg": "#EAF0E6"
+   }
   },
   {
    "id": "ad15",
@@ -1573,7 +1689,18 @@
      "spend": 40.8,
      "revenue": 36.7
     }
-   ]
+   ],
+   "art": {
+    "kind": "ad",
+    "brand": "Northlake Golf",
+    "kicker": "Early sale",
+    "text": "Free shipping this week",
+    "foot": "northlakegolf.example",
+    "cta": "Shop now",
+    "c1": "#E9E4DA",
+    "c2": "#C9A45C",
+    "bg": "#1E3A8A"
+   }
   },
   {
    "id": "ad04",
@@ -1676,7 +1803,15 @@
      "spend": 22.62,
      "revenue": 78.53
     }
-   ]
+   ],
+   "hook": 0.2011,
+   "hold": 0.23757,
+   "art": {
+    "kind": "golfer",
+    "c1": "#9B2C2C",
+    "c2": "#C9A45C",
+    "bg": "#F1E7DA"
+   }
   },
   {
    "id": "ad26",
@@ -1699,72 +1834,78 @@
    "ctr": 0.0133,
    "clicks": 347,
    "frequency": 3.01,
-   "fc_rev": 0.0,
+   "fc_rev": 0,
    "nc_roas": null,
    "set": {
     "name": "Sign up | New people",
     "spend": 410,
     "purchases": 0,
-    "roas": 0.0,
+    "roas": 0,
     "cpa": null
    },
    "days": [
     {
      "date": "2026-11-13",
      "spend": 46.82,
-     "revenue": 0.0
+     "revenue": 0
     },
     {
      "date": "2026-11-14",
      "spend": 48.81,
-     "revenue": 0.0
+     "revenue": 0
     },
     {
      "date": "2026-11-15",
      "spend": 29.26,
-     "revenue": 0.0
+     "revenue": 0
     },
     {
      "date": "2026-11-16",
      "spend": 36.86,
-     "revenue": 0.0
+     "revenue": 0
     },
     {
      "date": "2026-11-17",
      "spend": 22.47,
-     "revenue": 0.0
+     "revenue": 0
     },
     {
      "date": "2026-11-18",
      "spend": 35.8,
-     "revenue": 0.0
+     "revenue": 0
     },
     {
      "date": "2026-11-19",
      "spend": 26.56,
-     "revenue": 0.0
+     "revenue": 0
     },
     {
      "date": "2026-11-20",
      "spend": 31.79,
-     "revenue": 0.0
+     "revenue": 0
     },
     {
      "date": "2026-11-21",
      "spend": 22.42,
-     "revenue": 0.0
+     "revenue": 0
     },
     {
      "date": "2026-11-22",
      "spend": 47.38,
-     "revenue": 0.0
+     "revenue": 0
     },
     {
      "date": "2026-11-23",
      "spend": 49.99,
-     "revenue": 0.0
+     "revenue": 0
     }
-   ]
+   ],
+   "art": {
+    "kind": "belt",
+    "c1": "#155E75",
+    "c2": "#C9A45C",
+    "bg": "#E4EEF0"
+   }
   },
   {
    "id": "ad16",
@@ -1777,7 +1918,7 @@
    "revenue": 377.88,
    "purchases": 3,
    "roas": 0.94,
-   "cpa": 134.0,
+   "cpa": 134,
    "leads": null,
    "cpl": null,
    "age": 13,
@@ -1794,7 +1935,7 @@
     "spend": 402,
     "purchases": 3,
     "roas": 0.94,
-    "cpa": 134.0
+    "cpa": 134
    },
    "days": [
     {
@@ -1867,7 +2008,15 @@
      "spend": 32.03,
      "revenue": 23.67
     }
-   ]
+   ],
+   "hook": 0.3434,
+   "hold": 0.22231,
+   "art": {
+    "kind": "green",
+    "c1": "#14532D",
+    "c2": "#1F2937",
+    "bg": "#E6EDE4"
+   }
   },
   {
    "id": "ad07",
@@ -1970,7 +2119,15 @@
      "spend": 33.25,
      "revenue": 72.84
     }
-   ]
+   ],
+   "hook": 0.33914,
+   "hold": 0.21677000000000002,
+   "art": {
+    "kind": "golfer",
+    "c1": "#1F2937",
+    "c2": "#C9A45C",
+    "bg": "#E9E4DA"
+   }
   },
   {
    "id": "ad12",
@@ -2026,7 +2183,7 @@
     {
      "date": "2026-11-14",
      "spend": 20.03,
-     "revenue": 31.0
+     "revenue": 31
     },
     {
      "date": "2026-11-15",
@@ -2073,7 +2230,15 @@
      "spend": 20.03,
      "revenue": 20.98
     }
-   ]
+   ],
+   "hook": 0.28596,
+   "hold": 0.31292000000000003,
+   "art": {
+    "kind": "green",
+    "c1": "#14532D",
+    "c2": "#C9A45C",
+    "bg": "#EAF0E6"
+   }
   },
   {
    "id": "ad09",
@@ -2086,7 +2251,7 @@
    "revenue": 976.8,
    "purchases": 8,
    "roas": 3.3,
-   "cpa": 37.0,
+   "cpa": 37,
    "leads": null,
    "cpl": null,
    "age": 9,
@@ -2156,7 +2321,15 @@
      "spend": 26.95,
      "revenue": 64.35
     }
-   ]
+   ],
+   "hook": 0.27812,
+   "hold": 0.19025999999999998,
+   "art": {
+    "kind": "golfer",
+    "c1": "#1E3A8A",
+    "c2": "#C9A45C",
+    "bg": "#E6EAF3"
+   }
   },
   {
    "id": "ad24",
@@ -2169,7 +2342,7 @@
    "revenue": 118.4,
    "purchases": 1,
    "roas": 1.6,
-   "cpa": 74.0,
+   "cpa": 74,
    "leads": null,
    "cpl": null,
    "age": 5,
@@ -2202,7 +2375,7 @@
     {
      "date": "2026-11-20",
      "spend": 9.84,
-     "revenue": 23.0
+     "revenue": 23
     },
     {
      "date": "2026-11-21",
@@ -2219,7 +2392,18 @@
      "spend": 14.05,
      "revenue": 20.68
     }
-   ]
+   ],
+   "art": {
+    "kind": "ad",
+    "brand": "Northlake Golf",
+    "kicker": "Early sale",
+    "text": "Built for 18 holes",
+    "foot": "northlakegolf.example",
+    "cta": "Shop now",
+    "c1": "#E9E4DA",
+    "c2": "#C9A45C",
+    "bg": "#9B2C2C"
+   }
   },
   {
    "id": "ad23",
@@ -2242,42 +2426,50 @@
    "ctr": 0.0153,
    "clicks": 54,
    "frequency": 2.96,
-   "fc_rev": 0.0,
+   "fc_rev": 0,
    "nc_roas": null,
    "set": {
     "name": "Creator | Lena Ortiz",
     "spend": 61,
     "purchases": 0,
-    "roas": 0.0,
+    "roas": 0,
     "cpa": null
    },
    "days": [
     {
      "date": "2026-11-19",
      "spend": 7.65,
-     "revenue": 0.0
+     "revenue": 0
     },
     {
      "date": "2026-11-20",
      "spend": 11.42,
-     "revenue": 0.0
+     "revenue": 0
     },
     {
      "date": "2026-11-21",
      "spend": 9.25,
-     "revenue": 0.0
+     "revenue": 0
     },
     {
      "date": "2026-11-22",
      "spend": 14.53,
-     "revenue": 0.0
+     "revenue": 0
     },
     {
      "date": "2026-11-23",
      "spend": 9.32,
-     "revenue": 0.0
+     "revenue": 0
     }
-   ]
+   ],
+   "hook": 0.21743,
+   "hold": 0.25649,
+   "art": {
+    "kind": "green",
+    "c1": "#155E75",
+    "c2": "#C9A45C",
+    "bg": "#E4EEF0"
+   }
   },
   {
    "id": "ad21",
@@ -2300,7 +2492,7 @@
    "ctr": 0.0175,
    "clicks": 47,
    "frequency": 1.64,
-   "fc_rev": 0.0,
+   "fc_rev": 0,
    "nc_roas": null,
    "set": {
     "name": "Creator pool",
@@ -2313,19 +2505,25 @@
     {
      "date": "2026-11-21",
      "spend": 19.33,
-     "revenue": 0.0
+     "revenue": 0
     },
     {
      "date": "2026-11-22",
      "spend": 21.78,
-     "revenue": 0.0
+     "revenue": 0
     },
     {
      "date": "2026-11-23",
-     "spend": 12.0,
-     "revenue": 0.0
+     "spend": 12,
+     "revenue": 0
     }
-   ]
+   ],
+   "art": {
+    "kind": "box",
+    "c1": "#14532D",
+    "c2": "#1F2937",
+    "bg": "#E6EDE4"
+   }
   },
   {
    "id": "ad22",
@@ -2338,7 +2536,7 @@
    "revenue": 117.8,
    "purchases": 1,
    "roas": 3.1,
-   "cpa": 38.0,
+   "cpa": 38,
    "leads": null,
    "cpl": null,
    "age": 2,
@@ -2347,7 +2545,7 @@
    "cpm": 19.01,
    "ctr": 0.0153,
    "clicks": 30,
-   "frequency": 3.0,
+   "frequency": 3,
    "fc_rev": 86.2,
    "nc_roas": 1.82,
    "set": {
@@ -2373,7 +2571,15 @@
      "spend": 8.21,
      "revenue": 22.74
     }
-   ]
+   ],
+   "hook": 0.25762999999999997,
+   "hold": 0.19235,
+   "art": {
+    "kind": "golfer",
+    "c1": "#1F2937",
+    "c2": "#C9A45C",
+    "bg": "#E9E4DA"
+   }
   },
   {
    "id": "ad25",
@@ -2396,7 +2602,7 @@
    "ctr": 0.0184,
    "clicks": 16,
    "frequency": 2.59,
-   "fc_rev": 0.0,
+   "fc_rev": 0,
    "nc_roas": null,
    "set": {
     "name": "Gifts under $50",
@@ -2409,14 +2615,25 @@
     {
      "date": "2026-11-22",
      "spend": 14.8,
-     "revenue": 0.0
+     "revenue": 0
     },
     {
      "date": "2026-11-23",
      "spend": 8.23,
-     "revenue": 0.0
+     "revenue": 0
     }
-   ]
+   ],
+   "art": {
+    "kind": "ad",
+    "brand": "Northlake Golf",
+    "kicker": "Early sale",
+    "text": "Black Friday: 40% off belts",
+    "foot": "northlakegolf.example",
+    "cta": "Shop now",
+    "c1": "#E9E4DA",
+    "c2": "#C9A45C",
+    "bg": "#14532D"
+   }
   }
  ]
 }

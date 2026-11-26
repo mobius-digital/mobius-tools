@@ -25,6 +25,9 @@ export const parse = hash => {
 };
 export const href = r => '#/' + [r.view, r.brand, r.line, r.tab || 'index'].map(encodeURIComponent).join('/');
 export const currentRoute = () => current;
+let currentCtx = null;
+/** The ctx of the page on screen (the Ask panel reads ctx.askContext from it, live). */
+export const currentContext = () => currentCtx;
 
 /** Go to a route. go({ line: 'meta', tab: 'top-ads' }) keeps the view and brand you are in. */
 export function go(r, { replace = false } = {}) {
@@ -94,6 +97,10 @@ function ctxFor(route, line, tab, signal, frame) {
     /** This page in old Locus, or null. */
     legacy: legacyUrl(tab.legacy, brand ? brand.id : 'all'),
     title: tab.label ? `${line.label}: ${tab.label}` : line.label,
+    /** A page may set ctx.askContext = 'one or two plain sentences of what this page shows now'. Ask Locus AI sends
+        it with every question asked from this page (askpanel.js). Leave it unset and only the title, route, brand
+        and dates go. */
+    askContext: null,
   };
 }
 const SAMPLE_AGE = 4 * 60e3;       // a fixture reads "updated 4 min ago"
@@ -106,6 +113,7 @@ async function show(route, { soft = false, fresh = false } = {}) {
   const line = lineOf(route.line), tab = line.tabs.find(x => x.id === route.tab) || line.tabs[0];
   const frame = host.frame(route, line, tab);          // rail, title and tabs change at once
   const ctx = ctxFor(route, line, tab, ctl.signal, frame);
+  currentCtx = ctx;
   document.title = `${ctx.title} · ${APP_NAME}`;
   try { localStorage.setItem(LS5.last, href(route)); } catch {}
   const mod = await importPage(line.id, tab.id);

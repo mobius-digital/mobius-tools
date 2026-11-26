@@ -2,19 +2,29 @@
  "today": "2026-11-23",
  "range": {
   "from": "2026-11-01",
-  "to": "2026-11-22"
+  "to": "2026-11-22",
+  "preset": "month"
  },
  "source": true,
  "totals": {
   "sales": 63429,
   "spend": 23702,
-  "new_customers": 456,
-  "cac": 51.98,
-  "profit": 10550
+  "orders": 611,
+  "new_orders": 456,
+  "new_rev": 40337.7,
+  "ret_rev": 23091.3,
+  "gross_profit": 34252,
+  "cm": 10550,
+  "email_rev": 8212.9,
+  "cac": 51.98
  },
  "plan": {
   "sales": 59000,
-  "spend": 20900
+  "spend": 20900,
+  "month_sales": 80450,
+  "month_spend": 28500,
+  "days": 22,
+  "days_in_month": 30
  },
  "goal": {
   "mer": 3.0,
@@ -25,155 +35,265 @@
    "date": "2026-11-01",
    "sales": 3612,
    "spend": 1108,
-   "new_customers": 29,
-   "profit": 842
+   "orders": 35,
+   "new_orders": 29,
+   "new_rev": 2679.6,
+   "ret_rev": 932.4,
+   "gross_profit": 1950,
+   "cm": 842,
+   "email_rev": 469.56
   },
   {
    "date": "2026-11-02",
    "sales": 2762,
    "spend": 1036,
-   "new_customers": 18,
-   "profit": 455
+   "orders": 25,
+   "new_orders": 18,
+   "new_rev": 1626.79,
+   "ret_rev": 1135.21,
+   "gross_profit": 1491,
+   "cm": 455,
+   "email_rev": 445.6
   },
   {
    "date": "2026-11-03",
    "sales": 2904,
    "spend": 1150,
-   "new_customers": 19,
-   "profit": 418
+   "orders": 28,
+   "new_orders": 19,
+   "new_rev": 1637.21,
+   "ret_rev": 1266.79,
+   "gross_profit": 1568,
+   "cm": 418,
+   "email_rev": 490.64
   },
   {
    "date": "2026-11-04",
    "sales": 3080,
    "spend": 1132,
-   "new_customers": 23,
-   "profit": 531
+   "orders": 31,
+   "new_orders": 23,
+   "new_rev": 1923.81,
+   "ret_rev": 1156.19,
+   "gross_profit": 1663,
+   "cm": 531,
+   "email_rev": 453.05
   },
   {
    "date": "2026-11-05",
    "sales": 4199,
    "spend": 1221,
-   "new_customers": 29,
-   "profit": 1046
+   "orders": 39,
+   "new_orders": 29,
+   "new_rev": 2468.6,
+   "ret_rev": 1730.4,
+   "gross_profit": 2267,
+   "cm": 1046,
+   "email_rev": 471.54
   },
   {
    "date": "2026-11-06",
    "sales": 3095,
    "spend": 1007,
-   "new_customers": 26,
-   "profit": 664
+   "orders": 28,
+   "new_orders": 26,
+   "new_rev": 2320.45,
+   "ret_rev": 774.55,
+   "gross_profit": 1671,
+   "cm": 664,
+   "email_rev": 281.33
   },
   {
    "date": "2026-11-07",
    "sales": 4020,
    "spend": 1059,
-   "new_customers": 31,
-   "profit": 1112
+   "orders": 40,
+   "new_orders": 31,
+   "new_rev": 2858.97,
+   "ret_rev": 1161.03,
+   "gross_profit": 2171,
+   "cm": 1112,
+   "email_rev": 398.34
   },
   {
    "date": "2026-11-08",
    "sales": 3546,
    "spend": 1079,
-   "new_customers": 23,
-   "profit": 836
+   "orders": 35,
+   "new_orders": 23,
+   "new_rev": 2100.29,
+   "ret_rev": 1445.71,
+   "gross_profit": 1915,
+   "cm": 836,
+   "email_rev": 463.36
   },
   {
    "date": "2026-11-09",
    "sales": 3568,
    "spend": 1084,
-   "new_customers": 22,
-   "profit": 843
+   "orders": 33,
+   "new_orders": 22,
+   "new_rev": 1921.92,
+   "ret_rev": 1646.08,
+   "gross_profit": 1927,
+   "cm": 843,
+   "email_rev": 577.11
   },
   {
    "date": "2026-11-10",
    "sales": 3413,
    "spend": 1221,
-   "new_customers": 25,
-   "profit": 622
+   "orders": 32,
+   "new_orders": 25,
+   "new_rev": 2099.78,
+   "ret_rev": 1313.22,
+   "gross_profit": 1843,
+   "cm": 622,
+   "email_rev": 576.1
   },
   {
    "date": "2026-11-11",
    "sales": 2598,
    "spend": 1072,
-   "new_customers": 18,
-   "profit": 331
+   "orders": 27,
+   "new_orders": 18,
+   "new_rev": 1517.55,
+   "ret_rev": 1080.45,
+   "gross_profit": 1403,
+   "cm": 331,
+   "email_rev": 380.57
   },
   {
    "date": "2026-11-12",
    "sales": 2538,
    "spend": 991,
-   "new_customers": 18,
-   "profit": 380
+   "orders": 25,
+   "new_orders": 18,
+   "new_rev": 1584.35,
+   "ret_rev": 953.65,
+   "gross_profit": 1371,
+   "cm": 380,
+   "email_rev": 283.49
   },
   {
    "date": "2026-11-13",
    "sales": 3675,
    "spend": 1220,
-   "new_customers": 28,
-   "profit": 765
+   "orders": 33,
+   "new_orders": 28,
+   "new_rev": 2567.96,
+   "ret_rev": 1107.04,
+   "gross_profit": 1985,
+   "cm": 765,
+   "email_rev": 333.55
   },
   {
    "date": "2026-11-14",
    "sales": 4690,
    "spend": 1143,
-   "new_customers": 38,
-   "profit": 1390
+   "orders": 45,
+   "new_orders": 38,
+   "new_rev": 3495.73,
+   "ret_rev": 1194.27,
+   "gross_profit": 2533,
+   "cm": 1390,
+   "email_rev": 466.75
   },
   {
    "date": "2026-11-15",
    "sales": 3097,
    "spend": 1250,
-   "new_customers": 22,
-   "profit": 422
+   "orders": 32,
+   "new_orders": 22,
+   "new_rev": 1949.24,
+   "ret_rev": 1147.76,
+   "gross_profit": 1672,
+   "cm": 422,
+   "email_rev": 406.78
   },
   {
    "date": "2026-11-16",
    "sales": 2435,
    "spend": 1267,
-   "new_customers": 18,
-   "profit": 48
+   "orders": 23,
+   "new_orders": 18,
+   "new_rev": 1523.83,
+   "ret_rev": 911.17,
+   "gross_profit": 1315,
+   "cm": 48,
+   "email_rev": 394.84
   },
   {
    "date": "2026-11-17",
    "sales": 1782,
    "spend": 1150,
-   "new_customers": 12,
-   "profit": -188
+   "orders": 16,
+   "new_orders": 12,
+   "new_rev": 1005.44,
+   "ret_rev": 776.56,
+   "gross_profit": 962,
+   "cm": -188,
+   "email_rev": 300.49
   },
   {
    "date": "2026-11-18",
    "sales": 2627,
    "spend": 1150,
-   "new_customers": 17,
-   "profit": 269
+   "orders": 26,
+   "new_orders": 17,
+   "new_rev": 1475.42,
+   "ret_rev": 1151.58,
+   "gross_profit": 1419,
+   "cm": 269,
+   "email_rev": 383.2
   },
   {
    "date": "2026-11-19",
    "sales": 1663,
    "spend": 999,
-   "new_customers": 11,
-   "profit": -101
+   "orders": 17,
+   "new_orders": 11,
+   "new_rev": 999.96,
+   "ret_rev": 663.04,
+   "gross_profit": 898,
+   "cm": -101,
+   "email_rev": 184.76
   },
   {
    "date": "2026-11-20",
    "sales": 1395,
    "spend": 1008,
-   "new_customers": 9,
-   "profit": -255
+   "orders": 13,
+   "new_orders": 9,
+   "new_rev": 831.15,
+   "ret_rev": 563.85,
+   "gross_profit": 753,
+   "cm": -255,
+   "email_rev": 126.44
   },
   {
    "date": "2026-11-21",
    "sales": 1092,
    "spend": 541,
-   "new_customers": 9,
-   "profit": 49
+   "orders": 11,
+   "new_orders": 9,
+   "new_rev": 808.16,
+   "ret_rev": 283.84,
+   "gross_profit": 590,
+   "cm": 49,
+   "email_rev": 109.16
   },
   {
    "date": "2026-11-22",
    "sales": 1638,
    "spend": 814,
-   "new_customers": 11,
-   "profit": 71
+   "orders": 17,
+   "new_orders": 11,
+   "new_rev": 941.49,
+   "ret_rev": 696.51,
+   "gross_profit": 885,
+   "cm": 71,
+   "email_rev": 216.24
   }
  ],
  "note": {
@@ -223,5 +343,400 @@
    "spend": null,
    "sales": 9578
   }
- ]
+ ],
+ "prev_range": {
+  "from": "2026-10-10",
+  "to": "2026-10-31"
+ },
+ "prev": {
+  "sales": 56210,
+  "spend": 19930,
+  "orders": 548,
+  "new_orders": 371,
+  "new_rev": 36420,
+  "ret_rev": 19790,
+  "gross_profit": 29120,
+  "cm": 9190,
+  "email_rev": 7350
+ },
+ "currency": "USD",
+ "feeds": {
+  "meta": {
+   "series": [
+    {
+     "date": "2026-11-01",
+     "spend": 791.19,
+     "revenue": 1857.69,
+     "purchases": 14,
+     "impressions": 43180,
+     "clicks": 397
+    },
+    {
+     "date": "2026-11-02",
+     "spend": 739.78,
+     "revenue": 1677.27,
+     "purchases": 13,
+     "impressions": 38371,
+     "clicks": 340
+    },
+    {
+     "date": "2026-11-03",
+     "spend": 821.19,
+     "revenue": 1471.99,
+     "purchases": 11,
+     "impressions": 43294,
+     "clicks": 359
+    },
+    {
+     "date": "2026-11-04",
+     "spend": 808.33,
+     "revenue": 1109.49,
+     "purchases": 8,
+     "impressions": 45735,
+     "clicks": 356
+    },
+    {
+     "date": "2026-11-05",
+     "spend": 871.89,
+     "revenue": 1604.63,
+     "purchases": 12,
+     "impressions": 52561,
+     "clicks": 397
+    },
+    {
+     "date": "2026-11-06",
+     "spend": 719.07,
+     "revenue": 1672.95,
+     "purchases": 13,
+     "impressions": 43037,
+     "clicks": 333
+    },
+    {
+     "date": "2026-11-07",
+     "spend": 756.21,
+     "revenue": 2425.45,
+     "purchases": 19,
+     "impressions": 42189,
+     "clicks": 347
+    },
+    {
+     "date": "2026-11-08",
+     "spend": 770.49,
+     "revenue": 1697.0,
+     "purchases": 13,
+     "impressions": 40302,
+     "clicks": 354
+    },
+    {
+     "date": "2026-11-09",
+     "spend": 774.06,
+     "revenue": 1245.21,
+     "purchases": 10,
+     "impressions": 40332,
+     "clicks": 370
+    },
+    {
+     "date": "2026-11-10",
+     "spend": 871.89,
+     "revenue": 1380.4,
+     "purchases": 11,
+     "impressions": 48228,
+     "clicks": 444
+    },
+    {
+     "date": "2026-11-11",
+     "spend": 765.49,
+     "revenue": 1464.48,
+     "purchases": 11,
+     "impressions": 45563,
+     "clicks": 403
+    },
+    {
+     "date": "2026-11-12",
+     "spend": 707.65,
+     "revenue": 1506.13,
+     "purchases": 11,
+     "impressions": 42800,
+     "clicks": 354
+    },
+    {
+     "date": "2026-11-13",
+     "spend": 871.17,
+     "revenue": 1654.11,
+     "purchases": 13,
+     "impressions": 49716,
+     "clicks": 386
+    },
+    {
+     "date": "2026-11-14",
+     "spend": 816.19,
+     "revenue": 1611.85,
+     "purchases": 12,
+     "impressions": 43279,
+     "clicks": 327
+    },
+    {
+     "date": "2026-11-15",
+     "spend": 892.59,
+     "revenue": 1331.95,
+     "purchases": 10,
+     "impressions": 46217,
+     "clicks": 358
+    },
+    {
+     "date": "2026-11-16",
+     "spend": 904.73,
+     "revenue": 1418.93,
+     "purchases": 11,
+     "impressions": 48989,
+     "clicks": 404
+    },
+    {
+     "date": "2026-11-17",
+     "spend": 821.19,
+     "revenue": 1029.97,
+     "purchases": 8,
+     "impressions": 48020,
+     "clicks": 423
+    },
+    {
+     "date": "2026-11-18",
+     "spend": 821.19,
+     "revenue": 1110.72,
+     "purchases": 8,
+     "impressions": 49865,
+     "clicks": 458
+    },
+    {
+     "date": "2026-11-19",
+     "spend": 713.36,
+     "revenue": 572.95,
+     "purchases": 4,
+     "impressions": 41590,
+     "clicks": 382
+    },
+    {
+     "date": "2026-11-20",
+     "spend": 719.79,
+     "revenue": 638.66,
+     "purchases": 5,
+     "impressions": 38858,
+     "clicks": 343
+    },
+    {
+     "date": "2026-11-21",
+     "spend": 386.31,
+     "revenue": 651.62,
+     "purchases": 5,
+     "impressions": 19994,
+     "clicks": 165
+    },
+    {
+     "date": "2026-11-22",
+     "spend": 581.26,
+     "revenue": 913.56,
+     "purchases": 7,
+     "impressions": 30897,
+     "clicks": 240
+    }
+   ],
+   "prev": {
+    "spend": 14310,
+    "revenue": 27120,
+    "purchases": 205,
+    "impressions": 812400,
+    "clicks": 6720
+   }
+  },
+  "google": {
+   "series": [
+    {
+     "date": "2026-11-01",
+     "spend": 202.7,
+     "revenue": 814.1,
+     "purchases": 6,
+     "impressions": 19916,
+     "clicks": 645
+    },
+    {
+     "date": "2026-11-02",
+     "spend": 189.52,
+     "revenue": 592.61,
+     "purchases": 4,
+     "impressions": 18661,
+     "clicks": 565
+    },
+    {
+     "date": "2026-11-03",
+     "spend": 210.38,
+     "revenue": 447.43,
+     "purchases": 3,
+     "impressions": 22072,
+     "clicks": 629
+    },
+    {
+     "date": "2026-11-04",
+     "spend": 207.09,
+     "revenue": 408.22,
+     "purchases": 3,
+     "impressions": 23325,
+     "clicks": 651
+    },
+    {
+     "date": "2026-11-05",
+     "spend": 223.37,
+     "revenue": 762.15,
+     "purchases": 5,
+     "impressions": 25393,
+     "clicks": 730
+    },
+    {
+     "date": "2026-11-06",
+     "spend": 184.22,
+     "revenue": 709.49,
+     "purchases": 5,
+     "impressions": 19678,
+     "clicks": 603
+    },
+    {
+     "date": "2026-11-07",
+     "spend": 193.73,
+     "revenue": 827.34,
+     "purchases": 6,
+     "impressions": 19269,
+     "clicks": 630
+    },
+    {
+     "date": "2026-11-08",
+     "spend": 197.39,
+     "revenue": 516.08,
+     "purchases": 4,
+     "impressions": 19282,
+     "clicks": 655
+    },
+    {
+     "date": "2026-11-09",
+     "spend": 198.3,
+     "revenue": 487.85,
+     "purchases": 3,
+     "impressions": 20355,
+     "clicks": 689
+    },
+    {
+     "date": "2026-11-10",
+     "spend": 223.37,
+     "revenue": 656.25,
+     "purchases": 4,
+     "impressions": 24750,
+     "clicks": 801
+    },
+    {
+     "date": "2026-11-11",
+     "spend": 196.11,
+     "revenue": 599.65,
+     "purchases": 4,
+     "impressions": 22428,
+     "clicks": 678
+    },
+    {
+     "date": "2026-11-12",
+     "spend": 181.29,
+     "revenue": 497.13,
+     "purchases": 3,
+     "impressions": 19795,
+     "clicks": 564
+    },
+    {
+     "date": "2026-11-13",
+     "spend": 223.18,
+     "revenue": 509.54,
+     "purchases": 3,
+     "impressions": 22574,
+     "clicks": 630
+    },
+    {
+     "date": "2026-11-14",
+     "spend": 209.1,
+     "revenue": 670.55,
+     "purchases": 5,
+     "impressions": 20381,
+     "clicks": 587
+    },
+    {
+     "date": "2026-11-15",
+     "spend": 228.67,
+     "revenue": 627.18,
+     "purchases": 4,
+     "impressions": 23019,
+     "clicks": 707
+    },
+    {
+     "date": "2026-11-16",
+     "spend": 231.78,
+     "revenue": 560.14,
+     "purchases": 4,
+     "impressions": 25167,
+     "clicks": 825
+    },
+    {
+     "date": "2026-11-17",
+     "spend": 210.38,
+     "revenue": 330.08,
+     "purchases": 2,
+     "impressions": 24038,
+     "clicks": 817
+    },
+    {
+     "date": "2026-11-18",
+     "spend": 210.38,
+     "revenue": 351.31,
+     "purchases": 2,
+     "impressions": 23422,
+     "clicks": 792
+    },
+    {
+     "date": "2026-11-19",
+     "spend": 182.76,
+     "revenue": 251.09,
+     "purchases": 2,
+     "impressions": 18863,
+     "clicks": 610
+    },
+    {
+     "date": "2026-11-20",
+     "spend": 184.4,
+     "revenue": 295.35,
+     "purchases": 2,
+     "impressions": 18041,
+     "clicks": 545
+    },
+    {
+     "date": "2026-11-21",
+     "spend": 98.97,
+     "revenue": 247.83,
+     "purchases": 2,
+     "impressions": 9808,
+     "clicks": 279
+    },
+    {
+     "date": "2026-11-22",
+     "spend": 148.91,
+     "revenue": 285.62,
+     "purchases": 2,
+     "impressions": 15812,
+     "clicks": 441
+    }
+   ],
+   "prev": {
+    "spend": 3980,
+    "revenue": 9640,
+    "purchases": 66,
+    "impressions": 401200,
+    "clicks": 12180
+   }
+  },
+  "tiktok": null,
+  "amazon": null
+ },
+ "prefs_tiles": false
 }
