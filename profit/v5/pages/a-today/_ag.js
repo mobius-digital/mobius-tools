@@ -42,7 +42,9 @@ export async function readBrands(ctx, { from, to, preset } = ctx.range, { cmp = 
   const brands = (ov.accounts || []).map(a => {
     const w = a.window || {}, g = goals[a.act_id] || {};
     const store = !!a.tw_shop && ok(w.sales);
-    const plan = preset === 'month' && a.plan ? a.plan : null;               // a plan is agreed per month
+    /* goals_planned false: the month has no goal of its own; goals and plan carry an earlier month's numbers, never shown */
+    const noGoal = a.goals_planned === false ? monthWord(a.month) : null;
+    const plan = preset === 'month' && a.plan && !noGoal ? a.plan : null;    // a plan is agreed per month
     const costsOk = !(a.cost_health && a.cost_health.verdict === 'broken');
     const ch = (a.channels || []).filter(c => PAID.includes(c.id) && (c.spend > 0 || ok(c.revenue)));
     let platforms = ch.map(c => ({ id: c.id, spend: c.spend ?? null, sales: store ? c.revenue : null, roas: store ? c.roas : null, cost: store ? c.cpa : null }));
@@ -53,7 +55,8 @@ export async function readBrands(ctx, { from, to, preset } = ctx.range, { cmp = 
       orders: store ? w.orders : null, new_orders: store ? w.new_orders : null, cac: store ? w.cac : null,
       gross_profit: store && costsOk ? w.gross_profit : null, profit: store && costsOk ? w.cm : null, costs_ok: costsOk,
       plan_sales: plan ? plan.sales : null, plan_spend: plan ? plan.spend : null,
-      goal_mer: a.goals && ok(a.goals.sales) && a.goals.spend ? a.goals.sales / a.goals.spend : null,
+      no_goal: noGoal,
+      goal_mer: !noGoal && a.goals && ok(a.goals.sales) && a.goals.spend ? a.goals.sales / a.goals.spend : null,
       goal_roas: +g.target_roas > 0 ? +g.target_roas : null, goal_cost: +g.target_cpa > 0 ? +g.target_cpa : null,
       platforms,
       prev: a.prev ? { sales: a.prev.sales ?? null, spend: a.prev.spend ?? null, meta_spend: a.prev.meta_spend ?? null, google_spend: a.prev.google_spend ?? null } : null,
@@ -61,6 +64,11 @@ export async function readBrands(ctx, { from, to, preset } = ctx.range, { cmp = 
     };
   });
   return { window: { from: ov.from || from, to: ov.to || to }, rules: { behind_pct: +behind || 10 }, brands, daily: dailyOf(brands) };
+}
+/** 'YYYY-MM' -> 'November' (the month a goal is missing for); 'this month' when unknown. */
+export function monthWord(ym) {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(ym || ''));
+  return m ? new Date(Date.UTC(+m[1], +m[2] - 1, 15)).toLocaleString('en-US', { month: 'long', timeZone: 'UTC' }) : 'this month';
 }
 /** Every brand's days added up: sales (brands with a sales source only) and ad spend. */
 export function dailyOf(brands) {
@@ -79,7 +87,7 @@ export function dailyOf(brands) {
 /** { tone, text, act, rank } for a brand against its plan. behindPct comes from the agency's pace alert setting. */
 export function paceOf(b, behindPct = 10) {
   if (!b.store) return { tone: 'warn', text: 'Store not connected', act: true, rank: 2, pace: null };
-  if (!ok(b.plan_sales) || !(b.plan_sales > 0)) return { tone: 'off', text: 'No plan set', act: false, rank: 3, pace: null };
+  if (!ok(b.plan_sales) || !(b.plan_sales > 0)) return { tone: 'off', text: b.no_goal ? 'No goal set for ' + b.no_goal : 'No plan set', act: false, rank: 3, pace: null };
   const pace = b.sales / b.plan_sales, cut = 1 - behindPct / 100;
   if (pace < cut) return { tone: 'bad', text: 'Behind plan', act: true, rank: 0, pace };
   if (pace < 0.98) return { tone: 'warn', text: 'Just under plan', act: false, rank: 4, pace };

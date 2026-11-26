@@ -17,6 +17,7 @@ import { put } from '../../kit.js';
 import { homeNotices } from '../automations/_notices.js';
 import { APP_NAME, OLD_LOCUS } from '../../config.js';
 import { askWhy, helpBar, dl, rangeWords } from './_biz.js';
+import { monthWord } from '../a-today/_ag.js';
 import { h, money, num, pct, x, card, hero, em, kpi, kpis, takeaway, button, platformChip, statusDot, pill,
   delta, count, gauge, legend, lineChart, dateBlock, table, empty, addStyles } from '../../kit.js';
 
@@ -102,7 +103,9 @@ function shape({ win, cl, paid, ov, buy, season, goals, isClient }) {
   const costsBroken = !!(acct.cost_health && acct.cost_health.verdict === 'broken');
   const t = cl.totals || {};
   const source = !!((cl.account && cl.account.tw_shop) || rows.some(r => r.sales > 0));
-  const g = cl.goals || {}, p = cl.plan || null;
+  /* goals_planned false: no goal for this month; goals and plan hold an earlier month's numbers and are never shown */
+  const noGoal = cl.goals_planned === false ? monthWord(cl.month || (cl.plan && cl.plan.month) || String(win.from || '').slice(0, 7)) : null;
+  const g = noGoal ? {} : cl.goals || {}, p = noGoal ? null : cl.plan || null;
   const planMer = ok(g.sales) && g.spend > 0 ? g.sales / g.spend : null;
   const today = (season && season.today) || iso(new Date());
 
@@ -129,6 +132,7 @@ function shape({ win, cl, paid, ov, buy, season, goals, isClient }) {
     profit_withheld: costsBroken,
     /* a plan is agreed per month, so it is only compared on "This month"; any other dates show the numbers alone */
     plan: win.preset === 'month' && p && (ok(p.sales) || ok(p.spend)) ? { sales: p.sales ?? null, spend: p.spend ?? null } : null,
+    no_goal: win.preset === 'month' ? noGoal : null,
     /* the brand's own goal first; the month plan (sales over spend) only when no goal ROAS is set */
     goal: { mer: (goals && goals.roas) || planMer || null, cac: (goals && goals.cpa) || null },
     days,
@@ -158,7 +162,7 @@ function heroBlock(data, ctx) {
   };
   const cac = ok(t.cac) ? Math.round(t.cac) : null;
   const list = [
-    { label: dl('Sales', 'sales'), value: money(t.sales), ...vsPlan(t.sales, p && p.sales), spark: days.map(d => d.sales), href: ctx.href('month', 'pace') },
+    { label: dl('Sales', 'sales'), value: money(t.sales), ...(data.no_goal ? { sub: 'No goal set for ' + data.no_goal } : vsPlan(t.sales, p && p.sales)), spark: days.map(d => d.sales), href: ctx.href('month', 'pace') },
     { label: dl('Ad spend', 'ad_spend'), value: money(t.spend), ...vsPlan(t.spend, p && p.spend, { cost: true }), spark: days.map(d => d.spend), href: ctx.href('platforms', 'side-by-side') },
     { label: dl('New customers', 'new_customers'), value: num(t.new_customers), small: cac != null ? money(cac) + ' each' : null,
       sub: g.cac && cac != null ? statusDot(cac <= g.cac ? 'good' : 'warn', 'goal ' + money(g.cac) + ' each') : null,
