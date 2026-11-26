@@ -5,7 +5,7 @@
    Window: this month so far, through yesterday. */
 
 import { put } from '../../kit.js';
-import { h, em, svgNode, money, pct, x, button, platformChip, statusDot, delta, takeaway, card, legend, lineChart, gauge, table, empty, addStyles } from '../../kit.js';
+import { h, em, svgNode, money, pct, x, button, platformChip, statusDot, delta, takeaway, card, legend, lineChart, gauge, table, empty, addStyles, handEm } from '../../kit.js';
 import { icon, PLATFORM_NAME } from '../../icons.js';
 
 /* ---------- dates ---------- */
@@ -173,7 +173,9 @@ function render(el, data, ctx) {
     team && sug.length ? k('Suggestions to decide', big(String(sugTotal)),
       sug.map(v => `${PLATFORM_NAME[v[0]]} ${v[1]}`).join(', '), sugHref) : null,
   ].filter(Boolean);
-  const heroBand = h('section', { class: 'lx-hero line' }, h('div', { class: 'lx-kpis', style: { '--cols': figures.length } }, figures));
+  /* a seven figure spend is wider than a hand written row allows for: tell the row, so the tile keeps its number inside */
+  const hand = handEm([money(d.spend), hasSales ? x(d.mer) : '', top ? pct(share(top)) : '', String(sugTotal)]);
+  const heroBand = h('section', { class: 'lx-hero line' }, h('div', { class: 'lx-kpis', style: hand ? { '--cols': figures.length, '--kpi-hand': hand } : { '--cols': figures.length } }, figures));
 
   /* --- the one sentence --- */
   let take = null;

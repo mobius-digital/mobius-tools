@@ -5269,6 +5269,8 @@ async function sendReport(env, acct, period, start) {
     `SELECT * FROM reports WHERE act_id = ?1 AND period = ?2 AND period_start = ?3`,
   ).bind(acct.act_id, period, start).first();
   if (!row) throw new Error('no report generated for that period yet');
+  // "Do not send" (POST /api/report-skip) holds on every surface: Slack and Locus both refuse it here.
+  if (row.status === 'skipped') throw new Error('this report is marked Do not send, so it is not sent');
   const data = safeJson(row.data_json, null);
   if (!data) throw new Error('this report has no data - regenerate it first');
   // ONE client destination per brand, shared by the brief and both reports.
@@ -6361,9 +6363,13 @@ async function reportCard(env, acct, row, banner) {
   const blocks = [];
   // Same rule as briefCard: a draft for an internal-only brand is handled.
   const handled = row.status === 'handled' || (row.status !== 'sent' && internalOnly(acct));
+  // Marked "Do not send" in Locus (POST /api/report-skip): read only here, no send or edit buttons.
+  const skipped = row.status === 'skipped';
 
   const head = row.status === 'sent'
     ? `:white_check_mark: *${label} report sent to the client - ${acct.name}* (${range})`
+    : skipped
+    ? `:no_entry_sign: *${label} report - ${acct.name}* (${range})  ·  _marked Do not send in Locus; nothing goes out_`
     : handled
       ? `:white_check_mark: *${label} report - ${acct.name}* (${range})  \u00b7  _internal only; no client channel, so nothing goes out_`
       /* 2026-11-09 (the lane format, lane.js): a draft is Cole's ask, lane first. */
@@ -6390,7 +6396,9 @@ async function reportCard(env, acct, row, banner) {
      reporting template". He is right, and this is a straight revert to the
      compact notice - headline, link, done - with the buttons kept, which were
      the actual point of the change. */
-  const notes = [handled
+  const notes = [skipped
+    ? `<${locusUrl}|Open the full report in Locus>. Marked Do not send, so nothing goes to the client.`
+    : handled
     ? `<${locusUrl}|Open the full report in Locus>. Nothing is sent for this brand - it is handled the moment it is written.`
     : `<${locusUrl}|Open the full report in Locus>  ·  <${clientUrl}|What the client sees>. The client receives the text above, nothing else.`];
   if (row.status === 'sent' && row.sent_channel) notes.push(`Posted to <#${row.sent_channel}>${row.sent_at ? ` at ${shortTime(row.sent_at)} Central` : ''}. A sent report is frozen.`);
@@ -6400,7 +6408,7 @@ async function reportCard(env, acct, row, banner) {
   blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: notes.join('  \u00b7  ') }] });
 
   const els = [];
-  if (row.status !== 'sent') {
+  if (row.status !== 'sent' && !skipped) {
     if (!handled) {
       els.push(btn('Send to client', 'report_send', v, { style: 'primary', confirm: confirmDialog(
         'Send this report to the client?',
@@ -6413,7 +6421,7 @@ async function reportCard(env, acct, row, banner) {
   els.push(btn('Open in Locus', 'noop_open', v, { url: LOCUS_REPORTS(acct.act_id) }));
   blocks.push({ type: 'actions', elements: els });
 
-  return { text: row.status === 'sent' || handled ? `${label} report ${row.status === 'sent' ? 'sent' : 'ready (internal only)'} - ${acct.name} (${range})` : `CLIENT · ${acct.name}: Read and send the ${label.toLowerCase()} update (${range})`, blocks };
+  return { text: row.status === 'sent' || skipped || handled ? `${label} report ${row.status === 'sent' ? 'sent' : skipped ? 'not sent (Do not send)' : 'ready (internal only)'} - ${acct.name} (${range})` : `CLIENT · ${acct.name}: Read and send the ${label.toLowerCase()} update (${range})`, blocks };
 }
 
 /* ---- Keep the card in step with the row, whichever surface moved it ---- */
@@ -6685,23 +6693,30 @@ async function handleSlackInteract(request, env, ctx) {
     const tap = payload.type === 'block_actions' ? (payload.actions || []).find(a => a.action_id === 'ask_apply' || a.action_id === 'ask_cancel') : null;
     if (tap) {
       const val = safeJson(tap.value, {});
-      const { engine, h } = strategist();
+      const job = { kind: 'ask_tap', askp: String(val.askp || ''), cancel: !!val.cancel, response_url: payload.response_url || null, channel: payload.channel?.id || null,
+        user: { id: payload.user?.id || null, name: payload.user?.name || payload.user?.username || null } };
       /* 2026-10-15: applied after the ack. A grouped card (Apply all) runs several changes in a row, past Slack's 3 seconds. */
-      const say = body => payload.response_url ? xfetch(payload.response_url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => {}) : null;
       ctx.waitUntil((async () => {
         /* Only Cole and the team apply a card (slackaccess.js); a guest or an outsider in a shared channel cannot. */
-        if (!val.cancel) {
-          const g = await whoIs(env, accessDeps(), payload.user?.id).catch(() => ({ ok: false }));
-          if (!g.ok || g.role === 'guest') { await slackWhisper(env, payload.channel?.id, payload.user?.id, 'Only the Mobius Digital team can apply this.'); return; }
+        if (!job.cancel) {
+          const g = await whoIs(env, accessDeps(), job.user.id).catch(() => ({ ok: false }));
+          if (!g.ok || g.role === 'guest') { await slackWhisper(env, job.channel, job.user.id, 'Only the Mobius Digital team can apply this.'); return; }
         }
-        const many = String(val.askp || '').includes(',') && !val.cancel;
-        if (many) await say({ replace_original: true, text: 'Applying them now...' });
-        const res = await engine.applyProposal(env, String(val.askp || ''), h(), { cancel: !!val.cancel, ctx: { ...askCaller(env, 'Bearer ' + (env.ADMIN_TOKEN || ''), ctx), who: payload.user?.name || payload.user?.username || (payload.user?.id ? `<@${payload.user.id}>` : null), whoId: payload.user?.id || null } }).catch(e => ({ error: String(e.message || e) }));
-        /* A note that carries a Locus or share link (a saved dashboard, a scenario, a Studio batch) gets it as a button too. */
-        const done = res.group ? (res.error ? '⚠️ ' + res.error : res.note) : res.error ? '⚠️ ' + res.error : res.cancelled ? '✓ Left as it was.' : `✓ ${res.note || res.summary || 'Applied.'}`;
-        const link = !res.error && !res.cancelled ? (String(res.note || '').match(/https:\/\/(?:tools\.go-mobius-digital\.com|mobius-[a-z-]+\.mobius-digital\.workers\.dev|next\.frame\.io|f\.io)\/[^\s)]+/) || [])[0]?.replace(/[.,;]+$/, '') : null;
-        await say({ replace_original: true, text: done, ...(link || res.group ? { blocks: [{ type: 'section', text: { type: 'mrkdwn', text: done.slice(0, 2900) } },
-          ...(link ? [{ type: 'actions', elements: [{ type: 'button', action_id: 'noop_open', style: 'primary', text: { type: 'plain_text', text: /\?open=dash/.test(link) ? 'Open the dashboard' : 'Open it' }, url: link }] }] : [])] } : {}) });
+        /* 2026-11-26: every Apply tap goes through IDEA_Q like a normal answer, since waitUntil after Slack's ack dies
+           after about thirty seconds. A held tool (an image, a Studio batch, an analysis) runs for minutes, and so can an
+           action: an "Apply all" group of Meta changes, or a new video ad waiting on Meta's processing. applyProposal
+           drops the card before apply, so an apply cut short there would leave a dead card and a half-done change. The
+           card is only dropped inside the queue run, so a failed send leaves it there to tap again. */
+        if (!job.cancel && env.IDEA_Q) {
+          try {
+            await env.IDEA_Q.send(job);
+            await askTapSay(job, { replace_original: true, text: 'Working on it now. The result lands here when it is done.' });
+          } catch (e) {
+            await askTapSay(job, { replace_original: false, response_type: 'ephemeral', text: `⚠️ Could not start it (${e.message}). Nothing ran and the card is still here: tap Apply again.` });
+          }
+          return;
+        }
+        await runAskTap(env, job, ctx);
       })());
       return ACK();
     }
@@ -6714,6 +6729,24 @@ async function handleSlackInteract(request, env, ctx) {
       `That did not work: ${e.message}`).catch(() => {});
   }
   return ACK();
+}
+
+/* The Strategist's Apply / No thanks tap, run (2026-11-26: shared by the button request and the IDEA_Q consumer, where
+   a held tool gets minutes instead of the thirty seconds waitUntil has after the ack). job: { askp, cancel,
+   response_url, channel, user: { id, name } }. */
+const askTapSay = (job, body) => job.response_url ? xfetch(job.response_url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => {}) : null;
+async function runAskTap(env, job, execCtx) {
+  const { engine, h } = strategist();
+  const many = String(job.askp || '').includes(',') && !job.cancel;
+  if (many) await askTapSay(job, { replace_original: true, text: 'Applying them now...' });
+  const who = job.user?.name || (job.user?.id ? `<@${job.user.id}>` : null);
+  const res = await engine.applyProposal(env, String(job.askp || ''), h(), { cancel: !!job.cancel, ctx: { ...askCaller(env, 'Bearer ' + (env.ADMIN_TOKEN || ''), execCtx), who, whoId: job.user?.id || null } }).catch(e => ({ error: String(e.message || e) }));
+  /* A note that carries a Locus or share link (a saved dashboard, a scenario, a Studio batch) gets it as a button too. */
+  const done = res.group ? (res.error ? '⚠️ ' + res.error : res.note) : res.error ? '⚠️ ' + res.error : res.cancelled ? '✓ Left as it was.' : `✓ ${res.note || res.summary || 'Applied.'}`;
+  const link = !res.error && !res.cancelled ? (String(res.note || '').match(/https:\/\/(?:tools\.go-mobius-digital\.com|mobius-[a-z-]+\.mobius-digital\.workers\.dev|next\.frame\.io|f\.io)\/[^\s)]+/) || [])[0]?.replace(/[.,;]+$/, '') : null;
+  await askTapSay(job, { replace_original: true, text: done, ...(link || res.group ? { blocks: [{ type: 'section', text: { type: 'mrkdwn', text: done.slice(0, 2900) } },
+    ...(link ? [{ type: 'actions', elements: [{ type: 'button', action_id: 'noop_open', style: 'primary', text: { type: 'plain_text', text: /\?open=dash/.test(link) ? 'Open the dashboard' : 'Open it' }, url: link }] }] : [])] } : {}) });
+  return res;
 }
 
 /* A brand by any id it has had: Slack buttons posted before phase 3 carry the old act_ id. */
@@ -7326,8 +7359,20 @@ async function verifySession(env, token) {
   return { email, exp: +exp };
 }
 
+/* settings.removedEmails: people taken off on the Team screen. The owner can never be on it. */
+async function isRemovedEmail(env, email) {
+  const e = String(email || '').toLowerCase();
+  if (!e || e === String(env.OWNER_EMAIL || 'cole@go-mobius-digital.com').toLowerCase()) return false;
+  const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'removedEmails'`).first().catch(() => null);
+  return (safeJson(row?.value, []) || []).map(x => String(x).toLowerCase()).includes(e);
+}
+
 async function emailAllowed(env, email) {
   if (!email) return false;
+  /* Removed on the Team screen (journey audit 2026-11-26): checked BEFORE the domain rule, so a
+     removed teammate on the company domain is shut out too, not let back in as a full admin.
+     isAdmin calls this on every request, so a removal ends that person's sessions at once. */
+  if (await isRemovedEmail(env, email)) return false;
   if (email.toLowerCase().endsWith('@' + ALLOWED_DOMAIN)) return true;
   const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'allowedEmails'`).first().catch(() => null);
   const extra = safeJson(row?.value, []);
@@ -7364,6 +7409,14 @@ async function googleLogin(env, credential, invite) {
    press nothing that leaves the building - no send to client, no plan save, no
    margin override, no settings, no sync. It reuses the read-only gate the demo
    account already proved, rather than inventing a second permission model. */
+/* The only writes a viewer's sign-in may make (the door check in handle): its own prefs and bell,
+   reading and summing up, and signing in. Everything else that is not a GET is refused. */
+const VIEWER_MAY = new Set([
+  '/api/me/prefs', '/api/me/morning', '/api/me/delivery', '/api/notices/done',
+  '/api/read', '/api/daycheck', '/api/summarise',
+  '/api/google-login', '/api/hq-signin', '/api/clients/signin', '/api/clients/login-link',
+]);
+
 async function roleFor(env, email) {
   if (!email) return 'admin';
   try {
@@ -7650,7 +7703,9 @@ onActionDone((env, row) => blockActionDone(env, row));
 setBlockDone((env, id, o) => markDone(env, id, true, o));
 const blockDeps = () => ({ getSetting, putSetting });
 /* standing.js: Triple Whale as the owner over the PROFIT binding, Meta through metawrite, the DM through slackApi. */
-function standingDeps() { return { mintSession, slackApi, xfetch, listAccounts, getSetting, putSetting, isAdmin, sessionEmail, brandsFor, get buyer() { return buyerDeps(); } }; }
+function standingDeps() { return { mintSession, slackApi, xfetch, listAccounts, getSetting, putSetting, isAdmin, sessionEmail, brandsFor, get buyer() { return buyerDeps(); },
+  /* The War Room's campaign table reads TODAY's Triple Whale orders per campaign: pull that window live first. */
+  twAttr: async (env, act, from, to) => { const a = (await listAccounts(env)).find(x => x.act_id === act); return a ? syncTwAttribution(env, a, 0, { from, to }) : null; } }; }
 function hubDeps() {
   return { getSetting, putSetting, listAccounts, localDate, addDays, centralHour, centralDate, slackPost, slackApi,
     subCanAfford, strategist, isAdmin, sessionEmail, postDashboard, auto: autoDeps() };
@@ -7899,7 +7954,8 @@ async function strategistSlackAnswer(env, ev, screen) {
   /* who: the asker's Slack name, so a change made straight from a message is logged as theirs in the Change Log. */
   const u = ev.user ? await slackApi(env, 'users.info', { user: ev.user }).catch(() => null) : null;
   const who = u?.user?.real_name || u?.user?.profile?.real_name || u?.user?.name || (ev.user ? `<@${ev.user}>` : null);
-  /* A guest (an outside person on the Slack access list) reads only: no call, so nothing applies straight from a message. */
+  /* Nothing applies straight from a message for anyone (2026-11-25, always a tap: ask/engine.js). A guest (an outside
+     person on the Slack access list) and a tap-only channel also get no caller, so their answer reads only. */
   return engine.answerSlack(env, ev, h(), { findings: findings.slice(0, 6), ...(screen ? { screen } : {}), who, call: screen?.guest || screen?.tapOnly ? null : askCaller(env, 'Bearer ' + (env.ADMIN_TOKEN || ''), null).call });
 }
 
@@ -8080,6 +8136,8 @@ const AH_APP = {
     for (const m of batch.messages) {
       if (m.body?.kind === 'welcome') await welcomeOnJoinByChannel(env, m.body.channel).catch(e => console.log('welcome job: ' + e.message));
       else if (m.body?.kind === 'strategist') await strategistSlackAnswer(env, m.body.ev, m.body.screen).catch(e => console.log('strategist job: ' + e.message));
+      /* An Apply tap on a held tool (an image, a Studio batch, an analysis): minutes here, not waitUntil's thirty seconds. */
+      else if (m.body?.kind === 'ask_tap') await runAskTap(env, m.body, null).catch(async e => { console.log('ask tap job: ' + e.message); await askTapSay(m.body, { replace_original: true, text: `⚠️ ${e.message}` }); });
       /* The Strategist pressed Make (studiomake.js): plan, make, post the ads in the thread. */
       else if (m.body?.kind === 'studio_make') await runStudioMake(env, strategistDeps(), m.body).catch(async e => { console.log('studio make job: ' + e.message); if (m.body.channel) await slackApi(env, 'chat.postMessage', { channel: m.body.channel, thread_ts: m.body.thread, text: `Making the ads failed: ${e.message}` }).catch(() => {}); });
       else if (env.IDEAS_BOT !== 'off') await runIdeaJob(env, m.body).catch(e => console.log('idea job: ' + e.message));
@@ -8307,6 +8365,21 @@ const AH_APP = {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, '') || '/';
     if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });
+
+    /* VIEW-ONLY AT THE DOOR (journey audit 2026-11-26). The old gate sat after about forty write
+       routes (ads, cards, tasks, goals, costs), so a viewer could still change them. One check here,
+       before any handler: a viewer's sign-in may only write its own prefs, mark its own bell rows
+       done and sign in. sessionEmail is null for the admin key and for signed webhooks, and roleFor
+       says admin for anyone not listed, so nobody else is affected. /api/ask stays closed on purpose:
+       it can apply changes. */
+    if (!['GET', 'HEAD'].includes(request.method) && path.startsWith('/api/') && !VIEWER_MAY.has(path)) {
+      const viewerWho = await sessionEmail(env, request).catch(() => null);
+      /* The owner is never view-only, so a bad role on his row can never lock him out of every write. */
+      const ownerAddr = String(env.OWNER_EMAIL || 'cole@go-mobius-digital.com').toLowerCase();
+      if (viewerWho && String(viewerWho).toLowerCase() !== ownerAddr && (await roleFor(env, viewerWho)) === 'viewer') {
+        return json({ error: 'Your account has view-only access, so this cannot be changed. Ask an admin on your team.' }, 403);
+      }
+    }
 
     /* BUTTONS ON THE SLACK CARD. Every action the Daily Brief and Reports tabs
        offer, available where the draft already is. Unauthenticated by design:
@@ -8972,7 +9045,8 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (path === '/api/ask/todo/shopify-sent' && request.method === 'POST') { const o = await markShopifySent(env, String(body.run || '')); return o.error ? json(o, 404) : json(o); }
       if (path === '/api/ask/todo/skip' && request.method === 'POST') { try { return json(await todoSkip(env, body.run, String(body.key || ''))); } catch (e) { return json({ error: e.message }, e.status || 500); } }
       /* Check now (Cole's button): every look at once, for one brand or all. */
-      if (path === '/api/ask/connect/check') return json(await connectNow(env, 'all', body.act || null));
+      /* POST only (the screen button posts): it assigns Meta users, writes connections and sends Google link requests. */
+      if (path === '/api/ask/connect/check' && request.method === 'POST') return json(await connectNow(env, 'all', body.act || null));
       if (path === '/api/ask/access' && request.method === 'POST' && (body.sweep || body.dry)) return json(await partnerSweep(env, idxDeps(), { dry: !!body.dry }));
       if (path === '/api/ask/access') return json(request.method === 'POST' ? await grantSelf(env, idxDeps(), { act: body.act || null }) : await accessReport(env, idxDeps()));
       if (path === '/api/ask/index') {
@@ -8982,7 +9056,9 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (path === '/api/ask/reports') return json({ reports: await engine.reportsList(env, h()) });
       if (path === '/api/ask/findings') return json({ findings: await engine.openFindings(env, h()),
         briefing: safeJson(await getSetting(env, engine.keys.lastBriefing), null), memory: await engine.memory(env, h()), brief: await engine.getBrief(env, h()),
-        channel: await getSetting(env, 'strategistChannel'), playbook: await engine.getPlaybook(env, h()), pending: await engine.pendingList(env, h()) });
+        channel: await getSetting(env, 'strategistChannel'), playbook: await engine.getPlaybook(env, h()),
+        /* The card words only (2026-11-26): a held input (a file, a report, rows) never goes to a team screen. */
+        pending: await engine.pendingCards(env, h()) });
       if (path === '/api/ask/finding' && request.method === 'POST') {
         if (!body.key) return json({ error: 'key required' }, 400);
         return json(await engine.setFindingState(env, String(body.key), String(body.state || 'done')));
@@ -9896,18 +9972,13 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       return json({ ok: true, results: out });
     }
 
-    /* View-only accounts read everything and change nothing. GET-only is the
-       entire rule - simple enough to hold in your head and to explain to the
-       person it applies to. Anyone not listed in settings.userRoles is an admin,
-       so this is inert until a role is actually assigned. */
+    /* View-only accounts read everything and change nothing: that check now runs at the door
+       (top of handle, VIEWER_MAY), before every write route instead of after most of them. */
     const who = await sessionEmail(env, request);
     /* The owner: Cole's own sign-in, or the admin key (which carries no name). A sign-in with no name is not. */
     const ownerEmail = String(env.OWNER_EMAIL || 'cole@go-mobius-digital.com').toLowerCase();
     const adminKey = !!env.ADMIN_TOKEN && request.headers.get('Authorization') === 'Bearer ' + env.ADMIN_TOKEN;
     const isOwner = adminKey || (!!who && String(who).toLowerCase() === ownerEmail);
-    if (request.method !== 'GET' && (await roleFor(env, who)) === 'viewer') {
-      return json({ error: 'Your account has view-only access, so this cannot be changed. Ask an admin on your team.' }, 403);
-    }
 
     /* ---- Team: who can sign in, and at what level ----
        `allowedEmails` (who may sign in from outside the Mobius domain) and
@@ -9922,12 +9993,18 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       const extra = (safeJson(ae?.value, []) || []).map(e => String(e).toLowerCase());
       const roles = safeJson(ur?.value, {}) || {};
       const ub = safeJson((await env.DB.prepare(`SELECT value FROM settings WHERE key = 'userBrands'`).first().catch(() => null))?.value, {}) || {};
-      // Everyone we know about: invited guests, anyone with an explicit role, anyone with a brand list.
-      const emails = [...new Set([...extra, ...Object.keys(roles).map(e => e.toLowerCase()), ...Object.keys(ub).map(e => e.toLowerCase())])].sort();
+      const removed = (safeJson((await env.DB.prepare(`SELECT value FROM settings WHERE key = 'removedEmails'`).first().catch(() => null))?.value, []) || []).map(e => String(e).toLowerCase());
+      // Everyone we know about: invited guests, anyone with an explicit role, anyone with a brand list, anyone removed.
+      const emails = [...new Set([...extra, ...Object.keys(roles).map(e => e.toLowerCase()), ...Object.keys(ub).map(e => e.toLowerCase()), ...removed])].sort();
       const owner = String(env.OWNER_EMAIL || 'cole@go-mobius-digital.com').toLowerCase();
       return json({
         domain: ALLOWED_DOMAIN, you: who, owner, can_set_brands: isOwner,
-        members: emails.map(e => ({ email: e, role: roles[e] === 'viewer' ? 'viewer' : 'admin', guest: extra.includes(e), brands: Array.isArray(ub[e]) ? ub[e] : [] })),
+        /* Tells the v5 Team screen this server removes safely and asks brands for a new guest. */
+        safe_remove: true, needs_brands_for_guests: true,
+        members: emails.map(e => ({
+          email: e, role: roles[e] === 'viewer' ? 'viewer' : 'admin', guest: extra.includes(e), brands: Array.isArray(ub[e]) ? ub[e] : [],
+          ...(removed.includes(e) && e !== owner ? { removed: true } : {}),
+        })),
       });
     }
     if (path === '/api/team' && request.method === 'PUT') {
@@ -9943,30 +10020,53 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       let extra = (safeJson(ae?.value, []) || []).map(e => String(e).toLowerCase());
       const roles = safeJson(ur?.value, {}) || {};
       const onDomain = email.endsWith('@' + ALLOWED_DOMAIN);
-      if (b.remove) {
-        // Never let someone remove their own access and lock themselves out.
-        if (who && email === String(who).toLowerCase()) return json({ error: 'You cannot remove your own access.' }, 400);
-        extra = extra.filter(e => e !== email);
-        delete roles[email];
-      } else {
-        if (!onDomain && !extra.includes(email)) extra.push(email);   // domain accounts need no invite
-        if (role === 'viewer') roles[email] = 'viewer'; else delete roles[email];
-      }
+      const owner = String(env.OWNER_EMAIL || 'cole@go-mobius-digital.com').toLowerCase();
+      const rmRow = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'removedEmails'`).first().catch(() => null);
+      let removed = (safeJson(rmRow?.value, []) || []).map(e => String(e).toLowerCase());
       /* Per-brand access (brandguard.js): only the owner sets who sees which brands, so nobody can widen
          their own. [] = every brand; the entry also keeps a domain teammate on the list. */
       const ubRow = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'userBrands'`).first().catch(() => null);
       const ub = safeJson(ubRow?.value, {}) || {};
-      const owner = String(env.OWNER_EMAIL || 'cole@go-mobius-digital.com').toLowerCase();
-      if (b.remove) delete ub[email];
-      else if (Array.isArray(b.brands)) {
+      if (b.remove) {
+        // Never let someone remove their own access and lock themselves out.
+        if (who && email === String(who).toLowerCase()) return json({ error: 'You cannot remove your own access.' }, 400);
+        if (email === owner) return json({ error: 'The owner cannot be removed.' }, 400);
+        /* Remove = on the removed list (emailAllowed refuses it before the domain rule). The role and
+           brand limits are KEPT: deleting them made a company-email person a full admin with every
+           brand, and a later re-invite must never widen what they had. */
+        extra = extra.filter(e => e !== email);
+        if (!removed.includes(email)) removed.push(email);
+        await putSetting(env, 'allowedEmails', JSON.stringify(extra));
+        await putSetting(env, 'removedEmails', JSON.stringify(removed));
+        return json({ ok: true, email, removed: true, role: roles[email] === 'viewer' ? 'viewer' : 'admin', guest: false, brands: Array.isArray(ub[email]) ? ub[email] : [] });
+      }
+      if (email === owner && role === 'viewer') return json({ error: 'The owner can always change things.' }, 400);
+      /* A new outside guest starts with NO brands: it must come with the brands it may see
+         ([] would mean every brand). */
+      const newGuest = !onDomain && !extra.includes(email) && !(email in ub);
+      if (newGuest && !(Array.isArray(b.brands) && b.brands.length)) return json({ error: 'Pick the brands this person may see.' }, 400);
+      if (Array.isArray(b.brands)) {
         if (!isOwner) return json({ error: 'Only Cole can change which brands someone sees.' }, 403);
         if (email === owner) return json({ error: 'The owner always sees every brand.' }, 400);
         /* Brand ids (old act_ ids from an older screen are resolved to theirs). */
-        ub[email] = (await Promise.all(b.brands.map(x => resolveBrandId(env, String(x))))).filter(isBrandId);
-      } else if (!(email in ub)) ub[email] = [];
+        const ids = [];
+        for (const x of b.brands) {
+          const id = await resolveBrandId(env, String(x)).catch(() => '');
+          if (!isBrandId(id) || ids.includes(id)) continue;
+          /* Only a brand that exists counts, so a typo never leaves a new guest on [] (every brand). */
+          if (await env.DB.prepare(`SELECT id FROM brands WHERE id = ?1`).bind(id).first().catch(() => null)) ids.push(id);
+        }
+        if (b.brands.length && !ids.length) return json({ error: 'None of those brands were found.' }, 400);
+        ub[email] = ids;
+      } else if (onDomain && !(email in ub)) ub[email] = [];   // keeps a domain teammate on the list
+      if (!onDomain && !extra.includes(email)) extra.push(email);   // domain accounts need no invite
+      if (role === 'viewer') roles[email] = 'viewer'; else delete roles[email];
+      // Saving a person (not removing) is how a removed person is let back in.
+      removed = removed.filter(e => e !== email);
       await putSetting(env, 'allowedEmails', JSON.stringify(extra));
       await putSetting(env, 'userRoles', JSON.stringify(roles));
       await putSetting(env, 'userBrands', JSON.stringify(ub));
+      await putSetting(env, 'removedEmails', JSON.stringify(removed));
       return json({ ok: true, email, role, guest: extra.includes(email), brands: ub[email] || [] });
     }
 
@@ -10889,7 +10989,22 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
            ${act && act !== 'all' ? 'WHERE r.act_id = ?1' : ''}
            ORDER BY r.period_start DESC, r.period LIMIT 80`,
         ).bind(...(act && act !== 'all' ? [act] : [])).all();
-        return json({ rows: results, lastRun: safeJson(await getSetting(env, 'lastReportRun'), null) });
+        /* can_skip: this server has POST /api/report-skip (the Do not send action). */
+        return json({ rows: results, lastRun: safeJson(await getSetting(env, 'lastReportRun'), null), can_skip: true });
+      }
+      /* "Do not send" for one report (journey audit 2026-11-26), the report's twin of /api/brief-skip. Marks ONE
+         unsent report skipped so the unsent reminders stop carrying it. Never deletes; a sent report is frozen. */
+      if (path === '/api/report-skip' && request.method === 'POST') {
+        const b = await request.json().catch(() => ({}));
+        const acct = await acctOf(env, b.act);
+        if (!acct) return json({ error: 'unknown account' }, 404);
+        if (!['weekly', 'monthly'].includes(b.period) || !/^\d{4}-\d{2}-\d{2}$/.test(String(b.start || ''))) return json({ error: 'Say which report: period (weekly or monthly) and start (YYYY-MM-DD).' }, 400);
+        const r = await env.DB.prepare(
+          `UPDATE reports SET status = 'skipped' WHERE act_id = ?1 AND period = ?2 AND period_start = ?3 AND status IN ('draft','handled')`,
+        ).bind(acct.act_id, b.period, b.start).run();
+        if (!r.meta?.changes) return json({ error: 'There is no unsent report for that period (a sent report is frozen).' }, 400);
+        await slackSyncReport(env, acct, b.period, b.start, 'Not sent: marked Do not send in Locus').catch(() => {});
+        return json({ ok: true, skipped: true });
       }
       if (path === '/api/report' && request.method === 'GET') {
         const row = await env.DB.prepare(

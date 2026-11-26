@@ -1,11 +1,12 @@
 /* Requests: one list of everything between the team and the client. Approvals we sent, things we asked them for,
-   and things they asked us for, with the thread under each one. Read only here: replying, approving and marking
-   done stay in old Locus (ctx.legacy) until this page gets its buttons.
+   and things they asked us for, with the thread under each one. A client signed in answers an open approval here in
+   one tap: Approve, or Ask for changes with a note (account-health POST /api/requests/decide { act, id, decision, note }).
+   Replying and the team's own actions stay in old Locus (ctx.legacy) until this page gets those buttons.
    Live data: GET /api/requests?act=<brand id | all> (account-health). A client can read it for their own brand. */
 
 import { APP_NAME } from '../../config.js';
 import { put } from '../../kit.js';
-import { h, hero, kpis, kpi, statusDot, button, segmented, sheet, em, empty } from '../../kit.js';
+import { h, hero, kpis, kpi, statusDot, button, segmented, sheet, em, empty, toast } from '../../kit.js';
 import { fixture } from '../../data.js';
 import { css, short, dayOf, away, between, todayYmd, heading, row, list, brandTag, colorOf } from '../calendar/_cr.js';
 
@@ -30,7 +31,39 @@ function statusOf(it, client) {
 }
 const lastAt = it => (it.thread && it.thread.length ? it.thread[it.thread.length - 1].at : null) || it.updated_at || it.created_at;
 
-function detail(it, ctx, agency) {
+/** Approve or Ask for changes, for a client on an open approval. Returns the buttons, or null. */
+function answerButtons(it, ctx, close, redraw) {
+  const real = ctx.isClient && (ctx.sample || !ctx.asClient);
+  if (!real || it.kind !== 'approval' || it.status !== 'open') return null;
+  const note = h('textarea', { class: 'lx-input', rows: 4, placeholder: 'What would you like changed?', 'aria-label': 'What would you like changed', hidden: true });
+  let asking = false;
+  const save = async (decision, text) => {
+    yes.disabled = ch.disabled = true;
+    try {
+      if (ctx.sample) toast('Sample: nothing saved');
+      else {
+        await ctx.api('/api/requests/decide', { worker: 'ah', method: 'POST', body: { act: it.act_id || (ctx.brand && ctx.brand.id), id: it.id, decision, ...(text ? { note: text } : {}) } });
+        toast(decision === 'approved' ? 'Approved' : 'Sent to the team');
+      }
+      const patch = { status: decision, decided_at: new Date().toISOString(), decided_by: 'You', ...(text ? { decision_note: text } : {}) };
+      Object.assign(it, patch);
+      close(); redraw(patch);
+    } catch (e) {
+      yes.disabled = ch.disabled = false;
+      toast('Not saved: ' + ((e && e.message) || 'no answer from the server.'), { tone: 'bad', ms: 6000 });
+    }
+  };
+  const yes = button('Approve', { primary: true, large: true, iconLeft: 'check', onclick: () => save('approved', '') });
+  const ch = button('Ask for changes', { large: true, onclick: () => {
+    if (!asking) { asking = true; note.hidden = false; note.focus(); ch.textContent = 'Send changes'; return; }
+    const text = note.value.trim();
+    if (!text) { note.focus(); return; }
+    save('changes', text);
+  } });
+  return h('div', { class: 'cr-answer', style: { display: 'grid', gap: '10px' } }, note, h('div', { style: { display: 'flex', gap: '10px', flexWrap: 'wrap' } }, yes, ch));
+}
+
+function detail(it, ctx, agency, redraw) {
   const thread = [{ by: it.by, role: it.by_role, text: it.body, at: it.created_at }, ...(it.thread || [])].filter(m => m.text);
   const body = h('div', { class: 'cr-sheet' },
     h('dl', { class: 'cr-kv' },
@@ -45,8 +78,12 @@ function detail(it, ctx, agency) {
     it.decision_note ? h('div', { class: 'cr-msg' }, h('small', null, 'What they said'), it.decision_note) : null,
     thread.length ? h('div', null, heading('The thread', thread.length),
       h('div', { class: 'cr-thread' }, thread.map(m => h('div', { class: 'cr-msg' + (m.role === 'team' ? ' team' : '') }, h('small', null, (m.by || '') + (m.at ? ', ' + dayOf(m.at) : '')), m.text)))) : null,
-    ctx.legacy ? button(ctx.isClient ? 'Reply or answer in ' + APP_NAME : 'Reply in old ' + APP_NAME, { href: ctx.legacy, icon: 'arrow' }) : null);
-  sheet({ title: it.title, body });
+    h('div', { class: 'cr-answer-slot' }),
+    ctx.legacy ? button(ctx.isClient ? 'Reply in ' + APP_NAME : 'Reply in old ' + APP_NAME, { href: ctx.legacy, icon: 'arrow' }) : null);
+  const sh = sheet({ title: it.title, body });
+  const acts = answerButtons(it, ctx, () => sh.close(), redraw || (() => {}));
+  const slot = body.querySelector('.cr-answer-slot');
+  if (acts) slot.replaceWith(acts); else slot.remove();
 }
 
 function draw(el, d, ctx, agency) {
@@ -80,7 +117,7 @@ function draw(el, d, ctx, agency) {
         { w: 96, class: 'hide-md', label: 'Last', node: dayOf(lastAt(it)) },
         { w: 170, node: statusOf(it, ctx.isClient) },
       ],
-      onclick: () => detail(it, ctx, agency),
+      onclick: () => detail(it, ctx, agency, patch => { Object.assign(d.items.find(x => x.id === it.id) || {}, patch); draw(el, d, ctx, agency); }),
     }));
     put(box, 
       h('div', { class: 'cr-bar-top', style: { paddingBottom: '6px' } },

@@ -35,7 +35,7 @@ const clearSetting = k => db.prepare(`DELETE FROM settings WHERE key = ?`).run(k
 ok(clientSide({ side: 'client' }) && clientSide({ side: null, shared: true }) && clientSide({ side: 'team', shared: true }), 'client side: marked client, or shared');
 ok(!clientSide({ side: 'internal' }) && !clientSide({ side: 'internal', shared: true }) && !clientSide({ side: null, shared: false }) && !clientSide({ side: 'team' }), 'not client side: internal, team, a plain project channel');
 ok(!directApplyThere({ side: 'client' }) && !directApplyThere({ shared: true }), 'client side: never applied from the words');
-ok(directApplyThere({ side: 'internal' }) && directApplyThere({}) && directApplyThere({ side: 'team' }), 'internal and plain channels: direct apply as before');
+ok(!directApplyThere({ side: 'internal' }) && !directApplyThere({}) && !directApplyThere({ side: 'team' }), 'internal and plain channels: no direct apply either (always a tap, 2026-11-25)');
 ok(tapOnlyThere({ side: 'internal', shared: true }) && !directApplyThere({ side: 'internal', shared: true }), 'an internal channel shared with another workspace is tap-only');
 ok(!silentThere({ side: 'internal', shared: true }, '0') && !clientSide({ side: 'internal', shared: true }), 'a shared internal channel still answers and is still stored');
 ok(/needs a tap/.test(TAP_ONLY_NOTE) && /outside the team/.test(TAP_ONLY_NOTE) && !TAP_ONLY_NOTE.includes('—'), 'the tap-only note says why, no em dash');
@@ -53,12 +53,12 @@ ok(set.checkinAutoApprove === true && set.askInClientChannels === false && set.s
 for (const k of SWITCHES) clearSetting(k);
 
 /* ---------------- 1. the 24 hour timer ---------------- */
-db.exec(`CREATE TABLE p_br_batch (id TEXT PRIMARY KEY, act_id TEXT, num INTEGER, title TEXT, brief_json TEXT, brief_text TEXT, board_stage TEXT, assignee_name TEXT)`);
+db.exec(`CREATE TABLE p_br_batch (id TEXT PRIMARY KEY, act_id TEXT, num INTEGER, title TEXT, brief_json TEXT, brief_text TEXT, board_stage TEXT, assignee_name TEXT, needs_client INTEGER DEFAULT 0, client_sent_at TEXT)`);
 db.exec(`CREATE TABLE brand_accounts (act_id TEXT PRIMARY KEY, name TEXT, slack_channel TEXT, brief_channel TEXT)`);
 db.exec(`CREATE TABLE p_work_file (id TEXT PRIMARY KEY, batch_id TEXT, kind TEXT, version INTEGER, ad TEXT, name TEXT, mime TEXT, created_at TEXT, deleted_at TEXT)`);
 db.exec(`CREATE TABLE p_work_comment (id TEXT PRIMARY KEY, batch_id TEXT, file_id TEXT, kind TEXT, body TEXT, author_name TEXT, parent_id TEXT, fixed INTEGER, created_at TEXT)`);
 db.exec(`INSERT INTO brand_accounts VALUES ('brand_harbor', 'Harbor Kettle Co', 'C_HARBOR_INT', NULL)`);
-db.exec(`INSERT INTO p_br_batch VALUES ('card1', 'brand_harbor', 12, 'Morning pour', NULL, '', 'review', 'Sam')`);
+db.exec(`INSERT INTO p_br_batch VALUES ('card1', 'brand_harbor', 12, 'Morning pour', NULL, '', 'review', 'Sam', 0, NULL)`);
 db.exec(`INSERT INTO p_work_file VALUES ('f1', 'card1', 'version', 1, '12-1', '12-1 v1.png', 'image/png', '2026-11-01', NULL)`);
 const old = new Date(Date.now() - 30 * 3600e3).toISOString();
 const seedCard = async () => {

@@ -233,15 +233,18 @@ await check('Launched: p_launch of the last 30 days, newest first, with brand, a
   today = '2026-10-26';
 });
 
-await check('a single ad or carousel launch moves its card to Live only from Ready or Review', async () => {
-  db.exec(`INSERT INTO p_br_batch (id, act_id, board_stage, stage) VALUES ('m1', 'brand_alpha', 'ready', 'production'), ('m2', 'brand_alpha', 'live', 'live'), ('m3', 'brand_alpha', NULL, 'production');
-    UPDATE p_br_batch SET asana_section = 'Ready to launch' WHERE id = 'm3';`);
+await check('a single ad or carousel launch moves its card to Live only from Ready, and only once every ad on it is loaded', async () => {
+  db.exec(`INSERT INTO p_br_batch (id, act_id, board_stage, stage) VALUES ('m1', 'brand_alpha', 'ready', 'production'), ('m2', 'brand_alpha', 'live', 'live'), ('m3', 'brand_alpha', NULL, 'production'), ('m4', 'brand_alpha', 'review', 'production');
+    UPDATE p_br_batch SET asana_section = 'Ready to launch' WHERE id = 'm3';
+    INSERT INTO p_launch (id, act, batch_id, eff_status, at) VALUES ('lm1', 'brand_alpha', 'm1', 'ACTIVE', '2026-01-01T00:00:00Z'), ('lm4', 'brand_alpha', 'm4', 'ACTIVE', '2026-01-01T00:00:00Z');`);
   const moved = [];
   const md = { moveCard: async (e, id) => { moved.push(id); return { to: 'live', asana: { moved: true } }; } };
   assert.deepEqual(await cardToLive(env, md, 'm1', 'x'), { to: 'live', asana: { moved: true } });
-  assert.equal(await cardToLive(env, md, 'm2', 'x'), null);
-  await cardToLive(env, md, 'm3', 'x'); await cardToLive(env, md, null, 'x');
-  assert.deepEqual(moved, ['m1', 'm3']);
+  assert.equal(await cardToLive(env, md, 'm2', 'x'), null, 'already Live');
+  assert.equal((await cardToLive(env, md, 'm3', 'x')).held, true, 'Ready but nothing loaded yet: held');
+  assert.equal(await cardToLive(env, md, 'm4', 'x'), null, 'Review waits on its approvals');
+  assert.equal(await cardToLive(env, md, null, 'x'), null);
+  assert.deepEqual(moved, ['m1']);
 });
 
 await check('not spending: a live set Meta spent under $20 on in 7 days is a pause row; scheduled, ended, new, lead and giveaway sets are left alone', async () => {

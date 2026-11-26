@@ -304,6 +304,15 @@ export function figureEm(text) {
   }
   return w;
 }
+/** handEm(['$1,284,500', '2.68x']) : for a row of big tiles written by hand (class lx-kpis, no kpis()). Gives the
+    width of its longest number in ems when that is more than the 4.55 a hand written row is sized for, else null.
+    Put it on the row as --kpi-hand. Only numbers are measured, words are left alone, so a row of normal amounts
+    draws exactly as before. */
+export function handEm(texts) {
+  let w = 0;
+  for (const t of texts) { const s = String(t ?? '').trim(); if (s && /^[-+$\d.,%xkKMB\s]+$/.test(s)) w = Math.max(w, figureEm(s)); }
+  return w > 4.55 ? w.toFixed(2) : null;
+}
 
 /* ---------- charts ----------
    One chart for every page. A chart is a box that follows its container: the drawing is made at the

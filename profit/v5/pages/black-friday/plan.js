@@ -43,11 +43,11 @@ function draw(el, d, ctx) {
       h('span', { class: 'lab' }, 'Sales goal for the sale'),
       h('span', null, h('span', { class: 'lx-hero-num' }, rev ? money(rev, { cur }) : 'not set')),
       h('span', { class: 'of' }, windowText(d, today))),
-    kpis([
+    h('div', { class: 'cr-fit' }, kpis([
       kpi({ label: 'Ad budget', value: bud.total ? money(bud.total, { cur }) : 'not set', size: 'lg', sub: bud.total && days.length ? money(bud.total / days.length, { cur }) + ' a day on average' : '' }),
       kpi({ label: 'MER goal', value: merGoal ? x(merGoal) : 'not set', size: 'lg', sub: rev && bud.total ? 'the plan works out to ' + x(rev / bud.total) : 'whole store' }),
       kpi({ label: 'Same days last year', value: lyDays > 0 ? money(lyDays, { cur }) : 'no data', size: lyDays > 0 ? 'lg' : null, sub: lyDays > 0 && rev ? 'the goal is ' + pct(rev / lyDays - 1, { signed: true }) : lyDays > 0 ? '' : 'no sales source for last year' }),
-    ], { cols: 3 })));
+    ], { cols: 3 }))));
 
   /* the plan by day: one full width chart, then the same days as a table */
   const hasDay = days.some(p => p.revenue != null || p.spend != null);

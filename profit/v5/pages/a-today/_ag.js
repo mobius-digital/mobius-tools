@@ -3,7 +3,7 @@
    Money for the whole store is MER; one platform is ROAS. Sales per platform are Triple Whale, last platform click. */
 
 import { exampleChip as kitExampleChip } from '../../kit.js';
-import { h, money, pct, x, num, pill, statusDot, gauge, table, card, empty, button, addStyles } from '../../kit.js';
+import { h, money, pct, x, num, pill, statusDot, gauge, table, card, empty, button, addStyles, handEm } from '../../kit.js';
 import { fixture } from '../../data.js';
 import { PLATFORM_NAME } from '../../icons.js';
 
@@ -153,7 +153,9 @@ export const figs = list => h('div', { class: 'ag-figs' }, list.filter(Boolean).
 /** The hero band: big figures, numbers first. list: [{ label, value, sub, lead, href }] */
 export function figures(list) {
   const items = list.filter(Boolean);
-  return h('section', { class: 'lx-hero line' }, h('div', { class: 'lx-kpis', style: { '--cols': items.length } }, items.map(k =>
+  /* a seven figure amount is wider than a hand written row allows for: tell the row, so the tile keeps its number inside */
+  const hand = handEm(items.map(k => typeof k.value === 'string' || typeof k.value === 'number' ? k.value : ''));
+  return h('section', { class: 'lx-hero line' }, h('div', { class: 'lx-kpis', style: hand ? { '--cols': items.length, '--kpi-hand': hand } : { '--cols': items.length } }, items.map(k =>
     h(k.href ? 'a' : 'div', { class: 'lx-kpi lg', href: k.href },
       h('span', { class: 'l' }, k.label),
       k.lead ? h('span', null, h('span', { class: 'lx-hero-num' }, k.value)) : h('span', { class: 'v' }, k.value),
