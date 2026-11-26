@@ -5,7 +5,8 @@
  * user id (OWNER_SLACK), never a channel from the body.
  * Owner only (the same isOwner as PUT /api/settings; the admin key counts). Limits: at most 8 messages, at most 50
  * blocks each, body under 40 KB. Every message must open with a context block whose text begins "Example, not real",
- * so nobody can mistake it for a live message; otherwise the request is refused before anything posts.
+ * so nobody can mistake it for a live message; otherwise the request is refused before anything posts. The
+ * notification text and any attachment fallback get the same marker in front, so a push or preview line says it too.
  * -> { ok: true, posted: [ts...] } or { ok: false, error, posted } when Slack refuses one (the ones before it stay). */
 import { OWNER_SLACK } from './slackaccess.js';
 
@@ -18,6 +19,13 @@ const markText = b => {
   if (!b || b.type !== 'context' || !Array.isArray(b.elements) || !b.elements.length) return '';
   const e = b.elements[0];
   return e && typeof e.text === 'string' ? e.text : (e && e.text && typeof e.text.text === 'string' ? e.text.text : '');
+};
+
+/* The marker in front of a notification or fallback line, once. */
+const marked = t => {
+  const s = typeof t === 'string' ? t.trim() : '';
+  if (!s) return EXAMPLE_MARK;
+  return s.startsWith(EXAMPLE_MARK) ? s : `${EXAMPLE_MARK}: ${s}`;
 };
 
 /** Checks the parsed body. -> { messages } or { error } (a 400). */
@@ -33,15 +41,16 @@ export function checkExampleBody(body) {
     if (m.blocks.length > MAX_BLOCKS) return { error: `Message ${n} has more than ${MAX_BLOCKS} blocks.` };
     if (!markText(m.blocks[0]).trim().startsWith(EXAMPLE_MARK)) return { error: `Message ${n} must start with a context block that begins "${EXAMPLE_MARK}".` };
     if (m.attachments != null && !Array.isArray(m.attachments)) return { error: `Message ${n}: attachments must be a list.` };
-    out.push({ text: typeof m.text === 'string' && m.text.trim() ? m.text : EXAMPLE_MARK, blocks: m.blocks, attachments: m.attachments || null });
+    const attachments = m.attachments ? m.attachments.map(a => (a && typeof a === 'object' ? { ...a, fallback: marked(a.fallback) } : a)) : null;
+    out.push({ text: marked(m.text), blocks: m.blocks, attachments });
   }
   return { messages: out };
 }
 
-/** The route. deps: { isOwner: boolean, slackPost(env, channel, text, blocks, opts) } (worker.js slackPost, which is
- *  sender.js slackPostWith with the worker's fetch). */
-export async function handleExampleDm(request, env, { isOwner, slackPost }) {
-  const json = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { 'Content-Type': 'application/json' } });
+/** The route. deps: { isOwner: boolean, slackPost(env, channel, text, blocks, opts), json? } (worker.js slackPost, which
+ *  is sender.js slackPostWith with the worker's fetch, and worker.js json, which adds the CORS headers). */
+export async function handleExampleDm(request, env, { isOwner, slackPost, json: workerJson }) {
+  const json = workerJson || ((o, status = 200) => new Response(JSON.stringify(o), { status, headers: { 'Content-Type': 'application/json' } }));
   if (!isOwner) return json({ ok: false, error: 'Only the owner can send example messages.' }, 403);
   const raw = await request.text().catch(() => '');
   if (new TextEncoder().encode(raw).length >= MAX_BODY) return json({ ok: false, error: 'The body must be under 40 KB.' }, 400);

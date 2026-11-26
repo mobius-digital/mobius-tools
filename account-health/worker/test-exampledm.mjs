@@ -61,8 +61,20 @@ await check('recipient is always the owner, as the bot, in order', async () => {
     assert.equal(c.body.channel, OWNER_SLACK);
     assert.equal(c.auth, 'Bearer xoxb-bot');
   }
-  assert.deepEqual(s.calls.map(c => c.body.text), ['one', 'two']);
+  assert.deepEqual(s.calls.map(c => c.body.text), ['Example, not real: one', 'Example, not real: two']);
   assert.ok(Array.isArray(s.calls[1].body.attachments));
+  assert.equal(s.calls[1].body.attachments[0].fallback, 'Example, not real');
+});
+
+await check('notification text is marked once, and the worker json (CORS) is used when given', async () => {
+  const s = mkSlack();
+  const cors = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+  const r = await handleExampleDm(req({ messages: [msg({ text: 'Example, not real: already' }), msg({ text: '' }), msg({ text: 'x', attachments: [{ fallback: 'Real alert' }] })] }), env, { isOwner: true, slackPost: s.slackPost, json: cors });
+  assert.equal(r.headers.get('Access-Control-Allow-Origin'), '*');
+  assert.deepEqual(s.calls.map(c => c.body.text), ['Example, not real: already', 'Example, not real', 'Example, not real: x']);
+  assert.equal(s.calls[2].body.attachments[0].fallback, 'Example, not real: Real alert');
+  const no = await handleExampleDm(req({ messages: [msg()] }), env, { isOwner: false, slackPost: s.slackPost, json: cors });
+  assert.equal(no.headers.get('Access-Control-Allow-Origin'), '*');
 });
 
 await check('a Slack error comes back with what posted before it', async () => {

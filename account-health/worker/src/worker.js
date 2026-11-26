@@ -10573,7 +10573,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
          and a Meta-attributed view was the one surface that contradicted it.
          Nothing mints new ones, no page renders them, and its route is gone. */
       /* Example Slack messages to the owner's own DM only (exampledm.js): owner only, no recipient in the body. */
-      if (path === '/api/slack/example-dm' && request.method === 'POST') return handleExampleDm(request, env, { isOwner, slackPost });
+      if (path === '/api/slack/example-dm' && request.method === 'POST') return handleExampleDm(request, env, { isOwner, slackPost, json });
       if (path === '/api/settings' && request.method === 'GET') {
         return json({
           slackChannel: await getSetting(env, 'slackChannel'),
