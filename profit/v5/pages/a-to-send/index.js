@@ -12,14 +12,12 @@
                                 says "Needs how we read it" and opens the brand's Reports page.
      GET /api/report-read?act=&period=&start=   only when the list has no read_status (an older server): one at a
                                 time, for the newest waiting report of each brand (the rest show "Needs how we read it")
-     GET /api/draft-holds?act=all   drafts whose numbers look incomplete (team only): the row's one warning line, and
-                                Send asks twice (2026-11-26)
    Writes: see _send.js. Sample mode simulates every write. */
 
 import { put } from '../../kit.js';
 import { h, hero, kpis, kpi, statusDot, button, segmented, em, empty } from '../../kit.js';
 import { span, short, dayOf, away, between, addDays, todayYmd, row, list, brandTag, colorOf, dateOf, css } from '../calendar/_cr.js';
-import { actions, noChannel, sampleChannels, readStatusOf, readApproved, readHolds, holdOf } from './_send.js';
+import { actions, noChannel, sampleChannels, readStatusOf, readApproved } from './_send.js';
 
 const view = { show: 'waiting' };
 
@@ -59,13 +57,12 @@ function draw(el, d, ctx) {
     const rows = pick.map(i => row({
       lead: dateOf(i.day, today),
       title: i.kind === 'brief' ? 'Daily brief for ' + short(i.day) : (i.period === 'monthly' ? 'Monthly report, ' : 'Weekly report, ') + span(i.day, i.end),
-      sub: i.hold && (i.status === 'draft' || i.status === 'error') ? i.hold + '. Check before sending.'
-        : i.kind === 'report' && (i.status === 'draft' || i.status === 'error') && !readApproved(i.read)
+      sub: i.kind === 'report' && (i.status === 'draft' || i.status === 'error') && !readApproved(i.read)
         ? (i.read && i.read.status === 'drafted' ? 'How we read it is written. Approve it to send.' : i.read && i.read.status === 'points' ? 'Needs how we read it: the talking points wait for the call.' : 'Needs how we read it.')
         : i.status === 'error' ? 'The last send failed. Send it again, or edit it first.'
         : i.preview ? (i.kind === 'brief' && !i.client && i.status !== 'sent' ? 'Team brief: ' : '') + i.preview
         : (i.status === 'sent' ? 'Sent ' + dayOf(i.sent_at) : 'Drafted ' + away(today, String(i.drafted_at || today).slice(0, 10))),
-      late: i.status === 'error' || (!!i.hold && i.status === 'draft'),
+      late: i.status === 'error',
       cells: [
         { w: 170, node: brandTag(i.brand, i.color) },
         { w: 150, node: i.status === 'sent' ? statusDot('good', 'Sent ' + dayOf(i.sent_at)) : i.status === 'error' ? statusDot('bad', 'Draft failed') : i.status === 'handled' ? statusDot('off', 'Team only') : statusDot('warn', 'Waiting') },
@@ -118,9 +115,6 @@ export default {
       try { const rd = await readStatusOf(i, ctx, ctx.signal); i.read = { status: rd.status || 'none', read_text: String(rd.read_text || '').trim() ? 'yes' : '' }; }
       catch (e) { if (e && e.name === 'AbortError') throw e; i.read = null; }
     }
-    /* Numbers that look incomplete (team only, one call after the lists): the warning line and the second ask. */
-    const holds = await readHolds(ctx, 'all', ctx.signal);
-    for (const i of items) if (i.status === 'draft' || i.status === 'error') i.hold = holdOf(holds, i);
     return { items, can_skip: r.can_skip === true };
   },
   render: draw,

@@ -19,14 +19,12 @@
      PUT  /api/report-read         { act, period, start, text }         save an edit (status drafted)
      POST /api/report-read/approve { act, period, start, text, send? }  approve; send:true also sends
      POST /api/report-skip         { act, period, start }               Do not send (through _send.js)
-     GET  /api/draft-holds?act=                     drafts whose numbers look incomplete (2026-11-26): one warning line
-                                                    on the draft, and Send (or Approve and send) asks twice
    Sample mode simulates every write and says so. */
 
 import { APP_NAME } from '../../config.js';
 import { put, h, addStyles, hero, kpis, kpi, statusDot, sheet, em, empty, money, x, num, delta, lineChart, legend, card, button, toast, pill, noDash } from '../../kit.js';
 import { css, span, short, dayOf, wday, heading, row, list, dateOf, todayYmd } from '../calendar/_cr.js';
-import { sendSheet, skipSheet, readStatusOf, readHolds, holdLine, askTwice } from '../a-to-send/_send.js';
+import { sendSheet, skipSheet, readStatusOf } from '../a-to-send/_send.js';
 import { canWrite } from '../production/_act.js';
 import { platformRows, amazonOf, bestAds, marginOf, linesOf, change } from './_report.js';
 
@@ -36,7 +34,7 @@ const SAMPLE_NOTE = 'Sample: nothing was changed';
 const errText = e => (e && e.message) || 'No answer from the server.';
 
 /** One report row as the send sheets want it. */
-const itemOf = (r, ctx) => ({ kind: 'report', act_id: ctx.brand.id, brand: ctx.brand.name, day: r.period_start, end: r.period_end, period: r.period, status: r.status, hold: r.hold || null });
+const itemOf = (r, ctx) => ({ kind: 'report', act_id: ctx.brand.id, brand: ctx.brand.name, day: r.period_start, end: r.period_end, period: r.period, status: r.status });
 
 function statusOf(r, client) {
   if (r.status === 'sent') return statusDot('good', client ? 'Sent ' + dayOf(r.sent_at) : 'Sent to the client ' + dayOf(r.sent_at));
@@ -207,12 +205,7 @@ function draftCard(st) {
   const all = [go, save, again, cancel].filter(Boolean);
   const lock = on => all.forEach(b => { b.disabled = on; });
   const text = () => ta.value.trim();
-  go.addEventListener('click', () => {
-    if (!text()) return put(err, h('p', { class: 'sd-err' }, 'The read cannot be empty.'));
-    /* Numbers that look incomplete: Approve and send asks twice (a team only approve sends nothing, so it never asks). */
-    if (!teamOnly && !askTwice(go, st.row && st.row.hold, err)) return;
-    run(st, err, lock, 'approve', { text: text(), send: !teamOnly }, teamOnly ? 'Approving...' : 'Approving and sending...');
-  });
+  go.addEventListener('click', () => { if (!text()) return put(err, h('p', { class: 'sd-err' }, 'The read cannot be empty.')); run(st, err, lock, 'approve', { text: text(), send: !teamOnly }, teamOnly ? 'Approving...' : 'Approving and sending...'); });
   save.addEventListener('click', () => { if (!text()) return put(err, h('p', { class: 'sd-err' }, 'The read cannot be empty.')); run(st, err, lock, 'save', { text: text() }, 'Saving...'); });
   if (again) again.addEventListener('click', () => {
     const n = notes.value.trim(), stored = String(read.team_view || '').trim();
@@ -221,7 +214,6 @@ function draftCard(st) {
     run(st, err, lock, 'draft', { notes: n ? (n !== stored ? n : undefined) : (stored ? '' : undefined) }, 'Writing it again...');
   });
   return card({ title: 'How we read it', class: 'rp-card', note: approvedEdit ? 'Editing an approved read' : sourceLine(read, st.rep) },
-    teamOnly ? null : holdLine(st.row && st.row.hold),
     h('p', { class: 'rp-note' }, teamOnly ? 'Team only: this brand has no client channel, so the report is not sent.' : 'This is the first thing the client reads, word for word. Short lines, the verdict first.'),
     ta, err, h('div', { class: 'rp-acts' }, go, save, again, cancel),
     approvedEdit ? null : [h('p', { class: 'rp-lab' }, 'What the team said'), notes]);
@@ -234,8 +226,7 @@ function approvedCard(st) {
   /* A team only report (handled: no client channel) has nothing to send to. */
   const send = st.rep.status === 'handled' ? null : button('Send', { primary: true, large: true, onclick: () => sendSheet(itemOf(st.row, st.ctx), st.ctx, what => { if (what === 'sent') sentNow(st, read.read_text); }) });
   const edit = button('Edit', { large: true, onclick: () => { st.editing = true; st.redraw(); } });
-  return card({ title: 'How we read it', class: 'rp-card', note: st.rep.status === 'handled' ? by + '. Team only' : by },
-    st.rep.status === 'handled' ? null : holdLine(st.row && st.row.hold), readText(read.read_text || ''), h('div', { class: 'rp-acts' }, send, edit));
+  return card({ title: 'How we read it', class: 'rp-card', note: st.rep.status === 'handled' ? by + '. Team only' : by }, readText(read.read_text || ''), h('div', { class: 'rp-acts' }, send, edit));
 }
 
 /** The report went out: freeze it on the page. */
@@ -403,7 +394,7 @@ function draw(el, d, ctx) {
   const lines = rows.map(r => row({
     lead: dateOf(r.period_start, today),
     title: NAME[r.period] || 'Report',
-    sub: !ctx.isClient && r.hold && r.status === 'draft' ? span(r.period_start, r.period_end) + '. ' + r.hold : span(r.period_start, r.period_end),
+    sub: span(r.period_start, r.period_end),
     cells: [{ w: 210, node: statusOf(r, ctx.isClient) }],
     onclick: () => open(r, d, ctx, null),
   }));
@@ -436,11 +427,8 @@ export default {
       try { read = await readStatusOf({ kind: 'report', act_id: ctx.brand.id, period: first.period, day: first.period_start }, ctx, ctx.signal); }
       catch (e) { read = { status: 'error', error: errText(e) }; }
     }
-    /* Numbers that look incomplete (team only): the warning line on the draft, and Send asks twice. */
-    const holds = ctx.isClient ? new Map() : await readHolds(ctx, ctx.brand.id, ctx.signal);
-    const holdFor = r => r.status === 'draft' ? holds.get('report|' + ctx.brand.id + '|' + r.period + '|' + r.period_start) || null : null;
     return {
-      rows: rows.map(({ act_id, period, period_start, period_end, status, generated_at, sent_at }) => ({ act_id, period, period_start, period_end, status, generated_at, sent_at, hold: holdFor({ status, period, period_start }) })),
+      rows: rows.map(({ act_id, period, period_start, period_end, status, generated_at, sent_at }) => ({ act_id, period, period_start, period_end, status, generated_at, sent_at })),
       latest, client_latest: client_latest || (latest && latest.status === 'sent' ? latest : null), read, can_skip: list.can_skip === true,
     };
   },

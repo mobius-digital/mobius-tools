@@ -29,17 +29,9 @@ export function setEngineMode(mode) {
 }
 
 /* ---------- the ported list ---------- */
-/* Held back from the engine by hand (engine-paths.js is made by a tool, so the hold lives here). The engine's
-   own answers for these leave out notify, catalog, alerts, features and jobs, and its saves drop them, so
-   until the engine forwards or ports the new shapes these go straight to account-health. Take a line out
-   once the engine passes those fields through. */
-export const HELD = new Set([
-  'GET /ah/api/me/delivery',
-  'PUT /ah/api/me/delivery',
-  'GET /ah/api/notices',
-  'GET /ah/api/settings',
-  'PUT /ah/api/settings'
-]);
+/* Routes held back from the engine by hand (engine-paths.js is made by a tool). Empty: the engine forwards
+   /ah/api/me/delivery, /ah/api/notices and /ah/api/settings to account-health since 2026-11-26. */
+export const HELD = new Set([]);
 const LIVE = PORTED.filter(k => !HELD.has(k));
 const EXACT = new Set(LIVE.filter(k => !k.includes(':')));
 const SHAPES = LIVE.filter(k => k.includes(':')).map(k => {
