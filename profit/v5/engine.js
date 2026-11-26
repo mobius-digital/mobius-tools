@@ -150,7 +150,8 @@ export async function tryEngine(which, path, init) {
     health(false);
     const late = !!e && e.name === 'AbortError';
     why = late ? 'no answer in time' : 'could not be reached';
-    if (method !== 'GET' && late) { miss(); return { ok: false, final: true, status: 0, error: SAVE_LATE }; }
+    // A save that failed mid-flight may already have run on the engine, so it is never sent again to the old engine.
+    if (method !== 'GET') { miss(); return { ok: false, final: true, status: 0, error: late ? SAVE_LATE : 'The save could not be confirmed. Reload and check before saving again.' }; }
   }
   return { ok: false, note: oldStatus => {
     if ((status === 401 || status === 403) && oldStatus === status) return;
