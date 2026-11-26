@@ -17,7 +17,9 @@
    "name": "Ball marker set",
    "level": "Ad",
    "why": "Spent three times the goal with one sale.",
-   "matters": false
+   "matters": true,
+   "app": true,
+   "write": "mw_sample00"
   },
   {
    "id": "ch01",
@@ -29,7 +31,9 @@
    "name": "Creator pool",
    "level": "Ad set",
    "why": "Nine sales at goal this week on a small budget.",
-   "matters": true
+   "matters": true,
+   "app": true,
+   "write": "mw_sample01"
   },
   {
    "id": "ch02",

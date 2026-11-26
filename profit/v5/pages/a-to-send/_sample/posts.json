@@ -1,0 +1,32 @@
+{
+ "sample": true,
+ "channels": {
+  "brand_northlake_golf": "#northlake-golf",
+  "brand_harbor_and_pine": "#harbor-and-pine",
+  "brand_tallgrass_apparel": "#tallgrass-apparel",
+  "brand_copper_kettle_pets": "#copper-kettle-pets",
+  "brand_summit_sticks": "#summit-sticks",
+  "brand_brightside_patch": "#brightside-patch",
+  "brand_fairway_supply": null
+ },
+ "briefs": {
+  "brand_northlake_golf|2026-11-23": "*Sunday, Nov 23*\nSales $1,880, ad spend $660, MER 2.85x. On plan.\nThe month so far: $52,140 in sales at 2.71x.\nNext: Black Friday ads switch on Wednesday night.\nMore numbers in the thread.",
+  "brand_harbor_and_pine|2026-11-23": "*Sunday, Nov 23*\nSales $2,310, ad spend $540, MER 4.28x. Best Sunday this month.\nThe month so far: $38,900 in sales at 3.40x.\nMore numbers in the thread.",
+  "brand_summit_sticks|2026-11-23": "*Sunday, Nov 23*\nSales $940, ad spend $410, MER 2.29x. Under plan.\nThe month so far: $17,600 in sales at 2.55x.\nMore numbers in the thread."
+ },
+ "brief_default": "*Yesterday*\nSales $1,200, ad spend $450, MER 2.67x. On plan.\nMore numbers in the thread.",
+ "reports": {
+  "brand_northlake_golf|weekly|2026-11-16": {
+   "post": "*Northlake Golf, week of Nov 16 to 22*\nA steady week before the sale.\nSales $14,820 (up 6% on last week)\nAd spend $5,410\nMER 2.74x (was 2.61x)\n\n*Our work this week*\n6 new ads launched. 9 changes to your ads <https://example.com/updates|see each one and why>\n\n*This week*\nBlack Friday ads go live Wednesday night.\n\n*We need from you*\nThe gift guide photos by Friday.\n\n<https://example.com/report|Open the full report>",
+   "summary": "What we saw\n- Sales held up in a quiet week before the sale.\n- The belt bundle ads did most of the work.\n\nWhat it means\nThe account is ready to spend more on Black Friday.\n\nWhat we're doing\n- Black Friday ads are loaded and switch on Wednesday night."
+  },
+  "brand_fairway_supply|weekly|2026-11-16": {
+   "post": "*Fairway Supply, week of Nov 16 to 22*\nSales $6,240 (down 4% on last week)\nAd spend $2,980\nMER 2.09x (was 2.20x)\n\n<https://example.com/report|Open the full report>",
+   "summary": "What we saw\n- A softer week as shoppers waited for the sale.\n\nWhat it means\nNothing to fix. The sale week will tell us more.\n\nWhat we're doing\n- New club photos go live on Monday."
+  }
+ },
+ "report_default": {
+  "post": null,
+  "summary": "What we saw\n- A steady period.\n\nWhat it means\nOn plan.\n\nWhat we're doing\n- More of what works."
+ }
+}

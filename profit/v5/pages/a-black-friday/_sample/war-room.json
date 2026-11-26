@@ -1,0 +1,90 @@
+{
+ "sample": true,
+ "standing": {
+  "slot": "2026-11-27T14",
+  "at": "2026-11-27T20:05:00.000Z",
+  "label": "Fri, Nov 27, 2pm CT",
+  "next": "8pm",
+  "today": "2026-11-27",
+  "dry": 0,
+  "approved": {
+   "brand_summit_sticks": { "by": "jordan@example.com", "at": "2026-11-27T20:20:00.000Z", "from": 200, "to": 250, "summary": "Sale campaign budget $200/day to $250/day" }
+  },
+  "brands": [
+   {
+    "act_id": "brand_northlake_golf", "name": "Northlake Golf", "goal": 60000, "kpi": 2.5, "hold": 2.0, "mode": "live",
+    "last6": { "hours": 6, "sales": 9200, "spend": 2400, "mer": 3.83 },
+    "today": { "sales": 14800, "spend": 4100, "mer": 3.61 },
+    "week": { "sales": 31200, "spend": 10400, "mer": 3.0 },
+    "so_far": { "days": 2, "sales": 24600, "spend": 7300, "mer": 3.37, "new_mer": 1.9 },
+    "be_new": 1.5,
+    "suggest": { "call": "scale", "pct": 0.5, "to": 900, "why": "Store MER 3.37x so far is over 1.5 times the 2.50x goal, and the last 6 hours hold at 3.83x." },
+    "meta": {
+     "on": 1100, "limit": 5000, "headroom": 3900, "limit_src": "meta",
+     "camp": { "id": "c1", "name": "BFCM 2026", "daily": 600, "spent": 410 },
+     "camps": [
+      { "id": "c1", "name": "BFCM 2026", "kind": "sale", "daily": 600, "spent": 410, "t_ord": 21, "t_roas": 3.4, "w_spend": 1900, "w_ord": 52, "w_roas": 2.9 },
+      { "id": "c2", "name": "Evergreen CBO", "kind": "evergreen", "daily": 300, "spent": 190, "t_ord": 4, "t_roas": 1.8, "w_spend": 1500, "w_ord": 19, "w_roas": 1.6 },
+      { "id": "c3", "name": "Creator ads", "kind": "creators", "daily": null, "spent": 60, "t_ord": 1, "t_roas": 1.2, "w_spend": 380, "w_ord": 4, "w_roas": 1.1 }
+     ]
+    }
+   },
+   {
+    "act_id": "brand_tallgrass_apparel", "name": "Tallgrass Apparel", "goal": 30000, "kpi": 3.0, "hold": 2.4, "mode": "live",
+    "last6": { "hours": 6, "sales": 1500, "spend": 900, "mer": 1.67 },
+    "today": { "sales": 3900, "spend": 1800, "mer": 2.17 },
+    "week": { "sales": 12800, "spend": 5600, "mer": 2.29 },
+    "so_far": { "days": 2, "sales": 7600, "spend": 3400, "mer": 2.24, "new_mer": 1.1 },
+    "suggest": { "call": "cut", "pct": -0.25, "to": 225, "why": "Store MER 2.24x so far is under the 2.40x break-even.", "note": "" },
+    "meta": {
+     "on": 650, "limit": 2500, "headroom": 1850, "limit_src": "known",
+     "camp": { "id": "c4", "name": "BFCM 2026", "daily": 300, "spent": 240 },
+     "camps": [
+      { "id": "c4", "name": "BFCM 2026", "kind": "sale", "daily": 300, "spent": 240, "t_ord": 6, "t_roas": 1.5, "w_spend": 1200, "w_ord": 22, "w_roas": 1.8 },
+      { "id": "c5", "name": "Holiday 2026", "kind": "sale", "daily": 150, "spent": 0, "t_ord": 0, "t_roas": null, "w_spend": 0, "w_ord": 0, "w_roas": null }
+     ]
+    }
+   },
+   {
+    "act_id": "brand_summit_sticks", "name": "Summit Sticks", "goal": 12000, "kpi": 2.5, "hold": 2.0, "mode": "live",
+    "last6": { "hours": 5, "sales": 1100, "spend": 300, "mer": 3.67 },
+    "today": { "sales": 2100, "spend": 600, "mer": 3.5 },
+    "week": { "sales": 6400, "spend": 2100, "mer": 3.05 },
+    "so_far": { "days": 2, "sales": 4300, "spend": 1300, "mer": 3.31 },
+    "suggest": { "call": "raise", "pct": 0.25, "to": 250, "why": "Store MER 3.31x so far is over the 2.50x goal." },
+    "meta": {
+     "on": 260, "limit": 800, "headroom": 540, "limit_src": "meta",
+     "camp": { "id": "c6", "name": "BFCM 2026", "daily": 200, "spent": 150 },
+     "camps": [ { "id": "c6", "name": "BFCM 2026", "kind": "sale", "daily": 200, "spent": 150, "t_ord": 9, "t_roas": 3.1, "w_spend": 900, "w_ord": 30, "w_roas": 2.8 } ]
+    }
+   },
+   {
+    "act_id": "brand_copper_kettle_pets", "name": "Copper Kettle Pets", "goal": 8000, "kpi": 2.5, "hold": 2.0, "mode": "live",
+    "last6": { "hours": 6, "sales": 700, "spend": 300, "mer": 2.33 },
+    "today": { "sales": 1300, "spend": 560, "mer": 2.32 },
+    "week": { "sales": 4100, "spend": 1800, "mer": 2.28 },
+    "so_far": { "days": 2, "sales": 2600, "spend": 1100, "mer": 2.36 },
+    "suggest": { "call": "hold", "pct": 0, "why": "Store MER 2.36x sits between break-even and the 2.50x goal." },
+    "meta": {
+     "on": 150, "limit": null, "headroom": null,
+     "camp": { "id": "c7", "name": "BFCM 2026", "daily": 100, "spent": 70 },
+     "camps": [ { "id": "c7", "name": "BFCM 2026", "kind": "sale", "daily": 100, "spent": 70, "t_ord": 3, "t_roas": 2.0, "w_spend": 420, "w_ord": 11, "w_roas": 2.1 } ]
+    }
+   }
+  ]
+ },
+ "detail": {
+  "structure": "BFCM 2026: CBO, $600/day, 2 live ad sets",
+  "from": "2026-11-24", "to": "2026-11-26",
+  "sets": [
+   { "name": "Black Friday | New people", "daily": null, "spend": 1200, "sales": 31, "roas": 3.1, "share": 72,
+     "ads": [
+      { "name": "Gift guide video", "label": "keep", "spend": 520, "sales": 16, "roas": 3.6 },
+      { "name": "Belt close-up still", "label": "cut", "spend": 210, "sales": 1, "roas": 0.6, "note": "Spent 3 times the goal cost per sale with 1 sale." },
+      { "name": "Founder story", "label": "wait", "spend": 40, "sales": 0, "roas": null, "note": "In its wait window: $40 more spend and 1 more day before it can be judged." }
+     ] },
+   { "name": "Black Friday | Past buyers", "daily": null, "spend": 460, "sales": 18, "roas": 4.2, "share": 28,
+     "ads": [ { "name": "Restock reminder", "label": "keep", "spend": 300, "sales": 13, "roas": 4.6 } ] }
+  ]
+ }
+}

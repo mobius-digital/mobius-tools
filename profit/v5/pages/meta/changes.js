@@ -1,5 +1,7 @@
 /* Ads > Meta > Changes made for one brand: who changed what on Meta, and why, on the dates in the page head.
-   Four counts, changes by day, then the list, day by day. Read only.
+   Four counts, changes by day, then the list, day by day. A change made through the app in the last 24 hours
+   carries Undo (team only): a confirm sheet, then POST account-health /api/meta/undo {act, write}. The write id is
+   read from the change's note ("Write mw_..."); a later "Undo of mw_..." row marks it undone.
 
    Real mode reads:
      GET /api/activities?act=&from=&to=&limit=    account-health: every change Meta logged or the team added (team)
@@ -9,6 +11,7 @@ import { put } from '../../kit.js';
 import { h, em, card, kpi, segmented, barChart, empty, skeleton, num } from '../../kit.js';
 import { APP_NAME } from '../../config.js';
 import { shortDate, weekDate, addDays, gate, oldLink, foot, styles } from './_rest.js';
+import { canUndo, undoSheet, undoneSet, writeOf } from './_write.js';
 
 const CSS = `
 .mc-day{display:flex;align-items:baseline;gap:12px;padding:16px 28px 8px;border-top:1px solid var(--line)}
@@ -22,13 +25,16 @@ const CSS = `
 .mc-r .w .y i{font-style:normal;color:var(--faint)}
 .mc-r .p{display:grid;gap:4px;justify-items:end;text-align:right;font-size:12.5px;color:var(--muted)}
 .mc-pad{height:10px}
+.mc-undo{min-height:36px;padding:0 14px}
+.mc-undone{color:var(--bad);font-weight:600}
 .mc-none{padding:22px 28px;color:var(--muted)}
 .mc-kp{grid-template-columns:repeat(4,minmax(0,1fr))}
 @media (max-width:759px){
   .mc-kp{grid-template-columns:repeat(2,minmax(0,1fr))}
   .mc-day{padding:14px 16px 6px}
   .mc-r{grid-template-columns:58px minmax(0,1fr);gap:4px 12px;padding:10px 16px}
-  .mc-r .p{grid-column:2;justify-items:start;text-align:left;grid-auto-flow:column;justify-content:start;gap:10px}
+  .mc-r .p{grid-column:2;justify-items:start;text-align:left;grid-auto-flow:column;justify-content:start;align-items:center;gap:10px}
+  .mc-undo{min-height:44px}
   .mc-none{padding:18px 16px}
   .mc-list .lx-sec{flex-wrap:wrap;row-gap:10px}
   .mc-list .lx-sec .act{flex-basis:100%;margin-left:0}
@@ -54,8 +60,12 @@ async function load(ctx) {
       rows = (r.changes || []).filter(c => c.platform === 'meta').map(c => ({ id: c.id, at: c.at, who: null, cat: c.category, what: c.summary || catWord(c.category), name: c.name || '', level: LEVEL(c.level), why: c.why || '', matters: true }));
     } else {
       const r = await ctx.api(`/api/activities?${q}&limit=2000`, { worker: 'ah', signal: ctx.signal });
-      rows = (r.rows || []).filter(a => a.confirmed !== -1).map(a => ({ id: a.id, at: a.event_time, who: a.actor || null, by_hand: !!a.manual, cat: a.manual && !a.category ? 'manual' : a.category,
-        what: a.summary || a.translated || catWord(a.category), name: a.object_name || '', level: LEVEL(a.object_type), why: a.reason || a.client_why || '', matters: !!a.manual || MATTERS.has(a.category) }));
+      const undone = undoneSet(r.rows);
+      rows = (r.rows || []).filter(a => a.confirmed !== -1).map(a => {
+        const app = /^(locus_write|strategist_write)$/.test(String(a.event_type || '')), write = writeOf(a);
+        return { id: a.id, at: a.event_time, who: a.actor || null, by_hand: !!a.manual && !app, app, write, undone: !!(write && undone.has(write)), cat: a.manual && !a.category ? 'manual' : a.category,
+          what: a.summary || a.translated || catWord(a.category), name: a.object_name || '', level: LEVEL(a.object_type), why: a.reason || a.client_why || '', matters: !!a.manual || MATTERS.has(a.category) };
+      });
     }
   } catch (e) { if (e && (e.name === 'AbortError' || e.status === 401)) throw e; if (/meta|connect/i.test(e.message || '')) return { connected: false, error: e.message }; throw e; }
   return { window: w, connected: true, client_view: !!ctx.isClient, rows };
@@ -101,7 +111,10 @@ function listCard(d, ctx) {
         h('span', { class: 't' }, timeOf(r.at)),
         h('span', { class: 'w' }, h('b', null, r.what), r.name ? h('span', { class: 'o' }, (r.level ? r.level + ' ' : '') + r.name) : null,
           r.why ? h('span', { class: 'y' }, r.why) : (!d.client_view && r.matters ? h('span', { class: 'y' }, h('i', null, 'No reason written yet')) : null)),
-        h('span', { class: 'p' }, h('span', { class: 'lx-chip' }, catWord(r.cat)), r.who ? h('span', null, nameOf(r.who) + (r.by_hand ? ', added by hand' : '')) : null)));
+        h('span', { class: 'p' }, h('span', { class: 'lx-chip' }, catWord(r.cat)), r.who ? h('span', null, nameOf(r.who) + (r.app ? ', in the app' : r.by_hand ? ', added by hand' : '')) : null,
+          r.undone && !d.client_view ? h('span', { class: 'mc-undone' }, 'Undone') : null,
+          !d.client_view && canUndo(r, ctx) ? h('button', { class: 'lx-btn mc-undo', type: 'button', onclick: () => undoSheet(ctx, { act: ctx.brand.id, write: r.write, what: r.what, name: (r.level ? r.level + ' ' : '') + r.name },
+            ok => { if (ok) { r.undone = true; paint(); } }) }, 'Undo') : null)));
     }
     out.push(h('div', { class: 'mc-pad' }));
     if (rows.length > shown) out.push(h('div', { class: 'mr-more', style: { padding: '0 0 18px' } }, h('button', { class: 'lx-btn', type: 'button', onclick: () => { shown = rows.length; paint(); } }, `Show all ${num(rows.length)}`)));
@@ -127,7 +140,7 @@ export default {
     if (!(d.rows || []).length) return put(el, empty({ title: 'No changes on these dates', text: d.client_view ? 'When we change your Meta ads, the change and the reason show here.' : `Nothing changed on Meta ${d.window && d.window.label ? d.window.label : 'on these dates'}. Pick a longer date range at the top.`, action: oldLink(ctx) }));
     put(el, ...[
       figures(d), chartCard(d), listCard(d, ctx),
-      foot(d.client_view ? 'Changes to your Facebook and Instagram ads, with the reason for each.' : 'From Meta\'s own activity log plus changes the team added by hand. To add a reason or a change, use the old page for now.'),
+      foot(d.client_view ? 'Changes to your Facebook and Instagram ads, with the reason for each.' : 'From Meta\'s own activity log plus changes made in the app. A change made in the app can be undone here for 24 hours. To add a reason, use the old page for now.'),
       !d.client_view ? oldLink(ctx, 'Add a reason in old ' + APP_NAME) : null,
     ].filter(Boolean));
   },

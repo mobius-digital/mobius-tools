@@ -1,12 +1,17 @@
 /* My day. One person's list: Needs you today, This week, Waiting on someone else; one button per row.
    Right column: today's meetings and what is done.
    Live data: GET /api/mywork (account-health, the same list old Locus "My work" reads) and GET /api/requests?act=all.
-   What those two cannot fill yet (meetings, times on done rows, the assistant's line) comes only from the fixture. */
+   What those two cannot fill yet (meetings, times on done rows, the assistant's line) comes only from the fixture.
+   Waiting across the agency (team only): what needs any person today on every brand, the same list the bell shows
+   (loadWaiting in bell.js: ad calls, client updates to send, the War Room check-in, creative to review or load,
+   client requests). It is read after the page draws, so a slow read never holds the page; a source that fails is named. */
 
 import { put } from '../../kit.js';
 import { h, button, takeaway, kpis, kpi, statusDot, segmented, toast, sheet, field, em } from '../../kit.js';
 import { OLD_LOCUS, APP_NAME } from '../../config.js';
 import { css, face, ic, heading, store } from './_ui.js';
+import { loadWaiting, primeRead } from '../../bell.js';
+import { agencyRows, liveNote } from './_waiting.js';
 
 let brandPick = 'all';     // the brand filter survives a refresh behind
 
@@ -112,8 +117,7 @@ function draw(el, data, ctx) {
     ], { cols: 4 }));
 
   /* the lists, filtered by brand */
-  const brands = [...new Set([...T, ...W, ...(X || [])].map(r => r.brand).filter(Boolean))];
-  if (brandPick !== 'all' && !brands.includes(brandPick)) brandPick = 'all';
+  const team = !ctx.isClient && ctx.role !== 'client';
   const lists = h('div', { class: 'lx-md-main' });
   const onDone = async (r, btn) => {
     if (ctx.sample) return toast('Sample numbers: nothing is saved.');
@@ -126,15 +130,27 @@ function draw(el, data, ctx) {
     } catch (e) { btn.disabled = false; toast('Could not mark it done: ' + e.message, { tone: 'bad', ms: 5000 }); }
   };
   const paintLists = () => {
+    const A = d.agency ? d.agency.rows : null;
+    const brands = [...new Set([...T, ...W, ...(X || []), ...(A || [])].map(r => r.brand).filter(Boolean))];
+    if (brandPick !== 'all' && !brands.includes(brandPick)) brandPick = 'all';
     const f = rows => rows && (brandPick === 'all' ? rows : rows.filter(r => r.brand === brandPick));
     put(lists, 
       h('div', { class: 'lx-md-bar' },
         brands.length > 1 ? segmented([{ id: 'all', label: 'All brands' }, ...brands.map(b => ({ id: b, label: b }))], brandPick, id => { brandPick = id; paintLists(); }) : null),
       group('Needs you today', f(T), ctx, { lead: true, onDone }, 'Nothing needs you today.'),
+      team ? agencyGroup(d.agency, f, ctx) : null,
       group('This week', f(W), ctx, { onDone }, 'Nothing else is due this week.'),
       group('Waiting on someone else', f(X), ctx, { onDone }, 'Nothing is waiting on anyone.'));
   };
   paintLists();
+  /* the agency list, read after the page is up (kept 5 minutes by bell.js, so a redraw does not read again) */
+  if (team && !d.agency) {
+    d.agency = { rows: null, failed: [] };
+    loadWaiting({ brands: ctx.brands, role: ctx.role }).then(w => {
+      d.agency = { rows: agencyRows(w), failed: w.failed || [] };
+      if (lists.isConnected) paintLists();
+    });
+  }
 
   /* right column */
   const M = d.meetings, mb = d.meeting_btn;
@@ -152,8 +168,19 @@ function draw(el, data, ctx) {
 
   const t = d.take;
   put(el, hero,
+    team ? liveNote(ctx) : null,
     t ? takeaway(say(t.say), { action: t.action ? button(t.action.label, { href: hrefOf(t.action, ctx) || '#' }) : null }) : '',
     h('div', { class: 'lx-md-cols' }, lists, h('aside', { class: 'lx-md-side' }, meet, done)));
+}
+
+/* Waiting across the agency: the same rows the bell shows, each with one button to the page where it is done. */
+function agencyGroup(a, f, ctx) {
+  const rows = a && a.rows;
+  const note = a && a.failed && a.failed.length ? 'Could not read: ' + a.failed.join(', ') : null;
+  return h('section', { class: 'lx-md-grp' }, heading('Waiting across the agency', rows ? rows.length : null, note),
+    rows == null ? h('p', { class: 'lx-md-none' }, 'Reading every brand.')
+      : f(rows).length ? f(rows).map(r => row(r, ctx, { primary: false, onDone: () => {} }))
+      : h('p', { class: 'lx-md-none' }, note ? 'Nothing found in what could be read.' : 'Nothing is waiting on the team.'));
 }
 
 /* "+ Task": one line, due today, owned by you (the same write old Locus My work makes). */
@@ -184,6 +211,7 @@ export default {
       ctx.api('/api/mywork', { worker: 'ah', signal: ctx.signal }),
       ctx.api('/api/requests?act=all', { worker: 'ah', signal: ctx.signal }).catch(() => null),   // the list still draws without it
     ]);
+    primeRead('/api/requests?act=all', rq);       // the agency list reads the same route: hand it over, not twice
     return fromLive(mw, rq, ctx.me);
   },
   render: draw,

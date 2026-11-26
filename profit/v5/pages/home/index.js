@@ -15,6 +15,7 @@
 
 import { put } from '../../kit.js';
 import { homeNotices } from '../automations/_notices.js';
+import { liveNote } from '../my-day/_waiting.js';
 import { h, money, num, pct, x, card, hero, em, kpi, kpis, takeaway, button, platformChip, statusDot, pill,
   delta, count, gauge, legend, lineChart, dateBlock, table, empty, addStyles } from '../../kit.js';
 
@@ -311,6 +312,7 @@ export default {
     const team = !ctx.isClient && data.suggestions;
     put(el, ...[
       heroBlock(data, ctx),
+      liveNote(ctx),             /* team only: what works in new Locus and what is still in old Locus; "Got it" hides it on this device */
       homeNotices(ctx),          /* rows an automation left for this person; hidden when there are none */
       say ? takeaway(say, { action: ctx.isClient ? null : button('Ask why', { href: ctx.href('ask', 'index') }) }) : null,
       data.source ? chartCard(data) : null,
