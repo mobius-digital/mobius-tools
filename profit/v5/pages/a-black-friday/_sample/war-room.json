@@ -2455,8 +2455,96 @@
       "sales": 0,
       "spend": 0
      }
-    ]
-   }
+    ],
+    "sale_so_far": {
+     "days": 1,
+     "sales": 8800,
+     "spend": 1900
+    },
+    "today": {
+     "sales": 8800,
+     "spend": 1900,
+     "mer": 4.632,
+     "no_sales": false
+    }
+   },
+   "act_id": "brand_northlake_golf",
+   "name": "Northlake Golf",
+   "currency": "USD",
+   "today": "2026-11-26",
+   "sale": {
+    "start": "2026-11-26",
+    "end": "2026-11-30"
+   },
+   "goals_list": [
+    {
+     "metric": "revenue",
+     "target": 90000
+    },
+    {
+     "metric": "mer",
+     "target": 2.5
+    }
+   ],
+   "ladder": {
+    "be": 2,
+    "target": 2.5
+   },
+   "steps": [
+    {
+     "key": "goals",
+     "label": "Set the goals",
+     "done": true
+    },
+    {
+     "key": "ladder",
+     "label": "Set the scaling ladder",
+     "done": true
+    },
+    {
+     "key": "offers",
+     "label": "Lock the offers and dates",
+     "done": true
+    }
+   ],
+   "phases": [
+    {
+     "key": "early",
+     "name": "Early Black Friday",
+     "start": "2026-11-01",
+     "end": "2026-11-25",
+     "status": "locked",
+     "grp": "nov",
+     "offer": "Early prices for the list"
+    },
+    {
+     "key": "bf",
+     "name": "Black Friday",
+     "start": "2026-11-26",
+     "end": "2026-11-29",
+     "status": "locked",
+     "grp": "bf",
+     "offer": "Buy a belt, get a ball marker set free"
+    },
+    {
+     "key": "cm",
+     "name": "Cyber Monday",
+     "start": "2026-11-30",
+     "end": "2026-11-30",
+     "status": "locked",
+     "grp": "bf",
+     "offer": "One more day of the deal, free shipping"
+    },
+    {
+     "key": "xmas",
+     "name": "Holiday",
+     "start": "2026-12-01",
+     "end": "2026-12-17",
+     "status": "draft",
+     "grp": "dec",
+     "offer": "Order by Dec 17 for Christmas"
+    }
+   ]
   },
   "brand_tallgrass_apparel": {
    "live": {
@@ -2581,8 +2669,96 @@
       "sales": 0,
       "spend": 0
      }
-    ]
-   }
+    ],
+    "sale_so_far": {
+     "days": 1,
+     "sales": 2800,
+     "spend": 700
+    },
+    "today": {
+     "sales": 2800,
+     "spend": 700,
+     "mer": 4,
+     "no_sales": false
+    }
+   },
+   "act_id": "brand_tallgrass_apparel",
+   "name": "Tallgrass Apparel",
+   "currency": "USD",
+   "today": "2026-11-26",
+   "sale": {
+    "start": "2026-11-26",
+    "end": "2026-11-30"
+   },
+   "goals_list": [
+    {
+     "metric": "revenue",
+     "target": 40000
+    },
+    {
+     "metric": "mer",
+     "target": 3
+    }
+   ],
+   "ladder": {
+    "be": 2.4,
+    "target": 3
+   },
+   "steps": [
+    {
+     "key": "goals",
+     "label": "Set the goals",
+     "done": true
+    },
+    {
+     "key": "ladder",
+     "label": "Set the scaling ladder",
+     "done": true
+    },
+    {
+     "key": "offers",
+     "label": "Lock the offers and dates",
+     "done": true
+    }
+   ],
+   "phases": [
+    {
+     "key": "early",
+     "name": "Early Black Friday",
+     "start": "2026-11-01",
+     "end": "2026-11-25",
+     "status": "locked",
+     "grp": "nov",
+     "offer": "Early prices for the list"
+    },
+    {
+     "key": "bf",
+     "name": "Black Friday",
+     "start": "2026-11-26",
+     "end": "2026-11-29",
+     "status": "locked",
+     "grp": "bf",
+     "offer": "Two polos for $90, free hat over $120"
+    },
+    {
+     "key": "cm",
+     "name": "Cyber Monday",
+     "start": "2026-11-30",
+     "end": "2026-11-30",
+     "status": "locked",
+     "grp": "bf",
+     "offer": "One more day of the deal, free shipping"
+    },
+    {
+     "key": "xmas",
+     "name": "Holiday",
+     "start": "2026-12-01",
+     "end": "2026-12-17",
+     "status": "draft",
+     "grp": "dec",
+     "offer": "Order by Dec 17 for Christmas"
+    }
+   ]
   },
   "brand_brightside_patch": {
    "live": {
@@ -2707,8 +2883,96 @@
       "sales": 0,
       "spend": 0
      }
-    ]
-   }
+    ],
+    "sale_so_far": {
+     "days": 1,
+     "sales": 4000,
+     "spend": 1100
+    },
+    "today": {
+     "sales": 4000,
+     "spend": 1100,
+     "mer": 3.636,
+     "no_sales": false
+    }
+   },
+   "act_id": "brand_brightside_patch",
+   "name": "Brightside Patch",
+   "currency": "USD",
+   "today": "2026-11-26",
+   "sale": {
+    "start": "2026-11-26",
+    "end": "2026-11-30"
+   },
+   "goals_list": [
+    {
+     "metric": "revenue",
+     "target": 60000
+    },
+    {
+     "metric": "mer",
+     "target": 2.5
+    }
+   ],
+   "ladder": {
+    "be": 2,
+    "target": 2.5
+   },
+   "steps": [
+    {
+     "key": "goals",
+     "label": "Set the goals",
+     "done": true
+    },
+    {
+     "key": "ladder",
+     "label": "Set the scaling ladder",
+     "done": true
+    },
+    {
+     "key": "offers",
+     "label": "Lock the offers and dates",
+     "done": true
+    }
+   ],
+   "phases": [
+    {
+     "key": "early",
+     "name": "Early Black Friday",
+     "start": "2026-11-01",
+     "end": "2026-11-25",
+     "status": "locked",
+     "grp": "nov",
+     "offer": "Early prices for the list"
+    },
+    {
+     "key": "bf",
+     "name": "Black Friday",
+     "start": "2026-11-26",
+     "end": "2026-11-29",
+     "status": "locked",
+     "grp": "bf",
+     "offer": "Buy 2 boxes, get 1 free"
+    },
+    {
+     "key": "cm",
+     "name": "Cyber Monday",
+     "start": "2026-11-30",
+     "end": "2026-11-30",
+     "status": "locked",
+     "grp": "bf",
+     "offer": "One more day of the deal, free shipping"
+    },
+    {
+     "key": "xmas",
+     "name": "Holiday",
+     "start": "2026-12-01",
+     "end": "2026-12-17",
+     "status": "draft",
+     "grp": "dec",
+     "offer": "Order by Dec 17 for Christmas"
+    }
+   ]
   },
   "brand_summit_sticks": {
    "live": {
@@ -2833,8 +3097,96 @@
       "sales": 0,
       "spend": 0
      }
-    ]
-   }
+    ],
+    "sale_so_far": {
+     "days": 1,
+     "sales": 1700,
+     "spend": 420
+    },
+    "today": {
+     "sales": 1700,
+     "spend": 420,
+     "mer": 4.048,
+     "no_sales": false
+    }
+   },
+   "act_id": "brand_summit_sticks",
+   "name": "Summit Sticks",
+   "currency": "USD",
+   "today": "2026-11-26",
+   "sale": {
+    "start": "2026-11-26",
+    "end": "2026-11-30"
+   },
+   "goals_list": [
+    {
+     "metric": "revenue",
+     "target": 20000
+    },
+    {
+     "metric": "mer",
+     "target": 2.5
+    }
+   ],
+   "ladder": {
+    "be": 2,
+    "target": 2.5
+   },
+   "steps": [
+    {
+     "key": "goals",
+     "label": "Set the goals",
+     "done": true
+    },
+    {
+     "key": "ladder",
+     "label": "Set the scaling ladder",
+     "done": true
+    },
+    {
+     "key": "offers",
+     "label": "Lock the offers and dates",
+     "done": true
+    }
+   ],
+   "phases": [
+    {
+     "key": "early",
+     "name": "Early Black Friday",
+     "start": "2026-11-01",
+     "end": "2026-11-25",
+     "status": "locked",
+     "grp": "nov",
+     "offer": "Early prices for the list"
+    },
+    {
+     "key": "bf",
+     "name": "Black Friday",
+     "start": "2026-11-26",
+     "end": "2026-11-29",
+     "status": "locked",
+     "grp": "bf",
+     "offer": "25% off every stick"
+    },
+    {
+     "key": "cm",
+     "name": "Cyber Monday",
+     "start": "2026-11-30",
+     "end": "2026-11-30",
+     "status": "locked",
+     "grp": "bf",
+     "offer": "One more day of the deal, free shipping"
+    },
+    {
+     "key": "xmas",
+     "name": "Holiday",
+     "start": "2026-12-01",
+     "end": "2026-12-17",
+     "status": "draft",
+     "grp": "dec",
+     "offer": "Order by Dec 17 for Christmas"
+    }
+   ]
   },
   "brand_copper_kettle_pets": {
    "live": {
@@ -2959,8 +3311,96 @@
       "sales": 0,
       "spend": 0
      }
-    ]
-   }
+    ],
+    "sale_so_far": {
+     "days": 1,
+     "sales": null,
+     "spend": 48
+    },
+    "today": {
+     "sales": null,
+     "spend": 48,
+     "mer": null,
+     "no_sales": true
+    }
+   },
+   "act_id": "brand_copper_kettle_pets",
+   "name": "Copper Kettle Pets",
+   "currency": "USD",
+   "today": "2026-11-26",
+   "sale": {
+    "start": "2026-11-26",
+    "end": "2026-11-30"
+   },
+   "goals_list": [
+    {
+     "metric": "revenue",
+     "target": 6000
+    },
+    {
+     "metric": "mer",
+     "target": 2.5
+    }
+   ],
+   "ladder": {
+    "be": 2,
+    "target": 2.5
+   },
+   "steps": [
+    {
+     "key": "goals",
+     "label": "Set the goals",
+     "done": true
+    },
+    {
+     "key": "ladder",
+     "label": "Set the scaling ladder",
+     "done": false
+    },
+    {
+     "key": "offers",
+     "label": "Lock the offers and dates",
+     "done": true
+    }
+   ],
+   "phases": [
+    {
+     "key": "early",
+     "name": "Early Black Friday",
+     "start": "2026-11-01",
+     "end": "2026-11-25",
+     "status": "locked",
+     "grp": "nov",
+     "offer": "Early prices for the list"
+    },
+    {
+     "key": "bf",
+     "name": "Black Friday",
+     "start": "2026-11-26",
+     "end": "2026-11-29",
+     "status": "locked",
+     "grp": "bf",
+     "offer": "Free chews with every order over $50"
+    },
+    {
+     "key": "cm",
+     "name": "Cyber Monday",
+     "start": "2026-11-30",
+     "end": "2026-11-30",
+     "status": "locked",
+     "grp": "bf",
+     "offer": "One more day of the deal, free shipping"
+    },
+    {
+     "key": "xmas",
+     "name": "Holiday",
+     "start": "2026-12-01",
+     "end": "2026-12-17",
+     "status": "draft",
+     "grp": "dec",
+     "offer": "Order by Dec 17 for Christmas"
+    }
+   ]
   },
   "brand_harbor_and_pine": {
    "live": {
@@ -3085,8 +3525,92 @@
       "sales": 0,
       "spend": 0
      }
-    ]
-   }
+    ],
+    "sale_so_far": {
+     "days": 1,
+     "sales": 2600,
+     "spend": 640
+    },
+    "today": {
+     "sales": 2600,
+     "spend": 640,
+     "mer": 4.063,
+     "no_sales": false
+    }
+   },
+   "act_id": "brand_harbor_and_pine",
+   "name": "Harbor & Pine",
+   "currency": "USD",
+   "today": "2026-11-26",
+   "sale": {
+    "start": "2026-11-26",
+    "end": "2026-11-30"
+   },
+   "goals_list": [
+    {
+     "metric": "mer",
+     "target": 2.5
+    }
+   ],
+   "ladder": {
+    "be": 2,
+    "target": 2.5
+   },
+   "steps": [
+    {
+     "key": "goals",
+     "label": "Set the goals",
+     "done": false
+    },
+    {
+     "key": "ladder",
+     "label": "Set the scaling ladder",
+     "done": false
+    },
+    {
+     "key": "offers",
+     "label": "Lock the offers and dates",
+     "done": true
+    }
+   ],
+   "phases": [
+    {
+     "key": "early",
+     "name": "Early Black Friday",
+     "start": "2026-11-01",
+     "end": "2026-11-25",
+     "status": "locked",
+     "grp": "nov",
+     "offer": "Early prices for the list"
+    },
+    {
+     "key": "bf",
+     "name": "Black Friday",
+     "start": "2026-11-26",
+     "end": "2026-11-29",
+     "status": "locked",
+     "grp": "bf",
+     "offer": "30% off sitewide"
+    },
+    {
+     "key": "cm",
+     "name": "Cyber Monday",
+     "start": "2026-11-30",
+     "end": "2026-11-30",
+     "status": "locked",
+     "grp": "bf",
+     "offer": "One more day of the deal, free shipping"
+    },
+    {
+     "key": "xmas",
+     "name": "Holiday",
+     "start": "2026-12-01",
+     "end": "2026-12-17",
+     "status": "draft",
+     "grp": "dec",
+     "offer": "Order by Dec 17 for Christmas"
+    }
+   ]
   },
   "brand_fairway_supply": {
    "live": {
@@ -3211,8 +3735,96 @@
       "sales": 0,
       "spend": 0
      }
-    ]
-   }
+    ],
+    "sale_so_far": {
+     "days": 1,
+     "sales": 3100,
+     "spend": 1350
+    },
+    "today": {
+     "sales": 3100,
+     "spend": 1350,
+     "mer": 2.296,
+     "no_sales": false
+    }
+   },
+   "act_id": "brand_fairway_supply",
+   "name": "Fairway Supply",
+   "currency": "USD",
+   "today": "2026-11-26",
+   "sale": {
+    "start": "2026-11-26",
+    "end": "2026-11-30"
+   },
+   "goals_list": [
+    {
+     "metric": "revenue",
+     "target": 50000
+    },
+    {
+     "metric": "mer",
+     "target": 2.5
+    }
+   ],
+   "ladder": {
+    "be": 2,
+    "target": 2.5
+   },
+   "steps": [
+    {
+     "key": "goals",
+     "label": "Set the goals",
+     "done": true
+    },
+    {
+     "key": "ladder",
+     "label": "Set the scaling ladder",
+     "done": true
+    },
+    {
+     "key": "offers",
+     "label": "Lock the offers and dates",
+     "done": false
+    }
+   ],
+   "phases": [
+    {
+     "key": "early",
+     "name": "Early Black Friday",
+     "start": "2026-11-01",
+     "end": "2026-11-25",
+     "status": "locked",
+     "grp": "nov",
+     "offer": "Early prices for the list"
+    },
+    {
+     "key": "bf",
+     "name": "Black Friday",
+     "start": "2026-11-26",
+     "end": "2026-11-29",
+     "status": "locked",
+     "grp": "bf",
+     "offer": "Free head cover with any club"
+    },
+    {
+     "key": "cm",
+     "name": "Cyber Monday",
+     "start": "2026-11-30",
+     "end": "2026-11-30",
+     "status": "locked",
+     "grp": "bf",
+     "offer": "One more day of the deal, free shipping"
+    },
+    {
+     "key": "xmas",
+     "name": "Holiday",
+     "start": "2026-12-01",
+     "end": "2026-12-17",
+     "status": "draft",
+     "grp": "dec",
+     "offer": "Order by Dec 17 for Christmas"
+    }
+   ]
   }
  },
  "hub_paid": {
@@ -3510,5 +4122,235 @@
     }
    ]
   }
+ },
+ "war_all": {
+  "today": "2026-11-26",
+  "bf": "2026-11-27",
+  "brands": [
+   {
+    "act_id": "brand_northlake_golf",
+    "name": "Northlake Golf",
+    "currency": "USD",
+    "sale": {
+     "start": "2026-11-26",
+     "end": "2026-11-30"
+    },
+    "steps": [
+     {
+      "key": "goals",
+      "label": "Set the goals",
+      "done": true
+     },
+     {
+      "key": "ladder",
+      "label": "Set the scaling ladder",
+      "done": true
+     },
+     {
+      "key": "offers",
+      "label": "Lock the offers and dates",
+      "done": true
+     }
+    ],
+    "done": 3,
+    "goal": 90000,
+    "bf_offer": "Buy a belt, get a ball marker set free",
+    "ladder": {
+     "target": 2.5
+    }
+   },
+   {
+    "act_id": "brand_tallgrass_apparel",
+    "name": "Tallgrass Apparel",
+    "currency": "USD",
+    "sale": {
+     "start": "2026-11-26",
+     "end": "2026-11-30"
+    },
+    "steps": [
+     {
+      "key": "goals",
+      "label": "Set the goals",
+      "done": true
+     },
+     {
+      "key": "ladder",
+      "label": "Set the scaling ladder",
+      "done": true
+     },
+     {
+      "key": "offers",
+      "label": "Lock the offers and dates",
+      "done": true
+     }
+    ],
+    "done": 3,
+    "goal": 40000,
+    "bf_offer": "Two polos for $90, free hat over $120",
+    "ladder": {
+     "target": 3
+    }
+   },
+   {
+    "act_id": "brand_brightside_patch",
+    "name": "Brightside Patch",
+    "currency": "USD",
+    "sale": {
+     "start": "2026-11-26",
+     "end": "2026-11-30"
+    },
+    "steps": [
+     {
+      "key": "goals",
+      "label": "Set the goals",
+      "done": true
+     },
+     {
+      "key": "ladder",
+      "label": "Set the scaling ladder",
+      "done": true
+     },
+     {
+      "key": "offers",
+      "label": "Lock the offers and dates",
+      "done": true
+     }
+    ],
+    "done": 3,
+    "goal": 60000,
+    "bf_offer": "Buy 2 boxes, get 1 free",
+    "ladder": {
+     "target": 2.5
+    }
+   },
+   {
+    "act_id": "brand_summit_sticks",
+    "name": "Summit Sticks",
+    "currency": "USD",
+    "sale": {
+     "start": "2026-11-26",
+     "end": "2026-11-30"
+    },
+    "steps": [
+     {
+      "key": "goals",
+      "label": "Set the goals",
+      "done": true
+     },
+     {
+      "key": "ladder",
+      "label": "Set the scaling ladder",
+      "done": true
+     },
+     {
+      "key": "offers",
+      "label": "Lock the offers and dates",
+      "done": true
+     }
+    ],
+    "done": 3,
+    "goal": 20000,
+    "bf_offer": "25% off every stick",
+    "ladder": {
+     "target": 2.5
+    }
+   },
+   {
+    "act_id": "brand_copper_kettle_pets",
+    "name": "Copper Kettle Pets",
+    "currency": "USD",
+    "sale": {
+     "start": "2026-11-26",
+     "end": "2026-11-30"
+    },
+    "steps": [
+     {
+      "key": "goals",
+      "label": "Set the goals",
+      "done": true
+     },
+     {
+      "key": "ladder",
+      "label": "Set the scaling ladder",
+      "done": false
+     },
+     {
+      "key": "offers",
+      "label": "Lock the offers and dates",
+      "done": true
+     }
+    ],
+    "done": 2,
+    "goal": 6000,
+    "bf_offer": "Free chews with every order over $50",
+    "ladder": {
+     "target": 2.5
+    }
+   },
+   {
+    "act_id": "brand_harbor_and_pine",
+    "name": "Harbor & Pine",
+    "currency": "USD",
+    "sale": {
+     "start": "2026-11-26",
+     "end": "2026-11-30"
+    },
+    "steps": [
+     {
+      "key": "goals",
+      "label": "Set the goals",
+      "done": false
+     },
+     {
+      "key": "ladder",
+      "label": "Set the scaling ladder",
+      "done": false
+     },
+     {
+      "key": "offers",
+      "label": "Lock the offers and dates",
+      "done": true
+     }
+    ],
+    "done": 1,
+    "goal": null,
+    "bf_offer": "30% off sitewide",
+    "ladder": {
+     "target": 2.5
+    }
+   },
+   {
+    "act_id": "brand_fairway_supply",
+    "name": "Fairway Supply",
+    "currency": "USD",
+    "sale": {
+     "start": "2026-11-26",
+     "end": "2026-11-30"
+    },
+    "steps": [
+     {
+      "key": "goals",
+      "label": "Set the goals",
+      "done": true
+     },
+     {
+      "key": "ladder",
+      "label": "Set the scaling ladder",
+      "done": true
+     },
+     {
+      "key": "offers",
+      "label": "Lock the offers and dates",
+      "done": false
+     }
+    ],
+    "done": 2,
+    "goal": 50000,
+    "bf_offer": "Free head cover with any club",
+    "ladder": {
+     "target": 2.5
+    }
+   }
+  ]
  }
 }

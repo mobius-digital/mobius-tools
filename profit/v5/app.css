@@ -31,6 +31,10 @@
   --sh-1:0 0 0 1px rgba(28,20,10,.045),0 1px 2px rgba(28,20,10,.04),0 10px 28px -12px rgba(28,20,10,.12);
   --sh-2:0 0 0 1px rgba(28,20,10,.05),0 2px 4px rgba(28,20,10,.04),0 18px 44px -14px rgba(28,20,10,.18);
   --sh-3:0 0 0 1px rgba(28,20,10,.06),0 4px 8px rgba(28,20,10,.05),0 28px 64px -16px rgba(28,20,10,.26);
+  /* the tooltip bubble and the definition bubble: dark in light and dark themes alike */
+  --tip-bg:#1E1A16; --tip-fg:#FFFFFF; --tip-muted:rgba(255,255,255,.72); --tip-sh:0 0 0 1px rgba(255,255,255,.06),0 10px 28px -8px rgba(28,20,10,.45);
+  /* a row under the pointer: a soft opaque tint (opaque so the rounded ends can be drawn as shadows) */
+  --row-hover:#F6F5F2;
   --sh-ember:0 1px 2px rgba(190,70,10,.20),0 8px 20px -8px rgba(255,100,30,.60);
   --wash:radial-gradient(70% 130% at 100% 0%,rgba(255,138,31,.13),rgba(255,122,26,.04) 48%,rgba(255,122,26,0) 72%);
   --r-xs:4px; --r-sm:8px; --r-md:10px; --r-lg:18px; --r-xl:26px; --r-pill:999px;
@@ -194,6 +198,9 @@ button.lx-avatar{cursor:pointer}
 .lx-rows{display:flex;flex-direction:column}
 .lx-rows>*{display:flex;align-items:center;gap:14px;padding:13px 0;border-top:1px solid var(--line);color:inherit;text-decoration:none}
 .lx-rows>:first-child{border-top:0}
+/* a list row that is a link or a button: the same soft tint as a table row, rounded, 10px past the words */
+.lx-rows>a:hover,.lx-rows>button:hover,.lx-rows>.click:hover{background:var(--row-hover);border-radius:10px;border-top-color:transparent;box-shadow:-10px 0 0 var(--row-hover),10px 0 0 var(--row-hover)}
+.lx-rows>a:hover+*,.lx-rows>button:hover+*,.lx-rows>.click:hover+*{border-top-color:transparent}
 .lx-empty{display:grid;gap:10px;justify-items:start;padding:36px 32px;border-radius:var(--r-lg);box-shadow:inset 0 0 0 1px var(--line);background:linear-gradient(180deg,#FAF9F7,#fff)}
 .lx-empty h3{font-size:18px;font-weight:600;letter-spacing:-.02em}
 .lx-empty p{color:var(--muted);max-width:52ch;min-width:0;overflow-wrap:anywhere}
@@ -343,7 +350,7 @@ button.lx-avatar{cursor:pointer}
 /* a table put straight into a card scrolls inside the card, never the page */
 .lx-card:has(>.lx-table){overflow-x:auto}
 .lx-table-wrap.virtual{overflow-y:auto}
-.lx-table{width:100%;border-collapse:collapse;font-size:var(--fs-cell);font-variant-numeric:tabular-nums}
+.lx-table{width:100%;border-collapse:separate;border-spacing:0;font-size:var(--fs-cell);font-variant-numeric:tabular-nums}
 .lx-table th{height:34px;padding:0 var(--sp-3);text-align:left;font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);white-space:nowrap;border-bottom:1px solid var(--line);background:#fff}
 .lx-table-wrap.virtual th{position:sticky;top:0;z-index:1}
 .lx-table td{height:var(--rh,40px);padding:0 var(--sp-3);border-bottom:1px solid var(--line);vertical-align:middle;color:var(--ink);white-space:nowrap}
@@ -357,7 +364,18 @@ button.lx-avatar{cursor:pointer}
 .lx-table .name{font-weight:550;white-space:normal}
 .lx-table .sub{display:block;font-size:var(--fs-meta);font-weight:400;color:var(--muted)}
 .lx-table .dim{color:var(--muted)}.lx-table .neg{color:var(--bad)}.lx-table .pos{color:var(--good)}.lx-table .strong{font-weight:650}
-.lx-table tbody tr:hover td{background:var(--surface-2)}
+/* the row under the pointer: a soft tint with rounded ends that reaches 10px past the first and last words
+   (drawn as shadows, so nothing moves), and the row's own lines fade so it reads as one soft piece, never a box.
+   The wrap has 10px of room each side for those ends; a flush card's edge cells already have their padding. */
+.lx-table-wrap{width:calc(100% + 20px);margin-inline:-10px;padding-inline:10px}
+/* a flush card clips its sides, so a table anywhere inside it keeps to the card's own width */
+.lx-card.flush .lx-table-wrap{width:100%;margin-inline:0;padding-inline:0}
+.lx-table tbody tr:not(.total):not(.spacer):not(.empty):hover td{background:var(--row-hover);border-bottom-color:transparent}
+.lx-table tbody tr:not(.total):not(.spacer):not(.empty):hover td:first-child{border-radius:10px 0 0 10px;box-shadow:-10px 0 0 var(--row-hover)}
+.lx-table tbody tr:not(.total):not(.spacer):not(.empty):hover td:last-child{border-radius:0 10px 10px 0;box-shadow:10px 0 0 var(--row-hover)}
+.lx-table tbody tr:not(.total):not(.spacer):not(.empty):hover td:first-child:last-child{border-radius:10px;box-shadow:-10px 0 0 var(--row-hover),10px 0 0 var(--row-hover)}
+.lx-table tbody tr:has(+ tr:not(.total):not(.spacer):not(.empty):hover) td{border-bottom-color:transparent}
+.lx-card.flush .lx-table tbody tr:not(.total):not(.spacer):not(.empty):hover td{box-shadow:none}
 .lx-table tr.click{cursor:pointer}
 .lx-table tr.total td{border:0;background:var(--band);font-weight:650}
 .lx-table tr.spacer:hover td,.lx-table tr.empty:hover td{background:none}
@@ -484,7 +502,7 @@ select.lx-input{appearance:none;padding-right:34px;background:#fff url("data:ima
 @media (max-width:759px){
   :root{--top-h:52px}
   body{font-size:15px}
-  .lx-shell{display:block;padding-bottom:calc(var(--tabbar-h) + env(safe-area-inset-bottom,0px))}
+  .lx-shell{display:block}
   .lx-rail{display:none}
   .lx-top{gap:10px;border-bottom:1px solid var(--line)}
   .lx-top .lx-mark{display:block}
@@ -494,7 +512,8 @@ select.lx-input{appearance:none;padding-right:34px;background:#fff url("data:ima
   .lx-top>.lx-switch,.lx-top>.lx-chip{flex:0 1 auto;min-width:0}
   .lx-top>.lx-switch{overflow:hidden}
   .lx-top>.lx-sp{flex:1 1 0;min-width:0}
-  .lx-page{padding-top:14px;padding-bottom:28px}
+  /* the page clears the fixed tab bar itself: 72px is the bar (58px) plus room to breathe */
+  .lx-page{padding-top:14px;padding-bottom:calc(72px + env(safe-area-inset-bottom,0px))}
   .lx-head h1{font-weight:700;letter-spacing:-.03em;line-height:1.1}
   .lx-tabs{margin:0 calc(var(--pad-page) * -1);padding:0 var(--pad-page)}
   .lx-two,.lx-skel-grid{grid-template-columns:1fr;gap:var(--sp-4)}
@@ -505,7 +524,7 @@ select.lx-input{appearance:none;padding-right:34px;background:#fff url("data:ima
   .lx-btn.lg{height:48px;font-size:16px}
   .lx-empty{padding:24px 20px}
   .lx-empty .lx-btn{width:100%;height:48px;font-size:15.500px}
-  .lx-tabbar{position:fixed;left:0;right:0;bottom:0;z-index:40;display:grid;grid-template-columns:repeat(5,1fr);background:rgba(255,255,255,.97);border-top:1px solid var(--line-strong);padding-bottom:env(safe-area-inset-bottom,0px)}
+  .lx-tabbar{position:fixed;left:0;right:0;bottom:0;z-index:40;display:grid;grid-template-columns:repeat(5,1fr);background:var(--surface,#fff);border-top:1px solid var(--line-strong);padding-bottom:env(safe-area-inset-bottom,0px)}
   .lx-tabbar a,.lx-tabbar button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:var(--tabbar-h);padding:6px 0 4px;border:0;background:none;font-size:10.500px;font-weight:550;color:var(--muted);text-decoration:none;cursor:pointer}
   .lx-tabbar .lx-ic{width:22px;height:22px;stroke-width:1.8}
   .lx-tabbar .on{color:var(--ink);font-weight:650}
@@ -590,9 +609,15 @@ select.lx-input{appearance:none;padding-right:34px;background:#fff url("data:ima
 .lx-plot .nt.on{fill:var(--ink-2)}
 .lx-plot .tk.on{fill:var(--ink);font-weight:600}
 .lx-plot .hit{fill:transparent}
-.lx-plot .cur{stroke:var(--ink-2);stroke-width:1;shape-rendering:crispEdges;pointer-events:none}
-.lx-chart-read{position:absolute;left:50px;top:-10px;display:flex;gap:12px;align-items:center;padding:6px 12px;border-radius:999px;background:#fff;box-shadow:var(--sh-2);font-size:12.5px;color:var(--ink-2);font-variant-numeric:tabular-nums;white-space:nowrap;pointer-events:none}
-.lx-chart-read b{color:var(--ink);font-weight:650}
+.lx-plot .cur{stroke:var(--ink-2);stroke-opacity:.45;stroke-width:1;shape-rendering:crispEdges;pointer-events:none}
+.lx-plot .hl{fill:var(--ink);fill-opacity:.045;pointer-events:none}
+.lx-plot .hd{fill:var(--surface);stroke:var(--slate);stroke-width:2;pointer-events:none}
+.lx-plot .hd.lead{stroke:var(--brand)}
+.lx-plot:focus{outline:none}
+.lx-plot:focus-visible{outline:2px solid var(--ink-2);outline-offset:4px;border-radius:8px}
+.lx-spark .cur{stroke:var(--ink-2);stroke-opacity:.4;stroke-width:1;vector-effect:non-scaling-stroke;pointer-events:none}
+.lx-spark .pt{fill:none;stroke:var(--slate);stroke-width:6;stroke-linecap:round;vector-effect:non-scaling-stroke;pointer-events:none}
+.lx-spark .pt.lead{stroke:var(--brand)}
 .lx-spark .gref{stroke:var(--ink-2);stroke-width:1;stroke-dasharray:3 3;vector-effect:non-scaling-stroke}
 /* a chart card's own head: the question, one quiet line, the legend on the right */
 .lx-chart-h{display:flex;align-items:flex-start;gap:24px;margin-bottom:18px}
@@ -615,7 +640,6 @@ select.lx-input{appearance:none;padding-right:34px;background:#fff url("data:ima
   .lx-bell-row .t{flex:1 1 60%}
   .lx-bell-row .lx-btn{margin-left:52px;height:38px}
   .lx-bell-f{padding:14px 18px}
-  .lx-chart-read{left:0;right:0;top:-12px;justify-content:center;gap:8px;font-size:11.5px;padding:6px 8px}
   .lx-chart-h{flex-wrap:wrap;gap:10px;margin-bottom:14px}
   .lx-chart-h .lx-legend{margin-left:0;width:100%}
 }
@@ -700,3 +724,46 @@ html{overflow-wrap:break-word}
 .lx-chart-h>:first-child{flex:1 1 240px;min-width:0}
 .lx-legend{row-gap:6px}
 .lx-input,.lx-field{min-width:0;max-width:100%}
+
+/* ---------- tooltips and definitions (kit.js tipShow, defs.js) ---------- */
+/* the chart bubble: small, dark, rounded, follows the pointer, never clipped (fixed on <body>) */
+.lx-tip{position:fixed;left:0;top:0;z-index:95;display:grid;gap:3px;min-width:96px;max-width:min(280px,calc(100vw - 16px));padding:8px 11px;border-radius:10px;
+  background:var(--tip-bg);color:var(--tip-muted);box-shadow:var(--tip-sh);font-size:12.5px;line-height:1.4;font-variant-numeric:tabular-nums;pointer-events:none;white-space:normal}
+.lx-tip[hidden]{display:none}
+.lx-tip-h{color:var(--tip-fg);font-weight:600;font-size:12.5px}
+.lx-tip-h b,.lx-tip-r b{color:var(--tip-fg);font-weight:600}
+.lx-tip-r{display:flex;align-items:center;gap:7px;min-width:0}
+.lx-tip-r .v{margin-left:auto;padding-left:14px;white-space:nowrap}
+.lx-tip-r>span{min-width:0}
+.lx-tip .sw{flex:none;width:8px;height:8px;border-radius:2px;background:var(--slate)}
+.lx-tip .sw.lead{background:var(--brand)}
+.lx-tip .sw.ink{background:#E9E6E1}
+.lx-tip .sw.dash{height:0;border-radius:0;background:none;border-top:2px dashed #A3ABBD}
+/* a defined label: dotted underline, the bubble opens on hover, focus, or a tap (which pins it) */
+.lx-def{text-decoration:underline dotted var(--icon);text-decoration-thickness:1.5px;text-underline-offset:3px;cursor:help;border-radius:3px}
+.lx-def:hover,.lx-def.open{text-decoration-color:var(--ink-2)}
+.lx-def:focus{outline:none}
+.lx-def:focus-visible{outline:2px solid var(--ink-2);outline-offset:2px}
+.lx-defpop{position:fixed;left:0;top:0;z-index:95;display:grid;gap:6px;max-width:min(320px,calc(100vw - 16px));padding:12px 14px;border-radius:12px;
+  background:var(--tip-bg);color:var(--tip-fg);box-shadow:var(--tip-sh);font-size:12.5px;font-weight:400;line-height:1.45;letter-spacing:0;text-transform:none;text-align:left;white-space:normal}
+.lx-defpop b{font-size:13px;font-weight:600}
+.lx-defpop span{color:var(--tip-muted)}
+.lx-defpop code{font:inherit;color:var(--tip-fg)}
+/* the small round (i) */
+.lx-info{display:inline-grid;place-items:center;flex:none;width:16px;height:16px;padding:0;margin:0 0 0 4px;border:0;border-radius:50%;vertical-align:-2px;
+  background:var(--bg-sunk);color:var(--muted);font:italic 600 10.5px/1 var(--serif);letter-spacing:0;text-transform:none;cursor:help}
+button.lx-info:hover,button.lx-info.open{background:var(--ink);color:#fff}
+button.lx-info:focus{outline:none}
+button.lx-info:focus-visible{outline:2px solid var(--ink-2);outline-offset:2px}
+/* "What is this page?": quiet, beside the page title */
+.lx-help{display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 10px 0 7px;border:0;border-radius:999px;background:transparent;color:var(--muted);
+  font:500 12.5px/1 var(--sans);cursor:pointer;white-space:nowrap}
+.lx-help .lx-info{margin:0;cursor:inherit}
+.lx-help:hover{background:var(--row-hover);color:var(--ink)}
+.lx-help:hover .lx-info{background:var(--ink);color:#fff}
+.lx-help:focus-visible{outline:2px solid var(--ink-2);outline-offset:2px}
+.lx-help-sheet .lx-sheet-b p{margin:0;font-size:14px;line-height:1.55;color:var(--ink-2)}
+.lx-help-sheet .lx-sheet-b section{display:grid;gap:6px}
+.lx-help-sheet .lx-sheet-b h3{margin:0;font-size:14px;font-weight:650;color:var(--ink)}
+/* a dark theme, if one is ever switched on: the bubbles keep their look and get a lighter edge */
+:root[data-theme="dark"]{--tip-bg:#2A2521;--tip-sh:0 0 0 1px rgba(255,255,255,.12),0 10px 28px -8px rgba(0,0,0,.6);--row-hover:#2A2622}

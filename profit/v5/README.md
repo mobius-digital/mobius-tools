@@ -406,8 +406,9 @@ whole-document MutationObserver; no polling; tables over 100 rows use `virtual`.
 | `brand/<brand>/library/reference-ads` | Library > Reference ads | `pages/library/reference-ads.js` | inspo |  |
 | `brand/<brand>/calendar/index` | Calendar | `pages/calendar/index.js` | calendar |  |
 | `brand/<brand>/offers/index` | Offers | `pages/offers/index.js` | season |  |
-| `brand/<brand>/black-friday/pace` | Black Friday > Pace | `pages/black-friday/pace.js` | warlive |  |
-| `brand/<brand>/black-friday/plan` | Black Friday > Plan | `pages/black-friday/plan.js` | warplan |  |
+| `brand/<brand>/black-friday/war-room` | Black Friday > War Room (pace, calls, plan; a client sees pace and plan) | `pages/black-friday/war-room.js` | warlive |  |
+| `brand/<brand>/black-friday/plan` | Black Friday > Plan (not a tab: opened from the War Room's plan table) | `pages/black-friday/plan.js` | warplan |  |
+| `brand/<brand>/black-friday/pace` | Old address: opens the War Room | (router) | warlive |  |
 | `brand/<brand>/reports/index` | Reports | `pages/reports/index.js` | reports |  |
 | `brand/<brand>/documents/index` | Documents | `pages/documents/index.js` | dash |  |
 | `brand/<brand>/requests/index` | Requests | `pages/requests/index.js` | requests |  |
@@ -432,8 +433,9 @@ whole-document MutationObserver; no polling; tables over 100 rows use `virtual`.
 | `agency/all/a-creators/to-review` | Creators > To review | `pages/a-creators/to-review.js` | trybe | yes |
 | `agency/all/a-creators/by-brand` | Creators > By brand | `pages/a-creators/by-brand.js` | trybe | yes |
 | `agency/all/a-calendar/index` | Calendar | `pages/a-calendar/index.js` | calendar | yes |
-| `agency/all/a-black-friday/pace` | Black Friday > Pace | `pages/a-black-friday/pace.js` | warlive | yes |
-| `agency/all/a-black-friday/plan` | Black Friday > Plan | `pages/a-black-friday/plan.js` | warplan | yes |
+| `agency/all/a-black-friday/war-room` | Black Friday > War Room (every brand) | `pages/a-black-friday/war-room.js` | warlive | yes |
+| `agency/all/a-black-friday/pace` | Old address: opens the War Room | (router) | warlive | yes |
+| `agency/all/a-black-friday/plan` | Old address: opens the War Room (each brand's plan opens from its plan table row) | (router) | warplan | yes |
 | `agency/all/a-to-send/index` | To send | `pages/a-to-send/index.js` | reports | yes |
 | `agency/all/a-shared-links/index` | Shared links | `pages/a-shared-links/index.js` | none | yes |
 | `agency/all/a-clients/index` | Client list > Client list | `pages/a-clients/index.js` | settings | yes |

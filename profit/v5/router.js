@@ -128,7 +128,7 @@ async function show(route, { soft = false, fresh = false } = {}) {
       paint(mod, data); stamp(data, Date.now() - SAMPLE_AGE);
     } else {
       /* the dates are part of the key only for a page that honors them, so the others keep one saved copy */
-      const key = pageKey({ view: route.view, brandId: ctx.brand ? ctx.brand.id : 'all', line: line.id, tab: tab.id, range: ranged ? ctx.range : null });
+      const key = pageKey({ view: route.view, brandId: ctx.brand ? ctx.brand.id : 'all', line: line.id, tab: tab.id, range: ranged ? ctx.range : null, client: ctx.isClient });
       /* After a write: read the page again before drawing, so the saved copy from before the write never comes back.
          The screen keeps what the write already drew until the new answer lands. If the read fails, fall through. */
       if (fresh) {

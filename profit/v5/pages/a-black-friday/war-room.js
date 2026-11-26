@@ -1,4 +1,5 @@
-/* Agency > Black Friday > War Room (v2): every brand in the latest check-in, a call per live campaign, Approve.
+/* Agency > Black Friday > War Room: the one Black Friday page, every brand. The pace hero, Needs your yes, a card per
+   brand with its campaign calls, and the plan. The old Pace and Plan addresses open this page too.
    The work is in live.js (shared with the brand page) and the math in ../_warcall.js. Reads GET /api/standing and
    the earlier check-ins; a tap writes one campaign budget through POST /api/meta/write (dry run first). */
 

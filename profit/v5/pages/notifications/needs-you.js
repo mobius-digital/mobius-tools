@@ -159,7 +159,7 @@ function placeOf(b) {
   if (b.href) return /slack\.com/.test(b.href) ? 'Slack' : /open=production/.test(b.href) ? 'The card in old ' + APP_NAME : 'Old ' + APP_NAME;
   const l = lineOf(b.line); if (!l) return '';
   const t = l.tabs.find(x => x.id === b.tab);
-  return t && t.label && l.tabs.length > 1 ? l.label + ', ' + t.label : l.label;
+  return t && t.label && l.tabs.filter(x => !x.hidden).length > 1 ? l.label + ', ' + t.label : l.label;
 }
 const say = parts => [].concat(parts || '').map(p => (p && typeof p === 'object' ? h('b', null, p.b) : p));
 const go = (b, ctx, o = {}) => { const link = linkOf(b, ctx); return link ? button(b.label || 'Open', { ...o, href: link, target: b.href && /^https?:/.test(b.href) ? '_blank' : null }) : null; };
