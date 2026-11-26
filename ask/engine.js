@@ -963,24 +963,64 @@ export function createAssistant(config) {
 
   /* A proposal is what an action described and did not do. Kept for a day so
    * the Apply tap can come from the app or from Slack, minutes or hours later. */
-  async function pendingList(env, h) {
-    const list = h.safeJson(await h.getSetting(env, K.pending), []) || [];
-    const cutoff = Date.now() - 24 * 3600e3;
-    return list.filter(p => Date.parse(p.at) > cutoff);
+  /* 2026-11-26 (review of ALWAYS A TAP): the list is ONE settings row and D1 refuses a row over 2MB. A held tool's
+   * input (a file, a report, run_analysis rows) can be large, so any patch over PATCH_INLINE bytes lives in its own
+   * row (`<pending>:<id>`), and the list row itself is kept under LIST_MAX by evicting the oldest cards. A held row
+   * is cleared when its card is applied, cancelled, expires or is evicted. */
+  const PATCH_INLINE = 4000, LIST_MAX = 400000, ROW_MAX = 900000;
+  const bytes = s => new TextEncoder().encode(String(s ?? '')).length;
+  const heldKey = id => `${K.pending}:${id}`;
+  const clearKey = (env, h, key) => (h.delSetting ? h.delSetting(env, key) : h.putSetting(env, key, '')).catch?.(() => {});
+  const live = p => Date.parse(p.at) > Date.now() - 24 * 3600e3;
+  async function pendingRaw(env, h) { return h.safeJson(await h.getSetting(env, K.pending), []) || []; }
+  async function pendingList(env, h) { return (await pendingRaw(env, h)).filter(live); }
+  /** What a team screen may see of the waiting cards: the card words only, never a held input or report. */
+  async function pendingCards(env, h) {
+    return (await pendingList(env, h)).map(p => ({ id: p.id, action: p.action, ...(p.tool ? { tool: true } : {}), summary: p.summary, detail: p.detail, at: p.at }));
   }
   async function keepProposal(env, h, p) {
-    const list = await pendingList(env, h);
-    list.push(p);
-    await h.putSetting(env, K.pending, JSON.stringify(list.slice(-120)));
+    const raw = await pendingRaw(env, h);
+    const row = { ...p };
+    const pj = JSON.stringify(p.patch ?? null);
+    if (bytes(pj) > PATCH_INLINE) {
+      if (bytes(pj) > ROW_MAX) throw new Error(`That is ${Math.round(bytes(pj) / 1000)}KB, too big to hold on a card (the limit is ${ROW_MAX / 1000}KB). Cut it to what matters and send it again.`);
+      await h.putSetting(env, heldKey(p.id), pj);
+      delete row.patch; row.held = true;
+    }
+    let keep = [...raw.filter(live), row].slice(-120);
+    while (keep.length > 1 && bytes(JSON.stringify(keep)) > LIST_MAX) keep = keep.slice(1);
+    const kept = new Set(keep.map(x => x.id));
+    await h.putSetting(env, K.pending, JSON.stringify(keep));
+    for (const x of raw) if (x.held && !kept.has(x.id)) await clearKey(env, h, heldKey(x.id));
+  }
+  /** keepProposal, never throwing: a card that could not be kept is a tool error, never a failed answer. */
+  async function keepSafely(env, h, p) {
+    try { await keepProposal(env, h, p); return null; }
+    catch (e) { console.log(`${C.name} keepProposal: ${e.message}`); return { is_error: true, text: `The card could not be saved, so nothing is waiting and nothing changed: ${String(e.message || e).slice(0, 300)}` }; }
+  }
+  /** One waiting card with its full patch (read back from its own row when it was held there). */
+  async function loadProposal(env, h, id) {
+    const p = (await pendingList(env, h)).find(x => x.id === id);
+    if (!p || !p.held) return p || null;
+    const patch = h.safeJson(await h.getSetting(env, heldKey(id)), null);
+    return patch == null ? null : { ...p, patch, held: undefined };
   }
   async function dropProposal(env, h, id) {
-    const list = (await pendingList(env, h)).filter(p => p.id !== id);
-    await h.putSetting(env, K.pending, JSON.stringify(list));
+    const raw = await pendingRaw(env, h);
+    const gone = raw.find(p => p.id === id);
+    await h.putSetting(env, K.pending, JSON.stringify(raw.filter(p => p.id !== id && live(p))));
+    for (const x of raw) if (x.held && (x.id === id || !live(x))) await clearKey(env, h, heldKey(x.id));
+    return gone || null;
+  }
+  /** Is this card (or any card of a grouped id) a held tool? The Slack tap sends those to the queue. */
+  async function isHeldTool(env, h, id) {
+    const ids = new Set(String(id || '').split(',').filter(Boolean));
+    return (await pendingList(env, h)).some(p => ids.has(p.id) && p.tool);
   }
   /** The tap. Finds the proposal, runs the action's apply, forgets the proposal. */
   async function applyProposal(env, id, h, { cancel = false, ctx = null } = {}) {
     if (String(id).includes(',')) return applyGroup(env, String(id).split(',').filter(Boolean), h, { cancel, ctx });
-    const p = (await pendingList(env, h)).find(x => x.id === id);
+    const p = await loadProposal(env, h, id);
     if (!p) return { error: 'That proposal has expired or was already handled.' };
     await dropProposal(env, h, id);
     if (cancel) return { ok: true, cancelled: true, summary: p.summary };
@@ -1048,7 +1088,8 @@ export function createAssistant(config) {
     if (!d || d.error) return { is_error: true, text: d?.error || 'Could not describe that change.' };
     const p = { id: Math.random().toString(36).slice(2, 10), action: name, summary: String(d.summary || name).slice(0, 160),
       detail: String(d.detail || '').slice(0, 1200), patch: d.patch ?? input, at: new Date().toISOString(), preview: d.preview || null };
-    await keepProposal(env, h, p);
+    const bad = await keepSafely(env, h, p);
+    if (bad) return bad;
     return { text: `NOT DONE YET. A card is waiting: ${p.summary}. Nothing has changed; it happens only when the person taps Apply on the card. ${TAP_REPLY}`,
       flags: { proposals: [p] } };
   }
@@ -1062,8 +1103,9 @@ export function createAssistant(config) {
       user: ctx.ev.user || null, channel_type: ctx.ev.channel_type || null, text: String(ctx.ev.text || '').slice(0, 4000) } : null;
     return { surface: ctx?.surface || null, channel: ctx?.channel || null, thread: ctx?.thread || null, screen: ctx?.screen || null, ev, asker: ctx?.who || ev?.user || null };
   };
-  const HELD_MAX = 200000;
-  /** Asks the host's card() for this tool call. null = run it now; { error } = refuse; a proposal = held for the tap. */
+  /** Asks the host's card() for this tool call. null = run it now; { error } = refuse; a proposal = held for the tap.
+   *  The held input is kept in its own settings row when it is big (keepProposal); the card handed back to the
+   *  answer carries the words only, never the input. */
   async function holdTool(env, name, payload, h, ctx) {
     const t = TAP[name];
     if (!t) return null;
@@ -1073,13 +1115,13 @@ export function createAssistant(config) {
     if (!d) return null;
     if (d.error) return { is_error: true, text: d.error };
     const patch = { ...payload, where: whereOf(ctx) };
-    const size = JSON.stringify(patch).length;
-    if (size > HELD_MAX) return { is_error: true, text: `That is ${Math.round(size / 1000)}KB, too big to hold on a card (the limit is ${HELD_MAX / 1000}KB). Cut it to what matters and send it again.` };
     const p = { id: Math.random().toString(36).slice(2, 10), action: name, tool: true, summary: String(d.summary || name).slice(0, 160),
       detail: String(d.detail || '').slice(0, 1200), patch, at: new Date().toISOString(), preview: null };
-    await keepProposal(env, h, p);
+    const bad = await keepSafely(env, h, p);
+    if (bad) return bad;
+    const { patch: _held, ...card } = p;
     return { text: `NOT DONE YET. A card is waiting: ${p.summary}. Nothing has been made, posted, shared or spent; it happens only when the person taps Apply on the card. ${TAP_REPLY}`,
-      flags: { proposals: [p] } };
+      flags: { proposals: [card] } };
   }
   /** The tap on a held tool: runs the tool now, where it was asked, as the person who tapped. Only applyProposal calls it. */
   async function applyHeldTool(env, p, h, ctx) {
@@ -1343,7 +1385,9 @@ Plain English, no em dashes, lead with the answer.` }];
             /* The app may give every report more (the Strategist: a public share link and a PDF). */
             /* With C.tapTools.make_report the report itself is shown at once (nobody outside sees it) and the public
                link + PDF wait on a card. */
-            if (out.report && C.onReport && TAP.make_report) {
+            /* A scheduled run (ctx.scheduled) was approved by whoever scheduled it and nobody is there to tap a
+               card, so its share link is made at once (askschedule.js posts only to an internal channel). */
+            if (out.report && C.onReport && TAP.make_report && !ctx?.scheduled) {
               const held = await holdTool(env, 'make_report', { report: out.report, input: { title: out.report.title } }, h, ctx);
               if (held?.flags?.proposals) { flags.proposals = [...(flags.proposals || []), ...held.flags.proposals]; out.text += ' It is shown to the person here. A public share link and PDF are NOT made yet: a card is waiting for that, so say "Tap Apply for a share link and PDF" and never give or promise a link.'; }
             } else if (out.report && C.onReport) { const more = await C.onReport(env, out.report, ctx).catch(e => { console.log(`${C.name} onReport: ${e.message}`); return null; }); if (more) Object.assign(out.report, more); }
@@ -1396,7 +1440,8 @@ Plain English, no em dashes, lead with the answer.` }];
       if (!ctx?.noUsage) await h.putSetting(env, K.usage, JSON.stringify(usage));
     }
     /* A card is waiting: the words must say so, whatever the model wrote. */
-    if (flags.proposals?.length && !/tap apply/i.test(answer)) answer = [answer, flags.proposals.length > 1 ? 'Nothing has changed yet. Tap Apply to do them.' : 'Nothing has changed yet. Tap Apply to do it.'].filter(Boolean).join('\n\n');
+    /* Not on a scheduled run: its host posts the cards itself (a task) or drops them (askschedule.js). */
+    if (flags.proposals?.length && !ctx?.scheduled && !/tap apply/i.test(answer)) answer = [answer, flags.proposals.length > 1 ? 'Nothing has changed yet. Tap Apply to do them.' : 'Nothing has changed yet. Tap Apply to do it.'].filter(Boolean).join('\n\n');
     return { answer, sql, inTok, outTok, cacheRead, cacheWrite, cost, steps, stopped, ms: Date.now() - t0, flags };
   }
 
@@ -1627,6 +1672,7 @@ type is "bar" (comparing items), "line" (a trend; labels are dates) or "table" (
         const t = extraWeb.find(x => x.def.name === name);
         return t ? await t.run(env, input, { env, h, screen: extra.screen, surface: 'web', client }) : null;
       }, usage, choice.model, { env, h, screen: extra.screen, surface: 'web', who: extra.who || null, auth: extra.auth || null, call: extra.call || null, runId,
+        ...(extra.scheduled ? { scheduled: true } : {}),
         ...(client ? { client, allow: clientAllow, noUsage: true } : {}),
         onStep: async s => { const line = s.label || s.note; if (!line) return; stepsSeen.push(line); if (runId && C.progress) await C.progress.set(env, runId, { steps: stepsSeen.slice(-12), stop: false, at: Date.now() }); },
         shouldStop: async () => !!(runId && C.progress && (await C.progress.get(env, runId))?.stop) }, choice.effort || null);
@@ -1712,7 +1758,7 @@ type is "bar" (comparing items), "line" (a trend; labels are dates) or "table" (
     answerSlack, answerWeb, nightly, briefing,
     openFindings, setFindingState, recordFindings, ensureFindings,
     memory, memoryBlock, getBrief, getPlaybook, runMemoryTool,
-    applyProposal, pendingList, proposalBlocks, groupProposals, runAction, actions: ACTIONS.map(a => a.name), tapTools: Object.keys(TAP), reportsList,
+    applyProposal, pendingList, pendingCards, isHeldTool, proposalBlocks, groupProposals, runAction, actions: ACTIONS.map(a => a.name), tapTools: Object.keys(TAP), reportsList,
     gateSql: (raw, allowed) => gateSql(raw, allowed || C.tables || [], { maxRows: C.maxRows, blobColumns: C.blobColumns, forbidWords: C.forbidWords,
       secretTables: C.secretTables, secretColumns: C.secretColumns, safeColumns: C.safeColumns, starTables: C.starTables }),
     readApp, schemaDoc, usageToday,

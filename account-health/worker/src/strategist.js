@@ -1897,6 +1897,8 @@ export function buildStrategist(d) {
   const app = makeAppView({ views, blurbs: VIEW_BLURBS, secretKey, getSetting: d.getSetting, safeJson: d.safeJson, fallbackTables: TABLES, secretTables: SQL_NO_TABLES });
   const h = () => ({
     getSetting: d.getSetting, putSetting: d.putSetting, safeJson: d.safeJson,
+    /* Clears a held card's own row (ask/engine.js keepProposal keeps big held inputs out of the list row). */
+    delSetting: (env, key) => env.DB.prepare(`DELETE FROM settings WHERE key = ?1`).bind(key).run(),
     centralDate: () => d.localDate('America/Chicago'), monthOf: x => String(x).slice(0, 7),
     slack: (env, method, params) => d.slack(env, method, params),
     ...app,

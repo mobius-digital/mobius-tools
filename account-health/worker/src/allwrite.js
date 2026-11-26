@@ -13,6 +13,7 @@ import { metaActions, metaCan, metaActs, gget } from './metawrite.js';
 import { adsCustomer, adsQuery, adsMutate, adsError } from './google.js';
 import { googleToken } from './asana-brand.js';
 import { klaviyoCan } from './klaviyowrite.js';
+import { getWrites } from './strattools.js';
 import { frameStatus } from './frame.js';
 
 const DRIVE_RW = 'https://www.googleapis.com/auth/drive';
@@ -113,6 +114,23 @@ export const TAP_TOOLS = {
   draft_from_thread: {
     card: (i, ctx) => ctx?.ev?.channel ? { summary: `Start the ideas pipeline on this thread${i.brand ? ' for ' + cut(i.brand, 60) : ''}`, detail: `It opens the references in the thread, does a teardown and posts a draft card here.${i.steer ? '\nSteer: ' + cut(i.steer, 300) : ''}` } : null,
     done: () => 'The ideas pipeline is reading the thread. Its draft card lands here in a minute or two.',
+  },
+  /* A sandbox run: in Slack its files are uploaded into the thread for everyone there, so it waits for a tap. In Locus
+     the files are download buttons for the asker only, so it answers at once. */
+  run_analysis: {
+    card: (i, ctx) => ctx?.surface === 'slack' && ctx?.channel ? { summary: `Run the analysis and post its files in this thread: ${cut(i.ask, 90)}`, detail: `About $0.10 to $0.40 in the sandbox. ${kb(i.data)} of data${i.files ? `, files: ${cut(i.files, 120)}` : ''}.\n${cut(i.ask, 600)}` } : null,
+    done: r => cut(String(r.text || 'The analysis ran.').replace(/^[\s\S]*?The sandbox says:\s*/, '').split('\nAnswer from this')[0], 1500),
+  },
+  /* A read door that a few GET routes write through (strattools.js getWrites: Asana passes, ?post=1, tidy runs).
+     Those wait for a tap; every other path reads at once. A client's own login cannot tap, so it is refused there. */
+  locus_get: {
+    card: (i, ctx) => {
+      const w = getWrites(i.path);
+      if (!w) return null;
+      if (ctx?.client) return { error: 'That route changes something, so it is not open from this login.' };
+      return { summary: `Run ${cut(String(i.path).split('?')[0], 100)} in Locus`, detail: `GET ${cut(i.path, 400)}\nIt is not a plain read: ${w}.` };
+    },
+    done: r => cut(String(r.text || 'Done in Locus.'), 300),
   },
   /* The report itself is shown to the asker at once. Its public link and PDF (open without a login) wait for the tap.
      A client's own login cannot tap Apply, so a client gets the report on screen and no link. */

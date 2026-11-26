@@ -2356,10 +2356,24 @@ plain tools published or spent with no card at all.
 - **Wording:** the tool result says NOT DONE YET, the prompt says never to claim a change, and the engine adds
   "Nothing has changed yet. Tap Apply to do it." to any answer with a card that does not already say to tap Apply.
 - **Still direct on purpose:** reads and lookups, `remember` / `forget` / `save_skill` / `watch_for` /
-  `stop_checking` / `close_finding` (the assistant's own notes), `run_analysis` (a sandbox run whose files go to
-  the asker), `hand_to_claude_code` (a prompt on a card). A new tool that posts, publishes or spends gets a line in
-  `TAP_TOOLS` or is written as an action.
-- Tests: `node --import <stubwasm> test-alwaystap.mjs`.
+  `stop_checking` / `close_finding` (the assistant's own notes), `run_analysis` on the web (its files are downloads
+  for the asker), `hand_to_claude_code` (a prompt on a card). A new tool that posts, publishes or spends gets a line
+  in `TAP_TOOLS` or is written as an action.
+- **Review fixes (2026-11-26):**
+  - `locus_get` is in `TAP_TOOLS`: a GET that writes (strattools.js `getWrites`: every `/api/brand-asana` path but
+    check / job / mins / tested / monday, any `post=` `send=` `apply=` `save=` `run=` style flag, `?post=1` on
+    `/api/client-post/preview`, `sub=` on `/api/new-client/billing`, `fresh=` / `web=` on `/api/daycheck/now`, and
+    write-verb tails like `/tag`, `/sync`, `/done`, `/write`) is a card; the tool itself also refuses one without
+    `ctx.tapped`, and a client login is refused. Add a route there when a GET handler writes.
+  - `run_analysis` is in `TAP_TOOLS` for Slack (its files go into the thread).
+  - A Slack tap on a held tool goes through IDEA_Q (`kind: 'ask_tap'`, worker.js `runAskTap`), not waitUntil; the
+    card is dropped only by `applyProposal` inside the queue run, so a failed send leaves it to tap again.
+  - Scheduled runs (askschedule.js) pass `scheduled: true`: no "Tap Apply" line, a report's share link is made at
+    once (the schedule is the approval), and every card not posted in the thread is cancelled. No orphans.
+  - Held inputs over 4KB live in their own settings row (`strategistPending:<id>`), the list row is kept under
+    400KB by evicting the oldest, one held input is capped at 900KB, and a failed save is a tool error, never a
+    failed answer. GET `/api/ask/findings` returns `pendingCards` (summary, detail, when), never an input.
+- Tests: `node --import <stubwasm> test-alwaystap.mjs` (14).
 
 ## 2026-10-17: FULL CONTROL OVER EVERY CONNECTION (`src/extwrite.js`, `allwrite.js`, `slackwrite.js`, `googlewrite.js`, `tiktokwrite.js`, `shopifywrite.js`). Read before adding a write.
 

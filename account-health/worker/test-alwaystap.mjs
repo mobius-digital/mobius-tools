@@ -281,6 +281,135 @@ await check('a held tool runs only on the tap, where it was asked and as the per
   assert.equal(ran.length, 2, 'one run per tap');
 });
 
+/* ---------------- 2026-11-26 review fixes ---------------- */
+const st = await import('./src/strattools.js');
+const ahCalls = [];
+d.ahFetch = async req => { ahCalls.push({ method: req.method, url: req.url }); return J({ ok: true, posted: /post=/.test(req.url) }); };
+
+await check('locus_get: a GET that writes (Asana passes, ?post=1, tidy runs) is a card, a plain read runs at once, and the tap runs it', async () => {
+  for (const p of ['/api/brand-asana/monday?act=brand_harbor&post=true', '/api/brand-asana/monday?act=brand_harbor&post=false', '/api/brand-asana/result?act=brand_harbor&num=4&result=loser',
+    '/api/brand-asana/tag?act=brand_harbor', '/api/brand-asana/results?act=brand_harbor', '/api/brand-asana/pause?act=brand_harbor&paused=1', '/api/brand-asana/save-template?project_gid=1&name=x',
+    '/api/brand-asana/connect?act=brand_harbor&project_gid=2', '/api/brand-asana/tidy-concepts?act=brand_harbor', '/api/brand-asana/sync?act=brand_harbor', '/api/brand-asana/./tag?act=brand_harbor',
+    '/api/brand-asana/x/../onboard', '/api/client-post/preview?act=brand_harbor&post=1', '/api/new-client/billing?act=brand_harbor&sub=sub_1', '/api/daycheck/now?act=all&fresh=1',
+    '/api/meetings/confirm', '/api/social/post/now?id=1', '/api/meta/write', '/api/leaks/apply?act=x'])
+    assert.ok(st.getWrites(p), 'held: ' + p);
+  for (const p of ['/api/amb?act=brand_harbor', '/api/brand-asana/monday?act=brand_harbor', '/api/brand-asana/check', '/api/brand-asana/mins?act=brand_harbor', '/api/brand-asana/tested?act=brand_harbor&idea=x',
+    '/api/daycheck/now?act=all', '/api/buyer-list?act=brand_harbor', '/api/new-client/billing?act=brand_harbor', '/api/client-post/preview?act=brand_harbor', '/api/calls/history', '/api/new-client/run?id=1'])
+    assert.equal(st.getWrites(p), null, 'a read: ' + p);
+  reset(); ahCalls.length = 0;
+  script = [use(['locus_get', { path: '/api/brand-asana/monday?act=brand_harbor&post=true' }], ['locus_get', { path: '/api/brand-asana/result?act=brand_harbor&num=4&result=loser' }], ['locus_get', { path: '/api/buyer-list?act=brand_harbor' }]), say('The Monday post and the result are cards.')];
+  const r = await engine.answerWeb(env, 'post the Monday calls for Harbor and mark test 4 a loser', [], h(), OWNER);
+  const res = lastResults();
+  assert.match(resultText(res[0]), /NOT DONE YET/); assert.match(resultText(res[1]), /NOT DONE YET/); assert.ok(!/NOT DONE YET/.test(resultText(res[2])), 'the read ran');
+  assert.deepEqual(ahCalls.map(c => c.url), ['https://ah.internal/api/buyer-list?act=brand_harbor'], 'only the read reached Locus');
+  const cards = (r.proposals || []).flatMap(p => p.items || [p]);
+  assert.equal(cards.length, 2); assert.ok(cards.every(c => c.action === 'locus_get'));
+  assert.match(r.answer, /Tap Apply to do them/);
+  /* The second lock: the tool itself refuses a writing GET without a tap. */
+  const lg = st.stratTools(d).find(t => t.def.name === 'locus_get');
+  const direct = await lg.run(env, { path: '/api/brand-asana/tag?act=brand_harbor' }, { auth: 'Bearer x' });
+  assert.ok(direct.is_error && /tap/.test(direct.text)); assert.equal(ahCalls.length, 1);
+  /* A client's own login cannot tap, so it is refused, not carded. */
+  assert.ok(aw.TAP_TOOLS.locus_get.card({ path: '/api/brand-asana/tag?act=x' }, { client: { act: 'x' } }).error);
+  const t = await engine.applyProposal(env, cards[0].id, h(), { ctx: { ...OWNER } });
+  assert.ok(t.ok, JSON.stringify(t)); assert.equal(ahCalls.at(-1).url, 'https://ah.internal/api/brand-asana/monday?act=brand_harbor&post=true', 'the tap ran it');
+  await engine.applyProposal(env, cards[1].id, h(), { cancel: true });
+  assert.equal(ahCalls.length, 2, 'the cancelled one never ran');
+});
+
+await check('run_analysis: in Slack it is a card (its files go into the thread); on the web it answers at once', async () => {
+  reset();
+  script = [use(['run_analysis', { ask: 'weekly MER with a chart', data: 'week,mer\n1,2.1\n2,2.4', files: 'png' }]), say('The analysis is a card.')];
+  const r = await engine.answerSlack(env, { channel: 'C_INT', ts: '1790005000.000100', user: 'U1', text: '<@B> chart the weekly MER' }, h(), { ...OWNER });
+  assert.match(resultText(lastResults()[0]), /NOT DONE YET/);
+  assert.deepEqual(outside, [], 'no sandbox call'); assert.ok(!slackCalls.some(c => /^files\./.test(c.method)), 'no file went to Slack');
+  assert.equal(r.proposals?.[0]?.action, 'run_analysis');
+  assert.equal(aw.TAP_TOOLS.run_analysis.card({ ask: 'x', data: 'a' }, { surface: 'web' }), null, 'on the web it runs at once');
+  assert.match(aw.TAP_TOOLS.run_analysis.done({ text: 'The sandbox says:\nMER rose 14%.\n\nThe files are in the thread: a.png.\nAnswer from this; do not repeat.' }), /^MER rose 14%/);
+  await engine.applyProposal(env, r.proposals[0].id, h(), { cancel: true });
+});
+
+await check('scheduled runs: no tap line, the report share link is made (the schedule is the approval), and no card is left waiting', async () => {
+  const { runSchedule } = await import('./src/askschedule.js');
+  const sd = { ...d, listAccounts: async () => [], centralDate: () => '2026-11-26', strategist: () => ({ engine: small, h: sh }) };
+  await d.putSetting(env, 'strategistChannel', 'CSTRAT001');
+  for (const c of (await small.pendingList(env, sh()))) await small.applyProposal(env, c.id, sh(), { cancel: true });
+  reset(); shared.length = 0; ran.length = 0;
+  script = [use(['make_report', { title: 'Week', blocks: [{ type: 'text', text: 'MER 2.4x' }] }]), say('The week held at 2.4x.')];
+  const rep = await runSchedule(env, { id: 's1', question: 'the weekly report', act: 'all', kind: 'report', channel: 'CSTRAT001', cadence: 'monday', hour_central: 8 }, sd);
+  assert.ok(rep.ok, JSON.stringify(rep));
+  const post = slackCalls.find(c => c.method === 'chat.postMessage' && c.p.channel === 'CSTRAT001');
+  assert.ok(post && !/Tap Apply|Nothing has changed yet/.test(JSON.stringify(post.p)), 'no tap line in the post: ' + JSON.stringify(post?.p).slice(0, 300));
+  assert.equal(shared.length, 1, 'the share link was made at once');
+  assert.equal((await small.pendingList(env, sh())).length, 0, 'no orphan card');
+  /* A scheduled question whose model reached for a held tool anyway: nothing runs, the card is dropped, no tap line. */
+  reset();
+  script = [use(['make_image', { brief: 'a chart image' }], ['meta_pause', { target: '412-1' }]), say('MER is 2.4x.')];
+  const q = await runSchedule(env, { id: 's2', question: 'how is MER', act: 'all', kind: 'question', channel: 'CSTRAT001', cadence: 'monday', hour_central: 8 }, sd);
+  assert.ok(q.ok); assert.equal(ran.length, 0); assert.equal(pauseSpy.length, 1, 'no pause applied (one from the earlier check)');
+  assert.equal((await small.pendingList(env, sh())).length, 0, 'no orphan card after a question');
+  assert.ok(!slackCalls.some(c => /Tap Apply|Nothing has changed yet/.test(JSON.stringify(c.p))), 'no tap line anywhere');
+  /* A task posts its card in the thread, so that one stays (it has a card someone can tap). */
+  reset();
+  script = [use(['meta_pause', { target: '412-1' }]), say('Proposed pausing 412-1.')];
+  const tk = await runSchedule(env, { id: 's3', question: 'cut losers', act: 'all', kind: 'task', channel: 'CSTRAT001', cadence: 'monday', hour_central: 8 }, sd);
+  assert.equal(tk.cards, 1); assert.equal((await small.pendingList(env, sh())).length, 1);
+  assert.ok(!/Nothing has changed yet/.test(JSON.stringify(slackCalls[0].p)), 'the answer post has no added tap line');
+  for (const c of (await small.pendingList(env, sh()))) await small.applyProposal(env, c.id, sh(), { cancel: true });
+});
+
+await check('big held inputs: kept in their own row, the list row stays small, a too-big one is a tool error, a failing save never breaks the answer, and team screens get card words only', async () => {
+  reset(); ran.length = 0;
+  const big = 'x'.repeat(600000);
+  script = [use(['post_file', { filename: 'a.csv', content: big }], ['post_file', { filename: 'b.csv', content: 'y'.repeat(1500000) }]), say('Cards are up. Tap Apply to do it.')];
+  const r = await small.answerSlack(env, { channel: 'C_INT', ts: '1790006000.000100', user: 'U1', text: '<@B> post the files' }, sh(), {});
+  const res = lastResults();
+  assert.match(resultText(res[0]), /NOT DONE YET/); assert.ok(res[1].is_error && /too big/.test(resultText(res[1])), resultText(res[1]).slice(0, 200));
+  assert.ok(!JSON.stringify(r.proposals).includes('xxxxxxxx'), 'the card handed back carries no held input');
+  const listRow = (await d.getSetting(env, 'locusPending')) || '';
+  assert.ok(listRow.length < 5000, 'the list row is small: ' + listRow.length);
+  const card = (await small.pendingList(env, sh()))[0];
+  assert.ok(card.held && !card.patch); assert.ok(((await d.getSetting(env, 'locusPending:' + card.id)) || '').length > 600000, 'the input is in its own row');
+  /* Many big cards: the list row never grows past a few KB, and nothing near D1's 2MB. */
+  for (let i = 0; i < 6; i++) { script = [use(['post_file', { filename: `c${i}.csv`, content: 'z'.repeat(300000) }]), say('Tap Apply to do it.')]; await small.answerSlack(env, { channel: 'C_INT', ts: '17900060' + i + '.000100', user: 'U1', text: '<@B> file' }, sh(), {}); }
+  assert.ok(((await d.getSetting(env, 'locusPending')) || '').length < 20000);
+  /* Team screens: card words only. */
+  const cards = await small.pendingCards(env, sh());
+  assert.ok(cards.length >= 7); assert.ok(cards.every(c => !('patch' in c) && !('held' in c)) && !JSON.stringify(cards).includes('zzzz'));
+  const wsrc = fs.readFileSync(path.join(here, 'src', 'worker.js'), 'utf8');
+  assert.match(wsrc, /pending: await engine\.pendingCards\(env, h\(\)\)/); assert.ok(!/pending: await engine\.pendingList/.test(wsrc), '/api/ask/findings returns card words only');
+  /* The tap reads the held input back and clears its row. */
+  const t = await small.applyProposal(env, card.id, sh(), { ctx: { who: 'tapper' } });
+  assert.ok(t.ok, JSON.stringify(t)); assert.equal(ran.at(-1).input.content.length, 600000);
+  assert.ok(!(await d.getSetting(env, 'locusPending:' + card.id)), 'the held row is cleared after the tap');
+  for (const c of (await small.pendingList(env, sh()))) await small.applyProposal(env, c.id, sh(), { cancel: true });
+  assert.equal(db.prepare(`SELECT COUNT(*) n FROM settings WHERE key LIKE 'locusPending:%' AND value != ''`).get().n, 0, 'no held row left behind');
+  /* The settings write fails: the answer still comes back, the tool says no card was kept. */
+  reset();
+  const broken = () => ({ ...sh(), putSetting: async (env, k, v) => { if (/Pending/.test(k)) throw new Error('D1_ERROR: string or blob too big'); return d.putSetting(env, k, v); } });
+  script = [use(['make_image', { brief: 'a hero' }]), say('Could not put the card up.')];
+  const b = await small.answerWeb(env, 'make a hero', [], broken(), OWNER);
+  assert.ok(!b.error, 'the answer did not fail: ' + JSON.stringify(b).slice(0, 200)); assert.match(resultText(lastResults()[0]), /could not be saved/); assert.ok(!b.proposals?.length);
+});
+
+await check('a Slack tap on a held tool goes through IDEA_Q and the card is only dropped by the queue run', async () => {
+  const wsrc = fs.readFileSync(path.join(here, 'src', 'worker.js'), 'utf8');
+  const tapAt = wsrc.indexOf("a.action_id === 'ask_apply'");
+  const tap = wsrc.slice(tapAt, wsrc.indexOf('return ACK();', tapAt));
+  assert.match(tap, /engine\.isHeldTool\(env, h\(\), job\.askp\)/); assert.match(tap, /await env\.IDEA_Q\.send\(job\)/);
+  assert.ok(!tap.slice(0, tap.indexOf('IDEA_Q.send')).includes('.applyProposal('), 'nothing is dropped before the queue has the job');
+  assert.match(wsrc, /m\.body\?\.kind === 'ask_tap'\) await runAskTap\(env, m\.body, null\)/, 'the queue runs the tap');
+  /* isHeldTool: true for a held tool (or a group with one), false for an action card. */
+  reset();
+  script = [use(['make_image', { brief: 'a hero' }]), say('Tap Apply to do it.')];
+  const r1 = await small.answerWeb(env, 'make a hero', [], sh(), OWNER);
+  script = [use(['meta_pause', { target: '412-1' }]), say('Tap Apply to do it.')];
+  const r2 = await small.answerWeb(env, 'pause 412-1', [], sh(), OWNER);
+  assert.equal(await small.isHeldTool(env, sh(), r1.proposals[0].id), true); assert.equal(await small.isHeldTool(env, sh(), r2.proposals[0].id), false);
+  assert.equal(await small.isHeldTool(env, sh(), `${r2.proposals[0].id},${r1.proposals[0].id}`), true);
+  for (const c of (await small.pendingList(env, sh()))) await small.applyProposal(env, c.id, sh(), { cancel: true });
+});
+
 await check('one place for the rule: the engine has a single apply call (the tap), the strategist passes TAP_TOOLS and no direct flag', async () => {
   const eng = fs.readFileSync(path.join(root, 'ask', 'engine.js'), 'utf8');
   assert.equal((eng.match(/a\.apply\(/g) || []).length, 1, 'one a.apply( in the engine');
@@ -290,7 +419,7 @@ await check('one place for the rule: the engine has a single apply call (the tap
   const st = fs.readFileSync(path.join(here, 'src', 'strategist.js'), 'utf8');
   assert.match(st, /tapTools: TAP_TOOLS/); assert.ok(!/directActions|cardOnly|asked_directly|CARD_ONLY/.test(st));
   assert.equal(aw.CARD_ONLY, undefined);
-  assert.deepEqual([...engine.tapTools].sort(), ['draft_from_thread', 'frame_share', 'make_canvas', 'make_image', 'make_report', 'post_file', 'studio_make']);
+  assert.deepEqual([...engine.tapTools].sort(), ['draft_from_thread', 'frame_share', 'locus_get', 'make_canvas', 'make_image', 'make_report', 'post_file', 'run_analysis', 'studio_make']);
   const cc = await import('./src/clientchan.js');
   assert.equal(cc.directApplyThere({ side: 'internal' }), false);
   const DASH = new RegExp("[" + String.fromCharCode(0x2014, 0x2013) + "]");
