@@ -151,7 +151,7 @@ await check('the tools the model is given: every action PROPOSES, none takes ask
   assert.ok(acts.length > 60, 'the actions are there: ' + acts.length);
   for (const t of acts) { assert.match(t.description, /^PROPOSES a change; it does NOT apply it\./, t.name); assert.ok(!t.input_schema?.properties?.asked_directly, t.name + ' still takes asked_directly'); }
   assert.ok(!JSON.stringify(bodies[0].tools).includes('asked_directly'), 'asked_directly is gone from every tool');
-  for (const n of ['meta_pause', 'meta_budget', 'google_budget', 'tiktok_status', 'shopify_product', 'klaviyo_flow_status', 'slack_post', 'slack_post_client', 'set_account', 'move_billing_day', 'locus_write', 'undo_change', 'drive_share'])
+  for (const n of ['meta_pause', 'meta_budget', 'google_budget', 'tiktok_status', 'shopify_product', 'klaviyo_flow_status', 'slack_post', 'slack_post_client', 'set_account', 'locus_write', 'undo_change', 'drive_share'])
     assert.ok(acts.some(t => t.name === n), n + ' is an action (a card)');
   for (const n of Object.keys(aw.TAP_TOOLS).filter(n => n !== 'make_report')) assert.match(tools.find(t => t.name === n)?.description || '', /^WAITS FOR A TAP/, n);
   const sys = bodies[0].system.map(b => b.text).join('\n');
@@ -160,16 +160,18 @@ await check('the tools the model is given: every action PROPOSES, none takes ask
 });
 
 /* The answer rules of 2026-11-26 (AI eval round 17), on the real strategist. */
-await check('eval round 17: the prompt carries the new rules, calc is loaded, weekdays come from code, billing card kept, no real names', async () => {
+await check('eval round 17 + round 20 standard: the prompt carries the rules, calc is loaded, weekdays come from code, no billing card, no real names', async () => {
   const sys = bodies[0].system.map(b => b.text).join('\n');
   for (const re of [/AN OFFER IS NEVER AN ANGLE/, /COMPUTED IN CODE, NEVER IN YOUR HEAD/, /too few sales to call/, /ONE MARGIN/, /AMAZON: every whole-store number/, /SALES ARE NET OF TAX/,
-    /SLACK FACTS CARRY THEIR SOURCE/, /OFFER QUESTIONS/, /CLIENT DRAFTS/, /needs a Locus login/, /\$0\.50 to \$0\.75 a lead/, /HARD WORD BUDGET/, /last 28/]) assert.match(sys, re);
+    /SLACK FACTS CARRY THEIR SOURCE/, /OFFER QUESTIONS/, /CLIENT DRAFTS/, /needs a Locus login/, /\$0\.50 to \$0\.75 a lead/, /HARD WORD RANGE/, /last 28/, /THE FIRST SENTENCE IS THE ANSWER/, /NO SOURCE LINE FROM YOU/, /Meta's own count, second opinion/,
+    /AD WINDOWS ARE THE BRAND'S OWN/, /\/api\/brand\/rules/, /BILLING is not yours/, /Stripe or the Ledger/, /Draft for #<client channel>, not sent/]) assert.match(sys, re);
   assert.match(sys, /^Today is [A-Z][a-z]+day, /m, 'the date block names the weekday');
   const tools = bodies[0].tools.filter(t => t.name);
   const calcTool = tools.find(t => t.name === 'calc');
   assert.ok(calcTool && !calcTool.defer_loading, 'calc is loaded up front');
-  assert.ok(tools.some(t => t.name === 'move_billing_day'), 'the billing day card is still there (removing it waits on the owner)');
-  assert.match(bodies[0].messages.at(-1).content, /\[Length for this answer: /);
+  assert.ok(!tools.some(t => t.name === 'move_billing_day'), 'no billing card: the owner does billing in Stripe or the Ledger');
+  assert.ok(!/3x goal CPA spent or 7 days|A day under the bar is noise; three days/.test(sys), 'no second copy of the ad windows in the prompt');
+  assert.match(bodies[0].messages.at(-1).content, /\[Answer type: /);
   assert.match(sys, /a handful of DTC brands \(the active ones are listed in your instructions\)/, 'the company brief names no brands');
   assert.match(sys, /agency run by its owner \(Cole\) with account strategists and a video editor\./, 'no teammate names');
 });
@@ -249,7 +251,8 @@ await check('reads still answer: a lookup runs at once, no card, no added line; 
   const res = lastResults();
   assert.equal(res.length, 3); for (const t of res) assert.ok(!t.is_error && !/NOT DONE YET/.test(resultText(t)), resultText(t).slice(0, 200));
   assert.match(resultText(res[1]), /412/, 'the live Meta read came back');
-  assert.ok(!r.proposals?.length, 'no card for a read'); assert.equal(r.answer, 'The calendar routes are under /api/calendar. 412-1 is live.');
+  assert.ok(!r.proposals?.length, 'no card for a read');
+  assert.equal(r.answer, 'The calendar routes are under /api/calendar. 412-1 is live.\n\nSource: Meta.', 'no added tap line; the one source line is written by code from the reads');
   assert.equal(r.files?.[0]?.name, 'ads.csv', 'in Locus the file is a download button for the asker'); assert.equal(metaPosts.length, 0);
 });
 

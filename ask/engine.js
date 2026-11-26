@@ -1322,6 +1322,9 @@ Plain English, no em dashes, lead with the answer.` }];
   async function loop(env, h, system, messages, toolDefs, runExtra, usage, model = C.model, ctx = null, effort = null) {
     let inTok = 0, outTok = 0, answer = '', sql = [], flags = {}, cost = 0, cacheRead = 0, cacheWrite = 0, steps = 0, stopped = false;
     const lead = [];
+    /* What the tools read on the way (name, input, ok, the start of what came back): the app writes the answer's one
+       source line from this in code (C.finishAnswer), never the model. */
+    const reads = [];
     const t0 = Date.now();
     const step = async (s) => { steps++; if (ctx?.onStep) await ctx.onStep(s).catch(() => {}); };
     try {
@@ -1413,6 +1416,7 @@ Plain English, no em dashes, lead with the answer.` }];
           /* A tool may hand back content blocks (text + an image it made, so the model can look at it), and what it
              spent outside the model (an image, a sandbox run), which joins the answer's cost line. */
           if (typeof out?.cost === 'number' && isFinite(out.cost)) cost += out.cost;
+          reads.push({ name: c.name, input: c.input || {}, ok: !out?.is_error, action: !!actionByName[c.name], sql: c.name === C.sqlTool, text: typeof out?.text === 'string' ? out.text.slice(0, 4000) : '' });
           results.push({ type: 'tool_result', tool_use_id: c.id, content: Array.isArray(out.content) && out.content.length ? out.content : String(out.text ?? ''), ...(out.is_error ? { is_error: true } : {}) });
         }
         messages.push({ role: 'user', content: results });
@@ -1437,11 +1441,16 @@ Plain English, no em dashes, lead with the answer.` }];
          names). The app's answerCheck reads the finished answer; anything it finds (over the word budget, internal
          names in client text) gets ONE rewrite round with tools off. The rewrite is kept only when it came back
          and is no longer than the first; otherwise the first answer goes out as it was. */
-      if (answer && !stopped && C.answerCheck && ctx?.question && !ctx?.noCheck) {
-        const problems = (() => { try { return C.answerCheck(answer, ctx.question) || []; } catch { return []; } })();
+      /* Only the person's own question is shaped and checked (never the app's own prompts: ctx.noCheck). Code cuts long
+         lists first (C.shapeAnswer), so the check counts what will be read. */
+      const own = !!(answer && !stopped && ctx?.question && !ctx?.noCheck);
+      const shape = a => { if (!C.shapeAnswer) return a; try { return C.shapeAnswer(a, ctx.question) || a; } catch { return a; } };
+      if (own) answer = shape(answer);
+      if (own && C.answerCheck) {
+        const problems = (() => { try { return C.answerCheck(answer, ctx.question, { reads }) || []; } catch { return []; } })();
         if (problems.length) {
           messages.push({ role: 'assistant', content: [{ type: 'text', text: answer }] });
-          messages.push({ role: 'user', content: 'Before this goes out, fix it:\n- ' + problems.join('\n- ') + '\nReply with the rewritten answer only, in the same voice, same facts, same numbers, links and card lines. Keep a "---- draft ----" line and the draft after it if there was one. Add nothing new.' });
+          messages.push({ role: 'user', content: 'Before this goes out, fix it:\n- ' + problems.join('\n- ') + '\nReply with the rewritten answer only, in the same voice, same facts, same numbers, links and card lines. Keep a "---- draft ----" line and the draft after it if there was one, and an "Assumed:" line if there was one. Add nothing new and no source line.' });
           const reply = await callClaude(env, system, messages, toolDefs, model, true, effort);
           const u = reply.usage || {};
           inTok += (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0);
@@ -1450,7 +1459,7 @@ Plain English, no em dashes, lead with the answer.` }];
           cost += costOf(reply.model || model, u);
           const again = (reply.content || []).filter(c => c.type === 'text').map(c => c.text).join('').trim();
           const kept = !!again && again.length <= answer.length;
-          if (kept) answer = again;
+          if (kept) answer = shape(again);
           flags.checked = { problems, rewritten: kept };
         }
       }
@@ -1463,6 +1472,8 @@ Plain English, no em dashes, lead with the answer.` }];
     /* A card is waiting: the words must say so, whatever the model wrote. */
     /* Not on a scheduled run: its host posts the cards itself (a task) or drops them (askschedule.js). */
     if (flags.proposals?.length && !ctx?.scheduled && !/tap apply/i.test(answer)) answer = [answer, flags.proposals.length > 1 ? 'Nothing has changed yet. Tap Apply to do them.' : 'Nothing has changed yet. Tap Apply to do it.'].filter(Boolean).join('\n\n');
+    /* The ONE source line (where, which dates, which definition), written by code from what the tools read, last. */
+    if (C.finishAnswer && answer && !stopped && ctx?.question && !ctx?.noCheck) { try { answer = C.finishAnswer(answer, { question: ctx.question, reads }) || answer; } catch { /* the answer goes as it is */ } }
     return { answer, sql, inTok, outTok, cacheRead, cacheWrite, cost, steps, stopped, ms: Date.now() - t0, flags };
   }
 

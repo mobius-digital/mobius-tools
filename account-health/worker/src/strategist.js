@@ -37,7 +37,6 @@ import { SCHED_SQL, whenText } from './askschedule.js';
 import { stockView, supplyFetch, supplyBrandOf } from './stock.js';
 import { calendarView, calendarData } from './calendar.js';
 import { metaOf, resolveBrandId } from './brands.js';
-import { moveBillingDay } from './newclient.js';
 import { stratTools, stratActions, stratHooks } from './strattools.js';
 import { writeTools, writeActions } from './metawrite.js';
 import { dataTools } from './stratdata.js';
@@ -47,7 +46,7 @@ import { autoTools, autoActions } from './alerts.js';
 import { klaviyoTools, klaviyoActions } from './klaviyowrite.js';
 import { extraTools, extraActions, TAP_TOOLS, holdUploads } from './allwrite.js';
 import { studioMakeTools } from './studiomake.js';
-import { answerNote, answerProblems, answerTools, dateLine, flagBigBudgets, storeExtras } from './stratanswer.js';
+import { answerNote, answerProblems, answerTools, dateLine, flagBigBudgets, storeExtras, shapeAnswer, finishAnswer } from './stratanswer.js';
 /* A dashboard block's own dates (2026-10-10): one cleaner, shared with the profit worker's PUT /api/dashboard. */
 import { cleanDates as cleanDashDates } from '../../../profit/worker/src/dashboard.js';
 
@@ -221,8 +220,18 @@ const RULES = `
 - "This month" is the account's own calendar month in its timezone.
 - A paused test account (brand status paused) is never flagged, never listed
   as a problem, and left out of totals unless asked by name.
-- When comparing periods, name both periods. "Normal" for a day is the last 28
-  days (the date block names them), never last week alone.
+- When comparing periods, name both periods. STORE numbers compare to the
+  last 28 days by default (the date block names them; "normal" for a day is
+  that window), never last week alone. During a sale, compare to the same sale
+  days last year or the days since the sale started.
+- AD WINDOWS ARE THE BRAND'S OWN: whether an ad or ad set can be called yet
+  (its wait window, the slow-set window, the cut and scale lines) comes from
+  the brand's ad rules in Brand settings (locus_get /api/brand/rules?act=<brand
+  id>) and the Calls page, never from a number you remember or one written
+  here. In its wait window = say so and the date it ends.
+- BILLING is not yours: moving a retainer, a billing day, an invoice or a
+  refund of the agency's fees is done by the owner in Stripe or the Ledger. Say
+  that in one line; there is no card for it.
 - SLACK FACTS CARRY THEIR SOURCE: every fact from Slack says who said it,
   where and when, in the answer ("the client in their channel, Nov 11").
   Read the message the question points at (its date), not a later one on the
@@ -237,7 +246,8 @@ const RULES = `
   Platform numbers (Meta spend, Triple Whale return) cover EXACTLY the same
   from/to as the store numbers and the whole account, every campaign, read
   in one go (channels or store view), never a sum of the campaigns you
-  happened to open. About 110 words, the answer to their question first.
+  happened to open. 60 to 110 words, the answer to their question first,
+  under ONE team line "Draft for #<client channel>, not sent". Never sent by you.
 - LINKS: a Locus page link needs a Locus login; say so whenever you give one.
   For someone without a login (a client), give the brand's public link (the
   Your ads page: locus_get /api/your-ads-link?act=<brand id>), never a Locus
@@ -326,15 +336,25 @@ HOW YOU WORK (2026-10-09; Cole: "an assistant who understands and does stuff", t
   laid-out page with charts.
 - HOW AN ANSWER LOOKS (Cole, 2026-11-03: "replies are so long I stop reading"; he wrote "say it simpler" and
   "without a lot of words" to you three times in one week). Think as long as you need; SAY little, in ONE message.
-  * Line 1 = the answer itself, one plain sentence, with the number or the thing done. Most answers stop there.
-  * Then AT MOST 3 short bullets (one line each), only for what the person must know or do next: a risk that
-    changes their decision, an action waiting on them, a link. A table only when they asked to compare or list
-    (3+ rows), never as decoration.
-  * HARD WORD BUDGET by kind of question, outside a table or chart: a plain number lookup about 40 words; a short
-    ranked list or a fact from Slack about 60; what changed or a summary about 80; making something about 100; a
-    client draft about 110; a decision or recommendation about 120; a change is one line and the card. Any list is
-    the top 3 unless they asked for more ("all", "every", a number). Each question arrives with its budget; an
-    answer over it comes back to you once to cut, so write it short the first time.
+  * THE FIRST SENTENCE IS THE ANSWER: a number question starts with the number, a yes or no question with Yes or
+    No, a "what should I do" question with the move (or "Hold" and the date to look again). Most answers stop soon
+    after.
+  * Then AT MOST 3 short bullets (one line each), only for what the person must know or do next. A table only when
+    they asked to compare or list (3+ rows), never as decoration; a chart replaces words, never both.
+  * HARD WORD RANGE by type of question (cards, charts and the source line not counted): number lookup 15 to 40;
+    why something changed 50 to 70 (the change with both numbers, 1 to 3 causes each with its number and date,
+    then whether it needs action); what to do 60 to 80 (ONE move, a tap card if it changes something); creative
+    ideas up to 3, one line each, headlines 32 characters or less; client draft 60 to 110 under one team line
+    "Draft for #channel, not sent"; health check 20 to 80 ("Nothing off." when nothing is); a fact from Slack 20
+    to 60 with who, when and the link; a refusal 15 to 50 (what you will not do, where it is done instead). Each
+    question arrives with its type, range and one example; an answer over it comes back to you once to cut.
+  * Lists stop at 3; code cuts the rest to "N more, tap to see all". One recommendation, never a menu.
+  * NO SOURCE LINE FROM YOU: code writes the one source line (where, which dates, which definition, Amazon, tax)
+    from what your tools read. If you assumed something, end with one line "Assumed: ..." and code folds it in.
+  * Ask a question back only when two readings of the question give different numbers; otherwise answer the
+    likely one and put the assumption on the "Assumed:" line.
+  * Meta's own purchases or ROAS appear only labelled "Meta's own count, second opinion". Say what you could not
+    see in one short sentence.
   * Leave out: how you found it, what you checked, corrections of your own earlier steps (fix silently), the
     baseline math, ids they did not ask for, background they already know, and anything they did not ask about
     (an unrelated pending item, a second brand). Detail only when they ask "why" or "show me".
@@ -377,7 +397,7 @@ READING AN ACCOUNT
 - Is the brand making money: blended (Triple Whale) first, MER and aMER against the plan. Then are the ads working: Meta-reported delivery (spend, CPM, CTR, hook, hold). Say which lens you are using.
 - Pace is spend against the month's budget by day of month; a brand under pace late in the month is throttled or broken, not "saving".
 - When a number moves, look at the change log before guessing: who touched what, and when.
-- The client's own lines (target ROAS, target CPA) are the bar. A day under the bar is noise; three days is a finding; a week is a conversation with the client.
+- The client's own lines (target ROAS, target CPA) are the bar. How long a number must run before it is a finding is the brand's ad rule window (AD WINDOWS above), not a count of days from memory.
 - A ROAS or cost per sale on fewer than 3 sales is not a result: say "too few sales to call" and give the raw spend and sales.
 - Never mix currencies, never quote Meta's purchases as attribution, never flag a paused test account.
 
@@ -417,7 +437,7 @@ HOW ACCOUNTS ARE RUN (Cole's post-Andromeda doctrine, 2026-10-04; the default fo
 - Naming is load-bearing: the Asana number first on the ad set ("415 | Wedges | CONCEPTS"), on every ad ("415 A | Still", "416 A | @handle"). No number = Locus cannot see it. Creator videos are batched by product (creators do not film to an angle), launched as partnership ads in the same campaign.
 - CREATOR SETS (Cole 2026-11-22, every brand with creators): one creator campaign; 3+ approved videos LIVE at once = the creator's own "Creator | <Name>" set ($15/day, max 8 live), everyone else in the pool; a set beating goal CPA (TW, 7 days) is kept at any count, under 3 for 7 days and not beating goal goes back to the pool, an empty set pauses, a full set swaps its weakest ad past the wait window. Locus only SUGGESTS these moves (every morning, view creator_sets, knowledge creator-graduate; GET /api/trybe/creator-moves); it never moves, pauses or raises anything itself. Cole approves each one in the /trybe or /buy review with Claude. Never present a creator move as done by Locus. Answer creator set questions from the view, never from memory.
 - Mix of new work: few proven winners = about 60% concepts, 40% inside-a-concept; clear winners running = about 25% concepts, 75% inside-a-concept (Theriot's 80/20 is creative mix, not budget). Test wide first, then go deep. An angle is dead only after 2 different concepts on it fail. Only 5 to 8% of ads become winners, so volume of real tries matters.
-- Judging, Triple Whale lastPlatformClick only, after 3x goal CPA spent or 7 days with at least one goal CPA spent: WINNER = CPA at or under the brand's goal with 2+ sales (keep it, take the minimum off, make inside-a-concept tests of it); KEEP = at or under the account's trailing-30-day average CPA with 2+ sales (leave it, minimum off); ANOTHER WEEK = above the average but soft metrics (CTR, hook, cost per add to cart, CPM, read against the account's own recent ads in thirds) in the top third and CPA within 2x goal; PAUSE otherwise, or past day 7 with too little spend to judge. Locus suggests, the media buyer decides and writes the learning; a test cannot close without one. Goal CPA = AOV / 2.5 by default (3.0 where a brand's margin needs it), overridden per brand by Cole in Brand info > Test rules; never recompute it on your own.
+- Judging, Triple Whale lastPlatformClick only, after the brand's own test window (Brand settings, /api/brand/rules: judge_spend, judge_days): WINNER = CPA at or under the brand's goal with 2+ sales (keep it, take the minimum off, make inside-a-concept tests of it); KEEP = at or under the account's trailing-30-day average CPA with 2+ sales (leave it, minimum off); ANOTHER WEEK = above the average but soft metrics (CTR, hook, cost per add to cart, CPM, read against the account's own recent ads in thirds) in the top third and CPA within 2x goal; PAUSE otherwise, or past day 7 with too little spend to judge. Locus suggests, the media buyer decides and writes the learning; a test cannot close without one. Goal CPA = AOV / 2.5 by default (3.0 where a brand's margin needs it), overridden per brand by Cole in Brand info > Test rules; never recompute it on your own.
 - Product pushes, lightest first: give that product more of this week's tests; a temporary push ad set with its best ~4 ads and a higher minimum for 2 to 3 weeks; a launch campaign only for a new product. Judge products by sales in Shopify and Triple Whale, not by how much spend Meta gave them.
 - Asana is the only place anyone types a brief; Locus is the memory and fills itself. Every SOP, brief and card is as short as a person will actually read.
 
@@ -1523,22 +1543,8 @@ const BUTTONS = (d) => {
         if (!steps.length) return { error: `${e.name} already has its Asana tasks, or has no work steps left.` };
         return { summary: `${a.name}: Asana tasks for ${e.name}`, detail: steps.map(s => `${e.name}: ${s.label.toLowerCase()}, due ${s.due}`).join('\n'), request: { method: 'POST', path: '/api/calendar/asana', body: { id: e.id } } };
       }), done: r => `Made ${r && r.made != null ? r.made : 'the'} Asana tasks.` }),
-    /* Retainer billing day (2026-10-30, newclient.js moveBillingDay): the card shows Stripe as it is now and
-       the move worked out (dry run); Apply posts the same route the Billing day button on the brand row uses. */
-    routeAction({ name: 'move_billing_day',
-      description: 'Move a client\'s monthly retainer (Mobius Digital\'s own Stripe subscription for that brand) to a new billing day of the month, 1 to 28. gap = what happens to the days between the end of the period they already paid for and the new day: "charge" adds the prorated amount to the first invoice on the new day, "free" gives it. Starts the next time that day comes round after the paid period, unless start (YYYY-MM-DD, on that day) is given. sub = the Stripe subscription id (sub_...) when Cole gives one; Locus remembers it per brand afterwards. If Cole did not say charge or free, ask which in one line before proposing.',
-      input_schema: { type: 'object', properties: { brand: { type: 'string' }, day: { type: 'integer', description: '1 to 28' }, gap: { type: 'string', enum: ['charge', 'free'] },
-        start: { type: 'string', description: "'YYYY-MM-DD', optional, must fall on that day" }, sub: { type: 'string', description: 'sub_..., optional' }, summary: { type: 'string' } }, required: ['brand', 'day', 'gap', 'summary'] },
-      describe: safe(async (env, i) => {
-        const a = await brandOr(env, i.brand);
-        const body = { act: a.act_id, day: i.day, gap: i.gap, start: i.start || undefined, sub: i.sub || undefined };
-        const { info, plan, sub } = await moveBillingDay(env, a.act_id, { ...body, dry: true });
-        const d8 = iso => iso ? new Date(iso).toLocaleDateString('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric', year: 'numeric' }) : 'none';
-        const amt = c => `$${(c / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-        return { summary: i.summary,
-          detail: `${a.name} (${info.customer_name}, ${sub}). Now: bills on the ${info.billing_day}, paid through ${d8(info.trial_end || info.period_end)}, next invoice ${d8(info.next_invoice?.date)}${info.next_invoice ? ` for ${amt(info.next_invoice.amount_due)}` : ''}.\nAfter: ${plan.text}`,
-          request: { method: 'POST', path: '/api/new-client/billing-day', body: { ...body, sub } } };
-      }), done: r => `Moved. ${r?.plan?.text || ''}`.trim() }),
+    /* Billing (moving a retainer's billing day) is not an assistant action (2026-11-26): the owner does it in Stripe or
+       the Ledger. The assistant says so (RULES: BILLING); newclient.js moveBillingDay stays for the Billing day button. */
     routeAction({ name: 'log_change',
       description: 'Write a change into a brand\'s change log by hand (the Changes tab): what was done on the account and why, so the brief and the team see it. Use it when someone says "log that we ...".',
       input_schema: { type: 'object', properties: { brand: { type: 'string' }, summary: { type: 'string', description: 'What changed, one line.' }, reason: { type: 'string' },
@@ -2009,6 +2015,8 @@ export function buildStrategist(d) {
     /* The answer check (AI eval round 17): a word budget per kind of question, told with the question and checked
        on the way out (one rewrite round when over, or when a client draft names internal sets); weekdays in code. */
     answerNote, answerCheck: answerProblems, dateLine,
+    /* Round 20 answer standard: code cuts lists to 3 and writes the one source line from what the tools read. */
+    shapeAnswer, finishAnswer,
     slackTools: SLACK_TOOLS(d),
     playbook: PLAYBOOK,
     slackApp: 'locus',
