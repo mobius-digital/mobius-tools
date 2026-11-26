@@ -807,6 +807,14 @@ export function createAssistant(config) {
     return (C.strongWhen && C.strongWhen.test(s)) ? C.strongModel : C.model;
   };
 
+  /* Every number in a long read (the stored text is cut at 16,000 characters), so the source line can still find the
+     figure an answer took from further down. Capped; repeats dropped. */
+  function numsOf(text) {
+    const out = new Set();
+    for (const m of String(text || '').matchAll(/(?<![\w.])\d[\d,]*(?:\.\d+)?/g)) { const v = +m[0].replace(/,/g, ''); if (isFinite(v)) out.add(v); if (out.size >= 20000) break; }
+    return [...out];
+  }
+
   async function callClaude(env, system, messages, tools, model = C.model, final = false, effort = null) {
     /* Only Haiku answers in 1200 tokens: Sonnet and Opus spend thinking inside max_tokens, so an app whose
        base model is one of them (the Strategist, 2026-10-09) needs the big budget on every round. */
@@ -1297,9 +1305,9 @@ export function createAssistant(config) {
 
 ACCESS RULE: this person may only see ${name}. Read, mention, compare or total no other brand, and never guess at one; if asked about another brand, the agency's other clients, the agency's own costs or its internal notes, say that is not something their login covers. Every number comes from a tool call you made in this conversation; say which page or period it came from. Your tools read the app exactly as this person's own login does, so whatever they return is theirs to see. You cannot apply changes from this chat: when they ask for one, say which page in the app has the button (the same buttons the agency uses), or that their team can do it.
 
-Plain English, no em dashes, lead with the answer.` }];
+Plain English in American spelling (behavior, color, summarize, canceled), no em dashes, lead with the answer.` }];
     if (C.clientSystem) for (const b of (await C.clientSystem(env, h, extra).catch(() => [])) || []) { const text = typeof b === 'string' ? b : b?.text; if (text) blocks.push({ type: 'text', text }); }
-    blocks.push({ type: 'text', text: C.dateLine ? C.dateLine(today) : `Today is ${today}. The current month is ${h.monthOf(today)}.` });
+    blocks.push({ type: 'text', text: C.dateLine ? C.dateLine(today, { client: true }) : `Today is ${today}. The current month is ${h.monthOf(today)}.` });
     if (extra.screen) blocks.push({ type: 'text', text: '## What the person is looking at right now, in the app\n' + JSON.stringify(extra.screen, null, 1) + '\nResolve "this", "that number", "this month" against it. Verify any figure with a tool before quoting it back.' });
     return blocks;
   }
@@ -1418,7 +1426,7 @@ Plain English, no em dashes, lead with the answer.` }];
           if (typeof out?.cost === 'number' && isFinite(out.cost)) cost += out.cost;
           /* ok: no tool error AND not a view that answered {"error": ...} as plain text (read_app never sets is_error). */
           const readText = typeof out?.text === 'string' ? out.text : '';
-          reads.push({ name: c.name, input: c.input || {}, ok: !out?.is_error && !/^\s*\{\s*"error"\s*:/.test(readText), action: !!actionByName[c.name], sql: c.name === C.sqlTool, text: readText.slice(0, 16000) });
+          reads.push({ name: c.name, input: c.input || {}, ok: !out?.is_error && !/^\s*\{\s*"error"\s*:/.test(readText), action: !!actionByName[c.name], sql: c.name === C.sqlTool, text: readText.slice(0, 16000), ...(readText.length > 16000 ? { nums: numsOf(readText) } : {}) });
           results.push({ type: 'tool_result', tool_use_id: c.id, content: Array.isArray(out.content) && out.content.length ? out.content : String(out.text ?? ''), ...(out.is_error ? { is_error: true } : {}) });
         }
         messages.push({ role: 'user', content: results });
@@ -1455,17 +1463,23 @@ Plain English, no em dashes, lead with the answer.` }];
         if (problems.length) {
           messages.push({ role: 'assistant', content: [{ type: 'text', text: answer }] });
           messages.push({ role: 'user', content: 'Before this goes out, fix it:\n- ' + problems.join('\n- ') + '\nReply with the rewritten answer only, in the same voice, same facts, same numbers, links and card lines. Keep every warning (a wait window, the anchor of a working set, a big change, anything broken) and every step. Keep a "---- draft ----" line and the draft after it if there was one, and an "Assumed:" line if there was one. Add nothing beyond what the fixes ask and no source line.' });
-          const reply = await callClaude(env, system, messages, toolDefs, model, true, effort);
+          /* The rewrite is optional: a failed call (a 524, a 529, a broken stream) keeps the finished first answer,
+             so a card raised this turn is still shown and nothing is asked twice. */
+          let reply = null;
+          try { reply = await callClaude(env, system, messages, toolDefs, model, true, effort); } catch { reply = null; }
+          if (!reply) { messages.splice(-2, 2); flags.checked = { problems, rewritten: false }; }
+          else {
           const u = reply.usage || {};
           inTok += (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0);
           cacheRead += u.cache_read_input_tokens || 0; cacheWrite += u.cache_creation_input_tokens || 0;
           outTok += u.output_tokens || 0;
           cost += costOf(reply.model || model, u);
           const again = (reply.content || []).filter(c => c.type === 'text').map(c => c.text).join('').trim();
-          const safe = !!again && (() => { try { return !C.rewriteOk || C.rewriteOk(answer, again, ctx.question) !== false; } catch { return false; } })();
+          const safe = !!again && (() => { try { return !C.rewriteOk || C.rewriteOk(answer, again, ctx.question, { cards: flags.proposals?.length || 0 }) !== false; } catch { return false; } })();
           const kept = safe && check(again).length < problems.length;
           if (kept) answer = again;
           flags.checked = { problems, rewritten: kept };
+          }
         }
       }
     } finally {

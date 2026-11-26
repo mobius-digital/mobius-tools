@@ -69,6 +69,15 @@ export const KINDS = {
   refusal: { min: 15, max: 50, label: 'a refusal', first: 'what you will not do first, then where that is done instead',
     ex: 'I do not change billing. The owner does that in Stripe or the Ledger.' },
 };
+/* A client's own login has no cards and no actions, and reads no internal names: its change and do types say what
+   the team does instead, with no card, Apply, set name or wait window. */
+export const CLIENT_KINDS = {
+  change: { label: 'a change request', first: 'that changes to the ads are made by the team, then what to tell them',
+    ex: 'Changes to your ads are made by your team, not from here. Tell them "pause the hat bundle ad" and they will take it from there.' },
+  do: { first: 'the ONE thing worth doing first (or "Hold" and when to look again), then why in 2 or 3 numbers, in plain words',
+    ex: 'Keep the Black Friday ads running as they are. They brought sales at $38 each against your $47 goal over the last 9 days, 31 sales in all. Your team will look again on Monday, Nov 30.' },
+};
+const kindText = (kind, client) => ({ ...KINDS[kind], ...(client ? CLIENT_KINDS[kind] || {} : {}) });
 /* Kept for callers that read a plain ceiling per kind. */
 export const BUDGETS = Object.fromEntries(Object.entries(KINDS).map(([k, v]) => [k, v.max]));
 
@@ -117,13 +126,13 @@ export function answerKind(question, { client = false } = {}) {
 }
 
 export function answerNote(question, { client = false } = {}) {
-  const b = answerKind(question, { client }), K = KINDS[b.kind];
+  const b = answerKind(question, { client }), K = kindText(b.kind, client);
   const range = b.more ? `up to ${b.words}` : `${b.min} to ${b.words}`;
   const yn = isYesNo(question) && !['draft', 'change', 'make', 'creative'].includes(b.kind) ? ' It is a yes or no question: the first word is Yes or No.' : '';
   const draft = b.kind === 'draft' ? ` The team line, then a line exactly "---- draft ----", then the message (${b.min} to ${b.words} words): no internal ad set or campaign names, the same full date range as the store numbers, never sent by you.` : '';
-  const list = b.more ? 'They asked for the full list: give it.' : `Lists: the top ${askedCount(question) || LIST_MAX}, but never leave out a warning, a fix step or a change the card will make.`;
-  if (client) return `[Answer type: ${K.label}, ${range} words (charts not counted). First sentence = the answer: ${K.first}.${yn} ${list} Say in a few words which page or period the numbers came from. Example: ${JSON.stringify(K.ex)}]`;
-  return `[Answer type: ${K.label}, ${range} words (cards, charts and the source line not counted). First sentence = the answer: ${K.first}.${yn}${draft} ${list} Never write where the numbers came from: code adds the source line from what you read. If you assumed something (a date range, a brand, which of two readings), end with one line "Assumed: ...". Ask back only when two readings give different numbers. Meta's own purchases or ROAS only as "Meta's own count, second opinion". Example: ${JSON.stringify(K.ex)}]`;
+  const list = b.more ? 'They asked for the full list: give it.' : `Lists: the top ${askedCount(question) || LIST_MAX}, but never leave out a warning${client ? '' : ', a fix step or a change the card will make'}.`;
+  if (client) return `[Answer type: ${K.label}, ${range} words (charts not counted). First sentence = the answer: ${K.first}.${yn} ${list} No cards, no Apply and no internal ad set or campaign names: this login cannot change anything. Say in a few words which page or period the numbers came from. American English. Example: ${JSON.stringify(K.ex)}]`;
+  return `[Answer type: ${K.label}, ${range} words (cards, charts and the source line not counted). First sentence = the answer: ${K.first}.${yn}${draft} ${list} Never write where the numbers came from: code adds the source line from what you read. If you assumed something (a date range, a brand, which of two readings), end with one line "Assumed: ...". American English. Ask back only when two readings give different numbers. Meta's own purchases or ROAS only as "Meta's own count, second opinion". Example: ${JSON.stringify(K.ex)}]`;
 }
 
 /* Lines that are not the writing: the code-written source line, the model's assumption line, the list tail, the
@@ -249,13 +258,33 @@ export function answerProblems(answer, question, { slack = 1.2, reads = [], clie
 /* ---------------- the rewrite: what it may never lose ---------------- */
 /* Words that carry a warning the person must read before tapping (house rules: a pause inside the wait window or of
    the anchor of a working set is told first; a broken pixel or page outranks any budget move). */
-const WARN = /\b(?:wait(?:ing)? window|anchor|still learning|learning (?:phase|resets?)|big change|warning|careful|broken|stopped (?:firing|tracking|working)|not (?:firing|tracking|loading)|404|is down|went down|cannot be undone|over the 50% line|too few sales to call)\b/gi;
-/** A rewrite goes out only when it kept every warning the first answer had, and its "---- draft ----" line. */
-export function rewriteOk(before, after) {
+const WARN = /\b(?:wait(?:ing)? window|anchor|still learning|learning (?:phase|resets?)|big change|warning|careful|broken|stopped (?:firing|tracking|working)|not (?:firing|fired|tracking|tracked|loading|loaded)|(?:has|have|had)n't (?:fired|tracked|loaded)|out of stock|sold out|disabled|spending limit|rejected|restricted|404|is down|went down|cannot be undone|over the 50% line|too few sales to call)\b/gi;
+/* "No anchor or wait window issue." names both words and warns of neither: a warning word right after no / not /
+   without (or "no X or") does not count as a warning. */
+const NEGATED = /\b(?:no|not|without|nor|never|isn't|aren't)\s+(?:(?:the|an?|any|its|their)\s+)?(?:[\w-]+(?:\s+[\w-]+)?\s+(?:or|nor)\s+)?(?:(?:the|an?|any|its|their)\s+)?$/i;
+export function warnings(text) {
+  const s = String(text || ''), out = new Set();
+  for (const m of s.matchAll(WARN)) {
+    const before = s.slice(Math.max(0, m.index - 60), m.index).split(/[.!?\n]/).pop();
+    if (!NEGATED.test(before)) out.add(m[0].toLowerCase());
+  }
+  return out;
+}
+const LIST_LINE = /^\s*(?:[-*•]|\d{1,2}[.)])\s+\S/;
+const listLines = text => String(text || '').split('\n').filter(l => LIST_LINE.test(l)).length;
+/** A rewrite goes out only when it kept every warning the first answer had (said as a warning, not "no anchor"), its
+ *  "---- draft ----" line and a draft body (at least the draft's minimum, or all of a shorter one), and, with a card
+ *  waiting, every numbered or bulleted line (the changes on a waiting card are said in the words). */
+export function rewriteOk(before, after, question = '', { cards = 0 } = {}) {
   const b = String(before || ''), a = String(after || '');
-  if (DRAFT_LINE.test(b) && !DRAFT_LINE.test(a)) return false;
-  const low = a.toLowerCase();
-  for (const w of new Set((b.match(WARN) || []).map(x => x.toLowerCase()))) if (!low.includes(w)) return false;
+  if (DRAFT_LINE.test(b)) {
+    if (!DRAFT_LINE.test(a)) return false;
+    const db = wordCount(splitDraftText(b).draft), da = wordCount(splitDraftText(a).draft);
+    if (da < Math.min(KINDS.draft.min, db)) return false;
+  }
+  const kept = warnings(a);
+  for (const w of warnings(b)) if (!kept.has(w)) return false;
+  if (cards > 0 && listLines(a) < listLines(b)) return false;
   return true;
 }
 
@@ -272,7 +301,7 @@ export function rangeText(from, to) {
 }
 /* Where each read comes from, in plain words. A read not named here (memory, skills, notes, cards) is not a source. */
 const VIEW_SRC = { store: 'Triple Whale store', account: 'Triple Whale store', overview: 'Triple Whale store', series: 'Triple Whale store and Meta',
-  customers: 'Triple Whale orders', what_worked: 'Triple Whale and Meta', creatives: 'Meta', creator_sets: 'Meta', changes: 'the Change Log',
+  customers: 'Triple Whale orders', what_worked: 'Triple Whale and Meta', creatives: 'Meta', creator_sets: 'Meta spend and Triple Whale sales', changes: 'the Change Log',
   tests: 'Locus tests', angles: 'Locus tests', google_ads: 'Google Ads', website: 'GA4', search: 'Search Console', tiktok_ads: 'TikTok',
   klaviyo: 'Klaviyo', stock: 'Shopify stock', calendar: 'the Locus calendar', leaks: 'the leak finder', market: 'Mobius Pulse and Breezeway',
   plan: 'the month plan', survey: 'the post-purchase survey', scenarios: 'Locus scenarios' };
@@ -288,9 +317,14 @@ function sqlTax(sql) {
   if (/\border_revenue\b/i.test(sql)) return 'sales with tax in';
   return '';
 }
+/* The column bare or wrapped (lower(source_name), o.platform), the value plain or a LIKE pattern ('%amazon%'). */
+const AMZ_COL = String.raw`(?:\w+\s*\(\s*)?(?:\w+\.)?(?:source_name|platform)(?:\s*\))?`;
+const AMZ_VAL = String.raw`\(?\s*'%?amazon%?'`;
+const AMZ_OUT = new RegExp(String.raw`${AMZ_COL}\s*(?:!=|<>|not\s+in|not\s+i?like)\s*${AMZ_VAL}|\bnot\s*\(?\s*${AMZ_COL}\s*(?:=|i?like|in)\s*${AMZ_VAL}`, 'i');
+const AMZ_IN = new RegExp(String.raw`${AMZ_COL}\s*(?:=|in|i?like)\s*${AMZ_VAL}`, 'i');
 function sqlAmazon(sql) {
-  if (/source_name\s*(?:!=|<>|not\s+in)\s*\(?\s*'amazon'|not\s+source_name\s*=\s*'amazon'|platform\s*(?:!=|<>)\s*'amazon'/i.test(sql)) return 'website only (Amazon out)';
-  if (/source_name\s*(?:=|in)\s*\(?\s*'amazon'|platform\s*=\s*'amazon'/i.test(sql)) return 'Amazon orders checked';
+  if (AMZ_OUT.test(sql)) return 'website only (Amazon out)';
+  if (AMZ_IN.test(sql)) return 'Amazon orders checked';
   return 'Amazon not split out';
 }
 function sourceOf(r) {
@@ -329,13 +363,15 @@ export function readFailed(r) {
   try { const j = JSON.parse(t); return !!j && typeof j === 'object' && (j.error != null || j.ok === false || j.connected === false); }
   catch { return /^\{\s*"error"\s*:/.test(t); }
 }
+/* The dates a read COVERED: the range it says it returned wins over the one it was asked for (the store view ends at
+   yesterday, so a month-to-date read asked up to today covers up to yesterday). The input is only the fallback. */
 function datesOf(r) {
   const i = r.input || {};
-  if (isYmd(i.from)) return rangeText(i.from, isYmd(i.to) ? i.to : i.from);
-  if (isYmd(i.date)) return rangeText(i.date, i.date);
   const t = String(r.text || '');
   const m = t.match(/"from"\s*:\s*"(\d{4}-\d{2}-\d{2})"[\s\S]{0,400}?"to"\s*:\s*"(\d{4}-\d{2}-\d{2})"/);
   if (m) return rangeText(m[1], m[2]);
+  if (isYmd(i.from)) return rangeText(i.from, isYmd(i.to) ? i.to : i.from);
+  if (isYmd(i.date)) return rangeText(i.date, i.date);
   if (+i.days > 0) return `last ${+i.days} days`;
   return '';
 }
@@ -357,12 +393,36 @@ function answerNumbers(text) {
   return out;
 }
 function holds(read, nums) {
-  const vals = [];
+  /* read.nums: every number of the whole read (the engine keeps them; read.text is cut at 16,000 characters). */
+  const vals = Array.isArray(read.nums) ? read.nums.filter(v => isFinite(v)) : [];
   for (const m of String(read.text || '').matchAll(NUM)) { const v = +m[0].replace(/,/g, ''); if (isFinite(v)) vals.push(v); }
   return nums.some(n => vals.some(x => n.dec ? Math.abs(Math.round(x * 10 ** n.dec) / 10 ** n.dec - n.v) < 1e-9 || Math.abs(Math.round(x * 100 * 10 ** n.dec) / 10 ** n.dec - n.v) < 1e-9
     : Math.abs(x - n.v) <= Math.max(0.5, n.v * 0.006)));
 }
 
+/* Reads that hold words, not figures (Slack, the Change Log) are judged by what the answer took from them, never by a
+   number they happen to contain. Slack: its link, a #channel it holds, or the answer saying who said what. The Change
+   Log: a date the answer names that the log holds. */
+const TEXT_SRC = new Set(['Slack', 'the Change Log']);
+const MON_IX = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, sept: 9, oct: 10, nov: 11, dec: 12 };
+function answerDays(text) {
+  const out = new Set();
+  for (const m of String(text || '').matchAll(/\b(jan|feb|mar|apr|may|jun|jul|aug|sept?|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})(?:\s+(?:to|through|-)\s+(\d{1,2})\b)?/gi)) {
+    const mo = MON_IX[m[1].toLowerCase()], a = +m[2], z = Math.min(31, m[3] ? +m[3] : a);
+    for (let d = a; d <= z; d++) out.add(`-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
+  }
+  return out;
+}
+function textReadUsed(r, src, answer) {
+  const t = String(r.text || ''), a = String(answer || '');
+  if (src === 'Slack') {
+    for (const m of a.matchAll(/https?:\/\/[^\s|>)]+/g)) if (t.includes(m[0])) return true;
+    for (const m of a.matchAll(/#[a-z0-9][\w.-]{1,79}/gi)) if (t.toLowerCase().includes(m[0].toLowerCase())) return true;
+    return /\b(?:slack|said|says|told|wrote|posted|agreed)\b/i.test(a);
+  }
+  for (const d of answerDays(a)) if (t.includes(d)) return true;
+  return false;
+}
 const andList = a => a.length <= 1 ? (a[0] || '') : `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}`;
 /** The one source line, from the reads that worked (and, given the answer, the ones it used): for each place, its
  *  dates and only the definitions that read shows (tax, Amazon, last click). */
@@ -375,10 +435,16 @@ export function sourceLine(reads = [], assumed = [], { answer = null } = {}) {
     const s = sourceOf(r);
     if (s) used.push({ r, s });
   }
-  const nums = answer != null ? answerNumbers(answer) : [];
-  if (nums.length) {
-    const kept = used.filter(({ r }) => !String(r.text || '').trim() || holds(r, nums));
-    if (kept.some(({ r }) => String(r.text || '').trim())) used = kept;
+  if (answer != null) {
+    const nums = answerNumbers(answer);
+    const has = r => !!String(r.text || '').trim() || (Array.isArray(r.nums) && r.nums.length > 0);
+    const words = used.filter(({ s }) => TEXT_SRC.has(s.src)), figs = used.filter(({ s }) => !TEXT_SRC.has(s.src));
+    const keptWords = words.filter(({ r, s }) => !has(r) || textReadUsed(r, s.src, answer));
+    let keptFigs = figs;
+    if (nums.length) { const k = figs.filter(({ r }) => !has(r) || holds(r, nums)); if (k.some(({ r }) => has(r))) keptFigs = k; }
+    else if (keptWords.length) keptFigs = figs.filter(({ r }) => !has(r));
+    /* Nothing left at all: every read is kept, as before. */
+    if (keptWords.length || keptFigs.length) used = used.filter(u => keptWords.includes(u) || keptFigs.includes(u));
   }
   /* One segment per place: "Triple Whale store, Nov 1 to 25, sales with tax out, Amazon not split out". */
   const groups = new Map();
@@ -402,15 +468,21 @@ export function sourceLine(reads = [], assumed = [], { answer = null } = {}) {
 export function finishAnswer(answer, { reads = [], cards = 0 } = {}) {
   if (!answer) return answer;
   const { answer: head0, draft } = splitDraftText(answer);
-  const assumed = [];
+  const assumed = [], links = [];
   const head = head0.split('\n').filter(l => {
     const a = l.match(/^\s*(?:\*{0,2})(?:assumed|assumption|assumptions)\s*:\s*\**\s*(.+)$/i);
     if (a) { assumed.push(a[1].replace(/\*+$/, '').trim()); return false; }
-    return !/^\s*(?:\*{0,2})(?:source|sources)\s*:/i.test(l);
+    if (!/^\s*(?:\*{0,2})(?:source|sources)\s*:/i.test(l)) return true;
+    /* A link on the model's own source line (a Slack fact's link) stays: only the words of that line go. */
+    for (const m of l.matchAll(/<https?:[^>\n]+>|\[[^\]\n]*\]\(https?:[^)\s]+\)|https?:\/\/[^\s<>()|]+/gi)) links.push(m[0]);
+    return false;
   }).join('\n').replace(/\s+$/, '');
+  const urlOf = x => (x.match(/https?:\/\/[^\s<>()|]+/) || [x])[0];
+  const keepLinks = [...new Set(links)].filter(x => !head.includes(urlOf(x)));
   const oneLine = cards > 0 && !draft && head.split('\n').filter(l => l.trim() && !/^\s*Nothing has changed yet\. Tap Apply/i.test(l)).length <= 1;
-  const line = oneLine ? (assumed.length ? `Assumed: ${assumed.map(a => a.replace(/[.\s]+$/, '')).join('; ')}.` : '') : sourceLine(reads, assumed, { answer: `${head}\n${draft}` });
-  const team = line ? (head ? `${head}\n\n${line}` : line) : head;
+  const line = oneLine ? (assumed.length ? `Assumed: ${assumed.map(a => a.replace(/[.\s]+$/, '')).join('; ')}.` : '') : sourceLine(reads, assumed, { answer: [head, ...keepLinks, draft].join('\n') });
+  const tail = [keepLinks.length ? `Link: ${keepLinks.join(' ')}` : '', line].filter(Boolean).join('\n');
+  const team = tail ? (head ? `${head}\n\n${tail}` : tail) : head;
   return draft ? joinDraft(team, draft) : team;
 }
 
@@ -423,11 +495,11 @@ export const weekday = ymd => ok(ymd) ? DAYS[new Date(`${ymd}T12:00:00Z`).getUTC
 const short = ymd => `${weekday(ymd).slice(0, 3)} ${MON[+ymd.slice(5, 7) - 1]} ${+ymd.slice(8, 10)}`;
 
 /** The date block: today by name, the last 14 days by name (never worked out in the model's head), and "normal". */
-export function dateLine(today) {
+export function dateLine(today, { client = false } = {}) {
   if (!ok(today)) return `Today is ${today}.`;
   const days = Array.from({ length: 14 }, (_, i) => short(addDays(today, -i - 1)));
   return `Today is ${weekday(today)}, ${MON[+today.slice(5, 7) - 1]} ${+today.slice(8, 10)}, ${today.slice(0, 4)} (${today}). The current month is ${today.slice(0, 7)}.\n`
-    + `The last 14 days: ${days.join(', ')}. For any other date's weekday call calc with dates; never work a weekday out yourself.\n`
+    + `The last 14 days: ${days.join(', ')}. ${client ? 'Name the weekday of no other date unless a tool gave it.' : "For any other date's weekday call calc with dates; never work a weekday out yourself."}\n`
     + `"Normal" for a day means the last 28 full days (${addDays(today, -28)} to ${addDays(today, -1)}), the same weekday in them when it matters; never last week alone.`;
 }
 

@@ -283,6 +283,7 @@ globalThis.fetch = async (url, init) => {
   const body = JSON.parse(init.body); bodies.push(body);
   const text = script.shift();
   if (text == null) throw new Error('the model was asked more often than the script allows');
+  if (text === '__524__') return new Response('<html>timeout</html>', { status: 524 });
   /* An object in the script is a tool call: { tool, input }. */
   if (typeof text === 'object') return new Response(JSON.stringify({ model: body.model, stop_reason: 'tool_use', usage: { input_tokens: 100, output_tokens: 40 }, content: [{ type: 'tool_use', id: 'tu_' + bodies.length, name: text.tool, input: text.input }] }), { status: 200 });
   return new Response(JSON.stringify({ model: body.model, stop_reason: 'end_turn', usage: { input_tokens: 100, output_tokens: 40 }, content: [{ type: 'text', text }] }), { status: 200 });
@@ -359,7 +360,56 @@ await check('engine: Slack carries the note after the thread and checks the answ
   const r = await eng.answerSlack(env, { channel: 'C1', ts: '1790000000.000100', user: 'U1', text: '<@B> ' + Q }, h(), {});
   assert.equal(bodies.length, 2); assert.match(bodies[0].messages[0].content, /\[Answer type: /); assert.equal(r.checked.rewritten, true);
 });
+await check('engine: a rewrite call that fails (524) keeps the finished first answer', async () => {
+  bodies = []; script = [words(90), '__524__'];
+  const r = await eng.answerWeb(env, Q, [], h(), {});
+  assert.equal(bodies.length, 2); assert.equal(r.error, undefined); assert.equal(r.answer, words(90));
+  assert.equal(r.checked.rewritten, false); assert.match(r.checked.problems[0], /90 words/);
+});
 globalThis.fetch = realFetch;
+
+await check('round 21 fixes: dates read, links kept, rewrite guards, client wording, Amazon filters, text sources', () => {
+  /* The store view ends at yesterday: the line says the dates it returned, not the dates it was asked. */
+  assert.equal(sourceLine([{ name: 'read_app', input: { view: 'store', from: '2026-11-01', to: '2026-11-26' }, ok: true, text: '{"brand":"Harbor","period":{"from":"2026-11-01","to":"2026-11-25","sales":1}}' }]),
+    'Source: Triple Whale store, Nov 1 to 25, sales with tax out, Amazon not split out.');
+  /* A link on the model's source line stays. */
+  const sl = [{ name: 'search_slack', input: { query: 'offer' }, ok: true, text: '{"hits":[{"channel":"#harbor-golf","link":"https://x.slack.com/archives/C1/p1"}]}' }];
+  const f = finishAnswer('The offer is 30% off sitewide. Sam said it in #harbor-golf on Nov 11.\nSource: <https://x.slack.com/archives/C1/p1|Sam in #harbor-golf>', { reads: sl });
+  assert.match(f, /<https:\/\/x\.slack\.com\/archives\/C1\/p1\|Sam in #harbor-golf>/); assert.match(f, /Source: Slack\.$/);
+  /* Rewrite guards. */
+  const plan = 'Plan card is up with these changes:\n1. Raise New people to $500\n2. Pause 412\n3. Cut Past buyers to $50\nTap Apply to do it.';
+  assert.equal(rewriteOk(plan, 'Plan card is up with all three changes. Tap Apply to do it.', 'what should we do', { cards: 1 }), false);
+  assert.equal(rewriteOk(plan, plan.replace(':', '.'), 'what should we do', { cards: 1 }), true);
+  for (const w of ['The pixel has not fired a purchase since Nov 20.', 'The hat is out of stock.', 'The ad account was disabled on Nov 24.', 'The account hit its spending limit.', 'Two ads were rejected.'])
+    assert.equal(rewriteOk('Hold. ' + w, 'Hold until Monday.'), false, w);
+  assert.equal(rewriteOk('Pause it: it is the anchor of the set, still in its wait window.', 'Pause it. No anchor or wait window issue.'), false);
+  assert.equal(rewriteOk('Pause it, it is the anchor.', 'Pause it, though it is the anchor.'), true);
+  assert.equal(rewriteOk('Draft for #harbor-golf, not sent\n---- draft ----\n' + words(70), 'Draft for #harbor-golf, not sent\n---- draft ----\n'), false);
+  /* Client wording: no card, no Apply, no calc. */
+  const cn = answerNote('Pause my hat ad', { client: true });
+  assert.doesNotMatch(cn, /Tap Apply|Card up|card will make|wait window/); assert.match(cn, /made by your team/);
+  assert.doesNotMatch(answerNote('What should we do with the Black Friday ads?', { client: true }), /Tap Apply|wait window|card will/i);
+  assert.doesNotMatch(dateLine('2026-11-26', { client: true }), /calc/); assert.match(dateLine('2026-11-26'), /calc/);
+  assert.match(answerNote('What was revenue yesterday?'), /American English/);
+  /* Amazon filters in their common shapes. */
+  const amz = q => sourceLine([{ name: 'store_sql', input: { sql: q }, ok: true }]);
+  assert.match(amz("SELECT count() FROM orders_table WHERE lower(source_name) != 'amazon'"), /website only \(Amazon out\)/);
+  assert.match(amz("SELECT count() FROM orders_table WHERE source_name NOT LIKE '%amazon%'"), /website only \(Amazon out\)/);
+  assert.match(amz("SELECT count() FROM orders_table WHERE source_name ILIKE '%amazon%'"), /Amazon orders checked/);
+  /* Text sources by what was taken from them, never by a number they hold. */
+  const why = [{ name: 'read_app', input: { view: 'store', from: '2026-11-12', to: '2026-11-18' }, ok: true, text: '{"period":{"from":"2026-11-12","to":"2026-11-18","sales":24500}}' },
+    { name: 'read_app', input: { view: 'changes' }, ok: true, text: '[{"date":"2026-11-11","what":"budget 60 to 40"}]' },
+    { name: 'search_slack', input: {}, ok: true, text: '{"hits":[{"channel":"#harbor-internal","text":"no email this week"}]}' }];
+  assert.equal(sourceLine(why, [], { answer: 'Sales fell to $24,500. Prospecting was cut on Nov 11, and #harbor-internal confirms no email went out.' }),
+    'Source: Triple Whale store, Nov 12 to 18, sales with tax out, Amazon not split out; the Change Log; Slack.');
+  const hit = [{ name: 'read_app', input: { view: 'store', from: '2026-11-01', to: '2026-11-25' }, ok: true, text: '{"period":{"from":"2026-11-01","to":"2026-11-25","spend":21000}}' },
+    { name: 'search_slack', input: {}, ok: true, text: '{"hits":[{"text":"budget 21000"}]}' }];
+  assert.doesNotMatch(sourceLine(hit, [], { answer: 'Spend was $21,000 from Nov 1 to 25.' }), /Slack/);
+  /* A long read: the number is still found past the 16,000 characters kept (read.nums). */
+  const long = [{ name: 'store_sql', input: { sql: 'SELECT 1' }, ok: true, text: 'x'.repeat(16000), nums: [1, 98765] }, { name: 'web_lookup', input: {}, ok: true, text: 'nothing 5' }];
+  assert.match(sourceLine(long, [], { answer: 'It was 98,765.' }), /^Source: Triple Whale orders, Amazon not split out\.$/);
+  assert.match(sourceLine([{ name: 'read_app', input: { view: 'creator_sets' }, ok: true }]), /Meta spend and Triple Whale sales/);
+});
 
 await check('no em or en dashes in the new code and this test', () => {
   const DASH = new RegExp('[' + String.fromCharCode(0x2014, 0x2013) + ']');
