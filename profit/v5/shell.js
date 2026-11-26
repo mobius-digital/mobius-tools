@@ -6,7 +6,8 @@ import { APP_NAME, APP_WORD, AI_NAME, ORG_NAME, OLD_LOCUS, OLD_UNTIL, LS5, SAMPL
 import { mark, icon } from './icons.js';
 import { menuFor, lineOf, PHONE_TABS } from './menu.js';
 import { h, svgNode, tabs as tabsKit, avatar, count, asOf as asOfChip, sheet, empty, button, toast } from './kit.js';
-import { href, normalise, prefetch, currentRoute, refresh, gateOf } from './router.js';
+import { href, normalise, prefetch, currentRoute, refresh } from './router.js';
+import { heldHere } from './gate.js';
 import { RANGES, rangeOf, settingNow, saveSetting } from './data.js';
 
 const S = { me: null, brands: [], role: 'team', realRole: 'team', asClient: false, lastBrand: null, range: rangeOf(null), rangeSaved: null, counts: {} };
@@ -149,7 +150,7 @@ function navLink(route, l) {
 }
 function menuNodes(route) {
   /* a client still on setup has one line: Get started (their profile is in the account menu) */
-  if (gateOf(S)) return [navLink(route, lineOf('get-started'))];
+  if (heldHere(S, route)) return [navLink(route, lineOf('get-started'))];
   const out = [];
   for (const g of menuFor(route.view, S.role)) {
     if (g.foot) out.push(h('span', { class: 'lx-sp' }));
@@ -160,7 +161,7 @@ function menuNodes(route) {
 }
 let railKey = '';
 function drawRail(route) {
-  const key = [route.view, route.brand, S.role, JSON.stringify(S.counts), !!gateOf(S)].join('|');
+  const key = [route.view, route.brand, S.role, JSON.stringify(S.counts), heldHere(S, route)].join('|');
   if (key === railKey) {            // same menu: only the active marker moves
     rail.querySelectorAll('.lx-nav').forEach(a => { const on = a.dataset.line === route.line; a.classList.toggle('on', on); on ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current'); });
     return;
@@ -318,9 +319,9 @@ async function bellPanel(anchor, route) {
 /* ---------- phone: five tabs at the bottom, the rest under More ---------- */
 let tabKey = '';
 function drawTabbar(route) {
-  const set = gateOf(S) ? PHONE_TABS.setup : S.role === 'client' ? PHONE_TABS.client : route.view === 'agency' ? PHONE_TABS.agency : PHONE_TABS.team;
+  const set = heldHere(S, route) ? PHONE_TABS.setup : S.role === 'client' ? PHONE_TABS.client : route.view === 'agency' ? PHONE_TABS.agency : PHONE_TABS.team;
   const active = (set.find(t => t.line === route.line) || (['meta', 'google', 'tiktok', 'amazon', 'a-meta', 'a-google'].includes(route.line) ? set[1] : null) || {}).id;
-  const key = [route.view, route.brand, S.role, active, S.counts.myDay, !!gateOf(S)].join('|');
+  const key = [route.view, route.brand, S.role, active, S.counts.myDay, heldHere(S, route)].join('|');
   if (key === tabKey) return;
   tabKey = key;
   tabbar.replaceChildren(...set.map(t => {

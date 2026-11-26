@@ -8,7 +8,7 @@
      GET  /api/onboard?act=                             read once when the cards open, only for the Slack link */
 
 import { h, button, sheet, toast, addStyles } from '../../kit.js';
-import { api, SAMPLE } from '../../data.js';
+import { api, SAMPLE, dropSaved } from '../../data.js';
 import { APP_NAME, OWNER_FIRST } from '../../config.js';
 
 const CSS = `
@@ -34,12 +34,12 @@ function cards(brand) {
     { t: 'What it does for you', p: 'It shows what your ads earn, what to change next, and what we are working on. Nothing changes in your ads without a tap.' },
     { t: 'Getting around', p: 'The menu on the left is the whole app. On a phone it is the More tab at the bottom.' },
     { t: 'Where things live', p: 'Home and This month for your numbers. Ads for every platform. Reports for what we send you. Creative review and Requests for what needs your yes. Assets opens your photo and video folder.' },
-    { t: 'Tell us what is missing', p: APP_NAME + ' is new and we keep building it. Look around. If something is missing, confusing, or you have an idea that would help you, tell ' + OWNER_FIRST + '. Tap below to message the team, or tell him in Slack.', last: true },
+    { t: 'Tell us what is missing', p: APP_NAME + ' is new and keeps growing. See something missing or want a feature? Tell ' + OWNER_FIRST + '.', last: true },
   ];
 }
 
 /** showWelcome({ brand, me, preview, team_chat }) */
-export function showWelcome({ brand = null, preview = false, team_chat = null } = {}) {
+export function showWelcome({ brand = null, me = null, preview = false, team_chat = null } = {}) {
   addStyles('lx-wc-css', CSS);
   const list = cards(brand);
   let at = 0, slack = team_chat && team_chat.slack_url ? team_chat.slack_url : null, closed = false;
@@ -92,6 +92,10 @@ export function showWelcome({ brand = null, preview = false, team_chat = null } 
     document.removeEventListener('keydown', key);
     if (!fromSheet) sh.close();
     if (preview || SAMPLE) return;
+    /* Seen now: in this page's state, and the saved boot copy goes so the next visit reads /api/me afresh
+       (a saved copy would still say welcome_seen false and show the cards again). */
+    if (me && me.client) me.client.welcome_seen = true;
+    dropSaved('boot').catch(() => {});
     api('/api/clients/me', { worker: 'ah', method: 'PUT', body: { welcome_seen: true } }).catch(() => {});
   }
 }

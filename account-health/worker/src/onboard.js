@@ -22,11 +22,11 @@
  * Shopify: no Shopify API (the Partner API included) can send a collaborator request. A person on the team sends it from
  * the Partner dashboard; Locus puts it on My day with the store address and the code, and the page says so plainly.
  */
-import { sendMail } from './mail.js';
+import { sendMail, testRecipient } from './mail.js';
 import { integrationsReport } from './integrations.js';
 import { connectToken, connectPost } from './connect.js';
 import { storeKey as klaviyoStore } from './klaviyo.js';
-import { setTripleWhale } from './brands.js';
+import { setTripleWhale, connSet } from './brands.js';
 import { MOBIUS_BM } from './metaaccess.js';
 import { upsertClient, ensureInvite, LINK_PLACEHOLDER } from './clients.js';
 import { brandsFor } from './brandguard.js';
@@ -56,6 +56,7 @@ const maskEmail = e => { const [u, d] = String(e).split('@'); return `${u.slice(
 const v5Slug = s => String(s || '').replace(/_/g, '-');
 const startLink = slug => `${LOCUS_V5}#/brand/${v5Slug(slug)}/get-started/index`;
 const err = (status, m) => Object.assign(new Error(m), { status });
+const fmtGads = id => { const d = String(id || '').replace(/\D/g, ''); return d.length === 10 ? `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}` : d; };
 const andList = a => a.length <= 1 ? (a[0] || '') : `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}`;
 
 async function getS(env, key, dflt = null) {
@@ -209,9 +210,11 @@ function layersFor(p, cj, live, ag, installUrl) {
       T.inputs = [{ key: 'shop_url', label: 'Your store address', placeholder: 'yourstore.myshopify.com', secret: false }, { key: 'code', label: 'Collaborator request code (if your store has one)', placeholder: '', secret: false }];
       T.note = SHOPIFY_HONEST;
       A.label = 'Install the Locus app';
-      A.clicks = ['Press Install. Shopify opens your admin and asks you to approve the app.', 'Approve it. This box ticks itself.'];
+      /* No install link yet (the app is still in Shopify's review): nothing for the client to press, so the layer waits
+         on us and never holds the gate. With a link it is the client's to do. */
+      A.clicks = installUrl ? ['Press Install. Shopify opens your admin and asks you to approve the app.', 'Approve it. This box ticks itself.'] : [];
       A.url = installUrl || null;
-      A.note = installUrl ? 'This box ticks itself once the app is installed.' : 'We send you the install link.';
+      A.note = installUrl ? 'This box ticks itself once the app is installed.' : 'Nothing to do yet. We send you the install link once the Locus app is on the Shopify App Store.';
       break;
     case 'meta':
       T.clicks = ['Open business.facebook.com/settings and pick your business.', 'Users > Partners > Add > "Give a partner access to your assets".',
@@ -270,7 +273,9 @@ function layersFor(p, cj, live, ag, installUrl) {
   T.inputs = T.inputs.map(i => ({ ...i, value: i.secret ? '' : i.key === 'tool' ? String(cj.tool || '') : String(inputs[i.key] || '') }));
   const hasInputs = p.key === 'shopify' ? !!inputs.shop_url : p.key === 'google_ads' ? !!inputs.customer_id : p.key === 'tw' ? !!inputs.shop_url : p.key === 'email' ? !!(inputs.key_at || other) : false;
   T.state = (T.checks_itself && teamCheck) || team.ticked_at ? 'done' : team.said_at || hasInputs ? 'waiting' : 'todo';
-  if (p.key === 'shopify') A.state = ok || app.ticked_at ? 'done' : 'todo';
+  if (T.state === 'waiting' && p.key === 'tw' && inputs.shop_url) T.note = 'Got it. Your team checks the store and ticks this.';
+  if (T.state === 'waiting' && p.key === 'google_ads' && inputs.customer_id) T.note = inputs.confirm ? 'Got it. Your team checks this one and ticks it.' : 'Request sent. Accept it in Google Ads (Admin > Access and security > Managers).';
+  if (p.key === 'shopify') A.state = ok || app.ticked_at ? 'done' : installUrl ? 'todo' : 'waiting';
   else if (other) { A.state = 'na'; A.note = 'Nothing to do here. Your email numbers reach Locus through Triple Whale.'; A.checks_itself = false; }
   else A.state = ok || app.ticked_at ? 'done' : 'waiting';
   return { team: T, app: A };
@@ -330,21 +335,24 @@ function connectState(row, live, ag, installUrl) {
 /* ------------------------------------------------------------------------------------------ */
 const kindOf = url => { const h = (() => { try { return new URL(url).hostname.toLowerCase(); } catch { return ''; } })();
   return /(^|\.)drive\.google\.com$/.test(h) ? 'drive' : /dropbox\.com$/.test(h) ? 'dropbox' : /(^|\.)air\.inc$/.test(h) ? 'air' : /(frame\.io|(^|\.)f\.io)$/.test(h) ? 'frame' : /(^|\.)box\.com$/.test(h) ? 'box' : 'link'; };
+/* Checked on the way OUT too: the stored row could have been written by another route, and the url becomes an href on
+   the team's screens. Only a plain https link of 500 characters or less is ever handed back. */
+const LINK_OK = u => typeof u === 'string' && u.length <= 500 && /^https:\/\/[^\s<>"']+$/.test(u);
 export async function assetsLink(env, act) {
   const row = await env.DB.prepare(`SELECT data_json FROM p_br_doc WHERE act_id = ?1 AND line_id = '' AND key = 'assets_link'`).bind(act).first().catch(() => null);
   const d = safe(row?.data_json, null);
-  if (d && d.url) return { url: d.url, label: d.label || '', kind: d.kind || kindOf(d.url), at: d.at || null, by: d.by || null, from: 'link' };
+  if (d && LINK_OK(d.url)) return { url: d.url, label: d.label || '', kind: d.kind || kindOf(d.url), at: d.at || null, by: d.by || null, from: 'link' };
   /* An older brand still gets an Assets button: the Drive link Locus already knows. */
   const prof = safe((await env.DB.prepare(`SELECT data_json FROM p_br_doc WHERE act_id = ?1 AND line_id = '' AND key = 'profile'`).bind(act).first().catch(() => null))?.data_json, {}) || {};
   const nc = await env.DB.prepare(`SELECT drive_url FROM p_newclient WHERE act_id = ?1 AND drive_url IS NOT NULL ORDER BY created_at DESC LIMIT 1`).bind(act).first().catch(() => null);
   const conn = await env.DB.prepare(`SELECT external_id FROM connections WHERE brand_id = ?1 AND kind = 'drive' LIMIT 1`).bind(act).first().catch(() => null);
-  const drive = [prof.drive, nc?.drive_url, conn?.external_id].find(u => /^https:\/\//.test(String(u || '')));
+  const drive = [prof.drive, nc?.drive_url, conn?.external_id].find(LINK_OK);
   return drive ? { url: drive, label: '', kind: 'drive', at: null, by: null, from: 'drive' } : { url: null, label: '', kind: null, at: null, by: null, from: null };
 }
 async function setAssetsLink(env, act, url, label, by) {
   const u = String(url || '').trim();
   if (!u) { await env.DB.prepare(`DELETE FROM p_br_doc WHERE act_id = ?1 AND line_id = '' AND key = 'assets_link'`).bind(act).run(); return { url: null, kind: null }; }
-  if (!/^https:\/\/[^\s<>"]+$/.test(u) || u.length > 500) throw err(400, 'Paste the full link, starting with https://');
+  if (!LINK_OK(u)) throw err(400, 'Paste the full link, starting with https://');
   const d = { url: u, label: String(label || '').replace(/[<>]/g, '').trim().slice(0, 80), kind: kindOf(u), at: nowIso(), by: lower(by) || null };
   await env.DB.prepare(`INSERT INTO p_br_doc (act_id, line_id, key, data_json, status, source, updated_at, updated_by) VALUES (?1, '', 'assets_link', ?2, 'approved', 'onboard', datetime('now'), ?3)
     ON CONFLICT(act_id, line_id, key) DO UPDATE SET data_json = excluded.data_json, updated_at = excluded.updated_at, updated_by = excluded.updated_by`).bind(act, JSON.stringify(d), d.by).run();
@@ -360,7 +368,13 @@ const STEP_META = {
   brief: { label: 'Ten questions', why: 'Only you know these answers. They steer every ad we write.' },
   assets: { label: 'Your photos and videos', why: 'So our ads use your real photos and videos.' },
 };
-const shownSteps = row => STEP_KEYS.filter(k => k !== 'sign_pay' || row.sign_pay);
+/* Decision 11: another agency's client (extras off) gets connect only; the brief and the assets link are Mobius extras.
+   The gate, reminders, the list line and the team lines all follow this one rule. */
+const shownSteps = row => (!row.extras ? ['connect'] : STEP_KEYS.filter(k => k !== 'sign_pay' || row.sign_pay));
+/** Day 0 for reminders and the client waiting lines: when the welcome email really went, never before. */
+const welcomeAt = g => (g.runSteps.email?.status === 'done' ? (g.runSteps.email.at || g.row.sent_at || null) : null);
+/** Does this person still have a login for this brand? (A removed login is never emailed or reminded.) */
+const hasLogin = (users, email, act) => { const u = users[lower(email)]; return !!(u && Array.isArray(u.brands) && u.brands.includes(act)); };
 
 /** Everything one brand's checklist reads, gathered once. `all` = the all-brands integration states (team lines). */
 async function gatherOne(env, row, { all = null } = {}) {
@@ -374,7 +388,8 @@ async function gatherOne(env, row, { all = null } = {}) {
   const installUrl = await settingStr(env, 'shopifyInstallUrl');
   const approves = (await settingStr(env, 'clientApprovesAds')) !== 'off';
   const assets = await assetsLink(env, row.act_id);
-  return { row, brand, run, runSteps: safe(run?.steps_json, {}), ob, answers: safe(ob?.answers_json, {}), prefill: safe(ob?.prefill_json, {}), contract, live, ag, installUrl, approves, assets };
+  const users = await clientUsers(env);
+  return { row, brand, run, runSteps: safe(run?.steps_json, {}), ob, answers: safe(ob?.answers_json, {}), prefill: safe(ob?.prefill_json, {}), contract, live, ag, installUrl, approves, assets, users };
 }
 
 function signPayState(g) {
@@ -470,7 +485,8 @@ async function stateFor(env, row, { viewer, only = null, viewerEmail = null, own
         'What an order costs to make and ship', 'Launches and key dates'],
       all_answers: Object.fromEntries(QUESTIONS.filter(q => g.answers[q.key]).map(q => [q.key, g.answers[q.key]])),
       lines: lines.map(lineItem),
-      can_remind: { connect: !c.now.connect, brief: !c.now.brief, assets: !c.now.assets, sign_pay: owner && !!row.sign_pay && !c.now.sign_pay },
+      /* Only once the welcome really went, and only to someone who still has a login for this brand. */
+      can_remind: Object.fromEntries([...HANDABLE.map(k => [k, remindable(g, c, k)]), ['sign_pay', owner && !!row.sign_pay && !c.now.sign_pay]]),
       run_id: row.run_id || null, slack_ok: !!(g.run && g.run.slack_client),
       /* false = the welcome email never went (unticked at Send, or it failed): the owner gets "Send the welcome email". */
       welcome_sent: g.run ? g.runSteps.email?.status === 'done' : null,
@@ -483,11 +499,14 @@ async function stateFor(env, row, { viewer, only = null, viewerEmail = null, own
 /* ------------------------------------------------------------------------------------------ */
 /*  THE GATE (spec 2.5): read by /api/me in ONE query                                          */
 /* ------------------------------------------------------------------------------------------ */
+/* Gated PER BRAND: a client whose second brand is being set up keeps the first one. `gated` = some brand is held (the
+   first one is named in brand / slug / left); `gated_slugs` = every held brand; `all_gated` = every brand the login has
+   is held, so pages with no brand (the landing) go to Get started too. A colleague (only) is always held. */
 export async function onboardGate(env, email, brands, only) {
   const list = (brands || []).filter(b => /^brand_[a-z0-9_]+$/.test(b));
   if (!list.length) return null;
   const ph = list.map((_, i) => `?${i + 1}`).join(',');
-  const rows = ((await env.DB.prepare(`SELECT o.act_id, o.sign_pay, o.gate, o.steps_json, o.finished_at, b.slug FROM p_onboard o LEFT JOIN brands b ON b.id = o.act_id WHERE o.act_id IN (${ph})`).bind(...list).all().catch(() => ({ results: [] }))).results) || [];
+  const rows = ((await env.DB.prepare(`SELECT o.act_id, o.extras, o.sign_pay, o.gate, o.steps_json, o.finished_at, b.slug FROM p_onboard o LEFT JOIN brands b ON b.id = o.act_id WHERE o.act_id IN (${ph})`).bind(...list).all().catch(() => ({ results: [] }))).results) || [];
   if (!rows.length) return null;
   const view = (r, steps) => {
     const st = safe(r.steps_json, {});
@@ -496,14 +515,18 @@ export async function onboardGate(env, email, brands, only) {
   };
   if (only && only.length) {
     const r = rows[0];
-    return { gated: true, ...view(r, only.filter(k => STEP_KEYS.includes(k))), only };
+    const v = view(r, only.filter(k => STEP_KEYS.includes(k)));
+    return { gated: true, ...v, only, gated_slugs: [v.slug], all_gated: true };
   }
+  const held = [];
   for (const r of rows) {
-    const steps = STEP_KEYS.filter(k => k !== 'sign_pay' || r.sign_pay);
-    const v = view(r, steps);
-    if (r.gate && !r.finished_at && v.left.length) return { gated: true, ...v, only: null };
+    const v = view(r, shownSteps(r));
+    if (r.gate && !r.finished_at && v.left.length) held.push(v);
   }
-  return { gated: false, ...view(rows[0], STEP_KEYS.filter(k => k !== 'sign_pay' || rows[0].sign_pay)), only: null };
+  const gated_slugs = held.map(v => v.slug);
+  const all_gated = held.length > 0 && list.every(b => held.some(v => v.brand === b));
+  if (held.length) return { gated: true, ...held[0], only: null, gated_slugs, all_gated };
+  return { gated: false, ...view(rows[0], shownSteps(rows[0])), only: null, gated_slugs: [], all_gated: false };
 }
 
 /* ------------------------------------------------------------------------------------------ */
@@ -567,26 +590,50 @@ function teamOf(run) {
   const buyer = String(tj.buyer || '').split(/[,\s]+/).map(lower).filter(emailOk);
   return { emails, buyer };
 }
+/** A step the team may remind about: shown, open, the welcome went, and its holder still has a login for this brand. */
+function remindable(g, c, k) {
+  if (!c.steps.includes(k) || c.now[k] || !welcomeAt(g)) return false;
+  const h = lower((g.row.steps[k] || {}).holder || g.run?.contact_email);
+  return emailOk(h) && hasLogin(g.users || {}, h, g.row.act_id);
+}
+/** The money lines that outlive onboarding: a held invoice ("Send it anyway") and a card that was not saved. They are
+ *  built for every v2 run whatever finished_at says, because the next invoice arrives a month after setup ends. */
+function billingLines(add, act, B, runSteps, toOwner) {
+  const st = runSteps.stripe || {};
+  if (st.held) add(`onb:${act}:invoice_held:${st.held.invoice}`, 'invoice_held', 'sign_pay', `${B}: next invoice held, ${st.held.why || 'the last one is not paid'}`, toOwner, { action: { kind: 'release', invoice: st.held.invoice } });
+  if (st.paid && st.subscription && st.autopay === false) add(`onb:${act}:card`, 'card', 'sign_pay', `Card not saved for ${B}, next month's invoice is emailed instead`, toOwner, { action: null });
+}
 async function linesForBrand(env, g, c) {
   const { row, brand, run } = g;
-  if (row.finished_at) return [];
   const B = brand.name, act = row.act_id, slug = v5Slug(brand.slug), link = startLink(brand.slug);
-  const days = daysSince(row.sent_at), band = days >= 7 ? 'd7' : 'd3';
+  const toOwner = { owner_only: true, emails: [], names: [] };
+  const L = [];
+  const days = daysSince(row.sent_at);
+  const add = (id, kind, step, text, to, extra = {}) => L.push({ id, kind, step, text: noDash(text), to, act, brand: B, slug, link, days, bucket: days >= 7 ? 'late' : 'today', ...extra });
+  if (row.finished_at) { billingLines(add, act, B, g.runSteps, toOwner); return L; }
   const team = teamOf(run);
   const names = (await roster(env).catch(() => [])).filter(p => team.emails.includes(lower(p.email))).map(p => p.name);
   const toTeam = { owner_only: false, emails: team.emails, names };
-  const toOwner = { owner_only: true, emails: [], names: [] };
-  const L = [];
-  const add = (id, kind, step, text, to, extra = {}) => L.push({ id, kind, step, text: noDash(text), to, act, brand: B, slug, link, days, bucket: days >= 7 ? 'late' : 'today', ...extra });
   const dWord = n => `${n} day${n === 1 ? '' : 's'}`;
-  const shown = c.steps;
-  if (days >= 3) {
-    if (shown.includes('connect') && !c.now.connect) {
+  /* Waiting on the client: counted from the welcome email (none sent = the client does not know yet, so no line),
+     and only for a holder who still has a login for this brand. */
+  const wAt = welcomeAt(g);
+  const wDays = wAt ? daysSince(wAt) : -1, band = wDays >= 7 ? 'd7' : 'd3';
+  const waitLine = (id, step, text) => L.push({ id, kind: 'client_waiting', step, text: noDash(text), to: toTeam, act, brand: B, slug, link, days: wDays, bucket: wDays >= 7 ? 'late' : 'today', action: { kind: 'remind', step } });
+  if (wDays >= 3) {
+    if (remindable(g, c, 'connect')) {
       const n = c.connect.todoNames;
-      add(`onb:${act}:connect:${band}`, 'client_waiting', 'connect', `${B} has not connected ${andList(n.slice(0, 3))}${n.length > 3 ? ` and ${n.length - 3} more` : ''}, ${dWord(days)}`, toTeam, { action: { kind: 'remind', step: 'connect' } });
+      waitLine(`onb:${act}:connect:${band}`, 'connect', `${B} has not connected ${andList(n.slice(0, 3)) || 'their accounts'}${n.length > 3 ? ` and ${n.length - 3} more` : ''}, ${dWord(wDays)}`);
     }
-    if (shown.includes('brief') && !c.now.brief) add(`onb:${act}:brief:${band}`, 'client_waiting', 'brief', `${B} brief ${c.brief.answered} of ${c.brief.total}, ${dWord(days)}`, toTeam, { action: { kind: 'remind', step: 'brief' } });
-    if (shown.includes('assets') && !c.now.assets) add(`onb:${act}:assets:${band}`, 'client_waiting', 'assets', `${B} has not linked their photos and videos, ${dWord(days)}`, toTeam, { action: { kind: 'remind', step: 'assets' } });
+    if (remindable(g, c, 'brief')) waitLine(`onb:${act}:brief:${band}`, 'brief', `${B} brief ${c.brief.answered} of ${c.brief.total}, ${dWord(wDays)}`);
+    if (remindable(g, c, 'assets')) waitLine(`onb:${act}:assets:${band}`, 'assets', `${B} has not linked their photos and videos, ${dWord(wDays)}`);
+  }
+  /* A hand off the server did not email (the address has a login for another brand): the owner decides. */
+  for (const k of HANDABLE) {
+    const bl = (row.steps[k] || {}).handoff_blocked;
+    if (bl && bl.email && !(row.steps[k] || {}).done_at) add(`onb:${act}:handoff_blocked:${k}:${String(bl.email).replace(/[^a-z0-9.@_-]/gi, '')}`, 'handoff_blocked', k,
+      `${bl.by_name || 'The client'} handed ${STEP_META[k].label.toLowerCase()} for ${B} to ${bl.name || bl.email}, who already has a Locus login for another brand. Nothing was emailed.`, toOwner,
+      { action: null, detail: `${bl.name || ''} <${bl.email}>. If that is right, add ${B} to their login in Clients, then send them their link.` });
   }
   if (row.sign_pay) {
     const ag = c.sp.agreement, inv = c.sp.invoice;
@@ -607,7 +654,14 @@ async function linesForBrand(env, g, c) {
       add(`onb:${act}:shopify_request:${store}`, 'shopify_request', 'connect', `Send the Shopify collaborator request for ${B}: ${store}, code ${code || 'none'}`, toTeam,
         { action: { kind: 'tick', platform: 'shopify', layer: 'team' }, detail: 'Shopify Partners > Stores > Add store > Request access to a store > paste the address and the code > tick every permission > Request access. Shopify has no way to send this automatically.' });
     }
-    if (p.key === 'shopify' && !p.skipped && !g.installUrl && p.layers.app.state !== 'done') add(`onb:${act}:install_link`, 'install_link', 'connect', `Send ${B} the Shopify app install link`, toOwner, { action: null });
+    /* What a client typed that only the team may turn into a link (another brand's store or account must never be
+       attached by a client): the team checks it is really theirs and ticks, and the tick makes the link. */
+    if (p.key === 'tw' && !p.skipped && cj.team?.inputs?.shop_url && p.layers.team.state !== 'done')
+      add(`onb:${act}:confirm_tw:${cj.team.inputs.shop_url}`, 'confirm_tw', 'connect', `Confirm ${B}'s Triple Whale store: ${cj.team.inputs.shop_url}`, toTeam,
+        { action: { kind: 'tick', platform: 'tw', layer: 'team' }, detail: 'Check the store is really theirs (Triple Whale invite from them, the store name), then tick. The tick connects it.' });
+    if (p.key === 'google_ads' && !p.skipped && cj.team?.inputs?.customer_id && cj.team.inputs.confirm && p.layers.team.state !== 'done')
+      add(`onb:${act}:confirm_gads:${cj.team.inputs.customer_id}`, 'confirm_gads', 'connect', `Confirm ${B}'s Google Ads ID: ${fmtGads(cj.team.inputs.customer_id)}`, toTeam,
+        { action: { kind: 'tick', platform: 'google_ads', layer: 'team' }, detail: cj.team.inputs.confirm === 'managed' ? 'That account is already under the Mobius manager, so Locus did not link it by itself. Check it is really theirs, then tick. The tick links it.' : 'Locus could not send the manager request. Send it from the Mobius manager by hand, then tick once they accept. The tick links it.' });
     if (!p.skipped && p.layers.team.checks_itself && p.layers.team.state === 'waiting' && cj.team?.said_at && Date.now() - Date.parse(cj.team.said_at) > DAY)
       add(`onb:${act}:team_check:${p.key}`, 'team_check', 'connect', `Check ${B}'s ${p.short} access and tick it`, toTeam, { action: null });
     if (!p.skipped && ['clarity', 'email'].includes(p.key) && cj.team?.said_at && !cj.tool && p.layers.app.state !== 'done')
@@ -618,9 +672,7 @@ async function linesForBrand(env, g, c) {
   const ga = g.answers.goal_answer;
   if (typeof ga === 'string' && /\d/.test(ga) && !(Number(brand.target_cpa) > 0) && !(Number(brand.target_roas) > 0))
     add(`onb:${act}:goal`, 'goal', 'brief', `Confirm the goal for ${B}: the client said ${ga.slice(0, 80)}`, { owner_only: false, emails: team.buyer, names: [] }, { action: null, link: `${LOCUS_V5}#/brand/${slug}/brand-settings/goals` });
-  const st = g.runSteps.stripe || {};
-  if (st.held) add(`onb:${act}:invoice_held:${st.held.invoice}`, 'invoice_held', 'sign_pay', `${B}: next invoice held, the last one is not paid`, toOwner, { action: { kind: 'release', invoice: st.held.invoice } });
-  if (st.paid && st.subscription && st.autopay === false) add(`onb:${act}:card`, 'card', 'sign_pay', `Card not saved for ${B}, next month's invoice is emailed instead`, toOwner, { action: null });
+  billingLines(add, act, B, g.runSteps, toOwner);
   return L;
 }
 const lineItem = l => ({ id: l.id, kind: l.kind, step: l.step, text: l.text, detail: l.detail || '', act_id: l.act, brand: l.brand, slug: l.slug, link: l.link, bucket: l.bucket,
@@ -631,12 +683,21 @@ const lineItem = l => ({ id: l.id, kind: l.kind, step: l.step, text: l.text, det
 export async function onboardLines(env) {
   await ensureOnboard(env);
   const rows = ((await env.DB.prepare(`SELECT * FROM p_onboard WHERE finished_at IS NULL AND sent_at IS NOT NULL ORDER BY sent_at`).all().catch(() => ({ results: [] }))).results) || [];
-  if (!rows.length) return [];
-  const all = await liveAll(env);
   const out = [];
-  for (const raw of rows) {
-    const row = { ...raw, steps: safe(raw.steps_json, {}), conn: safe(raw.connect_json, {}), rem: safe(raw.reminders_json, {}), services: safe(raw.services_json, []) };
-    try { const g = await gatherOne(env, row, { all }); const c = await compute(env, g); out.push(...await linesForBrand(env, g, c)); } catch (e) { console.log('onboard lines: ' + e.message); }
+  if (rows.length) {
+    const all = await liveAll(env);
+    for (const raw of rows) {
+      const row = { ...raw, steps: safe(raw.steps_json, {}), conn: safe(raw.connect_json, {}), rem: safe(raw.reminders_json, {}), services: safe(raw.services_json, []) };
+      try { const g = await gatherOne(env, row, { all }); const c = await compute(env, g); out.push(...await linesForBrand(env, g, c)); } catch (e) { console.log('onboard lines: ' + e.message); }
+    }
+  }
+  /* Finished setups still carry their billing lines (a held invoice, a card not saved): one cheap query, no gather. */
+  const fin = ((await env.DB.prepare(`SELECT o.act_id, o.sent_at, n.steps_json AS run_steps, b.name, b.slug FROM p_onboard o JOIN p_newclient n ON n.id = o.run_id LEFT JOIN brands b ON b.id = o.act_id
+    WHERE o.finished_at IS NOT NULL AND (json_extract(n.steps_json, '$.stripe.held') IS NOT NULL OR json_extract(n.steps_json, '$.stripe.autopay') = 0)`).all().catch(() => ({ results: [] }))).results) || [];
+  const toOwner = { owner_only: true, emails: [], names: [] };
+  for (const f of fin) {
+    const B = f.name || f.act_id, slug = v5Slug(f.slug || f.act_id), link = startLink(f.slug || f.act_id), days = daysSince(f.sent_at);
+    billingLines((id, kind, step, text, to, extra = {}) => out.push({ id, kind, step, text: noDash(text), to, act: f.act_id, brand: B, slug, link, days, bucket: 'today', ...extra }), f.act_id, B, safe(f.run_steps, {}), toOwner);
   }
   return out;
 }
@@ -676,7 +737,10 @@ function formOf(b, extras) {
     signer_name: String(b.signer_name || '').replace(/[<>]/g, '').trim().slice(0, 120), signer_email: lower(b.signer_email), payer_email: lower(b.payer_email),
     company_legal: String(b.company_legal || '').replace(/[<>]/g, '').trim().slice(0, 160),
     team: b.team && typeof b.team === 'object' ? b.team : {},
-    send: { welcome: send.welcome !== false, agreement: extras && send.agreement !== false, invoice: extras && send.invoice !== false },
+    /* "No agreement or invoice for this client" on the form (sign_pay: false): the checklist is three steps and nothing
+       waits on a paper that is never coming. Send a part later from their setup page and the step comes back. */
+    sign_pay: extras && b.sign_pay !== false,
+    send: { welcome: send.welcome !== false, agreement: extras && b.sign_pay !== false && send.agreement !== false, invoice: extras && b.sign_pay !== false && send.invoice !== false },
   };
 }
 function agreementVars(f, override) {
@@ -694,12 +758,16 @@ async function preview(env, b) {
   if (f.signer_email && !emailOk(f.signer_email)) problems.push('The signer email does not look right.');
   if (f.payer_email && !emailOk(f.payer_email)) problems.push('The payer email does not look right.');
   const first = firstName(f.contact_name);
-  const w = welcomeText({ first, brand: f.name || 'your brand', signPay: extras, agreement: extras && f.send.agreement, invoice: extras && f.send.invoice && f.retainer > 0, slack: extras, extras });
+  const w = welcomeText({ first, brand: f.name || 'your brand', signPay: f.sign_pay, agreement: f.sign_pay && f.send.agreement, invoice: f.sign_pay && f.send.invoice && f.retainer > 0, slack: extras, extras });
   const out = { ok: true, welcome: { to: f.contact_email, subject: w.subject, body: w.body } };
   const toName = f.contact_name || f.contact_email;
   const confirm = [];
   if (f.send.welcome) confirm.push(`Welcome to ${toName}.`);
-  if (extras) {
+  if (extras && !f.sign_pay) {
+    out.agreement = { used: false, to: f.signer_email || f.contact_email, vars: {}, html: '', blanks: [], ok_to_send: false };
+    out.invoice = { used: false, to: f.payer_email || f.contact_email, amount: 0, currency: 'usd', due_days: 7, text: 'No agreement or invoice for this client.' };
+    out.extras = ['Two Slack channels (team and shared)', 'A Frame project', 'Ledger'];
+  } else if (extras) {
     const { vars, blanks } = agreementVars(f, b.agreement?.vars);
     const signerTo = f.signer_email || f.contact_email;
     out.agreement = { used: true, to: signerTo, vars, html: contractHtml(vars), blanks, ok_to_send: !blanks.length };
@@ -764,14 +832,15 @@ async function doSend(env, b, who, deps, request) {
   let run = await getRun(env, run0.id);
   /* The checklist row. */
   await ensureOnboard(env);
-  const usesAgreement = extras ? 1 : 0, usesInvoice = extras && f.retainer > 0 ? 1 : 0;
+  const usesAgreement = f.sign_pay ? 1 : 0, usesInvoice = f.sign_pay && f.retainer > 0 ? 1 : 0;
+  const signPay = extras && (usesAgreement || usesInvoice) ? 1 : 0;
   const holder = { holder: f.contact_email, holder_name: f.contact_name || '' };
   const steps = Object.fromEntries(STEP_KEYS.map(k => [k, { ...holder }]));
   await env.DB.prepare(`INSERT INTO p_onboard (act_id, run_id, token, extras, sign_pay, uses_agreement, uses_invoice, services_json, goal_measure, ad_budget, budget_open, gate, steps_json, sent_at, created_by)
     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 1, ?12, ?13, ?14)
     ON CONFLICT(act_id) DO UPDATE SET run_id = excluded.run_id, token = excluded.token, extras = excluded.extras, sign_pay = excluded.sign_pay, uses_agreement = excluded.uses_agreement, uses_invoice = excluded.uses_invoice,
       services_json = excluded.services_json, goal_measure = excluded.goal_measure, ad_budget = excluded.ad_budget, budget_open = excluded.budget_open, sent_at = excluded.sent_at, updated_at = datetime('now')`)
-    .bind(act, run.id, run.token || null, extras ? 1 : 0, extras ? 1 : 0, usesAgreement, usesInvoice, JSON.stringify(f.services), f.goal_measure, f.ad_budget, f.budget_open ? 1 : 0, JSON.stringify(steps), nowIso(), who || null).run();
+    .bind(act, run.id, run.token || null, extras ? 1 : 0, signPay, usesAgreement, usesInvoice, JSON.stringify(f.services), f.goal_measure, f.ad_budget, f.budget_open ? 1 : 0, JSON.stringify(steps), nowIso(), who || null).run();
   /* The ad budget: the same column PUT /api/accounts/<brand> writes. */
   if (f.ad_budget != null) await env.DB.prepare(`UPDATE brands SET monthly_budget = ?2, updated_at = datetime('now') WHERE id = ?1`).bind(act, f.ad_budget).run().catch(() => {});
   /* The client login and its invite link (new Locus). */
@@ -783,6 +852,7 @@ async function doSend(env, b, who, deps, request) {
   results.welcome = !f.send.welcome ? res('skipped', 'Not ticked. Send it from their setup page.') : loginErr ? res('failed', 'No login, so no welcome.') : await sendWelcome(env, row, run, b.welcome || {}, who);
   /* 2. agreement */
   if (!extras) results.agreement = res('skipped', 'Not used on this account.');
+  else if (!f.sign_pay) results.agreement = res('skipped', 'No agreement for this client.');
   else if (!f.send.agreement) results.agreement = res('skipped', 'Not ticked. Send it from their setup page.');
   else {
     const { vars } = agreementVars(f, b.agreement?.vars);
@@ -791,6 +861,7 @@ async function doSend(env, b, who, deps, request) {
   }
   /* 3. invoice */
   if (!extras) results.invoice = res('skipped', 'Not used on this account.');
+  else if (!f.sign_pay) results.invoice = res('skipped', 'No invoice for this client.');
   else if (!(f.retainer > 0)) results.invoice = res('skipped', 'No fee typed, so no invoice.');
   else if (!f.send.invoice) results.invoice = res('skipped', 'Not ticked. Send it from their setup page.');
   else results.invoice = fromStep(await runStep(env, run.id, 'stripe', { approved: true }));
@@ -825,11 +896,57 @@ async function writeBrief(env, row, answers, by) {
   for (const k of keys) {
     const v = String(answers[k] ?? '').replace(/\r/g, '').trim().slice(0, 4000);
     if (!v) await env.DB.prepare(`UPDATE p_br_onboard SET answers_json = json_remove(answers_json, '$.' || ?2), updated_at = datetime('now') WHERE act_id = ?1`).bind(row.act_id, k).run();
-    else await env.DB.prepare(`UPDATE p_br_onboard SET answers_json = json_set(answers_json, '$.' || ?2, ?3), status = CASE WHEN status = 'sent' THEN 'started' ELSE status END, updated_at = datetime('now') WHERE act_id = ?1`).bind(row.act_id, k, v).run();
+    /* The status stays 'sent' until the brief is done (compute() then sets 'submitted'), as the spec says. */
+    else await env.DB.prepare(`UPDATE p_br_onboard SET answers_json = json_set(answers_json, '$.' || ?2, ?3), updated_at = datetime('now') WHERE act_id = ?1`).bind(row.act_id, k, v).run();
   }
   return { by };
 }
 
+/* Which Google Ads accounts the Mobius manager already reaches (null = could not tell). Swappable for the tests. */
+let adsProbe = async env => { const { googleProbe } = await import('./google.js'); const p = await googleProbe(env); return p.ads?.ok ? (p.ads.customers || []) : null; };
+export function useAdsProbe(fn) { adsProbe = fn; }
+const hasConn = async (env, act, kind) => !!(await env.DB.prepare(`SELECT 1 FROM connections WHERE brand_id = ?1 AND kind = ?2`).bind(act, kind).first().catch(() => null));
+
+/** The team's tick on a layer is what turns a value a CLIENT typed into a link: a client never attaches a store or an
+ *  ad account by itself, since Mobius's own access could then read another business through Locus. */
+async function linkTyped(env, row, key) {
+  const act = row.act_id, inputs = (row.conn[key] || {}).team?.inputs || {};
+  if (key === 'tw' && inputs.shop_url && !(await hasConn(env, act, 'triple_whale'))) {
+    try { await setTripleWhale(env, act, inputs.shop_url); } catch (e) { throw err(400, e.message); }
+  }
+  if (key === 'google_ads' && inputs.customer_id && !(await hasConn(env, act, 'google_ads'))) {
+    try { await connSet(env, act, 'google_ads', inputs.customer_id); } catch (e) { throw err(400, e.message); }
+  }
+  /* The collaborator request was approved: the store address is the brand's Triple Whale shop too (extras), when none. */
+  if (key === 'shopify' && row.extras && inputs.shop_url && !(await hasConn(env, act, 'triple_whale'))) await setTripleWhale(env, act, inputs.shop_url).catch(e => console.log('onboard tw from shopify: ' + e.message));
+}
+
+/** A Google Ads ID a CLIENT typed. The manager request goes only to an account the Mobius manager does NOT already
+ *  reach, once per brand per ID, at most 3 IDs a brand; the client's Accept then links it (connect.js adsPendingCheck).
+ *  An ID the manager already reaches, a failed check or test mode (mailTestTo): nothing is sent or linked, and the team
+ *  gets "Confirm <Brand>'s Google Ads ID" on My day; their tick links it. */
+async function clientGads(env, row, id, viaConnect) {
+  const cj = row.conn.google_ads || {};
+  const asked = Array.isArray(cj.team?.requests) ? cj.team.requests : [];
+  if (cj.team?.inputs?.customer_id === id) return;
+  if (asked.length >= 3 && !asked.includes(id)) throw err(429, 'We already have a few IDs from you. Your team will check and get in touch.');
+  let confirm = null;
+  if (await testRecipient(env)) confirm = 'test';
+  else {
+    const managed = await adsProbe(env).catch(() => null);
+    if (!managed) confirm = 'failed';
+    else if (managed.includes(id)) confirm = 'managed';
+    else if (!asked.includes(id)) {
+      try { await viaConnect({ value: id }); } catch { confirm = 'failed'; }
+      const pend = safe(await getS(env, `connectPending:${row.act_id}`, null), {}) || {};
+      if (!confirm && pend.google_ads?.error) confirm = 'failed';
+    }
+  }
+  await setOnb(env, row.act_id, 'connect_json', ['google_ads', 'team', 'inputs'], { customer_id: id, at: nowIso(), ...(confirm ? { confirm } : {}) });
+  await setOnb(env, row.act_id, 'connect_json', ['google_ads', 'team', 'requests'], [...new Set([...asked, id])]);
+}
+
+const CLIENT_SAVE_FAIL = 'We could not save that. Your team will check it.';
 async function writeConnect(env, row, b, { team, deps }) {
   const key = String(b.platform || '');
   if (!PKEYS.includes(key)) throw err(400, 'Unknown platform.');
@@ -840,6 +957,7 @@ async function writeConnect(env, row, b, { team, deps }) {
   if (b.layer !== undefined) {
     if (!team) throw err(403, 'Your team ticks that one.');
     if (!['team', 'app'].includes(b.layer)) throw err(400, 'Say which tick: team or app.');
+    if (b.ticked !== false && b.layer === 'team') await linkTyped(env, row, key);
     await setOnb(env, act, 'connect_json', [key, b.layer, 'ticked_at'], b.ticked === false ? undefined : nowIso());
     await setOnb(env, act, 'connect_json', [key, b.layer, 'ticked_by'], b.ticked === false ? undefined : (deps.who || 'team'));
   } else if (b.said !== undefined) {
@@ -852,31 +970,39 @@ async function writeConnect(env, row, b, { team, deps }) {
     await viaConnect({ skip: !!b.skip }).catch(() => {});
   } else if (b.inputs && typeof b.inputs === 'object') {
     const inp = b.inputs;
+    if (!team && row.finished_at) throw err(409, 'Setup is finished. Ask your team to change this.');
+    const cj = row.conn[key] || {};
     if (key === 'shopify') {
       const shop = shopOf(inp.shop_url);
       if (!SHOP_RE.test(shop)) throw err(400, 'That should end in .myshopify.com. Shopify shows it under Settings > Domains.');
+      if (!team && cj.team?.ticked_at) throw err(409, 'Your team already has this one. Ask them to change it.');
       const code = String(inp.code || '').replace(/\s+/g, '').slice(0, 12);
       await setOnb(env, act, 'connect_json', [key, 'team', 'inputs'], { shop_url: shop, code, at: nowIso() });
       await env.DB.prepare(`UPDATE p_br_onboard SET answers_json = json_set(json_set(answers_json, '$.shopify_url', ?2), '$.shopify_code', ?3), updated_at = datetime('now') WHERE act_id = ?1`).bind(act, shop, code).run().catch(() => {});
-      if (row.extras) {
-        const has = await env.DB.prepare(`SELECT 1 FROM connections WHERE brand_id = ?1 AND kind = 'triple_whale'`).bind(act).first().catch(() => null);
-        if (!has) await setTripleWhale(env, act, shop).catch(() => {});
-      }
+      /* Only the team's own typing links Triple Whale at once; a client's store waits for the team's tick (linkTyped). */
+      if (team && row.extras && !(await hasConn(env, act, 'triple_whale'))) await setTripleWhale(env, act, shop).catch(() => {});
     } else if (key === 'google_ads') {
       const id = String(inp.customer_id || '').replace(/\D/g, '');
       if (id.length !== 10) throw err(400, 'A Google Ads customer ID has 10 digits, like 123-456-7890.');
-      await setOnb(env, act, 'connect_json', [key, 'team', 'inputs'], { customer_id: id, at: nowIso() });
-      await viaConnect({ value: id }).catch(e => { throw err(400, e.message); });
+      if (team) {
+        await viaConnect({ value: id }).catch(e => { throw err(400, e.message); });
+        await setOnb(env, act, 'connect_json', [key, 'team', 'inputs'], { customer_id: id, at: nowIso() });
+      } else {
+        if (await hasConn(env, act, 'google_ads')) throw err(409, 'Google Ads is already connected. Ask your team to change it.');
+        try { await clientGads(env, row, id, viaConnect); } catch (e) { throw e.status && e.status < 500 ? e : err(400, CLIENT_SAVE_FAIL); }
+      }
     } else if (key === 'tw') {
       const shop = shopOf(inp.shop_url);
       if (!SHOP_RE.test(shop)) throw err(400, 'That should end in .myshopify.com. Shopify shows it under Settings > Domains.');
-      await viaConnect({ value: shop }).catch(e => { throw err(400, e.message); });
+      if (team) {
+        try { await setTripleWhale(env, act, shop); } catch (e) { throw err(400, e.message); }
+      } else if (await hasConn(env, act, 'triple_whale')) throw err(409, 'Your Triple Whale store is already connected. Ask your team to change it.');
       await setOnb(env, act, 'connect_json', [key, 'team', 'inputs'], { shop_url: shop, at: nowIso() });
     } else if (key === 'email' && inp.key !== undefined) {
       const k = String(inp.key || '').trim();
       if (!k) throw err(400, 'Paste the key first.');
       /* The same function PUT /api/brand-links {klaviyo_key} uses: checked against Klaviyo, kept, never echoed. */
-      try { await klaviyoStore(env, act, k); } catch (e) { throw err(400, e.message); }
+      try { await klaviyoStore(env, act, k); } catch (e) { throw err(400, team ? e.message : 'Klaviyo did not accept that key. Check it is a Private API Key with Full Access.'); }
       await setOnb(env, act, 'connect_json', [key, 'team', 'inputs'], { key_at: nowIso() });
     } else if (key === 'email' && inp.tool !== undefined) {
       const tool = String(inp.tool || '').replace(/[<>]/g, '').trim().slice(0, 60);
@@ -887,10 +1013,33 @@ async function writeConnect(env, row, b, { team, deps }) {
   await dropS(env, 'onbConnectAll');
 }
 
+/* Hand off limits: each hand off mail goes from Cole's own Gmail, so a client can never use it to mail strangers or
+   burn the daily send quota. One mail per step per address in 20 hours, five a day per brand, none once the step or
+   the whole setup is done. Logged in reminders_json.handoffs [{step, to, at}]. */
+const HANDOFF_GAP = 20 * 3600e3, HANDOFF_DAY = 5;
+const SENT_TEXT = 'We emailed them.';
+
+/** A step changes hands: the person who held it before loses it from their one-job login (and the login itself when
+ *  it held nothing else). A full login of the brand is never touched. */
+function dropOldHolder(users, row, step, newEmail) {
+  const prev = lower((row.steps[step] || {}).holder);
+  if (!prev || prev === newEmail || !users[prev]) return false;
+  const u = users[prev];
+  if (!Array.isArray(u.onboard_only) || !u.onboard_only.includes(step)) return false;
+  u.onboard_only = u.onboard_only.filter(x => x !== step);
+  if (!u.onboard_only.length) {
+    const others = (u.brands || []).filter(x => x !== row.act_id);
+    if (others.length) { u.brands = others; delete u.onboard_only; } else delete users[prev];
+  }
+  return true;
+}
+
 async function handoff(env, row, cs, b, brandName) {
   const step = String(b.step || '');
   if (!STEP_KEYS.includes(step)) throw err(400, 'Unknown step.');
-  if (step === 'sign_pay' && !row.sign_pay) throw err(400, 'Unknown step.');
+  if (!shownSteps(row).includes(step)) throw err(400, 'Unknown step.');
+  if (row.finished_at) throw err(409, 'Setup is finished. Nothing left to hand on.');
+  if ((row.steps[step] || {}).done_at) throw err(409, 'That step is done.');
   const email = lower(b.email), name = String(b.name || '').replace(/[<>]/g, '').trim().slice(0, 80);
   if (!emailOk(email)) throw err(400, 'That email does not look right.');
   if (step === 'sign_pay') {
@@ -904,29 +1053,45 @@ async function handoff(env, row, cs, b, brandName) {
   if (email.endsWith('@' + DOMAIN) || email === lower(env.OWNER_EMAIL || OWNER) || guests.includes(email)) throw err(400, 'That is a Mobius address. Pick someone on your team.');
   const self = email === lower(cs.email);
   const users = await clientUsers(env);
-  if (!self) {
-    const cur = users[email];
-    const full = cur && Array.isArray(cur.brands) && cur.brands.includes(row.act_id) && !(Array.isArray(cur.onboard_only) && cur.onboard_only.length);
-    if (cur && Array.isArray(cur.brands) && cur.brands.some(x => x !== row.act_id)) throw err(400, 'That person already has a Locus login for another brand. Ask Mobius to add them.');
-    users[email] = full ? { ...cur, name: cur.name || name || null } : {
-      ...(cur || { invited_at: nowIso() }), brands: [row.act_id], name: cur?.name || name || null, invited_by: cs.email, handed_by: cs.email,
-      onboard_only: [...new Set([...((cur && cur.onboard_only) || []), step])].filter(x => HANDABLE.includes(x)),
-    };
-    await putS(env, 'clientUsers', users);
+  const now = Date.now();
+  const log = Array.isArray(row.rem.handoffs) ? row.rem.handoffs.filter(x => x && now - Date.parse(x.at) < 7 * DAY) : [];
+  const setHolder = async (extra = {}) => {
+    await setOnb(env, row.act_id, 'steps_json', [step, 'holder'], email);
+    await setOnb(env, row.act_id, 'steps_json', [step, 'holder_name'], self ? (users[email]?.name || name || '') : (name || ''));
+    await setOnb(env, row.act_id, 'steps_json', [step, 'handed'], !self);
+    await setOnb(env, row.act_id, 'steps_json', [step, 'handed_at'], self ? undefined : nowIso());
+    await setOnb(env, row.act_id, 'steps_json', [step, 'handed_by'], self ? undefined : cs.email);
+    await setOnb(env, row.act_id, 'steps_json', [step, 'handoff_blocked'], extra.blocked || undefined);
+  };
+  if (self) {
+    if (dropOldHolder(users, row, step, email)) await putS(env, 'clientUsers', users);
+    await setHolder();
+    return { ok: true, step, holder: { email, name: users[email]?.name || '' } };
   }
-  await setOnb(env, row.act_id, 'steps_json', [step, 'holder'], email);
-  await setOnb(env, row.act_id, 'steps_json', [step, 'holder_name'], self ? (users[email]?.name || name || '') : (name || ''));
-  await setOnb(env, row.act_id, 'steps_json', [step, 'handed'], !self);
-  await setOnb(env, row.act_id, 'steps_json', [step, 'handed_at'], self ? undefined : nowIso());
-  await setOnb(env, row.act_id, 'steps_json', [step, 'handed_by'], self ? undefined : cs.email);
-  if (!self) {
-    const link = await ensureInvite(env, email, LOCUS_V5);
-    const fromName = users[lower(cs.email)]?.name || cs.name || cs.email;
-    const t = handoffText({ first: firstName(name), fromName, brand: brandName, step });
-    try { await sendMail(env, email, t.subject, t.body.split(LINK_PLACEHOLDER).join(link)); }
-    catch (e) { throw err(502, 'Could not send the email just now. Try again in a minute.'); }
+  if (log.some(x => x.step === step && x.to === email && now - Date.parse(x.at) < HANDOFF_GAP)) throw err(409, 'We emailed them already today. They can use the link in that email.');
+  if (log.filter(x => now - Date.parse(x.at) < DAY).length >= HANDOFF_DAY) throw err(429, 'That is a lot of hand offs for one day. Try again tomorrow, or ask your team.');
+  const cur = users[email];
+  /* An address that already has a login for ANOTHER brand: nothing is emailed and no login changes; the client gets the
+     same answer as any hand off (so nothing about other brands is told) and the owner decides on My day. */
+  if (cur && Array.isArray(cur.brands) && cur.brands.some(x => x !== row.act_id)) {
+    await setHolder({ blocked: { email, name, at: nowIso(), by: cs.email, by_name: users[lower(cs.email)]?.name || cs.name || '' } });
+    return { ok: true, step, holder: { email, name }, text: SENT_TEXT };
   }
-  return { ok: true, step, holder: { email, name: self ? (users[email]?.name || '') : name } };
+  const full = cur && Array.isArray(cur.brands) && cur.brands.includes(row.act_id) && !(Array.isArray(cur.onboard_only) && cur.onboard_only.length);
+  dropOldHolder(users, row, step, email);
+  users[email] = full ? { ...cur, name: cur.name || name || null } : {
+    ...(cur || { invited_at: nowIso() }), brands: [row.act_id], name: cur?.name || name || null, invited_by: cs.email, handed_by: cs.email,
+    onboard_only: [...new Set([...((cur && cur.onboard_only) || []), step])].filter(x => HANDABLE.includes(x)),
+  };
+  await putS(env, 'clientUsers', users);
+  await setHolder();
+  const link = await ensureInvite(env, email, LOCUS_V5);
+  const fromName = users[lower(cs.email)]?.name || cs.name || cs.email;
+  const t = handoffText({ first: firstName(name), fromName, brand: brandName, step });
+  try { await sendMail(env, email, t.subject, t.body.split(LINK_PLACEHOLDER).join(link)); }
+  catch (e) { throw err(502, 'Could not send the email just now. Try again in a minute.'); }
+  await setOnb(env, row.act_id, 'reminders_json', ['handoffs'], [...log, { step, to: email, at: nowIso() }].slice(-30));
+  return { ok: true, step, holder: { email, name }, text: SENT_TEXT };
 }
 
 /* ------------------------------------------------------------------------------------------ */
@@ -949,10 +1114,13 @@ async function remind(env, row, step, { owner, who }) {
     to = c.sp.agreement.signer || g.run.contact_email; text = did.join(' ');
   } else {
     if (c.now[step]) throw err(409, 'That step is done.');
+    if (!c.steps.includes(step)) throw err(400, 'Unknown step.');
+    if (!welcomeAt(g)) throw err(409, 'The welcome email has not gone yet. Send it first.');
     const s = row.steps[step] || {};
     to = lower(s.holder || g.run?.contact_email);
     if (!emailOk(to)) throw err(400, 'No email to remind.');
-    const users = await clientUsers(env);
+    const users = g.users;
+    if (!hasLogin(users, to, row.act_id)) throw err(409, `${maskEmail(to)} has no login for this brand any more.`);
     const link = await linkFor(env, to, g.brand.slug);
     const m = reminderText({ first: firstName(s.holder_name || users[to]?.name || g.run?.contact_name), brand: g.brand.name, items: openItems(c, [step]), link });
     await sendMail(env, to, m.subject, m.body);
@@ -972,24 +1140,35 @@ export async function onboardTick(env, d = {}) {
   const out = { reminded: [], deferred: [], read: null };
   const rows = ((await env.DB.prepare(`SELECT * FROM p_onboard WHERE finished_at IS NULL AND sent_at IS NOT NULL ORDER BY sent_at`).all().catch(() => ({ results: [] }))).results) || [];
   const off = (await settingStr(env, 'onboardReminders')) === 'off';
-  if (!off && hour >= 9 && hour < 17) {
+  /* Weekdays only (Central): a nudge on a Saturday reads as a bot. */
+  const ymd = typeof d.centralDate === 'function' ? d.centralDate() : centralYmd();
+  const wd = new Date(`${ymd}T12:00:00Z`).getUTCDay();
+  const weekend = wd === 0 || wd === 6;
+  if (!off && !weekend && hour >= 9 && hour < 17) {
     for (const raw of rows) {
       const row = { ...raw, steps: safe(raw.steps_json, {}), conn: safe(raw.connect_json, {}), rem: safe(raw.reminders_json, {}), services: safe(raw.services_json, []) };
-      const day = daysSince(row.sent_at);
-      const which = day >= 7 && !row.rem.d7 ? 'd7' : day >= 3 && !row.rem.d3 ? 'd3' : null;
-      if (!which) continue;
+      /* Cheap first look: the welcome can never go before Send, so under 3 days since Send is under 3 since the welcome. */
+      if (daysSince(row.sent_at) < 3 || (row.rem.d3 && row.rem.d7)) continue;
       if (!can(60)) { out.deferred.push(row.act_id); break; }
       const g = await gatherOne(env, row).catch(() => null);
-      if (!g) continue;
+      /* No run (removed) or no welcome yet (unticked at Send, or it failed): the client has never heard from us, so
+         nothing is sent and nothing is stamped. Day 0 is the welcome email, not the Send press. */
+      if (!g || !g.run) continue;
+      const wAt = welcomeAt(g);
+      if (!wAt) continue;
+      const day = daysSince(wAt);
+      const which = day >= 7 && !row.rem.d7 ? 'd7' : day >= 3 && !row.rem.d3 ? 'd3' : null;
+      if (!which) continue;
       const c = await compute(env, g);
-      /* One email per holder of an open connect / brief / assets step. Never sign and pay. */
+      /* One email per holder of an open connect / brief / assets step who still has a login for this brand. Never
+         sign and pay. */
+      const users = g.users;
       const by = {};
       for (const k of HANDABLE) {
-        if (!c.steps.includes(k) || c.now[k]) continue;
+        if (!remindable(g, c, k)) continue;
         const h = lower(row.steps[k]?.holder || g.run?.contact_email);
-        if (emailOk(h)) (by[h] ||= { name: row.steps[k]?.holder_name || '', steps: [] }).steps.push(k);
+        (by[h] ||= { name: row.steps[k]?.holder_name || '', steps: [] }).steps.push(k);
       }
-      const users = await clientUsers(env);
       let sent = 0, tried = 0;
       for (const [to, v] of Object.entries(by)) {
         const items = openItems(c, v.steps);
@@ -1096,6 +1275,10 @@ export async function handleOnboard(request, env, ctx, path, json, deps) {
         if (!row.extras) throw err(403, 'This account does not use invoices.');
         result = fromStep(await runStep(env, run.id, 'stripe', { approved: true }));
       } else throw err(400, 'Say which part: welcome, agreement or invoice.');
+      /* An agreement or invoice sent after the first Send (also for a client set up with none): the step is on now. */
+      if (result.status !== 'failed' && (body.part === 'agreement' || body.part === 'invoice')) {
+        await env.DB.prepare(`UPDATE p_onboard SET sign_pay = 1, ${body.part === 'agreement' ? 'uses_agreement' : 'uses_invoice'} = 1, updated_at = datetime('now') WHERE act_id = ?1`).bind(act).run();
+      }
       return json({ ok: result.status !== 'failed', result });
     }
     if (path === '/api/onboard/approve-signer' && m === 'POST') {
@@ -1141,7 +1324,9 @@ export async function handleOnboard(request, env, ctx, path, json, deps) {
     if (path === '/api/onboard/list' && m === 'GET') {
       needTeam();
       const lim = await brandsFor(env, who).catch(() => null);
-      const rows = ((await env.DB.prepare(`SELECT * FROM p_onboard ORDER BY sent_at DESC`).all()).results || []).filter(r => !lim || lim.has(r.act_id));
+      /* Open setups, plus the ones finished in the last 30 days (each row costs a full gather, so the list must not grow
+         with every client ever onboarded). */
+      const rows = ((await env.DB.prepare(`SELECT * FROM p_onboard WHERE finished_at IS NULL OR finished_at >= ?1 ORDER BY sent_at DESC`).bind(new Date(Date.now() - 30 * DAY).toISOString()).all()).results || []).filter(r => !lim || lim.has(r.act_id));
       const out = [], all = await liveAll(env);
       for (const raw of rows) {
         const row = { ...raw, steps: safe(raw.steps_json, {}), conn: safe(raw.connect_json, {}), rem: safe(raw.reminders_json, {}), services: safe(raw.services_json, []) };
@@ -1153,7 +1338,7 @@ export async function handleOnboard(request, env, ctx, path, json, deps) {
         if (row.sign_pay && sp.invoice.used) parts.push(sp.invoice.status === 'paid' ? 'Paid.' : 'Not paid.');
         parts.push(`${c.connect.done} of ${c.connect.total} connected.`);
         if (c.steps.includes('brief')) parts.push(`Brief ${c.brief.answered} of ${c.brief.total}.`);
-        parts.push(c.now.assets ? 'Assets linked.' : 'No assets link yet.');
+        if (c.steps.includes('assets')) parts.push(c.now.assets ? 'Assets linked.' : 'No assets link yet.');
         if (row.finished_at) parts.push('Finished.');
         const clientLeft = c.steps.some(k => !(row.steps[k] || {}).done_at && !(k === 'connect' && c.now.connect) && !(k === 'sign_pay' && sp.agreement.used && sp.agreement.status === 'not_sent'));
         out.push({ act: row.act_id, slug: v5Slug(g.brand.slug), name: g.brand.name, contact: g.run?.contact_name || g.run?.contact_email || '', sent_at: row.sent_at, days: daysSince(row.sent_at),
@@ -1216,7 +1401,7 @@ export async function handleOnboard(request, env, ctx, path, json, deps) {
     }
     if (path === '/api/brand/assets-link') {
       const act = await actOf();
-      if (m === 'GET') return json(await assetsLink(env, act));
+      if (m === 'GET') { stepOk('assets'); return json(await assetsLink(env, act)); }
       if (m === 'PUT') {
         stepOk('assets');
         const r = await setAssetsLink(env, act, body.url, body.label, who);

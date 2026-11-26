@@ -7392,7 +7392,11 @@ async function googleLogin(env, credential, invite) {
   /* A client login (clients.js) signs in the same way; brandguard.js decides what it may open. */
   const team = await emailAllowed(env, info.email);
   /* An invite link (?invite=) lets the person use ANY Google account: that email takes over the invited login. */
-  const client = !team && ((invite && await claimInvite(env, invite, info.email).catch(() => false)) || await isClientEmail(env, info.email));
+  const claim = !team && invite ? await claimInvite(env, invite, info.email).catch(() => false) : false;
+  /* A one-job invite (a colleague handed one setup step) opened with a Google account that already has another login
+     is refused, so the limit is never merged away (clients.js claimInvite). */
+  if (claim && claim.error) return { error: claim.error, status: 403 };
+  const client = !team && (claim === true || await isClientEmail(env, info.email));
   if (!team && !client) return { error: `${info.email} has no Locus login. Ask Mobius Digital to invite this email.`, status: 403 };
   const s = await mintSession(env, info.email);
   if (client) await touchClient(env, info.email, 'login').catch(() => {});

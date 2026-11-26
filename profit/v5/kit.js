@@ -117,7 +117,8 @@ export function delta(n, { bad = false, plain = false, text } = {}) {
 export function button(label, o = {}) {
   const cls = 'lx-btn' + (o.primary ? ' primary' : '') + (o.large ? ' lg' : '') + (o.ghost ? ' ghost' : '') + (o.class ? ' ' + o.class : '');
   const kids = [o.iconLeft && svgNode(icon(o.iconLeft)), label, o.icon && svgNode(icon(o.icon))];
-  return o.href ? h('a', { class: cls, href: o.href, target: o.target, 'aria-label': o.aria }, kids)
+  /* A link that opens a new tab never hands the new page a handle on this one (some hrefs are typed by clients). */
+  return o.href ? h('a', { class: cls, href: o.href, target: o.target, rel: o.target === '_blank' ? 'noopener noreferrer' : null, 'aria-label': o.aria }, kids)
     : h('button', { class: cls, type: 'button', onclick: o.onclick, disabled: o.disabled, 'aria-label': o.aria }, kids);
 }
 /** platformChip('meta') glyph and name in ink; { chip: true } on a pill; { dot: '#2F6FED' } a 6px dot; { label } own text */

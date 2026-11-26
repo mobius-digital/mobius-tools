@@ -29,14 +29,15 @@ function fresh(o) {
   for (const [r] of ROLES) { const p = (o.team || []).find(x => x.role === r); team[r] = p ? p.email : ''; }
   return { name: '', website: '', contact_name: '', contact_email: '', services: [], goal_measure: d.goal_measure || 'cpa', ad_budget: '', budget_open: false,
     retainer: '', start_date: d.start_date || new Date().toISOString().slice(0, 10), signer_name: '', signer_email: '', payer_email: '', company_legal: '',
-    team, send: { welcome: true, agreement: true, invoice: true, ...(d.send || {}) } };
+    team, sign_pay: true, send: { welcome: true, agreement: true, invoice: true, ...(d.send || {}) } };
 }
 function bodyOf(o) {
   const ads = F.services.some(s => ADS.includes(s));
   const b = { name: F.name.trim(), website: F.website.trim(), contact_name: F.contact_name.trim(), contact_email: F.contact_email.trim(), services: F.services.slice() };
   if (ads) Object.assign(b, { goal_measure: F.goal_measure, ad_budget: F.budget_open ? null : num(F.ad_budget), budget_open: !!F.budget_open });
   if (o.extras) Object.assign(b, { retainer: num(F.retainer), start_date: F.start_date, signer_name: F.signer_name.trim(), signer_email: F.signer_email.trim(),
-    payer_email: F.payer_email.trim(), company_legal: F.company_legal.trim(), team: { ...F.team }, send: { ...F.send } });
+    payer_email: F.payer_email.trim(), company_legal: F.company_legal.trim(), team: { ...F.team }, sign_pay: F.sign_pay !== false,
+    send: F.sign_pay !== false ? { ...F.send } : { welcome: !!F.send.welcome, agreement: false, invoice: false } });
   else b.send = { welcome: !!F.send.welcome };
   return b;
 }
@@ -70,16 +71,20 @@ function formView(el, o, ctx) {
         h('option', { value: '' }, 'Nobody yet'), (o.team || []).map(p => h('option', { value: p.email, selected: F.team[role] === p.email || null }, p.name)));
       return h('div', { class: 'lx-field' }, h('label', null, label), sel);
     };
+    const sp = F.sign_pay !== false;
     parts.push(
       card({ title: 'Money and the agreement' }, h('div', { class: 'gs-form' },
-        h('div', { class: 'two' }, input('Monthly fee', 'retainer', { inputmode: 'decimal', placeholder: '4000', hint: 'No fee, no invoice.' }), input('Start date', 'start_date', { type: 'date' })),
-        h('div', { class: 'two' }, input('Who signs (optional)', 'signer_name', { placeholder: 'Name, if not the contact' }), input('Their email', 'signer_email', { type: 'email', placeholder: 'Email, if not the contact' })),
-        h('div', { class: 'two' }, input('Who pays (optional)', 'payer_email', { type: 'email', placeholder: 'accounts@example.com' }), input('Legal company name (optional)', 'company_legal', { placeholder: 'Northlake Golf LLC' })))),
+        toggle({ label: 'They sign an agreement and pay through ' + APP_NAME, checked: sp, onchange: v => { F.sign_pay = v; draw(el, o, ctx); } }),
+        sp ? [
+          h('div', { class: 'two' }, input('Monthly fee', 'retainer', { inputmode: 'decimal', placeholder: '4000', hint: 'No fee, no invoice.' }), input('Start date', 'start_date', { type: 'date' })),
+          h('div', { class: 'two' }, input('Who signs (optional)', 'signer_name', { placeholder: 'Name, if not the contact' }), input('Their email', 'signer_email', { type: 'email', placeholder: 'Email, if not the contact' })),
+          h('div', { class: 'two' }, input('Who pays (optional)', 'payer_email', { type: 'email', placeholder: 'accounts@example.com' }), input('Legal company name (optional)', 'company_legal', { placeholder: 'Northlake Golf LLC' }))]
+          : h('p', { class: 'gs-hint' }, 'No agreement and no invoice for this client, so their checklist has three steps. Send either one later from their setup page and the step comes back.'))),
       card({ title: 'Our team on it' }, h('div', { class: 'gs-form' }, h('div', { class: 'two' }, ROLES.map(([r, l]) => pick(r, l))))),
       card({ title: 'Send this now' }, h('div', { class: 'gs-form' },
         toggle({ label: 'Welcome email with their link', checked: F.send.welcome, onchange: v => { F.send.welcome = v; } }),
-        toggle({ label: 'The agreement to sign', checked: F.send.agreement, onchange: v => { F.send.agreement = v; } }),
-        toggle({ label: 'The first invoice', checked: F.send.invoice, onchange: v => { F.send.invoice = v; } }),
+        sp ? toggle({ label: 'The agreement to sign', checked: F.send.agreement, onchange: v => { F.send.agreement = v; } }) : null,
+        sp ? toggle({ label: 'The first invoice', checked: F.send.invoice, onchange: v => { F.send.invoice = v; } }) : null,
         h('p', { class: 'gs-hint' }, 'Anything left off can be sent later from their setup page.'))));
   } else {
     parts.push(h('p', { class: 'gs-lede' }, 'Your client gets one link: make a login, connect their accounts.'));
@@ -100,12 +105,27 @@ function formView(el, o, ctx) {
 }
 
 /* ---------- the previews ---------- */
+const clean = html => String(html || '').replace(/<script[\s\S]*?<\/script>/gi, '').replace(/\son\w+="[^"]*"/gi, '');
 function preview(el, o, ctx) {
   const W = P.welcome || {}, A = P.agreement, I = P.invoice;
   const subject = field({ label: 'Subject', value: W.subject || '' });
   const text = h('textarea', { class: 'lx-input gs-mail', 'aria-label': 'Welcome email' }); text.value = W.body || '';
   const blanks = (A && A.blanks) || [];
-  const blankFields = blanks.map(k => { const f = field({ label: BLANK[k] || k, value: agreeVars[k] || '' }); f.input.addEventListener('input', () => { agreeVars[k] = f.input.value; paintOk(); }); return f; });
+  /* A filled blank redraws the agreement text (the preview is asked again, a moment after typing stops), so the confirm
+     never shows old words. Only the agreement box changes: the field being typed in keeps its caret. */
+  let redo = null, ask = 0;
+  const reread = () => { clearTimeout(redo); redo = setTimeout(async () => {
+    if (ctx.sample) return;
+    const mine = ++ask;
+    try {
+      const np = await ctx.api('/api/onboard/preview', { worker: 'ah', method: 'POST', body: { ...bodyOf(o), agreement: { vars: { ...agreeVars } } } });
+      if (mine !== ask || !np || !np.agreement) return;
+      P = { ...P, agreement: { ...np.agreement, blanks: A.blanks }, confirm: np.confirm, problems: np.problems };
+      if (np.agreement.html) agreeHtml.innerHTML = clean(np.agreement.html);
+      paintOk();
+    } catch { /* the old text stays; Send checks the blanks again on the server */ }
+  }, 600); };
+  const blankFields = blanks.map(k => { const f = field({ label: BLANK[k] || k, value: agreeVars[k] || '' }); f.input.addEventListener('input', () => { agreeVars[k] = f.input.value; paintOk(); reread(); }); return f; });
   const send = button('Send', { primary: true, large: true, icon: 'arrow' });
   const why = h('p', { class: 'gs-err', role: 'alert', hidden: true });
   const open = () => blanks.filter(k => !String(agreeVars[k] || '').trim());
@@ -117,7 +137,7 @@ function preview(el, o, ctx) {
     why.textContent = left.length ? 'Fill in the agreement blanks first: ' + left.map(k => BLANK[k] || k).join(', ') + '.' : probs.join(' ');
   }
   const agreeHtml = h('div', { class: 'gs-agree' });
-  if (A && A.html) agreeHtml.innerHTML = String(A.html).replace(/<script[\s\S]*?<\/script>/gi, '').replace(/\son\w+="[^"]*"/gi, '');
+  if (A && A.html) agreeHtml.innerHTML = clean(A.html);
   send.addEventListener('click', () => confirmSend(el, o, ctx, { subject: subject.input.value.trim(), body: text.value }));
   put(el, h('div', { class: 'gs' },
     h('div', { class: 'gs-acts' }, button('Back to the form', { ghost: true, onclick: () => { step = 'form'; draw(el, o, ctx); } })),
@@ -149,6 +169,7 @@ function confirmSend(el, o, ctx, welcome) {
 /* ---------- the results ---------- */
 function results(el, o, ctx) {
   const r = R || {}, list = r.results || {};
+  const nFail = Object.keys(PART).filter(k => list[k] && list[k].status === 'failed').length;
   const tone = s => (s === 'done' ? pill('good', 'Done') : s === 'failed' ? pill('bad', 'Failed') : pill('', 'Skipped'));
   const openIt = async () => {
     const hash = '#/brand/' + encodeURIComponent(r.slug || '') + '/get-started/index';
@@ -158,7 +179,7 @@ function results(el, o, ctx) {
     location.reload();                                 // the new brand joins the brand list on the next boot
   };
   put(el, h('div', { class: 'gs' },
-    card({ title: r.ok === false ? 'Some parts did not go' : 'Sent' }, h('div', { class: 'gs-res' },
+    card({ title: nFail ? 'Sent, with ' + nFail + ' to fix' : 'Sent' }, h('div', { class: 'gs-res' },
       Object.keys(PART).filter(k => list[k]).map(k => h('div', null, tone(list[k].status), h('b', null, PART[k]), h('span', { class: 'gs-hint' }, list[k].text || ''))))),
     r.invite_link ? h('div', { class: 'gs-acts' }, button('Copy their link', { iconLeft: 'link', onclick: async () => { try { await navigator.clipboard.writeText(r.invite_link); toast('Link copied.'); } catch { toast('Could not copy. It is ' + r.invite_link, { ms: 6000 }); } } })) : null,
     h('div', { class: 'gs-acts' }, button('Open ' + (F.name || 'their') + "'s setup", { primary: true, large: true, icon: 'arrow', onclick: openIt }),

@@ -239,10 +239,12 @@ export async function metaSyncRows(env) {
 export async function setTripleWhale(env, brandId, shop) {
   const bid = await resolveBrandId(env, brandId);
   const s = String(shop || '').trim().toLowerCase();
+  /* Checked BEFORE the brand's current shop is dropped: a shop that belongs to another brand is refused and this
+     brand keeps its own connection (2026-11-26 review). */
+  const other = s ? await env.DB.prepare(`SELECT brand_id FROM connections WHERE kind = 'triple_whale' AND external_id = ?1`).bind(s).first() : null;
+  if (other && other.brand_id !== bid) throw new Error(`Triple Whale shop ${s} is already connected to ${other.brand_id}.`);
   await env.DB.prepare(`DELETE FROM connections WHERE brand_id = ?1 AND kind = 'triple_whale'${s ? ' AND external_id <> ?2' : ''}`).bind(...(s ? [bid, s] : [bid])).run();
   if (!s) return null;
-  const other = await env.DB.prepare(`SELECT brand_id FROM connections WHERE kind = 'triple_whale' AND external_id = ?1`).bind(s).first();
-  if (other && other.brand_id !== bid) throw new Error(`Triple Whale shop ${s} is already connected to ${other.brand_id}.`);
   await env.DB.prepare(`INSERT INTO connections (id, brand_id, kind, external_id, label, is_primary, status, source)
     VALUES (?1, ?2, 'triple_whale', ?3, ?3, 1, 'connected', 'locus') ON CONFLICT(kind, external_id) DO NOTHING`).bind(`triple_whale:${s}`, bid, s).run();
   return s;

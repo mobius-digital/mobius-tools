@@ -73,14 +73,27 @@ export async function ensureInvite(env, email, base = LOCUS_URL) {
   await putJson(env, 'clientUsers', users);
   return inviteUrl(users[e].invite.token, base);
 }
+/** Where an emailed sign-in link opens: new Locus (ONBOARD_URL) when any of the login's brands has an onboarding
+ *  checklist, so the Get started gate applies; else the old address. */
+async function onboardBase(env, brands) {
+  const list = (brands || []).filter(b => /^brand_[a-z0-9_]+$/.test(b));
+  if (!list.length) return LOCUS_URL;
+  const ph = list.map((_, i) => `?${i + 1}`).join(',');
+  const hit = await env.DB.prepare(`SELECT 1 FROM p_onboard WHERE act_id IN (${ph}) LIMIT 1`).bind(...list).first().catch(() => null);
+  return hit ? ONBOARD_URL : LOCUS_URL;
+}
 function findInvite(users, token) {
   if (!/^[0-9a-f]{32}$/.test(token || '')) return null;
   for (const [email, u] of Object.entries(users)) if (u?.invite?.token === token) return { email, u, live: Date.parse(u.invite.exp) > Date.now() };
   return null;
 }
 
-/** Google sign-in through an invite link: the Google email takes over the invited login. Returns true when it did.
- *  Team and Mobius emails never become clients (googleLogin checks the team first). */
+/** Google sign-in through an invite link: the Google email takes over the invited login. Returns true when it did,
+ *  false when there was nothing to claim, or {error} when the claim is refused.
+ *  Team and Mobius emails never become clients (googleLogin checks the team first).
+ *  A one-job invite (onboard_only, a colleague handed one setup step) is never merged into a login that reaches any
+ *  other brand, or that is a full login without the brand: the merge would drop the limit and hand over a whole brand. */
+export const ONE_JOB_REFUSED = 'Use the email this was sent to, or ask Mobius.';
 export async function claimInvite(env, token, googleEmail) {
   const g = lower(googleEmail);
   if (!emailOk(g) || g.endsWith('@' + DOMAIN) || g === lower(env.OWNER_EMAIL || OWNER) || (await teamGuests(env)).includes(g)) return false;
@@ -90,7 +103,16 @@ export async function claimInvite(env, token, googleEmail) {
   const rec = { ...hit.u }; delete rec.invite;
   if (hit.email !== g) {
     const into = users[g] && typeof users[g] === 'object' ? users[g] : null;
-    users[g] = into ? { ...into, brands: [...new Set([...(into.brands || []), ...(rec.brands || [])])], name: into.name || rec.name } : { ...rec, invited_as: hit.email };
+    const oneJob = Array.isArray(rec.onboard_only) && rec.onboard_only.length;
+    if (into && oneJob) {
+      const recBrands = rec.brands || [], intoBrands = into.brands || [];
+      const sameBrandOnly = intoBrands.length > 0 && intoBrands.every(b => recBrands.includes(b));
+      const intoOneJob = Array.isArray(into.onboard_only) && into.onboard_only.length;
+      /* Allowed: the same brand only, and the login is either already full there (nothing new) or another one-job login
+         (the jobs add up). Anything else is refused. */
+      if (!sameBrandOnly) return { error: ONE_JOB_REFUSED };
+      users[g] = intoOneJob ? { ...into, onboard_only: [...new Set([...into.onboard_only, ...rec.onboard_only])], name: into.name || rec.name } : { ...into, name: into.name || rec.name };
+    } else users[g] = into ? { ...into, brands: [...new Set([...(into.brands || []), ...(rec.brands || [])])], name: into.name || rec.name } : { ...rec, invited_as: hit.email };
     delete users[hit.email];
   } else users[g] = rec;
   await putJson(env, 'clientUsers', users);
@@ -121,10 +143,13 @@ async function sendSigninLink(env, email, invite) {
   const t = hex(24);
   await putJson(env, `signin:${t}`, { email: e, exp: Date.now() + SIGNIN_MIN * 60e3 });
   const hi = firstName(users[e].name) || 'there';
+  /* A login still being set up (any of its brands has an onboarding checklist) signs in to new Locus, where the Get
+     started gate lives; everyone else keeps the old address. */
+  const base = await onboardBase(env, users[e].brands || []);
   await sendMail(env, e, 'Your Locus sign-in link', `Hi ${hi},
 
 Here is your link to sign in to Locus:
-${LOCUS_URL}?signin=${t}
+${base}?signin=${t}
 
 It works once, for the next ${SIGNIN_MIN} minutes. If you did not ask for it, ignore this email.`);
   return done;
@@ -170,19 +195,26 @@ export async function sendCode(env, invite) {
 }
 export async function verifyCode(env, invite, code, mintSession) {
   const key = `code:${invite}`;
-  const drop = () => env.DB.prepare(`DELETE FROM settings WHERE key = ?1`).bind(key).run().catch(() => {});
+  const ranOut = { error: 'That code ran out. Ask for a new one.', status: 400 };
+  /* A spent code keeps its row WITHOUT the hash: the send limits (sent_at, sends) live in it, so five wrong guesses or
+     an expiry never reset the one-a-minute and five-an-hour limits on sending a new one. */
+  const spend = v => putJson(env, key, { sent_at: v.sent_at || 0, sends: Array.isArray(v.sends) ? v.sends : [], tries: CODE_TRIES }).catch(() => {});
   const v = /^[0-9a-f]{32}$/.test(invite || '') ? await getJson(env, key, null) : null;
-  if (!v) return { error: 'That code ran out. Ask for a new one.', status: 400 };
-  if (!(v.exp > Date.now()) || (v.tries || 0) >= CODE_TRIES) { await drop(); return { error: 'That code ran out. Ask for a new one.', status: 400 }; }
+  if (!v || !v.h) return ranOut;
+  if (!(v.exp > Date.now())) { await spend(v); return ranOut; }
+  /* The try is counted BEFORE the code is compared, in one statement, so parallel guesses cannot all see tries = 0. */
+  const took = await env.DB.prepare(`UPDATE settings SET value = json_set(value, '$.tries', COALESCE(json_extract(value, '$.tries'), 0) + 1)
+    WHERE key = ?1 AND json_extract(value, '$.h') = ?2 AND COALESCE(json_extract(value, '$.tries'), 0) < ?3
+    RETURNING json_extract(value, '$.tries') AS t`).bind(key, v.h, CODE_TRIES).first().catch(() => null);
+  if (!took) { await spend(v); return ranOut; }
+  const tries = Number(took.t) || CODE_TRIES;
   const c = String(code || '').replace(/\D/g, '');
   if (c.length !== 6 || (await codeHash(env, c, invite)) !== v.h) {
-    const tries = (v.tries || 0) + 1;
-    if (tries >= CODE_TRIES) { await drop(); return { error: 'That code ran out. Ask for a new one.', status: 400 }; }
-    await putJson(env, key, { ...v, tries });
+    if (tries >= CODE_TRIES) { await spend(v); return ranOut; }
     const left = CODE_TRIES - tries;
     return { error: `That code is not right. ${left} ${left === 1 ? 'try' : 'tries'} left.`, status: 400 };
   }
-  await drop();
+  await env.DB.prepare(`DELETE FROM settings WHERE key = ?1`).bind(key).run().catch(() => {});
   const users = (await getJson(env, 'clientUsers', {})) || {};
   const hit = findInvite(users, invite);
   if (!hit || !hit.live) return { error: 'This invite link is not valid any more. Ask Mobius for a new one.', status: 400 };

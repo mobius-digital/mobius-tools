@@ -65,6 +65,13 @@ export async function mailGuard(env, to, subject, text, via) {
   return { dry: false, to, subject };
 }
 
+/** The test recipient (settings mailTestTo) or ''. Senders that are not mail (Stripe's invoice email, the Slack Connect
+ *  invite, the Google Ads manager request) read it too, so a test Send never reaches a real client. */
+export async function testRecipient(env) {
+  const t = env?.DB ? await setting(env, 'mailTestTo') : '';
+  return t && /@/.test(t) ? t : '';
+}
+
 /** Which sender a product mail would use right now: 'resend' or 'gmail'. */
 export async function productSender(env) {
   const from = await setting(env, 'mailFrom');

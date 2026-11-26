@@ -196,7 +196,8 @@ const BRAND_FIELDS = ['name', 'monthly_budget', 'budgets', 'tz', 'target_cpa', '
 const LINK_FIELDS = ['drive', 'frame', 'klaviyo_key', 'clarity_token', 'survey_key', 'fairing_key', 'kno_key'];
 /* Brand docs a client may not write (2026-10-14 audit): `asana` and `assets` point the hourly sync at a project or
    Drive folder (another brand's, if the id is known); the rest hold keys that only Integrations sets, checked. */
-const DOC_TEAM = /^(asana|assets|google|tiktok|klaviyo|clarity|survey_.*|voice_skill|rules)$/;
+/* `assets_link` (onboarding) has one door, PUT /api/brand/assets-link, which checks it is a plain https link. */
+const DOC_TEAM = /^(asana|assets|assets_link|google|tiktok|klaviyo|clarity|survey_.*|voice_skill|rules)$/;
 const docDeny = b => (b && DOC_TEAM.test(String(b.key || '')) ? 'That part is set from Integrations or by the Mobius team.' : null);
 /* GET /api/brand for a client: never the stored keys (Klaviyo, Clarity, survey) or the Asana webhook. */
 const noDocSecrets = b => { const d = b && b.docs; if (d && typeof d === 'object') for (const line of Object.values(d)) if (line && typeof line === 'object') for (const k of Object.keys(line)) if (/^(klaviyo|clarity|survey_.*|asana|google|tiktok)$/.test(k)) delete line[k]; return b; };
@@ -651,8 +652,15 @@ const READONLY_CLIENT_MAY = new Set([
    person (p_notice): the owner and the team on the brand's latest New client run. Only the NEW values are named (the
    guard never reads the before value). Never throws: the change itself already happened. */
 const AUDIT_WORDS = { target_roas: 'the goal ROAS', target_cpa: 'the goal cost', monthly_budget: 'the monthly ad budget', budgets: 'the monthly budgets', name: 'the brand name', tz: 'the time zone', goals: 'the monthly goals',
-  sales: 'the sales goal', spend: 'the spend goal', amer: 'the new customer MER goal', judge_spend: 'the spend before an ad is judged', judge_days: 'the days before an ad is judged', goal_metric: 'the goal measure' };
-const auditMoney = new Set(['target_cpa', 'monthly_budget', 'sales', 'spend', 'judge_spend']);
+  sales: 'the sales goal', spend: 'the spend goal', amer: 'the new customer MER goal', judge_spend: 'the spend before an ad is judged', judge_days: 'the days before an ad is judged', goal_metric: 'the goal measure',
+  /* The ad call rules (profit brand.js TEST_KEYS), in plain words. */
+  cr_judge_x: 'how many goals an ad set spends before it is judged', cr_min_days: 'the days an ad set runs before it is judged',
+  cr_scale_buys: 'the sales on goal before an ad set is scaled', cr_cut_zero_x: 'how many goals an ad set spends with no sale before it is cut',
+  cr_cut_spend_x: 'how many goals an ad set spends over the line before it is cut', cr_cut_cpa_x: 'how far over the goal cost an ad set is cut',
+  cr_anchor_pct: 'the spend share that makes an ad the anchor of its set', goal_ncpa: 'the goal cost per new customer', goal_cpl: 'the goal cost per lead',
+  goal_meta: 'the Meta goal', goal_google: 'the Google goal', goal_tiktok: 'the TikTok goal', min_days: 'the days a test runs at least',
+  yellow_pct: 'the warning line', min_cap_pct: 'the smallest spend cap', win_roas: 'the winning ROAS', lose_roas: 'the losing ROAS' };
+const auditMoney = new Set(['target_cpa', 'monthly_budget', 'sales', 'spend', 'judge_spend', 'goal_ncpa', 'goal_cpl']);
 function auditValue(k, v) {
   if (v === null || v === '') return 'nothing';
   if (typeof v === 'number' || /^\d+(\.\d+)?$/.test(String(v))) return auditMoney.has(k) ? `$${Number(v).toLocaleString('en-US')}` : String(Number(v));
@@ -678,6 +686,15 @@ export async function clientAudit(env, client, what, act, path, body) {
     const run = await env.DB.prepare(`SELECT team_json FROM p_newclient WHERE act_id = ?1 ORDER BY created_at DESC LIMIT 1`).bind(act || '').first().catch(() => null);
     let tj = {}; try { tj = JSON.parse(run?.team_json || '{}') || {}; } catch {}
     for (const v of Object.values(tj)) for (const e of String(v || '').split(/[,\s]+/)) if (/@/.test(e)) team.add(lower(e));
+    /* Every existing client has no New client run: the brand's team is then whoever settings.userBrands gives the
+       brand to (its old ids count too), so the buyer on the brand hears about it, not only the owner. */
+    if (team.size === 1 && act) {
+      const ids = new Set([act]);
+      const al = (await env.DB.prepare(`SELECT alias AS id FROM brand_alias WHERE brand_id = ?1 UNION SELECT legacy_key FROM brands WHERE id = ?1 AND legacy_key IS NOT NULL UNION SELECT slug FROM brands WHERE id = ?1`).bind(act).all().catch(() => ({ results: [] }))).results || [];
+      for (const r of al) if (r.id) ids.add(String(r.id));
+      const ub = await settingJson(env, 'userBrands', {});
+      for (const [e, list] of Object.entries(ub || {})) if (Array.isArray(list) && list.some(x => ids.has(String(x))) && /@/.test(e)) team.add(lower(e));
+    }
     for (const person of team) {
       await env.DB.prepare(`INSERT INTO p_notice (id, org_id, person_id, brand_id, kind, title, state, home, sent_json, created_at) VALUES (?1, 'default', ?2, ?3, 'tell', ?4, 'open', 1, ?5, ?6)`)
         .bind('nt_' + crypto.randomUUID().replace(/-/g, '').slice(0, 14), person, act || null, summary, JSON.stringify({ bell: at }), at).run().catch(() => {});

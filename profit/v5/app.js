@@ -5,6 +5,7 @@ import { token, SAMPLE, LS, LS5, APP_NAME, QS } from './config.js';
 import { api, cached, fixture, setUser, wipeSaved, storedClient, onAnnounce } from './data.js';
 import * as shell from './shell.js';
 import * as router from './router.js';
+import { heldHere } from './gate.js';
 
 const app = document.getElementById('app');
 const hideLoader = () => { const l = document.getElementById('lx-load'); if (l) l.remove(); };
@@ -109,8 +110,14 @@ async function boot() {
   if (router.parse(location.hash).signin || (!token() && !SAMPLE)) return showSignin();
   setUser(get(LS.email) || 't:' + token().slice(-16));
   let rec;
+  /* The welcome cards are decided on a FRESH /api/me: a saved boot copy can still say welcome_seen false after the
+     cards were closed. A copy under a minute old is not refreshed (cached maxAge), so it counts as fresh. */
+  let decided = false, started = false, freshSeen = false;
+  const decide = () => { if (decided || !started) return; decided = true; welcomeCards(); };
+  const onFresh = fresh => { shell.update(fresh.data); freshSeen = true; decide(); };
+  onFresh.touch = () => { freshSeen = true; decide(); };
   try {
-    rec = await cached('boot', fetchBoot, fresh => shell.update(fresh.data), { maxAge: 60e3 });
+    rec = await cached('boot', fetchBoot, onFresh, { maxAge: 60e3 });
   } catch (e) {
     if (e && e.status === 401) return dropStale() ? boot() : showSignin('Your sign in ran out. Sign in again to carry on.');
     return showDown(e);
@@ -129,7 +136,8 @@ async function boot() {
   }
   router.start({ state: shell.state, frame: shell.frame, brandBySlug: shell.brandBySlug, signin: () => location.reload() });
   bellCount();
-  welcomeCards();
+  started = true;
+  if (rec.fresh || SAMPLE || freshSeen || Date.now() - rec.asOf <= 60e3) decide();
   /* a link from a Slack or email reminder can open the bell: add ?bell=1 to any address */
   if (QS.get('bell')) setTimeout(() => { const b = document.querySelector('.lx-bell'); if (b) b.click(); }, 300);
 }
@@ -139,8 +147,8 @@ async function boot() {
    Sample: ?sample=1&as=client&welcome=1. */
 function welcomeCards() {
   const st = shell.state(), c = st.me && st.me.client;
-  if (st.realRole !== 'client' || st.asClient || !c || c.welcome_seen !== false || router.gateOf(st)) return;
   const r = router.currentRoute();
+  if (st.realRole !== 'client' || st.asClient || !c || c.welcome_seen !== false || heldHere(st, r)) return;
   const brand = (r && shell.brandBySlug(r.brand)) || st.brands[0] || null;
   import('./pages/get-started/_welcome.js').then(m => m.showWelcome({ brand, me: st.me })).catch(() => {});
 }

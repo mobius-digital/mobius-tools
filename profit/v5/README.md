@@ -44,6 +44,7 @@ Every fixture uses these and nothing else. Numbers are made up and agree across 
 | `config.js` | `APP_NAME`, `ORG_NAME`, storage keys, worker URLs, `SAMPLE`, old Locus links. |
 | `menu.js` | The three menus (brand, agency, top bar lines) and every route. |
 | `router.js` | Hash routes, page loading, saved copy then refresh, prefetch on hover, the page's `ctx`. |
+| `gate.js` | The new client gate, per brand (pure, no imports; router, shell and app read it). |
 | `data.js` | `api()`, `cached()`, `fixture()`, the saved copy, settings, the date range. |
 | `kit.js` | The UI kit every page builds with, the one chart included. |
 | `icons.js` | The mark, platform glyphs, the icon set. |
@@ -183,7 +184,10 @@ Brand settings", a link to old Locus) must be behind `!ctx.isClient`. Check `ctx
   (who waits on whom, Remind them, ticks, budget, Mark finished). `pages/get-started/_ui.js` holds the shared parts and
   the line buttons My day uses.
 - **The gate**: while `/api/me` says `client.onboarding.gated`, a real client login sees only Get started and their
-  profile (`router.js gateOf`, the side menu shows one line). The team and See as client are never gated.
+  profile for a brand still being set up (`gate.js`, read by `router.js` normalise, the side menu and the phone tabs).
+  It is PER BRAND: `gated_slugs` are the held brands and a brand already running stays open; `all_gated` (or a
+  colleague's `only`) also holds the pages with no brand. Old Locus sends a fully held client here. The team and
+  See as client are never gated.
 - **Welcome cards** (`pages/get-started/_welcome.js`): once per person after the gate (`client.welcome_seen` false),
   last card asks for feedback ("Message the team").
 - **Sign up**: an invite link opens "make your login": Google, or an emailed 6 digit code (`/api/clients/code`,

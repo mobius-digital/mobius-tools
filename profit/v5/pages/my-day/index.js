@@ -74,13 +74,21 @@ function row(r, ctx, { primary, onDone }) {
   /* a new client setup line (source onboard): its own button (Remind them, Done, Yes / No, Send it anyway) and Open */
   if (b.onboard) {
     gsCss();
+    /* Every setup line can be ticked off like any other row (PUT /api/mywork/done with its onb: key), so a line with
+       no action of its own (budget, a check, a key to make, a goal) never sits on the list for good. */
+    const tick = button('Done', { ghost: true, aria: 'Mark this line done', onclick: async e => {
+      if (ctx.sample) return toast('Sample numbers: nothing is saved.');
+      const btn = e.currentTarget; btn.disabled = true;
+      try { await ctx.api('/api/mywork/done', { worker: 'ah', method: 'PUT', body: { key: r.id, done: true } }); onDone(r, null, true); toast('Done.'); }
+      catch (err) { btn.disabled = false; toast('Could not mark it done: ' + err.message, { tone: 'bad', ms: 5000 }); }
+    } });
     return h('div', { class: 'lx-md-row', dataset: { id: r.id } },
       h('div', { class: 'what' }, h('b', null, r.text), h('span', { class: 'why' }, h('span', null, r.detail || r.why))),
       h('span', { class: 'brand' }, r.brand), h('span', { class: 'due' + (r.late ? ' late' : '') }, r.due),
       h('span', { class: 'go gs-acts' }, lineButtons(ctx, r, { primary, onDone: (line, what) => {
         /* a remind keeps the line (it comes back after the next day band); a tick, a yes or no and a release finish it */
         if (what !== 'remind' && what !== 'Remind them') onDone(r, null, true);
-      } })));
+      } }), tick));
   }
   const go = b.done ? button(b.label, { primary, onclick: e => onDone(r, e.currentTarget) })
     : b.nudge ? button(b.label, { onclick: () => toast(ctx.sample ? 'Sample numbers: no nudge was sent.' : 'Nudges come with the notifications release.') })

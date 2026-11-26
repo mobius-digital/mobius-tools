@@ -62,8 +62,13 @@ function stripeMock(u, init) {
     if (q['created[gte]']) list = list.filter(i => i.created >= +q['created[gte]']);
     return ok({ data: list });
   }
-  if (m === 'POST' && p === 'invoices') { const i = { id: sid('in'), status: 'draft', customer: b.customer, created: Math.floor(Date.now() / 1000), metadata: { locus: b['metadata[locus]'], locus_kind: b['metadata[locus_kind]'], locus_v: b['metadata[locus_v]'] } }; S.invoices[i.id] = i; return ok(i); }
-  if (m === 'POST' && p === 'invoiceitems') return ok({ id: sid('ii') });
+  if (m === 'POST' && p === 'invoices') { const i = { id: sid('in'), status: 'draft', customer: b.customer, amount_due: 0, lines: { data: [] }, created: Math.floor(Date.now() / 1000), metadata: { locus: b['metadata[locus]'], locus_kind: b['metadata[locus_kind]'], locus_v: b['metadata[locus_v]'] } }; S.invoices[i.id] = i; return ok(i); }
+  if (m === 'POST' && p === 'invoiceitems') {
+    if (S.failItems > 0) { S.failItems--; return new Response(JSON.stringify({ error: { message: 'stripe mock: line refused' } }), { status: 500 }); }
+    const i = S.invoices[b.invoice];
+    if (i) { i.lines = { data: [...((i.lines && i.lines.data) || []), { amount: +b.amount }] }; i.amount_due = (i.amount_due || 0) + (+b.amount); }
+    return ok({ id: sid('ii') });
+  }
   let mm;
   if ((mm = /^invoices\/(in_\w+)\/finalize$/.exec(p))) { S.invoices[mm[1]].status = 'open'; return ok(S.invoices[mm[1]]); }
   if ((mm = /^invoices\/(in_\w+)\/send$/.exec(p))) { const i = S.invoices[mm[1]]; i.status = i.status === 'draft' ? 'open' : i.status; i.hosted_invoice_url = `https://invoice.stripe.example/i/${crypto.randomBytes(6).toString("hex")}`; return ok(i); }
@@ -121,6 +126,13 @@ const count = t => db.prepare(`SELECT COUNT(*) AS n FROM ${t}`).get().n;
 const row = act => { const r = db.prepare(`SELECT * FROM p_onboard WHERE act_id = ?`).get(act); return r && { ...r, steps: JSON.parse(r.steps_json), conn: JSON.parse(r.connect_json), rem: JSON.parse(r.reminders_json) }; };
 const mailsTo = (to, re) => outbox.filter(m => m.to === to && (!re || re.test(m.subject)));
 const noDashes = s => assert.ok(!/[\u2014\u2013]/.test(String(s)), 'no em or en dash: ' + String(s).slice(0, 120));
+/* Send and the welcome email both N days ago (day 0 for reminders is the welcome email, not the Send press). */
+const backdate = (act, days) => {
+  const at = new Date(Date.now() - days * 864e5).toISOString();
+  db.prepare(`UPDATE p_onboard SET sent_at = ? WHERE act_id = ?`).run(at, act);
+  db.prepare(`UPDATE p_newclient SET steps_json = json_set(steps_json, '$.email.at', ?) WHERE act_id = ? AND json_extract(steps_json, '$.email.status') = 'done'`).run(at, act);
+};
+const THURSDAY = '2026-11-26';
 
 const FORM = {
   name: 'Northlake Golf', website: 'northlakegolf.example.com', contact_name: 'Pat Doyle', contact_email: 'pat@example.com',
@@ -188,6 +200,7 @@ await check('send once: brand, link, checklist, login; welcome first, then the a
   /* Stripe: the guards, then the one off invoice, finalized and sent. Never a subscription before it is paid. */
   const stripePaths = calls.filter(c => c.u.startsWith('https://api.stripe.com/')).map(c => `${c.method} ${new URL(c.u).pathname.replace('/v1/', '')}${new URL(c.u).searchParams.get('status') ? '?status' : new URL(c.u).search.includes('created') ? '?created' : ''}`);
   const want = ['GET customers/search', 'POST customers', 'GET invoices?status', 'GET invoices?created', 'POST invoices', 'POST invoiceitems'];
+  assert.equal(S.invoices[st.stripe.invoice].amount_due, 400000, 'the line is on the invoice');
   let at = 0; for (const w of want) { const i = stripePaths.indexOf(w, at); assert.ok(i >= at, `${w} in order: ${stripePaths.join(' | ')}`); at = i; }
   assert.ok(stripePaths.some(x => /finalize$/.test(x)) && stripePaths.some(x => /send$/.test(x)));
   assert.ok(!stripePaths.some(x => /subscriptions/.test(x)), 'no subscription yet');
@@ -229,6 +242,21 @@ await check('the gate rides on /api/me: a new client is held on Get started; a s
   /* A brand with no checklist (every existing client) is never gated; the team never is. */
   const nick = await ah(OTHER_CLIENT, 'GET', '/api/me'); assert.equal(nick.j.client.onboarding, null);
   assert.equal((await ah(TEAM, 'GET', '/api/me')).j.client, undefined);
+  /* Gated per brand: a client whose running brand has no checklist keeps it while the new brand is set up. */
+  const u = getSetting('clientUsers'); u['pat@example.com'].brands = [ACT, 'brand_alpha']; setSetting('clientUsers', u);
+  const two = (await ah(PAT, 'GET', '/api/me')).j.client.onboarding;
+  assert.equal(two.gated, true); assert.deepEqual(two.gated_slugs, ['northlake-golf']); assert.equal(two.all_gated, false, 'Alpha Golf stays open');
+  /* The screens' rule (profit/v5/gate.js, used by router.js normalise): only the held brand goes to Get started. */
+  const gate = await import('../../profit/v5/gate.js');
+  const st = { role: 'client', asClient: false, me: { client: { onboarding: two } } };
+  const g = gate.gateOf(st);
+  assert.equal(gate.gateRoute({ view: 'brand', brand: 'alpha', line: 'home', tab: 'index' }, g).line, 'home', 'the running brand opens');
+  assert.equal(gate.gateRoute({ view: 'brand', brand: 'northlake-golf', line: 'home', tab: 'index' }, g).line, 'get-started', 'the new brand is held');
+  assert.equal(gate.gateRoute({ view: 'brand', brand: 'northlake-golf', line: 'profile', tab: 'index' }, g).line, 'profile', 'the profile is always open');
+  assert.equal(gate.heldHere(st, { view: 'brand', brand: 'alpha' }), false); assert.equal(gate.heldHere(st, { view: 'brand', brand: 'northlake-golf' }), true);
+  assert.equal(gate.gateOf({ ...st, asClient: true }), null, 'See as client is never gated');
+  const u2 = getSetting('clientUsers'); u2['pat@example.com'].brands = [ACT]; setSetting('clientUsers', u2);
+  assert.equal((await ah(PAT, 'GET', '/api/me')).j.client.onboarding.all_gated, true);
 });
 
 await check('the emailed 6 digit code: hashed, 10 minutes, 5 tries, one use, one send a minute', async () => {
@@ -249,10 +277,17 @@ await check('the emailed 6 digit code: hashed, 10 minutes, 5 tries, one use, one
   assert.equal(w1.status, 400); assert.equal(w1.j.error, 'That code is not right. 4 tries left.');
   for (let i = 0; i < 3; i++) await ah(null, 'POST', '/api/clients/code/verify', { invite, code: wrong });
   const w5 = await ah(null, 'POST', '/api/clients/code/verify', { invite, code: wrong });
-  assert.equal(w5.j.error, 'That code ran out. Ask for a new one.'); assert.equal(getSetting(`code:${invite}`), null, 'gone after 5 wrong');
+  assert.equal(w5.j.error, 'That code ran out. Ask for a new one.');
+  const spent = getSetting(`code:${invite}`);
+  assert.equal(spent.h, undefined, 'the hash is gone after 5 wrong'); assert.equal(spent.sends.length, 1, 'the send limits survive the drop');
   assert.equal((await ah(null, 'POST', '/api/clients/code/verify', { invite, code })).status, 400, 'the old code is dead too');
+  /* Spending a code never resets the send limits: still one a minute. */
+  assert.equal((await ah(null, 'POST', '/api/clients/code', { invite })).j.wait, true, 'five wrong guesses do not reset the minute');
+  assert.equal(outbox.filter(x => x.subject === 'Your Locus code').length, 1);
+  setSetting(`code:${invite}`, { ...getSetting(`code:${invite}`), sent_at: Date.now() - 61e3 });
   /* A new code, the right one: a session, and the invite is used up. */
   await ah(null, 'POST', '/api/clients/code', { invite });
+  assert.equal(getSetting(`code:${invite}`).sends.length, 2, 'this hour now has two sends');
   const m2 = outbox.filter(x => x.subject === 'Your Locus code').pop();
   const code2 = (/(\d{3}) (\d{3})/.exec(m2.text) || []).slice(1).join('');
   const ok = await ah(null, 'POST', '/api/clients/code/verify', { invite, code: code2 });
@@ -289,9 +324,10 @@ await check('the client writes its own brand: brief (ten questions per services)
   assert.equal(c.status, 200, JSON.stringify(c.j));
   const shop = c.j.connect.platforms.find(x => x.key === 'shopify');
   assert.equal(shop.layers.team.state, 'waiting'); assert.equal(shop.layers.team.checks_itself, false); assert.match(shop.layers.team.note, /does not let anyone send this request automatically/);
-  assert.equal(shop.layers.app.state, 'todo', 'the client installs the app');
+  assert.equal(shop.layers.app.state, 'waiting', 'no install link yet (the app is in Shopify review): nothing for the client to press, so it waits on us');
+  assert.equal(shop.layers.app.url, null);
   assert.equal(JSON.parse(db.prepare(`SELECT answers_json FROM p_br_onboard WHERE act_id = ?`).get(ACT).answers_json).shopify_url, 'northlake-golf.myshopify.com');
-  assert.ok(db.prepare(`SELECT 1 FROM connections WHERE brand_id = ? AND kind = 'triple_whale'`).get(ACT), 'Triple Whale shop set (extras)');
+  assert.ok(!db.prepare(`SELECT 1 FROM connections WHERE brand_id = ? AND kind = 'triple_whale'`).get(ACT), 'a client\'s store is never linked by the client');
   assert.equal((await ah(PAT, 'PUT', '/api/onboard/connect', { act: ACT, platform: 'tiktok', skip: true })).j.connect.platforms.find(x => x.key === 'tiktok').skipped, true);
   assert.equal((await ah(PAT, 'PUT', '/api/onboard/connect', { act: ACT, platform: 'shopify', layer: 'team', ticked: true })).status, 403, 'brandguard: not a field the client may send');
   const meta = await ah(PAT, 'PUT', '/api/onboard/connect', { act: ACT, platform: 'meta', said: true });
@@ -301,6 +337,67 @@ await check('the client writes its own brand: brief (ten questions per services)
   /* The team ticks a layer a person checks. */
   const t = await ah(TEAM, 'PUT', '/api/onboard/connect', { act: ACT, platform: 'shopify', layer: 'team', ticked: true });
   assert.equal(t.status, 200); assert.equal(t.j.connect.platforms.find(x => x.key === 'shopify').layers.team.state, 'done');
+  assert.ok(db.prepare(`SELECT 1 FROM connections WHERE brand_id = ? AND kind = 'triple_whale'`).get(ACT), 'the team\'s tick links the store to Triple Whale (extras)');
+  /* Shopify collaborator approved and no install link: Shopify holds nothing back on the gate. */
+  const sh = c.j.connect && (await ah(PAT, 'GET', `/api/onboard?act=${ACT}`)).j.connect.platforms.find(x => x.key === 'shopify');
+  assert.equal(sh.layers.app.state, 'waiting');
+  const probe = onb._test.connectState({ extras: 1, services: [], conn: { shopify: { team: { ticked_at: 'x' } } } }, { items: {}, conns: {} }, await onb.agencyAccess(ahEnv), '');
+  assert.ok(!probe.todoNames.includes('Shopify'), 'reminders and Remind them never name Shopify');
+  assert.equal(probe.platforms.find(x => x.key === 'shopify').layers.app.state, 'waiting');
+  const withLink = onb._test.connectState({ extras: 1, services: [], conn: { shopify: { team: { ticked_at: 'x' } } } }, { items: {}, conns: {} }, await onb.agencyAccess(ahEnv), 'https://apps.shopify.example/locus');
+  assert.equal(withLink.platforms.find(x => x.key === 'shopify').layers.app.state, 'todo', 'with an install link it is the client\'s to press');
+  assert.ok(!(await onb.onboardLines(ahEnv)).some(l => l.kind === 'install_link'), 'no impossible "send the install link" line');
+});
+
+await check('connect safety: a client never links a Triple Whale store or a Google Ads account itself; the team confirms; another brand\'s store never wipes this one', async () => {
+  const H = 'brand_harbor_putters';
+  /* Triple Whale: the client types a store, it only waits; the team's line confirms it and the tick links it. */
+  db.prepare(`INSERT INTO connections (id, brand_id, kind, external_id, label, is_primary, status, source) VALUES ('triple_whale:alpha-golf.myshopify.com', 'brand_alpha', 'triple_whale', 'alpha-golf.myshopify.com', 'a', 1, 'connected', 'locus')`).run();
+  const LEE = mint('lee@harbor.example.com');
+  const tw = await ah(LEE, 'PUT', '/api/onboard/connect', { act: H, platform: 'tw', inputs: { shop_url: 'alpha-golf.myshopify.com' } });
+  assert.equal(tw.status, 200, JSON.stringify(tw.j));
+  assert.equal(tw.j.connect.platforms.find(x => x.key === 'tw').layers.team.state, 'waiting');
+  assert.ok(!db.prepare(`SELECT 1 FROM connections WHERE brand_id = ? AND kind = 'triple_whale'`).get(H), 'not linked by the client');
+  assert.ok(!JSON.stringify(tw.j).includes('brand_alpha'), 'nothing about another client');
+  const lines = await onb.onboardLines(ahEnv);
+  const conf = lines.find(l => l.act === H && l.kind === 'confirm_tw');
+  assert.ok(conf, 'Confirm line for the team'); assert.deepEqual(conf.action, { kind: 'tick', platform: 'tw', layer: 'team' });
+  /* The team's tick tries the link: another brand's store is refused (the team sees why), and the tick does not land. */
+  const bad = await ah(TEAM, 'PUT', '/api/onboard/connect', { act: H, platform: 'tw', layer: 'team', ticked: true });
+  assert.equal(bad.status, 400); assert.equal(row(H).conn.tw.team.ticked_at, undefined);
+  /* A store already on another brand never wipes this brand's own store (setTripleWhale checks first). */
+  db.prepare(`INSERT INTO connections (id, brand_id, kind, external_id, label, is_primary, status, source) VALUES ('triple_whale:harbor.myshopify.com', ?, 'triple_whale', 'harbor.myshopify.com', 'h', 1, 'connected', 'locus')`).run(H);
+  const { setTripleWhale } = await import('./src/brands.js');
+  await assert.rejects(setTripleWhale(ahEnv, H, 'alpha-golf.myshopify.com'));
+  assert.ok(db.prepare(`SELECT 1 FROM connections WHERE brand_id = ? AND external_id = 'harbor.myshopify.com'`).get(H), 'the brand keeps its own store');
+  assert.equal((await ah(LEE, 'PUT', '/api/onboard/connect', { act: H, platform: 'tw', inputs: { shop_url: 'other.myshopify.com' } })).status, 409, 'already connected: the client cannot change it');
+  /* Google Ads: an ID the Mobius manager already reaches is never requested or linked by a client. */
+  onb.useAdsProbe(async () => ['1112223333']);
+  const from = log.length;
+  const g1 = await ah(LEE, 'PUT', '/api/onboard/connect', { act: H, platform: 'google_ads', inputs: { customer_id: '111-222-3333' } });
+  assert.equal(g1.status, 200, JSON.stringify(g1.j));
+  assert.ok(!db.prepare(`SELECT 1 FROM connections WHERE brand_id = ? AND kind = 'google_ads'`).get(H), 'not linked');
+  assert.ok(!getSetting(`connectPending:${H}`)?.google_ads, 'no pending link that would attach it later');
+  assert.ok((await onb.onboardLines(ahEnv)).some(l => l.act === H && l.kind === 'confirm_gads'), 'the team confirms it');
+  /* An ID the manager does not reach: one request, once per ID; a repeat sends nothing. */
+  let invites = 0;
+  const g2 = await ah(LEE, 'PUT', '/api/onboard/connect', { act: H, platform: 'google_ads', inputs: { customer_id: '444-555-6666' } });
+  assert.equal(g2.status, 200, JSON.stringify(g2.j));
+  invites = log.slice(from).filter(x => /googleads|customerClientLinks/i.test(x.u)).length;
+  const pend = getSetting(`connectPending:${H}`);
+  assert.equal(pend.google_ads.id, '4445556666', 'a pending link: it attaches only after their Accept');
+  const n0 = log.length;
+  await ah(LEE, 'PUT', '/api/onboard/connect', { act: H, platform: 'google_ads', inputs: { customer_id: '4445556666' } });
+  assert.equal(log.slice(n0).filter(x => /googleads|customerClientLinks/i.test(x.u)).length, 0, 'the same ID never asks twice');
+  await ah(LEE, 'PUT', '/api/onboard/connect', { act: H, platform: 'google_ads', inputs: { customer_id: '7778889999' } });
+  const cap = await ah(LEE, 'PUT', '/api/onboard/connect', { act: H, platform: 'google_ads', inputs: { customer_id: '1231231234' } });
+  assert.equal(cap.status, 429, 'at most 3 IDs a brand');
+  /* The team's tick on Google Ads links what the client typed. */
+  const tick = await ah(TEAM, 'PUT', '/api/onboard/connect', { act: H, platform: 'google_ads', layer: 'team', ticked: true });
+  assert.equal(tick.status, 200, JSON.stringify(tick.j));
+  assert.ok(db.prepare(`SELECT 1 FROM connections WHERE brand_id = ? AND kind = 'google_ads'`).get(H));
+  onb.useAdsProbe(async () => null);
+  void invites;
 });
 
 await check('hand off: a colleague gets an onboard_only login and one email; Mobius addresses refused; sign and pay emails nobody until the owner says yes', async () => {
@@ -328,11 +425,64 @@ await check('hand off: a colleague gets an onboard_only login and one email; Mob
   assert.ok(outbox.slice(out1).some(x => x.to === 'sam.rivera@example.com' && /agreement/i.test(x.subject)), 'the same signing link to Sam');
   assert.equal(db.prepare(`SELECT client_email FROM p_contract WHERE token = ?`).get(row(ACT).token).client_email, 'sam.rivera@example.com');
   assert.equal(row(ACT).steps.sign_pay.pending_signer, undefined);
+  /* A one-job invite is never merged into a Google account that already has a login for another brand. */
+  const { claimInvite } = await import('./src/clients.js');
+  const jamieInvite = getSetting('clientUsers')['jamie@example.com'].invite.token;
+  const before = JSON.stringify(getSetting('clientUsers'));
+  const refused = await claimInvite(ahEnv, jamieInvite, 'nick@alpha.example.com');
+  assert.ok(refused && refused.error, 'refused, with a plain reason'); assert.match(refused.error, /Use the email this was sent to/);
+  assert.equal(JSON.stringify(getSetting('clientUsers')), before, 'nothing merged, the limit stays');
+});
+
+await check('hand off limits: once per address per step in 20 hours, five a day per brand, never a done step or a finished setup; another brand\'s address gets the same answer and an owner line; the old holder loses the step', async () => {
+  const H = 'brand_harbor_putters', LEE = mint('lee@harbor.example.com');
+  const out0 = outbox.length;
+  const a = await ah(LEE, 'POST', '/api/onboard/handoff', { act: H, step: 'brief', email: 'kim@harbor.example.com', name: 'Kim Ito' });
+  assert.equal(a.status, 200, JSON.stringify(a.j)); assert.equal(a.j.text, 'We emailed them.');
+  assert.equal((await ah(LEE, 'POST', '/api/onboard/handoff', { act: H, step: 'brief', email: 'kim@harbor.example.com', name: 'Kim Ito' })).status, 409, 'not twice in 20 hours');
+  /* Another brand's address: the same words back, nothing mailed, no login touched, an owner line. */
+  const nickBefore = JSON.stringify(getSetting('clientUsers')['nick@alpha.example.com']);
+  const n = await ah(LEE, 'POST', '/api/onboard/handoff', { act: H, step: 'assets', email: 'nick@alpha.example.com', name: 'Nick' });
+  assert.equal(n.status, 200); assert.equal(n.j.text, 'We emailed them.'); assert.ok(!/another brand|login/i.test(JSON.stringify(n.j)), 'nothing about other brands');
+  assert.equal(JSON.stringify(getSetting('clientUsers')['nick@alpha.example.com']), nickBefore);
+  assert.ok(!outbox.slice(out0).some(m => m.to === 'nick@alpha.example.com'));
+  assert.ok((await onb.onboardLines(ahEnv)).some(l => l.act === H && l.kind === 'handoff_blocked' && l.to.owner_only), 'the owner decides');
+  /* "I'll do it myself": Kim loses the brief, and a login that held nothing else goes. */
+  const self = await ah(LEE, 'POST', '/api/onboard/handoff', { act: H, step: 'brief', email: 'lee@harbor.example.com', name: 'Lee Park' });
+  assert.equal(self.status, 200, JSON.stringify(self.j));
+  assert.equal(getSetting('clientUsers')['kim@harbor.example.com'], undefined, 'the one-job login is gone with its job');
+  /* Five mails a day per brand. */
+  for (const [i, step] of ['connect', 'brief', 'connect', 'brief'].entries()) {
+    const r = await ah(LEE, 'POST', '/api/onboard/handoff', { act: H, step, email: `p${i}@harbor.example.com`, name: 'P ' + i });
+    assert.equal(r.status, 200, JSON.stringify(r.j));
+  }
+  assert.equal((await ah(LEE, 'POST', '/api/onboard/handoff', { act: H, step: 'connect', email: 'p9@harbor.example.com', name: 'P 9' })).status, 429, 'five a day per brand');
+  /* A done step, and a finished setup. */
+  await ah(LEE, 'PUT', '/api/brand/assets-link', { act: H, url: 'https://drive.google.com/drive/folders/h1' });
+  await ah(LEE, 'GET', `/api/onboard?act=${H}`);
+  const done = await ah(LEE, 'POST', '/api/onboard/handoff', { act: H, step: 'assets', email: 'q@harbor.example.com', name: 'Q' });
+  assert.equal(done.status, 409); assert.match(done.j.error, /That step is done/);
+  db.prepare(`UPDATE p_onboard SET finished_at = ? WHERE act_id = ?`).run(new Date().toISOString(), H);
+  assert.equal((await ah(LEE, 'POST', '/api/onboard/handoff', { act: H, step: 'brief', email: 'q@harbor.example.com', name: 'Q' })).status, 409, 'finished: nothing left to hand on');
+  db.prepare(`UPDATE p_onboard SET finished_at = NULL WHERE act_id = ?`).run(H);
+  /* A handed colleague cannot read the assets link of a step they were not handed. */
+  const P2 = mint('p2@harbor.example.com');
+  assert.deepEqual(getSetting('clientUsers')['p2@harbor.example.com'].onboard_only, ['connect']);
+  assert.equal((await ah(P2, 'GET', `/api/brand/assets-link?act=${H}`)).status, 403);
+  assert.equal((await ah(P2, 'GET', `/api/onboard?act=${H}`)).status, 200, 'their own step still opens');
+  /* Parallel wrong codes: each try is counted in one statement, so a burst cannot get more than five guesses. */
+  const lt = getSetting('clientUsers')['lee@harbor.example.com'].invite.token;
+  await ah(null, 'POST', '/api/clients/code', { invite: lt });
+  const right = (/(\d{3}) (\d{3})/.exec(outbox.filter(m => m.to === 'lee@harbor.example.com' && m.subject === 'Your Locus code').pop().text) || []).slice(1).join('');
+  const wrong = right === '000000' ? '111111' : '000000';
+  const burst = await Promise.all(Array.from({ length: 8 }, () => ah(null, 'POST', '/api/clients/code/verify', { invite: lt, code: wrong })));
+  assert.ok(burst.filter(r => /not right/.test(r.j.error || '')).length <= 4, 'at most four "not right" answers');
+  assert.equal((await ah(null, 'POST', '/api/clients/code/verify', { invite: lt, code: right })).status, 400, 'the code is spent after the burst');
 });
 
 await check('reminders: day 3 and day 7 once each, to the step holder, never about money or signing; not outside 9 to 5; off switch', async () => {
-  const tick = h => onb.onboardTick(ahEnv, { canAfford: () => true, centralHour: () => h });
-  db.prepare(`UPDATE p_onboard SET sent_at = ? WHERE act_id = ?`).run(new Date(Date.now() - 4 * 864e5).toISOString(), ACT);
+  const tick = h => onb.onboardTick(ahEnv, { canAfford: () => true, centralHour: () => h, centralDate: () => THURSDAY });
+  backdate(ACT, 4);
   const out0 = outbox.length;
   assert.deepEqual((await tick(20)).reminded, [], 'evening: nothing');
   const r1 = await tick(10);
@@ -344,7 +494,7 @@ await check('reminders: day 3 and day 7 once each, to the step holder, never abo
   for (const m of mine) { assert.ok(!/agreement|invoice|pay/i.test(m.text), 'never money or signing: ' + m.text); noDashes(m.text); }
   assert.ok(row(ACT).rem.d3);
   const n1 = outbox.length; await tick(11); assert.equal(outbox.filter((m, i) => i >= n1 && /Northlake/.test(m.subject)).length, 0, 'day 3 once');
-  db.prepare(`UPDATE p_onboard SET sent_at = ? WHERE act_id = ?`).run(new Date(Date.now() - 8 * 864e5).toISOString(), ACT);
+  backdate(ACT, 8);
   const n2 = outbox.length; await tick(10);
   assert.ok(outbox.slice(n2).some(m => /still waiting on a few setup steps/.test(m.subject) && /Northlake/.test(m.subject)), 'day 7');
   const n3 = outbox.length; await tick(10); assert.equal(outbox.slice(n3).filter(m => /Northlake/.test(m.subject)).length, 0, 'day 7 once');
@@ -353,6 +503,42 @@ await check('reminders: day 3 and day 7 once each, to the step holder, never abo
   const n4 = outbox.length; await tick(10); assert.equal(outbox.length, n4, 'switched off');
   db.prepare(`DELETE FROM settings WHERE key = 'onboardReminders'`).run();
   db.prepare(`UPDATE p_onboard SET reminders_json = '{"d3":"x","d7":"x"}' WHERE act_id = ?`).run(ACT);
+});
+
+await check('reminders only reach someone who heard from us: not with the welcome unticked or failed, not after the run is removed, not to a removed login, not on a weekend; day 0 is the welcome', async () => {
+  const tick = (h = 10, date = THURSDAY) => onb.onboardTick(ahEnv, { canAfford: () => true, centralHour: () => h, centralDate: () => date });
+  const mk = async (name, email, send) => { const r = await ah(OWNER, 'POST', '/api/onboard/send', { ...FORM, name, contact_name: 'Ro Vale', contact_email: email, send, confirm: true }); assert.equal(r.status, 200, JSON.stringify(r.j)); return r.j; };
+  const quiet = await mk('Quiet Links', 'ro@quiet.example.com', { welcome: false, agreement: false, invoice: false });
+  const failed = await mk('Failed Links', 'ro@failed.example.com', { welcome: true, agreement: false, invoice: false });
+  const gone = await mk('Gone Links', 'ro@gone.example.com', { welcome: true, agreement: false, invoice: false });
+  const left = await mk('Left Links', 'ro@left.example.com', { welcome: true, agreement: false, invoice: false });
+  for (const x of [quiet, failed, gone, left]) backdate(x.act, 4);
+  db.prepare(`UPDATE p_onboard SET sent_at = ? WHERE act_id = ?`).run(new Date(Date.now() - 4 * 864e5).toISOString(), quiet.act);
+  /* The welcome "failed": its step is not done. */
+  db.prepare(`UPDATE p_newclient SET steps_json = json_set(steps_json, '$.email.status', 'failed') WHERE id = ?`).run(failed.run_id);
+  /* The login was taken away from this one. */
+  const u = getSetting('clientUsers'); delete u['ro@left.example.com']; setSetting('clientUsers', u);
+  /* This client was removed. */
+  assert.equal((await ah(OWNER, 'POST', '/api/new-client/remove', { id: gone.run_id })).status, 200);
+  assert.equal(row(gone.act), undefined, 'the checklist goes with the run');
+  /* No lines or Remind them either. */
+  const lines = await onb.onboardLines(ahEnv);
+  for (const x of [quiet, failed, gone, left]) assert.ok(!lines.some(l => l.act === x.act && l.kind === 'client_waiting'), 'no waiting line for ' + x.act);
+  assert.equal((await ah(TEAM, 'POST', '/api/onboard/remind', { act: quiet.act, step: 'connect' })).status, 409, 'no Remind them before the welcome');
+  assert.equal((await ah(TEAM, 'POST', '/api/onboard/remind', { act: left.act, step: 'connect' })).status, 409, 'no Remind them to a removed login');
+  assert.equal((await ah(TEAM, 'GET', `/api/onboard?act=${quiet.act}`)).j.team.can_remind.connect, false);
+  const out0 = outbox.length;
+  await tick(10, '2026-11-28');
+  assert.equal(outbox.length, out0, 'Saturday: nothing');
+  await tick();
+  const sent = outbox.slice(out0).map(m => m.to);
+  for (const e of ['ro@quiet.example.com', 'ro@failed.example.com', 'ro@gone.example.com', 'ro@left.example.com']) assert.ok(!sent.includes(e), 'no reminder to ' + e);
+  assert.ok(!row(quiet.act).rem.d3 && !row(failed.act).rem.d3, 'nothing stamped, so the reminder still comes once the welcome goes');
+  /* The welcome goes now: day 0 is today, so no reminder yet even though Send was 4 days ago. */
+  const w = await ah(OWNER, 'POST', '/api/onboard/send-part', { act: quiet.act, part: 'welcome', confirm: true });
+  assert.equal(w.status, 200, JSON.stringify(w.j));
+  const o1 = outbox.length; await tick();
+  assert.ok(!outbox.slice(o1).some(m => m.to === 'ro@quiet.example.com' && /setup/.test(m.subject)), 'counted from the welcome');
 });
 
 await check('Remind them: the team reminds one step (masked address), not twice in 20 hours; sign and pay is the owner\'s', async () => {
@@ -417,13 +603,26 @@ await check('a client changes its own goals: one activities row with who, a bell
   assert.equal(count('activities'), a0 + 2);
   assert.equal((await ah(OTHER_CLIENT, 'PUT', `/api/accounts/${ACT}`, { target_roas: 9 })).status, 403, 'never another brand');
   assert.equal(count('activities'), a0 + 2);
+  /* A brand with no New client run (every existing client): the bell goes to its team from userBrands too. */
+  setSetting('userBrands', { 'jordan@go-mobius-digital.com': ['brand_alpha'], 'other@go-mobius-digital.com': ['brand_zzz'] });
+  const n = await ah(OTHER_CLIENT, 'PUT', '/api/accounts/brand_alpha', { target_roas: 3 });
+  assert.equal(n.status, 200, JSON.stringify(n.j));
+  const who = db.prepare(`SELECT person_id FROM p_notice WHERE brand_id = 'brand_alpha'`).all().map(x => x.person_id).sort();
+  assert.deepEqual(who, ['cole@go-mobius-digital.com', 'jordan@go-mobius-digital.com'], 'the buyer on the brand hears, not only the owner');
+  const { auditSummary } = await import('./src/brandguard.js');
+  assert.equal(auditSummary('Pat Doyle', 'ad rules', { rules: { cr_cut_cpa_x: 2 } }), 'Pat Doyle changed how far over the goal cost an ad set is cut to 2');
+  db.prepare(`DELETE FROM settings WHERE key = 'userBrands'`).run();
 });
 
 await check('billing: paid = the billing day (subscription anchored one month on, card saved, made once); a second invoice in a month is held; Send it anyway; no invoice while one is unpaid', async () => {
   const run = db.prepare(`SELECT * FROM p_newclient WHERE act_id = ?`).get(ACT);
   const st = JSON.parse(run.steps_json).stripe;
   const paidAt = Math.floor(Date.UTC(2026, 0, 31, 18) / 1000);   // Jan 31 in Central
-  const inv = { ...S.invoices[st.invoice], status: 'paid', payment_intent: 'pi_1', status_transitions: { paid_at: paidAt } };
+  /* Never on a zero or part payment, or another invoice: those start nothing. */
+  assert.equal(await newclient.markFirstPaid(ahEnv, run, { ...S.invoices[st.invoice], status: 'paid', amount_paid: 0, status_transitions: { paid_at: paidAt } }), null, 'a $0 "paid" starts nothing');
+  assert.equal(await newclient.markFirstPaid(ahEnv, run, { id: 'in_other', status: 'paid', amount_paid: 400000 }), null, 'another invoice starts nothing');
+  assert.equal(Object.values(S.subs).length, 0);
+  const inv = { ...S.invoices[st.invoice], status: 'paid', amount_paid: 400000, payment_intent: 'pi_1', status_transitions: { paid_at: paidAt } };
   /* Through the signed webhook route. */
   const body = JSON.stringify({ type: 'invoice.paid', data: { object: inv } });
   const t = Math.floor(Date.now() / 1000);
@@ -450,7 +649,13 @@ await check('billing: paid = the billing day (subscription anchored one month on
   assert.equal(held.invoice, 'in_held1');
   const o = await ah(OWNER, 'GET', '/api/mywork?who=Cole');
   const hl = o.j.items.find(i => i.source === 'onboard' && i.onboard.kind === 'invoice_held');
-  assert.ok(hl, 'the owner line'); assert.equal(hl.text, 'Northlake Golf: next invoice held, the last one is not paid'.replace('the last one is not paid', 'the last one is not paid'));
+  assert.ok(hl, 'the owner line'); assert.equal(hl.text, 'Northlake Golf: next invoice held, there is already an invoice this month');
+  /* The hold outlives onboarding: a finished setup still shows it, with the release button, on My day and its page. */
+  db.prepare(`UPDATE p_onboard SET finished_at = ? WHERE act_id = ?`).run(new Date().toISOString(), ACT);
+  assert.ok((await ah(OWNER, 'GET', '/api/mywork?who=Cole')).j.items.some(i => i.source === 'onboard' && i.onboard.kind === 'invoice_held'), 'still on My day once finished');
+  const pg = await ah(OWNER, 'GET', `/api/onboard?act=${ACT}`);
+  assert.ok(pg.j.team.lines.some(l => l.kind === 'invoice_held' && l.action && l.action.kind === 'release'), 'Send it anyway on their page');
+  db.prepare(`UPDATE p_onboard SET finished_at = NULL WHERE act_id = ?`).run(ACT);
   assert.deepEqual(hl.onboard.action, { kind: 'release', invoice: 'in_held1' });
   assert.equal((await ah(TEAM, 'POST', '/api/onboard/billing', { act: ACT, release: 'in_held1' })).status, 403);
   const rel = await ah(OWNER, 'POST', '/api/onboard/billing', { act: ACT, release: 'in_held1' });
@@ -465,6 +670,37 @@ await check('billing: paid = the billing day (subscription anchored one month on
   assert.equal(busy.status, 200);
   assert.equal(busy.j.results.invoice.status, 'failed'); assert.match(busy.j.results.invoice.text, /already an unpaid invoice/);
   assert.equal(Object.values(S.invoices).filter(i => i.customer === 'cus_busy').length, 1, 'nothing new made');
+});
+
+await check('first invoice retry: a line that failed is added again before the invoice is sent, so an empty invoice never settles as paid', async () => {
+  S.failItems = 1;
+  const r = await ah(OWNER, 'POST', '/api/onboard/send', { ...FORM, name: 'Retry Tees', contact_name: 'Ash Lin', contact_email: 'ash@retry.example.com', confirm: true });
+  assert.equal(r.status, 200, JSON.stringify(r.j));
+  assert.equal(r.j.results.invoice.status, 'failed', 'the line failed');
+  const run = db.prepare(`SELECT * FROM p_newclient WHERE act_id = ?`).get(r.j.act);
+  const id = JSON.parse(run.steps_json).stripe.invoice;
+  assert.equal(S.invoices[id].status, 'draft'); assert.equal(S.invoices[id].amount_due, 0, 'an empty draft is on file');
+  const from = log.length;
+  const again = await ah(OWNER, 'POST', '/api/onboard/send-part', { act: r.j.act, part: 'invoice', confirm: true });
+  assert.equal(again.status, 200, JSON.stringify(again.j)); assert.equal(again.j.result.status, 'done');
+  const calls = log.slice(from).filter(c => c.u.startsWith('https://api.stripe.com/')).map(c => `${c.method} ${new URL(c.u).pathname}`);
+  const item = calls.findIndex(c => /invoiceitems$/.test(c)), fin = calls.findIndex(c => /finalize$/.test(c));
+  assert.ok(item >= 0 && fin > item, 'the line goes on before finalize: ' + calls.join(' | '));
+  assert.equal(log.slice(from).find(c => /invoiceitems$/.test(c.u)).idem, `locus-item-${run.id}`, 'the same idempotency key');
+  assert.equal(S.invoices[id].amount_due, 400000); assert.equal(S.invoices[id].status, 'open');
+});
+
+await check('test mode (mailTestTo): Stripe and the Slack Connect invite never reach the real client', async () => {
+  setSetting('mailTestTo', 'qa@example.com');
+  const from = log.length;
+  const r = await ah(OWNER, 'POST', '/api/onboard/send', { ...FORM, name: 'Test Mode Golf', contact_name: 'Real Person', contact_email: 'real.person@client.example.com', confirm: true });
+  assert.equal(r.status, 200, JSON.stringify(r.j));
+  const calls = log.slice(from);
+  assert.ok(!calls.some(c => /api\.stripe\.com|slack\.com/.test(c.u) && String(c.body || '').includes('real.person')), 'no Stripe or Slack call carries the real address');
+  assert.ok(!calls.some(c => c.u.includes('conversations.inviteShared')), 'no Slack Connect invite');
+  assert.equal(r.j.results.slackInvite.status, 'skipped'); assert.match(r.j.results.slackInvite.text, /Test mode/);
+  assert.ok(S.customers.some(c => c.email === 'qa@example.com'), 'the Stripe customer is the test address');
+  db.prepare(`DELETE FROM settings WHERE key = 'mailTestTo'`).run();
 });
 
 await check('Resend with no key sends nothing through Resend; a key and a sender move product mail there; the test recipient rewrite', async () => {
@@ -494,6 +730,14 @@ await check('other agencies (onboardExtras off): only a brand, connect and an in
   for (const k of ['agreement', 'invoice', 'slack', 'ledger']) assert.equal(r.j.results[k].status, 'skipped');
   assert.equal(ledgerCalls.length, l0); assert.ok(!log.slice(from).some(c => /stripe|slack\.com/.test(c.u)));
   const p = row(r.j.act); assert.equal(p.sign_pay, 0); assert.equal(p.extras, 0);
+  /* Decision 11: connect only. No brief, no assets link: the gate opens once connect is done. */
+  const OLLY = mint('o@other.example.com');
+  const st0 = await ah(OLLY, 'GET', `/api/onboard?act=${r.j.act}`);
+  assert.deepEqual(st0.j.steps.map(s => s.key), ['connect']); assert.equal(st0.j.brief, null);
+  assert.deepEqual((await ah(OLLY, 'GET', '/api/me')).j.client.onboarding.left, ['connect']);
+  for (const pl of st0.j.connect.platforms) await ah(OLLY, 'PUT', '/api/onboard/connect', { act: r.j.act, platform: pl.key, skip: true });
+  assert.equal((await ah(OLLY, 'GET', `/api/onboard?act=${r.j.act}`)).j.gated, false, 'connect done, nothing else asked');
+  assert.equal((await ah(OLLY, 'GET', '/api/me')).j.client.onboarding.gated, false);
   const w = outbox.filter(m => m.to === 'o@other.example.com').pop();
   assert.ok(!/agreement|invoice|Slack|sign and pay/i.test(w.text), w.text);
   db.prepare(`DELETE FROM settings WHERE key = 'onboardExtras'`).run();
@@ -505,6 +749,11 @@ await check('finish: Mark finished ends the gate; a finished brand has no lines'
   assert.equal(f.status, 200);
   assert.equal((await ah(PAT, 'GET', '/api/me')).j.client.onboarding.gated, false);
   assert.ok(!(await onb.onboardLines(ahEnv)).some(l => l.act === ACT));
+  /* A held invoice arriving after setup ended still reaches the owner. */
+  const runId = db.prepare(`SELECT id FROM p_newclient WHERE act_id = ?`).get(ACT).id;
+  db.prepare(`UPDATE p_newclient SET steps_json = json_set(steps_json, '$.stripe.held', json(?)) WHERE id = ?`).run(JSON.stringify({ invoice: 'in_late', why: 'the last one is not paid', at: new Date().toISOString() }), runId);
+  const late = (await onb.onboardLines(ahEnv)).filter(l => l.act === ACT);
+  assert.deepEqual(late.map(l => l.kind), ['invoice_held']); assert.ok(late[0].to.owner_only);
   assert.equal((await ah(TEAM, 'POST', '/api/onboard/reopen', { act: ACT })).status, 403, 'reopen is the owner\'s');
 });
 

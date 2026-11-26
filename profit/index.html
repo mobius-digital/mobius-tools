@@ -2735,6 +2735,10 @@ async function boot() {
        its own brand only, no All clients. The server enforces all of it (brandguard.js); this only draws it. */
     try { const me = await apiAH('/api/me'); S.role = me.role || 'team'; S.client = me.client || null; S.meEmail = me.email || ''; }
     catch (e) { if (/unauthorized/i.test(e.message)) throw e; S.role = 'team'; }
+    /* A new client still on setup (every brand held, or a colleague handed one step) has no Get started here:
+       new Locus holds them there, so this address sends them on. The session is the same (shared sign in). */
+    { const o = S.role === 'client' && S.client && S.client.onboarding;
+      if (o && o.gated && (o.all_gated || (o.only && o.only.length) || !Array.isArray(o.gated_slugs)) && o.slug) { location.replace('v5/#/brand/' + encodeURIComponent(o.slug) + '/get-started/index'); return; } }
     /* A second boot() always follows a save, so it skips the worker's 90-second memo (refreshAccounts says why). */
     const r = await api('/api/overview?' + rangeQ() + (boot.done ? '&fresh=1' : ''));
     boot.done = true;

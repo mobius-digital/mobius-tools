@@ -39,7 +39,7 @@
 import { asana, asanaAll, googleToken, setDrive, PENDING, onboardAsanaTick } from './asana-brand.js';
 import { sendContract, contractDefaults, contractHtml, ensureContractTable, aiEdit, aiAmend, sendAmendment } from './contract.js';
 import { frameProject, frameStatus } from './frame.js';
-import { sendMail } from './mail.js';
+import { sendMail, testRecipient } from './mail.js';
 import { ensureCalendlyHook } from './calendly.js';
 import { createBrand, addConnection, resolveBrandId, setTripleWhale } from './brands.js';
 import { todaysCard } from './morningcard.js';
@@ -376,6 +376,8 @@ async function stepSlackInvite(env, r) {
   if (!emailOk(r.contact_email)) throw new Error('No client email.');
   const st = safeJson(r.steps_json, {});
   if (st.email?.status !== 'done') throw new Error('The Slack invite goes after the welcome email. Send the welcome first.');
+  /* Test mode (settings mailTestTo): the Slack Connect invite is not an email, so it cannot be rewritten; it is held. */
+  if (await testRecipient(env)) return { status: 'skipped', text: `Test mode: the Slack invite to ${r.contact_email} was not sent.` };
   const inv = await slackConnect(env, r, r.slack_client);
   if (!inv.ok) throw new Error(inv.note);
   return { text: `${r.contact_email} invited to the shared Slack channel.` };
@@ -671,19 +673,34 @@ export function nextAnchor(paidSec) {
 async function stepFirstInvoice(env, r, b) {
   if (!(r.retainer > 0)) return { status: 'skipped', text: 'No fee typed, so no invoice.' };
   const st = safeJson(r.steps_json, {});
-  const payer = String(st.payer || '').trim().toLowerCase() || r.contact_email;
+  /* Test mode (settings mailTestTo): Stripe emails the invoice itself, so the customer is made with the test address. */
+  const testTo = await testRecipient(env);
+  const payer = testTo || String(st.payer || '').trim().toLowerCase() || r.contact_email;
   if (!emailOk(payer)) throw new Error('No client email, so there is nobody to invoice.');
   const prev = st.stripe || {};
+  const cents = Math.round(r.retainer * 100);
+  const desc = `${r.name} retainer, first month`;
   const amt = `$${Math.round(r.retainer).toLocaleString('en-US')}`;
   if (prev.mode === 'first_invoice' && prev.invoice) {
     /* Made before: finish sending it, or read where it stands ("Check if paid"). Never a second invoice. */
     let inv = await stripe(env, 'GET', `invoices/${prev.invoice}`);
     if (inv.status === 'draft') {
       if (!b.approved) throw new Error('The invoice is only sent when you press Send on it.');
+      /* The first try may have stopped between making the invoice and adding its line. An empty draft finalizes to a
+         zero total, which Stripe settles as PAID: so the line goes on (same idempotency key) before anything else. */
+      if (!(Number(inv.amount_due) === cents && (inv.lines?.data || []).length)) {
+        await stripe(env, 'POST', 'invoiceitems', { customer: inv.customer || prev.customer, invoice: inv.id, amount: cents, currency: 'usd', description: desc }, `locus-item-${r.id}`);
+        inv = await stripe(env, 'GET', `invoices/${inv.id}`);
+        if (Number(inv.amount_due) !== cents) throw new Error(`The invoice in Stripe is for $${Number(inv.amount_due || 0) / 100}, not ${amt}, so it was not sent. Fix it in Stripe, then press Try again.`);
+      }
       await stripe(env, 'POST', `invoices/${inv.id}/finalize`, { auto_advance: false }).catch(e => { if (!/already|finalized/i.test(e.message)) throw e; });
       inv = await stripe(env, 'POST', `invoices/${inv.id}/send`);
     }
-    if (inv.status === 'paid') { const paid = await markFirstPaid(env, r, inv); return { ...paid, status: 'done' }; }
+    if (inv.status === 'paid') {
+      const paid = await markFirstPaid(env, r, inv);
+      if (!paid) throw new Error(`Stripe shows this invoice as paid, but not for the full ${amt}. Check it in Stripe; nothing was started.`);
+      return { ...paid, status: 'done' };
+    }
     return { ...prev, status: 'done', paid: false, url: inv.hosted_invoice_url || prev.url, sent_at: prev.sent_at || new Date().toISOString(), text: `First invoice sent, ${inv.status || 'open'}. ${amt}.` };
   }
   if (!b.approved) throw new Error('The invoice is only sent when you press Send on it.');
@@ -695,12 +712,11 @@ async function stepFirstInvoice(env, r, b) {
   if ((open.data || []).length) throw new Error('There is already an unpaid invoice for this customer, so nothing new was made.');
   const month = await stripe(env, 'GET', `invoices?${form({ customer: customer.id, 'created[gte]': centralMonthStart(), limit: 10 })}`);
   if ((month.data || []).some(i => i.status !== 'void')) throw new Error('This customer already has an invoice this month.');
-  const desc = `${r.name} retainer, first month`;
   const inv = await stripe(env, 'POST', 'invoices', { customer: customer.id, collection_method: 'send_invoice', days_until_due: 7, auto_advance: false, pending_invoice_items_behavior: 'exclude',
     description: desc, metadata: { locus: r.id, locus_kind: 'first', locus_v: '2' } }, `locus-first-${r.id}`);
   /* Kept at once, so Try again finishes THIS invoice instead of making a second. */
   await setStep(env, r.id, 'stripe', { mode: 'first_invoice', customer: customer.id, invoice: inv.id, status: 'failed', text: 'Made in Stripe, not sent yet. Press Try again.' });
-  await stripe(env, 'POST', 'invoiceitems', { customer: customer.id, invoice: inv.id, amount: Math.round(r.retainer * 100), currency: 'usd', description: desc }, `locus-item-${r.id}`);
+  await stripe(env, 'POST', 'invoiceitems', { customer: customer.id, invoice: inv.id, amount: cents, currency: 'usd', description: desc }, `locus-item-${r.id}`);
   await stripe(env, 'POST', `invoices/${inv.id}/finalize`, { auto_advance: false }).catch(e => { if (!/already|finalized/i.test(e.message)) throw e; });
   const sent = await stripe(env, 'POST', `invoices/${inv.id}/send`);
   return { status: 'done', mode: 'first_invoice', customer: customer.id, invoice: inv.id, url: sent.hosted_invoice_url || null, sent_at: new Date().toISOString(), paid: false,
@@ -711,6 +727,9 @@ async function stepFirstInvoice(env, r, b) {
 export async function markFirstPaid(env, r, inv) {
   const st = safeJson((await getRun(env, r.id))?.steps_json, {}).stripe || {};
   if (st.subscription) return st;
+  /* Only THIS run's first invoice, paid in full, starts billing. An empty draft settles at $0 as "paid" (a first try that
+     stopped before its line), and that must never open the gate, set a billing day or skip the first month. */
+  if (!inv || !st.invoice || inv.id !== st.invoice || !(Number(inv.amount_paid) >= Math.round(r.retainer * 100))) return null;
   const paidSec = Number(inv?.status_transitions?.paid_at) || Math.floor(Date.now() / 1000);
   const { anchor, day } = nextAnchor(paidSec);
   const customer = st.customer || (typeof inv.customer === 'string' ? inv.customer : inv.customer?.id);
@@ -1158,6 +1177,9 @@ export async function handleNewClient(request, env, path, json, isAdmin, who) {
         }
       }
       await env.DB.prepare(`DELETE FROM p_newclient WHERE id = ?1`).bind(r.id).run();
+      /* The onboarding checklist goes with it (onboard.js p_onboard): no more reminders, team lines or Get started gate
+         for a client Cole removed. Only this run's row; the table may not exist yet. */
+      if (r.act_id) await env.DB.prepare(`DELETE FROM p_onboard WHERE act_id = ?1 AND run_id = ?2`).bind(r.act_id, r.id).run().catch(() => {});
       return json({ ok: true });
     }
     return json({ error: 'not found' }, 404);

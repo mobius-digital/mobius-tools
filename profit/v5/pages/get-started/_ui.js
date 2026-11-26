@@ -157,4 +157,9 @@ const CSS = `
   .gs-form .two{grid-template-columns:minmax(0,1fr)}
   .gs-line{grid-template-columns:minmax(0,1fr)}
 }
+/* a phone: a choice of four (the goal measure) wraps onto two rows, every choice shows, nothing scrolls sideways */
+@media (max-width:479px){
+  .gs .lx-seg{display:flex;flex-wrap:wrap;overflow:visible}
+  .gs .lx-seg button{flex:1 1 auto}
+}
 `;

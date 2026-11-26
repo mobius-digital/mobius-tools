@@ -271,7 +271,12 @@ function question(q, B, ctx) {
   const saved = h('span', { class: 'saved', 'aria-live': 'polite' });
   const notSure = button("I'm not sure", { class: unsure ? 'on' : '' });
   let last = unsure ? '__unsure' : cur;
-  async function save(val) {
+  /* Saves of one question run one after another and each sends the LATEST value, so a blur save racing an
+     "I'm not sure" tap can never land last with the old text: the last tap wins. */
+  let want = null, chain = Promise.resolve();
+  const save = val => { want = val; chain = chain.then(run, run); return chain; };
+  async function run() {
+    const val = want;
     if (val === last) return;
     saved.textContent = 'Saving';
     try {
@@ -288,8 +293,9 @@ function question(q, B, ctx) {
       else if (ctx.sample && B.done) redraw();
     } catch (e) { saved.textContent = 'Not saved'; fail(e); }
   }
-  ta.addEventListener('blur', () => save(ta.value.trim() || (last === '__unsure' ? '__unsure' : '')));
-  notSure.addEventListener('click', () => { const on = last !== '__unsure'; if (on) ta.value = ''; save(on ? '__unsure' : ta.value.trim()); });
+  const now = () => (want != null ? want : last);
+  ta.addEventListener('blur', () => save(ta.value.trim() || (now() === '__unsure' ? '__unsure' : '')));
+  notSure.addEventListener('click', () => { const on = now() !== '__unsure'; if (on) ta.value = ''; save(on ? '__unsure' : ta.value.trim()); });
   const draft = q.draft && !cur ? h('div', { class: 'gs-draft' }, h('span', null, 'From your website: ' + q.draft),
     button('Use this', { onclick: e => { ta.value = q.draft; e.currentTarget.parentNode.remove(); save(q.draft); } })) : null;
   return h('div', { class: 'gs-q' }, h('div', { class: 'qt' }, h('i', null, q.n), h('b', null, q.text)),
@@ -466,9 +472,24 @@ async function readSite(ctx, btn) {
 /* ---------- the page ---------- */
 function redraw() { if (CUR && CUR.el.isConnected) draw(CUR.el, CUR.D, CUR.ctx); }
 
+/* Back on this tab (they signed or paid in another one, a colleague finished a step): read the state again at once.
+   Not while someone is typing in a box on the page, so nothing they typed is drawn over. */
+let focusHooked = false;
+function hookFocus() {
+  if (focusHooked) return;
+  focusHooked = true;
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible' || !CUR || !CUR.el.isConnected || CUR.ctx.sample || !CUR.ctx.brand || !CUR.D || CUR.D.none) return;
+    const a = document.activeElement;
+    if (a && CUR.el.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return;
+    reread_().then(() => { if (CUR && CUR.D && CUR.D.gated === false && realClient(CUR.ctx) && !CUR.D.only) redraw(); }).catch(() => {});
+  });
+}
+
 function draw(el, D, ctx) {
   css();
   CUR = { el, D, ctx };
+  hookFocus();
   if (!ctx.brand) return put(el, empty({ title: 'Pick a brand', text: 'Get started belongs to one brand. Pick it from the brand switcher.' }));
   if (!D || D.none) return put(el, empty(teamView(ctx)
     ? { title: 'No setup for this brand', text: 'This brand was not added through New client, so it has no checklist.', action: button('New client', { href: '#/agency/all/a-clients/new', icon: 'arrow' }) }
