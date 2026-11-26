@@ -1,12 +1,16 @@
 /* Agency > Today. What needs a person today, across every brand.
    Four counts, then every brand as the same card (the ones that need someone carry a pill and come first),
    then where Meta money went in the last 7 days, then today's meetings.
-   Sales and MER are the whole store this month. Meta ROAS is Triple Whale, last platform click, last 7 days. */
+   Sales and MER are the whole store this month. Meta ROAS is Triple Whale, last platform click, last 7 days.
+   Team only, above the brands: the one line on what already works in new Locus (dismissible on this device), and
+   what waits on the team across every brand (the bell's list, loadWaiting in bell.js), read after the page draws. */
 
 import { put } from '../../kit.js';
 import { h, em, money, pct, x, pill, statusDot, delta, button, card, table, gauge, empty } from '../../kit.js';
 import { rangeOf } from '../../data.js';
 import { homeNotices } from '../automations/_notices.js';
+import { primeRead } from '../../bell.js';
+import { liveNote, waitingCard } from '../my-day/_waiting.js';
 import { style, world, readBrands, soft, paceOf, plat, ok, sumOf, figs, figures, brandName, brandHref, quiet, exampleChip, longDay, shortDay } from './_ag.js';
 
 /* ---------- real mode ---------- */
@@ -20,6 +24,8 @@ async function load(ctx) {
     soft(ctx.api('/api/requests?act=all', opt)),                  // client requests waiting on the team
     world(),                                                      // meetings have no feed yet
   ]);
+  primeRead('/api/buyer-list?act=all&ads=0', calls);     // the waiting card reads the same two routes: hand them over
+  primeRead('/api/requests?act=all', reqs);
   const rows = calls && Array.isArray(calls.rows) ? calls.rows.filter(r => !r.decided) : null;
   const by = {}; let loadAds = 0;
   for (const r of rows || []) { if (r.kind === 'launch') loadAds++; else by[r.act_id] = (by[r.act_id] || 0) + 1; }
@@ -103,7 +109,7 @@ function render(el, d, ctx) {
     h('div', { class: 'lx-rows' }, d.meetings.map(m => h('div', null, h('b', { style: { minWidth: '52px', fontVariantNumeric: 'tabular-nums' } }, m.time), h('span', { style: { flex: '1', minWidth: '0' } }, m.title), statusDot(m.state === 'ready' ? 'good' : 'warn', m.note))))) : null;
 
   const foot = h('p', { class: 'lx-foot' }, 'Sales and MER are the whole store, this month through yesterday. Meta ROAS is one platform: Triple Whale, last platform click, last 7 days. A brand with no sales source shows no sales figure.');
-  put(el, h('div', { class: 'ag' }, hero, homeNotices(ctx), cards, weekCard, meet, foot));
+  put(el, h('div', { class: 'ag' }, hero, liveNote(ctx), homeNotices(ctx), waitingCard(ctx), cards, weekCard, meet, foot));
 }
 
 export default {

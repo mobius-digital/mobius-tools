@@ -1,7 +1,9 @@
 /* Agency > Meta > Load ads. "Which brands have ads waiting to go into Meta?"
    One row per brand: cards ready to load, cards loaded and waiting for their date, the next go live date, and
    what was loaded in the last 7 days. A row opens that brand's own Load ads page, where each card shows
-   where it would go. Read only.
+   where it would go. Under it, every card in Ready across the brands, each with a Load button that runs the real
+   load for that card's brand (production/_load.js: batch-prep, batch-preview, batch-create, made paused).
+   Sample mode never loads. Viewers see the list with no Load button.
 
    Real mode reads (GET only, two calls for every brand at once):
      GET /api/production?act=all   account-health: every brand's board; the cards in Ready and Scheduled
@@ -13,6 +15,12 @@ import { h, em, card, hero, kpi, kpis, table, statusDot, empty, skeleton, put, n
 import { APP_NAME } from '../../config.js';
 import { plural, day, todayOf, weekOf, isDay } from '../production/_ui.js';
 import { soft, styles } from '../meta/_rest.js';
+import { picture } from '../production/_ui.js';
+import { openLoad } from '../production/_load.js';
+import { canWrite } from '../production/_act.js';
+import { refresh } from '../../router.js';
+import { SAMPLE } from '../../data.js';
+import { button } from '../../kit.js';
 
 const CSS = `
 .al-brand{display:inline-flex;align-items:center;gap:8px;min-width:0;font-weight:600}
@@ -28,7 +36,16 @@ const CSS = `
 .al-next .t{min-width:0}
 .al-next .t b{display:block;font-weight:600;overflow-wrap:anywhere}
 .al-next .t small{display:block;color:var(--muted);font-size:12.5px}
+.al-ready{display:grid}
+.al-ready>div{display:grid;grid-template-columns:48px minmax(0,1fr) auto;gap:14px;align-items:center;padding:12px 28px;border-top:1px solid var(--line);min-width:0}
+.al-ready>div:first-child{border-top:0}
+.al-ready .pd-pic{width:48px;border-radius:8px}
+.al-ready .t{min-width:0}
+.al-ready .t b{display:block;font-weight:600;overflow-wrap:anywhere}
+.al-ready .t small{display:block;color:var(--muted);font-size:12.5px}
 @media (max-width:759px){
+  .al-ready>div{grid-template-columns:44px minmax(0,1fr);gap:8px 12px;padding:12px 16px}
+  .al-ready>div>.lx-btn{grid-column:1/-1;width:100%;min-height:44px}
   .al-n small{display:block;white-space:nowrap}
   .al-next>a{grid-template-columns:72px minmax(0,1fr);gap:4px 12px;padding:12px 16px}
   .al-next>a>.lx-stat{grid-column:2}
@@ -64,7 +81,10 @@ export function build({ board, launches }) {
   const rows = [...by.values()].sort((a, b) => b.ready - a.ready || b.waiting - a.waiting || (b.loaded7 || 0) - (a.loaded7 || 0));
   const dated = cards.filter(c => isDay(c.launch_on) && c.launch_on >= today).sort((a, b) => a.launch_on.localeCompare(b.launch_on) || String(a.brand).localeCompare(String(b.brand)))
     .slice(0, 10).map(c => ({ act_id: c.act_id, brand: c.brand || names.get(c.act_id) || '', num: c.num || '', title: c.title || '', format: c.format || '', date: c.launch_on, loaded: c.board === 'scheduled' }));
-  return { today, log_ok: !!log, rows, dated };
+  const readyCards = cards.filter(c => c.board === 'ready').map(c => ({ id: c.id, act_id: c.act_id, brand: c.brand || names.get(c.act_id) || '', num: c.num ? String(parseInt(c.num, 10) || c.num) : '',
+    title: c.title || '', format: c.format || '', files: +c.versions || 0, thumb: c.thumb || null, art: c.art || null, launch_on: isDay(c.launch_on) ? c.launch_on : '' }))
+    .sort((a, b) => String(a.launch_on || '9').localeCompare(String(b.launch_on || '9')) || String(a.brand).localeCompare(String(b.brand)));
+  return { today, log_ok: !!log, rows, dated, ready_cards: readyCards };
 }
 
 async function load(ctx) {
@@ -116,12 +136,19 @@ export default {
             d.log_ok ? { key: 'last', label: 'Last load', class: 'hide-md', render: r => r.last ? day(r.last.slice(0, 10)) : 'None this week' } : null,
           ].filter(Boolean),
         })),
+      (d.ready_cards || []).length ? card({ title: 'Ready to load, every brand', note: 'soonest go live first', flush: true },
+        h('div', { class: 'al-ready' }, d.ready_cards.map(c => h('div', null,
+          picture({ src: c.thumb, art: c.art, video: c.format === 'Video' || c.format === 'UGC', ratio: '1/1' }),
+          h('span', { class: 't' }, h('b', null, (c.num ? c.num + '  ' : '') + (c.title || 'Untitled card')),
+            h('small', null, [c.brand, c.format, c.files ? plural(c.files, 'file') : null, c.launch_on ? 'goes live ' + day(c.launch_on) : null].filter(Boolean).join(', '))),
+          canWrite(ctx) ? button('Load', { primary: true, large: true, aria: 'Load card ' + (c.num || c.title), onclick: () => openLoad(ctx, { act: c.act_id, card: c, onDone: () => { if (!SAMPLE) refresh({ fresh: true }); } }) })
+            : (pageOf(ctx, c.act_id) ? button('See', { href: pageOf(ctx, c.act_id) }) : null))))) : null,
       d.dated.length ? card({ title: 'Going live next', note: 'cards with a go live date', flush: true },
         h('div', { class: 'al-next' }, d.dated.map(c => h('a', { href: pageOf(ctx, c.act_id) || '#' },
           h('span', { class: 'd' }, day(c.date, true)),
           h('span', { class: 't' }, h('b', null, (c.num ? c.num + '  ' : '') + (c.title || 'Untitled card')), h('small', null, [c.brand, c.format].filter(Boolean).join(', '))),
           c.loaded ? statusDot('good', 'Loaded') : statusDot('warn', 'Not loaded yet'))))) : null,
-      h('p', { class: 'lx-foot' }, `Read only. A brand opens its own Load ads page, where each card shows the ad set it would go to. Loaded means loaded through ${APP_NAME}; ads made straight in Meta are counted on the brand's page. Loading still runs from old ${APP_NAME}.`),
+      h('p', { class: 'lx-foot' }, `A brand opens its own Load ads page, where each card shows the ad set it would go to. Load puts every approved ad of a card into one ad set, switched off, after a dry run you check first. Loaded means loaded through ${APP_NAME}; ads made straight in Meta are counted on the brand's page.`),
     ].filter(Boolean));
   },
 };

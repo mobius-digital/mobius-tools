@@ -1,11 +1,13 @@
 /* Agency > Production > Pipeline. "Is every brand's work on time?"
    One row per brand: how many cards sit in each stage (a bar and the counts), what is late and what waits on the
    client, then the late cards and the client waits as lists. A row opens that brand's board; a card opens its sheet.
-   Read only. Data: GET /api/production?act=all on the account-health worker (see _ap.js). */
+   A card opens its sheet, where the team moves, assigns and approves it (see production/_sheet.js). Data: GET /api/production?act=all on the account-health worker (see _ap.js). */
 
 import { APP_NAME } from '../../config.js';
 import { h, hero, kpi, kpis, em, card, table, statusDot, empty, skeleton } from '../../kit.js';
 import { SAMPLE } from '../../data.js';
+import { refresh } from '../../router.js';
+import { canWrite } from '../production/_act.js';
 import { put, css, day, plural, dueText } from '../production/_ui.js';
 import { openCard } from '../production/_sheet.js';
 import { apCss, loadAll, brandName, boardOf, lateBy, todayOf, weekOf, daysFrom } from './_ap.js';
@@ -39,7 +41,7 @@ const bar = r => {
 const n = v => h('span', { class: 'ap-n' + (v ? '' : ' zero') }, String(v));
 
 function line(ctx, c, data, today, right) {
-  return h('button', { type: 'button', class: 'pd-line', onclick: () => openCard(ctx, c, { photos: data.photos || {}, today }) },
+  return h('button', { type: 'button', class: 'pd-line', onclick: () => openCard(ctx, c, { photos: data.photos || {}, today, team: data.team || [], onChange: () => { if (!SAMPLE) refresh({ fresh: true }); } }) },
     h('span', { class: 'n' }, c.num),
     h('span', { class: 't' }, h('b', null, c.title || 'Untitled card'), h('small', null, brandName(ctx, c.act_id, c.brand), ', ' + (c.format || ''))),
     h('span', { class: 'w' }, c.assignee ? c.assignee.split(' ')[0] : statusDot('warn', 'Nobody')),
@@ -98,6 +100,6 @@ export default {
           const waited = c.client_sent_at ? daysFrom(c.client_sent_at, today) : null;
           return line(ctx, c, data, today, h('span', { class: 'd' }, waited != null ? (waited <= 0 ? 'sent today' : 'sent ' + plural(waited, 'day') + ' ago') : dueText(c, today)));
         }))) : null,
-      h('p', { class: 'lx-foot' }, 'Read only. A brand opens its board; a card opens its sheet. Cards are moved and assigned in old ' + APP_NAME + '. Late means past its date and not yet approved.'));
+      h('p', { class: 'lx-foot' }, (canWrite(ctx) ? 'A brand opens its board; a card opens its sheet, where you can move it, assign it and approve it.' : 'A brand opens its board; a card opens its sheet.') + ' Late means past its date and not yet approved.'));
   },
 };

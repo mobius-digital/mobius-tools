@@ -1,6 +1,8 @@
 /* Ads > All platforms > Changes made, for ONE brand: one list of what changed on Meta, Google and TikTok,
    newest first, day by day. The same look as the agency list (pages/a-platforms/changes.js) and the same
-   words as Meta > Changes made. Read only: a row opens a sheet with the whole change, nothing is edited here.
+   words as Meta > Changes made. A row opens a sheet with the whole change. A Meta change made through the app in
+   the last 24 hours has Undo in that sheet (team only): a confirm, then POST account-health /api/meta/undo
+   {act, write}, the write id read from the change's note ("Write mw_...").
 
    Real mode reads (GET only):
      team    account-health /api/activities?act=&from=&to=&limit=    Meta's own log, plus every change made through the app
@@ -15,6 +17,7 @@ import { APP_NAME } from '../../config.js';
 import { PLATFORM_NAME } from '../../icons.js';
 import { style } from '../a-today/_more.js';
 import { figures, quiet, longDay } from '../a-today/_ag.js';
+import { canUndo, undoSheet, undoneSet, writeOf } from '../meta/_write.js';
 
 const CSS = `
 button.pc-row{width:100%;border:0;border-top:1px solid var(--line);background:transparent;font:inherit;color:inherit;text-align:left;cursor:pointer}
@@ -30,6 +33,9 @@ button.pc-row:hover .t>b{text-decoration:underline;text-decoration-color:var(--l
 .pc-kv small{font-size:13px;color:var(--muted)}
 .pc-kv span{overflow-wrap:anywhere;line-height:1.45}
 .pc-notes{display:grid;gap:6px}
+.pc-row .m small{display:block}
+.pc-row .m .pc-undone{color:var(--bad);font-weight:600}
+.pc-undo{min-height:44px;justify-content:center}
 @media (max-width:759px){
   .pc-bar .sp{display:none}
   .pc-bar .lx-seg{max-width:100%;overflow-x:auto}
@@ -82,11 +88,13 @@ async function load(ctx) {
 
   const [act1, goog] = await Promise.all([ah(`/api/activities?${q}&limit=2000`), ah(`/api/google/ads-changes?act=${act}&from=${w.from}&to=${w.to}`)]);
   if (act1.failed && (goog.failed || goog.error)) return { window: w, connected: false, error: act1.failed };
-  const rows = [], notes = [];
+  const rows = [], notes = [], undone = undoneSet(act1.rows);
   for (const a of (act1.rows || []).filter(a => a.confirmed !== -1)) {
     const cat = a.manual && !a.category ? 'manual' : a.category;
-    rows.push({ id: a.id, at: a.event_time, platform: platOf(a), cat, what: a.summary || a.translated || catWord(cat), name: a.object_name || '', level: levelOf(a.object_type),
-      who: a.actor || null, via: a.manual ? 'added by hand' : '', why: a.client_why || a.reason || '', matters: !!a.manual || MATTER.has(cat) });
+    const app = /^(locus_write|strategist_write)$/.test(String(a.event_type || '')), plat = platOf(a), write = plat === 'meta' ? writeOf(a) : null;
+    rows.push({ id: a.id, at: a.event_time, platform: plat, cat, what: a.summary || a.translated || catWord(cat), name: a.object_name || '', level: levelOf(a.object_type),
+      who: a.actor || null, via: app ? 'in the app' : a.manual ? 'added by hand' : '', why: a.client_why || a.reason || '', matters: !!a.manual || MATTER.has(cat),
+      write, undone: !!(write && undone.has(write)) });
   }
   /* Google's own history. A change made through the app is already in the list above, so the same minute is not listed twice. */
   const seen = new Set(rows.filter(r => r.platform === 'google').map(r => { const s = stamp(r.at); return s.day + '|' + s.min; }));
@@ -103,9 +111,10 @@ async function load(ctx) {
 }
 
 /* ---------- the sheet: one change, whole ---------- */
-function openChange(r, d, ctx) {
+function openChange(r, d, ctx, redraw) {
   const s = stamp(r.at), kv = (label, value) => value ? h('div', null, h('small', null, label), h('span', null, value)) : null;
-  sheet({ title: r.what, body: h('div', { class: 'pc-notes' },
+  const undoable = !d.client_view && r.platform === 'meta' && canUndo(r, ctx);
+  const sh = sheet({ title: r.what, body: h('div', { class: 'pc-notes' },
     h('div', { class: 'pc-kv' }, [
       kv('Platform', platformChip(r.platform)),
       kv('What', catWord(r.cat)),
@@ -113,7 +122,9 @@ function openChange(r, d, ctx) {
       kv('When', [longDay(s.day), s.time].filter(Boolean).join(', ')),
       d.client_view ? null : kv('Who', [nameOf(r.who), r.via].filter(Boolean).join(', ')),
       kv('Why', r.why || (d.client_view ? '' : quiet('No reason written yet'))),
+      r.undone && !d.client_view ? kv('Undo', 'This change was undone. Meta has the old value back.') : null,
     ].filter(Boolean)),
+    undoable ? button('Undo this change', { primary: true, class: 'pc-undo', onclick: () => { sh.close(); undoSheet(ctx, { act: ctx.brand.id, write: r.write, what: r.what, name: [r.level, r.name].filter(Boolean).join(' ') }, ok => { if (ok) { r.undone = true; redraw && redraw(); } }); } }) : null,
     !d.client_view && !r.why && r.platform === 'meta' && ctx.legacy ? button('Add a reason in old ' + APP_NAME, { href: ctx.legacy }) : null,
     !d.client_view ? button(`Open ${platName(r.platform)} changes`, { href: ctx.href(r.platform, 'changes'), icon: 'arrow' }) : null) });
 }
@@ -148,12 +159,13 @@ function render(el, d, ctx) {
     const days = new Map();
     for (const v of shown) (days.get(v.s.day) || days.set(v.s.day, []).get(v.s.day)).push(v);
     put(list, ...(shown.length ? [...days].map(([day, rs]) => card({ title: longDay(day), note: `${rs.length} change${rs.length === 1 ? '' : 's'}`, flush: true },
-      h('div', { class: 'ag-sg' }, rs.map(({ r, s }) => h('button', { type: 'button', class: 'ag-sg-r ag-ch pc-row', onclick: () => openChange(r, d, ctx) },
+      h('div', { class: 'ag-sg' }, rs.map(({ r, s }) => h('button', { type: 'button', class: 'ag-sg-r ag-ch pc-row', onclick: () => openChange(r, d, ctx, draw) },
         h('span', { class: 'k' }, s.time),
         h('span', { class: 't' }, h('span', { class: 'ag-ch-h' }, platformChip(r.platform), h('span', { class: 'lx-chip' }, catWord(r.cat))),
           h('b', null, r.what), r.name ? h('span', { class: 'o' }, [r.level, r.name].filter(Boolean).join(' ')) : null,
           r.why ? h('span', { class: 'w' }, r.why) : d.client_view ? null : quiet('No reason written')),
-        h('span', { class: 'm' }, r.who && !d.client_view ? h('small', null, nameOf(r.who)) : null)))))) : [empty({ title: 'None of these on these dates' })]));
+        h('span', { class: 'm' }, r.who && !d.client_view ? h('small', null, nameOf(r.who)) : null,
+          r.undone && !d.client_view ? h('small', { class: 'pc-undone' }, 'Undone') : !d.client_view && r.platform === 'meta' && canUndo(r, ctx) ? h('small', null, 'Tap to undo') : null)))))) : [empty({ title: 'None of these on these dates' })]));
   };
   draw();
   const bar = h('div', { class: 'pc-bar' }, h('h3', null, 'Every change, newest first'), h('span', { class: 'sp' }),

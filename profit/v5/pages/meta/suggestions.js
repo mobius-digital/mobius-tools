@@ -1,6 +1,7 @@
 /* Ads > Meta > Suggestions for one brand (team only): which ads should change today.
-   READ ONLY in this version. Each row shows the call, the why with its numbers, and a button that opens the
-   old page where the change is made. Nothing on this page writes to Meta or to the list.
+   Each row shows the call, the why with its numbers, and Yes and No (./_write.js, the same routes and bodies as
+   old Locus buyer.js): Yes = dry run, a confirm sheet with before and after, the write, then the decision; No =
+   a one line why, filed as a lesson. A viewer or a client sees no buttons.
 
    Real mode reads:
      GET /api/buyer-list?act=                                        account-health: today's calls from the ad rules, with the ads behind each
@@ -10,6 +11,7 @@ import { put } from '../../kit.js';
 import { h, em, card, button, segmented, gauge, table, empty, skeleton, money, num } from '../../kit.js';
 import { APP_NAME } from '../../config.js';
 import { ok, usd, addDays, shortDate, soft, adTile, gate, foot, styles, statusDot, x } from './_rest.js';
+import { canWrite, yesNo } from './_write.js';
 
 const CSS = `
 .ms-r{display:grid;grid-template-columns:64px minmax(0,1fr) 250px auto;gap:22px;align-items:start;padding:22px 28px;border-top:1px solid var(--line)}
@@ -28,6 +30,7 @@ const CSS = `
 .ms-goal{color:var(--muted);font-size:13.5px}.ms-goal b{color:var(--ink);font-weight:600}
 .ms-early .lx-gauge{min-width:120px}
 .ms-none{padding:22px 28px;color:var(--muted)}
+.ms-old{color:var(--muted);font-size:12.5px;text-decoration:underline;text-underline-offset:3px}
 @media (max-width:1180px){.ms-r{grid-template-columns:64px minmax(0,1fr) 200px}.ms-a{grid-column:2/-1;justify-items:start;text-align:left;max-width:none}}
 @media (max-width:759px){
   .ms-r{grid-template-columns:48px minmax(0,1fr);gap:12px 14px;padding:18px 16px}
@@ -50,8 +53,17 @@ function rowOf(r, hidden) {
     because: c.because || r.why || '', facts: (c.facts || []).map(f => ({ l: f.l, v: f.v, good: !!f.good, bad: !!f.bad })),
     metric: r.metric || null, cpa: r.cpa ?? null, goal: r.goal ?? null, roas: r.roas ?? null, goal_roas: r.goal_roas ?? null, results: r.results ?? null, spend: r.spend ?? null,
     thumb: pic ? pic.cover || null : null, video: pic ? !!pic.video : false, state,
-    note: hidden ? hidden.summary || '' : dec ? dec.note || '' : c.fyi || '', by: hidden ? hidden.by || null : dec ? dec.by || null : null };
+    note: hidden ? hidden.summary || '' : dec ? dec.note || '' : c.fyi || '', by: hidden ? hidden.by || null : dec ? dec.by || null : null,
+    move: callOf(r) };
 }
+/** What Yes and No send: the buyer list row itself (ids, kind, the move), never the display words above. */
+const callOf = r => ({ key: r.key, kind: r.kind, act_id: r.act_id, brand: r.brand, currency: r.currency, object: r.object, level: r.level, name: r.name, set: r.set, action: r.action,
+  why: r.why, why_full: r.why_full, stake: r.stake, do: r.do || null, then: r.then || null, meta_act: r.meta_act, adset_id: r.adset_id, adset: r.adset, ad_id: r.ad_id, ad: r.ad,
+  campaign_id: r.campaign_id, suggested_budget: r.suggested_budget, budget: r.budget, goal: r.goal, goal_roas: r.goal_roas, metric: r.metric, role: r.role, ai: r.ai || null, card: r.card ? { do: r.card.do } : null });
+/** Sample rows carry made up ids and the move in the fixture; the brand is whatever is on screen. */
+const sampleCall = (r, ctx) => ({ key: r.key, kind: r.kind, act_id: ctx.brand ? ctx.brand.id : 'sample', brand: ctx.brand ? ctx.brand.name : '', currency: 'USD',
+  object: r.object_id || r.key, level: r.level, name: r.object, action: r.call, why: r.because, do: r.do || null, adset_id: r.adset_id || null, ad_id: r.ad_id || null,
+  campaign_id: r.campaign_id || null, suggested_budget: r.suggested_budget || null, budget: r.budget || null });
 async function load(ctx) {
   const act = encodeURIComponent(ctx.brand.id);
   const to = new Date(Date.now() - 864e5).toISOString().slice(0, 10), from = addDays(to, -13);
@@ -87,9 +99,16 @@ function measure(r, d) {
   return h('div', { class: 'ms-m' });
 }
 const who = v => { const s = String(v || ''); return s.includes('@') ? s.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, m => m.toUpperCase()) : s; };
-function suggestion(r, d, ctx) {
+function suggestion(r, d, ctx, repaint) {
   let act;
-  if (r.state === 'decide') act = [ctx.legacy ? button('Do it in old ' + APP_NAME, { href: ctx.legacy, icon: 'arrow' }) : null];
+  if (r.state === 'decide' && canWrite(ctx)) {
+    const call = r.move || sampleCall(r, ctx);
+    act = [yesNo(ctx, call, res => {
+      if (!res || !res.decision) { r.state = 'decide'; r.by = null; r.note = ''; }
+      else { r.state = res.decision; r.by = (ctx.me && ctx.me.email) || 'you'; r.note = res.decision === 'no' ? res.note || '' : res.summary || ''; }
+      repaint();
+    })];
+  } else if (r.state === 'decide') act = [statusDot('warn', 'Waiting for the team')];
   else if (r.state === 'yes') act = [statusDot('good', 'Done' + (r.by ? ' by ' + who(r.by) : '')), r.note ? h('span', null, r.note) : null];
   else if (r.state === 'no') act = [statusDot('off', 'Said no' + (r.by ? ', ' + who(r.by) : '')), r.note ? h('span', null, r.note) : null];
   else act = [statusDot('info', r.note || 'Nothing to do')];
@@ -110,14 +129,17 @@ function listCard(d, ctx) {
   let state = 'decide';
   const body = h('div'), cur = d.currency, g = d.goals || {};
   const NONE = { decide: 'Nothing to decide today.', yes: 'Nothing has been done from this list today.', no: 'No call has been turned down today.', fyi: 'Nothing here.' };
-  const paint = () => put(body, ...(of(state).length ? of(state).map(r => suggestion(r, d, ctx)) : [h('div', { class: 'ms-none' }, NONE[state])]));
-  paint();
-  const items = TABS.filter(([id]) => id === 'decide' || of(id).length).map(([id, label]) => ({ id, label: `${label} ${of(id).length}` }));
-  const n = of('decide').length;
+  const segBox = h('span', { style: { display: 'contents' } });
+  const paint = () => put(body, ...(of(state).length ? of(state).map(r => suggestion(r, d, ctx, () => { paint(); tabsPaint(); })) : [h('div', { class: 'ms-none' }, NONE[state])]));
+  const tabsPaint = () => {
+    const items = TABS.filter(([id]) => id === 'decide' || id === state || of(id).length).map(([id, label]) => ({ id, label: `${label} ${of(id).length}` }));
+    put(segBox, segmented(items, state, id => { state = id; paint(); }));
+  };
+  paint(); tabsPaint();
   return [
-    h('div', { class: 'mr-bar' }, segmented(items, state, id => { state = id; paint(); }), h('span', { class: 'sp' }),
+    h('div', { class: 'mr-bar' }, segBox, h('span', { class: 'sp' }),
       g.cpa || g.roas ? h('span', { class: 'ms-goal' }, 'Goal ', h('b', null, g.metric === 'roas' && g.roas ? x(g.roas) + ' ROAS' : g.cpa ? usd(g.cpa, cur) + ' a sale' : x(g.roas) + ' ROAS')) : h('span', { class: 'ms-goal' }, 'No goal set for this brand'),
-      n && ctx.legacy ? button(n === 1 ? 'Answer it in old ' + APP_NAME : `Answer all ${n} in old ${APP_NAME}`, { primary: true, href: ctx.legacy, icon: 'arrow' }) : null),
+      ctx.legacy && canWrite(ctx) ? h('a', { class: 'ms-old', href: ctx.legacy, target: '_blank', rel: 'noopener' }, 'Open in old ' + APP_NAME) : null),
     card({ flush: true, class: 'mr-list' }, body),
   ];
 }
@@ -149,7 +171,7 @@ export default {
     put(el, ...[
       ...listCard(d, ctx), earlyCard(d),
       (d.notes || []).length ? h('p', { class: 'lx-foot' }, 'Could not read everything: ' + d.notes.join('. ')) : null,
-      foot(`This page only reads. A change is made in old ${APP_NAME}, where it lands in the change list with undo. Sales and cost per sale from Triple Whale, last click per platform. Spend from Meta.`),
+      foot(`Yes makes the change in Meta after a look at the before and after, and logs it under Changes made, where it can be undone for 24 hours. No changes nothing. Sales and cost per sale from Triple Whale, last click per platform. Spend from Meta.`),
     ].filter(Boolean));
   },
 };

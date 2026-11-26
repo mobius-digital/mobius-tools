@@ -46,8 +46,10 @@ const KINDS = {
   done: { key: 'done', tab: 'done-today', label: 'Done today', title: () => ['What got ', em('done today?')],
     none: ['Nothing ticked off yet today', 'What gets finished today is listed here, with who did it.'] },
 };
+/* what waits on the team across every brand (bell.js loadWaiting): ad calls, client updates, the War Room, creative, requests */
+const AGENCY_GROUP = { id: 'agency', title: 'Waiting across the agency', note: 'Every brand, today' };
 const TEAM_GROUPS = {
-  needs: [{ id: 'late', title: 'Late' }, { id: 'today', title: 'Due today' }],
+  needs: [{ id: 'late', title: 'Late' }, { id: 'today', title: 'Due today' }, AGENCY_GROUP],
   watching: [{ id: 'week', title: 'Coming up this week', note: 'Yours, not due yet' }],
   done: [{ id: 'you', title: 'By you' }],
 };
@@ -78,7 +80,7 @@ async function loadTeam(ctx, K, more) {
   const raw = ctx.cached('bell', () => ctx.api('/api/mywork' + (me.email ? '?who=' + encodeURIComponent(me.email) : ''), { worker: 'ah' }), null, { maxAge: 60e3 }).then(r => r.data, () => null);
   const [bell, mw, extra] = await Promise.all([loadBell({ me, role: ctx.role, asClient: false, brand: ctx.brand, brands: ctx.brands }), raw, more ? more(ctx) : null]);
   const byLink = new Map(((mw && mw.items) || []).filter(i => i.link).map(i => [i.link, i]));
-  let rows = (bell[K.key] || []).map(r => enrich(r, r.btn && r.btn.href ? byLink.get(r.btn.href) : null, mw && mw.today));
+  let rows = (bell[K.key] || []).map(r => (r.agency ? { ...r, group: 'agency', when: '' } : enrich(r, r.btn && r.btn.href ? byLink.get(r.btn.href) : null, mw && mw.today)));
   if (K.key === 'needs') rows.sort((a, b) => (a.late ? 0 : 1) - (b.late ? 0 : 1) || (b.days || 0) - (a.days || 0));
   if (K.key === 'watching') rows = rows.map(r => ({ ...r, group: 'week' }));
   /* a ticked row has no time on it yet, so none is shown */
@@ -88,7 +90,7 @@ async function loadTeam(ctx, K, more) {
     kind: K.key, mode: 'team', lateKnown: K.key === 'needs',
     groups: [...TEAM_GROUPS[K.key], ...(x.groups || [])], rows: [...rows, ...(x.rows || [])],
     read: x.read || {}, notes: x.notes || [],
-    foot: K.key === 'needs' ? 'This is your My day list: what is late and what is due today. Budget approvals and ad calls waiting on a yes join it when the notifications feed is built.' : (x.foot || ''),
+    foot: K.key === 'needs' ? 'Your My day list (what is late and what is due today), then what waits on the team across every brand: ad calls, client updates to send, the War Room check-in, creative to review or load, and client requests.' : (x.foot || ''),
   };
 }
 
@@ -111,10 +113,12 @@ async function loadClient(ctx, K) {
 async function loadSample(ctx, K) {
   const [bell, x] = await Promise.all([loadBell({ me: ctx.me, role: ctx.role, brand: ctx.brand, brands: ctx.brands }), ctx.fixture(K.tab + '.json')]);
   const extra = x.rows || {};
+  const rows = (bell[K.key] || []).map(r => (r.agency ? { ...r, group: 'agency', when: '' } : { ...r, ...(extra[plain(r.text)] || {}) }));
+  const groups = x.groups || [{ id: 'main', title: K.label }];
   return {
     kind: K.key, mode: ctx.isClient ? 'client' : 'team', lateKnown: !!x.late_known, read: x.read || {},
-    groups: x.groups || [{ id: 'main', title: K.label }],
-    rows: (bell[K.key] || []).map(r => ({ ...r, ...(extra[plain(r.text)] || {}) })),
+    groups: rows.some(r => r.group === 'agency') ? [...groups, AGENCY_GROUP] : groups,
+    rows,
     take: ctx.isClient ? x.take_client || null : x.take || null,
   };
 }

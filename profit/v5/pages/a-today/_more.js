@@ -142,7 +142,7 @@ export function renderSuggestions(el, d, ctx, id) {
     return h('section', { class: 'lx-card flush' },
       h('div', { class: 'ag-sg-h' }, brandName(g, ctx, brandHref(g.id, 'home', 'index')), h('span', { class: 'lx-chip' }, `${g.rows.length} to decide`),
         h('span', { class: 'lx-sp' }), button(`Decide on ${g.name}`, { primary: first, href: brandHref(g.id, id, 'suggestions'), icon: 'arrow' })),
-      h('div', { class: 'ag-sg' }, g.rows.map(r => h('div', { class: 'ag-sg-r' },
+      h('div', { class: 'ag-sg' }, g.rows.map(r => h('div', { class: 'ag-sg-r', 'data-id': r.id != null ? String(r.id) : null },
         h('span', { class: 'k' }, kindPill(r.kind)),
         h('span', { class: 't' }, h('b', null, r.action), r.name ? h('span', { class: 'n' }, r.name) : null, r.why ? h('span', { class: 'w' }, r.why) : null),
         h('span', { class: 'm' }, r.stake > 0 ? money(r.stake) : '', r.stake > 0 ? h('small', null, 'at stake') : null)))));
