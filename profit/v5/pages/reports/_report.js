@@ -77,3 +77,22 @@ export const linesOf = v => (Array.isArray(v) ? v : []).map(s => String(s == nul
 
 /** Change against the period before as a fraction, or null. */
 export const change = (a, b) => a != null && b > 0 ? a / b - 1 : null;
+
+/* No goal typed, no goal shown (2026-11-26). The months in a report with no goal of their own, sorted: the worker's
+   `no_goal` list (report-view), else forecast.months[ym].planned === false and pacing.planned === false (GET /api/report).
+   A month listed here never shows a goal, a forecast or pacing; the page says "No goal set for <Month>" instead. */
+export function noGoalOf(data) {
+  if (!data) return [];
+  const out = new Set(Array.isArray(data.no_goal) ? data.no_goal.filter(m => /^\d{4}-\d{2}$/.test(m)) : []);
+  const months = data.forecast && data.forecast.months;
+  if (months && typeof months === 'object') for (const [ym, m] of Object.entries(months)) if (m && m.planned === false) out.add(ym);
+  if (data.pacing && data.pacing.planned === false && data.pacing.month) out.add(data.pacing.month);
+  return [...out].sort();
+}
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+/** "No goal set for December", or "No goal set for November and December". Null when every month had one. */
+export function noGoalLine(list) {
+  const names = (list || []).map(ym => MONTHS[+ym.slice(5, 7) - 1]).filter(Boolean);
+  if (!names.length) return null;
+  return 'No goal set for ' + (names.length === 1 ? names[0] : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1]);
+}

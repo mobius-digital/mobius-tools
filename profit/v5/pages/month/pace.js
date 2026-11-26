@@ -8,6 +8,9 @@
      /api/forecast?act                           where the month lands (spending the budget, and at today's pace)
      /api/overview?days=7&cmp=none&series=0      the cost check (the goal ROAS comes from the brand's own goal, _m.js brandGoals)
      /api/season?act                             dated phases, for the notes on the chart and the day cells
+     /api/plan?act&month=YYYY-MM                 planned: false = nobody typed a goal for this month. /api/client then
+                                                 hands back an earlier month's goal, which is never shown as this month's:
+                                                 no goal, no plan line, no budget forecast, one "No goal set for <Month>" line.
    Only the first is needed; any other that fails leaves its part out. The plan splits evenly across the days. */
 
 import { put } from '../../kit.js';
@@ -15,21 +18,26 @@ import { askWhy, helpBar, dl } from '../home/_biz.js';
 import { h, money, pct, x, card, hero, em, kpi, kpis, takeaway, button, statusDot, pill, gauge, legend, lineChart, table, platformChip, empty } from '../../kit.js';
 import { ok, asDate, iso, addDays, dayLabel, weekday, monthName, daysIn, span, b, soft, brandFacts, brandGoals, hasSource, pickBrand, noSource, styles } from './_m.js';
 
+/** The one line a month with no goal of its own shows (same words as the client daily and the reports). */
+const noGoalLine = ym => 'No goal set for ' + monthName(ym);
+
 /* ---------- live data ---------- */
 async function load(ctx) {
   if (!ctx.brand) return null;
   const id = encodeURIComponent(ctx.brand.id), sig = { signal: ctx.signal };
   const now = new Date(), today = iso(now), ym = today.slice(0, 7), from = ym + '-01';
   const to = now.getDate() > 1 ? addDays(today, -1) : today;
-  const [cl, fc, ov, season, goals] = await Promise.all([
+  const [cl, fc, ov, season, goals, mp] = await Promise.all([
     ctx.api(`/api/client?act=${id}&from=${from}&to=${to}`, sig),
     soft(ctx.api(`/api/forecast?act=${id}`, sig)),
     soft(ctx.api('/api/overview?days=7&cmp=none&series=0', sig)),
     soft(ctx.api(`/api/season?act=${id}`, sig)),
     brandGoals(ctx),
+    soft(ctx.api(`/api/plan?act=${id}&month=${ym}`, sig)),
   ]);
+  const unset = !!mp && mp.planned === false;      /* no answer (a client, an old server): as before */
   const rows = (cl.rows || []).filter(r => r.date >= from && r.date <= to && r.date < today);
-  const facts = brandFacts(ov, cl, goals), t = cl.totals || {}, g = cl.goals || {};
+  const facts = brandFacts(ov, cl, goals), t = cl.totals || {}, g = unset ? {} : cl.goals || {};
   const phases = (((season && season.accounts) || [])[0] || {}).phases || [];
   const end = ym + '-' + String(daysIn(ym)).padStart(2, '0');
   const notes = [];
@@ -46,7 +54,9 @@ async function load(ctx) {
     profit_withheld: facts.costsBroken,
     goals: ok(g.sales) || ok(g.spend) ? { sales: g.sales ?? null, spend: g.spend ?? null } : null,
     goal_mer: facts.goalRoas || planMer,
-    forecast: fc && ok(fc.projected) ? { projected: fc.projected, at_pace: fc.at_current_pace ? fc.at_current_pace.sales : null } : null,
+    no_goal: unset,
+    /* the forecast spends the month's ad budget, an inherited one when nobody typed a goal: at this pace instead */
+    forecast: !unset && fc && ok(fc.projected) ? { projected: fc.projected, at_pace: fc.at_current_pace ? fc.at_current_pace.sales : null } : null,
     notes: notes.sort((p, q) => p.date.localeCompare(q.date)).slice(0, 3),
   };
 }
@@ -76,7 +86,7 @@ function heroBlock(data, ctx, f) {
   const planSub = (actual, toDate, month, cost) => ok(toDate)
     ? [gap(actual, toDate, cost), ' ', dl('plan to date', 'plan_to_date'), ' ' + money(Math.round(toDate)),
        h('span', { class: 'mo-kpi2' }, (cost ? 'month budget ' : 'month goal ') + money(month))]
-    : (cost ? 'no budget set' : 'no goal set');
+    : data.no_goal ? (cost ? null : noGoalLine(data.month)) : (cost ? 'no budget set' : 'no goal set');
   const gm = data.goal_mer, merTone = ok(f.mer) && gm ? (f.mer >= gm ? 'good' : f.mer >= gm * 0.8 ? 'warn' : 'bad') : null;
   const list = [
     { label: h('span', null, dl('Sales', 'sales'), when ? ', ' + when : ''), value: money(t.sales), sub: planSub(t.sales, f.planSales, g.sales), spark: days.map(d => d.sales), href: ctx.href('sales', 'by-day') },
@@ -137,7 +147,7 @@ function chartCard(data, f) {
 function needCard(data, ctx, f) {
   const { t, g, left, done, dim } = f, name = monthName(data.month);
   if (!data.goals) {
-    return card({ title: 'What each day left needs' }, empty({ title: `No plan set for ${name}`, text: 'With a sales goal and an ad budget this card shows what every day left has to do.',
+    return card({ title: 'What each day left needs' }, empty({ title: data.no_goal ? noGoalLine(data.month) : `No plan set for ${name}`, text: 'With a sales goal and an ad budget this card shows what every day left has to do.',
       action: ctx.isClient ? null : button('Open the plan', { href: ctx.href('month', 'plan'), icon: 'arrow' }) }));
   }
   if (!left) return null;
@@ -182,6 +192,11 @@ export default {
   eyebrow: 'This month',
   ranges: false,                    // the page is the month in progress; the plan is agreed per month
 
+  /* ?sample=1&nogoal=1: the same month with no goal typed (what load makes of /api/plan planned: false) */
+  async sample(ctx) {
+    const d = await ctx.fixture('pace.json');
+    return d && new URLSearchParams(location.search).get('nogoal') ? { ...d, no_goal: true, goals: null, forecast: null } : d;
+  },
   load,
 
   render(el, data, ctx) {

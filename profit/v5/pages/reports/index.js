@@ -29,7 +29,7 @@ import { css, span, short, dayOf, wday, heading, row, list, dateOf, todayYmd, ad
 import { defLabel, pageHelp } from '../../defs.js';
 import { sendSheet, skipSheet, readStatusOf, readHolds, holdLine, askTwice } from '../a-to-send/_send.js';
 import { canWrite } from '../production/_act.js';
-import { platformRows, amazonOf, bestAds, marginOf, linesOf, change } from './_report.js';
+import { platformRows, amazonOf, bestAds, marginOf, linesOf, change, noGoalOf, noGoalLine } from './_report.js';
 
 const NAME = { weekly: 'Weekly report', monthly: 'Monthly report' };
 const keyOf = r => r.period + '|' + r.period_start;
@@ -61,6 +61,7 @@ const slim = rep => rep && rep.data ? {
   chart: (rep.data.chart || []).map(r => ({ date: r.date, sales: r.sales, spend: r.spend })),
   platforms: platformRows(rep.data), amazon: amazonOf(rep.data), ads: bestAds(rep.data, 3), cm: marginOf(rep.data),
   this_week: linesOf(rep.data.this_week), need_from_you: linesOf(rep.data.need_from_you),
+  no_goal: noGoalOf(rep.data),
 } : null;
 
 /* ---------- the numbers, in the client page's order ---------- */
@@ -143,7 +144,10 @@ function before(rep) {
 /** The client's page order, under the read: numbers, by platform, day by day, best ads, this week. */
 export const body = (rep, ctx) => {
   const b = before(rep);
-  return [h('section', { class: 'cr-sect' }, heading('The numbers, ' + span(rep.period_start, rep.period_end), null, 'vs ' + span(b.start, b.end)), figures(rep, ctx)),
+  /* a month with no goal typed shows one plain line, never an inherited goal, forecast or pacing */
+  const noGoal = noGoalLine(rep.no_goal);
+  return [h('section', { class: 'cr-sect' }, heading('The numbers, ' + span(rep.period_start, rep.period_end), null, 'vs ' + span(b.start, b.end)), figures(rep, ctx),
+    noGoal ? h('p', { class: 'rp-note rp-nogoal' }, noGoal) : null),
     platformsOf(rep), chartOf(rep), adsOf(rep), plansOf(rep)];
 };
 /** The report page's styles, for another page that draws a report with body() (Agency > To send). */
@@ -456,7 +460,7 @@ function draw(el, d, ctx) {
 export default {
   async sample(ctx) {
     const d = await ctx.fixture('index.json');
-    const pick = (k, rep) => rep ? { ...rep, platforms: platformRows(rep), amazon: amazonOf(rep), ads: bestAds(rep, 3), cm: marginOf(rep), this_week: linesOf(rep.this_week), need_from_you: linesOf(rep.need_from_you) } : null;
+    const pick = (k, rep) => rep ? { ...rep, platforms: platformRows(rep), amazon: amazonOf(rep), ads: bestAds(rep, 3), cm: marginOf(rep), this_week: linesOf(rep.this_week), need_from_you: linesOf(rep.need_from_you), no_goal: noGoalOf(rep) } : null;
     const more = Object.fromEntries(Object.entries(d.more || {}).map(([k, v]) => [k, pick(k, v)]));
     const draftRow = (d.rows || []).find(r => r.status === 'draft');
     const latest = ctx.isClient || !draftRow ? pick('', d.latest) : more[keyOf(draftRow)] || pick('', d.latest);

@@ -65,6 +65,7 @@ section{min-width:0}
 .read-none{font-size:16px;color:var(--muted)}
 .nums{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 @media (min-width:760px){.nums{grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}}
+.nogoal{margin:12px 0 0;font-size:14px;color:var(--muted)}
 .num{padding:16px 16px 14px;border-radius:16px;background:var(--sunk);min-width:0;display:grid;gap:2px;align-content:start}
 .num .l{font-size:12.5px;font-weight:600;color:var(--muted)}
 .num .v{font-size:clamp(22px,19px + 1vw,28px);font-weight:650;letter-spacing:-.03em;line-height:1.2;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
@@ -111,7 +112,7 @@ section{min-width:0}
 <main class="wrap" id="app" aria-live="polite"><p class="meta">Reading the report...</p></main>
 <script type="module">
 import { workers, token as sessionToken, ORG_NAME } from './config.js';
-import { platformRows, amazonOf, bestAds, marginOf, linesOf, change } from './pages/reports/_report.js';
+import { platformRows, amazonOf, bestAds, marginOf, linesOf, change, noGoalOf, noGoalLine } from './pages/reports/_report.js';
 
 const QS = new URLSearchParams(location.search);
 const SAMPLE = QS.get('sample') === '1';
@@ -200,6 +201,9 @@ function numbers(r) {
   const cm = marginOf(d);
   const out = [h('div', { class: 'lab' }, 'The numbers'), h('div', { class: 'nums' }, tiles)];
   if (cm) out.push(h('div', { class: 'nums', style: 'margin-top:12px' }, tile('Contribution margin', money(cm.cur), ok(cm.prev) ? 'was ' + money(cm.prev) : 'after product, delivery and ad costs')));
+  /* a month with no goal typed: one plain line, never an inherited goal (the worker already drops forecast and pacing) */
+  const noGoal = noGoalLine(noGoalOf(d));
+  if (noGoal) out.push(h('p', { class: 'nogoal' }, noGoal));
   return h('section', null, out);
 }
 
@@ -365,6 +369,8 @@ function sampleData() {
       period: want.period, start: want.period_start, end: want.period_end, sent_at: want.sent_at, preview: false,
       summary: reads[i] || 'A steady ' + (want.period === 'monthly' ? 'month' : 'week') + '. Sales moved with ad spend and the store stayed above its MER goal.\nThe bundle ads did most of the work.\nNext: more of what works, and new ads to test.',
       data: {
+        /* ?sample=1&nogoal=1: a month nobody typed a goal for (the worker sends no_goal and drops forecast and pacing) */
+        ...(QS.get('nogoal') ? { no_goal: [want.period_end.slice(0, 7)] } : {}),
         totals: { sales, spend, mer: sales / spend, orders, aov: sales / orders },
         previous: { sales: prevSales, spend: prevSpend, mer: prevSales / prevSpend, orders: prevOrders, aov: prevSales / prevOrders },
         chart,
