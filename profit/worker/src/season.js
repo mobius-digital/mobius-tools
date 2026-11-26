@@ -652,7 +652,9 @@ export async function handleSeason({ path, request, env, accountsFor, email, ser
   if (path === '/api/season/standing' && m === 'GET') {
     if (client) return json({ error: 'Team only.' }, 403);
     if (!live) return json({ error: 'live numbers are not wired' }, 500);
-    return json(await standingAll(env, await accountsFor(), todayCentral(), { series, live }));
+    /* ?acts=a,b: only the brands whose check-in is due (account-health standing.js, per-brand cadence). */
+    const only = new Set(String(url.searchParams.get('acts') || '').split(',').filter(Boolean));
+    return json(await standingAll(env, (await accountsFor()).filter(a => !only.size || only.has(a.act_id)), todayCentral(), { series, live }));
   }
   /* Save part of the plan: the patch is merged into p_season_answer key `war`, so two people editing two steps never
      overwrite each other. Only known keys are kept. */
