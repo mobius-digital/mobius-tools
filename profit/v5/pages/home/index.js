@@ -104,7 +104,7 @@ function shape({ win, cl, paid, ov, buy, season, goals, isClient }) {
   const t = cl.totals || {};
   const source = !!((cl.account && cl.account.tw_shop) || rows.some(r => r.sales > 0));
   /* goals_planned false: no goal for this month; goals and plan hold an earlier month's numbers and are never shown */
-  const noGoal = cl.goals_planned === false ? monthWord(cl.month || (cl.plan && cl.plan.month) || String(win.from || '').slice(0, 7)) : null;
+  const noGoal = cl.goals_planned === false ? monthWord(typeof cl.month === 'string' ? cl.month : String(cl.to || win.to || '').slice(0, 7)) : null;
   const g = noGoal ? {} : cl.goals || {}, p = noGoal ? null : cl.plan || null;
   const planMer = ok(g.sales) && g.spend > 0 ? g.sales / g.spend : null;
   const today = (season && season.today) || iso(new Date());
