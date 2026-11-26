@@ -155,6 +155,17 @@ export function channelsFor(attrRows, rows, piv, from, to) {
   return out;
 }
 
+/** Today's live row in PLACE of any stored row for the same day, never beside it (old liveReplaces, 2026-11-26).
+ *  The tracker sync can store a partial today, so a series may already hold a row for it. */
+export function liveReplaces(list, row) {
+  for (let i = list.length - 1; i >= 0; i--) if (list[i].date === row.date) list.splice(i, 1);
+  list.push(row);
+  return list;
+}
+
+/** Whole days only: the rows before today. The plan is spread over these, never over a partial today. */
+export const wholeDays = (rows, today) => rows.filter(r => r.date < today);
+
 /** The month's goals spread over the days gone by, so month to date has something to beat. */
 export function planFor(acct, ym, mtdRows) {
   const g = goalsFor(acct, ym);
