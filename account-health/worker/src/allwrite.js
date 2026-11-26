@@ -66,6 +66,45 @@ export function extraActions(d) {
   return [...slackActions(d), ...googleActions(d), ...tiktokActions(d), ...shopifyActions(d), ...undoActions(d, metaUndo)];
 }
 /**
+ * meta_create_ad with frame_file or video_url (2026-11-26 review): metawrite.js (protected) uploads the video into the
+ * ad account inside propose(), so Meta would fetch a link the model chose before anyone tapped, and keep it after a No
+ * thanks. Here the card is described on a copy of the action whose one advideos POST is answered locally (brand, ad
+ * set, permission, page and the Frame link are still checked for real; any other POST is refused), and the upload
+ * itself moves to the tap: apply runs the real propose (the upload) and then the real apply (the ad).
+ */
+const LOCAL_ID = 'on_the_tap';
+export function holdUploads(d, actions) {
+  const real = actions.find(a => a.name === 'meta_create_ad');
+  if (!real) return actions;
+  const xfetch = (url, init) => {
+    if (String(init?.method || 'GET').toUpperCase() === 'GET') return d.xfetch(url, init);
+    if (/\/advideos$/.test(String(url).split('?')[0])) return Promise.resolve(new Response(JSON.stringify({ id: LOCAL_ID }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    return Promise.reject(new Error('Nothing is written to Meta before the tap.'));
+  };
+  const dry = metaActions({ ...d, xfetch }).find(a => a.name === 'meta_create_ad');
+  const held = {
+    ...real,
+    propose: async (env, input, h, ctx) => {
+      if (!(input?.frame_file || input?.video_url)) return real.propose(env, input, h, ctx);
+      const r = await dry.propose(env, input, h, ctx);
+      if (!r || r.error) return r;
+      const { media, ...rest } = r.patch || {};
+      const from = media?.from || 'the file';
+      return { ...r,
+        detail: String(r.detail || '').replace(/^Video: [^\n]*/, `Video: ${from}. Nothing is uploaded yet: on the tap it goes into the ad account, then the ad is made.`),
+        patch: { ...rest, upload_on_tap: true, input: { ...input } } };
+    },
+    apply: async (env, p, h, ctx) => {
+      if (!p?.upload_on_tap) return real.apply(env, p, h, ctx);
+      const r = await real.propose(env, p.input || {}, h, ctx);
+      if (!r || r.error) return { error: r?.error || 'The video could not be uploaded.' };
+      return real.apply(env, { ...r.patch, proposer: p.proposer ?? r.patch.proposer }, h, ctx);
+    },
+  };
+  return actions.map(a => (a === real ? held : a));
+}
+
+/**
  * ALWAYS A TAP (2026-11-25, the owner, after a safety trace). THE ONE PLACE FOR THE RULE.
  *
  * The assistant never changes anything by its own decision, whoever asks (the owner included) and wherever they ask

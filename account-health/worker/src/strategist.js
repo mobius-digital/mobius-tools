@@ -45,7 +45,7 @@ import { slackImages } from './slackindex.js';
 import { makeTools, makeActions, makeHooks } from './stratmake.js';
 import { autoTools, autoActions } from './alerts.js';
 import { klaviyoTools, klaviyoActions } from './klaviyowrite.js';
-import { extraTools, extraActions, TAP_TOOLS } from './allwrite.js';
+import { extraTools, extraActions, TAP_TOOLS, holdUploads } from './allwrite.js';
 import { studioMakeTools } from './studiomake.js';
 /* A dashboard block's own dates (2026-10-10): one cleaner, shared with the profit worker's PUT /api/dashboard. */
 import { cleanDates as cleanDashDates } from '../../../profit/worker/src/dashboard.js';
@@ -1948,7 +1948,7 @@ export function buildStrategist(d) {
       const names = (await d.listAccounts(env, true)).map(a => `${a.name} (${a.act_id}, ${a.currency})`);
       return '## The active brands right now\n' + names.join('\n');
     },
-    actions: [...ACTIONS(d), ...BUTTONS(d), ...ASANA_ACTIONS(d), ...BUILD_ACTIONS(d), ...stratActions(d), ...writeActions(d), ...makeActions(d), ...autoActions(d), ...klaviyoActions(d), ...extraActions(d)],
+    actions: [...ACTIONS(d), ...BUTTONS(d), ...ASANA_ACTIONS(d), ...BUILD_ACTIONS(d), ...stratActions(d), ...holdUploads(d, writeActions(d)), ...makeActions(d), ...autoActions(d), ...klaviyoActions(d), ...extraActions(d)],
     slackTools: SLACK_TOOLS(d),
     playbook: PLAYBOOK,
     slackApp: 'locus',

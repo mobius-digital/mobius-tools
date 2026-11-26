@@ -62,6 +62,8 @@ async function xfetch(url, init = {}) {
   if ((init.method || 'GET') === 'POST') {
     const b = Object.fromEntries(new URLSearchParams(init.body)); delete b.access_token;
     metaPosts.push({ path: p, body: b });
+    const made = { advideos: '2309001', adcreatives: '2309002', ads: '2309003' }[(p.match(/^act_\d+\/(advideos|adcreatives|ads)$/) || [])[1]];
+    if (made) return J({ id: made });
     const o = objs[p]; if (!o) return J({ error: { message: 'Unsupported post request' } }, 400);
     Object.assign(o, b); if (b.status) o.effective_status = b.status;
     return J({ success: true });
@@ -291,7 +293,7 @@ await check('locus_get: a GET that writes (Asana passes, ?post=1, tidy runs) is 
     '/api/brand-asana/tag?act=brand_harbor', '/api/brand-asana/results?act=brand_harbor', '/api/brand-asana/pause?act=brand_harbor&paused=1', '/api/brand-asana/save-template?project_gid=1&name=x',
     '/api/brand-asana/connect?act=brand_harbor&project_gid=2', '/api/brand-asana/tidy-concepts?act=brand_harbor', '/api/brand-asana/sync?act=brand_harbor', '/api/brand-asana/./tag?act=brand_harbor',
     '/api/brand-asana/x/../onboard', '/api/client-post/preview?act=brand_harbor&post=1', '/api/new-client/billing?act=brand_harbor&sub=sub_1', '/api/daycheck/now?act=all&fresh=1',
-    '/api/meetings/confirm', '/api/social/post/now?id=1', '/api/meta/write', '/api/leaks/apply?act=x'])
+    '/api/meetings/confirm', '/api/social/post/now?id=1', '/api/meta/write', '/api/leaks/apply?act=x', '/api/ask/connect/check', '/api/ask/connect/check?act=brand_harbor'])
     assert.ok(st.getWrites(p), 'held: ' + p);
   for (const p of ['/api/amb?act=brand_harbor', '/api/brand-asana/monday?act=brand_harbor', '/api/brand-asana/check', '/api/brand-asana/mins?act=brand_harbor', '/api/brand-asana/tested?act=brand_harbor&idea=x',
     '/api/daycheck/now?act=all', '/api/buyer-list?act=brand_harbor', '/api/new-client/billing?act=brand_harbor', '/api/client-post/preview?act=brand_harbor', '/api/calls/history', '/api/new-client/run?id=1'])
@@ -392,11 +394,11 @@ await check('big held inputs: kept in their own row, the list row stays small, a
   assert.ok(!b.error, 'the answer did not fail: ' + JSON.stringify(b).slice(0, 200)); assert.match(resultText(lastResults()[0]), /could not be saved/); assert.ok(!b.proposals?.length);
 });
 
-await check('a Slack tap on a held tool goes through IDEA_Q and the card is only dropped by the queue run', async () => {
+await check('every Slack Apply tap (actions and groups too, not only held tools) goes through IDEA_Q and the card is only dropped by the queue run', async () => {
   const wsrc = fs.readFileSync(path.join(here, 'src', 'worker.js'), 'utf8');
   const tapAt = wsrc.indexOf("a.action_id === 'ask_apply'");
   const tap = wsrc.slice(tapAt, wsrc.indexOf('return ACK();', tapAt));
-  assert.match(tap, /engine\.isHeldTool\(env, h\(\), job\.askp\)/); assert.match(tap, /await env\.IDEA_Q\.send\(job\)/);
+  assert.ok(!/isHeldTool/.test(tap), 'no held-tool condition: an action tap is queued as well'); assert.match(tap, /if \(!job\.cancel && env\.IDEA_Q\) \{\s*try \{\s*await env\.IDEA_Q\.send\(job\)/);
   assert.ok(!tap.slice(0, tap.indexOf('IDEA_Q.send')).includes('.applyProposal('), 'nothing is dropped before the queue has the job');
   assert.match(wsrc, /m\.body\?\.kind === 'ask_tap'\) await runAskTap\(env, m\.body, null\)/, 'the queue runs the tap');
   /* isHeldTool: true for a held tool (or a group with one), false for an action card. */
@@ -408,6 +410,32 @@ await check('a Slack tap on a held tool goes through IDEA_Q and the card is only
   assert.equal(await small.isHeldTool(env, sh(), r1.proposals[0].id), true); assert.equal(await small.isHeldTool(env, sh(), r2.proposals[0].id), false);
   assert.equal(await small.isHeldTool(env, sh(), `${r2.proposals[0].id},${r1.proposals[0].id}`), true);
   for (const c of (await small.pendingList(env, sh()))) await small.applyProposal(env, c.id, sh(), { cancel: true });
+});
+
+await check('meta_create_ad from a video link: zero Meta POSTs before the tap (no upload), the upload and the ad happen on the tap, No thanks uploads nothing', async () => {
+  objs[2309001] = { id: '2309001', status: { video_status: 'ready' }, picture: 'https://cdn.example/cover.jpg' };
+  const AD = { brand: 'Harbor Golf', adset: '412 | UGC', video_url: 'https://files.example/harbor-ugc.mp4', page_id: '5550001', headline: 'Hit it straight', primary_text: 'New wedge.', link: 'https://harbor.example/wedge', reason: 'a new UGC cut' };
+  reset();
+  script = [use(['meta_create_ad', AD]), say('Tap Apply to do it.')];
+  const r = await engine.answerWeb(env, 'make an ad from this video in 412 | UGC', [], h(), OWNER);
+  assert.equal(r.proposals?.length, 1, JSON.stringify(r).slice(0, 300)); assert.equal(r.proposals[0].action, 'meta_create_ad');
+  assert.equal(metaPosts.length, 0, 'nothing reached Meta before the tap: ' + JSON.stringify(metaPosts));
+  assert.match(r.proposals[0].detail, /Nothing is uploaded yet/); assert.ok(!/on_the_tap/.test(r.proposals[0].detail + r.proposals[0].summary));
+  const card = r.proposals[0];
+  /* No thanks: still nothing in Meta. */
+  script = [use(['meta_create_ad', AD]), say('Tap Apply to do it.')];
+  const r2 = await engine.answerWeb(env, 'same again', [], h(), OWNER);
+  await engine.applyProposal(env, r2.proposals[0].id, h(), { cancel: true });
+  assert.equal(metaPosts.length, 0, 'a No thanks uploads nothing');
+  /* The tap: upload, creative, ad, in that order, from the URL on the card. */
+  const t = await engine.applyProposal(env, card.id, h(), { ctx: { ...OWNER } });
+  assert.ok(t.ok, JSON.stringify(t));
+  assert.deepEqual(metaPosts.map(m => m.path), ['act_111/advideos', 'act_111/adcreatives', 'act_111/ads']);
+  assert.equal(metaPosts[0].body.file_url, AD.video_url); assert.equal(metaPosts[2].body.status, 'PAUSED');
+  assert.equal(JSON.parse(metaPosts[1].body.object_story_spec).video_data.video_id, '2309001');
+  /* An image ad is untouched by the wrapper (its propose writes nothing either). */
+  assert.equal(typeof aw.holdUploads, 'function');
+  delete objs[2309001];
 });
 
 await check('one place for the rule: the engine has a single apply call (the tap), the strategist passes TAP_TOOLS and no direct flag', async () => {

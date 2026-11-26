@@ -6694,20 +6694,19 @@ async function handleSlackInteract(request, env, ctx) {
           const g = await whoIs(env, accessDeps(), job.user.id).catch(() => ({ ok: false }));
           if (!g.ok || g.role === 'guest') { await slackWhisper(env, job.channel, job.user.id, 'Only the Mobius Digital team can apply this.'); return; }
         }
-        /* 2026-11-26: a held tool (an image, a Studio batch, an analysis) can run for minutes, and waitUntil after
-           Slack's ack dies after about thirty seconds. It goes through IDEA_Q like a normal answer. The card is only
-           dropped by applyProposal inside the queue run, so a failed send leaves it there to tap again. */
+        /* 2026-11-26: every Apply tap goes through IDEA_Q like a normal answer, since waitUntil after Slack's ack dies
+           after about thirty seconds. A held tool (an image, a Studio batch, an analysis) runs for minutes, and so can an
+           action: an "Apply all" group of Meta changes, or a new video ad waiting on Meta's processing. applyProposal
+           drops the card before apply, so an apply cut short there would leave a dead card and a half-done change. The
+           card is only dropped inside the queue run, so a failed send leaves it there to tap again. */
         if (!job.cancel && env.IDEA_Q) {
-          const { engine, h } = strategist();
-          if (await engine.isHeldTool(env, h(), job.askp).catch(() => false)) {
-            try {
-              await env.IDEA_Q.send(job);
-              await askTapSay(job, { replace_original: true, text: 'Working on it now. The result lands here when it is done.' });
-            } catch (e) {
-              await askTapSay(job, { replace_original: false, response_type: 'ephemeral', text: `⚠️ Could not start it (${e.message}). Nothing ran and the card is still here: tap Apply again.` });
-            }
-            return;
+          try {
+            await env.IDEA_Q.send(job);
+            await askTapSay(job, { replace_original: true, text: 'Working on it now. The result lands here when it is done.' });
+          } catch (e) {
+            await askTapSay(job, { replace_original: false, response_type: 'ephemeral', text: `⚠️ Could not start it (${e.message}). Nothing ran and the card is still here: tap Apply again.` });
           }
+          return;
         }
         await runAskTap(env, job, ctx);
       })());
@@ -9001,7 +9000,8 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (path === '/api/ask/todo/shopify-sent' && request.method === 'POST') { const o = await markShopifySent(env, String(body.run || '')); return o.error ? json(o, 404) : json(o); }
       if (path === '/api/ask/todo/skip' && request.method === 'POST') { try { return json(await todoSkip(env, body.run, String(body.key || ''))); } catch (e) { return json({ error: e.message }, e.status || 500); } }
       /* Check now (Cole's button): every look at once, for one brand or all. */
-      if (path === '/api/ask/connect/check') return json(await connectNow(env, 'all', body.act || null));
+      /* POST only (the screen button posts): it assigns Meta users, writes connections and sends Google link requests. */
+      if (path === '/api/ask/connect/check' && request.method === 'POST') return json(await connectNow(env, 'all', body.act || null));
       if (path === '/api/ask/access' && request.method === 'POST' && (body.sweep || body.dry)) return json(await partnerSweep(env, idxDeps(), { dry: !!body.dry }));
       if (path === '/api/ask/access') return json(request.method === 'POST' ? await grantSelf(env, idxDeps(), { act: body.act || null }) : await accessReport(env, idxDeps()));
       if (path === '/api/ask/index') {

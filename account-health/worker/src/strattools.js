@@ -93,10 +93,14 @@ const WRITE_FLAGS = /^(post|send|apply|save|write|commit|confirm|publish|force|d
 const ROUTE_FLAGS = { '/api/daycheck/now': /^(fresh|web)$/i, '/api/new-client/billing': /^sub$/i };
 const WRITE_TAIL = /\/(post|send|save|save-template|write|undo|apply|tick|connect|disconnect|pause|resume|tidy-[a-z-]+|tag|sync|hook|onboard|result|results|refresh-[a-z-]+|done|decide|reply|confirm|skip|add|ingest|poll|retry|byhand|now|redo|exit|upload|fill|delete|remove|archive|move|share|invite|publish|import|push|frame-pull|reset|clear|approve|reject|create|start|finish|reopen|revoke)$/i;
 const READ_TAILS = new Set(['/api/daycheck/now']);   // a read unless a spend flag is on (ROUTE_FLAGS)
+/* Exact paths that write whatever their tail says (the reverse of ASANA_READS). /api/ask/connect/check runs
+   connectNow: Meta partner assignments, brand connections, Google manager link requests. */
+const WRITE_GETS = new Set(['/api/ask/connect/check']);
 export function getWrites(path) {
   /* Read the path the way the worker will (new URL drops ./ and ../), so a dressed-up path cannot slip past. */
   let u; try { u = new URL(String(path || ''), 'https://locus.internal'); } catch { return 'that path does not parse'; }
   const base = u.pathname.replace(/\/{2,}/g, '/').replace(/\/+$/, ''), q = u.searchParams;
+  if (WRITE_GETS.has(base)) return `${base} changes Meta, Google or brand connections even on a GET`;
   if (base.startsWith('/api/brand-asana') && !ASANA_READS.has(base)) return `${base} changes Asana or the brand's Asana settings even on a GET`;
   /* Any of these flags, whatever its value: /api/brand-asana treats post=false as true (a non-empty string). */
   for (const k of q.keys()) if (WRITE_FLAGS.test(k) || ROUTE_FLAGS[base]?.test(k)) return `the ${k}= flag on ${base} makes it post, save or spend`;
