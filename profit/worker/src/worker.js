@@ -104,6 +104,23 @@ export function stripReportView(data, attr) {
   return data;
 }
 
+/* NO GOAL TYPED, NO GOAL SHOWN (2026-11-26, Cole's team): the report archive is the client's, so a month with no goal
+   typed for it must not show an earlier month's goal there. The frozen report carries forecast.months[ym].planned and
+   pacing.planned (account-health reportData). When any month in the report was not planned, the forecast figures and
+   the month pacing card go, and `no_goal` lists those months so the page says "No goal set for <Month>". A report
+   whose months were all planned (or that predates the flags) comes back untouched. */
+export function hideUnsetGoals(data) {
+  if (!data || typeof data !== 'object') return data;
+  const unset = new Set();
+  const F = data.forecast;
+  if (F && typeof F === 'object' && F.months && typeof F.months === 'object') for (const [ym, m] of Object.entries(F.months)) if (m && m.planned === false) unset.add(ym);
+  if (data.pacing && data.pacing.planned === false) { if (data.pacing.month) unset.add(data.pacing.month); delete data.pacing; }
+  if (!unset.size) return data;
+  if (F && typeof F === 'object') for (const k of ['sales', 'spend', 'mer', 'amer', 'cm']) if (k in F) F[k] = null;
+  data.no_goal = [...unset].sort();
+  return data;
+}
+
 /* ---------------- http ---------------- */
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -1897,7 +1914,7 @@ export default {
         const { rows, margin_pct, exp, rules } = await seriesFor(env, acct, from, to);
         const t = totals(rows);
         const g = goalsFor(acct, ym);
-        const planned = !!safeJson(acct.goals_json, {})[ym];
+        const planned = safeJson(acct.goals_json, {})[ym]?.sales != null; // own sales goal, not a key a margin save made
         // Profit is shown only when we would trust it internally. A client should
         // never be the first person to see a number the Costs page calls broken.
         const snap = await env.DB.prepare(`SELECT verdict FROM p_cost_health WHERE act_id = ?1`).bind(acct.act_id).first().catch(() => null);
@@ -1921,6 +1938,9 @@ export default {
           share: true,
           account: { name: acct.name, currency: acct.currency },
           month: ym, days: rows.length, days_in_month: daysInMonth(ym),
+          /* No goal typed for this month: the page says "No goal set for <Month>" (absent otherwise, so a planned
+             month's payload is the same bytes as before). */
+          ...(!fixed && !planned ? { no_goal: true } : {}),
           range: { from, to, fixed },
           mtd: {
             sales: t.sales, spend: t.spend, mer: t.mer, amer: t.amer,
@@ -1996,6 +2016,7 @@ export default {
             // object (name + currency) is all the page needs.
             if (data) for (const k of ['cogs_quality', 'margin_28d', 'cm_pct', 'changes', 'changes_total', 'account', 'this_week_from', 'steer']) delete data[k];
             if (data) stripReportView(data, attr);
+            if (data) hideUnsetGoals(data);
             report = { period: row.period, start: row.period_start, end: row.period_end,
               sent_at: row.sent_at, summary: row.summary, data, preview: row.status !== 'sent' };
           }
