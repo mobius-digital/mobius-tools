@@ -22,6 +22,7 @@
  * GET /api/messages/catalog (owner only) answers catalogPayload(). No real client, number or email in here. */
 
 import { houseMessage } from './house.js';
+import { dailyCard } from './clientpost.js';
 import { laneBlocks } from './lane.js';
 import { deliveryMessage } from './delivery.js';
 import { alertCard } from './pulse.js';
@@ -53,13 +54,14 @@ const E = (id, group, name, o) => ({ id, group, name, ...o });
 export const CATALOG = [
   /* ---------------- Client reports and updates ---------------- */
   E('client_daily', CLIENT, 'Client daily update', {
-    channel: 'client channel', who: 'The client', kind: 'client_daily', status: 'keep', audit: 'a17', onRenderer: false,
-    when: 'Each morning for yesterday, when Cole taps Send (or auto post is on). A missed day of the last two gets its own post; the full numbers go in the thread.',
+    channel: 'client channel', who: 'The client', kind: 'client_daily', status: 'keep', audit: 'a17', onRenderer: true,
+    when: 'Each morning for yesterday, when Cole taps Send (or auto post is on). A missed day of the last two gets its own post; ad spend by channel goes in the thread. A draft the team edited goes out as their text.',
     why: 'The client sees yesterday and the month so far against the goal without opening anything.',
     where: ['worker.js:sendBrief', 'worker.js:editClientPost'],
-    example: () => hm({ title: `${B1} · Wed Nov 25`, summary: 'On goal. Next: Black Friday ads go live tonight at 6pm.',
-      numbers: [{ label: 'Yesterday', value: '$3,240 sales · 2.70x MER', note: 'goal $3,000' }, { label: 'November so far', value: '$61.2K of $75K goal · 2.55x MER' }],
-      source: 'Triple Whale', context: 'more in the thread' }) }),
+    /* The real renderer (clientpost.js dailyCard, 2026-11-26), drawn from made up numbers. */
+    example: () => { const { text, blocks } = dailyCard({ brand: B1, date: '2026-11-25', today: '2026-11-26', at: AT, now: AT,
+      day: { sales: 3240, spend: 1200, mer: 2.70, amer: 1.35, plan: 3000 }, month: { ym: '2026-11', sales: 61200, plan: 75000, spend: 24000, new_rev: 30100 },
+      others: [3900, 2800], next: 'Black Friday ads go live tonight at 6pm.' }); return { text, blocks }; } }),
   E('client_daily_thread_failed', CLIENT, 'Client daily thread did not post', {
     channel: 'internal channel', who: 'Cole', kind: 'internal_alert', status: 'move', audit: 'a23', onRenderer: true,
     when: 'Right after a client daily went out but its thread reply failed.',

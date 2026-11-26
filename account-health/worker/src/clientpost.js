@@ -37,7 +37,9 @@
  * Rules: one comparison per number (vs the prior period; the goal lives on the page), no "Hey Team" opener, no em dashes,
  * no channel named in the top post, nothing invented. */
 
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+import { houseMessage } from './house.js';
+
+const MONTHS =['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const noDash = s => String(s ?? '').replace(/\s*[—–]\s*/g, ', ').replace(/\s+/g, ' ').trim();
 const at = ymd => new Date(`${ymd}T12:00:00Z`);
@@ -147,6 +149,145 @@ export function dailyThread({ date, currency = 'USD', day = {}, cm_ok = false })
   if (cm_ok && day.cm != null && day.net != null) notes.push(day.ad_expense > 0 ? NET_WORDS_AD : NET_WORDS);
   if (notes.length) L.push('', `_${notes.join(' ')}_`);
   return L.join('\n');
+}
+
+/* ---------------------------------------------------------------------------------------------------------------- *
+ * THE CLIENT DAILY IN THE HOUSE STYLE (2026-11-26, Cole approved the v2 look). Sent from the next morning's run on.
+ *
+ *   header   "<Brand> · Wed, Nov 25"                       the day the post covers
+ *   summary  "Ahead of goal: $4,860 in sales against $4,200."  one plain sentence (dailyVerdictLine), then the
+ *            person's Next line when it fits in the summary (else it gets its own line under the numbers)
+ *   fields   *Yesterday*            *November so far*         the same rows in the same order in both columns:
+ *            Sales / Goal / Ad spend / MER / aMER / Amazon    Goal only with a goal, Amazon only for an Amazon brand;
+ *                                                             a row shows when either column has it ("-" for the other)
+ *   context  "Triple Whale · 7:05am CT · aMER = new customer MER · ad spend by channel in the thread"
+ *
+ *   The thread (threadCard): header "Ad spend by channel", one field per channel that spent (biggest first) with
+ *   Spend, ROAS and CPA (Triple Whale, last platform click; under two tracked orders the rates are withheld and the
+ *   order count shows), New ROAS and New CPA (first orders, tw_orders) when that data exists, then Profit (contribution
+ *   margin, and net profit when the brand puts it in posts) when the cost data is trusted.
+ *
+ * Every card returns { text, blocks, plain }: `text` is the Slack notification fallback (header plus summary, house
+ * rule 9), `blocks` the message, and `plain` the same words as mrkdwn lines. `plain` is what the team reads on the
+ * draft card and edits in the Edit the post box; an EDITED draft is sent as that person's text exactly as typed (a
+ * plain text post, house rule 10), an unedited one as these blocks. No line here is written by a model. */
+
+const DOW3 = ymd => DAYS[at(ymd).getUTCDay()].slice(0, 3);
+/** "Wed, Nov 25" */
+export const headerDay = ymd => `${DOW3(ymd)}, ${monDay(ymd)}`;
+const nextDay = ymd => { const d = at(ymd); d.setUTCDate(d.getUTCDate() + 1); return d.toISOString().slice(0, 10); };
+const monthName = ym => MONTHS[+String(ym).slice(5, 7) - 1];
+const has = v => v != null && isFinite(v);
+
+/** The one sentence under the header. Best day beats the goal read; within 5% of the goal is on goal. */
+export function dailyVerdictLine({ sales, plan, others = [], goal_set = true, ym, currency = 'USD' }) {
+  const noGoal = goal_set === false ? `No goal set for ${monthName(ym)}` : '';
+  if (!has(sales)) return noGoal ? `${noGoal}. No sales numbers for this day yet.` : 'No sales numbers for this day yet.';
+  const rest = others.filter(has);
+  const best = rest.length >= 2 && sales > 0 && sales >= Math.max(...rest);
+  const goal = goal_set !== false && plan > 0 ? plan : null;
+  const against = goal ? ` against ${money(goal, currency)}` : '';
+  if (best) return `Best day this month: ${money(sales, currency)} in sales${against}.${noGoal ? ` ${noGoal}.` : ''}`;
+  if (goal) {
+    const word = sales >= goal * 1.05 ? 'Ahead of goal' : sales >= goal * 0.95 ? 'On goal' : 'Under goal';
+    return `${word}: ${money(sales, currency)} in sales${against}.`;
+  }
+  return noGoal ? `${noGoal}: ${money(sales, currency)} in sales.` : `${money(sales, currency)} in sales.`;
+}
+
+/** Two columns of labeled rows that line up: a row is kept when either side has a value; the other side shows "-". */
+function twoColumns(rows) {
+  const keep = rows.filter(([, a, b]) => a != null || b != null);
+  const col = i => keep.map(r => `${r[0]}: ${r[i] != null ? `*${r[i]}*` : '-'}`).join('\n');
+  return keep.length ? [col(1), col(2)] : null;
+}
+
+/** The blocks as mrkdwn lines, in block order, no blank lines: the draft card and the edit box show this. */
+export function cardText(m) {
+  const all = [...(m?.blocks || []), ...((m?.attachments || []).flatMap(a => a.blocks || []))];
+  const L = [];
+  for (const b of all) {
+    if (b.type === 'header') L.push(`*${b.text.text}*`);
+    else if (b.type === 'section') { if (b.text?.text) L.push(b.text.text); for (const f of b.fields || []) L.push(f.text); }
+    else if (b.type === 'context') L.push(`_${(b.elements || []).map(e => e.text).join(' ')}_`);
+  }
+  return L.join('\n');
+}
+
+/** An edited daily is the same as a built one when only the context line (its time) differs. */
+export const sameDaily = (a, b) => {
+  const norm = s => String(s ?? '').replace(/\r/g, '').split('\n').filter(l => !/^_Triple Whale\b/.test(l.trim())).map(l => l.trim()).join('\n').trim();
+  return a != null && b != null && norm(a) === norm(b);
+};
+
+/** The client daily as a house style card. Same inputs as dailyPost, plus `today` (the send day, "Yesterday" only when
+ *  the post covers the day before it), `thread` (false = no thread reply, so the context line does not promise one),
+ *  `at` / `now` (the context time; tests pass both). `month.new_rev` gives the month's aMER. */
+export function dailyCard({ brand, date, currency = 'USD', day = {}, month = {}, others = [], next = null, amazon = null, goal_set = true, today = null, thread = true, at: when = null, now = null }) {
+  const ym = month.ym || date.slice(0, 7);
+  const goalOn = goal_set !== false && (day.plan > 0 || month.plan > 0);
+  const mer = month.spend > 0 && has(month.sales) ? month.sales / month.spend : null;
+  const amer = month.spend > 0 && has(month.new_rev) ? month.new_rev / month.spend : null;
+  const rows = [
+    ['Sales', has(day.sales) ? money(day.sales, currency) : null, has(month.sales) ? shortMoney(month.sales, currency) : null],
+    ...(goalOn ? [['Goal', day.plan > 0 ? money(day.plan, currency) : null, month.plan > 0 ? shortMoney(month.plan, currency) : null]] : []),
+    ['Ad spend', has(day.spend) ? money(day.spend, currency) : null, has(month.spend) ? shortMoney(month.spend, currency) : null],
+    ['MER', x(day.mer), x(mer)],
+    ['aMER', x(day.amer), x(amer)],
+    ...(amazon ? [['Amazon', amazon.day ? money(amazon.day.sales, currency) : null, amazon.month ? shortMoney(amazon.month.sales, currency) : null]] : []),
+  ];
+  const cols = twoColumns(rows);
+  const dayName = !today || today === nextDay(date) ? 'Yesterday' : DAYS[at(date).getUTCDay()];
+  const verdict = dailyVerdictLine({ sales: day.sales, plan: day.plan, others, goal_set, ym, currency });
+  const n = noDash(next).replace(/^next:\s*/i, '').slice(0, 240);
+  const withNext = n ? `${verdict} Next: ${n}` : verdict;
+  const nextFits = withNext.length <= 200;
+  const showsAmer = !!cols && /^aMER:/m.test(cols[0]);
+  const msg = houseMessage({
+    title: `${noDash(brand)} · ${headerDay(date)}`,
+    summary: nextFits ? withNext : verdict,
+    numbers: cols ? [{ label: dayName, value: cols[0] }, { label: `${monthName(ym)} so far`, value: cols[1] }] : [],
+    lines: n && !nextFits ? [`Next: ${n}`] : [],
+    source: 'Triple Whale', at: when || now || new Date(), now: now || undefined,
+    context: [showsAmer ? 'aMER = new customer MER' : '', thread ? 'ad spend by channel in the thread' : ''].filter(Boolean).join(' · '),
+  });
+  return { ...msg, plain: cardText(msg) };
+}
+
+/** The thread under the client daily, "Ad spend by channel". `channels` = [{name, spend, attr: {rev, orders} | null,
+ *  nc: {rev, orders} | null}] (attr null = Triple Whale attribution not synced for the day: spend only; nc null = no
+ *  first-order data); `profit` = {cm, net, fixed, ad_expense}, shown only with `cm_ok`. null when there is nothing. */
+export function threadCard({ currency = 'USD', channels = [], cm_ok = false, profit = {}, at: when = null, now = null }) {
+  const chans = (channels || []).filter(c => c && c.spend > 0).sort((a, b) => b.spend - a.spend);
+  const cells = [];
+  let anyAttr = false, anyCpa = false, anyNew = false;
+  for (const c of chans) {
+    const r = [`Spend: *${money(c.spend, currency)}*`];
+    if (c.attr) {
+      anyAttr = true;
+      const ord = Math.round(c.attr.orders || 0);
+      if (ord < 2) r.push(`Orders: *${ord}*`);
+      else { r.push(`ROAS: *${x((c.attr.rev || 0) / c.spend)}*`, `CPA: *${money(c.spend / ord, currency)}*`); anyCpa = true; }
+    }
+    if (c.nc && Math.round(c.nc.orders || 0) >= 2) {
+      anyNew = true;
+      r.push(`New ROAS: *${x((c.nc.rev || 0) / c.spend)}*`, `New CPA: *${money(c.spend / Math.round(c.nc.orders), currency)}*`);
+    }
+    cells.push({ label: noDash(c.name), value: r.join('\n') });
+  }
+  const p = profit || {};
+  const showCm = cm_ok && has(p.cm), showNet = showCm && has(p.net);
+  if (showCm) {
+    const r = [`Contribution margin: *${money(p.cm, currency)}*`];
+    if (showNet) r.push(`Fixed costs: *${money(p.fixed ?? 0, currency)}*`, ...(p.ad_expense > 0 ? [`Extra ad costs: *${money(p.ad_expense, currency)}*`] : []), `Net profit: *${money(p.net, currency)}*`);
+    cells.push({ label: 'Profit', value: r.join('\n') });
+  }
+  if (!cells.length) return null;
+  const notes = [anyAttr ? 'Triple Whale, last platform click' : 'Triple Whale', anyCpa ? 'CPA = ad spend per order' : '', anyNew ? 'New = first orders from new customers' : '',
+    showCm ? CM_WORDS : '', showNet ? (p.ad_expense > 0 ? NET_WORDS_AD : NET_WORDS) : ''].filter(Boolean);
+  const msg = houseMessage({ title: 'Ad spend by channel', numbers: cells, maxNumbers: 10,
+    source: notes[0], at: when || now || new Date(), now: now || undefined, context: notes.slice(1).join(' · ') });
+  return { ...msg, plain: cardText(msg) };
 }
 
 /** Plain words for a change: "up 7%", "down 15%", "flat"; '' when there is nothing to compare. */
