@@ -1,5 +1,6 @@
-/* Agency > Black Friday > War Room: every brand in the latest check-in, with Approve.
-   The work is in live.js (shared with the brand page). Reads GET /api/standing; Approve posts /api/standing/approve. */
+/* Agency > Black Friday > War Room (v2): every brand in the latest check-in, a call per live campaign, Approve.
+   The work is in live.js (shared with the brand page) and the math in ../_warcall.js. Reads GET /api/standing and
+   the earlier check-ins; a tap writes one campaign budget through POST /api/meta/write (dry run first). */
 
 import { em } from '../../kit.js';
 import { readStanding, renderWarRoom } from './live.js';

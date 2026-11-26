@@ -1,90 +1,3236 @@
 {
  "sample": true,
- "standing": {
-  "slot": "2026-11-27T14",
-  "at": "2026-11-27T20:05:00.000Z",
-  "label": "Fri, Nov 27, 2pm CT",
-  "next": "8pm",
-  "today": "2026-11-27",
-  "dry": 0,
-  "approved": {
-   "brand_summit_sticks": { "by": "jordan@example.com", "at": "2026-11-27T20:20:00.000Z", "from": 200, "to": 250, "summary": "Sale campaign budget $200/day to $250/day" }
+ "latest": "2026-11-26T14",
+ "slots": [
+  {
+   "slot": "2026-11-26T14",
+   "label": "2pm check-in"
   },
-  "brands": [
-   {
-    "act_id": "brand_northlake_golf", "name": "Northlake Golf", "goal": 60000, "kpi": 2.5, "hold": 2.0, "mode": "live",
-    "last6": { "hours": 6, "sales": 9200, "spend": 2400, "mer": 3.83 },
-    "today": { "sales": 14800, "spend": 4100, "mer": 3.61 },
-    "week": { "sales": 31200, "spend": 10400, "mer": 3.0 },
-    "so_far": { "days": 2, "sales": 24600, "spend": 7300, "mer": 3.37, "new_mer": 1.9 },
-    "be_new": 1.5,
-    "suggest": { "call": "scale", "pct": 0.5, "to": 900, "why": "Store MER 3.37x so far is over 1.5 times the 2.50x goal, and the last 6 hours hold at 3.83x." },
-    "meta": {
-     "on": 1100, "limit": 5000, "headroom": 3900, "limit_src": "meta",
-     "camp": { "id": "c1", "name": "BFCM 2026", "daily": 600, "spent": 410 },
-     "camps": [
-      { "id": "c1", "name": "BFCM 2026", "kind": "sale", "daily": 600, "spent": 410, "t_ord": 21, "t_roas": 3.4, "w_spend": 1900, "w_ord": 52, "w_roas": 2.9 },
-      { "id": "c2", "name": "Evergreen CBO", "kind": "evergreen", "daily": 300, "spent": 190, "t_ord": 4, "t_roas": 1.8, "w_spend": 1500, "w_ord": 19, "w_roas": 1.6 },
-      { "id": "c3", "name": "Creator ads", "kind": "creators", "daily": null, "spent": 60, "t_ord": 1, "t_roas": 1.2, "w_spend": 380, "w_ord": 4, "w_roas": 1.1 }
-     ]
-    }
-   },
-   {
-    "act_id": "brand_tallgrass_apparel", "name": "Tallgrass Apparel", "goal": 30000, "kpi": 3.0, "hold": 2.4, "mode": "live",
-    "last6": { "hours": 6, "sales": 1500, "spend": 900, "mer": 1.67 },
-    "today": { "sales": 3900, "spend": 1800, "mer": 2.17 },
-    "week": { "sales": 12800, "spend": 5600, "mer": 2.29 },
-    "so_far": { "days": 2, "sales": 7600, "spend": 3400, "mer": 2.24, "new_mer": 1.1 },
-    "suggest": { "call": "cut", "pct": -0.25, "to": 225, "why": "Store MER 2.24x so far is under the 2.40x break-even.", "note": "" },
-    "meta": {
-     "on": 650, "limit": 2500, "headroom": 1850, "limit_src": "known",
-     "camp": { "id": "c4", "name": "BFCM 2026", "daily": 300, "spent": 240 },
-     "camps": [
-      { "id": "c4", "name": "BFCM 2026", "kind": "sale", "daily": 300, "spent": 240, "t_ord": 6, "t_roas": 1.5, "w_spend": 1200, "w_ord": 22, "w_roas": 1.8 },
-      { "id": "c5", "name": "Holiday 2026", "kind": "sale", "daily": 150, "spent": 0, "t_ord": 0, "t_roas": null, "w_spend": 0, "w_ord": 0, "w_roas": null }
-     ]
-    }
-   },
-   {
-    "act_id": "brand_summit_sticks", "name": "Summit Sticks", "goal": 12000, "kpi": 2.5, "hold": 2.0, "mode": "live",
-    "last6": { "hours": 5, "sales": 1100, "spend": 300, "mer": 3.67 },
-    "today": { "sales": 2100, "spend": 600, "mer": 3.5 },
-    "week": { "sales": 6400, "spend": 2100, "mer": 3.05 },
-    "so_far": { "days": 2, "sales": 4300, "spend": 1300, "mer": 3.31 },
-    "suggest": { "call": "raise", "pct": 0.25, "to": 250, "why": "Store MER 3.31x so far is over the 2.50x goal." },
-    "meta": {
-     "on": 260, "limit": 800, "headroom": 540, "limit_src": "meta",
-     "camp": { "id": "c6", "name": "BFCM 2026", "daily": 200, "spent": 150 },
-     "camps": [ { "id": "c6", "name": "BFCM 2026", "kind": "sale", "daily": 200, "spent": 150, "t_ord": 9, "t_roas": 3.1, "w_spend": 900, "w_ord": 30, "w_roas": 2.8 } ]
-    }
-   },
-   {
-    "act_id": "brand_copper_kettle_pets", "name": "Copper Kettle Pets", "goal": 8000, "kpi": 2.5, "hold": 2.0, "mode": "live",
-    "last6": { "hours": 6, "sales": 700, "spend": 300, "mer": 2.33 },
-    "today": { "sales": 1300, "spend": 560, "mer": 2.32 },
-    "week": { "sales": 4100, "spend": 1800, "mer": 2.28 },
-    "so_far": { "days": 2, "sales": 2600, "spend": 1100, "mer": 2.36 },
-    "suggest": { "call": "hold", "pct": 0, "why": "Store MER 2.36x sits between break-even and the 2.50x goal." },
-    "meta": {
-     "on": 150, "limit": null, "headroom": null,
-     "camp": { "id": "c7", "name": "BFCM 2026", "daily": 100, "spent": 70 },
-     "camps": [ { "id": "c7", "name": "BFCM 2026", "kind": "sale", "daily": 100, "spent": 70, "t_ord": 3, "t_roas": 2.0, "w_spend": 420, "w_ord": 11, "w_roas": 2.1 } ]
-    }
-   }
-  ]
+  {
+   "slot": "2026-11-26T05",
+   "label": "5am check-in"
+  }
+ ],
+ "answers": {
+  "brand_northlake_golf": {
+   "checkin_hours": "4"
+  },
+  "brand_brightside_patch": {
+   "checkin_hours": "4"
+  },
+  "brand_fairway_supply": {
+   "checkin_hours": "4"
+  },
+  "brand_tallgrass_apparel": {
+   "checkin_hours": "6"
+  },
+  "brand_summit_sticks": {
+   "checkin_hours": "6"
+  },
+  "brand_harbor_and_pine": {
+   "checkin_hours": "6"
+  },
+  "brand_copper_kettle_pets": {
+   "checkin_hours": "10"
+  }
  },
- "detail": {
-  "structure": "BFCM 2026: CBO, $600/day, 2 live ad sets",
-  "from": "2026-11-24", "to": "2026-11-26",
-  "sets": [
-   { "name": "Black Friday | New people", "daily": null, "spend": 1200, "sales": 31, "roas": 3.1, "share": 72,
-     "ads": [
-      { "name": "Gift guide video", "label": "keep", "spend": 520, "sales": 16, "roas": 3.6 },
-      { "name": "Belt close-up still", "label": "cut", "spend": 210, "sales": 1, "roas": 0.6, "note": "Spent 3 times the goal cost per sale with 1 sale." },
-      { "name": "Founder story", "label": "wait", "spend": 40, "sales": 0, "roas": null, "note": "In its wait window: $40 more spend and 1 more day before it can be judged." }
-     ] },
-   { "name": "Black Friday | Past buyers", "daily": null, "spend": 460, "sales": 18, "roas": 4.2, "share": 28,
-     "ads": [ { "name": "Restock reminder", "label": "keep", "spend": 300, "sales": 13, "roas": 4.6 } ] }
-  ]
+ "goals": {
+  "brand_northlake_golf": {
+   "target_roas": 2.5,
+   "be_roas": null
+  },
+  "brand_tallgrass_apparel": {
+   "target_roas": 2.5,
+   "be_roas": 2
+  },
+  "brand_brightside_patch": {
+   "target_roas": 2.5,
+   "be_roas": null
+  },
+  "brand_summit_sticks": {
+   "target_roas": 2.5,
+   "be_roas": null
+  },
+  "brand_harbor_and_pine": {
+   "target_roas": 2.5,
+   "be_roas": null
+  },
+  "brand_fairway_supply": {
+   "target_roas": 2.5,
+   "be_roas": null
+  }
+ },
+ "activities": [
+  {
+   "act_id": "brand_northlake_golf",
+   "object_id": "9001",
+   "object_name": "BFCM 2026",
+   "category": "budget",
+   "event_time": "2026-11-26T18:40:00.000Z",
+   "summary": "Budget: campaign \"BFCM 2026\" budget $750/day → $900/day (+20%)",
+   "actor": "jordan@example.com",
+   "client_why": "Black Friday sales are running ahead of the goal, so we gave BFCM 2026 more budget."
+  },
+  {
+   "act_id": "brand_tallgrass_apparel",
+   "object_id": "9102",
+   "object_name": "Signature Polo",
+   "category": "budget",
+   "event_time": "2026-11-26T16:15:00.000Z",
+   "summary": "Budget: $100/day → $120/day \"Signature Polo\"",
+   "actor": "jordan@example.com",
+   "client_why": "Black Friday sales are running ahead of the goal, so we gave Signature Polo more budget."
+  },
+  {
+   "act_id": "brand_brightside_patch",
+   "object_id": "9201",
+   "object_name": "BFCM 2026",
+   "category": "budget",
+   "event_time": "2026-11-26T15:30:00.000Z",
+   "summary": "Budget: campaign \"BFCM 2026\" budget $400/day -> $500/day (+25%)",
+   "actor": "jordan@example.com",
+   "client_why": "Black Friday sales are running ahead of the goal, so we gave BFCM 2026 more budget."
+  },
+  {
+   "act_id": "brand_fairway_supply",
+   "object_id": "9603",
+   "object_name": "[MD] CBO",
+   "category": "other",
+   "event_time": "2026-11-26T17:30:00.000Z",
+   "summary": "Undone: Budget: campaign \"[MD] CBO\" budget $450/day → $540/day (+20%)",
+   "note": "Undo of mw_sample01.",
+   "actor": "jordan@example.com"
+  },
+  {
+   "act_id": "brand_fairway_supply",
+   "object_id": "9603",
+   "object_name": "[MD] CBO",
+   "category": "budget",
+   "event_time": "2026-11-26T17:00:00.000Z",
+   "summary": "Budget: campaign \"[MD] CBO\" budget $450/day → $540/day (+20%)",
+   "note": "Write mw_sample01. Undo within 24h with meta_undo.",
+   "actor": "jordan@example.com",
+   "client_why": "Black Friday sales are running ahead of the goal, so we gave [MD] CBO more budget."
+  }
+ ],
+ "records": {
+  "2026-11-25T20": {
+   "slot": "2026-11-25T20",
+   "at": "2026-11-26T02:05:00.000Z",
+   "label": "Wed, Nov 25, 8pm CT",
+   "next": null,
+   "today": "2026-11-25",
+   "dry": 0,
+   "approved": {},
+   "brands": [
+    {
+     "act_id": "brand_northlake_golf",
+     "name": "Northlake Golf",
+     "goal": 90000,
+     "kpi": 2.5,
+     "hold": 2,
+     "mode": "live",
+     "be_new": 1.6,
+     "no_sales": 0,
+     "last6": {
+      "sales": 5200,
+      "spend": 1100,
+      "mer": 4.727
+     },
+     "today": {
+      "sales": 5200,
+      "spend": 1100,
+      "mer": 4.727
+     },
+     "week": {
+      "from": "2026-11-23",
+      "sales": 46200,
+      "spend": 9700,
+      "mer": 4.763
+     },
+     "so_far": {
+      "from": "2026-11-25",
+      "days": 1,
+      "sales": 5200,
+      "spend": 1100,
+      "mer": 4.727
+     },
+     "suggest": {
+      "call": "hold",
+      "pct": 0,
+      "why": "Too early to read."
+     },
+     "meta": {
+      "on": 1050,
+      "limit": 3000,
+      "limit_src": "meta",
+      "headroom": 1950,
+      "camp": {
+       "id": "9001",
+       "name": "BFCM 2026",
+       "daily": 750,
+       "spent": 610
+      },
+      "camps": [
+       {
+        "id": "9001",
+        "name": "BFCM 2026",
+        "kind": "sale",
+        "daily": 750,
+        "spent": 610,
+        "t_ord": 21,
+        "t_roas": 3.1,
+        "w_spend": 2300,
+        "w_ord": 82,
+        "w_roas": 3.2
+       },
+       {
+        "id": "9002",
+        "name": "Creator ABO",
+        "kind": "creators",
+        "daily": null,
+        "spent": 260,
+        "t_ord": 12,
+        "t_roas": 4.2,
+        "w_spend": 1250,
+        "w_ord": 64,
+        "w_roas": 4.6
+       },
+       {
+        "id": "9003",
+        "name": "Apparel + Gear",
+        "kind": "evergreen",
+        "daily": 150,
+        "spent": 120,
+        "t_ord": 1,
+        "t_roas": 0.8,
+        "w_spend": 520,
+        "w_ord": 4,
+        "w_roas": 0.7
+       }
+      ]
+     }
+    },
+    {
+     "act_id": "brand_tallgrass_apparel",
+     "name": "Tallgrass Apparel",
+     "goal": 40000,
+     "kpi": 3,
+     "hold": 2.4,
+     "mode": "live",
+     "be_new": 1.6,
+     "no_sales": 0,
+     "last6": {
+      "sales": 2600,
+      "spend": 700,
+      "mer": 3.714
+     },
+     "today": {
+      "sales": 2600,
+      "spend": 700,
+      "mer": 3.714
+     },
+     "week": {
+      "from": "2026-11-23",
+      "sales": 19400,
+      "spend": 5000,
+      "mer": 3.88
+     },
+     "so_far": {
+      "from": "2026-11-25",
+      "days": 1,
+      "sales": 2600,
+      "spend": 700,
+      "mer": 3.714
+     },
+     "suggest": {
+      "call": "hold",
+      "pct": 0,
+      "why": "Too early to read."
+     },
+     "meta": {
+      "on": 720,
+      "limit": 1500,
+      "limit_src": "meta",
+      "headroom": 780,
+      "camp": {
+       "id": "9101",
+       "name": "BFCM 2026",
+       "daily": 600,
+       "spent": 410
+      },
+      "camps": [
+       {
+        "id": "9101",
+        "name": "BFCM 2026",
+        "kind": "sale",
+        "daily": 600,
+        "spent": 410,
+        "t_ord": 5,
+        "t_roas": 1.2,
+        "w_spend": 2100,
+        "w_ord": 28,
+        "w_roas": 1.2
+       },
+       {
+        "id": "9102",
+        "name": "Signature Polo",
+        "kind": "evergreen",
+        "daily": 100,
+        "spent": 150,
+        "t_ord": 4,
+        "t_roas": 2.6,
+        "w_spend": 640,
+        "w_ord": 19,
+        "w_roas": 2.7
+       }
+      ]
+     }
+    },
+    {
+     "act_id": "brand_brightside_patch",
+     "name": "Brightside Patch",
+     "goal": 60000,
+     "kpi": 2.5,
+     "hold": 2,
+     "mode": "live",
+     "be_new": 1.6,
+     "no_sales": 0,
+     "last6": {
+      "sales": 3100,
+      "spend": 900,
+      "mer": 3.444
+     },
+     "today": {
+      "sales": 3100,
+      "spend": 900,
+      "mer": 3.444
+     },
+     "week": {
+      "from": "2026-11-23",
+      "sales": 25100,
+      "spend": 7400,
+      "mer": 3.392
+     },
+     "so_far": {
+      "from": "2026-11-25",
+      "days": 1,
+      "sales": 3100,
+      "spend": 900,
+      "mer": 3.444
+     },
+     "suggest": {
+      "call": "hold",
+      "pct": 0,
+      "why": "Too early to read."
+     },
+     "meta": {
+      "on": 700,
+      "limit": 2000,
+      "limit_src": "meta",
+      "headroom": 1300,
+      "camp": {
+       "id": "9201",
+       "name": "BFCM 2026",
+       "daily": 400,
+       "spent": 520
+      },
+      "camps": [
+       {
+        "id": "9201",
+        "name": "BFCM 2026",
+        "kind": "sale",
+        "daily": 400,
+        "spent": 520,
+        "t_ord": 5,
+        "t_roas": 0.8,
+        "w_spend": 1620,
+        "w_ord": 14,
+        "w_roas": 0.8
+       },
+       {
+        "id": "9202",
+        "name": "[MD] CBO #2",
+        "kind": "evergreen",
+        "daily": 200,
+        "spent": 190,
+        "t_ord": 4,
+        "t_roas": 1.9,
+        "w_spend": 730,
+        "w_ord": 15,
+        "w_roas": 1.9
+       }
+      ]
+     }
+    },
+    {
+     "act_id": "brand_summit_sticks",
+     "name": "Summit Sticks",
+     "goal": 20000,
+     "kpi": 2.5,
+     "hold": 2,
+     "mode": "live",
+     "be_new": 1.6,
+     "client_approve": 1,
+     "no_sales": 0,
+     "last6": {
+      "sales": 900,
+      "spend": 260,
+      "mer": 3.462
+     },
+     "today": {
+      "sales": 900,
+      "spend": 260,
+      "mer": 3.462
+     },
+     "week": {
+      "from": "2026-11-23",
+      "sales": 7100,
+      "spend": 2060,
+      "mer": 3.447
+     },
+     "so_far": {
+      "from": "2026-11-25",
+      "days": 1,
+      "sales": 900,
+      "spend": 260,
+      "mer": 3.462
+     },
+     "suggest": {
+      "call": "hold",
+      "pct": 0,
+      "why": "Too early to read."
+     },
+     "meta": {
+      "on": 400,
+      "limit": 450,
+      "limit_src": "known",
+      "headroom": 50,
+      "camp": {
+       "id": "9301",
+       "name": "BFCM 2026",
+       "daily": 250,
+       "spent": 190
+      },
+      "camps": [
+       {
+        "id": "9301",
+        "name": "BFCM 2026",
+        "kind": "sale",
+        "daily": 250,
+        "spent": 190,
+        "t_ord": 6,
+        "t_roas": 3,
+        "w_spend": 900,
+        "w_ord": 31,
+        "w_roas": 3.1
+       },
+       {
+        "id": "9302",
+        "name": "Evergreen",
+        "kind": "evergreen",
+        "daily": 100,
+        "spent": 70,
+        "t_ord": 2,
+        "t_roas": 2,
+        "w_spend": 330,
+        "w_ord": 7,
+        "w_roas": 2
+       },
+       {
+        "id": "9303",
+        "name": "Holiday 2026",
+        "kind": "sale",
+        "daily": 50,
+        "spent": 0,
+        "t_ord": 0,
+        "t_roas": null,
+        "w_spend": 0,
+        "w_ord": 0,
+        "w_roas": null
+       }
+      ]
+     }
+    },
+    {
+     "act_id": "brand_copper_kettle_pets",
+     "name": "Copper Kettle Pets",
+     "goal": 6000,
+     "kpi": 2.5,
+     "hold": 2,
+     "mode": "live",
+     "be_new": 1.6,
+     "no_sales": 1,
+     "last6": {
+      "sales": null,
+      "spend": 60,
+      "mer": null
+     },
+     "today": {
+      "sales": null,
+      "spend": 60,
+      "mer": null
+     },
+     "week": {
+      "from": "2026-11-23",
+      "sales": null,
+      "spend": 480,
+      "mer": null
+     },
+     "so_far": {
+      "from": "2026-11-25",
+      "days": 1,
+      "sales": null,
+      "spend": 60,
+      "mer": null
+     },
+     "suggest": {
+      "call": "hold",
+      "pct": 0,
+      "why": "Too early to read."
+     },
+     "meta": {
+      "on": 60,
+      "limit": null,
+      "limit_src": null,
+      "headroom": null,
+      "camp": {
+       "id": "9401",
+       "name": "BFCM 2026",
+       "daily": 60,
+       "spent": 50
+      },
+      "camps": [
+       {
+        "id": "9401",
+        "name": "BFCM 2026",
+        "kind": "sale",
+        "daily": 60,
+        "spent": 50,
+        "t_ord": 0,
+        "t_roas": null,
+        "w_spend": 300,
+        "w_ord": 0,
+        "w_roas": null
+       }
+      ]
+     }
+    },
+    {
+     "act_id": "brand_harbor_and_pine",
+     "name": "Harbor & Pine",
+     "goal": null,
+     "kpi": 2.5,
+     "hold": 2,
+     "mode": "live",
+     "be_new": 1.6,
+     "watch": 1,
+     "no_sales": 0,
+     "last6": {
+      "sales": 1800,
+      "spend": 420,
+      "mer": 4.286
+     },
+     "today": {
+      "sales": 1800,
+      "spend": 420,
+      "mer": 4.286
+     },
+     "week": {
+      "from": "2026-11-23",
+      "sales": 14200,
+      "spend": 3520,
+      "mer": 4.034
+     },
+     "so_far": {
+      "from": "2026-11-25",
+      "days": 1,
+      "sales": 1800,
+      "spend": 420,
+      "mer": 4.286
+     },
+     "suggest": {
+      "call": "hold",
+      "pct": 0,
+      "why": "The client runs this budget, so this is updates only."
+     },
+     "meta": {
+      "on": 0,
+      "limit": 1200,
+      "limit_src": "meta",
+      "headroom": 1200,
+      "camp": {
+       "id": "9501",
+       "name": "Sale ABO",
+       "daily": null,
+       "spent": 380
+      },
+      "camps": [
+       {
+        "id": "9501",
+        "name": "Sale ABO",
+        "kind": "sale",
+        "daily": null,
+        "spent": 380,
+        "t_ord": 10,
+        "t_roas": 2.4,
+        "w_spend": 1500,
+        "w_ord": 43,
+        "w_roas": 2.6
+       }
+      ]
+     }
+    },
+    {
+     "act_id": "brand_fairway_supply",
+     "name": "Fairway Supply",
+     "goal": 50000,
+     "kpi": 2.5,
+     "hold": 2,
+     "mode": "live",
+     "be_new": 1.6,
+     "no_sales": 0,
+     "last6": {
+      "sales": 2900,
+      "spend": 1150,
+      "mer": 2.522
+     },
+     "today": {
+      "sales": 2900,
+      "spend": 1150,
+      "mer": 2.522
+     },
+     "week": {
+      "from": "2026-11-23",
+      "sales": 21900,
+      "spend": 8750,
+      "mer": 2.503
+     },
+     "so_far": {
+      "from": "2026-11-25",
+      "days": 1,
+      "sales": 2900,
+      "spend": 1150,
+      "mer": 2.522
+     },
+     "suggest": {
+      "call": "hold",
+      "pct": 0,
+      "why": "Too early to read."
+     },
+     "meta": {
+      "on": 1500,
+      "limit": 2500,
+      "limit_src": "meta",
+      "headroom": 1000,
+      "camp": {
+       "id": "9602",
+       "name": "BFCM 2026",
+       "daily": 1000,
+       "spent": 600
+      },
+      "camps": [
+       {
+        "id": "9601",
+        "name": "Early access list",
+        "kind": "sale",
+        "daily": 50,
+        "spent": 45,
+        "t_ord": 1,
+        "t_roas": 2,
+        "w_spend": 600,
+        "w_ord": 12,
+        "w_roas": 1.8
+       },
+       {
+        "id": "9602",
+        "name": "BFCM 2026",
+        "kind": "sale",
+        "daily": 1000,
+        "spent": 600,
+        "t_ord": 9,
+        "t_roas": 1.4,
+        "w_spend": 3000,
+        "w_ord": 53,
+        "w_roas": 1.6
+       },
+       {
+        "id": "9603",
+        "name": "[MD] CBO",
+        "kind": "evergreen",
+        "daily": 450,
+        "spent": 300,
+        "t_ord": 9,
+        "t_roas": 2.6,
+        "w_spend": 1700,
+        "w_ord": 51,
+        "w_roas": 2.7
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "2026-11-26T05": {
+   "slot": "2026-11-26T05",
+   "at": "2026-11-26T11:05:00.000Z",
+   "label": "Thu, Nov 26, 5am CT",
+   "next": null,
+   "today": "2026-11-26",
+   "dry": 0,
+   "approved": {},
+   "brands": [
+    {
+     "act_id": "brand_northlake_golf",
+     "name": "Northlake Golf",
+     "goal": 90000,
+     "kpi": 2.5,
+     "hold": 2,
+     "mode": "live",
+     "be_new": 1.6,
+     "no_sales": 0,
+     "last6": {
+      "sales": 180,
+      "spend": 55,
+      "mer": 3.273
+     },
+     "today": {
+      "sales": 180,
+      "spend": 55,
+      "mer": 3.273
+     },
+     "week": {
+      "from": "2026-11-23",
+      "sales": 47160,
+      "spend": 9920,
+      "mer": 4.754
+     },
+     "so_far": {
+      "from": "2026-11-26",
+      "days": 1,
+      "sales": 180,
+      "spend": 55,
+      "mer": 3.273
+     },
+     "suggest": {
+      "call": "scale",
+      "pct": 0.5,
+      "to": 1125,
+      "why": "Store MER so far is over 1.5 times the goal."
+     },
+     "meta": {
+      "on": 1050,
+      "limit": 3000,
+      "limit_src": "meta",
+      "headroom": 1950,
+      "camp": {
+       "id": "9001",
+       "name": "BFCM 2026",
+       "daily": 750,
+       "spent": 30
+      },
+      "camps": [
+       {
+        "id": "9001",
+        "name": "BFCM 2026",
+        "kind": "sale",
+        "daily": 750,
+        "spent": 30,
+        "t_ord": 1,
+        "t_roas": 2,
+        "w_spend": 2330,
+        "w_ord": 83,
+        "w_roas": 3.2
+       },
+       {
+        "id": "9002",
+        "name": "Creator ABO",
+        "kind": "creators",
+        "daily": null,
+        "spent": 20,
+        "t_ord": 1,
+        "t_roas": 3,
+        "w_spend": 1270,
+        "w_ord": 65,
+        "w_roas": 4.6
+       },
+       {
+        "id": "9003",
+        "name": "Apparel + Gear",
+        "kind": "evergreen",
+        "daily": 150,
+        "spent": 5,
+        "t_ord": 0,
+        "t_roas": 0,
+        "w_spend": 525,
+        "w_ord": 4,
+        "w_roas": 0.7
+       }
+      ]
+     }
+    },
+    {
+     "act_id": "brand_tallgrass_apparel",
+     "name": "Tallgrass Apparel",
+     "goal": 40000,
+     "kpi": 3,
+     "hold": 2.4,
+     "mode": "live",
+     "be_new": 1.6,
+     "no_sales": 0,
+     "last6": {
+      "sales": 90,
+      "spend": 30,
+      "mer": 3
+     },
+     "today": {
+      "sales": 90,
+      "spend": 30,
+      "mer": 3
+     },
+     "week": {
+      "from": "2026-11-23",
+      "sales": 19880,
+      "spend": 5135,
+      "mer": 3.871
+     },
+     "so_far": {
+      "from": "2026-11-26",
+      "days": 1,
+      "sales": 90,
+      "spend": 30,
+      "mer": 3
+     },
+     "suggest": {
+      "call": "hold",
+      "pct": 0,
+      "why": "Too early to read."
+     },
+     "meta": {
+      "on": 720,
+      "limit": 1500,
+      "limit_src": "meta",
+      "headroom": 780,
+      "camp": {
+       "id": "9101",
+       "name": "BFCM 2026",
+       "daily": 600,
+       "spent": 20
+      },
+      "camps": [
+       {
+        "id": "9101",
+        "name": "BFCM 2026",
+        "kind": "sale",
+        "daily": 600,
+        "spent": 20,
+        "t_ord": 0,
+        "t_roas": 0.5,
+        "w_spend": 2120,
+        "w_ord": 28,
+        "w_roas": 1.2
+       },
+       {
+        "id": "9102",
+        "name": "Signature Polo",
+        "kind": "evergreen",
+        "daily": 100,
+        "spent": 8,
+        "t_ord": 0,
+        "t_roas": 0,
+        "w_spend": 648,
+        "w_ord": 19,
+        "w_roas": 2.7
+       }
+      ]
+     }
+    },
+    {
+     "act_id": "brand_brightside_patch",
+     "name": "Brightside Patch",
+     "goal": 60000,
+     "kpi": 2.5,
+     "hold": 2,
+     "mode": "live",
+     "be_new": 1.6,
+     "no_sales": 0,
+     "last6": {
+      "sales": 120,
+      "spend": 40,
+      "mer": 3
+     },
+     "today": {
+      "sales": 120,
+      "spend": 40,
+      "mer": 3
+     },
+     "week": {
+      "from": "2026-11-23",
+      "sales": 25685,
+      "spend": 7575,
+      "mer": 3.391
+     },
+     "so_far": {
+      "from": "2026-11-26",
+      "days": 1,
+      "sales": 120,
+      "spend": 40,
+      "mer": 3
+     },
+     "suggest": {
+      "call": "hold",
+      "pct": 0,
+      "why": "Too early to read."
+     },
+     "meta": {
+      "on": 700,
+      "limit": 2000,
+      "limit_src": "meta",
+      "headroom": 1300,
+      "camp": {
+       "id": "9201",
+       "name": "BFCM 2026",
+       "daily": 400,
+       "spent": 25
+      },
+      "camps": [
+       {
+        "id": "9201",
+        "name": "BFCM 2026",
+        "kind": "sale",
+        "daily": 400,
+        "spent": 25,
+        "t_ord": 0,
+        "t_roas": 0,
+        "w_spend": 1645,
+        "w_ord": 15,
+        "w_roas": 0.8
+       },
+       {
+        "id": "9202",
+        "name": "[MD] CBO #2",
+        "kind": "evergreen",
+        "daily": 200,
+        "spent": 10,
+        "t_ord": 0,
+        "t_roas": 0,
+        "w_spend": 740,
+        "w_ord": 16,
+        "w_roas": 1.9
+       }
+      ]
+     }
+    },
+    {
+     "act_id": "brand_summit_sticks",
+     "name": "Summit Sticks",
+     "goal": 20000,
+     "kpi": 2.5,
+     "hold": 2,
+     "mode": "live",
+     "be_new": 1.6,
+     "client_approve": 1,
+     "no_sales": 0,
+     "last6": {
+      "sales": 40,
+      "spend": 12,
+      "mer": 3.333
+     },
+     "today": {
+      "sales": 40,
+      "spend": 12,
+      "mer": 3.333
+     },
+     "week": {
+      "from": "2026-11-23",
+      "sales": 7275,
+      "spend": 2111,
+      "mer": 3.446
+     },
+     "so_far": {
+      "from": "2026-11-26",
+      "days": 1,
+      "sales": 40,
+      "spend": 12,
+      "mer": 3.333
+     },
+     "suggest": {
+      "call": "hold",
+      "pct": 0,
+      "why": "Too early to read."
+     },
+     "meta": {
+      "on": 400,
+      "limit": 450,
+      "limit_src": "known",
+      "headroom": 50,
+      "camp": {
+       "id": "9301",
+       "name": "BFCM 2026",
+       "daily": 250,
+       "spent": 8
+      },
+      "camps": [
+       {
+        "id": "9301",
+        "name": "BFCM 2026",
+        "kind": "sale",
+        "daily": 250,
+        "spent": 8,
+        "t_ord": 0,
+        "t_roas": 0,
+        "w_spend": 908,
+        "w_ord": 31,
+        "w_roas": 3.1
+       },
+       {
+        "id": "9302",
+        "name": "Evergreen",
+        "kind": "evergreen",
+        "daily": 100,
+        "spent": 4,
+        "t_ord": 0,
+        "t_roas": 0,
+        "w_spend": 334,
+        "w_ord": 7,
+        "w_roas": 2
+       },
+       {
+        "id": "9303",
+        "name": "Holiday 2026",
+        "kind": "sale",
+        "daily": 50,
+        "spent": 0,
+        "t_ord": 0,
+        "t_roas": null,
+        "w_spend": 0,
+        "w_ord": 0,
+        "w_roas": null
+       }
+      ]
+     }
+    },
+    {
+     "act_id": "brand_copper_kettle_pets",
+     "name": "Copper Kettle Pets",
+     "goal": 6000,
+     "kpi": 2.5,
+     "hold": 2,
+     "mode": "live",
+     "be_new": 1.6,
+     "no_sales": 1,
+     "last6": {
+      "sales": null,
+      "spend": 4,
+      "mer": null
+     },
+     "today": {
+      "sales": null,
+      "spend": 4,
+      "mer": null
+     },
+     "week": {
+      "from": "2026-11-23",
+      "sales": null,
+      "spend": 493,
+      "mer": null
+     },
+     "so_far": {
+      "from": "2026-11-26",
+      "days": 1,
+      "sales": null,
+      "spend": 4,
+      "mer": null
+     },
+     "suggest": {
+      "call": "hold",
+      "pct": 0,
+      "why": "Too early to read."
+     },
+     "meta": {
+      "on": 60,
+      "limit": null,
+      "limit_src": null,
+      "headroom": null,
+      "camp": {
+       "id": "9401",
+       "name": "BFCM 2026",
+       "daily": 60,
+       "spent": 4
+      },
+      "camps": [
+       {
+        "id": "9401",
+        "name": "BFCM 2026",
+        "kind": "sale",
+        "daily": 60,
+        "spent": 4,
+        "t_ord": 0,
+        "t_roas": null,
+        "w_spend": 304,
+        "w_ord": 0,
+        "w_roas": null
+       }
+      ]
+     }
+    },
+    {
+     "act_id": "brand_harbor_and_pine",
+     "name": "Harbor & Pine",
+     "goal": null,
+     "kpi": 2.5,
+     "hold": 2,
+     "mode": "live",
+     "be_new": 1.6,
+     "watch": 1,
+     "no_sales": 0,
+     "last6": {
+      "sales": 60,
+      "spend": 20,
+      "mer": 3
+     },
+     "today": {
+      "sales": 60,
+      "spend": 20,
+      "mer": 3
+     },
+     "week": {
+      "from": "2026-11-23",
+      "sales": 14530,
+      "spend": 3603,
+      "mer": 4.033
+     },
+     "so_far": {
+      "from": "2026-11-26",
+      "days": 1,
+      "sales": 60,
+      "spend": 20,
+      "mer": 3
+     },
+     "suggest": {
+      "call": "hold",
+      "pct": 0,
+      "why": "The client runs this budget, so this is updates only."
+     },
+     "meta": {
+      "on": 0,
+      "limit": 1200,
+      "limit_src": "meta",
+      "headroom": 1200,
+      "camp": {
+       "id": "9501",
+       "name": "Sale ABO",
+       "daily": null,
+       "spent": 18
+      },
+      "camps": [
+       {
+        "id": "9501",
+        "name": "Sale ABO",
+        "kind": "sale",
+        "daily": null,
+        "spent": 18,
+        "t_ord": 0,
+        "t_roas": 0,
+        "w_spend": 1518,
+        "w_ord": 44,
+        "w_roas": 2.6
+       }
+      ]
+     }
+    },
+    {
+     "act_id": "brand_fairway_supply",
+     "name": "Fairway Supply",
+     "goal": 50000,
+     "kpi": 2.5,
+     "hold": 2,
+     "mode": "live",
+     "be_new": 1.6,
+     "no_sales": 0,
+     "last6": {
+      "sales": 70,
+      "spend": 35,
+      "mer": 2
+     },
+     "today": {
+      "sales": 70,
+      "spend": 35,
+      "mer": 2
+     },
+     "week": {
+      "from": "2026-11-23",
+      "sales": 22405,
+      "spend": 8958,
+      "mer": 2.501
+     },
+     "so_far": {
+      "from": "2026-11-26",
+      "days": 1,
+      "sales": 70,
+      "spend": 35,
+      "mer": 2
+     },
+     "suggest": {
+      "call": "hold",
+      "pct": 0,
+      "why": "Too early to read."
+     },
+     "meta": {
+      "on": 1500,
+      "limit": 2500,
+      "limit_src": "meta",
+      "headroom": 1000,
+      "camp": {
+       "id": "9602",
+       "name": "BFCM 2026",
+       "daily": 1000,
+       "spent": 20
+      },
+      "camps": [
+       {
+        "id": "9601",
+        "name": "Early access list",
+        "kind": "sale",
+        "daily": 50,
+        "spent": 1,
+        "t_ord": 0,
+        "t_roas": 0,
+        "w_spend": 601,
+        "w_ord": 12,
+        "w_roas": 1.8
+       },
+       {
+        "id": "9602",
+        "name": "BFCM 2026",
+        "kind": "sale",
+        "daily": 1000,
+        "spent": 20,
+        "t_ord": 0,
+        "t_roas": 0,
+        "w_spend": 3020,
+        "w_ord": 54,
+        "w_roas": 1.6
+       },
+       {
+        "id": "9603",
+        "name": "[MD] CBO",
+        "kind": "evergreen",
+        "daily": 450,
+        "spent": 14,
+        "t_ord": 0,
+        "t_roas": 0,
+        "w_spend": 1714,
+        "w_ord": 51,
+        "w_roas": 2.7
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "2026-11-26T08": {
+   "slot": "2026-11-26T08",
+   "at": "2026-11-26T14:05:00.000Z",
+   "label": "Thu, Nov 26, 8am CT",
+   "next": null,
+   "today": "2026-11-26",
+   "dry": 0,
+   "approved": {},
+   "brands": [
+    {
+     "act_id": "brand_northlake_golf",
+     "name": "Northlake Golf",
+     "goal": 90000,
+     "kpi": 2.5,
+     "hold": 2,
+     "mode": "live",
+     "be_new": 1.6,
+     "no_sales": 0,
+     "last6": {
+      "sales": 1500,
+      "spend": 400,
+      "mer": 3.75
+     },
+     "today": {
+      "sales": 1500,
+      "spend": 400,
+      "mer": 3.75
+     },
+     "week": {
+      "from": "2026-11-23",
+      "sales": 48480,
+      "spend": 10265,
+      "mer": 4.723
+     },
+     "so_far": {
+      "from": "2026-11-26",
+      "days": 1,
+      "sales": 1500,
+      "spend": 400,
+      "mer": 3.75
+     },
+     "suggest": {
+      "call": "hold",
+      "pct": 0,
+      "why": "Too early to read."
+     },
+     "meta": {
+      "on": 1050,
+      "limit": 3000,
+      "limit_src": "meta",
+      "headroom": 1950,
+      "camp": {
+       "id": "9001",
+       "name": "BFCM 2026",
+       "daily": 750,
+       "spent": 240
+      },
+      "camps": [
+       {
+        "id": "9001",
+        "name": "BFCM 2026",
+        "kind": "sale",
+        "daily": 750,
+        "spent": 240,
+        "t_ord": 8,
+        "t_roas": 3,
+        "w_spend": 2540,
+        "w_ord": 90,
+        "w_roas": 3.2
+       },
+       {
+        "id": "9002",
+        "name": "Creator ABO",
+        "kind": "creators",
+        "daily": null,
+        "spent": 110,
+        "t_ord": 5,
+        "t_roas": 4,
+        "w_spend": 1360,
+        "w_ord": 68,
+        "w_roas": 4.5
+       },
+       {
+        "id": "9003",
+        "name": "Apparel + Gear",
+        "kind": "evergreen",
+        "daily": 150,
+        "spent": 30,
+        "t_ord": 0,
+        "t_roas": 0.5,
+        "w_spend": 550,
+        "w_ord": 4,
+        "w_roas": 0.7
+       }
+      ]
+     }
+    },
+    {
+     "act_id": "brand_tallgrass_apparel",
+     "name": "Tallgrass Apparel",
+     "goal": 40000,
+     "kpi": 3,
+     "hold": 2.4,
+     "mode": "live",
+     "be_new": 1.6,
+     "no_sales": 0,
+     "last6": {
+      "sales": 500,
+      "spend": 150,
+      "mer": 3.333
+     },
+     "today": {
+      "sales": 500,
+      "spend": 150,
+      "mer": 3.333
+     },
+     "week": {
+      "from": "2026-11-23",
+      "sales": 20290,
+      "spend": 5255,
+      "mer": 3.861
+     },
+     "so_far": {
+      "from": "2026-11-26",
+      "days": 1,
+      "sales": 500,
+      "spend": 150,
+      "mer": 3.333
+     },
+     "suggest": {
+      "call": "hold",
+      "pct": 0,
+      "why": "Too early to read."
+     },
+     "meta": {
+      "on": 720,
+      "limit": 1500,
+      "limit_src": "meta",
+      "headroom": 780,
+      "camp": {
+       "id": "9101",
+       "name": "BFCM 2026",
+       "daily": 600,
+       "spent": 110
+      },
+      "camps": [
+       {
+        "id": "9101",
+        "name": "BFCM 2026",
+        "kind": "sale",
+        "daily": 600,
+        "spent": 110,
+        "t_ord": 1,
+        "t_roas": 1.1,
+        "w_spend": 2210,
+        "w_ord": 29,
+        "w_roas": 1.2
+       },
+       {
+        "id": "9102",
+        "name": "Signature Polo",
+        "kind": "evergreen",
+        "daily": 100,
+        "spent": 30,
+        "t_ord": 1,
+        "t_roas": 2.5,
+        "w_spend": 670,
+        "w_ord": 20,
+        "w_roas": 2.7
+       }
+      ]
+     }
+    },
+    {
+     "act_id": "brand_brightside_patch",
+     "name": "Brightside Patch",
+     "goal": 60000,
+     "kpi": 2.5,
+     "hold": 2,
+     "mode": "live",
+     "be_new": 1.6,
+     "no_sales": 0,
+     "last6": {
+      "sales": 900,
+      "spend": 250,
+      "mer": 3.6
+     },
+     "today": {
+      "sales": 900,
+      "spend": 250,
+      "mer": 3.6
+     },
+     "week": {
+      "from": "2026-11-23",
+      "sales": 26465,
+      "spend": 7785,
+      "mer": 3.399
+     },
+     "so_far": {
+      "from": "2026-11-26",
+      "days": 1,
+      "sales": 900,
+      "spend": 250,
+      "mer": 3.6
+     },
+     "suggest": {
+      "call": "hold",
+      "pct": 0,
+      "why": "Too early to read."
+     },
+     "meta": {
+      "on": 700,
+      "limit": 2000,
+      "limit_src": "meta",
+      "headroom": 1300,
+      "camp": {
+       "id": "9201",
+       "name": "BFCM 2026",
+       "daily": 400,
+       "spent": 200
+      },
+      "camps": [
+       {
+        "id": "9201",
+        "name": "BFCM 2026",
+        "kind": "sale",
+        "daily": 400,
+        "spent": 200,
+        "t_ord": 5,
+        "t_roas": 2.4,
+        "w_spend": 1820,
+        "w_ord": 18,
+        "w_roas": 0.9
+       },
+       {
+        "id": "9202",
+        "name": "[MD] CBO #2",
+        "kind": "evergreen",
+        "daily": 200,
+        "spent": 40,
+        "t_ord": 1,
+        "t_roas": 2,
+        "w_spend": 770,
+        "w_ord": 16,
+        "w_roas": 1.9
+       }
+      ]
+     }
+    },
+    {
+     "act_id": "brand_summit_sticks",
+     "name": "Summit Sticks",
+     "goal": 20000,
+     "kpi": 2.5,
+     "hold": 2,
+     "mode": "live",
+     "be_new": 1.6,
+     "client_approve": 1,
+     "no_sales": 0,
+     "last6": {
+      "sales": 260,
+      "spend": 70,
+      "mer": 3.714
+     },
+     "today": {
+      "sales": 260,
+      "spend": 70,
+      "mer": 3.714
+     },
+     "week": {
+      "from": "2026-11-23",
+      "sales": 7495,
+      "spend": 2169,
+      "mer": 3.456
+     },
+     "so_far": {
+      "from": "2026-11-26",
+      "days": 1,
+      "sales": 260,
+      "spend": 70,
+      "mer": 3.714
+     },
+     "suggest": {
+      "call": "hold",
+      "pct": 0,
+      "why": "Too early to read."
+     },
+     "meta": {
+      "on": 400,
+      "limit": 450,
+      "limit_src": "known",
+      "headroom": 50,
+      "camp": {
+       "id": "9301",
+       "name": "BFCM 2026",
+       "daily": 250,
+       "spent": 50
+      },
+      "camps": [
+       {
+        "id": "9301",
+        "name": "BFCM 2026",
+        "kind": "sale",
+        "daily": 250,
+        "spent": 50,
+        "t_ord": 2,
+        "t_roas": 3.2,
+        "w_spend": 950,
+        "w_ord": 33,
+        "w_roas": 3.1
+       },
+       {
+        "id": "9302",
+        "name": "Evergreen",
+        "kind": "evergreen",
+        "daily": 100,
+        "spent": 20,
+        "t_ord": 0,
+        "t_roas": 1.8,
+        "w_spend": 350,
+        "w_ord": 8,
+        "w_roas": 2
+       },
+       {
+        "id": "9303",
+        "name": "Holiday 2026",
+        "kind": "sale",
+        "daily": 50,
+        "spent": 0,
+        "t_ord": 0,
+        "t_roas": null,
+        "w_spend": 0,
+        "w_ord": 0,
+        "w_roas": null
+       }
+      ]
+     }
+    },
+    {
+     "act_id": "brand_copper_kettle_pets",
+     "name": "Copper Kettle Pets",
+     "goal": 6000,
+     "kpi": 2.5,
+     "hold": 2,
+     "mode": "live",
+     "be_new": 1.6,
+     "no_sales": 1,
+     "last6": {
+      "sales": null,
+      "spend": 15,
+      "mer": null
+     },
+     "today": {
+      "sales": null,
+      "spend": 15,
+      "mer": null
+     },
+     "week": {
+      "from": "2026-11-23",
+      "sales": null,
+      "spend": 504,
+      "mer": null
+     },
+     "so_far": {
+      "from": "2026-11-26",
+      "days": 1,
+      "sales": null,
+      "spend": 15,
+      "mer": null
+     },
+     "suggest": {
+      "call": "hold",
+      "pct": 0,
+      "why": "Too early to read."
+     },
+     "meta": {
+      "on": 60,
+      "limit": null,
+      "limit_src": null,
+      "headroom": null,
+      "camp": {
+       "id": "9401",
+       "name": "BFCM 2026",
+       "daily": 60,
+       "spent": 15
+      },
+      "camps": [
+       {
+        "id": "9401",
+        "name": "BFCM 2026",
+        "kind": "sale",
+        "daily": 60,
+        "spent": 15,
+        "t_ord": 0,
+        "t_roas": null,
+        "w_spend": 315,
+        "w_ord": 0,
+        "w_roas": null
+       }
+      ]
+     }
+    },
+    {
+     "act_id": "brand_harbor_and_pine",
+     "name": "Harbor & Pine",
+     "goal": null,
+     "kpi": 2.5,
+     "hold": 2,
+     "mode": "live",
+     "be_new": 1.6,
+     "watch": 1,
+     "no_sales": 0,
+     "last6": {
+      "sales": 400,
+      "spend": 110,
+      "mer": 3.636
+     },
+     "today": {
+      "sales": 400,
+      "spend": 110,
+      "mer": 3.636
+     },
+     "week": {
+      "from": "2026-11-23",
+      "sales": 14870,
+      "spend": 3693,
+      "mer": 4.027
+     },
+     "so_far": {
+      "from": "2026-11-26",
+      "days": 1,
+      "sales": 400,
+      "spend": 110,
+      "mer": 3.636
+     },
+     "suggest": {
+      "call": "hold",
+      "pct": 0,
+      "why": "The client runs this budget, so this is updates only."
+     },
+     "meta": {
+      "on": 0,
+      "limit": 1200,
+      "limit_src": "meta",
+      "headroom": 1200,
+      "camp": {
+       "id": "9501",
+       "name": "Sale ABO",
+       "daily": null,
+       "spent": 100
+      },
+      "camps": [
+       {
+        "id": "9501",
+        "name": "Sale ABO",
+        "kind": "sale",
+        "daily": null,
+        "spent": 100,
+        "t_ord": 2,
+        "t_roas": 2.2,
+        "w_spend": 1600,
+        "w_ord": 46,
+        "w_roas": 2.6
+       }
+      ]
+     }
+    },
+    {
+     "act_id": "brand_fairway_supply",
+     "name": "Fairway Supply",
+     "goal": 50000,
+     "kpi": 2.5,
+     "hold": 2,
+     "mode": "live",
+     "be_new": 1.6,
+     "no_sales": 0,
+     "last6": {
+      "sales": 600,
+      "spend": 260,
+      "mer": 2.308
+     },
+     "today": {
+      "sales": 600,
+      "spend": 260,
+      "mer": 2.308
+     },
+     "week": {
+      "from": "2026-11-23",
+      "sales": 22935,
+      "spend": 9183,
+      "mer": 2.498
+     },
+     "so_far": {
+      "from": "2026-11-26",
+      "days": 1,
+      "sales": 600,
+      "spend": 260,
+      "mer": 2.308
+     },
+     "suggest": {
+      "call": "hold",
+      "pct": 0,
+      "why": "Too early to read."
+     },
+     "meta": {
+      "on": 1500,
+      "limit": 2500,
+      "limit_src": "meta",
+      "headroom": 1000,
+      "camp": {
+       "id": "9602",
+       "name": "BFCM 2026",
+       "daily": 1000,
+       "spent": 170
+      },
+      "camps": [
+       {
+        "id": "9601",
+        "name": "Early access list",
+        "kind": "sale",
+        "daily": 50,
+        "spent": 1,
+        "t_ord": 0,
+        "t_roas": 0,
+        "w_spend": 601,
+        "w_ord": 12,
+        "w_roas": 1.8
+       },
+       {
+        "id": "9602",
+        "name": "BFCM 2026",
+        "kind": "sale",
+        "daily": 1000,
+        "spent": 170,
+        "t_ord": 2,
+        "t_roas": 1.3,
+        "w_spend": 3170,
+        "w_ord": 56,
+        "w_roas": 1.6
+       },
+       {
+        "id": "9603",
+        "name": "[MD] CBO",
+        "kind": "evergreen",
+        "daily": 450,
+        "spent": 80,
+        "t_ord": 2,
+        "t_roas": 2.5,
+        "w_spend": 1780,
+        "w_ord": 53,
+        "w_roas": 2.7
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "2026-11-26T14": {
+   "slot": "2026-11-26T14",
+   "at": "2026-11-26T20:05:00.000Z",
+   "label": "Thu, Nov 26, 2pm CT",
+   "next": null,
+   "today": "2026-11-26",
+   "dry": 0,
+   "approved": {},
+   "brands": [
+    {
+     "act_id": "brand_northlake_golf",
+     "name": "Northlake Golf",
+     "goal": 90000,
+     "kpi": 2.5,
+     "hold": 2,
+     "mode": "live",
+     "be_new": 1.6,
+     "no_sales": 0,
+     "last6": {
+      "sales": 8800,
+      "spend": 1900,
+      "mer": 4.632
+     },
+     "today": {
+      "sales": 8800,
+      "spend": 1900,
+      "mer": 4.632
+     },
+     "week": {
+      "from": "2026-11-23",
+      "sales": 55780,
+      "spend": 11765,
+      "mer": 4.741
+     },
+     "so_far": {
+      "from": "2026-11-26",
+      "days": 1,
+      "sales": 8800,
+      "spend": 1900,
+      "mer": 4.632
+     },
+     "suggest": {
+      "call": "scale",
+      "pct": 0.5,
+      "to": 1350,
+      "why": "Store MER so far is over 1.5 times the goal."
+     },
+     "meta": {
+      "on": 1050,
+      "limit": 3000,
+      "limit_src": "meta",
+      "headroom": 1950,
+      "camp": {
+       "id": "9001",
+       "name": "BFCM 2026",
+       "daily": 900,
+       "spent": 700
+      },
+      "camps": [
+       {
+        "id": "9001",
+        "name": "BFCM 2026",
+        "kind": "sale",
+        "daily": 900,
+        "spent": 700,
+        "t_ord": 28,
+        "t_roas": 3.6,
+        "w_spend": 3000,
+        "w_ord": 110,
+        "w_roas": 3.3
+       },
+       {
+        "id": "9002",
+        "name": "Creator ABO",
+        "kind": "creators",
+        "daily": null,
+        "spent": 300,
+        "t_ord": 15,
+        "t_roas": 4.5,
+        "w_spend": 1550,
+        "w_ord": 79,
+        "w_roas": 4.6
+       },
+       {
+        "id": "9003",
+        "name": "Apparel + Gear",
+        "kind": "evergreen",
+        "daily": 150,
+        "spent": 90,
+        "t_ord": 1,
+        "t_roas": 0.6,
+        "w_spend": 610,
+        "w_ord": 5,
+        "w_roas": 0.7
+       }
+      ]
+     }
+    },
+    {
+     "act_id": "brand_tallgrass_apparel",
+     "name": "Tallgrass Apparel",
+     "goal": 40000,
+     "kpi": 3,
+     "hold": 2.4,
+     "mode": "live",
+     "be_new": 1.6,
+     "no_sales": 0,
+     "last6": {
+      "sales": 2800,
+      "spend": 700,
+      "mer": 4
+     },
+     "today": {
+      "sales": 2800,
+      "spend": 700,
+      "mer": 4
+     },
+     "week": {
+      "from": "2026-11-23",
+      "sales": 22590,
+      "spend": 5805,
+      "mer": 3.891
+     },
+     "so_far": {
+      "from": "2026-11-26",
+      "days": 1,
+      "sales": 2800,
+      "spend": 700,
+      "mer": 4
+     },
+     "suggest": {
+      "call": "raise",
+      "pct": 0.25,
+      "to": 375,
+      "why": "Store MER so far is over the goal."
+     },
+     "meta": {
+      "on": 720,
+      "limit": 1500,
+      "limit_src": "meta",
+      "headroom": 780,
+      "camp": {
+       "id": "9101",
+       "name": "BFCM 2026",
+       "daily": 600,
+       "spent": 480
+      },
+      "camps": [
+       {
+        "id": "9101",
+        "name": "BFCM 2026",
+        "kind": "sale",
+        "daily": 600,
+        "spent": 480,
+        "t_ord": 5,
+        "t_roas": 1,
+        "w_spend": 2580,
+        "w_ord": 33,
+        "w_roas": 1.15
+       },
+       {
+        "id": "9102",
+        "name": "Signature Polo",
+        "kind": "evergreen",
+        "daily": 120,
+        "spent": 160,
+        "t_ord": 5,
+        "t_roas": 2.9,
+        "w_spend": 800,
+        "w_ord": 25,
+        "w_roas": 2.8
+       }
+      ]
+     }
+    },
+    {
+     "act_id": "brand_brightside_patch",
+     "name": "Brightside Patch",
+     "goal": 60000,
+     "kpi": 2.5,
+     "hold": 2,
+     "mode": "live",
+     "be_new": 1.6,
+     "no_sales": 0,
+     "last6": {
+      "sales": 4000,
+      "spend": 1100,
+      "mer": 3.636
+     },
+     "today": {
+      "sales": 4000,
+      "spend": 1100,
+      "mer": 3.636
+     },
+     "week": {
+      "from": "2026-11-23",
+      "sales": 29565,
+      "spend": 8635,
+      "mer": 3.424
+     },
+     "so_far": {
+      "from": "2026-11-26",
+      "days": 1,
+      "sales": 4000,
+      "spend": 1100,
+      "mer": 3.636
+     },
+     "suggest": {
+      "call": "scale",
+      "pct": 0.5,
+      "to": 750,
+      "why": "Store MER so far is over 1.5 times the goal."
+     },
+     "meta": {
+      "on": 700,
+      "limit": 2000,
+      "limit_src": "meta",
+      "headroom": 1300,
+      "camp": {
+       "id": "9201",
+       "name": "BFCM 2026",
+       "daily": 500,
+       "spent": 380
+      },
+      "camps": [
+       {
+        "id": "9201",
+        "name": "BFCM 2026",
+        "kind": "sale",
+        "daily": 500,
+        "spent": 380,
+        "t_ord": 7,
+        "t_roas": 1.6,
+        "w_spend": 2400,
+        "w_ord": 21,
+        "w_roas": 0.8
+       },
+       {
+        "id": "9202",
+        "name": "[MD] CBO #2",
+        "kind": "evergreen",
+        "daily": 200,
+        "spent": 170,
+        "t_ord": 4,
+        "t_roas": 2.2,
+        "w_spend": 900,
+        "w_ord": 19,
+        "w_roas": 1.9
+       }
+      ]
+     }
+    },
+    {
+     "act_id": "brand_summit_sticks",
+     "name": "Summit Sticks",
+     "goal": 20000,
+     "kpi": 2.5,
+     "hold": 2,
+     "mode": "live",
+     "be_new": 1.6,
+     "client_approve": 1,
+     "no_sales": 0,
+     "last6": {
+      "sales": 1700,
+      "spend": 420,
+      "mer": 4.048
+     },
+     "today": {
+      "sales": 1700,
+      "spend": 420,
+      "mer": 4.048
+     },
+     "week": {
+      "from": "2026-11-23",
+      "sales": 8935,
+      "spend": 2519,
+      "mer": 3.547
+     },
+     "so_far": {
+      "from": "2026-11-26",
+      "days": 1,
+      "sales": 1700,
+      "spend": 420,
+      "mer": 4.048
+     },
+     "suggest": {
+      "call": "scale",
+      "pct": 0.5,
+      "to": 350,
+      "why": "Store MER so far is over 1.5 times the goal.",
+      "note": "Capped by the Meta daily limit."
+     },
+     "meta": {
+      "on": 400,
+      "limit": 450,
+      "limit_src": "known",
+      "headroom": 50,
+      "camp": {
+       "id": "9301",
+       "name": "BFCM 2026",
+       "daily": 250,
+       "spent": 300
+      },
+      "camps": [
+       {
+        "id": "9301",
+        "name": "BFCM 2026",
+        "kind": "sale",
+        "daily": 250,
+        "spent": 300,
+        "t_ord": 13,
+        "t_roas": 3.9,
+        "w_spend": 1200,
+        "w_ord": 44,
+        "w_roas": 3.3
+       },
+       {
+        "id": "9302",
+        "name": "Evergreen",
+        "kind": "evergreen",
+        "daily": 100,
+        "spent": 110,
+        "t_ord": 3,
+        "t_roas": 2.2,
+        "w_spend": 440,
+        "w_ord": 10,
+        "w_roas": 2.1
+       },
+       {
+        "id": "9303",
+        "name": "Holiday 2026",
+        "kind": "sale",
+        "daily": 50,
+        "spent": 0,
+        "t_ord": 0,
+        "t_roas": null,
+        "w_spend": 0,
+        "w_ord": 0,
+        "w_roas": null
+       }
+      ]
+     }
+    },
+    {
+     "act_id": "brand_copper_kettle_pets",
+     "name": "Copper Kettle Pets",
+     "goal": 6000,
+     "kpi": 2.5,
+     "hold": 2,
+     "mode": "live",
+     "be_new": 1.6,
+     "no_sales": 1,
+     "last6": {
+      "sales": null,
+      "spend": 48,
+      "mer": null
+     },
+     "today": {
+      "sales": null,
+      "spend": 48,
+      "mer": null
+     },
+     "week": {
+      "from": "2026-11-23",
+      "sales": null,
+      "spend": 537,
+      "mer": null
+     },
+     "so_far": {
+      "from": "2026-11-26",
+      "days": 1,
+      "sales": null,
+      "spend": 48,
+      "mer": null
+     },
+     "suggest": {
+      "call": "hold",
+      "pct": 0,
+      "why": "Too early to read."
+     },
+     "meta": {
+      "on": 60,
+      "limit": null,
+      "limit_src": null,
+      "headroom": null,
+      "camp": {
+       "id": "9401",
+       "name": "BFCM 2026",
+       "daily": 60,
+       "spent": 48
+      },
+      "camps": [
+       {
+        "id": "9401",
+        "name": "BFCM 2026",
+        "kind": "sale",
+        "daily": 60,
+        "spent": 48,
+        "t_ord": 0,
+        "t_roas": null,
+        "w_spend": 348,
+        "w_ord": 0,
+        "w_roas": null
+       }
+      ]
+     }
+    },
+    {
+     "act_id": "brand_harbor_and_pine",
+     "name": "Harbor & Pine",
+     "goal": null,
+     "kpi": 2.5,
+     "hold": 2,
+     "mode": "live",
+     "be_new": 1.6,
+     "watch": 1,
+     "no_sales": 0,
+     "last6": {
+      "sales": 2600,
+      "spend": 640,
+      "mer": 4.063
+     },
+     "today": {
+      "sales": 2600,
+      "spend": 640,
+      "mer": 4.063
+     },
+     "week": {
+      "from": "2026-11-23",
+      "sales": 17070,
+      "spend": 4223,
+      "mer": 4.042
+     },
+     "so_far": {
+      "from": "2026-11-26",
+      "days": 1,
+      "sales": 2600,
+      "spend": 640,
+      "mer": 4.063
+     },
+     "suggest": {
+      "call": "hold",
+      "pct": 0,
+      "why": "The client runs this budget, so this is updates only."
+     },
+     "meta": {
+      "on": 0,
+      "limit": 1200,
+      "limit_src": "meta",
+      "headroom": 1200,
+      "camp": {
+       "id": "9501",
+       "name": "Sale ABO",
+       "daily": null,
+       "spent": 600
+      },
+      "camps": [
+       {
+        "id": "9501",
+        "name": "Sale ABO",
+        "kind": "sale",
+        "daily": null,
+        "spent": 600,
+        "t_ord": 18,
+        "t_roas": 2.7,
+        "w_spend": 2100,
+        "w_ord": 61,
+        "w_roas": 2.6
+       }
+      ]
+     }
+    },
+    {
+     "act_id": "brand_fairway_supply",
+     "name": "Fairway Supply",
+     "goal": 50000,
+     "kpi": 2.5,
+     "hold": 2,
+     "mode": "live",
+     "be_new": 1.6,
+     "no_sales": 0,
+     "last6": {
+      "sales": 3100,
+      "spend": 1350,
+      "mer": 2.296
+     },
+     "today": {
+      "sales": 3100,
+      "spend": 1350,
+      "mer": 2.296
+     },
+     "week": {
+      "from": "2026-11-23",
+      "sales": 25435,
+      "spend": 10273,
+      "mer": 2.476
+     },
+     "so_far": {
+      "from": "2026-11-26",
+      "days": 1,
+      "sales": 3100,
+      "spend": 1350,
+      "mer": 2.296
+     },
+     "suggest": {
+      "call": "hold",
+      "pct": 0,
+      "why": "Store MER sits between break-even and the goal."
+     },
+     "meta": {
+      "on": 1500,
+      "limit": 2500,
+      "limit_src": "meta",
+      "headroom": 1000,
+      "camp": {
+       "id": "9602",
+       "name": "BFCM 2026",
+       "daily": 1000,
+       "spent": 820
+      },
+      "camps": [
+       {
+        "id": "9601",
+        "name": "Early access list",
+        "kind": "sale",
+        "daily": 50,
+        "spent": 1,
+        "t_ord": 0,
+        "t_roas": 0,
+        "w_spend": 601,
+        "w_ord": 12,
+        "w_roas": 1.8
+       },
+       {
+        "id": "9602",
+        "name": "BFCM 2026",
+        "kind": "sale",
+        "daily": 1000,
+        "spent": 820,
+        "t_ord": 11,
+        "t_roas": 1.2,
+        "w_spend": 3820,
+        "w_ord": 64,
+        "w_roas": 1.5
+       },
+       {
+        "id": "9603",
+        "name": "[MD] CBO",
+        "kind": "evergreen",
+        "daily": 450,
+        "spent": 380,
+        "t_ord": 12,
+        "t_roas": 2.8,
+        "w_spend": 2080,
+        "w_ord": 62,
+        "w_roas": 2.7
+       }
+      ]
+     }
+    }
+   ]
+  }
+ },
+ "war_live": {
+  "brand_northlake_golf": {
+   "live": {
+    "hours": [
+     {
+      "hour": 0,
+      "sales": 300,
+      "spend": 81
+     },
+     {
+      "hour": 1,
+      "sales": 505,
+      "spend": 109
+     },
+     {
+      "hour": 2,
+      "sales": 756,
+      "spend": 136
+     },
+     {
+      "hour": 3,
+      "sales": 604,
+      "spend": 163
+     },
+     {
+      "hour": 4,
+      "sales": 880,
+      "spend": 190
+     },
+     {
+      "hour": 5,
+      "sales": 450,
+      "spend": 81
+     },
+     {
+      "hour": 6,
+      "sales": 404,
+      "spend": 109
+     },
+     {
+      "hour": 7,
+      "sales": 630,
+      "spend": 136
+     },
+     {
+      "hour": 8,
+      "sales": 906,
+      "spend": 163
+     },
+     {
+      "hour": 9,
+      "sales": 704,
+      "spend": 190
+     },
+     {
+      "hour": 10,
+      "sales": 375,
+      "spend": 81
+     },
+     {
+      "hour": 11,
+      "sales": 606,
+      "spend": 109
+     },
+     {
+      "hour": 12,
+      "sales": 504,
+      "spend": 136
+     },
+     {
+      "hour": 13,
+      "sales": 755,
+      "spend": 163
+     },
+     {
+      "hour": 14,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 15,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 16,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 17,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 18,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 19,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 20,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 21,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 22,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 23,
+      "sales": 0,
+      "spend": 0
+     }
+    ]
+   }
+  },
+  "brand_tallgrass_apparel": {
+   "live": {
+    "hours": [
+     {
+      "hour": 0,
+      "sales": 96,
+      "spend": 30
+     },
+     {
+      "hour": 1,
+      "sales": 160,
+      "spend": 40
+     },
+     {
+      "hour": 2,
+      "sales": 240,
+      "spend": 50
+     },
+     {
+      "hour": 3,
+      "sales": 192,
+      "spend": 60
+     },
+     {
+      "hour": 4,
+      "sales": 280,
+      "spend": 70
+     },
+     {
+      "hour": 5,
+      "sales": 144,
+      "spend": 30
+     },
+     {
+      "hour": 6,
+      "sales": 128,
+      "spend": 40
+     },
+     {
+      "hour": 7,
+      "sales": 200,
+      "spend": 50
+     },
+     {
+      "hour": 8,
+      "sales": 288,
+      "spend": 60
+     },
+     {
+      "hour": 9,
+      "sales": 224,
+      "spend": 70
+     },
+     {
+      "hour": 10,
+      "sales": 120,
+      "spend": 30
+     },
+     {
+      "hour": 11,
+      "sales": 192,
+      "spend": 40
+     },
+     {
+      "hour": 12,
+      "sales": 160,
+      "spend": 50
+     },
+     {
+      "hour": 13,
+      "sales": 240,
+      "spend": 60
+     },
+     {
+      "hour": 14,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 15,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 16,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 17,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 18,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 19,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 20,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 21,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 22,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 23,
+      "sales": 0,
+      "spend": 0
+     }
+    ]
+   }
+  },
+  "brand_brightside_patch": {
+   "live": {
+    "hours": [
+     {
+      "hour": 0,
+      "sales": 137,
+      "spend": 47
+     },
+     {
+      "hour": 1,
+      "sales": 229,
+      "spend": 63
+     },
+     {
+      "hour": 2,
+      "sales": 345,
+      "spend": 79
+     },
+     {
+      "hour": 3,
+      "sales": 273,
+      "spend": 94
+     },
+     {
+      "hour": 4,
+      "sales": 400,
+      "spend": 110
+     },
+     {
+      "hour": 5,
+      "sales": 205,
+      "spend": 47
+     },
+     {
+      "hour": 6,
+      "sales": 183,
+      "spend": 63
+     },
+     {
+      "hour": 7,
+      "sales": 287,
+      "spend": 79
+     },
+     {
+      "hour": 8,
+      "sales": 410,
+      "spend": 94
+     },
+     {
+      "hour": 9,
+      "sales": 320,
+      "spend": 110
+     },
+     {
+      "hour": 10,
+      "sales": 171,
+      "spend": 47
+     },
+     {
+      "hour": 11,
+      "sales": 275,
+      "spend": 63
+     },
+     {
+      "hour": 12,
+      "sales": 230,
+      "spend": 79
+     },
+     {
+      "hour": 13,
+      "sales": 342,
+      "spend": 94
+     },
+     {
+      "hour": 14,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 15,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 16,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 17,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 18,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 19,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 20,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 21,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 22,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 23,
+      "sales": 0,
+      "spend": 0
+     }
+    ]
+   }
+  },
+  "brand_summit_sticks": {
+   "live": {
+    "hours": [
+     {
+      "hour": 0,
+      "sales": 58,
+      "spend": 18
+     },
+     {
+      "hour": 1,
+      "sales": 97,
+      "spend": 24
+     },
+     {
+      "hour": 2,
+      "sales": 146,
+      "spend": 30
+     },
+     {
+      "hour": 3,
+      "sales": 117,
+      "spend": 36
+     },
+     {
+      "hour": 4,
+      "sales": 170,
+      "spend": 42
+     },
+     {
+      "hour": 5,
+      "sales": 87,
+      "spend": 18
+     },
+     {
+      "hour": 6,
+      "sales": 78,
+      "spend": 24
+     },
+     {
+      "hour": 7,
+      "sales": 121,
+      "spend": 30
+     },
+     {
+      "hour": 8,
+      "sales": 175,
+      "spend": 36
+     },
+     {
+      "hour": 9,
+      "sales": 136,
+      "spend": 42
+     },
+     {
+      "hour": 10,
+      "sales": 73,
+      "spend": 18
+     },
+     {
+      "hour": 11,
+      "sales": 117,
+      "spend": 24
+     },
+     {
+      "hour": 12,
+      "sales": 97,
+      "spend": 30
+     },
+     {
+      "hour": 13,
+      "sales": 146,
+      "spend": 36
+     },
+     {
+      "hour": 14,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 15,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 16,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 17,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 18,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 19,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 20,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 21,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 22,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 23,
+      "sales": 0,
+      "spend": 0
+     }
+    ]
+   }
+  },
+  "brand_copper_kettle_pets": {
+   "live": {
+    "hours": [
+     {
+      "hour": 0,
+      "sales": 0,
+      "spend": 2
+     },
+     {
+      "hour": 1,
+      "sales": 0,
+      "spend": 3
+     },
+     {
+      "hour": 2,
+      "sales": 0,
+      "spend": 3
+     },
+     {
+      "hour": 3,
+      "sales": 0,
+      "spend": 4
+     },
+     {
+      "hour": 4,
+      "sales": 0,
+      "spend": 5
+     },
+     {
+      "hour": 5,
+      "sales": 0,
+      "spend": 2
+     },
+     {
+      "hour": 6,
+      "sales": 0,
+      "spend": 3
+     },
+     {
+      "hour": 7,
+      "sales": 0,
+      "spend": 3
+     },
+     {
+      "hour": 8,
+      "sales": 0,
+      "spend": 4
+     },
+     {
+      "hour": 9,
+      "sales": 0,
+      "spend": 5
+     },
+     {
+      "hour": 10,
+      "sales": 0,
+      "spend": 2
+     },
+     {
+      "hour": 11,
+      "sales": 0,
+      "spend": 3
+     },
+     {
+      "hour": 12,
+      "sales": 0,
+      "spend": 3
+     },
+     {
+      "hour": 13,
+      "sales": 0,
+      "spend": 4
+     },
+     {
+      "hour": 14,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 15,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 16,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 17,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 18,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 19,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 20,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 21,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 22,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 23,
+      "sales": 0,
+      "spend": 0
+     }
+    ]
+   }
+  },
+  "brand_harbor_and_pine": {
+   "live": {
+    "hours": [
+     {
+      "hour": 0,
+      "sales": 88,
+      "spend": 27
+     },
+     {
+      "hour": 1,
+      "sales": 150,
+      "spend": 37
+     },
+     {
+      "hour": 2,
+      "sales": 224,
+      "spend": 46
+     },
+     {
+      "hour": 3,
+      "sales": 179,
+      "spend": 55
+     },
+     {
+      "hour": 4,
+      "sales": 260,
+      "spend": 64
+     },
+     {
+      "hour": 5,
+      "sales": 132,
+      "spend": 27
+     },
+     {
+      "hour": 6,
+      "sales": 120,
+      "spend": 37
+     },
+     {
+      "hour": 7,
+      "sales": 187,
+      "spend": 46
+     },
+     {
+      "hour": 8,
+      "sales": 268,
+      "spend": 55
+     },
+     {
+      "hour": 9,
+      "sales": 208,
+      "spend": 64
+     },
+     {
+      "hour": 10,
+      "sales": 110,
+      "spend": 27
+     },
+     {
+      "hour": 11,
+      "sales": 180,
+      "spend": 37
+     },
+     {
+      "hour": 12,
+      "sales": 150,
+      "spend": 46
+     },
+     {
+      "hour": 13,
+      "sales": 223,
+      "spend": 55
+     },
+     {
+      "hour": 14,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 15,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 16,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 17,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 18,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 19,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 20,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 21,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 22,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 23,
+      "sales": 0,
+      "spend": 0
+     }
+    ]
+   }
+  },
+  "brand_fairway_supply": {
+   "live": {
+    "hours": [
+     {
+      "hour": 0,
+      "sales": 107,
+      "spend": 58
+     },
+     {
+      "hour": 1,
+      "sales": 177,
+      "spend": 77
+     },
+     {
+      "hour": 2,
+      "sales": 265,
+      "spend": 96
+     },
+     {
+      "hour": 3,
+      "sales": 213,
+      "spend": 116
+     },
+     {
+      "hour": 4,
+      "sales": 310,
+      "spend": 135
+     },
+     {
+      "hour": 5,
+      "sales": 160,
+      "spend": 58
+     },
+     {
+      "hour": 6,
+      "sales": 141,
+      "spend": 77
+     },
+     {
+      "hour": 7,
+      "sales": 220,
+      "spend": 96
+     },
+     {
+      "hour": 8,
+      "sales": 320,
+      "spend": 116
+     },
+     {
+      "hour": 9,
+      "sales": 248,
+      "spend": 135
+     },
+     {
+      "hour": 10,
+      "sales": 133,
+      "spend": 58
+     },
+     {
+      "hour": 11,
+      "sales": 212,
+      "spend": 77
+     },
+     {
+      "hour": 12,
+      "sales": 176,
+      "spend": 96
+     },
+     {
+      "hour": 13,
+      "sales": 266,
+      "spend": 116
+     },
+     {
+      "hour": 14,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 15,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 16,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 17,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 18,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 19,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 20,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 21,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 22,
+      "sales": 0,
+      "spend": 0
+     },
+     {
+      "hour": 23,
+      "sales": 0,
+      "spend": 0
+     }
+    ]
+   }
+  }
  }
 }
