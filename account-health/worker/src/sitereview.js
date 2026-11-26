@@ -16,7 +16,7 @@
  *
  * Answers are editable until the review is sent; after that every write is refused until the team reopens it. */
 
-import { laneBlocks } from './lane.js';
+import { houseMessage } from './house.js';
 export const SITE_REVIEW_SQL = [
   `CREATE TABLE IF NOT EXISTS p_site_review (
     act_id      TEXT NOT NULL,
@@ -136,16 +136,21 @@ async function send(env, act, slug, b, who, slackPost, slackApi) {
   await env.DB.prepare(`UPDATE p_site_review SET sent_at = ?3, sent_by = ?4, overall = ?5, updated_at = ?3 WHERE act_id = ?1 AND slug = ?2`).bind(act, slug, at, name, overall).run();
   const brand = await brandName(env, act);
   const line = s => {
-    const a = by.get(s.id); const note = a?.note ? `: "${sl(a.note).replace(/\s*\n+\s*/g, ' / ')}"` : '';
+    const a = by.get(s.id); const note = a?.note ? `: "${clip(sl(a.note).replace(/\s*\n+\s*/g, ' / '), 200)}"` : '';
     return `${a?.status === 'approved' ? 'Approved' : a?.status === 'changes' ? '*Needs changes*' : 'Not reviewed'}  ${sl(s.title)}${note}`;
   };
-  /* 2026-11-09 (the lane format, lane.js): "*CLIENT · Brand*", Cole tagged with the ask and the counts as the why;
-     each page's call and note under it (they are the review itself). */
-  const head = laneBlocks({ lane: 'CLIENT', brand, who: COLE_SLACK, ask: `Go through ${sl(name)}'s review of ${sl(r.title || slug)}`,
-    why: `${ok} approved, ${ch} need${ch === 1 ? 's' : ''} changes${open ? `, ${open} not reviewed` : ''}` });
-  const detail = [...order.map(line), ...(overall ? [`Overall: "${sl(overall).replace(/\s*\n+\s*/g, ' / ')}"`] : []), `In Locus: Clients > Requests (${sl(brand)})`].join('\n');
-  const text = `${head.text}\n${detail}`;
-  const blocks = [head.blocks[0], { type: 'section', text: { type: 'mrkdwn', text: detail.slice(0, 2900) } }];
+  /* 2026-11-26 (the house style, house.js): header "Brand reviewed the page", Cole tagged with the ask, the counts in
+     the numbers row, the pages that need changes first (5 shown, the rest in Locus), the overall note, one Open button. */
+  const rank = s => (by.get(s.id)?.status === 'changes' ? 0 : by.get(s.id)?.status === 'approved' ? 2 : 1);
+  const hm = houseMessage({
+    title: `${brand} reviewed ${r.title || slug}`,
+    tag: COLE_SLACK, summary: `Go through ${sl(name)}'s review.`,
+    numbers: [{ label: 'Approved', value: String(ok) }, { label: 'Changes', value: String(ch) }, { label: 'Not reviewed', value: String(open) }],
+    lines: [...(overall ? [`Overall: "${clip(sl(overall).replace(/\s*\n+\s*/g, ' / '), 300)}"`] : []), ...[...order].sort((x, y) => rank(x) - rank(y)).map(line)],
+    source: 'Site review', at,
+    buttons: [{ label: 'Open in Locus', url: `${LOCUS}?open=requests&act=${encodeURIComponent(act)}` }],
+  });
+  const text = hm.text, blocks = hm.blocks;
   /* A DM from the Locus bot: open the conversation first (a bare user id does not reliably land). */
   let slack = true, slack_error = null;
   try {

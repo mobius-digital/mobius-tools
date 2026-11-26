@@ -28,7 +28,8 @@ import { resolveBrandId, metaOf } from './brands.js';
 import { routeAction } from '../../../ask/engine.js';
 import { stockView } from './stock.js';
 import { todaysCard } from './morningcard.js';
-import { laneBlocks } from './lane.js';
+import { COLE } from './lane.js';
+import { houseMessage } from './house.js';
 
 export const ALERT_SQL = `CREATE TABLE IF NOT EXISTS p_alert (
   id              TEXT PRIMARY KEY,
@@ -213,7 +214,7 @@ export async function evalBrand(env, d, row, acct, memo = new Map()) {
   const text = row.baseline === 'fixed'
     ? `*${acct.name}: ${label} ${scope} is ${fmtV(m, value, cur)}, ${row.comparison === 'below' ? 'under' : 'over'} your line of ${fmtV(m, row.threshold, cur)}.*`
     : `*${acct.name}: ${label} ${scope} is at ${Math.round(ratio * 100)}% of ${row.baseline === 'goal' ? 'the goal' : 'normal'}.*\n${fmtV(m, value, cur)} against ${fmtV(m, base, cur)} for ${how}.`;
-  return { value, base, ratio, fire, text: noDash(text) };
+  return { value, base, ratio, fire, cur, text: noDash(text) };
 }
 
 async function brandsOf(env, d, row) {
@@ -237,26 +238,31 @@ export async function evalAlert(env, d, row, memo = new Map()) {
 }
 
 /** The Slack message for a rule that fired. */
-export function alertBlocks(row, fired, { test = false, brandName } = {}) {
+export function alertBlocks(row, fired, { test = false, brandName, now } = {}) {
   const act = fired.length === 1 ? fired[0].act_id : row.act !== 'all' ? row.act : null;
   const url = `${LOCUS}?open=yesterday${act ? `&act=${encodeURIComponent(act)}` : ''}`;
-  /* 2026-11-09 (the lane format, lane.js): "*MEDIA BUYING · Brand*", the rule's person (Cole when none) with the ask,
-     the numbers as the why; several brands = one line each under the ask. */
+  /* 2026-11-26 (the house style, house.js): header = the brand and what the rule caught, the rule's person (Cole when
+     none) tagged with the ask, the numbers row (the value and what it was judged against), the rule in the gray line,
+     one Open button. Several brands = one line each. */
   const lines = f => String(f.text || '').replace(/\*/g, '').split('\n');
-  const what = f => lines(f)[0].replace(new RegExp(`^${String(f.name || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}: `), '').replace(/\.$/, '');
   const one = fired.length === 1 ? fired[0] : null;
-  const lane = laneBlocks({ lane: /stock/i.test(String(row.metric || '')) ? 'OPS' : 'MEDIA BUYING', brand: one ? one.name : (row.act !== 'all' ? brandName : '') || 'Agency',
-    who: row.mention && /^U[A-Z0-9]{6,}$/.test(row.mention) ? row.mention : 'Cole',
-    ask: `${test ? 'Test: ' : ''}${one ? `Look into it: ${what(one)}` : `Look into the ${fired.length} brands your alert caught`}`,
-    why: one ? lines(one).slice(1).join(' ') : '', lines: one ? [] : fired.map(f => lines(f)[0]) });
-  return {
-    text: noDash(lane.text).slice(0, 300),
-    blocks: [
-      { ...lane.blocks[0], text: { ...lane.blocks[0].text, text: noDash(lane.blocks[0].text.text) } },
-      { type: 'context', elements: [{ type: 'mrkdwn', text: noDash(`Your rule: ${ruleText(row, brandName)} It fires at most once a day. Change, pause or delete it in Locus: Reports > Dashboards > Alerts.`).slice(0, 2900) }] },
-      { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open in Locus' }, url, action_id: 'noop_open' }] },
-    ],
-  };
+  const m = row.metric, stock = /stock/i.test(String(m || ''));
+  const scope = row.window === 'today' ? 'Today so far' : (WINDOWS[row.window] || '').replace(/^the /, '').replace(/^./, c => c.toUpperCase());
+  const numbers = !one || one.value == null ? [] : [
+    { label: stock ? 'Days of stock' : scope || 'Now', value: fmtV(m, one.value, one.cur) },
+    ...(row.baseline === 'fixed' ? [{ label: 'Your line', value: fmtV(m, row.threshold, one.cur) }]
+      : one.base != null ? [{ label: row.baseline === 'goal' ? 'Goal' : 'Normal', value: fmtV(m, one.base, one.cur), note: one.ratio != null ? `at ${Math.round(one.ratio * 100)}%` : '' }] : []),
+  ];
+  const msg = houseMessage({
+    title: `${test ? 'Test: ' : ''}${one ? lines(one)[0].replace(/\.$/, '') : `Your alert caught ${fired.length} brands`}`,
+    tag: row.mention && /^U[A-Z0-9]{6,}$/.test(row.mention) ? row.mention : COLE,
+    summary: one ? 'Look into it.' : 'Look into each one.',
+    numbers, lines: one ? [] : fired.map(f => lines(f)[0]),
+    source: stock ? 'Supply' : m === 'meta_cpm' ? 'Meta' : 'Triple Whale', at: now || new Date(),
+    context: `Your rule: ${ruleText(row, brandName)} It fires at most once a day; change it in Reports > Dashboards > Alerts.`,
+    buttons: [{ label: 'Open in Locus', url }],
+  });
+  return { text: noDash(msg.text).slice(0, 300), blocks: msg.blocks };
 }
 
 /* 2026-10-13: a fired alert goes in the THREAD of today's morning card in that channel (morningcard.js), the rule's

@@ -34,6 +34,7 @@
  * format like callnudge.js: *MY WORK · Today*, the person tagged once, bullets, a link to ?open=mywork. Nothing open =
  * no DM. Switch: settings.myworkDm = 'off' stops it. Metered with subCanAfford (d.canAfford). No em dashes anywhere.
  */
+import { houseMessage } from './house.js';
 import { listActions, ROSTER } from './actions.js';
 import { listBoard } from './production.js';
 import { DEFAULT_PEOPLE } from './checkin.js';
@@ -231,6 +232,25 @@ export function dmText(r, person, today, link = MYWORK_LINK) {
   lines.push(`<${link}|Open My work>`);
   return noDash(lines.join('\n')).slice(0, 2900);
 }
+/** The DM in the house style (house.js, 2026-11-26): header "Your work today", the person tagged with the counts,
+ *  the tasks as lines (today first, then late, then coming up; 5 shown), "Locus · 5:00am CT", one Open button.
+ *  null when nothing is open. Pure. */
+export function dmMessage(r, person, today, link = MYWORK_LINK, at = new Date()) {
+  const open = (r.items || []).filter(i => !i.done);
+  const T = open.filter(i => i.bucket === 'today'), L = open.filter(i => i.bucket === 'late'), W = open.filter(i => i.bucket === 'week' && i.due);
+  if (!T.length && !L.length && !W.length) return null;
+  const when = it => it.due === today ? ', due today' : it.due === addDays(today, 1) ? ', due tomorrow' : '';
+  const head = [`${T.length} for today`, L.length ? `${L.length} late` : '', r.counts && r.counts.slack ? `${r.counts.slack} from Slack` : ''].filter(Boolean).join(', ');
+  const lines = T.map(it => `${esc(clean(it.text, 120))} (${esc(it.brand)}, ${tagOf(it)}${when(it)})`);
+  const by = {}; for (const it of L) (by[it.brand] = by[it.brand] || []).push(it);
+  for (const [b, a] of Object.entries(by)) {
+    const oldest = a.map(x => x.due).filter(Boolean).sort()[0];
+    lines.push(a.length === 1 ? `Late: ${esc(clean(a[0].text, 100))} (${esc(b)}, ${tagOf(a[0])}${oldest ? `, due ${dayLabel(oldest)}` : ''})` : `Late: ${a.length} ${esc(b)} items${oldest ? `, oldest due ${dayLabel(oldest)}` : ''}`);
+  }
+  for (const it of W.slice(0, 2)) lines.push(`Coming up: ${esc(clean(it.text, 100))} (${esc(it.brand)}, ${dayLabel(it.due)})`);
+  return houseMessage({ title: 'Your work today', tag: person.slack || null, summary: `${head}.`, lines,
+    source: 'Locus', at, buttons: [{ label: 'Open My work', url: link }] });
+}
 /** Weekdays, 5:00 to 5:59 Central. Pure. */
 export const dmWindow = (date, hour) => { const wd = dow(date); return wd >= 1 && wd <= 5 && hour === 5; };
 export async function dmPeople(env, d) {
@@ -255,9 +275,9 @@ export async function myWorkDmTick(env, d) {
   const out = { sent: [], empty: [], failed: [] };
   for (const p of due) {
     if (d.canAfford && !d.canAfford(3)) { out.deferred = 'budget'; break; }
-    const text = dmText(forPerson(g, p), p, g.today);
-    if (text) {
-      const r = await d.slackApi(env, 'chat.postMessage', { channel: p.slack, text, blocks: [{ type: 'section', text: md(text) }] }).catch(e => ({ ok: false, error: e.message }));
+    const msg = dmMessage(forPerson(g, p), p, g.today);
+    if (msg) {
+      const r = await d.slackApi(env, 'chat.postMessage', { channel: p.slack, text: msg.text, blocks: msg.blocks }).catch(e => ({ ok: false, error: e.message }));
       if (!r || !r.ok) { out.failed.push(`${p.name}: ${(r && r.error) || 'no answer'}`); continue; }
       out.sent.push(p.name);
     } else out.empty.push(p.name);
@@ -317,4 +337,4 @@ export async function handleMyWork(request, env, url, path, json, d) {
   } catch (e) { return json({ error: e.message }, e.status || 500); }
 }
 
-export const _test = { peopleFrom, access, forPerson, dmText, dmWindow, isPerson, myWorkDmTick, handleMyWork, slackTitle };
+export const _test = { peopleFrom, access, forPerson, dmText, dmMessage, dmWindow, isPerson, myWorkDmTick, handleMyWork, slackTitle };

@@ -300,7 +300,18 @@ function laneOf(items) {
   return Object.keys(n).sort((a, b) => n[b] - n[a])[0] || 'OPS';
 }
 /** The "*LANE · Brand*" line of a posted reminder, so a redraw keeps it. */
-const laneHeadOf = msg => { const t = String(msg?.blocks?.[0]?.text?.text || '').split('\n')[0]; return /^\*[A-Z ]+ · .+\*$/.test(t) ? t : ''; };
+const laneHeadOf = msg => {
+  const b = msg?.blocks?.[0];
+  /* A house style reminder starts with a plain header "OPS · Brand: the ask"; the redraw keeps "*OPS · Brand*". */
+  if (b?.type === 'header') {
+    const h = String(b.text?.text || '');
+    const i = h.indexOf(': ');
+    const lb = i > 0 ? h.slice(0, i) : '';
+    return /^[A-Z ]+ · .+/.test(lb) ? `*${lb}*` : '';
+  }
+  const t = String(b?.text?.text || '').split('\n')[0];
+  return /^\*[A-Z ]+ · .+\*$/.test(t) ? t : '';
+};
 
 export async function actionTick(env, d) {
   const areas = await judgeAreas(env, d).catch(e => ({ error: e.message }));

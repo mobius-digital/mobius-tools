@@ -67,7 +67,7 @@ export function messageFor(brand, rows, who) {
   for (let i = 0; i < lines.length; i += PER_MSG) chunks.push(lines.slice(i, i + PER_MSG));
   const rest = chunks.slice(1).map((c, i) => ({ text: `${head} (${i + 2} of ${chunks.length})\n${c.join('\n')}`, blocks: c.map(sec) }));
   return { text: `${head}\n${chunks[0].join('\n')}`, rest, blocks: [
-    lane.blocks[0],
+    lane.head,
     ...chunks[0].map(sec),
     { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open in Locus' }, url }] },
     { type: 'context', elements: [{ type: 'mrkdwn', text: 'Do it on the page writes the change to Meta after you confirm it. Switch this post off in Agency settings (todayPost).' }] },

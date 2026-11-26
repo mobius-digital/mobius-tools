@@ -38,7 +38,8 @@ import { coverUrl } from './creative.js';
 import { metaOf } from './brands.js';
 import { ideaState } from './ideas.js';
 import { markDone } from './actions.js';
-import { laneBlocks, lanePost, laneOwner } from './lane.js';
+import { lanePost, laneOwner, COLE } from './lane.js';
+import { houseMessage } from './house.js';
 import { teamOf } from './calendar.js';
 
 let F = fetch;
@@ -399,17 +400,25 @@ export async function notifyHandoff(env, d, post, plat, media, t, why) {
   const sl = s => String(s || '').replace(/[\u2014\u2013]/g, ', ').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const cap = capFor(post, t, plat, 2200);
   const files = media.map((m, i) => `<${m.public || m.url}|${isVideo(m) ? 'video' : 'picture'} ${i + 1}>`).join(', ');
-  /* 2026-11-09 (the lane format, lane.js): "*CREATIVE · Brand*", the person tagged with the ask and the why, then what to
-     post (the file and the caption are the job itself, so they stay). */
-  const head = laneBlocks({ lane: 'CREATIVE', brand: b?.name || 'Agency', who: /^[UW][A-Z0-9]{6,}$/.test(to) ? to : 'Cole', ask: `Post this on ${PLATS[plat]} by hand`, why: sl(why) });
-  const text = `${head.text} (${sl(why)})`;
-  const blocks = [
-    head.blocks[0],
-    { type: 'section', text: { type: 'mrkdwn', text: `File: ${files}\n\n${sl(cap) || '_(no caption)_'}${plat === 'ig' && t.ig?.first_comment ? `\n\n_First comment:_ ${sl(t.ig.first_comment)}` : ''}${plat === 'yt' && t.yt?.title ? `\n\n_Title:_ ${sl(t.yt.title)}` : ''}`.slice(0, 2900) } },
-    { type: 'actions', elements: [
-      { type: 'button', text: { type: 'plain_text', text: 'Posted it' }, style: 'primary', action_id: 'soc_done', value: JSON.stringify({ id: post.id, plat }) },
-      { type: 'button', text: { type: 'plain_text', text: 'Open in Locus' }, url: `${LOCUS}?act=${encodeURIComponent(post.act_id)}&open=socialweek&post=${post.id}` } ] },
-  ];
+  /* 2026-11-26 (the house style, house.js): header "Post this by hand: TikTok, Brand", the person tagged with the why,
+     the post's picture, then what to post (the file and the caption are the job itself, so they stay), one row of
+     buttons: Posted it, Open in Locus. */
+  /* Only a staged public copy goes in as a picture: Slack fetches an image block when the message is posted and refuses
+     the whole message if it cannot, so any other file link stays a text link (File: above). */
+  const pic = media.find(m => !isVideo(m) && m.public);
+  const msg = houseMessage({
+    title: `Post this by hand: ${PLATS[plat]}, ${b?.name || 'Agency'}`,
+    tag: /^[UW][A-Z0-9]{6,}$/.test(to) ? to : COLE, summary: sl(why),
+    image: pic && !/\.gif(\?|$)/i.test(pic.public) ? { url: pic.public, alt: `The ${PLATS[plat]} post` } : null,
+    source: 'Locus social', at: new Date(),
+    buttons: [
+      { action_id: 'soc_done', style: 'primary', label: 'Posted it', value: JSON.stringify({ id: post.id, plat }) },
+      { label: 'Open in Locus', url: `${LOCUS}?act=${encodeURIComponent(post.act_id)}&open=socialweek&post=${post.id}` } ],
+  });
+  const text = msg.text;
+  const job = { type: 'section', text: { type: 'mrkdwn', text: `File: ${files}\n\n${sl(cap) || '_(no caption)_'}${plat === 'ig' && t.ig?.first_comment ? `\n\n_First comment:_ ${sl(t.ig.first_comment)}` : ''}${plat === 'yt' && t.yt?.title ? `\n\n_Title:_ ${sl(t.yt.title)}` : ''}`.slice(0, 2900) } };
+  /* The caption goes right under the summary, before the picture and the gray line. */
+  const blocks = [...msg.blocks.slice(0, 2), job, ...msg.blocks.slice(2)];
   const r = await d.slackPost(env, to, text, blocks, { username: 'Locus' }).catch(e => ({ error: e.message }));
   return r.error ? { handoff: true, error: `Slack: ${r.error}` } : { handoff: true, notified_at: nowIso(), slack: { channel: r.channel, ts: r.ts } };
 }

@@ -130,7 +130,7 @@ await check('the thread: the full calls list, then one reminder line per owner w
   assert.ok(!thread[0].blocks.some(b => b.type === 'context' || b.type === 'actions'), 'no buttons or footnote on the list in the thread');
   const rem = thread.slice(1);
   assert.equal(rem.length, 4, 'Ahsan, Radhesh, Cole, Noma');
-  assert.ok(rem.some(p => /^[A-Z ]+ · Alpha Golf: /.test(p.text) && /^\*[A-Z ]+ · Alpha Golf\*\n<@U_AHSAN>  /.test(p.blocks[0].text.text)), 'each reminder is lane first, the owner tagged');
+  assert.ok(rem.some(p => /^[A-Z ]+ · Alpha Golf: /.test(p.text) && /^[A-Z ]+ · Alpha Golf: /.test(p.blocks[0].text.text) && /^<@U_AHSAN>/.test(p.blocks[1].text.text)), 'each reminder is lane first, the owner tagged');
   assert.ok(rem.every(p => p.blocks.some(b => b.type === 'actions' && b.elements.some(e => /^act_done_/.test(e.action_id)))), 'Done buttons on each line');
   const row = db.prepare(`SELECT reminded_on, slack_channel, slack_ts FROM p_action WHERE id = ?`).get(ids.t2);
   assert.equal(row.reminded_on, '2026-10-13'); assert.equal(row.slack_channel, 'C_ALPHA'); assert.ok(rem.some(p => p.opts && posts.indexOf(p) >= 0) && row.slack_ts);

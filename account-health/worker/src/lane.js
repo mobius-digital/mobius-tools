@@ -13,6 +13,11 @@
  *    laneBlocks() builds it; lanePost() resolves the person, builds it and posts it (under today's morning card when
  *    asked). A message with several asks for different people (the morning card) uses laneLines(): one lane header
  *    per group, each person tagged once, their asks as bullets under the tag.
+ *    2026-11-26: a single ask (laneBlocks, lanePost) is drawn in the house style (house.js): a bold header
+ *    "MEDIA BUYING · Dartee: Turn off ad set 368", then the tag and the why, the lines, one row of buttons. The old
+ *    one-section body is still returned as `head` / `mrkdwn` for the cards that embed an ask in a bigger message.
+ *    laneLines (the morning card, the calendar, the Trybe roundup) keeps its sections: a card with many people and
+ *    many asks does not fit the house limits (5 lines) without dropping asks.
  *
  * 2. AN FYI (nobody has to do anything): it does NOT post. fyi() stores one line (brand + lane + Central date) and
  *    roundupTick() posts ONE end-of-day roundup per brand in its internal channel (from 4pm Central, once a day, only
@@ -27,6 +32,7 @@
  * Copy: plain words, short, no em dashes (noDash strips them), never "Locus says", never a number the message did not
  * already have. Client channels never come through here (client sends, Pulse "send to all clients", the welcome). */
 import { tagOf, teamPost } from './morningcard.js';
+import { houseMessage, LIMITS, clip, noEmoji, plainOf } from './house.js';
 
 export const COLE = 'U06C37MDWD7';
 export const LANES = ['MEDIA BUYING', 'CREATIVE', 'CREATORS', 'CLIENT', 'EMAIL', 'OPS'];
@@ -112,9 +118,9 @@ function buttonBlocks(buttons) {
   return out;
 }
 
-/** ONE ask. who = a name, a Slack id or a ready tag (laneWho resolves a name first when it can). lines = optional short
- *  list of what the ask covers (at most 5 shown). Returns {text, blocks}; text = "LANE · Brand: ask" for notifications. */
-export function laneBlocks({ lane, brand, who, ask, why, buttons, lines } = {}) {
+/** The old one-section body of an ask ("*LANE · Brand*", the tag and the ask, Why:, the bullets). Cards that carry an ask
+ *  inside a bigger message (the daily draft card, the report card, the review post) keep using it. */
+export function laneSection({ lane, brand, who, ask, why, lines } = {}) {
   const L = laneName(lane), B = one(brand) || 'Agency';
   const askT = one(ask), whyT = one(why);
   const list = (lines || []).map(one).filter(Boolean);
@@ -122,8 +128,37 @@ export function laneBlocks({ lane, brand, who, ask, why, buttons, lines } = {}) 
   if (whyT) body.push(`Why: ${whyT}`);
   for (const l of list.slice(0, 5)) body.push(`• ${l}`);
   if (list.length > 5) body.push(`_and ${list.length - 5} more in Locus_`);
-  const blocks = [{ type: 'section', text: { type: 'mrkdwn', text: body.join('\n').slice(0, 2900) } }, ...buttonBlocks(buttons)];
-  return { text: `${L} · ${B}: ${plain(askT)}`.slice(0, 3000), blocks };
+  return { type: 'section', text: { type: 'mrkdwn', text: body.join('\n').slice(0, 2900) } };
+}
+
+/** ONE ask, in the house style (house.js, 2026-11-26): header "LANE · Brand: the ask", the tagged person and the why
+ *  as the summary (an ask that carries a link keeps it in the summary), up to 5 lines, one row of buttons, a status bar
+ *  only when the caller says it means status. Returns {text, blocks, attachments?, head, mrkdwn}; head is the old
+ *  one-section body (laneSection) and mrkdwn its text, for cards that embed an ask. */
+export function laneBlocks({ lane, brand, who, ask, why, buttons, lines, status, source, at, context, numbers } = {}) {
+  const L = laneName(lane), B = one(brand) || 'Agency';
+  const askT = one(ask), whyT = one(why);
+  const head = laneSection({ lane, brand, who, ask, why, lines });
+  const linked = /<(https?:|#|mailto:)/.test(askT);
+  const raw = (buttons || []).filter(b => b && b.type && b.type !== 'button');
+  const btns = (buttons || []).filter(b => b && (!b.type || b.type === 'button'));
+  const title = `${L} · ${B}: ${plain(askT)}`;
+  const sumT = linked ? [askT, whyT].filter(Boolean).join('. ') : whyT;
+  /* An ask or a why too long for the header (150) or the summary line (200) is never cut: the header stays short and
+     the whole ask and why go in the summary section (up to the Slack section limit). */
+  const long = title.length > LIMITS.header || sumT.length > LIMITS.summary;
+  const tagT = whoText(who);
+  const m = houseMessage({ title, tag: long ? null : tagT, summary: long ? '' : sumT,
+    lines: (lines || []).map(one).filter(Boolean), buttons: btns, status, source, at, context, numbers });
+  if (long) {
+    const full = noEmoji([linked ? '' : askT, sumT].filter(Boolean).join('\n'));
+    const sec = { type: 'section', text: { type: 'mrkdwn', text: clip([tagT, full].filter(Boolean).join('  '), LIMITS.section - 100) } };
+    if (m.attachments) m.attachments[0].blocks.unshift(sec); else m.blocks.splice(1, 0, sec);
+    const head = m.blocks[0].text.text;
+    m.text = clip(`${head}${/[.!?]$/.test(head) ? '' : '.'} ${plainOf(full)}`, 3000);
+  }
+  if (raw.length) { if (m.attachments) m.attachments[0].blocks.push(...raw); else m.blocks.push(...raw); }
+  return { ...m, head, mrkdwn: head.text.text };
 }
 
 /** Several asks in one message: groups = [{lane, brand, items: [{who, ask, why}]}] (same lane + brand groups merge).
@@ -175,7 +210,7 @@ export async function lanePost(env, d, channel, msg, opts = {}) {
   const { thread, ...rest } = opts;
   const who = await laneWho(env, d, msg.who);
   const m = laneBlocks({ ...msg, who });
-  const o = { username: 'Locus', ...rest };
+  const o = { username: 'Locus', ...rest, ...(m.attachments ? { attachments: m.attachments } : {}) };
   if (thread && d && d.slackPost) return teamPost(env, d, channel, m.text, m.blocks, o);
   return d.slackPost(env, channel, m.text, m.blocks, o);
 }

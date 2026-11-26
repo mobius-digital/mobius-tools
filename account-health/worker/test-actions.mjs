@@ -56,10 +56,12 @@ await check('openItems: grouped per brand, agency-wide first, the shape the Mond
 await check('the reminder message: one line per item, overdue marked, a Done button per item, Open in Locus, no em dash', async () => {
   const m = reminderMessage('Alpha Golf', 'Ahsan', [{ id: 'x', act_id: 'brand_alpha', text: 'Rebuild the hook ad', due: '2026-10-14' }, { id: 'y', act_id: 'brand_alpha', text: 'Old one', due: '2026-10-10' }], '2026-10-14');
   assert.match(m.text, /^OPS · Alpha Golf: Finish 2 tasks: 1 due today, 1 overdue\n• Rebuild the hook ad\n• Old one _\(was due Sat, Oct 10\)_$/);
-  assert.equal(m.blocks[0].text.text, '*OPS · Alpha Golf*\n*Ahsan*  Finish 2 tasks: 1 due today, 1 overdue', 'lane first, the owner, the ask');
+  assert.equal(m.blocks[0].text.text, 'OPS · Alpha Golf: Finish 2 tasks: 1 due today, 1 overdue', 'the house header: lane first, the ask');
+  assert.equal(m.blocks[1].text.text, '*Ahsan*', 'then the owner');
   const one = reminderMessage('Alpha Golf', 'Ahsan', [{ id: 'z', act_id: 'brand_alpha', text: 'Write the flow', area: 'email', due: '2026-10-10' }], '2026-10-14', '<@U_AHSAN>');
-  assert.equal(one.blocks[0].text.text, '*EMAIL · Alpha Golf*\n<@U_AHSAN>  Write the flow\nWhy: was due Sat, Oct 10', 'one task = the task is the ask; its area is the lane');
-  const btns = m.blocks[1].elements; assert.equal(btns.length, 3); assert.equal(btns[0].action_id, 'act_done_0'); assert.deepEqual(JSON.parse(btns[0].value), { id: 'x' }); assert.equal(btns[2].url, 'https://locus.go-mobius-digital.com/profit/?open=actions&act=brand_alpha');
+  assert.equal(one.blocks[0].text.text, 'EMAIL · Alpha Golf: Write the flow', 'one task = the task is the ask; its area is the lane');
+  assert.equal(one.blocks[1].text.text, '<@U_AHSAN>  was due Sat, Oct 10');
+  const btns = m.blocks.find(b => b.type === 'actions').elements; assert.equal(btns.length, 3); assert.equal(btns[0].action_id, 'act_done_0'); assert.deepEqual(JSON.parse(btns[0].value), { id: 'x' }); assert.equal(btns[2].url, 'https://locus.go-mobius-digital.com/profit/?open=actions&act=brand_alpha');
   assert.ok(!/—/.test(JSON.stringify(m)));
 });
 await check('the tick: nothing before the hour; then one post per owner per brand (internal channel; agency to the Strategist channel; a DM when the brand has no channel), once a day, overdue again tomorrow', async () => {
@@ -93,6 +95,17 @@ await check('the Done button: marks the item done by the tapper and redraws the 
   const rr = await handleReaction(env, d, { type: 'reaction_added', reaction: 'white_check_mark', user: 'U_COLE', item: { channel: b.slack_channel, ts: b.slack_ts } });
   assert.equal(rr.done, 1); assert.equal(db.prepare(`SELECT status FROM p_action WHERE id = ?`).get(a3.id).status, 'done');
   assert.equal(updates.length, 1); assert.match(updates[0].text, /All done/);
+});
+await check('the Done button on a house style reminder (header first): the redraw keeps "*LANE · Brand*"', async () => {
+  const x = await addAction(env, { act: 'brand_alpha', text: 'Check the feed', owner: 'Ahsan', due: '2026-10-14' });
+  db.prepare(`UPDATE p_action SET slack_channel = 'C_HDR', slack_ts = '9.001' WHERE id = ?`).run(x.id);
+  const msg = reminderMessage('Alpha Golf', 'Ahsan', [{ id: x.id, act_id: 'brand_alpha', text: 'Check the feed', due: '2026-10-14' }], '2026-10-14');
+  assert.equal(msg.blocks[0].type, 'header');
+  replaced.length = 0;
+  const ctx = { waitUntil: p => (ctx.p = p) };
+  await handleActionButton(env, ctx, { type: 'block_actions', user: { id: 'U_COLE' }, response_url: 'https://hooks/y', container: { channel_id: 'C_HDR', message_ts: '9.001' }, message: { blocks: msg.blocks }, actions: [{ action_id: 'act_done_0', value: JSON.stringify({ id: x.id }) }] }, d, { ACK: () => new Response(''), xfetch });
+  await ctx.p;
+  assert.equal(replaced.length, 1); assert.match(replaced[0].text, /^\*OPS · Alpha Golf\*\n/);
 });
 await check('routes: team only (401 without a session, 403 for a client scope), GET lists with brands and team, POST adds, done, edit; an unknown brand is refused', async () => {
   const call = async (method, path, body, headers = { authorization: 'Bearer team' }) => { const req = new Request('https://ah' + path, { method, headers, body: body ? JSON.stringify(body) : undefined }); const u = new URL(req.url); const r = await handleActions(req, env, u, u.pathname, json, d); return { status: r.status, body: await r.json() }; };

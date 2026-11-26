@@ -48,7 +48,7 @@ export function minOffMessage(st) {
   const head = laneBlocks({ lane: 'MEDIA BUYING', brand: st.brand, who: st.tag || 'Cole',
     ask: open.length ? `Take ${open.length} test minimum${open.length === 1 ? '' : 's'} off` : `All ${items.length} test minimum${items.length === 1 ? ' is' : 's are'} off` });
   const lines = items.map(it => minOffLine(it));
-  const blocks = [head.blocks[0], ...items.map((it, i) => ({
+  const blocks = [head.head, ...items.map((it, i) => ({
     type: 'section', text: { type: 'mrkdwn', text: lines[i] },
     ...(it.done ? {} : { accessory: { type: 'button', action_id: `minoff_one_${i}`, text: { type: 'plain_text', text: 'Take it off' }, value: JSON.stringify({ a: st.act, d: st.date, s: it.id }) } }),
   }))];

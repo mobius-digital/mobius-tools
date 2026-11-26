@@ -94,7 +94,7 @@ export async function reviewBrand(env, d, b, { dry = false, who = 'Monday review
   const head = laneBlocks({ lane: 'MEDIA BUYING', brand: b.name, who: 'Cole', ask: n ? `Read the Monday review and decide on the ${n} suggested change${n > 1 ? 's' : ''} in the thread` : 'Read the Monday review' });
   const blocks = [
     /* 2026-11-09 (the lane format, lane.js): lane first, Cole tagged with the one ask. */
-    head.blocks[0],
+    head.head,
     ...chunks.map(c => ({ type: 'section', text: { type: 'mrkdwn', text: c } })),
     { type: 'context', elements: [{ type: 'mrkdwn', text: `The Strategist's Monday account review, run automatically. ${n ? `${n} suggested change${n > 1 ? 's' : ''} in the thread, each waiting for a person to press Apply.` : 'No changes suggested.'}${r.costLine ? ` ${r.costLine}.` : ''} Turn it off in Locus: Agency settings > The Strategist.` }] },
     { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Open in Locus' }, url: `${LOCUS}?open=overview&act=${encodeURIComponent(b.act_id)}`, action_id: 'noop_open' }] },
