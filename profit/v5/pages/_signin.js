@@ -4,14 +4,16 @@
         This is the main button, and the only way in for the team.
      2. An emailed one time link, for invited clients only (the worker mails nobody else):
         POST /api/clients/login-link sends it, POST /api/clients/signin redeems ?signin=<token>.
-     3. A client invite link, ?invite=<token>: GET /api/clients/invite-info says whose it is, then 1 or 2 signs them in.
+     3. A client invite link, ?invite=<token>: GET /api/clients/invite-info says whose it is. This is "make your login":
+      Google (1), or an emailed 6 digit code: POST /api/clients/code { invite } sends it, POST /api/clients/code/verify
+      { invite, code } answers the same session shape as /api/clients/signin. A brand new client then lands on Get started.
    All four routes are on the account-health worker. The session is stored exactly as the live app stores it
    (keepSession below), so every tool on this address sees the same sign in.
    Nothing typed here is logged or stored: an email goes into the one request and nowhere else.
    In sample mode nothing is sent. */
 
 import { put } from '../kit.js';
-import { h, s, svgNode, field, statusDot, legend, gauge, takeaway, em } from '../kit.js';
+import { h, s, svgNode, field, statusDot, legend, gauge, takeaway, em, addStyles } from '../kit.js';
 import { mark, icon, GOOGLE_G } from '../icons.js';
 import { APP_NAME, APP_WORD, ORG_NAME, ORG_SHORT, LS, SAMPLE, workers, GOOGLE_CLIENT_ID, GOOGLE_SCRIPT, googleHopUrl, SIGNIN_LINK_MIN } from '../config.js';
 
@@ -113,6 +115,8 @@ function picture() {
     h('div', { class: 'lx-si-ai' }, takeaway(['Sales are ', h('b', null, '$3,797 ahead'), ' of plan this month.'])));
 }
 
+const firstName = n => String(n || '').trim().split(/\s+/)[0];
+
 export default {
   title: 'Sign in',
   /* ctx: { message, sample, invite, onDone }. onDone runs once the session is stored (app.js then loads the app). */
@@ -133,7 +137,7 @@ export default {
 
     const email = inv ? null : field({ label: 'Email', type: 'email', name: 'email', placeholder: 'you@yourbrand.com', autocomplete: 'email', inputmode: 'email', icon: 'email', id: 'si-email',
       hint: 'For invited clients. No password: we email you a sign in link.' });
-    const goText = inv ? 'Email a link to ' + (inv.email || 'the invited email') : 'Email me a sign in link';
+    const goText = inv ? 'Email me a code' : 'Email me a sign in link';
     const goLabel = h('span', null, goText);
     const go = h('button', { class: 'lx-btn', type: 'submit' }, goLabel, svgNode(icon('arrow')));
     const gLabel = h('span', null, 'Continue with Google');
@@ -146,7 +150,7 @@ export default {
     /* The way round, always in reach: if Google's button does nothing on this address, the Google page signs
        the person in and sends them straight back. An invite cannot go that way (the hop would lose it). */
     const gHelp = sample ? null : h('p', { class: 'lx-si-note', style: { marginTop: '10px' } },
-      inv ? 'Google button not working? Use the email link below.'
+      inv ? 'Google button not working? Use the emailed code below.'
         : ['Google button not working? ', h('a', { href: googleHopUrl(backAddress()), style: { color: 'var(--ink)', fontWeight: '600', textDecoration: 'underline' } }, 'Sign in on the Google page')]);
     const teamNote = inv ? null : h('p', { class: 'lx-si-note', style: { marginTop: '10px' } }, `The ${ORG_SHORT} team signs in with Google.`);
 
@@ -154,10 +158,50 @@ export default {
     function working(on, what) {
       busy = on;
       go.disabled = on; gBtn.disabled = on; if (email) email.input.disabled = on;
+      if (codeBox) codeBox.boxes.forEach(b => { b.disabled = on; });
       gSlot.style.pointerEvents = on ? 'none' : ''; gSlot.style.opacity = on ? '.55' : '';
       goLabel.textContent = on && what === 'email' ? 'Sending' : goText;
       gLabel.textContent = on && what === 'google' ? 'Signing you in' : 'Continue with Google';
       form.setAttribute('aria-busy', on ? 'true' : 'false');
+    }
+
+    /* the emailed 6 digit code (invite only): six boxes, paste fills all of them, the sixth digit checks it */
+    let codeBox = null, sentAt = 0;
+    const again = h('button', { class: 'lx-btn ghost', type: 'button', disabled: true, onclick: () => sendCode(true) }, 'Send a new code');
+    function codeBoxes() {
+      addStyles('lx-si-code', '.lx-si-code{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin:4px 0 12px}.lx-si-code input{height:56px;padding:0;text-align:center;font:600 24px var(--sans);font-variant-numeric:tabular-nums}');
+      const boxes = Array.from({ length: 6 }, (_, i) => h('input', { class: 'lx-input', inputmode: 'numeric', pattern: '[0-9]*', maxlength: 1, autocomplete: i === 0 ? 'one-time-code' : 'off', 'aria-label': 'Digit ' + (i + 1) }));
+      const fill = (from, digits) => { digits.split('').slice(0, 6 - from).forEach((d, k) => { boxes[from + k].value = d; }); const next = boxes.find(b => !b.value); (next || boxes[5]).focus(); if (boxes.every(b => b.value)) verify(boxes.map(b => b.value).join('')); };
+      boxes.forEach((b, i) => {
+        b.addEventListener('input', () => { const d = b.value.replace(/\D/g, ''); b.value = ''; if (d) fill(i, d); });
+        b.addEventListener('keydown', e => { if (e.key === 'Backspace' && !b.value && i > 0) { boxes[i - 1].value = ''; boxes[i - 1].focus(); e.preventDefault(); } });
+        b.addEventListener('paste', e => { const d = ((e.clipboardData && e.clipboardData.getData('text')) || '').replace(/\D/g, ''); if (d) { e.preventDefault(); fill(i, d); } });
+      });
+      const el = h('div', null, h('label', { class: 'lx-si-note', style: { display: 'block', fontWeight: '600', color: 'var(--ink-2)' } }, 'Your 6 digit code'), h('div', { class: 'lx-si-code' }, boxes), again);
+      el.boxes = boxes;
+      return el;
+    }
+    async function sendCode(resend) {
+      if (busy) return;
+      if (Date.now() - sentAt < 60e3 && resend) return say('Wait a minute before asking for a new code.', 'bad');
+      if (!codeBox) { codeBox = codeBoxes(); go.replaceWith(codeBox); }
+      if (sample) { say('Sample mode: nothing was sent. Type any 6 digits.', 'good'); codeBox.boxes[0].focus(); return; }
+      working(true, 'email'); say('Sending your code.');
+      try {
+        const r = await ask('/api/clients/code', { invite: inv.token });
+        if (r && r.ok === false) throw new Error(r.error || 'That invite no longer works. Ask for a new one.');
+        sentAt = Date.now(); again.disabled = true; setTimeout(() => { again.disabled = false; }, 60e3);
+        say('We sent a 6 digit code to ' + ((r && r.to) || inv.email || 'your email') + '. It works for 10 minutes. Check spam if it is not there in a minute.', 'good');
+      } catch (e) { say(e.message, 'bad'); }
+      working(false);
+      codeBox.boxes[0].focus();
+    }
+    async function verify(code) {
+      if (busy) return;
+      if (sample) { say('Sample mode. Opening the sample checklist.', 'good'); setTimeout(() => { location.href = './?sample=1&as=client&onboarding=1'; }, 500); return; }
+      working(true, 'code'); say('Checking your code.');
+      try { keepSession(await ask('/api/clients/code/verify', { invite: inv.token, code })); done(); }
+      catch (e) { say(e.message, 'bad'); working(false); codeBox.boxes.forEach(b => { b.value = ''; }); codeBox.boxes[0].focus(); }
     }
 
     /* the emailed link */
@@ -212,10 +256,10 @@ export default {
     }
 
     const or = () => h('div', { class: 'lx-si-or' }, 'or');
-    const form = h('form', { class: 'lx-si-form', novalidate: true, onsubmit: e => { e.preventDefault(); sendLink(); } },
-      h('h1', null, inv ? (inv.name ? inv.name + ', you are invited' : 'You are invited') : 'Sign in to ' + APP_NAME),
+    const form = h('form', { class: 'lx-si-form', novalidate: true, onsubmit: e => { e.preventDefault(); if (!inv) return sendLink(); if (!codeBox) return sendCode(false); const c = codeBox.boxes.map(b => b.value).join(''); if (c.length === 6) verify(c); } },
+      h('h1', null, inv ? (inv.name ? firstName(inv.name) + ', make your login' : 'Make your login') : 'Sign in to ' + APP_NAME),
       h('p', { class: 'lede' }, inv
-        ? ['to ' + APP_NAME + ' for ', h('b', { style: { color: 'var(--ink)', fontWeight: '600' } }, (inv.brands || []).join(', ') || 'your brand'), '. Sign in with any Google account you like. It becomes your login.']
+        ? ['for ' + APP_NAME + ' at ', h('b', { style: { color: 'var(--ink)', fontWeight: '600' } }, (inv.brands || []).join(', ') || 'your brand'), '. Use Google, or we email you a 6 digit code. No password.']
         : 'Your store, your ads and what to do next.'),
       ctx.message ? h('p', { class: 'lx-pill warn', role: 'alert', style: { height: 'auto', padding: '8px 12px', marginBottom: '16px', whiteSpace: 'normal', lineHeight: '1.4' } }, ctx.message) : null,
       inv ? [gWrap, gHelp, or(), go] : [gWrap, teamNote, gHelp, or(), email, go],

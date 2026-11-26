@@ -24,10 +24,12 @@ function fromMyWork(mw) {
   const items = (mw && mw.items) || [];
   const row = it => ({
     text: it.text, brand: it.brand || '',
-    by: it.source === 'slack' ? (it.from || 'Slack') : it.source === 'card' ? 'Card ' + String(it.num || '').trim() : it.source === 'call' ? 'Monday call' : (it.from || 'Task'),
+    by: it.source === 'onboard' ? 'New client setup' : it.source === 'slack' ? (it.from || 'Slack') : it.source === 'card' ? 'Card ' + String(it.num || '').trim() : it.source === 'call' ? 'Monday call' : (it.from || 'Task'),
     when: it.bucket === 'late' ? 'late' : it.when || (it.due ? 'due ' + it.due : ''),
     who: it.source === 'slack' && it.from ? { name: it.from, photo: it.from_photo || null } : null,
-    btn: it.link ? { label: it.source === 'slack' ? 'Reply' : it.source === 'card' ? 'Open card' : 'Open', href: it.link } : { label: 'Open My day', line: 'my-day', tab: 'index' },
+    /* a new client setup line opens that client's Get started page in this app; its own button lives on My day */
+    btn: it.source === 'onboard' && it.slug ? { label: 'Open', href: '#/brand/' + encodeURIComponent(it.slug) + '/get-started/index' }
+      : it.link ? { label: it.source === 'slack' ? 'Reply' : it.source === 'card' ? 'Open card' : 'Open', href: it.link } : { label: 'Open My day', line: 'my-day', tab: 'index' },
   });
   const open = items.filter(i => !i.done);
   return {

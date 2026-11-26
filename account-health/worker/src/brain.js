@@ -149,8 +149,9 @@ export async function brandBrain(env, act, opts = {}) {
   const profile = data('', 'profile') || {};
   const facts = data('', 'brand_facts');
   const answers = safeJson(onboard?.answers_json, {});
-  const said = ['company', 'uvp', 'why_you', 'solves', 'features', 'offers', 'free_ship', 'aov']
-    .filter(k => answers[k] && answers[k] !== '__unsure').map(k => `- ${k.replace(/_/g, ' ')}: ${one(str(answers[k]), 500)}`);
+  /* 2026-11-26 onboarding: the ten question brief adds push_products and success_90; answers clip at 1500. */
+  const said = ['company', 'uvp', 'why_you', 'solves', 'features', 'offers', 'free_ship', 'aov', 'push_products', 'success_90']
+    .filter(k => answers[k] && answers[k] !== '__unsure').map(k => `- ${k.replace(/_/g, ' ')}: ${one(str(answers[k]), 1500)}`);
   const best = Array.isArray(answers.best_sellers) ? answers.best_sellers.map(r => [r.name, r.price].filter(Boolean).join(' ')).filter(Boolean) : [];
   {
     const b = [];
@@ -182,7 +183,9 @@ export async function brandBrain(env, act, opts = {}) {
     const r = [];
     if (profile.dos) r.push(`Always: ${one(profile.dos, 900)}`);
     if (profile.donts) r.push(`Never: ${one(profile.donts, 900)}`);
-    if (answers.dos_donts && answers.dos_donts !== '__unsure') r.push(`The client's own dos and don'ts: ${one(str(answers.dos_donts), 900)}`);
+    if (answers.dos_donts && answers.dos_donts !== '__unsure') r.push(`The client's own dos and don'ts: ${one(str(answers.dos_donts), 1500)}`);
+    if (answers.tried_failed && answers.tried_failed !== '__unsure') r.push(`Tried in ads before and did not work: ${one(str(answers.tried_failed), 1500)}`);
+    if (answers.ugc_ok && answers.ugc_ok !== '__unsure') r.push(`Customer content in ads: ${one(str(answers.ugc_ok), 1500)}`);
     const claimRules = list(safeJson(amb?.rules_json, []));
     if (claimRules.length) r.push(`Claim and filming rules (from the creator link, apply to every ad):\n${claimRules.map(x => `- ${one(x, 300)}`).join('\n')}`);
     const tr = data('', 'rules');

@@ -1,0 +1,27 @@
+{
+ "email": "pat@example.com",
+ "name": "Pat Doyle",
+ "title": "",
+ "phone": "",
+ "brands": [
+  {
+   "id": "brand_northlake_golf",
+   "name": "Northlake Golf"
+  }
+ ],
+ "welcomed": true,
+ "welcome_seen": false,
+ "profile_done": false,
+ "onboarding": {
+  "gated": true,
+  "brand": "brand_northlake_golf",
+  "slug": "northlake-golf",
+  "left": [
+   "connect",
+   "brief"
+  ],
+  "done": 2,
+  "total": 4,
+  "only": null
+ }
+}

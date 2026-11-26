@@ -20,12 +20,15 @@
  *   PUT  /api/clients/me              the signed-in client: {name?, welcomed?} (their own profile only)
  * Nothing here sends anything unless the owner pressed Send on text they saw (the New client rule).
  */
-import { sendMail } from './mail.js';
+import { sendMail, sendProductMail } from './mail.js';
+import { onboardGate } from './onboard.js';
 import { clientOf, clientScope, brandsFor, CLIENT_SWITCHES, CLIENT_CAPS, capUse, capAdd, capMessage, HQ_BRAND, HQ_DOMAIN } from './brandguard.js';
 
 const OWNER = 'cole@go-mobius-digital.com';
 const DOMAIN = 'go-mobius-digital.com';
 export const LOCUS_URL = 'https://locus.go-mobius-digital.com/profit/';
+/* New Locus (profit/v5): where an onboarding invite opens (2026-11-26). */
+export const ONBOARD_URL = LOCUS_URL + 'v5/';
 const lower = s => String(s || '').trim().toLowerCase();
 const emailOk = e => /^[^@\s,;<>]+@[^@\s,;<>]+\.[^@\s,;<>]+$/.test(e);
 const firstName = s => String(s || '').trim().split(/\s+/)[0] || '';
@@ -55,19 +58,20 @@ async function brandNames(env, ids) {
 export const LINK_PLACEHOLDER = '{{sign-in link}}';
 const INVITE_DAYS = 30, SIGNIN_MIN = 20;
 const hex = n => [...crypto.getRandomValues(new Uint8Array(n))].map(b => b.toString(16).padStart(2, '0')).join('');
-const inviteUrl = t => `${LOCUS_URL}?invite=${t}`;
+const inviteUrl = (t, base = LOCUS_URL) => `${base}?invite=${t}`;
 const maskEmail = e => { const [u, d] = String(e).split('@'); return `${u.slice(0, 2)}${'*'.repeat(Math.max(1, Math.min(6, u.length - 2)))}@${d}`; };
 
-/** The client's current invite link, made (or renewed when expired) on the way. */
-async function ensureInvite(env, email) {
+/** The client's current invite link, made (or renewed when expired) on the way. `base` = where the link opens
+ *  (onboarding passes ONBOARD_URL, new Locus); old callers keep the old Locus. */
+export async function ensureInvite(env, email, base = LOCUS_URL) {
   const e = lower(email);
   const users = (await getJson(env, 'clientUsers', {})) || {};
   if (!users[e]) return null;
   const cur = users[e].invite;
-  if (cur?.token && Date.parse(cur.exp) > Date.now() + 86400e3) return inviteUrl(cur.token);
+  if (cur?.token && Date.parse(cur.exp) > Date.now() + 86400e3) return inviteUrl(cur.token, base);
   users[e].invite = { token: hex(16), exp: new Date(Date.now() + INVITE_DAYS * 86400e3).toISOString() };
   await putJson(env, 'clientUsers', users);
-  return inviteUrl(users[e].invite.token);
+  return inviteUrl(users[e].invite.token, base);
 }
 function findInvite(users, token) {
   if (!/^[0-9a-f]{32}$/.test(token || '')) return null;
@@ -140,6 +144,54 @@ async function redeemSignin(env, token, mintSession) {
   return { ...(await mintSession(env, v.email)), role: 'client', name: users[v.email].name || '' };
 }
 
+/* ---------------- the emailed 6 digit code (onboarding, 2026-11-26) ----------------
+ * The invite page offers Google or "Email me a code". The code is 6 random digits, kept only as a SHA-256 of
+ * code + invite + SESSION_SECRET in settings `code:<invite>` = {h, exp, tries, sent_at, sends}. 10 minutes, 5 tries,
+ * one send a minute and 5 an hour per invite. The right code is one use: the row and the invite token go, and the
+ * answer is a session in the same shape as /api/clients/signin. Sent by sendProductMail (a system mail). */
+const CODE_MIN = 10, CODE_TRIES = 5;
+const sha256hex = async s => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))].map(x => x.toString(16).padStart(2, '0')).join('');
+const codeHash = (env, code, invite) => sha256hex(`${code}:${invite}:${env.SESSION_SECRET || env.ADMIN_TOKEN || ''}`);
+export async function sendCode(env, invite) {
+  const users = (await getJson(env, 'clientUsers', {})) || {};
+  const hit = findInvite(users, invite);
+  if (!hit || !hit.live) return { ok: false, error: 'This invite link is not valid any more. Ask Mobius for a new one.' };
+  const key = `code:${invite}`;
+  const cur = await getJson(env, key, null);
+  const now = Date.now();
+  const sends = (Array.isArray(cur?.sends) ? cur.sends : []).filter(t => now - t < 3600e3);
+  if (cur?.sent_at && now - cur.sent_at < 60e3) return { ok: true, to: maskEmail(hit.email), wait: true };
+  if (sends.length >= 5) return { ok: false, error: 'That is five codes this hour. Wait a little, or sign in with Google.' };
+  const n = crypto.getRandomValues(new Uint32Array(1))[0] % 1000000;
+  const code = String(n).padStart(6, '0');
+  await putJson(env, key, { h: await codeHash(env, code, invite), exp: now + CODE_MIN * 60e3, tries: 0, sent_at: now, sends: [...sends, now] });
+  await sendProductMail(env, hit.email, 'Your Locus code', `Your code is ${code.slice(0, 3)} ${code.slice(3)}. It works for ${CODE_MIN} minutes. If you did not ask for it, ignore this email.`);
+  return { ok: true, to: maskEmail(hit.email) };
+}
+export async function verifyCode(env, invite, code, mintSession) {
+  const key = `code:${invite}`;
+  const drop = () => env.DB.prepare(`DELETE FROM settings WHERE key = ?1`).bind(key).run().catch(() => {});
+  const v = /^[0-9a-f]{32}$/.test(invite || '') ? await getJson(env, key, null) : null;
+  if (!v) return { error: 'That code ran out. Ask for a new one.', status: 400 };
+  if (!(v.exp > Date.now()) || (v.tries || 0) >= CODE_TRIES) { await drop(); return { error: 'That code ran out. Ask for a new one.', status: 400 }; }
+  const c = String(code || '').replace(/\D/g, '');
+  if (c.length !== 6 || (await codeHash(env, c, invite)) !== v.h) {
+    const tries = (v.tries || 0) + 1;
+    if (tries >= CODE_TRIES) { await drop(); return { error: 'That code ran out. Ask for a new one.', status: 400 }; }
+    await putJson(env, key, { ...v, tries });
+    const left = CODE_TRIES - tries;
+    return { error: `That code is not right. ${left} ${left === 1 ? 'try' : 'tries'} left.`, status: 400 };
+  }
+  await drop();
+  const users = (await getJson(env, 'clientUsers', {})) || {};
+  const hit = findInvite(users, invite);
+  if (!hit || !hit.live) return { error: 'This invite link is not valid any more. Ask Mobius for a new one.', status: 400 };
+  delete users[hit.email].invite;
+  await putJson(env, 'clientUsers', users);
+  await touchClient(env, hit.email, 'login').catch(() => {});
+  return { ...(await mintSession(env, hit.email)), role: 'client', name: users[hit.email].name || '' };
+}
+
 /* ---------------- the invite email ---------------- */
 export function inviteDraft({ brands = [], name = '' }) {
   const list = brands.filter(Boolean);
@@ -168,7 +220,7 @@ Talk soon,`,
 async function teamGuests(env) { return ((await getJson(env, 'allowedEmails', [])) || []).map(lower); }
 
 /** Add brands to (or create) one client login. Returns an error string or null. */
-async function upsertClient(env, email, brands, by, name, readOnly) {
+export async function upsertClient(env, email, brands, by, name, readOnly) {
   const e = lower(email);
   if (!emailOk(e)) return `${email || 'That'} does not look like an email address.`;
   if (e.endsWith('@' + DOMAIN) || e === lower(env.OWNER_EMAIL || OWNER)) return `${e} is a Mobius account. Mobius people go in Team and access, not here.`;
@@ -241,7 +293,12 @@ export async function meClient(env, email) {
   if (!c) return null;
   const names = await brandNames(env, c.brands);
   const users = (await getJson(env, 'clientUsers', {})) || {};
-  return { name: c.name, ...(c.hq ? { hq: true } : {}), ...(c.readOnly ? { readOnly: true } : {}), welcomed: !!users[c.email]?.welcomed_at, brands: c.brands.map(b => ({ id: b, name: names[b] || b, access: c.access[b] })) };
+  const u = users[c.email] || {};
+  /* Onboarding (2026-11-26): the profile, the welcome cards flag and the Get started gate, all from one read. */
+  const onboarding = await onboardGate(env, c.email, c.brands, c.onlyOnboard || null).catch(() => null);
+  return { name: c.name, title: u.title || '', phone: u.phone || '', ...(c.hq ? { hq: true } : {}), ...(c.readOnly ? { readOnly: true } : {}), welcomed: !!u.welcomed_at,
+    welcome_seen: !!u.welcome_seen_at, profile_done: !!(String(u.name || '').trim() && String(u.title || '').trim()), onboarding,
+    brands: c.brands.map(b => ({ id: b, name: names[b] || b, access: c.access[b] })) };
 }
 
 /* ---------------- routes ---------------- */
@@ -254,6 +311,17 @@ export async function handleClients(request, env, path, json, { isAdmin, session
     const b = await request.json().catch(() => ({}));
     try { const r = await sendSigninLink(env, b.email, b.invite); return json(r, r.ok ? 200 : 400); }
     catch (e) { return json({ error: 'Could not send the email just now. Try again in a minute.' }, 502); }
+  }
+  if (path === '/api/clients/code' && request.method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    try { const r = await sendCode(env, String(b.invite || '')); return json(r, r.ok ? 200 : 400); }
+    catch (e) { return json({ ok: false, error: 'Could not send the email just now. Try again in a minute.' }, 502); }
+  }
+  if (path === '/api/clients/code/verify' && request.method === 'POST') {
+    const b = await request.json().catch(() => ({}));
+    if (!mintSession) return json({ error: 'not wired' }, 500);
+    const r = await verifyCode(env, String(b.invite || ''), b.code, mintSession);
+    return r.error ? json({ error: r.error }, r.status || 400) : json(r);
   }
   if (path === '/api/clients/signin' && request.method === 'POST') {
     const b = await request.json().catch(() => ({}));
@@ -275,9 +343,17 @@ export async function handleClients(request, env, path, json, { isAdmin, session
       const users = (await getJson(env, 'clientUsers', {})) || {};
       const me = users[cs.email]; if (!me) return json({ error: 'unauthorized' }, 401);
       if (typeof b.name === 'string') me.name = b.name.replace(/[<>]/g, '').trim().slice(0, 80) || null;
+      /* The short profile on sign up (2026-11-26): job title and an optional phone. */
+      if (typeof b.title === 'string') me.title = b.title.replace(/[<>]/g, '').trim().slice(0, 80);
+      if (typeof b.phone === 'string') {
+        const ph = b.phone.trim().slice(0, 30);
+        if (ph && !/^[0-9 +().-]+$/.test(ph)) return json({ error: 'A phone number has digits, spaces, + ( ) - and dots only.' }, 400);
+        me.phone = ph;
+      }
       if (b.welcomed) me.welcomed_at = me.welcomed_at || new Date().toISOString();
+      if (b.welcome_seen) me.welcome_seen_at = me.welcome_seen_at || new Date().toISOString();
       await putJson(env, 'clientUsers', users);
-      return json({ ok: true, name: me.name || null });
+      return json({ ok: true, name: me.name || null, title: me.title || '', phone: me.phone || '', welcome_seen: !!me.welcome_seen_at });
     }
     const me = await meClient(env, cs.email);
     /* The creator link, where the page is live. */

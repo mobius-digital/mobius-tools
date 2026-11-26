@@ -3,11 +3,12 @@
    Live data (account-health, reads only):
      the brands                 ctx.brands (GET /api/brands, already loaded by the shell)
      GET /api/clients?act=all   client logins: email, name, brands, invited_at, last_sign_in, last_seen
-     GET /api/requests?act=all  open requests, counted per brand */
+     GET /api/requests?act=all  open requests, counted per brand
+     GET /api/onboard/list      new clients still setting up (or finished): one line each, opens their Get started page */
 
 import { APP_NAME } from '../../config.js';
 import { put } from '../../kit.js';
-import { h, hero, kpis, kpi, statusDot, button, sheet, em, empty, avatar, relativeTime } from '../../kit.js';
+import { h, hero, kpis, kpi, statusDot, button, sheet, em, empty, avatar, relativeTime, pill } from '../../kit.js';
 import { css, dayOf, between, todayYmd, heading, row, list, brandTag } from '../calendar/_cr.js';
 
 const seenDay = p => String(p.last_seen || p.last_sign_in || '').slice(0, 10);
@@ -30,6 +31,18 @@ function draw(el, d, ctx) {
   const recent = logins.filter(p => seenDay(p) && between(seenDay(p), today) <= 7);
   const never = logins.filter(p => !p.last_sign_in && !p.last_seen);
   const noLogin = brands.filter(b => !of(b.id).length);
+  /* new clients from New client: their setup line, a pill, and who it waits on; the row opens Get started */
+  const onb = new Map((d.onboard || []).map(o => [o.act, o]));
+  const setupHref = o => '#/brand/' + encodeURIComponent(o.slug) + '/get-started/index';
+  const setupRow = (o, title) => row({
+    title, sub: o.line, late: false,
+    cells: [
+      { w: 120, class: 'hide-sm', label: 'Setup', node: o.finished_at ? pill('good', 'Finished') : pill('warn', 'Setting up') },
+      { w: 130, label: 'Sent', node: o.days == null ? '' : o.days === 0 ? 'today' : o.days + (o.days === 1 ? ' day ago' : ' days ago') },
+      { w: 170, node: o.finished_at ? statusDot('good', 'Nothing open') : o.waiting_on === 'us' ? statusDot('warn', 'Waiting on us') : statusDot('off', 'Waiting on client') },
+    ],
+    onclick: () => { location.hash = setupHref(o); },
+  });
 
   const head = hero({ line: true }, kpis([
     kpi({ label: 'Clients', value: String(brands.length), size: 'lg', sub: d.brands.length > brands.length ? (d.brands.length - brands.length) + ' paused' : 'all active' }),
@@ -39,6 +52,7 @@ function draw(el, d, ctx) {
   ], { cols: 4 }));
 
   const rows = brands.map(b => {
+    if (onb.has(b.id)) return setupRow(onb.get(b.id), b.name);
     const ps = of(b.id), last = ps.map(seenDay).filter(Boolean).sort().pop(), w = (d.waiting || {})[b.id] || { us: 0, client: 0 };
     return row({
       title: b.name,
@@ -56,7 +70,14 @@ function draw(el, d, ctx) {
           ctx.legacy ? button('Invite or remove in old ' + APP_NAME, { href: ctx.legacy }) : null)) }),
     });
   });
-  put(el, head, h('section', { class: 'cr-sect' }, heading('Every client', brands.length), list(rows)));
+  /* a client set up a minute ago may not be in the brand list yet */
+  const extra = (d.onboard || []).filter(o => !brands.some(b => b.id === o.act)).map(o => setupRow(o, o.name));
+  const setting = (d.onboard || []).filter(o => !o.finished_at).length;
+  put(el, head,
+    h('div', { style: { display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center', margin: '0 0 18px' } },
+      button('New client', { primary: true, icon: 'arrow', href: ctx.href('a-clients', 'new') }),
+      setting ? h('span', { style: { fontSize: '13px', color: 'var(--muted)' } }, setting + (setting === 1 ? ' client is' : ' clients are') + ' setting up') : null),
+    h('section', { class: 'cr-sect' }, heading('Every client', brands.length + extra.length), list([...extra, ...rows])));
 }
 
 export default {
@@ -64,9 +85,10 @@ export default {
   eyebrow: 'Client list',
   ranges: false,
   async load(ctx) {
-    const [c, r] = await Promise.all([
+    const [c, r, o] = await Promise.all([
       ctx.api('/api/clients?act=all', { worker: 'ah', signal: ctx.signal }),
       ctx.api('/api/requests?act=all', { worker: 'ah', signal: ctx.signal }).catch(() => ({ items: [] })),
+      ctx.api('/api/onboard/list', { worker: 'ah', signal: ctx.signal }).catch(() => ({ clients: [] })),
     ]);
     const waiting = {};
     for (const i of r.items || []) {
@@ -78,6 +100,7 @@ export default {
       brands: (ctx.brands || []).map(({ id, name, slug, status, color }) => ({ id, name, slug, status, color })),
       clients: (c.clients || []).map(({ email, name, brands, invited_at, last_sign_in, last_seen }) => ({ email, name, brands, invited_at, last_sign_in, last_seen })),
       waiting,
+      onboard: (o && o.clients) || [],
     };
   },
   async sample(ctx) {

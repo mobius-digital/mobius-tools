@@ -6,6 +6,16 @@
  * The Gmail API never adds the signature set in Gmail's own settings, so it is added here. The same
  * signature, for Gmail itself, is at tools.go-mobius-digital.com/brand/signature.html (copy, paste into
  * Gmail > Settings > Signature).
+ *
+ * THE SENDER SWITCH (2026-11-26, onboarding). Two senders:
+ *   sendMail         Cole personally, through his Gmail. Every onboarding mail (welcome, agreement, hand off, the
+ *                    day 3 and day 7 reminders, Remind them) goes this way (Cole's decision 8).
+ *   sendProductMail  a system mail (today only the 6 digit sign up code). Resend when env.RESEND_API_KEY AND the
+ *                    settings key mailFrom are both set; otherwise it falls through to sendMail. No Resend key
+ *                    exists yet, so today it is Cole's Gmail. Moving product mail later = set the key and mailFrom.
+ * Test guard, in both: env.MAIL_DRY set = no network at all, the message lands on the exported `outbox` and the
+ * call answers {dry: true}; settings mailTestTo set = every recipient becomes that address and the subject starts
+ * "[test for <original>] ".
  */
 import { googleToken } from './asana-brand.js';
 
@@ -14,6 +24,9 @@ export function useFetch(f) { F = f; }
 
 const OWNER = 'cole@go-mobius-digital.com';
 const LOGO = 'https://tools.go-mobius-digital.com/brand/mobius-logo-email.png';
+
+/** Messages that were not sent because env.MAIL_DRY was set (tests read it). */
+export const outbox = [];
 
 export const SIGNATURE_HTML = `<table cellpadding="0" cellspacing="0" border="0" style="margin-top:18px;font-family:Arial,Helvetica,sans-serif;color:#13202B">
 <tr><td style="padding:0 16px 0 0;border-right:2px solid #2F9AD6;vertical-align:middle"><a href="https://go-mobius-digital.com"><img src="${LOGO}" width="150" alt="Mobius Digital" style="display:block;border:0;width:150px;height:auto"></a></td>
@@ -34,8 +47,35 @@ export function textToHtml(text) {
 const b64 = s => btoa(String.fromCharCode(...new TextEncoder().encode(s)));
 const b64url = s => b64(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
+async function setting(env, key) {
+  try {
+    const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = ?1`).bind(key).first();
+    const raw = row?.value;
+    if (raw == null || raw === '') return '';
+    try { const v = JSON.parse(raw); return typeof v === 'string' ? v.trim() : ''; } catch { return String(raw).trim(); }
+  } catch { return ''; }
+}
+
+/** The test guard, shared by both senders. Answers the (maybe rewritten) recipient and subject, or {dry} when
+ *  nothing may leave. Exported so the old plain-text fallback in contract.js keeps the same rule. */
+export async function mailGuard(env, to, subject, text, via) {
+  const testTo = env?.DB ? await setting(env, 'mailTestTo') : '';
+  if (testTo && /@/.test(testTo)) { subject = `[test for ${to}] ${subject}`; to = testTo; }
+  if (env && env.MAIL_DRY) { outbox.push({ via, to, subject, text: String(text || '') }); return { dry: true, to, subject }; }
+  return { dry: false, to, subject };
+}
+
+/** Which sender a product mail would use right now: 'resend' or 'gmail'. */
+export async function productSender(env) {
+  const from = await setting(env, 'mailFrom');
+  return env && env.RESEND_API_KEY && from ? 'resend' : 'gmail';
+}
+
 /** Sends `text` (as Cole approved it) from Cole's Gmail, as HTML with the signature, plus a plain-text part. */
 export async function sendMail(env, to, subject, text) {
+  const g = await mailGuard(env, to, subject, text, 'gmail');
+  if (g.dry) return { dry: true };
+  to = g.to; subject = g.subject;
   const tok = await googleToken(env, OWNER, 'https://www.googleapis.com/auth/gmail.send');
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.55;color:#13202B;max-width:600px">${textToHtml(text)}${SIGNATURE_HTML}</div>`;
   const plain = `${String(text).trim()}\n\nCole Wetzler\nFounder, Mobius Digital\n${OWNER}\ngo-mobius-digital.com`;
@@ -46,4 +86,17 @@ export async function sendMail(env, to, subject, text) {
     `--${bnd}--`, ''].join('\r\n');
   const res = await F('https://www.googleapis.com/gmail/v1/users/me/messages/send', { method: 'POST', headers: { Authorization: `Bearer ${tok}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ raw: b64url(mime) }) });
   if (!res.ok) throw new Error(`Gmail: ${(await res.json().catch(() => ({}))).error?.message || res.status}`);
+  return { sent: true, via: 'gmail' };
+}
+
+/** A system mail (the 6 digit code). Resend when a key and a sender are set, else Cole's Gmail (sendMail). */
+export async function sendProductMail(env, to, subject, text) {
+  if ((await productSender(env)) !== 'resend') return sendMail(env, to, subject, text);
+  const g = await mailGuard(env, to, subject, text, 'resend');
+  if (g.dry) return { dry: true };
+  const from = await setting(env, 'mailFrom');
+  const res = await F('https://api.resend.com/emails', { method: 'POST', headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from, to: [g.to], subject: g.subject, text: String(text || ''), html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.55;color:#13202B;max-width:600px">${textToHtml(text)}</div>` }) });
+  if (!res.ok) throw new Error(`Resend: ${(await res.json().catch(() => ({}))).message || res.status}`);
+  return { sent: true, via: 'resend' };
 }

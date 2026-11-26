@@ -25,6 +25,13 @@
  * Nothing reaches the client until Cole presses Send. The Slack welcome posts as Cole a
  * minute after the client joins their channel.
  *
+ * ONBOARDING v2 (2026-11-26, onboard.js): a run made by the new New client screen carries steps_json.v = 2. It has no
+ * Asana, no Drive and no voice interview; its steps are link (the Get started token, made here, no Asana), email,
+ * contract, stripe (the FIRST INVOICE: a one off invoice, the subscription is made only when it is paid, on the day it
+ * was paid), slack (channels and team only), slackInvite (the Slack Connect invite, AFTER the welcome email), frame,
+ * ledger (server side) and summary. The hourly tick never posts Slack buttons, form pings or Shopify heads ups for a v2
+ * run (the team's lines live in Locus: My day and the bell).
+ *
  * steps_json is written ONE KEY AT A TIME (setStep): the screen, the hourly pass and the
  * Stripe / Calendly / Slack webhooks all write it, and a whole-object write from a stale
  * copy would undo another writer's key.
@@ -54,6 +61,7 @@ const DRIVE_TEMPLATE = '1rPYv4HRCpDEny66Ux-gIFmkOqSuurgYF';   // "# Client Templ
 const OWNER = 'cole@go-mobius-digital.com';
 const ONBOARD_FORM = 'https://tools.go-mobius-digital.com/onboard/?t=';
 const CALENDLY = 'https://calendly.com/mobius-digital/strategy-session';
+const ONBOARD_V5 = 'https://locus.go-mobius-digital.com/profit/v5/';
 export const STEPS = ['asana', 'onboard', 'drive', 'slack', 'frame', 'stripe', 'contract', 'email', 'summary'];
 const NEWBIZ = 'C0BV9L8NV33';   // #mobius-newbiz (private), 2026-09-05
 const ROLE_LABEL = { strategist: 'creative strategist', buyer: 'media buyer', editor: 'video editor', designer: 'graphic designer' };
@@ -62,6 +70,8 @@ const roleList = v => String(v || '').split(/[,\s]+/).map(x => x.trim().toLowerC
 const teamList = team => [...new Set(['strategist', 'buyer', 'editor', 'designer'].flatMap(k => roleList(team[k])))];
 
 const safeJson = (s, fb) => { try { return s ? JSON.parse(s) : fb; } catch { return fb; } };
+/** A v2 (onboarding) run: the new New client flow. */
+export const isV2 = r => safeJson(r?.steps_json, {}).v === 2;
 const rid = () => crypto.randomUUID().replace(/-/g, '').slice(0, 16);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const slugOf = name => String(name || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
@@ -69,7 +79,7 @@ const emailOk = s => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s || '');
 const firstName = s => String(s || '').trim().split(/\s+/)[0] || 'there';
 
 let tabled = false;
-async function ensureTable(env) {
+export async function ensureTable(env) {
   if (tabled) return;
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS p_newclient (
     id TEXT PRIMARY KEY, name TEXT NOT NULL, website TEXT, contact_name TEXT, contact_email TEXT,
@@ -79,14 +89,14 @@ async function ensureTable(env) {
     created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')))`).run();
   tabled = true;
 }
-const getRun = (env, id) => env.DB.prepare(`SELECT * FROM p_newclient WHERE id = ?1`).bind(id).first();
-async function patchRun(env, id, cols) {
+export const getRun = (env, id) => env.DB.prepare(`SELECT * FROM p_newclient WHERE id = ?1`).bind(id).first();
+export async function patchRun(env, id, cols) {
   const keys = Object.keys(cols);
   if (!keys.length) return;
   await env.DB.prepare(`UPDATE p_newclient SET ${keys.map((k, i) => `${k} = ?${i + 2}`).join(', ')}, updated_at = datetime('now') WHERE id = ?1`).bind(id, ...keys.map(k => cols[k])).run();
 }
 /** Writes one key of steps_json in place (undefined removes it). */
-async function setStep(env, id, key, val) {
+export async function setStep(env, id, key, val) {
   if (val === undefined) await env.DB.prepare(`UPDATE p_newclient SET steps_json = json_remove(steps_json, '$.' || ?2), updated_at = datetime('now') WHERE id = ?1`).bind(id, key).run();
   else await env.DB.prepare(`UPDATE p_newclient SET steps_json = json_set(steps_json, '$.' || ?2, json(?3)), updated_at = datetime('now') WHERE id = ?1`).bind(id, key, JSON.stringify(val)).run();
 }
@@ -113,7 +123,7 @@ const ROSTER = [
   { name: 'William', email: 'william@go-mobius-digital.com' },
   { name: 'Cole', email: OWNER },
 ];
-async function roster(env) {
+export async function roster(env) {
   const r = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'newClientTeam'`).first().catch(() => null);
   const list = safeJson(r?.value, null);
   return Array.isArray(list) && list.length ? list : ROSTER;
@@ -293,7 +303,7 @@ async function slackIds(env, emails) {
 }
 const SLACK_HELP = 'The Slack app may not create channels yet. At api.slack.com/apps > Mobius Digital > OAuth & Permissions, add the bot scopes groups:write and conversations.connect:write (users:read.email too if it is missing), reinstall, then press Retry.';
 
-async function stepSlack(env, r) {
+async function stepSlack(env, r, b = {}) {
   const bot = env.SLACK_BOT_TOKEN, user = env.SLACK_USER_TOKEN;
   if (!bot) throw new Error('No SLACK_BOT_TOKEN on the worker.');
   const team = safeJson(r.team_json, {});
@@ -338,12 +348,11 @@ async function stepSlack(env, r) {
     }
   }
 
-  /* The client, by Slack Connect, to the client channel only. */
-  if (emailOk(r.contact_email)) {
-    let j = await slack(bot, 'conversations.inviteShared', { channel: client.id, emails: [r.contact_email], external_limited: false });
-    if (!j.ok && user && /missing_scope|not_allowed_token_type|invalid_auth/.test(j.error)) j = await slack(user, 'conversations.inviteShared', { channel: client.id, emails: [r.contact_email], external_limited: false });
-    if (j.ok) out.client_invited = true;
-    else out.notes.push(`Slack would not send the Slack Connect invite (${j.error}). In #${slug}: Add people > invite ${r.contact_email}.`);
+  /* The client, by Slack Connect, to the client channel only. A v2 run (onboarding) sends it as its own step, slackInvite,
+     after the welcome email (Cole's decision 2). */
+  if (emailOk(r.contact_email) && !b.noClientInvite) {
+    const inv = await slackConnect(env, r, client.id);
+    if (inv.ok) out.client_invited = true; else out.notes.push(inv.note);
   }
   await slack(bot, 'conversations.setPurpose', { channel: client.id, purpose: `${r.name} and Mobius Digital` }).catch(() => {});
   await slack(bot, 'conversations.setPurpose', { channel: internal.id, purpose: `${r.name}: Mobius team only. Drafts, alerts and ideas.` }).catch(() => {});
@@ -351,6 +360,60 @@ async function stepSlack(env, r) {
      phase 3 has no brand yet: they land on it when it is adopted (adoptNewClient in asana-brand.js). */
   if (r.act_id) await env.DB.prepare(`UPDATE brands SET internal_channel = COALESCE(NULLIF(internal_channel, ''), ?2), client_channel = COALESCE(NULLIF(client_channel, ''), ?3), updated_at = datetime('now') WHERE id = ?1`).bind(await resolveBrandId(env, r.act_id), internal.id, client.id).run();
   return { ...out, text: `#${slug} and #${slug}-internal made, both private${out.client_invited ? `, ${r.contact_email} invited by Slack Connect` : ''}.` };
+}
+
+/** The Slack Connect invite to the client channel (the client's own email). */
+async function slackConnect(env, r, channel) {
+  const bot = env.SLACK_BOT_TOKEN, user = env.SLACK_USER_TOKEN;
+  let j = await slack(bot, 'conversations.inviteShared', { channel, emails: [r.contact_email], external_limited: false });
+  if (!j.ok && user && /missing_scope|not_allowed_token_type|invalid_auth/.test(j.error)) j = await slack(user, 'conversations.inviteShared', { channel, emails: [r.contact_email], external_limited: false });
+  return j.ok ? { ok: true } : { ok: false, note: `Slack would not send the Slack Connect invite (${j.error}). In #${r.slug || slugOf(r.name)}: Add people > invite ${r.contact_email}.` };
+}
+/* v2: the Slack Connect invite, its own step, run only after the welcome email went. */
+async function stepSlackInvite(env, r) {
+  if (!env.SLACK_BOT_TOKEN) throw new Error('No SLACK_BOT_TOKEN on the worker.');
+  if (!r.slack_client) throw new Error('Make the Slack channels first.');
+  if (!emailOk(r.contact_email)) throw new Error('No client email.');
+  const st = safeJson(r.steps_json, {});
+  if (st.email?.status !== 'done') throw new Error('The Slack invite goes after the welcome email. Send the welcome first.');
+  const inv = await slackConnect(env, r, r.slack_client);
+  if (!inv.ok) throw new Error(inv.note);
+  return { text: `${r.contact_email} invited to the shared Slack channel.` };
+}
+
+/* ---------------- onboarding v2: the Get started link (no Asana) ----------------
+   The token the client's Get started page and the agreement's signing page share. Made straight on p_br_onboard under
+   the brand (Cole's decision 2: no Asana project, no "Start here" task). Website into the brand profile. */
+const hex16 = () => [...crypto.getRandomValues(new Uint8Array(16))].map(b => b.toString(16).padStart(2, '0')).join('');
+async function stepLink(env, r) {
+  const act = r.act_id;
+  if (!act) throw new Error('The client has no brand yet.');
+  const pre = { company: r.name, ...(r.website ? { website: r.website } : {}), ...(r.contact_name ? { contact_name: r.contact_name } : {}), ...(r.contact_email ? { contact_email: r.contact_email } : {}) };
+  const have = await env.DB.prepare(`SELECT token, prefill_json FROM p_br_onboard WHERE act_id = ?1`).bind(act).first().catch(() => null);
+  let token = have?.token;
+  if (!token) {
+    token = hex16();
+    await env.DB.prepare(`INSERT INTO p_br_onboard (act_id, token, prefill_json) VALUES (?1, ?2, ?3)`).bind(act, token, JSON.stringify(pre)).run();
+  } else await env.DB.prepare(`UPDATE p_br_onboard SET prefill_json = ?2, updated_at = datetime('now') WHERE act_id = ?1`).bind(act, JSON.stringify({ ...safeJson(have.prefill_json, {}), ...pre })).run();
+  if (r.website) await env.DB.prepare(`INSERT INTO p_br_doc (act_id, line_id, key, data_json, status, source, updated_at) VALUES (?1, '', 'profile', json_object('website', ?2), 'approved', 'newclient', datetime('now'))
+    ON CONFLICT(act_id, line_id, key) DO UPDATE SET data_json = json_set(p_br_doc.data_json, '$.website', ?2), updated_at = datetime('now')`).bind(act, r.website).run();
+  await patchRun(env, r.id, { token, pending_act: act });
+  return { text: 'Get started link made.' };
+}
+
+/* ---------------- onboarding v2: Ledger, from the server ----------------
+   The same body profit/newclient.js sends from the browser today, over the LEDGER binding with a minted owner session. */
+const LEDGER_ORIGIN = 'https://mobius-ledger.mobius-digital.workers.dev';
+async function stepLedger(env, r, b = {}) {
+  if (!(r.retainer > 0)) return { status: 'skipped', text: 'Skipped: no retainer was entered.' };
+  if (!env.LEDGER) throw new Error(`The LEDGER binding is missing on this worker. Add ${r.name} in Ledger > Settings by hand.`);
+  if (typeof b.mintSession !== 'function') throw new Error('Ledger is not wired here.');
+  const tok = (await b.mintSession(env, env.OWNER_EMAIL || OWNER)).token;
+  const res = await env.LEDGER.fetch(new Request(`${LEDGER_ORIGIN}/api/client`, { method: 'POST', headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: r.name, retainer: r.retainer, active: true, billing: 'retainer' }) }));
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(j.error || `Ledger answered ${res.status}. Add ${r.name} in Ledger > Settings by hand.`);
+  return { text: `Added to Ledger at $${Number(r.retainer).toLocaleString('en-US')} a month.` };
 }
 
 /* ---------------- the client's invites: right after the welcome email ----------------
@@ -456,11 +519,11 @@ function form(obj, prefix = '') {
   }
   return out.filter(Boolean).join('&');
 }
-async function stripe(env, method, path, body) {
+export async function stripe(env, method, path, body, idempotencyKey) {
   /* PowerShell can prepend a BOM when a secret is pasted in; strip anything that is not a key character. */
   const key = String(env.STRIPE_SECRET_KEY || '').replace(/[^!-~]/g, '');
   if (!key) throw new Error(NEEDS_STRIPE);
-  const res = await F(`https://api.stripe.com/v1/${path}`, { method, headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/x-www-form-urlencoded', 'Stripe-Version': '2024-06-20' }, body: body ? form(body) : undefined });
+  const res = await F(`https://api.stripe.com/v1/${path}`, { method, headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/x-www-form-urlencoded', 'Stripe-Version': '2024-06-20', ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}) }, body: body ? form(body) : undefined });
   const text = await res.text();
   const j = safeJson(text, {});
   if (!res.ok) throw new Error(`Stripe (${method} ${path.split('?')[0]}): ${j.error?.message || j.error?.type || `${res.status} ${text.slice(0, 300)}`}`);
@@ -468,11 +531,22 @@ async function stripe(env, method, path, body) {
 }
 /** The webhook that flips a paid subscription to autopay. Made once; the signing
  *  secret lives in settings.stripeWebhook. */
+/* 2026-11-26: the endpoint also hears invoice.created, so a v2 subscription's invoice can be held (never two in a month,
+   none while one is unpaid). An endpoint made before that is updated once and `events` stored. */
+const HOOK_EVENTS = ['invoice.paid', 'invoice.created'];
 async function ensureStripeWebhook(env) {
   const have = safeJson((await env.DB.prepare(`SELECT value FROM settings WHERE key = 'stripeWebhook'`).first().catch(() => null))?.value, null);
-  if (have?.secret) return have;
-  const w = await stripe(env, 'POST', 'webhook_endpoints', { url: STRIPE_WEBHOOK, enabled_events: ['invoice.paid'], description: 'Locus: first retainer invoice paid, switch the subscription to autopay' });
-  const row = { id: w.id, secret: w.secret, made: new Date().toISOString() };
+  if (have?.secret) {
+    if (have.id && !HOOK_EVENTS.every(e => (have.events || ['invoice.paid']).includes(e))) {
+      await stripe(env, 'POST', `webhook_endpoints/${have.id}`, { enabled_events: HOOK_EVENTS });
+      const next = { ...have, events: HOOK_EVENTS };
+      await env.DB.prepare(`INSERT INTO settings (key, value) VALUES ('stripeWebhook', ?1) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(JSON.stringify(next)).run();
+      return next;
+    }
+    return have;
+  }
+  const w = await stripe(env, 'POST', 'webhook_endpoints', { url: STRIPE_WEBHOOK, enabled_events: HOOK_EVENTS, description: 'Locus: first retainer invoice paid, switch the subscription to autopay' });
+  const row = { id: w.id, secret: w.secret, made: new Date().toISOString(), events: HOOK_EVENTS };
   await env.DB.prepare(`INSERT INTO settings (key, value) VALUES ('stripeWebhook', ?1) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(JSON.stringify(row)).run();
   return row;
 }
@@ -542,18 +616,161 @@ export async function handleStripeWebhook(request, env) {
   const cfg = safeJson((await env.DB.prepare(`SELECT value FROM settings WHERE key = 'stripeWebhook'`).first().catch(() => null))?.value, null);
   if (!cfg?.secret || !(await stripeSig(cfg.secret, body, request.headers.get('Stripe-Signature')))) return new Response('bad signature', { status: 400 });
   const ev = safeJson(body, {});
-  if (ev.type !== 'invoice.paid') return new Response('ignored', { status: 200 });
+  return new Response(await stripeEvent(env, ev), { status: 200 });
+}
+
+/** One signed Stripe event (exported for the tests). v2 first invoices and holds first, then the old autopay switch. */
+export async function stripeEvent(env, ev) {
   const inv = ev.data?.object || {};
+  await ensureTable(env);
+  if (ev.type === 'invoice.paid' && inv.metadata?.locus_kind === 'first' && inv.metadata?.locus) {
+    const r = await getRun(env, String(inv.metadata.locus));
+    if (r) await markFirstPaid(env, r, inv);
+    return 'ok';
+  }
+  if (ev.type === 'invoice.created') return (await holdCheck(env, inv)) || 'ok';
+  if (ev.type !== 'invoice.paid') return 'ignored';
   /* The endpoint sends events in the account's own API version; newer ones moved the subscription
-     under parent.subscription_details. Read both, and ask Stripe (in our pinned version) if neither. */
-  const subOf = i => { const s = i?.subscription || i?.parent?.subscription_details?.subscription; return typeof s === 'string' ? s : s?.id; };
+     under parent.subscription_details. Read both (subOf), and ask Stripe (in our pinned version) if neither. */
   let subId = subOf(inv);
   if (!subId && inv.id) subId = subOf(await stripe(env, 'GET', `invoices/${inv.id}`).catch(() => null));
-  if (!subId) return new Response('no subscription', { status: 200 });
-  await ensureTable(env);
+  if (!subId) return 'no subscription';
   const rows = (await env.DB.prepare(`SELECT * FROM p_newclient WHERE json_extract(steps_json, '$.stripe.subscription') = ?1`).bind(subId).all()).results || [];
-  for (const r of rows) await markPaid(env, r, subId, inv);
-  return new Response('ok', { status: 200 });
+  /* A v2 run's subscription already autopays (or emails its invoice); the old switch is only for old runs. */
+  for (const r of rows) if (!isV2(r)) await markPaid(env, r, subId, inv);
+  return 'ok';
+}
+const subOf = i => { const s = i?.subscription || i?.parent?.subscription_details?.subscription; return typeof s === 'string' ? s : s?.id; };
+
+/* ---------------- onboarding v2 billing (Cole's decision 6) ----------------
+   Billing day = the day the FIRST invoice is paid; the next invoice one month after that; never two invoices in the same
+   month; no new invoice while one is unpaid. Only runs with steps_json.v = 2 and subscriptions with metadata
+   locus_v = '2' are ever touched: old runs, old subscriptions and every existing client's invoices are not.
+   NOT tested against a real Stripe account (mocked only): whether the card used on Stripe's hosted invoice page is saved
+   on the customer, whether a future billing_cycle_anchor with proration_behavior none makes no invoice until the anchor,
+   whether invoice.created arrives before Stripe finalizes the draft (about an hour), the endpoint update, idempotent
+   replays. Needs a Stripe test account. */
+/** The first second of this calendar month in Central, as unix seconds. */
+export function centralMonthStart(nowSec = Math.floor(Date.now() / 1000)) {
+  const [y, m] = ymdIn(nowSec).split('-').map(Number);
+  for (const h of [5, 6, 4, 7]) {
+    const t = Date.UTC(y, m - 1, 1, h) / 1000;
+    const hh = Number(new Intl.DateTimeFormat('en-US', { timeZone: BILL_TZ, hour: 'numeric', hourCycle: 'h23' }).format(new Date(t * 1000)));
+    if (hh === 0 && ymdIn(t) === `${y}-${String(m).padStart(2, '0')}-01`) return t;
+  }
+  return Date.UTC(y, m - 1, 1, 6) / 1000;
+}
+/** The same day next month at 12:00 UTC (a 31st becomes the last day of a shorter month). */
+export function nextAnchor(paidSec) {
+  const [y, m, d] = ymdIn(paidSec).split('-').map(Number);
+  const ny = m === 12 ? y + 1 : y, nm = m === 12 ? 1 : m + 1;
+  const last = new Date(Date.UTC(ny, nm, 0)).getUTCDate();
+  return { anchor: Date.UTC(ny, nm - 1, Math.min(d, last), 12) / 1000, day: d };
+}
+
+async function stepFirstInvoice(env, r, b) {
+  if (!(r.retainer > 0)) return { status: 'skipped', text: 'No fee typed, so no invoice.' };
+  const st = safeJson(r.steps_json, {});
+  const payer = String(st.payer || '').trim().toLowerCase() || r.contact_email;
+  if (!emailOk(payer)) throw new Error('No client email, so there is nobody to invoice.');
+  const prev = st.stripe || {};
+  const amt = `$${Math.round(r.retainer).toLocaleString('en-US')}`;
+  if (prev.mode === 'first_invoice' && prev.invoice) {
+    /* Made before: finish sending it, or read where it stands ("Check if paid"). Never a second invoice. */
+    let inv = await stripe(env, 'GET', `invoices/${prev.invoice}`);
+    if (inv.status === 'draft') {
+      if (!b.approved) throw new Error('The invoice is only sent when you press Send on it.');
+      await stripe(env, 'POST', `invoices/${inv.id}/finalize`, { auto_advance: false }).catch(e => { if (!/already|finalized/i.test(e.message)) throw e; });
+      inv = await stripe(env, 'POST', `invoices/${inv.id}/send`);
+    }
+    if (inv.status === 'paid') { const paid = await markFirstPaid(env, r, inv); return { ...paid, status: 'done' }; }
+    return { ...prev, status: 'done', paid: false, url: inv.hosted_invoice_url || prev.url, sent_at: prev.sent_at || new Date().toISOString(), text: `First invoice sent, ${inv.status || 'open'}. ${amt}.` };
+  }
+  if (!b.approved) throw new Error('The invoice is only sent when you press Send on it.');
+  await ensureStripeWebhook(env);
+  const found = await stripe(env, 'GET', `customers/search?${form({ query: `email:'${payer.replace(/'/g, '')}'`, limit: 1 })}`);
+  const customer = found.data?.[0] || await stripe(env, 'POST', 'customers', { email: payer, name: r.contact_name || r.name, description: r.name, metadata: { brand: r.name, locus: r.id } });
+  /* The guards, before anything is made. */
+  const open = await stripe(env, 'GET', `invoices?${form({ customer: customer.id, status: 'open', limit: 1 })}`);
+  if ((open.data || []).length) throw new Error('There is already an unpaid invoice for this customer, so nothing new was made.');
+  const month = await stripe(env, 'GET', `invoices?${form({ customer: customer.id, 'created[gte]': centralMonthStart(), limit: 10 })}`);
+  if ((month.data || []).some(i => i.status !== 'void')) throw new Error('This customer already has an invoice this month.');
+  const desc = `${r.name} retainer, first month`;
+  const inv = await stripe(env, 'POST', 'invoices', { customer: customer.id, collection_method: 'send_invoice', days_until_due: 7, auto_advance: false, pending_invoice_items_behavior: 'exclude',
+    description: desc, metadata: { locus: r.id, locus_kind: 'first', locus_v: '2' } }, `locus-first-${r.id}`);
+  /* Kept at once, so Try again finishes THIS invoice instead of making a second. */
+  await setStep(env, r.id, 'stripe', { mode: 'first_invoice', customer: customer.id, invoice: inv.id, status: 'failed', text: 'Made in Stripe, not sent yet. Press Try again.' });
+  await stripe(env, 'POST', 'invoiceitems', { customer: customer.id, invoice: inv.id, amount: Math.round(r.retainer * 100), currency: 'usd', description: desc }, `locus-item-${r.id}`);
+  await stripe(env, 'POST', `invoices/${inv.id}/finalize`, { auto_advance: false }).catch(e => { if (!/already|finalized/i.test(e.message)) throw e; });
+  const sent = await stripe(env, 'POST', `invoices/${inv.id}/send`);
+  return { status: 'done', mode: 'first_invoice', customer: customer.id, invoice: inv.id, url: sent.hosted_invoice_url || null, sent_at: new Date().toISOString(), paid: false,
+    text: `First invoice for ${amt} sent to ${payer}. When it is paid the card is saved and the retainer bills itself on that same day each month.` };
+}
+
+/** The first invoice is paid: the billing day is that day; the subscription starts one month later. Idempotent. */
+export async function markFirstPaid(env, r, inv) {
+  const st = safeJson((await getRun(env, r.id))?.steps_json, {}).stripe || {};
+  if (st.subscription) return st;
+  const paidSec = Number(inv?.status_transitions?.paid_at) || Math.floor(Date.now() / 1000);
+  const { anchor, day } = nextAnchor(paidSec);
+  const customer = st.customer || (typeof inv.customer === 'string' ? inv.customer : inv.customer?.id);
+  let card = null;
+  const pi = typeof inv.payment_intent === 'string' ? inv.payment_intent : inv.payment_intent?.id;
+  if (pi) {
+    try {
+      const p = await stripe(env, 'GET', `payment_intents/${pi}`);
+      const pm = typeof p.payment_method === 'string' ? p.payment_method : p.payment_method?.id;
+      if (pm) { await stripe(env, 'POST', `customers/${customer}`, { invoice_settings: { default_payment_method: pm } }); card = pm; }
+    } catch { card = null; }
+  }
+  const sub = await stripe(env, 'POST', 'subscriptions', {
+    customer, items: [{ price_data: { currency: 'usd', unit_amount: Math.round(r.retainer * 100), recurring: { interval: 'month' }, product: await stripeProduct(env) } }],
+    billing_cycle_anchor: anchor, proration_behavior: 'none', collection_method: card ? 'charge_automatically' : 'send_invoice', ...(card ? { default_payment_method: card } : { days_until_due: 7 }),
+    description: `${r.name} monthly retainer`, metadata: { brand: r.name, locus: r.id, locus_v: '2' },
+  }, `locus-sub-${r.id}`);
+  const paid_at = new Date(paidSec * 1000).toISOString();
+  const next = { ...st, status: 'done', paid: true, paid_at, subscription: sub.id, anchor: new Date(anchor * 1000).toISOString(), billing_day: day, autopay: !!card,
+    text: `First invoice PAID on ${ymdIn(paidSec)}. The retainer bills on the ${dayWord(day)} each month from ${niceDate(anchor)}${card ? ', on the saved card' : ' (no card saved, so each invoice is emailed)'}.` };
+  await setStep(env, r.id, 'stripe', next);
+  if (!st.paid) {
+    await tickForm(env, r.token, 'st_invoice');
+    if (r.slack_internal && env.SLACK_BOT_TOKEN) await fyi(env, { act: r.act_id || '', lane: 'OPS', line: `${r.name} paid their first invoice. Work can start.` }).catch(() => {});
+  }
+  return next;
+}
+
+/** invoice.created on a v2 subscription: held as a draft when the customer has another unpaid invoice or another invoice
+ *  this calendar month (Central). Stripe then never finalizes or emails it; the owner gets a line in Locus. */
+async function holdCheck(env, inv) {
+  if (!inv?.id || inv.status !== 'draft') return 'not a draft';
+  const subId = subOf(inv);
+  if (!subId) return 'no subscription';
+  const sub = await stripe(env, 'GET', `subscriptions/${subId}`).catch(() => null);
+  if (!sub || String(sub.metadata?.locus_v || '') !== '2') return 'not ours';
+  const customer = typeof inv.customer === 'string' ? inv.customer : inv.customer?.id;
+  const open = await stripe(env, 'GET', `invoices?${form({ customer, status: 'open', limit: 5 })}`);
+  const month = await stripe(env, 'GET', `invoices?${form({ customer, 'created[gte]': centralMonthStart(), limit: 10 })}`);
+  const why = (open.data || []).some(i => i.id !== inv.id) ? 'the last one is not paid'
+    : (month.data || []).some(i => i.id !== inv.id && i.status !== 'void') ? 'there is already an invoice this month' : null;
+  if (!why) return 'fine';
+  await stripe(env, 'POST', `invoices/${inv.id}`, { auto_advance: false });
+  const run = sub.metadata?.locus ? await getRun(env, String(sub.metadata.locus)) : null;
+  if (run) {
+    const st = safeJson(run.steps_json, {}).stripe || {};
+    await setStep(env, run.id, 'stripe', { ...st, held: { invoice: inv.id, why, at: new Date().toISOString() } });
+  }
+  return 'held';
+}
+
+/** The owner's "Send it anyway" on a held invoice: finalize and send, clear the hold. */
+export async function releaseHeld(env, r, invoiceId) {
+  const st = safeJson(r.steps_json, {}).stripe || {};
+  if (!st.held || st.held.invoice !== invoiceId) throw new Error('That invoice is not held.');
+  await stripe(env, 'POST', `invoices/${invoiceId}/finalize`, { auto_advance: false }).catch(e => { if (!/already|finalized/i.test(e.message)) throw e; });
+  await stripe(env, 'POST', `invoices/${invoiceId}/send`);
+  const { held, ...rest } = st;
+  await setStep(env, r.id, 'stripe', { ...rest, released: { invoice: invoiceId, at: new Date().toISOString() } });
+  return { ok: true, text: 'Sent. Stripe emailed the invoice.' };
 }
 
 /** The first invoice is paid: switch the subscription to autopay, tick the form, tell the team.
@@ -611,7 +828,8 @@ async function stepSummary(env, r) {
     safeJson(r.steps_json, {}).frame?.url ? `• Frame project: ${safeJson(r.steps_json, {}).frame.url}` : null,
     safeJson(r.steps_json, {}).stripe?.url ? `• First invoice: ${safeJson(r.steps_json, {}).stripe.url}` : null,
     `• Team: strategist ${team.strategist || 'not picked'}, media buyer ${team.buyer || 'not picked'}, editor ${team.editor || 'not picked'}, designer ${team.designer || 'not picked'}`,
-    `Their onboarding answers show up in Locus > Brand > ${r.name} > Client answers as they fill the form in (a call sheet builds itself). Locus posts here when they send it.`,
+    isV2(r) ? `Their setup (sign and pay, connect, the ten questions, the photos link) is in Locus > ${r.name} > Get started. Reminders and waiting lines are on My day.`
+      : `Their onboarding answers show up in Locus > Brand > ${r.name} > Client answers as they fill the form in (a call sheet builds itself). Locus posts here when they send it.`,
   ].filter(Boolean);
   const j = await slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { ...(await inThread(env, r.slack_internal)), channel: r.slack_internal, text: lines.join('\n'), unfurl_links: false });
   if (!j.ok) throw new Error(`Slack: ${j.error}`);
@@ -619,7 +837,7 @@ async function stepSummary(env, r) {
   const ids = await slackIds(env, teamList(team));
   const who = ['strategist', 'buyer', 'editor', 'designer'].map(k => { const ps = roleList(team[k]); return ps.length ? `${ROLE_LABEL[k]}: ${ps.map(e => ids[e] ? `<@${ids[e]}>` : e).join(', ')}` : null; }).filter(Boolean).join(' · ');
   const cvars = safeJson((await env.DB.prepare(`SELECT vars_json FROM p_contract WHERE token = ?1`).bind(r.token || '').first().catch(() => null))?.vars_json, null);
-  const nb = await slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { channel: NEWBIZ, unfurl_links: false, text: [`*New client: ${r.name}*${r.website ? ` (${r.website.replace(/^https?:\/\//, '')})` : ''}${r.start_date ? `, starting ${r.start_date}` : ''}.`, who ? `Team: ${who}.` : null, cvars?.term ? `Agreement: ${cvars.custom ? 'custom terms' : 'standard services'}, ${cvars.term}.` : null, `Set up in Asana, Drive, Slack (<#${r.slack_client}>) and Frame by Locus.`].filter(Boolean).join('\n') });
+  const nb = await slack(env.SLACK_BOT_TOKEN, 'chat.postMessage', { channel: NEWBIZ, unfurl_links: false, text: [`*New client: ${r.name}*${r.website ? ` (${r.website.replace(/^https?:\/\//, '')})` : ''}${r.start_date ? `, starting ${r.start_date}` : ''}.`, who ? `Team: ${who}.` : null, cvars?.term ? `Agreement: ${cvars.custom ? 'custom terms' : 'standard services'}, ${cvars.term}.` : null, `Set up in ${[r.asana_project && 'Asana', r.drive_url && 'Drive', `Slack (<#${r.slack_client}>)`, safeJson(r.steps_json, {}).frame?.url && 'Frame'].filter(Boolean).join(', ').replace(/, ([^,]*)$/, ' and $1')} by Locus.`].filter(Boolean).join('\n') });
   return { text: `Posted in the internal channel${nb.ok ? ' and #mobius-newbiz' : ''}.` };
 }
 
@@ -657,7 +875,54 @@ async function stepFrame(env, r) {
   if (out.url && r.asana_project) await upsertResource(env, r.asana_project, 'Frame', out.url).catch(e => out.notes.push(`Asana link not written: ${e.message}`));
   return { ...out, text: 'Frame project made.' };
 }
-const RUN = { invite: stepInvite, asana: stepAsana, onboard: stepOnboard, drive: stepDrive, slack: stepSlack, frame: stepFrame, stripe: stepStripe, contract: stepContract, email: stepEmail, summary: stepSummary };
+const RUN = { invite: stepInvite, asana: stepAsana, onboard: stepOnboard, drive: stepDrive, slack: stepSlack, frame: stepFrame, stripe: stepStripe, contract: stepContract, email: stepEmail, summary: stepSummary,
+  link: stepLink, slackInvite: stepSlackInvite, ledger: stepLedger };
+/* v2 runs bill with the first invoice (stepFirstInvoice) instead of the old subscription-first step. */
+const runFn = (r, step) => (step === 'stripe' && isV2(r) ? stepFirstInvoice : RUN[step]);
+
+/** One step, kept with the "a done step stays done" rule (the screen's /api/new-client/step and onboard.js use it). */
+export async function runStep(env, runId, step, b = {}) {
+  const r = await getRun(env, runId);
+  if (!r) throw Object.assign(new Error('unknown client'), { status: 404 });
+  const fn = runFn(r, step);
+  if (!fn) throw Object.assign(new Error('unknown step'), { status: 400 });
+  let res;
+  try { res = { status: 'done', ...(await fn(env, r, b)) }; }
+  catch (e) { res = { status: 'failed', text: e.message }; }
+  /* A failed Retry or "Check if paid" must never wipe what an earlier pass made (the Stripe ids,
+     the folder ids): a step that was done stays done with the error as a note. */
+  const prev = safeJson((await getRun(env, r.id)).steps_json, {})[step] || {};
+  const at = new Date().toISOString();
+  const out = res.status !== 'failed' ? { ...res, at }
+    : prev.status === 'done' ? { ...prev, notes: [`Last try failed: ${res.text}`] }
+    : { ...prev, status: 'failed', text: res.text, at };
+  await setStep(env, r.id, step, out);
+  return out;
+}
+
+/** A new client row and its brand (the body of POST /api/new-client). Throws {status} on a bad or duplicate name. */
+export async function insertRun(env, b, who) {
+  await ensureTable(env);
+  const bad = (m, status = 400, extra = {}) => Object.assign(new Error(m), { status, ...extra });
+  const name = String(b.name || '').trim().slice(0, 80);
+  if (!name) throw bad('Give the brand a name.');
+  let website = String(b.website || '').trim();
+  if (website && !/^https?:\/\//i.test(website)) website = 'https://' + website;
+  const email = String(b.contact_email || '').trim().toLowerCase();
+  if (email && !emailOk(email)) throw bad('That client email does not look right.');
+  const dupe = await env.DB.prepare(`SELECT id FROM p_newclient WHERE lower(name) = lower(?1)`).bind(name).first();
+  if (dupe) throw bad(`${name} was already started. Open its setup from Home (All clients), under Setting up.`, 409, { id: dupe.id });
+  const id = rid();
+  const t = b.team || {};
+  const team = Object.fromEntries(['strategist', 'buyer', 'editor', 'designer'].map(k => [k, roleList(Array.isArray(t[k]) ? t[k].join(',') : t[k]).join(',')]));
+  /* Brand-first: the client IS a brand from the first click; every step files under its id.
+     A brand already in Locus with exactly this name is used instead of making a second one. */
+  const same = (await env.DB.prepare(`SELECT id FROM brands WHERE lower(name) = lower(?1)`).bind(name).all()).results || [];
+  const brandId = same.length === 1 ? same[0].id : (await createBrand(env, { name })).id;
+  await env.DB.prepare(`INSERT INTO p_newclient (id, name, website, contact_name, contact_email, retainer, start_date, team_json, slug, created_by, act_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)`)
+    .bind(id, name, website || null, String(b.contact_name || '').trim().slice(0, 120) || null, email || null, Number(b.retainer) || null, /^\d{4}-\d{2}-\d{2}$/.test(b.start_date || '') ? b.start_date : null, JSON.stringify(team), slugOf(b.slug || name), who || null, brandId).run();
+  return getRun(env, id);
+}
 
 /* ---------------- Retainer billing day (2026-10-30) ----------------
    Moves a client's retainer subscription to a new day of the month (Yak Sports, the 2nd to the
@@ -801,24 +1066,10 @@ export async function handleNewClient(request, env, path, json, isAdmin, who) {
       return json({ team, team_error: err, owner: OWNER, runs: runs.map(view), steps: STEPS, frame: (await frameStatus(env)).connected, stripe: !!(env.STRIPE_SECRET_KEY || '').trim(), stripe_key: String(env.STRIPE_SECRET_KEY || '').replace(/[^!-~]/g, '').replace(/^(.{7}).*(.{4})$/, '$1...$2') });
     }
     if (path === '/api/new-client' && request.method === 'POST') {
-      const name = String(b.name || '').trim().slice(0, 80);
-      if (!name) return json({ error: 'Give the brand a name.' }, 400);
-      let website = String(b.website || '').trim();
-      if (website && !/^https?:\/\//i.test(website)) website = 'https://' + website;
-      const email = String(b.contact_email || '').trim().toLowerCase();
-      if (email && !emailOk(email)) return json({ error: 'That client email does not look right.' }, 400);
-      const dupe = await env.DB.prepare(`SELECT id FROM p_newclient WHERE lower(name) = lower(?1)`).bind(name).first();
-      if (dupe) return json({ error: `${name} was already started. Open its setup from Home (All clients), under Setting up.`, id: dupe.id }, 409);
-      const id = rid();
-      const t = b.team || {};
-      const team = Object.fromEntries(['strategist', 'buyer', 'editor', 'designer'].map(k => [k, roleList(Array.isArray(t[k]) ? t[k].join(',') : t[k]).join(',')]));
-      /* Brand-first: the client IS a brand from the first click; every step files under its id.
-         A brand already in Locus with exactly this name is used instead of making a second one. */
-      const same = (await env.DB.prepare(`SELECT id FROM brands WHERE lower(name) = lower(?1)`).bind(name).all()).results || [];
-      const brandId = same.length === 1 ? same[0].id : (await createBrand(env, { name })).id;
-      await env.DB.prepare(`INSERT INTO p_newclient (id, name, website, contact_name, contact_email, retainer, start_date, team_json, slug, created_by, act_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)`)
-        .bind(id, name, website || null, String(b.contact_name || '').trim().slice(0, 120) || null, email || null, Number(b.retainer) || null, /^\d{4}-\d{2}-\d{2}$/.test(b.start_date || '') ? b.start_date : null, JSON.stringify(team), slugOf(b.slug || name), (who && await who(request, env).catch(() => null)) || null, brandId).run();
-      return json({ ok: true, run: view(await getRun(env, id)) });
+      try {
+        const run = await insertRun(env, b, (who && await who(request, env).catch(() => null)) || null);
+        return json({ ok: true, run: view(run) });
+      } catch (e) { return json({ error: e.message, ...(e.id ? { id: e.id } : {}) }, e.status || 400); }
     }
     /* Retainer billing day (any brand, not only new ones): read, then move (billing-day, dry = preview). */
     if (path === '/api/new-client/billing') {
@@ -868,22 +1119,11 @@ export async function handleNewClient(request, env, path, json, isAdmin, who) {
       return json({ ok: true, run: view(await getRun(env, r.id)) });
     }
     if (path === '/api/new-client/step' && request.method === 'POST') {
-      const fn = RUN[b.step];
-      if (!fn) return json({ error: 'unknown step' }, 400);
-      let res;
+      if (!runFn(r, b.step)) return json({ error: 'unknown step' }, 400);
       b.ip = request.headers.get('CF-Connecting-IP') || '';
-      try { res = { status: 'done', ...(await fn(env, r, b)) }; }
-      catch (e) { res = { status: 'failed', text: e.message }; }
-      /* A failed Retry or "Check if paid" must never wipe what an earlier pass made (the Stripe ids,
-         the folder ids): a step that was done stays done with the error as a note. */
-      const prev = safeJson((await getRun(env, r.id)).steps_json, {})[b.step] || {};
-      const at = new Date().toISOString();
-      const step = res.status !== 'failed' ? { ...res, at }
-        : prev.status === 'done' ? { ...prev, notes: [`Last try failed: ${res.text}`] }
-        : { ...prev, status: 'failed', text: res.text, at };
-      await setStep(env, r.id, b.step, step);
+      const step = await runStep(env, r.id, b.step, b);
       const now = await getRun(env, r.id);
-      return json({ ok: res.status !== 'failed', step, run: view(now), welcome: welcomeDraft(now), contract: await contractState(env, now) });
+      return json({ ok: step.status !== 'failed', step, run: view(now), welcome: welcomeDraft(now), contract: await contractState(env, now) });
     }
     /* Take back a welcome post (the bot's or Cole's) so the on-join one can go out fresh. */
     if (path === '/api/new-client/unwelcome' && request.method === 'POST') {
@@ -902,6 +1142,13 @@ export async function handleNewClient(request, env, path, json, isAdmin, who) {
          subscription is cancelled so a removed client is never invoiced again. Stripe is asked
          first: a client who paid since the last look is never cancelled. */
       const st = safeJson(r.steps_json, {}).stripe;
+      /* v2: the first invoice (no subscription yet). An unpaid one is voided; a paid one is never touched. */
+      if (isV2(r) && st?.mode === 'first_invoice' && st.invoice && !st.paid) {
+        const inv = await stripe(env, 'GET', `invoices/${st.invoice}`).catch(() => null);
+        if (!inv) return json({ error: 'Could not check the invoice in Stripe, so nothing was removed. Try again in a minute.' }, 502);
+        if (inv.status === 'open') await stripe(env, 'POST', `invoices/${st.invoice}/void`).catch(() => {});
+        else if (inv.status === 'draft') await stripe(env, 'DELETE', `invoices/${st.invoice}`).catch(() => {});
+      }
       if (st?.subscription && !st.paid) {
         const inv = st.invoice ? await stripe(env, 'GET', `invoices/${st.invoice}`).catch(() => null) : { status: 'none' };
         if (!inv) return json({ error: 'Could not check the invoice in Stripe, so nothing was removed. Try again in a minute.' }, 502);
@@ -965,7 +1212,11 @@ async function welcomeOnJoin(env, r) {
   const nameOf = e => who.find(t => t.email.toLowerCase() === e)?.name || e;
   const people = ['strategist', 'buyer', 'editor', 'designer'].flatMap(k => roleList(team[k]).map(e => `• ${ids[e] ? `<@${ids[e]}>` : `*${nameOf(e)}*`}, ${ROLE_LABEL[k]}`));
   const st = safeJson(r.steps_json, {});
-  const links = [
+  const v2 = st.v === 2;
+  const links = v2 ? [
+    `• Your setup in Locus (sign and pay, connect, ten questions, your photos link): ${ONBOARD_V5}`,
+    r.act_id ? `• Every ad we run for you, newest first: ${await yourAdsUrl(env, r.act_id)}` : null,
+  ].filter(Boolean) : [
     r.token ? `• Your onboarding link: ${ONBOARD_FORM}${r.token}` : null,
     r.asana_url ? `• Your Asana project (every ad, before it runs): ${r.asana_url}` : null,
     st.drive?.folders?.inbox ? `• A file too big to send here (raw footage, a photo shoot): https://drive.google.com/drive/folders/${st.drive.folders.inbox}` : null,
@@ -975,7 +1226,11 @@ async function welcomeOnJoin(env, r) {
   /* A FIXED template (Cole, 2026-10-03): the message is pinned and read for weeks, so it must never depend
      on what was paid or booked at the minute it posted. "If you have not already" covers every case. The
      only branch is whether a retainer was entered at setup, which never changes afterwards. */
-  const next = [
+  const next = v2 ? [
+    'Finish Get started in Locus, if you have not already. Connecting your accounts is the part that unlocks everything else.',
+    r.retainer > 0 ? 'Sign the agreement and pay the first invoice, if you have not already. Both are on your checklist.' : 'Sign the agreement, if you have not already. It is on your checklist.',
+    'Then we start: research, first briefs, first ads.',
+  ].map((s, i) => `${i + 1}. ${s}`) : [
     'Finish your onboarding link, if you have not already. Giving us access to Meta, Google and Shopify is the part that unlocks everything else.',
     'Book the strategy call, if you have not already. We go through your answers together.',
     r.retainer > 0 ? 'Pay the first invoice and sign the agreement, if you have not already. Both came by email.' : 'Sign the agreement, if you have not already. It came by email.',
@@ -1028,7 +1283,7 @@ export async function onCallBooked(env, r, info) {
 const DAY = 864e5;
 async function nudges(env) {
   const rows = (await env.DB.prepare(`SELECT n.*, o.status AS ob_status, c.status AS c_status, c.sent_at AS c_sent FROM p_newclient n
-      LEFT JOIN p_br_onboard o ON o.token = n.token LEFT JOIN p_contract c ON c.token = n.token WHERE n.slack_internal IS NOT NULL`).all().catch(() => ({ results: [] }))).results || [];
+      LEFT JOIN p_br_onboard o ON o.token = n.token LEFT JOIN p_contract c ON c.token = n.token WHERE n.slack_internal IS NOT NULL AND COALESCE(json_extract(n.steps_json, '$.v'), 0) <> 2`).all().catch(() => ({ results: [] }))).results || [];
   let n = 0;
   for (const r of rows) {
     const st = safeJson(r.steps_json, {}); st.nudge ||= {};
@@ -1046,7 +1301,7 @@ async function nudges(env) {
   return n;
 }
 
-async function sendReminder(env, r, kind) {
+export async function sendReminder(env, r, kind) {
   const st = safeJson(r.steps_json, {});
   const hi = `Hi ${firstName(r.contact_name)},`;
   if (kind === 'invoice') {
@@ -1120,7 +1375,7 @@ export async function markShopifySent(env, id) {
    hour of the client typing their store address (the form saves as they go), Cole gets it in the internal
    channel with the request code and the clicks, once. */
 async function shopifyHeadsUp(env) {
-  const rows = (await env.DB.prepare(`SELECT n.*, o.answers_json FROM p_newclient n JOIN p_br_onboard o ON o.token = n.token WHERE n.slack_internal IS NOT NULL AND json_extract(n.steps_json, '$.shopify_ping') IS NULL`).all().catch(() => ({ results: [] }))).results || [];
+  const rows = (await env.DB.prepare(`SELECT n.*, o.answers_json FROM p_newclient n JOIN p_br_onboard o ON o.token = n.token WHERE n.slack_internal IS NOT NULL AND json_extract(n.steps_json, '$.shopify_ping') IS NULL AND COALESCE(json_extract(n.steps_json, '$.v'), 0) <> 2`).all().catch(() => ({ results: [] }))).results || [];
   let told = 0;
   for (const r of rows) {
     const ans = safeJson(r.answers_json, {});
@@ -1164,7 +1419,7 @@ export async function newClientTick(env) {
   for (const r of (await env.DB.prepare(`SELECT * FROM p_newclient WHERE slack_client IS NOT NULL AND json_extract(steps_json, '$.slack_welcome') IS NULL`).all().catch(() => ({ results: [] }))).results || []) {
     if (await welcomeOnJoin(env, r).catch(() => false)) welcomed++;
   }
-  const rows = (await env.DB.prepare(`SELECT n.*, o.status AS ob_status FROM p_newclient n JOIN p_br_onboard o ON o.token = n.token WHERE o.status = 'submitted' AND n.slack_internal IS NOT NULL`).all().catch(() => ({ results: [] }))).results || [];
+  const rows = (await env.DB.prepare(`SELECT n.*, o.status AS ob_status FROM p_newclient n JOIN p_br_onboard o ON o.token = n.token WHERE o.status = 'submitted' AND n.slack_internal IS NOT NULL AND COALESCE(json_extract(n.steps_json, '$.v'), 0) <> 2`).all().catch(() => ({ results: [] }))).results || [];
   let told = 0;
   for (const r of rows) {
     const steps = safeJson(r.steps_json, {});

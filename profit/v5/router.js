@@ -32,10 +32,20 @@ export function go(r, { replace = false } = {}) {
   if (replace) onHash();
 }
 
+/** The new client gate: the onboarding answer while a real client login still has setup steps open, else null.
+    It rides on /api/me (me.client.onboarding). The team and "See as client" are never gated. */
+export function gateOf(st) {
+  const o = st && st.role === 'client' && !st.asClient && st.me && st.me.client && st.me.client.onboarding;
+  return o && o.gated ? o : null;
+}
+
 /** Make any address a valid one for this person: a view they may see, a brand they have, a real line and tab. */
 export function normalise(r) {
   const st = host.state();
   const role = st.role;
+  /* a gated client sees Get started and their profile, nothing else, until every setup step is done */
+  const gate = gateOf(st);
+  if (gate && r.line !== 'profile') r = { view: 'brand', brand: gate.slug || String(gate.brand || '').replace(/^brand_/, '').replace(/_/g, '-'), line: 'get-started', tab: 'index' };
   let line = lineOf(r.line);
   let view = r.view === 'agency' && role !== 'client' ? 'agency' : 'brand';
   if (line) { const v = viewOf(line.id); if (v && !(v === 'agency' && role === 'client')) view = v; }

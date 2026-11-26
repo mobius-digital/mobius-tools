@@ -1,0 +1,550 @@
+{
+ "act": "brand_northlake_golf",
+ "brand": {
+  "id": "brand_northlake_golf",
+  "name": "Northlake Golf",
+  "slug": "northlake-golf"
+ },
+ "viewer": "client",
+ "only": null,
+ "extras": true,
+ "sent_at": "2026-11-22T15:00:00Z",
+ "finished_at": null,
+ "gated": true,
+ "profile": {
+  "name": "Pat Doyle",
+  "title": "",
+  "phone": "",
+  "done": false
+ },
+ "progress": {
+  "done": 2,
+  "total": 4
+ },
+ "steps": [
+  {
+   "key": "sign_pay",
+   "label": "Sign and pay",
+   "why": "This makes it official so we can start.",
+   "done": true,
+   "done_at": "2026-11-23T16:20:00Z",
+   "holder": {
+    "email": "pat@example.com",
+    "name": "Pat Doyle",
+    "handed": false
+   },
+   "waiting_on": null,
+   "days_open": 0
+  },
+  {
+   "key": "connect",
+   "label": "Connect your accounts",
+   "why": "So we see your real numbers from day one.",
+   "done": false,
+   "done_at": null,
+   "holder": {
+    "email": "pat@example.com",
+    "name": "Pat Doyle",
+    "handed": false
+   },
+   "waiting_on": "client",
+   "days_open": 4
+  },
+  {
+   "key": "brief",
+   "label": "Ten questions",
+   "why": "Only you can answer these. They shape every ad we make.",
+   "done": false,
+   "done_at": null,
+   "holder": {
+    "email": "pat@example.com",
+    "name": "Pat Doyle",
+    "handed": false
+   },
+   "waiting_on": "client",
+   "days_open": 4
+  },
+  {
+   "key": "assets",
+   "label": "Photos and videos",
+   "why": "The link to where your photos and videos live.",
+   "done": true,
+   "done_at": "2026-11-24T10:05:00Z",
+   "holder": {
+    "email": "pat@example.com",
+    "name": "Pat Doyle",
+    "handed": false
+   },
+   "waiting_on": null,
+   "days_open": 0
+  }
+ ],
+ "sign_pay": {
+  "agreement": {
+   "used": true,
+   "status": "signed",
+   "sign_url": "https://example.com/sign",
+   "signer": "pat@example.com",
+   "signed_at": "2026-11-23T15:40:00Z"
+  },
+  "invoice": {
+   "used": true,
+   "status": "paid",
+   "pay_url": "https://example.com/pay",
+   "amount": 4000,
+   "currency": "usd",
+   "due": "2026-11-29",
+   "note": "When it is paid the card is saved and $4,000 is charged on the same day each month after that."
+  },
+  "pending_signer": null
+ },
+ "connect": {
+  "done": 2,
+  "total": 8,
+  "note": "Green ticks marked Checks itself turn on when Locus can really see the account. The others are ticked by our team once we have looked.",
+  "platforms": [
+   {
+    "key": "shopify",
+    "title": "Shopify",
+    "why": "Your sales, orders and products.",
+    "needed": true,
+    "skipped": false,
+    "done": false,
+    "layers": {
+     "team": {
+      "state": "todo",
+      "checks_itself": false,
+      "label": "Give us access",
+      "clicks": [
+       "1. In Shopify admin open Settings > Domains and copy your store address that ends in .myshopify.com.",
+       "2. Open Settings > Users > Security. Under Collaborators, copy the Collaborator request code (if your store has one).",
+       "3. Paste both below and press Save.",
+       "4. We send the request from our Shopify Partner account. Shopify emails you, you press Approve (Settings > Users > Collaborators)."
+      ],
+      "copy": [],
+      "inputs": [
+       {
+        "key": "shop_url",
+        "label": "Store address",
+        "placeholder": "yourstore.myshopify.com"
+       },
+       {
+        "key": "code",
+        "label": "Collaborator request code (if you have one)",
+        "placeholder": "1234"
+       }
+      ],
+      "note": "Shopify does not let anyone send this request automatically, so a person on our team sends it by hand, usually the same day."
+     },
+     "app": {
+      "state": "todo",
+      "checks_itself": true,
+      "label": "Install the Locus app",
+      "clicks": [
+       "1. Press Install. Shopify opens your admin and asks you to approve the app.",
+       "2. Approve it. This box ticks itself."
+      ],
+      "copy": [],
+      "inputs": [],
+      "url": "https://apps.example.com/locus"
+     }
+    }
+   },
+   {
+    "key": "meta",
+    "title": "Meta (Facebook and Instagram)",
+    "why": "Your ad results, every ad and the audiences.",
+    "needed": true,
+    "skipped": false,
+    "done": true,
+    "layers": {
+     "team": {
+      "state": "done",
+      "checks_itself": true,
+      "label": "Give us access",
+      "clicks": [
+       "1. Open business.facebook.com/settings and pick your business.",
+       "2. Users > Partners > Add > \"Give a partner access to your assets\".",
+       "3. Paste our Business ID and press Next.",
+       "4. Tick every asset and give each Full control: ad accounts, Pages, pixels and datasets, the Instagram account and catalogs. Save."
+      ],
+      "copy": [
+       [
+        "Our Meta Business ID",
+        "123456789012345"
+       ]
+      ],
+      "inputs": [],
+      "url": "https://business.facebook.com/settings/partners",
+      "note": "Locus does not check the Instagram account yet. Your team looks at it before the first ad."
+     },
+     "app": {
+      "state": "done",
+      "checks_itself": true,
+      "label": "Locus reads your ads",
+      "clicks": [],
+      "copy": [],
+      "inputs": [],
+      "note": "Nothing to do. This ticks itself."
+     }
+    }
+   },
+   {
+    "key": "google_ads",
+    "title": "Google Ads",
+    "why": "Search and shopping ads, side by side with Meta.",
+    "needed": true,
+    "skipped": false,
+    "done": false,
+    "layers": {
+     "team": {
+      "state": "todo",
+      "checks_itself": true,
+      "label": "Give us access",
+      "clicks": [
+       "1. Type your Google Ads customer ID below (10 digits, top right in Google Ads). We send the request.",
+       "2. In Google Ads open Admin > Access and security > Managers and press Accept on the Mobius Digital request."
+      ],
+      "copy": [
+       [
+        "Our manager ID",
+        "123-456-7890"
+       ]
+      ],
+      "inputs": [
+       {
+        "key": "customer_id",
+        "label": "Your Google Ads customer ID",
+        "placeholder": "123-456-7890"
+       }
+      ]
+     },
+     "app": {
+      "state": "waiting",
+      "checks_itself": true,
+      "label": "Locus reads your ads",
+      "clicks": [],
+      "copy": [],
+      "inputs": [],
+      "note": "Nothing to do. This ticks itself."
+     }
+    }
+   },
+   {
+    "key": "ga4",
+    "title": "Google Analytics",
+    "why": "How people move through your website.",
+    "needed": true,
+    "skipped": false,
+    "done": false,
+    "layers": {
+     "team": {
+      "state": "waiting",
+      "checks_itself": true,
+      "label": "Give us access",
+      "clicks": [
+       "1. Open analytics.google.com and pick your website.",
+       "2. Admin (the gear, bottom left) > Property access management.",
+       "3. Press +, Add users, add our email, choose Administrator, press Add."
+      ],
+      "copy": [
+       [
+        "Our email",
+        "team@example.com"
+       ]
+      ],
+      "inputs": [],
+      "url": "https://analytics.google.com"
+     },
+     "app": {
+      "state": "waiting",
+      "checks_itself": true,
+      "label": "Locus reads it",
+      "clicks": [],
+      "copy": [],
+      "inputs": [],
+      "note": "Nothing to do. This ticks itself."
+     }
+    }
+   },
+   {
+    "key": "gsc",
+    "title": "Google Search Console",
+    "why": "What people search before they find you.",
+    "needed": true,
+    "skipped": false,
+    "done": false,
+    "layers": {
+     "team": {
+      "state": "todo",
+      "checks_itself": true,
+      "label": "Give us access",
+      "clicks": [
+       "1. Open search.google.com/search-console and pick your website.",
+       "2. Settings > Users and permissions > Add user.",
+       "3. Add our email with Full permission."
+      ],
+      "copy": [
+       [
+        "Our email",
+        "team@example.com"
+       ]
+      ],
+      "inputs": [],
+      "url": "https://search.google.com/search-console"
+     },
+     "app": {
+      "state": "waiting",
+      "checks_itself": true,
+      "label": "Locus reads it",
+      "clicks": [],
+      "copy": [],
+      "inputs": [],
+      "note": "Nothing to do. This ticks itself."
+     }
+    }
+   },
+   {
+    "key": "clarity",
+    "title": "Microsoft Clarity",
+    "why": "Recordings of real visits, so we see where people get stuck.",
+    "needed": true,
+    "skipped": false,
+    "done": false,
+    "layers": {
+     "team": {
+      "state": "todo",
+      "checks_itself": false,
+      "label": "Give us access",
+      "clicks": [
+       "1. Open clarity.microsoft.com and your project. No Clarity yet? Install the free Microsoft Clarity app from the Shopify App Store first.",
+       "2. Settings > Team > Add team member.",
+       "3. Add our email as Admin."
+      ],
+      "copy": [
+       [
+        "Our email",
+        "team@example.com"
+       ]
+      ],
+      "inputs": [],
+      "url": "https://clarity.microsoft.com"
+     },
+     "app": {
+      "state": "waiting",
+      "checks_itself": true,
+      "label": "Locus reads it",
+      "clicks": [],
+      "copy": [],
+      "inputs": [],
+      "note": "Nothing to do. Our team connects it once we have access."
+     }
+    }
+   },
+   {
+    "key": "email",
+    "title": "Klaviyo (or your email tool)",
+    "why": "Emails and texts, and what they sell.",
+    "needed": true,
+    "skipped": false,
+    "done": true,
+    "layers": {
+     "team": {
+      "state": "done",
+      "checks_itself": false,
+      "label": "Give us access",
+      "clicks": [
+       "1. In Klaviyo click your name (bottom left) > Settings > Users > Add new user.",
+       "2. Add our email as Admin."
+      ],
+      "copy": [
+       [
+        "Our email",
+        "team@example.com"
+       ]
+      ],
+      "inputs": []
+     },
+     "app": {
+      "state": "done",
+      "checks_itself": true,
+      "label": "Locus reads it",
+      "clicks": [],
+      "copy": [],
+      "inputs": [],
+      "note": "Nothing to do. This ticks itself."
+     }
+    }
+   },
+   {
+    "key": "tiktok",
+    "title": "TikTok (if you use it)",
+    "why": "TikTok ads next to the others.",
+    "needed": false,
+    "skipped": true,
+    "done": false,
+    "layers": {
+     "team": {
+      "state": "todo",
+      "checks_itself": false,
+      "label": "Give us access",
+      "clicks": [
+       "1. Open business.tiktok.com and your Business Center.",
+       "2. Partners > Add partner > paste our Business Center ID.",
+       "3. Share your ad account with Admin access."
+      ],
+      "copy": [
+       [
+        "Our Business Center ID",
+        "7000000000000000001"
+       ]
+      ],
+      "inputs": []
+     },
+     "app": {
+      "state": "waiting",
+      "checks_itself": true,
+      "label": "Locus reads your ads",
+      "clicks": [],
+      "copy": [],
+      "inputs": [],
+      "note": "Nothing to do. This ticks itself."
+     }
+    }
+   },
+   {
+    "key": "tw",
+    "title": "Triple Whale",
+    "why": "One honest count of which ad made each sale.",
+    "needed": true,
+    "skipped": false,
+    "done": false,
+    "layers": {
+     "team": {
+      "state": "todo",
+      "checks_itself": true,
+      "label": "Give us access",
+      "clicks": [
+       "1. Open Triple Whale > Settings > Users and press Invite.",
+       "2. Add our email as Admin.",
+       "3. Type your store address below."
+      ],
+      "copy": [
+       [
+        "Our email",
+        "team@example.com"
+       ]
+      ],
+      "inputs": [
+       {
+        "key": "shop_url",
+        "label": "Store address",
+        "placeholder": "yourstore.myshopify.com"
+       }
+      ]
+     },
+     "app": {
+      "state": "waiting",
+      "checks_itself": true,
+      "label": "Locus reads it",
+      "clicks": [],
+      "copy": [],
+      "inputs": [],
+      "note": "Nothing to do. This ticks itself."
+     }
+    }
+   }
+  ]
+ },
+ "brief": {
+  "done": false,
+  "answered": 6,
+  "total": 10,
+  "questions": [
+   {
+    "n": 1,
+    "key": "solves",
+    "text": "What does your product solve, and why do people buy it?",
+    "hint": "The problem it fixes, in the words your customers use."
+   },
+   {
+    "n": 2,
+    "key": "uvp",
+    "text": "What makes you different from the other options a customer has?",
+    "hint": "Why someone picks you over the brand next to you."
+   },
+   {
+    "n": 3,
+    "key": "dos_donts",
+    "text": "What must we never say, and what must we always say? Include any claims you legally cannot make.",
+    "hint": "Words to avoid, words to always use, claims you cannot make."
+   },
+   {
+    "n": 4,
+    "key": "push_products",
+    "text": "Which products should we push, and which should we leave alone?",
+    "hint": "Best margin, best stock, anything running low."
+   },
+   {
+    "n": 5,
+    "key": "offers",
+    "text": "Which offers are we allowed to run, and how deep can a discount go?",
+    "hint": "Bundles, free gifts, free shipping, the most off you would ever give.",
+    "draft": "Bundles of a belt and a hat, and free shipping over $75. The website shows 20% off at most."
+   },
+   {
+    "n": 6,
+    "key": "goal_answer",
+    "text": "What cost per sale would you be happy with?",
+    "hint": "A rough number is fine. We agree the real goal on the call."
+   },
+   {
+    "n": 7,
+    "key": "success_90",
+    "text": "What would make the next 90 days a success for you?",
+    "hint": "One or two things you would be glad to see."
+   },
+   {
+    "n": 8,
+    "key": "tried_failed",
+    "text": "What have you tried in ads that did not work?",
+    "hint": "Ads, offers or agencies. It saves us repeating it."
+   },
+   {
+    "n": 9,
+    "key": "ugc_ok",
+    "text": "Can we use customer photos, reviews and creator videos in ads? Any limits?",
+    "hint": "Yes, no, or yes with a rule."
+   },
+   {
+    "n": 10,
+    "key": "approver",
+    "text": "Who says yes to an ad on your side, and how fast?",
+    "hint": "A name and how long a yes usually takes."
+   }
+  ],
+  "answers": {
+   "solves": "Belts that stretch with your swing and stay comfortable for 18 holes. People buy them because a normal belt digs in by the back nine.",
+   "uvp": "Made for golf first, with a buckle that does not show a hole pattern. Most belts in our price range are fashion belts.",
+   "dos_donts": "Never say waterproof. Always say stretch, not elastic. No claims about back pain.",
+   "push_products": "The new tour belts and the gift sets. Leave the travel belt alone, stock is low.",
+   "success_90": "A profitable Black Friday and a steady $60k month in January.",
+   "tried_failed": "__unsure"
+  },
+  "unsure": [
+   "tried_failed"
+  ]
+ },
+ "assets": {
+  "url": "https://drive.example.com/northlake-golf-photos",
+  "label": "Brand photos",
+  "kind": "drive",
+  "at": "2026-11-24T10:05:00Z",
+  "by": "pat@example.com",
+  "from": "link"
+ },
+ "next_line": "Your team will be in touch within one working day to book your kickoff call.",
+ "team_chat": {
+  "slack_url": "https://slack.example.com/northlake-golf"
+ }
+}

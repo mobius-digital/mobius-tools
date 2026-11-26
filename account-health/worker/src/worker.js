@@ -4,6 +4,7 @@ import { guardBrands, brandsFor, clientScope, isClientEmail } from './brandguard
 import { handleCommand } from './command.js';
 import { handleAgency } from './agency.js';
 import { handleClients, clientAsk, clientOwnsRun, touchClient, meClient, claimInvite, hqSignin } from './clients.js';
+import { handleOnboard, onboardTick } from './onboard.js';
 import { listBrands, addConnection, createBrand, brandByChannel, connectionNote, KINDS as BRAND_KINDS, metaOf, isBrandId, resolveBrandId, acctOf, metaSyncRows, setTripleWhale, storagePrefix, brandOf, connGet, connSet } from './brands.js';
 import { whoIs, channelInfo, brandForChannel, readAccess, writeAccess } from './slackaccess.js';
 import { movedTick, movedPreview } from './moved.js';
@@ -7414,7 +7415,7 @@ async function googleLogin(env, credential, invite) {
 const VIEWER_MAY = new Set([
   '/api/me/prefs', '/api/me/morning', '/api/me/delivery', '/api/notices/done',
   '/api/read', '/api/daycheck', '/api/summarise',
-  '/api/google-login', '/api/hq-signin', '/api/clients/signin', '/api/clients/login-link',
+  '/api/google-login', '/api/hq-signin', '/api/clients/signin', '/api/clients/login-link', '/api/clients/code', '/api/clients/code/verify',
 ]);
 
 async function roleFor(env, email) {
@@ -8253,6 +8254,9 @@ const AH_APP = {
         ran.creative = await creativeTick(env, ids => adThumbnails(env, ids, LIVE_THUMBS), () => subCanAfford(80), { meta, perBrand: 120, tags: 150 }).catch(e => ({ error: e.message }));
         /* New clients made from Locus: tell the team when the onboarding form is sent. */
         ran.newClient = await newClientTick(env).catch(e => ({ error: e.message }));
+        /* Client onboarding (onboard.js): the day 3 and day 7 client reminders, then one website read. Per brand it
+           checks canAfford(15) before starting it, never mid brand. */
+        if (subCanAfford(40)) ran.onboarding = await onboardTick(env, { canAfford: n => subCanAfford(n), centralHour, centralDate, mintSession }).catch(e => ({ error: e.message }));
         /* Meta partner sweep first (metaaccess.js): assigns the team + Mobius Tools on what clients shared, so a new
            client's ad account is visible to the auto-connect right after it. Small: ~30 reads an hour. */
         /* No timed access checks (Cole 2026-10-15): the connect link's Done button, the onboarding ticks and Cole's
@@ -8590,6 +8594,13 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     /* ---- New client: one button in Locus sets up Asana, the onboarding link, Drive and Slack (admin) ---- */
     if (path.startsWith('/api/new-client')) {
       const r = await handleNewClient(request, env, path, json, isAdmin, (rq, e) => sessionEmail(e, rq));
+      if (r) return r;
+    }
+    /* ---- Client onboarding (onboard.js, 2026-11-26): New client, Get started, the assets link, Remind them. Each route
+       checks its own caller (owner, team, or the client of that brand that brandguard.js already cleared). ---- */
+    if (path.startsWith('/api/onboard') || path === '/api/brand/assets-link') {
+      const connectDeps = { adsInvite: googleAdsInvite, onDone: (key, b) => ctx.waitUntil(connectNow(env, key, b.id).catch(() => {})), tellTeam: null };
+      const r = await handleOnboard(request, env, ctx, path, json, { isAdmin, sessionEmail, mintSession, clientScope, xfetch, connectDeps });
       if (r) return r;
     }
     /* ---- Client logins (clients.js; who may open what is brandguard.js) ---- */

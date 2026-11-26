@@ -9,7 +9,7 @@ import { APP_NAME } from '../../config.js';
 import { h, hero, kpi, kpis, em, num, statusDot, skeleton } from '../../kit.js';
 import { fixture, SAMPLE } from '../../data.js';
 import { put, css, oldLocus, exampleChip, plural } from '../production/_ui.js';
-import { lbCss, chips, search, openItem, picture } from './_lib.js';
+import { lbCss, chips, search, openItem, picture, assetsButton } from './_lib.js';
 
 const len = s => (s == null ? '' : s >= 60 ? Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0') : '0:' + String(s).padStart(2, '0'));
 
@@ -50,7 +50,7 @@ export default {
           kpi({ label: 'Not used in an ad yet', value: num(items.filter(x => !x.used).length), sub: 'of the newest ' + items.length }),
           kpi({ label: 'With people', value: num(items.filter(x => x.people > 0).length), sub: 'real people, filmed' }),
         ], { cols: 3 })),
-      h('div', { class: 'lb-tools' }, search('Search: swing, buckle, unboxing', '', v => { q = v; draw(); }), count, h('span', { class: 'lx-sp' }), ctx.isClient ? null : oldLocus(ctx, { label: 'Open the footage in old ' + APP_NAME })),
+      h('div', { class: 'lb-tools' }, search('Search: swing, buckle, unboxing', '', v => { q = v; draw(); }), count, h('span', { class: 'lx-sp' }), assetsButton(ctx, null), ctx.isClient ? null : oldLocus(ctx, { label: 'Open the footage in old ' + APP_NAME })),
       pick, grid,
       h('p', { class: 'lx-foot' }, 'Clips and B-roll the team can cut from. Files stay where they are; nothing here moves or changes them.'));
   },

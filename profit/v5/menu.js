@@ -64,6 +64,8 @@ export const BRAND_MENU = [
     { id: 'production', label: 'Production', icon: 'board', who: 'all', tabs: [t('board', 'Board', 'production')] },
     { id: 'creators', label: 'Creators', icon: 'creators', who: 'all', tabs: [
       t('to-review', 'To review', 'trybe'), t('videos', 'Videos', 'trybe'), t('people', 'People', 'trybe')] },
+    /* the brand's own photo and video folder (Drive, Air, Dropbox, Frame or any link). Locus never copies the files. */
+    { id: 'assets', label: 'Assets', icon: 'folder', who: 'all', tabs: one() },
     { id: 'library', label: 'Library', icon: 'library', who: 'all', tabs: [
       t('photos', 'Photos', 'library'), t('footage', 'Footage', 'library'), t('reference-ads', 'Reference ads', 'inspo')] },
   ] },
@@ -80,8 +82,9 @@ export const BRAND_MENU = [
   ] },
   AUTOMATIONS,
   { group: null, foot: true, lines: [
-    { id: 'brand-settings', label: 'Brand settings', icon: 'gear', who: 'team', foot: true, tabs: [
-      t('goals', 'Goals', 'settings'), t('costs', 'Costs', 'costs'), t('brand', 'Brand', 'settings'), t('integrations', 'Integrations', 'settings'), t('people', 'People and sending', 'settings')] },
+    /* a client sees and changes its own goals and ad rules (every change is logged and the team is told); People and sending stays the team's */
+    { id: 'brand-settings', label: 'Brand settings', icon: 'gear', who: 'all', foot: true, tabs: [
+      t('goals', 'Goals', 'settings'), t('costs', 'Costs', 'costs'), t('brand', 'Brand', 'settings'), t('integrations', 'Integrations', 'settings'), t('people', 'People and sending', 'settings', true)] },
   ] },
 ];
 
@@ -109,7 +112,7 @@ export const AGENCY_MENU = [
     { id: 'a-shared-links', label: 'Shared links', icon: 'link', who: 'team', tabs: one() },
   ] },
   { group: 'Clients', lines: [
-    { id: 'a-clients', label: 'Client list', icon: 'customers', who: 'team', tabs: one('settings') },
+    { id: 'a-clients', label: 'Client list', icon: 'customers', who: 'team', tabs: [t('index', 'Client list', 'settings'), t('new', 'New client')] },
     { id: 'a-requests', label: 'Requests', icon: 'chat', who: 'team', tabs: one('requests') },
     { id: 'a-meetings', label: 'Meetings', icon: 'monitor', who: 'team', tabs: [
       t('agenda', 'Agenda', 'calls'), t('pre-read', 'Pre-read'), t('run', 'Run the meeting', 'calls'), t('past', 'Past meetings', 'meetings')] },
@@ -131,6 +134,8 @@ export const AGENCY_MENU = [
 export const TOP_LINES = [
   { id: 'ask', label: 'Ask ' + AI_NAME, icon: 'sparkle', who: 'team', top: true, tabs: [t('index', 'Ask'), t('free', 'Free answers', null, true)] },
   { id: 'my-day', label: 'My day', icon: 'day', who: 'team', top: true, tabs: one('mywork') },
+  /* a new client's setup checklist. Not drawn in the top bar: reached by the gate, the Client list, My day and the bell */
+  { id: 'get-started', label: 'Get started', icon: 'check', who: 'all', top: true, tabs: one() },
   { id: 'notifications', label: 'Notifications', icon: 'bell', who: 'all', top: true, tabs: [
     t('needs-you', 'Needs you'), t('watching', 'Watching'), t('done-today', 'Done today')] },
   { id: 'profile', label: 'Your profile', icon: 'customers', who: 'all', top: true, tabs: [
@@ -197,5 +202,10 @@ export const PHONE_TABS = {
     { id: 'calendar', label: 'Calendar', icon: 'calendar', line: 'calendar' },
     { id: 'requests', label: 'Requests', icon: 'chat', line: 'requests' },
     { id: 'more', label: 'More', icon: 'more', more: true },
+  ],
+  /* a new client still on the setup checklist */
+  setup: [
+    { id: 'get-started', label: 'Get started', icon: 'check', line: 'get-started' },
+    { id: 'profile', label: 'Profile', icon: 'customers', line: 'profile' },
   ],
 };

@@ -7,6 +7,7 @@ import { put } from '../../kit.js';
 import { h, button, takeaway, kpis, kpi, statusDot, segmented, toast, sheet, field, em } from '../../kit.js';
 import { OLD_LOCUS, APP_NAME } from '../../config.js';
 import { css, face, ic, heading, store } from './_ui.js';
+import { lineButtons, css as gsCss } from '../get-started/_ui.js';
 
 let brandPick = 'all';     // the brand filter survives a refresh behind
 
@@ -22,18 +23,21 @@ function dueOf(it, today) {
   return { due: it.due ? wd(it.due) : 'This week' };
 }
 function whyOf(it) {
+  if (it.source === 'onboard') return ['New client setup', it.when].filter(Boolean).join(', ');
   if (it.source === 'slack') return [it.from ? it.from + ' asked in Slack' : 'You were tagged in Slack', it.when].filter(Boolean).join(', ');
   if (it.source === 'card') return ['Card ' + (it.num || '').trim(), cap(it.column) + ' column'].filter(s => s.trim() && s !== 'Card').join(', ');
   if (it.source === 'call') return it.changes ? 'Changes asked on the Monday call' : (it.from || 'Plan') + ', approved on the Monday call';
   return it.from || 'Your task';
 }
 function btnOf(it) {
+  if (it.source === 'onboard') return { onboard: true };
   if (it.source === 'slack') return { label: 'Reply', href: it.link, out: true };
   if (it.source === 'card') return { label: 'Open card', href: it.link, out: true };
   if (it.source === 'call') return { label: 'Open the plan', href: OLD_LOCUS + '?open=calls&call=monday' };
   return it.link ? { label: 'Open', href: it.link, out: true } : { label: 'Mark done', done: true };
 }
-const rowOf = (it, today) => ({ id: it.id, ref: it.ref || null, source: it.source, text: it.text, why: whyOf(it), brand: it.brand || '', ...dueOf(it, today), btn: btnOf(it) });
+const rowOf = (it, today) => ({ id: it.id, ref: it.ref || null, source: it.source, text: it.text, why: whyOf(it), brand: it.brand || '', ...dueOf(it, today), btn: btnOf(it),
+  ...(it.source === 'onboard' ? { onboard: it.onboard, slug: it.slug, act_id: it.act_id, link: it.link, detail: it.detail || '' } : {}) });
 
 /** mywork + requests, as the page's shape (the same shape as _sample/index.json). */
 export function fromLive(mw, rq, me) {
@@ -67,6 +71,17 @@ const say = parts => (parts || []).map(p => typeof p === 'string' ? p : h('b', n
 
 function row(r, ctx, { primary, onDone }) {
   const b = r.btn || {};
+  /* a new client setup line (source onboard): its own button (Remind them, Done, Yes / No, Send it anyway) and Open */
+  if (b.onboard) {
+    gsCss();
+    return h('div', { class: 'lx-md-row', dataset: { id: r.id } },
+      h('div', { class: 'what' }, h('b', null, r.text), h('span', { class: 'why' }, h('span', null, r.detail || r.why))),
+      h('span', { class: 'brand' }, r.brand), h('span', { class: 'due' + (r.late ? ' late' : '') }, r.due),
+      h('span', { class: 'go gs-acts' }, lineButtons(ctx, r, { primary, onDone: (line, what) => {
+        /* a remind keeps the line (it comes back after the next day band); a tick, a yes or no and a release finish it */
+        if (what !== 'remind' && what !== 'Remind them') onDone(r, null, true);
+      } })));
+  }
   const go = b.done ? button(b.label, { primary, onclick: e => onDone(r, e.currentTarget) })
     : b.nudge ? button(b.label, { onclick: () => toast(ctx.sample ? 'Sample numbers: no nudge was sent.' : 'Nudges come with the notifications release.') })
     : button(b.label || 'Open', { primary, icon: primary ? 'arrow' : null, href: hrefOf(b, ctx) || '#', target: b.out ? '_blank' : null });
@@ -115,7 +130,12 @@ function draw(el, data, ctx) {
   const brands = [...new Set([...T, ...W, ...(X || [])].map(r => r.brand).filter(Boolean))];
   if (brandPick !== 'all' && !brands.includes(brandPick)) brandPick = 'all';
   const lists = h('div', { class: 'lx-md-main' });
-  const onDone = async (r, btn) => {
+  const onDone = async (r, btn, gone) => {
+    if (gone) {               // an onboarding line answered by its own button: off the list here, the server drops it on the next read
+      for (const k of ['today_rows', 'week_rows']) d[k] = (d[k] || []).filter(x => x.id !== r.id);
+      (d.done = d.done || []).unshift({ text: r.text, at: 'just now' });
+      return draw(el, d, ctx);
+    }
     if (ctx.sample) return toast('Sample numbers: nothing is saved.');
     btn.disabled = true;
     try {

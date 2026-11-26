@@ -453,6 +453,28 @@ async function onboardHelp(env, b) {
   return { answer: textOf(m) };
 }
 
+/** The website read without the stream (onboarding, 2026-11-26): the hourly onboarding tick runs it for a new client.
+ *  `emit` and `meter` are optional; runPrefill (the team's button, streamed) calls this too. Stamps `_read_at`. */
+export async function prefillNow(env, act, emit = () => {}, meter = { in: 0, out: 0, searches: 0 }) {
+  const c = await context(env, act, null);
+  if (!c.website) throw new Error('Add the brand website first.');
+  const research = await claude(env, {
+    system: `You pre-fill a new client's onboarding form from their public website so they only have to check it. ${VOICE}`,
+    user: `Brand: ${c.acct.name}. Website: ${c.website}.\nRead the home page, collections, best sellers, FAQ, shipping page and footer. Note: company name, number of products, variants, main features, what the products solve, free shipping threshold, current offers, the value proposition, why someone would buy from them, the most common questions (from the FAQ), which review app they use (Judge.me, Okendo, Yotpo...), their social accounts, and best sellers with prices.`,
+    tools: [{ ...WEB_FETCH, max_uses: 8 }, { ...WEB_SEARCH, max_uses: 3 }], effort: 'low',
+  }, emit, meter);
+  const out = jsonOf(await claude(env, {
+    system: `You turn notes into answers for an onboarding form. Leave a field empty when the notes do not say. Money as a plain number. ${VOICE}`,
+    user: textOf(research), schema: SCHEMAS.prefill, effort: 'low', maxTokens: 8000,
+  }, emit, meter));
+  const clean = {};
+  for (const [k, v] of Object.entries(out)) if (Array.isArray(v) ? v.length : String(v || '').trim()) clean[k] = v;
+  const row = await env.DB.prepare(`SELECT prefill_json FROM p_br_onboard WHERE act_id = ?1`).bind(act).first();
+  if (!row) throw new Error('Create the onboarding link first.');
+  await env.DB.prepare(`UPDATE p_br_onboard SET prefill_json = ?2, updated_at = datetime('now') WHERE act_id = ?1`).bind(act, JSON.stringify({ ...safeJson(row.prefill_json, {}), ...clean, _read_at: new Date().toISOString() })).run();
+  return { n: Object.keys(clean).length, cost: cost(meter) };
+}
+
 function runPrefill(env, ctx, act) {
   const { readable, writable } = new TransformStream();
   const w = writable.getWriter();
@@ -462,23 +484,8 @@ function runPrefill(env, ctx, act) {
     const ping = setInterval(() => w.write(enc.encode('{"type":"ping"}\n')).catch(() => {}), 10000);
     const meter = { in: 0, out: 0, searches: 0 };
     try {
-      const c = await context(env, act, null);
-      if (!c.website) throw new Error('Add the brand website first.');
-      const research = await claude(env, {
-        system: `You pre-fill a new client's onboarding form from their public website so they only have to check it. ${VOICE}`,
-        user: `Brand: ${c.acct.name}. Website: ${c.website}.\nRead the home page, collections, best sellers, FAQ, shipping page and footer. Note: company name, number of products, variants, main features, what the products solve, free shipping threshold, current offers, the value proposition, why someone would buy from them, the most common questions (from the FAQ), which review app they use (Judge.me, Okendo, Yotpo...), their social accounts, and best sellers with prices.`,
-        tools: [{ ...WEB_FETCH, max_uses: 8 }, { ...WEB_SEARCH, max_uses: 3 }], effort: 'low',
-      }, emit, meter);
-      const out = jsonOf(await claude(env, {
-        system: `You turn notes into answers for an onboarding form. Leave a field empty when the notes do not say. Money as a plain number. ${VOICE}`,
-        user: textOf(research), schema: SCHEMAS.prefill, effort: 'low', maxTokens: 8000,
-      }, emit, meter));
-      const clean = {};
-      for (const [k, v] of Object.entries(out)) if (Array.isArray(v) ? v.length : String(v || '').trim()) clean[k] = v;
-      const row = await env.DB.prepare(`SELECT prefill_json FROM p_br_onboard WHERE act_id = ?1`).bind(act).first();
-      if (!row) throw new Error('Create the onboarding link first.');
-      await env.DB.prepare(`UPDATE p_br_onboard SET prefill_json = ?2, updated_at = datetime('now') WHERE act_id = ?1`).bind(act, JSON.stringify({ ...safeJson(row.prefill_json, {}), ...clean })).run();
-      emit({ type: 'done', summary: `Pre-filled ${Object.keys(clean).length} answers from the website. The client sees them as suggestions to confirm.`, cost: cost(meter) });
+      const r = await prefillNow(env, act, emit, meter);
+      emit({ type: 'done', summary: `Pre-filled ${r.n} answers from the website. The client sees them as suggestions to confirm.`, cost: cost(meter) });
     } catch (e) {
       emit({ type: 'error', text: e.message, cost: cost(meter) });
     } finally { clearInterval(ping); await w.close().catch(() => {}); }

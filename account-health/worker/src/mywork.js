@@ -13,6 +13,10 @@
  *   Plan     the latest Monday call (p_call kind monday, last 7 days): state.brands[act].batches and eplan lines voted
  *            Yes or Changes go to the brand's strategist (STRAT below, the same map as profit/callscreen.js); gplan
  *            lines go to Radhesh. A line with its own owner goes to that owner.
+ *   Onboarding (2026-11-26, onboard.js onboardLines): a new client's waiting lines (has not connected, brief N of M, no
+ *            photos link, Shopify collaborator request, agreement or invoice waiting, a signer to approve...), worked out
+ *            live. The owner sees every line; the client's team (p_newclient team) sees the team lines; money and signing
+ *            lines are the owner's only. Ticked with PUT /api/mywork/done like a Slack ask (keys onb:...).
  *   One line said twice (a plan line that became a card, a task with the same words) shows once.
  * Buckets: Late (past due), Today (Slack asks, tasks due today or with no date, cards due today or tomorrow), This week
  * (everything else, Monday plan lines included).
@@ -38,6 +42,7 @@ import { listActions, ROSTER } from './actions.js';
 import { listBoard } from './production.js';
 import { DEFAULT_PEOPLE } from './checkin.js';
 import { permalink } from './slackindex.js';
+import { onboardLines, lineFor, myWorkItem } from './onboard.js';
 
 const LOCUS = 'https://locus.go-mobius-digital.com/profit/';
 export const MYWORK_LINK = `${LOCUS}?open=mywork`;
@@ -130,7 +135,8 @@ export async function gather(env, d, people) {
   }
   const dismissed = ((await env.DB.prepare(`SELECT who, key FROM p_mywork_done WHERE at >= ?1`).bind(addDays(today, -60)).all().catch(() => ({ results: [] }))).results) || [];
   const domain = (await d.getSetting(env, 'slackDomain').catch(() => null)) || 'mobiusdigitalhq';
-  return { today, brands, tasks, cards, call, mentions, own, dismissed, domain, names: Object.fromEntries(people.filter(p => p.slack).map(p => [p.slack, p.name])) };
+  const onboard = await (d.onboardLines || onboardLines)(env).catch(() => []);
+  return { today, brands, tasks, cards, call, mentions, own, dismissed, domain, onboard, ownerEmail: env.OWNER_EMAIL || 'cole@go-mobius-digital.com', names: Object.fromEntries(people.filter(p => p.slack).map(p => [p.slack, p.name])) };
 }
 
 /* A Slack line, readable: @U123 becomes @Name, links and spaces tidied. */
@@ -193,6 +199,8 @@ export function forPerson(g, person) {
         link: `${LOCUS}?open=calls&call=monday`, changes: x.vote === 'c', done: done.has(key) });
     });
   }
+  /* A new client's onboarding lines for this person (onboard.js lineFor: the owner sees all of them). */
+  for (const l of g.onboard || []) if (lineFor(l, person, g.ownerEmail)) items.push(myWorkItem(l, done.has(l.id)));
   /* One line said twice shows once: tasks, then cards, then Slack, then the plan. */
   const seen = new Set(), ids = new Set(), out = [];
   for (const it of items) { const n = norm(it.text); if (ids.has(it.id) || (n && seen.has(n))) continue; ids.add(it.id); if (n) seen.add(n); out.push(it); }
@@ -308,7 +316,7 @@ export async function handleMyWork(request, env, url, path, json, d) {
     }
     if (path === '/api/mywork/done') {
       const key = String(body.key || '');
-      if (!/^(slack|card|plan):[\w:.-]{3,200}$/.test(key)) throw err(400, 'Tick a Slack ask, a card or a plan line here; a task is ticked on the task.');
+      if (!/^(slack|card|plan|onb):[\w:.@-]{3,200}$/.test(key)) throw err(400, 'Tick a Slack ask, a card or a plan line here; a task is ticked on the task.');
       if (body.done === false) await env.DB.prepare(`DELETE FROM p_mywork_done WHERE who = ?1 AND key = ?2`).bind(who, key).run();
       else await env.DB.prepare(`INSERT OR REPLACE INTO p_mywork_done (who, key, at) VALUES (?1, ?2, ?3)`).bind(who, key, now()).run();
       return json({ ok: true });

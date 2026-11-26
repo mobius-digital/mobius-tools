@@ -1,7 +1,7 @@
 /* Shared parts for Library: Photos, Footage, Reference ads. A grid of pictures, a filter row, a search box and a
    sheet for one item. Read only: syncing Drive, uploading and removing stay in old Locus. */
 
-import { h, sheet, addStyles, field } from '../../kit.js';
+import { h, sheet, addStyles, field, button } from '../../kit.js';
 import { picture } from '../production/_ui.js';
 
 /** A filter row of chips: items [{ id, label, n }], the picked id, onPick. */
@@ -29,6 +29,19 @@ export function openItem({ title, pic, facts = [], text, actions = [] }) {
 }
 
 export { picture };
+
+/** The Assets button in a Library page's tools row: opens the brand's own photo and video folder when the page
+    knows the link (assets_link from withAssets), else the Assets page, where the link is pasted. */
+export function assetsButton(ctx, link) {
+  return link && link.url ? button('Assets', { iconLeft: 'folder', href: link.url, target: '_blank', aria: 'Open the photo and video folder' })
+    : button('Assets', { iconLeft: 'folder', href: ctx.href('assets', 'index') });
+}
+/** A Library load with the brand's folder link beside it (account-health GET /api/brand/assets-link). The link never
+    holds the page up: a refusal or an older worker leaves assets_link null. */
+export async function withAssets(ctx, main) {
+  const [d, a] = await Promise.all([main, ctx.api('/api/brand/assets-link?act=' + encodeURIComponent(ctx.brand.id), { worker: 'ah', signal: ctx.signal }).catch(() => null)]);
+  return d && typeof d === 'object' && !Array.isArray(d) ? { ...d, assets_link: a && a.url ? a : null } : d;
+}
 
 const CSS = `
 .lb-grid{display:grid;grid-template-columns:repeat(var(--cols,5),minmax(0,1fr));gap:18px}

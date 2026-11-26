@@ -7,7 +7,7 @@ import { APP_NAME } from '../../config.js';
 import { h, hero, kpi, kpis, em, num, button, skeleton, empty, relativeTime } from '../../kit.js';
 import { SAMPLE } from '../../data.js';
 import { put, css, oldLocus, plural, daysFrom } from '../production/_ui.js';
-import { lbCss, chips, search, openItem, picture } from './_lib.js';
+import { lbCss, chips, search, openItem, picture, assetsButton, withAssets } from './_lib.js';
 
 const SAMPLE_TODAY = '2026-11-24';
 const whoOf = x => x.by_name || (x.by ? String(x.by).split('@')[0].replace(/[._-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Someone');
@@ -16,7 +16,7 @@ export default {
   title: ['Which ads ', em('are we learning from?')],
   eyebrow: 'Library',
   ranges: false,
-  load: ctx => ctx.api('/api/inspo?act=' + encodeURIComponent(ctx.brand.id), { worker: 'profit', signal: ctx.signal }),
+  load: ctx => withAssets(ctx, ctx.api('/api/inspo?act=' + encodeURIComponent(ctx.brand.id), { worker: 'profit', signal: ctx.signal })),
   skeleton(el) { put(el, skeleton('kpi', 3), skeleton('chart')); },
 
   render(el, data, ctx) {
@@ -53,7 +53,7 @@ export default {
           kpi({ label: 'Saved this week', value: num(week), sub: 'last 7 days' }),
           kpi({ label: 'People saving', value: num(people.length), sub: people.slice(0, 3).join(', ') }),
         ], { cols: 3 })),
-      h('div', { class: 'lb-tools' }, search('Search the titles and notes', '', v => { q = v; draw(); }), h('span', { class: 'lx-sp' }), oldLocus(ctx, { label: 'Save one in old ' + APP_NAME })),
+      h('div', { class: 'lb-tools' }, search('Search the titles and notes', '', v => { q = v; draw(); }), h('span', { class: 'lx-sp' }), assetsButton(ctx, data && data.assets_link), oldLocus(ctx, { label: 'Save one in old ' + APP_NAME })),
       pick, grid,
       h('p', { class: 'lx-foot' }, 'Saved with Save to ' + APP_NAME + '. A link keeps the page\'s own title and picture from the day it was saved.'));
   },

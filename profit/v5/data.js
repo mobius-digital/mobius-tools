@@ -83,6 +83,11 @@ export async function putSaved(key, data) {
   await idb('readwrite', s => s.put(rec, full(key)));
   return rec;
 }
+/** Drop one saved copy (dropSaved('boot') after the setup gate opens, so the next load reads /api/me again). */
+export async function dropSaved(key) {
+  MEM.delete(full(key));
+  await idb('readwrite', s => s.delete(full(key)));
+}
 /** Wipe every saved copy. Called on sign out. */
 export async function wipeSaved() {
   MEM.clear();
