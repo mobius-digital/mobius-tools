@@ -64,7 +64,7 @@ test('health: a write to it is not found', async () => {
 /* ---- GET /v1/routes ---- */
 
 test('routes: the shape of the list and of every row', async () => {
-  const r = await call(env0(), 'GET', '/v1/routes', { token: asCaller('team') });
+  const r = await call(env0(), 'GET', '/v1/routes', { token: asCaller('owner') });
   assert.equal(r.status, 200);
   assert.equal(r.json.count, r.json.routes.length);
   assert.equal(r.json.forwarded, r.json.routes.filter(x => x.engine === 'forward').length);
@@ -77,24 +77,33 @@ test('routes: the shape of the list and of every row', async () => {
 });
 
 test('routes: the five kernel paths are listed with the right people', async () => {
-  const r = await call(env0(), 'GET', '/v1/routes', { token: asCaller('team') });
+  const r = await call(env0(), 'GET', '/v1/routes', { token: asCaller('owner') });
   const who = key => { const [m, p] = key.split(' '); return (r.json.routes.find(x => x.method === m && x.path === p) || {}).who; };
   assert.equal(who('GET /v1/health'), 'anyone');
-  assert.equal(who('GET /v1/routes'), 'team');
-  assert.equal(who('POST /v1/compare'), 'team');
-  assert.equal(who('GET /v1/engine'), 'team');
+  assert.equal(who('GET /v1/routes'), 'owner');
+  assert.equal(who('POST /v1/compare'), 'owner');
+  assert.equal(who('GET /v1/engine'), 'owner');
   assert.equal(who('PUT /v1/engine'), 'owner');
 });
 
-test('routes: only the owner sees the statement list', async () => {
+test('routes: only the owner gets the list, statements included', async () => {
   const env = env0();
-  const team = await call(env, 'GET', '/v1/routes', { token: asCaller('team') });
-  assert.ok(!('queries' in team.json));
-  const viewer = await call(env, 'GET', '/v1/routes', { token: asCaller('viewer') });
-  assert.equal(viewer.status, 200);
-  assert.ok(!('queries' in viewer.json));
+  for (const kind of ['team', 'limited', 'viewer']) {
+    const r = await call(env, 'GET', '/v1/routes', { token: asCaller(kind) });
+    assert.equal(r.status, 403, kind);
+    assert.deepEqual(Object.keys(r.json), ['error'], kind);
+  }
   const owner = await call(env, 'GET', '/v1/routes', { token: asCaller('owner') });
   assert.ok(owner.json.queries, 'the owner got no statement list');
+});
+
+test('engine: a teammate of any kind cannot read the switch', async () => {
+  const env = env0();
+  for (const kind of ['team', 'limited', 'viewer']) {
+    const r = await call(env, 'GET', '/v1/engine', { token: asCaller(kind) });
+    assert.equal(r.status, 403, kind);
+    assert.deepEqual(Object.keys(r.json), ['error'], kind);
+  }
 });
 
 test('routes: a client login is refused and learns no path', async () => {
@@ -114,7 +123,7 @@ test('routes: holds no id of a brand and no old worker address', async () => {
 test('engine: the shape of the switch', async () => {
   const env = env0();
   env.DB.insert('settings', [{ key: 'engineForward', value: JSON.stringify(['GET /pw/api/probe/one']) }]);
-  const r = await call(env, 'GET', '/v1/engine', { token: asCaller('team') });
+  const r = await call(env, 'GET', '/v1/engine', { token: asCaller('owner') });
   assert.equal(r.status, 200);
   assert.deepEqual(sameShape(r.json, SAMPLES.engine), []);
   assert.deepEqual([r.json.mode, r.json.forward], ['new', ['GET /pw/api/probe/one']]);
@@ -123,7 +132,7 @@ test('engine: the shape of the switch', async () => {
 test('engine: a broken flag row reads as new with nothing sent back', async () => {
   const env = env0();
   env.DB.insert('settings', [{ key: 'engineMode', value: 'sideways' }, { key: 'engineForward', value: '{not json' }]);
-  const r = await call(env, 'GET', '/v1/engine', { token: asCaller('team') });
+  const r = await call(env, 'GET', '/v1/engine', { token: asCaller('owner') });
   assert.deepEqual([r.json.mode, r.json.forward], ['new', []]);
 });
 
@@ -199,7 +208,7 @@ const northRows = { rows: [
   { id: 'n2', act_id: 'act_111', title: 'north old id', slack_channel: null, notes_internal: null }] };
 
 test('compare: the shape of a match and of a difference', async () => {
-  const token = asCaller('team'), path = `/pw/api/probe/one?act=${NORTH}`;
+  const token = asCaller('owner'), path = `/pw/api/probe/one?act=${NORTH}`;
   const same = await call(env0({ old: { 'GET /api/probe/one': () => northRows } }), 'POST', '/v1/compare', { token, body: { path } });
   assert.equal(same.status, 200);
   assert.deepEqual(sameShape(same.json, { ...SAMPLES.compare, differences: [] }), []);
@@ -210,7 +219,7 @@ test('compare: the shape of a match and of a difference', async () => {
 });
 
 test('compare: asks the old worker once, with GET, the same query and the same person', async () => {
-  const env = env0({ old: { 'GET /api/probe/one': () => northRows } }), token = asCaller('team');
+  const env = env0({ old: { 'GET /api/probe/one': () => northRows } }), token = asCaller('owner');
   await call(env, 'POST', '/v1/compare', { token, body: { path: `/pw/api/probe/one?act=${NORTH}` } });
   const sent = oldCalls(env);
   assert.equal(sent.length, 1);
@@ -220,20 +229,20 @@ test('compare: asks the old worker once, with GET, the same query and the same p
 
 test('compare: a forwarded route is reported and no old worker is asked', async () => {
   const env = env0();
-  const r = await call(env, 'POST', '/v1/compare', { token: asCaller('team'), body: { path: '/pw/api/probe/fwd' } });
+  const r = await call(env, 'POST', '/v1/compare', { token: asCaller('owner'), body: { path: '/pw/api/probe/fwd' } });
   assert.deepEqual(sameShape(r.json, SAMPLES.compareForwarded), []);
   assert.equal(oldCalls(env).length, 0);
 });
 
 test('compare: an old status that differs is the first difference', async () => {
   const env = env0({ old: { 'GET /api/probe/one': () => new Response(JSON.stringify({ error: 'nope' }), { status: 500 }) } });
-  const r = await call(env, 'POST', '/v1/compare', { token: asCaller('team'), body: { path: `/pw/api/probe/one?act=${NORTH}` } });
+  const r = await call(env, 'POST', '/v1/compare', { token: asCaller('owner'), body: { path: `/pw/api/probe/one?act=${NORTH}` } });
   assert.equal(r.json.match, false);
   assert.deepEqual(r.json.differences[0], { at: '(status)', old: '500', new: '200' });
 });
 
 test('compare: only read routes with an old worker can be compared', async () => {
-  const env = env0(), token = asCaller('team');
+  const env = env0(), token = asCaller('owner');
   const bad = path => call(env, 'POST', '/v1/compare', { token, body: { path } });
   assert.equal((await bad('/v1/engine')).status, 400);
   assert.equal((await bad('/api/probe/one')).status, 400);
@@ -247,7 +256,7 @@ test('compare: only read routes with an old worker can be compared', async () =>
 
 test('compare: an address in the path goes nowhere, only the path part is used', async () => {
   const env = env0({ old: { 'GET /api/probe/one': () => northRows } });
-  const r = await call(env, 'POST', '/v1/compare', { token: asCaller('team'), body: { path: `https://elsewhere.test/pw/api/probe/one?act=${NORTH}` } });
+  const r = await call(env, 'POST', '/v1/compare', { token: asCaller('owner'), body: { path: `https://elsewhere.test/pw/api/probe/one?act=${NORTH}` } });
   assert.equal(r.json.match, true);
   const sent = oldCalls(env);
   assert.equal(sent.length, 1);
@@ -257,7 +266,7 @@ test('compare: an address in the path goes nowhere, only the path part is used',
 test('compare: works while everything is piped, so the proof can be read before switching on', async () => {
   const env = env0({ old: { 'GET /api/probe/one': () => northRows } });
   env.DB.insert('settings', [{ key: 'engineMode', value: 'old' }]);
-  const r = await call(env, 'POST', '/v1/compare', { token: asCaller('team'), body: { path: `/pw/api/probe/one?act=${NORTH}` } });
+  const r = await call(env, 'POST', '/v1/compare', { token: asCaller('owner'), body: { path: `/pw/api/probe/one?act=${NORTH}` } });
   assert.equal(r.status, 200);
   assert.equal(r.json.match, true, JSON.stringify(r.json));
 });
@@ -271,17 +280,29 @@ test('compare: a client login is refused before anything runs', async () => {
   assert.equal(oldCalls(env).length, 0);
 });
 
-test('compare: a teammate limited to one brand gets no row of the other brand from the engine side', async () => {
-  const refused = () => new Response(JSON.stringify({ error: 'forbidden' }), { status: 403 });
-  const env = env0({ old: { 'GET /api/probe/one': refused, 'GET /api/probe/many': () => ({ rows: [], days: null }) } });
-  const token = asCaller('limited');
-  const one = await call(env, 'POST', '/v1/compare', { token, body: { path: `/pw/api/probe/one?act=${RIVER}` } });
-  assert.equal(one.status, 200);
-  assert.equal(one.json.new_status, 403);
-  noOtherBrand(JSON.stringify(one.json.differences));
-  const many = await call(env, 'POST', '/v1/compare', { token, body: { path: '/pw/api/probe/many' } });
-  noOtherBrand(many.text);
-  assert.ok(oldCalls(env).every(c => c.token === token), 'the old worker was asked as someone else');
+test('compare: a teammate of any kind is refused before anything runs, whatever the mode', async () => {
+  for (const mode of ['new', 'old']) {
+    const env = env0({ old: { 'GET /api/probe/one': () => northRows, 'GET /api/probe/many': () => ({ rows: [], days: null }) } });
+    env.DB.insert('settings', [{ key: 'engineMode', value: mode }]);
+    for (const kind of ['team', 'limited', 'viewer']) {
+      const token = asCaller(kind);
+      for (const path of [`/pw/api/probe/one?act=${NORTH}`, `/pw/api/probe/one?act=${RIVER}`, '/pw/api/probe/many']) {
+        const r = await call(env, 'POST', '/v1/compare', { token, body: { path } });
+        assert.equal(r.status, 403, `${mode} ${kind} ${path}`);
+        assert.deepEqual(Object.keys(r.json), ['error']);
+        noOtherBrand(r.text);
+      }
+    }
+    assert.equal(oldCalls(env).length, 0, 'an old worker was asked for a refused compare');
+    assert.equal(env.DB.log.filter(sql => /p_inspo/.test(sql)).length, 0, 'the new handler ran for a refused compare');
+  }
+});
+
+test('compare: the owner asking for a brand is held to that brand on the engine side', async () => {
+  const env = env0({ old: { 'GET /api/probe/one': () => northRows } });
+  const r = await call(env, 'POST', '/v1/compare', { token: asCaller('owner'), body: { path: `/pw/api/probe/one?act=${NORTH}` } });
+  assert.equal(r.json.match, true);
+  noOtherBrand(r.text);
 });
 
 test('compare: nobody is refused', async () => {

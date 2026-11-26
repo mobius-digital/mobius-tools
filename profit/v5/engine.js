@@ -6,7 +6,10 @@
      misses()          every call the new engine failed or answered differently, for Agency > Engine
      differences()     where two answers differ (key order and meta do not count)
      engineApi()       one call to the engine's own /v1 routes
-   A failure of the new engine never reaches a page: data.js asks the old engine and the miss is noted here. */
+   A failed READ on the new engine never reaches a page: data.js asks the old engine and the miss is noted here.
+   A WRITE is sent to the old engine only when it is certain the new one did not run it. If it may have run
+   (a 5xx, no answer in time, or the old engine already answered through the new one) the page gets that
+   failure as it is, so nothing is ever saved twice. */
 
 import { workers, token, SAMPLE, LS5, ENGINE_DEFAULT } from './config.js';
 import { PORTED, IGNORE } from './engine-paths.js';
@@ -107,8 +110,11 @@ function health(up) {
   if (++downs >= REST_AFTER) { downs = 0; restUntil = Date.now() + REST_MS; }
 }
 
+const SAVE_LATE = 'The save did not answer in time. Reload and check before saving again.';
+
 /** For data.js api() only. null: the old engine answers as always. { ok: true, json }: the new engine answered.
     { ok: false, note(oldStatus) }: it failed, ask the old engine, then say how that went so the miss is noted.
+    { ok: false, final: true, status, error }: a write that may already have run. Do not ask the old engine.
     A refusal (401, 403) the old engine gives too is not a miss. A page that cancels is thrown on, as fetch does. */
 export async function tryEngine(which, path, init) {
   if (engineMode() !== 'new' || resting()) return null;
@@ -116,26 +122,39 @@ export async function tryEngine(which, path, init) {
   const key = portedKey(method, which, path);
   if (!key) return null;
   let status = 0, why = '';
+  const miss = () => recordMiss({ key, path: prefix(which) + path, kind: 'failed', status, note: why });
   try {
     const res = await timed(engineUrl(which, path), init, method === 'GET' ? READ_MS : WRITE_MS);
     status = res.status;
     health(status < 500);
+    const how = res.headers.get('X-Engine') || '';
     const j = await res.json().catch(() => undefined);
     if (res.ok && good(j)) {
+      /* The new engine's own handler broke and the old engine answered through it: use the answer, note the miss. */
+      if (how === 'fallback') recordMiss({ key, path: prefix(which) + path, kind: 'failed', status, note: 'the new engine handler broke, the old engine answered' });
       /* The engine adds its own meta (who answered, when). The pages were built on the old answers, and a
          stamp that changes every call would make every saved copy look new, so it is left off here. */
       if (j.meta && j.meta.engine && !Array.isArray(j)) delete j.meta;
       return { ok: true, json: j };
     }
     why = res.ok ? 'not a JSON answer' : (j && j.error) || 'HTTP ' + status;
+    /* A write is asked of the old engine only after a refusal (4xx) that is not the old engine's own.
+       A 5xx or an answer that is not JSON may have written already, and a forwarded or piped answer was
+       the old engine speaking: asking it again would run the write a second time. */
+    if (method !== 'GET' && (status < 400 || status >= 500 || ['forward', 'pipe', 'fallback'].includes(how))) {
+      if (status >= 500 || res.ok) miss();
+      return { ok: false, final: true, status, error: (j && j.error) || (res.ok ? 'The save did not answer as expected. Reload and check before saving again.' : 'HTTP ' + status) };
+    }
   } catch (e) {
     if (init.signal && init.signal.aborted) throw e;
     health(false);
-    why = e && e.name === 'AbortError' ? 'no answer in time' : 'could not be reached';
+    const late = !!e && e.name === 'AbortError';
+    why = late ? 'no answer in time' : 'could not be reached';
+    if (method !== 'GET' && late) { miss(); return { ok: false, final: true, status: 0, error: SAVE_LATE }; }
   }
   return { ok: false, note: oldStatus => {
     if ((status === 401 || status === 403) && oldStatus === status) return;
-    recordMiss({ key, path: prefix(which) + path, kind: 'failed', status, note: why });
+    miss();
   } };
 }
 
@@ -149,7 +168,9 @@ export function shadow(which, path, init, oldJson) {
   timed(engineUrl(which, path), { headers: init.headers }, READ_MS).then(async res => {
     const j = await res.json().catch(() => undefined);
     if (!res.ok || !good(j)) return recordMiss({ key, path: prefix(which) + path, kind: 'failed', status: res.status, note: (j && j.error) || 'not a JSON answer' });
-    if (res.headers.get('X-Engine') === 'forward') return;          // the old engine answered through the new one
+    const how = res.headers.get('X-Engine') || '';
+    if (how === 'fallback') return recordMiss({ key, path: prefix(which) + path, kind: 'failed', status: res.status, note: 'the new engine handler broke, the old engine answered' });
+    if (how === 'forward' || how === 'pipe') return;                // the old engine answered through the new one, as meant
     const d = differences(oldJson, j, ignoreFor(key));
     if (d.length) recordMiss({ key, path: prefix(which) + path, kind: 'differs', status: 200, note: d.length + ' fields', fields: d.slice(0, 8).map(x => x.at) });
   }).catch(() => recordMiss({ key, path: prefix(which) + path, kind: 'failed', status: 0, note: 'could not be reached' }));

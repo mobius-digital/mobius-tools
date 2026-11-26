@@ -71,6 +71,10 @@ export async function compare(ctx, input) {
   const ms_new = Date.now() - started;
   const now = await mine.json().catch(() => null);
   const how = mine.headers.get(ENGINE_HEADER) || 'new';
+  if (how === 'fallback') {
+    return { ...base, engine: how, match: false, differences: [], more: 0,
+      note: `the new engine handler broke and the old engine answered: ${mine.headers.get('X-Engine-Fell-Back') || 'no reason given'}` };
+  }
   if (how !== 'new') return { ...base, engine: how, match: true, note: 'this request was forwarded by the handler', differences: [], more: 0 };
   const old = await askOld(ctx, at.worker, at.path + target.search);
   const diffs = differences(old.data, now, new Set(hit.row.source.compare.ignore || []));

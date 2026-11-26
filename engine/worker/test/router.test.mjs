@@ -68,7 +68,8 @@ test('a ported read that breaks falls back to the old worker and says so in the 
   const env = env0();
   const r = await call(env, 'GET', '/pw/api/probe/boom', { token: asCaller('team') });
   assert.equal(r.status, 200);
-  assert.equal(r.engine, 'forward');
+  assert.equal(r.engine, 'fallback');
+  assert.ok(r.forwarded);
   assert.match(env.logs.pop().fell_back, /a bug in a handler/);
 });
 
@@ -127,7 +128,7 @@ test('only the owner may flip the switch', async () => {
   const env = env0();
   assert.equal((await call(env, 'PUT', '/v1/engine', { token: asCaller('team'), body: { mode: 'old' } })).status, 403);
   assert.equal((await call(env, 'PUT', '/v1/engine', { token: asCaller('client'), body: { mode: 'old' } })).status, 403);
-  assert.equal((await call(env, 'GET', '/v1/engine', { token: asCaller('team') })).json.mode, 'new');
+  assert.equal((await call(env, 'GET', '/v1/engine', { token: asCaller('owner') })).json.mode, 'new');
 });
 
 test('input: a needed value missing is 400, an unknown body key is refused, a bad optional query value is left out', async () => {
@@ -149,7 +150,7 @@ test('a borrowed field comes from one old GET as the caller', async () => {
 });
 
 test('the route list names every row, and a row that is not complete stops the build', async () => {
-  const r = await call(env0(), 'GET', '/v1/routes', { token: asCaller('team') });
+  const r = await call(env0(), 'GET', '/v1/routes', { token: asCaller('owner') });
   assert.ok(r.json.routes.some(x => x.path === '/pw/api/probe/fwd' && x.engine === 'forward' && x.why));
   assert.ok(r.json.routes.every(x => x.doc && x.who));
   const row = { method: 'GET', path: '/pw/api/x', access: { team: true }, handler: () => ({}), doc: 'A fine doc line.', source: { old: 'pw', file: 'f.js' } };
@@ -167,7 +168,7 @@ test('compare: the same answer is a match, a different one lists where', async (
   const same = { rows: [{ id: 'n1', act_id: NORTH, title: 'north one', slack_channel: 'C0NORTH0001', notes_internal: 'team only' },
     { id: 'n2', act_id: 'act_111', title: 'north old id', slack_channel: null, notes_internal: null }] };
   const env = env0({ old: { 'GET /api/probe/one': () => same } });
-  const token = asCaller('team');
+  const token = asCaller('owner');
   const r = await call(env, 'POST', '/v1/compare', { token, body: { path: `/pw/api/probe/one?act=${NORTH}` } });
   assert.equal(r.json.match, true, JSON.stringify(r.json));
   const env2 = env0({ old: { 'GET /api/probe/one': () => ({ rows: [{ ...same.rows[0], title: 'changed' }], extra: 1 }) } });
@@ -179,7 +180,7 @@ test('compare: the same answer is a match, a different one lists where', async (
 
 test('compare says so when a route is forwarded, and refuses a client', async () => {
   const env = env0();
-  const r = await call(env, 'POST', '/v1/compare', { token: asCaller('team'), body: { path: '/pw/api/probe/fwd' } });
+  const r = await call(env, 'POST', '/v1/compare', { token: asCaller('owner'), body: { path: '/pw/api/probe/fwd' } });
   assert.equal(r.json.engine, 'forward');
   assert.equal((await call(env, 'POST', '/v1/compare', { token: asCaller('client'), body: { path: '/pw/api/probe/one' } })).status, 403);
 });
@@ -194,4 +195,40 @@ test('number definitions are served, to a client too', async () => {
   const r = await call(env0(), 'GET', '/v1/metrics/definitions', { token: asCaller('client') });
   assert.equal(r.status, 200);
   assert.ok(r.json.definitions.some(d => d.id === 'mer' && d.definition && d.formula && d.source && d.unit));
+});
+
+test('compare: a handler that broke is not a match, and says the old engine answered', async () => {
+  const r = await call(env0(), 'POST', '/v1/compare', { token: asCaller('owner'), body: { path: '/pw/api/probe/boom' } });
+  assert.equal(r.status, 200);
+  assert.equal(r.json.match, false);
+  assert.equal(r.json.engine, 'fallback');
+  assert.match(r.json.note, /handler broke and the old engine answered: a bug in a handler/);
+});
+
+test('compare: a hand off the handler meant is still a match', async () => {
+  const r = await call(env0(), 'POST', '/v1/compare', { token: asCaller('owner'), body: { path: '/pw/api/probe/later?live=1' } });
+  assert.equal(r.json.match, true);
+  assert.equal(r.json.engine, 'forward');
+});
+
+test('the engine pages are for the owner alone: a teammate gets 403 on each', async () => {
+  const env = env0();
+  for (const kind of ['team', 'limited', 'viewer']) {
+    const token = asCaller(kind);
+    assert.equal((await call(env, 'GET', '/v1/routes', { token })).status, 403, kind + ' routes');
+    assert.equal((await call(env, 'GET', '/v1/engine', { token })).status, 403, kind + ' engine');
+    assert.equal((await call(env, 'POST', '/v1/compare', { token, body: { path: `/pw/api/probe/one?act=${NORTH}` } })).status, 403, kind + ' compare');
+  }
+  assert.equal((await call(env, 'GET', '/v1/routes', { token: asCaller('client') })).status, 403);
+  assert.equal((await call(env, 'GET', '/v1/routes')).status, 401);
+});
+
+test('in mode old a teammate cannot run the new code through compare', async () => {
+  const env = env0();
+  await call(env, 'PUT', '/v1/engine', { token: asCaller('owner'), body: { mode: 'old' } });
+  const token = asCaller('limited');
+  assert.equal((await call(env, 'GET', `/pw/api/probe/one?act=${NORTH}`, { token })).engine, 'pipe');
+  const r = await call(env, 'POST', '/v1/compare', { token, body: { path: `/pw/api/probe/one?act=${NORTH}` } });
+  assert.equal(r.status, 403);
+  assert.equal(r.json.new_status, undefined);
 });

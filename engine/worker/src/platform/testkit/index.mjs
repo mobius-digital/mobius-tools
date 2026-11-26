@@ -7,7 +7,6 @@ import { fileURLToPath } from 'node:url';
 import { FakeD1 } from './fake-d1.mjs';
 import { handle, tableWith } from '../router.js';
 import { register } from '../db.js';
-import { forget as forgetCallers } from '../auth.js';
 import { forget as forgetOld } from '../legacy.js';
 import { forget as forgetFlags } from '../flags.js';
 import { setSink } from '../log.js';
@@ -56,6 +55,7 @@ function fakeOld(worker, env, old) {
     const body = ['GET', 'HEAD'].includes(request.method) ? '' : await request.text();
     env.calls.push({ worker, method: request.method, path: url.pathname, search: url.search, token, body });
     const answer = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
+    if (worker === 'ah' && url.pathname === '/api/me' && env.signedOut.has(token)) return answer({ error: 'unauthorized' }, 401);
     if (worker === 'ah' && url.pathname === '/api/me' && !old['GET /api/me']) {
       const person = PEOPLE.get(token);
       return person ? answer(meFor(person)) : answer({ error: 'unauthorized' }, 401);
@@ -95,9 +95,10 @@ function seed(db) {
 }
 
 /** A fresh env: DB and CAL in memory, the kernel schema and each named group's schema.sql loaded,
- *  two brands seeded, `rows` inserted, fake OLD_AH and OLD_PW. env.calls lists every old call. */
+ *  two brands seeded, `rows` inserted, fake OLD_AH and OLD_PW. env.calls lists every old call.
+ *  env.signedOut.add(token) makes the old side refuse that session from then on. */
 export function makeEnv({ groups = [], rows = {}, old = {}, sql = '' } = {}) {
-  const env = { DB: new FakeD1(), CAL: new FakeD1(), calls: [], logs: [],
+  const env = { DB: new FakeD1(), CAL: new FakeD1(), calls: [], logs: [], signedOut: new Set(),
     OLD_AH_ORIGIN: 'https://old-ah.test', OLD_PW_ORIGIN: 'https://old-pw.test' };
   env.DB.exec(readFileSync(new URL('./schema.sql', import.meta.url), 'utf8'));
   for (const g of groups) {
@@ -122,12 +123,13 @@ export function useGroup(group) {
 }
 
 /** Forget everything the kernel keeps between requests (who is who, the flag). */
-export function reset() { forgetCallers(); forgetOld(); forgetFlags(); }
+export function reset() { forgetOld(); forgetFlags(); }
 
-/** One request through the whole engine. `forwarded` is true when an old worker answered. */
-export async function call(env, method, path, { token = '', body, headers = {} } = {}) {
-  syncPeople(env);
-  reset();
+/** One request through the whole engine. `forwarded` is true when an old worker answered.
+ *  keep: true leaves the people settings and everything the kernel keeps as they are, the way a second
+ *  request reaches a running worker. A test that changes a login between two calls uses it. */
+export async function call(env, method, path, { token = '', body, headers = {}, keep = false } = {}) {
+  if (!keep) { syncPeople(env); reset(); }
   const init = { method, headers: { ...headers } };
   if (token) init.headers.Authorization = `Bearer ${token}`;
   if (body !== undefined) {
@@ -145,7 +147,7 @@ export async function call(env, method, path, { token = '', body, headers = {} }
   const text = await res.text();
   let json = null;
   try { json = text ? JSON.parse(text) : null; } catch { json = null; }   // not JSON: the test reads `text`
-  return { status: res.status, json, text, engine: how, forwarded: how === 'forward' || how === 'pipe' };
+  return { status: res.status, json, text, engine: how, forwarded: how === 'forward' || how === 'pipe' || how === 'fallback' };
 }
 
 const typeName = v => (v === null ? 'null' : Array.isArray(v) ? 'list' : typeof v);

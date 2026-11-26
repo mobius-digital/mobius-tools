@@ -20,6 +20,7 @@ import { isPlainObject } from './text.js';
 export { buildTable };
 
 const FORWARD = Symbol('forward');
+const FELL_BACK = 'X-Engine-Fell-Back';
 const BINARY = /multipart\/form-data|octet-stream|^image\/|^video\/|^audio\//i;
 const DATABASES = new Set(['DB', 'CAL']);
 let TABLE = null;
@@ -72,11 +73,14 @@ async function again(base, pathAndQuery) {
   const url = new URL(pathAndQuery, base.url.origin);
   const request = new Request(url.toString(), { headers: { Authorization: base.request.headers.get('Authorization') || '' } });
   const log = { id: crypto.randomUUID(), method: 'GET', path: url.pathname, inner: true };
+  let res;
   try {
-    return await route({ request, env: base.env, exec: base.exec, url }, log, { ignoreFlag: true });
+    res = await route({ request, env: base.env, exec: base.exec, url }, log, { ignoreFlag: true });
   } catch (e) {
-    return errorAnswer(e, log);
+    res = errorAnswer(e, log);
   }
+  if (log.fell_back) res.headers.set(FELL_BACK, log.fell_back);   // read by compare, never sent to a browser
+  return res;
 }
 
 function withMeta(row, out) {
@@ -94,11 +98,12 @@ async function runHandler(ctx, row, req, at) {
   try {
     out = await row.handler(ctx, input);
   } catch (e) {
-    /* A ported read that breaks falls back to the old worker for this one request, and says so in the log.
-       A write never falls back: it may have written already. */
+    /* A ported read that breaks falls back to the old worker for this one request. The log says why and the
+       answer is marked "fallback", never "forward", so the compare page counts it as a failure of the new
+       code and not as a hand off that was meant. A write never falls back: it may have written already. */
     if (isEngineError(e) || req.method !== 'GET' || !at) throw e;
     ctx.log.fell_back = String(e && e.message).slice(0, 300);
-    return passOn(await forward(ctx, 'the engine handler broke'), 'forward');
+    return passOn(await forward(ctx, 'the engine handler broke'), 'fallback');
   }
   if (out && out[FORWARD]) return passOn(await forward(ctx, out[FORWARD]), 'forward');
   const { data, meta } = withMeta(row, out);

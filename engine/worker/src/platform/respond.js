@@ -7,7 +7,11 @@ export const CORS = {
   'Access-Control-Allow-Headers': 'Authorization, Content-Type',
 };
 
-/* The screens and the tests read this to see who answered: new, forward or pipe. */
+/* The screens and the tests read this to see who answered:
+   new       the engine's own code
+   forward   the old engine, because the row or the handler says so
+   fallback  the old engine, because the engine's own handler broke on a read
+   pipe      the old engine, untouched (mode old, a route switched back, a path with no row) */
 export const ENGINE_HEADER = 'X-Engine';
 
 export function json(data, status = 200, extra = {}) {

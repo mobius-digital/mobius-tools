@@ -68,7 +68,8 @@ door(env, scope, counters, which = 'DB') -> Db
 // name is '<domain>.<query>'. A domain may only run its own queries and 'platform.*' ones.
 
 // legacy.js  (the only file that knows the old workers)
-who(env, token) -> Promise<object|null>           // old /api/me, kept 60 s per token
+who(env, token, { fresh }) -> Promise<object|null>  // old /api/me. fresh: asked now (/ah and /v1 paths). Else kept
+                                                   // 60 s per token and never past the session end (/pw paths)
 forward(ctx, why) -> Promise<Response>            // same request, same person, to the row's old worker
 get(ctx, worker, pathAndQuery, { cache_s = 0 }) -> Promise<object>   // one old GET as the caller
 pipe(request, env, worker) -> Promise<Response>   // untouched. Router only
@@ -343,7 +344,7 @@ Prefix `/ah` = old account-health worker, `/pw` = old profit worker. "port" = an
   `worker.js` (ask settings near 8857, usage near 8966, findings near 8983, brief near 8997)
 
 ### kernel routes (`src/platform/routes.js`, kernel owned)
-GET `/v1/health` (public) | GET `/v1/routes` | POST `/v1/compare` | GET, PUT `/v1/engine` (PUT owner only)
+GET `/v1/health` (public) | GET `/v1/routes` | POST `/v1/compare` | GET, PUT `/v1/engine` (all four owner only)
 
 ## 11. Why each path is forwarded
 
@@ -392,8 +393,10 @@ What the kernel really does, where sections 1 to 9 were open or wrong.
    (the old routes fell back to their default). A needed value that is missing is a 400.
 8. A statement takes at most 100 bound values (the database limit). Brand ids from the macro count.
 9. A ported GET handler that throws something other than `fail(...)` is forwarded to the old worker for that one
-   request and logged with `fell_back`. A write never falls back. Do not lean on this: it is a net, not a plan.
-10. Every answer carries the header `X-Engine`: `new`, `forward` or `pipe`.
+   request, logged with `fell_back` and marked `X-Engine: fallback`, which the compare page counts as failed.
+   A write never falls back. Do not lean on this: it is a net, not a plan.
+10. Every answer carries the header `X-Engine`: `new`, `forward` (the row or the handler handed it to the old
+   engine), `fallback` (a ported read broke and the old engine answered) or `pipe`.
 11. The old `post` functions that answered `{ __deny: 404, error }` still work: return that object.
 12. Refusal sentences are the old ones with the agency name and people names taken out (hard limit 4).
     They live in `platform/access.js` `WORDS`.

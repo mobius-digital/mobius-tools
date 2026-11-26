@@ -18,7 +18,7 @@ async function health(ctx) {
 async function routeList(ctx) {
   const rows = inner(ctx).table.rows.map(describe);
   return { routes: rows, count: rows.length, forwarded: rows.filter(r => r.engine === 'forward').length,
-    queries: ctx.caller.kind === 'owner' ? registered() : undefined };
+    queries: registered() };
 }
 
 async function engineGet(ctx) {
@@ -40,13 +40,13 @@ const kernel = { engine: 'new', file: '' };
 export const routes = [
   { method: 'GET', path: '/v1/health', access: { public: true, brand: 'none' }, input: null, handler: health,
     doc: 'Is the engine up, which mode it is in and how many routes it has.', source: kernel },
-  { method: 'GET', path: '/v1/routes', access: { team: true, client: false, brand: 'none' }, input: null, handler: routeList,
-    doc: 'Every route the engine knows: who may use it, what it is for and whether it is answered here or forwarded.', source: kernel },
-  { method: 'POST', path: '/v1/compare', access: { team: true, client: false, brand: 'opt' },
+  { method: 'GET', path: '/v1/routes', access: { owner_only: true, brand: 'none' }, input: null, handler: routeList,
+    doc: 'Owner only. Every route the engine knows: who may use it, what it is for and whether it is answered here or forwarded.', source: kernel },
+  { method: 'POST', path: '/v1/compare', access: { owner_only: true, brand: 'opt' },
     input: { body: { path: 'string' } }, handler: compare,
-    doc: 'Run one read route on the old engine and on this one, as you, and list the differences.', source: kernel },
-  { method: 'GET', path: '/v1/engine', access: { team: true, client: false, brand: 'none' }, input: null, handler: engineGet,
-    doc: 'The switch: the mode (new or old) and the routes that are sent back to the old engine.', source: kernel },
+    doc: 'Owner only. Run one read route on the old engine and on this one, as you, and list the differences.', source: kernel },
+  { method: 'GET', path: '/v1/engine', access: { owner_only: true, brand: 'none' }, input: null, handler: engineGet,
+    doc: 'Owner only. The switch: the mode (new or old) and the routes that are sent back to the old engine.', source: kernel },
   { method: 'PUT', path: '/v1/engine', access: { owner_only: true, brand: 'none' },
     input: { body: { mode: 'string?', forward: 'string[]?' } }, handler: enginePut,
     doc: 'Owner only. Set the mode to old to send everything back to the old engine, or list single routes to send back.', source: kernel },

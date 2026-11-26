@@ -115,8 +115,9 @@ test('a client with a read only login cannot write', async () => {
   const env = makeEnv({ ...opts, old: { 'GET /api/me': () => ({ email: 'ro@northkites.test', role: 'client', master: false,
     client: { name: 'Read Only', hq: true, readOnly: true, brands: [{ id: NORTH, name: 'North Kites', access: {} }] } }) } });
   const token = 'tok_read_only_client';
-  assert.equal((await call(env, 'GET', `/pw/api/probe/one?act=${NORTH}`, { token })).status, 200);
-  assert.equal((await call(env, 'PUT', `/pw/api/probe/item?act=${NORTH}`, { token, body: { id: 'n1', title: 'x' } })).status, 403);
+  env.DB.insert('settings', [{ key: 'clientUsers', value: JSON.stringify({ 'ro@northkites.test': { hq: true, readOnly: true, brands: [] } }) }]);
+  assert.equal((await call(env, 'GET', `/pw/api/probe/one?act=${NORTH}`, { token, keep: true })).status, 200);
+  assert.equal((await call(env, 'PUT', `/pw/api/probe/item?act=${NORTH}`, { token, body: { id: 'n1', title: 'x' }, keep: true })).status, 403);
 });
 
 test('a client whose last brand was removed opens nothing', async () => {

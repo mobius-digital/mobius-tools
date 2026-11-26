@@ -8,12 +8,12 @@ Made by `node engine/worker/tools/gen-lists.mjs`. Do not edit by hand.
 
 | Method | Path | Who | Brand | Answered by | What it is for |
 |---|---|---|---|---|---|
-| POST | `/v1/compare` | team | opt | ported | Run one read route on the old engine and on this one, as you, and list the differences. |
-| GET | `/v1/engine` | team | none | ported | The switch: the mode (new or old) and the routes that are sent back to the old engine. |
+| POST | `/v1/compare` | owner | opt | ported | Owner only. Run one read route on the old engine and on this one, as you, and list the differences. |
+| GET | `/v1/engine` | owner | none | ported | Owner only. The switch: the mode (new or old) and the routes that are sent back to the old engine. |
 | PUT | `/v1/engine` | owner | none | ported | Owner only. Set the mode to old to send everything back to the old engine, or list single routes to send back. |
 | GET | `/v1/health` | anyone | none | ported | Is the engine up, which mode it is in and how many routes it has. |
 | GET | `/v1/metrics/definitions` | team, client | none | ported | What every number on the screens means, in plain words, with its formula and source. |
-| GET | `/v1/routes` | team | none | ported | Every route the engine knows: who may use it, what it is for and whether it is answered here or forwarded. |
+| GET | `/v1/routes` | owner | none | ported | Owner only. Every route the engine knows: who may use it, what it is for and whether it is answered here or forwarded. |
 
 ## orgs
 

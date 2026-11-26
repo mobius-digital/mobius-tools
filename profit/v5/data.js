@@ -29,9 +29,14 @@ export async function api(path, opts = {}) {
     headers: { Authorization: 'Bearer ' + token(), ...(body != null ? { 'Content-Type': 'application/json' } : {}), ...(headers || {}) },
   };
   /* The new engine answers only when this browser is set to it and the path is ported (engine.js).
-     Anything it gets wrong is asked of the old engine below and noted, so no page breaks because of it. */
+     A read it gets wrong is asked of the old engine below and noted, so no page breaks because of it.
+     A write that may already have run there is final: asking the old engine too could save it twice. */
   const eng = await tryEngine(which, path, init);
   if (eng && eng.ok) return eng.json;
+  if (eng && eng.final) {
+    if (eng.status === 401) window.dispatchEvent(new CustomEvent('lx:unauthorized'));
+    throw new ApiError(eng.error || 'HTTP ' + eng.status, eng.status);
+  }
   const res = await fetch(workers()[which] + path, init);
   const j = await res.json().catch(() => ({}));
   if (eng) eng.note(res.status);

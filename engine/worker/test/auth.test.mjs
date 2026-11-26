@@ -66,15 +66,40 @@ test('a client has only its own brands', async () => {
   assert.equal(c.client.read_only, false);
 });
 
-test('the old side is asked once per session, then the answer is kept', async () => {
+const at = (path, token) => new Request(`https://engine.test${path}`, { headers: { Authorization: `Bearer ${token}` } });
+
+test('on the profit paths the old side is asked once a minute per session, as the old profit worker did', async () => {
   const env = env0();
   const token = asCaller('team');
   await call(env, 'GET', '/v1/health', {});
   reset();
   env.calls.length = 0;
-  await identify(req(token), env);
-  await identify(req(token), env);
+  await identify(at('/pw/api/probe/one', token), env);
+  await identify(at('/pw/api/probe/one', token), env);
   assert.equal(env.calls.filter(c => c.path === '/api/me').length, 1);
+});
+
+test('on the account-health paths and the engine own paths the old side is asked on every request', async () => {
+  const env = env0();
+  const token = asCaller('team');
+  await call(env, 'GET', '/v1/health', {});
+  reset();
+  env.calls.length = 0;
+  await identify(at('/ah/api/probe/fwd', token), env);
+  await identify(at('/ah/api/probe/fwd', token), env);
+  await identify(at('/v1/engine', token), env);
+  assert.equal(env.calls.filter(c => c.path === '/api/me').length, 3);
+});
+
+test('a kept answer never outlives the end of the session', async () => {
+  const exp = Date.now() + 40;
+  const env = makeEnv({ sql: SCHEMA, old: { 'GET /api/me': () => (Date.now() < exp
+    ? { email: 'team@agency.test', exp, master: false, role: 'team' }
+    : new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 })) } });
+  const token = 'tok_short_lived_session';
+  assert.equal((await identify(at('/pw/api/probe/one', token), env)).kind, 'team');
+  await new Promise(done => setTimeout(done, 60));
+  assert.equal((await identify(at('/pw/api/probe/one', token), env)).kind, 'nobody');
 });
 
 test('the admin key with no name is the owner, because the old side says so', async () => {

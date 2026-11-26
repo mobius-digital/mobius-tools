@@ -164,7 +164,9 @@ Switch back, smallest first:
 3. Everyone, the one flag: Agency > Engine > Switch, "Send everything back to the old engine". That sets
    `engineMode` to `old` (`PUT /v1/engine`). Every request is piped to the old workers untouched, within 30
    seconds, with no deploy.
-4. If the engine itself is down nothing needs doing: every call falls back to the old workers by itself. To stop
+4. If the engine itself is down nothing needs doing: every read falls back to the old workers by itself, and so
+   does a write the engine could not be reached for. A write that may already have run (a 5xx, no answer in
+   time) is not sent again: the page says so and nothing is saved twice. To stop
    asking it at all, set `ENGINE_DEFAULT` back to `'old'`.
 
 By hand, if the app cannot be reached, in the database console:

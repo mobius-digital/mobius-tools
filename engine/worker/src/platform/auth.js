@@ -1,16 +1,15 @@
-/* Who is this. One answer per request, used by every route.
+/* Who is this. Worked out again on every request, so a login that was removed or narrowed loses its
+   access on the next call. Nothing about a person is kept here.
    The old sessions are signed with a key that lives on the old side, so the old account-health worker
-   is asked once per session (legacy.who, kept a minute). It says owner, team or client, and for a
-   client which brands. View only and a teammate's brand list come from the shared settings table,
-   the same two rows the old workers read. */
-// from account-health/worker/src/worker.js (roleFor, isAdmin, /api/me) and brandguard.js (brandsFor)
+   is asked (legacy.who): on every request for its own paths and the engine's, and at most once a
+   minute for the profit worker's paths, which is what the old profit worker did. It says owner, team
+   or client. View only, a teammate's brand list and a client's brands are read from the shared
+   settings table on every request, the same three rows the old workers read. */
+// from account-health/worker/src/worker.js (roleFor, isAdmin, /api/me) and brandguard.js (brandsFor, clientOf)
 import { who } from './legacy.js';
 import { systemJson } from './settings.js';
 import { expandIds, brandIdsIn } from './brands.js';
 import { lower, isBrandId, isPlainObject } from './text.js';
-
-const KEPT = new Map();           // token -> { caller, until }
-const KEEP_MS = 30e3;
 
 export const NOBODY = Object.freeze({ kind: 'nobody', email: null, name: '', view_only: false, brand_ids: [],
   ids: new Set(), client: null, via: 'session', me: null });
@@ -20,12 +19,25 @@ export function tokenOf(request) {
   return auth.startsWith('Bearer ') ? auth.slice(7) : '';
 }
 
+/* A client's brands are the ones the old side named that the client list still holds for that email.
+   A login taken off the list, or one whose pass ran out (hq_until), is nobody. A login the old side
+   pins to one brand (hq) keeps that brand while its row is there, and its read only switch is read now. */
 async function clientCaller(env, me, counters) {
   const c = isPlainObject(me.client) ? me.client : {};
-  const brand_ids = (Array.isArray(c.brands) ? c.brands : []).map(b => String((b && b.id) || '')).filter(isBrandId);
-  return { kind: 'client', email: lower(me.email), name: c.name || '', view_only: c.readOnly === true, brand_ids,
+  const email = lower(me.email);
+  const users = email ? await systemJson(env, 'clientUsers', {}, counters) : {};
+  const row = isPlainObject(users) ? users[email] : null;
+  if (!isPlainObject(row)) return NOBODY;
+  const hq = c.hq === true && row.hq === true;
+  if (hq && row.hq_until && !(Number(row.hq_until) > Date.now())) return NOBODY;
+  const listed = new Set((Array.isArray(row.brands) ? row.brands : []).map(String));
+  const brand_ids = (Array.isArray(c.brands) ? c.brands : []).map(b => String((b && b.id) || '')).filter(isBrandId)
+    .filter(id => hq || listed.has(id));
+  if (!brand_ids.length) return NOBODY;
+  const read_only = hq && (row.readOnly === true || c.readOnly === true);
+  return { kind: 'client', email, name: c.name || '', view_only: read_only, brand_ids,
     ids: await expandIds(env, brand_ids, counters),
-    client: { name: c.name || null, hq: c.hq === true, read_only: c.readOnly === true }, via: 'session', me };
+    client: { name: c.name || null, hq, read_only }, via: 'session', me };
 }
 
 async function teamCaller(env, me, counters) {
@@ -50,15 +62,8 @@ async function teamCaller(env, me, counters) {
 export async function identify(request, env, counters = {}) {
   const token = tokenOf(request);
   if (!token) return NOBODY;
-  const hit = KEPT.get(token);
-  if (hit && hit.until > Date.now()) return hit.caller;
-  const me = await who(env, token);
+  const fresh = !new URL(request.url).pathname.startsWith('/pw/');
+  const me = await who(env, token, { fresh });
   if (!me) return NOBODY;
-  const caller = me.role === 'client' ? await clientCaller(env, me, counters) : await teamCaller(env, me, counters);
-  if (KEPT.size > 500) KEPT.clear();
-  KEPT.set(token, { caller, until: Date.now() + KEEP_MS });
-  return caller;
+  return me.role === 'client' ? clientCaller(env, me, counters) : teamCaller(env, me, counters);
 }
-
-/** Tests only: forget what was kept. */
-export function forget() { KEPT.clear(); }

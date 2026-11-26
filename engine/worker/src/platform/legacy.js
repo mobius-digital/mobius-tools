@@ -40,12 +40,15 @@ const bearer = request => {
   return auth.startsWith('Bearer ') ? auth.slice(7) : '';
 };
 
-/** The old /api/me answer for a session, kept one minute. null when the old side does not know it.
- *  A failure is never kept. */
-export async function who(env, token) {
+/** The old /api/me answer for a session. null when the old side does not know it.
+ *  fresh: ask now, whatever is kept (the old account-health worker checked on every request).
+ *  Not fresh: an answer is kept one minute, never past the session's own end, as the old profit worker did.
+ *  A failure is never kept, and it drops what was kept. */
+export async function who(env, token, { fresh = false } = {}) {
   if (!token || token.length < 8) return null;
   const hit = WHO.get(token);
-  if (hit && hit.until > Date.now()) return hit.me;
+  if (!fresh && hit && hit.until > Date.now()) return hit.me;
+  WHO.delete(token);
   const { binding, origin } = old(env, 'ah');
   let res;
   try {
@@ -58,7 +61,7 @@ export async function who(env, token) {
   const me = await res.json().catch(() => null);
   if (!me || !(me.email || me.master)) return null;
   if (WHO.size > KEEP_MAX) WHO.clear();
-  WHO.set(token, { me, until: Date.now() + WHO_MS });
+  WHO.set(token, { me, until: Math.min(Date.now() + WHO_MS, Number(me.exp) || Infinity) });
   return me;
 }
 

@@ -80,6 +80,7 @@ async function pair(c, signal) {
   const base = { ...c, old_status: old.status, new_status: now.status, ms_old: old.ms, ms_new: now.ms, fields: [] };
   if (now.status === 0 || now.json === undefined) return { ...base, state: 'failed', note: now.status === 0 ? 'the new engine could not be reached' : 'the new engine did not answer in JSON' };
   if (old.status === 0) return { ...base, state: 'failed', note: 'the old engine could not be reached' };
+  if (now.how === 'fallback') return { ...base, state: 'failed', note: 'the new engine handler broke and the old engine answered' };
   if (now.how && now.how !== 'new') return { ...base, state: 'passed', note: now.how === 'pipe' ? 'the new engine is switched off for everyone' : 'the new engine handed this one to the old engine' };
   const fields = differences(old.json, now.json, ignoreFor(c.key));
   if (old.status !== now.status) fields.unshift({ at: '(status)', old: String(old.status), new: String(now.status) });
