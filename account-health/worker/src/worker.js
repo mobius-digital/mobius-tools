@@ -120,6 +120,7 @@ import { deliveryMessage, lowToday, spendHigh, completedDayNormal, highAlertText
 import { raiseAlert, clearAlert, urgentSweep } from './urgent.js';
 import { OWNER_EMAIL } from './extwrite.js';
 import { jobOn, featureOn, jobsView, cleanJobs, cleanFeatures, featureSaved } from './jobflags.js';
+import { keepNewMeta } from './movelines.js';
 import { alarmsPass, alarmCfg, cleanAlarmCfg } from './alarms.js';
 import { markHold, recheckHolds, listHolds, holdFor } from './drafthold.js';
 import { supplyBrandOf, supplyFetch } from './stock.js';
@@ -661,6 +662,10 @@ async function discoverAccounts(env) {
   await env.DB.prepare(
     `INSERT INTO settings (key, value) VALUES ('lastDiscover', ?1)
      ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(JSON.stringify(stamp)).run();
+  /* 2026-11-26 (move lines): the accounts that were NEW at a discovery are kept 14 days for the owner's My day line
+     "N new Meta ad accounts to match to a client" (movelines.js reads them, counts only the ones still unmatched).
+     Never the whole pool of old unconnected accounts. Quiet: a failure here never fails discovery. */
+  await keepNewMeta(env, stamp.fresh, stamp.at).catch(() => {});
   return { found: rows.length, direct, viaBusiness, fresh: stamp.fresh };
 }
 

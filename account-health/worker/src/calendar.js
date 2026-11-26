@@ -28,7 +28,8 @@
  * by the team), and on Mondays "still running?" for a sale with no end date. Each brand's internal channel.
  * Switch: settings calendarPost = 'off' (everything). 2026-11-26 (move lines): the countdown is ALSO kept as settings
  * calCountdown each morning (movelines.js, the step owner's My day line), whatever Slack does; the countdown POST alone
- * goes quiet with settings jobOn:calendarCountdown = 'off' (jobflags.js). */
+ * goes quiet with settings jobOn:calendarCountdown = 'off' (jobflags.js); the Monday end-date ask still posts. After the
+ * 8am pass the snapshot is redone hourly while it lists open steps, so a finished step leaves the line within the hour. */
 import { metaOf } from './brands.js';
 import { keyFor, klaviyo } from './klaviyo.js';
 import { supplyFetch } from './stock.js';
@@ -37,7 +38,7 @@ import { teamPost, cardOn } from './morningcard.js';
 import { laneLines, laneWho, laneOwner, fyi } from './lane.js';
 import { calendarPosts } from './socialpost.js';
 import { jobOn } from './jobflags.js';
-import { countdownFrom } from './movelines.js';
+import { countdownFrom, countdownStale } from './movelines.js';
 
 let F = (...a) => fetch(...a);
 /** The worker hands in its counted fetch (xfetch), like every other module. */
@@ -484,6 +485,14 @@ async function teamNames(env) {
   for (const p of results || []) if (/@go-mobius-digital\.com$/i.test(p.email || '') || EXTRA.includes(String(p.email || '').toLowerCase())) s.add(p.name);
   return s;
 }
+/* Who owns a countdown step for the Locus line: the client's steps go to the CLIENT lane owner; a role with nobody named
+   ("the strategist") is '' = the owner. */
+const stepWho = (s, team) => { const w = s.key === 'assets' || s.who === 'the client' ? laneOwner('CLIENT', team) : s.who; return /^the /i.test(String(w || '')) ? '' : String(w || ''); };
+/** settings calCountdown for movelines.js (the step owner's My day line). Quiet: a failure never stops the tick. */
+async function keepCountdown(env, d, data, today) {
+  await Promise.resolve().then(() => d.putSetting(env, 'calCountdown', JSON.stringify(countdownFrom(data, today, stepWho)))).catch(() => {});
+}
+
 export async function calendarTick(env, d) {
   if (!env.CAL) return { skipped: 'no CAL binding' };
   if (d.subCanAfford && !d.subCanAfford(80)) return { deferred: 'subrequest budget' };
@@ -513,15 +522,27 @@ export async function calendarTick(env, d) {
   /* 2. Reminders, once a Central day from 8am. */
   if (d.centralHour() < 8) return out;
   const doneDay = await d.getSetting(env, 'calRemindDay').catch(() => null);
-  if (doneDay === today) return out;
+  if (doneDay === today) {
+    /* The Locus line clears within the hour (movelines.js countdownStale): while today's snapshot still lists open
+       steps, or there is none for today yet (the day this shipped), it is worked out again from a short window. Posts
+       nothing. */
+    let snap = null; try { snap = JSON.parse((await d.getSetting(env, 'calCountdown').catch(() => null)) || 'null'); } catch { snap = null; }
+    if (countdownStale(snap, today) && (!d.subCanAfford || d.subCanAfford(60))) {
+      const fresh = await calendarData(env, { act: 'all', from: today, to: add(today, 8), today }).catch(() => null);
+      if (fresh) { await keepCountdown(env, d, fresh, today); out.countdown = 'refreshed'; }
+    }
+    return out;
+  }
   await d.putSetting(env, 'calRemindDay', today);
   const data = await calendarData(env, { act: 'all', from: add(today, -60), to: add(today, 30), today });
   const monday = new Date(today + 'T12:00:00Z').getUTCDay() === 1;
   /* The Locus line first (movelines.js): the open steps of dates going live tomorrow or in 7 days, per owner. A step
      with nobody named ("the strategist") is the owner's. Kept whether or not the post below goes. */
-  const stepWho = (s, team) => { const w = s.key === 'assets' || s.who === 'the client' ? laneOwner('CLIENT', team) : s.who; return /^the /i.test(String(w || '')) ? '' : String(w || ''); };
-  await Promise.resolve().then(() => d.putSetting(env, 'calCountdown', JSON.stringify(countdownFrom(data, today, stepWho)))).catch(() => {});
-  if (!(await jobOn(env, 'calendarCountdown', d.getSetting))) { out.countdown = 'quiet'; return out; }
+  await keepCountdown(env, d, data, today);
+  /* jobOn:calendarCountdown = 'off' quiets the countdown asks alone (tomorrow and a week out, which the Locus line now
+     carries); the Monday "Set the end date" ask for a sale with no end has no Locus line, so it still posts. */
+  const countdownOn = await jobOn(env, 'calendarCountdown', d.getSetting);
+  if (!countdownOn) out.countdown = 'quiet';
   /* Internal: only what needs the team (something still open the day before or a week out; Mondays, a sale with no end).
      "Live tomorrow" rides on the morning card while it is on (2026-10-13), so it is not posted twice. */
   const carded = await cardOn(env).catch(() => false);
@@ -542,8 +563,8 @@ export async function calendarTick(env, d) {
     };
     for (const e of mine) {
       const open = (e.steps || []).filter(s => s.state !== 'done');
-      if (e.start === add(today, 1) && open.length && !carded) asks(e, open, 'goes live tomorrow');
-      if (e.start === add(today, 7) && open.length) asks(e, open, `goes live ${wd(e.start)} ${md(e.start)}`);
+      if (countdownOn && e.start === add(today, 1) && open.length && !carded) asks(e, open, 'goes live tomorrow');
+      if (countdownOn && e.start === add(today, 7) && open.length) asks(e, open, `goes live ${wd(e.start)} ${md(e.start)}`);
       if (monday && e.src === 'cal' && e.kind === 'sale' && !e.end && e.start <= add(today, -7))
         groups.push({ lane: 'CLIENT', brand: b.name, items: [{ who: laneOwner('CLIENT', team), ask: `Set the end date for ${e.name}, or tap "It ended today" on it`, why: `no end date, ${Math.round((Date.parse(today) - Date.parse(e.start)) / 864e5)} days in` }] });
     }

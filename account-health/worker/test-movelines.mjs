@@ -5,7 +5,7 @@
  */
 import { DatabaseSync } from 'node:sqlite';
 import assert from 'node:assert/strict';
-import { lineItems, gatherLines, countdownFrom, LINE_SOURCES, tkey } from './src/movelines.js';
+import { lineItems, gatherLines, countdownFrom, LINE_SOURCES, tkey, keepNewMeta, countdownStale, NEW_META_KEY, V5, v5Link } from './src/movelines.js';
 import { _test as mw, DM_SKIP } from './src/mywork.js';
 import { _test as cn, callNudgeTick } from './src/callnudge.js';
 import { _resetFlags } from './src/jobflags.js';
@@ -187,7 +187,8 @@ await ok('gatherLines reads every source from D1 and a missing table leaves its 
   db.exec(`INSERT INTO p_br_batch VALUES ('b1', '12', 'Winter statics', 'Sam', 'making', 'brand_northlake_golf');
     INSERT INTO p_work_comment VALUES ('c1', 'b1', 'brand_northlake_golf', NULL, 'Client Person', 'client', 'Bigger logo', 'change_request', datetime('now'));
     INSERT INTO p_newclient VALUES ('n1', 'Harbor Tees', NULL, 'C0SAMPLE', '{}', datetime('now'));
-    INSERT INTO accounts VALUES ('act_100', 'Harbor Tees US');
+    INSERT INTO accounts VALUES ('act_100', 'Harbor Tees US'), ('act_200', 'Old unrelated account'), ('act_300', 'Synced long ago');
+    INSERT INTO daily_insights VALUES ('act_300');
     INSERT INTO brands VALUES ('brand_northlake_golf', 'Northlake Golf');
     INSERT INTO p_br_doc VALUES ('brand_northlake_golf', '', 'clarity');
     INSERT INTO p_trybe_sub VALUES ('brand_northlake_golf', 't1', 'pending', 0), ('brand_northlake_golf', 't2', 'approved', 0), ('brand_northlake_golf', 't3', 'approved', 0);
@@ -196,6 +197,8 @@ await ok('gatherLines reads every source from D1 and a missing table leaves its 
   setS('connectInvited:brand_northlake_golf', { email: '2026-11-28T10:00:00Z', clarity: '2026-11-28T10:00:00Z' });
   setS('connectPending:brand_pine_ridge', { google_ads: { id: '1234567890', error: 'refused' } });
   setS('feature:creatorProgram', 'on');
+  /* only act_100 was new at a discovery; act_200 sits in the old pool and must not be counted, act_300 has synced */
+  setS(NEW_META_KEY, [{ act: 'act_100', name: 'Harbor Tees US', at: new Date().toISOString() }, { act: 'act_300', name: 'Synced long ago', at: new Date().toISOString() }]);
   setS(`mondayPlans:${TODAY}`, { date: TODAY, brands: [{ act: 'brand_northlake_golf', name: 'Northlake Golf' }] });
   const today = new Date().toISOString().slice(0, 10);
   const d = { getSetting, centralHour: () => 9 };
@@ -216,6 +219,68 @@ await ok('gatherLines reads every source from D1 and a missing table leaves its 
   const empty = await gatherLines(env, d, { today, brands: [] });
   assert.deepEqual(empty.comments, []); assert.deepEqual(empty.connect, []);
   assert.deepEqual(lineItems(empty, BOSS, opts), []);
+});
+
+await ok('new Meta accounts: only the ones new at a discovery count, 14 days, and none = no match line', async () => {
+  fresh();
+  db.exec(`CREATE TABLE p_newclient (id TEXT, name TEXT, act_id TEXT, slack_internal TEXT, steps_json TEXT, created_at TEXT);
+    CREATE TABLE connections (brand_id TEXT, kind TEXT, external_id TEXT);
+    CREATE TABLE accounts (act_id TEXT, name TEXT);
+    CREATE TABLE daily_insights (act_id TEXT);`);
+  db.exec(`INSERT INTO p_newclient VALUES ('n1', 'Harbor Tees', NULL, 'C0SAMPLE', '{}', datetime('now'));
+    INSERT INTO accounts VALUES ('act_1', 'A'), ('act_2', 'B'), ('act_3', 'C'), ('act_4', 'D');`);
+  const today = new Date().toISOString().slice(0, 10), d = { getSetting };
+  let L = await gatherLines(env, d, { today });
+  assert.equal(L.newClients.untracked, 0, 'a pool of old unconnected accounts with nothing new is not a line');
+  assert.equal(lineItems(L, BOSS, opts).filter(i => i.id.startsWith('newmeta:match')).length, 0);
+  /* a discovery finds act_4 new; a second one finds nothing new and keeps it; an old entry ages out */
+  const now = new Date().toISOString(), old = new Date(Date.now() - 20 * 864e5).toISOString();
+  setS(NEW_META_KEY, [{ act: 'act_2', name: 'B', at: old }]);
+  await keepNewMeta(env, [{ act_id: 'act_4', name: 'D' }], now);
+  await keepNewMeta(env, [], now);
+  assert.deepEqual(JSON.parse(await getSetting(env, NEW_META_KEY)).map(f => f.act), ['act_4'], 'kept 14 days, never twice');
+  L = await gatherLines(env, d, { today });
+  assert.equal(L.newClients.untracked, 1);
+  assert.deepEqual(lineItems(L, BOSS, opts).map(i => i.text), ['1 new Meta ad account to match to a client']);
+  /* matched: a meta connection on it clears the line */
+  db.exec(`INSERT INTO connections VALUES ('brand_harbor_tees', 'meta', 'act_4')`);
+  L = await gatherLines(env, d, { today });
+  assert.equal(L.newClients.untracked, 0);
+});
+
+await ok('every move line carries an absolute link for the old My work page; v5 still wins on the v5 bell', () => {
+  const cr = { brands: [{ act: 'brand_northlake_golf', name: 'Northlake Golf', review: 1, queue: 1 }], team: { brand_northlake_golf: { strat: 'Riley', buyer: 'Riley' } } };
+  const comments = [1, 2].map(i => ({ id: 'c' + i, batch_id: 'b' + i, num: String(i), title: 'T', act_id: 'a', assignee_name: 'Riley', board_stage: 'making', kind: 'change_request', author_name: 'Client', body: 'x', created_at: '2026-11-29 10:00:00' }));
+  const L = { today: TODAY, newClients: { waiting: [{ name: 'Harbor Tees', blocked: false }, { name: 'Pine Ridge', blocked: true }], untracked: 1 },
+    connect: [{ act: 'a', name: 'N', key: 'email', label: 'Klaviyo private key', how: 'x' }], creators: cr, comments, versions: {},
+    countdown: { date: TODAY, items: [{ id: 'e', event: 'Winter drop', start: '2026-12-01', who: '', steps: ['Ads built'] }] } };
+  const it = lineItems(L, BOSS, opts);
+  assert.equal(new Set(it.map(i => i.source)).size, 5);
+  for (const i of it) assert.match(i.link, /^https:\/\//, i.id + ' has an absolute link');
+  for (const i of it.filter(x => x.v5)) assert.equal(i.link, v5Link(i.v5));
+  assert.equal(v5Link(V5.calendar), 'https://locus.go-mobius-digital.com/profit/v5/#/agency/all/a-calendar/index');
+});
+
+await ok('countdown: a step owner of two names reaches both; the snapshot is redone while it lists open steps', () => {
+  const cd = { date: TODAY, items: [{ id: 'e', event: 'Winter drop', start: '2026-12-01', who: 'Sam + Kai', steps: ['Ads built'] }] };
+  assert.equal(lineItems({ today: TODAY, countdown: cd }, SAM, opts).length, 1);
+  assert.equal(lineItems({ today: TODAY, countdown: cd }, KAI, opts).length, 1);
+  assert.equal(lineItems({ today: TODAY, countdown: { ...cd, items: [{ ...cd.items[0], who: 'Kai and Riley' }] } }, SAM, opts).length, 0);
+  assert.equal(countdownStale(null, TODAY), true, 'none yet (deploy day): make it');
+  assert.equal(countdownStale({ date: '2026-11-29', items: [] }, TODAY), true, 'from yesterday');
+  assert.equal(countdownStale(cd, TODAY), true, 'open steps: check again next hour');
+  assert.equal(countdownStale({ date: TODAY, items: [] }, TODAY), false, 'nothing open today: leave it');
+});
+
+await ok('card comments: a card moved to Scheduled or Off clears changes asked; a tag is a week, and a live or off card drops it', () => {
+  const base = { batch_id: 'b1', num: '12', title: 'Winter statics', act_id: 'a', assignee_name: 'Sam', created_at: '2026-11-29 10:00:00' };
+  const ch = stage => [{ ...base, id: 'c1', board_stage: stage, kind: 'change_request', author_name: 'Client', body: 'Bigger logo' }];
+  assert.equal(lineItems({ today: TODAY, comments: ch('making'), versions: {} }, SAM, opts).length, 1);
+  for (const st of ['scheduled', 'off', 'ready', 'live', 'done']) assert.equal(lineItems({ today: TODAY, comments: ch(st), versions: {} }, SAM, opts).length, 0, st);
+  const tag = (stage, at) => [{ ...base, id: 'c2', assignee_name: 'Kai', board_stage: stage, kind: 'comment', author_name: 'Kai', body: '@Sam look', created_at: at }];
+  assert.equal(lineItems({ today: TODAY, comments: tag('review', '2026-11-29 10:00:00'), versions: {} }, SAM, opts).length, 1);
+  assert.equal(lineItems({ today: TODAY, comments: tag('review', '2026-11-20 10:00:00'), versions: {} }, SAM, opts).length, 0, 'older than a week');
+  assert.equal(lineItems({ today: TODAY, comments: tag('live', '2026-11-29 10:00:00'), versions: {} }, SAM, opts).length, 0, 'the card is live');
 });
 
 console.log(process.exitCode ? 'test-movelines: FAILED' : `test-movelines: ${n} checks passed`);
