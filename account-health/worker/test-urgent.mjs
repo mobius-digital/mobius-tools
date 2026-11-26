@@ -97,6 +97,19 @@ await ok('hidden today stays hidden; it comes back the next day if still true', 
   assert.deepEqual(next.opened, ['owner@agency.example'], 'the next Central day it reopens');
   assert.equal(rows(`SELECT state FROM p_notice`)[0].state, 'open'); assert.equal(rows(`SELECT COUNT(*) AS c FROM p_notice`)[0].c, 1);
 });
+await ok('hide, then it clears, then it breaks again the same day: a new episode opens the row again', async () => {
+  fresh(); as('owner@agency.example');
+  await raiseAlert(env, d, { ...SPEND, now: T0 });
+  const id = rows(`SELECT id FROM p_notice`)[0].id;
+  const nowD = { ...d, now: () => new Date(T0) };
+  await handleAutomations(new Request('https://x.test/api/notices/done', { method: 'POST', body: JSON.stringify({ id }) }), env, '/api/notices/done', json, nowD);
+  assert.equal(rows(`SELECT answer FROM p_notice`)[0].answer, 'hidden');
+  await clearAlert(env, d, { type: 'spend_high', thing: 'brand_northlake_golf', now: hrs(1) });
+  assert.equal(rows(`SELECT answer FROM p_notice`)[0].answer, 'fixed', 'the hidden episode ended with the fix');
+  const back = await raiseAlert(env, d, { ...SPEND, now: hrs(5) });
+  assert.deepEqual(back.opened, ['owner@agency.example'], 'same Central day, new episode: open again');
+  assert.equal(rows(`SELECT state FROM p_notice`)[0].state, 'open'); assert.equal(rows(`SELECT COUNT(*) AS c FROM p_notice`)[0].c, 1);
+});
 await ok('who hears: brand buyer, else all buyer, else owner; brandsFor drops; never a client', async () => {
   fresh();
   assert.deepEqual(await alertPeople(env, d, 'spend_low', 'brand_northlake_golf'), ['owner@agency.example']);

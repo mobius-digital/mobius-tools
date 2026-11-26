@@ -5,7 +5,8 @@
  *   thing_key  '<type>:<thing>' (a brand id, 'agency', or a platform id)
  *   created_at when this episode started; seen_at the last time a check saw it
  * A second raise refreshes the same row (never a second row, never a second ping). A fix clears it ('done', answer
- * 'fixed'). A person may hide it for today ('done', answer 'hidden'); it comes back tomorrow if still true.
+ * 'fixed'). A person may hide it for today ('done', answer 'hidden'); it comes back tomorrow if still true, or sooner when it
+ * clears and then breaks again (a new episode).
  *
  * The row is written BEFORE any existing Slack post in the same function and whether or not that post goes. Slack
  * and email COPIES go only on a new episode, only when settings notifyCopies is 'on' (off until Dec 5), and only on
@@ -127,6 +128,9 @@ export async function clearAlert(env, d, { type, thing, now } = {}) {
   await ensureUrgent(env);
   const key = `${type}:${thing || 'agency'}`;
   await env.DB.prepare(`UPDATE p_notice SET state = 'done', answer = 'fixed', done_at = ?2, done_by = 'locus' WHERE thing_key = ?1 AND state = 'open'`).bind(key, iso(now)).run();
+  /* "Hide for today" hides the episode, not the thing: once it is fixed, a hidden row ends too, so the same thing
+     breaking again later the same day is a new episode and opens again. */
+  await env.DB.prepare(`UPDATE p_notice SET answer = 'fixed', done_at = ?2, done_by = 'locus' WHERE thing_key = ?1 AND state = 'done' AND answer = 'hidden'`).bind(key, iso(now)).run();
   return { cleared: key };
 }
 

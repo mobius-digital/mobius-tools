@@ -4,7 +4,7 @@
  */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { spendHigh, highAlertText, lowAlertText, lowToday, HIGH_FACTOR, HIGH_MIN_OVER, DELIVERY_FLOOR, DELIVERY_MIN_SPEND } from './src/delivery.js';
+import { spendHigh, completedDayNormal, highAlertText, lowAlertText, lowToday, HIGH_FACTOR, HIGH_MIN_OVER, DELIVERY_FLOOR, DELIVERY_MIN_SPEND } from './src/delivery.js';
 
 let n = 0;
 const ok = (name, fn) => { try { fn(); n++; } catch (e) { console.error('FAILED: ' + name + '\n', e); process.exitCode = 1; } };
@@ -70,6 +70,13 @@ ok('lowToday returns exactly what the old checkToday arithmetic did (three fixed
   assert.equal(lowToday({ spent: 0, l7_by_now: 20, l7_daily_avg: 100 }, null), null, 'too early to judge');
   assert.equal(lowToday(null, null), null);
   assert.equal(lowToday({ spent: 0, l7_by_now: 80, l7_daily_avg: 400 }, null).hint, 'Check billing, campaign status and policy.');
+});
+ok('a completed day is judged against the biggest prior day, so a sale day before a planned cut is not far above normal', () => {
+  const prior = [500, 500, 500, 800, 1500, 1500, 1500];
+  assert.equal(completedDayNormal(prior), 1500);
+  assert.equal(spendHigh({ spent: 1500, normal: completedDayNormal(prior), budget: 500 }), null, 'the cut morning stays quiet');
+  assert.ok(spendHigh({ spent: 2400, normal: completedDayNormal(prior), budget: 500 }), 'far above every prior day still fires');
+  assert.equal(completedDayNormal([]), 0);
 });
 ok('worker.js: the high side keeps its own state keys and never writes day, intra or alerted', () => {
   const src = readFileSync(new URL('./src/worker.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n');

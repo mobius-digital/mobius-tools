@@ -1057,6 +1057,9 @@ export async function handleAutomations(request, env, path, json, d) {
       .filter(a => (me.client ? tellsMe(a) && (a.brand === 'all' || me.only.has(a.brand)) : sees(a.brand) || a.owner === me.email));
     /* The notify presets (notify.js): which types and channels this person picked. Owner only types only for the owner. */
     const who = { owner: me.owner, client: !!me.client }, cat = catalogTypes(who);
+    /* Someone already on the morning brief DM list starts with Slack DM on (their real state today). */
+    /* mywork.js is read late: a static import closes a loop (actions.js -> meetings.js -> automations.js). */
+    if (!me.client) who.slackDm = await import('./mywork.js').then(m => m.onMorningDmList(env, d, me.email)).catch(() => false);
     await ensureNotify(env);
     if (m === 'PUT') {
       const now = nowOf(d).toISOString(), b = body.delivery && typeof body.delivery === 'object' ? body.delivery : null;

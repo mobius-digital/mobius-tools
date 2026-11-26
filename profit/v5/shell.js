@@ -283,7 +283,7 @@ function bellRow(r, route, lead) {
   const text = [].concat(r.text || '').map(p => (p && typeof p === 'object' ? h('b', null, p.b) : p));
   const b = r.btn;
   const link = b && (b.href || (b.line ? href(normalise({ view: route.view, brand: route.brand, line: b.line, tab: b.tab })) : null));
-  return h('div', { class: 'lx-bell-row' },
+  return h('div', { class: 'lx-bell-row' + (r.urgent ? ' urgent' : '') },
     r.who ? avatar(r.who, { size: 38 }) : h('span', { class: 'lx-bell-mark', role: 'img', 'aria-label': APP_NAME }, svgNode(mark(18))),
     h('div', { class: 't' }, h('p', null, text), h('span', { class: 'm' }, [r.brand && h('b', null, r.brand), r.by, r.when].filter(Boolean).flatMap((x, i) => (i ? [h('i'), x] : [x])))),
     b && link ? button(b.label, { href: link, target: b.href && /^https?:/.test(b.href) ? '_blank' : null, primary: !!(lead && b.primary) }) : null);

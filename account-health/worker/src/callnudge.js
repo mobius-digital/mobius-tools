@@ -78,7 +78,7 @@ export async function callNudgeTick(env, d) {
          A meeting that fails to finish falls back to the old DM asking him to press it. */
       const done = [], failed = [];
       if (d.finish) for (const c of due) { try { await d.finish(c.id); done.push(c); } catch (e) { failed.push(c); } }
-      /* 2026-11-26: the two DMs below are a quiet job (jobflags.js jobOn:meetingFinishedDm). Finish and the stamps still run. */
+      /* 2026-11-26: the "finished at noon" DM is a quiet job (jobflags.js jobOn:meetingFinishedDm). Finish and the stamps still run. */
       const dmOn = await jobOn(env, 'meetingFinishedDm', d.getSetting);
       if (done.length && !dmOn) {
         for (const c of done) await d.putSetting(env, `callNudge:open:${c.id}`, new Date().toISOString());
@@ -90,10 +90,9 @@ export async function callNudgeTick(env, d) {
         out.finished = done.map(c => c.id);
       }
       const ask = d.finish ? failed : due;
-      if (ask.length && !dmOn) {
-        for (const c of ask) await d.putSetting(env, `callNudge:open:${c.id}`, new Date().toISOString());
-        out.open = ask.map(c => c.id); out.quiet = true;
-      } else if (ask.length) {
+      /* The "not finished" DM is NOT quiet: until Finish, nothing from the meeting reaches a task, a request or the
+         client's report, so a failed Finish always tells Cole. Only the "finished at noon" DM above is FYI. */
+      if (ask.length) {
         const lines = ask.map(c => `• <${callLink(c)}|${esc(c.title || 'A meeting')}>`).join('\n');
         const text = `*OPS · Meetings not finished*\n<@${COLE}>  Open ${ask.length === 1 ? 'this meeting' : 'these meetings'} and press Finish:\n${lines}\nWhy: until Finish, nothing from the meeting becomes a task, a request or a line in the client's report.`;
         await d.slackApi(env, 'chat.postMessage', { channel: COLE, text, blocks: [{ type: 'section', text: md(text) }] });

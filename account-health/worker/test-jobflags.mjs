@@ -108,7 +108,7 @@ await ok('cleanJobs refuses a non owner and ignores unknown ids; cleanFeatures k
   assert.deepEqual(cleanJobs({ todayPost: true, smokePost: 'on', nope: true, leakLine: false }, true), { todayPost: true, smokePost: true, leakLine: false });
   assert.deepEqual(cleanFeatures({ creatorProgram: false, socialPosting: true, other: true }), { creatorProgram: false, socialPosting: true });
 });
-await ok('callNudge with the flag off still finishes and stamps, but posts nothing', async () => {
+await ok('callNudge with the flag off still finishes and stamps, posts no FYI, but a failed Finish still DMs', async () => {
   fresh();
   db.exec(`CREATE TABLE p_call (id TEXT PRIMARY KEY, kind TEXT, act_id TEXT, title TEXT, status TEXT, state_json TEXT, started_at TEXT, updated_at TEXT, date TEXT)`);
   const quietFor = new Date(Date.now() - 3 * 36e5).toISOString();
@@ -120,10 +120,13 @@ await ok('callNudge with the flag off still finishes and stamps, but posts nothi
     finish: async id => { if (id.startsWith('client')) throw new Error('could not finish'); finished.push(id); } };
   const r = await callNudgeTick(env, dep);
   assert.deepEqual(finished, ['monday:2026-03-11'], 'finish still runs');
-  assert.equal(posts.length, 0, 'no DM');
+  assert.equal(posts.length, 1, 'only the not finished DM');
+  assert.match(posts[0][1].text, /Meetings not finished/);
+  assert.doesNotMatch(posts[0][1].text, /Monday call/, 'the finished one is not in it');
   assert.ok(await getSetting(env, 'callNudge:open:monday:2026-03-11'), 'the finished call is stamped');
-  assert.ok(await getSetting(env, 'callNudge:open:client:b:2026-03-11'), 'the one left open is stamped');
+  assert.ok(await getSetting(env, 'callNudge:open:client:b:2026-03-11'), 'the one left open is stamped after its DM');
   assert.equal(r.quiet, true);
+  posts.length = 0;
   /* Switched on: the DMs come back exactly as before. */
   fresh();
   db.exec(`CREATE TABLE p_call (id TEXT PRIMARY KEY, kind TEXT, act_id TEXT, title TEXT, status TEXT, state_json TEXT, started_at TEXT, updated_at TEXT, date TEXT)`);

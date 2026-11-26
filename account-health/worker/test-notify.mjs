@@ -10,6 +10,7 @@ import { NOTIFY_TYPES, NOTIFY_PRESETS, catalogTypes, fillPreset, applyPreset, ap
 import { handleAutomations, _reset } from './src/automations.js';
 import { CLIENT_RULES } from './src/brandguard.js';
 import { _test as myWork } from './src/mywork.js';
+import { ROSTER } from './src/actions.js';
 
 let db;
 const bindSql = sql => sql.replace(/\?(\d+)/g, (_, n) => ':p' + n);
@@ -131,6 +132,23 @@ await ok('GET then PUT /api/me/delivery keeps the old fields and round trips not
   assert.equal((await call('GET', '/api/me/delivery')).body.catalog.copies_on, true);
   as('owner@agency.example');
   assert.ok((await call('GET', '/api/me/delivery')).body.catalog.types.some(t => t.id === 'outage'), 'the owner sees owner only types');
+});
+await ok('someone on the morning brief DM list sees Slack DM on with nothing saved, and a first save keeps it', async () => {
+  fresh();
+  const r = ROSTER.find(x => x.email && x.name !== 'Cole');   // a roster person, read from code (no name typed here)
+  setS('myworkDmPeople', [r.name]); as(String(r.email).toLowerCase());
+  const g = await call('GET', '/api/me/delivery');
+  assert.equal(g.body.notify.channels.slack_dm, true, 'the page shows the DM they get today');
+  assert.equal(g.body.notify.types.morning_brief.slack_dm, true);
+  const p = await call('PUT', '/api/me/delivery', { notify: { channels: { email: true } } });
+  assert.equal(p.body.notify.channels.slack_dm, true, 'an unrelated save does not drop the DM');
+  const people = myWork.peopleFrom({});
+  const saved = { [String(r.email).toLowerCase()]: p.body.notify };
+  assert.ok(myWork.dmRecipients([r.name], people, saved).some(x => x.name === r.name), 'still on the 5am DM');
+  setS('myworkDmPeople', []); fresh(); setS('myworkDmPeople', []); as(String(r.email).toLowerCase());
+  assert.equal((await call('GET', '/api/me/delivery')).body.notify.channels.slack_dm, false, 'off the list: the plain default');
+  assert.equal(defaultNotify(TEAM, { slackDm: true }).types.morning_brief.slack_dm, true);
+  assert.equal(defaultNotify(TEAM).channels.slack_dm, false);
 });
 await ok('a client PUT keeps only client_waiting, never slack or push', async () => {
   fresh(); as('pat@northlake.example', { email: 'pat@northlake.example', ids: new Set(['brand_northlake_golf']) });

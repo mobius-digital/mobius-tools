@@ -13,7 +13,7 @@
 
 import { put } from '../../kit.js';
 import { h, em, empty, card, table, kpis, kpi, avatar, statusDot, addStyles, segmented, toggle } from '../../kit.js';
-import { APP_NAME, ORG_SHORT } from '../../config.js';
+import { APP_NAME, ORG_SHORT, LS5, SAMPLE } from '../../config.js';
 import { css, stage, saveBar, group, row, fold, facts, pick, timePick, dayChips, onOff, numBox, exampleChip, clock, DAY_OPTS } from '../brand-settings/_set.js';
 import { ZONES } from '../brand-settings/brand.js';
 import { SAMPLE_SENDERS, storedOf, senderRows, topState, applyTop, applyKind } from './_senders.js';
@@ -62,6 +62,17 @@ const FEATURES = [
   ['socialPosting', 'Social posting', 'Parked. ' + ORG_SHORT + ' does not offer it.'],
 ];
 const featKey = name => 'agency.feature.' + name;
+/** A feature switch just saved: the menus follow at once (no reload). The same steps app.js takes on boot: the bell's
+    cached notices forgotten, the switch set, kept for the next visit, the menus drawn again. Never throws. */
+export async function featureSaved(name, v) {
+  try {
+    const [bell, menu, shell] = await Promise.all([import('../../bell.js'), import('../../menu.js'), import('../../shell.js')]);
+    bell.forgetNotices();
+    const changed = menu.setFeatures({ [name]: !!v });
+    try { localStorage.setItem(LS5.features + (SAMPLE ? '|sample' : ''), JSON.stringify(menu.featuresNow())); } catch { /* memory only */ }
+    if (changed) shell.redrawMenu();
+  } catch { /* the next boot reads them */ }
+}
 const jobKey = id => 'agency.job.' + id;
 /** The switches' current values, their names and their savers, for stage(). Empty when the server has no jobs yet. */
 export function switchesOf(fj, ctx) {
@@ -69,7 +80,7 @@ export function switchesOf(fj, ctx) {
   if (!fj) return { live, savers, names };
   for (const [name, label] of FEATURES) {
     if (!ctx.sample) live[featKey(name)] = !!fj.features[name];
-    savers[featKey(name)] = v => ctx.saveSetting('agency.features', { [name]: !!v });
+    savers[featKey(name)] = async v => { await ctx.saveSetting('agency.features', { [name]: !!v }); await featureSaved(name, v); };
     names[featKey(name)] = label;
   }
   for (const j of fj.jobs) {
@@ -206,12 +217,21 @@ function draw(el, data, ctx) {
 
 /** Real mode: only what saves on the server. */
 function drawReal(el, S, d, ctx, fj) {
+  /* 2026-11-26: Action reminders and Today's calls are quiet jobs now (taskReminders, todayPost). While its quiet job
+     is off the old switch does nothing, so it is not drawn as one: the row says where to switch it on. A server with
+     no jobs list keeps the old switches. */
+  const quietOff = id => !!fj && fj.jobs.some(j => j.id === id && !j.on);
+  const JOB_OF = { 'agency.actionRemind': 'taskReminders', 'agency.todayPost': 'todayPost' };
+  const onCell = r => (quietOff(JOB_OF[r.key])
+    ? h('span', { class: 'lx-sn-dim' }, 'Quiet. Switch it on under Quiet jobs.')
+    : onOff(S, r.key, d[r.key.split('.')[1]] ?? true, r.name));
+  const todayQuiet = quietOff('todayPost');
   const events = table({
     cols: [
       { key: 'name', label: 'Message', render: r => h('b', null, r.name) },
       { key: 'says', label: 'What it says', class: 'hide-md', render: r => h('span', { class: 'lx-sn-dim' }, r.says) },
       { key: 'when', label: 'When', class: 'hide-sm' },
-      { key: 'on', label: 'On', num: true, render: r => onOff(S, r.key, d[r.key.split('.')[1]] ?? true, r.name) },
+      { key: 'on', label: 'On', num: true, render: onCell },
     ],
     rows: [
       { key: 'agency.actionRemind', name: 'Action reminders', says: 'A promise from a meeting is due', when: 'The morning it is due' },
@@ -225,7 +245,9 @@ function drawReal(el, S, d, ctx, fj) {
     featureGroup(S, fj),
     group('The morning message', 'One message a day, at one hour (Central time)',
       row('Send at', 'The hour every morning post goes out.', h('div', { class: 'lx-st-times' }, timePick(S, 'agency.morningHour', d.morningHour ?? 5, { hours: true, label: 'Morning message hour' }))),
-      row('Morning message on', d.morningCard === false ? 'While it is off, today’s calls post on their own in each brand channel.' : 'It carries today’s calls for each brand.', onOff(S, 'agency.morningCard', d.morningCard ?? true, 'Morning message on'))),
+      row('Morning message on', d.morningCard === false
+        ? (todayQuiet ? 'While it is off, today’s calls stay in ' + APP_NAME + ' (their Slack post is a quiet job).' : 'While it is off, today’s calls post on their own in each brand channel.')
+        : 'It carries today’s calls for each brand.', onOff(S, 'agency.morningCard', d.morningCard ?? true, 'Morning message on'))),
     card({ title: 'Only when something happens', flush: true, class: 'lx-st-card' }, events),
     h('p', { class: 'lx-foot' }, 'More sending settings come when they save on the server.')));
 }

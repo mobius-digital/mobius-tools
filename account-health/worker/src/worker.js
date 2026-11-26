@@ -115,8 +115,9 @@ import { runStudioMake, studioMakeTools } from './studiomake.js';
 import { slackPostWith, senderFor, envFor, sendersOf, resolveSenders, clearSenderCache, senderPerson, buyerSlackPost } from './sender.js';
 import { handleExampleDm } from './exampledm.js';
 import { houseMessage } from './house.js';
-import { deliveryMessage, lowToday, spendHigh, highAlertText, lowAlertText, DELIVERY_FLOOR, DELIVERY_MIN_SPEND } from './delivery.js';
+import { deliveryMessage, lowToday, spendHigh, completedDayNormal, highAlertText, lowAlertText, DELIVERY_FLOOR, DELIVERY_MIN_SPEND } from './delivery.js';
 import { raiseAlert, clearAlert, urgentSweep } from './urgent.js';
+import { OWNER_EMAIL } from './extwrite.js';
 import { jobOn, featureOn, jobsView, cleanJobs, cleanFeatures, featureSaved } from './jobflags.js';
 /* /api/tw-day's 60-second memo (2026-10-26, Locus speed): key = brand | shop | day -> { at, p }. */
 const TW_DAY_MEMO = new Map();
@@ -4102,8 +4103,11 @@ async function twAttributeChannels(env, acct, channels, [s, e], [ps, pe]) {
  *  alert gets muted. Posts INTERNAL-only, never to a client channel.
  */
 async function alertClaudeFailure(env, context, message) {
-  /* 2026-11-26: the Locus alert row first, before the channel and the 12 hour dedupe (urgent.js). */
-  {
+  /* 2026-11-26: the Locus alert row first, before the channel and the 12 hour dedupe (urgent.js). One cheap read
+     first: an open row a check saw in the last hour is already there, so a burst of failures does not redo the raise. */
+  const fresh = await env.DB.prepare(`SELECT 1 AS x FROM p_notice WHERE kind = 'alert' AND ntype = 'claude_failed' AND state = 'open' AND seen_at > ?1 LIMIT 1`)
+    .bind(new Date(Date.now() - 3600e3).toISOString()).first().catch(() => null);
+  if (!fresh) {
     const credit = /credit|balance|quota|insufficient|billing|payment|402/i.test(String(message || ''));
     await alertRaise(env, { type: 'claude_failed', thing: 'agency', title: credit ? 'Claude credit looks empty' : 'Claude key or credit failed',
       body: `Claude could not write the ${context}. ${credit ? 'It looks like the credit ran out: top it up in Console > Billing.' : 'Check the credit and the API key.'} Claude said: ${String(message || '').slice(0, 200)}` });
@@ -7214,7 +7218,7 @@ async function checkCompletedDay(env, a, day) {
     hint: spend === 0 ? 'Check billing, campaign status and policy.' : 'Something may be paused or throttled.' };
 }
 
-/** Yesterday far ABOVE normal (2026-11-26): the same D1 rows as checkCompletedDay (7 day median, liveDailyBudget), no
+/** Yesterday far ABOVE normal (2026-11-26): the same D1 rows as checkCompletedDay (the 7 prior days, liveDailyBudget), no
  *  Meta call. null = nothing to judge; { ran: true } = judged and fine; else the spendHigh answer. */
 async function checkCompletedDayHigh(env, a, day) {
   const { results } = await env.DB.prepare(
@@ -7223,9 +7227,11 @@ async function checkCompletedDayHigh(env, a, day) {
   const dayRow = results.find(r => r.date === day);
   const prior = results.filter(r => r.date !== day).map(r => r.spend).sort((x, z) => x - z);
   if (prior.length < 4 || !dayRow) return null;            // not enough to judge (no row is not a number)
-  const med = prior[Math.floor(prior.length / 2)];
+  /* The bar is the biggest prior day, not the median: after a planned cut (Dec 1) today's budgets and a median of
+     quieter days would call a sale day far above normal. */
+  const normal = completedDayNormal(prior);
   const budget = await liveDailyBudget(env, a);
-  const hi = spendHigh({ spent: dayRow.spend ?? 0, normal: med, budget });
+  const hi = spendHigh({ spent: dayRow.spend ?? 0, normal, budget });
   return hi ? { ...hi, period: 'yesterday' } : { ran: true };
 }
 
@@ -7248,7 +7254,8 @@ async function checkToday(env, a) {
 
 /** The urgent alert helpers for worker.js (urgent.js). A failure here never stops the Slack path beside it. */
 function urgentDeps() {
-  return { getSetting, listAccounts, brandsFor, emailAllowed, slackApi, alertsMuted, ownerEmail: 'cole@go-mobius-digital.com' };
+  /* urgent.js reads env.OWNER_EMAIL first; this is only its fallback (the shared constant, no new literal). */
+  return { getSetting, listAccounts, brandsFor, emailAllowed, slackApi, alertsMuted, ownerEmail: OWNER_EMAIL };
 }
 async function alertRaise(env, o) {
   return raiseAlert(env, urgentDeps(), { now: new Date(), ...o }).catch(e => ({ error: e.message }));
@@ -8258,11 +8265,12 @@ const AH_APP = {
         const clientCards = await clientCardsOnce(env).catch(e => ({ error: e.message }));
         if (clientCards) ran.clientCardsUpgrade = clientCards;
         ran.delivery = await deliveryPass(env).catch(e => ({ error: e.message }));
-        /* Urgent alerts in Locus (urgent.js, 2026-11-26): clear what fixed itself. */
-        ran.urgentSweep = await urgentSweep(env, urgentDeps(), { now: new Date() }).catch(e => ({ error: e.message }));
         ran.unsentNoon = await unsentAtNoonPass(env).catch(e => ({ error: e.message }));
         /* Where we stand (standing.js, 2026-11-22): BFCM check-in DM to Cole every 3 hours Nov 26-30. Reads only. */
         { const st = await standingTick(env, standingDeps()).catch(e => ({ error: e.message })); if (!st?.skipped) ran.standing = st; }
+        /* Urgent alerts in Locus (urgent.js, 2026-11-26): clear what fixed itself. After the client send warning and
+           the check-in, so its D1 work never takes the tick's budget from them. */
+        ran.urgentSweep = await urgentSweep(env, urgentDeps(), { now: new Date() }).catch(e => ({ error: e.message }));
         if (hour >= bh) {
           ran.briefs = await dailyBriefs(env).catch(e => ({ error: e.message }));
           // Reports wait TWO hours behind the brief. They could share a tick now

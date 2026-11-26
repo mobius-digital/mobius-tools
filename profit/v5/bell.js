@@ -113,7 +113,7 @@ export function noticeRows(n, { brands = [], brand = null, client = false } = {}
     const waits = r.kind === 'proposal' || r.kind === 'release';
     const held = !SAMPLE && !!r.held_until && Date.parse(r.held_until) > now;
     const row = { text: r.title, brand: name(r.brand_id), by: client ? 'From your team' : r.kind === 'alert' ? 'Alert' : 'Automation', when: r.when || ago(r.created_at), who: null, detail: r.body || '', notice: r };
-    if (r.state === 'done') { if (SAMPLE || now - Date.parse(r.done_at || r.created_at) < 864e5) out.done.push({ ...row, when: r.kind === 'alert' ? 'hidden for today' : 'done', btn: null }); }
+    if (r.state === 'done') { if (SAMPLE || now - Date.parse(r.done_at || r.created_at) < 864e5) out.done.push({ ...row, when: r.kind === 'alert' ? (r.answer === 'hidden' ? 'hidden for today' : 'fixed') : 'done', btn: null }); }
     else if (r.state === 'open') {
       const top = !held && (waits || r.home || client);
       /* A hand off about a card (team rows only: a client's row carries no button) opens the board. */

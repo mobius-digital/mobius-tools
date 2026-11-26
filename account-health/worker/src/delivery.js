@@ -55,6 +55,13 @@ export function spendHigh({ spent, normal, budget } = {}) {
   if (!(s >= base * HIGH_FACTOR && s - base >= HIGH_MIN_OVER)) return null;
   return { spent: s, base, over: s - base };
 }
+/** The bar for a COMPLETED day (yesterday): the biggest of the prior days, not their median. The morning after a
+ *  planned cut (Dec 1 after Cyber Monday) today's budgets and a median full of quieter days sit far under a day the
+ *  sale paid for on purpose, so only spend above every recent day counts as far above normal. prior = spend numbers. */
+export function completedDayNormal(prior) {
+  const xs = (prior || []).map(Number).filter(Number.isFinite);
+  return xs.length ? Math.max(...xs) : 0;
+}
 /** The alert row's words. a = the brand, r = spendHigh's answer, period 'today' | 'yesterday'. No dashes. */
 export function highAlertText(a, r, { money, period = 'today' } = {}) {
   const fmt = v => (money ? money(v, a.currency) : `$${Math.round(v).toLocaleString('en-US')}`);

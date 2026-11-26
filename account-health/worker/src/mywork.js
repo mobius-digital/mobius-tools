@@ -267,6 +267,17 @@ export async function dmPeople(env, d) {
   return Array.isArray(set) ? set.map(x => clean(x, 30)).filter(Boolean) : DM_PEOPLE;
 }
 
+/** Is this email on today's morning brief DM list (settings myworkDmPeople or the names in code, matched on the
+ *  roster)? Used by GET/PUT /api/me/delivery so a person with nothing saved sees Slack DM on, as it really is. */
+export async function onMorningDmList(env, d, email) {
+  const em = String(email || '').trim().toLowerCase();
+  if (!em || !d || !d.getSetting) return false;
+  if ((await d.getSetting(env, 'myworkDm').catch(() => null)) === 'off') return false;
+  const people = await teamPeople(env, d), names = (await dmPeople(env, d)).map(n => n.toLowerCase());
+  const p = people.find(x => x.email && x.email.toLowerCase() === em);
+  return !!p && names.includes(p.name.toLowerCase());
+}
+
 /** Who gets the morning brief DM (2026-11-26, notify.js). Pure.
  *  (today's list: settings myworkDmPeople, else the names in code) UNION (people whose saved notify wants the morning
  *  brief by Slack DM) MINUS (people whose SAVED notify has morning_brief.slack_dm off or channels.slack_dm off).

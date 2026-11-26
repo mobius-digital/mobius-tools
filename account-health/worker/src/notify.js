@@ -8,7 +8,8 @@
  * Stored in p_person_delivery.notify_json (one column added on first use):
  *   { preset, channels: { slack_dm, email, push }, types: { [typeId]: { slack_dm, email, push } } }
  * A person with nothing saved = preset urgent_brief with every channel off: nothing leaves Locus until they turn a
- * channel on.
+ * channel on. The one exception: someone already on the morning brief DM list starts with Slack DM on, because that
+ * is what happens to them today (the page must show the truth, and a first save must not drop the DM).
  *
  * A send path never decides who wants what itself: it calls personWants(env, d, email, typeId, channel).
  * The v5 page (profit/v5/pages/profile/_notify.js) carries the same fill rules so a tap fills at once. */
@@ -100,9 +101,10 @@ export function applyCell(catalog, n, typeId, cell) {
 }
 export const isCustom = n => !!n && n.preset === 'custom';
 
-/** The default for a person with nothing saved. */
-export function defaultNotify(catalog) {
-  const channels = noChannels();
+/** The default for a person with nothing saved. slackDm = they already get a Slack DM today (the morning brief DM
+ *  list), so the page shows Slack DM on and a first save keeps it, instead of silently dropping them. */
+export function defaultNotify(catalog, { slackDm = false } = {}) {
+  const channels = { ...noChannels(), slack_dm: !!slackDm };
   return { preset: 'urgent_brief', channels, types: fillPreset(catalog, 'urgent_brief', channels) };
 }
 /** A stored or sent notify made safe: unknown types and channels dropped, booleans only, complete for the catalog.
@@ -160,11 +162,12 @@ export async function allSavedNotify(env) {
   for (const r of results || []) { const v = parse(r.notify_json); if (v) out[lower(r.person_id)] = v; }
   return out;
 }
-/** One person's notify, resolved (the default when nothing is saved). The owner sees owner types. */
-export async function notifyOf(env, email, { client = false, owner = false } = {}) {
+/** One person's notify, resolved (the default when nothing is saved). The owner sees owner types. slackDm: this
+ *  person is on today's morning brief DM list (mywork.js onMorningDmList), so their default has Slack DM on. */
+export async function notifyOf(env, email, { client = false, owner = false, slackDm = false } = {}) {
   const cat = catalogTypes({ owner, client });
   const raw = await savedNotify(env, email);
-  return raw ? cleanNotify(raw, cat, { client }) : defaultNotify(cat);
+  return raw ? cleanNotify(raw, cat, { client }) : defaultNotify(cat, { slackDm: slackDm && !client });
 }
 /** Save one person's notify (the row is made when missing; the old columns keep their defaults). */
 export async function saveNotify(env, email, n, at = new Date().toISOString()) {

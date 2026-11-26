@@ -16,7 +16,7 @@
 export const QUIET_JOBS = [
   { id: 'fyiRoundup', name: 'End of day FYI roundup', was: 'One post per brand at 4pm with what nobody has to act on', instead: 'Nothing: FYI lines are still stored' },
   { id: 'mondayBriefing', name: 'Monday Strategist briefing', was: 'A Monday morning written briefing', instead: 'Nothing needed' },
-  { id: 'meetingFinishedDm', name: 'Meetings finished or left open', was: 'A DM when Locus finished a call at noon, or one was left open', instead: 'The Calls page shows which calls are finished' },
+  { id: 'meetingFinishedDm', name: 'Meetings finished at noon', was: 'A DM when Locus finished a call at noon (a call it could not finish still DMs)', instead: 'The Calls page shows which calls are finished' },
   { id: 'meetingNotesConfirm', name: 'Call notes to confirm', was: 'A post per call with notes to confirm', instead: 'Nothing needed' },
   { id: 'taskReminders', name: 'Task reminders', was: 'Reminders with Done buttons when a task is due or late', instead: 'The bell tasks row and My day' },
   { id: 'reviewPost', name: 'Card moved to Review', was: 'A post with the ads and Approve all when a card moves to Review', instead: 'The bell review row' },

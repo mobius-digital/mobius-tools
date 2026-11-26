@@ -71,15 +71,20 @@ function render(el, d, ctx) {
   const ready = id => { const c = chanOf(id); return !!(c && (c.always || c.ready)); };
   let st = normalNotify(d.notify, types);
 
+  /* Quick taps: each save is numbered, and only the newest one's answer (or failure) repaints, so an older answer
+     never overwrites the tap after it. */
+  let seq = 0;
   const save = async (next, body) => {
-    const before = st;
+    const before = st, mine = ++seq;
     st = next; d.notify = next; paint();
     if (ctx.sample) return toast('Sample mode: nothing is saved.');
     try {
       const r = await ah(ctx, '/api/me/delivery', { method: 'PUT', body: { notify: body } });
+      if (mine !== seq) return;
       if (r && r.notify) { st = normalNotify(r.notify, types); d.notify = st; if (r.catalog) d.catalog = r.catalog; paint(); }
       toast('Saved.');
     } catch (e) {
+      if (mine !== seq) return;
       st = before; d.notify = before; paint();
       toast((e && e.message) || 'Not saved.', { tone: 'bad', ms: 5000 });
     }
@@ -111,7 +116,15 @@ function render(el, d, ctx) {
       const on = !!st.channels[c.id];
       if (c.note) notes.push(c.name + ': ' + c.note);
       return h('button', { type: 'button', class: 'nt-pill', 'aria-pressed': String(on),
-        onclick: () => save(applyChannels(st, types, { [c.id]: !on }), { channels: { ...st.channels, [c.id]: !on } }) }, c.name);
+        onclick: () => {
+          const chans = { ...st.channels, [c.id]: !on };
+          if (!client) return save(applyChannels(st, types, { [c.id]: !on }), { channels: chans });
+          /* A client has no preset card and its one type is in no preset, so the pill IS the cell: turning Email on
+             turns it on for every type the client has, in the same save. */
+          let next = applyChannels(st, types, { [c.id]: !on });
+          for (const t of types) next = applyCell(next, types, t.id, c.id, !on);
+          save(next, { channels: chans, types: Object.fromEntries(types.map(t => [t.id, next.types[t.id]])) });
+        } }, c.name);
     });
     const chanCard = card({ title: 'Also send to', note: 'Nothing leaves Locus until you turn a channel on.' },
       h('div', { class: 'nt-chan' }, h('div', { class: 'nt-pills', role: 'group', 'aria-label': 'Also send to' }, chanPills),
