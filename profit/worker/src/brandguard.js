@@ -647,6 +647,60 @@ const READONLY_CLIENT_MAY = new Set([
   'POST /api/read', 'POST /api/daycheck', 'POST /api/summarise',
 ]);
 
+/* ---------------- the Get started hold (2026-11-26, Cole: a new client finishes setting up before the rest opens) ----------------
+   onboard.js onboardGate is the answer /api/me gives the screens (profit/v5 gate.js); this is the same rule on the
+   server, so a held brand's data never leaves even when a screen asks for it. Held = a p_onboard row with the gate on,
+   not finished, and a step it shows still open (onbSteps + onbHeld, which onboard.js uses too). Never held: an old client
+   (no row), a finished row, the team and the owner (they are not clients). Per brand: a client with a running brand keeps
+   it while the new one is set up. While a brand is held its client may still open every onb route (Get started, the
+   profile, the bell) and SETUP_MAY below (its own brand list, Message the team, its own prefs and delivery). A one-job
+   colleague (onlyOnboard) is already held to the onb routes above all this. Refused: 403 {error, gated: true}.
+   Cost: one D1 read per client request on a route that is not part of setting up. "Nothing held" is kept 30 seconds per
+   brand list; a held answer is never kept, so finishing opens the app on the very next request. */
+export const onbSteps = row => (!row.extras ? ['connect'] : ONB_STEPS.filter(k => k !== 'sign_pay' || row.sign_pay));
+/** Is this p_onboard row holding its brand? `steps` = its steps_json, read. */
+export const onbHeld = (row, steps) => !!row && !!row.gate && !row.finished_at && onbSteps(row).some(k => !((steps || {})[k] || {}).done_at);
+export const SETUP_MAY = new Set([
+  'GET /api/brands', 'GET /api/requests', 'POST /api/requests', 'POST /api/requests/reply',
+  'GET /api/me/prefs', 'PUT /api/me/prefs', 'GET /api/me/delivery', 'PUT /api/me/delivery', 'POST /api/notices/done',
+]);
+export const GATED = 'Finish setting up first.';
+const NOT_HELD = new Map();   // sorted brand list -> kept until (ms); per isolate
+const NOT_HELD_MS = 30e3;
+/** Drop the kept "nothing held" answers (a row was made or reopened); only this isolate's, the rest lapse in 30 seconds. */
+export function forgetHeld() { NOT_HELD.clear(); }
+/** The client's brands held on Get started (a Set of brand ids; empty = none). */
+export async function heldBrands(env, brands) {
+  const list = [...new Set((brands || []).filter(b => /^brand_[a-z0-9_]+$/.test(b)))];
+  if (!list.length || !env || !env.DB) return new Set();
+  const key = [...list].sort().join(',');
+  const until = NOT_HELD.get(key);
+  if (until && until > Date.now()) return new Set();
+  const ph = list.map((_, i) => `?${i + 1}`).join(',');
+  /* No p_onboard table (no client was ever set up here) or a failed read = nothing held, the same as /api/me. A failed
+     read is not kept: the next request asks again, so one bad read opens a held brand for that request only. */
+  const got = await env.DB.prepare(`SELECT act_id, extras, sign_pay, gate, steps_json, finished_at FROM p_onboard WHERE act_id IN (${ph}) AND gate = 1 AND finished_at IS NULL`).bind(...list).all().catch(() => null);
+  const rows = (got || {}).results || [];
+  const held = new Set();
+  for (const r of rows) { let st = {}; try { st = JSON.parse(r.steps_json || '{}') || {}; } catch {} if (onbHeld(r, st)) held.add(String(r.act_id)); }
+  if (got && !held.size) { if (NOT_HELD.size > 500) NOT_HELD.clear(); NOT_HELD.set(key, Date.now() + NOT_HELD_MS); }
+  return held;
+}
+/** Every id a person may see right now with the Get started hold applied: a client's held brands are left out (a
+ *  one-job colleague sees none); anyone else is brandsFor (null = every brand). For senders with no request, such as
+ *  the morning DM, which the guard never sees. */
+export async function openIdsFor(env, email) {
+  const client = await clientOf(env, email).catch(() => null);
+  if (!client) return brandsFor(env, email);
+  if (client.onlyOnboard) return new Set();
+  const ids = await clientIds(env, client);
+  const held = await heldBrands(env, client.brands);
+  if (!held.size) return ids.all;
+  const all = new Set();
+  for (const [b, s] of ids.of) if (!held.has(b)) for (const x of s) all.add(x);
+  return all;
+}
+
 /* ---------------- a client's own change, logged (2026-11-26, Cole: clients change their goals and ad rules) ----------------
    One manual activities row (filed under the brand's primary Meta account, else the brand id) and one bell note per team
    person (p_notice): the owner and the team on the brand's latest New client run. Only the NEW values are named (the
@@ -720,7 +774,24 @@ async function guardClient(request, env, client, handle, CORS) {
   if (rule.p) match = null;
   /* A login with no brand left (Cole removed the last one) opens nothing at all. */
   if (!client.brands.length) return out(401, 'unauthorized');
-  const ids = await clientIds(env, client);
+  let ids = await clientIds(env, client);
+  /* The Get started hold (heldBrands above): on a route that is not part of setting up, a held brand is taken out of
+     what this request may name, own and see. Every brand held = refused outright; another brand of theirs still opens. */
+  const gated = () => new Response(JSON.stringify({ error: GATED, gated: true }), { status: 403, headers: { 'Content-Type': 'application/json', ...CORS } });
+  const full = ids.all;
+  let heldIds = null;
+  if (!rule.onb && !SETUP_MAY.has(m + ' ' + path) && !client.onlyOnboard) {
+    const held = await heldBrands(env, client.brands);
+    if (held.size) {
+      if (client.brands.every(b => held.has(b))) return gated();
+      const of = new Map([...ids.of].filter(([b]) => !held.has(b)));
+      const all = new Set(); for (const s of of.values()) for (const x of s) all.add(x);
+      heldIds = new Set([...full].filter(x => !all.has(x)));
+      ids = { of, all };
+    }
+  }
+  /* A brand that is theirs but held answers "finish setting up"; anything else is not theirs. */
+  const noBrand = v => (heldIds && heldIds.has(v) ? gated() : out(403, 'You do not have access to that brand.'));
   /* The brand named by the request: the query's act, the JSON body's act / act_id / screen.act_id, or the path. */
   /* EVERY brand field the request carries must be one of the client's brands (2026-10-14 audit): a body act sent as
      an array slipped past a string-only check and resolveBrandId turned it into another brand; a body act_id beside
@@ -730,7 +801,7 @@ async function guardClient(request, env, client, handle, CORS) {
      that is theirs, or the request is refused. */
   const deniedAct = 'You do not have access to that brand.';
   const qActs = ['act', 'act_id'].flatMap(k => url.searchParams.getAll(k)).filter(v => v !== '');
-  for (const v of qActs) if (v === 'all' || !ids.all.has(v)) return out(403, deniedAct);
+  for (const v of qActs) if (v === 'all' || !ids.all.has(v)) return v === 'all' ? out(403, deniedAct) : noBrand(v);
   let act = url.searchParams.get('act') || url.searchParams.get('act_id') || null;
   let body = null;
   if (m !== 'GET' && m !== 'HEAD') {
@@ -744,26 +815,27 @@ async function guardClient(request, env, client, handle, CORS) {
     }
     if (body && typeof body === 'object') {
       const vals = [body.act, body.act_id, body.screen && body.screen.act_id].filter(v => v !== undefined && v !== null && v !== '');
-      for (const v of vals) if (typeof v !== 'string' || v === 'all' || !ids.all.has(v)) return out(403, deniedAct);
+      for (const v of vals) if (typeof v !== 'string' || v === 'all' || !ids.all.has(v)) return typeof v !== 'string' || v === 'all' ? out(403, deniedAct) : noBrand(v);
       const bAct = vals[0] || null;
       if (bAct) { if (act && !ids.all.has(bAct)) return out(403, CLIENT_NO); act = act || bAct; }
     }
   }
   if (rule.act === 'path') { const pa = match && match[1]; if (act && act !== pa) return out(403, CLIENT_NO); act = pa; }
-  if (act === 'all' || (act && !ids.all.has(act))) return out(403, 'You do not have access to that brand.');
+  if (act === 'all') return out(403, 'You do not have access to that brand.');
+  if (act && !ids.all.has(act)) return noBrand(act);
   if ((rule.act === 'need' || rule.act === 'path') && !act) return out(403, 'Pick your brand first.');
   const brandOf = id => { for (const [b, s] of ids.of) if (s.has(id)) return b; return null; };
   if (rule.ads) {
     const raw = url.searchParams.get(rule.ads) || '';
     const list = raw.split(',').map(x => x.trim()).filter(Boolean);
     if (rule.act === 'none' && !list.length) return out(403, CLIENT_NO);
-    if (!(await adsOwned(env, list, ids.all))) return out(403, 'You do not have access to that ad.');
+    if (!(await adsOwned(env, list, ids.all))) return heldIds && (await adsOwned(env, list, full)) ? gated() : out(403, 'You do not have access to that ad.');
   }
   if (rule.bodyAds) {
     const list = rule.bodyAds.flatMap(k => { const v = body && body[k]; return v == null ? [] : Array.isArray(v) ? v : [v]; }).map(String).filter(Boolean);
-    if (!(await adsOwned(env, list, ids.all))) return out(403, 'You do not have access to that ad.');
+    if (!(await adsOwned(env, list, ids.all))) return heldIds && (await adsOwned(env, list, full)) ? gated() : out(403, 'You do not have access to that ad.');
   }
-  if (rule.own && !(await recordsOwned(env, rule.own, { body, url, match }, ids.all))) return out(403, 'That belongs to another brand.');
+  if (rule.own && !(await recordsOwned(env, rule.own, { body, url, match }, ids.all))) return heldIds && (await recordsOwned(env, rule.own, { body, url, match }, full)) ? gated() : out(403, 'That belongs to another brand.');
   if (rule.fields && body) {
     const extra = Object.keys(body).filter(k => !['act', 'act_id'].includes(k) && !rule.fields.includes(k));
     if (extra.length) return out(403, `Your login can change ${rule.fields.join(', ').replace(/_/g, ' ')} here. ${extra.join(', ').replace(/_/g, ' ')} ${extra.length === 1 ? 'is' : 'are'} set by the Mobius team.`);
@@ -796,7 +868,10 @@ async function guardClient(request, env, client, handle, CORS) {
   } else if (urlChanged) {
     req = new Request(u2.toString(), request);
   }
-  CLEARED.set(req, { email: client.email, name: client.name, brands: client.brands, access: client.access, ids: ids.all, brandOf, hq: client.hq === true, onlyOnboard: client.onlyOnboard || null });
+  /* A held brand is left out of the scope the handler sees too (its brands, ids and access). */
+  const open = heldIds ? client.brands.filter(b => ids.of.has(b)) : client.brands;
+  const access = heldIds ? Object.fromEntries(Object.entries(client.access || {}).filter(([b]) => ids.of.has(b))) : client.access;
+  CLEARED.set(req, { email: client.email, name: client.name, brands: open, access, ids: ids.all, brandOf, hq: client.hq === true, onlyOnboard: client.onlyOnboard || null });
   const res = await handle(req);
   if (charge && res.status < 400) await capAdd(env, rule.cap[0], client.email, charge);
   /* A client's change to its own goals or ad rules is logged with who made it, and the team is told (2026-11-26). */

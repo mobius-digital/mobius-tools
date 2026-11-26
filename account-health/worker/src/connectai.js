@@ -51,7 +51,7 @@
  *
  * Tables are additive and made on first use (p_ai_key, p_ai_call, p_ai_proposal). Nothing here runs on a schedule.
  */
-import { brandsFor, clientOf } from './brandguard.js';
+import { brandsFor, openIdsFor, clientOf, GATED } from './brandguard.js';
 
 const VERSION = '1.0.0';
 /* The protocol versions this server speaks, newest first (modelcontextprotocol.io, Streamable HTTP transport). */
@@ -146,8 +146,10 @@ export const canSeeCard = (person, row) => sideOf(person) === 'team' || row.audi
 
 /** The brands this person may see today, narrowed by the key's own list. `keyBrands` is 'all' or a list of brand ids. */
 export async function scopeOf(env, d, person, keyBrands = 'all') {
-  /* brandsFor is the app's own answer: null = every brand (the owner, a teammate with no limit), else the set. */
-  const only = await brandsFor(env, person.email);
+  /* brandsFor is the app's own answer: null = every brand (the owner, a teammate with no limit), else the set.
+     openIdsFor is that with the Get started hold: a client's brand still being set up is not in a key's scope (its
+     name and goals included), the same as the brand guard on every app route. */
+  const only = await openIdsFor(env, person.email);
   /* A client is never "every brand": if its list could not be read, it sees nothing. */
   if (person.role === 'client' && !only) return { brands: [], ids: new Set(), all: false };
   const mine = Array.isArray(keyBrands) ? new Set(keyBrands.map(String)) : null;
@@ -161,7 +163,11 @@ export async function scopeOf(env, d, person, keyBrands = 'all') {
 export async function createKey(env, d, person, { label = '', days = DEFAULT_DAYS, brands = null } = {}) {
   await ensure(env);
   const scope = await scopeOf(env, d, person, 'all');
-  if (!scope.brands.length) return { error: 'You have no brands yet, so there is nothing for a key to read.', status: 403 };
+  if (!scope.brands.length) {
+    const theirs = person.role === 'client' ? await brandsFor(env, person.email).catch(() => null) : null;
+    if (theirs && theirs.size) return { error: GATED, gated: true, status: 403 };
+    return { error: 'You have no brands yet, so there is nothing for a key to read.', status: 403 };
+  }
   let list = scope.all ? 'all' : scope.brands.map(b => b.id);
   if (Array.isArray(brands) && brands.length) {
     const want = brands.map(String);
@@ -663,7 +669,7 @@ async function handleApi(request, env, d, url) {
     if (!on) return json({ error: 'Connecting your own AI is not switched on yet.' }, 403);
     const b = await body();
     const r = await createKey(env, d, person, { label: b.label, days: b.days, brands: b.brands });
-    if (r.error) return json({ error: r.error }, r.status || 400);
+    if (r.error) return json({ error: r.error, ...(r.gated ? { gated: true } : {}) }, r.status || 400);
     return json({ ...r, address, personal_address: `${address}/${r.key}`, note: 'This is the only time the key is shown. Copy it now.' });
   }
   if (path === API_PATH + '/keys/revoke' && m === 'POST') {

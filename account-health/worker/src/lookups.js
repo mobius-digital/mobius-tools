@@ -781,7 +781,8 @@ async function whoOnWeb(env, request, d) {
   const cs = clientScope(request);
   const email = await d.sessionEmail(env, request).catch(() => null);
   /* A client login is always limited to its own brands; a teammate to theirs; the owner and an unlisted teammate see all. */
-  const only = cs ? await brandsFor(env, cs.email).then(s => s || new Set()) : await brandsFor(env, email).catch(() => null);
+  /* A client: only the brands the guard cleared for this request (a brand held on Get started is left out). */
+  const only = cs ? (cs.ids instanceof Set ? cs.ids : await brandsFor(env, cs.email).then(s => s || new Set())) : await brandsFor(env, email).catch(() => null);
   return { cs, email, only, who: cs ? cs.email : (email || 'admin') };
 }
 

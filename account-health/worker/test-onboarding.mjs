@@ -265,6 +265,84 @@ await check('the gate rides on /api/me: a new client is held on Get started; a s
   assert.equal((await ah(PAT, 'GET', '/api/me')).j.client.onboarding.all_gated, true);
 });
 
+/* The server's own hold (brandguard.js heldBrands, 2026-11-26): the same answer as /api/me, on every route. */
+const isHeld = r => r.status === 403 && !!r.j && r.j.gated === true && r.j.error === 'Finish setting up first.';
+const isOpen = r => r.status !== 401 && r.status !== 403;
+await check('the server holds a gated client: brand data refused on both workers (403 gated), every Get started route open, old clients and the team never held, two brands held on the new one only', async () => {
+  assert.deepEqual((await ah(PAT, 'GET', '/api/me')).j.client.onboarding.gated_brands, [ACT]);
+  /* Data routes for the held brand: refused, on account-health and on the profit worker, with or without a brand named. */
+  const data = [['ah', `/api/production?act=${ACT}`], ['ah', `/api/meta/live?act=${ACT}`], ['ah', `/api/daycheck/now?act=${ACT}`],
+    ['pf', `/api/hub/live?act=${ACT}`], ['pf', `/api/client?act=${ACT}&days=30`], ['pf', `/api/costs?act=${ACT}`], ['pf', '/api/overview?days=30&series=0'], ['ah', '/api/metaday?days=30']];
+  const leaked = [];
+  for (const [w, p] of data) { const r = await call(w, PAT, 'GET', p); if (!isHeld(r)) leaked.push(`${w} ${p} -> ${r.status} ${JSON.stringify(r.j).slice(0, 80)}`); }
+  assert.deepEqual(leaked, [], 'not held:\n' + leaked.join('\n'));
+  assert.ok(isHeld(await ah(PAT, 'PUT', `/api/accounts/${ACT}`, { target_roas: 9 })), 'a write to the held brand');
+  assert.ok(isHeld(await pf(PAT, 'PUT', '/api/goals', { act: ACT, sales: 1 })), 'a write on the profit worker');
+  assert.ok(isHeld(await ah(PAT, 'GET', `/api/production?act_id=${ACT}`)), 'act_id alone');
+  /* Every route Get started, the profile, the welcome cards and the bell call stays open. */
+  const setup = [['GET', '/api/me'], ['GET', '/api/clients/me'], ['GET', `/api/onboard?act=${ACT}`], ['GET', `/api/brand/assets-link?act=${ACT}`], ['GET', '/api/notices'],
+    ['GET', '/api/brands'], ['GET', `/api/requests?act=${ACT}`], ['GET', '/api/me/prefs'], ['GET', '/api/me/delivery']];
+  const shut = [];
+  for (const [m, p] of setup) { const r = await ah(PAT, m, p); if (!isOpen(r)) shut.push(`${m} ${p} -> ${r.status} ${JSON.stringify(r.j).slice(0, 80)}`); }
+  const writes = [['PUT', '/api/clients/me', { welcome_seen: true }], ['POST', '/api/requests', { act: ACT, kind: 'request', title: 'Locus feedback', text: 'Hello from setup' }],
+    ['PUT', '/api/me/prefs', { morning_dm: false }], ['PUT', '/api/onboard/connect', { act: ACT, platform: 'email', skip: false }],
+    /* Bodies that change nothing (a bad value, an unknown id): only "is it let through" is checked here. */
+    ['POST', '/api/requests/reply', { id: 'req_nope', text: 'hi' }], ['PUT', '/api/me/delivery', { delivery: 'nope' }], ['POST', '/api/notices/done', { id: 'nt_nope' }],
+    ['PUT', '/api/brand/assets-link', { act: ACT, url: 'javascript:alert(1)' }], ['PUT', '/api/onboard/brief', { act: ACT, answers: { password: 'x' } }],
+    ['POST', '/api/onboard/handoff', { act: ACT, step: 'nope' }]];
+  for (const [m, p, b] of writes) { const r = await ah(PAT, m, p, b); if (isHeld(r) || r.status === 401) shut.push(`${m} ${p} -> ${r.status} ${JSON.stringify(r.j).slice(0, 80)}`); }
+  assert.deepEqual(shut, [], 'held on a setup route:\n' + shut.join('\n'));
+  /* Every other exact route a client may call is held, on both workers (a probe over CLIENT_RULES). */
+  const bg = await import('./src/brandguard.js');
+  const answered = [];
+  for (const r of bg.CLIENT_RULES) {
+    if (!r.p || r.hq || r.onb || bg.SETUP_MAY.has(r.m + ' ' + r.p)) continue;
+    for (const w of ['ah', 'pf']) {
+      const res = await call(w, PAT, r.m, r.p, r.m === 'GET' || r.m === 'HEAD' ? undefined : {});
+      if (!isHeld(res)) answered.push(`${w} ${r.m} ${r.p} -> ${res.status} ${JSON.stringify(res.j).slice(0, 60)}`);
+    }
+  }
+  assert.deepEqual(answered, [], 'a non setup route answered a held client: ' + answered.join(' | '));
+  /* The sign in routes carry no session and never meet the hold. */
+  assert.ok(!isHeld(await ah(null, 'POST', '/api/clients/code', { invite: 'nope' })));
+  /* Old clients (no checklist) and the team are never held, on the same routes. */
+  for (const [w, p] of [['ah', '/api/production?act=brand_alpha'], ['pf', '/api/hub/live?act=brand_alpha'], ['pf', '/api/costs?act=brand_alpha']]) {
+    const r = await call(w, OTHER_CLIENT, 'GET', p); assert.ok(isOpen(r), `old client ${w} ${p} -> ${r.status}`);
+  }
+  for (const tok of [TEAM, OWNER]) for (const [w, p] of [['ah', `/api/production?act=${ACT}`], ['pf', `/api/hub/live?act=${ACT}`]]) {
+    const r = await call(w, tok, 'GET', p); assert.ok(isOpen(r), `team ${w} ${p} -> ${r.status}`);
+  }
+  /* Two brands: the running one opens, the held one is refused, and a read with no brand leaves the held one out. */
+  const u = getSetting('clientUsers'); u['pat@example.com'].brands = [ACT, 'brand_alpha']; setSetting('clientUsers', u);
+  try {
+    assert.ok(isOpen(await pf(PAT, 'GET', '/api/hub/live?act=brand_alpha')), 'the running brand opens');
+    assert.ok(isOpen(await ah(PAT, 'GET', '/api/production?act=brand_alpha')));
+    assert.ok(isHeld(await pf(PAT, 'GET', `/api/hub/live?act=${ACT}`)), 'the new brand is held');
+    assert.ok(isHeld(await ah(PAT, 'GET', `/api/production?act=brand_alpha&act=${ACT}`)), 'a second copy of the brand');
+    assert.ok(isHeld(await ah(PAT, 'POST', '/api/production/comment', { act: ACT, id: 'x', text: 'hi' })), 'a body brand');
+    const all = await pf(PAT, 'GET', '/api/overview?days=30&series=0');
+    assert.ok(isOpen(all), `no brand named -> ${all.status}`); assert.ok(!JSON.stringify(all.j).includes(ACT), 'the held brand is left out of an answer');
+    assert.ok(isOpen(await ah(PAT, 'GET', `/api/onboard?act=${ACT}`)), 'Get started of the held brand still opens');
+    /* The morning line (no brand on the route, plain strings): only the running brand's line, read and sent as a DM.
+       The Connect your AI scope and the morning DM's sender (openIdsFor) leave the held brand out too. */
+    const realPf = ahEnv.PROFIT.fetch;
+    ahEnv.PROFIT.fetch = async req => new URL(req.url).pathname === '/api/hub/kept'
+      ? new Response(JSON.stringify({ date: '2026-11-25', brands: [{ act_id: ACT, name: 'Northlake Golf', has: true, line: 'Northlake Golf kept $1 yesterday.' }, { act_id: 'brand_alpha', name: 'Alpha Golf', has: true, line: 'Alpha Golf kept $2 yesterday.' }] }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      : realPf(req);
+    try {
+      const mg = await ah(PAT, 'GET', '/api/me/morning');
+      assert.equal(mg.status, 200, JSON.stringify(mg.j)); assert.deepEqual(mg.j.lines, ['Alpha Golf kept $2 yesterday.'], 'the line of the held brand is left out');
+      const n0 = S.posted.length;
+      const mp = await ah(PAT, 'POST', '/api/me/morning');
+      assert.equal(mp.status, 200, JSON.stringify(mp.j)); assert.deepEqual(mp.j.lines, ['Alpha Golf kept $2 yesterday.']);
+      assert.ok(S.posted.slice(n0).length && !JSON.stringify(S.posted.slice(n0)).includes('Northlake'), 'the DM names no held brand');
+      const open = await bg.openIdsFor(ahEnv, 'pat@example.com');
+      assert.ok(open.has('brand_alpha') && !open.has(ACT), 'openIdsFor: the running brand only');
+    } finally { ahEnv.PROFIT.fetch = realPf; }
+  } finally { const u2 = getSetting('clientUsers'); u2['pat@example.com'].brands = [ACT]; setSetting('clientUsers', u2); }
+  assert.ok(isHeld(await ah(PAT, 'GET', '/api/me/morning')), 'one brand, held: the morning line is refused');
+});
+
 await check('the emailed 6 digit code: hashed, 10 minutes, 5 tries, one use, one send a minute', async () => {
   const users = getSetting('clientUsers');
   const invite = users['pat@example.com'].invite.token;
@@ -595,6 +673,11 @@ await check('team lines on My day: the owner sees every line, the brand\'s team 
 
 await check('a client changes its own goals: one activities row with who, a bell note for the owner and the brand\'s team', async () => {
   const a0 = count('activities');
+  /* While the brand is held on Get started its goals are not open yet (the server hold); this check is about after. */
+  assert.ok(isHeld(await ah(PAT, 'PUT', `/api/accounts/${ACT}`, { target_roas: 2.5, target_cpa: 40 })), 'held first');
+  assert.equal(count('activities'), a0, 'nothing written while held');
+  db.prepare(`UPDATE p_onboard SET gate = 0 WHERE act_id = ?`).run(ACT);
+  try {
   const r = await ah(PAT, 'PUT', `/api/accounts/${ACT}`, { target_roas: 2.5, target_cpa: 40 });
   assert.equal(r.status, 200, JSON.stringify(r.j));
   assert.equal(count('activities'), a0 + 1);
@@ -618,6 +701,7 @@ await check('a client changes its own goals: one activities row with who, a bell
   const { auditSummary } = await import('./src/brandguard.js');
   assert.equal(auditSummary('Pat Doyle', 'ad rules', { rules: { cr_cut_cpa_x: 2 } }), 'Pat Doyle changed how far over the goal cost an ad set is cut to 2');
   db.prepare(`DELETE FROM settings WHERE key = 'userBrands'`).run();
+  } finally { db.prepare(`UPDATE p_onboard SET gate = 1 WHERE act_id = ?`).run(ACT); (await import('./src/brandguard.js')).forgetHeld(); (await import('../../profit/worker/src/brandguard.js')).forgetHeld(); }
 });
 
 await check('billing: paid = the billing day (subscription anchored one month on, card saved, made once); a second invoice in a month is held; Send it anyway; no invoice while one is unpaid', async () => {
@@ -754,6 +838,10 @@ await check('finish: Mark finished ends the gate; a finished brand has no lines'
   const f = await ah(TEAM, 'POST', '/api/onboard/finish', { act: ACT });
   assert.equal(f.status, 200);
   assert.equal((await ah(PAT, 'GET', '/api/me')).j.client.onboarding.gated, false);
+  /* Finished = the server lets the brand's data through on the next request, on both workers. */
+  for (const [w, p] of [['ah', `/api/production?act=${ACT}`], ['pf', `/api/hub/live?act=${ACT}`], ['pf', '/api/overview?days=30&series=0']]) {
+    const r = await call(w, PAT, 'GET', p); assert.ok(isOpen(r), `finished ${w} ${p} -> ${r.status} ${JSON.stringify(r.j).slice(0, 80)}`);
+  }
   assert.ok(!(await onb.onboardLines(ahEnv)).some(l => l.act === ACT));
   /* A held invoice arriving after setup ended still reaches the owner. */
   const runId = db.prepare(`SELECT id FROM p_newclient WHERE act_id = ?`).get(ACT).id;

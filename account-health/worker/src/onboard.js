@@ -31,7 +31,7 @@ import { storeKey as klaviyoStore } from './klaviyo.js';
 import { setTripleWhale, connSet } from './brands.js';
 import { MOBIUS_BM } from './metaaccess.js';
 import { upsertClient, ensureInvite, putClientUser, LINK_PLACEHOLDER } from './clients.js';
-import { brandsFor } from './brandguard.js';
+import { brandsFor, onbSteps, onbHeld, forgetHeld } from './brandguard.js';
 import { roster, insertRun, runStep, getRun, setStep, ensureTable as ensureNewClient, sendReminder, releaseHeld } from './newclient.js';
 import { contractDefaults, contractHtml, resendSigningLink, ensureContractTable } from './contract.js';
 import { prefillNow } from './research.js';
@@ -372,7 +372,8 @@ const STEP_META = {
 };
 /* Decision 11: another agency's client (extras off) gets connect only; the brief and the assets link are Mobius extras.
    The gate, reminders, the list line and the team lines all follow this one rule. */
-const shownSteps = row => (!row.extras ? ['connect'] : STEP_KEYS.filter(k => k !== 'sign_pay' || row.sign_pay));
+/* The rule itself lives in brandguard.js (onbSteps), so the server's hold and this answer can never differ. */
+const shownSteps = row => onbSteps(row);
 /** Day 0 for reminders and the client waiting lines: when the welcome email really went, never before. */
 const welcomeAt = g => (g.runSteps.email?.status === 'done' ? (g.runSteps.email.at || g.row.sent_at || null) : null);
 /** The login that holds this address for this brand today: the address itself, or the login that claimed its invite
@@ -449,7 +450,7 @@ async function compute(env, g, { persist = true } = {}) {
   return { brief, connect, sp, now, steps };
 }
 
-const gatedOf = row => !!row.gate && !row.finished_at && shownSteps(row).some(k => !(row.steps[k] || {}).done_at);
+const gatedOf = row => onbHeld(row, row.steps);
 
 async function clientUsers(env) { return (await getS(env, 'clientUsers', {})) || {}; }
 
@@ -536,17 +537,18 @@ export async function onboardGate(env, email, brands, only) {
   if (only && only.length) {
     const r = rows[0];
     const v = view(r, only.filter(k => STEP_KEYS.includes(k)));
-    return { gated: true, ...v, only, gated_slugs: [v.slug], all_gated: true };
+    return { gated: true, ...v, only, gated_slugs: [v.slug], gated_brands: [v.brand], all_gated: true };
   }
   const held = [];
   for (const r of rows) {
     const v = view(r, shownSteps(r));
-    if (r.gate && !r.finished_at && v.left.length) held.push(v);
+    if (onbHeld(r, safe(r.steps_json, {}))) held.push(v);
   }
-  const gated_slugs = held.map(v => v.slug);
+  /* gated_brands (brand ids) is what the engine's access check reads; the screens read the slugs. */
+  const gated_slugs = held.map(v => v.slug), gated_brands = held.map(v => v.brand);
   const all_gated = held.length > 0 && list.every(b => held.some(v => v.brand === b));
-  if (held.length) return { gated: true, ...held[0], only: null, gated_slugs, all_gated };
-  return { gated: false, ...view(rows[0], shownSteps(rows[0])), only: null, gated_slugs: [], all_gated: false };
+  if (held.length) return { gated: true, ...held[0], only: null, gated_slugs, gated_brands, all_gated };
+  return { gated: false, ...view(rows[0], shownSteps(rows[0])), only: null, gated_slugs: [], gated_brands: [], all_gated: false };
 }
 
 /* ------------------------------------------------------------------------------------------ */
@@ -863,6 +865,7 @@ async function doSend(env, b, who, deps, request) {
     ON CONFLICT(act_id) DO UPDATE SET run_id = excluded.run_id, token = excluded.token, extras = excluded.extras, sign_pay = excluded.sign_pay, uses_agreement = excluded.uses_agreement, uses_invoice = excluded.uses_invoice,
       services_json = excluded.services_json, goal_measure = excluded.goal_measure, ad_budget = excluded.ad_budget, budget_open = excluded.budget_open, sent_at = excluded.sent_at, updated_at = datetime('now')`)
     .bind(act, run.id, run.token || null, extras ? 1 : 0, signPay, usesAgreement, usesInvoice, JSON.stringify(f.services), f.goal_measure, f.ad_budget, f.budget_open ? 1 : 0, JSON.stringify(steps), nowIso(), who || null).run();
+  forgetHeld();
   /* The ad budget: the same column PUT /api/accounts/<brand> writes. */
   if (f.ad_budget != null) await env.DB.prepare(`UPDATE brands SET monthly_budget = ?2, updated_at = datetime('now') WHERE id = ?1`).bind(act, f.ad_budget).run().catch(() => {});
   /* The client login and its invite link (new Locus). */
@@ -1411,6 +1414,7 @@ export async function handleOnboard(request, env, ctx, path, json, deps) {
       needOwner();
       const act = await actOf(); await rowOf(act);
       await env.DB.prepare(`UPDATE p_onboard SET finished_at = NULL, finished_by = NULL, updated_at = datetime('now') WHERE act_id = ?1`).bind(act).run();
+      forgetHeld();
       return json({ ok: true });
     }
 

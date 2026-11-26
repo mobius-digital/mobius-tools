@@ -1,6 +1,6 @@
 import { useFetch as tiktokFetch, tiktokStatus, tiktokStart, tiktokCallback, tiktokReport, setTiktokLink } from './tiktok.js';
 import { useFetch as assetsFetch, syncAssets, tagAssets, listAssets, assetsTick, assetFile, removeLook, tagBacklog } from './assets.js';
-import { guardBrands, brandsFor, clientScope, isClientEmail } from './brandguard.js';
+import { guardBrands, brandsFor, openIdsFor, clientScope, isClientEmail } from './brandguard.js';
 import { handleCommand } from './command.js';
 import { handleAgency } from './agency.js';
 import { handleClients, clientAsk, clientOwnsRun, touchClient, meClient, claimInvite, hqSignin } from './clients.js';
@@ -7569,7 +7569,7 @@ function smokeDeps() {
 }
 /* What the What-moved post (moved.js) and the scheduled questions (askschedule.js) need from here. */
 /* morning.js: the numbers as the owner over the PROFIT binding, filtered per person with brandsFor. */
-function morningDeps() { return { ...hubDeps(), mintSession, brandsFor, morningPeople, emailAllowed, isClientEmail }; }
+function morningDeps() { return { ...hubDeps(), mintSession, brandsFor, openIdsFor, morningPeople, emailAllowed, isClientEmail }; }
 /* meetings.js: Fireflies in, Asana / the weekly report / Requests / Slack out. */
 /* checkin.js: the daily check-in and the review posts. prod = what prodwork's decide needs (the Production route's deps). */
 function checkinDeps(ctx) {
@@ -10062,7 +10062,8 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
     if (path === '/api/me/prefs' || path === '/api/me/morning') {
       const cs = clientScope(request);
       const who = cs ? cs.email : (await sessionEmail(env, request)) || ((await isAdmin(request, env)) ? 'admin' : null);
-      if (path === '/api/me/morning') return handleMorning(request, env, path, url, who && who !== 'admin' ? who : (await sessionEmail(env, request)), morningDeps(), json);
+      /* A client's lines are the brands the guard cleared (a brand held on Get started is out), never brandsFor's all. */
+      if (path === '/api/me/morning') return handleMorning(request, env, path, url, who && who !== 'admin' ? who : (await sessionEmail(env, request)), cs ? { ...morningDeps(), scope: cs.ids || new Set() } : morningDeps(), json);
       return handlePrefs(request, env, path, who, json);
     }
     if (path === '/api/me') {
