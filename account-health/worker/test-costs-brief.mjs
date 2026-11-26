@@ -237,7 +237,8 @@ await check('a fixed cost adds net profit to the brief payload; a report and eve
   const row = { period: 'weekly', period_start: WK[0], period_end: WK[1] };
   const post0 = await AH.clientReportText(env, ACCT('brand_alpha'), row, first._report);
   const postOff = await AH.clientReportText(env, ACCT('brand_alpha'), row, c._report);
-  assert.ok(post0.includes('Contribution margin') && !post0.includes('Net profit'));
+  /* 2026-11-26 (the client reports rebuild): contribution margin rides the same frozen switch as net profit in the post. */
+  assert.ok(!post0.includes('Contribution margin') && !post0.includes('Net profit'));
   assert.equal(postOff, post0, 'the posts switch is off: the weekly client post is exactly as before, net profit and its footnote absent');
 
   db.exec(`INSERT INTO settings (key, value) VALUES ('costsNetInPosts', '1')`);

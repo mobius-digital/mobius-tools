@@ -93,28 +93,39 @@ await check('shortMoney and pctChange', () => {
 
 /* ---------------- the weekly ---------------- */
 const TOTALS = { sales: 5890, spend: 3105, mer: 1.90, cm: 1784 }, PREV = { sales: 6958, spend: 3140, mer: 2.22, cm: 2620 };
-await check('the weekly: title, the rule sentence, labeled bullets with ONE comparison each, contribution margin defined, This week, We need from you with dates, the link', () => {
-  const t = weeklyPost({ brand: 'Grunk Dolfer', period: 'weekly', start: '2026-10-12', end: '2026-10-18', totals: { ...TOTALS, amer: 1.2 }, previous: { ...PREV, amer: 1.41 },
+await check('the weekly, new order: title, How we read it (line breaks kept), The numbers with MER (whole store), By platform (Triple Whale), This week, We need from you, the report page link; no aMER, no rule sentence when a read exists', () => {
+  const read = 'A mixed week: sales dipped 15% while ad spend held.\nThe new colorway carried Meta; Google slowed.\n\nWe are moving budget to the colorway ads this week.';
+  const t = weeklyPost({ brand: 'Sample Golf Co', period: 'weekly', start: '2026-10-12', end: '2026-10-18', totals: { ...TOTALS, amer: 1.2 }, previous: { ...PREV, amer: 1.41 }, read,
+    platforms: [{ name: 'Google', spend: 405, roas: 1.1, low_signal: true }, { name: 'Meta', spend: 2700, roas: 2.4 }, { name: 'TikTok', spend: 0, roas: null }, { name: 'Pinterest', spend: 60, roas: null }],
     this_week: ['Splatter Collection goes live Friday; the drop email goes today', 'Three Splatter ads into testing by Thursday'],
-    from_you: [{ text: 'Is Splatter full price or a deal?', asked: '2026-10-13', due: '2026-10-22' }, 'Photos for Splatter Collection (live Fri Oct 23)'], url: 'https://locus.go-mobius-digital.com/profit/?reports=abc' });
+    from_you: [{ text: 'Is Splatter full price or a deal?', asked: '2026-10-13', due: '2026-10-22' }, 'Photos for Splatter Collection (live Fri Oct 23)'], url: 'https://locus.go-mobius-digital.com/profit/v5/report.html?t=abc' });
   assert.equal(t, [
-    '*Grunk Dolfer \u00b7 Weekly report, Oct 12 to 18*',
-    '_A quieter week: sales down 15% on the same ad spend._',
-    '', '*The week* (compared with the week before)',
+    '*Sample Golf Co \u00b7 Weekly report, Oct 12 to 18*',
+    '', '*How we read it*',
+    'A mixed week: sales dipped 15% while ad spend held.',
+    'The new colorway carried Meta; Google slowed.',
+    '',
+    'We are moving budget to the colorway ads this week.',
+    '', '*The numbers* (compared with the week before)',
     '\u2022 Sales: *$5,890* (down 15%)',
     '\u2022 Ad spend: *$3,105* (flat)',
-    '\u2022 MER: *1.90x* (was 2.22x)',
-    '\u2022 aMER (new customers): *1.20x* (was 1.41x)',
+    '\u2022 MER (whole store): *1.90x* (was 2.22x)',
     '\u2022 Contribution margin: *$1,784* (was $2,620)',
     `_${CM_WORDS}_`,
+    '', '*By platform* (Triple Whale attributed)',
+    '\u2022 Meta: $2,700 spent, 2.40x ROAS',
+    '\u2022 Google: $405 spent, too few orders to read',
+    '\u2022 Pinterest: $60 spent',
     '', '*This week*',
     '\u2022 Splatter Collection goes live Friday; the drop email goes today',
     '\u2022 Three Splatter ads into testing by Thursday',
     '', '*We need from you*',
     '\u2022 Is Splatter full price or a deal? (asked Oct 13, needed by Oct 22)',
     '\u2022 Photos for Splatter Collection (live Fri Oct 23)',
-    '', '<https://locus.go-mobius-digital.com/profit/?reports=abc|Open the full report>'].join('\n'));
-  assert.ok(!/vs plan|Hey Team|Profit|\u25B2|\u25BC/.test(t), 'no plan comparison, no opener, no "Profit", no arrows');
+    '', '<https://locus.go-mobius-digital.com/profit/v5/report.html?t=abc|Open the full report>'].join('\n'));
+  assert.ok(!/aMER|vs plan|Hey Team|Profit|quieter|\u25B2|\u25BC|[\u2014\u2013]/.test(t), 'no aMER, no rule sentence, no plan comparison, no arrows, no em dashes');
+  const dashed = weeklyPost({ brand: 'Sample Golf Co', start: '2026-10-12', end: '2026-10-18', totals: TOTALS, previous: PREV, read: 'Good week \u2014 sales up.' });
+  assert.ok(dashed.includes('\nGood week, sales up.\n'), 'a dash in the read becomes a comma');
 });
 await check('weekSentence: one fixed sentence per shape of the week, never a model', () => {
   assert.equal(weekSentence({ sales: 7318, spend: 3650, mer: 2.01 }, { sales: 6840, spend: 4680, mer: 1.46 }), 'Sales up 7% on 22% less ad spend, so each ad dollar brought back more.');
@@ -127,12 +138,13 @@ await check('weekSentence: one fixed sentence per shape of the week, never a mod
   assert.equal(weekSentence({ sales: 24000, spend: 9000 }, { sales: 20000, spend: 9000 }, 'month'), 'Sales up 20% on the same ad spend.');
 });
 await check('the weekly without a call: no This week block; the monthly says the month; contribution margin left out when CM is unknown; long asks are clipped, 3 at most', () => {
-  const t = weeklyPost({ brand: 'Grunk Dolfer', period: 'monthly', start: '2026-09-01', totals: { sales: 24000, spend: 9000, mer: 2.67, cm: null }, previous: { sales: 20000, spend: 8000, mer: 2.5 }, url: 'https://x/y',
+  const t = weeklyPost({ brand: 'Sample Golf Co', period: 'monthly', start: '2026-09-01', totals: { sales: 24000, spend: 9000, mer: 2.67, cm: null }, previous: { sales: 20000, spend: 8000, mer: 2.5 }, url: 'https://x/y',
     from_you: ['aaaaa ' + 'word '.repeat(40), 'two', 'three', 'four'] });
   const L = t.split('\n');
-  assert.equal(L[0], '*Grunk Dolfer \u00b7 September report*');
-  assert.equal(L[1], '_Sales up 20% on 13% more ad spend, and it paid: each ad dollar brought back more._');
-  assert.equal(L[3], '*The month* (compared with the month before)');
+  assert.equal(L[0], '*Sample Golf Co \u00b7 September report*');
+  assert.equal(L[1], '_Sales up 20% on 13% more ad spend, and it paid: each ad dollar brought back more._', 'no read: the rule sentence stands in');
+  assert.equal(L[3], '*The numbers* (compared with the month before)');
+  assert.ok(!t.includes('*How we read it*') && !t.includes('*By platform*'), 'no read and no platforms = neither block');
   assert.equal(L[4], '\u2022 Sales: *$24,000* (up 20%)');
   assert.ok(!t.includes('Contribution margin') && !t.includes('This month'), t);
   const asks = L.slice(L.indexOf('*We need from you*') + 1).filter(l => l.startsWith('\u2022'));
@@ -160,45 +172,44 @@ await check('clientBits: confirmed dates in the window (7 days for the weekly) a
   assert.ok(src.includes('export async function clientCalendarFor'));
 });
 
-/* ---------------- the weekly sends on the call's confirm ---------------- */
-db.exec(`INSERT INTO reports (act_id, period, period_start, period_end, status, generated_at, summary, data_json) VALUES ('brand_alpha', 'weekly', '2026-10-12', '2026-10-18', 'draft', '2026-10-19T11:00:00Z', 'x', '{"totals":{"sales":1}}')`);
+/* ---------------- the call's confirm: This week on the draft, How we read it drafted, NOTHING sent ---------------- */
+db.exec(`INSERT INTO reports (act_id, period, period_start, period_end, status, generated_at, summary, data_json) VALUES ('brand_alpha', 'weekly', '2026-10-12', '2026-10-18', 'draft', '2026-10-19T11:00:00Z', NULL, '{"totals":{"sales":1}}')`);
 const env = { DB };
 await ensureMeetings(env);
 const mkMeeting = id => db.exec(`INSERT INTO p_meeting (id, title, date, kind, status, created_at, updated_at) VALUES ('${id}', 'Monday call', '2026-10-19', 'monday_call', 'extracted', '2026-10-19T13:00:00Z', '2026-10-19T13:00:00Z')`);
-const calls = { sent: [], synced: [] };
+const calls = { sent: [], synced: [], reads: [] };
 const deps = review_first => ({
   listBrands: async () => [{ act_id: 'brand_alpha', name: 'Alpha Golf', slack_channel: null, brief_channel: 'C_ALPHA_CLIENT', review_first }],
   sendReport: async (e, act, start) => { calls.sent.push([act, start]); return { ok: true, channel: 'C_ALPHA_CLIENT' }; },
-  slackSyncReport: async (e, act, start) => { calls.synced.push([act, start]); },
+  slackSyncReport: async (e, act, start, period = 'weekly') => { calls.synced.push([act, start, period]); },
+  draftReportRead: async (e, act, period, start, o) => { calls.reads.push([act, period, start, o.source, o.meeting_id, o.notes]); return {}; },
   createAsk: async () => 'rq_1', slackPost: async () => ({ ok: true }), slackApi: async () => ({ ok: false }),
 });
-await check('review_first OFF: confirming the call writes This week + From you on the open draft and sends the weekly at once', async () => {
-  mkMeeting('m1');
-  const r = await confirm(env, deps(false), { id: 'm1', summary: 'ok', brands: [{ brand_id: 'brand_alpha', this_week: ['Splatter goes live Friday'], need_from_client: ['Is Splatter full price or a deal?'] }] }, 'cole@go-mobius-digital.com');
-  const row = db.prepare(`SELECT data_json FROM reports WHERE act_id = 'brand_alpha'`).get();
-  const data = JSON.parse(row.data_json);
-  assert.deepEqual(data.this_week, ['Splatter goes live Friday']); assert.deepEqual(data.need_from_you, ['Is Splatter full price or a deal?']);
-  assert.deepEqual(calls.sent, [['brand_alpha', '2026-10-12']]);
-  assert.equal(r.brands[0].report.sent, true);
-  assert.equal(calls.synced.length, 0, 'sendReport redraws the card itself');
-});
-await check('review_first ON: the draft card is redrawn with the new text and nothing is sent until a person presses Send', async () => {
-  calls.sent.length = 0; calls.synced.length = 0; mkMeeting('m2');
-  await confirm(env, deps(true), { id: 'm2', summary: 'ok', brands: [{ brand_id: 'brand_alpha', this_week: ['Three Splatter ads into testing'] }] }, 'cole@go-mobius-digital.com');
-  assert.equal(calls.sent.length, 0);
-  assert.deepEqual(calls.synced, [['brand_alpha', '2026-10-12']]);
-  assert.equal(db.prepare(`SELECT status FROM reports WHERE act_id = 'brand_alpha'`).get().status, 'draft');
-});
+for (const rf of [false, true]) {
+  await check(`review_first ${rf ? 'ON' : 'OFF'}: confirming the call writes This week + From you on the open draft, drafts How we read it from the notes, and sends NOTHING`, async () => {
+    calls.sent.length = 0; calls.synced.length = 0; calls.reads.length = 0; mkMeeting(`m${rf ? 2 : 1}`);
+    const r = await confirm(env, deps(rf), { id: `m${rf ? 2 : 1}`, summary: 'ok', brands: [{ brand_id: 'brand_alpha', decisions: ['Hold Meta budget'], this_week: ['Splatter goes live Friday'], need_from_client: ['Is Splatter full price or a deal?'] }] }, 'cole@go-mobius-digital.com');
+    const data = JSON.parse(db.prepare(`SELECT data_json FROM reports WHERE act_id = 'brand_alpha'`).get().data_json);
+    assert.deepEqual(data.this_week, ['Splatter goes live Friday']); assert.deepEqual(data.need_from_you, ['Is Splatter full price or a deal?']);
+    assert.equal(calls.sent.length, 0, 'the confirm never sends a report');
+    assert.equal(r.brands[0].report.sent, undefined);
+    assert.equal(calls.reads.length, 1); assert.deepEqual(calls.reads[0].slice(0, 5), ['brand_alpha', 'weekly', '2026-10-12', 'meeting', `m${rf ? 2 : 1}`]);
+    assert.match(calls.reads[0][5], /Hold Meta budget/); assert.match(calls.reads[0][5], /Splatter goes live Friday/);
+    assert.deepEqual(r.brands[0].reads, [{ period: 'weekly', period_start: '2026-10-12', status: 'drafted' }]);
+    assert.ok(calls.synced.some(s => s[0] === 'brand_alpha' && s[1] === '2026-10-12'), 'the card is redrawn');
+    assert.equal(db.prepare(`SELECT status FROM reports WHERE act_id = 'brand_alpha'`).get().status, 'draft');
+  });
+}
 
-/* ---------------- the worker: no auto send at 6am, the client Send-to-Slack target refused ---------------- */
-await check('reportsPass drafts only, whatever review_first says; the 11am fallback and the call confirm are the only automatic sends', () => {
+/* ---------------- the worker: no auto send at all, the client Send-to-Slack target refused ---------------- */
+await check('reportsPass drafts only and the 11am fallback never sends (it waits for an approved read)', () => {
   const src = fs.readFileSync(path.join(here, 'src', 'worker.js'), 'utf8');
   const pass = src.slice(src.indexOf('async function reportsPass('), src.indexOf('async function reportFallbackPass('));
   assert.ok(!pass.includes('sendReport('), 'reportsPass never calls sendReport');
   assert.ok(src.includes('const REPORT_FALLBACK_HOUR = 11;'));
   const fb = src.slice(src.indexOf('async function reportFallbackPass('), src.indexOf('const metaIdOf'));
-  assert.ok(fb.includes('if (a.review_first || internalOnly(a)) continue;'), 'review-first brands wait for a person');
-  assert.ok(fb.includes("row?.status !== 'draft'"), 'only a draft is sent as it stands');
+  assert.ok(!fb.includes('sendReport('), 'the fallback never sends');
+  assert.ok(fb.includes("skipped: 'waits for an approved read'"));
   const sb = src.slice(src.indexOf('async function sendBrief('), src.indexOf('async function brandHasClientLogin('));
   assert.ok(sb.includes('clientDailyFor(env, acct, date, text, full)') && sb.includes("addDays(date, -2)"), 'one day per post, missed days within two days get their own');
   assert.ok(!sb.includes('shortBriefText('), 'the old opener-and-numbers short post is not sent');
@@ -235,7 +246,7 @@ await check('weekly report: Our work this week shows new ads and client-readable
   assert.ok(L[0].includes('New ads launched: *12*') && L[0].includes('8 the week before'), L[0]);
   assert.ok(L[1].includes('Changes we made to your ads: *5*') && L[1].includes('open=adupdates'), L[1]);
   assert.deepEqual(workLines({ ads: 0, changes: 0 }), []); assert.deepEqual(workLines(null), []);
-  const t = weeklyPost({ brand: 'Dartee', start: '2026-11-16', end: '2026-11-22', totals: { sales: 10000, spend: 4000, mer: 2.5 }, previous: { sales: 9000, spend: 4000, mer: 2.25 }, work: w });
+  const t = weeklyPost({ brand: 'Sample Golf Co', start: '2026-11-16', end: '2026-11-22', totals: { sales: 10000, spend: 4000, mer: 2.5 }, previous: { sales: 9000, spend: 4000, mer: 2.25 }, work: w });
   assert.ok(t.includes('*Our work this week*'), t);
   assert.ok(!t.includes('Email'));
 });
@@ -258,7 +269,7 @@ await check('net profit: the thread and the weekly print it only when it is set 
   assert.ok(!dailyThread({ date: '2026-10-15', day: { ...day, cm: null, net: 650 }, cm_ok: true }).includes('Net profit'), 'no CM: no net profit');
 
   const base = { brand: 'Alpha Golf', start: '2026-10-05', end: '2026-10-11', totals: { sales: 10000, spend: 4000, mer: 2.5, cm: 1500 }, previous: { sales: 9000, spend: 4000, mer: 2.25, cm: 1200 } };
-  const OLD_WEEKLY = '*Alpha Golf · Weekly report, Oct 5 to 11*\n_Sales up 11% on the same ad spend._\n\n*The week* (compared with the week before)\n• Sales: *$10,000* (up 11%)\n• Ad spend: *$4,000* (flat)\n• MER: *2.50x* (was 2.25x)\n• Contribution margin: *$1,500* (was $1,200)\n_Contribution margin = sales minus product cost, shipping, fees and ad spend._';
+  const OLD_WEEKLY = '*Alpha Golf · Weekly report, Oct 5 to 11*\n_Sales up 11% on the same ad spend._\n\n*The numbers* (compared with the week before)\n• Sales: *$10,000* (up 11%)\n• Ad spend: *$4,000* (flat)\n• MER (whole store): *2.50x* (was 2.25x)\n• Contribution margin: *$1,500* (was $1,200)\n_Contribution margin = sales minus product cost, shipping, fees and ad spend._';
   assert.equal(weeklyPost(base), OLD_WEEKLY);
   assert.equal(weeklyPost({ ...base, previous: { ...base.previous, net: 700 } }), OLD_WEEKLY, 'only last week has it: not printed');
   const w = weeklyPost({ ...base, totals: { ...base.totals, fixed: 600, net: 900 }, previous: { ...base.previous, net: 700 } });

@@ -22,6 +22,10 @@
  * it done); and one message per brand goes to its internal channel, each item linked to its row in Locus. The
  * agency channel (strategistChannel) gets the agency-wide entry. Asana is not written any more.
  *
+ * 2026-11-26 (the client reports rebuild): the confirm NO LONGER SENDS any report. For each brand with an open weekly
+ * or monthly draft, the brand's notes become the team's view and How we read it is drafted from them
+ * (d.draftReportRead -> reportread.js draftRead, source 'meeting'); a person approves and sends it in Locus.
+ *
  * 2026-10-13 fourth pass (Work > Calls / Tasks / Production): every item carries an area (actions.js AREA_RULE) that
  * Tasks groups by; a Brief item becomes the Asana task AND its p_br_batch card at once (Production draws it; no p_action
  * row any more); each meeting in the list carries `made` (what the confirm wrote) and `counts` (what is waiting) for Calls.
@@ -45,6 +49,7 @@ import { numOf } from './asana-brand.js';
 import { loadCard } from './morningcard.js';
 import { laneBlocks, fyi } from './lane.js';
 import { typedOnCall } from './callscreen.js';
+import { readRow as reportReadRow } from './reportread.js';
 
 const MODEL = 'claude-sonnet-5-5';
 const FF = 'https://api.fireflies.ai/graphql';
@@ -370,6 +375,29 @@ async function openWeekly(env, act) {
   return env.DB.prepare(`SELECT act_id, period, period_start, data_json, status FROM reports WHERE act_id = ?1 AND period = 'weekly' AND status IN ('draft', 'handled') ORDER BY period_start DESC LIMIT 1`).bind(act).first().catch(() => null);
 }
 
+/** The brand's open report drafts the call speaks to: the newest weekly and the newest monthly (draft or handled) that
+ *  ended within 40 days of the call, so a stale draft from months ago is never redrafted. */
+async function openDrafts(env, act, date) {
+  const since = new Date(Date.parse(`${date || now().slice(0, 10)}T12:00:00Z`) - 40 * 864e5).toISOString().slice(0, 10);
+  const rows = (await env.DB.prepare(`SELECT act_id, period, period_start, period_end, status FROM reports WHERE act_id = ?1 AND status IN ('draft', 'handled') AND period_end >= ?2 ORDER BY period_start DESC`)
+    .bind(act, since).all().catch(() => ({ results: [] }))).results || [];
+  return ['weekly', 'monthly'].map(p => rows.find(x => x.period === p)).filter(Boolean);
+}
+/** The brand's notes from the confirmed call, as the team's view for How we read it (reportread.js draftRead). */
+export function teamViewOf(b, m, summary, name) {
+  const list = (title, xs) => xs && xs.length ? `${title}:\n${xs.map(x => `- ${x}`).join('\n')}` : '';
+  return [
+    `From the "${m.title || 'call'}" call on ${m.date || ''}.`.replace(' on .', '.'),
+    /* The call summary only when the call was about this one brand (confirm passes '' otherwise): a Monday call's
+       summary holds every client's results and plans, and this text drafts a read that goes to one client. */
+    summary ? `Call summary: ${summary}` : '',
+    list('Decisions', b.decisions),
+    list('What we told the client', (b.items || []).filter(i => i.kind === 'client').map(i => i.text)),
+    list('This week', b.this_week),
+    list('We need from the client', b.need_from_client),
+  ].filter(Boolean).join('\n\n');
+}
+
 export async function confirm(env, d, body, who) {
   await ensure(env);
   const m = await env.DB.prepare(`SELECT * FROM p_meeting WHERE id = ?1`).bind(String(body.id || '')).first();
@@ -380,6 +408,7 @@ export async function confirm(env, d, body, who) {
   const chanOf = id => brands.find(b => b.act_id === id)?.slack_channel || null;
   const notes = { kind: m.kind, summary: clean(body.summary, 2000), brands: [] };
   const result = { brands: [], agency: null, warnings: [] };
+  const readJobs = [];
   for (const raw of (Array.isArray(body.brands) ? body.brands : [])) {
     const act = String(raw.brand_id || '');
     if (act && !brands.some(b => b.act_id === act)) continue;
@@ -416,16 +445,15 @@ export async function confirm(env, d, body, who) {
         data.this_week = b.this_week; data.need_from_you = b.need_from_client; data.this_week_from = { meeting: m.id, title: m.title, at: now() };
         await env.DB.prepare(`UPDATE reports SET data_json = ?4 WHERE act_id = ?1 AND period = ?2 AND period_start = ?3`).bind(rep.act_id, rep.period, rep.period_start, JSON.stringify(data)).run();
         r.report = { period_start: rep.period_start, status: rep.status };
-        /* 2026-10-19 (the reporting audit): the weekly goes to the client WHEN THE CALL IS CONFIRMED, not at 6am. A brand
-           that does not review first sends now, This week included; a review-first brand gets its draft card redrawn so
-           the Send button carries the new text, and a person presses it. */
-        const brand = brands.find(x => x.act_id === act);
-        if (d.sendReport && rep.status === 'draft' && brand && brand.brief_channel && !brand.review_first) {
-          try { const sent = await d.sendReport(env, act, rep.period_start); r.report.sent = true; r.report.channel = sent?.channel || null; }
-          catch (e) { result.warnings.push(`${r.name}: the weekly report did not send (${e.message}). Send it from Reports.`); if (d.slackSyncReport) await d.slackSyncReport(env, act, rep.period_start).catch(() => {}); }
-        } else if (d.slackSyncReport) await d.slackSyncReport(env, act, rep.period_start).catch(() => {});
+        /* 2026-11-26 (the client reports rebuild): the confirm NO LONGER SENDS any report, for any brand. The team's
+           view is drafted into How we read it below; a person approves and sends it (reportread.js). The card is
+           redrawn here so it carries the new This week text. */
+        if (d.slackSyncReport) await d.slackSyncReport(env, act, rep.period_start, 'weekly').catch(() => {});
       } else result.warnings.push(`${r.name}: no weekly report draft is open, so "This week" was not added to a report. It is in the Slack note.`);
     }
+    /* 2b. The team's view -> How we read it, for every open draft (weekly and monthly) of the brand: the brand's notes
+       are stored as the team view (source 'meeting') and the read is drafted after the loop. */
+    if (act && d.draftReportRead) for (const rep of await openDrafts(env, act, m.date)) readJobs.push({ r, act, rep, b });
     /* 3. What the client owes -> a Requests item the client ticks off. */
     if (act) for (const it of b.items.filter(i => i.kind === 'client_owes')) {
       try { r.asks.push({ ...it, id: await d.createAsk(env, act, it.text, `Agreed on ${m.date}${m.title ? ` (${m.title})` : ''}.${it.due ? ` Needed by ${it.due}.` : ''}`, who) }); }
@@ -455,6 +483,36 @@ export async function confirm(env, d, body, who) {
     }
     if (act) result.brands.push(r); else result.agency = r;
   }
+  /* How we read it, drafted from the call (one model call per open report, in parallel). A failure leaves the report
+     as it was and says so; the team can write it again in Reports. */
+  /* The whole call's summary goes in only when the confirmed notes hold one brand (see teamViewOf). */
+  const oneBrand = new Set(notes.brands.map(x => x.brand_id || 'agency')).size === 1;
+  await Promise.all(readJobs.map(async j => {
+    const label = j.rep.period === 'monthly' ? 'monthly' : 'weekly';
+    (j.r.reads ??= []);
+    /* A read a person already approved, one a person edited and saved, or one drafted from notes the team typed
+       themselves, is theirs: a later call (a second call that week, or each weekly call while a monthly draft is open)
+       never replaces it. */
+    const prior = await reportReadRow(env, j.act, j.rep.period, j.rep.period_start).catch(() => null);
+    if (prior && (prior.status === 'approved' || prior.edited_at || prior.team_source === 'typed')) {
+      j.r.reads.push({ period: j.rep.period, period_start: j.rep.period_start, status: prior.status, kept: true });
+      result.warnings.push(prior.status === 'approved'
+        ? `${j.r.name}: how we read the ${label} report was already approved, left as is.`
+        : prior.edited_at
+          ? `${j.r.name}: how we read the ${label} report was edited by hand, left as is. Redraft it in Reports to use this call.`
+          : `${j.r.name}: how we read the ${label} report was written from the team's own notes, left as is. Redraft it in Reports to use this call.`);
+      return;
+    }
+    j.view = teamViewOf(j.b, m, oneBrand ? notes.summary : '', j.r.name);
+    try {
+      await d.draftReportRead(env, j.act, j.rep.period, j.rep.period_start, { notes: j.view, source: 'meeting', meeting_id: m.id });
+      j.r.reads.push({ period: j.rep.period, period_start: j.rep.period_start, status: 'drafted' });
+    } catch (e) {
+      j.r.reads.push({ period: j.rep.period, period_start: j.rep.period_start, error: e.message });
+      result.warnings.push(`${j.r.name}: how we read the ${label} report was not drafted (${e.message}). Write it in Reports.`);
+    }
+    if (d.slackSyncReport) await d.slackSyncReport(env, j.act, j.rep.period_start, j.rep.period).catch(() => {});
+  }));
   await env.DB.prepare(`UPDATE p_meeting SET notes_json = ?2, result_json = ?3, status = 'confirmed', confirmed_by = ?4, confirmed_at = ?5, updated_at = ?5 WHERE id = ?1`)
     .bind(m.id, JSON.stringify(notes), JSON.stringify(result), who, now()).run();
   return result;

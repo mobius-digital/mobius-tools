@@ -22,12 +22,14 @@
  *   what those words mean. The old AI narrative (What we saw / What it means / What we're doing) is gone from the client.
  *   One day per post; a missed day gets its own post, or nothing.
  *
- *   The weekly and the monthly (sendReport), after the Monday call:
- *     *Grunk Dolfer · Weekly report, Oct 12 to 18*
- *     _Sales up 7% on 22% less ad spend, so each ad dollar brought back more._   (weekSentence: a rule, not a model)
- *     *The week* (compared with the week before)
- *     • Sales (up 7%)  • Ad spend (down 22%)  • MER (was 1.46x)  • aMER (was 1.09x)  • Contribution margin (was $355)
- *     _Contribution margin = sales minus product cost, shipping, fees and ad spend._
+ *   The weekly and the monthly (sendReport), after the Monday call (new order 2026-11-26, the client reports rebuild):
+ *     *Sample Golf Co · Weekly report, Oct 12 to 18*
+ *     *How we read it*   the read a PERSON approved in Locus (reportread.js); without one (a draft preview) the
+ *                        rule sentence (weekSentence) stands in. sendReport refuses a report with no approved read.
+ *     *The numbers* (compared with the week before)
+ *     • Sales (up 7%)  • Ad spend (down 22%)  • MER (whole store) (was 1.46x)  • Amazon  • Contribution margin + net
+ *       (only when the report's frozen in_posts switch says so)
+ *     *By platform* (Triple Whale attributed)   • Meta: $X spent, 2.40x ROAS   (low signal: "too few orders to read")
  *     *This week*        = the Monday call's lines + the calendar's confirmed dates in the next 7 days
  *     *We need from you* = the call's asks + the calendar's asks + open Requests, each with when it was asked and when it is needed
  *     <link|Open the full report>
@@ -185,24 +187,44 @@ export function workLines(w) {
   return L;
 }
 
-export function weeklyPost({ brand, period = 'weekly', start, end = null, currency = 'USD', totals = {}, previous = {}, sentence, this_week = [], from_you = [], url = null, amazon = null, work = null }) {
+/** One line per paid platform that spent, Triple Whale attributed (2026-11-26, client reports rebuild). `platforms` =
+ *  [{name, spend, roas, low_signal}]; roas is null when it is not Triple Whale's (spend only). Biggest spend first. */
+export function platformLines(platforms, currency = 'USD') {
+  return (Array.isArray(platforms) ? platforms : []).filter(c => c && c.spend > 0).sort((a, b) => b.spend - a.spend).map(c => {
+    const tail = c.low_signal ? ', too few orders to read' : x(c.roas) ? `, ${x(c.roas)} ROAS` : '';
+    return `• ${noDash(c.name)}: ${money(c.spend, currency)} spent${tail}`;
+  });
+}
+
+/* THE WEEKLY AND MONTHLY POST, NEW ORDER (2026-11-26, Cole: "CEOs want our read"): the title, *How we read it* (the
+   person-approved read, line breaks kept), *The numbers* (Sales, Ad spend, MER of the whole store, Amazon, contribution
+   margin and net only when the caller passes them), *By platform* (Triple Whale attributed), Our work, This week, We
+   need from you, the link. The rule sentence (weekSentence) only stands in when there is no read (a draft preview). */
+export function weeklyPost({ brand, period = 'weekly', start, end = null, currency = 'USD', totals = {}, previous = {}, read = null, sentence, platforms = [], this_week = [], from_you = [], url = null, amazon = null, work = null }) {
   const monthly = period === 'monthly';
   const endTxt = end ? (end.slice(5, 7) === start.slice(5, 7) ? String(+end.slice(8, 10)) : monDay(end)) : '';
   const span = monthly ? `${MONTHS[at(start).getUTCMonth()]} report` : `Weekly report, ${monDay(start)}${endTxt ? ` to ${endTxt}` : ''}`;
   const L = [`*${noDash(brand)} · ${span}*`];
   const unit = monthly ? 'month' : 'week';
-  const line = sentence === undefined ? weekSentence(totals, previous, unit) : sentence;
-  if (line) L.push(`_${noDash(line)}_`);
+  const readLines = String(read ?? '').replace(/\r/g, '').split('\n').map(l => l.trim() ? noDash(l) : '');
+  while (readLines.length && !readLines[0]) readLines.shift();
+  while (readLines.length && !readLines[readLines.length - 1]) readLines.pop();
+  if (readLines.length) L.push('', '*How we read it*', ...readLines);
+  else {
+    const line = sentence === undefined ? weekSentence(totals, previous, unit) : sentence;
+    if (line) L.push(`_${noDash(line)}_`);
+  }
   const t = totals || {}, p = previous || {};
   const pct = (a, b) => { const w = changeWords(a, b); return w ? ` (${w})` : ''; };
-  L.push('', `*The ${unit}* (compared with the ${unit} before)`,
+  L.push('', `*The numbers* (compared with the ${unit} before)`,
     `• Sales: *${money(t.sales, currency)}*${pct(t.sales, p.sales)}`,
     `• Ad spend: *${money(t.spend, currency)}*${pct(t.spend, p.spend)}`);
-  if (x(t.mer)) L.push(`• MER: *${x(t.mer)}*${x(p.mer) ? ` (was ${x(p.mer)})` : ''}`);
-  if (x(t.amer)) L.push(`• aMER (new customers): *${x(t.amer)}*${x(p.amer) ? ` (was ${x(p.amer)})` : ''}`);
+  if (x(t.mer)) L.push(`• MER (whole store): *${x(t.mer)}*${x(p.mer) ? ` (was ${x(p.mer)})` : ''}`);
   if (amazon?.cur?.orders > 0) L.push(`• Amazon: *${money(amazon.cur.sales, currency)}* (${amazon.cur.orders} orders${amazon.prev?.orders > 0 ? `, was ${money(amazon.prev.sales, currency)}` : ''})`);
   if (t.cm != null) L.push(`• Contribution margin: *${money(t.cm, currency)}*${p.cm != null ? ` (was ${money(p.cm, currency)})` : ''}`, `_${CM_WORDS}_`);
   if (t.cm != null && t.net != null) L.push(...netLines(t, currency, p.net != null ? ` (was ${money(p.net, currency)})` : ''), `_${t.ad_expense > 0 ? NET_WORDS_AD : NET_WORDS}_`);
+  const pl = platformLines(platforms, currency);
+  if (pl.length) L.push('', '*By platform* (Triple Whale attributed)', ...pl);
   const clip = s => s.length <= 160 ? s : s.slice(0, 157).replace(/\s+\S*$/, '') + '...';
   const clean = list => [...new Set((Array.isArray(list) ? list : []).map(s => clip(noDash(askLine(s)).replace(/^[•\-\s]+/, ''))).filter(Boolean))];
   const wl = workLines(work);

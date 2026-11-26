@@ -16,10 +16,17 @@ export async function listBriefs(ctx) {
 }
 
 /** GET /api/reports. The last 80 weekly and monthly reports, without their numbers. can_skip: the old side
- *  has POST /api/report-skip (Do not send), and says so on every answer, a client's included. */
+ *  has POST /api/report-skip (Do not send), and says so on every answer, a client's included. A team answer also
+ *  carries read_status per row (How we read it, team only; null when none was started). */
 export async function listReports(ctx) {
-  const rows = await ctx.db.all(ctx.scope.brand ? 'reports.reportsOne' : 'reports.reportsAll', {});
-  if (isClient(ctx)) return { rows: sentOnly(rows), can_skip: true };          // a client never gets the last run
+  const name = ctx.scope.brand ? 'reports.reportsOne' : 'reports.reportsAll';
+  let rows;
+  try { rows = await ctx.db.all(name, {}); }
+  catch (e) {
+    if (!/no such table/i.test(String(e && e.message))) throw e;
+    rows = await ctx.db.all(name + 'Plain', {});                                 // p_report_read not made yet
+  }
+  if (isClient(ctx)) return { rows: sentOnly(rows).map(({ read_status, ...r }) => r), can_skip: true };   // never the last run or the read
   return { rows, lastRun: await ctx.settings.getJson('lastReportRun', null), can_skip: true };
 }
 

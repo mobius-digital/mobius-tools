@@ -157,7 +157,8 @@ export function capMessage(key) {
    a row with no brand is refused). fields = the only body keys a write may carry. deny(body, url) = a refusal
    reason or null. cap = [key, dollars or (body, url) => dollars] charged before the handler runs. prep(env, body)
    = the body the handler gets instead (async). post(answer) = a last pass over the answer. cal = calendar route. */
-const sentOnlyList = b => { if (b && Array.isArray(b.rows)) b.rows = b.rows.filter(r => r && r.status === 'sent'); if (b) delete b.lastRun; return b; };
+/* read_status (How we read it, on the reports list) is team only: a client row never carries it. */
+const sentOnlyList = b => { if (b && Array.isArray(b.rows)) b.rows = b.rows.filter(r => r && r.status === 'sent').map(r => { if (r && 'read_status' in r) delete r.read_status; return r; }); if (b) delete b.lastRun; return b; };
 const sentOnlyOne = b => (b && b.status === 'sent' ? b : { __deny: 404, error: 'no report for that period' });
 /* The Daily Brief page for a client: sent briefs only, and fixed costs under the same rule as every client page
    (2026-11-25). Never a category name or amount (they are the team's free text). With settings costsNetInPosts off
