@@ -46,7 +46,7 @@ import { autoTools, autoActions } from './alerts.js';
 import { klaviyoTools, klaviyoActions } from './klaviyowrite.js';
 import { extraTools, extraActions, TAP_TOOLS, holdUploads } from './allwrite.js';
 import { studioMakeTools } from './studiomake.js';
-import { answerNote, answerProblems, answerTools, dateLine, flagBigBudgets, storeExtras, shapeAnswer, finishAnswer } from './stratanswer.js';
+import { answerNote, answerProblems, answerTools, dateLine, flagBigBudgets, storeExtras, rewriteOk, finishAnswer } from './stratanswer.js';
 /* A dashboard block's own dates (2026-10-10): one cleaner, shared with the profit worker's PUT /api/dashboard. */
 import { cleanDates as cleanDashDates } from '../../../profit/worker/src/dashboard.js';
 
@@ -218,7 +218,7 @@ const RULES = `
 - Money is in the brand's currency (brand_accounts.currency). Never add across
   currencies without saying so.
 - "This month" is the account's own calendar month in its timezone.
-- A paused test account (brand status paused) is never flagged, never listed
+- A paused test account (named under "Paused test accounts" after the active brands) is never flagged, never listed
   as a problem, and left out of totals unless asked by name.
 - When comparing periods, name both periods. STORE numbers compare to the
   last 28 days by default (the date block names them; "normal" for a day is
@@ -348,7 +348,8 @@ HOW YOU WORK (2026-10-09; Cole: "an assistant who understands and does stuff", t
     "Draft for #channel, not sent"; health check 20 to 80 ("Nothing off." when nothing is); a fact from Slack 20
     to 60 with who, when and the link; a refusal 15 to 50 (what you will not do, where it is done instead). Each
     question arrives with its type, range and one example; an answer over it comes back to you once to cut.
-  * Lists stop at 3; code cuts the rest to "N more, tap to see all". One recommendation, never a menu.
+  * Lists stop at 3 unless more was asked, but a warning, a fix step or a change the card will make is never left
+    out to fit. One recommendation, never a menu.
   * NO SOURCE LINE FROM YOU: code writes the one source line (where, which dates, which definition, Amazon, tax)
     from what your tools read. If you assumed something, end with one line "Assumed: ..." and code folds it in.
   * Ask a question back only when two readings of the question give different numbers; otherwise answer the
@@ -2007,16 +2008,22 @@ export function buildStrategist(d) {
     secretTables: SQL_NO_TABLES, secretColumns: SQL_NO_COLUMNS, safeColumns: SQL_OK_COLUMNS, starTables: SQL_NO_STAR,
     brief: DEFAULT_BRIEF,
     liveContext: async env => {
-      const names = (await d.listAccounts(env, true)).map(a => `${a.name} (${a.act_id}, ${a.currency})`);
-      return '## The active brands right now\n' + names.join('\n');
+      /* The paused test account still reads active = 1 in brand_accounts, so code sets it apart here (the same PAUSED
+         match the nightly checks use); the RULES say never flag it or count it in totals unless asked by name. */
+      const all = await d.listAccounts(env, true);
+      const line = a => `${a.name} (${a.act_id}, ${a.currency})`;
+      const paused = all.filter(a => PAUSED.test(a.name));
+      return '## The active brands right now\n' + all.filter(a => !PAUSED.test(a.name)).map(line).join('\n')
+        + (paused.length ? '\n\n## Paused test accounts (never flag, never list as a problem, left out of totals unless asked by name)\n' + paused.map(line).join('\n') : '');
     },
     /* A budget card over 50% in one step says BIG CHANGE first, whichever action made it (stratanswer.js). */
     actions: flagBigBudgets([...ACTIONS(d), ...BUTTONS(d), ...ASANA_ACTIONS(d), ...BUILD_ACTIONS(d), ...stratActions(d), ...holdUploads(d, writeActions(d)), ...makeActions(d), ...autoActions(d), ...klaviyoActions(d), ...extraActions(d)]),
     /* The answer check (AI eval round 17): a word budget per kind of question, told with the question and checked
        on the way out (one rewrite round when over, or when a client draft names internal sets); weekdays in code. */
     answerNote, answerCheck: answerProblems, dateLine,
-    /* Round 20 answer standard: code cuts lists to 3 and writes the one source line from what the tools read. */
-    shapeAnswer, finishAnswer,
+    /* Round 20 answer standard: code writes the one source line from what the tools read; a rewrite that drops a
+       warning or the draft line never goes out. */
+    rewriteOk, finishAnswer,
     slackTools: SLACK_TOOLS(d),
     playbook: PLAYBOOK,
     slackApp: 'locus',

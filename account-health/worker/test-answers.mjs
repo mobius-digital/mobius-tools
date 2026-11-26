@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { answerKind, answerNote, answerProblems, wordCount, clientLeaks, calc, answerTools, dateLine, weekday, flagBigBudgets, bigBudgetStep, storeExtras, MIN_SALES,
-  KINDS, isYesNo, askedCount, headlinesIn, unlabelledMeta, trimLists, shapeAnswer, sourceLine, finishAnswer, rangeText } from './src/stratanswer.js';
+  KINDS, isYesNo, askedCount, headlinesIn, unlabelledMeta, rewriteOk, readFailed, sourceLine, finishAnswer, rangeText } from './src/stratanswer.js';
 import { createAssistant } from '../../ask/engine.js';
 
 const checks = [];
@@ -57,18 +57,18 @@ await check('a draft: the team line "Draft for #channel, not sent" above it, and
 await check('the note rides with the question: type, range, first-sentence rule, top 3, no source line, one example', () => {
   const n = answerNote('What was the MER yesterday?');
   assert.match(n, /^\[Answer type: a number lookup, 15 to 40 words \(cards, charts and the source line not counted\)\. First sentence = the answer: the number first/);
-  assert.match(n, /Lists: the top 3; code cuts the rest\./); assert.match(n, /code adds the source line/); assert.match(n, /"Assumed: \.\.\."/);
+  assert.match(n, /Lists: the top 3, but never leave out a warning/); assert.match(n, /code adds the source line/); assert.match(n, /"Assumed: \.\.\."/);
   assert.match(n, /Meta's own count, second opinion/); assert.match(n, /Example: "Harbor Golf sold \$4,210 yesterday/);
   assert.match(answerNote('Draft the reply I can send the client'), /then a line exactly "---- draft ----", then the message \(60 to 110 words\)/);
   assert.match(answerNote('Should we raise the prospecting budget?'), /the ONE move first[\s\S]*the first word is Yes or No/);
   assert.match(answerNote('give the full list of every ad'), /They asked for the full list/);
-  assert.match(answerNote('Show me the top 5 ads by spend'), /Lists: the top 5;/);
+  assert.match(answerNote('Show me the top 5 ads by spend'), /Lists: the top 5,/);
   for (const k of Object.keys(KINDS)) assert.ok(wordCount(KINDS[k].ex) <= KINDS[k].max, `the ${k} example fits its own range`);
 });
 await check('word count leaves out tables, charts, the source line, the list tail and the card line', () => {
   assert.equal(wordCount('Revenue was $1,240.50 on Monday.'), 5);
   assert.equal(wordCount('Two words\n| a | b |\n|---|---|\n| 1 | 2 |\n```chart\n{"type":"bar"}\n```'), 2);
-  assert.equal(wordCount('Two words\n9 more, tap to see all.\nAssumed: the last 28 days.\nSource: Triple Whale store, Nov 1 to 25.\nNothing has changed yet. Tap Apply to do it.'), 2);
+  assert.equal(wordCount('Two words\nAssumed: the last 28 days.\nSource: Triple Whale store, Nov 1 to 25.\nNothing has changed yet. Tap Apply to do it.'), 2);
 });
 await check('the check: a lookup at 69 words is sent back, one at 35 is not; a refusal gets 50', () => {
   const q = "What was Harbor Golf's revenue on Nov 16?";
@@ -106,16 +106,34 @@ await check('a fact from Slack carries its link and its date; Meta\'s own count 
   assert.deepEqual(answerProblems('The set made 9 sales at $41 each. Meta shows 23 purchases (Meta\'s own count, second opinion).', 'How did the sale set do this week?'), []);
   assert.equal(unlabelledMeta('Meta spend was $900 and Triple Whale shows 12 Meta sales.'), null);
 });
-await check('lists stop at 3: code cuts the rest to "N more, tap to see all"; the number asked for, all, a draft and a brief are kept', () => {
-  const five = 'Top ads:\n1. A $28\n2. B $34\n   the detail of B\n3. C $41\n4. D $50\n5. E $60\nAfter the list.';
-  assert.equal(trimLists(five), 'Top ads:\n1. A $28\n2. B $34\n   the detail of B\n3. C $41\n2 more, tap to see all.\nAfter the list.');
-  assert.equal(trimLists('- a\n- b\n\n- c\n- d'), '- a\n- b\n\n- c\n1 more, tap to see all.');
-  assert.equal(trimLists('```chart\n- a\n- b\n- c\n- d\n```'), '```chart\n- a\n- b\n- c\n- d\n```', 'chart blocks are untouched');
-  assert.equal(shapeAnswer(five, 'Which ads did best this week?'), trimLists(five));
-  assert.equal(shapeAnswer(five, 'Show me the top 5 ads by spend'), five);
-  assert.equal(shapeAnswer(five, 'list them all: every ad'), five);
-  assert.equal(shapeAnswer(five, 'Build a brief for the next batch'), five);
+await check('lists: no code cut (nothing serves "tap to see all"); the note asks for the top 3 but never drops a warning, a step or a card change', () => {
+  assert.match(answerNote('Which ads did best this week?'), /Lists: the top 3, but never leave out a warning, a fix step or a change the card will make/);
+  assert.doesNotMatch(answerNote('Which ads did best this week?'), /code cuts|tap to see all/);
+  assert.match(answerNote('Show me the top 5 ads by spend'), /Lists: the top 5/);
+  for (const q of ['show me the rest', 'what are the other 5?', 'and the others?', 'list the remaining ads']) assert.equal(answerKind(q).more, true, q);
   assert.equal(askedCount('top 3 ads'), 0); assert.equal(askedCount('seven headlines please'), 7);
+});
+await check('the type is read from the person\'s own words, never from the ACCESS RULE the app puts in front', () => {
+  const pre = '[ACCESS RULE: this person may only see Harbor Golf. Read, mention, compare or total no other brand; if asked about one, say they do not have access.] ';
+  assert.equal(answerKind(pre + 'What was revenue yesterday?').kind, 'lookup');
+  assert.equal(answerKind(pre + 'pause the hat ad').kind, 'change');
+  assert.equal(isYesNo(pre + 'Should I raise the budget?'), true);
+  assert.match(answerNote(pre + 'What was revenue yesterday?'), /a number lookup, 15 to 40/);
+});
+await check('a client\'s own login gets its own shape: no team draft line, no source line, no Meta label or Slack link checks', () => {
+  const q = 'Write a message I can send my customers about the sale';
+  assert.equal(answerKind(q).kind, 'draft'); assert.equal(answerKind(q, { client: true }).kind, 'make');
+  const n = answerNote(q, { client: true });
+  assert.doesNotMatch(n, /Draft for #|---- draft ----|code adds the source line|Meta's own count/);
+  assert.match(n, /which page or period/);
+  assert.deepEqual(answerProblems('Meta shows 23 purchases on the sale ads this week, a 2.1x ROAS.', 'How did the sale ads do this week?', { client: true }), []);
+});
+await check('a rewrite never goes out when it lost a warning or the draft line', () => {
+  const first = 'Pause the hat ad. It is still in its wait window (2 of 3 days), so this is early. Tap Apply to do it.';
+  assert.equal(rewriteOk(first, 'Pause the hat ad. Tap Apply to do it.'), false);
+  assert.equal(rewriteOk(first, 'Pause the hat ad, still in its wait window. Tap Apply to do it.'), true);
+  assert.equal(rewriteOk('Hold. WARNING: the pixel stopped firing Nov 24.', 'Hold until Monday.'), false);
+  assert.equal(rewriteOk('Draft for #harbor-golf, not sent\n---- draft ----\nHi Sam', 'Hi Sam'), false);
 });
 await check('the source line: written by code from what the tools read (where, dates, definition, Amazon, tax), the model\'s own goes', () => {
   const reads = [
@@ -127,9 +145,29 @@ await check('the source line: written by code from what the tools read (where, d
     { name: 'recall', input: {}, ok: true },
     { name: 'read_app', input: { view: 'google_ads' }, ok: false },
   ];
-  assert.equal(sourceLine(reads), 'Source: Triple Whale store, Triple Whale orders and Meta, Nov 1 to 25, sales with tax out, website only (Amazon out), worked out in code.');
+  /* Each place says its own definitions: the SQL's Amazon filter never spills onto the store view read beside it. */
+  assert.equal(sourceLine(reads), "Source: Triple Whale store, Nov 1 to 25, sales with tax out, Amazon not split out; Triple Whale orders, Nov 1 to 25, website only (Amazon out); Meta; worked out in code.");
   assert.equal(sourceLine([{ name: 'read_app', input: { view: 'series', days: 14 }, ok: true, text: '{"brand":"Harbor","from":"2026-10-29","to":"2026-11-25"}' }]), 'Source: Triple Whale store and Meta, Oct 29 to Nov 25, sales with tax out, Amazon not split out.');
   assert.equal(sourceLine([{ name: 'read_app', input: { view: 'creatives', days: 7 }, ok: true }]), 'Source: Meta, last 7 days.');
+  /* Tax only from the SQL itself: subtracted = out, order_revenue alone = in, a count = nothing said. */
+  const sql = q => sourceLine([{ name: 'store_sql', input: { sql: q, from: '2026-11-01', to: '2026-11-25' }, ok: true }]);
+  assert.equal(sql('SELECT sum(order_revenue - taxes) FROM orders_table'), 'Source: Triple Whale orders, Nov 1 to 25, sales with tax out, Amazon not split out.');
+  assert.equal(sql('SELECT sum(order_revenue) FROM orders_table'), 'Source: Triple Whale orders, Nov 1 to 25, sales with tax in, Amazon not split out.');
+  assert.equal(sql("SELECT count() FROM orders_table WHERE discount_code = 'BF30'"), 'Source: Triple Whale orders, Nov 1 to 25, Amazon not split out.');
+  /* The customers view and the account view say nothing on tax. */
+  assert.equal(sourceLine([{ name: 'read_app', input: { view: 'customers', from: '2026-11-01', to: '2026-11-25' }, ok: true }]), 'Source: Triple Whale orders, Nov 1 to 25, Amazon not split out.');
+  /* A read that failed is not a source, even when the tool did not mark it an error. */
+  assert.equal(sourceLine([{ name: 'read_app', input: { view: 'klaviyo' }, ok: true, text: '{"error":"Klaviyo is not connected for this brand."}' }]), '');
+  assert.equal(sourceLine([{ name: 'read_app', input: { view: 'store', from: '2026-11-26', to: '2026-11-26' }, ok: true, text: '{"error":"That range has no finished days yet."}' }]), '');
+  assert.equal(readFailed({ name: 'read_app', ok: true, text: 'The app views are not available on this surface.' }), true);
+  assert.equal(readFailed({ name: 'read_app', ok: true, text: '{"brand":"Harbor","period":{}}' }), false);
+  /* calc only for weekdays is not "worked out in code". */
+  assert.equal(sourceLine([{ name: 'meta_read', input: {}, ok: true }, { name: 'calc', input: { dates: ['2026-11-16'] }, ok: true }]), 'Source: Meta.');
+  /* Given the answer, a read holding none of its numbers is left out (when another read holds them). */
+  const two = [{ name: 'read_app', input: { view: 'store', from: '2026-11-01', to: '2026-11-25' }, ok: true, text: '{"period":{"sales":84213.4,"orders":912}}' },
+    { name: 'read_app', input: { view: 'klaviyo', days: 30 }, ok: true, text: '{"flows":[{"revenue":5120}]}' }];
+  assert.equal(sourceLine(two, [], { answer: 'Harbor Golf sold $84,200 from Nov 1 to 25 on 912 orders.' }), 'Source: Triple Whale store, Nov 1 to 25, sales with tax out, Amazon not split out.');
+  assert.equal(sourceLine(two, [], { answer: 'Nothing off.' }), 'Source: Triple Whale store, Nov 1 to 25, sales with tax out, Amazon not split out; Klaviyo, last 30 days.');
   assert.equal(sourceLine([{ name: 'search_slack', input: {}, ok: true }, { name: 'locus_get', input: { path: '/api/brand/rules?act=brand_x' }, ok: true }]), "Source: Slack and the brand's ad rules.");
   assert.equal(sourceLine([]), ''); assert.equal(sourceLine([], ['the last 28 days']), 'Assumed: the last 28 days.');
   assert.equal(rangeText('2026-11-16', '2026-11-16'), 'Nov 16'); assert.equal(rangeText('2025-12-20', '2026-01-02'), 'Dec 20, 2025 to Jan 2, 2026');
@@ -138,6 +176,10 @@ await check('the source line: written by code from what the tools read (where, d
   const draft = finishAnswer('Draft for #harbor-golf, not sent\n---- draft ----\nHi Sam, the store did $84,200.', { reads: reads.slice(0, 1) });
   assert.match(draft, /^Draft for #harbor-golf, not sent\n\nSource: Triple Whale store[^\n]*\n---- draft ----\nHi Sam, the store did \$84,200\.$/, 'the source line stays above the client text');
   assert.equal(finishAnswer('Card up. Tap Apply to do it.', { reads: [] }), 'Card up. Tap Apply to do it.');
+  /* A one-line reply over a waiting card gets no source line: the card is the reply. */
+  const lr = [{ name: 'locus_get', input: { path: '/api/actions?act=brand_x' }, ok: true }];
+  assert.equal(finishAnswer('Task ready: build the BF page, due Thu Nov 26. Tap Apply to add it.', { reads: lr, cards: 1 }), 'Task ready: build the BF page, due Thu Nov 26. Tap Apply to add it.');
+  assert.match(finishAnswer('Raise it to $500.\nThe set ran $38 a sale.\n\nNothing has changed yet. Tap Apply to do it.', { reads: lr, cards: 1 }), /\n\nSource: Locus\.$/);
 });
 await check('client text: internal names and ids are caught, plain client words are not', () => {
   assert.deepEqual(clientLeaks('Sales were $2,040.00 from 8 orders on Nov 16 (Monday), up 12%. The Black Friday ads start Nov 26.'), []);
@@ -247,7 +289,7 @@ globalThis.fetch = async (url, init) => {
 };
 const fakeStore = { def: { name: 'store_sql', description: 'Store orders.', input_schema: { type: 'object', properties: { sql: { type: 'string' }, from: { type: 'string' }, to: { type: 'string' } } } },
   run: async () => ({ text: '{"rows":[{"sales":84200}]}' }) };
-const eng = createAssistant({ name: 'Locus', who: 'test', schema: '', sqlTool: 'query_locus', model: 'claude-opus-5-5', answerNote, answerCheck: answerProblems, dateLine, shapeAnswer, finishAnswer,
+const eng = createAssistant({ name: 'Locus', who: 'test', schema: '', sqlTool: 'query_locus', model: 'claude-opus-5-5', answerNote, answerCheck: answerProblems, dateLine, rewriteOk, finishAnswer,
   tools: [...answerTools(), fakeStore], alwaysLoaded: ['calc', 'store_sql'], slackName: 'Locus', slackApp: 'locus' });
 const Q = "What was Harbor Golf's revenue on Nov 16, 2026?";
 await check('engine: the budget note goes with the question and the date block names the weekday', async () => {
@@ -275,21 +317,42 @@ await check('engine: a rewrite that comes back empty or longer is dropped and th
   const w = await eng.answerWeb(env, Q, [], h(), { style: 'Reply with ONLY the JSON object asked for.' });
   assert.equal(bodies.length, 1); assert.doesNotMatch(bodies[0].messages.at(-1).content, /Answer type/); assert.equal(w.answer, words(90));
 });
+await check('engine: a rewrite that ADDS what the check asked for (a label, the draft line) lands even when longer; one that drops a warning does not', async () => {
+  const q = 'How did the sale set do this week?';
+  bodies = []; script = ['Meta shows 23 purchases on the set.', "The set made 9 sales on Triple Whale. Meta shows 23 purchases (Meta's own count, second opinion)."];
+  let r = await eng.answerWeb(env, q, [], h(), {});
+  assert.equal(r.checked.rewritten, true); assert.match(r.answer, /second opinion/);
+  bodies = []; script = ['Hi Sam, the sale ads did well this week, 40 orders.', 'Draft for #harbor-golf, not sent\n---- draft ----\nHi Sam, the sale ads did well this week, 40 orders.'];
+  r = await eng.answerWeb(env, 'Draft the reply I can send the client', [], h(), {});
+  assert.equal(r.checked.rewritten, true); assert.match(r.answer, /^Draft for #harbor-golf, not sent\n---- draft ----\nHi Sam/);
+  bodies = []; script = ['Pause the hat ad. It is still in its wait window, 2 of 3 days. ' + words(60), 'Pause the hat ad.'];
+  r = await eng.answerWeb(env, 'pause the hat ad', [], h(), {});
+  assert.equal(r.checked.rewritten, false, 'the shorter rewrite lost the wait window warning'); assert.match(r.answer, /wait window/);
+});
+await check('engine: a limited person\'s ACCESS RULE prefix does not change the type; a client login gets its own shape and no source line', async () => {
+  bodies = []; script = ['Revenue was $1,240.50 yesterday.'];
+  await eng.answerWeb(env, '[ACCESS RULE: this person may only see Harbor Golf. Read, mention, compare or total no other brand; if asked about one, say they do not have access.] What was revenue yesterday?', [], h(), {});
+  assert.match(bodies[0].messages.at(-1).content, /\[Answer type: a number lookup, 15 to 40 words/);
+  bodies = []; script = [{ tool: 'store_sql', input: { sql: 'SELECT sum(order_revenue - taxes) FROM orders_table', from: '2026-11-01', to: '2026-11-25' } }, 'Harbor Golf sold $84,200 from Nov 1 to 25 (the store page).'];
+  const r = await eng.answerWeb(env, 'How much did we sell from Nov 1 to Nov 25?', [], h(), { client: { brand: 'brand_harbor', name: 'Harbor Golf', email: 'x@example.com' } });
+  assert.doesNotMatch(bodies[0].messages.at(-1).content, /code adds the source line|Draft for #/);
+  assert.equal(r.answer, 'Harbor Golf sold $84,200 from Nov 1 to 25 (the store page).', 'no code-written source line for a client');
+});
 await check('engine: a prompt the app wrote (noCheck: the Monday review, a scheduled question) gets no note and no check', async () => {
   bodies = []; script = ['Team read: 412 | UGC carried the week. ' + words(200)];
   const r = await eng.answerWeb(env, 'Review Harbor Golf for this week and post the message for the channel.', [], h(), { noCheck: true });
   assert.equal(bodies.length, 1, 'no rewrite round'); assert.doesNotMatch(bodies[0].messages.at(-1).content, /Answer type/); assert.equal(r.checked, undefined);
-  assert.doesNotMatch(r.answer, /Source:|tap to see all/, 'no source line and no list cut on a prompt the app wrote');
+  assert.doesNotMatch(r.answer, /Source:/, 'no source line on a prompt the app wrote');
 });
-await check('engine: the source line is written by code from the tools that ran, the model line goes, lists are cut to 3', async () => {
+await check('engine: the source line is written by code from the tools that ran, the model line goes, lists are not cut', async () => {
   bodies = []; script = [{ tool: 'store_sql', input: { sql: "SELECT sum(order_revenue - taxes) FROM orders_table WHERE source_name != 'amazon'", from: '2026-11-01', to: '2026-11-25' } },
     { tool: 'calc', input: { net_sales: 84200, ad_spend: 21000 } },
     ['Harbor Golf sold $84,200 from Nov 1 to 25, a 4.01x MER.', 'Top days:', '1. Nov 24 $9,100', '2. Nov 25 $8,800', '3. Nov 20 $6,000', '4. Nov 21 $5,500',
       'Source: the store, I think', 'Assumed: website only.'].join('\n')];
   const r = await eng.answerWeb(env, 'How much did Harbor Golf sell from Nov 1 to Nov 25?', [], h(), {});
   assert.equal(bodies.length, 3, 'two tool rounds and the answer, no rewrite');
-  assert.equal(r.answer, ['Harbor Golf sold $84,200 from Nov 1 to 25, a 4.01x MER.', 'Top days:', '1. Nov 24 $9,100', '2. Nov 25 $8,800', '3. Nov 20 $6,000', '1 more, tap to see all.', '',
-    'Source: Triple Whale orders, Nov 1 to 25, sales with tax out, website only (Amazon out), worked out in code. Assumed: website only.'].join('\n'));
+  assert.equal(r.answer, ['Harbor Golf sold $84,200 from Nov 1 to 25, a 4.01x MER.', 'Top days:', '1. Nov 24 $9,100', '2. Nov 25 $8,800', '3. Nov 20 $6,000', '4. Nov 21 $5,500', '',
+    'Source: Triple Whale orders, Nov 1 to 25, sales with tax out, website only (Amazon out); worked out in code. Assumed: website only.'].join('\n'));
 });
 await check('engine: Slack carries the note after the thread and checks the answer the same way', async () => {
   bodies = []; script = [words(90), 'Revenue was $1,240.50 on Monday Nov 16.'];

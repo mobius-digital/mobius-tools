@@ -8,9 +8,11 @@
  *   answerProblems            the post-step: over the range, an answer that does not start with the answer, a client
  *                             draft without its team line or with internal names, a headline over 32 characters, a
  *                             Slack fact with no link or date, Meta's own count without its label = one rewrite round
- *   shapeAnswer               code cuts every list to 3 ("N more, tap to see all") unless more was asked
- *   finishAnswer / sourceLine the ONE source line, written by code from what the tools actually read (where, which
- *                             dates, which definition, Amazon, tax); the model's "Assumed:" line is folded into it
+ *   rewriteOk                 a rewrite never goes out if it dropped a warning (wait window, anchor, broken
+ *                             pixel or page) or the "---- draft ----" line the first answer had
+ *   finishAnswer / sourceLine the ONE source line, written by code from the reads that worked and that the answer
+ *                             used (where, which dates; tax and Amazon only where the read itself shows them); the
+ *                             model's "Assumed:" line is folded into it. Never on a one-line card reply.
  *   clientLeaks               internal set / campaign / test names and ids in text meant for a client
  *   calc (tool)               cost per sale, ROAS, CPA, MER, CAC, AOV, cost per lead, margin, a budget step and
  *                             weekday names, computed in code; under MIN_SALES it says "too few sales to call"
@@ -24,7 +26,12 @@
  * is read: a prompt the app writes (the Monday review, a scheduled question) passes noCheck and gets none of this.
  * Word counts leave out cards, charts, tables and the source line. Ad windows are never copied here: they are the
  * brand's own ad rules (Brand settings, /api/brand/rules), read by the assistant.
- * Plugs into ask/engine.js through config hooks (answerNote, answerCheck, shapeAnswer, finishAnswer, dateLine) and
+ * Lists are NOT cut by code (round 20 review: a cut hid warnings, fix steps and the changes on a waiting card, inside
+ * a draft too, behind a "tap to see all" that nothing served); the note asks for the top 3 and the word range does
+ * the rest. The type is read from the person's own words: an "[ACCESS RULE: ...]" the app puts in front is skipped.
+ * A client's own login (opts.client) gets its own shape: the word range and answer-first only, no team draft line,
+ * no Slack or Meta-label checks and no code-written source line (its sources carry the agency's internal names).
+ * Plugs into ask/engine.js through config hooks (answerNote, answerCheck, rewriteOk, finishAnswer, dateLine) and
  * into strategist.js tools.
  */
 
@@ -65,7 +72,10 @@ export const KINDS = {
 /* Kept for callers that read a plain ceiling per kind. */
 export const BUDGETS = Object.fromEntries(Object.entries(KINDS).map(([k, v]) => [k, v.max]));
 
-const norm = s => String(s || '').replace(/\s+/g, ' ').trim();
+/* The person's own words: worker.js puts "[ACCESS RULE: ...]" in front of a limited person's question, and its words
+   ("compare") must not decide the type. */
+export const ownWords = s => String(s || '').replace(/^\s*\[ACCESS RULE:[^\]]*\]\s*/i, '');
+const norm = s => ownWords(s).replace(/\s+/g, ' ').trim();
 /** A question answered Yes or No ("Is", "Did", "Should"...), not a request ("Can you...") and not "A or B?". */
 export function isYesNo(question) {
   const q = norm(question).replace(/^(?:on|for) [^,]{1,40}, /i, '');
@@ -85,14 +95,15 @@ export function askedCount(question) {
   return n > LIST_MAX ? Math.min(n, 30) : 0;
 }
 
-export function answerKind(question) {
+export function answerKind(question, { client = false } = {}) {
   const q = norm(question);
-  const more = /\b(list (them )?all|every one|full list|all of them|in full|all \d+|show me everything|show all|see all)\b/i.test(q);
+  const more = /\b(list (them )?all|every one|full list|all of them|in full|all \d+|show me everything|show all|see all|the rest|the others|the remaining|the other (\d+|two|three|four|five|six|seven|eight|nine|ten))\b/i.test(q);
   const pick = kind => ({ kind, words: KINDS[kind].max * (more ? 2 : 1), min: KINDS[kind].min, more, label: KINDS[kind].label });
   /* A client draft = asked to WRITE something (draft / write / reword / compose / reply to / respond to) for a client
      or customer, or to send or paste. "What did the client say in their last message?" is not one. */
   const writing = /\b(draft|write|rewrite|reword|compose|reply to|respond to)\b/i.test(q) || /\b(give me|get me|need|want)\b[^.?!]{0,30}\b(message|note|reply|update|email|post|text)\b/i.test(q);
-  if (writing && /\b(clients?|customers?|send|paste)\b/i.test(q)) return pick('draft');
+  /* A client's own login writing to its customers is making something, not a team draft for a client channel. */
+  if (writing && /\b(clients?|customers?|send|paste)\b/i.test(q)) return pick(client ? 'make' : 'draft');
   if (/^(please |can you |could you )?(on [^,]+, )?(turn (on|off)|pause|resume|raise|lower|increase|decrease|cut|change|set|switch|rename|duplicate|launch|stop|start|move|add|remove)\b/i.test(q)) return pick('change');
   if (/\b(ideas?|angles?|concepts?|hooks?|headlines?|taglines?)\b/i.test(q)) return pick('creative');
   if (/^(please |can you |could you )?(write|make|create|build|fill in|generate|design|draft)\b/i.test(q)) return pick('make');
@@ -105,18 +116,19 @@ export function answerKind(question) {
   return pick('do');
 }
 
-export function answerNote(question) {
-  const b = answerKind(question), K = KINDS[b.kind];
+export function answerNote(question, { client = false } = {}) {
+  const b = answerKind(question, { client }), K = KINDS[b.kind];
   const range = b.more ? `up to ${b.words}` : `${b.min} to ${b.words}`;
   const yn = isYesNo(question) && !['draft', 'change', 'make', 'creative'].includes(b.kind) ? ' It is a yes or no question: the first word is Yes or No.' : '';
   const draft = b.kind === 'draft' ? ` The team line, then a line exactly "---- draft ----", then the message (${b.min} to ${b.words} words): no internal ad set or campaign names, the same full date range as the store numbers, never sent by you.` : '';
-  const list = b.more ? 'They asked for the full list: give it.' : `Lists: the top ${askedCount(question) || LIST_MAX}; code cuts the rest.`;
+  const list = b.more ? 'They asked for the full list: give it.' : `Lists: the top ${askedCount(question) || LIST_MAX}, but never leave out a warning, a fix step or a change the card will make.`;
+  if (client) return `[Answer type: ${K.label}, ${range} words (charts not counted). First sentence = the answer: ${K.first}.${yn} ${list} Say in a few words which page or period the numbers came from. Example: ${JSON.stringify(K.ex)}]`;
   return `[Answer type: ${K.label}, ${range} words (cards, charts and the source line not counted). First sentence = the answer: ${K.first}.${yn}${draft} ${list} Never write where the numbers came from: code adds the source line from what you read. If you assumed something (a date range, a brand, which of two readings), end with one line "Assumed: ...". Ask back only when two readings give different numbers. Meta's own purchases or ROAS only as "Meta's own count, second opinion". Example: ${JSON.stringify(K.ex)}]`;
 }
 
 /* Lines that are not the writing: the code-written source line, the model's assumption line, the list tail, the
    card line. Fenced blocks (charts) and table rows do not count either. */
-const NOT_WRITING = /^\s*(?:\*{0,2})(?:source|sources|assumed|assumption|assumptions)\s*:|^\s*\d+ more, tap to see all\.?\s*$|^\s*Nothing has changed yet\. Tap Apply/i;
+const NOT_WRITING = /^\s*(?:\*{0,2})(?:source|sources|assumed|assumption|assumptions)\s*:|^\s*Nothing has changed yet\. Tap Apply/i;
 /** Words a person reads: fenced blocks (charts), table rows, the source line and card lines do not count. */
 export function wordCount(text) {
   const body = String(text || '').replace(/```[\s\S]*?```/g, ' ').split('\n').filter(l => !/^\s*\|/.test(l) && !NOT_WRITING.test(l)).join(' ');
@@ -193,8 +205,8 @@ export function unlabelledMeta(text) {
 
 /** The post-step: what is wrong with a finished answer, as plain instructions for one rewrite. Empty = send it.
  *  `reads` is what the tools read on the way (a Slack fact must then carry its link and date). */
-export function answerProblems(answer, question, { slack = 1.2, reads = [] } = {}) {
-  let b = answerKind(question);
+export function answerProblems(answer, question, { slack = 1.2, reads = [], client = false } = {}) {
+  let b = answerKind(question, { client });
   const out = [];
   const { answer: head, draft } = splitDraftText(answer);
   if (b.kind !== 'draft' && REFUSAL.test(firstSentence(answer))) b = { ...b, kind: 'refusal', words: KINDS.refusal.max, label: KINDS.refusal.label };
@@ -209,7 +221,7 @@ export function answerProblems(answer, question, { slack = 1.2, reads = [] } = {
     if (leaks.length) out.push(`The client text names internal things: ${leaks.join('; ')}. Say it in the client's words instead ("the ads for new customers", "the Black Friday ads"), no names, numbers or ids of ad sets, campaigns or tests.`);
   } else {
     const n = wordCount(answer);
-    if (n > b.words * slack) out.push(`It is ${n} words; the limit for ${b.label} is ${b.words}. Keep the answer, the numbers that decide it and any link or card line; ${b.more ? '' : 'lists to the top 3; '}drop method, recap and background.`);
+    if (n > b.words * slack) out.push(`It is ${n} words; the limit for ${b.label} is ${b.words}. Keep the answer, the numbers that decide it, any link or card line, every warning (a wait window, the anchor of a working set, a big change, anything broken) and every step; drop method, recap and background.`);
     const first = firstSentence(answer);
     if (!['make', 'change'].includes(b.kind)) {
       if (PREAMBLE.test(first)) out.push('Start with the answer itself, not how you found it: the first sentence is the answer.');
@@ -224,49 +236,27 @@ export function answerProblems(answer, question, { slack = 1.2, reads = [] } = {
       const wordy = writingOf(answer).split('\n').filter(l => /^\s*(?:[-*•]|\d{1,2}[.)])\s+/.test(l) && wordCount(l) > 30);
       if (wordy.length) out.push('One line per idea (30 words or less); the detail goes in the card.');
     }
-    if (b.kind === 'facts' && (reads || []).some(r => r && r.ok !== false && /^(search_slack|read_thread)$/.test(r.name))) {
+    if (!client && b.kind === 'facts' && (reads || []).some(r => r && !readFailed(r) && /^(search_slack|read_thread)$/.test(r.name))) {
       if (!HAS_LINK.test(answer)) out.push('A fact from Slack carries its link: add the link to the message you quoted.');
       if (!HAS_DATE.test(answer)) out.push('Say when it was said (the date of the message) and who said it.');
     }
   }
-  const meta = unlabelledMeta(draft ? `${head}\n${draft}` : answer);
+  const meta = client ? null : unlabelledMeta(draft ? `${head}\n${draft}` : answer);
   if (meta) out.push(`Meta's own purchases or ROAS may appear only labelled "Meta's own count, second opinion" ("${meta}"); the numbers are Triple Whale's.`);
   return out;
 }
 
-/* ---------------- lists: code cuts them ---------------- */
-const ITEM = /^(\s*)(?:[-*•]|\d{1,2}[.)])\s+\S/;
-/** Every list run past `keep` items is cut, with one "N more, tap to see all." line where the rest was. Fenced blocks
- *  (charts) and tables are left alone; an item's own indented lines go with it. */
-export function trimLists(text, keep = LIST_MAX) {
-  const out = [];
-  let run = null, fence = false, blanks = [];
-  const close = () => { if (run?.hidden) out.push(`${run.hidden} more, tap to see all.`); run = null; };
-  for (const line of String(text || '').split('\n')) {
-    if (/^\s*```/.test(line)) { if (run) close(); out.push(...blanks, line); blanks = []; fence = !fence; continue; }
-    if (fence) { out.push(line); continue; }
-    if (!line.trim()) { if (run) blanks.push(line); else out.push(line); continue; }
-    const m = ITEM.test(line), ind = (line.match(/^\s*/) || [''])[0].length;
-    if (run && ind > run.indent) { if (!run.skip) out.push(...blanks, line); blanks = []; continue; }
-    if (run && m && ind === run.indent) {
-      run.count++; run.skip = run.count > keep;
-      if (run.skip) { run.hidden++; blanks = []; } else { out.push(...blanks, line); blanks = []; }
-      continue;
-    }
-    if (run) close();
-    if (m) run = { indent: ind, count: 1, hidden: 0, skip: false };
-    out.push(...blanks, line); blanks = [];
-  }
-  if (run) close();
-  out.push(...blanks);
-  return out.join('\n').replace(/\s+$/, '');
-}
-/** Shape before the check: lists cut to 3 (or the number asked for), except a draft's message, something made (a
- *  brief, a report) and a question that asked for everything. */
-export function shapeAnswer(answer, question) {
-  const b = answerKind(question);
-  if (b.more || b.kind === 'make' || b.kind === 'draft' || !answer) return answer;
-  return trimLists(answer, askedCount(question) || LIST_MAX);
+/* ---------------- the rewrite: what it may never lose ---------------- */
+/* Words that carry a warning the person must read before tapping (house rules: a pause inside the wait window or of
+   the anchor of a working set is told first; a broken pixel or page outranks any budget move). */
+const WARN = /\b(?:wait(?:ing)? window|anchor|still learning|learning (?:phase|resets?)|big change|warning|careful|broken|stopped (?:firing|tracking|working)|not (?:firing|tracking|loading)|404|is down|went down|cannot be undone|over the 50% line|too few sales to call)\b/gi;
+/** A rewrite goes out only when it kept every warning the first answer had, and its "---- draft ----" line. */
+export function rewriteOk(before, after) {
+  const b = String(before || ''), a = String(after || '');
+  if (DRAFT_LINE.test(b) && !DRAFT_LINE.test(a)) return false;
+  const low = a.toLowerCase();
+  for (const w of new Set((b.match(WARN) || []).map(x => x.toLowerCase()))) if (!low.includes(w)) return false;
+  return true;
 }
 
 /* ---------------- the source line: code writes it ---------------- */
@@ -286,12 +276,34 @@ const VIEW_SRC = { store: 'Triple Whale store', account: 'Triple Whale store', o
   tests: 'Locus tests', angles: 'Locus tests', google_ads: 'Google Ads', website: 'GA4', search: 'Search Console', tiktok_ads: 'TikTok',
   klaviyo: 'Klaviyo', stock: 'Shopify stock', calendar: 'the Locus calendar', leaks: 'the leak finder', market: 'Mobius Pulse and Breezeway',
   plan: 'the month plan', survey: 'the post-purchase survey', scenarios: 'Locus scenarios' };
+/* Store reads (Amazon is said for each). Tax: only the views whose code takes tax out (strategist.js store: storePeriod
+   "Revenue is net of tax"; series: netSales less totalNetTaxes). account, overview and customers say nothing on tax. */
 const STORE_VIEWS = new Set(['store', 'account', 'overview', 'series', 'customers']);
+const TAX_OUT_VIEWS = new Set(['store', 'series']);
 const LAST_CLICK_VIEWS = new Set(['what_worked', 'account']);
+/* Tax in a store_sql, read from the SQL itself: a tax column subtracted = tax out; order_revenue without that = tax in. */
+const SQL_TAX_OUT = /-\s*(?:sum\s*\(\s*)?(?:\w+\.)?(?:taxes|total_tax(?:es)?|tax(?:_amount|_price)?)\b/i;
+function sqlTax(sql) {
+  if (SQL_TAX_OUT.test(sql)) return 'sales with tax out';
+  if (/\border_revenue\b/i.test(sql)) return 'sales with tax in';
+  return '';
+}
+function sqlAmazon(sql) {
+  if (/source_name\s*(?:!=|<>|not\s+in)\s*\(?\s*'amazon'|not\s+source_name\s*=\s*'amazon'|platform\s*(?:!=|<>)\s*'amazon'/i.test(sql)) return 'website only (Amazon out)';
+  if (/source_name\s*(?:=|in)\s*\(?\s*'amazon'|platform\s*=\s*'amazon'/i.test(sql)) return 'Amazon orders checked';
+  return 'Amazon not split out';
+}
 function sourceOf(r) {
   const i = r.input || {}, n = r.name;
-  if (n === 'read_app') return VIEW_SRC[i.view] ? { src: VIEW_SRC[i.view], store: STORE_VIEWS.has(i.view), lastClick: LAST_CLICK_VIEWS.has(i.view) } : null;
-  if (n === 'store_sql') return { src: 'Triple Whale orders', store: true, sql: String(i.sql || '') };
+  if (n === 'read_app') {
+    if (!VIEW_SRC[i.view]) return null;
+    const defs = [];
+    if (TAX_OUT_VIEWS.has(i.view)) defs.push('sales with tax out');
+    if (STORE_VIEWS.has(i.view)) defs.push('Amazon not split out');
+    if (LAST_CLICK_VIEWS.has(i.view)) defs.push('Triple Whale last click');
+    return { src: VIEW_SRC[i.view], defs };
+  }
+  if (n === 'store_sql') { const sql = String(i.sql || ''); return { src: 'Triple Whale orders', defs: [sqlTax(sql), sqlAmazon(sql)].filter(Boolean) }; }
   if (n === 'meta_read') return { src: 'Meta' };
   if (n === 'search_slack' || n === 'read_thread') return { src: 'Slack' };
   if (n === 'web_lookup') return { src: 'the web' };
@@ -306,6 +318,17 @@ function sourceOf(r) {
   if (r.sql) return { src: 'Locus data' };
   return null;
 }
+/** A read that did not work: a tool error, or a view that answered with {"error": ...} (read_app never sets is_error:
+ *  a range with no finished days, Klaviyo not connected, a view this surface does not have). */
+export function readFailed(r) {
+  if (!r || r.ok === false) return true;
+  const t = String(r.text || '').trim();
+  if (!t) return false;
+  if (r.name === 'read_app' && !/^[[{]/.test(t)) return true;
+  if (t[0] !== '{') return false;
+  try { const j = JSON.parse(t); return !!j && typeof j === 'object' && (j.error != null || j.ok === false || j.connected === false); }
+  catch { return /^\{\s*"error"\s*:/.test(t); }
+}
 function datesOf(r) {
   const i = r.input || {};
   if (isYmd(i.from)) return rangeText(i.from, isYmd(i.to) ? i.to : i.from);
@@ -316,36 +339,67 @@ function datesOf(r) {
   if (+i.days > 0) return `last ${+i.days} days`;
   return '';
 }
-const andList = a => a.length <= 1 ? (a[0] || '') : `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}`;
-/** The one source line, from what the tools actually read: where, which dates, which definition, Amazon, tax. */
-export function sourceLine(reads = [], assumed = []) {
-  const srcs = [], dates = [], defs = [];
-  const add = (arr, v) => { if (v && !arr.includes(v)) arr.push(v); };
-  let store = false, lastClick = false, amazonOut = false, amazonChecked = false, calcUsed = false;
-  for (const r of reads || []) {
-    if (!r || r.ok === false || r.action) continue;
-    if (r.name === 'calc') { calcUsed = true; continue; }
-    const s = sourceOf(r);
-    if (!s) continue;
-    add(srcs, s.src); add(dates, datesOf(r));
-    if (s.store) store = true;
-    if (s.lastClick) lastClick = true;
-    if (s.sql) {
-      if (/source_name\s*(?:!=|<>|not\s+in)\s*\(?\s*'amazon'|not\s+source_name\s*=\s*'amazon'/i.test(s.sql)) amazonOut = true;
-      else if (/source_name\s*(?:=|in)\s*\(?\s*'amazon'|platform\s*=\s*'amazon'/i.test(s.sql)) amazonChecked = true;
-    }
+/* calc counts as "worked out in code" only when it worked out a ratio, not when it only named weekdays. */
+const CALC_RATIO = ['spend', 'sales', 'revenue', 'net_sales', 'ad_spend', 'new_customers', 'leads', 'orders', 'product_costs', 'budget_from', 'budget_to'];
+const calcRatio = r => { try { return Object.keys(calc(r.input || {})).some(k => k !== 'weekdays' && k !== 'error') && CALC_RATIO.some(k => (r.input || {})[k] != null); } catch { return false; } };
+
+/* Which reads the answer used: the numbers it quotes (100 or more, not a year; any decimal) are looked for in what each
+   read returned. A read with no text to look in is kept; when no read holds any of them, all are kept. */
+const NUM = /(?<![\w.])\d[\d,]*(?:\.\d+)?/g;
+function answerNumbers(text) {
+  const out = [];
+  for (const m of String(text || '').replace(/```[\s\S]*?```/g, ' ').matchAll(NUM)) {
+    const raw = m[0].replace(/,/g, ''), v = +raw, dec = (raw.split('.')[1] || '').length;
+    if (!isFinite(v)) continue;
+    if (dec) { if (v > 0) out.push({ v, dec }); continue; }
+    if (v >= 100 && !(v >= 1990 && v <= 2099)) out.push({ v, dec: 0 });
   }
-  if (store) { add(defs, 'sales with tax out'); add(defs, amazonOut ? 'website only (Amazon out)' : amazonChecked ? 'Amazon orders checked' : 'Amazon not split out'); }
-  if (lastClick) add(defs, 'Triple Whale last click');
-  if (calcUsed && srcs.length) add(defs, 'worked out in code');
+  return out;
+}
+function holds(read, nums) {
+  const vals = [];
+  for (const m of String(read.text || '').matchAll(NUM)) { const v = +m[0].replace(/,/g, ''); if (isFinite(v)) vals.push(v); }
+  return nums.some(n => vals.some(x => n.dec ? Math.abs(Math.round(x * 10 ** n.dec) / 10 ** n.dec - n.v) < 1e-9 || Math.abs(Math.round(x * 100 * 10 ** n.dec) / 10 ** n.dec - n.v) < 1e-9
+    : Math.abs(x - n.v) <= Math.max(0.5, n.v * 0.006)));
+}
+
+const andList = a => a.length <= 1 ? (a[0] || '') : `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}`;
+/** The one source line, from the reads that worked (and, given the answer, the ones it used): for each place, its
+ *  dates and only the definitions that read shows (tax, Amazon, last click). */
+export function sourceLine(reads = [], assumed = [], { answer = null } = {}) {
+  let calcUsed = false;
+  let used = [];
+  for (const r of reads || []) {
+    if (!r || r.action || readFailed(r)) continue;
+    if (r.name === 'calc') { if (calcRatio(r)) calcUsed = true; continue; }
+    const s = sourceOf(r);
+    if (s) used.push({ r, s });
+  }
+  const nums = answer != null ? answerNumbers(answer) : [];
+  if (nums.length) {
+    const kept = used.filter(({ r }) => !String(r.text || '').trim() || holds(r, nums));
+    if (kept.some(({ r }) => String(r.text || '').trim())) used = kept;
+  }
+  /* One segment per place: "Triple Whale store, Nov 1 to 25, sales with tax out, Amazon not split out". */
+  const groups = new Map();
+  for (const { r, s } of used) {
+    const g = groups.get(s.src) || { dates: [], defs: [] };
+    const d = datesOf(r); if (d && !g.dates.includes(d)) g.dates.push(d);
+    for (const x of s.defs || []) if (x && !g.defs.includes(x)) g.defs.push(x);
+    groups.set(s.src, g);
+  }
   const as = (assumed || []).map(a => String(a).replace(/[.\s]+$/, '')).filter(Boolean);
-  if (!srcs.length) return as.length ? `Assumed: ${as.join('; ')}.` : '';
-  const bits = [andList(srcs), dates.slice(0, 3).join(' and '), ...defs].filter(Boolean);
-  return `Source: ${bits.join(', ')}.${as.length ? ` Assumed: ${as.join('; ')}.` : ''}`;
+  if (!groups.size) return as.length ? `Assumed: ${as.join('; ')}.` : '';
+  const plain = [...groups.values()].every(g => !g.dates.length && !g.defs.length);
+  const segs = plain ? [andList([...groups.keys()])]
+    : [...groups.entries()].map(([src, g]) => [src, g.dates.slice(0, 3).join(' and '), ...g.defs].filter(Boolean).join(', '));
+  if (calcUsed) segs.push('worked out in code');
+  return `Source: ${segs.join('; ')}.${as.length ? ` Assumed: ${as.join('; ')}.` : ''}`;
 }
 /** The last step: any source line the model wrote goes, its "Assumed:" lines fold into the one line code writes, and
- *  that line sits at the end of the team's part (above a client draft, never inside it). */
-export function finishAnswer(answer, { reads = [] } = {}) {
+ *  that line sits at the end of the team's part (above a client draft, never inside it). A one-line reply over a
+ *  waiting card ("Task ready: ... Tap Apply to add it.") gets no source line: the card is the reply. */
+export function finishAnswer(answer, { reads = [], cards = 0 } = {}) {
   if (!answer) return answer;
   const { answer: head0, draft } = splitDraftText(answer);
   const assumed = [];
@@ -354,7 +408,8 @@ export function finishAnswer(answer, { reads = [] } = {}) {
     if (a) { assumed.push(a[1].replace(/\*+$/, '').trim()); return false; }
     return !/^\s*(?:\*{0,2})(?:source|sources)\s*:/i.test(l);
   }).join('\n').replace(/\s+$/, '');
-  const line = sourceLine(reads, assumed);
+  const oneLine = cards > 0 && !draft && head.split('\n').filter(l => l.trim() && !/^\s*Nothing has changed yet\. Tap Apply/i.test(l)).length <= 1;
+  const line = oneLine ? (assumed.length ? `Assumed: ${assumed.map(a => a.replace(/[.\s]+$/, '')).join('; ')}.` : '') : sourceLine(reads, assumed, { answer: `${head}\n${draft}` });
   const team = line ? (head ? `${head}\n\n${line}` : line) : head;
   return draft ? joinDraft(team, draft) : team;
 }

@@ -1416,7 +1416,9 @@ Plain English, no em dashes, lead with the answer.` }];
           /* A tool may hand back content blocks (text + an image it made, so the model can look at it), and what it
              spent outside the model (an image, a sandbox run), which joins the answer's cost line. */
           if (typeof out?.cost === 'number' && isFinite(out.cost)) cost += out.cost;
-          reads.push({ name: c.name, input: c.input || {}, ok: !out?.is_error, action: !!actionByName[c.name], sql: c.name === C.sqlTool, text: typeof out?.text === 'string' ? out.text.slice(0, 4000) : '' });
+          /* ok: no tool error AND not a view that answered {"error": ...} as plain text (read_app never sets is_error). */
+          const readText = typeof out?.text === 'string' ? out.text : '';
+          reads.push({ name: c.name, input: c.input || {}, ok: !out?.is_error && !/^\s*\{\s*"error"\s*:/.test(readText), action: !!actionByName[c.name], sql: c.name === C.sqlTool, text: readText.slice(0, 16000) });
           results.push({ type: 'tool_result', tool_use_id: c.id, content: Array.isArray(out.content) && out.content.length ? out.content : String(out.text ?? ''), ...(out.is_error ? { is_error: true } : {}) });
         }
         messages.push({ role: 'user', content: results });
@@ -1439,18 +1441,20 @@ Plain English, no em dashes, lead with the answer.` }];
       }
       /* THE CHECK (2026-11-26, AI eval round 17: most answers ran twice their length, a client draft carried ad set
          names). The app's answerCheck reads the finished answer; anything it finds (over the word budget, internal
-         names in client text) gets ONE rewrite round with tools off. The rewrite is kept only when it came back
-         and is no longer than the first; otherwise the first answer goes out as it was. */
-      /* Only the person's own question is shaped and checked (never the app's own prompts: ctx.noCheck). Code cuts long
-         lists first (C.shapeAnswer), so the check counts what will be read. */
+         names in client text) gets ONE rewrite round with tools off. The rewrite is kept only when the same check
+         finds fewer problems in it than in the first (so a rewrite that ADDS a needed line, a label or a team line,
+         can land, and one still over length cannot) and C.rewriteOk says it lost nothing that must stay (a warning,
+         the draft line); otherwise the first answer goes out as it was. */
+      /* Only the person's own question is checked (never the app's own prompts: ctx.noCheck). A client's own login
+         is checked in its own shape (opts.client). */
       const own = !!(answer && !stopped && ctx?.question && !ctx?.noCheck);
-      const shape = a => { if (!C.shapeAnswer) return a; try { return C.shapeAnswer(a, ctx.question) || a; } catch { return a; } };
-      if (own) answer = shape(answer);
+      const checkOpts = { reads, client: !!ctx?.client };
+      const check = a => { try { return C.answerCheck(a, ctx.question, checkOpts) || []; } catch { return []; } };
       if (own && C.answerCheck) {
-        const problems = (() => { try { return C.answerCheck(answer, ctx.question, { reads }) || []; } catch { return []; } })();
+        const problems = check(answer);
         if (problems.length) {
           messages.push({ role: 'assistant', content: [{ type: 'text', text: answer }] });
-          messages.push({ role: 'user', content: 'Before this goes out, fix it:\n- ' + problems.join('\n- ') + '\nReply with the rewritten answer only, in the same voice, same facts, same numbers, links and card lines. Keep a "---- draft ----" line and the draft after it if there was one, and an "Assumed:" line if there was one. Add nothing new and no source line.' });
+          messages.push({ role: 'user', content: 'Before this goes out, fix it:\n- ' + problems.join('\n- ') + '\nReply with the rewritten answer only, in the same voice, same facts, same numbers, links and card lines. Keep every warning (a wait window, the anchor of a working set, a big change, anything broken) and every step. Keep a "---- draft ----" line and the draft after it if there was one, and an "Assumed:" line if there was one. Add nothing beyond what the fixes ask and no source line.' });
           const reply = await callClaude(env, system, messages, toolDefs, model, true, effort);
           const u = reply.usage || {};
           inTok += (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0);
@@ -1458,8 +1462,9 @@ Plain English, no em dashes, lead with the answer.` }];
           outTok += u.output_tokens || 0;
           cost += costOf(reply.model || model, u);
           const again = (reply.content || []).filter(c => c.type === 'text').map(c => c.text).join('').trim();
-          const kept = !!again && again.length <= answer.length;
-          if (kept) answer = shape(again);
+          const safe = !!again && (() => { try { return !C.rewriteOk || C.rewriteOk(answer, again, ctx.question) !== false; } catch { return false; } })();
+          const kept = safe && check(again).length < problems.length;
+          if (kept) answer = again;
           flags.checked = { problems, rewritten: kept };
         }
       }
@@ -1472,8 +1477,9 @@ Plain English, no em dashes, lead with the answer.` }];
     /* A card is waiting: the words must say so, whatever the model wrote. */
     /* Not on a scheduled run: its host posts the cards itself (a task) or drops them (askschedule.js). */
     if (flags.proposals?.length && !ctx?.scheduled && !/tap apply/i.test(answer)) answer = [answer, flags.proposals.length > 1 ? 'Nothing has changed yet. Tap Apply to do them.' : 'Nothing has changed yet. Tap Apply to do it.'].filter(Boolean).join('\n\n');
-    /* The ONE source line (where, which dates, which definition), written by code from what the tools read, last. */
-    if (C.finishAnswer && answer && !stopped && ctx?.question && !ctx?.noCheck) { try { answer = C.finishAnswer(answer, { question: ctx.question, reads }) || answer; } catch { /* the answer goes as it is */ } }
+    /* The ONE source line (where, which dates, which definition), written by code from what the tools read, last.
+       Never for a client's own login: its reads carry the agency's internal source names. */
+    if (C.finishAnswer && answer && !stopped && ctx?.question && !ctx?.noCheck && !ctx?.client) { try { answer = C.finishAnswer(answer, { question: ctx.question, reads, cards: flags.proposals?.length || 0 }) || answer; } catch { /* the answer goes as it is */ } }
     return { answer, sql, inTok, outTok, cacheRead, cacheWrite, cost, steps, stopped, ms: Date.now() - t0, flags };
   }
 
@@ -1700,7 +1706,8 @@ type is "bar" (comparing items), "line" (a trend; labels are dates) or "table" (
        prompt sets its length and whose words are not the person's. */
     const asked = choice.question || q;
     const quiet = !!(extra.style || extra.noCheck);
-    const note = C.answerNote && !quiet ? (() => { try { return C.answerNote(asked) || ''; } catch { return ''; } })() : '';
+    /* A client's own login gets the client shape of the note (no team draft line, no source line from code). */
+    const note = C.answerNote && !quiet ? (() => { try { return C.answerNote(asked, { client: !!client }) || ''; } catch { return ''; } })() : '';
     const turn = asked + (note ? '\n\n' + note : '');
     if (messages.length && messages[messages.length - 1].role === 'user') messages[messages.length - 1].content += '\n\n' + turn;
     else messages.push({ role: 'user', content: turn });
