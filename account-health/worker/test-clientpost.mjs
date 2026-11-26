@@ -213,7 +213,7 @@ await check('reportsPass drafts only and the 11am fallback never sends (it waits
   assert.ok(!fb.includes('sendReport('), 'the fallback never sends');
   assert.ok(fb.includes("skipped: 'waits for an approved read'"));
   const sb = src.slice(src.indexOf('async function sendBrief('), src.indexOf('async function brandHasClientLogin('));
-  assert.ok(sb.includes('clientDailyFor(env, acct, date, text, full)') && sb.includes("addDays(date, -2)"), 'one day per post, missed days within two days get their own');
+  assert.ok(sb.includes('clientDailyFor(env, acct, date, text, full, { card: true, thread: rest, today })') && sb.includes("addDays(date, -2)"), 'one day per post, missed days within two days get their own');
   assert.ok(!sb.includes('shortBriefText('), 'the old opener-and-numbers short post is not sent');
 });
 globalThis.fetch = async (url) => new Response(JSON.stringify({ error: 'offline: ' + url }), { status: 503 });

@@ -87,7 +87,9 @@ function buttonRow(buttons) {
 }
 
 /** Build one Locus Slack message. Returns { text, blocks, attachments? }. */
-export function houseMessage({ title, summary, tag, numbers, lines, image, source, at, context, buttons, status, now } = {}) {
+/* `maxNumbers` (2026-11-26, the client daily thread): a caller with one cell per ad channel may allow up to 10 cells, Slack's
+   cap on a section's fields. Left out, the cap stays 4 and every other message is byte-identical. */
+export function houseMessage({ title, summary, tag, numbers, lines, image, source, at, context, buttons, status, now, maxNumbers } = {}) {
   let head = squash(noEmoji(noDash(plainOf(title))));
   if (!head) { broken('a title is required'); head = squash(noEmoji(noDash(plainOf(summary)))) || 'Locus'; }
   head = clip(head, LIMITS.header);
@@ -101,8 +103,9 @@ export function houseMessage({ title, summary, tag, numbers, lines, image, sourc
   if (sumLine) after.push({ type: 'section', text: { type: 'mrkdwn', text: sumLine } });
 
   const nums = (numbers || []).filter(n => n && (n.label || n.value != null));
-  if (nums.length > LIMITS.numbers) broken('more than 4 numbers');
-  const cells = nums.slice(0, LIMITS.numbers).map(n => ({ type: 'mrkdwn',
+  const cap = maxNumbers > 0 ? Math.min(10, Math.floor(maxNumbers)) : LIMITS.numbers;
+  if (nums.length > cap) broken(`more than ${cap} numbers`);
+  const cells = nums.slice(0, cap).map(n => ({ type: 'mrkdwn',
     text: clip(noDash(`*${squash(n.label)}*\n${String(n.value ?? '').trim()}${n.note ? ` · ${squash(n.note)}` : ''}`), 2000) }));
   if (cells.length) after.push({ type: 'section', fields: cells });
 
