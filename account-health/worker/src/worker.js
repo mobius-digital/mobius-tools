@@ -112,6 +112,7 @@ import { dataTools, twSql } from './stratdata.js';
 import { extraTools } from './allwrite.js';
 import { runStudioMake, studioMakeTools } from './studiomake.js';
 import { slackPostWith, senderFor, envFor, sendersOf, resolveSenders, clearSenderCache, senderPerson, buyerSlackPost } from './sender.js';
+import { handleExampleDm } from './exampledm.js';
 import { houseMessage } from './house.js';
 import { deliveryMessage } from './delivery.js';
 /* /api/tw-day's 60-second memo (2026-10-26, Locus speed): key = brand | shop | day -> { at, p }. */
@@ -10571,6 +10572,8 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
          blended reporting - the profit worker's ?perf, ?plan and ?reports links -
          and a Meta-attributed view was the one surface that contradicted it.
          Nothing mints new ones, no page renders them, and its route is gone. */
+      /* Example Slack messages to the owner's own DM only (exampledm.js): owner only, no recipient in the body. */
+      if (path === '/api/slack/example-dm' && request.method === 'POST') return handleExampleDm(request, env, { isOwner, slackPost, json });
       if (path === '/api/settings' && request.method === 'GET') {
         return json({
           slackChannel: await getSetting(env, 'slackChannel'),
