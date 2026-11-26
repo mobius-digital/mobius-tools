@@ -1,14 +1,17 @@
 /* Quiet jobs and agency feature switches (2026-11-26, Cole: "Locus is the workplace; Slack is for talking").
  *
- * A job in QUIET_JOBS is a team Slack post nobody reads any more. It is NOT deleted: it goes quiet behind
- * settings `jobOn:<id>`. Only the exact value 'on' runs it; a missing key (the default) keeps it quiet. Every older
- * switch a job already had (fyiRoundup, callNudge, smokeQuiet, todayPost ...) is still honored: both must allow.
- * Bookkeeping that is not a Slack post (stamps, state, stored lines, auto finish) keeps running.
+ * A job in QUIET_JOBS is a team Slack post that can go quiet. It is NOT deleted: it sits behind settings
+ * `jobOn:<id>`. KEEP EVERYTHING ON UNTIL DEC 2 (round 21 research, review notes: nothing is switched off or deleted
+ * before Dec 2, Dartee jobs Dec 5): the default of every job is what it does live today, so a deploy changes no post.
+ * Only the exact value 'off' quiets a job; a missing key (the default), 'on' or anything else runs it as before. The
+ * owner switches one off from Agency settings. Every older switch a job already had (fyiRoundup, callNudge,
+ * smokeQuiet, todayPost ...) is still honored: both must allow, so a job that is already off by its own switch stays off.
+ * Bookkeeping that is not a Slack post (stamps, state, stored lines, auto finish) keeps running either way.
  *
  * Feature switches (settings `feature:<name>` = 'on' | 'off'):
  *   creatorProgram  Trybe, creator suggestions and Discord posts. Missing = derived: on when this workspace already
  *                   has creator data (a brand with a Trybe key, or any creatorEngine:* setting), off on an empty one.
- *   socialPosting   Locus Social posting. Missing = off (parked: Mobius does not offer it).
+ *   socialPosting   Locus Social. Missing = on, as it runs today (its ticks check their own brands); 'off' parks it.
  * And one read only fact for the menus: siteReviewsOpen, any site review link still open or sent in the last 30 days.
  *
  * Money warnings and client sends are NOT in this list (they keep their Slack posts until Dec 5). */
@@ -44,10 +47,11 @@ export async function directGet(env, key) {
 /** 'on' whether the getter hands back the raw text or a parsed value. */
 const isWord = (v, w) => v != null && String(v).trim().replace(/^"|"$/g, '').toLowerCase() === w;
 
-/** Is a quiet job switched back on? True only for settings `jobOn:<id>` = 'on'. */
+/** Does this job run? True (today's behavior) unless the owner saved settings `jobOn:<id>` = 'off'. A failed read
+ *  runs it too: a database hiccup must never silence a post that runs today. */
 export async function jobOn(env, id, get = directGet) {
   const v = await Promise.resolve().then(() => get(env, `jobOn:${id}`)).catch(() => null);
-  return isWord(v, 'on');
+  return !isWord(v, 'off');
 }
 
 /** The jobs part of a PUT body, known ids only, as booleans. Owner only: anyone else gets null (refused). */
@@ -85,13 +89,13 @@ async function hasCreatorData(env) {
   return !!eng;
 }
 
-/** Is an agency feature on? creatorProgram derives from the data when unset; socialPosting is off when unset. */
+/** Is an agency feature on? creatorProgram derives from the data when unset; socialPosting is on when unset (today). */
 export async function featureOn(env, name, get = directGet) {
   const v = await Promise.resolve().then(() => get(env, `feature:${name}`)).catch(() => null);
   if (isWord(v, 'on')) return true;
   if (isWord(v, 'off')) return false;
   if (name === 'creatorProgram') return cached('creatorProgram', () => hasCreatorData(env));
-  return false;
+  return name === 'socialPosting';
 }
 /** Was the creator program switch saved by a person (true), or is it still derived (false)? */
 export async function featureSaved(env, name, get = directGet) {

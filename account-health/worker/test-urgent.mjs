@@ -162,7 +162,7 @@ await ok('GET /api/notices: alerts in the stated order with counts and features;
   assert.ok(g.body.alerts.every(a => a.urgent && a.thing && a.seen_at));
   assert.equal(g.body.bell.filter(r => r.kind === 'alert').length, 4, 'also in the bell');
   assert.deepEqual(Object.keys(g.body.features).sort(), ['creatorProgram', 'siteReviewsOpen', 'socialPosting']);
-  assert.equal(g.body.features.socialPosting, false); assert.equal(g.body.features.creatorProgram, false, 'an empty workspace starts without the creator program');
+  assert.equal(g.body.features.socialPosting, true, 'social runs as today until the owner parks it'); assert.equal(g.body.features.creatorProgram, false, 'an empty workspace starts without the creator program');
   db.prepare(`INSERT INTO p_notice (id, person_id, brand_id, kind, ntype, thing_key, title, state, home, created_at) VALUES ('x1', 'pat@client.example', 'brand_northlake_golf', 'alert', 'spend_high', 'spend_high:brand_northlake_golf', 'x', 'open', 1, ?)`).run(T0);
   as('pat@client.example', { email: 'pat@client.example', ids: new Set(['brand_northlake_golf']) });
   const c = await call('GET', '/api/notices');

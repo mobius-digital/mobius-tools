@@ -1413,7 +1413,7 @@ async function postDashboard(env, row) {
   return { ok: true, posted: r?.ts || true, brands: d.accts.length };
 }
 async function dashboardTick(env) {
-  /* 2026-11-26 (jobflags.js jobOn:dashboardsSlack): quiet unless switched on, OR a dashboard already has a schedule and a
+  /* 2026-11-26 (jobflags.js jobOn:dashboardsSlack): runs unless switched off (default: runs, as today); switched off it still runs when a dashboard already has a schedule and a
      channel (Cole: keep any that exist). */
   if (!(await jobOn(env, 'dashboardsSlack', getSetting))) {
     await env.DB.prepare(DASH_TABLE).run().catch(() => {});

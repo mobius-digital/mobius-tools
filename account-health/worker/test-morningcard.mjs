@@ -244,13 +244,15 @@ await check('the leak finder: ONE line for the biggest NEW leak over $500, tagge
   const day = '2026-10-15', prev = '2026-10-14';
   const first = await buildCard(env, dl, ACCTS[1], day, {});
   assert.ok(!first.items.some(i => i.kind === 'leak'), 'no card yesterday = nothing announced as new');
-  assert.equal(first.leaks, null, 'quiet and no card yesterday: nothing recorded as shown');
+  assert.deepEqual(first.leaks, ['old', 'new'], 'default (on, as today): the ids are recorded');
   setSetting(`morningCard:brand_beta:${prev}`, JSON.stringify({ leaks: ['old'] }));
-  /* 2026-11-26 (jobflags.js): the leak line is a quiet job. Off by default: no line, and the card carries the last
-     SHOWN ids forward, so 'new' still reads as new once the line is back on. */
+  /* 2026-11-26 (jobflags.js): the leak line can go quiet ('off'). Then no line, and the card carries the last SHOWN
+     ids forward, so 'new' still reads as new once the line is back on. */
+  setSetting('jobOn:leakLine', 'off');
+  db.prepare(`DELETE FROM settings WHERE key = ?`).run(`morningCard:brand_beta:${day}`);
   const hushed = await buildCard(env, dl, ACCTS[1], day, {});
-  assert.ok(!hushed.items.some(i => i.kind === 'leak'), 'quiet by default: no leak line'); assert.deepEqual(hushed.leaks, ['old'], 'quiet carries the shown ids');
-  setSetting('jobOn:leakLine', 'on');
+  assert.ok(!hushed.items.some(i => i.kind === 'leak'), 'switched off: no leak line'); assert.deepEqual(hushed.leaks, ['old'], 'quiet carries the shown ids');
+  db.prepare(`DELETE FROM settings WHERE key = 'jobOn:leakLine'`).run();
   db.prepare(`DELETE FROM settings WHERE key = ?`).run(`morningCard:brand_beta:${day}`);
   const firstOn = await buildCard(env, dl, ACCTS[1], day, {});
   assert.deepEqual(firstOn.leaks, ['old', 'new'], 'on: the ids are recorded');

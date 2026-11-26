@@ -118,7 +118,7 @@ export async function reviewBrand(env, d, b, { dry = false, who = 'Monday review
 
 /** The hourly job. d = hubDeps() + briefHour. Monday only, from the reports hour, once per brand. */
 export async function reviewTick(env, d) {
-  /* 2026-11-26: a quiet job (jobflags.js jobOn:mondayReview): only settings jobOn:mondayReview = 'on' runs it; the older switch still counts too. */
+  /* 2026-11-26: a quiet job (jobflags.js jobOn:mondayReview): runs unless settings jobOn:mondayReview = 'off' (default: runs, as today); the older switch still counts too. */
   if (!(await jobOn(env, 'mondayReview', d && d.getSetting ? d.getSetting : undefined))) return { skipped: 'quiet' };
   if (!(await isOn(env, d))) return { off: true };
   const today = d.centralDate();

@@ -189,7 +189,7 @@ function isDue(row, d) {
 
 /** The hourly job. d = { getSetting, putSetting, listAccounts, centralHour, centralDate, slackApi, strategist, subCanAfford } */
 export async function scheduleTick(env, d) {
-  /* 2026-11-26: a quiet job (jobflags.js jobOn:askSchedules): only settings jobOn:askSchedules = 'on' runs it; the older switch still counts too. */
+  /* 2026-11-26: a quiet job (jobflags.js jobOn:askSchedules): runs unless settings jobOn:askSchedules = 'off' (default: runs, as today); the older switch still counts too. */
   if (!(await jobOn(env, 'askSchedules', d && d.getSetting ? d.getSetting : undefined))) return { skipped: 'quiet' };
   await ensureSched(env);
   const { results } = await env.DB.prepare(`SELECT * FROM p_ask_schedule ORDER BY hour_central, created_at`).all().catch(() => ({ results: [] }));

@@ -62,7 +62,7 @@ export async function morningFor(env, deps, email) {
 }
 
 export async function morningTick(env, deps) {
-  /* 2026-11-26: a quiet job (jobflags.js jobOn:morningLineDm): only settings jobOn:morningLineDm = 'on' runs it; the older switch still counts too. */
+  /* 2026-11-26: a quiet job (jobflags.js jobOn:morningLineDm): runs unless settings jobOn:morningLineDm = 'off' (default: runs, as today); the older switch still counts too. */
   if (!(await jobOn(env, 'morningLineDm', deps.getSetting))) return { skipped: 'quiet' };
   if ((await deps.getSetting(env, 'morningDm')) === 'off') return { skipped: 'off' };
   const hour = deps.centralHour(), at = +(await deps.getSetting(env, 'morningHour')) || 7;

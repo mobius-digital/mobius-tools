@@ -76,7 +76,7 @@ export function messageFor(brand, rows, who) {
 }
 
 export async function todayTick(env, d) {
-  /* 2026-11-26: a quiet job (jobflags.js jobOn:todayPost): only settings jobOn:todayPost = 'on' runs it; the older switch still counts too. */
+  /* 2026-11-26: a quiet job (jobflags.js jobOn:todayPost): runs unless settings jobOn:todayPost = 'off' (default: runs, as today); the older switch still counts too. */
   if (!(await jobOn(env, 'todayPost', d.getSetting))) return { skipped: 'quiet' };
   if ((await d.getSetting(env, 'todayPost')) === 'off') return { skipped: 'off' };
   /* 2026-10-13: the morning card (morningcard.js) carries today's calls as one line and this list in its thread. */
