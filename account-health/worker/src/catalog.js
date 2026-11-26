@@ -1,7 +1,9 @@
 /* THE MESSAGE CATALOG (2026-11-26). One entry per distinct message Locus sends: Slack posts, DMs, client posts,
- * emails and the creator Discord posts. Nothing is sent that is not on this list: test-catalog.mjs scans every send
- * call site in src/ and fails when one is not mapped here (SITES), when a mapped site no longer exists, or when a
- * site points at an id that is not in the catalog.
+ * emails and the creator Discord posts, and the edits of messages already sent. test-catalog.mjs scans every send
+ * call site in account-health/worker/src and profit/worker/src (RAW_SENDS and SEND_CALLS below) and fails when one is
+ * not mapped here (SITES), when a mapped site no longer exists, or when a site points at an id that is not in the
+ * catalog. The scan reads the code line by line, so a send hidden behind a helper it does not know would pass: a new
+ * send helper goes in SEND_CALLS (and TRANSPORTS) in the same change.
  *
  * Each entry:
  *   id, group (the plain groups of the automation decisions), name, channel ('Slack DM' | 'internal channel' |
@@ -54,7 +56,7 @@ export const CATALOG = [
     channel: 'client channel', who: 'The client', kind: 'client_daily', status: 'keep', audit: 'a17', onRenderer: false,
     when: 'Each morning for yesterday, when Cole taps Send (or auto post is on). A missed day of the last two gets its own post; the full numbers go in the thread.',
     why: 'The client sees yesterday and the month so far against the goal without opening anything.',
-    where: ['worker.js:sendBrief'],
+    where: ['worker.js:sendBrief', 'worker.js:editClientPost'],
     example: () => hm({ title: `${B1} · Wed Nov 25`, summary: 'On goal. Next: Black Friday ads go live tonight at 6pm.',
       numbers: [{ label: 'Yesterday', value: '$3,240 sales · 2.70x MER', note: 'goal $3,000' }, { label: 'November so far', value: '$61.2K of $75K goal · 2.55x MER' }],
       source: 'Triple Whale', context: 'more in the thread' }) }),
@@ -89,6 +91,13 @@ export const CATALOG = [
     example: () => hm({ title: `${B3} · raise waiting on you`, summary: 'Black Friday is ahead of goal. Approve the raise and it goes live in Meta right away.',
       numbers: [{ label: 'Now', value: '$300 a day' }, { label: 'Raise to', value: '$450 a day' }],
       source: 'Triple Whale', buttons: [{ label: 'Approve $300 to $450', action_id: 'ws_capprove', style: 'primary', value: 'sample' }] }) }),
+  E('client_checkin_card', CLIENT, 'Picture card on a client check-in update', {
+    channel: 'client channel', who: 'The client', kind: 'client_checkin', status: 'keep', audit: 'a36', onRenderer: false,
+    when: 'On top of a check-in update when the client picture card switch is on (off by default). Uploaded as the sender and shared only by the post; a failed card sends the text update alone.',
+    why: 'The client sees the check-in numbers as one picture at a glance.',
+    where: ['standing.js:userPng', 'standing.js:sendDraft'],
+    example: () => hm({ title: `${B1} · Black Friday, 2pm check-in`, summary: 'The picture card sits above the update: sales, MER and spend since the last check-in.',
+      image: { url: 'https://example.test/checkin-card.png', alt: 'Check-in picture card' }, source: 'Triple Whale' }) }),
   E('client_approve_done', CLIENT, 'Done, it is live in Meta', {
     channel: 'client channel', who: 'The client who tapped Approve', kind: null, fixedFrom: 'locus', fromNote: 'Always Locus (War Room code)', status: 'keep', audit: 'a37', onRenderer: false,
     when: 'Right after the client taps Approve and the raise goes through, in the thread.',
@@ -214,13 +223,13 @@ export const CATALOG = [
     channel: 'internal channel', who: 'Cole', kind: 'approval_ask', status: 'off after Dec 2', audit: 'a16', onRenderer: false,
     when: 'When a daily is drafted, and when it is reset, rewritten or re-posted from the brief card route.',
     why: 'Was the review step before a send; the To send page now has it.',
-    where: ['worker.js:draftBrief', 'worker.js:handle@/api/brief-card'],
+    where: ['worker.js:draftBrief', 'worker.js:handle@/api/brief-card', 'worker.js:slackSyncBrief', 'worker.js:upgradeCardsOnce'],
     example: () => hm({ title: `${B1} daily draft · Wed Nov 25`, summary: 'Ready to send.', buttons: [{ label: 'Send to client', action_id: 'sample_send', style: 'primary', value: 'sample' }, OPEN()] }) }),
   E('draft_report_card', CLIENT, 'Report draft card to review', {
     channel: 'internal channel', who: 'Cole', kind: 'approval_ask', status: 'off after Dec 2', audit: 'a16', onRenderer: false,
     when: 'When a weekly or monthly report is drafted, and when it is re-posted from the brief card route.',
     why: 'Was the review step before a send; the To send page now has it.',
-    where: ['worker.js:postReportDraft', 'worker.js:handle@/api/brief-card'],
+    where: ['worker.js:postReportDraft', 'worker.js:handle@/api/brief-card', 'worker.js:slackSyncReport'],
     example: () => hm({ title: `${B2} weekly report draft · Nov 16 to 22`, summary: 'Needs a read approved before it can go.', buttons: [OPEN('Open the report')] }) }),
   E('team_copy', CLIENT, 'Daily or report posted to the team channel', {
     channel: 'internal channel', who: 'The team (brands with no client channel)', kind: 'team_notice', status: 'keep', onRenderer: false,
@@ -371,7 +380,7 @@ export const CATALOG = [
     channel: 'Slack DM', who: 'Cole', kind: 'approval_ask', status: 'keep', audit: 'a36', onRenderer: false,
     when: 'After each check-in, one draft per client with a thread preview. Through Dec 4.',
     why: 'Cole sends the client check-in updates from one place.',
-    where: ['standing.js:offerClientUpdate', 'standing.js:postBatch', 'standing.js:threadPreview'],
+    where: ['standing.js:offerClientUpdate', 'standing.js:postBatch', 'standing.js:threadPreview', 'standing.js:saveBatch'],
     example: () => hm({ title: 'Client updates: 3 ready', lines: [B1, B2, B3], buttons: [{ label: 'Send all', action_id: 'sample_sendall', style: 'primary', value: 'sample' }] }) }),
   E('approve_receipt', ADS, '"Approved, live in Meta" receipt', {
     channel: 'Slack DM', who: 'Cole', kind: null, fixedFrom: 'locus', fromNote: 'Always Locus (War Room code)', status: 'off after Dec 2', audit: 'a38', onRenderer: false,
@@ -409,13 +418,13 @@ export const CATALOG = [
     channel: 'internal channel', who: 'The brand team, people tagged', kind: 'team_notice', status: 'off after Dec 2', audit: 'a1', onRenderer: false,
     when: 'Daily at 5am per brand, with its calls, tasks, leak lines and dates in the thread.',
     why: 'Its useful parts move to My day and Brand > Today first, then the card stops.',
-    where: ['morningcard.js:postCard'],
+    where: ['morningcard.js:postCard', 'morningcard.js:redraw'],
     example: () => hm({ title: `${B1} · Thursday`, summary: 'Yesterday $3,240 sales at 2.70x MER.', lines: ['Media buying: 2 ad calls', 'Creative: card 412 due today', 'Client: chase the gift guide photos'], source: 'Triple Whale' }) }),
   E('task_reminders', TEAM, 'Late and due task lines with Done buttons', {
     channel: 'internal channel', who: 'The task owner', kind: 'team_notice', status: 'move', audit: 'a2', onRenderer: true,
     when: 'On the due day, then 1, 3 and 7 days late.',
     why: 'Was the nudge; it becomes one "N tasks late" line plus the list in My day.',
-    where: ['actions.js:actionTick'],
+    where: ['actions.js:actionTick', 'actions.js:handleReaction'],
     example: () => lane({ lane: 'CREATIVE', brand: B1, who: U2, ask: 'Finish 2 late tasks', why: 'due Nov 24 and Nov 25', buttons: [{ label: 'Done', action_id: 'sample_done', value: 'sample' }] }) }),
   E('my_work', TEAM, 'My work DM', {
     channel: 'Slack DM', who: 'People who switched it on', kind: 'team_notice', status: 'keep', audit: 'a9', onRenderer: true,
@@ -427,7 +436,7 @@ export const CATALOG = [
     channel: 'internal channel', who: 'The team (#daily-checkin)', kind: 'team_notice', status: 'move', audit: 'a10', onRenderer: true,
     when: 'Weekdays at 5am.',
     why: 'The team posts today\'s plan or says they are out.',
-    where: ['checkin.js:ensureDay'],
+    where: ['checkin.js:ensureDay', 'checkin.js:redraw'],
     example: () => hm({ title: 'Friday check-in', summary: 'Tap a button below. Everything you post goes in this thread.', lines: ['Alex: plan posted', 'Sam: out today'],
       buttons: [{ label: 'Post my plan', action_id: 'ci_plan', style: 'primary', value: 'sample' }, { label: "I'm out today", action_id: 'ci_out', value: 'sample' }] }) }),
   E('checkin_reply', TEAM, 'Plan and out today replies in the check-in thread', {
@@ -458,7 +467,7 @@ export const CATALOG = [
     channel: 'internal channel', who: 'The reviewer', kind: 'approval_ask', status: 'move', audit: 'a13', onRenderer: false,
     when: 'Each time a designer moves an ad card to Review, plus the decision in its thread.',
     why: 'Becomes one line for the reviewer, "N cards waiting on review".',
-    where: ['checkin.js:reviewPost', 'checkin.js:postAlbum', 'checkin.js:reviewSubmit'],
+    where: ['checkin.js:reviewPost', 'checkin.js:postAlbum', 'checkin.js:reviewSubmit', 'checkin.js:redrawReview'],
     example: () => hm({ title: `Review card 412 · ${B1}`, summary: '6 statics sent for your look.', buttons: [{ label: 'Approve all', action_id: 'sample_approve', style: 'primary', value: 'sample' }, OPEN('Open card')] }) }),
   E('calendar_countdown', TEAM, 'Calendar countdown (live tomorrow, a week out)', {
     channel: 'internal channel', who: 'Step owners', kind: 'team_notice', status: 'move', audit: 'a19', onRenderer: false,
@@ -533,8 +542,38 @@ export const CATALOG = [
     channel: 'Discord', who: 'Creators in the brand\'s Discord', kind: 'creator_discord', status: 'keep', audit: 'a48', onRenderer: false,
     when: 'Weekly, naming the top videos (never sales counts).',
     why: 'Shows creators what works so they make more of it.',
-    where: ['trybe.js:postWinnersV2'],
+    where: ['trybe.js:postWinnersV2', 'trybe.js:discordWeekly'],
     example: () => hm({ title: 'This week\'s top videos', lines: ['Creator A: the 3 second hook', 'Creator B: the unboxing'] }) }),
+  E('discord_this_week', CREATORS, 'Creator Discord Monday "this week" post', {
+    channel: 'Discord', who: 'Creators in the brand\'s Discord', kind: 'creator_discord', status: 'keep', audit: 'a48', onRenderer: false,
+    when: 'Mondays in #this-week, what to film this week, with the creators it names tagged. Fridays the same job posts the winners.',
+    why: 'Creators start the week knowing what to make.',
+    where: ['trybe.js:discordWeekly'],
+    example: () => hm({ title: 'This week', lines: ['Film the gift set unboxing', 'Show the putter on a real green'] }) }),
+  E('discord_call_ask', CREATORS, 'Creator Discord "From today\'s call" post', {
+    channel: 'Discord', who: 'Creators in the brand\'s Discord', kind: 'creator_discord', status: 'keep', onRenderer: false,
+    when: 'After a creator call, only when the person ticks "Post it".',
+    why: 'The one ask from the call reaches the creators who missed it.',
+    where: ['trybe.js:postCallAsk'],
+    example: () => hm({ title: 'From today\'s call', summary: 'Send one video this week that opens on the product in your hand.' }) }),
+  E('discord_idle_dm', CREATORS, 'Creator Discord "keep your spot" DM', {
+    channel: 'Discord', who: 'One creator with no new video in a while', kind: 'creator_discord', status: 'keep', onRenderer: false,
+    when: 'Once per quiet spell, when the creator Discord sync runs (on the creator tick when auto is on, or on request) and a creator has sent no video for the warning number of days.',
+    why: 'The creator knows to send a video before they lose their place in the Discord.',
+    where: ['trybe.js:trybeDiscordSync'],
+    example: () => hm({ title: 'Keep your spot', summary: 'Hey Alex, we have not seen a new video from you in 21 days. Submit one on Trybe in the next week to keep your spot.' }) }),
+  E('discord_team_post', CREATORS, 'Creator Discord post by the team', {
+    channel: 'Discord', who: 'Creators in the brand\'s Discord', kind: 'creator_discord', status: 'keep', onRenderer: false,
+    when: 'Only when someone on the team writes it in Locus (or an agent asks): a post as the mascot, an edit of one, or taking one down.',
+    why: 'The team talks to creators in the brand\'s voice without opening Discord.',
+    where: ['trybe.js:handleTrybe@/api/trybe/discord-say', 'profit/discord.js:handleDiscord@/api/amb/discord/post', 'profit/discord.js:handleDiscord@/api/amb/discord/edit', 'profit/discord.js:handleDiscord@/api/amb/discord/delete'],
+    example: () => hm({ title: 'New this week', summary: 'The holiday gift box is in. Film it on a table, not in your hand.' }) }),
+  E('discord_first_posts', CREATORS, 'Creator Discord first posts', {
+    channel: 'Discord', who: 'Creators in the brand\'s Discord', kind: 'creator_discord', status: 'keep', onRenderer: false,
+    when: 'Once, when the team builds a brand\'s Discord (and again when its look changes): the start here and how it works posts.',
+    why: 'A new server reads as ready from the first visit.',
+    where: ['profit/discord.js:build'],
+    example: () => hm({ title: 'Start here', summary: 'Upload on Trybe, talk here. This week\'s ideas are in #this-week.' }) }),
 
   /* ---------------- Social posting and site reviews ---------------- */
   E('social_by_hand', SOCIAL, 'Social post must be done by hand', {
@@ -587,7 +626,7 @@ export const CATALOG = [
     channel: 'internal channel', who: 'The brand team', kind: 'strategist_reply', status: 'keep', onRenderer: false,
     when: 'When someone asks Locus to draft our version of a post or an idea and to work in Slack.',
     why: 'The draft and its back and forth live in one thread.',
-    where: ['ideas.js:ideaFromLocus', 'ideas.js:appRow'],
+    where: ['ideas.js:ideaFromLocus', 'ideas.js:appRow', 'ideas.js:runIdeaJob', 'ideas.js:adminIdea', 'ideas.js:handleIdeaAction', 'ideas.js:redrawCard'],
     example: () => hm({ title: 'Check the draft Locus writes in this thread', summary: `Alex asked from Locus: our version of this post for ${B1}.` }) }),
   E('studio_batch', ASKED, 'Studio batch of made ads', {
     channel: 'internal channel', who: 'The person who asked', kind: 'strategist_reply', status: 'keep', onRenderer: false,
@@ -613,6 +652,31 @@ export const CATALOG = [
     why: 'A chart goes to the conversation without a screenshot.',
     where: ['worker.js:handle@/api/share/slack'],
     example: () => hm({ title: `Pace · ${B1}`, summary: 'Nov 1 to 25. Shared by Alex.', image: { url: 'https://example.test/picture.png', alt: 'Pace chart' } }) }),
+  E('tap_reply', ASKED, 'Reply to a button tap', {
+    channel: 'internal channel or Slack DM', who: 'Only the person who tapped', kind: null, fixedFrom: 'locus', fromNote: 'Always Locus (the reply to the tap)', status: 'keep', onRenderer: false,
+    when: 'Right after someone taps a button or tags Locus: the tapped message redrawn as done, or a note only they see (not allowed, already sent, too old).',
+    why: 'The person knows what their tap did without a new post in the channel.',
+    where: ['actions.js:handleActionButton', 'asana-brand.js:runMondayPlan', 'checkin.js:reviewAction', 'ideas.js:whisper', 'lookups.js:lookupWhyTap', 'minoff.js:handleMinOffButton',
+      'newclient.js:handleNewClientAction', 'socialpost.js:handleSocialButton', 'worker.js:slackWhisper', 'worker.js:handleSlackInteract', 'worker.js:askTapSay'],
+    example: () => hm({ title: 'Already sent', summary: 'Already sent at 2:10pm. Nothing sent twice.' }) }),
+  E('strategist_schedule', ASKED, 'Strategist scheduled post', {
+    channel: 'internal channel or Slack DM', who: 'A team channel or a teammate', kind: null, fixedFrom: 'locus', fromNote: 'Always Locus', status: 'keep', onRenderer: false,
+    when: 'At the time a person picked, after they tapped Apply on the Strategist\'s card. Never a client channel.',
+    why: 'A reminder or note lands when it is useful, not when it was written.',
+    where: ['slackwrite.js:scheduleAction'],
+    example: () => hm({ title: 'Reminder: gift guide photos', summary: `${B1} photos are due to the client today.` }) }),
+  E('strategist_edit', ASKED, 'Strategist edit of a Locus message', {
+    channel: 'internal channel', who: 'The channel where the message is', kind: null, fixedFrom: 'locus', fromNote: 'Always Locus', status: 'keep', onRenderer: false,
+    when: 'After a person taps Apply on the Strategist\'s edit card, or undoes one. Locus\'s own plain messages only.',
+    why: 'A wrong line is fixed in place instead of a second post.',
+    where: ['slackwrite.js:editAction', 'slackwrite.js:channelAction'],
+    example: () => hm({ title: 'Edited', summary: 'Gift guide photos are due Friday, not Thursday.' }) }),
+  E('owner_edit', ASKED, 'Owner edit of a Locus message', {
+    channel: 'internal channel or client channel', who: 'The channel where the message is', kind: null, fixedFrom: 'locus', fromNote: 'Always Locus', status: 'keep', onRenderer: false,
+    when: 'Only when the owner edits or deletes one of Locus\'s own messages from Locus.',
+    why: 'A wrong message is fixed or taken down without opening Slack.',
+    where: ['worker.js:handle@/api/ask/own-message'],
+    example: () => hm({ title: 'Edited by the owner', summary: 'The shipping cutoff is Dec 17.' }) }),
   E('example_dm', ASKED, 'Example message to the owner', {
     channel: 'Slack DM', who: 'The owner only', kind: null, fixedFrom: 'locus', fromNote: 'Always Locus', status: 'keep', onRenderer: false,
     when: 'Only on request, to see a new message design in Slack before any real path sends it.',
@@ -621,7 +685,7 @@ export const CATALOG = [
     example: () => hm({ title: 'Example, not real', summary: 'A new message design, sent to your own DM only.' }) }),
 ];
 
-/* Every send call site in src/, by file:function (route-scoped as file:function@/api/... inside a request handler),
+/* Every send call site in both workers, by file:function (profit worker files as profit/file.js:function) (route-scoped as file:function@/api/... inside a request handler),
    mapped to the catalog ids it can send. Built from CATALOG[].where so the two cannot drift. */
 export const SITES = (() => {
   const m = {};
@@ -636,10 +700,21 @@ export const TRANSPORTS = [
   'sender.js:postAs', 'sender.js:slackPostWith', 'sender.js:buyerSlackPost',
   'lane.js:lanePost', 'morningcard.js:teamPost', 'morning.js:dmPerson',
   'mail.js:sendMail', 'mail.js:sendProductMail', 'clients.js:sendMail', 'contract.js:sendMail', 'newclient.js:sendMail', 'onboard.js:sendMail',
-  'alerts.js:postTo', 'requests.js:tellTeam', 'automations.js:slackDm', 'trybe.js:dcHookSay',
+  'alerts.js:postTo', 'requests.js:tellTeam', 'automations.js:slackDm', 'trybe.js:dcHookSay', 'trybe.js:dcHookPost',
+  'worker.js:slackUpdate', 'profit/discord.js:hookPost',
 ];
-/* The function names the scanner treats as a send (besides the raw Slack methods). */
-export const SEND_CALLS = ['slackPost', 'sendMail', 'sendMailAs', 'sendProductMail', 'postAs', 'lanePost', 'dmPerson', 'teamPost', 'postTo', 'tellTeam', 'slackDm', 'strategistSay', 'dcHookSay'];
+/* The function names the scanner treats as a send (besides the raw sends below). */
+export const SEND_CALLS = ['slackPost', 'sendMail', 'sendMailAs', 'sendProductMail', 'postAs', 'lanePost', 'dmPerson', 'teamPost', 'postTo', 'tellTeam', 'slackDm', 'strategistSay', 'dcHookSay', 'dcHookPost', 'hookPost', 'slackUpdate'];
+/* The raw sends the scanner looks for on a line, whatever helper wraps them. Edits count: changing a message someone
+   already has is a send too, so it must sit in a function that is mapped to the message it edits. */
+export const RAW_SENDS = [
+  /chat\.(?:postMessage|scheduleMessage|postEphemeral|update)\b/,      // Slack: post, scheduled post, private note, edit
+  /files\.completeUploadExternal/,                                     // Slack: a file shared into a channel
+  /response_url,\s*\{/,                                                // Slack: the reply to a button tap
+  /\/channels\/\$\{[^}]+\}\/messages`/,                                // Discord: a post in a channel or a DM
+  /\/webhooks\/\$\{[^}]+\}\/\$\{[^}]+\}(?:\?wait|\/messages\/)/,       // Discord: a webhook post or an edit of one
+  /api\.resend\.com\/emails|gmail\/v1\/users\/me\/messages\/send/,     // email
+];
 
 /** The entries with their example drawn, for GET /api/messages/catalog. `stored` = settings.senders (raw or object),
  *  `person` = the name behind the user token. Each entry gets from: 'locus' | 'cole' | null and fromLabel. */

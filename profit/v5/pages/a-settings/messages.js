@@ -112,7 +112,7 @@ function render(el, data, ctx) {
     ...statuses.map(s => btn(WORD[s] || s, c[s] ?? entries.filter(e => e.status === s).length, state.status === s, () => { state.status = s; paintFilters(); paint(); })),
     btn('Not on the house style', c.notOnRenderer ?? entries.filter(e => !e.onRenderer).length, state.off, () => { state.off = !state.off; paintFilters(); paint(); }));
   paintFilters(); paint();
-  const intro = h('p', { class: 'ms-intro' }, `Every message ${APP_NAME} sends: Slack posts, DMs, client posts, emails and creator Discord posts. Nothing sends that is not on this list; a check in the code fails if one is added without a line here. Who it comes from follows Agency settings > Sending and notifications.`);
+  const intro = h('p', { class: 'ms-intro' }, `Every message ${APP_NAME} sends: Slack posts, DMs, client posts, emails and creator Discord posts. A check in the code fails when a new send, or a new edit of a sent message, is added without a line here. Who it comes from follows Agency settings > Sending and notifications.`);
   put(el, h('div', { class: 'ms' }, intro, filters, list));
 }
 

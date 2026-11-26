@@ -1,6 +1,7 @@
 /* Offline checks for THE MESSAGE CATALOG (2026-11-26, src/catalog.js). This is how "nothing is sent that is not on
- * the list" is enforced: every send call site in src/ (a Slack chat.postMessage or file share, slackPost, sendMail and
- * the other send helpers) must be mapped to a catalog id, a mapped site must still exist, and every entry must be
+ * the list" is enforced: every send call site in account-health/worker/src and profit/worker/src (RAW_SENDS: a Slack
+ * post, scheduled post, private note, edit, file share or tap reply; a Discord post, DM or edit; a Gmail or Resend
+ * mail; or a call to one of the send helpers in SEND_CALLS) must be mapped to a catalog id, a mapped site must still exist, and every entry must be
  * complete and draw a house style example. Made up numbers and names only. Nothing leaves the machine.
  *   node test-catalog.mjs                 the checks, then the entries not on the renderer yet
  *   node test-catalog.mjs --sites         also print every call site found
@@ -9,7 +10,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CATALOG, SITES, TRANSPORTS, SEND_CALLS, GROUPS, STATUS, catalogPayload } from './src/catalog.js';
+import { CATALOG, SITES, TRANSPORTS, SEND_CALLS, RAW_SENDS, GROUPS, STATUS, catalogPayload } from './src/catalog.js';
 import { SENDER_KINDS } from './src/sender.js';
 import { houseLint } from './src/house.js';
 
@@ -17,22 +18,26 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const SRC = path.join(here, 'src');
 const SAMPLE = path.join(here, '..', '..', 'profit', 'v5', 'pages', 'a-settings', '_sample', 'messages.json');
 const SKIP = new Set(['routes.js', 'knowledge.js', 'catalog.js']);   // generated text, and this list itself
+const DIRS = [{ dir: SRC, prefix: '' }, { dir: path.join(here, '..', '..', 'profit', 'worker', 'src'), prefix: 'profit/' }];
 
 let n = 0, bad = 0;
 const check = async (name, fn) => { try { await fn(); n++; console.log('PASS ', name); } catch (e) { bad++; console.log('FAIL ', name, '\n   ', String(e.stack || e).split('\n').slice(0, 6).join('\n    ')); } };
 
 /* ---- the scanner ----
-   A send = a raw Slack send method named in the line (chat.postMessage, files.completeUploadExternal) or a call to one
-   of the send helpers (SEND_CALLS). Its key = file:function, where function = the last top level declaration above it
+   Both workers that send are scanned: account-health/worker/src (keys "file.js:fn") and profit/worker/src (keys
+   "profit/file.js:fn"; the creator Discord routes live there).
+   A send = a raw send named in the line (RAW_SENDS in catalog.js: Slack posts, scheduled posts, private notes, edits,
+   file shares and tap replies; Discord channel, DM and webhook posts and edits; Gmail and Resend mail) or a call to
+   one of the send helpers (SEND_CALLS). Its key = file:function, where function = the last top level declaration above it
    (function, const, or a method at the top of an object); inside a request handler the last route test above it
    (path === '/api/...', path.startsWith('/api/...'), or a /^\/api\/name/.exec(path) pattern) is added: file:function@/api/.... */
-const PAT = new RegExp(`chat\\.postMessage|files\\.completeUploadExternal|\\b(?:${SEND_CALLS.join('|')})\\s*\\(`);
+const PAT = new RegExp([...RAW_SENDS.map(r => r.source), `\\b(?:${SEND_CALLS.join('|')})\\s*\\(`].join('|'));
 const DEF = /^\s*(?:export\s+)?(?:async\s+)?function\s*\*?\s*([A-Za-z_$][\w$]*)\s*\(|^(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=|^\s{0,2}(?:async\s+)?([A-Za-z_$][\w$]*)\s*\([^)]*\)\s*\{\s*$/;
 const ROUTE = /path\s*===\s*'([^']+)'|path\.startsWith\('([^']+)'\)|\/\^\\\/api\\\/([a-z][\w-]*)[^;]*\.exec\(path\)/;
 const NOT_NAMES = new Set(['if', 'for', 'while', 'switch', 'catch', 'function', 'return']);
-export function scan(dir = SRC) {
+export function scan(dirs = DIRS) {
   const sites = new Map();
-  for (const f of fs.readdirSync(dir).filter(x => x.endsWith('.js') && !SKIP.has(x)).sort()) {
+  for (const { dir, prefix } of dirs) for (const f of fs.readdirSync(dir).filter(x => x.endsWith('.js') && !(prefix === '' && SKIP.has(x))).sort()) {
     const lines = fs.readFileSync(path.join(dir, f), 'utf8').split('\n');
     let fn = '(top)', route = '', inComment = false;
     lines.forEach((l, i) => {
@@ -48,7 +53,7 @@ export function scan(dir = SRC) {
       const r = l.match(ROUTE);
       if (r) route = r[1] || r[2] || `/api/${r[3]}/`;
       if (PAT.test(l)) {
-        const key = `${f}:${fn}${route ? '@' + route : ''}`;
+        const key = `${prefix}${f}:${fn}${route ? '@' + route : ''}`;
         if (!sites.has(key)) sites.set(key, []);
         sites.get(key).push(i + 1);
       }
@@ -63,9 +68,35 @@ const ids = new Set(CATALOG.map(e => e.id));
 
 if (process.argv.includes('--sites')) for (const [k, v] of sites) console.log(`   ${k}  lines ${v.join(',')}  ->  ${transports.has(k) ? '(pipe)' : (SITES[k] || ['NOT MAPPED']).join(', ')}`);
 
-await check('every send call site in src/ is mapped to a catalog id (or is a pipe whose callers are mapped)', () => {
+await check('every send call site in both workers is mapped to a catalog id (or is a pipe whose callers are mapped)', () => {
   const loose = [...sites.keys()].filter(k => !transports.has(k) && !SITES[k]);
   assert.deepEqual(loose, [], `not on the list: ${loose.map(k => `${k} (lines ${sites.get(k).join(',')})`).join('; ')}`);
+});
+
+await check('the scanner sees every kind of send (and not a model call or a read)', () => {
+  const sends = [
+    "await slackApi(env, 'chat.postMessage', { channel, text });",
+    "await d.slack(env, 'chat.scheduleMessage', { channel, text, post_at });",
+    "await slackApi(env, 'chat.postEphemeral', { channel, user, text });",
+    "await slackApi(env, 'chat.update', { channel, ts, text });",
+    "await xfetch('https://slack.com/api/files.completeUploadExternal', form({ files }));",
+    "await xfetch(payload.response_url, { method: 'POST', body });",
+    "await fetch(`${DC_API}/channels/${ch.id}/messages`, { method: 'POST', body });",
+    "await fetch(`${DC_API}/webhooks/${h.id}/${h.token}?wait=true`, init);",
+    "await dc(token, 'PATCH', `/webhooks/${h.id}/${h.token}/messages/${mid}`, body, false);",
+    "await F('https://api.resend.com/emails', { method: 'POST', body });",
+    "await F('https://www.googleapis.com/gmail/v1/users/me/messages/send', { method: 'POST', body });",
+    "await dcHookPost(env, act, d, 'this-week', embed);",
+    "await slackUpdate(env, ch, ts, text, blocks);",
+  ];
+  for (const l of sends) assert.ok(PAT.test(l), `not seen: ${l}`);
+  const not = [
+    "await xfetch('https://api.anthropic.com/v1/messages', { method: 'POST', body });",
+    "await fetch(`${ANT}/messages`, { method: 'POST', body });",
+    "await fetch(`${DC_API}/channels/${id}/messages?limit=50`, { headers: H });",
+    "const job = { response_url: payload.response_url || null };",
+  ];
+  for (const l of not) assert.ok(!PAT.test(l), `wrongly seen: ${l}`);
 });
 
 await check('every mapped site and every pipe still exists in the code', () => {

@@ -16,9 +16,9 @@
   "parked"
  ],
  "counts": {
-  "total": 90,
-  "notOnRenderer": 59,
-  "keep": 44,
+  "total": 100,
+  "notOnRenderer": 69,
+  "keep": 54,
   "move": 25,
   "off after Dec 2": 20,
   "parked": 1
@@ -38,7 +38,8 @@
    "when": "Each morning for yesterday, when Cole taps Send (or auto post is on). A missed day of the last two gets its own post; the full numbers go in the thread.",
    "why": "The client sees yesterday and the month so far against the goal without opening anything.",
    "where": [
-    "worker.js:sendBrief"
+    "worker.js:sendBrief",
+    "worker.js:editClientPost"
    ],
    "from": "cole",
    "fromLabel": "Pat",
@@ -359,6 +360,59 @@
         },
         "value": "sample",
         "style": "primary"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "client_checkin_card",
+   "group": "Client reports and updates",
+   "name": "Picture card on a client check-in update",
+   "channel": "client channel",
+   "who": "The client",
+   "kind": "client_checkin",
+   "status": "keep",
+   "audit": "a36",
+   "onRenderer": false,
+   "when": "On top of a check-in update when the client picture card switch is on (off by default). Uploaded as the sender and shared only by the post; a failed card sends the text update alone.",
+   "why": "The client sees the check-in numbers as one picture at a glance.",
+   "where": [
+    "standing.js:userPng",
+    "standing.js:sendDraft"
+   ],
+   "from": "cole",
+   "fromLabel": "Pat",
+   "kindLabel": "Client check-in updates",
+   "example": {
+    "text": "Northlake Golf · Black Friday, 2pm check-in. The picture card sits above the update: sales, MER and spend since the last check-in.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Northlake Golf · Black Friday, 2pm check-in"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "The picture card sits above the update: sales, MER and spend since the last check-in."
+      }
+     },
+     {
+      "type": "image",
+      "image_url": "https://example.test/checkin-card.png",
+      "alt_text": "Check-in picture card"
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "Triple Whale · 2:10pm CT"
        }
       ]
      }
@@ -1470,7 +1524,9 @@
    "why": "Was the review step before a send; the To send page now has it.",
    "where": [
     "worker.js:draftBrief",
-    "worker.js:handle@/api/brief-card"
+    "worker.js:handle@/api/brief-card",
+    "worker.js:slackSyncBrief",
+    "worker.js:upgradeCardsOnce"
    ],
    "from": "locus",
    "fromLabel": "Locus",
@@ -1542,7 +1598,8 @@
    "why": "Was the review step before a send; the To send page now has it.",
    "where": [
     "worker.js:postReportDraft",
-    "worker.js:handle@/api/brief-card"
+    "worker.js:handle@/api/brief-card",
+    "worker.js:slackSyncReport"
    ],
    "from": "locus",
    "fromLabel": "Locus",
@@ -2976,7 +3033,8 @@
    "where": [
     "standing.js:offerClientUpdate",
     "standing.js:postBatch",
-    "standing.js:threadPreview"
+    "standing.js:threadPreview",
+    "standing.js:saveBatch"
    ],
    "from": "locus",
    "fromLabel": "Locus",
@@ -3274,7 +3332,8 @@
    "when": "Daily at 5am per brand, with its calls, tasks, leak lines and dates in the thread.",
    "why": "Its useful parts move to My day and Brand > Today first, then the card stops.",
    "where": [
-    "morningcard.js:postCard"
+    "morningcard.js:postCard",
+    "morningcard.js:redraw"
    ],
    "from": "locus",
    "fromLabel": "Locus",
@@ -3328,7 +3387,8 @@
    "when": "On the due day, then 1, 3 and 7 days late.",
    "why": "Was the nudge; it becomes one \"N tasks late\" line plus the list in My day.",
    "where": [
-    "actions.js:actionTick"
+    "actions.js:actionTick",
+    "actions.js:handleReaction"
    ],
    "from": "locus",
    "fromLabel": "Locus",
@@ -3456,7 +3516,8 @@
    "when": "Weekdays at 5am.",
    "why": "The team posts today's plan or says they are out.",
    "where": [
-    "checkin.js:ensureDay"
+    "checkin.js:ensureDay",
+    "checkin.js:redraw"
    ],
    "from": "locus",
    "fromLabel": "Locus",
@@ -3738,7 +3799,8 @@
    "where": [
     "checkin.js:reviewPost",
     "checkin.js:postAlbum",
-    "checkin.js:reviewSubmit"
+    "checkin.js:reviewSubmit",
+    "checkin.js:redrawReview"
    ],
    "from": "locus",
    "fromLabel": "Locus",
@@ -4396,7 +4458,8 @@
    "when": "Weekly, naming the top videos (never sales counts).",
    "why": "Shows creators what works so they make more of it.",
    "where": [
-    "trybe.js:postWinnersV2"
+    "trybe.js:postWinnersV2",
+    "trybe.js:discordWeekly"
    ],
    "from": "locus",
    "fromLabel": "Locus",
@@ -4416,6 +4479,240 @@
       "text": {
        "type": "mrkdwn",
        "text": "• Creator A: the 3 second hook\n• Creator B: the unboxing"
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "discord_this_week",
+   "group": "Creator program (Mobius only)",
+   "name": "Creator Discord Monday \"this week\" post",
+   "channel": "Discord",
+   "who": "Creators in the brand's Discord",
+   "kind": "creator_discord",
+   "status": "keep",
+   "audit": "a48",
+   "onRenderer": false,
+   "when": "Mondays in #this-week, what to film this week, with the creators it names tagged. Fridays the same job posts the winners.",
+   "why": "Creators start the week knowing what to make.",
+   "where": [
+    "trybe.js:discordWeekly"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Creator Discord posts",
+   "example": {
+    "text": "This week",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "This week"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "• Film the gift set unboxing\n• Show the putter on a real green"
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "discord_call_ask",
+   "group": "Creator program (Mobius only)",
+   "name": "Creator Discord \"From today's call\" post",
+   "channel": "Discord",
+   "who": "Creators in the brand's Discord",
+   "kind": "creator_discord",
+   "status": "keep",
+   "onRenderer": false,
+   "when": "After a creator call, only when the person ticks \"Post it\".",
+   "why": "The one ask from the call reaches the creators who missed it.",
+   "where": [
+    "trybe.js:postCallAsk"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Creator Discord posts",
+   "example": {
+    "text": "From today's call. Send one video this week that opens on the product in your hand.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "From today's call"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Send one video this week that opens on the product in your hand."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "discord_idle_dm",
+   "group": "Creator program (Mobius only)",
+   "name": "Creator Discord \"keep your spot\" DM",
+   "channel": "Discord",
+   "who": "One creator with no new video in a while",
+   "kind": "creator_discord",
+   "status": "keep",
+   "onRenderer": false,
+   "when": "Once per quiet spell, when the creator Discord sync runs (on the creator tick when auto is on, or on request) and a creator has sent no video for the warning number of days.",
+   "why": "The creator knows to send a video before they lose their place in the Discord.",
+   "where": [
+    "trybe.js:trybeDiscordSync"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Creator Discord posts",
+   "example": {
+    "text": "Keep your spot. Hey Alex, we have not seen a new video from you in 21 days. Submit one on Trybe in the next week to keep your spot.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Keep your spot"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Hey Alex, we have not seen a new video from you in 21 days. Submit one on Trybe in the next week to keep your spot."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "discord_team_post",
+   "group": "Creator program (Mobius only)",
+   "name": "Creator Discord post by the team",
+   "channel": "Discord",
+   "who": "Creators in the brand's Discord",
+   "kind": "creator_discord",
+   "status": "keep",
+   "onRenderer": false,
+   "when": "Only when someone on the team writes it in Locus (or an agent asks): a post as the mascot, an edit of one, or taking one down.",
+   "why": "The team talks to creators in the brand's voice without opening Discord.",
+   "where": [
+    "trybe.js:handleTrybe@/api/trybe/discord-say",
+    "profit/discord.js:handleDiscord@/api/amb/discord/post",
+    "profit/discord.js:handleDiscord@/api/amb/discord/edit",
+    "profit/discord.js:handleDiscord@/api/amb/discord/delete"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Creator Discord posts",
+   "example": {
+    "text": "New this week. The holiday gift box is in. Film it on a table, not in your hand.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "New this week"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "The holiday gift box is in. Film it on a table, not in your hand."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "discord_first_posts",
+   "group": "Creator program (Mobius only)",
+   "name": "Creator Discord first posts",
+   "channel": "Discord",
+   "who": "Creators in the brand's Discord",
+   "kind": "creator_discord",
+   "status": "keep",
+   "onRenderer": false,
+   "when": "Once, when the team builds a brand's Discord (and again when its look changes): the start here and how it works posts.",
+   "why": "A new server reads as ready from the first visit.",
+   "where": [
+    "profit/discord.js:build"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": "Creator Discord posts",
+   "example": {
+    "text": "Start here. Upload on Trybe, talk here. This week's ideas are in #this-week.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Start here"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Upload on Trybe, talk here. This week's ideas are in #this-week."
       }
      },
      {
@@ -4841,7 +5138,11 @@
    "why": "The draft and its back and forth live in one thread.",
    "where": [
     "ideas.js:ideaFromLocus",
-    "ideas.js:appRow"
+    "ideas.js:appRow",
+    "ideas.js:runIdeaJob",
+    "ideas.js:adminIdea",
+    "ideas.js:handleIdeaAction",
+    "ideas.js:redrawCard"
    ],
    "from": "locus",
    "fromLabel": "Locus",
@@ -5056,6 +5357,209 @@
       "type": "image",
       "image_url": "https://example.test/picture.png",
       "alt_text": "Pace chart"
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "tap_reply",
+   "group": "Answers and tools on request",
+   "name": "Reply to a button tap",
+   "channel": "internal channel or Slack DM",
+   "who": "Only the person who tapped",
+   "kind": null,
+   "fixedFrom": "locus",
+   "fromNote": "Always Locus (the reply to the tap)",
+   "status": "keep",
+   "onRenderer": false,
+   "when": "Right after someone taps a button or tags Locus: the tapped message redrawn as done, or a note only they see (not allowed, already sent, too old).",
+   "why": "The person knows what their tap did without a new post in the channel.",
+   "where": [
+    "actions.js:handleActionButton",
+    "asana-brand.js:runMondayPlan",
+    "checkin.js:reviewAction",
+    "ideas.js:whisper",
+    "lookups.js:lookupWhyTap",
+    "minoff.js:handleMinOffButton",
+    "newclient.js:handleNewClientAction",
+    "socialpost.js:handleSocialButton",
+    "worker.js:slackWhisper",
+    "worker.js:handleSlackInteract",
+    "worker.js:askTapSay"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": null,
+   "example": {
+    "text": "Already sent. Already sent at 2:10pm. Nothing sent twice.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Already sent"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Already sent at 2:10pm. Nothing sent twice."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "strategist_schedule",
+   "group": "Answers and tools on request",
+   "name": "Strategist scheduled post",
+   "channel": "internal channel or Slack DM",
+   "who": "A team channel or a teammate",
+   "kind": null,
+   "fixedFrom": "locus",
+   "fromNote": "Always Locus",
+   "status": "keep",
+   "onRenderer": false,
+   "when": "At the time a person picked, after they tapped Apply on the Strategist's card. Never a client channel.",
+   "why": "A reminder or note lands when it is useful, not when it was written.",
+   "where": [
+    "slackwrite.js:scheduleAction"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": null,
+   "example": {
+    "text": "Reminder: gift guide photos. Northlake Golf photos are due to the client today.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Reminder: gift guide photos"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Northlake Golf photos are due to the client today."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "strategist_edit",
+   "group": "Answers and tools on request",
+   "name": "Strategist edit of a Locus message",
+   "channel": "internal channel",
+   "who": "The channel where the message is",
+   "kind": null,
+   "fixedFrom": "locus",
+   "fromNote": "Always Locus",
+   "status": "keep",
+   "onRenderer": false,
+   "when": "After a person taps Apply on the Strategist's edit card, or undoes one. Locus's own plain messages only.",
+   "why": "A wrong line is fixed in place instead of a second post.",
+   "where": [
+    "slackwrite.js:editAction",
+    "slackwrite.js:channelAction"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": null,
+   "example": {
+    "text": "Edited. Gift guide photos are due Friday, not Thursday.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Edited"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "Gift guide photos are due Friday, not Thursday."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "2:10pm CT"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "owner_edit",
+   "group": "Answers and tools on request",
+   "name": "Owner edit of a Locus message",
+   "channel": "internal channel or client channel",
+   "who": "The channel where the message is",
+   "kind": null,
+   "fixedFrom": "locus",
+   "fromNote": "Always Locus",
+   "status": "keep",
+   "onRenderer": false,
+   "when": "Only when the owner edits or deletes one of Locus's own messages from Locus.",
+   "why": "A wrong message is fixed or taken down without opening Slack.",
+   "where": [
+    "worker.js:handle@/api/ask/own-message"
+   ],
+   "from": "locus",
+   "fromLabel": "Locus",
+   "kindLabel": null,
+   "example": {
+    "text": "Edited by the owner. The shipping cutoff is Dec 17.",
+    "blocks": [
+     {
+      "type": "header",
+      "text": {
+       "type": "plain_text",
+       "text": "Edited by the owner"
+      }
+     },
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "The shipping cutoff is Dec 17."
+      }
      },
      {
       "type": "context",
