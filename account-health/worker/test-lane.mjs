@@ -46,6 +46,19 @@ await check('laneBlocks: lane + brand, the tagged person and the ask, Why:, then
   const bad = laneBlocks({ lane: 'OPS', ask: 'Fix the sync', status: 'bad' });
   assert.equal(bad.blocks.length, 1); assert.equal(bad.attachments[0].color, '#E01E5A');
   noDash([m, n2]);
+  /* A long ask or why is never cut: the header stays short, the whole ask and why go in the summary section. */
+  const longAsk = 'Add the system user to the ad account "Sample Account" (Business Settings > Ad accounts > Sample Account > Assign people) and give it full control today';
+  const longWhy = 'The sync said: ' + 'the token cannot read this ad account because no person or system user was assigned to it in the business. '.repeat(3) + '(the client was not messaged)';
+  const lg = laneBlocks({ lane: 'OPS', brand: 'Sample Golf', ask: longAsk, why: longWhy, status: 'bad' });
+  assert.ok(lg.blocks[0].text.text.length <= 150, 'the header stays within 150');
+  const body = lg.attachments[0].blocks[0].text.text;
+  assert.ok(body.includes(longAsk), 'the whole ask is there'); assert.ok(body.endsWith('(the client was not messaged)'), 'the whole why is there');
+  assert.ok(body.startsWith('<@U06C37MDWD7>  '), 'the tag first');
+  assert.ok(lg.text.includes('(the client was not messaged)'), 'the notification text carries it too');
+  assert.deepEqual(houseLint(lg), []);
+  const lw = laneBlocks({ lane: 'CLIENT', brand: 'Sample Golf', ask: 'Answer the comment', why: 'x'.repeat(300) });
+  assert.equal(lw.blocks[0].text.text, 'CLIENT · Sample Golf: Answer the comment');
+  assert.equal(lw.blocks[1].text.text, `<@U06C37MDWD7>  Answer the comment\n${'x'.repeat(300)}`, 'a long why keeps every character');
 });
 
 await check('who: a Slack id, a tag, a bold name; nobody named ("the strategist", empty, Nobody) tags Cole', () => {

@@ -96,6 +96,17 @@ await check('the Done button: marks the item done by the tapper and redraws the 
   assert.equal(rr.done, 1); assert.equal(db.prepare(`SELECT status FROM p_action WHERE id = ?`).get(a3.id).status, 'done');
   assert.equal(updates.length, 1); assert.match(updates[0].text, /All done/);
 });
+await check('the Done button on a house style reminder (header first): the redraw keeps "*LANE · Brand*"', async () => {
+  const x = await addAction(env, { act: 'brand_alpha', text: 'Check the feed', owner: 'Ahsan', due: '2026-10-14' });
+  db.prepare(`UPDATE p_action SET slack_channel = 'C_HDR', slack_ts = '9.001' WHERE id = ?`).run(x.id);
+  const msg = reminderMessage('Alpha Golf', 'Ahsan', [{ id: x.id, act_id: 'brand_alpha', text: 'Check the feed', due: '2026-10-14' }], '2026-10-14');
+  assert.equal(msg.blocks[0].type, 'header');
+  replaced.length = 0;
+  const ctx = { waitUntil: p => (ctx.p = p) };
+  await handleActionButton(env, ctx, { type: 'block_actions', user: { id: 'U_COLE' }, response_url: 'https://hooks/y', container: { channel_id: 'C_HDR', message_ts: '9.001' }, message: { blocks: msg.blocks }, actions: [{ action_id: 'act_done_0', value: JSON.stringify({ id: x.id }) }] }, d, { ACK: () => new Response(''), xfetch });
+  await ctx.p;
+  assert.equal(replaced.length, 1); assert.match(replaced[0].text, /^\*OPS · Alpha Golf\*\n/);
+});
 await check('routes: team only (401 without a session, 403 for a client scope), GET lists with brands and team, POST adds, done, edit; an unknown brand is refused', async () => {
   const call = async (method, path, body, headers = { authorization: 'Bearer team' }) => { const req = new Request('https://ah' + path, { method, headers, body: body ? JSON.stringify(body) : undefined }); const u = new URL(req.url); const r = await handleActions(req, env, u, u.pathname, json, d); return { status: r.status, body: await r.json() }; };
   assert.equal((await call('GET', '/api/actions', null, {})).status, 401);

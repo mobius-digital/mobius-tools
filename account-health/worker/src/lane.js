@@ -32,7 +32,7 @@
  * Copy: plain words, short, no em dashes (noDash strips them), never "Locus says", never a number the message did not
  * already have. Client channels never come through here (client sends, Pulse "send to all clients", the welcome). */
 import { tagOf, teamPost } from './morningcard.js';
-import { houseMessage } from './house.js';
+import { houseMessage, LIMITS, clip, noEmoji, plainOf } from './house.js';
 
 export const COLE = 'U06C37MDWD7';
 export const LANES = ['MEDIA BUYING', 'CREATIVE', 'CREATORS', 'CLIENT', 'EMAIL', 'OPS'];
@@ -142,8 +142,21 @@ export function laneBlocks({ lane, brand, who, ask, why, buttons, lines, status,
   const linked = /<(https?:|#|mailto:)/.test(askT);
   const raw = (buttons || []).filter(b => b && b.type && b.type !== 'button');
   const btns = (buttons || []).filter(b => b && (!b.type || b.type === 'button'));
-  const m = houseMessage({ title: `${L} · ${B}: ${plain(askT)}`, tag: whoText(who), summary: linked ? [askT, whyT].filter(Boolean).join('. ') : whyT,
+  const title = `${L} · ${B}: ${plain(askT)}`;
+  const sumT = linked ? [askT, whyT].filter(Boolean).join('. ') : whyT;
+  /* An ask or a why too long for the header (150) or the summary line (200) is never cut: the header stays short and
+     the whole ask and why go in the summary section (up to the Slack section limit). */
+  const long = title.length > LIMITS.header || sumT.length > LIMITS.summary;
+  const tagT = whoText(who);
+  const m = houseMessage({ title, tag: long ? null : tagT, summary: long ? '' : sumT,
     lines: (lines || []).map(one).filter(Boolean), buttons: btns, status, source, at, context, numbers });
+  if (long) {
+    const full = noEmoji([linked ? '' : askT, sumT].filter(Boolean).join('\n'));
+    const sec = { type: 'section', text: { type: 'mrkdwn', text: clip([tagT, full].filter(Boolean).join('  '), LIMITS.section - 100) } };
+    if (m.attachments) m.attachments[0].blocks.unshift(sec); else m.blocks.splice(1, 0, sec);
+    const head = m.blocks[0].text.text;
+    m.text = clip(`${head}${/[.!?]$/.test(head) ? '' : '.'} ${plainOf(full)}`, 3000);
+  }
   if (raw.length) { if (m.attachments) m.attachments[0].blocks.push(...raw); else m.blocks.push(...raw); }
   return { ...m, head, mrkdwn: head.text.text };
 }

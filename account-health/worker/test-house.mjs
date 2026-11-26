@@ -47,6 +47,7 @@ await check('2. caps: 3 numbers, 5 lines then "and N more in Locus", 5 buttons; 
     assert.throws(() => houseMessage({ title: 't', numbers: [1, 2, 3, 4].map(i => ({ label: 'x', value: 'y' })) }), /more than 3 numbers/);
     assert.throws(() => houseMessage({ title: 't', buttons: [1, 2, 3, 4, 5, 6].map(() => ({ label: 'x', url: 'https://example.test' })) }), /more than 5 buttons/);
     assert.throws(() => houseMessage({}), /a title is required/);
+    assert.throws(() => houseMessage({ title: 't', buttons: [{ action_id: 'a', label: 'One' }, { action_id: 'a', label: 'Two' }] }), /duplicate action_id a/, 'a repeated id is never dropped quietly in tests');
   } finally { HOUSE.strict = false; }
 });
 

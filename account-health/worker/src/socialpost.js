@@ -403,11 +403,13 @@ export async function notifyHandoff(env, d, post, plat, media, t, why) {
   /* 2026-11-26 (the house style, house.js): header "Post this by hand: TikTok, Brand", the person tagged with the why,
      the post's picture, then what to post (the file and the caption are the job itself, so they stay), one row of
      buttons: Posted it, Open in Locus. */
-  const pic = media.find(m => !isVideo(m) && (m.public || m.url));
+  /* Only a staged public copy goes in as a picture: Slack fetches an image block when the message is posted and refuses
+     the whole message if it cannot, so any other file link stays a text link (File: above). */
+  const pic = media.find(m => !isVideo(m) && m.public);
   const msg = houseMessage({
     title: `Post this by hand: ${PLATS[plat]}, ${b?.name || 'Agency'}`,
     tag: /^[UW][A-Z0-9]{6,}$/.test(to) ? to : COLE, summary: sl(why),
-    image: pic && !/\.gif(\?|$)/i.test(pic.public || pic.url) ? { url: pic.public || pic.url, alt: `The ${PLATS[plat]} post` } : null,
+    image: pic && !/\.gif(\?|$)/i.test(pic.public) ? { url: pic.public, alt: `The ${PLATS[plat]} post` } : null,
     source: 'Locus social', at: new Date(),
     buttons: [
       { action_id: 'soc_done', style: 'primary', label: 'Posted it', value: JSON.stringify({ id: post.id, plat }) },

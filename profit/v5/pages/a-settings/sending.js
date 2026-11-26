@@ -22,6 +22,8 @@ const SENDERS = 'agency.senders';
 export function whoGroup(S, d) {
   const answer = d.senders && d.senders.resolved ? d.senders : SAMPLE_SENDERS;
   const person = d.senderPerson || 'You';
+  /* Only the owner may change this (the worker answers 403 for anyone else): for others every pill is dimmed. */
+  const ro = d.sendersEditable === false;
   const items = [{ id: 'locus', label: APP_NAME }, { id: 'cole', label: person }];
   const cur = () => storedOf(S.get(SENDERS, storedOf(answer)));
   const pills = (who, onPick, { locked = false, noApp = false, label } = {}) => {
@@ -37,14 +39,14 @@ export function whoGroup(S, d) {
     const top = topState(rows);
     wrap.replaceChildren(
       row('Everything from', top === 'mixed' ? 'Mixed: the rows below are not all the same.' : 'One tap sets every row below.',
-        h('div', { class: 'lx-sn-top' }, pills(top === 'mixed' ? null : top, id => S.set(SENDERS, applyTop(cur(), id)), { label: 'Everything from' }),
+        h('div', { class: 'lx-sn-top' }, pills(top === 'mixed' ? null : top, id => S.set(SENDERS, applyTop(cur(), id)), { locked: ro, label: 'Everything from' }),
           top === 'mixed' ? h('span', { class: 'lx-sn-mixed' }, 'Mixed') : null)),
       ...rows.map(r => row(r.label, r.why || null,
-        pills(r.who, id => S.set(SENDERS, applyKind(cur(), r.kind, id)), { locked: r.locked, noApp: r.noApp, label: r.label }))));
+        pills(r.who, id => S.set(SENDERS, applyKind(cur(), r.kind, id)), { locked: r.locked || ro, noApp: r.noApp, label: r.label }))));
   };
   S.onChange(k => { if (k === SENDERS || k === null) paint(); });
   paint();
-  return group('Who it comes from', `${APP_NAME} is the app. ${person === 'You' ? 'The other choice' : person} posts as you, with your name and photo.`, wrap);
+  return group('Who it comes from', `${APP_NAME} is the app. ${person === 'You' ? 'The other choice' : person} posts as you, with your name and photo.${ro ? ' Only the owner can change this.' : ''}`, wrap);
 }
 
 function preview(p) {

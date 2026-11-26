@@ -61,7 +61,8 @@ const broken = msg => { if (HOUSE.strict) throw new Error(`houseMessage: ${msg}`
 const isGif = img => /\.gif(\?|#|$)/i.test(String(img?.url || img?.image_url || '')) || /gif/i.test(String(img?.mimetype || ''));
 
 /* One row of buttons. A repeated action_id would make Slack refuse the block; link buttons (noop_open) get a
-   numbered id (noop_open_2), which the Slack actions route already acknowledges. Others with the same id are dropped. */
+   numbered id (noop_open_2), which the Slack actions route already acknowledges. Another repeated id is a caller bug:
+   strict mode (tests) throws; in the worker the first button stays and the repeat is dropped. */
 function buttonRow(buttons) {
   const els = [], ids = new Set();
   for (const b of (buttons || []).filter(Boolean)) {
@@ -76,7 +77,7 @@ function buttonRow(buttons) {
     el.text = { ...el.text, type: 'plain_text', text: clip(noEmoji(noDash(el.text?.text || 'Open')).trim() || 'Open', LIMITS.button) };
     let id = el.action_id || 'noop_open';
     if (ids.has(id)) {
-      if (!/^noop_open/.test(id)) continue;
+      if (!/^noop_open/.test(id)) { broken(`duplicate action_id ${id}`); continue; }
       let k = 2; while (ids.has(`noop_open_${k}`)) k++; id = `noop_open_${k}`;
     }
     ids.add(id); el.action_id = id;

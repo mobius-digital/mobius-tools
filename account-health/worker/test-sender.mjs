@@ -50,10 +50,10 @@ await check('2. all: locus, then one kind set to Cole: that kind Cole, the rest 
 
 await check('3. locked kinds ignore a Cole value (approval_ask, strategist_reply, creator_discord)', async () => {
   reset(); const env = mkEnv();
-  const raw = { all: 'cole', kinds: { approval_ask: 'cole', strategist_reply: 'cole', creator_discord: 'cole' } };
+  const raw = { all: 'cole', kinds: { approval_ask: 'cole', strategist_reply: 'cole', creator_discord: 'cole', internal_alert: 'cole', team_notice: 'cole' } };
   assert.deepEqual(sendersOf(raw).kinds, {}, 'sendersOf drops them');
   await putSetting(env, 'senders', JSON.stringify(raw));
-  for (const k of ['approval_ask', 'strategist_reply', 'creator_discord']) {
+  for (const k of ['approval_ask', 'strategist_reply', 'creator_discord', 'internal_alert', 'team_notice']) {
     const s = await senderFor(env, k);
     assert.equal(s.who, 'locus', k); assert.equal(s.locked, true); assert.equal(s.slack.token, 'xoxb-bot');
     assert.ok(SENDER_KINDS[k].why, 'a locked kind says why');

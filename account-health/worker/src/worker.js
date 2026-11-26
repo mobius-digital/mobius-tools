@@ -6426,13 +6426,18 @@ async function editClientPost(env, acct, date, text) {
   const ref = await clientPostOf(env, acct.act_id, date);
   if (!ref?.ts) return { error: 'This post went out before Locus kept a link to it, so it can only be edited in Slack by hand.' };
   /* The token of whoever sends the client daily (Cole by default; the app when the senders setting says Locus). */
-  const tokEnv = envFor(env, (await senderFor(env, 'client_daily').catch(() => ({ who: 'cole' }))).who);
+  const now = (await senderFor(env, 'client_daily').catch(() => ({ who: 'cole' }))).who;
+  const tokEnv = envFor(env, now);
   if (!tokEnv.SLACK_USER_TOKEN) return { error: 'No Slack user token is set, so the post cannot be edited as you.' };
-  const u = await xfetch('https://slack.com/api/chat.update', {
+  const update = tok => xfetch('https://slack.com/api/chat.update', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${tokEnv.SLACK_USER_TOKEN}`, 'Content-Type': 'application/json; charset=utf-8' },
+    headers: { Authorization: `Bearer ${tok}`, 'Content-Type': 'application/json; charset=utf-8' },
     body: JSON.stringify({ channel: ref.channel, ts: ref.ts, text }),
   }).then(r => r.json()).catch(() => ({}));
+  let u = await update(tokEnv.SLACK_USER_TOKEN);
+  /* The setting may have changed since the post went out: a post only its own sender can edit, so try the other once. */
+  const other = envFor(env, now === 'locus' ? 'cole' : 'locus').SLACK_USER_TOKEN;
+  if (!u.ok && u.error === 'cant_update_message' && other && other !== tokEnv.SLACK_USER_TOKEN) u = await update(other);
   if (!u.ok) return { error: `Slack: ${u.error || 'no answer'}` };
   await putSetting(env, clientPostKey(acct.act_id, date), JSON.stringify({ ...ref, text, edited_at: new Date().toISOString() }));
   await slackSyncBrief(env, acct, date).catch(() => {});
@@ -7253,15 +7258,18 @@ async function deliveryPass(env) {
   const teams = await calendarTeam(env, [...new Set([...byChannel.values()].flat().map(x => x.a.act_id))]).catch(() => ({}));
   for (const [ch, lines] of byChannel) {
     alerts += lines.length;
-    try {
-      /* 2026-11-26 (the house style): one message per brand, the buyer tagged, the numbers in a row. */
-      for (const { a, line } of lines) {
+    /* 2026-11-26 (the house style): one message per brand, the buyer tagged, the numbers in a row. One failed post
+       does not skip the other brands in the channel. */
+    let sent = 0;
+    for (const { a, line } of lines) {
+      try {
         const who = await laneWho(env, { slackApi, centralDate }, laneOwner('MEDIA BUYING', teams[a.act_id] || {}));
         const m = deliveryMessage(a, who, line, { money, url: DASHBOARD_URL });
         await slackPost(env, ch, m.text, m.blocks);
-      }
-      results.push({ channel: ch, sent: lines.length });
-    } catch (e) { results.push({ channel: ch, error: e.message }); }
+        sent++;
+      } catch (e) { results.push({ channel: ch, act_id: a.act_id, error: e.message }); }
+    }
+    if (sent) results.push({ channel: ch, sent });
   }
   return { ok: true, alerts, channels: results };
 }
@@ -10565,6 +10573,8 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
           /* Who each kind of message comes from (sender.js): every kind with its value, locked and why, plus the
              name of the person behind SLACK_USER_TOKEN for the page's pills. */
           senders: resolveSenders(await getSetting(env, 'senders'), env),
+          /* Only the owner may change who messages come from (PUT answers 403 for anyone else); the page dims the group. */
+          sendersEditable: isOwner,
           senderPerson: await senderPerson(env, { F: xfetch, getSetting, putSetting }).catch(() => null),
           /* 2026-10-12: one agency channel for every daily draft (blank = each brand's internal channel), and
              whether a client with a Locus login gets the short daily or the whole brief. */
@@ -10592,6 +10602,9 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       }
       if (path === '/api/settings' && request.method === 'PUT') {
         const b = await request.json().catch(() => ({}));
+        /* Who messages come from: only the owner may change it (a client message set to Cole goes out under his name
+           and photo). Checked before anything saves, so a refused body changes nothing. */
+        if ('senders' in b && !isOwner) return json({ error: 'Only Cole can change who messages come from.' }, 403);
         if ('slackChannel' in b) await putSetting(env, 'slackChannel', b.slackChannel || '');
         if ('slackSendWho' in b) await putSetting(env, 'slackSendWho', b.slackSendWho === 'anyone' ? 'anyone' : 'owner');
         if ('paceAlertPct' in b) await putSetting(env, 'paceAlertPct', String(+b.paceAlertPct || 0.15));

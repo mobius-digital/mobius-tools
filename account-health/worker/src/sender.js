@@ -11,6 +11,7 @@
  *                     rewritten in place with the bot token, which cannot edit a user token message.
  *   strategist_reply  an answer Cole did not write must not carry his name.
  *   creator_discord   Discord has no "as a person" token.
+ *   internal_alert, team_notice   no send path passes these kinds yet, so a switch would change nothing.
  *
  * Rules: an unknown kind is Locus (never Cole by accident). A kind set to Cole with no SLACK_USER_TOKEN throws; it
  * never quietly posts as the bot. An email kind set to Locus while LOCUS_MAIL_FROM is unset resolves to Cole and
@@ -27,8 +28,12 @@ export const SENDER_KINDS = {
   onboarding_slack: { def: 'cole',  label: 'Onboarding in Slack (welcome, Shopify note)' },
   onboarding_email: { def: 'cole',  label: 'Onboarding emails (welcome, agreement, reminders)', email: true },
   login_email:      { def: 'locus', label: 'Sign in links and client login invites', email: true },
-  internal_alert:   { def: 'locus', label: 'Alerts to the team' },
-  team_notice:      { def: 'locus', label: 'Team notices' },
+  /* Locked until the team alert and notice paths pass these kinds (none does yet), so the page never shows a switch
+     that changes nothing. */
+  internal_alert:   { def: 'locus', label: 'Alerts to the team', locked: true,
+    why: 'This one always comes from Locus for now: the team alerts do not read this setting yet.' },
+  team_notice:      { def: 'locus', label: 'Team notices', locked: true,
+    why: 'This one always comes from Locus for now: the team alerts do not read this setting yet.' },
   approval_ask:     { def: 'locus', label: 'Approval asks (drafts, War Room, batches)', locked: true,
     why: 'Most go to your own DM, and a DM from you to you never notifies you. Their cards are also rewritten in place, which only works for the app.' },
   strategist_reply: { def: 'locus', label: 'Strategist answers in threads', locked: true,
