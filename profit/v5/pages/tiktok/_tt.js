@@ -8,8 +8,10 @@
    TikTok, hour by hour spend, suggestions and a change list have no route yet, so those parts show a
    designed state and never a zero. */
 
-import { h, em, svgNode, card, kpi, kpis, takeaway, button, table, statusDot, pill, empty, lineChart, legend, money, num, pct, x, toast, addStyles } from '../../kit.js';
+import { h, em, svgNode, card, kpi, kpis, takeaway, button, table, statusDot, pill, empty, lineChart, legend, money, num, pct, x, toast, addStyles, sheet } from '../../kit.js';
+import { def, defOn, headRow } from '../platforms/_ads.js';
 import { icon } from '../../icons.js';
+import { askWhy } from '../home/_biz.js';
 
 export const TT_TABS = [
   { id: 'overview', label: 'Overview' },
@@ -23,11 +25,11 @@ const CSS = `
 /* frame gap, fixed here until app.css has it: a one column grid must let its column shrink, or the tab row widens the whole page on a phone */
 .tt-vids{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:36px 40px}
 .tt-vid{display:grid;grid-template-columns:132px minmax(0,1fr);gap:22px;align-items:start;min-width:0}
-.tt-thumb{position:relative;aspect-ratio:9/16;border-radius:14px;overflow:hidden;background:linear-gradient(180deg,#ECEAE6 0%,#DCD9D3 100%);box-shadow:inset 0 0 0 1px rgba(28,20,10,.06)}
-.tt-thumb.b{background:linear-gradient(180deg,#E4E7EE 0%,#D3D7E1 100%)}
+.tt-thumb{position:relative;aspect-ratio:9/16;border-radius:14px;overflow:hidden;background:var(--bg-sunk);box-shadow:inset 0 0 0 1px rgba(28,20,10,.06)}
+.tt-thumb.b{background:var(--surface-2)}
 .tt-thumb::before{content:"";position:absolute;left:50%;bottom:-18%;width:78%;aspect-ratio:1;transform:translateX(-50%);border-radius:50% 50% 0 0;background:rgba(28,20,10,.07)}
 .tt-thumb img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.tt-play{position:absolute;left:50%;top:50%;width:40px;height:40px;margin:-20px 0 0 -20px;border-radius:50%;background:#fff;box-shadow:0 2px 10px rgba(28,20,10,.18)}
+.tt-play{position:absolute;left:50%;top:50%;width:40px;height:40px;margin:-20px 0 0 -20px;border-radius:50%;background:var(--surface);box-shadow:0 2px 10px rgba(28,20,10,.18)}
 .tt-play::after{content:"";position:absolute;left:16px;top:13px;border-left:10px solid var(--ink);border-top:7px solid transparent;border-bottom:7px solid transparent}
 .tt-dur{position:absolute;right:8px;bottom:8px;padding:2px 7px;border-radius:7px;background:rgba(22,19,15,.86);color:#fff;font-size:11.5px;font-weight:600;font-variant-numeric:tabular-nums}
 .tt-body{display:grid;gap:12px;min-width:0}
@@ -43,9 +45,27 @@ const CSS = `
 .tt-bars i{display:block;height:4px;border-radius:999px;background:var(--bg-sunk);position:relative}
 .tt-bars i::after{content:"";position:absolute;left:0;top:0;bottom:0;width:var(--v,0%);background:var(--ink);border-radius:999px}
 .tt-bars b{text-align:right;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
-.tt-says{font-size:12px;color:var(--muted)}
+.tt-says{display:flex;gap:6px;flex-wrap:wrap}
+.tt-says .lx-chip{height:22px;font-size:11.5px}
+.tt-vid{cursor:pointer;border-radius:16px;padding:8px;margin:-8px}
+.tt-vid:hover{background:var(--surface-2)}
+.tt-vid:focus-visible{outline:2px solid var(--ink-2);outline-offset:2px}
+.tt-mini{display:grid}
+.tt-mini a{display:grid;grid-template-columns:minmax(0,1fr) 90px 80px 90px;gap:12px;align-items:center;min-height:var(--row-h-roomy,48px);padding:0 24px;border-top:1px solid var(--line);color:inherit;text-decoration:none;font-size:13.5px}
+.tt-mini a:hover{background:var(--surface-2)}
+.tt-mini a span:not(:first-child){text-align:right;font-variant-numeric:tabular-nums}
+.tt-mini .hd{display:grid;grid-template-columns:minmax(0,1fr) 90px 80px 90px;gap:12px;padding:0 24px 8px;font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+.tt-mini .hd span:not(:first-child){text-align:right}
+.tt-sh{display:grid;gap:16px}.tt-sh .g{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.tt-sh .g>div{display:grid;gap:3px;padding:12px 14px;border-radius:12px;background:var(--surface-2)}.tt-sh .g .l{font-size:12px;color:var(--muted)}
+.tt-sh .g b{font-size:var(--num-s);font-variant-numeric:tabular-nums}
+.tt-bar{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap}
+.tt-bar h3{margin:0;font-size:15px;font-weight:600;flex:1;min-width:200px}
+.tt-bar label{display:inline-flex;align-items:center;gap:8px;color:var(--muted);font-size:13px}
+.tt-bar select{height:34px;padding:0 10px;border:0;border-radius:10px;background:var(--bg-sunk);color:var(--ink);font:inherit;font-size:13px}
+@media (max-width:759px){.tt-sh .g{grid-template-columns:repeat(2,minmax(0,1fr))}.tt-mini a,.tt-mini .hd{grid-template-columns:minmax(0,1fr) 70px 64px;padding:0 16px}.tt-mini a>:last-child,.tt-mini .hd>:last-child{display:none}}
 .tt-strip{display:flex;align-items:center;gap:16px;padding:18px 22px;border-radius:18px;background:var(--band)}
-.tt-strip .ic{flex:none;display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:#fff;box-shadow:0 0 0 1px var(--line)}
+.tt-strip .ic{flex:none;display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:var(--surface);box-shadow:0 0 0 1px var(--line)}
 .tt-strip .tx{min-width:0;flex:1}
 .tt-strip .tx b{display:block;font-size:15px;font-weight:600}
 .tt-strip .tx span{font-size:13px;color:var(--muted)}
@@ -148,12 +168,12 @@ export function heroBand(d) {
   const who = tw ? '' : ', TikTok says';
   const none = roas == null && sales == null;
   const list = [
-    { label: 'Spend', value: money(t.spend), size: 'lg', sub: t.per_day != null ? 'about ' + money(Math.round(t.per_day)) + ' a day' : null },
+    { label: def('TikTok spend, ' + (d.range ? d.range.label : ''), 'ad_spend'), value: money(t.spend), size: 'lg', sub: t.per_day != null ? 'about ' + money(Math.round(t.per_day)) + ' a day' : null },
     none ? { label: 'Sales from its ads', value: 'n/a', size: 'lg', sub: 'No sales source connected' }
-      : { label: 'Sales from its ads' + who, value: money(Math.round(sales)), size: 'lg', sub: t.purchases != null ? num(t.purchases) + ' purchases' : null },
-    { label: 'ROAS' + who, value: roas != null ? h('span', { class: 'lx-hero-num' }, x(roas)) : 'n/a', size: 'lg',
+      : { label: def('Sales from its ads' + who, tw ? 'roas' : 'tiktok_says'), value: money(Math.round(sales)), size: 'lg', sub: t.purchases != null ? num(t.purchases) + ' purchases' : null },
+    { label: def('ROAS' + who, tw ? 'roas' : 'tiktok_says'), value: roas != null ? h('span', { class: 'lx-hero-num' }, x(roas)) : 'n/a', size: 'lg',
       delta: roas != null && d.goal_roas != null ? statusDot(roas < d.goal_roas ? 'bad' : 'good', 'goal ' + x(d.goal_roas)) : null, sub: roas == null ? 'No sales source connected' : null },
-    { label: 'Cost per purchase' + who, value: cpa != null ? money(Math.round(cpa)) : 'n/a', size: 'lg',
+    { label: def('Cost per purchase' + who, 'cpa'), value: cpa != null ? money(Math.round(cpa)) : 'n/a', size: 'lg',
       delta: cpa != null && d.goal_cpa != null ? statusDot(cpa > d.goal_cpa ? 'bad' : 'good', 'goal ' + money(d.goal_cpa)) : null },
   ];
   return h('section', { class: 'lx-hero line' }, kpis(list.map(k => kpi(k)), { cols: 4 }));
@@ -161,6 +181,7 @@ export function heroBand(d) {
 
 /** The one sentence. From the fixture in sample mode, else written from the totals by a plain rule. */
 export function takeLine(d, ctx) {
+  return null; /* the old line said the ROAS tile again in words (brief rule 5); Ask why lives in the page head now */
   const t = d.totals || {};
   let say = null;
   if (d.take) say = d.take.map(p => (typeof p === 'string' ? p : h('b', null, p.b)));
@@ -170,7 +191,7 @@ export function takeLine(d, ctx) {
     say = [t.roas != null ? 'TikTok brings back ' : 'By TikTok’s own count it brings back ', h('b', null, money(r, { cents: true })), ' for each ', h('b', null, '$1'), '. ',
       (d.campaigns || []).length === 1 ? 'Every dollar is in one campaign.' : num((d.campaigns || []).length) + ' campaigns spent.'];
   }
-  return takeaway(say, { action: !ctx.isClient ? button('Ask why', { href: ctx.href('ask', 'index') }) : null });
+  return takeaway(say, { action: !ctx.isClient ? askWhy(ctx, 'How is TikTok doing, and why?') : null });
 }
 
 /** Sales against spend by week: the one lead chart, its own full width row. */
@@ -183,20 +204,20 @@ export function weeksChart(d) {
     : [{ name: 'Spend', values: w.map(r => r.spend), lead: true }];
   return card({},
     h('div', { class: 'lx-chart-h' },
-      h('div', null, h('div', { class: 'lx-sec' }, h('h3', null, hasSales ? 'Are TikTok sales keeping up with spend?' : 'What TikTok spent each week')), h('p', null, 'by week, TikTok only')),
+      h('div', null, h('div', { class: 'lx-sec' }, h('h3', null, hasSales ? 'Are TikTok sales keeping up with spend?' : 'What TikTok spent each week')), h('p', null, hasSales ? 'by week, TikTok only' : 'by week, TikTok only. No sales source is connected for TikTok by week, so only spend is drawn.')),
       legend(series.map(s => ({ name: s.name, lead: s.lead })))),
-    lineChart({ series, labels: w.map(r => r.label), height: 360, format: v => money(v, { compact: true }), label: hasSales ? 'TikTok sales and spend by week' : 'TikTok spend by week' }),
-    hasSales ? null : h('p', { class: 'lx-foot', style: { marginTop: '10px' } }, 'No sales source connected for TikTok by week, so only spend is drawn.'));
+    lineChart({ series, labels: w.map(r => r.label), height: 360, format: v => money(v, { compact: true }), label: hasSales ? 'TikTok sales and spend by week' : 'TikTok spend by week' }));
 }
 
 const barRow = (name, v) => v == null ? null : h('div', null, h('span', null, name), h('i', { style: { '--v': Math.min(100, v * 250).toFixed(1) + '%' } }), h('b', null, pct(v, { digits: v < 0.1 ? 1 : 0 })));
 
 /** One video: portrait tile, ROAS and sales, then how long people stay. */
-export function videoCard(v) {
+export function videoCard(v, d) {
   const has = v.roas != null;
-  const foot = [v.tiktok_roas != null ? 'TikTok says ' + x(v.tiktok_roas) + '.' : null,
-    v.meta ? 'On Meta: hook ' + pct(v.meta.hook) + ', ROAS ' + x(v.meta.roas) + '.' : v.meta === null ? 'Not on Meta.' : null].filter(Boolean).join(' ');
-  return h('article', { class: 'tt-vid' },
+  const chips = [v.tiktok_roas != null ? defOn(h('span', { class: 'lx-chip' }, 'TikTok\'s count ' + x(v.tiktok_roas)), 'tiktok_says') : null,
+    v.meta ? h('span', { class: 'lx-chip' }, 'Also on Meta: ' + x(v.meta.roas)) : null].filter(Boolean);
+  const open = () => videoSheet(v, d);
+  return h('article', { class: 'tt-vid', tabindex: 0, role: 'button', 'aria-label': 'Open ' + v.name, onclick: e => { if (!e.target.closest('.lx-def')) open(); }, onkeydown: e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); open(); } } },
     h('div', { class: 'tt-thumb ' + (v.look || '') }, v.thumb && h('img', { src: v.thumb, alt: '', loading: 'lazy', decoding: 'async' }), h('span', { class: 'tt-play', 'aria-hidden': 'true' }), v.dur && h('span', { class: 'tt-dur' }, v.dur)),
     h('div', { class: 'tt-body' },
       h('div', null, h('h4', null, v.name, v.spark && pill('', 'Spark ad')), h('div', { class: 'sub' }, [v.by, v.spend != null ? money(v.spend) + ' spent' : null].filter(Boolean).join(', '))),
@@ -204,7 +225,20 @@ export function videoCard(v) {
         h('div', { class: 'tt-roas' }, h('span', { class: 'big' + (has ? '' : ' na') }, has ? x(v.roas) : 'n/a'),
           h('span', { class: 'r' }, h('b', null, v.sales != null ? money(v.sales) : 'n/a'), v.sales != null ? 'sales, Triple Whale' : 'No sales source connected'))),
       h('div', { class: 'tt-bars' }, barRow('2 second views', v.v2), barRow('6 second views', v.v6), barRow('Watched to the end', v.end)),
-      foot && h('div', { class: 'tt-says' }, foot)));
+      chips.length ? h('div', { class: 'tt-says' }, chips) : null));
+}
+/** One video, every figure: a kit sheet (centered on a desktop, from the bottom on a phone). */
+export function videoSheet(v, d) {
+  const kv = (l, k, val) => val == null ? null : h('div', null, h('span', { class: 'l' }, def(l, k)), h('b', null, val));
+  const p = n => (n == null ? null : pct(n, { digits: n < 0.1 ? 1 : 0 }));
+  sheet({ title: v.name, body: h('div', { class: 'tt-sh' },
+    h('p', { class: 'tt-says' }, [v.spark ? 'Spark ad' : 'Brand video', v.by, v.dur, 'TikTok, ' + (d && d.range ? d.range.label : 'these dates')].filter(Boolean).join(', ')),
+    h('div', { class: 'g' },
+      kv('Spend', 'ad_spend', v.spend != null ? money(v.spend) : null), kv('Sales', 'roas', v.sales != null ? money(v.sales) : null), kv('ROAS', 'roas', v.roas != null ? x(v.roas) : null),
+      kv('TikTok\'s count', 'tiktok_says', v.tiktok_roas != null ? x(v.tiktok_roas) : null),
+      kv('2 second views', 'hook', p(v.v2)), kv('6 second views', 'six_second', p(v.v6)), kv('Watched to the end', 'watched_end', p(v.end)),
+      kv('CPM', 'cpm', v.cpm != null ? money(v.cpm, { cents: true }) : null), kv('CTR', 'ctr', v.ctr != null ? pct(v.ctr, { digits: 2 }) : null)),
+    v.meta ? h('div', null, h('b', null, 'The same video on Meta'), h('p', { class: 'tt-says' }, 'Hook ' + pct(v.meta.hook) + ', ROAS ' + x(v.meta.roas))) : null) });
 }
 
 /** Campaigns as TikTok reports them. Spend, click rate and CPM are exact; purchases and ROAS are TikTok's own count. */
@@ -214,17 +248,28 @@ export function campaignsCard(d, { title = 'Campaigns', live = false } = {}) {
   const cols = [
     { key: 'name', label: 'Campaign', render: r => h('span', { class: 'name' }, r.name || r.id, r.type && h('span', { class: 'sub' }, r.type)) },
     live ? { key: 'status', label: 'Status', render: r => statusDot(r.status === 'live' ? 'good' : 'off', r.status === 'live' ? 'Live' : 'Paused') } : null,
-    live ? { key: 'budget', label: 'Budget a day', num: true, render: r => r.budget != null ? money(r.budget) : 'no data' } : null,
-    { key: live ? 'spend_today' : 'spend', label: live ? 'Spent today' : 'Spend', num: true, sortable: true, render: r => money(live ? r.spend_today : r.spend) },
-    live ? null : { key: 'ctr', label: 'Click rate', num: true, class: 'hide-sm', sortable: true, render: r => pct(r.ctr, { digits: 2 }) },
-    live ? null : { key: 'cpm', label: 'CPM', num: true, class: 'hide-sm', sortable: true, render: r => money(r.cpm, { cents: true }) },
-    live ? null : { key: 'purchases', label: 'Purchases, TikTok says', num: true, class: 'hide-sm', sortable: true, render: r => num(r.purchases) },
-    live ? null : { key: 'roas', label: 'ROAS, TikTok says', num: true, sortable: true, class: 'strong', render: r => r.roas ? x(r.roas) : 'no data' },
+    live ? { key: 'budget', label: def('Budget a day', 'budget_a_day'), num: true, render: r => r.budget != null ? money(r.budget) : 'no data' } : null,
+    { key: live ? 'spend_today' : 'spend', label: live ? def('Spent today', 'spent_today') : def('Spend', 'ad_spend'), num: true, sortable: true, render: r => money(live ? r.spend_today : r.spend) },
+    live ? null : { key: 'ctr', label: def('Click rate', 'click_rate'), num: true, class: 'hide-sm', sortable: true, render: r => pct(r.ctr, { digits: 2 }) },
+    live ? null : { key: 'cpm', label: def('CPM', 'cpm'), num: true, class: 'hide-sm', sortable: true, render: r => money(r.cpm, { cents: true }) },
+    live ? null : { key: 'purchases', label: def('Purchases, TikTok says', 'tiktok_says'), num: true, class: 'hide-sm', sortable: true, render: r => num(r.purchases) },
+    live ? null : { key: 'roas', label: def('ROAS, TikTok says', 'tiktok_says'), num: true, sortable: true, class: 'strong', render: r => r.roas ? x(r.roas) : 'no data' },
   ].filter(Boolean);
   return card({ title, note: live ? 'right now' : 'TikTok’s own count', flush: true, class: live ? 'tt-live' : 'tt-camps' },
     table({ roomy: true, rows, cols, sort: { key: live ? 'spend_today' : 'spend', dir: 'desc' } }));
 }
 
-/** The page title every TikTok tab shares. The shell draws it above the tabs. */
-export const TT_TITLE = ['Which videos ', em('stop the scroll?')];
-export const foot = d => d && d.foot ? h('p', { class: 'lx-foot' }, d.foot) : null;
+/** Each TikTok tab says what it is (the shell draws the title above the tabs). */
+export const TT_TITLES = {
+  overview: ['Is TikTok ', em('paying for itself?')],
+  'live-now': ['What is running on TikTok ', em('right now?')],
+  'top-videos': ['Which videos ', em('stop the scroll?')],
+  suggestions: ['What should change ', em('on TikTok?')],
+  changes: ['What changed on TikTok, ', em('and why?')],
+};
+export const TT_TITLE = TT_TITLES['top-videos'];
+/** The old footer line now lives in the page help: one "What is this page?" at the top. */
+export const foot = () => null;
+const SOURCES = 'Spend, clicks, CPM and views are TikTok\'s. Sales and ROAS are Triple Whale where they exist for TikTok; where they do not, TikTok\'s own count is shown and named.';
+export const ttHead = (d, ctx, what, extra) => headRow({ help: [{ title: 'What it is for', text: what }, { title: 'Where the numbers come from', text: SOURCES }, ...(extra || [])],
+  ask: ctx && !ctx.isClient ? askWhy(ctx, 'How is TikTok doing, and why?') : null });

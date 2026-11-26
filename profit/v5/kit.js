@@ -238,6 +238,9 @@ export function toast(text, { tone = '', ms = 2600 } = {}) {
     Escape closes the top sheet only, a click on the dimmed backdrop closes it, Tab stays inside it (focus trap),
     and focus goes back to what had it when the sheet closes. The page under it does not scroll while one is open (app.css: html:has(body > .lx-overlay)). */
 const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+/** safeHref(url) : the url when it is a plain http(s) link, else null (a data-derived link never runs script). */
+export const safeHref = u => { const s = String(u || '').trim(); return /^https?:\/\//i.test(s) ? s : null; };
+
 export function sheet({ title, body, side = 'right', onClose, class: cls } = {}) {
   const size = side === 'center' ? 'center' : 'center wide';
   const panel = h('div', { class: 'lx-sheet ' + size + (side !== 'center' ? ' ' + side : '') + (cls ? ' ' + cls : ''), role: 'dialog', 'aria-modal': 'true', 'aria-label': String(title || '').trim() || 'Details', tabindex: '-1' },
@@ -259,13 +262,16 @@ export function sheet({ title, body, side = 'right', onClose, class: cls } = {})
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   };
   let shut = false;
+  /* a link inside the sheet moves the page on: the sheet goes with it */
+  const nav = () => close();
   function close() {
     if (shut) return; shut = true;
-    document.removeEventListener('keydown', key); wrap.remove();
+    document.removeEventListener('keydown', key); window.removeEventListener('hashchange', nav); wrap.remove();
     try { if (back && back.focus && document.contains(back)) back.focus({ preventScroll: true }); } catch {}
     onClose && onClose();
   }
   document.addEventListener('keydown', key);
+  window.addEventListener('hashchange', nav);
   document.body.append(wrap);
   /* desktop: focus the first field when the sheet is a form, else the sheet itself (so Escape and Tab work at once).
      phone: the sheet itself, so the keyboard does not jump up over it */

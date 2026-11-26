@@ -10,6 +10,7 @@
      /api/overview?days=7&cmp=none&series=0      the cost check (the goal ROAS comes from the brand's own goal, _m.js brandGoals) */
 
 import { put } from '../../kit.js';
+import { askWhy, helpBar, dl } from '../home/_biz.js';
 import { h, money, x, card, hero, em, kpi, kpis, takeaway, button, statusDot, delta, gauge, legend, lineChart, table, empty } from '../../kit.js';
 import { ok, addDays, dayLabel, span, sum, b, soft, brandFacts, brandGoals, hasSource, grade, gradeDot, pickBrand, noSource, noDays, styles } from './_m.js';
 
@@ -65,12 +66,12 @@ function heroBlock(weeks, data) {
   const change = cur && prev && prev.sales_day > 0 && ok(cur.sales_day) ? cur.sales_day / prev.sales_day - 1 : null;
   const list = [
     /* goals and day counts ride in the label: beside a hero size figure they run into the next column on a phone */
-    gm ? { label: 'Weeks at goal, MER ' + x(gm), value: String(at), small: 'of ' + judged.length }
+    gm ? { label: h('span', null, 'Weeks at the ', dl('MER', 'mer'), ' goal ' + x(gm)), value: String(at), small: 'of ' + judged.length }
        : { label: 'Weeks', value: String(weeks.length), small: full.length + ' full', sub: 'no MER goal set' },
     best ? { label: 'Best week, sales a day', value: money(Math.round(best.sales_day)), sub: best.name + (ok(best.mer) ? ', MER ' + x(best.mer) : '') } : null,
     cur ? { label: cur.full ? 'Latest week' : `This week, ${cur.n} of 7 days`, value: money(cur.sales),
       delta: change != null ? delta(change, change >= 0 ? {} : { bad: true }) : null, sub: change != null ? 'a day, on last week' : cur.name } : null,
-    cur ? { label: gm ? 'MER this week, goal ' + x(gm) : 'MER this week', value: x(cur.mer), sub: gradeDot(cur.mer, gm) } : null,
+    cur ? { label: h('span', null, dl('MER', 'mer'), gm ? ' this week, goal ' + x(gm) : ' this week'), value: x(cur.mer), sub: gradeDot(cur.mer, gm) } : null,
   ].filter(Boolean).map(k => kpi({ ...k, size: 'lg' }));
   return hero({}, kpis(list, { cols: list.length }));
 }
@@ -112,7 +113,7 @@ function weeksCard(weeks, data) {
   const total = { total: true, name: 'All these dates', n: weeks.reduce((n, w) => n + w.n, 0), sales: tSales, spend: tSpend, plan_sales: tPlan, mer: tSpend > 0 && ok(tSales) ? tSales / tSpend : null };
   const tone = r => (r.total ? '' : (grade(r.mer, gm) || [])[0]);
   const bar = r => (ok(r.mer) && gm ? gauge({ value: r.mer, max: Math.max(gm * 1.2, ...weeks.map(w => w.mer || 0)), goal: gm, tone: tone(r), thin: true }) : null);
-  const vsPlan = r => { if (!ok(r.plan_sales) || !(r.plan_sales > 0) || !ok(r.sales)) return ''; const d = r.sales / r.plan_sales - 1; return delta(d, d >= 0 ? {} : { bad: true }); };
+  const vsPlan = r => { if (!ok(r.plan_sales) || !(r.plan_sales > 0) || !ok(r.sales)) return ''; const d = r.sales / r.plan_sales - 1; return h('span', null, delta(d, d >= 0 ? {} : { bad: true }), ' vs plan'); };
   const daysText = r => (r.total ? r.n + ' days' : r.full ? '7 days' : `${r.n} of 7 days`);
   const stat = r => gradeDot(r.mer, gm) || '';
   const wide = h('div', { class: 'mo-wide' }, table({
@@ -120,11 +121,11 @@ function weeksCard(weeks, data) {
     cols: [
       { key: 'name', label: 'Week', class: 'name', render: r => h('span', { class: 'mo-wk' }, h('b', null, r.name), h('small', null, daysText(r))) },
       { key: 'sales', label: 'Sales', num: true, render: r => money(r.sales) },
-      hasPlan && { key: 'plan', label: 'Against plan', num: true, class: 'hide-md', render: vsPlan },
+      hasPlan && { key: 'plan', label: dl('Against plan', { name: 'Against plan', definition: 'The week\'s sales against the plan for those days (the month plan split evenly over the days).' }), num: true, class: 'hide-md', render: vsPlan },
       { key: 'spend', label: 'Ad spend', num: true, render: r => money(r.spend) },
-      { key: 'mer', label: 'MER', num: true, class: 'strong', render: r => x(r.mer) },
-      { key: 'bar', label: gm ? 'Against goal ' + x(gm) : '', width: 240, render: r => { const g = bar(r); return g ? h('span', { class: 'mo-g' }, g) : ''; } },
-      { key: 'st', label: '', width: 110, render: stat },
+      { key: 'mer', label: dl('MER', 'mer'), num: true, class: 'strong', render: r => x(r.mer) },
+      { key: 'bar', label: gm ? 'Against the MER goal ' + x(gm) : '', width: 240, render: r => { const g = bar(r); return g ? h('span', { class: 'mo-g' }, g) : ''; } },
+      { key: 'st', label: 'Status', width: 110, render: stat },
     ].filter(Boolean),
     rows: weeks,
   }));
@@ -153,11 +154,14 @@ export default {
     if (!weeks.length) return put(el, noDays());
     const say = sentence(weeks);
     put(el, h('div', { class: 'mo' }, [
+      helpBar([
+        { title: 'What it is for', text: 'Which weeks carried these dates: sales and ad spend for each week, against the plan and the MER goal.' },
+        { title: 'How it is counted', text: `Weeks are seven day blocks from ${dayLabel(weeks[0].from)}; a part week is compared on its average day. Sales are store sales less tax (Triple Whale). MER is whole store sales over all ad spend.` },
+      ]),
       heroBlock(weeks, data),
-      say ? takeaway(say, { action: ctx.isClient ? null : button('Ask why', { href: ctx.href('ask', 'index') }) }) : null,
+      say ? takeaway(say, { action: ctx.isClient ? null : askWhy(ctx, 'Which weeks carried the month') }) : null,
       chartCard(weeks, data),
       weeksCard(weeks, data),
-      h('p', { class: 'lx-foot' }, `Weeks are seven day blocks from ${dayLabel(weeks[0].from)}. Sales are store sales less tax. MER is whole store sales over all ad spend.`),
     ].filter(Boolean)));
   },
 };

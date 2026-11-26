@@ -57,7 +57,7 @@ export function senderRows(answer, staged) {
   });
 }
 
-/** The top switch: 'locus', 'cole' or 'mixed' over the rows a person can change (an email row that falls back to Cole
+/** The top switch: 'locus', 'cole' or 'mixed' over the rows a person can change (an email row that falls back to the owner
  *  because there is no Locus mailbox does not count). */
 export function topState(rows) {
   const free = rows.filter(r => !r.locked && !r.fallback);

@@ -6,239 +6,239 @@
  },
  "example": [],
  "steps": {
-  "visits": 33180,
-  "engaged": 19410,
+  "visits": 28414,
+  "engaged": 16622,
   "carts": 2256,
   "checkouts": 1243,
-  "orders": 597
+  "orders": 693
  },
  "prev": {
-  "visits": 30120,
+  "visits": 25857,
   "carts": 2168,
   "checkouts": 1130,
-  "orders": 512
+  "orders": 644
  },
  "days": [
   {
    "date": "2026-11-01",
-   "visits": 1670,
-   "orders": 31
+   "visits": 1725,
+   "orders": 42
   },
   {
    "date": "2026-11-02",
-   "visits": 1430,
-   "orders": 24
+   "visits": 1183,
+   "orders": 30
   },
   {
    "date": "2026-11-03",
-   "visits": 1460,
-   "orders": 26
-  },
-  {
-   "date": "2026-11-04",
-   "visits": 1505,
-   "orders": 29
-  },
-  {
-   "date": "2026-11-05",
-   "visits": 1760,
-   "orders": 36
-  },
-  {
-   "date": "2026-11-06",
-   "visits": 1610,
+   "visits": 1149,
    "orders": 32
   },
   {
+   "date": "2026-11-04",
+   "visits": 1346,
+   "orders": 32
+  },
+  {
+   "date": "2026-11-05",
+   "visits": 1864,
+   "orders": 45
+  },
+  {
+   "date": "2026-11-06",
+   "visits": 1463,
+   "orders": 33
+  },
+  {
    "date": "2026-11-07",
-   "visits": 1740,
-   "orders": 37
+   "visits": 1506,
+   "orders": 42
   },
   {
    "date": "2026-11-08",
-   "visits": 1530,
-   "orders": 29
+   "visits": 1939,
+   "orders": 41
   },
   {
    "date": "2026-11-09",
-   "visits": 1490,
-   "orders": 28
+   "visits": 1715,
+   "orders": 41
   },
   {
    "date": "2026-11-10",
-   "visits": 1580,
-   "orders": 31
+   "visits": 1417,
+   "orders": 39
   },
   {
    "date": "2026-11-11",
-   "visits": 1440,
-   "orders": 24
+   "visits": 1250,
+   "orders": 27
   },
   {
    "date": "2026-11-12",
-   "visits": 1450,
-   "orders": 25
+   "visits": 1156,
+   "orders": 28
   },
   {
    "date": "2026-11-13",
-   "visits": 1700,
-   "orders": 35
+   "visits": 1878,
+   "orders": 42
   },
   {
    "date": "2026-11-14",
-   "visits": 2090,
-   "orders": 46
+   "visits": 1848,
+   "orders": 50
   },
   {
    "date": "2026-11-15",
-   "visits": 1570,
-   "orders": 29
+   "visits": 1354,
+   "orders": 32
   },
   {
    "date": "2026-11-16",
-   "visits": 1460,
-   "orders": 24
+   "visits": 1227,
+   "orders": 27
   },
   {
    "date": "2026-11-17",
-   "visits": 1310,
-   "orders": 18
+   "visits": 845,
+   "orders": 20
   },
   {
    "date": "2026-11-18",
-   "visits": 1420,
-   "orders": 23
+   "visits": 979,
+   "orders": 27
   },
   {
    "date": "2026-11-19",
-   "visits": 1280,
-   "orders": 17
+   "visits": 666,
+   "orders": 18
   },
   {
    "date": "2026-11-20",
-   "visits": 1230,
-   "orders": 15
+   "visits": 672,
+   "orders": 16
   },
   {
    "date": "2026-11-21",
-   "visits": 1190,
-   "orders": 13
+   "visits": 525,
+   "orders": 12
   },
   {
    "date": "2026-11-22",
-   "visits": 1265,
-   "orders": 25
+   "visits": 707,
+   "orders": 17
   }
  ],
  "devices": [
   {
    "name": "Phone",
-   "visits": 24220,
+   "visits": 20741,
    "carts": 1494,
    "checkouts": 786,
-   "orders": 352
+   "orders": 408
   },
   {
    "name": "Computer",
-   "visits": 7630,
+   "visits": 6534,
    "carts": 668,
    "checkouts": 404,
-   "orders": 221
+   "orders": 257
   },
   {
    "name": "Tablet",
-   "visits": 1330,
+   "visits": 1139,
    "carts": 94,
    "checkouts": 53,
-   "orders": 24
+   "orders": 28
   }
  ],
  "channels": [
   {
    "name": "Paid social",
-   "visits": 17840,
+   "visits": 15277,
    "carts": 1010,
    "checkouts": 512,
-   "orders": 228
+   "orders": 264
   },
   {
    "name": "Paid search",
-   "visits": 5960,
+   "visits": 5104,
    "carts": 512,
    "checkouts": 301,
-   "orders": 151
+   "orders": 175
   },
   {
    "name": "Email",
-   "visits": 2410,
+   "visits": 2064,
    "carts": 286,
    "checkouts": 178,
-   "orders": 94
+   "orders": 109
   },
   {
    "name": "Organic search",
-   "visits": 3120,
+   "visits": 2672,
    "carts": 232,
    "checkouts": 133,
-   "orders": 66
+   "orders": 77
   },
   {
    "name": "Direct",
-   "visits": 2890,
+   "visits": 2475,
    "carts": 176,
    "checkouts": 97,
-   "orders": 48
+   "orders": 56
   },
   {
    "name": "Other",
-   "visits": 960,
+   "visits": 822,
    "carts": 40,
    "checkouts": 22,
-   "orders": 10
+   "orders": 12
   }
  ],
  "pages": [
   {
    "name": "/products/classic-golf-belt",
-   "visits": 9840,
+   "visits": 8427,
    "carts": 866,
-   "orders": 236
+   "orders": 274
   },
   {
    "name": "/",
-   "visits": 7210,
+   "visits": 6174,
    "carts": 389,
-   "orders": 101
+   "orders": 117
   },
   {
    "name": "/pages/holiday-sale",
-   "visits": 5630,
+   "visits": 4821,
    "carts": 462,
-   "orders": 128
+   "orders": 149
   },
   {
    "name": "/collections/belts",
-   "visits": 4120,
+   "visits": 3528,
    "carts": 301,
-   "orders": 74
+   "orders": 86
   },
   {
    "name": "/products/ball-marker-set",
-   "visits": 2260,
+   "visits": 1935,
    "carts": 122,
-   "orders": 31
+   "orders": 36
   },
   {
    "name": "/pages/how-it-fits",
-   "visits": 1480,
+   "visits": 1267,
    "carts": 43,
-   "orders": 9
+   "orders": 10
   },
   {
    "name": "/collections/gift-sets",
-   "visits": 1190,
+   "visits": 1019,
    "carts": 52,
-   "orders": 14
+   "orders": 16
   }
  ]
 }

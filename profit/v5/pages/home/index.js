@@ -15,7 +15,8 @@
 
 import { put } from '../../kit.js';
 import { homeNotices } from '../automations/_notices.js';
-import { liveNote } from '../my-day/_waiting.js';
+import { APP_NAME, OLD_LOCUS } from '../../config.js';
+import { askWhy, helpBar, dl, rangeWords } from './_biz.js';
 import { h, money, num, pct, x, card, hero, em, kpi, kpis, takeaway, button, platformChip, statusDot, pill,
   delta, count, gauge, legend, lineChart, dateBlock, table, empty, addStyles } from '../../kit.js';
 
@@ -44,7 +45,15 @@ const CSS = `
 .hm-up .lx-stat{margin-left:auto}
 .hm-quiet{padding:8px 28px 24px;color:var(--muted)}
 .hm-g{display:block;width:220px;max-width:100%}
-.hm-total .lx-gauge-track{background:#E4E2DC}
+.hm-total .lx-gauge-track{background:var(--line-strong)}
+.hm-live{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;padding:10px 16px;border:1px solid var(--line);border-radius:14px;background:var(--surface);font-size:13.5px;color:var(--ink-2)}
+.hm-live b{color:var(--ink);font-weight:600}
+.hm-live .sp{flex:1}
+.hm-live a{font-size:13px;color:var(--muted)}
+.hm-sug{display:flex;align-items:center;gap:10px 16px;flex-wrap:wrap;padding:10px 16px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+.hm-sug>b{font-weight:600}
+.hm-sug a{display:inline-flex;align-items:center;gap:8px;padding:4px 10px;border-radius:999px;color:inherit;text-decoration:none;font-size:13.5px}
+.hm-sug a:hover{background:var(--row-hover)}
 .hm-plats{display:none;padding:0 18px 6px}
 .hm-plats>div{display:grid;gap:8px;padding:14px 0;border-top:1px solid var(--line)}
 .hm-plats>div:first-child{border-top:0}
@@ -144,41 +153,37 @@ function heroBlock(data, ctx) {
     if (!ok(actual) || !(plan > 0)) return {};
     const gap = actual / plan - 1, up = gap >= 0;
     return cost
-      ? { delta: delta(gap, up ? { bad: true } : { plain: true }), sub: (up ? 'over plan ' : 'under plan ') + money(plan) }
-      : { delta: delta(gap, up ? {} : { bad: true }), sub: (up ? 'ahead of plan ' : 'behind plan ') + money(plan) };
+      ? { delta: delta(gap, up ? { bad: true } : { plain: true }), sub: [(up ? ' over ' : ' under '), dl('plan to date', 'plan_to_date'), ' ' + money(plan)] }
+      : { delta: delta(gap, up ? {} : { bad: true }), sub: [(up ? ' ahead of ' : ' behind '), dl('plan to date', 'plan_to_date'), ' ' + money(plan)] };
   };
   const cac = ok(t.cac) ? Math.round(t.cac) : null;
   const list = [
-    { label: 'Sales', value: money(t.sales), ...vsPlan(t.sales, p && p.sales), spark: days.map(d => d.sales), href: ctx.href('month', 'pace') },
-    { label: 'Ad spend', value: money(t.spend), ...vsPlan(t.spend, p && p.spend, { cost: true }), spark: days.map(d => d.spend), href: ctx.href('platforms', 'side-by-side') },
-    { label: 'New customers', value: num(t.new_customers), small: cac != null ? money(cac) + ' each' : null,
+    { label: dl('Sales', 'sales'), value: money(t.sales), ...vsPlan(t.sales, p && p.sales), spark: days.map(d => d.sales), href: ctx.href('month', 'pace') },
+    { label: dl('Ad spend', 'ad_spend'), value: money(t.spend), ...vsPlan(t.spend, p && p.spend, { cost: true }), spark: days.map(d => d.spend), href: ctx.href('platforms', 'side-by-side') },
+    { label: dl('New customers', 'new_customers'), value: num(t.new_customers), small: cac != null ? money(cac) + ' each' : null,
       sub: g.cac && cac != null ? statusDot(cac <= g.cac ? 'good' : 'warn', 'goal ' + money(g.cac) + ' each') : null,
       spark: days.map(d => d.new_customers), href: ctx.href('customers', 'snapshot') },
     data.profit_withheld
-      ? { label: 'Profit after ads', value: 'withheld', sub: 'the cost numbers need a check first', href: ctx.href('month', 'profit') }
-      : { label: 'Profit after ads', value: money(t.profit), sub: ok(t.profit) && t.sales > 0 ? pct(t.profit / t.sales) + ' of sales' : null, spark: days.map(d => d.profit), href: ctx.href('month', 'profit') },
+      ? { label: dl('Profit after ads', 'profit_after_ads'), value: 'withheld', sub: 'the cost numbers need a check first', href: ctx.href('month', 'profit') }
+      : { label: dl('Profit after ads', 'profit_after_ads'), value: money(t.profit), sub: ok(t.profit) && t.sales > 0 ? pct(t.profit / t.sales) + ' of sales' : null, spark: days.map(d => d.profit), href: ctx.href('month', 'profit') },
   ].map(k => kpi({ ...k, size: 'lg' }));
   return hero({}, kpis(list, { cols: 4 }));
 }
 
-/* One sentence, written by rule from the same numbers on the page. */
+/* One sentence, only when it adds something the tiles do not show: the best day, and a warning when ad spend runs
+   ahead of sales. The tiles already carry sales, spend and the plan, so those numbers are never restated here. */
 function sentence(data) {
-  const t = data.totals || {}, p = data.plan, g = data.goal || {};
+  const t = data.totals || {}, g = data.goal || {}, days = (data.days || []).filter(d => ok(d.sales));
   const b = v => h('b', null, v);
-  if (p && p.sales > 0 && p.spend > 0 && ok(t.sales) && ok(t.spend)) {
-    const ds = t.sales - p.sales, dc = t.spend - p.spend;
-    const good = ds >= 0, cheap = dc <= 0;
-    return ['Sales are ', b(money(Math.abs(ds)) + (good ? ' ahead' : ' behind')), good ? ' of plan' : ' plan', good === cheap ? ', and ads cost ' : ', but ads cost ',
-      b(money(Math.abs(dc)) + (cheap ? ' less' : ' more')), ' than planned.'];
-  }
-  if (g.mer && t.spend > 0 && ok(t.sales)) {
-    const mer = t.sales / t.spend;
-    return ['MER is ', b(x(mer)), ' against a goal of ', b(x(g.mer)), mer >= g.mer ? ', so sales are keeping up with ad spend.' : ', so ad spend is running ahead of sales.'];
-  }
-  return null;
+  const best = days.length > 2 ? days.reduce((m, d) => d.sales > m.sales ? d : m, days[0]) : null;
+  const mer = t.spend > 0 && ok(t.sales) ? t.sales / t.spend : null;
+  const parts = [];
+  if (best) parts.push('Best day was ', b(dayLabel(best.date)), '.');
+  if (g.mer && mer != null && mer < g.mer) parts.push(parts.length ? ' ' : '', 'Store MER is under goal: ad spend is growing faster than sales.');
+  return parts.length ? parts : null;
 }
 
-function chartCard(data) {
+function chartCard(data, ctx) {
   const t = data.totals || {}, g = data.goal || {}, days = data.days || [];
   const mer = t.spend > 0 && ok(t.sales) ? t.sales / t.spend : null;
   const head = h('div', { class: 'lx-chart-h' },
@@ -186,7 +191,7 @@ function chartCard(data) {
     legend([{ name: 'Sales', lead: true }, { name: 'Ad spend' }]));
   const gap = mer != null && g.mer ? mer - g.mer : null;
   const row = h('div', { class: 'hm-mer' },
-    h('div', { class: 'n' }, h('span', { class: 'lx-cap' }, 'MER'), h('span', { class: 'lx-hero-num' }, mer != null ? x(mer) : 'no data')),
+    h('div', { class: 'n' }, h('span', { class: 'lx-cap' }, dl('Store MER', 'mer'), ', ' + rangeWords(ctx, data.range)), h('span', { class: 'lx-hero-num' }, mer != null ? x(mer) : 'no data')),
     mer != null && g.mer ? gauge({ value: mer, max: Math.max(g.mer * 1.2, mer * 1.05), goal: g.mer, ticks: [{ side: 'l', text: '0' }, { at: g.mer, text: 'goal ' + x(g.mer), on: true }] }) : null,
     gap != null ? pill(gap >= 0 ? 'good' : 'warn', x(Math.abs(gap)) + (gap >= 0 ? ' over goal' : ' under goal')) : mer != null ? pill('', 'no goal set') : null);
   const enough = days.filter(d => ok(d.sales) || ok(d.spend)).length > 1;
@@ -205,20 +210,27 @@ function chartCard(data) {
   return card({}, head, row, plot);
 }
 
-function suggestCard(data, ctx) {
+/* Suggestions waiting on a yes or a no: one quiet strip under "Needs you", only the platforms with something waiting. */
+function suggestStrip(data, ctx) {
   const sg = data.suggestions || {};
-  const known = ['meta', 'google'].filter(id => ok(sg[id]));
-  const total = known.reduce((n, id) => n + sg[id], 0);
-  const rows = ['meta', 'google'].map(id => h('a', { href: ctx.href(id, 'suggestions') }, platformChip(id),
-    ok(sg[id]) ? count(sg[id]) : h('span', { class: 'q' }, 'not counted yet')));
-  const first = known.find(id => sg[id] > 0) || 'meta';
-  return card({ title: 'Suggestions to decide', note: 'Meta and Google', flush: true },
-    h('div', { class: 'hm-big' }, h('span', { class: 'lx-big', style: { color: 'var(--ink)' } }, known.length ? num(total) : 'no data'),
-      known.length ? (total ? 'waiting on a yes or a no' : 'nothing is waiting on you') : 'could not read the list'),
-    h('div', { class: 'hm-list' }, rows),
-    h('div', { class: 'hm-cta' }, total
-      ? button('Review all ' + num(total), { primary: true, large: true, icon: 'arrow', href: ctx.href(first, 'suggestions') })
-      : button('Open suggestions', { href: ctx.href('meta', 'suggestions'), icon: 'arrow' })));
+  const word = id => id === 'meta' ? 'Meta' : 'Google';
+  const rows = ['meta', 'google'].filter(id => sg[id] > 0).map(id => h('a', { href: ctx.href(id, 'suggestions'), title: 'Open ' + word(id) + ' suggestions' },
+    platformChip(id), h('span', null, num(sg[id]) + ' suggestion' + (sg[id] === 1 ? '' : 's'))));
+  if (!rows.length) return null;
+  return h('section', { class: 'hm-sug', role: 'note' }, h('b', null, 'Waiting on your yes'), ...rows);
+}
+
+/* What works in new Locus: one line, dismissed on this device (the same key as the My day note). */
+const NOTE_KEY = 'lx5_live_note_v1';
+function liveStrip(ctx) {
+  if (ctx.isClient || ctx.role === 'client') return null;
+  try { if (localStorage.getItem(NOTE_KEY) === '1') return null; } catch { /* storage off: show it */ }
+  const box = h('section', { class: 'hm-live', role: 'note' },
+    h('span', null, h('b', null, 'New ' + APP_NAME + ': '), 'ad calls, client updates, the War Room, creative and loading ads work here. Calendar edits, offers and meetings are still in old ' + APP_NAME + '.'),
+    h('span', { class: 'sp' }),
+    h('a', { href: OLD_LOCUS }, 'Open old ' + APP_NAME),
+    button('Got it', { onclick: () => { try { localStorage.setItem(NOTE_KEY, '1'); } catch { /* hide for now */ } box.remove(); } }));
+  return box;
 }
 
 function comingCard(data, ctx) {
@@ -254,25 +266,25 @@ function platformCard(data, ctx) {
   const total = { total: true, spend: t.spend, sales: t.sales, roas: mer, paidRow: true, grade: mg && [mg[0] === 'bad' ? 'bad' : mg[0] === 'good' ? 'good' : 'warn', mg[1]], fillTone: '' };
   const bar = r => ok(r.roas) && g.mer ? h('span', { class: 'hm-g' + (r.total ? ' hm-total' : '') }, gauge({ value: r.roas, max: g.mer * 1.2, goal: g.mer, tone: r.fillTone, thin: true })) : '';
   const name = r => r.total ? 'Whole store' : platformChip(r.id);
-  const spend = r => r.paidRow ? money(r.spend) : h('span', { class: 'dim' }, 'no ad cost');
-  const roasText = r => r.total ? (ok(r.roas) ? 'MER ' + x(r.roas) : 'no data') : r.paidRow ? x(r.roas) : h('span', { class: 'dim' }, 'no ads');
+  const spend = r => r.paidRow ? money(r.spend) : h('span', { class: 'dim' }, 'no ad spend');
+  const roasText = r => r.total ? (ok(r.roas) ? h('span', null, dl('MER', 'mer'), ' ' + x(r.roas)) : 'no data') : r.paidRow ? x(r.roas) : '';
   const stat = r => r.grade ? statusDot(r.grade[0], r.grade[1]) : '';
   const wide = h('div', { class: 'hm-wide' }, table({
     roomy: true, total,
     cols: [
       { key: 'id', label: 'Platform', class: 'name', render: name },
       { key: 'spend', label: 'Spend', num: true, render: spend },
-      { key: 'sales', label: 'Sales from its ads', num: true, render: r => money(r.sales) },
-      { key: 'roas', label: 'ROAS', num: true, class: 'strong', render: roasText },
-      { key: 'bar', label: g.mer ? 'Against goal ' + x(g.mer) : '', width: 270, render: bar },
-      { key: 'st', label: '', width: 120, render: stat },
+      { key: 'sales', label: dl('Sales from its ads', 'sales_from_its_ads'), num: true, render: r => money(r.sales) },
+      { key: 'roas', label: dl('ROAS', 'roas'), num: true, class: 'strong', render: roasText },
+      { key: 'bar', label: g.mer ? 'Against the store goal ' + x(g.mer) : '', width: 270, render: bar },
+      { key: 'st', label: 'Status', width: 120, render: stat },
     ],
     rows,
   }));
   const cell = (label, v) => h('span', null, h('small', null, label), h('b', null, v));
   const narrow = h('div', { class: 'hm-plats' }, [...rows, total].map(r => h('div', { class: r.total ? 'tot' : '' },
     h('div', { class: 'top' }, r.total ? h('b', null, 'Whole store') : platformChip(r.id), stat(r) || null),
-    h('div', { class: 'nums' }, cell('Spend', spend(r)), cell(r.total ? 'Sales' : 'Sales from its ads', money(r.sales)), cell(r.total ? 'MER' : 'ROAS', r.total ? x(r.roas) : roasText(r))),
+    h('div', { class: 'nums' }, cell('Spend', spend(r)), cell(r.total ? 'Sales' : 'Sales from its ads', money(r.sales)), cell(r.total ? 'MER' : 'ROAS', r.total ? x(r.roas) : r.paidRow ? x(r.roas) : h('span', { class: 'dim' }, 'none'))),
     bar(r) ? h('div', { class: r.total ? 'hm-total' : '' }, gauge({ value: r.roas, max: g.mer * 1.2, goal: g.mer, tone: r.fillTone, thin: true })) : null)));
   const names = rows.map(r => platformChip(r.id).textContent).join(', ');
   return card({ title: 'By platform', note: names, flush: true, action: link, class: 'hm-byp' }, wide, narrow);
@@ -310,15 +322,21 @@ export default {
     if (!data) return put(el, empty({ title: 'No numbers yet', text: 'This brand has nothing to show for these dates yet.' }));
     const say = data.source ? sentence(data) : null;
     const team = !ctx.isClient && data.suggestions;
+    const title = 'How is ' + ctx.brand.name + ' doing';
     put(el, ...[
+      helpBar([
+        { title: 'What it is for', text: 'How ' + ctx.brand.name + ' is doing on the dates at the top of the page: sales, ad spend, new customers and profit, then each ad platform against the store goal.' },
+        { title: 'Where the numbers come from', text: 'Sales are store sales less tax, from Triple Whale. Store MER is whole store sales over all ad spend. Each platform\'s sales are the ones Triple Whale credits to it, last click. Hover or tap any dotted label for its meaning.' },
+        { title: 'Plan to date', text: 'On This month the tiles compare with the month plan split evenly over the days so far. On any other dates there is no plan comparison.' },
+      ], h('span', { class: 'bz-chip' }, rangeWords(ctx, data.range) + ', whole store')),
       heroBlock(data, ctx),
-      liveNote(ctx),             /* team only: what works in new Locus and what is still in old Locus; "Got it" hides it on this device */
+      liveStrip(ctx),            /* team only: one line on what works in new Locus; "Got it" hides it on this device */
       homeNotices(ctx),          /* rows an automation left for this person; hidden when there are none */
-      say ? takeaway(say, { action: ctx.isClient ? null : button('Ask why', { href: ctx.href('ask', 'index') }) }) : null,
-      data.source ? chartCard(data) : null,
-      h('div', { class: 'hm-pair' + (team ? '' : ' one') }, team ? suggestCard(data, ctx) : null, comingCard(data, ctx)),
+      team ? suggestStrip(data, ctx) : null,
+      say ? takeaway(say, { action: ctx.isClient ? null : askWhy(ctx, title) }) : null,
+      data.source ? chartCard(data, ctx) : null,
+      comingCard(data, ctx),
       data.source || (data.platforms && data.platforms.length) ? platformCard(data, ctx) : null,
-      h('p', { class: 'lx-foot' }, 'Sales are store sales less tax. MER is whole store sales over all ad spend. Each platform\'s sales are credited by Triple Whale, last click.'),
     ].filter(Boolean));
   },
 };

@@ -8,7 +8,8 @@
 
 import { APP_NAME } from '../../config.js';
 import { put } from '../../kit.js';
-import { h, hero, kpis, kpi, statusDot, button, segmented, sheet, em, empty, svgNode } from '../../kit.js';
+import { h, hero, kpis, kpi, statusDot, pill, button, segmented, sheet, em, empty, svgNode } from '../../kit.js';
+import { pageHelp } from '../../defs.js';
 import { icon } from '../../icons.js';
 import { fixture } from '../../data.js';
 import { loadParts, follow, dots, reading } from '../_parts.js';
@@ -16,7 +17,7 @@ import { css, at, ymd, addDays, between, span, away, short, monthName, todayYmd,
 
 const STATUS = { conf: ['good', 'Confirmed'], pen: ['warn', 'Pencilled in'], miss: ['bad', 'No offer written'] };
 const CHANNEL = { paid: 'Ads', email: 'Email', sms: 'Text', organic: 'Social' };
-const view = { month: null, mode: 'month', key: '' };     // survives a refresh behind
+const view = { month: null, mode: 'month', key: '', late: false };     // survives a refresh behind
 
 const monthOf = d => d.slice(0, 7);
 const shiftMonth = (m, n) => ymd(Date.UTC(+m.slice(0, 4), +m.slice(5, 7) - 1 + n, 1, 12)).slice(0, 7);
@@ -25,17 +26,21 @@ const toneOf = (e, today) => (e.end || e.start) < today ? '' : (STATUS[e.status]
 function detail(e, d, ctx, agency) {
   const st = STATUS[e.status] || ['', ''];
   const steps = ctx.isClient ? [] : (e.steps || []);
+  const past = (e.end || e.start) < d.today, done = steps.filter(s => s.state === 'done').length;
   const body = h('div', { class: 'cr-sheet' },
+    /* the head: the state as one pill and the dates */
+    h('div', { class: 'cr-shead' }, past ? pill('', 'Happened') : pill(st[0], st[1]),
+      h('span', { class: 'when' }, span(e.start, e.end) + (e.end === null ? ', no end date' : '')), h('span', { class: 'away' }, away(d.today, e.start))),
     e.offer ? h('p', { class: 'offer' }, e.offer) : h('p', { class: 'cr-none', style: { border: 0, padding: 0 } }, 'No offer written yet.'),
     h('dl', { class: 'cr-kv' },
       agency ? [h('dt', null, 'Brand'), h('dd', null, e.brand || '')] : null,
-      h('dt', null, 'When'), h('dd', null, span(e.start, e.end) + (e.end === null ? ', no end date' : ''), ' ', h('span', { style: { fontWeight: 400, color: 'var(--muted)' } }, '(' + away(d.today, e.start) + ')')),
       h('dt', null, 'What'), h('dd', null, e.kind_label || 'Date'),
-      h('dt', null, 'Status'), h('dd', null, (e.end || e.start) < d.today ? 'Happened' : statusDot(st[0], st[1])),
       e.channels && e.channels.length ? [h('dt', null, 'Where'), h('dd', null, e.channels.map(c => CHANNEL[c] || c).join(', '))] : null,
       e.teaser ? [h('dt', null, 'Teaser starts'), h('dd', null, short(e.teaser))] : null,
       e.by && !ctx.isClient ? [h('dt', null, 'From'), h('dd', null, e.by)] : null),
-    steps.length ? h('div', null, heading('Getting it ready', null, steps.filter(s => s.state === 'done').length + ' of ' + steps.length + ' done'),
+    steps.length ? h('div', null, heading('Getting it ready'),
+      h('div', { class: 'cr-prog', role: 'img', 'aria-label': done + ' of ' + steps.length + ' steps done' },
+        h('span', { class: 'bar' }, h('i', { style: { width: Math.round(100 * done / steps.length) + '%' } })), h('small', null, done + ' of ' + steps.length + ' done')),
       h('div', { class: 'cr-steps' }, steps.map(s => h('div', { class: 'cr-step' },
         h('b', null, s.label), statusDot(s.state === 'done' ? 'good' : s.state === 'late' ? 'bad' : 'off', s.state === 'done' ? 'Done' : s.state === 'late' ? 'Late, was due ' + short(s.due) : 'Due ' + short(s.due)),
         h('small', null, [s.who, s.note].filter(Boolean).join('. ')))))) : null,
@@ -67,13 +72,26 @@ function draw(el, d, ctx, agency) {
   const lateSteps = coming.reduce((n, e) => n + (e.steps || []).filter(s => s.state === 'late').length, 0);
   const open = coming.filter(e => e.status !== 'conf');
 
+  const lateRows = coming.filter(e => (e.steps || []).some(s => s.state === 'late'));
+  const running = next && next.start <= today;
   const head = hero({ line: true }, kpis([
-    kpi({ label: 'Next date', value: next ? (next.start <= today ? 'On now' : String(between(today, next.start))) : 'none', small: next && next.start > today ? (between(today, next.start) === 1 ? 'day' : 'days') : null, size: 'lg',
-      sub: next ? (agency ? next.brand + ': ' : '') + next.name + ', ' + short(next.start) : 'nothing dated' }),
-    kpi({ label: 'In the next 60 days', value: String(soon.length), size: 'lg', sub: soon.filter(e => e.status === 'conf').length + ' confirmed' }),
-    kpi({ label: 'Not confirmed yet', value: String(open.length), size: 'lg', sub: open.length ? statusDot(open.some(e => e.status === 'miss') ? 'bad' : 'warn', open.filter(e => e.status === 'miss').length ? open.filter(e => e.status === 'miss').length + ' with no offer written' : 'pencilled in') : 'all confirmed' }),
-    ctx.isClient ? null : kpi({ label: 'Steps running late', value: d.waiting ? dots() : d.no_steps ? 'not read' : String(lateSteps), size: 'lg', sub: d.waiting ? 'reading what is ready' : d.no_steps ? 'the steps did not load' : lateSteps ? statusDot('bad', 'open the date to see which') : 'everything on time' }),
+    kpi({ label: 'Next or running now', value: next ? (running ? 'Running now' : String(between(today, next.start))) : 'none', small: next && !running ? (between(today, next.start) === 1 ? 'day away' : 'days away') : null, size: next && !running ? 'lg' : null,
+      sub: next ? (agency ? next.brand + ': ' : '') + next.name + ', ' + span(next.start, next.end) : 'nothing dated' }),
+    kpi({ label: 'In the next 60 days', value: String(soon.length), sub: soon.filter(e => e.status === 'conf').length + ' confirmed' }),
+    kpi({ label: 'Not confirmed yet', value: String(open.length), sub: open.length ? statusDot(open.some(e => e.status === 'miss') ? 'bad' : 'warn', open.filter(e => e.status === 'miss').length ? open.filter(e => e.status === 'miss').length + ' with no offer written' : 'pencilled in') : 'all confirmed' }),
+    ctx.isClient ? null : kpi({ label: 'Steps running late', value: d.waiting ? dots() : d.no_steps ? 'not read' : String(lateSteps), sub: d.waiting ? 'reading what is ready' : d.no_steps ? 'the steps did not load' : lateSteps ? statusDot('bad', (view.late ? 'showing ' : 'show ') + lateRows.length + (lateRows.length === 1 ? ' date' : ' dates') + ' with late steps') : 'everything on time' }),
   ].filter(Boolean), { cols: ctx.isClient ? 3 : 4 }));
+  const k0 = head.querySelector('.lx-kpi .v'); if (k0 && running) k0.classList.add('words');
+  /* "Steps running late" filters Coming up to those dates */
+  const lateTile = !ctx.isClient && lateSteps && !d.waiting ? head.querySelectorAll('.lx-kpi')[3] : null;
+  if (lateTile) {
+    const flip = () => { view.late = !view.late; draw(el, d, ctx, agency); };
+    lateTile.classList.add('cr-tile-click'); if (view.late) lateTile.classList.add('on');
+    Object.assign(lateTile, { tabIndex: 0, title: view.late ? 'Show every date again' : 'Show only the dates with late steps' });
+    lateTile.setAttribute('role', 'button');
+    lateTile.addEventListener('click', flip);
+    lateTile.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); flip(); } });
+  }
 
   /* month grid */
   const gridBox = h('div', { class: 'cr-sect' });
@@ -87,29 +105,38 @@ function draw(el, d, ctx, agency) {
         view.month !== monthOf(today) ? button('Today', { ghost: true, onclick: () => { view.month = monthOf(today); paintMonth(); } }) : null),
       h('span', { class: 'sp' }),
       !ctx.isClient && ctx.legacy ? button('Add or move a date in old ' + APP_NAME, { href: ctx.legacy }) : null);
-    put(gridBox, nav, monthGrid({ month: view.month, today, events: evs, onPick: e => e._e.mail ? null : detail(e._e, d, ctx, agency) }), statusLegend());
+    put(gridBox, nav, monthGrid({ month: view.month, today, events: evs, onPick: e => e._e.mail ? null : detail(e._e, d, ctx, agency) }), statusLegend({ brand: agency }));
   };
   paintMonth();
 
   /* coming up */
-  const rows = coming.slice(0, 40).map(e => {
+  const shown = view.late && lateRows.length ? lateRows : coming;
+  const rows = shown.slice(0, 40).map(e => {
     const st = STATUS[e.status] || ['', ''], steps = e.steps || [], late = steps.filter(s => s.state === 'late').length, ready = steps.filter(s => s.state === 'done').length;
     return row({
       lead: dateOf(e.start, today), title: e.name, sub: [e.kind_label, e.offer].filter(Boolean).join('. '),
       cells: [
-        agency ? { w: 150, node: brandTag(e.brand, e.color) } : null,
-        { w: 128, class: 'strong', node: span(e.start, e.end) + (e.end === null ? ' on' : '') },
-        { w: 92, class: 'hide-sm', node: e.start <= today ? 'on now' : away(today, e.start) },
-        ctx.isClient || !steps.length ? (ctx.isClient ? null : { w: 118, class: 'hide-md', node: '' }) : { w: 118, class: 'hide-md', node: late ? statusDot('bad', late + ' late') : ready + ' of ' + steps.length + ' ready' },
-        { w: 132, node: statusDot(st[0], st[1]) },
+        agency ? { w: 150, label: 'Brand', node: brandTag(e.brand, e.color) } : null,
+        { w: 128, class: 'strong', label: 'Dates', node: span(e.start, e.end) + (e.end === null ? ' on' : '') },
+        { w: 92, class: 'hide-sm', label: 'Starts', node: e.start <= today ? 'on now' : away(today, e.start) },
+        ctx.isClient || !steps.length ? (ctx.isClient ? null : { w: 118, class: 'hide-md', label: 'Getting ready', node: '' }) : { w: 118, class: 'hide-md', label: 'Getting ready', node: late ? statusDot('bad', late + ' late') : ready + ' of ' + steps.length + ' ready' },
+        { w: 132, label: 'Status', node: statusDot(st[0], st[1]) },
       ],
       onclick: () => detail(e, d, ctx, agency),
     });
   });
   const up = mails.filter(m => m.start >= today).sort((a, b) => a.start.localeCompare(b.start)).slice(0, 12);
 
-  put(el, head, gridBox,
-    h('section', { class: 'cr-sect' }, heading('Coming up', coming.length), list(rows, 'Nothing is coming up.')),
+  const listHead = [agency ? { label: 'Brand', w: 150 } : null, { label: 'Dates', w: 128 }, { label: 'Starts', w: 92, class: 'hide-sm' }, ctx.isClient ? null : { label: 'Getting ready', w: 118, class: 'hide-md' }, { label: 'Status', w: 132 }];
+  const help = h('div', { class: 'cr-bar-top' }, pageHelp({ body: [
+    { title: 'What it is for', text: agency ? 'Every sale, drop and ad push dated for every brand, as a month and as a list of what is coming up.' : 'Every sale, drop and ad push dated for this brand, as a month and as a list of what is coming up.' },
+    { title: 'Reading the month', text: 'Each bar is one date. Its left edge is its status: green confirmed, yellow pencilled in, red no offer written yet.' + (agency ? ' The small square is the brand\'s color.' : ' Outlined bars are scheduled emails and texts.') },
+    ctx.isClient ? null : { title: 'Getting it ready', text: 'Each date carries the steps that must be done before it (photos, briefs, ads built, emails, ads loaded). A step past its due date is late. Tap "Steps running late" to see only those dates.' },
+  ].filter(Boolean) }));
+  put(el, help, head, gridBox,
+    h('section', { class: 'cr-sect' }, heading(view.late && lateRows.length ? 'Coming up, with late steps' : 'Coming up', shown.length,
+      view.late && lateRows.length ? h('button', { type: 'button', class: 'cr-clear', onclick: () => { view.late = false; draw(el, d, ctx, agency); } }, 'Show every date') : null),
+      list(rows, 'Nothing is coming up.', { head: listHead, first: 'Date' })),
     up.length ? h('section', { class: 'cr-sect' }, heading('Emails and texts scheduled', up.length), list(up.map(m => row({ lead: dateOf(m.start, today), title: m.name, sub: m.kind_label, cells: [{ w: 128, class: 'strong', node: short(m.start) }, { w: 92, node: away(today, m.start) }] })))) : null,
     d.waiting ? reading(ctx.isClient ? 'Still reading the scheduled emails and texts.' : 'Still reading what is ready for each date' + (agency ? '.' : ', and the scheduled emails and texts.')) : null);
 }

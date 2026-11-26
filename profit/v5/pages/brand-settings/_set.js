@@ -6,6 +6,7 @@
 import { exampleChip as kitExampleChip } from '../../kit.js';
 import { h, addStyles, button, toggle, segmented, card, pill, toast, statusDot, svgNode, sheet } from '../../kit.js';
 import { settingHome } from '../../data.js';
+import { pageHelp } from '../../defs.js';
 
 export const LOCAL_NOTE = 'Saved on this device until the settings release';
 export const EXAMPLE_NOTE = 'Example until its data feed is built';
@@ -104,13 +105,16 @@ const sayError = e => (e && WHY_BAD[e.status]) || (e && e.message) || 'No answer
 /** The one bar above a settings page: what is waiting, and the one main button.
     A change that reaches a server is never sent on one tap: Save opens a sheet that lists every change with its
     old and new value and where it goes. A refusal shows in the sheet and on the bar, and the change stays staged. */
-export function saveBar(S, ctx, { label = 'Save changes', note } = {}) {
+export function saveBar(S, ctx, { label = 'Save changes', note, help } = {}) {
   const say = h('span', { class: 'n' }), btn = button(label, { primary: true, disabled: true });
   const err = h('p', { class: 'lx-st-err', role: 'alert', hidden: true });
   let failed = '';
   const paint = () => {
     btn.disabled = !S.dirty;
-    say.textContent = S.dirty ? S.dirty + (S.dirty === 1 ? ' change not saved yet' : ' changes not saved yet') : (note || (ctx.sample ? 'Sample numbers. Changes stay on this device.' : LOCAL_NOTE + ', where a setting has no server home yet.'));
+    /* disabled reads as "nothing to save", never as a faded orange: the tooltip says why (the top bar chip already says Sample numbers) */
+    btn.title = S.dirty ? '' : 'Nothing changed yet';
+    btn.classList.toggle('lx-st-idle', !S.dirty);
+    say.textContent = S.dirty ? S.dirty + (S.dirty === 1 ? ' change not saved yet' : ' changes not saved yet') : (note || '');
     err.hidden = !failed; err.textContent = failed;
   };
   const doneToast = r => toast(ctx.sample ? 'Saved on this device. Sample numbers reach no server.'
@@ -129,6 +133,7 @@ export function saveBar(S, ctx, { label = 'Save changes', note } = {}) {
     const go = button(send ? 'Save ' + send + (send === 1 ? ' change' : ' changes') : 'Nothing to save yet', { primary: true, large: true, disabled: !send });
     const no = button('Not yet', { large: true });
     const body = h('div', { class: 'lx-st-cf' },
+      h('p', { class: 'lx-st-cf-lead' }, 'Every change is shown here first. Nothing is saved until you tap Save.'),
       groups.map(([w, title, hint]) => {
         const rows = list.filter(c => c.where === w);
         return rows.length ? h('section', { class: 'g ' + w }, h('h3', null, title), h('p', { class: 'hint' }, hint),
@@ -159,7 +164,15 @@ export function saveBar(S, ctx, { label = 'Save changes', note } = {}) {
     paint();
   });
   S.onChange(k => { if (k !== null) failed = ''; paint(); }); paint();
-  return h('div', { class: 'lx-st-bar' }, say, h('span', { class: 'lx-sp' }), btn, err);
+  return h('div', { class: 'lx-st-bar' }, help || null, say, h('span', { class: 'lx-sp' }), btn, err);
+}
+
+/** setHelp({ about, sections, fixed }) : the one "What is this page?" button at the top of a settings page.
+    about: what the page is for. sections: more [{ title, text }]. fixed: the [label, value, why] facts that
+    used to sit in a gray "Stays fixed" block at the foot of the page (no footers: they live here now). */
+export function setHelp({ about, sections = [], fixed, fixedTitle = 'What stays fixed' } = {}) {
+  const fx = fixed && fixed.filter(Boolean).length ? { title: fixedTitle, text: h('dl', { class: 'lx-st-helpdl' }, fixed.filter(Boolean).map(([k, v, why]) => h('div', null, h('dt', null, k), h('dd', null, h('b', null, v), why ? h('span', null, why) : null)))) } : null;
+  return pageHelp({ body: [about ? { title: 'What it is for', text: about } : null, ...sections, fx].filter(Boolean) });
 }
 
 /* ---------- layout ---------- */
@@ -275,6 +288,7 @@ const CSS = `
 .lx-st-err{flex-basis:100%;margin:0;padding:10px 14px;border-radius:10px;background:var(--bad-bg,#FDECEC);color:var(--bad,#B42318);font-size:13px;font-weight:550;line-height:1.45;overflow-wrap:anywhere}
 .lx-st-err[hidden]{display:none}
 .lx-st-cf{display:grid;gap:22px;min-width:0}
+.lx-st-cf-lead{margin:0;font-size:13.5px;color:var(--ink-2)}
 .lx-st-cf .g h3{font-size:14px;font-weight:650;letter-spacing:-.01em}
 .lx-st-cf .g .hint{margin:2px 0 10px;font-size:12.5px;line-height:1.45;color:var(--muted)}
 .lx-st-cf dl{margin:0;display:grid;border-top:1px solid var(--line)}
@@ -300,7 +314,7 @@ const CSS = `
 .lx-st-row .c{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;min-width:0;font-size:13.5px;color:var(--ink-2)}
 .lx-st-row .c.v{font-weight:600;color:var(--ink);text-align:right}
 .lx-st-row.fact .k{font-weight:500;color:var(--ink-2)}
-.lx-st-box{display:inline-flex;align-items:center;gap:2px;height:36px;padding:0 10px;border-radius:10px;background:#fff;box-shadow:0 0 0 1px rgba(28,20,10,.13),0 1px 2px rgba(28,20,10,.04);font-variant-numeric:tabular-nums}
+.lx-st-box{display:inline-flex;align-items:center;gap:2px;height:36px;padding:0 10px;border-radius:10px;background:var(--surface);box-shadow:0 0 0 1px rgba(28,20,10,.13),0 1px 2px rgba(28,20,10,.04);font-variant-numeric:tabular-nums}
 .lx-st-box:focus-within{box-shadow:0 0 0 1.5px var(--e2),0 0 0 5px rgba(255,122,26,.16)}
 .lx-st-box i{font-style:normal;font-size:13.5px;color:var(--muted)}
 .lx-st-num{width:56px;border:0;outline:0;background:transparent;font:600 15px var(--sans);color:var(--ink);text-align:right;letter-spacing:-.02em;padding:0;-moz-appearance:textfield;appearance:textfield}
@@ -311,7 +325,13 @@ const CSS = `
 .lx-st-times{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
 .lx-st-days{display:inline-flex;gap:4px;flex-wrap:wrap}
 .lx-st-days button{height:32px;min-width:44px;padding:0 9px;border:0;border-radius:9px;background:var(--bg-sunk);font-size:12.5px;font-weight:550;color:var(--muted);cursor:pointer}
-.lx-st-days button.on{background:var(--ink);color:#fff}
+.lx-st-days button.on{background:var(--ink);color:var(--bg)}
+.lx-st-bar .lx-btn.primary.lx-st-idle:disabled{background:var(--bg-sunk);color:var(--muted);box-shadow:none;border-color:transparent;opacity:1;cursor:default}
+.lx-st-helpdl{display:grid;gap:12px;margin:0}
+.lx-st-helpdl dt{font-size:12px;color:var(--muted)}
+.lx-st-helpdl dd{margin:2px 0 0;font-size:13.5px;line-height:1.45}
+.lx-st-helpdl dd b{font-weight:600;display:block}
+.lx-st-helpdl dd span{display:block;font-size:12.5px;color:var(--muted)}
 .lx-st-say{padding:14px 28px;border-top:1px solid var(--line);font-size:15px;line-height:2.5;color:var(--ink-2);margin:0}
 .lx-st-say:first-child,.lx-st-row:first-child{border-top:0}
 .lx-st-say b{color:var(--ink);font-weight:650}
@@ -338,7 +358,9 @@ const CSS = `
 .lx-st-con .nm{font-weight:600;font-size:14px;display:flex;align-items:center;gap:9px;min-width:0}
 .lx-st-con .nm small{display:block;font-size:12.5px;font-weight:400;color:var(--muted)}
 .lx-st-con .note{font-size:12.5px;line-height:1.45;color:var(--muted);min-width:0;overflow-wrap:anywhere}
-.lx-st-con .use{font-size:12.5px;color:var(--ink-2);text-align:right;font-variant-numeric:tabular-nums;min-width:0;overflow-wrap:anywhere}
+.lx-st-con .use{font-size:12.5px;color:var(--ink-2);text-align:left;font-variant-numeric:tabular-nums;min-width:0;overflow-wrap:anywhere}
+.lx-st-con.head{padding-top:10px;padding-bottom:10px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.lx-st-con.head+.lx-st-con{border-top:1px solid var(--line)}
 .lx-st-con details{grid-column:1/-1;font-size:12.5px;color:var(--ink-2)}
 .lx-st-con details summary{cursor:pointer;color:var(--ink);font-weight:550;width:max-content}
 .lx-st-con details p{margin-top:6px;max-width:80ch;line-height:1.5;overflow-wrap:anywhere}
@@ -353,6 +375,7 @@ const CSS = `
   .lx-st-con{grid-template-columns:minmax(0,1fr) auto}
   .lx-st-con .note{grid-column:1/-1}
   .lx-st-con .use{grid-column:1/-1;text-align:left;white-space:normal}
+  .lx-st-con.head{display:none}
 }
 @media (max-width:759px){
   .lx-st{gap:var(--sp-6)}

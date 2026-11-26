@@ -4,11 +4,14 @@
 
 import { put } from '../../kit.js';
 import { h, card, kpi, kpis, delta, takeaway, button, table, statusDot, legend, em, empty, skeleton, pct } from '../../kit.js';
-import { css, usd, roas, change, say, weekChart, lockBox, loadTotals } from './_ui.js';
+import { css, usd, roas, change, say, weekChart, lockBox, loadTotals, winLabel, wasText } from './_ui.js';
+import { def, headRow } from '../platforms/_ads.js';
+import { askWhy } from '../home/_biz.js';
 
 const ok = n => n != null && isFinite(n);
 
-function figures(k) {
+function figures(k, w) {
+  const wl = winLabel(w);
   const r = ok(k.spend) && ok(k.ad_sales) ? k.ad_sales / k.spend : null;
   const rWas = ok(k.spend_prev) && ok(k.ad_sales_prev) ? k.ad_sales_prev / k.spend_prev : null;
   const tacos = ok(k.sales) && ok(k.spend) ? k.spend / k.sales : null;
@@ -16,13 +19,13 @@ function figures(k) {
   const na = text => h('span', { class: 'az-na' }, text);
   return kpis([
     ok(k.sales)
-      ? kpi({ label: 'Sales', value: usd(k.sales), size: 'lg', delta: dSales != null && delta(dSales, { bad: dSales < 0 }), sub: ok(k.sales_prev) && 'was ' + usd(k.sales_prev) })
-      : kpi({ label: 'Sales', value: na('Not connected'), size: 'lg', sub: 'No sales source connected' }),
+      ? kpi({ label: def('Amazon sales, ' + wl, { title: 'Amazon sales', body: 'Every Amazon order in the period, ads or not, at the order value.', source: 'Triple Whale' }), value: usd(k.sales), size: 'lg', delta: dSales != null && delta(dSales, { bad: dSales < 0 }), sub: ok(k.sales_prev) && wasText(k.sales_prev, w, usd) })
+      : kpi({ label: 'Amazon sales', value: na('Not connected'), size: 'lg', sub: 'No sales source connected' }),
     ok(k.spend)
-      ? kpi({ label: 'Ad spend', value: usd(k.spend), size: 'lg', delta: dSpend != null && delta(dSpend, { plain: !(ok(r) && ok(rWas) && r >= rWas) }), sub: ok(k.spend_prev) && 'was ' + usd(k.spend_prev) })
+      ? kpi({ label: def('Amazon ad spend, ' + wl, 'ad_spend'), value: usd(k.spend), size: 'lg', delta: dSpend != null && delta(dSpend, { plain: !(ok(r) && ok(rWas) && r >= rWas) }), sub: ok(k.spend_prev) && wasText(k.spend_prev, w, usd) })
       : kpi({ label: 'Ad spend', value: na('No ads ran'), size: 'lg', sub: 'no Amazon ad spend in these dates' }),
-    kpi({ label: 'ROAS', value: ok(r) ? roas(r) : na('No data'), size: 'lg', sub: 'Amazon ads only' + (ok(rWas) ? ', was ' + roas(rWas) : '') }),
-    kpi({ label: 'TACOS', value: ok(tacos) ? pct(tacos, { digits: 1 }) : na('No data'), size: 'lg', sub: 'ad spend as a share of all Amazon sales' }),
+    kpi({ label: def('ROAS, Amazon ads', { title: 'ROAS, Amazon ads', body: 'The sales Amazon Ads credits to its own ads, divided by their spend.', source: 'Amazon Ads (its own count)' }), value: ok(r) ? roas(r) : na('No data'), size: 'lg', sub: ok(rWas) ? wasText(rWas, w, roas) : '' }),
+    kpi({ label: def('TACOS', 'tacos'), value: ok(tacos) ? pct(tacos, { digits: 1 }) : na('No data'), size: 'lg', sub: '' }),
   ], { cols: 4 });
 }
 
@@ -38,10 +41,10 @@ function campaigns(c) {
       { key: 'name', label: 'Campaign', class: 'name', render: r => (r.more ? h('span', { class: 'az-more' }, r.count + ' more campaigns')
         : r.total ? r.name : [r.name, r.paused && h('span', { class: 'az-paused' }, 'Paused'), flag(r) && h('span', { class: 'az-flag-s' }, flag(r))]) },
       { key: 'type', label: 'Ad type', class: 'dim hide-sm' },
-      { key: 'spend', label: 'Spend', num: true, sortable: true, value: sink('spend'), render: r => cell(r, usd(r.spend)) },
-      { key: 'ad_sales', label: 'Ad sales', num: true, sortable: true, value: sink('ad_sales'), render: r => cell(r, usd(r.ad_sales)) },
+      { key: 'spend', label: def('Spend', 'ad_spend'), num: true, sortable: true, value: sink('spend'), render: r => cell(r, usd(r.spend)) },
+      { key: 'ad_sales', label: def('Ad sales', { title: 'Ad sales', body: 'Sales Amazon Ads credits to the campaign (its own count).', source: 'Amazon Ads' }), num: true, sortable: true, value: sink('ad_sales'), render: r => cell(r, usd(r.ad_sales)) },
       { key: 'orders', label: 'Orders', num: true, class: 'hide-sm', sortable: true, value: sink('orders'), render: r => cell(r, r.orders) },
-      { key: 'roas', label: 'ROAS', num: true, sortable: true, value: r => (r.more ? -1 : r.spend ? r.ad_sales / r.spend : 0),
+      { key: 'roas', label: def('ROAS', 'roas'), num: true, sortable: true, value: r => (r.more ? -1 : r.spend ? r.ad_sales / r.spend : 0),
         render: r => h('span', { class: r.more ? 'az-more' : 'strong' }, roas(r.spend ? r.ad_sales / r.spend : null)) },
       { key: 'flag', label: '', class: 'hide-sm', render: flag },
     ],
@@ -55,7 +58,7 @@ function campaigns(c) {
 export default {
   /* the plain question, drawn by the shell above the tabs */
   title: ['Is Amazon growing ', em('without ads?')],
-  eyebrow: 'Amazon only',
+  eyebrow: 'Amazon',
 
   async load(ctx) {
     const t = await loadTotals(ctx);
@@ -77,13 +80,16 @@ export default {
       }));
       return;
     }
-    const kids = [h('section', { class: 'lx-hero line az-kpis' }, figures(k))];
-    if (d.take) kids.push(takeaway(say(d.take), { action: !ctx.isClient ? button('Ask why', { href: ctx.href('ask', 'index') }) : null }));
+    const kids = [headRow({ help: [
+      { title: 'What it is for', text: 'Whether Amazon sales grow without leaning on ads: Amazon sales, ad spend, ROAS and TACOS for the dates in the page head, against the same number of days before.' },
+      { title: 'Where the numbers come from', text: "Amazon sales and ad spend are Triple Whale. Ad sales and campaign numbers are Amazon Ads' own count. Rank research stays in Data Dive." },
+    ] }), h('section', { class: 'lx-hero line az-kpis' }, figures(k, d.window))];
+    if (d.take) kids.push(takeaway(say(d.take), { action: !ctx.isClient ? askWhy(ctx, 'How is Amazon doing, and why?') : null }));
 
     kids.push(card({ class: 'az-chart' },
       h('div', { class: 'lx-chart-h' },
         h('div', null, h('div', { class: 'lx-sec' }, h('h3', null, 'Sales and ad spend by week')),
-          h('p', { class: 'az-sub' }, d.weeks && d.weeks.length ? `Amazon, last ${d.weeks.length} full weeks` : 'Amazon, week by week')),
+          h('p', { class: 'az-sub' }, d.weeks && d.weeks.length ? `Amazon, the last ${d.weeks.length} full weeks (not the dates in the page head)` : 'Amazon, week by week')),
         d.weeks && d.weeks.length ? legend([{ name: 'Sales', lead: true }, { name: 'Ad spend' }]) : null),
       d.weeks && d.weeks.length
         ? weekChart(d.weeks)
@@ -91,9 +97,7 @@ export default {
 
     kids.push(d.campaigns && d.campaigns.rows && d.campaigns.rows.length
       ? campaigns(d.campaigns)
-      : card({ title: 'Campaigns' }, lockBox("Needs the owner's Amazon login", 'Spend, ad sales and ROAS for each campaign')));
-
-    kids.push(h('p', { class: 'lx-foot' }, "Numbers from Triple Whale. Ad sales are Amazon Ads' own count."));
+      : card({ title: 'Campaigns' }, lockBox("Not connected: needs the owner's Amazon login", 'Spend, ad sales and ROAS for each campaign')));
     put(el, ...kids);
   },
 };

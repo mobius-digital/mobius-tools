@@ -4,8 +4,11 @@
    every angle and test (no AI call). Offers run one after another, so they live on the Offers page, not in a bar here. */
 
 import { put } from '../../kit.js';
-import { h, card, kpi, kpis, takeaway, lineChart, legend, pill, sheet, field, em, money, num, x, skeleton, empty, button } from '../../kit.js';
-import { css, gate, loadBrand, meter, findingButton, foot, thin, thinWords } from './_ww.js';
+import { h, card, kpi, kpis, hero, lineChart, legend, pill, sheet, field, em, money, num, x, skeleton, empty } from '../../kit.js';
+import { css, gate, loadBrand, meter, findingButton, thin, dl, def, helpBar, figs } from './_ww.js';
+
+const PILL_KEY = { Proven: 'proven', Dead: 'dead', Mixed: 'mixed', 'Not judged': 'not_judged', 'Untested idea': 'untested', Retired: 'retired' };
+const labelPill = (tone, word) => def(pill(tone, word), PILL_KEY[word] || word);
 
 const day = d => (d ? new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: d.slice(0, 4) === String(new Date().getFullYear()) ? undefined : 'numeric' }) : 'never');
 const LEVEL = { angle: 'New angle', concept: 'New concept', variation: 'Variation', offer: 'Offer' };
@@ -42,18 +45,19 @@ async function load(ctx) {
 function openAngle(a, d, ctx) {
   const [tone, word] = labelOf(a);
   const s = a.stats || {};
-  sheet({ title: a.name, side: 'right', class: 'ww-wide', body: h('div', { class: 'ww-stack', style: { gap: '20px' } },
-    h('div', { class: 'lx-row' }, pill(tone, word), a.note ? h('span', { class: 'lx-foot' }, a.note) : null),
-    kpis([
-      { label: 'Tests', value: num(s.batches || 0) }, { label: 'Won', value: s.judged ? `${num(s.winners)} of ${num(s.judged)}` : 'none judged' },
-      { label: 'ROAS', value: s.roas == null || thin(s.orders) ? 'too early' : x(s.roas) }, { label: 'Spend', value: money(s.spend || 0) },
-    ].map(k => h('div', { class: 'lx-kpi' }, h('span', { class: 'l' }, k.label), h('span', { class: 'v', style: { fontSize: '22px' } }, k.value)))),
+  sheet({ title: a.name, body: h('div', { class: 'ww-stack', style: { gap: '20px' } },
+    h('div', { class: 'lx-row' }, labelPill(tone, word), a.note ? h('span', { class: 'ww-an-note' }, a.note) : null),
+    h('div', { class: 'ww-an-k' }, kpis([
+      kpi({ label: 'Tests', value: num(s.batches || 0), sub: 'all time' }), kpi({ label: dl('Won', 'won'), value: s.judged ? `${num(s.winners)} of ${num(s.judged)}` : 'none judged' }),
+      kpi({ label: dl('ROAS', 'roas'), value: s.roas == null || thin(s.orders) ? 'too early' : x(s.roas), sub: 'all time' + (d.goal_roas ? ', goal ' + x(d.goal_roas) : '') }), kpi({ label: 'Spend', value: money(s.spend || 0), sub: 'all time' }),
+    ], { cols: 4 })),
     a.tests.length ? h('div', { class: 'ww-rows' }, a.tests.map(t => {
       const v = VERDICT[t.verdict] || ['warn', 'Running'];
       return h('div', { class: 'ww-l' },
         h('div', null, h('div', { class: 'ww-txt' }, `#${t.num} ${t.title}`, h('small', null, [LEVEL[t.level] || 'Test', t.variable ? 'testing the ' + t.variable : null, day(t.date)].filter(Boolean).join(', '))),
-          t.learning ? h('p', { class: 'lx-foot', style: { marginTop: '6px', color: 'var(--ink-2)' } }, t.learning) : null),
-        h('div', { class: 'side' }, pill(v[0], v[1]), h('span', { class: 'lx-foot' }, `${money(t.spend)}, ` + (thin(t.orders) ? thinWords(t.orders) : `${num(t.orders)} orders, ${x(t.roas)}`))));
+          t.learning ? h('p', { class: 'ww-an-note', style: { marginTop: '6px' } }, t.learning) : null,
+          h('div', { style: { marginTop: '10px', maxWidth: '360px' } }, figs([['Spend', money(t.spend)], [dl('Orders', 'tw_orders'), num(t.orders), { cls: thin(t.orders) ? 'dim' : '' }], [dl('ROAS', 'roas'), t.roas == null ? 'no data' : x(t.roas), { cls: thin(t.orders) ? 'dim' : '' }]], 3))),
+        h('div', { class: 'side' }, pill(v[0], v[1])));
     })) : empty({ title: 'Never tested', text: 'No test has been filed under this angle yet.' }),
     findingButton(ctx, () => ({ say: [h('b', null, a.name), s.judged ? ` won ${num(s.winners)} of ${num(s.judged)} tests.` : ' has not been tested yet.'], measure: 'ROAS',
       proof: a.tests.filter(t => t.roas != null).slice(0, 3).map(t => ({ value: t.roas, text: x(t.roas), name: '#' + t.num, sub: LEVEL[t.level] || 'test' })),
@@ -72,7 +76,7 @@ function search(d) {
     const hits = all.map(r => ({ r, n: q.filter(w => words(r.text).some(v => v.startsWith(w) || w.startsWith(v))).length })).filter(o => o.n).sort((p, q2) => q2.n - p.n).slice(0, 6);
     put(out, ...(hits.length ? hits.map(({ r, n }) => h('div', null,
       pill(n >= q.length ? 'good' : '', n >= q.length ? 'Tested' : 'Close'),
-      h('div', { class: 'ww-txt', style: { flex: 1 } }, r.t ? `${r.kind} ${r.t.title}` : r.a.name, h('small', null, r.t ? `Under ${r.a.name}` + (r.t.verdict ? ', ' + (VERDICT[r.t.verdict] || [, 'judged'])[1].toLowerCase() : ', no call yet') : 'An angle, ' + labelOf(r.a)[1].toLowerCase())))) : [h('div', null, pill('', 'New'), h('span', { class: 'lx-foot' }, 'Nothing like it has been filed here. It looks new.'))]));
+      h('div', { class: 'ww-txt', style: { flex: 1 } }, r.t ? `${r.kind} ${r.t.title}` : r.a.name, h('small', null, r.t ? `Under ${r.a.name}` + (r.t.verdict ? ', ' + (VERDICT[r.t.verdict] || [, 'judged'])[1].toLowerCase() : ', no call yet') : 'An angle, ' + labelOf(r.a)[1].toLowerCase())))) : [h('div', null, pill('', 'New'), h('span', { class: 'ww-an-note' }, 'Nothing like it has been filed here. It looks new.'))]));
   }, 160); });
   return card({}, f, out);
 }
@@ -87,31 +91,32 @@ function view(d, ctx) {
   const chartList = live.filter(a => a.stats.roas != null).slice(0, 8);
   const bestI = chartList.reduce((bi, a, i) => (!thin(a.stats.orders) && (bi < 0 || a.stats.roas > chartList[bi].stats.roas) ? i : bi), -1);
   const best = bestI >= 0 ? chartList[bestI] : null;
+  const top = Math.max(d.goal_roas || 0, ...chartList.map(a => a.stats.roas || 0));
   return [
-    kpis([
-      kpi({ label: 'Angles', value: num(live.length), sub: `${num(list.length - live.length)} retired`, size: 'lg' }),
-      kpi({ label: 'Proven', value: num(proven.length), sub: 'won at least 1 in 5 judged tests', size: 'lg' }),
-      kpi({ label: 'Tests filed', value: num(list.reduce((t, a) => t + (a.stats.batches || 0), 0)), size: 'lg' }),
-      kpi({ label: 'Untested ideas', value: num(live.filter(a => !a.stats.batches).length), size: 'lg' }),
-    ], { cols: 4 }),
-    best ? takeaway([h('b', null, best.name), ` returns ${x(best.stats.roas)} on ${money(best.stats.spend)}` + (d.goal_roas ? `, against a ${x(d.goal_roas)} goal.` : '.'),
-      proven.length ? ` ${num(proven.length)} ${proven.length === 1 ? 'angle has' : 'angles have'} won tests.` : '']) : null,
-    chartList.length >= 2 ? card({ class: 'ww-cd', title: 'ROAS by angle', note: 'The angles with the most spend. Gray under 30 orders.', action: legend([{ name: 'ROAS', square: true, color: 'var(--ink)' }, d.goal_roas && { name: 'Goal', dashed: true }]) },
+    helpBar([{ title: 'What it is for', text: 'Every reason to buy this brand has tested, scored on its tests so far, all time. Tap an angle for its tests in order, or search to check whether an idea was tried.' },
+      { title: 'The labels', text: 'Proven: won at least 1 in 5 judged tests. Dead: 2 or more judged and none won. Mixed: some won, under 1 in 5. A ROAS under 30 orders is drawn in gray: a hint, not a result.' }],
+      { src: 'Spend from Meta. Sales and ROAS from Triple Whale, last platform click, added up over every test filed under the angle, all time. Tests and calls come from the brand\'s test library.' }),
+    hero({ line: true }, kpis([
+      kpi({ label: 'Angles', value: num(live.length), sub: `${num(list.length - live.length)} retired` }),
+      kpi({ label: dl('Proven', 'proven'), value: num(proven.length), sub: 'won at least 1 in 5 judged tests' }),
+      kpi({ label: 'Tests filed', value: num(list.reduce((t, a) => t + (a.stats.batches || 0), 0)), sub: 'all time' }),
+      kpi({ label: dl('Untested ideas', 'untested'), value: num(live.filter(a => !a.stats.batches).length) }),
+    ], { cols: 4 })),
+    chartList.length >= 2 ? card({ class: 'ww-cd', title: 'ROAS by angle', note: 'All time, the angles with the most spend. Gray under 30 orders.', action: legend([{ name: 'ROAS', square: true, color: 'var(--ink)' }, d.goal_roas && { name: 'Goal', dashed: true }]) },
       h('div', { style: { marginTop: '18px' } }, lineChart({ series: [{ type: 'bar', values: chartList.map(a => a.stats.roas), leadAt: bestI, dimAt: i => thin(chartList[i].stats.orders), labels: v => x(v) }],
         labels: chartList.map(a => (a.name.length > 22 ? a.name.slice(0, 21).trim() + '.' : a.name)), goal: d.goal_roas ? { value: d.goal_roas, label: 'Goal ' + x(d.goal_roas) } : null,
-        format: v => x(v, 1), height: 300, phoneHeight: 250, endLabels: false, label: 'ROAS by angle', hover: i => [h('b', null, chartList[i].name), ` ${x(chartList[i].stats.roas)}, ${money(chartList[i].stats.spend)}, ${num(chartList[i].stats.orders)} orders`] }))) : null,
+        format: v => x(v, 1), yMax: top * 1.25, height: 300, phoneHeight: 250, endLabels: false, label: 'ROAS by angle', hover: i => [h('b', null, chartList[i].name), ` ${x(chartList[i].stats.roas)}, ${money(chartList[i].stats.spend)}, ${num(chartList[i].stats.orders)} orders`] }))) : null,
     search(d),
-    card({ class: 'ww-cd', title: 'Every angle', note: 'Tap one for its tests in order.', flush: true },
+    card({ class: 'ww-cd', title: 'Every angle', note: 'All time, since the first test. Tap one for its tests in order.', flush: true },
       h('div', { class: 'ww-an' }, list.map(a => {
         const [tone, word] = labelOf(a), s = a.stats || {}, dim = thin(s.orders);
         return h('button', { class: 'ww-anr', type: 'button', onclick: () => openAngle(a, d, ctx) },
           h('div', { class: 'nm' }, h('b', null, a.name), h('small', null, s.batches ? `${num(s.batches)} ${s.batches === 1 ? 'test' : 'tests'}, last ${day(s.last)}` : 'Not tested yet')),
-          pill(tone, word),
-          h('div', { class: 'n' }, h('span', null, 'Won'), h('b', null, s.judged ? `${num(s.winners)} of ${num(s.judged)}` : 'none')),
-          h('div', { class: 'n r' }, h('span', null, 'ROAS'), h('b', { class: dim ? 'dim' : '' }, s.roas == null ? 'no data' : x(s.roas)), s.roas != null ? meter(s.roas, d.goal_roas, { max: Math.max(d.goal_roas || 0, ...list.map(z => z.stats.roas || 0)) * 1.1 || 1, dim }) : null),
-          h('div', { class: 'n s' }, h('span', null, 'Spend'), h('b', null, money(s.spend || 0))));
+          labelPill(tone, word),
+          h('div', { class: 'n' }, dl('Won', 'won'), h('b', null, s.judged ? `${num(s.winners)} of ${num(s.judged)}` : 'none')),
+          h('div', { class: 'n r' }, dl('ROAS, all time', 'roas'), h('b', { class: dim ? 'dim' : '' }, s.roas == null ? 'no data' : x(s.roas)), s.roas != null ? meter(s.roas, d.goal_roas, { max: Math.max(d.goal_roas || 0, ...list.map(z => z.stats.roas || 0)) * 1.1 || 1, dim, goalTitle: d.goal_roas ? 'Goal ' + x(d.goal_roas) : null }) : null),
+          h('div', { class: 'n s' }, h('span', null, 'Spend, all time'), h('b', null, money(s.spend || 0))));
       }))),
-    foot('Proven = won at least 1 in 5 judged tests. Dead = 2 or more judged and none won. Results are Triple Whale, last click per platform.'),
   ].filter(Boolean);
 }
 
@@ -119,7 +124,9 @@ const CSS = `.ww-an{display:grid}
 .ww-anr{display:grid;grid-template-columns:minmax(0,1.6fr) 120px 90px minmax(140px,1fr) 90px;gap:18px;align-items:center;padding:14px 28px;border:0;border-top:1px solid var(--line);background:none;text-align:left;font:inherit;color:inherit;cursor:pointer;width:100%}
 .ww-anr .lx-pill{justify-self:start}.ww-anr:first-child{border-top:0}.ww-anr:hover{background:var(--surface-2)}
 .ww-anr .nm b{display:block;font-size:14.5px;font-weight:600}.ww-anr .nm small{display:block;font-size:12px;color:var(--muted)}
-.ww-anr .n{display:grid;gap:4px}.ww-anr .n span{font-size:10.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}
+.ww-an-note{font-size:13px;color:var(--ink-2)}
+.ww-an-k .lx-kpis{--kpi-em:5}
+.ww-anr .n{display:grid;gap:4px}.ww-anr .n>span{font-size:10.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}
 .ww-anr .n b{font-size:16px;font-weight:600;font-variant-numeric:tabular-nums}.ww-anr .n b.dim{color:var(--faint);font-weight:500}
 .ww-hits{display:grid;margin-top:10px}.ww-hits>div{display:flex;align-items:center;gap:12px;padding:8px 0;border-top:1px solid var(--line)}.ww-hits>div:first-child{border-top:0}
 @media (max-width:1040px){.ww-anr{grid-template-columns:minmax(0,1fr) auto;padding:14px 20px}.ww-anr .n{grid-column:1/-1}.ww-anr .s{display:none}.ww-anr .n:not(.r){display:none}}

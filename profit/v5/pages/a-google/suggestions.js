@@ -8,6 +8,7 @@ import { h, em, put, skeleton } from '../../kit.js';
 import { loadParts, follow, reading } from '../_parts.js';
 import { world, soft } from '../a-today/_ag.js';
 import { renderSuggestions } from '../a-today/_more.js';
+import { polishSuggestions } from '../platforms/_ads.js';
 
 const kindOf = l => /search|pmax/.test(l.area) && /:negatives|:categories/.test(l.id) ? 'negative' : /no sale/.test(l.title || '') ? 'cut' : 'trim';
 
@@ -41,6 +42,7 @@ function render(el, d, ctx) {
     const { data, waiting } = build(now, ctx);
     if (waiting && !(data.rows || []).length) return put(el, h('div', { class: 'lx-skel-grid' }, skeleton('kpi', 4)), skeleton('row', 5), reading(`Reading ${waiting} brand${waiting === 1 ? '' : 's'}`));
     renderSuggestions(el, data, ctx, 'google');
+    polishSuggestions(el, data, { platform: 'google', days: 30 });
     if (waiting) el.append(reading(`Reading ${waiting} more brand${waiting === 1 ? '' : 's'}. Their suggestions join the list as they land.`));
   });
 }

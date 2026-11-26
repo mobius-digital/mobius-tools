@@ -17,6 +17,10 @@
      POST /api/report-send { act, period, start, to: 'team' }   no client channel: post in the team channel
      POST /api/report-skip { act, period, start }     Do not send
    GET  /api/slack-channels                           the channel's name for the confirm sheet (read once)
+   GET  /api/draft-holds?act=                         drafts whose numbers look incomplete (team only):
+                                                      { holds: [{ kind, act_id, period, start, reason }] }. A held item
+                                                      (item.hold = the reason) shows the reason as one warning line, and
+                                                      its Send asks twice. What the client gets is unchanged.
 
    Sample mode never calls a route: every write is simulated and says so. */
 
@@ -32,6 +36,7 @@ const SAMPLE_NOTE = 'Sample: nothing was changed';
 const CSS = `.sd{display:grid;gap:16px}
 .sd-where{margin:0;font-size:14.5px;line-height:1.5;color:var(--ink)}
 .sd-note{margin:0;font-size:13px;line-height:1.5;color:var(--muted)}
+.sd-hold{margin:0;padding:10px 12px;border-radius:10px;background:var(--warn-bg);color:var(--warn);font-size:14px;line-height:1.5}
 .sd-err{margin:0;padding:10px 12px;border-radius:10px;background:var(--bad-bg);color:var(--bad);font-size:14px;line-height:1.5}
 .sd-post{margin:0;padding:14px 16px;border-radius:12px;background:var(--bg-sunk);box-shadow:inset 0 0 0 1px var(--line);font-size:14.5px;line-height:1.55;color:var(--ink);white-space:pre-wrap;word-break:break-word;max-height:46vh;overflow:auto}
 .sd-post b{font-weight:650}
@@ -125,8 +130,32 @@ function needsRead(i, ctx, sh, body, read) {
       button('Not now', { ghost: true, large: true, onclick: () => sh.close() })));
 }
 
+/* ---------- numbers that look incomplete (drafthold.js on the server) ---------- */
+const holdKey = (kind, act, period, day) => kind + '|' + act + '|' + (kind === 'brief' ? 'daily' : period) + '|' + day;
+/** The held drafts: a Map of key -> reason. One read, never in sample mode; any failure reads as no holds. */
+export async function readHolds(ctx, act, signal) {
+  if (ctx.sample || ctx.isClient) return new Map();
+  try {
+    const r = await ctx.api('/api/draft-holds?act=' + encodeURIComponent(act || 'all'), { worker: 'ah', signal });
+    return new Map(((r && r.holds) || []).map(x => [holdKey(x.kind, x.act_id, x.period, x.start), x.reason]));
+  } catch (e) { if (e && e.name === 'AbortError') throw e; return new Map(); }
+}
+/** The reason a waiting item is held, or null. */
+export const holdOf = (holds, i) => (holds && holds.get(holdKey(i.kind, i.act_id, i.period, i.day))) || null;
+/** The one warning line on a held draft. */
+export const holdLine = reason => reason ? (style(), h('p', { class: 'sd-hold' }, reason + '. Check the numbers before this goes to the client.')) : null;
+/** A Send that asks twice when the numbers look incomplete: the first tap turns it into "Send anyway".
+    Returns true when the click should go on and send. */
+export function askTwice(btn, reason, note) {
+  if (!reason || btn.dataset.sure === '1') return true;
+  btn.dataset.sure = '1';
+  btn.textContent = 'Send anyway';
+  if (note) put(note, h('p', { class: 'sd-hold' }, reason + '. Tap Send anyway to send it as it is.'));
+  return false;
+}
+
 /* ---------- reading the text ---------- */
-async function readBrief(i, ctx) {
+export async function readBrief(i, ctx) {
   if (ctx.sample) {
     const d = await sampleData();
     const text = SAMPLE_EDITS.get(sampleKey(i)) || (d.briefs || {})[sampleKey(i)] || d.brief_default || '';
@@ -152,7 +181,7 @@ async function readReport(i, ctx, { post = true } = {}) {
 }
 
 /** Slack text on screen: *bold*, <url|label> as the label. Never HTML from the server. */
-function slackText(t) {
+export function slackText(t) {
   const out = h('div', { class: 'sd-post' });
   const re = /<([^>|]+)\|([^>]+)>|<([^>]+)>|\*([^*\n]+)\*/g;
   let at = 0, m;
@@ -172,6 +201,11 @@ const oldLink = i => {
   const url = legacyUrl(i.kind === 'brief' ? 'brief' : 'reports', i.act_id);
   return url ? h('a', { class: 'sd-old', href: url }, 'Open in old ' + APP_NAME) : null;
 };
+
+/** Where it went or goes: the client channel's name ('#name') or null when it cannot be told. Reads only. */
+export async function whereOf(i, ctx) {
+  try { const ch = await channelOf(i, ctx); return ch.has ? await channelName(ch, ctx) : null; } catch { return null; }
+}
 
 /* ---------- Send ---------- */
 /** Send: one sheet with where it goes and the exact words, then a second tap sends. */
@@ -199,8 +233,9 @@ export async function sendSheet(i, ctx, done) {
   const where = await channelName(ch, ctx);
   const brand = i.brand || 'this brand';
   const lines = [
+    holdLine(i.hold),
     h('p', { class: 'sd-where' }, h('b', null, brand + '. '), 'Posts in the client\'s channel' + (where ? ', ' + where : '') + ', under your name. Everyone in that channel sees it.'),
-  ];
+  ].filter(Boolean);
   if (i.kind === 'brief') {
     lines.push(h('p', { class: 'sd-lab' }, 'What the client gets'), slackText(txt.text || ''), h('p', { class: 'sd-note' }, 'The full numbers go in one reply under it.' + (txt.edited ? ' This post was edited by hand.' : '')));
   } else {
@@ -215,6 +250,8 @@ export async function sendSheet(i, ctx, done) {
   const back = button('Not now', { ghost: true, large: true, onclick: () => sh.close() });
   if (i.kind === 'brief' && !String(txt.text || '').trim()) go.disabled = true;
   go.addEventListener('click', async () => {
+    /* numbers that look incomplete: the first tap only asks again */
+    if (!askTwice(go, i.hold, err)) return;
     go.disabled = edit.disabled = back.disabled = true;
     put(err);
     try {
@@ -349,19 +386,19 @@ export function skipSheet(i, ctx, done) {
 
 /* ---------- the three buttons on a row ---------- */
 /** Send, Edit, Do not send for one waiting item. Team only: a client or "See as client" gets nothing.
-    opts: { canSkip, noChannel, read }. read: a report's read ({ status, read_text } from /api/report-read, or null
+    opts: { canSkip, noChannel, read, dots }. dots: false leaves the state words out (the row shows them in its Status cell). read: a report's read ({ status, read_text } from /api/report-read, or null
     when it was not read). A report whose read is not approved offers "Needs how we read it", which opens the
     brand's Reports page, instead of Send and Edit. */
-export function actions(i, ctx, done, { canSkip = true, noChannel: none = false, read } = {}) {
+export function actions(i, ctx, done, { canSkip = true, noChannel: none = false, read, dots = true } = {}) {
   if (!canWrite(ctx)) return null;
   style();
   const stop = fn => e => { if (e) e.stopPropagation(); fn(); };
   if (i.kind === 'report' && !readApproved(read)) return h('span', { class: 'sd-row' },
-    statusDot('warn', read && read.status === 'drafted' ? 'Read needs approval' : 'Needs how we read it'),
+    dots ? statusDot('warn', read && read.status === 'drafted' ? 'Read needs approval' : 'Needs how we read it') : null,
     button('Open Reports', { primary: true, onclick: stop(() => openReports(i, ctx)) }),
     canSkip ? button('Do not send', { ghost: true, onclick: stop(() => skipSheet(i, ctx, done)) }) : null);
   return h('span', { class: 'sd-row' },
-    none ? statusDot('off', 'No client channel') : null,
+    none && dots ? statusDot('off', 'No client channel') : null,
     button(none ? 'Team post' : 'Send', { primary: !none, onclick: stop(() => sendSheet(i, ctx, done)) }),
     button('Edit', { onclick: stop(() => editSheet(i, ctx, done)) }),
     canSkip ? button('Do not send', { ghost: true, onclick: stop(() => skipSheet(i, ctx, done)) }) : null);

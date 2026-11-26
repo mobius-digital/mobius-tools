@@ -194,7 +194,9 @@
    "orders": 24,
    "order_rate": 0.00112,
    "unsub_rate": 0.0027,
-   "first_time": 0.36
+   "first_time": 0.36,
+   "subject": "Early sale is here: second belt half off",
+   "preview_text": "Pick two Ridgeline belts and the second one is half off, through Sunday."
   },
   {
    "id": "c4",
@@ -208,7 +210,9 @@
    "orders": 17,
    "order_rate": 0.00078,
    "unsub_rate": 0.0022,
-   "first_time": 0.29
+   "first_time": 0.29,
+   "subject": "Last weekend of the early sale",
+   "preview_text": "Second belt half off ends Sunday night. Here are the colors still in stock."
   },
   {
    "id": "c5",
@@ -222,7 +226,9 @@
    "orders": 15,
    "order_rate": 0.00069,
    "unsub_rate": 0.0023,
-   "first_time": 0.22
+   "first_time": 0.22,
+   "subject": "Ends tonight: second belt half off",
+   "preview_text": "A few hours left on the early sale."
   },
   {
    "id": "c9",
@@ -236,7 +242,9 @@
    "orders": 13,
    "order_rate": 0.0006,
    "unsub_rate": 0.0022,
-   "first_time": 0.19
+   "first_time": 0.19,
+   "subject": "Friday list: what is coming",
+   "preview_text": "Black Friday plans, new ball markers and a restock date."
   },
   {
    "id": "c2",
@@ -250,7 +258,9 @@
    "orders": 13,
    "order_rate": 0.00061,
    "unsub_rate": 0.0017,
-   "first_time": 0.24
+   "first_time": 0.24,
+   "subject": "The early sale pair math",
+   "preview_text": "Black for the course, tan for dinner. Here is what two belts cost this week."
   }
  ],
  "campaign_count": 12,

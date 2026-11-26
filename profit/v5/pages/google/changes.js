@@ -7,7 +7,9 @@
 
 import { put } from '../../kit.js';
 import { h, em, card, kpi, pill, statusDot, empty, num, x } from '../../kit.js';
-import { styles, gate, loadChanges, sampleGoogle, footNote, strip, shortDate } from './_g.js';
+import { headRow, warnLine, rangeChips, def } from '../platforms/_ads.js';
+import { dayCards, changesCss } from '../platforms/changes.js';
+import { styles, gate, loadChanges, sampleGoogle, strip, shortDate } from './_g.js';
 
 const CAT = { budget: ['', 'Budget'], bids: ['', 'Bids'], status: ['', 'On or off'], keywords: ['', 'Keywords'], new: ['', 'New'], other: ['', 'Other'] };
 const day = at => String(at || '').slice(0, 10);
@@ -48,21 +50,29 @@ export default {
     const money = rows.filter(r => r.category === 'budget' || r.category === 'bids').length;
     const small = other.reduce((t, o) => t + (o.n || 1), 0);
     const clampNote = c.floor ? `Google keeps 30 days of changes, so this starts ${shortDate(c.floor)}.` : 'Google keeps 30 days of changes.';
+    changesCss();
+    const help = [
+      { title: 'What it is for', text: 'Who changed what on the Google Ads account, newest first, and whether it worked: a budget or bid change shows the ROAS 7 days before and after when it is known. Tap a change for the whole of it.' },
+      { title: 'Where it comes from', text: 'Google Ads\' own change history. ' + clampNote + ' ROAS before and after is Triple Whale, last click. Read only.' },
+    ];
+    const top = headRow({ help, left: rangeChips(ctx) });
     if (!rows.length && !other.length) {
-      return put(el, strip({ title: 'No changes on these dates', text: 'Nobody changed the Google Ads account for ' + d.window.label + '. ' + clampNote }));
+      return put(el, top, strip({ title: 'No changes on these dates', text: 'Nobody changed the Google Ads account for ' + d.window.label + '. ' + clampNote }));
     }
+    const as = c => ({ id: c.at + '|' + c.summary, at: c.at, platform: 'google', cat: c.category, what: c.summary, name: c.name || '', level: c.level || '', who: person(c.who), via: c.via || '', why: c.why || '', roas_before: c.before ?? null, roas_after: c.after ?? null });
+    const redraw = () => {};
     put(el, ...[
+      top,
       h('div', { class: 'gg-figs three gg-chfigs' },
-        kpi({ label: 'Changes that matter', value: num(rows.length), sub: 'budgets, bids, on or off, keywords, new' }),
+        kpi({ label: 'Changes that matter, ' + d.window.label, value: num(rows.length), sub: 'budgets, bids, on or off, keywords, new' }),
         kpi({ label: 'Budget and bid changes', value: num(money), sub: money ? 'each with its ROAS before and after, where known' : 'none on these dates' }),
         kpi({ label: 'By', value: num(people), small: people === 1 ? 'person' : 'people', sub: small ? num(small) + ' small edits folded below' : 'no small edits' })),
-      c.clamped ? h('div', { class: 'gg-status' }, statusDot('warn', clampNote)) : null,
-      rows.length ? card({ title: 'Changes that matter', note: 'newest first' }, byDay(rows),
-        other.length ? h('details', { class: 'gg-more' }, h('summary', null, `${num(small)} small edits (assets, extensions)`),
-          other.map(o => changeRow({ ...o, summary: o.n > 1 ? `${o.summary} (${o.n} times)` : o.summary, category: 'other' }))) : null)
-        : card({ title: 'Only small edits', note: 'assets and extensions' }, other.map(o => changeRow({ ...o, summary: o.n > 1 ? `${o.summary} (${o.n} times)` : o.summary, category: 'other' }))),
-      c.truncated ? h('p', { class: 'lx-foot' }, 'Only the newest 200 changes are read.') : null,
-      footNote(`${d.window.label}. From Google Ads’ own change history. ${clampNote} ROAS before and after is Triple Whale, last click. Read only.`),
+      c.clamped ? warnLine(clampNote) : null,
+      c.truncated ? warnLine('Only the newest 200 changes are read.') : null,
+      ...(rows.length ? dayCards(rows.map(as), { client_view: !!ctx.isClient }, ctx, redraw) : []),
+      other.length ? card({ title: rows.length ? `${num(small)} small edits` : 'Only small edits', note: 'assets and extensions' },
+        h('details', { class: 'gg-more', open: rows.length ? null : true }, h('summary', null, 'Show them'),
+          other.map(o => changeRow({ ...o, summary: o.n > 1 ? `${o.summary} (${o.n} times)` : o.summary, category: 'other' })))) : null,
     ].filter(Boolean));
   },
 };

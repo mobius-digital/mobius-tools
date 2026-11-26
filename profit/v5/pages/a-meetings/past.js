@@ -7,6 +7,16 @@
 import { APP_NAME } from '../../config.js';
 import { put, noDash } from '../../kit.js';
 import { h, em, button, avatar, statusDot, pill, dateBlock, segmented, toggle, sheet, empty, addStyles } from '../../kit.js';
+import { defined, defLabel, pageHelp } from '../../defs.js';
+
+/* what the states mean: shown on hover or tap wherever the word appears (no footer) */
+const DEF = {
+  filed: { name: 'Filed', definition: 'Someone confirmed the meeting notes. That made the tasks, the asks for the client and the report lines. Filing is done in old ' + APP_NAME + '.' },
+  waiting: { name: 'Waiting to be filed', definition: 'The notes were read but nobody has confirmed them yet. Nothing from the meeting is a task until someone files it.' },
+  skipped: { name: 'Skipped', definition: 'Nobody filed this meeting, on purpose. Nothing from it became a task.' },
+  open: { name: 'Still open', definition: 'Tasks made from filed meetings that are not done yet, in Asana.' },
+};
+const stDot = st => defined(st.id === 'waiting' ? pill('warn', st.text) : statusDot(st.tone, st.text), DEF[st.id] || null);
 
 const ui = { kind: 'all', skipped: false, allOpen: false };
 
@@ -41,8 +51,8 @@ function whatOf(m, st) {
   if (st.id === 'error') return noDash(m.error);
   const c = m.counts;
   if (!c) return st.id === 'new' ? 'Notes are not ready yet' : 'No notes were kept';
-  const found = list([[c.team, 'task'], [c.brief, 'brief'], [c.client_owes, 'thing for the client to do', 'things for the client to do']]);
-  return found ? (st.id === 'skipped' ? 'Not filed: ' : 'Found: ') + found : 'Nothing to do came out of it';
+  const found = list([[c.team, 'task'], [c.brief, 'brief'], [c.client_owes, 'thing for the client', 'things for the client']]);
+  return found ? found + (st.id === 'skipped' ? ' found, never filed' : ' found, not made yet') : 'Nothing to do came out of it';
 }
 
 /* ---------- real mode ---------- */
@@ -67,39 +77,62 @@ function openMeeting(m, data, ctx, world) {
   const body = h('div', { class: 'mp-sheet' }, h('p', { class: 'mp-quiet' }, 'Reading the notes.'));
   const sh = sheet({ title: m.title || 'Meeting', body });
   window.addEventListener('hashchange', () => sh.close(), { once: true });      // a sheet never outlives its page
-  const head = h('div', { class: 'mp-sh' },
-    statusDot(st.tone, st.text + (st.id === 'filed' && m.confirmed_by ? ' by ' + first(m.confirmed_by) : '')),
-    h('span', null, [longDay(m.date), kindOf(m), m.duration > 0 ? Math.round(m.duration) + ' min' : null, m.with && m.with.length ? 'with ' + m.with.join(', ') : null].filter(Boolean).join(', ')));
-  const foot = () => st.id === 'filed' ? null : h('div', { class: 'mp-foot' },
-    h('p', { class: 'mp-quiet' }, st.id === 'waiting' ? 'Nothing from this meeting is a task yet. Filing it makes the tasks, the client asks and the report lines. That is not switched on here.' : 'This meeting was not filed, so nothing below became a task.'),
-    ctx.legacy && !ctx.sample ? button('Open in old ' + APP_NAME, { href: ctx.legacy, icon: 'arrow' }) : null);
+  /* the head: the date, one row of chips, the state as one pill */
+  const head = h('div', { class: 'mp-sh' }, dateBlock(m.date),
+    h('div', { class: 'mp-chips' },
+      h('span', { class: 'mp-chip' }, kindOf(m)),
+      m.duration > 0 ? h('span', { class: 'mp-chip' }, Math.round(m.duration) + ' min') : null,
+      m.with && m.with.length ? h('span', { class: 'mp-chip' }, 'With ' + m.with.join(', ')) : null,
+      stDot(st), st.id === 'filed' && m.confirmed_by ? h('span', { class: 'mp-by' }, 'by ' + first(m.confirmed_by)) : null));
+  const unfiled = () => st.id === 'filed' ? null : h('div', { class: 'mp-unfiled' },
+    h('p', null, st.id === 'waiting' ? 'Not filed yet: none of this is a task until someone confirms the notes.' : 'Not filed: nothing below became a task.'),
+    ctx.legacy && !ctx.sample && st.id === 'waiting' ? button('Open in old ' + APP_NAME, { href: ctx.legacy, icon: 'arrow' }) : null);
 
   detailOf(m, data, ctx).then(d => {
     if (!body.isConnected) return;
     const notes = d && d.notes;
-    if (!notes || !(notes.brands || []).length && !notes.summary) return put(body, head, h('p', { class: 'mp-quiet' }, whatOf(m, st) + '.'), foot());
+    if (!notes || !(notes.brands || []).length && !notes.summary) return put(body, head, h('p', { class: 'mp-quiet' }, whatOf(m, st) + '.'), unfiled());
     const res = d.result, made = res ? [...(res.brands || []), ...(res.agency ? [{ ...res.agency, brand_id: '' }] : [])] : [];
-    const taskState = (brandId, it) => {
-      if (st.id !== 'filed') return statusDot('off', st.id === 'waiting' ? 'Not filed yet' : 'Not filed');
-      if (it.kind === 'client_owes') return statusDot('off', 'Asked of the client');
-      if (it.kind === 'brief') return statusDot('good', 'Brief made');
+    const stateOfTask = (brandId, it) => {
+      if (st.id !== 'filed') return 'unfiled';
+      if (it.kind === 'client_owes') return 'asked';
+      if (it.kind === 'brief') return 'brief';
       const mine = (made.find(r => (r.brand_id || '') === brandId) || {}).tasks || [];
       const row = mine.find(t => t.text === it.text);
-      if (!row || !row.id || !world.openIds) return statusDot('good', 'Task made');
-      return world.openIds.has(row.id) ? pill('warn', 'Still open') : statusDot('good', 'Done');
+      if (!row || !row.id || !world.openIds) return 'made';
+      return world.openIds.has(row.id) ? 'open' : 'done';
     };
+    const PILL = { unfiled: () => statusDot('off', st.id === 'waiting' ? 'Not filed yet' : 'Not filed'), asked: () => statusDot('off', 'Asked of the client'),
+      brief: () => statusDot('good', 'Brief made'), made: () => statusDot('good', 'Task made'), open: () => defined(pill('warn', 'Still open'), DEF.open), done: () => statusDot('good', 'Done') };
+    const brands = notes.brands || [];
+    let nDec = 0, nTasks = 0, nOpen = 0;
+    for (const b of brands) {
+      nDec += (b.decisions || []).length;
+      for (const it of (b.items || []).filter(i => i.kind !== 'client')) { nTasks++; if (stateOfTask(b.brand_id || '', it) === 'open') nOpen++; }
+    }
+    const tile = (label, v, sub) => h('div', { class: 'mp-tile' }, h('span', { class: 'l' }, label), h('span', { class: 'v' }, String(v)), sub ? h('span', { class: 's' }, sub) : null);
+    const tiles = h('div', { class: 'mp-tiles' },
+      tile('Decisions', nDec),
+      tile(st.id === 'filed' ? 'Tasks made' : 'Tasks found', nTasks, st.id === 'filed' ? null : 'not made yet'),
+      tile('Still open', st.id === 'filed' ? nOpen : 'None', st.id === 'filed' ? null : 'nothing was made'));
     const block = b => {
       const tasks = (b.items || []).filter(i => i.kind !== 'client');
+      const told = [...(b.this_week || []).map(t => ['hears', t]), ...(b.need_from_client || []).map(t => ['waits', t])];
       return h('section', { class: 'mp-b' },
-        h('h3', null, b.brand_id ? world.nameOf(b.brand_id) : 'Agency-wide'),
+        h('h3', null, h('i', { class: 'mp-dot', style: { '--dot': world.colorOf(b.brand_id) } }), b.brand_id ? world.nameOf(b.brand_id) : 'Agency-wide'),
         (b.decisions || []).length ? h('div', null, h('span', { class: 'lx-cap' }, 'Decided'), h('ul', { class: 'mp-ul' }, b.decisions.map(t => h('li', null, noDash(t))))) : null,
-        tasks.length ? h('div', null, h('span', { class: 'lx-cap' }, 'To do'), h('div', { class: 'mp-tasks' }, tasks.map(it => h('div', { class: 'mp-t' },
-          h('span', { class: 'what' }, noDash(it.text), h('small', null, [it.kind === 'client_owes' ? 'the client' : it.owner || 'no owner', it.due && 'due ' + shortDay(it.due), it.kind === 'brief' && 'new ads'].filter(Boolean).join(', '))),
-          taskState(b.brand_id || '', it))))) : null,
-        (b.this_week || []).length ? h('div', null, h('span', { class: 'lx-cap' }, 'The client hears'), h('ul', { class: 'mp-ul soft' }, b.this_week.map(t => h('li', null, noDash(t))))) : null,
-        (b.need_from_client || []).length ? h('div', null, h('span', { class: 'lx-cap' }, 'Waiting on the client'), h('ul', { class: 'mp-ul soft' }, b.need_from_client.map(t => h('li', null, noDash(t))))) : null);
+        tasks.length ? h('div', null, h('span', { class: 'lx-cap' }, 'Tasks'), h('div', { class: 'mp-tasks' }, tasks.map(it => {
+          const who = it.kind === 'client_owes' ? 'The client' : it.owner || '';
+          return h('div', { class: 'mp-t' },
+            who ? avatar({ name: who }, { size: 28 }) : h('span', { class: 'mp-nobody sm', role: 'img', 'aria-label': 'No owner', title: 'No owner' }),
+            h('span', { class: 'what' }, noDash(it.text), h('small', null, [who || 'No owner', it.due ? 'due ' + shortDay(it.due) : 'no due date', it.kind === 'brief' && 'new ads'].filter(Boolean).join(', '))),
+            PILL[stateOfTask(b.brand_id || '', it)]());
+        }))) : null,
+        told.length ? h('details', { class: 'mp-told' }, h('summary', null, 'What the client was told (' + told.length + ')'),
+          (b.this_week || []).length ? h('div', null, h('span', { class: 'lx-cap' }, 'The client hears'), h('ul', { class: 'mp-ul soft' }, b.this_week.map(t => h('li', null, noDash(t))))) : null,
+          (b.need_from_client || []).length ? h('div', null, h('span', { class: 'lx-cap' }, 'Waiting on the client'), h('ul', { class: 'mp-ul soft' }, b.need_from_client.map(t => h('li', null, noDash(t))))) : null) : null);
     };
-    put(body, head, notes.summary ? h('p', { class: 'mp-sum' }, noDash(notes.summary)) : null, (notes.brands || []).map(block), foot());
+    put(body, head, unfiled(), tiles, notes.summary ? h('p', { class: 'mp-sum' }, noDash(notes.summary)) : null, brands.map(block));
   }).catch(e => {
     if (!body.isConnected) return;
     put(body, head, h('p', { class: 'mp-quiet' }, e && e.status === 404 ? 'The notes for this meeting are gone.' : 'The notes could not be read just now. Close this and try again.'));
@@ -117,8 +150,10 @@ function draw(el, data, ctx) {
       action: button('Open integrations', { href: ctx.href('a-settings', 'integrations'), icon: 'arrow' }) }));
   }
   const names = Object.fromEntries((d.brands || []).map(b => [b.id, b.name]));
+  const colors = Object.fromEntries((ctx.brands || []).map(b => [b.id, b.color]));
   const world = {
     nameOf: id => names[id] || String(id).replace(/^brand_/, '').replace(/_/g, ' '),
+    colorOf: id => colors[id] || 'var(--faint)',
     openIds: d.open ? new Set(d.open.flatMap(g => (g.items || []).map(i => i.id))) : null,
   };
   const today = d.today || new Date().toLocaleDateString('en-CA');
@@ -132,9 +167,9 @@ function draw(el, data, ctx) {
   const fig = (label, value, sub, tone) => h('div', { class: 'mp-fig' }, h('span', { class: 'l' }, label), h('span', { class: 'v' + (tone ? ' ' + tone : '') }, value), sub && h('span', { class: 's' }, sub));
   const figs = h('div', { class: 'mp-figs' },
     fig('Meetings', String(all.length), 'recorded in the last 60 days'),
-    fig('Filed', String(filed.length), 'decisions and tasks made'),
-    fig('Waiting to be filed', String(waiting.length), waiting.length ? 'newest ' + shortDay(waiting[0].m.date) : 'nothing waiting'),
-    openItems ? fig('Tasks still open', String(openItems.length), late ? plural(late, 'is', 'are') + ' late' : 'none late', late ? 'bad' : '') : null);
+    fig(defLabel('Filed', DEF.filed), String(filed.length), 'decisions and tasks made'),
+    fig(defLabel('Waiting to be filed', DEF.waiting), String(waiting.length), waiting.length ? 'newest ' + shortDay(waiting[0].m.date) : 'nothing waiting'),
+    openItems ? fig(defLabel('Tasks still open', DEF.open), String(openItems.length), late ? plural(late, 'is', 'are') + ' late' : 'none late', late ? 'bad' : '') : null);
 
   /* what is still open */
   let openCard = null;
@@ -143,7 +178,8 @@ function draw(el, data, ctx) {
     const shown = ui.allOpen ? sorted : sorted.slice(0, 6);
     openCard = h('section', { class: 'mp-sec' },
       h('div', { class: 'mp-h' }, h('h3', null, 'What is still open?'), h('span', null, 'every open task, oldest due date first')),
-      h('div', { class: 'lx-card flush' }, shown.map(i => h('div', { class: 'mp-o' },
+      h('div', { class: 'lx-card flush' }, h('div', { class: 'mp-o mp-head', 'aria-hidden': 'true' }, h('span', { class: 'av' }), h('span', { class: 'what' }, 'Task'), h('span', { class: 'who' }, 'Owner and due date'), h('span', { class: 'st' }, 'Status')),
+        shown.map(i => h('div', { class: 'mp-o' },
         i.owner ? avatar({ name: i.owner }, { size: 36 }) : h('span', { class: 'mp-nobody', role: 'img', 'aria-label': 'No owner' }),
         h('span', { class: 'what' }, noDash(i.text || i.name), h('small', null, i.brand)),
         h('span', { class: 'who' }, [i.owner || 'No owner', i.due ? 'due ' + shortDay(i.due) : 'no due date'].join(', ')),
@@ -167,21 +203,25 @@ function draw(el, data, ctx) {
         h('small', null, [kindOf(m), m.duration > 0 ? Math.round(m.duration) + ' min' : null, m.with && m.with.length ? 'with ' + m.with.join(', ') : null].filter(Boolean).join(', '))),
       h('span', { class: 'br' }, nm.length ? nm.join(', ') + (ids.length > 3 ? ` and ${ids.length - 3} more` : '') : ''),
       h('span', { class: 'wh' }, whatOf(m, st), stillOpen ? h('small', null, plural(stillOpen, 'task') + ' still open') : null),
-      st.id === 'waiting' ? pill('warn', st.text) : statusDot(st.tone, st.text));
+      stDot(st));
   };
+  const listHead = () => h('div', { class: 'mp-m mp-head', 'aria-hidden': 'true' }, h('span'), h('span', null, 'Meeting'), h('span', { class: 'br' }, 'Brands'), h('span', null, 'What came out of it'), h('span', null, 'Status'));
   const filters = h('div', { class: 'mp-filters' },
     segmented([{ id: 'all', label: 'All' }, { id: 'team', label: 'Monday team' }, { id: 'client', label: 'Client calls' }, { id: 'other', label: 'Other' }], ui.kind, id => { ui.kind = id; draw(el, data, ctx); }),
     skipped.length ? toggle({ label: `Show skipped (${skipped.length})`, checked: ui.skipped, onchange: on => { ui.skipped = on; draw(el, data, ctx); } }) : null);
   const meetings = h('section', { class: 'mp-sec' },
-    h('div', { class: 'mp-h' }, h('h3', null, 'What was decided?'), h('span', null, 'Tap a meeting for its decisions and tasks.')),
+    h('div', { class: 'mp-h' }, h('h3', null, 'Every recorded meeting'), h('span', null, 'Open one for its decisions and tasks')),
     filters,
     vis.length ? [...weeks.entries()].map(([w, list]) => h('div', { class: 'mp-wk' },
       h('span', { class: 'lx-eyebrow' }, 'Week of ' + shortDay(w)),
-      h('div', { class: 'lx-card flush' }, list.map(row))))
+      h('div', { class: 'lx-card flush' }, listHead(), list.map(row))))
       : h('p', { class: 'mp-quiet' }, 'No meeting matches. Try All, or show the skipped ones.'));
 
-  put(el, h('div', { class: 'mp' }, figs, openCard, meetings,
-    h('p', { class: 'lx-foot' }, d.note || 'A meeting is filed when someone confirms its notes: that makes the tasks, the client asks and the report lines. Skipped means nobody filed it. Filing and skipping are done in old ' + APP_NAME + '.')));
+  put(el, h('div', { class: 'mp' }, h('div', { class: 'mp-bar' }, pageHelp({ body: [
+      { title: 'What it is for', text: 'Every recorded meeting of the last 60 days, what was decided on it, and which of its tasks are still open.' },
+      { title: 'Filed, waiting and skipped', text: 'A meeting is filed when someone confirms its notes: that makes the tasks, the asks for the client and the report lines. Waiting to be filed means the notes were read but nobody confirmed them, so nothing is a task yet. Skipped means nobody filed it on purpose. Filing and skipping are done in old ' + APP_NAME + '.' },
+      { title: 'Open a meeting', text: 'Each meeting opens with its decisions, its tasks and who owns them, brand by brand. What the client was told sits folded under each brand.' },
+    ] })), figs, openCard, meetings));
 }
 
 export default {
@@ -195,11 +235,33 @@ export default {
 
 /* ---------- the page CSS, once. Every class starts with mp-. ---------- */
 const CSS = `
-.mp{display:grid;gap:44px;min-width:0}
+.mp{display:grid;gap:32px;min-width:0}
+.mp-bar{display:flex;align-items:center;gap:12px;margin-bottom:-12px}
+.mp-head{min-height:32px!important;padding-top:0!important;padding-bottom:0!important;cursor:default!important;background:none!important;font-size:11.5px!important;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.mp-head .what,.mp-head .who,.mp-head .st{font-size:11.5px!important;font-weight:600!important;color:var(--muted)!important;letter-spacing:.06em}
+.mp-head+.mp-m,.mp-head+.mp-o{border-top:1px solid var(--line)}
+.mp-o .av{width:36px;flex:none}
+.mp-o.mp-head .st{width:70px;flex:none}
+.mp-chips{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.mp-chip{display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:999px;background:var(--bg-sunk);font-size:12.5px;font-weight:600;color:var(--ink-2)}
+.mp-by{font-size:12.5px;color:var(--muted)}
+.mp-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.mp-tile{display:grid;gap:4px;padding:14px 16px;border-radius:14px;background:var(--bg-sunk)}
+.mp-tile .l{font-size:12.5px;font-weight:600;color:var(--muted)}
+.mp-tile .v{font-size:var(--num-m);font-weight:650;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.mp-tile .s{font-size:12px;color:var(--muted)}
+.mp-unfiled{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:12px 14px;border-radius:12px;background:var(--warn-bg,#FFF6E5)}
+.mp-unfiled p{margin:0;flex:1 1 260px;font-size:14px;font-weight:550;color:var(--ink)}
+.mp-dot{display:inline-block;width:10px;height:10px;border-radius:3px;background:var(--dot);margin-right:9px;vertical-align:1px}
+.mp-told{border-top:1px dashed var(--line);padding-top:10px}
+.mp-told summary{cursor:pointer;font-size:13.5px;font-weight:600;color:var(--ink-2)}
+.mp-told[open]{display:grid;gap:12px}
+.mp-told>div{display:grid;gap:8px}
+.mp-nobody.sm{width:28px;height:28px}
 .mp-figs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:40px}
 .mp-fig{display:grid;gap:6px;min-width:0;align-content:start}
 .mp-fig .l{font-size:13.5px;font-weight:550;color:var(--muted)}
-.mp-fig .v{font-size:var(--num-xl);font-weight:600;letter-spacing:-.045em;line-height:1;font-variant-numeric:tabular-nums}
+.mp-fig .v{font-size:var(--num-l);font-weight:600;letter-spacing:-.045em;line-height:1;font-variant-numeric:tabular-nums}
 .mp-fig .v.bad{color:var(--bad)}
 .mp-fig .s{font-size:13.5px;color:var(--muted)}
 .mp-sec{display:grid;gap:14px;min-width:0;justify-items:stretch}
@@ -229,7 +291,7 @@ const CSS = `
 .mp-nobody{flex:none;width:36px;height:36px;border-radius:50%;background:var(--bg-sunk);box-shadow:inset 0 0 0 1.5px var(--line-strong)}
 .mp-quiet{margin:0;font-size:13.5px;color:var(--muted)}
 .mp-sheet{display:grid;gap:22px;min-width:0}
-.mp-sh{display:grid;gap:6px;font-size:13.5px;color:var(--muted)}
+.mp-sh{display:flex;gap:14px;align-items:center;font-size:13.5px;color:var(--muted)}
 .mp-sum{margin:0;font-size:16px;line-height:1.5;color:var(--ink-2)}
 .mp-b{display:grid;gap:14px;padding-top:20px;border-top:1px solid var(--line)}
 .mp-b h3{margin:0;font-size:17px;font-weight:600;letter-spacing:-.02em}
@@ -253,7 +315,7 @@ const CSS = `
 @media (max-width:759px){
   .mp{gap:30px}
   .mp-figs{gap:22px 16px}
-  .mp-fig .v{font-size:var(--num-xl)}
+  .mp-fig .v{font-size:var(--num-l)}
   .mp-m{grid-template-columns:46px minmax(0,1fr);gap:6px 12px;padding:14px 16px;align-items:start}
   .mp-m .ti b{white-space:normal}
   .mp-m .wh,.mp-m>.lx-stat,.mp-m>.lx-pill{grid-column:2}
@@ -261,4 +323,6 @@ const CSS = `
   .mp-o .what{grid-column:2}
   .mp-o .who{grid-column:2;grid-row:2;width:auto}
   .mp-o>.lx-stat,.mp-o>.lx-pill{grid-column:3;grid-row:1/3;width:auto}
+  .mp-head{display:none!important}
+  .mp-tiles{gap:8px}
 }`;

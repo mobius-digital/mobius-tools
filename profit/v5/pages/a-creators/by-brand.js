@@ -14,9 +14,10 @@
    A brand whose creators run in their own app has no /api/trybe answer: its live and waiting counts read
    "not read here", never 0. Sales are Triple Whale (last platform click); spend is Meta's. */
 
-import { h, hero, kpi, kpis, em, money, num, x, button, statusDot, empty, skeleton, sheet, addStyles } from '../../kit.js';
+import { h, hero, kpi, kpis, em, money, num, x, button, statusDot, empty, skeleton, sheet, addStyles, barChart, platformChip } from '../../kit.js';
+import { defined, defLabel } from '../../defs.js';
 import { APP_NAME } from '../../config.js';
-import { put, css, plural } from '../production/_ui.js';
+import { put, css, plural, pageTop } from '../production/_ui.js';
 import { crCss, keyedBrands } from '../creators/_cr.js';
 import { loadParts, follow, late, dots, reading } from '../_parts.js';
 import { acCss, perBrand, brandOf, brandName, brandPage, oldCreators, todayStr, notRead } from './to-review.js';
@@ -26,15 +27,29 @@ const CSS = `
 .ab-card{display:grid;gap:16px;align-content:start;text-align:left;min-width:0;padding:22px 24px;border:0;border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--sh-1);color:inherit;font:inherit;cursor:pointer}
 .ab-card:hover{box-shadow:var(--sh-2,var(--sh-1));transform:translateY(-1px)}
 .ab-card:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
-.ab-top{display:flex;align-items:center;gap:10px;min-width:0;flex-wrap:wrap}
-.ab-top .ac-brand{font-size:15.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1 1 auto}
+.ab-top{display:flex;align-items:center;gap:10px;min-width:0;flex-wrap:nowrap}
+.ab-top .ac-brand{font-size:15.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1 1 auto;min-width:0}
+.ab-top .lx-stat{flex:none;white-space:nowrap;font-size:12px}
 .ab-nums{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .ab-nums span{display:grid;gap:2px;min-width:0}
 .ab-nums em{font-style:normal;font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
-.ab-nums b{font-size:26px;font-weight:600;letter-spacing:-.03em;line-height:1.1;font-variant-numeric:tabular-nums}
+.ab-nums b{font-size:var(--num-l);font-weight:600;letter-spacing:-.03em;line-height:1.1;font-variant-numeric:tabular-nums}
 .ab-nums b.none{font-size:13px;font-weight:500;letter-spacing:0;line-height:1.35;color:var(--muted);padding-top:6px}
 .ab-nums b.hot{color:var(--bad)}
-.ab-nums small{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ab-nums small{font-size:12px;color:var(--muted);line-height:1.3}
+.ab-m{display:grid;gap:8px;padding-top:12px;border-top:1px solid var(--line)}
+.ab-m .h{font-size:12px;font-weight:600;color:var(--muted)}
+.ab-m .f{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.ab-m .f>div{display:grid;gap:1px;min-width:0}
+.ab-m .f span{font-size:11.5px;color:var(--muted)}
+.ab-m .f b{font-size:var(--num-s);white-space:nowrap;font-weight:600;font-variant-numeric:tabular-nums}
+.ab-m .f b.bad{color:var(--bad)}.ab-m .f b.good{color:var(--good)}
+.ab-sh{display:grid;gap:18px;min-width:0}
+.ab-cmp{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.ab-cmp h4{margin:0 0 4px;font-size:13px;font-weight:600}
+.ab-hd{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ab-hd .lx-stat{margin-left:auto}
+.ab-old{font-size:12.5px;color:var(--muted);text-decoration:underline;text-underline-offset:3px}
 .ab-line{display:grid;gap:4px;padding-top:12px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted);line-height:1.45}
 .ab-line b{color:var(--ink-2);font-weight:600}
 .ab-tbl{display:grid;gap:0;font-size:13.5px}
@@ -48,14 +63,32 @@ const CSS = `
 @media (max-width:759px){
   .ab-grid{grid-template-columns:minmax(0,1fr);gap:12px}
   .ab-card{padding:18px;border-radius:18px}
-  .ab-nums b{font-size:22px}
+  .ab-nums b{font-size:var(--num-m)}
+  .ab-cmp{grid-template-columns:1fr}
 }
 `;
 const abCss = () => addStyles('ab-css', CSS);
 
 const known = v => v != null && Number.isFinite(+v);
 /** A number, or plain words when it could not be read. Never a made-up zero. */
-const figure = (v, { hot = false, none = 'not read here', wait = false } = {}) => known(v) ? h('b', { class: hot && +v > 0 ? 'hot' : null }, num(+v)) : wait ? h('b', null, dots()) : h('b', { class: 'none' }, none);
+const OWN = { name: 'Counted in their own app', definition: 'This brand runs its creators in its own creator app, so Locus cannot read the count here.' };
+const figure = (v, { hot = false, none = 'not read here', wait = false, own = false } = {}) => known(v) ? h('b', { class: hot && +v > 0 ? 'hot' : null }, num(+v)) : wait ? h('b', null, dots())
+  : own ? defined(h('b', { class: 'none' }, 'none'), OWN) : h('b', { class: 'none' }, none);
+const DEFS = {
+  creators: { name: 'Creators', definition: 'Creators who sent this brand a video in the last 30 days.' },
+  live: { name: 'Live videos', definition: 'Creator videos that ran as Meta ads in the last 30 days.' },
+  waiting: { name: 'Waiting', definition: 'Videos waiting for a yes in the creator platform right now.' },
+  cpa: { name: 'Cost per sale', definition: 'Creator ad spend on Meta divided by Triple Whale sales (last platform click), against the brand\'s goal cost per sale.' },
+};
+/** Spend, Sales, Cost per sale vs goal, ROAS for one window. */
+function mfigs(m) {
+  const over = known(m.cpa) && known(m.goal_cpa) ? +m.cpa > +m.goal_cpa : null;
+  return h('div', { class: 'f' },
+    h('div', null, h('span', null, 'Spend'), h('b', null, money(Math.round(+m.spend || 0)))),
+    h('div', null, h('span', null, 'Sales'), h('b', null, num(+m.orders || 0))),
+    h('div', null, defLabel('Per sale', DEFS.cpa, { tag: 'span' }), h('b', { class: over == null ? '' : over ? 'bad' : 'good', title: known(m.goal_cpa) ? 'Goal ' + money(+m.goal_cpa) + (over ? ': over goal' : ': on goal') : null }, known(m.cpa) ? money(Math.round(+m.cpa)) : 'none')),
+    h('div', null, h('span', null, 'ROAS'), h('b', null, known(m.roas) ? x(+m.roas) : 'none')));
+}
 const sum = (rows, f) => rows.reduce((s, r) => s + (known(f(r)) ? +f(r) : 0), 0);
 
 /** Creator ads against the brand's goal cost per sale, last 30 days. */
@@ -93,17 +126,23 @@ function openBrand(ctx, r) {
   const a = r.last_7 || {}, b = r.last_30 || {};
   const row = (label, f) => h('div', null, h('span', null, label), h('span', null, cell(f(a))), h('span', null, cell(f(b))));
   const has = r.last_7 || r.last_30;
-  const go = (label, tab) => { const to = brandPage(ctx, r.act_id, tab); return to ? button(label, { href: to, icon: 'arrow' }) : null; };
+  const go = (label, tab) => { const to = brandPage(ctx, r.act_id, tab); return to ? button(label, { href: to, icon: 'arrow', primary: true }) : null; };
   const old = ctx.isClient ? null : oldCreators(r.act_id);
-  const sh = sheet({ title: (brandOf(ctx, r.act_id) || {}).name || r.name || 'Brand', class: 'cr-sheet', body: h('div', { class: 'ac-group' },
-    h('div', { class: 'ab-nums' },
-      h('span', null, h('em', null, 'Creators'), figure(r.creators), h('small', null, 'sent a video, 30 days')),
-      h('span', null, h('em', null, 'Live videos'), figure(r.live, { none: r.own_app ? 'in their own app' : 'not read here' }), h('small', null, 'ran as ads, 30 days')),
-      h('span', null, h('em', null, 'Waiting'), figure(r.pending, { hot: true, none: r.own_app ? 'in their own app' : 'not read here' }), h('small', null, 'need a yes'))),
+  /* 7 against 30 days, as a daily rate so the two windows compare */
+  const cmp = (label, f, fmt, goal) => { const v7 = known(f(a)) ? +f(a) : null, v30 = known(f(b)) ? +f(b) : null;
+    if (v7 == null && v30 == null) return null;
+    return h('div', null, h('h4', null, label), barChart({ values: [v7 || 0, v30 || 0], labels: ['Last 7 days', 'Last 30 days'], format: fmt, valueLabels: v => fmt(v), height: 140, phoneHeight: 130, axis: false, name: label,
+      goal: goal ? { value: goal, label: 'Goal ' + fmt(goal) } : null, label: label + ', 7 against 30 days' })); };
+  const go1 = go('Open this brand\'s creators', 'videos');
+  const sh = sheet({ title: (brandOf(ctx, r.act_id) || {}).name || r.name || 'Brand', class: 'cr-sheet', body: h('div', { class: 'ab-sh' },
+    h('div', { class: 'ab-hd' }, platformChip('meta'), h('span', { class: 'cr-quiet' }, 'Creator ads on Meta'), goalDot(r)),
+    has ? h('div', { class: 'ab-cmp' },
+      cmp('Spend a day', m => (known(m.spend) ? +m.spend / (m === a ? 7 : 30) : null), v => money(v)),
+      cmp('Sales a day', m => (known(m.orders) ? +m.orders / (m === a ? 7 : 30) : null), v => num(v, 1)),
+      cmp('Cost per sale', m => m.cpa, v => money(v), known(b.goal_cpa) ? +b.goal_cpa : null)) : null,
     h('div', { class: 'ab-line' },
       known(r.not_launched) ? h('span', null, h('b', null, plural(r.not_launched, 'approved video')), ' not launched yet' + (r.not_launched && known(r.oldest) ? ', oldest ' + plural(r.oldest, 'day') : '')) : null,
-      known(r.rebook) && r.rebook > 0 ? h('span', null, h('b', null, plural(r.rebook, 'creator')), ' to book again') : null,
-      goalDot(r)),
+      known(r.rebook) && r.rebook > 0 ? h('span', null, h('b', null, plural(r.rebook, 'creator')), ' to book again') : null),
     has ? h('div', { class: 'ab-tbl' },
       h('div', null, h('span', null, 'Creator ads'), h('span', null, '7 days'), h('span', null, '30 days')),
       row('Videos sent in', m => known(m.videos_in) ? num(m.videos_in) : null),
@@ -115,9 +154,7 @@ function openBrand(ctx, r) {
       row('Goal cost per sale', m => known(m.goal_cpa) ? money(m.goal_cpa) : null),
       row('ROAS', m => known(m.roas) && known(m.spend) && +m.spend > 0 ? x(m.roas) : null))
       : h('p', { class: 'cr-quiet' }, 'No creator ad numbers for this brand in the last 30 days.'),
-    h('div', { class: 'ab-go' }, go('Videos to review', 'to-review'), go('Videos running', 'videos'), go('People', 'people'),
-      old ? button('Open in old ' + APP_NAME, { href: old, target: '_blank', icon: 'arrow' }) : null),
-    h('p', { class: 'lx-foot' }, 'Sales are Triple Whale, spend is Meta. Read only here.')) });
+    h('div', { class: 'lx-row' }, go1, old ? h('a', { class: 'ab-old', href: old, target: '_blank', rel: 'noopener noreferrer', title: 'Opens old ' + APP_NAME + ' in a new tab' }, 'Old ' + APP_NAME) : null)) });
   window.addEventListener('hashchange', () => sh.close(), { once: true });   // a link inside the sheet moves on: the sheet goes with it
 }
 
@@ -169,34 +206,35 @@ const page = {
     const waitingBrands = rows.filter(r => r.pending > 0);
     const notLaunched = sum(rows, r => r.not_launched);
     put(el,
+      pageTop([
+        { title: 'What it is for', text: 'One card per brand with a creator program: active creators, videos running as ads, videos waiting for a yes, and what creator ads cost per sale against the goal. Most waiting first; tap a brand for its last 7 against 30 days.' },
+        { title: 'The words', text: 'Active creators sent a video in the last 30 days. Live videos ran as ads in the last 30 days. Approving and launching are done in old ' + APP_NAME + '.' },
+        { title: 'Where the numbers come from', text: 'Spend is Meta. Sales are Triple Whale, last platform click. A brand whose creators run in their own app shows a dash where Locus cannot read the count.' },
+      ], platformChip('meta'), h('span', { class: 'cr-quiet' }, 'Creator ads on Meta, last 30 days')),
       hero({ line: true },
         kpis([
           kpi({ label: 'Brands with creators', value: String(rows.length), sub: plural(sum(rows, r => r.creators), 'active creator') }),
           kpi({ label: 'Waiting for a yes', value: readPending.length ? String(sum(rows, r => r.pending)) : wc ? dots() : 'not read',
             sub: !readPending.length ? null : waitingBrands.length ? statusDot('warn', plural(waitingBrands.length, 'brand') + (readPending.length < rows.length ? ', ' + part(readPending) + ' read' : '')) : statusDot('good', 'nothing waiting'),
             href: ctx.href('a-creators', 'to-review') }),
-          kpi({ label: 'Live videos', value: readLive.length ? String(sum(rows, r => r.live)) : wc ? dots() : 'not read', sub: readLive.length ? 'ran as ads in 30 days, ' + part(readLive) : null }),
+          kpi({ label: defLabel('Live videos', DEFS.live), value: readLive.length ? String(sum(rows, r => r.live)) : wc ? dots() : 'not read', sub: readLive.length ? 'ran as ads in 30 days, ' + part(readLive) : null }),
           kpi({ label: 'Approved, not launched', value: wc && !rows.some(r => known(r.not_launched)) ? dots() : String(notLaunched), sub: notLaunched ? statusDot('warn', 'ready to load into Meta') : statusDot('good', 'all launched') }),
         ], { cols: 4 })),
-      h('div', { class: 'pd-tools' }, h('span', { class: 'cr-quiet' }, 'Most waiting first. Tap a brand for its last 7 and 30 days.')),
       h('div', { class: 'ab-grid' }, rows.map(r => {
         const m = r.last_30 || {}, own = r.own_app;
-        return h('button', { type: 'button', class: 'ab-card', 'aria-label': 'Open ' + ((brandOf(ctx, r.act_id) || {}).name || r.name || 'the brand'), onclick: () => openBrand(ctx, r) },
+        return h('article', { class: 'ab-card', role: 'button', tabindex: '0', 'aria-label': 'Open ' + ((brandOf(ctx, r.act_id) || {}).name || r.name || 'the brand'), onclick: () => openBrand(ctx, r), onkeydown: e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); openBrand(ctx, r); } } },
           h('div', { class: 'ab-top' }, brandName(ctx, r.act_id, r.name), ws && !r.last_30 ? null : goalDot(r)),
           h('div', { class: 'ab-nums' },
-            h('span', null, h('em', null, 'Creators'), figure(r.creators, { wait: ws || wc }), h('small', null, 'active, 30 days')),
-            h('span', null, h('em', null, 'Live videos'), figure(r.live, { none: own ? 'in their own app' : 'not read here', wait: wc && !own }), r.live != null ? h('small', null, 'ran as ads') : null),
-            h('span', null, h('em', null, 'Waiting'), figure(r.pending, { hot: true, none: own ? 'in their own app' : 'not read here', wait: wc && !own }), r.pending != null ? h('small', null, 'need a yes') : null)),
-          h('div', { class: 'ab-line' },
-            known(r.not_launched) ? h('span', null, r.not_launched ? h('b', null, plural(r.not_launched, 'approved video')) : 'Every approved video', r.not_launched ? ' not launched yet' + (known(r.oldest) && r.oldest ? ', oldest ' + plural(r.oldest, 'day') : '') : ' has launched') : null,
-            known(m.spend) && +m.spend > 0
-              ? h('span', null, '30 days: ' + money(m.spend) + ' spend, ' + plural(num(m.orders || 0), 'sale') + (known(m.cpa) ? ', ' + money(m.cpa) + ' per sale' : '') + (known(m.goal_cpa) ? ' (goal ' + money(m.goal_cpa) + ')' : '') + (known(m.roas) ? ', ' + x(m.roas) + ' ROAS' : ''))
-              : r.last_30 ? h('span', null, 'No creator ad spend in 30 days') : ws ? h('span', null, dots('9em')) : null));
+            h('span', null, defLabel('Creators', DEFS.creators, { tag: 'em' }), figure(r.creators, { wait: ws || wc }), h('small', null, 'active in 30 days')),
+            h('span', null, defLabel('Live videos', DEFS.live, { tag: 'em' }), figure(r.live, { own, wait: wc && !own }), h('small', null, 'ran as ads, 30 days')),
+            h('span', null, defLabel('Waiting', DEFS.waiting, { tag: 'em' }), figure(r.pending, { hot: true, own, wait: wc && !own }), h('small', null, 'need a yes'))),
+          known(m.spend) && +m.spend > 0 ? h('div', { class: 'ab-m' }, h('span', { class: 'h' }, 'Creator ads on Meta, last 30 days'), mfigs(m))
+            : h('div', { class: 'ab-m' }, h('span', { class: 'h' }, r.last_30 ? 'No creator ad spend in 30 days' : ws ? dots('9em') : 'No creator ad numbers yet')),
+          known(r.not_launched) && r.not_launched ? h('div', { class: 'ab-line' }, h('span', null, h('b', null, plural(r.not_launched, 'approved video')), ' not launched yet' + (known(r.oldest) && r.oldest ? ', oldest ' + plural(r.oldest, 'day') : ''))) : null);
       })),
       wc || ws ? reading(wc && ws ? 'Still reading the counts and the spend' : wc ? 'Still reading each brand\'s live and waiting videos' : 'Still reading spend and sales') : null,
       notRead(ctx, failed),
-      data && data.score_failed ? h('p', { class: 'lx-foot ac-miss' }, statusDot('warn', 'The spend and sales lines did not load, so the cards show counts only.')) : null,
-      h('p', { class: 'lx-foot' }, 'Sales are Triple Whale, spend is Meta. Active creators sent a video in the last 30 days. Live videos ran as ads in the last 30 days. Read only: approve and launch in old ' + APP_NAME + '.'));
+      data && data.score_failed ? h('p', { class: 'cr-quiet ac-miss' }, statusDot('warn', 'The spend and sales lines did not load, so the cards show counts only.')) : null);
   },
 };
 export default page;

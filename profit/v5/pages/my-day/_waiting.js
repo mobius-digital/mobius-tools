@@ -19,6 +19,14 @@ export function agencyRows(w) {
 
 const isTeam = ctx => !!ctx && !ctx.isClient && ctx.role !== 'client';
 
+/** The words a brand filter or a row shows: the bell's "Agency" and "2 brands" are not brands. */
+export function brandWord(b) {
+  if (!b) return '';
+  if (/^agency$/i.test(b)) return 'Agency-wide';
+  if (/^\d+ brands$/i.test(b)) return 'Several brands';
+  return b;
+}
+
 const CSS = `
 .lx-wt-list{display:grid}
 .lx-wt-row{display:flex;align-items:center;gap:14px;min-height:60px;padding:10px 0;border-top:1px solid var(--line)}
@@ -52,13 +60,14 @@ export function waitingCard(ctx, { title = 'Waiting on the team', max = 8 } = {}
     const items = (w && w.items) || [];
     const failed = (w && w.failed) || [];
     const shown = items.slice(0, max);
-    body.replaceChildren(
+    body.replaceChildren(...[
       ...(shown.length ? shown.map(it => h('div', { class: 'lx-wt-row' },
         h('div', { class: 't' }, h('b', null, it.text), h('span', null, [it.brand, it.by].filter(Boolean).join(', '))),
         button(it.btn && it.btn.label || 'Open', { href: it.btn && it.btn.href || '#', icon: 'arrow' })))
         : [h('p', { class: 'lx-wt-none' }, failed.length ? 'Nothing found in what could be read.' : 'Nothing is waiting on the team right now.')]),
       items.length > max ? h('p', { class: 'lx-wt-none' }, (items.length - max) + ' more in the bell and on My day.') : null,
-      failed.length ? h('p', { class: 'lx-wt-none' }, statusDot('warn', 'Could not read: ' + failed.join(', '))) : null);
+      failed.length ? h('p', { class: 'lx-wt-none' }, statusDot('warn', 'Could not read: ' + failed.join(', '))) : null,
+    ].filter(Boolean));   /* a null here was printed as the text "null" */
   });
   return box;
 }
@@ -67,9 +76,16 @@ export function waitingCard(ctx, { title = 'Waiting on the team', max = 8 } = {}
 const NOTE_KEY = 'lx5_live_note_v1';
 const seen = () => { try { return localStorage.getItem(NOTE_KEY) === '1'; } catch { return false; } };
 
-/** One short card for the team: what works here now, and what still lives in old Locus. Hidden once dismissed on this device. */
+/** The same words as a page help section: { title, text }. */
+export function liveHelp() {
+  return { title: 'What is live in new ' + APP_NAME, text: 'Do it here: make ad calls (Yes, No, Undo), send client updates, approve the War Room check-in, move and approve creative, and load approved ads.\n\nStill in old ' + APP_NAME + ': calendar edits, offers, meetings, creator approvals, and the settings that are not wired yet.' };
+}
+
+/** One short card for the team: what works here now, and what still lives in old Locus. Shown once per device in
+    real mode (it is marked seen as soon as it shows), never in sample mode; after that it lives in the page help. */
 export function liveNote(ctx) {
-  if (!isTeam(ctx) || seen()) return null;
+  if (!isTeam(ctx) || ctx.sample || seen()) return null;
+  try { localStorage.setItem(NOTE_KEY, '1'); } catch { /* storage off: it may show again */ }
   styles();
   const box = h('section', { class: 'lx-live', role: 'note' },
     h('h3', null, 'What is live in new ' + APP_NAME),

@@ -85,7 +85,7 @@ export function mount(el, opts = {}) {
     On the Ask page itself it just puts the cursor in the page's own box. */
 function askHere() {
   const route = currentRoute(); if (!route) return;
-  if (route.line === 'ask') { const f = document.getElementById('lxAskIn'); if (f) f.focus(); return; }
+  if (route.line === 'ask') { const f = document.getElementById('lxAskIn'); if (f) f.focus(); else location.hash = href(normalise({ ...route, line: 'ask', tab: 'index' })); return; }
   const brand = route.view === 'brand' ? brandBySlug(route.brand) : null;
   import('./askpanel.js').then(m => m.openAskPanel({
     route, brand, range: S.range, title: headTitle ? headTitle.textContent.trim() : '',

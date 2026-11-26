@@ -7,7 +7,7 @@ import { put } from '../../kit.js';
 import { h, em, card, statusDot } from '../../kit.js';
 import { APP_NAME } from '../../config.js';
 import { RANGES } from '../../data.js';
-import { css, stage, saveBar, group, row, fold, facts, pick, timePick, dayChips, onOff, seg } from '../brand-settings/_set.js';
+import { css, stage, saveBar, group, row, fold, setHelp, pick, timePick, dayChips, onOff, seg } from '../brand-settings/_set.js';
 import { ZONES } from '../brand-settings/brand.js';
 
 const zoneHere = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Chicago'; } catch { return 'America/Chicago'; } };
@@ -26,7 +26,14 @@ function draw(el, data, ctx) {
   /* the range the shell keeps is the person's own local 'range' key: a new default is written there on Save */
   S.onChange((key, v) => { if (key === 'range.default' && v && v !== 'custom') S.set('range', { preset: v }); });
   put(el, h('div', { class: 'lx-st' },
-    saveBar(S, ctx),
+    saveBar(S, ctx, { help: setHelp({
+      about: 'What you set for yourself: your clock, quiet hours, your morning summary, what reaches you right away, and how ' + APP_NAME + ' opens for you. This is the one home for quiet hours and the morning summary time; How things reach me only shows them.',
+      fixedTitle: 'Set by someone else',
+      fixed: [
+        ['Sign in email', (ctx.me && ctx.me.email) || 'Not signed in', 'You sign in with this. The owner changes it.'],
+        ['Slack', d.slack == null ? 'Not checked' : d.slack ? 'Linked' : 'Not linked', 'Found by your email.'],
+        client ? ['Your brands', 'Set by the agency', 'Ask your account lead to add one.'] : ['Your job and brands', 'Set in Agency settings, Team', 'The owner changes them.'],
+      ] }) }),
     group('My clock', null,
       row('My time zone', 'Due times and send times show in this zone.', pick(S, 'me.timeZone', d.timeZone || zoneHere(), zones, { label: 'My time zone', width: 190 })),
       row('Quiet hours', 'Nothing reaches me in these hours, whatever the agency sends.', h('div', { class: 'lx-st-times' }, timePick(S, 'me.quietFrom', d.quietFrom || '19:00', { label: 'Quiet from' }), h('span', { style: { color: 'var(--muted)' } }, 'to'), timePick(S, 'me.quietTo', d.quietTo || '05:00', { label: 'Quiet to' })))),
@@ -41,11 +48,7 @@ function draw(el, data, ctx) {
       client ? null : row('First page', null, pick(S, 'me.firstPage', d.firstPage || 'home', [{ id: 'home', label: 'Home' }, { id: 'my-day', label: 'My day' }, { id: 'a-today', label: 'Today, every brand' }], { label: 'First page', width: 190 }))),
     client ? null : fold('Advanced', 'Rarely touched',
       row('My alert rules check at', 'When the rules you asked ' + APP_NAME + ' AI to watch are checked.', timePick(S, 'me.alertTime', d.alertTime || '08:00', { label: 'Alert check time' }))),
-    facts('Set by someone else', [
-      ['Sign in email', (ctx.me && ctx.me.email) || 'Not signed in', 'You sign in with this. The owner changes it.'],
-      ['Slack', d.slack == null ? 'Not checked' : d.slack ? statusDot('good', 'Linked') : statusDot('off', 'Not linked'), 'Found by your email.'],
-      client ? ['Your brands', 'Set by the agency', 'Ask your account lead to add one.'] : ['Your job and brands', 'Set in Agency settings, Team', 'The owner changes them.'],
-    ])));
+  ));
 }
 
 export default {

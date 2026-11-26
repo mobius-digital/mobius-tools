@@ -1,4 +1,6 @@
-/* Ask Locus AI. One big question box, a few questions to try, and each answer with its small chart.
+/* Ask Locus AI, the full page: your history of answers on this device, a question box, and what the team asked lately.
+   The place to ask from any page is the Ask panel (top bar button or Ctrl K), which sends that page's context; this
+   page keeps the history, and asks too.
    Real mode:
      account-health POST /api/ask {question, history, runId, screen}  the same engine as the chat panel in old Locus.
        The answer is plain sentences, and may end with one ```chart {type, title, unit, labels, series, goal}``` block,
@@ -11,6 +13,7 @@ import { put } from '../../kit.js';
 import { h, card, em, button, toast, barChart, lineChart, legend, table, money, x, pct, num, relativeTime, addStyles, empty, pill, svgNode } from '../../kit.js';
 import { icon } from '../../icons.js';
 import { AI_NAME, APP_NAME } from '../../config.js';
+import { pageHelp } from '../../defs.js';
 
 const THREAD = id => 'ask.thread.' + (id || 'agency');
 
@@ -136,6 +139,7 @@ function draw(el, data, ctx) {
     status.hidden = false; status.textContent = AI_NAME + ' is reading the numbers for ' + brandName + '. Usually 10 to 40 seconds.';
     const a = await askOnce(ctx, q, { thread, full: opts.full, sampleAnswers: d.answers });
     thread.push(a); keep(); paintAnswers();
+    const hist = el.querySelector('.lx-qa-hist'); if (hist && hist.parentNode && hist.parentNode.firstChild !== hist && thread.length === 1) hist.parentNode.insertBefore(hist, hist.parentNode.children[1]);
     busy = false; send.disabled = false; status.hidden = true;
     answers.firstChild && answers.firstChild.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
@@ -145,29 +149,42 @@ function draw(el, data, ctx) {
     h('label', { class: 'lx-cap', for: 'lxAskIn' }, 'Ask anything about ' + brandName),
     h('div', { class: 'lx-qa-row' }, Object.assign(input, { id: 'lxAskIn' }), send),
     chips.length ? h('div', { class: 'lx-qa-tries' }, h('span', { class: 'lab' }, 'Try'), chips) : null,
+    h('p', { class: 'lx-qa-tip' }, 'Tip: the ', h('b', null, 'Ask ' + AI_NAME), ' button in the top bar (Ctrl K) asks about the page you are on, with its brand and dates.'),
     status);
 
   const recent = (d.recent || []).slice(0, 6);
-  const recentCard = card({ title: 'Asked lately', note: d.recent_note || 'Newest first', flush: true },
-    recent.length ? h('div', { class: 'lx-rows lx-qa-recent' }, recent.map(r => h('button', { type: 'button', onclick: () => ask(r.q) },
-      h('span', { class: 't' }, r.q), r.who ? h('span', { class: 'who' }, r.who) : null, h('span', { class: 'when' }, r.when || (r.at ? relativeTime(r.at) : ''))))) : h('div', { class: 'lx-pad' }, h('p', { class: 'lx-foot' }, 'No questions asked here yet.')));
+  const recentCard = card({ title: 'Asked lately', note: [d.recent_note || 'Newest first', d.usage].filter(Boolean).join('. '), flush: true },
+    recent.length ? h('div', { class: 'lx-rows lx-qa-recent' }, recent.map(r => h('button', { type: 'button', title: 'Ask this again', onclick: () => ask(r.q) },
+      h('span', { class: 't' }, r.q), r.who ? h('span', { class: 'who' }, r.who) : null, h('span', { class: 'when' }, r.when || (r.at ? relativeTime(r.at) : '')), h('span', { class: 'again' }, 'Ask again')))) : h('div', { class: 'lx-pad' }, h('p', { class: 'lx-foot' }, 'No questions asked here yet.')));
 
   paintAnswers();
-  put(el, h('div', { class: 'lx-qa' }, box, answers, recentCard,
-    h('p', { class: 'lx-foot' }, (d.usage ? d.usage + '. ' : '') + 'Every sale and ROAS in an answer is Triple Whale, last platform click. Answers here are kept on this device.')));
+  const help = h('div', { class: 'lx-qa-bar' }, pageHelp({ body: [
+    { title: 'What it is for', text: 'Your history of answers from ' + AI_NAME + ', and a box to ask more. To ask about the page you are on, use the Ask ' + AI_NAME + ' button in the top bar (or Ctrl K): it sends that page, its brand and its dates with the question.' },
+    { title: 'Where the numbers come from', text: 'Every sale and ROAS in an answer is Triple Whale, last platform click. Store MER is the whole store; ROAS is one platform or campaign.' },
+    { title: 'Kept on this device', text: 'Answers here are kept on this device, per brand. Asked lately lists what the team asked in the last 30 days.' },
+  ] }));
+  /* the history is the point of this page: when there is one, it comes first */
+  const history = h('section', { class: 'lx-qa-hist' }, h('div', { class: 'lx-sec' }, h('h3', null, 'History'), h('span', { class: 'note' }, 'Your answers on this device, newest first')), answers);
+  put(el, h('div', { class: 'lx-qa' }, help, ...(thread.length ? [history, box] : [box, history]), recentCard));
 }
 
 const CSS = `
 .lx-qa{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--sp-8);min-width:0}
-.lx-qa-hero{grid-template-columns:minmax(0,1fr);gap:14px;padding:26px 32px}
+.lx-qa-hero{grid-template-columns:minmax(0,1fr);gap:12px;padding:var(--pad-card)}
+.lx-qa-bar{display:flex;align-items:center;min-height:28px}
+.lx-qa-hist{display:grid;gap:12px;min-width:0}
+.lx-qa-hist:has(.lx-qa-list:empty){display:none}
+.lx-qa-hist>.lx-sec{padding:0}
+.lx-qa-tip{margin:0;font-size:12.5px;color:var(--muted)}
+.lx-qa-tip b{font-weight:600;color:var(--ink-2)}
 .lx-qa-row{display:flex;gap:12px;align-items:flex-end}
-.lx-qa-in{flex:1;min-width:0;min-height:58px;max-height:160px;resize:none;padding:16px 18px;border:0;border-radius:16px;background:#fff;font:500 17px/1.4 var(--sans);color:var(--ink);letter-spacing:-.01em;box-shadow:0 0 0 1px rgba(28,20,10,.13),0 2px 6px rgba(28,20,10,.05)}
+.lx-qa-in{flex:1;min-width:0;min-height:44px;max-height:160px;resize:none;padding:11px 14px;border:0;border-radius:var(--r-md);background:var(--surface);font:500 var(--fs-body)/1.45 var(--sans);color:var(--ink);letter-spacing:-.01em;box-shadow:0 0 0 1px rgba(28,20,10,.13),0 2px 6px rgba(28,20,10,.05)}
 .lx-qa-in::placeholder{color:var(--faint)}
 .lx-qa-in:focus{outline:0;box-shadow:0 0 0 1.5px var(--e2),0 0 0 5px rgba(255,122,26,.16)}
-.lx-qa-row .lx-btn{height:58px;padding:0 24px;border-radius:16px;font-size:15.5px}
+.lx-qa-row .lx-btn{height:44px}
 .lx-qa-tries{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .lx-qa-tries .lab{font-size:13px;color:var(--muted);margin-right:2px}
-.lx-qa-try{border:0;cursor:pointer;padding:7px 13px;border-radius:999px;background:#fff;box-shadow:inset 0 0 0 1px var(--line-strong);font-size:13px;font-weight:500;color:var(--ink-2);text-align:left;max-width:100%;white-space:normal;line-height:1.35}
+.lx-qa-try{border:0;cursor:pointer;padding:7px 13px;border-radius:999px;background:var(--surface);box-shadow:inset 0 0 0 1px var(--line-strong);font-size:13px;font-weight:500;color:var(--ink-2);text-align:left;max-width:100%;white-space:normal;line-height:1.35}
 .lx-qa-try:hover{background:var(--surface-2);color:var(--ink)}
 .lx-qa .lx-sec{flex-wrap:wrap;row-gap:2px}
 .lx-qa-wait{font-size:13px;color:var(--muted)}
@@ -175,11 +192,11 @@ const CSS = `
 .lx-qa-list:empty{display:none}
 .lx-qa-a{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;min-width:0}
 .lx-qa-q{display:flex;justify-content:flex-end}
-.lx-qa-q span{max-width:min(640px,90%);padding:11px 16px;border-radius:16px 16px 4px 16px;background:var(--ink);color:#fff;font-size:14.5px;font-weight:550;line-height:1.4;overflow-wrap:anywhere}
+.lx-qa-q span{max-width:min(640px,90%);padding:11px 16px;border-radius:16px 16px 4px 16px;background:var(--ink);color:var(--bg);font-size:14px;font-weight:550;line-height:1.4;overflow-wrap:anywhere}
 .lx-qa-card{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--sp-6)}
 .lx-qa-say{display:flex;gap:14px;align-items:baseline}
 .lx-qa-say .by{flex:none;font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--brand-ink)}
-.lx-qa-say .w{display:grid;gap:8px;font-size:16px;line-height:1.5;color:var(--ink-2);min-width:0;overflow-wrap:anywhere}
+.lx-qa-say .w{display:grid;gap:8px;font-size:15px;line-height:1.5;color:var(--ink-2);min-width:0;overflow-wrap:anywhere}
 .lx-qa-say b{color:var(--ink);font-weight:650;font-variant-numeric:tabular-nums}
 .lx-qa-a.err .lx-qa-say .w{color:var(--bad)}
 .lx-qa-chart{position:relative;min-width:0}
@@ -192,11 +209,14 @@ const CSS = `
 .lx-qa-recent>button:hover{background:var(--surface-2)}
 .lx-qa-recent .t{flex:1;min-width:0;overflow-wrap:anywhere}
 .lx-qa-recent .who,.lx-qa-recent .when{flex:none;font-size:12.5px;color:var(--muted);white-space:nowrap}
+.lx-qa-recent .again{flex:none;font-size:12.5px;font-weight:600;color:var(--ink-2);white-space:nowrap}
+.lx-qa-recent>button:hover .again{color:var(--ink);text-decoration:underline;text-underline-offset:3px}
 @media (max-width:759px){
   .lx-qa-hero{padding:20px 18px}
   .lx-qa-row{flex-direction:column;align-items:stretch}
   .lx-qa-row .lx-btn{height:48px}
   .lx-qa-in{font-size:16px}
+  .lx-qa-recent .again{display:none}
   .lx-qa-card{padding:20px 18px}
   .lx-qa-tries .lab{width:100%}
   .lx-qa-say{flex-direction:column;gap:6px}

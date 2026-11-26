@@ -165,8 +165,10 @@ function mark(node, d) {
   node.addEventListener('pointerleave', e => { if (e.pointerType !== 'mouse') return; leaveT = setTimeout(() => { if (cur && cur.node === node && !cur.pinned) close(); }, 90); });
   node.addEventListener('focus', () => { if (node.matches(':focus-visible')) open(node, false); });
   node.addEventListener('blur', () => { if (cur && cur.node === node && !cur.pinned) close(); });
-  /* a tap or a click pins it open; the second one closes it. It never also sorts a header or follows a link. */
+  /* a tap or a click pins it open; the second one closes it. It never also follows a link.
+     In a sortable table header the click sorts instead (hover and focus still show the definition). */
   node.addEventListener('click', e => {
+    if (node.closest('th.can-sort')) return;
     e.preventDefault(); e.stopPropagation();
     if (cur && cur.node === node && cur.pinned) close(); else { if (cur && cur.node === node) cur.pinned = true; else open(node, true); }
   });

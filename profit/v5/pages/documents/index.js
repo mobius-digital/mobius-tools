@@ -6,7 +6,7 @@
 
 import { put } from '../../kit.js';
 import { h, hero, kpis, kpi, statusDot, button, em, empty, num, relativeTime } from '../../kit.js';
-import { css, dayOf, heading, row, list, copyBtn } from '../calendar/_cr.js';
+import { css, dayOf, heading, row, list, copyBtn, goNote, helpBar } from '../calendar/_cr.js';
 
 function draw(el, d, ctx) {
   css();
@@ -24,21 +24,30 @@ function draw(el, d, ctx) {
 
   const head = hero({ line: true }, h('div', { class: 'cr-fit' }, kpis([
     kpi({ label: 'Live documents', value: String(live.length), size: 'lg', sub: pages.length > live.length ? (pages.length - live.length) + ' turned off' : 'all links work' }),
-    ctx.isClient ? null : kpi({ label: 'Times opened', value: num(views), size: 'lg', sub: 'across the live links' }),
-    ctx.isClient ? null : kpi({ label: 'Last opened', value: last ? relativeTime(last) : 'never', size: 'lg', sub: last ? dayOf(last) : 'nobody has opened one yet' }),
+    ctx.isClient ? null : kpi({ label: 'Times opened', value: num(views), sub: 'across the live links' }),
+    ctx.isClient ? null : kpi({ label: 'Last opened', value: last ? relativeTime(last) : 'never', sub: last ? dayOf(last) : 'nobody has opened one yet' }),
   ].filter(Boolean), { cols: ctx.isClient ? 1 : 3 })));
+  /* "Last opened" is words: the word size, with the exact time on hover */
+  const lo = !ctx.isClient && head.querySelectorAll('.lx-kpi .v')[2];
+  if (lo) { lo.classList.add('words'); if (last) lo.title = new Date(last).toLocaleString('en-US'); }
 
   const rows = pages.map(p => row({
     title: p.title,
     sub: ['Updated ' + dayOf(p.updated_at), (p.acts || []).length > 1 ? 'Shared across ' + p.acts.length + ' brands' : null].filter(Boolean).join('. '),
     cells: [
       ctx.isClient ? null : { w: 110, class: 'hide-sm', label: 'Opened', node: num(p.views || 0) + (p.views === 1 ? ' time' : ' times') },
-      ctx.isClient ? null : { w: 110, class: 'hide-md', label: 'Last', node: p.last_view ? dayOf(p.last_view) : 'never' },
-      { w: 110, node: p.revoked ? statusDot('off', 'Turned off') : statusDot('good', 'Live') },
+      ctx.isClient ? null : { w: 110, class: 'hide-md', label: 'Last opened', node: p.last_view ? dayOf(p.last_view) : 'never' },
+      { w: 110, label: 'Status', node: p.revoked ? statusDot('off', 'Turned off') : statusDot('good', 'Live') },
     ],
-    action: p.revoked ? null : [button('Open', { href: p.url, target: '_blank', icon: 'arrow' }), ctx.isClient ? null : copyBtn(p.url)],
+    /* an ended link keeps the slot, so its cells stay under the other rows' */
+    action: p.revoked ? goNote('Link ended') : [button('Open', { href: p.url, target: '_blank', icon: 'arrow' }), ctx.isClient ? null : copyBtn(p.url)],
   }));
-  put(el, head, h('section', { class: 'cr-sect' }, heading('Pages for this client', pages.length), list(rows)));
+  const go = ctx.isClient ? 110 : 230;
+  put(el, helpBar([
+    { title: 'What it is for', text: ctx.isClient ? 'Pages your team made for you, like a plan or a walk-through, each on its own link.' : 'One-off pages made for this client (a growth plan, a walk-through, an analysis), each on its own public link, with how often it was opened.' },
+    { title: 'The links', text: 'Anyone with a link can open it without signing in. A turned off link shows a "link ended" page. ' + (ctx.isClient ? '' : 'Turn a link off from Agency > Shared links.') },
+  ]), head, h('section', { class: 'cr-sect' }, heading('Pages for this client', pages.length),
+    list(rows, null, { head: [ctx.isClient ? null : { label: 'Opened', w: 110, class: 'hide-sm' }, ctx.isClient ? null : { label: 'Last opened', w: 110, class: 'hide-md' }, { label: 'Status', w: 110 }], first: 'Page', go })));
 }
 
 export default {

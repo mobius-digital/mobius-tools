@@ -5,6 +5,7 @@
    Search Console runs two to three days behind, so the last days of a range can read low. */
 
 import { put } from '../../kit.js';
+import { askWhy, helpBar, rangeWords } from '../home/_biz.js';
 import { h, em, card, kpi, kpis, delta, takeaway, button, table, legend, lineChart, segmented, skeleton } from '../../kit.js';
 import { ok, move, shortDate, noteAt, css, head, barCell, split, before, notConnected, num, pct } from '../email/_em.js';
 
@@ -53,7 +54,7 @@ function verdict(d, ctx) {
   parts.push('.');
   const near = (d.queries || []).filter(q => !q.brand && q.position > 10 && q.position <= 20).sort((a, z) => z.impressions - a.impressions)[0];
   if (near) parts.push(' ', b('"' + near.query + '"'), ' is shown ', b(num(near.impressions)), ' times at position ', b(pos(near.position)), ': page two.');
-  return takeaway(parts, { action: ctx.isClient ? null : button('Ask why', { href: ctx.href('ask', 'index') }) });
+  return takeaway(parts, { action: ctx.isClient ? null : askWhy(ctx, 'Who finds the store on Google') });
 }
 
 function chartCard(d) {
@@ -80,7 +81,7 @@ function splitCard(d) {
   return card({ title: 'Searched the name, or found the store', note: `${pct(sp.other.clicks / all)} of clicks were not the brand's name` },
     split([
       { name: 'Searched something else', value: sp.other.clicks, text: num(sp.other.clicks), color: 'var(--ink)' },
-      { name: 'Searched the brand\'s name', value: sp.brand.clicks, text: num(sp.brand.clicks), color: '#C9CED9' },
+      { name: 'Searched the brand\'s name', value: sp.brand.clicks, text: num(sp.brand.clicks), color: 'var(--icon)' },
     ], 'Clicks from searches for the brand against other searches'));
 }
 
@@ -141,13 +142,16 @@ export default {
       return;
     }
     put(el, ...[
+      helpBar([
+        { title: 'What it is for', text: 'Who finds the store on Google search: clicks, what people searched and which pages Google sends them to.' },
+        { title: 'Where the numbers come from', text: 'Google Search Console: free search results only, not ads. Search Console runs two to three days behind, so the last days can read low.' },
+      ], h('span', { class: 'bz-chip' }, rangeWords(ctx, d.range))),
       h('section', { class: 'lx-hero line' }, figures(d)),
       verdict(d, ctx),
       chartCard(d),
       splitCard(d),
       queriesCard(d, ctx),
       pagesCard(d),
-      h('p', { class: 'lx-foot' }, 'Numbers from Google Search Console: free search results only, not ads. Search Console runs two to three days behind, so the last days can read low.'),
     ].filter(Boolean));
   },
 };

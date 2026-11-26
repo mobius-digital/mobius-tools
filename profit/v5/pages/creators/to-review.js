@@ -9,8 +9,8 @@
 import { APP_NAME } from '../../config.js';
 import { h, hero, kpi, kpis, em, button, statusDot, empty, skeleton } from '../../kit.js';
 import { SAMPLE } from '../../data.js';
-import { put, css, oldLocus } from '../production/_ui.js';
-import { crCss, clip, play, ago, todayOf, plural, keyedBrands } from './_cr.js';
+import { put, css, oldLocus, pageTop, teamTag } from '../production/_ui.js';
+import { crCss, clip, play, ago, todayOf, plural, keyedBrands, approveOld } from './_cr.js';
 
 export default {
   title: ['Which creator videos ', em('need a yes?')],
@@ -48,19 +48,23 @@ export default {
     const oldest = Math.max(...items.map(age));
     const videos = items.filter(i => i.media !== 'image').length;
     const people = new Set(items.map(i => i.creator)).size;
-    put(el,
-      hero({ line: true },
+    const kpiRow =
         kpis([
           kpi({ label: 'Waiting for a yes', value: String(items.length), sub: plural(people, 'creator') }),
-          kpi({ label: 'Oldest', value: plural(oldest, 'day'), sub: oldest >= 3 ? statusDot('bad', '3 days or more') : statusDot('good', 'under 3 days') }),
+          kpi({ label: 'Oldest', value: plural(oldest, 'day'), sub: oldest >= 3 ? statusDot('bad', 'over the 3 day line') : statusDot('good', 'inside the 3 day line') }),
           kpi({ label: 'Videos', value: String(videos), sub: plural(items.length - videos, 'photo') }),
-        ], { cols: 3 })),
-      h('div', { class: 'pd-tools' }, h('span', { class: 'cr-quiet' }, 'Oldest first. Tap a video to watch it.'), h('span', { class: 'lx-sp' }), oldLocus(ctx, { label: 'Review in old ' + APP_NAME })),
+        ], { cols: 3 });
+    const old = oldLocus(ctx, { label: 'Review in old ' + APP_NAME });
+    put(el,
+      pageTop([
+        { title: 'What it is for', text: 'The creator videos waiting for a yes for this brand, oldest first, each with what the creator says. A video waiting 3 days or more is over the line.' },
+        { title: 'Why approving is not here', text: 'Approving pays the creator and tells them, so it is done in old ' + APP_NAME + ' or the creator platform. Tap a video to watch it; the sheet has the button.' },
+      ], old ? teamTag() : null, old),
+      hero({ line: true }, kpiRow),
       h('div', { class: 'cr-grid' }, items.sort((a, b) => String(a.created_at).localeCompare(String(b.created_at))).map(it => h('article', { class: 'cr-tile' },
-        h('button', { type: 'button', 'aria-label': 'Watch the video by ' + it.creator, onclick: () => play(ctx, it) }, clip(it)),
-        h('div', null, h('b', null, it.creator), h('small', null, [it.product, ago(it.created_at, today)].filter(Boolean).join(', '))),
-        it.angle ? h('span', { class: 'lx-chip cr-tag' }, it.angle) : null,
-        it.line ? h('q', null, it.line) : null))),
-      h('p', { class: 'lx-foot' }, 'Read only here. Approving pays the creator and tells them, so it is done in old ' + APP_NAME + ' or the creator platform.'));
+        h('button', { type: 'button', 'aria-label': 'Watch the video by ' + it.creator, onclick: () => play(ctx, it, { primary: approveOld(ctx) }) }, clip(it, ago(it.created_at, today))),
+        h('div', null, h('b', null, it.creator), it.product ? h('small', null, it.product) : null),
+        it.angle ? h('span', { class: 'lx-chip cr-tag' }, 'Angle: ' + it.angle) : null,
+        it.line ? h('q', null, it.line) : null))));
   },
 };

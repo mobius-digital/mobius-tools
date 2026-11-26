@@ -4,9 +4,10 @@
    No route yet: units, returns and the first-order share per product (those columns show in sample mode only) and
    what is bought together (that card is drawn from the example file with a chip). */
 
-import { put } from '../../kit.js';
+import { put, sheet } from '../../kit.js';
+import { helpBar, dl, rangeWords } from '../home/_biz.js';
 import { h, em, card, kpi, kpis, table, barChart, skeleton, money } from '../../kit.js';
-import { ok, usd, sum, css, head, barCell, exampleChip, example, notConnected, num, pct } from '../email/_em.js';
+import { ok, usd, sum, css, head, barCell, exampleChip, example, notConnected, num, pct, hbars, kv } from '../email/_em.js';
 
 function shape(ctx, b, ex) {
   const rows = (b.products || []).map(p => ({ id: String(p.id), title: p.title, type: null, orders: p.orders, units: null, sales: p.revenue, returned: null, first_order: null }));
@@ -27,7 +28,7 @@ function figures(d) {
     kpi({ label: 'Best seller', size: 'lg', value: usd(top.sales), sub: top.title }),
     kpi({ label: 'Top three products', size: 'lg', value: total ? pct(top3 / total) : 'no data', sub: 'of product sales' }),
     kpi({ label: 'Products that sold', size: 'lg', value: num(rows.filter(r => r.orders > 0).length), sub: d.approx ? 'the top sellers in these dates' : 'in these dates' }),
-    kpi({ label: 'Orders read', size: 'lg', value: ok(d.orders) ? num(d.orders) : 'no data', sub: 'orders with products on them' }),
+    kpi({ label: dl('Orders', 'orders'), size: 'lg', value: ok(d.orders) ? num(d.orders) : 'no data', sub: 'in these dates' }),
   ], { cols: 4 });
   el.classList.add('em-kpis');
   return el;
@@ -36,24 +37,42 @@ function figures(d) {
 function chartCard(d) {
   const rows = d.products.slice().sort((a, b) => (b.sales || 0) - (a.sales || 0)).slice(0, 8);
   if (rows.length < 2) return null;
-  const b = v => h('b', null, v);
+  const total = sum(d.products, 'sales') || 1, b = v => h('b', null, v);
+  /* a bar list, so every product is named (a column chart had to drop labels) */
   return card({ class: 'em-chart' },
-    head('Sales by product', 'The top ' + rows.length),
-    barChart({ values: rows.map(r => r.sales || 0), labels: rows.map(r => short(r.title)), lead: 0, format: v => money(v, { compact: true }), height: 320, phoneHeight: 270,
-      label: 'Sales by product, the top ' + rows.length,
-      hover: i => [b(rows[i].title), h('span', null, 'Sales ', b(usd(rows[i].sales))), h('span', null, 'Orders ', b(num(rows[i].orders)))] }));
+    head('Sales by product', 'The top ' + rows.length + ', in these dates'),
+    hbars(rows.map(r => ({ name: r.title, value: r.sales || 0, text: usd(r.sales),
+      tip: [b(r.title), h('span', null, 'Sales ', b(usd(r.sales))), h('span', null, 'Orders ', b(num(r.orders))), h('span', null, 'Share ', b(pct((r.sales || 0) / total, { digits: 1 })))] }))));
+}
+
+/* One product, opened from its row: what is known about it in these dates, and what it is bought with. */
+function openProduct(r, d) {
+  const total = sum(d.products, 'sales') || 1;
+  const pairs = (d.pairs || []).filter(p => p.a === r.title || p.b === r.title).sort((a, b) => b.orders - a.orders).slice(0, 5);
+  const isEx = (d.example || []).includes('pairs');
+  sheet({ title: r.title, body: h('div', { class: 'em-sheet' },
+    h('div', { class: 'tiles' },
+      h('div', null, h('small', null, 'Sales'), h('b', null, usd(r.sales)), h('span', null, pct((r.sales || 0) / total, { digits: 1 }) + ' of product sales')),
+      h('div', null, h('small', null, 'Orders'), h('b', null, num(r.orders)), h('span', null, ok(r.units) ? num(r.units) + ' units' : 'units not read')),
+      h('div', null, h('small', null, dl('In first orders', 'in_first_orders')), h('b', null, ok(r.first_order) ? pct(r.first_order) : 'not read'), h('span', null, 'of its orders')),
+      h('div', null, h('small', null, 'Returned'), h('b', null, ok(r.returned) ? pct(r.returned, { digits: 1 }) : 'not read'), h('span', null, 'of units'))),
+    kv([r.type && ['Type', r.type], ['Average order with it', r.orders > 0 ? usd(r.sales / r.orders) : 'no data']]),
+    h('div', null, h('h4', null, 'Bought with', isEx ? exampleChip() : null),
+      pairs.length ? kv(pairs.map(p => [p.a === r.title ? p.b : p.a, num(p.orders) + ' orders'])) : h('p', { class: 'quiet' }, 'Nothing bought with it often enough to show.')),
+    h('p', { class: 'quiet' }, 'Sales by day for one product are not read yet; the store total by day is on Sales > By day.')) });
 }
 
 function listCard(d) {
+  const open = r => openProduct(r, d);
   const rows = d.products, total = sum(rows, 'sales') || 1, has = k => rows.some(r => ok(r[k]));
   return card({ title: 'Every product', note: d.approx ? 'an order\'s money is shared between its products' : 'sorted by sales', flush: true, class: 'em-flush' },
-    table({ roomy: true, rows, sort: { key: 'sales', dir: 'desc' }, cols: [
+    table({ roomy: true, rows, sort: { key: 'sales', dir: 'desc' }, onRow: open, cols: [
       { key: 'title', label: 'Product', class: 'name', render: r => h('span', { class: 'em-name' }, r.title, r.type ? h('small', null, r.type) : null) },
       { key: 'orders', label: 'Orders', num: true, sortable: true, render: r => num(r.orders) },
       has('units') && { key: 'units', label: 'Units', num: true, sortable: true, class: 'hide-sm', render: r => (ok(r.units) ? num(r.units) : '') },
-      has('first_order') && { key: 'first_order', label: 'In first orders', num: true, sortable: true, class: 'hide-md', render: r => (ok(r.first_order) ? pct(r.first_order) : '') },
+      has('first_order') && { key: 'first_order', label: dl('In first orders', 'in_first_orders'), num: true, sortable: true, class: 'hide-md', render: r => (ok(r.first_order) ? pct(r.first_order) : '') },
       has('returned') && { key: 'returned', label: 'Returned', num: true, sortable: true, class: 'hide-md', render: r => (ok(r.returned) ? pct(r.returned, { digits: 1 }) : '') },
-      { key: 'share', label: 'Share', num: true, class: 'hide-sm', value: r => r.sales, render: r => pct((r.sales || 0) / total, { digits: 1 }) },
+      { key: 'share', label: dl('Share', 'share_of_sales'), num: true, class: 'hide-sm', value: r => r.sales, render: r => pct((r.sales || 0) / total, { digits: 1 }) },
       { key: 'sales', label: 'Sales', num: true, sortable: true, render: r => barCell(h('span', { class: 'strong' }, usd(r.sales)), (r.sales || 0) / (rows.reduce((m, x) => Math.max(m, x.sales || 0), 1))) },
     ].filter(Boolean) }));
 }
@@ -99,12 +118,14 @@ export default {
     }
     const isEx = (d.example || []).includes('pairs');
     put(el, ...[
+      helpBar([
+        { title: 'What it is for', text: 'Which products carry the store on the dates at the top. Tap a product for its detail.' },
+        { title: 'Where the numbers come from', text: 'Orders and sales are from Triple Whale\'s orders.' + (d.approx ? ' Sales per product are close, not exact: an order\'s money is shared between the products in it.' : '') + (isEx ? ' "Bought together" is an example until its data feed is built.' : '') },
+      ], h('span', { class: 'bz-chip' }, rangeWords(ctx, d.range))),
       h('section', { class: 'lx-hero line' }, figures(d)),
       chartCard(d),
       listCard(d),
       pairsCard(d),
-      h('p', { class: 'lx-foot' }, 'Orders and sales are from Triple Whale\'s orders.' + (d.approx ? ' Sales per product are close, not exact: an order\'s money is shared between the products in it.' : '')
-        + (isEx ? ' "Bought together" is an example until its data feed is built.' : '')),
     ].filter(Boolean));
   },
 };

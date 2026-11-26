@@ -7,29 +7,42 @@
    count today, because Triple Whale sales per Google campaign are not read yet, and the page says so. */
 
 import { put } from '../../kit.js';
-import { h, em, card, button, pill, empty } from '../../kit.js';
-import { styles, gate, loadSuggestions, sampleGoogle, footNote, strip } from './_g.js';
+import { h, em, card, button, pill, empty, gauge, money, x } from '../../kit.js';
+import { def, defOn, headRow, levelChip } from '../platforms/_ads.js';
+import { styles, gate, loadSuggestions, sampleGoogle, strip } from './_g.js';
 
 const KIND = {
   block: ['bad', 'Block'], lower: ['warn', 'Lower'], raise: ['good', 'Raise'],
   watch: ['', 'Watch'], feed: ['bad', 'Feed'], fix: ['warn', 'Fix'],
 };
 
+const KIND_WORDS = { block: 'Stop paying for it: block the search terms or products named.', lower: 'Spend less here: lower the budget or bid.', raise: 'Spend more here: it is beating the goal.',
+  watch: 'Not a change yet: keep an eye on it this week.', feed: 'A product feed problem in Merchant Center keeps a product from showing.', fix: 'Something is set up wrong and needs fixing.' };
+const LEVEL_OF = { 'Merchant Center': 'Product feed' };
+/** the measure against its goal, when the row carries one: { value, goal, unit: 'cpa' | 'roas' } */
+function measure(m) {
+  if (!m || m.value == null) return h('div', { class: 'gg-sm' });
+  const cost = m.unit === 'cpa', bad = cost ? m.value > m.goal : m.value < m.goal;
+  return h('div', { class: 'gg-sm' }, h('div', { class: 'v' }, h('b', { class: bad ? 'bad' : 'good' }, cost ? money(Math.round(m.value)) : x(m.value)), h('span', null, cost ? 'a new customer' : 'ROAS')),
+    m.goal ? gauge({ value: m.value, max: Math.max(m.value * 1.1, m.goal * (cost ? 2 : 1.6)), goal: m.goal, thin: true, tone: bad ? 'bad' : 'good', ticks: [{ side: 'l', text: cost ? '$0' : '0' }, { at: m.goal, text: 'goal ' + (cost ? money(m.goal) : x(m.goal)), on: true }] }) : null,
+    h('span', { class: 'per' }, 'last 30 days'));
+}
 function row(s, ctx) {
   const k = KIND[s.kind] || ['', 'Look'];
   return h('div', { class: 'gg-sug' },
-    pill(k[0], k[1]),
+    defOn(pill(k[0], k[1]), { title: k[1], body: KIND_WORDS[s.kind] || 'Look closer.' }),
     h('span', { class: 'tx' },
       h('b', null, s.title),
+      s.where ? h('span', { class: 'o' }, levelChip(LEVEL_OF[s.where] || (s.level || 'Campaign')), ' Google, ', s.where) : null,
       s.why ? h('span', null, s.why) : null,
-      s.fix ? h('span', null, s.fix) : null,
-      s.where ? h('span', { class: 'w' }, s.where) : null),
+      s.fix ? h('span', null, s.fix) : null),
+    measure(s.measure),
     s.open ? button(s.open_label || 'Open', { href: ctx.href('google', s.open), icon: 'arrow' }) : null);
 }
 
 export default {
   title: ['What should the Google buyer ', em('change this week?')],
-  eyebrow: 'Google',
+  eyebrow: 'Google, last 30 days',
   ranges: false,
   load: loadSuggestions,
   sample: sampleGoogle,
@@ -42,18 +55,21 @@ export default {
     const onTw = s.judged === 'tw';
     const judged = onTw ? 'Judged on Triple Whale, Google’s own count beside it.'
       : 'Judged on Google’s own count for now: Triple Whale sales per Google campaign are not read yet.';
+    const help = [
+      { title: 'What it is for', text: 'What the Google buyer should change this week, biggest money first, from the last 30 days. Each row opens the tab where the thing is seen.' },
+      { title: 'Read only', text: 'Nothing on this page writes to Google Ads: the change itself is made in Google Ads. ' + judged },
+      (s.rules || []).length ? { title: 'Rules it keeps', text: s.rules.join('\n\n') } : null,
+    ].filter(Boolean);
     if (!decide.length && !watching.length) {
-      return put(el, 
-        strip({ title: 'Nothing to change on Google this week', text: 'No search term, campaign or product crossed a line in the last 30 days.' }),
-        footNote('Last 30 days. ' + judged + ' Nothing changes from this page.'));
+      return put(el, headRow({ help }),
+        strip({ title: 'Nothing to change on Google this week', text: 'No search term, campaign or product crossed a line in the last 30 days.' }));
     }
     put(el, ...[
+      headRow({ help }),
       h('div', { class: 'gg-n' }, h('b', null, String(decide.length)), h('span', null, 'to decide'),watching.length ? h('span', null, '· ' + watching.length + ' watching') : null),
       !onTw ? strip({ ic: 'google', title: 'Google’s count, not Triple Whale', text: judged + (s.note ? ' ' + s.note : '') }) : null,
-      decide.length ? card({ title: 'To decide', note: 'biggest money first' }, decide.map(r => row(r, ctx))) : null,
+      decide.length ? card({ title: 'To decide', note: 'Google, last 30 days, biggest money first' }, decide.map(r => row(r, ctx))) : null,
       watching.length ? card({ title: 'Watching', note: 'not a change yet' }, watching.map(r => row(r, ctx))) : null,
-      (s.rules || []).length ? card({ title: 'Rules it keeps' }, h('ul', { class: 'gg-rules' }, s.rules.map(t => h('li', null, t)))) : null,
-      footNote('Last 30 days. ' + judged + ' Read only: the change itself is made in Google Ads.'),
     ].filter(Boolean));
   },
 };

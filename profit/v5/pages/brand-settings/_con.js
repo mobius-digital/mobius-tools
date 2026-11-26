@@ -21,14 +21,19 @@ export function conRow(it, use) {
       h('p', null, it.checks.map(c => h('span', { style: { display: 'block' } }, statusDot(c.ok ? 'good' : 'off', c.name), ' ', text(c.note))))) : null);
 }
 
+/** The column headers over a list of connection rows: Connection | Status | Detail | Used for */
+export function conHead(last = 'Used for') {
+  return h('div', { class: 'lx-st-con head', role: 'presentation' }, h('div', null, 'Connection'), h('div', null, 'Status'), h('div', null, 'Detail'), h('div', null, last));
+}
+
 /** Group rows under their group names, in the order given. */
-export function conGroups(items, order, useOf) {
+export function conGroups(items, order, useOf, last) {
   const groups = new Map();
   /* the worker's 'Work' group is shown as 'Production tools': Work is not a menu name any more */
   for (const it of items) { const g = it.group === 'Work' ? 'Production tools' : it.group || 'Other'; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(it); }
   const names = [...new Set([...order.map(g => g === 'Work' ? 'Production tools' : g).filter(g => groups.has(g)), ...groups.keys()])];
   return names.map(g => card({ title: g, note: groups.get(g).filter(i => i.state === 'ok').length + ' of ' + groups.get(g).length + ' connected', flush: true, class: 'lx-st-card' },
-    h('div', { class: 'lx-st-rows' }, groups.get(g).map(it => conRow(it, useOf ? useOf(it) : null)))));
+    h('div', { class: 'lx-st-rows' }, conHead(last), groups.get(g).map(it => conRow(it, useOf ? useOf(it) : null)))));
 }
 
 /** The band at the top: how many are connected, and what needs a look. */

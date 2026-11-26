@@ -6,6 +6,7 @@ import { em, h, statusDot, addStyles } from '../../kit.js';
 import { world } from '../a-today/_ag.js';
 import { renderSuggestions } from '../a-today/_more.js';
 import { canWrite, yesNo } from '../meta/_write.js';
+import { polishSuggestions } from '../platforms/_ads.js';
 
 const callOf = r => ({ key: r.key, kind: r.kind, act_id: r.act_id, brand: r.brand, currency: r.currency, object: r.object, level: r.level, name: r.name, set: r.set, action: r.action,
   why: r.why, why_full: r.why_full, stake: r.stake, do: r.do || null, then: r.then || null, meta_act: r.meta_act, adset_id: r.adset_id, adset: r.adset, ad_id: r.ad_id, ad: r.ad,
@@ -36,6 +37,7 @@ const CSS = `
 
 function render(el, d, ctx) {
   renderSuggestions(el, d, ctx, 'meta');
+  polishSuggestions(el, d, { platform: 'meta', days: 7 });
   if (!canWrite(ctx)) return;
   addStyles('am-css', CSS);
   /* Each row's buttons go on the row with its own id, never by position. A row whose id is missing or not unique stays read only. */
@@ -52,8 +54,6 @@ function render(el, d, ctx) {
     fill(null);
     n.append(box);
   });
-  const foot = el.querySelector('.lx-foot');
-  if (foot) foot.textContent = 'Yes makes the change in Meta after a look at the before and after, and logs it under Changes made, where it can be undone for 24 hours. No changes nothing and keeps your reason as a lesson.';
 }
 
 export default {

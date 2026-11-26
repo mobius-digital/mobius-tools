@@ -6,6 +6,7 @@ import { APP_NAME } from '../../config.js';
 import { exampleChip as kitExampleChip, put as kitPut } from '../../kit.js';
 import { h, s, svgNode, button, avatar, addStyles } from '../../kit.js';
 import { icon } from '../../icons.js';
+import { defined, pageHelp } from '../../defs.js';
 
 /* ---------- stages ---------- */
 /* The board's own columns (the worker's names) and the five columns people read.
@@ -118,9 +119,10 @@ export function picture({ src, art, video = false, ratio = '4/3', alt = '', badg
 }
 
 /* ---------- people ---------- */
-/** who('Riley Chen', photos) : the photo when the data has one, initials otherwise; "?" when nobody owns it. */
+/** who('Riley Chen', photos) : the photo when the data has one, initials otherwise (the full name on hover);
+    a small "Nobody" tag when nobody owns it. */
 export function who(name, photos, size = 22) {
-  if (!name) return h('span', { class: 'pd-nobody', title: 'Nobody yet', style: { width: size + 'px', height: size + 'px' } }, '?');
+  if (!name) return h('span', { class: 'pd-nobody', title: 'Nobody has this card yet' }, 'Nobody');
   const first = String(name).split(' ')[0];
   const el = avatar({ name, photo: (photos && (photos[name] || photos[first])) || null }, { size });
   el.title = name;
@@ -133,10 +135,19 @@ export const put = kitPut; /* one version, in the kit */
 /** The chip on anything drawn from a fixture while real numbers are on (its data feed is not built yet). */
 export const exampleChip = kitExampleChip; /* one version, in the kit */
 /** The one way to change something from these pages for now. Hidden from a client. */
-export function oldLocus(ctx, { label = 'Open in old ' + APP_NAME, href, large = false } = {}) {
+export function oldLocus(ctx, { label = 'Open in old ' + APP_NAME, href, large = false, primary = false } = {}) {
   const to = href || ctx.legacy;
-  return !to || ctx.isClient ? null : button(label, { href: to, target: '_blank', icon: 'arrow', large });
+  return !to || ctx.isClient ? null : button(label, { href: to, target: '_blank', icon: 'arrow', large, primary, ghost: !primary, title: 'Opens old ' + APP_NAME + ' in a new tab' });
 }
+/** The small "Team only" tag (same look as the kit tabs), with its hover definition. */
+export const teamTag = () => defined(h('span', { class: 'lx-team-tag' }, 'Team only'), 'team_only');
+/** The one row at the top of a page: "What is this page?" on the left, quiet extras on the right.
+    body: text or [{ title, text }] (the help sheet). */
+export function pageTop(body, ...right) {
+  return h('div', { class: 'pd-top' }, pageHelp({ body }), h('span', { class: 'lx-sp' }), ...right);
+}
+/** A status dot that explains itself on hover or tap. */
+export const dotDef = (dot, name, definition) => defined(dot, { name, definition });
 export const cardLink = (ctx, id) => (ctx.legacy && id ? ctx.legacy + '&card=' + encodeURIComponent(id) : ctx.legacy);
 export const sect = (title, note, right) => h('div', { class: 'pd-sect' }, h('h2', null, title), note != null && note !== '' ? h('span', null, note) : null, h('span', { class: 'lx-sp' }), right || null);
 export const lucide = name => svgNode(icon(name));
@@ -144,6 +155,11 @@ export const lucide = name => svgNode(icon(name));
 /* ---------- layout rules ---------- */
 const CSS = `
 .pd-tools{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.pd-top{display:flex;gap:10px;align-items:center;flex-wrap:wrap;min-width:0}
+.pd-top>.cr-quiet,.pd-top>.note{font-size:13px;color:var(--muted)}
+.pd-kpi-go{cursor:pointer;border-radius:12px;transition:background var(--t) var(--ease)}
+.pd-kpi-go:hover{background:var(--row-hover)}
+.pd-kpi-go:focus-visible{outline:2px solid var(--ink-2);outline-offset:2px}
 .pd-sect{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:-12px}
 .pd-sect h2{font-size:18px;font-weight:600;letter-spacing:-.02em}
 .pd-sect>span{font-size:13px;color:var(--muted)}
@@ -167,7 +183,7 @@ const CSS = `
 .pd-play{position:absolute;left:8px;bottom:8px;width:26px;height:26px;border-radius:50%;background:rgba(22,19,15,.72);color:#fff;display:grid;place-items:center}
 .pd-play .lx-ic{width:13px;height:13px;fill:currentColor;stroke:none}
 .pd-badge{position:absolute;right:8px;bottom:8px;padding:2px 7px;border-radius:999px;background:rgba(22,19,15,.72);color:#fff;font-size:11.5px;font-weight:600;font-variant-numeric:tabular-nums}
-.pd-nobody{display:inline-grid;place-items:center;border-radius:50%;background:var(--bg-sunk);color:var(--muted);font-size:11px;font-weight:600;flex:none}
+.pd-nobody{display:inline-flex;align-items:center;height:18px;padding:0 7px;border-radius:999px;background:var(--bg-sunk);color:var(--muted);font-size:10.5px;font-weight:600;white-space:nowrap;flex:none}
 
 /* the board */
 .pd-board{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;align-items:start}
@@ -176,7 +192,7 @@ const CSS = `
 .pd-col-h span{color:var(--muted);font-weight:500;font-variant-numeric:tabular-nums}
 .pd-col-none{padding:4px 6px 8px;font-size:12.5px;color:var(--faint)}
 .pd-col-more{padding:2px 6px 6px;font-size:12.5px;color:var(--muted)}
-.pd-card{display:grid;gap:8px;width:100%;min-width:0;padding:10px;border:0;border-radius:14px;background:#fff;box-shadow:var(--sh-1);text-align:left;cursor:pointer;transition:box-shadow var(--t) var(--ease),transform var(--t) var(--ease)}
+.pd-card{display:grid;gap:8px;width:100%;min-width:0;padding:10px;border:0;border-radius:14px;background:var(--surface);box-shadow:var(--sh-1);text-align:left;cursor:pointer;transition:box-shadow var(--t) var(--ease),transform var(--t) var(--ease)}
 .pd-card:hover{box-shadow:var(--sh-2);transform:translateY(-1px)}
 .pd-meta{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);min-width:0;flex-wrap:wrap}
 .pd-meta b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
@@ -204,7 +220,7 @@ const CSS = `
 .pd-grid{display:grid;grid-template-columns:repeat(var(--cols,4),minmax(0,1fr));gap:18px}
 .pd-tile{display:grid;grid-template-columns:minmax(0,1fr);gap:9px;min-width:0;align-content:start;padding:0;border:0;background:none;text-align:left;font:inherit;color:inherit;text-decoration:none;cursor:pointer}
 .pd-tile .pd-pic{border-radius:14px;box-shadow:0 0 0 1px var(--line)}
-.pd-tile b{display:block;font-size:13.5px;font-weight:600;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pd-tile b{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:13.5px;font-weight:600;line-height:1.3;overflow:hidden}
 .pd-tile small{display:block;font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pd-tile q{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:12.5px;color:var(--ink-2);quotes:none;line-height:1.4}
 .pd-by{display:flex;align-items:center;gap:8px;min-width:0}

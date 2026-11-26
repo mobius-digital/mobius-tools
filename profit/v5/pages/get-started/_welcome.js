@@ -37,7 +37,7 @@ function cards(brand) {
     { t: 'Tell us what is missing', p: LAST_CARD, last: true },
   ];
 }
-/* Cole's words for the last card (2026-11-26), exactly. */
+/* The owner's words for the last card (2026-11-26), exactly. */
 export const LAST_CARD = APP_NAME + ' is new and we keep building it. Look around. If something is missing, confusing, or you have an idea that would help you, tell ' + OWNER_FIRST + '. Tap below to message the team, or tell him in Slack.';
 export const _cards = cards;
 

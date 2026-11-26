@@ -7,7 +7,20 @@
 import { APP_NAME } from '../../config.js';
 import { put } from '../../kit.js';
 import { h, em, empty, card, table, statusDot } from '../../kit.js';
-import { css, stage, saveBar, group, say, numBox, dayChips, fold, facts, exampleChip, row } from '../brand-settings/_set.js';
+import { css, stage, saveBar, group, say, numBox, dayChips, fold, setHelp, exampleChip, row } from '../brand-settings/_set.js';
+import { defLabel } from '../../defs.js';
+
+/* the words in the rule sentences that need a meaning on hover */
+const T = {
+  results: () => defLabel('results', { title: 'Results', body: 'What the ad set is set to get: a purchase for a sales campaign, a lead for a lead campaign. Counted by Triple Whale, last platform click.' }),
+  goal: () => defLabel('goal', { title: 'Goal', body: 'The brand’s goal cost for one result (Brand settings, Goals). “Spent 2x its goal” means it spent twice that cost.' }),
+  goalCost: () => defLabel('goal cost', { title: 'Goal cost', body: 'The most one result should cost for this brand: cost per sale, per new customer or per lead, set in Brand settings, Goals.' }),
+  roas: () => defLabel('goal ROAS', 'roas'),
+  freq: () => defLabel('frequency', 'frequency'),
+  ctr: () => defLabel('click rate', 'ctr'),
+  mer: () => defLabel('MER', 'mer'),
+};
+const chipText = x => x.key === 'cr_min_days' ? 'Wait ' + x.value + ' days' : x.key === 'judge_days' ? 'Judge on ' + x.value + ' days' : WORD[x.key] + ' ' + x.value + (x.key === 'cr_scale_buys' ? '' : 'x');
 
 const CR = ['cr_judge_x', 'cr_min_days', 'cr_scale_buys', 'cr_cut_zero_x', 'cr_cut_spend_x', 'cr_cut_cpa_x', 'judge_days'];
 const WORD = { cr_judge_x: 'Wait (times goal)', cr_min_days: 'Wait (days)', cr_scale_buys: 'Scale at results', cr_cut_zero_x: 'Cut, none (times goal)', cr_cut_spend_x: 'Cut, spent (times goal)', cr_cut_cpa_x: 'Cut, over goal', judge_days: 'Judge window' };
@@ -21,25 +34,32 @@ function draw(el, data, ctx) {
   const ex = data.exceptions || [];
 
   put(el, h('div', { class: 'lx-st' },
-    saveBar(S, ctx, { note: ctx.sample ? undefined : 'The agency standard is kept on this device until the settings release. No brand’s rules change from here yet.' }),
-    group('The daily ad call', 'Every Meta call follows these, in this order. The goal is each brand’s own.',
-      say(h('b', null, 'Wait. '), 'Make no call on an ad set until it has spent ', n('cr_judge_x', 2, { suffix: 'x' }), ' its goal and run ', n('cr_min_days', 3, { suffix: 'days', width: 34 }), '.'),
+    saveBar(S, ctx, { note: ctx.sample ? undefined : 'The agency standard is kept on this device until the settings release. No brand’s rules change from here yet.', help: setHelp({
+      about: 'The agency standard for running ads: the rules every daily Meta ad call follows, budget and launch rules for every platform, and the sale ladder. A brand can hold its own numbers (listed below). Hover or tap a dotted word for its meaning.',
+      fixed: [
+        ['Attribution for every call', 'Triple Whale, last platform click', 'Meta’s own count is a second opinion only. Not a setting.'],
+        ['Undo', '24 hours on every change ' + APP_NAME + ' makes', 'Every change lands in Changes made.'],
+        ['Paused for 14 days', 'Never switched back on by ' + APP_NAME, 'A person turns it back on.'],
+        ['A new prospecting ad set', 'Never turned off for weak ROAS', 'Its job is finding new buyers. Fix it with new ads.'],
+      ] }) }),
+    group('The daily Meta ad call', 'Meta. Every call follows these, in this order. The goal is each brand’s own.',
+      say(h('b', null, 'Wait. '), 'Make no call on an ad set until it has spent ', n('cr_judge_x', 2, { suffix: 'x' }), ' its ', T.goal(), ' and run ', n('cr_min_days', 3, { suffix: 'days', width: 34 }), '.'),
       say(h('b', null, 'Ad set first. '), 'Judge the ad set before its ads. The ad taking most of the spend in a working set stays on: replace it, do not kill it.'),
-      say(h('b', null, 'Scale '), 'an ad set with ', n('cr_scale_buys', 3), ' or more results on goal, or at the goal ROAS. Raise it ', n('raise_pct', 20, { suffix: '%', label: 'Raise step' }), ' and watch ', n('watch_days', 3, { suffix: 'days', width: 34, label: 'Watch days' }), '.'),
-      say(h('b', null, 'Cut '), 'when it spent ', n('cr_cut_zero_x', 3, { suffix: 'x' }), ' the goal with no result, or ', n('cr_cut_spend_x', 3, { suffix: 'x' }), ' the goal at more than ', n('cr_cut_cpa_x', 1.5, { suffix: 'x', step: 0.1 }), ' the goal cost. Never while its ROAS beats the goal ROAS.'),
-      say(h('b', null, 'Refresh '), 'when the click rate falls ', n('refresh_ctr', 20, { suffix: '%', label: 'Click rate drop' }), ' and frequency rises.'),
+      say(h('b', null, 'Scale '), 'an ad set with ', n('cr_scale_buys', 3), ' or more ', T.results(), ' on goal, or at the ', T.roas(), '. Raise it ', n('raise_pct', 20, { suffix: '%', label: 'Raise step' }), ' and watch ', n('watch_days', 3, { suffix: 'days', width: 34, label: 'Watch days' }), '.'),
+      say(h('b', null, 'Cut '), 'when it spent ', n('cr_cut_zero_x', 3, { suffix: 'x' }), ' the goal with no result, or ', n('cr_cut_spend_x', 3, { suffix: 'x' }), ' the goal at more than ', n('cr_cut_cpa_x', 1.5, { suffix: 'x', step: 0.1 }), ' the ', T.goalCost(), '. Never while its ROAS beats the goal ROAS.'),
+      say(h('b', null, 'Refresh '), 'when the ', T.ctr(), ' falls ', n('refresh_ctr', 20, { suffix: '%', label: 'Click rate drop' }), ' and ', T.freq(), ' rises.'),
       say(h('b', null, 'Slow ad sets '), 'with fewer than ', n('slow_results', 7, { label: 'Slow results a week' }), ' results a week are judged on ', n('slow_days', 14, { suffix: 'days', width: 34, label: 'Slow window' }), '.')),
-    group('Budgets and launches', null,
+    group('Budgets and launches', 'All platforms',
       say('Never move a budget more than ', n('max_step', 50, { suffix: '%', label: 'Largest step' }), ' in one step.'),
       say('A lead costs ', n('cpl_lo', 0.5, { prefix: '$', step: 0.05, width: 44, label: 'Lead cost low' }), ' to ', n('cpl_hi', 0.75, { prefix: '$', step: 0.05, width: 44, label: 'Lead cost high' }), ' on goal. Under the low end, scale hard.'),
       row('Launch days', 'New ads wait for the next launch day. A brand can keep its own.', dayChips(S, k('launch_days'), d.launch_days || ['mon', 'thu']))),
-    group('In a sale', 'Black Friday and every sale weekend, on whole store MER',
-      say('MER at ', n('ladder_hi', 1.5, { suffix: 'x', step: 0.1, label: 'Raise hard at' }), ' the goal: raise ', n('ladder_hi_pct', 50, { suffix: '%', label: 'Raise hard by' }), '. At the goal: raise ', n('ladder_on_pct', 25, { suffix: '%', label: 'Raise by' }), '. Under break-even: cut ', n('ladder_cut_pct', 25, { suffix: '%', label: 'Cut by' }), '.')),
+    group('In a sale', 'All platforms. Black Friday and every sale weekend, on whole store MER',
+      say(T.mer(), ' at ', n('ladder_hi', 1.5, { suffix: 'x', step: 0.1, label: 'Raise hard at' }), ' the goal: raise ', n('ladder_hi_pct', 50, { suffix: '%', label: 'Raise hard by' }), '. At the goal: raise ', n('ladder_on_pct', 25, { suffix: '%', label: 'Raise by' }), '. Under break-even: cut ', n('ladder_cut_pct', 25, { suffix: '%', label: 'Cut by' }), '.')),
     card({ title: 'Brands with their own numbers', note: ex.length ? ex.length + (ex.length === 1 ? ' brand differs' : ' brands differ') + ' from the standard' : 'None. Every brand runs the standard.', flush: true, class: 'lx-st-card',
       action: data.example ? exampleChip() : null },
       ex.length ? table({ cols: [
         { key: 'name', label: 'Brand', render: r => h('b', null, r.name) },
-        { key: 'diff', label: 'Its own numbers', render: r => r.diff.map(x => WORD[x.key] + ' ' + x.value + (x.key === 'judge_days' || x.key === 'cr_min_days' ? ' days' : x.key === 'cr_scale_buys' ? '' : 'x')).join(', ') },
+        { key: 'diff', label: 'Its own numbers', render: r => h('span', { class: 'lx-hw-chips' }, r.diff.map(x => h('span', { class: 'lx-chip' }, chipText(x)))) },
         { key: 'go', label: '', num: true, class: 'hide-sm', render: r => h('a', { href: '#/brand/' + String(r.id).replace(/^brand_/, '').replace(/_/g, '-') + '/brand-settings/goals' }, 'Open') },
       ], rows: ex }) : null),
     fold('Advanced', 'Guards rarely touched',
@@ -48,12 +68,7 @@ function draw(el, data, ctx) {
       say('Flag a tracking gap at ', n('gap_sales', 3, { label: 'Gap sales' }), ' sales and ', n('gap_pct', 30, { suffix: '%', label: 'Gap share' }), ' apart.'),
       say('A stalled ad set spent under ', n('stall_spend', 20, { prefix: '$', label: 'Stalled spend' }), ' in 7 days.'),
       say('Hold a raise when the month is under ', n('hold_pace', 70, { suffix: '%', label: 'Hold under pace' }), ' of pace.')),
-    facts('Stays fixed', [
-      ['Attribution for every call', 'Triple Whale, last platform click', 'Meta’s own count is a second opinion only. Not a setting.'],
-      ['Undo', '24 hours on every change ' + APP_NAME + ' makes', 'Every change lands in Changes made.'],
-      ['Paused for 14 days', 'Never switched back on by ' + APP_NAME, 'A person turns it back on.'],
-      ['A new prospecting ad set', 'Never turned off for weak ROAS', 'Its job is finding new buyers. Fix it with new ads.'],
-    ])));
+  ));
 }
 
 export default {
@@ -77,3 +92,6 @@ export default {
   },
   render: draw,
 };
+
+import { addStyles } from '../../kit.js';
+addStyles('lx-hw-css', `.lx-hw-chips{display:inline-flex;gap:6px;flex-wrap:wrap}`);

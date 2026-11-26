@@ -8,7 +8,8 @@ import { h, hero, kpi, kpis, em, num, button, statusDot, empty, skeleton, relati
 import { workers, ORG_SHORT, APP_NAME } from '../../config.js';
 import { SAMPLE } from '../../data.js';
 import { put, css, oldLocus, plural } from '../production/_ui.js';
-import { lbCss, chips, search, openItem, picture, assetsButton, withAssets } from './_lib.js';
+import { lbCss, chips, search, openItem, picture, assetsButton, withAssets, pageTop, teamTag } from './_lib.js';
+import { defLabel } from '../../defs.js';
 
 const src = (ctx, x) => (x.thumb_key ? `${workers().ah}/assets-img/${encodeURIComponent(ctx.brand.id)}/${encodeURIComponent(x.file_id)}` : null);
 const ratioOf = x => (x.w && x.h ? (x.h > x.w * 1.1 ? '4/5' : x.w > x.h * 1.1 ? '4/3' : '1/1') : '4/5');
@@ -58,28 +59,32 @@ export default {
     const draw = () => {
       const shown = items.filter(x => (who === 'all' || (who === 'yes' ? x.people > 0 : who === 'no' ? !x.people : x.source === 'locus'))
         && (!where || x.setting === where) && (!q || q.split(/\s+/).every(w => words(x).includes(w))));
-      count.textContent = shown.length === items.length ? `Newest first. ${plural(items.length, 'photo')} here.` : `${plural(shown.length, 'photo')} of ${items.length}.`;
+      count.textContent = shown.length === items.length ? `Showing the newest ${items.length} of ${num(total)} in the library` : `${plural(shown.length, 'photo')} of the newest ${items.length} match`;
       put(grid, ...(shown.length ? shown.map(x => h('button', { type: 'button', class: 'lb-tile', onclick: () => open(ctx, x) },
         picture({ src: src(ctx, x), art: x.art, ratio: '4/5', alt: x.descr || '', badge: x.source === 'locus' ? 'Made by ' + APP_NAME : x.people ? plural(x.people, 'person', 'people') : null }),
         h('b', null, x.descr || x.name || 'Photo'),
-        h('small', null, [x.setting, x.shot, x.products].filter(Boolean).join(', ') || (x.status === 'new' ? 'Being tagged' : '')))) : [h('p', { class: 'lb-quiet' }, 'No photo matches. Try fewer words.')]));
+        [x.setting, x.shot].filter(Boolean).length ? h('div', { class: 'lb-tags' }, [x.setting, x.shot].filter(Boolean).map(t => h('span', null, t))) : h('small', null, x.status === 'new' ? 'Being tagged' : ''))) : [h('p', { class: 'lb-quiet' }, 'No photo matches. Try fewer words.')]));
       put(row,
         chips([{ id: 'all', label: 'Everything' }, { id: 'yes', label: 'With people', n: withPeople }, { id: 'no', label: 'No people', n: items.length - withPeople },
-          looks ? { id: 'locus', label: 'Made by ' + APP_NAME, n: looks } : null].filter(Boolean), who, id => { who = id; ctx.saveSetting('library.people', id); draw(); }),
-        sets.length ? chips([{ id: '', label: 'Any setting' }, ...sets.map(s => ({ id: s.setting, label: s.setting[0].toUpperCase() + s.setting.slice(1), n: s.n }))], where, id => { where = id; draw(); }) : null);
+          looks ? { id: 'locus', label: 'Made with ' + APP_NAME + ' AI', n: looks } : null].filter(Boolean), who, id => { who = id; ctx.saveSetting('library.people', id); draw(); }, 'People'),
+        sets.length ? chips([{ id: '', label: 'Any setting' }, ...sets.map(s => ({ id: s.setting, label: s.setting[0].toUpperCase() + s.setting.slice(1), n: s.n }))], where, id => { where = id; draw(); }, 'Setting') : null);
     };
     draw();
+    const old = ctx.isClient ? null : oldLocus(ctx, { label: 'Check Drive in old ' + APP_NAME });
     put(el,
+      pageTop([
+        { title: 'What it is for', text: 'Every photo in the brand\'s Drive folders, and the looks made with ' + APP_NAME + ' AI, to pick from when making ads. Filter by people and setting, search the words, tap one to see it large.' },
+        { title: 'Where the photos come from', text: 'Read from the brand\'s Drive folders. Files are never moved or changed. Tags (people, setting, shot, products) are written once by ' + APP_NAME + ' AI from a small copy of each photo; new photos are read a few each hour.' },
+      ], old ? teamTag() : null, old),
       hero({ line: true },
         kpis([
           kpi({ label: 'Photos', value: num(total - (data.looks || 0)), sub: 'from the brand\'s Drive' }),
           kpi({ label: 'With people in them', value: num(withPeople), sub: 'of the newest ' + items.length }),
-          kpi({ label: 'Still being tagged', value: num(c.new || 0), sub: c.new ? statusDot('warn', 'read a few each hour') : statusDot('good', 'all tagged') }),
-          kpi({ label: 'Drive last checked', value: data.synced_at ? relativeTime(data.synced_at) : 'not yet', sub: looks ? plural(looks, 'look') + ' made by ' + APP_NAME : null }),
+          kpi({ label: defLabel('Waiting for tags', { name: 'Waiting for tags', definition: APP_NAME + ' AI reads a few new photos each hour and tags them. Until then they show here untagged.' }), value: num(c.new || 0), sub: c.new ? statusDot('warn', 'tagged a few each hour') : statusDot('good', 'all tagged') }),
+          kpi({ label: defLabel('Last synced from Drive', { name: 'Last synced from Drive', definition: 'When ' + APP_NAME + ' last looked in the brand\'s Drive folders for new photos.' }), value: data.synced_at ? relativeTime(data.synced_at) : 'not yet', sub: looks ? 'Made with ' + APP_NAME + ' AI: ' + num(looks) : null }),
         ], { cols: 4 })),
-      h('div', { class: 'lb-tools' }, search('Search: man in a polo, buckle close up, golf course', '', v => { q = v; draw(); }), count, h('span', { class: 'lx-sp' }), assetsButton(ctx, data.assets_link),
-        ctx.isClient ? null : oldLocus(ctx, { label: 'Check Drive in old ' + APP_NAME })),
+      h('div', { class: 'lb-tools' }, search('Search: man in a polo, buckle close up, golf course', '', v => { q = v; draw(); }), count, h('span', { class: 'lx-sp' }), assetsButton(ctx, data.assets_link)),
       row, grid,
-      h('p', { class: 'lx-foot' }, 'Read from the brand\'s Drive folders. Files are never moved or changed. Tags are written once by ' + APP_NAME + ' AI from a small copy of each photo.'));
+      items.length < total ? h('div', { style: { justifySelf: 'center' } }, old ? oldLocus(ctx, { label: 'See all ' + num(total) + ' in old ' + APP_NAME }) : null) : null);
   },
 };

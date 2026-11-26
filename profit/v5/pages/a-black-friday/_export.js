@@ -6,7 +6,7 @@
      boardCanvas(m)              the whole War Room board (team only: store lines, per brand numbers, campaign calls)
      hiCanvas(w, h)              a canvas drawn at EXPORT_SCALE: { cv, ctx, k }. Draw in layout pixels, it comes out sharp
      fontsReady(faces)           waits for document.fonts.ready and the given faces before anything is drawn
-   Quality (Cole 2026-11-26): every picture is drawn at 3x or more (a wide card or the board is about 3840 to 4200
+   Quality (the owner, 2026-11-26): every picture is drawn at 3x or more (a wide card or the board is about 3840 to 4200
    pixels wide), after the fonts have loaded, so text is crisp on a 4K screen and in print. The PDF pages carry
    those pixels, which is well over 300 dpi on a letter page (the board: about 540 dpi; the card: about 490 dpi).
    The PDF is written by hand (catalog, pages, one JPEG image per page), so nothing is loaded from a CDN. */
@@ -20,7 +20,9 @@ const xx = v => ok(v) ? v.toFixed(2) + 'x' : 'n/a';
 /* ---------- quality ---------- */
 /** At least 3x, and at least 3840 pixels wide for a wide layout; held under the browser's canvas limits. */
 export const EXPORT_SCALE = 3;
-const MAX_SIDE = 32000, MAX_AREA = 200e6;
+/* iPhone and iPad Safari draw a blank canvas over about 16.7 million pixels, so there the scale drops toward 1.5 to 2x */
+const IOS = typeof navigator !== 'undefined' && (/iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.userAgent)));
+const MAX_SIDE = IOS ? 16000 : 32000, MAX_AREA = IOS ? 16e6 : 200e6;
 export function exportScale(w, h) {
   let k = Math.max(EXPORT_SCALE, 3840 / Math.max(1, w));
   k = Math.min(k, MAX_SIDE / Math.max(1, w), MAX_SIDE / Math.max(1, h), Math.sqrt(MAX_AREA / Math.max(1, w * h)));

@@ -106,7 +106,7 @@ const CSS = `
 .mo-g{display:block;width:200px;max-width:100%}
 .mo-wk b{display:block;font-weight:600}
 .mo-wk small{display:block;font-size:12.5px;color:var(--muted)}
-tr.total .lx-gauge-track,.mo-item.total .lx-gauge-track{background:#E4E2DC}
+tr.total .lx-gauge-track,.mo-item.total .lx-gauge-track{background:var(--line-strong)}
 
 .mo-wf{display:grid;padding:4px 28px 20px}
 .mo-wf>div{display:grid;grid-template-columns:minmax(150px,1.1fr) minmax(0,2fr) 96px 52px;align-items:center;gap:16px;min-height:46px;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
@@ -134,6 +134,26 @@ tr.total .lx-gauge-track,.mo-item.total .lx-gauge-track{background:#E4E2DC}
 .mo-yard .lx-gauge{flex:1;min-width:220px;max-width:420px}
 .mo-note{padding:0 28px 22px;font-size:12.5px;color:var(--muted)}
 .mo-chosen{font-weight:650}
+.mo-goal{font-size:12.5px;color:var(--muted)}
+.mo-kpi2{display:block;margin-top:2px;color:var(--muted)}
+.mo-evs{display:flex;flex-wrap:wrap;gap:8px;padding:14px 28px 22px}
+.mo-evs span{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;border-radius:999px;background:var(--bg-sunk);font-size:12.5px;color:var(--ink-2)}
+.mo-evs b{font-weight:600;color:var(--ink)}
+.mo-wf .hd{min-height:30px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.mo-wf .hd .a,.mo-wf .hd .p{font-size:11px;color:var(--faint);white-space:nowrap}
+.mo-wf>div.row{cursor:default;border-radius:8px}
+.mo-wf>div.row:hover{background:var(--row-hover)}
+.mo-yard .rec{display:grid;gap:2px;min-width:130px}
+.mo-yard .rec small{font-size:12px;color:var(--muted)}
+.mo-yard .rec b{font-size:var(--num-m);font-weight:600;font-variant-numeric:tabular-nums}
+.mo-yard .need{display:grid;gap:2px}
+.mo-yard .need small{font-size:12px;color:var(--muted)}
+.mo-opts tbody tr:hover td{background:transparent}
+.mo-hist{padding:0 28px 18px}
+.mo-hist>summary{cursor:pointer;width:max-content;padding:6px 10px;margin-left:-10px;border-radius:8px;font-size:13px;color:var(--muted);list-style:none}
+.mo-hist>summary::-webkit-details-marker{display:none}
+.mo-hist>summary:hover{background:var(--row-hover);color:var(--ink)}
+.mo-hist[open]>summary{margin-bottom:8px}
 
 @media (max-width:759px){
   .mo{gap:var(--sp-5)}

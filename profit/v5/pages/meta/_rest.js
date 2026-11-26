@@ -4,7 +4,8 @@
    Spend, budgets and delivery are Meta's. No ember in here. */
 
 import { exampleChip as kitExampleChip } from '../../kit.js';
-import { h, svgNode, money, x, empty, button, statusDot, gauge, addStyles } from '../../kit.js';
+import { h, svgNode, money, num, pct, x, empty, button, statusDot, gauge, addStyles, sheet, lineChart, legend, put } from '../../kit.js';
+import { def, levelChip } from '../platforms/_ads.js';
 import { APP_NAME } from '../../config.js';
 
 export const ok = n => n != null && isFinite(n);
@@ -63,7 +64,6 @@ export function gate(d, ctx, what) {
   return null;
 }
 export const oldLink = (ctx, label) => (!ctx.isClient && ctx.legacy ? button(label || 'Open it in old ' + APP_NAME, { href: ctx.legacy }) : null);
-export const foot = text => h('p', { class: 'lx-foot' }, text);
 export { statusDot, x };
 
 const CSS = `
@@ -72,7 +72,7 @@ const CSS = `
 .mr-bar{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
 .mr-bar .sp{flex:1}
 .mr-bar .mr-note{color:var(--muted);font-size:13px}
-.mr-tile{position:relative;display:grid;place-items:center;overflow:hidden;flex:none;border-radius:12px;background:linear-gradient(180deg,#F1F0EC,#E6E4DE);color:var(--faint)}
+.mr-tile{position:relative;display:grid;place-items:center;overflow:hidden;flex:none;border-radius:12px;background:var(--bg-sunk);color:var(--faint)}
 .mr-tile svg{width:24px;height:24px}
 .mr-tile img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .mr-tile.sm{width:56px;height:70px}.mr-tile.xs{width:32px;height:40px;border-radius:8px}.mr-tile.xs svg{width:16px;height:16px}
@@ -84,6 +84,8 @@ const CSS = `
 .mr-dim{color:var(--muted)}.mr-faint{color:var(--faint)}
 .mr-num{font-variant-numeric:tabular-nums;white-space:nowrap}
 .mr-more{display:flex;justify-content:center;padding:6px 0 0}
+.ads-open{cursor:pointer;transition:background .12s,box-shadow .12s}
+.ads-open:focus-visible{outline:2px solid var(--ink-2);outline-offset:2px}
 @media (max-width:759px){
   .mr-kp{grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-5)}
   .mr-kp .lx-kpi .v{font-size:var(--num-l)}
@@ -94,3 +96,98 @@ export function styles(id, extra) {
   addStyles('mr-css', CSS);
   if (id && extra) addStyles(id, extra);
 }
+
+/* ---------- one ad, all of its numbers (Top ads, Live now, Suggestions share it) ---------- */
+const SH_CSS = `
+.ad-sh{display:grid;gap:20px;min-width:0}
+.ad-sh .top{display:grid;grid-template-columns:120px minmax(0,1fr);gap:18px;align-items:center}
+.ad-sh .top .mr-tile{width:120px;height:150px}
+.ad-sh .top b{display:block;font-size:17px;font-weight:600;letter-spacing:-.02em;line-height:1.25;overflow-wrap:anywhere}
+.ad-sh .top .w{display:grid;gap:4px;margin-top:6px;color:var(--muted);font-size:13px;overflow-wrap:anywhere}
+.ad-sh .g{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.ad-sh .g>div{display:grid;gap:3px;align-content:start;min-width:0;padding:12px 14px;border-radius:12px;background:var(--surface-2)}
+.ad-sh .g .l{font-size:12px;color:var(--muted)}
+.ad-sh .g .v{font-size:var(--num-m);font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.ad-sh .g .v.bad{color:var(--bad)}.ad-sh .g .v.good{color:var(--good)}
+.ad-sh .g .s{font-size:12px;color:var(--muted)}
+.ad-sh h3{margin:0 0 8px;font-size:13px;font-weight:600;color:var(--muted)}
+.ad-sh .set{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;padding:12px 14px;border-radius:12px;box-shadow:inset 0 0 0 1px var(--line-strong);font-size:13px}
+.ad-sh .set span{display:grid;gap:2px;color:var(--muted)}.ad-sh .set b{font-variant-numeric:tabular-nums;color:var(--ink)}
+.ad-sh .go{display:flex;gap:10px;flex-wrap:wrap}
+.ad-sh .na{color:var(--muted);font-size:13px}
+@media (max-width:759px){.ad-sh .g,.ad-sh .set{grid-template-columns:repeat(2,minmax(0,1fr))}.ad-sh .top{grid-template-columns:84px minmax(0,1fr)}.ad-sh .top .mr-tile{width:84px;height:105px}}`;
+/** opener(node, fn, label) : a card or tile that opens a detail on click, Enter or Space (inner links, buttons and
+    dotted definitions keep their own click). */
+export function opener(node, fn, label) {
+  node.setAttribute('role', 'button'); node.tabIndex = 0; if (label) node.setAttribute('aria-label', label);
+  node.classList.add('ads-open');
+  node.addEventListener('click', e => { if (e.target.closest('a,button,.lx-def,.lx-info,input,label')) return; fn(); });
+  node.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === node) { e.preventDefault(); fn(); } });
+  return node;
+}
+/** adSheet(ad, d, ctx, { period, set }) : the one detail view of an ad (kit sheet: centered on a desktop, from the bottom
+    on a phone) with every number the ad carries. A missing number is left out, never shown as a zero.
+    ad: { id, name, video, thumb, adset, campaign, spend, revenue, purchases, roas, cpa, nc_roas, ctr, cpm, frequency,
+          impressions, clicks, fc_rev, age, spend_today, lead, cpl, leads, days: [{ date, spend, revenue }] }
+    set: the ad set's own scorecard { name, spend, purchases, roas, cpa } (the set is judged first).
+    Real mode reads the ad's days from GET /api/hub/ad-days (profit, read only) when the ad has a Meta id. */
+export function adSheet(a, d, ctx, { period, set } = {}) {
+  addStyles('ad-sh-css', SH_CSS);
+  const cur = d.currency, g = d.goals || {}, v = d.sales_source !== false ? judge(a, g) : null;
+  const when = period || (d.window && d.window.label) || 'these dates';
+  const tile = (label, key, value, sub, tone) => value == null ? null : h('div', null, h('span', { class: 'l' }, def(label, key)), h('span', { class: 'v ' + (tone || '') }, value), sub ? h('span', { class: 's' }, sub) : null);
+  const roasTone = ok(a.roas) && g.roas ? (a.roas >= g.roas ? 'good' : 'bad') : '';
+  const cpaTone = ok(a.cpa) && g.cpa ? (a.cpa <= g.cpa ? 'good' : 'bad') : '';
+  const adset = a.adset && typeof a.adset === 'object' ? a.adset.name : a.adset;
+  const grid = h('div', { class: 'g' }, [
+    tile('Spend', 'ad_spend', ok(a.spend) ? usd(a.spend, cur) : null, ok(a.spend_today) ? usd(a.spend_today, cur) + ' today' : null),
+    a.lead ? null : tile('Sales', { title: 'Sales', body: 'Sales Triple Whale credits to this ad, last platform click.', source: 'Triple Whale' }, ok(a.revenue) ? usd(a.revenue, cur) : null),
+    a.lead ? null : tile('Orders', 'purchases_last_click', ok(a.purchases) ? num(a.purchases) : null),
+    a.lead ? null : tile('ROAS', 'roas', ok(a.roas) ? x(a.roas) : 'no sales yet', g.roas ? 'goal ' + x(g.roas) : null, roasTone),
+    a.lead ? null : tile('Cost per sale', 'cpa', ok(a.cpa) ? usd(a.cpa, cur) : null, g.cpa ? 'goal ' + usd(g.cpa, cur) : null, cpaTone),
+    a.lead ? tile('Cost per lead', { title: 'Cost per lead', body: 'Spend divided by the leads Meta counts for the ad.', source: 'Meta' }, ok(a.cpl) ? money(a.cpl, { cur }) : null, ok(a.leads) ? num(a.leads) + ' leads' : null) : null,
+    tile('New customer ROAS', 'new_customer_roas', ok(a.nc_roas) ? x(a.nc_roas) : null),
+    tile('First click sales', 'first_click', ok(a.fc_rev) ? usd(a.fc_rev, cur) : null),
+    tile('CTR', 'ctr', ok(a.ctr) ? pct(a.ctr, { digits: 2 }) : null, ok(a.clicks) ? num(a.clicks) + ' link clicks' : null),
+    tile('CPM', 'cpm', ok(a.cpm) ? money(a.cpm, { cur, cents: true }) : null),
+    tile('Frequency', 'frequency', ok(a.frequency) ? a.frequency.toFixed(2) : null),
+    tile('Impressions', 'impressions', ok(a.impressions) ? num(a.impressions) : null),
+    tile('Days running', 'days_running', ok(a.age) ? num(a.age + 1) : null),
+  ].filter(Boolean));
+  const chartBox = h('div', null);
+  const draw = days => {
+    if (!days || days.length < 2) return put(chartBox, h('p', { class: 'na' }, 'No day by day numbers for this ad yet.'));
+    const b = t => h('b', null, t);
+    put(chartBox, h('div', { class: 'lx-chart-h' }, h('h3', null, 'Spend and sales by day, ' + shortDate(days[0].date) + ' to ' + shortDate(days[days.length - 1].date)), legend([{ name: 'Sales', lead: true }, { name: 'Spend', square: true }])),
+      lineChart({ slots: false, height: 220, phoneHeight: 200,
+        series: [{ type: 'bar', tone: 'dim', name: 'Spend', values: days.map(r => +r.spend || 0) }, { name: 'Sales', lead: true, values: days.map(r => (ok(r.revenue) ? r.revenue : null)), end: false }],
+        labels: days.map(r => shortDate(r.date)), format: n => money(n, { cur, compact: true }), label: 'Spend and sales by day for ' + (a.name || 'this ad'),
+        hover: i => [b(shortDate(days[i].date)), h('span', null, 'Spend ', b(usd(days[i].spend, cur))), ok(days[i].revenue) ? h('span', null, 'Sales ', b(usd(days[i].revenue, cur))) : null] }));
+  };
+  if (a.days) draw(a.days);
+  else if (!ctx.sample && ctx.brand && /^\d{5,25}$/.test(String(a.id || ''))) {
+    put(chartBox, h('p', { class: 'na' }, 'Reading the days...'));
+    ctx.api(`/api/hub/ad-days?act=${encodeURIComponent(ctx.brand.id)}&ads=${a.id}&model=lastPlatformClick`, { worker: 'profit' })
+      .then(r => draw((r && r.days) || []), () => draw([]));
+  } else draw(null);
+  const s = set || null;
+  const body = h('div', { class: 'ad-sh' },
+    h('div', { class: 'top' }, adTile(a),
+      h('div', null, h('b', null, a.name || 'Unnamed ad'),
+        h('div', { class: 'w' }, v ? statusDot(v[0], v[1]) : null,
+          h('span', null, 'Meta ad', adset ? ' in ' + adset : '', a.campaign ? ', campaign ' + a.campaign : ''),
+          h('span', null, (a.video ? 'Video' : 'Image') + ', numbers for ' + when)))),
+    grid,
+    s ? h('section', null, h('h3', null, 'Its ad set, ' + (s.name || '') + ' (the set is judged first)'),
+      h('div', { class: 'set' },
+        h('span', null, def('Spend', 'ad_spend'), h('b', null, usd(s.spend, cur))),
+        h('span', null, def('Orders', 'purchases_last_click'), h('b', null, ok(s.purchases) ? num(s.purchases) : 'none')),
+        h('span', null, def('ROAS', 'roas'), h('b', null, ok(s.roas) ? x(s.roas) : 'no sales')),
+        h('span', null, def('Cost per sale', 'cpa'), h('b', null, ok(s.cpa) ? usd(s.cpa, cur) : 'no sales')))) : null,
+    chartBox,
+    h('div', { class: 'go' },
+      ctx.tab !== 'live-now' ? button('Open in Live now', { href: ctx.href('meta', 'live-now') }) : null,
+      ctx.tab !== 'top-ads' ? button('Open in Top ads', { href: ctx.href('meta', 'top-ads') }) : null));
+  return sheet({ title: a.name || 'Ad', body });
+}
+export { levelChip, def };

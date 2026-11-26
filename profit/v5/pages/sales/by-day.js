@@ -4,8 +4,9 @@
    Sales here are the store's total sales less tax, the same line every other page uses. */
 
 import { put } from '../../kit.js';
+import { askWhy, helpBar, dl as defl, rangeWords } from '../home/_biz.js';
 import { h, em, card, kpi, kpis, delta, takeaway, button, table, legend, lineChart, skeleton, money } from '../../kit.js';
-import { ok, usd, move, shortDate, noteAt, css, head, barCell, split, notConnected, num, pct } from '../email/_em.js';
+import { ok, usd, move, shortDate, noteAt, css, head, barCell, split, notConnected, num, pct, showMore } from '../email/_em.js';
 
 function shape(ctx, b) {
   const c = b.cur || {}, p = b.prev || {};
@@ -26,11 +27,11 @@ function figures(d) {
   const t = d.totals || {}, dS = move(t.sales, t.sales_prev), dO = move(t.orders, t.orders_prev), dA = move(t.aov, t.aov_prev), dC = move(t.conversion, t.conversion_prev);
   const dl = v => (ok(v) && Math.abs(v) >= 0.005 ? delta(v, { bad: v < 0 }) : null);
   const el = kpis([
-    kpi({ label: 'Sales', size: 'lg', value: usd(t.sales), delta: dl(dS), sub: ok(t.sales_prev) ? 'was ' + usd(t.sales_prev) : null, spark: (d.days || []).map(r => r.sales) }),
-    kpi({ label: 'Orders', size: 'lg', value: ok(t.orders) ? num(t.orders) : 'no data', delta: dl(dO), sub: ok(t.units) ? num(t.units) + ' units' : null, spark: (d.days || []).map(r => r.orders) }),
-    kpi({ label: 'Average order', size: 'lg', value: ok(t.aov) ? money(t.aov, { cents: true }) : 'no data', delta: dl(dA), sub: ok(t.aov_prev) ? 'was ' + money(t.aov_prev, { cents: true }) : null }),
-    kpi({ label: 'Conversion rate', size: 'lg', value: ok(t.conversion) ? pct(t.conversion, { digits: 2 }) : 'no data', delta: dl(dC),
-      sub: ok(t.visits) ? `${num(t.orders)} orders from ${num(t.visits)} visits` : 'needs the Triple Whale pixel' }),
+    kpi({ label: defl('Sales', 'sales'), size: 'lg', value: usd(t.sales), delta: dl(dS), sub: ok(t.sales_prev) ? 'vs ' + usd(t.sales_prev) + ' before' : null, spark: (d.days || []).map(r => r.sales) }),
+    kpi({ label: defl('Orders', 'orders'), size: 'lg', value: ok(t.orders) ? num(t.orders) : 'no data', delta: dl(dO), sub: ok(t.units) ? num(t.units) + ' units' : null, spark: (d.days || []).map(r => r.orders) }),
+    kpi({ label: defl('Average order', 'aov'), size: 'lg', value: ok(t.aov) ? money(t.aov, { cents: true }) : 'no data', delta: dl(dA), sub: ok(t.aov_prev) ? 'vs ' + money(t.aov_prev, { cents: true }) + ' before' : null, spark: (d.days || []).map(r => r.aov) }),
+    kpi({ label: defl('Conversion rate', 'conversion_rate'), size: 'lg', value: ok(t.conversion) ? pct(t.conversion, { digits: 2 }) : 'no data', delta: dl(dC),
+      sub: ok(t.visits) ? `${num(t.orders)} orders from ${num(t.visits)} visits` : 'needs the Triple Whale pixel', spark: (d.days || []).map(r => (r.visits ? r.orders / r.visits : null)) }),
   ], { cols: 4 });
   el.classList.add('em-kpis');
   return el;
@@ -39,11 +40,10 @@ function figures(d) {
 function verdict(d, ctx) {
   const t = d.totals || {}, days = (d.days || []).filter(r => ok(r.sales));
   if (!ok(t.sales) || !days.length) return null;
-  const b = v => h('b', null, v), dS = move(t.sales, t.sales_prev), best = days.reduce((m, r) => (r.sales > m.sales ? r : m), days[0]);
-  const parts = ['The store sold ', b(usd(t.sales))];
-  if (ok(dS) && Math.abs(dS) >= 0.005) parts.push(', ', dS > 0 ? 'up ' : 'down ', b(pct(Math.abs(dS))), ` on the ${days.length} days before`);
-  parts.push('. The best day was ', b(shortDate(best.date)), ' at ', b(usd(best.sales)), '.');
-  return takeaway(parts, { action: ctx.isClient ? null : button('Ask why', { href: ctx.href('ask', 'index') }) });
+  const b = v => h('b', null, v), best = days.reduce((m, r) => (r.sales > m.sales ? r : m), days[0]);
+  /* the tiles carry the total and the change: the sentence adds only the best day */
+  const parts = ['The best day was ', b(shortDate(best.date)), ' at ', b(usd(best.sales)), ok(best.orders) ? ` from ${num(best.orders)} orders` : '', '.'];
+  return takeaway(parts, { action: ctx.isClient ? null : askWhy(ctx, 'What did the store sell') });
 }
 
 function chartCard(d) {
@@ -82,27 +82,33 @@ function stepsCard(d) {
 function newCard(d) {
   const t = d.totals || {};
   if (!ok(t.new_sales) || !ok(t.returning_sales) || !(t.new_sales + t.returning_sales > 0)) return null;
-  const share = t.new_sales / (t.new_sales + t.returning_sales);
+  const all = t.new_sales + t.returning_sales, share = t.new_sales / all;
+  const side = (name, color, sales, orders) => h('div', null, h('h4', null, h('em', { style: { '--c': color } }), name),
+    h('p', null, h('span', null, 'Sales'), h('b', null, usd(sales))),
+    h('p', null, h('span', null, 'Orders'), h('b', null, ok(orders) ? num(orders) : 'no data')),
+    h('p', null, h('span', null, defl('Average order', 'aov')), h('b', null, ok(orders) && orders > 0 ? money(sales / orders, { cents: true }) : 'no data')),
+    h('p', null, h('span', null, 'Share of sales'), h('b', null, pct(sales / all))));
   return card({ title: 'New against returning', note: `${pct(share)} of sales came from first orders` },
     split([
-      { name: 'New customers' + (ok(t.new_orders) ? `, ${num(t.new_orders)} orders` : ''), value: t.new_sales, text: usd(t.new_sales), color: 'var(--ink)' },
-      { name: 'Returning' + (ok(t.returning_orders) ? `, ${num(t.returning_orders)} orders` : ''), value: t.returning_sales, text: usd(t.returning_sales), color: '#C9CED9' },
-    ], 'Sales from new customers against returning customers'));
+      { name: 'New customers', value: t.new_sales, text: '', color: 'var(--ink)' },
+      { name: 'Returning', value: t.returning_sales, text: '', color: 'var(--icon)' },
+    ], 'Sales from new customers against returning customers')[0],
+    h('div', { class: 'em-sides' }, side('New customers', 'var(--ink)', t.new_sales, t.new_orders), side('Returning', 'var(--icon)', t.returning_sales, t.returning_orders)));
 }
 
 function daysCard(d) {
-  const rows = d.days || [], max = Math.max(...rows.map(r => r.sales || 0), 1);
+  const rows = (d.days || []).slice().sort((a, b) => b.date.localeCompare(a.date)), max = Math.max(...rows.map(r => r.sales || 0), 1);
   const cv = r => (r.visits ? r.orders / r.visits : null);
-  return card({ title: 'Every day', note: 'tap a column to sort', flush: true, class: 'em-flush' },
-    table({ rows, sort: { key: 'date', dir: 'desc' }, cols: [
+  const build = list => table({ rows: list, sort: { key: 'date', dir: 'desc' }, cols: [
       { key: 'date', label: 'Day', sortable: true, render: r => new Date(r.date + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }) },
       { key: 'orders', label: 'Orders', num: true, sortable: true, render: r => (ok(r.orders) ? num(r.orders) : '') },
-      { key: 'aov', label: 'Average order', num: true, sortable: true, class: 'hide-sm', render: r => (ok(r.aov) ? money(r.aov, { cents: true }) : '') },
-      { key: 'new_share', label: 'From new customers', num: true, sortable: true, class: 'hide-md', render: r => (ok(r.new_share) ? pct(r.new_share) : '') },
-      { key: 'discounts', label: 'Discounts', num: true, sortable: true, class: 'hide-md', render: r => (ok(r.discounts) ? usd(r.discounts) : '') },
-      { key: 'cv', label: 'Conversion', num: true, sortable: true, class: 'hide-sm', value: cv, render: r => (ok(cv(r)) ? pct(cv(r), { digits: 2 }) : '') },
+      { key: 'aov', label: defl('Average order', 'aov'), num: true, sortable: true, class: 'hide-sm', render: r => (ok(r.aov) ? money(r.aov, { cents: true }) : '') },
+      { key: 'new_share', label: defl('From new customers', 'from_new'), num: true, sortable: true, class: 'hide-md', render: r => (ok(r.new_share) ? pct(r.new_share) : '') },
+      { key: 'discounts', label: defl('Discounts', 'discounts'), num: true, sortable: true, class: 'hide-md', render: r => (ok(r.discounts) ? usd(r.discounts) : '') },
+      { key: 'cv', label: defl('Conversion', 'conversion_rate'), num: true, sortable: true, class: 'hide-sm', value: cv, render: r => (ok(cv(r)) ? pct(cv(r), { digits: 2 }) : '') },
       { key: 'sales', label: 'Sales', num: true, sortable: true, render: r => barCell(h('span', { class: 'strong' }, usd(r.sales)), (r.sales || 0) / max) },
-    ] }));
+    ] });
+  return card({ title: 'Every day', note: rows.length > 7 ? 'the latest 7 first' : null, flush: true, class: 'em-flush' }, showMore(rows, 7, build, 'days'));
 }
 
 export default {
@@ -128,12 +134,15 @@ export default {
     }
     const two = [stepsCard(d), newCard(d)].filter(Boolean);
     put(el, ...[
+      helpBar([
+        { title: 'What it is for', text: 'What the store sold on the dates at the top: sales, orders, the average order and how many visits bought, day by day.' },
+        { title: 'Where the numbers come from', text: 'Triple Whale. Sales are the store\'s total sales less tax. Visits are counted by the Triple Whale pixel. The change on each figure is against the same number of days just before.' },
+      ], h('span', { class: 'bz-chip' }, rangeWords(ctx, d.range))),
       h('section', { class: 'lx-hero line' }, figures(d)),
       verdict(d, ctx),
       chartCard(d),
       two.length === 2 ? h('div', { class: 'em-two' }, two) : two[0],
       daysCard(d),
-      h('p', { class: 'lx-foot' }, 'Numbers from Triple Whale. Sales are the store\'s total sales less tax. Visits are counted by the Triple Whale pixel.'),
     ].filter(Boolean));
   },
 };

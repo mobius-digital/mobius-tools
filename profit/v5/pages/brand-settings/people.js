@@ -8,7 +8,7 @@
 
 import { put } from '../../kit.js';
 import { h, em, empty, card, table, avatar, relativeTime, statusDot } from '../../kit.js';
-import { css, stage, saveBar, group, row, fact, fold, facts, pick, timePick, dayChips, onOff, seg, exampleChip, DAY_OPTS } from './_set.js';
+import { css, stage, saveBar, group, row, fact, fold, setHelp, pick, timePick, dayChips, onOff, seg, exampleChip, DAY_OPTS } from './_set.js';
 
 const ROLES = [
   ['strategist', 'Creative strategist', 'Briefs, angles and what to test next.'],
@@ -37,7 +37,12 @@ function draw(el, data, ctx) {
   const ch = data.channels || {};
 
   put(el, h('div', { class: 'lx-st' },
-    saveBar(S, ctx),
+    saveBar(S, ctx, { help: setHelp({
+      about: 'Who on the team runs this brand, where its Slack messages go and when, and who from the client can sign in.',
+      fixed: [
+        ['A client never sees', 'Goals, rules, the team list, suggestions', 'A client login reads its own brand’s numbers and requests only.'],
+        ['Reminders repeat', 'On the day, then 1, 3 and 7 days later', 'Then they go quiet.'],
+      ] }) }),
     group('Who runs this brand', ex.has('people') ? exampleChip() : 'One person per job. A blank job shows as nobody, never a guess.', ROLES.map(([id, t, hint]) => who(id, t, hint))),
     group('Where messages go', 'Slack channels for this brand',
       fact('Internal channel', ch.internal || 'Not set', 'Team only. Alerts, calls and drafts land here.'),
@@ -55,13 +60,10 @@ function draw(el, data, ctx) {
         { key: 'name', label: 'Person', render: r => h('span', { class: 'lx-st-who' }, avatar(r, { size: 28 }), h('span', null, h('b', null, r.name || r.email.split('@')[0]), h('small', null, r.email))) },
         { key: 'seen', label: 'Last in', class: 'hide-sm', render: r => r.last_seen ? relativeTime(r.last_seen) : 'Not yet' },
         { key: 'state', label: '', num: true, render: r => r.last_sign_in ? statusDot('good', 'Signed in') : statusDot('warn', 'Invited') },
-      ], rows: logins }) : h('div', { class: 'lx-pad' }, h('p', { class: 'lx-foot' }, 'Invite the client from Agency settings, Clients.'))),
+      ], rows: logins, roomy: true }) : h('div', { class: 'lx-pad' }, h('p', { class: 'lx-foot' }, 'Invite the client from Agency settings, Clients.'))),
     fold('Advanced', 'Rarely touched',
       row('Check spend at', 'Two checks a day that a live brand is spending. Brand time.', h('div', { class: 'lx-st-times' }, timePick(S, k('spend_check_1'), d.spend_check_1 || '08:00', { label: 'First spend check' }), timePick(S, k('spend_check_2'), d.spend_check_2 || '14:00', { label: 'Second spend check' })))),
-    facts('Stays fixed', [
-      ['A client never sees', 'Goals, rules, the team list, suggestions', 'A client login reads its own brand’s numbers and requests only.'],
-      ['Reminders repeat', 'On the day, then 1, 3 and 7 days later', 'Then they go quiet.'],
-    ])));
+  ));
 }
 
 export default {

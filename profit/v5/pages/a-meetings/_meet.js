@@ -151,11 +151,12 @@ function brandOf(b, merGoal) {
 }
 
 /* ---------- local parts ---------- */
-/** The three dots and a word. */
+/** Where MER stands against its goal: one status pill, its rule in the tooltip (the old three dot light was
+    never explained). lightOf: at or over the goal = On goal, within 10% under = Close, more than 10% under = Off goal. */
+export const LIGHT_RULE = { good: 'Store MER at or over its goal', warn: 'Store MER under its goal by 10% or less', bad: 'Store MER under its goal by more than 10%' };
 export function trafficLight(light) {
-  if (!light) return h('span', { class: 'mt-light' }, h('b', null, 'No goal set'));
-  return h('span', { class: 'mt-light', role: 'img', 'aria-label': 'Traffic light: ' + light.text },
-    [0, 1, 2].map(i => h('i', { class: i === light.at ? 'on ' + light.tone : '' })), h('b', null, light.text));
+  if (!light) return h('span', { class: 'lx-pill', title: 'No MER goal is set for this brand' }, 'No goal set');
+  return h('span', { class: 'lx-pill ' + light.tone, title: LIGHT_RULE[light.tone] }, light.text);
 }
 /** Done or Not done, with the round mark. */
 export function tick(done) {
@@ -166,18 +167,20 @@ export function sentence(parts) {
   return (parts || []).map(p => typeof p === 'string' ? p : h('b', null, p.b));
 }
 
-/** merChart(weeks, goal) : MER by week, every point labeled, the goal dashed. Drawn by the kit's one chart.
+/** merChart(weeks, goal) : MER by week, the goal dashed. Drawn by the kit's one chart.
+    No label on every point (they collided with the goal line): the tooltip reads each week, only the last
+    value sits at the right end, outside the plot, and the goal is named once, in the legend beside the chart.
     The ember line is the lead line of the page. weeks: [{ label, mer }]. */
 export function merChart(weeks, goal) {
   const pts = (weeks || []).filter(w => ok(w.mer));
   const top = Math.max(0, ...pts.map(p => p.mer), ok(goal) ? goal : 0), max = Math.max(1, Math.ceil(top + 0.05));
   return lineChart({
-    series: [{ name: 'MER', lead: true, points: true, values: pts.map(p => p.mer), labels: v => x(v) }],
+    series: [{ name: 'MER', lead: true, points: true, values: pts.map(p => p.mer), end: v => x(v) }],
     labels: pts.map(p => p.label || ''),
-    goal: ok(goal) ? { value: goal, label: 'goal ' + x(goal), at: 'end' } : null,
+    goal: ok(goal) ? { value: goal, at: 'end' } : null,
     format: v => v.toFixed(1) + 'x', yMax: max, yTicks: max > 5 ? 4 : max, pad: 20, height: 336, phoneHeight: 300, empty: 'Not enough weeks yet',
     label: pts.length ? `MER by week for ${pts.length} weeks${ok(goal) ? ' against the ' + x(goal) + ' goal' : ''}. Last week ${x(pts[pts.length - 1].mer)}.` : 'MER by week',
-    hover: i => [h('b', null, 'Week of ' + (pts[i].label || '')), h('span', null, 'MER ', h('b', null, x(pts[i].mer)))],
+    hover: i => [h('b', null, 'Week of ' + (pts[i].label || '')), h('span', null, 'MER ', h('b', null, x(pts[i].mer)), ok(goal) ? ', goal ' + x(goal) : '')],
   });
 }
 
@@ -237,7 +240,8 @@ const CSS = `
 .mt-light i.on.good{background:var(--good);box-shadow:0 0 0 4px rgba(11,125,85,.15)}
 .mt-light b{margin-left:5px;font-weight:600}
 .mt-three{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:56px}
-.mt-three .lx-kpi .v,.mt-three .lx-hero-num{font-size:var(--num-xl);line-height:1}
+.mt-three .lx-kpi .v{font-size:var(--num-l);line-height:1}
+.mt-three .lx-hero-num{font-size:var(--num-xl);line-height:1}
 .mt-three .lx-kpi .s{margin-top:8px}
 .mt-three .lx-spark{height:44px;margin-top:14px}
 .mt-three .gref{stroke:var(--ink-2);stroke-width:1;stroke-dasharray:3 3;vector-effect:non-scaling-stroke}
@@ -249,17 +253,21 @@ const CSS = `
 .mt-h .lx-legend{margin-left:auto}
 .mt-goal{fill:var(--ink);font-size:12.5px;font-weight:600}
 .mt-pt{paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round;fill:var(--ink-2);font-size:12.5px;font-weight:550;text-anchor:middle;font-variant-numeric:tabular-nums}
-.mt-last{paint-order:stroke;stroke:#fff;stroke-width:5px;stroke-linejoin:round;fill:var(--ink);font-size:26px;font-weight:650;letter-spacing:-.03em;text-anchor:end;font-variant-numeric:tabular-nums}
-.mt-decide{display:grid;grid-template-columns:minmax(0,1fr) auto 150px;gap:48px;align-items:center;padding:30px 36px}
-.mt-decide h2{margin:12px 0 6px;font-size:25px;font-weight:600;letter-spacing:-.028em;line-height:1.25}
+.mt-last{paint-order:stroke;stroke:#fff;stroke-width:5px;stroke-linejoin:round;fill:var(--ink);font-size:20px;font-weight:650;letter-spacing:-.03em;text-anchor:end;font-variant-numeric:tabular-nums}
+.mt-decide{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:48px;align-items:center;padding:30px 36px}
+.mt-decide h2{margin:12px 0 6px;font-size:20px;font-weight:600;letter-spacing:-.028em;line-height:1.25}
 .mt-decide p{margin:0;color:var(--muted);font-size:14px}
 .mt-own{display:flex;align-items:center;gap:12px;margin-top:20px}
 .mt-own b{display:block;font-weight:600;line-height:1.2}
 .mt-own small{display:block;color:var(--muted);font-size:12.5px}
 .mt-bignum{display:grid;gap:2px;padding-left:48px;border-left:1px solid var(--line)}
-.mt-bignum .n{font-size:var(--num-xl);font-weight:600;line-height:1;letter-spacing:-.045em;font-variant-numeric:tabular-nums}
+.mt-bignum .n{font-size:var(--num-l);font-weight:600;line-height:1;letter-spacing:-.045em;font-variant-numeric:tabular-nums}
 .mt-bignum small{color:var(--muted);font-size:13px}
 .mt-btns{display:grid;gap:10px}
+.mt-quiet{font-size:12.5px;color:var(--muted);text-align:center}
+.mt-spcap{display:block;margin-top:4px;font-size:11.5px;color:var(--muted)}
+.mt-helpbar{display:flex;align-items:center;gap:12px;margin-bottom:-8px}
+.mt-hero-top .lx-pill{flex:none;height:30px;padding:0 14px;font-size:13.5px}
 .mt-btns .lx-btn{justify-content:center}
 .mt-btns .lx-btn.picked{box-shadow:inset 0 0 0 2px var(--ink)}
 .mt-open{display:grid;gap:6px;min-width:0}
@@ -281,7 +289,7 @@ const CSS = `
 .mt-what{font-size:15px;font-weight:600}
 .mt-what svg{width:19px;height:19px}
 .mt-hn{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;min-width:0;color:var(--muted);font-size:13.5px}
-.mt-hn b{font-size:24px;font-weight:600;letter-spacing:-.03em;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.mt-hn b{font-size:20px;font-weight:600;letter-spacing:-.03em;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
 .mt-chev{width:18px;height:18px;fill:none;stroke:var(--faint);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transform:rotate(-90deg);transition:transform var(--t) var(--ease)}
 .mt-row.open .mt-chev{transform:none;stroke:var(--ink)}
 .mt-detail{padding:4px 28px 26px}
@@ -298,11 +306,11 @@ const CSS = `
 .mt-seg.alt i{background:var(--slate)}
 .mt-seg.lead i{background:var(--grad);box-shadow:0 6px 14px -6px rgba(255,100,30,.7)}
 .mt-seg .at{font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums}
-.mt-seg .m{font-size:var(--num-xl);font-weight:600;letter-spacing:-.04em;line-height:1.05;font-variant-numeric:tabular-nums}
+.mt-seg .m{font-size:var(--num-m);font-weight:600;letter-spacing:-.04em;line-height:1.05;font-variant-numeric:tabular-nums}
 .mt-seg .m small{font-size:13px;font-weight:500;letter-spacing:0;color:var(--muted);margin-left:4px}
 .mt-seg b{font-size:14.5px;font-weight:600;letter-spacing:-.01em;margin-top:4px;white-space:nowrap}
 .mt-seg .in{font-size:12.5px;color:var(--muted);line-height:1.35}
-.mt-seg.lead .m{font-size:var(--num-xl)}
+.mt-seg.lead .m{font-size:var(--num-m)}
 .mt-cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
 .mt-col{padding:0 36px;border-left:1px solid var(--line);display:grid;gap:22px;align-content:start;min-width:0}
 .mt-col:first-child{border-left:0;padding-left:0}
@@ -322,18 +330,18 @@ const CSS = `
 .mt-db{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:56px}
 .mt-db a{display:grid;gap:4px;color:inherit;text-decoration:none;min-width:0}
 .mt-db .nm{font-size:15px;font-weight:600}
-.mt-db .n{font-size:var(--num-xl);font-weight:600;letter-spacing:-.04em;line-height:1.05;font-variant-numeric:tabular-nums}
+.mt-db .n{font-size:var(--num-l);font-weight:600;letter-spacing:-.04em;line-height:1.05;font-variant-numeric:tabular-nums}
 .mt-db .n small{font-size:13px;font-weight:500;letter-spacing:0;color:var(--muted);margin-left:8px}
 .mt-db .lx-gauge{margin-top:8px;max-width:260px}
 .mt-db .ow{font-size:13px;color:var(--muted);margin-top:8px}
 .mt-hero-act{display:flex;align-items:center;gap:18px;align-self:center;margin-left:auto}
 @media (max-width:1040px){
   .mt-three{gap:28px}
-  .mt-three .lx-kpi .v,.mt-three .lx-hero-num{font-size:var(--num-xl)}
+  .mt-three .lx-kpi .v{font-size:var(--num-l)}.mt-three .lx-hero-num{font-size:var(--num-xl)}
   .mt-decide{grid-template-columns:minmax(0,1fr) auto;gap:28px}
   .mt-btns{grid-column:1/-1;grid-template-columns:1fr 1fr}
   .mt-row{grid-template-columns:190px minmax(0,1fr) auto 20px}
-  .mt-seg.lead .m{font-size:var(--num-xl)}.mt-seg .m{font-size:var(--num-l)}
+  .mt-seg.lead .m,.mt-seg .m{font-size:var(--num-m)}
   .mt-col{padding:0 22px}
   .mt-db{gap:28px}
 }
@@ -344,13 +352,13 @@ const CSS = `
   .mt-hero-top{flex-direction:column;gap:14px}
   .mt-hero p.mt-verdict{font-size:17px}
   .mt-three{grid-template-columns:1fr;gap:26px}
-  .mt-three .lx-kpi .v,.mt-three .lx-hero-num{font-size:var(--num-xl)}
+  .mt-three .lx-kpi .v{font-size:var(--num-l)}.mt-three .lx-hero-num{font-size:var(--num-xl)}
   .mt-panel{padding:20px 14px 14px}
   .mt-h .lx-legend{margin-left:0}
   .mt-decide{grid-template-columns:1fr;gap:22px;padding:22px 18px}
-  .mt-decide h2{font-size:21px}
+  .mt-decide h2{font-size:18px}
   .mt-bignum{padding-left:0;border-left:0;padding-top:18px;border-top:1px solid var(--line)}
-  .mt-bignum .n{font-size:var(--num-xl)}
+  .mt-bignum .n{font-size:var(--num-l)}
   .mt-prom{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:4px 12px}
   .mt-prom .what{grid-column:2}
   .mt-prom .who{grid-column:2;grid-row:2;width:auto}

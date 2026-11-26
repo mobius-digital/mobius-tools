@@ -19,12 +19,15 @@
      PUT  /api/report-read         { act, period, start, text }         save an edit (status drafted)
      POST /api/report-read/approve { act, period, start, text, send? }  approve; send:true also sends
      POST /api/report-skip         { act, period, start }               Do not send (through _send.js)
+     GET  /api/draft-holds?act=                     drafts whose numbers look incomplete (team only): one warning line
+                                                    on the draft, and Send (or Approve and send) asks twice
    Sample mode simulates every write and says so. */
 
 import { APP_NAME } from '../../config.js';
-import { put, h, addStyles, hero, kpis, kpi, statusDot, sheet, em, empty, money, x, num, delta, lineChart, legend, card, button, toast, pill, noDash } from '../../kit.js';
-import { css, span, short, dayOf, wday, heading, row, list, dateOf, todayYmd } from '../calendar/_cr.js';
-import { sendSheet, skipSheet, readStatusOf } from '../a-to-send/_send.js';
+import { put, h, addStyles, kpis, kpi, statusDot, sheet, em, empty, money, x, num, delta, lineChart, legend, card, button, toast, noDash, platformChip } from '../../kit.js';
+import { css, span, short, dayOf, wday, heading, row, list, dateOf, todayYmd, addDays, helpBar } from '../calendar/_cr.js';
+import { defLabel, pageHelp } from '../../defs.js';
+import { sendSheet, skipSheet, readStatusOf, readHolds, holdLine, askTwice } from '../a-to-send/_send.js';
 import { canWrite } from '../production/_act.js';
 import { platformRows, amazonOf, bestAds, marginOf, linesOf, change } from './_report.js';
 
@@ -34,7 +37,7 @@ const SAMPLE_NOTE = 'Sample: nothing was changed';
 const errText = e => (e && e.message) || 'No answer from the server.';
 
 /** One report row as the send sheets want it. */
-const itemOf = (r, ctx) => ({ kind: 'report', act_id: ctx.brand.id, brand: ctx.brand.name, day: r.period_start, end: r.period_end, period: r.period, status: r.status });
+const itemOf = (r, ctx) => ({ kind: 'report', act_id: ctx.brand.id, brand: ctx.brand.name, day: r.period_start, end: r.period_end, period: r.period, status: r.status, hold: r.hold || null });
 
 function statusOf(r, client) {
   if (r.status === 'sent') return statusDot('good', client ? 'Sent ' + dayOf(r.sent_at) : 'Sent to the client ' + dayOf(r.sent_at));
@@ -66,15 +69,15 @@ const slim = rep => rep && rep.data ? {
 function figures(rep, ctx) {
   const t = rep.totals || {}, p = rep.previous || {}, cur = rep.currency;
   const hasSales = t.sales > 0;
-  const vs = rep.period === 'weekly' ? 'last week' : 'last month';
+  const vs = ' vs the ' + (rep.period === 'weekly' ? 'week' : 'month') + ' before';
   const list = [
-    kpi({ label: 'Sales', value: hasSales ? money(t.sales, { cur }) : 'no data', size: 'lg', lead: true,
-      sub: hasSales ? [delta(change(t.sales, p.sales)), ' on ' + vs] : (ctx.isClient ? 'sales are not connected yet' : 'no sales source is connected') }),
-    kpi({ label: 'Ad spend', value: money(t.spend, { cur }), size: 'lg', sub: [delta(change(t.spend, p.spend), { plain: true }), ' on ' + vs] }),
-    kpi({ label: 'MER (whole store)', value: hasSales ? x(t.mer) : 'no data', size: 'lg', sub: hasSales && p.mer ? 'was ' + x(p.mer) : 'all sales over all ad spend' }),
-    kpi({ label: 'Orders', value: hasSales && t.orders != null ? num(t.orders) : 'no data', size: 'lg', sub: hasSales && t.aov ? money(t.aov, { cur }) + ' average order' : '' }),
+    kpi({ label: defLabel('Sales', 'sales'), value: hasSales ? money(t.sales, { cur }) : 'no data', size: 'lg', lead: true,
+      sub: hasSales ? [delta(change(t.sales, p.sales)), vs] : (ctx.isClient ? 'sales are not connected yet' : 'no sales source is connected') }),
+    kpi({ label: defLabel('Ad spend', 'ad_spend'), value: money(t.spend, { cur }), sub: [delta(change(t.spend, p.spend), { plain: true }), vs] }),
+    kpi({ label: defLabel('Store MER', 'mer'), value: hasSales ? x(t.mer) : 'no data', sub: hasSales && p.mer ? 'was ' + x(p.mer) : null }),
+    kpi({ label: defLabel('Orders', 'orders'), value: hasSales && t.orders != null ? num(t.orders) : 'no data', sub: hasSales && t.aov ? [defLabel('AOV', 'aov'), ' ' + money(t.aov, { cur })] : '' }),
   ];
-  if (rep.cm) list.push(kpi({ label: 'Contribution margin', value: money(rep.cm.cur, { cur }), size: 'lg', sub: rep.cm.prev != null ? 'was ' + money(rep.cm.prev, { cur }) : '' }));
+  if (rep.cm) list.push(kpi({ label: 'Contribution margin', value: money(rep.cm.cur, { cur }), sub: rep.cm.prev != null ? 'was ' + money(rep.cm.prev, { cur }) : '' }));
   return kpis(list, { cols: list.length });
 }
 
@@ -82,15 +85,14 @@ function platformsOf(rep) {
   const rows = rep.platforms || [], cur = rep.currency;
   if (!rows.length && !rep.amazon) return null;
   const tbl = rows.length ? h('div', { class: 'lx-table-wrap' }, h('table', { class: 'lx-table rp-plat' },
-    h('thead', null, h('tr', null, h('th', null, 'Platform'), h('th', { class: 'num' }, 'Spend'), h('th', { class: 'num' }, 'Sales'), h('th', { class: 'num' }, 'ROAS'))),
+    h('thead', null, h('tr', null, h('th', null, 'Platform'), h('th', { class: 'num' }, defLabel('Spend', SPEND_DEF)), h('th', { class: 'num' }, defLabel('Sales', PLAT_SALES_DEF)), h('th', { class: 'num' }, defLabel('ROAS', PLAT_ROAS_DEF)))),
     h('tbody', null, rows.map(p => h('tr', null,
-      h('td', null, h('b', null, p.label)), h('td', { class: 'num' }, money(p.spend, { cur })),
+      h('td', null, h('b', null, platformChip(p.id, { label: p.label }))), h('td', { class: 'num' }, money(p.spend, { cur })),
       p.waiting ? h('td', { class: 'num rp-q', colspan: 2 }, p.note || 'not credited yet')
         : p.low ? [h('td', { class: 'num' }, p.sales != null ? money(p.sales, { cur }) : ''), h('td', { class: 'num rp-q' }, 'too few orders to read')]
           : [h('td', { class: 'num' }, money(p.sales, { cur })), h('td', { class: 'num' }, x(p.roas))]))))) : null;
-  return h('section', { class: 'cr-sect' }, heading('By platform', null, 'Triple Whale attributed'), tbl,
-    rep.amazon ? h('p', { class: 'rp-note', style: { color: 'var(--ink-2)' } }, 'Amazon: ' + money(rep.amazon.sales, { cur }) + ' in sales' + (rep.amazon.orders != null ? ' from ' + num(rep.amazon.orders) + ' orders.' : '.')) : null,
-    rows.length ? h('p', { class: 'rp-note' }, 'Platform sales are Triple Whale attributed and overlap, so they add up to more than the store\'s sales.') : null);
+  return h('section', { class: 'cr-sect' }, heading('By platform'), tbl,
+    rep.amazon ? h('p', { class: 'rp-note', style: { color: 'var(--ink-2)' } }, 'Amazon: ' + money(rep.amazon.sales, { cur }) + ' in sales' + (rep.amazon.orders != null ? ' from ' + num(rep.amazon.orders) + ' orders.' : '.')) : null);
 }
 
 function chartOf(rep) {
@@ -112,11 +114,13 @@ function chartOf(rep) {
 function adsOf(rep) {
   const ads = rep.ads || [];
   if (!ads.length) return null;
-  return h('section', { class: 'cr-sect' }, heading('Best ads', null, 'ROAS is Triple Whale attributed'),
+  return h('section', { class: 'cr-sect' }, heading('Best ads'),
     h('div', { class: 'rp-ads' }, ads.map(a => h('article', { class: 'rp-ad' },
       h('div', { class: 'rp-pic' }, a.thumb ? h('img', { src: a.thumb, alt: '', loading: 'lazy' }) : 'No picture', a.video ? h('span', { class: 'rp-vid' }, 'Video') : null),
-      h('div', { class: 'rp-adb' }, h('b', null, noDash(a.name)),
-        h('span', null, money(a.spend, { cur: rep.currency }) + ' spent' + (a.roas != null ? ', ' + x(a.roas) + ' ROAS' : '')))))));
+      h('div', { class: 'rp-adb' }, platformChip(a.platform || 'meta', { chip: true }), h('b', null, noDash(a.name)),
+        h('dl', { class: 'rp-adv' },
+          h('div', null, h('dt', null, defLabel('Spend', SPEND_DEF)), h('dd', null, money(a.spend, { cur: rep.currency }))),
+          a.roas != null ? h('div', null, h('dt', null, defLabel('ROAS', PLAT_ROAS_DEF)), h('dd', null, x(a.roas))) : null))))));
 }
 
 function plansOf(rep) {
@@ -126,9 +130,26 @@ function plansOf(rep) {
   return h('section', { class: 'rp-two' }, block(rep.period === 'monthly' ? 'This month' : 'This week', tw), block('We need from you', fy));
 }
 
+/* Platform and ad numbers: what each column counts (the overlap note lives here, not in a footer). */
+const SPEND_DEF = { name: 'Spend', definition: 'What the ad platform spent in the period, as the platform reports it.', source: 'The ad platform' };
+const PLAT_SALES_DEF = { name: 'Sales (platform)', definition: 'The sales Triple Whale credits to this platform on the last platform click. A shopper can touch more than one platform, so these add up to more than the store\'s sales.', source: 'Triple Whale, last platform click' };
+const PLAT_ROAS_DEF = { name: 'ROAS', definition: 'One platform or one ad: the sales Triple Whale credits to it (last platform click) divided by what it spent. Store-wide efficiency is Store MER, not ROAS. Platform sales overlap, so they add up to more than the store\'s sales.', formula: 'Attributed sales / Spend', source: 'Triple Whale, last platform click' };
+
+/** The period before a report: the week before, or the month before. */
+function before(rep) {
+  const end = addDays(rep.period_start, -1);
+  return { start: rep.period === 'monthly' ? end.slice(0, 8) + '01' : addDays(rep.period_start, -7), end };
+}
 /** The client's page order, under the read: numbers, by platform, day by day, best ads, this week. */
-const body = (rep, ctx) => [h('section', { class: 'cr-sect' }, heading('The numbers', null, 'compared with the ' + (rep.period === 'weekly' ? 'week' : 'month') + ' before'), figures(rep, ctx)),
-  platformsOf(rep), chartOf(rep), adsOf(rep), plansOf(rep)];
+export const body = (rep, ctx) => {
+  const b = before(rep);
+  return [h('section', { class: 'cr-sect' }, heading('The numbers, ' + span(rep.period_start, rep.period_end), null, 'vs ' + span(b.start, b.end)), figures(rep, ctx)),
+    platformsOf(rep), chartOf(rep), adsOf(rep), plansOf(rep)];
+};
+/** The report page's styles, for another page that draws a report with body() (Agency > To send). */
+export function reportStyles() { css(); addStyles('lx-rp-css', RP_CSS); }
+/** A report as the page draws it (only what it needs). */
+export { slim };
 
 /* ---------- How we read it ---------- */
 
@@ -179,7 +200,7 @@ function pointsCard(st) {
   redo.addEventListener('click', () => run(st, err, lock, 'points', {}, 'Writing the talking points...'));
   return card({ title: 'How we read it', class: 'rp-card', note: 'Waiting on the call' },
     pts.length || qs.length || P.proposed ? h('div', { class: 'rp-pts' },
-      h('div', { class: 'rp-pts-h' }, h('b', null, 'Talking points for the call'), pill('', 'Only the team sees these')),
+      h('div', { class: 'rp-pts-h' }, h('b', null, 'Talking points for the call'), h('span', { class: 'lx-team-tag', title: 'Team only: clients do not see this' }, 'Team only')),
       pts.length ? h('ol', { class: 'rp-ol' }, pts.map(p => h('li', null, h('span', null, noDash(p.line)), p.why ? h('small', null, noDash(p.why)) : null))) : null,
       qs.length ? [h('p', { class: 'rp-lab' }, 'Settle on the call'), h('ul', { class: 'rp-ul' }, qs.map(q => h('li', null, noDash(typeof q === 'string' ? q : q.line || q.q || ''))))] : null,
       P.proposed ? [h('p', { class: 'rp-lab' }, 'Proposed read'), h('p', { class: 'rp-p rp-prop' }, noDash(P.proposed))] : null)
@@ -205,7 +226,12 @@ function draftCard(st) {
   const all = [go, save, again, cancel].filter(Boolean);
   const lock = on => all.forEach(b => { b.disabled = on; });
   const text = () => ta.value.trim();
-  go.addEventListener('click', () => { if (!text()) return put(err, h('p', { class: 'sd-err' }, 'The read cannot be empty.')); run(st, err, lock, 'approve', { text: text(), send: !teamOnly }, teamOnly ? 'Approving...' : 'Approving and sending...'); });
+  go.addEventListener('click', () => {
+    if (!text()) return put(err, h('p', { class: 'sd-err' }, 'The read cannot be empty.'));
+    /* numbers that look incomplete: Approve and send asks twice (a team only approve sends nothing, so it never asks) */
+    if (!teamOnly && !askTwice(go, st.row && st.row.hold, err)) return;
+    run(st, err, lock, 'approve', { text: text(), send: !teamOnly }, teamOnly ? 'Approving...' : 'Approving and sending...');
+  });
   save.addEventListener('click', () => { if (!text()) return put(err, h('p', { class: 'sd-err' }, 'The read cannot be empty.')); run(st, err, lock, 'save', { text: text() }, 'Saving...'); });
   if (again) again.addEventListener('click', () => {
     const n = notes.value.trim(), stored = String(read.team_view || '').trim();
@@ -214,6 +240,7 @@ function draftCard(st) {
     run(st, err, lock, 'draft', { notes: n ? (n !== stored ? n : undefined) : (stored ? '' : undefined) }, 'Writing it again...');
   });
   return card({ title: 'How we read it', class: 'rp-card', note: approvedEdit ? 'Editing an approved read' : sourceLine(read, st.rep) },
+    teamOnly ? null : holdLine(st.row && st.row.hold),
     h('p', { class: 'rp-note' }, teamOnly ? 'Team only: this brand has no client channel, so the report is not sent.' : 'This is the first thing the client reads, word for word. Short lines, the verdict first.'),
     ta, err, h('div', { class: 'rp-acts' }, go, save, again, cancel),
     approvedEdit ? null : [h('p', { class: 'rp-lab' }, 'What the team said'), notes]);
@@ -226,7 +253,8 @@ function approvedCard(st) {
   /* A team only report (handled: no client channel) has nothing to send to. */
   const send = st.rep.status === 'handled' ? null : button('Send', { primary: true, large: true, onclick: () => sendSheet(itemOf(st.row, st.ctx), st.ctx, what => { if (what === 'sent') sentNow(st, read.read_text); }) });
   const edit = button('Edit', { large: true, onclick: () => { st.editing = true; st.redraw(); } });
-  return card({ title: 'How we read it', class: 'rp-card', note: st.rep.status === 'handled' ? by + '. Team only' : by }, readText(read.read_text || ''), h('div', { class: 'rp-acts' }, send, edit));
+  return card({ title: 'How we read it', class: 'rp-card', note: st.rep.status === 'handled' ? by + '. Team only' : by },
+    st.rep.status === 'handled' ? null : holdLine(st.row && st.row.hold), readText(read.read_text || ''), h('div', { class: 'rp-acts' }, send, edit));
 }
 
 /** The report went out: freeze it on the page. */
@@ -312,7 +340,16 @@ const RP_CSS = `.rp-card .lx-sec{flex-wrap:wrap}
 .rp-ul{margin:0;padding-left:20px;display:grid;gap:6px;font-size:15px;line-height:1.55;color:var(--ink)}
 .rp-ol{margin:0;padding-left:22px;display:grid;gap:10px;font-size:15px;line-height:1.5}
 .rp-ol small{display:block;margin-top:2px;font-size:13px;color:var(--muted)}
-.rp-pts{display:grid;gap:10px;padding:16px;border-radius:14px;background:var(--bg-sunk);margin-bottom:18px}
+.rp-pts{display:grid;gap:16px;margin-bottom:18px}
+.rp-pts .rp-lab{margin:0 0 -8px}
+.rp-headx{display:inline-flex;gap:10px;align-items:center;flex-wrap:wrap}
+.rp-which{font-size:13px;font-weight:600;color:var(--ink-2)}
+.rp-card>.lx-sec .act{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.rp-adv{display:flex;gap:16px;margin:4px 0 0}
+.rp-adv div{display:grid;gap:1px}
+.rp-adv dt{font-size:12px;color:var(--muted)}
+.rp-adv dd{margin:0;font-size:15px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+.rp-adb .lx-plat{justify-self:start}
 .rp-pts-h{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .rp-lab{margin:6px 0 0;font-size:12px;font-weight:650;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .rp-prop{font-style:italic;color:var(--ink-2)}
@@ -336,6 +373,15 @@ textarea.rp-ta{min-height:200px;font-size:16px;line-height:1.55;margin-top:10px;
 /* ---------- the page ---------- */
 const STATE = new WeakMap();
 
+/** Put the report's name, state and buttons into a card's head (its action slot). */
+function headOn(el, kids) {
+  const sec = el && el.querySelector('.lx-sec');
+  if (!sec) return el;
+  let act = sec.querySelector('.act');
+  if (!act) { act = h('div', { class: 'act' }); sec.append(act); }
+  act.prepend(h('span', { class: 'rp-headx' }, kids.filter(Boolean)));
+  return el;
+}
 /** The read card and the numbers for one report, as one list of nodes. */
 const reportNodes = st => [readCard(st), ...body(st.rep, st.ctx)];
 
@@ -379,26 +425,32 @@ function draw(el, d, ctx) {
   const draft = team && rep && rep.status === 'draft';
   const teamOnly = team && rep && rep.status === 'handled';
 
+  /* The report's name, its state and Do not send sit in the head of the How we read it card (no separate banner). */
+  const skip = draft && canWrite(ctx) && d.can_skip !== false && focusRow
+    ? button('Do not send', { ghost: true, onclick: () => skipSheet(itemOf(focusRow, ctx), ctx, what => { if (what === 'skipped') { d.rows = d.rows.filter(x => x !== focusRow); d.latest = null; STATE.delete(d); redraw(); } }) }) : null;
   const top = rep ? [
-    hero({ line: true },
-      h('div', { class: 'cr-bar-top', style: { paddingBottom: '4px' } },
-        h('div', { class: 'cr-heroline' },
-          h('span', { class: 'lab' }, (draft ? 'Waiting to send: ' + NAME[rep.period].toLowerCase() + ', ' : teamOnly ? 'Team only: ' + NAME[rep.period].toLowerCase() + ', ' : rep.status === 'sent' ? 'Latest report, ' : 'Latest draft, ') + span(rep.period_start, rep.period_end)),
-          h('span', { class: 'of' }, draft ? readDot(st.read) : statusOf(rep, ctx.isClient))),
-        h('span', { class: 'sp' }),
-        draft && canWrite(ctx) && d.can_skip !== false && focusRow
-          ? button('Do not send', { ghost: true, onclick: () => skipSheet(itemOf(focusRow, ctx), ctx, what => { if (what === 'skipped') { d.rows = d.rows.filter(x => x !== focusRow); d.latest = null; STATE.delete(d); redraw(); } }) }) : null)),
-    ...reportNodes(st),
+    headOn(readCard(st), [
+      h('span', { class: 'rp-which' }, (teamOnly ? 'Team only: ' : '') + NAME[rep.period] + ', ' + span(rep.period_start, rep.period_end)),
+      /* a draft's read state is already the card's own note; only a sent or team only report adds its state */
+      draft ? null : statusOf(rep, ctx.isClient), skip]),
+    ...body(st.rep, st.ctx),
   ] : [];
 
   const lines = rows.map(r => row({
     lead: dateOf(r.period_start, today),
     title: NAME[r.period] || 'Report',
-    sub: span(r.period_start, r.period_end),
-    cells: [{ w: 210, node: statusOf(r, ctx.isClient) }],
+    sub: !ctx.isClient && r.hold && r.status === 'draft' ? span(r.period_start, r.period_end) + '. ' + r.hold : span(r.period_start, r.period_end),
+    cells: [{ w: 210, label: 'Status', node: statusOf(r, ctx.isClient) }],
     onclick: () => open(r, d, ctx, null),
   }));
-  put(el, h('div', { class: 'rp-top' }, ...top, h('section', { class: 'cr-sect' }, heading('Every report', rows.length, ctx.isClient ? 'tap one to read it' : null), list(lines))));
+  put(el, h('div', { class: 'rp-top' }, helpBar(ctx.isClient ? [
+      { title: 'What it is for', text: 'Every weekly and monthly report we sent you. The newest is on the page; open any other one from the list.' },
+      { title: 'The numbers', text: 'Sales are every store order in the period. Store MER is all sales divided by all ad spend. ROAS is one platform or one ad. Hover or tap any dotted label for its meaning.' },
+    ] : [
+      { title: 'What it is for', text: 'The weekly and monthly reports for this brand. The newest draft is on top with How we read it: talking points before the Monday call, then the read the team writes and approves, then Send.' },
+      { title: 'What the client gets', text: 'The approved read first, word for word, then the numbers, the platforms, the day by day chart and the best ads, exactly as drawn here. Team only parts (talking points, the notes box) never reach the client.' },
+      { title: 'The numbers', text: 'Sales are every store order in the period, from Triple Whale. Store MER is all sales divided by all ad spend. Platform and ad ROAS are Triple Whale last platform click, and platform sales overlap. Hover or tap any dotted label for its meaning.' },
+    ]), ...top, h('section', { class: 'cr-sect' }, heading('Every report', rows.length, ctx.isClient ? 'tap one to read it' : null), list(lines, null, { head: [{ label: 'Status', w: 210 }], first: 'Report' }))));
 }
 
 export default {
@@ -427,8 +479,11 @@ export default {
       try { read = await readStatusOf({ kind: 'report', act_id: ctx.brand.id, period: first.period, day: first.period_start }, ctx, ctx.signal); }
       catch (e) { read = { status: 'error', error: errText(e) }; }
     }
+    /* Numbers that look incomplete (team only, one read): the warning line on the draft, and Send asks twice. */
+    const holds = ctx.isClient ? new Map() : await readHolds(ctx, ctx.brand.id, ctx.signal);
+    const holdFor = r => r.status === 'draft' ? holds.get('report|' + ctx.brand.id + '|' + r.period + '|' + r.period_start) || null : null;
     return {
-      rows: rows.map(({ act_id, period, period_start, period_end, status, generated_at, sent_at }) => ({ act_id, period, period_start, period_end, status, generated_at, sent_at })),
+      rows: rows.map(({ act_id, period, period_start, period_end, status, generated_at, sent_at }) => ({ act_id, period, period_start, period_end, status, generated_at, sent_at, hold: holdFor({ status, period, period_start }) })),
       latest, client_latest: client_latest || (latest && latest.status === 'sent' ? latest : null), read, can_skip: list.can_skip === true,
     };
   },

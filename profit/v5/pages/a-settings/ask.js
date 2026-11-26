@@ -6,9 +6,10 @@
    The ideas bot switch and the client allowance have no server home yet: kept on this device. */
 
 import { put } from '../../kit.js';
-import { h, em, empty, card, kpis, kpi, lineChart, legend, money, num } from '../../kit.js';
+import { h, em, empty, card, kpis, kpi, lineChart, money, num } from '../../kit.js';
 import { AI_NAME, APP_NAME } from '../../config.js';
-import { css, stage, saveBar, group, row, fold, facts, seg, area, onOff, numBox } from '../brand-settings/_set.js';
+import { css, stage, saveBar, group, row, fold, setHelp, seg, area, onOff, numBox } from '../brand-settings/_set.js';
+import { defLabel } from '../../defs.js';
 
 function draw(el, data, ctx) {
   css();
@@ -24,21 +25,27 @@ function draw(el, data, ctx) {
   const u = data.usage || {}, days = u.by_day || [];
   const labels = days.map(d => new Date(d.day + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
   const chart = days.length > 1 ? card({ class: 'lx-ai-chart' },
-    h('div', { class: 'lx-chart-h' }, h('div', null, h('h3', { class: 'lx-ai-ct' }, 'Questions answered, by day'), h('p', null, 'Last 30 days, Slack and the app together')),
-      legend([{ name: 'Answers', lead: true }])),
+    h('div', { class: 'lx-chart-h' }, h('div', null, h('h3', { class: 'lx-ai-ct' }, 'Questions answered, by day'), h('p', null, 'Last 30 days, asked in Slack and in the app'))),
     lineChart({ series: [{ name: 'Answers', values: days.map(d => d.answers), lead: true }], labels, format: v => num(v), height: 260, phoneHeight: 220,
       hover: i => [h('span', null, labels[i]), h('span', null, 'answers ', h('b', null, num(days[i].answers))), h('span', null, 'cost ', h('b', null, money(days[i].cost, { cents: true })))], label: 'Questions answered by day' })) : null;
 
   put(el, h('div', { class: 'lx-st' },
-    saveBar(S, ctx),
+    saveBar(S, ctx, { help: setHelp({
+      about: 'How ' + AI_NAME + ' works for the agency: how hard it thinks, what it knows about you, where it works, and what it has cost.',
+      fixed: [
+        ['What it reads', APP_NAME + ' numbers only, through its own read', 'It never makes up a number: every figure comes back from a query.'],
+        ['Attribution', 'Triple Whale, last platform click', 'Every sale and ROAS it quotes.'],
+        ['It acts', 'Only after a person taps Apply', 'Anything that changes an account is a proposal first.'],
+      ] }) }),
     h('section', { class: 'lx-hero line' }, kpis([
-      kpi({ label: 'Answers, 30 days', value: num(u.answers), size: 'lg' }),
+      kpi({ label: 'Answers, 30 days', value: num(u.answers) }),
       kpi({ label: 'Cost, 30 days', value: money(u.cost, { cents: false }), small: u.answers ? money(u.cost / u.answers, { cents: true }) + ' each' : null }),
-      kpi({ label: 'Average wait', value: u.avg_seconds != null ? num(u.avg_seconds, 0) + 's' : 'no data' }),
-    ])),
+      kpi({ label: 'Average wait, 30 days', value: u.avg_seconds != null ? num(u.avg_seconds, 0) + 's' : 'no data' }),
+    ], { cols: 3 })),
     chart,
     group('How it thinks', null,
-      row('Depth', 'Quick is cheapest. Deep reads more before it answers and costs more.', seg(S, 'ai.model', data.model || 'smart', [{ id: 'quick', label: 'Quick' }, { id: 'smart', label: 'Smart' }, { id: 'deep', label: 'Deep' }])),
+      row(defLabel('Depth', { title: 'Depth', body: 'How much ' + AI_NAME + ' reads before it answers. Quick: one short read, the cheapest. Smart: the default, reads the numbers it needs. Deep: reads more and checks itself, several times the cost of Smart and slower.' }),
+        'Quick is cheapest. Deep reads more before it answers and costs more.' + (u.answers ? ' Answers cost about ' + money(u.cost / u.answers, { cents: true }) + ' each over the last 30 days.' : ''), seg(S, 'ai.model', data.model || 'smart', [{ id: 'quick', label: 'Quick' }, { id: 'smart', label: 'Smart' }, { id: 'deep', label: 'Deep' }])),
       row('About your agency', 'One text every answer reads: who you are, how you work, what matters.', area(S, 'ai.brief', data.brief || '', { rows: 5, placeholder: 'We run paid ads and creative for ecommerce brands. We judge every brand on MER first.', label: 'About your agency' }), { wide: true }),
       row('Standing instructions', 'How to answer. Plain sentences, numbers first, no jargon.', area(S, 'ai.instructions', data.instructions || '', { rows: 4, placeholder: 'Lead with the number. Two or three sentences.', label: 'Standing instructions' }), { wide: true })),
     group('Where it works', null,
@@ -46,11 +53,7 @@ function draw(el, data, ctx) {
       row('Daily allowance per client login', 'What one client can spend on questions a day.', numBox(S, 'agency.clientAskDaily', data.client_daily ?? 2, { prefix: '$', width: 44, label: 'Client daily allowance' }))),
     fold('Advanced', 'Rarely touched',
       row('Questions a day, whole team', 'It stops for the day at this many.', numBox(S, 'agency.askCap', data.cap ?? 200, { width: 56, label: 'Questions a day' }))),
-    facts('Stays fixed', [
-      ['What it reads', APP_NAME + ' numbers only, through its own read', 'It never makes up a number: every figure comes back from a query.'],
-      ['Attribution', 'Triple Whale, last platform click', 'Every sale and ROAS it quotes.'],
-      ['It acts', 'Only after a person taps Apply', 'Anything that changes an account is a proposal first.'],
-    ])));
+  ));
 }
 
 export default {

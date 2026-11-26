@@ -116,9 +116,9 @@ const CSS = `
 .rv-segs button{flex:1;height:6px;padding:0;border:0;border-radius:999px;background:var(--line-strong);cursor:pointer}
 .rv-segs .approved{background:var(--good)}
 .rv-segs .changes{background:var(--watch)}
-.rv-segs .on{box-shadow:0 0 0 2px #fff,0 0 0 3.500px var(--ink)}
+.rv-segs .on{box-shadow:0 0 0 2px var(--surface),0 0 0 3.500px var(--ink)}
 .rv{display:grid;grid-template-columns:216px minmax(0,1fr) 320px;gap:18px;align-items:start}
-.rv-list,.rv-stage,.rv-side{background:#fff;border-radius:18px;box-shadow:var(--sh-1);min-width:0;overflow:hidden}
+.rv-list,.rv-stage,.rv-side{background:var(--surface);border-radius:18px;box-shadow:var(--sh-1);min-width:0;overflow:hidden}
 .rv-list-h{display:flex;justify-content:space-between;padding:14px 16px;font-weight:600;font-size:13.5px}
 .rv-list-h span{color:var(--muted);font-weight:500}
 .rv-list button{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:12px;align-items:center;width:100%;padding:10px 16px;border:0;border-top:1px solid var(--line);background:none;text-align:left;cursor:pointer;font:inherit}
@@ -136,7 +136,7 @@ const CSS = `
 .rv-frame{width:100%;max-width:470px;margin:0 auto}
 .rv-frame.tall{max-width:300px}
 .rv-frame .pd-pic{border-radius:6px;box-shadow:var(--sh-2)}
-.rv-nav{width:38px;height:38px;border:0;border-radius:11px;background:#fff;box-shadow:var(--sh-1);display:grid;place-items:center;cursor:pointer;justify-self:center}
+.rv-nav{width:38px;height:38px;border:0;border-radius:11px;background:var(--surface);color:var(--ink);box-shadow:var(--sh-1);display:grid;place-items:center;cursor:pointer;justify-self:center}
 .rv-nav:disabled{opacity:.35;cursor:default}
 .rv-nav.prev .lx-ic{transform:rotate(90deg)}
 .rv-nav.next .lx-ic{transform:rotate(-90deg)}
@@ -152,9 +152,9 @@ const CSS = `
 .rv-note>div{display:grid;gap:5px;min-width:0}
 .rv-note-h{display:flex;align-items:center;gap:7px;font-size:13px;flex-wrap:wrap}
 .rv-note-h span{color:var(--muted);font-size:12px}
-.rv-n{width:22px;height:22px;border-radius:50%;background:var(--ink);color:#fff;font-size:11.5px;font-weight:700;display:grid;place-items:center}
-.rv-n.ok{background:#fff;color:var(--good);box-shadow:inset 0 0 0 1.500px var(--good)}
-.rv-bar{position:sticky;bottom:16px;z-index:5;display:flex;align-items:center;gap:12px;padding:12px 14px 12px 20px;border-radius:18px;background:#fff;box-shadow:var(--sh-3)}
+.rv-n{width:22px;height:22px;border-radius:50%;background:var(--ink);color:var(--surface);font-size:11.5px;font-weight:700;display:grid;place-items:center}
+.rv-n.ok{background:var(--surface);color:var(--good);box-shadow:inset 0 0 0 1.500px var(--good)}
+.rv-bar{position:sticky;bottom:16px;z-index:5;display:flex;align-items:center;gap:12px;padding:12px 14px 12px 20px;border-radius:18px;background:var(--surface);box-shadow:var(--sh-3)}
 .rv-bar p{font-size:13px;color:var(--muted);min-width:0}
 .rv-bar p b{color:var(--ink)}
 .rv-bar .lx-btn{white-space:nowrap}
@@ -248,7 +248,7 @@ export default {
       const box = h('textarea', { class: 'lx-input', rows: 5, placeholder: 'What should change on this ad?', 'aria-label': 'What should change' });
       const send = button('Send', { primary: true, large: true, disabled: true });
       box.addEventListener('input', () => { send.disabled = !box.value.trim(); });
-      const panel = sheet({ title: 'Ask for changes on Ad ' + ad.ad, side: 'bottom', body: h('div', { class: 'rv-ask' }, box, send) });
+      const panel = sheet({ title: 'Ask for changes on Ad ' + ad.ad, body: h('div', { class: 'rv-ask' }, box, send) });
       send.addEventListener('click', async () => {
         const note = box.value.trim();
         if (!note) return;

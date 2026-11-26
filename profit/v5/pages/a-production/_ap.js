@@ -28,11 +28,12 @@ const CSS = `
 .ap-brand i{width:9px;height:9px;border-radius:3px;flex:none}
 .ap-bar{display:flex;height:8px;border-radius:999px;overflow:hidden;background:var(--bg-sunk);min-width:80px}
 .ap-bar span{display:block;height:100%}
-.ap-bar .s-brief{background:var(--line-strong)}
-.ap-bar .s-making{background:var(--faint)}
-.ap-bar .s-review{background:var(--slate)}
-.ap-bar .s-ready{background:var(--ink-2)}
-.ap-bar .s-live{background:var(--ink)}
+.ap-bar span+span{box-shadow:inset 2px 0 0 var(--surface)}
+.s-brief{background:var(--line-strong)}
+.s-making{background:var(--slate)}
+.s-review{background:var(--watch)}
+.s-ready{background:var(--good)}
+.s-live{background:var(--ink)}
 .ap-key{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
 .ap-key span{display:inline-flex;align-items:center;gap:6px}
 .ap-key i{width:10px;height:10px;border-radius:3px}
@@ -44,12 +45,13 @@ const CSS = `
 .ap-list .pd-line .t small .ap-brand{font-weight:500;color:var(--ink-2)}
 .ap-list .pd-line .t small .ap-brand i{width:7px;height:7px}
 .ap-people{display:grid}
+.ap-pn{display:inline-flex;align-items:center;gap:10px;font-weight:600}
 .ap-person{display:grid;grid-template-columns:minmax(0,190px) minmax(0,1fr) auto;gap:18px;align-items:center;padding:12px 20px;border-top:1px solid var(--line)}
 .ap-person:first-child{border-top:0}
 .ap-person .nm{display:flex;align-items:center;gap:10px;min-width:0;font-weight:600}
 .ap-person .nm span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ap-person .nums{font-size:13px;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
-.ap-load{display:flex;gap:3px;flex-wrap:wrap}
+.ap-load{display:flex;gap:3px;flex-wrap:wrap;cursor:default}
 .ap-load i{width:14px;height:14px;border-radius:4px;background:var(--line-strong)}
 .ap-load i.late{background:var(--bad)}
 .ap-load i.week{background:var(--ink-2)}

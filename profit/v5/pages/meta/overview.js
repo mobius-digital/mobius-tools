@@ -4,9 +4,12 @@
    load() returns one plain object (the same shape as _sample/overview.json); render() only draws it. */
 
 import { put } from '../../kit.js';
-import { h, em, svgNode, money, num, pct, x, card, takeaway, button, statusDot, delta, count, gauge, sparkline, legend, lineChart, table, empty, skeleton, addStyles } from '../../kit.js';
+import { h, em, svgNode, money, num, pct, x, card, button, statusDot, delta, count, gauge, sparkline, legend, lineChart, table, empty, skeleton, addStyles, sheet } from '../../kit.js';
+import { def, headRow } from '../platforms/_ads.js';
 import { icon } from '../../icons.js';
 import { APP_NAME } from '../../config.js';
+import { askWhy } from '../home/_biz.js';
+import { openAskPanel } from '../../askpanel.js';
 
 /* ---------- small helpers ---------- */
 const ok = n => n != null && isFinite(n);
@@ -37,7 +40,7 @@ const CSS = `
 .mo-figs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--sp-8)}
 .mo-figs .lx-gauge{margin-top:22px}
 .mo-figs .lx-kpi .v{font-size:var(--num-xl)}
-.mo-chart .lx-legend span.sq::before{width:8px;height:8px;border:0;border-radius:2px;background:#D9DDE6}
+.mo-chart .lx-legend span.sq::before{width:8px;height:8px;border:0;border-radius:2px;background:var(--line-strong)}
 .mo-read{margin:10px 0 0 -13px}
 .mo-counts{display:flex;gap:44px;align-items:baseline;flex-wrap:wrap;padding:8px 28px 14px}
 .mo-counts span{display:inline-flex;gap:10px;align-items:baseline;color:var(--muted);font-size:13px}
@@ -47,7 +50,6 @@ const CSS = `
 .mo-camps .mo-bar{padding-left:28px}
 .mo-camps td.mo-bar{width:220px}
 .mo-camps td.mo-st{width:116px}
-.mo-camps tr.total .lx-gauge-track{background:#E4E2DC}
 .mo-two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-6);align-items:stretch}
 .mo-two>.lx-card{display:flex;flex-direction:column}
 .mo-sug{padding:6px 28px 0;display:flex;gap:14px;align-items:baseline;color:var(--muted);font-size:13.5px}
@@ -66,16 +68,25 @@ const CSS = `
 .mo-thumb svg{width:22px;height:22px;fill:var(--faint);stroke:none}
 .mo-three{margin-top:auto;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;padding:22px 28px 28px;border-top:1px solid var(--line)}
 .mo-three .mo-n{font-size:24px;display:block;margin-top:4px}
-.mo-checks{padding:26px 32px 28px}
-.mo-checks .lx-sec{margin-bottom:18px}
 .mo-checks-g{display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr;gap:40px;align-items:start}
 .mo-checks-g .row{display:flex;gap:10px;align-items:baseline;margin:4px 0 10px;color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums;flex-wrap:wrap}
-.mo-checks-g .lx-gauge-track{background:#E4E2DC}
 .mo-word{display:flex;align-items:center;gap:9px;margin-top:4px;height:33px;font-size:22px;font-weight:600;letter-spacing:-.02em}
 .mo-word i{width:10px;height:10px;border-radius:50%;background:var(--good);box-shadow:0 0 0 4px var(--good-bg)}
 .mo-word.warn i{background:var(--watch);box-shadow:0 0 0 4px rgba(232,181,0,.2)}
 .mo-word.bad i{background:var(--bad);box-shadow:0 0 0 4px var(--bad-bg)}
 .mo-none{color:var(--muted);font-size:13px;margin-top:6px}
+.mo-checks .mo-checks-g{margin-top:16px}
+button.mo-open{border:0;background:transparent;font:inherit;padding:2px 6px;margin-left:-6px;border-radius:8px;cursor:pointer;color:var(--muted);text-align:left}
+button.mo-open:hover{background:var(--bg-sunk)}
+.mo-sh{display:grid;gap:16px}
+.mo-sh .g{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.mo-sh .g>div{display:grid;gap:3px;padding:12px 14px;border-radius:12px;background:var(--surface-2)}
+.mo-sh .g .l{font-size:12px;color:var(--muted)}.mo-sh .g b{font-size:var(--num-s);font-variant-numeric:tabular-nums}
+.mo-sh h3{margin:0 0 8px;font-size:13px;font-weight:600;color:var(--muted)}
+.mo-sh-ads{display:grid;border-radius:12px;box-shadow:inset 0 0 0 1px var(--line);overflow:hidden}
+.mo-sh-ads>div{display:flex;justify-content:space-between;gap:12px;padding:10px 14px;border-top:1px solid var(--line);font-size:13px}
+.mo-sh-ads>div:first-child{border-top:0}
+@media (max-width:759px){.mo-sh .g{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:1040px){
   .mo-figs{grid-template-columns:repeat(2,minmax(0,1fr))}
   .mo-checks-g{grid-template-columns:repeat(2,minmax(0,1fr));gap:28px}
@@ -95,7 +106,6 @@ const CSS = `
   .mo-quiet{padding:6px 18px 18px}
   .mo-top{padding:14px 18px 18px;gap:14px}
   .mo-three{padding:16px 18px 18px}
-  .mo-checks{padding:20px 18px}
   .mo-checks-g{gap:22px 18px}
 }`;
 function css() {
@@ -131,7 +141,7 @@ async function load(ctx) {
   const salesSource = !cur.attr_pending && (cur.revenue > 0 || series.some(d => d.revenue > 0));
 
   /* live structure, straight from Meta */
-  let liveCounts = null, atLimit = null;
+  let liveCounts = null, atLimit = null, atLimitSets = null;
   const liveCamp = (live && !live.error && live.campaigns) || null;
   if (liveCamp) {
     const on = o => Object.values(o || {}).filter(v => v.eff === 'ACTIVE');
@@ -140,6 +150,7 @@ async function load(ctx) {
     const perSet = {};
     for (const a of Object.values(live.ads || {})) if (a.status === 'ACTIVE') perSet[a.adset] = (perSet[a.adset] || 0) + 1;
     atLimit = Object.values(perSet).filter(n => n >= 50).length;
+    atLimitSets = Object.entries(perSet).filter(([, n]) => n >= 50).map(([id, n]) => { const st = (live.adsets || {})[id] || {}; return { name: st.name || id, campaign: ((live.campaigns || {})[st.campaign] || {}).name || '', n }; });
   }
   /* a campaign's budget a day: its own, else the sum of its live ad sets' */
   const budgetOf = id => {
@@ -156,8 +167,12 @@ async function load(ctx) {
     const isLive = liveCamp ? !!(liveCamp[c.id] && liveCamp[c.id].eff === 'ACTIVE') : String(c.status || '').toUpperCase() === 'ACTIVE';
     if (!isLive) continue;
     const lead = /LEAD/.test(c.objective || '');
+    const sets = (c.adsets || []);
+    const topAds = sets.flatMap(st => (st.ads || []).map(a => ({ name: a.name, spend: a.spend, roas: a.roas, purchases: a.purchases }))).sort((p, q) => (q.spend || 0) - (p.spend || 0)).slice(0, 3);
     campaigns.push({ id: c.id, name: c.name, budget: budgetOf(c.id) ?? (ok(c.budget) ? c.budget : null), spend: c.spend, revenue: lead ? null : c.revenue, roas: lead ? null : c.roas,
-      leads: lead ? c.leads : null, cpl: lead ? c.cpl : null });
+      purchases: lead ? null : c.purchases ?? null, leads: lead ? c.leads : null, cpl: lead ? c.cpl : null,
+      n_sets: liveCamp ? Object.values(live.adsets || {}).filter(v => v.campaign === c.id && v.eff === 'ACTIVE').length : sets.length || null,
+      n_ads: liveCamp ? Object.values(live.ads || {}).filter(v => v.campaign === c.id && v.eff === 'ACTIVE').length : null, top_ads: topAds });
   }
   if (liveCamp) for (const [id, c] of Object.entries(liveCamp)) {
     if (seen.has(String(id)) || c.eff !== 'ACTIVE') continue;
@@ -193,7 +208,7 @@ async function load(ctx) {
     live: liveCounts, live_error: live && live.error ? live.error : null,
     campaigns, budget_total: campaigns.some(c => ok(c.budget)) ? sum(campaigns, 'budget') : null,
     suggestions, top_ad: top,
-    checks: { limit: null, tracking: null, learning: null, at_limit: atLimit },
+    checks: { limit: null, tracking: null, learning: null, at_limit: atLimit, at_limit_sets: atLimitSets },
   };
 }
 
@@ -203,28 +218,28 @@ function fig({ label: l, value, sub, extra, href }) {
   return href ? h('a', { class: 'lx-kpi lg', href }, kids) : h('div', { class: 'lx-kpi lg' }, kids);
 }
 function figures(d, ctx) {
-  const cur = d.currency, t = d.totals || {}, g = d.goals || {}, wk = d.week || {};
+  const cur = d.currency, t = d.totals || {}, g = d.goals || {}, wk = d.week || {}, wl = d.window ? ', ' + d.window.label : '';
   const noSales = !d.sales_source;
   const none = 'No sales source connected';
   const out = [];
-  out.push(fig({ label: 'Spend', value: usd(t.spend, cur), href: ctx.href('meta', 'live-now'),
+  out.push(fig({ label: def('Meta spend' + wl, 'ad_spend'), value: usd(t.spend, cur), href: ctx.href('meta', 'live-now'),
     sub: ok(t.spend) && t.days ? usd(t.spend / t.days, cur) + ' a day' : '',
     extra: sparkline((d.series || []).map(r => r.spend), { fill: true }) }));
-  out.push(fig({ label: 'Sales from Meta ads', value: noSales ? h('small', null, none) : usd(t.revenue, cur), href: ctx.href('meta', 'top-ads'),
-    sub: noSales ? '' : ok(wk.revenue_delta) ? [delta(wk.revenue_delta), 'this week'] : '',
+  out.push(fig({ label: def('Sales from Meta ads' + wl, 'roas'), value: noSales ? h('small', null, none) : usd(t.revenue, cur), href: ctx.href('meta', 'top-ads'),
+    sub: noSales ? '' : ok(wk.revenue_delta) ? [delta(wk.revenue_delta, { bad: wk.revenue_delta < 0, text: (wk.revenue_delta < 0 ? 'down ' : 'up ') + pct(Math.abs(wk.revenue_delta)) }), ' last 7 days vs the 7 before'] : '',
     extra: noSales ? null : sparkline((d.series || []).map(r => r.revenue), { fill: true }) }));
   const rr = roasRead(t.roas, g.roas);
-  out.push(fig({ label: 'Meta ROAS', value: noSales ? h('small', null, none) : x(t.roas), href: ctx.href('meta', 'top-ads'),
-    sub: noSales ? '' : [rr && statusDot(rr[0], rr[1]), ok(wk.roas) ? x(wk.roas) + ' this week' : (!g.roas ? 'no goal set' : '')],
+  out.push(fig({ label: def('Meta ROAS' + wl, 'roas'), value: noSales ? h('small', null, none) : x(t.roas), href: ctx.href('meta', 'top-ads'),
+    sub: noSales ? '' : [rr && statusDot(rr[0], rr[1]), ok(wk.roas) ? 'last 7 days ' + x(wk.roas) : (!g.roas ? 'no goal set' : '')],
     extra: !noSales && ok(t.roas) && g.roas ? gauge({ value: t.roas, max: Math.max(g.roas * 1.2, t.roas * 1.05), goal: g.roas, ticks: [{ side: 'l', text: '0' }, { at: g.roas, text: 'goal ' + x(g.roas), on: true }] }) : null }));
   /* cost per new customer when the count is known; else cost per sale, which is always known */
   const nc = d.new_customers;
   const cost = nc ? nc.cost : t.cpa, goal = nc ? (nc.goal || g.ncpa) : g.cpa;
   const cr = costRead(cost, goal);
-  out.push(fig({ label: nc ? 'Cost per new customer' : 'Cost per sale', value: noSales ? h('small', null, none) : usd(cost, cur), href: ctx.href('customers', 'snapshot'),
+  out.push(fig({ label: def((nc ? 'New customer cost' : 'Cost per sale') + wl, nc ? 'new_customer_cost' : 'cpa'), value: noSales ? h('small', null, none) : usd(cost, cur), href: ctx.href('customers', 'snapshot'),
     sub: noSales ? '' : [cr && statusDot(cr[0], cr[1]), nc ? num(nc.count) + ' new customers' : ok(t.purchases) ? num(t.purchases) + ' sales' : ''],
     extra: !noSales && ok(cost) && goal ? gauge({ value: cost, max: Math.max(cost, goal) * 1.1, goal, ticks: [{ side: 'l', text: usd(0, cur) }, { at: goal, text: 'goal ' + usd(goal, cur), on: true }] }) : null }));
-  return h('div', { class: 'mo-figs' }, out);
+  return h('section', { class: 'lx-hero line' }, h('div', { class: 'mo-figs' }, out));
 }
 
 /* ---------- the daily chart: spend columns, sales (the lead line), and the sales the goal needs ---------- */
@@ -254,7 +269,7 @@ function chartCard(d, ctx) {
         h('p', null, hasSales ? 'by day, Meta only' : 'No sales source connected, so this is spend only')),
       lg),
     plot,
-    ctx.isClient ? null : h('div', { class: 'mo-read' }, h('a', { class: 'lx-btn ghost', href: ctx.href('ask', 'index') }, h('span', { class: 'lx-gem sm' }, svgNode(icon('sparkle'))), 'Read this for me')));
+    ctx.isClient ? null : h('div', { class: 'mo-read' }, h('button', { class: 'lx-btn ghost', type: 'button', onclick: () => openAskPanel({ route: ctx.route, brand: ctx.brand || null, title: 'Read this Meta page for me', range: ctx.range, href: ctx.href('ask', 'index') }) }, h('span', { class: 'lx-gem sm' }, svgNode(icon('sparkle'))), 'Read this for me')));
 }
 
 /* ---------- live campaigns ---------- */
@@ -265,13 +280,7 @@ function goalBar(roas, goal) {
 function campaignsCard(d, ctx) {
   const cur = d.currency, goal = d.goals && d.goals.roas, noSales = !d.sales_source;
   const all = d.campaigns || [];
-  const shown = all.length > 4 ? all.slice(0, 3) : all;
-  const rest = all.slice(shown.length);
-  const rows = shown.map(c => ({ ...c }));
-  if (rest.length) {
-    const sp = sum(rest, 'spend'), rv = sum(rest, 'revenue');
-    rows.push({ more: true, name: `${rest.length} more campaigns`, budget: rest.some(c => ok(c.budget)) ? sum(rest, 'budget') : null, spend: sp, revenue: rv, roas: div(rv, sp) });
-  }
+  let expanded = !!ctx.settingNow('meta.overview.all', false);
   const t = d.totals || {};
   const total = all.length ? { total: true, name: 'All of Meta', budget: d.budget_total, spend: t.spend, revenue: t.revenue, roas: t.roas } : null;
   const live = d.live;
@@ -282,27 +291,49 @@ function campaignsCard(d, ctx) {
     const rr = roasRead(r.roas, goal);
     return rr ? statusDot(rr[0], rr[1]) : null;
   };
-  const tbl = table({
+  const tbl = () => table({
     roomy: true, empty: 'No live campaigns',
     cols: [
-      { key: 'name', label: 'Campaign', class: 'name', render: r => r.more ? h('span', { class: 'dim' }, r.name) : r.name },
-      { key: 'budget', label: 'Budget a day', num: true, class: 'hide-md', render: r => ok(r.budget) ? usd(r.budget, cur) : h('span', { class: 'dim' }, 'not set') },
-      { key: 'spend', label: 'Spend', num: true, render: r => r.spend > 0 || r.total ? usd(r.spend, cur) : h('span', { class: 'dim' }, usd(0, cur)) },
-      { key: 'revenue', label: 'Sales from its ads', num: true, class: 'hide-sm', render: r => noSales || r.revenue == null ? h('span', { class: 'dim' }, noSales ? 'no source' : '') : r.spend > 0 || r.total ? usd(r.revenue, cur) : h('span', { class: 'dim' }, usd(0, cur)) },
-      { key: 'roas', label: 'ROAS', num: true, render: r => r.waiting ? h('span', { class: 'dim' }, r.waiting) : ok(r.cpl) ? h('span', { class: 'dim' }, money(r.cpl, { cur }) + ' a lead') : noSales ? h('span', { class: 'dim' }, 'no source') : ok(r.roas) ? h('span', { class: 'strong' }, x(r.roas)) : '' },
-      { key: 'bar', label: goal ? 'Against goal ' + x(goal) : 'Against goal', class: 'mo-bar hide-sm', render: r => r.waiting || noSales || ok(r.cpl) ? null : goalBar(r.roas, goal) },
+      { key: 'name', label: 'Campaign', class: 'name', render: r => r.name },
+      { key: 'budget', label: def('Budget a day', 'budget_a_day'), num: true, class: 'hide-md', render: r => ok(r.budget) ? usd(r.budget, cur) : h('span', { class: 'dim' }, 'not set') },
+      { key: 'spend', label: def('Spend', 'ad_spend'), num: true, render: r => r.spend > 0 || r.total ? usd(r.spend, cur) : h('span', { class: 'dim' }, usd(0, cur)) },
+      { key: 'revenue', label: def('Sales from its ads', 'roas'), num: true, class: 'hide-sm', render: r => noSales || r.revenue == null ? h('span', { class: 'dim' }, noSales ? 'no source' : '') : r.spend > 0 || r.total ? usd(r.revenue, cur) : h('span', { class: 'dim' }, usd(0, cur)) },
+      { key: 'roas', label: def('ROAS', 'roas'), num: true, render: r => r.waiting ? h('span', { class: 'dim' }, r.waiting) : ok(r.cpl) ? h('span', { class: 'dim' }, money(r.cpl, { cur }) + ' a lead') : noSales ? h('span', { class: 'dim' }, 'no source') : ok(r.roas) ? h('span', { class: 'strong' }, x(r.roas)) : '' },
+      { key: 'bar', label: def(goal ? 'Against goal ' + x(goal) : 'Against goal', 'goal_roas'), class: 'mo-bar hide-sm', render: r => r.waiting || noSales || ok(r.cpl) ? null : goalBar(r.roas, goal) },
       { key: 'status', label: '', class: 'mo-st', render: stat },
     ],
-    rows, total,
-    onRow: () => ctx.go({ ...ctx.route, tab: 'live-now' }),
+    rows: expanded || all.length <= 4 ? all : all.slice(0, 4), total,
+    onRow: r => campaignSheet(r, d, ctx),
   });
-  return card({ title: 'Live now', note: 'Meta campaigns', flush: true, class: 'mo-camps', action: h('a', { href: ctx.href('meta', 'live-now') }, 'Open') },
+  const box = h('div');
+  const paint = () => put(box, tbl(), all.length > 4 ? h('div', { class: 'mr-more', style: { padding: '8px 0 14px' } },
+    button(expanded ? 'Show the top 4' : `Show all ${all.length} campaigns`, { onclick: () => { expanded = !expanded; ctx.saveSetting('meta.overview.all', expanded); paint(); } })) : null);
+  paint();
+  return card({ title: 'Live now', note: 'Meta campaigns' + (d.window ? ', ' + d.window.label : ''), flush: true, class: 'mo-camps', action: h('a', { href: ctx.href('meta', 'live-now') }, 'Open Live now') },
     live ? h('div', { class: 'mo-counts' },
       h('span', null, h('b', { class: 'mo-n' }, num(live.campaigns)), 'campaigns'),
       h('span', null, h('b', { class: 'mo-n' }, num(live.adsets)), 'ad sets'),
       h('span', null, h('b', { class: 'mo-n' }, num(live.ads)), 'ads'))
       : h('div', { class: 'mo-counts' }, h('span', null, d.live_error || 'Could not read the live counts from Meta just now')),
-    tbl);
+    box);
+}
+/* one campaign, every figure: a kit sheet (centered on a desktop, from the bottom on a phone) */
+function campaignSheet(c, d, ctx) {
+  const cur = d.currency, goal = d.goals && d.goals.roas, wl = d.window ? d.window.label : 'these dates';
+  const kv = (label, key, value) => h('div', null, h('span', { class: 'l' }, def(label, key)), h('b', null, value));
+  sheet({ title: c.name, body: h('div', { class: 'mo-sh' },
+    h('p', { class: 'mr-dim' }, 'Meta campaign, numbers for ' + wl),
+    h('div', { class: 'g' },
+      kv('Budget a day', 'budget_a_day', ok(c.budget) ? usd(c.budget, cur) : 'not set'),
+      kv('Spend', 'ad_spend', usd(c.spend, cur)),
+      ok(c.cpl) ? kv('Cost per lead', { title: 'Cost per lead', body: 'Spend divided by the leads Meta counts.' }, money(c.cpl, { cur })) : kv('Sales', 'roas', ok(c.revenue) ? usd(c.revenue, cur) : 'none'),
+      ok(c.cpl) ? null : kv('ROAS', 'roas', ok(c.roas) ? x(c.roas) + (goal ? ', goal ' + x(goal) : '') : 'none'),
+      ok(c.purchases) ? kv('Orders', 'purchases_last_click', num(c.purchases)) : null,
+      ok(c.n_sets) ? kv('Ad sets on', { title: 'Ad sets on', body: 'Ad sets in this campaign that are switched on in Meta right now.' }, num(c.n_sets)) : null,
+      ok(c.n_ads) ? kv('Ads on', { title: 'Ads on', body: 'Ads in this campaign that are switched on in Meta right now.' }, num(c.n_ads)) : null),
+    !ok(c.cpl) && goal && ok(c.roas) ? goalBar(c.roas, goal) : null,
+    (c.top_ads || []).length ? h('div', null, h('h3', null, 'Its top ads by spend'), h('div', { class: 'mo-sh-ads' }, c.top_ads.map(a => h('div', null, h('span', null, a.name), h('b', null, usd(a.spend, cur) + (ok(a.roas) ? ', ROAS ' + x(a.roas) : '')))))) : null,
+    h('div', null, button('Open it in Live now', { href: ctx.href('meta', 'live-now') }))) });
 }
 
 /* ---------- suggestions and the top ad ---------- */
@@ -340,29 +371,25 @@ function checksBand(d, ctx) {
   const none = text => h('p', { class: 'mo-none' }, text);
   const TRACK = { good: 'Healthy', warn: 'Check it', bad: 'Broken' };
   const lim = c.limit && c.limit.limit > 0 ? c.limit : null;
-  return h('section', { class: 'lx-band mo-checks' },
-    h('div', { class: 'lx-sec' }, h('h3', null, 'Meta checks'), h('div', { class: 'act' }, h('a', { href: ctx.href('meta', 'live-now') }, 'See ad sets'))),
+  const list = (title, rows) => () => sheet({ title, side: 'center', body: h('div', { class: 'mo-sh-ads' }, rows.map(r => h('div', null, h('span', null, r.name, r.campaign ? h('small', { class: 'mr-dim' }, ' in ' + r.campaign) : null), r.n ? h('b', null, r.n + ' ads on') : null))) });
+  const val = (rows, title, kids) => rows && rows.length ? h('button', { type: 'button', class: 'row mo-open', onclick: list(title, rows), title: 'See which ad sets' }, kids) : h('div', { class: 'row' }, kids);
+  return card({ title: 'Meta account checks, right now', class: 'mo-checks' },
     h('div', { class: 'mo-checks-g' },
-      h('div', null, h('div', { class: 'lx-cap' }, 'Daily spend limit'),
+      h('div', null, h('div', { class: 'lx-cap' }, def('Daily spend limit', 'daily_account_limit')),
         lim ? [h('div', { class: 'row' }, h('span', { class: 'mo-n' }, pct(lim.used / lim.limit)), `${usd(lim.used, cur)} of ${usd(lim.limit, cur)} today`), gauge({ value: lim.used, max: lim.limit, thin: true, tone: lim.used / lim.limit >= 0.9 ? 'bad' : '' })]
           : none('Not read from Meta yet')),
-      h('div', null, h('div', { class: 'lx-cap' }, 'Tracking'),
+      h('div', null, h('div', { class: 'lx-cap' }, def('Tracking', 'tracking')),
         c.tracking ? h('div', { class: 'mo-word ' + (c.tracking === 'good' ? '' : c.tracking) }, h('i'), TRACK[c.tracking] || c.tracking) : none('Not checked yet')),
-      h('div', null, h('div', { class: 'lx-cap' }, 'Still learning'),
-        c.learning ? h('div', { class: 'row' }, h('span', { class: 'mo-n' }, num(c.learning.n)), `of ${num(c.learning.of)} ad sets`) : none('Not read from Meta yet')),
-      h('div', null, h('div', { class: 'lx-cap' }, 'At the 50 ad limit'),
-        ok(c.at_limit) ? h('div', { class: 'row' }, h('span', { class: 'mo-n' }, num(c.at_limit)), c.at_limit === 1 ? 'ad set' : 'ad sets') : none('Not read from Meta yet'))));
+      h('div', null, h('div', { class: 'lx-cap' }, def('Still learning', 'still_learning')),
+        c.learning ? val(c.learning.sets, 'Ad sets still learning', [h('span', { class: 'mo-n' }, num(c.learning.n)), `of ${num(c.learning.of)} ad sets`]) : none('Not read from Meta yet')),
+      h('div', null, h('div', { class: 'lx-cap' }, def('At the 50 ad limit', 'ad_limit_50')),
+        ok(c.at_limit) ? val(c.at_limit_sets, 'Ad sets at the 50 ad limit', [h('span', { class: 'mo-n' }, num(c.at_limit)), c.at_limit === 1 ? 'ad set' : 'ad sets']) : none('Not read from Meta yet'))));
 }
 
-/* ---------- the one sentence ---------- */
-function sentence(d, ctx) {
-  const t = d.totals || {}, g = d.goals || {};
-  if (!d.sales_source || !ok(t.roas)) return null;
-  const say = ['Meta brought back ', h('b', null, money(Math.round(t.roas * 100) / 100, { cur: d.currency, cents: 2 })), ' for each $1 on these dates.'];
-  if (g.roas) say.push(' The goal is ', h('b', null, money(g.roas, { cur: d.currency, cents: 2 })), '.');
-  return takeaway(say, { action: ctx.isClient ? null : button('Ask why', { href: ctx.href('ask', 'index') }) });
-}
-
+const HELP = [
+  { title: 'What it is for', text: 'Whether Facebook and Instagram ads pay for themselves on the dates in the page head: spend, the sales Triple Whale credits to Meta, ROAS against the goal, the live campaigns and the account checks. Tap a campaign for all of its numbers.' },
+  { title: 'Where the numbers come from', text: "Sales and ROAS are Triple Whale, last click per platform. Spend, budgets and the account checks are Meta's. Hover or tap any dotted label for its meaning." },
+];
 export default {
   /* the plain question, drawn by the shell above the tabs */
   title: ['Are Meta ads ', em('paying for themselves?')],
@@ -384,14 +411,13 @@ export default {
         action: ctx.legacy ? button('Open it in old ' + APP_NAME, { href: ctx.legacy }) : null }));
     }
     put(el, ...[
+      headRow({ help: HELP, ask: ctx.isClient ? null : askWhy(ctx, 'How is Meta doing, and why?') }),
       figures(d, ctx),
-      sentence(d, ctx),
       chartCard(d, ctx),
       campaignsCard(d, ctx),
       /* suggestions are for the team; a client sees the top ad alone */
       ctx.isClient ? topAdCard(d, ctx) : h('div', { class: 'mo-two' }, suggestionsCard(d, ctx), topAdCard(d, ctx)),
       checksBand(d, ctx),
-      h('p', { class: 'lx-foot' }, `${d.window ? d.window.label + '. ' : ''}Facebook and Instagram ads only. Sales and ROAS from Triple Whale, last click per platform. Spend and budgets from Meta.`),
     ].filter(Boolean));
   },
 };

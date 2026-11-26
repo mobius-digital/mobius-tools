@@ -3,6 +3,7 @@
    Asana tasks per client (an estimate), and AI cost. Margin is money in less team and AI cost.
    The floor per team hour is the agency setting agency.perHourFloor (75 until it is set). */
 import { put } from '../../kit.js';
+import { helpBar, dl } from '../home/_biz.js';
 import { h, em, money, pct, num, takeaway, legend, lineChart, empty, statusDot } from '../../kit.js';
 import { style, ok, figures, brandRows, brandName, brandHref, quiet, refused } from '../a-today/_ag.js';
 import { loadMoney, sampleMoney } from './_money.js';
@@ -18,13 +19,15 @@ function render(el, d, ctx) {
   const no = refused(d, ctx, 'Margin'); if (no) return put(el, no);
   if (!d || !d.rows || !d.rows.length) return put(el, empty({ title: 'Nothing to work out yet', text: 'Margin shows once money and finished tasks land for a client this month.' }));
   const t = d.totals, floor = d.floor;
-  const rows = d.rows.map(r => ({ ...r, id: r.brand, href: brandHref(r.brand, 'home', 'index'), per_hour: ok(r.per_hour) ? r.per_hour : r.hours > 0 ? (r.revenue || 0) / r.hours : null }));
+  const m = v => money(ok(v) ? Math.round(v) : v);                 /* whole dollars everywhere, AI cost included */
+  const est = { name: 'Estimate', definition: d.model || 'An estimate from logged hours and AI usage.' };
+  const rows = d.rows.map(r => ({ ...r, id: r.brand, href: brandHref(r.brand, 'month', 'profit'), goTitle: 'Open ' + r.name + ' profit this month', per_hour: ok(r.per_hour) ? r.per_hour : r.hours > 0 ? (r.revenue || 0) / r.hours : null }));
   const low = rows.filter(r => ok(r.per_hour) && r.per_hour < floor);
   const hero = figures([
-    { label: 'Margin this month', value: money(t.margin), lead: true, sub: t.revenue > 0 ? `${pct(t.margin / t.revenue)} of ${money(t.revenue)} received` : '' },
-    { label: 'Per team hour', value: t.hours > 0 ? money(Math.round(t.revenue / t.hours)) : 'no data', sub: `${num(t.hours)} hours on ${num(t.tasks)} tasks` },
-    { label: 'Team and AI cost', value: money(t.team_cost + t.ai_cost), sub: `AI ${money(t.ai_cost)}` },
-    { label: `Under ${money(floor)} an hour`, value: String(low.length), sub: low.length ? low.map(r => r.name).join(', ') : 'every client clears it' },
+    { label: h('span', null, dl('Margin', est.definition ? { name: 'Margin', definition: 'Money received less team and AI cost. ' + est.definition } : 'margin'), ' this month'), value: m(t.margin), lead: true, sub: t.revenue > 0 ? `${pct(t.margin / t.revenue)} of what came in` : '' },
+    { label: dl('Per team hour', 'per_team_hour'), value: t.hours > 0 ? m(t.revenue / t.hours) : 'no data', sub: `${num(t.hours)} hours on ${num(t.tasks)} tasks` },
+    { label: dl('Team and AI cost', 'team_ai_cost'), value: m(t.team_cost + t.ai_cost), sub: `of which AI ${m(t.ai_cost)}` },
+    { label: `Under ${m(floor)} an hour`, value: String(low.length), sub: low.length ? low.map(r => r.name).join(', ') : 'every client clears it' },
   ]);
   const order = rows.filter(r => ok(r.per_hour)).sort((a, b) => b.per_hour - a.per_hour);
   const chart = order.length > 1 ? h('section', { class: 'lx-card ag-chart' },
@@ -38,17 +41,22 @@ function render(el, d, ctx) {
     title: 'Client by client', note: d.label, sort: { key: 'per_hour', dir: 'asc' }, rows, total: tot,
     cols: [
       { key: 'name', label: 'Client', class: 'name', render: r => r.total ? r.name : brandName(r, ctx, r.href) },
-      { key: 'revenue', label: 'Received', num: true, class: 'hide-sm', render: r => money(r.revenue) },
+      { key: 'revenue', label: dl('Received', 'received'), num: true, class: 'hide-sm', render: r => m(r.revenue) },
       { key: 'hours', label: 'Team hours', num: true, class: 'hide-md', render: r => num(r.hours, r.hours % 1 ? 1 : 0) },
-      { key: 'cost', label: 'Team and AI', num: true, class: 'hide-md', render: r => money((r.team_cost || 0) + (r.ai_cost || 0)) },
-      { key: 'margin', label: 'Margin', num: true, sortable: true, class: 'strong', render: r => [money(r.margin), ok(r.margin_pct) ? h('span', { class: 'sub' }, pct(r.margin_pct / 100)) : null] },
-      { key: 'per_hour', label: 'Per hour', num: true, sortable: true, value: r => r.per_hour ?? -1, render: r => ok(r.per_hour) ? (r.total ? money(Math.round(r.per_hour)) : statusDot(r.per_hour < floor ? 'bad' : 'good', money(Math.round(r.per_hour)))) : quiet('no hours') },
+      { key: 'cost', label: dl('Team and AI', 'team_ai_cost'), num: true, class: 'hide-md', render: r => m((r.team_cost || 0) + (r.ai_cost || 0)) },
+      { key: 'margin', label: dl('Margin', 'margin'), num: true, sortable: true, class: 'strong', render: r => [m(r.margin), ok(r.margin_pct) ? h('span', { class: 'sub' }, pct(r.margin_pct / 100)) : null] },
+      { key: 'per_hour', label: dl('Per team hour', 'per_team_hour'), num: true, sortable: true, value: r => r.per_hour ?? -1, render: r => ok(r.per_hour) ? (r.total ? money(Math.round(r.per_hour)) : statusDot(r.per_hour < floor ? 'bad' : 'good', money(Math.round(r.per_hour)))) : quiet('no hours') },
     ],
     item: (r, isTotal) => ({ href: r.href, head: isTotal ? h('b', null, r.name) : brandName(r, ctx), tail: ok(r.per_hour) && !isTotal ? statusDot(r.per_hour < floor ? 'bad' : 'good', money(Math.round(r.per_hour)) + ' an hour') : null,
-      figs: [['Received', money(r.revenue)], ['Hours', num(r.hours, r.hours % 1 ? 1 : 0)], ['Margin', money(r.margin)]] }),
+      figs: [['Received', m(r.revenue)], ['Hours', num(r.hours, r.hours % 1 ? 1 : 0)], ['Margin', m(r.margin)]] }),
+    rowHeight: 56,                                                  /* the margin cell holds two lines */
   });
-  const foot = h('p', { class: 'lx-foot' }, (d.model || 'Estimate.') + (d.people_set === false ? ' Team costs are not set yet, so margin reads high: set them in Agency settings.' : ''));
-  put(el, h('div', { class: 'ag' }, hero, d.sentence ? takeaway(d.sentence) : null, chart, tbl, foot));
+  const help = helpBar([
+    { title: 'What it is for', text: 'Which clients are worth the team\'s time: money received this month against the team time and AI it took.' },
+    { title: 'It is an estimate', text: (d.model || 'Estimate.') + (d.people_set === false ? ' Team costs are not set yet, so margin reads high: set them in Agency settings.' : '') },
+    { title: 'Clicking a client', text: 'Opens that brand\'s profit for this month.' },
+  ], h('span', { class: 'bz-chip', title: d.model || null }, 'Estimate'));
+  put(el, h('div', { class: 'ag' }, help, hero, d.sentence ? takeaway(d.sentence) : null, chart, tbl));
 }
 
 export default {

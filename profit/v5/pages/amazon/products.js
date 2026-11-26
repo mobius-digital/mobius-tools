@@ -13,7 +13,9 @@
 
 import { put } from '../../kit.js';
 import { h, em, card, kpi, kpis, delta, takeaway, button, table, statusDot, sheet, exampleChip, empty, skeleton, addStyles, pct, num } from '../../kit.js';
-import { css, usd, roas, change, say, splitBar, lockBox, loadTotals } from './_ui.js';
+import { css, usd, roas, change, say, splitBar, lockBox, loadTotals, winLabel, wasText } from './_ui.js';
+import { def, headRow } from '../platforms/_ads.js';
+import { askWhy } from '../home/_biz.js';
 
 const ok = n => n != null && isFinite(n);
 const div = (a, b) => (ok(a) && ok(b) && b > 0 ? a / b : null);
@@ -66,23 +68,24 @@ const shareCell = r => (r.no_ads ? h('span', { class: 'azp-q' }, 'No ads ran')
   : h('span', { class: 'azp-share' }, pct(r.ad_share), h('i', null, h('b', { style: { '--v': (r.ad_share * 100).toFixed(1) + '%' } }))));
 
 /* ---------- the lead: how much of Amazon sales came through an ad (live in real mode) ---------- */
-function lead(k) {
+function lead(k, w) {
+  const wl = winLabel(w);
   const adShare = share1(div(k.ad_sales, k.sales)), tacos = div(k.spend, k.sales);
   const r = div(k.ad_sales, k.spend), dSales = change(k.sales, k.sales_prev), dSpend = change(k.spend, k.spend_prev);
   const na = text => h('span', { class: 'az-na' }, text);
   const rest = ok(k.sales) && ok(k.ad_sales) ? Math.max(0, k.sales - k.ad_sales) : null;
   return h('section', { class: 'lx-hero line az-kpis' },
     kpis([
-      ok(k.sales) ? kpi({ label: 'Amazon sales', value: usd(k.sales), size: 'lg', delta: dSales != null && delta(dSales, { bad: dSales < 0 }), sub: ok(k.sales_prev) && 'was ' + usd(k.sales_prev) })
+      ok(k.sales) ? kpi({ label: 'Amazon sales, ' + wl, value: usd(k.sales), size: 'lg', delta: dSales != null && delta(dSales, { bad: dSales < 0 }), sub: ok(k.sales_prev) && wasText(k.sales_prev, w, usd) })
         : kpi({ label: 'Amazon sales', value: na('Not connected'), size: 'lg', sub: 'No sales source connected' }),
-      ok(k.spend) ? kpi({ label: 'Ad spend', value: usd(k.spend), size: 'lg', delta: dSpend != null && delta(dSpend, { plain: true }), sub: ok(k.spend_prev) && 'was ' + usd(k.spend_prev) })
+      ok(k.spend) ? kpi({ label: def('Amazon ad spend, ' + wl, 'ad_spend'), value: usd(k.spend), size: 'lg', delta: dSpend != null && delta(dSpend, { plain: true }), sub: ok(k.spend_prev) && wasText(k.spend_prev, w, usd) })
         : kpi({ label: 'Ad spend', value: na('No ads ran'), size: 'lg', sub: 'no Amazon ad spend in these dates' }),
-      kpi({ label: 'Sales that came through an ad', value: ok(adShare) ? pct(adShare) : na('No data'), size: 'lg',
-        sub: ok(k.ad_sales) ? usd(k.ad_sales) + " of ad sales, Amazon Ads' own count" : 'needs both sales and ad sales' }),
-      kpi({ label: 'TACOS', value: ok(tacos) ? pct(tacos, { digits: 1 }) : na('No data'), size: 'lg', sub: 'ad spend as a share of all Amazon sales' + (ok(r) ? ', ROAS ' + roas(r) : '') }),
+      kpi({ label: def('Sales that came through an ad', { title: 'Through an ad', body: "Ad sales (Amazon Ads' own count) as a share of all Amazon sales." }), value: ok(adShare) ? pct(adShare) : na('No data'), size: 'lg',
+        sub: ok(k.ad_sales) ? usd(k.ad_sales) + ' of ad sales' : 'needs both sales and ad sales' }),
+      kpi({ label: def('TACOS', 'tacos'), value: ok(tacos) ? pct(tacos, { digits: 1 }) : na('No data'), size: 'lg', sub: ok(r) ? 'ROAS ' + roas(r) : '' }),
     ], { cols: 4 }),
     ok(rest) && k.sales > 0 ? h('div', null,
-      splitBar([{ value: k.ad_sales, color: 'var(--ink)' }, { value: rest, color: '#D9DDE6' }],
+      splitBar([{ value: k.ad_sales, color: 'var(--ink)' }, { value: rest, color: 'var(--line-strong)' }],
         { thin: true, label: `Amazon sales split: ${usd(k.ad_sales)} through an ad, ${usd(rest)} without one` }),
       h('div', { class: 'az-ends' }, h('span', null, h('b', null, usd(k.ad_sales)), ' through an ad'), h('span', null, h('b', null, usd(rest)), ' without one'))) : null);
 }
@@ -102,13 +105,13 @@ function openProduct(r, d) {
       f('TACOS', ok(r.tacos) && !r.no_ads ? pct(r.tacos, { digits: 1 }) : r.no_ads ? 'No ads ran' : 'No data', r.no_ads || !ok(r.tacos)),
       f('Share of Amazon sales', ok(r.of_all) ? pct(r.of_all) : 'No data', !ok(r.of_all))),
     !r.no_ads && ok(rest) && r.sales > 0 ? h('div', { class: 'azp-bar' },
-      splitBar([{ value: r.ad_sales, color: 'var(--ink)' }, { value: rest, color: '#D9DDE6' }], { thin: true, label: `${pct(r.ad_share)} of this product's sales came through an ad` }),
+      splitBar([{ value: r.ad_sales, color: 'var(--ink)' }, { value: rest, color: 'var(--line-strong)' }], { thin: true, label: `${pct(r.ad_share)} of this product's sales came through an ad` }),
       h('p', null, h('b', null, pct(r.ad_share)), ' of its sales came through an ad, ', h('b', null, usd(rest)), ' sold without one.')) : null,
     h('div', { class: 'azp-stock' },
       r.stock ? [low ? statusDot('warn', 'Running low') : statusDot('good', 'In stock'),
         h('span', null, num(r.stock.units) + ' units at Amazon' + (ok(r.stock.days) ? ', about ' + weeks(r.stock.days) + ' at this pace' : ''))]
         : [statusDot('off', 'Stock not tracked'), h('span', null, "Amazon's warehouse count needs the owner's Amazon login.")]),
-    h('p', { class: 'azp-note' }, "Ad sales are Amazon Ads' own count. Nothing changes from this page.")) });
+    null) });
 }
 
 function productsCard(d, rows) {
@@ -122,7 +125,7 @@ function productsCard(d, rows) {
       { key: 'units', label: 'Units', num: true, sortable: true, class: 'hide-sm', render: r => (ok(r.units) ? num(r.units) : h('span', { class: 'azp-q' }, 'No data')) },
       { key: 'ad_spend', label: 'Ad spend', num: true, sortable: true, class: 'hide-sm', value: r => r.ad_spend ?? 0, render: r => (r.no_ads ? h('span', { class: 'azp-q' }, 'None') : usd(r.ad_spend)) },
       { key: 'ad_share', label: 'Through an ad', num: true, sortable: true, value: r => (r.no_ads ? 0 : r.ad_share), render: shareCell },
-      { key: 'tacos', label: 'TACOS', num: true, sortable: true, class: 'hide-md', value: r => (r.no_ads ? 0 : r.tacos), render: r => (r.no_ads ? '' : ok(r.tacos) ? pct(r.tacos, { digits: 1 }) : '') },
+      { key: 'tacos', label: def('TACOS', 'tacos'), num: true, sortable: true, class: 'hide-md', value: r => (r.no_ads ? 0 : r.tacos), render: r => (r.no_ads ? '' : ok(r.tacos) ? pct(r.tacos, { digits: 1 }) : '') },
       { key: 'stock', label: 'Stock', num: true, class: 'hide-sm', render: r => (r.total ? '' : stockCell(r)) },
     ],
     rows, sort: { key: 'sales', dir: 'desc' }, total: { ...t, total: true },
@@ -134,7 +137,7 @@ function productsCard(d, rows) {
 export default {
   /* the plain question, drawn by the shell above the tabs */
   title: ['Which products ', em('lean on ads?')],
-  eyebrow: 'Amazon only',
+  eyebrow: 'Amazon',
 
   async load(ctx) {
     const t = await loadTotals(ctx);
@@ -156,16 +159,16 @@ export default {
       }));
       return;
     }
-    const kids = [lead(k)];
+    const kids = [headRow({ help: [
+      { title: 'What it is for', text: 'Which Amazon products sell on their own and which lean on ads, for the dates in the page head. Tap a product for its numbers.' },
+      { title: 'Where the numbers come from', text: "The figures at the top are Triple Whale. Ad sales are Amazon Ads' own count. Stock is Amazon's warehouse count where it is known." + (d.example ? " The product list is an example until Amazon's product report is read." : '') },
+    ] }), lead(k, d.window)];
     const all = sum(d.products || [], 'sales');
     const rows = (d.products || []).map(shape).map(r => ({ ...r, of_all: div(r.sales, all) }));
     /* the one line read: only from real per product numbers or the fixture's own, never worked out of example rows */
-    if (d.take && !d.example) kids.push(takeaway(say(d.take), { action: !ctx.isClient ? button('Ask why', { href: ctx.href('ask', 'index') }) : null }));
+    if (d.take && !d.example) kids.push(takeaway(say(d.take), { action: !ctx.isClient ? askWhy(ctx, 'Which Amazon products are working, and why?') : null }));
     kids.push(rows.length ? productsCard(d, rows)
-      : card({ title: 'Product by product' }, lockBox("Needs the owner's Amazon login", 'Sales, ad spend and stock for each product are in Amazon itself. One sign in from the owner brings them here.')));
-    kids.push(h('p', { class: 'lx-foot' }, d.example
-      ? "The figures at the top are Triple Whale for these dates. The product list is an example until Amazon's product report is read. Ad sales are Amazon Ads' own count."
-      : "Numbers from Triple Whale. Ad sales are Amazon Ads' own count. Stock is Amazon's warehouse count where it is known."));
+      : card({ title: 'Product by product' }, lockBox("Not connected: needs the owner's Amazon login", 'Sales, ad spend and stock for each product are in Amazon itself. One sign in from the owner brings them here.')));
     put(el, ...kids);
   },
 };

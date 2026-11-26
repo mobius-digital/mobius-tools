@@ -353,20 +353,25 @@
    "date": "Nov 20",
    "who": "Jordan",
    "what": "Budget $25 to $35 a day",
-   "why": "Early Black Friday week, ROAS held above 1.2x."
+   "why": "Early Black Friday week, ROAS held above 1.2x.",
+   "at": "2026-11-20T10:05:00",
+   "cat": "budget"
   },
   {
    "date": "Nov 14",
    "who": "Sam",
    "what": "Added What is in the bag as a Spark ad",
-   "why": "Creator video from @backnine.riley, approved Nov 13."
+   "why": "Creator video from @backnine.riley, approved Nov 13.",
+   "at": "2026-11-14T15:40:00",
+   "cat": "new_creative"
   },
   {
    "date": "Nov 3",
    "who": "Jordan",
    "what": "Turned off Old belt promo",
-   "why": "Offer ended Oct 31."
+   "why": "Offer ended Oct 31.",
+   "at": "2026-11-10T09:30:00",
+   "cat": "ad_paused"
   }
- ],
- "foot": "Sample. Northlake Golf, TikTok only. Every number, video, suggestion and change here is invented."
+ ]
 }

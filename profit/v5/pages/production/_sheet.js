@@ -18,10 +18,10 @@
 
 import { APP_NAME } from '../../config.js';
 import { put } from '../../kit.js';
-import { h, sheet, statusDot, button, relativeTime, skeleton, empty, addStyles } from '../../kit.js';
+import { h, sheet, statusDot, button, relativeTime, skeleton, empty, addStyles, tabs } from '../../kit.js';
 import { toast } from '../../kit.js';
 import { fixture, cached, api, SAMPLE } from '../../data.js';
-import { STEPS, stepOf, day, daysFrom, kb, picture, who, cardLink, oldLocus, plural } from './_ui.js';
+import { STEPS, stepOf, day, daysFrom, kb, picture, who, cardLink, oldLocus, plural, teamTag } from './_ui.js';
 import { canWrite, write, confirm, why, keepCard, act, css as paCss } from './_act.js';
 import { openLoad } from './_load.js';
 
@@ -76,7 +76,7 @@ function facts(sh, photos, today) {
   const since = c.client_sent_at && c.needs_client ? daysFrom(c.client_sent_at, today) : null;
   const cell = (label, value) => h('div', null, h('span', { class: 'lx-cap' }, label), h('b', null, value));
   return h('div', { class: 'ps-facts' },
-    cell('Has it now', [c.needs_client ? null : who(c.owner, photos, 20), ' ', waitsOn || 'Nobody yet', since != null ? ', ' + plural(since, 'day') : '']),
+    cell('Has it now', [c.needs_client || !c.owner ? null : who(c.owner, photos, 20), ' ', waitsOn || 'Nobody yet', since != null ? ', ' + plural(since, 'day') : '']),
     cell('Ads due', c.due ? day(c.due, true) : 'No date'),
     cell('Goes live', c.launch_on ? day(c.launch_on, true) : 'Not set'),
     cell('Approved by', c.approved_by || 'Not yet'));
@@ -145,25 +145,30 @@ function noteBox(ops) {
 function briefBlock(sh, ctx) {
   const lines = briefLines(sh.brief && sh.brief.html).filter(l => !/headline|^(text|primary|copy)|goes to|link|landing/i.test(l.label));
   return h('section', null,
-    h('div', { class: 'ps-h' }, h('h3', null, 'Brief'), sh.card.brief_url && !ctx.isClient ? h('a', { class: 'ps-link', href: sh.card.brief_url, target: '_blank', rel: 'noopener' }, 'Read the full brief') : null),
+    sh.card.brief_url && !ctx.isClient ? h('div', { class: 'ps-h' }, h('a', { class: 'ps-link', href: sh.card.brief_url, target: '_blank', rel: 'noopener' }, 'Read the full brief')) : null,
     lines.length ? h('dl', { class: 'ps-brief' }, lines.slice(0, 8).map(l => [h('dt', { class: 'lx-cap' }, l.label), h('dd', null, l.text)]))
       : h('p', { class: 'ps-none' }, sh.thin ? 'The brief for this card is not in the sample file.' : 'No brief written yet.'));
 }
 
-function filesBlock(sh, state) {
+function filesBlock(sh, state, ctx, ops) {
+  const c = sh.card;
+  const links = ctx.isClient ? null : h('div', { class: 'ps-links' },
+    c.share ? h('a', { class: 'ps-link', href: c.share, target: '_blank', rel: 'noopener', title: 'The page the client sees, opens in a new tab' }, 'Open the client review link') : null,
+    ctx.legacy ? h('a', { class: 'ps-link', href: cardLink(ctx, c.id), target: '_blank', rel: 'noopener', title: 'Opens old ' + APP_NAME + ' in a new tab' }, ops ? 'Upload a new version in old ' + APP_NAME : 'Open in old ' + APP_NAME) : null);
   const all = sh.files || [];
-  if (!all.length) return h('section', null, h('div', { class: 'ps-h' }, h('h3', null, 'Files')), h('p', { class: 'ps-none' }, 'No files on this card yet.'));
+  if (!all.length) return h('section', null, h('p', { class: 'ps-none' }, 'No files on this card yet.'), links);
   const ad = (sh.ads || [])[state.ad];
   const mine = ad ? all.filter(f => f.kind === 'version' && (f.ad || '') === (ad.ad || '')) : [];
   const rows = (mine.length ? mine : all).slice().sort((a, b) => (b.version || 0) - (a.version || 0)).slice(0, 12);
   const newest = Math.max(...rows.map(f => f.version || 0));
   return h('section', null,
-    h('div', { class: 'ps-h' }, h('h3', null, 'Files'), h('span', null, mine.length ? `Ad ${ad.ad}. ${rows.length} of the card's ${all.length}.` : plural(all.length, 'file'))),
+    h('div', { class: 'ps-h' }, h('span', null, mine.length ? `Ad ${ad.ad}: ${rows.length} of the card's ${all.length} files` : plural(all.length, 'file'))),
     h('div', { class: 'ps-files' }, rows.map(f => h('a', { class: f.kind === 'version' && (f.version || 0) < newest ? 'old' : '', href: f.download || f.url || null, target: '_blank', rel: 'noopener' },
       h('b', null, f.name || 'File'),
       h('span', { class: 'hide-sm' }, f.px || (f.video ? 'Video' : (f.mime || '').replace(/^image\//, '').toUpperCase())),
       h('span', null, kb(f.size)),
-      f.kind !== 'version' ? statusDot('off', f.kind === 'inspo' ? 'Reference' : 'Attached') : (f.version || 0) < newest ? statusDot('off', 'Older version') : statusDot('good', 'Current')))));
+      f.kind !== 'version' ? statusDot('off', f.kind === 'inspo' ? 'Reference' : 'Attached') : (f.version || 0) < newest ? statusDot('off', 'Older version') : statusDot('good', 'Current')))),
+    links);
 }
 
 function notesBlock(sh, photos, ops) {
@@ -184,29 +189,26 @@ function notesBlock(sh, photos, ops) {
         replies(c.id).map(r => h('p', { class: 'ps-reply' }, h('b', null, r.who || 'Someone'), ' ', r.body))));
   };
   return h('section', null,
-    h('div', { class: 'ps-h' }, h('h3', null, 'Notes'), h('span', null, all.length ? String(all.length) : '')),
     all.length ? h('div', { class: 'ps-notes' }, all.slice(-12).map(row)) : h('p', { class: 'ps-none' }, 'No notes yet.'),
     ops ? noteBox(ops) : null);
 }
 
 function body(sh, ctx, photos, today, state, redraw, ops) {
   const c = sh.card;
-  const share = c.share && !ctx.isClient ? button('Open the client review link', { href: c.share, target: '_blank' }) : null;
+  const notes = (sh.comments || []).filter(x => !x.parent_id).length, files = (sh.files || []).length;
+  const pick = state.tab || 'brief';
+  const panel = pick === 'files' ? filesBlock(sh, state, ctx, ops) : pick === 'notes' ? notesBlock(sh, photos, ops) : briefBlock(sh, ctx);
   return [
     h('div', { class: 'ps-top' },
-      h('div', { class: 'ps-kicker' }, h('b', null, 'Card ' + c.num), h('span', null, (sh.brief && sh.brief.format) || c.format || ''),
+      h('div', { class: 'ps-kicker' }, h('span', null, (sh.brief && sh.brief.format) || c.format || ''),
         (sh.ads || []).length ? h('span', null, plural(sh.ads.length, 'ad')) : null, c.brand && ctx.view === 'agency' ? h('span', null, c.brand) : null),
-      h('h2', null, c.title || 'Untitled card'),
       track(c)),
+    adBlock(sh, state, redraw, ops),
     facts(sh, photos, today),
-    ops && !sh.thin ? workBlock(sh, ops) : null,
-    adBlock(sh, state, redraw, ops && !sh.thin ? ops : null),
-    briefBlock(sh, ctx),
-    filesBlock(sh, state),
-    notesBlock(sh, photos, ops && !sh.thin ? ops : null),
-    ctx.isClient ? null : h('div', { class: 'ps-foot' }, share,
-      ops ? h('p', null, 'Uploading a new version still happens in old ' + APP_NAME + '. ', ctx.legacy ? h('a', { class: 'ps-link', href: cardLink(ctx, c.id), target: '_blank', rel: 'noopener' }, 'Open in old ' + APP_NAME) : null)
-        : [oldLocus(ctx, { href: cardLink(ctx, c.id), label: 'Open in old ' + APP_NAME, large: true }), h('p', null, 'You can look here. Changes are made by the team.')]),
+    ops ? h('div', { class: 'ps-team' }, h('span', { class: 'ps-team-h' }, 'Change this card', teamTag()), workBlock(sh, ops)) : null,
+    h('div', { class: 'ps-tabs' }, tabs([{ id: 'brief', label: 'Brief' }, { id: 'files', label: 'Files', count: files || null }, { id: 'notes', label: 'Notes', count: notes || null }], pick, id => { state.tab = id; redraw(); })),
+    panel,
+    !ops && !sh.thin && !ctx.isClient ? h('p', { class: 'ps-none' }, 'You can look here. Changes are made by the team.') : null,
   ];
 }
 
@@ -215,12 +217,11 @@ function body(sh, ctx, photos, today, state, redraw, ops) {
 export function openCard(ctx, card, { photos = {}, today, team = [], onChange } = {}) {
   css(); paCss();
   const box = h('div', { class: 'ps' }, skeleton('title'), skeleton('row', 4));
-  const sh = sheet({ title: ' ', body: box, class: 'ps-sheet', onClose: () => { open = false; } });
-  sh.el.querySelector('.lx-sheet-h h2').textContent = '';
-  const state = { ad: 0 };
+  const sh = sheet({ title: 'Card ' + (card.num || '') + ', ' + (card.title || 'Untitled card'), body: box, class: 'ps-sheet', onClose: () => { open = false; } });
+  const state = { ad: 0, tab: 'brief' };
   let open = true, cur = null;
   const ops = canWrite(ctx) ? makeOps() : null;
-  const paint = data => { if (!open || !data) return; cur = data; const redraw = () => paint(data); put(box, ...body(data, ctx, photos, today, state, redraw, ops).filter(Boolean)); };
+  const paint = data => { if (!open || !data) return; cur = data; const redraw = () => paint(data); put(box, ...body(data, ctx, photos, today, state, redraw, ops && !data.thin ? ops : null).filter(Boolean)); };
   readCard(card, paint).then(paint, e => {
     put(box, empty({ title: 'This card could not load', text: (e && e.message) || 'Something went wrong.', action: oldLocus(ctx, { href: cardLink(ctx, card.id) }) }));
   });
@@ -345,20 +346,21 @@ export function openCard(ctx, card, { photos = {}, today, team = [], onChange } 
 }
 
 const CSS = `
-.lx-sheet.ps-sheet{width:min(760px,100%)}
-.ps-sheet .lx-sheet-h{padding:10px 12px 0 24px;position:absolute;right:0;top:0;z-index:2;background:none}
-.ps-sheet .lx-sheet-b{padding-top:22px;position:relative}
-.ps{display:grid;gap:26px;min-width:0}
+.ps{display:grid;gap:20px;min-width:0}
+.ps-team{display:grid;gap:8px}
+.ps-team-h{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;color:var(--muted)}
+.ps-tabs .lx-tabs{margin:0}
+.ps-links{display:flex;gap:16px;flex-wrap:wrap;padding-top:6px}
 .ps section{display:grid;gap:12px;min-width:0}
-.ps-top{display:grid;gap:10px;padding-right:44px}
+.ps-top{display:grid;gap:10px}
 .ps-kicker{display:flex;gap:10px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
 .ps-kicker b{color:var(--ink)}
-.ps-top h2{font-size:22px;font-weight:600;letter-spacing:-.025em;line-height:1.2}
-.ps-track{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:4px;list-style:none;margin:6px -44px 0 0;padding:0}
+.ps-top h2{font-size:var(--num-m);font-weight:600;letter-spacing:-.025em;line-height:1.2}
+.ps-track{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:4px;list-style:none;margin:0;padding:0}
 .ps-track li{padding-top:8px;border-top:3px solid var(--line-strong);font-size:11.5px;line-height:1.25;color:var(--faint);overflow-wrap:anywhere}
 .ps-track li.done{border-color:var(--slate);color:var(--muted)}
 .ps-track li.now{border-color:var(--ink);color:var(--ink);font-weight:600}
-.ps-facts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;padding:16px 18px;border-radius:14px;background:var(--band)}
+.ps-facts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;padding:12px 16px;border-radius:14px;background:var(--band)}
 .ps-facts>div{display:grid;gap:4px;min-width:0}
 .ps-facts b{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-weight:600;font-size:13.5px}
 .ps-ad{grid-template-columns:minmax(0,240px) minmax(0,1fr);column-gap:22px!important;align-items:start}
@@ -372,7 +374,7 @@ const CSS = `
 .ps-ver b{color:var(--ink)}
 .ps-ver small{margin-left:auto}
 .ps-strip{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:8px}
-.ps-strip button{display:grid;gap:3px;padding:8px 10px;border:0;border-radius:10px;background:#fff;box-shadow:inset 0 0 0 1px var(--line-strong);text-align:left;cursor:pointer;font-size:13px}
+.ps-strip button{display:grid;gap:3px;padding:8px 10px;border:0;border-radius:10px;background:var(--surface);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line-strong);text-align:left;cursor:pointer;font-size:13px}
 .ps-strip button.on{box-shadow:inset 0 0 0 2px var(--ink)}
 .ps-pin{position:absolute;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;background:var(--ink);color:#fff;font-size:11.5px;font-weight:700;display:grid;place-items:center;box-shadow:0 0 0 2px #fff}
 .ps-h{display:flex;align-items:baseline;gap:10px;padding-bottom:8px;border-bottom:1px solid var(--line)}
@@ -416,7 +418,6 @@ const CSS = `
 .ps-foot p{flex:1 1 100%;font-size:12.5px;color:var(--muted)}
 @media (max-width:759px){
   .ps-track{grid-template-columns:repeat(4,minmax(0,1fr));row-gap:10px;margin-right:0}
-  .ps-top{padding-right:36px}
   .ps-facts{grid-template-columns:1fr 1fr}
   .ps-ad{grid-template-columns:minmax(0,1fr)}
   .ps-ad-pic{max-width:260px}

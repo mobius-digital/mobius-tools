@@ -2,11 +2,12 @@
    sheet for one item. Read only: syncing Drive, uploading and removing stay in old Locus. */
 
 import { h, sheet, addStyles, field, button } from '../../kit.js';
+export { pageTop, teamTag } from '../production/_ui.js';
 import { picture } from '../production/_ui.js';
 
 /** A filter row of chips: items [{ id, label, n }], the picked id, onPick. */
-export function chips(items, pick, onPick) {
-  return h('div', { class: 'pd-chips', role: 'tablist' }, items.map(x => h('button', { type: 'button', role: 'tab', class: x.id === pick ? 'on' : '', 'aria-selected': x.id === pick,
+export function chips(items, pick, onPick, label) {
+  return h('div', { class: 'pd-chips', role: 'tablist', 'aria-label': label || null }, label ? h('span', { class: 'lb-chl' }, label) : null, items.map(x => h('button', { type: 'button', role: 'tab', class: x.id === pick ? 'on' : '', 'aria-selected': x.id === pick,
     onclick: () => onPick(x.id) }, x.label, x.n == null ? null : h('span', null, x.n))));
 }
 
@@ -48,8 +49,11 @@ const CSS = `
 .lb-tile{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;min-width:0;align-content:start;padding:0;border:0;background:none;text-align:left;font:inherit;color:inherit;cursor:pointer;text-decoration:none}
 .lb-tile .pd-pic{border-radius:12px;box-shadow:0 0 0 1px var(--line);transition:box-shadow var(--t) var(--ease)}
 .lb-tile:hover .pd-pic{box-shadow:0 0 0 1px var(--line-strong),var(--sh-2)}
-.lb-tile b{display:block;font-size:13.5px;font-weight:600;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.lb-tile small{display:block;font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lb-tile b{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:13.5px;font-weight:600;line-height:1.3;overflow:hidden}
+.lb-tile small{display:block;font-size:12.5px;color:var(--muted)}
+.lb-tags{display:flex;gap:4px;flex-wrap:wrap}
+.lb-tags span{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:999px;background:var(--bg-sunk);color:var(--ink-2);font-size:11.5px;white-space:nowrap}
+.lb-chl{align-self:center;font-size:12.5px;font-weight:600;color:var(--muted);margin-right:4px;min-width:52px}
 .lb-tile q{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:12.5px;line-height:1.4;color:var(--ink-2);quotes:none}
 .lb-grid.lb-wide{--cols:4}
 .lb-tools{display:flex;gap:12px;align-items:center;flex-wrap:wrap}

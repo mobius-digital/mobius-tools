@@ -1,7 +1,7 @@
 /* Creative > What works and Creative review: the parts every tab shares.
    - the page's own layout rules (ww- classes, added once)
    - the ad picture (a real cover when the data has one, a drawn tile when it does not)
-   - the two small notes: "Tags are being re-checked" and "Example until its data feed is built"
+   - the "Example until its data feed is built" chip, the hover definitions (GLOSS) and the page help row
    - the live readers (one Meta ads read, one brand read) and the plain states
    - the "From a finding to new ads" sheet, opened from a button on any finding. Read only for now. */
 
@@ -9,6 +9,7 @@ import { exampleChip as kitExampleChip } from '../../kit.js';
 import { h, s, addStyles, button, sheet, gauge, empty, statusDot, avatar, platformChip, barChart, money, num, pct, x } from '../../kit.js';
 import { AI_NAME, legacyUrl, APP_NAME } from '../../config.js';
 import { fixture } from '../../data.js';
+import { defined, defLabel, pageHelp } from '../../defs.js';
 
 /* ---------- words used on every tab ---------- */
 export const SRC_NOTE = 'Meta ads in sales campaigns. Sales and ROAS from Triple Whale, last click per platform. Spend, clicks and views from Meta.';
@@ -18,9 +19,68 @@ export const thinWords = orders => (orders > 0 ? `Only ${num(orders)} ${orders =
 export const p1 = v => (v == null ? 'no data' : pct(v, { digits: v < 0.1 ? 2 : 0 }));
 export const p0 = v => (v == null ? 'no data' : pct(v));
 
+/* ---------- hover definitions for the Creative words (defs.js has the store-wide ones) ---------- */
+const TW = 'Triple Whale';
+export const GLOSS = {
+  opener: { name: 'Opener', definition: 'Starts journeys: Triple Whale gives it at least 1.3 times more first click sales than last click sales. People meet the brand here and buy later, often from another ad.', source: TW },
+  closer: { name: 'Closer', definition: 'Finishes journeys other ads started: at least 1.3 times more last click sales than first click sales.', source: TW },
+  both: { name: 'Both', definition: 'Opens and closes about equally: first click and last click sales are within 1.3 times of each other.', source: TW },
+  thin: { name: 'Too early', definition: 'Its first and last click sales together are under one goal cost per sale, so it cannot be placed yet.', source: TW },
+  first_click: { name: 'First click sales', definition: 'Sales Triple Whale credits to the ad when it was the first ad the buyer clicked.', source: TW + ', first click' },
+  last_click: { name: 'Last click sales', definition: 'Sales Triple Whale credits to the ad when it was the last ad the buyer clicked before buying. ROAS and cost per sale on these pages use this number.', source: TW + ', last platform click' },
+  meta_orders: { name: 'Meta says', definition: 'Meta\'s own count of orders for the ad. It also counts people who only saw the ad and bought within a day, so it runs higher. A second opinion, not the number we judge on.', source: 'Meta' },
+  tw_orders: { name: 'Orders', definition: 'Orders Triple Whale credits to the ad, last platform click.', source: TW + ', last platform click' },
+  tw_sales: { name: 'Sales', definition: 'The order value Triple Whale credits to the ad, last platform click.', source: TW + ', last platform click' },
+  live: { name: 'Live', definition: 'The ad spent money in the last 2 days of the dates picked.', source: 'Meta' },
+  hook_rate: { name: 'Hook rate', definition: 'People who watched the first 3 seconds, out of every time the video was shown. Feed and Reels are mixed.', formula: '3 second views / Impressions', source: 'Meta' },
+  hold_rate: { name: 'Hold rate', definition: 'Of the people who watched 3 seconds, the share who kept watching (ThruPlays: 15 seconds, or the whole video when it is shorter).', formula: 'ThruPlays / 3 second views', source: 'Meta' },
+  normal_hook: { name: 'Normal', definition: 'The middle (median) figure of the videos judged on this page: half are above it, half below.', source: 'Meta' },
+  click_rate: { name: 'Click rate', definition: 'Link clicks out of every time the ad was shown.', formula: 'Link clicks / Impressions', source: 'Meta' },
+  atc_rate: { name: 'Add to cart rate', definition: 'Adds to cart out of link clicks.', formula: 'Adds to cart / Link clicks', source: 'Meta' },
+  thin_orders: { name: 'Under 30 orders', definition: 'Fewer than 30 orders behind this figure, so read it as a hint, not a result. Shown in gray.' },
+  proven: { name: 'Proven', definition: 'Won at least 1 in 5 of its judged tests.' },
+  dead: { name: 'Dead', definition: '2 or more tests judged and none won.' },
+  mixed: { name: 'Mixed', definition: 'Tests judged and some won, but under 1 in 5.' },
+  not_judged: { name: 'Not judged', definition: 'Tests ran, but none has had its call yet.' },
+  untested: { name: 'Untested idea', definition: 'Filed as an angle, never tested.' },
+  retired: { name: 'Retired', definition: 'Taken out of use by the team. Kept for its history.' },
+  won: { name: 'Won', definition: 'Tests judged a winner, out of the tests judged so far. Tests still running are not counted.' },
+  to_order: { name: 'To order', definition: 'Triple Whale orders out of the visits (or Meta link clicks) the page got from these ads.', formula: 'Orders / Visits', source: TW + ' orders, Meta clicks' },
+  visits: { name: 'Visits', definition: 'Visits to the page from these ads.', source: TW },
+  clicks: { name: 'Clicks', definition: 'Meta link clicks on the ads that send people to this page. A click that never loaded the page still counts.', source: 'Meta' },
+  add_to_cart: { name: 'Add to cart', definition: 'Adds to cart out of the visits (or clicks) to the page.', source: 'Meta' },
+  gap: { name: 'Gap best to worst', definition: 'The best group\'s figure minus the weakest group\'s. When judging on ROAS, groups under 30 orders are left out.' },
+  versions: { name: 'Versions', definition: 'Copies of this ad live now in their account: the same picture or video with other words or sizes.', source: 'Meta Ad Library' },
+  running: { name: 'Running', definition: 'Days since the ad first went live.', source: 'Meta Ad Library' },
+  roas: { name: 'ROAS', definition: 'The sales Triple Whale credits to the ad (last platform click), divided by what it spent on Meta.', formula: 'Sales / Spend', source: TW + ', last platform click' },
+  cpa: { name: 'Cost per sale', definition: 'What the ad spent for each order Triple Whale credits to it (last platform click).', formula: 'Spend / Orders', source: TW + ', last platform click' },
+  spend: { name: 'Spend', definition: 'What the ad spent on Meta on the dates picked.', source: 'Meta' },
+};
+/** defLabel with the Creative words above first, then the app glossary. */
+export const dl = (text, key, o) => defLabel(text, GLOSS[key] || key, o);
+export const def = (node, key) => defined(node, GLOSS[key] || key);
+/** The one "What is this page?" help at the top of a Creative page. body: text or [{ title, text }]. src: false leaves the sources out. */
+export function helpBar(body, { src = SRC_NOTE } = {}, ...right) {
+  return h('div', { class: 'ww-help' }, pageHelp({ body: [].concat(body, src ? [{ title: 'Where the numbers come from', text: src }] : []) }), h('span', { class: 'sp' }), ...right);
+}
+/** The small "Team only" tag (the same look as the kit tabs). */
+export const teamTag = () => defined(h('span', { class: 'lx-team-tag' }, 'Team only'), 'team_only');
+/** A row of small labeled figures: [[label (text or node), value, { cls }], ...]. */
+export const figs = (list, n) => h('div', { class: 'ww-figs', style: { '--n': n || list.filter(Boolean).length } }, list.filter(Boolean).map(([k, v, o]) => h('div', null, h('span', { class: 'k' }, k), h('b', { class: (o && o.cls) || '' }, v))));
+
 /* ---------- layout rules ---------- */
 const CSS = `
 .ww-stack{display:grid;gap:var(--sp-8);min-width:0}
+.ww-help{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0}
+.ww-help .sp{flex:1 1 auto}
+.ww-help .note{font-size:13px;color:var(--muted)}
+.ww-figs{display:grid;grid-template-columns:repeat(var(--n,3),minmax(0,1fr));gap:10px 14px;min-width:0}
+.ww-figs>div{display:grid;gap:2px;min-width:0;align-content:start}
+.ww-figs .k{font-size:12px;color:var(--muted)}
+.ww-figs b{font-size:var(--num-s);font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.ww-figs b.dim{color:var(--faint);font-weight:500}
+.ww-figs b.bad{color:var(--bad)}
+.ww-figs b.pos{color:var(--good)}
 .ww-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;min-width:0}
 .ww-bar .lx-seg{max-width:100%;overflow-x:auto;scrollbar-width:none}
 .ww-bar .lx-seg button{white-space:nowrap}
@@ -29,7 +89,7 @@ const CSS = `
 .ww-note{gap:7px}
 .ww-note::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--watch);flex:none}
 .ww-note.ex::before{background:var(--slate)}
-.ww-art{position:relative;display:block;width:100%;aspect-ratio:var(--ar,4/5);border-radius:12px;overflow:hidden;background:var(--tone,var(--bg-sunk));color:#fff;box-shadow:inset 0 0 0 1px var(--line)}
+.ww-art{position:relative;display:block;width:100%;aspect-ratio:var(--ar,4/5);max-height:var(--art-max,none);border-radius:12px;overflow:hidden;background:var(--tone,var(--bg-sunk));color:#fff;box-shadow:inset 0 0 0 1px var(--line)}
 .ww-art img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .ww-art svg{position:absolute;left:50%;top:50%;width:34px;height:34px;margin:-17px 0 0 -17px;opacity:.9}
 .ww-art.plain{color:var(--icon)}
@@ -44,8 +104,12 @@ const CSS = `
 .ww-thumbs .ww-art .over,.ww-thumbs .ww-art .len,.ww-thumbs .ww-art .cap{display:none}
 .ww-thumbs .ww-art svg{width:18px;height:18px;margin:-9px 0 0 -9px}
 .ww-thumbs small{display:block;margin-top:4px;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ww-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:20px;min-width:0}
-.ww-c{display:flex;flex-direction:column;gap:12px;min-width:0;padding:12px 12px 14px;border-radius:var(--r-lg);background:#fff;box-shadow:var(--sh-1)}
+.ww-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;min-width:0}
+.ww-c{display:flex;flex-direction:column;gap:10px;min-width:0;padding:10px 10px 12px;border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--sh-1);--ar:1/1;--art-max:180px}
+.ww-c.open{cursor:pointer;transition:box-shadow var(--t) var(--ease),transform var(--t) var(--ease)}
+.ww-c.open:hover{box-shadow:var(--sh-2);transform:translateY(-1px)}
+.ww-c.open:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.ww-c .ww-art{width:100%}
 .ww-c .nm{display:flex;align-items:flex-start;gap:8px;font-size:14px;font-weight:600;line-height:1.3;min-width:0}
 .ww-c .nm span:first-child{min-width:0;overflow-wrap:anywhere}
 .ww-c .nm .lx-cap{margin-left:auto;padding-top:3px}
@@ -53,7 +117,7 @@ const CSS = `
 .ww-st{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px}
 .ww-st>div{min-width:0}
 .ww-st span{display:block;font-size:10.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}
-.ww-st b{display:block;font-size:19px;font-weight:600;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.ww-st b{display:block;font-size:var(--num-s);font-weight:600;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
 .ww-st b.dim{color:var(--faint);font-weight:500}
 .ww-st b.bad{color:var(--bad)}
 .ww-st small{display:block;font-size:11.5px;color:var(--muted)}
@@ -79,7 +143,7 @@ const CSS = `
 .ww-g{display:grid;gap:8px;align-content:start;min-width:0}
 .ww-g .hd{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600}
 .ww-g .hd .lx-stat{margin-left:auto}
-.ww-g .v{font-size:var(--num-l);font-weight:600;letter-spacing:-.035em;font-variant-numeric:tabular-nums;line-height:1.1}
+.ww-g .v{font-size:var(--num-m);font-weight:600;letter-spacing:-.035em;font-variant-numeric:tabular-nums;line-height:1.1}
 .ww-g .v small{font-size:12px;font-weight:500;color:var(--muted);letter-spacing:0;margin-left:6px}
 .ww-g .v.dim{color:var(--faint)}
 .ww-g p{font-size:12.5px;color:var(--muted)}
@@ -88,14 +152,14 @@ const CSS = `
 .ww-row:first-child{border-top:0}
 .ww-row .nm{font-size:14.5px;font-weight:600}
 .ww-row .nm small{display:block;font-size:12px;font-weight:400;color:var(--muted)}
-.ww-row .big{font-size:24px;font-weight:600;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.ww-row .big{font-size:var(--num-m);font-weight:600;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
 .ww-row .big.dim{color:var(--faint)}
 .ww-row .mid small{display:block;margin-top:5px;font-size:12px;color:var(--muted)}
 .ww-row .side{font-size:13px;font-variant-numeric:tabular-nums;color:var(--ink-2)}
 .ww-row .side small{display:block;font-size:10.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}
 .ww-row .ww-thumbs>*{width:44px}
 .ww-find{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px}
-.ww-f{display:grid;gap:12px;align-content:start;padding:18px 20px;border-radius:var(--r-lg);background:#fff;box-shadow:var(--sh-1);min-width:0}
+.ww-f{display:grid;gap:12px;align-content:start;padding:18px 20px;border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--sh-1);min-width:0}
 .ww-f .say{font-size:15px;line-height:1.4;color:var(--ink)}
 .ww-f .ft{font-size:12px;color:var(--muted)}
 .ww-f .lx-btn{justify-self:start}
@@ -111,11 +175,21 @@ const CSS = `
 .ww-hk .q{font-size:14px;font-weight:600;line-height:1.3;overflow-wrap:anywhere}
 .ww-hk .q.none{color:var(--muted);font-weight:500}
 .ww-hk .hr{display:flex;align-items:baseline;gap:8px}
-.ww-hk .hr b{font-size:22px;font-weight:600;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.ww-hk .hr b{font-size:var(--num-m);font-weight:600;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
 .ww-hk .hr span{font-size:12px;color:var(--muted)}
+.ww-hk .hr .lx-def{white-space:nowrap}
 .ww-hk .hr .lx-delta{margin-left:auto}
-.ww-pg{display:grid;grid-template-columns:44px minmax(0,1.6fr) repeat(4,minmax(64px,.6fr)) auto;gap:16px;align-items:center;padding:14px 28px;border-top:1px solid var(--line);cursor:pointer;background:none;border-left:0;border-right:0;border-bottom:0;width:100%;text-align:left;font:inherit;color:inherit}
-.ww-pg:hover{background:var(--surface-2)}
+.ww-pg{display:grid;grid-template-columns:minmax(0,1.6fr) repeat(5,minmax(64px,.6fr)) auto;gap:16px;align-items:center;padding:14px 28px;border-top:1px solid var(--line);cursor:pointer;background:none;border-left:0;border-right:0;border-bottom:0;width:100%;text-align:left;font:inherit;color:inherit}
+.ww-pg:hover{background:var(--row-hover)}
+.ww-pg .hs{border:0;background:none;padding:0;font:inherit;color:inherit;letter-spacing:inherit;text-transform:inherit;cursor:pointer;text-align:right}
+.ww-pg .hs.on{color:var(--ink)}
+.ww-h3{font-size:15px;font-weight:600;margin-bottom:10px}
+.ww-fun{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.ww-fun-s{display:grid;gap:3px;padding:12px 14px;border-radius:12px;background:var(--surface-2);min-width:0}
+.ww-fun-s .k{font-size:12px;color:var(--muted)}
+.ww-fun-s b{font-size:var(--num-m);font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.ww-fun-s small{font-size:12px;color:var(--muted)}
+.ww-fun-s i{display:block;height:6px;border-radius:99px;background:var(--ink);width:var(--v);margin-top:6px}
 .ww-pg.hd{cursor:default;padding-top:6px;padding-bottom:8px;border-top:0}
 .ww-pg.hd:hover{background:none}
 .ww-pg .n{text-align:right;font-variant-numeric:tabular-nums}
@@ -125,10 +199,10 @@ const CSS = `
 .ww-pg .pth{min-width:0}
 .ww-pg .pth b{display:block;font-size:14px;font-weight:600;overflow-wrap:anywhere}
 .ww-pg .pth small{display:block;font-size:12px;color:var(--muted)}
-.ww-mini{width:44px;height:64px;border-radius:7px;box-shadow:inset 0 0 0 1px var(--line-strong);background:#fff;padding:5px;display:grid;gap:3px;align-content:start}
+.ww-mini{width:44px;height:64px;border-radius:7px;box-shadow:inset 0 0 0 1px var(--line-strong);background:var(--surface);padding:5px;display:grid;gap:3px;align-content:start}
 .ww-mini i{display:block;height:3px;border-radius:2px;background:var(--line-strong)}
 .ww-mini i.b{height:20px;background:var(--bg-sunk)}
-.ww-ph{width:220px;max-width:100%;aspect-ratio:9/17;border-radius:26px;box-shadow:0 0 0 1px var(--line-strong),var(--sh-1);background:#fff;padding:10px;overflow:hidden;justify-self:center}
+.ww-ph{width:220px;max-width:100%;aspect-ratio:9/17;border-radius:26px;box-shadow:0 0 0 1px var(--line-strong),var(--sh-1);background:var(--surface);padding:10px;overflow:hidden;justify-self:center}
 .ww-ph iframe{width:100%;height:100%;border:0;border-radius:16px;background:var(--bg-sunk)}
 .ww-ph .sk{display:grid;gap:8px;align-content:start;height:100%}
 .ww-ph .sk i{display:block;border-radius:6px;background:var(--bg-sunk)}
@@ -154,11 +228,10 @@ const CSS = `
 .ww-test .ab div+div{border-left-color:var(--slate)}
 .ww-test .ab small{display:block;font-size:12px;color:var(--muted)}
 .ww-test ol{margin:0;padding-left:18px;display:grid;gap:8px;font-size:13px;color:var(--ink-2)}
-.ww-test .need b{display:block;font-size:20px;font-weight:600;letter-spacing:-.03em}
+.ww-test .need b{display:block;font-size:var(--num-s);font-weight:600;letter-spacing:-.03em}
 .ww-test .need small{display:block;font-size:12px;color:var(--muted);margin-bottom:10px}
 .ww-txt{font-size:14.5px;line-height:1.4;font-weight:500;overflow-wrap:anywhere}
 .ww-txt small{display:block;margin-top:4px;font-size:12px;font-weight:400;color:var(--muted)}
-@media (min-width:760px){.lx-sheet.ww-flow{width:min(1100px,calc(100% - 32px))}.lx-sheet.ww-wide{width:min(900px,calc(100% - 32px))}}
 .ww-fl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:28px;align-items:start}
 .ww-fl .stp{display:flex;align-items:center;gap:10px;font-size:16px;font-weight:600;margin-bottom:16px}
 .ww-fl .stp i{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--ink);color:#fff;font:600 13px/1 var(--sans);flex:none}
@@ -167,13 +240,13 @@ const CSS = `
 .ww-fbar{margin-top:8px}.ww-fsub{display:flex;font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.3}.ww-fsub span{flex:1;min-width:0;text-align:center;padding:0 4px;overflow-wrap:anywhere}.ww-fsub b{display:block;font-size:12.5px;font-weight:600;color:var(--ink)}
 .ww-bars{display:flex;align-items:flex-end;gap:14px;height:220px;margin-top:16px}
 .ww-bars>div{flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:100%;min-width:0;text-align:center}
-.ww-bars b{font-size:24px;font-weight:600;letter-spacing:-.03em}
+.ww-bars b{font-size:var(--num-m);font-weight:600;letter-spacing:-.03em}
 .ww-bars i{display:block;border-radius:8px 8px 0 0;background:var(--ink);height:var(--v,10%);min-height:6px;margin-top:4px}
 .ww-bars .n i{background:var(--slate-soft)}
 .ww-bars .n b{color:var(--muted)}
 .ww-bars span{display:block;margin-top:8px;font-size:12.5px;font-weight:550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ww-bars small{display:block;font-size:11.5px;color:var(--muted)}
-.ww-bf{padding:18px 20px;border-radius:var(--r-lg);box-shadow:var(--sh-2);background:#fff}
+.ww-bf{padding:16px 18px;border-radius:var(--r-lg);box-shadow:inset 0 0 0 1px var(--line);background:var(--surface)}
 .ww-bf h3{font-size:17px;font-weight:600;letter-spacing:-.02em;margin:8px 0 6px}
 .ww-bf .by{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
 .ww-bf .by .lx-gem{width:18px;height:18px}
@@ -183,16 +256,19 @@ const CSS = `
 .ww-bf dd{margin:0;font-weight:550;overflow-wrap:anywhere}
 .ww-bd{padding:16px;border-radius:var(--r-lg);background:var(--band);display:grid;gap:10px}
 .ww-bd .col{font-size:12.5px;font-weight:600;color:var(--ink-2)}
-.ww-bd .k{padding:12px 14px;border-radius:12px;background:#fff;box-shadow:var(--sh-1);font-size:13.5px;font-weight:550}
+.ww-bd .k{padding:12px 14px;border-radius:12px;background:var(--surface);box-shadow:var(--sh-1);font-size:13.5px;font-weight:550}
 .ww-bd .k small{display:block;font-size:12px;font-weight:400;color:var(--muted);margin-top:2px}
 .ww-bd .k.new{box-shadow:var(--sh-2)}
 .ww-bd .k.new .lx-pill{float:right;background:var(--ink);color:#fff}
-.ww-bd .k.old{color:var(--muted);box-shadow:inset 0 0 0 1px var(--line);background:rgba(255,255,255,.6)}
+.ww-bd .k.old{color:var(--muted);box-shadow:inset 0 0 0 1px var(--line);background:var(--surface-2)}
 .ww-end{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:8px;padding-top:16px;border-top:1px solid var(--line)}
 .ww-end p{flex:1 1 260px;font-size:13px;color:var(--muted)}
+.ww-end .note{font-size:12.5px;color:var(--muted)}
+.ww-lead{font-size:16px;line-height:1.4;color:var(--ink-2)}
+.ww-lead b{color:var(--ink)}
 @media (max-width:1040px){.ww-q{grid-template-columns:1fr;gap:14px}.ww-fl{grid-template-columns:1fr}.ww-bars{height:170px}
   .ww-row{grid-template-columns:minmax(0,1fr) auto;gap:8px 14px}.ww-row .mid{grid-column:1/-1}.ww-row .ww-thumbs{grid-column:1/-1}.ww-row .side{display:none}
-  .ww-pg{grid-template-columns:44px minmax(0,1fr) auto auto;padding-left:20px;padding-right:20px}.ww-pg .hm{display:none}}
+  .ww-pg{grid-template-columns:minmax(0,1fr) auto auto auto;padding-left:20px;padding-right:20px}.ww-pg .hm{display:none}}
 @media (max-width:759px){.ww-cd>.lx-sec{flex-wrap:wrap;row-gap:4px}.ww-cd>.lx-sec h3{flex:1 1 100%}.ww-cd>.lx-sec .act{margin-left:0}
   .ww-grid{grid-template-columns:1fr;gap:16px}.ww-grid .ww-art{--ar:16/10}.ww-grid.two{grid-template-columns:1fr 1fr;gap:12px}.ww-grid.two .ww-art{--ar:4/5}
   .ww-l{grid-template-columns:1fr}.ww-l .side{justify-items:start}.ww-cmp{grid-template-columns:1fr 1fr;gap:12px}
@@ -227,12 +303,15 @@ export function thumbs(list = [], label = a => a.name) {
   return h('div', { class: 'ww-thumbs' }, list.slice(0, 4).map(a => h('div', null, art(a), label(a) != null && h('small', null, label(a)))));
 }
 /** The two small notes. */
-export const tagsNote = (what = 'Format, hook and words tags') => h('span', { class: 'lx-chip ww-note', title: what + ' are read by ' + AI_NAME + ' and are being checked by a person before they come back.' }, 'Tags are being re-checked');
 export const exampleChip = kitExampleChip; /* one version, in the kit */
 export const isExample = (d, ctx) => !ctx.sample && d && d.example;
 /** A measure against its goal: an ink bar with the goal tick, gray when it is too early to say. */
-export const meter = (value, goal, { max, dim } = {}) => { const g = gauge({ value: value || 0, goal, max: max || Math.max(value || 0, goal || 0) * 1.25 || 1, thin: true }); if (dim) g.style.opacity = '.45'; return g; };
-export const foot = (...words) => h('p', { class: 'lx-foot' }, words.filter(Boolean).join(' '));
+export const meter = (value, goal, { max, dim, goalTitle } = {}) => {
+  const g = gauge({ value: value || 0, goal, max: max || Math.max(value || 0, goal || 0) * 1.25 || 1, thin: true });
+  if (dim) { g.style.opacity = '.45'; g.title = 'Under 30 orders: a hint, not a result'; }
+  const tick = g.querySelector('.goal'); if (tick && goalTitle) { tick.title = goalTitle; if (!dim) g.title = goalTitle; }
+  return g;
+};
 
 /* ---------- plain states ---------- */
 export function notConnected(ctx, what = 'Meta ads') {
@@ -315,7 +394,8 @@ export function roll(list) {
 /* ---------- "From a finding to new ads" ----------
    f: { say: text | nodes, platform, measure, proof: [{ value, text, name, sub, ...art }], normal: { value, text, name, sub },
         brief: { title, make, why, hook, format, count, due, by: { name, role } }, board: [names already on the To make column] }
-   Read only for now: the last step hands over to old Locus. */
+   One detail sheet (the kit's 720px sheet, a bottom sheet on a phone): the finding and its proof on top, the brief it
+   would make as a labeled list under it, one button. Read only for now: the brief itself is still made in old Locus. */
 export function openFinding(ctx, f = {}) {
   css();
   const b = f.brief || {};
@@ -326,36 +406,25 @@ export function openFinding(ctx, f = {}) {
   const top = Math.max(...bars.map(q => q.value || 0), 0.0001);
   const row = (k, v) => (v == null || v === '' ? null : h('div', null, h('dt', null, k), h('dd', null, v)));
   const old = legacyUrl('production', ctx.brand && ctx.brand.id);
-  const body = h('div', null,
-    h('div', { class: 'ww-fl' },
-      h('div', null,
-        h('div', { class: 'stp' }, h('i', null, '1'), AI_NAME + ' found this'),
-        h('p', { class: 'lead' }, say || 'A pattern across these ads.'),
-        h('div', { class: 'ww-bar' }, platformChip(f.platform || 'meta'), f.measure && h('span', { class: 'note' }, f.measure)),
-        bars.length ? h('div', { class: 'ww-fbar' }, barChart({ values: bars.map(q => q.value || 0), dim: bars.map((q, i) => (q.n ? i : -1)), valueLabels: (v, i) => bars[i].text,
-          format: v => (top < 1 ? pct(v) : money(v, { compact: true })), height: 260, phoneHeight: 220, axis: false, label: 'The proof against normal' }),
-          h('div', { class: 'ww-fsub' }, bars.map(q => h('span', null, h('b', null, q.name), q.sub || '')))) : null),
-      h('div', null,
-        h('div', { class: 'stp' }, h('i', null, '2'), 'Turn it into a brief'),
-        h('div', { class: 'ww-bf' },
-          h('div', { class: 'by' }, 'Filled in by ' + AI_NAME),
-          h('h3', null, b.title || 'A new version of what works'),
-          h('dl', null, row('Make', b.make), row('Why', b.why), row('Hook', b.hook), row('Format', b.format), row('How many', b.count != null ? String(b.count) : '3'), row('Due', due),
-            row('Made by', b.by ? h('span', { class: 'ww-bar' }, avatar(b.by, { size: 24 }), b.by.name + (b.by.role ? ', ' + b.by.role : '')) : 'Picked when the brief is made')))),
-      h('div', null,
-        h('div', { class: 'stp' }, h('i', null, '3'), 'It lands in Production'),
-        h('div', { class: 'ww-bd' },
-          h('span', { class: 'col' }, 'To make'),
-          h('div', { class: 'k new' }, h('span', { class: 'lx-pill' }, 'New'), b.title || 'A new version of what works', h('small', null, `${b.count || 3} to make, due ${due}`), h('small', null, 'Proof attached: ' + ((f.proof || []).map(q => q.text).join(' and ') || 'the ads above'))),
-          (f.board || []).slice(0, 3).map(n => h('div', { class: 'k old' }, n))))),
-    h('div', { class: 'ww-end' },
-      h('p', null, 'When the new ads go live, their result comes back to this finding. This view is read only for now: the brief itself is still made in old ' + APP_NAME + '.'),
-      old ? button('Create the brief in old ' + APP_NAME, { primary: true, large: true, icon: 'arrow', href: old, target: '_blank' }) : null));
-  return sheet({ title: 'From a finding to new ads', side: 'center', class: 'ww-flow', body });
+  const fmt = v => (top < 1 ? pct(v) : money(v, { compact: true }));
+  const body = h('div', { class: 'ww-stack', style: { gap: '20px' } },
+    h('div', { class: 'ww-stack', style: { gap: '10px' } },
+      h('div', { class: 'ww-bar' }, h('span', { class: 'lx-cap' }, AI_NAME + ' found this'), platformChip(f.platform || 'meta'), f.measure && h('span', { class: 'note' }, 'judged on ' + f.measure)),
+      h('p', { class: 'ww-lead' }, say || 'A pattern across these ads.'),
+      bars.length >= 2 ? barChart({ values: bars.map(q => q.value || 0), labels: bars.map(q => q.name + (q.sub ? ', ' + q.sub : '')), dim: bars.map((q, i) => (q.n ? i : -1)),
+        valueLabels: (v, i) => bars[i].text, format: fmt, tipFormat: (v, sr, i) => bars[i].text, height: 160, phoneHeight: 150, axis: false, name: f.measure || 'Figure', label: 'The proof against normal' }) : null),
+    h('div', { class: 'ww-bf' },
+      h('div', { class: 'by' }, 'The brief it makes, filled in by ' + AI_NAME),
+      h('h3', null, b.title || 'A new version of what works'),
+      h('dl', null, row('Make', b.make), row('Why', b.why), row('Hook', b.hook), row('Format', b.format), row('How many', b.count != null ? String(b.count) : '3'), row('Due', due),
+        row('Made by', b.by ? h('span', { class: 'ww-bar' }, avatar(b.by, { size: 24 }), b.by.name + (b.by.role ? ', ' + b.by.role : '')) : 'Picked when the brief is made'))),
+    old ? h('div', { class: 'ww-end' }, button('Create the brief', { primary: true, icon: 'arrow', href: old, target: '_blank', title: 'Opens old ' + APP_NAME + ' in a new tab' }),
+      h('span', { class: 'note' }, 'Opens old ' + APP_NAME + ' in a new tab')) : null);
+  return sheet({ title: 'From a finding to new ads', body });
 }
 /** The button that opens it. Team only: a client never briefs. */
 export function findingButton(ctx, f, label = 'Make new ads from this', o = {}) {
   if (ctx.isClient) return null;
-  return button(label, { ...o, onclick: e => { e.stopPropagation(); openFinding(ctx, typeof f === 'function' ? f() : f); } });
+  return button(label, { title: 'Team only: turn this into a brief for new ads', ...o, onclick: e => { e.stopPropagation(); openFinding(ctx, typeof f === 'function' ? f() : f); } });
 }
 export { statusDot, money, num, x };

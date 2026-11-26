@@ -1,17 +1,17 @@
-/* Your profile, with two sections as tabs inside the page: Profile and Sign-in. How notifications reach a person is
+/* Your profile: one page. The profile rows, then Sign-in as a card under them (it used to be a second tab row,
+   which put "Profile" on screen twice). How notifications reach a person is
    its own tab on the line now (profile/delivery, saved to the account), which replaced the device-only page here.
    The menu gives this line one route (profile/index), so the tabs are local. Open one directly with ?ptab=sign-in.
    Live data: who you are from the stored session (/api/me, already loaded by the shell) and, for the team,
    role, brands and the Slack link from GET /api/mywork. */
 
 import { put } from '../../kit.js';
-import { h, button, tabs, em, statusDot, toast, sheet } from '../../kit.js';
-import { APP_NAME, OLD_LOCUS, QS } from '../../config.js';
+import { h, button, card, em, statusDot, toast, sheet } from '../../kit.js';
+import { APP_NAME, QS } from '../../config.js';
 import { css, face, ic, store } from '../my-day/_ui.js';
 
-const TAB_KEY = 'lx5_profile_tab';
-const TABS = [{ id: 'profile', label: 'Profile' }, { id: 'sign-in', label: 'Sign-in' }];
-let tab = TABS.some(t => t.id === QS.get('ptab')) ? QS.get('ptab') : null;
+/* ?ptab=sign-in still works: it scrolls to the Sign-in card */
+const JUMP = QS.get('ptab') === 'sign-in';
 
 const ZONES = { 'America/Chicago': 'Central Time', 'America/New_York': 'Eastern Time', 'America/Denver': 'Mountain Time', 'America/Los_Angeles': 'Pacific Time', 'America/Phoenix': 'Arizona Time' };
 function zoneNow() {
@@ -39,14 +39,15 @@ function fromLive(ctx, mw) {
 }
 
 function profileTab(host, p, ctx) {
-  const who = { name: p.name, email: p.email, photo: p.photo };
-  const locked = by => by ? [ic('lock'), 'Set by ' + by] : '';
+  const who = { name: [p.name, p.last_name].filter(Boolean).join(' '), email: p.email, photo: p.photo };
+  /* no lock icon: a muted line says who sets it, and the tooltip says why */
+  const locked = by => by ? h('span', { title: 'Only the owner changes this' }, 'Set by ' + by) : '';
   const rows = [
     ['Name', p.name || 'No name on this sign-in', 'What the team sees'],
     ['Role', p.role || 'Not set', locked(p.role_by)],
     ['Brands', p.brands && p.brands.length ? (p.brands_all ? 'All ' + p.brands.length + ' brands' : p.brands.join(', ')) : 'No brands yet', locked(p.role_by)],
     ['Time zone', p.tz || zoneNow(), 'Due times use this'],
-    ['Working hours', '9:00am to 5:00pm, Mon to Fri', 'Teammates see when you are off'],
+    ['Working hours', '9:00am to 5:00pm, Mon to Fri', p.previews ? 'Teammates see when you are off' : 'The team default for now'],
     ['Slack', p.slack == null ? 'Not checked' : p.slack.linked ? statusDot('good', 'Linked as @' + (p.slack.handle || p.name)) : statusDot('off', 'Not linked'),
       p.slack && p.slack.linked ? 'Reminders go here' : p.slack ? 'Ask the owner to add your Slack' : 'For the team'],
   ];
@@ -54,14 +55,13 @@ function profileTab(host, p, ctx) {
   const cap = t => h('span', { class: 'lx-cap' }, t);
   put(host, h('div', { class: 'lx-pf-cols' },
     h('div', null, rows.map(([k, v, n]) => h('div', { class: 'lx-pf-row' }, h('span', { class: 'k' }, k), h('span', { class: 'v' }, v), h('span', { class: 'n' }, n)))),
-    h('aside', { class: 'lx-band lx-pf-band' }, h('h3', null, 'Where your photo shows'),
+    h('aside', null, card({ title: 'Examples of where your photo shows', class: 'lx-pf-band' },
       cap('A comment'),
       h('div', { class: 'lx-pf-prev top' }, face(who, 34), h('span', { class: 't' }, h('b', null, p.name || 'You'), ' ', h('small', null, pv.comment.when), h('br'), pv.comment.text)),
       cap('A task row'),
       h('div', { class: 'lx-pf-prev' }, face(who, 22), h('b', { class: 't' }, pv.task.text), h('span', { class: 'r' }, pv.task.due)),
       cap('A meeting promise'),
-      h('div', { class: 'lx-pf-prev' }, face(who, 22), h('span', { class: 't' }, h('b', null, p.name || 'You'), ' ' + pv.promise.text), h('span', { class: 'r' }, pv.promise.due)))),
-    h('p', { class: 'lx-foot' }, p.previews ? 'The three previews are examples.' : 'The three previews are examples. Working hours are the team default until they can be set here.'));
+      h('div', { class: 'lx-pf-prev' }, face(who, 22), h('span', { class: 't' }, h('b', null, p.name || 'You'), ' ' + pv.promise.text), h('span', { class: 'r' }, pv.promise.due))))));
 }
 
 function signinTab(host, p, ctx) {
@@ -70,20 +70,16 @@ function signinTab(host, p, ctx) {
     ['Access', ROLE_WORD[ctx.role] || 'Team', ctx.isClient ? 'Your brand only' : 'Set by the owner'],
     ['How you sign in', 'Google, or a link sent to your email', 'No password to remember'],
   ];
-  put(host, h('div', { class: 'lx-pf-cols' },
-    h('div', null, rows.map(([k, v, n]) => h('div', { class: 'lx-pf-row' }, h('span', { class: 'k' }, k), h('span', { class: 'v' }, v), h('span', { class: 'n' }, n)))),
-    h('aside', { class: 'lx-band lx-pf-band' }, h('h3', null, 'Signing out'),
-      h('p', { style: { color: 'var(--muted)', fontSize: '13.5px' } }, 'Sign out is in the menu under your picture, top right. It signs you out of old ' + APP_NAME + ' too.'),
-      button('Open old ' + APP_NAME, { href: OLD_LOCUS }))));
+  put(host, card({ title: 'Sign-in', note: 'Sign out is in the menu under your picture, top right', class: 'lx-pf-signin' },
+    rows.map(([k, v, n]) => h('div', { class: 'lx-pf-row' }, h('span', { class: 'k' }, k), h('span', { class: 'v' }, v), h('span', { class: 'n' }, n)))));
 }
 
 function draw(el, data, ctx) {
   css();
   const p = (data && data.profile) || fromLive(ctx, null);
-  if (!tab) tab = ctx.sample ? 'profile' : store.get(TAB_KEY, 'profile');
-  if (!TABS.some(t => t.id === tab)) tab = 'profile';
-  const who = { name: p.name, email: p.email, photo: p.photo };
-  const head = h('div'), body = h('div', { style: { display: 'grid', gap: 'var(--sp-8)' } });
+  /* the same two initials as the top bar: the full name, not the first name only */
+  const who = { name: [p.name, p.last_name].filter(Boolean).join(' '), email: p.email, photo: p.photo };
+  const head = h('div'), body = h('div'), signin = h('div');
   const outKey = 'lx5_out_' + new Date().toLocaleDateString('en-CA');
 
   const paint = () => {
@@ -99,19 +95,19 @@ function draw(el, data, ctx) {
       const photoBtn = h('button', { class: 'lx-btn primary', type: 'button', onclick: () => sheet({ title: 'Your photo', side: 'center',
         body: h('p', { style: { color: 'var(--ink-2)', lineHeight: 1.5 } }, 'Your photo comes from your Slack profile, at full size. Change it in Slack and it changes here. Uploading one straight to ' + APP_NAME + ' comes with the notifications release.') }) },
         ic('camera'), 'Change photo');
-      put(head, h('section', { class: 'lx-hero line lx-pf-hero' }, h('div', { class: 'lx-hero-h' }, face(who, 112, true),
+      put(head, h('section', { class: 'lx-hero line lx-pf-hero' }, h('div', { class: 'lx-hero-h' }, face(who, 64, true),
         h('div', null,
           h('p', null, [p.role, p.brands && p.brands.length ? p.brands.length + (p.brands.length === 1 ? ' brand' : ' brands') : ''].filter(Boolean).join(', '))),
         h('span', { class: 'lx-sp' }),
         h('div', { class: 'lx-pf-side' }, h('div', { class: 'lx-md-acts' }, outBtn, photoBtn),
           p.photo_from ? statusDot('good', 'Photo from ' + p.photo_from) : statusDot('off', 'No photo yet')))));
     }
-    const nav = tabs(TABS, tab, id => { tab = id; if (!ctx.sample) store.set(TAB_KEY, id); paint(); });
-    if (tab === 'sign-in') signinTab(body, p, ctx);
-    else profileTab(body, p, ctx);
-    put(el, nav, head, body);       /* the title is the shell's; the tabs sit under it, the hero under the tabs */
+    profileTab(body, p, ctx);
+    signinTab(signin, p, ctx);
+    put(el, h('div', { class: 'lx-pf-page' }, head, body, signin));       /* the title is the shell's; the hero under it */
   };
   paint();
+  if (JUMP) requestAnimationFrame(() => signin.scrollIntoView({ block: 'start' }));
 }
 
 export default {
@@ -124,3 +120,10 @@ export default {
   },
   render: draw,
 };
+
+import { addStyles } from '../../kit.js';
+addStyles('lx-pf-page-css', `.lx-pf-page{display:grid;gap:var(--sp-6)}
+.lx-pf-band{display:grid;gap:10px}
+.lx-pf-band .lx-pf-prev{box-shadow:none;background:var(--surface-2);padding:10px 12px;border-radius:12px}
+.lx-pf-signin .lx-pf-row{grid-template-columns:166px minmax(0,1fr) auto}
+@media (max-width:759px){.lx-pf-signin .lx-pf-row{grid-template-columns:minmax(0,1fr) auto}}`);

@@ -1,6 +1,6 @@
 /* Ads > All platforms > Live now, for one brand: every ad platform today, side by side.
    Four figures for the store today, one equal row per platform (spend so far, against a usual day, sales from
-   its ads, ROAS), then today's store sales hour by hour against a normal day. About today, so the date range
+   its ads, ROAS), then today's store sales hour by hour against a usual day. About today, so the date range
    in the page head is hidden. Read only: a row opens a sheet, nothing is changed.
 
    Spend is each platform's own number. Sales per platform are Triple Whale, last platform click, and are
@@ -11,13 +11,14 @@
      profit          /api/hub/paid?platform=all&act=&from=today&to=today  spend and Triple Whale sales per platform, today
      profit          /api/hub/paid?platform=all&act=&from=-7d&to=-1d      the last 7 days per platform (a usual day, ROAS)
      account-health  /api/pacing?act=                                     Meta spend by hour today and on a usual day
-     profit          /api/season/war?act=&live=1                          store sales by hour today and a normal day's curve
+     profit          /api/season/war?act=&live=1                          store sales by hour today and a usual day's curve
    No route gives Google, TikTok or Amazon spend by the hour, so "against a usual day by now" is judged for Meta only;
    the other platforms show the day so far against their usual whole day. */
 
 import { put } from '../../kit.js';
 import { h, em, svgNode, card, kpi, kpis, table, gauge, lineChart, legend, statusDot, platformChip, sheet, button, empty, skeleton, money, num, x, addStyles } from '../../kit.js';
 import { icon, PLATFORM_NAME } from '../../icons.js';
+import { def, headRow } from './_ads.js';
 
 const CSS = `
 .pl{display:grid;gap:var(--sp-8);min-width:0}
@@ -104,11 +105,11 @@ async function load(ctx) {
   const store = { sales: !hasSales ? null : st && ok(st.sales) ? st.sales : (tb && ok(tb.revenue) ? tb.revenue : null), orders: st && ok(st.orders) ? st.orders : null,
     spend: platforms.length ? spendAll : (st && st.spend > 0 ? st.spend : null) };
 
-  /* hour by hour: store sales against a normal day when the read is there, else Meta spend against its usual day */
+  /* hour by hour: store sales against a usual day when the read is there, else Meta spend against its usual day */
   let chart = null;
   if (L && Array.isArray(L.hours) && L.hours.length && hasSales) {
     chart = { kind: 'sales', hour: L.hours.length, today: L.hours.map(r => Math.round(r.cum_sales || 0)), usual: Array.isArray(L.plan_curve) ? L.plan_curve.map(v => Math.round(v || 0)) : null,
-      usual_name: L.in_sale ? 'The plan for today' : 'A normal day', total: L.today && ok(L.today.sales) ? L.today.sales : null, goal: L.day && ok(L.day.goal) ? L.day.goal : null, pace: L.day && ok(L.day.pace) ? L.day.pace : null };
+      usual_name: L.in_sale ? 'The plan for today' : 'A usual day', total: L.today && ok(L.today.sales) ? L.today.sales : null, goal: L.day && ok(L.day.goal) ? L.day.goal : null, pace: L.day && ok(L.day.pace) ? L.day.pace : null };
   } else if (metaNow && (metaNow.today_cum || []).length) {
     chart = { kind: 'meta', hour: metaNow.hour ?? metaNow.today_cum.length, today: metaNow.today_cum, usual: metaNow.l7_cum || null, usual_name: 'A usual day, last 7 days', total: metaNow.spent, goal: metaNow.l7_daily_avg ?? null, pace: null };
   }
@@ -152,7 +153,7 @@ function openPlatform(p, d, ctx) {
       kv('ROAS, last 7 days', ok(p.roas7) ? x(p.roas7) + (d.goal_roas ? `, goal ${x(d.goal_roas)}` : '') : quiet('no data')),
     ].filter(Boolean)),
     paceWord(p, cur),
-    !ok(p.usual_by_now) ? h('p', { class: 'lx-foot', style: { margin: 0 } }, `${platName(p.id)} reports spend by the day, not by the hour, so this is the day so far against its usual whole day.`) : null,
+    !ok(p.usual_by_now) ? h('p', { class: 'pl-q', style: { margin: 0 } }, `${platName(p.id)} reports spend by the day, not by the hour, so this is the day so far against its usual whole day.`) : null,
     button(p.id === 'meta' || p.id === 'tiktok' ? `Open ${platName(p.id)} live now` : `Open ${platName(p.id)}`, { primary: true, href: liveHref(p.id, ctx), icon: 'arrow' })) });
 }
 
@@ -191,10 +192,10 @@ function render(el, d, ctx) {
   const noSales = () => quiet(!d.sales_source ? 'No sales source connected' : d.sales_pending ? 'not in yet' : 'none credited yet');
 
   const top = h('section', { class: 'lx-hero line' }, kpis([
-    kpi({ label: 'Ad spend today', value: ok(s.spend) ? usd(s.spend, cur) : 'not read', size: 'lg', lead: true, sub: ok(usualAll) ? `a usual whole day is ${usd(usualAll, cur)}` : 'all platforms' + by }),
-    kpi({ label: 'Store sales today', value: ok(s.sales) ? usd(s.sales, cur) : 'no data', size: ok(s.sales) ? 'lg' : null, sub: ok(s.sales) ? 'every sale, ads or not' : 'No sales source connected' }),
-    kpi({ label: 'MER today', value: ok(s.mer) ? x(s.mer) : 'no data', size: ok(s.mer) ? 'lg' : null, sub: ok(s.mer) ? 'store sales over all ad spend' : ok(s.sales) ? 'no ad spend yet today' : '' }),
-    kpi({ label: 'Orders today', value: ok(s.orders) ? num(s.orders) : 'no data', size: ok(s.orders) ? 'lg' : null, sub: ok(s.orders) && s.orders > 0 && ok(s.sales) ? usd(s.sales / s.orders, cur) + ' each' : '' }),
+    kpi({ label: def('Ad spend today', 'spent_today'), value: ok(s.spend) ? usd(s.spend, cur) : 'not read', size: 'lg', lead: true, sub: ok(usualAll) ? `a usual whole day is ${usd(usualAll, cur)}` : 'all platforms' + by }),
+    kpi({ label: def('Store sales today', 'sales'), value: ok(s.sales) ? usd(s.sales, cur) : 'no data', size: ok(s.sales) ? 'lg' : null, sub: ok(s.sales) ? 'every sale, ads or not' : 'No sales source connected' }),
+    kpi({ label: def('MER today', 'mer'), value: ok(s.mer) ? x(s.mer) : 'no data', size: ok(s.mer) ? 'lg' : null, sub: ok(s.mer) ? 'store sales over all ad spend' : ok(s.sales) ? 'no ad spend yet today' : '' }),
+    kpi({ label: def('Orders today', 'orders'), value: ok(s.orders) ? num(s.orders) : 'no data', size: ok(s.orders) ? 'lg' : null, sub: ok(s.orders) && s.orders > 0 && ok(s.sales) ? usd(s.sales / s.orders, cur) + ' each' : '' }),
   ], { cols: 4 }));
 
   const rows = [...d.platforms].sort((a, b) => (b.spend || 0) - (a.spend || 0)).map(p => ({ ...p, name: platName(p.id) }));
@@ -206,11 +207,11 @@ function render(el, d, ctx) {
     roomy: true, rowHeight: 72, total,
     cols: [
       { key: 'name', label: 'Platform', class: 'name', render: r => r.total ? r.name : platformChip(r.id, { chip: true }) },
-      { key: 'spend', label: 'Spend so far', num: true, render: cSpend },
-      { key: 'use', label: 'Against a usual day', width: 230, render: r => useBar(r, cur) },
+      { key: 'spend', label: def('Spend so far', 'spent_today'), num: true, render: cSpend },
+      { key: 'use', label: def('Against a usual day', 'usual_day'), width: 230, render: r => useBar(r, cur) },
       { key: 'pace', label: 'By now', width: 210, render: r => r.total ? '' : paceWord(r, cur) || quiet('no hour by hour read') },
-      { key: 'sales', label: 'Sales from its ads', num: true, render: cSales },
-      { key: 'roas', label: 'ROAS today', num: true, class: 'strong', render: cRoas },
+      { key: 'sales', label: def('Sales from its ads', 'roas'), num: true, render: cSales },
+      { key: 'roas', label: def('ROAS today', 'roas'), num: true, class: 'strong', render: cRoas },
       { key: 'open', label: '', width: 44, num: true, render: r => r.total ? '' : h('span', { class: 'pl-open' }, svgNode(icon('chevron'))) },
     ],
     rows,
@@ -225,8 +226,11 @@ function render(el, d, ctx) {
     h('div', { class: 'pl-wide' }, wide), h('div', { class: 'pl-list' }, rows.map(item), item(total)))
     : card({ title: 'Platform by platform, today' }, h('p', { class: 'pl-q' }, 'No ad platform has spent today or in the last 7 days.'));
 
-  const foot = h('p', { class: 'lx-foot' }, `Spend is each platform's own number, so far today. ${d.sales_source ? `Sales per platform are Triple Whale, last platform click${d.sales_pending ? ', and today\'s are not credited yet' : ''}. ` : ''}A usual day is the average of the last 7 days. Only Meta is read by the hour, so only Meta is judged against the time of day. ROAS is one platform; MER is the whole store.`);
-  put(el, h('div', { class: 'pl' }, top, platforms, chartCard(d), foot));
+  const help = [
+    { title: 'What it is for', text: 'What every ad platform is doing today: spend so far against a usual day, the store\'s sales and MER, and today hour by hour. Tap a platform for its numbers.' },
+    { title: 'Where the numbers come from', text: `Spend is each platform's own number, so far today. ${d.sales_source ? `Sales per platform are Triple Whale, last platform click${d.sales_pending ? ', and today\'s are not credited yet' : ''}. ` : ''}A usual day is the average of the last 7 days. Only Meta is read by the hour, so only Meta is judged against the time of day. ROAS is one platform; MER is the whole store.` },
+  ];
+  put(el, h('div', { class: 'pl' }, headRow({ help }), top, platforms, chartCard(d)));
 }
 
 export default {

@@ -8,8 +8,8 @@
  "back_90": 0.094,
  "back_365": 0.236,
  "days_to_second": 48,
- "orders": 597,
- "repeat_orders": 141,
+ "orders": 693,
+ "repeat_orders": 237,
  "per_customer_365": 1.31,
  "curve": {
   "days": [

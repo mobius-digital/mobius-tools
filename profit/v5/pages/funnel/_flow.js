@@ -7,7 +7,7 @@
 
 import { put } from '../../kit.js';
 import { exampleChip as kitExampleChip } from '../../kit.js';
-import { h, s, num, pct, addStyles, statusDot } from '../../kit.js';
+import { h, s, num, pct, addStyles, statusDot, tipShow, tipHide } from '../../kit.js';
 
 const ok = n => n != null && isFinite(n);
 
@@ -30,11 +30,11 @@ const CSS = `
 .fx-flow .lk{fill:rgba(28,20,10,.075);cursor:pointer;outline:none;transition:fill .12s,opacity .12s}
 .fx-flow .lk.lead{fill:url(#lx-line) var(--brand);opacity:.42}
 .fx-flow .nd{fill:var(--ink);cursor:pointer;transition:opacity .12s}
-.fx-flow .nd.soft{fill:#B9B5AD}
-.fx-flow .nd.ghost{fill:#DDDAD4}
+.fx-flow .nd.soft{fill:var(--icon)}
+.fx-flow .nd.ghost{fill:var(--line-strong)}
 .fx-flow text{font-family:var(--sans);font-size:12.5px;fill:var(--ink);font-variant-numeric:tabular-nums;pointer-events:none;transition:opacity .12s}
 .fx-flow text .q{fill:var(--muted);font-weight:400}
-.fx-flow text.nl{font-weight:550;paint-order:stroke;stroke:#fff;stroke-width:3.5px;stroke-linejoin:round}
+.fx-flow text.nl{font-weight:550;paint-order:stroke;stroke:var(--surface);stroke-width:3.5px;stroke-linejoin:round}
 .fx-flow text.ll{fill:var(--muted);font-size:12px}
 .fx-flow.hot .lk{fill:rgba(28,20,10,.035);opacity:1}
 .fx-flow.hot .lk.on{fill:var(--slate);opacity:.72}
@@ -43,18 +43,25 @@ const CSS = `
 .fx-flow.hot text.nl,.fx-flow.hot text.ll{opacity:.35}
 .fx-flow.hot text.on{opacity:1}
 .fx-flow .lk:focus-visible{stroke:var(--ink);stroke-width:1.5px}
-.fx-tip{position:absolute;z-index:3;min-width:170px;max-width:250px;padding:11px 13px;border-radius:12px;background:#fff;box-shadow:var(--sh-2);font-size:13px;color:var(--muted);pointer-events:none}
-.fx-tip b{display:block;color:var(--ink);font-weight:600;margin-bottom:3px}
-.fx-tip em{font-style:normal;color:var(--ink);font-weight:650;font-variant-numeric:tabular-nums}
+.fx-tip{position:absolute;z-index:3;min-width:170px;max-width:260px;padding:10px 12px;border-radius:10px;background:var(--tip-bg);box-shadow:var(--tip-sh);font-size:12.5px;color:var(--tip-muted);pointer-events:none}
+.fx-tip b{display:block;color:var(--tip-fg);font-weight:600;margin-bottom:3px}
+.fx-tip span{display:block}
+.fx-tip em{font-style:normal;color:var(--tip-fg);font-weight:650;font-variant-numeric:tabular-nums}
 .fx-under{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px;padding-top:14px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted)}
 .fx-under .sp{flex:1}
 .fx-bar{display:block;width:100%;min-width:60px;height:5px;border-radius:999px;background:var(--bg-sunk);position:relative}
 .fx-bar::after{content:"";position:absolute;left:0;top:0;bottom:0;width:var(--v,0%);background:var(--ink);border-radius:999px}
-.fx-bar.soft::after{background:#A8A29A}
+.fx-bar.soft::after{background:var(--icon)}
 .fx-steps{display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));gap:0 22px;align-items:end}
 .fx-steps .col{display:flex;flex-direction:column;justify-content:flex-end;height:var(--h);position:relative;border-bottom:1px solid var(--line-strong)}
 .fx-steps .col i{display:block;width:44%;min-width:44px;max-width:84px;min-height:3px;height:var(--v);border-radius:5px 5px 0 0;background:var(--ink)}
-.fx-steps .col.dim i{background:#C9C5BD}
+.fx-steps .col.dim i{background:var(--icon)}
+.fx-steps .col i{cursor:default}
+.fx-steps .col .lbl{position:absolute;left:0;bottom:calc(var(--v) + 6px);font-size:12px;font-weight:600;color:var(--ink-2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.fx-steps .col .flag~.lbl{bottom:calc(var(--v) + 30px)}
+.fx-bigtxt{font-size:var(--num-m);font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums;color:var(--ink)}
+.fx-key{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted)}
+.fx-key i{display:inline-block;width:18px;height:8px;border-radius:999px;background:var(--brand);opacity:.6}
 .fx-steps .col .flag{position:absolute;left:0;bottom:calc(var(--v) + 10px);white-space:nowrap}
 .fx-steps .cap{padding-top:12px;min-width:0}
 .fx-steps .cap b{display:block;font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -110,7 +117,7 @@ export function head(title, sub, ...tools) {
 }
 
 /* platform dots: the kit's own platform colors, a dot at most */
-const DOTS = { meta: 'var(--c-meta)', google: 'var(--c-google)', email: 'var(--c-email)', tiktok: 'var(--c-tiktok)', amazon: 'var(--c-amazon)', organic: '#8C867D', direct: '#B9B5AD', other: '#D2CEC7' };
+const DOTS = { meta: 'var(--c-meta)', google: 'var(--c-google)', email: 'var(--c-email)', tiktok: 'var(--c-tiktok)', amazon: 'var(--c-amazon)', organic: 'var(--muted)', direct: 'var(--icon)', other: 'var(--line-strong)' };
 const NAMES = { meta: 'Meta', google: 'Google', email: 'Email', tiktok: 'TikTok', amazon: 'Amazon', organic: 'Organic and social', direct: 'Direct', other: 'Other' };
 export const channelName = id => NAMES[id] || id;
 export function channelDot(id, label) { return h('span', { class: 'fx-dot', style: { '--dot': DOTS[id] || 'var(--faint)' } }, label || channelName(id)); }
@@ -123,19 +130,27 @@ export function pathDots(ids, { end } = {}) {
 }
 
 /* ---------- the funnel steps ---------- */
-/** steps([{ label, value, sub, worst }], { height })
-    One bar per step, all on one scale from zero, with the count and the share that made it under each.
-    The step marked worst carries the crimson dot; nothing else is colored. */
-export function steps(list, { height = 330 } = {}) {
+/** steps([{ label, value, sub, worst, src }], { height, relative })
+    One bar per step with the count and the share that made it under each. The step marked worst carries the crimson
+    dot. relative: true draws each bar as its share of the step before (the first is full), so a small step still
+    shows how much of the one before it kept; the count is written on the bar. Every bar has a hover bubble. */
+export function steps(list, { height = 330, relative = false } = {}) {
   const max = Math.max(1, ...list.map(x => x.value || 0));
-  const share = v => (100 * (v || 0) / max);
+  const share = (x, i) => relative ? (i === 0 ? 100 : 100 * (x.value || 0) / Math.max(1, list[i - 1].value || 0)) : 100 * (x.value || 0) / max;
   const cols = h('div', { class: 'fx-steps', style: { '--n': list.length, '--h': height + 'px' }, role: 'img',
     'aria-label': list.map(x => `${x.label} ${num(x.value)}`).join(', ') },
-    list.map((x, i) => h('div', { class: 'col' + (i ? ' dim' : ''), style: { '--v': share(x.value).toFixed(2) + '%' } },
-      x.worst ? h('span', { class: 'flag' }, statusDot('bad', 'Biggest drop')) : null, h('i'))),
+    list.map((x, i) => {
+      const col = h('div', { class: 'col' + (i ? ' dim' : ''), style: { '--v': Math.min(100, share(x, i)).toFixed(2) + '%' } },
+        x.worst ? h('span', { class: 'flag' }, statusDot('bad', 'Biggest drop')) : null, relative && i ? h('span', { class: 'lbl' }, pct(share(x, i) / 100, { digits: share(x, i) < 10 ? 1 : 0 })) : null, h('i'));
+      const bar = col.querySelector('i');
+      const tip = () => [h('b', null, x.label), h('span', null, 'Count ', h('b', null, num(x.value))), i ? h('span', null, 'Of the step before ', h('b', null, pct((x.value || 0) / Math.max(1, list[i - 1].value || 0), { digits: 1 }))) : null, x.src ? h('span', null, x.src) : null];
+      bar.addEventListener('mouseenter', () => tipShow(bar, tip(), bar));
+      bar.addEventListener('mouseleave', () => tipHide(bar));
+      return col;
+    }),
     list.map(x => h('div', { class: 'cap' }, h('b', null, x.label), h('strong', null, num(x.value)), h('span', { class: x.worst ? 'worst' : '' }, x.sub || ''))));
   const rows = h('div', { class: 'fx-rows' }, list.map((x, i) => h('div', { class: 'row' },
-    h('b', null, x.label), h('strong', null, num(x.value)), bar(share(x.value) / 100, i > 0), h('span', { class: x.worst ? 'worst' : '' }, (x.worst ? 'Biggest drop: ' : '') + (x.sub || '')))));
+    h('b', null, x.label), h('strong', null, num(x.value)), bar(share(x, i) / 100, i > 0), h('span', { class: x.worst ? 'worst' : '' }, (x.worst ? 'Biggest drop: ' : '') + (x.sub || '')))));
   return h('div', null, cols, rows);
 }
 
@@ -164,7 +179,7 @@ export function flow(o = {}) {
   const byId = new Map();
   columns.forEach((c, ci) => c.nodes.forEach((n, ni) => byId.set(n.id, { ...n, ci, ni })));
   const good = links.filter(l => byId.has(l.from) && byId.has(l.to) && l.value > 0);
-  if (!columns.length || !good.length) { box.append(h('p', { class: 'lx-foot' }, o.empty || 'Nothing to draw for these dates')); return box; }
+  if (!columns.length || !good.length) { box.append(h('p', { class: 'fx-under' }, o.empty || 'Nothing to draw for these dates')); return box; }
 
   const draw = W => {
     const phone = W < 620;
@@ -273,8 +288,10 @@ export function flow(o = {}) {
     };
     const showLink = (e, at) => {
       const l = e._l; lightLinks(new Set([l]));
-      const of = ok(total) && total > 0 ? [', ', pct(l.value / total, { digits: 1 }), ' of all ', num(total)] : [];
-      put(tip, h('b', null, say(l)), h('span', null, h('em', null, num(l.value) + ' ' + unit), ...of), l.extra ? h('span', { style: { display: 'block' } }, l.extra) : null);
+      const a = byId.get(l.from), z = byId.get(l.to), fromN = a && (a.count != null ? a.count : a.value);
+      const of = ok(total) && total > 0 ? h('span', null, h('em', null, pct(l.value / total, { digits: 1 })), ' of all ' + num(total) + ' ' + unit) : null;
+      const ofFrom = ok(fromN) && fromN > 0 && !a.ghost ? h('span', null, h('em', null, pct(l.value / fromN, { digits: 1 })), ' of ' + a.label) : null;
+      put(tip, h('b', null, say(l)), h('span', null, 'From ', h('em', null, a ? a.label : ''), ' to ', h('em', null, z ? z.label : '')), h('span', null, h('em', null, num(l.value) + ' ' + unit)), ofFrom, of, l.extra ? h('span', null, l.extra) : null);
       place(at ? at[0] : e._mid[0], at ? at[1] : e._mid[1]);
     };
     const showNode = (id, at) => {

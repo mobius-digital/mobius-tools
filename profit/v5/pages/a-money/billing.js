@@ -3,6 +3,7 @@
    Each client's billing day, paid date and amount still due have no all-clients read yet: in real mode they show
    from the sample behind the "Example until its data feed is built" chip. */
 import { put } from '../../kit.js';
+import { helpBar, dl } from '../home/_biz.js';
 import { h, em, money, pill, statusDot, card, empty } from '../../kit.js';
 import { style, world, sumOf, figures, brandRows, brandName, brandHref, quiet, shortDay, refused, exampleChip } from '../a-today/_ag.js';
 import { loadMoney, sampleMoney } from './_money.js';
@@ -22,31 +23,36 @@ function render(el, d, ctx) {
   if (!d || !d.rows || !d.rows.length) return put(el, empty({ title: 'No clients billed yet', text: 'Clients show here once a payment lands in the Ledger.' }));
   if (d.ledger && !d.ledger.ok) return put(el, empty({ title: 'The Ledger did not answer', text: d.ledger.error || 'Money received cannot be read right now. Try again in a minute.' }));
   const inv = Object.fromEntries((d.invoices || []).map(i => [i.brand, i]));
-  const rows = d.rows.map(r => ({ ...r, id: r.brand, inv: inv[r.brand] || null, href: brandHref(r.brand, 'home', 'index') }));
+  /* a click on a client opens that brand's money view (This month > Profit), and every row says so */
+  const rows = d.rows.map(r => ({ ...r, id: r.brand, inv: inv[r.brand] || null, href: brandHref(r.brand, 'month', 'profit'), goTitle: 'Open ' + r.name + ' profit this month' }));
   const due = rows.filter(r => r.inv && r.inv.amount_due > 0), owed = sumOf(due, r => r.inv.amount_due);
   const unmatched = d.unmatched || [], um = sumOf(unmatched, u => u.amount);
   const hero = figures([
-    { label: 'Received this month', value: money(d.totals.revenue), lead: true, sub: `${rows.filter(r => r.revenue > 0).length} of ${rows.length} clients paid` },
-    { label: 'Still to come in', value: money(owed || 0), sub: due.length ? due.map(r => r.name).join(', ') : 'nobody is late' },
+    { label: dl('Received this month', 'received'), value: money(d.totals.revenue), lead: true, sub: `${rows.filter(r => r.revenue > 0).length} of ${rows.length} clients paid` },
+    { label: 'Still to come in', value: money(owed || 0), sub: due.length ? due.map(r => r.name + (r.inv.billing_day ? `, billed the ${nth(r.inv.billing_day)}` : '')).join('; ') : 'nobody is late' },
     { label: 'Payments with no client', value: money(um || 0), sub: unmatched.length ? `${unmatched.length} payment${unmatched.length === 1 ? '' : 's'} to pin to a client` : 'every payment has a client' },
   ]);
-  const state = r => !r.inv ? quiet('No invoice on file') : r.inv.amount_due > 0 ? pill('bad', `${money(r.inv.amount_due)} due`) : r.inv.paid_on ? statusDot('good', 'Paid ' + shortDay(r.inv.paid_on)) : statusDot('warn', 'Not billed yet');
+  const state = r => !r.inv ? quiet('No invoice on file') : r.inv.amount_due > 0 ? statusDot('bad', `${money(r.inv.amount_due)} due`) : r.inv.paid_on ? statusDot('good', 'Paid ' + shortDay(r.inv.paid_on)) : statusDot('warn', 'Not billed yet');
   const tbl = brandRows({
     title: 'Client by client', note: d.invoices_example ? exampleChip() : d.label, sort: { key: 'due', dir: 'desc' }, rows,
     total: { total: true, name: 'All clients', revenue: d.totals.revenue },
     cols: [
       { key: 'name', label: 'Client', class: 'name', render: r => r.total ? r.name : brandName(r, ctx, r.href) },
       { key: 'day', label: 'Billed on', class: 'hide-sm', render: r => r.inv && r.inv.billing_day ? `the ${nth(r.inv.billing_day)}` : '' },
-      { key: 'revenue', label: 'Received', num: true, class: 'strong', sortable: true, value: r => r.revenue ?? 0, render: r => r.revenue > 0 ? money(r.revenue) : quiet('nothing yet') },
-      { key: 'due', label: 'Status', value: r => (r.inv && r.inv.amount_due) || 0, render: r => r.total ? '' : state(r) },
+      { key: 'revenue', label: dl('Received', 'received'), num: true, class: 'strong', sortable: true, value: r => r.revenue ?? 0, render: r => r.revenue > 0 ? money(r.revenue) : quiet('nothing yet') },
+      { key: 'due', label: dl('Status', 'bill_status'), value: r => (r.inv && r.inv.amount_due) || 0, render: r => r.total ? '' : state(r) },
+      { key: 'go', label: '', width: 120, render: r => r.total ? '' : h('a', { class: 'ag-go', href: r.href, title: r.goTitle }, 'Open profit') },
     ],
     item: (r, isTotal) => ({ href: r.href, head: isTotal ? h('b', null, r.name) : brandName(r, ctx), tail: isTotal ? h('b', null, money(r.revenue)) : state(r),
       figs: isTotal ? null : [['Received', r.revenue > 0 ? money(r.revenue) : quiet('nothing yet')], ['Billed on', r.inv && r.inv.billing_day ? `the ${nth(r.inv.billing_day)}` : quiet('no invoice')]] }),
   });
-  const um1 = unmatched.length ? card({ title: 'Payments with no client', note: 'Pin each payer to a client in Agency settings' },
+  const um1 = unmatched.length ? card({ title: 'Payments with no client', action: h('a', { href: ctx.href('a-settings', 'clients') }, 'Pin a payer to a client') },
     h('div', { class: 'lx-rows' }, unmatched.map(u => h('div', null, h('span', { style: { flex: '1', minWidth: '0' } }, u.name), h('b', { style: { fontVariantNumeric: 'tabular-nums' } }, money(u.amount)))))) : null;
-  const foot = h('p', { class: 'lx-foot' }, `${d.label || 'This month'}. Received is what reached the Ledger.${d.invoices_example ? ' Billing days and amounts due are examples until the billing feed is built.' : ''}`);
-  put(el, h('div', { class: 'ag' }, hero, tbl, um1, foot));
+  const help = helpBar([
+    { title: 'What it is for', text: `Has every client paid for ${d.label || 'this month'}? Who still owes, and payments the Ledger could not match to a client.` },
+    { title: 'How it is counted', text: `Received is what reached the Ledger this month.${d.invoices_example ? ' Billing days and amounts due are examples until the billing feed is built.' : ''} Click a client to open that brand's profit for this month.` },
+  ]);
+  put(el, h('div', { class: 'ag' }, help, hero, tbl, um1));
 }
 
 export default {

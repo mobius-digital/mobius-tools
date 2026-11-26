@@ -7,8 +7,9 @@
    these dates, the split shows "no data", never $0. */
 
 import { put } from '../../kit.js';
+import { askWhy, helpBar, dl, rangeWords } from '../home/_biz.js';
 import { h, em, card, kpi, kpis, delta, takeaway, button, table, legend, lineChart, skeleton, money } from '../../kit.js';
-import { ok, usd, rate, sum, move, shortDate, inRange, noteAt, css, head, barCell, channelTag, kl, hubEmail, soft, notConnected, num, pct } from './_em.js';
+import { ok, usd, rate, sum, move, shortDate, inRange, noteAt, css, head, barCell, channelTag, kl, hubEmail, soft, notConnected, num, pct, openCampaign } from './_em.js';
 
 /* ---------- real mode: five reads, shaped like the fixture ---------- */
 function shape(ctx, hub, store, daily, camps, ov, ex) {
@@ -33,7 +34,7 @@ function shape(ctx, hub, store, daily, camps, ov, ex) {
     list_spark: klOk && ok(size) ? inWin.map(r => (run += (r.gained || 0) - (r.lost || 0))) : [],
     note: null,
     campaigns: sent.sort((a, b) => (b.conversion_value || 0) - (a.conversion_value || 0)).slice(0, 5)
-      .map(x => ({ id: x.id, name: x.subject || x.name, sent: x.sent, channel: x.channel, sales: x.conversion_value, recipients: x.recipients, open_rate: x.open_rate, click_rate: x.click_rate, first_time: null })),
+      .map(x => ({ id: x.id, name: x.subject || x.name, subject: x.subject, preview_text: x.preview_text || null, sent: x.sent, channel: x.channel, sales: x.conversion_value, orders: x.conversions, recipients: x.recipients, open_rate: x.open_rate, click_rate: x.click_rate, unsub_rate: x.unsubscribe_rate, order_rate: x.conversion_rate, first_time: null })),
     campaigns_error: camps.error || null, campaign_count: sent.length, flow_count: ov.error ? null : ov.flows_live,
     example: ex && ex.totals ? ['returning'] : [],
   };
@@ -47,14 +48,14 @@ function figures(d) {
   const splitOk = ok(t.campaigns) && ok(t.flows) && t.campaigns + t.flows > 0;
   const daily = splitOk ? (d.days || []).map(r => (r.campaigns || 0) + (r.flows || 0)) : null;
   const el = kpis([
-    kpi({ label: 'Email & SMS sales', size: 'lg', value: ok(t.sales) ? usd(t.sales) : 'no data',
-      delta: ok(dSales) ? delta(dSales, { bad: dSales < 0 }) : null, sub: ok(t.orders) ? num(t.orders) + ' orders' : ok(t.sales_prev) ? 'was ' + usd(t.sales_prev) : null, spark: daily }),
+    kpi({ label: dl('Email & SMS sales', { name: 'Email & SMS sales', definition: 'Store sales Triple Whale credits to email and text, campaigns and flows together.', source: 'Triple Whale' }), size: 'lg', value: ok(t.sales) ? usd(t.sales) : 'no data',
+      delta: ok(dSales) ? delta(dSales, { bad: dSales < 0 }) : null, sub: ok(t.orders) ? num(t.orders) + ' orders' : ok(t.sales_prev) ? 'vs ' + usd(t.sales_prev) + ' before' : null, spark: daily }),
     kpi({ label: 'Share of store sales', size: 'lg', value: ok(t.share) ? pct(t.share) : 'no data',
       delta: ok(dShare) && Math.abs(dShare) >= 0.005 ? delta(dShare, { bad: dShare < 0, text: pts(dShare) }) : null, sub: 'of all store sales',
       spark: splitOk ? (d.days || []).filter(r => r.store > 0).map(r => ((r.campaigns || 0) + (r.flows || 0)) / r.store) : null }),
     ok(t.returning_share) ? kpi({ label: 'From returning buyers', size: 'lg', src: isEx ? 'Example' : null, value: pct(t.returning_share),
       delta: ok(t.returning_move) ? delta(t.returning_move, { text: pts(t.returning_move) }) : null, sub: 'of email and SMS sales' }) : null,
-    kpi({ label: 'List size', size: 'lg', value: ok(t.list_size) ? num(t.list_size) : 'no data',
+    kpi({ label: dl('List size', 'list_size'), size: 'lg', value: ok(t.list_size) ? num(t.list_size) : 'no data',
       delta: ok(t.list_net) && t.list_net !== 0 ? delta(t.list_net, { bad: t.list_net < 0, text: num(Math.abs(t.list_net)) }) : null,
       sub: ok(t.sms_size) ? num(t.sms_size) + ' on SMS' : ok(t.list_size) ? 'largest list' : 'needs the Klaviyo key', spark: d.list_spark }),
   ].filter(Boolean), { cols: 4 });
@@ -65,58 +66,54 @@ function figures(d) {
 function verdict(d, ctx) {
   const t = d.totals || {};
   if (!ok(t.sales) || !(t.sales > 0)) return null;
-  const b = v => h('b', null, v), parts = ['Email and texts brought in ', b(usd(t.sales))];
-  if (ok(t.share)) parts.push(', ', b(pct(t.share)), ' of store sales');
-  if (ok(t.campaigns) && ok(t.flows) && t.campaigns + t.flows > 0) {
-    const cs = t.campaigns / (t.campaigns + t.flows);
-    parts.push(', and ', cs >= 0.5 ? 'campaigns' : 'flows', ' made ', b(pct(cs >= 0.5 ? cs : 1 - cs)), ' of it');
-  }
-  parts.push('.');
-  return takeaway(parts, { action: ctx.isClient ? null : button('Ask why', { href: ctx.href('ask', 'index') }) });
+  /* the tiles carry the total and the share of store sales: the sentence adds only which half made it */
+  if (!(ok(t.campaigns) && ok(t.flows) && t.campaigns + t.flows > 0)) return null;
+  const b = v => h('b', null, v), cs = t.campaigns / (t.campaigns + t.flows);
+  return takeaway([cs >= 0.5 ? 'Campaigns' : 'Flows', ' made ', b(pct(cs >= 0.5 ? cs : 1 - cs)), ' of email and text sales; ', cs >= 0.5 ? 'flows' : 'campaigns', ' the rest.'],
+    { action: ctx.isClient ? null : askWhy(ctx, 'What are email and texts bringing in') });
 }
 
+/* Campaigns and flows by day as stacked bars. The share of store sales is tile 2 (with its own line), so it is not
+   drawn again here on a second axis. */
 function chartCard(d) {
   const days = d.days || [], t = d.totals || {};
   if (days.length < 2 || !days.some(r => (r.campaigns || 0) + (r.flows || 0) > 0)) return null;
   const total = days.map(r => (r.campaigns || 0) + (r.flows || 0));
-  const share = days.map(r => (r.store > 0 ? ((r.campaigns || 0) + (r.flows || 0)) / r.store : null));
-  const hasShare = share.filter(ok).length > 1;
-  const top = hasShare ? Math.min(1, Math.max(0.25, Math.ceil(Math.max(...share.filter(ok)) * 4) / 4)) : null;
   const b = v => h('b', null, v);
   return card({ class: 'em-chart' },
-    head('Flows or campaigns: what brought the sales?', 'Sales by day',
-      legend([{ name: 'Campaigns ' + (t.campaigns > 0 ? usd(t.campaigns) : 'no data'), square: true, color: 'var(--ink)' }, { name: 'Flows ' + (t.flows > 0 ? usd(t.flows) : 'no data'), square: true, color: '#D9DDE6' }, hasShare && { name: 'Share of store sales', lead: true }])),
+    head('Flows or campaigns: what brought the sales?', 'Sales by day, Triple Whale\'s count',
+      legend([{ name: 'Campaigns ' + (t.campaigns > 0 ? usd(t.campaigns) : 'no data'), square: true, color: 'var(--ink)' }, { name: 'Flows ' + (t.flows > 0 ? usd(t.flows) : 'no data'), square: true, color: 'var(--line-strong)' }])),
     lineChart({
       series: [
         { type: 'bar', name: 'Campaigns', values: total },
         { type: 'bar', tone: 'dim', name: 'Flows', values: days.map(r => r.flows || 0) },
-        hasShare && { name: 'Share of store sales', lead: true, axis: 'right', values: share, end: false },
       ],
       labels: days.map(r => shortDate(r.date)), fill: false,
-      y2: hasShare ? { max: top, format: v => pct(v) } : null,
-      note: noteAt(days, d.note), format: v => money(v, { compact: true }), height: 360, phoneHeight: 300,
-      label: 'Email and SMS sales by day, campaigns and flows' + (hasShare ? ', with their share of store sales' : ''),
-      hover: i => [b(shortDate(days[i].date)), h('span', null, 'Campaigns ', b(usd(days[i].campaigns))), h('span', null, 'Flows ', b(usd(days[i].flows))), ok(share[i]) && h('span', null, 'Share ', b(pct(share[i])))],
+      note: noteAt(days, d.note), format: v => money(v, { compact: true }), height: 340, phoneHeight: 290,
+      label: 'Email and SMS sales by day, campaigns and flows',
+      hover: i => [b(shortDate(days[i].date)), h('span', null, 'Campaigns ', b(usd(days[i].campaigns))), h('span', null, 'Flows ', b(usd(days[i].flows))),
+        days[i].store > 0 ? h('span', null, 'Share of store sales ', b(pct(total[i] / days[i].store))) : null],
     }));
 }
 
 function topCampaigns(d, ctx) {
   const rows = d.campaigns || [];
-  const title = 'Top campaigns', all = h('a', { href: ctx.href('email', 'campaigns') }, d.campaign_count ? 'All ' + d.campaign_count : 'All campaigns');
+  const title = 'Top campaigns', all = h('a', { href: ctx.href('email', 'campaigns') }, d.campaign_count ? 'All ' + d.campaign_count + ' campaigns' : 'All campaigns');
   if (!rows.length) {
     return card({ title }, notConnected(ctx, d.klaviyo === false
       ? { title: 'Klaviyo is not connected', text: 'Campaigns show here once the brand\'s Klaviyo is connected.', teamText: 'Paste the brand\'s Klaviyo private key in Brand settings, Integrations, and campaigns show here.' }
       : { title: 'No campaigns went out in these dates', text: d.campaigns_error || 'Pick a longer range to see earlier sends.' }));
   }
   const max = Math.max(...rows.map(r => r.sales || 0), 1), first = rows.some(r => ok(r.first_time));
-  return card({ title, note: 'sorted by sales, Klaviyo\'s count', flush: true, class: 'em-flush', action: all },
-    table({ roomy: true, rows, cols: [
+  return card({ title, note: 'sorted by sales, Klaviyo\'s count, tap one to open it', flush: true, class: 'em-flush', action: all },
+    table({ roomy: true, rows, onRow: r => openCampaign(r), cols: [
       { key: 'name', label: 'Campaign', class: 'name', render: r => h('span', { class: 'em-name' }, r.name, channelTag(r.channel)) },
       { key: 'sent', label: 'Sent', class: 'dim hide-sm', render: r => (r.sent ? shortDate(r.sent) : '') },
       { key: 'sales', label: 'Sales', num: true, render: r => barCell(h('span', { class: 'strong' }, ok(r.sales) ? usd(r.sales) : 'no data'), (r.sales || 0) / max) },
       first && { key: 'first_time', label: 'First-time buyers', num: true, class: 'hide-md', render: r => rate(r.first_time, 0) },
-      { key: 'open_rate', label: 'Open rate', num: true, class: 'hide-sm', render: r => (r.channel === 'sms' ? h('span', { class: 'em-none' }, 'text') : rate(r.open_rate)) },
-      { key: 'click_rate', label: 'Click rate', num: true, render: r => rate(r.click_rate, 2) },
+      { key: 'open_rate', label: dl('Open rate', 'open_rate'), num: true, class: 'hide-sm', render: r => (r.channel === 'sms' ? h('span', { class: 'em-none' }, 'text') : rate(r.open_rate)) },
+      { key: 'click_rate', label: dl('Click rate', 'click_rate'), num: true, render: r => rate(r.click_rate, 2) },
+      { key: 'go', label: '', class: 'em-go', render: () => '>' },
     ].filter(Boolean) }));
 }
 
@@ -148,12 +145,14 @@ export default {
     }
     const isEx = (d.example || []).length > 0;
     put(el, ...[
+      helpBar([
+        { title: 'What it is for', text: 'What email and texts bring in on the dates at the top, flows against campaigns, and the top campaigns. Tap a campaign to open it.' },
+        { title: 'Where the numbers come from', text: 'Sales by day and the share of store sales are from Triple Whale. Orders, list size and campaign results are Klaviyo\'s own count.' + (isEx ? ' "From returning buyers" is an example until its data feed is built.' : '') },
+      ], h('span', { class: 'bz-chip' }, rangeWords(ctx, d.range))),
       h('section', { class: 'lx-hero line' }, figures(d)),
       verdict(d, ctx),
       chartCard(d),
       topCampaigns(d, ctx),
-      h('p', { class: 'lx-foot' }, 'Sales by day and the share of store sales are from Triple Whale. Orders, list size and campaign results are Klaviyo\'s own count.'
-        + (isEx ? ' "From returning buyers" is an example until its data feed is built.' : '')),
     ].filter(Boolean));
   },
 };

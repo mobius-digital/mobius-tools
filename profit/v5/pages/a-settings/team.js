@@ -13,7 +13,10 @@
 import { OLD_LOCUS } from '../../config.js';
 import { put } from '../../kit.js';
 import { h, em, empty, card, table, avatar, statusDot, button, sheet, toast } from '../../kit.js';
-import { css, stage, saveBar, group, row, fold, facts, pick, onOff, exampleChip } from '../brand-settings/_set.js';
+import { css, stage, saveBar, group, row, fold, setHelp, pick, onOff, exampleChip } from '../brand-settings/_set.js';
+import { defLabel } from '../../defs.js';
+
+const ACCESS_DEF = { title: 'Access', body: 'Owner: every brand and every money page; the only one who invites and removes. Team: signs in with the agency email and opens the brands given (or every brand when none are picked). Viewer: reads only, changes nothing. Invited, off the domain: a guest with another email, who only ever opens the brands picked for them.' };
 
 const JOBS = [{ id: '', label: 'Not set' }, { id: 'owner', label: 'Owner' }, { id: 'strategist', label: 'Creative strategist' }, { id: 'buyer', label: 'Media buyer' },
   { id: 'editor', label: 'Editor' }, { id: 'designer', label: 'Designer' }, { id: 'google', label: 'Google' }, { id: 'amazon', label: 'Amazon' }, { id: 'email', label: 'Email and SMS' }];
@@ -89,7 +92,7 @@ function inviteSheet(ctx, data, reload) {
 function removeSheet(ctx, p, reload) {
   const go = button('Remove', { primary: true, large: true });
   const no = button('Not yet', { large: true });
-  const sh = sheet({ title: 'Remove ' + nameOf(p) + '?', body: h('div', { class: 'lx-tm-inv' },
+  const sh = sheet({ title: 'Remove ' + nameOf(p) + '?', side: 'center', body: h('div', { class: 'lx-tm-inv' },
     h('p', null, 'They lose access on their next click. Their brands are kept if you let them back in.'),
     h('div', { class: 'lx-tm-acts' }, go, no)) });
   no.addEventListener('click', () => sh.close());
@@ -98,6 +101,15 @@ function removeSheet(ctx, p, reload) {
     const ok = await teamWrite(ctx, { email: p.email, remove: true }, nameOf(p) + ' is removed.', reload);
     if (ok) sh.close(); else { go.disabled = no.disabled = false; }
   });
+}
+
+/** The brands one person may open, as a checklist (read here; change them by inviting the same email again). */
+function brandsSheet(ctx, p) {
+  const all = ctx.brands || [], mine = new Set(p.brands || []), every = p.access === 'owner' || !mine.size;
+  sheet({ title: nameOf(p) + ': brands', side: 'center', body: h('div', { class: 'lx-tm-inv' },
+    h('p', { class: 'lx-tm-sub' }, every ? 'Opens every brand.' : 'Opens ' + mine.size + ' of ' + all.length + ' brands.'),
+    h('ul', { class: 'lx-tm-list' }, all.map(b => { const on = every || mine.has(b.id); return h('li', { class: on ? 'on' : '' }, h('span', { 'aria-hidden': 'true' }, on ? '✓' : ''), h('span', null, b.name), on ? null : h('small', null, 'not given')); })),
+    h('p', { class: 'lx-tm-sub' }, 'To change them, the owner invites the same email again with the new brands ticked.')) });
 }
 
 function draw(el, data, ctx, reload) {
@@ -121,8 +133,8 @@ function draw(el, data, ctx, reload) {
   const cols = [
     { key: 'name', label: 'Person', sortable: true, value: nameOf, render: p => h('span', { class: 'lx-st-who' }, avatar({ ...p, name: nameOf(p) }, { size: 34 }), h('span', null, h('b', null, nameOf(p)), h('small', null, p.email))) },
     ctx.sample ? { key: 'job', label: 'Job', render: p => pick(S, k(p, 'job'), p.job || '', JOBS, { label: 'Job for ' + nameOf(p), width: 180 }) } : null,
-    { key: 'access', label: 'Access', class: 'hide-sm', render: p => p.removed ? statusDot('off', 'Removed') : h('span', null, ACCESS[p.access] || 'Team', p.guest ? h('small', { class: 'lx-tm-sub' }, 'invited, off the domain') : null) },
-    { key: 'brands', label: 'Brands', class: 'hide-md', render: p => p.access === 'owner' || !p.brands || !p.brands.length ? 'All ' + (nBrands || '') : p.brands.length + ' of ' + (nBrands || p.brands.length) },
+    { key: 'access', label: defLabel('Access', ACCESS_DEF), class: 'hide-sm', render: p => p.removed ? statusDot('off', 'Removed') : h('span', null, ACCESS[p.access] || 'Team', p.guest ? h('small', { class: 'lx-tm-sub' }, 'invited, off the domain') : null) },
+    { key: 'brands', label: 'Brands', class: 'hide-md', render: p => h('button', { type: 'button', class: 'lx-tm-bn', title: 'See which brands', onclick: () => brandsSheet(ctx, p) }, p.access === 'owner' || !p.brands || !p.brands.length ? 'All ' + (nBrands || '') : p.brands.length + ' of ' + (nBrands || p.brands.length), h('span', { 'aria-hidden': 'true' }, ' ›')) },
     { key: 'slack', label: 'Slack', class: 'hide-md', render: p => p.slack == null ? h('span', { class: 'lx-foot' }, 'Not checked') : p.slack ? statusDot('good', 'Linked') : statusDot('off', 'Not linked') },
     canRemove ? { key: 'do', label: '', num: true, render: p => {
       if (p.access === 'owner' || String(p.email).toLowerCase() === me) return '';
@@ -135,7 +147,13 @@ function draw(el, data, ctx, reload) {
   const live = people.filter(p => !p.removed);
   const viewers = live.filter(p => p.access === 'viewer').length, guests = live.filter(p => p.guest).length;
   put(el, h('div', { class: 'lx-st' },
-    saveBar(S, ctx, { note: ctx.sample ? undefined : 'Invite and Remove save at once. Who can send to clients saves with this button.' }),
+    saveBar(S, ctx, { help: setHelp({
+      about: 'One roster: every person on the team, what they can open, and whether their Slack is linked. Only the owner invites and removes.',
+      fixed: [
+        ['Team email domain', data.domain ? '@' + data.domain : 'Not read yet', 'Anyone signed in with it is on the team. Others are invited one by one, with the brands they may see.'],
+        ['Owner', data.owner_name || 'The agency owner', 'Sees every brand and every money page. Only the owner invites and removes.'],
+        ['Photos', 'From each person’s Slack', 'Change it in Slack and it changes here.'],
+      ] }), note: ctx.sample ? undefined : 'Invite and Remove save at once. Who can send to clients saves with this button.' }),
     card({ title: 'The team', note: ex.has('jobs') ? exampleChip() : live.length + (live.length === 1 ? ' person, ' : ' people, ') + guests + (guests === 1 ? ' guest, ' : ' guests, ') + viewers + (viewers === 1 ? ' viewer.' : ' viewers.'),
       flush: true, class: 'lx-st-card', action: invite() }, roster),
     group('Who can do what', null,
@@ -144,11 +162,7 @@ function draw(el, data, ctx, reload) {
       ctx.sample ? row('Who sees other people’s work lists', null, pick(S, 'agency.seeOthers', data.see_others || 'owner', [{ id: 'owner', label: 'The owner only' }, { id: 'leads', label: 'Owner and account leads' }, { id: 'anyone', label: 'Everyone' }], { label: 'Who sees other work lists', width: 220 })) : null),
     ctx.sample ? fold('Advanced', 'Rarely touched',
       row('Contractors', 'A contractor sees only the brands and cards given to them, never money pages.', onOff(S, 'agency.contractorsOn', data.contractors ?? false, 'Allow contractors'))) : null,
-    facts('Stays fixed', [
-      ['Team email domain', data.domain ? '@' + data.domain : 'Not read yet', 'Anyone signed in with it is on the team. Others are invited one by one, with the brands they may see.'],
-      ['Owner', data.owner_name || 'The agency owner', 'Sees every brand and every money page. Only the owner invites and removes.'],
-      ['Photos', 'From each person’s Slack', 'Change it in Slack and it changes here.'],
-    ])));
+  ));
 }
 
 const page = {
@@ -192,4 +206,11 @@ addStyles('lx-tm-css', `.lx-tm-sub{display:block;font-size:12px;color:var(--mute
 .lx-tm-need{font-size:13px!important;color:var(--muted)}
 .lx-tm-need:empty{display:none}
 .lx-tm-acts{display:flex;gap:10px;flex-wrap:wrap}
+.lx-tm-bn{border:0;background:none;padding:4px 8px;margin:-4px -8px;border-radius:8px;font:inherit;color:var(--ink);cursor:pointer;white-space:nowrap}
+.lx-tm-bn:hover{background:var(--row-hover)}
+.lx-tm-list{list-style:none;margin:0;padding:0;display:grid;border-top:1px solid var(--line)}
+.lx-tm-list li{display:grid;grid-template-columns:20px minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);font-size:14px;color:var(--muted)}
+.lx-tm-list li.on{color:var(--ink)}
+.lx-tm-list li>span:first-child{color:var(--good);font-weight:700}
+.lx-tm-list small{font-size:12px;color:var(--faint)}
 .lx-tm-acts .lx-btn{flex:1 1 140px;justify-content:center}`);

@@ -9,6 +9,7 @@
                                    plan, the agreement, what it is based on, the growth choices, past months
      /api/overview?days=7&cmp=none&series=0   the cost check (profit figures are held back when it fails) */
 
+import { helpBar, dl } from '../home/_biz.js';
 import { put } from '../../kit.js';
 import { h, money, pct, x, card, hero, em, kpi, kpis, button, statusDot, pill, gauge, legend, lineChart, table, segmented, empty } from '../../kit.js';
 import { ok, iso, dayLabel, monthName, monthShort, nextMonth, b, soft, pickBrand, styles } from './_m.js';
@@ -115,16 +116,15 @@ function reachCard(m) {
   const r = y.recent > 0 ? y.needs / y.recent : null;
   const verdict = r == null ? null : r <= 1.05 ? ['good', 'Within reach'] : r <= 1.25 ? ['warn', 'A stretch'] : ['bad', 'Out of reach at this rate'];
   const win = y.from && y.to ? `${dayLabel(y.from)} to ${dayLabel(y.to)}` : 'the last 28 days';
-  return card({ title: 'Can it be reached?', note: 'new customer sales for every ad dollar', flush: true, action: verdict ? statusDot(verdict[0], verdict[1]) : null },
+  return card({ title: 'Can it be reached?', note: `against ${win}`, flush: true, action: verdict ? statusDot(verdict[0], verdict[1]) : null },
     h('div', { class: 'mo-yard' },
-      h('span', { class: 'lx-big' }, x(y.needs)),
+      h('span', { class: 'need' }, h('small', null, dl('New customer ROAS the plan needs', 'new_customer_roas_plan')), h('span', { class: 'lx-big' }, x(y.needs))),
+      h('span', { class: 'rec' }, h('small', null, dl('Recent new customer ROAS', 'new_customer_roas')), h('b', null, x(y.recent))),
       gauge({ value: y.recent, max: Math.max(y.needs, y.recent) * 1.25, goal: y.needs, tone: verdict ? verdict[0] : '',
-        ticks: [{ side: 'l', text: 'recent ' + x(y.recent) }, { at: y.needs, text: 'plan needs ' + x(y.needs), on: true }] })),
+        ticks: [{ side: 'l', text: '0' }, { at: y.needs, text: 'plan needs ' + x(y.needs), on: true }] })),
     h('div', { class: 'mo-facts' },
       h('div', null, h('span', null, 'Returning customers should bring, on their own'), b(whole(y.returning))),
-      h('div', null, h('span', null, 'That leaves, to win from new customers'), b(whole(y.new_needed))),
-      h('div', null, h('span', null, `On ${whole(m.goals.spend)} of ads, every dollar has to bring back`), b(x(y.needs))),
-      h('div', null, h('span', null, `From ${win}, every ad dollar brought back`), b(x(y.recent)))));
+      h('div', null, h('span', null, 'That leaves, to win from new customers'), b(whole(y.new_needed)))));
 }
 
 function optionsCard(m, data) {
@@ -132,10 +132,10 @@ function optionsCard(m, data) {
   const g = m.goals, near = g && ok(m.growth) ? m.options.reduce((best, o) => (Math.abs(o.growth - m.growth) < Math.abs(best.growth - m.growth) ? o : best), m.options[0]) : null;
   const chosen = o => near === o && Math.abs(o.growth - m.growth) < 0.03;
   const base = m.basis.run_rate ? `${monthName(m.basis.month)} at its current pace` : m.basis.month ? `${monthName(m.basis.month)}` : 'the last full month';
-  return card({ title: 'Other ways to set it', note: `growth on ${base}, ${whole(m.basis.sales)}`, flush: true },
+  return card({ title: 'Other ways to set it', note: `${base} sales were ${whole(m.basis.sales)}`, flush: true, class: 'mo-opts' },
     table({
       cols: [
-        { key: 'growth', label: 'Growth', class: 'name', render: o => h('span', { class: chosen(o) ? 'mo-chosen' : '' }, o.growth ? pct(o.growth, { signed: true }) : 'Hold level', chosen(o) ? ', closest to the plan' : '') },
+        { key: 'growth', label: dl('Growth on ' + (m.basis.month ? monthName(m.basis.month) : 'last month') + ' sales', { name: 'Growth', definition: `How much higher than ${base} sales this option sets the goal. Pick one with Change the plan.` }), class: 'name', render: o => h('span', { class: chosen(o) ? 'mo-chosen' : '' }, o.growth ? pct(o.growth, { signed: true }) : 'Hold level', chosen(o) ? ', closest to the plan' : '') },
         { key: 'sales', label: 'Sales goal', num: true, render: o => whole(o.sales) },
         { key: 'spend', label: 'Ad spend it takes', num: true, render: o => whole(o.spend) },
         { key: 'mer', label: 'MER', num: true, class: 'hide-sm', render: o => x(o.mer) },
@@ -148,8 +148,8 @@ function optionsCard(m, data) {
 function historyCard(data) {
   const rows = [...(data.history || [])].reverse();
   if (!rows.length) return null;
-  return card({ title: 'Past months', flush: true },
-    table({
+  return card({ title: 'Past months', note: 'the same numbers as the chart above', flush: true },
+    h('details', { class: 'mo-hist' }, h('summary', null, 'Show the table'), table({
       cols: [
         { key: 'month', label: 'Month', class: 'name', render: r => monthName(r.month) + (r.partial ? ', so far' : '') },
         { key: 'sales', label: 'Sales', num: true, render: r => whole(r.sales) },
@@ -158,7 +158,7 @@ function historyCard(data) {
         !data.profit_withheld && { key: 'profit', label: 'Profit after ads', num: true, class: 'hide-sm', render: r => whole(r.profit) },
       ].filter(Boolean),
       rows,
-    }));
+    })));
 }
 
 function basedOn(m) {
@@ -166,7 +166,10 @@ function basedOn(m) {
   if (m.basis && m.basis.month && ok(m.basis.sales)) parts.push(`Growth is measured on ${monthName(m.basis.month)}${m.basis.run_rate ? ' at its current pace' : ''}, ${whole(m.basis.sales)} in sales.`);
   if (m.yard && m.yard.from && m.yard.to) parts.push(`Returning customers and the return on ads come from ${dayLabel(m.yard.from)} to ${dayLabel(m.yard.to)}.`);
   parts.push('The plan splits evenly across the days of the month. MER is whole store sales over all ad spend.');
-  return h('p', { class: 'lx-foot' }, parts.join(' '));
+  return helpBar([
+    { title: 'What it is for', text: 'The plan agreed for the month: the sales goal, the ad budget, the MER that takes, and whether it can be reached.' },
+    { title: 'What it rests on', text: parts.join(' ') },
+  ]);
 }
 
 /* ---------- the page ---------- */
@@ -180,14 +183,14 @@ function draw(el, data, ctx) {
     ? segmented(data.months.map(r => ({ id: r.month, label: monthName(r.month) + (r.month === data.current ? ', in progress' : '') })), m.month, id => { ctx.saveSetting(KEY, id); draw(el, data, ctx); })
     : null;
   put(el, h('div', { class: 'mo' }, [
+    basedOn(m),
     h('div', { class: 'mo-pick' }, pick, stateOf(m, ctx),
-      ctx.isClient || !ctx.legacy ? null : button(m.goals ? 'Change the plan' : 'Set the plan', { href: ctx.legacy, icon: 'arrow', primary: !m.goals })),
+      ctx.isClient || !ctx.legacy ? null : button(m.goals ? 'Change the plan' : 'Set the plan', { href: ctx.legacy, icon: 'arrow', primary: !m.goals, title: 'Opens the plan editor in old Locus' })),
     heroBlock(m, data),
     chartCard(m, data),
     m.goals ? reachCard(m) : null,
     optionsCard(m, data),
     historyCard(data),
-    basedOn(m),
   ].filter(Boolean)));
 }
 

@@ -19,7 +19,9 @@
    "why": "Spent three times the goal with one sale.",
    "matters": true,
    "app": true,
-   "write": "mw_sample00"
+   "write": "mw_sample00",
+   "platform": "meta",
+   "via": "in the app"
   },
   {
    "id": "ch01",
@@ -33,7 +35,11 @@
    "why": "Nine sales at goal this week on a small budget.",
    "matters": true,
    "app": true,
-   "write": "mw_sample01"
+   "write": "mw_sample01",
+   "platform": "meta",
+   "via": "in the app",
+   "roas_before": 2.41,
+   "roas_after": 2.88
   },
   {
    "id": "ch02",
@@ -45,7 +51,9 @@
    "name": "Pool 05, cart ride",
    "level": "Ad",
    "why": "",
-   "matters": true
+   "matters": true,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "ch03",
@@ -57,7 +65,9 @@
    "name": "Pool 04, belt wall",
    "level": "Ad",
    "why": "Two new creator videos for the pool.",
-   "matters": true
+   "matters": true,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "ch04",
@@ -69,7 +79,9 @@
    "name": "Black Friday 2026",
    "level": "Campaign",
    "why": "ROAS slipped under goal after the early sale ended, so we pulled back until Thursday.",
-   "matters": true
+   "matters": true,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "ch05",
@@ -81,7 +93,9 @@
    "name": "Early sale | New people",
    "level": "Ad set",
    "why": "",
-   "matters": false
+   "matters": false,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "ch06",
@@ -93,7 +107,9 @@
    "name": "Creators | Test 09",
    "level": "Ad set",
    "why": "No sale after 14 days.",
-   "matters": true
+   "matters": true,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "ch07",
@@ -105,7 +121,9 @@
    "name": "Early access | Past buyers",
    "level": "Ad set",
    "why": "Built ahead of Thursday. It starts at 6pm on Nov 26.",
-   "matters": true
+   "matters": true,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "ch08",
@@ -117,7 +135,9 @@
    "name": "Early sale | New people",
    "level": "Ad set",
    "why": "Its sales were going to repeat buyers. This set is for new people.",
-   "matters": true
+   "matters": true,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "ch09",
@@ -129,7 +149,9 @@
    "name": "Welcome back, 20% off",
    "level": "Ad",
    "why": "",
-   "matters": true
+   "matters": true,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "ch10",
@@ -141,7 +163,9 @@
    "name": "Your belt, new strap",
    "level": "Ad",
    "why": "Two ads for past buyers.",
-   "matters": true
+   "matters": true,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "ch11",
@@ -153,7 +177,9 @@
    "name": "Early sale | Teaser",
    "level": "Campaign",
    "why": "The early sale ended Nov 15.",
-   "matters": true
+   "matters": true,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "ch12",
@@ -165,7 +191,9 @@
    "name": "Black Friday 2026",
    "level": "Campaign",
    "why": "ROAS held over goal for five days.",
-   "matters": true
+   "matters": true,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "ch13",
@@ -177,7 +205,9 @@
    "name": "Summer strap, on course",
    "level": "Ad",
    "why": "Three times the goal with no sale.",
-   "matters": false
+   "matters": false,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "ch14",
@@ -189,7 +219,9 @@
    "name": "Evergreen | Belts",
    "level": "Campaign",
    "why": "",
-   "matters": true
+   "matters": true,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "ch15",
@@ -201,7 +233,9 @@
    "name": "Holiday 2026",
    "level": "Campaign",
    "why": "Built early. Its ad sets start Dec 5.",
-   "matters": true
+   "matters": true,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "ch16",
@@ -213,7 +247,9 @@
    "name": "Black Friday 2026",
    "level": "Campaign",
    "why": "The early sale opened strong.",
-   "matters": true
+   "matters": true,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "ch17",
@@ -225,7 +261,9 @@
    "name": "Gift box, flat lay",
    "level": "Ad",
    "why": "",
-   "matters": true
+   "matters": true,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "ch18",
@@ -237,7 +275,9 @@
    "name": "Belts | Broad",
    "level": "Ad set",
    "why": "Back in stock.",
-   "matters": true
+   "matters": true,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "ch19",
@@ -249,7 +289,9 @@
    "name": "Walnut belt, range day",
    "level": "Ad",
    "why": "",
-   "matters": true
+   "matters": true,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "hk00",
@@ -261,7 +303,9 @@
    "name": "Pool 05, cart ride",
    "level": "Ad",
    "why": "",
-   "matters": false
+   "matters": false,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "hk01",
@@ -273,7 +317,9 @@
    "name": "Creator pool",
    "level": "Ad set",
    "why": "",
-   "matters": false
+   "matters": false,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "hk02",
@@ -285,7 +331,9 @@
    "name": "Belts | Broad",
    "level": "Ad set",
    "why": "",
-   "matters": false
+   "matters": false,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "hk03",
@@ -297,7 +345,9 @@
    "name": "Welcome back, 20% off",
    "level": "Ad",
    "why": "",
-   "matters": false
+   "matters": false,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "hk04",
@@ -309,7 +359,9 @@
    "name": "Ad account",
    "level": "Account",
    "why": "",
-   "matters": false
+   "matters": false,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "hk05",
@@ -321,7 +373,9 @@
    "name": "Gift box, flat lay",
    "level": "Ad",
    "why": "",
-   "matters": false
+   "matters": false,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "hk06",
@@ -333,7 +387,9 @@
    "name": "Early access | Past buyers",
    "level": "Ad set",
    "why": "",
-   "matters": false
+   "matters": false,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "hk07",
@@ -345,7 +401,9 @@
    "name": "Pool 05, cart ride",
    "level": "Ad set",
    "why": "",
-   "matters": false
+   "matters": false,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "hk08",
@@ -357,7 +415,9 @@
    "name": "Creator pool",
    "level": "Ad",
    "why": "",
-   "matters": false
+   "matters": false,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "hk09",
@@ -369,7 +429,9 @@
    "name": "Belts | Broad",
    "level": "Account",
    "why": "",
-   "matters": false
+   "matters": false,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "hk10",
@@ -381,7 +443,9 @@
    "name": "Welcome back, 20% off",
    "level": "Ad",
    "why": "",
-   "matters": false
+   "matters": false,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "hk11",
@@ -393,7 +457,9 @@
    "name": "Ad account",
    "level": "Ad set",
    "why": "",
-   "matters": false
+   "matters": false,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "hk12",
@@ -405,7 +471,9 @@
    "name": "Gift box, flat lay",
    "level": "Ad set",
    "why": "",
-   "matters": false
+   "matters": false,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "hk13",
@@ -417,7 +485,9 @@
    "name": "Early access | Past buyers",
    "level": "Ad",
    "why": "",
-   "matters": false
+   "matters": false,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "hk14",
@@ -429,7 +499,9 @@
    "name": "Pool 05, cart ride",
    "level": "Account",
    "why": "",
-   "matters": false
+   "matters": false,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "hk15",
@@ -441,7 +513,9 @@
    "name": "Creator pool",
    "level": "Ad",
    "why": "",
-   "matters": false
+   "matters": false,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "hk16",
@@ -453,7 +527,9 @@
    "name": "Belts | Broad",
    "level": "Ad set",
    "why": "",
-   "matters": false
+   "matters": false,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "hk17",
@@ -465,7 +541,9 @@
    "name": "Welcome back, 20% off",
    "level": "Ad set",
    "why": "",
-   "matters": false
+   "matters": false,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "hk18",
@@ -477,7 +555,9 @@
    "name": "Ad account",
    "level": "Ad",
    "why": "",
-   "matters": false
+   "matters": false,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "hk19",
@@ -489,7 +569,9 @@
    "name": "Gift box, flat lay",
    "level": "Account",
    "why": "",
-   "matters": false
+   "matters": false,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "hk20",
@@ -501,7 +583,9 @@
    "name": "Early access | Past buyers",
    "level": "Ad",
    "why": "",
-   "matters": false
+   "matters": false,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "hk21",
@@ -513,7 +597,9 @@
    "name": "Pool 05, cart ride",
    "level": "Ad set",
    "why": "",
-   "matters": false
+   "matters": false,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "hk22",
@@ -525,7 +611,9 @@
    "name": "Creator pool",
    "level": "Ad set",
    "why": "",
-   "matters": false
+   "matters": false,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "hk23",
@@ -537,7 +625,9 @@
    "name": "Belts | Broad",
    "level": "Ad",
    "why": "",
-   "matters": false
+   "matters": false,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "hk24",
@@ -549,7 +639,9 @@
    "name": "Welcome back, 20% off",
    "level": "Account",
    "why": "",
-   "matters": false
+   "matters": false,
+   "platform": "meta",
+   "via": ""
   },
   {
    "id": "hk25",
@@ -561,7 +653,9 @@
    "name": "Ad account",
    "level": "Ad",
    "why": "",
-   "matters": false
+   "matters": false,
+   "platform": "meta",
+   "via": ""
   }
  ]
 }

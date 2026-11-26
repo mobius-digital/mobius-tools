@@ -16,7 +16,7 @@ import { seenAsClient, clientsOwn, staleHold, ownGet, noEmail } from './_own.js'
 const CSS = `
 .lx-caip{display:grid;gap:var(--sp-5)}
 .lx-caip-lede{font-size:14.5px;line-height:1.5;color:var(--ink-2);max-width:66ch;margin:0}
-.lx-caip-card{display:grid;gap:var(--sp-3);padding:var(--sp-6);border-radius:var(--r-xl);background:#fff;box-shadow:var(--sh-1)}
+.lx-caip-card{display:grid;gap:var(--sp-3);padding:var(--sp-6);border-radius:var(--r-xl);background:var(--surface);box-shadow:var(--sh-1)}
 .lx-caip-card.mark{box-shadow:var(--sh-2),0 0 0 2px var(--brand)}
 .lx-caip-top{display:flex;gap:var(--sp-3);align-items:center;flex-wrap:wrap}
 .lx-caip-card h3{margin:0;font-size:17px;line-height:1.3;font-weight:600;color:var(--ink)}
@@ -24,7 +24,9 @@ const CSS = `
 .lx-caip-ba{display:flex;gap:var(--sp-3);align-items:center;flex-wrap:wrap;font-size:13.5px;color:var(--ink-2)}
 .lx-caip-ba b{padding:4px 10px;border-radius:999px;background:var(--band);font-weight:500;color:var(--ink)}
 .lx-caip-by{font-size:12.5px;color:var(--muted)}
-.lx-caip-acts{display:flex;gap:var(--sp-3);flex-wrap:wrap;margin-top:var(--sp-2)}
+.lx-caip-acts{display:flex;gap:var(--sp-3);flex-wrap:wrap;align-items:center;margin-top:var(--sp-2)}
+.lx-caip-acts a.lx-caip-open{font-size:13.5px;font-weight:600;color:var(--ink-2);margin-left:auto}
+.lx-caip-lede b{color:var(--ink);font-weight:600}
 .lx-caip-real{display:grid;gap:var(--sp-4)}
 .lx-caip-real p{margin:0;color:var(--ink-2);line-height:1.5}
 .lx-caip-real .name{font-size:17px;font-weight:600;color:var(--ink);overflow-wrap:anywhere}
@@ -32,6 +34,7 @@ const CSS = `
 @media (max-width:640px){.lx-caip-acts .lx-btn{flex:1}}
 `;
 
+const PLATFORM = { meta: 'Meta', google: 'Google', tiktok: 'TikTok' };
 const KIND = { pause: 'Turn off', resume: 'Turn on', budget: 'New daily budget', other: 'Idea' };
 const LEVEL = { campaign: 'campaign', adset: 'ad set', ad: 'ad' };
 function left(iso) {
@@ -126,27 +129,30 @@ function draw(el, data, ctx) {
   const one = p => {
     const b = brandOf(p.brand_id);
     const does = applies && p.kind !== 'other';
-    const yes = button(does ? 'Yes, look first' : 'Yes', { primary: true }), no = button('No', { ghost: true });
+    /* Agree only keeps a note (the change is made on its own page), so it never reads as an orange "do it" button */
+    const yes = button(does ? 'Yes, look first' : 'Agree', { primary: does, title: does ? 'Shows the real name and numbers from Meta first' : 'Keeps a note that you agreed. Nothing is changed.' }), no = button(does ? 'No' : 'Dismiss', { ghost: true });
+    const plat = PLATFORM[p.platform] || 'Meta';
+    const openHref = p.kind !== 'other' && (b.slug || (ctx.brand && ctx.brand.slug)) ? '#/brand/' + (b.slug || ctx.brand.slug) + '/' + (p.platform && PLATFORM[p.platform] ? p.platform : 'meta') + '/live-now' : null;
     /* A budget card always shows the amount the yes would set. The AI's "after" words never stand in for it. */
     const after = p.kind === 'budget' && p.amount != null ? money(p.amount, { cur: b.currency }) + ' a day' : p.after;
     const node = h('article', { class: 'lx-caip-card' + (marked === p.id ? ' mark' : '') },
       h('div', { class: 'lx-caip-top' }, pill('', KIND[p.kind] || 'Idea'), ctx.brand ? null : h('span', { class: 'lx-cap' }, b.name), h('span', { class: 'lx-sp', style: { flex: 1 } }), h('span', { class: 'lx-caip-by' }, left(p.expires_at))),
       h('h3', null, p.title),
-      p.object_name || p.level ? h('div', { class: 'lx-caip-by' }, [p.level ? 'On the ' + (LEVEL[p.level] || p.level) : null, p.object_name].filter(Boolean).join(': ')) : null,
+      p.object_name || p.level ? h('div', { class: 'lx-caip-by' }, [p.level ? plat + ' ' + (LEVEL[p.level] || p.level) : plat, p.object_name].filter(Boolean).join(': ')) : null,
       h('p', { class: 'lx-caip-why' }, p.why),
       p.before || after ? h('div', { class: 'lx-caip-ba' }, p.before ? h('b', null, p.before) : null, p.before && after ? 'to' : null, after ? h('b', null, after) : null) : null,
-      h('div', { class: 'lx-caip-by' }, `Suggested by ${p.proposed_by}'s AI. These are the AI's words, not checked by ${APP_NAME}.`),
-      can ? h('div', { class: 'lx-caip-acts' }, yes, no) : null,
-      !can ? h('div', { class: 'lx-caip-by' }, 'You can look here. Yes and No are switched off for your login.')
-        : does ? h('div', { class: 'lx-caip-by' }, `Yes shows you the real name and numbers from Meta first. Nothing changes until you say yes there.`)
-        : h('div', { class: 'lx-caip-by' }, p.kind === 'other' ? 'Yes keeps a note that you agreed. Nothing is changed for you.' : 'Yes keeps a note that you agreed. You make the change on its own page.'));
+      h('div', { class: 'lx-caip-by' }, `Suggested by ${p.proposed_by}'s AI`),
+      can ? h('div', { class: 'lx-caip-acts' }, yes, no, openHref ? h('a', { class: 'lx-caip-open', href: openHref }, 'Open the ' + (LEVEL[p.level] || 'campaign') + ' in ' + plat) : null) : null,
+      !can ? h('div', { class: 'lx-caip-by' }, 'You can look here. The buttons are switched off for your login.') : null);
     yes.onclick = () => (does ? yesForReal(p, node, [yes, no]) : tap(p, true, node, [yes, no]));
     no.onclick = () => tap(p, false, node, [yes, no]);
     return node;
   };
 
   const paint = rows => put(host,
-    h('p', { class: 'lx-caip-lede' }, 'Your AI can suggest a change. It cannot make one. Each card waits here for a day, then goes away.'),
+    h('p', { class: 'lx-caip-lede' }, 'Your AI can suggest a change. It cannot make one. Each card waits here for a day, then goes away. ',
+      h('b', null, `The words on a card are the AI's, not checked by ${APP_NAME}. `),
+      applies ? 'Yes, look first shows the real name and numbers from Meta before anything changes.' : 'Agree keeps a note that you agreed; you make the change on its own page.'),
     rows.length ? rows.map(one) : empty({ title: 'Nothing is waiting', text: 'When your AI suggests a change, the card shows here for your yes or no.' }));
   paint(list);
   put(el, host);

@@ -5,6 +5,7 @@
    period before for the comparison. Nothing on this page is sample data in real mode. */
 
 import { put } from '../../kit.js';
+import { askWhy, helpBar, rangeWords } from '../home/_biz.js';
 import { h, num, pct, card, hero, em, kpi, kpis, takeaway, button, table, empty, delta, segmented, lineChart, legend, statusDot } from '../../kit.js';
 import { fxStyles, steps, head, bar } from './_flow.js';
 
@@ -64,10 +65,10 @@ function stepCard(d, ctx) {
   const words = { carts: 'never add to cart', checkouts: 'leave with a full cart', orders: 'start checkout and do not finish' };
   return card({ class: 'fx-pad' },
     head('Which step loses the most people?', 'visits to orders, all on one scale'),
-    h('div', { class: 'fx-big' }, h('span', { class: 'lx-hero-num' }, `${num(s.visits)} visits to ${num(s.orders)} orders`)),
+    h('div', { class: 'fx-big' }, h('span', { class: 'fx-bigtxt' }, `${num(s.visits)} visits to ${num(s.orders)} orders`)),
     steps(raw, { height: 320 }),
     worst ? h('div', { style: { marginTop: '20px' } }, takeaway([h('b', null, num(lost)), ` people ${words[worst.key]}. That is the step to fix first.`],
-      { action: ctx.isClient ? null : button('Ask why', { href: ctx.href('ask', 'index') }) })) : null);
+      { action: ctx.isClient ? null : askWhy(ctx, 'Which step loses the most people') })) : null);
 }
 
 function rateCard(d) {
@@ -147,11 +148,14 @@ export default {
       return;
     }
     put(el, ...[
+      helpBar([
+        { title: 'What it is for', text: 'Once someone is on the site, which step loses them: visits, added to cart, reached checkout, bought, then the same steps by device, channel and landing page.' },
+        { title: 'Where the numbers come from', text: 'Google Analytics. Its order count can sit a little under the store’s own; use it to compare steps, not to count sales.' },
+      ], h('span', { class: 'bz-chip' }, rangeWords(ctx, d.range))),
       hero({ line: true }, figures(d)),
       stepCard(d, ctx),
       rateCard(d),
       splitCard(d, ctx),
-      h('p', { class: 'lx-foot' }, 'Source: Google Analytics. Its order count can sit a little under the store’s own; use it to compare steps, not to count sales.'),
     ].filter(Boolean));
   },
 

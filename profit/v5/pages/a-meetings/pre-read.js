@@ -3,7 +3,8 @@
    promises, then everything else folded away. Live data is what the team meeting screen loads. */
 
 import { put } from '../../kit.js';
-import { h, hero, em, kpi, sparkline, delta, statusDot, legend, button, avatar, toast, empty, skeleton } from '../../kit.js';
+import { h, hero, em, kpi, sparkline, delta, statusDot, legend, button, avatar, empty, skeleton } from '../../kit.js';
+import { defLabel, pageHelp } from '../../defs.js';
 import { follow } from '../_parts.js';
 import { css, loadMeeting, meetingOf, SENT_LABEL, rangeText, lightOf, trafficLight, tick, sentence, merChart, foldRow, detailTable, MEETING_START, ok, money, x } from './_meet.js';
 
@@ -13,7 +14,8 @@ try { ui.brand = sessionStorage.getItem('lx5.preread.brand'); } catch {}
 const slug = id => String(id).replace(/^brand_/, '').replace(/_/g, '-');
 const change = (now, was) => ok(now) && ok(was) && was > 0 ? (now - was) / was : null;
 
-const spark = (values, goal) => sparkline(values, { fill: true, goal });
+/* a sparkline with the week in its tooltip ("Week of Nov 9: $21,472") */
+const spark = (weeks, key, format, goal) => sparkline(weeks.map(w => w[key]), { fill: true, goal, labels: weeks.map(w => 'Week of ' + (w.label || '')), format, name: key === 'mer' ? 'Store MER' : key === 'spend' ? 'Ad spend' : 'Sales' });
 
 function draw(el, data, ctx) {
   css();
@@ -32,27 +34,26 @@ function draw(el, data, ctx) {
     })),
     h('span', { class: 'lx-stat good mt-sent' }, SENT_LABEL));
 
-  /* the verdict: written for the brand when there is one, else said plainly from the numbers */
-  const verdict = b.verdict ? sentence(b.verdict)
-    : !b.connected ? null
-    : ['Sales were ', h('b', null, money(b.sales, { cur })), ok(b.mer) ? [', MER ', h('b', null, x(b.mer)), ok(b.goal_mer) ? ` against a ${x(b.goal_mer)} goal.` : '. No MER goal is set.'] : '.'];
+  /* the verdict: only the reason, written for the brand. The numbers are in the tiles right under it, so a
+     sentence built from them would only repeat them. */
+  const verdict = b.verdict ? sentence(b.verdict) : null;
 
   const dS = change(b.sales, b.sales_prior), dP = change(b.spend, b.spend_prior);
   const three = b.connected ? h('div', { class: 'mt-three' },
-    kpi({ label: 'Sales', value: money(b.sales, { cur }),
+    kpi({ label: defLabel('Sales', 'sales'), value: money(b.sales, { cur }),
       delta: ok(dS) ? delta(dS, { bad: dS < 0 }) : null, sub: ok(b.sales_prior) ? `from ${money(b.sales_prior, { cur })} the week before` : null }),
-    kpi({ label: 'Ad spend', value: ok(b.spend) ? money(b.spend, { cur }) : 'no data',
+    kpi({ label: defLabel('Ad spend', 'ad_spend'), value: ok(b.spend) ? money(b.spend, { cur }) : 'no data',
       delta: ok(dP) ? delta(dP, { plain: true }) : null, sub: ok(b.spend_prior) ? `from ${money(b.spend_prior, { cur })} the week before` : null }),
-    h('div', { class: 'lx-kpi' }, h('span', { class: 'l' }, 'MER, whole store'),
+    h('div', { class: 'lx-kpi' }, h('span', { class: 'l' }, defLabel('Store MER', 'mer')),
       h('span', null, h('span', { class: 'lx-hero-num' }, ok(b.mer) ? x(b.mer) : 'no data')),
       h('span', { class: 's' }, ok(b.goal_mer) ? statusDot(light ? light.tone : 'off', 'goal ' + x(b.goal_mer)) : statusDot('off', 'No goal set'))))
     : h('div', { class: 'mt-three' }, h('div', { class: 'lx-kpi' }, h('span', { class: 'l' }, 'Sales'),
       h('span', { class: 'none' }, b.has_report === false ? 'No weekly report yet' : 'No sales source connected')));
   if (b.connected && b.weeks && b.weeks.length > 1) {
-    const k = three.children;
-    k[0].append(spark(b.weeks.map(w => w.sales)));
-    k[1].append(spark(b.weeks.map(w => w.spend)));
-    k[2].append(spark(b.weeks.map(w => w.mer), b.goal_mer));
+    const k = three.children, wk = b.weeks, cap = () => h('span', { class: 'mt-spcap' }, 'last ' + wk.length + ' weeks');
+    k[0].append(spark(wk, 'sales', v => money(v, { cur })), cap());
+    k[1].append(spark(wk, 'spend', v => money(v, { cur })), cap());
+    k[2].append(spark(wk, 'mer', v => x(v), b.goal_mer), cap());
   }
 
   /* the title names the brand picked on this page, so it is set here and drawn by the shell */
@@ -61,7 +62,11 @@ function draw(el, data, ctx) {
   head.classList.add('line', 'mt-hero');
   head.append(h('div', { class: 'mt-hero-top' }, h('div', null, verdict ? h('p', { class: 'mt-verdict' }, verdict) : null), h('span', { class: 'lx-sp' }), b.connected ? trafficLight(light) : ''), three);
 
-  const parts = [picker, head];
+  const parts = [h('div', { class: 'mt-helpbar' }, pageHelp({ body: [
+    { title: 'What it is for', text: 'One page per brand to read before the Monday team meeting: last week\'s numbers, MER by week, the one decision and last week\'s promises. Everything else is folded.' },
+    { title: 'The numbers', text: 'Last week, Monday to Sunday, final. Sales are every store order; Store MER is all sales divided by all ad spend. The status pill compares Store MER with the brand\'s goal: On goal at or over it, Close within 10% under, Off goal more than 10% under.' },
+    { title: 'When it is sent', text: SENT_LABEL + '. Decisions are made in Run the meeting, not here.' },
+  ] })), picker, head];
 
   /* MER by week: its own full width row */
   if (b.connected) {
@@ -75,15 +80,14 @@ function draw(el, data, ctx) {
   /* the one decision */
   const dc = b.decision;
   if (dc) {
-    const said = ui.answer[b.id];
-    const say = (what, text) => () => { ui.answer[b.id] = what; draw(el, data, ctx); toast(ctx.sample ? 'Sample numbers: nothing is saved' : text); };
+    /* Yes and Change only toasted "not connected": no save route exists, so the decision is made in Run the meeting. */
     parts.push(h('section', { class: 'lx-card raised mt-decide', 'aria-label': 'The one decision for Monday' },
       h('div', null, h('span', { class: 'lx-eyebrow' }, 'The one decision for Monday'), h('h2', null, dc.text), dc.win && h('p', null, dc.win),
         dc.owner && h('div', { class: 'mt-own' }, avatar({ name: dc.owner, photo: dc.owner_photo }, { size: 40 }), h('span', null, h('b', null, dc.owner), h('small', null, 'owner, speaks first')))),
       dc.number ? h('div', { class: 'mt-bignum' }, h('span', { class: 'lx-cap' }, 'The number'), h('span', { class: 'n' }, dc.number), dc.number_note && h('small', null, dc.number_note)) : h('span'),
       h('div', { class: 'mt-btns' },
-        button('Yes', { primary: true, large: true, class: said === 'yes' ? 'picked' : '', onclick: say('yes', 'Marked yes on this screen. Saving decisions is not connected yet.') }),
-        button('Change', { large: true, class: said === 'change' ? 'picked' : '', onclick: say('change', 'Change it in Run the meeting.') }))));
+        button('Decide it in Run the meeting', { large: true, href: ctx.href('a-meetings', 'run'), icon: 'arrow' }),
+        h('small', { class: 'mt-quiet' }, 'Decided in the meeting, not here'))));
   } else if (b.connected) {
     parts.push(h('section', { class: 'lx-card raised mt-decide', 'aria-label': 'The one decision for Monday' },
       h('div', null, h('span', { class: 'lx-eyebrow' }, 'The one decision for Monday'), h('h2', null, 'No decision written yet.'), h('p', null, `The owner writes one decision, with a number, before ${ctx.settingNow('agency.meetingStart', MEETING_START)}am.`)),
@@ -120,7 +124,6 @@ function draw(el, data, ctx) {
       h('div', null, skeleton('row', 3))));
   }
 
-  if (data.note) parts.push(h('p', { class: 'lx-foot' }, data.note));
   put(el, h('div', { class: 'mt-page' }, parts));
 }
 

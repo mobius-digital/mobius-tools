@@ -5,7 +5,8 @@
 import { put } from '../../kit.js';
 import { h, em, empty, card } from '../../kit.js';
 import { css } from '../brand-settings/_set.js';
-import { conHero, conRow } from '../brand-settings/_con.js';
+import { conHero, conRow, conHead } from '../brand-settings/_con.js';
+import { pageHelp } from '../../defs.js';
 
 const RANK = { bad: 0, warn: 1, off: 2, ok: 3 };
 
@@ -15,13 +16,16 @@ function draw(el, data, ctx) {
   if (!agency.length && !tools.length) return put(el, empty({ title: 'Nothing read yet', text: 'The connections list did not answer. Try again in a minute.' }));
   const nb = data.brands || 0;
   put(el, h('div', { class: 'lx-st' },
+    h('div', null, pageHelp({ body: [
+      { title: 'What it is for', text: 'Every tool the agency uses: the connections made once for the agency, which every brand rides on, and the ones each client gives access to, counted across brands.' },
+      { title: 'Nothing changes here', text: 'Nothing on this page changes a connection. A row that is not connected says how to connect or fix it. Open a brand for its own list.' },
+    ] })),
     conHero(agency, 'agency connections working'),
-    card({ title: 'Made once for the agency', note: agency.filter(a => a.state === 'ok').length + ' of ' + agency.length + ' connected. Every brand rides on these.', flush: true, class: 'lx-st-card' },
-      h('div', { class: 'lx-st-rows' }, agency.slice().sort((a, b) => RANK[a.state] - RANK[b.state]).map(a => conRow(a, a.used_by ? 'Used by ' + a.used_by : '')))),
-    tools.length ? card({ title: 'Made per brand', note: 'Each client gives access to their own. Open a brand for its own list.', flush: true, class: 'lx-st-card' },
-      h('div', { class: 'lx-st-rows' }, tools.map(t => conRow({ ...t, state: t.ok === nb ? 'ok' : t.ok ? 'part' : 'none', note: t.ok === nb ? 'Connected on every brand.' : t.missing && t.missing.length ? 'Not on ' + t.missing.join(', ') + '.' : '' },
-        t.ok + ' of ' + nb + ' brands')))) : null,
-    h('p', { class: 'lx-foot' }, 'Agency connections are made once and every brand rides on them. Nothing on this page changes a connection.')));
+    card({ title: 'Made once for the agency', note: 'Every brand rides on these', flush: true, class: 'lx-st-card' },
+      h('div', { class: 'lx-st-rows' }, conHead(), agency.slice().sort((a, b) => RANK[a.state] - RANK[b.state]).map(a => conRow(a, a.used_by || '')))),
+    tools.length ? card({ title: 'Made per brand', note: 'Each client gives access to their own', flush: true, class: 'lx-st-card' },
+      h('div', { class: 'lx-st-rows' }, conHead('Brands'), tools.map(t => conRow({ ...t, state: t.ok === nb ? 'ok' : t.ok ? 'part' : 'none', note: t.ok === nb ? 'Connected on every brand.' : t.missing && t.missing.length ? 'Not on ' + t.missing.join(', ') + '.' : '' },
+        t.ok + ' of ' + nb + ' brands')))) : null));
 }
 
 export default {

@@ -5,26 +5,34 @@
 
 import { APP_NAME } from '../../config.js';
 import { put } from '../../kit.js';
-import { h, hero, kpis, kpi, statusDot, button, em, empty, money, x } from '../../kit.js';
+import { h, hero, kpis, kpi, statusDot, button, em, empty, money, x, addStyles } from '../../kit.js';
+import { defLabel } from '../../defs.js';
 import { fixture } from '../../data.js';
-import { css, span, away, between, short, todayYmd, heading, row, list, dateOf, exampleChip } from '../calendar/_cr.js';
+import { css, span, away, between, short, todayYmd, heading, row, list, dateOf, exampleChip, helpBar } from '../calendar/_cr.js';
+
+const OF_CSS = `.cr-offer.of-head{padding:0 0 8px;border-top:0;min-height:0;font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.cr-offer .res{gap:8px 22px}
+.cr-offer .res span{display:inline-flex;gap:6px;align-items:baseline}
+@media (max-width:759px){.cr-offer.of-head{display:none}}`;
 
 const STATUS = { locked: ['good', 'Locked'], draft: ['warn', 'Draft, not locked'], proposed: ['warn', 'Proposed, not locked'], missing: ['bad', 'Not written yet'] };
 const KNOW = [['cutoffs', 'Order by'], ['gift_cards', 'Gift cards'], ['returns', 'Returns']];
 
-/** A phase that has started: sales and MER so far. A brand with no sales source never reads 0 sales. */
-function results(p, ctx) {
+/** A phase that has started: sales, the goal and Store MER, each with its label. A brand with no sales source never
+    reads 0 sales. A finished offer says "Sales", one still running "Sales so far". */
+function results(p, ctx, today) {
   const r = p.results;
   if (!r || !r.days) return null;
   if (!(r.sales > 0)) return h('div', { class: 'res' }, r.spend > 0 ? ['Ad spend ', h('b', null, money(r.spend)), ctx.isClient ? '. Sales are not connected yet.' : '. No sales source is connected, so there is no sales figure.'] : 'No sales read for these days yet.');
+  const over = (p.end || p.start) < today;
   return h('div', { class: 'res' },
-    h('span', null, 'Sales so far ', h('b', null, money(r.sales)), r.goal ? ' of ' + money(r.goal) : ''),
-    r.mer != null ? h('span', null, 'MER ', h('b', null, x(r.mer))) : null,
-    h('span', null, short(r.from) + ' to ' + short(r.to)));
+    h('span', null, defLabel((over ? 'Sales' : 'Sales so far') + ' (' + span(r.from, r.to) + ')', 'sales'), h('b', null, money(r.sales))),
+    r.goal ? h('span', null, defLabel('Sales goal', 'sales_goal'), h('b', null, money(r.goal))) : null,
+    r.mer != null ? h('span', null, defLabel('Store MER', 'mer'), h('b', null, x(r.mer))) : null);
 }
 
 function draw(el, d, ctx) {
-  css();
+  css(); addStyles('lx-of-css', OF_CSS);
   const a = d && d.accounts && d.accounts[0];
   const today = (d && d.today) || todayYmd();
   const phases = a ? (a.phases || []).filter(p => p.status !== 'skip' && (p.start || p.offer)) : [];
@@ -43,22 +51,24 @@ function draw(el, d, ctx) {
     h('div', { class: 'cr-heroline' },
       h('span', { class: 'lab' }, bf.name),
       h('span', { class: 'big' }, bf.offer || 'Not written yet'),
-      h('span', { class: 'of' }, bf.start ? span(bf.start, bf.end) + ', ' + (bf.start <= today && (bf.end || bf.start) >= today ? 'on now' : away(today, bf.start)) : 'no dates yet'),
+      h('span', { class: 'of' }, bf.start ? span(bf.start, bf.end) + ', ' + (bf.start <= today && (bf.end || bf.start) >= today ? 'on now' : 'starts ' + away(today, bf.start)) : 'no dates yet'),
       h('span', null, statusDot(st(bf)[0], st(bf)[1]))),
     kpis([
-      kpi({ label: 'Offers locked', value: String(locked), small: 'of ' + phases.length, size: 'lg', sub: locked === phases.length ? 'all of them' : (phases.length - locked) + ' still open' }),
-      bfDay ? kpi({ label: 'Days to Black Friday', value: between(today, bfDay) > 0 ? String(between(today, bfDay)) : between(today, bfDay) === 0 ? 'Today' : 'Done', size: 'lg', sub: short(bfDay) }) : null,
-      kpi({ label: 'Still to write', value: String(missing.length), size: 'lg', sub: missing.length ? statusDot('bad', missing[0].name) : 'nothing missing' }),
+      kpi({ label: 'Offers locked', value: String(locked), small: 'of ' + phases.length, sub: locked === phases.length ? 'all of them' : null }),
+      /* Black Friday is the Friday; a sale can start before it (the lead offer's own dates say when) */
+      bfDay ? kpi({ label: 'Days until Black Friday (' + new Date(bfDay + 'T12:00:00Z').toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'short' }) + ' ' + short(bfDay) + ')', value: between(today, bfDay) > 0 ? String(between(today, bfDay)) : between(today, bfDay) === 0 ? 'Today' : 'Done', sub: bf.start && bf.start < bfDay ? 'the sale starts ' + short(bf.start) : null }) : null,
+      kpi({ label: 'Still to write', value: String(missing.length), sub: missing.length ? statusDot('bad', missing[0].name) : 'nothing missing' }),
     ].filter(Boolean), { cols: bfDay ? 3 : 2 })));
 
   const offers = h('section', { class: 'cr-sect' }, heading('The offers, in order', phases.length, d.example ? exampleChip() : null),
+    h('div', { class: 'cr-offer of-head', 'aria-hidden': 'true' }, h('span'), h('span', null, 'Offer'), h('span', { class: 'wh' }, 'Dates'), h('span', { class: 'st' }, 'Status')),
     phases.map((p, i) => h('div', { class: 'cr-offer' + (p === bf ? ' lead' : '') },
       h('span', { class: 'n' }, i + 1),
       h('div', null,
         h('div', { class: 'nm' }, p.name),
         h('div', { class: 'deal' + (p.offer ? '' : ' none') }, p.offer || 'No offer written yet'),
         p.detail ? h('div', { class: 'detail' }, p.detail) : null,
-        results(p, ctx)),
+        results(p, ctx, today)),
       h('div', { class: 'when wh' }, p.start ? span(p.start, p.end) : 'No dates yet',
         p.start ? h('small', null, (p.end || p.start) < today ? 'finished' : p.start <= today ? 'on now' : away(today, p.start)) : null),
       h('div', { class: 'st' }, (p.end || p.start || '9999') < today && p.status === 'locked' ? statusDot('off', 'Ran') : statusDot(st(p)[0], st(p)[1])))));
@@ -69,13 +79,17 @@ function draw(el, d, ctx) {
   const due = open.length ? h('section', { class: 'cr-sect' }, heading('Due next', open.length, late ? statusDot('bad', late + ' late') : null),
     list(open.slice(0, 8).map(t => row({
       lead: dateOf(t.due, today), title: t.name, sub: t.phase || '', late: false,
-      cells: [{ w: 150, node: t.owner || '' }, { w: 120, class: 'strong', node: t.due < today ? statusDot('bad', between(t.due, today) + (between(t.due, today) === 1 ? ' day late' : ' days late')) : away(today, t.due) }],
-    })))) : null;
+      cells: [{ w: 150, label: 'Owner', node: t.owner || '' }, { w: 120, class: 'strong', label: 'Due', node: t.due < today ? statusDot('bad', between(t.due, today) + (between(t.due, today) === 1 ? ' day late' : ' days late')) : away(today, t.due) }],
+    })), null, { head: [{ label: 'Owner', w: 150 }, { label: 'Due', w: 120 }], first: 'Task' })) : null;
 
   const know = KNOW.map(([k, label]) => a.answers && a.answers[k] ? [h('dt', null, label), h('dd', null, a.answers[k])] : null).filter(Boolean);
   const dates = know.length ? h('section', { class: 'cr-sect' }, heading('Dates to know'), h('dl', { class: 'cr-kv', style: { borderTop: '1px solid var(--line)', paddingTop: '16px' } }, know)) : null;
 
-  put(el, head, offers, due, dates,
+  put(el, helpBar([
+    { title: 'What it is for', text: 'What the brand is selling and when, in order, with the Black Friday offer first.' },
+    { title: 'Locked, draft and not written', text: 'Locked means the offer is agreed with the client and is what the ads and emails say. A draft can still change. Not written yet means nobody has put the offer in.' },
+    { title: 'Results', text: 'Once an offer has started, its sales for those days and the store MER show under it, against the sales goal when one was set.' },
+  ]), head, offers, due, dates,
     !ctx.isClient && ctx.legacy ? h('div', null, button('Write or lock an offer in old ' + APP_NAME, { href: ctx.legacy, icon: 'arrow' })) : null);
 }
 

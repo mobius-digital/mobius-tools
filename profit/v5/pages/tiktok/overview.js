@@ -2,29 +2,29 @@
    Real numbers: account-health /api/tiktok/report (see _tt.js). */
 
 import { put } from '../../kit.js';
-import { h } from '../../kit.js';
-import { TT_TITLE, styles, loadTikTok, sampleTikTok, gate, heroBand, takeLine, weeksChart, videoCard, campaignsCard, noVideoNumbers, foot } from './_tt.js';
+import { h, card, money, x } from '../../kit.js';
+import { TT_TITLES, styles, loadTikTok, sampleTikTok, gate, heroBand, weeksChart, campaignsCard, noVideoNumbers, ttHead, videoSheet } from './_tt.js';
+import { def } from '../platforms/_ads.js';
 
 /** The nodes of this tab. openTab(id) moves to another TikTok tab. */
 export function view(d, ctx, openTab) {
   const stop = gate(d, ctx);
   if (stop) return [stop];
-  const out = [heroBand(d), takeLine(d, ctx), weeksChart(d)];
+  const out = [ttHead(d, ctx, 'Whether TikTok ads pay for themselves on the dates in the page head: spend, sales, ROAS and cost per purchase, by week, and the four biggest videos.'), heroBand(d), weeksChart(d)];
   const vids = d.videos;
   if (vids && vids.length) {
-    out.push(h('section', { style: { display: 'grid', gap: '20px' } },
-      h('div', { class: 'lx-sec' }, h('h3', null, 'Top videos'), d.source === 'sample' ? h('span', { class: 'lx-pill' }, 'Sample videos') : null,
-        h('div', { class: 'act' }, h('a', { href: '#', onclick: e => { e.preventDefault(); openTab('top-videos'); } }, 'All videos'))),
-      h('div', { class: 'tt-vids' }, [...vids].sort((a, b) => (b.spend || 0) - (a.spend || 0)).slice(0, 4).map(videoCard))));
+    const top = [...vids].sort((a, b) => (b.spend || 0) - (a.spend || 0)).slice(0, 4);
+    out.push(card({ title: 'Top 4 videos by spend', note: d.range ? d.range.label : null, flush: true, action: h('a', { href: '#', onclick: e => { e.preventDefault(); openTab('top-videos'); } }, 'Open Top videos') },
+      h('div', { class: 'tt-mini' }, h('div', { class: 'hd' }, h('span', null, 'Video'), h('span', null, def('Spend', 'ad_spend')), h('span', null, def('ROAS', 'roas')), h('span', null, def('Sales', 'roas'))),
+        top.map(v => h('a', { href: '#', onclick: e => { e.preventDefault(); videoSheet(v, d); } }, h('span', null, v.name), h('span', null, money(v.spend)), h('span', null, v.roas != null ? x(v.roas) : 'n/a'), h('span', null, v.sales != null ? money(v.sales) : 'n/a'))))));
   } else {
     out.push(campaignsCard(d), noVideoNumbers());
   }
-  out.push(foot(d));
   return out.filter(Boolean);
 }
 
 export default {
-  title: TT_TITLE,
+  title: TT_TITLES.overview,
   eyebrow: 'TikTok',
   load: loadTikTok,
   sample: sampleTikTok,

@@ -148,7 +148,7 @@ export default {
           h('span', { class: 'd' }, day(c.date, true)),
           h('span', { class: 't' }, h('b', null, (c.num ? c.num + '  ' : '') + (c.title || 'Untitled card')), h('small', null, [c.brand, c.format].filter(Boolean).join(', '))),
           c.loaded ? statusDot('good', 'Loaded') : statusDot('warn', 'Not loaded yet'))))) : null,
-      h('p', { class: 'lx-foot' }, `A brand opens its own Load ads page, where each card shows the ad set it would go to. Load puts every approved ad of a card into one ad set, switched off, after a dry run you check first. Loaded means loaded through ${APP_NAME}; ads made straight in Meta are counted on the brand's page.`),
+      null,
     ].filter(Boolean));
   },
 };

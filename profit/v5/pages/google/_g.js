@@ -14,10 +14,12 @@
      profit          /api/hub/paid?platform=google&act=...   Google's total with Triple Whale sales, by day
    A part with no route yet is drawn from the sample file and wears the "Example" chip (see `example`). */
 
+import { info } from '../platforms/_ads.js';
 import { exampleChip as kitExampleChip } from '../../kit.js';
 import { h, svgNode, addStyles, card, button, empty, statusDot, gauge, money, num, pct, x } from '../../kit.js';
 import { icon } from '../../icons.js';
 import { AI_NAME } from '../../config.js';
+import { askWhy } from '../home/_biz.js';
 
 /* ---------- small helpers ---------- */
 export const ok = n => n != null && isFinite(n);
@@ -49,7 +51,16 @@ const CSS = `
 .lx-sec .gg-ex{margin-left:0}
 .gg-two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-6);align-items:stretch}
 .gg-quiet{padding:0 28px 18px;font-size:13px;color:var(--muted)}
-.gg-camps .lx-table td{white-space:normal}
+.gg-camps .lx-table td{white-space:nowrap}
+.gg-camps td.name{min-width:220px;max-width:320px}
+.gg-cn{display:flex;align-items:center;gap:8px;min-width:0}
+.gg-cn b{font-weight:550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.gg-ctype{display:flex;align-items:center;gap:8px;margin-top:2px;font-size:12px;color:var(--muted)}
+.gg-more-cols{display:flex;justify-content:flex-end;padding:10px 24px 14px}
+.gg-sh{display:grid;gap:16px}.gg-sh .g{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.gg-sh .g>div{display:grid;gap:3px;padding:12px 14px;border-radius:12px;background:var(--surface-2)}.gg-sh .g .l{font-size:12px;color:var(--muted)}
+.gg-sh .g b{font-size:var(--num-s);font-variant-numeric:tabular-nums}
+@media (max-width:759px){.gg-sh .g{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .gg-camps .lx-table td.num{white-space:nowrap}
 .gg-says{color:var(--muted)}
 .gg-test{display:grid;gap:16px}
@@ -57,19 +68,20 @@ const CSS = `
 .gg-test-n{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
 .gg-test-n span{display:grid;gap:3px}
 .gg-test-n b{font-size:18px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
-.gg-wait{display:flex;align-items:center;gap:14px;padding:14px 0;border-top:1px solid var(--line)}
+.gg-wait{display:flex;align-items:center;gap:14px;padding:14px 8px;margin:0 -8px;border-top:1px solid var(--line);color:inherit;text-decoration:none;border-radius:10px}
+a.gg-wait:hover{background:var(--bg-sunk)}
 .gg-wait:first-of-type{border-top:0;padding-top:0}
 .gg-wait .tx{min-width:0;flex:1}
 .gg-wait .tx b{display:block;font-size:14.5px;font-weight:600}
 .gg-wait .tx span{font-size:13px;color:var(--muted)}
 .gg-split{padding:6px 28px 14px}
-.gg-split-bar{position:relative;height:8px;border-radius:999px;background:#D9DDE6;overflow:visible}
+.gg-split-bar{position:relative;height:8px;border-radius:999px;background:var(--line-strong);overflow:visible}
 .gg-split-bar i{position:absolute;left:0;top:0;bottom:0;border-radius:999px;background:var(--ink)}
 .gg-split-bar em{position:absolute;top:-5px;bottom:-5px;width:2px;background:var(--ink);border-radius:2px}
 .gg-split-l{display:flex;justify-content:space-between;gap:12px;margin-top:9px;font-size:12.5px;color:var(--muted);flex-wrap:wrap}
 .gg-split-l b{color:var(--ink);font-weight:600}
 .gg-sw{display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--ink);margin-right:9px}
-.gg-sw.g{background:#D9DDE6}
+.gg-sw.g{background:var(--line-strong)}
 .gg-terms .lx-table td{white-space:normal}
 .gg-terms .lx-table td.num{white-space:nowrap}
 .gg-terms tr:has(.gg-th) td{background:var(--band);font-weight:650}
@@ -92,6 +104,10 @@ const CSS = `
 .gg-sug .tx b{display:block;font-size:15px;font-weight:600;letter-spacing:-.01em}
 .gg-sug .tx span{display:block;font-size:13px;color:var(--muted);margin-top:2px}
 .gg-sug .tx .w{font-size:12px;color:var(--faint)}
+.gg-sug .tx .o{display:flex;align-items:center;gap:6px;color:var(--ink-2);font-size:12.5px;margin:4px 0}
+.gg-sm{flex:none;width:210px;display:grid;gap:6px}
+.gg-sm .v{display:flex;align-items:baseline;gap:8px}.gg-sm .v b{font-size:var(--num-m);font-weight:600;font-variant-numeric:tabular-nums}
+.gg-sm .v b.bad{color:var(--bad)}.gg-sm .v b.good{color:var(--good)}.gg-sm .v span,.gg-sm .per{color:var(--muted);font-size:12px}
 .gg-n{display:flex;align-items:baseline;gap:12px;color:var(--muted);font-size:13.5px}
 .gg-n b{font-size:var(--num-xl);font-weight:600;letter-spacing:-.04em;line-height:1;color:var(--ink);font-variant-numeric:tabular-nums}
 .gg-day{display:grid;grid-template-columns:92px minmax(0,1fr);gap:8px 22px;padding:18px 0;border-top:1px solid var(--line)}
@@ -109,7 +125,7 @@ const CSS = `
 .gg-more .gg-chg .tx b{font-weight:450;font-size:13.5px}
 .gg-rules{margin:0;padding-left:20px;display:grid;gap:6px;font-size:14px;color:var(--ink-2)}
 .gg-strip{display:flex;align-items:center;gap:16px;padding:18px 22px;border-radius:18px;background:var(--band)}
-.gg-strip .ic{flex:none;display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:#fff;box-shadow:0 0 0 1px var(--line)}
+.gg-strip .ic{flex:none;display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:var(--surface);box-shadow:0 0 0 1px var(--line)}
 .gg-strip .tx{min-width:0;flex:1}
 .gg-strip .tx b{display:block;font-size:15px;font-weight:600}
 .gg-strip .tx span{font-size:13px;color:var(--muted)}
@@ -134,6 +150,7 @@ const CSS = `
   .gg-quiet,.gg-split{padding-left:18px;padding-right:18px}
   .gg-test-n{grid-template-columns:repeat(2,minmax(0,1fr))}
   .gg-wait,.gg-sug,.gg-strip{flex-wrap:wrap}
+  .gg-sm{width:100%;order:3}
   .gg-wait .tx,.gg-sug .tx{flex-basis:100%;order:2}
   .gg-sug .lx-btn,.gg-strip .lx-btn{width:100%;height:46px;order:3}
   .gg-termsh .lx-seg{margin-left:0;width:100%}
@@ -160,11 +177,13 @@ export function strip({ ic = 'google', title, text, action }) {
   return h('div', { class: 'gg-strip' }, h('span', { class: 'ic' }, svgNode(icon(ic))), h('span', { class: 'tx' }, h('b', null, title), h('span', null, text)), action || null);
 }
 
-/** One big figure: label (with a small source tag), value, a line under it, and an optional gauge. */
-export function fig({ label, src, value, small, sub, says, extra, href }) {
-  const kids = [h('span', { class: 'l' }, label, src && h('span', { class: 'lx-src' }, src)),
+/** One big figure: label (with a small source tag), value, ONE line under it, and an optional gauge.
+    says / more: extra words that used to be a second and third line; they live in the (i) beside the label now. */
+export function fig({ label, src, value, small, sub, says, more, extra, href }) {
+  const extraWords = [says, more].filter(Boolean).join('. ');
+  const kids = [h('span', { class: 'l' }, label, src && h('span', { class: 'lx-src' }, src), extraWords ? info({ title: typeof label === 'string' ? label : 'More on this number', body: extraWords }) : null),
     h('span', { class: 'v' }, value, small && h('small', null, small)),
-    h('span', { class: 's' }, sub || ''), says && h('span', { class: 'says' }, says), extra || null];
+    h('span', { class: 's' }, sub || ''), extra || null];
   return href ? h('a', { class: 'lx-kpi lg', href }, kids) : h('div', { class: 'lx-kpi lg' }, kids);
 }
 export const none = text => h('small', null, text || 'No sales source connected');
@@ -192,8 +211,7 @@ export function gate(d, ctx) {
   if (d.state === 'error') return empty({ title: 'Google Ads did not answer', text: [d.error, team && d.fix].filter(Boolean).join(' ') || 'Try again in a minute.' });
   return null;
 }
-export const footNote = text => h('p', { class: 'lx-foot' }, text);
-export const askButton = ctx => (ctx.isClient ? null : button('Ask why', { href: ctx.href('ask', 'index') }));
+export const askButton = ctx => (ctx.isClient ? null : askWhy(ctx, 'How is Google doing, and why?'));
 export { AI_NAME };
 
 /* ---------- loading ---------- */

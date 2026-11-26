@@ -6,7 +6,8 @@
 
 import { put } from '../../kit.js';
 import { h, s, button, statusDot, gauge, em, pct, num, skeleton } from '../../kit.js';
-import { css, usd, roas, splitBar, lockLine, lockBox, lockIcon, needsLogin, loadTotals } from './_ui.js';
+import { css, usd, roas, splitBar, notConnected, needsLogin, loadTotals, winLabel } from './_ui.js';
+import { def, defOn, headRow } from '../platforms/_ads.js';
 
 /* ---------- stand-in pictures, until the real listing photo is in the data (item.image) ---------- */
 const belt = (c1, c2) => [
@@ -36,7 +37,7 @@ function picture(item, w, ht) {
 }
 
 const sect = (title, note) => h('div', { class: 'az-sectitle' }, h('h2', null, title), note && h('span', null, note));
-const stat = (label, value) => h('div', null, h('span', null, label), h('b', null, value == null ? h('i') : value));
+const stat = (label, value) => h('div', null, h('span', null, label), h('b', null, value == null ? notConnected() : value));
 
 function lead(d) {
   const sp = d.spend, total = sp.products + sp.brands + (sp.display || 0);
@@ -45,7 +46,7 @@ function lead(d) {
       h('span', { class: 'lx-hero-num' }, pct(total ? sp.products / total : null)),
       h('div', null, h('b', null, 'of ad spend shows the listing itself'), h('p', null, 'Main photo, title, price and stars. No separate ad to design.'))),
     h('div', null,
-      splitBar([{ value: sp.products, color: 'var(--ink)' }, { value: sp.brands, color: 'var(--slate)' }, { value: sp.display || 0, color: '#A3ABBD' }],
+      splitBar([{ value: sp.products, color: 'var(--ink)' }, { value: sp.brands, color: 'var(--slate)' }, { value: sp.display || 0, color: 'var(--line-strong)' }],
         { thin: true, label: `Ad spend by ad type: ${usd(sp.products)} Sponsored Products, ${usd(sp.brands)} Sponsored Brands, ${usd(sp.display || 0)} Sponsored Display` }),
       h('div', { class: 'az-ends' },
         h('span', null, h('b', null, usd(sp.products)), ' Sponsored Products, the listing'),
@@ -57,8 +58,7 @@ function listing(x) {
     h('div', { class: 'az-ph' + (x.flip ? ' flip' : '') }, picture(x, 150, 112)),
     h('div', { class: 'az-body' },
       h('div', { class: 'az-name' }, x.name, h('small', null, x.shot)),
-      h('div', { class: 'az-stats' }, stat('Ad click rate', pct(x.ctr, { digits: 2 })), stat('Units', num(x.units)), stat('Ad spend', usd(x.spend))),
-      lockLine("Visits, conversion: owner's login")));
+      h('div', { class: 'az-stats' }, stat(def('Ad click rate', 'click_rate'), pct(x.ctr, { digits: 2 })), stat('Units', num(x.units)), stat(def('Ad spend', 'ad_spend'), usd(x.spend)))));
 }
 
 function test(t) {
@@ -77,7 +77,7 @@ function test(t) {
 export default {
   /* the plain question, drawn by the shell above the tabs */
   title: ['On Amazon, the listing ', em('is the ad.')],
-  eyebrow: 'Amazon only',
+  eyebrow: 'Amazon',
 
   async load(ctx) {
     const t = await loadTotals(ctx);
@@ -97,7 +97,16 @@ export default {
       return;
     }
     const sp = d.spend, total = sp.products + sp.brands + (sp.display || 0);
-    const kids = [lead(d)];
+    const owner = d.owner || 'the owner';
+    const kids = [
+      headRow({ help: [
+        { title: 'What it is for', text: 'On Amazon the listing is the ad: how ad spend splits by ad type, how each listing photo does, the split tests and the brand ads, ' + winLabel(d.window) + '.' },
+        { title: 'Where the numbers come from', text: 'Spend and ad sales are Triple Whale and Amazon Ads. Tests are typed in by the Amazon buyer. Rank research stays in Data Dive. Numbers marked Not connected need the owner\'s Seller Central login.' },
+      ] }),
+      h('div', { class: 'lx-take az-ask' },
+        h('span', { class: 'say' }, 'Visits, conversion, video views and Store page numbers need the owner\'s Amazon login. One login from ', h('b', null, owner), d.owner_role ? ', ' + d.owner_role + ',' : '', ' fills them in. About 5 minutes.'),
+        !ctx.isClient ? button('Ask ' + owner, { icon: 'arrow', href: ctx.href('requests', 'index') }) : null),
+      lead(d)];
 
     if (d.listings && d.listings.length) {
       kids.push(sect('Listing photos', `top ${d.listings.length} by sales`), h('div', { class: 'az-grid four' }, d.listings.map(listing)));
@@ -111,19 +120,10 @@ export default {
       h('div', { class: 'az-two' },
         h('article', { class: 'az-card' }, h('div', { class: 'az-body roomy' },
           h('div', { class: 'az-name' }, 'Brand video and image ads', h('small', null, ba ? `Sponsored Brands, ${ba.live === 1 ? 'one campaign' : ba.live + ' campaigns'} live: ${ba.campaign}` : 'Sponsored Brands')),
-          h('div', { class: 'az-stats start' }, stat('Spend', ba ? usd(ba.spend) : null), stat('Ad sales', ba ? usd(ba.ad_sales) : null), stat('ROAS', ba && ba.spend ? roas(ba.ad_sales / ba.spend) : null)),
-          lockBox("Needs the owner's Amazon login", 'The pictures, video views and watch time per ad'))),
+          h('div', { class: 'az-stats start' }, stat('Spend', ba ? usd(ba.spend) : null), stat('Ad sales', ba ? usd(ba.ad_sales) : null), stat('ROAS', ba && ba.spend ? roas(ba.ad_sales / ba.spend) : null)))),
         h('article', { class: 'az-card' }, h('div', { class: 'az-body roomy' },
           h('div', { class: 'az-name' }, 'Store pages', h('small', null, d.store_name || 'The brand store on Amazon')),
-          h('div', { class: 'az-stats start' }, stat('Visits', null), stat('Sales', null), stat('Best page', null)),
-          lockBox("Needs the owner's Amazon login", 'Visits and sales for each Store page')))));
-
-    const owner = d.owner || 'the owner';
-    kids.push(h('div', { class: 'lx-take az-ask' }, lockIcon(),
-      h('span', { class: 'say' }, 'One login from ', h('b', null, owner), d.owner_role ? ', ' + d.owner_role + ',' : '', ' fills in every locked number here. About 5 minutes.'),
-      !ctx.isClient ? button('Ask ' + owner, { primary: true, large: true, icon: 'arrow', href: ctx.href('requests', 'index') }) : null));
-
-    kids.push(h('p', { class: 'lx-foot' }, 'Numbers from Triple Whale. Tests are typed in by the Amazon buyer. Data Dive stays in Data Dive.'));
+          h('div', { class: 'az-stats start' }, stat('Visits', null), stat('Sales', null), stat('Best page', null))))));
     put(el, ...kids);
   },
 };

@@ -27,6 +27,7 @@ import { put } from '../../kit.js';
 import { h, em, empty, card, kpis, kpi, statusDot, pill, button, sheet, toast, money, num, addStyles } from '../../kit.js';
 import { putSaved, pageKey, announce } from '../../data.js';
 import { css } from './_set.js';
+import { defLabel, infoButton, pageHelp } from '../../defs.js';
 
 /* ---------- words ---------- */
 const HOW = [
@@ -46,6 +47,9 @@ const EACH = { monthly: 'every month', weekly: 'every week', daily: 'every day',
 const RULE_SAY = { per_order: 'per order', pct_revenue: 'of revenue', per_item: 'per item', weight_tier: 'By weight', zone: 'By country or zone' };
 const SOURCE = { locus: 'Your own rule', triple_whale: 'Triple Whale', flat_margin: 'A flat margin', none: 'Nothing is counted' };
 const NOT_YET = 'Saved, not applied yet';
+const NOT_YET_WHY = 'Per order and % of revenue rules are used in profit now. Per item, by weight and by zone rules and a cost sheet are kept, and are used once each order’s items, weight and country can be read. Until then profit keeps what it uses today.';
+/** the "saved, not applied yet" pill, with its reason on hover */
+const notYet = () => { const el = pill('warn', NOT_YET); el.title = NOT_YET_WHY; return el; };
 const SAMPLE_SAY = 'Sample mode: changed on screen only. Nothing was sent.';
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
@@ -213,7 +217,7 @@ function formSheet({ title, body, saveLabel = 'Save', onSave, onRemove, removeLa
     put(foot, h('span', { class: 'lx-co-ask' }, removeAsk), h('span', { class: 'lx-sp' }), button('Keep it', { ghost: true, onclick: normal }), yes);
   };
   normal();
-  sh = sheet({ title, side: 'bottom', class: 'lx-co-sheet', body: h('div', { class: 'lx-co-form' }, body, err, foot) });
+  sh = sheet({ title, class: 'lx-co-sheet', body: h('div', { class: 'lx-co-form' }, body, err, foot) });
   return { close: () => sh.close(), fail };
 }
 
@@ -312,11 +316,11 @@ function fixedCard() {
   if (d.fixed_unread) return card({ title: 'Fixed costs', note: 'What you pay whether or not an order comes in', class: 'lx-st-card' },
     empty({ title: 'The fixed cost list could not be read', text: 'Nothing is shown rather than an empty list. Open the page again in a moment.' }));
   const fixed = items.filter(x => !x.is_ad_spend), ads = items.filter(x => x.is_ad_spend);
-  const total = !fixed.length ? null : known(d.fixed.month_total) ? (d.fixed.month_total > 0 ? [h('b', null, cash(d.fixed.month_total)), ' so far this month'] : 'Nothing counted yet this month') : null;
-  return card({ title: 'Fixed costs', note: fixed.length ? plural(fixed.length, 'line') : 'What you pay whether or not an order comes in', flush: true, class: 'lx-st-card',
+  const total = !fixed.length ? null : known(d.fixed.month_total) ? (d.fixed.month_total > 0 ? h('b', null, cash(d.fixed.month_total)) : 'Nothing counted yet this month') : null;
+  return card({ title: 'Fixed costs', note: items.length ? plural(items.length, 'line') + (ads.length ? ', ' + ads.length + ' of them counted as ad spend' : '') : 'What you pay whether or not an order comes in', flush: true, class: 'lx-st-card',
     action: button('Add a cost', { primary: true, onclick: () => fixedSheet(null) }) },
     items.length ? h('div', { class: 'lx-co-lines' }, fixed.map(x => fixedLine(x, t)), ads.map(x => fixedLine(x, t))) : h('div', { class: 'lx-pad' }, h('p', { class: 'lx-co-none' }, 'No fixed costs yet. Add rent, team, software or any fee you pay, and net profit can be shown.')),
-    total ? h('div', { class: 'lx-co-total' }, h('span', null, 'Month total'), h('span', { class: 'lx-sp' }), h('span', null, total)) : null);
+    total ? h('div', { class: 'lx-co-total' }, defLabel(new Date(todayOf(d) + 'T12:00:00').toLocaleDateString('en-US', { month: 'long' }) + ' so far, this month’s share of each line', { title: 'Fixed costs this month', body: 'Each line counted for the days of this month so far: a monthly cost spread evenly over the month, a weekly, quarterly or yearly cost spread over its days, a one time cost on the day it was paid, % and per order lines from each day’s numbers. Lines counted as ad spend are left out (they are in ad spend).' }), h('span', { class: 'lx-sp' }), h('span', null, total)) : null);
 }
 
 /* ---------- shipping and product rules ---------- */
@@ -330,7 +334,7 @@ function ruleLine(cost, r, use, t) {
   const tags = [
     use && use.source === 'locus' && use.rule_id === r.id ? pill('good', 'In use') : null,
     r.status === 'off' ? pill('', 'Switched off') : null,
-    !r.applied ? pill('warn', NOT_YET) : null,
+    !r.applied ? notYet() : null,
     r.end_date && r.end_date < t ? pill('', 'Ended ' + short(r.end_date)) : r.start_date > t ? pill('', 'Starts ' + short(r.start_date)) : null,
   ];
   return h('button', { class: 'lx-co-line', type: 'button', onclick: () => ruleSheet(cost, r), 'aria-label': 'Edit this rule' },
@@ -449,16 +453,15 @@ function shippingCard() {
     facts.push(kpi({ label: 'Counted as shipping cost', value: known(l.used) ? cash(l.used) : 'Nothing counted', sub: known(l.used) && known(l.orders) && l.orders > 0 ? cash(Math.round(l.used / l.orders * 100) / 100) + ' an order' : 'last 30 days' }));
     if (known(l.charged) && known(l.used)) {
       const gap = l.charged - l.used, near = Math.abs(gap) <= Math.max(25, l.charged * 0.03);
-      facts.push(kpi({ label: 'The gap', value: near ? 'About even' : cash(Math.abs(gap)), sub: near ? 'what customers pay covers it' : gap > 0 ? 'more paid than counted' : 'more counted than customers paid' }));
+      facts.push(kpi({ label: defLabel('Shipping gap', { title: 'Shipping gap', body: 'What customers paid for delivery minus what is counted as shipping cost, last 30 days. Above zero, delivery fees cover the postage; below zero, the store pays part of it.' }), value: near ? 'About even' : cash(Math.abs(gap)), sub: near ? 'what customers pay covers it' : gap > 0 ? 'more paid than counted' : 'more counted than customers paid' }));
     }
+    if (known(l.tw)) facts.push(kpi({ label: defLabel('Triple Whale shipping cost', { title: 'Triple Whale shipping cost', body: 'The shipping cost Triple Whale records for the same days. Shown to compare with your own rule when your rule is the one in use.' }), value: cash(l.tw), sub: 'same days' }));
   }
   return card({ title: 'Shipping cost', note: l && l.from ? short(l.from) + ' to ' + short(l.to) : 'What it costs to send an order', flush: true, class: 'lx-st-card',
     action: button('Add a rule', { onclick: () => ruleSheet('shipping', null) }) },
-    h('div', { class: 'lx-co-use' }, h('span', { class: 'k' }, 'In use today'), useLine(s.in_use, s.rules),
-      l && known(l.tw) && s.in_use && s.in_use.source === 'locus' ? h('span', { class: 'm' }, 'Triple Whale reads ' + cash(l.tw) + ' for the same days.') : null),
+    h('div', { class: 'lx-co-use' }, h('span', { class: 'k' }, 'In use today'), useLine(s.in_use, s.rules)),
     facts.length ? h('div', { class: 'lx-co-facts' }, kpis(facts, { cols: facts.length })) : null,
-    s.rules.length ? h('div', { class: 'lx-co-lines top' }, s.rules.map(r => ruleLine('shipping', r, s.in_use, t))) : null,
-    h('p', { class: 'lx-co-fine' }, 'Per order and % of revenue rules are applied to profit. Per item, by weight and by zone rules are saved and marked "' + NOT_YET.toLowerCase() + '".'));
+    s.rules.length ? h('div', { class: 'lx-co-lines top' }, s.rules.map(r => ruleLine('shipping', r, s.in_use, t))) : null);
 }
 
 /* ---------- product cost and the cost sheet ---------- */
@@ -580,8 +583,8 @@ function productCard() {
       p.rules.map(r => ruleLine('product', r, p.in_use, t)),
       p.sheet ? h('button', { class: 'lx-co-line', type: 'button', onclick: () => sheetInfoSheet(p.sheet), 'aria-label': 'Open the cost sheet' },
         h('span', { class: 't' }, h('b', null, 'Cost sheet, ' + plural(p.sheet.skus, 'product')), h('small', null, [p.sheet.filename, 'from ' + short(p.sheet.start_date), p.sheet.uploaded_by ? 'uploaded by ' + p.sheet.uploaded_by : null].filter(Boolean).join(' · '))),
-        h('span', { class: 'p' }, pill('warn', NOT_YET))) : null) : null,
-    h('p', { class: 'lx-co-fine' }, '% of revenue and per order rules are applied to profit. A per item rule and a cost sheet are saved and marked "' + NOT_YET.toLowerCase() + '".'));
+        h('span', { class: 'p' }, notYet())) : null) : null);
+
 }
 
 /* ---------- fees and handling (read only) ---------- */
@@ -601,8 +604,15 @@ function missingCard() {
   if (!d.missing) return null;
   if (!d.missing.length) return h('section', { class: 'lx-band lx-co-ok' }, statusDot('good', 'Nothing is missing'), h('span', null, 'Net profit counts every cost below.'));
   const fix = m => (/^No fixed costs/.test(m) ? ['Add a fixed cost', () => fixedSheet(null)] : /^No shipping cost/.test(m) ? ['Add a shipping rule', () => ruleSheet('shipping', null)] : /^No product cost/.test(m) ? ['Add product cost', () => ruleSheet('product', null)] : null);
-  return card({ title: 'What is missing', note: plural(d.missing.length, 'thing') + ' to look at', flush: true, class: 'lx-st-card' },
-    h('div', { class: 'lx-co-miss' }, d.missing.map(m => { const f = fix(m); return h('div', null, h('span', { class: 'dot' }), h('p', null, m), f ? button(f[0], { onclick: f[1] }) : null); })));
+  /* a saved rule or sheet that profit does not use yet: one compact strip, the reasons behind (i), a link to each card */
+  const saved = d.missing.filter(m => /^Your /.test(m)), act = d.missing.filter(m => !/^Your /.test(m));
+  const go = id => () => { const want = id === 'co-ship' ? 'Shipping cost' : 'Product cost'; const n = [...document.querySelectorAll('.lx-co .lx-card > .lx-sec > h3')].find(x => x.textContent === want); if (n) n.closest('.lx-card').scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+  const links = [...new Set(saved.map(m => (/^Your shipping/.test(m) ? 'co-ship' : 'co-product')))].map(id => h('button', { type: 'button', class: 'lx-co-jump', onclick: go(id) }, id === 'co-ship' ? 'Shipping cost' : 'Product cost'));
+  return h('div', { class: 'lx-co-missing' },
+    saved.length ? h('section', { class: 'lx-co-strip', role: 'status' }, statusDot('warn', plural(saved.length, 'saved rule') + ' not used in profit yet'),
+      infoButton({ title: 'Why not yet', body: saved.join(' ') }, { label: 'Why not yet' }), h('span', { class: 'lx-sp' }), links) : null,
+    act.length ? card({ title: 'What is missing', note: plural(act.length, 'thing') + ' to look at', flush: true, class: 'lx-st-card' },
+      h('div', { class: 'lx-co-miss' }, act.map(m => { const f = fix(m); return h('div', null, h('span', { class: 'dot' }), h('p', null, m), f ? button(f[0], { onclick: f[1] }) : null); }))) : null);
 }
 
 /* ---------- the older worker: rules are not there to read or to save ---------- */
@@ -618,10 +628,13 @@ function draw() {
   const { el, d, ctx } = P;
   css(); addStyles('lx-costs-css', CSS);
   if (!d || !ctx.brand) return put(el, empty({ title: 'No brand picked', text: 'Pick a brand to see its costs.' }));
-  if (d.legacy) return put(el, h('div', { class: 'lx-st lx-co' }, fixedCard(), rulesOffCard(),
-    h('p', { class: 'lx-foot' }, d.fixed_unread ? 'Nothing was changed.' : 'A change to a fixed cost here is used by profit on every screen and report from the next read.')));
-  put(el, h('div', { class: 'lx-st lx-co' }, missingCard(), fixedCard(), shippingCard(), productCard(), readOnlyCard(),
-    h('p', { class: 'lx-foot' }, ctx.sample ? 'Sample numbers. Adding, changing or removing here changes this screen only and sends nothing.' : 'A change here is used by profit on every screen and report from the next read.')));
+  const help = h('div', { class: 'lx-co-bar' }, pageHelp({ body: [
+    { title: 'What it is for', text: 'Every cost that turns sales into profit for this brand: fixed costs, shipping, product cost, payment fees and handling. A change here is used by profit on every screen and report from the next read.' },
+    { title: 'Saved, not applied yet', text: NOT_YET_WHY },
+    ctx.sample ? { title: 'Sample numbers', text: 'Adding, changing or removing here changes this screen only and sends nothing.' } : null,
+  ] }));
+  if (d.legacy) return put(el, h('div', { class: 'lx-st lx-co' }, help, fixedCard(), rulesOffCard()));
+  put(el, h('div', { class: 'lx-st lx-co' }, help, missingCard(), fixedCard(), shippingCard(), productCard(), readOnlyCard()));
 }
 
 export default {
@@ -637,6 +650,11 @@ export default {
 
 const CSS = `
 .lx-co-lines{display:grid;min-width:0}
+.lx-co-missing{display:grid;gap:var(--sp-4);min-width:0}
+.lx-co-missing:empty{display:none}
+.lx-co-strip{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;padding:10px 16px;border-radius:var(--r-md);background:var(--warn-bg);font-size:13.5px;color:var(--ink)}
+.lx-co-jump{border:0;background:none;padding:0;font:inherit;font-size:13px;font-weight:600;color:var(--ink);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.lx-co-bar{display:flex;align-items:center;gap:12px;min-height:28px}
 .lx-co-lines.top{border-top:1px solid var(--line)}
 .lx-co-line{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:6px 18px;align-items:center;width:100%;padding:13px 28px;border:0;border-top:1px solid var(--line);background:transparent;font:inherit;color:inherit;text-align:left;cursor:pointer;min-width:0}
 .lx-co-line:first-child{border-top:0}
@@ -666,7 +684,6 @@ const CSS = `
 .lx-co-miss>div:first-child{border-top:0}
 .lx-co-miss .dot{width:8px;height:8px;border-radius:50%;background:var(--watch);box-shadow:0 0 0 3px rgba(232,181,0,.2)}
 .lx-co-miss p{margin:0;font-size:14px;line-height:1.5;color:var(--ink)}
-.lx-sheet.bottom.lx-co-sheet{width:min(640px,100%)}
 .lx-co-form{display:grid;gap:var(--sp-4);min-width:0}
 .lx-co-form [hidden],.lx-co-form .hint:empty{display:none!important}
 .lx-co-two{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-4)}
@@ -703,7 +720,7 @@ textarea.lx-co-csv{font:500 12.5px ui-monospace,Consolas,monospace;min-height:13
   .lx-co-line{grid-template-columns:minmax(0,1fr) auto;padding:13px 18px}
   .lx-co-line .p{grid-column:1/-1;grid-row:2;justify-content:flex-start}
   .lx-co-line .p:empty{display:none}
-  .lx-co-total,.lx-co-use,.lx-co-facts,.lx-co-fine{padding-left:18px;padding-right:18px}
+  .lx-co-total,.lx-co-use,.lx-co-facts,.lx-co-x{padding-left:18px;padding-right:18px}
   .lx-co-miss>div{grid-template-columns:auto minmax(0,1fr);padding:13px 18px}
   .lx-co-miss .lx-btn{grid-column:2;justify-self:start;height:40px}
   .lx-co-two{grid-template-columns:1fr}

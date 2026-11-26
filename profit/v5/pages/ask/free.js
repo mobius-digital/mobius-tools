@@ -5,7 +5,7 @@
                                                          Asking is the person's own tap, never done on load. It only reads.
      account-health POST /api/ask {question, full:true}  "Ask why": the same question, sent to the full assistant.
    Off by default (the settings key freeLookups on the account-health worker). There is no route for that switch
-   that this page may call, so when it is off the page says so in one line, lists what will be free, and sends
+   that this page may call, so when it is off the page says so in one line, lists what can be looked up, and sends
    nothing: it never shows a switch that does not work.
    Sample mode answers the example questions from the fixture and says so for anything else.
    Nothing here changes an ad account, a store or an email tool. */
@@ -13,6 +13,7 @@
 import { put } from '../../kit.js';
 import { h, card, em, button, addStyles, pill, empty } from '../../kit.js';
 import { AI_NAME } from '../../config.js';
+import { pageHelp } from '../../defs.js';
 
 const OFF_LINE = 'Quick lookups are switched off, so this was not looked up.';
 
@@ -23,8 +24,8 @@ function draw(el, data, ctx) {
   const list = d.lookups || [];
   let busy = false;
 
-  const input = h('input', { class: 'lx-fl-in', type: 'text', id: 'lxFlIn', maxlength: 260, placeholder: brandName ? 'Revenue yesterday' : 'Name the brand: revenue yesterday for ...', 'aria-label': 'Your question' });
-  const send = button('Get it', { primary: true, large: true, onclick: () => ask(input.value) });
+  const input = h('input', { class: 'lx-fl-in', type: 'text', id: 'lxFlIn', maxlength: 260, placeholder: brandName ? 'Revenue yesterday' : 'Revenue yesterday for ' + (((ctx.brands || [])[0] || {}).name || 'a brand'), 'aria-label': 'Your question' });
+  const send = button('Look up', { primary: true, onclick: () => ask(input.value) });
   const out = h('div', { class: 'lx-fl-out', role: 'status' });
   input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); ask(input.value); } });
 
@@ -80,39 +81,43 @@ function draw(el, data, ctx) {
   }
 
   const box = h('section', { class: 'lx-hero line lx-fl-hero' },
-    h('label', { class: 'lx-cap', for: 'lxFlIn' }, brandName ? 'Pull a number for ' + brandName : 'Pull a number for a brand'),
+    h('label', { class: 'lx-cap', for: 'lxFlIn' }, 'Look up a number, date or status' + (brandName ? ' for ' + brandName : '')),
     h('div', { class: 'lx-fl-row' }, input, send),
     d.on === false
       ? h('p', { class: 'lx-fl-off', role: 'note' }, h('b', null, 'Quick lookups are switched off.'), ' There is no switch on this page yet: they are turned on in the server settings. Until then every question goes to ' + AI_NAME + '. The list below shows what you will be able to look up.')
-      : h('p', { class: 'lx-foot' }, 'Quick lookups: a number, date or status read straight from the data by code, in one line. No AI, so it uses none of the AI allowance and you can ask as often as you like.'),
+      : h('p', { class: 'lx-fl-def' }, 'Instant answers read straight from your numbers. No AI, so they do not use the AI allowance.'),
     out);
 
   const rowsEl = list.length ? h('div', { class: 'lx-rows lx-fl-list' }, list.map(l => h('button', { type: 'button', onclick: () => { input.value = l.example; ask(l.example); } },
     h('span', { class: 't' }, l.title), h('span', { class: 'ex' }, l.example)))) : empty({ title: 'The list could not be read', text: 'Try again in a minute. You can still ask ' + AI_NAME + ' on the Ask tab.', action: button('Open Ask', { href: ctx.href('ask', 'index') }) });
 
   const s = d.share;
-  put(el, h('div', { class: 'lx-fl' }, box,
-    card({ title: 'What you can look up', note: list.length ? list.length + ' kinds of question' : '', flush: true }, rowsEl),
-    h('p', { class: 'lx-foot' }, [d.revenue || '', 'Sales and ROAS for a platform are Triple Whale, last platform click.',
-      s && s.share_pct != null ? 'In the last ' + s.days + ' days ' + s.lookups + ' questions were quick lookups and ' + s.assistant + ' went to ' + AI_NAME + '.' : '',
-      'Anything that needs judgment, a plan or a change goes to ' + AI_NAME + '.'].filter(Boolean).join(' '))));
+  const help = h('div', { class: 'lx-fl-bar' }, pageHelp({ body: [
+    { title: 'What it is for', text: 'Quick lookups: a number, date or status read straight from your numbers by code, in one line. No AI, so they do not use the AI allowance and you can ask as often as you like. Anything that needs judgment, a plan or a change goes to ' + AI_NAME + ': press Ask why on an answer.' },
+    { title: 'Where the numbers come from', text: [d.revenue || '', 'Sales and ROAS for a platform are Triple Whale, last platform click.'].filter(Boolean).join(' ') },
+  ] }));
+  const split = s && s.share_pct != null ? 'Last ' + s.days + ' days: ' + s.lookups + ' quick lookups, ' + s.assistant + ' to ' + AI_NAME : '';
+  put(el, h('div', { class: 'lx-fl' }, help, box,
+    card({ title: 'What you can look up', note: [list.length ? list.length + ' kinds of question' : '', split].filter(Boolean).join('. '), flush: true }, rowsEl)));
 }
 
 const CSS = `
 .lx-fl{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--sp-8);min-width:0}
-.lx-fl-hero{grid-template-columns:minmax(0,1fr);gap:14px;padding:26px 32px}
+.lx-fl-hero{grid-template-columns:minmax(0,1fr);gap:12px;padding:var(--pad-card)}
+.lx-fl-bar{display:flex;align-items:center;min-height:28px}
+.lx-fl-def{margin:0;font-size:12.5px;color:var(--muted)}
 .lx-fl-row{display:flex;gap:12px;align-items:stretch}
-.lx-fl-in{flex:1;min-width:0;height:58px;padding:0 18px;border:0;border-radius:16px;background:#fff;font:500 17px/1.4 var(--sans);color:var(--ink);box-shadow:0 0 0 1px rgba(28,20,10,.13),0 2px 6px rgba(28,20,10,.05)}
+.lx-fl-in{flex:1;min-width:0;height:44px;padding:0 14px;border:0;border-radius:var(--r-md);background:var(--surface);font:500 var(--fs-body)/1.4 var(--sans);color:var(--ink);box-shadow:0 0 0 1px rgba(28,20,10,.13),0 2px 6px rgba(28,20,10,.05)}
 .lx-fl-in::placeholder{color:var(--faint)}
 .lx-fl-in:focus{outline:0;box-shadow:0 0 0 1.5px var(--e2),0 0 0 5px rgba(255,122,26,.16)}
-.lx-fl-row .lx-btn{height:58px;padding:0 24px;border-radius:16px;font-size:15.5px}
+.lx-fl-row .lx-btn{height:44px}
 .lx-fl-out:empty{display:none}
 .lx-fl-off{margin:0;padding:12px 14px;border-radius:12px;background:var(--surface-2);border:1px solid var(--line);font-size:13.5px;line-height:1.5;color:var(--ink-2)}
 .lx-fl-off b{color:var(--ink);font-weight:600}
 .lx-fl-card{display:grid;grid-template-columns:minmax(0,1fr);gap:14px}
 .lx-fl-q{font-size:13px;color:var(--muted);overflow-wrap:anywhere}
 .lx-fl-a{display:grid;gap:6px;font-size:14.5px;line-height:1.5;color:var(--ink-2);overflow-wrap:anywhere}
-.lx-fl-a .lead{font-size:18px;font-weight:600;color:var(--ink);letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.lx-fl-a .lead{font-size:var(--num-s);font-weight:600;color:var(--ink);letter-spacing:-.01em;font-variant-numeric:tabular-nums}
 .lx-fl-card.err .lx-fl-a{color:var(--bad)}
 .lx-fl-foot{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-top:14px;border-top:1px solid var(--line)}
 .lx-fl-foot .src{font-size:12.5px;color:var(--muted)}
@@ -129,7 +134,7 @@ const CSS = `
   .lx-fl-hero{padding:20px 18px}
   .lx-fl-row{flex-direction:column}
   .lx-fl-row .lx-btn{height:48px}
-  .lx-fl-in{height:52px;font-size:16px}
+  .lx-fl-in{height:48px;font-size:16px}
   .lx-fl-card{padding:20px 18px}
   .lx-fl-list>button{flex-direction:column;gap:2px;padding:12px 18px}
   .lx-fl-list .t{width:auto}

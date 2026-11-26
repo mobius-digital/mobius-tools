@@ -252,8 +252,37 @@
   "tracking": "good",
   "learning": {
    "n": 5,
-   "of": 19
+   "of": 19,
+   "sets": [
+    {
+     "name": "Black Friday | New people",
+     "campaign": "Black Friday 2026"
+    },
+    {
+     "name": "Black Friday | Past buyers",
+     "campaign": "Black Friday 2026"
+    },
+    {
+     "name": "Creator | Marcus Bell",
+     "campaign": "Creators"
+    },
+    {
+     "name": "Creator | Lena Ortiz",
+     "campaign": "Creators"
+    },
+    {
+     "name": "Gifts under $50",
+     "campaign": "Accessories | Gifts"
+    }
+   ]
   },
-  "at_limit": 1
+  "at_limit": 1,
+  "at_limit_sets": [
+   {
+    "name": "Early sale | New people",
+    "campaign": "Black Friday 2026",
+    "n": 50
+   }
+  ]
  }
 }

@@ -18,7 +18,8 @@
 import { h, em, card, hero, kpi, kpis, button, sheet, statusDot, empty, skeleton, put, num } from '../../kit.js';
 import { APP_NAME } from '../../config.js';
 import { picture, plural, day, todayOf, isDay } from '../production/_ui.js';
-import { soft, styles, foot } from './_rest.js';
+import { soft, styles } from './_rest.js';
+import { def, defOn, headRow, warnLine } from '../platforms/_ads.js';
 import { openLoad } from '../production/_load.js';
 import { canWrite } from '../production/_act.js';
 import { refresh } from '../../router.js';
@@ -33,11 +34,14 @@ const CSS = `
 .la-t b{display:block;font-size:14px;font-weight:600;line-height:1.3;overflow-wrap:anywhere}
 .la-t small{display:block;margin-top:2px;font-size:12.5px;color:var(--muted)}
 .la-c{min-width:0;display:grid;gap:3px;font-size:13px}
-.la-c .k{font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+.la-c .k{display:none}
+.la-hd{display:grid;grid-template-columns:64px minmax(0,1.15fr) minmax(0,.8fr) minmax(0,1.2fr) 120px;gap:18px;padding:10px 28px 8px;border-bottom:1px solid var(--line);font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+.la-hd.l{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) 120px 150px}
+.la-hd .r{text-align:right}
 .la-c b{font-weight:600;overflow-wrap:anywhere}
 .la-c small{font-size:12.5px;color:var(--muted);overflow-wrap:anywhere}
 .la-c .lx-stat{font-size:12.5px}
-.la-go{display:flex;justify-content:flex-end}
+.la-go{display:flex;justify-content:flex-end;min-width:120px}
 .la-none{padding:20px 28px;color:var(--muted);font-size:13.5px}
 .la-l{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) 120px 150px;gap:16px;align-items:center;padding:11px 28px;border-top:1px solid var(--line);font-size:13.5px;min-width:0}
 .la-l:first-child{border-top:0}
@@ -62,6 +66,7 @@ const CSS = `
 .la-steps{display:grid;gap:8px;padding-left:18px;font-size:13.5px;color:var(--ink-2);line-height:1.45}
 .la-act{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 @media (max-width:1040px){
+  .la-hd{display:none}
   .la-r{grid-template-columns:56px minmax(0,1fr) minmax(0,1fr) auto}
   .la-r .pd-pic{width:56px}
   .la-r>.la-in{grid-column:2}
@@ -206,7 +211,7 @@ function toCell(r, loadable) {
   if (!t) return h('div', { class: 'la-c la-to' }, h('span', { class: 'k' }, label), h('small', null, 'Could not read the ad sets in Meta'));
   if (!t.id) return h('div', { class: 'la-c la-to' }, h('span', { class: 'k' }, label), h('b', null, 'No ad set to suggest'), h('small', null, t.why));
   return h('div', { class: 'la-c la-to' }, h('span', { class: 'k' }, label), h('b', null, t.name), h('small', null, t.campaign || 'Campaign name not read'),
-    !t.on ? statusDot('warn', 'This ad set is off') : t.ads_on >= FULL_AT ? statusDot('bad', `Full: ${t.ads_on} ads on`) : loadable && t.ads_on >= FULL_AT - 5 ? statusDot('warn', `Nearly full: ${t.ads_on} of ${FULL_AT} on`) : t.kind === 'check' ? statusDot('warn', 'Check this one') : null);
+    !t.on ? statusDot('warn', 'This ad set is off') : t.ads_on >= FULL_AT ? defOn(statusDot('bad', `Full: ${t.ads_on} ads on`), 'ad_limit_50') : loadable && t.ads_on >= FULL_AT - 5 ? defOn(statusDot('warn', `Nearly full: ${t.ads_on} of ${FULL_AT} on`), 'ad_limit_50') : t.kind === 'check' ? statusDot('warn', 'Check this one') : null);
 }
 
 function loadSheet(r, ctx, loadable = true) {
@@ -225,8 +230,8 @@ function loadSheet(r, ctx, loadable = true) {
           h('small', null, `${plural(t.ads || 0, 'ad')} in it now, ${t.ads_on || 0} on.` + (room != null ? (room > 0 ? ` Meta allows ${FULL_AT} on in one ad set, so there is room for ${room} more.` : ` Meta allows ${FULL_AT} on in one ad set, so this one is full. Use a copy of it.`) : '')),
           !t.on ? statusDot('warn', 'This ad set is off. Ads loaded here will not run until it is turned on.') : null)),
     h('section', null, h('h3', null, m && m.from === 'log' ? `Already loaded through ${APP_NAME}` : 'Already in Meta for this card'),
-      !m ? h('p', { class: 'lx-foot' }, 'Meta could not be read just now.')
-        : !m.n ? h('p', { class: 'lx-foot' }, 'None found. No ad name in Meta starts with this card number. Ads loaded under another name do not show here.')
+      !m ? h('p', { class: 'mr-dim' }, 'Meta could not be read just now.')
+        : !m.n ? h('p', { class: 'mr-dim' }, 'None found. No ad name in Meta starts with this card number. Ads loaded under another name do not show here.')
         : h('div', { class: 'la-ads' }, m.ads.map(a => { const [tone, word] = stateOf(a.eff); return h('div', null, h('span', null, a.name || 'Unnamed ad'), statusDot(tone, word)); }),
           m.n > m.ads.length ? h('div', null, h('span', null, `and ${m.n - m.ads.length} more`)) : null)),
     !loadable ? null : h('section', null, h('h3', null, 'What loading does'),
@@ -252,24 +257,25 @@ export function startLoad(r, ctx, act) {
     onDone: () => { if (!SAMPLE) refresh({ fresh: true }); } });
 }
 
-function cardRow(r, ctx, d, loadable) {
+function cardRow(r, ctx, d, loadable, first) {
   const sub = [r.format, filesText(r), r.launch_on ? 'goes live ' + day(r.launch_on) : null].filter(Boolean).join(', ');
   return h('div', { class: 'la-r' },
     picture({ src: r.thumb, art: r.art, video: r.format === 'Video' || r.format === 'UGC', ratio: '1/1' }),
     h('div', { class: 'la-t' }, h('b', null, (r.num ? r.num + '  ' : '') + (r.title || 'Untitled card')), h('small', null, sub),
       r.launch_on && r.launch_on < d.today && loadable ? statusDot('bad', 'Its date has passed') : null),
     inMetaCell(r), toCell(r, loadable),
-    h('div', { class: 'la-go' }, loadable ? (canWrite(ctx) ? button('Load', { primary: true, large: true, aria: 'Load card ' + (r.num || r.title), onclick: () => startLoad(r, ctx) })
+    h('div', { class: 'la-go' }, loadable ? (canWrite(ctx) ? button('Load', { primary: !!first, aria: 'Load card ' + (r.num || r.title), onclick: () => startLoad(r, ctx) })
         : button('See', { aria: 'See card ' + (r.num || r.title), onclick: () => loadSheet(r, ctx, true) }))
       : button('See', { aria: 'See card ' + (r.num || r.title), onclick: () => loadSheet(r, ctx, false) })));
 }
 
+const listHead = to => h('div', { class: 'la-hd' }, h('span'), h('span', null, def('Card', 'production_card')), h('span', null, 'In Meta now'), h('span', null, to), h('span', { class: 'r' }, ''));
 function top(d) {
   const dated = [...d.ready, ...d.waiting].filter(r => r.launch_on && r.launch_on >= d.today).sort((a, b) => a.launch_on.localeCompare(b.launch_on))[0];
   const week = d.recent ? d.recent.filter(r => { const n = sinceDays(r.at, d.today); return n != null && n <= 7; }) : null;
   const fresh = d.ready.filter(r => r.in_meta && r.in_meta.from === 'meta' && !r.in_meta.n).length;
   return hero({ line: true }, kpis([
-    kpi({ label: 'Ready to load', value: String(d.ready.length), small: d.ready.length === 1 ? 'card' : 'cards',
+    kpi({ label: h('span', null, 'Batches ready to load, in ', def('cards', 'production_card')), value: String(d.ready.length), small: d.ready.length === 1 ? 'card' : 'cards',
       sub: !d.ready.length ? 'nothing waiting' : d.connected ? (fresh ? statusDot('warn', `${fresh} with no ads found in Meta`) : statusDot('good', 'all have ads in Meta')) : plural(d.ready.reduce((t, r) => t + r.files, 0), 'file') }),
     kpi({ label: 'Loaded, waiting for its date', value: String(d.waiting.length), small: d.waiting.length === 1 ? 'card' : 'cards', sub: 'marked Scheduled on the board' }),
     dated ? kpi({ label: 'Next to go live', value: day(dated.launch_on), sub: (dated.num ? dated.num + ' ' : '') + dated.title }) : kpi({ label: 'Next to go live', value: 'No date set', sub: 'no card carries a go live date' }),
@@ -288,7 +294,8 @@ function recentCard(d) {
       h('span', { class: 'w' }, [day(String(r.at || '').slice(0, 10)), who(r.by)].filter(Boolean).join(', '))); }),
     d.recent.length > shown ? h('div', { class: 'la-more' }, h('button', { class: 'lx-btn', type: 'button', onclick: () => { shown = d.recent.length; paint(); } }, `Show all ${d.recent.length}`)) : null);
   paint();
-  return card({ title: 'Loaded lately', note: 'newest first, state as last checked', flush: true }, box);
+  return card({ title: 'Loaded lately', note: 'newest first, state as last checked', flush: true },
+    h('div', { class: 'la-hd l' }, h('span', null, 'Ad'), h('span', null, 'Ad set'), h('span', null, 'State in Meta'), h('span', { class: 'r' }, 'Loaded (date, by)')), box);
 }
 
 export default {
@@ -303,21 +310,25 @@ export default {
     styles('la-css', CSS);
     if (!ctx.brand) return put(el, empty({ title: 'Pick a brand', text: 'Load ads is one brand at a time.' }));
     d = d || { ready: [], waiting: [], recent: null, today: todayOf(null) };
-    const old = ctx.legacy && !ctx.isClient ? button('Old ' + APP_NAME, { href: ctx.legacy, target: '_blank', icon: 'arrow', ghost: true }) : null;
     const noMeta = d.connected === false ? card({},
       h('div', { class: 'la-c' }, h('b', null, 'Meta could not be read'),
         h('small', null, (d.meta_error || 'The ad sets and ads in Meta did not come back.') + ' The cards below still show. Where each would go fills in when Meta answers.'),
         h('div', { class: 'la-act', style: { marginTop: '8px' } }, button('Open integrations', { href: ctx.href('brand-settings', 'integrations') })))) : null;
-    const cantWrite = d.connected && d.can === false ? h('p', { class: 'lx-foot' }, 'Heads up: our Meta login can read this account but cannot change it, so loading will be refused until that is fixed in Meta.') : null;
+    const cantWrite = d.connected && d.can === false ? warnLine('Our Meta login can read this account but cannot change it, so loading will be refused until that is fixed in Meta.') : null;
+    const help = [
+      { title: 'What Load does', text: 'Load puts every approved ad of a card into one Meta ad set, switched off, after a preview you check first. Nothing spends until someone turns the ads on.' },
+      { title: 'What a card is', text: 'A card is a batch on the production board: one brief and every ad made from it. Cards in Ready show here. An ad belongs to a card when its name starts with the card\'s number.' },
+      { title: 'Where the numbers come from', text: `The cards come from the production board, the ad sets and ads straight from Meta, and Loaded lately from what was loaded through ${APP_NAME}.` },
+    ];
     put(el, ...[
+      headRow({ help }), cantWrite,
       top(d), noMeta,
-      card({ title: 'Ready to load', note: d.ready.length ? plural(d.ready.length, 'card') + ' in Ready on the board' : null, flush: true, action: old },
-        d.ready.length ? h('div', { class: 'la-list' }, d.ready.map(r => cardRow(r, ctx, d, true)))
+      card({ title: 'Ready to load', note: d.ready.length ? plural(d.ready.length, 'card') + ' in Ready on the board' : null, flush: true },
+        d.ready.length ? h('div', { class: 'la-list' }, listHead('Goes to ad set'), d.ready.map((r, i) => cardRow(r, ctx, d, true, i === 0)))
           : h('div', { class: 'la-none' }, 'No card is in Ready on the board. A card shows here when its ads are approved and it is moved to Ready.')),
       d.waiting.length ? card({ title: 'Loaded, waiting for its date', note: plural(d.waiting.length, 'card') + ' marked Scheduled', flush: true },
-        h('div', { class: 'la-list' }, d.waiting.map(r => cardRow(r, ctx, d, false)))) : null,
-      recentCard(d), cantWrite,
-      foot(`The cards come from the production board, the ad sets and ads straight from Meta, and Loaded lately from what was loaded through ${APP_NAME}. An ad belongs to a card when its name starts with the card's number. Load puts every approved ad of a card into one ad set, switched off, after a dry run you check first.`),
+        h('div', { class: 'la-list' }, listHead('Sits in ad set'), d.waiting.map(r => cardRow(r, ctx, d, false)))) : null,
+      recentCard(d),
     ].filter(Boolean));
   },
 };

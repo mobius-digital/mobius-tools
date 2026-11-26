@@ -5,6 +5,7 @@
    Google's own change history is per brand only (/api/google/ads-changes) and is not read here yet. */
 
 import { put } from '../../kit.js';
+import { headRow, rangeChips } from '../platforms/_ads.js';
 import { APP_NAME } from '../../config.js';
 import { style } from '../a-today/_more.js';
 import { h, em, segmented, platformChip, empty, card } from '../../kit.js';
@@ -52,8 +53,11 @@ function render(el, d, ctx) {
   draw('all');
   const filter = h('div', { class: 'lx-sec', style: { flexWrap: 'wrap', gap: '12px' } }, h('h3', null, 'Every change, newest first'),
     segmented([{ id: 'all', label: 'All' }, { id: 'budget', label: 'Budgets' }, { id: 'onoff', label: 'Off and on' }, { id: 'new', label: 'New' }], 'all', draw));
-  const foot = h('p', { class: 'lx-foot' }, `Changes made in Meta, and in Google or TikTok through ${APP_NAME}.${d.other ? ` ${d.other} small edits (renames, Meta's own housekeeping) are not listed.` : ''} A brand's own Changes made tab is where a reason is added.`);
-  put(el, h('div', { class: 'ag' }, hero, h('div', { class: 'ag', style: { gap: '16px' } }, filter, list), foot));
+  const help = headRow({ left: rangeChips(ctx), help: [
+    { title: 'What it is for', text: 'What changed in every brand\'s ad accounts, newest first, and why.' },
+    { title: 'What is listed', text: `Changes made in Meta, and in Google or TikTok through ${APP_NAME}.${d.other ? ` ${d.other} small edits (renames, Meta's own housekeeping) are not listed.` : ''} A brand's own Changes made tab is where a reason is added.` },
+  ] });
+  put(el, h('div', { class: 'ag' }, help, hero, h('div', { class: 'ag', style: { gap: '16px' } }, filter, list)));
 }
 
 export default {
