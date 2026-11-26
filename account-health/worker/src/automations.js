@@ -59,9 +59,11 @@
  *   POST   /api/automations/power      { on } owner only: the one switch
  *   GET    /api/automations/runs?id=   the run log
  *   GET    /api/automations/people, PUT /api/automations/people   who does what (roles per brand) and the team list
- *   GET    /api/me/delivery, PUT /api/me/delivery   how things reach me
+ *   GET    /api/me/delivery, PUT /api/me/delivery   how things reach me (a client gets the client list, notify.js)
+ *   GET    /api/me/delivery?as=client[&act=]        the team's "See as client": the client list with its default, read
+ *                                                   only (a PUT with as=client is refused, nothing is saved)
  *   GET    /api/notices, POST /api/notices/done */
-import { catalogTypes, catalogView, notifyOf, applyBody, saveNotify, ensureNotify } from './notify.js';
+import { catalogTypes, catalogView, notifyOf, applyBody, saveNotify, savedNotify, ensureNotify, defaultNotify } from './notify.js';
 import { featuresNow } from './jobflags.js';
 
 const ORG = 'default';
@@ -1049,6 +1051,18 @@ export async function handleAutomations(request, env, path, json, d) {
 
   /* ---- how things reach me: each person sets only their own ---- */
   if (path === '/api/me/delivery') {
+    /* "See as client" (v5 Profile > How things reach me): the team reads the page a client of this brand gets, with
+       the client default. Nothing of any client's own is read and nothing is saved. A client asking for it gets its
+       own page (the branch below), never this one. */
+    if (!me.client && url.searchParams.get('as') === 'client') {
+      if (m !== 'GET') return json({ error: 'See as client saves nothing. Back in the team view, this page is yours.' }, 400);
+      const accts = await d.listAccounts(env, false).catch(() => []);
+      const act = String(url.searchParams.get('act') || '');
+      const a = act && sees(act) ? (accts || []).find(x => x.act_id === act) : null;
+      const cw = { client: true };
+      return json({ ok: true, preview: true, email: null, notify: { audience: 'client', ...defaultNotify(catalogTypes(cw)) }, catalog: catalogView(d, cw, false),
+        brands: a ? [{ id: a.act_id, name: a.name }] : [], notify_chosen: false });
+    }
     if (me.email === 'admin') return json({ error: 'Sign in as yourself to set how things reach you.' }, 400);
     /* A client lists ONLY the automations that tell it (the client's people, or its own email), and reads none of
        the sentence: that holds the team's rule and the emails of the people it tells. */
@@ -1096,8 +1110,12 @@ export async function handleAutomations(request, env, path, json, d) {
         mode: c.mode, ways: cleanWays(c.ways, { client: !!me.client }), at_hour: c.at_hour, own: c.own });
     }
     const copiesOn = lower(await d.getSetting(env, 'notifyCopies').catch(() => '')) === 'on';
+    /* A client's page names its own brands and no other (me.only is the client's own list). */
+    const brands = me.client ? [...me.only].filter(id => names[id]).map(id => ({ id, name: names[id] })) : undefined;
     return json({ ok: true, email: me.email, delivery: await deliveryOf(env, me.email), per, modes: MODES,
-      notify: await notifyOf(env, me.email, who), catalog: catalogView(d, who, copiesOn),
+      notify: await notifyOf(env, me.email, who), catalog: catalogView(d, who, copiesOn), ...(brands ? { brands } : {}),
+      /* false = this person never saved a notify choice (v5 asks once, pages/profile/_first-preset.js) */
+      notify_chosen: (await savedNotify(env, me.email)) != null,
       ways: { home: !me.client, bell: true, slack: !me.client, email: true }, ways_note: { bell: 'Always on. The bell is the record.', email: d.sendEmail ? null : 'Your choice is saved. Email starts when the mail address for this product is set up. Until then it waits in the bell.',
         slack: d.slackApi ? null : 'Slack is not connected, so everything lands in the app.' } });
   }

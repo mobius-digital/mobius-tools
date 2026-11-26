@@ -13,6 +13,7 @@
 
 import { houseMessage } from './house.js';
 import { senderFor, postAs } from './sender.js';
+import { jobOn } from './jobflags.js';
 
 export const PLATFORMS = [
   { id: 'meta', short: 'Meta', name: 'Meta Ads', color: '#0866FF', type: 'metastatus', url: 'https://metastatus.com/data/orgs.json', link: 'https://metastatus.com',
@@ -153,6 +154,9 @@ export async function pulseTick(env, { F = fetch, slackApi, urgent } = {}) {
   const posted = [];
   const groups = {};
   for (const t of changes.filter(t => ALERT_ON.has(t.platformId))) (groups[t.platformId] ||= []).push(t);
+  /* 2026-11-26 (move lines): the owner's outage alert row above is the Locus line; the #outages card goes quiet with
+     settings jobOn:outagePost = 'off' (a money warning: not before Dec 5). Read only when there is something to post. */
+  if (Object.keys(groups).length && !(await jobOn(env, 'outagePost'))) return { checked: results.length, changes: changes.length, posted, quiet: true };
   for (const [pid, list] of Object.entries(groups)) {
     if (!slackApi) break;
     const p = PLATFORMS.find(x => x.id === pid), id = `pulse:alert:${Date.now()}:${pid}`;

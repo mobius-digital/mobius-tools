@@ -1,5 +1,6 @@
 /* Meetings > Agenda: the Monday team meeting, 45 minutes, the same eight blocks every week.
-   The pre-read goes out Monday 6am (Sunday's numbers are not final before then). */
+   The pre-read goes out Monday 6am (Sunday's numbers are not final before then).
+   Week plans still to write (2026-11-26, a54, _weekplan.js): GET /api/mywork/weekplan, read once after the page draws. */
 
 import { APP_NAME } from '../../config.js';
 import { put } from '../../kit.js';
@@ -7,6 +8,10 @@ import { h, hero, em, button, gauge, avatar, statusDot } from '../../kit.js';
 import { css, loadMeeting, meetingOf, SENT_LABEL, MEETING_START, longDay, lightOf, ok, x } from './_meet.js';
 import { follow, reading } from '../_parts.js';
 import { defined, pageHelp } from '../../defs.js';
+import { weekSection } from './_weekplan.js';
+
+/* the week plans still to write: one read per page visit, kept here so a repaint does not read again */
+let weekPlans = { at: 0, r: null };
 
 /** The plan. Minutes are fixed; only the small line under each block comes from data. */
 const BLOCKS = [
@@ -87,12 +92,18 @@ function draw(el, data, ctx) {
     { title: 'Decision brands', text: 'Brands whose Store MER last week was under its goal, furthest under first. The bar runs from 0 to a little past the goal; the tick is the goal. The owner named on each one speaks first.' },
     { title: 'The pre-read', text: SENT_LABEL + '.' },
   ] }));
-  put(el, h('div', { class: 'mt-page', style: { gap: '40px' } }, help, head, cols, db,
+  put(el, h('div', { class: 'mt-page', style: { gap: '40px' } }, help, head, weekSection(weekPlans.r), cols, db,
     more ? reading(data.waiting.screen ? 'Still reading the promises and the pipeline.' : 'Still reading each brand\'s MER goal.') : null));
 }
 
 /* each part of the meeting is painted as it lands */
-const paint = (el, d, ctx) => follow(ctx, d, now => draw(el, meetingOf(now, ctx), ctx));
+const paint = (el, d, ctx) => {
+  if (!ctx.sample && Date.now() - weekPlans.at > 5 * 60e3) {
+    weekPlans.at = Date.now();
+    ctx.api('/api/mywork/weekplan', { worker: 'ah' }).then(r => { weekPlans.r = r; if (el.isConnected && !(ctx.signal && ctx.signal.aborted)) paint(el, d, ctx); }).catch(() => {});
+  }
+  return follow(ctx, d, now => draw(el, meetingOf(now, ctx), ctx));
+};
 
 export default {
   /* drawn by the shell above the tabs. The meeting is one fixed week, so there are no dates to pick. */

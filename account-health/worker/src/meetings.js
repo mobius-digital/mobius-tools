@@ -41,6 +41,15 @@
  *   POST /api/meetings/skip       {id}
  *   POST /api/meetings/ingest     {id} re-read one Fireflies transcript (or read one the poll missed)
  *   POST /api/meetings/poll       check Fireflies now
+ *   POST /api/meetings/pull       {id} PULL TASKS (2026-11-26, move lines a34): at most 5 suggested tasks from the call's
+ *                                 notes (already read; no new model call), the ones kept before left out
+ *   POST /api/meetings/keep       {id, items:[{text, owner, due, act, area, detail}]} the ticked suggestions become tasks
+ *                                 (p_action, source 'meeting'). No confirm, no report, no client line, no Slack post.
+ *
+ * PULL TASKS (a34): the Calls page asks for tasks only when someone wants them, instead of the confirm step. The hourly
+ * reading of every call (meetingsTick, ingest) is unchanged. What was kept is remembered in settings
+ * meetingPulled:<id> = [{text, id}] so a second pull never suggests the same task twice. The meeting's own status is
+ * not touched (GET /api/meetings is answered by the engine too; its states stay the same).
  */
 import { addAction, markDone, openItems as openActionItems, ROSTER, AREAS, AREA_RULE } from './actions.js';
 import { briefFor, ensureBoard, moveTaskTo, sectionFits } from './asana-brand.js';
@@ -412,6 +421,7 @@ export async function confirm(env, d, body, who) {
   const notes = { kind: m.kind, summary: clean(body.summary, 2000), brands: [] };
   const result = { brands: [], agency: null, warnings: [] };
   const readJobs = [];
+  const made = await alreadyMade(env, m.id);
   for (const raw of (Array.isArray(body.brands) ? body.brands : [])) {
     const act = String(raw.brand_id || '');
     if (act && !brands.some(b => b.act_id === act)) continue;
@@ -424,8 +434,11 @@ export async function confirm(env, d, body, who) {
     if (!b.decisions.length && !b.items.length && !b.this_week.length && !b.need_from_client.length) continue;
     notes.brands.push(b);
     const r = { brand_id: act, name: act ? nameOf(act) : 'Agency', tasks: [], briefs: [], asks: [], report: null, slack: false };
-    /* 1. Team items -> Locus action items (p_action). Nothing goes to Asana. */
+    /* 1. Team items -> Locus action items (p_action). Nothing goes to Asana. A task already made from this call (Pull
+       tasks, a34) is shown as made and not added a second time. */
     for (const it of b.items.filter(i => i.kind === 'team')) {
+      const had = made.find(k => sameText(k.text, it.text));
+      if (had) { r.tasks.push({ ...it, id: had.id, already: true }); continue; }
       try { const row = await addAction(env, { act, text: it.text, detail: it.detail, owner: it.owner, due: it.due, kind: 'team', area: it.area, source: 'meeting', source_id: m.id, created_by: who }); r.tasks.push({ ...it, id: row.id, url: row.url, assigned: !!row.owner }); }
       catch (e) { r.tasks.push({ ...it, error: e.message }); result.warnings.push(`${r.name}: "${it.text}" was not added (${e.message}).`); }
     }
@@ -600,6 +613,67 @@ export function callRow(m) {
   return { ...rest, with: people.map(a => a.displayName || String(a.email || '').split('@')[0]).filter(Boolean).slice(0, 4), brand_ids: [...new Set((notes?.brands || []).map(b => b.brand_id).filter(Boolean))], counts, made };
 }
 
+/* ---------- pull tasks (a34) ---------- */
+export const PULL_MAX = 5;
+const pullKey = id => `meetingPulled:${id}`;
+const sameText = (a, b) => clean(a, 300).toLowerCase() === clean(b, 300).toLowerCase();
+/** At most PULL_MAX task suggestions from a call's notes: team items, sure ones first, then the ones with an owner, then
+ *  the ones with a due date; anything already kept (`kept` = [{text}]) is left out. Pure. */
+export function pullSuggestions(notes, kept = [], max = PULL_MAX) {
+  const out = [];
+  for (const b of (notes && notes.brands) || []) {
+    for (const it of b.items || []) {
+      if (!it || it.kind !== 'team' || !clean(it.text, 300)) continue;
+      if ((kept || []).some(k => sameText(k.text, it.text)) || out.some(o => sameText(o.text, it.text))) continue;
+      out.push({ act: b.brand_id || '', text: clean(it.text, 300), detail: clean(it.detail, 1000), owner: clean(it.owner, 40), due: /^\d{4}-\d{2}-\d{2}$/.test(it.due || '') ? it.due : '',
+        area: AREAS.includes(it.area) ? it.area : '', sure: it.sure !== false, quote: clean(it.quote, 240), at: it.at || '' });
+    }
+  }
+  const rank = x => (x.sure ? 0 : 4) + (x.owner ? 0 : 2) + (x.due ? 0 : 1);
+  return out.map((x, i) => ({ x, i })).sort((p, q) => rank(p.x) - rank(q.x) || p.i - q.i).slice(0, max).map(p => p.x);
+}
+/** Every task already made from this call ([{text, id}]): what Pull tasks kept (settings) plus every p_action row whose
+ *  source_id is the meeting (Confirm's team items, a kept pull, a "Write a brief" fallback). Pull, keep and Confirm all
+ *  leave these out, so filing a pulled call or pulling a filed one never makes a task twice. */
+async function alreadyMade(env, id) {
+  const kept = safe(await getSetting(env, pullKey(id)), []) || [];
+  const rows = await env.DB.prepare(`SELECT id, text FROM p_action WHERE source = 'meeting' AND source_id = ?1`).bind(String(id)).all().then(r => r.results || [], () => []);
+  return [...kept, ...rows.filter(r => !kept.some(k => k.id === r.id))];
+}
+export async function pullTasks(env, id) {
+  await ensure(env);
+  const m = await env.DB.prepare(`SELECT id, title, date, status, notes_json FROM p_meeting WHERE id = ?1`).bind(String(id || '')).first();
+  if (!m) throw Object.assign(new Error('No such meeting.'), { status: 404 });
+  const notes = safe(m.notes_json, null);
+  const kept = await alreadyMade(env, m.id);
+  if (!notes) return { id: m.id, items: [], kept: kept.length, why: m.status === 'new' ? 'The call is still being read.' : 'No notes were kept for this call.' };
+  const items = pullSuggestions(notes, kept);
+  return { id: m.id, items, kept: kept.length, why: items.length ? '' : kept.length ? 'Every task from this call is already kept.' : 'No task came out of this call.' };
+}
+export async function keepTasks(env, d, body, who) {
+  await ensure(env);
+  const m = await env.DB.prepare(`SELECT id, notes_json FROM p_meeting WHERE id = ?1`).bind(String(body.id || '')).first();
+  if (!m) throw Object.assign(new Error('No such meeting.'), { status: 404 });
+  const brands = new Set((await d.listBrands(env)).map(b => b.act_id));
+  const kept = safe(await getSetting(env, pullKey(m.id)), []) || [];
+  const made0 = await alreadyMade(env, m.id);
+  const want = (Array.isArray(body.items) ? body.items : []).slice(0, PULL_MAX);
+  if (!want.length) throw Object.assign(new Error('Tick at least one task to keep.'), { status: 400 });
+  const made = [], warnings = [];
+  for (const raw of want) {
+    const text = clean(raw && raw.text, 300);
+    if (!text || kept.some(k => sameText(k.text, text)) || made0.some(k => sameText(k.text, text))) continue;
+    const act = brands.has(String(raw.act || '')) ? String(raw.act) : '';
+    try {
+      const row = await addAction(env, { act, text, detail: clean(raw.detail, 2000), owner: clean(raw.owner, 40), due: /^\d{4}-\d{2}-\d{2}$/.test(raw.due || '') ? raw.due : '',
+        kind: 'team', area: AREAS.includes(raw.area) ? raw.area : '', source: 'meeting', source_id: m.id, created_by: who });
+      made.push({ text, id: row.id, owner: row.owner || '' }); kept.push({ text, id: row.id });
+    } catch (e) { warnings.push(`"${text}" was not added (${e.message}).`); }
+  }
+  await putSetting(env, pullKey(m.id), JSON.stringify(kept.slice(-50)));
+  return { ok: true, made, warnings };
+}
+
 /* ---------- routes ---------- */
 export async function handleMeetings(request, env, url, path, json, d) {
   if (path !== '/api/meetings' && !path.startsWith('/api/meetings/')) return null;
@@ -626,6 +700,8 @@ export async function handleMeetings(request, env, url, path, json, d) {
     const body = await request.json().catch(() => ({}));
     const who = (await d.sessionEmail(env, request).catch(() => null)) || 'the team';
     if (path === '/api/meetings/confirm') return json({ ok: true, result: await confirm(env, d, body, who) });
+    if (path === '/api/meetings/pull') return json(await pullTasks(env, body.id));
+    if (path === '/api/meetings/keep') return json(await keepTasks(env, d, body, who));
     /* The Monday call screen: tick an item done, add one, set the week's theme. Items are p_action rows (actions.js). */
     if (path === '/api/meetings/done') {
       const id = String(body.id || '').trim(); if (!id) return json({ error: 'No item id.' }, 400);

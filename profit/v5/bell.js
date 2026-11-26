@@ -24,20 +24,40 @@ import { lineOf } from './menu.js';
 const cap = s => (s ? s[0].toUpperCase() + s.slice(1) : '');
 const ago = iso => { const t = Date.parse(iso); if (!t) return ''; const d = Math.max(0, Math.round((Date.now() - t) / 864e5)); return d === 0 ? 'today' : d === 1 ? '1 day' : d + ' days'; };
 
-function fromMyWork(mw) {
+/* The move lines (account-health movelines.js, 2026-11-26): one grouped row each, worked out live, gone once done.
+   `v5` is a page in this app (#/...); `nudge` is a self nudge ("Your plan for today is not in") that sits at the top of
+   My day and is never a bell row (nobody else waits on it). */
+export const LINE_SOURCES = ['checkin', 'weekplan', 'dates', 'comments', 'newmeta', 'connect', 'creators'];
+/** Late and due tasks as ONE row with a count ("3 tasks late, 2 due today"), opening My day. One task stays its own row. */
+export function groupTasks(rows) {
+  const tasks = rows.filter(i => i.source === 'task' && (i.bucket === 'late' || i.bucket === 'today'));
+  if (tasks.length < 2) return rows;
+  const late = tasks.filter(i => i.bucket === 'late').length, due = tasks.length - late;
+  const text = [late ? late + (late === 1 ? ' task late' : ' tasks late') : '', due ? (late ? due + ' due today' : due + (due === 1 ? ' task due today' : ' tasks due today')) : ''].filter(Boolean).join(', ');
+  const one = { id: 'tasks', source: 'tasks', bucket: late ? 'late' : 'today', text, from: 'Tasks', brand: '', n: tasks.length };
+  const at = rows.indexOf(tasks[0]);
+  const rest = rows.filter(i => !tasks.includes(i));
+  rest.splice(Math.min(at, rest.length), 0, one);
+  return rest;
+}
+export function fromMyWork(mw) {
   const items = (mw && mw.items) || [];
   const row = it => ({
     text: it.text, brand: it.brand || '',
     by: it.source === 'onboard' ? 'New client setup' : it.source === 'slack' ? (it.from || 'Slack') : it.source === 'card' ? 'Card ' + String(it.num || '').trim() : it.source === 'call' ? 'Monday call' : (it.from || 'Task'),
     when: it.bucket === 'late' ? 'late' : it.when || (it.due ? 'due ' + it.due : ''),
     who: it.source === 'slack' && it.from ? { name: it.from, photo: it.from_photo || null } : null,
+    ...(it.n ? { n: it.n, kind: it.source } : {}),
+    ...(LINE_SOURCES.includes(it.source) ? { kind: it.source, detail: it.detail || '' } : {}),
     /* a new client setup line opens that client's Get started page in this app; its own button lives on My day */
     btn: it.source === 'onboard' && it.slug ? { label: 'Open', href: '#/brand/' + encodeURIComponent(it.slug) + '/get-started/index' }
-      : it.link ? { label: it.source === 'slack' ? 'Reply' : it.source === 'card' ? 'Open card' : 'Open', href: it.link } : { label: 'Open My day', line: 'my-day', tab: 'index' },
+      : it.source === 'tasks' ? { label: 'Open My day', line: 'my-day', tab: 'index' }
+      : it.v5 ? { label: it.btn_label || 'Open', href: it.v5 }
+      : it.link ? { label: it.btn_label || (it.source === 'slack' ? 'Reply' : it.source === 'card' ? 'Open card' : 'Open'), href: it.link } : { label: 'Open My day', line: 'my-day', tab: 'index' },
   });
-  const open = items.filter(i => !i.done);
+  const open = items.filter(i => !i.done && !i.nudge);
   return {
-    needs: open.filter(i => i.bucket === 'late' || i.bucket === 'today').sort((a, b) => (a.bucket === 'late' ? 0 : 1) - (b.bucket === 'late' ? 0 : 1)).map(row),
+    needs: groupTasks(open.filter(i => i.bucket === 'late' || i.bucket === 'today').sort((a, b) => (a.bucket === 'late' ? 0 : 1) - (b.bucket === 'late' ? 0 : 1))).map(row),
     watching: open.filter(i => i.bucket === 'week').map(row),
     done: items.filter(i => i.done).slice(0, 12).map(i => ({ ...row(i), when: 'done', btn: null })),
   };
@@ -221,11 +241,12 @@ export function waitingFrom({ calls, standing, briefs, reports, board, requests 
     const by = new Map();
     for (const r of calls.rows) {
       if (!r || r.decided || r.kind === 'launch' || /google|tiktok/i.test(r.platform || '') || !r.act_id) continue;
-      const o = by.get(r.act_id) || { n: 0, brand: r.brand || '' }; o.n++; by.set(r.act_id, o);
+      const o = by.get(r.act_id) || { n: 0, min: 0, brand: r.brand || '' }; o.n++; if (r.kind === 'minoff') o.min++; by.set(r.act_id, o);
     }
+    /* Test minimums due off are rows of the ad calls (a3, kind minoff): the row says how many, so the Slack line can go. */
     for (const [id, o] of [...by.entries()].sort((a, b) => b[1].n - a[1].n)) {
-      items.push({ id: 'calls|' + id, kind: 'calls', n: o.n, act_id: id, brand: nameOf(brands, id, o.brand), text: many(o.n, 'ad call') + ' waiting on Yes or No',
-        by: 'Ad calls', btn: { label: 'Make the calls', href: brandLink(brands, id, ...KIND_LINK.calls), primary: true } });
+      items.push({ id: 'calls|' + id, kind: 'calls', n: o.n, min: o.min, act_id: id, brand: nameOf(brands, id, o.brand), text: many(o.n, 'ad call') + ' waiting on Yes or No',
+        by: o.min ? 'Ad calls, ' + many(o.min, 'test minimum') + ' due off' : 'Ad calls', btn: { label: 'Make the calls', href: brandLink(brands, id, ...KIND_LINK.calls), primary: true } });
     }
   } else failed.push('ad calls');
   /* client updates: daily briefs and reports drafted and not sent (the same rule as Agency > To send) */

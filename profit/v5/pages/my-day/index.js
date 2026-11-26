@@ -4,16 +4,19 @@
    What those two cannot fill yet (meetings, times on done rows, the assistant's line) comes only from the fixture.
    Waiting across the agency (team only): what needs any person today on every brand, the same list the bell shows
    (loadWaiting in bell.js: ad calls, client updates to send, the War Room check-in, creative to review or load,
-   client requests). It is read after the page draws, so a slow read never holds the page; a source that fails is named. */
+   client requests). It is read after the page draws, so a slow read never holds the page; a source that fails is named.
+   Today's plan (2026-11-26, a10, _plan.js): GET /api/mywork/plans; for someone on the daily check-in list the plan
+   box and "I'm out today" write the check-in itself (POST /api/mywork/plan), and the "no plan yet" line opens the box. */
 
 import { put } from '../../kit.js';
 import { h, button, takeaway, kpis, kpi, statusDot, segmented, toast, sheet, field, em } from '../../kit.js';
 import { OLD_LOCUS, APP_NAME } from '../../config.js';
 import { css, face, ic, heading, store } from './_ui.js';
 import { lineButtons, css as gsCss } from '../get-started/_ui.js';
-import { loadWaiting, primeRead } from '../../bell.js';
+import { loadWaiting, primeRead, LINE_SOURCES } from '../../bell.js';
 import { agencyRows, liveNote, liveHelp, brandWord } from './_waiting.js';
 import { pageHelp } from '../../defs.js';
+import { planBand, openPlan, postOut, mine } from './_plan.js';
 
 let brandPick = 'all';     // the brand filter survives a refresh behind
 
@@ -29,6 +32,8 @@ function dueOf(it, today) {
   return { due: it.due ? wd(it.due) : 'This week' };
 }
 function whyOf(it) {
+  /* a move line (movelines.js) says what is waiting in its own detail line */
+  if (LINE_SOURCES.includes(it.source)) return it.detail || it.from || '';
   if (it.source === 'onboard') return ['New client setup', it.when].filter(Boolean).join(', ');
   if (it.source === 'slack') return [it.from ? it.from + ' asked in Slack' : 'You were tagged in Slack', it.when].filter(Boolean).join(', ');
   if (it.source === 'card') return ['Card ' + (it.num || '').trim(), cap(it.column) + ' column'].filter(s => s.trim() && s !== 'Card').join(', ');
@@ -37,6 +42,11 @@ function whyOf(it) {
 }
 function btnOf(it) {
   if (it.source === 'onboard') return { onboard: true };
+  /* the "no plan yet" line opens the plan box here (the Slack link stays on the line for the old My work page) */
+  if (it.source === 'checkin') return { label: it.btn_label || 'Post my plan', plan: true };
+  /* a move line: a page in this app (v5), else its own link (Slack, a card in old Locus) in a new tab */
+  if (it.v5) return { label: it.btn_label || 'Open', href: it.v5 };
+  if (LINE_SOURCES.includes(it.source) && it.link) return { label: it.btn_label || 'Open', href: it.link, out: true };
   if (it.source === 'slack') return { label: 'Reply', href: it.link, out: true };
   if (it.source === 'card') return { label: 'Open card', href: it.link, out: true };
   if (it.source === 'call') return { label: 'Open the plan', href: OLD_LOCUS + '?open=calls&call=monday' };
@@ -59,7 +69,8 @@ export function fromLive(mw, rq, me) {
     person: { name: (mw.person && mw.person.name) || (me && me.name) || '', role: (mw.person && mw.person.role) || '', email: me && me.email, photo: me && me.photo },
     take: null,
     clients_waiting: reqs ? { n: sitsTeam.length, sub: oldest ? `${oldest.by || oldest.brand}, ${ago(oldest.created_at) ? ago(oldest.created_at) + ' days' : 'today'}` : 'no one is waiting' } : null,
-    today_rows: open.filter(i => i.bucket === 'late' || i.bucket === 'today').sort((a, b) => (a.bucket === 'late' ? 0 : 1) - (b.bucket === 'late' ? 0 : 1)).map(i => rowOf(i, today)),
+    /* a top line (the "no plan yet" nudge) first, then late, then today */
+    today_rows: open.filter(i => i.bucket === 'late' || i.bucket === 'today').sort((a, b) => (a.top ? 0 : a.bucket === 'late' ? 1 : 2) - (b.top ? 0 : b.bucket === 'late' ? 1 : 2)).map(i => rowOf(i, today)),
     week_rows: open.filter(i => i.bucket === 'week').map(i => rowOf(i, today)),
     waiting_rows: reqs ? sitsClient.map(r => { const n = ago(r.created_at); return { id: 'req:' + r.id, source: 'request', text: r.title, who: 'Client', why: 'Sits with the client', brand: r.brand || '', due: n ? n + (n === 1 ? ' day' : ' days') : 'Today', days: n,
       btn: { label: 'Open request', href: OLD_LOCUS + '?open=requests&act=' + encodeURIComponent(r.act_id || 'all') } }; }) : null,
@@ -103,7 +114,8 @@ function row(r, ctx, { primary, onDone }) {
       h('span', { class: 'brand' }, brandWord(r.brand)), h('span', { class: 'due' + (r.late ? ' late' : '') }, r.due),
       h('span', { class: 'go lx-md-go2' }, main || null, links.length ? h('span', { class: 'lx-md-more' }, links) : null));
   }
-  const go = b.done ? button(b.label, { primary, onclick: e => onDone(r, e.currentTarget) })
+  const go = b.plan ? button(b.label, { primary, onclick: () => onDone(r, null, false, 'plan') })
+    : b.done ? button(b.label, { primary, onclick: e => onDone(r, e.currentTarget) })
     : b.nudge ? button(b.label, { onclick: () => toast(ctx.sample ? 'Sample numbers: no nudge was sent.' : 'Nudges come with the notifications release.') })
     : button(b.label || 'Open', { primary, icon: primary ? 'arrow' : null, href: hrefOf(b, ctx) || '#', target: b.out ? '_blank' : null });
   return h('div', { class: 'lx-md-row', dataset: { id: r.id } },
@@ -126,12 +138,15 @@ function draw(el, data, ctx) {
   const lateN = T.filter(r => r.late).length;
   const oldest = X && X.length ? Math.max(...X.map(r => r.days || 0)) : 0;
   const outKey = 'lx5_out_' + (d.today || '');
-  const isOut = !ctx.sample && store.get(outKey, false);
+  const meRow = mine(d.checkin);
+  const isOut = !ctx.sample && (meRow ? meRow.state === 'out' : store.get(outKey, false));
 
   /* the greeting is the page title (drawn by the shell). The hero: who, the actions, four counts */
   ctx.setTitle([(d.greeting || greet()) + (person.name ? ', ' : ''), person.name ? em(person.name + '.') : null], { eyebrow: d.today ? eyebrow(d.today) : 'My day' });
   const outBtn = button(isOut ? "You're out today" : "I'm out today", { ghost: true, onclick: () => {
     if (ctx.sample) return toast('Sample numbers: nothing is saved.');
+    /* on the daily check-in list: the real "out today" on the check-in, after a yes. Posting a plan takes it back. */
+    if (meRow) { if (meRow.state === 'out') return toast('You are marked out today. Post your plan if you are working after all.'); return postOut(ctx, row => { if (row) Object.assign(meRow, row); draw(el, d, ctx); }); }
     const next = !store.get(outKey, false); store.set(outKey, next);
     outBtn.firstChild.textContent = next ? "You're out today" : "I'm out today";
     toast(next ? 'Marked out today on this device. Telling the team comes with the notifications release.' : 'You are back in.');
@@ -156,7 +171,12 @@ function draw(el, data, ctx) {
   /* the lists, filtered by brand */
   const team = !ctx.isClient && ctx.role !== 'client';
   const lists = h('div', { class: 'lx-md-main' });
-  const onDone = async (r, btn, gone) => {
+  const onDone = async (r, btn, gone, what) => {
+    if (what === 'plan') return openPlan(ctx, meRow, row => {
+      if (row && meRow) Object.assign(meRow, row);
+      for (const k of ['today_rows', 'week_rows']) d[k] = (d[k] || []).filter(x => x.source !== 'checkin');
+      draw(el, d, ctx);
+    });
     if (gone) {               // an onboarding line answered by its own button: off the list here, the server drops it on the next read
       for (const k of ['today_rows', 'week_rows']) d[k] = (d[k] || []).filter(x => x.id !== r.id);
       (d.done = d.done || []).unshift({ text: r.text, at: 'just now' });
@@ -183,6 +203,7 @@ function draw(el, data, ctx) {
       : brands.length > 1 ? segmented(opts, brandPick, id => { brandPick = id; paintLists(); }) : null;
     put(lists,
       h('div', { class: 'lx-md-bar' }, pickEl),
+      planBand(ctx, d.checkin, () => draw(el, d, ctx), T.some(r => r.source === 'checkin')),
       group('Needs you today', f(T), ctx, { lead: true, onDone }, 'Nothing needs you today.'),
       team ? agencyGroup(d.agency, f, ctx) : null,
       group('This week', f(W), ctx, { onDone }, 'Nothing else is due this week.'),
@@ -253,12 +274,13 @@ export default {
   title: 'My day',
   ranges: false,          /* today and this week: there are no dates to pick */
   async load(ctx) {
-    const [mw, rq] = await Promise.all([
+    const [mw, rq, ci] = await Promise.all([
       ctx.api('/api/mywork', { worker: 'ah', signal: ctx.signal }),
       ctx.api('/api/requests?act=all', { worker: 'ah', signal: ctx.signal }).catch(() => null),   // the list still draws without it
+      ctx.api('/api/mywork/plans', { worker: 'ah', signal: ctx.signal }).catch(() => null),        // today's check-in (a10)
     ]);
     primeRead('/api/requests?act=all', rq);       // the agency list reads the same route: hand it over, not twice
-    return fromLive(mw, rq, ctx.me);
+    return { ...fromLive(mw, rq, ctx.me), checkin: ci };
   },
   render: draw,
   skeleton(el) {

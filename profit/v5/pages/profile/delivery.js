@@ -10,16 +10,31 @@
    Each tap fills the page at once (the pure rules in _notify.js, the same as the worker's), then saves; a refusal
    puts the page back and says why. Sample mode saves nothing.
    The older choices (the default mode, quiet hours, one by one per automation) are still in the route's answer and
-   keep working for the automations engine. This page no longer draws them. */
+   keep working for the automations engine. This page no longer draws them.
+
+   A client login (2026-11-26) gets the same three cards with its own list (catalog.audience 'client': its updates and
+   reports, what waits on its approval, replies from its team) and the presets in its own words, about its own brand
+   only (`brands`). Never an internal alert: the server sends a client only the client types.
+   "See as client" (the team): reads GET /api/me/delivery?as=client&act=<brand>, the client page with the client
+   default, and saves nothing (a tap fills the page and says so; the server refuses a save there too). An answer that
+   is not the client list (an older server) shows the plain "client's own page" state instead of the team's list. */
 
 import { h, put, em, card, toast, addStyles, empty } from '../../kit.js';
 import { style, ah } from '../automations/_auto.js';
 import { seenAsClient, clientsOwn, staleHold } from './_own.js';
-import { normalNotify, applyPreset, applyChannels, applyCell, cellOn, isCustom } from './_notify.js';
+import { normalNotify, applyPreset, applyChannels, applyCell, cellOn, isCustom, isClientCatalog, previewPath, groupTitle, brandLine, copyNotes } from './_notify.js';
 
 const power = ctx => (ctx.isClient ? Promise.resolve({ power: null, can_power: false })
   : ah(ctx, '/api/automations').then(a => ({ power: !!a.power, can_power: !!a.can_power }), e => { if (e && e.name === 'AbortError') throw e; return { power: null, can_power: false }; }));
-const load = async ctx => { if (seenAsClient(ctx)) return { preview: true }; const [d, p] = await Promise.all([ah(ctx, '/api/me/delivery'), power(ctx)]); return { ...d, ...p }; };
+const load = async ctx => {
+  if (seenAsClient(ctx)) {
+    /* The client page, read only. A failed read is the plain "client's own page" state, never the team's page. */
+    const d = await ah(ctx, previewPath(ctx.brand && ctx.brand.id)).catch(e => { if (e && e.name === 'AbortError') throw e; return null; });
+    return { ...(d || {}), preview: true };
+  }
+  const [d, p] = await Promise.all([ah(ctx, '/api/me/delivery'), power(ctx)]);
+  return { ...d, ...p };
+};
 
 const CSS = `
 .nt{display:grid;gap:var(--sp-6);min-width:0}
@@ -53,20 +68,22 @@ const CSS = `
 `;
 
 const CHAN_SHORT = { in_app: 'In Locus', slack_dm: 'Slack', email: 'Email', push: 'Phone' };
-const GROUPS = [['urgent', 'Urgent'], ['needs_me', 'Needs you'], ['brief', 'Morning'], ['client', 'For you']];
+const GROUPS = ['urgent', 'needs_me', 'brief'];
 
 function render(el, d, ctx) {
   style(); addStyles('nt-css', CSS);
-  if (seenAsClient(ctx)) return clientsOwn(el);
-  if (staleHold(el, d, ctx, load, render)) return;
+  const preview = seenAsClient(ctx);
+  /* "See as client" draws only a real client list; anything else (an older server, a failed read) is the plain state */
+  if (preview && !isClientCatalog(d)) return clientsOwn(el);
+  if (!preview && staleHold(el, d, ctx, load, render)) return;
   const cat = d && d.catalog;
   if (!cat || !Array.isArray(cat.types)) {
     return put(el, empty({ title: 'Your choices show here soon', text: 'The server has not been updated for this page yet. Everything still reaches you in the bell.' }));
   }
   const client = !!ctx.isClient;
+  const noSave = ctx.sample || preview;
   const types = cat.types;
-  /* a client hears in Locus and by email only (the server forces the rest off) */
-  const channels = (cat.channels || []).filter(c => !client || c.id === 'in_app' || c.id === 'email');
+  const channels = cat.channels || [];
   const chanOf = id => channels.find(c => c.id === id) || null;
   const ready = id => { const c = chanOf(id); return !!(c && (c.always || c.ready)); };
   let st = normalNotify(d.notify, types);
@@ -77,7 +94,7 @@ function render(el, d, ctx) {
   const save = async (next, body) => {
     const before = st, mine = ++seq;
     st = next; d.notify = next; paint();
-    if (ctx.sample) return toast('Sample mode: nothing is saved.');
+    if (noSave) return toast(preview ? 'See as client: nothing is saved.' : 'Sample mode: nothing is saved.');
     try {
       const r = await ah(ctx, '/api/me/delivery', { method: 'PUT', body: { notify: body } });
       if (mine !== seq) return;
@@ -94,7 +111,9 @@ function render(el, d, ctx) {
   function paint() {
     /* 1. How you hear */
     const presets = (cat.presets || []).filter(p => p.id !== 'custom');
-    const presetCard = client || !presets.length ? null : card({ title: 'How you hear', note: 'Everything always shows here in Locus. This picks what also reaches you outside it.' },
+    const presetCard = !presets.length ? null : card({ title: 'How you hear', note: client
+      ? 'Everything always shows here in Locus. This picks what also reaches you from your team outside it.'
+      : 'Everything always shows here in Locus. This picks what also reaches you outside it.' },
       h('div', { class: 'nt-presets', role: 'group', 'aria-label': 'How you hear' },
         presets.map(p => h('button', { type: 'button', class: 'nt-preset', 'aria-pressed': String(st.preset === p.id),
           onclick: () => { if (st.preset !== p.id) save(applyPreset(st, types, p.id), { preset: p.id }); } },
@@ -116,15 +135,7 @@ function render(el, d, ctx) {
       const on = !!st.channels[c.id];
       if (c.note) notes.push(c.name + ': ' + c.note);
       return h('button', { type: 'button', class: 'nt-pill', 'aria-pressed': String(on),
-        onclick: () => {
-          const chans = { ...st.channels, [c.id]: !on };
-          if (!client) return save(applyChannels(st, types, { [c.id]: !on }), { channels: chans });
-          /* A client has no preset card and its one type is in no preset, so the pill IS the cell: turning Email on
-             turns it on for every type the client has, in the same save. */
-          let next = applyChannels(st, types, { [c.id]: !on });
-          for (const t of types) next = applyCell(next, types, t.id, c.id, !on);
-          save(next, { channels: chans, types: Object.fromEntries(types.map(t => [t.id, next.types[t.id]])) });
-        } }, c.name);
+        onclick: () => save(applyChannels(st, types, { [c.id]: !on }), { channels: { ...st.channels, [c.id]: !on } }) }, c.name);
     });
     const chanCard = card({ title: 'Also send to', note: 'Nothing leaves Locus until you turn a channel on.' },
       h('div', { class: 'nt-chan' }, h('div', { class: 'nt-pills', role: 'group', 'aria-label': 'Also send to' }, chanPills),
@@ -147,14 +158,13 @@ function render(el, d, ctx) {
         } }, label);
     };
     const copyLine = list => {
-      const out = [];
-      if (list.some(t => t.copy === 'dec5') && !cat.copies_on) out.push('Slack and email copies start Dec 5. Until then they show here in Locus.');
-      if (list.some(t => t.copy === 'soon')) out.push('Slack copies are coming soon.');
+      const out = copyNotes(list, { client, copiesOn: !!cat.copies_on });
       return out.length ? h('p', { class: 'nt-copy' }, out.join(' ')) : null;
     };
-    const groups = GROUPS.map(([g, title]) => {
+    const groups = GROUPS.map(g => {
       const list = types.filter(t => t.group === g);
       if (!list.length) return null;
+      const title = groupTitle(g, client);
       return h('section', { class: 'nt-g', 'aria-label': title }, h('h3', null, title),
         list.map(t => h('div', { class: 'nt-row' }, h('div', null, h('b', null, t.name), t.note ? h('p', null, t.note) : null),
           h('div', { class: 'nt-pills', role: 'group', 'aria-label': t.name }, channels.map(c => cellPill(t, c))))),
@@ -162,7 +172,9 @@ function render(el, d, ctx) {
     }).filter(Boolean);
     const custom = card({ title: 'Customize', note: offNames.length ? 'Turn on ' + offNames.join(' or ') + ' above to pick it here.' : 'Change one row and the preset becomes Custom.' }, groups);
 
-    put(root, presetCard, chanCard, custom);
+    /* a client reads which brand this is about: its own, and no other (the server's brands list) */
+    const about = client ? brandLine(d.brands) : '';
+    put(root, about ? h('p', { class: 'nt-why' }, about) : null, presetCard, chanCard, custom);
   }
   paint();
   put(el, root);
@@ -172,5 +184,7 @@ export default {
   title: ['How things ', em('reach me')],
   eyebrow: 'Your profile',
   ranges: false,
+  /* sample: ?sample=1 the team list, ?sample=1&as=client the client list */
+  sample: ctx => ctx.fixture(ctx.isClient ? 'delivery-client.json' : 'delivery.json'),
   load, render,
 };

@@ -22,7 +22,7 @@ import { handleSocialPost, socialPostTick, socialResultsTick, socialNudgeTick, h
 import { handleMake as handleMakeApp, serveMakeMedia, runExit } from './make.js';
 import { handleCalendar, calendarTick, calendarView, liveOn as calendarLiveOn, useFetch as calendarFetch, calendarData, teamOf as calendarTeam, clientCalendarFor } from './calendar.js';
 /* The client posts (2026-10-19 reporting audit): the six-line daily and the weekly / monthly shape, built from stored numbers. */
-import { dailyPost, dailyThread, weeklyPost, weekSentence, internalChannel } from './clientpost.js';
+import { dailyCard, threadCard, sameDaily, weeklyPost, weekSentence, internalChannel } from './clientpost.js';
 import { readRow as reportReadRow, ensureReportRead, approvedRead, GATE_ERROR as READ_GATE_ERROR, readLink, reportPageUrl, reportDrafted, draftRead, saveEdit as saveReadEdit, handleReportRead } from './reportread.js';
 /* Brand costs and net profit after fixed costs (2026-11-25): the same pure functions the profit worker prices with. */
 import { ruleCosts, shippingRuled, partlyCosted } from '../../../profit/worker/src/costs.js';
@@ -120,6 +120,7 @@ import { deliveryMessage, lowToday, spendHigh, completedDayNormal, highAlertText
 import { raiseAlert, clearAlert, urgentSweep } from './urgent.js';
 import { OWNER_EMAIL } from './extwrite.js';
 import { jobOn, featureOn, jobsView, cleanJobs, cleanFeatures, featureSaved } from './jobflags.js';
+import { keepNewMeta } from './movelines.js';
 import { alarmsPass, alarmCfg, cleanAlarmCfg } from './alarms.js';
 import { markHold, recheckHolds, listHolds, holdFor } from './drafthold.js';
 import { supplyBrandOf, supplyFetch } from './stock.js';
@@ -584,7 +585,10 @@ async function autoConnectMeta(env) {
   /* The name did not give it away (Yak Sports shared "Hockeyak"): any ad account that is new since the
      last look and matched nobody is put to Cole, once, with a button per waiting client. */
   const fresh = (disc?.fresh || []).filter(f => !out.connected.some(c => c.act === f.act_id));
-  if (fresh.length) {
+  /* 2026-11-26 (move lines): the owner's My day line "N new Meta ad accounts to match to a client" (movelines.js
+     newmeta) stays until it is matched; this #mobius-newbiz ask goes quiet with settings jobOn:newAccountPost = 'off'. */
+  if (fresh.length && !(await jobOn(env, 'newAccountPost', getSetting))) out.quiet = fresh.length;
+  else if (fresh.length) {
     const still = runs.filter(r => !out.connected.some(c => c.client === r.name));
     for (const f of fresh) {
       if (!still.length) break;
@@ -605,7 +609,8 @@ async function connectMetaFor(env, r, a) {
   try { await meta(env, `${a.act_id}/insights`, { date_preset: 'last_7d', fields: 'spend', limit: 1 }); }
   catch (e) {
     if (!steps.meta_blocked || steps.meta_blocked.act !== a.act_id) {
-      await lanePost(env, { slackPost }, r.slack_internal, { lane: 'OPS', brand: r.name, who: COLE_SLACK, ask: `Add the Mobius Tools system user to the ad account "${a.name}" (Business Settings > Ad accounts > ${a.name} > Assign people)`,
+      /* the owner's My day line "Give Locus access to N new client ad accounts" (movelines.js); jobOn:newAccountPost = 'off' quiets this ask */
+      if (await jobOn(env, 'newAccountPost', getSetting)) await lanePost(env, { slackPost }, r.slack_internal, { lane: 'OPS', brand: r.name, who: COLE_SLACK, ask: `Add the Mobius Tools system user to the ad account "${a.name}" (Business Settings > Ad accounts > ${a.name} > Assign people)`,
         why: `${r.name} shared it but Locus cannot read it yet; it switches on within the hour after. Meta said: ${String(e.message).slice(0, 120)}` }).catch(() => {});
       steps.meta_blocked = { act: a.act_id, at: new Date().toISOString() }; await save('meta_blocked');
     }
@@ -657,6 +662,10 @@ async function discoverAccounts(env) {
   await env.DB.prepare(
     `INSERT INTO settings (key, value) VALUES ('lastDiscover', ?1)
      ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(JSON.stringify(stamp)).run();
+  /* 2026-11-26 (move lines): the accounts that were NEW at a discovery are kept 14 days for the owner's My day line
+     "N new Meta ad accounts to match to a client" (movelines.js reads them, counts only the ones still unmatched).
+     Never the whole pool of old unconnected accounts. Quiet: a failure here never fails discovery. */
+  await keepNewMeta(env, stamp.fresh, stamp.at).catch(() => {});
   return { found: rows.length, direct, viaBusiness, fresh: stamp.fresh };
 }
 
@@ -3279,7 +3288,8 @@ async function draftBrief(env, acct, date, { skipIfExists = false, steer } = {})
        again, don't send it -- cost a tab switch. The buttons underneath do all
        four, and Locus keeps every one of them for when he wants the charts. */
     // Internal-only brands (Lucky) get the same post shape (2026-10-22: #59 fixed redraws, this first post still drew the old brief).
-    const preview = { daily: await clientDailyFor(env, acct, date, null, r.data), thread: clientDailyThreadFor(acct, date, r.data) };
+    const pth = await clientThreadFor(env, acct, date, r.data).catch(() => null);
+    const preview = { daily: await clientDailyFor(env, acct, date, null, r.data, { thread: pth }), thread: pth?.plain || '' };
     // Kept so "Edit the post" opens with this text; only redraws used to save it, so a fresh card opened an empty box.
     await putSetting(env, `clientBuilt:${acct.act_id}:${date}`, preview.daily).catch(() => {});
     const card = briefCard(acct, date, {
@@ -3355,7 +3365,7 @@ async function sendBrief(env, acct, date, { skipIfSent = false, useStored = fals
   const channel = acct.brief_channel;
   if (!channel) return { name: acct.name, error: 'no client channel set for this brand - it is handled internally; pick one in Settings if it should be sent', draft_intact: true };
   /* THE CLIENT DAILY IS SIX LINES, THE BRIEF IS ITS THREAD (the reporting audit, 2026-10-19; one short post since
-     2026-10-17). The client channel gets dailyPost (clientpost.js): the day, Sales / Ads / MER with one verdict word,
+     2026-10-17; dailyCard in the house style since 2026-11-26). The client channel gets the day, Sales / Ads / MER with one verdict,
      the brief's headline, the month in one line, and Next only when a person wrote one. The whole brief goes as ONE
      reply under it, so the detail is a tap away. ONE DAY PER POST: a brief that covers missed days (coverageDates)
      still posts one six-line message per day, oldest first, and a day more than two days old is not posted at all.
@@ -3363,24 +3373,34 @@ async function sendBrief(env, acct, date, { skipIfSent = false, useStored = fals
   const full = r?.data || hd || await briefData(env, acct, date).catch(() => null);
   const dates = full ? await coverageDates(env, acct, date, full).catch(() => [date]) : [date];
   const missed = dates.filter(d => d < date && d >= addDays(date, -2));
-  const out = (await clientDraftOf(env, acct.act_id, date)) || await clientDailyFor(env, acct, date, text, full);
+  /* THE HOUSE STYLE DAILY (2026-11-26, Cole approved the v2 look). The built daily goes out as Block Kit blocks with a
+     text fallback (header plus verdict) and its thread as the "Ad spend by channel" card. AN EDITED DRAFT IS THE
+     PERSON'S WORDS: when the team changed the text in Edit the post (Slack or Locus), that text goes out exactly as
+     typed, as a plain text post, the way every daily went before; the thread under it is still the card. A draft that
+     matches the built daily (only its time line differs, sameDaily) is not an edit and sends the blocks. */
+  const today = localDate(acct.tz || BRIEF_TZ);
+  const rest = await clientThreadFor(env, acct, date, full).catch(() => null);
+  const built = await clientDailyFor(env, acct, date, text, full, { card: true, thread: rest, today });
+  const draft = await clientDraftOf(env, acct.act_id, date);
+  const edited = !!draft && !sameDaily(draft, built.plain) && !sameDaily(draft, await getSetting(env, `clientBuilt:${acct.act_id}:${date}`).catch(() => null));
+  const out = edited ? draft : built.plain;
   try {
     for (const d of missed) {
       const prow = await env.DB.prepare(`SELECT text, status FROM briefs WHERE act_id = ?1 AND date = ?2`).bind(acct.act_id, d).first().catch(() => null);
       if (prow && ['sent', 'skipped', 'handled'].includes(prow.status)) continue;
-      const mp = await clientDailyFor(env, acct, d, prow?.text || null, full, { next: false });
+      const mp = await clientDailyFor(env, acct, d, prow?.text || null, full, { next: false, card: true, thread: null, today });
       // Goes to the client, so it comes from Cole - not a bot wearing a name.
-      const mtop = await slackPost(env, channel, mp, null, { kind: 'client_daily' });
-      await keepClientPost(env, acct.act_id, d, mtop?.channel || channel, mtop?.ts, mp);
-      await upsertBrief(env, acct.act_id, d, 'sent', channel, prow?.text || mp, full);
+      const mtop = await slackPost(env, channel, mp.text, mp.blocks, { kind: 'client_daily' });
+      await keepClientPost(env, acct.act_id, d, mtop?.channel || channel, mtop?.ts, mp.plain, mp.blocks);
+      await upsertBrief(env, acct.act_id, d, 'sent', channel, prow?.text || mp.plain, full);
     }
-    const top = await slackPost(env, channel, out, null, { kind: 'client_daily' });
-    await keepClientPost(env, acct.act_id, date, top?.channel || channel, top?.ts, out);
-    const rest = clientDailyThreadFor(acct, date, full);
+    const top = edited ? await slackPost(env, channel, out, null, { kind: 'client_daily' })
+      : await slackPost(env, channel, built.text, built.blocks, { kind: 'client_daily' });
+    await keepClientPost(env, acct.act_id, date, top?.channel || channel, top?.ts, out, edited ? null : built.blocks);
     /* The reply failing must not unsend the headline the client already has: the send is recorded either way,
        and the internal channel hears about the missing thread. */
     if (rest && top?.ts) {
-      await slackPost(env, channel, rest, null, { kind: 'client_daily', thread_ts: top.ts }).catch(e =>
+      await slackPost(env, channel, rest.text, rest.blocks, { kind: 'client_daily', thread_ts: top.ts }).catch(e =>
         internalChannel(acct) && lanePost(env, { slackPost }, acct.slack_channel, { lane: 'CLIENT', brand: acct.name, who: COLE_SLACK,
           ask: 'Post the full brief in the thread under today\'s client daily by hand', why: `the daily went out but its thread did not (${String(e.message).slice(0, 160)})` }).catch(() => {}));
     }
@@ -3425,8 +3445,9 @@ async function postBriefToTeam(env, acct, date) {
   const row = await env.DB.prepare(`SELECT text, status FROM briefs WHERE act_id = ?1 AND date = ?2`).bind(acct.act_id, date).first().catch(() => null);
   if (!row?.text || row.status === 'skipped') return { error: 'no brief is written for that day yet - write it first' };
   const data = await briefData(env, acct, date).catch(() => null);
-  const top = await clientDailyFor(env, acct, date, row.text, data);
-  const p = await slackPost(env, channel, top, null, { username: 'Locus' });
+  /* The house style card (no channel thread here: the stored brief is this post's thread, so the line does not promise one). */
+  const top = await clientDailyFor(env, acct, date, row.text, data, { card: true, thread: null });
+  const p = await slackPost(env, channel, top.text, top.blocks, { username: 'Locus' });
   if (p?.ts) await slackPost(env, channel, row.text, null, { username: 'Locus', thread_ts: p.ts }).catch(() => {});
   const rec = { channel: p?.channel || channel, ts: p?.ts || null, at: new Date().toISOString() };
   await putSetting(env, `teamPost:brief:${acct.act_id}:${date}`, JSON.stringify(rec));
@@ -3446,21 +3467,59 @@ async function postReportToTeam(env, acct, period, start) {
   return { ok: true, ...rec };
 }
 
-/** The thread reply under the client daily (clientpost.js dailyThread): more numbers for the same day, nothing a model
- *  wrote. Orders and new vs returning, each ad channel that spent (Meta, Google) with the sales Triple Whale tracked to
- *  it, contribution margin only when judgeCogs trusts the cost data. Empty when the day has no numbers. */
-function clientDailyThreadFor(acct, date, data) {
+/** The thread reply under the client daily (clientpost.js threadCard, "Ad spend by channel"): per channel that spent,
+ *  its spend, Triple Whale's ROAS and CPA, and new-customer ROAS and CPA when the data exists; contribution margin only
+ *  when judgeCogs trusts the cost data. null when the day has no numbers. Returns { text, blocks, plain }. */
+async function clientThreadFor(env, acct, date, data) {
   const day = (data?.days || []).find(x => x.date === date);
   const a = day?.a;
-  if (!a || a.sales == null) return '';
+  if (!a || a.sales == null) return null;
   const q = data?.cogs_quality?.verdict;
-  return dailyThread({
-    date, currency: acct.currency, cm_ok: !!q && q !== 'broken' && q !== 'none',
-    day: { sales: a.sales, orders: a.orders ?? null, new_orders: a.new_orders ?? null, new_rev: a.new_rev ?? null, ret_rev: a.ret_rev ?? null, cm: a.cm ?? null,
-      ...(data?.fixed?.in_posts && a.net != null ? { net: a.net, fixed: a.fixed ?? 0, ad_expense: a.ad_expense ?? 0 } : { net: null }),
-      attr: !!a.attr_source,
-      channels: [{ name: 'Meta', spend: a.meta_spend, roas: a.meta_roas, purchases: a.meta_purchases }, { name: 'Google', spend: a.google_spend, roas: a.google_roas, purchases: a.google_purchases }] },
+  const channels = await clientChannelsFor(env, acct, date, a).catch(e => { console.log(`client thread ${acct.name}: ${e.message}`); return []; });
+  return threadCard({
+    currency: acct.currency, channels, cm_ok: !!q && q !== 'broken' && q !== 'none',
+    profit: { cm: a.cm ?? null, ...(data?.fixed?.in_posts && a.net != null ? { net: a.net, fixed: a.fixed ?? 0, ad_expense: a.ad_expense ?? 0 } : { net: null }) },
   });
+}
+/* WHERE THE CHANNEL NUMBERS COME FROM (nothing invented; a number Locus does not hold is a row left out):
+   spend = the platform's (Meta from Meta's own API via briefData, the rest from Triple Whale's per-platform spend
+   metrics in tw_daily, TW_PLATFORM_SPEND); ROAS and CPA = Triple Whale attribution (tw_ad_attr, BRIEF_ATTR_MODEL), for
+   the platforms its touchpoints name (meta, google, tiktok, pinterest); a day with no attribution rows has not synced,
+   so spend only. New ROAS / New CPA = first orders (no earlier paid order from that customer) in tw_orders, credited to
+   the order's last platform click source, the same rule as Ads > New orders by source (hub.js); only once the brand's
+   400-day order history is backfilled (twOrdersDone), because before that a returning customer looks new. Amazon ad
+   spend is not a metric Locus syncs, so it has no row. */
+const ATTR_PLATFORM = { Meta: 'meta', Google: 'google', TikTok: 'tiktok', Pinterest: 'pinterest' };
+async function clientChannelsFor(env, acct, date, a) {
+  const ids = Object.keys(TW_PLATFORM_SPEND);
+  const sp = (await env.DB.prepare(`SELECT metric, value FROM tw_daily WHERE act_id = ?1 AND date = ?2 AND metric IN (${ids.map((_, i) => `?${i + 3}`).join(',')})`)
+    .bind(acct.act_id, date, ...ids).all().catch(() => ({ results: [] }))).results || [];
+  const tw = Object.fromEntries(sp.map(r => [r.metric, r.value]));
+  const attrRows = (await env.DB.prepare(`SELECT platform, SUM(revenue) AS rev, SUM(orders) AS ord FROM tw_ad_attr WHERE act_id = ?1 AND model = ?2 AND date = ?3 GROUP BY platform`)
+    .bind(acct.act_id, BRIEF_ATTR_MODEL, date).all().catch(() => ({ results: [] }))).results || [];
+  const synced = !!a.attr_source || attrRows.length > 0;
+  const attr = Object.fromEntries(attrRows.map(r => [r.platform, { rev: r.rev || 0, orders: r.ord || 0 }]));
+  let nc = null;
+  if (await getSetting(env, `twOrdersDone:${acct.act_id}`).catch(() => null)) {
+    const any = await env.DB.prepare(`SELECT COUNT(*) AS n FROM tw_orders WHERE act_id = ?1 AND date = ?2`).bind(acct.act_id, date).first().catch(() => null);
+    if (any?.n > 0) {
+      const rows = (await env.DB.prepare(`SELECT o.source AS source, COUNT(*) AS n, SUM(o.total) AS rev FROM tw_orders o
+        WHERE o.act_id = ?1 AND o.date = ?2 AND o.total > 0 AND o.customer_id IS NOT NULL AND o.customer_id != ''
+          AND NOT EXISTS (SELECT 1 FROM tw_orders p WHERE p.act_id = o.act_id AND p.customer_id = o.customer_id AND p.date < o.date AND p.total > 0)
+        GROUP BY o.source`).bind(acct.act_id, date).all().catch(() => ({ results: null }))).results;
+      if (Array.isArray(rows)) nc = Object.fromEntries(rows.map(r => [r.source, { rev: r.rev || 0, orders: r.n || 0 }]));
+    }
+  }
+  const out = [];
+  for (const [id, name] of Object.entries(TW_PLATFORM_SPEND)) {
+    const spend = id === 'fb_ads_spend' ? (a.meta_spend ?? tw[id] ?? null) : id === 'ga_adCost' ? (a.google_spend ?? tw[id] ?? null) : (tw[id] ?? null);
+    if (!(spend > 0)) continue;
+    const key = ATTR_PLATFORM[name] || null;
+    out.push({ name, spend,
+      attr: key && synced ? (attr[key] || { rev: 0, orders: 0 }) : null,
+      nc: key && nc ? (nc[key] || { rev: 0, orders: 0 }) : null });
+  }
+  return out;
 }
 
 /** The client daily for one date (clientpost.js dailyPost) from the brief data: numbers only, no headline.
@@ -3487,26 +3546,35 @@ function amazonSum(byDay, from, to) {
   for (const [d, v] of Object.entries(byDay)) if (d >= from && d <= to) { sales += v.sales; orders += v.orders; }
   return { sales, orders };
 }
-async function clientDailyFor(env, acct, date, text, data, { next = true } = {}) {
+/* THE CLIENT DAILY IN THE HOUSE STYLE (2026-11-26, Cole approved the v2 look): clientpost.js dailyCard. Returns the
+   mrkdwn lines (`plain`, what the draft card shows and the Edit the post box opens with); `card: true` returns the whole
+   { text, blocks, plain } for a send. `thread` = the thread card (or null for none); left out, it is built here so the
+   context line only promises a thread that exists. `today` = the send day, for "Yesterday". */
+async function clientDailyFor(env, acct, date, text, data, { next = true, card = false, thread, today = null } = {}) {
   const days = (data?.days || []).filter(x => x.a?.sales != null && x.date <= date);
   const day = days.find(x => x.date === date) || null;
   const mtd = days.reduce((n, x) => n + (x.a.sales || 0), 0);
   const nextLine = next ? await briefNoteFor(env, acct.act_id, date).catch(() => null) : null;
   const amz = await amazonOrdersByDay(env, acct, date.slice(0, 8) + '01', date).catch(() => null);
   const amzDay = amazonSum(amz, date, date), amzMonth = amazonSum(amz, date.slice(0, 8) + '01', date);
-  return dailyPost({
+  const th = thread !== undefined ? thread : await clientThreadFor(env, acct, date, data).catch(() => null);
+  const m = dailyCard({
     amazon: amzMonth && amzMonth.orders > 0 ? { day: amzDay, month: amzMonth } : null,
     brand: acct.name, date, currency: acct.currency,
     day: { sales: day?.a?.sales ?? null, spend: day?.a?.spend ?? null, mer: day?.a?.mer ?? null, amer: day?.a?.amer ?? null, plan: day?.f?.sales ?? null },
-    /* "of $27K goal" = the goal TO DATE (the month's sales goal split evenly, the days so far), not the whole month's. */
+    /* "Goal" = the goal TO DATE (the month's sales goal split evenly, the days so far), not the whole month's.
+       new_rev (the month's aMER) only when every day so far has its new-customer sales. */
     month: { ym: monthOf(date), sales: days.length ? mtd : (data?.mtd?.sales ?? null),
       plan: days.some(x => x.f?.sales != null) ? days.reduce((n, x) => n + (x.f?.sales || 0), 0) : (data?.mtd?.sales_f ?? null),
       spend: days.length ? days.reduce((n, x) => n + (x.a.spend || 0), 0) : (data?.mtd?.spend ?? null),
+      new_rev: days.length && days.every(x => x.a.new_rev != null) ? days.reduce((n, x) => n + x.a.new_rev, 0) : null,
       day_of_month: +date.slice(8, 10), days_in_month: daysInMonth(date) },
     others: days.filter(x => x.date !== date).map(x => x.a.sales), next: nextLine,
     /* No goal typed for the month: no inherited number reaches the client, "No goal set for <Month>" instead. */
     goal_set: data?.goals_planned !== false,
+    today: today || localDate(acct.tz || BRIEF_TZ), thread: !!th,
   });
+  return card ? m : m.plain;
 }
 
 /** The weekly / monthly client post (clientpost.js weeklyPost) for a report row: How we read it (approved by a person,
@@ -6427,16 +6495,21 @@ async function clientPreviewFor(env, acct, date) {
   // An internal-only brand (Lucky) gets the same post shape too (2026-10-21, Cole: "why does Lucky's look so different?").
   const full = await briefData(env, acct, date);
   const [sent, mine] = await Promise.all([clientPostOf(env, acct.act_id, date), clientDraftOf(env, acct.act_id, date)]);
-  const built = await clientDailyFor(env, acct, date, null, full);
+  const th = await clientThreadFor(env, acct, date, full).catch(() => null);
+  const built = await clientDailyFor(env, acct, date, null, full, { thread: th });
   // The built text is kept so "Edit the post" can open with it inside Slack's 3 seconds.
   await putSetting(env, `clientBuilt:${acct.act_id}:${date}`, built).catch(() => {});
-  return { daily: mine || built, edited: !!mine, thread: clientDailyThreadFor(acct, date, full),
+  /* A draft that only differs from the built daily by its time line is not an edit (sameDaily, sendBrief sends the blocks). */
+  const edited = !!mine && !sameDaily(mine, built);
+  return { daily: edited ? mine : built, edited, thread: th?.plain || '',
     sent: sent?.ts ? sent.text : null };
 }
 
 /* A HAND-EDITED CLIENT POST, BEFORE IT IS SENT (2026-10-21, Cole: "give me the ability to edit it").
    settings clientDraft:<act>:<date> holds the person's text; sendBrief posts it instead of the built daily
-   (the thread under it stays the numbers). Clearing the text goes back to the built version. */
+   (the thread under it stays the numbers). Clearing the text goes back to the built version.
+   Since the house style daily (2026-11-26): the box opens with the card's words as mrkdwn lines; a draft that changes
+   them goes out as a plain text post of exactly those words, one that does not (sameDaily) goes out as the card. */
 const clientDraftOf = async (env, act, date) => (await getSetting(env, `clientDraft:${act}:${date}`).catch(() => null)) || null;
 async function setClientDraft(env, acct, date, text) {
   const t = String(text || '').trim();
@@ -6455,8 +6528,9 @@ const clientPostKey = (act, date) => `clientPost:${act}:${date}`;
 async function clientPostOf(env, act, date) {
   return safeJson(await getSetting(env, clientPostKey(act, date)).catch(() => null), null);
 }
-async function keepClientPost(env, act, date, channel, ts, text) {
-  if (ts) await putSetting(env, clientPostKey(act, date), JSON.stringify({ channel, ts, text })).catch(() => {});
+/* `blocks` (2026-11-26): a house style daily keeps its blocks, so an edit that changes nothing leaves the card alone. */
+async function keepClientPost(env, act, date, channel, ts, text, blocks = null) {
+  if (ts) await putSetting(env, clientPostKey(act, date), JSON.stringify({ channel, ts, text, ...(blocks ? { blocks } : {}) })).catch(() => {});
 }
 async function editClientPost(env, acct, date, text) {
   const ref = await clientPostOf(env, acct.act_id, date);
@@ -6465,17 +6539,23 @@ async function editClientPost(env, acct, date, text) {
   const now = (await senderFor(env, 'client_daily').catch(() => ({ who: 'cole' }))).who;
   const tokEnv = envFor(env, now);
   if (!tokEnv.SLACK_USER_TOKEN) return { error: 'No Slack user token is set, so the post cannot be edited as you.' };
+  /* A HOUSE STYLE POST (ref.blocks, 2026-11-26). The edit box shows its words as mrkdwn lines (ref.text). Saved with no
+     change: nothing to do, the card stays. Changed: the post becomes the person's text exactly as typed, and
+     `blocks: []` is sent because chat.update keeps a message's old blocks when the field is left out (only the
+     notification text would change). A plain text post (every post before this) is updated exactly as before. */
+  if (ref.blocks && sameDaily(text, ref.text)) return { ok: true, ts: ref.ts, unchanged: true };
   const update = tok => xfetch('https://slack.com/api/chat.update', {
     method: 'POST',
     headers: { Authorization: `Bearer ${tok}`, 'Content-Type': 'application/json; charset=utf-8' },
-    body: JSON.stringify({ channel: ref.channel, ts: ref.ts, text }),
+    body: JSON.stringify({ channel: ref.channel, ts: ref.ts, text, ...(ref.blocks ? { blocks: [] } : {}) }),
   }).then(r => r.json()).catch(() => ({}));
   let u = await update(tokEnv.SLACK_USER_TOKEN);
   /* The setting may have changed since the post went out: a post only its own sender can edit, so try the other once. */
   const other = envFor(env, now === 'locus' ? 'cole' : 'locus').SLACK_USER_TOKEN;
   if (!u.ok && u.error === 'cant_update_message' && other && other !== tokEnv.SLACK_USER_TOKEN) u = await update(other);
   if (!u.ok) return { error: `Slack: ${u.error || 'no answer'}` };
-  await putSetting(env, clientPostKey(acct.act_id, date), JSON.stringify({ ...ref, text, edited_at: new Date().toISOString() }));
+  const { blocks: _was, ...kept } = ref;   // the post is plain text now
+  await putSetting(env, clientPostKey(acct.act_id, date), JSON.stringify({ ...kept, text, edited_at: new Date().toISOString() }));
   await slackSyncBrief(env, acct, date).catch(() => {});
   return { ok: true, ts: ref.ts };
 }
@@ -6948,7 +7028,7 @@ async function slackViewSubmit(env, ctx, p) {
     const text = joinEdit(p.view, meta);
     // Same text as the built daily = no edit; an empty box goes back to the built daily.
     const built = await getSetting(env, `clientBuilt:${acct.act_id}:${meta.d}`).catch(() => null);
-    ctx.waitUntil(setClientDraft(env, acct, meta.d, text.trim() === String(built || '').trim() ? '' : text));
+    ctx.waitUntil(setClientDraft(env, acct, meta.d, text.trim() === String(built || '').trim() || sameDaily(text, built) ? '' : text));
     return ACK();
   }
 
@@ -7139,6 +7219,9 @@ async function unsentAtNoonPass(env) {
   const label = i => i.kind === 'brief' ? `${i.a.name} daily` : `${i.a.name} ${i.row.period}`;
   const callLine = calls.length ? `${calls.length} call${calls.length === 1 ? '' : 's'} with notes to confirm (${calls.slice(0, 4).map(c => c.title).join(', ')}${calls.length > 4 ? ', ...' : ''}): <${DASHBOARD_URL}?open=calls|open Calls>` : '';
   if (!items.length && !calls.length) return { ok: true, unsent: 0 };
+  /* 2026-11-26 (move lines): the bell's "N client updates waiting to send" row (bell.js send) is the Locus line; this
+     noon post and its cards go quiet with settings jobOn:unsentNoonPost = 'off' (a client send: not before Dec 5). */
+  if (!(await jobOn(env, 'unsentNoonPost', getSetting))) return { ok: true, unsent: items.length, calls: calls.length, quiet: true };
   const out = [];
   /* 2026-11-26 (the house style, house.js): header "3 client updates not sent", Cole tagged with the ask, one line per
      update (and the calls waiting on a confirm), one Open button. The cards still go in the thread. */
@@ -8938,7 +9021,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (!acct) return json({ error: 'unknown account' }, 404);
       const out = { brand: acct.name };
       const brow = await env.DB.prepare(`SELECT date, text FROM briefs WHERE act_id = ?1 AND text IS NOT NULL ORDER BY (status = 'sent') DESC, date DESC LIMIT 1`).bind(acct.act_id).first().catch(() => null);
-      if (brow) { const data = await briefData(env, acct, brow.date).catch(() => null); out.daily = { date: brow.date, text: await clientDailyFor(env, acct, brow.date, brow.text, data), thread: clientDailyThreadFor(acct, brow.date, data) }; }
+      if (brow) { const data = await briefData(env, acct, brow.date).catch(() => null); const th = await clientThreadFor(env, acct, brow.date, data).catch(() => null); const c = await clientDailyFor(env, acct, brow.date, brow.text, data, { card: true, thread: th }); out.daily = { date: brow.date, text: c.plain, thread: th?.plain || '', blocks: c.blocks, fallback: c.text, thread_blocks: th?.blocks || null }; }
       const rrow = await env.DB.prepare(`SELECT * FROM reports WHERE act_id = ?1 AND period = 'weekly' ORDER BY period_start DESC LIMIT 1`).bind(acct.act_id).first().catch(() => null);
       if (rrow) out.weekly = { start: rrow.period_start, status: rrow.status, text: await clientReportText(env, acct, rrow, safeJson(rrow.data_json, null), rrow.status === 'sent' ? rrow.summary : await readForPreview(env, acct.act_id, 'weekly', rrow.period_start)) };
       if (url.searchParams.get('post') === '1') {
@@ -8948,9 +9031,13 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         out.posted = [];
         for (const k of ['daily', 'weekly']) {
           if (!out[k]) continue;
-          const p = await slackPost(env, ch, `_Preview: ${acct.name} ${k}, exactly as the client sees it_\n\n${out[k].text}`, null, { username: 'Locus' });
+          const label = `_Preview: ${acct.name} ${k}, exactly as the client sees it_`;
+          /* The daily is a house style card (2026-11-26): the label rides as a context line above its blocks. */
+          const p = k === 'daily' && out.daily.blocks
+            ? await slackPost(env, ch, `${label} ${out.daily.fallback}`, [{ type: 'context', elements: [{ type: 'mrkdwn', text: label }] }, ...out.daily.blocks], { username: 'Locus' })
+            : await slackPost(env, ch, `${label}\n\n${out[k].text}`, null, { username: 'Locus' });
           const link = p?.ts ? await slackApi(env, 'chat.getPermalink', { channel: p.channel || ch, message_ts: p.ts }).catch(() => null) : null;
-          if (k === 'daily' && out.daily.thread && p?.ts) await slackPost(env, ch, out.daily.thread, null, { username: 'Locus', thread_ts: p.ts }).catch(() => {});
+          if (k === 'daily' && out.daily.thread && p?.ts) await slackPost(env, ch, out.daily.thread, out.daily.thread_blocks, { username: 'Locus', thread_ts: p.ts }).catch(() => {});
           out.posted.push({ kind: k, ts: p?.ts || null, link: link?.permalink || null });
         }
       }

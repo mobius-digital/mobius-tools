@@ -2,12 +2,14 @@
    and what is still open.
    Reads ah GET /api/meetings (the list, plus every open task) and, when a meeting is opened,
    ah GET /api/meetings?id=<id> (its notes: summary, decisions and tasks per brand, and what filing it made).
-   It never writes: filing a meeting (Confirm) and skipping one stay in old Locus. */
+   Filing a meeting (Confirm) and skipping one stay in old Locus. The one write here is Pull tasks (2026-11-26, a34,
+   _pull.js): up to 5 tasks suggested from one call's notes, the person ticks which to keep. */
 
 import { APP_NAME } from '../../config.js';
 import { put, noDash } from '../../kit.js';
 import { h, em, button, avatar, statusDot, pill, dateBlock, segmented, toggle, sheet, empty, addStyles } from '../../kit.js';
 import { defined, defLabel, pageHelp } from '../../defs.js';
+import { pullButton } from './_pull.js';
 
 /* what the states mean: shown on hover or tap wherever the word appears (no footer) */
 const DEF = {
@@ -132,7 +134,10 @@ function openMeeting(m, data, ctx, world) {
           (b.this_week || []).length ? h('div', null, h('span', { class: 'lx-cap' }, 'The client hears'), h('ul', { class: 'mp-ul soft' }, b.this_week.map(t => h('li', null, noDash(t))))) : null,
           (b.need_from_client || []).length ? h('div', null, h('span', { class: 'lx-cap' }, 'Waiting on the client'), h('ul', { class: 'mp-ul soft' }, b.need_from_client.map(t => h('li', null, noDash(t))))) : null) : null);
     };
-    put(body, head, unfiled(), tiles, notes.summary ? h('p', { class: 'mp-sum' }, noDash(notes.summary)) : null, brands.map(block));
+    /* A filed call already made its team tasks (Confirm), so it has no Pull tasks button. */
+    const pull = ctx.isClient || st.id === 'filed' ? null : h('div', { class: 'lx-row', style: { display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' } },
+      pullButton(ctx, m, world.nameOf), h('span', { class: 'mp-quiet' }, 'Up to 5 tasks from this call. You tick which to keep.'));
+    put(body, head, unfiled(), pull, tiles, notes.summary ? h('p', { class: 'mp-sum' }, noDash(notes.summary)) : null, brands.map(block));
   }).catch(e => {
     if (!body.isConnected) return;
     put(body, head, h('p', { class: 'mp-quiet' }, e && e.status === 404 ? 'The notes for this meeting are gone.' : 'The notes could not be read just now. Close this and try again.'));

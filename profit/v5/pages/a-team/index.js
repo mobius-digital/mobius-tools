@@ -1,10 +1,12 @@
 /* Agency > Team. Who has too much this week? Every open Asana task due this week or late, by person, across brands.
-   account-health GET /api/agency/workload. The "too much" line is the agency setting agency.teamBusy (10 tasks). */
+   account-health GET /api/agency/workload. The "too much" line is the agency setting agency.teamBusy (10 tasks).
+   Today's check-in (2026-11-26, a10, _checkin.js): who posted a plan and who is out, GET /api/mywork/plans. */
 import { put } from '../../kit.js';
 import { h, em, num, pill, statusDot, avatar, legend, lineChart, empty, sheet, card, addStyles } from '../../kit.js';
 import { world, figures, shortDay, longDay } from '../a-today/_ag.js';
 import { style as baseStyle } from '../a-today/_more.js';
 import { defLabel, pageHelp } from '../../defs.js';
+import { checkinCard } from './_checkin.js';
 
 const CSS = `
 .tm-r{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,2fr) 92px;gap:20px;align-items:center;padding:14px 28px;border-top:1px solid var(--line);cursor:pointer}
@@ -53,8 +55,9 @@ const first = p => /^not assigned$/i.test(p.name || '') ? 'Unassigned' : String(
 const style = () => { baseStyle(); addStyles('tm-css', CSS); };
 
 async function load(ctx) {
-  const [d, busy] = await Promise.all([ctx.api('/api/agency/workload', { worker: 'ah', signal: ctx.signal }), ctx.setting('agency.teamBusy', 10)]);
-  return { ...d, busy: +busy || 10 };
+  const [d, busy, plans] = await Promise.all([ctx.api('/api/agency/workload', { worker: 'ah', signal: ctx.signal }), ctx.setting('agency.teamBusy', 10),
+    ctx.api('/api/mywork/plans', { worker: 'ah', signal: ctx.signal }).catch(() => null)]);   // the page still draws without it
+  return { ...d, busy: +busy || 10, plans };
 }
 async function sample(ctx) { const w = await world(); return { ...w.team, busy: +ctx.settingNow('agency.teamBusy', 10) || 10 }; }
 
@@ -85,7 +88,8 @@ function openPerson(p, d, ctx) {
 function render(el, d, ctx) {
   style();
   const people = (d && d.people) || [];
-  if (!people.length) return put(el, empty({ title: 'No tasks due this week', text: d && d.errors && d.errors.length ? 'Some Asana projects did not answer: ' + d.errors.map(e => e.brand || e).join(', ') : 'Nothing open in Asana is due this week.' }));
+  const today1 = checkinCard(d && d.plans);
+  if (!people.length) return put(el, today1, empty({ title: 'No tasks due this week', text: d && d.errors && d.errors.length ? 'Some Asana projects did not answer: ' + d.errors.map(e => e.brand || e).join(', ') : 'Nothing open in Asana is due this week.' }));
   const busy = d.busy, today = d.today;
   const list = [...people].sort((a, b) => (b.late || 0) - (a.late || 0) || b.n - a.n);
   const late = list.reduce((t, p) => t + (p.late || 0), 0), over = list.filter(p => p.n >= busy);
@@ -121,7 +125,7 @@ function render(el, d, ctx) {
     { title: 'What it is for', text: 'Who has too much this week: every open Asana task due this week or already late, by person, across every brand.' },
     { title: 'What is counted', text: `Open Asana tasks due ${wk.length ? shortDay(wk[0]) + ' to ' + shortDay(wk[wk.length - 1]) : 'this week'}, plus late ones (counted on today). A full week is ${busy} tasks; change it in Agency settings.` },
   ] }));
-  put(el, h('div', { class: 'ag' }, help, hero, errs, chart, people1));
+  put(el, h('div', { class: 'ag' }, help, hero, errs, today1, chart, people1));
 }
 
 export default {

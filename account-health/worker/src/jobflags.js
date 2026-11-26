@@ -12,9 +12,18 @@
  *   creatorProgram  Trybe, creator suggestions and Discord posts. Missing = derived: on when this workspace already
  *                   has creator data (a brand with a Trybe key, or any creatorEngine:* setting), off on an empty one.
  *   socialPosting   Locus Social. Missing = on, as it runs today (its ticks check their own brands); 'off' parks it.
+ *   weekPlan        The Monday "write this week's plan" line (a54, 2026-11-26): the strategist's My day row and the
+ *                   Monday agenda row (GET /api/mywork/weekplan). Missing = on (Mobius runs it); 'off' hides both.
+ *                   Set with PUT /api/settings { features: { weekPlan: false } }. Not in featuresNow (GET /api/notices
+ *                   is ported by the engine, so its answer is left as it was).
  * And one read only fact for the menus: siteReviewsOpen, any site review link still open or sent in the last 30 days.
  *
- * Money warnings and client sends are NOT in this list (they keep their Slack posts until Dec 5). */
+ * Money warnings and client sends are NOT in this list (they keep their Slack posts until Dec 5), with two exceptions
+ * that carry hold: 'Dec 5' (outagePost, unsentNoonPost): their switch exists so the Dec 5 flip is one setting, and the
+ * page says not before Dec 5.
+ *
+ * MOVE LINES (2026-11-26, movelines.js): the ten ids after autoApprove are the Slack posts whose Locus line now lives on
+ * My day or the bell. Each runs exactly as today until its jobOn:<id> is 'off' (Dec 2, or Dec 5 for hold). */
 
 export const QUIET_JOBS = [
   { id: 'fyiRoundup', name: 'End of day FYI roundup', was: 'One post per brand at 4pm with what nobody has to act on', instead: 'Nothing: FYI lines are still stored' },
@@ -35,9 +44,19 @@ export const QUIET_JOBS = [
   { id: 'mondayReview', name: 'Monday account review', was: 'A Monday review with Apply cards per brand', instead: 'Meta > Suggestions and the media buying call' },
   { id: 'mondayTestPost', name: 'Monday test post', was: 'The scheduled Monday test post per brand', instead: 'Nothing needed' },
   { id: 'autoApprove', name: 'Review auto approve', was: 'Approve a review after 24 hours with no answer', instead: 'Nothing needed' },
+  { id: 'noPlanDm', name: 'No plan yet DM', was: 'A DM four hours in to anyone with no plan for today', instead: 'The top line of their My day' },
+  { id: 'mondayPlansPost', name: 'Monday brands with no plan', was: 'A Monday 7am post tagging the strategists for brands with no week plan', instead: "The strategist's My day line on Mondays" },
+  { id: 'calendarCountdown', name: 'Calendar countdown', was: 'Live tomorrow and a week out lines for steps still open', instead: "The step owner's My day line" },
+  { id: 'cardCommentDm', name: 'Card comments and changes asked', was: 'A DM to the person tagged or the card maker, and the client changes line in the brand channel', instead: "The maker's My day line" },
+  { id: 'requestPost', name: 'Client request line', was: 'A line in the brand channel when a client writes a request or replies', instead: 'The bell client requests row' },
+  { id: 'connectAskPost', name: 'Client connect asks', was: 'A line when a client invited us or a Google request failed', instead: "The owner's My day line" },
+  { id: 'newAccountPost', name: 'New ad account to match', was: 'A post in the new business channel for a new ad account, and the system user ask', instead: "The owner's My day line until it is matched" },
+  { id: 'trybePost', name: 'Creator videos post', was: 'A morning post per brand with creator videos to review or load', instead: "The buyer's and reviewer's My day lines" },
+  { id: 'outagePost', name: 'Outage card', was: 'A card in the outages channel when a platform goes down or comes back', instead: "The owner's outage alert in the bell", hold: 'Dec 5' },
+  { id: 'unsentNoonPost', name: 'Client updates not sent by noon', was: 'A noon post with the unsent client updates as cards', instead: 'The bell client updates row and To send', hold: 'Dec 5' },
 ];
 const JOB_IDS = new Set(QUIET_JOBS.map(j => j.id));
-export const FEATURES = ['creatorProgram', 'socialPosting'];
+export const FEATURES = ['creatorProgram', 'socialPosting', 'weekPlan'];
 
 /** A settings read straight from D1 (the raw stored text). */
 export async function directGet(env, key) {
@@ -97,7 +116,7 @@ export async function featureOn(env, name, get = directGet) {
   if (isWord(v, 'on')) return true;
   if (isWord(v, 'off')) return false;
   if (name === 'creatorProgram') return cached('creatorProgram', () => hasCreatorData(env)).catch(() => true);   // a failed read fails ON, uncached
-  return name === 'socialPosting';
+  return name === 'socialPosting' || name === 'weekPlan';
 }
 /** Was the creator program switch saved by a person (true), or is it still derived (false)? */
 export async function featureSaved(env, name, get = directGet) {
@@ -167,6 +186,14 @@ export const OLDER_SWITCHES = {
     : (await anyMondayPost(env)) ? null : 'No brand has a Monday test post set',
   /* checkin.js autoApproveTick: off only on the exact value '0' (clientchan.js writeSwitches saves '0'/'1') */
   autoApprove: async s => (await s('checkinAutoApprove')) === '0' ? 'Auto approve is switched off' : null,
+  /* checkin.js checkinTick: the whole tick stops */
+  noPlanDm: async s => (await s('checkinPost')) === 'off' ? 'The daily check-in is switched off' : null,
+  /* callnudge.js callNudgeTick */
+  mondayPlansPost: async s => (await s('callNudge')) === 'off' ? 'Call nudges are switched off' : null,
+  /* calendar.js calendarTick */
+  calendarCountdown: async s => (await s('calendarPost')) === 'off' ? 'Calendar posts are switched off' : null,
+  /* trybe.js trybeTick: posts only when trybeAlerts is 'on' */
+  trybePost: async s => (await s('trybeAlerts')) !== 'on' ? 'The creator alerts switch is off' : null,
 };
 
 /* A job whose post still goes out with its own quiet switch off: answers the plain reason it still posts, or null.
