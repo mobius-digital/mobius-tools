@@ -1,6 +1,7 @@
 /* Black Friday > War Room (v3, one page). Shared by the agency page (a-black-friday/war-room.js, every brand) and the
-   brand page (black-friday/war-room.js, one brand). The old Pace and Plan tabs are folded in: the routes still open
-   this page (menu.js has one tab, so the router sends them here). The math is in ../_warcall.js; the client card is
+   brand page (black-friday/war-room.js, one brand). The old Pace tab is folded in (its route is not listed, so the
+   router sends it here). The plan table's "Open plan" opens the brand plan page (black-friday/plan, a route that is not
+   a tab). The math is in ../_warcall.js; the client card is
    in ./_card.js.
 
    Top to bottom: the page help and one quiet toolbar (check-in time, Refresh, Check now, exports), the pace hero
@@ -19,9 +20,13 @@
      ah       GET /api/brands                                goal ROAS (target_roas) per brand, when the record has none
      ah       GET /api/standing?slot=<earlier>               the previous check-in, walked back hour by hour (max 12,
                                                              cached in sessionStorage by slot), after the first paint
-     profit   GET /api/season/war?act=all                    the plan per brand (agency view), after the first paint
+     profit   GET /api/season/war?act=all                    the plan per brand (agency view), after the earlier
+                                                             check-ins are read (one run at a time; a newer run stops it)
      profit   GET /api/season/war?act=<id>&live=1            today by the hour and the brand's plan and phases, after
-                                                             the first paint, one brand after another
+                                                             that, one brand after another; again on Refresh and on a new
+                                                             check-in. With no check-in (or a brand outside it, or a
+                                                             failed /api/standing) the page still draws the pace (brand
+                                                             view) and the plan from these reads.
      profit   GET /api/hub/paid?platform=meta&act=<id>&model=fullFirstClick&cmp=none&from=<Monday>&to=<today>
                                                              the full picture per campaign, only when a campaign panel
                                                              opens, one request per brand per check-in (cached)
@@ -35,11 +40,12 @@
      ah       POST /api/meta/undo {act, write}               Undo (through the shared confirm sheet)
      profit   PUT  /api/season/answer {act, key:'checkin_hours', value}   the brand's check-in rhythm
      ah       POST /api/standing/run {}                      Check now (a fresh record for every brand; no Slack)
-     ah       POST /api/standing/send {act, slot}            Send the client update (one brand; a 404 means the route
-                                                             is not live yet, and the page says so)
+     ah       POST /api/standing/send {act, slot}            Send the client update (one brand, owner only; a 404 with
+                                                             no error means an older server without the route)
+   And one read for the send sheet only: ah GET /api/standing/card.png?act=&slot=  the exact picture card that is sent.
      profit   POST /api/snapshot {act, kind:'card', title, html, css, days:30}   the client card's public link */
 
-import { APP_NAME, legacyUrl } from '../../config.js';
+import { APP_NAME, OWNER_FIRST, workers, token } from '../../config.js';
 import { h, put, money, x, pill, button, card, empty, sheet, toast, addStyles, segmented, platformChip, lineChart, legend, table, tipShow, tipHide, tipRow } from '../../kit.js';
 import { defined, defLabel, pageHelp } from '../../defs.js';
 import { fixture } from '../../data.js';
@@ -50,7 +56,7 @@ import {
   BE_ROAS_DIV, brandCalls, cadenceOf, central, clientChanges, clientWhy, clockCT, dayLabel, hourWord, isDue, matchesCheckin,
   nextDue, sinceBasis, slotAdd, slotDate, slotDiff, slotHour, agoWords, parseBudget, stepTo, cadenceSuggest, mondayOf,
 } from '../_warcall.js';
-import { cardHtml, CARD_CSS, downloadCard, copyCard, downloadCardPdf } from './_card.js';
+import { cardHtml, CARD_CSS, downloadCard, copyCard, downloadCardPdf, NONE as NO_CHANGES } from './_card.js';
 import { boardCanvas, copyCanvas, downloadCanvas, downloadPdf } from './_export.js';
 
 const CSS = `
@@ -64,6 +70,9 @@ const CSS = `
 .wr3-old{font-size:12.5px;color:var(--muted)}
 .wr3-amber{margin:0;color:var(--warn);background:var(--warn-bg);border-radius:10px;padding:6px 10px;font-size:12.5px;line-height:1.45}
 .wr3-quiet{margin:0;font-size:13px;color:var(--muted);line-height:1.5}
+/* a plan cell's second line, shown only on a phone where its own column is hidden */
+.wr3-fold{display:none;font-size:11.5px;font-weight:400;color:var(--muted);margin-top:2px}
+@media (max-width:759px){.wr3-fold{display:block}}
 .wr3-lab{font-size:12.5px;color:var(--muted);line-height:1.35}
 .wr3-num{font-variant-numeric:tabular-nums}
 .good-t{color:var(--good)}.bad-t{color:var(--bad)}.warn-t{color:var(--warn)}.off-t{color:var(--muted)}
@@ -117,7 +126,8 @@ const CSS = `
 .wr3-chip[disabled]{cursor:default}
 .wr3-chip.due{border-color:transparent;background:var(--warn-bg);color:var(--warn)}
 .wr3-r2{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap;min-width:0}
-.wr3-r2 .dec{font-size:15px;font-weight:600;letter-spacing:-.01em;overflow-wrap:anywhere;flex:1 1 220px}
+.wr3-r2 .decs{display:grid;gap:4px;flex:1 1 220px;min-width:0}
+.wr3-r2 .dec{font-size:15px;font-weight:600;letter-spacing:-.01em;overflow-wrap:anywhere}
 .wr3-r2 .dec.dim{color:var(--muted);font-weight:500}
 .wr3-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .wr3-tile{background:var(--surface-2);border-radius:14px;padding:10px 12px 12px;display:grid;gap:2px;align-content:start;min-width:0}
@@ -261,9 +271,12 @@ export async function readStanding(ctx) {
     const war = await ctx.api('/api/season/war?act=' + encodeURIComponent(one) + '&live=1', { signal: ctx.signal });
     return { client: true, war: war || null, fetched_at: Date.now() };
   }
-  const r = await ctx.api('/api/standing', { worker: 'ah', signal: ctx.signal });
+  /* a failed check-in read is not a page error: the pace and the plan still come from the plan read (draw falls back) */
+  let r = null, standingErr = '';
+  try { r = await ctx.api('/api/standing', { worker: 'ah', signal: ctx.signal }); }
+  catch (e) { if (e && e.name === 'AbortError') throw e; standingErr = errText(e); }
   const standing = (r && r.standing) || null;
-  const out = { standing, answers: {}, acts: [], goals: {}, fetched_at: Date.now() };
+  const out = { standing, answers: {}, acts: [], goals: {}, fetched_at: Date.now(), ...(standingErr ? { error: 'The check-in did not load: ' + standingErr } : {}) };
   if (!standing) return out;
   try {
     const s = await ctx.api('/api/season?act=' + encodeURIComponent(one || 'all'), { signal: ctx.signal });
@@ -344,13 +357,14 @@ function phasesOfWar(w) {
 
 /** The hero: sales so far against the goal, store MER against target, ad spend, the season, today by the hour. */
 function paceHero(m) {
-  const pctOf = ok(m.sales) && ok(m.goal) && m.goal > 0 ? m.sales / m.goal : null;
+  const base = ok(m.goalSales) ? m.goalSales : m.sales;
+  const pctOf = ok(base) && ok(m.goal) && m.goal > 0 ? base / m.goal : null;
   const merTone = !ok(m.mer) || !ok(m.target) ? '' : m.mer >= m.target ? 'good-t' : ok(m.be) && m.mer < m.be ? 'bad-t' : 'warn-t';
   const salesBox = h('div', null,
-    h('span', { class: 'wr3-lab' }, defLabel('Sales', 'sales'), `, ${m.period}`),
+    h('span', { class: 'wr3-lab' }, defLabel('Sales', 'sales'), m.period ? `, ${m.period}` : ''),
     m.scope ? h('span', { class: 'scope' }, m.scope) : null,
     ok(m.sales) ? h('div', { class: 'big' }, h('span', { class: 'lx-hero-num' }, money(Math.round(m.sales))),
-      h('span', { class: 'of' }, ok(m.goal) && m.goal > 0 ? `of the ${money(m.goal)} sales goal${ok(pctOf) ? `, ${Math.round(pctOf * 100)}%` : ''}` : 'no sales goal set'))
+      h('span', { class: 'of' }, ok(m.goal) && m.goal > 0 ? [`of the ${money(m.goal)} `, defLabel('sales goal', 'sales_goal'), ok(pctOf) ? `, ${Math.round(pctOf * 100)}%` : ''] : 'no sales goal set'))
       : h('div', { class: 'big' }, h('span', { class: 'of' }, m.none || 'No sales read yet')),
     ok(pctOf) ? h('div', { class: 'wr3-prog', role: 'img', 'aria-label': Math.round(pctOf * 100) + '% of the sales goal' }, h('i', { style: { '--v': Math.min(100, pctOf * 100).toFixed(1) + '%' } })) : null);
   const merBox = h('div', null,
@@ -370,40 +384,81 @@ function paceHero(m) {
     chart);
 }
 
-/** One row per brand: Brand | Offer | Sale dates | Sales goal | Target MER | Plan status | Edit plan. */
-function planTable(rows, { team, waiting, hrefOf }) {
+/** One row per brand: Brand | Offer | Sale dates | Sales goal | Target MER | Plan status | Open plan.
+    On a phone the dates fold under the offer and the target under the goal, so nothing is dropped.
+    planHref(act): the brand's plan page (day by day goal and budget, the ladder, the offers), from where the team edits. */
+function planTable(rows, { team, waiting, hrefOf, planHref }) {
   const dim = t => h('span', { class: 'dim' }, t);
+  const dates = r => r.sale && r.sale.start ? `${md(r.sale.start)} to ${md(r.sale.end || r.sale.start)}` : null;
+  const tgt = r => ok(r.target) ? fx(r.target) + ' target MER' : null;
   const cols = [
     { key: 'name', label: 'Brand', render: r => h('span', { class: 'name' }, hrefOf && hrefOf(r.act_id) ? h('a', { href: hrefOf(r.act_id) }, r.name) : r.name) },
-    { key: 'offer', label: 'Black Friday offer', render: r => r.offer ? h('span', { style: { whiteSpace: 'normal', display: 'block', minWidth: '140px' } }, r.offer) : waiting ? dim('Reading...') : dim('No offer written yet') },
-    { key: 'sale', label: 'Sale dates', class: 'hide-sm', render: r => r.sale && r.sale.start ? `${md(r.sale.start)} to ${md(r.sale.end || r.sale.start)}` : waiting ? dim('Reading...') : dim('not set') },
-    { key: 'goal', label: defLabel('Sales goal', { title: 'Sales goal', body: 'The store sales the plan aims for over the whole sale, in dollars. Sales are Triple Whale: every store order, before refunds.' }), num: true, render: r => ok(r.goal) && r.goal > 0 ? h('span', { class: 'strong' }, money(r.goal)) : dim('not set') },
-    { key: 'target', label: defLabel('Target MER', 'target_mer'), num: true, class: 'hide-sm', render: r => ok(r.target) ? fx(r.target) + ' target' : dim('not set') },
-    { key: 'status', label: defLabel('Plan status', { title: 'Plan status', body: 'Ready when the goals, the raise, hold and cut lines and the offers and dates are all set. Otherwise the first open step is named.' }), render: r => {
+    { key: 'offer', label: defLabel('Black Friday offer', 'bf_offer'), render: r => h('span', { style: { whiteSpace: 'normal', display: 'block', minWidth: '140px' } },
+      r.offer ? r.offer : waiting ? dim('Reading...') : dim('No offer written yet'),
+      dates(r) ? h('small', { class: 'wr3-fold' }, dates(r)) : null) },
+    { key: 'sale', label: defLabel('Sale dates', 'sale_dates'), class: 'hide-sm', render: r => dates(r) || (waiting ? dim('Reading...') : dim('not set')) },
+    { key: 'goal', label: defLabel('Sales goal', 'sales_goal'), num: true, render: r => h('span', null,
+      ok(r.goal) && r.goal > 0 ? h('span', { class: 'strong' }, money(r.goal)) : dim('not set'),
+      tgt(r) ? h('small', { class: 'wr3-fold' }, tgt(r)) : null) },
+    { key: 'target', label: defLabel('Target MER', 'target_mer'), num: true, class: 'hide-sm', render: r => tgt(r) || dim('not set') },
+    { key: 'status', label: defLabel('Plan status', 'plan_status'), render: r => {
       if (!r.steps) return waiting ? dim('Reading...') : dim('not read');
       const open = r.steps.find(s => !s.done);
+      /* a client reads only whether the plan is ready, never the team's internal step names */
+      if (!team) return open ? h('span', { class: 'lx-stat warn' }, 'Being set up') : h('span', { class: 'lx-stat good' }, 'Ready');
       return open ? h('span', { class: 'lx-stat warn' }, 'Open: ' + String(open.label || '').toLowerCase()) : h('span', { class: 'lx-stat good' }, `Ready, ${r.steps.length} of ${r.steps.length} steps`);
     } },
   ];
-  if (team) cols.push({ key: 'edit', label: '', num: true, render: r => button('Edit plan', { href: legacyUrl('warplan', r.act_id), aria: `Edit the ${r.name} plan in old ${APP_NAME}` }) });
+  if (planHref) cols.push({ key: 'open', label: '', num: true, render: r => { const l = planHref(r.act_id); return l ? button('Open plan', { href: l, aria: `Open the ${r.name} Black Friday plan` }) : null; } });
   return table({ cols, rows, roomy: true, empty: 'No brand has a Black Friday plan yet' });
+}
+/** The brand plan page for a brand id, or null when the brand has no slug here. */
+const planHrefOf = ctx => act => { const s = ((ctx.brands || []).find(x => x.id === act) || (ctx.brand && ctx.brand.id === act ? ctx.brand : {}) || {}).slug; return s ? `#/brand/${encodeURIComponent(s)}/black-friday/plan` : null; };
+
+/** The pace hero from one plan read (GET /api/season/war?act=<id>&live=1): a client's page, and the team's page when
+    there is no check-in for the brand. at: when the numbers were read. */
+function warModel(w, at, { team = false } = {}) {
+  const today = (w && w.today) || new Date().toISOString().slice(0, 10);
+  const L = (w && w.live && !w.live.error) ? w.live : {};
+  const so = L.sale_so_far || {}, goals = (w && w.goals_list) || [];
+  const goal = (goals.find(g => g.metric === 'revenue') || {}).target || null;
+  const target = (w && w.ladder && w.ladder.target) || (goals.find(g => g.metric === 'mer') || {}).target || null;
+  const sales = ok(+so.sales) && so.sales != null ? +so.sales : null, spend = ok(+so.spend) && so.spend != null ? +so.spend : null;
+  const start = so.from || (w && w.sale && w.sale.start) || today;
+  const readAt = Date.parse(L.at || L.as_of || (w && (w.at || w.as_of)) || '') || at || null;
+  return {
+    period: `${dayLabel(start)} 12am CT to ${readAt ? clockCT(readAt) + ' CT (last read)' : 'the last read'}`, sales, goal, spend,
+    mer: sales != null && spend > 0 ? sales / spend : null, target, be: team && w && w.ladder && ok(w.ladder.be) ? w.ladder.be : null,
+    none: w && w.sale && today < w.sale.start ? `The sale starts ${dayLabel(w.sale.start)}` : 'No sales read yet',
+    phases: phasesOfWar(w) || SEASON, today, hours: hourSeries([w]), hourScope: 'whole store, Central time', hourNote: '',
+  };
+}
+/** One plan table row from a plan read. */
+function warRow(w, act, name) {
+  const goals = (w && w.goals_list) || [];
+  const bf = ((w && w.phases) || []).find(p => p.key === 'bf');
+  return { act_id: act, name, offer: (w && w.bf_offer) || (bf && bf.offer) || '', sale: w && w.sale, goal: (goals.find(g => g.metric === 'revenue') || {}).target ?? null,
+    target: (w && w.ladder && w.ladder.target) ?? (goals.find(g => g.metric === 'mer') || {}).target ?? null, steps: w && Array.isArray(w.steps) ? w.steps : null };
 }
 
 /* ---------- the page ---------- */
 export function renderWarRoom(el, data, ctx, { one = null } = {}) {
   addStyles('wr3-css', CSS);
   addStyles('wcc-css', CARD_CSS);
-  if (data && data.client) return renderClient(el, data, ctx);
-  const write = canWrite(ctx);
   /* The router hands every page the same view element and can render this page twice (saved copy, then fresh), so
-     each render owns a token: an older render, or one whose route was left, stops drawing, probing and polling. */
+     each render owns a token: an older render, or one whose route was left, stops drawing, probing and polling.
+     The token is taken first, so a client render also stops a team render still running on the same element. */
   const token = Symbol('war-room');
   el.__wr = token;
+  /* who is looking decides the page, never the shape of the data: a saved team copy is never drawn for a client */
+  if (ctx.isClient) return renderClient(el, data && data.client ? data : { client: true, war: null, team_copy: !!data }, ctx);
+  if (data && data.client) return put(el, empty({ title: 'Reading the War Room...', text: 'The team view is on its way.' }));
+  const write = canWrite(ctx);
   const alive = () => el.__wr === token && !(ctx.signal && ctx.signal.aborted);
   const S = {
     data: data || {}, prevs: {}, records: [], probing: true, probeFails: 0, probeId: 0,
-    done: {}, links: {}, linkBusy: {}, hourCache: {}, hourErr: {}, picture: {}, sent: {},
-    warAll: null, warAllErr: '', warBusy: true,
+    done: {}, links: {}, linkBusy: {}, hourCache: {}, hourP: {}, hourErr: {}, hourAt: {}, picture: {}, sent: {},
+    warAll: null, warAllErr: '', warBusy: true, warId: 0, warGen: 0,
   };
   const hosts = { hero: null, plan: null, sparks: {} };
   /* Done is per check-in: a new check-in asks again */
@@ -448,33 +503,47 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
   }
 
   /* ---------- the plan and today by the hour (after the first paint, one read after another) ---------- */
-  async function readWarOne(act) {
-    if (S.hourCache[act]) return S.hourCache[act];
-    if (ctx.sample) { const w = (f() && f().war_live && f().war_live[act]) || { live: { hours: [] } }; S.hourCache[act] = w; return w; }
-    const w = await ctx.api('/api/season/war?act=' + encodeURIComponent(act) + '&live=1', { signal: ctx.signal });
-    S.hourCache[act] = w || {};
-    return S.hourCache[act];
+  /** One brand's plan and today by the hour. An in-flight read is shared (the hour sheet and the page never read it
+      twice); force reads again but keeps the copy on screen until the new one lands. */
+  function readWarOne(act, { force = false } = {}) {
+    if (S.hourCache[act] && !force) return Promise.resolve(S.hourCache[act]);
+    if (S.hourP[act]) return S.hourP[act];
+    if (ctx.sample) { const w = (f() && f().war_live && f().war_live[act]) || { live: { hours: [] } }; S.hourCache[act] = w; S.hourAt[act] = Date.now(); return Promise.resolve(w); }
+    const gen = S.warGen;
+    const p = ctx.api('/api/season/war?act=' + encodeURIComponent(act) + '&live=1', { signal: ctx.signal })
+      .then(w => { if (gen === S.warGen) { S.hourCache[act] = w || {}; S.hourAt[act] = Date.now(); delete S.hourErr[act]; } return w || {}; })
+      .finally(() => { if (S.hourP[act] === p) delete S.hourP[act]; });
+    S.hourP[act] = p;
+    return p;
   }
-  async function readWar() {
+  /** The plan (agency: one act=all read) and each brand's today by the hour, one read after another. A newer run
+      stops an older one. With no check-in on screen it still reads, so the pace and the plan can be drawn. */
+  async function readWar({ force = false } = {}) {
+    const id = ++S.warId;
+    const stale = () => id !== S.warId || !alive();
+    S.warBusy = true;
     const R = rec();
-    if (!R) { S.warBusy = false; return; }
-    const acts = (R.brands || []).filter(b => !one || b.act_id === one).map(b => b.act_id);
+    let acts = R ? (R.brands || []).filter(b => !one || b.act_id === one).map(b => b.act_id) : [];
+    if (one && !acts.length) acts = [one];                     // a brand outside the check-in still gets its pace
     if (!one) {
       try {
-        S.warAll = ctx.sample ? (f() && f().war_all) || null : await ctx.api('/api/season/war?act=all', { signal: ctx.signal });
-      } catch (e) { if (e && e.name === 'AbortError') return; S.warAllErr = errText(e); }
-      if (!alive()) return;
+        const all = ctx.sample ? (f() && f().war_all) || null : await ctx.api('/api/season/war?act=all', { signal: ctx.signal });
+        if (stale()) return;
+        S.warAll = all; S.warAllErr = '';
+      } catch (e) { if ((e && e.name === 'AbortError') || stale()) return; S.warAllErr = errText(e); }
       fillLate();
     }
     for (const act of acts) {
-      try { await readWarOne(act); }
-      catch (e) { if (e && e.name === 'AbortError') return; S.hourErr[act] = errText(e); }
-      if (!alive()) return;
+      try { await readWarOne(act, { force }); }
+      catch (e) { if ((e && e.name === 'AbortError') || stale()) return; S.hourErr[act] = errText(e); }
+      if (stale()) return;
       fillLate();
     }
     S.warBusy = false;
-    if (alive()) fillLate();
+    fillLate();
   }
+  /** Earlier check-ins first, then the plan and the hours: one read at a time, never two side by side. */
+  const readAll = opts => probe().then(() => { if (alive()) return readWar(opts); });
 
   /* ---------- the calls per brand ---------- */
   function calcAll() {
@@ -514,8 +583,16 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
   const merTone = (mer, c) => !ok(mer) || !ok(c.goal) ? '' : mer >= c.goal ? 'good' : ok(c.be) && mer < c.be ? 'bad' : 'warn';
   const roasTone = (w, c) => !w || !w.readable || !c.roas || !ok(c.roas.goal) ? '' : w.roas >= c.roas.goal ? 'good' : ok(c.roas.be) && w.roas < c.roas.be ? 'bad' : '';
   const tcls = t => t ? t + '-t' : null;
-  const roasTxt = w => !w ? (S.probing ? '...' : 'n/a') : w.readable ? fx(w.roas) : w.no_tw ? 'no TW' : 'too little';
+  const roasTxt = w => !w ? (S.probing ? '...' : 'n/a') : w.readable ? fx(w.roas) : w.no_tw ? 'no sales read' : 'too little spend';
+  /** The ROAS cell: the number, or the reason there is none, with its meaning on hover or tap. */
+  const roasCell = (w, c) => {
+    const t = roasTxt(w);
+    if (w && !w.readable) return defLabel(t, w.no_tw ? 'no_sales_read' : 'too_little_spend', { class: 'dim' });
+    return h('span', { class: tcls(roasTone(w, c)) }, t);
+  };
   const sinceWord = c => c.basis ? c.basis.short : null;
+  /** "ROAS since 8pm", defined as ROAS over that window (the same words in the table, Needs your yes and the panel). */
+  const sinceRoasLabel = since => defLabel(since ? `ROAS since ${since}` : 'ROAS since check-in', { title: 'ROAS since the last check-in', body: `This campaign's Triple Whale attributed sales (last click) over its own spend, from the last check-in${since ? ' (' + since + ')' : ''} to this one. With Today, it decides the call.` });
   /** "Raise BFCM 2026 (Meta) budget 50%: $750 to $1,125 a day" */
   function decisionText(cp) {
     const m = cp.move, pc = Math.abs(Math.round(m.pct * 100));
@@ -532,7 +609,15 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     if (cp.early) return 'Too early';
     return CALL_WORD[cp.call] || 'Hold';
   }
-  const callKey = cp => cp.done ? null : cp.early ? 'call_too_early' : CALL_KEY[cp.call] || 'call_hold';
+  /** The definition that goes with the word callWord() shows, so the bubble always explains the word on screen. */
+  function callKey(c, cp) {
+    const w = callWord(c, cp);
+    if (w === 'Done') return 'call_done';
+    if (w === 'Reading') return 'call_reading';
+    if (w === 'Numbers') return 'call_numbers';
+    if (w === 'Too early') return 'call_too_early';
+    return CALL_KEY[cp.call] || 'call_hold';
+  }
   const assumedWhy = r => r.reason === 'over_goal' ? `assumed as goal ROAS / ${BE_ROAS_DIV}, because the ${fx(r.rec)} on record is over the goal` : `assumed as goal ROAS / ${BE_ROAS_DIV}, none on record`;
   /** Who owns the budget on this brand, said in the budget sheets (watch: the client runs it; client_approve: the client says yes first). */
   const ownerNote = c => c.mode === 'watch' ? 'The client runs this budget. Change it only when the client asked you to.'
@@ -552,6 +637,8 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
   const pendingOf = c => c.camps.filter(cp => hasSuggestion(c, cp) && !cp.abo);
   /** A reason line only when it adds something the numbers do not show: a warning, a cap, who approves. */
   const extraWhy = cp => [cp.warn, ...(cp.notes || [])].filter(Boolean).join(' ');
+  /** A call's reason without the figures the panel already shows beside it (the math text in _warcall.js stays). */
+  const reasonOnly = t => String(t || '').replace(/^Spent \$[\d,]+ of \$[\d,]+ today, /, '').replace(/^./, ch => ch.toUpperCase());
 
   /* ---------- the brand card ---------- */
   function tile(w, c, label, key, emptyText) {
@@ -586,17 +673,17 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
       { key: 'name', label: 'Campaign', render: cp => h('span', { class: 'cn' },
         h('span', null, cp.name, h('small', null, platformChip('meta')), cp.warn ? h('span', { class: 'warnrow' }, 'Last change not read yet') : null)) },
       { key: 'daily', label: defLabel('Budget a day', 'budget_a_day'), num: true, render: cp => h('span', { class: 'bud' }, cp.daily ? money(cp.daily) : h('span', { class: 'dim' }, 'ad sets'),
-        one ? null : h('small', null, money(cp.spent) + ' spent')) },
+        one ? null : h('small', null, defLabel(money(cp.spent) + ' spent today', 'spent_today'))) },
       one ? { key: 'spent', label: defLabel('Spent today', 'spent_today'), num: true, class: 'hide-sm', render: cp => money(cp.spent) } : null,
-      { key: 'since', label: defLabel(since ? `ROAS since ${since}` : 'ROAS since check-in', { title: 'ROAS since the last check-in', body: `This campaign's Triple Whale attributed sales (last click) over its own spend, from the last check-in${since ? ' (' + since + ')' : ''} to this one. With Today, it decides the call.` }), num: true,
-        render: cp => h('span', { class: tcls(roasTone(cp.w.since, c)) }, roasTxt(cp.w.since)) },
-      { key: 'today', label: defLabel('ROAS today', 'roas'), num: true, render: cp => h('span', { class: tcls(roasTone(cp.w.today, c)) }, roasTxt(cp.w.today)) },
+      { key: 'since', label: sinceRoasLabel(since), num: true,
+        render: cp => roasCell(cp.w.since, c) },
+      { key: 'today', label: defLabel('ROAS today', 'roas'), num: true, render: cp => roasCell(cp.w.today, c) },
       { key: 'week', label: defLabel('ROAS this week', { title: 'ROAS this week', body: 'This campaign\'s ROAS from Monday 12am Central to now. Context only: it breaks a tie or adds a note, it never blocks a raise.' }), num: true, class: 'hide-sm',
-        render: cp => h('span', { class: tcls(roasTone(cp.w.week, c)) }, roasTxt(cp.w.week)) },
+        render: cp => roasCell(cp.w.week, c) },
       { key: 'call', label: defLabel('Call', 'calls'), num: true, width: 82, render: cp => {
         const word = callWord(c, cp), tone = cp.done ? 'good' : cp.move && !S.probing ? CALL_TONE[cp.call] : '';
         const p = pill(tone, word);
-        const k = callKey(cp); if (k) defined(p, k);
+        defined(p, callKey(c, cp));
         const set = write && !cp.abo ? h('button', { class: 'rowbtn', type: 'button', onclick: e => { e.stopPropagation(); approveSheet(c, cp, { manual: true }); }, 'aria-label': `Set the budget on ${cp.name}` }, 'Set budget') : null;
         return h('span', { class: 'callc' }, p, set);
       } },
@@ -614,8 +701,8 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     const ml = modeLine(c);
     if (ml) { dec = ml; dim = true; }
     else if (S.probing) { dec = 'Reading the earlier check-ins...'; dim = true; }
-    else if (pend.length) dec = decisionText(pend[0]) + (pend.length > 1 ? `, and ${pend.length - 1} more` : '');
-    else if (done.length) dec = doneText(done[0]);
+    else if (pend.length) dec = pend.map(decisionText);
+    else if (done.length) dec = done.map(doneText);
     else if (!c.camps.length) { dec = 'No live campaign in Meta'; dim = true; }
     else dec = c.camps.some(cp => cp.needs_ads) ? 'Hold all campaigns, new ads needed' : 'Hold all campaigns';
     const sinceLabel = c.basis ? `Since last check-in (${c.basis.short})` : 'Since last check-in';
@@ -628,7 +715,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     return card({ class: 'wr3-b' + (pend.length ? ' yes' : '') },
       h('div', { class: 'wr3-r1' }, h('span', { class: 'nm' }, !one && slug ? h('a', { href: `#/brand/${encodeURIComponent(slug)}/black-friday/war-room` }, b.name) : b.name),
         ok(c.goal) && c.mode !== 'no_sales' ? h('span', { class: 'tg' }, defLabel('Target MER', 'target_mer'), ' ', h('b', null, fx(c.goal))) : null, chip),
-      h('div', { class: 'wr3-r2' }, h('span', { class: 'dec' + (dim ? ' dim' : '') }, dec), pend.length ? pill('warn', 'Needs your yes') : null),
+      h('div', { class: 'wr3-r2' }, h('div', { class: 'decs' }, [].concat(dec).map(t => h('span', { class: 'dec' + (dim ? ' dim' : '') }, t))), pend.length ? pill('warn', 'Needs your yes') : null),
       h('div', { class: 'wr3-tiles' },
         tile(c.windows.since, c, sinceLabel, 'since_check_in', S.probing ? 'Reading the earlier check-in' : 'No earlier check-in today'),
         tile(c.windows.today, c, 'Today', 'today'),
@@ -660,7 +747,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
           one ? null : h('span', { class: 'br' }, c.name),
           h('span', { class: 'dec' }, decisionText(cp)),
           h('div', { class: 'wr3-chips' },
-            h('span', null, defLabel(since ? `ROAS since ${since}` : 'ROAS since check-in', 'since_check_in'), h('b', null, roasTxt(cp.w.since))),
+            h('span', null, sinceRoasLabel(since), h('b', null, roasTxt(cp.w.since))),
             h('span', null, defLabel('ROAS today', 'roas'), h('b', null, roasTxt(cp.w.today))),
             c.roas && ok(c.roas.goal) ? h('span', null, defLabel('Goal ROAS', { title: 'Goal ROAS', body: 'The ROAS this brand asks of each campaign. Set in Brand settings > Goals.' }), h('b', null, fx(c.roas.goal))) : null,
             h('span', null, defLabel('Store MER today', 'mer'), h('b', null, fx(c.windows.today.mer)))),
@@ -680,12 +767,21 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     const sales = okb.reduce((t, c) => t + c.b.so_far.sales, 0), spend = okb.reduce((t, c) => t + (c.b.so_far.spend || 0), 0);
     const withGoal = okb.filter(c => c.b.goal > 0);
     const goal = withGoal.reduce((t, c) => t + c.b.goal, 0);
+    /* the percent of the goal counts only the brands that have one, so a brand with no goal never inflates it */
+    const goalSales = withGoal.reduce((t, c) => t + c.b.so_far.sales, 0);
+    const noGoal = okb.length - withGoal.length;
     /* the target MER the plans add up to: each brand's sales goal over the spend its own target allows */
     const planned = withGoal.filter(c => c.goal > 0);
     const target = one ? (list[0] && list[0].goal) : planned.length ? planned.reduce((t, c) => t + c.b.goal, 0) / planned.reduce((t, c) => t + c.b.goal / c.goal, 0) : null;
     const be = one && list[0] ? list[0].be : null;
-    const from = okb.map(c => c.b.so_far.from).filter(Boolean).sort()[0] || recDate;
-    const scope = one ? '' : okb.length === list.length ? 'All brands' : `${okb.length} of ${list.length} brands: ${list.length - okb.length === 1 ? 'one has' : 'the rest have'} no sales source`;
+    const froms = [...new Set(okb.map(c => c.b.so_far.from).filter(Boolean))].sort();
+    const from = froms[0] || recDate;
+    const endAt = `${clockCT(Date.parse(R.at))} CT (last check-in)`;
+    const period = froms.length > 1 ? `each brand from 12am CT on its own first sale day (the earliest is ${dayLabel(from)}) to ${endAt}`
+      : `${dayLabel(from)} 12am CT to ${endAt}`;
+    const scopeParts = one ? [] : [okb.length === list.length ? 'All brands' : `${okb.length} of ${list.length} brands: ${list.length - okb.length === 1 ? 'one has' : 'the rest have'} no sales source`];
+    if (!one && noGoal && goal) scopeParts.push(`${noGoal} ${noGoal === 1 ? 'brand has' : 'brands have'} no sales goal, so the percent counts only the brands with one`);
+    const scope = scopeParts.join('. ');
     const acts = list.map(c => c.act);
     const got = acts.filter(a => S.hourCache[a]);
     const hs = hourSeries(got.map(a => S.hourCache[a]));
@@ -693,8 +789,8 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     const hourNote = waitN && S.warBusy ? `Reading today by the hour: ${got.length} of ${acts.length} brands so far.` : waitN ? `${waitN} brand${waitN === 1 ? '' : 's'} could not be read by the hour.` : '';
     const ph = one ? phasesOfWar(S.hourCache[one]) || SEASON : SEASON;
     return {
-      period: `${dayLabel(from)} 12am CT to ${hourWord(slotHour(R.slot))} CT (last check-in)`, scope,
-      sales: okb.length ? sales : null, goal: goal || null, spend: okb.length ? spend : null, mer: spend > 0 ? sales / spend : null,
+      period, scope,
+      sales: okb.length ? sales : null, goal: goal || null, goalSales: withGoal.length ? goalSales : null, spend: okb.length ? spend : null, mer: spend > 0 ? sales / spend : null,
       target: ok(target) ? Math.round(target * 100) / 100 : null, be, none: 'No sales source connected',
       phases: ph, today: recDate, hours: hs, hourNote, hourScope: one ? 'whole store, Central time' : `${got.length === acts.length ? 'all brands' : got.length + ' of ' + acts.length + ' brands'}, Central time`,
     };
@@ -702,13 +798,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
 
   /* ---------- the plan rows ---------- */
   function planRows(list) {
-    const fromWar = (w, b) => {
-      const goals = (w && w.goals_list) || [];
-      const rev = (goals.find(g => g.metric === 'revenue') || {}).target;
-      const mer = (goals.find(g => g.metric === 'mer') || {}).target;
-      const bf = ((w && w.phases) || []).find(p => p.key === 'bf');
-      return { act_id: b.act, name: b.name, offer: (w && w.bf_offer) || (bf && bf.offer) || '', sale: w && w.sale, goal: rev ?? b.b.goal ?? null, target: (w && w.ladder && w.ladder.target) ?? mer ?? b.goal ?? null, steps: w && Array.isArray(w.steps) ? w.steps : null };
-    };
+    const fromWar = (w, c) => { const r = warRow(w, c.act, c.name); return { ...r, goal: r.goal ?? c.b.goal ?? null, target: r.target ?? c.goal ?? null }; };
     if (one) return list.map(c => fromWar(S.hourCache[c.act], c));
     const all = (S.warAll && S.warAll.brands) || [];
     return list.map(c => {
@@ -722,13 +812,14 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     const hrefOf = one ? null : act => { const s = ((ctx.brands || []).find(x => x.id === act) || {}).slug; return s ? `#/brand/${encodeURIComponent(s)}/black-friday/war-room` : null; };
     const err = one ? S.hourErr[one] : S.warAllErr;
     return card({ title: 'The plan', note: 'what was agreed for the sale', flush: true },
-      planTable(planRows(list), { team: write, waiting, hrefOf }),
+      planTable(planRows(list), { team: !ctx.isClient, waiting, hrefOf, planHref: planHrefOf(ctx) }),
       err ? h('p', { class: 'wr3-quiet', style: { padding: '0 var(--pad-card) 16px' } }, 'The plan did not load: ' + err) : null);
   }
 
   /** Fresh plan or hour reads landed: redraw only the hero, the plan and the brand charts (no full page redraw). */
   function fillLate() {
-    if (!alive() || !rec()) return;
+    if (!alive()) return;
+    if (!rec() || !calcAll().length) return draw();          // no check-in for this view: the fallback page redraws whole
     const list = calcAll();
     if (hosts.hero && hosts.hero.isConnected) { const n = paceHero(heroModel(list)); hosts.hero.replaceWith(n); hosts.hero = n; }
     if (hosts.plan && hosts.plan.isConnected) { const n = planSection(list); hosts.plan.replaceWith(n); hosts.plan = n; }
@@ -772,6 +863,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     const tl = campToday(c, cp);
     const todayBlock = h('div', { class: 'sec' },
       h('h4', null, defLabel('Today', 'today'), ', check-in to check-in'),
+      h('p', { class: 'dim' }, 'One bar per check-in, not per hour: the check-in records are the only per campaign numbers through the day. The whole store by the hour is under Today by the hour on the brand card.'),
       tl && tl.length ? [legend([{ name: 'Sales (Triple Whale, last click)', square: true, color: 'var(--ink)' }, { name: 'Spend' }]),
         lineChart({
           series: [{ name: 'Sales', type: 'bar', values: tl.map(t => t.sales) }, { name: 'Spend', values: tl.map(t => t.spend), end: false, points: true }],
@@ -783,8 +875,8 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     const picHost = h('div', { class: 'sec' });
     const m = c.b.meta || {};
     /* Set budget at the bottom, prefilled with the suggestion */
-    const sug = hasSuggestion(c, cp) ? cp.move.to : null;
     const from = cp.done && ok(cp.done.to) ? cp.done.to : cp.daily;
+    const sug = hasSuggestion(c, cp) && cp.move.from === from ? cp.move.to : null;
     const amt = h('input', { class: 'lx-input', type: 'number', min: String(MIN_BUDGET), step: '5', inputmode: 'decimal', enterkeyhint: 'done', value: String(sug ?? from ?? ''), 'aria-label': 'New daily budget' });
     const goBtn = h('span');
     const drawGo = () => {
@@ -806,7 +898,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
         h('span', { class: 'wr3-lab' }, platformChip('meta', { label: PLATFORM }), ` campaign, ${c.name}`),
         h('b', { class: tone ? tone + '-t' : '' }, cp.done ? doneText(cp) : cp.move ? decisionText(cp) : `${word}: ${cp.name} (${PLATFORM})`),
         extraWhy(cp) ? h('p', { class: 'wr3-amber' }, extraWhy(cp)) : null,
-        cp.why && !cp.move ? h('p', { class: 'dim' }, cp.why) : null),
+        cp.why && !cp.move ? h('p', { class: 'dim' }, reasonOnly(cp.why)) : null),
       h('div', { class: 'wr3-tiles' },
         wTile(since ? `Since ${since}` : 'Since check-in', 'since_check_in', W.since),
         wTile('Today', 'today', W.today),
@@ -815,11 +907,12 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
       picHost,
       h('dl', null,
         h('dt', null, defLabel('Budget a day', 'budget_a_day')), h('dd', null, cp.daily ? money(cp.daily) : 'Ad set budgets'),
-        h('dt', null, defLabel('Spent today', 'spent_today')), h('dd', null, money(cp.spent) + (ok(cp.pace) ? `, ${Math.round(cp.pace * 100)}% of pace` : '')),
+        h('dt', null, defLabel('Spent today', 'spent_today')), h('dd', null, money(cp.spent)),
+        ok(cp.pace) && cp.daily ? [h('dt', null, defLabel('Pace', 'pace')), h('dd', null, `${Math.round(cp.pace * 100)}%`)] : null,
         c.roas && ok(c.roas.goal) ? [h('dt', null, defLabel('Goal ROAS', { title: 'Goal ROAS', body: 'The ROAS this brand asks of each campaign. Set in Brand settings > Goals.' })), h('dd', null, fx(c.roas.goal))] : null,
         c.roas && ok(c.roas.be) ? [h('dt', null, defLabel('Break-even ROAS', 'break_even_roas')), h('dd', null, fx(c.roas.be) + (c.roas.assumed ? ' (assumed)' : ''))] : null,
         ok(m.limit) ? [h('dt', null, defLabel('Meta daily limit', { title: 'Meta daily limit', body: 'The most the whole ad account may spend in a day, set in Meta. A raise is capped so every budget fits under it.' })), h('dd', null, `${money(m.limit)}${m.limit_src === 'known' ? ' (last known)' : ''}`)] : null,
-        cp.last ? [h('dt', null, 'Last budget change'), h('dd', null, `${clockCT(cp.last.at)}, ${agoWords(nowOf() - cp.last.at)} ago, $${Math.round(cp.last.spent_since)} spent since`)] : null),
+        cp.last ? [h('dt', null, defLabel('Last budget change', 'last_budget_change')), h('dd', null, `${clockCT(cp.last.at)}, ${agoWords(nowOf() - cp.last.at)} ago, $${Math.round(cp.last.spent_since)} spent since`)] : null),
       cp.done ? h('div', { class: 'ok' }, `Done, ${money(cp.done.to)} a day, by ${cp.done.by} at ${clockCT(Date.parse(cp.done.at))}.`) : null,
       setBlock);
     const sh = closeOnLeave(sheet({ title: cp.name, body, side: 'right' }));
@@ -869,13 +962,14 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     const plRoas = m && m.spend > 0 && ok(m.platform_revenue) ? m.platform_revenue / m.spend : null;
     const views = m && ok(m.hook) && ok(m.impressions) ? Math.round(m.hook * m.impressions) : null;
     /* the funnel: link clicks > add to carts > checkouts > purchases (Triple Whale, last click) */
-    const steps = m ? [['Link clicks', m.clicks], ['Add to carts', m.atc], ['Checkouts started', m.checkouts], ['Purchases (Triple Whale, last click)', lcOrd]] : [];
+    const steps = m ? [['Link clicks', m.clicks, 'link_clicks'], ['Add to carts', m.atc, 'add_to_carts'], ['Checkouts started', m.checkouts, 'checkouts_started'], ['Purchases (Triple Whale, last click)', lcOrd, 'purchases_last_click']] : [];
     const top = steps.length && ok(+steps[0][1]) && +steps[0][1] > 0 ? +steps[0][1] : null;
-    const funnel = top ? h('div', { class: 'wr3-fun', role: 'list', 'aria-label': 'This week, from click to purchase' }, steps.map(([label, v], i) => {
+    const funnel = top ? h('div', { class: 'wr3-fun', role: 'list', 'aria-label': 'This week, from click to purchase' }, steps.map(([label, v, key], i) => {
       const prev = i ? steps[i - 1][1] : null;
       const rate = i && ok(+v) && ok(+prev) && +prev > 0 && +v <= +prev ? Math.round(+v / +prev * 1000) / 10 + '% of the step before' : '';
-      return h('div', { role: 'listitem' }, h('span', null, label), h('b', null, ok(+v) ? n0(+v) : NA, rate ? h('small', null, rate) : null),
-        h('i', { style: { '--v': ok(+v) ? Math.max(2, Math.sqrt(+v / top) * 100).toFixed(1) + '%' : '0%' } }));
+      /* bar width in step with the number beside it (linear), with a 2% floor so a small step is still seen */
+      return h('div', { role: 'listitem' }, defLabel(label, key), h('b', null, ok(+v) ? n0(+v) : NA, rate ? h('small', null, rate) : null),
+        h('i', { style: { '--v': ok(+v) ? Math.max(2, +v / top * 100).toFixed(1) + '%' : '0%' } }));
     })) : null;
     put(host,
       h('h4', null, 'The full picture this week', P ? h('span', { class: 'wr3-lab', style: { fontWeight: 400 } }, `, ${md(P.from)} to ${md(P.to)}`) : null),
@@ -884,10 +978,10 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
       funnel,
       m ? h('dl', null,
         row(defLabel('Ad spend (Meta)', 'ad_spend'), usd(m.spend)),
-        row('CTR', pct(m.ctr)),
-        row('CPM · frequency', both(ok(m.cpm) ? usd(m.cpm) : null, ok(m.frequency) ? m.frequency.toFixed(2) : null)),
-        row('Cost per add to cart', ok(m.cost_per_atc) ? usd(m.cost_per_atc) : null),
-        row('Video views (3 seconds)', views != null && views > 0 ? n0(views) : null),
+        row(defLabel('CTR', 'ctr'), pct(m.ctr)),
+        row(defLabel('CPM · frequency', 'cpm_frequency'), both(ok(m.cpm) ? usd(m.cpm) : null, ok(m.frequency) ? m.frequency.toFixed(2) : null)),
+        row(defLabel('Cost per add to cart', 'cost_per_add_to_cart'), ok(m.cost_per_atc) ? usd(m.cost_per_atc) : null),
+        row(defLabel('Video views (3 seconds)', 'video_views_3s'), views != null && views > 0 ? n0(views) : null),
         row(defLabel('Last click: sales · ROAS', { title: 'Triple Whale, last click', body: 'Purchases Triple Whale credits to this campaign when it was the last ad clicked. This is what the call reads.' }), both(lcOrd != null ? n0(lcOrd) : null, ok(lcRoas) ? fx(lcRoas) : null)),
         row(defLabel('First click: sales · ROAS', { title: 'Triple Whale, first click', body: 'Purchases credited when this campaign was the first ad clicked. It shows the campaigns that open the funnel, which last click undercounts.' }), both(fcOrd, ok(fcRoas) ? fx(fcRoas) : null)),
         row(defLabel('Meta reports: purchases · ROAS', { title: 'Meta reports', body: 'Meta\'s own count. A second opinion only: it usually runs higher than Triple Whale.' }), both(n0(m.platform_purchases), ok(plRoas) ? fx(plRoas) : null))) : null);
@@ -902,7 +996,9 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     /* after a change from this page, Meta has the new figure, so a hand-set starts from it */
     const from = manual && cp.done && ok(cp.done.to) ? cp.done.to : cp.daily;
     if (!from) { toast('Ad set budgets: change this one by hand in Ads Manager.'); return; }
-    const sug = cp.move && !cp.done ? cp.move.to : null;
+    /* prefill only a suggestion the page itself stands behind: shown as a move, earlier check-ins read, worked out
+       from the budget this sheet starts on */
+    const sug = hasSuggestion(c, cp) && cp.move.from === from ? cp.move.to : null;
     const start = ok(given) && given > 0 ? given : sug ?? from;
     const amount = h('input', { class: 'lx-input', type: 'number', min: String(MIN_BUDGET), step: '5', inputmode: 'decimal', pattern: '[0-9]*', enterkeyhint: 'done', value: String(start), 'aria-label': 'New daily budget' });
     const jump = h('input', { type: 'checkbox' });
@@ -980,7 +1076,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
       if (ok(before) && Math.round(before) !== Math.round(from)) {
         /* the budget moved since the check-in: nothing is written on the old figure, start again on the real one */
         dry = null;
-        const again = button(`Start again on ${money(before)}`, { primary: true, large: true, onclick: () => { sh.close(); approveSheet(c, manual ? { ...cp, daily: before, done: null } : restep(before), { typed, manual, note: `Meta had it at ${money(before)} a day, not the ${money(from)} the check-in saw. This is worked out from ${money(before)}.` }); } });
+        const again = button(`Start again on ${money(before)}`, { primary: true, large: true, onclick: () => { sh.close(); approveSheet(c, manual ? { ...cp, daily: before, done: null, move: null } : restep(before), { typed, manual, note: `Meta had it at ${money(before)} a day, not the ${money(from)} the check-in saw. This is worked out from ${money(before)}.` }); } });
         drawBtns(`Meta has it at ${money(before)} a day now, not the ${money(from)} the check-in saw. Nothing was written.`, 'err', again);
         return;
       }
@@ -1104,7 +1200,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
         const name = a.object_name || 'a campaign', why = String(a.client_why).trim();
         /* never the internal summary: when the amounts do not read, the client line alone */
         if (!(ok(fr) && ok(to)) || fr === to) return { line: why, why: '' };
-        return { line: `${to > fr ? 'Raised' : 'Lowered'} ${name} from ${money(fr)} to ${money(to)} a day`, why };
+        return { line: `${to > fr ? 'Raised' : 'Lowered'} ${name} (${PLATFORM}) from ${money(fr)} to ${money(to)} a day`, why };
       });
     return {
       brand: c.name, goal: c.goal,
@@ -1112,16 +1208,10 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
       tiles: [
         { label: since.label, mer: since.mer, sales: since.sales, spend: since.spend, readable: !!since.readable },
         { label: 'Today', mer: W.today.mer, sales: W.today.sales, spend: W.today.spend, readable: !!W.today.readable },
-        { label: 'This week', mer: W.week.mer, sales: W.week.sales, spend: W.week.spend, readable: !!W.week.readable }],
+        { label: 'This week (Mon to now)', mer: W.week.mer, sales: W.week.sales, spend: W.week.spend, readable: !!W.week.readable }],
       changes,
       next: nextDue(c.cadence, c.recHour) + ' CT',
     };
-  }
-  /** The words that go with the card, as the client reads them. */
-  function cardText(d) {
-    const t = d.tiles.map(x => `${x.label}: ${x.readable ? `store MER ${fx(x.mer)} on ${usd(x.sales)} sales and ${usd(x.spend)} ad spend` : 'too little to read yet'}`);
-    const ch = d.changes.length ? ['What we changed:', ...d.changes.map(x => `${x.line}${x.why ? '. ' + x.why : ''}`)] : ['No budget changes since the last update.'];
-    return [`Black Friday update for ${d.brand}, ${d.when}`, ...t, ...ch, `Next update around ${d.next}.`].join('\n');
   }
   const fileOf = c => `${String(c.name).toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${rec().slot}.png`;
   function snapshotLink(c, d) {
@@ -1139,56 +1229,87 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     return p;
   }
 
-  /** POST /api/standing/send {act, slot}, with a 20 second limit. Returns { tone, text, retry }. Never silent. */
+  /** POST /api/standing/send {act, slot} (account-health, owner only), with a 20 second limit. Never silent.
+      Replies, as the route answers them:
+        200 {ok:true, slot, name, sent:true}                          sent
+        200 {ok:false, skipped:'sent' | 'sent in the last 2 hours'}   already sent
+        200 {ok:false, skipped:'sending' | 'forme' | 'skipped'}       another tap is sending / owner only / do not send
+        403 / 404 / 502 {error}                                       the server's words, with Try again
+      Returns { tone, text, sent?, done?, retry?, link?, left? }: done = nothing more to do here, so Send is not offered
+      again; link = offer Copy link; left = the page was left before an answer. */
   async function sendUpdate(c) {
     const slot = rec().slot;
-    if (ctx.sample) return { tone: 'info', text: 'Sample mode: nothing was sent and no server was called. With real numbers this posts the update to the client\'s Slack channel.' };
+    if (ctx.sample) return { tone: 'info', text: "Sample mode: nothing was sent and no server was called. With real numbers this posts the update to the client's Slack channel.", done: true };
     const ac = new AbortController();
-    const timer = setTimeout(() => ac.abort(), SEND_TIMEOUT);
+    let timedOut = false;
+    const timer = setTimeout(() => { timedOut = true; ac.abort(); }, SEND_TIMEOUT);
     const outer = () => ac.abort();
     if (ctx.signal) ctx.signal.addEventListener('abort', outer, { once: true });
     let r;
     try { r = await ctx.api('/api/standing/send', { worker: 'ah', method: 'POST', body: { act: c.act, slot }, signal: ac.signal }); }
     catch (e) {
-      if (e && e.status === 404) return { tone: 'info', text: `Sending from ${APP_NAME} is being switched on; use Copy link for now.`, link: true };
-      if (e && e.name === 'AbortError') return { tone: 'err', text: 'No answer from the server after 20 seconds. It may still have sent: check the client channel before you try again.', retry: true };
-      const m = errText(e);
-      if (e && e.status === 409 || /already/i.test(m)) return { tone: 'info', text: 'Already sent for this check-in. ' + m };
-      if (/channel/i.test(m)) return { tone: 'err', text: 'No client channel is set for this brand. Set it in Brand settings > People and sending, or use Copy link. (' + m + ')' };
-      return { tone: 'err', text: 'Not sent. ' + m, retry: true };
+      if (e && e.name === 'AbortError') {
+        if (timedOut) return { tone: 'err', text: 'No answer from the server after 20 seconds. It may still have sent: check the client channel before you try again.', retry: true };
+        return { tone: 'info', text: 'You left the page before the server answered. It may still have sent: check the client channel.', left: true };
+      }
+      const body = (e && e.body) || {};
+      /* a 404 with no error at all is an older server without the route, not an answer from it */
+      if (e && e.status === 404 && !body.error) return { tone: 'info', text: `Sending from ${APP_NAME} is being switched on; use Copy link for now.`, done: true, link: true };
+      return { tone: 'err', text: 'Not sent. ' + errText(e), retry: true, link: true };
     } finally { clearTimeout(timer); if (ctx.signal) ctx.signal.removeEventListener('abort', outer); }
-    const st = String((r && (r.status || r.result)) || '').toLowerCase();
-    const at = clockCT((r && Date.parse(r.at || r.sent_at)) || Date.now());
-    if (r && (r.already || st === 'already_sent' || st === 'already')) return { tone: 'info', text: `Already sent for this check-in${r.by ? ' by ' + r.by : ''}${r.at || r.sent_at ? ' at ' + at : ''}.` };
-    if (r && (r.no_channel || st === 'no_channel')) return { tone: 'err', text: 'No client channel is set for this brand. Set it in Brand settings > People and sending, or use Copy link.' };
-    if (r && !r.error && (r.ok || r.sent || st === 'sent')) return { tone: 'ok', text: `Sent to ${r.channel_name || r.channel || r.link || 'the client channel'} at ${at}.`, sent: true };
-    return { tone: 'err', text: 'Not sent. ' + ((r && r.error) || 'The server did not say it was sent.'), retry: true };
+    if (r && r.ok && r.sent) return { tone: 'ok', text: `Sent to ${r.name || c.name}'s client channel at ${clockCT(Date.now())}.`, sent: true };
+    const sk = String((r && r.skipped) || '');
+    if (/^sent/.test(sk)) return { tone: 'info', text: 'Already sent (the last one went out under 2 hours ago). Nothing was sent again.', done: true, link: true };
+    if (sk === 'sending') return { tone: 'info', text: 'Already sending from another tap. Nothing was sent twice.', done: true };
+    if (sk === 'forme') return { tone: 'info', text: `This one is for ${OWNER_FIRST} only, so it was not sent to the client.`, done: true };
+    if (sk === 'skipped') return { tone: 'info', text: 'This check-in is marked do not send, so nothing was sent.', done: true };
+    return { tone: 'err', text: 'Not sent. ' + ((r && (r.error || (sk && 'The server skipped it: ' + sk))) || 'The server did not say it was sent.'), retry: true, link: true };
+  }
+  /** The exact picture card the route sends (GET /api/standing/card.png, team only), as an <img>; the page's own card
+      preview stays while it loads or when it cannot be read. */
+  function realCard(c, host) {
+    if (ctx.sample) return;
+    const R = rec();
+    fetch(`${workers().ah}/api/standing/card.png?act=${encodeURIComponent(c.act)}&slot=${encodeURIComponent(R.slot)}`, { headers: { Authorization: 'Bearer ' + token() }, signal: ctx.signal })
+      .then(res => res.ok && /^image\//.test(res.headers.get('content-type') || '') ? res.blob() : null)
+      .then(b => {
+        if (!b || !host.isConnected) return;
+        const url = URL.createObjectURL(b);
+        const img = h('img', { src: url, alt: `The update card ${c.name}'s client channel gets`, style: { display: 'block', width: '100%', height: 'auto', borderRadius: '14px', border: '1px solid var(--line)' } });
+        img.onload = () => setTimeout(() => URL.revokeObjectURL(url), 1000);
+        put(host, img);
+      }, () => {});
   }
   function sendSheet(c, d, onDone) {
     const status = h('div'), btns = h('div', { class: 'btns' });
     let busy = false;
-    const msgText = cardText(d), cardHost = h('div');
+    const cardHost = h('div');
     cardHost.innerHTML = cardHtml(d);
+    realCard(c, cardHost);
     const drawBtns = res => {
+      const over = res && (res.sent || res.done);
       put(btns,
-        res && res.sent ? null : button(busy ? 'Sending...' : res && res.retry ? 'Try again' : 'Send now', { primary: true, large: true, disabled: busy || null, onclick: go }),
-        res && res.link ? button('Copy link', { large: true, onclick: () => copyLink(c, d, status) }) : null,
-        button(res && res.sent ? 'Close' : 'Cancel', { large: true, disabled: busy || null, onclick: () => sh.close() }));
+        over ? null : button(busy ? 'Sending...' : res && res.retry ? 'Try again' : 'Send now', { primary: true, large: true, disabled: busy || null, onclick: go }),
+        button('Copy link', { large: true, disabled: busy || null, onclick: () => copyLink(c, d, status) }),
+        button(over ? 'Close' : 'Cancel', { large: true, disabled: busy || null, onclick: () => sh.close() }));
     };
     async function go() {
       if (busy) return;
       busy = true; put(status, null); drawBtns();
       const res = await sendUpdate(c);
       busy = false;
+      if (res.left) return;
       put(status, h('div', { class: res.tone, role: res.tone === 'err' ? 'alert' : 'status' }, res.text));
       if (res.sent) { S.sent[c.act + '|' + rec().slot] = res.text; onDone && onDone(res); }
       drawBtns(res);
     }
+    const changed = d.changes.length ? d.changes.map(x => `${x.line}${x.why ? '. ' + x.why : ''}`).join('\n') : NO_CHANGES;
     const body = h('div', { class: 'wr3-sh' },
-      h('p', null, `This goes to ${c.name}'s client channel: the card and these lines.`),
-      h('div', { class: 'wr3-msg' }, msgText),
-      cardHost, status, btns);
-    const sh = closeOnLeave(sheet({ title: `Send the update to ${c.name}?`, body, side: 'right' }));
+      cardHost,
+      h('h4', null, 'What changed'),
+      h('div', { class: 'wr3-msg' }, changed),
+      status, btns);
+    const sh = closeOnLeave(sheet({ title: `Send this to ${c.name}'s client channel?`, body, side: 'right' }));
     drawBtns();
   }
   async function copyLink(c, d, say) {
@@ -1199,7 +1320,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     } catch (e) { put(say, h('div', { class: 'err', role: 'alert' }, 'No link. ' + errText(e))); }
   }
   function clientBlock(c) {
-    const d = cardData(c), host = h('div');
+    const d = cardData(c), host = h('div'), owner = ctx.sample || (ctx.role === 'owner' && !ctx.asClient);
     host.innerHTML = cardHtml(d);
     const msg = h('div');
     const say = (t, tone) => put(msg, h('div', { class: tone === 'bad' ? 'err' : 'info', role: tone === 'bad' ? 'alert' : 'status' }, t));
@@ -1210,7 +1331,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
       host,
       sentLine,
       h('div', { class: 'btns' },
-        button('Send to client', { primary: true, onclick: () => sendSheet(c, d, showSent) }),
+        owner ? button('Send to client', { primary: true, onclick: () => sendSheet(c, d, showSent) }) : h('span', { class: 'hint' }, 'Only the owner sends to clients.'),
         button('Copy link', { onclick: e => { const b = e.currentTarget; b.disabled = true; copyLink(c, d, msg).finally(() => { b.disabled = false; }); } })),
       h('div', { class: 'wr3-act' },
         button('Copy as PNG', { onclick: async () => { const r = await copyCard(d, fileOf(c)).catch(e => { say(errText(e), 'bad'); return null; }); if (r) toast(r === 'copied' ? 'Picture copied' : 'This browser cannot copy pictures, so it downloaded instead'); } }),
@@ -1226,7 +1347,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
   function boardModel(list) {
     const R = rec(), recDate = R.today || slotDate(R.slot);
     const hm = heroModel(list);
-    const store = ok(hm.sales) ? [`Sales ${money(hm.sales)}${hm.goal ? ` of the ${money(hm.goal)} goal (${Math.round(hm.sales / hm.goal * 100)}%)` : ''}, ad spend ${money(hm.spend)}, store MER ${fx(hm.mer)}${ok(hm.target) ? ` against ${fx(hm.target)} target` : ''}. ${hm.period}${hm.scope ? ', ' + hm.scope.toLowerCase() : ''}.`] : [];
+    const store = ok(hm.sales) ? [`Sales ${money(hm.sales)}${hm.goal ? ` of the ${money(hm.goal)} goal (${Math.round((ok(hm.goalSales) ? hm.goalSales : hm.sales) / hm.goal * 100)}%)` : ''}, ad spend ${money(hm.spend)}, store MER ${fx(hm.mer)}${ok(hm.target) ? ` against ${fx(hm.target)} target` : ''}. ${hm.period}${hm.scope ? ', ' + hm.scope.toLowerCase() : ''}.`] : [];
     const tone = (w, c) => !w || !w.readable ? '' : merTone(w.mer, c) === 'good' ? 'good' : merTone(w.mer, c) === 'bad' ? 'bad' : '';
     return {
       title: one && list[0] ? `${list[0].name}: Black Friday War Room` : 'Black Friday War Room',
@@ -1240,7 +1361,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
           name: c.name, light: lt ? { word: lt[1], tone: lt[0] } : null,
           goal: ok(c.goal) ? `Target MER ${fx(c.goal)}${ok(c.be) ? `, break-even ${fx(c.be)}` : ''}${c.roas && ok(c.roas.goal) ? `, goal ROAS ${fx(c.roas.goal)}` : ''}` : '',
           windows: [win(W.since, 'Since last check-in'), win(W.today, 'Today'), { ...win(W.week, 'This week'), label: 'This week' }],
-          lines: [modeLine(c) || (pend.length ? decisionText(pend[0]) : 'Hold all campaigns')],
+          lines: modeLine(c) ? [modeLine(c)] : pend.length ? pend.map(decisionText) : ['Hold all campaigns'],
           camps: c.camps.map(cp => ({
             name: `${cp.name} (${PLATFORM})`, since: roasTxt(cp.w.since), today: roasTxt(cp.w.today), week: roasTxt(cp.w.week),
             call: callWord(c, cp),
@@ -1277,7 +1398,7 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
       await rereadGoals();
       if (!alive()) return;
       if (rec() && rec().slot !== oldSlot) await newSlot();
-      else draw();
+      else { draw(); readWar({ force: true }); }              // the hour chart and the plan are read again too
     } catch (e) {
       if (!alive()) return;
       toast('Could not read the check-in: ' + errText(e), { tone: 'bad', ms: 5000 });
@@ -1308,14 +1429,13 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
       check-ins and today by the hour again. */
   async function newSlot() {
     S.probing = true; S.probeId++;
-    S.hourCache = {}; S.hourErr = {}; S.warBusy = true;
+    S.warGen++; S.hourCache = {}; S.hourP = {}; S.hourErr = {}; S.hourAt = {}; S.warBusy = true;
     draw();
     if (!ctx.sample) {
       try { const acts = await readActs(ctx, one); if (!alive()) return; S.data = { ...S.data, acts }; }
       catch { if (!alive()) return; }                              // keep what we had
     }
-    probe();
-    readWar();
+    readAll();
   }
   if (!ctx.sample) {
     const timer = setInterval(() => {
@@ -1339,9 +1459,9 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
     const d = S.data || {}, R = d.standing;
     const refreshBtn = button('Refresh', { onclick: e => refresh(e.currentTarget) });
     const oldLink = ctx.legacy ? h('a', { class: 'wr3-old hide-sm', href: ctx.legacy }, 'Old ' + APP_NAME) : null;
-    if (!R) return put(el, h('div', { class: 'wr3' }, h('div', { class: 'wr3-bar' }, help()), empty({ title: 'No check-in yet', text: d.error || 'The War Room fills in at the first check-in of the season.', action: refreshBtn }), oldLink));
+    if (!R) return drawNoCheckin(d.error ? 'The check-in did not load' : 'No check-in yet', d.error || 'The calls fill in at the first check-in of the season. The pace and the plan below come from the plan.', refreshBtn, oldLink);
     const list = calcAll();
-    if (!list.length) return put(el, h('div', { class: 'wr3' }, h('div', { class: 'wr3-bar' }, help()), empty({ title: 'This brand is not in the check-in', text: 'Only brands with a Black Friday sale are checked.', action: refreshBtn }), oldLink));
+    if (!list.length) return drawNoCheckin('This brand is not in the check-in', 'Only brands with a live Black Friday sale are checked, so there are no calls. The pace and the plan below come from the plan.', refreshBtn, oldLink);
     const age = ageH(), fresh = age < 0.5;
     const checkBtn = write ? button('Check now', { disabled: fresh || null, onclick: e => checkNow(e.currentTarget), aria: fresh ? 'Check now: the latest check-in is under 30 minutes old' : 'Check now' }) : null;
     const minCad = Math.min(...list.map(c => c.cadence));
@@ -1371,34 +1491,48 @@ export function renderWarRoom(el, data, ctx, { one = null } = {}) {
       hosts.plan));
   }
 
+  /** No check-in record for this view: say so in one quiet card, and still draw the pace (one brand) and the plan from
+      the plan read, so the team never sees less than a client would. */
+  function drawNoCheckin(title, text, refreshBtn, oldLink) {
+    const note = card({ title }, h('p', { class: 'wr3-quiet' }, text), h('div', { class: 'wr3-act' }, refreshBtn));
+    let hero = null, plan;
+    if (one) {
+      const w = S.hourCache[one], err = S.hourErr[one];
+      hero = w ? paceHero(warModel(w, S.hourAt[one], { team: true }))
+        : card({ class: 'wr3-hero' }, h('p', { class: 'wr3-quiet' }, err ? 'The pace did not load: ' + err : 'Reading the pace...'));
+      const name = (ctx.brand && ctx.brand.name) || (w && w.name) || 'This brand';
+      plan = card({ title: 'The plan', note: 'what was agreed for the sale', flush: true },
+        planTable([warRow(w, one, name)], { team: true, waiting: !w && !err, planHref: planHrefOf(ctx) }));
+    } else {
+      const rows = ((S.warAll && S.warAll.brands) || []).map(r => ({ act_id: r.act_id, name: r.name, offer: r.bf_offer || '', sale: r.sale, goal: r.goal ?? null,
+        target: (r.ladder && r.ladder.target) ?? null, steps: r.steps || null }));
+      const hrefOf = act => { const sl = ((ctx.brands || []).find(x => x.id === act) || {}).slug; return sl ? `#/brand/${encodeURIComponent(sl)}/black-friday/war-room` : null; };
+      plan = card({ title: 'The plan', note: 'what was agreed for the sale', flush: true },
+        planTable(rows, { team: true, waiting: !S.warAll && !S.warAllErr, hrefOf, planHref: planHrefOf(ctx) }),
+        S.warAllErr ? h('p', { class: 'wr3-quiet', style: { padding: '0 var(--pad-card) 16px' } }, 'The plan did not load: ' + S.warAllErr) : null);
+    }
+    hosts.hero = null; hosts.plan = null; hosts.sparks = {};
+    put(el, h('div', { class: 'wr3' }, h('div', { class: 'wr3-bar' }, help(), h('span', { class: 'sp' }), oldLink), note, hero, plan));
+  }
+
   draw();
-  probe();
-  readWar();
+  readAll();
 }
 
 /* ---------- a client's page: the pace and the plan for their brand, from the war read only ---------- */
 function renderClient(el, data, ctx) {
-  const w = data.war, today = (w && w.today) || new Date().toISOString().slice(0, 10);
   if (!ctx.brand) return put(el, empty({ title: 'Pick a brand', text: 'Black Friday is one brand at a time.' }));
+  /* a saved copy made for the team is never drawn here; the client's own read follows at once */
+  if (data.team_copy) return put(el, empty({ title: 'Reading your Black Friday plan...', text: 'One moment.' }));
+  const w = data.war;
   if (!w || !w.sale || !w.sale.start) return put(el, empty({ title: 'No Black Friday sale set yet', text: 'When the sale dates and the goal are set, the pace shows here.' }));
-  const L = (w.live && !w.live.error) ? w.live : {};
-  const so = L.sale_so_far || {}, goals = w.goals_list || [];
-  const goal = (goals.find(g => g.metric === 'revenue') || {}).target || null;
-  const target = (w.ladder && w.ladder.target) || (goals.find(g => g.metric === 'mer') || {}).target || null;
-  const sales = ok(+so.sales) ? +so.sales : null, spend = ok(+so.spend) ? +so.spend : null;
-  const hs = hourSeries([w]);
-  const m = {
-    period: `${dayLabel(w.sale.start)} 12am CT to now`, sales, goal, spend, mer: sales != null && spend > 0 ? sales / spend : null, target, be: null,
-    none: today < w.sale.start ? `The sale starts ${dayLabel(w.sale.start)}` : 'No sales read yet',
-    phases: phasesOfWar(w) || SEASON, today, hours: hs, hourScope: 'whole store, Central time', hourNote: '',
-  };
-  const bf = (w.phases || []).find(p => p.key === 'bf');
-  const row = { act_id: ctx.brand.id, name: ctx.brand.name, offer: w.bf_offer || (bf && bf.offer) || '', sale: w.sale, goal, target, steps: Array.isArray(w.steps) ? w.steps : null };
+  const m = warModel(w, data.fetched_at);
+  const row = warRow(w, ctx.brand.id, ctx.brand.name);
   put(el, h('div', { class: 'wr3' },
     h('div', { class: 'wr3-bar' }, pageHelp({ body: [
       { title: 'What it is for', text: 'How your Black Friday sale is pacing against the goal we agreed, today by the hour, and the plan for the sale.' },
       { title: 'Store MER', text: 'The whole store: all sales divided by all ad spend. Hover or tap any dotted label for its meaning.' },
     ] })),
     paceHero(m),
-    card({ title: 'The plan', note: 'what was agreed for the sale', flush: true }, planTable([row], { team: false, waiting: false }))));
+    card({ title: 'The plan', note: 'what was agreed for the sale', flush: true }, planTable([row], { team: false, waiting: false, planHref: planHrefOf(ctx) }))));
 }

@@ -179,7 +179,7 @@ const brandLink = (brands, id, line, tab, agencyLine, agencyTab) => {
 const KIND_LINK = { calls: ['meta', 'suggestions', 'a-meta', 'suggestions'], review: ['production', 'board', 'a-production', 'pipeline'], load: ['meta', 'load-ads', 'a-meta', 'load-ads'] };
 /** The Black Friday War Room tab, read from the menu: 'war-room' (or 'live'), else the first tab there is. */
 function warTab() {
-  try { const l = lineOf('a-black-friday'); const ids = ((l && l.tabs) || []).map(t => t.id); return ['war-room', 'live'].find(x => ids.includes(x)) || ids[0] || 'pace'; } catch { return 'pace'; }
+  try { const l = lineOf('a-black-friday'); const ids = ((l && l.tabs) || []).filter(t => !t.hidden).map(t => t.id); return ['war-room', 'live'].find(x => ids.includes(x)) || ids[0] || 'pace'; } catch { return 'pace'; }
 }
 
 /** The answers, folded into rows. Exported so a page that holds the answers can build the same rows. */

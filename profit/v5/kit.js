@@ -394,8 +394,10 @@ function tipBox() {
 }
 export function tipShow(owner, content, at, gap = 12) {
   const el = tipBox();
-  if (tipOwner && tipOwner !== owner && tipOwner._tipOff) tipOwner._tipOff();
+  if (tipOwner && tipOwner !== owner) { if (tipOwner._tipOff) tipOwner._tipOff(); if (tipOwner.removeAttribute) tipOwner.removeAttribute('aria-describedby'); }
   tipOwner = owner || null;
+  /* the owner points at the bubble only while it is open (a pointer at a node that is not there helps no one) */
+  if (tipOwner && tipOwner.setAttribute) tipOwner.setAttribute('aria-describedby', 'lx-tip');
   put(el, [].concat(content));
   el.hidden = false;
   placeFloat(el, at, gap);
@@ -404,6 +406,7 @@ export function tipShow(owner, content, at, gap = 12) {
 export function tipHide(owner) {
   if (!TIP || (owner && owner !== tipOwner)) return;
   if (tipOwner && tipOwner._tipOff) tipOwner._tipOff();
+  if (tipOwner && tipOwner.removeAttribute) tipOwner.removeAttribute('aria-describedby');
   TIP.hidden = true; tipOwner = null;
 }
 export function tipRow(swatch, name, value) {
@@ -665,7 +668,6 @@ function plot(o, W, H, phone) {
   const dots = lines.filter(sr => sr._pts).map(sr => ({ sr, c: s('circle', { class: 'hd' + (sr.lead ? ' lead' : ''), r: 4, visibility: 'hidden' }) }));
   svg.append(...[cur, ...dots.map(d => d.c)].filter(Boolean), s('rect', { class: 'hit', x: L, y: T, width: Math.max(0, R - L), height: Math.max(0, B - T) }));
   svg.setAttribute('tabindex', '0');
-  svg.setAttribute('aria-describedby', 'lx-tip');
   const idxAt = px => Math.max(0, Math.min(n - 1, slots ? Math.floor((px - L) / step) : xs ? xs.reduce((best, v, k) => Math.abs(free(v) - px) < Math.abs(free(xs[best]) - px) ? k : best, 0) : Math.round((px - L - pad) / ((R - L - 2 * pad) || 1) * (n - 1))));
   let at = -1;
   const mark = i => {

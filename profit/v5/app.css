@@ -368,7 +368,8 @@ button.lx-avatar{cursor:pointer}
    (drawn as shadows, so nothing moves), and the row's own lines fade so it reads as one soft piece, never a box.
    The wrap has 10px of room each side for those ends; a flush card's edge cells already have their padding. */
 .lx-table-wrap{width:calc(100% + 20px);margin-inline:-10px;padding-inline:10px}
-.lx-card.flush>.lx-table-wrap{width:100%;margin-inline:0;padding-inline:0}
+/* a flush card clips its sides, so a table anywhere inside it keeps to the card's own width */
+.lx-card.flush .lx-table-wrap{width:100%;margin-inline:0;padding-inline:0}
 .lx-table tbody tr:not(.total):not(.spacer):not(.empty):hover td{background:var(--row-hover);border-bottom-color:transparent}
 .lx-table tbody tr:not(.total):not(.spacer):not(.empty):hover td:first-child{border-radius:10px 0 0 10px;box-shadow:-10px 0 0 var(--row-hover)}
 .lx-table tbody tr:not(.total):not(.spacer):not(.empty):hover td:last-child{border-radius:0 10px 10px 0;box-shadow:10px 0 0 var(--row-hover)}
@@ -764,4 +765,4 @@ button.lx-info:focus-visible{outline:2px solid var(--ink-2);outline-offset:2px}
 .lx-help-sheet .lx-sheet-b section{display:grid;gap:6px}
 .lx-help-sheet .lx-sheet-b h3{margin:0;font-size:14px;font-weight:650;color:var(--ink)}
 /* a dark theme, if one is ever switched on: the bubbles keep their look and get a lighter edge */
-:root[data-theme="dark"]{--tip-bg:#2A2521;--tip-sh:0 0 0 1px rgba(255,255,255,.12),0 10px 28px -8px rgba(0,0,0,.6)}
+:root[data-theme="dark"]{--tip-bg:#2A2521;--tip-sh:0 0 0 1px rgba(255,255,255,.12),0 10px 28px -8px rgba(0,0,0,.6);--row-hover:#2A2622}

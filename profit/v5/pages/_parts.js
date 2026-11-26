@@ -33,7 +33,7 @@ const SEEN = new Map();      // page key -> the newest follow() call, so an olde
 const WAIT = new Map();      // page key -> the follow() call to tell when a read starts
 const HEIR = new Map();      // page key -> a read that was cut short and is waiting for the next one to answer for it
 
-const keyOf = (ctx, ranged) => pageKey({ view: ctx.view, brandId: ctx.brand ? ctx.brand.id : 'all', line: ctx.line.id, tab: ctx.tab.id, range: ranged ? ctx.range : null });
+const keyOf = (ctx, ranged) => pageKey({ view: ctx.view, brandId: ctx.brand ? ctx.brand.id : 'all', line: ctx.line.id, tab: ctx.tab.id, range: ranged ? ctx.range : null, client: ctx.isClient });
 const aborted = (e, ctx) => (e && e.name === 'AbortError') || (ctx.signal && ctx.signal.aborted);
 
 function snap(run) {
