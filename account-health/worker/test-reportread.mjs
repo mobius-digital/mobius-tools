@@ -256,6 +256,53 @@ await check('the call\'s confirm drafts How we read it from the brand\'s notes (
   assert.ok(!src.includes('d.sendReport('), 'meetings.js never calls sendReport');
 });
 
+await check('a later call never replaces an approved read or one from typed notes; a call with several brands leaves the call summary out', async () => {
+  const { draftRead } = await import('./src/reportread.js');
+  const views = [];
+  const d = {
+    listBrands: async () => [{ act_id: 'brand_sample', name: 'Sample Golf Co', slack_channel: 'C_SAMPLE_IN', brief_channel: 'C_SAMPLE_CLIENT' }, { act_id: 'brand_other', name: 'Other Sample Co', slack_channel: 'C_OTHER_IN', brief_channel: 'C_OTHER_CLIENT' }],
+    sendReport: async () => { throw new Error('never sends'); }, slackSyncReport: async () => {},
+    draftReportRead: (e, act, period, start, o) => { views.push(o.notes); return draftRead(e, { claude: async () => 'Second call read.' }, { act_id: act, name: 'Sample Golf Co' }, period, start, o); },
+    createAsk: async () => 'rq_2', slackPost: async () => ({ ok: true }), slackApi: async () => ({ ok: false }),
+  };
+  db.exec(`UPDATE p_report_read SET status = 'approved', read_text = 'Approved weekly read.', approved_by = 'a@b' WHERE act_id = 'brand_sample' AND period = 'weekly' AND period_start = '2026-11-23'`);
+  db.exec(`INSERT INTO p_meeting (id, title, date, kind, status, created_at, updated_at) VALUES ('mt2', 'Team call', '2026-12-02', 'monday_call', 'extracted', '2026-12-02T13:00:00Z', '2026-12-02T13:00:00Z')`);
+  const r = await confirm(env, d, { id: 'mt2', summary: 'Other Sample Co had a rough week and we cut its budget.', brands: [
+    { brand_id: 'brand_sample', decisions: ['Raise Meta'] }, { brand_id: 'brand_other', decisions: ['Cut budget'] }] }, 'teammate@go-mobius-digital.com');
+  const wk = await readRow(env, 'brand_sample', 'weekly', '2026-11-23');
+  assert.equal(wk.status, 'approved'); assert.equal(wk.read_text, 'Approved weekly read.'); assert.equal(wk.meeting_id, 'mt1', 'team view untouched');
+  assert.ok(r.warnings.some(w => /weekly report was already approved, left as is/.test(w)), JSON.stringify(r.warnings));
+  const mo = await readRow(env, 'brand_sample', 'monthly', '2026-11-01');
+  assert.equal(mo.status, 'drafted'); assert.equal(mo.draft, 'Second call read.'); assert.equal(mo.meeting_id, 'mt2');
+  assert.equal(views.length, 1);
+  assert.ok(!/Other Sample Co|rough week|Call summary/.test(views[0]), 'no other brand in the view: ' + views[0]);
+  assert.match(views[0], /Decisions:\n- Raise Meta/);
+
+  db.exec(`UPDATE p_report_read SET team_source = 'typed', team_view = 'Our own notes.' WHERE act_id = 'brand_sample' AND period = 'monthly' AND period_start = '2026-11-01'`);
+  db.exec(`INSERT INTO p_meeting (id, title, date, kind, status, created_at, updated_at) VALUES ('mt3', 'Brand call', '2026-12-03', 'brand_call', 'extracted', '2026-12-03T13:00:00Z', '2026-12-03T13:00:00Z')`);
+  const r3 = await confirm(env, d, { id: 'mt3', summary: 'Only this brand.', brands: [{ brand_id: 'brand_sample', decisions: ['Hold'] }] }, 'teammate@go-mobius-digital.com');
+  const mo3 = await readRow(env, 'brand_sample', 'monthly', '2026-11-01');
+  assert.equal(mo3.team_view, 'Our own notes.'); assert.equal(mo3.draft, 'Second call read.');
+  assert.ok(r3.warnings.some(w => /monthly report was written from the team's own notes, left as is/.test(w)), JSON.stringify(r3.warnings));
+  assert.equal(views.length, 1, 'no redraft');
+  assert.match(teamViewOf({ decisions: ['Hold'] }, { title: 'Brand call', date: '2026-12-03' }, 'Only this brand.', 'X'), /Call summary: Only this brand\./, 'a one-brand call keeps its summary');
+});
+
+await check('reportCard: every actions block has unique action_ids (no read, drafted, approved), and an internal-only card too', async () => {
+  const { reportCard } = await import('./src/worker.js');
+  db.prepare(`INSERT INTO reports (act_id, period, period_start, period_end, status, generated_at, summary, data_json) VALUES ('brand_sample', 'weekly', '2026-11-30', '2026-12-06', 'draft', '2026-12-07T11:00:00Z', NULL, ?)`).run(JSON.stringify({ ...DATA, start: '2026-11-30', end: '2026-12-06' }));
+  const row = () => db.prepare(`SELECT * FROM reports WHERE act_id = 'brand_sample' AND period = 'weekly' AND period_start = '2026-11-30'`).get();
+  const acct = { act_id: 'brand_sample', name: 'Sample Golf Co', brief_channel: 'C_SAMPLE_CLIENT', slack_channel: 'C_SAMPLE_IN' };
+  const ids = card => card.blocks.filter(b => b.type === 'actions').map(b => b.elements.map(e => e.action_id));
+  const unique = (card, label) => { for (const xs of ids(card)) assert.equal(new Set(xs).size, xs.length, `${label}: ${xs.join(', ')}`); };
+  let c = await reportCard(env, acct, row()); unique(c, 'no read'); assert.ok(ids(c)[0].includes('noop_open_1'), 'approve button there');
+  db.prepare(`INSERT INTO p_report_read (act_id, period, period_start, status, draft, updated_at) VALUES ('brand_sample', 'weekly', '2026-11-30', 'drafted', 'A draft.', '2026-12-07')`).run();
+  c = await reportCard(env, acct, row()); unique(c, 'drafted');
+  db.exec(`UPDATE p_report_read SET status = 'approved', read_text = 'A draft.' WHERE act_id = 'brand_sample' AND period = 'weekly' AND period_start = '2026-11-30'`);
+  c = await reportCard(env, acct, row()); unique(c, 'approved'); assert.ok(!ids(c)[0].includes('noop_open_1'), 'no approve button once approved');
+  c = await reportCard(env, { ...acct, brief_channel: null }, row()); unique(c, 'internal only');
+});
+
 await check('helpers: cleanRead strips markdown and dashes; readFacts keeps internals Triple Whale only; teamViewOf; links', () => {
   assert.equal(cleanRead(`## How we read it\n**Good** week ${EN} up.`), 'Good week, up.');
   const f = readFacts({ ...DATA, channels: [{ id: 'tiktok', label: 'TikTok', cur: { spend: 50, roas: 3, source: undefined }, prev: null }] });

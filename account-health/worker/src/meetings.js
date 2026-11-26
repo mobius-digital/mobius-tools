@@ -49,6 +49,7 @@ import { numOf } from './asana-brand.js';
 import { loadCard } from './morningcard.js';
 import { laneBlocks, fyi } from './lane.js';
 import { typedOnCall } from './callscreen.js';
+import { readRow as reportReadRow } from './reportread.js';
 
 const MODEL = 'claude-sonnet-5-5';
 const FF = 'https://api.fireflies.ai/graphql';
@@ -387,7 +388,9 @@ export function teamViewOf(b, m, summary, name) {
   const list = (title, xs) => xs && xs.length ? `${title}:\n${xs.map(x => `- ${x}`).join('\n')}` : '';
   return [
     `From the "${m.title || 'call'}" call on ${m.date || ''}.`.replace(' on .', '.'),
-    summary ? `Call summary (the whole call, it may cover other brands: use only what is about ${name}): ${summary}` : '',
+    /* The call summary only when the call was about this one brand (confirm passes '' otherwise): a Monday call's
+       summary holds every client's results and plans, and this text drafts a read that goes to one client. */
+    summary ? `Call summary: ${summary}` : '',
     list('Decisions', b.decisions),
     list('What we told the client', (b.items || []).filter(i => i.kind === 'client').map(i => i.text)),
     list('This week', b.this_week),
@@ -450,7 +453,7 @@ export async function confirm(env, d, body, who) {
     }
     /* 2b. The team's view -> How we read it, for every open draft (weekly and monthly) of the brand: the brand's notes
        are stored as the team view (source 'meeting') and the read is drafted after the loop. */
-    if (act && d.draftReportRead) for (const rep of await openDrafts(env, act, m.date)) readJobs.push({ r, act, rep, view: teamViewOf(b, m, notes.summary, r.name) });
+    if (act && d.draftReportRead) for (const rep of await openDrafts(env, act, m.date)) readJobs.push({ r, act, rep, b });
     /* 3. What the client owes -> a Requests item the client ticks off. */
     if (act) for (const it of b.items.filter(i => i.kind === 'client_owes')) {
       try { r.asks.push({ ...it, id: await d.createAsk(env, act, it.text, `Agreed on ${m.date}${m.title ? ` (${m.title})` : ''}.${it.due ? ` Needed by ${it.due}.` : ''}`, who) }); }
@@ -482,9 +485,22 @@ export async function confirm(env, d, body, who) {
   }
   /* How we read it, drafted from the call (one model call per open report, in parallel). A failure leaves the report
      as it was and says so; the team can write it again in Reports. */
+  /* The whole call's summary goes in only when the confirmed notes hold one brand (see teamViewOf). */
+  const oneBrand = new Set(notes.brands.map(x => x.brand_id || 'agency')).size === 1;
   await Promise.all(readJobs.map(async j => {
     const label = j.rep.period === 'monthly' ? 'monthly' : 'weekly';
     (j.r.reads ??= []);
+    /* A read a person already approved, or one drafted from notes the team typed themselves, is theirs: a later call
+       (a second call that week, or each weekly call while a monthly draft is open) never replaces it. */
+    const prior = await reportReadRow(env, j.act, j.rep.period, j.rep.period_start).catch(() => null);
+    if (prior && (prior.status === 'approved' || prior.team_source === 'typed')) {
+      j.r.reads.push({ period: j.rep.period, period_start: j.rep.period_start, status: prior.status, kept: true });
+      result.warnings.push(prior.status === 'approved'
+        ? `${j.r.name}: how we read the ${label} report was already approved, left as is.`
+        : `${j.r.name}: how we read the ${label} report was written from the team's own notes, left as is. Redraft it in Reports to use this call.`);
+      return;
+    }
+    j.view = teamViewOf(j.b, m, oneBrand ? notes.summary : '', j.r.name);
     try {
       await d.draftReportRead(env, j.act, j.rep.period, j.rep.period_start, { notes: j.view, source: 'meeting', meeting_id: m.id });
       j.r.reads.push({ period: j.rep.period, period_start: j.rep.period_start, status: 'drafted' });

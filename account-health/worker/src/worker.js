@@ -6353,7 +6353,9 @@ async function reportCard(env, acct, row, banner) {
         'Send this report to the client?',
         `This posts the ${row.period} report (*${range}*) and its link to ${acct.brief_channel ? `<#${acct.brief_channel}>` : 'the client channel'} under your own name, and *freezes the report permanently*. It is refused until How we read it is approved in Locus.`,
         'Send it') }));
-      if (!approved) els.push(btn('Approve it in Locus', 'noop_open', v, { url: approveUrl }));
+      /* Its own action_id: Slack refuses two equal action_ids in one actions block (invalid_blocks), and 'Open in Locus'
+         below is noop_open. The router acks noop_open_<n>. */
+      if (!approved) els.push(btn('Approve it in Locus', 'noop_open_1', v, { url: approveUrl }));
     } else if (acct.slack_channel && !acct.brief_channel) els.push(btn('Post to the team channel', 'report_team', v, { style: 'primary' }));
     els.push(btn('Edit how we read it', 'report_edit', v));
     els.push(btn('Write how we read it', 'report_rewrite', v));
@@ -11095,7 +11097,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
 /* For the offline dashboard checks (test-dashrange.mjs). */
 export { dashNumbers, dashBlocks, dashRange };
 /* For the offline cost checks (test-costs-brief.mjs). */
-export { econDay, briefData, reportData, buildBriefText, buildBriefTextV2, reportHeadline, spendFor, clientReportText, storePeriod };
+export { econDay, briefData, reportData, buildBriefText, buildBriefTextV2, reportHeadline, spendFor, clientReportText, storePeriod, reportCard };
 /** A creator link on the AUTO board (profit amb.js autoBoard, migration amb-004) also shows the
  *  brand's top-ranked video ads. The ranked ids are cached on the brand row, so the slug authorizes
  *  exactly those ads on a LIVE page, the same rule as proof. Empty for a hand-picked board. */
