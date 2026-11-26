@@ -1950,7 +1950,7 @@ async function makeRoot(env, acct, ask, why, link) {
   const team = ((await teamOf(env, [acct.act_id]).catch(() => ({})))[acct.act_id]) || {};
   const who = await laneWho(env, { slackApi: (e, m, b) => slack(e, m, b, /^users\./.test(m)), centralDate: () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }) }, laneOwner('CREATIVE', team));
   const m = laneBlocks({ lane: 'CREATIVE', brand: acct.name, who, ask, why });
-  return `${m.blocks[0].text.text}${link ? `\n${link}` : ''}`;
+  return `${m.mrkdwn}${link ? `\n${link}` : ''}`;
 }
 
 const plainErr = (m, status = 400) => Object.assign(new Error(m), { plain: true, status });

@@ -357,7 +357,7 @@ export function slackText(s, dayLabel) {
   const n = s.failed.length;
   if (!n) return `Locus check, ${dayLabel}: all ${s.total} checks passed.`;
   /* 2026-11-09 (the lane format, lane.js): "*OPS · Agency*", Cole tagged with the ask, the count as the why, then the list. */
-  const head = laneBlocks({ lane: 'OPS', brand: 'Agency', who: 'Cole', ask: `Fix the ${n} failed Locus check${n === 1 ? '' : 's'}`, why: `${n} of ${s.total} ${s.total === 1 ? 'check' : 'checks'} failed in the Locus check, ${dayLabel}` }).blocks[0].text.text;
+  const head = laneBlocks({ lane: 'OPS', brand: 'Agency', who: 'Cole', ask: `Fix the ${n} failed Locus check${n === 1 ? '' : 's'}`, why: `${n} of ${s.total} ${s.total === 1 ? 'check' : 'checks'} failed in the Locus check, ${dayLabel}` }).mrkdwn;
   const e = t => String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   /* D1 refusing for a stretch is ONE problem, not one per page: fold those lines into a single one. */
   const busy = s.failed.filter(f => D1_BUSY.test(f.error || '')), rest = s.failed.filter(f => !D1_BUSY.test(f.error || ''));

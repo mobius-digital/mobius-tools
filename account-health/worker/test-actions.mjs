@@ -56,10 +56,12 @@ await check('openItems: grouped per brand, agency-wide first, the shape the Mond
 await check('the reminder message: one line per item, overdue marked, a Done button per item, Open in Locus, no em dash', async () => {
   const m = reminderMessage('Alpha Golf', 'Ahsan', [{ id: 'x', act_id: 'brand_alpha', text: 'Rebuild the hook ad', due: '2026-10-14' }, { id: 'y', act_id: 'brand_alpha', text: 'Old one', due: '2026-10-10' }], '2026-10-14');
   assert.match(m.text, /^OPS · Alpha Golf: Finish 2 tasks: 1 due today, 1 overdue\n• Rebuild the hook ad\n• Old one _\(was due Sat, Oct 10\)_$/);
-  assert.equal(m.blocks[0].text.text, '*OPS · Alpha Golf*\n*Ahsan*  Finish 2 tasks: 1 due today, 1 overdue', 'lane first, the owner, the ask');
+  assert.equal(m.blocks[0].text.text, 'OPS · Alpha Golf: Finish 2 tasks: 1 due today, 1 overdue', 'the house header: lane first, the ask');
+  assert.equal(m.blocks[1].text.text, '*Ahsan*', 'then the owner');
   const one = reminderMessage('Alpha Golf', 'Ahsan', [{ id: 'z', act_id: 'brand_alpha', text: 'Write the flow', area: 'email', due: '2026-10-10' }], '2026-10-14', '<@U_AHSAN>');
-  assert.equal(one.blocks[0].text.text, '*EMAIL · Alpha Golf*\n<@U_AHSAN>  Write the flow\nWhy: was due Sat, Oct 10', 'one task = the task is the ask; its area is the lane');
-  const btns = m.blocks[1].elements; assert.equal(btns.length, 3); assert.equal(btns[0].action_id, 'act_done_0'); assert.deepEqual(JSON.parse(btns[0].value), { id: 'x' }); assert.equal(btns[2].url, 'https://locus.go-mobius-digital.com/profit/?open=actions&act=brand_alpha');
+  assert.equal(one.blocks[0].text.text, 'EMAIL · Alpha Golf: Write the flow', 'one task = the task is the ask; its area is the lane');
+  assert.equal(one.blocks[1].text.text, '<@U_AHSAN>  was due Sat, Oct 10');
+  const btns = m.blocks.find(b => b.type === 'actions').elements; assert.equal(btns.length, 3); assert.equal(btns[0].action_id, 'act_done_0'); assert.deepEqual(JSON.parse(btns[0].value), { id: 'x' }); assert.equal(btns[2].url, 'https://locus.go-mobius-digital.com/profit/?open=actions&act=brand_alpha');
   assert.ok(!/—/.test(JSON.stringify(m)));
 });
 await check('the tick: nothing before the hour; then one post per owner per brand (internal channel; agency to the Strategist channel; a DM when the brand has no channel), once a day, overdue again tomorrow', async () => {

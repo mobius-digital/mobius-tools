@@ -20,7 +20,9 @@
  *   PUT  /api/clients/me              the signed-in client: {name?, welcomed?} (their own profile only)
  * Nothing here sends anything unless the owner pressed Send on text they saw (the New client rule).
  */
-import { sendMail } from './mail.js';
+import { sendMail as sendMailAs } from './mail.js';
+/* Sign in links and login invites come from the login_email sender: Locus once a Locus mailbox exists, Cole until then. */
+const sendMail = (env, to, subject, text) => sendMailAs(env, to, subject, text, { kind: 'login_email' });
 import { clientOf, clientScope, brandsFor, CLIENT_SWITCHES, CLIENT_CAPS, capUse, capAdd, capMessage, HQ_BRAND, HQ_DOMAIN } from './brandguard.js';
 
 const OWNER = 'cole@go-mobius-digital.com';

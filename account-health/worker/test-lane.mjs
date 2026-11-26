@@ -6,6 +6,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import assert from 'node:assert/strict';
 import { laneBlocks, laneLines, laneName, laneOwner, laneOfArea, whoText, fyi, roundupTick, roundupMessage, COLE } from './src/lane.js';
+import { houseLint } from './src/house.js';
 import { reminderMessage } from './src/actions.js';
 import { minOffMessage } from './src/minoff.js';
 import { messageFor } from './src/todaypost.js';
@@ -25,15 +26,25 @@ const noDash = o => assert.ok(!/[—–]/.test(JSON.stringify(o)), 'no em or en 
 await check('laneBlocks: lane + brand, the tagged person and the ask, Why:, then the buttons; fallback text "LANE · Brand: ask"', () => {
   const m = laneBlocks({ lane: 'media', brand: 'Dartee', who: COLE, ask: 'Turn off ad set 368', why: '$140 spent, 0 sales in 7 days',
     buttons: [{ type: 'button', action_id: 'do_it', text: { type: 'plain_text', text: 'Do it' }, value: '1' }, { label: 'Open', url: 'https://x' }] });
-  assert.equal(m.blocks[0].text.text, '*MEDIA BUYING · Dartee*\n<@U06C37MDWD7>  Turn off ad set 368\nWhy: $140 spent, 0 sales in 7 days');
-  assert.equal(m.text, 'MEDIA BUYING · Dartee: Turn off ad set 368');
-  assert.equal(m.blocks[1].type, 'actions'); assert.deepEqual(m.blocks[1].elements.map(e => e.text.text), ['Do it', 'Open']);
-  assert.equal(m.blocks[1].elements[1].action_id, 'noop_open', 'an Open link is a noop_open button');
+  /* 2026-11-26, the house style (house.js): a header, the tag and the why, one row of buttons. */
+  assert.deepEqual(m.blocks[0], { type: 'header', text: { type: 'plain_text', text: 'MEDIA BUYING · Dartee: Turn off ad set 368' } });
+  assert.equal(m.blocks[1].text.text, '<@U06C37MDWD7>  $140 spent, 0 sales in 7 days');
+  assert.equal(m.text, 'MEDIA BUYING · Dartee: Turn off ad set 368. $140 spent, 0 sales in 7 days');
+  assert.equal(m.blocks[2].type, 'actions'); assert.deepEqual(m.blocks[2].elements.map(e => e.text.text), ['Do it', 'Open']);
+  assert.equal(m.blocks[2].elements[1].action_id, 'noop_open', 'an Open link is a noop_open button');
+  assert.equal(m.mrkdwn, '*MEDIA BUYING · Dartee*\n<@U06C37MDWD7>  Turn off ad set 368\nWhy: $140 spent, 0 sales in 7 days', 'the old body stays for cards that embed an ask');
+  assert.deepEqual(houseLint(m), []);
   const n2 = laneBlocks({ lane: 'OPS', ask: 'Fix the sync — now' });
-  assert.equal(n2.blocks[0].text.text, '*OPS · Agency*\n<@U06C37MDWD7>  Fix the sync, now', 'no brand = Agency, no person = Cole, dashes go');
-  assert.equal(n2.blocks.length, 1, 'no why, no buttons: nothing else');
+  assert.equal(n2.blocks[0].text.text, 'OPS · Agency: Fix the sync, now', 'no brand = Agency, dashes go');
+  assert.equal(n2.blocks[1].text.text, '<@U06C37MDWD7>', 'no person = Cole');
+  assert.equal(n2.blocks.length, 2, 'no why, no buttons: nothing else');
   const two = laneBlocks({ ask: 'x', buttons: [{ label: 'A', url: 'https://a' }, { label: 'B', url: 'https://b' }] });
-  assert.equal(two.blocks.filter(b => b.type === 'actions').length, 2, 'two noop_open buttons never share a block (ids must be unique in one)');
+  assert.equal(two.blocks.filter(b => b.type === 'actions').length, 1, 'one row of buttons');
+  assert.deepEqual(two.blocks.at(-1).elements.map(e => e.action_id), ['noop_open', 'noop_open_2'], 'link buttons get unique ids in the one row');
+  const linked = laneBlocks({ ask: 'Post your plan in <https://slack.com/app_redirect?channel=C1|#daily-checkin>', why: 'no plan yet' });
+  assert.equal(linked.blocks[1].text.text, '<@U06C37MDWD7>  Post your plan in <https://slack.com/app_redirect?channel=C1|#daily-checkin>. no plan yet', 'an ask with a link keeps it');
+  const bad = laneBlocks({ lane: 'OPS', ask: 'Fix the sync', status: 'bad' });
+  assert.equal(bad.blocks.length, 1); assert.equal(bad.attachments[0].color, '#E01E5A');
   noDash([m, n2]);
 });
 
@@ -118,7 +129,8 @@ await check('roundupTick: once a day; a line queued after the post waits for tom
 
 await check('the reminder, the test minimums and the calls list all start lane first', () => {
   const r = reminderMessage('Dartee', 'Ahsan', [{ id: 'a', act_id: 'brand_dartee', text: 'Write the BFCM flow', area: 'email', due: '2026-11-08' }], '2026-11-09', '<@U_AHSAN>');
-  assert.match(r.blocks[0].text.text, /^\*EMAIL · Dartee\*\n<@U_AHSAN>  Write the BFCM flow\nWhy: was due /);
+  assert.equal(r.blocks[0].text.text, 'EMAIL · Dartee: Write the BFCM flow', 'the house header: lane first');
+  assert.match(r.blocks[1].text.text, /^<@U_AHSAN>  was due /);
   const m = minOffMessage({ act: 'brand_dartee', date: '2026-11-09', brand: 'Dartee', tag: '<@U_COLE>', items: [{ id: '1', name: '368 | Broad', min: 20, day: 9, why: 'judged' }] });
   assert.equal(m.blocks[0].text.text, '*MEDIA BUYING · Dartee*\n<@U_COLE>  Take 1 test minimum off');
   const c = messageFor({ act_id: 'brand_dartee', name: 'Dartee' }, [{ kind: 'cut', adset: '368 | Broad', stake: 140, why: '$140 spent, 0 sales in 7 days.' }], '<@U_COLE>');

@@ -8,6 +8,7 @@
  * Gmail > Settings > Signature).
  */
 import { googleToken } from './asana-brand.js';
+import { senderFor } from './sender.js';
 
 let F = (...a) => fetch(...a);
 export function useFetch(f) { F = f; }
@@ -34,13 +35,18 @@ export function textToHtml(text) {
 const b64 = s => btoa(String.fromCharCode(...new TextEncoder().encode(s)));
 const b64url = s => b64(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
-/** Sends `text` (as Cole approved it) from Cole's Gmail, as HTML with the signature, plus a plain-text part. */
-export async function sendMail(env, to, subject, text) {
-  const tok = await googleToken(env, OWNER, 'https://www.googleapis.com/auth/gmail.send');
-  const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.55;color:#13202B;max-width:600px">${textToHtml(text)}${SIGNATURE_HTML}</div>`;
-  const plain = `${String(text).trim()}\n\nCole Wetzler\nFounder, Mobius Digital\n${OWNER}\ngo-mobius-digital.com`;
+/** Sends `text` (as Cole approved it) from Cole's Gmail, as HTML with the signature, plus a plain-text part.
+ *  opts.kind (sender.js SENDER_KINDS, an email kind) picks the mailbox: Cole's (as before, with his signature) or the
+ *  Locus mailbox (LOCUS_MAIL_FROM, From name "Locus", no personal signature). No kind = Cole, exactly as before. */
+export async function sendMail(env, to, subject, text, opts = {}) {
+  const s = opts.kind ? await senderFor(env, opts.kind).catch(() => null) : null;
+  const app = !!(s && s.who === 'locus' && s.mail && s.mail.subject);
+  const box = app ? s.mail.subject : OWNER;
+  const tok = await googleToken(env, box, 'https://www.googleapis.com/auth/gmail.send');
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.55;color:#13202B;max-width:600px">${textToHtml(text)}${app ? '' : SIGNATURE_HTML}</div>`;
+  const plain = app ? String(text).trim() : `${String(text).trim()}\n\nCole Wetzler\nFounder, Mobius Digital\n${OWNER}\ngo-mobius-digital.com`;
   const bnd = 'mobius' + crypto.randomUUID().replace(/-/g, '');
-  const mime = [`From: Cole Wetzler <${OWNER}>`, `To: ${to}`, `Subject: =?UTF-8?B?${b64(subject)}?=`, 'MIME-Version: 1.0', `Content-Type: multipart/alternative; boundary="${bnd}"`, '',
+  const mime = [app ? `From: ${s.mail.fromName || 'Locus'} <${box}>` : `From: Cole Wetzler <${OWNER}>`, `To: ${to}`, `Subject: =?UTF-8?B?${b64(subject)}?=`, 'MIME-Version: 1.0', `Content-Type: multipart/alternative; boundary="${bnd}"`, '',
     `--${bnd}`, 'Content-Type: text/plain; charset=UTF-8', 'Content-Transfer-Encoding: base64', '', b64(plain),
     `--${bnd}`, 'Content-Type: text/html; charset=UTF-8', 'Content-Transfer-Encoding: base64', '', b64(html),
     `--${bnd}--`, ''].join('\r\n');

@@ -11,6 +11,9 @@
  *
  * Alerts only on a change between two readable states; a feed that fails to load is "unknown" and never alerts. */
 
+import { houseMessage } from './house.js';
+import { senderFor, postAs } from './sender.js';
+
 export const PLATFORMS = [
   { id: 'meta', short: 'Meta', name: 'Meta Ads', color: '#0866FF', type: 'metastatus', url: 'https://metastatus.com/data/orgs.json', link: 'https://metastatus.com',
     orgs: ['ads-manager', 'marketing-api', 'fbs', 'graph-api', 'catalog', 'fb-ig-shops', 'audience-network', 'facebook-login', 'ctx', 'whatsapp-business-api', 'ig-boost'] },
@@ -152,26 +155,32 @@ export async function pulseTick(env, { F = fetch, slackApi } = {}) {
 function when(iso) {
   return new Date(iso || Date.now()).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago', timeZoneName: 'short' });
 }
-/** The same colored-bar card for #outages and for the client channels. `button` = the stored alert id (internal only). */
-export function alertCard(p, list, { button, at, footer, team } = {}) {
+/** The same card for #outages and for the client channels, in the house style (house.js, 2026-11-26): header
+ *  "Shopify: Checkout is down", the platform's own note as the summary, the source and time in the gray line, the
+ *  status bar kept (it means status), no emoji. `button` = the stored alert id (internal only): Send to all clients and
+ *  the status page share one row. `footer` = who it was sent to (the team card after the tap). */
+export function alertCard(p, list, { button, at, footer, team, now } = {}) {
   const short = p?.short || p?.name || 'Platform';
   const fixed = list.every(t => t.to === 'operational'), down = list.some(t => t.to === 'outage');
-  /* 2026-11-09 (the lane format, lane.js): the team card in #outages starts with its lane; a client never sees it. */
-  const blocks = team ? [{ type: 'section', text: { type: 'mrkdwn', text: '*OPS · Agency*' } }] : [];
-  list.forEach((t, i) => {
-    const what = t.service.replace(new RegExp(`^${short}\\s+`, 'i'), '');
-    const status = t.to === 'operational' ? 'Working again' : t.to === 'outage' ? 'Outage' : 'Slow or partly down';
-    const note = String(t.note || '').slice(0, 250);
-    blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `${t.to === 'operational' ? '✅' : '⚠️'}  *${short}: ${what}*` } });
-    if (i === 0) blocks.push({ type: 'divider' });
-    blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `*${status}*${note ? `\n_${t.to === 'operational' ? 'Was: ' : ''}${note}_` : ''}` } });
+  const what = t => t.service.replace(new RegExp(`^${short}\\s+`, 'i'), '');
+  const state = t => (t.to === 'operational' ? 'is working again' : t.to === 'outage' ? 'is down' : 'is slow or partly down');
+  const word = t => (t.to === 'operational' ? 'Working again' : t.to === 'outage' ? 'Outage' : 'Slow or partly down');
+  const first = list[0] || { service: short, to: 'operational', note: '' };
+  const note = String(first.note || '').slice(0, 180);
+  const msg = houseMessage({
+    title: `${short}: ${what(first)} ${state(first)}${list.length > 1 ? ` (and ${list.length - 1} more)` : ''}`,
+    summary: `${word(first)}.${note ? ` ${first.to === 'operational' ? 'Was: ' : ''}${note}` : ''}`,
+    lines: list.length > 1 ? list.map(t => `${short}: ${what(t)}, ${word(t).toLowerCase()}${t.note ? ` (${String(t.note).slice(0, 120)})` : ''}`) : [],
+    source: `${short} status page`, at: at || new Date(), now,
+    context: [fixed ? 'Fixed' : '', footer || ''].filter(Boolean).join(' · '),
+    buttons: [
+      ...(button ? [{ action_id: 'pulse_send', value: button, style: fixed ? 'primary' : 'danger', label: 'Send to all clients' }] : []),
+      ...(team && p?.link ? [{ label: 'Status page', url: p.link }] : []),
+      ...(team ? [{ label: 'Platform status in Locus', url: `${LOCUS}?open=pulse` }] : []),
+    ],
+    status: fixed ? 'good' : down ? 'bad' : 'warn',
   });
-  const lines = [`${fixed ? 'Fixed' : 'Posted'} by ${short} at ${when(at)}${p?.link ? `   ·   <${p.link}|${short} status page>` : ''}`];
-  if (button) lines[0] += `   ·   <${LOCUS}?open=pulse|Platform status in Locus>`;
-  if (footer) lines.push(footer);
-  blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: lines.join('\n') }] });
-  if (button) blocks.push({ type: 'actions', elements: [{ type: 'button', action_id: 'pulse_send', value: button, style: fixed ? 'primary' : 'danger', text: { type: 'plain_text', text: 'Send to all clients' } }] });
-  return { text: `${team ? 'OPS · Agency: ' : ''}${short}: ${list.map(t => `${t.service} ${t.to === 'operational' ? 'working again' : t.to}`).join(', ')}`, attachments: [{ color: fixed ? '#2EB67D' : down ? '#D0342C' : '#ECB22E', blocks }] };
+  return { text: msg.text, blocks: msg.blocks, ...(msg.attachments ? { attachments: msg.attachments } : {}) };
 }
 
 /** Every active brand's client channel, read now (a new client is included the day it is set up). */
@@ -182,7 +191,7 @@ export async function clientChannels(env) {
 }
 
 /** "Send to all clients": acked at once, sent after, then the #outages card says who got it. */
-export async function pulseButton(env, ctx, payload, { slackApi, ACK }) {
+export async function pulseButton(env, ctx, payload, { slackApi, ACK, F = (...x) => fetch(...x) }) {
   const tap = (payload.actions || []).find(a => a.action_id === 'pulse_send');
   const id = String(tap?.value || ''), who = payload.user?.id ? `<@${payload.user.id}>` : 'someone';
   ctx.waitUntil((async () => {
@@ -193,13 +202,18 @@ export async function pulseButton(env, ctx, payload, { slackApi, ACK }) {
     a.sent = `by ${who} at ${when()}`; await put(env, id, a);   // claimed before sending, so a double tap cannot post twice
     const p = PLATFORMS.find(x => x.id === a.pid);
     const card = alertCard(p, a.list, { at: a.at });
+    const sender = await senderFor(env, 'client_outage').catch(e => ({ who: 'error', error: e.message }));
+    if (sender.who === 'error') { a.sent = null; await put(env, id, a); if (ch && payload.user?.id) await slackApi(env, 'chat.postEphemeral', { channel: ch, user: payload.user.id, text: `Not sent: ${sender.error}` }); return; }
     const list = await clientChannels(env), ok = [], bad = [];
     for (const c of list) {
-      const r = await slackApi(env, 'chat.postMessage', { channel: c.client_channel, username: 'Mobius Digital', icon_url: 'https://tools.go-mobius-digital.com/favicon.png', unfurl_links: false, ...card });
+      /* Who it comes from = the client_outage sender (sender.js): Locus (today's, the app as "Mobius Digital") or Cole. */
+      const body = { channel: c.client_channel, unfurl_links: false, ...card };
+      const r = sender && sender.who === 'cole' ? await postAs(sender, body, F)
+        : await slackApi(env, 'chat.postMessage', { ...body, username: 'Mobius Digital', icon_url: 'https://tools.go-mobius-digital.com/favicon.png' });
       (r?.ok ? ok : bad).push(r?.ok ? c.name : `${c.name} (${r?.error || 'failed'})`);
     }
     a.result = { ok, bad }; await put(env, id, a);
-    const note = `📣 Sent to ${ok.length} of ${list.length} clients ${a.sent}${ok.length ? `: ${ok.join(', ')}` : ''}${bad.length ? `\n⚠️ Not sent: ${bad.join(', ')}` : ''}`;
+    const note = `Sent to ${ok.length} of ${list.length} clients ${a.sent}${ok.length ? `: ${ok.join(', ')}` : ''}${bad.length ? `. Not sent: ${bad.join(', ')}` : ''}`;
     if (ch && ts) await slackApi(env, 'chat.update', { channel: ch, ts, ...alertCard(p, a.list, { at: a.at, footer: note, team: true }) });
   })().catch(e => console.log('pulse send: ' + e.message)));
   return ACK();

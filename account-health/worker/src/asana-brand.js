@@ -1015,7 +1015,7 @@ export async function postMonday(env, act, { auto = false } = {}) {
   const team = ((await teamOf(env, [act]).catch(() => ({})))[act]) || {};
   const who = await laneWho(env, { slackApi: sapi, centralDate: () => `${p.year}-${p.month}-${p.day}` }, laneOwner('MEDIA BUYING', team));
   const lane = laneBlocks({ lane: 'MEDIA BUYING', brand: m.name, who, ask: m.todo ? `Make this week's test calls: ${doLabel(m.plan).replace('Do it: ', '')}` : "Read this week's test calls" });
-  const blocks = [lane.blocks[0], ...sections(m.text)];
+  const blocks = [lane.head, ...sections(m.text)];
   if (m.todo && m.canEdit) {
     await env.DB.prepare(`INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
       .bind(`mondayPlan:${act}:${w}`, JSON.stringify({ ...m.plan, text: m.text })).run();

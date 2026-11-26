@@ -172,7 +172,9 @@ export const storedClient = () => { try { return localStorage.getItem(LS.role) =
    When a worker key is added later, add its name to AGENCY_KEYS or BRAND_RULES and no page changes.
    In sample mode nothing reaches a worker: every key reads and saves in the sample person's local store. */
 const AGENCY_KEYS = ['morningHour', 'morningCard', 'slackChannel', 'slackSendWho', 'paceAlertPct', 'movedPost', 'marketHandles', 'marketChatter',
-  'seasonTab', 'dailyBriefsChannel', 'briefClientStyle', 'todayPost', 'actionRemind', 'minOffPost', 'buyerPost', 'buyerOwner', 'buyerChannel'];
+  'seasonTab', 'dailyBriefsChannel', 'briefClientStyle', 'todayPost', 'actionRemind', 'minOffPost', 'buyerPost', 'buyerOwner', 'buyerChannel',
+  /* 2026-11-26: who each kind of message comes from, { all, kinds } (account-health sender.js) */
+  'senders'];
 const BRAND_GOALS = ['target_roas', 'target_cpa'];
 const BRAND_RULES = ['judge_spend', 'judge_days', 'yellow_pct', 'min_track', 'min_spend', 'min_days', 'min_cap_pct'];
 
