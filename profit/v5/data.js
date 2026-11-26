@@ -6,6 +6,7 @@
    rangeOf()    the date range in the page head, as real dates */
 
 import { workers, token, SAMPLE, LS, LS5 } from './config.js';
+import { tryEngine, shadow } from './engine.js';
 
 export { SAMPLE };
 
@@ -21,13 +22,20 @@ export class ApiError extends Error {
 export async function api(path, opts = {}) {
   if (SAMPLE) throw new ApiError('Sample mode never calls the API: ' + path, 0);
   const { worker = 'profit', body, headers, ...rest } = opts;
-  const base = workers()[worker === 'ah' ? 'ah' : 'profit'];
-  const res = await fetch(base + path, {
+  const which = worker === 'ah' ? 'ah' : 'profit';
+  const init = {
     ...rest,
     body: body == null ? undefined : typeof body === 'string' ? body : JSON.stringify(body),
     headers: { Authorization: 'Bearer ' + token(), ...(body != null ? { 'Content-Type': 'application/json' } : {}), ...(headers || {}) },
-  });
+  };
+  /* The new engine answers only when this browser is set to it and the path is ported (engine.js).
+     Anything it gets wrong is asked of the old engine below and noted, so no page breaks because of it. */
+  const eng = await tryEngine(which, path, init);
+  if (eng && eng.ok) return eng.json;
+  const res = await fetch(workers()[which] + path, init);
   const j = await res.json().catch(() => ({}));
+  if (eng) eng.note(res.status);
+  else if (res.ok) shadow(which, path, init, j);
   if (!res.ok) {
     if (res.status === 401) window.dispatchEvent(new CustomEvent('lx:unauthorized'));
     throw new ApiError(j.error || 'HTTP ' + res.status, res.status);

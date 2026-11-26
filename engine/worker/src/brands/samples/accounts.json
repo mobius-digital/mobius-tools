@@ -1,0 +1,112 @@
+{
+  "accounts": [
+    {
+      "act_id": "brand_north_kites",
+      "brand_id": "brand_north_kites",
+      "name": "North Kites",
+      "currency": "USD",
+      "tz": "America/Chicago",
+      "active": 1,
+      "status": "active",
+      "monthly_budget": 9000,
+      "budgets_json": "{\"2026-11\":9000}",
+      "account_status": null,
+      "added_at": "2026-11-25 23:03:31",
+      "last_sync_insights": null,
+      "last_sync_activities": null,
+      "last_error": null,
+      "target_cpa": 28,
+      "target_roas": 2.5,
+      "slack_channel": "C0NORTH0001",
+      "ads_backfill_done": 0,
+      "tw_shop": null,
+      "google_spend_json": null,
+      "goals_json": "{\"default\":{\"sales\":40000}}",
+      "brief_enabled": 0,
+      "brief_channel": "C0NORTH0002",
+      "demo": 0,
+      "report_channel": null,
+      "report_config_json": null,
+      "report_client_channel": null,
+      "brief_review": 0,
+      "review_first": 1,
+      "ads_video_done": 0,
+      "ads_video_cursor": null,
+      "ads_metrics_version": 0,
+      "ads_metrics_cursor": null,
+      "tw_attr_cursor": null,
+      "tw_attr_done": 0,
+      "meta_act": "act_111",
+      "storage_prefix": null,
+      "slug": "north-kites",
+      "internal_channel": "C0NORTH0001",
+      "client_channel": "C0NORTH0002",
+      "budgets": {
+        "2026-11": 9000
+      },
+      "goals": {
+        "default": {
+          "sales": 40000
+        }
+      }
+    },
+    {
+      "act_id": "brand_river_tea",
+      "brand_id": "brand_river_tea",
+      "name": "River Tea",
+      "currency": "USD",
+      "tz": "America/Chicago",
+      "active": 1,
+      "status": "active",
+      "monthly_budget": 5000,
+      "budgets_json": "{}",
+      "account_status": null,
+      "added_at": "2026-11-25 23:03:31",
+      "last_sync_insights": null,
+      "last_sync_activities": null,
+      "last_error": null,
+      "target_cpa": 41,
+      "target_roas": 3,
+      "slack_channel": "C0RIVER0001",
+      "ads_backfill_done": 0,
+      "tw_shop": null,
+      "google_spend_json": null,
+      "goals_json": "{}",
+      "brief_enabled": 0,
+      "brief_channel": "C0RIVER0002",
+      "demo": 0,
+      "report_channel": null,
+      "report_config_json": null,
+      "report_client_channel": null,
+      "brief_review": 0,
+      "review_first": 1,
+      "ads_video_done": 0,
+      "ads_video_cursor": null,
+      "ads_metrics_version": 0,
+      "ads_metrics_cursor": null,
+      "tw_attr_cursor": null,
+      "tw_attr_done": 0,
+      "meta_act": "act_222",
+      "storage_prefix": null,
+      "slug": "river-tea",
+      "internal_channel": "C0RIVER0001",
+      "client_channel": "C0RIVER0002",
+      "budgets": {},
+      "goals": {}
+    }
+  ],
+  "meta_available": [
+    {
+      "act_id": "act_999",
+      "name": "Unclaimed ads",
+      "currency": "USD",
+      "tz": "America/Chicago",
+      "account_status": 1
+    }
+  ],
+  "lastDiscover": {
+    "at": "2026-11-01T06:00:00.000Z",
+    "found": 3,
+    "fresh": 1
+  }
+}

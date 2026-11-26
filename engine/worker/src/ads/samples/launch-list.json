@@ -1,0 +1,30 @@
+{
+ "ok": true,
+ "launches": [
+  {
+   "id": "l1",
+   "act": "brand_north_kites",
+   "source": "studio",
+   "studio_ad": null,
+   "batch_id": "b1",
+   "num": "412",
+   "ad_id": "1001",
+   "ad_name": "412 A | Still",
+   "adset_id": "s1",
+   "adset_name": "Broad",
+   "cards": [
+    "a1",
+    "a2"
+   ],
+   "status": "PAUSED",
+   "eff_status": "PAUSED",
+   "checked_at": null,
+   "by": "team@agency.test",
+   "at": "2026-01-06T10:00:00Z",
+   "verdict": "winner",
+   "learning": "Stills win",
+   "filed_at": "2026-01-07T10:00:00Z",
+   "ads_manager": "https://adsmanager.facebook.com/adsmanager/manage/ads?act=111&selected_ad_ids=1001"
+  }
+ ]
+}

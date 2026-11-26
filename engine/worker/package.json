@@ -1,0 +1,11 @@
+{
+  "name": "locus-engine",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test \"test/**/*.test.mjs\" \"src/**/*.test.mjs\"",
+    "check": "node ../scripts/check.mjs",
+    "lists": "node tools/gen-lists.mjs",
+    "bundle": "wrangler deploy --dry-run --outdir .bundle"
+  }
+}

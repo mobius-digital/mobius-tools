@@ -1,0 +1,16 @@
+{
+  "domain": "agency.test",
+  "you": "owner@agency.test",
+  "owner": "owner@agency.test",
+  "can_set_brands": true,
+  "members": [
+    {
+      "email": "guest@studio.test",
+      "role": "admin",
+      "guest": true,
+      "brands": [
+        "brand_north_kites"
+      ]
+    }
+  ]
+}

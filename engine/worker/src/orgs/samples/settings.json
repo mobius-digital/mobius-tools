@@ -1,0 +1,31 @@
+{
+  "slackChannel": "C0AGENCY001",
+  "slackSendWho": "owner",
+  "slackInteractive": true,
+  "paceAlertPct": 0.15,
+  "movedPost": true,
+  "marketHandles": "one, two",
+  "marketChatter": true,
+  "seasonTab": {
+    "label": "Autumn",
+    "mode": "auto"
+  },
+  "dailyBriefsChannel": "C0AGENCY002",
+  "briefClientStyle": "short",
+  "todayPost": true,
+  "actionRemind": true,
+  "minOffPost": true,
+  "buyerOwner": "Pat",
+  "buyerChannel": "C0AGENCY003",
+  "buyerPost": true,
+  "launchDays": "mon,thu",
+  "buyerAI": true,
+  "morningHour": 5,
+  "morningCard": true,
+  "dailyBriefsError": null,
+  "hasSlackToken": true,
+  "hasTwKey": true,
+  "checkinAutoApprove": true,
+  "askInClientChannels": true,
+  "slackIndexClient": true
+}

@@ -1,0 +1,77 @@
+{
+ "account": {
+  "act_id": "brand_north_kites",
+  "name": "North Kites",
+  "currency": "USD",
+  "tz": "America/Chicago",
+  "tw_shop": "north-kites.example"
+ },
+ "month": "2026-01",
+ "days_in_month": 30,
+ "days_elapsed": 24,
+ "days_remaining": 6,
+ "basis": {
+  "days": 28,
+  "from": "2026-01-15",
+  "to": "2026-01-15",
+  "amer": 2.18,
+  "spend_per_day": 350.03,
+  "returning_per_day": 647.11,
+  "email_share": 0.19,
+  "email_connected": true
+ },
+ "mtd": {
+  "sales": 34061.41,
+  "new_rev": 18518.37,
+  "returning": 15543.04,
+  "spend": 8395.52
+ },
+ "expected": {
+  "returning": 3995.53,
+  "new_rev": 5666.59,
+  "spend": 2604.48,
+  "sales": 9662.12
+ },
+ "projected": 43723.53,
+ "goal": 52000,
+ "gap": -8276.47,
+ "at_current_pace": {
+  "sales": 42626.3,
+  "spend": 10495.69,
+  "gap": -9373.7
+ },
+ "planned_spend_per_day": 434.08,
+ "spend_ramp": 1.24,
+ "to_hit": {
+  "revenue_per_day": 2989.77,
+  "new_per_day": 2342.66,
+  "spend_per_day": 1076.73,
+  "spend_ramp": 3.08,
+  "already_there": false,
+  "covered_by_returning": false
+ },
+ "weeks": [
+  {
+   "from": "2026-01-15",
+   "to": "2026-01-15",
+   "days": 7,
+   "days_done": 7,
+   "complete": true,
+   "target": 12133.33,
+   "target_to_date": 12133.33,
+   "sales": 8767.09,
+   "spend": 2298.98
+  },
+  {
+   "from": "2026-01-15",
+   "to": "2026-01-15",
+   "days": 7,
+   "days_done": 7,
+   "complete": true,
+   "target": 12133.33,
+   "target_to_date": 12133.33,
+   "sales": 10986.77,
+   "spend": 2572.71
+  }
+ ]
+}

@@ -1,0 +1,45 @@
+{
+ "act": "brand_north_kites",
+ "from": "2026-01-01",
+ "to": "2026-01-31",
+ "changes": [
+  {
+   "id": "ev3",
+   "at": "2026-01-08T11:30:20",
+   "platform": "google",
+   "level": "campaign",
+   "object_id": "g1",
+   "name": "Sales campaign",
+   "category": "budget",
+   "action": "budget",
+   "field": null,
+   "summary": "Budget up",
+   "why": "Search is working.",
+   "before": {
+    "budget": 40
+   },
+   "after": {
+    "budget": 50
+   }
+  },
+  {
+   "id": "ev1",
+   "at": "2026-01-06T15:04:10",
+   "platform": "meta",
+   "level": "campaign",
+   "object_id": "c1",
+   "name": "Sales campaign",
+   "category": "budget",
+   "action": "budget",
+   "field": "daily_budget",
+   "summary": "Budget up",
+   "why": "More budget behind the best ad.",
+   "before": {
+    "daily_budget": 80
+   },
+   "after": {
+    "daily_budget": 100
+   }
+  }
+ ]
+}

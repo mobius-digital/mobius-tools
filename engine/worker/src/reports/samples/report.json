@@ -1,0 +1,41 @@
+{
+  "act_id": "brand_north_kites",
+  "period": "weekly",
+  "period_start": "2026-01-05",
+  "period_end": "2026-01-11",
+  "status": "sent",
+  "generated_at": "2026-01-12T12:00:00.000Z",
+  "sent_at": "2026-01-12T15:00:00.000Z",
+  "sent_channel": "C0NORTH0002",
+  "summary": "A steady week.",
+  "slack_ts": "1768220000.000100",
+  "slack_channel": "C0NORTH0001",
+  "steer": null,
+  "data": {
+    "totals": {
+      "sales": 1000,
+      "spend": 400,
+      "mer": 2.5,
+      "cm": 300
+    },
+    "forecast": {
+      "sales": 1100,
+      "spend": 420,
+      "mer": 2.6
+    },
+    "previous": {
+      "sales": 900,
+      "spend": 380,
+      "mer": 2.4
+    },
+    "account": {
+      "currency": "USD"
+    },
+    "this_week": [
+      "New kite ads go live"
+    ],
+    "need_from_you": [
+      "Photos of the new kite"
+    ]
+  }
+}

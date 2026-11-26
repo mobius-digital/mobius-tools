@@ -1,0 +1,111 @@
+{
+ "email": "owner@agency.test",
+ "home": [
+  {
+   "id": "nt_1",
+   "kind": "proposal",
+   "title": "Suggested: pause it",
+   "body": "Nothing was changed.",
+   "brand_id": "brand_north_kites",
+   "automation_id": "au_1",
+   "run_id": "ar_1",
+   "state": "open",
+   "home": true,
+   "due_at": "2026-01-05T10:00:00.000Z",
+   "held_until": null,
+   "button": {
+    "change": "pause"
+   },
+   "sent": {
+    "bell": "2026-01-05T10:00:00.000Z"
+   },
+   "answer": null,
+   "created_at": "2026-01-05T10:00:00.000Z",
+   "done_at": null
+  }
+ ],
+ "bell": [
+  {
+   "id": "nt_1",
+   "kind": "proposal",
+   "title": "Suggested: pause it",
+   "body": "Nothing was changed.",
+   "brand_id": "brand_north_kites",
+   "automation_id": "au_1",
+   "run_id": "ar_1",
+   "state": "open",
+   "home": true,
+   "due_at": "2026-01-05T10:00:00.000Z",
+   "held_until": null,
+   "button": {
+    "change": "pause"
+   },
+   "sent": {
+    "bell": "2026-01-05T10:00:00.000Z"
+   },
+   "answer": null,
+   "created_at": "2026-01-05T10:00:00.000Z",
+   "done_at": null
+  },
+  {
+   "id": "nt_2",
+   "kind": "tell",
+   "title": "Held for the morning",
+   "body": null,
+   "brand_id": "brand_north_kites",
+   "automation_id": null,
+   "run_id": null,
+   "state": "open",
+   "home": true,
+   "due_at": null,
+   "held_until": "2999-01-01T00:00:00.000Z",
+   "button": null,
+   "sent": {},
+   "answer": null,
+   "created_at": "2026-01-05T10:00:00.000Z",
+   "done_at": null
+  },
+  {
+   "id": "nt_3",
+   "kind": "tell",
+   "title": "Ticked",
+   "body": null,
+   "brand_id": "brand_north_kites",
+   "automation_id": null,
+   "run_id": null,
+   "state": "done",
+   "home": true,
+   "due_at": null,
+   "held_until": null,
+   "button": null,
+   "sent": {},
+   "answer": null,
+   "created_at": "2026-01-05T10:00:00.000Z",
+   "done_at": "2026-01-05T10:00:00.000Z"
+  }
+ ],
+ "morning": [
+  {
+   "id": "nt_2",
+   "kind": "tell",
+   "title": "Held for the morning",
+   "body": null,
+   "brand_id": "brand_north_kites",
+   "automation_id": null,
+   "run_id": null,
+   "state": "open",
+   "home": true,
+   "due_at": null,
+   "held_until": "2999-01-01T00:00:00.000Z",
+   "button": null,
+   "sent": {},
+   "answer": null,
+   "created_at": "2026-01-05T10:00:00.000Z",
+   "done_at": null
+  }
+ ],
+ "counts": {
+  "open": 2,
+  "taps": 1
+ }
+}

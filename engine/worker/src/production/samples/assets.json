@@ -1,0 +1,17 @@
+{
+  "act": "brand_north_kites",
+  "items": [
+    {
+      "file_id": "file_one", "name": "kite-on-beach.jpg", "path": "Photos / Beach", "w": 2000, "h": 1500, "status": "tagged",
+      "people": 1, "setting": "lifestyle outdoor", "shot": "full body", "products": "Delta kite", "colors": "red, blue",
+      "descr": "A person flying a red kite on a beach", "thumb_key": "assets/north-kites/file_one.jpg",
+      "modified": "2026-01-03T10:00:00.000Z", "source": "locus", "kind": "look", "cost": 0.04,
+      "look": { "who": "a person" }
+    }
+  ],
+  "looks": 1,
+  "counts": { "tagged": 1, "new": 1, "gone": 1 },
+  "settings": [{ "setting": "lifestyle outdoor", "n": 1 }],
+  "synced_at": "2026-01-06T09:00:00.000Z",
+  "sources": ["folderfolderfolderfolder01"]
+}

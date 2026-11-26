@@ -3,7 +3,7 @@
 
    line  = { id, label, icon, who, tabs, note?, count?, foot?, top?, gap? }
    tab   = { id, label, team?, legacy }
-   who   = 'all' (team and client) or 'team'
+   who   = 'all' (team and client), 'team', or 'owner' (the owner alone)
    legacy = the old Locus page id (opens ../?open=<legacy>&act=<brand>), or null when there is none.
    A line with no sub pages has one tab with id 'index'.
    The page file for a route is always pages/<line id>/<tab id>.js */
@@ -124,6 +124,7 @@ export const AGENCY_MENU = [
     { id: 'a-settings', label: 'Agency settings', icon: 'gear', who: 'team', foot: true, tabs: [
       t('clients', 'Clients', 'settings'), t('team', 'Team', 'settings'), t('integrations', 'Integrations', 'settings'), t('ask', AI_NAME, 'settings'),
       t('how-we-run-ads', 'How we run ads', 'settings'), t('sending', 'Sending and notifications', 'settings')] },
+    { id: 'a-engine', label: 'Engine', icon: 'pulse', who: 'owner', foot: true, tabs: [t('compare', 'Compare'), t('switch', 'Switch')] },
   ] },
 ];
 
@@ -138,7 +139,7 @@ export const TOP_LINES = [
 ];
 
 /* ---------- reading the menus ---------- */
-const canSee = (who, role) => who === 'all' || role !== 'client';
+const canSee = (who, role) => (who === 'owner' ? role === 'owner' : who === 'all' || role !== 'client');
 
 /** The menu for a view and a role. role: 'owner' | 'team' | 'client'. The client's is the trimmed brand menu. */
 export function menuFor(view, role) {

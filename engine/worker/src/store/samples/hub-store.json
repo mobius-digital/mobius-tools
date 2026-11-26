@@ -1,0 +1,184 @@
+{
+  "model": "lastPlatformClick",
+  "model_label": "Triple Whale, last platform click",
+  "cmp": "prev",
+  "window": {
+    "from": "2026-11-20",
+    "to": "2026-11-24",
+    "pf": "2026-11-15",
+    "pt": "2026-11-19",
+    "span": 5,
+    "today": "2026-11-25"
+  },
+  "brands": [
+    {
+      "act_id": "brand_north_kites",
+      "name": "North Kites",
+      "currency": "USD",
+      "cur": {
+        "gross": 6500,
+        "discounts": 1525,
+        "returns": 225,
+        "shipping": 250,
+        "taxes": 500,
+        "revenue": 5000,
+        "orders": 100,
+        "units": 150,
+        "aov": 50,
+        "upo": 1.5,
+        "new_orders": 40,
+        "returning_orders": 60,
+        "new_share": 0.5,
+        "new_revenue": 2500,
+        "returning_revenue": 2500,
+        "email": 750,
+        "sessions": 2000,
+        "carts": 250,
+        "conversion": 0.05,
+        "amazon": {
+          "sales": 350,
+          "orders": 10,
+          "net": null,
+          "fees": null,
+          "refunds": null
+        },
+        "tiktok_shop": {
+          "sales": null,
+          "orders": null,
+          "net": null,
+          "fees": null,
+          "refunds": null
+        }
+      },
+      "prev": {
+        "gross": 6500,
+        "discounts": 1525,
+        "returns": 225,
+        "shipping": 250,
+        "taxes": 500,
+        "revenue": 5000,
+        "orders": 100,
+        "units": 150,
+        "aov": 50,
+        "upo": 1.5,
+        "new_orders": 40,
+        "returning_orders": 60,
+        "new_share": 0.5,
+        "new_revenue": 2500,
+        "returning_revenue": 2500,
+        "email": 750,
+        "sessions": 2000,
+        "carts": 250,
+        "conversion": 0.05,
+        "amazon": {
+          "sales": 350,
+          "orders": 10,
+          "net": null,
+          "fees": null,
+          "refunds": null
+        },
+        "tiktok_shop": {
+          "sales": null,
+          "orders": null,
+          "net": null,
+          "fees": null,
+          "refunds": null
+        }
+      },
+      "series": [
+        {
+          "date": "2026-11-20",
+          "revenue": 1000,
+          "orders": 20,
+          "aov": 50,
+          "new_share": 0.5,
+          "discounts": 305,
+          "sessions": 400,
+          "conversion": 0.05
+        },
+        {
+          "date": "2026-11-21",
+          "revenue": 1000,
+          "orders": 20,
+          "aov": 50,
+          "new_share": 0.5,
+          "discounts": 305,
+          "sessions": 400,
+          "conversion": 0.05
+        },
+        {
+          "date": "2026-11-22",
+          "revenue": 1000,
+          "orders": 20,
+          "aov": 50,
+          "new_share": 0.5,
+          "discounts": 305,
+          "sessions": 400,
+          "conversion": 0.05
+        },
+        {
+          "date": "2026-11-23",
+          "revenue": 1000,
+          "orders": 20,
+          "aov": 50,
+          "new_share": 0.5,
+          "discounts": 305,
+          "sessions": 400,
+          "conversion": 0.05
+        },
+        {
+          "date": "2026-11-24",
+          "revenue": 1000,
+          "orders": 20,
+          "aov": 50,
+          "new_share": 0.5,
+          "discounts": 305,
+          "sessions": 400,
+          "conversion": 0.05
+        }
+      ],
+      "prev_series": [
+        {
+          "date": "2026-11-15",
+          "revenue": 1000,
+          "orders": 20
+        },
+        {
+          "date": "2026-11-16",
+          "revenue": 1000,
+          "orders": 20
+        },
+        {
+          "date": "2026-11-17",
+          "revenue": 1000,
+          "orders": 20
+        },
+        {
+          "date": "2026-11-18",
+          "revenue": 1000,
+          "orders": 20
+        },
+        {
+          "date": "2026-11-19",
+          "revenue": 1000,
+          "orders": 20
+        }
+      ],
+      "products": [
+        {
+          "id": "p1",
+          "orders": 2,
+          "revenue": 120,
+          "title": "Red Kite"
+        },
+        {
+          "id": "p2",
+          "orders": 1,
+          "revenue": 50,
+          "title": "Blue Kite"
+        }
+      ],
+      "product_orders": 3
+    }
+  ]
+}
