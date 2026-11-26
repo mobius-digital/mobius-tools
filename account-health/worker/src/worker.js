@@ -10573,6 +10573,7 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       if (path === '/api/settings' && request.method === 'GET') {
         return json({
           slackChannel: await getSetting(env, 'slackChannel'),
+          shopifyInstallUrl: (await getSetting(env, 'shopifyInstallUrl')) || '',
           /* A client send goes out under Cole's own name, so by default only he
              may press the Send button on a Slack card. A team that should have
              it flips this to 'anyone'. */
@@ -10638,6 +10639,13 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         if ('buyerOwner' in b && String(b.buyerOwner || '').trim()) await putSetting(env, 'buyerOwner', String(b.buyerOwner).trim().slice(0, 40));
         if ('buyerChannel' in b) await putSetting(env, 'buyerChannel', /^[CG][A-Z0-9]{6,}$/.test(String(b.buyerChannel || '')) ? String(b.buyerChannel) : '');
         if ('morningCard' in b) await putSetting(env, 'morningCard', b.morningCard ? 'on' : 'off');
+        /* The Shopify app's install link the onboarding connect step shows (onboard.js). Owner only, a Shopify https link or empty. */
+        if ('shopifyInstallUrl' in b) {
+          if (!isOwner) return json({ error: 'Only the owner can change the Shopify install link.' }, 403);
+          const u = String(b.shopifyInstallUrl || '').trim();
+          if (u && !/^https:\/\/(apps\.shopify\.com|admin\.shopify\.com|[a-z0-9-]+\.myshopify\.com)\/\S*$/i.test(u)) return json({ error: 'That is not a Shopify link.' }, 400);
+          await putSetting(env, 'shopifyInstallUrl', u.slice(0, 300));
+        }
         await writeSwitches(env, putSetting, b);
         if ('morningHour' in b) {
           const h = +b.morningHour;
