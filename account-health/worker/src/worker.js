@@ -7326,8 +7326,20 @@ async function verifySession(env, token) {
   return { email, exp: +exp };
 }
 
+/* settings.removedEmails: people taken off on the Team screen. The owner can never be on it. */
+async function isRemovedEmail(env, email) {
+  const e = String(email || '').toLowerCase();
+  if (!e || e === String(env.OWNER_EMAIL || 'cole@go-mobius-digital.com').toLowerCase()) return false;
+  const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'removedEmails'`).first().catch(() => null);
+  return (safeJson(row?.value, []) || []).map(x => String(x).toLowerCase()).includes(e);
+}
+
 async function emailAllowed(env, email) {
   if (!email) return false;
+  /* Removed on the Team screen (journey audit 2026-11-26): checked BEFORE the domain rule, so a
+     removed teammate on the company domain is shut out too, not let back in as a full admin.
+     isAdmin calls this on every request, so a removal ends that person's sessions at once. */
+  if (await isRemovedEmail(env, email)) return false;
   if (email.toLowerCase().endsWith('@' + ALLOWED_DOMAIN)) return true;
   const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'allowedEmails'`).first().catch(() => null);
   const extra = safeJson(row?.value, []);
@@ -7364,6 +7376,14 @@ async function googleLogin(env, credential, invite) {
    press nothing that leaves the building - no send to client, no plan save, no
    margin override, no settings, no sync. It reuses the read-only gate the demo
    account already proved, rather than inventing a second permission model. */
+/* The only writes a viewer's sign-in may make (the door check in handle): its own prefs and bell,
+   reading and summing up, and signing in. Everything else that is not a GET is refused. */
+const VIEWER_MAY = new Set([
+  '/api/me/prefs', '/api/me/morning', '/api/me/delivery', '/api/notices/done',
+  '/api/read', '/api/daycheck', '/api/summarise',
+  '/api/google-login', '/api/hq-signin', '/api/clients/signin', '/api/clients/login-link',
+]);
+
 async function roleFor(env, email) {
   if (!email) return 'admin';
   try {
@@ -8307,6 +8327,19 @@ const AH_APP = {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, '') || '/';
     if (request.method === 'OPTIONS') return new Response(null, { headers: CORS });
+
+    /* VIEW-ONLY AT THE DOOR (journey audit 2026-11-26). The old gate sat after about forty write
+       routes (ads, cards, tasks, goals, costs), so a viewer could still change them. One check here,
+       before any handler: a viewer's sign-in may only write its own prefs, mark its own bell rows
+       done and sign in. sessionEmail is null for the admin key and for signed webhooks, and roleFor
+       says admin for anyone not listed, so nobody else is affected. /api/ask stays closed on purpose:
+       it can apply changes. */
+    if (!['GET', 'HEAD'].includes(request.method) && path.startsWith('/api/') && !VIEWER_MAY.has(path)) {
+      const viewerWho = await sessionEmail(env, request).catch(() => null);
+      if (viewerWho && (await roleFor(env, viewerWho)) === 'viewer') {
+        return json({ error: 'Your account has view-only access, so this cannot be changed. Ask an admin on your team.' }, 403);
+      }
+    }
 
     /* BUTTONS ON THE SLACK CARD. Every action the Daily Brief and Reports tabs
        offer, available where the draft already is. Unauthenticated by design:
@@ -9896,18 +9929,13 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       return json({ ok: true, results: out });
     }
 
-    /* View-only accounts read everything and change nothing. GET-only is the
-       entire rule - simple enough to hold in your head and to explain to the
-       person it applies to. Anyone not listed in settings.userRoles is an admin,
-       so this is inert until a role is actually assigned. */
+    /* View-only accounts read everything and change nothing: that check now runs at the door
+       (top of handle, VIEWER_MAY), before every write route instead of after most of them. */
     const who = await sessionEmail(env, request);
     /* The owner: Cole's own sign-in, or the admin key (which carries no name). A sign-in with no name is not. */
     const ownerEmail = String(env.OWNER_EMAIL || 'cole@go-mobius-digital.com').toLowerCase();
     const adminKey = !!env.ADMIN_TOKEN && request.headers.get('Authorization') === 'Bearer ' + env.ADMIN_TOKEN;
     const isOwner = adminKey || (!!who && String(who).toLowerCase() === ownerEmail);
-    if (request.method !== 'GET' && (await roleFor(env, who)) === 'viewer') {
-      return json({ error: 'Your account has view-only access, so this cannot be changed. Ask an admin on your team.' }, 403);
-    }
 
     /* ---- Team: who can sign in, and at what level ----
        `allowedEmails` (who may sign in from outside the Mobius domain) and
@@ -9922,12 +9950,18 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       const extra = (safeJson(ae?.value, []) || []).map(e => String(e).toLowerCase());
       const roles = safeJson(ur?.value, {}) || {};
       const ub = safeJson((await env.DB.prepare(`SELECT value FROM settings WHERE key = 'userBrands'`).first().catch(() => null))?.value, {}) || {};
-      // Everyone we know about: invited guests, anyone with an explicit role, anyone with a brand list.
-      const emails = [...new Set([...extra, ...Object.keys(roles).map(e => e.toLowerCase()), ...Object.keys(ub).map(e => e.toLowerCase())])].sort();
+      const removed = (safeJson((await env.DB.prepare(`SELECT value FROM settings WHERE key = 'removedEmails'`).first().catch(() => null))?.value, []) || []).map(e => String(e).toLowerCase());
+      // Everyone we know about: invited guests, anyone with an explicit role, anyone with a brand list, anyone removed.
+      const emails = [...new Set([...extra, ...Object.keys(roles).map(e => e.toLowerCase()), ...Object.keys(ub).map(e => e.toLowerCase()), ...removed])].sort();
       const owner = String(env.OWNER_EMAIL || 'cole@go-mobius-digital.com').toLowerCase();
       return json({
         domain: ALLOWED_DOMAIN, you: who, owner, can_set_brands: isOwner,
-        members: emails.map(e => ({ email: e, role: roles[e] === 'viewer' ? 'viewer' : 'admin', guest: extra.includes(e), brands: Array.isArray(ub[e]) ? ub[e] : [] })),
+        /* Tells the v5 Team screen this server removes safely and asks brands for a new guest. */
+        safe_remove: true, needs_brands_for_guests: true,
+        members: emails.map(e => ({
+          email: e, role: roles[e] === 'viewer' ? 'viewer' : 'admin', guest: extra.includes(e), brands: Array.isArray(ub[e]) ? ub[e] : [],
+          ...(removed.includes(e) && e !== owner ? { removed: true } : {}),
+        })),
       });
     }
     if (path === '/api/team' && request.method === 'PUT') {
@@ -9943,30 +9977,52 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       let extra = (safeJson(ae?.value, []) || []).map(e => String(e).toLowerCase());
       const roles = safeJson(ur?.value, {}) || {};
       const onDomain = email.endsWith('@' + ALLOWED_DOMAIN);
-      if (b.remove) {
-        // Never let someone remove their own access and lock themselves out.
-        if (who && email === String(who).toLowerCase()) return json({ error: 'You cannot remove your own access.' }, 400);
-        extra = extra.filter(e => e !== email);
-        delete roles[email];
-      } else {
-        if (!onDomain && !extra.includes(email)) extra.push(email);   // domain accounts need no invite
-        if (role === 'viewer') roles[email] = 'viewer'; else delete roles[email];
-      }
+      const owner = String(env.OWNER_EMAIL || 'cole@go-mobius-digital.com').toLowerCase();
+      const rmRow = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'removedEmails'`).first().catch(() => null);
+      let removed = (safeJson(rmRow?.value, []) || []).map(e => String(e).toLowerCase());
       /* Per-brand access (brandguard.js): only the owner sets who sees which brands, so nobody can widen
          their own. [] = every brand; the entry also keeps a domain teammate on the list. */
       const ubRow = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'userBrands'`).first().catch(() => null);
       const ub = safeJson(ubRow?.value, {}) || {};
-      const owner = String(env.OWNER_EMAIL || 'cole@go-mobius-digital.com').toLowerCase();
-      if (b.remove) delete ub[email];
-      else if (Array.isArray(b.brands)) {
+      if (b.remove) {
+        // Never let someone remove their own access and lock themselves out.
+        if (who && email === String(who).toLowerCase()) return json({ error: 'You cannot remove your own access.' }, 400);
+        if (email === owner) return json({ error: 'The owner cannot be removed.' }, 400);
+        /* Remove = on the removed list (emailAllowed refuses it before the domain rule). The role and
+           brand limits are KEPT: deleting them made a company-email person a full admin with every
+           brand, and a later re-invite must never widen what they had. */
+        extra = extra.filter(e => e !== email);
+        if (!removed.includes(email)) removed.push(email);
+        await putSetting(env, 'allowedEmails', JSON.stringify(extra));
+        await putSetting(env, 'removedEmails', JSON.stringify(removed));
+        return json({ ok: true, email, removed: true, role: roles[email] === 'viewer' ? 'viewer' : 'admin', guest: false, brands: Array.isArray(ub[email]) ? ub[email] : [] });
+      }
+      /* A new outside guest starts with NO brands: it must come with the brands it may see
+         ([] would mean every brand). */
+      const newGuest = !onDomain && !extra.includes(email) && !(email in ub);
+      if (newGuest && !(Array.isArray(b.brands) && b.brands.length)) return json({ error: 'Pick the brands this person may see.' }, 400);
+      if (Array.isArray(b.brands)) {
         if (!isOwner) return json({ error: 'Only Cole can change which brands someone sees.' }, 403);
         if (email === owner) return json({ error: 'The owner always sees every brand.' }, 400);
         /* Brand ids (old act_ ids from an older screen are resolved to theirs). */
-        ub[email] = (await Promise.all(b.brands.map(x => resolveBrandId(env, String(x))))).filter(isBrandId);
-      } else if (!(email in ub)) ub[email] = [];
+        const ids = [];
+        for (const x of b.brands) {
+          const id = await resolveBrandId(env, String(x)).catch(() => '');
+          if (!isBrandId(id) || ids.includes(id)) continue;
+          /* Only a brand that exists counts, so a typo never leaves a new guest on [] (every brand). */
+          if (await env.DB.prepare(`SELECT id FROM brands WHERE id = ?1`).bind(id).first().catch(() => null)) ids.push(id);
+        }
+        if (b.brands.length && !ids.length) return json({ error: 'None of those brands were found.' }, 400);
+        ub[email] = ids;
+      } else if (onDomain && !(email in ub)) ub[email] = [];   // keeps a domain teammate on the list
+      if (!onDomain && !extra.includes(email)) extra.push(email);   // domain accounts need no invite
+      if (role === 'viewer') roles[email] = 'viewer'; else delete roles[email];
+      // Saving a person (not removing) is how a removed person is let back in.
+      removed = removed.filter(e => e !== email);
       await putSetting(env, 'allowedEmails', JSON.stringify(extra));
       await putSetting(env, 'userRoles', JSON.stringify(roles));
       await putSetting(env, 'userBrands', JSON.stringify(ub));
+      await putSetting(env, 'removedEmails', JSON.stringify(removed));
       return json({ ok: true, email, role, guest: extra.includes(email), brands: ub[email] || [] });
     }
 
@@ -10889,7 +10945,22 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
            ${act && act !== 'all' ? 'WHERE r.act_id = ?1' : ''}
            ORDER BY r.period_start DESC, r.period LIMIT 80`,
         ).bind(...(act && act !== 'all' ? [act] : [])).all();
-        return json({ rows: results, lastRun: safeJson(await getSetting(env, 'lastReportRun'), null) });
+        /* can_skip: this server has POST /api/report-skip (the Do not send action). */
+        return json({ rows: results, lastRun: safeJson(await getSetting(env, 'lastReportRun'), null), can_skip: true });
+      }
+      /* "Do not send" for one report (journey audit 2026-11-26), the report's twin of /api/brief-skip. Marks ONE
+         unsent report skipped so the unsent reminders stop carrying it. Never deletes; a sent report is frozen. */
+      if (path === '/api/report-skip' && request.method === 'POST') {
+        const b = await request.json().catch(() => ({}));
+        const acct = await acctOf(env, b.act);
+        if (!acct) return json({ error: 'unknown account' }, 404);
+        if (!['weekly', 'monthly'].includes(b.period) || !/^\d{4}-\d{2}-\d{2}$/.test(String(b.start || ''))) return json({ error: 'Say which report: period (weekly or monthly) and start (YYYY-MM-DD).' }, 400);
+        const r = await env.DB.prepare(
+          `UPDATE reports SET status = 'skipped' WHERE act_id = ?1 AND period = ?2 AND period_start = ?3 AND status IN ('draft','handled')`,
+        ).bind(acct.act_id, b.period, b.start).run();
+        if (!r.meta?.changes) return json({ error: 'There is no unsent report for that period (a sent report is frozen).' }, 400);
+        await slackSyncReport(env, acct, b.period, b.start, 'Not sent: marked Do not send in Locus').catch(() => {});
+        return json({ ok: true, skipped: true });
       }
       if (path === '/api/report' && request.method === 'GET') {
         const row = await env.DB.prepare(

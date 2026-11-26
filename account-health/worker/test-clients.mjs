@@ -969,10 +969,32 @@ await check('the team list: the owner or the admin key changes it; a sign-in wit
   assert.equal((await ah(TEAM, 'PUT', '/api/team', { email: 'new@outside.com' })).status, 403);
   assert.equal(listed(), before, 'nothing was written');
   assert.equal((await ah(TEAM, 'GET', '/api/team')).j.can_set_brands, false);
-  assert.equal((await ah(OWNER, 'PUT', '/api/team', { email: 'new@outside.com', role: 'viewer' })).status, 200);
+  /* A new outside guest starts with no brands: it must come with the brands it may see (journey audit 2026-11-26). */
+  assert.equal((await ah(OWNER, 'PUT', '/api/team', { email: 'new@outside.com', role: 'viewer' })).status, 400);
+  assert.equal((await ah(OWNER, 'PUT', '/api/team', { email: 'new@outside.com', role: 'viewer', brands: ['brand_nope'] })).status, 400);
+  assert.equal(listed(), before, 'nothing was written');
+  assert.equal((await ah(OWNER, 'PUT', '/api/team', { email: 'new@outside.com', role: 'viewer', brands: ['brand_alpha'] })).status, 200);
   assert.ok(listed().includes('new@outside.com'));
+  /* A viewer is refused at the door on a write route that sits before the old gate, and may still save its own prefs. */
+  const VIEW = mint('new@outside.com');
+  const vw = await ah(VIEW, 'POST', '/api/production/decide', { id: 'x', ok: true });
+  assert.equal(vw.status, 403, JSON.stringify(vw.j)); assert.match(vw.j.error, /view-only/);
+  assert.notEqual((await ah(VIEW, 'PUT', '/api/me/prefs', { morning_dm: false })).status, 403);
   assert.equal((await ah(OWNER, 'PUT', '/api/team', { email: 'new@outside.com', remove: true })).status, 200);
   assert.equal((await ah(OWNER, 'GET', '/api/team')).j.can_set_brands, true);
+  /* Remove keeps the limits, and a removed company-email teammate is out, not back as a full admin. */
+  const TEAM2 = mint('temp.person@go-mobius-digital.com');
+  assert.equal((await ah(OWNER, 'PUT', '/api/team', { email: 'temp.person@go-mobius-digital.com', brands: ['brand_alpha'] })).status, 200);
+  assert.equal((await ah(TEAM2, 'GET', '/api/me')).status, 200);
+  assert.equal((await ah(OWNER, 'PUT', '/api/team', { email: 'temp.person@go-mobius-digital.com', remove: true })).status, 200);
+  assert.equal((await ah(TEAM2, 'GET', '/api/me')).status, 401, 'a removed teammate is signed out');
+  assert.deepEqual(getSetting('userBrands')['temp.person@go-mobius-digital.com'], ['brand_alpha'], 'the brand limit is kept');
+  const tl = (await ah(OWNER, 'GET', '/api/team')).j;
+  assert.ok(tl.safe_remove && tl.members.find(m => m.email === 'temp.person@go-mobius-digital.com').removed);
+  assert.equal((await ah(OWNER, 'PUT', '/api/team', { email: 'cole@go-mobius-digital.com', remove: true })).status, 400);
+  assert.equal((await ah(OWNER, 'PUT', '/api/team', { email: 'temp.person@go-mobius-digital.com' })).status, 200, 'saving lets them back in');
+  assert.equal((await ah(TEAM2, 'GET', '/api/me')).status, 200);
+  assert.deepEqual(getSetting('userBrands')['temp.person@go-mobius-digital.com'], ['brand_alpha'], 'and never wider than before');
   /* Made-up values, for this test only. */
   ahEnv.ADMIN_TOKEN = 'test-admin-key';
   db.prepare(`INSERT INTO settings (key, value) VALUES ('passwordHash', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).run(crypto.createHash('sha256').update('test-shared-pass').digest('hex'));
@@ -995,6 +1017,22 @@ await check('the team list: the owner or the admin key changes it; a sign-in wit
   }
   const me = await ah(OWNER, 'GET', '/api/me'), tm = await ah(TEAM, 'GET', '/api/me');
   assert.deepEqual([me.j.master, me.j.role, tm.j.master, tm.j.role], [false, 'owner', false, 'team']);
+});
+
+await check('a read-only client login (journey audit 2026-11-26) looks and approves; every other write is refused; the switch is the owner\'s', async () => {
+  const inv = await ah(OWNER, 'POST', '/api/clients/invite', { emails: 'look.only@alpha.com', brands: ['brand_alpha'], read_only: true });
+  assert.equal(inv.status, 200, JSON.stringify(inv.j));
+  assert.equal(getSetting('clientUsers')['look.only@alpha.com'].readOnly, true);
+  const RO = mint('look.only@alpha.com');
+  const goals = await ah(RO, 'PUT', '/api/goals', { act: 'brand_alpha' });
+  assert.equal(goals.status, 403); assert.match(goals.j.error, /look and approve/);
+  const dec = await ah(RO, 'POST', '/api/production/decide', { id: 'nope', ok: true });
+  assert.ok(!/look and approve/.test(JSON.stringify(dec.j)), 'approving is not refused by the read-only rule');
+  assert.equal((await ah(TEAM, 'POST', '/api/clients/access', { email: 'look.only@alpha.com', read_only: false })).status, 403);
+  assert.equal((await ah(OWNER, 'POST', '/api/clients/access', { email: 'look.only@alpha.com', read_only: false })).status, 200);
+  assert.ok(!getSetting('clientUsers')['look.only@alpha.com'].readOnly);
+  assert.ok(!/look and approve/.test(JSON.stringify((await ah(RO, 'PUT', '/api/goals', { act: 'brand_alpha' })).j)), 'switched back on');
+  await ah(OWNER, 'POST', '/api/clients/remove', { email: 'look.only@alpha.com' });
 });
 
 await check('with no sign-in: health says ok and the time, the sign-in check keeps the set-up to the team', async () => {

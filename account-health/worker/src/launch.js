@@ -669,9 +669,10 @@ export async function batchCreate(env, d, act, b, ctx) {
     out.push(c.error ? { file_id: row.work_file, ad: row.ad, name: row.name, error: c.error, duplicate: !!c.duplicate } : { file_id: row.work_file, ad: row.ad, name: c.launch.ad_name, ok: true, launch: c.launch, ads_manager: c.ads_manager });
   }
   const made = out.filter(x => x.ok).length;
-  /* The card's ads are on Meta: the card goes to Live on Production and its Asana task to Analyze Results (2026-10-26). */
+  /* The card's ads are on Meta: the card goes to Live on Production and its Asana task to Analyze Results (2026-10-26),
+     but only once EVERY ad on it is loaded (cardToLive checks). */
   let card = null;
-  if (made && d.moveCard) card = await d.moveCard(env, String(b.card_id || ''), ctx.who).then(m => ({ to: m.to, asana: m.asana })).catch(e => ({ error: e.message }));
+  if (made) card = await cardToLive(env, d, String(b.card_id || ''), ctx.who);
   return { ok: true, made, failed: out.length - made, card, adset: out.find(x => x.ok)?.launch.adset_name || r.prep.set?.name || '', rows: out };
 }
 
@@ -735,14 +736,31 @@ export async function launchList(env, d, act, { refresh = false, only = null } =
     ads_manager: r.ad_id && r.meta_act ? `https://adsmanager.facebook.com/adsmanager/manage/ads?act=${String(r.meta_act).replace('act_', '')}&selected_ad_ids=${r.ad_id}` : null })) };
 }
 
-/** A single ad or a carousel went up for a Production card: the card goes to Live (and its Asana task with it), the
- *  same as the batch (2026-10-26). Only a card still in Ready or Review moves; Brief / Making / Live / Done stay. */
+/** Is every ad on the card loaded to Meta? An ad counts as loaded when a live (not archived or deleted) launch row
+ *  points at any of its files. A card with no ads is never "all loaded". */
+export async function allAdsLoaded(env, batchId) {
+  const card = await env.DB.prepare(`SELECT id, brief_json FROM p_br_batch WHERE id = ?1`).bind(String(batchId)).first().catch(() => null);
+  if (!card) return false;
+  const files = (await env.DB.prepare(`SELECT id, ad, version, mime, name, created_at, kind FROM p_work_file WHERE batch_id = ?1 AND kind = 'version' AND deleted_at IS NULL`).bind(card.id).all().catch(() => ({ results: [] }))).results || [];
+  const cs = ((await env.DB.prepare(`SELECT file_id, kind, parent_id, fixed_at, author_name AS who, created_at FROM p_work_comment WHERE batch_id = ?1 ORDER BY created_at`).bind(card.id).all().catch(() => ({ results: [] }))).results || []).map(c => ({ ...c, fixed: !!c.fixed_at }));
+  const ads = adsOf(files, cs, { carousel: isCarousel(card.brief_json) });
+  if (!ads.length) return false;
+  const launched = new Set((((await env.DB.prepare(`SELECT work_file FROM p_launch WHERE batch_id = ?1 AND COALESCE(eff_status, '') NOT IN ('ARCHIVED', 'DELETED')`).bind(card.id).all().catch(() => ({ results: [] }))).results) || []).map(r => String(r.work_file || '')).filter(Boolean));
+  const filesOf = new Map();
+  for (const f of files) { const k = f.ad || ''; (filesOf.get(k) || filesOf.set(k, []).get(k)).push(String(f.id)); }
+  return ads.every(a => (filesOf.get(a.ad || '') || []).some(id => launched.has(id)));
+}
+/** A single ad, a carousel or a batch went up for a Production card: the card goes to Live (and its Asana task with it)
+ *  ONLY when every ad on the card is loaded (journey audit 2026-11-26: one ad used to move the whole card). Only a card
+ *  in Ready moves; a card still in Review waits on its approvals, and Brief / Making / Live / Done stay. A card held
+ *  here still moves later from real spend (the hourly board robot). */
 export async function cardToLive(env, d, batchId, who) {
   if (!batchId || !d.moveCard) return null;
   const c = await env.DB.prepare(`SELECT board_stage, stage, asana_section FROM p_br_batch WHERE id = ?1`).bind(String(batchId)).first().catch(() => null);
   if (!c) return null;
   const at = c.board_stage || boardOf(c.asana_section, c.stage);
-  if (at !== 'ready' && at !== 'review') return null;
+  if (at !== 'ready') return null;
+  if (!(await allAdsLoaded(env, batchId))) return { held: true, why: 'Not every ad on this card is loaded yet' };
   return d.moveCard(env, String(batchId), who).then(m => ({ to: m.to, asana: m.asana })).catch(e => ({ error: e.message }));
 }
 

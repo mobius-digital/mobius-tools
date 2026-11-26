@@ -127,6 +127,11 @@ async function verifySession(env, token) {
 }
 async function emailAllowed(env, email) {
   if (!email) return false;
+  /* Removed on the Team screen: refused before the domain rule (same as account-health, which
+     never lets the owner onto this list). */
+  const e = email.toLowerCase();
+  const rm = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'removedEmails'`).first().catch(() => null);
+  if ((safeJson(rm?.value, []) || []).map(x => String(x).toLowerCase()).includes(e)) return false;
   if (email.toLowerCase().endsWith('@' + ALLOWED_DOMAIN)) return true;
   const row = await env.DB.prepare(`SELECT value FROM settings WHERE key = 'allowedEmails'`).first().catch(() => null);
   return safeJson(row?.value, []).map(e => String(e).toLowerCase()).includes(email.toLowerCase());
