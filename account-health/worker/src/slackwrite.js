@@ -18,6 +18,7 @@
  *   slack_channel        make a new internal channel, optionally private, and invite people (undo = archived)
  */
 import { recordWrite, registerUndo, doneNote, brandOf, isOwner } from './extwrite.js';
+import { clientLeaks } from './stratanswer.js';
 
 const clip = (s, n) => String(s ?? '').slice(0, n);
 const P = 'slack';
@@ -145,6 +146,9 @@ function postAction(d, client) {
       if (client && dst.kind === 'internal') return { error: `${dst.label} is internal: use slack_post.` };
       const text = clip(String(i.text || '').replace(/\u2014/g, ','), 3900).trim();
       if (!text) return { error: 'Write the message.' };
+      /* Text a client reads never carries internal set, campaign or test names or ids (2026-11-26, AI eval K01). */
+      const leaks = client ? clientLeaks(text) : [];
+      if (leaks.length) return { error: `Not put up: the client would read ${leaks.join('; ')}. Rewrite it in the client's words (for example "the ads for new customers"), with no ad set, campaign or test names or ids.` };
       let thread = null;
       if (i.thread) { const m = messageOf({ message: i.thread }, ctx); thread = m?.ts || (/^\d{10}\.\d{6}$/.test(String(i.thread)) ? String(i.thread) : null); if (!thread) return { error: 'thread must be a Slack link or a message ts.' }; }
       const b = await brandOf(env, d, i.brand, ctx).catch(() => null);

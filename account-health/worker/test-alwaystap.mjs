@@ -151,12 +151,35 @@ await check('the tools the model is given: every action PROPOSES, none takes ask
   assert.ok(acts.length > 60, 'the actions are there: ' + acts.length);
   for (const t of acts) { assert.match(t.description, /^PROPOSES a change; it does NOT apply it\./, t.name); assert.ok(!t.input_schema?.properties?.asked_directly, t.name + ' still takes asked_directly'); }
   assert.ok(!JSON.stringify(bodies[0].tools).includes('asked_directly'), 'asked_directly is gone from every tool');
-  for (const n of ['meta_pause', 'meta_budget', 'google_budget', 'tiktok_status', 'shopify_product', 'klaviyo_flow_status', 'slack_post', 'slack_post_client', 'set_account', 'move_billing_day', 'locus_write', 'undo_change', 'drive_share'])
+  for (const n of ['meta_pause', 'meta_budget', 'google_budget', 'tiktok_status', 'shopify_product', 'klaviyo_flow_status', 'slack_post', 'slack_post_client', 'set_account', 'locus_write', 'undo_change', 'drive_share'])
     assert.ok(acts.some(t => t.name === n), n + ' is an action (a card)');
   for (const n of Object.keys(aw.TAP_TOOLS).filter(n => n !== 'make_report')) assert.match(tools.find(t => t.name === n)?.description || '', /^WAITS FOR A TAP/, n);
   const sys = bodies[0].system.map(b => b.text).join('\n');
   assert.match(sys, /You never change anything yourself/); assert.match(sys, /EVERY CHANGE WAITS FOR A TAP/); assert.match(sys, /Tap Apply to do it/);
   assert.ok(!/asked_directly|No card, no|make it at once/.test(sys), 'the old "do it at once" wording is gone');
+});
+
+/* The answer rules of 2026-11-26 (AI eval round 17), on the real strategist. */
+await check('eval round 17: the prompt carries the new rules, calc is loaded, weekdays come from code, no billing card, no real names', async () => {
+  const sys = bodies[0].system.map(b => b.text).join('\n');
+  for (const re of [/AN OFFER IS NEVER AN ANGLE/, /COMPUTED IN CODE, NEVER IN YOUR HEAD/, /too few sales to call/, /ONE MARGIN/, /AMAZON: every whole-store number/, /SALES ARE NET OF TAX/,
+    /SLACK FACTS CARRY THEIR SOURCE/, /OFFER QUESTIONS/, /CLIENT DRAFTS/, /needs a Locus login/, /BILLING IS CLOSED TO YOU/, /\$0\.50 to \$0\.75 a lead/, /HARD WORD BUDGET/, /last 28/]) assert.match(sys, re);
+  assert.match(sys, /^Today is [A-Z][a-z]+day, /m, 'the date block names the weekday');
+  const tools = bodies[0].tools.filter(t => t.name);
+  const calcTool = tools.find(t => t.name === 'calc');
+  assert.ok(calcTool && !calcTool.defer_loading, 'calc is loaded up front');
+  assert.ok(!tools.some(t => t.name === 'move_billing_day'), 'no billing card');
+  assert.match(bodies[0].messages.at(-1).content, /\[Length for this answer: /);
+  assert.match(sys, /a handful of DTC brands \(the active ones are listed in your instructions\)/, 'the company brief names no brands');
+  assert.match(sys, /agency run by its owner \(Cole\) with account strategists and a video editor\./, 'no teammate names');
+});
+await check('eval round 17: a budget card over 50% says BIG CHANGE on the card itself', async () => {
+  reset();
+  script = [use(['meta_budget', { brand: 'Harbor Golf', target: '412 | UGC', level: 'adset', amount: 360, big: true, reason: 'asked for exactly +80%' }]), say('Budget card is up. Tap Apply to do it.')];
+  const r = await engine.answerWeb(env, 'On Harbor Golf, raise the daily budget of the ad set 412 | UGC by 80%.', [], h(), OWNER);
+  assert.equal(r.proposals?.length, 1, JSON.stringify(r).slice(0, 400));
+  assert.match(r.proposals[0].summary, /^BIG CHANGE \(\+80%, over the 50% line\)/, r.proposals[0].summary);
+  assert.equal(metaPosts.length, 0, 'nothing reached Meta');
 });
 
 await check('the tap: Apply pauses the ad in Meta, with the undo row and the Change Log line naming who tapped; a second tap finds nothing', async () => {

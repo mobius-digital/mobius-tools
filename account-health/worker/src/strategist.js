@@ -16,14 +16,14 @@ import { adsReport, websiteReport, searchReport } from './google.js';
  * the Slack app, and is the auth server every Mobius tool delegates to.
  *
  * Two doors: the Locus dashboard, and an @-mention in a brand's INTERNAL
- * Slack channel, so Ahsan and Noma get answers without going through
+ * Slack channel, so the strategists get answers without going through
  * Cole. The client channel is never one of its doors.
  *
  * The rules it is born with (Cole's, and not negotiable):
  *   - attribution is Triple Whale's, always, never a platform's own count;
  *   - blended store money and Meta-reported ads never share a sentence
  *     without saying which is which;
- *   - The Golf Sock is paused and is never flagged.
+ *   - a paused test account is never flagged.
  */
 
 import { createAssistant, makeAppView, makeSecretKey, routeAction } from '../../../ask/engine.js';
@@ -37,7 +37,6 @@ import { SCHED_SQL, whenText } from './askschedule.js';
 import { stockView, supplyFetch, supplyBrandOf } from './stock.js';
 import { calendarView, calendarData } from './calendar.js';
 import { metaOf, resolveBrandId } from './brands.js';
-import { moveBillingDay } from './newclient.js';
 import { stratTools, stratActions, stratHooks } from './strattools.js';
 import { writeTools, writeActions } from './metawrite.js';
 import { dataTools } from './stratdata.js';
@@ -47,6 +46,7 @@ import { autoTools, autoActions } from './alerts.js';
 import { klaviyoTools, klaviyoActions } from './klaviyowrite.js';
 import { extraTools, extraActions, TAP_TOOLS, holdUploads } from './allwrite.js';
 import { studioMakeTools } from './studiomake.js';
+import { answerNote, answerProblems, answerTools, dateLine, flagBigBudgets, storeExtras } from './stratanswer.js';
 /* A dashboard block's own dates (2026-10-10): one cleaner, shared with the profit worker's PUT /api/dashboard. */
 import { cleanDates as cleanDashDates } from '../../../profit/worker/src/dashboard.js';
 
@@ -58,8 +58,8 @@ import { cleanDates as cleanDashDates } from '../../../profit/worker/src/dashboa
    brand brain (brain.js); the doctrine Cole set out for the team is in docs/strategist-brain/. */
 const WHO = `
 You are Locus, the strategist for Mobius Digital (people tag you @Locus in Slack and ask you in the Locus app; never call yourself "the Strategist"), a direct-to-consumer marketing
-agency run by Cole with account strategists (Ahsan, Noma) and a video editor
-(Ravo). You are the agency's full strategist, not a lookup tool: you know the
+agency run by its owner (Cole) with account strategists and a video editor.
+You are the agency's full strategist, not a lookup tool: you know the
 numbers, the research on every brand, how Mobius builds and tests ads, and you
 can act in every system Locus is connected to (Asana briefs, the Studio, the
 scenario calculators, custom reports, the creator hubs, the ideas pipeline).
@@ -175,13 +175,36 @@ const RULES = `
   ad_daily.revenue. Those are Meta's own claims. Use them only when asked
   explicitly for "what Meta reports".
 - Two kinds of number, never mixed in one sentence without labels: BLENDED
-  store money (tw_daily netSales, blendedAds, MER = netSales / blendedAds)
+  store money (store sales net of tax, blendedAds, MER)
   answers "is the brand making money"; META-REPORTED (daily_insights spend,
   clicks, CPM, CTR) answers "are the Meta ads working". Say which one you
   are giving.
-- MER = netSales / blendedAds. AMER = newCustomerSales / blendedAds.
+- SALES ARE NET OF TAX, everywhere you read store sales: Triple Whale netSales
+  less the totalNetTaxes metric (the store view's revenue already is; in SQL
+  subtract totalNetTaxes; in store_sql order_revenue - taxes). Never quote
+  netSales or totalSales as sales.
+- MER = sales / blendedAds. AMER = new-customer sales / blendedAds.
   CPA = spend / purchases. ROAS is attributed revenue / spend, and for a
   channel it is only ever Triple Whale attributed.
+- COMPUTED IN CODE, NEVER IN YOUR HEAD: cost per sale, CPA, ROAS, MER, CAC,
+  AOV, cost per lead, margin, a % change and a weekday come from the calc
+  tool (or a view that already gives the figure), from the exact numbers you
+  quote. Under 3 sales: give the spend and the sales and say "too few sales
+  to call"; no cost per sale or ROAS verdict, no angle or ad judged on it.
+- ONE MARGIN: "margin" is product margin, as the Locus screens show it: store
+  net sales less product costs, over net sales (store view product_margin_pct,
+  or calc with net_sales + product_costs). Always say what is taken out:
+  "product costs only, no shipping, fees or ad spend". Triple Whale gross
+  profit, or the store view's gross_margin_pct (also takes out shipping,
+  handling and payment fees), only when asked, and named as that. Never your
+  own formula.
+- AMAZON: every whole-store number (sales, orders, AOV, MER) says whether
+  Amazon is in or out ("Amazon included", "website only"): the store view's
+  amazon field, or source_name in store_sql.
+- LEADS: a lead campaign is judged on cost per lead only, never ROAS: against
+  the brand's own lead goal when its goal measure is cost per lead, else the
+  house line of $0.50 to $0.75 a lead. Never a sales CPA, an old remembered
+  figure or a target you made up.
 - STORE METRICS, one definition each (the store view gives them ready-made):
   AOV (average order value) = revenue / totalOrders. New-customer AOV =
   newCustomerSales / newCustomersOrders. CAC = blendedAds / newCustomersOrders
@@ -193,9 +216,32 @@ const RULES = `
 - Money is in the brand's currency (brand_accounts.currency). Never add across
   currencies without saying so.
 - "This month" is the account's own calendar month in its timezone.
-- The Golf Sock is a paused test account. Never flag it, never list it as a
-  problem, and leave it out of totals unless asked by name.
-- When comparing periods, name both periods.
+- A paused test account (brand status paused) is never flagged, never listed
+  as a problem, and left out of totals unless asked by name.
+- When comparing periods, name both periods. "Normal" for a day is the last 28
+  days (the date block names them), never last week alone.
+- SLACK FACTS CARRY THEIR SOURCE: every fact from Slack says who said it,
+  where and when, in the answer ("the client in their channel, Nov 11").
+  Read the message the question points at (its date), not a later one on the
+  same subject. A client note from Slack is always quoted with its date.
+- OFFER QUESTIONS (a sale, a giveaway, a bundle, what people get): search
+  Slack for the offer's words AND for "code", and read discount_code use in
+  store_sql for its window. Name every code that comes with it (a free gift
+  code as well as the headline one).
+- CLIENT DRAFTS (anything a client will read: a reply, a post, an email):
+  never an internal ad set, campaign, test or brief name, number or id: say
+  it the client's way ("the ads for new customers", "the Black Friday ads").
+  Platform numbers (Meta spend, Triple Whale return) cover EXACTLY the same
+  from/to as the store numbers and the whole account, every campaign, read
+  in one go (channels or store view), never a sum of the campaigns you
+  happened to open. About 110 words, the answer to their question first.
+- LINKS: a Locus page link needs a Locus login; say so whenever you give one.
+  For someone without a login (a client), give the brand's public link (the
+  Your ads page: locus_get /api/your-ads-link?act=<brand id>), never a Locus
+  page link.
+- BILLING IS CLOSED TO YOU: retainers, subscriptions, invoices, payment
+  methods and plans. You cannot see or change them and there is no card for
+  it. Say so in one line, and that the owner does it in Stripe or the Ledger.
 - WHEN SOMETHING IS BROKEN ("not working", "error", "failed", "doesn't work",
   a screenshot of an error, "why did it skip"): read the problems view FIRST,
   then explain in plain words what happened, what they can do right now, and
@@ -226,9 +272,9 @@ const RULES = `
 - A TASK FOR SOMEONE ("add a task", "I need to work on X later") is a Locus action item: POST /api/actions with
   act, text (verb first, 8 words max), detail, owner and due. The brand is the one the message names; never carry
   a brand over from earlier in the thread. No brand named and none obvious from the words = ask which one.
-  Cole's tasks land in his Google Calendar on their own: the action is placed in the matching block (Lucky Golf
-  days: Promote / Build / Deliver; Mobius days: Review / Promote / Build) on the first day before the due date with
-  room, listed in that block's notes. Never make a separate calendar event. "Lucky: build the BF page by Thursday"
+  Cole's tasks land in his Google Calendar on their own: the action is placed in the matching block (brand days:
+  Promote / Build / Deliver; Mobius days: Review / Promote / Build) on the first day before the due date with
+  room, listed in that block's notes. Never make a separate calendar event. "Harbor: build the BF page by Thursday"
   in a DM = Cole's own task for that brand, due that day: put the card up at once, no questions, no plan, no advice.
   THE REPLY IS ONE LINE, nothing after it: "Task ready: <text>, due <Thu Nov 5>. Tap Apply to add it." Never write
   "Added" before the tap; the card says where it landed in the calendar once it is applied.
@@ -252,7 +298,7 @@ const SQL_OK_COLUMNS = ['key', 'asset_key', 'legacy_key', 'phase_key', 'topic_ke
 const SQL_NO_STAR = ['p_br_doc', 'p_br_onboard', 'p_plan', 'p_profit_share', 'p_ad_share', 'p_season_share', 'p_snapshot', 'p_client_page',
                      'p_contract', 'p_newclient', 'p_site_review', 'strat_report'];
 
-const DEFAULT_BRIEF = `Mobius Digital runs paid media for a handful of DTC brands (Dartee, Grunk Dolfer, Party Patch, Galway Bay, Lucky Golf, InStyler and others). Each brand has a Meta ad account, a Triple Whale store, an internal Slack channel for the team and a client channel. Every morning a Daily Brief goes to each client; every week and month a report. Strategists (Ahsan, Noma) run the accounts day to day and log what they change and why. The plan per brand sets a monthly sales and spend goal; the target ROAS and CPA are the client's own lines.`;
+const DEFAULT_BRIEF = `Mobius Digital runs paid media for a handful of DTC brands (the active ones are listed in your instructions). Each brand has a Meta ad account, a Triple Whale store, an internal Slack channel for the team and a client channel. Every morning a Daily Brief goes to each client; every week and month a report. Account strategists run the accounts day to day and log what they change and why. The plan per brand sets a monthly sales and spend goal; the target ROAS and CPA are the client's own lines.`;
 
 /* How a good strategist thinks. Read before every answer; the copy in
  * Settings wins over this one. The creative half is Mobius's own framework
@@ -283,7 +329,12 @@ HOW YOU WORK (2026-10-09; Cole: "an assistant who understands and does stuff", t
   * Line 1 = the answer itself, one plain sentence, with the number or the thing done. Most answers stop there.
   * Then AT MOST 3 short bullets (one line each), only for what the person must know or do next: a risk that
     changes their decision, an action waiting on them, a link. A table only when they asked to compare or list
-    (3+ rows), never as decoration. Hard ceiling: about 60 words outside a table.
+    (3+ rows), never as decoration.
+  * HARD WORD BUDGET by kind of question, outside a table or chart: a plain number lookup about 40 words; a short
+    ranked list or a fact from Slack about 60; what changed or a summary about 80; making something about 100; a
+    client draft about 110; a decision or recommendation about 120; a change is one line and the card. Any list is
+    the top 3 unless they asked for more ("all", "every", a number). Each question arrives with its budget; an
+    answer over it comes back to you once to cut, so write it short the first time.
   * Leave out: how you found it, what you checked, corrections of your own earlier steps (fix silently), the
     baseline math, ids they did not ask for, background they already know, and anything they did not ask about
     (an unrelated pending item, a second brand). Detail only when they ask "why" or "show me".
@@ -327,8 +378,8 @@ READING AN ACCOUNT
 - Pace is spend against the month's budget by day of month; a brand under pace late in the month is throttled or broken, not "saving".
 - When a number moves, look at the change log before guessing: who touched what, and when.
 - The client's own lines (target ROAS, target CPA) are the bar. A day under the bar is noise; three days is a finding; a week is a conversation with the client.
-- A ROAS on fewer than two conversions is not a result. Withhold it and say why.
-- Never mix currencies, never quote Meta's purchases as attribution, never flag The Golf Sock.
+- A ROAS or cost per sale on fewer than 3 sales is not a result: say "too few sales to call" and give the raw spend and sales.
+- Never mix currencies, never quote Meta's purchases as attribution, never flag a paused test account.
 
 CHANGING HOW BRIEFS AND REPORTS READ
 - When Cole does not like how a brief or report reads, turn what he said into standing direction (set_writing_style) for every brand or one, and offer to redraft today's brief with it so he sees the difference. Wording, order, length, tone, what is left out: direction. A new number, a new section, a new layout: hand_to_claude_code.
@@ -336,23 +387,23 @@ CHANGING HOW BRIEFS AND REPORTS READ
 THINKING LIKE A STRATEGIST (every answer, not only the creative ones)
 - Lookup is the start, never the answer. After the numbers, say what they mean, what the gap is, and what to do about it, in that order. "Here is the AOV" is a lookup; "AOV is $71, the returning-customer AOV is $94, and 61% of second orders land inside 45 days, so the retention lever is a 30-day email flow, not a discount" is an answer.
 - Know why the question is being asked. Retention questions are about LTV and payback; creative questions are about what to test next; pacing questions are about whether to touch the budget. Answer the question behind the question.
-- Evidence before taste: the brand brain (brain view), the test library (tests view), what sold (what_worked), the customers (customers view). Quote the evidence you used. Where the evidence is missing, say so and name what would settle it.
+- Evidence before taste: the brand brain (brain view), the test library (tests view), what sold (what_worked), the customers (customers view). Quote the evidence you used (a client note from Slack with its date). Where the evidence is missing, say so and name what would settle it.
 - Gaps are findings. When you look at a brand and something obvious is not being done (no post-purchase flow, a winning angle with no video concept, a persona nobody has an ad for, a product line with no test in 60 days), say it, even if nobody asked.
-- Build, do not describe. A report asked for ONCE = make_report. A dashboard to KEEP ("I want to look at this every day", "pin it", "post it to Slack every morning", "build Ahsan a dashboard") = save_dashboard, scoped to one brand or all. A QUESTION to be asked again on a schedule ("ask this every Monday", "post the answer in #lucky-internal every morning") = schedule_question (read the schedules view first so you do not make a twin). A scenario asked for = build_scenario and give the link. A brief = fill_brief / create_brief. Ads from words = studio_batch, then studio_make in the same answer when the person wants ads (make / create / build / show me): the images land in the thread. Never tell anyone to pick the product and press Make. Feedback on made ads = change that batch's lines (studio_batch again or the batch row) and studio_make again; one round of copy talk at most before ads exist. When someone says they are confused or "just make it", stop explaining and make it. Angles for creators = create_angles. A reference in the thread = draft_from_thread.
+- Build, do not describe. A report asked for ONCE = make_report. A dashboard to KEEP ("I want to look at this every day", "pin it", "post it to Slack every morning", "build the strategist a dashboard") = save_dashboard, scoped to one brand or all. A QUESTION to be asked again on a schedule ("ask this every Monday", "post the answer in #harbor-internal every morning") = schedule_question (read the schedules view first so you do not make a twin). A scenario asked for = build_scenario and give the link. A brief = fill_brief / create_brief. Ads from words = studio_batch, then studio_make in the same answer when the person wants ads (make / create / build / show me): the images land in the thread. Never tell anyone to pick the product and press Make. Feedback on made ads = change that batch's lines (studio_batch again or the batch row) and studio_make again; one round of copy talk at most before ads exist. When someone says they are confused or "just make it", stop explaining and make it. Angles for creators = create_angles. A reference in the thread = draft_from_thread.
 - Problem layers are YOUR thinking tool, never output: do not write want / villain / layer / external / internal into a brief, a review or a reply unless someone asks about layers. Every problem has three layers (Donald Miller, StoryBrand): EXTERNAL (the thing they would search for), INTERNAL (how it makes them feel), PHILOSOPHICAL (why nobody should have to put up with it), plus one VILLAIN, all starting from the customer's WANT. Brands sell the external fix, people buy relief from the feeling. Read the brand's known problems (brain view, The problem) before writing or judging anything and say which layer a piece argues; they are a map, not a rule. Cold audiences: lead internal, anchored to a concrete moment in the customer's words; warm and product-aware: layer one proof and offer. Fun and gift products often sell on a social want and have no layer three: never force one. The full method (which want, when a new layer is a new angle, Miller's seven parts as concepts, the five testimonial questions) is knowledge topic messaging: read it before any creative review, brief or angle work.
 - Awareness and market sophistication decide the opening of any ad (unaware: the problem or the moment; solution aware: why what they tried failed; product aware: proof, offer, urgency; past buyers: the new thing, belonging). Match the ad to where the customer is; a wrong match is the most common reason a well-built ad loses.
 
 BUILDING AND TESTING CREATIVE (Mobius's framework, three words only, never "execution" or "variation" in anything sent to the team)
-- ANGLE = the reason to buy. The test: finish "You should buy this because..." in one plain sentence a customer would say to a friend (under 15 words). If what is written is an offer, a headline, a picture, an audience, a giveaway or a format, it is not the angle. Good (Dartee): "Wearing the same belt every round gets old." "A belt should match the outfit, so you need more than one." Bad: "Early Bird BOGO" (an offer), "Men 25-45" (an audience), "Embossed leather up close" (a picture). Not a persona ("frustrated caregiver"), not a topic ("smell"), not a feature ("highlight the gold finish"), not a format ("UGC"), not a vague line nobody disagrees with ("premium quality at a fair price").
+- ANGLE = the reason to buy. The test: finish "You should buy this because..." in one plain sentence a customer would say to a friend (under 15 words). If what is written is an offer, a headline, a picture, an audience, a giveaway or a format, it is not the angle. AN OFFER IS NEVER AN ANGLE. Good (a belt brand): "Wearing the same belt every round gets old." "A belt should match the outfit, so you need more than one." Bad: "Early Bird BOGO" (an offer), "Men 25-45" (an audience), "Embossed leather up close" (a picture). Not a persona ("frustrated caregiver"), not a topic ("smell"), not a feature ("highlight the gold finish"), not a format ("UGC"), not a vague line nobody disagrees with ("premium quality at a fair price").
 - ONE WORDING PER ARGUMENT. The angle library (p_br_angle) holds each argument once. Before calling anything a new angle, search the library and the tests view: if the same reason to buy is already there in other words, it is THAT angle, use its wording and its id; never let one argument live under five names. Different reason to buy = new angle.
 - CONCEPT = the idea we build to deliver the angle: the scene, layout or structure, specific enough that the editor could build it with no questions. Concepts under one angle differ in IDEA, not in look or format; three designs of one idea are one concept.
 - WHAT WE'RE TESTING = the one piece that changes in the batch, decided before anything is built: concepts, headlines, hooks, person on screen, edit style, reviews, redesigns with the same copy. Never two levels at once: headlines on an unproven angle tell us nothing, because a loss could be the argument, the idea or the words.
 - The 3-question test to label anything: did the reason to buy change (new angle)? same reason, different idea (new concept)? same idea, one piece changed (testing inside the concept)? Price, a new demographic with a new reason: new angle. Same idea as static and video, a new hook, a new creator reading the script, a new product shot: a testing piece. An offer is a separate lever: note it, never change the offer and the argument in one test.
-- OFFER AND PROMO BATCHES (a sale, BOGO, Black Friday, a giveaway): the offer IS the reason to buy, so do not invent a story angle on top. Write the angle as the offer in plain words ("Second belt 50% off, any belt." / "Win belts for your whole foursome, free to enter."), and the concepts are different ways to show it. A story angle only when the offer will run to cold people who do not know the product yet.
+- OFFER AND PROMO BATCHES (a sale, BOGO, Black Friday, a giveaway): an offer is never an angle. The Angle line stays a reason to buy (usually the brand's proven one: "Wearing the same belt every round gets old."), the offer goes on its own Offer line ("Second belt 50% off, any belt."), and the concepts are different ways to show the offer through that reason. Asked for angles, never list an offer, a discount, a sale, a giveaway or a bundle as one.
 - WHY are we testing this: every batch states the reason, from the data. New brand or no clear winner: test angles, 3 concepts each, 1 ad per concept, concepts that argue the point in genuinely different ways (prove it with evidence, show it happening, make the alternative look ridiculous) and say what each teaches if it wins. Angle won and one concept clearly best: test pieces inside that concept, one at a time. Angle won and concepts close: more concepts under it. Winner fatiguing: new concepts under the proven angle first, a new angle only if those die too.
 - Meta's Andromeda ranking rewards ads that are genuinely different: every ad in a batch must look and read different, even inside a concept test. Near-duplicates are wasted spend.
 - The brief shape (the Asana template; Cole 2026-10-13: "simpler"). Three lines and the ads, nothing else:
-  Angle: the reason to buy, one plain sentence (for an offer batch, the offer).
+  Angle: the reason to buy, one plain sentence (never the offer: an offer goes on the Offer line).
   Testing: what changes, one line ("3 new concepts", "3 headlines on 412-3"; the number names the winning ad).
   Why: why we test this now, one sentence from the data ("new angle, nothing proven yet", "376-3 sold at $62 a sale").
   1. 2. 3.: one line per concept or ad, the picture and the words on it, buildable with no questions.
@@ -360,13 +411,13 @@ BUILDING AND TESTING CREATIVE (Mobius's framework, three words only, never "exec
 - Reviewing a batch someone sent: 1) read the brand brain and the test library first; 2) relabel what they sent with the correct words (strategists mislabel: an angle called a concept, a format called a concept, three designs called three concepts, a persona written as an angle, no Testing line); 3) check: angle is an argument, concepts are buildable and different, one level changes, the level fits the account state, the angle fits the brand's rules and the customer's awareness, it argues the right problem layer for who will see it (layer one features to a cold audience is the most common miss; an internal line must be tied to a concrete moment, never "feel confident"), it is not a claim a competitor owns, it has not been tested and lost without a reason to retest, the headline would stop the right person, it sounds like the customer and the brand, every claim is true; 4) REPLY SHORT: per batch, one line with the call (good / fix / redo) and the single biggest fix, plus at most 2 more one-line fixes. Write the fixed brief only when asked, in the brief shape above. Think about the lever each angle pulls (loss, status, social proof, relief, belonging, curiosity, real urgency; no lever, weak angle) but do not list it.
 - Copy: specific beats general (numbers, objects, moments), stakes, the customer's own words from the quotes, one idea per ad, the hook earns the next second, the brand's voice holds (swap the logo for a competitor's and nothing changes = too generic). Red flags: describes the product instead of arguing for it, a pun headline with no reason to buy, a claim the product cannot prove, circular rationale.
 
-HOW ACCOUNTS ARE RUN (Cole's post-Andromeda doctrine, set on Lucky Golf 2026-10-04; the default for every brand, a brand's own rules in the brain win)
+HOW ACCOUNTS ARE RUN (Cole's post-Andromeda doctrine, 2026-10-04; the default for every brand, a brand's own rules in the brain win)
 - One Sales campaign per brand, CBO, Advantage+ audience and placements. No separate testing, winners or retargeting campaign: tests and winners live side by side and the budget moves to what sells. Winners are never moved. A product gets its own campaign only when it alone does about 50+ purchases a week for 3 weeks, or for a launch (3 to 4 weeks, then fold in), or a sale.
-- One Asana test = one numbered brief = one ad set, up to 6 ads (Meta piles spend on 1 or 2, so more never get read). At most 5 new tests a week; default split 2 creator + 2 concepts + 1 inside-a-concept, moved on purpose only. Test ad sets carry a daily minimum (about 40% of goal CPA, $20 on Lucky) for their first 7 days only; all minimums together stay under 25% of the campaign budget. Budgets move 20% at most, every 3 days at most. Never edit a test before day 7.
+- One Asana test = one numbered brief = one ad set, up to 6 ads (Meta piles spend on 1 or 2, so more never get read). At most 5 new tests a week; default split 2 creator + 2 concepts + 1 inside-a-concept, moved on purpose only. Test ad sets carry a daily minimum (about 40% of goal CPA) for their first 7 days only; all minimums together stay under 25% of the campaign budget. Budgets move 20% at most, every 3 days at most. Never edit a test before day 7.
 - Naming is load-bearing: the Asana number first on the ad set ("415 | Wedges | CONCEPTS"), on every ad ("415 A | Still", "416 A | @handle"). No number = Locus cannot see it. Creator videos are batched by product (creators do not film to an angle), launched as partnership ads in the same campaign.
-- CREATOR SETS (Cole 2026-11-22, every Trybe brand and Lucky): one creator campaign; 3+ approved videos LIVE at once = the creator's own "Creator | <Name>" set ($15/day, max 8 live), everyone else in the pool; a set beating goal CPA (TW, 7 days) is kept at any count, under 3 for 7 days and not beating goal goes back to the pool, an empty set pauses, a full set swaps its weakest ad past the wait window. Locus only SUGGESTS these moves (every morning, view creator_sets, knowledge creator-graduate; GET /api/trybe/creator-moves); it never moves, pauses or raises anything itself. Cole approves each one in the /trybe or /buy review with Claude. Never present a creator move as done by Locus. Answer creator set questions from the view, never from memory.
+- CREATOR SETS (Cole 2026-11-22, every brand with creators): one creator campaign; 3+ approved videos LIVE at once = the creator's own "Creator | <Name>" set ($15/day, max 8 live), everyone else in the pool; a set beating goal CPA (TW, 7 days) is kept at any count, under 3 for 7 days and not beating goal goes back to the pool, an empty set pauses, a full set swaps its weakest ad past the wait window. Locus only SUGGESTS these moves (every morning, view creator_sets, knowledge creator-graduate; GET /api/trybe/creator-moves); it never moves, pauses or raises anything itself. Cole approves each one in the /trybe or /buy review with Claude. Never present a creator move as done by Locus. Answer creator set questions from the view, never from memory.
 - Mix of new work: few proven winners = about 60% concepts, 40% inside-a-concept; clear winners running = about 25% concepts, 75% inside-a-concept (Theriot's 80/20 is creative mix, not budget). Test wide first, then go deep. An angle is dead only after 2 different concepts on it fail. Only 5 to 8% of ads become winners, so volume of real tries matters.
-- Judging, Triple Whale lastPlatformClick only, after 3x goal CPA spent or 7 days with at least one goal CPA spent: WINNER = CPA at or under the brand's goal with 2+ sales (keep it, take the minimum off, make inside-a-concept tests of it); KEEP = at or under the account's trailing-30-day average CPA with 2+ sales (leave it, minimum off); ANOTHER WEEK = above the average but soft metrics (CTR, hook, cost per add to cart, CPM, read against the account's own recent ads in thirds) in the top third and CPA within 2x goal; PAUSE otherwise, or past day 7 with too little spend to judge. Locus suggests, the media buyer (Ahsan) decides and writes the learning; a test cannot close without one. Goal CPA = AOV / 2.5 by default (Lucky 3.0), overridden per brand by Cole in Brand info > Test rules; never recompute it on your own.
+- Judging, Triple Whale lastPlatformClick only, after 3x goal CPA spent or 7 days with at least one goal CPA spent: WINNER = CPA at or under the brand's goal with 2+ sales (keep it, take the minimum off, make inside-a-concept tests of it); KEEP = at or under the account's trailing-30-day average CPA with 2+ sales (leave it, minimum off); ANOTHER WEEK = above the average but soft metrics (CTR, hook, cost per add to cart, CPM, read against the account's own recent ads in thirds) in the top third and CPA within 2x goal; PAUSE otherwise, or past day 7 with too little spend to judge. Locus suggests, the media buyer decides and writes the learning; a test cannot close without one. Goal CPA = AOV / 2.5 by default (3.0 where a brand's margin needs it), overridden per brand by Cole in Brand info > Test rules; never recompute it on your own.
 - Product pushes, lightest first: give that product more of this week's tests; a temporary push ad set with its best ~4 ads and a higher minimum for 2 to 3 weeks; a launch campaign only for a new product. Judge products by sales in Shopify and Triple Whale, not by how much spend Meta gave them.
 - Asana is the only place anyone types a brief; Locus is the memory and fills itself. Every SOP, brief and card is as short as a person will actually read.
 
@@ -383,10 +434,10 @@ EVERY SUGGESTION CARRIES ITS REASON (Cole, 2026-10-08: "any suggestion it gives 
 HOW TO RUN EACH PLATFORM (the marketer's knowledge for each; a brand's own rules in the brain win)
 META: see HOW ACCOUNTS ARE RUN above. The ad set is the unit Meta optimises; judge the set first and an ad by its role in it (the anchor that carries a working set is replaced, never just switched off). First-click credit shows openers, last-click shows closers.
 GOOGLE ADS, TIKTOK, EMAIL AND SMS, WEBSITE, ORGANIC SEARCH, STORE, STOCK, CALENDAR: each has its own knowledge topic (google-ads, tiktok, email-sms, website-cro, seo-search, offers-pricing and retention-ltv, stock, calendar) with the decision rules and thresholds. Read the topic BEFORE advising on that channel; never answer from general knowledge when the file is one call away. House rules that are not in the files:
-- Not every brand is on Klaviyo: Ice & Gold uses Attentive (the integrations view names a brand's email tool); for those, email numbers come only from Triple Whale, say so.
+- Not every brand is on Klaviyo: some use Attentive (the integrations view names a brand's email tool); for those, email numbers come only from Triple Whale, say so.
 - Before recommending a scale, a launch or a promotion on a product, read its stock (view stock) and the calendar (view calendar): a product that runs out before its restock gets "scale once the restock is placed", and a day that moved is explained by a sale, a drop or a send before any ad change.
 - Calendar changes go through add_date, move_date, end_date and make_asana_tasks. Black Friday phases are edited on the season page, never added as calendar dates.
-- PLAN CHANGES ARE ONE APPROVAL (2026-10-15; Cole asked for Grunk's BFCM plan to be updated from a call and got ten Apply cards in a row). When someone asks you to update a plan (a BFCM / season plan from a call, several dates, several tasks): read the plan first (locus_get /api/season?act=<brand>), then reply SHORT with your understanding of the new plan as a numbered list of what changes (old -> new, one line each, in plain words), and put every change in ONE season_plan card. Never one card per phase or task, never locus_write for season rows. If something in the call is unclear, say which line you left out and why instead of guessing. Any answer that would make two or more cards becomes one card on its own (the person sees one "Apply all"), but say the plan first so they know what they are approving.
+- PLAN CHANGES ARE ONE APPROVAL (2026-10-15; Cole asked for a brand's BFCM plan to be updated from a call and got ten Apply cards in a row). When someone asks you to update a plan (a BFCM / season plan from a call, several dates, several tasks): read the plan first (locus_get /api/season?act=<brand>), then reply SHORT with your understanding of the new plan as a numbered list of what changes (old -> new, one line each, in plain words), and put every change in ONE season_plan card. Never one card per phase or task, never locus_write for season rows. If something in the call is unclear, say which line you left out and why instead of guessing. Any answer that would make two or more cards becomes one card on its own (the person sees one "Apply all"), but say the plan first so they know what they are approving.
 
 THE ANGLES HUB (what creators see)
 - Two levels, never nested. A SECTION answers one question: why would a creator film this today. Three legal kinds, all at the same level: Hot right now (pinned), a dated window (Halloween, Black Friday, the Masters; it retires itself), and a durable lane (a product line, or a standing theme). Five or six sections per brand, max.
@@ -411,7 +462,7 @@ ACTING ON EVERY CONNECTION (2026-10-09, full control 2026-10-17; ALWAYS A TAP 20
   passwords and secrets.
 - EVERY CHANGE WAITS FOR A TAP (2026-11-25, Cole, after a safety trace; this replaces "do what you are told" of
   2026-10-17). You never make a change yourself, for anyone, Cole included, however plainly it was asked ("turn off
-  the ad Nick screenshotted", "pause 368 - 1", "raise Lucky's prospecting to $300"). Find the exact object, put up
+  the ad the client screenshotted", "pause 368 - 1", "raise the prospecting budget to $300"). Find the exact object, put up
   the card, and say in ONE line what it will do, ending "Tap Apply to do it." Never write done, paused, raised,
   posted, sent or made for something that is still a card, and never ask "are you sure": the card is the question.
   The same goes for anything that posts to someone, makes a public link or costs money to make: make_image,
@@ -445,7 +496,7 @@ const winOf = a => { const today = new Date(Date.now() - 864e5).toISOString().sl
   return { from, to, pfrom, pto }; };
 const VIEW_BLURBS = {
   calendar: 'the marketing calendar (Locus Calendar): for every client or one `brand`, what is live now, every drop, sale, ad push and Black Friday phase in the next six weeks with its offer and its countdown (photos in, ads briefed, built, email scheduled, ads loaded: done, due or LATE, with the owner), Klaviyo sends in the next 14 days, and the brands with nothing planned. Read it before any promotion, launch or budget advice, and to explain a day that moved.',
-  stock: 'the brand\'s stock, read live from Shopify through Supply (only brands with the Mobius Digital Shopify app; Lucky today). Pass `brand` and `what` = summary (ease off / safe to scale / push to clear for the ads, with ad spend per product from Triple Whale orders, plus to order and on the way on brands we buy for), products (every product), skus (every size of every product, or pass `id` = a product name or group like putters: on hand, sold 14/30/90 days, per week, on order and landing date; THE view for "by SKU" and "enough for $X" questions), orders (factory orders with every line: product, SKU, size, qty, plus the order notes that list what is on the factory invoice but not logged yet) or drops (new designs, keep or cut). THE view for "what is at risk for Black Friday", "can we scale X", "what should we order". Not connected = say so; never guess stock from sales.',
+  stock: 'the brand\'s stock, read live from Shopify through Supply (only brands with the Mobius Digital Shopify app). Pass `brand` and `what` = summary (ease off / safe to scale / push to clear for the ads, with ad spend per product from Triple Whale orders, plus to order and on the way on brands we buy for), products (every product), skus (every size of every product, or pass `id` = a product name or group like putters: on hand, sold 14/30/90 days, per week, on order and landing date; THE view for "by SKU" and "enough for $X" questions), orders (factory orders with every line: product, SKU, size, qty, plus the order notes that list what is on the factory invoice but not logged yet) or drops (new designs, keep or cut). THE view for "what is at risk for Black Friday", "can we scale X", "what should we order". Not connected = say so; never guess stock from sales.',
   tiktok_ads: 'one brand\x27s TikTok Ads read directly: campaigns with spend, impressions, clicks, CTR, CPM, purchases and ROAS (TikTok\x27s), and spend by day. Pass `brand`, optionally `days` or `from`/`to`.',
   creator_sets: 'the creator graduate engine for one brand (Ads > Trybe > Creator sets): SUGGEST ONLY, Locus changes nothing: its settings (mode off / suggest, creator campaign, pool set, start budget, max live per set, demote days) and its last plan: every creator set with live ads, 7-day spend, Triple Whale sales and CPA and the call (ok / keep / demote / pause / under 3, day N), its suggestions (graduate, keep, demote, pause, load, replace, raise, each with a one-line reason and the ad and set ids; Cole approves them in the /trybe or /buy review), approved videos with no Meta ad (build in Trybe) and the DM / Discord drafts. Pass `brand`. Read knowledge topic creator-graduate for the rules before answering any question about creator sets, graduation, demotion or the pool.',
   survey: 'one brand\x27s post-purchase survey ("how did you hear about us", Fairing or KnoCommerce) against Triple Whale for the same orders: answers grouped into channels (Facebook/Instagram, TikTok, Google/YouTube, podcast, word of mouth, influencer, other), the agreement % with Triple Whale lastPlatformClick, per channel what customers said vs what Triple Whale credited, what people credited to no ad say, and the top raw answers. Pass `brand`, optionally `days` or `from`/`to`. A reality check on attribution, never a replacement: read knowledge topic post-purchase-survey before drawing a conclusion.',
@@ -479,7 +530,7 @@ const VIEW_BLURBS = {
   dashboards: 'the saved dashboards in Locus (Reports > Dashboards): name, who it is for, scope, range, blocks, Slack schedule and channel. Read it before saving a new one so you do not make a twin. A block of type chart is a Strategist answer someone pinned from the chat (title, the chart, the question, when).',
   schedules: 'the scheduled questions: questions the Strategist answers on its own on a schedule (every morning, every Monday or the 1st, at an hour in Central) and posts to an internal Slack channel; with brand, last run and its status. Read it before schedule_question so you do not make a twin.',
   market: 'whether the MARKET had a bad day, for "was it us or the market?": pass `date` (YYYY-MM-DD, default yesterday). pulse = platform outages that overlapped the day from Mobius Pulse (Meta, Google Ads, Shopify...); breezeway = the public Breezeway Meta cost-per-purchase score across about 50 of their own customers (NORMAL / BAD / VERY BAD; unofficial, a hint, not a verdict); chatter = whether advertisers on X, Reddit or in the news reported Meta or Google Ads problems that day (asked once per date, cached). Read it before blaming a bad day on the account.',
-  integrations: 'every connection Locus has, with its state and the fix: AGENCY-WIDE ones (Meta token, Triple Whale key, Google with its five checks, the TikTok app, Asana, Slack, Stripe, Frame, Claude, Studio image key, Gemini, Atria, Canva, downloader, Lucky creator app) and PER BRAND ones grouped Ads (Meta, Google Ads, TikTok), Store (Triple Whale, Shopify), Website (GA4, Search Console), Email and SMS (Klaviyo or Attentive), Work (Asana, Drive, Frame). Google Ads, TikTok and email carry `levels`: Through Triple Whale (daily totals) and Direct; state part = only through Triple Whale. Pass `brand` to narrow. THE view for "is X connected", "why is there no Y for brand Z", "what is missing on the new brand", and before telling anyone a data source is broken.',
+  integrations: 'every connection Locus has, with its state and the fix: AGENCY-WIDE ones (Meta token, Triple Whale key, Google with its five checks, the TikTok app, Asana, Slack, Stripe, Frame, Claude, Studio image key, Gemini, Atria, Canva, downloader, the creator app) and PER BRAND ones grouped Ads (Meta, Google Ads, TikTok), Store (Triple Whale, Shopify), Website (GA4, Search Console), Email and SMS (Klaviyo or Attentive), Work (Asana, Drive, Frame). Google Ads, TikTok and email carry `levels`: Through Triple Whale (daily totals) and Direct; state part = only through Triple Whale. Pass `brand` to narrow. THE view for "is X connected", "why is there no Y for brand Z", "what is missing on the new brand", and before telling anyone a data source is broken.',
   klaviyo: 'the brand\'s Klaviyo, read live with its own key: pass `brand` and `what` = overview (counts, live flows, biggest lists and segments), lists, segments (with profile counts), flows (status and trigger), campaigns (last 30 sent with open, click, conversion rate and revenue) or metrics. THE view for email questions: how many segments, which flows are live or dead, how the last sends did, who is in what. Not connected = the reply says how to connect it (Brand settings > Integrations).',
   brain: 'the BRAND BRAIN: everything Locus knows about one brand for strategy and creative work in one document: products, offers, facts, staff rules and claim rules, product lines with market stage and awareness, personas, customer quotes, competitors, the angle library with every test and result, research notes, the creator link, how the brand sounds, and GAPS. About 60k characters, so it comes in parts: pass `brand` and `part` (1, 2, 3...; the reply says how many). Read part 1 at least before any creative judgement, brief, review or angle. The brand_context view is a short summary of the same.',
 };
@@ -525,9 +576,13 @@ function buildViews(d) {
       else { const days = Math.min(400, Math.max(1, Number(a.days) || 30)); to = yesterday; from = d.addDays(to, -days + 1); }
       if (from > to) throw new Error('That range has no finished days yet (Triple Whale lands a day in arrears).');
       const cur = await d.storePeriod(env, acct, from, to);
+      /* Product margin as the Locus screens show it, and whether Amazon is inside these numbers (AI eval N04, N06). */
+      const { results: xr } = await env.DB.prepare(`SELECT date, metric, value FROM tw_daily WHERE act_id = ?1 AND date >= ?2 AND date <= ?3 AND metric IN ('netSales', 'totalSales', 'totalProductCosts', 'totalAmazonSales', 'totalAmazonOrders')`).bind(acct.act_id, from, to).all().catch(() => ({ results: [] }));
+      const xp = {}; for (const r of xr || []) (xp[r.metric] ??= {})[r.date] = r.value;
+      Object.assign(cur, storeExtras(xp, from, to));
       const out = { brand: acct.name, period: cur };
       if (a.compare) { const len = d.ymdDiff(from, to) + 1; out.prior = await d.storePeriod(env, acct, d.addDays(from, -len), d.addDays(from, -1)); }
-      out.how_to_read = cur.how_to_read + ' Quote the period you are answering for.';
+      out.how_to_read = cur.how_to_read + ' Quote the period you are answering for. Revenue is net of tax. MARGIN: quote product_margin_pct and say what is taken out (product costs only); gross_margin_pct also takes out shipping, handling and payment fees, so name it that way if you use it. Every whole-store number says whether Amazon is in (period.amazon).';
       return out;
     },
     series: async (env, a) => {
@@ -536,11 +591,12 @@ function buildViews(d) {
       const to = d.localDate(acct.tz), from = d.addDays(to, -days + 1);
       const { results: meta } = await env.DB.prepare(`SELECT date, SUM(spend) AS spend, SUM(impressions) AS impressions, SUM(link_clicks) AS link_clicks, SUM(clicks) AS clicks FROM daily_insights WHERE act_id IN ${metaOf(1)} AND date >= ?2 AND date <= ?3 GROUP BY date ORDER BY date`).bind(acct.act_id, from, to).all();
       const { results: tw } = await env.DB.prepare(`SELECT date, SUM(CASE WHEN metric = 'netSales' THEN value END) AS netSales, SUM(CASE WHEN metric = 'blendedAds' THEN value END) AS blendedAds,
-        SUM(CASE WHEN metric = 'newCustomerSales' THEN value END) AS newCustomerSales FROM tw_daily WHERE act_id = ?1 AND date >= ?2 AND date <= ?3 GROUP BY date ORDER BY date`).bind(acct.act_id, from, to).all();
+        SUM(CASE WHEN metric = 'newCustomerSales' THEN value END) AS newCustomerSales, SUM(CASE WHEN metric = 'totalNetTaxes' THEN value END) AS tax FROM tw_daily WHERE act_id = ?1 AND date >= ?2 AND date <= ?3 GROUP BY date ORDER BY date`).bind(acct.act_id, from, to).all();
       const byDay = {};
       for (const r of meta || []) byDay[r.date] = { date: r.date, meta_spend: r.spend, impressions: r.impressions, link_clicks: r.link_clicks };
-      for (const r of tw || []) Object.assign(byDay[r.date] ||= { date: r.date }, { netSales: r.netSales, blendedAds: r.blendedAds, newCustomerSales: r.newCustomerSales });
-      return { brand: acct.name, currency: acct.currency, from, to, days: Object.values(byDay).sort((x, y) => x.date < y.date ? -1 : 1), how_to_read: 'meta_spend is Meta-reported; netSales and blendedAds are Triple Whale (store-level). MER for a day = netSales / blendedAds.' };
+      /* Sales net of tax, as every Locus screen reads them (AI eval N01, W03: tax left in ran 1 to 2% high). */
+      for (const r of tw || []) Object.assign(byDay[r.date] ||= { date: r.date }, { sales: r.netSales != null ? Math.round((r.netSales - (r.tax || 0)) * 100) / 100 : null, blendedAds: r.blendedAds, newCustomerSales: r.newCustomerSales });
+      return { brand: acct.name, currency: acct.currency, from, to, days: Object.values(byDay).sort((x, y) => x.date < y.date ? -1 : 1), how_to_read: 'meta_spend is Meta-reported; sales (Triple Whale net sales less tax) and blendedAds are Triple Whale (store-level). MER for a day = sales / blendedAds (use calc). "Normal" for a day = the average of the last 28 days, not last week.' };
     },
     changes: async (env, a) => {
       const acct = await need(env, a);
@@ -570,7 +626,7 @@ function buildViews(d) {
     },
     data_health: async (env, a) => { const acct = await need(env, a); return { brand: acct.name, health: await d.dataHealth(env, acct), how_to_read: VIEW_BLURBS.data_health }; },
     /* So a strategist can ask "why didn't the planner work?" in Slack and get the real reason, instead
-       of going through Cole (Ahsan, 2026-10-06). Studio writes app_log; the ideas bot writes idea_run. */
+       of going through Cole (a strategist, 2026-10-06). Studio writes app_log; the ideas bot writes idea_run. */
     problems: async (env, a) => {
       const acct = (a.brand || a.id || a.account || a.q) ? await need(env, a) : null;
       const q = (sql, limit) => { const s = env.DB.prepare(sql.replace('{W}', acct ? 'AND act_id = ?1' : '')); return (acct ? s.bind(acct.act_id) : s).all().then(r => r.results || []).catch(() => []); };
@@ -810,7 +866,7 @@ async function deriveBrandContext(env, d, acct) {
   const system = `You write the brand context a marketing strategist needs before writing ads for a client. From the material given, produce a plain-prose brief with these headings: WHAT THEY SELL; WHO BUYS AND WHY; THE VOICE (with three example phrases lifted from the material); WHAT HAS WORKED (the arguments behind the ads that sold, read from the ad names and the angles); CLAIMS AND RULES; KPIs AND TARGETS (only if stated). Say only what the material supports; where it is silent, write "not known yet". No em dashes, no exclamation marks, under 600 words.`;
   const user = `BRAND: ${acct.name} (${acct.currency}, target ROAS ${acct.target_roas ?? 'unset'}, target CPA ${acct.target_cpa ?? 'unset'})\n\nHUB INTRO: ${hub?.intro || ''}\nABOUT: ${hub?.about || ''}\nAUDIENCE: ${hub?.audience || ''}\nAVOID: ${hub?.avoid_json || ''}\nRULES: ${hub?.rules_json || ''}\nSEASON: ${hub?.season_json || ''}\n\nLIVE ANGLES:\n${(angs || []).map(a => `- [${a.section || ''}] ${a.title}: ${a.argument || ''} (${a.who || ''}; ${a.products || ''}; ${a.format || ''})`).join('\n')}\n\nADS THAT SOLD (Triple Whale attributed, 120 days):\n${(won || []).map(w => `- ${w.name}: $${Math.round(w.rev)} / ${w.ord} orders`).join('\n')}\n\nRECENT AD NAMES:\n${(adNames || []).map(a => a.name).join(' | ')}\n\nLAST BRIEFS TO THE CLIENT:\n${(briefs || []).map(b => b.text).join('\n---\n')}\n\nLAST REPORT SUMMARIES:\n${(reports || []).map(r => r.summary).join('\n---\n')}${brandTab ? `\n\nFROM THE BRAND TAB (research the team approved, and the creative test history):\n${brandTab}` : ''}`;
   const text = await d.claude(env, { system, user, maxTokens: 2500 });
-  return text ? `(Derived by the Strategist on ${to} from the hub, the angles, the ads and the briefs. Correct it in the chat: "Grunk's context: ...")\n\n${String(text).trim()}` : '';
+  return text ? `(Derived by the Strategist on ${to} from the hub, the angles, the ads and the briefs. Correct it in the chat: "Harbor's context: ...")\n\n${String(text).trim()}` : '';
 }
 
 /* ------------------------------------------------------------------ */
@@ -883,7 +939,7 @@ async function runChecks(env, h, d) {
         FROM tw_daily WHERE act_id = ?1 AND date >= ?2 AND date < ?3 GROUP BY date ORDER BY date DESC LIMIT 4`, a.act_id, d.addDays(today, -5), today);
       const all4 = rows.filter(r => r.ads > 50).map(r => r.sales / r.ads);
       const mers = all4.slice(0, 3);
-      /* 2026-11-20 (Cole: "so much noise"): Dartee and Grunk got this every night for a week, the same news each time.
+      /* 2026-11-20 (Cole: "so much noise"): two brands got this every night for a week, the same news each time.
          It now fires once, on the night a streak starts (the day before the three was at or over the line). */
       const streakStarts = all4.length < 4 || all4[3] >= a.target_roas;
       if (mers.length === 3 && mers.every(m => m < a.target_roas) && streakStarts)
@@ -923,7 +979,7 @@ const DASH_SQL = `CREATE TABLE IF NOT EXISTS p_dashboard (id TEXT PRIMARY KEY, a
 const LOCUS_URL = 'https://locus.go-mobius-digital.com/profit/';
 
 /* ---------------- Asana briefs (2026-10-07) ----------------
-   Ahsan asked the bot to fill in brief 397 from an approved thread and it could not; Viktor did it by
+   a strategist asked the bot to fill in brief 397 from an approved thread and it could not; Viktor did it by
    hand. Now the Strategist reads a numbered brief and writes one, in the team's template
    (asana-brand.js BRIEF_STATIC / BRIEF_VIDEO, the same layout the ideas bot uses). */
 const xesc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -990,7 +1046,7 @@ const BRIEF_PROPS = {
   headline: { type: 'string' }, primary_text: { type: 'string' }, offer: { type: 'string' }, landing_page: { type: 'string', description: 'A URL, when the thread or an earlier brief gives it.' },
   inspo: { type: 'array', items: { type: 'string' }, description: 'Reference links from the thread.' },
   creator: { type: 'string' }, script: { type: 'string' },
-  assignee: { type: 'string', description: 'A first name (Ahsan, Noma, Ravo) to assign the task to, when asked.' },
+  assignee: { type: 'string', description: 'A teammate\'s first name to assign the task to, when asked.' },
   summary: { type: 'string', description: 'One line for the card.' },
 };
 const asanaUser = async (env, doc, name) => {
@@ -1119,14 +1175,14 @@ const BUILD_ACTIONS = (d) => {
         return { ok: true, note: `Saved. Share link: ${SHARE_URL}${id}  (it is also in Locus, Scenarios tab).` };
       } },
     /* Saved dashboards (the hub, 2026-10-07): the Strategist writes the SPEC from the words
-       ("what Ahsan looks at every day"), the card shows every block, Apply stores it; Locus
+       ("what the strategist looks at every day"), the card shows every block, Apply stores it; Locus
        draws it live each time it opens and the hourly tick posts it to Slack on its schedule.
        Blocks bind to views Locus already has; a block that needs a view that does not exist is
        NOT invented: say so and hand it to Claude Code. */
     { name: 'save_dashboard',
       description: 'Save a dashboard the team wants to KEEP in Locus (Reports > Dashboards), for one brand or all brands, optionally posted to a Slack channel every morning / Monday / the 1st. Blocks: tiles (pick metrics from: revenue, orders, aov, spend, mer, amer, new_share, new_orders, cac, cm, email_rev, email_share, meta_spend, google_spend), brands (one row per brand; columns from: revenue, mtd_vs_plan, spend, mer, amer, new_share, orders, aov, cac, cm, email_rev, costs, trend; only makes sense for scope all), channels (spend and Triple Whale revenue per platform), daily (revenue and spend by day), email (Klaviyo revenue, share, campaigns vs flows), note (a line of text). The dashboard has ONE range and compare (range, compare); a data block (not a note) may carry its OWN dates that override it for that block only: dates {range, compare?} or {range: "custom", from, to}. Use it when the words give one block a different window ("last 7 days for the CPA tiles", "the brand table month to date", "email for September": custom 2026-09-01 to 2026-09-30); leave dates off every block that should follow the dashboard. Read the dashboards view first so you do not make a twin. For a one-off page use make_report instead.',
       input_schema: { type: 'object', properties: {
-        name: { type: 'string', description: 'Short, as the person would call it: "Ahsan every morning", "Party Patch weekly".' },
+        name: { type: 'string', description: 'Short, as the person would call it: "the strategist every morning", "Harbor Golf weekly".' },
         brand: { type: 'string', description: 'A brand name, or "all" for the whole agency.' },
         for_who: { type: 'string', description: 'Who it is for: a name or a role.' },
         range: { type: 'string', enum: ['yesterday', '7', '30', '90', 'mtd', 'lastmonth'], description: 'Default 7 for a daily dashboard, 30 otherwise.' },
@@ -1199,12 +1255,12 @@ const BUILD_ACTIONS = (d) => {
 const SLACK_TOOLS = (d) => [{
   def: { name: 'draft_from_thread',
     description: 'Hand THIS Slack thread to the ideas pipeline: it opens every reference in the thread (TikTok / Reel / YouTube / Atria / Ad Library links, uploaded videos and images, Drive folders), does a teardown and posts a draft card here with buttons for the creator link, an Asana brief and Studio. Use it when the thread carries a reference and the ask is to turn it into ads, a brief or angles. `steer` = anything the person asked for that the pipeline should honour (e.g. "for Asana", "3 statics", "the Night Out line").',
-    input_schema: { type: 'object', properties: { steer: { type: 'string' }, brand: { type: 'string', description: 'The brand name this is for (e.g. "Dartee"). Always pass it: the pipeline cannot tell the brand in a channel that is not a brand internal channel.' } }, required: ['brand'] } },
+    input_schema: { type: 'object', properties: { steer: { type: 'string' }, brand: { type: 'string', description: 'The brand name this is for (e.g. "Harbor Golf"). Always pass it: the pipeline cannot tell the brand in a channel that is not a brand internal channel.' } }, required: ['brand'] } },
   run: async (env, input, ctx) => {
     if (!ctx?.ev?.channel) return { is_error: true, text: 'Only from a Slack thread.' };
     const ev = ctx.ev;
     /* 2026-10-27: the Strategist knew the brand but the pipeline only reads "for <brand>" or the channel, so a tag in a
-       non-internal channel (Dartee, Justin's thread) answered "I can't tell which brand". The brand rides in the text. */
+       non-internal channel (a client's shared thread) answered "I can't tell which brand". The brand rides in the text. */
     const brand = input?.brand ? ` for ${clip(String(input.brand), 60)}.` : '';
     const text = `${String(ev.text || '')} idea${input?.steer ? ' ' + clip(input.steer, 400) : ''}${brand}`;
     try {
@@ -1269,7 +1325,7 @@ const BUTTONS = (d) => {
     routeAction({ name: 'schedule_question',
       description: 'Set up a question the Strategist answers on its own on a schedule and posts to an internal Slack channel: every morning (daily), every Monday (monday) or on the 1st (first), at an hour in Central (0 to 23, default 8). The answer is written fresh each time from the data, as if asked then. Only internal channels: a brand\'s internal channel or the Strategist\'s own channel, never a client channel. Read the schedules view first.',
       input_schema: { type: 'object', properties: {
-        question: { type: 'string', description: 'The question exactly as it should be asked each time, in the person\'s words, self-contained (name the brand and the period, e.g. "How did Lucky do last week against plan, and what moved?").' },
+        question: { type: 'string', description: 'The question exactly as it should be asked each time, in the person\'s words, self-contained (name the brand and the period, e.g. "How did Harbor Golf do last week against plan, and what moved?").' },
         brand: { type: 'string', description: 'A brand name, or "all".' },
         cadence: { type: 'string', enum: ['daily', 'monday', 'first'] },
         hour: { type: 'integer', description: 'Hour in Central, 0 to 23. Default 8.' },
@@ -1307,7 +1363,7 @@ const BUTTONS = (d) => {
     /* Stock actions (2026-10-08): written through /api/supply/* on this worker, which forwards to the Supply
        worker with its own token. Each is a proposal a person applies, like every other action. */
     routeAction({ name: 'log_order',
-      description: 'Log a factory purchase order on a brand we buy for (Lucky): the factory, products with quantities (split across sizes by the brand\'s own suggestion or size mix), placed date and expected landing. status sent = placed (counts as stock on the way), draft = not placed.',
+      description: 'Log a factory purchase order on a brand we buy for: the factory, products with quantities (split across sizes by the brand\'s own suggestion or size mix), placed date and expected landing. status sent = placed (counts as stock on the way), draft = not placed.',
       input_schema: { type: 'object', properties: { brand: { type: 'string' }, factory: { type: 'string', description: 'Factory name as in the stock view (orders)' },
         lines: { type: 'array', items: { type: 'object', properties: { product: { type: 'string', description: 'Product name or id' }, qty: { type: 'number' } }, required: ['product', 'qty'] } },
         placed: { type: 'string', description: 'YYYY-MM-DD, default today' }, lands: { type: 'string', description: 'YYYY-MM-DD, default from the lead time' }, status: { type: 'string', enum: ['sent', 'draft'] }, notes: { type: 'string' } }, required: ['brand', 'lines'] },
@@ -1364,7 +1420,7 @@ const BUTTONS = (d) => {
         return { summary: `${p.title}: ${[i.kind && `kind ${i.kind.replace('_', ' ')}`, i.decision && (i.decision === 'rule' ? 'back to the rule' : i.decision), i.note != null && 'note'].filter(Boolean).join(', ')}`, detail: `${a.name}`, request: { method: 'PUT', path: `/api/supply/products/${p.id}?brand=${b.id}`, body } };
       }), done: () => 'Saved.' }),
     routeAction({ name: 'add_design',
-      description: 'Add new designs to a drop on a brand that designs its own products (Lucky): the group (Polos, Hats...), the drop (existing name, or a new name plus its on-site date) and how many. Each gets its Asana card and every date worked back from the drop.',
+      description: 'Add new designs to a drop on a brand that designs its own products: the group (Polos, Hats...), the drop (existing name, or a new name plus its on-site date) and how many. Each gets its Asana card and every date worked back from the drop.',
       input_schema: { type: 'object', properties: { brand: { type: 'string' }, group: { type: 'string' }, drop: { type: 'string' }, drop_date: { type: 'string', description: 'YYYY-MM-DD, only for a new drop' }, count: { type: 'number' } }, required: ['brand', 'group', 'drop'] },
       describe: safe(async (env, i) => {
         const a = await brandOr(env, i.brand); const b = await supplyBrandOf(env, a.act_id);
@@ -1467,22 +1523,8 @@ const BUTTONS = (d) => {
         if (!steps.length) return { error: `${e.name} already has its Asana tasks, or has no work steps left.` };
         return { summary: `${a.name}: Asana tasks for ${e.name}`, detail: steps.map(s => `${e.name}: ${s.label.toLowerCase()}, due ${s.due}`).join('\n'), request: { method: 'POST', path: '/api/calendar/asana', body: { id: e.id } } };
       }), done: r => `Made ${r && r.made != null ? r.made : 'the'} Asana tasks.` }),
-    /* Retainer billing day (2026-10-30, newclient.js moveBillingDay): the card shows Stripe as it is now and
-       the move worked out (dry run); Apply posts the same route the Billing day button on the brand row uses. */
-    routeAction({ name: 'move_billing_day',
-      description: 'Move a client\'s monthly retainer (Mobius Digital\'s own Stripe subscription for that brand) to a new billing day of the month, 1 to 28. gap = what happens to the days between the end of the period they already paid for and the new day: "charge" adds the prorated amount to the first invoice on the new day, "free" gives it. Starts the next time that day comes round after the paid period, unless start (YYYY-MM-DD, on that day) is given. sub = the Stripe subscription id (sub_...) when Cole gives one; Locus remembers it per brand afterwards. If Cole did not say charge or free, ask which in one line before proposing.',
-      input_schema: { type: 'object', properties: { brand: { type: 'string' }, day: { type: 'integer', description: '1 to 28' }, gap: { type: 'string', enum: ['charge', 'free'] },
-        start: { type: 'string', description: "'YYYY-MM-DD', optional, must fall on that day" }, sub: { type: 'string', description: 'sub_..., optional' }, summary: { type: 'string' } }, required: ['brand', 'day', 'gap', 'summary'] },
-      describe: safe(async (env, i) => {
-        const a = await brandOr(env, i.brand);
-        const body = { act: a.act_id, day: i.day, gap: i.gap, start: i.start || undefined, sub: i.sub || undefined };
-        const { info, plan, sub } = await moveBillingDay(env, a.act_id, { ...body, dry: true });
-        const d8 = iso => iso ? new Date(iso).toLocaleDateString('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric', year: 'numeric' }) : 'none';
-        const amt = c => `$${(c / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-        return { summary: i.summary,
-          detail: `${a.name} (${info.customer_name}, ${sub}). Now: bills on the ${info.billing_day}, paid through ${d8(info.trial_end || info.period_end)}, next invoice ${d8(info.next_invoice?.date)}${info.next_invoice ? ` for ${amt(info.next_invoice.amount_due)}` : ''}.\nAfter: ${plan.text}`,
-          request: { method: 'POST', path: '/api/new-client/billing-day', body: { ...body, sub } } };
-      }), done: r => `Moved. ${r?.plan?.text || ''}`.trim() }),
+    /* No billing from the assistant (2026-11-26, AI eval C04): retainers, subscriptions and invoices are the owner's,
+       in Stripe or the Ledger. The Billing day button on the brand row is the only door; the assistant says so. */
     routeAction({ name: 'log_change',
       description: 'Write a change into a brand\'s change log by hand (the Changes tab): what was done on the account and why, so the brief and the team see it. Use it when someone says "log that we ...".',
       input_schema: { type: 'object', properties: { brand: { type: 'string' }, summary: { type: 'string', description: 'What changed, one line.' }, reason: { type: 'string' },
@@ -1632,7 +1674,7 @@ const ACTIONS = (d) => {
         return { ok: true, note: 'Section updated.' };
       } },
 
-    /* 2026-10-09: Fela (Ice & Gold) asked to drop a line from "Who we are talking to" and asked what "What it is"
+    /* 2026-10-09: a client asked to drop a line from "Who we are talking to" and asked what "What it is"
        was for. Nothing could edit the page's own text: the request went to the ideas bot and died as "No draft yet". */
     { name: 'edit_creator_page',
       description: 'Change the creator link PAGE text for a brand (not an angle): intro (kept for the PDF; the page itself shows only videos and the checklist), about ("What it is", the product overview creators read), audience ("Who we are talking to"), rules ("Before you film" claim and filming rules), avoid ("please stop filming these"). Each field you pass REPLACES that field whole, so read the angles view first, start from the current text and change only what was asked (e.g. drop one sentence, keep the rest word for word). Use it when a client or Cole asks to edit, remove or reword something on the creator link.',
@@ -1912,7 +1954,7 @@ export function buildStrategist(d) {
        message and the brief card the thread hangs off. Same as the Controller's. */
     threadTurns: 30, threadMsgChars: 2500, threadTotalChars: 24000,
     /* 2026-10-09, Cole: no word lists deciding what it does. A keyword list used to pick the model, so
-       anything without a listed word (Fela's "can we update this in the creator link?") ran on Haiku and
+       anything without a listed word (a client's "can we update this in the creator link?") ran on Haiku and
        read as an assistant that understood nothing. Now Viktor's setup: Opus 5.5 at medium effort for
        every question (the "Smart" preset, changeable in Locus), "!fast" or "!deep" for one answer.
        The rest of the Viktor-grade pass (Slack, memory, skills, Locus API, files, web, live steps,
@@ -1925,14 +1967,14 @@ export function buildStrategist(d) {
     tapTools: TAP_TOOLS,
     slackImages: (env, files) => slackImages(env, d.idx, files, 4),
     ...stratHooks(d), ...makeHooks(d),
-    tools: [...stratTools(d), ...writeTools(d), ...makeTools(d), ...autoTools(d), ...klaviyoTools(d), ...dataTools(d), ...extraTools(d), ...studioMakeTools(d)],
+    tools: [...stratTools(d), ...writeTools(d), ...makeTools(d), ...autoTools(d), ...klaviyoTools(d), ...dataTools(d), ...extraTools(d), ...studioMakeTools(d), ...answerTools()],
     dropTools: ['remember'],
     /* Cost pass 2026-10-10 (scripts/prompt-size.mjs measures it): one tool list on both surfaces, the everyday
        tools loaded up front and the other ~70 found through tool search, the stable prompt cached for an hour
        (questions come minutes apart, not seconds: strat_run 2026-10-10 had 8 cold starts on the 5-minute cache
        and 4 on the hour). The brand brain stays on 5 minutes (one brand is rarely asked twice in an hour). */
     sameTools: true, toolSearch: true, cacheTtl: '1h',
-    alwaysLoaded: ['read_app', 'make_report', 'locus_get', 'locus_routes', 'search_slack', 'read_thread', 'remember', 'recall', 'read_skill', 'meta_read', 'check_now', 'store_sql', 'web_lookup'],
+    alwaysLoaded: ['read_app', 'make_report', 'locus_get', 'locus_routes', 'search_slack', 'read_thread', 'remember', 'recall', 'read_skill', 'meta_read', 'check_now', 'store_sql', 'web_lookup', 'calc'],
     /* The brand edition (2026-10-10): a client's question runs here too, with only these tools (each reads Locus through
        the client's own sign-in, so brandguard's allowlist and scrub apply) and the web. clients.js clientAsk. */
     clientTools: ['locus_routes', 'locus_get', 'make_report', 'post_file'], clientServerTools: true,
@@ -1948,7 +1990,11 @@ export function buildStrategist(d) {
       const names = (await d.listAccounts(env, true)).map(a => `${a.name} (${a.act_id}, ${a.currency})`);
       return '## The active brands right now\n' + names.join('\n');
     },
-    actions: [...ACTIONS(d), ...BUTTONS(d), ...ASANA_ACTIONS(d), ...BUILD_ACTIONS(d), ...stratActions(d), ...holdUploads(d, writeActions(d)), ...makeActions(d), ...autoActions(d), ...klaviyoActions(d), ...extraActions(d)],
+    /* A budget card over 50% in one step says BIG CHANGE first, whichever action made it (stratanswer.js). */
+    actions: flagBigBudgets([...ACTIONS(d), ...BUTTONS(d), ...ASANA_ACTIONS(d), ...BUILD_ACTIONS(d), ...stratActions(d), ...holdUploads(d, writeActions(d)), ...makeActions(d), ...autoActions(d), ...klaviyoActions(d), ...extraActions(d)]),
+    /* The answer check (AI eval round 17): a word budget per kind of question, told with the question and checked
+       on the way out (one rewrite round when over, or when a client draft names internal sets); weekdays in code. */
+    answerNote, answerCheck: answerProblems, dateLine,
     slackTools: SLACK_TOOLS(d),
     playbook: PLAYBOOK,
     slackApp: 'locus',

@@ -1269,7 +1269,7 @@ export function createAssistant(config) {
       }
       if (cached.length) { cached[cached.length - 1].cache_control = { type: 'ephemeral' }; blocks.push(...cached); }
     }
-    blocks.push({ type: 'text', text: `Today is ${today}. The current month is ${h.monthOf(today)}.` });
+    blocks.push({ type: 'text', text: C.dateLine ? C.dateLine(today) : `Today is ${today}. The current month is ${h.monthOf(today)}.` });
     if (live) blocks.push({ type: 'text', text: live });
     const brief = await getBrief(env, h);
     if (brief) blocks.push({ type: 'text', text: '## What you know about the company\n' + brief });
@@ -1299,7 +1299,7 @@ ACCESS RULE: this person may only see ${name}. Read, mention, compare or total n
 
 Plain English, no em dashes, lead with the answer.` }];
     if (C.clientSystem) for (const b of (await C.clientSystem(env, h, extra).catch(() => [])) || []) { const text = typeof b === 'string' ? b : b?.text; if (text) blocks.push({ type: 'text', text }); }
-    blocks.push({ type: 'text', text: `Today is ${today}. The current month is ${h.monthOf(today)}.` });
+    blocks.push({ type: 'text', text: C.dateLine ? C.dateLine(today) : `Today is ${today}. The current month is ${h.monthOf(today)}.` });
     if (extra.screen) blocks.push({ type: 'text', text: '## What the person is looking at right now, in the app\n' + JSON.stringify(extra.screen, null, 1) + '\nResolve "this", "that number", "this month" against it. Verify any figure with a tool before quoting it back.' });
     return blocks;
   }
@@ -1433,6 +1433,27 @@ Plain English, no em dashes, lead with the answer.` }];
         answer = (reply.content || []).filter(c => c.type === 'text').map(c => c.text).join('').trim();
         if (lead.length) answer = [...lead, answer].filter(Boolean).join('\n\n');
       }
+      /* THE CHECK (2026-11-26, AI eval round 17: most answers ran twice their length, a client draft carried ad set
+         names). The app's answerCheck reads the finished answer; anything it finds (over the word budget, internal
+         names in client text) gets ONE rewrite round with tools off. The rewrite is kept only when it came back
+         and is no longer than the first; otherwise the first answer goes out as it was. */
+      if (answer && !stopped && C.answerCheck && ctx?.question && !ctx?.noCheck) {
+        const problems = (() => { try { return C.answerCheck(answer, ctx.question) || []; } catch { return []; } })();
+        if (problems.length) {
+          messages.push({ role: 'assistant', content: [{ type: 'text', text: answer }] });
+          messages.push({ role: 'user', content: 'Before this goes out, fix it:\n- ' + problems.join('\n- ') + '\nReply with the rewritten answer only, in the same voice, same facts, same numbers, links and card lines. Keep a "---- draft ----" line and the draft after it if there was one. Add nothing new.' });
+          const reply = await callClaude(env, system, messages, toolDefs, model, true, effort);
+          const u = reply.usage || {};
+          inTok += (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0);
+          cacheRead += u.cache_read_input_tokens || 0; cacheWrite += u.cache_creation_input_tokens || 0;
+          outTok += u.output_tokens || 0;
+          cost += costOf(reply.model || model, u);
+          const again = (reply.content || []).filter(c => c.type === 'text').map(c => c.text).join('').trim();
+          const kept = !!again && again.length <= answer.length;
+          if (kept) answer = again;
+          flags.checked = { problems, rewritten: kept };
+        }
+      }
     } finally {
       usage.count = (usage.count || 0) + 1;
       usage.inTok = (usage.inTok || 0) + inTok;
@@ -1556,12 +1577,14 @@ TABLES: when you compare 3+ items or show several numbers per item, write a mark
 DRAFTS: when asked for something to send or paste (a message for a client or partner, copy), put it LAST, after a line exactly "---- draft ----": it is posted as its own message so it copies cleanly. Write the draft in plain words, no markdown.
 ${slackToolDefs.some(t => t.name === 'make_canvas') ? 'FORWARDING: when the person will forward a longer write-up (an analysis for a partner or client, a plan), call make_canvas with the full version and keep the message itself to the short read plus the canvas link.' + String.fromCharCode(10) : ''}DON'T: end with an offer ("Want me to...?", "Let me know if...") or a question unless you truly cannot go on without the answer; then ask ONE question. Never ask what you can work out: the brand is this channel's or thread's brand (or the one named or obvious from the products), the period is the one in the thread. Never hand the person a job your tools can do.` }];
     const prior = await threadTranscript(env, h, ev);
-    const asked = prior ? prior + `${C.owner || 'The asker'} now asks: ` + q : q;
+    /* The word budget for this kind of question rides on the question itself (C.answerNote), after the thread. */
+    const note = C.answerNote ? (() => { try { return C.answerNote(q) || ''; } catch { return ''; } })() : '';
+    const asked = (prior ? prior + `${C.owner || 'The asker'} now asks: ` + q : q) + (note ? '\n\n' + note : '');
     /* Images posted WITH the question are shown to the model (C.slackImages turns Slack files into image blocks);
        without the hook, or when none open, the question goes as text as before. */
     const seen = C.slackImages && (ev.files || []).length ? await C.slackImages(env, ev.files).catch(() => []) : [];
     const messages = [{ role: 'user', content: seen.some(b => b.type === 'image') ? [{ type: 'text', text: asked }, ...seen] : asked }];
-    const ctx = { env, h, ev, say, channel, thread, screen: extra.screen || null, surface: 'slack', runId, call: extra.call || null, who: extra.who || null,
+    const ctx = { env, h, ev, say, channel, thread, screen: extra.screen || null, surface: 'slack', runId, call: extra.call || null, who: extra.who || null, question: q,
       onStep: async s => {
         const line = s.label || s.note; if (!line) return;
         stepsSeen.push(line);
@@ -1661,8 +1684,12 @@ type is "bar" (comparing items), "line" (a trend; labels are dates) or "table" (
     }
     if (messages.length && messages[0].role === 'assistant') messages.shift();
     const choice = extra.model ? { model: extra.model } : C.choose ? await C.choose(q, env, h, extra).catch(() => ({ model: pickModel(q) })) : { model: pickModel(q) };
-    if (messages.length && messages[messages.length - 1].role === 'user') messages[messages.length - 1].content += '\n\n' + (choice.question || q);
-    else messages.push({ role: 'user', content: choice.question || q });
+    /* A fixed answer shape (extra.style: the nightly watches want bare JSON) gets no word budget and no check. */
+    const asked = choice.question || q;
+    const note = C.answerNote && !extra.style ? (() => { try { return C.answerNote(asked) || ''; } catch { return ''; } })() : '';
+    const turn = asked + (note ? '\n\n' + note : '');
+    if (messages.length && messages[messages.length - 1].role === 'user') messages[messages.length - 1].content += '\n\n' + turn;
+    else messages.push({ role: 'user', content: turn });
     const runId = extra.runId || null;
     const stepsSeen = [];
     const t0 = Date.now();
@@ -1671,7 +1698,7 @@ type is "bar" (comparing items), "line" (a trend; labels are dates) or "table" (
       r = await loop(env, h, system, messages, client ? clientToolDefs : webToolDefs, async (name, input) => {
         const t = extraWeb.find(x => x.def.name === name);
         return t ? await t.run(env, input, { env, h, screen: extra.screen, surface: 'web', client }) : null;
-      }, usage, choice.model, { env, h, screen: extra.screen, surface: 'web', who: extra.who || null, auth: extra.auth || null, call: extra.call || null, runId,
+      }, usage, choice.model, { env, h, screen: extra.screen, surface: 'web', who: extra.who || null, auth: extra.auth || null, call: extra.call || null, runId, question: asked, noCheck: !!extra.style,
         ...(extra.scheduled ? { scheduled: true } : {}),
         ...(client ? { client, allow: clientAllow, noUsage: true } : {}),
         onStep: async s => { const line = s.label || s.note; if (!line) return; stepsSeen.push(line); if (runId && C.progress) await C.progress.set(env, runId, { steps: stepsSeen.slice(-12), stop: false, at: Date.now() }); },
