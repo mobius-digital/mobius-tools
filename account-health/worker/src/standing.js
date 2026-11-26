@@ -539,8 +539,13 @@ async function didItems(env, deps, act) {
   return out.slice(0, 10);
 }
 const didSince = async (env, deps, act) => (await didItems(env, deps, act)).map(i => i.line);
+/* THE CARD SWITCH: the client picture card stays OFF until it has been tried in a real Slack test channel (Black
+   Friday weekend is live). Settings `standingClientCard` = 'on' turns every card path on (the draft, the thread
+   preview, the single DM, the client copy at Send and Send all). Off = the text update exactly as before. */
+const cardOn = async (env, deps) => !!(deps && deps.getSetting) && (await deps.getSetting(env, 'standingClientCard').catch(() => null)) === 'on';
 /** The client card's SVG (War Room 2.9 W2), or null. Kept on the draft so the client copy is drawn again at send time. */
 async function cardSvgFor(env, deps, rec, act) {
+  if (!(await cardOn(env, deps))) return null;
   const b = (rec.brands || []).find(x => x.act_id === act);
   if (!b || b.no_sales) return null;
   try { return clientCardSvg(rec, act, await didItems(env, deps, act)) || null; } catch { return null; }
@@ -798,7 +803,7 @@ async function draftFor(env, deps, rec, act, batchSlot = null, { card = 'upload'
 /** The picture added to a text draft already saved (postBatch, after the batch message). Any failure leaves the text. */
 async function addCard(env, deps, rec, d) {
   try {
-    if (!d || !d.dr || (d.m.blocks || []).some(isCard)) return;
+    if (!d || !d.dr || (d.m.blocks || []).some(isCard) || !(await cardOn(env, deps))) return;
     const up = await cardFor(env, deps, rec, d.dr.act);
     if (!up) return;
     d.m.blocks = [cardBlock(up.id, d.name), ...(d.m.blocks || [])];
@@ -867,7 +872,9 @@ export async function postBatch(env, deps, rec) {
 export async function batchApproved(env, deps, rec, act) {
   const raw = await deps.getSetting(env, `wsBatch:${rec.slot}`), bt = raw ? JSON.parse(raw) : null;
   const it = bt && bt.items.find(i => i.act === act);
-  if (!bt || !it) return offerClientUpdate(env, deps, { act, rec });
+  /* A batch with no Slack message (a page Send on a Check now slot saves one) has no thread to preview in: the single
+     Send to client DM, as with no batch at all. */
+  if (!bt || !it || !bt.channel || !bt.ts) return offerClientUpdate(env, deps, { act, rec });
   const d = await draftFor(env, deps, rec, act, rec.slot);
   if (!d) return null;
   it.id = d.id; it.status = d.forCole ? 'forme' : 'ready';
@@ -890,7 +897,9 @@ async function userPng(env, xfetch, svg, name) {
     return c && c.ok ? { id: a.file_id } : { error: (c && c.error) || 'complete upload' };
   } catch (e) { return { error: e.message }; }
 }
-async function sendDraft(env, xfetch, dr, wait = 1500) {
+/* card = the standingClientCard switch (cardOn); off = the text update only, whatever the draft carries. wait = the
+   pause between card retries (Send all passes 0: its loop runs after the ACK and must never sit waiting). */
+async function sendDraft(env, xfetch, dr, { wait = 1500, card = false } = {}) {
   if (!env.SLACK_USER_TOKEN) return { ok: false, error: 'no Slack user token on Locus' };
   if (!dr.ch) return { ok: false, error: 'no client channel' };
   const post = msg => xfetch('https://slack.com/api/chat.postMessage', { method: 'POST', headers: { Authorization: `Bearer ${env.SLACK_USER_TOKEN}`, 'Content-Type': 'application/json; charset=utf-8' },
@@ -898,9 +907,9 @@ async function sendDraft(env, xfetch, dr, wait = 1500) {
   const bl = (dr.msg && dr.msg.blocks) || [], hadCard = bl.some(isCard);
   /* The text update exactly as it went out before the picture card existed. */
   const plain = hadCard ? { ...dr.msg, blocks: bl.filter(x => !isCard(x)) } : dr.msg;
-  if (!dr.card_svg) {
+  if (!card || !dr.card_svg) {
     const r = await post(plain);
-    return r.ok && hadCard ? { ...r, card_dropped: 'no card to draw' } : r;
+    return r.ok && hadCard ? { ...r, card_dropped: card ? 'no card to draw' : 'card off' } : r;
   }
   /* The client's copy of the picture, drawn and uploaded as Cole now; refused or failed = the text update. */
   const up = await userPng(env, xfetch, dr.card_svg, `update-${String(dr.act || '').replace('brand_', '')}.png`);
@@ -926,7 +935,7 @@ async function sendItem(env, deps, rec, it, slot) {
     if (last && Date.now() - Date.parse(last) < 2 * 3600e3) { it.status = 'sent'; return { name: it.name, skipped: 'sent in the last 2 hours' }; }
     if (!it.id) { const d = await draftFor(env, deps, rec, it.act, slot, { card: 'svg' }); if (!d) return { name: it.name, error: 'no draft' }; it.id = d.id; if (d.forCole) { it.status = 'forme'; return { name: it.name, skipped: 'forme' }; } }
     const dr = JSON.parse((await deps.getSetting(env, `wsDraft:${it.id}`)) || 'null');
-    const res = dr ? await sendDraft(env, deps.xfetch, dr, slackWait(deps)) : { ok: false, error: 'draft gone' };
+    const res = dr ? await sendDraft(env, deps.xfetch, dr, { wait: slackWait(deps), card: await cardOn(env, deps) }) : { ok: false, error: 'draft gone' };
     if (res.ok) { const now = new Date().toISOString(); it.status = 'sent'; dr.done = `sent ${now}`; await deps.putSetting(env, `wsDraft:${it.id}`, JSON.stringify(dr)); await deps.putSetting(env, `wsLastSent:${it.act}`, now); return { name: it.name, sent: true }; }
     return { name: it.name, error: res.error };
   } finally { await releaseSend(env, it.act, claim); }
@@ -981,10 +990,10 @@ export async function handleClientUpdateButton(env, ctx, payload, deps, { ACK, x
     if (a.action_id === 'ws_sendall') {
       const bt = await batchOf(a.value), rec = await load(env, deps, a.value).catch(() => null);
       if (!bt || !rec) return inThread('That batch is gone.');
-      const done = [], failed = [];
+      const done = [], failed = [], card = await cardOn(env, deps);
       for (const it of bt.items.filter(i => i.status === 'ready')) {
         const dr = JSON.parse((await deps.getSetting(env, `wsDraft:${it.id}`)) || 'null');
-        const res = dr ? await sendDraft(env, xfetch, dr) : { ok: false, error: 'gone' };
+        const res = dr ? await sendDraft(env, xfetch, dr, { wait: 0, card }) : { ok: false, error: 'gone' };
         if (res.ok) { it.status = 'sent'; dr.done = `sent ${new Date().toISOString()}`; await deps.putSetting(env, `wsDraft:${it.id}`, JSON.stringify(dr)); await deps.putSetting(env, `wsLastSent:${it.act}`, new Date().toISOString()); done.push(it.name); }
         else failed.push(`${it.name} (${res.error})`);
       }
@@ -1003,7 +1012,7 @@ export async function handleClientUpdateButton(env, ctx, payload, deps, { ACK, x
       return reply(`Not sent to ${dr.name}.`);
     }
     if (dr.v !== 3 || !dr.msg) return inThread('That is an older draft. Nothing was sent.');
-    const res = await sendDraft(env, xfetch, dr);
+    const res = await sendDraft(env, xfetch, dr, { card: await cardOn(env, deps) });
     if (!res.ok) return inThread(`${dr.name}: Slack refused it (${res.error}). Nothing was sent.`);
     const now = new Date().toISOString();
     dr.done = `sent ${now}`; await deps.putSetting(env, `wsDraft:${a.value}`, JSON.stringify(dr));

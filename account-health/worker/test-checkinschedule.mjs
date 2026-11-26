@@ -79,9 +79,11 @@ function profitAnswer(url, hour, notLive = []) {
   });
   return { today: '2026-11-27', dry: 0, window: { from: '2026-11-26', to: '2026-11-30' }, brands };
 }
-function world({ fonts = false, schedule = [], refuseCard = false, switchOn = schedule.length > 0, refuseThreadCard = false, notLive = [] } = {}) {
+function world({ fonts = false, schedule = [], refuseCard = false, switchOn = schedule.length > 0, refuseThreadCard = false, notLive = [], cardFlag = false } = {}) {
   const settings = new Map(), slack = [], posts = [], profitUrls = [], claims = new Map(), userUploads = [];
   if (switchOn) settings.set('checkinSchedule', 'on');
+  /* The client picture card switch (standing.js cardOn): off unless a test turns it on. */
+  if (cardFlag) settings.set('standingClientCard', 'on');
   const fontFile = ['C:/Windows/Fonts/arial.ttf', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', '/System/Library/Fonts/Supplemental/Arial.ttf'].find(f => fs.existsSync(f));
   const DB = { prepare(sql) {
     const st = { args: [], bind(...a) { st.args = a; return st; },
@@ -151,6 +153,14 @@ const route = async (mod, w, method, p, body) => {
   return r;
 };
 
+const threadPostsOf = w => w.slack.filter(c => c.method === 'chat.postMessage' && c.body.thread_ts);
+/** A Slack button tap from the owner, run to the end (the work is in ctx.waitUntil). */
+async function tap(mod, w, action_id, value) {
+  const jobs = [];
+  await mod.handleClientUpdateButton(w.env, { waitUntil: p => jobs.push(p) }, { actions: [{ action_id, value }], user: { id: 'U06C37MDWD7', name: 'owner' }, channel: { id: 'D_OWNER' }, message: { ts: '11.0' } },
+    w.deps, { ACK: () => new Response(''), xfetch: w.deps.xfetch });
+  await Promise.all(jobs);
+}
 /* ---------- 1. no schedule: old and new are identical ---------- */
 if (OLD) {
   await check('no schedule, card cannot render: record, DM, client drafts and batch identical to the base commit', async () => {
@@ -184,16 +194,56 @@ if (OLD) {
     assert.deepEqual(r2.newResult, r2.oldResult);
     same(snap(r2.new), snap(r2.old));
   });
-  await check('no schedule, card renders: only the card (block + its upload) differs', async () => {
+  await check('card switch OFF (default), card could render: tick, DM, batch and thread previews identical to the base commit', async () => {
     const r = await tickBoth({ fonts: true }, '2026-11-27T20:05:00Z');
+    assert.deepEqual(r.newResult, r.oldResult);
+    same(snap(r.new), snap(r.old));
+    assert.ok(threadPostsOf(r.new).length > 0, 'previews were posted in the thread');
+    assert.ok(!JSON.stringify(snap(r.new)).includes('ws_card'), 'no card anywhere');
+  });
+  await check('card switch ON: only the card (block + its upload) differs', async () => {
+    const r = await tickBoth({ fonts: true, cardFlag: true }, '2026-11-27T20:05:00Z');
     const drafts = [...r.new.settings].filter(([k]) => k.startsWith('wsDraft:')).map(([, v]) => JSON.parse(v));
     if (!drafts.some(d => d.msg.blocks[0].block_id === 'ws_card')) { console.log('     (resvg could not render here: the card fell back to text, which the test above covers)'); }
     else assert.ok(drafts.every(d => d.msg.blocks[0].type === 'image' && d.msg.blocks[0].slack_file.id.startsWith('F_update-')), 'card on top of every draft');
     same(noCardCalls(snap(r.new)), noCardCalls(snap(r.old)));
   });
-  await check('no schedule: Send all posts the same client text; a refused card falls back to exactly the old message', async () => {
+  await check('card switch OFF: the page Send all (send_batch) is byte for byte the base commit', async () => {
     for (const refuseCard of [false, true]) {
       const r = await tickBoth({ fonts: true, refuseCard }, '2026-11-27T20:05:00Z');
+      at('2026-11-27T20:20:00Z');
+      const ro = await (await route(OLD, r.old, 'POST', '/api/standing/sample', { send_batch: '2026-11-27T14' })).json();
+      const rn = await (await route(NEW, r.new, 'POST', '/api/standing/sample', { send_batch: '2026-11-27T14' })).json();
+      assert.deepEqual(rn, ro);
+      assert.ok(r.new.posts.filter(p => p.channel === 'C_CLIENT').length > 0, 'client posts made');
+      same(snap(r.new), snap(r.old));
+    }
+  });
+  await check('card switch OFF: the Slack Send all button (ws_sendall) is byte for byte the base commit', async () => {
+    const r = await tickBoth({ fonts: true }, '2026-11-27T20:05:00Z');
+    at('2026-11-27T20:20:00Z');
+    for (const [mod, w] of [[OLD, r.old], [NEW, r.new]]) await tap(mod, w, 'ws_sendall', '2026-11-27T14');
+    assert.ok(r.new.posts.filter(p => p.channel === 'C_CLIENT').length > 0, 'client posts made');
+    same(snap(r.new), snap(r.old));
+  });
+  await check('card switch OFF: a single batch Send button (ws_send) is byte for byte the base commit', async () => {
+    const r = await tickBoth({ fonts: true }, '2026-11-27T20:05:00Z');
+    at('2026-11-27T20:20:00Z');
+    const id = JSON.parse(r.new.settings.get('wsBatch:2026-11-27T14')).items.find(i => i.status === 'ready').id;
+    for (const [mod, w] of [[OLD, r.old], [NEW, r.new]]) await tap(mod, w, 'ws_send', id);
+    assert.equal(r.new.posts.filter(p => p.channel === 'C_CLIENT').length, 1);
+    same(snap(r.new), snap(r.old));
+  });
+  await check('card switch OFF: an Approve after the tick re-drafts and previews in the thread exactly as the base commit', async () => {
+    const r = await tickBoth({ fonts: true }, '2026-11-27T20:05:00Z');
+    at('2026-11-27T20:20:00Z');
+    for (const [mod, w] of [[OLD, r.old], [NEW, r.new]]) { seed = 9; const rec = JSON.parse(w.settings.get('standing:2026-11-27T14')); await mod.batchApproved(w.env, w.deps, rec, 'brand_beta'); }
+    assert.ok(threadPostsOf(r.new).length > 3, 'the re-draft was previewed');
+    same(snap(r.new), snap(r.old));
+  });
+  await check('card switch ON: Send all posts the same client text; a refused card falls back to exactly the old message', async () => {
+    for (const refuseCard of [false, true]) {
+      const r = await tickBoth({ fonts: true, refuseCard, cardFlag: true }, '2026-11-27T20:05:00Z');
       at('2026-11-27T20:20:00Z');
       const ro = await (await route(OLD, r.old, 'POST', '/api/standing/sample', { send_batch: '2026-11-27T14' })).json();
       const rn = await (await route(NEW, r.new, 'POST', '/api/standing/sample', { send_batch: '2026-11-27T14' })).json();
@@ -287,7 +337,7 @@ await check('send one brand: owner only, the send_batch steps, marks the batch a
 /* ---------- 4. review fixes ---------- */
 const threadPosts = w => w.slack.filter(c => c.method === 'chat.postMessage' && c.body.thread_ts);
 await check('no schedule: a thread preview Slack refuses with the card is retried, then posted as text', async () => {
-  const w = world({ fonts: true, refuseThreadCard: true });
+  const w = world({ fonts: true, refuseThreadCard: true, cardFlag: true });
   seed = 1; at('2026-11-27T20:05:00Z'); await NEW.standingTick(w.env, w.deps, new Date());
   const drafts = [...w.settings].filter(([k]) => k.startsWith('wsDraft:')).map(([, v]) => JSON.parse(v));
   if (!drafts.some(d => d.msg.blocks.some(b => b.block_id === 'ws_card'))) { console.log('     (resvg could not render here: nothing to refuse)'); return; }
@@ -297,7 +347,7 @@ await check('no schedule: a thread preview Slack refuses with the card is retrie
   console.log(`     ${withCard.length} refused card previews, ${plain.length} text previews in the thread`);
 });
 await check('the client copy of the card is uploaded with the user token, never the bot file', async () => {
-  const w = world({ fonts: true });
+  const w = world({ fonts: true, cardFlag: true });
   seed = 1; at('2026-11-27T20:05:00Z'); await NEW.standingTick(w.env, w.deps, new Date());
   at('2026-11-27T20:30:00Z');
   const r = await (await route(NEW, w, 'POST', '/api/standing/send', { act: 'brand_beta', slot: '2026-11-27T14' })).json();
@@ -364,6 +414,33 @@ await check('schedule switch: owner only; on/off stored', async () => {
   assert.equal(on.on, true); assert.equal(w.settings.get('checkinSchedule'), 'on');
   const off = await (await route(NEW, w, 'POST', '/api/standing/schedule', { on: false })).json();
   assert.equal(off.on, false);
+});
+await check('send on a Check now slot, then an Approve: no post to a null channel, the single Send to client DM instead', async () => {
+  const w = world({});
+  seed = 1; at('2026-11-27T20:05:00Z'); await NEW.standingTick(w.env, w.deps, new Date());
+  at('2026-11-27T21:10:00Z');
+  await route(NEW, w, 'POST', '/api/standing/run', {});
+  const r = await (await route(NEW, w, 'POST', '/api/standing/send', { act: 'brand_gamma', slot: '2026-11-27T15' })).json();
+  assert.equal(r.sent, true);
+  assert.equal(JSON.parse(w.settings.get('wsBatch:2026-11-27T15')).channel, null);
+  const before = w.slack.length;
+  const rec = JSON.parse(w.settings.get('standing:2026-11-27T15'));
+  await NEW.batchApproved(w.env, w.deps, rec, 'brand_gamma');
+  const calls = w.slack.slice(before);
+  assert.ok(calls.filter(c => /^chat\./.test(c.method)).every(c => c.body.channel != null && c.body.channel !== 'null'), 'nothing posted to channel null');
+  assert.ok(!calls.some(c => c.body.thread_ts), 'no thread preview');
+  assert.ok(calls.some(c => c.method === 'chat.postMessage' && JSON.stringify(c.body).includes('ws_send')), 'the single Send to client DM');
+});
+await check('card switch OFF: no card is drawn or uploaded anywhere (tick, Send, Send all, single DM)', async () => {
+  const w = world({ fonts: true });
+  seed = 1; at('2026-11-27T20:05:00Z'); await NEW.standingTick(w.env, w.deps, new Date());
+  at('2026-11-27T20:30:00Z');
+  await route(NEW, w, 'POST', '/api/standing/send', { act: 'brand_beta', slot: '2026-11-27T14' });
+  await tap(NEW, w, 'ws_sendall', '2026-11-27T14');
+  await route(NEW, w, 'POST', '/api/standing/client-update', { act: 'brand_alpha' });
+  assert.ok(!w.slack.some(c => /^files\./.test(c.method) && /^update-/.test(c.body.filename || '')), 'no card upload as the bot');
+  assert.equal(w.userUploads.length, 0, 'no card upload as the user');
+  assert.ok(![...w.settings.values()].some(v => /ws_card|card_svg/.test(String(v))), 'no card stored');
 });
 await check('no em or en dashes added in the changed files', async () => {
   for (const f of ['src/standing.js', 'src/standingimg.js']) {
