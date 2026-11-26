@@ -3,8 +3,10 @@
  *
  * When a client daily, weekly or monthly draft is built, its numbers are checked once: Triple Whale has not synced the
  * last day yet, the store shows no sales while the ads spent, or the brand's Meta sync is failing. A draft that looks
- * broken gets one p_draft_hold row with the reason; v5 To send and Reports show the line and make Send ask twice. The
- * hourly tick checks the held drafts again and releases one whose numbers came in (or that was sent or skipped).
+ * broken gets one p_draft_hold row with the reason; v5 To send and Reports show the line and make Send ask twice (and
+ * the Slack Send button refuses the first tap with the reason). The draft's text is frozen when it is built, so numbers
+ * that come in later do NOT release the hold: the hourly tick changes its reason to "write it again" (code 'stale').
+ * Only a rebuild (markHold from upsertBrief / makeReport) or the draft being sent, skipped or gone ends a hold.
  * TEAM ONLY: the row never touches briefs or reports, so nothing a client reads or receives changes; the one route,
  * GET /api/draft-holds, is not on brandguard's client allowlist.
  *
@@ -94,12 +96,22 @@ export async function listHolds(env, act) {
   return results || [];
 }
 
-/** Hourly: each held draft once more (at most 20). Sent, skipped or gone = the hold goes; numbers in = released. */
+/** The hold on one draft, or null. For the Slack Send button. */
+export async function holdFor(env, kind, act, period, start) {
+  await ensureHolds(env);
+  return env.DB.prepare(`SELECT kind, act_id, period, start, end_date, code, reason, at FROM p_draft_hold WHERE kind = ?1 AND act_id = ?2 AND period = ?3 AND start = ?4`)
+    .bind(kind, act, period, start).first().catch(() => null);
+}
+
+export const STALE_REASON = 'Numbers came in after this was drafted: write it again before sending';
+/** Hourly: each held draft once more (at most 20). Sent, skipped or gone = the hold goes. Still broken = the reason is
+ *  refreshed. Numbers in = the hold STAYS with the "write it again" reason, because the draft still carries the
+ *  numbers it was built with; a rebuild (markHold at upsertBrief / makeReport) is what ends it. */
 export async function recheckHolds(env, d) {
   await ensureHolds(env);
   const rows = (await env.DB.prepare(`SELECT * FROM p_draft_hold ORDER BY at LIMIT 20`).all().catch(() => ({ results: [] }))).results || [];
   if (!rows.length) return null;
-  const out = { checked: 0, released: 0 };
+  const out = { checked: 0, released: 0, stale: 0 };
   const accts = await d.listAccounts(env).catch(() => []);
   for (const r of rows) {
     out.checked++;
@@ -108,9 +120,16 @@ export async function recheckHolds(env, d) {
       : await env.DB.prepare(`SELECT status FROM reports WHERE act_id = ?1 AND period = ?2 AND period_start = ?3`).bind(r.act_id, r.period, r.start).first().catch(() => null);
     const acct = accts.find(a => a.act_id === r.act_id);
     const waiting = !!acct && !!draft && ['draft', 'error', 'handled'].includes(draft.status);
-    const still = waiting ? await markHold(env, d, acct, r.kind, r.period, r.start, r.end_date) : null;
-    if (!waiting) await env.DB.prepare(`DELETE FROM p_draft_hold WHERE kind = ?1 AND act_id = ?2 AND period = ?3 AND start = ?4`).bind(r.kind, r.act_id, r.period, r.start).run();
-    if (!still) out.released++;
+    if (!waiting) {
+      await env.DB.prepare(`DELETE FROM p_draft_hold WHERE kind = ?1 AND act_id = ?2 AND period = ?3 AND start = ?4`).bind(r.kind, r.act_id, r.period, r.start).run();
+      out.released++; continue;
+    }
+    if (r.code === 'stale') { out.stale++; continue; }
+    const hold = holdOf(await holdFacts(env, d, acct, r.start, r.end_date || r.start));
+    const code = hold ? hold.code : 'stale', reason = hold ? hold.reason : STALE_REASON;
+    await env.DB.prepare(`UPDATE p_draft_hold SET code = ?5, reason = ?6, at = ?7 WHERE kind = ?1 AND act_id = ?2 AND period = ?3 AND start = ?4`)
+      .bind(r.kind, r.act_id, r.period, r.start, code, reason, new Date().toISOString()).run();
+    if (!hold) out.stale++;
   }
   return out;
 }

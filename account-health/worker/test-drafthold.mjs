@@ -1,14 +1,15 @@
 /* Offline checks for the report hold (drafthold.js, round 21, 2026-11-26): a client daily or report draft whose numbers
  * look broken (Triple Whale not synced for the last day, no sales while ads spent, a failing Meta sync) is marked with
- * the reason in p_draft_hold; the draft row itself is never touched; the hourly recheck releases it when the numbers
- * come in, and drops the hold once the draft is sent or skipped; the route is team only.
+ * the reason in p_draft_hold; the draft row itself is never touched; numbers that come in later keep the hold with a
+ * "write it again" reason (the draft still has the old numbers) until a rebuild; the hold drops once the draft is sent
+ * or skipped; the route is team only.
  * In-memory SQLite for D1, invented brands and numbers.
  *   node test-drafthold.mjs      (from account-health/worker)
  */
 import { DatabaseSync } from 'node:sqlite';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { holdOf, holdFacts, markHold, listHolds, recheckHolds, zonedMidnight, _resetHolds } from './src/drafthold.js';
+import { holdOf, holdFacts, markHold, listHolds, recheckHolds, zonedMidnight, _resetHolds, holdFor, STALE_REASON } from './src/drafthold.js';
 
 let db;
 const bindSql = sql => sql.replace(/\?(\d+)/g, (_, n) => ':p' + n);
@@ -54,7 +55,7 @@ await ok('zonedMidnight: the brand day starts at its own midnight', () => {
   assert.equal(new Date(zonedMidnight('2026-03-11', 'America/Chicago')).toISOString(), '2026-03-11T05:00:00.000Z');
   assert.equal(new Date(zonedMidnight('2026-01-11', 'America/New_York')).toISOString(), '2026-01-11T05:00:00.000Z');
 });
-await ok('a daily draft: held while Triple Whale last synced before the day ended, released once it synced after', async () => {
+await ok('a daily draft: held while Triple Whale last synced before the day ended; numbers in later = still held, "write it again"; a rebuild releases', async () => {
   fresh();
   tw(DAY, 1200, '2026-03-11 02:00:00'); spend(DAY, 400);
   db.exec(`INSERT INTO briefs VALUES ('brand_northlake_golf', '${DAY}', 'draft', 'the client post')`);
@@ -65,7 +66,13 @@ await ok('a daily draft: held while Triple Whale last synced before the day ende
   assert.deepEqual({ ...db.prepare(`SELECT * FROM briefs`).all()[0] }, { act_id: 'brand_northlake_golf', date: DAY, status: 'draft', text: 'the client post' }, 'the draft is never touched');
   tw(DAY, 1250, '2026-03-11 09:00:00');
   const r = await recheckHolds(env, d);
-  assert.deepEqual(r, { checked: 1, released: 1 });
+  assert.deepEqual(r, { checked: 1, released: 0, stale: 1 });
+  const s2 = await listHolds(env, 'all');
+  assert.equal(s2.length, 1, 'the draft still carries the old numbers: still held'); assert.equal(s2[0].code, 'stale'); assert.equal(s2[0].reason, STALE_REASON);
+  await recheckHolds(env, d);
+  assert.equal((await listHolds(env, 'all'))[0].code, 'stale', 'stays stale');
+  /* the rebuild marks it again with good numbers: released */
+  assert.equal(await markHold(env, d, 'brand_northlake_golf', 'brief', 'daily', DAY, DAY), null);
   assert.equal((await listHolds(env, 'all')).length, 0);
 });
 await ok('zero sales with spend holds; a failing Meta sync holds; a sent draft drops its hold', async () => {

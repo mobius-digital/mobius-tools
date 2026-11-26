@@ -5,7 +5,7 @@
  */
 import { DatabaseSync } from 'node:sqlite';
 import assert from 'node:assert/strict';
-import { alarmsPass, accountProblem, rejectedStep, trackingGap, noOrdersHours, storeStep, campaignChecks, soldOutHits, handleOf, adLink, slugOf, alarmCfg, cleanAlarmCfg, ALARM_TYPES, _resetAlarms } from './src/alarms.js';
+import { alarmsPass, accountProblem, rejectedStep, trackingGap, noOrdersHours, storeStep, campaignChecks, soldOutHits, handleOf, adLink, slugOf, alarmCfg, cleanAlarmCfg, ALARM_TYPES, _resetAlarms, medianOf, wakingHours, runningSets, metaMs, STOPS_ALL } from './src/alarms.js';
 import { raiseAlert, clearAlert, urgentSweep, alertPeople, DM_TONIGHT, ALERT_TYPES, _resetUrgent } from './src/urgent.js';
 import { _reset } from './src/automations.js';
 import { _resetNotify, NOTIFY_TYPES } from './src/notify.js';
@@ -94,6 +94,8 @@ await ok('accountProblem: disabled, unpaid, review, closed; limit reached; limit
   assert.equal(accountProblem({ account_status: 1, spend_cap: '0', amount_spent: '480000' }, 400), null, 'no limit set');
 });
 await ok('rejectedStep: first seen today counts today; yesterday\'s stay theirs; a fixed day clears', () => {
+  const seed = rejectedStep(null, [{ id: '1' }, { id: '2' }], TODAY);
+  assert.deepEqual(seed.todays, [], 'the first look only remembers'); assert.deepEqual(seed.open, {}); assert.deepEqual(seed.ids, { 1: 'seed', 2: 'seed' });
   const a = rejectedStep({}, [{ id: '1' }, { id: '2' }], TODAY);
   assert.equal(a.todays.length, 2); assert.deepEqual(a.clearDays, []);
   const b = rejectedStep({ 1: '2026-03-10' }, [{ id: '1' }, { id: '3' }], TODAY);
@@ -210,6 +212,8 @@ await ok('a. alarmDm off: the row, no DM; notifyCopies on: the person\'s own cho
 });
 await ok('b. ads rejected in live campaigns: first opens today\'s row, a later one counts up the same row, fixed clears; paused campaigns never count', async () => {
   fresh(); healthy(); HOUR = 8;
+  await alarmsPass(env, d);   // the first look at the brand: nothing rejected yet, remembered
+  NOW += 3600e3;
   META['act_100/ads'] = { data: [{ id: 'a1', name: 'BF Static 1', effective_status: 'DISAPPROVED', campaign: { effective_status: 'ACTIVE' } },
     { id: 'a9', name: 'Old', effective_status: 'DISAPPROVED', campaign: { effective_status: 'PAUSED' } }] };
   await alarmsPass(env, d);
@@ -228,16 +232,41 @@ await ok('b. ads rejected in live campaigns: first opens today\'s row, a later o
   await alarmsPass(env, d);
   assert.equal(open('ad_rejected').length, 0);
 });
-await ok('b. an ad rejected yesterday does not open today\'s row again; a new one today does', async () => {
+await ok('b. an ad rejected yesterday keeps yesterday\'s row up (never today\'s); a new one today opens today\'s', async () => {
   fresh(); healthy(); HOUR = 8;
-  setS('alarmState', { brand_northlake_golf: { rej: { a1: '2026-03-10' } } });
+  setS('alarmState', { brand_northlake_golf: { rej: { a1: '2026-03-10' }, up: { 'ad_rejected:brand_northlake_golf:2026-03-10': 1 } } });
   META['act_100/ads'] = { data: [{ id: 'a1', name: 'Old reject', effective_status: 'DISAPPROVED', campaign: { effective_status: 'ACTIVE' } }] };
   await alarmsPass(env, d);
-  assert.equal(open('ad_rejected').length, 0);
+  assert.equal(open('ad_rejected').filter(x => x.thing_key.endsWith(TODAY)).length, 0, 'not today\'s');
+  assert.match(open('ad_rejected')[0].title, /1 ad rejected since Mar 10/);
   NOW += 3600e3;
   META['act_100/ads'] = { data: [{ id: 'a1', name: 'Old reject', effective_status: 'DISAPPROVED', campaign: { effective_status: 'ACTIVE' } }, { id: 'a3', name: 'New reject', effective_status: 'DISAPPROVED', campaign: { effective_status: 'ACTIVE' } }] };
   await alarmsPass(env, d);
-  assert.match(open('ad_rejected')[0].body, /New reject/); assert.doesNotMatch(open('ad_rejected')[0].body, /Old reject/);
+  const t = open('ad_rejected').filter(x => x.thing_key.endsWith(TODAY));
+  assert.match(t[0].body, /New reject/); assert.doesNotMatch(t[0].body, /Old reject/);
+  /* still rejected 31 hours later: the hourly refresh keeps the earlier day's row past the 30 hour sweep */
+  NOW += 31 * 3600e3;
+  await alarmsPass(env, d); await urgentSweep(env, ud, { now: new Date(NOW) });
+  assert.ok(open('ad_rejected').some(x => x.thing_key.endsWith('2026-03-10')), 'kept while the ad is still rejected');
+});
+await ok('b. the first run after deploy: ads already rejected in live campaigns raise nothing; one rejected later does', async () => {
+  fresh(); healthy(); HOUR = 8;
+  META['act_100/ads'] = { data: [{ id: 'a1', name: 'Months old', effective_status: 'DISAPPROVED', campaign: { effective_status: 'ACTIVE' } }] };
+  await alarmsPass(env, d);
+  assert.equal(all('ad_rejected').length, 0, 'no false "today" on deploy day');
+  NOW += 3600e3;
+  META['act_100/ads'] = { data: [{ id: 'a1', name: 'Months old', effective_status: 'DISAPPROVED', campaign: { effective_status: 'ACTIVE' } }, { id: 'a2', name: 'Fresh one', effective_status: 'DISAPPROVED', campaign: { effective_status: 'ACTIVE' } }] };
+  await alarmsPass(env, d);
+  assert.equal(open('ad_rejected').length, 2); assert.match(open('ad_rejected')[0].body, /Fresh one/); assert.doesNotMatch(open('ad_rejected')[0].body, /Months old/);
+});
+await ok('b. a second page of problem ads is read, so a new one past the first 100 is still seen', async () => {
+  fresh(); healthy(); HOUR = 8;
+  setS('alarmState', { brand_northlake_golf: { rej: {} } });
+  META['act_100/ads'] = p => p.after === 'p2'
+    ? { data: [{ id: 'z9', name: 'On page two', effective_status: 'DISAPPROVED', campaign: { effective_status: 'ACTIVE' } }] }
+    : { data: [{ id: 'z1', name: 'Paused one', effective_status: 'DISAPPROVED', campaign: { effective_status: 'PAUSED' } }], paging: { next: 'x', cursors: { after: 'p2' } } };
+  await alarmsPass(env, d);
+  assert.match(open('ad_rejected')[0].body, /On page two/);
 });
 await ok('e. a live campaign stopped spending: fires (with the DM), clears when it spends; over budget fires and clears; never before 10am', async () => {
   fresh(); healthy();
@@ -245,16 +274,19 @@ await ok('e. a live campaign stopped spending: fires (with the DM), clears when 
   META['act_100/campaigns'] = { data: [{ id: 'c1', name: 'BF | Broad', daily_budget: '100000', created_time: '2026-02-01T00:00:00Z', insights: { data: [{ spend: '3' }] } }] };
   HOUR = 9; await alarmsPass(env, d);
   assert.equal(metaCalls.filter(c => c[0] === 'act_100/campaigns').length, 0, 'no campaign read before 10am');
+  META['act_100/adsets'] = { data: [{ id: 's1', campaign_id: 'c1' }] };
   HOUR = 14; await alarmsPass(env, d);
+  assert.equal(open('campaign_stalled').length, 0, 'the first look today only remembers the spend');
+  NOW += 3600e3; HOUR = 15; await alarmsPass(env, d);
   assert.match(open('campaign_stalled')[0].title, /Northlake Golf: 1 live campaign stopped spending/);
   assert.ok(slack.some(s => s[0] === 'chat.postMessage'), 'the bridge DM');
   assert.equal(metaCalls.filter(c => c[0] === 'act_200/campaigns').length, 0, 'no live campaign in D1: no Meta read');
-  NOW += 3600e3; HOUR = 15;
+  NOW += 3600e3; HOUR = 16;
   META['act_100/campaigns'] = { data: [{ id: 'c1', name: 'BF | Broad', daily_budget: '100000', created_time: '2026-02-01T00:00:00Z', insights: { data: [{ spend: '2100' }] } }] };
   await alarmsPass(env, d);
   assert.equal(open('campaign_stalled').length, 0, 'spending again: cleared');
   assert.match(open('over_budget')[0].title, /Northlake Golf spent far over today's budgets/);
-  NOW += 3600e3; HOUR = 16;
+  NOW += 3600e3; HOUR = 17;
   META['act_100/campaigns'] = { data: [{ id: 'c1', name: 'BF | Broad', daily_budget: '300000', created_time: '2026-02-01T00:00:00Z', insights: { data: [{ spend: '2100' }] } }] };
   await alarmsPass(env, d);
   assert.equal(open('over_budget').length, 0);
@@ -338,9 +370,15 @@ await ok('c. purchases not tracked: once a day after Triple Whale synced yesterd
   /* Triple Whale undercounts here: the brand is skipped */
   fresh(); healthy(); setS('alarms:brand_northlake_golf', { twUndercounts: true });
   seedOrders('brand_northlake_golf', 40, { yesterday: 40, yAt: '2026-03-11 07:00:00' });
+  for (let i = 1; i <= 8; i++) { spendRow('act_100', addDays(TODAY, -i), 500, 30); db.prepare(`INSERT INTO tw_ad_attr VALUES ('brand_northlake_golf', ?, 'ad1', 'lastPlatformClick', ?)`).run(addDays(TODAY, -i), i === 1 ? 0 : 30); }
+  HOUR = 13; await alarmsPass(env, d);
+  assert.equal(open('tracking_lost').length, 0, 'Triple Whale is not judged here');
+  /* ...but the pixel still is */
+  fresh(); healthy(); setS('alarms:brand_northlake_golf', { twUndercounts: true });
+  seedOrders('brand_northlake_golf', 40, { yesterday: 40, yAt: '2026-03-11 07:00:00' });
   for (let i = 1; i <= 8; i++) spendRow('act_100', addDays(TODAY, -i), 500, i === 1 ? 0 : 30);
   HOUR = 13; await alarmsPass(env, d);
-  assert.equal(open('tracking_lost').length, 0);
+  assert.match(open('tracking_lost')[0].body, /the Meta pixel recorded 0/);
   /* yesterday not synced after midnight yet: no judgment, tried again next hour */
   fresh(); healthy();
   seedOrders('brand_northlake_golf', 40, { yesterday: 40, yAt: '2026-03-11 02:00:00' });
@@ -348,6 +386,97 @@ await ok('c. purchases not tracked: once a day after Triple Whale synced yesterd
   HOUR = 13; await alarmsPass(env, d);
   assert.equal(open('tracking_lost').length, 0);
   assert.equal(JSON.parse(rows(`SELECT value FROM settings WHERE key = 'alarmState'`)[0].value).brand_northlake_golf.trackDay, undefined);
+});
+await ok('c. yesterday\'s Triple Whale per ad rows not synced yet: no "recorded 0", wait; from 11pm the pixel alone is judged', async () => {
+  fresh(); healthy();
+  seedOrders('brand_northlake_golf', 40, { yesterday: 40, yAt: '2026-03-11 07:00:00' });
+  for (let i = 1; i <= 8; i++) {
+    const dt = addDays(TODAY, -i);
+    spendRow('act_100', dt, 500, 30);
+    if (i > 1) db.prepare(`INSERT INTO tw_ad_attr VALUES ('brand_northlake_golf', ?, 'ad1', 'lastPlatformClick', ?)`).run(dt, 30);
+  }
+  HOUR = 13; await alarmsPass(env, d);
+  assert.equal(all('tracking_lost').length, 0);
+  assert.equal(JSON.parse(rows(`SELECT value FROM settings WHERE key = 'alarmState'`)[0].value).brand_northlake_golf.trackDay, undefined, 'tried again next hour');
+  HOUR = 23; await alarmsPass(env, d);
+  assert.equal(all('tracking_lost').length, 0, 'the pixel is fine and Triple Whale is not judged');
+  assert.equal(JSON.parse(rows(`SELECT value FROM settings WHERE key = 'alarmState'`)[0].value).brand_northlake_golf.trackDay, TODAY);
+  /* a day with no Meta row is not "the pixel recorded 0" either */
+  assert.deepEqual(trackingGap({ orders: 40, pixel: null, tw: null, spend: 500 }, Array.from({ length: 7 }, () => ({ orders: 40, pixel: 30, tw: 30, spend: 500 }))).broken, []);
+});
+await ok('a. the daily spending limit: used up today stops everything; budgets over it warn without silencing the stalled check', () => {
+  const p = accountProblem({ account_status: 1, adtrust_dsl: 1000 }, 800, 995);
+  assert.equal(p.kind, 'dsl_reached'); assert.ok(STOPS_ALL.has(p.kind));
+  const q = accountProblem({ account_status: 1, adtrust_dsl: 1000 }, 1500, 200);
+  assert.equal(q.kind, 'dsl_over'); assert.ok(!STOPS_ALL.has(q.kind));
+  assert.ok(!STOPS_ALL.has('limit_near'), 'a near limit is not a stop');
+  assert.equal(accountProblem({ account_status: 1, adtrust_dsl: -1 }, 5000, 4000), null, '-1 = no daily limit');
+  assert.equal(accountProblem({ account_status: 1, adtrust_dsl: 1000 }, 900, 300), null);
+});
+await ok('e. Meta times with an offset are compared as times: a set starting at midnight Central has not started at 6:05pm Central', () => {
+  const now = Date.parse('2026-12-01T00:05:00Z');   // Nov 30, 6:05pm Central
+  assert.equal(metaMs('2026-12-01T00:00:00-0600'), Date.parse('2026-12-01T06:00:00Z'));
+  assert.ok('2026-12-01T00:00:00-0600' <= new Date(now).toISOString(), 'the old string test said it had started');
+  assert.deepEqual(runningSets([{ c: 'h1', b: 0, st: '2026-12-01T00:00:00-0600', et: '2026-12-17T23:59:00-0600' }], now), {});
+  const r = runningSets([{ c: 'h1', b: 50, st: '2026-11-30T09:00:00-0600', et: null }, { c: 'h1', b: 25, st: null, et: '2026-11-30T12:00:00-0600' }], now);
+  assert.deepEqual(r, { h1: { running: 1, budget: 50, since: Date.parse('2026-11-30T15:00:00Z') } }, 'an ended set drops out');
+});
+await ok('e. a scheduled campaign at 6pm before its sets start: no stalled row, no DM, no campaign read', async () => {
+  fresh(); healthy();
+  NOW = Date.parse('2026-03-12T00:05:00Z'); HOUR = 18.1;
+  db.exec(`INSERT INTO meta_adsets VALUES ('act_100', 's1', 'c1', 'Holiday | New people', 'ACTIVE', NULL, '2026-03-12T00:00:00-0600', NULL)`);
+  META['act_100/campaigns'] = { data: [{ id: 'c1', name: 'Holiday', daily_budget: '15000', created_time: '2026-02-01T00:00:00Z', insights: { data: [] } }] };
+  META['act_100/adsets'] = { data: [{ id: 's1', campaign_id: 'c1', start_time: '2026-03-12T00:00:00-0600' }] };
+  for (let i = 0; i < 3; i++) { await alarmsPass(env, d); NOW += 3600e3; HOUR += 1; }
+  assert.equal(all('campaign_stalled').length, 0); assert.equal(slack.length, 0);
+  assert.equal(metaCalls.filter(c => c[0] === 'act_100/campaigns').length, 0);
+});
+await ok('e. a real 6pm start: not stalled at 7pm or 8pm, paced from its start; spend that moved or no earlier look is not stalled', () => {
+  const start = Date.parse('2026-11-27T00:00:00Z'), mid = Date.parse('2026-11-26T06:00:00Z');
+  const camps = [{ id: 'c1', name: 'BF', daily_budget: '150000', created_time: '2026-11-20T00:00:00Z', spend: 70 }];
+  const sets = runningSets([{ c: 'c1', b: 0, st: '2026-11-26T18:00:00-0600' }], start + 36e5);
+  assert.equal(campaignChecks(camps, sets, { frac: 19 / 24, nowMs: start + 36e5, midnightMs: mid, prev: { c1: 70 } }).stalled.length, 0, '7pm');
+  assert.equal(campaignChecks([{ ...camps[0], spend: 150 }], runningSets([{ c: 'c1', st: '2026-11-26T18:00:00-0600' }], start + 2 * 36e5), { frac: 20 / 24, nowMs: start + 2 * 36e5, midnightMs: mid, prev: { c1: 150 } }).stalled.length, 0, '8pm');
+  /* 7 hours after the start with nothing spent, and nothing spent at the last look: stalled, paced from the start */
+  const late = start + 7 * 36e5, s7 = runningSets([{ c: 'c1', st: '2026-11-26T18:00:00-0600' }], late);
+  const r = campaignChecks([{ ...camps[0], spend: 0 }], s7, { frac: 1, nowMs: late, midnightMs: mid, prev: { c1: 0 } });
+  assert.equal(r.stalled.length, 1); assert.equal(Math.round(r.stalled[0].expected), Math.round(1500 * 7 / 24));
+  assert.equal(campaignChecks([{ ...camps[0], spend: 40 }], s7, { frac: 1, nowMs: late, midnightMs: mid, prev: { c1: 10 } }).stalled.length, 0, 'spend moved');
+  assert.equal(campaignChecks([{ ...camps[0], spend: 0 }], s7, { frac: 1, nowMs: late, midnightMs: mid, prev: null }).stalled.length, 0, 'no earlier look today');
+});
+await ok('e. sets paused by hand in Ads Manager (D1 still says running): the live read finds none, no row', async () => {
+  fresh(); healthy();
+  db.exec(`INSERT INTO meta_adsets VALUES ('act_100', 's1', 'c1', 'Set', 'ACTIVE', NULL, NULL, NULL)`);
+  META['act_100/campaigns'] = { data: [{ id: 'c1', name: 'BF | Broad', daily_budget: '100000', created_time: '2026-02-01T00:00:00Z', insights: { data: [{ spend: '3' }] } }] };
+  META['act_100/adsets'] = { data: [] };
+  HOUR = 14; await alarmsPass(env, d); NOW += 3600e3; HOUR = 15; await alarmsPass(env, d);
+  assert.equal(all('campaign_stalled').length, 0);
+});
+await ok('e. over budget after a mid-day budget cut: judged against the day\'s larger budget', () => {
+  const old = '2026-02-01T00:00:00Z';
+  const c = [{ id: 'c1', name: 'x', daily_budget: '20000', created_time: old, spend: 400 }];
+  assert.ok(campaignChecks(c, { c1: { running: 1 } }, { frac: 0.5, nowMs: Date.parse('2026-03-11T20:00:00Z') }).over, 'no earlier budget: over');
+  assert.equal(campaignChecks(c, { c1: { running: 1 } }, { frac: 0.5, nowMs: Date.parse('2026-03-11T20:00:00Z'), dayBudget: 1000 }).over, null, 'it was $1,000 this morning');
+});
+await ok('d. after a sale week the window does not shrink: the median day; an overnight gap is not "no orders"', () => {
+  const days = [10, 10, 10, 10, 10, 10, 10, 10, 10, 80, 80, 80, 80, 80];
+  assert.equal(medianOf(days), 10); assert.equal(noOrdersHours(medianOf(days)), 20);
+  assert.ok(noOrdersHours(days.reduce((s, x) => s + x, 0) / days.length) <= 8, 'the mean would have said 8 hours or less');
+  /* last order 11pm Central, now 9am Central: one waking hour, not ten */
+  const last = Date.parse('2026-03-12T04:00:00Z'), now = Date.parse('2026-03-12T14:00:00Z');   // daylight time: UTC-5
+  assert.equal(wakingHours(last, now, 'America/Chicago'), 1);
+  const s = storeStep({ day: TODAY, orders: 30, spendDay: 100, cum: 100, orderAt: last, cumAt: 0 }, { day: '2026-03-12', orders: 0, syncedMs: now, spendDay: 300 }, { nowMs: now, hours: 6, tz: 'America/Chicago' });
+  assert.equal(s.down, null, 'the night does not count');
+  const s2 = storeStep({ day: TODAY, orders: 30, spendDay: 100, cum: 100, orderAt: last, cumAt: 0 }, { day: '2026-03-12', orders: 0, syncedMs: now + 6 * 36e5, spendDay: 300 }, { nowMs: now + 6 * 36e5, hours: 6, tz: 'America/Chicago' });
+  assert.deepEqual(s2.down, { hours: 16, spend: 400 }, 'seven waking hours: down, and the text says the real gap');
+});
+await ok('a muted brand is never read; a clear runs only for a row this pass raised', async () => {
+  fresh(); healthy(); HOUR = 8;
+  const md = { ...d, alertsMuted: async (e, id) => id === 'brand_pinecrest_candle' };
+  await alarmsPass(env, md);
+  assert.equal(metaCalls.filter(c => String(c[0]).startsWith('act_200')).length, 0);
+  const st = JSON.parse(rows(`SELECT value FROM settings WHERE key = 'alarmState'`)[0].value);
+  assert.equal(st.brand_pinecrest_candle, undefined); assert.deepEqual(st.brand_northlake_golf.up, {});
 });
 await ok('f. sold out: off by default (no Supply or Meta read); switched on it fires and clears', async () => {
   fresh(); healthy(); HOUR = 9;
@@ -382,6 +511,20 @@ await ok('the hourly sweep clears an alarm row no check has seen for 30 hours', 
   assert.equal(open('account_blocked').length, 2);
   await urgentSweep(env, ud, { now: new Date(NOW + 31 * 3600e3) });
   assert.equal(open('account_blocked').length, 0);
+});
+await ok('a flapping alarm DMs once a day: fixed then broken again the same day opens the row, no second DM; the next day may DM', async () => {
+  fresh(); healthy(); HOUR = 8;
+  META['act_100'] = { account_status: 9 };
+  await alarmsPass(env, d);
+  assert.equal(slack.filter(s => s[0] === 'chat.postMessage').length, 2);
+  NOW += 3600e3; META['act_100'] = { account_status: 1 }; await alarmsPass(env, d);
+  assert.equal(open('account_blocked').length, 0);
+  NOW += 3600e3; META['act_100'] = { account_status: 9 }; slack.length = 0; await alarmsPass(env, d);
+  assert.equal(open('account_blocked').length, 2, 'the row is back');
+  assert.equal(slack.filter(s => s[0] === 'chat.postMessage').length, 0, 'no second DM today');
+  NOW += 3600e3; META['act_100'] = { account_status: 1 }; await alarmsPass(env, d);
+  NOW += 24 * 3600e3; META['act_100'] = { account_status: 9 }; await alarmsPass(env, d);
+  assert.equal(slack.filter(s => s[0] === 'chat.postMessage').length, 2, 'a new day: DMs again');
 });
 await ok('no em or en dashes in any alarm text', async () => {
   const src = (await import('node:fs')).readFileSync(new URL('./src/alarms.js', import.meta.url), 'utf8');

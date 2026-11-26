@@ -120,7 +120,7 @@ import { raiseAlert, clearAlert, urgentSweep } from './urgent.js';
 import { OWNER_EMAIL } from './extwrite.js';
 import { jobOn, featureOn, jobsView, cleanJobs, cleanFeatures, featureSaved } from './jobflags.js';
 import { alarmsPass, alarmCfg, cleanAlarmCfg } from './alarms.js';
-import { markHold, recheckHolds, listHolds } from './drafthold.js';
+import { markHold, recheckHolds, listHolds, holdFor } from './drafthold.js';
 import { supplyBrandOf, supplyFetch } from './stock.js';
 /* /api/tw-day's 60-second memo (2026-10-26, Locus speed): key = brand | shop | day -> { at, p }. */
 const TW_DAY_MEMO = new Map();
@@ -358,7 +358,7 @@ async function metaBackedOff(env) {
   return Number.isFinite(until) && until > Date.now();
 }
 
-async function meta(env, path, params = {}) {
+async function meta(env, path, params = {}, opts = {}) {
   if (!env.META_TOKEN) throw new MetaError('META_TOKEN secret is not set', 0);
   const url = new URL(`${GRAPH}/${path.replace(/^\//, '')}`);
   for (const [k, v] of Object.entries(params)) {
@@ -366,7 +366,8 @@ async function meta(env, path, params = {}) {
     url.searchParams.set(k, typeof v === 'string' ? v : JSON.stringify(v));
   }
   url.searchParams.set('access_token', env.META_TOKEN);
-  const res = await xfetch(url.toString());
+  /* opts.signal (alarms.js, 2026-11-26): a caller that must not hang the tick passes AbortSignal.timeout. */
+  const res = await xfetch(url.toString(), ...(opts && opts.signal ? [{ signal: opts.signal }] : []));
   const body = await res.json().catch(() => ({}));
   if (!res.ok || body.error) {
     const e = body.error || {};
@@ -6845,6 +6846,22 @@ async function slackBlockAction(env, ctx, p) {
         'Only Cole can send to a client from Slack, because the message goes out under his name. Change that in Locus → Settings → “Who can send to clients from Slack”.');
       return ACK();
     }
+    /* A held draft (drafthold.js, 2026-11-26) asks twice here too: the first tap only says why it is held; a second tap
+       within 10 minutes sends. */
+    {
+      const hk = id === 'brief_send' ? ['brief', 'daily', meta.d] : ['report', meta.p, meta.s];
+      const hold = await holdFor(env, hk[0], acct.act_id, hk[1], hk[2]).catch(() => null);
+      if (hold) {
+        const ackKey = `holdAck:${hk[0]}:${acct.act_id}:${hk[1]}:${hk[2]}`;
+        const acked = +(await getSetting(env, ackKey).catch(() => 0)) || 0;
+        if (!(acked > Date.now() - 10 * 60e3)) {
+          await putSetting(env, ackKey, String(Date.now())).catch(() => {});
+          ctx.waitUntil(slackWhisper(env, chan, user, `:warning: Held, not sent. ${hold.reason}. Tap Send again within 10 minutes to send it anyway.`).catch(() => {}));
+          return ACK();
+        }
+        await putSetting(env, ackKey, '0').catch(() => {});
+      }
+    }
     ctx.waitUntil((async () => {
       if (id === 'brief_send') {
         await slackSyncBrief(env, acct, meta.d, ':hourglass_flowing_sand: _Sending…_');
@@ -7272,10 +7289,14 @@ async function alertClear(env, type, thing) {
   return clearAlert(env, urgentDeps(), { type, thing, now: new Date() }).catch(e => ({ error: e.message }));
 }
 /** What alarms.js needs (round 21, 2026-11-26): stored numbers, one Meta read per check, the alert helpers. */
+/* Only a real rate limit from an alarm read parks every Meta caller for an hour. Codes 1 and 2 (unknown error, "reduce
+   the amount of data") from these reads must not stop the hourly sync, the spend check and the Triple Whale sync. */
+const ALARM_BACKOFF_CODES = new Set([4, 17, 32, 613]);
+const ALARM_META_MS = 15000;
 function alarmDeps(env) {
-  return { getSetting, putSetting, listAccounts, localDate, localHourFrac, addDays, metaBackedOff, liveDailyBudget, supplyBrandOf, supplyFetch,
-    /* A Meta error still counts toward the shared backoff, so a rate limit here slows every Meta caller. */
-    meta: (e, path, params) => meta(e, path, params).catch(async err => { await noteMetaError(e, err).catch(() => {}); throw err; }),
+  return { getSetting, putSetting, listAccounts, localDate, localHourFrac, addDays, metaBackedOff, liveDailyBudget, supplyBrandOf, supplyFetch, alertsMuted,
+    meta: (e, path, params) => meta(e, path, params, { signal: AbortSignal.timeout(ALARM_META_MS) })
+      .catch(async err => { if (ALARM_BACKOFF_CODES.has(err && err.code)) await noteMetaError(e, err).catch(() => {}); throw err; }),
     can: n => subCanAfford(n), raise: o => alertRaise(env, o), clear: (type, thing) => alertClear(env, type, thing) };
 }
 /** What drafthold.js needs: the brand list and the clock in brand time. */
@@ -8243,7 +8264,7 @@ const AH_APP = {
       env = meterEnv(env); subReset(env);
       /* Platform status (pulse.js, 2026-11-06): the outage monitor that was the separate Pulse worker. */
       ctx.waitUntil(pulseTick(env, { F: xfetch, slackApi, urgent: { raise: o => alertRaise(env, o), clear: (type, thing) => alertClear(env, type, thing) } }).then(r => { if (r.changes) return recordRun(env, 'lastPulse', r); }).catch(e => console.log('pulse: ' + e.message)));
-      /* Social posting is parked (2026-11-26, settings feature:socialPosting, missing = off). */
+      /* Social posting (settings feature:socialPosting): missing = on, today's behavior; 'off' parks it. */
       ctx.waitUntil(featureOn(env, 'socialPosting', getSetting).then(on => on ? socialPostTick(env, socialPostDeps()).then(r => recordRun(env, 'lastSocialPost', r)) : null).catch(() => {}));
       /* The Buyer list's morning read (buyerai.js, 2026-10-26): from an hour before the morning hour, three brands a tick. */
       ctx.waitUntil(buyerAITick(env, buyerDeps()).then(r => { if (r && !r.skipped && !r.done) return recordRun(env, 'lastBuyerAI', r); }).catch(() => {}));
@@ -8288,13 +8309,6 @@ const AH_APP = {
         /* Urgent alerts in Locus (urgent.js, 2026-11-26): clear what fixed itself. After the client send warning and
            the check-in, so its D1 work never takes the tick's budget from them. */
         ran.urgentSweep = await urgentSweep(env, urgentDeps(), { now: new Date() }).catch(e => ({ error: e.message }));
-        /* The alarms (alarms.js, round 21): account blocked or out of limit, ads rejected, a live campaign stopped or far
-           over budget, ads spending with no store order, purchases not tracked, an advertised product sold out. Urgent
-           Locus rows first; stored numbers plus a few small Meta reads, one brand at a time. No new cron. After the War
-           Room check-in and the client send warning, so they always run first. */
-        ran.alarms = await alarmsPass(env, alarmDeps(env)).catch(e => ({ error: e.message }));
-        /* Client drafts held for broken numbers (drafthold.js): a held draft whose numbers came in is released. */
-        ran.draftHolds = await recheckHolds(env, holdDeps()).catch(e => ({ error: e.message }));
         if (hour >= bh) {
           ran.briefs = await dailyBriefs(env).catch(e => ({ error: e.message }));
           // Reports wait TWO hours behind the brief. They could share a tick now
@@ -8330,6 +8344,15 @@ const AH_APP = {
             await putSetting(env, 'blockRollDay', centralDate()).catch(() => {});
           }
         }
+        /* The alarms (alarms.js, round 21): account blocked or out of limit, ads rejected, a live campaign stopped or far
+           over budget, ads spending with no store order, purchases not tracked, an advertised product sold out. Urgent
+           Locus rows first; stored numbers plus a few small Meta reads (15 second timeout each), one brand at a time. No
+           new cron. AFTER the client dailies and reports, so their reads never delay a client send, and behind the
+           tick's budget. */
+        if (subCanAfford(60)) ran.alarms = await alarmsPass(env, alarmDeps(env)).catch(e => ({ error: e.message }));
+        else ran.alarms = { deferred: 'out of subrequest budget' };
+        /* Client drafts held for broken numbers (drafthold.js): a held draft whose numbers came in says "write it again". */
+        if (subCanAfford(20)) ran.draftHolds = await recheckHolds(env, holdDeps()).catch(e => ({ error: e.message }));
         /* Cole's task events: catch any he deleted that the Google push missed, and keep the push channels open. */
         if (subCanAfford(30)) ran.blockSync = await blockSyncTick(env, blockDeps()).catch(e => ({ error: e.message }));
         // Whatever budget survived goes to keeping the data fresh. This used to
@@ -8400,7 +8423,7 @@ const AH_APP = {
         /* The calendar: a client's new or moved date, the day before / a week out, Monday "still running?" (calendar.js). */
         ran.calendar = await calendarTick(env, hubDeps()).catch(e => ({ error: e.message }));
         /* Locus Social: each followed brand and topic pulled once a day, four a tick (social.js). */
-        /* 2026-11-26: Locus Social is parked (settings feature:socialPosting, missing = off). The code stays. */
+        /* Locus Social (settings feature:socialPosting): missing = on, today's behavior; 'off' parks it. */
         if (await featureOn(env, 'socialPosting', getSetting).catch(() => false)) {
           ran.social = await socialTick(env, n => subCanAfford(n)).catch(e => ({ error: e.message }));
           /* Locus Social posting: a catch-up for the 5-minute tick, then views / likes / comments once a day (socialpost.js). */
@@ -11129,7 +11152,12 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       /* Client drafts whose numbers look incomplete (drafthold.js, 2026-11-26): the warning line on To send and Reports.
          TEAM ONLY: not on brandguard's client allowlist, so a client login is refused before this runs. */
       if (path === '/api/draft-holds' && request.method === 'GET') {
-        return json({ holds: await listHolds(env, url.searchParams.get('act') || 'all') });
+        /* A teammate held to some brands sees only theirs. */
+        const only = await brandsFor(env, await sessionEmail(env, request).catch(() => null)).catch(() => null);
+        const act = url.searchParams.get('act') || 'all';
+        if (only && act !== 'all' && !only.has(act)) return json({ error: 'You do not have access to this brand.' }, 403);
+        const holds = await listHolds(env, act);
+        return json({ holds: only ? holds.filter(h => only.has(h.act_id)) : holds });
       }
       if (path === '/api/briefs' && request.method === 'GET') {
         const act = url.searchParams.get('act');

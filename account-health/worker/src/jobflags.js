@@ -82,11 +82,13 @@ async function cached(key, fn) {
   return v;
 }
 /** Does this workspace already run a creator program? Same read as trybe.js keyedBrands, plus the engine's keys. */
+/* A failed read throws (and is not cached), so featureOn answers true and the creator jobs stay ON, like jobOn:
+   one D1 hiccup must not switch the Trybe pull, the engine and the Discord posts off for five minutes. A missing table
+   is a real "no data" (a workspace that never ran creators) and reads as false. */
 async function hasCreatorData(env) {
-  const keyed = await env.DB.prepare(`SELECT act_id FROM p_br_doc WHERE line_id = '' AND key = 'trybe' LIMIT 1`).first().catch(() => null);
-  if (keyed) return true;
-  const eng = await env.DB.prepare(`SELECT key FROM settings WHERE key LIKE 'creatorEngine:%' LIMIT 1`).first().catch(() => null);
-  return !!eng;
+  const read = sql => env.DB.prepare(sql).first().catch(e => { if (/no such table/i.test(String(e && e.message))) return null; throw e; });
+  if (await read(`SELECT act_id FROM p_br_doc WHERE line_id = '' AND key = 'trybe' LIMIT 1`)) return true;
+  return !!(await read(`SELECT key FROM settings WHERE key LIKE 'creatorEngine:%' LIMIT 1`));
 }
 
 /** Is an agency feature on? creatorProgram derives from the data when unset; socialPosting is on when unset (today). */
@@ -94,7 +96,7 @@ export async function featureOn(env, name, get = directGet) {
   const v = await Promise.resolve().then(() => get(env, `feature:${name}`)).catch(() => null);
   if (isWord(v, 'on')) return true;
   if (isWord(v, 'off')) return false;
-  if (name === 'creatorProgram') return cached('creatorProgram', () => hasCreatorData(env));
+  if (name === 'creatorProgram') return cached('creatorProgram', () => hasCreatorData(env)).catch(() => true);   // a failed read fails ON, uncached
   return name === 'socialPosting';
 }
 /** Was the creator program switch saved by a person (true), or is it still derived (false)? */

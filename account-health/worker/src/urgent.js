@@ -40,6 +40,8 @@ export async function ensureUrgent(env) {
   await ensureAutomations(env);
   for (const col of ['thing_key TEXT', 'ntype TEXT', 'seen_at TEXT']) await env.DB.prepare(`ALTER TABLE p_notice ADD COLUMN ${col}`).run().catch(() => {});
   await env.DB.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS p_notice_thing ON p_notice (person_id, thing_key)`).run().catch(() => {});
+  /* clearAlert looks a thing up across people: its own index, so a clear is not a table scan. */
+  await env.DB.prepare(`CREATE INDEX IF NOT EXISTS p_notice_thing_only ON p_notice (thing_key, state)`).run().catch(() => {});
   ready = true;
 }
 export function _resetUrgent() { ready = false; }
@@ -88,11 +90,14 @@ async function brandQuiet(env, d, brandId) {
 }
 
 /** Copies outside Locus, on a NEW episode only. Tonight settings notifyCopies is off, so this records 'off' (and, for
- *  the DM_TONIGHT alarms, the bridge DM). */
-async function copies(env, d, email, type, text) {
+ *  the DM_TONIGHT alarms, the bridge DM). The bridge DM goes at most once a Central day per person per thing: a check
+ *  that flaps (fixed, then broken again an hour later) opens a new row each time but does not DM again that day.
+ *  lastBridge = when this row last sent one (kept across episodes in sent_json.bridgeAt). */
+async function copies(env, d, email, type, text, { at, lastBridge = null } = {}) {
   if (String((await rawSetting(env, d, 'notifyCopies')) ?? '').trim().toLowerCase() !== 'on') {
     if (!DM_TONIGHT.includes(type) || String((await rawSetting(env, d, 'alarmDm')) ?? '').trim().toLowerCase() === 'off') return { copies: 'off' };
-    return { copies: 'off', slack: (await slackDm(env, d, email, text).catch(e => e.message)) || 'sent', bridge: true };
+    if (lastBridge && centralDay(lastBridge) === centralDay(at)) return { copies: 'off', bridge: 'already today', bridgeAt: lastBridge };
+    return { copies: 'off', slack: (await slackDm(env, d, email, text).catch(e => e.message)) || 'sent', bridge: true, bridgeAt: at };
   }
   const out = {};
   if (await personWants(env, d, email, type, 'slack_dm')) out.slack = (await slackDm(env, d, email, text).catch(e => e.message)) || 'sent';
@@ -121,7 +126,8 @@ export async function raiseAlert(env, d, { type, thing, brand_id = null, title, 
       out.hidden.push(email); continue;
     }
     /* A new episode: copies first (so sent_json records them), then the row. */
-    const sent = { bell: at, ...(await copies(env, d, email, type, `${t}\n${b}`)) };
+    const lastBridge = r ? (safe(r.sent_json, {}) || {}).bridgeAt || null : null;
+    const sent = { bell: at, ...(await copies(env, d, email, type, `${t}\n${b}`, { at, lastBridge })) };
     if (r) {
       await env.DB.prepare(`UPDATE p_notice SET state = 'open', kind = 'alert', ntype = ?2, title = ?3, body = ?4, button_json = ?5, brand_id = ?6, created_at = ?7, seen_at = ?7, done_at = NULL, answer = NULL, done_by = NULL, home = 1, sent_json = ?8 WHERE id = ?1`)
         .bind(r.id, type, t, b, btn, brand_id, at, JSON.stringify(sent)).run();
