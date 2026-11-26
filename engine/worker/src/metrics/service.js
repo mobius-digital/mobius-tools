@@ -6,7 +6,7 @@ import { fail } from '../platform/errors.js';
 import { addDays, monthOf, windowFor } from '../platform/time.js';
 import { safeJson } from '../platform/text.js';
 import { totals } from './money.js';
-import { buildSeries, channelsFor, goalsFor, goalsPlanned, planFor, pubAccount } from './series.js';
+import { buildSeries, channelsFor, goalsFor, goalsPlanned, planFor, pubAccount, wholeDays } from './series.js';
 import { spread } from './expenses.js';
 import { inlineHealth, checkIsStale } from './health.js';
 import { listAccounts, oneAccount, loadRaw, loadDays, loadCards } from './load.js';
@@ -70,7 +70,7 @@ function card(a, w, raw, yoyRaw, cards, { cmp, wantSeries }) {
     prev_series: wantSeries && prevRows.length ? prevRows.slice(-100).map(seriesPoint) : undefined,
     channels: channels || undefined,
     goals: g.sales != null || g.spend != null ? g : null,
-    plan: planFor(a, w.ym, mtdRows), live_as_of: null,
+    plan: planFor(a, w.ym, wholeDays(mtdRows, w.today)), live_as_of: null,
     // The month the goals are for, and whether it has its own sales goal (false: the goals are inherited).
     goals_planned: goalsPlanned(a, w.ym), month: w.ym,
     margin_pct, cost_health: health, shipping,
@@ -142,7 +142,7 @@ export async function client(ctx, input) {
     account: pubAccount(acct), days: asked.days, from, to, margin_pct, rows, shipping,
     fixed: { total: fx.total, items: fx.items, ad_total: fx.ad_total, ad_items: fx.ad_items },
     totals: totals(rows), mtd: totals(mtdRows),
-    goals: goalsFor(acct, ym), plan: planFor(acct, ym, mtdRows),
+    goals: goalsFor(acct, ym), plan: planFor(acct, ym, wholeDays(mtdRows, today)),
     live_as_of: null, hours: null,
     goals_planned: goalsPlanned(acct, ym),
   };

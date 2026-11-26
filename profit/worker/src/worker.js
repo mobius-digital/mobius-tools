@@ -479,13 +479,41 @@ function inheritedGoals(g, ym) {
 }
 function goalsFor(acct, ym) {
   const g = safeJson(acct.goals_json, {});
-  return { ...inheritedGoals(g, ym), ...(g[ym] || {}) };
+  // When default is what plans this month (defaultCovers), its numbers are the month's numbers: planned and the goal
+  // shown always come from the same place.
+  return { ...inheritedGoals(g, ym), ...(defaultCovers(g, ym) ? g.default : {}), ...(g[ym] || {}) };
 }
 const marginOverride = (acct, ym) => goalsFor(acct, ym).cm_pct ?? null;
-/* NO GOAL SET (2026-11-26): a month counts as planned only when its OWN key carries a sales goal. A margin save, a
-   spend-only save or the strategist's goals tool can leave goals_json[ym] as {} or { cm_pct }: that month is NOT
-   planned, and goalsFor still hands back the inherited goal. Same test as account-health briefData and reportData. */
-export const goalsPlanned = (acct, ym) => safeJson(acct.goals_json, {})?.[ym]?.sales != null;
+/* NO GOAL SET (2026-11-26): is a month PLANNED (somebody typed its sales goal) or only carrying an earlier month's?
+   Planned when the month's own key has a sales goal, or when defaultCovers says "default" holds this month's goal.
+   Both save paths write the month key AND default on every save, so default alone cannot say which month it was typed
+   for. A sales goal in default with no key for the month is the legacy "current month's goal" brands kept there: it
+   covers months up to DEFAULT_LAST_MONTH, and only while no LATER month has a key (a later save rewrote default).
+   After DEFAULT_LAST_MONTH a month needs its own key. Before a save rewrites default, keepDefaultMonth writes the
+   legacy goal into DEFAULT_LAST_MONTH's own key so the save cannot unplan that month or change its number.
+   The one helper for this worker; the same rule as account-health goalplan.js and engine series.js. */
+export const DEFAULT_LAST_MONTH = '2026-11';
+export function defaultCovers(g, ym) {
+  if (!g || typeof g !== 'object' || !(ym <= DEFAULT_LAST_MONTH)) return false;
+  const d = g.default;
+  if (!(d && typeof d === 'object' && d.sales != null)) return false;
+  return !Object.keys(g).some(k => /^\d{4}-\d{2}$/.test(k) && k > ym);
+}
+export function monthPlanned(g, ym) {
+  if (!g || typeof g !== 'object') return false;
+  const own = g[ym];
+  if (own && typeof own === 'object' && own.sales != null) return true;
+  return defaultCovers(g, ym);
+}
+/* Mutates `goals` before a save for `ym`: when default is what plans DEFAULT_LAST_MONTH, that goal moves into the
+   month's own key first. Nothing to do when the save is for that month or default does not plan it. */
+export function keepDefaultMonth(goals, ym) {
+  const L = DEFAULT_LAST_MONTH;
+  if (ym === L || !defaultCovers(goals, L) || goals[L]?.sales != null) return goals;
+  goals[L] = { ...goals.default, ...(goals[L] || {}) };
+  return goals;
+}
+export const goalsPlanned = (acct, ym) => monthPlanned(safeJson(acct.goals_json, {}), ym);
 const pubAccount = a => ({ act_id: a.act_id, name: a.name, currency: a.currency, tz: a.tz, tw_shop: a.tw_shop });
 
 /* ---------------- the money model ----------------
@@ -704,6 +732,19 @@ function liveRow(acct, day, rules) {
   const fb = day.map ? day.map.fb_ads_spend : null;
   const meta = fb != null ? { [day.date]: { spend: fb } } : {};
   return dayEconomics(piv, meta, day.date, marginOverride(acct, monthOf(day.date)), rules);
+}
+/** Today's live row goes in PLACE of any stored row for the same day, never beside it (2026-11-26).
+ *  The hourly Triple Whale sync can land a partial today in tw_daily, so seriesFor may already hold a row for
+ *  today; pushing the live row next to it listed the day twice and summed it twice in every total. */
+function liveReplaces(list, row) {
+  for (let i = list.length - 1; i >= 0; i--) if (list[i].date === row.date) list.splice(i, 1);
+  list.push(row);
+  return list;
+}
+/** `to`, but never later than the brand's own yesterday. */
+function wholeDaysTo(acct, to) {
+  const yday = addDays(localDate(acct.tz), -1);
+  return to > yday ? yday : to;
 }
 /** Revenue and ad spend hour by hour, blended. Revenue is Total Sales less tax,
  *  the same line as the day; tax by hour is subtracted when TW carries it. */
@@ -2189,7 +2230,7 @@ export default {
        brand, nothing internal. The token is the auth, like the plan link. */
     let sq;
     if ((sq = path.match(/^\/api\/season\/([a-f0-9]{16,})$/)) && request.method === 'GET') {
-      try { return await seasonPublic(env, sq[1], (acct, from, to) => seriesFor(env, acct, from, to)); } catch (e) { return json({ error: e.message }, 500); }
+      try { return await seasonPublic(env, sq[1], (acct, from, to) => seriesFor(env, acct, from, wholeDaysTo(acct, to))); } catch (e) { return json({ error: e.message }, 500); }
     }
 
     /* Cover images for a client's shared ad set - same arrangement as the
@@ -2313,11 +2354,11 @@ export default {
             ? { verdict: 'override', reason: `using a flat ${Math.round(margin_pct * 100)}% margin override`, blended: margin_pct }
             : judgeCosts(rows));
           const mtdRows = allRows.filter(r => r.date >= monthStart);
-          const plan = planFor(a, ym, mtdRows);          // whole days only, see /api/client
+          const plan = planFor(a, ym, mtdRows.filter(r => r.date < today));   // whole days only, see /api/client
           let live = null;
           if (to === today) {
             const day = await twDay(env, request, a, today).catch(() => null);
-            if (day) { const row = liveRow(a, day, rules); if (row) { applyAdSpend([row], spread(exp, today, today, [row]).adByDate); rows.push(row); mtdRows.push(row); } live = { as_of: day.as_of }; }
+            if (day) { const row = liveRow(a, day, rules); if (row) { applyAdSpend([row], spread(exp, today, today, [row]).adByDate); liveReplaces(rows, row); liveReplaces(mtdRows, row); } live = { as_of: day.as_of }; }
           }
           return {
             ...pubAccount(a),
@@ -2375,14 +2416,15 @@ export default {
         // It sees WHOLE days only: a live partial today is added after the plan is
         // pro-rated, so "planned by now" means through yesterday on a Today window.
         const mtdRows = allRows.filter(r => r.date >= monthStart);
-        const plan = planFor(acct, ym, mtdRows);
-        // A single day gets its hourly shape; today additionally gets its live row.
+        // A partial today the sync stored is not a whole day either (2026-11-26).
+        const plan = planFor(acct, ym, mtdRows.filter(r => r.date < today));
+        // A single day gets its hourly shape; today additionally gets its live row, in place of a stored one.
         let liveAsOf = null, hours = null;
         if (from === to || to === today) {
           const day = await twDay(env, request, acct, to).catch(() => null);
           if (day) {
             if (from === to) hours = hoursOf(day);
-            if (to === today) { const row = liveRow(acct, day, rules); if (row) { applyAdSpend([row], spread(exp, today, today, [row]).adByDate); rows.push(row); mtdRows.push(row); } liveAsOf = day.as_of; }
+            if (to === today) { const row = liveRow(acct, day, rules); if (row) { applyAdSpend([row], spread(exp, today, today, [row]).adByDate); liveReplaces(rows, row); liveReplaces(mtdRows, row); } liveAsOf = day.as_of; }
           }
         }
         /* Custom expenses over the window (expenses.js, 2026-10-10). `total`/`items` = the ones under contribution margin
@@ -2527,6 +2569,7 @@ export default {
         if (b.spend != null && b.spend !== '') m.spend = +b.spend;
         if (b.amer != null && b.amer !== '') m.amer = +b.amer;
         if (keep != null) m.cm_pct = keep;
+        keepDefaultMonth(goals, ym);   // the legacy default goal keeps its month before default is rewritten
         goals[ym] = m;
         goals.default = { ...m };
         await env.DB.prepare(`UPDATE brands SET goals_json = ?2 WHERE id = ?1`)
@@ -2792,10 +2835,12 @@ export default {
         const per = months.map(ym => {
           const mr = rows.filter(r => r.date.startsWith(ym));
           const t = mr.length ? totals(mr) : null;
-          // Only an EXPLICIT entry counts as planned - `default` is inheritance.
-          const g = gjson[ym] || null;
+          // Planned = goalsPlanned, the same test as every other surface (own sales goal, or the legacy default
+          // that covers this month); the goal shown then comes from goalsFor, never a previous month's key.
+          const planned = monthPlanned(gjson, ym);
+          const g = planned ? goalsFor(acct, ym) : null;
           return {
-            month: ym, planned: !!g,
+            month: ym, planned,
             goal_sales: g?.sales ?? null, goal_spend: g?.spend ?? null,
             sales: t?.sales ?? null, spend: t?.spend ?? null, cm: t?.cm ?? null,
             days: mr.length, days_in_month: daysInMonth(ym),
@@ -2946,6 +2991,7 @@ export default {
         const m = {};
         for (const k of ['sales', 'spend', 'amer']) if (b[k] != null && b[k] !== '') m[k] = +b[k];
         if (keep != null) m.cm_pct = keep;
+        keepDefaultMonth(goals, ym);   // the legacy default goal keeps its month before default is rewritten
         goals[ym] = m;
         goals.default = { ...m };
         await env.DB.prepare(`UPDATE brands SET goals_json = ?2 WHERE id = ?1`)
@@ -3030,7 +3076,10 @@ export default {
       if (path.startsWith('/api/season')) {
         const sr = await handleSeason({
           path, request, env, accountsFor, email: await sessionEmail(env, request),
-          series: (acct, from, to) => seriesFor(env, acct, from, to),
+          /* Whole days only (2026-11-26): season.js counts "yesterday" on Central time and adds today from `live`, so
+             for a brand west of Central, between midnight Central and the brand's own midnight, its "yesterday" is the
+             brand's today. Clipped to the brand's own yesterday, a partial today the sync stored never joins the live row. */
+          series: (acct, from, to) => seriesFor(env, acct, from, wholeDaysTo(acct, to)),
           /* Today's hourly shape from Triple Whale, the same call the Profit Today preset makes. */
           /* The War Room (2026-10-09) also reads orders and Meta / Google spend by the hour, and the day as one row.
              liveDay (2026-11-22) fills spend from Meta when TW has none, and flags a brand with no TW shop. */

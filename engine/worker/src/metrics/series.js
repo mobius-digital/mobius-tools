@@ -23,14 +23,31 @@ function inheritedGoals(g, ym) {
 
 export function goalsFor(acct, ym) {
   const g = safeJson(acct.goals_json, {});
-  return { ...inheritedGoals(g, ym), ...(g[ym] || {}) };
+  // When default is what plans this month (defaultCovers), its numbers are the month's numbers.
+  return { ...inheritedGoals(g, ym), ...(defaultCovers(g, ym) ? g.default : {}), ...(g[ym] || {}) };
 }
 
 export const marginOverride = (acct, ym) => goalsFor(acct, ym).cm_pct ?? null;
 
-/* A month counts as planned only when its own key carries a sales goal (old goalsPlanned, 2026-11-26). A margin or a
-   spend-only save leaves a key without one: that month is not planned, and goalsFor hands back the inherited goal. */
-export const goalsPlanned = (acct, ym) => safeJson(acct.goals_json, {})?.[ym]?.sales != null;
+/* Is a month PLANNED (old goalsPlanned, 2026-11-26)? Planned when its own key has a sales goal, or when defaultCovers
+   says "default" holds this month's goal. Every save writes the month key AND default, so default cannot say which
+   month it was typed for: a sales goal in default with no key for the month is the legacy current-month goal, and it
+   covers months up to DEFAULT_LAST_MONTH only while no LATER month has a key. Same rule as account-health goalplan.js
+   and profit worker.js (which also keeps that goal in its own key on save, keepDefaultMonth). */
+export const DEFAULT_LAST_MONTH = '2026-11';
+export function defaultCovers(g, ym) {
+  if (!g || typeof g !== 'object' || !(ym <= DEFAULT_LAST_MONTH)) return false;
+  const d = g.default;
+  if (!(d && typeof d === 'object' && d.sales != null)) return false;
+  return !Object.keys(g).some(k => /^\d{4}-\d{2}$/.test(k) && k > ym);
+}
+export function monthPlanned(g, ym) {
+  if (!g || typeof g !== 'object') return false;
+  const own = g[ym];
+  if (own && typeof own === 'object' && own.sales != null) return true;
+  return defaultCovers(g, ym);
+}
+export const goalsPlanned = (acct, ym) => monthPlanned(safeJson(acct.goals_json, {}), ym);
 
 export const pubAccount = a => ({ act_id: a.act_id, name: a.name, currency: a.currency, tz: a.tz, tw_shop: a.tw_shop });
 
@@ -154,6 +171,17 @@ export function channelsFor(attrRows, rows, piv, from, to) {
   }
   return out;
 }
+
+/** Today's live row in PLACE of any stored row for the same day, never beside it (old liveReplaces, 2026-11-26).
+ *  The tracker sync can store a partial today, so a series may already hold a row for it. */
+export function liveReplaces(list, row) {
+  for (let i = list.length - 1; i >= 0; i--) if (list[i].date === row.date) list.splice(i, 1);
+  list.push(row);
+  return list;
+}
+
+/** Whole days only: the rows before today. The plan is spread over these, never over a partial today. */
+export const wholeDays = (rows, today) => rows.filter(r => r.date < today);
 
 /** The month's goals spread over the days gone by, so month to date has something to beat. */
 export function planFor(acct, ym, mtdRows) {

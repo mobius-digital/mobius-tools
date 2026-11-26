@@ -3,6 +3,7 @@ import { readCfg as readCreatorCfg } from './creatorengine.js';
 import { leaksFor, lessonFromLeak } from './leaks.js';
 import { addLesson } from './leakctx.js';
 import { surveyReport } from './survey.js';
+import { keepDefaultMonth } from './goalplan.js';
 import { KNOWLEDGE, KNOWLEDGE_INDEX } from './knowledge.js';
 import { adsReport, websiteReport, searchReport } from './google.js';
 /**
@@ -1608,6 +1609,7 @@ const ACTIONS = (d) => {
       apply: async (env, patch) => {
         const row = await env.DB.prepare('SELECT goals_json FROM brands WHERE id = ?1').bind(patch.act_id).first();
         const goals = d.safeJson(row?.goals_json, {}) || {};
+        keepDefaultMonth(goals, patch.month);   // the legacy default goal keeps its month (goalplan.js)
         goals[patch.month] = patch.goals;
         await env.DB.prepare(`UPDATE brands SET goals_json = ?2, updated_at = datetime('now') WHERE id = ?1`).bind(patch.act_id, JSON.stringify(goals)).run();
         return { ok: true, note: 'Goals updated. The next brief paces against them.' };

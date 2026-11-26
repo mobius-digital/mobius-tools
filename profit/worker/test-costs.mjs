@@ -628,14 +628,17 @@ await check('17. a teammate limited to one brand cannot write another brand\'s c
   db.exec(`DELETE FROM p_cost_rule WHERE rule = 'zone'`);
 });
 
-await check('18. goals_planned (client, overview with month) and planned (plan): only the month\'s own sales goal counts', async () => {
+await check('18. goals_planned (client, overview with month) and planned (plan): own sales goal, else default\'s; a previous month alone is unplanned', async () => {
   const ym = '2026-10';   // the frozen clock's month
   const was = db.prepare(`SELECT goals_json FROM brands WHERE id = 'brand_alpha'`).get().goals_json;
   const cases = [
-    ['no key for the month', { default: { sales: 40000, spend: 9000 } }, false],
-    ['an empty key', { default: { sales: 40000 }, [ym]: {} }, false],
-    ['a spend only key', { default: { sales: 40000 }, [ym]: { spend: 11000 } }, false],
-    ['a margin only key', { default: { sales: 40000 }, [ym]: { cm_pct: 0.5 } }, false],
+    ['no key for the month, default has sales', { default: { sales: 40000, spend: 9000 } }, true],
+    ['no key, a previous month and default', { '2026-09': { sales: 40000 }, default: { sales: 40000, spend: 9000 } }, true],
+    ['a previous month only', { '2026-09': { sales: 40000, spend: 9000 } }, false],
+    ['an empty key, default has sales', { default: { sales: 40000 }, [ym]: {} }, true],
+    ['a spend only key, default spend only', { default: { spend: 11000 }, [ym]: { spend: 11000 } }, false],
+    ['a margin only key, default has sales', { default: { sales: 40000 }, [ym]: { cm_pct: 0.5 } }, true],
+    ['a margin only key, no default', { '2026-09': { sales: 40000 }, [ym]: { cm_pct: 0.5 } }, false],
     ['planned', { [ym]: { sales: 52000, spend: 11000 } }, true],
   ];
   try {
@@ -648,6 +651,27 @@ await check('18. goals_planned (client, overview with month) and planned (plan):
       const p = (await call('GET', '/api/plan?act=brand_alpha')).j;
       assert.equal(p.planned, want, `${label}: plan`);
     }
+  } finally { db.prepare(`UPDATE brands SET goals_json = ? WHERE id = 'brand_alpha'`).run(was ?? null); }
+});
+
+await check('19. a save for a later month keeps the legacy default goal on its month; the quarter uses the same test', async () => {
+  const was = db.prepare(`SELECT goals_json FROM brands WHERE id = 'brand_alpha'`).get().goals_json;
+  const read = () => JSON.parse(db.prepare(`SELECT goals_json FROM brands WHERE id = 'brand_alpha'`).get().goals_json);
+  try {
+    // The shape every save leaves: default = the last typed goal, plus that month's own key.
+    db.prepare(`UPDATE brands SET goals_json = ? WHERE id = 'brand_alpha'`).run(JSON.stringify({ default: { sales: 40000, spend: 9000 }, '2026-10': { sales: 40000, spend: 9000 } }));
+    const q1 = (await call('GET', '/api/quarter?act=brand_alpha&q=2026-Q4')).j;
+    assert.deepEqual(q1.per.map(x => x.planned), [true, true, false], 'quarter: Oct own key, Nov legacy default, Dec unplanned');
+    assert.equal(q1.per[1].goal_sales, 40000, 'quarter: November shows the default goal');
+    assert.deepEqual(q1.unplanned, ['2026-12'], 'quarter: only December unplanned');
+    const r = await call('PUT', '/api/goals', { act: 'brand_alpha', month: '2026-12', sales: 61000, spend: 15000 });
+    assert.equal(r.status, 200, 'goals save');
+    const g = read();
+    assert.equal(g['2026-11']?.sales, 40000, 'November got its own key with the legacy goal');
+    assert.equal(g['2026-12'].sales, 61000, 'December saved'); assert.equal(g.default.sales, 61000, 'default rewritten');
+    const q2 = (await call('GET', '/api/quarter?act=brand_alpha&q=2026-Q4')).j;
+    assert.deepEqual(q2.per.map(x => x.goal_sales), [40000, 40000, 61000], 'quarter after the save: November keeps its number');
+    assert.deepEqual(q2.unplanned, [], 'quarter after the save: all planned');
   } finally { db.prepare(`UPDATE brands SET goals_json = ? WHERE id = 'brand_alpha'`).run(was ?? null); }
 });
 

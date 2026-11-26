@@ -2,6 +2,7 @@ import { useFetch as tiktokFetch, tiktokStatus, tiktokStart, tiktokCallback, tik
 import { useFetch as assetsFetch, syncAssets, tagAssets, listAssets, assetsTick, assetFile, removeLook, tagBacklog } from './assets.js';
 import { guardBrands, brandsFor, openIdsFor, clientScope, isClientEmail } from './brandguard.js';
 import { handleCommand } from './command.js';
+import { monthPlanned, defaultCovers } from './goalplan.js';
 import { handleAgency } from './agency.js';
 import { handleClients, clientAsk, clientOwnsRun, touchClient, meClient, claimInvite, hqSignin } from './clients.js';
 import { handleOnboard, onboardTick } from './onboard.js';
@@ -2337,7 +2338,8 @@ function inheritedGoals(g, ym) {
 }
 function goalsFor(acct, ym) {
   const g = safeJson(acct.goals_json, {});
-  const m = { ...inheritedGoals(g, ym), ...(g[ym] || {}) };
+  // A month default covers (goalplan.js defaultCovers) takes default's numbers: planned and the goal shown agree.
+  const m = { ...inheritedGoals(g, ym), ...(defaultCovers(g, ym) ? g.default : {}), ...(g[ym] || {}) };
   return m.sales != null || m.spend != null ? m : null;
 }
 
@@ -2372,11 +2374,12 @@ async function briefData(env, acct, upTo) {
   const twAttr = {};
   for (const r of attrRows) (twAttr[r.date] ??= {})[r.platform] = { rev: r.rev || 0, ord: r.ord || 0 };
   const goals = goalsFor(acct, ym);
-  // `default` is an inheritance convenience, not a plan. A month nobody planned still
-  // gets numbers, and reporting them as "the plan" is how a goal silently carries
-  // from one month to the next. Say which it is, and name where it came from.
+  // A month nobody planned still gets numbers (an earlier month's goal), and reporting
+  // them as "the plan" is how a goal silently carries from one month to the next. Say
+  // which it is, and name where it came from. A goal typed into `default` counts as
+  // planned (2026-11-26, goalplan.js): brands keep the current month's goal there.
   const gjson = safeJson(acct.goals_json, {});
-  const planned = gjson[ym]?.sales != null; // the month's OWN key has a sales goal (a margin or spend save leaves a key without one)
+  const planned = monthPlanned(gjson, ym); // own key's sales goal, else default's (goalplan.js); only a previous month's goal is unplanned
   let inheritedFrom = null;
   if (!planned && goals) {
     const months = Object.keys(gjson).filter(k => /^\d{4}-\d{2}$/.test(k)).sort();
@@ -4716,7 +4719,7 @@ async function reportData(env, acct, period, start, end) {
   for (const d of curDates) {
     const ym = monthOf(d);
     const g = goalsFor(acct, ym);
-    monthsSeen[ym] ??= { planned: gjson[ym]?.sales != null, has_goals: !!g };
+    monthsSeen[ym] ??= { planned: monthPlanned(gjson, ym), has_goals: !!g };
     if (!g) continue;
     const dim = daysInMonth(d);
     if (g.sales != null) fSales = (fSales ?? 0) + g.sales / dim;
@@ -4751,7 +4754,7 @@ async function reportData(env, acct, period, start, end) {
         // plain run-rate otherwise.
         projected: mtd.sales != null && planToDate > 0 ? mtd.sales / planToDate * gEnd.sales
           : mtd.sales != null && elapsed > 0 ? mtd.sales / elapsed * dim : null,
-        planned: gjson[ymEnd]?.sales != null,
+        planned: monthPlanned(gjson, ymEnd),
       };
       // Saying a month is behind is half the job. The other half is the ask: what
       // it takes from here. Returning revenue arrives on its own, so the shortfall
