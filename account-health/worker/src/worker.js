@@ -11001,14 +11001,16 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
         /* read_status: How we read it per row (reportread.js; none | points | drafted | approved, null when none was
            started), so To send needs no read per draft. The engine's port (engine reports/queries.js) does the same. */
         await ensureReportRead(env).catch(() => {});
-        const { results } = await env.DB.prepare(
-          `SELECT r.act_id, r.period, r.period_start, r.period_end, r.status, r.generated_at, r.sent_at,
-                  acc.name AS account_name, acc.currency, rr.status AS read_status
+        const listSql = withRead => `SELECT r.act_id, r.period, r.period_start, r.period_end, r.status, r.generated_at, r.sent_at,
+                  acc.name AS account_name, acc.currency${withRead ? ', rr.status AS read_status' : ''}
            FROM reports r JOIN brand_accounts acc ON acc.act_id = r.act_id
-           LEFT JOIN p_report_read rr ON rr.act_id = r.act_id AND rr.period = r.period AND rr.period_start = r.period_start
+           ${withRead ? 'LEFT JOIN p_report_read rr ON rr.act_id = r.act_id AND rr.period = r.period AND rr.period_start = r.period_start' : ''}
            ${act && act !== 'all' ? 'WHERE r.act_id = ?1' : ''}
-           ORDER BY r.period_start DESC, r.period LIMIT 80`,
-        ).bind(...(act && act !== 'all' ? [act] : [])).all();
+           ORDER BY r.period_start DESC, r.period LIMIT 80`;
+        const listArgs = act && act !== 'all' ? [act] : [];
+        /* The list never depends on p_report_read existing: no table = the plain list (no read_status). */
+        const { results } = await env.DB.prepare(listSql(true)).bind(...listArgs).all()
+          .catch(e => { if (/no such table/i.test(String(e?.message))) return env.DB.prepare(listSql(false)).bind(...listArgs).all(); throw e; });
         /* can_skip: this server has POST /api/report-skip (the Do not send action). */
         return json({ rows: results, lastRun: safeJson(await getSetting(env, 'lastReportRun'), null), can_skip: true });
       }
