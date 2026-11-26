@@ -288,6 +288,59 @@ await check('a later call never replaces an approved read or one from typed note
   assert.match(teamViewOf({ decisions: ['Hold'] }, { title: 'Brand call', date: '2026-12-03' }, 'Only this brand.', 'X'), /Call summary: Only this brand\./, 'a one-brand call keeps its summary');
 });
 
+await check('a hand edit (PUT) is kept by a later call; Write it again with notes \'\' clears the team view and the edit mark', async () => {
+  const { draftRead } = await import('./src/reportread.js');
+  const K = { act: 'brand_sample', period: 'monthly', start: '2026-11-01' };
+  db.exec(`UPDATE p_report_read SET team_source = 'meeting', team_view = 'Call notes.' WHERE act_id = 'brand_sample' AND period = 'monthly' AND period_start = '2026-11-01'`);
+  let r = await call('PUT', '/api/report-read', { ...K, text: 'Our hand edit.' });
+  let j = await r.json(); assert.equal(r.status, 200, JSON.stringify(j)); assert.ok(j.edited_at, 'edit marked');
+  const views = [];
+  const d = {
+    listBrands: async () => [{ act_id: 'brand_sample', name: 'Sample Golf Co', slack_channel: 'C_SAMPLE_IN', brief_channel: 'C_SAMPLE_CLIENT' }],
+    sendReport: async () => { throw new Error('never sends'); }, slackSyncReport: async () => {},
+    draftReportRead: (e, act, period, start, o) => { views.push(o.notes); return draftRead(e, { claude: async () => 'Call read.' }, { act_id: act, name: 'Sample Golf Co' }, period, start, o); },
+    createAsk: async () => 'rq_3', slackPost: async () => ({ ok: true }), slackApi: async () => ({ ok: false }),
+  };
+  db.exec(`INSERT INTO p_meeting (id, title, date, kind, status, created_at, updated_at) VALUES ('mt4', 'Brand call', '2026-12-04', 'brand_call', 'extracted', '2026-12-04T13:00:00Z', '2026-12-04T13:00:00Z')`);
+  const r4 = await confirm(env, d, { id: 'mt4', summary: 'Only this brand.', brands: [{ brand_id: 'brand_sample', decisions: ['Hold'] }] }, 'teammate@go-mobius-digital.com');
+  const mo = await readRow(env, 'brand_sample', 'monthly', '2026-11-01');
+  assert.equal(mo.draft, 'Our hand edit.'); assert.equal(views.length, 0, 'no redraft');
+  assert.ok(r4.warnings.some(w => /monthly report was edited by hand, left as is/.test(w)), JSON.stringify(r4.warnings));
+
+  seen.model.length = 0;
+  r = await call('POST', '/api/report-read/draft', { ...K, notes: '' });
+  j = await r.json(); assert.equal(r.status, 200, JSON.stringify(j));
+  assert.equal(j.team_view, null); assert.equal(j.team_source, null); assert.equal(j.edited_at, null, 'a model draft clears the edit mark');
+  assert.match(seen.model.at(-1).user, /No notes from the team/);
+  /* notes left out keep the stored view (none now) */
+  db.exec(`UPDATE p_report_read SET team_view = 'Kept.', team_source = 'typed' WHERE act_id = 'brand_sample' AND period = 'monthly' AND period_start = '2026-11-01'`);
+  r = await call('POST', '/api/report-read/draft', K);
+  j = await r.json(); assert.equal(j.team_view, 'Kept.');
+});
+
+await check('the public report view strips campaign / ad set names and every attribution model but the one shown', async () => {
+  const { stripReportView } = await import('../../profit/worker/src/worker.js');
+  const d = { ads: { top: [{ ad_id: '1', name: '415 B | Still', campaign: 'C', adset: 'S', spend: 1 }] },
+    attr: { models: ['lastPlatformClick', 'firstClick', 'linear'], ads: { lastPlatformClick: { 1: { revenue: 2 } }, firstClick: {}, linear: {} }, channels: { lastPlatformClick: {}, linear: {} } } };
+  stripReportView(d, 'platform');
+  assert.deepEqual(d.ads.top[0], { ad_id: '1', name: '415 B | Still', spend: 1 });
+  assert.deepEqual(d.attr.models, ['lastPlatformClick']); assert.deepEqual(Object.keys(d.attr.ads), ['lastPlatformClick']); assert.deepEqual(Object.keys(d.attr.channels), ['lastPlatformClick']);
+  const e = { attr: { models: ['lastPlatformClick', 'firstClick', 'linear'], ads: { lastPlatformClick: {}, firstClick: {}, linear: {} } } };
+  stripReportView(e, 'firstClick');
+  assert.deepEqual(e.attr.models, ['lastPlatformClick', 'firstClick'], 'the old page keeps the brand\'s stored model');
+});
+
+await check('GET /api/reports carries read_status per row (team), and a client row never does', async () => {
+  let r = await call('GET', '/api/reports?act=all');
+  let j = await r.json(); assert.equal(r.status, 200, JSON.stringify(j));
+  const mo = j.rows.find(x => x.period === 'monthly' && x.period_start === '2026-11-01');
+  assert.equal(mo.read_status, 'drafted');
+  db.prepare(`INSERT INTO reports (act_id, period, period_start, period_end, status, generated_at, summary, data_json) VALUES ('brand_sample', 'weekly', '2026-10-05', '2026-10-11', 'sent', '2026-10-12T11:00:00Z', 'x', '{}')`).run();
+  r = await call('GET', '/api/reports?act=brand_sample', null, CLIENT);
+  j = await r.json(); assert.equal(r.status, 200, JSON.stringify(j));
+  assert.ok(j.rows.length >= 1 && j.rows.every(x => x.status === 'sent' && !('read_status' in x)), JSON.stringify(j.rows));
+});
+
 await check('reportCard: every actions block has unique action_ids (no read, drafted, approved), and an internal-only card too', async () => {
   const { reportCard } = await import('./src/worker.js');
   db.prepare(`INSERT INTO reports (act_id, period, period_start, period_end, status, generated_at, summary, data_json) VALUES ('brand_sample', 'weekly', '2026-11-30', '2026-12-06', 'draft', '2026-12-07T11:00:00Z', NULL, ?)`).run(JSON.stringify({ ...DATA, start: '2026-11-30', end: '2026-12-06' }));

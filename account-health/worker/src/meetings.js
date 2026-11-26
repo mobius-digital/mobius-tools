@@ -490,14 +490,17 @@ export async function confirm(env, d, body, who) {
   await Promise.all(readJobs.map(async j => {
     const label = j.rep.period === 'monthly' ? 'monthly' : 'weekly';
     (j.r.reads ??= []);
-    /* A read a person already approved, or one drafted from notes the team typed themselves, is theirs: a later call
-       (a second call that week, or each weekly call while a monthly draft is open) never replaces it. */
+    /* A read a person already approved, one a person edited and saved, or one drafted from notes the team typed
+       themselves, is theirs: a later call (a second call that week, or each weekly call while a monthly draft is open)
+       never replaces it. */
     const prior = await reportReadRow(env, j.act, j.rep.period, j.rep.period_start).catch(() => null);
-    if (prior && (prior.status === 'approved' || prior.team_source === 'typed')) {
+    if (prior && (prior.status === 'approved' || prior.edited_at || prior.team_source === 'typed')) {
       j.r.reads.push({ period: j.rep.period, period_start: j.rep.period_start, status: prior.status, kept: true });
       result.warnings.push(prior.status === 'approved'
         ? `${j.r.name}: how we read the ${label} report was already approved, left as is.`
-        : `${j.r.name}: how we read the ${label} report was written from the team's own notes, left as is. Redraft it in Reports to use this call.`);
+        : prior.edited_at
+          ? `${j.r.name}: how we read the ${label} report was edited by hand, left as is. Redraft it in Reports to use this call.`
+          : `${j.r.name}: how we read the ${label} report was written from the team's own notes, left as is. Redraft it in Reports to use this call.`);
       return;
     }
     j.view = teamViewOf(j.b, m, oneBrand ? notes.summary : '', j.r.name);

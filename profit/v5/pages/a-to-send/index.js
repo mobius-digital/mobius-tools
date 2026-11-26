@@ -7,9 +7,11 @@
      GET /api/briefs?act=all    the latest briefs for every brand (status draft | sent | skipped | handled | error)
      GET /api/reports?act=all   the latest weekly and monthly reports (status draft | sent | handled | skipped),
                                 and can_skip once the server can mark one report skipped
-     GET /api/report-read?act=&period=&start=   for each waiting report: is "How we read it" approved? Send is
-                                offered only then; otherwise the row says "Needs how we read it" and opens the
-                                brand's Reports page (a row may also carry read_status from the list itself)
+                                and read_status per row (How we read it: none | points | drafted | approved, null
+                                when none was started). Send is offered only on an approved one; otherwise the row
+                                says "Needs how we read it" and opens the brand's Reports page.
+     GET /api/report-read?act=&period=&start=   only when the list has no read_status (an older server): one at a
+                                time, for the newest waiting report of each brand (the rest show "Needs how we read it")
    Writes: see _send.js. Sample mode simulates every write. */
 
 import { put } from '../../kit.js';
@@ -96,14 +98,23 @@ export default {
       ...(b.rows || []).map(x => ({ kind: 'brief', act_id: x.act_id, brand: x.account_name, day: x.date, status: x.status, drafted_at: addDays(x.date, 1), sent_at: x.posted_at || null, preview: first(x.text) })),
       ...(r.rows || []).map(x => ({ kind: 'report', act_id: x.act_id, brand: x.account_name, day: x.period_start, end: x.period_end, period: x.period, status: x.status, drafted_at: x.generated_at, sent_at: x.sent_at || null })),
     ].filter(i => i.status !== 'skipped');
-    /* Each waiting report's read, so Send is offered only on an approved one. A few drafts at most, read at once. */
-    await Promise.all(items.map(async i => {
-      if (i.kind !== 'report' || (i.status !== 'draft' && i.status !== 'error')) return;
+    /* Each waiting report's read, so Send is offered only on an approved one. The list carries read_status; only an
+       older server without it costs a read per report, and then one at a time and only the newest per brand (the
+       shared database is busy on sale weekends). */
+    const fallback = new Set();
+    for (const i of items) {
+      if (i.kind !== 'report' || (i.status !== 'draft' && i.status !== 'error')) continue;
       const src = (r.rows || []).find(x => x.act_id === i.act_id && x.period === i.period && x.period_start === i.day) || {};
-      if (src.read_status) { i.read = { status: src.read_status, read_text: src.read_status === 'approved' ? 'approved' : '' }; return; }
+      if ('read_status' in src) { i.read = { status: src.read_status || 'none', read_text: src.read_status === 'approved' ? 'approved' : '' }; continue; }
+      i.read = null;
+      const newest = [...fallback].find(x => x.act_id === i.act_id);
+      if (!newest) fallback.add(i);
+      else if (String(i.day) > String(newest.day)) { fallback.delete(newest); fallback.add(i); }
+    }
+    for (const i of fallback) {
       try { const rd = await readStatusOf(i, ctx, ctx.signal); i.read = { status: rd.status || 'none', read_text: String(rd.read_text || '').trim() ? 'yes' : '' }; }
       catch (e) { if (e && e.name === 'AbortError') throw e; i.read = null; }
-    }));
+    }
     return { items, can_skip: r.can_skip === true };
   },
   render: draw,

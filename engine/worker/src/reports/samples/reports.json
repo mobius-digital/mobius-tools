@@ -9,7 +9,8 @@
       "generated_at": "2026-01-12T12:00:00.000Z",
       "sent_at": "2026-01-12T15:00:00.000Z",
       "account_name": "North Kites",
-      "currency": "USD"
+      "currency": "USD",
+      "read_status": "approved"
     }
   ],
   "lastRun": {

@@ -85,6 +85,25 @@ function addDays(ymd, n) {
 const monthOf = ymd => ymd.slice(0, 7);
 const safeJson = (s, fb) => { try { return s ? JSON.parse(s) : fb; } catch { return fb; } };
 
+/* The public report archive (GET /api/report-view/:token) is forwarded around, so its frozen data goes out with the
+   internal workings removed (2026-11-26 review). Both readers still get what they draw: the v5 page
+   (profit/v5/report.html, Triple Whale lastPlatformClick) and the OLD archive page (index.html renderReportsShare ->
+   reportBodyHTML, the brand's stored model, lastPlatformClick when 'platform'). The old page still reads most of the
+   report (totals, channels, chart, forecast, ads with their names and stats), so only clearly internal keys go:
+   campaign and ad set names (and ids) on each ad, and every attribution model other than the one shown. */
+export function stripReportView(data, attr) {
+  const strip = a => { if (a && typeof a === 'object') for (const k of ['campaign', 'adset', 'campaign_id', 'adset_id', 'campaign_name', 'adset_name']) delete a[k]; };
+  const ads = data.ads;
+  if (ads && typeof ads === 'object') for (const k of ['top', 'others', 'all']) if (Array.isArray(ads[k])) ads[k].forEach(strip);
+  const A = data.attr;
+  if (A && typeof A === 'object') {
+    const keep = new Set(['lastPlatformClick', attr && attr !== 'platform' ? attr : 'lastPlatformClick']);
+    if (Array.isArray(A.models)) A.models = A.models.filter(m => keep.has(m));
+    for (const k of ['channels', 'ads']) if (A[k] && typeof A[k] === 'object') for (const m of Object.keys(A[k])) if (!keep.has(m)) delete A[k][m];
+  }
+  return data;
+}
+
 /* ---------------- http ---------------- */
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -1975,7 +1994,8 @@ export default {
             const data = safeJson(row.data_json, null);
             // `account` carries the Meta act_id — internal. The top-level account
             // object (name + currency) is all the page needs.
-            if (data) for (const k of ['cogs_quality', 'margin_28d', 'cm_pct', 'changes', 'changes_total', 'account']) delete data[k];
+            if (data) for (const k of ['cogs_quality', 'margin_28d', 'cm_pct', 'changes', 'changes_total', 'account', 'this_week_from', 'steer']) delete data[k];
+            if (data) stripReportView(data, attr);
             report = { period: row.period, start: row.period_start, end: row.period_end,
               sent_at: row.sent_at, summary: row.summary, data, preview: row.status !== 'sent' };
           }

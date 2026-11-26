@@ -22,7 +22,7 @@ import { handleMake as handleMakeApp, serveMakeMedia, runExit } from './make.js'
 import { handleCalendar, calendarTick, calendarView, liveOn as calendarLiveOn, useFetch as calendarFetch, calendarData, teamOf as calendarTeam, clientCalendarFor } from './calendar.js';
 /* The client posts (2026-10-19 reporting audit): the six-line daily and the weekly / monthly shape, built from stored numbers. */
 import { dailyPost, dailyThread, weeklyPost, weekSentence, internalChannel } from './clientpost.js';
-import { readRow as reportReadRow, approvedRead, GATE_ERROR as READ_GATE_ERROR, readLink, reportPageUrl, reportDrafted, draftRead, saveEdit as saveReadEdit, handleReportRead } from './reportread.js';
+import { readRow as reportReadRow, ensureReportRead, approvedRead, GATE_ERROR as READ_GATE_ERROR, readLink, reportPageUrl, reportDrafted, draftRead, saveEdit as saveReadEdit, handleReportRead } from './reportread.js';
 /* Brand costs and net profit after fixed costs (2026-11-25): the same pure functions the profit worker prices with. */
 import { ruleCosts, shippingRuled, partlyCosted } from '../../../profit/worker/src/costs.js';
 import { netAfter, netInPosts } from '../../../profit/worker/src/expenses.js';
@@ -10998,10 +10998,14 @@ Fields: ${fields}. Rules: when the person gives a range or says "compare", make 
       /* ---- Weekly / Monthly reports (interface = Mobius Profit's Reports tab) ---- */
       if (path === '/api/reports' && request.method === 'GET') {
         const act = url.searchParams.get('act');
+        /* read_status: How we read it per row (reportread.js; none | points | drafted | approved, null when none was
+           started), so To send needs no read per draft. The engine's port (engine reports/queries.js) does the same. */
+        await ensureReportRead(env).catch(() => {});
         const { results } = await env.DB.prepare(
           `SELECT r.act_id, r.period, r.period_start, r.period_end, r.status, r.generated_at, r.sent_at,
-                  acc.name AS account_name, acc.currency
+                  acc.name AS account_name, acc.currency, rr.status AS read_status
            FROM reports r JOIN brand_accounts acc ON acc.act_id = r.act_id
+           LEFT JOIN p_report_read rr ON rr.act_id = r.act_id AND rr.period = r.period AND rr.period_start = r.period_start
            ${act && act !== 'all' ? 'WHERE r.act_id = ?1' : ''}
            ORDER BY r.period_start DESC, r.period LIMIT 80`,
         ).bind(...(act && act !== 'all' ? [act] : [])).all();

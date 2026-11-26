@@ -7,6 +7,12 @@ CREATE TABLE IF NOT EXISTS reports (
   data_json TEXT, slack_ts TEXT, slack_channel TEXT, steer TEXT,
   PRIMARY KEY (act_id, period, period_start));
 
+CREATE TABLE IF NOT EXISTS p_report_read (
+  act_id TEXT NOT NULL, period TEXT NOT NULL, period_start TEXT NOT NULL, points_json TEXT, points_at TEXT,
+  team_view TEXT, team_source TEXT, meeting_id TEXT, draft TEXT, draft_at TEXT, read_text TEXT,
+  status TEXT NOT NULL DEFAULT 'none', approved_by TEXT, approved_at TEXT, edited_at TEXT, updated_at TEXT,
+  PRIMARY KEY (act_id, period, period_start));
+
 CREATE TABLE IF NOT EXISTS briefs (
   act_id TEXT NOT NULL, date TEXT NOT NULL, posted_at TEXT, channel TEXT, status TEXT NOT NULL DEFAULT 'draft',
   text TEXT, data_json TEXT, slack_ts TEXT, slack_channel TEXT, steer TEXT,

@@ -21,7 +21,7 @@
  * client scope again). Not in the engine's PORTED list, so v5 reaches them on this worker.
  *   GET  /api/report-read?act=&period=&start=
  *   POST /api/report-read/points   {act, period, start}
- *   POST /api/report-read/draft    {act, period, start, notes?}
+ *   POST /api/report-read/draft    {act, period, start, notes?}   (notes '' clears the team view)
  *   PUT  /api/report-read          {act, period, start, text}
  *   POST /api/report-read/approve  {act, period, start, text, send?}
  * Every write refuses a SENT report (frozen). */
@@ -46,6 +46,7 @@ const SQL = `CREATE TABLE IF NOT EXISTS p_report_read (
   status       TEXT NOT NULL DEFAULT 'none',
   approved_by  TEXT,
   approved_at  TEXT,
+  edited_at    TEXT,
   updated_at   TEXT,
   PRIMARY KEY (act_id, period, period_start)
 )`;
@@ -53,6 +54,8 @@ let ensured = false;
 export async function ensureReportRead(env) {
   if (ensured) return;
   await env.DB.prepare(SQL).run();
+  /* edited_at came after the first CREATE: add it to a table made before it (a duplicate column throws, fine). */
+  await env.DB.prepare(`ALTER TABLE p_report_read ADD COLUMN edited_at TEXT`).run().catch(() => {});
   ensured = true;
 }
 
@@ -93,6 +96,9 @@ export function shapeRead(row) {
     read_text: row?.read_text || null,
     approved_by: row?.approved_by || null,
     approved_at: row?.approved_at || null,
+    /* Set when a person saved their own edit of the draft (PUT /api/report-read or the Slack edit modal); a later
+       call's confirm leaves such a draft as is. Cleared when the read is written again by the model. */
+    edited_at: row?.edited_at || null,
     updated_at: row?.updated_at || null,
   };
 }
@@ -101,7 +107,7 @@ export function shapeRead(row) {
 export const approvedRead = row => (row && row.status === 'approved' && String(row.read_text || '').trim()) ? String(row.read_text).trim() : null;
 export const GATE_ERROR = 'Write and approve how we read it first';
 
-const COLS = ['points_json', 'points_at', 'team_view', 'team_source', 'meeting_id', 'draft', 'draft_at', 'read_text', 'status', 'approved_by', 'approved_at'];
+const COLS = ['points_json', 'points_at', 'team_view', 'team_source', 'meeting_id', 'draft', 'draft_at', 'read_text', 'status', 'approved_by', 'approved_at', 'edited_at'];
 async function upsert(env, act, period, start, fields) {
   await ensureReportRead(env);
   const cols = Object.keys(fields).filter(k => COLS.includes(k));
@@ -207,7 +213,8 @@ export async function reportDrafted(env, d, acct, period, start, data, { steer }
   return writePoints(env, d, acct, period, start, data, { steer });
 }
 
-/** Write the read with the model. `notes` (string) becomes the team view when given; else the stored one is used. */
+/** Write the read with the model. `notes` (non-empty string) becomes the team view; '' (typed) clears it; undefined
+ *  uses the stored one. */
 export async function draftRead(env, d, acct, period, start, { notes, source = 'typed', meeting_id = null, steer } = {}) {
   const rep = await env.DB.prepare(`SELECT status, data_json FROM reports WHERE act_id = ?1 AND period = ?2 AND period_start = ?3`).bind(acct.act_id, period, start).first();
   if (!rep) throw Object.assign(new Error('no report generated for that period yet'), { status: 404 });
@@ -217,6 +224,9 @@ export async function draftRead(env, d, acct, period, start, { notes, source = '
   let row = await readRow(env, acct.act_id, period, start);
   const typed = typeof notes === 'string' ? notes.trim().slice(0, MAX_NOTES) : '';
   if (typed) row = await upsert(env, acct.act_id, period, start, { team_view: typed, team_source: source === 'meeting' ? 'meeting' : 'typed', meeting_id: source === 'meeting' ? (meeting_id || null) : null, status: row?.status || 'none' });
+  /* An explicit empty string typed in Reports (the notes box emptied) clears the team view, so the team can write it
+     again from the talking points alone. Absent notes (undefined) keep the stored view. */
+  else if (typeof notes === 'string' && source !== 'meeting' && row?.team_view) row = await upsert(env, acct.act_id, period, start, { team_view: null, team_source: null, meeting_id: null, status: row?.status || 'none' });
   const view = row?.team_view || '';
   const pts = safe(row?.points_json, null);
   const facts = readFacts(data);
@@ -228,7 +238,7 @@ export async function draftRead(env, d, acct, period, start, { notes, source = '
       + 'Write "How we read it" now: the text only.' });
   const draft = cleanRead(text);
   if (!draft) throw new Error('the read came back empty');
-  const out = await upsert(env, acct.act_id, period, start, { draft, draft_at: now(), status: 'drafted', read_text: null, approved_by: null, approved_at: null });
+  const out = await upsert(env, acct.act_id, period, start, { draft, draft_at: now(), status: 'drafted', read_text: null, approved_by: null, approved_at: null, edited_at: null });
   await clearSummary(env, acct.act_id, period, start);
   return out;
 }
@@ -239,7 +249,7 @@ const clearSummary = (env, act, period, start) => env.DB.prepare(`UPDATE reports
 export async function saveEdit(env, act, period, start, text) {
   const t = cleanEdit(text);
   if (!t) throw Object.assign(new Error('How we read it cannot be empty.'), { status: 400 });
-  const out = await upsert(env, act, period, start, { draft: t, draft_at: now(), status: 'drafted', read_text: null, approved_by: null, approved_at: null });
+  const out = await upsert(env, act, period, start, { draft: t, draft_at: now(), status: 'drafted', read_text: null, approved_by: null, approved_at: null, edited_at: now() });
   await clearSummary(env, act, period, start);
   return out;
 }

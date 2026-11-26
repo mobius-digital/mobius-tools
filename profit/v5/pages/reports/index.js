@@ -174,7 +174,8 @@ function pointsCard(st) {
   const write = button('Write how we read it', { primary: true, large: true });
   const redo = button(pts.length ? 'Redo talking points' : 'Write talking points', { ghost: true });
   const lock = on => { write.disabled = redo.disabled = on; };
-  write.addEventListener('click', () => run(st, err, lock, 'draft', { notes: box.value.trim() || undefined }, 'Writing how we read it...'));
+  /* An emptied box that held the team's typed notes sends '' (the server clears them); empty from the start sends nothing. */
+  write.addEventListener('click', () => run(st, err, lock, 'draft', { notes: box.value.trim() || (read.team_source === 'typed' && read.team_view ? '' : undefined) }, 'Writing how we read it...'));
   redo.addEventListener('click', () => run(st, err, lock, 'points', {}, 'Writing the talking points...'));
   return card({ title: 'How we read it', class: 'rp-card', note: 'Waiting on the call' },
     pts.length || qs.length || P.proposed ? h('div', { class: 'rp-pts' },
@@ -188,30 +189,32 @@ function pointsCard(st) {
     err, h('div', { class: 'rp-acts' }, write, redo));
 }
 
-/** A draft: the text in a box. Approve and send, Save, Write it again. */
+/** A draft: the text in a box. Approve and send, Save, Write it again. A team only report (status handled: the brand
+ *  has no client channel) is approved without a send. */
 function draftCard(st) {
-  const read = st.read || {}, approvedEdit = read.status === 'approved';
+  const read = st.read || {}, approvedEdit = read.status === 'approved', teamOnly = st.rep.status === 'handled';
   const ta = h('textarea', { class: 'lx-input rp-ta', 'aria-label': 'How we read it' });
   ta.value = approvedEdit ? read.read_text || '' : read.draft || read.read_text || '';
   const notes = h('textarea', { class: 'lx-input rp-box', 'aria-label': 'What the team said', placeholder: 'Paste the call notes or type what the team agreed, then Write it again.' });
   notes.value = read.team_view || '';
   const err = h('div');
-  const go = button('Approve and send', { primary: true, large: true });
+  const go = button(teamOnly ? 'Approve' : 'Approve and send', { primary: true, large: true });
   const save = button('Save', { large: true });
   const again = approvedEdit ? null : button('Write it again', { ghost: true, large: true });
   const cancel = approvedEdit ? button('Cancel', { ghost: true, large: true, onclick: () => { st.editing = false; st.redraw(); } }) : null;
   const all = [go, save, again, cancel].filter(Boolean);
   const lock = on => all.forEach(b => { b.disabled = on; });
   const text = () => ta.value.trim();
-  go.addEventListener('click', () => { if (!text()) return put(err, h('p', { class: 'sd-err' }, 'The read cannot be empty.')); run(st, err, lock, 'approve', { text: text(), send: true }, 'Approving and sending...'); });
+  go.addEventListener('click', () => { if (!text()) return put(err, h('p', { class: 'sd-err' }, 'The read cannot be empty.')); run(st, err, lock, 'approve', { text: text(), send: !teamOnly }, teamOnly ? 'Approving...' : 'Approving and sending...'); });
   save.addEventListener('click', () => { if (!text()) return put(err, h('p', { class: 'sd-err' }, 'The read cannot be empty.')); run(st, err, lock, 'save', { text: text() }, 'Saving...'); });
   if (again) again.addEventListener('click', () => {
-    const n = notes.value.trim();
-    /* the same notes as stored keep their source (the call notes); changed notes become "notes you added" */
-    run(st, err, lock, 'draft', { notes: n && n !== String(read.team_view || '').trim() ? n : undefined }, 'Writing it again...');
+    const n = notes.value.trim(), stored = String(read.team_view || '').trim();
+    /* the same notes as stored keep their source (the call notes); changed notes become "notes you added"; the box
+       emptied sends '' so the server clears the team view and the read is written from the talking points alone */
+    run(st, err, lock, 'draft', { notes: n ? (n !== stored ? n : undefined) : (stored ? '' : undefined) }, 'Writing it again...');
   });
   return card({ title: 'How we read it', class: 'rp-card', note: approvedEdit ? 'Editing an approved read' : sourceLine(read, st.rep) },
-    h('p', { class: 'rp-note' }, 'This is the first thing the client reads, word for word. Short lines, the verdict first.'),
+    h('p', { class: 'rp-note' }, teamOnly ? 'Team only: this brand has no client channel, so the report is not sent.' : 'This is the first thing the client reads, word for word. Short lines, the verdict first.'),
     ta, err, h('div', { class: 'rp-acts' }, go, save, again, cancel),
     approvedEdit ? null : [h('p', { class: 'rp-lab' }, 'What the team said'), notes]);
 }
@@ -220,9 +223,10 @@ function draftCard(st) {
 function approvedCard(st) {
   const read = st.read || {};
   const by = read.approved_by ? 'Approved by ' + String(read.approved_by).split('@')[0] + (read.approved_at ? ', ' + dayOf(read.approved_at) : '') : 'Approved';
-  const send = button('Send', { primary: true, large: true, onclick: () => sendSheet(itemOf(st.row, st.ctx), st.ctx, what => { if (what === 'sent') sentNow(st, read.read_text); }) });
+  /* A team only report (handled: no client channel) has nothing to send to. */
+  const send = st.rep.status === 'handled' ? null : button('Send', { primary: true, large: true, onclick: () => sendSheet(itemOf(st.row, st.ctx), st.ctx, what => { if (what === 'sent') sentNow(st, read.read_text); }) });
   const edit = button('Edit', { large: true, onclick: () => { st.editing = true; st.redraw(); } });
-  return card({ title: 'How we read it', class: 'rp-card', note: by }, readText(read.read_text || ''), h('div', { class: 'rp-acts' }, send, edit));
+  return card({ title: 'How we read it', class: 'rp-card', note: st.rep.status === 'handled' ? by + '. Team only' : by }, readText(read.read_text || ''), h('div', { class: 'rp-acts' }, send, edit));
 }
 
 /** The report went out: freeze it on the page. */
@@ -259,7 +263,7 @@ async function run(st, err, lock, what, extra, busy) {
     else r = await api('/api/report-read/approve', { worker: 'ah', method: 'POST', body: b });
     if (what === 'approve' && r && r.approved && extra.send) {
       if (r.sent && r.sent.ok) {
-        toast('Approved and sent' + (r.sent.channel ? ' to ' + r.sent.channel : ''));
+        toast("Approved. Sent to the client's Slack channel");
         st.read = { ...(st.read || {}), status: 'approved', read_text: extra.text };
         return sentNow(st, extra.text);
       }
@@ -269,7 +273,7 @@ async function run(st, err, lock, what, extra, busy) {
     }
     if (r && r.error) throw new Error(r.error);
     if (what === 'save') { toast('Saved'); st.editing = false; }
-    if (what === 'approve') st.editing = false;
+    if (what === 'approve') { toast('Approved'); st.editing = false; }
     return refresh(st);
   } catch (e) {
     lock(false);
@@ -284,6 +288,7 @@ async function sampleWrite(st, what, extra) {
   if (what === 'points') { read.status = 'points'; read.points = fx.points || read.points; }
   else if (what === 'draft') {
     if (extra.notes) { read.team_view = extra.notes; read.team_source = 'typed'; }
+    else if (extra.notes === '') { read.team_view = null; read.team_source = null; }
     read.status = 'drafted'; read.draft = fx.draft || 'A steady week.';
   } else if (what === 'save') { read.status = 'drafted'; read.draft = extra.text; }
   else if (what === 'approve') {
@@ -370,13 +375,15 @@ function draw(el, d, ctx) {
   const old = STATE.get(d);
   const st = rep ? (old && old.rep === rep ? old : { rep, row: focusRow, d, ctx, read: d.read || null, editing: false }) : null;
   if (st) { st.ctx = ctx; st.redraw = redraw; STATE.set(d, st); }
-  const draft = team && rep && rep.status !== 'sent';
+  /* Waiting to send = a draft. A team only report (handled: no client channel) is never offered a send or a skip. */
+  const draft = team && rep && rep.status === 'draft';
+  const teamOnly = team && rep && rep.status === 'handled';
 
   const top = rep ? [
     hero({ line: true },
       h('div', { class: 'cr-bar-top', style: { paddingBottom: '4px' } },
         h('div', { class: 'cr-heroline' },
-          h('span', { class: 'lab' }, (draft ? 'Waiting to send: ' + NAME[rep.period].toLowerCase() + ', ' : rep.status === 'sent' ? 'Latest report, ' : 'Latest draft, ') + span(rep.period_start, rep.period_end)),
+          h('span', { class: 'lab' }, (draft ? 'Waiting to send: ' + NAME[rep.period].toLowerCase() + ', ' : teamOnly ? 'Team only: ' + NAME[rep.period].toLowerCase() + ', ' : rep.status === 'sent' ? 'Latest report, ' : 'Latest draft, ') + span(rep.period_start, rep.period_end)),
           h('span', { class: 'of' }, draft ? readDot(st.read) : statusOf(rep, ctx.isClient))),
         h('span', { class: 'sp' }),
         draft && canWrite(ctx) && d.can_skip !== false && focusRow
