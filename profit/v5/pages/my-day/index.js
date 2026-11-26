@@ -145,8 +145,8 @@ function draw(el, data, ctx) {
   ctx.setTitle([(d.greeting || greet()) + (person.name ? ', ' : ''), person.name ? em(person.name + '.') : null], { eyebrow: d.today ? eyebrow(d.today) : 'My day' });
   const outBtn = button(isOut ? "You're out today" : "I'm out today", { ghost: true, onclick: () => {
     if (ctx.sample) return toast('Sample numbers: nothing is saved.');
-    /* on the daily check-in list: the real "out today" on the check-in (it cannot be taken back here, as in Slack) */
-    if (meRow) { if (meRow.state === 'out') return toast('You are marked out today.'); return postOut(ctx, row => { if (row) Object.assign(meRow, row); draw(el, d, ctx); }); }
+    /* on the daily check-in list: the real "out today" on the check-in, after a yes. Posting a plan takes it back. */
+    if (meRow) { if (meRow.state === 'out') return toast('You are marked out today. Post your plan if you are working after all.'); return postOut(ctx, row => { if (row) Object.assign(meRow, row); draw(el, d, ctx); }); }
     const next = !store.get(outKey, false); store.set(outKey, next);
     outBtn.firstChild.textContent = next ? "You're out today" : "I'm out today";
     toast(next ? 'Marked out today on this device. Telling the team comes with the notifications release.' : 'You are back in.');

@@ -4,7 +4,8 @@
      - creators waiting on an answer in the brand's creator Discord
      - Monday: creators to rebook (their ads beat the account cost per sale and they have gone quiet)
    Data: GET /api/trybe/asks on the account-health worker, this morning's snapshot (trybe.js trybeTick, settings
-   trybeAsks). `fresh: false` = not counted yet today; the section then says so instead of showing zeros.
+   trybeAsks). `fresh: false` = not counted yet today; the section then says so instead of showing zeros. `missing`
+   = brands the morning run did not reach (out of calls); they get the same "not counted yet" line by name.
    The strategist also gets the same counts as My day and bell lines (movelines.js creators). */
 
 import { h, statusDot } from '../../kit.js';
@@ -31,9 +32,12 @@ export function asksSection(snap, brandName) {
   if (!snap) return null;
   const rows = asksRows(snap);
   if (!snap.fresh) return h('p', { class: 'cr-quiet' }, 'Falling behind: not counted yet today. The count runs each morning.');
-  if (!rows.length) return null;
+  const missed = (Array.isArray(snap.missing) ? snap.missing : []).map(b => b && (b.name || b.act)).filter(Boolean);
+  const gap = missed.length ? h('p', { class: 'cr-quiet' }, `Not counted yet today: ${listOf(missed)}.`) : null;
+  if (!rows.length) return gap;
   return h('section', { class: 'ac-group' },
     h('div', { class: 'ac-head' }, h('h2', null, 'Falling behind'), h('span', null, 'counted this morning, for the reviewer')),
+    gap,
     h('div', { class: 'lx-card flush' }, rows.map(r => h('div', { class: 'ac-ask', style: { display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', padding: '12px 20px', borderTop: '1px solid var(--line)' } },
       brandName(r.act, r.name), statusDot(r.tone, r.text)))));
 }

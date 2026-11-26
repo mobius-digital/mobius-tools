@@ -39,11 +39,18 @@ export function openPlan(ctx, me, onSaved) {
   setTimeout(() => box.focus(), 30);
 }
 
-/** "I'm out today" for someone on the list: the real write. onSaved(row) after the yes. */
-export async function postOut(ctx, onSaved) {
+/** "I'm out today" for someone on the list: the real write, so it asks first (the whole team sees it on the check-in).
+ *  A mis-tap is undone by posting a plan (planFromLocus clears out). onSaved(row) after the yes. */
+export function postOut(ctx, onSaved) {
   if (ctx.sample) return toast('Sample numbers: nothing is saved.');
-  try { const r = await ctx.api('/api/mywork/plan', { worker: 'ah', method: 'POST', body: { out: true } }); toast('Marked out today. The team sees it on the check-in.'); onSaved && onSaved(r && r.row); }
-  catch (e) { toast('Could not mark you out: ' + e.message, { tone: 'bad', ms: 5000 }); }
+  const yes = button("Yes, I'm out today", { primary: true, onclick: async () => {
+    yes.disabled = true;
+    try { const r = await ctx.api('/api/mywork/plan', { worker: 'ah', method: 'POST', body: { out: true } }); s.close(); toast('Marked out today. The team sees it on the check-in.'); onSaved && onSaved(r && r.row); }
+    catch (e) { yes.disabled = false; toast('Could not mark you out: ' + e.message, { tone: 'bad', ms: 5000 }); }
+  } });
+  const s = sheet({ title: 'Out today?', side: 'center', body: h('div', { class: 'lx-md-form', style: { display: 'grid', gap: '14px' } },
+    h('p', { class: 'lx-md-quiet' }, 'The team sees "out today" on the check-in, in Slack too. If you are working after all, post your plan and it replaces this.'),
+    h('div', { style: { display: 'flex', gap: '10px', flexWrap: 'wrap' } }, yes, button('Cancel', { ghost: true, onclick: () => s.close() }))) });
 }
 
 /** The band at the top of the lists: my plan as posted, or the button to post it. Null when I am not on the list. */
@@ -51,7 +58,11 @@ export function planBand(ctx, board, redraw, hasNudge = false) {
   const me = mine(board);
   if (!me || (board.weekend && me.state === 'none')) return null;
   const set = row => { if (row) Object.assign(me, row); redraw(); };
-  if (me.state === 'out') return h('section', { class: 'lx-md-grp' }, h('p', { class: 'lx-md-none' }, statusDot('off', 'You are out today.')));
+  /* out: a plan posted here takes it back (planFromLocus clears out), so a mis-tap is never stuck */
+  if (me.state === 'out') return h('section', { class: 'lx-md-grp' },
+    h('div', { style: { display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' } },
+      statusDot('off', 'You are out today.'), h('span', { class: 'lx-sp' }),
+      button('Working after all? Post my plan', { ghost: true, onclick: () => openPlan(ctx, me, set) })));
   if (me.state === 'plan') return h('section', { class: 'lx-md-grp' },
     h('div', { style: { display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' } },
       h('b', null, 'Your plan for today'), statusDot('good', 'posted ' + clock(me.plan && me.plan.at)), h('span', { class: 'lx-sp' }),

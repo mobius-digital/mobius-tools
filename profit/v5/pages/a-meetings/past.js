@@ -134,7 +134,8 @@ function openMeeting(m, data, ctx, world) {
           (b.this_week || []).length ? h('div', null, h('span', { class: 'lx-cap' }, 'The client hears'), h('ul', { class: 'mp-ul soft' }, b.this_week.map(t => h('li', null, noDash(t))))) : null,
           (b.need_from_client || []).length ? h('div', null, h('span', { class: 'lx-cap' }, 'Waiting on the client'), h('ul', { class: 'mp-ul soft' }, b.need_from_client.map(t => h('li', null, noDash(t))))) : null) : null);
     };
-    const pull = ctx.isClient ? null : h('div', { class: 'lx-row', style: { display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' } },
+    /* A filed call already made its team tasks (Confirm), so it has no Pull tasks button. */
+    const pull = ctx.isClient || st.id === 'filed' ? null : h('div', { class: 'lx-row', style: { display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' } },
       pullButton(ctx, m, world.nameOf), h('span', { class: 'mp-quiet' }, 'Up to 5 tasks from this call. You tick which to keep.'));
     put(body, head, unfiled(), pull, tiles, notes.summary ? h('p', { class: 'mp-sum' }, noDash(notes.summary)) : null, brands.map(block));
   }).catch(e => {

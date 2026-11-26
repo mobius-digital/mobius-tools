@@ -12,7 +12,7 @@ import { askRow, readAsks, ASKS_KEY, handleTrybe, STALE_DAYS } from './src/trybe
 import { lineItems } from './src/movelines.js';
 import { plansView, planFromLocus, DAY_TYPES } from './src/checkin.js';
 import { _test as mw, weekPlanMissing } from './src/mywork.js';
-import { pullSuggestions, pullTasks, keepTasks, handleMeetings, PULL_MAX } from './src/meetings.js';
+import { pullSuggestions, pullTasks, keepTasks, handleMeetings, confirm, PULL_MAX } from './src/meetings.js';
 import { featureOn, cleanFeatures, FEATURES, _resetFlags } from './src/jobflags.js';
 
 const { isPerson, handleMyWork } = mw;
@@ -63,6 +63,16 @@ await ok('readAsks: today only; another day reads as not counted yet; brand scop
   const r = await readAsks(env, TODAY, new Set(['brand_pine_ridge']));
   assert.equal(r.fresh, true); assert.deepEqual(r.brands.map(b => b.act), ['brand_pine_ridge']);
   assert.equal((await readAsks(env, '2026-12-01')).fresh, false, 'yesterday\'s snapshot never shows');
+});
+
+await ok('readAsks: brands the run did not reach come back as missing, scoped to the caller', async () => {
+  fresh();
+  setS(ASKS_KEY, { date: TODAY, monday: true, brands: [{ act: 'brand_northlake_golf', old_review: 1 }], missing: [{ act: 'brand_pine_ridge', name: 'Pine Ridge' }, { act: 'brand_harbor', name: 'Harbor' }] });
+  const all = await readAsks(env, TODAY);
+  assert.equal(all.fresh, true); assert.deepEqual(all.missing.map(b => b.act), ['brand_pine_ridge', 'brand_harbor']);
+  assert.deepEqual((await readAsks(env, TODAY, new Set(['brand_harbor']))).missing.map(b => b.act), ['brand_harbor']);
+  setS(ASKS_KEY, { date: TODAY, monday: true, brands: [] });
+  assert.deepEqual((await readAsks(env, TODAY)).missing, [], 'an older snapshot without the field reads as none missing');
 });
 
 await ok('GET /api/trybe/asks: team only, a client is refused', async () => {
@@ -176,6 +186,35 @@ await ok('pull and keep: only the ticked tasks are made, remembered, never twice
   assert.equal((await keepTasks(env, d, { id: 'm1', items: [p.o.items[0]] }, 'x')).made.length, 0, 'the same task is never made twice');
   assert.equal((await R('/api/meetings/keep', { id: 'm1', items: [] })).s, 400);
   assert.equal((await handleMeetings(new Request('https://x/api/meetings/pull', { method: 'POST', body: '{}' }), env, new URL('https://x/api/meetings/pull'), '/api/meetings/pull', json, { ...d, clientScope: () => ({}) })).s, 403);
+});
+
+await ok('a filed call: Pull tasks suggests nothing and Keep makes nothing a second time (tasks Confirm made count)', async () => {
+  /* same db as the test above: the meeting tables are made once per module (ensure) */
+  const notes = { kind: 'client_call', summary: 'x', brands: [{ brand_id: 'brand_northlake_golf', decisions: [], items: [{ kind: 'team', text: 'Send the recut brief', owner: 'Sam' }, { kind: 'team', text: 'Raise budget to 400' }], this_week: [], need_from_client: [] }] };
+  const d = { listBrands: async () => [{ act_id: 'brand_northlake_golf', name: 'Northlake Golf' }] };
+  db.prepare(`INSERT INTO p_meeting (id, title, date, at, status, notes_json, created_at, updated_at) VALUES ('m2', 'Call', '2026-11-30', '2026-11-30T15:00:00Z', 'extracted', ?, 'x', 'x')`).run(JSON.stringify(notes));
+  const res = await confirm(env, d, { id: 'm2', summary: 'x', brands: notes.brands }, 'sam@agency.example');
+  assert.equal(res.brands[0].tasks.filter(t => !t.error).length, 2);
+  const count = () => db.prepare(`SELECT COUNT(*) AS n FROM p_action WHERE source = 'meeting' AND source_id = 'm2'`).get().n;
+  assert.equal(count(), 2);
+  /* confirmed notes carry no "sure" field: the old pull offered both again, pre-ticked */
+  const p = await pullTasks(env, 'm2');
+  assert.deepEqual(p.items, []); assert.equal(p.kept, 2); assert.match(p.why, /already kept/);
+  const k = await keepTasks(env, d, { id: 'm2', items: [{ act: 'brand_northlake_golf', text: 'Send the recut brief' }, { act: 'brand_northlake_golf', text: 'raise budget to 400' }] }, 'x');
+  assert.equal(k.made.length, 0); assert.equal(count(), 2, 'no second task on any My day');
+});
+
+await ok('pull and keep, then Confirm: the kept task is not made again, the rest are', async () => {
+  /* same db as the test above: the meeting tables are made once per module (ensure) */
+  const notes = { kind: 'client_call', summary: 'x', brands: [{ brand_id: 'brand_northlake_golf', decisions: [], items: [{ kind: 'team', text: 'Send the recut brief', owner: 'Sam', sure: true }, { kind: 'team', text: 'Raise budget to 400', sure: true }], this_week: [], need_from_client: [] }] };
+  const d = { listBrands: async () => [{ act_id: 'brand_northlake_golf', name: 'Northlake Golf' }] };
+  db.prepare(`INSERT INTO p_meeting (id, title, date, at, status, notes_json, created_at, updated_at) VALUES ('m3', 'Call', '2026-11-30', '2026-11-30T15:00:00Z', 'extracted', ?, 'x', 'x')`).run(JSON.stringify(notes));
+  const p = await pullTasks(env, 'm3');
+  assert.equal((await keepTasks(env, d, { id: 'm3', items: [p.items[0]] }, 'x')).made.length, 1);
+  const res = await confirm(env, d, { id: 'm3', summary: 'x', brands: notes.brands }, 'sam@agency.example');
+  const t = res.brands[0].tasks;
+  assert.equal(t.length, 2); assert.equal(t.find(x => x.text === 'Send the recut brief').already, true);
+  assert.equal(db.prepare(`SELECT COUNT(*) AS n FROM p_action WHERE source = 'meeting' AND source_id = 'm3'`).get().n, 2, 'one row per task, never two');
 });
 
 /* ---------------- a54: the weekPlan agency switch ---------------- */

@@ -935,7 +935,9 @@ const subs2 = v => v.__subs || [];
    post can go quiet without losing it. settings trybeAsks = {date, monday, brands: [{act, name, stale, old_review,
    discord, rebook: [{name, quiet_days, cpa}]}]}, written by the tick for every brand with a key, whether or not the post
    runs. The Creators page (Agency > Creators > To review, GET /api/trybe/asks) and the strategist's My day line
-   (movelines.js creators) read it; it is today's only, so a stale snapshot never shows. */
+   (movelines.js creators) read it; it is today's only, so a stale snapshot never shows. A brand the run did not reach
+   (out of calls, or its sync failed) is listed in `missing` [{act, name}], so the page says "not counted yet" for it
+   instead of showing nothing; a later run the same day (force) keeps the rows it does not redo. */
 export const ASKS_KEY = 'trybeAsks';
 /** One brand's asks from its view (trybeView), the pending reviews 2 days or older and the Discord count. Pure. */
 export function askRow(b, v, oldReview, dcWait, monday) {
@@ -946,8 +948,9 @@ export function askRow(b, v, oldReview, dcWait, monday) {
 /** The snapshot for today, or null (another day, or never written). `only` = a Set of brand ids the caller may see. */
 export async function readAsks(env, today, only = null) {
   const snap = safeJson(await getSetting(env, ASKS_KEY), null);
-  if (!snap || snap.date !== today || !Array.isArray(snap.brands)) return { date: today, monday: new Date(today + 'T12:00:00Z').getUTCDay() === 1, brands: [], fresh: false };
-  return { ...snap, brands: snap.brands.filter(b => !only || only.has(b.act)), fresh: true };
+  if (!snap || snap.date !== today || !Array.isArray(snap.brands)) return { date: today, monday: new Date(today + 'T12:00:00Z').getUTCDay() === 1, brands: [], missing: [], fresh: false };
+  const mine = b => b && (!only || only.has(b.act));
+  return { ...snap, brands: snap.brands.filter(mine), missing: (Array.isArray(snap.missing) ? snap.missing : []).filter(mine), fresh: true };
 }
 export async function trybeTick(env, d, { force = false } = {}) {
   const today = d.centralDate();
@@ -988,8 +991,13 @@ export async function trybeTick(env, d, { force = false } = {}) {
       await runAll(env, fresh.map(q => env.DB.prepare(`UPDATE p_trybe_sub SET alerted = ?3 WHERE act_id = ?1 AND sub_id = ?2`).bind(b.act_id, q.sub_id, today)));
     } catch (e) { out.errors.push(`${b.name}: ${e.message}`); }
   }
-  await putSetting(env, ASKS_KEY, JSON.stringify({ date: today, monday, brands: asks })).catch(e => out.errors.push(`asks: ${e.message}`));
-  out.asks = asks.length;
+  /* a brand not reached this run keeps this morning's row when there is one, else it is listed as missing */
+  const before = safeJson(await getSetting(env, ASKS_KEY), null);
+  const kept = before && before.date === today && Array.isArray(before.brands) ? before.brands.filter(r => r && !asks.some(a => a.act === r.act)) : [];
+  const all = [...asks, ...kept.filter(r => brands.some(b => b.act_id === r.act))];
+  const missing = brands.filter(b => !all.some(a => a.act === b.act_id)).map(b => ({ act: b.act_id, name: noDash(String(b.name || '')) }));
+  await putSetting(env, ASKS_KEY, JSON.stringify({ date: today, monday, brands: all, missing })).catch(e => out.errors.push(`asks: ${e.message}`));
+  out.asks = asks.length; if (missing.length) out.asks_missing = missing.length;
   out.discord = await discordWeekly(env, today, { d }).catch(e => ({ error: e.message }));
   /* The Tue/Wed/Thu "Question of the day" is OFF (Cole 2026-11-19: the bot asking questions every day felt weird).
      It no longer runs on the tick; POST /api/trybe/discord-daily still posts one by hand. The 5pm welcome and the
