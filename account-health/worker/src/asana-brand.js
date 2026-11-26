@@ -318,7 +318,7 @@ const TASK_FIELDS = 'name,notes,html_notes,completed,completed_at,created_at,mod
    lives in each project's Asana task templates ("Static Ad Template", "UGC/Video
    Template"); Asana's API cannot write those, so they are set by hand. Keep the two in step.
    Cole, 2026-09-30: as simple as possible. Testing and concept are ONE line ("3 headlines
-   on 412-3" names the winner), the numbered lines under it are the ads. The only grey
+   on 412-3" names the winner), the numbered lines under it are the ads. The only gray
    text is the examples line, alone on its line so one triple-click deletes it. No Frame.io,
    no crop line, no subtasks. Ideas bot's briefHtml (ideas.js) uses the same layout. */
 const BRIEF_TEST = eg => `<h2>The test</h2><strong>Angle:</strong>
@@ -901,7 +901,7 @@ export async function mondayCalls(env, act, opts = {}) {
       why: nudge ? nudge.why : call === 'early' ? `past ${rules.min_days} days` : 'judged',
       ...(nudge ? { nudge: nudge.kind, spend: Math.round(st.spend * 100) / 100, orders: st.orders || 0, ...(nudge.kind === 'not_picked' ? { then: 'pause' } : {}) } : {}) });
   }
-  /* The daily minimum check (minoff.js, 2026-10-15) needs the list only: the same judgement as Monday, no message. */
+  /* The daily minimum check (minoff.js, 2026-10-15) needs the list only: the same judgment as Monday, no message. */
   if (opts.minOnly) return { act, name: acct.name, channel: acct.slack_channel, due, error: meta.error };
   const L = [];
   const keepLine = rules.acct_avg ? `${money(rules.acct_avg)} account average${rules.acct_avg_month ? ` (${rules.acct_avg_month})` : ''}` : `${money(rules.target_cpa * (1 + rules.yellow_pct / 100))}`;
@@ -1107,7 +1107,7 @@ function judge(st, r, sc) {
 const pct = x => x == null ? 'n/a' : `${(x * 100).toFixed(1)}%`;
 const esc = x => String(x ?? '').replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
 
-/* A brand needs a target CPA before Locus suggests calls: the whole judgement starts
+/* A brand needs a target CPA before Locus suggests calls: the whole judgment starts
    from it. `quiet` posts without @mentioning anyone (a new brand's backlog catch-up,
    so nobody gets twenty notifications at once). */
 /* `rejudge` (2026-10-04): re-posts ONLY tests whose earlier call no longer matches the

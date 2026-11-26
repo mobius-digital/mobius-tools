@@ -230,7 +230,7 @@ export function thumbs(list = [], label = a => a.name) {
 export const tagsNote = (what = 'Format, hook and words tags') => h('span', { class: 'lx-chip ww-note', title: what + ' are read by ' + AI_NAME + ' and are being checked by a person before they come back.' }, 'Tags are being re-checked');
 export const exampleChip = kitExampleChip; /* one version, in the kit */
 export const isExample = (d, ctx) => !ctx.sample && d && d.example;
-/** A measure against its goal: an ink bar with the goal tick, grey when it is too early to say. */
+/** A measure against its goal: an ink bar with the goal tick, gray when it is too early to say. */
 export const meter = (value, goal, { max, dim } = {}) => { const g = gauge({ value: value || 0, goal, max: max || Math.max(value || 0, goal || 0) * 1.25 || 1, thin: true }); if (dim) g.style.opacity = '.45'; return g; };
 export const foot = (...words) => h('p', { class: 'lx-foot' }, words.filter(Boolean).join(' '));
 

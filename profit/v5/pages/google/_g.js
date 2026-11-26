@@ -33,7 +33,7 @@ export const say = parts => (parts || []).map(p => (typeof p === 'string' ? p : 
 /** A ROAS is not a result on fewer than two orders. */
 export const roasText = (roas, orders) => (ok(orders) && orders < 2 ? 'too few' : ok(roas) ? x(roas) : 'no data');
 
-/* ---------- the local CSS (layout only; colour and type are the frame's) ---------- */
+/* ---------- the local CSS (layout only; color and type are the frame's) ---------- */
 const CSS = `
 .gg-figs,.gg-two,.gg-status,.gg-views{min-width:0}
 .gg-status{display:flex;align-items:center;gap:8px 18px;flex-wrap:wrap;font-size:13px;color:var(--muted)}

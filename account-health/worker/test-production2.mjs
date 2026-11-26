@@ -357,7 +357,7 @@ await check('the Asana mirror switch: off stops every Asana write (move, save, c
   await setMirror(env, true, 'cole@go-mobius-digital.com');
 });
 
-await check('2026-10-14 night: a new brief answers at once (Asana task in waitUntil, linked after, number moved past a newer Asana task); the untouched Asana template is blank (grey hints); a version is deleted by the team only', async () => {
+await check('2026-10-14 night: a new brief answers at once (Asana task in waitUntil, linked after, number moved past a newer Asana task); the untouched Asana template is blank (gray hints); a version is deleted by the team only', async () => {
   /* 1. New brief: the card first, Asana after */
   asanaCalls = []; const later = [];
   /* Asana answers slowly here (30ms before the task is made), so the route's answer is proven to come first */
@@ -374,7 +374,7 @@ await check('2026-10-14 night: a new brief answers at once (Asana task in waitUn
   assert.ok(asanaCalls.some(c => c.path === '/sections/S1/addTask'), 'into Creative Briefs');
   const linked = { ...db.prepare(`SELECT num, asana_gid, asana_url, asana_section FROM p_br_batch WHERE id = ?`).get(r.id) };
   assert.deepEqual(linked, { num: '53', asana_gid: 'TNEW', asana_url: 'https://app.asana.com/0/P1/TNEW', asana_section: 'Creative Briefs' }, 'the card is linked to its task after');
-  /* 2. The Asana template untouched reads as a blank page, so the sheet starts from the Locus template with its grey hints */
+  /* 2. The Asana template untouched reads as a blank page, so the sheet starts from the Locus template with its gray hints */
   assert.equal(templateOnly(ASANA_T4), true); assert.equal(templateOnly(asanaToHtml(ASANA_T4)), true, 'after the Asana html became a page');
   assert.equal(templateOnly(ASANA_T2), false, 'a page with words on it'); assert.equal(htmlBlank('<p><strong>Headline</strong></p><p>Milled. Not cast.</p>'), false); assert.equal(htmlBlank('<h2>Copy</h2><p><strong>Headline</strong></p><p><span data-ph>The words on the ad</span></p>'), true, 'hints are not words');
   add('c4', 'brand_alpha', '47', 'Fresh from Asana', 'idea', 'Creative Briefs', 'T4');

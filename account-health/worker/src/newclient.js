@@ -899,8 +899,8 @@ export async function handleNewClient(request, env, path, json, isAdmin, who) {
     }
     if (path === '/api/new-client/remove' && request.method === 'POST') {
       /* Forgets the row. Nothing made in Asana, Drive or Slack is deleted; an UNPAID Stripe
-         subscription is cancelled so a removed client is never invoiced again. Stripe is asked
-         first: a client who paid since the last look is never cancelled. */
+         subscription is canceled so a removed client is never invoiced again. Stripe is asked
+         first: a client who paid since the last look is never canceled. */
       const st = safeJson(r.steps_json, {}).stripe;
       if (st?.subscription && !st.paid) {
         const inv = st.invoice ? await stripe(env, 'GET', `invoices/${st.invoice}`).catch(() => null) : { status: 'none' };
@@ -1016,7 +1016,7 @@ export async function onCallBooked(env, r, info) {
   const team = safeJson(r.team_json, {});
   /* 2026-11-09 (lane.js): a booking is the strategist's ask; a cancellation asks nobody (a roundup line). */
   if (!r.slack_internal) return;
-  if (info.canceled) { await fyi(env, { act: r.act_id || '', lane: 'OPS', line: `${r.name} cancelled the strategy call (${when}). Their form's "book the call" box is open again.` }); return; }
+  if (info.canceled) { await fyi(env, { act: r.act_id || '', lane: 'OPS', line: `${r.name} canceled the strategy call (${when}). Their form's "book the call" box is open again.` }); return; }
   await laneInternal(env, r, { who: await firstId(env, roleList(team.strategist)), ask: `Review ${r.name}'s answers and run Research in Locus before the strategy call`, why: `they booked it for ${when}`,
     buttons: answersBtn(r) });
 }

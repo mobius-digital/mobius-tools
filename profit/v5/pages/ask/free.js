@@ -95,7 +95,7 @@ function draw(el, data, ctx) {
     card({ title: 'What you can ask for free', note: list.length ? list.length + ' kinds of question' : '', flush: true }, rowsEl),
     h('p', { class: 'lx-foot' }, [d.revenue || '', 'Sales and ROAS for a platform are Triple Whale, last platform click.',
       s && s.share_pct != null ? 'In the last ' + s.days + ' days ' + s.lookups + ' questions were answered free and ' + s.assistant + ' went to ' + AI_NAME + '.' : '',
-      'Anything that needs judgement, a plan or a change goes to ' + AI_NAME + '.'].filter(Boolean).join(' '))));
+      'Anything that needs judgment, a plan or a change goes to ' + AI_NAME + '.'].filter(Boolean).join(' '))));
 }
 
 const CSS = `

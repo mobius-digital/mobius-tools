@@ -22,7 +22,7 @@
  * Routes (admin = the team): GET /api/calendar?act=all|<brand>&from&to, POST /api/calendar/event (create or
  * update), POST /api/calendar/move {id, start}, POST /api/calendar/end {id, date}, POST /api/calendar/tick
  * {id, key, done}, POST /api/calendar/asana {id}, DELETE /api/calendar/event?id= (cancel; Lineup keeps it as
- * cancelled), POST /api/calendar/restore {id}.
+ * canceled), POST /api/calendar/restore {id}.
  * Slack (calendarTick, hourly cron, from 8am Central, once a day): the day before and a week before a date (the
  * week-out only when something is still open), a client's new or moved date (Lineup changelog rows not written
  * by the team), and on Mondays "still running?" for a sale with no end date. Each brand's internal channel.

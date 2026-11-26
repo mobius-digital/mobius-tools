@@ -20,19 +20,19 @@
       "results": { "from": "2026-11-01", "to": "2026-11-15", "days": 15, "sales": 41260, "spend": 14880, "orders": 366, "mer": 2.77, "goal": 42000 } },
     { "key": "bf", "name": "Black Friday weekend", "start": "2026-11-26", "end": "2026-11-30", "grp": "bf", "offer": "Buy a belt, get a ball marker set free", "detail": "Sitewide. The marker set is added in the cart, one per order. Starts Thursday at 6pm Central.", "status": "locked" },
     { "key": "cm", "name": "Cyber Monday", "start": "2026-11-30", "end": "2026-11-30", "grp": "bf", "offer": "Free marker set plus free shipping, one day", "detail": "The Black Friday ads stay on. Cyber Monday ads are added that morning.", "status": "locked" },
-    { "key": "drop", "name": "New belt colours", "start": "2026-12-04", "end": "2026-12-04", "grp": "dec", "offer": "Three new colours: Pine, Slate and Clay", "detail": "To Black Friday buyers first.", "status": "draft" },
+    { "key": "drop", "name": "New belt colors", "start": "2026-12-04", "end": "2026-12-04", "grp": "dec", "offer": "Three new colors: Pine, Slate and Clay", "detail": "To Black Friday buyers first.", "status": "draft" },
     { "key": "xmas", "name": "Order by Christmas", "start": "2026-12-08", "end": "2026-12-17", "grp": "dec", "offer": "Free gift wrap on every order", "detail": "", "status": "draft" },
     { "key": "boxing", "name": "New year sale", "start": "2026-12-26", "end": "2027-01-03", "grp": "late", "offer": "", "detail": "", "status": "missing" }
    ],
    "tasks": [
     { "id": "bf:loaded", "phase_key": "bf", "phase": "Black Friday weekend", "kind": "loaded", "name": "Ads loaded", "due": "2026-11-22", "owner": "Jordan Lee", "done": true },
     { "id": "bf:emails", "phase_key": "bf", "phase": "Black Friday weekend", "kind": "emails", "name": "Every email and text scheduled", "due": "2026-11-20", "owner": "Morgan Patel", "done": false },
-    { "id": "drop:built", "phase_key": "drop", "phase": "New belt colours", "kind": "built", "name": "6 ads built", "due": "2026-11-25", "owner": "Sam Rivera", "done": false },
+    { "id": "drop:built", "phase_key": "drop", "phase": "New belt colors", "kind": "built", "name": "6 ads built", "due": "2026-11-25", "owner": "Sam Rivera", "done": false },
     { "id": "bf:live", "phase_key": "bf", "phase": "Black Friday weekend", "kind": "live", "name": "Live", "due": "2026-11-26", "owner": "Jordan Lee", "done": false },
     { "id": "cm:loaded", "phase_key": "cm", "phase": "Cyber Monday", "kind": "loaded", "name": "Ads loaded", "due": "2026-11-26", "owner": "Jordan Lee", "done": false },
     { "id": "boxing:offer", "phase_key": "boxing", "phase": "New year sale", "kind": "offer", "name": "Offer locked", "due": "2026-11-26", "owner": "Alex Morgan", "done": false },
     { "id": "xmas:built", "phase_key": "xmas", "phase": "Order by Christmas", "kind": "built", "name": "8 ads built", "due": "2026-11-29", "owner": "Sam Rivera", "done": false },
-    { "id": "drop:loaded", "phase_key": "drop", "phase": "New belt colours", "kind": "loaded", "name": "Ads loaded", "due": "2026-11-30", "owner": "Jordan Lee", "done": false }
+    { "id": "drop:loaded", "phase_key": "drop", "phase": "New belt colors", "kind": "loaded", "name": "Ads loaded", "due": "2026-11-30", "owner": "Jordan Lee", "done": false }
    ],
    "checkins": []
   }

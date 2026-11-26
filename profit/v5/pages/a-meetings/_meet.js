@@ -166,7 +166,7 @@ export function sentence(parts) {
   return (parts || []).map(p => typeof p === 'string' ? p : h('b', null, p.b));
 }
 
-/** merChart(weeks, goal) : MER by week, every point labelled, the goal dashed. Drawn by the kit's one chart.
+/** merChart(weeks, goal) : MER by week, every point labeled, the goal dashed. Drawn by the kit's one chart.
     The ember line is the lead line of the page. weeks: [{ label, mer }]. */
 export function merChart(weeks, goal) {
   const pts = (weeks || []).filter(w => ok(w.mer));

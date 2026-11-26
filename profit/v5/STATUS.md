@@ -100,11 +100,11 @@ a fresh read of live `GET /api/costs` for one brand, which still has the older s
 
 ## What the shell pass changed (2026-11-25)
 
-- **Brand marker.** The coloured square in the brand switcher and the brand list is a small grey circle with
+- **Brand marker.** The colored square in the brand switcher and the brand list is a small gray circle with
   the brand's first letter (`brandMark()` in shell.js, `.lx-bmark` in app.css). "All brands" gets the same
   circle with the grid glyph. It uses theme tokens only. The app has one theme (light, `color-scheme:light`):
   there is no dark theme to check, and the marker will follow one when it exists. `.lx-swatch` is kept for
-  the two pages that still draw a brand colour dot (Platform status, Today).
+  the two pages that still draw a brand color dot (Platform status, Today).
 - **One product name.** `APP_NAME` at the top of config.js is the only place the name is typed. 37 page files,
   the shell, the router and app.js read it (or `AI_NAME`). Sample files no longer spell it. Left on purpose:
   comments, and code names such as `oldLocus()` and `OLD_LOCUS`. Text that a WORKER sends (a server note, a

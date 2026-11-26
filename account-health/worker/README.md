@@ -33,9 +33,9 @@ Then open the dashboard → **Settings → Discover accounts from Meta**, toggle
 to track, and set each one's monthly budget. The first sync backfills 90 days of daily
 numbers and 90 days of the activity log in the background (a minute or two per account).
 
-## 2b. Claude API key (you do this — powers Change Log → Summarise)
+## 2b. Claude API key (you do this — powers Change Log → Summarize)
 
-The Change Log's **Summarise** button has Claude write the daily / weekly / client-facing
+The Change Log's **Summarize** button has Claude write the daily / weekly / client-facing
 update from the tagged changes + performance data. It needs an Anthropic API key
 (console.anthropic.com → API keys):
 
@@ -43,7 +43,7 @@ update from the tagged changes + performance data. It needs an Anthropic API key
 npx wrangler secret put ANTHROPIC_API_KEY
 ```
 
-Until it's set, the rest of the Change Log works fine — only Summarise errors.
+Until it's set, the rest of the Change Log works fine — only Summarize errors.
 
 ## 2c. Slack pace alerts (you do this — optional)
 

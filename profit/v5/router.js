@@ -118,7 +118,7 @@ async function show(route, { soft = false } = {}) {
       const data = typeof mod.sample === 'function' ? await mod.sample(ctx) : mod.sample !== undefined ? mod.sample : await fixture(`${line.id}/_sample/${tab.id}.json`);
       paint(mod, data); stamp(data, Date.now() - SAMPLE_AGE);
     } else {
-      /* the dates are part of the key only for a page that honours them, so the others keep one saved copy */
+      /* the dates are part of the key only for a page that honors them, so the others keep one saved copy */
       const key = pageKey({ view: route.view, brandId: ctx.brand ? ctx.brand.id : 'all', line: line.id, tab: tab.id, range: ranged ? ctx.range : null });
       const saved = await getSaved(key);
       if (my !== ticket) return;

@@ -30,7 +30,7 @@ function costRead(cost, goal) {
   return r <= 1 ? ['good', 'Under goal'] : r <= 1.2 ? ['warn', 'Just over'] : r <= 1.6 ? ['bad', 'Over'] : ['bad', 'Far over'];
 }
 
-/* ---------- the page's own CSS (layout only; every colour and type size is the frame's) ---------- */
+/* ---------- the page's own CSS (layout only; every color and type size is the frame's) ---------- */
 const CSS = `
 /* the tabs row must not set the page width on a phone (six tabs are wider than the screen) */
 .mo-figs,.mo-two,.mo-chart,.mo-camps,.mo-checks{min-width:0}

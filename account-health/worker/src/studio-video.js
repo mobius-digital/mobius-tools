@@ -20,7 +20,7 @@
  *   POST /api/studio-ai/video-delete {act, id}
  *   GET  /studio-vid/<id>.mp4     PUBLIC (the id is 24 random hex), Range-aware so phones can play it.
  *
- * The browser makes the 9:16 frame (the 4:5 ad centred on a blurred copy of itself), because a
+ * The browser makes the 9:16 frame (the 4:5 ad centered on a blurred copy of itself), because a
  * Worker has no canvas. No Claude call: the motion prompt is a fixed template plus the team's words,
  * so the only cost is Veo's per-second price.
  */
@@ -59,7 +59,7 @@ export function videoPrompt(motion, note) {
     `Motion: ${MOTIONS[motion] || MOTIONS.push}.`,
     note ? `Also: ${clip(note, 400)}.` : '',
     'Keep every word, number, logo and button exactly as it is, sharp and readable, in the same place: no new text, no changed letters, no flicker on the text.',
-    'Keep the product exactly as it is: same shape, colours, labels and proportions, no morphing, no extra copies.',
+    'Keep the product exactly as it is: same shape, colors, labels and proportions, no morphing, no extra copies.',
     'The soft blurred bands at the top and bottom are background: keep them soft.',
     'One continuous shot, smooth and steady, no cuts, no new people, no new objects. Subtle, calm ambient sound.',
   ].filter(Boolean).join(' ');
@@ -225,9 +225,9 @@ const SEEDANCE = { ref: 'bytedance/seedance-2.5/reference-to-video', text: 'byte
 export const LOOKS = {
   auto: '', ugc: 'Native UGC: a real-looking person filming on a phone, handheld, natural light, talking to camera, casual and believable.',
   cinematic: 'Premium product cinematography: slow camera moves, macro details, dramatic studio light, shallow depth of field.',
-  animated: 'Stylised 3D animation in the look of a modern animated feature film: expressive characters, soft global illumination.',
+  animated: 'Stylized 3D animation in the look of a modern animated feature film: expressive characters, soft global illumination.',
   clay: 'Stop-motion claymation: handmade clay characters and sets, visible fingerprints, slightly choppy frame rate.',
-  motion: 'Clean motion graphics: bold kinetic typography, flat shapes and icons, smooth transitions, brand colours.',
+  motion: 'Clean motion graphics: bold kinetic typography, flat shapes and icons, smooth transitions, brand colors.',
   recreate: 'Recreate the reference video: same structure, pacing, shots and energy, but with our product and our message.',
 };
 const ORIGIN = 'https://mobius-account-health.mobius-digital.workers.dev';

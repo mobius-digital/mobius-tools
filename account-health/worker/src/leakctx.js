@@ -105,7 +105,7 @@ Never invent a number: use only the facts given. "rule" = the lesson rewritten a
   if (!out) throw new Error('The judge came back empty.');
   return out;
 }
-/** Save a lesson, judge it, return it with the verdict. A failed judgement still saves it ('open'), so nothing is lost. */
+/** Save a lesson, judge it, return it with the verdict. A failed judgment still saves it ('open'), so nothing is lost. */
 export async function addLesson(env, d, { act = '', area = '', leak_id = null, text, author, role, added_by, brand, leak, context, final = false }) {
   await ensure(env);
   const t = clip(text, 1200);

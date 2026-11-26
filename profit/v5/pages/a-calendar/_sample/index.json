@@ -539,13 +539,13 @@
    "id": "ev4",
    "src": "cal",
    "act": "brand_northlake_golf",
-   "name": "New belt colours",
+   "name": "New belt colors",
    "kind": "drop",
    "kind_label": "Drop or launch",
    "start": "2026-12-04",
    "end": "2026-12-04",
    "status": "pen",
-   "offer": "Three new colours: Pine, Slate and Clay",
+   "offer": "Three new colors: Pine, Slate and Clay",
    "channels": [
     "paid",
     "email",
@@ -606,7 +606,7 @@
    "start": "2026-12-05",
    "end": "2026-12-05",
    "status": "pen",
-   "offer": "The first hoodie, two colours",
+   "offer": "The first hoodie, two colors",
    "channels": [
     "paid",
     "email",
@@ -1151,7 +1151,7 @@
   {
    "act": "brand_northlake_golf",
    "date": "2026-12-04",
-   "name": "Three new colours",
+   "name": "Three new colors",
    "channel": "email"
   }
  ],

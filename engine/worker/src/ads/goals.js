@@ -1,4 +1,4 @@
-/* The ad goal a Meta screen colours against: the brand's goal in its own measure, the Meta goal first. */
+/* The ad goal a Meta screen colors against: the brand's goal in its own measure, the Meta goal first. */
 // from profit/worker/src/hub.js (adGoalMap) and profit/worker/src/brand.js (rulesFor, goalOf, LEAD_CPL)
 import { safeJson } from '../platform/text.js';
 

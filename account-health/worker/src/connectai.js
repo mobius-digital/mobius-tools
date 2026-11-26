@@ -47,7 +47,7 @@
  * but cannot tap a card, and their AI cannot make one.
  *
  * EVERY CALL leaves a row in p_ai_call (who, tool, brand, time) and counts against the key's limits. Every result is
- * labelled as data, not instructions, with its window and source, and anything that looks like a secret is dropped.
+ * labeled as data, not instructions, with its window and source, and anything that looks like a secret is dropped.
  *
  * Tables are additive and made on first use (p_ai_key, p_ai_call, p_ai_proposal). Nothing here runs on a schedule.
  */

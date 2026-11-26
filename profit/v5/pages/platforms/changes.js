@@ -40,7 +40,7 @@ button.pc-row:hover .t>b{text-decoration:underline;text-decoration-color:var(--l
 /* ---------- words ---------- */
 const CAT = { budget: 'Budget', bids: 'Bids', bid_strategy: 'Bid strategy', new_campaign: 'New campaign', campaign_paused: 'Turned off', campaign_relaunched: 'Turned back on',
   adset_paused: 'Ad set turned off', ad_paused: 'Ad turned off', ad_relaunched: 'Ad turned back on', targeting: 'Audience', new_creative: 'New ad', new_adset: 'New ad set',
-  status: 'On or off', keywords: 'Keywords', new: 'New', optimisation: 'Optimisation', schedule: 'Schedule', name: 'Rename', review: 'Ad review', billing: 'Billing', manual: 'Note', other: 'Other' };
+  status: 'On or off', keywords: 'Keywords', new: 'New', optimisation: 'Optimization', schedule: 'Schedule', name: 'Rename', review: 'Ad review', billing: 'Billing', manual: 'Note', other: 'Other' };
 const catWord = c => CAT[c] || String(c || 'other').replace(/_/g, ' ').replace(/^./, m => m.toUpperCase());
 /* the changes a person would want to hear about (the same list as the agency page); the rest is housekeeping */
 const MATTER = new Set(['budget', 'new_campaign', 'campaign_paused', 'campaign_relaunched', 'bid_strategy', 'targeting', 'new_creative', 'new_adset', 'manual', 'ad_paused', 'adset_paused']);

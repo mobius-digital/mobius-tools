@@ -278,7 +278,7 @@ await check('a held tool runs only on the tap, where it was asked and as the per
   const rep = await small.applyProposal(env, by.make_report.id, sh(), { ctx: { who: 'tapper' } });
   assert.match(rep.note, /Share link: https:\/\/reports\.example\/r\/1/); assert.equal(shared.length, 1); assert.equal(shared[0].who, 'tapper');
   const no = await small.applyProposal(env, by.post_file.id, sh(), { cancel: true });
-  assert.ok(no.cancelled); assert.ok(!ran.some(x => x.name === 'post_file'), 'a cancelled card never runs');
+  assert.ok(no.cancelled); assert.ok(!ran.some(x => x.name === 'post_file'), 'a canceled card never runs');
   assert.match((await small.applyProposal(env, by.make_image.id, sh(), { ctx: { who: 'tapper' } })).error, /expired or was already handled/);
   assert.equal(ran.length, 2, 'one run per tap');
 });
@@ -316,7 +316,7 @@ await check('locus_get: a GET that writes (Asana passes, ?post=1, tidy runs) is 
   const t = await engine.applyProposal(env, cards[0].id, h(), { ctx: { ...OWNER } });
   assert.ok(t.ok, JSON.stringify(t)); assert.equal(ahCalls.at(-1).url, 'https://ah.internal/api/brand-asana/monday?act=brand_harbor&post=true', 'the tap ran it');
   await engine.applyProposal(env, cards[1].id, h(), { cancel: true });
-  assert.equal(ahCalls.length, 2, 'the cancelled one never ran');
+  assert.equal(ahCalls.length, 2, 'the canceled one never ran');
 });
 
 await check('run_analysis: in Slack it is a card (its files go into the thread); on the web it answers at once', async () => {

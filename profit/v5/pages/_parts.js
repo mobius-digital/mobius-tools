@@ -59,7 +59,7 @@ function cutShort(run) {
 /** loadParts(ctx, { name: () => promise }, { first: ['name'], ranged: false })
     first: the parts the page cannot draw without. With no saved copy, load waits for these (all of them) and a
     failure of one is the page's error. With none named, it waits for whichever part lands first.
-    ranged: true when the page honours the date range (the same answer the page gives the router by not
+    ranged: true when the page honors the date range (the same answer the page gives the router by not
     saying ranges: false). */
 export async function loadParts(ctx, fetchers, opts) {
   const key = keyOf(ctx, !!(opts && opts.ranged));

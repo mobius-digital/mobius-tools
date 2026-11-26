@@ -9,7 +9,7 @@
  * link. Tagged Meta ads are shown to creators as playable proof ("ran as an ad"),
  * never with spend, revenue or return. Those live on the staff side only.
  * Typed sales on an example are staff-only for the same reason; typed VIEWS are
- * public, labelled as typed.
+ * public, labeled as typed.
  *
  * The season chart is RELATIVE: last year's weekly store sales for the weeks
  * ahead, scaled to the median week, so a creator sees the shape of the season and
@@ -299,7 +299,7 @@ export async function addBoardPicks(env, actId, adIds) {
  *    roas     Triple Whale sales / Meta spend, ads with at least $50 spent and 1 order
  *    hook     3-second video views / impressions (stops the scroll), ads with at least 1,000 impressions
  *  Ids and rank only reach the page, never a number. Cached on the brand row for 6 hours so
- *  account-health can authorise exactly these ads for playback (it reads board_json). */
+ *  account-health can authorize exactly these ads for playback (it reads board_json). */
 const BOARD_SORTS = new Set(['orders', 'revenue', 'roas', 'hook']);
 async function autoBoard(env, b) {
   const fresh = b.board_at && (Date.now() - Date.parse(b.board_at.replace(' ', 'T') + 'Z')) < 6 * 3600e3;
@@ -396,7 +396,7 @@ async function publicPayload(env, slug, preview = false) {
 }
 
 /** Is this ad shown as proof on this brand's live link? Used by the account-health
- *  worker's playback routes too (same rule: the slug authorises its own ads only). */
+ *  worker's playback routes too (same rule: the slug authorizes its own ads only). */
 export async function adOnLiveLink(env, slug, adId) {
   if (!slug || !adId) return false;
   const r = await env.DB.prepare(
@@ -544,7 +544,7 @@ export async function handleStaff(request, env, url, path, json) {
         const clash = await env.DB.prepare(`SELECT act_id FROM p_amb_brand WHERE slug = ?1 AND act_id != ?2`).bind(slug, acct.act_id).first();
         if (clash) return json({ error: 'Another brand already uses that address.' }, 400);
       }
-      if (has('accent') && body.accent && !HEX_RE.test(body.accent)) return json({ error: 'Colour must be a hex value like #D6336C.' }, 400);
+      if (has('accent') && body.accent && !HEX_RE.test(body.accent)) return json({ error: 'Color must be a hex value like #D6336C.' }, 400);
       if (has('submit_url') && body.submit_url && !/^https:\/\/\S+$/i.test(body.submit_url)) return json({ error: 'The submit link must start with https://' }, 400);
       if (has('logo_url') && body.logo_url && !/^https:\/\/\S+$/i.test(body.logo_url)) return json({ error: 'The logo link must start with https://' }, 400);
       const v = (k, n, fb) => (has(k) ? clip(body[k], n) : fb);
@@ -602,7 +602,7 @@ export async function handleStaff(request, env, url, path, json) {
     if (path === '/api/amb/section' && method === 'POST') {
       const acct = await mustAccount(env, act);
       if (!String(body.name || '').trim()) return json({ error: 'Give the section a name.' }, 400);
-      if (body.color && !HEX_RE.test(body.color)) return json({ error: 'Colour must be a hex value.' }, 400);
+      if (body.color && !HEX_RE.test(body.color)) return json({ error: 'Color must be a hex value.' }, 400);
       const svg = body.icon_svg ? cleanSvg(body.icon_svg) : null;
       if (body.icon_svg && !svg) return json({ error: 'That icon could not be used.' }, 400);
       if (body.id) {
@@ -791,7 +791,7 @@ export async function handleStaff(request, env, url, path, json) {
 
     /* BOARD PICKS (2026-10-15, Cole): ads picked straight from the ad account onto the board, no idea needed.
        Stored as p_amb_proof kind 'meta' with angle_id = BOARD (the sentinel), so playback and covers on the
-       public link are authorised by the same proof rule as every other video. The picker lists the brand's
+       public link are authorized by the same proof rule as every other video. The picker lists the brand's
        ads with the numbers staff sort by; numbers stay on the staff side. */
     if (path === '/api/amb/board-ads' && method === 'GET') {
       const acct = await mustAccount(env, act);
